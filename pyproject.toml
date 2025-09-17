@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx"
-version = "1.0"
+version = "1.1"
 description = "Hancom HWPX 패키지를 로드하고 편집하기 위한 Python 유틸리티 모음"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = { text = "Non-Commercial License" }
@@ -39,9 +39,9 @@ test = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/hancom-io/python-hwpx"
-Documentation = "https://github.com/hancom-io/python-hwpx/tree/main/docs"
-Issues = "https://github.com/hancom-io/python-hwpx/issues"
+Homepage = "https://github.com/airmang/python-hwpx"
+Documentation = "https://github.com/airmang/python-hwpx/tree/main/docs"
+Issues = "https://github.com/airmang/python-hwpx/issues"
 
 [project.scripts]
 hwpx-validate = "hwpx.tools.validator:main"
@@ -57,6 +57,7 @@ include = ["hwpx*"]
 
 [tool.setuptools.package-data]
 "hwpx.tools" = ["_schemas/*.xsd"]
+"hwpx.data" = ["Skeleton.hwpx"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

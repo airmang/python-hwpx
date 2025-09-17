@@ -26,6 +26,8 @@ from .templates import blank_document_bytes
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HP = f"{{{_HP_NS}}}"
+_HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
+_HH = f"{{{_HH_NS}}}"
 
 
 class HwpxDocument:
@@ -301,6 +303,23 @@ class HwpxDocument:
         """Return the style referenced by *char_pr_id_ref* if known."""
 
         return self._root.char_property(char_pr_id_ref)
+
+    def ensure_run_style(
+        self,
+        *,
+        bold: bool = False,
+        italic: bool = False,
+        underline: bool = False,
+        base_char_pr_id: str | int | None = None,
+    ) -> str:
+        """Return a ``charPr`` identifier matching the requested flags."""
+
+        return self._root.ensure_run_style(
+            bold=bold,
+            italic=italic,
+            underline=underline,
+            base_char_pr_id=base_char_pr_id,
+        )
 
     def iter_runs(self) -> Iterator[HwpxOxmlRun]:
         """Yield every run element contained in the document."""

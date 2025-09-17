@@ -142,6 +142,25 @@ document.replace_text_in_runs(
 
 반환된 `RunStyle` 객체(`run.style`)를 사용하면 문자 색상, 밑줄 색상 등 서식 속성을 직접 확인할 수 있습니다. 치환기는 단일 `<hp:t>` 하위 요소를 가진 단순 런에 최적화되어 있으며, 텍스트 마크업이 중첩된 복잡한 구조에서는 예상과 다른 결과가 나올 수 있습니다.
 
+## 런 서식 지정
+
+헤더의 `<hh:charPr>` 정의는 여러 런이 공유하는 문자 서식을 담고 있습니다. `HwpxDocument.ensure_run_style()`은 굵게/기울임/밑줄 조합에 맞는 `charPr` 항목을 찾아 ID를 반환하고, 필요한 경우 새 항목을 생성합니다. 문단 객체는 `add_run()` 메서드를 통해 해당 서식을 즉시 사용하는 런을 만들 수 있습니다.
+
+```python
+section = document.sections[0]
+paragraph = section.paragraphs[0]
+
+# 굵은 밑줄 서식을 확보하고, 동일한 서식을 가진 런을 추가합니다.
+style_id = document.ensure_run_style(bold=True, underline=True)
+run = paragraph.add_run("강조된 텍스트", bold=True, underline=True)
+
+# 반환된 런은 즉시 서식 토글 속성을 제공합니다.
+run.italic = True  # 새로운 charPr가 생성되고 참조가 갱신됩니다.
+assert run.bold is True and run.underline is True
+```
+
+런의 `bold`, `italic`, `underline` 속성은 문서와 연결된 상태에서만 동작하며, 속성을 변경하면 헤더의 `charProperties` 목록과 관련 캐시가 자동으로 업데이트됩니다.
+
 편집이 끝나면 `HwpxDocument.save()`를 호출해 변경 사항을 원본 또는 새 파일에 기록합니다.
 
 ```python

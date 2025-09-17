@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
-from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
@@ -625,6 +626,49 @@ class HwpxOxmlRun:
         self.element = element
         self.paragraph = paragraph
 
+    def _current_format_flags(self) -> Tuple[bool, bool, bool] | None:
+        style = self.style
+        if style is None:
+            return None
+        bold = "bold" in style.child_attributes
+        italic = "italic" in style.child_attributes
+        underline_attrs = style.child_attributes.get("underline")
+        underline = False
+        if underline_attrs is not None:
+            underline = underline_attrs.get("type", "").upper() != "NONE"
+        return bold, italic, underline
+
+    def _apply_format_change(
+        self,
+        *,
+        bold: bool | None = None,
+        italic: bool | None = None,
+        underline: bool | None = None,
+    ) -> None:
+        document = self.paragraph.section.document
+        if document is None:
+            raise RuntimeError("run is not attached to a document")
+
+        current = self._current_format_flags()
+        if current is None:
+            current = (False, False, False)
+
+        target = [
+            current[0] if bold is None else bool(bold),
+            current[1] if italic is None else bool(italic),
+            current[2] if underline is None else bool(underline),
+        ]
+
+        if tuple(target) == current:
+            return
+
+        style_id = document.ensure_run_style(
+            bold=target[0],
+            italic=target[1],
+            underline=target[2],
+        )
+        self.char_pr_id_ref = style_id
+
     @property
     def char_pr_id_ref(self) -> str | None:
         """Return the character property reference applied to the run."""
@@ -736,6 +780,39 @@ class HwpxOxmlRun:
         except ValueError:  # pragma: no cover - defensive branch
             return
         self.paragraph.section.mark_dirty()
+
+    @property
+    def bold(self) -> bool | None:
+        flags = self._current_format_flags()
+        if flags is None:
+            return None
+        return flags[0]
+
+    @bold.setter
+    def bold(self, value: bool | None) -> None:
+        self._apply_format_change(bold=value)
+
+    @property
+    def italic(self) -> bool | None:
+        flags = self._current_format_flags()
+        if flags is None:
+            return None
+        return flags[1]
+
+    @italic.setter
+    def italic(self, value: bool | None) -> None:
+        self._apply_format_change(italic=value)
+
+    @property
+    def underline(self) -> bool | None:
+        flags = self._current_format_flags()
+        if flags is None:
+            return None
+        return flags[2]
+
+    @underline.setter
+    def underline(self, value: bool | None) -> None:
+        self._apply_format_change(underline=value)
 
 
 class HwpxOxmlMemoGroup:
@@ -1323,6 +1400,43 @@ class HwpxOxmlParagraph:
                 attrs["charPrIDRef"] = str(default_char)
         return ET.SubElement(self.element, f"{_HP}run", attrs)
 
+    def add_run(
+        self,
+        text: str = "",
+        *,
+        char_pr_id_ref: str | int | None = None,
+        bold: bool = False,
+        italic: bool = False,
+        underline: bool = False,
+        attributes: dict[str, str] | None = None,
+    ) -> HwpxOxmlRun:
+        """Append a new run to the paragraph and return its wrapper."""
+
+        run_attrs = dict(attributes or {})
+
+        if "charPrIDRef" not in run_attrs:
+            if char_pr_id_ref is not None:
+                run_attrs["charPrIDRef"] = str(char_pr_id_ref)
+            else:
+                document = self.section.document
+                if document is not None:
+                    style_id = document.ensure_run_style(
+                        bold=bool(bold),
+                        italic=bool(italic),
+                        underline=bool(underline),
+                    )
+                    run_attrs["charPrIDRef"] = style_id
+                else:
+                    default_char = self.char_pr_id_ref or "0"
+                    if default_char is not None:
+                        run_attrs["charPrIDRef"] = str(default_char)
+
+        run_element = ET.SubElement(self.element, f"{_HP}run", run_attrs)
+        text_element = ET.SubElement(run_element, f"{_HP}t")
+        text_element.text = text
+        self.section.mark_dirty()
+        return HwpxOxmlRun(run_element, self)
+
     @property
     def tables(self) -> List["HwpxOxmlTable"]:
         """Return the tables embedded within this paragraph."""
@@ -1645,20 +1759,132 @@ class HwpxOxmlSection:
 class HwpxOxmlHeader:
     """Represents a header XML part."""
 
-    def __init__(self, part_name: str, element: ET.Element):
+    def __init__(self, part_name: str, element: ET.Element, document: "HwpxOxmlDocument" | None = None):
         self.part_name = part_name
         self._element = element
         self._dirty = False
+        self._document = document
 
     @property
     def element(self) -> ET.Element:
         return self._element
+
+    @property
+    def document(self) -> "HwpxOxmlDocument" | None:
+        return self._document
+
+    def attach_document(self, document: "HwpxOxmlDocument") -> None:
+        self._document = document
 
     def _begin_num_element(self, create: bool = False) -> ET.Element | None:
         element = self._element.find(f"{_HH}beginNum")
         if element is None and create:
             element = ET.SubElement(self._element, f"{_HH}beginNum")
         return element
+
+    def _ref_list_element(self, create: bool = False) -> ET.Element | None:
+        element = self._element.find(f"{_HH}refList")
+        if element is None and create:
+            element = ET.SubElement(self._element, f"{_HH}refList")
+            self.mark_dirty()
+        return element
+
+    def _char_properties_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        element = ref_list.find(f"{_HH}charProperties")
+        if element is None and create:
+            element = ET.SubElement(ref_list, f"{_HH}charProperties", {"itemCnt": "0"})
+            self.mark_dirty()
+        return element
+
+    def _update_char_properties_item_count(self, element: ET.Element) -> None:
+        count = len(list(element.findall(f"{_HH}charPr")))
+        element.set("itemCnt", str(count))
+
+    def _allocate_char_property_id(
+        self,
+        element: ET.Element,
+        *,
+        preferred_id: str | int | None = None,
+    ) -> str:
+        existing: set[str] = {
+            child.get("id") or ""
+            for child in element.findall(f"{_HH}charPr")
+        }
+        existing.discard("")
+
+        if preferred_id is not None:
+            candidate = str(preferred_id)
+            if candidate not in existing:
+                return candidate
+
+        numeric_ids: List[int] = []
+        for value in existing:
+            try:
+                numeric_ids.append(int(value))
+            except ValueError:
+                continue
+        next_id = 0 if not numeric_ids else max(numeric_ids) + 1
+        candidate = str(next_id)
+        while candidate in existing:
+            next_id += 1
+            candidate = str(next_id)
+        return candidate
+
+    def ensure_char_property(
+        self,
+        *,
+        predicate: Callable[[ET.Element], bool] | None = None,
+        modifier: Callable[[ET.Element], None] | None = None,
+        base_char_pr_id: str | int | None = None,
+        preferred_id: str | int | None = None,
+    ) -> ET.Element:
+        """Return a ``<hh:charPr>`` element matching *predicate* or create one.
+
+        When an existing entry satisfies *predicate*, it is returned unchanged.
+        Otherwise a new element is produced by cloning ``base_char_pr_id`` (or the
+        first available entry) and applying *modifier* before assigning a fresh
+        identifier and updating ``itemCnt``.
+        """
+
+        char_props = self._char_properties_element(create=True)
+        if char_props is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <charProperties> element")
+
+        if predicate is not None:
+            for child in char_props.findall(f"{_HH}charPr"):
+                if predicate(child):
+                    return child
+
+        base_element: ET.Element | None = None
+        if base_char_pr_id is not None:
+            base_element = char_props.find(f"{_HH}charPr[@id='{base_char_pr_id}']")
+        if base_element is None:
+            existing = char_props.find(f"{_HH}charPr")
+            if existing is not None:
+                base_element = existing
+
+        if base_element is None:
+            new_char_pr = ET.Element(f"{_HH}charPr")
+        else:
+            new_char_pr = deepcopy(base_element)
+            if "id" in new_char_pr.attrib:
+                del new_char_pr.attrib["id"]
+
+        if modifier is not None:
+            modifier(new_char_pr)
+
+        char_id = self._allocate_char_property_id(char_props, preferred_id=preferred_id)
+        new_char_pr.set("id", char_id)
+        char_props.append(new_char_pr)
+        self._update_char_properties_item_count(char_props)
+        self.mark_dirty()
+        document = self.document
+        if document is not None:
+            document.invalidate_char_property_cache()
+        return new_char_pr
 
     def _memo_properties_element(self) -> ET.Element | None:
         ref_list = self._element.find(f"{_HH}refList")
@@ -1788,6 +2014,8 @@ class HwpxOxmlDocument:
 
         for section in self._sections:
             section.attach_document(self)
+        for header in self._headers:
+            header.attach_document(self)
 
     @classmethod
     def from_package(cls, package: "HwpxPackage") -> "HwpxOxmlDocument":
@@ -1848,6 +2076,80 @@ class HwpxOxmlDocument:
         except (TypeError, ValueError):
             return None
         return cache.get(normalized)
+
+    def ensure_run_style(
+        self,
+        *,
+        bold: bool = False,
+        italic: bool = False,
+        underline: bool = False,
+        base_char_pr_id: str | int | None = None,
+    ) -> str:
+        """Return a char property identifier matching the requested flags."""
+
+        if not self._headers:
+            raise ValueError("document does not contain any headers")
+
+        target = (bool(bold), bool(italic), bool(underline))
+        header = self._headers[0]
+
+        def element_flags(element: ET.Element) -> Tuple[bool, bool, bool]:
+            bold_present = element.find(f"{_HH}bold") is not None
+            italic_present = element.find(f"{_HH}italic") is not None
+            underline_element = element.find(f"{_HH}underline")
+            underline_present = False
+            if underline_element is not None:
+                underline_present = underline_element.get("type", "").upper() != "NONE"
+            return bold_present, italic_present, underline_present
+
+        def predicate(element: ET.Element) -> bool:
+            return element_flags(element) == target
+
+        def modifier(element: ET.Element) -> None:
+            underline_nodes = list(element.findall(f"{_HH}underline"))
+            base_underline_attrs = dict(underline_nodes[0].attrib) if underline_nodes else {}
+
+            for child in list(element.findall(f"{_HH}bold")):
+                element.remove(child)
+            for child in list(element.findall(f"{_HH}italic")):
+                element.remove(child)
+            for child in underline_nodes:
+                element.remove(child)
+
+            if target[0]:
+                ET.SubElement(element, f"{_HH}bold")
+            if target[1]:
+                ET.SubElement(element, f"{_HH}italic")
+
+            underline_attrs = dict(base_underline_attrs)
+            if target[2]:
+                underline_attrs.setdefault("type", "SOLID")
+                if underline_attrs.get("type", "").upper() == "NONE":
+                    underline_attrs["type"] = "SOLID"
+                underline_attrs.setdefault("shape", base_underline_attrs.get("shape", "SOLID"))
+                if "color" not in underline_attrs and "color" in base_underline_attrs:
+                    underline_attrs["color"] = base_underline_attrs["color"]
+                if "color" not in underline_attrs:
+                    underline_attrs["color"] = "#000000"
+                ET.SubElement(element, f"{_HH}underline", underline_attrs)
+            else:
+                attrs = dict(base_underline_attrs)
+                attrs["type"] = "NONE"
+                attrs.setdefault("shape", base_underline_attrs.get("shape", "SOLID"))
+                if "color" in base_underline_attrs:
+                    attrs["color"] = base_underline_attrs["color"]
+                ET.SubElement(element, f"{_HH}underline", attrs)
+
+        element = header.ensure_char_property(
+            predicate=predicate,
+            modifier=modifier,
+            base_char_pr_id=base_char_pr_id,
+        )
+
+        char_id = element.get("id")
+        if char_id is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("charPr element is missing an id")
+        return char_id
 
     @property
     def memo_shapes(self) -> dict[str, MemoShape]:

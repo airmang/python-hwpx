@@ -236,3 +236,70 @@ def test_add_memo_with_anchor_creates_paragraph_when_missing() -> None:
     field_end = runs[-1].find(f"{HP}ctrl/{HP}fieldEnd")
     assert field_end is not None
     assert field_end.get("beginIDRef") == "field-02"
+
+
+def test_document_ensure_run_style_creates_bold_entry() -> None:
+    document, _, header = _build_document()
+
+    char_props = header.element.find(f"{HH}refList/{HH}charProperties")
+    assert char_props is not None
+    initial_count = len(list(char_props.findall(f"{HH}charPr")))
+
+    style_id = document.ensure_run_style(bold=True)
+    assert style_id != "10"
+
+    assert char_props.get("itemCnt") == str(initial_count + 1)
+    created = char_props.find(f"{HH}charPr[@id='{style_id}']")
+    assert created is not None
+    assert created.find(f"{HH}bold") is not None
+    underline = created.find(f"{HH}underline")
+    assert underline is not None and underline.get("type") == "NONE"
+
+    style = document.char_property(style_id)
+    assert style is not None and "bold" in style.child_attributes
+
+    assert document.ensure_run_style(bold=True) == style_id
+    assert char_props.get("itemCnt") == str(initial_count + 1)
+
+
+def test_paragraph_add_run_and_toggle_formatting() -> None:
+    document, section, header = _build_document()
+    paragraph = section.paragraphs[0]
+    char_props = header.element.find(f"{HH}refList/{HH}charProperties")
+    assert char_props is not None
+
+    initial_count = len(list(char_props.findall(f"{HH}charPr")))
+    run = paragraph.add_run("서식 적용", bold=True)
+
+    assert run.text == "서식 적용"
+    assert run.bold is True
+    assert run.italic is False
+    assert run.underline is False
+
+    bold_id = run.char_pr_id_ref
+    assert bold_id is not None
+    bold_entry = char_props.find(f"{HH}charPr[@id='{bold_id}']")
+    assert bold_entry is not None
+    assert len(list(char_props.findall(f"{HH}charPr"))) == initial_count + 1
+
+    run.italic = True
+    assert run.bold is True
+    assert run.italic is True
+    italic_id = run.char_pr_id_ref
+    assert italic_id is not None and italic_id != bold_id
+    italic_entry = char_props.find(f"{HH}charPr[@id='{italic_id}']")
+    assert italic_entry is not None
+    assert italic_entry.find(f"{HH}bold") is not None
+    assert italic_entry.find(f"{HH}italic") is not None
+
+    run.underline = True
+    assert run.underline is True
+    underline_id = run.char_pr_id_ref
+    underline_entry = char_props.find(f"{HH}charPr[@id='{underline_id}']")
+    assert underline_entry is not None
+    underline_node = underline_entry.find(f"{HH}underline")
+    assert underline_node is not None and underline_node.get("type", "") != "NONE"
+
+    total_styles = len(list(char_props.findall(f"{HH}charPr")))
+    assert total_styles == initial_count + 3
+    assert char_props.get("itemCnt") == str(total_styles)

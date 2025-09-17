@@ -384,6 +384,31 @@ def test_header_begin_numbering_creates_element_when_missing() -> None:
     assert header.dirty is True
 
 
+def test_header_ensure_char_property_creates_blocks_and_ids() -> None:
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    created = header.ensure_char_property(
+        modifier=lambda el: ET.SubElement(el, f"{HH}bold"),
+    )
+
+    ref_list = head_element.find(f"{HH}refList")
+    assert ref_list is not None
+    char_props = ref_list.find(f"{HH}charProperties")
+    assert char_props is not None
+    assert char_props.get("itemCnt") == "1"
+    assert created.get("id") == "0"
+
+    def italic_modifier(element: ET.Element) -> None:
+        for child in list(element.findall(f"{HH}bold")):
+            element.remove(child)
+        ET.SubElement(element, f"{HH}italic")
+
+    second = header.ensure_char_property(modifier=italic_modifier)
+    assert second.get("id") == "1"
+    assert char_props.get("itemCnt") == "2"
+
+
 def test_paragraph_add_shape_and_control_updates_attributes() -> None:
     section, paragraph = _build_section_with_paragraph()
 
