@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" version="1.5" secCnt="1">
+  <hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>
+  <hh:refList>
+    <hh:memoProperties itemCnt="2" custom="yes">
+      <hh:memoPr id="0" width="15591" lineWidth="0.6mm" lineType="SOLID" lineColor="#B6D7AE" fillColor="#F0FFE9" activeColor="#CFF1C7" memoType="NOMAL"/>
+      <hh:memoPr id="7" width="18000" lineWidth="hairline" lineType="DOT" lineColor="#112233" fillColor="#445566" activeColor="#778899" data-extra="true"/>
+    </hh:memoProperties>
+  </hh:refList>
+</hh:head>

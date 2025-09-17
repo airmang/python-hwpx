@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    targetNamespace="http://www.hancom.co.kr/hwpml/2011/head"
+    xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head"
+    elementFormDefault="qualified">
+    <xs:element name="head" type="hh:HeadType"/>
+    <xs:complexType name="HeadType">
+        <xs:sequence>
+            <xs:any namespace="##any" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+        <xs:attribute name="version" type="xs:string" use="required"/>
+        <xs:attribute name="secCnt" type="xs:nonNegativeInteger" use="required"/>
+    </xs:complexType>
+</xs:schema>
