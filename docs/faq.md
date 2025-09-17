@@ -2,7 +2,7 @@
 
 ## `ModuleNotFoundError: No module named 'hwpx'` 오류가 발생합니다.
 
-저장소 루트의 `src` 디렉터리를 Python 경로에 추가하지 않은 경우 발생합니다. 가상 환경을 활성화한 후 다음 명령을 실행해 `PYTHONPATH`를 설정하세요.
+PyPI에서 설치했다면 가상 환경을 활성화하고 `pip install python-hwpx`만 실행해도 됩니다. 저장소를 직접 클론해 개발 중이라면 루트 `src` 디렉터리를 `PYTHONPATH`에 추가해야 합니다. 다음 명령을 참고하세요.
 
 ```bash
 export PYTHONPATH="$(pwd)/src:${PYTHONPATH}"

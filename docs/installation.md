@@ -1,6 +1,6 @@
 # 설치 가이드
 
-이 문서는 python-hwpx PyPI 또는 소스 코드에서 설치하는 방법을 정리합니다. 일반 사용자는 PyPI 패키지를 이용하면 되며, 기능 개발이나 디버깅 목적이라면 저장소를 클론해 편집 가능한 설치를 수행하세요.
+이 문서는 PyPI에서 바로 패키지를 설치하는 방법과 저장소를 클론해 개발 환경을 구성하는 방법을 정리합니다. 대부분의 사용자는 PyPI 패키지를 설치한 뒤 제공되는 템플릿(`hwpx.templates.blank_document_bytes`)으로 바로 실습할 수 있습니다. 저장소에 포함된 예제 HWPX 파일이 필요한 경우에는 깃 클론 후 `examples/` 디렉터리를 활용하세요.
 
 ## 요구 사항
 
@@ -17,7 +17,19 @@ python -m pip install --upgrade pip
 python -m pip install python-hwpx
 ```
 
-설치 후 `python -c "import hwpx"` 명령이 오류 없이 종료되면 환경 구성이 완료된 것입니다.
+설치 후 다음 명령으로 기본 모듈과 내장 템플릿이 정상 동작하는지 빠르게 확인할 수 있습니다.
+
+```bash
+python - <<'PY'
+from io import BytesIO
+
+from hwpx.document import HwpxDocument
+from hwpx.templates import blank_document_bytes
+
+doc = HwpxDocument.open(BytesIO(blank_document_bytes()))
+print("sections:", len(doc.sections))
+PY
+```
 
 ## 소스 코드에서 개발용 설치
 
@@ -37,7 +49,7 @@ python -m pip install python-hwpx
    python -m pip install -e .[dev]
    ```
 
-`pip install -e`를 사용하면 추가적인 `PYTHONPATH` 수정 없이도 `hwpx` 패키지를 바로 가져올 수 있습니다.
+`pip install -e`를 사용하면 추가적인 `PYTHONPATH` 수정 없이도 `hwpx` 패키지를 바로 가져올 수 있습니다. 저장소 예제(`examples/FormattingShowcase.hwpx`)는 개발용 설치를 진행한 경우에만 사용할 수 있습니다.
 
 ## 설치 검증
 
@@ -50,18 +62,7 @@ print("Package class loaded:", hasattr(HwpxPackage, "open"))
 PY
 ```
 
-또는 텍스트 추출 도구를 호출해 문단 수를 빠르게 확인할 수 있습니다.
-
-```bash
-python - <<'PY'
-from hwpx.tools.text_extractor import TextExtractor
-
-with TextExtractor("examples/FormattingShowcase.hwpx") as extractor:
-    paragraphs = list(extractor.iter_document_paragraphs())
-
-print("Paragraphs:", len(paragraphs))
-PY
-```
+PyPI 패키지에는 예제 HWPX 파일이 포함되지 않으므로, 직접 확보한 문서를 대상으로 테스트하거나 저장소의 `examples/` 디렉터리를 사용하세요.
 
 ## 테스트 실행 (선택 사항)
 

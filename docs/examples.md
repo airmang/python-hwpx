@@ -1,6 +1,19 @@
 # 실전 예제
 
-다음 예제는 python-hwpx의 주요 API를 조합해 실제 시나리오를 해결하는 방법을 보여 줍니다. 코드 스니펫은 `examples/` 디렉터리에 포함된 샘플 문서를 기반으로 작성되었습니다.
+다음 예제는 python-hwpx의 주요 API를 조합해 실제 시나리오를 해결하는 방법을 보여 줍니다. `examples/` 디렉터리에 포함된 샘플 HWPX 파일(`FormattingShowcase.hwpx`)을 기준으로 작성되었으며, 해당 파일은 저장소를 직접 클론했을 때만 사용할 수 있습니다. PyPI로 설치했다면 보유 중인 HWPX 문서를 사용하거나, `hwpx.templates.blank_document_bytes()`로 임시 문서를 생성해 실습하세요.
+
+## 0. 빈 문서를 생성해 실습 환경 만들기
+
+```python
+from io import BytesIO
+
+from hwpx.document import HwpxDocument
+from hwpx.templates import blank_document_bytes
+
+document = HwpxDocument.open(BytesIO(blank_document_bytes()))
+document.add_paragraph("첫 문단입니다.")
+document.save("playground.hwpx")
+```
 
 ## 1. 보고서 템플릿에 표와 개체 추가하기
 
