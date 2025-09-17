@@ -1,0 +1,1052 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Reference &mdash; python-hwpx 1.2 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=92fd9be5" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=61243dd2"></script>
+      <script src="_static/doctools.js?v=9a2dae69"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="자주 묻는 질문 (FAQ)" href="faq.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            python-hwpx
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">시작하기</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">5분 안에 HWPX 문서 다루기</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id1">준비물</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id2">1. 문서 열기와 기본 정보 확인</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id3">2. 새 문단 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id4">3. 표 만들기와 값 채우기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id5">4. 메모와 필드 컨트롤 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id6">5. 다른 이름으로 저장하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id7">다음 단계</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">설치 가이드</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id2">요구 사항</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#pypi">PyPI에서 설치</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id3">소스 코드에서 개발용 설치</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id4">설치 검증</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id5">테스트 실행 (선택 사항)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">사용 가이드</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id2">패키지 열기와 기본 점검</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#hwpxdocument">HwpxDocument로 문서 편집하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id3">메모 다루기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id4">스타일 기반 텍스트 변환</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id5">런 서식 지정</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id6">텍스트 추출과 주석 표현</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#objectfinder">ObjectFinder로 요소 검색하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id7">변경 사항 저장과 결과물 확인</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">실전 예제</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#id2">1. 보고서 템플릿에 표와 개체 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#id3">2. 하이라이트와 주석을 포함한 텍스트 보고서 생성하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#id4">3. 특정 태그를 검색해 요약 정보 만들기</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">심화 주제</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="schema-overview.html">HWPX 스키마 구조와 파이썬 모델 현황</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#devdoc">DevDoc 스키마 자료 한눈에 보기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#id1">주요 스키마 세부 구조</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#id2">파이썬 구현 현황 요약</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#id5">주요 누락 요소 및 확장 필요 영역</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">자주 묻는 질문 (FAQ)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#modulenotfounderror-no-module-named-hwpx"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'hwpx'</span></code> 오류가 발생합니다.</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#hwpxstructureerror"><code class="docutils literal notranslate"><span class="pre">HwpxStructureError</span></code> 예외가 발생하는 이유는 무엇인가요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#hwpx-package-hwpxpackage-hwpx-opc-package-hwpxpackage"><code class="docutils literal notranslate"><span class="pre">hwpx.package.HwpxPackage</span></code>와 <code class="docutils literal notranslate"><span class="pre">hwpx.opc.package.HwpxPackage</span></code>의 차이는 무엇인가요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#http">파일을 메모리 버퍼나 HTTP 응답으로부터 열 수 있나요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#id1">중첩 문단을 제외하거나 특정 섹션만 순회하려면 어떻게 해야 하나요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#id2">저장 시 원본 파일을 덮어쓰지 않고 새 파일로 만들고 싶습니다.</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API 참조</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-templates">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.templates</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-package">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.package</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-document">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.document</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-oxml-common">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.common</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-oxml-body">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.body</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-oxml-header">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.header</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-oxml-utils">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.utils</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-oxml-schema">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.schema</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-oxml-parser">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.parser</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-oxml-document">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.document</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-opc-package">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.opc.package</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-tools-text-extractor">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.text_extractor</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-tools-object-finder">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.object_finder</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-tools-validator">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.validator</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-init">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.__init__</span></code></a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">python-hwpx</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">API Reference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/api_reference.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="api-reference">
+<h1>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading"></a></h1>
+<section id="hwpx-templates">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.templates</span></code><a class="headerlink" href="#hwpx-templates" title="Link to this heading"></a></h2>
+<section id="id1">
+<h3>함수<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">blank_document_bytes()</span> <span class="pre">-&gt;</span> <span class="pre">bytes</span></code></p>
+<ul>
+<li><p>기본 빈 HWPX 템플릿의 바이너리 페이로드를 반환합니다. 이 헬퍼는 먼저 선택적 <code class="docutils literal notranslate"><span class="pre">hwpx.data</span></code> 패키지에서 <code class="docutils literal notranslate"><span class="pre">Skeleton.hwpx</span></code> 파일을 로드하려고 시도하고, 실패 시 저장소의 <code class="docutils literal notranslate"><span class="pre">examples</span></code> 디렉토리에서 찾습니다. 두 위치 모두에서 파일을 찾을 수 없으면 <code class="docutils literal notranslate"><span class="pre">FileNotFoundError</span></code>를 발생시킵니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="hwpx-package">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.package</span></code><a class="headerlink" href="#hwpx-package" title="Link to this heading"></a></h2>
+<section id="id2">
+<h3>함수<a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">_ensure_bytes(value:</span> <span class="pre">bytes</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">|</span> <span class="pre">ET.Element)</span> <span class="pre">-&gt;</span> <span class="pre">bytes</span></code></p>
+<ul>
+<li><p>파트(part) 페이로드를 UTF-8로 인코딩된 바이트로 정규화하는 내부 헬퍼입니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="hwpxpackage">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxPackage</span></code><a class="headerlink" href="#hwpxpackage" title="Link to this heading"></a></h3>
+<section id="id3">
+<h4>생성<a class="headerlink" href="#id3" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">open(source)</span> <span class="pre">-&gt;</span> <span class="pre">HwpxPackage</span></code></p>
+<ul>
+<li><p>경로, <code class="docutils literal notranslate"><span class="pre">PathLike</span></code>, 바이트, 바이트 스트림 또는 파일과 유사한 객체를 인자로 받아 OPC zip 아카이브에서 모든 파트를 읽어 패키지 인스턴스를 반환하는 클래스 메서드입니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="id4">
+<h4>패키지 검사<a class="headerlink" href="#id4" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">part_names()</span> <span class="pre">-&gt;</span> <span class="pre">Iterable[str]</span></code></p>
+<ul>
+<li><p>현재 패키지에 저장된 파트 이름의 목록을 반환합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">has_part(part_name:</span> <span class="pre">str)</span> <span class="pre">-&gt;</span> <span class="pre">bool</span></code></p>
+<ul>
+<li><p>요청된 파트가 존재하는지 확인합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">get_part(part_name:</span> <span class="pre">str)</span> <span class="pre">-&gt;</span> <span class="pre">bytes</span></code></p>
+<ul>
+<li><p>파트의 원시 바이트(raw bytes)를 가져옵니다. 파트가 없으면 <code class="docutils literal notranslate"><span class="pre">KeyError</span></code>를 발생시킵니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set_part(part_name:</span> <span class="pre">str,</span> <span class="pre">payload)</span> <span class="pre">-&gt;</span> <span class="pre">None</span></code></p>
+<ul>
+<li><p>파트 페이로드를 저장합니다. 매니페스트 자체가 변경되면 매니페스트 캐시를 재설정합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">get_xml(part_name:</span> <span class="pre">str)</span> <span class="pre">-&gt;</span> <span class="pre">ET.Element</span></code></p>
+<ul>
+<li><p>파트를 파싱하여 <code class="docutils literal notranslate"><span class="pre">ElementTree</span></code> 엘리먼트로 반환합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set_xml(part_name:</span> <span class="pre">str,</span> <span class="pre">element:</span> <span class="pre">ET.Element)</span> <span class="pre">-&gt;</span> <span class="pre">None</span></code></p>
+<ul>
+<li><p>엘리먼트를 직렬화하여 파트 페이로드로 저장합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">get_text(part_name:</span> <span class="pre">str,</span> <span class="pre">encoding:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&quot;utf-8&quot;)</span> <span class="pre">-&gt;</span> <span class="pre">str</span></code></p>
+<ul>
+<li><p>요청된 인코딩으로 파트 내용을 디코딩합니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="id5">
+<h4>매니페스트 헬퍼<a class="headerlink" href="#id5" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">manifest_tree()</span> <span class="pre">-&gt;</span> <span class="pre">ET.Element</span></code></p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">content.hpf</span></code>를 지연 파싱(lazily parse)하고 캐시하여 매니페스트 메타데이터를 노출합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_resolve_spine_paths()</span> <span class="pre">-&gt;</span> <span class="pre">list[str]</span></code></p>
+<ul>
+<li><p>매니페스트 스파인(spine)에서 읽기 순서를 추출하는 내부 캐시 빌더입니다. 필요한 경우 휴리스틱 탐지를 통해 순서를 결정합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">section_paths()</span> <span class="pre">-&gt;</span> <span class="pre">list[str]</span></code></p>
+<ul>
+<li><p>캐시된 섹션 XML 파트 경로를 반환합니다. 스파인 데이터를 재사용하거나 <code class="docutils literal notranslate"><span class="pre">section*.xml</span></code> 항목을 휴리스틱하게 식별합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">header_paths()</span> <span class="pre">-&gt;</span> <span class="pre">list[str]</span></code></p>
+<ul>
+<li><p>캐시된 헤더 XML 파트 경로를 반환합니다. 매니페스트에 명시적인 참조가 없는 경우 <code class="docutils literal notranslate"><span class="pre">Contents/header.xml</span></code>을 기본값으로 사용합니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="persistence">
+<h4>영속성(Persistence)<a class="headerlink" href="#persistence" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">save(path_or_stream=None,</span> <span class="pre">updates=None)</span></code></p>
+<ul>
+<li><p>보류 중인 업데이트를 영구 저장하고 대상 경로/스트림/바이트를 반환합니다. 대상이 제공되지 않으면 원본 소스를 재사용하고, 그렇지 않으면 요청된 파일 시스템 위치나 스트림에 zip 아카이브를 작성합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_write_to_stream(stream)</span></code> 및 <code class="docutils literal notranslate"><span class="pre">_write_archive(archive)</span></code></p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">save()</span></code> 메서드를 위해 zip 직렬화를 처리하는 내부 유틸리티입니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+</section>
+</section>
+<hr class="docutils" />
+<section id="hwpx-document">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.document</span></code><a class="headerlink" href="#hwpx-document" title="Link to this heading"></a></h2>
+<section id="hwpxdocument">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxDocument</span></code><a class="headerlink" href="#hwpxdocument" title="Link to this heading"></a></h3>
+<section id="id6">
+<h4>생성자<a class="headerlink" href="#id6" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">open(source)</span></code></p>
+<ul>
+<li><p>HWPX 파일을 열고, <code class="docutils literal notranslate"><span class="pre">HwpxOxmlDocument</span></code>로 저수준 XML 트리를 빌드한 후 문서 래퍼(wrapper)를 반환합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">new()</span></code></p>
+<ul>
+<li><p>스켈레톤 템플릿 번들을 로드하여 새 문서를 생성합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">from_package(package)</span></code></p>
+<ul>
+<li><p>기존 <code class="docutils literal notranslate"><span class="pre">HwpxPackage</span></code> 인스턴스를 감싸는 문서 래퍼를 빌드합니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="xml">
+<h4>패키지 및 XML 접근<a class="headerlink" href="#xml" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">package</span></code></p>
+<ul>
+<li><p>내부의 <code class="docutils literal notranslate"><span class="pre">HwpxPackage</span></code> 컨테이너를 노출하는 프로퍼티입니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">oxml</span></code></p>
+<ul>
+<li><p>루트 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlDocument</span></code> 트리를 반환하는 프로퍼티입니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sections</span></code>, <code class="docutils literal notranslate"><span class="pre">headers</span></code></p>
+<ul>
+<li><p>섹션/헤더 래퍼 목록을 반환하는 프로퍼티입니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="id7">
+<h4>메모 헬퍼<a class="headerlink" href="#id7" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">memo_shapes</span></code></p>
+<ul>
+<li><p>헤더에 있는 모든 메모 모양 정의를 병합한 딕셔너리를 반환합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">memo_shape(memo_shape_id_ref)</span></code></p>
+<ul>
+<li><p>특정 메모 모양 정의를 가져옵니다. ID는 문자열 또는 숫자 형식과 일치시킵니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">memos</span></code></p>
+<ul>
+<li><p>모든 섹션에 걸쳐 있는 메모 항목들을 단일 목록으로 펼쳐서 반환하는 프로퍼티입니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">add_memo(...)</span> <span class="pre">-&gt;</span> <span class="pre">HwpxOxmlMemo</span></code></p>
+<ul>
+<li><p>섹션에 메모 항목을 추가합니다. 대상 섹션은 <code class="docutils literal notranslate"><span class="pre">section</span></code>이나 <code class="docutils literal notranslate"><span class="pre">section_index</span></code> 인자로 지정하거나, 지정하지 않으면 마지막 섹션을 기본값으로 사용합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">remove_memo(memo)</span></code></p>
+<ul>
+<li><p>메모 엘리먼트를 소유한 섹션에서 제거합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">attach_memo_field(paragraph,</span> <span class="pre">memo,</span> <span class="pre">...)</span> <span class="pre">-&gt;</span> <span class="pre">str</span></code></p>
+<ul>
+<li><p>주어진 메모가 한/글에서 보이도록 <code class="docutils literal notranslate"><span class="pre">paragraph</span></code>에 MEMO 필드 컨트롤 런(run)을 삽입합니다. ID를 생성하고 작성자, 생성 타임스탬프, 번호 매기기 같은 주석 메타데이터를 처리합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">add_memo_with_anchor(...)</span> <span class="pre">-&gt;</span> <span class="pre">tuple[HwpxOxmlMemo,</span> <span class="pre">HwpxOxmlParagraph,</span> <span class="pre">str]</span></code></p>
+<ul>
+<li><p>메모를 생성하고, MEMO 필드를 포함할 단락이 있는지 확인한 후, 필드를 부착하고, (메모, 단락, 필드 ID) 튜플을 반환하는 편의 헬퍼입니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="id8">
+<h4>텍스트 및 서식 헬퍼<a class="headerlink" href="#id8" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">paragraphs</span></code></p>
+<ul>
+<li><p>문서 순서대로 모든 단락 래퍼를 반환하는 프로퍼티입니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">char_properties</span></code></p>
+<ul>
+<li><p>확인된(resolved) 글자 스타일 정의를 노출하는 프로퍼티입니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">char_property(char_pr_id_ref)</span></code></p>
+<ul>
+<li><p>ID를 사용하여 <code class="docutils literal notranslate"><span class="pre">RunStyle</span></code>을 조회합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ensure_run_style(...)</span> <span class="pre">-&gt;</span> <span class="pre">str</span></code></p>
+<ul>
+<li><p>요청된 굵게/기울임/밑줄 플래그와 일치하는 런 스타일이 헤더에 정의되어 있는지 확인하고 해당 스타일 ID를 반환합니다. 필요한 경우 기존 스타일을 복제합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">iter_runs()</span></code></p>
+<ul>
+<li><p>문서 전체의 모든 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlRun</span></code>을 순회(yield)합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">find_runs_by_style(...)</span> <span class="pre">-&gt;</span> <span class="pre">list[HwpxOxmlRun]</span></code></p>
+<ul>
+<li><p>색상, 밑줄 유형 또는 특정 글자 속성 참조와 같은 스타일 속성으로 런을 필터링합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">replace_text_in_runs(search,</span> <span class="pre">replacement,</span> <span class="pre">...)</span> <span class="pre">-&gt;</span> <span class="pre">int</span></code></p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">find_runs_by_style()</span></code>을 사용하여 런을 찾고 문자열을 교체합니다. 선택적으로 교체 횟수를 제한할 수 있습니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="id9">
+<h4>콘텐츠 생성 헬퍼<a class="headerlink" href="#id9" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">add_paragraph(text=&quot;&quot;,</span> <span class="pre">...)</span> <span class="pre">-&gt;</span> <span class="pre">HwpxOxmlParagraph</span></code></p>
+<ul>
+<li><p>대상 섹션에 단락을 추가합니다. 선택적으로 단락 및 런 서식 참조를 재정의하거나 추가 단락 속성을 주입할 수 있습니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">add_table(rows,</span> <span class="pre">cols,</span> <span class="pre">...)</span> <span class="pre">-&gt;</span> <span class="pre">HwpxOxmlTable</span></code></p>
+<ul>
+<li><p>단락을 삽입하고 그 안에 표 인라인 객체를 생성한 후, 표 래퍼를 반환합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">add_shape(shape_type,</span> <span class="pre">...)</span> <span class="pre">-&gt;</span> <span class="pre">HwpxOxmlInlineObject</span></code></p>
+<ul>
+<li><p>새 단락에 태그 이름을 사용하여 인라인 그리기 요소를 삽입합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">add_control(...)</span> <span class="pre">-&gt;</span> <span class="pre">HwpxOxmlInlineObject</span></code></p>
+<ul>
+<li><p>새 단락에 인라인 컨트롤 객체(예: 양식 컨트롤)를 삽입합니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="id10">
+<h4>영속성(Persistence)<a class="headerlink" href="#id10" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">save(path_or_stream=None)</span></code></p>
+<ul>
+<li><p>변경된(dirty) XML 파트를 내부 패키지를 통해 직렬화하고, 변경 사항을 원본 소스, 새 경로 또는 파일과 유사한 객체에 씁니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+</section>
+</section>
+<hr class="docutils" />
+<section id="hwpx-oxml-common">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.common</span></code><a class="headerlink" href="#hwpx-oxml-common" title="Link to this heading"></a></h2>
+<section id="genericelement">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">GenericElement</span></code><a class="headerlink" href="#genericelement" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>특화된 파서가 없는 엘리먼트를 나타내는 데이터클래스입니다.</p></li>
+</ul>
+</section>
+<section id="id11">
+<h3>함수<a class="headerlink" href="#id11" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_generic_element(node)</span> <span class="pre">-&gt;</span> <span class="pre">GenericElement</span></code></p>
+<ul>
+<li><p>XML 노드와 그 자식들을 재귀적으로 <code class="docutils literal notranslate"><span class="pre">GenericElement</span></code> 구조로 변환하며 속성과 텍스트를 보존합니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="hwpx-oxml-body">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.body</span></code><a class="headerlink" href="#hwpx-oxml-body" title="Link to this heading"></a></h2>
+<section id="id12">
+<h3>데이터 클래스<a class="headerlink" href="#id12" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">TextSpan</span></code></p>
+<ul>
+<li><p>텍스트 런, 수집된 마크 엘리먼트 및 속성을 캡처합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Run</span></code></p>
+<ul>
+<li><p>글자 참조, 중첩된 컨트롤, 인라인 객체 및 추가 자식을 포함하는 <code class="docutils literal notranslate"><span class="pre">&lt;hp:run&gt;</span></code>을 나타냅니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Paragraph</span></code></p>
+<ul>
+<li><p>런 컬렉션과 속성을 포함하는 <code class="docutils literal notranslate"><span class="pre">&lt;hp:p&gt;</span></code> 단락을 나타냅니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Section</span></code></p>
+<ul>
+<li><p>단락과 추가 노드를 포함하는 <code class="docutils literal notranslate"><span class="pre">&lt;hs:sec&gt;</span></code> 문서 섹션을 나타냅니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="id13">
+<h3>파싱 함수<a class="headerlink" href="#id13" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_text_span(node)</span> <span class="pre">-&gt;</span> <span class="pre">TextSpan</span></code></p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;hp:t&gt;</span></code> 엘리먼트로부터 <code class="docutils literal notranslate"><span class="pre">TextSpan</span></code>을 빌드하며, 중첩된 마크를 보존합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_run_element(node)</span> <span class="pre">-&gt;</span> <span class="pre">Run</span></code></p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;hp:run&gt;</span></code> 엘리먼트를 <code class="docutils literal notranslate"><span class="pre">Run</span></code> 데이터클래스로 변환하며, 컨트롤 및 인라인 객체와 같은 자식 엘리먼트를 분류합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_paragraph_element(node)</span> <span class="pre">-&gt;</span> <span class="pre">Paragraph</span></code></p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;hp:p&gt;</span></code> 엘리먼트를 <code class="docutils literal notranslate"><span class="pre">Paragraph</span></code> 데이터클래스로 변환합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_section_element(node)</span> <span class="pre">-&gt;</span> <span class="pre">Section</span></code></p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;hs:sec&gt;</span></code> 엘리먼트를 <code class="docutils literal notranslate"><span class="pre">Section</span></code> 데이터클래스로 변환합니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="hwpx-oxml-header">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.header</span></code><a class="headerlink" href="#hwpx-oxml-header" title="Link to this heading"></a></h2>
+<section id="id14">
+<h3>데이터 클래스 및 메서드<a class="headerlink" href="#id14" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">BeginNum</span></code>: 헤더 수준 카운터의 시작 번호를 저장합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LinkInfo</span></code>: 연결된 외부 콘텐츠에 대한 메타데이터를 포함합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LicenseMark</span></code>: 라이선스 플래그 정보를 나타냅니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">DocOption</span></code>: <code class="docutils literal notranslate"><span class="pre">LinkInfo</span></code>와 선택적인 <code class="docutils literal notranslate"><span class="pre">LicenseMark</span></code> 데이터를 묶습니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">KeyDerivation</span></code>: 암호 파생 알고리즘 매개변수를 저장합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">KeyEncryption</span></code>: 파생 설정 및 base64로 디코딩된 해시 바이트를 저장합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">TrackChangeConfig</span></code>: 변경 내용 추적 플래그 및 선택적 암호화 블록을 설명합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">FontSubstitution</span></code>: 대체 글꼴 데이터를 캡처합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">FontTypeInfo</span></code>: 보조 글꼴 속성을 저장합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Font</span></code>: 대체/유형 정보가 포함된 개별 글꼴 정의를 나타냅니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">FontFace</span></code> / <code class="docutils literal notranslate"><span class="pre">FontFaceList</span></code>: 그룹화된 글꼴 정의를 위한 컨테이너입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">BorderFillList</span></code>: 테두리 채우기 정의를 수집합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">TabProperties</span></code>: 탭 정지 컬렉션을 캡처합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">NumberingList</span></code>: 번호 매기기 정의를 저장합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">CharProperty</span></code>: 런 스타일 속성과 중첩된 자식 엘리먼트를 캡슐화합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">CharPropertyList</span></code>: <code class="docutils literal notranslate"><span class="pre">CharProperty</span></code> 정의를 집계합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ForbiddenWordList</span></code>: 금칙어를 저장합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MemoShape</span></code>: 메모 말풍선 모양을 설명하고, 문자열 또는 숫자 식별자를 비교하는 <code class="docutils literal notranslate"><span class="pre">matches_id()</span></code>를 구현합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MemoProperties</span></code>: ID를 통해 모양을 가져오는 <code class="docutils literal notranslate"><span class="pre">shape_by_id()</span></code>와 ID를 <code class="docutils literal notranslate"><span class="pre">MemoShape</span></code> 인스턴스에 매핑하는 <code class="docutils literal notranslate"><span class="pre">as_dict()</span></code>를 제공합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">RefList</span></code>: 글꼴, 테두리 채우기, 메모 속성과 같은 참조 목록을 수집합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Header</span></code>: 헤더 메타데이터를 래핑하고 모양을 확인하는 <code class="docutils literal notranslate"><span class="pre">memo_shape()</span></code>를 노출합니다.</p></li>
+</ul>
+</section>
+<section id="id15">
+<h3>파싱 유틸리티<a class="headerlink" href="#id15" title="Link to this heading"></a></h3>
+<p>각 파서는 특정 XML 하위 트리를 해당 데이터클래스로 변환하며, 속성 유형을 정규화합니다(예: <code class="docutils literal notranslate"><span class="pre">parse_int</span></code> 및 <code class="docutils literal notranslate"><span class="pre">parse_bool</span></code> 호출). 이를 통해 상위 수준 코드가 구조화된 데이터에 의존할 수 있습니다.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_begin_num(node)</span> <span class="pre">-&gt;</span> <span class="pre">BeginNum</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_link_info(node)</span> <span class="pre">-&gt;</span> <span class="pre">LinkInfo</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_license_mark(node)</span> <span class="pre">-&gt;</span> <span class="pre">LicenseMark</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_doc_option(node)</span> <span class="pre">-&gt;</span> <span class="pre">DocOption</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_decode_base64(value)</span> <span class="pre">-&gt;</span> <span class="pre">Optional[bytes]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_key_encryption(node)</span> <span class="pre">-&gt;</span> <span class="pre">Optional[KeyEncryption]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_track_change_config(node)</span> <span class="pre">-&gt;</span> <span class="pre">TrackChangeConfig</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_font_substitution(node)</span> <span class="pre">-&gt;</span> <span class="pre">FontSubstitution</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_font_type_info(node)</span> <span class="pre">-&gt;</span> <span class="pre">FontTypeInfo</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_font(node)</span> <span class="pre">-&gt;</span> <span class="pre">Font</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_font_face(node)</span> <span class="pre">-&gt;</span> <span class="pre">FontFace</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_font_faces(node)</span> <span class="pre">-&gt;</span> <span class="pre">FontFaceList</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_border_fills(node)</span> <span class="pre">-&gt;</span> <span class="pre">BorderFillList</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_char_property(node)</span> <span class="pre">-&gt;</span> <span class="pre">CharProperty</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_char_properties(node)</span> <span class="pre">-&gt;</span> <span class="pre">CharPropertyList</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_tab_properties(node)</span> <span class="pre">-&gt;</span> <span class="pre">TabProperties</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_numberings(node)</span> <span class="pre">-&gt;</span> <span class="pre">NumberingList</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_forbidden_word_list(node)</span> <span class="pre">-&gt;</span> <span class="pre">ForbiddenWordList</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">memo_shape_from_attributes(attrs)</span> <span class="pre">-&gt;</span> <span class="pre">MemoShape</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_memo_shape(node)</span> <span class="pre">-&gt;</span> <span class="pre">MemoShape</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_memo_properties(node)</span> <span class="pre">-&gt;</span> <span class="pre">MemoProperties</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_ref_list(node)</span> <span class="pre">-&gt;</span> <span class="pre">RefList</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_header_element(node)</span> <span class="pre">-&gt;</span> <span class="pre">Header</span></code></p></li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="hwpx-oxml-utils">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.utils</span></code><a class="headerlink" href="#hwpx-oxml-utils" title="Link to this heading"></a></h2>
+<section id="id16">
+<h3>함수<a class="headerlink" href="#id16" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">local_name(node)</span> <span class="pre">-&gt;</span> <span class="pre">str</span></code></p>
+<ul>
+<li><p>노드의 네임스페이스가 제거된 태그 이름을 반환합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_int(value,</span> <span class="pre">allow_none=True)</span> <span class="pre">-&gt;</span> <span class="pre">Optional[int]</span></code></p>
+<ul>
+<li><p>속성 문자열을 정수로 변환하며, 선택적으로 <code class="docutils literal notranslate"><span class="pre">None</span></code>을 지원합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_bool(value,</span> <span class="pre">default=None)</span> <span class="pre">-&gt;</span> <span class="pre">Optional[bool]</span></code></p>
+<ul>
+<li><p>일반적인 참/거짓 문자열을 불리언으로 변환하며, 예상치 못한 토큰이 발견되면 예외를 발생시킵니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">text_or_none(node)</span> <span class="pre">-&gt;</span> <span class="pre">Optional[str]</span></code></p>
+<ul>
+<li><p>공백이 제거된 노드 텍스트를 반환하거나, 비어 있으면 <code class="docutils literal notranslate"><span class="pre">None</span></code>을 반환합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">coerce_xml_source(source)</span> <span class="pre">-&gt;</span> <span class="pre">tuple[etree._Element,</span> <span class="pre">etree._ElementTree]</span></code></p>
+<ul>
+<li><p>XML 문자열, 바이트, 경로 또는 <code class="docutils literal notranslate"><span class="pre">lxml</span></code> 객체를 받아 루트 엘리먼트와 이를 소유한 트리를 반환합니다. 이는 스키마 유효성 검사에 필수적입니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="hwpx-oxml-schema">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.schema</span></code><a class="headerlink" href="#hwpx-oxml-schema" title="Link to this heading"></a></h2>
+<section id="id17">
+<h3>함수<a class="headerlink" href="#id17" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">load_schema(path)</span> <span class="pre">-&gt;</span> <span class="pre">etree.XMLSchema</span></code></p>
+<ul>
+<li><p>디스크에서 XML 스키마를 로드합니다. 이 헬퍼는 상대적 임포트(import) 경로를 스키마 디렉토리 기준으로 재작성하는 리졸버(resolver)를 설치하여 복잡한 XSD 계층 구조가 올바르게 로드되도록 합니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="hwpx-oxml-parser">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.parser</span></code><a class="headerlink" href="#hwpx-oxml-parser" title="Link to this heading"></a></h2>
+<section id="id18">
+<h3>함수<a class="headerlink" href="#id18" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">element_to_model(node)</span> <span class="pre">-&gt;</span> <span class="pre">object</span></code></p>
+<ul>
+<li><p>노드의 로컬 이름을 기반으로 특화된 파서에 작업을 위임하고, 매핑이 없으면 데이터클래스 모델 또는 <code class="docutils literal notranslate"><span class="pre">GenericElement</span></code>를 반환합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_header_xml(source,</span> <span class="pre">schema_path=None,</span> <span class="pre">schema=None)</span> <span class="pre">-&gt;</span> <span class="pre">header.Header</span></code></p>
+<ul>
+<li><p>XML 소스를 정규화하고, 선택적으로 제공되거나 확인된 스키마에 대해 유효성을 검사한 후, 구조화된 헤더 모델을 반환합니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_section_xml(source,</span> <span class="pre">schema_path=None,</span> <span class="pre">schema=None)</span> <span class="pre">-&gt;</span> <span class="pre">body.Section</span></code></p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">parse_header_xml</span></code>과 동일하지만 섹션 페이로드를 대상으로 합니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="hwpx-oxml-document">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.document</span></code><a class="headerlink" href="#hwpx-oxml-document" title="Link to this heading"></a></h2>
+<section id="id19">
+<h3>독립형 헬퍼<a class="headerlink" href="#id19" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">_serialize_xml(element)</span> <span class="pre">-&gt;</span> <span class="pre">bytes</span></code>: <code class="docutils literal notranslate"><span class="pre">ElementTree</span></code> 엘리먼트를 XML 선언과 함께 UTF-8로 직렬화합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_paragraph_id()</span></code>, <code class="docutils literal notranslate"><span class="pre">_object_id()</span></code>, <code class="docutils literal notranslate"><span class="pre">_memo_id()</span></code>: 단락, 인라인 객체, 메모 노드를 위한 고유 식별자를 생성합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_create_paragraph_element(text,</span> <span class="pre">...)</span></code>: 선택적 서식 재정의를 포함하여 단일 런과 텍스트 노드를 포함하는 단락 엘리먼트를 빌드합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_element_local_name(node)</span></code>: 메모 파싱에서 사용되는 네임스페이스가 제거된 태그 헬퍼입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_distribute_size(total,</span> <span class="pre">parts)</span></code>: 표의 행 또는 열에 걸쳐 크기를 균등하게 분배합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_default_cell_attributes(border_fill_id_ref)</span></code>: 표 셀의 기본 속성 집합을 반환합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_default_sublist_attributes()</span></code>: <code class="docutils literal notranslate"><span class="pre">&lt;hp:subList&gt;</span></code> 컨테이너의 기본 속성을 제공합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_default_cell_paragraph_attributes()</span></code>: 표 셀 단락의 기본 단락 속성을 생성합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_default_cell_margin_attributes()</span></code>: 표 셀에 대한 여백이 0인 속성을 제공합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_get_int_attr(element,</span> <span class="pre">name,</span> <span class="pre">default=0)</span></code>: 정수 속성을 안전하게 파싱하며, 실패 시 기본값을 사용합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_char_properties_from_header(element)</span></code>: 헤더 파트에서 글자 스타일 정의 매핑을 빌드합니다.</p></li>
+</ul>
+</section>
+<section id="id20">
+<h3>데이터 클래스<a class="headerlink" href="#id20" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">PageSize</span></code>: 페이지 너비, 높이, 방향, 제본 여백 유형을 저장합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PageMargins</span></code>: 왼쪽, 오른쪽, 위, 아래, 머리글, 바닥글, 제본 여백 간격을 저장합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SectionStartNumbering</span></code>: 섹션 수준의 카운터와 페이지 시작 동작을 추적합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">DocumentNumbering</span></code>: 전체 문서의 기본 번호 매기기 값입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">RunStyle</span></code>: 확인된 런 서식을 캡슐화하며 다음을 제공합니다:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">text_color()</span></code>: 런의 색상 (설정된 경우)을 반환합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">underline_type()</span></code>: 밑줄 스타일을 확인합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">underline_color()</span></code>: 밑줄 색상을 확인합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">matches(...)</span></code>: 색상/밑줄 일치를 위한 편의 술어(predicate)입니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="hwpxoxmlsectionheaderfooter">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlSectionHeaderFooter</span></code><a class="headerlink" href="#hwpxoxmlsectionheaderfooter" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">id</span></code>: 머리글/바닥글 식별자를 관리하며 변경 시 섹션을 dirty로 표시하는 getter/setter가 있는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">apply_page_type</span></code>: 머리글/바닥글이 적용될 페이지 유형(양쪽/홀수/짝수)을 제어하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">text</span></code>: 머리글/바닥글의 텍스트 내용을 읽거나 교체하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_initial_sublist_attributes()</span></code> / <code class="docutils literal notranslate"><span class="pre">_ensure_text_element()</span></code>: 텍스트가 처음 할당될 때 중첩된 단락 구조를 지연 생성하는 내부 헬퍼입니다.</p></li>
+</ul>
+</section>
+<section id="hwpxoxmlsectionproperties">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlSectionProperties</span></code><a class="headerlink" href="#hwpxoxmlsectionproperties" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">_page_pr_element(create=False)</span></code> / <code class="docutils literal notranslate"><span class="pre">_margin_element(create=False)</span></code>: 페이지 속성 및 여백 노드를 가져오거나 빌드하는 내부 헬퍼입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">page_size</span></code>: 섹션의 페이지 설정을 설명하는 <code class="docutils literal notranslate"><span class="pre">PageSize</span></code>를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set_page_size(...)</span></code>: 페이지 설정 값을 업데이트하고 변경 시 섹션을 dirty로 표시합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">page_margins</span></code>: 섹션의 <code class="docutils literal notranslate"><span class="pre">PageMargins</span></code> 객체를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set_page_margins(...)</span></code>: 음수가 아닌 값으로 여백 속성을 업데이트합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">start_numbering</span></code>: <code class="docutils literal notranslate"><span class="pre">&lt;hp:startNum&gt;</span></code>의 <code class="docutils literal notranslate"><span class="pre">SectionStartNumbering</span></code> 스냅샷을 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set_start_numbering(...)</span></code>: 번호 매기기 카운터와 페이지 시작 동작을 수정하며, <code class="docutils literal notranslate"><span class="pre">&lt;hp:startNum&gt;</span></code> 엘리먼트가 없으면 생성합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">headers</span></code>, <code class="docutils literal notranslate"><span class="pre">footers</span></code>: 기존 머리글/바닥글 정의에 대한 래퍼를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">get_header(page_type=&quot;BOTH&quot;)</span></code> / <code class="docutils literal notranslate"><span class="pre">get_footer(...)</span></code>: 지정된 페이지 유형의 기존 머리글/바닥글 래퍼를 가져옵니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set_header_text(text,</span> <span class="pre">...)</span></code> / <code class="docutils literal notranslate"><span class="pre">set_footer_text(...)</span></code>: 요청된 페이지 유형에 대한 머리글/바닥글이 있는지 확인하고 텍스트 내용을 교체합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">remove_header(page_type=&quot;BOTH&quot;)</span></code> / <code class="docutils literal notranslate"><span class="pre">remove_footer(...)</span></code>: 지정된 페이지 유형의 머리글/바닥글 노드가 있으면 제거합니다.</p></li>
+</ul>
+</section>
+<section id="hwpxoxmlrun">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlRun</span></code><a class="headerlink" href="#hwpxoxmlrun" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">char_pr_id_ref</span></code>: 런의 글자 스타일 참조를 노출하며, XML과 섹션의 dirty 플래그를 업데이트하는 setter가 있는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">text</span></code>: 런 내의 연결된 텍스트 노드를 읽거나 교체하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">style</span></code>: 문서를 참조하여 확인된 <code class="docutils literal notranslate"><span class="pre">RunStyle</span></code>을 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">replace_text(search,</span> <span class="pre">replacement,</span> <span class="pre">count=None)</span></code>: 일반 텍스트 노드에서 문자열을 교체하고 교체 횟수를 반환합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">remove()</span></code>: 부모 단락에서 런 엘리먼트를 삭제합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">bold</span></code>, <code class="docutils literal notranslate"><span class="pre">italic</span></code>, <code class="docutils literal notranslate"><span class="pre">underline</span></code>: 일치하는 런 스타일을 보장하여 서식 플래그를 토글하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_current_format_flags()</span></code>, <code class="docutils literal notranslate"><span class="pre">_apply_format_change(...)</span></code>, <code class="docutils literal notranslate"><span class="pre">_plain_text_nodes()</span></code>, <code class="docutils literal notranslate"><span class="pre">_ensure_plain_text_node()</span></code>: 서식 로직을 관리하는 내부 헬퍼입니다.</p></li>
+</ul>
+</section>
+<section id="hwpxoxmlmemogroup">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlMemoGroup</span></code><a class="headerlink" href="#hwpxoxmlmemogroup" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">memos</span></code>: 각 메모 자식에 대한 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlMemo</span></code> 래퍼를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">add_memo(...)</span></code>: 메모 노드를 추가하고, 텍스트를 초기화한 후, 래퍼를 반환합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_cleanup()</span></code>: 메모 그룹 엘리먼트가 비어 있을 때 이를 제거하는 내부 헬퍼입니다.</p></li>
+</ul>
+</section>
+<section id="hwpxoxmlmemo">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlMemo</span></code><a class="headerlink" href="#hwpxoxmlmemo" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">id</span></code>, <code class="docutils literal notranslate"><span class="pre">memo_shape_id_ref</span></code>: XML 속성을 업데이트하는 setter가 있는 메모 메타데이터를 노출하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">attributes</span></code>: 메모의 속성 집합 복사본을 딕셔너리로 반환합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set_attribute(name,</span> <span class="pre">value)</span></code>: 임의의 속성을 추가하거나 제거합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">paragraphs</span></code>: 메모 텍스트에 포함된 단락 래퍼를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">text</span></code>: 단락 텍스트를 줄 바꿈 문자로 결합하는 프로퍼티입니다. setter는 <code class="docutils literal notranslate"><span class="pre">set_text()</span></code>에 위임합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set_text(value,</span> <span class="pre">char_pr_id_ref=None)</span></code>: 제공된 텍스트와 스타일로 메모 단락 목록을 다시 빌드합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_infer_char_pr_id_ref()</span></code>: 기존 메모 단락을 검사하여 스타일을 추측하는 내부 헬퍼입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">remove()</span></code>: 부모 그룹에서 메모를 제거하고 정리를 트리거합니다.</p></li>
+</ul>
+</section>
+<section id="hwpxoxmlinlineobject">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlInlineObject</span></code><a class="headerlink" href="#hwpxoxmlinlineobject" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">tag</span></code>: 엘리먼트의 정규화된 태그를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">attributes</span></code>: 인라인 객체 속성의 복사본을 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">get_attribute(name)</span></code> / <code class="docutils literal notranslate"><span class="pre">set_attribute(name,</span> <span class="pre">value)</span></code>: 변경이 발생하면 단락을 dirty로 표시하는 개별 속성 접근자입니다.</p></li>
+</ul>
+</section>
+<section id="hwpxoxmltablecell">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlTableCell</span></code><a class="headerlink" href="#hwpxoxmltablecell" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">address</span></code>: <code class="docutils literal notranslate"><span class="pre">&lt;hp:cellAddr&gt;</span></code>에서 파생된 <code class="docutils literal notranslate"><span class="pre">(행,</span> <span class="pre">열)</span></code> 튜플을 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">span</span></code>: <code class="docutils literal notranslate"><span class="pre">&lt;hp:cellSpan&gt;</span></code>의 <code class="docutils literal notranslate"><span class="pre">(행</span> <span class="pre">병합,</span> <span class="pre">열</span> <span class="pre">병합)</span></code> 값을 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set_span(row_span,</span> <span class="pre">col_span)</span></code>: 병합 속성을 업데이트하고 표를 dirty로 표시합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">width</span></code>, <code class="docutils literal notranslate"><span class="pre">height</span></code>: <code class="docutils literal notranslate"><span class="pre">&lt;hp:cellSz&gt;</span></code>에서 캐시된 셀 크기를 노출하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set_size(width=None,</span> <span class="pre">height=None)</span></code>: 크기 속성을 0 또는 그 이상으로 업데이트합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">text</span></code>: 셀 내부의 첫 번째 텍스트 노드를 반환하는 프로퍼티입니다. setter는 텍스트를 할당하기 전에 중첩된 단락 구조가 있는지 확인합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">remove()</span></code>: 행에서 셀 엘리먼트를 제거합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_addr_element()</span></code>, <code class="docutils literal notranslate"><span class="pre">_span_element()</span></code>, <code class="docutils literal notranslate"><span class="pre">_size_element()</span></code>, <code class="docutils literal notranslate"><span class="pre">_ensure_text_element()</span></code>: 중첩된 XML 구조를 관리하는 내부 헬퍼입니다.</p></li>
+</ul>
+</section>
+<section id="hwpxoxmltablerow">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlTableRow</span></code><a class="headerlink" href="#hwpxoxmltablerow" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">cells</span></code>: 행에 대한 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlTableCell</span></code> 래퍼 목록을 반환하는 프로퍼티입니다.</p></li>
+</ul>
+</section>
+<section id="hwpxoxmltable">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlTable</span></code><a class="headerlink" href="#hwpxoxmltable" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">create(rows,</span> <span class="pre">cols,</span> <span class="pre">...)</span></code>: 분배된 셀 크기, 여백, 초기 텍스트 노드를 포함하는 완전한 표 엘리먼트를 생성하는 클래스 메서드입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mark_dirty()</span></code>: 표가 변경되었음을 소유한 섹션에 알립니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">row_count</span></code>, <code class="docutils literal notranslate"><span class="pre">column_count</span></code>: 저장된 행/열 수를 확인하거나 XML 구조에서 파생하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">rows</span></code>: <code class="docutils literal notranslate"><span class="pre">HwpxOxmlTableRow</span></code> 래퍼를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cell(row_index,</span> <span class="pre">col_index)</span></code>: 병합 정보를 고려하여 요청된 그리드 좌표를 포함하는 셀을 찾습니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set_cell_text(row_index,</span> <span class="pre">col_index,</span> <span class="pre">text)</span></code>: 셀의 텍스트 내용을 업데이트하는 단축 메서드입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">merge_cells(start_row,</span> <span class="pre">...)</span></code>: 직사각형 영역의 유효성을 검사하고, 종속 셀을 제거하며, 병합 및 크기 값을 업데이트한 후, 살아남은 대상 셀을 반환합니다.</p></li>
+</ul>
+</section>
+<section id="hwpxoxmlparagraph">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlParagraph</span></code><a class="headerlink" href="#hwpxoxmlparagraph" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">runs</span></code>: 각 런에 대한 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlRun</span></code> 래퍼를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">text</span></code>: 런들의 텍스트를 연결하는 프로퍼티입니다. setter는 다른 자식 노드를 보존하면서 텍스트 내용을 교체합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">add_run(text=&quot;&quot;,</span> <span class="pre">...)</span></code>: 새 런을 추가하고, 선택적으로 소유 문서를 통해 일치하는 글자 스타일을 생성한 후, 래퍼를 반환합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tables</span></code>: 단락 내에 포함된 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlTable</span></code> 래퍼를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">add_table(...)</span></code>, <code class="docutils literal notranslate"><span class="pre">add_shape(...)</span></code>, <code class="docutils literal notranslate"><span class="pre">add_control(...)</span></code>: 적절한 런을 생성하여 인라인 객체(표, 도형, 컨트롤)를 삽입하고 래퍼 객체를 반환합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">para_pr_id_ref</span></code>, <code class="docutils literal notranslate"><span class="pre">style_id_ref</span></code>, <code class="docutils literal notranslate"><span class="pre">char_pr_id_ref</span></code>: 단락 수준의 서식 재정의를 허용하는 setter가 있는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_run_elements()</span></code>, <code class="docutils literal notranslate"><span class="pre">_ensure_run()</span></code>, <code class="docutils literal notranslate"><span class="pre">_create_run_for_object()</span></code>: 위 작업들을 위해 런 생성 및 접근을 관리하는 내부 헬퍼입니다.</p></li>
+</ul>
+</section>
+<section id="hwpxoxmlsection">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlSection</span></code><a class="headerlink" href="#hwpxoxmlsection" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">properties</span></code>: <code class="docutils literal notranslate"><span class="pre">&lt;hp:secPr&gt;</span></code> 계층이 필요할 때 이를 생성하며 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlSectionProperties</span></code> 래퍼를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">element</span></code>: 원시 섹션 <code class="docutils literal notranslate"><span class="pre">Element</span></code>를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">document</span></code>: 소유 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlDocument</span></code>를 참조하는 프로퍼티입니다. <code class="docutils literal notranslate"><span class="pre">attach_document()</span></code>는 섹션을 문서 인스턴스와 연결합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">paragraphs</span></code>: 문서 순서대로 단락 래퍼를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">memo_group</span></code>: 메모 그룹이 존재할 때 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlMemoGroup</span></code> 래퍼를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">memos</span></code>: 섹션의 메모 래퍼를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">add_memo(...)</span></code>: 메모 그룹이 있는지 확인한 후 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlMemoGroup.add_memo()</span></code>에 위임하는 편의 메서드입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">add_paragraph(text=&quot;&quot;,</span> <span class="pre">...)</span></code>: 선택적 서식 재정의와 함께 단락 엘리먼트를 추가하고 그 래퍼를 반환합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mark_dirty()</span></code>, <code class="docutils literal notranslate"><span class="pre">dirty</span></code>, <code class="docutils literal notranslate"><span class="pre">reset_dirty()</span></code>: 섹션을 저장해야 하는지 여부를 추적합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">to_bytes()</span> <span class="pre">-&gt;</span> <span class="pre">bytes</span></code>: <code class="docutils literal notranslate"><span class="pre">_serialize_xml()</span></code>을 사용하여 섹션 엘리먼트를 직렬화합니다.</p></li>
+</ul>
+</section>
+<section id="hwpxoxmlheader">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlHeader</span></code><a class="headerlink" href="#hwpxoxmlheader" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">element</span></code>: 원시 헤더 <code class="docutils literal notranslate"><span class="pre">Element</span></code>를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">document</span></code>: 소유 문서를 참조하는 프로퍼티입니다. <code class="docutils literal notranslate"><span class="pre">attach_document()</span></code>로 할당합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ensure_char_property(...)</span></code>: <code class="docutils literal notranslate"><span class="pre">predicate</span></code>와 일치하는 <code class="docutils literal notranslate"><span class="pre">&lt;hh:charPr&gt;</span></code> 항목이 있는지 확인합니다. 일치하는 항목이 없으면 기존 항목을 복제(또는 빈 항목 생성)하고, <code class="docutils literal notranslate"><span class="pre">modifier</span></code>를 적용하며, 고유 ID를 할당하고, <code class="docutils literal notranslate"><span class="pre">itemCnt</span></code>를 업데이트한 후, 문서의 글자 스타일 캐시를 무효화합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">begin_numbering</span></code>: <code class="docutils literal notranslate"><span class="pre">&lt;hh:beginNum&gt;</span></code>에서 생성된 <code class="docutils literal notranslate"><span class="pre">DocumentNumbering</span></code> 스냅샷을 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set_begin_numbering(...)</span></code>: 음수가 아닌 카운터 값으로 <code class="docutils literal notranslate"><span class="pre">&lt;hh:beginNum&gt;</span></code> 엘리먼트를 업데이트하거나 생성합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">memo_shapes</span></code>: 헤더의 참조 목록에서 추출한 메모 모양 딕셔너리를 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">memo_shape(memo_shape_id_ref)</span></code>: ID로 메모 모양을 가져옵니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dirty</span></code>, <code class="docutils literal notranslate"><span class="pre">mark_dirty()</span></code>, <code class="docutils literal notranslate"><span class="pre">reset_dirty()</span></code>: 저장 작업을 위해 보류 중인 변경 사항을 추적합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">to_bytes()</span></code>: <code class="docutils literal notranslate"><span class="pre">_serialize_xml()</span></code>로 헤더 엘리먼트를 직렬화합니다.</p></li>
+<li><p>내부 헬퍼들은 위의 공개 작업을 지원합니다.</p></li>
+</ul>
+</section>
+<section id="hwpxoxmldocument">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxOxmlDocument</span></code><a class="headerlink" href="#hwpxoxmldocument" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">from_package(package)</span></code>: <code class="docutils literal notranslate"><span class="pre">HwpxPackage</span></code>에서 매니페스트, 섹션 XML 파트, 헤더 XML 파트를 읽고 래핑하는 클래스 메서드입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">manifest</span></code>: 원시 매니페스트 엘리먼트를 노출하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sections</span></code>, <code class="docutils literal notranslate"><span class="pre">headers</span></code>: 섹션 및 헤더 래퍼 목록의 복사본을 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">char_properties</span></code>: 글자 스타일 ID를 <code class="docutils literal notranslate"><span class="pre">RunStyle</span></code> 객체에 매핑한 딕셔너리를 반환하며, 모든 헤더의 결과를 캐시합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">char_property(char_pr_id_ref)</span></code>: 문자열 또는 숫자 값을 받아 ID로 <code class="docutils literal notranslate"><span class="pre">RunStyle</span></code>을 조회합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ensure_run_style(...)</span></code>: 요청된 굵게, 기울임, 밑줄 플래그를 가진 런 스타일이 첫 번째 헤더에 존재하는지 확인하며, 필요에 따라 항목을 생성하거나 복제합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">memo_shapes</span></code>: 모든 헤더의 메모 모양을 하나의 딕셔너리로 병합하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">memo_shape(memo_shape_id_ref)</span></code>: ID로 메모 모양을 가져옵니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">paragraphs</span></code>: 모든 섹션의 단락 래퍼를 연결하여 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">add_paragraph(...)</span></code>: <code class="docutils literal notranslate"><span class="pre">section</span></code> 또는 <code class="docutils literal notranslate"><span class="pre">section_index</span></code>를 사용하여 대상 섹션을 선택하여 단락을 추가하도록 섹션에 위임합니다. 기본값은 마지막 섹션입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">serialize()</span> <span class="pre">-&gt;</span> <span class="pre">dict[str,</span> <span class="pre">bytes]</span></code>: 변경된(dirty) 섹션/헤더에 대한 업데이트된 파트 페이로드 딕셔너리를 반환합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">reset_dirty()</span></code>: 저장 후 모든 섹션과 헤더를 깨끗한(clean) 상태로 표시합니다.</p></li>
+<li><p>내부 헬퍼는 캐시된 런 스타일을 유지 관리합니다.</p></li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="hwpx-opc-package">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.opc.package</span></code><a class="headerlink" href="#hwpx-opc-package" title="Link to this heading"></a></h2>
+<section id="id21">
+<h3>예외<a class="headerlink" href="#id21" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">HwpxPackageError</span></code>: 패키지 조작 오류에 대한 기본 예외입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">HwpxStructureError</span></code>: HWPX 패키지의 필수 구조 구성 요소가 없거나 일치하지 않을 때 발생합니다.</p></li>
+</ul>
+</section>
+<section id="id22">
+<h3>데이터 클래스<a class="headerlink" href="#id22" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">RootFile</span></code>: <code class="docutils literal notranslate"><span class="pre">META-INF/container.xml</span></code> 내의 <code class="docutils literal notranslate"><span class="pre">&lt;rootfile&gt;</span></code> 항목을 나타내며, 참조된 경로가 아카이브에 있는지 확인하는 <code class="docutils literal notranslate"><span class="pre">ensure_exists(files)</span></code>를 제공합니다.</p></li>
+</ul>
+</section>
+<section id="versioninfo">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">VersionInfo</span></code><a class="headerlink" href="#versioninfo" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">from_bytes(data)</span></code>: <code class="docutils literal notranslate"><span class="pre">version.xml</span></code>을 파싱하여 네임스페이스 선언과 선택적 XML 선언 헤더를 캡처하는 클래스 메서드입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_collect_namespaces(data)</span></code>: <code class="docutils literal notranslate"><span class="pre">iterparse()</span></code>를 사용하여 네임스페이스 접두사를 기록하는 내부 헬퍼입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_extract_declaration(data)</span></code>: 직렬화 시 XML 선언을 보존하는 내부 헬퍼입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">attributes</span></code>: 루트 엘리먼트 속성의 얕은 복사본을 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">get(key,</span> <span class="pre">default=None)</span></code>: 속성에 대한 편의 접근자입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set(key,</span> <span class="pre">value)</span></code>: 속성을 업데이트하고 객체를 dirty로 표시합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tag</span></code>: 루트 엘리먼트 태그 이름을 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">to_bytes()</span></code>: 엘리먼트를 다시 바이트로 직렬화하며, 네임스페이스를 다시 등록하고 원래 XML 선언이 있으면 다시 앞에 추가합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dirty</span></code>: 변경 사항이 있었는지 여부를 나타내는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mark_clean()</span></code>: 패키지가 <code class="docutils literal notranslate"><span class="pre">version.xml</span></code>을 저장한 후 dirty 플래그를 재설정합니다.</p></li>
+</ul>
+</section>
+<section id="id23">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">HwpxPackage</span></code><a class="headerlink" href="#id23" title="Link to this heading"></a></h3>
+<section id="id24">
+<h4>생성 헬퍼<a class="headerlink" href="#id24" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">open(pkg_file)</span></code>: zip 아카이브를 읽고, 필수 항목의 유효성을 검사하며, <code class="docutils literal notranslate"><span class="pre">container.xml</span></code>과 <code class="docutils literal notranslate"><span class="pre">version.xml</span></code>을 파싱한 후, 패키지 래퍼를 반환하는 클래스 메서드입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_parse_container(data)</span></code>: <code class="docutils literal notranslate"><span class="pre">&lt;rootfile&gt;</span></code> 선언을 추출하고 필수 속성을 강제하며 오류 시 <code class="docutils literal notranslate"><span class="pre">HwpxStructureError</span></code>를 발생시키는 내부 파서입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_parse_version(data)</span></code>: <code class="docutils literal notranslate"><span class="pre">VersionInfo</span></code> 인스턴스를 생성하거나 파일이 없을 때 예외를 발생시키는 내부 파서입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_validate_structure()</span></code>: 필수 파일이 존재하고, 최소 하나의 콘텐츠 항목이 <code class="docutils literal notranslate"><span class="pre">Contents</span></code> 디렉토리 아래에 있는지 확인합니다.</p></li>
+</ul>
+</section>
+<section id="id25">
+<h4>패키지 메타데이터<a class="headerlink" href="#id25" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">mimetype</span></code>: 현재 패키지 mimetype 문자열을 노출하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">rootfiles</span></code>: <code class="docutils literal notranslate"><span class="pre">container.xml</span></code>에 선언된 <code class="docutils literal notranslate"><span class="pre">RootFile</span></code> 항목들의 튜플을 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">iter_rootfiles()</span></code>: 선언 순서대로 루트 파일을 순회하는 이터레이터입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">main_content</span></code>: 미디어 유형이 주 HWPML 패키지를 나타내는 루트 파일을 반환하며, 기본값은 첫 번째 항목입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">version_info</span></code>: 변경 가능한 <code class="docutils literal notranslate"><span class="pre">VersionInfo</span></code> 인스턴스를 노출하는 프로퍼티입니다.</p></li>
+</ul>
+</section>
+<section id="id26">
+<h4>파일 조작<a class="headerlink" href="#id26" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">read(path)</span></code>: 메모리 내 파일 딕셔너리에서 정규화된 경로의 데이터를 가져오거나, 없으면 <code class="docutils literal notranslate"><span class="pre">HwpxPackageError</span></code>를 발생시킵니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">write(path,</span> <span class="pre">data)</span></code>: 경로에 대한 바이트를 저장하며, 구조적 파일을 자동으로 파싱하고 업데이트 후 패키지를 다시 검증합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">delete(path)</span></code>: 필수가 아닌 파일을 제거하고 패키지를 다시 검증합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_normalize_path(path)</span></code>: 일관성을 위해 백슬래시를 슬래시로 변환하는 내부 헬퍼입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">files()</span></code>: 패키지에 포함된 파일 이름의 정렬된 목록을 반환합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">save(pkg_file)</span></code>: 패키지를 디스크나 파일과 유사한 객체에 씁니다. mimetype이 압축되지 않은 상태로 저장되도록 하고, 변경된 <code class="docutils literal notranslate"><span class="pre">version.xml</span></code>을 직렬화하며, 구조를 검증하고, 다른 파일들은 deflate 압축으로 씁니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_write_mimetype(zf)</span></code>: OPC 사양에 따라 <code class="docutils literal notranslate"><span class="pre">ZIP_STORED</span></code>를 사용하여 mimetype 항목을 쓰는 내부 헬퍼입니다.</p></li>
+</ul>
+</section>
+</section>
+</section>
+<hr class="docutils" />
+<section id="hwpx-tools-text-extractor">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.text_extractor</span></code><a class="headerlink" href="#hwpx-tools-text-extractor" title="Link to this heading"></a></h2>
+<section id="id27">
+<h3>상수<a class="headerlink" href="#id27" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">DEFAULT_NAMESPACES</span></code>: HWPX XML 페이로드 쿼리 시 사용되는 네임스페이스 접두사 매핑입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_SECTION_PATTERN</span></code>: 섹션 XML 파일 이름(<code class="docutils literal notranslate"><span class="pre">Contents/section*.xml</span></code>)과 일치하는 정규 표현식입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_OBJECT_CONTAINERS</span></code>: 중첩된 객체 컨테이너로 취급되는 엘리먼트 이름 집합입니다.</p></li>
+</ul>
+</section>
+<section id="id28">
+<h3>타입 별칭<a class="headerlink" href="#id28" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">_ObjectBehavior</span></code>, <code class="docutils literal notranslate"><span class="pre">HighlightBehavior</span></code>, …: 인라인 주석이 렌더링되는 방식을 설명하는 리터럴 유니언입니다.</p></li>
+</ul>
+</section>
+<section id="id29">
+<h3>데이터클래스<a class="headerlink" href="#id29" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">AnnotationOptions</span></code>: 텍스트 추출 중 하이라이트, 메모, 하이퍼링크, 컨트롤이 표현되는 방식을 제어하는 설정입니다. <code class="docutils literal notranslate"><span class="pre">highlight_start</span></code>, <code class="docutils literal notranslate"><span class="pre">note_inline_format</span></code>과 같은 필드는 마커 템플릿을 정의합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SectionInfo</span></code>: 섹션 인덱스, 아카이브 경로, 파싱된 루트 엘리먼트를 기록합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ParagraphInfo</span></code>: 소유 섹션, 단락 인덱스, 엘리먼트, 계산된 경로, 조상 계층, 그리고 이를 생성한 추출기를 참조합니다. 다음을 제공합니다:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">tag</span></code>: 로컬 태그 이름을 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ancestors</span></code>: 부모 태그의 튜플을 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">is_nested</span></code>: 단락이 객체 내에 중첩되어 있는지 여부를 나타내는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">text(...)</span></code>: <code class="docutils literal notranslate"><span class="pre">TextExtractor.paragraph_text()</span></code>에 위임하는 메서드입니다.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="textextractor">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">TextExtractor</span></code><a class="headerlink" href="#textextractor" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">__init__(source,</span> <span class="pre">...)</span></code>: 데이터 소스(경로, zip 파일, <code class="docutils literal notranslate"><span class="pre">ZipFile</span></code> 인스턴스)를 저장하고, 사용자 정의 네임스페이스를 기본값과 병합하며, 필요할 때까지 아카이브 열기를 지연시킵니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">open()</span></code>: 필요한 경우 내부 아카이브를 열고 <code class="docutils literal notranslate"><span class="pre">ZipFile</span></code> 핸들을 반환하며, 제공된 객체가 있으면 재사용합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">close()</span></code>: 추출기가 소유한 경우 아카이브를 닫습니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">__enter__()</span></code>, <code class="docutils literal notranslate"><span class="pre">__exit__()</span></code>: 확정적인 리소스 관리를 위한 컨텍스트 관리자 지원입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">iter_sections()</span></code>: 각 섹션 XML 항목을 읽고 파싱하여 섹션 메타데이터를 순회(yield)합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">iter_paragraphs(section,</span> <span class="pre">...)</span></code>: 주어진 섹션 내의 모든 단락에 대한 <code class="docutils literal notranslate"><span class="pre">ParagraphInfo</span></code>를 순회합니다. 재귀적으로(<code class="docutils literal notranslate"><span class="pre">include_nested=True</span></code>) 또는 최상위 단락만 순회할 수 있습니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">iter_document_paragraphs(...)</span></code>: 모든 섹션의 모든 단락을 순회합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">paragraph_text(paragraph,</span> <span class="pre">...)</span></code>: 단락 엘리먼트를 텍스트로 변환합니다. 런을 순회하고 제공된 동작 플래그와 주석 옵션에 따라 중첩된 엘리먼트(줄 바꿈, 탭, 메모 등)를 처리합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_handle_object(...)</span></code>, <code class="docutils literal notranslate"><span class="pre">_handle_note(...)</span></code> 등: <code class="docutils literal notranslate"><span class="pre">paragraph_text()</span></code>에서 중첩된 객체, 주석, 컨트롤 구조를 렌더링하거나 건너뛰기 위해 사용하는 내부 헬퍼입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">extract_text(paragraph_separator=&quot;\n&quot;,</span> <span class="pre">...)</span></code>: 문서의 모든 단락을 순회하고 렌더링된 텍스트를 요청된 구분 기호로 결합하는 편의 메서드입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_iter_section_files(archive)</span></code>: <code class="docutils literal notranslate"><span class="pre">content.hpf</span></code>를 사용하거나 매니페스트가 불완전할 경우 아카이브를 스캔하여 섹션 파일 이름을 열거하는 내부 헬퍼입니다.</p></li>
+</ul>
+</section>
+<section id="id30">
+<h3>모듈 수준 헬퍼<a class="headerlink" href="#id30" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">_resolve_note_text(...)</span></code>: 제공된 추출기를 사용하여 메모 <code class="docutils literal notranslate"><span class="pre">subList</span></code> 컨테이너에서 단락 텍스트를 수집합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_resolve_control_nested_text(...)</span></code>: 주석이 중첩 렌더링을 허용할 때 컨트롤 엘리먼트의 중첩된 단락 텍스트를 추출합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_resolve_hyperlink_target(...)</span></code>: <code class="docutils literal notranslate"><span class="pre">fieldBegin</span></code> 매개변수에서 하이퍼링크 대상을 추출합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">strip_namespace(tag)</span></code>: 태그 이름에서 네임스페이스 접두사를 제거합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tag_matches(...)</span></code>: 후보 태그가 쿼리 문자열 또는 시퀀스와 일치하는지 네임스페이스 접두사를 존중하며 테스트합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">build_parent_map(root)</span></code>: 자식 엘리먼트를 부모에 매핑하는 딕셔너리를 빌드하여 엘리먼트 경로 구성에 유용합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">describe_element_path(...)</span></code>: 섹션 내에서 엘리먼트를 식별하는 XPath와 유사한 문자열을 생성합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_section_sort_key(name)</span></code>: 섹션 이름이 숫자 순서로 처리되도록 보장하는 정렬 헬퍼입니다.</p></li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="hwpx-tools-object-finder">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.object_finder</span></code><a class="headerlink" href="#hwpx-tools-object-finder" title="Link to this heading"></a></h2>
+<section id="id31">
+<h3>타입 별칭 및 데이터클래스<a class="headerlink" href="#id31" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">AttrMatcher</span></code>: 문자열, 시퀀스, 정규식 패턴 또는 호출 가능 객체를 허용하는 속성 매처 타입 별칭입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">FoundElement</span></code>: 섹션, 엘리먼트 경로, 그리고 내부 엘리먼트를 기록합니다. 다음을 제공합니다:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">tag</span></code>: 로컬 태그 이름을 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">hierarchy</span></code>: 경로를 세그먼트로 나눈 것을 반환하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">text</span></code>: <code class="docutils literal notranslate"><span class="pre">element.text</span></code>를 대리하는 프로퍼티입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">get(name,</span> <span class="pre">...)</span></code>: 속성 접근 헬퍼입니다.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">AnnotationMatch</span></code>: <code class="docutils literal notranslate"><span class="pre">ObjectFinder.iter_annotations()</span></code>에 의해 발견된 주석을 나타내며, 주석 종류, 엘리먼트 위치, 렌더링된 값을 저장합니다.</p></li>
+</ul>
+</section>
+<section id="objectfinder">
+<h3>클래스 <code class="docutils literal notranslate"><span class="pre">ObjectFinder</span></code><a class="headerlink" href="#objectfinder" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">__init__(source,</span> <span class="pre">...)</span></code>: 데이터 소스와 네임스페이스 매핑을 저장합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">iter(tag=None,</span> <span class="pre">attrs=None,</span> <span class="pre">...)</span></code>: 태그 기준, 속성 술어, 선택적 XPath 선택자 및 섹션 필터와 일치하는 <code class="docutils literal notranslate"><span class="pre">FoundElement</span></code> 객체를 순회(yield)하는 제너레이터입니다. <code class="docutils literal notranslate"><span class="pre">limit</span></code>이 제공되면 해당 수만큼 찾은 후 중지합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">find_first(...)</span></code>: <code class="docutils literal notranslate"><span class="pre">iter()</span></code>에 <code class="docutils literal notranslate"><span class="pre">limit=1</span></code>을 위임하여 첫 번째 일치하는 엘리먼트 또는 <code class="docutils literal notranslate"><span class="pre">None</span></code>을 반환합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">find_all(...)</span></code>: <code class="docutils literal notranslate"><span class="pre">iter()</span></code>를 즉시 소비하여 모든 일치 항목의 목록을 반환합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">iter_annotations(kinds=None,</span> <span class="pre">...)</span></code>: 하이라이트, 메모, 하이퍼링크, 컨트롤 주석을 문서에서 검색하여, 제공된 <code class="docutils literal notranslate"><span class="pre">AnnotationOptions</span></code>에 따라 서식이 지정된 <code class="docutils literal notranslate"><span class="pre">AnnotationMatch</span></code> 객체를 순회합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_format_note_annotation(...)</span></code>: 동작 설정에 따라 메모 주석을 정규화하는 내부 헬퍼입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_match_attributes(element,</span> <span class="pre">expected)</span></code>: <code class="docutils literal notranslate"><span class="pre">iter()</span></code>를 위한 속성 일치 규칙을 평가하는 정적 헬퍼입니다.</p></li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="hwpx-tools-validator">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.validator</span></code><a class="headerlink" href="#hwpx-tools-validator" title="Link to this heading"></a></h2>
+<section id="id32">
+<h3>데이터 클래스<a class="headerlink" href="#id32" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">DocumentSchemas</span></code>: 로드된 헤더 및 섹션 XML 스키마 객체를 저장합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ValidationIssue</span></code>: 유효성 검사 실패를 나타냅니다. 파트 이름, 위치, 오류 메시지를 결합한 사람이 읽기 쉬운 <code class="docutils literal notranslate"><span class="pre">__str__</span></code> 구현을 제공합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ValidationReport</span></code>: 유효성 검사 결과를 집계하며, 검증된 파트 이름과 이슈를 저장합니다. <code class="docutils literal notranslate"><span class="pre">ok</span></code> 프로퍼티(및 진리값)는 모든 검사가 통과했는지 여부를 나타냅니다.</p></li>
+</ul>
+</section>
+<section id="id33">
+<h3>함수<a class="headerlink" href="#id33" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">load_default_schemas(schema_dir=None)</span></code>: 번들로 제공되는 헤더 및 섹션 XSD 파일을 로드하며, 스키마 디렉토리가 없을 때 예외를 발생시킵니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_iter_parts(document)</span></code>: <code class="docutils literal notranslate"><span class="pre">HwpxDocument</span></code>의 모든 헤더와 섹션에 대해 <code class="docutils literal notranslate"><span class="pre">(파트</span> <span class="pre">이름,</span> <span class="pre">XML</span> <span class="pre">바이트,</span> <span class="pre">헤더</span> <span class="pre">여부)</span></code>를 순회하는 내부 헬퍼입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_issues_from_error(part_name,</span> <span class="pre">exc)</span></code>: <code class="docutils literal notranslate"><span class="pre">lxml</span></code> 유효성 검사 오류를 <code class="docutils literal notranslate"><span class="pre">ValidationIssue</span></code> 인스턴스로 정규화합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">validate_document(source,</span> <span class="pre">...)</span></code>: 문서를 열고, 제공되지 않은 경우 기본 스키마를 로드하며, 각 헤더 및 섹션 파트를 적절한 파서로 검증하고 이슈를 집계합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">main(argv=None)</span></code>: 인자를 파싱하고, 문서를 검증하며, 결과를 출력하는 명령줄 진입점입니다. 성공 시 0을, 이슈 발생 시 0이 아닌 값을 반환합니다.</p></li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="hwpx-init">
+<h2>모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.__init__</span></code><a class="headerlink" href="#hwpx-init" title="Link to this heading"></a></h2>
+<p>이 패키지는 편의를 위해 다음과 같은 재내보내기(re-exports)를 노출합니다:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">hwpx.tools.text_extractor</span></code> 모듈의 <code class="docutils literal notranslate"><span class="pre">DEFAULT_NAMESPACES</span></code>, <code class="docutils literal notranslate"><span class="pre">ParagraphInfo</span></code>, <code class="docutils literal notranslate"><span class="pre">SectionInfo</span></code>, <code class="docutils literal notranslate"><span class="pre">TextExtractor</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">hwpx.tools.object_finder</span></code> 모듈의 <code class="docutils literal notranslate"><span class="pre">FoundElement</span></code>, <code class="docutils literal notranslate"><span class="pre">ObjectFinder</span></code></p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="faq.html" class="btn btn-neutral float-left" title="자주 묻는 질문 (FAQ)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, python-hwpx Maintainers.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

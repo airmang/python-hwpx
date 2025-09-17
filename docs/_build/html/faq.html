@@ -1,0 +1,247 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>자주 묻는 질문 (FAQ) &mdash; python-hwpx 1.2 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=92fd9be5" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=61243dd2"></script>
+      <script src="_static/doctools.js?v=9a2dae69"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="API Reference" href="api_reference.html" />
+    <link rel="prev" title="HWPX 스키마 구조와 파이썬 모델 현황" href="schema-overview.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            python-hwpx
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">시작하기</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">5분 안에 HWPX 문서 다루기</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id1">준비물</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id2">1. 문서 열기와 기본 정보 확인</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id3">2. 새 문단 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id4">3. 표 만들기와 값 채우기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id5">4. 메모와 필드 컨트롤 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id6">5. 다른 이름으로 저장하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id7">다음 단계</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">설치 가이드</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id2">요구 사항</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#pypi">PyPI에서 설치</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id3">소스 코드에서 개발용 설치</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id4">설치 검증</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id5">테스트 실행 (선택 사항)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">사용 가이드</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id2">패키지 열기와 기본 점검</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#hwpxdocument">HwpxDocument로 문서 편집하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id3">메모 다루기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id4">스타일 기반 텍스트 변환</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id5">런 서식 지정</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id6">텍스트 추출과 주석 표현</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#objectfinder">ObjectFinder로 요소 검색하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id7">변경 사항 저장과 결과물 확인</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">실전 예제</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#id2">1. 보고서 템플릿에 표와 개체 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#id3">2. 하이라이트와 주석을 포함한 텍스트 보고서 생성하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#id4">3. 특정 태그를 검색해 요약 정보 만들기</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">심화 주제</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="schema-overview.html">HWPX 스키마 구조와 파이썬 모델 현황</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#devdoc">DevDoc 스키마 자료 한눈에 보기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#id1">주요 스키마 세부 구조</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#id2">파이썬 구현 현황 요약</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#id5">주요 누락 요소 및 확장 필요 영역</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">자주 묻는 질문 (FAQ)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#modulenotfounderror-no-module-named-hwpx"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'hwpx'</span></code> 오류가 발생합니다.</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpxstructureerror"><code class="docutils literal notranslate"><span class="pre">HwpxStructureError</span></code> 예외가 발생하는 이유는 무엇인가요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hwpx-package-hwpxpackage-hwpx-opc-package-hwpxpackage"><code class="docutils literal notranslate"><span class="pre">hwpx.package.HwpxPackage</span></code>와 <code class="docutils literal notranslate"><span class="pre">hwpx.opc.package.HwpxPackage</span></code>의 차이는 무엇인가요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#http">파일을 메모리 버퍼나 HTTP 응답으로부터 열 수 있나요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id1">중첩 문단을 제외하거나 특정 섹션만 순회하려면 어떻게 해야 하나요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id2">저장 시 원본 파일을 덮어쓰지 않고 새 파일로 만들고 싶습니다.</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API 참조</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-templates">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.templates</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-package">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.package</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-document">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.document</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-common">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.common</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-body">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.body</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-header">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.header</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-utils">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.utils</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-schema">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.schema</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-parser">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.parser</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-document">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.document</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-opc-package">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.opc.package</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-tools-text-extractor">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.text_extractor</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-tools-object-finder">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.object_finder</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-tools-validator">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.validator</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-init">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.__init__</span></code></a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">python-hwpx</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">자주 묻는 질문 (FAQ)</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/faq.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="faq">
+<h1>자주 묻는 질문 (FAQ)<a class="headerlink" href="#faq" title="Link to this heading"></a></h1>
+<section id="modulenotfounderror-no-module-named-hwpx">
+<h2><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'hwpx'</span></code> 오류가 발생합니다.<a class="headerlink" href="#modulenotfounderror-no-module-named-hwpx" title="Link to this heading"></a></h2>
+<p>저장소 루트의 <code class="docutils literal notranslate"><span class="pre">src</span></code> 디렉터리를 Python 경로에 추가하지 않은 경우 발생합니다. 가상 환경을 활성화한 후 다음 명령을 실행해 <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code>를 설정하세요.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span><span class="s2">/src:</span><span class="si">${</span><span class="nv">PYTHONPATH</span><span class="si">}</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+<p>PowerShell을 사용한다면:</p>
+<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nv">$env:PYTHONPATH</span> <span class="p">=</span> <span class="s2">&quot;</span><span class="p">$(</span><span class="nb">Get-Location</span><span class="p">)</span><span class="s2">\src;&quot;</span> <span class="p">+</span> <span class="nv">$env:PYTHONPATH</span>
+</pre></div>
+</div>
+<p>보다 자세한 절차는 <a class="reference internal" href="installation.html"><span class="std std-doc">설치 가이드</span></a>를 참고하세요.</p>
+</section>
+<section id="hwpxstructureerror">
+<h2><code class="docutils literal notranslate"><span class="pre">HwpxStructureError</span></code> 예외가 발생하는 이유는 무엇인가요?<a class="headerlink" href="#hwpxstructureerror" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">HwpxStructureError</span></code>는 패키지 내 필수 파일이 누락되거나 <code class="docutils literal notranslate"><span class="pre">META-INF/container.xml</span></code>에 선언된 루트 파일을 찾지 못했을 때 발생합니다. 문제가 되는 HWPX 파일이 규격을 따르는지 다음 항목을 확인하세요.</p>
+<ol class="arabic simple">
+<li><p>ZIP 루트에 <code class="docutils literal notranslate"><span class="pre">mimetype</span></code> 파일이 존재하며 내용이 <code class="docutils literal notranslate"><span class="pre">application/hwp+zip</span></code>인지 확인합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">META-INF/container.xml</span></code>에 선언된 경로가 실제 파트와 일치하는지 검사합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">version.xml</span></code>이 포함되어 있고, <code class="docutils literal notranslate"><span class="pre">Contents/</span></code> 디렉터리에 문서 본문(<code class="docutils literal notranslate"><span class="pre">section*.xml</span></code>)이 있는지 확인합니다.</p></li>
+</ol>
+<p>파일이 손상되었다면 Hancom Office에서 다시 저장하거나, <code class="docutils literal notranslate"><span class="pre">HwpxPackage.open()</span></code> 호출 시 예외를 잡아 사용자에게 오류를 알리면 됩니다.</p>
+</section>
+<section id="hwpx-package-hwpxpackage-hwpx-opc-package-hwpxpackage">
+<h2><code class="docutils literal notranslate"><span class="pre">hwpx.package.HwpxPackage</span></code>와 <code class="docutils literal notranslate"><span class="pre">hwpx.opc.package.HwpxPackage</span></code>의 차이는 무엇인가요?<a class="headerlink" href="#hwpx-package-hwpxpackage-hwpx-opc-package-hwpxpackage" title="Link to this heading"></a></h2>
+<p>두 클래스 모두 HWPX 패키지를 나타내지만 역할이 다릅니다.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">hwpx.opc.package.HwpxPackage</span></code>는 OPC 구조 검증과 파트 로딩에 초점을 맞춘 저수준 컨테이너입니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">hwpx.package.HwpxPackage</span></code>는 <code class="docutils literal notranslate"><span class="pre">HwpxDocument</span></code>가 사용하는 상위 래퍼로, 수정된 XML 파트를 직렬화하고 저장하는 기능을 제공합니다.</p></li>
+</ul>
+<p>패키지를 직접 다룰 때는 일반적으로 <code class="docutils literal notranslate"><span class="pre">hwpx.opc.package.HwpxPackage</span></code>를 사용하고, 문서 편집 API와 함께 작업할 때는 <code class="docutils literal notranslate"><span class="pre">HwpxDocument.package</span></code> 속성으로 제공되는 고수준 패키지를 사용하세요.</p>
+</section>
+<section id="http">
+<h2>파일을 메모리 버퍼나 HTTP 응답으로부터 열 수 있나요?<a class="headerlink" href="#http" title="Link to this heading"></a></h2>
+<p>네. <code class="docutils literal notranslate"><span class="pre">HwpxPackage.open()</span></code>과 <code class="docutils literal notranslate"><span class="pre">HwpxDocument.open()</span></code>은 파일 경로뿐 아니라 바이트열과 파일 객체도 지원합니다.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">io</span> <span class="kn">import</span> <span class="n">BytesIO</span>
+<span class="kn">from</span> <span class="nn">hwpx.document</span> <span class="kn">import</span> <span class="n">HwpxDocument</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;sample.hwpx&quot;</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fp</span><span class="p">:</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+
+<span class="n">document</span> <span class="o">=</span> <span class="n">HwpxDocument</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">BytesIO</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">document</span><span class="o">.</span><span class="n">paragraphs</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>수정된 결과를 바이트로 받고 싶다면 <code class="docutils literal notranslate"><span class="pre">document.save()</span></code> 호출 시 경로를 생략하면 됩니다.</p>
+</section>
+<section id="id1">
+<h2>중첩 문단을 제외하거나 특정 섹션만 순회하려면 어떻게 해야 하나요?<a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">TextExtractor.iter_document_paragraphs(include_nested=False)</span></code>를 호출하면 표/컨트롤 내부 문단을 건너뛸 수 있습니다. 섹션별로 처리하려면 <code class="docutils literal notranslate"><span class="pre">iter_sections()</span></code> 결과를 필터링한 뒤 <code class="docutils literal notranslate"><span class="pre">iter_paragraphs()</span></code>를 호출하세요.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">hwpx.tools.text_extractor</span> <span class="kn">import</span> <span class="n">TextExtractor</span>
+
+<span class="k">with</span> <span class="n">TextExtractor</span><span class="p">(</span><span class="s2">&quot;sample.hwpx&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">extractor</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">section</span> <span class="ow">in</span> <span class="n">extractor</span><span class="o">.</span><span class="n">iter_sections</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">section</span><span class="o">.</span><span class="n">index</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">for</span> <span class="n">paragraph</span> <span class="ow">in</span> <span class="n">extractor</span><span class="o">.</span><span class="n">iter_paragraphs</span><span class="p">(</span><span class="n">section</span><span class="p">,</span> <span class="n">include_nested</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">section</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">paragraph</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">paragraph</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>
+</pre></div>
+</div>
+</section>
+<section id="id2">
+<h2>저장 시 원본 파일을 덮어쓰지 않고 새 파일로 만들고 싶습니다.<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">HwpxDocument.save(&quot;output.hwpx&quot;)</span></code>처럼 경로를 지정하면 해당 경로로 새 ZIP 아카이브가 생성됩니다. 이미 열린 파일 객체나 <code class="docutils literal notranslate"><span class="pre">BytesIO</span></code> 버퍼를 전달해도 되며, 반환값으로 새 경로 또는 버퍼가 제공됩니다.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="schema-overview.html" class="btn btn-neutral float-left" title="HWPX 스키마 구조와 파이썬 모델 현황" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="api_reference.html" class="btn btn-neutral float-right" title="API Reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, python-hwpx Maintainers.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

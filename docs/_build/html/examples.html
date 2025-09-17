@@ -1,0 +1,293 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>실전 예제 &mdash; python-hwpx 1.2 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=92fd9be5" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=61243dd2"></script>
+      <script src="_static/doctools.js?v=9a2dae69"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="HWPX 스키마 구조와 파이썬 모델 현황" href="schema-overview.html" />
+    <link rel="prev" title="사용 가이드" href="usage.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            python-hwpx
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">시작하기</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">5분 안에 HWPX 문서 다루기</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id1">준비물</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id2">1. 문서 열기와 기본 정보 확인</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id3">2. 새 문단 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id4">3. 표 만들기와 값 채우기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id5">4. 메모와 필드 컨트롤 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id6">5. 다른 이름으로 저장하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id7">다음 단계</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">설치 가이드</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id2">요구 사항</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#pypi">PyPI에서 설치</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id3">소스 코드에서 개발용 설치</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id4">설치 검증</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id5">테스트 실행 (선택 사항)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">사용 가이드</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id2">패키지 열기와 기본 점검</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#hwpxdocument">HwpxDocument로 문서 편집하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id3">메모 다루기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id4">스타일 기반 텍스트 변환</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id5">런 서식 지정</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id6">텍스트 추출과 주석 표현</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#objectfinder">ObjectFinder로 요소 검색하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id7">변경 사항 저장과 결과물 확인</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">실전 예제</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#id2">1. 보고서 템플릿에 표와 개체 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id3">2. 하이라이트와 주석을 포함한 텍스트 보고서 생성하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id4">3. 특정 태그를 검색해 요약 정보 만들기</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">심화 주제</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="schema-overview.html">HWPX 스키마 구조와 파이썬 모델 현황</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#devdoc">DevDoc 스키마 자료 한눈에 보기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#id1">주요 스키마 세부 구조</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#id2">파이썬 구현 현황 요약</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#id5">주요 누락 요소 및 확장 필요 영역</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">자주 묻는 질문 (FAQ)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#modulenotfounderror-no-module-named-hwpx"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'hwpx'</span></code> 오류가 발생합니다.</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#hwpxstructureerror"><code class="docutils literal notranslate"><span class="pre">HwpxStructureError</span></code> 예외가 발생하는 이유는 무엇인가요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#hwpx-package-hwpxpackage-hwpx-opc-package-hwpxpackage"><code class="docutils literal notranslate"><span class="pre">hwpx.package.HwpxPackage</span></code>와 <code class="docutils literal notranslate"><span class="pre">hwpx.opc.package.HwpxPackage</span></code>의 차이는 무엇인가요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#http">파일을 메모리 버퍼나 HTTP 응답으로부터 열 수 있나요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#id1">중첩 문단을 제외하거나 특정 섹션만 순회하려면 어떻게 해야 하나요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#id2">저장 시 원본 파일을 덮어쓰지 않고 새 파일로 만들고 싶습니다.</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API 참조</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-templates">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.templates</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-package">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.package</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-document">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.document</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-common">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.common</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-body">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.body</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-header">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.header</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-utils">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.utils</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-schema">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.schema</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-parser">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.parser</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-document">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.document</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-opc-package">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.opc.package</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-tools-text-extractor">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.text_extractor</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-tools-object-finder">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.object_finder</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-tools-validator">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.validator</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-init">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.__init__</span></code></a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">python-hwpx</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">실전 예제</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/examples.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="id1">
+<h1>실전 예제<a class="headerlink" href="#id1" title="Link to this heading"></a></h1>
+<p>다음 예제는 python-hwpx의 주요 API를 조합해 실제 시나리오를 해결하는 방법을 보여 줍니다. 코드 스니펫은 <code class="docutils literal notranslate"><span class="pre">examples/</span></code> 디렉터리에 포함된 샘플 문서를 기반으로 작성되었습니다.</p>
+<section id="id2">
+<h2>1. 보고서 템플릿에 표와 개체 추가하기<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">hwpx.document</span> <span class="kn">import</span> <span class="n">HwpxDocument</span>
+
+<span class="n">document</span> <span class="o">=</span> <span class="n">HwpxDocument</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;examples/FormattingShowcase.hwpx&quot;</span><span class="p">)</span>
+<span class="n">section</span> <span class="o">=</span> <span class="n">document</span><span class="o">.</span><span class="n">sections</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+<span class="c1"># 머리글 문단을 추가하고 강조 스타일을 적용합니다.</span>
+<span class="n">headline</span> <span class="o">=</span> <span class="n">document</span><span class="o">.</span><span class="n">add_paragraph</span><span class="p">(</span>
+    <span class="s2">&quot;분기별 요약&quot;</span><span class="p">,</span>
+    <span class="n">section</span><span class="o">=</span><span class="n">section</span><span class="p">,</span>
+    <span class="n">style_id_ref</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">char_pr_id_ref</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">headline</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="s2">&quot;분기별 실적 요약&quot;</span>
+
+<span class="c1"># 2x3 표를 생성하고 헤더 행을 병합합니다.</span>
+<span class="n">table</span> <span class="o">=</span> <span class="n">document</span><span class="o">.</span><span class="n">add_table</span><span class="p">(</span>
+    <span class="n">rows</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+    <span class="n">cols</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+    <span class="n">section</span><span class="o">=</span><span class="n">section</span><span class="p">,</span>
+    <span class="n">border_fill_id_ref</span><span class="o">=</span><span class="s2">&quot;3&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">table</span><span class="o">.</span><span class="n">set_cell_text</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;Quarter&quot;</span><span class="p">)</span>
+<span class="n">table</span><span class="o">.</span><span class="n">set_cell_text</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;Actual&quot;</span><span class="p">)</span>
+<span class="n">table</span><span class="o">.</span><span class="n">set_cell_text</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;Forecast&quot;</span><span class="p">)</span>
+<span class="n">table</span><span class="o">.</span><span class="n">merge_cells</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+<span class="c1"># 본문 행을 채우고 셀 크기를 조정합니다.</span>
+<span class="n">q1_label</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">cell</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="n">q1_label</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="s2">&quot;Q1&quot;</span>
+
+<span class="n">actual_cell</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">cell</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">actual_cell</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="s2">&quot;42,000&quot;</span>
+<span class="n">actual_cell</span><span class="o">.</span><span class="n">set_size</span><span class="p">(</span><span class="n">width</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>
+
+<span class="n">forecast_cell</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">cell</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">forecast_cell</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="s2">&quot;44,500&quot;</span>
+
+<span class="c1"># 강조 도형과 컨트롤을 문단으로 추가합니다.</span>
+<span class="n">shape</span> <span class="o">=</span> <span class="n">document</span><span class="o">.</span><span class="n">add_shape</span><span class="p">(</span>
+    <span class="s2">&quot;rect&quot;</span><span class="p">,</span>
+    <span class="n">section</span><span class="o">=</span><span class="n">section</span><span class="p">,</span>
+    <span class="n">attributes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;width&quot;</span><span class="p">:</span> <span class="s2">&quot;9000&quot;</span><span class="p">,</span> <span class="s2">&quot;height&quot;</span><span class="p">:</span> <span class="s2">&quot;3500&quot;</span><span class="p">,</span> <span class="s2">&quot;textWrap&quot;</span><span class="p">:</span> <span class="s2">&quot;SQUARE&quot;</span><span class="p">},</span>
+<span class="p">)</span>
+<span class="n">shape</span><span class="o">.</span><span class="n">set_attribute</span><span class="p">(</span><span class="s2">&quot;width&quot;</span><span class="p">,</span> <span class="s2">&quot;9600&quot;</span><span class="p">)</span>
+
+<span class="n">document</span><span class="o">.</span><span class="n">add_control</span><span class="p">(</span>
+    <span class="n">section</span><span class="o">=</span><span class="n">section</span><span class="p">,</span>
+    <span class="n">control_type</span><span class="o">=</span><span class="s2">&quot;LINE&quot;</span><span class="p">,</span>
+    <span class="n">attributes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;guideline-1&quot;</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;LINE&quot;</span><span class="p">},</span>
+<span class="p">)</span>
+
+<span class="n">document</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;examples/FormattingShowcase-updated.hwpx&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="id3">
+<h2>2. 하이라이트와 주석을 포함한 텍스트 보고서 생성하기<a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">hwpx.tools.text_extractor</span> <span class="kn">import</span> <span class="n">AnnotationOptions</span><span class="p">,</span> <span class="n">TextExtractor</span>
+
+<span class="n">template</span> <span class="o">=</span> <span class="s2">&quot;* </span><span class="si">{section}</span><span class="s2">:</span><span class="si">{index}</span><span class="s2"> — </span><span class="si">{text}</span><span class="s2">&quot;</span>
+
+<span class="n">options</span> <span class="o">=</span> <span class="n">AnnotationOptions</span><span class="p">(</span>
+    <span class="n">highlight</span><span class="o">=</span><span class="s2">&quot;markers&quot;</span><span class="p">,</span>
+    <span class="n">footnote</span><span class="o">=</span><span class="s2">&quot;inline&quot;</span><span class="p">,</span>
+    <span class="n">endnote</span><span class="o">=</span><span class="s2">&quot;inline&quot;</span><span class="p">,</span>
+    <span class="n">hyperlink</span><span class="o">=</span><span class="s2">&quot;target&quot;</span><span class="p">,</span>
+    <span class="n">control</span><span class="o">=</span><span class="s2">&quot;placeholder&quot;</span><span class="p">,</span>
+    <span class="n">control_placeholder</span><span class="o">=</span><span class="s2">&quot;[CTRL:</span><span class="si">{name}</span><span class="s2">]&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="k">with</span> <span class="n">TextExtractor</span><span class="p">(</span><span class="s2">&quot;examples/FormattingShowcase.hwpx&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">extractor</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">paragraph</span> <span class="ow">in</span> <span class="n">extractor</span><span class="o">.</span><span class="n">iter_document_paragraphs</span><span class="p">():</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="n">paragraph</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">annotations</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">text</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+            <span class="k">continue</span>
+        <span class="nb">print</span><span class="p">(</span>
+            <span class="n">template</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">section</span><span class="o">=</span><span class="n">paragraph</span><span class="o">.</span><span class="n">section</span><span class="o">.</span><span class="n">index</span><span class="p">,</span>
+                <span class="n">index</span><span class="o">=</span><span class="n">paragraph</span><span class="o">.</span><span class="n">index</span><span class="p">,</span>
+                <span class="n">text</span><span class="o">=</span><span class="n">text</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">),</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">AnnotationOptions</span></code>를 활용하면 하이라이트 구간이 <code class="docutils literal notranslate"><span class="pre">[HIGHLIGHT</span> <span class="pre">color=#ffff00]텍스트[/HIGHLIGHT]</span></code> 형태로 출력되고, 각주와 미주 내용은 인라인으로 삽입됩니다. 하이퍼링크는 실제 URL을 포함하며, 컨트롤은 <code class="docutils literal notranslate"><span class="pre">control_placeholder</span></code> 형식에 따라 자리표시자로 치환됩니다.</p>
+</section>
+<section id="id4">
+<h2>3. 특정 태그를 검색해 요약 정보 만들기<a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">hwpx.tools.object_finder</span> <span class="kn">import</span> <span class="n">ObjectFinder</span>
+
+<span class="n">finder</span> <span class="o">=</span> <span class="n">ObjectFinder</span><span class="p">(</span><span class="s2">&quot;examples/FormattingShowcase.hwpx&quot;</span><span class="p">)</span>
+
+<span class="c1"># 문서 내 모든 각주 요소를 찾습니다.</span>
+<span class="n">notes</span> <span class="o">=</span> <span class="n">finder</span><span class="o">.</span><span class="n">find_all</span><span class="p">(</span><span class="n">tag</span><span class="o">=</span><span class="s2">&quot;hp:footNote&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Found&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">notes</span><span class="p">),</span> <span class="s2">&quot;footnotes&quot;</span><span class="p">)</span>
+
+<span class="c1"># 책갈피 ID로 시작하는 문단만 가져옵니다.</span>
+<span class="n">bookmarked</span> <span class="o">=</span> <span class="n">finder</span><span class="o">.</span><span class="n">find_all</span><span class="p">(</span>
+    <span class="n">tag</span><span class="o">=</span><span class="s2">&quot;hp:p&quot;</span><span class="p">,</span>
+    <span class="n">attrs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">value</span><span class="p">:</span> <span class="n">value</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;bookmark&quot;</span><span class="p">)},</span>
+<span class="p">)</span>
+<span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">bookmarked</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">element</span><span class="o">.</span><span class="n">section</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">element</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">ObjectFinder</span></code>는 XPath 표현식, 태그/속성 매칭, 주석 전용 이터레이터(<code class="docutils literal notranslate"><span class="pre">iter_annotations</span></code>)를 모두 지원하므로 문서 내부 구조를 탐색하거나 특정 개체만 선별하는 자동화 스크립트를 쉽게 작성할 수 있습니다.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="usage.html" class="btn btn-neutral float-left" title="사용 가이드" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="schema-overview.html" class="btn btn-neutral float-right" title="HWPX 스키마 구조와 파이썬 모델 현황" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, python-hwpx Maintainers.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

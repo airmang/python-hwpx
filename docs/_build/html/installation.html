@@ -1,0 +1,255 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>설치 가이드 &mdash; python-hwpx 1.2 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=92fd9be5" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=61243dd2"></script>
+      <script src="_static/doctools.js?v=9a2dae69"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="사용 가이드" href="usage.html" />
+    <link rel="prev" title="5분 안에 HWPX 문서 다루기" href="quickstart.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            python-hwpx
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">시작하기</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">5분 안에 HWPX 문서 다루기</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id1">준비물</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id2">1. 문서 열기와 기본 정보 확인</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id3">2. 새 문단 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id4">3. 표 만들기와 값 채우기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id5">4. 메모와 필드 컨트롤 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id6">5. 다른 이름으로 저장하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id7">다음 단계</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">설치 가이드</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#id2">요구 사항</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#pypi">PyPI에서 설치</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id3">소스 코드에서 개발용 설치</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id4">설치 검증</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id5">테스트 실행 (선택 사항)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">사용 가이드</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id2">패키지 열기와 기본 점검</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#hwpxdocument">HwpxDocument로 문서 편집하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id3">메모 다루기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id4">스타일 기반 텍스트 변환</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id5">런 서식 지정</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id6">텍스트 추출과 주석 표현</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#objectfinder">ObjectFinder로 요소 검색하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id7">변경 사항 저장과 결과물 확인</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">실전 예제</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#id2">1. 보고서 템플릿에 표와 개체 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#id3">2. 하이라이트와 주석을 포함한 텍스트 보고서 생성하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#id4">3. 특정 태그를 검색해 요약 정보 만들기</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">심화 주제</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="schema-overview.html">HWPX 스키마 구조와 파이썬 모델 현황</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#devdoc">DevDoc 스키마 자료 한눈에 보기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#id1">주요 스키마 세부 구조</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#id2">파이썬 구현 현황 요약</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schema-overview.html#id5">주요 누락 요소 및 확장 필요 영역</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">자주 묻는 질문 (FAQ)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#modulenotfounderror-no-module-named-hwpx"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'hwpx'</span></code> 오류가 발생합니다.</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#hwpxstructureerror"><code class="docutils literal notranslate"><span class="pre">HwpxStructureError</span></code> 예외가 발생하는 이유는 무엇인가요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#hwpx-package-hwpxpackage-hwpx-opc-package-hwpxpackage"><code class="docutils literal notranslate"><span class="pre">hwpx.package.HwpxPackage</span></code>와 <code class="docutils literal notranslate"><span class="pre">hwpx.opc.package.HwpxPackage</span></code>의 차이는 무엇인가요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#http">파일을 메모리 버퍼나 HTTP 응답으로부터 열 수 있나요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#id1">중첩 문단을 제외하거나 특정 섹션만 순회하려면 어떻게 해야 하나요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#id2">저장 시 원본 파일을 덮어쓰지 않고 새 파일로 만들고 싶습니다.</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API 참조</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-templates">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.templates</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-package">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.package</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-document">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.document</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-common">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.common</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-body">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.body</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-header">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.header</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-utils">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.utils</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-schema">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.schema</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-parser">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.parser</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-document">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.document</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-opc-package">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.opc.package</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-tools-text-extractor">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.text_extractor</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-tools-object-finder">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.object_finder</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-tools-validator">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.validator</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-init">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.__init__</span></code></a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">python-hwpx</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">설치 가이드</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/installation.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="id1">
+<h1>설치 가이드<a class="headerlink" href="#id1" title="Link to this heading"></a></h1>
+<p>이 문서는 python-hwpx PyPI 또는 소스 코드에서 설치하는 방법을 정리합니다. 일반 사용자는 PyPI 패키지를 이용하면 되며, 기능 개발이나 디버깅 목적이라면 저장소를 클론해 편집 가능한 설치를 수행하세요.</p>
+<section id="id2">
+<h2>요구 사항<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Python 3.10 이상 (프로젝트 테스트는 CPython 3.11 기준)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pip</span></code>, <code class="docutils literal notranslate"><span class="pre">venv</span></code> 모듈이 포함된 표준 Python 배포판</p></li>
+<li><p>Git 2.30 이상 (소스 설치 시)</p></li>
+</ul>
+</section>
+<section id="pypi">
+<h2>PyPI에서 설치<a class="headerlink" href="#pypi" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
+<span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">  </span><span class="c1"># Windows PowerShell: .venv\Scripts\Activate.ps1</span>
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>pip
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>python-hwpx
+</pre></div>
+</div>
+<p>설치 후 <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-c</span> <span class="pre">&quot;import</span> <span class="pre">hwpx&quot;</span></code> 명령이 오류 없이 종료되면 환경 구성이 완료된 것입니다.</p>
+</section>
+<section id="id3">
+<h2>소스 코드에서 개발용 설치<a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<ol class="arabic">
+<li><p>저장소를 클론합니다.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>&lt;repository-url&gt;
+<span class="nb">cd</span><span class="w"> </span>python-hwpx
+</pre></div>
+</div>
+</li>
+<li><p>가상 환경을 만들고 활성화합니다.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
+<span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">  </span><span class="c1"># Windows PowerShell: .venv\Scripts\Activate.ps1</span>
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>pip
+</pre></div>
+</div>
+</li>
+<li><p>편집 가능한 설치와 개발 도구를 한 번에 구성합니다.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.<span class="o">[</span>dev<span class="o">]</span>
+</pre></div>
+</div>
+</li>
+</ol>
+<p><code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span></code>를 사용하면 추가적인 <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> 수정 없이도 <code class="docutils literal notranslate"><span class="pre">hwpx</span></code> 패키지를 바로 가져올 수 있습니다.</p>
+</section>
+<section id="id4">
+<h2>설치 검증<a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<p>다음 스니펫을 실행해 핵심 모듈이 정상적으로 로드되는지 확인하세요.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;PY&#39;</span>
+<span class="s">from hwpx.opc.package import HwpxPackage</span>
+<span class="s">print(&quot;Package class loaded:&quot;, hasattr(HwpxPackage, &quot;open&quot;))</span>
+<span class="s">PY</span>
+</pre></div>
+</div>
+<p>또는 텍스트 추출 도구를 호출해 문단 수를 빠르게 확인할 수 있습니다.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;PY&#39;</span>
+<span class="s">from hwpx.tools.text_extractor import TextExtractor</span>
+
+<span class="s">with TextExtractor(&quot;examples/FormattingShowcase.hwpx&quot;) as extractor:</span>
+<span class="s">    paragraphs = list(extractor.iter_document_paragraphs())</span>
+
+<span class="s">print(&quot;Paragraphs:&quot;, len(paragraphs))</span>
+<span class="s">PY</span>
+</pre></div>
+</div>
+</section>
+<section id="id5">
+<h2>테스트 실행 (선택 사항)<a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
+<p>개발 환경을 준비했다면 단위 테스트로 기본 동작을 검증하세요.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pytest
+</pre></div>
+</div>
+<p>테스트가 모두 통과하면 라이브러리를 사용할 준비가 완료된 것입니다.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="quickstart.html" class="btn btn-neutral float-left" title="5분 안에 HWPX 문서 다루기" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="usage.html" class="btn btn-neutral float-right" title="사용 가이드" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, python-hwpx Maintainers.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

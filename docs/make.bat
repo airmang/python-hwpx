@@ -1,0 +1,20 @@
+@ECHO OFF
+
+pushd %~dp0
+
+IF "%SPHINXBUILD%"=="" (
+	SET SPHINXBUILD=python -m sphinx
+)
+SET SOURCEDIR=.
+SET BUILDDIR=_build
+SET SPHINXOPTS=
+
+IF "%1"=="" (
+	%SPHINXBUILD% -M help %SOURCEDIR% %BUILDDIR% %SPHINXOPTS% %O%
+	GOTO end
+)
+
+%SPHINXBUILD% -M %1 %SOURCEDIR% %BUILDDIR% %SPHINXOPTS% %O%
+
+:end
+popd

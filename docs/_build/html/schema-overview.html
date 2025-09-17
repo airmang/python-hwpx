@@ -1,0 +1,302 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HWPX 스키마 구조와 파이썬 모델 현황 &mdash; python-hwpx 1.2 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=92fd9be5" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=61243dd2"></script>
+      <script src="_static/doctools.js?v=9a2dae69"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="자주 묻는 질문 (FAQ)" href="faq.html" />
+    <link rel="prev" title="실전 예제" href="examples.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            python-hwpx
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">시작하기</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">5분 안에 HWPX 문서 다루기</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id1">준비물</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id2">1. 문서 열기와 기본 정보 확인</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id3">2. 새 문단 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id4">3. 표 만들기와 값 채우기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id5">4. 메모와 필드 컨트롤 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id6">5. 다른 이름으로 저장하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#id7">다음 단계</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">설치 가이드</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id2">요구 사항</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#pypi">PyPI에서 설치</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id3">소스 코드에서 개발용 설치</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id4">설치 검증</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#id5">테스트 실행 (선택 사항)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">사용 가이드</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id2">패키지 열기와 기본 점검</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#hwpxdocument">HwpxDocument로 문서 편집하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id3">메모 다루기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id4">스타일 기반 텍스트 변환</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id5">런 서식 지정</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id6">텍스트 추출과 주석 표현</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#objectfinder">ObjectFinder로 요소 검색하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#id7">변경 사항 저장과 결과물 확인</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">실전 예제</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#id2">1. 보고서 템플릿에 표와 개체 추가하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#id3">2. 하이라이트와 주석을 포함한 텍스트 보고서 생성하기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#id4">3. 특정 태그를 검색해 요약 정보 만들기</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">심화 주제</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">HWPX 스키마 구조와 파이썬 모델 현황</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#devdoc">DevDoc 스키마 자료 한눈에 보기</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id1">주요 스키마 세부 구조</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id2">파이썬 구현 현황 요약</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id5">주요 누락 요소 및 확장 필요 영역</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">자주 묻는 질문 (FAQ)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#modulenotfounderror-no-module-named-hwpx"><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'hwpx'</span></code> 오류가 발생합니다.</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#hwpxstructureerror"><code class="docutils literal notranslate"><span class="pre">HwpxStructureError</span></code> 예외가 발생하는 이유는 무엇인가요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#hwpx-package-hwpxpackage-hwpx-opc-package-hwpxpackage"><code class="docutils literal notranslate"><span class="pre">hwpx.package.HwpxPackage</span></code>와 <code class="docutils literal notranslate"><span class="pre">hwpx.opc.package.HwpxPackage</span></code>의 차이는 무엇인가요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#http">파일을 메모리 버퍼나 HTTP 응답으로부터 열 수 있나요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#id1">중첩 문단을 제외하거나 특정 섹션만 순회하려면 어떻게 해야 하나요?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#id2">저장 시 원본 파일을 덮어쓰지 않고 새 파일로 만들고 싶습니다.</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API 참조</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-templates">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.templates</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-package">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.package</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-document">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.document</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-common">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.common</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-body">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.body</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-header">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.header</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-utils">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.utils</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-schema">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.schema</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-parser">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.parser</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-oxml-document">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.oxml.document</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-opc-package">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.opc.package</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-tools-text-extractor">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.text_extractor</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-tools-object-finder">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.object_finder</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-tools-validator">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.tools.validator</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#hwpx-init">모듈 <code class="docutils literal notranslate"><span class="pre">hwpx.__init__</span></code></a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">python-hwpx</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">HWPX 스키마 구조와 파이썬 모델 현황</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/schema-overview.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="hwpx">
+<h1>HWPX 스키마 구조와 파이썬 모델 현황<a class="headerlink" href="#hwpx" title="Link to this heading"></a></h1>
+<section id="devdoc">
+<h2>DevDoc 스키마 자료 한눈에 보기<a class="headerlink" href="#devdoc" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>스키마 파일</p></th>
+<th class="head"><p>대상 네임스페이스</p></th>
+<th class="head"><p>루트 요소</p></th>
+<th class="head"><p>주요 역할</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Body XML schema</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://www.owpml.org/owpml/2024/section</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;sec&gt;</span></code></p></td>
+<td><p>구역(section) 루트로서 문단 목록을 정의하며 ParaList 스키마의 <code class="docutils literal notranslate"><span class="pre">SectionType</span></code>을 참조합니다.</p></td>
+</tr>
+<tr class="row-odd"><td><p>ParaList XML schema</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://www.owpml.org/owpml/2024/paragraph</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;hp:p&gt;</span></code> (문단), <code class="docutils literal notranslate"><span class="pre">&lt;hp:run&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;hp:t&gt;</span></code> 등</p></td>
+<td><p>문단과 런, 컨트롤, 개체, 텍스트 마크의 세부 구조를 정의하며 Core 스키마 타입을 가져옵니다.</p></td>
+</tr>
+<tr class="row-even"><td><p>Header XML schema</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://www.owpml.org/owpml/2024/head</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;head&gt;</span></code></p></td>
+<td><p>문서 전역 설정(번호 시작값, 서식 매핑 테이블, 금칙어, 문서 옵션, 변경 추적 등)을 정의합니다.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Core XML schema</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://www.owpml.org/owpml/2024/core</span></code></p></td>
+<td><p>(여러 단순/복합 타입)</p></td>
+<td><p>번호 모양, 색상, 스타일 등의 공통 타입을 제공해 다른 스키마에서 재사용합니다.</p></td>
+</tr>
+<tr class="row-even"><td><p>MasterPage XML schema</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://www.owpml.org/owpml/2024/master-page</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;masterPage&gt;</span></code></p></td>
+<td><p>바탕쪽(머리말·꼬리말) 정의와 문단 리스트를 관리합니다.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Document History XML schema</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://www.owpml.org/owpml/2024/history</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;history&gt;</span></code></p></td>
+<td><p>히스토리 엔트리와 변경(diff) 정보를 저장합니다.</p></td>
+</tr>
+<tr class="row-even"><td><p>Version XML schema</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://www.owpml.org/owpml/2024/version</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;version&gt;</span></code></p></td>
+<td><p>대상 애플리케이션 및 버전 메타데이터를 기록합니다.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id1">
+<h2>주요 스키마 세부 구조<a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<section id="header-head-xml">
+<h3>Header (head.xml)<a class="headerlink" href="#header-head-xml" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;head&gt;</span></code>는 버전과 구역 수(<code class="docutils literal notranslate"><span class="pre">secCnt</span></code>)를 속성으로 두고 번호 시작값, 참조 목록, 금칙어, 호환 문서, 문서 옵션, 메타 태그, 변경 추적 설정을 자식으로 둡니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MappingTableType</span></code>은 글꼴, 테두리/채움, 글자·문단·스타일 속성, 번호·글머리표 정의, 메모 모양, 변경 추적 항목 등을 한꺼번에 관리합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">DocOption</span></code>에는 문서 링크 정보와 저작권 마크를 배치하고, <code class="docutils literal notranslate"><span class="pre">trackchangeConfig</span></code>는 암호화 키를 포함해 변경 추적 정책을 설정합니다.</p></li>
+</ul>
+</section>
+<section id="body-paralist-section-paragraph">
+<h3>Body 및 ParaList (section/paragraph)<a class="headerlink" href="#body-paralist-section-paragraph" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>본문 논리 구조는 “본문 → 구역(<code class="docutils literal notranslate"><span class="pre">&lt;sec&gt;</span></code>) → 문단(<code class="docutils literal notranslate"><span class="pre">&lt;p&gt;</span></code>)” 계층이며, 구역마다 문단이 최소 한 개 이상 존재해야 합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;hp:p&gt;</span></code> 문단은 식별자, 문단/스타일 참조, 쪽·단 나눔 여부 등 속성과 <code class="docutils literal notranslate"><span class="pre">&lt;run&gt;</span></code>·<code class="docutils literal notranslate"><span class="pre">&lt;metaTag&gt;</span></code> 하위 요소를 가집니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;hp:run&gt;</span></code>은 <code class="docutils literal notranslate"><span class="pre">secPr</span></code>, <code class="docutils literal notranslate"><span class="pre">ctrl</span></code>, <code class="docutils literal notranslate"><span class="pre">t</span></code>, 표·그림·컨트롤·동영상 등 다양한 객체 요소를 포함하는 선택 집합으로, 텍스트 노드(<code class="docutils literal notranslate"><span class="pre">&lt;hp:t&gt;</span></code>)는 마크업(형광펜, 제목표시, 탭, 추적 태그 등)을 복합 콘텐츠로 섞을 수 있습니다.</p></li>
+<li><p>구역 속성(<code class="docutils literal notranslate"><span class="pre">&lt;secPr&gt;</span></code>)은 페이지 설정, 번호 매기기 시작값, 줄격자, 감춤/보이기, 바탕쪽 연결 등 페이지 레이아웃 정보를 포괄합니다.</p></li>
+</ul>
+</section>
+<section id="core">
+<h3>Core 타입<a class="headerlink" href="#core" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">NumberType1</span></code>, <code class="docutils literal notranslate"><span class="pre">NumberType2</span></code> 등 다양한 번호 모양 열거형을 정의해 번호 매기기와 페이지 번호 표현에 활용합니다.</p></li>
+<li><p>이 외에도 색상, 선/채움, 점 좌표 등 문단·개체 서식을 구성하는 공통 자료형이 포함되어 다른 스키마에 의해 import 됩니다.</p></li>
+</ul>
+</section>
+<section id="masterpage-document-history-version">
+<h3>MasterPage, Document History, Version<a class="headerlink" href="#masterpage-document-history-version" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">masterPage</span></code>는 ParaList의 문단 서브리스트를 한 쪽에 적용하며, 적용 위치(type)와 특정 쪽 번호, 복제 여부를 속성으로 가집니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">history</span></code>는 변경 이력을 <code class="docutils literal notranslate"><span class="pre">historyEntry</span></code>로 축적하고, 각 엔트리는 패키지·머리말·본문·꼬리말의 diff 묶음과 수정자/날짜·자동 저장 여부 등을 기록합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">version</span></code> 요소는 대상 애플리케이션과 버전(major/minor/micro/build)을 속성으로 제공하여 문서 호환성을 명시합니다.</p></li>
+</ul>
+</section>
+</section>
+<section id="id2">
+<h2>파이썬 구현 현황 요약<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<section id="id3">
+<h3>패키지 및 파트 로딩<a class="headerlink" href="#id3" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">HwpxPackage</span></code>는 OPC 스타일 컨테이너를 전부 메모리에 적재하고, manifest 기반으로 섹션·헤더 경로를 캐싱합니다. 저장 시 업데이트된 파트만 다시 ZIP에 작성합니다.</p></li>
+</ul>
+</section>
+<section id="oxml">
+<h3>저수준 OXML 래퍼<a class="headerlink" href="#oxml" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">HwpxOxmlDocument</span></code>는 콘텐츠 매니페스트와 섹션/헤더 파트만 수집하며, 문단 추가 시 2011 네임스페이스를 사용해 <code class="docutils literal notranslate"><span class="pre">&lt;hp:p&gt;</span></code> 요소를 생성합니다.</p></li>
+<li><p>본문 파서는 <code class="docutils literal notranslate"><span class="pre">Section</span></code>·<code class="docutils literal notranslate"><span class="pre">Paragraph</span></code>·<code class="docutils literal notranslate"><span class="pre">Run</span></code>·<code class="docutils literal notranslate"><span class="pre">TextSpan</span></code> 데이터클래스로 구역과 문단을 읽지만, <code class="docutils literal notranslate"><span class="pre">ctrl</span></code>이나 대부분의 인라인 개체는 <code class="docutils literal notranslate"><span class="pre">GenericElement</span></code>에 남깁니다.</p></li>
+<li><p>헤더 파서는 번호 시작값, 글꼴/테두리/글자 속성, 금칙어, 문서 옵션, 변경 추적 설정 등을 구조화하지만 나머지 리스트 항목은 <code class="docutils literal notranslate"><span class="pre">other_collections</span></code>로 보관합니다.</p></li>
+</ul>
+</section>
+<section id="id4">
+<h3>파싱 및 도구 유틸리티<a class="headerlink" href="#id4" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">_ELEMENT_FACTORY</span></code>는 head/sec/p/run/t 정도만 전용 파서로 연결하고, 기타 요소는 제네릭 요소로 반환합니다.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">TextExtractor</span></code>와 <code class="docutils literal notranslate"><span class="pre">ObjectFinder</span></code>는 2011/2016 네임스페이스 프리셋을 사용해 섹션과 문단을 순회하며 텍스트/객체를 찾습니다.</p></li>
+<li><p>단위 테스트는 샘플 헤더/섹션 파싱과 텍스트 마크, 스키마 로딩 정도를 검증합니다.</p></li>
+</ul>
+</section>
+</section>
+<section id="id5">
+<h2>주요 누락 요소 및 확장 필요 영역<a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>런/컨트롤 세부 모델링:</strong> ParaList 스키마에는 표, 컨트롤, 텍스트 장식, 변경 추적 등 수십 가지 요소가 정의돼 있지만 현재 파서는 대부분을 <code class="docutils literal notranslate"><span class="pre">GenericElement</span></code>로만 유지합니다. 표, 필드 코드, 폼 컨트롤 등은 전용 데이터클래스를 추가해야 합니다.</p></li>
+<li><p><strong>헤더 매핑 테이블 확장:</strong> <code class="docutils literal notranslate"><span class="pre">MappingTableType</span></code>의 bullets, paraProperties, styles, memoProperties, trackChanges 등은 아직 파서에서 분리되지 않아 <code class="docutils literal notranslate"><span class="pre">other_collections</span></code>에 묶입니다. 각 리스트에 대한 구조화와 상호참조 지원이 필요합니다.</p></li>
+<li><p><strong>추가 파트 지원:</strong> 현재 OXML 래퍼는 섹션과 헤더만 다루므로 바탕쪽(<code class="docutils literal notranslate"><span class="pre">masterPage</span></code>), 문서 이력, 버전 파트는 로딩·편집 대상에서 제외됩니다. 매니페스트 스캔과 래퍼 클래스를 확장해 해당 파트를 노출해야 합니다.</p></li>
+<li><p><strong>네임스페이스 및 버전 정비:</strong> 코드가 2011/2016 네임스페이스를 기본값으로 사용해 2024 스키마와 어긋납니다. 패키지/도구 전반에서 최신 네임스페이스를 기본으로 맞추고, 구버전 문서 호환 전략을 정리해야 합니다.</p></li>
+<li><p><strong>스키마 검증·테스트 범위 강화:</strong> 파서는 선택적으로만 XSD를 검증하고, 상위 API(<code class="docutils literal notranslate"><span class="pre">HwpxDocument</span></code>)에서는 스키마 검사를 호출하지 않습니다. 헤더·섹션 외 파트에 대한 파서와 테스트 케이스도 비어 있어 통합 검증 루프 구성이 필요합니다.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="examples.html" class="btn btn-neutral float-left" title="실전 예제" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="faq.html" class="btn btn-neutral float-right" title="자주 묻는 질문 (FAQ)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, python-hwpx Maintainers.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
