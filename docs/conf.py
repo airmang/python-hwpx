@@ -65,7 +65,7 @@ html_theme_options = {
 }
 
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", {}),
+    "python": ("https://docs.python.org/3", "objects.inv"),
 }
 
 autosummary_generate = True
