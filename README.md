@@ -15,13 +15,10 @@ python-hwpx는 Hancom HWPX 패키지를 분석하고 편집하기 위한 Python 
 
 ### 1. 환경 준비
 
-가상 환경을 만든 뒤 PyPI에 배포된 패키지를 설치하세요.
+pip를 이용해 패키지를 설치합니다.
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install python-hwpx
+python pip install python-hwpx
 ```
 
 최신 개발 버전을 사용하거나 소스 코드를 수정하려면 편집 가능한 설치를 권장합니다.

@@ -22,6 +22,7 @@ from .oxml import (
     RunStyle,
 )
 from .package import HwpxPackage
+from .templates import blank_document_bytes
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HP = f"{{{_HP_NS}}}"
@@ -45,6 +46,12 @@ class HwpxDocument:
         package = HwpxPackage.open(source)
         root = HwpxOxmlDocument.from_package(package)
         return cls(package, root)
+
+    @classmethod
+    def new(cls) -> "HwpxDocument":
+        """Return a new blank document based on the default skeleton template."""
+
+        return cls.open(blank_document_bytes())
 
     @classmethod
     def from_package(cls, package: HwpxPackage) -> "HwpxDocument":
