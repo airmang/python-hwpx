@@ -4,7 +4,7 @@
 
 ## [0.1.0] - 2025-09-17
 ### 추가
-- `pyproject.toml`을 도입해 PyPI 배포 메타데이터를 정의했습니다.
-- `LICENSE`와 `CHANGELOG.md`를 추가해 라이선스와 변경 이력을 명시했습니다.
-- `scripts/build-and-publish.sh` 스크립트를 제공해 빌드/배포 과정을 자동화했습니다.
-- 패키지 버전과 배포 절차 문서를 정리해 릴리스 준비를 명확히 했습니다.
+- `hwpx.opc.package.HwpxPackage`와 `hwpx.document.HwpxDocument`를 포함한 핵심 API를 공개했습니다.
+- 텍스트 추출, 객체 탐색, 문서 유효성 검사 등 도구 모듈과 `hwpx-validate` CLI를 제공합니다.
+- HWPX 스키마 리소스와 예제 스크립트를 번들링해 바로 사용할 수 있도록 했습니다.
+- 설치 가이드, 사용 예제, 스키마 개요 등 배포 문서를 정리했습니다.
