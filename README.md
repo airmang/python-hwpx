@@ -59,7 +59,7 @@ document.save("output/example.hwpx")
 더 많은 실전 패턴은 [빠른 시작](docs/quickstart.md)과 [사용 가이드](docs/usage.md)의 "빠른 예제 모음"에서 확인할 수 있습니다.
 
 ## 문서
-- 핵심 문서는 `docs/` 디렉터리에 있으며, `quickstart`, `installation`, `usage`, `examples`, `schema-overview`, `faq`, `api_reference` 등을 포함합니다.
+ [사용법](https://airmang.github.io/python-hwpx/)
 
 ## 예제와 도구
 
