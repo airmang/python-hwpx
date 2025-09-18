@@ -350,6 +350,8 @@ section = document.sections[0]
 table = document.add_table(rows=3, cols=3, section=section, width=54000)
 ```
 
+`add_table()`은 문서에 등록된 테두리 채우기가 없으면 헤더 참조 목록에 기본 실선 `borderFill`을 자동으로 추가하고 표 전체에 그 ID를 연결합니다. 생성된 항목은 `document.border_fills` 또는 `document.border_fill("0")`으로 확인할 수 있습니다.
+
 ### 예제 33: 표 헤더 병합
 
 ```python
@@ -709,7 +711,7 @@ paragraph = document.add_paragraph(
 )
 paragraph.set_attribute("outlineLevel", "1")
 
-# 표를 추가하고 헤더 행을 병합합니다.
+# 표를 추가하고 헤더 행을 병합합니다. border_fill_id_ref를 생략하면 기본 실선 채우기가 자동 생성됩니다.
 table = document.add_table(2, 3, section=section, border_fill_id_ref="2")
 table.set_cell_text(0, 0, "Quarter")
 table.set_cell_text(0, 1, "Actual")

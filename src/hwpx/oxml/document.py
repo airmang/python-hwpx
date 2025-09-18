@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 from lxml import etree as LET
 
 from . import body
+from .common import GenericElement
 from .header import (
     Bullet,
     MemoProperties,
@@ -21,6 +22,7 @@ from .header import (
     TrackChangeAuthor,
     memo_shape_from_attributes,
     parse_bullets,
+    parse_border_fills,
     parse_paragraph_properties,
     parse_styles,
     parse_track_change_authors,
@@ -43,6 +45,23 @@ _DEFAULT_PARAGRAPH_ATTRS = {
 
 _DEFAULT_CELL_WIDTH = 7200
 _DEFAULT_CELL_HEIGHT = 3600
+
+_BASIC_BORDER_FILL_ATTRIBUTES = {
+    "threeD": "0",
+    "shadow": "0",
+    "centerLine": "NONE",
+    "breakCellSeparateLine": "0",
+}
+
+_BASIC_BORDER_CHILDREN: Tuple[Tuple[str, dict[str, str]], ...] = (
+    ("slash", {"type": "NONE", "Crooked": "0", "isCounter": "0"}),
+    ("backSlash", {"type": "NONE", "Crooked": "0", "isCounter": "0"}),
+    ("leftBorder", {"type": "SOLID", "width": "0.12 mm", "color": "#000000"}),
+    ("rightBorder", {"type": "SOLID", "width": "0.12 mm", "color": "#000000"}),
+    ("topBorder", {"type": "SOLID", "width": "0.12 mm", "color": "#000000"}),
+    ("bottomBorder", {"type": "SOLID", "width": "0.12 mm", "color": "#000000"}),
+    ("diagonal", {"type": "SOLID", "width": "0.1 mm", "color": "#000000"}),
+)
 
 T = TypeVar("T")
 
@@ -105,6 +124,59 @@ def _element_local_name(node: ET.Element) -> str:
     if "}" in tag:
         return tag.split("}", 1)[1]
     return tag
+
+
+def _normalize_length(value: str | None) -> str:
+    if value is None:
+        return ""
+    return value.replace(" ", "").lower()
+
+
+def _border_fill_is_basic_solid_line(element: ET.Element) -> bool:
+    if _element_local_name(element) != "borderFill":
+        return False
+
+    for attr, expected in _BASIC_BORDER_FILL_ATTRIBUTES.items():
+        actual = element.get(attr)
+        if attr == "centerLine":
+            if (actual or "").upper() != expected:
+                return False
+        else:
+            if actual != expected:
+                return False
+
+    for child_name, child_attrs in _BASIC_BORDER_CHILDREN:
+        child = element.find(f"{_HH}{child_name}")
+        if child is None:
+            return False
+        for attr, expected in child_attrs.items():
+            actual = child.get(attr)
+            if attr == "type":
+                if (actual or "").upper() != expected:
+                    return False
+            elif attr == "width":
+                if _normalize_length(actual) != _normalize_length(expected):
+                    return False
+            elif attr == "color":
+                if (actual or "").upper() != expected.upper():
+                    return False
+            else:
+                if actual != expected:
+                    return False
+
+    for child in element:
+        if _element_local_name(child) == "fillBrush":
+            return False
+
+    return True
+
+
+def _create_basic_border_fill_element(border_id: str) -> ET.Element:
+    attrs = {"id": border_id, **_BASIC_BORDER_FILL_ATTRIBUTES}
+    element = ET.Element(f"{_HH}borderFill", attrs)
+    for child_name, child_attrs in _BASIC_BORDER_CHILDREN:
+        ET.SubElement(element, f"{_HH}{child_name}", dict(child_attrs))
+    return element
 
 
 def _distribute_size(total: int, parts: int) -> List[int]:
@@ -1525,13 +1597,15 @@ class HwpxOxmlTable:
         *,
         width: int | None = None,
         height: int | None = None,
-        border_fill_id_ref: str | int = "0",
+        border_fill_id_ref: str | int | None = None,
     ) -> ET.Element:
         if rows <= 0 or cols <= 0:
             raise ValueError("rows and cols must be positive integers")
 
         table_width = width if width is not None else cols * _DEFAULT_CELL_WIDTH
         table_height = height if height is not None else rows * _DEFAULT_CELL_HEIGHT
+        if border_fill_id_ref is None:
+            raise ValueError("border_fill_id_ref must be provided")
         border_fill = str(border_fill_id_ref)
 
         table_attrs = {
@@ -1864,10 +1938,19 @@ class HwpxOxmlParagraph:
         *,
         width: int | None = None,
         height: int | None = None,
-        border_fill_id_ref: str | int = "0",
+        border_fill_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> HwpxOxmlTable:
+        if border_fill_id_ref is None:
+            document = self.section.document
+            if document is not None:
+                resolved_border_fill: str | int = document.ensure_basic_border_fill()
+            else:
+                resolved_border_fill = "0"
+        else:
+            resolved_border_fill = border_fill_id_ref
+
         run = self._create_run_for_object(
             run_attributes,
             char_pr_id_ref=char_pr_id_ref,
@@ -1877,7 +1960,7 @@ class HwpxOxmlParagraph:
             cols,
             width=width,
             height=height,
-            border_fill_id_ref=border_fill_id_ref,
+            border_fill_id_ref=resolved_border_fill,
         )
         run.append(table_element)
         self.section.mark_dirty()
@@ -2253,6 +2336,16 @@ class HwpxOxmlHeader:
             self.mark_dirty()
         return element
 
+    def _border_fills_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        element = ref_list.find(f"{_HH}borderFills")
+        if element is None and create:
+            element = ET.SubElement(ref_list, f"{_HH}borderFills", {"itemCnt": "0"})
+            self.mark_dirty()
+        return element
+
     def _char_properties_element(self, create: bool = False) -> ET.Element | None:
         ref_list = self._ref_list_element(create=create)
         if ref_list is None:
@@ -2265,6 +2358,10 @@ class HwpxOxmlHeader:
 
     def _update_char_properties_item_count(self, element: ET.Element) -> None:
         count = len(list(element.findall(f"{_HH}charPr")))
+        element.set("itemCnt", str(count))
+
+    def _update_border_fills_item_count(self, element: ET.Element) -> None:
+        count = len(list(element.findall(f"{_HH}borderFill")))
         element.set("itemCnt", str(count))
 
     def _allocate_char_property_id(
@@ -2283,6 +2380,26 @@ class HwpxOxmlHeader:
             candidate = str(preferred_id)
             if candidate not in existing:
                 return candidate
+
+        numeric_ids: List[int] = []
+        for value in existing:
+            try:
+                numeric_ids.append(int(value))
+            except ValueError:
+                continue
+        next_id = 0 if not numeric_ids else max(numeric_ids) + 1
+        candidate = str(next_id)
+        while candidate in existing:
+            next_id += 1
+            candidate = str(next_id)
+        return candidate
+
+    def _allocate_border_fill_id(self, element: ET.Element) -> str:
+        existing: set[str] = {
+            child.get("id") or ""
+            for child in element.findall(f"{_HH}borderFill")
+        }
+        existing.discard("")
 
         numeric_ids: List[int] = []
         for value in existing:
@@ -2385,6 +2502,59 @@ class HwpxOxmlHeader:
         if ref_list is None:
             return None
         return ref_list.find(f"{_HH}trackChangeAuthors")
+
+    def find_basic_border_fill_id(self) -> str | None:
+        element = self._border_fills_element()
+        if element is None:
+            return None
+        for child in element.findall(f"{_HH}borderFill"):
+            if _border_fill_is_basic_solid_line(child):
+                identifier = child.get("id")
+                if identifier:
+                    return identifier
+        return None
+
+    def ensure_basic_border_fill(self) -> str:
+        element = self._border_fills_element(create=True)
+        if element is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <borderFills> element")
+
+        existing = self.find_basic_border_fill_id()
+        if existing is not None:
+            return existing
+
+        new_id = self._allocate_border_fill_id(element)
+        element.append(_create_basic_border_fill_element(new_id))
+        self._update_border_fills_item_count(element)
+        self.mark_dirty()
+        return new_id
+
+    @property
+    def border_fills(self) -> dict[str, GenericElement]:
+        element = self._border_fills_element()
+        if element is None:
+            return {}
+
+        fill_list = parse_border_fills(self._convert_to_lxml(element))
+        mapping: dict[str, GenericElement] = {}
+        for border_fill in fill_list.fills:
+            raw_id = border_fill.attributes.get("id")
+            keys: List[str] = []
+            if raw_id:
+                keys.append(raw_id)
+                try:
+                    normalized = str(int(raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = border_fill
+        return mapping
+
+    def border_fill(self, border_fill_id_ref: int | str | None) -> GenericElement | None:
+        return self._lookup_by_id(self.border_fills, border_fill_id_ref)
 
     @staticmethod
     def _convert_to_lxml(element: ET.Element) -> LET._Element:
@@ -2787,6 +2957,27 @@ class HwpxOxmlDocument:
         if char_id is None:  # pragma: no cover - defensive branch
             raise RuntimeError("charPr element is missing an id")
         return char_id
+
+    @property
+    def border_fills(self) -> dict[str, GenericElement]:
+        mapping: dict[str, GenericElement] = {}
+        for header in self._headers:
+            mapping.update(header.border_fills)
+        return mapping
+
+    def border_fill(self, border_fill_id_ref: int | str | None) -> GenericElement | None:
+        return HwpxOxmlHeader._lookup_by_id(self.border_fills, border_fill_id_ref)
+
+    def ensure_basic_border_fill(self) -> str:
+        if not self._headers:
+            return "0"
+
+        for header in self._headers:
+            existing = header.find_basic_border_fill_id()
+            if existing is not None:
+                return existing
+
+        return self._headers[0].ensure_basic_border_fill()
 
     @property
     def memo_shapes(self) -> dict[str, MemoShape]:

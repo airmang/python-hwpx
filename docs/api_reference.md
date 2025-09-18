@@ -121,7 +121,7 @@
 - `add_paragraph(text="", ...) -> HwpxOxmlParagraph`
   - 대상 섹션에 단락을 추가합니다. 선택적으로 단락 및 런 서식 참조를 재정의하거나 추가 단락 속성을 주입할 수 있습니다.
 - `add_table(rows, cols, ...) -> HwpxOxmlTable`
-  - 단락을 삽입하고 그 안에 표 인라인 객체를 생성한 후, 표 래퍼를 반환합니다.
+  - 단락을 삽입하고 그 안에 표 인라인 객체를 생성한 후, 표 래퍼를 반환합니다. `border_fill_id_ref`를 생략하면 헤더 참조 목록에 기본 실선 `borderFill`을 생성하고 표와 셀에 자동으로 연결합니다.
 - `add_shape(shape_type, ...) -> HwpxOxmlInlineObject`
   - 새 단락에 태그 이름을 사용하여 인라인 그리기 요소를 삽입합니다.
 - `add_control(...) -> HwpxOxmlInlineObject`

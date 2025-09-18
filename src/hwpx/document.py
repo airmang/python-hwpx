@@ -11,6 +11,7 @@ from typing import BinaryIO, Iterator, List, Tuple
 
 from .oxml import (
     Bullet,
+    GenericElement,
     HwpxOxmlDocument,
     HwpxOxmlHeader,
     HwpxOxmlHistory,
@@ -106,6 +107,17 @@ class HwpxDocument:
     def version(self) -> HwpxOxmlVersion | None:
         """Return the version metadata part if present."""
         return self._root.version
+
+    @property
+    def border_fills(self) -> dict[str, GenericElement]:
+        """Return border fill definitions declared in the headers."""
+
+        return self._root.border_fills
+
+    def border_fill(self, border_fill_id_ref: int | str | None) -> GenericElement | None:
+        """Return the border fill definition referenced by *border_fill_id_ref*."""
+
+        return self._root.border_fill(border_fill_id_ref)
 
     @property
     def memo_shapes(self) -> dict[str, MemoShape]:
@@ -529,7 +541,7 @@ class HwpxDocument:
         section_index: int | None = None,
         width: int | None = None,
         height: int | None = None,
-        border_fill_id_ref: str | int = "0",
+        border_fill_id_ref: str | int | None = None,
         para_pr_id_ref: str | int | None = None,
         style_id_ref: str | int | None = None,
         char_pr_id_ref: str | int | None = None,
@@ -537,6 +549,10 @@ class HwpxDocument:
         **extra_attrs: str,
     ) -> HwpxOxmlTable:
         """Create a table in a new paragraph and return it."""
+
+        resolved_border_fill: str | int | None = border_fill_id_ref
+        if resolved_border_fill is None:
+            resolved_border_fill = self._root.ensure_basic_border_fill()
 
         paragraph = self.add_paragraph(
             "",
@@ -553,7 +569,7 @@ class HwpxDocument:
             cols,
             width=width,
             height=height,
-            border_fill_id_ref=border_fill_id_ref,
+            border_fill_id_ref=resolved_border_fill,
             run_attributes=run_attributes,
             char_pr_id_ref=char_pr_id_ref,
         )
