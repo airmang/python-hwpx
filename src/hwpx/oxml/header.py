@@ -210,13 +210,445 @@ class MemoProperties:
 
 
 @dataclass(slots=True)
+class BulletParaHead:
+    text: str
+    level: Optional[int]
+    start: Optional[int]
+    align: Optional[str]
+    use_inst_width: Optional[bool]
+    auto_indent: Optional[bool]
+    width_adjust: Optional[int]
+    text_offset_type: Optional[str]
+    text_offset: Optional[int]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class Bullet:
+    id: Optional[int]
+    raw_id: Optional[str]
+    char: str
+    checked_char: Optional[str]
+    use_image: bool
+    para_head: BulletParaHead
+    image: Optional[GenericElement] = None
+    attributes: Dict[str, str] = field(default_factory=dict)
+    other_children: Dict[str, List[GenericElement]] = field(default_factory=dict)
+
+    def matches_id(self, bullet_id_ref: int | str | None) -> bool:
+        if bullet_id_ref is None:
+            return False
+
+        if isinstance(bullet_id_ref, str):
+            candidate = bullet_id_ref.strip()
+        else:
+            candidate = str(bullet_id_ref)
+
+        if not candidate:
+            return False
+
+        if self.raw_id and candidate == self.raw_id:
+            return True
+
+        if self.id is None:
+            return False
+
+        try:
+            return int(candidate) == self.id
+        except (TypeError, ValueError):  # pragma: no cover - defensive branch
+            return False
+
+
+@dataclass(slots=True)
+class BulletList:
+    item_cnt: Optional[int]
+    bullets: List[Bullet]
+
+    def as_dict(self) -> Dict[str, Bullet]:
+        mapping: Dict[str, Bullet] = {}
+        for bullet in self.bullets:
+            keys: List[str] = []
+            if bullet.raw_id:
+                keys.append(bullet.raw_id)
+                try:
+                    normalized = str(int(bullet.raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            elif bullet.id is not None:
+                keys.append(str(bullet.id))
+
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = bullet
+        return mapping
+
+    def bullet_by_id(self, bullet_id_ref: int | str | None) -> Optional[Bullet]:
+        for bullet in self.bullets:
+            if bullet.matches_id(bullet_id_ref):
+                return bullet
+        return None
+
+
+@dataclass(slots=True)
+class ParagraphAlignment:
+    horizontal: Optional[str]
+    vertical: Optional[str]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphHeading:
+    type: Optional[str]
+    id_ref: Optional[int]
+    level: Optional[int]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphBreakSetting:
+    break_latin_word: Optional[str]
+    break_non_latin_word: Optional[str]
+    widow_orphan: Optional[bool]
+    keep_with_next: Optional[bool]
+    keep_lines: Optional[bool]
+    page_break_before: Optional[bool]
+    line_wrap: Optional[str]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphMargin:
+    intent: Optional[str]
+    left: Optional[str]
+    right: Optional[str]
+    prev: Optional[str]
+    next: Optional[str]
+    other_children: Dict[str, List[GenericElement]] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphLineSpacing:
+    spacing_type: Optional[str]
+    value: Optional[int]
+    unit: Optional[str]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphBorder:
+    border_fill_id_ref: Optional[int]
+    offset_left: Optional[int]
+    offset_right: Optional[int]
+    offset_top: Optional[int]
+    offset_bottom: Optional[int]
+    connect: Optional[bool]
+    ignore_margin: Optional[bool]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphAutoSpacing:
+    e_asian_eng: Optional[bool]
+    e_asian_num: Optional[bool]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphProperty:
+    id: Optional[int]
+    raw_id: Optional[str]
+    tab_pr_id_ref: Optional[int]
+    condense: Optional[int]
+    font_line_height: Optional[bool]
+    snap_to_grid: Optional[bool]
+    suppress_line_numbers: Optional[bool]
+    checked: Optional[bool]
+    align: Optional[ParagraphAlignment] = None
+    heading: Optional[ParagraphHeading] = None
+    break_setting: Optional[ParagraphBreakSetting] = None
+    margin: Optional[ParagraphMargin] = None
+    line_spacing: Optional[ParagraphLineSpacing] = None
+    border: Optional[ParagraphBorder] = None
+    auto_spacing: Optional[ParagraphAutoSpacing] = None
+    attributes: Dict[str, str] = field(default_factory=dict)
+    other_children: Dict[str, List[GenericElement]] = field(default_factory=dict)
+
+    def matches_id(self, para_pr_id_ref: int | str | None) -> bool:
+        if para_pr_id_ref is None:
+            return False
+
+        if isinstance(para_pr_id_ref, str):
+            candidate = para_pr_id_ref.strip()
+        else:
+            candidate = str(para_pr_id_ref)
+
+        if not candidate:
+            return False
+
+        if self.raw_id and candidate == self.raw_id:
+            return True
+
+        if self.id is None:
+            return False
+
+        try:
+            return int(candidate) == self.id
+        except (TypeError, ValueError):  # pragma: no cover - defensive branch
+            return False
+
+
+@dataclass(slots=True)
+class ParagraphPropertyList:
+    item_cnt: Optional[int]
+    properties: List[ParagraphProperty]
+
+    def as_dict(self) -> Dict[str, ParagraphProperty]:
+        mapping: Dict[str, ParagraphProperty] = {}
+        for prop in self.properties:
+            keys: List[str] = []
+            if prop.raw_id:
+                keys.append(prop.raw_id)
+                try:
+                    normalized = str(int(prop.raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            elif prop.id is not None:
+                keys.append(str(prop.id))
+
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = prop
+        return mapping
+
+    def property_by_id(
+        self, para_pr_id_ref: int | str | None
+    ) -> Optional[ParagraphProperty]:
+        for prop in self.properties:
+            if prop.matches_id(para_pr_id_ref):
+                return prop
+        return None
+
+
+@dataclass(slots=True)
+class Style:
+    id: Optional[int]
+    raw_id: Optional[str]
+    type: Optional[str]
+    name: Optional[str]
+    eng_name: Optional[str]
+    para_pr_id_ref: Optional[int]
+    char_pr_id_ref: Optional[int]
+    next_style_id_ref: Optional[int]
+    lang_id: Optional[int]
+    lock_form: Optional[bool]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+    def matches_id(self, style_id_ref: int | str | None) -> bool:
+        if style_id_ref is None:
+            return False
+
+        if isinstance(style_id_ref, str):
+            candidate = style_id_ref.strip()
+        else:
+            candidate = str(style_id_ref)
+
+        if not candidate:
+            return False
+
+        if self.raw_id and candidate == self.raw_id:
+            return True
+
+        if self.id is None:
+            return False
+
+        try:
+            return int(candidate) == self.id
+        except (TypeError, ValueError):  # pragma: no cover - defensive branch
+            return False
+
+
+@dataclass(slots=True)
+class StyleList:
+    item_cnt: Optional[int]
+    styles: List[Style]
+
+    def as_dict(self) -> Dict[str, Style]:
+        mapping: Dict[str, Style] = {}
+        for style in self.styles:
+            keys: List[str] = []
+            if style.raw_id:
+                keys.append(style.raw_id)
+                try:
+                    normalized = str(int(style.raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            elif style.id is not None:
+                keys.append(str(style.id))
+
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = style
+        return mapping
+
+    def style_by_id(self, style_id_ref: int | str | None) -> Optional[Style]:
+        for style in self.styles:
+            if style.matches_id(style_id_ref):
+                return style
+        return None
+
+
+@dataclass(slots=True)
+class TrackChange:
+    id: Optional[int]
+    raw_id: Optional[str]
+    change_type: Optional[str]
+    date: Optional[str]
+    author_id: Optional[int]
+    char_shape_id: Optional[int]
+    para_shape_id: Optional[int]
+    hide: Optional[bool]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+    def matches_id(self, change_id_ref: int | str | None) -> bool:
+        if change_id_ref is None:
+            return False
+
+        if isinstance(change_id_ref, str):
+            candidate = change_id_ref.strip()
+        else:
+            candidate = str(change_id_ref)
+
+        if not candidate:
+            return False
+
+        if self.raw_id and candidate == self.raw_id:
+            return True
+
+        if self.id is None:
+            return False
+
+        try:
+            return int(candidate) == self.id
+        except (TypeError, ValueError):  # pragma: no cover - defensive branch
+            return False
+
+
+@dataclass(slots=True)
+class TrackChangeList:
+    item_cnt: Optional[int]
+    changes: List[TrackChange]
+
+    def as_dict(self) -> Dict[str, TrackChange]:
+        mapping: Dict[str, TrackChange] = {}
+        for change in self.changes:
+            keys: List[str] = []
+            if change.raw_id:
+                keys.append(change.raw_id)
+                try:
+                    normalized = str(int(change.raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            elif change.id is not None:
+                keys.append(str(change.id))
+
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = change
+        return mapping
+
+    def change_by_id(self, change_id_ref: int | str | None) -> Optional[TrackChange]:
+        for change in self.changes:
+            if change.matches_id(change_id_ref):
+                return change
+        return None
+
+
+@dataclass(slots=True)
+class TrackChangeAuthor:
+    id: Optional[int]
+    raw_id: Optional[str]
+    name: Optional[str]
+    mark: Optional[bool]
+    color: Optional[str]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+    def matches_id(self, author_id_ref: int | str | None) -> bool:
+        if author_id_ref is None:
+            return False
+
+        if isinstance(author_id_ref, str):
+            candidate = author_id_ref.strip()
+        else:
+            candidate = str(author_id_ref)
+
+        if not candidate:
+            return False
+
+        if self.raw_id and candidate == self.raw_id:
+            return True
+
+        if self.id is None:
+            return False
+
+        try:
+            return int(candidate) == self.id
+        except (TypeError, ValueError):  # pragma: no cover - defensive branch
+            return False
+
+
+@dataclass(slots=True)
+class TrackChangeAuthorList:
+    item_cnt: Optional[int]
+    authors: List[TrackChangeAuthor]
+
+    def as_dict(self) -> Dict[str, TrackChangeAuthor]:
+        mapping: Dict[str, TrackChangeAuthor] = {}
+        for author in self.authors:
+            keys: List[str] = []
+            if author.raw_id:
+                keys.append(author.raw_id)
+                try:
+                    normalized = str(int(author.raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            elif author.id is not None:
+                keys.append(str(author.id))
+
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = author
+        return mapping
+
+    def author_by_id(self, author_id_ref: int | str | None) -> Optional[TrackChangeAuthor]:
+        for author in self.authors:
+            if author.matches_id(author_id_ref):
+                return author
+        return None
+
+
+@dataclass(slots=True)
 class RefList:
     fontfaces: Optional[FontFaceList] = None
     border_fills: Optional[BorderFillList] = None
     char_properties: Optional[CharPropertyList] = None
     tab_properties: Optional[TabProperties] = None
     numberings: Optional[NumberingList] = None
+    bullets: Optional[BulletList] = None
+    para_properties: Optional[ParagraphPropertyList] = None
+    styles: Optional[StyleList] = None
     memo_properties: Optional[MemoProperties] = None
+    track_changes: Optional[TrackChangeList] = None
+    track_change_authors: Optional[TrackChangeAuthorList] = None
     other_collections: Dict[str, List[GenericElement]] = field(default_factory=dict)
 
 
@@ -237,6 +669,35 @@ class Header:
         if self.ref_list is None or self.ref_list.memo_properties is None:
             return None
         return self.ref_list.memo_properties.shape_by_id(memo_shape_id_ref)
+
+    def bullet(self, bullet_id_ref: int | str | None) -> Optional[Bullet]:
+        if self.ref_list is None or self.ref_list.bullets is None:
+            return None
+        return self.ref_list.bullets.bullet_by_id(bullet_id_ref)
+
+    def paragraph_property(
+        self, para_pr_id_ref: int | str | None
+    ) -> Optional[ParagraphProperty]:
+        if self.ref_list is None or self.ref_list.para_properties is None:
+            return None
+        return self.ref_list.para_properties.property_by_id(para_pr_id_ref)
+
+    def style(self, style_id_ref: int | str | None) -> Optional[Style]:
+        if self.ref_list is None or self.ref_list.styles is None:
+            return None
+        return self.ref_list.styles.style_by_id(style_id_ref)
+
+    def track_change(self, change_id_ref: int | str | None) -> Optional[TrackChange]:
+        if self.ref_list is None or self.ref_list.track_changes is None:
+            return None
+        return self.ref_list.track_changes.change_by_id(change_id_ref)
+
+    def track_change_author(
+        self, author_id_ref: int | str | None
+    ) -> Optional[TrackChangeAuthor]:
+        if self.ref_list is None or self.ref_list.track_change_authors is None:
+            return None
+        return self.ref_list.track_change_authors.author_by_id(author_id_ref)
 
 
 def parse_begin_num(node: etree._Element) -> BeginNum:
@@ -459,6 +920,318 @@ def parse_memo_properties(node: etree._Element) -> MemoProperties:
     )
 
 
+def parse_bullet_para_head(node: etree._Element) -> BulletParaHead:
+    return BulletParaHead(
+        text=text_or_none(node) or "",
+        level=parse_int(node.get("level")),
+        start=parse_int(node.get("start")),
+        align=node.get("align"),
+        use_inst_width=parse_bool(node.get("useInstWidth")),
+        auto_indent=parse_bool(node.get("autoIndent")),
+        width_adjust=parse_int(node.get("widthAdjust")),
+        text_offset_type=node.get("textOffsetType"),
+        text_offset=parse_int(node.get("textOffset")),
+        attributes={key: value for key, value in node.attrib.items()},
+    )
+
+
+def parse_bullet(node: etree._Element) -> Bullet:
+    image: Optional[GenericElement] = None
+    para_head: Optional[BulletParaHead] = None
+    other_children: Dict[str, List[GenericElement]] = {}
+
+    for child in node:
+        name = local_name(child)
+        if name == "img":
+            image = parse_generic_element(child)
+        elif name == "paraHead":
+            para_head = parse_bullet_para_head(child)
+        else:
+            other_children.setdefault(name, []).append(parse_generic_element(child))
+
+    if para_head is None:
+        raise ValueError("bullet element missing required paraHead child")
+
+    return Bullet(
+        id=parse_int(node.get("id")),
+        raw_id=node.get("id"),
+        char=node.get("char", ""),
+        checked_char=node.get("checkedChar"),
+        use_image=parse_bool(node.get("useImage"), default=False) or False,
+        para_head=para_head,
+        image=image,
+        attributes={key: value for key, value in node.attrib.items()},
+        other_children=other_children,
+    )
+
+
+def parse_bullets(node: etree._Element) -> BulletList:
+    bullets = [parse_bullet(child) for child in node if local_name(child) == "bullet"]
+    return BulletList(item_cnt=parse_int(node.get("itemCnt")), bullets=bullets)
+
+
+def parse_paragraph_alignment(node: etree._Element) -> ParagraphAlignment:
+    return ParagraphAlignment(
+        horizontal=node.get("horizontal"),
+        vertical=node.get("vertical"),
+        attributes={key: value for key, value in node.attrib.items()},
+    )
+
+
+def parse_paragraph_heading(node: etree._Element) -> ParagraphHeading:
+    return ParagraphHeading(
+        type=node.get("type"),
+        id_ref=parse_int(node.get("idRef")),
+        level=parse_int(node.get("level")),
+        attributes={key: value for key, value in node.attrib.items()},
+    )
+
+
+def parse_paragraph_break_setting(node: etree._Element) -> ParagraphBreakSetting:
+    return ParagraphBreakSetting(
+        break_latin_word=node.get("breakLatinWord"),
+        break_non_latin_word=node.get("breakNonLatinWord"),
+        widow_orphan=parse_bool(node.get("widowOrphan")),
+        keep_with_next=parse_bool(node.get("keepWithNext")),
+        keep_lines=parse_bool(node.get("keepLines")),
+        page_break_before=parse_bool(node.get("pageBreakBefore")),
+        line_wrap=node.get("lineWrap"),
+        attributes={key: value for key, value in node.attrib.items()},
+    )
+
+
+def _margin_value(child: etree._Element) -> Optional[str]:
+    value = text_or_none(child)
+    return value if value is not None else child.text.strip() if child.text else None
+
+
+def parse_paragraph_margin(node: etree._Element) -> ParagraphMargin:
+    values: Dict[str, Optional[str]] = {
+        "intent": None,
+        "left": None,
+        "right": None,
+        "prev": None,
+        "next": None,
+    }
+    other_children: Dict[str, List[GenericElement]] = {}
+
+    for child in node:
+        name = local_name(child)
+        if name in values:
+            values[name] = _margin_value(child)
+        else:
+            other_children.setdefault(name, []).append(parse_generic_element(child))
+
+    return ParagraphMargin(
+        intent=values["intent"],
+        left=values["left"],
+        right=values["right"],
+        prev=values["prev"],
+        next=values["next"],
+        other_children=other_children,
+    )
+
+
+def parse_paragraph_line_spacing(node: etree._Element) -> ParagraphLineSpacing:
+    return ParagraphLineSpacing(
+        spacing_type=node.get("type"),
+        value=parse_int(node.get("value")),
+        unit=node.get("unit"),
+        attributes={key: value for key, value in node.attrib.items()},
+    )
+
+
+def parse_paragraph_border(node: etree._Element) -> ParagraphBorder:
+    return ParagraphBorder(
+        border_fill_id_ref=parse_int(node.get("borderFillIDRef")),
+        offset_left=parse_int(node.get("offsetLeft")),
+        offset_right=parse_int(node.get("offsetRight")),
+        offset_top=parse_int(node.get("offsetTop")),
+        offset_bottom=parse_int(node.get("offsetBottom")),
+        connect=parse_bool(node.get("connect")),
+        ignore_margin=parse_bool(node.get("ignoreMargin")),
+        attributes={key: value for key, value in node.attrib.items()},
+    )
+
+
+def parse_paragraph_auto_spacing(node: etree._Element) -> ParagraphAutoSpacing:
+    return ParagraphAutoSpacing(
+        e_asian_eng=parse_bool(node.get("eAsianEng")),
+        e_asian_num=parse_bool(node.get("eAsianNum")),
+        attributes={key: value for key, value in node.attrib.items()},
+    )
+
+
+def parse_paragraph_property(node: etree._Element) -> ParagraphProperty:
+    align: Optional[ParagraphAlignment] = None
+    heading: Optional[ParagraphHeading] = None
+    break_setting: Optional[ParagraphBreakSetting] = None
+    margin: Optional[ParagraphMargin] = None
+    line_spacing: Optional[ParagraphLineSpacing] = None
+    border: Optional[ParagraphBorder] = None
+    auto_spacing: Optional[ParagraphAutoSpacing] = None
+    other_children: Dict[str, List[GenericElement]] = {}
+
+    for child in node:
+        name = local_name(child)
+        if name == "align":
+            align = parse_paragraph_alignment(child)
+        elif name == "heading":
+            heading = parse_paragraph_heading(child)
+        elif name == "breakSetting":
+            break_setting = parse_paragraph_break_setting(child)
+        elif name == "margin":
+            margin = parse_paragraph_margin(child)
+        elif name == "lineSpacing":
+            line_spacing = parse_paragraph_line_spacing(child)
+        elif name == "border":
+            border = parse_paragraph_border(child)
+        elif name == "autoSpacing":
+            auto_spacing = parse_paragraph_auto_spacing(child)
+        else:
+            other_children.setdefault(name, []).append(parse_generic_element(child))
+
+    known_attrs = {
+        "id",
+        "tabPrIDRef",
+        "condense",
+        "fontLineHeight",
+        "snapToGrid",
+        "suppressLineNumbers",
+        "checked",
+    }
+
+    attributes = {
+        key: value for key, value in node.attrib.items() if key not in known_attrs
+    }
+
+    return ParagraphProperty(
+        id=parse_int(node.get("id")),
+        raw_id=node.get("id"),
+        tab_pr_id_ref=parse_int(node.get("tabPrIDRef")),
+        condense=parse_int(node.get("condense")),
+        font_line_height=parse_bool(node.get("fontLineHeight")),
+        snap_to_grid=parse_bool(node.get("snapToGrid")),
+        suppress_line_numbers=parse_bool(node.get("suppressLineNumbers")),
+        checked=parse_bool(node.get("checked")),
+        align=align,
+        heading=heading,
+        break_setting=break_setting,
+        margin=margin,
+        line_spacing=line_spacing,
+        border=border,
+        auto_spacing=auto_spacing,
+        attributes=attributes,
+        other_children=other_children,
+    )
+
+
+def parse_paragraph_properties(node: etree._Element) -> ParagraphPropertyList:
+    properties = [
+        parse_paragraph_property(child) for child in node if local_name(child) == "paraPr"
+    ]
+    return ParagraphPropertyList(item_cnt=parse_int(node.get("itemCnt")), properties=properties)
+
+
+def parse_style(node: etree._Element) -> Style:
+    known_attrs = {
+        "id",
+        "type",
+        "name",
+        "engName",
+        "paraPrIDRef",
+        "charPrIDRef",
+        "nextStyleIDRef",
+        "langID",
+        "lockForm",
+    }
+
+    attributes = {
+        key: value for key, value in node.attrib.items() if key not in known_attrs
+    }
+
+    return Style(
+        id=parse_int(node.get("id")),
+        raw_id=node.get("id"),
+        type=node.get("type"),
+        name=node.get("name"),
+        eng_name=node.get("engName"),
+        para_pr_id_ref=parse_int(node.get("paraPrIDRef")),
+        char_pr_id_ref=parse_int(node.get("charPrIDRef")),
+        next_style_id_ref=parse_int(node.get("nextStyleIDRef")),
+        lang_id=parse_int(node.get("langID")),
+        lock_form=parse_bool(node.get("lockForm")),
+        attributes=attributes,
+    )
+
+
+def parse_styles(node: etree._Element) -> StyleList:
+    styles = [parse_style(child) for child in node if local_name(child) == "style"]
+    return StyleList(item_cnt=parse_int(node.get("itemCnt")), styles=styles)
+
+
+def parse_track_change(node: etree._Element) -> TrackChange:
+    known_attrs = {
+        "id",
+        "type",
+        "date",
+        "authorID",
+        "charShapeID",
+        "paraShapeID",
+        "hide",
+    }
+
+    attributes = {
+        key: value for key, value in node.attrib.items() if key not in known_attrs
+    }
+
+    return TrackChange(
+        id=parse_int(node.get("id")),
+        raw_id=node.get("id"),
+        change_type=node.get("type"),
+        date=node.get("date"),
+        author_id=parse_int(node.get("authorID")),
+        char_shape_id=parse_int(node.get("charShapeID")),
+        para_shape_id=parse_int(node.get("paraShapeID")),
+        hide=parse_bool(node.get("hide")),
+        attributes=attributes,
+    )
+
+
+def parse_track_changes(node: etree._Element) -> TrackChangeList:
+    changes = [
+        parse_track_change(child) for child in node if local_name(child) == "trackChange"
+    ]
+    return TrackChangeList(item_cnt=parse_int(node.get("itemCnt")), changes=changes)
+
+
+def parse_track_change_author(node: etree._Element) -> TrackChangeAuthor:
+    known_attrs = {"id", "name", "mark", "color"}
+    attributes = {
+        key: value for key, value in node.attrib.items() if key not in known_attrs
+    }
+    return TrackChangeAuthor(
+        id=parse_int(node.get("id")),
+        raw_id=node.get("id"),
+        name=node.get("name"),
+        mark=parse_bool(node.get("mark")),
+        color=node.get("color"),
+        attributes=attributes,
+    )
+
+
+def parse_track_change_authors(node: etree._Element) -> TrackChangeAuthorList:
+    authors = [
+        parse_track_change_author(child)
+        for child in node
+        if local_name(child) == "trackChangeAuthor"
+    ]
+    return TrackChangeAuthorList(
+        item_cnt=parse_int(node.get("itemCnt")),
+        authors=authors,
+    )
+
+
 def parse_ref_list(node: etree._Element) -> RefList:
     ref_list = RefList()
     for child in node:
@@ -473,8 +1246,18 @@ def parse_ref_list(node: etree._Element) -> RefList:
             ref_list.tab_properties = parse_tab_properties(child)
         elif name == "numberings":
             ref_list.numberings = parse_numberings(child)
+        elif name == "bullets":
+            ref_list.bullets = parse_bullets(child)
+        elif name == "paraProperties":
+            ref_list.para_properties = parse_paragraph_properties(child)
+        elif name == "styles":
+            ref_list.styles = parse_styles(child)
         elif name == "memoProperties":
             ref_list.memo_properties = parse_memo_properties(child)
+        elif name == "trackChanges":
+            ref_list.track_changes = parse_track_changes(child)
+        elif name == "trackChangeAuthors":
+            ref_list.track_change_authors = parse_track_change_authors(child)
         else:
             ref_list.other_collections.setdefault(name, []).append(parse_generic_element(child))
     return ref_list
@@ -513,6 +1296,9 @@ def parse_header_element(node: etree._Element) -> Header:
 __all__ = [
     "BeginNum",
     "BorderFillList",
+    "Bullet",
+    "BulletList",
+    "BulletParaHead",
     "CharProperty",
     "CharPropertyList",
     "DocOption",
@@ -530,14 +1316,51 @@ __all__ = [
     "MemoProperties",
     "MemoShape",
     "NumberingList",
+    "ParagraphAlignment",
+    "ParagraphAutoSpacing",
+    "ParagraphBreakSetting",
+    "ParagraphBorder",
+    "ParagraphHeading",
+    "ParagraphLineSpacing",
+    "ParagraphMargin",
+    "ParagraphProperty",
+    "ParagraphPropertyList",
     "RefList",
+    "Style",
+    "StyleList",
     "TabProperties",
+    "TrackChange",
+    "TrackChangeAuthor",
+    "TrackChangeAuthorList",
     "TrackChangeConfig",
+    "TrackChangeList",
     "memo_shape_from_attributes",
     "parse_begin_num",
+    "parse_bullet",
+    "parse_bullet_para_head",
+    "parse_bullets",
+    "parse_char_property",
+    "parse_char_properties",
     "parse_doc_option",
+    "parse_forbidden_word_list",
     "parse_header_element",
     "parse_memo_properties",
     "parse_memo_shape",
+    "parse_numberings",
+    "parse_paragraph_alignment",
+    "parse_paragraph_auto_spacing",
+    "parse_paragraph_border",
+    "parse_paragraph_break_setting",
+    "parse_paragraph_line_spacing",
+    "parse_paragraph_margin",
+    "parse_paragraph_property",
+    "parse_paragraph_properties",
     "parse_ref_list",
+    "parse_style",
+    "parse_styles",
+    "parse_tab_properties",
+    "parse_track_change",
+    "parse_track_change_author",
+    "parse_track_change_authors",
+    "parse_track_changes",
 ]

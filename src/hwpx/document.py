@@ -10,6 +10,7 @@ from os import PathLike
 from typing import BinaryIO, Iterator, List, Tuple
 
 from .oxml import (
+    Bullet,
     HwpxOxmlDocument,
     HwpxOxmlHeader,
     HwpxOxmlInlineObject,
@@ -20,7 +21,11 @@ from .oxml import (
     HwpxOxmlSectionHeaderFooter,
     HwpxOxmlTable,
     MemoShape,
+    ParagraphProperty,
     RunStyle,
+    Style,
+    TrackChange,
+    TrackChangeAuthor,
 )
 from .package import HwpxPackage
 from .templates import blank_document_bytes
@@ -94,6 +99,65 @@ class HwpxDocument:
         """Return the memo shape definition referenced by *memo_shape_id_ref*."""
 
         return self._root.memo_shape(memo_shape_id_ref)
+
+    @property
+    def bullets(self) -> dict[str, Bullet]:
+        """Return bullet definitions declared in header reference lists."""
+
+        return self._root.bullets
+
+    def bullet(self, bullet_id_ref: int | str | None) -> Bullet | None:
+        """Return the bullet definition referenced by *bullet_id_ref*."""
+
+        return self._root.bullet(bullet_id_ref)
+
+    @property
+    def paragraph_properties(self) -> dict[str, ParagraphProperty]:
+        """Return paragraph property definitions declared in headers."""
+
+        return self._root.paragraph_properties
+
+    def paragraph_property(
+        self, para_pr_id_ref: int | str | None
+    ) -> ParagraphProperty | None:
+        """Return the paragraph property referenced by *para_pr_id_ref*."""
+
+        return self._root.paragraph_property(para_pr_id_ref)
+
+    @property
+    def styles(self) -> dict[str, Style]:
+        """Return style definitions available in the document."""
+
+        return self._root.styles
+
+    def style(self, style_id_ref: int | str | None) -> Style | None:
+        """Return the style definition referenced by *style_id_ref*."""
+
+        return self._root.style(style_id_ref)
+
+    @property
+    def track_changes(self) -> dict[str, TrackChange]:
+        """Return tracked change metadata declared in the headers."""
+
+        return self._root.track_changes
+
+    def track_change(self, change_id_ref: int | str | None) -> TrackChange | None:
+        """Return tracked change metadata referenced by *change_id_ref*."""
+
+        return self._root.track_change(change_id_ref)
+
+    @property
+    def track_change_authors(self) -> dict[str, TrackChangeAuthor]:
+        """Return tracked change author metadata declared in the headers."""
+
+        return self._root.track_change_authors
+
+    def track_change_author(
+        self, author_id_ref: int | str | None
+    ) -> TrackChangeAuthor | None:
+        """Return tracked change author details referenced by *author_id_ref*."""
+
+        return self._root.track_change_author(author_id_ref)
 
     @property
     def memos(self) -> List[HwpxOxmlMemo]:

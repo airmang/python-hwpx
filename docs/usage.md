@@ -586,6 +586,41 @@ if document.headers:
     document.headers[0].set_begin_numbering(page=1, table=1)
 ```
 
+### 예제 56: 헤더 글머리표 정의 나열
+
+```python
+from hwpx.document import HwpxDocument
+
+document = HwpxDocument.open("my-document.hwpx")
+for bullet_id, bullet in sorted(document.bullets.items()):
+    print(bullet_id, bullet.char, bullet.para_head.align)
+```
+
+### 예제 57: 문단/스타일 참조 살펴보기
+
+```python
+from hwpx.document import HwpxDocument
+
+document = HwpxDocument.open("my-document.hwpx")
+para_pr = document.paragraph_property("1")
+style = document.style("0")
+if para_pr and style:
+    print(para_pr.align.horizontal, para_pr.tab_pr_id_ref, style.name)
+```
+
+### 예제 58: 변경 추적과 작성자 정보 확인
+
+```python
+from hwpx.document import HwpxDocument
+
+document = HwpxDocument.open("my-document.hwpx")
+change = document.track_change("1")
+if change:
+    author = document.track_change_author(change.author_id)
+    if author:
+        print(change.change_type, author.name, author.color)
+```
+
 
 ## 패키지 열기와 기본 점검
 

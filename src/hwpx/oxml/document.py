@@ -4,14 +4,28 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple, TypeVar
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
 from lxml import etree as LET
 
 from . import body
-from .header import MemoProperties, MemoShape, memo_shape_from_attributes
+from .header import (
+    Bullet,
+    MemoProperties,
+    MemoShape,
+    ParagraphProperty,
+    Style,
+    TrackChange,
+    TrackChangeAuthor,
+    memo_shape_from_attributes,
+    parse_bullets,
+    parse_paragraph_properties,
+    parse_styles,
+    parse_track_change_authors,
+    parse_track_changes,
+)
 from .utils import parse_int
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
@@ -29,6 +43,8 @@ _DEFAULT_PARAGRAPH_ATTRS = {
 
 _DEFAULT_CELL_WIDTH = 7200
 _DEFAULT_CELL_HEIGHT = 3600
+
+T = TypeVar("T")
 
 
 def _serialize_xml(element: ET.Element) -> bytes:
@@ -2285,6 +2301,63 @@ class HwpxOxmlHeader:
             return None
         return ref_list.find(f"{_HH}memoProperties")
 
+    def _bullets_element(self) -> ET.Element | None:
+        ref_list = self._ref_list_element()
+        if ref_list is None:
+            return None
+        return ref_list.find(f"{_HH}bullets")
+
+    def _para_properties_element(self) -> ET.Element | None:
+        ref_list = self._ref_list_element()
+        if ref_list is None:
+            return None
+        return ref_list.find(f"{_HH}paraProperties")
+
+    def _styles_element(self) -> ET.Element | None:
+        ref_list = self._ref_list_element()
+        if ref_list is None:
+            return None
+        return ref_list.find(f"{_HH}styles")
+
+    def _track_changes_element(self) -> ET.Element | None:
+        ref_list = self._ref_list_element()
+        if ref_list is None:
+            return None
+        return ref_list.find(f"{_HH}trackChanges")
+
+    def _track_change_authors_element(self) -> ET.Element | None:
+        ref_list = self._ref_list_element()
+        if ref_list is None:
+            return None
+        return ref_list.find(f"{_HH}trackChangeAuthors")
+
+    @staticmethod
+    def _convert_to_lxml(element: ET.Element) -> LET._Element:
+        return LET.fromstring(ET.tostring(element, encoding="utf-8"))
+
+    @staticmethod
+    def _lookup_by_id(mapping: Dict[str, T], identifier: int | str | None) -> T | None:
+        if identifier is None:
+            return None
+
+        if isinstance(identifier, str):
+            key = identifier.strip()
+        else:
+            key = str(identifier)
+
+        if not key:
+            return None
+
+        value = mapping.get(key)
+        if value is not None:
+            return value
+
+        try:
+            normalized = str(int(key))
+        except (TypeError, ValueError):
+            return None
+        return mapping.get(normalized)
+
     @property
     def begin_numbering(self) -> DocumentNumbering:
         element = self._begin_num_element()
@@ -2376,6 +2449,74 @@ class HwpxOxmlHeader:
         except (TypeError, ValueError):
             return None
         return shapes.get(normalized)
+
+    @property
+    def bullets(self) -> dict[str, Bullet]:
+        bullets_element = self._bullets_element()
+        if bullets_element is None:
+            return {}
+
+        bullet_list = parse_bullets(self._convert_to_lxml(bullets_element))
+        return bullet_list.as_dict()
+
+    def bullet(self, bullet_id_ref: int | str | None) -> Bullet | None:
+        return self._lookup_by_id(self.bullets, bullet_id_ref)
+
+    @property
+    def paragraph_properties(self) -> dict[str, ParagraphProperty]:
+        para_props_element = self._para_properties_element()
+        if para_props_element is None:
+            return {}
+
+        para_properties = parse_paragraph_properties(
+            self._convert_to_lxml(para_props_element)
+        )
+        return para_properties.as_dict()
+
+    def paragraph_property(
+        self, para_pr_id_ref: int | str | None
+    ) -> ParagraphProperty | None:
+        return self._lookup_by_id(self.paragraph_properties, para_pr_id_ref)
+
+    @property
+    def styles(self) -> dict[str, Style]:
+        styles_element = self._styles_element()
+        if styles_element is None:
+            return {}
+
+        style_list = parse_styles(self._convert_to_lxml(styles_element))
+        return style_list.as_dict()
+
+    def style(self, style_id_ref: int | str | None) -> Style | None:
+        return self._lookup_by_id(self.styles, style_id_ref)
+
+    @property
+    def track_changes(self) -> dict[str, TrackChange]:
+        changes_element = self._track_changes_element()
+        if changes_element is None:
+            return {}
+
+        change_list = parse_track_changes(self._convert_to_lxml(changes_element))
+        return change_list.as_dict()
+
+    def track_change(self, change_id_ref: int | str | None) -> TrackChange | None:
+        return self._lookup_by_id(self.track_changes, change_id_ref)
+
+    @property
+    def track_change_authors(self) -> dict[str, TrackChangeAuthor]:
+        authors_element = self._track_change_authors_element()
+        if authors_element is None:
+            return {}
+
+        author_list = parse_track_change_authors(
+            self._convert_to_lxml(authors_element)
+        )
+        return author_list.as_dict()
+
+    def track_change_author(
+        self, author_id_ref: int | str | None
+    ) -> TrackChangeAuthor | None:
+        return self._lookup_by_id(self.track_change_authors, author_id_ref)
 
     @property
     def dirty(self) -> bool:
@@ -2566,6 +2707,60 @@ class HwpxOxmlDocument:
         except (TypeError, ValueError):
             return None
         return shapes.get(normalized)
+
+    @property
+    def bullets(self) -> dict[str, Bullet]:
+        mapping: dict[str, Bullet] = {}
+        for header in self._headers:
+            mapping.update(header.bullets)
+        return mapping
+
+    def bullet(self, bullet_id_ref: int | str | None) -> Bullet | None:
+        return HwpxOxmlHeader._lookup_by_id(self.bullets, bullet_id_ref)
+
+    @property
+    def paragraph_properties(self) -> dict[str, ParagraphProperty]:
+        mapping: dict[str, ParagraphProperty] = {}
+        for header in self._headers:
+            mapping.update(header.paragraph_properties)
+        return mapping
+
+    def paragraph_property(
+        self, para_pr_id_ref: int | str | None
+    ) -> ParagraphProperty | None:
+        return HwpxOxmlHeader._lookup_by_id(self.paragraph_properties, para_pr_id_ref)
+
+    @property
+    def styles(self) -> dict[str, Style]:
+        mapping: dict[str, Style] = {}
+        for header in self._headers:
+            mapping.update(header.styles)
+        return mapping
+
+    def style(self, style_id_ref: int | str | None) -> Style | None:
+        return HwpxOxmlHeader._lookup_by_id(self.styles, style_id_ref)
+
+    @property
+    def track_changes(self) -> dict[str, TrackChange]:
+        mapping: dict[str, TrackChange] = {}
+        for header in self._headers:
+            mapping.update(header.track_changes)
+        return mapping
+
+    def track_change(self, change_id_ref: int | str | None) -> TrackChange | None:
+        return HwpxOxmlHeader._lookup_by_id(self.track_changes, change_id_ref)
+
+    @property
+    def track_change_authors(self) -> dict[str, TrackChangeAuthor]:
+        mapping: dict[str, TrackChangeAuthor] = {}
+        for header in self._headers:
+            mapping.update(header.track_change_authors)
+        return mapping
+
+    def track_change_author(
+        self, author_id_ref: int | str | None
+    ) -> TrackChangeAuthor | None:
+        return HwpxOxmlHeader._lookup_by_id(self.track_change_authors, author_id_ref)
 
     @property
     def paragraphs(self) -> List[HwpxOxmlParagraph]:

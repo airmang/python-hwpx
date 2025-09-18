@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" version="1.5" secCnt="1">
+  <hh:refList>
+    <hh:bullets itemCnt="2">
+      <hh:bullet id="0" char="●" checkedChar="○" useImage="false">
+        <hh:paraHead level="1" start="1" align="LEFT" useInstWidth="true" autoIndent="true" textOffset="60">^1.</hh:paraHead>
+      </hh:bullet>
+      <hh:bullet id="02" char="※" useImage="true">
+        <hh:img binaryItemIDRef="100" width="1200"/>
+        <hh:paraHead level="2" start="3" align="RIGHT" useInstWidth="false" autoIndent="false" widthAdjust="10" textOffsetType="HWPUNIT" textOffset="120">prefix</hh:paraHead>
+      </hh:bullet>
+    </hh:bullets>
+    <hh:paraProperties itemCnt="2">
+      <hh:paraPr id="1" tabPrIDRef="10" condense="5" fontLineHeight="true" snapToGrid="false" suppressLineNumbers="true" checked="true">
+        <hh:align horizontal="JUSTIFY" vertical="CENTER"/>
+        <hh:heading type="BULLET" idRef="0" level="1"/>
+        <hh:breakSetting breakLatinWord="KEEP_WORD" breakNonLatinWord="BREAK_WORD" widowOrphan="true" keepWithNext="false" keepLines="true" pageBreakBefore="false" lineWrap="BREAK"/>
+        <hh:margin>
+          <hh:intent>0mm</hh:intent>
+          <hh:left>10mm</hh:left>
+          <hh:right>10mm</hh:right>
+          <hh:prev>12pt</hh:prev>
+          <hh:next>6pt</hh:next>
+        </hh:margin>
+        <hh:lineSpacing type="PERCENT" value="160" unit="PERCENT"/>
+        <hh:border borderFillIDRef="7" offsetLeft="100" offsetRight="200" offsetTop="300" offsetBottom="400" connect="true" ignoreMargin="false"/>
+        <hh:autoSpacing eAsianEng="true" eAsianNum="false"/>
+      </hh:paraPr>
+      <hh:paraPr id="07">
+        <hh:align horizontal="LEFT" vertical="TOP"/>
+        <hh:margin>
+          <hh:intent>-10mm</hh:intent>
+          <hh:left>0mm</hh:left>
+          <hh:right>0mm</hh:right>
+          <hh:prev>0pt</hh:prev>
+          <hh:next>0pt</hh:next>
+        </hh:margin>
+      </hh:paraPr>
+    </hh:paraProperties>
+    <hh:styles itemCnt="2">
+      <hh:style id="0" type="PARA" name="Normal" paraPrIDRef="1" charPrIDRef="0" nextStyleIDRef="1" langID="1033" lockForm="true"/>
+      <hh:style id="03" type="CHAR" name="Emphasis" engName="Emphasis" charPrIDRef="2"/>
+    </hh:styles>
+    <hh:memoProperties itemCnt="1">
+      <hh:memoPr id="9" width="15000" lineWidth="0.6mm" lineType="SOLID" lineColor="#000000" fillColor="#FFFFFF" activeColor="#FF0000" memoType="USER_INSERT"/>
+    </hh:memoProperties>
+    <hh:trackChanges itemCnt="2">
+      <hh:trackChange id="1" type="INSERT" date="2024-01-02T03:04:05" authorID="5" charShapeID="10" paraShapeID="1" hide="false"/>
+      <hh:trackChange id="05" type="DELETE" hide="true"/>
+    </hh:trackChanges>
+    <hh:trackChangeAuthors itemCnt="1">
+      <hh:trackChangeAuthor id="5" name="Alice" mark="true" color="#FF0000"/>
+    </hh:trackChangeAuthors>
+  </hh:refList>
+</hh:head>
