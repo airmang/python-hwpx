@@ -13,13 +13,16 @@ from .oxml import (
     Bullet,
     HwpxOxmlDocument,
     HwpxOxmlHeader,
+    HwpxOxmlHistory,
     HwpxOxmlInlineObject,
+    HwpxOxmlMasterPage,
     HwpxOxmlMemo,
     HwpxOxmlParagraph,
     HwpxOxmlRun,
     HwpxOxmlSection,
     HwpxOxmlSectionHeaderFooter,
     HwpxOxmlTable,
+    HwpxOxmlVersion,
     MemoShape,
     ParagraphProperty,
     RunStyle,
@@ -88,6 +91,21 @@ class HwpxDocument:
     def headers(self) -> List[HwpxOxmlHeader]:
         """Return the header parts referenced by the document."""
         return self._root.headers
+
+    @property
+    def master_pages(self) -> List[HwpxOxmlMasterPage]:
+        """Return the master-page parts declared in the manifest."""
+        return self._root.master_pages
+
+    @property
+    def histories(self) -> List[HwpxOxmlHistory]:
+        """Return document history parts referenced by the manifest."""
+        return self._root.histories
+
+    @property
+    def version(self) -> HwpxOxmlVersion | None:
+        """Return the version metadata part if present."""
+        return self._root.version
 
     @property
     def memo_shapes(self) -> dict[str, MemoShape]:

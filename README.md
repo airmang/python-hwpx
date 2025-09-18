@@ -9,6 +9,7 @@
 - **타입이 지정된 본문 모델** – `hwpx.oxml.body`는 표·컨트롤·인라인 도형·변경 추적 태그를 데이터 클래스에 매핑하고, `HwpxOxmlParagraph.model`/`HwpxOxmlRun.model`로 이를 조회·수정한 뒤 XML로 되돌릴 수 있도록 지원합니다.
 - **메모와 필드 앵커** – `add_memo_with_anchor()`로 메모를 생성하면서 MEMO 필드 컨트롤을 자동 삽입해 한/글에서 바로 표시되도록 합니다.
 - **헤더 참조 목록 탐색** – 글머리표, 문단 속성, 스타일, 변경 추적 항목, 작성자 정보를 데이터클래스로 파싱하고 `document.bullets`·`document.styles` 같은 조회 헬퍼로 ID 기반 검색을 단순화했습니다.
+- **바탕쪽·이력·버전 파트 제어** – 매니페스트에 포함된 master-page/history/version 파트를 `document.master_pages`, `document.histories`, `document.version`으로 직접 편집하고 저장합니다.
 - **스타일 기반 텍스트 치환** – 런 서식(색상, 밑줄, `charPrIDRef`)으로 필터링해 텍스트를 선택적으로 교체하거나 삭제합니다. 하이라이트
   마커나 태그로 분리된 문자열도 서식을 유지한 채 치환합니다.
 - **텍스트 추출 파이프라인** – `hwpx.tools.text_extractor.TextExtractor`는 하이라이트, 각주, 컨트롤을 원하는 방식으로 표현하며 문단 텍스트를 반환합니다.

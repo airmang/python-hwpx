@@ -1999,6 +1999,61 @@ class HwpxOxmlParagraph:
             self.section.mark_dirty()
 
 
+class _HwpxOxmlSimplePart:
+    """Common base for standalone XML parts that are not sections or headers."""
+
+    def __init__(
+        self,
+        part_name: str,
+        element: ET.Element,
+        document: "HwpxOxmlDocument" | None = None,
+    ):
+        self.part_name = part_name
+        self._element = element
+        self._document = document
+        self._dirty = False
+
+    @property
+    def element(self) -> ET.Element:
+        return self._element
+
+    @property
+    def document(self) -> "HwpxOxmlDocument" | None:
+        return self._document
+
+    def attach_document(self, document: "HwpxOxmlDocument") -> None:
+        self._document = document
+
+    @property
+    def dirty(self) -> bool:
+        return self._dirty
+
+    def mark_dirty(self) -> None:
+        self._dirty = True
+
+    def reset_dirty(self) -> None:
+        self._dirty = False
+
+    def replace_element(self, element: ET.Element) -> None:
+        self._element = element
+        self.mark_dirty()
+
+    def to_bytes(self) -> bytes:
+        return _serialize_xml(self._element)
+
+
+class HwpxOxmlMasterPage(_HwpxOxmlSimplePart):
+    """Represents a master page part in the package."""
+
+
+class HwpxOxmlHistory(_HwpxOxmlSimplePart):
+    """Represents a document history part."""
+
+
+class HwpxOxmlVersion(_HwpxOxmlSimplePart):
+    """Represents the ``version.xml`` part."""
+
+
 class HwpxOxmlSection:
     """Represents the contents of a section XML part."""
 
@@ -2540,16 +2595,29 @@ class HwpxOxmlDocument:
         manifest: ET.Element,
         sections: Sequence[HwpxOxmlSection],
         headers: Sequence[HwpxOxmlHeader],
+        *,
+        master_pages: Sequence[HwpxOxmlMasterPage] | None = None,
+        histories: Sequence[HwpxOxmlHistory] | None = None,
+        version: HwpxOxmlVersion | None = None,
     ):
         self._manifest = manifest
         self._sections = list(sections)
         self._headers = list(headers)
+        self._master_pages = list(master_pages or [])
+        self._histories = list(histories or [])
+        self._version = version
         self._char_property_cache: dict[str, RunStyle] | None = None
 
         for section in self._sections:
             section.attach_document(self)
         for header in self._headers:
             header.attach_document(self)
+        for master_page in self._master_pages:
+            master_page.attach_document(self)
+        for history in self._histories:
+            history.attach_document(self)
+        if self._version is not None:
+            self._version.attach_document(self)
 
     @classmethod
     def from_package(cls, package: "HwpxPackage") -> "HwpxOxmlDocument":
@@ -2561,12 +2629,35 @@ class HwpxOxmlDocument:
         manifest = package.get_xml(package.MANIFEST_PATH)
         section_paths = package.section_paths()
         header_paths = package.header_paths()
+        master_page_paths = package.master_page_paths()
+        history_paths = package.history_paths()
+        version_path = package.version_path()
 
         sections = [
             HwpxOxmlSection(path, package.get_xml(path)) for path in section_paths
         ]
         headers = [HwpxOxmlHeader(path, package.get_xml(path)) for path in header_paths]
-        return cls(manifest, sections, headers)
+        master_pages = [
+            HwpxOxmlMasterPage(path, package.get_xml(path))
+            for path in master_page_paths
+            if package.has_part(path)
+        ]
+        histories = [
+            HwpxOxmlHistory(path, package.get_xml(path))
+            for path in history_paths
+            if package.has_part(path)
+        ]
+        version = None
+        if version_path and package.has_part(version_path):
+            version = HwpxOxmlVersion(version_path, package.get_xml(version_path))
+        return cls(
+            manifest,
+            sections,
+            headers,
+            master_pages=master_pages,
+            histories=histories,
+            version=version,
+        )
 
     @property
     def manifest(self) -> ET.Element:
@@ -2579,6 +2670,18 @@ class HwpxOxmlDocument:
     @property
     def headers(self) -> List[HwpxOxmlHeader]:
         return list(self._headers)
+
+    @property
+    def master_pages(self) -> List[HwpxOxmlMasterPage]:
+        return list(self._master_pages)
+
+    @property
+    def histories(self) -> List[HwpxOxmlHistory]:
+        return list(self._histories)
+
+    @property
+    def version(self) -> HwpxOxmlVersion | None:
+        return self._version
 
     def _ensure_char_property_cache(self) -> dict[str, RunStyle]:
         if self._char_property_cache is None:
@@ -2812,6 +2915,14 @@ class HwpxOxmlDocument:
                 headers_dirty = True
         if headers_dirty:
             self.invalidate_char_property_cache()
+        for master_page in self._master_pages:
+            if master_page.dirty:
+                updates[master_page.part_name] = master_page.to_bytes()
+        for history in self._histories:
+            if history.dirty:
+                updates[history.part_name] = history.to_bytes()
+        if self._version is not None and self._version.dirty:
+            updates[self._version.part_name] = self._version.to_bytes()
         return updates
 
     def reset_dirty(self) -> None:
@@ -2820,3 +2931,9 @@ class HwpxOxmlDocument:
             section.reset_dirty()
         for header in self._headers:
             header.reset_dirty()
+        for master_page in self._master_pages:
+            master_page.reset_dirty()
+        for history in self._histories:
+            history.reset_dirty()
+        if self._version is not None:
+            self._version.reset_dirty()

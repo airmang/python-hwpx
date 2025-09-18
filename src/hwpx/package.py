@@ -11,6 +11,21 @@ from zipfile import ZIP_DEFLATED, ZipFile
 _OPF_NS = "http://www.idpf.org/2007/opf/"
 
 
+def _normalized_manifest_value(element: ET.Element) -> str:
+    values = [
+        element.attrib.get("id", ""),
+        element.attrib.get("href", ""),
+        element.attrib.get("media-type", ""),
+        element.attrib.get("properties", ""),
+    ]
+    return " ".join(part.lower() for part in values if part)
+
+
+def _manifest_matches(element: ET.Element, *candidates: str) -> bool:
+    normalized = _normalized_manifest_value(element)
+    return any(candidate in normalized for candidate in candidates if candidate)
+
+
 def _ensure_bytes(value: bytes | str | ET.Element) -> bytes:
     if isinstance(value, bytes):
         return value
@@ -38,6 +53,10 @@ class HwpxPackage:
         self._spine_cache: list[str] | None = None
         self._section_paths_cache: list[str] | None = None
         self._header_paths_cache: list[str] | None = None
+        self._master_page_paths_cache: list[str] | None = None
+        self._history_paths_cache: list[str] | None = None
+        self._version_path_cache: str | None = None
+        self._version_path_cache_resolved = False
 
     # -- construction ----------------------------------------------------
     @classmethod
@@ -85,6 +104,12 @@ class HwpxPackage:
             self._spine_cache = None
             self._section_paths_cache = None
             self._header_paths_cache = None
+            self._master_page_paths_cache = None
+            self._history_paths_cache = None
+            self._version_path_cache = None
+            self._version_path_cache_resolved = False
+        elif part_name == "version.xml":
+            self._version_path_cache_resolved = False
 
     def get_xml(self, part_name: str) -> ET.Element:
         return ET.fromstring(self.get_part(part_name))
@@ -100,6 +125,11 @@ class HwpxPackage:
         if self._manifest_tree is None:
             self._manifest_tree = self.get_xml(self.MANIFEST_PATH)
         return self._manifest_tree
+
+    def _manifest_items(self) -> list[ET.Element]:
+        manifest = self.manifest_tree()
+        ns = {"opf": _OPF_NS}
+        return list(manifest.findall("./opf:manifest/opf:item", ns))
 
     def _resolve_spine_paths(self) -> list[str]:
         if self._spine_cache is None:
@@ -154,6 +184,64 @@ class HwpxPackage:
                 paths = [self.HEADER_PATH]
             self._header_paths_cache = paths
         return list(self._header_paths_cache)
+
+    def master_page_paths(self) -> list[str]:
+        if self._master_page_paths_cache is None:
+            from pathlib import PurePosixPath
+
+            paths = [
+                item.attrib.get("href", "")
+                for item in self._manifest_items()
+                if _manifest_matches(item, "masterpage", "master-page")
+                and item.attrib.get("href")
+            ]
+
+            if not paths:
+                paths = [
+                    name
+                    for name in self._parts.keys()
+                    if "master" in PurePosixPath(name).name.lower()
+                    and "page" in PurePosixPath(name).name.lower()
+                ]
+
+            self._master_page_paths_cache = paths
+        return list(self._master_page_paths_cache)
+
+    def history_paths(self) -> list[str]:
+        if self._history_paths_cache is None:
+            from pathlib import PurePosixPath
+
+            paths = [
+                item.attrib.get("href", "")
+                for item in self._manifest_items()
+                if _manifest_matches(item, "history")
+                and item.attrib.get("href")
+            ]
+
+            if not paths:
+                paths = [
+                    name
+                    for name in self._parts.keys()
+                    if "history" in PurePosixPath(name).name.lower()
+                ]
+
+            self._history_paths_cache = paths
+        return list(self._history_paths_cache)
+
+    def version_path(self) -> str | None:
+        if not self._version_path_cache_resolved:
+            path: str | None = None
+            for item in self._manifest_items():
+                if _manifest_matches(item, "version"):
+                    href = item.attrib.get("href", "").strip()
+                    if href:
+                        path = href
+                        break
+            if path is None and self.has_part("version.xml"):
+                path = "version.xml"
+            self._version_path_cache = path
+            self._version_path_cache_resolved = True
+        return self._version_path_cache
 
     # -- saving ----------------------------------------------------------
     def save(

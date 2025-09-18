@@ -621,6 +621,51 @@ if change:
         print(change.change_type, author.name, author.color)
 ```
 
+### 예제 59: 바탕쪽 이름 수정하기
+
+```python
+from hwpx.document import HwpxDocument
+
+HM = "{http://www.hancom.co.kr/hwpml/2011/master-page}"
+
+document = HwpxDocument.open("my-document.hwpx")
+if document.master_pages:
+    master = document.master_pages[0]
+    item = master.element.find(f"{HM}masterPageItem")
+    if item is not None:
+        item.set("name", "보고서 바탕쪽")
+        master.mark_dirty()
+document.save("my-document.hwpx")
+```
+
+### 예제 60: 문서 이력 주석 갱신
+
+```python
+from hwpx.document import HwpxDocument
+
+HHS = "{http://www.hancom.co.kr/hwpml/2011/history}"
+
+document = HwpxDocument.open("my-document.hwpx")
+for history in document.histories:
+    comment = history.element.find(f"{HHS}historyEntry/{HHS}comment")
+    if comment is not None:
+        comment.text = "QA 점검 완료"
+        history.mark_dirty()
+document.save("my-document.hwpx")
+```
+
+### 예제 61: 버전 메타데이터 업데이트
+
+```python
+from hwpx.document import HwpxDocument
+
+document = HwpxDocument.open("my-document.hwpx")
+if document.version:
+    document.version.element.set("appVersion", "15.0.0.100 WIN32")
+    document.version.mark_dirty()
+    document.save("my-document.hwpx")
+```
+
 
 ## 패키지 열기와 기본 점검
 
@@ -685,7 +730,7 @@ control = document.add_control(
 )
 ```
 
-`HwpxDocument.sections`, `HwpxDocument.paragraphs`, `HwpxDocument.headers` 속성은 각각 구역, 모든 문단, 헤더 파트를 리스트로 반환합니다. 섹션 속성(`section.properties`)을 사용하면 페이지 크기, 여백, 바탕쪽 연결과 같은 레이아웃 설정도 쉽게 변경할 수 있습니다.
+`HwpxDocument.sections`, `HwpxDocument.paragraphs`, `HwpxDocument.headers` 속성은 각각 구역, 모든 문단, 헤더 파트를 리스트로 반환합니다. 섹션 속성(`section.properties`)을 사용하면 페이지 크기, 여백, 바탕쪽 연결과 같은 레이아웃 설정도 쉽게 변경할 수 있습니다. 매니페스트에 등록된 바탕쪽(`document.master_pages`), 문서 이력(`document.histories`), 버전(`document.version`) 파트도 동일한 방식으로 노출되므로 XML 트리를 직접 수정한 뒤 `mark_dirty()`만 호출하면 저장 시 함께 반영됩니다.
 
 ```python
 options = section.properties

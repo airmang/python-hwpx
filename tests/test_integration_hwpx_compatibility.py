@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
@@ -9,6 +10,7 @@ import pytest
 from hwpx.document import HwpxDocument
 from hwpx.package import HwpxPackage
 from hwpx.tools import load_default_schemas, validate_document
+from hwpx.templates import blank_document_bytes
 
 _MIMETYPE = b"application/hwp+zip"
 _VERSION_XML = (
@@ -137,3 +139,90 @@ def test_fixture_validates_against_reference_schemas(
 
     bytes_report = validate_document(sample_document_bytes)
     assert bytes_report.ok, "Generated sample failed schema validation from bytes"
+
+
+def test_master_page_history_and_version_round_trip(tmp_path: Path) -> None:
+    package = HwpxPackage.open(blank_document_bytes())
+
+    manifest = package.manifest_tree()
+    ns = {"opf": "http://www.idpf.org/2007/opf/"}
+    manifest_list = manifest.find(f"{{{ns['opf']}}}manifest")
+    assert manifest_list is not None
+
+    def add_manifest_item(item_id: str, href: str) -> None:
+        ET.SubElement(
+            manifest_list,
+            f"{{{ns['opf']}}}item",
+            {"id": item_id, "href": href, "media-type": "application/xml"},
+        )
+
+    add_manifest_item("master-page-0", "Contents/masterPages/masterPage0.xml")
+    add_manifest_item("history", "Contents/history.xml")
+    add_manifest_item("version", "version.xml")
+    package.set_xml(package.MANIFEST_PATH, manifest)
+
+    hm_ns = "http://www.hancom.co.kr/hwpml/2011/master-page"
+    master_root = ET.Element(f"{{{hm_ns}}}masterPage")
+    ET.SubElement(
+        master_root,
+        f"{{{hm_ns}}}masterPageItem",
+        {"id": "0", "type": "BOTH", "name": "초기 바탕쪽"},
+    )
+    package.set_xml("Contents/masterPages/masterPage0.xml", master_root)
+
+    hhs_ns = "http://www.hancom.co.kr/hwpml/2011/history"
+    history_root = ET.Element(f"{{{hhs_ns}}}history")
+    history_entry = ET.SubElement(history_root, f"{{{hhs_ns}}}historyEntry", {"id": "0"})
+    comment = ET.SubElement(history_entry, f"{{{hhs_ns}}}comment")
+    comment.text = "초기 내역"
+    package.set_xml("Contents/history.xml", history_root)
+
+    document = HwpxDocument.from_package(package)
+
+    assert len(document.master_pages) == 1
+    assert len(document.histories) == 1
+    version_part = document.version
+    assert version_part is not None
+
+    master_page = document.master_pages[0]
+    master_item = master_page.element.find(f"{{{hm_ns}}}masterPageItem")
+    assert master_item is not None
+    master_item.set("name", "검토용 바탕쪽")
+    master_page.mark_dirty()
+
+    history_part = document.histories[0]
+    history_comment = history_part.element.find(
+        f"{{{hhs_ns}}}historyEntry/{{{hhs_ns}}}comment"
+    )
+    assert history_comment is not None
+    history_comment.text = "업데이트된 변경 기록"
+    history_part.mark_dirty()
+
+    version_part.element.set("appVersion", "15.0.0.100 WIN32")
+    version_part.mark_dirty()
+
+    output_path = tmp_path / "master_history_roundtrip.hwpx"
+    document.save(output_path)
+
+    reopened = HwpxDocument.open(output_path)
+    assert reopened.master_pages
+    assert reopened.histories
+    reopened_version = reopened.version
+    assert reopened_version is not None
+
+    reopened_master_item = reopened.master_pages[0].element.find(
+        f"{{{hm_ns}}}masterPageItem"
+    )
+    assert reopened_master_item is not None
+    assert reopened_master_item.get("name") == "검토용 바탕쪽"
+
+    reopened_history_comment = reopened.histories[0].element.find(
+        f"{{{hhs_ns}}}historyEntry/{{{hhs_ns}}}comment"
+    )
+    assert reopened_history_comment is not None
+    assert reopened_history_comment.text == "업데이트된 변경 기록"
+
+    assert reopened_version.element.get("appVersion") == "15.0.0.100 WIN32"
+    assert "Contents/masterPages/masterPage0.xml" in reopened.package.master_page_paths()
+    assert "Contents/history.xml" in reopened.package.history_paths()
+    assert reopened.package.version_path() == "version.xml"
