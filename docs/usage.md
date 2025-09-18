@@ -151,6 +151,8 @@ header = section.properties.set_header_text("Confidential", page_type="BOTH")
 print(header.apply_page_type)
 ```
 
+`set_header_text()`과 `set_footer_text()`는 새 헤더/꼬리말 파트를 만들거나 기존 텍스트를 교체할 뿐 아니라, 같은 구역의 `<hp:headerApply>`/`<hp:footerApply>` 노드와 연결된 마스터 페이지 참조까지 일관되게 유지합니다. 위 예제의 `apply_page_type` 속성은 방금 요청한 페이지 유형(`BOTH`)으로 자동 설정됩니다.
+
 ### 예제 15: 머리말 제거
 
 ```python
@@ -161,6 +163,8 @@ section = document.sections[0]
 section.properties.remove_header()
 ```
 
+헤더나 꼬리말을 제거하면 `<hp:headerApply>`/`<hp:footerApply>` 노드와 마스터 페이지 링크도 함께 정리되므로, 편집기에서 더 이상 이전 머리말이 표시되지 않습니다.
+
 ### 예제 16: 홀수 페이지 꼬리말 넣기
 
 ```python
@@ -170,6 +174,8 @@ document = HwpxDocument.open("my-document.hwpx")
 section = document.sections[0]
 section.properties.set_footer_text("© Company", page_type="ODD")
 ```
+
+페이지 유형을 변경할 때마다 구역의 `<hp:footerApply>` 노드가 동일한 유형으로 갱신되고, 필요한 경우 마스터 페이지 목록에 새로운 참조가 생성됩니다.
 
 ### 예제 17: 헤더 파트 이름 나열
 

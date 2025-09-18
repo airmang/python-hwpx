@@ -17,6 +17,7 @@ from .oxml import (
     HwpxOxmlParagraph,
     HwpxOxmlRun,
     HwpxOxmlSection,
+    HwpxOxmlSectionHeaderFooter,
     HwpxOxmlTable,
     MemoShape,
     RunStyle,
@@ -532,6 +533,80 @@ class HwpxDocument:
             run_attributes=run_attributes,
             char_pr_id_ref=char_pr_id_ref,
         )
+
+    def set_header_text(
+        self,
+        text: str,
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        page_type: str = "BOTH",
+    ) -> HwpxOxmlSectionHeaderFooter:
+        """Ensure the requested section contains a header for *page_type* and set its text."""
+
+        target_section = section
+        if target_section is None and section_index is not None:
+            target_section = self._root.sections[section_index]
+        if target_section is None:
+            if not self._root.sections:
+                raise ValueError("document does not contain any sections")
+            target_section = self._root.sections[-1]
+        return target_section.properties.set_header_text(text, page_type=page_type)
+
+    def set_footer_text(
+        self,
+        text: str,
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        page_type: str = "BOTH",
+    ) -> HwpxOxmlSectionHeaderFooter:
+        """Ensure the requested section contains a footer for *page_type* and set its text."""
+
+        target_section = section
+        if target_section is None and section_index is not None:
+            target_section = self._root.sections[section_index]
+        if target_section is None:
+            if not self._root.sections:
+                raise ValueError("document does not contain any sections")
+            target_section = self._root.sections[-1]
+        return target_section.properties.set_footer_text(text, page_type=page_type)
+
+    def remove_header(
+        self,
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        page_type: str = "BOTH",
+    ) -> None:
+        """Remove the header linked to *page_type* from the requested section if present."""
+
+        target_section = section
+        if target_section is None and section_index is not None:
+            target_section = self._root.sections[section_index]
+        if target_section is None:
+            if not self._root.sections:
+                return
+            target_section = self._root.sections[-1]
+        target_section.properties.remove_header(page_type=page_type)
+
+    def remove_footer(
+        self,
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        page_type: str = "BOTH",
+    ) -> None:
+        """Remove the footer linked to *page_type* from the requested section if present."""
+
+        target_section = section
+        if target_section is None and section_index is not None:
+            target_section = self._root.sections[section_index]
+        if target_section is None:
+            if not self._root.sections:
+                return
+            target_section = self._root.sections[-1]
+        target_section.properties.remove_footer(page_type=page_type)
 
     def save(
         self,
