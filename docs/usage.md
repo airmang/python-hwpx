@@ -727,6 +727,32 @@ document.replace_text_in_runs(
 
 반환된 `RunStyle` 객체(`run.style`)를 사용하면 문자 색상, 밑줄 색상 등 서식 속성을 직접 확인할 수 있습니다. 치환기는 하이라이트 마커(`<hp:markpenBegin>`/`<hp:markpenEnd>`)나 태그로 나뉜 토큰도 순회하며 기존 서식 구조를 유지한 채 교체합니다.
 
+## 본문 데이터 모델 살펴보기
+
+`hwpx.oxml.body` 모듈은 `<hp:p>`와 `<hp:run>`을 데이터 클래스(표·컨트롤·인라인 도형·변경 추적 태그 등)로 역직렬화합니다. `HwpxOxmlParagraph.model`과 `HwpxOxmlRun.model` 속성은 이러한 구조화된 모델을 즉시 반환하며, 수정 후 `apply_model()`을 호출하면 변경 사항이 원본 XML에 반영됩니다.
+
+```python
+from hwpx.oxml.body import TrackChangeMark
+
+paragraph = section.paragraphs[0]
+model = paragraph.model
+run_model = model.runs[0]
+
+# 컨트롤 유형을 변경하고 ID 속성을 갱신합니다.
+control = run_model.controls[0]
+control.control_type = "PAGE_NUMBER"
+control.attributes["id"] = "ctrl-updated"
+
+# 변경 추적 태그도 타입 안전하게 접근할 수 있습니다.
+span = run_model.text_spans[0]
+for mark in span.marks:
+    if isinstance(mark.element, TrackChangeMark) and mark.element.is_begin:
+        mark.element.tc_id = 99
+
+# 수정한 모델을 문단에 적용합니다.
+paragraph.apply_model(model)
+```
+
 ## 런 서식 지정
 
 헤더의 `<hh:charPr>` 정의는 여러 런이 공유하는 문자 서식을 담고 있습니다. `HwpxDocument.ensure_run_style()`은 굵게/기울임/밑줄 조합에 맞는 `charPr` 항목을 찾아 ID를 반환하고, 필요한 경우 새 항목을 생성합니다. 문단 객체는 `add_run()` 메서드를 통해 해당 서식을 즉시 사용하는 런을 만들 수 있습니다.

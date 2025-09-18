@@ -13,6 +13,7 @@ class GenericElement:
     """Fallback representation for XML elements without a specialised model."""
 
     name: str
+    tag: Optional[str] = None
     attributes: Dict[str, str] = field(default_factory=dict)
     children: List["GenericElement"] = field(default_factory=list)
     text: Optional[str] = None
@@ -25,6 +26,7 @@ def parse_generic_element(node: etree._Element) -> GenericElement:
     text = node.text if node.text is not None else None
     return GenericElement(
         name=local_name(node),
+        tag=node.tag,
         attributes={key: value for key, value in node.attrib.items()},
         children=children,
         text=text,
