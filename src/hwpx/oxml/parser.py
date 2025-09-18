@@ -23,6 +23,13 @@ _ELEMENT_FACTORY: Dict[str, ParserFn] = {
     "t": body.parse_text_span,
 }
 
+_ELEMENT_FACTORY["ctrl"] = body.parse_control_element
+_ELEMENT_FACTORY["tbl"] = body.parse_table_element
+for name in body.INLINE_OBJECT_NAMES:
+    _ELEMENT_FACTORY.setdefault(name, body.parse_inline_object_element)
+for mark_name in ("insertBegin", "insertEnd", "deleteBegin", "deleteEnd"):
+    _ELEMENT_FACTORY.setdefault(mark_name, body.parse_track_change_mark)
+
 
 def element_to_model(node: etree._Element) -> object:
     """Convert *node* into the corresponding Python object."""

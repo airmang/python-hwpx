@@ -6,6 +6,7 @@
 
 - **패키지 로딩과 검증** – `hwpx.opc.package.HwpxPackage`로 `mimetype`, `container.xml`, `version.xml`을 확인하며 모든 파트를 메모리에 적재합니다.
 - **문서 편집 API** – `hwpx.document.HwpxDocument`는 문단과 표, 메모, 헤더 속성을 파이썬 객체로 노출하고 새 콘텐츠를 손쉽게 추가합니다. 섹션 머리말·꼬리말을 수정하면 `<hp:headerApply>`/`<hp:footerApply>`와 마스터 페이지 링크도 함께 갱신합니다.
+- **타입이 지정된 본문 모델** – `hwpx.oxml.body`는 표·컨트롤·인라인 도형·변경 추적 태그를 데이터 클래스에 매핑하고, `HwpxOxmlParagraph.model`/`HwpxOxmlRun.model`로 이를 조회·수정한 뒤 XML로 되돌릴 수 있도록 지원합니다.
 - **메모와 필드 앵커** – `add_memo_with_anchor()`로 메모를 생성하면서 MEMO 필드 컨트롤을 자동 삽입해 한/글에서 바로 표시되도록 합니다.
 - **스타일 기반 텍스트 치환** – 런 서식(색상, 밑줄, `charPrIDRef`)으로 필터링해 텍스트를 선택적으로 교체하거나 삭제합니다. 하이라이트
   마커나 태그로 분리된 문자열도 서식을 유지한 채 치환합니다.

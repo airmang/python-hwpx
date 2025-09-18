@@ -8,6 +8,9 @@ from typing import Callable, Dict, Iterable, Iterator, List, Optional, Sequence,
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
+from lxml import etree as LET
+
+from . import body
 from .header import MemoProperties, MemoShape, memo_shape_from_attributes
 from .utils import parse_int
 
@@ -851,6 +854,27 @@ class HwpxOxmlRun:
         self.element = element
         self.paragraph = paragraph
 
+    def to_model(self) -> "body.Run":
+        xml_bytes = ET.tostring(self.element, encoding="utf-8")
+        node = LET.fromstring(xml_bytes)
+        return body.parse_run_element(node)
+
+    @property
+    def model(self) -> "body.Run":
+        return self.to_model()
+
+    def apply_model(self, model: "body.Run") -> None:
+        new_node = body.serialize_run(model)
+        xml_bytes = LET.tostring(new_node)
+        replacement = ET.fromstring(xml_bytes)
+        parent = self.paragraph.element
+        run_children = list(parent)
+        index = run_children.index(self.element)
+        parent.remove(self.element)
+        parent.insert(index, replacement)
+        self.element = replacement
+        self.paragraph.section.mark_dirty()
+
     def _current_format_flags(self) -> Tuple[bool, bool, bool] | None:
         style = self.style
         if style is None:
@@ -1691,6 +1715,27 @@ class HwpxOxmlParagraph:
 
     element: ET.Element
     section: HwpxOxmlSection
+
+    def to_model(self) -> "body.Paragraph":
+        xml_bytes = ET.tostring(self.element, encoding="utf-8")
+        node = LET.fromstring(xml_bytes)
+        return body.parse_paragraph_element(node)
+
+    @property
+    def model(self) -> "body.Paragraph":
+        return self.to_model()
+
+    def apply_model(self, model: "body.Paragraph") -> None:
+        new_node = body.serialize_paragraph(model)
+        xml_bytes = LET.tostring(new_node)
+        replacement = ET.fromstring(xml_bytes)
+        parent = self.section.element
+        paragraph_children = list(parent)
+        index = paragraph_children.index(self.element)
+        parent.remove(self.element)
+        parent.insert(index, replacement)
+        self.element = replacement
+        self.section.mark_dirty()
 
     def _run_elements(self) -> List[ET.Element]:
         return self.element.findall(f"{_HP}run")
