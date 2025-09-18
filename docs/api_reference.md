@@ -114,7 +114,7 @@
 - `find_runs_by_style(...) -> list[HwpxOxmlRun]`
   - 색상, 밑줄 유형 또는 특정 글자 속성 참조와 같은 스타일 속성으로 런을 필터링합니다.
 - `replace_text_in_runs(search, replacement, ...) -> int`
-  - `find_runs_by_style()`을 사용하여 런을 찾고 문자열을 교체합니다. 선택적으로 교체 횟수를 제한할 수 있습니다.
+  - `find_runs_by_style()`을 사용하여 런을 찾고 문자열을 교체합니다. 선택적으로 교체 횟수를 제한할 수 있으며, 하이라이트나 태그로 나뉜 텍스트도 서식을 유지한 채 치환합니다.
 
 #### 콘텐츠 생성 헬퍼
 

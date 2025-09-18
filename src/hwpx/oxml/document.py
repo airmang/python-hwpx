@@ -961,42 +961,165 @@ class HwpxOxmlRun:
         *,
         count: int | None = None,
     ) -> int:
-        """Replace ``search`` with ``replacement`` in-place.
+        """Replace ``search`` with ``replacement`` within ``<hp:t>`` nodes.
 
-        Returns the number of replacements that were performed.
+        The replacement traverses nested markup tags (e.g. highlights) and
+        preserves the existing element structure so formatting metadata remains
+        intact. Returns the number of replacements that were performed.
         """
 
         if not search:
             raise ValueError("search text must be a non-empty string")
 
-        total = 0
+        if count is not None and count <= 0:
+            return 0
+
+        # Helper structure to keep references to text segments and update them
+        # while editing nested nodes.
+        class _Segment:
+            __slots__ = ("element", "attr", "text")
+
+            def __init__(self, element: ET.Element, attr: str, text: str) -> None:
+                self.element = element
+                self.attr = attr
+                self.text = text
+
+            def set(self, value: str) -> None:
+                self.text = value
+                if value:
+                    setattr(self.element, self.attr, value)
+                else:
+                    setattr(self.element, self.attr, "")
+
+        def _gather_segments(node: ET.Element) -> List[_Segment]:
+            segments: List[_Segment] = []
+
+            def visit(element: ET.Element) -> None:
+                text_value = element.text or ""
+                segments.append(_Segment(element, "text", text_value))
+                for child in list(element):
+                    visit(child)
+                    tail_value = child.tail or ""
+                    segments.append(_Segment(child, "tail", tail_value))
+
+            visit(node)
+            return segments
+
+        def _segment_boundaries(segments: Sequence[_Segment]) -> List[Tuple[int, int]]:
+            bounds: List[Tuple[int, int]] = []
+            offset = 0
+            for segment in segments:
+                start = offset
+                offset += len(segment.text)
+                bounds.append((start, offset))
+            return bounds
+
+        def _distribute(total: int, weights: Sequence[int]) -> List[int]:
+            if not weights:
+                return []
+            if total <= 0:
+                return [0 for _ in weights]
+            weight_sum = sum(weights)
+            if weight_sum <= 0:
+                # Evenly spread characters when no weight information is
+                # available (e.g. replacement inside empty segments).
+                base = total // len(weights)
+                remainder = total - base * len(weights)
+                allocation = [base] * len(weights)
+                for index in range(remainder):
+                    allocation[index] += 1
+                return allocation
+
+            allocation = []
+            remainder = total
+            residuals: List[Tuple[int, int]] = []
+            for index, weight in enumerate(weights):
+                share = total * weight // weight_sum
+                allocation.append(share)
+                remainder -= share
+                residuals.append((total * weight % weight_sum, index))
+
+            # Distribute leftover characters based on the size of the modulus so
+            # that larger weights receive the extra characters first.
+            residuals.sort(key=lambda item: (-item[0], item[1]))
+            idx = 0
+            while remainder > 0 and residuals:
+                _, target = residuals[idx]
+                allocation[target] += 1
+                remainder -= 1
+                idx = (idx + 1) % len(residuals)
+
+            if remainder > 0:
+                allocation[-1] += remainder
+            return allocation
+
+        def _apply_replacement(
+            segments: List[_Segment],
+            start: int,
+            end: int,
+            replacement_text: str,
+        ) -> None:
+            bounds = _segment_boundaries(segments)
+            affected: List[Tuple[int, int, int]] = []
+            for index, (seg_start, seg_end) in enumerate(bounds):
+                if start >= seg_end or end <= seg_start:
+                    continue
+                local_start = max(0, start - seg_start)
+                local_end = min(len(segments[index].text), end - seg_start)
+                affected.append((index, local_start, local_end))
+
+            if not affected:
+                return
+
+            weights = [local_end - local_start for _, local_start, local_end in affected]
+            allocation = _distribute(len(replacement_text), weights)
+
+            replacement_offset = 0
+            first_index = affected[0][0]
+            last_index = affected[-1][0]
+
+            for (segment_index, local_start, local_end), share in zip(affected, allocation):
+                segment = segments[segment_index]
+                prefix = segment.text[:local_start] if segment_index == first_index else ""
+                suffix = segment.text[local_end:] if segment_index == last_index else ""
+                portion = replacement_text[replacement_offset : replacement_offset + share]
+                replacement_offset += share
+                segment.set(prefix + portion + suffix)
+
+        segments: List[_Segment] = []
+        for text_node in self.element.findall(f"{_HP}t"):
+            segments.extend(_gather_segments(text_node))
+
+        if not segments:
+            return 0
+
+        total_replacements = 0
         remaining = count
-        for node in self._plain_text_nodes():
-            current = node.text or ""
-            if not current:
-                continue
-            max_replace: int | None
-            if remaining is None:
-                max_replace = None
+        search_start = 0
+        combined = "".join(segment.text for segment in segments)
+
+        while True:
+            if remaining is not None and remaining <= 0:
+                break
+            position = combined.find(search, search_start)
+            if position == -1:
+                break
+            end_position = position + len(search)
+            _apply_replacement(segments, position, end_position, replacement)
+            total_replacements += 1
+            if remaining is not None:
+                remaining -= 1
+            combined = "".join(segment.text for segment in segments)
+            if replacement:
+                search_start = position + len(replacement)
             else:
-                if remaining <= 0:
-                    break
-                max_replace = remaining
-            if max_replace is None:
-                new_text = current.replace(search, replacement)
-                replaced_here = current.count(search)
-            else:
-                new_text = current.replace(search, replacement, max_replace)
-                replaced_here = min(max_replace, current.count(search))
-                remaining -= replaced_here
-            if replaced_here:
-                node.text = new_text
-                total += replaced_here
-                if remaining is not None and remaining <= 0:
-                    break
-        if total:
+                search_start = position
+            if search_start > len(combined):
+                search_start = len(combined)
+
+        if total_replacements:
             self.paragraph.section.mark_dirty()
-        return total
+        return total_replacements
 
     def remove(self) -> None:
         parent = self.paragraph.element

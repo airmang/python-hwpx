@@ -128,6 +128,73 @@ def test_run_wrapper_updates_character_reference() -> None:
     assert section.dirty is True
 
 
+def test_run_replace_text_handles_nested_highlight_markup() -> None:
+    section, paragraph = _build_section_with_paragraph()
+    run = paragraph.runs[0]
+
+    text_element = run.element.find(f"{HP}t")
+    assert text_element is not None
+    text_element.clear()
+    text_element.text = "Hello "
+    mark_begin = ET.SubElement(text_element, f"{HP}markpenBegin", {"id": "mark1"})
+    mark_begin.tail = "memo"
+    mark_end = ET.SubElement(text_element, f"{HP}markpenEnd", {"id": "mark1"})
+    mark_end.tail = " world"
+    section.reset_dirty()
+
+    replaced = run.replace_text("memo", "note")
+
+    assert replaced == 1
+    assert text_element.text == "Hello "
+    assert mark_begin.tail == "note"
+    assert mark_end.tail == " world"
+    assert run.text == "Hello note world"
+    assert section.dirty is True
+
+
+def test_run_replace_text_handles_tag_separated_tokens() -> None:
+    section, paragraph = _build_section_with_paragraph()
+    run = paragraph.runs[0]
+
+    text_element = run.element.find(f"{HP}t")
+    assert text_element is not None
+    text_element.clear()
+    text_element.text = ""
+    token = ET.SubElement(text_element, f"{HP}tag", {"name": "token"})
+    token.text = "foo"
+    token.tail = " bar"
+    section.reset_dirty()
+
+    replaced = run.replace_text("foo bar", "baz qux")
+
+    assert replaced == 1
+    assert token.text == "baz"
+    assert token.tail == " qux"
+    assert run.text == "baz qux"
+    assert section.dirty is True
+
+
+def test_run_replace_text_spans_multiple_text_nodes() -> None:
+    section, paragraph = _build_section_with_paragraph()
+    run = paragraph.runs[0]
+
+    for child in list(run.element):
+        run.element.remove(child)
+    first = ET.SubElement(run.element, f"{HP}t")
+    first.text = "foo "
+    second = ET.SubElement(run.element, f"{HP}t")
+    second.text = "bar"
+    section.reset_dirty()
+
+    replaced = run.replace_text("foo bar", "baz qux")
+
+    assert replaced == 1
+    assert first.text == "baz "
+    assert second.text == "qux"
+    assert run.text == "baz qux"
+    assert section.dirty is True
+
+
 def test_section_add_paragraph_accepts_formatting_identifiers() -> None:
     section_element = ET.Element(f"{HS}sec")
     section = HwpxOxmlSection("section0.xml", section_element)
@@ -168,6 +235,38 @@ def test_document_add_paragraph_passes_formatting_options() -> None:
     run_element = paragraph.element.find(f"{HP}run")
     assert run_element is not None
     assert run_element.get("charPrIDRef") == "3"
+
+
+def test_document_replace_text_preserves_style_and_markup() -> None:
+    section, paragraph = _build_section_with_paragraph()
+    run = paragraph.runs[0]
+
+    text_element = run.element.find(f"{HP}t")
+    assert text_element is not None
+    text_element.clear()
+    text_element.text = "Hello "
+    mark_begin = ET.SubElement(text_element, f"{HP}markpenBegin", {"id": "mark1"})
+    mark_begin.tail = "memo"
+    mark_end = ET.SubElement(text_element, f"{HP}markpenEnd", {"id": "mark1"})
+    mark_end.tail = " world"
+    section.reset_dirty()
+
+    manifest = ET.Element("manifest")
+    document = HwpxDocument(
+        cast(HwpxPackage, object()),
+        HwpxOxmlDocument(manifest, [section], []),
+    )
+    original_char = run.char_pr_id_ref
+
+    replaced = document.replace_text_in_runs("memo", "note")
+
+    assert replaced == 1
+    assert run.char_pr_id_ref == original_char
+    assert mark_begin.tail == "note"
+    assert mark_end.tail == " world"
+    assert len(list(text_element)) == 2
+    assert run.text == "Hello note world"
+    assert section.dirty is True
 
 
 def test_document_add_table_creates_table_structure() -> None:

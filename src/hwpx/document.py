@@ -390,11 +390,17 @@ class HwpxDocument:
                 remaining = limit - replacements
                 if remaining <= 0:
                     break
-            replacements += run.replace_text(
+            original_char_pr = run.char_pr_id_ref
+            replaced_here = run.replace_text(
                 search,
                 replacement,
                 count=remaining,
             )
+            if replaced_here and original_char_pr is not None:
+                # Ensure the run retains its original formatting reference even
+                # if XML nodes were rewritten during substitution.
+                run.char_pr_id_ref = original_char_pr
+            replacements += replaced_here
             if limit is not None and replacements >= limit:
                 break
         return replacements
