@@ -4,6 +4,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import pytest
 from lxml import etree
 
 from hwpx.oxml import (
@@ -25,6 +26,8 @@ SAMPLE_FILE = Path("hwpx-java-library/testFile/reader_writer/SimpleLine.hwpx")
 
 
 def _read_zip_entry(path: Path, entry: str) -> bytes:
+    if not path.exists():
+        pytest.skip("Sample HWPX package not available")
     with zipfile.ZipFile(path) as archive:
         with archive.open(entry) as stream:
             return stream.read()

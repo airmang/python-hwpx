@@ -5,7 +5,7 @@
 ## 특징 요약
 
 - **패키지 로딩과 검증** – `hwpx.opc.package.HwpxPackage`로 `mimetype`, `container.xml`, `version.xml`을 확인하며 모든 파트를 메모리에 적재합니다.
-- **문서 편집 API** – `hwpx.document.HwpxDocument`는 문단과 표, 메모, 헤더 속성을 파이썬 객체로 노출하고 새 콘텐츠를 손쉽게 추가합니다.
+- **문서 편집 API** – `hwpx.document.HwpxDocument`는 문단과 표, 메모, 헤더 속성을 파이썬 객체로 노출하고 새 콘텐츠를 손쉽게 추가합니다. 섹션 머리말·꼬리말을 수정하면 `<hp:headerApply>`/`<hp:footerApply>`와 마스터 페이지 링크도 함께 갱신합니다.
 - **메모와 필드 앵커** – `add_memo_with_anchor()`로 메모를 생성하면서 MEMO 필드 컨트롤을 자동 삽입해 한/글에서 바로 표시되도록 합니다.
 - **스타일 기반 텍스트 치환** – 런 서식(색상, 밑줄, `charPrIDRef`)으로 필터링해 텍스트를 선택적으로 교체하거나 삭제합니다.
 - **텍스트 추출 파이프라인** – `hwpx.tools.text_extractor.TextExtractor`는 하이라이트, 각주, 컨트롤을 원하는 방식으로 표현하며 문단 텍스트를 반환합니다.
@@ -68,7 +68,6 @@ document.save("output/example.hwpx")
 
 ## 알려진 제약
 
-- 헤더/꼬리말 편집 시 `<hp:headerApply>` 및 마스터 페이지 연결은 아직 지원하지 않아, 일부 편집기가 변경 사항을 표시하지 않을 수 있습니다.
 - `add_shape()`/`add_control()`은 한/글이 요구하는 모든 하위 요소를 생성하지 않으므로, 복잡한 개체를 추가할 때는 편집기에서 열어 검증해 주세요.
 - 메모와 스타일 기반 치환기는 단일 `<hp:t>` 텍스트 노드를 가진 단순 런에 최적화되어 있습니다.
 

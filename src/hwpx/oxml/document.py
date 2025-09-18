@@ -279,9 +279,17 @@ class HwpxOxmlSectionHeaderFooter:
         self,
         element: ET.Element,
         properties: "HwpxOxmlSectionProperties",
+        apply_element: ET.Element | None = None,
     ):
         self.element = element
         self._properties = properties
+        self._apply_element = apply_element
+
+    @property
+    def apply_element(self) -> ET.Element | None:
+        """Return the corresponding ``<hp:headerApply>``/``<hp:footerApply>`` element."""
+
+        return self._apply_element
 
     @property
     def id(self) -> str | None:
@@ -292,27 +300,98 @@ class HwpxOxmlSectionHeaderFooter:
     @id.setter
     def id(self, value: str | None) -> None:
         if value is None:
+            changed = False
             if "id" in self.element.attrib:
                 del self.element.attrib["id"]
+                changed = True
+            if self._update_apply_reference(None):
+                changed = True
+            if changed:
                 self._properties.section.mark_dirty()
             return
 
         new_value = str(value)
+        changed = False
         if self.element.get("id") != new_value:
             self.element.set("id", new_value)
+            changed = True
+        if self._update_apply_reference(new_value):
+            changed = True
+        if changed:
             self._properties.section.mark_dirty()
 
     @property
     def apply_page_type(self) -> str:
         """Return the page type the header/footer applies to."""
 
-        return self.element.get("applyPageType", "BOTH")
+        value = self.element.get("applyPageType")
+        if value is not None:
+            return value
+        if self._apply_element is not None:
+            return self._apply_element.get("applyPageType", "BOTH")
+        return "BOTH"
 
     @apply_page_type.setter
     def apply_page_type(self, value: str) -> None:
+        changed = False
         if self.element.get("applyPageType") != value:
             self.element.set("applyPageType", value)
+            changed = True
+        if self._apply_element is not None and self._apply_element.get("applyPageType") != value:
+            self._apply_element.set("applyPageType", value)
+            changed = True
+        if changed:
             self._properties.section.mark_dirty()
+
+    def _apply_id_attributes(self) -> tuple[str, ...]:
+        if self.element.tag.endswith("header"):
+            return ("idRef", "headerIDRef", "headerIdRef", "headerRef")
+        return ("idRef", "footerIDRef", "footerIdRef", "footerRef")
+
+    def _update_apply_reference(self, value: str | None) -> bool:
+        apply = self._apply_element
+        if apply is None:
+            return False
+
+        candidate_keys = {name.lower() for name in self._apply_id_attributes()}
+        attr_candidates: list[str] = []
+        for name in list(apply.attrib.keys()):
+            if name.lower() in candidate_keys:
+                attr_candidates.append(name)
+
+        changed = False
+        if value is None:
+            for attr in attr_candidates:
+                if attr in apply.attrib:
+                    del apply.attrib[attr]
+                    changed = True
+            return changed
+
+        target_attr = None
+        for attr in attr_candidates:
+            lower = attr.lower()
+            if lower == "idref" or (
+                self.element.tag.endswith("header") and "header" in lower
+            ) or (
+                self.element.tag.endswith("footer") and "footer" in lower
+            ):
+                target_attr = attr
+                break
+        if target_attr is None:
+            target_attr = self._apply_id_attributes()[0]
+
+        if apply.get(target_attr) != value:
+            apply.set(target_attr, value)
+            changed = True
+
+        for attr in list(apply.attrib.keys()):
+            if attr == target_attr:
+                continue
+            if attr.lower() in candidate_keys:
+                del apply.attrib[attr]
+                changed = True
+
+        return changed
 
     def _initial_sublist_attributes(self) -> dict[str, str]:
         attrs = dict(_default_sublist_attributes())
@@ -557,6 +636,120 @@ class HwpxOxmlSectionProperties:
             self.section.mark_dirty()
 
     # -- header/footer helpers ---------------------------------------------
+    def _apply_id_attributes(self, tag: str) -> tuple[str, ...]:
+        base = "header" if tag == "header" else "footer"
+        return ("idRef", f"{base}IDRef", f"{base}IdRef", f"{base}Ref")
+
+    def _apply_elements(self, tag: str) -> list[ET.Element]:
+        return self.element.findall(f"{_HP}{tag}Apply")
+
+    def _apply_reference(self, apply: ET.Element, tag: str) -> str | None:
+        candidate_keys = {name.lower() for name in self._apply_id_attributes(tag)}
+        for attr, value in apply.attrib.items():
+            if attr.lower() in candidate_keys and value:
+                return value
+        return None
+
+    def _match_apply_for_element(self, tag: str, element: ET.Element | None) -> ET.Element | None:
+        if element is None:
+            return None
+
+        target_id = element.get("id")
+        if target_id:
+            for apply in self._apply_elements(tag):
+                if self._apply_reference(apply, tag) == target_id:
+                    return apply
+
+        page_type = element.get("applyPageType", "BOTH")
+        for apply in self._apply_elements(tag):
+            if apply.get("applyPageType", "BOTH") == page_type:
+                return apply
+        return None
+
+    def _set_apply_reference(
+        self,
+        apply: ET.Element,
+        tag: str,
+        new_id: str | None,
+    ) -> bool:
+        candidate_keys = {name.lower(): name for name in self._apply_id_attributes(tag)}
+        existing_attrs = [
+            attr for attr in list(apply.attrib.keys()) if attr.lower() in candidate_keys
+        ]
+
+        changed = False
+        if new_id is None:
+            for attr in existing_attrs:
+                if attr in apply.attrib:
+                    del apply.attrib[attr]
+                    changed = True
+            return changed
+
+        if existing_attrs:
+            target_attr = existing_attrs[0]
+        else:
+            target_attr = self._apply_id_attributes(tag)[0]
+
+        if apply.get(target_attr) != new_id:
+            apply.set(target_attr, new_id)
+            changed = True
+
+        for attr in existing_attrs:
+            if attr != target_attr and attr in apply.attrib:
+                del apply.attrib[attr]
+                changed = True
+
+        return changed
+
+    def _ensure_header_footer_apply(
+        self,
+        tag: str,
+        page_type: str,
+        element: ET.Element,
+    ) -> ET.Element:
+        apply = self._match_apply_for_element(tag, element)
+        header_id = element.get("id")
+        changed = False
+        if apply is None:
+            attrs = {"applyPageType": page_type}
+            if header_id is not None:
+                attrs[self._apply_id_attributes(tag)[0]] = header_id
+            apply = ET.SubElement(self.element, f"{_HP}{tag}Apply", attrs)
+            changed = True
+        else:
+            if apply.get("applyPageType") != page_type:
+                apply.set("applyPageType", page_type)
+                changed = True
+            if self._set_apply_reference(apply, tag, header_id):
+                changed = True
+        if changed:
+            self.section.mark_dirty()
+        return apply
+
+    def _remove_header_footer_apply(
+        self,
+        tag: str,
+        page_type: str,
+        element: ET.Element | None = None,
+    ) -> bool:
+        apply = self._match_apply_for_element(tag, element)
+        if apply is None:
+            for candidate in self._apply_elements(tag):
+                if candidate.get("applyPageType", "BOTH") == page_type:
+                    apply = candidate
+                    break
+        if apply is None and element is not None:
+            target_id = element.get("id")
+            if target_id:
+                for candidate in self._apply_elements(tag):
+                    if self._apply_reference(candidate, tag) == target_id:
+                        apply = candidate
+                        break
+        if apply is None:
+            return False
+        self.element.remove(apply)
+        return True
+
     def _find_header_footer(self, tag: str, page_type: str) -> ET.Element | None:
         for element in self.element.findall(f"{_HP}{tag}"):
             if element.get("applyPageType", "BOTH") == page_type:
@@ -565,57 +758,89 @@ class HwpxOxmlSectionProperties:
 
     def _ensure_header_footer(self, tag: str, page_type: str) -> ET.Element:
         element = self._find_header_footer(tag, page_type)
+        changed = False
         if element is None:
             element = ET.SubElement(
                 self.element,
                 f"{_HP}{tag}",
                 {"id": _object_id(), "applyPageType": page_type},
             )
+            changed = True
+        else:
+            if element.get("applyPageType") != page_type:
+                element.set("applyPageType", page_type)
+                changed = True
+        if element.get("id") is None:
+            element.set("id", _object_id())
+            changed = True
+        if changed:
             self.section.mark_dirty()
         return element
 
     @property
     def headers(self) -> List[HwpxOxmlSectionHeaderFooter]:
-        return [HwpxOxmlSectionHeaderFooter(el, self) for el in self.element.findall(f"{_HP}header")]
+        wrappers: List[HwpxOxmlSectionHeaderFooter] = []
+        for element in self.element.findall(f"{_HP}header"):
+            apply = self._match_apply_for_element("header", element)
+            wrappers.append(HwpxOxmlSectionHeaderFooter(element, self, apply))
+        return wrappers
 
     @property
     def footers(self) -> List[HwpxOxmlSectionHeaderFooter]:
-        return [HwpxOxmlSectionHeaderFooter(el, self) for el in self.element.findall(f"{_HP}footer")]
+        wrappers: List[HwpxOxmlSectionHeaderFooter] = []
+        for element in self.element.findall(f"{_HP}footer"):
+            apply = self._match_apply_for_element("footer", element)
+            wrappers.append(HwpxOxmlSectionHeaderFooter(element, self, apply))
+        return wrappers
 
     def get_header(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
         element = self._find_header_footer("header", page_type)
         if element is None:
             return None
-        return HwpxOxmlSectionHeaderFooter(element, self)
+        apply = self._match_apply_for_element("header", element)
+        return HwpxOxmlSectionHeaderFooter(element, self, apply)
 
     def get_footer(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
         element = self._find_header_footer("footer", page_type)
         if element is None:
             return None
-        return HwpxOxmlSectionHeaderFooter(element, self)
+        apply = self._match_apply_for_element("footer", element)
+        return HwpxOxmlSectionHeaderFooter(element, self, apply)
 
     def set_header_text(self, text: str, page_type: str = "BOTH") -> HwpxOxmlSectionHeaderFooter:
         element = self._ensure_header_footer("header", page_type)
-        wrapper = HwpxOxmlSectionHeaderFooter(element, self)
+        apply = self._ensure_header_footer_apply("header", page_type, element)
+        wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
         wrapper.text = text
         return wrapper
 
     def set_footer_text(self, text: str, page_type: str = "BOTH") -> HwpxOxmlSectionHeaderFooter:
         element = self._ensure_header_footer("footer", page_type)
-        wrapper = HwpxOxmlSectionHeaderFooter(element, self)
+        apply = self._ensure_header_footer_apply("footer", page_type, element)
+        wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
         wrapper.text = text
         return wrapper
 
     def remove_header(self, page_type: str = "BOTH") -> None:
         element = self._find_header_footer("header", page_type)
+        removed = False
         if element is not None:
             self.element.remove(element)
+            removed = True
+        if self._remove_header_footer_apply("header", page_type, element):
+            removed = True
+        if removed:
             self.section.mark_dirty()
 
     def remove_footer(self, page_type: str = "BOTH") -> None:
         element = self._find_header_footer("footer", page_type)
+        removed = False
         if element is not None:
             self.element.remove(element)
+            removed = True
+        if self._remove_header_footer_apply("footer", page_type, element):
+            removed = True
+        if removed:
             self.section.mark_dirty()
 
 
