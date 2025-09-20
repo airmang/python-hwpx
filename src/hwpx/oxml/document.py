@@ -119,14 +119,14 @@ def _create_paragraph_element(
     return paragraph
 
 
-_LAYOUT_CACHE_ELEMENT_NAMES = {"lineSegArray"}
+_LAYOUT_CACHE_ELEMENT_NAMES = {"linesegarray"}
 
 
 def _clear_paragraph_layout_cache(paragraph: ET.Element) -> None:
     """Remove cached layout metadata such as ``<hp:lineSegArray>``."""
 
     for child in list(paragraph):
-        if _element_local_name(child) in _LAYOUT_CACHE_ELEMENT_NAMES:
+        if _element_local_name(child).lower() in _LAYOUT_CACHE_ELEMENT_NAMES:
             paragraph.remove(child)
 
 
