@@ -119,6 +119,17 @@ def _create_paragraph_element(
     return paragraph
 
 
+_LAYOUT_CACHE_ELEMENT_NAMES = {"lineSegArray"}
+
+
+def _clear_paragraph_layout_cache(paragraph: ET.Element) -> None:
+    """Remove cached layout metadata such as ``<hp:lineSegArray>``."""
+
+    for child in list(paragraph):
+        if _element_local_name(child) in _LAYOUT_CACHE_ELEMENT_NAMES:
+            paragraph.remove(child)
+
+
 def _element_local_name(node: ET.Element) -> str:
     tag = node.tag
     if "}" in tag:
@@ -1501,6 +1512,7 @@ class HwpxOxmlTableCell:
         paragraph = sublist.find(f"{_HP}p")
         if paragraph is None:
             paragraph = ET.SubElement(sublist, f"{_HP}p", _default_cell_paragraph_attributes())
+        _clear_paragraph_layout_cache(paragraph)
         run = paragraph.find(f"{_HP}run")
         if run is None:
             run = ET.SubElement(paragraph, f"{_HP}run", {"charPrIDRef": "0"})

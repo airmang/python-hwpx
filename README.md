@@ -63,6 +63,8 @@ document.save("output/example.hwpx")
 
 `HwpxDocument.add_table()`은 문서에 정의된 테두리 채우기가 없으면 헤더 참조 목록에 "기본 실선" `borderFill`을 만들어 표와 모든 셀에 참조를 연결합니다.
 
+표 셀 텍스트를 편집하는 `table.set_cell_text()`는 기존 단락에 남아 있는 `lineSegArray`와 같은 줄 배치 캐시를 제거하여 한/글이 문서를 다시 열 때 줄바꿈을 새로 계산하도록 합니다.
+
 더 많은 실전 패턴은 [빠른 시작](docs/quickstart.md)과 [사용 가이드](docs/usage.md)의 "빠른 예제 모음"에서 확인할 수 있습니다.
 
 ## 문서
