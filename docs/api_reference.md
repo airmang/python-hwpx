@@ -357,7 +357,7 @@
 - `set_span(row_span, col_span)`: 병합 속성을 업데이트하고 표를 dirty로 표시합니다.
 - `width`, `height`: `<hp:cellSz>`에서 캐시된 셀 크기를 노출하는 프로퍼티입니다.
 - `set_size(width=None, height=None)`: 크기 속성을 0 또는 그 이상으로 업데이트합니다.
-- `text`: 셀 내부의 첫 번째 텍스트 노드를 반환하는 프로퍼티입니다. setter는 텍스트를 할당하기 전에 중첩된 단락 구조가 있는지 확인합니다.
+- `text`: 셀 내부의 첫 번째 텍스트 노드를 반환하는 프로퍼티입니다. setter는 텍스트를 할당하기 전에 중첩된 단락 구조를 보장하고, `<hp:lineSegArray>`와 같은 줄 배치 캐시를 제거하여 한/글이 줄바꿈을 다시 계산하도록 합니다.
 - `remove()`: 행에서 셀 엘리먼트를 제거합니다.
 - `_addr_element()`, `_span_element()`, `_size_element()`, `_ensure_text_element()`: 중첩된 XML 구조를 관리하는 내부 헬퍼입니다.
 
@@ -372,7 +372,7 @@
 - `row_count`, `column_count`: 저장된 행/열 수를 확인하거나 XML 구조에서 파생하는 프로퍼티입니다.
 - `rows`: `HwpxOxmlTableRow` 래퍼를 반환하는 프로퍼티입니다.
 - `cell(row_index, col_index)`: 병합 정보를 고려하여 요청된 그리드 좌표를 포함하는 셀을 찾습니다.
-- `set_cell_text(row_index, col_index, text)`: 셀의 텍스트 내용을 업데이트하는 단축 메서드입니다.
+- `set_cell_text(row_index, col_index, text)`: 셀의 텍스트 내용을 업데이트하는 단축 메서드입니다. 내부적으로 줄 배치 캐시를 비워 한/글에서 셀 텍스트 변경 후 줄바꿈이 재계산되도록 합니다.
 - `merge_cells(start_row, ...)`: 직사각형 영역의 유효성을 검사하고, 종속 셀을 제거하며, 병합 및 크기 값을 업데이트한 후, 살아남은 대상 셀을 반환합니다.
 
 ### 클래스 `HwpxOxmlParagraph`

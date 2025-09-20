@@ -295,6 +295,31 @@ def test_document_add_table_creates_table_structure() -> None:
     assert section.dirty is True
 
 
+def test_table_set_cell_text_removes_layout_cache() -> None:
+    section_element = ET.Element(f"{HS}sec")
+    section = HwpxOxmlSection("section0.xml", section_element)
+    manifest = ET.Element("manifest")
+    root = HwpxOxmlDocument(manifest, [section], [])
+    document = HwpxDocument(cast(HwpxPackage, object()), root)
+
+    table = document.add_table(1, 1, section=section)
+    cell = table.cell(0, 0)
+    sublist = cell.element.find(f"{HP}subList")
+    assert sublist is not None
+    paragraph = sublist.find(f"{HP}p")
+    assert paragraph is not None
+    ET.SubElement(paragraph, f"{HP}lineSegArray")
+    assert paragraph.find(f"{HP}lineSegArray") is not None
+    text_element = paragraph.find(f".//{HP}t")
+    assert text_element is not None
+    text_element.text = "Cached"
+
+    table.set_cell_text(0, 0, "Updated")
+
+    assert table.cell(0, 0).text == "Updated"
+    assert paragraph.find(f"{HP}lineSegArray") is None
+
+
 def test_table_merge_cells_updates_spans_and_structure() -> None:
     section_element = ET.Element(f"{HS}sec")
     section = HwpxOxmlSection("section0.xml", section_element)
