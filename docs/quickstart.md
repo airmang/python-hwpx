@@ -59,6 +59,10 @@ table.set_cell_text(1, 1, str(len(document.paragraphs)))
 
 문서에 테두리 채우기 정의가 없다면 `add_table()`이 자동으로 기본 실선 `borderFill`을 헤더에 추가하고 표/셀에 참조를 채워 넣습니다.
 
+```{tip}
+병합된 표를 다룰 때는 `table.iter_grid()`/`table.get_cell_map()`으로 논리 좌표와 실제 셀을 매핑할 수 있으며, `table.set_cell_text(..., logical=True, split_merged=True)`로 논리 좌표 기반 편집과 병합 해제를 한 번에 처리할 수 있습니다.
+```
+
 ## 4. 메모와 필드 컨트롤 추가하기
 
 ```python

@@ -1579,6 +1579,29 @@ class HwpxOxmlTableCell:
         self.table.mark_dirty()
 
 
+@dataclass(frozen=True)
+class HwpxTableGridPosition:
+    """Mapping between a logical table position and a physical cell."""
+
+    row: int
+    column: int
+    cell: HwpxOxmlTableCell
+    anchor: Tuple[int, int]
+    span: Tuple[int, int]
+
+    @property
+    def is_anchor(self) -> bool:
+        return (self.row, self.column) == self.anchor
+
+    @property
+    def row_span(self) -> int:
+        return self.span[0]
+
+    @property
+    def col_span(self) -> int:
+        return self.span[1]
+
+
 class HwpxOxmlTableRow:
     """Represents a table row."""
 
@@ -1721,25 +1744,265 @@ class HwpxOxmlTable:
     def rows(self) -> List[HwpxOxmlTableRow]:
         return [HwpxOxmlTableRow(row, self) for row in self.element.findall(f"{_HP}tr")]
 
-    def cell(self, row_index: int, col_index: int) -> HwpxOxmlTableCell:
+    def _build_cell_grid(self) -> dict[Tuple[int, int], HwpxTableGridPosition]:
+        mapping: dict[Tuple[int, int], HwpxTableGridPosition] = {}
+        for row in self.element.findall(f"{_HP}tr"):
+            for cell_element in row.findall(f"{_HP}tc"):
+                wrapper = HwpxOxmlTableCell(cell_element, self, row)
+                start_row, start_col = wrapper.address
+                span_row, span_col = wrapper.span
+                for logical_row in range(start_row, start_row + span_row):
+                    for logical_col in range(start_col, start_col + span_col):
+                        key = (logical_row, logical_col)
+                        existing = mapping.get(key)
+                        entry = HwpxTableGridPosition(
+                            row=logical_row,
+                            column=logical_col,
+                            cell=wrapper,
+                            anchor=(start_row, start_col),
+                            span=(span_row, span_col),
+                        )
+                        if (
+                            existing is not None
+                            and existing.cell.element is not wrapper.element
+                        ):
+                            raise ValueError(
+                                "table grid contains overlapping cell spans"
+                            )
+                        mapping[key] = entry
+        return mapping
+
+    def _grid_entry(self, row_index: int, col_index: int) -> HwpxTableGridPosition:
         if row_index < 0 or col_index < 0:
             raise IndexError("row_index and col_index must be non-negative")
 
-        for row in self.element.findall(f"{_HP}tr"):
-            for cell in row.findall(f"{_HP}tc"):
-                wrapper = HwpxOxmlTableCell(cell, self, row)
-                start_row, start_col = wrapper.address
-                span_row, span_col = wrapper.span
-                if (
-                    start_row <= row_index < start_row + span_row
-                    and start_col <= col_index < start_col + span_col
-                ):
-                    return wrapper
-        raise IndexError("cell coordinates out of range")
+        row_count = self.row_count
+        col_count = self.column_count
+        if row_index >= row_count or col_index >= col_count:
+            raise IndexError(
+                "cell coordinates (%d, %d) exceed table bounds %dx%d"
+                % (row_index, col_index, row_count, col_count)
+            )
 
-    def set_cell_text(self, row_index: int, col_index: int, text: str) -> None:
-        cell = self.cell(row_index, col_index)
+        entry = self._build_cell_grid().get((row_index, col_index))
+        if entry is None:
+            raise IndexError(
+                "cell coordinates (%d, %d) are covered by a merged cell"
+                " without an accessible anchor; inspect iter_grid() for details"
+                % (row_index, col_index)
+            )
+        return entry
+
+    def iter_grid(self) -> Iterator[HwpxTableGridPosition]:
+        """Yield grid-aware mappings for every logical table position."""
+
+        mapping = self._build_cell_grid()
+        row_count = self.row_count
+        col_count = self.column_count
+        for row_index in range(row_count):
+            for col_index in range(col_count):
+                entry = mapping.get((row_index, col_index))
+                if entry is None:
+                    raise IndexError(
+                        "cell coordinates (%d, %d) do not resolve to a physical cell"
+                        % (row_index, col_index)
+                    )
+                yield entry
+
+    def get_cell_map(self) -> List[List[HwpxTableGridPosition]]:
+        """Return a 2D list mapping logical positions to physical cells."""
+
+        row_count = self.row_count
+        col_count = self.column_count
+        grid: List[List[HwpxTableGridPosition | None]] = [
+            [None for _ in range(col_count)] for _ in range(row_count)
+        ]
+        for entry in self.iter_grid():
+            grid[entry.row][entry.column] = entry
+
+        for row_index in range(row_count):
+            for col_index in range(col_count):
+                if grid[row_index][col_index] is None:
+                    raise IndexError(
+                        "cell coordinates (%d, %d) do not resolve to a physical cell"
+                        % (row_index, col_index)
+                    )
+
+        return [
+            [grid[row_index][col_index] for col_index in range(col_count)]
+            for row_index in range(row_count)
+        ]
+
+    def cell(self, row_index: int, col_index: int) -> HwpxOxmlTableCell:
+        entry = self._grid_entry(row_index, col_index)
+        return entry.cell
+
+    def set_cell_text(
+        self,
+        row_index: int,
+        col_index: int,
+        text: str,
+        *,
+        logical: bool = False,
+        split_merged: bool = False,
+    ) -> None:
+        if logical:
+            entry = self._grid_entry(row_index, col_index)
+            if split_merged and not entry.is_anchor:
+                cell = self.split_merged_cell(row_index, col_index)
+            else:
+                cell = entry.cell
+        else:
+            cell = self.cell(row_index, col_index)
         cell.text = text
+
+    def split_merged_cell(
+        self, row_index: int, col_index: int
+    ) -> HwpxOxmlTableCell:
+        entry = self._grid_entry(row_index, col_index)
+        cell = entry.cell
+        start_row, start_col = entry.anchor
+        span_row, span_col = entry.span
+
+        if span_row == 1 and span_col == 1:
+            return cell
+
+        row_elements = self.element.findall(f"{_HP}tr")
+        if len(row_elements) < start_row + span_row:
+            raise IndexError(
+                "table rows missing while splitting merged cell covering"
+                f" ({start_row}, {start_col})"
+            )
+
+        width_segments = _distribute_size(cell.width, span_col)
+        height_segments = _distribute_size(cell.height, span_row)
+        if not width_segments:
+            width_segments = [cell.width] + [0] * (span_col - 1)
+        if not height_segments:
+            height_segments = [cell.height] + [0] * (span_row - 1)
+
+        template_attrs = {key: value for key, value in cell.element.attrib.items()}
+        preserved_children = [
+            deepcopy(child)
+            for child in cell.element
+            if _element_local_name(child)
+            not in {"subList", "cellAddr", "cellSpan", "cellSz", "cellMargin"}
+        ]
+        template_sublist = cell.element.find(f"{_HP}subList")
+        template_margin = cell.element.find(f"{_HP}cellMargin")
+
+        for row_offset in range(span_row):
+            logical_row = start_row + row_offset
+            row_element = row_elements[logical_row]
+            row_height = height_segments[row_offset] if row_offset < len(height_segments) else cell.height
+            for col_offset in range(span_col):
+                logical_col = start_col + col_offset
+                col_width = width_segments[col_offset] if col_offset < len(width_segments) else cell.width
+
+                if row_offset == 0 and col_offset == 0:
+                    addr = cell._addr_element()
+                    if addr is None:
+                        addr = ET.SubElement(cell.element, f"{_HP}cellAddr")
+                    addr.set("rowAddr", str(start_row))
+                    addr.set("colAddr", str(start_col))
+                    span_element = cell._span_element()
+                    span_element.set("rowSpan", "1")
+                    span_element.set("colSpan", "1")
+                    size_element = cell._size_element()
+                    size_element.set("width", str(col_width))
+                    size_element.set("height", str(row_height))
+                    continue
+
+                existing_target: HwpxOxmlTableCell | None = None
+                for existing in row_element.findall(f"{_HP}tc"):
+                    wrapper = HwpxOxmlTableCell(existing, self, row_element)
+                    existing_row, existing_col = wrapper.address
+                    span_r, span_c = wrapper.span
+                    if existing_row == logical_row and existing_col == logical_col:
+                        existing_target = wrapper
+                        break
+                    if (
+                        existing_row <= logical_row < existing_row + span_r
+                        and existing_col <= logical_col < existing_col + span_c
+                    ):
+                        if wrapper.element is cell.element:
+                            continue
+                        raise ValueError(
+                            "Cannot split merged cell covering (%d, %d) because"
+                            " position (%d, %d) overlaps another merged cell"
+                            % (start_row, start_col, logical_row, logical_col)
+                        )
+
+                if existing_target is not None:
+                    existing_target.set_span(1, 1)
+                    existing_target.set_size(col_width, row_height)
+                    continue
+
+                new_cell_element = ET.Element(f"{_HP}tc", dict(template_attrs))
+                for child in preserved_children:
+                    new_cell_element.append(deepcopy(child))
+
+                sublist_attrs = _default_sublist_attributes()
+                template_para = None
+                if template_sublist is not None:
+                    for key, value in template_sublist.attrib.items():
+                        if key == "id":
+                            continue
+                        sublist_attrs.setdefault(key, value)
+                    template_para = template_sublist.find(f"{_HP}p")
+
+                sublist = ET.SubElement(new_cell_element, f"{_HP}subList", sublist_attrs)
+                paragraph_attrs = _default_cell_paragraph_attributes()
+                run_attrs = {"charPrIDRef": "0"}
+                if template_para is not None:
+                    for key, value in template_para.attrib.items():
+                        if key == "id":
+                            continue
+                        paragraph_attrs.setdefault(key, value)
+                    template_run = template_para.find(f"{_HP}run")
+                    if template_run is not None:
+                        run_attrs = dict(template_run.attrib)
+                        if "charPrIDRef" not in run_attrs:
+                            run_attrs["charPrIDRef"] = "0"
+                paragraph = ET.SubElement(sublist, f"{_HP}p", paragraph_attrs)
+                run = ET.SubElement(paragraph, f"{_HP}run", run_attrs)
+                ET.SubElement(run, f"{_HP}t")
+
+                ET.SubElement(
+                    new_cell_element,
+                    f"{_HP}cellAddr",
+                    {"rowAddr": str(logical_row), "colAddr": str(logical_col)},
+                )
+                ET.SubElement(
+                    new_cell_element,
+                    f"{_HP}cellSpan",
+                    {"rowSpan": "1", "colSpan": "1"},
+                )
+                ET.SubElement(
+                    new_cell_element,
+                    f"{_HP}cellSz",
+                    {"width": str(col_width), "height": str(row_height)},
+                )
+                if template_margin is not None:
+                    new_cell_element.append(deepcopy(template_margin))
+                else:
+                    ET.SubElement(
+                        new_cell_element,
+                        f"{_HP}cellMargin",
+                        _default_cell_margin_attributes(),
+                    )
+
+                existing_cells = list(row_element.findall(f"{_HP}tc"))
+                insert_index = len(existing_cells)
+                for idx, existing in enumerate(existing_cells):
+                    wrapper = HwpxOxmlTableCell(existing, self, row_element)
+                    if wrapper.address[1] > logical_col:
+                        insert_index = idx
+                        break
+                row_element.insert(insert_index, new_cell_element)
+
+        self.mark_dirty()
+        return self.cell(row_index, col_index)
 
     def merge_cells(
         self,

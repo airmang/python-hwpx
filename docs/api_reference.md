@@ -365,6 +365,15 @@
 
 - `cells`: 행에 대한 `HwpxOxmlTableCell` 래퍼 목록을 반환하는 프로퍼티입니다.
 
+### 데이터 클래스 `HwpxTableGridPosition`
+
+- `row`, `column`: 논리적 격자 좌표를 나타내는 정수입니다.
+- `cell`: 해당 위치를 커버하는 실제 `HwpxOxmlTableCell` 래퍼입니다.
+- `anchor`: 병합 셀의 대표 좌표 `(row, column)`을 담은 튜플입니다.
+- `span`: `row_span`, `col_span`을 포함한 튜플로 병합 크기를 제공합니다.
+- `is_anchor`: 현재 좌표가 대표 좌표인지 여부를 반환하는 편의 프로퍼티입니다.
+- `row_span`, `col_span`: 병합된 크기를 개별 프로퍼티로 노출합니다.
+
 ### 클래스 `HwpxOxmlTable`
 
 - `create(rows, cols, ...)`: 분배된 셀 크기, 여백, 초기 텍스트 노드를 포함하는 완전한 표 엘리먼트를 생성하는 클래스 메서드입니다.
@@ -372,7 +381,10 @@
 - `row_count`, `column_count`: 저장된 행/열 수를 확인하거나 XML 구조에서 파생하는 프로퍼티입니다.
 - `rows`: `HwpxOxmlTableRow` 래퍼를 반환하는 프로퍼티입니다.
 - `cell(row_index, col_index)`: 병합 정보를 고려하여 요청된 그리드 좌표를 포함하는 셀을 찾습니다.
-- `set_cell_text(row_index, col_index, text)`: 셀의 텍스트 내용을 업데이트하는 단축 메서드입니다. 내부적으로 줄 배치 캐시를 비워 한/글에서 셀 텍스트 변경 후 줄바꿈이 재계산되도록 합니다.
+- `iter_grid()`: 각 논리 좌표에 대한 `HwpxTableGridPosition`을 순회하여 병합 상태와 실제 셀을 동시에 확인할 수 있게 합니다.
+- `get_cell_map()`: `row_count x column_count` 크기의 2차원 리스트로 격자 맵을 반환합니다. 각 항목은 `HwpxTableGridPosition`입니다.
+- `set_cell_text(row_index, col_index, text, logical=False, split_merged=False)`: 셀의 텍스트 내용을 업데이트하는 단축 메서드입니다. `logical=True`를 지정하면 논리적 격자 좌표로 셀을 찾고, `split_merged=True`일 때는 병합을 자동으로 해제한 뒤 값을 씁니다. 내부적으로 줄 배치 캐시를 비워 한/글에서 셀 텍스트 변경 후 줄바꿈이 재계산되도록 합니다.
+- `split_merged_cell(row_index, col_index)`: 지정한 논리 좌표를 포함하는 병합 셀을 해제하고, 해당 위치에 독립적인 셀을 생성한 뒤 래퍼를 반환합니다.
 - `merge_cells(start_row, ...)`: 직사각형 영역의 유효성을 검사하고, 종속 셀을 제거하며, 병합 및 크기 값을 업데이트한 후, 살아남은 대상 셀을 반환합니다.
 
 ### 클래스 `HwpxOxmlParagraph`

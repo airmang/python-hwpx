@@ -361,6 +361,74 @@ def test_table_merge_cells_rejects_partial_overlap() -> None:
         table.merge_cells(0, 1, 1, 1)
 
 
+def test_table_iter_grid_reports_merged_cells() -> None:
+    section_element = ET.Element(f"{HS}sec")
+    section = HwpxOxmlSection("section0.xml", section_element)
+    manifest = ET.Element("manifest")
+    root = HwpxOxmlDocument(manifest, [section], [])
+    document = HwpxDocument(cast(HwpxPackage, object()), root)
+
+    table = document.add_table(2, 2, section=section)
+    table.merge_cells(0, 0, 0, 1)
+
+    entries = list(table.iter_grid())
+    assert len(entries) == 4
+    mapping = {(entry.row, entry.column): entry for entry in entries}
+    top_left = mapping[(0, 0)]
+    right = mapping[(0, 1)]
+
+    assert top_left.is_anchor is True
+    assert top_left.row_span == 1
+    assert top_left.col_span == 2
+    assert right.is_anchor is False
+    assert right.cell.element is top_left.cell.element
+    assert right.row_span == top_left.row_span
+    assert right.col_span == top_left.col_span
+
+    cell_map = table.get_cell_map()
+    assert cell_map[0][1].cell.element is top_left.cell.element
+
+
+def test_table_logical_editing_can_split_merged_cells() -> None:
+    section_element = ET.Element(f"{HS}sec")
+    section = HwpxOxmlSection("section0.xml", section_element)
+    manifest = ET.Element("manifest")
+    root = HwpxOxmlDocument(manifest, [section], [])
+    document = HwpxDocument(cast(HwpxPackage, object()), root)
+
+    table = document.add_table(2, 2, section=section)
+    table.merge_cells(0, 0, 0, 1)
+
+    table.set_cell_text(0, 1, "Shared", logical=True)
+    assert table.cell(0, 0).text == "Shared"
+    assert table.cell(0, 1).element is table.cell(0, 0).element
+
+    table.set_cell_text(0, 1, "Right", logical=True, split_merged=True)
+
+    left_cell = table.cell(0, 0)
+    right_cell = table.cell(0, 1)
+
+    assert left_cell.element is not right_cell.element
+    assert left_cell.text == "Shared"
+    assert right_cell.text == "Right"
+    assert right_cell.span == (1, 1)
+
+
+def test_table_cell_out_of_bounds_error_mentions_bounds() -> None:
+    section_element = ET.Element(f"{HS}sec")
+    section = HwpxOxmlSection("section0.xml", section_element)
+    manifest = ET.Element("manifest")
+    root = HwpxOxmlDocument(manifest, [section], [])
+    document = HwpxDocument(cast(HwpxPackage, object()), root)
+
+    table = document.add_table(1, 1, section=section)
+
+    with pytest.raises(IndexError) as excinfo:
+        table.cell(5, 0)
+
+    assert "exceed table bounds" in str(excinfo.value)
+
+
 def test_paragraph_tables_property_returns_wrappers() -> None:
     section, paragraph = _build_section_with_paragraph()
 
