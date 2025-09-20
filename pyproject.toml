@@ -1,13 +1,13 @@
 [build-system]
-requires = ["setuptools<69", "wheel"]
+requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx"
-version = "1.4"
+version = "1.8"
 description = "Hancom HWPX 패키지를 로드하고 편집하기 위한 Python 유틸리티 모음"
 readme = { file = "README.md", content-type = "text/markdown" }
-license = { text = "Non-Commercial License" }
+license = { file = "LICENSE" }
 requires-python = ">=3.10"
 authors = [
     { name = "python-hwpx Maintainers" },
@@ -49,7 +49,6 @@ hwpx-validate = "hwpx.tools.validator:main"
 [tool.setuptools]
 package-dir = { "" = "src" }
 include-package-data = true
-license-files = ["LICENSE"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
