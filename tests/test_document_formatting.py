@@ -323,6 +323,28 @@ def test_table_set_cell_text_removes_layout_cache() -> None:
     assert paragraph.find(f"{HP}linesegarray") is None
 
 
+def test_table_cell_text_marks_cell_dirty_attribute() -> None:
+    section_element = ET.Element(f"{HS}sec")
+    section = HwpxOxmlSection("section0.xml", section_element)
+    manifest = ET.Element("manifest")
+    root = HwpxOxmlDocument(manifest, [section], [])
+    document = HwpxDocument(cast(HwpxPackage, object()), root)
+
+    table = document.add_table(1, 1, section=section)
+    cell = table.cell(0, 0)
+    assert cell.element.get("dirty") == "0"
+
+    cell.text = "Updated"
+
+    assert cell.element.get("dirty") == "1"
+
+    cell.element.set("dirty", "0")
+
+    table.set_cell_text(0, 0, "Again")
+
+    assert table.cell(0, 0).element.get("dirty") == "1"
+
+
 def test_table_merge_cells_updates_spans_and_structure() -> None:
     section_element = ET.Element(f"{HS}sec")
     section = HwpxOxmlSection("section0.xml", section_element)
