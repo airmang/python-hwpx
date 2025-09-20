@@ -1572,6 +1572,7 @@ class HwpxOxmlTableCell:
     def text(self, value: str) -> None:
         text_element = self._ensure_text_element()
         text_element.text = value
+        self.element.set("dirty", "1")
         self.table.mark_dirty()
 
     def remove(self) -> None:
