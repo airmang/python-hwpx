@@ -309,7 +309,9 @@ def test_table_set_cell_text_removes_layout_cache() -> None:
     paragraph = sublist.find(f"{HP}p")
     assert paragraph is not None
     ET.SubElement(paragraph, f"{HP}lineSegArray")
+    ET.SubElement(paragraph, f"{HP}linesegarray")
     assert paragraph.find(f"{HP}lineSegArray") is not None
+    assert paragraph.find(f"{HP}linesegarray") is not None
     text_element = paragraph.find(f".//{HP}t")
     assert text_element is not None
     text_element.text = "Cached"
@@ -318,6 +320,7 @@ def test_table_set_cell_text_removes_layout_cache() -> None:
 
     assert table.cell(0, 0).text == "Updated"
     assert paragraph.find(f"{HP}lineSegArray") is None
+    assert paragraph.find(f"{HP}linesegarray") is None
 
 
 def test_table_merge_cells_updates_spans_and_structure() -> None:
