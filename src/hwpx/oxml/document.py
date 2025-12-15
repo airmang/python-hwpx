@@ -30,6 +30,11 @@ from .header import (
 )
 from .utils import parse_int
 
+ET.register_namespace("hp", "http://www.hancom.co.kr/hwpml/2011/paragraph")
+ET.register_namespace("hs", "http://www.hancom.co.kr/hwpml/2011/section")
+ET.register_namespace("hc", "http://www.hancom.co.kr/hwpml/2011/core")
+ET.register_namespace("hh", "http://www.hancom.co.kr/hwpml/2011/head")
+
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HP = f"{{{_HP_NS}}}"
 _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
