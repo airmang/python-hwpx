@@ -1,11 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 *.egg
-/dist/
-/build/
 /.pytest_cache/
 /.mypy_cache/
 /.ruff_cache/
 /.venv/
+
+# Logs
 *.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Env
+.env
+.env.local
+.env.*.local

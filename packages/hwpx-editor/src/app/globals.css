@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f5f5f5;
+  --foreground: #171717;
+  --ribbon-bg: #ffffff;
+  --secondary-toolbar-bg: #f8f9fa;
+  --sidebar-bg: #ffffff;
+  --ruler-bg: #ffffff;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "맑은 고딕", "Malgun Gothic", Arial, sans-serif;
+  margin: 0;
+  overflow: hidden;
+}
+
+/* ContentEditable styles */
+[contenteditable]:focus {
+  outline: none;
+}
+
+[contenteditable="true"]:empty::before {
+  content: "\00a0";
+}
+
+/* Scrollbar styling for sidebar */
+.overflow-auto::-webkit-scrollbar {
+  width: 6px;
+}
+
+.overflow-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.overflow-auto::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.overflow-auto::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Ribbon toolbar transitions */
+.ribbon-group {
+  transition: background-color 0.15s ease;
+}
+
+/* Color picker swatch hover effect */
+.color-swatch:hover {
+  transform: scale(1.15);
+  transition: transform 0.1s ease;
+}
+
+/* Dropdown animation */
+.dropdown-enter {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.dropdown-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
