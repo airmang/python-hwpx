@@ -68,7 +68,7 @@ export function ColorPicker({
             <label className="text-xs text-gray-500">커스텀:</label>
             <input
               type="color"
-              value={color || "#000000"}
+              value={color && color !== "none" ? color : "#000000"}
               onChange={(e) => {
                 onChange(e.target.value);
                 setOpen(false);

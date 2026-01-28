@@ -63,13 +63,13 @@ export function CharFormatPanel() {
           <div className="flex items-center gap-2">
             <input
               type="color"
-              value={cf.textColor || "#000000"}
+              value={cf.textColor && cf.textColor !== "none" ? cf.textColor : "#000000"}
               onChange={() => {}}
               disabled={disabled}
               className="w-6 h-6 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
             />
             <span className="text-[10px] text-gray-400">
-              {cf.textColor || "#000000"}
+              {cf.textColor && cf.textColor !== "none" ? cf.textColor : "#000000"}
             </span>
           </div>
         </SidebarField>

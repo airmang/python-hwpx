@@ -30,7 +30,7 @@ importers:
 
   packages/hwpx-editor:
     dependencies:
-      '@hwpx/core':
+      '@ubermensch1218/hwpxcore':
         specifier: workspace:*
         version: link:../hwpx-core
       lucide-react:

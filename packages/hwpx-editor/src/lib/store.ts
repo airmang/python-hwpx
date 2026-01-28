@@ -10,7 +10,8 @@ import {
   type CharFormat,
   type ParaFormat,
 } from "./format-bridge";
-import type { AlignmentType, SidebarTab } from "./constants";
+import type { AlignmentType, OrientationType, SidebarTab } from "./constants";
+import { mmToHwp } from "./hwp-units";
 
 export interface SelectionState {
   sectionIndex: number;
@@ -20,6 +21,9 @@ export interface SelectionState {
   tableIndex?: number;
   row?: number;
   col?: number;
+  // For object selection (image/table context)
+  objectType?: "image" | "table";
+  imageIndex?: number;
 }
 
 export interface ActiveFormat {
@@ -36,6 +40,7 @@ export interface ExtendedFormat {
 export interface UIState {
   sidebarOpen: boolean;
   sidebarTab: SidebarTab;
+  saveDialogOpen: boolean;
 }
 
 export interface EditorStore {
@@ -95,8 +100,23 @@ export interface EditorStore {
     heightMm: number,
   ) => void;
 
+  // Image editing
+  updatePictureSize: (widthMm: number, heightMm: number) => void;
+
+  // Table editing
+  setTablePageBreak: (mode: "CELL" | "NONE") => void;
+  setTableRepeatHeader: (repeat: boolean) => void;
+
+  // Page setup
+  updatePageSize: (width: number, height: number) => void;
+  updatePageMargins: (margins: Partial<{ left: number; right: number; top: number; bottom: number; header: number; footer: number; gutter: number }>) => void;
+  updatePageOrientation: (orientation: OrientationType) => void;
+
   // File operations
   saveDocument: () => Promise<void>;
+  saveDocumentAs: (filename: string) => Promise<void>;
+  openSaveDialog: () => void;
+  closeSaveDialog: () => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
 }
@@ -130,7 +150,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   selection: null,
   activeFormat: { bold: false, italic: false, underline: false },
   extendedFormat: { char: defaultCharFormat, para: defaultParaFormat },
-  uiState: { sidebarOpen: true, sidebarTab: "char" },
+  uiState: { sidebarOpen: true, sidebarTab: "char", saveDialogOpen: false },
   loading: false,
   error: null,
 
@@ -331,7 +351,117 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
+  // Image editing actions
+  updatePictureSize: (widthMm, heightMm) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.objectType !== "image") return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    try {
+      para.setPictureSize(selection.imageIndex ?? 0, mmToHwp(widthMm), mmToHwp(heightMm));
+      get().rebuild();
+    } catch (e) {
+      console.error("updatePictureSize failed:", e);
+    }
+  },
+
+  // Table editing actions
+  setTablePageBreak: (mode) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
+    try {
+      table.pageBreak = mode;
+      get().rebuild();
+    } catch (e) {
+      console.error("setTablePageBreak failed:", e);
+    }
+  },
+
+  setTableRepeatHeader: (repeat) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
+    try {
+      table.repeatHeader = repeat;
+      get().rebuild();
+    } catch (e) {
+      console.error("setTableRepeatHeader failed:", e);
+    }
+  },
+
+  // Page setup actions
+  updatePageSize: (width, height) => {
+    const { doc, selection } = get();
+    if (!doc) return;
+    const sIdx = selection?.sectionIndex ?? 0;
+    const section = doc.sections[sIdx];
+    if (!section) return;
+    try {
+      section.properties.setPageSize({ width: mmToHwp(width), height: mmToHwp(height) });
+      get().rebuild();
+    } catch (e) {
+      console.error("updatePageSize failed:", e);
+    }
+  },
+
+  updatePageMargins: (margins) => {
+    const { doc, selection } = get();
+    if (!doc) return;
+    const sIdx = selection?.sectionIndex ?? 0;
+    const section = doc.sections[sIdx];
+    if (!section) return;
+    try {
+      const converted: Record<string, number> = {};
+      for (const [k, v] of Object.entries(margins)) {
+        if (v !== undefined) converted[k] = mmToHwp(v);
+      }
+      section.properties.setPageMargins(converted);
+      get().rebuild();
+    } catch (e) {
+      console.error("updatePageMargins failed:", e);
+    }
+  },
+
+  updatePageOrientation: (orientation) => {
+    const { doc, selection } = get();
+    if (!doc) return;
+    const sIdx = selection?.sectionIndex ?? 0;
+    const section = doc.sections[sIdx];
+    if (!section) return;
+    try {
+      const ps = section.properties.pageSize;
+      if (orientation === "LANDSCAPE" && ps.width < ps.height) {
+        section.properties.setPageSize({ width: ps.height, height: ps.width, orientation: "LANDSCAPE" });
+      } else if (orientation === "PORTRAIT" && ps.width > ps.height) {
+        section.properties.setPageSize({ width: ps.height, height: ps.width, orientation: "PORTRAIT" });
+      } else {
+        section.properties.setPageSize({ orientation });
+      }
+      get().rebuild();
+    } catch (e) {
+      console.error("updatePageOrientation failed:", e);
+    }
+  },
+
+  // File operations
   saveDocument: async () => {
+    get().openSaveDialog();
+  },
+
+  saveDocumentAs: async (filename) => {
     const { doc } = get();
     if (!doc) return;
     try {
@@ -343,9 +473,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "document.hwpx";
+      a.download = filename.endsWith(".hwpx") ? filename : `${filename}.hwpx`;
       a.click();
       URL.revokeObjectURL(url);
+      get().closeSaveDialog();
     } catch (e) {
       console.error("save failed:", e);
       set({ error: "문서 저장에 실패했습니다." });
@@ -353,4 +484,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       set({ loading: false });
     }
   },
+
+  openSaveDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, saveDialogOpen: true } })),
+
+  closeSaveDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, saveDialogOpen: false } })),
 }));

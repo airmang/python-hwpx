@@ -44,6 +44,7 @@ export function TableCell({
       tableIndex,
       row: cell.row,
       col: cell.col,
+      objectType: "table",
     });
   }, [sectionIndex, paragraphIndex, tableIndex, cell.row, cell.col, setSelection]);
 

@@ -8,6 +8,7 @@ import { SecondaryToolbar } from "../toolbar/SecondaryToolbar";
 import { HorizontalRuler } from "../ruler/HorizontalRuler";
 import { FormatSidebar } from "../sidebar/FormatSidebar";
 import { PageView } from "./PageView";
+import { SaveDialog } from "./SaveDialog";
 import { FileUpload } from "../upload/FileUpload";
 import { NewDocumentButton } from "../upload/NewDocumentButton";
 import { PanelRight } from "lucide-react";
@@ -28,7 +29,15 @@ export function Editor() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const store = useEditorStore.getState();
-      if (!store.doc || !store.selection) return;
+      if (!store.doc) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        store.openSaveDialog();
+        return;
+      }
+
+      if (!store.selection) return;
 
       if ((e.ctrlKey || e.metaKey) && e.key === "b") {
         e.preventDefault();
@@ -39,9 +48,6 @@ export function Editor() {
       } else if ((e.ctrlKey || e.metaKey) && e.key === "u") {
         e.preventDefault();
         store.toggleUnderline();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-        e.preventDefault();
-        store.saveDocument();
       }
     };
     window.addEventListener("keydown", handler);
@@ -80,6 +86,7 @@ export function Editor() {
 
   return (
     <div className="flex h-screen flex-col">
+      <SaveDialog />
       {/* Ribbon toolbar */}
       <RibbonToolbar />
       {/* Secondary toolbar (formatting bar) */}

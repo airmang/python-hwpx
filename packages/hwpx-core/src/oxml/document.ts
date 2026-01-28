@@ -1172,6 +1172,31 @@ export class HwpxOxmlTable {
     this.paragraph.section.markDirty();
   }
 
+  /** Page break mode: "CELL" (split at cell), "NONE" (no split), or other HWPX values. */
+  get pageBreak(): string {
+    return this.element.getAttribute("pageBreak") ?? "CELL";
+  }
+
+  set pageBreak(value: string) {
+    if (this.element.getAttribute("pageBreak") !== value) {
+      this.element.setAttribute("pageBreak", value);
+      this.markDirty();
+    }
+  }
+
+  /** Whether the header row repeats on each page ("0" = no, "1" = yes). */
+  get repeatHeader(): boolean {
+    return this.element.getAttribute("repeatHeader") === "1";
+  }
+
+  set repeatHeader(value: boolean) {
+    const v = value ? "1" : "0";
+    if (this.element.getAttribute("repeatHeader") !== v) {
+      this.element.setAttribute("repeatHeader", v);
+      this.markDirty();
+    }
+  }
+
   get rowCount(): number {
     const value = this.element.getAttribute("rowCnt");
     if (value && /^\d+$/.test(value)) return parseInt(value, 10);
@@ -1546,6 +1571,64 @@ export class HwpxOxmlParagraph {
 
     this.section.markDirty();
     return pic;
+  }
+
+  /** Return all <pic> elements across all runs. */
+  get pictures(): Element[] {
+    const pics: Element[] = [];
+    for (const run of findAllChildren(this.element, HP_NS, "run")) {
+      for (const child of childElements(run)) {
+        if (elementLocalName(child) === "pic") pics.push(child);
+      }
+    }
+    return pics;
+  }
+
+  /**
+   * Set the size of a picture element (by index) in hwpUnits.
+   * Updates curSz, sz, imgRect, imgClip, imgDim, and rotationInfo.
+   */
+  setPictureSize(pictureIndex: number, width: number, height: number): void {
+    const pics = this.pictures;
+    const pic = pics[pictureIndex];
+    if (!pic) return;
+    const w = Math.max(width, 1);
+    const h = Math.max(height, 1);
+
+    // Update curSz
+    const curSz = findChild(pic, HP_NS, "curSz");
+    if (curSz) { curSz.setAttribute("width", String(w)); curSz.setAttribute("height", String(h)); }
+
+    // Update sz
+    const sz = findChild(pic, HP_NS, "sz");
+    if (sz) { sz.setAttribute("width", String(w)); sz.setAttribute("height", String(h)); }
+
+    // Update imgRect corner points
+    const imgRect = findChild(pic, HP_NS, "imgRect");
+    if (imgRect) {
+      const pts = childElements(imgRect);
+      if (pts[0]) { pts[0].setAttribute("x", "0"); pts[0].setAttribute("y", "0"); }
+      if (pts[1]) { pts[1].setAttribute("x", String(w)); pts[1].setAttribute("y", "0"); }
+      if (pts[2]) { pts[2].setAttribute("x", String(w)); pts[2].setAttribute("y", String(h)); }
+      if (pts[3]) { pts[3].setAttribute("x", "0"); pts[3].setAttribute("y", String(h)); }
+    }
+
+    // Update imgClip
+    const imgClip = findChild(pic, HP_NS, "imgClip");
+    if (imgClip) { imgClip.setAttribute("right", String(w)); imgClip.setAttribute("bottom", String(h)); }
+
+    // Update imgDim
+    const imgDim = findChild(pic, HP_NS, "imgDim");
+    if (imgDim) { imgDim.setAttribute("dimwidth", String(w)); imgDim.setAttribute("dimheight", String(h)); }
+
+    // Update rotationInfo center
+    const rotInfo = findChild(pic, HP_NS, "rotationInfo");
+    if (rotInfo) {
+      rotInfo.setAttribute("centerX", String(Math.floor(w / 2)));
+      rotInfo.setAttribute("centerY", String(Math.floor(h / 2)));
+    }
+
+    this.section.markDirty();
   }
 
   private _ensureRun(): Element {

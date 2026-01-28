@@ -35,6 +35,7 @@ export function ParagraphBlock({
 }: ParagraphBlockProps) {
   const updateParagraphText = useEditorStore((s) => s.updateParagraphText);
   const setSelection = useEditorStore((s) => s.setSelection);
+  const selection = useEditorStore((s) => s.selection);
   const ref = useRef<HTMLDivElement>(null);
 
   const hasTables = paragraph.tables.length > 0;
@@ -102,12 +103,44 @@ export function ParagraphBlock({
     );
   }
 
-  // If paragraph has images, render them
+  // If paragraph has images, render them (possibly alongside text)
   if (hasImages) {
     return (
       <div className="my-1" style={paraStyle}>
+        {hasText && (
+          <div
+            ref={ref}
+            contentEditable
+            suppressContentEditableWarning
+            onBlur={handleBlur}
+            onFocus={handleFocus}
+            className="outline-none leading-relaxed"
+          >
+            {paragraph.runs.map((run, i) => (
+              <RunSpan key={i} run={run} />
+            ))}
+          </div>
+        )}
         {paragraph.images.map((img, i) => (
-          <ImageBlock key={i} image={img} />
+          <ImageBlock
+            key={i}
+            image={img}
+            selected={
+              selection?.sectionIndex === sectionIndex &&
+              selection?.paragraphIndex === localIndex &&
+              selection?.objectType === "image" &&
+              selection?.imageIndex === i
+            }
+            onClick={() =>
+              setSelection({
+                sectionIndex,
+                paragraphIndex: localIndex,
+                type: "paragraph",
+                objectType: "image",
+                imageIndex: i,
+              })
+            }
+          />
         ))}
       </div>
     );

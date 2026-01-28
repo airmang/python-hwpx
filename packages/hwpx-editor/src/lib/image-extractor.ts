@@ -32,6 +32,11 @@ export function extractImages(pkg: HwpxPackage): Map<string, string> {
       // Store with the filename (e.g. "image1.png")
       const fileName = name.replace("BinData/", "");
       images.set(fileName, dataUrl);
+      // Also store without extension (e.g. "image1") to match binaryItemIDRef
+      const baseName = fileName.replace(/\.[^.]+$/, "");
+      if (baseName !== fileName) {
+        images.set(baseName, dataUrl);
+      }
     } catch {
       // Skip parts that can't be read
     }

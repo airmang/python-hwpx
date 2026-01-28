@@ -130,6 +130,20 @@ export const HIGHLIGHT_COLORS = [
   { value: "none", label: "없음" },
 ] as const;
 
+// ── Page size presets ─────────────────────────────────────────────────────
+
+export const PAGE_SIZE_PRESETS = [
+  { name: "A4(국배판) [210x297mm]", width: 210, height: 297 },
+  { name: "A3 [297x420mm]", width: 297, height: 420 },
+  { name: "B4 [257x364mm]", width: 257, height: 364 },
+  { name: "B5(국판) [182x257mm]", width: 182, height: 257 },
+  { name: "Letter [216x279mm]", width: 216, height: 279 },
+  { name: "Legal [216x356mm]", width: 216, height: 356 },
+] as const;
+
+export type OrientationType = "PORTRAIT" | "LANDSCAPE";
+export type BindingType = "LEFT" | "FACING" | "TOP";
+
 // ── Sidebar tabs ───────────────────────────────────────────────────────────
 
-export type SidebarTab = "char" | "para";
+export type SidebarTab = "char" | "para" | "page" | "img-layout" | "img-props" | "table";

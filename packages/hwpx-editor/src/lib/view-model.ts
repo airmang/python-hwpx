@@ -44,6 +44,8 @@ export interface TableVM {
   colCount: number;
   cells: TableCellVM[][]; // 2D grid [row][col], non-anchor cells have isAnchor=false
   tableIndex: number; // index within the paragraph
+  pageBreak: string; // "CELL", "NONE", etc.
+  repeatHeader: boolean;
 }
 
 export interface ImageVM {
@@ -357,6 +359,8 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
           colCount,
           cells: cellsVM,
           tableIndex: tIdx,
+          pageBreak: table.pageBreak,
+          repeatHeader: table.repeatHeader,
         });
       }
 
