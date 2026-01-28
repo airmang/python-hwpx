@@ -26,6 +26,10 @@ export interface RunVM {
   highlightColor: string | null;
   letterSpacing: number | null;
   charPrIdRef: string | null;
+  hasTab?: boolean; // true if this run contains a tab character
+  hasFwSpace?: boolean; // true if this run is a full-width space
+  hasLineBreak?: boolean; // true if this run is a line break
+  hyperlink?: string; // URL if this run is inside a hyperlink
 }
 
 export interface MarginVM {
@@ -70,10 +74,34 @@ export interface ImageVM {
   outMargin: MarginVM;
 }
 
+export interface EquationVM {
+  script: string; // HWP equation script
+  widthPx: number;
+  heightPx: number;
+  textColor: string;
+  font: string;
+  baseLine: number;
+}
+
+export interface TextBoxVM {
+  text: string;
+  widthPx: number;
+  heightPx: number;
+  widthHwp: number;
+  heightHwp: number;
+  x: number;
+  y: number;
+  borderColor: string;
+  fillColor: string;
+  textBoxIndex: number;
+}
+
 export interface ParagraphVM {
   runs: RunVM[];
   tables: TableVM[];
   images: ImageVM[];
+  textBoxes: TextBoxVM[];
+  equations: EquationVM[];
   alignment: string;
   lineSpacing: number;
   spacingBefore: number;
@@ -91,6 +119,25 @@ export interface FootnoteVM {
   text: string;
 }
 
+export interface ColumnLayoutVM {
+  colCount: number;
+  sameGap: number; // gap in px
+  type: string; // "NEWSPAPER", "BALANCED", etc.
+}
+
+export interface PageNumVM {
+  pos: string; // "BOTTOM_CENTER", "TOP_CENTER", etc.
+  formatType: string; // "DIGIT", "ROMAN", etc.
+  sideChar: string; // e.g. "-" for "- 1 -"
+}
+
+export interface PageBorderFillVM {
+  type: string; // "BOTH", "EVEN", "ODD"
+  borderFillIdRef: string;
+  textBorder: string; // "PAPER", "CONTENT"
+  fillArea: string; // "PAPER", "CONTENT"
+}
+
 export interface SectionVM {
   pageWidthPx: number;
   pageHeightPx: number;
@@ -106,6 +153,9 @@ export interface SectionVM {
   footerText: string;
   footnotes: FootnoteVM[];
   endnotes: FootnoteVM[];
+  columnLayout: ColumnLayoutVM;
+  pageNum: PageNumVM | null;
+  pageBorderFill: PageBorderFillVM | null;
 }
 
 export interface EditorViewModel {
@@ -194,6 +244,116 @@ function extractRunStyle(
   }
 
   return { bold, italic, underline, strikethrough, color, fontFamily, fontSize, highlightColor, letterSpacing };
+}
+
+/** Find equation elements inside a run. */
+function findEquationRefs(
+  runElement: Element,
+): { script: string; width: number; height: number; textColor: string; font: string; baseLine: number }[] {
+  const results: { script: string; width: number; height: number; textColor: string; font: string; baseLine: number }[] = [];
+
+  const children = runElement.childNodes;
+  for (let i = 0; i < children.length; i++) {
+    const child = children.item(i);
+    if (!child || child.nodeType !== 1) continue;
+    const el = child as Element;
+    const localName = el.localName || el.nodeName.split(":").pop() || "";
+    if (localName !== "equation") continue;
+
+    let width = 0;
+    let height = 0;
+    let script = "";
+    const textColor = el.getAttribute("textColor") ?? "#000000";
+    const font = el.getAttribute("font") ?? "HancomEQN";
+    const baseLine = parseInt(el.getAttribute("baseLine") ?? "85", 10);
+
+    const eqChildren = el.childNodes;
+    for (let j = 0; j < eqChildren.length; j++) {
+      const ec = eqChildren.item(j);
+      if (!ec || ec.nodeType !== 1) continue;
+      const eel = ec as Element;
+      const eName = eel.localName || eel.nodeName.split(":").pop() || "";
+
+      if (eName === "sz") {
+        width = parseInt(eel.getAttribute("width") ?? "0", 10);
+        height = parseInt(eel.getAttribute("height") ?? "0", 10);
+      } else if (eName === "script") {
+        script = eel.textContent ?? "";
+      }
+    }
+
+    results.push({ script, width, height, textColor, font, baseLine });
+  }
+
+  return results;
+}
+
+/** Find drawText (text box) elements inside a run. */
+function findTextBoxRefs(
+  runElement: Element,
+): { text: string; width: number; height: number; x: number; y: number; borderColor: string; fillColor: string }[] {
+  const results: { text: string; width: number; height: number; x: number; y: number; borderColor: string; fillColor: string }[] = [];
+
+  const children = runElement.childNodes;
+  for (let i = 0; i < children.length; i++) {
+    const child = children.item(i);
+    if (!child || child.nodeType !== 1) continue;
+    const el = child as Element;
+    const localName = el.localName || el.nodeName.split(":").pop() || "";
+    if (localName !== "drawText") continue;
+
+    let width = 0;
+    let height = 0;
+    let x = 0;
+    let y = 0;
+    let borderColor = "#000000";
+    let fillColor = "#FFFFFF";
+    let text = "";
+
+    const boxChildren = el.childNodes;
+    for (let j = 0; j < boxChildren.length; j++) {
+      const bc = boxChildren.item(j);
+      if (!bc || bc.nodeType !== 1) continue;
+      const bel = bc as Element;
+      const bName = bel.localName || bel.nodeName.split(":").pop() || "";
+
+      if (bName === "sz") {
+        width = parseInt(bel.getAttribute("width") ?? "0", 10);
+        height = parseInt(bel.getAttribute("height") ?? "0", 10);
+      } else if (bName === "pos") {
+        x = parseInt(bel.getAttribute("horzOffset") ?? "0", 10);
+        y = parseInt(bel.getAttribute("vertOffset") ?? "0", 10);
+      } else if (bName === "lineShape") {
+        borderColor = bel.getAttribute("color") ?? "#000000";
+      }
+    }
+
+    // Get fill color from fillBrush/winBrush
+    const fillBrushes = el.getElementsByTagName("*");
+    for (let k = 0; k < fillBrushes.length; k++) {
+      const fb = fillBrushes.item(k);
+      if (!fb) continue;
+      const fbName = fb.localName || fb.nodeName.split(":").pop() || "";
+      if (fbName === "winBrush") {
+        fillColor = fb.getAttribute("faceColor") ?? "#FFFFFF";
+      }
+    }
+
+    // Get text from sub-paragraphs
+    const textEls = el.getElementsByTagName("*");
+    for (let k = 0; k < textEls.length; k++) {
+      const te = textEls.item(k);
+      if (!te) continue;
+      const teName = te.localName || te.nodeName.split(":").pop() || "";
+      if (teName === "t") {
+        text += te.textContent ?? "";
+      }
+    }
+
+    results.push({ text, width, height, x, y, borderColor, fillColor });
+  }
+
+  return results;
 }
 
 /** Find binaryItemIDRef from a picture element inside a run. */
@@ -327,6 +487,62 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
       }
     } catch { /* ignore */ }
 
+    // Extract column layout
+    let columnLayoutVM: ColumnLayoutVM = { colCount: 1, sameGap: 0, type: "NEWSPAPER" };
+    try {
+      const colLayout = props.columnLayout;
+      columnLayoutVM = {
+        colCount: colLayout.colCount,
+        sameGap: hwpToPx(colLayout.sameGap),
+        type: colLayout.type,
+      };
+    } catch { /* ignore */ }
+
+    // Extract page numbering
+    let pageNumVM: PageNumVM | null = null;
+    try {
+      const sectionEl = section.element;
+      const pageNumEls = sectionEl.getElementsByTagName("*");
+      for (let k = 0; k < pageNumEls.length; k++) {
+        const el = pageNumEls.item(k);
+        if (!el) continue;
+        const ln = el.localName || el.nodeName.split(":").pop() || "";
+        if (ln === "pageNum") {
+          pageNumVM = {
+            pos: el.getAttribute("pos") ?? "BOTTOM_CENTER",
+            formatType: el.getAttribute("formatType") ?? "DIGIT",
+            sideChar: el.getAttribute("sideChar") ?? "",
+          };
+          break;
+        }
+      }
+    } catch { /* ignore */ }
+
+    // Extract page border fill
+    let pageBorderFillVM: PageBorderFillVM | null = null;
+    try {
+      const sectionEl = section.element;
+      const borderFillEls = sectionEl.getElementsByTagName("*");
+      for (let k = 0; k < borderFillEls.length; k++) {
+        const el = borderFillEls.item(k);
+        if (!el) continue;
+        const ln = el.localName || el.nodeName.split(":").pop() || "";
+        if (ln === "pageBorderFill") {
+          const type = el.getAttribute("type") ?? "BOTH";
+          // Use the BOTH type or first found
+          if (type === "BOTH" || !pageBorderFillVM) {
+            pageBorderFillVM = {
+              type,
+              borderFillIdRef: el.getAttribute("borderFillIDRef") ?? "0",
+              textBorder: el.getAttribute("textBorder") ?? "PAPER",
+              fillArea: el.getAttribute("fillArea") ?? "PAPER",
+            };
+            if (type === "BOTH") break;
+          }
+        }
+      }
+    } catch { /* ignore */ }
+
     const sectionVM: SectionVM = {
       pageWidthPx: hwpToPx(pageSize.width),
       pageHeightPx: hwpToPx(pageSize.height),
@@ -342,12 +558,18 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
       footerText,
       footnotes,
       endnotes,
+      columnLayout: columnLayoutVM,
+      pageNum: pageNumVM,
+      pageBorderFill: pageBorderFillVM,
     };
 
     const paragraphs = section.paragraphs;
     for (const para of paragraphs) {
       const runs: RunVM[] = [];
       const images: ImageVM[] = [];
+      const textBoxes: TextBoxVM[] = [];
+      const equations: EquationVM[] = [];
+      let currentHyperlink: string | null = null; // Track hyperlink across runs
 
       for (const run of para.runs) {
         const style = run.style;
@@ -355,22 +577,153 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
           bold, italic, underline, strikethrough, color,
           fontFamily, fontSize, highlightColor, letterSpacing,
         } = extractRunStyle(style, doc);
-        const text = run.text;
 
-        if (text) {
+        // Process run children to handle tabs and text in order
+        const runChildren = run.element.childNodes;
+        let currentText = "";
+        let hasTab = false;
+
+        for (let i = 0; i < runChildren.length; i++) {
+          const child = runChildren.item(i);
+          if (!child) continue;
+
+          if (child.nodeType === 1) {
+            const el = child as Element;
+            const localName = el.localName || el.nodeName.split(":").pop() || "";
+
+            if (localName === "t") {
+              currentText += el.textContent ?? "";
+            } else if (localName === "tab") {
+              // Flush current text if any, then add tab
+              if (currentText) {
+                runs.push({
+                  text: currentText,
+                  bold, italic, underline, strikethrough, color,
+                  fontFamily, fontSize, highlightColor, letterSpacing,
+                  charPrIdRef: run.charPrIdRef,
+                  hyperlink: currentHyperlink ?? undefined,
+                });
+                currentText = "";
+              }
+              // Add a tab run
+              runs.push({
+                text: "\t",
+                bold, italic, underline, strikethrough, color,
+                fontFamily, fontSize, highlightColor, letterSpacing,
+                charPrIdRef: run.charPrIdRef,
+                hasTab: true,
+              });
+              hasTab = true;
+            } else if (localName === "fwSpace") {
+              // Full-width space (전각 공백)
+              if (currentText) {
+                runs.push({
+                  text: currentText,
+                  bold, italic, underline, strikethrough, color,
+                  fontFamily, fontSize, highlightColor, letterSpacing,
+                  charPrIdRef: run.charPrIdRef,
+                  hyperlink: currentHyperlink ?? undefined,
+                });
+                currentText = "";
+              }
+              runs.push({
+                text: "\u3000", // Full-width space character
+                bold, italic, underline, strikethrough, color,
+                fontFamily, fontSize, highlightColor, letterSpacing,
+                charPrIdRef: run.charPrIdRef,
+                hasFwSpace: true,
+                hyperlink: currentHyperlink ?? undefined,
+              });
+            } else if (localName === "lineBreak") {
+              // Line break within paragraph
+              if (currentText) {
+                runs.push({
+                  text: currentText,
+                  bold, italic, underline, strikethrough, color,
+                  fontFamily, fontSize, highlightColor, letterSpacing,
+                  charPrIdRef: run.charPrIdRef,
+                  hyperlink: currentHyperlink ?? undefined,
+                });
+                currentText = "";
+              }
+              runs.push({
+                text: "\n",
+                bold, italic, underline, strikethrough, color,
+                fontFamily, fontSize, highlightColor, letterSpacing,
+                charPrIdRef: run.charPrIdRef,
+                hasLineBreak: true,
+              });
+            } else if (localName === "fieldBegin") {
+              // Start of a field (e.g., hyperlink)
+              const fieldType = el.getAttribute("type");
+              if (fieldType === "HYPERLINK") {
+                // Flush current text before hyperlink
+                if (currentText) {
+                  runs.push({
+                    text: currentText,
+                    bold, italic, underline, strikethrough, color,
+                    fontFamily, fontSize, highlightColor, letterSpacing,
+                    charPrIdRef: run.charPrIdRef,
+                  });
+                  currentText = "";
+                }
+                // Extract URL from stringParam elements
+                const params = el.getElementsByTagName("*");
+                for (let pi = 0; pi < params.length; pi++) {
+                  const param = params.item(pi);
+                  if (!param) continue;
+                  const pName = param.localName || param.nodeName.split(":").pop() || "";
+                  if (pName === "stringParam") {
+                    const paramName = param.getAttribute("name");
+                    if (paramName === "Command" || paramName === "Path") {
+                      const url = param.textContent?.trim();
+                      if (url) {
+                        currentHyperlink = url;
+                        break;
+                      }
+                    }
+                  }
+                }
+              }
+            } else if (localName === "fieldEnd") {
+              // End of a field
+              if (currentHyperlink && currentText) {
+                runs.push({
+                  text: currentText,
+                  bold, italic, underline, strikethrough, color,
+                  fontFamily, fontSize, highlightColor, letterSpacing,
+                  charPrIdRef: run.charPrIdRef,
+                  hyperlink: currentHyperlink,
+                });
+                currentText = "";
+              }
+              currentHyperlink = null;
+            }
+          }
+        }
+
+        // Flush remaining text
+        if (currentText) {
           runs.push({
-            text,
-            bold,
-            italic,
-            underline,
-            strikethrough,
-            color,
-            fontFamily,
-            fontSize,
-            highlightColor,
-            letterSpacing,
+            text: currentText,
+            bold, italic, underline, strikethrough, color,
+            fontFamily, fontSize, highlightColor, letterSpacing,
             charPrIdRef: run.charPrIdRef,
+            hyperlink: currentHyperlink ?? undefined,
           });
+        }
+
+        // If no content was found but run has text, use fallback
+        if (runs.length === 0 || (!currentText && !hasTab)) {
+          const text = run.text;
+          if (text) {
+            runs.push({
+              text,
+              bold, italic, underline, strikethrough, color,
+              fontFamily, fontSize, highlightColor, letterSpacing,
+              charPrIdRef: run.charPrIdRef,
+            });
+          }
         }
 
         // Check for images inside this run
@@ -390,6 +743,37 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
               outMargin,
             });
           }
+        }
+
+        // Check for text boxes inside this run
+        const textBoxRefs = findTextBoxRefs(run.element);
+        for (let tbIdx = 0; tbIdx < textBoxRefs.length; tbIdx++) {
+          const ref = textBoxRefs[tbIdx]!;
+          textBoxes.push({
+            text: ref.text,
+            widthPx: hwpToPx(ref.width),
+            heightPx: hwpToPx(ref.height),
+            widthHwp: ref.width,
+            heightHwp: ref.height,
+            x: ref.x,
+            y: ref.y,
+            borderColor: ref.borderColor,
+            fillColor: ref.fillColor,
+            textBoxIndex: textBoxes.length,
+          });
+        }
+
+        // Check for equations inside this run
+        const equationRefs = findEquationRefs(run.element);
+        for (const ref of equationRefs) {
+          equations.push({
+            script: ref.script,
+            widthPx: hwpToPx(ref.width),
+            heightPx: hwpToPx(ref.height),
+            textColor: ref.textColor,
+            font: ref.font,
+            baseLine: ref.baseLine,
+          });
         }
       }
 
@@ -443,15 +827,25 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
           cellsVM.push(row);
         }
 
-        // Compute per-column widths from the first row's anchor cells
+        // Compute per-column widths - find a cell with colSpan=1 for each column
         const columnWidths: number[] = [];
         for (let c = 0; c < colCount; c++) {
-          const pos = cellGrid[0]?.[c];
-          if (pos && pos.anchor[1] === c) {
-            columnWidths.push(pos.cell.width);
-          } else {
-            columnWidths.push(0);
+          let width = 0;
+          // First, try to find a cell with colSpan=1 in this column
+          for (let r = 0; r < rowCount && width === 0; r++) {
+            const pos = cellGrid[r]?.[c];
+            if (pos && pos.anchor[1] === c && pos.span[1] === 1) {
+              width = pos.cell.width;
+            }
           }
+          // If not found, distribute merged cell width
+          if (width === 0) {
+            const pos = cellGrid[0]?.[c];
+            if (pos) {
+              width = Math.round(pos.cell.width / pos.span[1]);
+            }
+          }
+          columnWidths.push(width);
         }
 
         const outMargin = table.getOutMargin();
@@ -538,6 +932,8 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
         runs,
         tables,
         images,
+        textBoxes,
+        equations,
         alignment,
         lineSpacing,
         spacingBefore,

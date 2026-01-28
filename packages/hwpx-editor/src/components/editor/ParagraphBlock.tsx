@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import type { ParagraphVM } from "@/lib/view-model";
 import { useEditorStore } from "@/lib/store";
 import { RunSpan } from "./RunSpan";
 import { TableBlock } from "./TableBlock";
 import { ImageBlock } from "./ImageBlock";
+import { TextBoxBlock } from "./TextBoxBlock";
+import { EquationBlock } from "./EquationBlock";
 
 interface ParagraphBlockProps {
   paragraph: ParagraphVM;
@@ -46,6 +48,8 @@ export function ParagraphBlock({
 
   const hasTables = paragraph.tables.length > 0;
   const hasImages = paragraph.images.length > 0;
+  const hasTextBoxes = paragraph.textBoxes.length > 0;
+  const hasEquations = paragraph.equations.length > 0;
   const hasText = paragraph.runs.length > 0;
 
   const handleBlur = useCallback(() => {
@@ -68,9 +72,72 @@ export function ParagraphBlock({
     });
   }, [sectionIndex, localIndex, setSelection]);
 
+  // Track text selection changes within this paragraph
+  const updateTextSelection = useCallback(() => {
+    if (!ref.current) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+
+    // Check if selection is within this paragraph
+    const range = sel.getRangeAt(0);
+    if (!ref.current.contains(range.commonAncestorContainer)) return;
+
+    // Calculate start and end offsets relative to the entire paragraph text
+    const preRangeStart = document.createRange();
+    preRangeStart.selectNodeContents(ref.current);
+    preRangeStart.setEnd(range.startContainer, range.startOffset);
+    const startOffset = preRangeStart.toString().length;
+
+    const preRangeEnd = document.createRange();
+    preRangeEnd.selectNodeContents(ref.current);
+    preRangeEnd.setEnd(range.endContainer, range.endOffset);
+    const endOffset = preRangeEnd.toString().length;
+
+    // Only update if there's an actual selection (not just cursor)
+    if (startOffset !== endOffset) {
+      setSelection({
+        sectionIndex,
+        paragraphIndex: localIndex,
+        type: "paragraph",
+        textStartOffset: startOffset,
+        textEndOffset: endOffset,
+      });
+    } else {
+      // Clear text range when selection is collapsed (cursor only)
+      setSelection({
+        sectionIndex,
+        paragraphIndex: localIndex,
+        type: "paragraph",
+      });
+    }
+  }, [sectionIndex, localIndex, setSelection]);
+
+  // Listen for selection changes
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      if (document.activeElement === ref.current) {
+        updateTextSelection();
+      }
+    };
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+    };
+  }, [updateTextSelection]);
+
+  const insertTab = useEditorStore((s) => s.insertTab);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (hasTables || hasImages) return;
+      if (hasTables || hasImages || hasTextBoxes || hasEquations) return;
+
+      // Tab key: insert tab character
+      if (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        insertTab();
+        return;
+      }
 
       // Block Shift+Enter (no soft line break)
       if (e.key === "Enter" && e.shiftKey) {
@@ -215,7 +282,7 @@ export function ParagraphBlock({
         }
       }
     },
-    [sectionIndex, localIndex, paragraph, hasTables, hasImages, paragraphCount, splitParagraph, mergeParagraphWithPrevious, deleteBlock, updateParagraphText],
+    [sectionIndex, localIndex, paragraph, hasTables, hasImages, hasTextBoxes, hasEquations, paragraphCount, splitParagraph, mergeParagraphWithPrevious, deleteBlock, updateParagraphText, insertTab],
   );
 
   // Common paragraph styles (includes base font for contentEditable typing)
@@ -299,6 +366,67 @@ export function ParagraphBlock({
               })
             }
           />
+        ))}
+      </div>
+    );
+  }
+
+  // If paragraph has text boxes, render them
+  if (hasTextBoxes) {
+    return (
+      <div className="my-1" style={paraStyle}>
+        {hasText && (
+          <div
+            ref={ref}
+            contentEditable
+            suppressContentEditableWarning
+            onBlur={handleBlur}
+            onFocus={handleFocus}
+            className="outline-none leading-relaxed"
+          >
+            {paragraph.runs.map((run, i) => (
+              <RunSpan key={i} run={run} />
+            ))}
+          </div>
+        )}
+        {paragraph.textBoxes.map((tb, i) => (
+          <TextBoxBlock
+            key={i}
+            textBox={tb}
+            selected={
+              selection?.sectionIndex === sectionIndex &&
+              selection?.paragraphIndex === localIndex &&
+              selection?.objectType === "textBox" &&
+              selection?.textBoxIndex === i
+            }
+            onClick={() =>
+              setSelection({
+                sectionIndex,
+                paragraphIndex: localIndex,
+                type: "paragraph",
+                objectType: "textBox",
+                textBoxIndex: i,
+              })
+            }
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // If paragraph has equations, render them
+  if (hasEquations) {
+    return (
+      <div className="my-1" style={paraStyle}>
+        {hasText && (
+          <span>
+            {paragraph.runs.map((run, i) => (
+              <RunSpan key={i} run={run} />
+            ))}
+          </span>
+        )}
+        {paragraph.equations.map((eq, i) => (
+          <EquationBlock key={i} equation={eq} />
         ))}
       </div>
     );

@@ -41,6 +41,33 @@ export function Page({ section }: PageProps) {
   const hasFooter = section.footerText.length > 0;
   const hasFootnotes = section.footnotes.length > 0;
   const hasEndnotes = section.endnotes.length > 0;
+  const hasMultiColumn = section.columnLayout.colCount > 1;
+  const pageNum = section.pageNum;
+
+  // Format page number based on pageNum settings
+  const formatPageNum = (num: number): string => {
+    if (!pageNum) return String(num);
+    let formatted = String(num);
+    if (pageNum.formatType === "ROMAN") {
+      // Convert to Roman numerals (simplified)
+      const romanNumerals = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+      formatted = romanNumerals[num] ?? String(num);
+    }
+    if (pageNum.sideChar) {
+      formatted = `${pageNum.sideChar} ${formatted} ${pageNum.sideChar}`;
+    }
+    return formatted;
+  };
+
+  // Determine page number position
+  const pageNumAtTop = pageNum?.pos?.startsWith("TOP");
+  const pageNumAtBottom = pageNum?.pos?.startsWith("BOTTOM") || (pageNum && !pageNumAtTop);
+
+  // Page border styling
+  const hasPageBorder = section.pageBorderFill !== null;
+  const pageBorderStyle: React.CSSProperties = hasPageBorder ? {
+    border: "1px solid #cccccc",
+  } : {};
 
   return (
     <div
@@ -50,6 +77,7 @@ export function Page({ section }: PageProps) {
       style={{
         width: section.pageWidthPx,
         minHeight: section.pageHeightPx,
+        ...pageBorderStyle,
       }}
     >
       {/* Watermark overlay */}
@@ -73,7 +101,7 @@ export function Page({ section }: PageProps) {
       )}
 
       {/* Header area */}
-      {hasHeader && (
+      {(hasHeader || pageNumAtTop) && (
         <div
           className="text-center text-[10px] text-gray-400 border-b border-gray-100 relative z-10"
           style={{
@@ -83,7 +111,8 @@ export function Page({ section }: PageProps) {
             paddingBottom: 4,
           }}
         >
-          {section.headerText.replace("{{page}}", "1")}
+          {hasHeader ? section.headerText.replace("{{page}}", "1") : null}
+          {pageNumAtTop && !hasHeader && formatPageNum(1)}
         </div>
       )}
 
@@ -96,6 +125,12 @@ export function Page({ section }: PageProps) {
           paddingLeft: section.marginLeftPx,
           paddingRight: section.marginRightPx,
           minHeight: section.pageHeightPx - section.marginTopPx - section.marginBottomPx,
+          // Multi-column CSS
+          ...(hasMultiColumn ? {
+            columnCount: section.columnLayout.colCount,
+            columnGap: section.columnLayout.sameGap || 20,
+            columnRule: "1px solid #e5e7eb",
+          } : {}),
         }}
       >
         {section.paragraphs.map((para, idx) => (
@@ -153,7 +188,7 @@ export function Page({ section }: PageProps) {
       )}
 
       {/* Footer area */}
-      {hasFooter && (
+      {(hasFooter || pageNumAtBottom) && (
         <div
           className="text-center text-[10px] text-gray-400 border-t border-gray-100 relative z-10"
           style={{
@@ -163,7 +198,8 @@ export function Page({ section }: PageProps) {
             paddingBottom: Math.max(section.footerHeightPx, 8),
           }}
         >
-          {section.footerText.replace("{{page}}", "1")}
+          {hasFooter ? section.footerText.replace("{{page}}", "1") : null}
+          {pageNumAtBottom && !hasFooter && formatPageNum(1)}
         </div>
       )}
     </div>

@@ -16,6 +16,7 @@ import { CharFormatDialog } from "../dialog/CharFormatDialog";
 import { ParaFormatDialog } from "../dialog/ParaFormatDialog";
 import { BulletNumberDialog } from "../dialog/BulletNumberDialog";
 import { CharMapDialog } from "../dialog/CharMapDialog";
+import { TemplateDialog } from "../dialog/TemplateDialog";
 import { PanelRight } from "lucide-react";
 
 export function Editor() {
@@ -139,6 +140,7 @@ export function Editor() {
       <ParaFormatDialog />
       <BulletNumberDialog />
       <CharMapDialog />
+      <TemplateDialog />
       {/* Menu bar */}
       <MenuBar />
       {/* Ribbon toolbar */}

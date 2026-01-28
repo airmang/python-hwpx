@@ -57,7 +57,8 @@ export function MenuBar() {
       label: "파일",
       items: [
         { label: "새 문서", shortcut: "Ctrl+N", disabled: true },
-        { label: "불러오기...", shortcut: "Ctrl+O", disabled: true, dividerAfter: true },
+        { label: "불러오기...", shortcut: "Ctrl+O", disabled: true },
+        { label: "템플릿 관리...", action: () => store().openTemplateDialog(), dividerAfter: true },
         { label: "저장", shortcut: "Ctrl+S", disabled, action: () => store().openSaveDialog() },
         { label: "다른 이름으로 저장...", disabled, action: () => store().openSaveDialog(), dividerAfter: true },
         { label: "문서 정보", disabled: true },

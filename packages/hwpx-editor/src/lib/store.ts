@@ -16,14 +16,21 @@ import { mmToHwp } from "./hwp-units";
 export interface SelectionState {
   sectionIndex: number;
   paragraphIndex: number;
-  type: "paragraph" | "cell";
-  // For cell selection
+  type: "paragraph" | "cell" | "table";
+  // For cell/table selection
   tableIndex?: number;
   row?: number;
   col?: number;
-  // For object selection (image/table context)
-  objectType?: "image" | "table";
+  // For multi-cell selection (range)
+  endRow?: number;
+  endCol?: number;
+  // For object selection (image/table/textBox context)
+  objectType?: "image" | "table" | "textBox";
   imageIndex?: number;
+  textBoxIndex?: number;
+  // For text range selection within a paragraph
+  textStartOffset?: number;
+  textEndOffset?: number;
 }
 
 export interface ActiveFormat {
@@ -46,6 +53,15 @@ export interface UIState {
   paraFormatDialogOpen: boolean;
   bulletNumberDialogOpen: boolean;
   charMapDialogOpen: boolean;
+  templateDialogOpen: boolean;
+}
+
+export interface Template {
+  id: string;
+  name: string;
+  path: string;
+  description?: string;
+  createdAt: number;
 }
 
 interface UndoEntry {
@@ -66,6 +82,7 @@ export interface EditorStore {
   error: string | null;
   undoStack: UndoEntry[];
   redoStack: UndoEntry[];
+  templates: Template[];
 
   // Actions
   setDocument: (doc: HwpxDocument) => void;
@@ -77,6 +94,14 @@ export interface EditorStore {
   // UI actions
   toggleSidebar: () => void;
   setSidebarTab: (tab: SidebarTab) => void;
+  openTemplateDialog: () => void;
+  closeTemplateDialog: () => void;
+
+  // Template actions
+  addTemplate: (name: string, path: string, description?: string) => void;
+  removeTemplate: (id: string) => void;
+  loadTemplates: () => void;
+  saveTemplates: () => void;
 
   // Text editing
   updateParagraphText: (
@@ -158,6 +183,7 @@ export interface EditorStore {
   setTableOutMargin: (margins: Partial<{ top: number; bottom: number; left: number; right: number }>) => void;
   setTableInMargin: (margins: Partial<{ top: number; bottom: number; left: number; right: number }>) => void;
   resizeTableColumn: (sectionIdx: number, paraIdx: number, tableIdx: number, colIdx: number, deltaHwp: number) => void;
+  setSelectedCellsSize: (widthMm?: number, heightMm?: number) => void;
 
   // Paragraph indent
   setFirstLineIndent: (valueHwp: number) => void;
@@ -185,11 +211,14 @@ export interface EditorStore {
 
   // Text insertion at cursor
   insertTextAtCursor: (text: string) => void;
+  insertTab: () => void;
+  insertTextBox: (text: string, widthMm: number, heightMm: number) => void;
 
   // Page setup
   updatePageSize: (width: number, height: number) => void;
   updatePageMargins: (margins: Partial<{ left: number; right: number; top: number; bottom: number; header: number; footer: number; gutter: number }>) => void;
   updatePageOrientation: (orientation: OrientationType) => void;
+  setColumnCount: (colCount: number, gapMm?: number) => void;
 
   // File operations
   saveDocument: () => Promise<void>;
@@ -231,9 +260,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   undoStack: [],
   redoStack: [],
   extendedFormat: { char: defaultCharFormat, para: defaultParaFormat },
-  uiState: { sidebarOpen: true, sidebarTab: "char", saveDialogOpen: false, charFormatDialogOpen: false, paraFormatDialogOpen: false, bulletNumberDialogOpen: false, charMapDialogOpen: false },
+  uiState: { sidebarOpen: true, sidebarTab: "char", saveDialogOpen: false, charFormatDialogOpen: false, paraFormatDialogOpen: false, bulletNumberDialogOpen: false, charMapDialogOpen: false, templateDialogOpen: false },
   loading: false,
   error: null,
+  templates: [],
 
   setDocument: (doc) => {
     const viewModel = buildViewModel(doc);
@@ -293,6 +323,50 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       uiState: { ...s.uiState, sidebarTab: tab },
     })),
 
+  openTemplateDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, templateDialogOpen: true } })),
+
+  closeTemplateDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, templateDialogOpen: false } })),
+
+  addTemplate: (name, path, description) => {
+    const template: Template = {
+      id: `tpl-${Date.now()}`,
+      name,
+      path,
+      description,
+      createdAt: Date.now(),
+    };
+    set((s) => ({ templates: [...s.templates, template] }));
+    get().saveTemplates();
+  },
+
+  removeTemplate: (id) => {
+    set((s) => ({ templates: s.templates.filter((t) => t.id !== id) }));
+    get().saveTemplates();
+  },
+
+  loadTemplates: () => {
+    try {
+      const stored = localStorage.getItem("hwpx-templates");
+      if (stored) {
+        const templates = JSON.parse(stored) as Template[];
+        set({ templates });
+      }
+    } catch (e) {
+      console.error("loadTemplates failed:", e);
+    }
+  },
+
+  saveTemplates: () => {
+    try {
+      const { templates } = get();
+      localStorage.setItem("hwpx-templates", JSON.stringify(templates));
+    } catch (e) {
+      console.error("saveTemplates failed:", e);
+    }
+  },
+
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
 
@@ -349,7 +423,18 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-      para.charPrIdRef = charPrIdRef;
+
+      // Check if there's a text range selection
+      const hasTextRange =
+        selection.textStartOffset != null &&
+        selection.textEndOffset != null &&
+        selection.textStartOffset < selection.textEndOffset;
+
+      if (hasTextRange) {
+        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
+      } else {
+        para.charPrIdRef = charPrIdRef;
+      }
       set({ activeFormat: { ...activeFormat, bold: newBold } });
       get().rebuild();
     } catch (e) {
@@ -373,7 +458,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-      para.charPrIdRef = charPrIdRef;
+
+      const hasTextRange =
+        selection.textStartOffset != null &&
+        selection.textEndOffset != null &&
+        selection.textStartOffset < selection.textEndOffset;
+
+      if (hasTextRange) {
+        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
+      } else {
+        para.charPrIdRef = charPrIdRef;
+      }
       set({ activeFormat: { ...activeFormat, italic: newItalic } });
       get().rebuild();
     } catch (e) {
@@ -397,7 +492,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-      para.charPrIdRef = charPrIdRef;
+
+      const hasTextRange =
+        selection.textStartOffset != null &&
+        selection.textEndOffset != null &&
+        selection.textStartOffset < selection.textEndOffset;
+
+      if (hasTextRange) {
+        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
+      } else {
+        para.charPrIdRef = charPrIdRef;
+      }
       set({ activeFormat: { ...activeFormat, underline: newUnderline } });
       get().rebuild();
     } catch (e) {
@@ -426,7 +531,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-      para.charPrIdRef = charPrIdRef;
+
+      const hasTextRange =
+        selection.textStartOffset != null &&
+        selection.textEndOffset != null &&
+        selection.textStartOffset < selection.textEndOffset;
+
+      if (hasTextRange) {
+        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
+      } else {
+        para.charPrIdRef = charPrIdRef;
+      }
       set({ activeFormat: { ...activeFormat, strikethrough: newStrike } });
       get().rebuild();
       get().refreshExtendedFormat();
@@ -439,6 +554,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { doc, extendedFormat, selection } = get();
     if (!doc || !selection) return;
     try {
+      get().pushUndo();
       const cf = extendedFormat.char;
       const charPrIdRef = doc.ensureRunStyle({
         bold: cf.bold,
@@ -453,7 +569,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-      para.charPrIdRef = charPrIdRef;
+
+      const hasTextRange =
+        selection.textStartOffset != null &&
+        selection.textEndOffset != null &&
+        selection.textStartOffset < selection.textEndOffset;
+
+      if (hasTextRange) {
+        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
+      } else {
+        para.charPrIdRef = charPrIdRef;
+      }
       get().rebuild();
       get().refreshExtendedFormat();
     } catch (e) {
@@ -465,6 +591,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { doc, extendedFormat, selection } = get();
     if (!doc || !selection) return;
     try {
+      get().pushUndo();
       const cf = extendedFormat.char;
       const charPrIdRef = doc.ensureRunStyle({
         bold: cf.bold,
@@ -479,7 +606,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-      para.charPrIdRef = charPrIdRef;
+
+      const hasTextRange =
+        selection.textStartOffset != null &&
+        selection.textEndOffset != null &&
+        selection.textStartOffset < selection.textEndOffset;
+
+      if (hasTextRange) {
+        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
+      } else {
+        para.charPrIdRef = charPrIdRef;
+      }
       get().rebuild();
       get().refreshExtendedFormat();
     } catch (e) {
@@ -491,6 +628,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { doc, extendedFormat, selection } = get();
     if (!doc || !selection) return;
     try {
+      get().pushUndo();
       const cf = extendedFormat.char;
       const charPrIdRef = doc.ensureRunStyle({
         bold: cf.bold,
@@ -505,7 +643,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-      para.charPrIdRef = charPrIdRef;
+
+      const hasTextRange =
+        selection.textStartOffset != null &&
+        selection.textEndOffset != null &&
+        selection.textStartOffset < selection.textEndOffset;
+
+      if (hasTextRange) {
+        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
+      } else {
+        para.charPrIdRef = charPrIdRef;
+      }
       get().rebuild();
       get().refreshExtendedFormat();
     } catch (e) {
@@ -517,6 +665,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { doc, extendedFormat, selection } = get();
     if (!doc || !selection) return;
     try {
+      get().pushUndo();
       const cf = extendedFormat.char;
       const charPrIdRef = doc.ensureRunStyle({
         bold: cf.bold,
@@ -531,7 +680,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-      para.charPrIdRef = charPrIdRef;
+
+      const hasTextRange =
+        selection.textStartOffset != null &&
+        selection.textEndOffset != null &&
+        selection.textStartOffset < selection.textEndOffset;
+
+      if (hasTextRange) {
+        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
+      } else {
+        para.charPrIdRef = charPrIdRef;
+      }
       get().rebuild();
       get().refreshExtendedFormat();
     } catch (e) {
@@ -1084,6 +1243,61 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
+  setSelectedCellsSize: (widthMm, heightMm) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.type !== "cell" || selection.tableIndex == null) return;
+
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
+
+    try {
+      get().pushUndo();
+
+      // Determine the selected range
+      const startRow = Math.min(selection.row ?? 0, selection.endRow ?? selection.row ?? 0);
+      const endRow = Math.max(selection.row ?? 0, selection.endRow ?? selection.row ?? 0);
+      const startCol = Math.min(selection.col ?? 0, selection.endCol ?? selection.col ?? 0);
+      const endCol = Math.max(selection.col ?? 0, selection.endCol ?? selection.col ?? 0);
+
+      const grid = table.getCellMap();
+
+      // Set width for selected columns
+      if (widthMm != null) {
+        const widthHwp = mmToHwp(widthMm);
+        const processedCols = new Set<number>();
+        for (let c = startCol; c <= endCol; c++) {
+          if (!processedCols.has(c)) {
+            table.setColumnWidth(c, widthHwp);
+            processedCols.add(c);
+          }
+        }
+      }
+
+      // Set height for selected rows (update each cell's height)
+      if (heightMm != null) {
+        const heightHwp = mmToHwp(heightMm);
+        const processedCells = new Set<Element>();
+        for (let r = startRow; r <= endRow; r++) {
+          for (let c = startCol; c <= endCol; c++) {
+            const pos = grid[r]?.[c];
+            if (pos && !processedCells.has(pos.cell.element)) {
+              pos.cell.setSize(undefined, heightHwp);
+              processedCells.add(pos.cell.element);
+            }
+          }
+        }
+      }
+
+      get().rebuild();
+    } catch (e) {
+      console.error("setSelectedCellsSize failed:", e);
+    }
+  },
+
   setFirstLineIndent: (valueHwp) => {
     const { doc, extendedFormat, selection } = get();
     if (!doc || !selection) return;
@@ -1301,6 +1515,24 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
+  setColumnCount: (colCount, gapMm) => {
+    const { doc, selection } = get();
+    if (!doc) return;
+    const sIdx = selection?.sectionIndex ?? 0;
+    const section = doc.sections[sIdx];
+    if (!section) return;
+    try {
+      get().pushUndo();
+      section.properties.setColumnLayout({
+        colCount: Math.max(1, colCount),
+        sameGap: gapMm != null ? mmToHwp(gapMm) : undefined,
+      });
+      get().rebuild();
+    } catch (e) {
+      console.error("setColumnCount failed:", e);
+    }
+  },
+
   // File operations
   saveDocument: async () => {
     get().openSaveDialog();
@@ -1367,6 +1599,42 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       get().rebuild();
     } catch (e) {
       console.error("insertTextAtCursor failed:", e);
+    }
+  },
+
+  insertTab: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection) return;
+    try {
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      get().pushUndo();
+      para.addTab({ charPrIdRef: para.charPrIdRef ?? undefined });
+      get().rebuild();
+    } catch (e) {
+      console.error("insertTab failed:", e);
+    }
+  },
+
+  insertTextBox: (text, widthMm, heightMm) => {
+    const { doc, selection } = get();
+    if (!doc || !selection) return;
+    try {
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      get().pushUndo();
+      para.addTextBox(text, {
+        width: mmToHwp(widthMm),
+        height: mmToHwp(heightMm),
+        charPrIdRef: para.charPrIdRef ?? undefined,
+      });
+      get().rebuild();
+    } catch (e) {
+      console.error("insertTextBox failed:", e);
     }
   },
 }));

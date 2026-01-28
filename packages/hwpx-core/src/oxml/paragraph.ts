@@ -289,6 +289,14 @@ export class HwpxOxmlParagraph {
     return new HwpxOxmlRun(runElement, this);
   }
 
+  /** Insert a tab character at the end of the paragraph. */
+  addTab(opts?: { charPrIdRef?: string | number }): void {
+    const charPrId = opts?.charPrIdRef ?? this.charPrIdRef ?? "0";
+    const runElement = subElement(this.element, HP_NS, "run", { charPrIDRef: String(charPrId) });
+    subElement(runElement, HP_NS, "tab");
+    this.section.markDirty();
+  }
+
   addTable(rows: number, cols: number, opts?: { width?: number; height?: number; borderFillIdRef?: string | number }): HwpxOxmlTable {
     let borderFillIdRef = opts?.borderFillIdRef;
     if (borderFillIdRef == null) {
@@ -595,10 +603,224 @@ export class HwpxOxmlParagraph {
     return eqs;
   }
 
+  /**
+   * Add a text box (drawText) element to this paragraph.
+   * @param text - The text content of the text box
+   * @param opts - width/height in hwpUnits
+   */
+  addTextBox(text: string, opts: {
+    width: number;
+    height: number;
+    x?: number;
+    y?: number;
+    textWrap?: string;
+    borderColor?: string;
+    fillColor?: string;
+    charPrIdRef?: string | number;
+  }): Element {
+    const doc = this.element.ownerDocument!;
+    const width = Math.max(opts.width, 1);
+    const height = Math.max(opts.height, 1);
+    const x = opts.x ?? 0;
+    const y = opts.y ?? 0;
+    const textWrap = opts.textWrap ?? "SQUARE";
+    const borderColor = opts.borderColor ?? "#000000";
+    const fillColor = opts.fillColor ?? "#FFFFFF";
+
+    const runCharPrId = opts.charPrIdRef != null ? String(opts.charPrIdRef) : (this.charPrIdRef ?? "0");
+    const run = subElement(this.element, HP_NS, "run", { charPrIDRef: runCharPrId });
+
+    const drawText = createNsElement(doc, HP_NS, "drawText", {
+      id: objectId(),
+      zOrder: "0",
+      numberingType: "TEXTBOX",
+      textWrap,
+      textFlow: "BOTH_SIDES",
+      lock: "0",
+      dropcapstyle: "None",
+      editable: "1",
+      drawTextVerticalAlign: "TOP",
+    });
+    run.appendChild(drawText);
+
+    // Size element
+    subElement(drawText, HP_NS, "sz", {
+      width: String(width), widthRelTo: "ABSOLUTE",
+      height: String(height), heightRelTo: "ABSOLUTE",
+      protect: "0",
+    });
+
+    // Position element
+    subElement(drawText, HP_NS, "pos", {
+      treatAsChar: "0", affectLSpacing: "0", flowWithText: "1",
+      allowOverlap: "0", holdAnchorAndSO: "0",
+      vertRelTo: "PARA", horzRelTo: "COLUMN",
+      vertAlign: "TOP", horzAlign: "LEFT",
+      vertOffset: String(y), horzOffset: String(x),
+    });
+
+    // Outer margin
+    subElement(drawText, HP_NS, "outMargin", { left: "0", right: "0", top: "0", bottom: "0" });
+
+    // Line shape (border)
+    const lineShape = subElement(drawText, HP_NS, "lineShape", {
+      color: borderColor,
+      width: "0.12mm",
+      style: "SOLID",
+      endCap: "FLAT",
+      headStyle: "NORMAL",
+      tailStyle: "NORMAL",
+    });
+
+    // Fill color
+    const fillBrush = subElement(drawText, HP_NS, "fillBrush");
+    subElement(fillBrush, HC_NS, "winBrush", {
+      faceColor: fillColor,
+      hatchColor: "#FFFFFF",
+      alpha: "0",
+    });
+
+    // Text box content - add a sub-paragraph
+    const textMargin = subElement(drawText, HP_NS, "textMargin", { left: "100", right: "100", top: "100", bottom: "100" });
+    const subPara = createNsElement(doc, HP_NS, "p", DEFAULT_PARAGRAPH_ATTRS);
+    drawText.appendChild(subPara);
+    const subRun = subElement(subPara, HP_NS, "run", { charPrIDRef: runCharPrId });
+    const tEl = subElement(subRun, HP_NS, "t");
+    tEl.textContent = text;
+
+    this.section.markDirty();
+    return drawText;
+  }
+
+  /** Return all <drawText> (text box) elements across all runs. */
+  get textBoxes(): Element[] {
+    const boxes: Element[] = [];
+    for (const run of findAllChildren(this.element, HP_NS, "run")) {
+      for (const child of childElements(run)) {
+        if (elementLocalName(child) === "drawText") boxes.push(child);
+      }
+    }
+    return boxes;
+  }
+
+  /** Get text box size. */
+  getTextBoxSize(index: number): { width: number; height: number } {
+    const box = this.textBoxes[index];
+    if (!box) return { width: 0, height: 0 };
+    const sz = findChild(box, HP_NS, "sz");
+    if (!sz) return { width: 0, height: 0 };
+    return {
+      width: parseInt(sz.getAttribute("width") ?? "0", 10),
+      height: parseInt(sz.getAttribute("height") ?? "0", 10),
+    };
+  }
+
+  /** Set text box size. */
+  setTextBoxSize(index: number, width: number, height: number): void {
+    const box = this.textBoxes[index];
+    if (!box) return;
+    const sz = findChild(box, HP_NS, "sz");
+    if (sz) {
+      sz.setAttribute("width", String(Math.max(width, 1)));
+      sz.setAttribute("height", String(Math.max(height, 1)));
+    }
+    this.section.markDirty();
+  }
+
+  /** Get text box text content. */
+  getTextBoxText(index: number): string {
+    const box = this.textBoxes[index];
+    if (!box) return "";
+    const parts: string[] = [];
+    for (const t of findAllDescendants(box, "t")) {
+      if (t.textContent) parts.push(t.textContent);
+    }
+    return parts.join("");
+  }
+
+  /** Set text box text content. */
+  setTextBoxText(index: number, text: string): void {
+    const box = this.textBoxes[index];
+    if (!box) return;
+    // Find the first <t> element and update it
+    const tElements = findAllDescendants(box, "t");
+    if (tElements.length > 0) {
+      tElements[0]!.textContent = text;
+      // Clear other text elements
+      for (let i = 1; i < tElements.length; i++) {
+        tElements[i]!.textContent = "";
+      }
+    }
+    this.section.markDirty();
+  }
+
   remove(): void {
     const parent = this.element.parentNode;
     if (!parent) return;
     parent.removeChild(this.element);
+    this.section.markDirty();
+  }
+
+  /**
+   * Apply a character property to a specific text range.
+   * This will split runs as needed to apply formatting only to the selected range.
+   * @param startOffset - Start character offset (0-based)
+   * @param endOffset - End character offset (exclusive)
+   * @param charPrIdRef - The character property ID to apply
+   */
+  applyCharFormatToRange(startOffset: number, endOffset: number, charPrIdRef: string | number): void {
+    if (startOffset >= endOffset) return;
+
+    const runs = this.runs;
+    if (runs.length === 0) return;
+
+    // Build a flat list of characters with their run info
+    type CharInfo = { runIndex: number; localOffset: number; char: string };
+    const chars: CharInfo[] = [];
+    for (let ri = 0; ri < runs.length; ri++) {
+      const runText = runs[ri]!.text;
+      for (let ci = 0; ci < runText.length; ci++) {
+        chars.push({ runIndex: ri, localOffset: ci, char: runText[ci]! });
+      }
+    }
+
+    if (startOffset >= chars.length) return;
+    const actualEnd = Math.min(endOffset, chars.length);
+
+    // Collect the new run structure
+    type NewRun = { text: string; charPrIdRef: string | null };
+    const newRuns: NewRun[] = [];
+
+    // Before selection
+    if (startOffset > 0) {
+      const beforeText = chars.slice(0, startOffset).map(c => c.char).join("");
+      const beforeCharPr = runs[chars[0]!.runIndex]!.charPrIdRef;
+      newRuns.push({ text: beforeText, charPrIdRef: beforeCharPr });
+    }
+
+    // Selected range
+    const selectedText = chars.slice(startOffset, actualEnd).map(c => c.char).join("");
+    newRuns.push({ text: selectedText, charPrIdRef: String(charPrIdRef) });
+
+    // After selection
+    if (actualEnd < chars.length) {
+      const afterText = chars.slice(actualEnd).map(c => c.char).join("");
+      const afterCharPr = runs[chars[actualEnd]!.runIndex]!.charPrIdRef;
+      newRuns.push({ text: afterText, charPrIdRef: afterCharPr });
+    }
+
+    // Remove existing runs
+    for (const run of runs) {
+      run.remove();
+    }
+
+    // Create new runs
+    for (const nr of newRuns) {
+      if (nr.text) {
+        this.addRun(nr.text, { charPrIdRef: nr.charPrIdRef ?? "0" });
+      }
+    }
+
     this.section.markDirty();
   }
 

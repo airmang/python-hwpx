@@ -1,13 +1,92 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useEditorStore } from "@/lib/store";
+import { useEditorStore, type SelectionState } from "@/lib/store";
 import { hwpToMm } from "@/lib/hwp-units";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarField } from "./SidebarField";
 
 function roundMm(hwp: number): number {
   return Math.round(hwpToMm(hwp) * 10) / 10;
+}
+
+/** Cell size adjustment for selected cells */
+function CellSizeSection({
+  selection,
+  hasTable,
+  inputClass,
+}: {
+  selection: SelectionState | null;
+  hasTable: boolean;
+  inputClass: string;
+}) {
+  const setSelectedCellsSize = useEditorStore((s) => s.setSelectedCellsSize);
+  const [cellWidth, setCellWidth] = useState<number>(30);
+  const [cellHeight, setCellHeight] = useState<number>(10);
+
+  const isCellSelected = selection?.type === "cell" && hasTable;
+  const hasMultipleCells =
+    isCellSelected &&
+    (selection.endRow != null || selection.endCol != null) &&
+    (selection.endRow !== selection.row || selection.endCol !== selection.col);
+
+  const startRow = Math.min(selection?.row ?? 0, selection?.endRow ?? selection?.row ?? 0);
+  const endRow = Math.max(selection?.row ?? 0, selection?.endRow ?? selection?.row ?? 0);
+  const startCol = Math.min(selection?.col ?? 0, selection?.endCol ?? selection?.col ?? 0);
+  const endCol = Math.max(selection?.col ?? 0, selection?.endCol ?? selection?.col ?? 0);
+
+  const selectedRowCount = endRow - startRow + 1;
+  const selectedColCount = endCol - startCol + 1;
+
+  return (
+    <SidebarSection title="셀 크기" defaultOpen={true}>
+      <div className="text-[10px] text-gray-500 mb-2">
+        {isCellSelected ? (
+          hasMultipleCells ? (
+            `선택: ${selectedRowCount}행 × ${selectedColCount}열`
+          ) : (
+            `셀 (${(selection?.row ?? 0) + 1}, ${(selection?.col ?? 0) + 1})`
+          )
+        ) : (
+          "셀을 선택하세요 (Shift+클릭으로 범위 선택)"
+        )}
+      </div>
+      <SidebarField label="너비 (mm)">
+        <input
+          type="number"
+          value={cellWidth}
+          disabled={!isCellSelected}
+          step={1}
+          min={5}
+          onChange={(e) => setCellWidth(Number(e.target.value))}
+          onBlur={() => isCellSelected && cellWidth > 0 && setSelectedCellsSize(cellWidth, undefined)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && isCellSelected && cellWidth > 0) {
+              setSelectedCellsSize(cellWidth, undefined);
+            }
+          }}
+          className={inputClass}
+        />
+      </SidebarField>
+      <SidebarField label="높이 (mm)">
+        <input
+          type="number"
+          value={cellHeight}
+          disabled={!isCellSelected}
+          step={1}
+          min={3}
+          onChange={(e) => setCellHeight(Number(e.target.value))}
+          onBlur={() => isCellSelected && cellHeight > 0 && setSelectedCellsSize(undefined, cellHeight)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && isCellSelected && cellHeight > 0) {
+              setSelectedCellsSize(undefined, cellHeight);
+            }
+          }}
+          className={inputClass}
+        />
+      </SidebarField>
+    </SidebarSection>
+  );
 }
 
 export function TablePropertiesPanel() {
@@ -204,6 +283,8 @@ export function TablePropertiesPanel() {
           />
         </SidebarField>
       </SidebarSection>
+
+      <CellSizeSection selection={selection} hasTable={hasTable} inputClass={inputClass} />
 
       <SidebarSection title="바깥 여백" defaultOpen={false}>
         <SidebarField label="위 (mm)">
