@@ -11,10 +11,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SKELETON_PATH = resolve(__dirname, "..", "assets", "Skeleton.hwpx");
 const skeletonBytes = new Uint8Array(readFileSync(SKELETON_PATH));
 
-const SAMPLE_PATH = "/Users/jskang/Downloads/평가원 영어 양식.hwpx";
+// Optional sample file for extended tests - set HWPX_SAMPLE_PATH env var
+const SAMPLE_PATH = process.env.HWPX_SAMPLE_PATH || "";
 let sampleBytes: Uint8Array | null = null;
 try {
-  sampleBytes = new Uint8Array(readFileSync(SAMPLE_PATH));
+  if (SAMPLE_PATH) {
+    sampleBytes = new Uint8Array(readFileSync(SAMPLE_PATH));
+  }
 } catch {
   // sample file not available
 }
@@ -264,8 +267,9 @@ describe.skipIf(!sampleBytes)("평가원 영어 양식 라운드트립", () => {
     doc.replaceText("다음을 듣고", "[수정됨] 다음을 듣고");
 
     const saved = await doc.save();
-    writeFileSync("/Users/jskang/Desktop/평가원-수정본.hwpx", saved);
-    console.log(`평가원 수정본 저장: ${saved.byteLength} bytes`);
+    const outPath = resolve(__dirname, "..", "sample-modified.hwpx");
+    writeFileSync(outPath, saved);
+    console.log(`수정본 저장: ${saved.byteLength} bytes → ${outPath}`);
 
     // 재열기 검증
     const doc2 = await HwpxDocument.open(saved);

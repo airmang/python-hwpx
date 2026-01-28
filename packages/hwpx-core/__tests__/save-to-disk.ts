@@ -15,7 +15,7 @@ async function main() {
   doc.addParagraph("정상적으로 저장되었습니다.");
 
   const saved = await doc.save();
-  const outPath = "/Users/jskang/Desktop/test-output.hwpx";
+  const outPath = resolve(__dirname, "..", "test-output.hwpx");
   writeFileSync(outPath, saved);
   console.log(`저장 완료: ${saved.byteLength} bytes → ${outPath}`);
 }

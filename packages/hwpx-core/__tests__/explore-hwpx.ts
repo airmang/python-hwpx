@@ -1,11 +1,17 @@
 import { readFileSync } from "fs";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
 import { HwpxDocument } from "../src/document.js";
 import { HwpxPackage } from "../src/package.js";
 import { TextExtractor } from "../src/tools/text-extractor.js";
 import { ObjectFinder } from "../src/tools/object-finder.js";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 async function main() {
-  const data = new Uint8Array(readFileSync("/Users/jskang/Downloads/평가원 영어 양식.hwpx"));
+  // Pass file path as CLI argument or use skeleton
+  const filePath = process.argv[2] || resolve(__dirname, "..", "assets", "Skeleton.hwpx");
+  const data = new Uint8Array(readFileSync(filePath));
 
   // 패키지 구조
   const pkg = await HwpxPackage.open(data);

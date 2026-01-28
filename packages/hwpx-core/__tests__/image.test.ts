@@ -129,28 +129,18 @@ describe("이미지 삽입", () => {
     doc.addParagraph("이미지 삽입 테스트 문서");
     doc.addParagraph("");
 
-    // 실제 이미지 파일이 있으면 사용
-    let imgData: Uint8Array;
-    let mediaType: string;
-    try {
-      // 평가원 양식에서 이미지 추출
-      const samplePkg = await HwpxPackage.open(
-        new Uint8Array(readFileSync("/Users/jskang/Downloads/평가원 영어 양식.hwpx"))
-      );
-      imgData = samplePkg.getPart("BinData/image1.jpg");
-      mediaType = "image/jpeg";
-    } catch {
-      imgData = RED_PIXEL_PNG;
-      mediaType = "image/png";
-    }
+    // Use test pixel image
+    const imgData = RED_PIXEL_PNG;
+    const mediaType = "image/png";
 
     doc.addImage(imgData, { mediaType, widthMm: 80, heightMm: 20 });
     doc.addParagraph("");
     doc.addParagraph("이미지가 위에 표시되어야 합니다.");
 
     const saved = await doc.save();
-    writeFileSync("/Users/jskang/Downloads/image-test.hwpx", saved);
-    console.log(`이미지 테스트 파일 저장: ${saved.byteLength} bytes`);
+    const outPath = resolve(__dirname, "..", "image-test.hwpx");
+    writeFileSync(outPath, saved);
+    console.log(`이미지 테스트 파일 저장: ${saved.byteLength} bytes → ${outPath}`);
 
     // 재열기 검증
     const doc2 = await HwpxDocument.open(saved);
