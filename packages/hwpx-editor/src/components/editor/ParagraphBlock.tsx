@@ -72,6 +72,12 @@ export function ParagraphBlock({
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (hasTables || hasImages) return;
 
+      // Block Shift+Enter (no soft line break)
+      if (e.key === "Enter" && e.shiftKey) {
+        e.preventDefault();
+        return;
+      }
+
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         // Flush current text before split
@@ -156,11 +162,63 @@ export function ParagraphBlock({
           }
         }
       }
+      // Arrow key navigation between paragraphs
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        const sel = window.getSelection();
+        if (!sel || !sel.isCollapsed || !sel.rangeCount || !ref.current) return;
+
+        const range = sel.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        const containerRect = ref.current.getBoundingClientRect();
+
+        const atTop = rect.top <= containerRect.top + 2;
+        const atBottom = rect.bottom >= containerRect.bottom - 2;
+
+        if (e.key === "ArrowUp" && atTop && localIndex > 0) {
+          e.preventDefault();
+          const prev = ref.current.parentElement
+            ? ref.current.previousElementSibling as HTMLElement | null
+            : null;
+          // Find previous contenteditable sibling within the page
+          const page = ref.current.closest("[data-page]") ?? ref.current.parentElement;
+          if (page) {
+            const editables = page.querySelectorAll<HTMLElement>("[contenteditable]");
+            const arr = Array.from(editables);
+            const idx = arr.indexOf(ref.current);
+            if (idx > 0) {
+              const target = arr[idx - 1]!;
+              target.focus();
+              // Place cursor at end
+              const s = window.getSelection();
+              if (s) { s.selectAllChildren(target); s.collapseToEnd(); }
+            }
+          }
+          return;
+        }
+
+        if (e.key === "ArrowDown" && atBottom && localIndex < paragraphCount - 1) {
+          e.preventDefault();
+          const page = ref.current.closest("[data-page]") ?? ref.current.parentElement;
+          if (page) {
+            const editables = page.querySelectorAll<HTMLElement>("[contenteditable]");
+            const arr = Array.from(editables);
+            const idx = arr.indexOf(ref.current);
+            if (idx >= 0 && idx < arr.length - 1) {
+              const target = arr[idx + 1]!;
+              target.focus();
+              // Place cursor at start
+              const s = window.getSelection();
+              if (s) { s.selectAllChildren(target); s.collapseToStart(); }
+            }
+          }
+          return;
+        }
+      }
     },
     [sectionIndex, localIndex, paragraph, hasTables, hasImages, paragraphCount, splitParagraph, mergeParagraphWithPrevious, deleteBlock, updateParagraphText],
   );
 
-  // Common paragraph styles
+  // Common paragraph styles (includes base font for contentEditable typing)
   const paraStyle: React.CSSProperties = {
     textAlign: alignmentToCSS(paragraph.alignment),
     lineHeight: paragraph.lineSpacing,
@@ -169,6 +227,8 @@ export function ParagraphBlock({
     textIndent: paragraph.firstLineIndent || undefined,
     paddingTop: paragraph.spacingBefore || undefined,
     paddingBottom: paragraph.spacingAfter || undefined,
+    fontSize: paragraph.defaultFontSize ? `${paragraph.defaultFontSize}pt` : undefined,
+    fontFamily: paragraph.defaultFontFamily || undefined,
   };
 
   // If paragraph has tables, render them

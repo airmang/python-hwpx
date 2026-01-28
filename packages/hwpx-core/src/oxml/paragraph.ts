@@ -6,7 +6,7 @@ import { childElements } from "../xml/dom.js";
 import { HC_NS } from "./schema.js";
 import type { RunStyle } from "./types.js";
 import type { HwpxOxmlSection } from "./section.js";
-import { HwpxOxmlTable } from "./table.js";
+import { HwpxOxmlTable, type HwpxMargin } from "./table.js";
 import {
   HP_NS,
   objectId,
@@ -449,6 +449,60 @@ export class HwpxOxmlParagraph {
       rotInfo.setAttribute("centerY", String(Math.floor(h / 2)));
     }
 
+    this.section.markDirty();
+  }
+
+  /** Get picture outer margin by index. */
+  getPictureOutMargin(pictureIndex: number): HwpxMargin {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return { top: 0, bottom: 0, left: 0, right: 0 };
+    const el = findChild(pic, HP_NS, "outMargin");
+    if (!el) return { top: 0, bottom: 0, left: 0, right: 0 };
+    return {
+      top: parseInt(el.getAttribute("top") ?? "0", 10),
+      bottom: parseInt(el.getAttribute("bottom") ?? "0", 10),
+      left: parseInt(el.getAttribute("left") ?? "0", 10),
+      right: parseInt(el.getAttribute("right") ?? "0", 10),
+    };
+  }
+
+  /** Set picture outer margin by index. */
+  setPictureOutMargin(pictureIndex: number, margin: Partial<HwpxMargin>): void {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return;
+    let el = findChild(pic, HP_NS, "outMargin");
+    if (!el) el = subElement(pic, HP_NS, "outMargin", { left: "0", right: "0", top: "0", bottom: "0" });
+    if (margin.top != null) el.setAttribute("top", String(Math.max(margin.top, 0)));
+    if (margin.bottom != null) el.setAttribute("bottom", String(Math.max(margin.bottom, 0)));
+    if (margin.left != null) el.setAttribute("left", String(Math.max(margin.left, 0)));
+    if (margin.right != null) el.setAttribute("right", String(Math.max(margin.right, 0)));
+    this.section.markDirty();
+  }
+
+  /** Get picture inner margin by index. */
+  getPictureInMargin(pictureIndex: number): HwpxMargin {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return { top: 0, bottom: 0, left: 0, right: 0 };
+    const el = findChild(pic, HP_NS, "inMargin");
+    if (!el) return { top: 0, bottom: 0, left: 0, right: 0 };
+    return {
+      top: parseInt(el.getAttribute("top") ?? "0", 10),
+      bottom: parseInt(el.getAttribute("bottom") ?? "0", 10),
+      left: parseInt(el.getAttribute("left") ?? "0", 10),
+      right: parseInt(el.getAttribute("right") ?? "0", 10),
+    };
+  }
+
+  /** Set picture inner margin by index. */
+  setPictureInMargin(pictureIndex: number, margin: Partial<HwpxMargin>): void {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return;
+    let el = findChild(pic, HP_NS, "inMargin");
+    if (!el) el = subElement(pic, HP_NS, "inMargin", { left: "0", right: "0", top: "0", bottom: "0" });
+    if (margin.top != null) el.setAttribute("top", String(Math.max(margin.top, 0)));
+    if (margin.bottom != null) el.setAttribute("bottom", String(Math.max(margin.bottom, 0)));
+    if (margin.left != null) el.setAttribute("left", String(Math.max(margin.left, 0)));
+    if (margin.right != null) el.setAttribute("right", String(Math.max(margin.right, 0)));
     this.section.markDirty();
   }
 

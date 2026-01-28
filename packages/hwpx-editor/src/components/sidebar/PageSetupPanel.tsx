@@ -1,10 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { useEditorStore } from "@/lib/store";
 import { PAGE_SIZE_PRESETS, type OrientationType } from "@/lib/constants";
 import { hwpToMm } from "@/lib/hwp-units";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarField } from "./SidebarField";
+
+const PAGE_NUMBER_POSITIONS = [
+  { value: "none", label: "없음" },
+  { value: "header-center", label: "머리말 가운데" },
+  { value: "header-right", label: "머리말 오른쪽" },
+  { value: "footer-center", label: "꼬리말 가운데" },
+  { value: "footer-right", label: "꼬리말 오른쪽" },
+] as const;
 
 export function PageSetupPanel() {
   const doc = useEditorStore((s) => s.doc);
@@ -12,7 +21,11 @@ export function PageSetupPanel() {
   const updatePageSize = useEditorStore((s) => s.updatePageSize);
   const updatePageMargins = useEditorStore((s) => s.updatePageMargins);
   const updatePageOrientation = useEditorStore((s) => s.updatePageOrientation);
+  const setPageNumbering = useEditorStore((s) => s.setPageNumbering);
   const viewModel = useEditorStore((s) => s.viewModel);
+
+  const [pageNumPosition, setPageNumPosition] = useState("none");
+  const [pageNumStart, setPageNumStart] = useState(1);
 
   const disabled = !doc;
   const sIdx = selection?.sectionIndex ?? 0;
@@ -280,6 +293,52 @@ export function PageSetupPanel() {
             />
             <span className="text-[10px] text-gray-400 flex-shrink-0">mm</span>
           </div>
+        </SidebarField>
+      </SidebarSection>
+
+      <SidebarSection title="쪽 번호">
+        <SidebarField label="위치">
+          <select
+            disabled={disabled}
+            value={pageNumPosition}
+            onChange={(e) => {
+              setPageNumPosition(e.target.value);
+              setPageNumbering({ position: e.target.value, startNumber: pageNumStart });
+            }}
+            className={inputClass}
+          >
+            {PAGE_NUMBER_POSITIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </SidebarField>
+        <SidebarField label="시작 번호">
+          <input
+            type="number"
+            value={pageNumStart}
+            disabled={disabled}
+            min={1}
+            step={1}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              if (!isNaN(v) && v >= 1) {
+                setPageNumStart(v);
+              }
+            }}
+            onBlur={() => {
+              if (!disabled && pageNumPosition !== "none") {
+                setPageNumbering({ position: pageNumPosition, startNumber: pageNumStart });
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !disabled && pageNumPosition !== "none") {
+                setPageNumbering({ position: pageNumPosition, startNumber: pageNumStart });
+              }
+            }}
+            className={inputClass}
+          />
         </SidebarField>
       </SidebarSection>
     </div>

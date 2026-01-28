@@ -1,14 +1,23 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useEditorStore } from "@/lib/store";
+import { hwpToMm } from "@/lib/hwp-units";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarField } from "./SidebarField";
+
+function roundMm(hwp: number): number {
+  return Math.round(hwpToMm(hwp) * 10) / 10;
+}
 
 export function TablePropertiesPanel() {
   const selection = useEditorStore((s) => s.selection);
   const viewModel = useEditorStore((s) => s.viewModel);
   const setTablePageBreak = useEditorStore((s) => s.setTablePageBreak);
   const setTableRepeatHeader = useEditorStore((s) => s.setTableRepeatHeader);
+  const setTableSize = useEditorStore((s) => s.setTableSize);
+  const setTableOutMargin = useEditorStore((s) => s.setTableOutMargin);
+  const setTableInMargin = useEditorStore((s) => s.setTableInMargin);
 
   const sIdx = selection?.sectionIndex ?? 0;
   const pIdx = selection?.paragraphIndex ?? 0;
@@ -16,6 +25,42 @@ export function TablePropertiesPanel() {
 
   const table = viewModel?.sections[sIdx]?.paragraphs[pIdx]?.tables[tIdx];
   const hasTable = !!table;
+
+  const widthMm = table ? roundMm(table.widthHwp) : 0;
+  const heightMm = table ? roundMm(table.heightHwp) : 0;
+
+  const [editWidth, setEditWidth] = useState(widthMm);
+  const [editHeight, setEditHeight] = useState(heightMm);
+
+  // Outer margin state
+  const [outTop, setOutTop] = useState(table ? roundMm(table.outMargin.top) : 0);
+  const [outBottom, setOutBottom] = useState(table ? roundMm(table.outMargin.bottom) : 0);
+  const [outLeft, setOutLeft] = useState(table ? roundMm(table.outMargin.left) : 0);
+  const [outRight, setOutRight] = useState(table ? roundMm(table.outMargin.right) : 0);
+
+  // Inner margin state
+  const [inTop, setInTop] = useState(table ? roundMm(table.inMargin.top) : 0);
+  const [inBottom, setInBottom] = useState(table ? roundMm(table.inMargin.bottom) : 0);
+  const [inLeft, setInLeft] = useState(table ? roundMm(table.inMargin.left) : 0);
+  const [inRight, setInRight] = useState(table ? roundMm(table.inMargin.right) : 0);
+
+  useEffect(() => {
+    setEditWidth(widthMm);
+    setEditHeight(heightMm);
+  }, [widthMm, heightMm]);
+
+  useEffect(() => {
+    if (!table) return;
+    setOutTop(roundMm(table.outMargin.top));
+    setOutBottom(roundMm(table.outMargin.bottom));
+    setOutLeft(roundMm(table.outMargin.left));
+    setOutRight(roundMm(table.outMargin.right));
+    setInTop(roundMm(table.inMargin.top));
+    setInBottom(roundMm(table.inMargin.bottom));
+    setInLeft(roundMm(table.inMargin.left));
+    setInRight(roundMm(table.inMargin.right));
+  }, [table?.outMargin.top, table?.outMargin.bottom, table?.outMargin.left, table?.outMargin.right,
+      table?.inMargin.top, table?.inMargin.bottom, table?.inMargin.left, table?.inMargin.right]);
 
   const pageBreak = table?.pageBreak ?? "CELL";
   const repeatHeader = table?.repeatHeader ?? false;
@@ -98,6 +143,47 @@ export function TablePropertiesPanel() {
         </label>
       </SidebarSection>
 
+      <SidebarSection title="표 크기">
+        <SidebarField label="너비 (mm)">
+          <input
+            type="number"
+            value={editWidth}
+            disabled={!hasTable}
+            step={1}
+            min={10}
+            onChange={(e) => setEditWidth(Number(e.target.value))}
+            onBlur={() => {
+              if (hasTable && editWidth > 0) setTableSize(editWidth, editHeight);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && hasTable && editWidth > 0) {
+                setTableSize(editWidth, editHeight);
+              }
+            }}
+            className={inputClass}
+          />
+        </SidebarField>
+        <SidebarField label="높이 (mm)">
+          <input
+            type="number"
+            value={editHeight}
+            disabled={!hasTable}
+            step={1}
+            min={10}
+            onChange={(e) => setEditHeight(Number(e.target.value))}
+            onBlur={() => {
+              if (hasTable && editHeight > 0) setTableSize(editWidth, editHeight);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && hasTable && editHeight > 0) {
+                setTableSize(editWidth, editHeight);
+              }
+            }}
+            className={inputClass}
+          />
+        </SidebarField>
+      </SidebarSection>
+
       <SidebarSection title="표 정보">
         <SidebarField label="행">
           <input
@@ -116,6 +202,68 @@ export function TablePropertiesPanel() {
             onChange={() => {}}
             className={inputClass}
           />
+        </SidebarField>
+      </SidebarSection>
+
+      <SidebarSection title="바깥 여백" defaultOpen={false}>
+        <SidebarField label="위 (mm)">
+          <input type="number" value={outTop} disabled={!hasTable} step={0.1} min={0}
+            onChange={(e) => setOutTop(Number(e.target.value))}
+            onBlur={() => hasTable && setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight })}
+            onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight }); }}
+            className={inputClass} />
+        </SidebarField>
+        <SidebarField label="아래 (mm)">
+          <input type="number" value={outBottom} disabled={!hasTable} step={0.1} min={0}
+            onChange={(e) => setOutBottom(Number(e.target.value))}
+            onBlur={() => hasTable && setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight })}
+            onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight }); }}
+            className={inputClass} />
+        </SidebarField>
+        <SidebarField label="왼쪽 (mm)">
+          <input type="number" value={outLeft} disabled={!hasTable} step={0.1} min={0}
+            onChange={(e) => setOutLeft(Number(e.target.value))}
+            onBlur={() => hasTable && setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight })}
+            onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight }); }}
+            className={inputClass} />
+        </SidebarField>
+        <SidebarField label="오른쪽 (mm)">
+          <input type="number" value={outRight} disabled={!hasTable} step={0.1} min={0}
+            onChange={(e) => setOutRight(Number(e.target.value))}
+            onBlur={() => hasTable && setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight })}
+            onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight }); }}
+            className={inputClass} />
+        </SidebarField>
+      </SidebarSection>
+
+      <SidebarSection title="안쪽 여백" defaultOpen={false}>
+        <SidebarField label="위 (mm)">
+          <input type="number" value={inTop} disabled={!hasTable} step={0.1} min={0}
+            onChange={(e) => setInTop(Number(e.target.value))}
+            onBlur={() => hasTable && setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight })}
+            onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight }); }}
+            className={inputClass} />
+        </SidebarField>
+        <SidebarField label="아래 (mm)">
+          <input type="number" value={inBottom} disabled={!hasTable} step={0.1} min={0}
+            onChange={(e) => setInBottom(Number(e.target.value))}
+            onBlur={() => hasTable && setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight })}
+            onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight }); }}
+            className={inputClass} />
+        </SidebarField>
+        <SidebarField label="왼쪽 (mm)">
+          <input type="number" value={inLeft} disabled={!hasTable} step={0.1} min={0}
+            onChange={(e) => setInLeft(Number(e.target.value))}
+            onBlur={() => hasTable && setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight })}
+            onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight }); }}
+            className={inputClass} />
+        </SidebarField>
+        <SidebarField label="오른쪽 (mm)">
+          <input type="number" value={inRight} disabled={!hasTable} step={0.1} min={0}
+            onChange={(e) => setInRight(Number(e.target.value))}
+            onBlur={() => hasTable && setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight })}
+            onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight }); }}
+            className={inputClass} />
         </SidebarField>
       </SidebarSection>
 

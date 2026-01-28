@@ -42,6 +42,10 @@ export interface UIState {
   sidebarOpen: boolean;
   sidebarTab: SidebarTab;
   saveDialogOpen: boolean;
+  charFormatDialogOpen: boolean;
+  paraFormatDialogOpen: boolean;
+  bulletNumberDialogOpen: boolean;
+  charMapDialogOpen: boolean;
 }
 
 interface UndoEntry {
@@ -144,10 +148,43 @@ export interface EditorStore {
 
   // Image editing
   updatePictureSize: (widthMm: number, heightMm: number) => void;
+  resizeImage: (deltaWidthHwp: number, deltaHeightHwp: number) => void;
+  setImageOutMargin: (margins: Partial<{ top: number; bottom: number; left: number; right: number }>) => void;
 
   // Table editing
   setTablePageBreak: (mode: "CELL" | "NONE") => void;
   setTableRepeatHeader: (repeat: boolean) => void;
+  setTableSize: (widthMm: number, heightMm: number) => void;
+  setTableOutMargin: (margins: Partial<{ top: number; bottom: number; left: number; right: number }>) => void;
+  setTableInMargin: (margins: Partial<{ top: number; bottom: number; left: number; right: number }>) => void;
+  resizeTableColumn: (sectionIdx: number, paraIdx: number, tableIdx: number, colIdx: number, deltaHwp: number) => void;
+
+  // Paragraph indent
+  setFirstLineIndent: (valueHwp: number) => void;
+  setLeftIndent: (valueHwp: number) => void;
+
+  // Page numbering
+  setPageNumbering: (opts: { position: string; startNumber: number }) => void;
+
+  // Footnote / Endnote
+  insertFootnote: () => void;
+  insertEndnote: () => void;
+
+  // Watermark
+  setWatermarkText: (text: string) => void;
+
+  // Dialog open/close
+  openCharFormatDialog: () => void;
+  closeCharFormatDialog: () => void;
+  openParaFormatDialog: () => void;
+  closeParaFormatDialog: () => void;
+  openBulletNumberDialog: () => void;
+  closeBulletNumberDialog: () => void;
+  openCharMapDialog: () => void;
+  closeCharMapDialog: () => void;
+
+  // Text insertion at cursor
+  insertTextAtCursor: (text: string) => void;
 
   // Page setup
   updatePageSize: (width: number, height: number) => void;
@@ -194,7 +231,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   undoStack: [],
   redoStack: [],
   extendedFormat: { char: defaultCharFormat, para: defaultParaFormat },
-  uiState: { sidebarOpen: true, sidebarTab: "char", saveDialogOpen: false },
+  uiState: { sidebarOpen: true, sidebarTab: "char", saveDialogOpen: false, charFormatDialogOpen: false, paraFormatDialogOpen: false, bulletNumberDialogOpen: false, charMapDialogOpen: false },
   loading: false,
   error: null,
 
@@ -865,6 +902,53 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
+  resizeImage: (deltaWidthHwp, deltaHeightHwp) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.objectType !== "image") return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const imgIdx = selection.imageIndex ?? 0;
+    const pics = para.pictures;
+    const pic = pics[imgIdx];
+    if (!pic) return;
+    try {
+      get().pushUndo();
+      // Read current size from curSz
+      const vm = get().viewModel;
+      const imgVM = vm?.sections[selection.sectionIndex]?.paragraphs[selection.paragraphIndex]?.images[imgIdx];
+      if (!imgVM) return;
+      const newW = Math.max(imgVM.widthHwp + deltaWidthHwp, 200);
+      const newH = Math.max(imgVM.heightHwp + deltaHeightHwp, 200);
+      para.setPictureSize(imgIdx, newW, newH);
+      get().rebuild();
+    } catch (e) {
+      console.error("resizeImage failed:", e);
+    }
+  },
+
+  setImageOutMargin: (margins) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.objectType !== "image") return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const imgIdx = selection.imageIndex ?? 0;
+    try {
+      get().pushUndo();
+      const converted: Record<string, number> = {};
+      for (const [k, v] of Object.entries(margins)) {
+        if (v !== undefined) converted[k] = mmToHwp(v);
+      }
+      para.setPictureOutMargin(imgIdx, converted);
+      get().rebuild();
+    } catch (e) {
+      console.error("setImageOutMargin failed:", e);
+    }
+  },
+
   // Table editing actions
   setTablePageBreak: (mode) => {
     const { doc, selection } = get();
@@ -898,6 +982,269 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     } catch (e) {
       console.error("setTableRepeatHeader failed:", e);
     }
+  },
+
+  setTableSize: (widthMm, heightMm) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
+    try {
+      get().pushUndo();
+      table.setSize(mmToHwp(widthMm), mmToHwp(heightMm));
+      get().rebuild();
+    } catch (e) {
+      console.error("setTableSize failed:", e);
+    }
+  },
+
+  setTableOutMargin: (margins) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
+    try {
+      get().pushUndo();
+      const converted: Record<string, number> = {};
+      for (const [k, v] of Object.entries(margins)) {
+        if (v !== undefined) converted[k] = mmToHwp(v);
+      }
+      table.setOutMargin(converted);
+      get().rebuild();
+    } catch (e) {
+      console.error("setTableOutMargin failed:", e);
+    }
+  },
+
+  setTableInMargin: (margins) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
+    try {
+      get().pushUndo();
+      const converted: Record<string, number> = {};
+      for (const [k, v] of Object.entries(margins)) {
+        if (v !== undefined) converted[k] = mmToHwp(v);
+      }
+      table.setInMargin(converted);
+      get().rebuild();
+    } catch (e) {
+      console.error("setTableInMargin failed:", e);
+    }
+  },
+
+  resizeTableColumn: (sectionIdx, paraIdx, tableIdx, colIdx, deltaHwp) => {
+    const { doc } = get();
+    if (!doc) return;
+    const section = doc.sections[sectionIdx];
+    if (!section) return;
+    const para = section.paragraphs[paraIdx];
+    if (!para) return;
+    const table = para.tables[tableIdx];
+    if (!table) return;
+    try {
+      get().pushUndo();
+      const colCount = table.columnCount;
+      // Get current widths via the grid
+      const grid = table.getCellMap();
+      const widths: number[] = [];
+      for (let c = 0; c < colCount; c++) {
+        const pos = grid[0]?.[c];
+        widths.push(pos ? pos.cell.width : 0);
+      }
+      // Adjust left column (colIdx) and right column (colIdx+1)
+      if (colIdx < colCount - 1) {
+        const newLeft = Math.max(widths[colIdx]! + deltaHwp, 200);
+        const newRight = Math.max(widths[colIdx + 1]! - deltaHwp, 200);
+        table.setColumnWidth(colIdx, newLeft);
+        table.setColumnWidth(colIdx + 1, newRight);
+      } else {
+        // Last column: adjust its width and the table total width
+        const newWidth = Math.max(widths[colIdx]! + deltaHwp, 200);
+        table.setColumnWidth(colIdx, newWidth);
+        const totalWidth = widths.reduce((a, b) => a + b, 0) + deltaHwp;
+        table.setSize(Math.max(totalWidth, 200));
+      }
+      get().rebuild();
+    } catch (e) {
+      console.error("resizeTableColumn failed:", e);
+    }
+  },
+
+  setFirstLineIndent: (valueHwp) => {
+    const { doc, extendedFormat, selection } = get();
+    if (!doc || !selection) return;
+    try {
+      get().pushUndo();
+      const pf = extendedFormat.para;
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const paraPrIdRef = doc.ensureParaStyle({
+        alignment: pf.alignment,
+        lineSpacingValue: Math.round(pf.lineSpacing * 100),
+        indent: valueHwp,
+        marginLeft: pf.indentLeft,
+        baseParaPrId: para.paraPrIdRef ?? undefined,
+      });
+      para.paraPrIdRef = paraPrIdRef;
+      get().rebuild();
+      get().refreshExtendedFormat();
+    } catch (e) {
+      console.error("setFirstLineIndent failed:", e);
+    }
+  },
+
+  setLeftIndent: (valueHwp) => {
+    const { doc, extendedFormat, selection } = get();
+    if (!doc || !selection) return;
+    try {
+      get().pushUndo();
+      const pf = extendedFormat.para;
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const paraPrIdRef = doc.ensureParaStyle({
+        alignment: pf.alignment,
+        lineSpacingValue: Math.round(pf.lineSpacing * 100),
+        marginLeft: valueHwp,
+        indent: pf.firstLineIndent,
+        baseParaPrId: para.paraPrIdRef ?? undefined,
+      });
+      para.paraPrIdRef = paraPrIdRef;
+      get().rebuild();
+      get().refreshExtendedFormat();
+    } catch (e) {
+      console.error("setLeftIndent failed:", e);
+    }
+  },
+
+  setPageNumbering: (opts) => {
+    const { doc, selection } = get();
+    if (!doc) return;
+    const sIdx = selection?.sectionIndex ?? 0;
+    const section = doc.sections[sIdx];
+    if (!section) return;
+    try {
+      get().pushUndo();
+      const props = section.properties;
+      if (opts.position === "none") {
+        // Remove page number text by setting empty header/footer
+        props.setHeaderText("");
+        props.setFooterText("");
+      } else if (opts.position.startsWith("header")) {
+        props.setFooterText(""); // clear footer
+        const pageNumText = `- {{page}} -`;
+        props.setHeaderText(pageNumText);
+      } else if (opts.position.startsWith("footer")) {
+        props.setHeaderText(""); // clear header
+        const pageNumText = `- {{page}} -`;
+        props.setFooterText(pageNumText);
+      }
+      // Set start number if > 0
+      if (opts.startNumber > 0) {
+        section.properties.setStartNumbering({ page: opts.startNumber });
+      }
+      get().rebuild();
+    } catch (e) {
+      console.error("setPageNumbering failed:", e);
+    }
+  },
+
+  // Footnote / Endnote
+  insertFootnote: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    try {
+      get().pushUndo();
+      // Insert a footnote element into the paragraph's run
+      // Since the core doesn't have a dedicated API, we'll add via raw XML manipulation
+      const paraEl = para.element;
+      const NS = "http://www.hancom.co.kr/hwpml/2011/paragraph";
+      const runs = paraEl.getElementsByTagNameNS(NS, "run");
+      const lastRun = runs.length > 0 ? runs[runs.length - 1]! : null;
+      if (lastRun) {
+        const fnEl = paraEl.ownerDocument.createElementNS(NS, "hp:footNote");
+        // Count existing footnotes in the section to get the marker number
+        const existingFn = section.element.getElementsByTagNameNS(NS, "footNote");
+        const fnNum = existingFn.length + 1;
+        fnEl.setAttribute("number", String(fnNum));
+        // Add a sub-paragraph with placeholder text
+        const subPara = paraEl.ownerDocument.createElementNS(NS, "hp:subPara");
+        const subRun = paraEl.ownerDocument.createElementNS(NS, "hp:run");
+        const tEl = paraEl.ownerDocument.createElementNS(NS, "hp:t");
+        tEl.textContent = `각주 ${fnNum}`;
+        subRun.appendChild(tEl);
+        subPara.appendChild(subRun);
+        fnEl.appendChild(subPara);
+        lastRun.appendChild(fnEl);
+      }
+      get().rebuild();
+    } catch (e) {
+      console.error("insertFootnote failed:", e);
+    }
+  },
+
+  insertEndnote: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    try {
+      get().pushUndo();
+      const paraEl = para.element;
+      const NS = "http://www.hancom.co.kr/hwpml/2011/paragraph";
+      const runs = paraEl.getElementsByTagNameNS(NS, "run");
+      const lastRun = runs.length > 0 ? runs[runs.length - 1]! : null;
+      if (lastRun) {
+        const enEl = paraEl.ownerDocument.createElementNS(NS, "hp:endNote");
+        const existingEn = section.element.getElementsByTagNameNS(NS, "endNote");
+        const enNum = existingEn.length + 1;
+        enEl.setAttribute("number", String(enNum));
+        const subPara = paraEl.ownerDocument.createElementNS(NS, "hp:subPara");
+        const subRun = paraEl.ownerDocument.createElementNS(NS, "hp:run");
+        const tEl = paraEl.ownerDocument.createElementNS(NS, "hp:t");
+        tEl.textContent = `미주 ${enNum}`;
+        subRun.appendChild(tEl);
+        subPara.appendChild(subRun);
+        enEl.appendChild(subPara);
+        lastRun.appendChild(enEl);
+      }
+      get().rebuild();
+    } catch (e) {
+      console.error("insertEndnote failed:", e);
+    }
+  },
+
+  setWatermarkText: (text) => {
+    const vm = get().viewModel;
+    if (!vm) return;
+    // Watermark is a UI-only feature stored in the view model
+    set({
+      viewModel: { ...vm, watermarkText: text },
+      revision: get().revision + 1,
+    });
   },
 
   // Page setup actions
@@ -988,4 +1335,38 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   closeSaveDialog: () =>
     set((s) => ({ uiState: { ...s.uiState, saveDialogOpen: false } })),
+
+  // Dialog open/close
+  openCharFormatDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, charFormatDialogOpen: true } })),
+  closeCharFormatDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, charFormatDialogOpen: false } })),
+  openParaFormatDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, paraFormatDialogOpen: true } })),
+  closeParaFormatDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, paraFormatDialogOpen: false } })),
+  openBulletNumberDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, bulletNumberDialogOpen: true } })),
+  closeBulletNumberDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, bulletNumberDialogOpen: false } })),
+  openCharMapDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, charMapDialogOpen: true } })),
+  closeCharMapDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, charMapDialogOpen: false } })),
+
+  insertTextAtCursor: (text) => {
+    const { doc, selection } = get();
+    if (!doc || !selection) return;
+    try {
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      get().pushUndo();
+      para.text = para.text + text;
+      get().rebuild();
+    } catch (e) {
+      console.error("insertTextAtCursor failed:", e);
+    }
+  },
 }));

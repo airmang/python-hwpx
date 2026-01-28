@@ -188,6 +188,9 @@ export class HwpxDocument {
   ensureParaStyle(opts: {
     alignment?: string;
     lineSpacingValue?: number;
+    marginLeft?: number;
+    marginRight?: number;
+    indent?: number;
     baseParaPrId?: string | number;
   }): string {
     return this._oxml.ensureParaStyle(opts);

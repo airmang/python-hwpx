@@ -49,6 +49,7 @@ export type {
   DocumentNumbering,
   RunStyle,
   HwpxTableGridPosition,
+  HwpxMargin,
 } from "./oxml/document.js";
 
 // OXML body models

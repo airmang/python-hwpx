@@ -55,22 +55,30 @@ export function InsertGroup() {
       <RibbonGroup label="삽입">
         <ToolbarButton
           icon={<Table className="w-4 h-4" />}
+          label="표"
+          layout="vertical"
           title="표 삽입"
           disabled={disabled || !selection}
           onClick={() => setShowTableDialog(true)}
         />
         <ToolbarButton
           icon={<BarChart3 className="w-4 h-4" />}
+          label="차트"
+          layout="vertical"
           title="차트 삽입"
           disabled
         />
         <ToolbarButton
           icon={<Shapes className="w-4 h-4" />}
+          label="도형"
+          layout="vertical"
           title="도형 삽입"
           disabled
         />
         <ToolbarButton
           icon={<ImageIcon className="w-4 h-4" />}
+          label="그림"
+          layout="vertical"
           title="그림 삽입"
           disabled={disabled}
           onClick={() => imageInputRef.current?.click()}
@@ -84,12 +92,16 @@ export function InsertGroup() {
         />
         <ToolbarButton
           icon={<Columns className="w-4 h-4" />}
+          label="단"
+          layout="vertical"
           title="단 나누기"
           disabled={disabled || !selection}
           onClick={() => insertColumnBreak()}
         />
         <ToolbarButton
           icon={<FileDown className="w-4 h-4" />}
+          label="쪽"
+          layout="vertical"
           title="쪽 나누기"
           disabled={disabled || !selection}
           onClick={() => insertPageBreak()}
@@ -99,6 +111,8 @@ export function InsertGroup() {
       <RibbonGroup label="파일">
         <ToolbarButton
           icon={<Save className="w-4 h-4" />}
+          label="저장"
+          layout="vertical"
           title="저장 (Ctrl+S)"
           disabled={disabled || loading}
           onClick={() => saveDocument()}

@@ -24,6 +24,14 @@ import {
 
 // -- HwpxOxmlTableCell --
 
+/** Margin values (top, bottom, left, right) in hwpUnits. */
+export interface HwpxMargin {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
 export class HwpxOxmlTableCell {
   element: Element;
   table: HwpxOxmlTable;
@@ -103,6 +111,29 @@ export class HwpxOxmlTableCell {
     this.table.markDirty();
   }
 
+  /** Get cell margin (cellMargin element). */
+  getMargin(): HwpxMargin {
+    const el = findChild(this.element, HP_NS, "cellMargin");
+    if (!el) return { top: 0, bottom: 0, left: 0, right: 0 };
+    return {
+      top: parseInt(el.getAttribute("top") ?? "0", 10),
+      bottom: parseInt(el.getAttribute("bottom") ?? "0", 10),
+      left: parseInt(el.getAttribute("left") ?? "0", 10),
+      right: parseInt(el.getAttribute("right") ?? "0", 10),
+    };
+  }
+
+  /** Set cell margin (cellMargin element). */
+  setMargin(margin: Partial<HwpxMargin>): void {
+    let el = findChild(this.element, HP_NS, "cellMargin");
+    if (!el) el = subElement(this.element, HP_NS, "cellMargin", defaultCellMarginAttributes());
+    if (margin.top != null) el.setAttribute("top", String(Math.max(margin.top, 0)));
+    if (margin.bottom != null) el.setAttribute("bottom", String(Math.max(margin.bottom, 0)));
+    if (margin.left != null) el.setAttribute("left", String(Math.max(margin.left, 0)));
+    if (margin.right != null) el.setAttribute("right", String(Math.max(margin.right, 0)));
+    this.table.markDirty();
+  }
+
   remove(): void {
     this._rowElement.removeChild(this.element);
     this.table.markDirty();
@@ -167,6 +198,92 @@ export class HwpxOxmlTable {
 
   markDirty(): void {
     this.paragraph.section.markDirty();
+  }
+
+  /** Table width in hwpUnits. */
+  get width(): number {
+    const sz = findChild(this.element, HP_NS, "sz");
+    return parseInt(sz?.getAttribute("width") ?? "0", 10);
+  }
+
+  /** Table height in hwpUnits. */
+  get height(): number {
+    const sz = findChild(this.element, HP_NS, "sz");
+    return parseInt(sz?.getAttribute("height") ?? "0", 10);
+  }
+
+  /** Set table size (width and/or height in hwpUnits). */
+  setSize(width?: number, height?: number): void {
+    let sz = findChild(this.element, HP_NS, "sz");
+    if (!sz) sz = subElement(this.element, HP_NS, "sz", { width: "0", height: "0", widthRelTo: "ABSOLUTE", heightRelTo: "ABSOLUTE", protect: "0" });
+    if (width != null) sz.setAttribute("width", String(Math.max(width, 0)));
+    if (height != null) sz.setAttribute("height", String(Math.max(height, 0)));
+    this.markDirty();
+  }
+
+  /** Get table outer margin (outMargin element). */
+  getOutMargin(): HwpxMargin {
+    const el = findChild(this.element, HP_NS, "outMargin");
+    if (!el) return { top: 0, bottom: 0, left: 0, right: 0 };
+    return {
+      top: parseInt(el.getAttribute("top") ?? "0", 10),
+      bottom: parseInt(el.getAttribute("bottom") ?? "0", 10),
+      left: parseInt(el.getAttribute("left") ?? "0", 10),
+      right: parseInt(el.getAttribute("right") ?? "0", 10),
+    };
+  }
+
+  /** Set table outer margin (outMargin element). */
+  setOutMargin(margin: Partial<HwpxMargin>): void {
+    let el = findChild(this.element, HP_NS, "outMargin");
+    if (!el) el = subElement(this.element, HP_NS, "outMargin", defaultCellMarginAttributes());
+    if (margin.top != null) el.setAttribute("top", String(Math.max(margin.top, 0)));
+    if (margin.bottom != null) el.setAttribute("bottom", String(Math.max(margin.bottom, 0)));
+    if (margin.left != null) el.setAttribute("left", String(Math.max(margin.left, 0)));
+    if (margin.right != null) el.setAttribute("right", String(Math.max(margin.right, 0)));
+    this.markDirty();
+  }
+
+  /** Get table inner cell margin (inMargin element). */
+  getInMargin(): HwpxMargin {
+    const el = findChild(this.element, HP_NS, "inMargin");
+    if (!el) return { top: 0, bottom: 0, left: 0, right: 0 };
+    return {
+      top: parseInt(el.getAttribute("top") ?? "0", 10),
+      bottom: parseInt(el.getAttribute("bottom") ?? "0", 10),
+      left: parseInt(el.getAttribute("left") ?? "0", 10),
+      right: parseInt(el.getAttribute("right") ?? "0", 10),
+    };
+  }
+
+  /** Set table inner cell margin (inMargin element). */
+  setInMargin(margin: Partial<HwpxMargin>): void {
+    let el = findChild(this.element, HP_NS, "inMargin");
+    if (!el) el = subElement(this.element, HP_NS, "inMargin", defaultCellMarginAttributes());
+    if (margin.top != null) el.setAttribute("top", String(Math.max(margin.top, 0)));
+    if (margin.bottom != null) el.setAttribute("bottom", String(Math.max(margin.bottom, 0)));
+    if (margin.left != null) el.setAttribute("left", String(Math.max(margin.left, 0)));
+    if (margin.right != null) el.setAttribute("right", String(Math.max(margin.right, 0)));
+    this.markDirty();
+  }
+
+  /** Set the width of a column (updates all cells in that column). */
+  setColumnWidth(colIdx: number, width: number): void {
+    if (colIdx < 0 || colIdx >= this.columnCount) {
+      throw new Error(`column index ${colIdx} out of range (0..${this.columnCount - 1})`);
+    }
+    const grid = this._buildCellGrid();
+    const processed = new Set<Element>();
+    for (let r = 0; r < this.rowCount; r++) {
+      const entry = grid.get(`${r},${colIdx}`);
+      if (!entry) continue;
+      // Only update anchor cells at this column
+      if (entry.anchor[1] !== colIdx) continue;
+      if (processed.has(entry.cell.element)) continue;
+      processed.add(entry.cell.element);
+      entry.cell.setSize(Math.max(width, 0));
+    }
+    this.markDirty();
   }
 
   /** Page break mode: "CELL" (split at cell), "NONE" (no split), or other HWPX values. */

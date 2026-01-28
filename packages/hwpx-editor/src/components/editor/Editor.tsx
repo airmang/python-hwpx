@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useEditorStore } from "@/lib/store";
 import { ensureSkeletonLoaded } from "@/lib/skeleton-loader";
+import { MenuBar } from "../toolbar/MenuBar";
 import { RibbonToolbar } from "../toolbar/RibbonToolbar";
 import { SecondaryToolbar } from "../toolbar/SecondaryToolbar";
 import { HorizontalRuler } from "../ruler/HorizontalRuler";
@@ -11,6 +12,10 @@ import { PageView } from "./PageView";
 import { SaveDialog } from "./SaveDialog";
 import { FileUpload } from "../upload/FileUpload";
 import { NewDocumentButton } from "../upload/NewDocumentButton";
+import { CharFormatDialog } from "../dialog/CharFormatDialog";
+import { ParaFormatDialog } from "../dialog/ParaFormatDialog";
+import { BulletNumberDialog } from "../dialog/BulletNumberDialog";
+import { CharMapDialog } from "../dialog/CharMapDialog";
 import { PanelRight } from "lucide-react";
 
 export function Editor() {
@@ -51,6 +56,23 @@ export function Editor() {
         return;
       }
 
+      // Dialog shortcuts (⌘L = char format, ⌘T = para format, Ctrl+F10 = char map)
+      if (mod && e.key === "l") {
+        e.preventDefault();
+        store.openCharFormatDialog();
+        return;
+      }
+      if (mod && e.key === "t") {
+        e.preventDefault();
+        store.openParaFormatDialog();
+        return;
+      }
+      if (e.key === "F10" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        store.openCharMapDialog();
+        return;
+      }
+
       if (!store.selection) return;
 
       if (mod && e.key === "b") {
@@ -65,9 +87,6 @@ export function Editor() {
       } else if (mod && e.key === "d") {
         e.preventDefault();
         store.toggleStrikethrough();
-      } else if (mod && e.key === "l") {
-        e.preventDefault();
-        store.setAlignment("LEFT");
       } else if (mod && e.key === "e") {
         e.preventDefault();
         store.setAlignment("CENTER");
@@ -116,6 +135,12 @@ export function Editor() {
   return (
     <div className="flex h-screen flex-col">
       <SaveDialog />
+      <CharFormatDialog />
+      <ParaFormatDialog />
+      <BulletNumberDialog />
+      <CharMapDialog />
+      {/* Menu bar */}
+      <MenuBar />
       {/* Ribbon toolbar */}
       <RibbonToolbar />
       {/* Secondary toolbar (formatting bar) */}

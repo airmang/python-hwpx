@@ -1,23 +1,48 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useEditorStore } from "@/lib/store";
+import { hwpToMm } from "@/lib/hwp-units";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarField } from "./SidebarField";
 
 const PX_TO_MM = 25.4 / 96;
 
+function roundMm(hwp: number): number {
+  return Math.round(hwpToMm(hwp) * 10) / 10;
+}
+
 export function ImagePropertiesPanel() {
   const selection = useEditorStore((s) => s.selection);
   const viewModel = useEditorStore((s) => s.viewModel);
+  const setImageOutMargin = useEditorStore((s) => s.setImageOutMargin);
 
   const sIdx = selection?.sectionIndex ?? 0;
   const pIdx = selection?.paragraphIndex ?? 0;
   const imgIdx = selection?.imageIndex ?? 0;
 
   const image = viewModel?.sections[sIdx]?.paragraphs[pIdx]?.images[imgIdx];
+  const hasImage = !!image;
 
   const widthMm = image ? parseFloat((image.widthPx * PX_TO_MM).toFixed(2)) : 0;
   const heightMm = image ? parseFloat((image.heightPx * PX_TO_MM).toFixed(2)) : 0;
+
+  const [omTop, setOmTop] = useState(image ? roundMm(image.outMargin.top) : 0);
+  const [omBottom, setOmBottom] = useState(image ? roundMm(image.outMargin.bottom) : 0);
+  const [omLeft, setOmLeft] = useState(image ? roundMm(image.outMargin.left) : 0);
+  const [omRight, setOmRight] = useState(image ? roundMm(image.outMargin.right) : 0);
+
+  useEffect(() => {
+    if (!image) return;
+    setOmTop(roundMm(image.outMargin.top));
+    setOmBottom(roundMm(image.outMargin.bottom));
+    setOmLeft(roundMm(image.outMargin.left));
+    setOmRight(roundMm(image.outMargin.right));
+  }, [image?.outMargin.top, image?.outMargin.bottom, image?.outMargin.left, image?.outMargin.right]);
+
+  const applyOutMargin = () => {
+    if (hasImage) setImageOutMargin({ top: omTop, bottom: omBottom, left: omLeft, right: omRight });
+  };
 
   const inputClass =
     "w-full h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40";
@@ -85,15 +110,47 @@ export function ImagePropertiesPanel() {
         ))}
       </SidebarSection>
 
-      <SidebarSection title="여백" defaultOpen={false}>
-        {["왼쪽", "오른쪽", "위쪽", "아래쪽"].map((label) => (
-          <SidebarField key={label} label={label}>
-            <div className="flex items-center gap-1">
-              <input type="number" step="0.1" disabled value={0} onChange={() => {}} className={inputClass} />
-              <span className="text-[10px] text-gray-400 flex-shrink-0">mm</span>
-            </div>
-          </SidebarField>
-        ))}
+      <SidebarSection title="바깥 여백" defaultOpen={false}>
+        <SidebarField label="위쪽">
+          <div className="flex items-center gap-1">
+            <input type="number" step="0.1" min={0} disabled={!hasImage} value={omTop}
+              onChange={(e) => setOmTop(Number(e.target.value))}
+              onBlur={applyOutMargin}
+              onKeyDown={(e) => { if (e.key === "Enter") applyOutMargin(); }}
+              className={inputClass} />
+            <span className="text-[10px] text-gray-400 flex-shrink-0">mm</span>
+          </div>
+        </SidebarField>
+        <SidebarField label="아래쪽">
+          <div className="flex items-center gap-1">
+            <input type="number" step="0.1" min={0} disabled={!hasImage} value={omBottom}
+              onChange={(e) => setOmBottom(Number(e.target.value))}
+              onBlur={applyOutMargin}
+              onKeyDown={(e) => { if (e.key === "Enter") applyOutMargin(); }}
+              className={inputClass} />
+            <span className="text-[10px] text-gray-400 flex-shrink-0">mm</span>
+          </div>
+        </SidebarField>
+        <SidebarField label="왼쪽">
+          <div className="flex items-center gap-1">
+            <input type="number" step="0.1" min={0} disabled={!hasImage} value={omLeft}
+              onChange={(e) => setOmLeft(Number(e.target.value))}
+              onBlur={applyOutMargin}
+              onKeyDown={(e) => { if (e.key === "Enter") applyOutMargin(); }}
+              className={inputClass} />
+            <span className="text-[10px] text-gray-400 flex-shrink-0">mm</span>
+          </div>
+        </SidebarField>
+        <SidebarField label="오른쪽">
+          <div className="flex items-center gap-1">
+            <input type="number" step="0.1" min={0} disabled={!hasImage} value={omRight}
+              onChange={(e) => setOmRight(Number(e.target.value))}
+              onBlur={applyOutMargin}
+              onKeyDown={(e) => { if (e.key === "Enter") applyOutMargin(); }}
+              className={inputClass} />
+            <span className="text-[10px] text-gray-400 flex-shrink-0">mm</span>
+          </div>
+        </SidebarField>
       </SidebarSection>
 
       <SidebarSection title="색 조절" defaultOpen={false}>

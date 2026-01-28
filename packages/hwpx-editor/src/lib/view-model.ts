@@ -28,6 +28,13 @@ export interface RunVM {
   charPrIdRef: string | null;
 }
 
+export interface MarginVM {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
 export interface TableCellVM {
   row: number;
   col: number;
@@ -46,13 +53,21 @@ export interface TableVM {
   tableIndex: number; // index within the paragraph
   pageBreak: string; // "CELL", "NONE", etc.
   repeatHeader: boolean;
+  widthHwp: number;
+  heightHwp: number;
+  outMargin: MarginVM; // table outer margin in hwpUnits
+  inMargin: MarginVM; // table inner cell margin in hwpUnits
+  columnWidths: number[]; // per-column width in hwpUnits
 }
 
 export interface ImageVM {
   dataUrl: string;
   widthPx: number;
   heightPx: number;
+  widthHwp: number;
+  heightHwp: number;
   binaryItemIdRef: string;
+  outMargin: MarginVM;
 }
 
 export interface ParagraphVM {
@@ -67,6 +82,13 @@ export interface ParagraphVM {
   marginLeftPx: number;
   marginRightPx: number;
   paragraphIndex: number; // global index across all sections
+  defaultFontSize: number | null;
+  defaultFontFamily: string | null;
+}
+
+export interface FootnoteVM {
+  marker: string; // e.g. "1", "2", ...
+  text: string;
 }
 
 export interface SectionVM {
@@ -76,12 +98,19 @@ export interface SectionVM {
   marginBottomPx: number;
   marginLeftPx: number;
   marginRightPx: number;
+  headerHeightPx: number;
+  footerHeightPx: number;
   paragraphs: ParagraphVM[];
   sectionIndex: number;
+  headerText: string;
+  footerText: string;
+  footnotes: FootnoteVM[];
+  endnotes: FootnoteVM[];
 }
 
 export interface EditorViewModel {
   sections: SectionVM[];
+  watermarkText: string;
 }
 
 // ── Builder ────────────────────────────────────────────────────────────────
@@ -255,6 +284,49 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
     const pageSize = props.pageSize;
     const pageMargins = props.pageMargins;
 
+    // Extract header/footer text
+    let headerText = "";
+    let footerText = "";
+    try {
+      const hdr = props.getHeader("BOTH");
+      if (hdr) headerText = hdr.text;
+    } catch { /* no header */ }
+    try {
+      const ftr = props.getFooter("BOTH");
+      if (ftr) footerText = ftr.text;
+    } catch { /* no footer */ }
+
+    // Extract footnotes from paragraph annotation elements
+    const footnotes: FootnoteVM[] = [];
+    const endnotes: FootnoteVM[] = [];
+    try {
+      const sectionEl = section.element;
+      const allEls = sectionEl.getElementsByTagName("*");
+      let fnIdx = 1;
+      let enIdx = 1;
+      for (let k = 0; k < allEls.length; k++) {
+        const el = allEls.item(k);
+        if (!el) continue;
+        const ln = el.localName || el.nodeName.split(":").pop() || "";
+        if (ln === "footNote" || ln === "endNote") {
+          // Extract text from sub paragraphs
+          const subParas = el.getElementsByTagName("*");
+          let noteText = "";
+          for (let m = 0; m < subParas.length; m++) {
+            const sp = subParas.item(m);
+            if (!sp) continue;
+            const spName = sp.localName || sp.nodeName.split(":").pop() || "";
+            if (spName === "t") noteText += sp.textContent ?? "";
+          }
+          if (ln === "footNote") {
+            footnotes.push({ marker: String(fnIdx++), text: noteText });
+          } else {
+            endnotes.push({ marker: String(enIdx++), text: noteText });
+          }
+        }
+      }
+    } catch { /* ignore */ }
+
     const sectionVM: SectionVM = {
       pageWidthPx: hwpToPx(pageSize.width),
       pageHeightPx: hwpToPx(pageSize.height),
@@ -262,8 +334,14 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
       marginBottomPx: hwpToPx(pageMargins.bottom),
       marginLeftPx: hwpToPx(pageMargins.left),
       marginRightPx: hwpToPx(pageMargins.right),
+      headerHeightPx: hwpToPx(pageMargins.header ?? 0),
+      footerHeightPx: hwpToPx(pageMargins.footer ?? 0),
       paragraphs: [],
       sectionIndex: sIdx,
+      headerText,
+      footerText,
+      footnotes,
+      endnotes,
     };
 
     const paragraphs = section.paragraphs;
@@ -297,14 +375,19 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
 
         // Check for images inside this run
         const picRefs = findPictureRefs(run.element);
-        for (const ref of picRefs) {
+        for (let picIdx = 0; picIdx < picRefs.length; picIdx++) {
+          const ref = picRefs[picIdx]!;
           const dataUrl = imageMap.get(ref.binaryItemIdRef);
           if (dataUrl) {
+            const outMargin = para.getPictureOutMargin(images.length);
             images.push({
               dataUrl,
               widthPx: hwpToPx(ref.width),
               heightPx: hwpToPx(ref.height),
+              widthHwp: ref.width,
+              heightHwp: ref.height,
               binaryItemIdRef: ref.binaryItemIdRef,
+              outMargin,
             });
           }
         }
@@ -360,6 +443,20 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
           cellsVM.push(row);
         }
 
+        // Compute per-column widths from the first row's anchor cells
+        const columnWidths: number[] = [];
+        for (let c = 0; c < colCount; c++) {
+          const pos = cellGrid[0]?.[c];
+          if (pos && pos.anchor[1] === c) {
+            columnWidths.push(pos.cell.width);
+          } else {
+            columnWidths.push(0);
+          }
+        }
+
+        const outMargin = table.getOutMargin();
+        const inMargin = table.getInMargin();
+
         tables.push({
           rowCount,
           colCount,
@@ -367,7 +464,32 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
           tableIndex: tIdx,
           pageBreak: table.pageBreak,
           repeatHeader: table.repeatHeader,
+          widthHwp: table.width,
+          heightHwp: table.height,
+          outMargin,
+          inMargin,
+          columnWidths,
         });
+      }
+
+      // Extract default character formatting from paragraph's charPrIdRef
+      let defaultFontSize: number | null = null;
+      let defaultFontFamily: string | null = null;
+      const paraCharPrIdRef = para.charPrIdRef;
+      if (paraCharPrIdRef) {
+        const charStyle = doc.charProperty(paraCharPrIdRef);
+        if (charStyle) {
+          const extracted = extractRunStyle(charStyle, doc);
+          defaultFontSize = extracted.fontSize;
+          defaultFontFamily = extracted.fontFamily;
+        }
+      }
+      // Fallback: use first run's style if paragraph-level is missing
+      if (defaultFontSize == null && runs.length > 0) {
+        defaultFontSize = runs[0]!.fontSize;
+      }
+      if (defaultFontFamily == null && runs.length > 0) {
+        defaultFontFamily = runs[0]!.fontFamily;
       }
 
       // Extract paragraph formatting from paraPrIdRef
@@ -424,6 +546,8 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
         marginLeftPx,
         marginRightPx,
         paragraphIndex: globalParaIndex,
+        defaultFontSize,
+        defaultFontFamily,
       });
 
       globalParaIndex++;
@@ -432,5 +556,5 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
     sections.push(sectionVM);
   }
 
-  return { sections };
+  return { sections, watermarkText: "" };
 }

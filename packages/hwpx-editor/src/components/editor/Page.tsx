@@ -11,6 +11,7 @@ interface PageProps {
 export function Page({ section }: PageProps) {
   const addParagraph = useEditorStore((s) => s.addParagraph);
   const revision = useEditorStore((s) => s.revision);
+  const watermarkText = useEditorStore((s) => s.viewModel?.watermarkText ?? "");
 
   /** Clicking empty area of the page focuses or creates a paragraph */
   const handlePageClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -36,28 +37,135 @@ export function Page({ section }: PageProps) {
     }
   };
 
+  const hasHeader = section.headerText.length > 0;
+  const hasFooter = section.footerText.length > 0;
+  const hasFootnotes = section.footnotes.length > 0;
+  const hasEndnotes = section.endnotes.length > 0;
+
   return (
     <div
-      className="bg-white shadow-lg mx-auto mb-8 cursor-text"
+      className="bg-white shadow-lg mx-auto mb-8 cursor-text relative overflow-hidden"
+      data-page
       onClick={handlePageClick}
       style={{
         width: section.pageWidthPx,
         minHeight: section.pageHeightPx,
-        paddingTop: section.marginTopPx,
-        paddingBottom: section.marginBottomPx,
-        paddingLeft: section.marginLeftPx,
-        paddingRight: section.marginRightPx,
       }}
     >
-      {section.paragraphs.map((para, idx) => (
-        <ParagraphBlock
-          key={`${section.sectionIndex}-${idx}-r${revision}`}
-          paragraph={para}
-          sectionIndex={section.sectionIndex}
-          localIndex={idx}
-          paragraphCount={section.paragraphs.length}
-        />
-      ))}
+      {/* Watermark overlay */}
+      {watermarkText && (
+        <div
+          className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0"
+          aria-hidden="true"
+        >
+          <span
+            className="text-gray-200 font-bold whitespace-nowrap"
+            style={{
+              fontSize: Math.min(section.pageWidthPx * 0.12, 120),
+              transform: "rotate(-35deg)",
+              letterSpacing: "0.15em",
+              opacity: 0.35,
+            }}
+          >
+            {watermarkText}
+          </span>
+        </div>
+      )}
+
+      {/* Header area */}
+      {hasHeader && (
+        <div
+          className="text-center text-[10px] text-gray-400 border-b border-gray-100 relative z-10"
+          style={{
+            paddingLeft: section.marginLeftPx,
+            paddingRight: section.marginRightPx,
+            paddingTop: Math.max(section.headerHeightPx, 8),
+            paddingBottom: 4,
+          }}
+        >
+          {section.headerText.replace("{{page}}", "1")}
+        </div>
+      )}
+
+      {/* Main content area */}
+      <div
+        className="relative z-10"
+        style={{
+          paddingTop: hasHeader ? 4 : section.marginTopPx,
+          paddingBottom: hasFooter || hasFootnotes || hasEndnotes ? 4 : section.marginBottomPx,
+          paddingLeft: section.marginLeftPx,
+          paddingRight: section.marginRightPx,
+          minHeight: section.pageHeightPx - section.marginTopPx - section.marginBottomPx,
+        }}
+      >
+        {section.paragraphs.map((para, idx) => (
+          <ParagraphBlock
+            key={`${section.sectionIndex}-${idx}-r${revision}`}
+            paragraph={para}
+            sectionIndex={section.sectionIndex}
+            localIndex={idx}
+            paragraphCount={section.paragraphs.length}
+          />
+        ))}
+      </div>
+
+      {/* Footnotes area */}
+      {hasFootnotes && (
+        <div
+          className="relative z-10"
+          style={{
+            paddingLeft: section.marginLeftPx,
+            paddingRight: section.marginRightPx,
+            paddingBottom: 4,
+          }}
+        >
+          <div className="border-t border-gray-300 pt-2 mt-2" style={{ width: "40%" }}>
+            {section.footnotes.map((fn) => (
+              <div key={fn.marker} className="text-[9px] text-gray-500 leading-relaxed mb-0.5">
+                <sup className="text-[8px] font-medium mr-0.5">{fn.marker}</sup>
+                {fn.text}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Endnotes area (rendered at section end) */}
+      {hasEndnotes && (
+        <div
+          className="relative z-10"
+          style={{
+            paddingLeft: section.marginLeftPx,
+            paddingRight: section.marginRightPx,
+            paddingBottom: 4,
+          }}
+        >
+          <div className="border-t-2 border-gray-300 pt-2 mt-4">
+            <div className="text-[9px] text-gray-400 font-medium mb-1">미주</div>
+            {section.endnotes.map((en) => (
+              <div key={en.marker} className="text-[9px] text-gray-500 leading-relaxed mb-0.5">
+                <sup className="text-[8px] font-medium mr-0.5">{en.marker}</sup>
+                {en.text}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Footer area */}
+      {hasFooter && (
+        <div
+          className="text-center text-[10px] text-gray-400 border-t border-gray-100 relative z-10"
+          style={{
+            paddingLeft: section.marginLeftPx,
+            paddingRight: section.marginRightPx,
+            paddingTop: 4,
+            paddingBottom: Math.max(section.footerHeightPx, 8),
+          }}
+        >
+          {section.footerText.replace("{{page}}", "1")}
+        </div>
+      )}
     </div>
   );
 }
