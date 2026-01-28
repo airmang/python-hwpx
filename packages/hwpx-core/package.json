@@ -1,5 +1,5 @@
 {
-  "name": "@hwpx/core",
+  "name": "@ubermensch1218/hwpxcore",
   "version": "0.1.0",
   "description": "TypeScript library for reading and editing HWPX documents",
   "type": "module",

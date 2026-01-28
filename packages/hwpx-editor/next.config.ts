@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@hwpx/core"],
+  transpilePackages: ["@ubermensch1218/hwpxcore"],
   turbopack: {
     resolveAlias: {
       fs: { browser: "./src/lib/empty-module.ts" },

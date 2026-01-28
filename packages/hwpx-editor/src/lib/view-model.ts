@@ -6,9 +6,9 @@ import type {
   HwpxDocument,
   RunStyle,
   HwpxTableGridPosition,
-} from "@hwpx/core";
-import { parseHeaderXml, serializeXml } from "@hwpx/core";
-import type { Header, ParagraphProperty } from "@hwpx/core";
+} from "@ubermensch1218/hwpxcore";
+import { parseHeaderXml, serializeXml } from "@ubermensch1218/hwpxcore";
+import type { Header, ParagraphProperty } from "@ubermensch1218/hwpxcore";
 import { hwpToPx } from "./hwp-units";
 import { extractImages } from "./image-extractor";
 

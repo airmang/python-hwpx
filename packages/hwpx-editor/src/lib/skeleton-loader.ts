@@ -3,11 +3,11 @@
  * Fetches from /Skeleton.hwpx and calls setSkeletonHwpx() to register it.
  */
 
-import { setSkeletonHwpx, HwpxDocument } from "@hwpx/core";
+import { setSkeletonHwpx, HwpxDocument } from "@ubermensch1218/hwpxcore";
 
 let loaded = false;
 
-/** Fetch Skeleton.hwpx from the public folder and register it with @hwpx/core. */
+/** Fetch Skeleton.hwpx from the public folder and register it with @ubermensch1218/hwpxcore. */
 export async function ensureSkeletonLoaded(): Promise<void> {
   if (loaded) return;
   const res = await fetch("/Skeleton.hwpx");

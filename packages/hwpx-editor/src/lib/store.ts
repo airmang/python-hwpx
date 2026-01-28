@@ -3,7 +3,7 @@
  */
 
 import { create } from "zustand";
-import type { HwpxDocument } from "@hwpx/core";
+import type { HwpxDocument } from "@ubermensch1218/hwpxcore";
 import { buildViewModel, type EditorViewModel } from "./view-model";
 import {
   readFormatFromSelection,

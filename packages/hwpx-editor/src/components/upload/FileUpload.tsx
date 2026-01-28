@@ -2,7 +2,7 @@
 
 import { useCallback, useState, useRef } from "react";
 import { Upload } from "lucide-react";
-import { HwpxDocument } from "@hwpx/core";
+import { HwpxDocument } from "@ubermensch1218/hwpxcore";
 import { useEditorStore } from "@/lib/store";
 
 export function FileUpload() {
