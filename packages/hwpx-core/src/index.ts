@@ -45,6 +45,7 @@ export type {
   PageSize,
   PageMargins,
   SectionStartNumbering,
+  ColumnLayout,
   DocumentNumbering,
   RunStyle,
   HwpxTableGridPosition,

@@ -59,7 +59,7 @@ function getParsedHeader(doc: HwpxDocument): Header | null {
 
 // ── Read character formatting from a run style ─────────────────────────────
 
-export function readCharFormat(style: RunStyle | null): CharFormat {
+export function readCharFormat(style: RunStyle | null, doc?: HwpxDocument | null): CharFormat {
   const result: CharFormat = {
     bold: false,
     italic: false,
@@ -104,11 +104,15 @@ export function readCharFormat(style: RunStyle | null): CharFormat {
     if (!isNaN(val)) result.letterSpacing = val;
   }
 
-  // Font family — look in fontRef child
+  // Font family — look in fontRef child, resolve numeric ID to face name
   const fontRef = style.childAttributes["fontRef"];
   if (fontRef) {
-    // Korean font is in hangul attribute
-    result.fontFamily = fontRef["hangul"] ?? fontRef["latin"] ?? null;
+    const hangulId = fontRef["hangul"] ?? fontRef["latin"] ?? null;
+    if (hangulId != null && doc) {
+      result.fontFamily = doc.fontFaceName(hangulId) ?? hangulId;
+    } else {
+      result.fontFamily = hangulId;
+    }
   }
 
   // Font size
@@ -286,7 +290,7 @@ export function readFormatFromSelection(
   }
 
   return {
-    char: readCharFormat(charStyle),
+    char: readCharFormat(charStyle, doc),
     para: readParaFormat(doc, para),
   };
 }

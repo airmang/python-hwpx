@@ -12,6 +12,10 @@ export function CharFormatPanel() {
   const activeFormat = useEditorStore((s) => s.activeFormat);
   const doc = useEditorStore((s) => s.doc);
   const selection = useEditorStore((s) => s.selection);
+  const setFontFamily = useEditorStore((s) => s.setFontFamily);
+  const setFontSize = useEditorStore((s) => s.setFontSize);
+  const setTextColor = useEditorStore((s) => s.setTextColor);
+  const setHighlightColor = useEditorStore((s) => s.setHighlightColor);
 
   const disabled = !doc || !selection;
   const cf = extendedFormat.char;
@@ -35,11 +39,11 @@ export function CharFormatPanel() {
           <select
             disabled={disabled}
             value={cf.fontFamily || "맑은 고딕"}
-            onChange={() => {}}
+            onChange={(e) => setFontFamily(e.target.value)}
             className="w-full h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40"
           >
             {FONT_FAMILIES.map((f) => (
-              <option key={f} value={f}>
+              <option key={f} value={f} style={{ fontFamily: fontFamilyCss(f) }}>
                 {f}
               </option>
             ))}
@@ -49,7 +53,7 @@ export function CharFormatPanel() {
           <select
             disabled={disabled}
             value={String(cf.fontSize || 10)}
-            onChange={() => {}}
+            onChange={(e) => setFontSize(Number(e.target.value))}
             className="w-full h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40"
           >
             {FONT_SIZES.map((s) => (
@@ -64,7 +68,7 @@ export function CharFormatPanel() {
             <input
               type="color"
               value={cf.textColor && cf.textColor !== "none" ? cf.textColor : "#000000"}
-              onChange={() => {}}
+              onChange={(e) => setTextColor(e.target.value)}
               disabled={disabled}
               className="w-6 h-6 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
             />
@@ -77,10 +81,10 @@ export function CharFormatPanel() {
 
       <SidebarSection title="꾸밈">
         <div className="flex flex-wrap gap-1 mb-2">
-          <FormatTag label="굵게" active={activeFormat.bold} />
-          <FormatTag label="기울임" active={activeFormat.italic} />
-          <FormatTag label="밑줄" active={activeFormat.underline} />
-          <FormatTag label="취소선" active={cf.strikethrough} />
+          <FormatTag label="굵게" active={activeFormat.bold} onClick={() => useEditorStore.getState().toggleBold()} disabled={disabled} />
+          <FormatTag label="기울임" active={activeFormat.italic} onClick={() => useEditorStore.getState().toggleItalic()} disabled={disabled} />
+          <FormatTag label="밑줄" active={activeFormat.underline} onClick={() => useEditorStore.getState().toggleUnderline()} disabled={disabled} />
+          <FormatTag label="취소선" active={activeFormat.strikethrough} onClick={() => useEditorStore.getState().toggleStrikethrough()} disabled={disabled} />
         </div>
       </SidebarSection>
 
@@ -90,7 +94,7 @@ export function CharFormatPanel() {
             <input
               type="color"
               value={cf.highlightColor && cf.highlightColor !== "none" ? cf.highlightColor : "#FFFF00"}
-              onChange={() => {}}
+              onChange={(e) => setHighlightColor(e.target.value)}
               disabled={disabled}
               className="w-6 h-6 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
             />
@@ -112,16 +116,24 @@ export function CharFormatPanel() {
   );
 }
 
-function FormatTag({ label, active }: { label: string; active: boolean }) {
+function fontFamilyCss(name: string): string {
+  if (name === "Noto Sans KR") return "var(--font-noto-sans-kr), sans-serif";
+  if (name === "Noto Serif KR") return "var(--font-noto-serif-kr), serif";
+  return `"${name}", sans-serif`;
+}
+
+function FormatTag({ label, active, onClick, disabled }: { label: string; active: boolean; onClick?: () => void; disabled?: boolean }) {
   return (
-    <span
-      className={`px-2 py-0.5 rounded text-[10px] border ${
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`px-2 py-0.5 rounded text-[10px] border transition-colors ${
         active
           ? "bg-blue-50 border-blue-300 text-blue-700"
-          : "bg-gray-50 border-gray-200 text-gray-400"
-      }`}
+          : "bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100"
+      } disabled:opacity-40 disabled:cursor-not-allowed`}
     >
       {label}
-    </span>
+    </button>
   );
 }

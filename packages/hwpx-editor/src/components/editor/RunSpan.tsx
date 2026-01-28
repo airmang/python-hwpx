@@ -19,7 +19,15 @@ export function RunSpan({ run }: RunSpanProps) {
   if (decorations.length > 0) style.textDecoration = decorations.join(" ");
 
   if (run.color && run.color !== "#000000") style.color = run.color;
-  if (run.fontFamily) style.fontFamily = run.fontFamily;
+  if (run.fontFamily) {
+    if (run.fontFamily === "Noto Sans KR") {
+      style.fontFamily = "var(--font-noto-sans-kr), sans-serif";
+    } else if (run.fontFamily === "Noto Serif KR") {
+      style.fontFamily = "var(--font-noto-serif-kr), serif";
+    } else {
+      style.fontFamily = run.fontFamily;
+    }
+  }
   if (run.fontSize) style.fontSize = `${run.fontSize}pt`;
   if (run.highlightColor) style.backgroundColor = run.highlightColor;
   if (run.letterSpacing) {

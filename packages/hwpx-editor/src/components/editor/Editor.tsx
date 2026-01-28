@@ -31,23 +31,52 @@ export function Editor() {
       const store = useEditorStore.getState();
       if (!store.doc) return;
 
-      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      const mod = e.ctrlKey || e.metaKey;
+
+      if (mod && e.key === "s") {
         e.preventDefault();
         store.openSaveDialog();
         return;
       }
 
+      // Undo / Redo (works without selection)
+      if (mod && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        store.undo();
+        return;
+      }
+      if (mod && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
+        e.preventDefault();
+        store.redo();
+        return;
+      }
+
       if (!store.selection) return;
 
-      if ((e.ctrlKey || e.metaKey) && e.key === "b") {
+      if (mod && e.key === "b") {
         e.preventDefault();
         store.toggleBold();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === "i") {
+      } else if (mod && e.key === "i") {
         e.preventDefault();
         store.toggleItalic();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === "u") {
+      } else if (mod && e.key === "u") {
         e.preventDefault();
         store.toggleUnderline();
+      } else if (mod && e.key === "d") {
+        e.preventDefault();
+        store.toggleStrikethrough();
+      } else if (mod && e.key === "l") {
+        e.preventDefault();
+        store.setAlignment("LEFT");
+      } else if (mod && e.key === "e") {
+        e.preventDefault();
+        store.setAlignment("CENTER");
+      } else if (mod && e.key === "r") {
+        e.preventDefault();
+        store.setAlignment("RIGHT");
+      } else if (mod && e.key === "j") {
+        e.preventDefault();
+        store.setAlignment("JUSTIFY");
       }
     };
     window.addEventListener("keydown", handler);

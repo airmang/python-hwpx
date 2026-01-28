@@ -15,6 +15,8 @@ export function ParaFormatPanel() {
   const extendedFormat = useEditorStore((s) => s.extendedFormat);
   const doc = useEditorStore((s) => s.doc);
   const selection = useEditorStore((s) => s.selection);
+  const setAlignment = useEditorStore((s) => s.setAlignment);
+  const setLineSpacing = useEditorStore((s) => s.setLineSpacing);
 
   const disabled = !doc || !selection;
   const pf = extendedFormat.para;
@@ -27,6 +29,7 @@ export function ParaFormatPanel() {
             <button
               key={opt.value}
               disabled={disabled}
+              onClick={() => setAlignment(opt.value)}
               className={`flex-1 py-1 rounded text-[10px] border transition-colors ${
                 pf.alignment === opt.value
                   ? "bg-blue-50 border-blue-300 text-blue-700"
@@ -86,7 +89,7 @@ export function ParaFormatPanel() {
                   : prev,
               ).value,
             )}
-            onChange={() => {}}
+            onChange={(e) => setLineSpacing(Number(e.target.value))}
             className="w-full h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40"
           >
             {LINE_SPACING_OPTIONS.map((o) => (

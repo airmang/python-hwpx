@@ -31,6 +31,7 @@ export function AlignmentButtons() {
   const extendedFormat = useEditorStore((s) => s.extendedFormat);
   const doc = useEditorStore((s) => s.doc);
   const selection = useEditorStore((s) => s.selection);
+  const setAlignment = useEditorStore((s) => s.setAlignment);
 
   const disabled = !doc || !selection;
   const currentAlignment = extendedFormat.para.alignment;
@@ -43,6 +44,7 @@ export function AlignmentButtons() {
           icon={ALIGNMENT_ICONS[align]}
           active={currentAlignment === align}
           disabled={disabled}
+          onClick={() => setAlignment(align)}
           title={ALIGNMENT_LABELS[align]}
         />
       ))}

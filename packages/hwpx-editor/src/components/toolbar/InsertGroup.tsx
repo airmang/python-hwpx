@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { Table, BarChart3, Shapes, ImageIcon, Save } from "lucide-react";
+import { Table, BarChart3, Shapes, ImageIcon, Save, Columns, FileDown } from "lucide-react";
 import { useEditorStore } from "@/lib/store";
 import { ToolbarButton } from "./ToolbarButton";
 import { RibbonGroup } from "./RibbonGroup";
@@ -11,6 +11,8 @@ export function InsertGroup() {
   const selection = useEditorStore((s) => s.selection);
   const addTable = useEditorStore((s) => s.addTable);
   const insertImage = useEditorStore((s) => s.insertImage);
+  const insertColumnBreak = useEditorStore((s) => s.insertColumnBreak);
+  const insertPageBreak = useEditorStore((s) => s.insertPageBreak);
   const saveDocument = useEditorStore((s) => s.saveDocument);
   const loading = useEditorStore((s) => s.loading);
 
@@ -79,6 +81,18 @@ export function InsertGroup() {
           accept="image/*"
           className="hidden"
           onChange={handleImageSelect}
+        />
+        <ToolbarButton
+          icon={<Columns className="w-4 h-4" />}
+          title="단 나누기"
+          disabled={disabled || !selection}
+          onClick={() => insertColumnBreak()}
+        />
+        <ToolbarButton
+          icon={<FileDown className="w-4 h-4" />}
+          title="쪽 나누기"
+          disabled={disabled || !selection}
+          onClick={() => insertPageBreak()}
         />
       </RibbonGroup>
 

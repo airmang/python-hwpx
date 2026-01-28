@@ -1,5 +1,28 @@
 @import "tailwindcss";
 
+/* ── Web Fonts: 교보손글씨 (Kyobo Handwriting) ─────────────────────────── */
+@font-face {
+  font-family: "교보손글씨 2024 박서우";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2507-1@1.0/KyoboHandwriting2024psw.woff2") format("woff2");
+  font-weight: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "교보손글씨 2023 우선아";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2404-2@1.0/KyoboHandwriting2023wsa.woff2") format("woff2");
+  font-weight: normal;
+  font-display: swap;
+}
+
+/* ── Web Fonts: 학교안심글꼴 (Hakgyoansim) ─────────────────────────────── */
+@font-face {
+  font-family: "학교안심 알림장";
+  src: url("https://fastly.jsdelivr.net/gh/projectnoonnu/2408-5@1.0/HakgyoansimAllimjangTTF-B.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
   --background: #f5f5f5;
   --foreground: #171717;
@@ -12,10 +35,14 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "맑은 고딕", "Malgun Gothic", Arial, sans-serif;
+  font-family: "맑은 고딕", "Malgun Gothic", var(--font-noto-sans-kr), Arial, sans-serif;
   margin: 0;
   overflow: hidden;
 }
+
+/* Noto fonts via next/font CSS variables */
+.font-noto-sans-kr { font-family: var(--font-noto-sans-kr), sans-serif; }
+.font-noto-serif-kr { font-family: var(--font-noto-serif-kr), serif; }
 
 /* ContentEditable styles */
 [contenteditable]:focus {

@@ -88,6 +88,7 @@ export interface EditorViewModel {
 
 function extractRunStyle(
   style: RunStyle | null,
+  doc?: HwpxDocument | null,
 ): {
   bold: boolean;
   italic: boolean;
@@ -135,11 +136,16 @@ function extractRunStyle(
   // Highlight
   const highlightColor = style.attributes["shadeColor"] ?? null;
 
-  // Font family
+  // Font family — resolve numeric ID to face name
   let fontFamily: string | null = null;
   const fontRef = style.childAttributes["fontRef"];
   if (fontRef) {
-    fontFamily = fontRef["hangul"] ?? fontRef["latin"] ?? null;
+    const hangulId = fontRef["hangul"] ?? fontRef["latin"] ?? null;
+    if (hangulId != null && doc) {
+      fontFamily = doc.fontFaceName(hangulId) ?? hangulId;
+    } else {
+      fontFamily = hangulId;
+    }
   }
 
   // Font size (height in hwpUnits / 100 = pt)
@@ -270,7 +276,7 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
         const {
           bold, italic, underline, strikethrough, color,
           fontFamily, fontSize, highlightColor, letterSpacing,
-        } = extractRunStyle(style);
+        } = extractRunStyle(style, doc);
         const text = run.text;
 
         if (text) {

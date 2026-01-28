@@ -95,6 +95,20 @@ export class HwpxDocument {
     });
   }
 
+  /** Insert a new paragraph at a specific position within a section. */
+  insertParagraphAt(sectionIndex: number, paragraphIndex: number, text: string = "", opts?: {
+    paraPrIdRef?: string | number;
+    styleIdRef?: string | number;
+    charPrIdRef?: string | number;
+  }): HwpxOxmlParagraph {
+    return this._oxml.insertParagraphAt(sectionIndex, paragraphIndex, text, opts);
+  }
+
+  /** Remove a paragraph by section and paragraph index. */
+  removeParagraph(sectionIndex: number, paragraphIndex: number): void {
+    this._oxml.removeParagraph(sectionIndex, paragraphIndex);
+  }
+
   // ── Text access ────────────────────────────────────────────────────
 
   /** Return the full text of the document (all paragraphs joined). */
@@ -150,9 +164,33 @@ export class HwpxDocument {
     return this._oxml.charProperty(charPrIdRef);
   }
 
+  /** Resolve a numeric font ID to its face name. */
+  fontFaceName(fontId: string | number | null, lang?: string): string | null {
+    return this._oxml.fontFaceName(fontId, lang);
+  }
+
   /** Ensure a run style with the given formatting exists. */
-  ensureRunStyle(opts: { bold?: boolean; italic?: boolean; underline?: boolean }): string {
+  ensureRunStyle(opts: {
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
+    strikethrough?: boolean;
+    fontFamily?: string;
+    fontSize?: number;
+    textColor?: string;
+    highlightColor?: string;
+    baseCharPrId?: string | number;
+  }): string {
     return this._oxml.ensureRunStyle(opts);
+  }
+
+  /** Ensure a paragraph style with the given formatting exists. */
+  ensureParaStyle(opts: {
+    alignment?: string;
+    lineSpacingValue?: number;
+    baseParaPrId?: string | number;
+  }): string {
+    return this._oxml.ensureParaStyle(opts);
   }
 
   /** Ensure a basic border fill exists and return its ID. */
@@ -194,6 +232,46 @@ export class HwpxDocument {
       treatAsChar: opts.treatAsChar,
     });
 
+    return para;
+  }
+
+  // ── Equation insertion ──────────────────────────────────────────────
+
+  /**
+   * Add an equation to the document using HWP equation script notation.
+   *
+   * Script examples (from Hancom equation spec):
+   *   - "rmCH _{3} COOH"         → CH₃COOH (Roman chemistry)
+   *   - "1 over 2"               → ½ (fraction)
+   *   - "sqrt 2"                 → √2 (square root)
+   *   - "E=mc^2"                 → E=mc² (superscript)
+   *   - "rm 2H_2 O = 2H_2 + O_2" → 2H₂O = 2H₂ + O₂
+   *   - "sum_{x=0} ^{inf}"       → Σ (summation with bounds)
+   *   - "int _1 ^2 {3x^2}dx"    → integral
+   *   - "alpha beta Gamma"       → Greek letters
+   *
+   * @param script - HWP equation script text
+   * @param opts - Optional: sectionIndex, textColor, font, baseUnit, baseLine, width/height in hwpUnits
+   * @returns The paragraph containing the equation
+   */
+  addEquation(script: string, opts?: {
+    sectionIndex?: number;
+    textColor?: string;
+    font?: string;
+    baseUnit?: number;
+    baseLine?: number;
+    width?: number;
+    height?: number;
+  }): HwpxOxmlParagraph {
+    const para = this.addParagraph("", { sectionIndex: opts?.sectionIndex });
+    para.addEquation(script, {
+      textColor: opts?.textColor,
+      font: opts?.font,
+      baseUnit: opts?.baseUnit,
+      baseLine: opts?.baseLine,
+      width: opts?.width,
+      height: opts?.height,
+    });
     return para;
   }
 

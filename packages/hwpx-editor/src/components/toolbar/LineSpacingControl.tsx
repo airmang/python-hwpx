@@ -8,6 +8,7 @@ export function LineSpacingControl() {
   const extendedFormat = useEditorStore((s) => s.extendedFormat);
   const doc = useEditorStore((s) => s.doc);
   const selection = useEditorStore((s) => s.selection);
+  const setLineSpacing = useEditorStore((s) => s.setLineSpacing);
 
   const disabled = !doc || !selection;
   const currentSpacing = extendedFormat.para.lineSpacing;
@@ -28,9 +29,7 @@ export function LineSpacingControl() {
     <ToolbarDropdown
       value={String(closestValue)}
       options={options}
-      onChange={() => {
-        // Line spacing change — placeholder for future implementation
-      }}
+      onChange={(val) => setLineSpacing(Number(val))}
       disabled={disabled}
       title="줄 간격"
       width="w-14"

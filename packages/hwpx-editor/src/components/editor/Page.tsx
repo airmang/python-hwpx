@@ -55,6 +55,7 @@ export function Page({ section }: PageProps) {
           paragraph={para}
           sectionIndex={section.sectionIndex}
           localIndex={idx}
+          paragraphCount={section.paragraphs.length}
         />
       ))}
     </div>
