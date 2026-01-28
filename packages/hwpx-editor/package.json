@@ -1,6 +1,6 @@
 {
   "name": "@ubermensch1218/hwpxeditor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React editor components for HWPX documents with Korean word processor-style UI",
   "type": "module",
   "main": "./dist/index.cjs",
