@@ -10,26 +10,38 @@ const TABS = ["문단 번호", "글머리표", "그림 글머리표"];
 
 // Numbering style definitions
 const NUMBERING_STYLES = [
-  { id: "none", lines: ["", "", "", ""], label: "없음" },
-  { id: "1a", lines: ["1.", "가.", "1)", "가)"], label: "1.가.1)가)" },
-  { id: "1b", lines: ["(1)", "(가)", "(a)", "1)"], label: "(1)(가)(a)1)" },
-  { id: "1c", lines: ["1)", "가)", "a)", "(1)"], label: "1)가)a)(1)" },
-  { id: "1d", lines: ["①", "(ㄱ)", "(a)", "1)"], label: "①(ㄱ)(a)1)" },
-  { id: "1e", lines: ["가)", "a)", "(1)", "(가)"], label: "가)a)(1)(가)" },
-  { id: "1f", lines: ["(ㄱ)", "(1)", "(a)", "1)"], label: "(ㄱ)(1)(a)1)" },
-  { id: "1g", lines: ["I.", "A.", "1.", "i)"], label: "I.A.1.i)" },
+  { id: "none", level: 0, lines: ["", "", "", ""], label: "없음" },
+  { id: "1a", level: 1, lines: ["1.", "가.", "1)", "가)"], label: "1.가.1)가)" },
+  { id: "1b", level: 1, lines: ["(1)", "(가)", "(a)", "1)"], label: "(1)(가)(a)1)" },
+  { id: "1c", level: 1, lines: ["1)", "가)", "a)", "(1)"], label: "1)가)a)(1)" },
+  { id: "1d", level: 1, lines: ["①", "(ㄱ)", "(a)", "1)"], label: "①(ㄱ)(a)1)" },
+  { id: "1e", level: 1, lines: ["가)", "a)", "(1)", "(가)"], label: "가)a)(1)(가)" },
+  { id: "1f", level: 1, lines: ["(ㄱ)", "(1)", "(a)", "1)"], label: "(ㄱ)(1)(a)1)" },
+  { id: "1g", level: 1, lines: ["I.", "A.", "1.", "i)"], label: "I.A.1.i)" },
 ];
 
 const BULLET_STYLES = [
-  "●", "•", "■", "▪", "◆", "◇", "▶", "▷",
-  "○", "□", "◇", "▷", "◎", "☑", "✓", "★",
+  { char: "●", id: "1" },
+  { char: "•", id: "2" },
+  { char: "■", id: "3" },
+  { char: "▪", id: "4" },
+  { char: "◆", id: "5" },
+  { char: "◇", id: "6" },
+  { char: "▶", id: "7" },
+  { char: "▷", id: "8" },
+  { char: "○", id: "9" },
+  { char: "□", id: "10" },
+  { char: "◇", id: "11" },
+  { char: "▷", id: "12" },
+  { char: "◎", id: "13" },
+  { char: "☑", id: "14" },
+  { char: "✓", id: "15" },
+  { char: "★", id: "16" },
 ];
 
 // ── Tab 1: 문단 번호 ─────────────────────────────────────────────────────────
 
-function NumberingTab() {
-  const [selected, setSelected] = useState(0);
-
+function NumberingTab({ selected, onSelect }: { selected: number; onSelect: (idx: number) => void }) {
   return (
     <>
       <DialogSection title="각주 내용 번호 속성">
@@ -56,7 +68,7 @@ function NumberingTab() {
           {NUMBERING_STYLES.map((style, idx) => (
             <button
               key={style.id}
-              onClick={() => setSelected(idx)}
+              onClick={() => onSelect(idx)}
               className={`p-2 rounded border text-left min-h-[80px] transition-colors ${
                 selected === idx
                   ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
@@ -91,15 +103,13 @@ function NumberingTab() {
 
 // ── Tab 2: 글머리표 ──────────────────────────────────────────────────────────
 
-function BulletTab() {
-  const [selected, setSelected] = useState(0);
-
+function BulletTab({ selected, onSelect }: { selected: number; onSelect: (idx: number) => void }) {
   return (
     <DialogSection title="글머리표 모양">
       <div className="grid grid-cols-4 gap-2">
         {/* "None" option */}
         <button
-          onClick={() => setSelected(0)}
+          onClick={() => onSelect(0)}
           className={`p-3 rounded border min-h-[80px] flex items-center justify-center transition-colors ${
             selected === 0
               ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
@@ -116,7 +126,7 @@ function BulletTab() {
         {BULLET_STYLES.map((bullet, idx) => (
           <button
             key={idx}
-            onClick={() => setSelected(idx + 1)}
+            onClick={() => onSelect(idx + 1)}
             className={`p-2 rounded border min-h-[80px] transition-colors ${
               selected === idx + 1
                 ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
@@ -125,14 +135,14 @@ function BulletTab() {
           >
             <div className="space-y-1">
               <div className="flex items-center gap-1">
-                <span className="text-sm">{bullet}</span>
+                <span className="text-sm">{bullet.char}</span>
                 <div className="flex-1 h-[1px] bg-gray-300" />
               </div>
               <div className="flex items-center gap-1 ml-3">
                 <div className="flex-1 h-[1px] bg-gray-200" />
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-sm">{bullet}</span>
+                <span className="text-sm">{bullet.char}</span>
                 <div className="flex-1 h-[1px] bg-gray-300" />
               </div>
               <div className="flex items-center gap-1 ml-3">
@@ -163,24 +173,55 @@ function PictureBulletTab() {
 export function BulletNumberDialog() {
   const open = useEditorStore((s) => s.uiState.bulletNumberDialogOpen);
   const closeBulletNumberDialog = useEditorStore((s) => s.closeBulletNumberDialog);
+  const applyBullet = useEditorStore((s) => s.applyBullet);
+  const applyNumbering = useEditorStore((s) => s.applyNumbering);
+  const removeBulletNumbering = useEditorStore((s) => s.removeBulletNumbering);
+
   const [activeTab, setActiveTab] = useState(0);
+  const [numberingSelected, setNumberingSelected] = useState(0);
+  const [bulletSelected, setBulletSelected] = useState(0);
 
   const handleApply = useCallback(() => {
+    if (activeTab === 0) {
+      // Numbering tab
+      if (numberingSelected === 0) {
+        removeBulletNumbering();
+      } else {
+        const style = NUMBERING_STYLES[numberingSelected];
+        if (style) {
+          applyNumbering(style.level);
+        }
+      }
+    } else if (activeTab === 1) {
+      // Bullet tab
+      if (bulletSelected === 0) {
+        removeBulletNumbering();
+      } else {
+        const bullet = BULLET_STYLES[bulletSelected - 1];
+        if (bullet) {
+          applyBullet(bullet.id);
+        }
+      }
+    }
     closeBulletNumberDialog();
-  }, [closeBulletNumberDialog]);
+  }, [activeTab, numberingSelected, bulletSelected, applyBullet, applyNumbering, removeBulletNumbering, closeBulletNumberDialog]);
 
   return (
     <Dialog title="문단 번호/글머리표" open={open} onClose={closeBulletNumberDialog} onApply={handleApply} width={620}>
       <DialogTabs tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
-      {activeTab === 0 && <NumberingTab />}
-      {activeTab === 1 && <BulletTab />}
+      {activeTab === 0 && <NumberingTab selected={numberingSelected} onSelect={setNumberingSelected} />}
+      {activeTab === 1 && <BulletTab selected={bulletSelected} onSelect={setBulletSelected} />}
       {activeTab === 2 && <PictureBulletTab />}
 
       <div className="flex items-center gap-2 mt-3">
         <button disabled className="h-7 px-3 text-xs border border-gray-300 rounded bg-white text-gray-400">
           사용자 정의...
         </button>
-        <button disabled className="w-7 h-7 rounded border border-gray-300 bg-white text-red-400 flex items-center justify-center text-sm">
+        <button
+          onClick={() => { removeBulletNumbering(); closeBulletNumberDialog(); }}
+          className="w-7 h-7 rounded border border-gray-300 bg-white text-red-500 hover:bg-red-50 flex items-center justify-center text-sm"
+          title="서식 제거"
+        >
           ×
         </button>
       </div>

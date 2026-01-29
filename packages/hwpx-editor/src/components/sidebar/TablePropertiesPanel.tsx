@@ -10,6 +10,60 @@ function roundMm(hwp: number): number {
   return Math.round(hwpToMm(hwp) * 10) / 10;
 }
 
+/** Cell merge controls for selected cells */
+function CellMergeSection({
+  selection,
+  hasTable,
+}: {
+  selection: SelectionState | null;
+  hasTable: boolean;
+}) {
+  const mergeSelectedCells = useEditorStore((s) => s.mergeSelectedCells);
+  const unmergeSelectedCells = useEditorStore((s) => s.unmergeSelectedCells);
+
+  const isCellSelected = selection?.type === "cell" && hasTable;
+  const hasMultipleCells =
+    isCellSelected &&
+    selection &&
+    selection.row != null &&
+    selection.col != null &&
+    (selection.endRow !== selection.row || selection.endCol !== selection.col);
+
+  const btnClass =
+    "flex-1 py-1.5 px-2 rounded border text-[10px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+  const activeBtnClass = "bg-white border-gray-300 text-gray-700 hover:bg-gray-50";
+
+  return (
+    <SidebarSection title="셀 병합" defaultOpen={true}>
+      <div className="flex gap-2">
+        <button
+          disabled={!isCellSelected || !hasMultipleCells}
+          onClick={() => mergeSelectedCells()}
+          className={`${btnClass} ${activeBtnClass}`}
+          title="선택한 셀들을 하나로 병합합니다"
+        >
+          병합
+        </button>
+        <button
+          disabled={!isCellSelected}
+          onClick={() => unmergeSelectedCells()}
+          className={`${btnClass} ${activeBtnClass}`}
+          title="병합된 셀을 분리합니다"
+        >
+          병합 해제
+        </button>
+      </div>
+      <div className="text-[9px] text-gray-400 mt-1.5">
+        {hasMultipleCells
+          ? "여러 셀 선택됨 - 병합 가능"
+          : isCellSelected
+          ? "Shift+클릭으로 범위 선택 후 병합"
+          : "셀을 선택하세요"}
+      </div>
+    </SidebarSection>
+  );
+}
+
 /** Cell size adjustment for selected cells */
 function CellSizeSection({
   selection,
@@ -285,6 +339,8 @@ export function TablePropertiesPanel() {
       </SidebarSection>
 
       <CellSizeSection selection={selection} hasTable={hasTable} inputClass={inputClass} />
+
+      <CellMergeSection selection={selection} hasTable={hasTable} />
 
       <SidebarSection title="바깥 여백" defaultOpen={false}>
         <SidebarField label="위 (mm)">

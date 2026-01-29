@@ -247,6 +247,42 @@ export class HwpxOxmlParagraph {
     }
   }
 
+  /** Get the bullet ID reference for list formatting. */
+  get bulletIdRef(): string | null {
+    return this.element.getAttribute("bulletIDRef");
+  }
+
+  /** Set the bullet ID reference for list formatting. */
+  set bulletIdRef(value: string | number | null) {
+    if (value == null) {
+      if (this.element.hasAttribute("bulletIDRef")) {
+        this.element.removeAttribute("bulletIDRef");
+        this.section.markDirty();
+      }
+      return;
+    }
+    const newValue = String(value);
+    if (this.element.getAttribute("bulletIDRef") !== newValue) {
+      this.element.setAttribute("bulletIDRef", newValue);
+      this.section.markDirty();
+    }
+  }
+
+  /** Get the outline level for numbered list (1-9, or 0 for no outline). */
+  get outlineLevel(): number {
+    const val = this.element.getAttribute("outlineLevel");
+    return val ? parseInt(val, 10) : 0;
+  }
+
+  /** Set the outline level for numbered list. */
+  set outlineLevel(value: number) {
+    const newValue = String(Math.max(0, Math.min(9, value)));
+    if (this.element.getAttribute("outlineLevel") !== newValue) {
+      this.element.setAttribute("outlineLevel", newValue);
+      this.section.markDirty();
+    }
+  }
+
   get charPrIdRef(): string | null {
     const values = new Set<string>();
     for (const run of findAllChildren(this.element, HP_NS, "run")) {

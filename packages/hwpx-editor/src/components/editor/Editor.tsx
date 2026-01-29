@@ -17,6 +17,14 @@ import { ParaFormatDialog } from "../dialog/ParaFormatDialog";
 import { BulletNumberDialog } from "../dialog/BulletNumberDialog";
 import { CharMapDialog } from "../dialog/CharMapDialog";
 import { TemplateDialog } from "../dialog/TemplateDialog";
+import { HeaderFooterDialog } from "../dialog/HeaderFooterDialog";
+import { FindReplaceDialog } from "../dialog/FindReplaceDialog";
+import { WordCountDialog } from "../dialog/WordCountDialog";
+import { PageNumberDialog } from "../dialog/PageNumberDialog";
+import { StyleDialog } from "../dialog/StyleDialog";
+import { AutoCorrectDialog } from "../dialog/AutoCorrectDialog";
+import { OutlineDialog } from "../dialog/OutlineDialog";
+import { ShapeDialog } from "../dialog/ShapeDialog";
 import { PanelRight } from "lucide-react";
 
 export function Editor() {
@@ -71,6 +79,11 @@ export function Editor() {
       if (e.key === "F10" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         store.openCharMapDialog();
+        return;
+      }
+      if (mod && (e.key === "f" || e.key === "h")) {
+        e.preventDefault();
+        store.openFindReplaceDialog();
         return;
       }
 
@@ -141,6 +154,14 @@ export function Editor() {
       <BulletNumberDialog />
       <CharMapDialog />
       <TemplateDialog />
+      <HeaderFooterDialog />
+      <FindReplaceDialog />
+      <WordCountDialog />
+      <PageNumberDialog />
+      <StyleDialog />
+      <AutoCorrectDialog />
+      <OutlineDialog />
+      <ShapeDialog />
       {/* Menu bar */}
       <MenuBar />
       {/* Ribbon toolbar */}
@@ -170,6 +191,33 @@ export function Editor() {
           </button>
         )}
       </div>
+      {/* Status bar */}
+      <StatusBar />
+    </div>
+  );
+}
+
+function StatusBar() {
+  const doc = useEditorStore((s) => s.doc);
+  const viewModel = useEditorStore((s) => s.viewModel);
+  const openWordCountDialog = useEditorStore((s) => s.openWordCountDialog);
+
+  if (!doc || !viewModel) return null;
+
+  const text = doc.text;
+  const charCount = text.replace(/\s/g, "").length;
+  // Estimate page count (1 section = 1 page minimum)
+  const sectionCount = viewModel.sections.length;
+
+  return (
+    <div className="h-5 flex items-center justify-end px-3 bg-gray-100 border-t border-gray-200 text-[10px] text-gray-500">
+      <button
+        onClick={openWordCountDialog}
+        className="hover:text-gray-700 hover:underline"
+        title="글자 수 세기 대화상자 열기"
+      >
+        글자 수 (공백 제외): {charCount.toLocaleString()} | 쪽: {sectionCount}
+      </button>
     </div>
   );
 }
