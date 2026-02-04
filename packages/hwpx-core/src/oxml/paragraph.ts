@@ -326,10 +326,26 @@ export class HwpxOxmlParagraph {
   }
 
   /** Insert a tab character at the end of the paragraph. */
-  addTab(opts?: { charPrIdRef?: string | number }): void {
+  addTab(opts?: {
+    charPrIdRef?: string | number;
+    /** Tab position in hwpUnit (optional, defaults to auto-position) */
+    width?: number;
+    /** Tab leader style for TOC entries: "DOT" | "HYPHEN" | "UNDERLINE" | "NONE" */
+    tabLeader?: "DOT" | "HYPHEN" | "UNDERLINE" | "NONE";
+  }): void {
     const charPrId = opts?.charPrIdRef ?? this.charPrIdRef ?? "0";
-    const runElement = subElement(this.element, HP_NS, "run", { charPrIDRef: String(charPrId) });
-    subElement(runElement, HP_NS, "tab");
+    const runAttrs: Record<string, string> = { charPrIDRef: String(charPrId) };
+    const tabAttrs: Record<string, string> = {};
+
+    if (opts?.width != null) {
+      tabAttrs.width = String(opts.width);
+    }
+    if (opts?.tabLeader != null && opts.tabLeader !== "NONE") {
+      tabAttrs.tabLeader = opts.tabLeader;
+    }
+
+    const runElement = subElement(this.element, HP_NS, "run", runAttrs);
+    subElement(runElement, HP_NS, "tab", tabAttrs);
     this.section.markDirty();
   }
 
