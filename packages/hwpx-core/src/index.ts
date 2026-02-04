@@ -7,7 +7,16 @@
 // High-level API
 export { HwpxDocument } from "./document.js";
 export { HwpxPackage } from "./package.js";
-export { loadSkeletonHwpx, setSkeletonHwpx } from "./templates.js";
+export {
+  loadSkeletonHwpx,
+  setSkeletonHwpx,
+  getTemplatesDir,
+  listTemplates,
+  saveAsTemplate,
+  loadTemplate,
+  deleteTemplate,
+} from "./templates.js";
+export type { BookTemplateOptions, TemplateInfo } from "./templates.js";
 
 // XML abstraction
 export {
@@ -86,6 +95,10 @@ export type { GenericElement } from "./oxml/common.js";
 
 // Parser
 export { elementToModel, parseHeaderXml, parseSectionXml } from "./oxml/parser.js";
+
+// TOC generation
+export { generateTableOfContents, getTocEntries, scanForHeadings } from "./oxml/toc.js";
+export type { TocEntry, TocOptions } from "./oxml/toc.js";
 
 // Tools
 export { TextExtractor } from "./tools/text-extractor.js";

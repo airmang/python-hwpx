@@ -1848,7 +1848,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       get().pushUndo();
       // Import dynamically to avoid circular dependencies
       import("@ubermensch1218/hwpxcore").then(({ generateTableOfContents }) => {
-        generateTableOfContents(doc, options);
+        generateTableOfContents(doc.oxml, options);
         get().rebuild();
       }).catch((e) => {
         console.error("insertToc import failed:", e);
