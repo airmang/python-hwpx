@@ -186,6 +186,7 @@ export function MenuBar() {
         { label: "개요 적용/해제", disabled, action: () => store().openOutlineDialog() },
         { label: "한 수준 증가", shortcut: "⌃-", disabled, action: () => store().applyOutlineLevel(Math.min(7, (store().selection?.paragraphIndex ?? 0) + 1)) },
         { label: "한 수준 감소", shortcut: "⌃+", disabled, action: () => store().applyOutlineLevel(Math.max(0, (store().selection?.paragraphIndex ?? 1) - 1)), dividerAfter: true },
+        { label: "차례 만들기...", disabled, action: () => store().openTocDialog() },
         { label: "스타일...", shortcut: "F6", disabled, action: () => store().openStyleDialog() },
       ],
     },

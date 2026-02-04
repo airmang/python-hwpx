@@ -52,6 +52,7 @@ export interface UIState {
   autoCorrectDialogOpen: boolean;
   outlineDialogOpen: boolean;
   shapeDialogOpen: boolean;
+  tocDialogOpen: boolean;
   zoomLevel: number;
 }
 
@@ -61,6 +62,14 @@ export interface Template {
   path: string;
   description?: string;
   createdAt: number;
+}
+
+export interface TocOptions {
+  title?: string;
+  tabLeader?: "DOT" | "HYPHEN" | "UNDERLINE" | "NONE";
+  tabWidth?: number;
+  maxLevel?: number;
+  showPageNumbers?: boolean;
 }
 
 export interface UndoEntry {
@@ -131,6 +140,8 @@ export interface UIActions {
   closeOutlineDialog: () => void;
   openShapeDialog: () => void;
   closeShapeDialog: () => void;
+  openTocDialog: () => void;
+  closeTocDialog: () => void;
   openSaveDialog: () => void;
   closeSaveDialog: () => void;
   setZoom: (level: number) => void;
@@ -165,6 +176,7 @@ export interface FormattingActions {
   applyOutlineLevel: (level: number) => void;
   removeBulletNumbering: () => void;
   applyStyle: (styleId: string) => void;
+  insertToc: (options: TocOptions) => void;
 }
 
 export type ShapeType = "rectangle" | "ellipse" | "line" | "arrow";

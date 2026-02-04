@@ -25,6 +25,7 @@ import { StyleDialog } from "../dialog/StyleDialog";
 import { AutoCorrectDialog } from "../dialog/AutoCorrectDialog";
 import { OutlineDialog } from "../dialog/OutlineDialog";
 import { ShapeDialog } from "../dialog/ShapeDialog";
+import { TocDialog } from "../dialog/TocDialog";
 import { PanelRight } from "lucide-react";
 
 export function Editor() {
@@ -162,6 +163,7 @@ export function Editor() {
       <AutoCorrectDialog />
       <OutlineDialog />
       <ShapeDialog />
+      <TocDialog />
       {/* Menu bar */}
       <MenuBar />
       {/* Ribbon toolbar */}

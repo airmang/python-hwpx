@@ -60,7 +60,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   undoStack: [],
   redoStack: [],
   extendedFormat: { char: defaultCharFormat, para: defaultParaFormat },
-  uiState: { sidebarOpen: true, sidebarTab: "char", saveDialogOpen: false, charFormatDialogOpen: false, paraFormatDialogOpen: false, bulletNumberDialogOpen: false, charMapDialogOpen: false, templateDialogOpen: false, headerFooterDialogOpen: false, findReplaceDialogOpen: false, wordCountDialogOpen: false, pageNumberDialogOpen: false, styleDialogOpen: false, autoCorrectDialogOpen: false, outlineDialogOpen: false, shapeDialogOpen: false, zoomLevel: 100 },
+  uiState: { sidebarOpen: true, sidebarTab: "char", saveDialogOpen: false, charFormatDialogOpen: false, paraFormatDialogOpen: false, bulletNumberDialogOpen: false, charMapDialogOpen: false, templateDialogOpen: false, headerFooterDialogOpen: false, findReplaceDialogOpen: false, wordCountDialogOpen: false, pageNumberDialogOpen: false, styleDialogOpen: false, autoCorrectDialogOpen: false, outlineDialogOpen: false, shapeDialogOpen: false, tocDialogOpen: false, zoomLevel: 100 },
   loading: false,
   error: null,
   templates: [],
@@ -1819,6 +1819,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   closeShapeDialog: () =>
     set((s) => ({ uiState: { ...s.uiState, shapeDialogOpen: false } })),
 
+  openTocDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, tocDialogOpen: true } })),
+
+  closeTocDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, tocDialogOpen: false } })),
+
   applyStyle: (styleId) => {
     const { doc, selection } = get();
     if (!doc || !selection) return;
@@ -1832,6 +1838,23 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       get().rebuild();
     } catch (e) {
       console.error("applyStyle failed:", e);
+    }
+  },
+
+  insertToc: (options) => {
+    const { doc } = get();
+    if (!doc) return;
+    try {
+      get().pushUndo();
+      // Import dynamically to avoid circular dependencies
+      import("@ubermensch1218/hwpxcore").then(({ generateTableOfContents }) => {
+        generateTableOfContents(doc, options);
+        get().rebuild();
+      }).catch((e) => {
+        console.error("insertToc import failed:", e);
+      });
+    } catch (e) {
+      console.error("insertToc failed:", e);
     }
   },
 
