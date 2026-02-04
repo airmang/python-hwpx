@@ -46,3 +46,18 @@ export function loadSkeletonHwpx(): Uint8Array {
 export function setSkeletonHwpx(data: Uint8Array): void {
   _cachedSkeleton = data;
 }
+
+/**
+ * Book template options
+ */
+export interface BookTemplateOptions {
+  title: string;
+  subtitle?: string;
+  author?: string;
+  publisher?: string;
+  publishDate?: string;
+  copyright?: string;
+  includeToc?: boolean;
+  tocTitle?: string;
+  tocTabLeader?: "DOT" | "HYPHEN" | "UNDERLINE" | "NONE";
+}
