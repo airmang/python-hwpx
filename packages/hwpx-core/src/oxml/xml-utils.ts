@@ -11,6 +11,7 @@ import {
 
 export const HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph";
 export const HH_NS = "http://www.hancom.co.kr/hwpml/2011/head";
+export const HC_NS = "http://www.hancom.co.kr/hwpml/2011/core";
 
 export const DEFAULT_PARAGRAPH_ATTRS: Record<string, string> = {
   paraPrIDRef: "0",
@@ -316,4 +317,102 @@ export function createBasicBorderFillElement(doc: Document, borderId: string): E
     subElement(element, HH_NS, childName, { ...childAttrs });
   }
   return element;
+}
+
+// -- Background color fill helpers --
+
+/**
+ * Create a borderFill with solid color background (winBrush)
+ * @param doc - XML Document
+ * @param id - borderFill ID
+ * @param faceColor - Background color (e.g., "#EFEFEF", "none")
+ * @param options - Optional parameters
+ */
+export function createSolidBorderFill(
+  doc: Document,
+  id: string,
+  faceColor: string,
+  options?: {
+    hatchColor?: string;
+    alpha?: number;
+    borderAttrs?: Partial<typeof BASIC_BORDER_FILL_ATTRIBUTES>;
+    borderChildren?: boolean;
+  }
+): Element {
+  const opts = options ?? {};
+  const borderAttrs = { ...BASIC_BORDER_FILL_ATTRIBUTES, ...opts.borderAttrs };
+  const element = createNsElement(doc, HH_NS, "borderFill", { id, ...borderAttrs });
+
+  // Add winBrush with faceColor
+  subElement(element, HC_NS, "winBrush", {
+    faceColor,
+    hatchColor: opts.hatchColor ?? "#000000",
+    alpha: String(opts.alpha ?? 0),
+  });
+
+  // Add border children if requested
+  if (opts.borderChildren !== false) {
+    for (const [childName, childAttrs] of BASIC_BORDER_CHILDREN) {
+      subElement(element, HH_NS, childName, { ...childAttrs });
+    }
+  }
+
+  return element;
+}
+
+/**
+ * Create a borderFill with image background (imgBrush)
+ * @param doc - XML Document
+ * @param id - borderFill ID
+ * @param binaryItemIdRef - Binary item ID reference for the image
+ * @param options - Optional parameters
+ */
+export function createImageBorderFill(
+  doc: Document,
+  id: string,
+  binaryItemIdRef: string,
+  options?: {
+    borderAttrs?: Partial<typeof BASIC_BORDER_FILL_ATTRIBUTES>;
+    borderChildren?: boolean;
+  }
+): Element {
+  const opts = options ?? {};
+  const borderAttrs = { ...BASIC_BORDER_FILL_ATTRIBUTES, ...opts.borderAttrs };
+  const element = createNsElement(doc, HH_NS, "borderFill", { id, ...borderAttrs });
+
+  // Add imgBrush with img reference
+  const imgBrush = subElement(element, HC_NS, "imgBrush");
+  subElement(imgBrush, HC_NS, "img", {
+    binaryItemIDRef: binaryItemIdRef,
+  });
+
+  // Add border children if requested
+  if (opts.borderChildren !== false) {
+    for (const [childName, childAttrs] of BASIC_BORDER_CHILDREN) {
+      subElement(element, HH_NS, childName, { ...childAttrs });
+    }
+  }
+
+  return element;
+}
+
+/**
+ * Check if a borderFill element has a specific faceColor
+ */
+export function borderFillHasFaceColor(element: Element, faceColor: string): boolean {
+  if (elementLocalName(element) !== "borderFill") return false;
+
+  const winBrush = findChild(element, HC_NS, "winBrush");
+  if (!winBrush) return false;
+
+  const actualFaceColor = winBrush.getAttribute("faceColor");
+  return actualFaceColor === faceColor;
+}
+
+/**
+ * Check if a borderFill element has an image brush
+ */
+export function borderFillHasImageBrush(element: Element): boolean {
+  if (elementLocalName(element) !== "borderFill") return false;
+  return findChild(element, HC_NS, "imgBrush") !== null;
 }
