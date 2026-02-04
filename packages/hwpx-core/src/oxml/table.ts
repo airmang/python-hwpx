@@ -139,6 +139,23 @@ export class HwpxOxmlTableCell {
     this.table.markDirty();
   }
 
+  /** Get cell background color (borderFillIDRef). */
+  get borderFillIdRef(): string | null {
+    return this.element.getAttribute("borderFillIDRef");
+  }
+
+  /** Set cell background color. */
+  setBackgroundColor(borderFillIdRef: string): void {
+    this.element.setAttribute("borderFillIDRef", borderFillIdRef);
+    this.table.markDirty();
+  }
+
+  /** Clear cell background. */
+  clearBackgroundColor(): void {
+    this.element.removeAttribute("borderFillIDRef");
+    this.table.markDirty();
+  }
+
   private _ensureTextElement(): Element {
     let sublist = findChild(this.element, HP_NS, "subList");
     if (!sublist) sublist = subElement(this.element, HP_NS, "subList", defaultSublistAttributes());

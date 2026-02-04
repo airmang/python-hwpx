@@ -1,0 +1,485 @@
+# HWPX-TS Library Reference for AI Agents
+
+This document helps AI agents understand and use the `@ubermensch1218/hwpxcore` TypeScript library for reading, editing, and creating HWPX (Hangul Word Processor XML) documents.
+
+## Installation
+
+```bash
+npm install @ubermensch1218/hwpxcore
+```
+
+## Quick Import
+
+```typescript
+import { HwpxDocument } from '@ubermensch1218/hwpxcore';
+```
+
+---
+
+## Core Class: HwpxDocument
+
+### Opening Documents
+
+```typescript
+// From ArrayBuffer or Uint8Array (e.g., file upload, fetch)
+const buffer = await fetch('document.hwpx').then(r => r.arrayBuffer());
+const doc = await HwpxDocument.open(buffer);
+```
+
+### Saving Documents
+
+```typescript
+// Returns Uint8Array - can be saved as .hwpx file or sent to API
+const bytes = await doc.save();
+```
+
+---
+
+## Document Navigation
+
+### Sections
+```typescript
+doc.sections           // Array of all sections
+doc.sectionCount       // Number of sections
+doc.section(0)         // Get specific section by index
+```
+
+### Paragraphs
+```typescript
+doc.paragraphs         // All paragraphs across all sections
+doc.text               // Full document text (all paragraphs joined)
+```
+
+### Tables
+```typescript
+doc.tables             // All tables across all sections
+```
+
+### Memos (Comments)
+```typescript
+doc.memos              // All memos (comments) across all sections
+```
+
+### Headers (Document Styles)
+```typescript
+doc.headers            // OXML header objects (styles, fonts, borders)
+```
+
+---
+
+## Text Operations
+
+### Read Text
+```typescript
+// Full document text
+const fullText = doc.text;
+
+// Per paragraph
+for (const para of doc.paragraphs) {
+  console.log(para.text);
+}
+```
+
+### Replace Text
+```typescript
+// Replace all occurrences
+const count = doc.replaceText('old text', 'new text');
+
+// Replace first N occurrences
+const count = doc.replaceText('old', 'new', 5);
+```
+
+### Modify Paragraph Text
+```typescript
+// Set paragraph text directly
+para.text = 'New text';
+
+// Add run (text span with formatting)
+para.addRun('text', { charPrIdRef: '0' });
+```
+
+---
+
+## Adding Content
+
+### Add Paragraph
+```typescript
+// Append to last section
+doc.addParagraph('Hello World');
+
+// Append to specific section
+doc.addParagraph('Text', { sectionIndex: 0 });
+
+// With style references
+doc.addParagraph('Styled text', {
+  paraPrIdRef: '1',      // paragraph style
+  charPrIdRef: '2',      // character style
+  styleIdRef: 'body'     // named style
+});
+```
+
+### Insert Paragraph at Position
+```typescript
+doc.insertParagraphAt(sectionIndex, paragraphIndex, 'Text');
+```
+
+### Remove Paragraph
+```typescript
+doc.removeParagraph(sectionIndex, paragraphIndex);
+```
+
+### Add Image
+```typescript
+const imageData = await fetch('image.png').then(r => r.arrayBuffer());
+doc.addImage(new Uint8Array(imageData), {
+  mediaType: 'image/png',
+  widthMm: 100,        // width in millimeters
+  heightMm: 80,        // height in millimeters
+  sectionIndex: 0,
+  textWrap: 'TOP_AND_BOTTOM',
+  treatAsChar: true
+});
+```
+
+### Add Equation
+```typescript
+// HWP equation script notation
+doc.addEquation('E=mc^2');
+
+// With options
+doc.addEquation('rmCH _{3} COOH', {
+  textColor: '#000000',
+  font: 'HancomEQN',
+  sectionIndex: 0
+});
+```
+
+---
+
+## Table Operations
+
+### Add Table via Paragraph
+```typescript
+const para = doc.addParagraph('');
+const table = para.addTable(3, 4);  // 3 rows, 4 columns
+
+// Access cells
+for (let r = 0; r < table.rows.length; r++) {
+  for (let c = 0; c < table.rows[r].cells.length; c++) {
+    const cell = table.rows[r].cells[c];
+    cell.paragraphs[0].text = `Cell ${r},${c}`;
+  }
+}
+```
+
+### Table Properties
+```typescript
+table.rows            // Array of rows
+table.rows[r].cells   // Array of cells in row
+
+// Cell operations
+cell.address          // [rowIndex, colIndex]
+cell.span             // [rowSpan, colSpan]
+cell.setSpan(2, 3);   // Merge cells
+cell.setSize(5000, 1000);  // width, height in hwpUnits
+```
+
+---
+
+## Formatting
+
+### Character Properties (Fonts, Colors, Styles)
+```typescript
+// Ensure a run style exists, returns ID
+const boldId = doc.ensureRunStyle({
+  bold: true,
+  fontSize: 12,
+  fontFamily: '맑은 고딕',
+  textColor: '#FF0000'
+});
+
+// Apply to paragraph run
+para.addRun('Bold red text', { charPrIdRef: boldId });
+
+// Apply to text range
+para.applyCharFormatToRange(startOffset, endOffset, boldId);
+```
+
+### Paragraph Properties (Alignment, Spacing)
+```typescript
+const centerStyleId = doc.ensureParaStyle({
+  alignment: 'center',
+  lineSpacingValue: 160,
+  marginLeft: 1000,
+  indent: 2000
+});
+
+para.paraPrIdRef = centerStyleId;
+```
+
+---
+
+## List Formatting
+
+### Bullet Lists
+```typescript
+para.bulletIdRef = '1';   // Set bullet ID
+```
+
+### Numbered Lists (Outline)
+```typescript
+para.outlineLevel = 1;    // 1-9 for numbered list levels
+```
+
+---
+
+## Page Breaks
+
+```typescript
+para.pageBreak = true;    // Force page break before this paragraph
+para.columnBreak = true;  // Force column break
+```
+
+---
+
+## Memo (Comment) Operations
+
+```typescript
+for (const memo of doc.memos) {
+  console.log(memo.id, memo.text);
+  memo.text = 'Updated comment';
+  memo.setText('New text', charPrIdRef);
+}
+```
+
+---
+
+## Utility Tools
+
+### TextExtractor
+```typescript
+import { TextExtractor } from '@ubermensch1218/hwpxcore';
+
+const pkg = await HwpxPackage.open(buffer);
+const extractor = new TextExtractor(pkg);
+const text = extractor.extractText();
+```
+
+### ObjectFinder
+```typescript
+import { ObjectFinder } from '@ubermensch1218/hwpxcore';
+
+const finder = new ObjectFinder(doc);
+finder.findParagraphsContaining('search term');
+finder.findTablesWithCellText('content');
+```
+
+---
+
+## Template Operations
+
+```typescript
+import {
+  loadTemplate,
+  saveAsTemplate,
+  listTemplates
+} from '@ubermensch1218/hwpxcore';
+
+// Load template
+const doc = await loadTemplate('letter');
+
+// Save as template
+await saveAsTemplate(doc, 'my-template');
+
+// List available templates
+const templates = listTemplates();
+```
+
+---
+
+## Table of Contents
+
+```typescript
+import { generateTableOfContents, scanForHeadings } from '@ubermensch1218/hwpxcore';
+
+// Scan for headings (paragraphs with outlineLevel set)
+const headings = scanForHeadings(doc);
+
+// Generate TOC at position
+generateTableOfContents(doc, {
+  sectionIndex: 0,
+  paragraphIndex: 5,
+  title: '목차',
+  tabLeader: 'DOT'  // DOT | HYPHEN | UNDERLINE | NONE
+});
+```
+
+---
+
+## Common Patterns
+
+### Pattern 1: Find and Replace with Formatting
+```typescript
+for (const para of doc.paragraphs) {
+  if (para.text.includes('IMPORTANT')) {
+    const boldId = doc.ensureRunStyle({ bold: true, textColor: '#FF0000' });
+    para.charPrIdRef = boldId;
+  }
+}
+```
+
+### Pattern 2: Insert Content After Heading
+```typescript
+for (const section of doc.sections) {
+  for (let i = 0; i < section.paragraphs.length; i++) {
+    const para = section.paragraphs[i];
+    if (para.outlineLevel === 1 && para.text.includes('Target')) {
+      doc.insertParagraphAt(section.index, i + 1, 'New content after heading');
+      break;
+    }
+  }
+}
+```
+
+### Pattern 3: Modify All Tables
+```typescript
+for (const table of doc.tables) {
+  for (const row of table.rows) {
+    for (const cell of row.cells) {
+      for (const para of cell.paragraphs) {
+        para.text = para.text.trim();
+      }
+    }
+  }
+}
+```
+
+### Pattern 4: Add Watermark-style Text Box
+```typescript
+const para = doc.addParagraph('');
+const textBox = para.addTextBox('DRAFT', {
+  width: 10000,
+  height: 3000,
+  x: 5000,
+  y: 5000,
+  borderColor: '#FF0000',
+  fillColor: '#FFFF00'
+});
+```
+
+---
+
+## Unit Conversions
+
+**hwpUnit**: 7200 hwpUnits = 1 inch = 25.4 mm
+
+```typescript
+function mmToHwp(mm: number): number {
+  return Math.round(mm * 7200 / 25.4);
+}
+
+function hwpToMm(hwp: number): number {
+  return hwp * 25.4 / 7200;
+}
+```
+
+---
+
+## Equation Script Examples
+
+HWP equation script uses special notation:
+
+```typescript
+// Basic
+'E=mc^2'                    → E=mc²
+'sqrt{2}'                   → √2
+'1 over 2'                  → ½
+
+// Chemistry
+'rmCH _{3} COOH'            → CH₃COOH
+'rm 2H_2 O = 2H_2 + O_2'    → 2H₂O = 2H₂ + O₂
+
+// Math with bounds
+'sum_{x=0} ^{inf}'          → Σ (summation)
+'int _1 ^2 {3x^2}dx'        → Integral
+
+// Greek letters
+'alpha beta Gamma Delta'    → αβΓΔ
+
+// Multiline (use # for line break)
+'line 1 # line 2 # line 3'
+```
+
+---
+
+## Property IDs
+
+Most formatting uses ID references:
+- `charPrIdRef` - Character property ID (font, size, color, bold, italic)
+- `paraPrIdRef` - Paragraph property ID (alignment, spacing, margins)
+- `styleIdRef` - Named style ID
+- `bulletIdRef` - Bullet/list style ID
+- `borderFillIdRef` - Border and fill ID
+
+Use `ensureRunStyle()` and `ensureParaStyle()` to create/get IDs automatically.
+
+---
+
+## Common Gotchas
+
+1. **Always call `save()` after modifications** - changes are in-memory until saved
+2. **Section/paragraph indexes are 0-based**
+3. **Text wrap values**: `TOP_AND_BOTTOM`, `SQUARE`, `THROUGH`, `TIGHT`, `BEHIND`, `IN_FRONT`
+4. **Images must be added via `doc.addImage()`** - this registers the binary in the package
+5. **Paragraphs contain runs** - text with same formatting = one run
+6. **Use `applyCharFormatToRange()` for partial text formatting** - splits runs automatically
+
+---
+
+## Package Structure
+
+```
+@ubermensch1218/hwpxcore
+├── HwpxDocument       - Main document API
+├── HwpxPackage        - Low-level package/OPC container
+├── HwpxOxml*          - OXML document model (Section, Paragraph, Run, Table, etc.)
+├── TextExtractor      - Extract plain text from documents
+├── ObjectFinder       - Find objects by content
+└── Template functions - loadTemplate, saveAsTemplate, etc.
+```
+
+---
+
+## For MCP/Friendly AI Integration
+
+To integrate this library with an AI agent or MCP server:
+
+1. **Expose key functions as tools**: `openHwpx`, `saveHwpx`, `addParagraph`, `replaceText`, `addImage`
+2. **Return structured data**: paragraph lists with IDs, table structures
+3. **Handle binary data**: Use base64 encoding for images/file transfers
+4. **Provide error context**: Invalid indices, missing resources, etc.
+
+Example MCP tool schema:
+```json
+{
+  "name": "hwpx_add_paragraph",
+  "description": "Add a paragraph to HWPX document",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string" },
+      "sectionIndex": { "type": "number" },
+      "bold": { "type": "boolean" },
+      "fontSize": { "type": "number" }
+    }
+  }
+}
+```
+
+---
+
+## See Also
+
+- npm: https://www.npmjs.com/package/@ubermensch1218/hwpxcore
+- GitHub: https://github.com/ubermensch1218/hwpx-ts
+- HWPX Format: Hancom Office HWPX file format specification

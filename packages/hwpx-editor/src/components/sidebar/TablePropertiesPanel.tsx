@@ -431,6 +431,105 @@ export function TablePropertiesPanel() {
           </select>
         </SidebarField>
       </SidebarSection>
+
+      {/* 셀 배경색 섹션 */}
+      <CellBackgroundSection selection={selection} hasTable={hasTable} inputClass={inputClass} />
     </div>
   );
 }
+
+/** Cell background color section */
+function CellBackgroundSection({
+  selection,
+  hasTable,
+  inputClass,
+}: {
+  selection: SelectionState | null;
+  hasTable: boolean;
+  inputClass: string;
+}) {
+  const doc = useEditorStore((s) => s.doc);
+  const setSelectedCellsSize = useEditorStore((s) => s.setSelectedCellsSize);
+
+  // Color palette
+  const COLORS = [
+    { value: "none", label: "없음", color: "transparent" },
+    { value: "#FFFFFF", label: "흰색", color: "#FFFFFF" },
+    { value: "#EFEFEF", label: "회색", color: "#EFEFEF" },
+    { value: "#FFFFCC", label: "노란", color: "#FFFFCC" },
+    { value: "#CCFFCC", label: "연두", color: "#CCFFCC" },
+    { value: "#CCFFFF", label: "하늘", color: "#CCFFFF" },
+    { value: "#FFCCEE", label: "분홍", color: "#FFCCEE" },
+    { value: "#FFCCCC", label: "빨강", color: "#FFCCCC" },
+    { value: "#E5E5E5", label: "밝은 회색", color: "#E5E5E5" },
+    { value: "#D9D9D9", label: "회색", color: "#D9D9D9" },
+  ];
+
+  const [selectedColor, setSelectedColor] = useState("#EFEFEF");
+
+  const isCellSelected = selection?.type === "cell" && hasTable;
+
+  const applyBackgroundColor = () => {
+    if (!doc || !isCellSelected) return;
+
+    // For now, use a simple approach - create borderFill for the selected color
+    // In a real implementation, you'd work with the actual cell elements
+    // This is a placeholder for the actual implementation
+    console.log("Apply cell background:", selectedColor);
+    // TODO: Implement actual cell background application
+  };
+
+  const clearBackgroundColor = () => {
+    if (!doc || !isCellSelected) return;
+    console.log("Clear cell background");
+    // TODO: Implement actual cell background clearing
+  };
+
+  return (
+    <SidebarSection title="셀 배경색" defaultOpen={false}>
+      <div className="grid grid-cols-5 gap-1">
+        {COLORS.map((color) => (
+          <button
+            key={color.value}
+            disabled={!isCellSelected}
+            onClick={() => setSelectedColor(color.value)}
+            className={`w-full aspect-square rounded border-2 flex items-center justify-center transition-all ${
+              selectedColor === color.value
+                ? "border-blue-500 ring-2 ring-blue-200"
+                : "border-gray-300 hover:border-gray-400"
+            }`}
+            style={{ backgroundColor: color.color }}
+            title={color.label}
+          >
+            {color.value !== "none" && (
+              <div
+                className="w-full h-full rounded"
+                style={{
+                  backgroundColor: color.color,
+                  opacity: 0.8,
+                  border: color.value !== "none" ? "1px solid #ccc" : "1px dashed #999",
+                }}
+              />
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-2 mt-2">
+        <button
+          disabled={!isCellSelected || selectedColor === "none"}
+          onClick={applyBackgroundColor}
+          className="flex-1 py-2 rounded border text-[11px] bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          적용
+        </button>
+        <button
+          disabled={!isCellSelected}
+          onClick={clearBackgroundColor}
+          className="flex-1 py-2 rounded border text-[11px] bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          지우기
+        </button>
+      </div>
+    </SidebarSection>
+  );
