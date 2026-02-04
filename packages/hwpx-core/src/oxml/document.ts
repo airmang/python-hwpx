@@ -36,6 +36,7 @@ export * from "./paragraph.js";
 export * from "./header-part.js";
 export * from "./memo.js";
 export * from "./section.js";
+export * from "./toc.js";
 
 // -- HwpxOxmlDocument --
 

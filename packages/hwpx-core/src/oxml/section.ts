@@ -700,6 +700,21 @@ export class HwpxOxmlSection {
     return new HwpxOxmlParagraph(paragraph, this);
   }
 
+  /**
+   * Insert a pre-created paragraph element at the specified index.
+   * Used internally by TOC generation and other features.
+   */
+  insertParagraph(paragraphElement: Element, index: number): HwpxOxmlParagraph {
+    const existing = findAllChildren(this._element, HP_NS, "p");
+    if (index >= existing.length) {
+      this._element.appendChild(paragraphElement);
+    } else {
+      this._element.insertBefore(paragraphElement, existing[index]!);
+    }
+    this._dirty = true;
+    return new HwpxOxmlParagraph(paragraphElement, this);
+  }
+
   removeParagraph(index: number): void {
     const existing = findAllChildren(this._element, HP_NS, "p");
     if (index < 0 || index >= existing.length) {
