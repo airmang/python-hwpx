@@ -7,7 +7,7 @@
 // High-level API
 export { HwpxDocument } from "./document.js";
 export { HwpxPackage } from "./package.js";
-export { loadSkeletonHwpx, setSkeletonHwpx } from "./templates.js";
+export { loadSkeletonHwpx, setSkeletonHwpx, fetchSkeletonHwpx } from "./templates.js";
 
 // XML abstraction
 export {
