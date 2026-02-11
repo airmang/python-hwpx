@@ -35,6 +35,20 @@ export interface MarginVM {
   right: number;
 }
 
+export interface CellBorderStyleVM {
+  type: string;
+  width: string;
+  color: string;
+}
+
+export interface CellStyleVM {
+  borderLeft: CellBorderStyleVM | null;
+  borderRight: CellBorderStyleVM | null;
+  borderTop: CellBorderStyleVM | null;
+  borderBottom: CellBorderStyleVM | null;
+  backgroundColor: string | null;
+}
+
 export interface TableCellVM {
   row: number;
   col: number;
@@ -46,6 +60,7 @@ export interface TableCellVM {
   isAnchor: boolean; // true if this is the top-left of a merged region
   borderFillIDRef: string | null;
   vertAlign: string;  // "TOP" | "CENTER" | "BOTTOM"
+  style: CellStyleVM | null;
 }
 
 export interface TableVM {
@@ -429,11 +444,28 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
                 isAnchor: false,
                 borderFillIDRef: null,
                 vertAlign: "CENTER",
+                style: null,
               });
               continue;
             }
 
             const isAnchor = pos.anchor[0] === r && pos.anchor[1] === c;
+            const cellBfId = pos.cell.element.getAttribute("borderFillIDRef");
+            let cellStyle: CellStyleVM | null = null;
+            if (cellBfId) {
+              try {
+                const bfInfo = doc.oxml.getBorderFillInfo(cellBfId);
+                if (bfInfo) {
+                  cellStyle = {
+                    borderLeft: bfInfo.left.type !== "NONE" ? bfInfo.left : null,
+                    borderRight: bfInfo.right.type !== "NONE" ? bfInfo.right : null,
+                    borderTop: bfInfo.top.type !== "NONE" ? bfInfo.top : null,
+                    borderBottom: bfInfo.bottom.type !== "NONE" ? bfInfo.bottom : null,
+                    backgroundColor: bfInfo.backgroundColor,
+                  };
+                }
+              } catch { /* ignore */ }
+            }
             row.push({
               row: r,
               col: c,
@@ -443,7 +475,7 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
               heightPx: hwpToPx(pos.cell.height),
               text: isAnchor ? pos.cell.text : "",
               isAnchor,
-              borderFillIDRef: pos.cell.element.getAttribute("borderFillIDRef"),
+              borderFillIDRef: cellBfId,
               vertAlign: (() => {
                 const sl = pos.cell.element.querySelector("subList") ??
                   Array.from(pos.cell.element.childNodes).find(
@@ -451,6 +483,7 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
                   ) as Element | undefined;
                 return (sl?.getAttribute?.("vertAlign") ?? "CENTER").toUpperCase();
               })(),
+              style: cellStyle,
             });
           }
           cellsVM.push(row);

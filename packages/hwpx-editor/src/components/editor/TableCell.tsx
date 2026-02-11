@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useCallback } from "react";
-import type { TableCellVM } from "@/lib/view-model";
+import { useMemo, useRef, useCallback } from "react";
+import type { TableCellVM, CellBorderStyleVM } from "@/lib/view-model";
 import { useEditorStore } from "@/lib/store";
 
 interface TableCellProps {
@@ -9,6 +9,29 @@ interface TableCellProps {
   sectionIndex: number;
   paragraphIndex: number;
   tableIndex: number;
+}
+
+function borderToCss(b: CellBorderStyleVM | null | undefined): string {
+  if (!b || b.type === "NONE") return "1px solid #d1d5db"; // fallback gray-300
+  const widthStr = b.width.replace(/ /g, "");
+  const mm = parseFloat(widthStr);
+  const px = Math.max(Math.round(mm * 3.78), 1); // mm to px approx
+  let cssStyle = "solid";
+  switch (b.type) {
+    case "DASH": cssStyle = "dashed"; break;
+    case "DOT": cssStyle = "dotted"; break;
+    case "DASH_DOT": cssStyle = "dashed"; break;
+    case "DOUBLE_SLIM": case "DOUBLE": cssStyle = "double"; break;
+  }
+  return `${px}px ${cssStyle} ${b.color}`;
+}
+
+function vertAlignToCss(va: string): string {
+  switch (va) {
+    case "TOP": return "top";
+    case "BOTTOM": return "bottom";
+    default: return "middle";
+  }
 }
 
 function isInRange(
@@ -94,6 +117,27 @@ export function TableCell({
     && selection.endRow != null && selection.endCol != null
     && isInRange(cell.row, cell.col, cell.rowSpan, cell.colSpan, selection.row, selection.col, selection.endRow, selection.endCol);
 
+  const cellBorders = cell.style;
+  const hasCustomStyle = !!cellBorders;
+
+  const tdStyle: React.CSSProperties = useMemo(() => {
+    const s: React.CSSProperties = {
+      minWidth: cell.widthPx > 0 ? cell.widthPx : 40,
+      minHeight: cell.heightPx > 0 ? cell.heightPx : 24,
+      verticalAlign: vertAlignToCss(cell.vertAlign),
+    };
+    if (hasCustomStyle) {
+      s.borderLeft = borderToCss(cellBorders.borderLeft);
+      s.borderRight = borderToCss(cellBorders.borderRight);
+      s.borderTop = borderToCss(cellBorders.borderTop);
+      s.borderBottom = borderToCss(cellBorders.borderBottom);
+      if (cellBorders.backgroundColor && !inRange) {
+        s.backgroundColor = cellBorders.backgroundColor;
+      }
+    }
+    return s;
+  }, [cell, cellBorders, hasCustomStyle, inRange]);
+
   return (
     <td
       ref={ref}
@@ -104,13 +148,12 @@ export function TableCell({
       onBlur={handleBlur}
       onFocus={handleFocus}
       onMouseDown={handleMouseDown}
-      className={`border border-gray-300 px-2 py-1 text-sm outline-none ${
-        inRange ? "bg-blue-100" : "focus:bg-blue-50"
+      className={`px-2 py-1 text-sm outline-none ${
+        !hasCustomStyle ? "border border-gray-300" : ""
+      } ${
+        inRange ? "bg-blue-100" : (!hasCustomStyle || !cellBorders?.backgroundColor) ? "focus:bg-blue-50" : ""
       }`}
-      style={{
-        minWidth: cell.widthPx > 0 ? cell.widthPx : 40,
-        minHeight: cell.heightPx > 0 ? cell.heightPx : 24,
-      }}
+      style={tdStyle}
     >
       {cell.text}
     </td>
