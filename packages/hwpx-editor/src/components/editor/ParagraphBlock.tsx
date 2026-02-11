@@ -46,11 +46,31 @@ export function ParagraphBlock({
   const deleteBlock = useEditorStore((s) => s.deleteBlock);
   const ref = useRef<HTMLDivElement>(null);
 
+  const revision = useEditorStore((s) => s.revision);
   const hasTables = paragraph.tables.length > 0;
   const hasImages = paragraph.images.length > 0;
   const hasTextBoxes = paragraph.textBoxes.length > 0;
   const hasEquations = paragraph.equations.length > 0;
   const hasText = paragraph.runs.length > 0;
+
+  // Auto-focus when this paragraph is selected (e.g. after splitParagraph)
+  useEffect(() => {
+    if (
+      selection &&
+      selection.sectionIndex === sectionIndex &&
+      selection.paragraphIndex === localIndex &&
+      ref.current &&
+      document.activeElement !== ref.current
+    ) {
+      ref.current.focus();
+      // Place cursor at start
+      const sel = window.getSelection();
+      if (sel) {
+        sel.selectAllChildren(ref.current);
+        sel.collapseToStart();
+      }
+    }
+  }, [revision, sectionIndex, localIndex, selection]);
 
   const handleBlur = useCallback(() => {
     if (!ref.current) return;

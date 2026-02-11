@@ -1,146 +1,27 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useEditorStore, type SelectionState } from "@/lib/store";
+import { useState, useEffect, useCallback } from "react";
+import { useEditorStore } from "@/lib/store";
 import { hwpToMm } from "@/lib/hwp-units";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarField } from "./SidebarField";
 
+const BORDER_TYPES = [
+  { value: "NONE", label: "없음" },
+  { value: "SOLID", label: "실선" },
+  { value: "DASH", label: "점선" },
+  { value: "DOT", label: "작은 점선" },
+  { value: "DASH_DOT", label: "일점 쇄선" },
+  { value: "DOUBLE_SLIM", label: "이중선" },
+];
+
+const BORDER_WIDTHS = [
+  "0.1 mm", "0.12 mm", "0.15 mm", "0.2 mm", "0.25 mm",
+  "0.3 mm", "0.4 mm", "0.5 mm", "0.7 mm", "1.0 mm",
+];
+
 function roundMm(hwp: number): number {
   return Math.round(hwpToMm(hwp) * 10) / 10;
-}
-
-/** Cell merge controls for selected cells */
-function CellMergeSection({
-  selection,
-  hasTable,
-}: {
-  selection: SelectionState | null;
-  hasTable: boolean;
-}) {
-  const mergeSelectedCells = useEditorStore((s) => s.mergeSelectedCells);
-  const unmergeSelectedCells = useEditorStore((s) => s.unmergeSelectedCells);
-
-  const isCellSelected = selection?.type === "cell" && hasTable;
-  const hasMultipleCells =
-    isCellSelected &&
-    selection &&
-    selection.row != null &&
-    selection.col != null &&
-    (selection.endRow !== selection.row || selection.endCol !== selection.col);
-
-  const btnClass =
-    "flex-1 py-1.5 px-2 rounded border text-[10px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
-  const activeBtnClass = "bg-white border-gray-300 text-gray-700 hover:bg-gray-50";
-
-  return (
-    <SidebarSection title="셀 병합" defaultOpen={true}>
-      <div className="flex gap-2">
-        <button
-          disabled={!isCellSelected || !hasMultipleCells}
-          onClick={() => mergeSelectedCells()}
-          className={`${btnClass} ${activeBtnClass}`}
-          title="선택한 셀들을 하나로 병합합니다"
-        >
-          병합
-        </button>
-        <button
-          disabled={!isCellSelected}
-          onClick={() => unmergeSelectedCells()}
-          className={`${btnClass} ${activeBtnClass}`}
-          title="병합된 셀을 분리합니다"
-        >
-          병합 해제
-        </button>
-      </div>
-      <div className="text-[9px] text-gray-400 mt-1.5">
-        {hasMultipleCells
-          ? "여러 셀 선택됨 - 병합 가능"
-          : isCellSelected
-          ? "Shift+클릭으로 범위 선택 후 병합"
-          : "셀을 선택하세요"}
-      </div>
-    </SidebarSection>
-  );
-}
-
-/** Cell size adjustment for selected cells */
-function CellSizeSection({
-  selection,
-  hasTable,
-  inputClass,
-}: {
-  selection: SelectionState | null;
-  hasTable: boolean;
-  inputClass: string;
-}) {
-  const setSelectedCellsSize = useEditorStore((s) => s.setSelectedCellsSize);
-  const [cellWidth, setCellWidth] = useState<number>(30);
-  const [cellHeight, setCellHeight] = useState<number>(10);
-
-  const isCellSelected = selection?.type === "cell" && hasTable;
-  const hasMultipleCells =
-    isCellSelected &&
-    (selection.endRow != null || selection.endCol != null) &&
-    (selection.endRow !== selection.row || selection.endCol !== selection.col);
-
-  const startRow = Math.min(selection?.row ?? 0, selection?.endRow ?? selection?.row ?? 0);
-  const endRow = Math.max(selection?.row ?? 0, selection?.endRow ?? selection?.row ?? 0);
-  const startCol = Math.min(selection?.col ?? 0, selection?.endCol ?? selection?.col ?? 0);
-  const endCol = Math.max(selection?.col ?? 0, selection?.endCol ?? selection?.col ?? 0);
-
-  const selectedRowCount = endRow - startRow + 1;
-  const selectedColCount = endCol - startCol + 1;
-
-  return (
-    <SidebarSection title="셀 크기" defaultOpen={true}>
-      <div className="text-[10px] text-gray-500 mb-2">
-        {isCellSelected ? (
-          hasMultipleCells ? (
-            `선택: ${selectedRowCount}행 × ${selectedColCount}열`
-          ) : (
-            `셀 (${(selection?.row ?? 0) + 1}, ${(selection?.col ?? 0) + 1})`
-          )
-        ) : (
-          "셀을 선택하세요 (Shift+클릭으로 범위 선택)"
-        )}
-      </div>
-      <SidebarField label="너비 (mm)">
-        <input
-          type="number"
-          value={cellWidth}
-          disabled={!isCellSelected}
-          step={1}
-          min={5}
-          onChange={(e) => setCellWidth(Number(e.target.value))}
-          onBlur={() => isCellSelected && cellWidth > 0 && setSelectedCellsSize(cellWidth, undefined)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && isCellSelected && cellWidth > 0) {
-              setSelectedCellsSize(cellWidth, undefined);
-            }
-          }}
-          className={inputClass}
-        />
-      </SidebarField>
-      <SidebarField label="높이 (mm)">
-        <input
-          type="number"
-          value={cellHeight}
-          disabled={!isCellSelected}
-          step={1}
-          min={3}
-          onChange={(e) => setCellHeight(Number(e.target.value))}
-          onBlur={() => isCellSelected && cellHeight > 0 && setSelectedCellsSize(undefined, cellHeight)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && isCellSelected && cellHeight > 0) {
-              setSelectedCellsSize(undefined, cellHeight);
-            }
-          }}
-          className={inputClass}
-        />
-      </SidebarField>
-    </SidebarSection>
-  );
 }
 
 export function TablePropertiesPanel() {
@@ -151,6 +32,8 @@ export function TablePropertiesPanel() {
   const setTableSize = useEditorStore((s) => s.setTableSize);
   const setTableOutMargin = useEditorStore((s) => s.setTableOutMargin);
   const setTableInMargin = useEditorStore((s) => s.setTableInMargin);
+  const setTableBorder = useEditorStore((s) => s.setTableBorder);
+  const setTableBackground = useEditorStore((s) => s.setTableBackground);
 
   const sIdx = selection?.sectionIndex ?? 0;
   const pIdx = selection?.paragraphIndex ?? 0;
@@ -194,6 +77,21 @@ export function TablePropertiesPanel() {
     setInRight(roundMm(table.inMargin.right));
   }, [table?.outMargin.top, table?.outMargin.bottom, table?.outMargin.left, table?.outMargin.right,
       table?.inMargin.top, table?.inMargin.bottom, table?.inMargin.left, table?.inMargin.right]);
+
+  // Table border state
+  const [tblBorderType, setTblBorderType] = useState("SOLID");
+  const [tblBorderWidth, setTblBorderWidth] = useState("0.12 mm");
+  const [tblBorderColor, setTblBorderColor] = useState("#000000");
+  const [tblBgColor, setTblBgColor] = useState("#FFFFFF");
+  const [tblNoBg, setTblNoBg] = useState(true);
+
+  const applyTableBorder = useCallback(() => {
+    if (!hasTable) return;
+    setTableBorder(
+      ["left", "right", "top", "bottom"],
+      { type: tblBorderType, width: tblBorderWidth, color: tblBorderColor },
+    );
+  }, [hasTable, tblBorderType, tblBorderWidth, tblBorderColor, setTableBorder]);
 
   const pageBreak = table?.pageBreak ?? "CELL";
   const repeatHeader = table?.repeatHeader ?? false;
@@ -338,10 +236,6 @@ export function TablePropertiesPanel() {
         </SidebarField>
       </SidebarSection>
 
-      <CellSizeSection selection={selection} hasTable={hasTable} inputClass={inputClass} />
-
-      <CellMergeSection selection={selection} hasTable={hasTable} />
-
       <SidebarSection title="바깥 여백" defaultOpen={false}>
         <SidebarField label="위 (mm)">
           <input type="number" value={outTop} disabled={!hasTable} step={0.1} min={0}
@@ -404,132 +298,79 @@ export function TablePropertiesPanel() {
         </SidebarField>
       </SidebarSection>
 
-      <SidebarSection title="테두리" defaultOpen={false}>
-        <SidebarField label="색">
-          <select disabled className={inputClass}>
-            <option>검정</option>
-          </select>
-        </SidebarField>
+      <SidebarSection title="테두리 (전체 셀)" defaultOpen={false}>
         <SidebarField label="종류">
-          <select disabled className={inputClass}>
-            <option>실선</option>
+          <select
+            value={tblBorderType}
+            disabled={!hasTable}
+            onChange={(e) => setTblBorderType(e.target.value)}
+            className={inputClass}
+          >
+            {BORDER_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
           </select>
         </SidebarField>
         <SidebarField label="굵기">
-          <select disabled className={inputClass}>
-            <option>0.1 mm</option>
-            <option>0.12 mm</option>
-            <option>0.15 mm</option>
-            <option>0.2 mm</option>
-            <option>0.25 mm</option>
-            <option>0.3 mm</option>
-            <option>0.4 mm</option>
-            <option>0.5 mm</option>
-            <option>0.6 mm</option>
-            <option>0.7 mm</option>
-            <option>1.0 mm</option>
+          <select
+            value={tblBorderWidth}
+            disabled={!hasTable}
+            onChange={(e) => setTblBorderWidth(e.target.value)}
+            className={inputClass}
+          >
+            {BORDER_WIDTHS.map((w) => (
+              <option key={w} value={w}>{w}</option>
+            ))}
           </select>
         </SidebarField>
+        <SidebarField label="색상">
+          <input
+            type="color"
+            value={tblBorderColor}
+            disabled={!hasTable}
+            onChange={(e) => setTblBorderColor(e.target.value)}
+            className="w-full h-6 p-0 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
+          />
+        </SidebarField>
+        <button
+          disabled={!hasTable}
+          onClick={applyTableBorder}
+          className="w-full mt-1 py-1.5 rounded bg-blue-600 text-white text-[11px] font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          전체 셀 테두리 적용
+        </button>
       </SidebarSection>
 
-      {/* 셀 배경색 섹션 */}
-      <CellBackgroundSection selection={selection} hasTable={hasTable} inputClass={inputClass} />
+      <SidebarSection title="배경 (전체 셀)" defaultOpen={false}>
+        <div className="flex items-center gap-2 mb-2">
+          <label className="flex items-center gap-1 text-[11px] text-gray-600">
+            <input
+              type="checkbox"
+              checked={tblNoBg}
+              onChange={(e) => {
+                setTblNoBg(e.target.checked);
+                if (e.target.checked && hasTable) setTableBackground(null);
+              }}
+              className="w-3 h-3"
+            />
+            없음
+          </label>
+        </div>
+        {!tblNoBg && (
+          <SidebarField label="색상">
+            <input
+              type="color"
+              value={tblBgColor}
+              disabled={!hasTable}
+              onChange={(e) => {
+                setTblBgColor(e.target.value);
+                if (hasTable) setTableBackground(e.target.value);
+              }}
+              className="w-full h-6 p-0 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
+            />
+          </SidebarField>
+        )}
+      </SidebarSection>
     </div>
   );
 }
-
-/** Cell background color section */
-function CellBackgroundSection({
-  selection,
-  hasTable,
-  inputClass,
-}: {
-  selection: SelectionState | null;
-  hasTable: boolean;
-  inputClass: string;
-}) {
-  const doc = useEditorStore((s) => s.doc);
-  const setSelectedCellsSize = useEditorStore((s) => s.setSelectedCellsSize);
-
-  // Color palette
-  const COLORS = [
-    { value: "none", label: "없음", color: "transparent" },
-    { value: "#FFFFFF", label: "흰색", color: "#FFFFFF" },
-    { value: "#EFEFEF", label: "회색", color: "#EFEFEF" },
-    { value: "#FFFFCC", label: "노란", color: "#FFFFCC" },
-    { value: "#CCFFCC", label: "연두", color: "#CCFFCC" },
-    { value: "#CCFFFF", label: "하늘", color: "#CCFFFF" },
-    { value: "#FFCCEE", label: "분홍", color: "#FFCCEE" },
-    { value: "#FFCCCC", label: "빨강", color: "#FFCCCC" },
-    { value: "#E5E5E5", label: "밝은 회색", color: "#E5E5E5" },
-    { value: "#D9D9D9", label: "회색", color: "#D9D9D9" },
-  ];
-
-  const [selectedColor, setSelectedColor] = useState("#EFEFEF");
-
-  const isCellSelected = selection?.type === "cell" && hasTable;
-
-  const applyBackgroundColor = () => {
-    if (!doc || !isCellSelected) return;
-
-    // For now, use a simple approach - create borderFill for the selected color
-    // In a real implementation, you'd work with the actual cell elements
-    // This is a placeholder for the actual implementation
-    console.log("Apply cell background:", selectedColor);
-    // TODO: Implement actual cell background application
-  };
-
-  const clearBackgroundColor = () => {
-    if (!doc || !isCellSelected) return;
-    console.log("Clear cell background");
-    // TODO: Implement actual cell background clearing
-  };
-
-  return (
-    <SidebarSection title="셀 배경색" defaultOpen={false}>
-      <div className="grid grid-cols-5 gap-1">
-        {COLORS.map((color) => (
-          <button
-            key={color.value}
-            disabled={!isCellSelected}
-            onClick={() => setSelectedColor(color.value)}
-            className={`w-full aspect-square rounded border-2 flex items-center justify-center transition-all ${
-              selectedColor === color.value
-                ? "border-blue-500 ring-2 ring-blue-200"
-                : "border-gray-300 hover:border-gray-400"
-            }`}
-            style={{ backgroundColor: color.color }}
-            title={color.label}
-          >
-            {color.value !== "none" && (
-              <div
-                className="w-full h-full rounded"
-                style={{
-                  backgroundColor: color.color,
-                  opacity: 0.8,
-                  border: color.value !== "none" ? "1px solid #ccc" : "1px dashed #999",
-                }}
-              />
-            )}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex gap-2 mt-2">
-        <button
-          disabled={!isCellSelected || selectedColor === "none"}
-          onClick={applyBackgroundColor}
-          className="flex-1 py-2 rounded border text-[11px] bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          적용
-        </button>
-        <button
-          disabled={!isCellSelected}
-          onClick={clearBackgroundColor}
-          className="flex-1 py-2 rounded border text-[11px] bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          지우기
-        </button>
-      </div>
-    </SidebarSection>
-  );

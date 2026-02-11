@@ -6,7 +6,6 @@ import type { DocumentNumbering } from "./types.js";
 import type { HwpxOxmlDocument } from "./document.js";
 import {
   HH_NS,
-  HC_NS,
   serializeXmlBytes,
   getIntAttr,
   findChild,
@@ -15,10 +14,10 @@ import {
   subElement,
   borderFillIsBasicSolidLine,
   createBasicBorderFillElement,
-  createSolidBorderFill,
-  createImageBorderFill,
-  borderFillHasFaceColor,
-  borderFillHasImageBrush,
+  parseBorderFillElement,
+  createBorderFillElement,
+  type BorderStyle,
+  type BorderFillInfo,
 } from "./xml-utils.js";
 
 export class HwpxOxmlHeader {
@@ -93,94 +92,77 @@ export class HwpxOxmlHeader {
     return newId;
   }
 
-  // -- Background color borderFill methods --
-
-  /**
-   * Find an existing solid color borderFill with the specified faceColor
-   */
-  findSolidBorderFillId(faceColor: string): string | null {
+  getBorderFillInfo(id: string | number): BorderFillInfo | null {
     const el = this._borderFillsElement();
     if (!el) return null;
-
     for (const child of findAllChildren(el, HH_NS, "borderFill")) {
-      if (borderFillHasFaceColor(child, faceColor)) {
+      if (child.getAttribute("id") === String(id)) {
+        return parseBorderFillElement(child);
+      }
+    }
+    return null;
+  }
+
+  ensureBorderFill(opts: {
+    baseBorderFillId?: string | number;
+    sides?: { left?: BorderStyle; right?: BorderStyle; top?: BorderStyle; bottom?: BorderStyle };
+    backgroundColor?: string | null;
+  }): string {
+    const container = this._borderFillsElement(true)!;
+    const doc = container.ownerDocument!;
+
+    // Load base info
+    let baseInfo: BorderFillInfo | null = null;
+    if (opts.baseBorderFillId != null) {
+      baseInfo = this.getBorderFillInfo(opts.baseBorderFillId);
+    }
+    if (!baseInfo) {
+      baseInfo = {
+        left: { type: "SOLID", width: "0.12 mm", color: "#000000" },
+        right: { type: "SOLID", width: "0.12 mm", color: "#000000" },
+        top: { type: "SOLID", width: "0.12 mm", color: "#000000" },
+        bottom: { type: "SOLID", width: "0.12 mm", color: "#000000" },
+        diagonal: { type: "SOLID", width: "0.1 mm", color: "#000000" },
+        backgroundColor: null,
+      };
+    }
+
+    // Apply requested changes
+    const newInfo: BorderFillInfo = { ...baseInfo };
+    if (opts.sides) {
+      if (opts.sides.left) newInfo.left = opts.sides.left;
+      if (opts.sides.right) newInfo.right = opts.sides.right;
+      if (opts.sides.top) newInfo.top = opts.sides.top;
+      if (opts.sides.bottom) newInfo.bottom = opts.sides.bottom;
+    }
+    if (opts.backgroundColor !== undefined) {
+      newInfo.backgroundColor = opts.backgroundColor;
+    }
+
+    // Check if existing borderFill matches
+    const matchesBorder = (a: BorderStyle, b: BorderStyle): boolean =>
+      a.type.toUpperCase() === b.type.toUpperCase() &&
+      a.width.replace(/ /g, "").toLowerCase() === b.width.replace(/ /g, "").toLowerCase() &&
+      a.color.toUpperCase() === b.color.toUpperCase();
+
+    for (const child of findAllChildren(container, HH_NS, "borderFill")) {
+      const existing = parseBorderFillElement(child);
+      if (
+        matchesBorder(existing.left, newInfo.left) &&
+        matchesBorder(existing.right, newInfo.right) &&
+        matchesBorder(existing.top, newInfo.top) &&
+        matchesBorder(existing.bottom, newInfo.bottom) &&
+        (existing.backgroundColor ?? null) === (newInfo.backgroundColor ?? null)
+      ) {
         const id = child.getAttribute("id");
         if (id) return id;
       }
     }
-    return null;
-  }
 
-  /**
-   * Ensure a solid color borderFill exists, creating it if necessary
-   */
-  ensureSolidBorderFill(faceColor: string, options?: {
-    hatchColor?: string;
-    alpha?: number;
-    preferredId?: string | number;
-  }): string {
-    // First try to find existing
-    const existing = this.findSolidBorderFillId(faceColor);
-    if (existing && (!options?.preferredId || existing === String(options.preferredId))) {
-      return existing;
-    }
-
-    // Create new
-    const el = this._borderFillsElement(true)!;
-    const doc = el.ownerDocument!;
-    const newId = this._allocateBorderFillId(el, options?.preferredId);
-    el.appendChild(createSolidBorderFill(doc, newId, faceColor, {
-      hatchColor: options?.hatchColor,
-      alpha: options?.alpha,
-    }));
-    this._updateBorderFillsItemCount(el);
-    this.markDirty();
-    return newId;
-  }
-
-  /**
-   * Find an existing image borderFill with the specified binary item ID
-   */
-  findImageBorderFillId(binaryItemIdRef: string): string | null {
-    const el = this._borderFillsElement();
-    if (!el) return null;
-
-    for (const child of findAllChildren(el, HH_NS, "borderFill")) {
-      if (borderFillHasImageBrush(child)) {
-        const imgBrush = findChild(child, HC_NS, "imgBrush");
-        if (imgBrush) {
-          const img = findChild(imgBrush, HC_NS, "img");
-          if (img) {
-            const binaryId = img.getAttribute("binaryItemIDRef");
-            if (binaryId === binaryItemIdRef) {
-              const id = child.getAttribute("id");
-              if (id) return id;
-            }
-          }
-        }
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Ensure an image background borderFill exists, creating it if necessary
-   */
-  ensureImageBorderFill(binaryItemIdRef: string, options?: {
-    preferredId?: string | number;
-  }): string {
-    // First try to find existing
-    const existing = this.findImageBorderFillId(binaryItemIdRef);
-    if (existing && (!options?.preferredId || existing === String(options.preferredId))) {
-      return existing;
-    }
-
-    // Create new
-    const el = this._borderFillsElement(true)!;
-    const doc = el.ownerDocument!;
-    const newId = this._allocateBorderFillId(el, options?.preferredId);
-    el.appendChild(createImageBorderFill(doc, newId, binaryItemIdRef));
-    this._updateBorderFillsItemCount(el);
+    // Create new borderFill
+    const newId = this._allocateBorderFillId(container);
+    container.appendChild(createBorderFillElement(doc, newId, newInfo));
+    this._updateBorderFillsItemCount(container);
     this.markDirty();
     return newId;
   }
@@ -423,19 +405,12 @@ export class HwpxOxmlHeader {
     return candidate;
   }
 
-  private _allocateBorderFillId(element: Element, preferredId?: string | number | null): string {
+  private _allocateBorderFillId(element: Element): string {
     const existing = new Set<string>();
     for (const child of findAllChildren(element, HH_NS, "borderFill")) {
       const id = child.getAttribute("id");
       if (id) existing.add(id);
     }
-
-    // Check if preferred ID is available
-    if (preferredId != null) {
-      const candidate = String(preferredId);
-      if (!existing.has(candidate)) return candidate;
-    }
-
     const numericIds: number[] = [];
     for (const id of existing) {
       const n = parseInt(id, 10);

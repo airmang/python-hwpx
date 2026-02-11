@@ -134,25 +134,30 @@ export class HwpxOxmlTableCell {
     this.table.markDirty();
   }
 
-  remove(): void {
-    this._rowElement.removeChild(this.element);
-    this.table.markDirty();
-  }
-
-  /** Get cell background color (borderFillIDRef). */
-  get borderFillIdRef(): string | null {
+  get borderFillIDRef(): string | null {
     return this.element.getAttribute("borderFillIDRef");
   }
 
-  /** Set cell background color. */
-  setBackgroundColor(borderFillIdRef: string): void {
-    this.element.setAttribute("borderFillIDRef", borderFillIdRef);
+  set borderFillIDRef(id: string) {
+    this.element.setAttribute("borderFillIDRef", id);
     this.table.markDirty();
   }
 
-  /** Clear cell background. */
-  clearBackgroundColor(): void {
-    this.element.removeAttribute("borderFillIDRef");
+  get vertAlign(): string {
+    const sublist = findChild(this.element, HP_NS, "subList");
+    if (!sublist) return "CENTER";
+    return (sublist.getAttribute("vertAlign") ?? "CENTER").toUpperCase();
+  }
+
+  set vertAlign(value: string) {
+    let sublist = findChild(this.element, HP_NS, "subList");
+    if (!sublist) sublist = subElement(this.element, HP_NS, "subList", defaultSublistAttributes());
+    sublist.setAttribute("vertAlign", value);
+    this.table.markDirty();
+  }
+
+  remove(): void {
+    this._rowElement.removeChild(this.element);
     this.table.markDirty();
   }
 
@@ -215,6 +220,15 @@ export class HwpxOxmlTable {
 
   markDirty(): void {
     this.paragraph.section.markDirty();
+  }
+
+  get borderFillIDRef(): string | null {
+    return this.element.getAttribute("borderFillIDRef");
+  }
+
+  set borderFillIDRef(id: string) {
+    this.element.setAttribute("borderFillIDRef", id);
+    this.markDirty();
   }
 
   /** Table width in hwpUnits. */
@@ -360,8 +374,6 @@ export class HwpxOxmlTable {
     for (const row of findAllChildren(this.element, HP_NS, "tr")) {
       for (const cellElement of findAllChildren(row, HP_NS, "tc")) {
         const wrapper = new HwpxOxmlTableCell(cellElement, this, row);
-        // Skip non-anchor merged cells (they have width=0 after merge)
-        if (wrapper.width === 0 && wrapper.height === 0) continue;
         const [startRow, startCol] = wrapper.address;
         const [spanRow, spanCol] = wrapper.span;
         for (let lr = startRow; lr < startRow + spanRow; lr++) {
@@ -422,334 +434,366 @@ export class HwpxOxmlTable {
     return grid;
   }
 
-  /**
-   * Merge cells in a rectangular range.
-   * @param startRow Starting row index (inclusive)
-   * @param startCol Starting column index (inclusive)
-   * @param endRow Ending row index (inclusive)
-   * @param endCol Ending column index (inclusive)
-   */
-  mergeCells(startRow: number, startCol: number, endRow: number, endCol: number): void {
-    // Normalize range
-    const r1 = Math.min(startRow, endRow);
-    const r2 = Math.max(startRow, endRow);
-    const c1 = Math.min(startCol, endCol);
-    const c2 = Math.max(startCol, endCol);
+  // ── Structure Mutation Methods ──────────────────────────────────────────
 
-    if (r1 < 0 || c1 < 0 || r2 >= this.rowCount || c2 >= this.columnCount) {
-      throw new Error(`merge range (${r1},${c1})-(${r2},${c2}) out of table bounds`);
+  private _createCell(rowIdx: number, colIdx: number, width: number, height: number): Element {
+    const doc = this.element.ownerDocument;
+    const borderFill = this.element.getAttribute("borderFillIDRef") ?? "1";
+    const cell = createNsElement(doc, HP_NS, "tc", defaultCellAttributes(borderFill));
+    const sl = subElement(cell, HP_NS, "subList", defaultSublistAttributes());
+    const p = subElement(sl, HP_NS, "p", defaultCellParagraphAttributes());
+    const run = subElement(p, HP_NS, "run", { charPrIDRef: "0" });
+    subElement(run, HP_NS, "t");
+    subElement(cell, HP_NS, "cellAddr", { colAddr: String(colIdx), rowAddr: String(rowIdx) });
+    subElement(cell, HP_NS, "cellSpan", { colSpan: "1", rowSpan: "1" });
+    subElement(cell, HP_NS, "cellSz", { width: String(width), height: String(height) });
+    subElement(cell, HP_NS, "cellMargin", defaultCellMarginAttributes());
+    return cell;
+  }
+
+  insertRow(atIndex: number, position: "before" | "after"): void {
+    const insertIdx = position === "before" ? atIndex : atIndex + 1;
+    const trElements = findAllChildren(this.element, HP_NS, "tr");
+    const rowCount = this.rowCount;
+    const colCount = this.columnCount;
+    const grid = this._buildCellGrid();
+
+    // Determine columns covered by cells spanning across the insertion point
+    const coveredCols = new Set<number>();
+    const processedCells = new Set<Element>();
+
+    if (insertIdx > 0 && insertIdx < rowCount) {
+      for (let c = 0; c < colCount; c++) {
+        const pos = grid.get(`${insertIdx},${c}`);
+        if (!pos) continue;
+        if (pos.anchor[0] < insertIdx && !processedCells.has(pos.cell.element)) {
+          processedCells.add(pos.cell.element);
+          pos.cell.setSpan(pos.span[0] + 1, pos.span[1]);
+        }
+        if (pos.anchor[0] < insertIdx) {
+          coveredCols.add(c);
+        }
+      }
     }
+
+    // Shift rowAddr for existing cells at or after insertion point
+    for (const tr of trElements) {
+      for (const cellEl of findAllChildren(tr, HP_NS, "tc")) {
+        const addr = findChild(cellEl, HP_NS, "cellAddr");
+        if (addr) {
+          const r = parseInt(addr.getAttribute("rowAddr") ?? "0", 10);
+          if (r >= insertIdx) {
+            addr.setAttribute("rowAddr", String(r + 1));
+          }
+        }
+      }
+    }
+
+    // Get reference widths from first row
+    const widths: number[] = [];
+    for (let c = 0; c < colCount; c++) {
+      const pos = grid.get(`0,${c}`);
+      if (pos && pos.anchor[1] === c) widths.push(pos.cell.width);
+      else widths.push(DEFAULT_CELL_WIDTH);
+    }
+
+    // Create new <tr> with cells for uncovered columns
+    const doc = this.element.ownerDocument;
+    const newTr = createNsElement(doc, HP_NS, "tr");
+    for (let c = 0; c < colCount; c++) {
+      if (coveredCols.has(c)) continue;
+      newTr.appendChild(this._createCell(insertIdx, c, widths[c] ?? DEFAULT_CELL_WIDTH, DEFAULT_CELL_HEIGHT));
+    }
+
+    // Insert at the correct position
+    if (insertIdx >= trElements.length) {
+      this.element.appendChild(newTr);
+    } else {
+      this.element.insertBefore(newTr, trElements[insertIdx] ?? null);
+    }
+
+    this.element.setAttribute("rowCnt", String(rowCount + 1));
+    this.markDirty();
+  }
+
+  deleteRow(rowIndex: number): void {
+    const rowCount = this.rowCount;
+    if (rowCount <= 1) return;
+
+    const trElements = findAllChildren(this.element, HP_NS, "tr");
+    const colCount = this.columnCount;
+    const grid = this._buildCellGrid();
+    const processedCells = new Set<Element>();
+
+    for (let c = 0; c < colCount; c++) {
+      const pos = grid.get(`${rowIndex},${c}`);
+      if (!pos || processedCells.has(pos.cell.element)) continue;
+      processedCells.add(pos.cell.element);
+
+      const [anchorRow, anchorCol] = pos.anchor;
+      const [spanRow, spanCol] = pos.span;
+
+      if (anchorRow === rowIndex) {
+        if (spanRow > 1) {
+          // Anchor in deleted row but spans further — move TC to next row
+          pos.cell.setSpan(spanRow - 1, spanCol);
+          const nextTr = trElements[rowIndex + 1];
+          if (nextTr) {
+            const nextCells = findAllChildren(nextTr, HP_NS, "tc");
+            let inserted = false;
+            for (const existing of nextCells) {
+              const ea = findChild(existing, HP_NS, "cellAddr");
+              if (ea && parseInt(ea.getAttribute("colAddr") ?? "0", 10) > anchorCol) {
+                nextTr.insertBefore(pos.cell.element, existing);
+                inserted = true;
+                break;
+              }
+            }
+            if (!inserted) nextTr.appendChild(pos.cell.element);
+          }
+        }
+        // spanRow === 1: TC removed with TR
+      } else {
+        // Anchor above — decrease rowSpan
+        pos.cell.setSpan(spanRow - 1, spanCol);
+      }
+    }
+
+    // Remove the TR
+    const trToRemove = trElements[rowIndex];
+    if (trToRemove) this.element.removeChild(trToRemove);
+
+    // Shift rowAddr for cells after deleted row
+    for (const tr of findAllChildren(this.element, HP_NS, "tr")) {
+      for (const cellEl of findAllChildren(tr, HP_NS, "tc")) {
+        const addr = findChild(cellEl, HP_NS, "cellAddr");
+        if (addr) {
+          const r = parseInt(addr.getAttribute("rowAddr") ?? "0", 10);
+          if (r > rowIndex) addr.setAttribute("rowAddr", String(r - 1));
+        }
+      }
+    }
+
+    this.element.setAttribute("rowCnt", String(rowCount - 1));
+    this.markDirty();
+  }
+
+  insertColumn(atIndex: number, position: "before" | "after"): void {
+    const insertIdx = position === "before" ? atIndex : atIndex + 1;
+    const rowCount = this.rowCount;
+    const colCount = this.columnCount;
+    const grid = this._buildCellGrid();
+    const trElements = findAllChildren(this.element, HP_NS, "tr");
+
+    // Determine rows covered by cells spanning across the insertion point
+    const coveredRows = new Set<number>();
+    const processedCells = new Set<Element>();
+
+    if (insertIdx > 0 && insertIdx < colCount) {
+      for (let r = 0; r < rowCount; r++) {
+        const pos = grid.get(`${r},${insertIdx}`);
+        if (!pos) continue;
+        if (pos.anchor[1] < insertIdx && !processedCells.has(pos.cell.element)) {
+          processedCells.add(pos.cell.element);
+          pos.cell.setSpan(pos.span[0], pos.span[1] + 1);
+        }
+        if (pos.anchor[1] < insertIdx) coveredRows.add(r);
+      }
+    }
+
+    // Shift colAddr for existing cells at or after insertion point
+    for (const tr of trElements) {
+      for (const cellEl of findAllChildren(tr, HP_NS, "tc")) {
+        const addr = findChild(cellEl, HP_NS, "cellAddr");
+        if (addr) {
+          const c = parseInt(addr.getAttribute("colAddr") ?? "0", 10);
+          if (c >= insertIdx) addr.setAttribute("colAddr", String(c + 1));
+        }
+      }
+    }
+
+    // Insert new cells
+    const defaultWidth = colCount > 0 ? Math.floor(this.width / (colCount + 1)) : DEFAULT_CELL_WIDTH;
+    for (let r = 0; r < rowCount; r++) {
+      if (coveredRows.has(r)) continue;
+      const tr = trElements[r];
+      if (!tr) continue;
+      const cellEl = this._createCell(r, insertIdx, defaultWidth || DEFAULT_CELL_WIDTH, DEFAULT_CELL_HEIGHT);
+      const trCells = findAllChildren(tr, HP_NS, "tc");
+      let inserted = false;
+      for (const existing of trCells) {
+        const ea = findChild(existing, HP_NS, "cellAddr");
+        if (ea && parseInt(ea.getAttribute("colAddr") ?? "0", 10) > insertIdx) {
+          tr.insertBefore(cellEl, existing);
+          inserted = true;
+          break;
+        }
+      }
+      if (!inserted) tr.appendChild(cellEl);
+    }
+
+    this.element.setAttribute("colCnt", String(colCount + 1));
+    this.markDirty();
+  }
+
+  deleteColumn(colIndex: number): void {
+    const colCount = this.columnCount;
+    if (colCount <= 1) return;
+
+    const rowCount = this.rowCount;
+    const grid = this._buildCellGrid();
+    const trElements = findAllChildren(this.element, HP_NS, "tr");
+    const processedCells = new Set<Element>();
+
+    for (let r = 0; r < rowCount; r++) {
+      const pos = grid.get(`${r},${colIndex}`);
+      if (!pos || processedCells.has(pos.cell.element)) continue;
+      processedCells.add(pos.cell.element);
+
+      const [, anchorCol] = pos.anchor;
+      const [spanRow, spanCol] = pos.span;
+
+      if (anchorCol === colIndex) {
+        if (spanCol > 1) {
+          pos.cell.setSpan(spanRow, spanCol - 1);
+        } else {
+          pos.cell.element.parentNode?.removeChild(pos.cell.element);
+        }
+      } else {
+        pos.cell.setSpan(spanRow, spanCol - 1);
+      }
+    }
+
+    // Shift colAddr for cells after deleted column
+    for (const tr of trElements) {
+      for (const cellEl of findAllChildren(tr, HP_NS, "tc")) {
+        const addr = findChild(cellEl, HP_NS, "cellAddr");
+        if (addr) {
+          const c = parseInt(addr.getAttribute("colAddr") ?? "0", 10);
+          if (c > colIndex) addr.setAttribute("colAddr", String(c - 1));
+        }
+      }
+    }
+
+    this.element.setAttribute("colCnt", String(colCount - 1));
+    this.markDirty();
+  }
+
+  mergeCells(startRow: number, startCol: number, endRow: number, endCol: number): void {
+    if (startRow > endRow || startCol > endCol) return;
+    if (startRow === endRow && startCol === endCol) return;
 
     const grid = this._buildCellGrid();
 
-    // Calculate total width and height
+    // Check for partial overlap with existing merged cells
+    for (let r = startRow; r <= endRow; r++) {
+      for (let c = startCol; c <= endCol; c++) {
+        const pos = grid.get(`${r},${c}`);
+        if (!pos) continue;
+        const [ar, ac] = pos.anchor;
+        const [sr, sc] = pos.span;
+        if (ar < startRow || ac < startCol || ar + sr - 1 > endRow || ac + sc - 1 > endCol) {
+          return; // Partial overlap — abort
+        }
+      }
+    }
+
+    const anchorPos = grid.get(`${startRow},${startCol}`);
+    if (!anchorPos) return;
+
+    // Collect text and remove non-anchor cells
+    const textsToAppend: string[] = [];
+    const processedCells = new Set<Element>();
+    processedCells.add(anchorPos.cell.element);
+
+    for (let r = startRow; r <= endRow; r++) {
+      for (let c = startCol; c <= endCol; c++) {
+        const pos = grid.get(`${r},${c}`);
+        if (!pos || processedCells.has(pos.cell.element)) continue;
+        processedCells.add(pos.cell.element);
+        const text = pos.cell.text.trim();
+        if (text) textsToAppend.push(text);
+        pos.cell.element.parentNode?.removeChild(pos.cell.element);
+      }
+    }
+
+    // Set anchor span
+    anchorPos.cell.setSpan(endRow - startRow + 1, endCol - startCol + 1);
+
+    // Merge text
+    if (textsToAppend.length > 0) {
+      const combined = [anchorPos.cell.text, ...textsToAppend].filter(Boolean).join(" ");
+      anchorPos.cell.text = combined;
+    }
+
+    // Update anchor cell size
     let totalWidth = 0;
     let totalHeight = 0;
-    const processedCols = new Set<number>();
-    const processedRows = new Set<number>();
-
-    for (let r = r1; r <= r2; r++) {
-      for (let c = c1; c <= c2; c++) {
-        const entry = grid.get(`${r},${c}`);
-        if (!entry) continue;
-        // Only count width from anchor cells that start in this column
-        if (entry.anchor[1] === c && !processedCols.has(c)) {
-          totalWidth += entry.cell.width;
-          processedCols.add(c);
-        }
-        // Only count height from anchor cells that start in this row
-        if (entry.anchor[0] === r && !processedRows.has(r)) {
-          totalHeight += entry.cell.height;
-          processedRows.add(r);
-        }
+    const seen = new Set<Element>();
+    for (let c = startCol; c <= endCol; c++) {
+      const pos = grid.get(`${startRow},${c}`);
+      if (pos && pos.anchor[1] === c && !seen.has(pos.cell.element)) {
+        seen.add(pos.cell.element);
+        totalWidth += pos.cell.width;
       }
     }
-
-    // Get the anchor cell (top-left)
-    const anchorEntry = grid.get(`${r1},${c1}`);
-    if (!anchorEntry) throw new Error(`anchor cell (${r1},${c1}) not found`);
-
-    // Set span on anchor cell
-    const rowSpan = r2 - r1 + 1;
-    const colSpan = c2 - c1 + 1;
-    anchorEntry.cell.setSpan(rowSpan, colSpan);
-    anchorEntry.cell.setSize(totalWidth, totalHeight);
-
-    // Clear content and update span of other cells in the range
-    const processed = new Set<Element>();
-    processed.add(anchorEntry.cell.element);
-
-    for (let r = r1; r <= r2; r++) {
-      for (let c = c1; c <= c2; c++) {
-        if (r === r1 && c === c1) continue; // Skip anchor
-        const entry = grid.get(`${r},${c}`);
-        if (!entry || processed.has(entry.cell.element)) continue;
-        processed.add(entry.cell.element);
-
-        // Update cell address to point to anchor and set span to 1,1
-        const addr = findChild(entry.cell.element, HP_NS, "cellAddr");
-        if (addr) {
-          addr.setAttribute("rowAddr", String(r1));
-          addr.setAttribute("colAddr", String(c1));
-        }
-        entry.cell.setSpan(1, 1);
-        entry.cell.setSize(0, 0);
-        entry.cell.text = "";
+    seen.clear();
+    for (let r = startRow; r <= endRow; r++) {
+      const pos = grid.get(`${r},${startCol}`);
+      if (pos && pos.anchor[0] === r && !seen.has(pos.cell.element)) {
+        seen.add(pos.cell.element);
+        totalHeight += pos.cell.height;
       }
     }
-
+    anchorPos.cell.setSize(totalWidth || undefined, totalHeight || undefined);
     this.markDirty();
   }
 
-  /**
-   * Unmerge a cell, restoring individual cells.
-   * @param row Row index of any cell in the merged region
-   * @param col Column index of any cell in the merged region
-   */
-  unmergeCells(row: number, col: number): void {
-    const entry = this._gridEntry(row, col);
-    const [anchorRow, anchorCol] = entry.anchor;
-    const [rowSpan, colSpan] = entry.span;
+  splitCell(row: number, col: number): void {
+    const grid = this._buildCellGrid();
+    const pos = grid.get(`${row},${col}`);
+    if (!pos) return;
 
-    if (rowSpan === 1 && colSpan === 1) return; // Not merged
+    const [anchorRow, anchorCol] = pos.anchor;
+    const [spanRow, spanCol] = pos.span;
+    if (spanRow === 1 && spanCol === 1) return;
 
-    const cellWidth = Math.floor(entry.cell.width / colSpan);
-    const cellHeight = Math.floor(entry.cell.height / rowSpan);
+    const trElements = findAllChildren(this.element, HP_NS, "tr");
+    const cellWidth = Math.floor(pos.cell.width / spanCol);
+    const cellHeight = Math.floor(pos.cell.height / spanRow);
 
-    // Find all physical cells that belong to this merged region
-    // (cells with address pointing to the anchor)
-    const cellsToRestore: Array<{ cell: HwpxOxmlTableCell; physicalRow: number; physicalCol: number }> = [];
-    let physicalRow = 0;
-    for (const rowEl of findAllChildren(this.element, HP_NS, "tr")) {
-      let physicalCol = 0;
-      for (const cellEl of findAllChildren(rowEl, HP_NS, "tc")) {
-        const wrapper = new HwpxOxmlTableCell(cellEl, this, rowEl);
-        const [cellRow, cellCol] = wrapper.address;
-        // Check if this cell belongs to the merged region
-        if (cellRow === anchorRow && cellCol === anchorCol) {
-          cellsToRestore.push({ cell: wrapper, physicalRow, physicalCol });
+    // Reset anchor cell
+    pos.cell.setSpan(1, 1);
+    pos.cell.setSize(cellWidth, cellHeight);
+
+    // Create new cells for the rest of the spanned area
+    for (let r = anchorRow; r < anchorRow + spanRow; r++) {
+      const tr = trElements[r];
+      if (!tr) continue;
+      for (let c = anchorCol; c < anchorCol + spanCol; c++) {
+        if (r === anchorRow && c === anchorCol) continue;
+        const newCellEl = this._createCell(r, c, cellWidth, cellHeight);
+        const trCells = findAllChildren(tr, HP_NS, "tc");
+        let inserted = false;
+        for (const existing of trCells) {
+          const ea = findChild(existing, HP_NS, "cellAddr");
+          if (ea && parseInt(ea.getAttribute("colAddr") ?? "0", 10) > c) {
+            tr.insertBefore(newCellEl, existing);
+            inserted = true;
+            break;
+          }
         }
-        physicalCol++;
+        if (!inserted) tr.appendChild(newCellEl);
       }
-      physicalRow++;
     }
-
-    // Restore each cell
-    for (const { cell, physicalRow: pr, physicalCol: pc } of cellsToRestore) {
-      const addr = findChild(cell.element, HP_NS, "cellAddr");
-      if (addr) {
-        addr.setAttribute("rowAddr", String(pr));
-        addr.setAttribute("colAddr", String(pc));
-      }
-      cell.setSpan(1, 1);
-      cell.setSize(cellWidth, cellHeight);
-    }
-
     this.markDirty();
   }
 
-  /**
-   * Insert a new row at the specified index.
-   * @param rowIndex Index where the new row will be inserted (0-based)
-   * @param position "above" or "below" relative to rowIndex
-   */
-  insertRow(rowIndex: number, position: "above" | "below" = "below"): void {
-    const rows = findAllChildren(this.element, HP_NS, "tr");
-    if (rowIndex < 0 || rowIndex >= rows.length) {
-      throw new Error(`row index ${rowIndex} out of range`);
+  remove(): void {
+    if (this.element.parentNode) {
+      this.element.parentNode.removeChild(this.element);
     }
-
-    const insertIdx = position === "above" ? rowIndex : rowIndex + 1;
-    const referenceRow = rows[rowIndex]!;
-    const referenceCells = findAllChildren(referenceRow, HP_NS, "tc");
-
-    // Get borderFillIdRef from reference cell
-    const refCell = referenceCells[0];
-    const borderFill = refCell?.getAttribute("borderFillIDRef") ?? "1";
-
-    // Create new row
-    const doc = this.element.ownerDocument;
-    const newRow = createNsElement(doc, HP_NS, "tr", {});
-
-    // Calculate average row height
-    const avgHeight = Math.floor(this.height / this.rowCount);
-
-    // Create cells matching the column structure
-    for (let c = 0; c < this.columnCount; c++) {
-      const refCellAtCol = referenceCells[c];
-      const cellWidth = refCellAtCol ? parseInt(findChild(refCellAtCol, HP_NS, "cellSz")?.getAttribute("width") ?? String(DEFAULT_CELL_WIDTH), 10) : DEFAULT_CELL_WIDTH;
-
-      const cell = subElement(newRow, HP_NS, "tc", defaultCellAttributes(borderFill));
-      const sl = subElement(cell, HP_NS, "subList", defaultSublistAttributes());
-      const p = subElement(sl, HP_NS, "p", defaultCellParagraphAttributes());
-      const run = subElement(p, HP_NS, "run", { charPrIDRef: "0" });
-      subElement(run, HP_NS, "t");
-      subElement(cell, HP_NS, "cellAddr", { colAddr: String(c), rowAddr: String(insertIdx) });
-      subElement(cell, HP_NS, "cellSpan", { colSpan: "1", rowSpan: "1" });
-      subElement(cell, HP_NS, "cellSz", { width: String(cellWidth), height: String(avgHeight) });
-      subElement(cell, HP_NS, "cellMargin", defaultCellMarginAttributes());
-    }
-
-    // Insert the new row
-    const refRow = rows[insertIdx];
-    if (insertIdx >= rows.length || !refRow) {
-      this.element.appendChild(newRow);
-    } else {
-      this.element.insertBefore(newRow, refRow);
-    }
-
-    // Update row count attribute
-    this.element.setAttribute("rowCnt", String(this.rowCount));
-
-    // Update cell addresses for rows after insertion
-    this._updateCellAddresses();
-
     this.markDirty();
-  }
-
-  /**
-   * Insert a new column at the specified index.
-   * @param colIndex Index where the new column will be inserted (0-based)
-   * @param position "left" or "right" relative to colIndex
-   */
-  insertColumn(colIndex: number, position: "left" | "right" = "right"): void {
-    if (colIndex < 0 || colIndex >= this.columnCount) {
-      throw new Error(`column index ${colIndex} out of range`);
-    }
-
-    const insertIdx = position === "left" ? colIndex : colIndex + 1;
-    const rows = findAllChildren(this.element, HP_NS, "tr");
-
-    // Get reference cell info
-    const firstRow = rows[0];
-    const refCells = firstRow ? findAllChildren(firstRow, HP_NS, "tc") : [];
-    const refCell = refCells[colIndex];
-    const borderFill = refCell?.getAttribute("borderFillIDRef") ?? "1";
-
-    // Calculate column width
-    const avgWidth = Math.floor(this.width / this.columnCount);
-
-    const doc = this.element.ownerDocument;
-
-    // Insert a new cell in each row
-    for (let r = 0; r < rows.length; r++) {
-      const rowEl = rows[r]!;
-      const cells = findAllChildren(rowEl, HP_NS, "tc");
-      const refCellInRow = cells[colIndex];
-      const cellHeight = refCellInRow ? parseInt(findChild(refCellInRow, HP_NS, "cellSz")?.getAttribute("height") ?? String(DEFAULT_CELL_HEIGHT), 10) : DEFAULT_CELL_HEIGHT;
-
-      const cell = createNsElement(doc, HP_NS, "tc", defaultCellAttributes(borderFill));
-      const sl = subElement(cell, HP_NS, "subList", defaultSublistAttributes());
-      const p = subElement(sl, HP_NS, "p", defaultCellParagraphAttributes());
-      const run = subElement(p, HP_NS, "run", { charPrIDRef: "0" });
-      subElement(run, HP_NS, "t");
-      subElement(cell, HP_NS, "cellAddr", { colAddr: String(insertIdx), rowAddr: String(r) });
-      subElement(cell, HP_NS, "cellSpan", { colSpan: "1", rowSpan: "1" });
-      subElement(cell, HP_NS, "cellSz", { width: String(avgWidth), height: String(cellHeight) });
-      subElement(cell, HP_NS, "cellMargin", defaultCellMarginAttributes());
-
-      // Insert at correct position
-      const refCell = cells[insertIdx];
-      if (insertIdx >= cells.length || !refCell) {
-        rowEl.appendChild(cell);
-      } else {
-        rowEl.insertBefore(cell, refCell);
-      }
-    }
-
-    // Update column count attribute
-    this.element.setAttribute("colCnt", String(this.columnCount));
-
-    // Update cell addresses
-    this._updateCellAddresses();
-
-    // Update table width
-    const newWidth = this.width + avgWidth;
-    this.setSize(newWidth);
-
-    this.markDirty();
-  }
-
-  /**
-   * Delete a row at the specified index.
-   * @param rowIndex Index of the row to delete (0-based)
-   */
-  deleteRow(rowIndex: number): void {
-    const rows = findAllChildren(this.element, HP_NS, "tr");
-    if (rowIndex < 0 || rowIndex >= rows.length) {
-      throw new Error(`row index ${rowIndex} out of range`);
-    }
-    if (rows.length <= 1) {
-      throw new Error("cannot delete the last row");
-    }
-
-    const rowToDelete = rows[rowIndex]!;
-    this.element.removeChild(rowToDelete);
-
-    // Update row count attribute
-    this.element.setAttribute("rowCnt", String(rows.length - 1));
-
-    // Update cell addresses
-    this._updateCellAddresses();
-
-    this.markDirty();
-  }
-
-  /**
-   * Delete a column at the specified index.
-   * @param colIndex Index of the column to delete (0-based)
-   */
-  deleteColumn(colIndex: number): void {
-    const colCount = this.columnCount;
-    if (colIndex < 0 || colIndex >= colCount) {
-      throw new Error(`column index ${colIndex} out of range`);
-    }
-    if (colCount <= 1) {
-      throw new Error("cannot delete the last column");
-    }
-
-    const rows = findAllChildren(this.element, HP_NS, "tr");
-    let deletedWidth = 0;
-
-    for (const rowEl of rows) {
-      const cells = findAllChildren(rowEl, HP_NS, "tc");
-      if (colIndex < cells.length) {
-        const cellToDelete = cells[colIndex]!;
-        if (deletedWidth === 0) {
-          deletedWidth = parseInt(findChild(cellToDelete, HP_NS, "cellSz")?.getAttribute("width") ?? "0", 10);
-        }
-        rowEl.removeChild(cellToDelete);
-      }
-    }
-
-    // Update column count attribute
-    this.element.setAttribute("colCnt", String(colCount - 1));
-
-    // Update cell addresses
-    this._updateCellAddresses();
-
-    // Update table width
-    const newWidth = Math.max(this.width - deletedWidth, 0);
-    this.setSize(newWidth);
-
-    this.markDirty();
-  }
-
-  /**
-   * Update all cell addresses after row/column insertion or deletion.
-   */
-  private _updateCellAddresses(): void {
-    const rows = findAllChildren(this.element, HP_NS, "tr");
-    for (let r = 0; r < rows.length; r++) {
-      const cells = findAllChildren(rows[r]!, HP_NS, "tc");
-      for (let c = 0; c < cells.length; c++) {
-        const addr = findChild(cells[c]!, HP_NS, "cellAddr");
-        if (addr) {
-          addr.setAttribute("rowAddr", String(r));
-          addr.setAttribute("colAddr", String(c));
-        }
-      }
-    }
   }
 
   static create(

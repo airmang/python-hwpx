@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useCallback } from "react";
+import { HwpxDocument } from "@ubermensch1218/hwpxcore";
 import { useEditorStore } from "@/lib/store";
 import { ensureSkeletonLoaded } from "@/lib/skeleton-loader";
 import { MenuBar } from "../toolbar/MenuBar";
@@ -34,10 +35,38 @@ export function Editor() {
   const error = useEditorStore((s) => s.error);
   const uiState = useEditorStore((s) => s.uiState);
   const toggleSidebar = useEditorStore((s) => s.toggleSidebar);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Pre-load skeleton on mount
   useEffect(() => {
     ensureSkeletonLoaded().catch(console.error);
+  }, []);
+
+  // Handle file open from hidden input
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const store = useEditorStore.getState();
+    store.setLoading(true);
+    store.setError(null);
+    try {
+      const buffer = await file.arrayBuffer();
+      const newDoc = await HwpxDocument.open(buffer);
+      store.setDocument(newDoc);
+    } catch (err) {
+      console.error("Failed to open file:", err);
+      store.setError("파일을 열 수 없습니다. HWPX 파일인지 확인하세요.");
+    } finally {
+      store.setLoading(false);
+    }
+    e.target.value = "";
+  }, []);
+
+  // Listen for hwpx-open-file custom event
+  useEffect(() => {
+    const handler = () => fileInputRef.current?.click();
+    window.addEventListener("hwpx-open-file", handler);
+    return () => window.removeEventListener("hwpx-open-file", handler);
   }, []);
 
   // Global keyboard shortcuts
@@ -47,6 +76,12 @@ export function Editor() {
       if (!store.doc) return;
 
       const mod = e.ctrlKey || e.metaKey;
+
+      if (mod && e.key === "o") {
+        e.preventDefault();
+        store.openFile();
+        return;
+      }
 
       if (mod && e.key === "s") {
         e.preventDefault();
@@ -149,6 +184,13 @@ export function Editor() {
 
   return (
     <div className="flex h-screen flex-col">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".hwpx"
+        className="hidden"
+        onChange={handleFileChange}
+      />
       <SaveDialog />
       <CharFormatDialog />
       <ParaFormatDialog />

@@ -4,30 +4,223 @@
 
 import { create } from "zustand";
 import type { HwpxDocument } from "@ubermensch1218/hwpxcore";
-import { buildViewModel } from "./view-model";
-import { readFormatFromSelection, type CharFormat, type ParaFormat } from "./format-bridge";
+import { buildViewModel, type EditorViewModel } from "./view-model";
+import {
+  readFormatFromSelection,
+  type CharFormat,
+  type ParaFormat,
+} from "./format-bridge";
+import type { AlignmentType, OrientationType, SidebarTab } from "./constants";
 import { mmToHwp } from "./hwp-units";
 
-// Re-export types from store/types
-export type {
-  SelectionState,
-  ActiveFormat,
-  ExtendedFormat,
-  UIState,
-  Template,
-  UndoEntry,
-  EditorStore,
-} from "./store/types";
+export interface SelectionState {
+  sectionIndex: number;
+  paragraphIndex: number;
+  type: "paragraph" | "cell";
+  // For cell selection
+  tableIndex?: number;
+  row?: number;
+  col?: number;
+  // For cell range selection (merge)
+  endRow?: number;
+  endCol?: number;
+  // For object selection (image/table context)
+  objectType?: "image" | "table";
+  imageIndex?: number;
+}
 
-import type {
-  SelectionState,
-  ActiveFormat,
-  ExtendedFormat,
-  UIState,
-  Template,
-  UndoEntry,
-  EditorStore,
-} from "./store/types";
+export interface ActiveFormat {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
+}
+
+export interface ExtendedFormat {
+  char: CharFormat;
+  para: ParaFormat;
+}
+
+export interface UIState {
+  sidebarOpen: boolean;
+  sidebarTab: SidebarTab;
+  saveDialogOpen: boolean;
+  charFormatDialogOpen: boolean;
+  paraFormatDialogOpen: boolean;
+  bulletNumberDialogOpen: boolean;
+  charMapDialogOpen: boolean;
+}
+
+interface UndoEntry {
+  sectionElements: Element[];
+  headerElements: Element[];
+  selection: SelectionState | null;
+}
+
+export interface EditorStore {
+  doc: HwpxDocument | null;
+  viewModel: EditorViewModel | null;
+  revision: number;
+  selection: SelectionState | null;
+  activeFormat: ActiveFormat;
+  extendedFormat: ExtendedFormat;
+  uiState: UIState;
+  loading: boolean;
+  error: string | null;
+  undoStack: UndoEntry[];
+  redoStack: UndoEntry[];
+
+  // Actions
+  setDocument: (doc: HwpxDocument) => void;
+  rebuild: () => void;
+  setSelection: (sel: SelectionState | null) => void;
+  setActiveFormat: (fmt: Partial<ActiveFormat>) => void;
+  refreshExtendedFormat: () => void;
+
+  // UI actions
+  toggleSidebar: () => void;
+  setSidebarTab: (tab: SidebarTab) => void;
+
+  // Text editing
+  updateParagraphText: (
+    sectionIndex: number,
+    paragraphIndex: number,
+    text: string,
+  ) => void;
+  updateCellText: (
+    sectionIndex: number,
+    paragraphIndex: number,
+    tableIndex: number,
+    row: number,
+    col: number,
+    text: string,
+  ) => void;
+
+  // Formatting
+  toggleBold: () => void;
+  toggleItalic: () => void;
+  toggleUnderline: () => void;
+  toggleStrikethrough: () => void;
+  setFontFamily: (fontFamily: string) => void;
+  setFontSize: (size: number) => void;
+  setTextColor: (color: string) => void;
+  setHighlightColor: (color: string) => void;
+  setAlignment: (alignment: AlignmentType) => void;
+  setLineSpacing: (spacing: number) => void;
+
+  // Block operations
+  deleteBlock: (sectionIndex: number, paragraphIndex: number) => void;
+  insertBlockAt: (
+    sectionIndex: number,
+    paragraphIndex: number,
+    text?: string,
+  ) => void;
+
+  // Paragraph editing
+  splitParagraph: (
+    sectionIndex: number,
+    paragraphIndex: number,
+    offset: number,
+  ) => void;
+  mergeParagraphWithPrevious: (
+    sectionIndex: number,
+    paragraphIndex: number,
+  ) => void;
+
+  // Undo/Redo
+  pushUndo: () => void;
+  undo: () => void;
+  redo: () => void;
+
+  // Content insertion
+  addParagraph: (text?: string) => void;
+  addTable: (
+    sectionIndex: number,
+    paragraphIndex: number,
+    rows: number,
+    cols: number,
+  ) => void;
+  insertImage: (
+    data: Uint8Array,
+    mediaType: string,
+    widthMm: number,
+    heightMm: number,
+  ) => void;
+  insertColumnBreak: () => void;
+  insertPageBreak: () => void;
+
+  // Image editing
+  updatePictureSize: (widthMm: number, heightMm: number) => void;
+  resizeImage: (deltaWidthHwp: number, deltaHeightHwp: number) => void;
+  setImageOutMargin: (margins: Partial<{ top: number; bottom: number; left: number; right: number }>) => void;
+
+  // Table editing
+  setTablePageBreak: (mode: "CELL" | "NONE") => void;
+  setTableRepeatHeader: (repeat: boolean) => void;
+  setTableSize: (widthMm: number, heightMm: number) => void;
+  setTableOutMargin: (margins: Partial<{ top: number; bottom: number; left: number; right: number }>) => void;
+  setTableInMargin: (margins: Partial<{ top: number; bottom: number; left: number; right: number }>) => void;
+  resizeTableColumn: (sectionIdx: number, paraIdx: number, tableIdx: number, colIdx: number, deltaHwp: number) => void;
+
+  // Paragraph indent
+  setFirstLineIndent: (valueHwp: number) => void;
+  setLeftIndent: (valueHwp: number) => void;
+
+  // Page numbering
+  setPageNumbering: (opts: { position: string; startNumber: number }) => void;
+
+  // Footnote / Endnote
+  insertFootnote: () => void;
+  insertEndnote: () => void;
+
+  // Watermark
+  setWatermarkText: (text: string) => void;
+
+  // Dialog open/close
+  openCharFormatDialog: () => void;
+  closeCharFormatDialog: () => void;
+  openParaFormatDialog: () => void;
+  closeParaFormatDialog: () => void;
+  openBulletNumberDialog: () => void;
+  closeBulletNumberDialog: () => void;
+  openCharMapDialog: () => void;
+  closeCharMapDialog: () => void;
+
+  // Text insertion at cursor
+  insertTextAtCursor: (text: string) => void;
+
+  // Page setup
+  updatePageSize: (width: number, height: number) => void;
+  updatePageMargins: (margins: Partial<{ left: number; right: number; top: number; bottom: number; header: number; footer: number; gutter: number }>) => void;
+  updatePageOrientation: (orientation: OrientationType) => void;
+
+  // Cell style operations
+  setCellBorder: (sides: ("left"|"right"|"top"|"bottom")[], style: { type?: string; width?: string; color?: string }) => void;
+  setCellBackground: (color: string | null) => void;
+  setCellVertAlign: (align: "TOP" | "CENTER" | "BOTTOM") => void;
+
+  // Table-wide border/background
+  setTableBorder: (sides: ("left"|"right"|"top"|"bottom")[], style: { type?: string; width?: string; color?: string }) => void;
+  setTableBackground: (color: string | null) => void;
+
+  // Table structure operations
+  insertTableRow: (position: "above" | "below") => void;
+  deleteTableRow: () => void;
+  insertTableColumn: (position: "left" | "right") => void;
+  deleteTableColumn: () => void;
+  mergeTableCells: () => void;
+  splitTableCell: () => void;
+  deleteTable: () => void;
+
+  // File operations
+  openFile: () => void;
+  saveDocument: () => Promise<void>;
+  saveDocumentAs: (filename: string) => Promise<void>;
+  openSaveDialog: () => void;
+  closeSaveDialog: () => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+}
 
 const defaultCharFormat: CharFormat = {
   bold: false,
@@ -60,10 +253,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   undoStack: [],
   redoStack: [],
   extendedFormat: { char: defaultCharFormat, para: defaultParaFormat },
-  uiState: { sidebarOpen: true, sidebarTab: "char", saveDialogOpen: false, charFormatDialogOpen: false, paraFormatDialogOpen: false, bulletNumberDialogOpen: false, charMapDialogOpen: false, templateDialogOpen: false, headerFooterDialogOpen: false, findReplaceDialogOpen: false, wordCountDialogOpen: false, pageNumberDialogOpen: false, styleDialogOpen: false, autoCorrectDialogOpen: false, outlineDialogOpen: false, shapeDialogOpen: false, tocDialogOpen: false, zoomLevel: 100 },
+  uiState: { sidebarOpen: true, sidebarTab: "char", saveDialogOpen: false, charFormatDialogOpen: false, paraFormatDialogOpen: false, bulletNumberDialogOpen: false, charMapDialogOpen: false },
   loading: false,
   error: null,
-  templates: [],
 
   setDocument: (doc) => {
     const viewModel = buildViewModel(doc);
@@ -123,99 +315,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       uiState: { ...s.uiState, sidebarTab: tab },
     })),
 
-  openTemplateDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, templateDialogOpen: true } })),
-
-  closeTemplateDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, templateDialogOpen: false } })),
-
-  openHeaderFooterDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, headerFooterDialogOpen: true } })),
-
-  closeHeaderFooterDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, headerFooterDialogOpen: false } })),
-
-  setHeaderFooter: ({ headerText, footerText }) => {
-    const { doc, selection } = get();
-    if (!doc) return;
-    try {
-      get().pushUndo();
-      const sIdx = selection?.sectionIndex ?? 0;
-      const section = doc.sections[sIdx];
-      if (!section) return;
-      const props = section.properties;
-      if (headerText != null) props.setHeaderText(headerText);
-      if (footerText != null) props.setFooterText(footerText);
-      get().rebuild();
-    } catch (e) {
-      console.error("setHeaderFooter failed:", e);
-    }
-  },
-
-  openFindReplaceDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, findReplaceDialogOpen: true } })),
-
-  closeFindReplaceDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, findReplaceDialogOpen: false } })),
-
-  findAndReplace: (search, replacement, count) => {
-    const { doc } = get();
-    if (!doc) return 0;
-    try {
-      get().pushUndo();
-      const replaced = doc.replaceText(search, replacement, count);
-      get().rebuild();
-      return replaced;
-    } catch (e) {
-      console.error("findAndReplace failed:", e);
-      return 0;
-    }
-  },
-
-  openWordCountDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, wordCountDialogOpen: true } })),
-
-  closeWordCountDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, wordCountDialogOpen: false } })),
-
-  addTemplate: (name, path, description) => {
-    const template: Template = {
-      id: `tpl-${Date.now()}`,
-      name,
-      path,
-      description,
-      createdAt: Date.now(),
-    };
-    set((s) => ({ templates: [...s.templates, template] }));
-    get().saveTemplates();
-  },
-
-  removeTemplate: (id) => {
-    set((s) => ({ templates: s.templates.filter((t) => t.id !== id) }));
-    get().saveTemplates();
-  },
-
-  loadTemplates: () => {
-    try {
-      const stored = localStorage.getItem("hwpx-templates");
-      if (stored) {
-        const templates = JSON.parse(stored) as Template[];
-        set({ templates });
-      }
-    } catch (e) {
-      console.error("loadTemplates failed:", e);
-    }
-  },
-
-  saveTemplates: () => {
-    try {
-      const { templates } = get();
-      localStorage.setItem("hwpx-templates", JSON.stringify(templates));
-    } catch (e) {
-      console.error("saveTemplates failed:", e);
-    }
-  },
-
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
 
@@ -272,18 +371,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-
-      // Check if there's a text range selection
-      const hasTextRange =
-        selection.textStartOffset != null &&
-        selection.textEndOffset != null &&
-        selection.textStartOffset < selection.textEndOffset;
-
-      if (hasTextRange) {
-        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
-      } else {
-        para.charPrIdRef = charPrIdRef;
-      }
+      para.charPrIdRef = charPrIdRef;
       set({ activeFormat: { ...activeFormat, bold: newBold } });
       get().rebuild();
     } catch (e) {
@@ -307,17 +395,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-
-      const hasTextRange =
-        selection.textStartOffset != null &&
-        selection.textEndOffset != null &&
-        selection.textStartOffset < selection.textEndOffset;
-
-      if (hasTextRange) {
-        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
-      } else {
-        para.charPrIdRef = charPrIdRef;
-      }
+      para.charPrIdRef = charPrIdRef;
       set({ activeFormat: { ...activeFormat, italic: newItalic } });
       get().rebuild();
     } catch (e) {
@@ -341,17 +419,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-
-      const hasTextRange =
-        selection.textStartOffset != null &&
-        selection.textEndOffset != null &&
-        selection.textStartOffset < selection.textEndOffset;
-
-      if (hasTextRange) {
-        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
-      } else {
-        para.charPrIdRef = charPrIdRef;
-      }
+      para.charPrIdRef = charPrIdRef;
       set({ activeFormat: { ...activeFormat, underline: newUnderline } });
       get().rebuild();
     } catch (e) {
@@ -380,17 +448,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-
-      const hasTextRange =
-        selection.textStartOffset != null &&
-        selection.textEndOffset != null &&
-        selection.textStartOffset < selection.textEndOffset;
-
-      if (hasTextRange) {
-        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
-      } else {
-        para.charPrIdRef = charPrIdRef;
-      }
+      para.charPrIdRef = charPrIdRef;
       set({ activeFormat: { ...activeFormat, strikethrough: newStrike } });
       get().rebuild();
       get().refreshExtendedFormat();
@@ -403,7 +461,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { doc, extendedFormat, selection } = get();
     if (!doc || !selection) return;
     try {
-      get().pushUndo();
       const cf = extendedFormat.char;
       const charPrIdRef = doc.ensureRunStyle({
         bold: cf.bold,
@@ -418,17 +475,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-
-      const hasTextRange =
-        selection.textStartOffset != null &&
-        selection.textEndOffset != null &&
-        selection.textStartOffset < selection.textEndOffset;
-
-      if (hasTextRange) {
-        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
-      } else {
-        para.charPrIdRef = charPrIdRef;
-      }
+      para.charPrIdRef = charPrIdRef;
       get().rebuild();
       get().refreshExtendedFormat();
     } catch (e) {
@@ -440,7 +487,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { doc, extendedFormat, selection } = get();
     if (!doc || !selection) return;
     try {
-      get().pushUndo();
       const cf = extendedFormat.char;
       const charPrIdRef = doc.ensureRunStyle({
         bold: cf.bold,
@@ -455,17 +501,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-
-      const hasTextRange =
-        selection.textStartOffset != null &&
-        selection.textEndOffset != null &&
-        selection.textStartOffset < selection.textEndOffset;
-
-      if (hasTextRange) {
-        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
-      } else {
-        para.charPrIdRef = charPrIdRef;
-      }
+      para.charPrIdRef = charPrIdRef;
       get().rebuild();
       get().refreshExtendedFormat();
     } catch (e) {
@@ -477,7 +513,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { doc, extendedFormat, selection } = get();
     if (!doc || !selection) return;
     try {
-      get().pushUndo();
       const cf = extendedFormat.char;
       const charPrIdRef = doc.ensureRunStyle({
         bold: cf.bold,
@@ -492,17 +527,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-
-      const hasTextRange =
-        selection.textStartOffset != null &&
-        selection.textEndOffset != null &&
-        selection.textStartOffset < selection.textEndOffset;
-
-      if (hasTextRange) {
-        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
-      } else {
-        para.charPrIdRef = charPrIdRef;
-      }
+      para.charPrIdRef = charPrIdRef;
       get().rebuild();
       get().refreshExtendedFormat();
     } catch (e) {
@@ -514,7 +539,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { doc, extendedFormat, selection } = get();
     if (!doc || !selection) return;
     try {
-      get().pushUndo();
       const cf = extendedFormat.char;
       const charPrIdRef = doc.ensureRunStyle({
         bold: cf.bold,
@@ -529,17 +553,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
-
-      const hasTextRange =
-        selection.textStartOffset != null &&
-        selection.textEndOffset != null &&
-        selection.textStartOffset < selection.textEndOffset;
-
-      if (hasTextRange) {
-        para.applyCharFormatToRange(selection.textStartOffset!, selection.textEndOffset!, charPrIdRef);
-      } else {
-        para.charPrIdRef = charPrIdRef;
-      }
+      para.charPrIdRef = charPrIdRef;
       get().rebuild();
       get().refreshExtendedFormat();
     } catch (e) {
@@ -1092,418 +1106,170 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
-  setSelectedCellsSize: (widthMm, heightMm) => {
+  // Cell style operations
+  setCellBorder: (sides, style) => {
     const { doc, selection } = get();
-    if (!doc || !selection || selection.type !== "cell" || selection.tableIndex == null) return;
-
+    if (!doc || !selection || selection.tableIndex == null || selection.row == null || selection.col == null) return;
     const section = doc.sections[selection.sectionIndex];
     if (!section) return;
     const para = section.paragraphs[selection.paragraphIndex];
     if (!para) return;
     const table = para.tables[selection.tableIndex];
     if (!table) return;
-
     try {
       get().pushUndo();
-
-      // Determine the selected range
-      const startRow = Math.min(selection.row ?? 0, selection.endRow ?? selection.row ?? 0);
-      const endRow = Math.max(selection.row ?? 0, selection.endRow ?? selection.row ?? 0);
-      const startCol = Math.min(selection.col ?? 0, selection.endCol ?? selection.col ?? 0);
-      const endCol = Math.max(selection.col ?? 0, selection.endCol ?? selection.col ?? 0);
-
-      const grid = table.getCellMap();
-
-      // Set width for selected columns
-      if (widthMm != null) {
-        const widthHwp = mmToHwp(widthMm);
-        const processedCols = new Set<number>();
-        for (let c = startCol; c <= endCol; c++) {
-          if (!processedCols.has(c)) {
-            table.setColumnWidth(c, widthHwp);
-            processedCols.add(c);
-          }
-        }
+      const cell = table.cell(selection.row, selection.col);
+      const baseBorderFillId = cell.borderFillIDRef ?? table.borderFillIDRef ?? undefined;
+      const baseInfo = baseBorderFillId ? doc.oxml.getBorderFillInfo(baseBorderFillId) : null;
+      const getBorderSide = (s: string) => {
+        if (!baseInfo) return null;
+        if (s === "left") return baseInfo.left;
+        if (s === "right") return baseInfo.right;
+        if (s === "top") return baseInfo.top;
+        if (s === "bottom") return baseInfo.bottom;
+        return null;
+      };
+      const sideMap: Record<string, { type: string; width: string; color: string }> = {};
+      for (const s of sides) {
+        const base = getBorderSide(s);
+        sideMap[s] = {
+          type: style.type ?? base?.type ?? "SOLID",
+          width: style.width ?? base?.width ?? "0.12 mm",
+          color: style.color ?? base?.color ?? "#000000",
+        };
       }
-
-      // Set height for selected rows (update each cell's height)
-      if (heightMm != null) {
-        const heightHwp = mmToHwp(heightMm);
-        const processedCells = new Set<Element>();
-        for (let r = startRow; r <= endRow; r++) {
-          for (let c = startCol; c <= endCol; c++) {
-            const pos = grid[r]?.[c];
-            if (pos && !processedCells.has(pos.cell.element)) {
-              pos.cell.setSize(undefined, heightHwp);
-              processedCells.add(pos.cell.element);
-            }
-          }
-        }
-      }
-
-      get().rebuild();
-    } catch (e) {
-      console.error("setSelectedCellsSize failed:", e);
-    }
-  },
-
-  mergeSelectedCells: () => {
-    const { doc, selection } = get();
-    if (!doc || !selection || selection.type !== "cell") return;
-    if (selection.row == null || selection.col == null) return;
-    try {
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      const tbl = para.tables[selection.tableIndex ?? 0];
-      if (!tbl) return;
-
-      const startRow = Math.min(selection.row, selection.endRow ?? selection.row);
-      const endRow = Math.max(selection.row, selection.endRow ?? selection.row);
-      const startCol = Math.min(selection.col, selection.endCol ?? selection.col);
-      const endCol = Math.max(selection.col, selection.endCol ?? selection.col);
-      if (startRow === endRow && startCol === endCol) return; // Single cell, nothing to merge
-
-      get().pushUndo();
-      tbl.mergeCells(startRow, startCol, endRow, endCol);
-      // Update selection to just the merged cell
-      set({
-        selection: { ...selection, row: startRow, col: startCol, endRow: startRow, endCol: startCol },
+      const newId = doc.oxml.ensureBorderFillStyle({
+        baseBorderFillId,
+        sides: sideMap as { left?: { type: string; width: string; color: string }; right?: { type: string; width: string; color: string }; top?: { type: string; width: string; color: string }; bottom?: { type: string; width: string; color: string } },
       });
+      cell.borderFillIDRef = newId;
       get().rebuild();
     } catch (e) {
-      console.error("mergeSelectedCells failed:", e);
+      console.error("setCellBorder failed:", e);
     }
   },
 
-  unmergeSelectedCells: () => {
+  setCellBackground: (color) => {
     const { doc, selection } = get();
-    if (!doc || !selection || selection.type !== "cell") return;
-    if (selection.row == null || selection.col == null) return;
+    if (!doc || !selection || selection.tableIndex == null || selection.row == null || selection.col == null) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
     try {
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      const tbl = para.tables[selection.tableIndex ?? 0];
-      if (!tbl) return;
-
-      const cell = tbl.cell(selection.row, selection.col);
-      if (!cell) return;
-      const [rowSpan, colSpan] = cell.span;
-      if (rowSpan === 1 && colSpan === 1) return; // Not merged
-
       get().pushUndo();
-      tbl.unmergeCells(selection.row, selection.col);
-      // Expand selection to cover all unmerged cells
-      set({
-        selection: {
-          ...selection,
-          endRow: selection.row + rowSpan - 1,
-          endCol: selection.col + colSpan - 1,
-        },
+      const cell = table.cell(selection.row, selection.col);
+      const baseBorderFillId = cell.borderFillIDRef ?? table.borderFillIDRef ?? undefined;
+      const newId = doc.oxml.ensureBorderFillStyle({
+        baseBorderFillId,
+        backgroundColor: color,
       });
+      cell.borderFillIDRef = newId;
       get().rebuild();
     } catch (e) {
-      console.error("unmergeSelectedCells failed:", e);
+      console.error("setCellBackground failed:", e);
     }
   },
 
-  insertTableRow: (position) => {
+  setCellVertAlign: (align) => {
     const { doc, selection } = get();
-    if (!doc || !selection || selection.type !== "cell") return;
-    if (selection.row == null || selection.tableIndex == null) return;
+    if (!doc || !selection || selection.tableIndex == null || selection.row == null || selection.col == null) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
     try {
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      const tbl = para.tables[selection.tableIndex];
-      if (!tbl) return;
-
       get().pushUndo();
-      tbl.insertRow(selection.row, position);
-      // Update selection to new row if inserted above
-      if (position === "above") {
-        set({ selection: { ...selection, row: selection.row + 1 } });
-      }
+      const cell = table.cell(selection.row, selection.col);
+      cell.vertAlign = align;
       get().rebuild();
     } catch (e) {
-      console.error("insertTableRow failed:", e);
+      console.error("setCellVertAlign failed:", e);
     }
   },
 
-  insertTableColumn: (position) => {
-    const { doc, selection } = get();
-    if (!doc || !selection || selection.type !== "cell") return;
-    if (selection.col == null || selection.tableIndex == null) return;
-    try {
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      const tbl = para.tables[selection.tableIndex];
-      if (!tbl) return;
-
-      get().pushUndo();
-      tbl.insertColumn(selection.col, position);
-      // Update selection to new column if inserted left
-      if (position === "left") {
-        set({ selection: { ...selection, col: selection.col + 1 } });
-      }
-      get().rebuild();
-    } catch (e) {
-      console.error("insertTableColumn failed:", e);
-    }
-  },
-
-  deleteTableRow: () => {
-    const { doc, selection } = get();
-    if (!doc || !selection || selection.type !== "cell") return;
-    if (selection.row == null || selection.tableIndex == null) return;
-    try {
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      const tbl = para.tables[selection.tableIndex];
-      if (!tbl) return;
-
-      if (tbl.rowCount <= 1) return; // Can't delete last row
-
-      get().pushUndo();
-      tbl.deleteRow(selection.row);
-      // Adjust selection if needed
-      const newRow = Math.min(selection.row, tbl.rowCount - 1);
-      set({ selection: { ...selection, row: newRow } });
-      get().rebuild();
-    } catch (e) {
-      console.error("deleteTableRow failed:", e);
-    }
-  },
-
-  deleteTableColumn: () => {
-    const { doc, selection } = get();
-    if (!doc || !selection || selection.type !== "cell") return;
-    if (selection.col == null || selection.tableIndex == null) return;
-    try {
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      const tbl = para.tables[selection.tableIndex];
-      if (!tbl) return;
-
-      if (tbl.columnCount <= 1) return; // Can't delete last column
-
-      get().pushUndo();
-      tbl.deleteColumn(selection.col);
-      // Adjust selection if needed
-      const newCol = Math.min(selection.col, tbl.columnCount - 1);
-      set({ selection: { ...selection, col: newCol } });
-      get().rebuild();
-    } catch (e) {
-      console.error("deleteTableColumn failed:", e);
-    }
-  },
-
-  deleteTable: () => {
+  setTableBorder: (sides, style) => {
     const { doc, selection } = get();
     if (!doc || !selection || selection.tableIndex == null) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
     try {
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-
       get().pushUndo();
-      // Remove the table from the paragraph
-      const tables = para.tables;
-      if (selection.tableIndex < tables.length) {
-        const tbl = tables[selection.tableIndex];
-        if (tbl && tbl.element.parentNode) {
-          tbl.element.parentNode.removeChild(tbl.element);
+      // Apply to all cells in the table
+      const grid = table.iterGrid();
+      const processed = new Set<string>();
+      for (const pos of grid) {
+        const key = `${pos.anchor[0]},${pos.anchor[1]}`;
+        if (processed.has(key)) continue;
+        processed.add(key);
+        const cell = pos.cell;
+        const baseBorderFillId = cell.borderFillIDRef ?? table.borderFillIDRef ?? undefined;
+        const baseInfo = baseBorderFillId ? doc.oxml.getBorderFillInfo(baseBorderFillId) : null;
+        const getBorderSide = (s: string) => {
+          if (!baseInfo) return null;
+          if (s === "left") return baseInfo.left;
+          if (s === "right") return baseInfo.right;
+          if (s === "top") return baseInfo.top;
+          if (s === "bottom") return baseInfo.bottom;
+          return null;
+        };
+        const sideMap: Record<string, { type: string; width: string; color: string }> = {};
+        for (const s of sides) {
+          const base = getBorderSide(s);
+          sideMap[s] = {
+            type: style.type ?? base?.type ?? "SOLID",
+            width: style.width ?? base?.width ?? "0.12 mm",
+            color: style.color ?? base?.color ?? "#000000",
+          };
         }
+        const newId = doc.oxml.ensureBorderFillStyle({
+          baseBorderFillId,
+          sides: sideMap as { left?: { type: string; width: string; color: string }; right?: { type: string; width: string; color: string }; top?: { type: string; width: string; color: string }; bottom?: { type: string; width: string; color: string } },
+        });
+        cell.borderFillIDRef = newId;
       }
-      // Clear table selection
-      set({ selection: { ...selection, type: "paragraph", tableIndex: undefined, row: undefined, col: undefined } });
       get().rebuild();
     } catch (e) {
-      console.error("deleteTable failed:", e);
+      console.error("setTableBorder failed:", e);
     }
   },
 
-  // Zoom actions
-  setZoom: (level) => {
-    const clampedLevel = Math.max(25, Math.min(400, level));
-    set((s) => ({ uiState: { ...s.uiState, zoomLevel: clampedLevel } }));
-  },
-
-  zoomIn: () => {
-    const { uiState } = get();
-    const newLevel = Math.min(uiState.zoomLevel + 10, 400);
-    set((s) => ({ uiState: { ...s.uiState, zoomLevel: newLevel } }));
-  },
-
-  zoomOut: () => {
-    const { uiState } = get();
-    const newLevel = Math.max(uiState.zoomLevel - 10, 25);
-    set((s) => ({ uiState: { ...s.uiState, zoomLevel: newLevel } }));
-  },
-
-  // Page number dialog
-  openPageNumberDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, pageNumberDialogOpen: true } })),
-
-  closePageNumberDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, pageNumberDialogOpen: false } })),
-
-  // New document / Open file
-  newDocument: async () => {
+  setTableBackground: (color) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
     try {
-      set({ loading: true, error: null });
-      // Fetch skeleton template
-      const response = await fetch("/Skeleton.hwpx");
-      if (!response.ok) {
-        throw new Error("Failed to load template");
+      get().pushUndo();
+      const grid = table.iterGrid();
+      const processed = new Set<string>();
+      for (const pos of grid) {
+        const key = `${pos.anchor[0]},${pos.anchor[1]}`;
+        if (processed.has(key)) continue;
+        processed.add(key);
+        const cell = pos.cell;
+        const baseBorderFillId = cell.borderFillIDRef ?? table.borderFillIDRef ?? undefined;
+        const newId = doc.oxml.ensureBorderFillStyle({
+          baseBorderFillId,
+          backgroundColor: color,
+        });
+        cell.borderFillIDRef = newId;
       }
-      const buffer = await response.arrayBuffer();
-      const { HwpxDocument } = await import("@ubermensch1218/hwpxcore");
-      const newDoc = await HwpxDocument.open(new Uint8Array(buffer));
-      get().setDocument(newDoc);
-      set({ selection: null, undoStack: [], redoStack: [] });
-    } catch (e) {
-      console.error("newDocument failed:", e);
-      set({ error: "새 문서 생성에 실패했습니다." });
-    } finally {
-      set({ loading: false });
-    }
-  },
-
-  openDocument: async (data) => {
-    try {
-      set({ loading: true, error: null });
-      const { HwpxDocument } = await import("@ubermensch1218/hwpxcore");
-      const newDoc = await HwpxDocument.open(data);
-      get().setDocument(newDoc);
-      set({ selection: null, undoStack: [], redoStack: [] });
-    } catch (e) {
-      console.error("openDocument failed:", e);
-      set({ error: "문서 열기에 실패했습니다." });
-    } finally {
-      set({ loading: false });
-    }
-  },
-
-  printDocument: () => {
-    window.print();
-  },
-
-  exportPDF: async () => {
-    // Use browser print to PDF functionality
-    // In future, can integrate with libraries like html2pdf or jspdf
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      console.error("Failed to open print window");
-      return;
-    }
-
-    const pageView = document.querySelector("[data-page-view]");
-    if (!pageView) {
-      printWindow.close();
-      return;
-    }
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>문서 출력</title>
-        <style>
-          @media print {
-            body { margin: 0; padding: 0; }
-            @page { margin: 20mm; }
-          }
-          body { font-family: 'Malgun Gothic', sans-serif; }
-        </style>
-      </head>
-      <body>
-        ${pageView.innerHTML}
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
-  },
-
-  applyBullet: (bulletId) => {
-    const { doc, selection } = get();
-    if (!doc || !selection) return;
-    try {
-      get().pushUndo();
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      para.bulletIdRef = bulletId;
       get().rebuild();
     } catch (e) {
-      console.error("applyBullet failed:", e);
-    }
-  },
-
-  applyNumbering: (level) => {
-    const { doc, selection } = get();
-    if (!doc || !selection) return;
-    try {
-      get().pushUndo();
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      para.outlineLevel = level;
-      get().rebuild();
-    } catch (e) {
-      console.error("applyNumbering failed:", e);
-    }
-  },
-
-  applyOutlineLevel: (level) => {
-    const { doc, selection } = get();
-    if (!doc || !selection) return;
-    try {
-      get().pushUndo();
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      para.outlineLevel = level;
-      get().rebuild();
-    } catch (e) {
-      console.error("applyOutlineLevel failed:", e);
-    }
-  },
-
-  removeBulletNumbering: () => {
-    const { doc, selection } = get();
-    if (!doc || !selection) return;
-    try {
-      get().pushUndo();
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      para.bulletIdRef = null;
-      para.outlineLevel = 0;
-      get().rebuild();
-    } catch (e) {
-      console.error("removeBulletNumbering failed:", e);
+      console.error("setTableBackground failed:", e);
     }
   },
 
@@ -1724,25 +1490,143 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
-  setColumnCount: (colCount, gapMm) => {
+  // Table structure operations
+  insertTableRow: (position) => {
     const { doc, selection } = get();
-    if (!doc) return;
-    const sIdx = selection?.sectionIndex ?? 0;
-    const section = doc.sections[sIdx];
-    if (!section) return;
+    if (!doc || !selection || selection.tableIndex == null || selection.row == null) return;
     try {
       get().pushUndo();
-      section.properties.setColumnLayout({
-        colCount: Math.max(1, colCount),
-        sameGap: gapMm != null ? mmToHwp(gapMm) : undefined,
-      });
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      table.insertRow(selection.row, position === "above" ? "before" : "after");
       get().rebuild();
     } catch (e) {
-      console.error("setColumnCount failed:", e);
+      console.error("insertTableRow failed:", e);
+    }
+  },
+
+  deleteTableRow: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null || selection.row == null) return;
+    try {
+      get().pushUndo();
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      table.deleteRow(selection.row);
+      set({ selection: null });
+      get().rebuild();
+    } catch (e) {
+      console.error("deleteTableRow failed:", e);
+    }
+  },
+
+  insertTableColumn: (position) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null || selection.col == null) return;
+    try {
+      get().pushUndo();
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      table.insertColumn(selection.col, position === "left" ? "before" : "after");
+      get().rebuild();
+    } catch (e) {
+      console.error("insertTableColumn failed:", e);
+    }
+  },
+
+  deleteTableColumn: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null || selection.col == null) return;
+    try {
+      get().pushUndo();
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      table.deleteColumn(selection.col);
+      set({ selection: null });
+      get().rebuild();
+    } catch (e) {
+      console.error("deleteTableColumn failed:", e);
+    }
+  },
+
+  mergeTableCells: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    if (selection.row == null || selection.col == null) return;
+    if (selection.endRow == null || selection.endCol == null) return;
+    try {
+      get().pushUndo();
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      const r1 = Math.min(selection.row, selection.endRow);
+      const c1 = Math.min(selection.col, selection.endCol);
+      const r2 = Math.max(selection.row, selection.endRow);
+      const c2 = Math.max(selection.col, selection.endCol);
+      table.mergeCells(r1, c1, r2, c2);
+      set({ selection: { ...selection, row: r1, col: c1, endRow: undefined, endCol: undefined } });
+      get().rebuild();
+    } catch (e) {
+      console.error("mergeTableCells failed:", e);
+    }
+  },
+
+  splitTableCell: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    if (selection.row == null || selection.col == null) return;
+    try {
+      get().pushUndo();
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      table.splitCell(selection.row, selection.col);
+      get().rebuild();
+    } catch (e) {
+      console.error("splitTableCell failed:", e);
+    }
+  },
+
+  deleteTable: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    try {
+      get().pushUndo();
+      doc.removeParagraph(selection.sectionIndex, selection.paragraphIndex);
+      set({ selection: null });
+      get().rebuild();
+    } catch (e) {
+      console.error("deleteTable failed:", e);
     }
   },
 
   // File operations
+  openFile: () => {
+    window.dispatchEvent(new CustomEvent("hwpx-open-file"));
+  },
+
   saveDocument: async () => {
     get().openSaveDialog();
   },
@@ -1795,69 +1679,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   closeCharMapDialog: () =>
     set((s) => ({ uiState: { ...s.uiState, charMapDialogOpen: false } })),
 
-  openStyleDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, styleDialogOpen: true } })),
-
-  closeStyleDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, styleDialogOpen: false } })),
-
-  openAutoCorrectDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, autoCorrectDialogOpen: true } })),
-
-  closeAutoCorrectDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, autoCorrectDialogOpen: false } })),
-
-  openOutlineDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, outlineDialogOpen: true } })),
-
-  closeOutlineDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, outlineDialogOpen: false } })),
-
-  openShapeDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, shapeDialogOpen: true } })),
-
-  closeShapeDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, shapeDialogOpen: false } })),
-
-  openTocDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, tocDialogOpen: true } })),
-
-  closeTocDialog: () =>
-    set((s) => ({ uiState: { ...s.uiState, tocDialogOpen: false } })),
-
-  applyStyle: (styleId) => {
-    const { doc, selection } = get();
-    if (!doc || !selection) return;
-    try {
-      get().pushUndo();
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      para.styleIdRef = styleId;
-      get().rebuild();
-    } catch (e) {
-      console.error("applyStyle failed:", e);
-    }
-  },
-
-  insertToc: (options) => {
-    const { doc } = get();
-    if (!doc) return;
-    try {
-      get().pushUndo();
-      // Import dynamically to avoid circular dependencies
-      import("@ubermensch1218/hwpxcore").then(({ generateTableOfContents }) => {
-        generateTableOfContents(doc.oxml, options);
-        get().rebuild();
-      }).catch((e) => {
-        console.error("insertToc import failed:", e);
-      });
-    } catch (e) {
-      console.error("insertToc failed:", e);
-    }
-  },
-
   insertTextAtCursor: (text) => {
     const { doc, selection } = get();
     if (!doc || !selection) return;
@@ -1871,109 +1692,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       get().rebuild();
     } catch (e) {
       console.error("insertTextAtCursor failed:", e);
-    }
-  },
-
-  insertTab: () => {
-    const { doc, selection } = get();
-    if (!doc || !selection) return;
-    try {
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      get().pushUndo();
-      para.addTab({ charPrIdRef: para.charPrIdRef ?? undefined });
-      get().rebuild();
-    } catch (e) {
-      console.error("insertTab failed:", e);
-    }
-  },
-
-  insertTextBox: (text, widthMm, heightMm) => {
-    const { doc, selection } = get();
-    if (!doc || !selection) return;
-    try {
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      get().pushUndo();
-      para.addTextBox(text, {
-        width: mmToHwp(widthMm),
-        height: mmToHwp(heightMm),
-        charPrIdRef: para.charPrIdRef ?? undefined,
-      });
-      get().rebuild();
-    } catch (e) {
-      console.error("insertTextBox failed:", e);
-    }
-  },
-
-  insertShape: (shapeType, widthMm, heightMm) => {
-    const { doc, selection } = get();
-    if (!doc || !selection) return;
-    try {
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      get().pushUndo();
-
-      const paraEl = para.element;
-      const HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph";
-      const HCNS = "http://www.hancom.co.kr/hwpml/2011/HwpUnitChar";
-
-      // Find or create a run element
-      const runs = paraEl.getElementsByTagNameNS(HP_NS, "run");
-      let run: Element;
-      if (runs.length > 0) {
-        run = runs[runs.length - 1]!;
-      } else {
-        run = paraEl.ownerDocument.createElementNS(HP_NS, "hp:run");
-        paraEl.appendChild(run);
-      }
-
-      // Create shape element (using drawingObject as container)
-      const drawObj = paraEl.ownerDocument.createElementNS(HP_NS, "hp:drawingObject");
-
-      // Set size in HWP units
-      const widthHwp = mmToHwp(widthMm);
-      const heightHwp = mmToHwp(heightMm);
-
-      // Create curSz for size
-      const curSz = paraEl.ownerDocument.createElementNS(HCNS, "hc:curSz");
-      curSz.setAttribute("width", String(widthHwp));
-      curSz.setAttribute("height", String(heightHwp));
-      drawObj.appendChild(curSz);
-
-      // Create shape-specific element
-      const shapeEl = paraEl.ownerDocument.createElementNS(HP_NS, "hp:shape");
-      shapeEl.setAttribute("type", shapeType);
-
-      // Set shape properties based on type
-      if (shapeType === "rectangle") {
-        shapeEl.setAttribute("fill", "#ffffff");
-        shapeEl.setAttribute("stroke", "#000000");
-        shapeEl.setAttribute("strokeWidth", "1");
-      } else if (shapeType === "ellipse") {
-        shapeEl.setAttribute("fill", "#ffffff");
-        shapeEl.setAttribute("stroke", "#000000");
-        shapeEl.setAttribute("strokeWidth", "1");
-      } else if (shapeType === "line" || shapeType === "arrow") {
-        shapeEl.setAttribute("stroke", "#000000");
-        shapeEl.setAttribute("strokeWidth", "1");
-        if (shapeType === "arrow") {
-          shapeEl.setAttribute("endArrow", "true");
-        }
-      }
-
-      drawObj.appendChild(shapeEl);
-      run.appendChild(drawObj);
-
-      get().rebuild();
-    } catch (e) {
-      console.error("insertShape failed:", e);
     }
   },
 }));

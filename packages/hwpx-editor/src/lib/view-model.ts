@@ -39,6 +39,20 @@ export interface MarginVM {
   right: number;
 }
 
+export interface CellBorderStyleVM {
+  type: string;
+  width: string;
+  color: string;
+}
+
+export interface CellStyleVM {
+  borderLeft: CellBorderStyleVM | null;
+  borderRight: CellBorderStyleVM | null;
+  borderTop: CellBorderStyleVM | null;
+  borderBottom: CellBorderStyleVM | null;
+  backgroundColor: string | null;
+}
+
 export interface TableCellVM {
   row: number;
   col: number;
@@ -48,6 +62,9 @@ export interface TableCellVM {
   heightPx: number;
   text: string;
   isAnchor: boolean; // true if this is the top-left of a merged region
+  borderFillIDRef: string | null;
+  vertAlign: string;  // "TOP" | "CENTER" | "BOTTOM"
+  style: CellStyleVM | null;
 }
 
 export interface TableVM {
@@ -62,6 +79,7 @@ export interface TableVM {
   outMargin: MarginVM; // table outer margin in hwpUnits
   inMargin: MarginVM; // table inner cell margin in hwpUnits
   columnWidths: number[]; // per-column width in hwpUnits
+  borderFillIDRef: string | null;
 }
 
 export interface ImageVM {
@@ -808,11 +826,30 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
                 heightPx: 0,
                 text: "",
                 isAnchor: false,
+                borderFillIDRef: null,
+                vertAlign: "CENTER",
+                style: null,
               });
               continue;
             }
 
             const isAnchor = pos.anchor[0] === r && pos.anchor[1] === c;
+            const cellBfId = pos.cell.element.getAttribute("borderFillIDRef");
+            let cellStyle: CellStyleVM | null = null;
+            if (cellBfId) {
+              try {
+                const bfInfo = doc.oxml.getBorderFillInfo(cellBfId);
+                if (bfInfo) {
+                  cellStyle = {
+                    borderLeft: bfInfo.left.type !== "NONE" ? bfInfo.left : null,
+                    borderRight: bfInfo.right.type !== "NONE" ? bfInfo.right : null,
+                    borderTop: bfInfo.top.type !== "NONE" ? bfInfo.top : null,
+                    borderBottom: bfInfo.bottom.type !== "NONE" ? bfInfo.bottom : null,
+                    backgroundColor: bfInfo.backgroundColor,
+                  };
+                }
+              } catch { /* ignore */ }
+            }
             row.push({
               row: r,
               col: c,
@@ -822,6 +859,15 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
               heightPx: hwpToPx(pos.cell.height),
               text: isAnchor ? pos.cell.text : "",
               isAnchor,
+              borderFillIDRef: cellBfId,
+              vertAlign: (() => {
+                const sl = pos.cell.element.querySelector("subList") ??
+                  Array.from(pos.cell.element.childNodes).find(
+                    (n) => n.nodeType === 1 && ((n as Element).localName === "subList" || (n as Element).nodeName.split(":").pop() === "subList"),
+                  ) as Element | undefined;
+                return (sl?.getAttribute?.("vertAlign") ?? "CENTER").toUpperCase();
+              })(),
+              style: cellStyle,
             });
           }
           cellsVM.push(row);
@@ -863,6 +909,7 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
           outMargin,
           inMargin,
           columnWidths,
+          borderFillIDRef: table.element.getAttribute("borderFillIDRef"),
         });
       }
 

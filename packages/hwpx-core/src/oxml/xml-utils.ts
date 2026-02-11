@@ -271,6 +271,84 @@ export function createParagraphElement(
   return paragraph;
 }
 
+// -- Border fill types --
+
+export interface BorderStyle {
+  type: string;   // "NONE" | "SOLID" | "DASH" | "DOT" | "DASH_DOT" | "DOUBLE_SLIM" ...
+  width: string;  // "0.12 mm" etc.
+  color: string;  // "#000000" etc.
+}
+
+export interface BorderFillInfo {
+  left: BorderStyle;
+  right: BorderStyle;
+  top: BorderStyle;
+  bottom: BorderStyle;
+  diagonal: BorderStyle;
+  backgroundColor: string | null;  // fillBrush > windowBrush faceColor
+}
+
+const DEFAULT_BORDER_STYLE: BorderStyle = { type: "NONE", width: "0.12 mm", color: "#000000" };
+
+export function parseBorderFillElement(element: Element): BorderFillInfo {
+  const readBorder = (name: string): BorderStyle => {
+    const child = findChild(element, HH_NS, name);
+    if (!child) return { ...DEFAULT_BORDER_STYLE };
+    return {
+      type: (child.getAttribute("type") ?? "NONE").toUpperCase(),
+      width: child.getAttribute("width") ?? "0.12 mm",
+      color: child.getAttribute("color") ?? "#000000",
+    };
+  };
+
+  let backgroundColor: string | null = null;
+  const fillBrush = findChild(element, HH_NS, "fillBrush");
+  if (fillBrush) {
+    const windowBrush = findChild(fillBrush, HH_NS, "windowBrush");
+    if (windowBrush) {
+      backgroundColor = windowBrush.getAttribute("faceColor") ?? null;
+    }
+  }
+
+  return {
+    left: readBorder("leftBorder"),
+    right: readBorder("rightBorder"),
+    top: readBorder("topBorder"),
+    bottom: readBorder("bottomBorder"),
+    diagonal: readBorder("diagonal"),
+    backgroundColor,
+  };
+}
+
+export function createBorderFillElement(
+  doc: Document,
+  id: string,
+  info: Partial<BorderFillInfo>,
+): Element {
+  const attrs = { id, ...BASIC_BORDER_FILL_ATTRIBUTES };
+  const element = createNsElement(doc, HH_NS, "borderFill", attrs);
+
+  const writeBorder = (name: string, style: BorderStyle | undefined): void => {
+    const s = style ?? DEFAULT_BORDER_STYLE;
+    subElement(element, HH_NS, name, { type: s.type, width: s.width, color: s.color });
+  };
+
+  subElement(element, HH_NS, "slash", { type: "NONE", Crooked: "0", isCounter: "0" });
+  subElement(element, HH_NS, "backSlash", { type: "NONE", Crooked: "0", isCounter: "0" });
+  writeBorder("leftBorder", info.left);
+  writeBorder("rightBorder", info.right);
+  writeBorder("topBorder", info.top);
+  writeBorder("bottomBorder", info.bottom);
+  writeBorder("diagonal", info.diagonal);
+
+  if (info.backgroundColor != null) {
+    const fb = subElement(element, HH_NS, "fillBrush");
+    subElement(fb, HH_NS, "windowBrush", { faceColor: info.backgroundColor, hatchColor: "NONE", alpha: "0" });
+  }
+
+  return element;
+}
+
 // -- Border fill helpers --
 
 export function borderFillIsBasicSolidLine(element: Element): boolean {
