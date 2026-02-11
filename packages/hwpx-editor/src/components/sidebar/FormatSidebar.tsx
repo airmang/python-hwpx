@@ -9,6 +9,7 @@ import { PageSetupPanel } from "./PageSetupPanel";
 import { ImageLayoutPanel } from "./ImageLayoutPanel";
 import { ImagePropertiesPanel } from "./ImagePropertiesPanel";
 import { TablePropertiesPanel } from "./TablePropertiesPanel";
+import { CellPropertiesPanel } from "./CellPropertiesPanel";
 import { PanelRightClose } from "lucide-react";
 
 type SidebarContext = "text" | "image" | "table";
@@ -32,6 +33,7 @@ const IMAGE_TABS: { tab: SidebarTab; label: string }[] = [
 
 const TABLE_TABS: { tab: SidebarTab; label: string }[] = [
   { tab: "table", label: "표" },
+  { tab: "cell", label: "셀" },
 ];
 
 export function FormatSidebar() {
@@ -93,6 +95,7 @@ export function FormatSidebar() {
         {activeTab === "img-layout" && <ImageLayoutPanel />}
         {activeTab === "img-props" && <ImagePropertiesPanel />}
         {activeTab === "table" && <TablePropertiesPanel />}
+        {activeTab === "cell" && <CellPropertiesPanel />}
       </div>
     </div>
   );

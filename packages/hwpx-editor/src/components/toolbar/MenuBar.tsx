@@ -57,7 +57,7 @@ export function MenuBar() {
       label: "파일",
       items: [
         { label: "새 문서", shortcut: "Ctrl+N", disabled: true },
-        { label: "불러오기...", shortcut: "Ctrl+O", disabled: true, dividerAfter: true },
+        { label: "불러오기...", shortcut: "Ctrl+O", disabled: false, action: () => store().openFile(), dividerAfter: true },
         { label: "저장", shortcut: "Ctrl+S", disabled, action: () => store().openSaveDialog() },
         { label: "다른 이름으로 저장...", disabled, action: () => store().openSaveDialog(), dividerAfter: true },
         { label: "문서 정보", disabled: true },
@@ -143,18 +143,22 @@ export function MenuBar() {
     },
     {
       label: "표",
-      items: [
-        { label: "표 속성...", disabled: disabled || !selection?.tableIndex, action: () => { store().setSidebarTab("table"); if (!store().uiState.sidebarOpen) store().toggleSidebar(); } },
-        { label: "셀 합치기", disabled: true },
-        { label: "셀 나누기", disabled: true, dividerAfter: true },
-        { label: "줄 삽입 (위)", disabled: true },
-        { label: "줄 삽입 (아래)", disabled: true },
-        { label: "칸 삽입 (왼쪽)", disabled: true },
-        { label: "칸 삽입 (오른쪽)", disabled: true, dividerAfter: true },
-        { label: "줄 삭제", disabled: true },
-        { label: "칸 삭제", disabled: true },
-        { label: "표 삭제", disabled: true },
-      ],
+      items: (() => {
+        const noCell = disabled || selection?.tableIndex == null;
+        const hasRange = !disabled && selection?.endRow != null && selection?.endCol != null;
+        return [
+          { label: "표 속성...", disabled: noCell, action: () => { store().setSidebarTab("table"); if (!store().uiState.sidebarOpen) store().toggleSidebar(); } },
+          { label: "셀 합치기", disabled: !hasRange, action: () => store().mergeTableCells() },
+          { label: "셀 나누기", disabled: noCell, action: () => store().splitTableCell(), dividerAfter: true },
+          { label: "줄 삽입 (위)", disabled: noCell, action: () => store().insertTableRow("above") },
+          { label: "줄 삽입 (아래)", disabled: noCell, action: () => store().insertTableRow("below") },
+          { label: "칸 삽입 (왼쪽)", disabled: noCell, action: () => store().insertTableColumn("left") },
+          { label: "칸 삽입 (오른쪽)", disabled: noCell, action: () => store().insertTableColumn("right"), dividerAfter: true },
+          { label: "줄 삭제", disabled: noCell, action: () => store().deleteTableRow() },
+          { label: "칸 삭제", disabled: noCell, action: () => store().deleteTableColumn() },
+          { label: "표 삭제", disabled: noCell, action: () => store().deleteTable() },
+        ];
+      })(),
     },
   ];
 

@@ -14,6 +14,10 @@ import {
   subElement,
   borderFillIsBasicSolidLine,
   createBasicBorderFillElement,
+  parseBorderFillElement,
+  createBorderFillElement,
+  type BorderStyle,
+  type BorderFillInfo,
 } from "./xml-utils.js";
 
 export class HwpxOxmlHeader {
@@ -84,6 +88,81 @@ export class HwpxOxmlHeader {
     const doc = el.ownerDocument!;
     el.appendChild(createBasicBorderFillElement(doc, newId));
     this._updateBorderFillsItemCount(el);
+    this.markDirty();
+    return newId;
+  }
+
+  getBorderFillInfo(id: string | number): BorderFillInfo | null {
+    const el = this._borderFillsElement();
+    if (!el) return null;
+    for (const child of findAllChildren(el, HH_NS, "borderFill")) {
+      if (child.getAttribute("id") === String(id)) {
+        return parseBorderFillElement(child);
+      }
+    }
+    return null;
+  }
+
+  ensureBorderFill(opts: {
+    baseBorderFillId?: string | number;
+    sides?: { left?: BorderStyle; right?: BorderStyle; top?: BorderStyle; bottom?: BorderStyle };
+    backgroundColor?: string | null;
+  }): string {
+    const container = this._borderFillsElement(true)!;
+    const doc = container.ownerDocument!;
+
+    // Load base info
+    let baseInfo: BorderFillInfo | null = null;
+    if (opts.baseBorderFillId != null) {
+      baseInfo = this.getBorderFillInfo(opts.baseBorderFillId);
+    }
+    if (!baseInfo) {
+      baseInfo = {
+        left: { type: "SOLID", width: "0.12 mm", color: "#000000" },
+        right: { type: "SOLID", width: "0.12 mm", color: "#000000" },
+        top: { type: "SOLID", width: "0.12 mm", color: "#000000" },
+        bottom: { type: "SOLID", width: "0.12 mm", color: "#000000" },
+        diagonal: { type: "SOLID", width: "0.1 mm", color: "#000000" },
+        backgroundColor: null,
+      };
+    }
+
+    // Apply requested changes
+    const newInfo: BorderFillInfo = { ...baseInfo };
+    if (opts.sides) {
+      if (opts.sides.left) newInfo.left = opts.sides.left;
+      if (opts.sides.right) newInfo.right = opts.sides.right;
+      if (opts.sides.top) newInfo.top = opts.sides.top;
+      if (opts.sides.bottom) newInfo.bottom = opts.sides.bottom;
+    }
+    if (opts.backgroundColor !== undefined) {
+      newInfo.backgroundColor = opts.backgroundColor;
+    }
+
+    // Check if existing borderFill matches
+    const matchesBorder = (a: BorderStyle, b: BorderStyle): boolean =>
+      a.type.toUpperCase() === b.type.toUpperCase() &&
+      a.width.replace(/ /g, "").toLowerCase() === b.width.replace(/ /g, "").toLowerCase() &&
+      a.color.toUpperCase() === b.color.toUpperCase();
+
+    for (const child of findAllChildren(container, HH_NS, "borderFill")) {
+      const existing = parseBorderFillElement(child);
+      if (
+        matchesBorder(existing.left, newInfo.left) &&
+        matchesBorder(existing.right, newInfo.right) &&
+        matchesBorder(existing.top, newInfo.top) &&
+        matchesBorder(existing.bottom, newInfo.bottom) &&
+        (existing.backgroundColor ?? null) === (newInfo.backgroundColor ?? null)
+      ) {
+        const id = child.getAttribute("id");
+        if (id) return id;
+      }
+    }
+
+    // Create new borderFill
+    const newId = this._allocateBorderFillId(container);
+    container.appendChild(createBorderFillElement(doc, newId, newInfo));
+    this._updateBorderFillsItemCount(container);
     this.markDirty();
     return newId;
   }

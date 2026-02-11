@@ -1,10 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useEditorStore } from "@/lib/store";
 import { hwpToMm } from "@/lib/hwp-units";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarField } from "./SidebarField";
+
+const BORDER_TYPES = [
+  { value: "NONE", label: "없음" },
+  { value: "SOLID", label: "실선" },
+  { value: "DASH", label: "점선" },
+  { value: "DOT", label: "작은 점선" },
+  { value: "DASH_DOT", label: "일점 쇄선" },
+  { value: "DOUBLE_SLIM", label: "이중선" },
+];
+
+const BORDER_WIDTHS = [
+  "0.1 mm", "0.12 mm", "0.15 mm", "0.2 mm", "0.25 mm",
+  "0.3 mm", "0.4 mm", "0.5 mm", "0.7 mm", "1.0 mm",
+];
 
 function roundMm(hwp: number): number {
   return Math.round(hwpToMm(hwp) * 10) / 10;
@@ -18,6 +32,8 @@ export function TablePropertiesPanel() {
   const setTableSize = useEditorStore((s) => s.setTableSize);
   const setTableOutMargin = useEditorStore((s) => s.setTableOutMargin);
   const setTableInMargin = useEditorStore((s) => s.setTableInMargin);
+  const setTableBorder = useEditorStore((s) => s.setTableBorder);
+  const setTableBackground = useEditorStore((s) => s.setTableBackground);
 
   const sIdx = selection?.sectionIndex ?? 0;
   const pIdx = selection?.paragraphIndex ?? 0;
@@ -61,6 +77,21 @@ export function TablePropertiesPanel() {
     setInRight(roundMm(table.inMargin.right));
   }, [table?.outMargin.top, table?.outMargin.bottom, table?.outMargin.left, table?.outMargin.right,
       table?.inMargin.top, table?.inMargin.bottom, table?.inMargin.left, table?.inMargin.right]);
+
+  // Table border state
+  const [tblBorderType, setTblBorderType] = useState("SOLID");
+  const [tblBorderWidth, setTblBorderWidth] = useState("0.12 mm");
+  const [tblBorderColor, setTblBorderColor] = useState("#000000");
+  const [tblBgColor, setTblBgColor] = useState("#FFFFFF");
+  const [tblNoBg, setTblNoBg] = useState(true);
+
+  const applyTableBorder = useCallback(() => {
+    if (!hasTable) return;
+    setTableBorder(
+      ["left", "right", "top", "bottom"],
+      { type: tblBorderType, width: tblBorderWidth, color: tblBorderColor },
+    );
+  }, [hasTable, tblBorderType, tblBorderWidth, tblBorderColor, setTableBorder]);
 
   const pageBreak = table?.pageBreak ?? "CELL";
   const repeatHeader = table?.repeatHeader ?? false;
@@ -267,32 +298,78 @@ export function TablePropertiesPanel() {
         </SidebarField>
       </SidebarSection>
 
-      <SidebarSection title="테두리" defaultOpen={false}>
-        <SidebarField label="색">
-          <select disabled className={inputClass}>
-            <option>검정</option>
-          </select>
-        </SidebarField>
+      <SidebarSection title="테두리 (전체 셀)" defaultOpen={false}>
         <SidebarField label="종류">
-          <select disabled className={inputClass}>
-            <option>실선</option>
+          <select
+            value={tblBorderType}
+            disabled={!hasTable}
+            onChange={(e) => setTblBorderType(e.target.value)}
+            className={inputClass}
+          >
+            {BORDER_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
           </select>
         </SidebarField>
         <SidebarField label="굵기">
-          <select disabled className={inputClass}>
-            <option>0.1 mm</option>
-            <option>0.12 mm</option>
-            <option>0.15 mm</option>
-            <option>0.2 mm</option>
-            <option>0.25 mm</option>
-            <option>0.3 mm</option>
-            <option>0.4 mm</option>
-            <option>0.5 mm</option>
-            <option>0.6 mm</option>
-            <option>0.7 mm</option>
-            <option>1.0 mm</option>
+          <select
+            value={tblBorderWidth}
+            disabled={!hasTable}
+            onChange={(e) => setTblBorderWidth(e.target.value)}
+            className={inputClass}
+          >
+            {BORDER_WIDTHS.map((w) => (
+              <option key={w} value={w}>{w}</option>
+            ))}
           </select>
         </SidebarField>
+        <SidebarField label="색상">
+          <input
+            type="color"
+            value={tblBorderColor}
+            disabled={!hasTable}
+            onChange={(e) => setTblBorderColor(e.target.value)}
+            className="w-full h-6 p-0 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
+          />
+        </SidebarField>
+        <button
+          disabled={!hasTable}
+          onClick={applyTableBorder}
+          className="w-full mt-1 py-1.5 rounded bg-blue-600 text-white text-[11px] font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          전체 셀 테두리 적용
+        </button>
+      </SidebarSection>
+
+      <SidebarSection title="배경 (전체 셀)" defaultOpen={false}>
+        <div className="flex items-center gap-2 mb-2">
+          <label className="flex items-center gap-1 text-[11px] text-gray-600">
+            <input
+              type="checkbox"
+              checked={tblNoBg}
+              onChange={(e) => {
+                setTblNoBg(e.target.checked);
+                if (e.target.checked && hasTable) setTableBackground(null);
+              }}
+              className="w-3 h-3"
+            />
+            없음
+          </label>
+        </div>
+        {!tblNoBg && (
+          <SidebarField label="색상">
+            <input
+              type="color"
+              value={tblBgColor}
+              disabled={!hasTable}
+              onChange={(e) => {
+                setTblBgColor(e.target.value);
+                if (hasTable) setTableBackground(e.target.value);
+              }}
+              className="w-full h-6 p-0 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
+            />
+          </SidebarField>
+        )}
       </SidebarSection>
     </div>
   );

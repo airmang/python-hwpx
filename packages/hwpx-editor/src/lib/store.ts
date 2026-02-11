@@ -21,6 +21,9 @@ export interface SelectionState {
   tableIndex?: number;
   row?: number;
   col?: number;
+  // For cell range selection (merge)
+  endRow?: number;
+  endCol?: number;
   // For object selection (image/table context)
   objectType?: "image" | "table";
   imageIndex?: number;
@@ -191,7 +194,26 @@ export interface EditorStore {
   updatePageMargins: (margins: Partial<{ left: number; right: number; top: number; bottom: number; header: number; footer: number; gutter: number }>) => void;
   updatePageOrientation: (orientation: OrientationType) => void;
 
+  // Cell style operations
+  setCellBorder: (sides: ("left"|"right"|"top"|"bottom")[], style: { type?: string; width?: string; color?: string }) => void;
+  setCellBackground: (color: string | null) => void;
+  setCellVertAlign: (align: "TOP" | "CENTER" | "BOTTOM") => void;
+
+  // Table-wide border/background
+  setTableBorder: (sides: ("left"|"right"|"top"|"bottom")[], style: { type?: string; width?: string; color?: string }) => void;
+  setTableBackground: (color: string | null) => void;
+
+  // Table structure operations
+  insertTableRow: (position: "above" | "below") => void;
+  deleteTableRow: () => void;
+  insertTableColumn: (position: "left" | "right") => void;
+  deleteTableColumn: () => void;
+  mergeTableCells: () => void;
+  splitTableCell: () => void;
+  deleteTable: () => void;
+
   // File operations
+  openFile: () => void;
   saveDocument: () => Promise<void>;
   saveDocumentAs: (filename: string) => Promise<void>;
   openSaveDialog: () => void;
@@ -1084,6 +1106,173 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
+  // Cell style operations
+  setCellBorder: (sides, style) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null || selection.row == null || selection.col == null) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
+    try {
+      get().pushUndo();
+      const cell = table.cell(selection.row, selection.col);
+      const baseBorderFillId = cell.borderFillIDRef ?? table.borderFillIDRef ?? undefined;
+      const baseInfo = baseBorderFillId ? doc.oxml.getBorderFillInfo(baseBorderFillId) : null;
+      const getBorderSide = (s: string) => {
+        if (!baseInfo) return null;
+        if (s === "left") return baseInfo.left;
+        if (s === "right") return baseInfo.right;
+        if (s === "top") return baseInfo.top;
+        if (s === "bottom") return baseInfo.bottom;
+        return null;
+      };
+      const sideMap: Record<string, { type: string; width: string; color: string }> = {};
+      for (const s of sides) {
+        const base = getBorderSide(s);
+        sideMap[s] = {
+          type: style.type ?? base?.type ?? "SOLID",
+          width: style.width ?? base?.width ?? "0.12 mm",
+          color: style.color ?? base?.color ?? "#000000",
+        };
+      }
+      const newId = doc.oxml.ensureBorderFillStyle({
+        baseBorderFillId,
+        sides: sideMap as { left?: { type: string; width: string; color: string }; right?: { type: string; width: string; color: string }; top?: { type: string; width: string; color: string }; bottom?: { type: string; width: string; color: string } },
+      });
+      cell.borderFillIDRef = newId;
+      get().rebuild();
+    } catch (e) {
+      console.error("setCellBorder failed:", e);
+    }
+  },
+
+  setCellBackground: (color) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null || selection.row == null || selection.col == null) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
+    try {
+      get().pushUndo();
+      const cell = table.cell(selection.row, selection.col);
+      const baseBorderFillId = cell.borderFillIDRef ?? table.borderFillIDRef ?? undefined;
+      const newId = doc.oxml.ensureBorderFillStyle({
+        baseBorderFillId,
+        backgroundColor: color,
+      });
+      cell.borderFillIDRef = newId;
+      get().rebuild();
+    } catch (e) {
+      console.error("setCellBackground failed:", e);
+    }
+  },
+
+  setCellVertAlign: (align) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null || selection.row == null || selection.col == null) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
+    try {
+      get().pushUndo();
+      const cell = table.cell(selection.row, selection.col);
+      cell.vertAlign = align;
+      get().rebuild();
+    } catch (e) {
+      console.error("setCellVertAlign failed:", e);
+    }
+  },
+
+  setTableBorder: (sides, style) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
+    try {
+      get().pushUndo();
+      // Apply to all cells in the table
+      const grid = table.iterGrid();
+      const processed = new Set<string>();
+      for (const pos of grid) {
+        const key = `${pos.anchor[0]},${pos.anchor[1]}`;
+        if (processed.has(key)) continue;
+        processed.add(key);
+        const cell = pos.cell;
+        const baseBorderFillId = cell.borderFillIDRef ?? table.borderFillIDRef ?? undefined;
+        const baseInfo = baseBorderFillId ? doc.oxml.getBorderFillInfo(baseBorderFillId) : null;
+        const getBorderSide = (s: string) => {
+          if (!baseInfo) return null;
+          if (s === "left") return baseInfo.left;
+          if (s === "right") return baseInfo.right;
+          if (s === "top") return baseInfo.top;
+          if (s === "bottom") return baseInfo.bottom;
+          return null;
+        };
+        const sideMap: Record<string, { type: string; width: string; color: string }> = {};
+        for (const s of sides) {
+          const base = getBorderSide(s);
+          sideMap[s] = {
+            type: style.type ?? base?.type ?? "SOLID",
+            width: style.width ?? base?.width ?? "0.12 mm",
+            color: style.color ?? base?.color ?? "#000000",
+          };
+        }
+        const newId = doc.oxml.ensureBorderFillStyle({
+          baseBorderFillId,
+          sides: sideMap as { left?: { type: string; width: string; color: string }; right?: { type: string; width: string; color: string }; top?: { type: string; width: string; color: string }; bottom?: { type: string; width: string; color: string } },
+        });
+        cell.borderFillIDRef = newId;
+      }
+      get().rebuild();
+    } catch (e) {
+      console.error("setTableBorder failed:", e);
+    }
+  },
+
+  setTableBackground: (color) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return;
+    const para = section.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const table = para.tables[selection.tableIndex];
+    if (!table) return;
+    try {
+      get().pushUndo();
+      const grid = table.iterGrid();
+      const processed = new Set<string>();
+      for (const pos of grid) {
+        const key = `${pos.anchor[0]},${pos.anchor[1]}`;
+        if (processed.has(key)) continue;
+        processed.add(key);
+        const cell = pos.cell;
+        const baseBorderFillId = cell.borderFillIDRef ?? table.borderFillIDRef ?? undefined;
+        const newId = doc.oxml.ensureBorderFillStyle({
+          baseBorderFillId,
+          backgroundColor: color,
+        });
+        cell.borderFillIDRef = newId;
+      }
+      get().rebuild();
+    } catch (e) {
+      console.error("setTableBackground failed:", e);
+    }
+  },
+
   setFirstLineIndent: (valueHwp) => {
     const { doc, extendedFormat, selection } = get();
     if (!doc || !selection) return;
@@ -1301,7 +1490,143 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
+  // Table structure operations
+  insertTableRow: (position) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null || selection.row == null) return;
+    try {
+      get().pushUndo();
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      table.insertRow(selection.row, position === "above" ? "before" : "after");
+      get().rebuild();
+    } catch (e) {
+      console.error("insertTableRow failed:", e);
+    }
+  },
+
+  deleteTableRow: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null || selection.row == null) return;
+    try {
+      get().pushUndo();
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      table.deleteRow(selection.row);
+      set({ selection: null });
+      get().rebuild();
+    } catch (e) {
+      console.error("deleteTableRow failed:", e);
+    }
+  },
+
+  insertTableColumn: (position) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null || selection.col == null) return;
+    try {
+      get().pushUndo();
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      table.insertColumn(selection.col, position === "left" ? "before" : "after");
+      get().rebuild();
+    } catch (e) {
+      console.error("insertTableColumn failed:", e);
+    }
+  },
+
+  deleteTableColumn: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null || selection.col == null) return;
+    try {
+      get().pushUndo();
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      table.deleteColumn(selection.col);
+      set({ selection: null });
+      get().rebuild();
+    } catch (e) {
+      console.error("deleteTableColumn failed:", e);
+    }
+  },
+
+  mergeTableCells: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    if (selection.row == null || selection.col == null) return;
+    if (selection.endRow == null || selection.endCol == null) return;
+    try {
+      get().pushUndo();
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      const r1 = Math.min(selection.row, selection.endRow);
+      const c1 = Math.min(selection.col, selection.endCol);
+      const r2 = Math.max(selection.row, selection.endRow);
+      const c2 = Math.max(selection.col, selection.endCol);
+      table.mergeCells(r1, c1, r2, c2);
+      set({ selection: { ...selection, row: r1, col: c1, endRow: undefined, endCol: undefined } });
+      get().rebuild();
+    } catch (e) {
+      console.error("mergeTableCells failed:", e);
+    }
+  },
+
+  splitTableCell: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    if (selection.row == null || selection.col == null) return;
+    try {
+      get().pushUndo();
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      table.splitCell(selection.row, selection.col);
+      get().rebuild();
+    } catch (e) {
+      console.error("splitTableCell failed:", e);
+    }
+  },
+
+  deleteTable: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    try {
+      get().pushUndo();
+      doc.removeParagraph(selection.sectionIndex, selection.paragraphIndex);
+      set({ selection: null });
+      get().rebuild();
+    } catch (e) {
+      console.error("deleteTable failed:", e);
+    }
+  },
+
   // File operations
+  openFile: () => {
+    window.dispatchEvent(new CustomEvent("hwpx-open-file"));
+  },
+
   saveDocument: async () => {
     get().openSaveDialog();
   },

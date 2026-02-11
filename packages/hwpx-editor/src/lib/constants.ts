@@ -151,4 +151,4 @@ export type BindingType = "LEFT" | "FACING" | "TOP";
 
 // ── Sidebar tabs ───────────────────────────────────────────────────────────
 
-export type SidebarTab = "char" | "para" | "page" | "img-layout" | "img-props" | "table";
+export type SidebarTab = "char" | "para" | "page" | "img-layout" | "img-props" | "table" | "cell";

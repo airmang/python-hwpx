@@ -44,6 +44,8 @@ export interface TableCellVM {
   heightPx: number;
   text: string;
   isAnchor: boolean; // true if this is the top-left of a merged region
+  borderFillIDRef: string | null;
+  vertAlign: string;  // "TOP" | "CENTER" | "BOTTOM"
 }
 
 export interface TableVM {
@@ -58,6 +60,7 @@ export interface TableVM {
   outMargin: MarginVM; // table outer margin in hwpUnits
   inMargin: MarginVM; // table inner cell margin in hwpUnits
   columnWidths: number[]; // per-column width in hwpUnits
+  borderFillIDRef: string | null;
 }
 
 export interface ImageVM {
@@ -424,6 +427,8 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
                 heightPx: 0,
                 text: "",
                 isAnchor: false,
+                borderFillIDRef: null,
+                vertAlign: "CENTER",
               });
               continue;
             }
@@ -438,6 +443,14 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
               heightPx: hwpToPx(pos.cell.height),
               text: isAnchor ? pos.cell.text : "",
               isAnchor,
+              borderFillIDRef: pos.cell.element.getAttribute("borderFillIDRef"),
+              vertAlign: (() => {
+                const sl = pos.cell.element.querySelector("subList") ??
+                  Array.from(pos.cell.element.childNodes).find(
+                    (n) => n.nodeType === 1 && ((n as Element).localName === "subList" || (n as Element).nodeName.split(":").pop() === "subList"),
+                  ) as Element | undefined;
+                return (sl?.getAttribute?.("vertAlign") ?? "CENTER").toUpperCase();
+              })(),
             });
           }
           cellsVM.push(row);
@@ -469,6 +482,7 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
           outMargin,
           inMargin,
           columnWidths,
+          borderFillIDRef: table.element.getAttribute("borderFillIDRef"),
         });
       }
 

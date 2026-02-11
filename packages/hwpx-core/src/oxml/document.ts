@@ -393,6 +393,28 @@ export class HwpxOxmlDocument {
     return this._headers[0]!.ensureBasicBorderFill();
   }
 
+  getBorderFillInfo(id: string | number): import("./xml-utils.js").BorderFillInfo | null {
+    for (const header of this._headers) {
+      const info = header.getBorderFillInfo(id);
+      if (info) return info;
+    }
+    return null;
+  }
+
+  ensureBorderFillStyle(opts: {
+    baseBorderFillId?: string | number;
+    sides?: {
+      left?: import("./xml-utils.js").BorderStyle;
+      right?: import("./xml-utils.js").BorderStyle;
+      top?: import("./xml-utils.js").BorderStyle;
+      bottom?: import("./xml-utils.js").BorderStyle;
+    };
+    backgroundColor?: string | null;
+  }): string {
+    if (this._headers.length === 0) throw new Error("document does not contain any headers");
+    return this._headers[0]!.ensureBorderFill(opts);
+  }
+
   // -- Paragraphs --
 
   get paragraphs(): HwpxOxmlParagraph[] {
