@@ -596,8 +596,9 @@ export class HwpxOxmlSection {
     if (!this._propertiesCache) {
       let el = findDescendant(this._element, "secPr");
       if (!el) {
-        // Create secPr in first paragraph's run
-        let p = findChild(this._element, HP_NS, "p");
+        // Create secPr in last paragraph's run (per HWPX spec)
+        const allP = findAllChildren(this._element, HP_NS, "p");
+        let p = allP.length > 0 ? allP[allP.length - 1] : null;
         if (!p) {
           p = subElement(this._element, HP_NS, "p", { ...DEFAULT_PARAGRAPH_ATTRS, id: paragraphId() });
         }
