@@ -122,6 +122,6 @@ GitHub: https://github.com/ubermensch1218/hwpx-ts
 
 ## 라이선스
 
-MIT License - 자유롭게 사용, 수정, 배포할 수 있습니다.
+Non-Commercial License - 비상업적 용도로 자유롭게 사용, 수정, 배포할 수 있습니다. 상업적 사용은 별도 협의가 필요합니다.
 
 자세한 내용은 [LICENSE](./LICENSE) 파일을 참고하세요.
