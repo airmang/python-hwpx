@@ -1,17 +1,19 @@
 import { Command } from "commander";
 import {
   openHwpxFile,
-  exportToMarkdown,
+  exportToMarkdownBundle,
   exportToText,
   exportSectionText,
   extractPart,
   getHwpxInfo,
   listParts,
   type MarkdownExportOptions,
+  type MarkdownImageManifestItem,
+  type MarkdownImageMode,
   type TextExportOptions,
 } from "@ubermensch1218/hwpx-tools";
-import { writeFile } from "fs/promises";
-import { resolve } from "path";
+import { mkdir, writeFile } from "fs/promises";
+import { basename, dirname, extname, relative, resolve } from "path";
 import { handleMcpConfig, type McpConfigOptions } from "./commands/mcp-config.js";
 
 export interface ReadOptions {
@@ -21,6 +23,67 @@ export interface ReadOptions {
 export interface ExportOptions {
   format: "md" | "txt";
   output: string;
+  imageMode?: string;
+  imagesDir?: string;
+  manifest?: string;
+  tokenEfficient?: boolean;
+}
+
+export interface HwpxToMdOptions {
+  output?: string;
+  imageMode?: string;
+  imagesDir?: string;
+  manifest?: string;
+  tokenEfficient?: boolean;
+}
+
+function parseImageMode(value: string | undefined, fallback: MarkdownImageMode): MarkdownImageMode {
+  if (!value) return fallback;
+  if (value === "markdown" || value === "placeholder" || value === "omit") {
+    return value;
+  }
+  throw new Error(`Unsupported image mode: ${value}. Use one of: markdown, placeholder, omit`);
+}
+
+function toPosixPath(value: string): string {
+  return value.replace(/\\/g, "/");
+}
+
+function defaultMarkdownOutputPath(inputPath: string): string {
+  const inputDir = dirname(inputPath);
+  const inputBase = basename(inputPath, extname(inputPath));
+  return resolve(inputDir, `${inputBase}.md`);
+}
+
+function defaultManifestOutputPath(markdownOutputPath: string): string {
+  const outputDir = dirname(markdownOutputPath);
+  const outputBase = basename(markdownOutputPath, extname(markdownOutputPath));
+  return resolve(outputDir, `${outputBase}.images-manifest.json`);
+}
+
+async function writeImageFiles(
+  hwpx: Awaited<ReturnType<typeof openHwpxFile>>,
+  images: MarkdownImageManifestItem[],
+  imagesDir: string
+): Promise<number> {
+  await mkdir(imagesDir, { recursive: true });
+
+  const written = new Set<string>();
+  let count = 0;
+
+  for (const image of images) {
+    if (!image.href || image.missingPart) continue;
+    if (written.has(image.href)) continue;
+    if (!hwpx.hasPart(image.href)) continue;
+
+    const fileName = basename(image.href);
+    const outPath = resolve(imagesDir, fileName);
+    await writeFile(outPath, hwpx.getPart(image.href));
+    written.add(image.href);
+    count += 1;
+  }
+
+  return count;
 }
 
 export function createProgram(): Command {
@@ -65,6 +128,10 @@ export function createProgram(): Command {
     .description("Export HWPX file to other formats")
     .requiredOption("-f, --format <format>", "Output format (md, txt)")
     .requiredOption("-o, --output <file>", "Output file path")
+    .option("--image-mode <mode>", "Image mode for markdown export: markdown, placeholder, omit")
+    .option("--images-dir <dir>", "Extract image files into this directory")
+    .option("--manifest <file>", "Write markdown image manifest JSON")
+    .option("--token-efficient", "Enable token-efficient markdown normalization")
     .action(async (file: string, options: ExportOptions) => {
       const filePath = resolve(file);
       const outputPath = resolve(options.output);
@@ -78,11 +145,52 @@ export function createProgram(): Command {
         let content: string;
 
         if (options.format === "md") {
+          const imageMode = parseImageMode(
+            options.imageMode,
+            options.tokenEfficient ? "placeholder" : "markdown"
+          );
+          const imagesDir = options.imagesDir ? resolve(options.imagesDir) : null;
+          const imageBasePath = imagesDir
+            ? toPosixPath(relative(dirname(outputPath), imagesDir) || ".")
+            : "images";
+
           const mdOptions: MarkdownExportOptions = {
             includeSectionSeparators: true,
             convertHeadingStyles: true,
+            tokenEfficient: !!options.tokenEfficient,
+            imageMode,
+            imageBasePath,
           };
-          content = exportToMarkdown(hwpx, mdOptions);
+
+          const result = exportToMarkdownBundle(hwpx, mdOptions);
+          content = result.markdown;
+
+          if (imagesDir) {
+            const writtenCount = await writeImageFiles(hwpx, result.images, imagesDir);
+            console.error(`Extracted ${writtenCount} image file(s) to ${imagesDir}`);
+          }
+
+          if (options.manifest) {
+            const manifestPath = resolve(options.manifest);
+            await mkdir(dirname(manifestPath), { recursive: true });
+            await writeFile(
+              manifestPath,
+              JSON.stringify(
+                {
+                  source: filePath,
+                  generatedAt: new Date().toISOString(),
+                  imageMode,
+                  tokenEfficient: !!options.tokenEfficient,
+                  images: result.images,
+                  stats: result.stats,
+                },
+                null,
+                2
+              ),
+              "utf-8"
+            );
+            console.error(`Wrote image manifest: ${manifestPath}`);
+          }
         } else if (options.format === "txt") {
           const txtOptions: TextExportOptions = {
             paragraphSeparator: "\n",
@@ -93,11 +201,85 @@ export function createProgram(): Command {
           throw new Error(`Unsupported format: ${options.format}`);
         }
 
+        await mkdir(dirname(outputPath), { recursive: true });
         await writeFile(outputPath, content, "utf-8");
         console.error(`Successfully exported to ${outputPath}`);
       } catch (error) {
         console.error(
           "Error exporting file:",
+          error instanceof Error ? error.message : String(error)
+        );
+        process.exit(1);
+      }
+    });
+
+  // hwpx-to-md command (token-efficient markdown export with image manifest)
+  program
+    .command("hwpx-to-md <file>")
+    .description("Convert HWPX file to token-efficient Markdown with image manifest")
+    .option("-o, --output <file>", "Markdown output file (default: <input>.md)")
+    .option("--image-mode <mode>", "Image mode: markdown, placeholder, omit", "placeholder")
+    .option("--images-dir <dir>", "Extract image files into this directory")
+    .option("--manifest <file>", "Image manifest output path (default: <output>.images-manifest.json)")
+    .option("--no-token-efficient", "Disable token-efficient markdown normalization")
+    .action(async (file: string, options: HwpxToMdOptions) => {
+      const filePath = resolve(file);
+      const outputPath = resolve(options.output ?? defaultMarkdownOutputPath(filePath));
+      const imageMode = parseImageMode(options.imageMode, "placeholder");
+      const tokenEfficient = options.tokenEfficient ?? true;
+      const imagesDir = options.imagesDir ? resolve(options.imagesDir) : null;
+      const manifestPath = resolve(options.manifest ?? defaultManifestOutputPath(outputPath));
+      const imageBasePath = imagesDir
+        ? toPosixPath(relative(dirname(outputPath), imagesDir) || ".")
+        : "images";
+
+      console.error(`Converting: ${filePath}`);
+      console.error(`Output: ${outputPath}`);
+      console.error(`Image mode: ${imageMode}`);
+      console.error(`Token efficient: ${tokenEfficient ? "yes" : "no"}`);
+
+      try {
+        const hwpx = await openHwpxFile(filePath);
+        const result = exportToMarkdownBundle(hwpx, {
+          includeSectionSeparators: true,
+          convertHeadingStyles: true,
+          tokenEfficient,
+          imageMode,
+          imageBasePath,
+        });
+
+        await mkdir(dirname(outputPath), { recursive: true });
+        await writeFile(outputPath, result.markdown, "utf-8");
+        console.error(`Wrote markdown: ${outputPath}`);
+
+        if (imagesDir) {
+          const writtenCount = await writeImageFiles(hwpx, result.images, imagesDir);
+          console.error(`Extracted ${writtenCount} image file(s) to ${imagesDir}`);
+        }
+
+        await mkdir(dirname(manifestPath), { recursive: true });
+        await writeFile(
+          manifestPath,
+          JSON.stringify(
+            {
+              source: filePath,
+              markdown: outputPath,
+              generatedAt: new Date().toISOString(),
+              imageMode,
+              tokenEfficient,
+              imagesDir,
+              images: result.images,
+              stats: result.stats,
+            },
+            null,
+            2
+          ),
+          "utf-8"
+        );
+        console.error(`Wrote image manifest: ${manifestPath}`);
+      } catch (error) {
+        console.error(
+          "Error converting file:",
           error instanceof Error ? error.message : String(error)
         );
         process.exit(1);

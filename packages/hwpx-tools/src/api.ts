@@ -8,10 +8,10 @@ import {
   HwpxPackage,
   HwpxOxmlDocument,
   TextExtractor,
-  HwpxDocument,
 } from "@ubermensch1218/hwpxcore";
 import {
   exportToMarkdown as toMarkdown,
+  exportToMarkdownBundle as toMarkdownBundle,
   exportToText as toText,
   exportAllText,
   exportSectionText,
@@ -21,6 +21,7 @@ import {
 // Re-export from exporters for convenience
 export {
   toMarkdown as exportToMarkdown,
+  toMarkdownBundle as exportToMarkdownBundle,
   toText as exportToText,
   exportAllText,
   exportSectionText,
@@ -70,6 +71,17 @@ export async function readHwpxFile(
 export async function exportToMarkdownFile(filePath: string): Promise<string> {
   const pkg = await openHwpxFile(filePath);
   return toMarkdown(pkg);
+}
+
+/**
+ * Export an HWPX file to Markdown with image manifest metadata.
+ * @param filePath - Path to the HWPX file
+ */
+export async function exportToMarkdownBundleFile(
+  filePath: string
+): Promise<import("./exporters/index.js").MarkdownExportResult> {
+  const pkg = await openHwpxFile(filePath);
+  return toMarkdownBundle(pkg);
 }
 
 /**
@@ -168,4 +180,12 @@ export async function getSections(
 export const exportToTxt = exportToTxtFile;
 
 // Re-export types
-export type { TextExportOptions, MarkdownExportOptions } from "./exporters/index.js";
+export type {
+  TextExportOptions,
+  MarkdownExportOptions,
+  MarkdownExportResult,
+  MarkdownImageManifestItem,
+  MarkdownExportStats,
+  MarkdownImageMode,
+  MarkdownTextFormatting,
+} from "./exporters/index.js";
