@@ -18,8 +18,8 @@ export function TemplateDialog() {
   const [showAddForm, setShowAddForm] = useState(false);
 
   useEffect(() => {
-    loadTemplates();
-  }, [loadTemplates]);
+    if (isOpen) loadTemplates();
+  }, [isOpen, loadTemplates]);
 
   const handleAdd = useCallback(() => {
     if (newName.trim() && newPath.trim()) {

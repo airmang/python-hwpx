@@ -252,6 +252,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   activeFormat: { bold: false, italic: false, underline: false, strikethrough: false },
   undoStack: [],
   redoStack: [],
+  templates: [],
   extendedFormat: { char: defaultCharFormat, para: defaultParaFormat },
   uiState: { sidebarOpen: true, sidebarTab: "char", saveDialogOpen: false, charFormatDialogOpen: false, paraFormatDialogOpen: false, bulletNumberDialogOpen: false, charMapDialogOpen: false },
   loading: false,
@@ -866,6 +867,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!section) return;
       const para = section.paragraphs[paragraphIndex];
       if (!para) return;
+      get().pushUndo();
       para.addTable(rows, cols);
       get().rebuild();
     } catch (e) {
@@ -1693,5 +1695,32 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     } catch (e) {
       console.error("insertTextAtCursor failed:", e);
     }
+  },
+
+  // Template management (browser localStorage)
+  loadTemplates: () => {
+    try {
+      const raw = localStorage.getItem("hwpx-editor-templates");
+      if (raw) {
+        const templates = JSON.parse(raw);
+        if (Array.isArray(templates)) set({ templates });
+      }
+    } catch { /* ignore parse errors */ }
+  },
+  saveTemplates: () => {
+    try {
+      localStorage.setItem("hwpx-editor-templates", JSON.stringify(get().templates));
+    } catch { /* ignore storage errors */ }
+  },
+  addTemplate: (name, path, description) => {
+    const template = { id: crypto.randomUUID(), name, path, description, createdAt: Date.now() };
+    const templates = [...get().templates, template];
+    set({ templates });
+    try { localStorage.setItem("hwpx-editor-templates", JSON.stringify(templates)); } catch {}
+  },
+  removeTemplate: (id) => {
+    const templates = get().templates.filter((t) => t.id !== id);
+    set({ templates });
+    try { localStorage.setItem("hwpx-editor-templates", JSON.stringify(templates)); } catch {}
   },
 }));

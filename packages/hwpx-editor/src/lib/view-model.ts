@@ -861,10 +861,9 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
               isAnchor,
               borderFillIDRef: cellBfId,
               vertAlign: (() => {
-                const sl = pos.cell.element.querySelector("subList") ??
-                  Array.from(pos.cell.element.childNodes).find(
-                    (n) => n.nodeType === 1 && ((n as Element).localName === "subList" || (n as Element).nodeName.split(":").pop() === "subList"),
-                  ) as Element | undefined;
+                const sl = Array.from(pos.cell.element.childNodes).find(
+                  (n) => n.nodeType === 1 && ((n as Element).localName === "subList" || (n as Element).nodeName.split(":").pop() === "subList"),
+                ) as Element | undefined;
                 return (sl?.getAttribute?.("vertAlign") ?? "CENTER").toUpperCase();
               })(),
               style: cellStyle,
