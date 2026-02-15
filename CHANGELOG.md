@@ -9,7 +9,7 @@
   - 이미지 파일 추출: `--images-dir <dir>`
   - 이미지 메타데이터(manifest) 출력: `--manifest <file>`
   - 토큰 효율 모드 기본값 `ON`, 비활성화는 `--no-token-efficient`
-- HWP(한글 5.x 바이너리) → HWPX(베스트 에포트) 변환을 위한 `hwpxtool hwp-to-hwpx` 커맨드를 추가했습니다.
+- HWP(한글 5.x 바이너리) → HWPX(best-effort) 변환을 위한 `hwpxtool hwp-to-hwpx` 커맨드를 추가했습니다.
 - 기존 `hwpxtool export`의 마크다운 출력에 토큰 효율/이미지 옵션을 확장했습니다: `--token-efficient`, `--image-mode`, `--images-dir`, `--manifest`
 - 라이브러리 API로 `exportToMarkdownBundle()`를 추가해, `markdown` 문자열과 `images` manifest를 함께 얻을 수 있습니다.
 

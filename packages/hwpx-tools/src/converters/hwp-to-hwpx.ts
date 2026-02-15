@@ -3,15 +3,15 @@ import {
   CharControl,
   CommonCtrlID,
   ExtendedControl,
-  HWPDocument,
   InlineControl,
   PictureControl,
   TableControl,
   parse,
 } from "@hwp.js/parser";
+import type { HWPDocument, Paragraph as HwpParagraph } from "@hwp.js/parser";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { resolve as resolvePath } from "node:path";
+import { resolve as pathResolve } from "node:path";
 import { HwpxDocument } from "@ubermensch1218/hwpxcore";
 
 export interface HwpToHwpxOptions {
@@ -28,7 +28,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function hwpUnitToMm(value: number): number {
-  // HWP internal units are commonly 1/7200 inch.
+  // HWP internal units are commonly 1/7200 inch (best-effort assumption).
   return (value * 25.4) / 7200;
 }
 
@@ -43,8 +43,6 @@ function extensionToMediaType(ext: string): string {
   if (e === "svg") return "image/svg+xml";
   return "application/octet-stream";
 }
-
-type HwpParagraph = InstanceType<typeof import("@hwp.js/parser").Paragraph>;
 
 function hwpParagraphText(paragraph: HwpParagraph, options: Required<HwpToHwpxOptions>): string {
   const parts: string[] = [];
@@ -66,7 +64,7 @@ function hwpParagraphText(paragraph: HwpParagraph, options: Required<HwpToHwpxOp
     .replace(/\r\n?/g, "\n")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
-    .trim();
+    .trimEnd();
 }
 
 function tableCellTextFromHwpParagraphs(
@@ -95,7 +93,7 @@ async function loadSkeletonHwpxBytes(): Promise<Uint8Array> {
     return _cachedSkeletonBytes;
   } catch {
     // Fall back to monorepo path.
-    const skeletonPath = resolvePath(process.cwd(), "packages", "hwpx-core", "assets", "Skeleton.hwpx");
+    const skeletonPath = pathResolve(process.cwd(), "packages", "hwpx-core", "assets", "Skeleton.hwpx");
     const buf = await readFile(skeletonPath);
     _cachedSkeletonBytes = new Uint8Array(buf);
     return _cachedSkeletonBytes;
@@ -118,13 +116,12 @@ async function createEmptyHwpxDocument(): Promise<HwpxDocument> {
 }
 
 function findEmbeddedBinFileNameById(hwpDoc: HWPDocument, binItemId: number): string | null {
-  const list: any[] = (hwpDoc.info as any)?.idMappings?.binaryData ?? [];
-  for (const item of list) {
-    if (item?.id === binItemId && typeof item.getCFBFileName === "function") {
-      return item.getCFBFileName();
-    }
+  const mappings = hwpDoc.info?.idMappings?.binaryData ?? [];
+  for (const item of mappings) {
+    if (item.id === binItemId) return item.getCFBFileName();
   }
-  // Fallback guess: id is stored as hex in file name.
+
+  // Fallback guess: id is stored as hex in file name. Extension is unknown here.
   try {
     const hex = binItemId.toString(16).padStart(4, "0");
     return `BIN${hex}.bin`;
@@ -156,7 +153,7 @@ export async function convertHwpBytesToHwpxBytes(
   const hwpDoc: HWPDocument = parse(hwpBytes);
   const out = await createEmptyHwpxDocument();
 
-  // For MVP: flatten all source sections into the first HWPX section.
+  // Flatten all source sections into section 0.
   const sectionIndex = 0;
 
   for (const section of hwpDoc.sections) {
