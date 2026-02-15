@@ -24,6 +24,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hwp.js/parser": "0.0.4-alpha.0",
     "@ubermensch1218/hwpxcore": "workspace:*"
   },
   "devDependencies": {

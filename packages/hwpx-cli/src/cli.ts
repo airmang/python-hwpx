@@ -4,6 +4,7 @@ import {
   exportToMarkdownBundle,
   exportToText,
   exportSectionText,
+  convertHwpFileToHwpxBytes,
   extractPart,
   getHwpxInfo,
   listParts,
@@ -35,6 +36,10 @@ export interface HwpxToMdOptions {
   imagesDir?: string;
   manifest?: string;
   tokenEfficient?: boolean;
+}
+
+export interface HwpToHwpxOptions {
+  output?: string;
 }
 
 function parseImageMode(value: string | undefined, fallback: MarkdownImageMode): MarkdownImageMode {
@@ -207,6 +212,33 @@ export function createProgram(): Command {
       } catch (error) {
         console.error(
           "Error exporting file:",
+          error instanceof Error ? error.message : String(error)
+        );
+        process.exit(1);
+      }
+    });
+
+  // hwp-to-hwpx command (best-effort conversion)
+  program
+    .command("hwp-to-hwpx <file>")
+    .description("Convert HWP (HWP 5.x binary) file to HWPX (best-effort)")
+    .option("-o, --output <file>", "HWPX output file (default: <input>.hwpx)")
+    .action(async (file: string, options: HwpToHwpxOptions) => {
+      const filePath = resolve(file);
+      const inputBase = basename(filePath, extname(filePath));
+      const outputPath = resolve(options.output ?? resolve(dirname(filePath), `${inputBase}.hwpx`));
+
+      console.error(`Converting: ${filePath}`);
+      console.error(`Output: ${outputPath}`);
+
+      try {
+        const hwpxBytes = await convertHwpFileToHwpxBytes(filePath);
+        await mkdir(dirname(outputPath), { recursive: true });
+        await writeFile(outputPath, hwpxBytes);
+        console.error(`Wrote HWPX: ${outputPath}`);
+      } catch (error) {
+        console.error(
+          "Error converting file:",
           error instanceof Error ? error.message : String(error)
         );
         process.exit(1);

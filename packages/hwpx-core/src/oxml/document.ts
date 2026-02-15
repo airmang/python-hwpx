@@ -28,7 +28,6 @@ import {
 
 // -- Re-export all public types and classes from sub-modules --
 
-export * from "./xml-utils.js";
 export * from "./types.js";
 export * from "./simple-parts.js";
 export * from "./table.js";

@@ -17,6 +17,7 @@ import {
   exportSectionText,
   getAllParagraphs,
 } from "./exporters/index.js";
+import { convertHwpBytesToHwpxBytes } from "./converters/hwp-to-hwpx.js";
 
 // Re-export from exporters for convenience
 export {
@@ -43,6 +44,15 @@ export interface HwpxInfo {
 export async function openHwpxFile(filePath: string): Promise<HwpxPackage> {
   const buffer = await readFile(filePath);
   return HwpxPackage.open(buffer);
+}
+
+/**
+ * Convert an HWP (HWP 5.x binary) file to HWPX bytes.
+ * Note: HWP parsing support is best-effort and may not preserve formatting.
+ */
+export async function convertHwpFileToHwpxBytes(filePath: string): Promise<Uint8Array> {
+  const buffer = await readFile(filePath);
+  return convertHwpBytesToHwpxBytes(new Uint8Array(buffer));
 }
 
 /**

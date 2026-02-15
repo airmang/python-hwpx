@@ -12,5 +12,8 @@ export * from "./api.js";
 // Helpers
 export * from "./helpers/index.js";
 
+// Converters
+export * from "./converters/index.js";
+
 // Re-export commonly used types from hwpx-core for convenience
 export { HwpxPackage, HwpxDocument, TextExtractor } from "@ubermensch1218/hwpxcore";
