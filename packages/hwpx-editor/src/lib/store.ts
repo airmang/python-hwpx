@@ -16,7 +16,7 @@ import { mmToHwp } from "./hwp-units";
 export interface SelectionState {
   sectionIndex: number;
   paragraphIndex: number;
-  type: "paragraph" | "cell";
+  type: "paragraph" | "cell" | "table";
   // For cell selection
   tableIndex?: number;
   row?: number;
@@ -24,9 +24,13 @@ export interface SelectionState {
   // For cell range selection (merge)
   endRow?: number;
   endCol?: number;
-  // For object selection (image/table context)
-  objectType?: "image" | "table";
+  // For object selection (image/table/textBox context)
+  objectType?: "image" | "table" | "textBox";
   imageIndex?: number;
+  textBoxIndex?: number;
+  // Text cursor position
+  textStartOffset?: number;
+  textEndOffset?: number;
 }
 
 export interface ActiveFormat {
@@ -41,6 +45,14 @@ export interface ExtendedFormat {
   para: ParaFormat;
 }
 
+export interface Template {
+  id: string;
+  name: string;
+  path: string;
+  description?: string;
+  createdAt: number;
+}
+
 export interface UIState {
   sidebarOpen: boolean;
   sidebarTab: SidebarTab;
@@ -49,6 +61,17 @@ export interface UIState {
   paraFormatDialogOpen: boolean;
   bulletNumberDialogOpen: boolean;
   charMapDialogOpen: boolean;
+  templateDialogOpen: boolean;
+  headerFooterDialogOpen: boolean;
+  findReplaceDialogOpen: boolean;
+  wordCountDialogOpen: boolean;
+  pageNumberDialogOpen: boolean;
+  styleDialogOpen: boolean;
+  autoCorrectDialogOpen: boolean;
+  outlineDialogOpen: boolean;
+  shapeDialogOpen: boolean;
+  tocDialogOpen: boolean;
+  zoomLevel: number;
 }
 
 interface UndoEntry {
@@ -185,9 +208,40 @@ export interface EditorStore {
   closeBulletNumberDialog: () => void;
   openCharMapDialog: () => void;
   closeCharMapDialog: () => void;
+  openTemplateDialog: () => void;
+  closeTemplateDialog: () => void;
+  openHeaderFooterDialog: () => void;
+  closeHeaderFooterDialog: () => void;
+  openFindReplaceDialog: () => void;
+  closeFindReplaceDialog: () => void;
+  openWordCountDialog: () => void;
+  closeWordCountDialog: () => void;
+  openPageNumberDialog: () => void;
+  closePageNumberDialog: () => void;
+  openStyleDialog: () => void;
+  closeStyleDialog: () => void;
+  openAutoCorrectDialog: () => void;
+  closeAutoCorrectDialog: () => void;
+  openOutlineDialog: () => void;
+  closeOutlineDialog: () => void;
+  openShapeDialog: () => void;
+  closeShapeDialog: () => void;
+  openTocDialog: () => void;
+  closeTocDialog: () => void;
+  setZoom: (level: number) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+
+  // Template management
+  templates: Template[];
+  loadTemplates: () => void;
+  saveTemplates: () => void;
+  addTemplate: (name: string, path: string, description?: string) => void;
+  removeTemplate: (id: string) => void;
 
   // Text insertion at cursor
   insertTextAtCursor: (text: string) => void;
+  insertTab: () => void;
 
   // Page setup
   updatePageSize: (width: number, height: number) => void;
@@ -254,7 +308,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   redoStack: [],
   templates: [],
   extendedFormat: { char: defaultCharFormat, para: defaultParaFormat },
-  uiState: { sidebarOpen: true, sidebarTab: "char", saveDialogOpen: false, charFormatDialogOpen: false, paraFormatDialogOpen: false, bulletNumberDialogOpen: false, charMapDialogOpen: false },
+  uiState: { sidebarOpen: true, sidebarTab: "char", saveDialogOpen: false, charFormatDialogOpen: false, paraFormatDialogOpen: false, bulletNumberDialogOpen: false, charMapDialogOpen: false, templateDialogOpen: false, headerFooterDialogOpen: false, findReplaceDialogOpen: false, wordCountDialogOpen: false, pageNumberDialogOpen: false, styleDialogOpen: false, autoCorrectDialogOpen: false, outlineDialogOpen: false, shapeDialogOpen: false, tocDialogOpen: false, zoomLevel: 100 },
   loading: false,
   error: null,
 
@@ -1680,6 +1734,52 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set((s) => ({ uiState: { ...s.uiState, charMapDialogOpen: true } })),
   closeCharMapDialog: () =>
     set((s) => ({ uiState: { ...s.uiState, charMapDialogOpen: false } })),
+  openTemplateDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, templateDialogOpen: true } })),
+  closeTemplateDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, templateDialogOpen: false } })),
+  openHeaderFooterDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, headerFooterDialogOpen: true } })),
+  closeHeaderFooterDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, headerFooterDialogOpen: false } })),
+  openFindReplaceDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, findReplaceDialogOpen: true } })),
+  closeFindReplaceDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, findReplaceDialogOpen: false } })),
+  openWordCountDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, wordCountDialogOpen: true } })),
+  closeWordCountDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, wordCountDialogOpen: false } })),
+  openPageNumberDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, pageNumberDialogOpen: true } })),
+  closePageNumberDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, pageNumberDialogOpen: false } })),
+  openStyleDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, styleDialogOpen: true } })),
+  closeStyleDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, styleDialogOpen: false } })),
+  openAutoCorrectDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, autoCorrectDialogOpen: true } })),
+  closeAutoCorrectDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, autoCorrectDialogOpen: false } })),
+  openOutlineDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, outlineDialogOpen: true } })),
+  closeOutlineDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, outlineDialogOpen: false } })),
+  openShapeDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, shapeDialogOpen: true } })),
+  closeShapeDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, shapeDialogOpen: false } })),
+  openTocDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, tocDialogOpen: true } })),
+  closeTocDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, tocDialogOpen: false } })),
+  setZoom: (level) =>
+    set((s) => ({ uiState: { ...s.uiState, zoomLevel: level } })),
+  zoomIn: () =>
+    set((s) => ({ uiState: { ...s.uiState, zoomLevel: Math.min(s.uiState.zoomLevel + 10, 400) } })),
+  zoomOut: () =>
+    set((s) => ({ uiState: { ...s.uiState, zoomLevel: Math.max(s.uiState.zoomLevel - 10, 25) } })),
 
   insertTextAtCursor: (text) => {
     const { doc, selection } = get();
@@ -1694,6 +1794,22 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       get().rebuild();
     } catch (e) {
       console.error("insertTextAtCursor failed:", e);
+    }
+  },
+
+  insertTab: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection) return;
+    try {
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      get().pushUndo();
+      para.addTab();
+      get().rebuild();
+    } catch (e) {
+      console.error("insertTab failed:", e);
     }
   },
 

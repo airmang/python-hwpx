@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useCallback } from "react";
-import type { TableCellVM, CellBorderStyleVM } from "@/lib/view-model";
+import type { TableCellVM, CellBorderStyleVM, MarginVM } from "@/lib/view-model";
 import { useEditorStore } from "@/lib/store";
 
 interface TableCellProps {
@@ -9,6 +9,7 @@ interface TableCellProps {
   sectionIndex: number;
   paragraphIndex: number;
   tableIndex: number;
+  inMargin?: MarginVM;
 }
 
 function borderToCss(b: CellBorderStyleVM | null | undefined): string {
