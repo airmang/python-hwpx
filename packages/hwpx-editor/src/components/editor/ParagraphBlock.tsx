@@ -3,6 +3,7 @@
 import { useRef, useCallback, useEffect } from "react";
 import type { ParagraphVM } from "@/lib/view-model";
 import { useEditorStore } from "@/lib/store";
+import { fontFamilyCssStack } from "@/lib/constants";
 import { RunSpan } from "./RunSpan";
 import { TableBlock } from "./TableBlock";
 import { ImageBlock } from "./ImageBlock";
@@ -59,6 +60,8 @@ export function ParagraphBlock({
       selection &&
       selection.sectionIndex === sectionIndex &&
       selection.paragraphIndex === localIndex &&
+      selection.type === "paragraph" &&
+      !selection.objectType &&
       ref.current &&
       document.activeElement !== ref.current
     ) {
@@ -315,7 +318,7 @@ export function ParagraphBlock({
     paddingTop: paragraph.spacingBefore || undefined,
     paddingBottom: paragraph.spacingAfter || undefined,
     fontSize: paragraph.defaultFontSize ? `${paragraph.defaultFontSize}pt` : undefined,
-    fontFamily: paragraph.defaultFontFamily || undefined,
+    fontFamily: paragraph.defaultFontFamily ? fontFamilyCssStack(paragraph.defaultFontFamily) : undefined,
   };
 
   // If paragraph has tables, render them
@@ -329,7 +332,8 @@ export function ParagraphBlock({
             suppressContentEditableWarning
             onBlur={handleBlur}
             onFocus={handleFocus}
-            className="outline-none leading-relaxed"
+            onKeyDown={handleKeyDown}
+            className="outline-none leading-relaxed caret-gray-900"
           >
             {paragraph.runs.map((run, i) => (
               <RunSpan key={i} run={run} />
@@ -359,7 +363,8 @@ export function ParagraphBlock({
             suppressContentEditableWarning
             onBlur={handleBlur}
             onFocus={handleFocus}
-            className="outline-none leading-relaxed"
+            onKeyDown={handleKeyDown}
+            className="outline-none leading-relaxed caret-gray-900"
           >
             {paragraph.runs.map((run, i) => (
               <RunSpan key={i} run={run} />
@@ -402,7 +407,8 @@ export function ParagraphBlock({
             suppressContentEditableWarning
             onBlur={handleBlur}
             onFocus={handleFocus}
-            className="outline-none leading-relaxed"
+            onKeyDown={handleKeyDown}
+            className="outline-none leading-relaxed caret-gray-900"
           >
             {paragraph.runs.map((run, i) => (
               <RunSpan key={i} run={run} />
@@ -461,7 +467,7 @@ export function ParagraphBlock({
       onBlur={handleBlur}
       onFocus={handleFocus}
       onKeyDown={handleKeyDown}
-      className="outline-none min-h-[1.5em]"
+      className="outline-none min-h-[1.5em] caret-gray-900"
       style={paraStyle}
     >
       {paragraph.runs.length > 0 ? (

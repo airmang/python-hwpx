@@ -5,6 +5,7 @@ import { useEditorStore } from "@/lib/store";
 import { hwpToMm } from "@/lib/hwp-units";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarField } from "./SidebarField";
+import { ColorPicker } from "../toolbar/ColorPicker";
 import {
   AlignVerticalJustifyStart,
   AlignVerticalJustifyCenter,
@@ -243,12 +244,12 @@ export function CellPropertiesPanel() {
           </select>
         </SidebarField>
         <SidebarField label="색상">
-          <input
-            type="color"
-            value={borderColor}
+          <ColorPicker
+            color={borderColor}
             disabled={!hasCell}
-            onChange={(e) => setBorderColor(e.target.value)}
-            className="w-full h-6 p-0 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
+            onChange={setBorderColor}
+            variant="swatch"
+            title="테두리 색상"
           />
         </SidebarField>
         <button
@@ -278,15 +279,15 @@ export function CellPropertiesPanel() {
         </div>
         {!noBg && (
           <SidebarField label="색상">
-            <input
-              type="color"
-              value={bgColor}
+            <ColorPicker
+              color={bgColor}
               disabled={!hasCell}
-              onChange={(e) => {
-                setBgColor(e.target.value);
-                if (hasCell) setCellBackground(e.target.value);
+              onChange={(nextColor) => {
+                setBgColor(nextColor);
+                if (hasCell) setCellBackground(nextColor);
               }}
-              className="w-full h-6 p-0 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
+              variant="swatch"
+              title="셀 배경 색상"
             />
           </SidebarField>
         )}

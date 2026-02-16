@@ -2,32 +2,34 @@
  * Constants for the HWPX editor UI — font lists, style presets, alignment/spacing options.
  */
 
-// ── Korean font families ───────────────────────────────────────────────────
+// ── Korean font families (free license only) ─────────────────────────────
 
 export const FONT_FAMILIES = [
-  "맑은 고딕",
-  "함초롬돋움",
-  "함초롬바탕",
-  "나눔고딕",
-  "나눔명조",
-  "나눔바른고딕",
   "Noto Sans KR",
   "Noto Serif KR",
-  "교보손글씨 2024 박서우",
-  "교보손글씨 2023 우선아",
-  "학교안심 알림장",
-  "바탕",
-  "돋움",
-  "굴림",
-  "궁서",
-  "Arial",
-  "Times New Roman",
-  "Courier New",
-  "Verdana",
-  "Georgia",
+  "Nanum Gothic",
+  "Nanum Myeongjo",
+  "Gowun Dodum",
+  "Gowun Batang",
 ] as const;
 
 export type FontFamily = (typeof FONT_FAMILIES)[number];
+
+export const DEFAULT_FONT_FAMILY: FontFamily = "Noto Sans KR";
+
+const FONT_FAMILY_STACKS = {
+  "Noto Sans KR": '"Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif',
+  "Noto Serif KR": '"Noto Serif KR", "Nanum Myeongjo", serif',
+  "Nanum Gothic": '"Nanum Gothic", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif',
+  "Nanum Myeongjo": '"Nanum Myeongjo", "Noto Serif KR", serif',
+  "Gowun Dodum": '"Gowun Dodum", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif',
+  "Gowun Batang": '"Gowun Batang", "Noto Serif KR", serif',
+} as const satisfies Record<FontFamily, string>;
+
+export function fontFamilyCssStack(fontFamily?: string | null): string {
+  if (!fontFamily) return FONT_FAMILY_STACKS[DEFAULT_FONT_FAMILY];
+  return FONT_FAMILY_STACKS[fontFamily as FontFamily] ?? `"${fontFamily}", ${FONT_FAMILY_STACKS[DEFAULT_FONT_FAMILY]}`;
+}
 
 // ── Font sizes ─────────────────────────────────────────────────────────────
 
