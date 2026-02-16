@@ -111,6 +111,44 @@ export class HwpxOxmlTableCell {
     this.table.markDirty();
   }
 
+  addTable(
+    rows: number,
+    cols: number,
+    opts?: { width?: number; height?: number; borderFillIdRef?: string | number },
+  ): HwpxOxmlTable {
+    let borderFillIdRef = opts?.borderFillIdRef;
+    if (borderFillIdRef == null) {
+      const localBorderFill = this.borderFillIDRef ?? this.table.borderFillIDRef;
+      if (localBorderFill != null) {
+        borderFillIdRef = localBorderFill;
+      } else {
+        const document = this.table.paragraph.section.document;
+        borderFillIdRef = document ? document.ensureBasicBorderFill() : "0";
+      }
+    }
+
+    const doc = this.element.ownerDocument!;
+    let sublist = findChild(this.element, HP_NS, "subList");
+    if (!sublist) sublist = subElement(this.element, HP_NS, "subList", defaultSublistAttributes());
+    let paragraph = findChild(sublist, HP_NS, "p");
+    if (!paragraph) paragraph = subElement(sublist, HP_NS, "p", defaultCellParagraphAttributes());
+    clearParagraphLayoutCache(paragraph);
+
+    const charPrIdRef =
+      paragraph.getAttribute("charPrIDRef")
+      ?? paragraph.getAttribute("charPrIdRef")
+      ?? "0";
+    const run = subElement(paragraph, HP_NS, "run", { charPrIDRef: charPrIdRef });
+    const tableElement = HwpxOxmlTable.create(doc, rows, cols, {
+      width: opts?.width,
+      height: opts?.height,
+      borderFillIdRef,
+    });
+    run.appendChild(tableElement);
+    this.table.markDirty();
+    return new HwpxOxmlTable(tableElement, this.table.paragraph);
+  }
+
   /** Get cell margin (cellMargin element). */
   getMargin(): HwpxMargin {
     const el = findChild(this.element, HP_NS, "cellMargin");

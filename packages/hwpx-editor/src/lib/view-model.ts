@@ -72,6 +72,24 @@ export interface TableCellVM {
   italic: boolean;
   underline: boolean;
   strikethrough: boolean;
+  nestedTableCount: number;
+  nestedTables: NestedTableVM[];
+}
+
+export interface NestedTableCellVM {
+  row: number;
+  col: number;
+  rowSpan: number;
+  colSpan: number;
+  isAnchor: boolean;
+  text: string;
+  backgroundColor: string | null;
+}
+
+export interface NestedTableVM {
+  rowCount: number;
+  colCount: number;
+  cells: NestedTableCellVM[][];
 }
 
 export interface TableVM {
@@ -329,6 +347,140 @@ function extractCellTextStyle(cellElement: Element, doc: HwpxDocument) {
     return extractRunStyle(doc.charProperty(paragraphCharPrIdRef), doc);
   }
   return extractRunStyle(null, doc);
+}
+
+function elementLocalName(element: Element): string {
+  return element.localName ?? element.nodeName.split(":").pop() ?? "";
+}
+
+function extractTextFromCellElement(cellElement: Element): string {
+  const descendants = cellElement.getElementsByTagName("*");
+  const parts: string[] = [];
+  for (let i = 0; i < descendants.length; i += 1) {
+    const el = descendants.item(i);
+    if (!el || elementLocalName(el) !== "t") continue;
+    if (el.textContent) parts.push(el.textContent);
+  }
+  return parts.join("");
+}
+
+function extractNestedTables(cellElement: Element, doc: HwpxDocument): NestedTableVM[] {
+  const descendants = cellElement.getElementsByTagName("*");
+  const nestedTables: NestedTableVM[] = [];
+
+  for (let i = 0; i < descendants.length; i += 1) {
+    const el = descendants.item(i);
+    if (!el) continue;
+    if (elementLocalName(el) !== "tbl") continue;
+
+    let hasAncestorTable = false;
+    let parent: Element | null = el.parentElement;
+    while (parent && parent !== cellElement) {
+      if (elementLocalName(parent) === "tbl") {
+        hasAncestorTable = true;
+        break;
+      }
+      parent = parent.parentElement;
+    }
+    if (hasAncestorTable) continue;
+    const tableBorderFillId = el.getAttribute("borderFillIDRef");
+
+    const attrRowCount = parseInt(el.getAttribute("rowCnt") ?? "", 10);
+    const attrColCount = parseInt(el.getAttribute("colCnt") ?? "", 10);
+    const directRows = Array.from(el.childNodes).filter((node) => {
+      if (node.nodeType !== 1) return false;
+      return elementLocalName(node as Element) === "tr";
+    }) as Element[];
+    const firstRow = directRows[0] ?? null;
+    const directCols = firstRow
+      ? Array.from(firstRow.childNodes).filter((node) => {
+          if (node.nodeType !== 1) return false;
+          return elementLocalName(node as Element) === "tc";
+        }).length
+      : 0;
+
+    const tcElements = Array.from(el.getElementsByTagName("*")).filter(
+      (node) => elementLocalName(node) === "tc",
+    );
+    const anchors = tcElements.map((tc) => {
+      const addr = Array.from(tc.childNodes).find((child) => {
+        if (child.nodeType !== 1) return false;
+        return elementLocalName(child as Element) === "cellAddr";
+      }) as Element | undefined;
+      const span = Array.from(tc.childNodes).find((child) => {
+        if (child.nodeType !== 1) return false;
+        return elementLocalName(child as Element) === "cellSpan";
+      }) as Element | undefined;
+      const rowAddr = parseInt(addr?.getAttribute("rowAddr") ?? "0", 10);
+      const colAddr = parseInt(addr?.getAttribute("colAddr") ?? "0", 10);
+      const rowSpan = parseInt(span?.getAttribute("rowSpan") ?? "1", 10);
+      const colSpan = parseInt(span?.getAttribute("colSpan") ?? "1", 10);
+      const cellBorderFillId = tc.getAttribute("borderFillIDRef") ?? tableBorderFillId;
+      let backgroundColor: string | null = null;
+      if (cellBorderFillId) {
+        try {
+          const borderFill = doc.oxml.getBorderFillInfo(cellBorderFillId);
+          backgroundColor = borderFill?.backgroundColor ?? null;
+        } catch {
+          // ignore broken borderFill references
+        }
+      }
+      return {
+        row: Number.isFinite(rowAddr) ? rowAddr : 0,
+        col: Number.isFinite(colAddr) ? colAddr : 0,
+        rowSpan: Math.max(1, Number.isFinite(rowSpan) ? rowSpan : 1),
+        colSpan: Math.max(1, Number.isFinite(colSpan) ? colSpan : 1),
+        text: extractTextFromCellElement(tc),
+        backgroundColor,
+      };
+    });
+
+    const inferredRowCount =
+      anchors.reduce((max, cell) => Math.max(max, cell.row + cell.rowSpan), 0) || directRows.length;
+    const inferredColCount =
+      anchors.reduce((max, cell) => Math.max(max, cell.col + cell.colSpan), 0) || directCols;
+    const rowCount = Number.isFinite(attrRowCount) && attrRowCount > 0 ? attrRowCount : inferredRowCount;
+    const colCount = Number.isFinite(attrColCount) && attrColCount > 0 ? attrColCount : inferredColCount;
+    const safeRowCount = Math.max(1, rowCount);
+    const safeColCount = Math.max(1, colCount);
+    const grid: NestedTableCellVM[][] = Array.from({ length: safeRowCount }, (_, rowIndex) =>
+      Array.from({ length: safeColCount }, (_, colIndex) => ({
+        row: rowIndex,
+        col: colIndex,
+        rowSpan: 1,
+        colSpan: 1,
+        isAnchor: false,
+        text: "",
+        backgroundColor: null,
+      })),
+    );
+
+    for (const anchor of anchors) {
+      for (let r = anchor.row; r < anchor.row + anchor.rowSpan; r += 1) {
+        if (r < 0 || r >= safeRowCount) continue;
+        for (let c = anchor.col; c < anchor.col + anchor.colSpan; c += 1) {
+          if (c < 0 || c >= safeColCount) continue;
+          grid[r]![c] = {
+            row: anchor.row,
+            col: anchor.col,
+            rowSpan: anchor.rowSpan,
+            colSpan: anchor.colSpan,
+            isAnchor: r === anchor.row && c === anchor.col,
+            text: r === anchor.row && c === anchor.col ? anchor.text : "",
+            backgroundColor: anchor.backgroundColor,
+          };
+        }
+      }
+    }
+
+    nestedTables.push({
+      rowCount: safeRowCount,
+      colCount: safeColCount,
+      cells: grid,
+    });
+  }
+
+  return nestedTables;
 }
 
 /** Find equation elements inside a run. */
@@ -1115,6 +1267,8 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
                 italic: false,
                 underline: false,
                 strikethrough: false,
+                nestedTableCount: 0,
+                nestedTables: [],
               });
               continue;
             }
@@ -1137,6 +1291,7 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
                 }
               } catch { /* ignore */ }
             }
+            const nestedTables = isAnchor ? extractNestedTables(pos.cell.element, doc) : [];
             row.push({
               row: r,
               col: c,
@@ -1163,6 +1318,8 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
               italic: textStyle.italic,
               underline: textStyle.underline,
               strikethrough: textStyle.strikethrough,
+              nestedTableCount: nestedTables.length,
+              nestedTables,
             });
           }
           cellsVM.push(row);

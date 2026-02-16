@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useEditorStore } from "@/lib/store";
+import { redirectToLoginFromEditor } from "@/lib/auth-redirect";
 
 export function SaveDialog() {
   const saveDialogOpen = useEditorStore((s) => s.uiState.saveDialogOpen);
@@ -43,6 +44,9 @@ export function SaveDialog() {
     if (!name) return;
     const result = await saveDocumentToServer(name);
     if (!result.ok) {
+      if (result.status === 401 && redirectToLoginFromEditor()) {
+        return;
+      }
       setServerFeedback({
         kind: "error",
         message: result.error || "서버 저장에 실패했습니다.",
@@ -54,6 +58,8 @@ export function SaveDialog() {
   };
 
   const handleLogin = () => {
+    if (redirectToLoginFromEditor()) return;
+
     const callbackUrl = encodeURIComponent(
       `${window.location.pathname}${window.location.search}`,
     );

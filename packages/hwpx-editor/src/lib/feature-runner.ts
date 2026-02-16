@@ -14,7 +14,7 @@ const SAMPLE_PNG_BYTES = new Uint8Array([
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function findFirstTableParagraphIndex(store: Store): number {
+function findFirstTableParagraphIndex(): number {
   const section = currentStore().doc?.sections?.[0];
   if (!section) return -1;
   for (let i = 0; i < section.paragraphs.length; i += 1) {
@@ -68,16 +68,6 @@ function selectTable(store: Store, paragraphIndex: number) {
   });
 }
 
-function selectImage(store: Store, imageIndex = 0) {
-  store.setSelection({
-    sectionIndex: 0,
-    paragraphIndex: 0,
-    type: "paragraph",
-    objectType: "image",
-    imageIndex,
-  });
-}
-
 async function ensureFreshDocument(store: Store) {
   for (let i = 0; i < 10; i += 1) {
     await store.newDocument();
@@ -99,7 +89,7 @@ function ensureTable(store: Store, rows = 3, cols = 3) {
   if (!section) {
     throw new Error("section 0 is missing");
   }
-  let paragraphIndex = findFirstTableParagraphIndex(store);
+  let paragraphIndex = findFirstTableParagraphIndex();
   if (paragraphIndex < 0) {
     try {
       const anchor = doc.addParagraph("feature-table-anchor");
@@ -108,12 +98,12 @@ function ensureTable(store: Store, rows = 3, cols = 3) {
       // fallback to store action below
     }
     store.rebuild();
-    paragraphIndex = findFirstTableParagraphIndex(store);
+    paragraphIndex = findFirstTableParagraphIndex();
   }
   if (paragraphIndex < 0) {
     store.addTable(0, 0, rows, cols);
     store.rebuild();
-    paragraphIndex = findFirstTableParagraphIndex(store);
+    paragraphIndex = findFirstTableParagraphIndex();
   }
   if (paragraphIndex < 0) {
     throw new Error("failed to ensure table");
@@ -418,6 +408,14 @@ export async function runFeatureScenario(store: Store, code: string) {
       if (before !== after) {
         throw new Error(`table shape changed: ${before} -> ${after}`);
       }
+      break;
+    }
+
+    case "TBL-015": {
+      const tableRef = ensureTable(store, 3, 3);
+      selectCell(store, tableRef.paragraphIndex, 0, 0, 0, 0);
+      store.insertNestedTableInCell(4, 3);
+      store.focusNestedTableInCell(0);
       break;
     }
 
