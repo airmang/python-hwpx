@@ -262,10 +262,10 @@ function extractRunStyle(
 
   // Strikethrough
   const strikeChild = style.childAttributes["strikeout"];
+  const strikeType = strikeChild?.["type"] ?? strikeChild?.["shape"] ?? null;
   const strikethrough =
-    strikeChild != null &&
-    ((strikeChild["type"] == null) ||
-      strikeChild["type"].toUpperCase() !== "NONE");
+    strikeType != null &&
+    strikeType.toUpperCase() !== "NONE";
 
   const color = style.attributes["textColor"] ?? null;
 

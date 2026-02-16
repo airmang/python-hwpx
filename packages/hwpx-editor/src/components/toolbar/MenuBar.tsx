@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
 import { useEditorStore } from "@/lib/store";
 
 // ── Menu data types ──────────────────────────────────────────────────────────
@@ -20,7 +20,11 @@ interface Menu {
 
 // ── MenuBar component ────────────────────────────────────────────────────────
 
-export function MenuBar() {
+interface MenuBarProps {
+  leadingContent?: ReactNode;
+}
+
+export function MenuBar({ leadingContent }: MenuBarProps) {
   const doc = useEditorStore((s) => s.doc);
   const selection = useEditorStore((s) => s.selection);
   const [openMenu, setOpenMenu] = useState<number | null>(null);
@@ -56,12 +60,12 @@ export function MenuBar() {
     {
       label: "파일",
       items: [
-        { label: "새 문서", shortcut: "Ctrl+N", disabled: true },
-        { label: "불러오기...", shortcut: "Ctrl+O", disabled: false, action: () => store().openFile(), dividerAfter: true },
-        { label: "저장", shortcut: "Ctrl+S", disabled, action: () => store().openSaveDialog() },
-        { label: "다른 이름으로 저장...", disabled, action: () => store().openSaveDialog(), dividerAfter: true },
+        { label: "새 문서", shortcut: "Ctrl+Shift+N", disabled: false, action: () => { void store().newDocument(); } },
+        { label: "불러오기…", shortcut: "Ctrl+Shift+O", disabled: false, action: () => store().openFile(), dividerAfter: true },
+        { label: "저장", shortcut: "Ctrl+Shift+S", disabled, action: () => store().openSaveDialog() },
+        { label: "다른 이름으로 저장…", disabled, action: () => store().openSaveDialog(), dividerAfter: true },
         { label: "문서 정보", disabled: true },
-        { label: "인쇄...", shortcut: "Ctrl+P", disabled: true },
+        { label: "인쇄…", shortcut: "Ctrl+Shift+P", disabled, action: () => store().printDocument() },
       ],
     },
     {
@@ -72,9 +76,10 @@ export function MenuBar() {
         { label: "오려두기", shortcut: "Ctrl+X", action: () => document.execCommand("cut") },
         { label: "복사", shortcut: "Ctrl+C", action: () => document.execCommand("copy") },
         { label: "붙이기", shortcut: "Ctrl+V", action: () => document.execCommand("paste"), dividerAfter: true },
+        { label: "클립보드/스니펫", shortcut: "Ctrl+Shift+V", disabled, action: () => store().openClipboardDialog(), dividerAfter: true },
         { label: "모두 선택", shortcut: "Ctrl+A", action: () => document.execCommand("selectAll") },
-        { label: "찾기", shortcut: "Ctrl+F", disabled: true },
-        { label: "찾아 바꾸기", shortcut: "Ctrl+H", disabled: true },
+        { label: "찾기", shortcut: "Ctrl+Shift+F", disabled, action: () => store().openFindReplaceDialog() },
+        { label: "찾아 바꾸기", shortcut: "Ctrl+Shift+H", disabled, action: () => store().openFindReplaceDialog() },
       ],
     },
     {
@@ -82,23 +87,24 @@ export function MenuBar() {
       items: [
         { label: "서식 사이드바", action: () => store().toggleSidebar() },
         { label: "눈금자", disabled: true, dividerAfter: true },
-        { label: "확대", shortcut: "Ctrl++", disabled: true },
-        { label: "축소", shortcut: "Ctrl+-", disabled: true },
+        { label: "확대", shortcut: "Ctrl++", disabled: false, action: () => store().zoomIn() },
+        { label: "축소", shortcut: "Ctrl+-", disabled: false, action: () => store().zoomOut() },
         { label: "전체 화면", shortcut: "F11", disabled: true },
       ],
     },
     {
       label: "입력",
       items: [
-        { label: "표...", disabled: disabled || !selection, action: () => { /* handled via InsertGroup dialog */ } },
-        { label: "그림...", disabled, action: () => { /* handled via InsertGroup file input */ } },
-        { label: "도형", disabled: true },
+        { label: "표…", disabled: disabled || !selection, action: () => { /* handled via InsertGroup dialog */ } },
+        { label: "그림…", disabled, action: () => { /* handled via InsertGroup file input */ } },
+        { label: "도형", disabled, action: () => store().openShapeDialog() },
+        { label: "캡션/목차…", shortcut: "Ctrl+Alt+C", disabled, action: () => store().openCaptionDialog() },
         { label: "차트", disabled: true, dividerAfter: true },
-        { label: "문자표...", shortcut: "⌃F10", disabled, action: () => store().openCharMapDialog(), dividerAfter: true },
+        { label: "문자표…", shortcut: "Alt+Shift+M", disabled, action: () => store().openCharMapDialog(), dividerAfter: true },
         { label: "각주", shortcut: "Ctrl+N,N", disabled, action: () => store().insertFootnote() },
         { label: "미주", shortcut: "Ctrl+N,E", disabled, action: () => store().insertEndnote(), dividerAfter: true },
-        { label: "머리말/꼬리말...", disabled: true },
-        { label: "쪽 번호...", disabled: true, dividerAfter: true },
+        { label: "머리말/꼬리말…", disabled, action: () => store().openHeaderFooterDialog() },
+        { label: "쪽 번호…", disabled, action: () => store().openPageNumberDialog(), dividerAfter: true },
         { label: "단 나누기", disabled: disabled || !selection, action: () => store().insertColumnBreak() },
         { label: "쪽 나누기", disabled: disabled || !selection, action: () => store().insertPageBreak() },
       ],
@@ -106,39 +112,39 @@ export function MenuBar() {
     {
       label: "서식",
       items: [
-        { label: "글자 모양...", shortcut: "⌘L", disabled, action: () => store().openCharFormatDialog() },
-        { label: "문단 모양...", shortcut: "⌘T", disabled, action: () => store().openParaFormatDialog(), dividerAfter: true },
-        { label: "문단 첫 글자 장식...", disabled: true },
-        { label: "문단 번호 모양...", disabled, action: () => store().openBulletNumberDialog() },
+        { label: "글자 모양…", shortcut: "Alt+Shift+L", disabled, action: () => store().openCharFormatDialog() },
+        { label: "문단 모양…", shortcut: "Alt+Shift+T", disabled, action: () => store().openParaFormatDialog(), dividerAfter: true },
+        { label: "문단 첫 글자 장식…", disabled: true },
+        { label: "문단 번호 모양…", disabled, action: () => store().openBulletNumberDialog() },
         { label: "문단 번호 적용/해제", disabled: true },
         { label: "글머리표 적용/해제", shortcut: "⌃⇧⌫", disabled, action: () => store().openBulletNumberDialog(), dividerAfter: true },
-        { label: "개요 번호 모양...", disabled: true },
+        { label: "개요 번호 모양…", disabled, action: () => store().openOutlineDialog() },
         { label: "개요 적용/해제", disabled: true },
         { label: "한 수준 증가", shortcut: "⌃-", disabled: true },
         { label: "한 수준 감소", shortcut: "⌃+", disabled: true, dividerAfter: true },
-        { label: "스타일...", shortcut: "F6", disabled: true },
+        { label: "스타일…", shortcut: "F6", disabled, action: () => store().openStyleDialog() },
       ],
     },
     {
       label: "쪽",
       items: [
-        { label: "편집 용지...", disabled, action: () => { store().setSidebarTab("page"); if (!store().uiState.sidebarOpen) store().toggleSidebar(); } },
-        { label: "쪽 번호 매기기...", disabled: true, dividerAfter: true },
-        { label: "머리말...", disabled: true },
-        { label: "꼬리말...", disabled: true, dividerAfter: true },
+        { label: "편집 용지…", disabled, action: () => { store().setSidebarTab("page"); if (!store().uiState.sidebarOpen) store().toggleSidebar(); } },
+        { label: "쪽 번호 매기기…", disabled, action: () => store().openPageNumberDialog(), dividerAfter: true },
+        { label: "머리말…", disabled, action: () => store().openHeaderFooterDialog() },
+        { label: "꼬리말…", disabled, action: () => store().openHeaderFooterDialog(), dividerAfter: true },
         { label: "바탕쪽", disabled: true },
-        { label: "워터마크...", disabled, action: () => store().setWatermarkText("DRAFT") },
+        { label: "워터마크…", disabled, action: () => store().setWatermarkText("DRAFT") },
         { label: "워터마크 제거", disabled, action: () => store().setWatermarkText("") },
       ],
     },
     {
       label: "도구",
       items: [
-        { label: "맞춤법 검사...", shortcut: "F8", disabled: true },
-        { label: "자동 고침...", disabled: true, dividerAfter: true },
-        { label: "글자 수 세기", disabled: true },
-        { label: "매크로...", disabled: true },
-        { label: "환경 설정...", disabled: true },
+        { label: "맞춤법 검사…", shortcut: "F8", disabled: true },
+        { label: "자동 고침…", disabled: false, action: () => store().openAutoCorrectDialog(), dividerAfter: true },
+        { label: "글자 수 세기", disabled, action: () => store().openWordCountDialog() },
+        { label: "매크로…", disabled: true },
+        { label: "환경 설정…", disabled: true },
       ],
     },
     {
@@ -146,8 +152,20 @@ export function MenuBar() {
       items: (() => {
         const noCell = disabled || selection?.tableIndex == null;
         const hasRange = !disabled && selection?.endRow != null && selection?.endCol != null;
+        const hasSelection = !disabled && selection != null;
         return [
-          { label: "표 속성...", disabled: noCell, action: () => { store().setSidebarTab("table"); if (!store().uiState.sidebarOpen) store().toggleSidebar(); } },
+          {
+            label: "표 삽입 (3x3)",
+            disabled: !hasSelection,
+            action: () => {
+              const s = store();
+              const sel = s.selection;
+              if (!sel) return;
+              s.addTable(sel.sectionIndex, sel.paragraphIndex, 3, 3);
+            },
+            dividerAfter: true,
+          },
+          { label: "표 속성…", disabled: noCell, action: () => { store().setSidebarTab("table"); if (!store().uiState.sidebarOpen) store().toggleSidebar(); } },
           { label: "셀 합치기", disabled: !hasRange, action: () => store().mergeTableCells() },
           { label: "셀 나누기", disabled: noCell, action: () => store().splitTableCell(), dividerAfter: true },
           { label: "줄 삽입 (위)", disabled: noCell, action: () => store().insertTableRow("above") },
@@ -173,7 +191,15 @@ export function MenuBar() {
   }, []);
 
   return (
-    <div ref={barRef} className="flex items-center bg-gray-50 border-b border-gray-200 text-xs select-none relative z-50">
+    <div ref={barRef} className="flex items-center bg-gray-50 border-b border-gray-200 text-sm select-none relative z-50 min-h-[42px]">
+      {leadingContent ? (
+        <>
+          <div className="flex items-center gap-1.5 px-2 py-1 overflow-x-auto whitespace-nowrap">
+            {leadingContent}
+          </div>
+          <div className="h-6 w-px bg-gray-200 mx-1" />
+        </>
+      ) : null}
       {menus.map((menu, mIdx) => (
         <div key={menu.label} className="relative">
           <button
@@ -194,7 +220,7 @@ export function MenuBar() {
                   <button
                     onClick={() => handleItemClick(item)}
                     disabled={item.disabled}
-                    className={`w-full text-left px-4 py-1.5 flex items-center justify-between gap-4 ${
+                    className={`w-full text-left px-4 py-2 flex items-center justify-between gap-4 ${
                       item.disabled
                         ? "text-gray-300 cursor-default"
                         : "text-gray-700 hover:bg-blue-50 hover:text-blue-700"
@@ -202,7 +228,7 @@ export function MenuBar() {
                   >
                     <span>{item.label}</span>
                     {item.shortcut && (
-                      <span className="text-[10px] text-gray-400 ml-4 flex-shrink-0">{item.shortcut}</span>
+                      <span className="text-[11px] text-gray-400 ml-4 flex-shrink-0">{item.shortcut}</span>
                     )}
                   </button>
                   {item.dividerAfter && <div className="border-t border-gray-100 my-0.5" />}

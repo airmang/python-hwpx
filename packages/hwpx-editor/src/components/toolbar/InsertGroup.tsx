@@ -54,7 +54,7 @@ export function InsertGroup() {
     <>
       <RibbonGroup label="삽입">
         <ToolbarButton
-          icon={<Table className="w-4 h-4" />}
+          icon={<Table className="w-5 h-5" />}
           label="표"
           layout="vertical"
           title="표 삽입"
@@ -62,21 +62,21 @@ export function InsertGroup() {
           onClick={() => setShowTableDialog(true)}
         />
         <ToolbarButton
-          icon={<BarChart3 className="w-4 h-4" />}
+          icon={<BarChart3 className="w-5 h-5" />}
           label="차트"
           layout="vertical"
           title="차트 삽입"
           disabled
         />
         <ToolbarButton
-          icon={<Shapes className="w-4 h-4" />}
+          icon={<Shapes className="w-5 h-5" />}
           label="도형"
           layout="vertical"
           title="도형 삽입"
           disabled
         />
         <ToolbarButton
-          icon={<ImageIcon className="w-4 h-4" />}
+          icon={<ImageIcon className="w-5 h-5" />}
           label="그림"
           layout="vertical"
           title="그림 삽입"
@@ -91,7 +91,7 @@ export function InsertGroup() {
           onChange={handleImageSelect}
         />
         <ToolbarButton
-          icon={<Columns className="w-4 h-4" />}
+          icon={<Columns className="w-5 h-5" />}
           label="단"
           layout="vertical"
           title="단 나누기"
@@ -99,7 +99,7 @@ export function InsertGroup() {
           onClick={() => insertColumnBreak()}
         />
         <ToolbarButton
-          icon={<FileDown className="w-4 h-4" />}
+          icon={<FileDown className="w-5 h-5" />}
           label="쪽"
           layout="vertical"
           title="쪽 나누기"
@@ -110,7 +110,7 @@ export function InsertGroup() {
 
       <RibbonGroup label="파일">
         <ToolbarButton
-          icon={<Save className="w-4 h-4" />}
+          icon={<Save className="w-5 h-5" />}
           label="저장"
           layout="vertical"
           title="저장 (Ctrl+S)"

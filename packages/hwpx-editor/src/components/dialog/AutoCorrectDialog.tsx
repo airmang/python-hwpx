@@ -94,7 +94,7 @@ export function AutoCorrectDialog() {
               type="text"
               value={newFrom}
               onChange={(e) => setNewFrom(e.target.value)}
-              placeholder="예: (c)"
+              aria-label="자동 고침 입력 패턴"
               className={`${inputClass} w-full`}
             />
           </div>
@@ -105,7 +105,7 @@ export function AutoCorrectDialog() {
               type="text"
               value={newTo}
               onChange={(e) => setNewTo(e.target.value)}
-              placeholder="예: ©"
+              aria-label="자동 고침 변환 패턴"
               className={`${inputClass} w-full`}
             />
           </div>

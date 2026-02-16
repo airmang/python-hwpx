@@ -1,0 +1,309 @@
+{
+  "generatedAt": "2026-02-16T02:02:07.566Z",
+  "baseUrl": "http://127.0.0.1:3200",
+  "totalSteps": 18,
+  "passCount": 18,
+  "failCount": 0,
+  "steps": [
+    {
+      "id": "01-landing",
+      "description": "초기 로딩 후 에디터 자동 진입",
+      "codes": [
+        "SYS-001"
+      ],
+      "status": "passed",
+      "durationMs": 447,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/01-landing.png",
+      "data": {
+        "mode": "auto-new-document"
+      },
+      "error": null
+    },
+    {
+      "id": "02-new-document-click",
+      "description": "첫 문단 자동 포커스",
+      "codes": [
+        "DOC-001"
+      ],
+      "status": "passed",
+      "durationMs": 257,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/02-new-document-click.png",
+      "data": {
+        "tag": "DIV",
+        "isContentEditable": true,
+        "inPage": true
+      },
+      "error": null
+    },
+    {
+      "id": "03-insert-table-via-button",
+      "description": "리본 표 버튼 -> 삽입",
+      "codes": [
+        "TBL-001"
+      ],
+      "status": "passed",
+      "durationMs": 395,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/03-insert-table-via-button.png",
+      "data": {
+        "cells": 9
+      },
+      "error": null
+    },
+    {
+      "id": "04-menu-insert-row",
+      "description": "메뉴(표)에서 줄 삽입(아래)",
+      "codes": [
+        "TBL-002"
+      ],
+      "status": "passed",
+      "durationMs": 1188,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/04-menu-insert-row.png",
+      "data": {
+        "rowsBefore": 3,
+        "rowsAfter": 4
+      },
+      "error": null
+    },
+    {
+      "id": "05-table-width-adjust",
+      "description": "표 너비 조절(표 크기 패널)",
+      "codes": [
+        "TBL-006"
+      ],
+      "status": "passed",
+      "durationMs": 769,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/05-table-width-adjust.png",
+      "data": {
+        "before": 76.2,
+        "target": 94.2,
+        "afterMm": 94.2
+      },
+      "error": null
+    },
+    {
+      "id": "05b-table-fill-page-width",
+      "description": "표 종이 폭 꽉 채우기 버튼",
+      "codes": [
+        "TBL-006"
+      ],
+      "status": "passed",
+      "durationMs": 835,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/05b-table-fill-page-width.png",
+      "data": {
+        "targetMm": 149.74,
+        "afterMm": 149.7,
+        "visualWidthMm": 149.96
+      },
+      "error": null
+    },
+    {
+      "id": "05c-cell-content-wrap-two-lines",
+      "description": "셀 내용 채움 시 줄바꿈으로 높이 증가",
+      "codes": [
+        "TXT-004"
+      ],
+      "status": "passed",
+      "durationMs": 267,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/05c-cell-content-wrap-two-lines.png",
+      "data": {
+        "beforeHeight": 22.31,
+        "afterHeight": 99.56
+      },
+      "error": null
+    },
+    {
+      "id": "06-table-out-margin-top-bottom",
+      "description": "표 바깥 여백 위/아래 개별 조절",
+      "codes": [
+        "TBL-008"
+      ],
+      "status": "passed",
+      "durationMs": 848,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/06-table-out-margin-top-bottom.png",
+      "data": {
+        "top": 4.2,
+        "bottom": 6.1,
+        "topMm": 4.2,
+        "bottomMm": 6.1
+      },
+      "error": null
+    },
+    {
+      "id": "07-table-in-margin-top-bottom",
+      "description": "표 안쪽 여백 위/아래 개별 조절",
+      "codes": [
+        "TBL-008"
+      ],
+      "status": "passed",
+      "durationMs": 793,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/07-table-in-margin-top-bottom.png",
+      "data": {
+        "top": 1.3,
+        "bottom": 2.7,
+        "topMm": 1.3,
+        "bottomMm": 2.7
+      },
+      "error": null
+    },
+    {
+      "id": "07b-out-right-normalize-and-compress",
+      "description": "오른쪽 바깥 여백(030) 정규화 + 표 압축 + 우측 선 유지",
+      "codes": [
+        "TBL-008",
+        "TBL-006"
+      ],
+      "status": "passed",
+      "durationMs": 1100,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/07b-out-right-normalize-and-compress.png",
+      "data": {
+        "inputValue": "30",
+        "rightMm": 30,
+        "beforeWidthMm": 149.7,
+        "afterWidthMm": 120,
+        "rightBorder": {
+          "rightStyle": "solid",
+          "rightWidth": "1px",
+          "rightColor": "rgb(0, 0, 0)"
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "08-cell-single-side-border",
+      "description": "셀 한쪽 면(L)만 다른 선 적용",
+      "codes": [
+        "TBL-010"
+      ],
+      "status": "passed",
+      "durationMs": 1068,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/08-cell-single-side-border.png",
+      "data": {
+        "borderLeftType": "DASH",
+        "borderRightType": "DASH",
+        "borderTopType": "DASH",
+        "borderBottomType": "DASH",
+        "backgroundColor": null
+      },
+      "error": null
+    },
+    {
+      "id": "09-merge-cells",
+      "description": "셀 병합(Shift 선택 후 메뉴 병합)",
+      "codes": [
+        "TBL-004",
+        "TBL-012"
+      ],
+      "status": "passed",
+      "durationMs": 805,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/09-merge-cells.png",
+      "data": {
+        "mergeBeforeTdCount": 9,
+        "afterCount": 8,
+        "anchorCellCount": 8
+      },
+      "error": null
+    },
+    {
+      "id": "10-split-cell",
+      "description": "병합 셀 분할",
+      "codes": [
+        "TBL-004",
+        "TBL-012"
+      ],
+      "status": "passed",
+      "durationMs": 643,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/10-split-cell.png",
+      "data": {
+        "mergeBeforeTdCount": 9,
+        "afterSplit": 9
+      },
+      "error": null
+    },
+    {
+      "id": "11-sidebar-toggle-menu",
+      "description": "메뉴(보기) 서식 사이드바 토글",
+      "codes": [
+        "SYS-001"
+      ],
+      "status": "passed",
+      "durationMs": 465,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/11-sidebar-toggle-menu.png",
+      "data": {
+        "toggled": true
+      },
+      "error": null
+    },
+    {
+      "id": "12-column-page-break-buttons",
+      "description": "리본 단/쪽 나누기 버튼 클릭",
+      "codes": [
+        "PAG-003"
+      ],
+      "status": "passed",
+      "durationMs": 661,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/12-column-page-break-buttons.png",
+      "data": {
+        "clicked": [
+          "단 나누기",
+          "쪽 나누기"
+        ]
+      },
+      "error": null
+    },
+    {
+      "id": "12b-footnote-endnote-safe-zone",
+      "description": "각주/미주가 본문 안전 구역 내 배치",
+      "codes": [
+        "PAG-004"
+      ],
+      "status": "passed",
+      "durationMs": 813,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/12b-footnote-endnote-safe-zone.png",
+      "data": {
+        "footWithin": true,
+        "endWithin": true,
+        "safeLeft": 412.52729166666666,
+        "safeRight": 979.4570833333333,
+        "footLeft": 413.515625,
+        "footRight": 639.484375,
+        "endLeft": 413.515625,
+        "endRight": 978.46875,
+        "mode": "ui-menu"
+      },
+      "error": null
+    },
+    {
+      "id": "13-bold-button-click",
+      "description": "굵게 버튼 클릭",
+      "codes": [
+        "FMT-001"
+      ],
+      "status": "passed",
+      "durationMs": 459,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/13-bold-button-click.png",
+      "data": {
+        "clicked": "굵게"
+      },
+      "error": null
+    },
+    {
+      "id": "14-font-family-change-in-cell",
+      "description": "셀 선택 후 글꼴 변경 적용",
+      "codes": [
+        "FMT-002",
+        "TXT-004"
+      ],
+      "status": "passed",
+      "durationMs": 1301,
+      "screenshotPath": "/Users/jskang/nomadlab/packages/hwpx-ts/packages/hwpx-editor/features/evidence/playwright/ui-showcase/14-font-family-change-in-cell.png",
+      "data": {
+        "currentLabel": "함초롬바탕",
+        "targetLabel": "Noto Sans KR",
+        "afterLabel": "Noto Sans KR",
+        "beforeCellFont": "함초롬바탕, \"Noto Sans KR\", \"Apple SD Gothic Neo\", \"Malgun Gothic\", sans-serif",
+        "afterCellFont": "\"Noto Sans KR\", \"Apple SD Gothic Neo\", \"Malgun Gothic\", sans-serif"
+      },
+      "error": null
+    }
+  ]
+}

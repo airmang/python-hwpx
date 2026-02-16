@@ -60,8 +60,9 @@ export function TemplateDialog() {
           <button
             onClick={closeDialog}
             className="p-1 hover:bg-gray-100 rounded"
+            aria-label="닫기"
           >
-            <X className="w-4 h-4" />
+            <X aria-hidden="true" className="w-4 h-4" />
           </button>
         </div>
 
@@ -111,7 +112,7 @@ export function TemplateDialog() {
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="예: 외주용역계약서"
+                  aria-label="템플릿 이름"
                   className="w-full px-2 py-1.5 text-sm border rounded mt-0.5"
                 />
               </div>
@@ -122,7 +123,7 @@ export function TemplateDialog() {
                     type="text"
                     value={newPath}
                     onChange={(e) => setNewPath(e.target.value)}
-                    placeholder="/path/to/template.hwp"
+                    aria-label="템플릿 파일 경로"
                     className="flex-1 px-2 py-1.5 text-sm border rounded"
                   />
                   <button
@@ -139,7 +140,7 @@ export function TemplateDialog() {
                   type="text"
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
-                  placeholder="간단한 설명"
+                  aria-label="템플릿 설명"
                   className="w-full px-2 py-1.5 text-sm border rounded mt-0.5"
                 />
               </div>

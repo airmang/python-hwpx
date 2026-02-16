@@ -27,10 +27,10 @@ let dragSelecting = false;
 let prevBodyUserSelect = "";
 
 function borderToCss(b: CellBorderStyleVM | null | undefined): string {
-  if (!b || b.type === "NONE") return "1px solid #d1d5db"; // fallback gray-300
+  if (!b || b.type === "NONE") return "0 solid transparent";
   const widthStr = b.width.replace(/ /g, "");
   const mm = parseFloat(widthStr);
-  const px = Math.max(Math.round(mm * 3.78), 1); // mm to px approx
+  const px = Math.max(Number.isFinite(mm) ? mm * 3.78 : 0.5, 0.5); // mm to px approx
   let cssStyle = "solid";
   switch (b.type) {
     case "DASH": cssStyle = "dashed"; break;
@@ -38,7 +38,7 @@ function borderToCss(b: CellBorderStyleVM | null | undefined): string {
     case "DASH_DOT": cssStyle = "dashed"; break;
     case "DOUBLE_SLIM": case "DOUBLE": cssStyle = "double"; break;
   }
-  return `${px}px ${cssStyle} ${b.color}`;
+  return `${px.toFixed(2)}px ${cssStyle} ${b.color}`;
 }
 
 function vertAlignToCss(va: string): string {
@@ -204,8 +204,9 @@ export function TableCell({
     }
   }, [sectionIndex, paragraphIndex, tableIndex, cell.row, cell.col, setSelection, selection]);
 
-  const handleClick = useCallback(() => {
+  const handleClick = useCallback((e: React.MouseEvent) => {
     if (dragSelecting) return;
+    if (e.shiftKey) return;
     setSelection({
       sectionIndex,
       paragraphIndex,
@@ -220,8 +221,18 @@ export function TableCell({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const syncSelection = () => {
+    const syncSelection = (e: Event) => {
       if (dragSelecting) return;
+      if (e instanceof MouseEvent && e.shiftKey) return;
+      const currentSelection = useEditorStore.getState().selection;
+      if (
+        currentSelection?.type === "cell" &&
+        currentSelection.tableIndex === tableIndex &&
+        currentSelection.endRow != null &&
+        currentSelection.endCol != null
+      ) {
+        return;
+      }
       setSelection({
         sectionIndex,
         paragraphIndex,
@@ -339,6 +350,7 @@ export function TableCell({
     overflowWrap: "anywhere",
     wordBreak: "break-word",
     lineHeight: 1.45,
+    textDecoration: "none",
   };
   if (cell.fontFamily) tdStyle.fontFamily = fontFamilyCssStack(cell.fontFamily);
   if (cell.fontSize) tdStyle.fontSize = `${cell.fontSize}pt`;

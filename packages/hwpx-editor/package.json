@@ -21,7 +21,11 @@
     "build": "tsup",
     "build:app": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:feature-loop": "node ./scripts/run-feature-loop.mjs",
+    "test:e2e-tbl-014-ui": "node ./scripts/e2e-tbl-014-ui.mjs",
+    "test:human-type-attachment2": "node ./scripts/playwright-human-type-from-hwpx.mjs --port 3099 --route /playwright",
+    "test:ui-showcase": "node ./scripts/run-ui-showcase.mjs"
   },
   "peerDependencies": {
     "react": ">=18",
@@ -40,6 +44,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.5",
     "next": "16.1.5",
+    "playwright": "^1.58.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "tailwindcss": "^4",

@@ -44,6 +44,10 @@ export function TablePropertiesPanel() {
   const setTableInMargin = useEditorStore((s) => s.setTableInMargin);
   const setTableBorder = useEditorStore((s) => s.setTableBorder);
   const setTableBackground = useEditorStore((s) => s.setTableBackground);
+  const moveTableRow = useEditorStore((s) => s.moveTableRow);
+  const moveTableColumn = useEditorStore((s) => s.moveTableColumn);
+  const distributeTableColumns = useEditorStore((s) => s.distributeTableColumns);
+  const distributeTableRows = useEditorStore((s) => s.distributeTableRows);
 
   const sIdx = selection?.sectionIndex ?? 0;
   const pIdx = selection?.paragraphIndex ?? 0;
@@ -143,6 +147,65 @@ export function TablePropertiesPanel() {
 
   return (
     <div className="text-xs">
+      <SidebarSection title="구조">
+        <div className="grid grid-cols-2 gap-1">
+          <button
+            type="button"
+            disabled={!hasTable || selection?.row == null}
+            onClick={() => moveTableRow("up")}
+            className="py-1.5 rounded border border-gray-200 bg-white text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="현재 줄을 위로 이동(병합 표는 미지원)"
+          >
+            줄 ↑
+          </button>
+          <button
+            type="button"
+            disabled={!hasTable || selection?.row == null}
+            onClick={() => moveTableRow("down")}
+            className="py-1.5 rounded border border-gray-200 bg-white text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="현재 줄을 아래로 이동(병합 표는 미지원)"
+          >
+            줄 ↓
+          </button>
+          <button
+            type="button"
+            disabled={!hasTable || selection?.col == null}
+            onClick={() => moveTableColumn("left")}
+            className="py-1.5 rounded border border-gray-200 bg-white text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="현재 칸을 왼쪽으로 이동(병합 표는 미지원)"
+          >
+            칸 ←
+          </button>
+          <button
+            type="button"
+            disabled={!hasTable || selection?.col == null}
+            onClick={() => moveTableColumn("right")}
+            className="py-1.5 rounded border border-gray-200 bg-white text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="현재 칸을 오른쪽으로 이동(병합 표는 미지원)"
+          >
+            칸 →
+          </button>
+          <button
+            type="button"
+            disabled={!hasTable}
+            onClick={distributeTableColumns}
+            className="py-1.5 rounded border border-gray-200 bg-white text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="열 너비 균등 분배(병합 표는 미지원)"
+          >
+            열 균등
+          </button>
+          <button
+            type="button"
+            disabled={!hasTable}
+            onClick={distributeTableRows}
+            className="py-1.5 rounded border border-gray-200 bg-white text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="행 높이 균등 분배(병합 표는 미지원)"
+          >
+            행 균등
+          </button>
+        </div>
+      </SidebarSection>
+
       <SidebarSection title="여러 쪽 지원">
         <div className="mb-2">
           <span className="text-[11px] text-gray-600 block mb-1.5">쪽 경계에서</span>

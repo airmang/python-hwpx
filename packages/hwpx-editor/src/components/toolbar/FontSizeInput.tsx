@@ -44,7 +44,7 @@ export function FontSizeInput({ value, onChange, disabled }: FontSizeInputProps)
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         autoFocus
-        className="w-14 h-7 px-2 text-xs border border-blue-400 rounded text-center focus:outline-none"
+        className="w-16 h-9 px-2 text-sm border border-blue-400 rounded text-center focus:outline-none"
       />
     );
   }
@@ -58,7 +58,7 @@ export function FontSizeInput({ value, onChange, disabled }: FontSizeInputProps)
           if (!isNaN(num)) onChange(num);
         }}
         disabled={disabled}
-        className="w-14 h-7 px-1 text-xs border border-gray-300 rounded bg-white text-center appearance-none cursor-pointer disabled:opacity-40"
+        className="w-16 h-9 px-1 text-sm border border-gray-300 rounded bg-white text-center appearance-none cursor-pointer disabled:opacity-40"
         title="글자 크기"
         onDoubleClick={() => {
           setInputValue(String(value));

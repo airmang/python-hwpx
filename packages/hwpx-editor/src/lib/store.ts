@@ -28,6 +28,8 @@ export interface SelectionState {
   textBoxIndex?: number;
   textStartOffset?: number;
   textEndOffset?: number;
+  /** Collapsed caret offset within the paragraph text (0..length). */
+  cursorOffset?: number;
 }
 
 export interface ActiveFormat {
@@ -56,6 +58,8 @@ export interface UIState {
   wordCountDialogOpen: boolean;
   pageNumberDialogOpen: boolean;
   styleDialogOpen: boolean;
+  clipboardDialogOpen: boolean;
+  captionDialogOpen: boolean;
   autoCorrectDialogOpen: boolean;
   outlineDialogOpen: boolean;
   shapeDialogOpen: boolean;
@@ -75,6 +79,41 @@ interface Template {
   path: string;
   description?: string;
   createdAt: number;
+}
+
+interface Snippet {
+  id: string;
+  name: string;
+  text: string;
+  createdAt: number;
+}
+
+type FormatPainterMode = "char" | "para" | "both" | "cell";
+
+interface FormatPainterState {
+  active: boolean;
+  locked: boolean;
+  mode: FormatPainterMode;
+  origin: SelectionState | null;
+  snapshot: ExtendedFormat | null;
+}
+
+function replacementFromMatchTemplate(template: string, match: string, args: unknown[]): string {
+  // args is [...groups, offset, input] for String.prototype.replace callback.
+  const tailOffset = args.length >= 2 ? args.length - 2 : 0;
+  const groups = args.slice(0, tailOffset).map((v) => (v == null ? "" : String(v)));
+  const offset = typeof args[tailOffset] === "number" ? (args[tailOffset] as number) : 0;
+  const input = typeof args[tailOffset + 1] === "string" ? (args[tailOffset + 1] as string) : "";
+
+  return template.replace(/\$(\$|&|`|'|\d{1,2})/g, (_whole, token: string) => {
+    if (token === "$") return "$";
+    if (token === "&") return match;
+    if (token === "`") return input.slice(0, offset);
+    if (token === "'") return input.slice(offset + match.length);
+    const n = parseInt(token, 10);
+    if (Number.isFinite(n) && n > 0) return groups[n - 1] ?? "";
+    return "";
+  });
 }
 
 function elementLocalName(element: Element): string {
@@ -153,6 +192,9 @@ export interface EditorStore {
   undoStack: UndoEntry[];
   redoStack: UndoEntry[];
   templates: Template[];
+  clipboardHistory: string[];
+  snippets: Snippet[];
+  formatPainter: FormatPainterState;
   serverDocumentId: string | null;
 
   // Actions
@@ -290,6 +332,10 @@ export interface EditorStore {
   closeWordCountDialog: () => void;
   openTemplateDialog: () => void;
   closeTemplateDialog: () => void;
+  openClipboardDialog: () => void;
+  closeClipboardDialog: () => void;
+  openCaptionDialog: () => void;
+  closeCaptionDialog: () => void;
   openHeaderFooterDialog: () => void;
   closeHeaderFooterDialog: () => void;
   openPageNumberDialog: () => void;
@@ -311,6 +357,24 @@ export interface EditorStore {
   // Text insertion at cursor
   insertTextAtCursor: (text: string) => void;
   insertTab: () => void;
+
+  // Selection helpers
+  selectWordAtCursor: () => void;
+  selectSentenceAtCursor: () => void;
+  selectParagraphAll: () => void;
+
+  // Clipboard/snippets
+  pushClipboardHistory: (text: string) => void;
+  clearClipboardHistory: () => void;
+  addSnippet: (name: string, text: string) => void;
+  removeSnippet: (id: string) => void;
+  loadSnippets: () => void;
+  saveSnippets: () => void;
+
+  // Format painter
+  startFormatPainter: (mode?: FormatPainterMode, opts?: { locked?: boolean }) => void;
+  cancelFormatPainter: () => void;
+  maybeApplyFormatPainter: (nextSelection: SelectionState | null) => void;
 
   // Page setup
   updatePageSize: (width: number, height: number) => void;
@@ -338,6 +402,10 @@ export interface EditorStore {
   deleteTableRow: () => void;
   insertTableColumn: (position: "left" | "right") => void;
   deleteTableColumn: () => void;
+  moveTableRow: (direction: "up" | "down") => void;
+  moveTableColumn: (direction: "left" | "right") => void;
+  distributeTableColumns: () => void;
+  distributeTableRows: () => void;
   mergeTableCells: () => void;
   splitTableCell: () => void;
   deleteTable: () => void;
@@ -362,6 +430,7 @@ export interface EditorStore {
   applyOutlineLevel: (level: number) => void;
   removeBulletNumbering: () => void;
   applyStyle: (styleId: string) => void;
+  applyStyleToDocument: (styleId: string) => void;
   insertToc: (opts: {
     title?: string;
     tabLeader?: "DOT" | "HYPHEN" | "UNDERLINE" | "NONE";
@@ -369,8 +438,26 @@ export interface EditorStore {
     maxLevel?: number;
     showPageNumbers?: boolean;
   }) => void;
+  insertCaption: (opts: { kind: "figure" | "table"; text: string }) => void;
+  insertCaptionList: (opts: { kind: "figure" | "table"; title?: string }) => void;
   insertShape: (shapeType: "rectangle" | "ellipse" | "line" | "arrow", widthMm: number, heightMm: number) => void;
   findAndReplace: (search: string, replacement: string, count?: number) => number;
+  findAndReplaceAdvanced: (opts: {
+    search: string;
+    replacement: string;
+    count?: number;
+    matchCase?: boolean;
+    useRegex?: boolean;
+    wholeWord?: boolean;
+    scope?: "document" | "paragraph" | "selection";
+  }) => number;
+  findNextMatch: (opts: {
+    search: string;
+    matchCase?: boolean;
+    useRegex?: boolean;
+    wholeWord?: boolean;
+    scope?: "document" | "paragraph";
+  }) => { found: boolean; matchCount: number };
   addTemplate: (name: string, path: string, description?: string) => void;
   removeTemplate: (id: string) => void;
   loadTemplates: () => void;
@@ -710,6 +797,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   undoStack: [],
   redoStack: [],
   templates: [],
+  clipboardHistory: [],
+  snippets: [],
+  formatPainter: { active: false, locked: false, mode: "both", origin: null, snapshot: null },
   serverDocumentId: null,
   extendedFormat: { char: defaultCharFormat, para: defaultParaFormat },
   uiState: {
@@ -726,6 +816,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     wordCountDialogOpen: false,
     pageNumberDialogOpen: false,
     styleDialogOpen: false,
+    clipboardDialogOpen: false,
+    captionDialogOpen: false,
     autoCorrectDialogOpen: false,
     outlineDialogOpen: false,
     shapeDialogOpen: false,
@@ -755,6 +847,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   setSelection: (selection) => {
     set({ selection });
+    get().maybeApplyFormatPainter(selection);
     // Auto-refresh extended format when selection changes
     if (selection) {
       // Use setTimeout to avoid synchronous read during render
@@ -1225,6 +1318,24 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
+  applyStyleToDocument: (styleId) => {
+    const { doc } = get();
+    if (!doc) return;
+    try {
+      get().pushUndo();
+      for (const section of doc.sections) {
+        for (const para of section.paragraphs) {
+          if (!para) continue;
+          para.styleIdRef = styleId;
+        }
+      }
+      get().rebuild();
+      get().refreshExtendedFormat();
+    } catch (e) {
+      console.error("applyStyleToDocument failed:", e);
+    }
+  },
+
   insertToc: (opts) => {
     const { doc, selection } = get();
     if (!doc) return;
@@ -1275,6 +1386,64 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
+  insertCaption: (opts) => {
+    const { doc, selection } = get();
+    if (!doc) return;
+    const sectionIndex = selection?.sectionIndex ?? 0;
+    const paragraphIndex = selection?.paragraphIndex ?? 0;
+    const section = doc.sections[sectionIndex];
+    if (!section) return;
+
+    try {
+      get().pushUndo();
+      const prefix = opts.kind === "table" ? "표" : "그림";
+      const pattern = new RegExp(`^${prefix}\\s*(\\d+)\\b`);
+      let max = 0;
+      for (const para of doc.paragraphs) {
+        const m = String(para.text ?? "").trim().match(pattern);
+        if (!m) continue;
+        const n = parseInt(m[1] ?? "0", 10);
+        if (Number.isFinite(n)) max = Math.max(max, n);
+      }
+      const nextNumber = max + 1;
+      const captionText = `${prefix} ${nextNumber}. ${String(opts.text ?? "").trim()}`.trim();
+      doc.insertParagraphAt(sectionIndex, Math.min(section.paragraphs.length, paragraphIndex + 1), captionText);
+      get().rebuild();
+    } catch (e) {
+      console.error("insertCaption failed:", e);
+    }
+  },
+
+  insertCaptionList: (opts) => {
+    const { doc, selection } = get();
+    if (!doc) return;
+    const sectionIndex = selection?.sectionIndex ?? 0;
+    const paragraphIndex = selection?.paragraphIndex ?? 0;
+    const section = doc.sections[sectionIndex];
+    if (!section) return;
+
+    try {
+      get().pushUndo();
+      const prefix = opts.kind === "table" ? "표" : "그림";
+      const title = opts.title ?? (opts.kind === "table" ? "표 목차" : "그림 목차");
+      const pattern = new RegExp(`^${prefix}\\s*(\\d+)\\b`);
+      const captions: string[] = [];
+      for (const para of doc.paragraphs) {
+        const t = String(para.text ?? "").trim();
+        if (!t) continue;
+        if (pattern.test(t)) captions.push(t);
+      }
+
+      doc.insertParagraphAt(sectionIndex, paragraphIndex, title);
+      captions.forEach((cap, idx) => {
+        doc.insertParagraphAt(sectionIndex, paragraphIndex + idx + 1, cap);
+      });
+      get().rebuild();
+    } catch (e) {
+      console.error("insertCaptionList failed:", e);
+    }
+  },
+
   findAndReplace: (search, replacement, count) => {
     const { doc } = get();
     if (!doc || !search) return 0;
@@ -1287,6 +1456,178 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       console.error("findAndReplace failed:", e);
       return 0;
     }
+  },
+
+  findAndReplaceAdvanced: (opts) => {
+    const { doc, selection } = get();
+    if (!doc) return 0;
+    const search = String(opts.search ?? "");
+    if (!search) return 0;
+
+    const scope = opts.scope ?? "document";
+    const matchCase = Boolean(opts.matchCase);
+    const useRegex = Boolean(opts.useRegex);
+    const wholeWord = Boolean(opts.wholeWord);
+    let remaining = opts.count ?? Infinity;
+    let total = 0;
+
+    const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const source = useRegex ? search : escape(search);
+    const wrapped = wholeWord ? `\\b(?:${source})\\b` : source;
+    const flags = `${matchCase ? "" : "i"}g`;
+    const pattern = new RegExp(wrapped, flags);
+    const replacement = String(opts.replacement ?? "");
+
+    try {
+      get().pushUndo();
+
+      const paragraphsByScope = (() => {
+        if (!selection) return doc.paragraphs;
+        if (scope === "paragraph" || scope === "selection") {
+          const section = doc.sections[selection.sectionIndex];
+          const para = section?.paragraphs[selection.paragraphIndex];
+          return para ? [para] : [];
+        }
+        return doc.paragraphs;
+      })();
+
+      for (const para of paragraphsByScope as any[]) {
+        if (remaining <= 0) break;
+
+        if (scope === "selection" && selection?.type === "paragraph") {
+          const full = String(para.text ?? "");
+          const start = selection.textStartOffset;
+          const end = selection.textEndOffset;
+          if (typeof start !== "number" || typeof end !== "number" || start === end) continue;
+          const a = Math.max(0, Math.min(full.length, Math.min(start, end)));
+          const b = Math.max(0, Math.min(full.length, Math.max(start, end)));
+          const before = full.slice(0, a);
+          const mid = full.slice(a, b);
+          const after = full.slice(b);
+
+          pattern.lastIndex = 0;
+          let replacedLocal = 0;
+          const replacedMid = mid.replace(pattern, (m, ...args) => {
+            if (remaining <= 0) return m;
+            remaining -= 1;
+            replacedLocal += 1;
+            total += 1;
+            return replacementFromMatchTemplate(replacement, m, args);
+          });
+          if (replacedLocal > 0) {
+            para.text = before + replacedMid + after;
+          }
+          continue;
+        }
+
+        for (const run of para.runs as any[]) {
+          if (remaining <= 0) break;
+          if (useRegex || wholeWord || !matchCase) {
+            if (typeof run.replaceTextRegex === "function") {
+              const n = run.replaceTextRegex(pattern, replacement, remaining);
+              total += n;
+              remaining -= n;
+            } else {
+              // Fallback: treat run.text as the only text node.
+              const text = String(run.text ?? "");
+              pattern.lastIndex = 0;
+              let local = 0;
+              const next = text.replace(pattern, (m, ...args) => {
+                if (remaining <= 0) return m;
+                remaining -= 1;
+                local += 1;
+                total += 1;
+                return replacementFromMatchTemplate(replacement, m, args);
+              });
+              if (local > 0) run.text = next;
+            }
+          } else if (typeof run.replaceText === "function") {
+            const n = run.replaceText(search, replacement, remaining);
+            total += n;
+            remaining -= n;
+          }
+        }
+      }
+
+      if (total > 0) get().rebuild();
+      return total;
+    } catch (e) {
+      console.error("findAndReplaceAdvanced failed:", e);
+      return total;
+    }
+  },
+
+  findNextMatch: (opts) => {
+    const { doc, selection } = get();
+    if (!doc || !selection) return { found: false, matchCount: 0 };
+    const search = String(opts.search ?? "");
+    if (!search) return { found: false, matchCount: 0 };
+
+    const scope = opts.scope ?? "document";
+    const matchCase = Boolean(opts.matchCase);
+    const useRegex = Boolean(opts.useRegex);
+    const wholeWord = Boolean(opts.wholeWord);
+    const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const source = useRegex ? search : escape(search);
+    const wrapped = wholeWord ? `\\b(?:${source})\\b` : source;
+    const flags = `${matchCase ? "" : "i"}g`;
+    const pattern = new RegExp(wrapped, flags);
+
+    const section = doc.sections[selection.sectionIndex];
+    if (!section) return { found: false, matchCount: 0 };
+
+    const paragraphIndices =
+      scope === "paragraph"
+        ? [selection.paragraphIndex]
+        : Array.from({ length: section.paragraphs.length }, (_, i) => i);
+
+    const countMatches = (text: string) => {
+      let count = 0;
+      pattern.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = pattern.exec(text))) {
+        count += 1;
+        if (m[0].length === 0) pattern.lastIndex += 1;
+      }
+      return count;
+    };
+    const matchCount = paragraphIndices.reduce((sum, idx) => {
+      const t = String(section.paragraphs[idx]?.text ?? "");
+      return sum + countMatches(t);
+    }, 0);
+
+    const startOffset = selection.cursorOffset ?? selection.textEndOffset ?? 0;
+
+    const findInParagraph = (text: string, from: number) => {
+      pattern.lastIndex = Math.max(0, Math.min(text.length, from));
+      const m = pattern.exec(text);
+      if (!m) return null;
+      return { start: m.index, end: m.index + m[0].length };
+    };
+
+    const startIndexInList = paragraphIndices.indexOf(selection.paragraphIndex);
+    const ordered = startIndexInList >= 0
+      ? paragraphIndices.slice(startIndexInList).concat(paragraphIndices.slice(0, startIndexInList))
+      : paragraphIndices;
+
+    for (let pass = 0; pass < 2; pass += 1) {
+      for (const idx of ordered) {
+        const text = String(section.paragraphs[idx]?.text ?? "");
+        const from = pass === 0 && idx === selection.paragraphIndex ? startOffset + 1 : 0;
+        const m = findInParagraph(text, from);
+        if (!m) continue;
+        get().setSelection({
+          sectionIndex: selection.sectionIndex,
+          paragraphIndex: idx,
+          type: "paragraph",
+          textStartOffset: m.start,
+          textEndOffset: m.end,
+          cursorOffset: m.end,
+        });
+        return { found: true, matchCount };
+      }
+    }
+    return { found: false, matchCount };
   },
 
   insertShape: (shapeType, widthMm, heightMm) => {
@@ -2774,6 +3115,214 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
+  moveTableRow: (direction) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null || selection.row == null) return;
+    try {
+      const section = doc.sections[selection.sectionIndex];
+      const para = section?.paragraphs[selection.paragraphIndex];
+      const table = para?.tables[selection.tableIndex];
+      if (!table) return;
+
+      const rowCount = table.rowCount;
+      const src = selection.row;
+      const dst = direction === "up" ? src - 1 : src + 1;
+      if (dst < 0 || dst >= rowCount) return;
+
+      // Restrict to non-merged tables (rowSpan/colSpan 모두 1)
+      for (const pos of table.iterGrid()) {
+        if (pos.span[0] !== 1 || pos.span[1] !== 1) {
+          throw new Error("moveTableRow currently supports non-merged tables only");
+        }
+      }
+
+      get().pushUndo();
+
+      const trEls = Array.from(table.element.childNodes).filter(
+        (n): n is Element => n.nodeType === 1 && elementLocalName(n as Element) === "tr",
+      );
+      const trA = trEls[src];
+      const trB = trEls[dst];
+      if (!trA || !trB) return;
+
+      const parent = trA.parentNode;
+      if (!parent) return;
+      const marker = table.element.ownerDocument.createElement("hwpx-row-marker");
+      parent.insertBefore(marker, trA);
+      parent.replaceChild(trA, trB);
+      parent.replaceChild(trB, marker);
+
+      // Re-index rowAddr based on DOM row order
+      const nextTrEls = Array.from(table.element.childNodes).filter(
+        (n): n is Element => n.nodeType === 1 && elementLocalName(n as Element) === "tr",
+      );
+      for (let r = 0; r < nextTrEls.length; r += 1) {
+        const tr = nextTrEls[r]!;
+        const tcs = Array.from(tr.childNodes).filter(
+          (n): n is Element => n.nodeType === 1 && elementLocalName(n as Element) === "tc",
+        );
+        for (const tc of tcs) {
+          const addr = findDescendantByLocalName(tc, "cellAddr");
+          if (!addr) continue;
+          addr.setAttribute("rowAddr", String(r));
+        }
+      }
+
+      set({
+        selection: { ...selection, row: dst, endRow: undefined, endCol: undefined },
+      });
+      get().rebuild();
+    } catch (e) {
+      console.error("moveTableRow failed:", e);
+    }
+  },
+
+  moveTableColumn: (direction) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null || selection.col == null) return;
+    try {
+      const section = doc.sections[selection.sectionIndex];
+      const para = section?.paragraphs[selection.paragraphIndex];
+      const table = para?.tables[selection.tableIndex];
+      if (!table) return;
+
+      const colCount = table.columnCount;
+      const src = selection.col;
+      const dst = direction === "left" ? src - 1 : src + 1;
+      if (dst < 0 || dst >= colCount) return;
+
+      for (const pos of table.iterGrid()) {
+        if (pos.span[0] !== 1 || pos.span[1] !== 1) {
+          throw new Error("moveTableColumn currently supports non-merged tables only");
+        }
+      }
+
+      get().pushUndo();
+
+      // Swap colAddr for all cells, then reorder <tc> nodes in each <tr>.
+      const trEls = Array.from(table.element.childNodes).filter(
+        (n): n is Element => n.nodeType === 1 && elementLocalName(n as Element) === "tr",
+      );
+      for (const tr of trEls) {
+        const tcs = Array.from(tr.childNodes).filter(
+          (n): n is Element => n.nodeType === 1 && elementLocalName(n as Element) === "tc",
+        );
+
+        for (const tc of tcs) {
+          const addr = findDescendantByLocalName(tc, "cellAddr");
+          if (!addr) continue;
+          const c = parseInt(addr.getAttribute("colAddr") ?? "0", 10);
+          if (c === src) addr.setAttribute("colAddr", String(dst));
+          else if (c === dst) addr.setAttribute("colAddr", String(src));
+        }
+
+        const sorted = tcs
+          .slice()
+          .sort((a, b) => {
+            const aAddr = findDescendantByLocalName(a, "cellAddr");
+            const bAddr = findDescendantByLocalName(b, "cellAddr");
+            const ac = parseInt(aAddr?.getAttribute("colAddr") ?? "0", 10);
+            const bc = parseInt(bAddr?.getAttribute("colAddr") ?? "0", 10);
+            return ac - bc;
+          });
+
+        for (const tc of sorted) {
+          tr.appendChild(tc);
+        }
+      }
+
+      set({
+        selection: { ...selection, col: dst, endRow: undefined, endCol: undefined },
+      });
+      get().rebuild();
+    } catch (e) {
+      console.error("moveTableColumn failed:", e);
+    }
+  },
+
+  distributeTableColumns: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    try {
+      const section = doc.sections[selection.sectionIndex];
+      const para = section?.paragraphs[selection.paragraphIndex];
+      const table = para?.tables[selection.tableIndex];
+      if (!table) return;
+
+      for (const pos of table.iterGrid()) {
+        if (pos.span[0] !== 1 || pos.span[1] !== 1) {
+          throw new Error("distributeTableColumns currently supports non-merged tables only");
+        }
+      }
+
+      const colCount = table.columnCount;
+      if (colCount <= 0) return;
+
+      get().pushUndo();
+
+      const totalWidth = table.width > 0
+        ? table.width
+        : Array.from({ length: colCount }).reduce((sum, _, colIdx) => {
+            try {
+              return sum + table.cell(0, colIdx).width;
+            } catch {
+              return sum;
+            }
+          }, 0);
+      const each = Math.floor(Math.max(totalWidth, 0) / colCount);
+
+      for (let c = 0; c < colCount; c += 1) {
+        table.setColumnWidth(c, each);
+      }
+      get().rebuild();
+    } catch (e) {
+      console.error("distributeTableColumns failed:", e);
+    }
+  },
+
+  distributeTableRows: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null) return;
+    try {
+      const section = doc.sections[selection.sectionIndex];
+      const para = section?.paragraphs[selection.paragraphIndex];
+      const table = para?.tables[selection.tableIndex];
+      if (!table) return;
+
+      for (const pos of table.iterGrid()) {
+        if (pos.span[0] !== 1 || pos.span[1] !== 1) {
+          throw new Error("distributeTableRows currently supports non-merged tables only");
+        }
+      }
+
+      const rowCount = table.rowCount;
+      const colCount = table.columnCount;
+      if (rowCount <= 0 || colCount <= 0) return;
+
+      get().pushUndo();
+
+      const totalHeight = table.height > 0
+        ? table.height
+        : Array.from({ length: rowCount }).reduce((sum, _, rowIdx) => {
+            try {
+              return sum + table.cell(rowIdx, 0).height;
+            } catch {
+              return sum;
+            }
+          }, 0);
+      const each = Math.floor(Math.max(totalHeight, 0) / rowCount);
+
+      for (let r = 0; r < rowCount; r += 1) {
+        for (let c = 0; c < colCount; c += 1) {
+          table.cell(r, c).setSize(undefined, each);
+        }
+      }
+      get().rebuild();
+    } catch (e) {
+      console.error("distributeTableRows failed:", e);
+    }
+  },
+
   mergeTableCells: () => {
     const { doc, selection } = get();
     if (!doc || !selection || selection.tableIndex == null) return;
@@ -3049,6 +3598,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set((s) => ({ uiState: { ...s.uiState, templateDialogOpen: true } })),
   closeTemplateDialog: () =>
     set((s) => ({ uiState: { ...s.uiState, templateDialogOpen: false } })),
+  openClipboardDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, clipboardDialogOpen: true } })),
+  closeClipboardDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, clipboardDialogOpen: false } })),
+  openCaptionDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, captionDialogOpen: true } })),
+  closeCaptionDialog: () =>
+    set((s) => ({ uiState: { ...s.uiState, captionDialogOpen: false } })),
   openHeaderFooterDialog: () =>
     set((s) => ({ uiState: { ...s.uiState, headerFooterDialogOpen: true } })),
   closeHeaderFooterDialog: () =>
@@ -3140,6 +3697,55 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
+  pushClipboardHistory: (text) => {
+    const trimmed = String(text ?? "").replace(/\s+/g, " ").trim();
+    if (!trimmed) return;
+    set((s) => {
+      const prev = s.clipboardHistory ?? [];
+      const next = [trimmed, ...prev.filter((t) => t !== trimmed)].slice(0, 20);
+      return { clipboardHistory: next };
+    });
+  },
+
+  clearClipboardHistory: () => set({ clipboardHistory: [] }),
+
+  addSnippet: (name, text) => {
+    const snippet: Snippet = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: (name ?? "").trim() || "스니펫",
+      text: String(text ?? ""),
+      createdAt: Date.now(),
+    };
+    set((s) => ({ snippets: [...(s.snippets ?? []), snippet] }));
+    get().saveSnippets();
+  },
+
+  removeSnippet: (id) => {
+    set((s) => ({ snippets: (s.snippets ?? []).filter((snip) => snip.id !== id) }));
+    get().saveSnippets();
+  },
+
+  loadSnippets: () => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem("hwpx-editor-snippets");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Snippet[];
+      if (Array.isArray(parsed)) set({ snippets: parsed });
+    } catch (e) {
+      console.error("loadSnippets failed:", e);
+    }
+  },
+
+  saveSnippets: () => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem("hwpx-editor-snippets", JSON.stringify(get().snippets ?? []));
+    } catch (e) {
+      console.error("saveSnippets failed:", e);
+    }
+  },
+
   insertTextAtCursor: (text) => {
     const { doc, selection } = get();
     if (!doc || !selection) return;
@@ -3149,8 +3755,27 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       const para = section.paragraphs[selection.paragraphIndex];
       if (!para) return;
       get().pushUndo();
-      para.text = para.text + text;
+      const fullText = para.text ?? "";
+      const start =
+        selection.textStartOffset ??
+        selection.cursorOffset ??
+        fullText.length;
+      const end = selection.textEndOffset ?? start;
+      const safeStart = Math.max(0, Math.min(fullText.length, start));
+      const safeEnd = Math.max(safeStart, Math.min(fullText.length, end));
+      para.text = fullText.slice(0, safeStart) + text + fullText.slice(safeEnd);
       get().rebuild();
+      // Update caret position to after inserted text.
+      const nextOffset = safeStart + text.length;
+      set({
+        selection: {
+          ...selection,
+          type: "paragraph",
+          textStartOffset: undefined,
+          textEndOffset: undefined,
+          cursorOffset: nextOffset,
+        },
+      });
     } catch (e) {
       console.error("insertTextAtCursor failed:", e);
     }
@@ -3160,15 +3785,187 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { doc, selection } = get();
     if (!doc || !selection) return;
     try {
-      const section = doc.sections[selection.sectionIndex];
-      if (!section) return;
-      const para = section.paragraphs[selection.paragraphIndex];
-      if (!para) return;
-      get().pushUndo();
-      para.text = para.text + "\t";
-      get().rebuild();
+      get().insertTextAtCursor("\t");
     } catch (e) {
       console.error("insertTab failed:", e);
+    }
+  },
+
+  selectParagraphAll: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection) return;
+    if (selection.type !== "paragraph") return;
+    const section = doc.sections[selection.sectionIndex];
+    const para = section?.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const len = (para.text ?? "").length;
+    get().setSelection({
+      ...selection,
+      type: "paragraph",
+      textStartOffset: 0,
+      textEndOffset: len,
+      cursorOffset: len,
+    });
+  },
+
+  selectWordAtCursor: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection) return;
+    if (selection.type !== "paragraph") return;
+    const section = doc.sections[selection.sectionIndex];
+    const para = section?.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const text = para.text ?? "";
+    const caret = Math.max(0, Math.min(text.length, selection.cursorOffset ?? selection.textEndOffset ?? 0));
+    const isWs = (ch: string) => /\s/.test(ch);
+    let start = caret;
+    let end = caret;
+    while (start > 0 && !isWs(text[start - 1]!)) start -= 1;
+    while (end < text.length && !isWs(text[end]!)) end += 1;
+    if (start === end && text.length > 0) {
+      // Fallback: expand by 1 char if caret is on whitespace.
+      if (caret < text.length) end = Math.min(text.length, caret + 1);
+      else start = Math.max(0, caret - 1);
+    }
+    get().setSelection({
+      ...selection,
+      type: "paragraph",
+      textStartOffset: start,
+      textEndOffset: end,
+      cursorOffset: end,
+    });
+  },
+
+  selectSentenceAtCursor: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection) return;
+    if (selection.type !== "paragraph") return;
+    const section = doc.sections[selection.sectionIndex];
+    const para = section?.paragraphs[selection.paragraphIndex];
+    if (!para) return;
+    const text = para.text ?? "";
+    const caret = Math.max(0, Math.min(text.length, selection.cursorOffset ?? selection.textEndOffset ?? 0));
+    const stops = new Set([".", "!", "?", "。", "！", "？", "\n"]);
+    let start = caret;
+    let end = caret;
+    for (let i = caret - 1; i >= 0; i -= 1) {
+      if (stops.has(text[i]!)) {
+        start = i + 1;
+        break;
+      }
+      if (i === 0) start = 0;
+    }
+    for (let i = caret; i < text.length; i += 1) {
+      if (stops.has(text[i]!)) {
+        end = i + 1;
+        break;
+      }
+      if (i === text.length - 1) end = text.length;
+    }
+    get().setSelection({
+      ...selection,
+      type: "paragraph",
+      textStartOffset: start,
+      textEndOffset: end,
+      cursorOffset: end,
+    });
+  },
+
+  startFormatPainter: (mode, opts) => {
+    const { doc, selection, extendedFormat } = get();
+    if (!doc || !selection) return;
+    const nextMode: FormatPainterMode =
+      mode ??
+      ((selection.type === "cell" || selection.type === "table") ? "cell" : "both");
+    const snapshot: ExtendedFormat = {
+      char: { ...extendedFormat.char },
+      para: { ...extendedFormat.para },
+    };
+    set({
+      formatPainter: {
+        active: true,
+        locked: Boolean(opts?.locked),
+        mode: nextMode,
+        origin: { ...selection },
+        snapshot,
+      },
+    });
+  },
+
+  cancelFormatPainter: () => {
+    set({
+      formatPainter: {
+        active: false,
+        locked: false,
+        mode: "both",
+        origin: null,
+        snapshot: null,
+      },
+    });
+  },
+
+  maybeApplyFormatPainter: (nextSelection) => {
+    const { doc, formatPainter } = get();
+    if (!doc) return;
+    if (!formatPainter.active || !formatPainter.snapshot || !formatPainter.origin) return;
+    if (!nextSelection) return;
+
+    const key = (s: SelectionState) =>
+      `${s.sectionIndex}:${s.paragraphIndex}:${s.type}:${s.tableIndex ?? ""}:${s.row ?? ""}:${s.col ?? ""}`;
+    if (key(nextSelection) === key(formatPainter.origin)) return;
+
+    try {
+      get().pushUndo();
+
+      const snap = formatPainter.snapshot;
+      const section = doc.sections[nextSelection.sectionIndex];
+      if (!section) return;
+
+      if (formatPainter.mode === "char" || formatPainter.mode === "both" || formatPainter.mode === "cell") {
+        const cf = snap.char;
+        const charPrIdRef = doc.ensureRunStyle({
+          bold: cf.bold,
+          italic: cf.italic,
+          underline: cf.underline,
+          strikethrough: cf.strikethrough,
+          fontFamily: cf.fontFamily ?? undefined,
+          fontSize: cf.fontSize ?? undefined,
+          textColor: cf.textColor ?? undefined,
+          highlightColor: cf.highlightColor ?? undefined,
+        });
+        applyCharStyleToSelection(section, nextSelection, charPrIdRef);
+      }
+
+      if (formatPainter.mode === "para" || formatPainter.mode === "both") {
+        if (nextSelection.type === "paragraph" && !nextSelection.objectType) {
+          const para = section.paragraphs[nextSelection.paragraphIndex];
+          if (para) {
+            const pf = snap.para;
+            const paraPrIdRef = doc.ensureParaStyle({
+              alignment: pf.alignment,
+              lineSpacingValue: Math.round(pf.lineSpacing * 100),
+              indent: pf.firstLineIndent,
+              marginLeft: pf.indentLeft,
+              marginRight: pf.indentRight,
+              marginBefore: pf.spacingBefore,
+              marginAfter: pf.spacingAfter,
+              baseParaPrId: para.paraPrIdRef ?? undefined,
+            });
+            para.paraPrIdRef = paraPrIdRef;
+          }
+        }
+      }
+
+      get().rebuild();
+      get().refreshExtendedFormat();
+    } catch (e) {
+      console.error("applyFormatPainter failed:", e);
+    } finally {
+      if (formatPainter.locked) {
+        set({ formatPainter: { ...formatPainter, origin: nextSelection ? { ...nextSelection } : formatPainter.origin } });
+      } else {
+        get().cancelFormatPainter();
+      }
     }
   },
 }));

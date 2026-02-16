@@ -46,6 +46,7 @@ export function ParagraphBlock({
   const mergeParagraphWithPrevious = useEditorStore((s) => s.mergeParagraphWithPrevious);
   const deleteBlock = useEditorStore((s) => s.deleteBlock);
   const ref = useRef<HTMLDivElement>(null);
+  const programmaticSelectionRef = useRef(false);
 
   const revision = useEditorStore((s) => s.revision);
   const hasTables = paragraph.tables.length > 0;
@@ -65,15 +66,55 @@ export function ParagraphBlock({
       ref.current &&
       document.activeElement !== ref.current
     ) {
-      ref.current.focus();
-      // Place cursor at start
-      const sel = window.getSelection();
-      if (sel) {
-        sel.selectAllChildren(ref.current);
-        sel.collapseToStart();
+      const active = document.activeElement as HTMLElement | null;
+      const inFormControl = Boolean(active?.closest("input, textarea, select"));
+      if (!inFormControl) {
+        ref.current.focus();
       }
+
+      // Place cursor at start by default; if store has offsets, sync DOM selection.
+      const desiredStart = selection.textStartOffset ?? selection.cursorOffset ?? 0;
+      const desiredEnd = selection.textEndOffset ?? selection.cursorOffset ?? desiredStart;
+      programmaticSelectionRef.current = true;
+      syncDomSelection(ref.current, desiredStart, desiredEnd);
+      window.setTimeout(() => {
+        programmaticSelectionRef.current = false;
+      }, 0);
     }
   }, [revision, sectionIndex, localIndex, selection]);
+
+  // When selection offsets are updated programmatically (e.g. smart selection),
+  // sync DOM selection even if the paragraph is already focused.
+  useEffect(() => {
+    if (
+      !selection ||
+      selection.sectionIndex !== sectionIndex ||
+      selection.paragraphIndex !== localIndex ||
+      selection.type !== "paragraph" ||
+      selection.objectType ||
+      !ref.current
+    ) {
+      return;
+    }
+    const desiredStart = selection.textStartOffset ?? selection.cursorOffset;
+    const desiredEnd = selection.textEndOffset ?? selection.cursorOffset;
+    if (desiredStart == null || desiredEnd == null) return;
+    programmaticSelectionRef.current = true;
+    syncDomSelection(ref.current, desiredStart, desiredEnd);
+    window.setTimeout(() => {
+      programmaticSelectionRef.current = false;
+    }, 0);
+  }, [
+    sectionIndex,
+    localIndex,
+    selection?.sectionIndex,
+    selection?.paragraphIndex,
+    selection?.type,
+    selection?.objectType,
+    selection?.textStartOffset,
+    selection?.textEndOffset,
+    selection?.cursorOffset,
+  ]);
 
   const handleBlur = useCallback(() => {
     if (!ref.current) return;
@@ -116,7 +157,7 @@ export function ParagraphBlock({
     preRangeEnd.setEnd(range.endContainer, range.endOffset);
     const endOffset = preRangeEnd.toString().length;
 
-    // Only update if there's an actual selection (not just cursor)
+    // Always track caret offset; for ranges keep both start/end.
     if (startOffset !== endOffset) {
       setSelection({
         sectionIndex,
@@ -124,21 +165,24 @@ export function ParagraphBlock({
         type: "paragraph",
         textStartOffset: startOffset,
         textEndOffset: endOffset,
+        cursorOffset: endOffset,
       });
-    } else {
-      // Clear text range when selection is collapsed (cursor only)
-      setSelection({
-        sectionIndex,
-        paragraphIndex: localIndex,
-        type: "paragraph",
-      });
+      return;
     }
+
+    setSelection({
+      sectionIndex,
+      paragraphIndex: localIndex,
+      type: "paragraph",
+      cursorOffset: startOffset,
+    });
   }, [sectionIndex, localIndex, setSelection]);
 
   // Listen for selection changes
   useEffect(() => {
     const handleSelectionChange = () => {
       if (document.activeElement === ref.current) {
+        if (programmaticSelectionRef.current) return;
         updateTextSelection();
       }
     };
@@ -330,6 +374,9 @@ export function ParagraphBlock({
             ref={ref}
             contentEditable
             suppressContentEditableWarning
+            data-hwpx-paragraph="1"
+            data-section-index={sectionIndex}
+            data-paragraph-index={localIndex}
             onBlur={handleBlur}
             onFocus={handleFocus}
             onKeyDown={handleKeyDown}
@@ -361,6 +408,9 @@ export function ParagraphBlock({
             ref={ref}
             contentEditable
             suppressContentEditableWarning
+            data-hwpx-paragraph="1"
+            data-section-index={sectionIndex}
+            data-paragraph-index={localIndex}
             onBlur={handleBlur}
             onFocus={handleFocus}
             onKeyDown={handleKeyDown}
@@ -405,6 +455,9 @@ export function ParagraphBlock({
             ref={ref}
             contentEditable
             suppressContentEditableWarning
+            data-hwpx-paragraph="1"
+            data-section-index={sectionIndex}
+            data-paragraph-index={localIndex}
             onBlur={handleBlur}
             onFocus={handleFocus}
             onKeyDown={handleKeyDown}
@@ -464,6 +517,9 @@ export function ParagraphBlock({
       ref={ref}
       contentEditable
       suppressContentEditableWarning
+      data-hwpx-paragraph="1"
+      data-section-index={sectionIndex}
+      data-paragraph-index={localIndex}
       onBlur={handleBlur}
       onFocus={handleFocus}
       onKeyDown={handleKeyDown}
@@ -477,4 +533,51 @@ export function ParagraphBlock({
       )}
     </div>
   );
+}
+
+function syncDomSelection(root: HTMLElement, startOffset: number, endOffset: number) {
+  const sel = window.getSelection();
+  if (!sel) return;
+
+  const start = Math.max(0, startOffset);
+  const end = Math.max(0, endOffset);
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let current = 0;
+  let startNode: Text | null = null;
+  let endNode: Text | null = null;
+  let startInNode = 0;
+  let endInNode = 0;
+
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text;
+    const text = node.nodeValue ?? "";
+    const len = text.length;
+    if (!startNode && start <= current + len) {
+      startNode = node;
+      startInNode = Math.max(0, start - current);
+    }
+    if (!endNode && end <= current + len) {
+      endNode = node;
+      endInNode = Math.max(0, end - current);
+      break;
+    }
+    current += len;
+  }
+
+  // Empty paragraph fallback: collapse to start of root.
+  if (!startNode || !endNode) {
+    sel.removeAllRanges();
+    const range = document.createRange();
+    range.selectNodeContents(root);
+    range.collapse(true);
+    sel.addRange(range);
+    return;
+  }
+
+  const range = document.createRange();
+  range.setStart(startNode, Math.min(startInNode, startNode.nodeValue?.length ?? 0));
+  range.setEnd(endNode, Math.min(endInNode, endNode.nodeValue?.length ?? 0));
+  sel.removeAllRanges();
+  sel.addRange(range);
 }

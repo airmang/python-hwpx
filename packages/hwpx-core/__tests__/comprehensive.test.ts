@@ -162,6 +162,20 @@ describe("텍스트 치환", () => {
     const doc2 = await HwpxDocument.open(saved);
     expect(doc2.text).toContain("수정된 텍스트입니다.");
   });
+
+  it("정규식 치환 (Run.replaceTextRegex)", async () => {
+    const doc = await HwpxDocument.open(skeletonBytes);
+    const para = doc.addParagraph();
+    const run = para.addRun("Hello 123, hello 456");
+
+    const replaced = run.replaceTextRegex(/hello\s(\d+)/ig, "Hi-$1");
+    expect(replaced).toBe(2);
+    expect(run.text).toBe("Hi-123, Hi-456");
+
+    const limited = run.replaceTextRegex(/\d+/g, "X", 1);
+    expect(limited).toBe(1);
+    expect(run.text).toBe("Hi-X, Hi-456");
+  });
 });
 
 // ── 패키지 레벨 ────────────────────────────────────────────────────────

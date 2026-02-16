@@ -5,6 +5,7 @@ import { HwpxDocument } from "@ubermensch1218/hwpxcore";
 import { useEditorStore } from "@/lib/store";
 import { ensureSkeletonLoaded } from "@/lib/skeleton-loader";
 import { runFeatureScenario } from "@/lib/feature-runner";
+import { applyRetypeDump, type RetypeDump } from "@/lib/retype-dump";
 import { MenuBar } from "../toolbar/MenuBar";
 import { RibbonToolbar } from "../toolbar/RibbonToolbar";
 import { SecondaryToolbar } from "../toolbar/SecondaryToolbar";
@@ -21,6 +22,7 @@ import { CharMapDialog } from "../dialog/CharMapDialog";
 import { TemplateDialog } from "../dialog/TemplateDialog";
 import { HeaderFooterDialog } from "../dialog/HeaderFooterDialog";
 import { FindReplaceDialog } from "../dialog/FindReplaceDialog";
+import { ClipboardDialog } from "../dialog/ClipboardDialog";
 import { WordCountDialog } from "../dialog/WordCountDialog";
 import { PageNumberDialog } from "../dialog/PageNumberDialog";
 import { StyleDialog } from "../dialog/StyleDialog";
@@ -28,6 +30,7 @@ import { AutoCorrectDialog } from "../dialog/AutoCorrectDialog";
 import { OutlineDialog } from "../dialog/OutlineDialog";
 import { ShapeDialog } from "../dialog/ShapeDialog";
 import { TocDialog } from "../dialog/TocDialog";
+import { CaptionDialog } from "../dialog/CaptionDialog";
 import { PanelRight } from "lucide-react";
 
 const MAX_OPEN_FILE_SIZE_BYTES = 25 * 1024 * 1024;
@@ -50,6 +53,33 @@ declare global {
   interface Window {
     __HWPX_TEST_BRIDGE?: {
       runFeature: (code: string) => Promise<void>;
+      retypeFromDump: (dump: RetypeDump) => Promise<void>;
+      exportHwpx: () => Promise<number[]>;
+      openHwpx: (bytes: number[]) => Promise<void>;
+      findFirstTableRef: () => { sectionIndex: number; paragraphIndex: number; tableIndex: number; rowCount: number; colCount: number } | null;
+      updateCellText: (args: {
+        sectionIndex: number;
+        paragraphIndex: number;
+        tableIndex: number;
+        row: number;
+        col: number;
+        text: string;
+      }) => void;
+      getTableRangeTextStyles: (range: {
+        sectionIndex: number;
+        paragraphIndex: number;
+        tableIndex: number;
+        row: number;
+        col: number;
+        endRow: number;
+        endCol: number;
+      }) => Array<{
+        row: number;
+        col: number;
+        fontFamily: string | null;
+        fontSize: number | null;
+        textColor: string | null;
+      }>;
       setTableSelectionRange: (range: {
         sectionIndex: number;
         paragraphIndex: number;
@@ -255,6 +285,82 @@ export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading }: Edit
         const store = useEditorStore.getState();
         await runFeatureScenario(store, code);
       },
+      retypeFromDump: async (dump: RetypeDump) => {
+        const store = useEditorStore.getState();
+        await ensureSkeletonLoaded();
+        await store.newDocument();
+        // Zustand state snapshot won't reflect updates; re-read after newDocument().
+        await applyRetypeDump(useEditorStore.getState(), dump);
+      },
+      exportHwpx: async () => {
+        const store = useEditorStore.getState();
+        if (!store.doc) return [];
+        const bytes = await store.doc.save();
+        return Array.from(bytes);
+      },
+      openHwpx: async (bytes) => {
+        const store = useEditorStore.getState();
+        await store.openDocument(new Uint8Array(bytes));
+      },
+      findFirstTableRef: () => {
+        const store = useEditorStore.getState();
+        const vm = store.viewModel;
+        const sectionIndex = 0;
+        const paragraphs = vm?.sections?.[sectionIndex]?.paragraphs ?? [];
+        for (let pIdx = 0; pIdx < paragraphs.length; pIdx += 1) {
+          const para = paragraphs[pIdx];
+          if (!para) continue;
+          if (para.tables.length > 0) {
+            const tableIndex = 0;
+            const table = para.tables[tableIndex];
+            if (!table) continue;
+            return {
+              sectionIndex,
+              paragraphIndex: pIdx,
+              tableIndex,
+              rowCount: table.rowCount,
+              colCount: table.colCount,
+            };
+          }
+        }
+        return null;
+      },
+      updateCellText: (args) => {
+        const store = useEditorStore.getState();
+        store.updateCellText(
+          args.sectionIndex,
+          args.paragraphIndex,
+          args.tableIndex,
+          args.row,
+          args.col,
+          args.text,
+        );
+      },
+      getTableRangeTextStyles: (range) => {
+        const store = useEditorStore.getState();
+        const vm = store.viewModel;
+        const table = vm?.sections?.[range.sectionIndex]?.paragraphs?.[range.paragraphIndex]?.tables?.[range.tableIndex];
+        if (!table) return [];
+        const minRow = Math.min(range.row, range.endRow);
+        const maxRow = Math.max(range.row, range.endRow);
+        const minCol = Math.min(range.col, range.endCol);
+        const maxCol = Math.max(range.col, range.endCol);
+        const out: Array<{ row: number; col: number; fontFamily: string | null; fontSize: number | null; textColor: string | null }> = [];
+        for (let r = minRow; r <= maxRow; r += 1) {
+          for (let c = minCol; c <= maxCol; c += 1) {
+            const cell = table.cells[r]?.[c];
+            if (!cell?.isAnchor) continue;
+            out.push({
+              row: r,
+              col: c,
+              fontFamily: cell.fontFamily ?? null,
+              fontSize: cell.fontSize ?? null,
+              textColor: cell.textColor ?? null,
+            });
+          }
+        }
+        return out;
+      },
       setTableSelectionRange: (range) => {
         const store = useEditorStore.getState();
         store.setSelection({
@@ -426,6 +532,32 @@ export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading }: Edit
     };
   }, []);
 
+  // Capture copy/cut text for clipboard history when selection originates from the editor surface.
+  useEffect(() => {
+    const handler = () => {
+      const store = useEditorStore.getState();
+      const sel = window.getSelection();
+      const text = sel?.toString() ?? "";
+      if (!text.trim()) return;
+      const anchor = sel?.anchorNode;
+      const host =
+        anchor instanceof HTMLElement
+          ? anchor
+          : anchor?.parentElement ?? null;
+      if (!host?.closest('[data-hwpx-editor-root="true"]')) return;
+      // Ignore copies from dialogs/inputs.
+      if (host.closest("input, textarea, select, [role='dialog']")) return;
+      store.pushClipboardHistory(text);
+    };
+
+    document.addEventListener("copy", handler, true);
+    document.addEventListener("cut", handler, true);
+    return () => {
+      document.removeEventListener("copy", handler, true);
+      document.removeEventListener("cut", handler, true);
+    };
+  }, []);
+
   // Keep store selection in sync when a table cell gets focus/click.
   useEffect(() => {
     const syncCellSelection = (target: EventTarget | null) => {
@@ -586,6 +718,31 @@ export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading }: Edit
         store.openFindReplaceDialog();
         return;
       }
+      if (ctrlOnly && e.shiftKey && key === "v") {
+        e.preventDefault();
+        store.openClipboardDialog();
+        return;
+      }
+      if (ctrlOnly && e.altKey && key === "c") {
+        e.preventDefault();
+        store.openCaptionDialog();
+        return;
+      }
+      if (ctrlOnly && e.altKey && key === "w") {
+        e.preventDefault();
+        store.selectWordAtCursor();
+        return;
+      }
+      if (ctrlOnly && e.altKey && key === "s") {
+        e.preventDefault();
+        store.selectSentenceAtCursor();
+        return;
+      }
+      if (ctrlOnly && e.altKey && key === "p") {
+        e.preventDefault();
+        store.selectParagraphAll();
+        return;
+      }
 
       if (!store.selection) return;
 
@@ -664,9 +821,11 @@ export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading }: Edit
       <TemplateDialog />
       <HeaderFooterDialog />
       <FindReplaceDialog />
+      <ClipboardDialog />
       <WordCountDialog />
       <PageNumberDialog />
       <StyleDialog />
+      <CaptionDialog />
       <AutoCorrectDialog />
       <OutlineDialog />
       <ShapeDialog />
@@ -729,6 +888,7 @@ export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading }: Edit
 function StatusBar() {
   const doc = useEditorStore((s) => s.doc);
   const viewModel = useEditorStore((s) => s.viewModel);
+  const selection = useEditorStore((s) => s.selection);
   const openWordCountDialog = useEditorStore((s) => s.openWordCountDialog);
 
   if (!doc || !viewModel) return null;
@@ -737,9 +897,44 @@ function StatusBar() {
   const charCount = text.replace(/\s/g, "").length;
   // Estimate page count (1 section = 1 page minimum)
   const sectionCount = viewModel.sections.length;
+  const selectionInfo = (() => {
+    if (!selection) return "선택 없음";
+    if (selection.objectType === "image") return `그림 선택 (문단 ${selection.paragraphIndex + 1})`;
+    if (selection.objectType === "textBox") return `글상자 선택 (문단 ${selection.paragraphIndex + 1})`;
+
+    if (selection.type === "table" || selection.objectType === "table") {
+      return `표 선택 (문단 ${selection.paragraphIndex + 1})`;
+    }
+
+    if (selection.type === "cell" && selection.row != null && selection.col != null) {
+      const startRow = selection.row + 1;
+      const startCol = selection.col + 1;
+      if (selection.endRow != null && selection.endCol != null) {
+        const endRow = selection.endRow + 1;
+        const endCol = selection.endCol + 1;
+        const minRow = Math.min(startRow, endRow);
+        const maxRow = Math.max(startRow, endRow);
+        const minCol = Math.min(startCol, endCol);
+        const maxCol = Math.max(startCol, endCol);
+        const count = (maxRow - minRow + 1) * (maxCol - minCol + 1);
+        return `셀 범위 R${minRow}C${minCol}~R${maxRow}C${maxCol} (${count}칸)`;
+      }
+      return `셀 R${startRow}C${startCol}`;
+    }
+
+    const textStart = selection.textStartOffset ?? 0;
+    const textEnd = selection.textEndOffset ?? textStart;
+    if (textEnd > textStart) {
+      return `문자 선택 ${textEnd - textStart}자 (문단 ${selection.paragraphIndex + 1})`;
+    }
+    return `문단 ${selection.paragraphIndex + 1}`;
+  })();
 
   return (
-    <div className="h-4 flex items-center justify-end px-3 bg-gray-100 border-t border-gray-200 text-[10px] text-gray-500">
+    <div className="h-4 flex items-center justify-between gap-3 px-3 bg-gray-100 border-t border-gray-200 text-[10px] text-gray-500">
+      <span className="truncate" title={selectionInfo}>
+        {selectionInfo}
+      </span>
       <button
         onClick={openWordCountDialog}
         className="hover:text-gray-700 hover:underline"
