@@ -100,6 +100,10 @@ export function MenuBar({ leadingContent }: MenuBarProps) {
     );
   };
 
+  const showBridgeNotice = (feature: string, target: string) => {
+    window.alert(`${feature} 전용 UI는 준비 중입니다.\n현재는 ${target} 화면으로 연결합니다.`);
+  };
+
   const menus: Menu[] = [
     {
       label: "파일",
@@ -158,7 +162,14 @@ export function MenuBar({ leadingContent }: MenuBarProps) {
       items: [
         { label: "글자 모양…", shortcut: "Alt+Shift+L", disabled, action: () => store().openCharFormatDialog() },
         { label: "문단 모양…", shortcut: "Alt+Shift+T", disabled, action: () => store().openParaFormatDialog(), dividerAfter: true },
-        { label: "문단 첫 글자 장식…", disabled: true },
+        {
+          label: "문단 첫 글자 장식…",
+          disabled: disabled || !selection,
+          action: () => {
+            showBridgeNotice("문단 첫 글자 장식", "글자 모양");
+            store().openCharFormatDialog();
+          },
+        },
         { label: "문단 번호 모양…", disabled, action: () => store().openBulletNumberDialog() },
         {
           label: "문단 번호 적용/해제",
@@ -222,7 +233,14 @@ export function MenuBar({ leadingContent }: MenuBarProps) {
         { label: "쪽 번호 매기기…", disabled, action: () => store().openPageNumberDialog(), dividerAfter: true },
         { label: "머리말…", disabled, action: () => store().openHeaderFooterDialog() },
         { label: "꼬리말…", disabled, action: () => store().openHeaderFooterDialog(), dividerAfter: true },
-        { label: "바탕쪽", disabled: true },
+        {
+          label: "바탕쪽",
+          disabled,
+          action: () => {
+            showBridgeNotice("바탕쪽", "머리말/꼬리말");
+            store().openHeaderFooterDialog();
+          },
+        },
         { label: "워터마크…", disabled, action: () => store().setWatermarkText("DRAFT") },
         { label: "워터마크 제거", disabled, action: () => store().setWatermarkText("") },
       ],
@@ -230,11 +248,38 @@ export function MenuBar({ leadingContent }: MenuBarProps) {
     {
       label: "도구",
       items: [
-        { label: "맞춤법 검사…", shortcut: "F8", disabled: true },
+        {
+          label: "맞춤법 검사…",
+          shortcut: "F8",
+          disabled,
+          action: () => {
+            showBridgeNotice("맞춤법 검사", "자동 고침");
+            store().openAutoCorrectDialog();
+          },
+        },
         { label: "자동 고침…", disabled: false, action: () => store().openAutoCorrectDialog(), dividerAfter: true },
         { label: "글자 수 세기", disabled, action: () => store().openWordCountDialog() },
-        { label: "매크로…", disabled: true },
-        { label: "환경 설정…", disabled: true },
+        {
+          label: "매크로…",
+          disabled,
+          action: () => {
+            showBridgeNotice("매크로", "서식 사이드바");
+            if (!store().uiState.sidebarOpen) {
+              store().toggleSidebar();
+            }
+          },
+        },
+        {
+          label: "환경 설정…",
+          disabled,
+          action: () => {
+            showBridgeNotice("환경 설정", "편집 용지");
+            store().setSidebarTab("page");
+            if (!store().uiState.sidebarOpen) {
+              store().toggleSidebar();
+            }
+          },
+        },
       ],
     },
     {
