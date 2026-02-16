@@ -56,6 +56,48 @@ export function MenuBar({ leadingContent }: MenuBarProps) {
 
   const store = useEditorStore.getState;
 
+  const getCurrentParagraph = () => {
+    const s = store();
+    const docRef = s.doc;
+    const sel = s.selection;
+    if (!docRef || !sel) return null;
+    const section = docRef.sections[sel.sectionIndex];
+    const para = section?.paragraphs[sel.paragraphIndex];
+    if (!para) return null;
+    return para;
+  };
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        return;
+      }
+      await document.documentElement.requestFullscreen();
+    } catch (error) {
+      console.error("toggleFullscreen failed:", error);
+    }
+  };
+
+  const showDocumentInfo = () => {
+    const s = store();
+    const docRef = s.doc;
+    if (!docRef) return;
+    const sectionCount = docRef.sections.length;
+    const paragraphCount = docRef.sections.reduce((sum, section) => sum + section.paragraphs.length, 0);
+    const textLength = (docRef.text ?? "").length;
+    const documentId = s.serverDocumentId ?? "로컬 문서";
+    window.alert(
+      [
+        "문서 정보",
+        `- 섹션: ${sectionCount}`,
+        `- 문단: ${paragraphCount}`,
+        `- 글자 수(공백 포함): ${textLength}`,
+        `- 문서 ID: ${documentId}`,
+      ].join("\n"),
+    );
+  };
+
   const menus: Menu[] = [
     {
       label: "파일",
@@ -64,7 +106,7 @@ export function MenuBar({ leadingContent }: MenuBarProps) {
         { label: "불러오기…", shortcut: "Ctrl+Shift+O", disabled: false, action: () => store().openFile(), dividerAfter: true },
         { label: "저장", shortcut: "Ctrl+Shift+S", disabled, action: () => store().openSaveDialog() },
         { label: "다른 이름으로 저장…", disabled, action: () => store().openSaveDialog(), dividerAfter: true },
-        { label: "문서 정보", disabled: true },
+        { label: "문서 정보", disabled, action: () => showDocumentInfo() },
         { label: "인쇄…", shortcut: "Ctrl+Shift+P", disabled, action: () => store().printDocument() },
       ],
     },
@@ -89,7 +131,7 @@ export function MenuBar({ leadingContent }: MenuBarProps) {
         { label: "눈금자", disabled: true, dividerAfter: true },
         { label: "확대", shortcut: "Ctrl++", disabled: false, action: () => store().zoomIn() },
         { label: "축소", shortcut: "Ctrl+-", disabled: false, action: () => store().zoomOut() },
-        { label: "전체 화면", shortcut: "F11", disabled: true },
+        { label: "전체 화면", shortcut: "F11", disabled: false, action: () => { void toggleFullscreen(); } },
       ],
     },
     {
@@ -116,12 +158,58 @@ export function MenuBar({ leadingContent }: MenuBarProps) {
         { label: "문단 모양…", shortcut: "Alt+Shift+T", disabled, action: () => store().openParaFormatDialog(), dividerAfter: true },
         { label: "문단 첫 글자 장식…", disabled: true },
         { label: "문단 번호 모양…", disabled, action: () => store().openBulletNumberDialog() },
-        { label: "문단 번호 적용/해제", disabled: true },
+        {
+          label: "문단 번호 적용/해제",
+          disabled: disabled || !selection,
+          action: () => {
+            const s = store();
+            const para = getCurrentParagraph();
+            if (!para) return;
+            if ((para.outlineLevel ?? 0) > 0 && !para.bulletIdRef) {
+              s.removeBulletNumbering();
+            } else {
+              s.applyNumbering(1);
+            }
+          },
+        },
         { label: "글머리표 적용/해제", shortcut: "⌃⇧⌫", disabled, action: () => store().openBulletNumberDialog(), dividerAfter: true },
         { label: "개요 번호 모양…", disabled, action: () => store().openOutlineDialog() },
-        { label: "개요 적용/해제", disabled: true },
-        { label: "한 수준 증가", shortcut: "⌃-", disabled: true },
-        { label: "한 수준 감소", shortcut: "⌃+", disabled: true, dividerAfter: true },
+        {
+          label: "개요 적용/해제",
+          disabled: disabled || !selection,
+          action: () => {
+            const s = store();
+            const para = getCurrentParagraph();
+            if (!para) return;
+            const level = para.outlineLevel ?? 0;
+            s.applyOutlineLevel(level > 0 ? 0 : 1);
+          },
+        },
+        {
+          label: "한 수준 증가",
+          shortcut: "⌃-",
+          disabled: disabled || !selection,
+          action: () => {
+            const s = store();
+            const para = getCurrentParagraph();
+            if (!para) return;
+            const level = para.outlineLevel ?? 0;
+            s.applyOutlineLevel(Math.max(1, Math.min(9, level + 1)));
+          },
+        },
+        {
+          label: "한 수준 감소",
+          shortcut: "⌃+",
+          disabled: disabled || !selection,
+          action: () => {
+            const s = store();
+            const para = getCurrentParagraph();
+            if (!para) return;
+            const level = para.outlineLevel ?? 0;
+            s.applyOutlineLevel(level <= 1 ? 0 : level - 1);
+          },
+          dividerAfter: true,
+        },
         { label: "스타일…", shortcut: "F6", disabled, action: () => store().openStyleDialog() },
       ],
     },
