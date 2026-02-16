@@ -24,6 +24,7 @@
     "lint": "eslint",
     "test:feature-loop": "node ./scripts/run-feature-loop.mjs",
     "test:e2e-tbl-014-ui": "node ./scripts/e2e-tbl-014-ui.mjs",
+    "test:e2e-chart-ui": "node ./scripts/e2e-chart-ui.mjs",
     "test:human-type-attachment2": "node ./scripts/playwright-human-type-from-hwpx.mjs --port 3099 --route /playwright",
     "test:ui-showcase": "node ./scripts/run-ui-showcase.mjs"
   },
