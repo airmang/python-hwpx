@@ -9,6 +9,7 @@ import { TableBlock } from "./TableBlock";
 import { ImageBlock } from "./ImageBlock";
 import { TextBoxBlock } from "./TextBoxBlock";
 import { EquationBlock } from "./EquationBlock";
+import { ChartBlock } from "./ChartBlock";
 
 interface ParagraphBlockProps {
   paragraph: ParagraphVM;
@@ -33,6 +34,19 @@ function alignmentToCSS(alignment: string): React.CSSProperties["textAlign"] {
   }
 }
 
+function parseChartMeta(paragraph: ParagraphVM): { chartType: "bar" | "line"; title: string } | null {
+  const raw = paragraph.runs.map((run) => run.text).join("").trim();
+  if (!raw) return null;
+  const matched = raw.match(/^\[차트(?::(bar|line|막대|선))?\]\s*(.*)$/i);
+  if (!matched) return null;
+
+  const token = (matched[1] ?? "").toLowerCase();
+  const chartType: "bar" | "line" =
+    token === "line" || token === "선" ? "line" : "bar";
+  const title = (matched[2] ?? "").trim() || "차트";
+  return { chartType, title };
+}
+
 export function ParagraphBlock({
   paragraph,
   sectionIndex,
@@ -54,6 +68,7 @@ export function ParagraphBlock({
   const hasTextBoxes = paragraph.textBoxes.length > 0;
   const hasEquations = paragraph.equations.length > 0;
   const hasText = paragraph.runs.length > 0;
+  const chartMeta = hasTables ? parseChartMeta(paragraph) : null;
 
   // Auto-focus when this paragraph is selected (e.g. after splitParagraph)
   useEffect(() => {
@@ -388,12 +403,20 @@ export function ParagraphBlock({
           </div>
         )}
         {paragraph.tables.map((table) => (
-          <TableBlock
-            key={table.tableIndex}
-            table={table}
-            sectionIndex={sectionIndex}
-            paragraphIndex={localIndex}
-          />
+          <div key={table.tableIndex}>
+            {chartMeta && table.tableIndex === 0 ? (
+              <ChartBlock
+                title={chartMeta.title}
+                chartType={chartMeta.chartType}
+                table={table}
+              />
+            ) : null}
+            <TableBlock
+              table={table}
+              sectionIndex={sectionIndex}
+              paragraphIndex={localIndex}
+            />
+          </div>
         ))}
       </div>
     );

@@ -192,6 +192,15 @@ export interface ShapeActions {
   insertShape: (shapeType: ShapeType, widthMm: number, heightMm: number) => void;
 }
 
+export interface ChartActions {
+  insertChart: (opts?: {
+    title?: string;
+    chartType?: "bar" | "line";
+    categories?: string[];
+    values?: number[];
+  }) => void;
+}
+
 export interface TextEditingActions {
   updateParagraphText: (sectionIndex: number, paragraphIndex: number, text: string) => void;
   updateCellText: (sectionIndex: number, paragraphIndex: number, tableIndex: number, row: number, col: number, text: string) => void;
@@ -281,4 +290,5 @@ export interface EditorStore extends
   ImageActions,
   PageActions,
   TemplateActions,
+  ChartActions,
   ShapeActions {}

@@ -99,7 +99,7 @@ export function MenuBar({ leadingContent }: MenuBarProps) {
         { label: "그림…", disabled, action: () => { /* handled via InsertGroup file input */ } },
         { label: "도형", disabled, action: () => store().openShapeDialog() },
         { label: "캡션/목차…", shortcut: "Ctrl+Alt+C", disabled, action: () => store().openCaptionDialog() },
-        { label: "차트", disabled: true, dividerAfter: true },
+        { label: "차트", disabled, action: () => store().insertChart(), dividerAfter: true },
         { label: "문자표…", shortcut: "Alt+Shift+M", disabled, action: () => store().openCharMapDialog(), dividerAfter: true },
         { label: "각주", shortcut: "Ctrl+N,N", disabled, action: () => store().insertFootnote() },
         { label: "미주", shortcut: "Ctrl+N,E", disabled, action: () => store().insertEndnote(), dividerAfter: true },

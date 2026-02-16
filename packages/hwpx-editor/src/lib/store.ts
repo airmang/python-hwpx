@@ -98,6 +98,15 @@ interface FormatPainterState {
   snapshot: ExtendedFormat | null;
 }
 
+export interface NestedTableFocusState {
+  sectionIndex: number;
+  paragraphIndex: number;
+  tableIndex: number;
+  row: number;
+  col: number;
+  nestedIndex: number;
+}
+
 function replacementFromMatchTemplate(template: string, match: string, args: unknown[]): string {
   // args is [...groups, offset, input] for String.prototype.replace callback.
   const tailOffset = args.length >= 2 ? args.length - 2 : 0;
@@ -179,11 +188,113 @@ function markSectionDirty(para: unknown): void {
   section?.markDirty?.();
 }
 
+function countDescendantTables(element: Element | null | undefined): number {
+  if (!element) return 0;
+  const descendants = element.getElementsByTagName("*");
+  let count = 0;
+  for (let i = 0; i < descendants.length; i += 1) {
+    const el = descendants.item(i);
+    if (!el) continue;
+    if (elementLocalName(el) === "tbl") count += 1;
+  }
+  return count;
+}
+
+function listTopLevelNestedTables(cellElement: Element): Element[] {
+  const descendants = cellElement.getElementsByTagName("*");
+  const nested: Element[] = [];
+  for (let i = 0; i < descendants.length; i += 1) {
+    const el = descendants.item(i);
+    if (!el || elementLocalName(el) !== "tbl") continue;
+    let hasAncestorTable = false;
+    let parent: Element | null = el.parentElement;
+    while (parent && parent !== cellElement) {
+      if (elementLocalName(parent) === "tbl") {
+        hasAncestorTable = true;
+        break;
+      }
+      parent = parent.parentElement;
+    }
+    if (!hasAncestorTable) nested.push(el);
+  }
+  return nested;
+}
+
+function findTableCellElementAt(tableElement: Element, row: number, col: number): Element | null {
+  const all = tableElement.getElementsByTagName("*");
+  for (let i = 0; i < all.length; i += 1) {
+    const el = all.item(i);
+    if (!el || elementLocalName(el) !== "tc") continue;
+
+    const addr = findDirectChildByLocalName(el, "cellAddr");
+    const span = findDirectChildByLocalName(el, "cellSpan");
+    const rowAddr = parseInt(addr?.getAttribute("rowAddr") ?? "0", 10);
+    const colAddr = parseInt(addr?.getAttribute("colAddr") ?? "0", 10);
+    const rowSpan = parseInt(span?.getAttribute("rowSpan") ?? "1", 10);
+    const colSpan = parseInt(span?.getAttribute("colSpan") ?? "1", 10);
+
+    if (
+      Number.isFinite(rowAddr) &&
+      Number.isFinite(colAddr) &&
+      row >= rowAddr &&
+      row < rowAddr + Math.max(1, rowSpan) &&
+      col >= colAddr &&
+      col < colAddr + Math.max(1, colSpan)
+    ) {
+      return el;
+    }
+  }
+  return null;
+}
+
+function setTableCellElementText(cellElement: Element, text: string): void {
+  const subList = ensureDirectChildByLocalName(cellElement, "subList");
+  if (!subList.getAttribute("vertAlign")) {
+    subList.setAttribute("vertAlign", "CENTER");
+  }
+  const paragraph = ensureDirectChildByLocalName(subList, "p");
+  if (!paragraph.getAttribute("charPrIDRef") && !paragraph.getAttribute("charPrIdRef")) {
+    paragraph.setAttribute("charPrIDRef", "0");
+  }
+  const run = ensureDirectChildByLocalName(paragraph, "run");
+  if (!run.getAttribute("charPrIDRef") && !run.getAttribute("charPrIdRef")) {
+    const charRef =
+      paragraph.getAttribute("charPrIDRef") ??
+      paragraph.getAttribute("charPrIdRef") ??
+      "0";
+    run.setAttribute("charPrIDRef", charRef);
+  }
+  const textElement = ensureDirectChildByLocalName(run, "t");
+  textElement.textContent = text;
+}
+
+function setTableCellElementBackground(
+  doc: HwpxDocument,
+  tableElement: Element,
+  row: number,
+  col: number,
+  color: string | null,
+): boolean {
+  const cellElement = findTableCellElementAt(tableElement, row, col);
+  if (!cellElement) return false;
+  const baseBorderFillId =
+    cellElement.getAttribute("borderFillIDRef")
+    ?? tableElement.getAttribute("borderFillIDRef")
+    ?? undefined;
+  const newId = doc.oxml.ensureBorderFillStyle({
+    baseBorderFillId,
+    backgroundColor: color,
+  });
+  cellElement.setAttribute("borderFillIDRef", newId);
+  return true;
+}
+
 export interface EditorStore {
   doc: HwpxDocument | null;
   viewModel: EditorViewModel | null;
   revision: number;
   selection: SelectionState | null;
+  nestedTableFocus: NestedTableFocusState | null;
   activeFormat: ActiveFormat;
   extendedFormat: ExtendedFormat;
   uiState: UIState;
@@ -201,6 +312,8 @@ export interface EditorStore {
   setDocument: (doc: HwpxDocument) => void;
   rebuild: () => void;
   setSelection: (sel: SelectionState | null) => void;
+  focusNestedTableInCell: (nestedIndex?: number) => void;
+  focusParentTable: () => void;
   setActiveFormat: (fmt: Partial<ActiveFormat>) => void;
   refreshExtendedFormat: () => void;
 
@@ -221,6 +334,30 @@ export interface EditorStore {
     row: number,
     col: number,
     text: string,
+  ) => void;
+  updateNestedTableCellText: (
+    sectionIndex: number,
+    paragraphIndex: number,
+    tableIndex: number,
+    row: number,
+    col: number,
+    nestedIndex: number,
+    nestedRow: number,
+    nestedCol: number,
+    text: string,
+  ) => void;
+  updateNestedTableCellBackground: (
+    sectionIndex: number,
+    paragraphIndex: number,
+    tableIndex: number,
+    row: number,
+    col: number,
+    nestedIndex: number,
+    startRow: number,
+    startCol: number,
+    endRow: number,
+    endCol: number,
+    color: string | null,
   ) => void;
 
   // Formatting
@@ -267,6 +404,12 @@ export interface EditorStore {
     rows: number,
     cols: number,
   ) => void;
+  insertChart: (opts?: {
+    title?: string;
+    chartType?: "bar" | "line";
+    categories?: string[];
+    values?: number[];
+  }) => void;
   insertImage: (
     data: Uint8Array,
     mediaType: string,
@@ -398,6 +541,7 @@ export interface EditorStore {
   setTableBackground: (color: string | null) => void;
 
   // Table structure operations
+  insertNestedTableInCell: (rows: number, cols: number) => void;
   insertTableRow: (position: "above" | "below") => void;
   deleteTableRow: () => void;
   insertTableColumn: (position: "left" | "right") => void;
@@ -793,6 +937,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   viewModel: null,
   revision: 0,
   selection: null,
+  nestedTableFocus: null,
   activeFormat: { bold: false, italic: false, underline: false, strikethrough: false },
   undoStack: [],
   redoStack: [],
@@ -846,13 +991,73 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   setSelection: (selection) => {
-    set({ selection });
+    set((state) => {
+      const focus = state.nestedTableFocus;
+      const keepNestedFocus =
+        selection != null &&
+        focus != null &&
+        selection.type === "cell" &&
+        selection.sectionIndex === focus.sectionIndex &&
+        selection.paragraphIndex === focus.paragraphIndex &&
+        selection.tableIndex === focus.tableIndex &&
+        selection.row === focus.row &&
+        selection.col === focus.col;
+      return {
+        selection,
+        nestedTableFocus: keepNestedFocus ? focus : null,
+      };
+    });
     get().maybeApplyFormatPainter(selection);
     // Auto-refresh extended format when selection changes
     if (selection) {
       // Use setTimeout to avoid synchronous read during render
       setTimeout(() => get().refreshExtendedFormat(), 0);
     }
+  },
+
+  focusNestedTableInCell: (nestedIndex = 0) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.type !== "cell") return;
+    if (selection.tableIndex == null || selection.row == null || selection.col == null) return;
+    try {
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      const cell = table.cell(selection.row, selection.col);
+      const nestedCount = countDescendantTables(cell.element);
+      if (nestedCount <= 0) return;
+      const normalizedIndex = Math.max(0, Math.min(nestedCount - 1, Math.floor(nestedIndex)));
+      set({
+        nestedTableFocus: {
+          sectionIndex: selection.sectionIndex,
+          paragraphIndex: selection.paragraphIndex,
+          tableIndex: selection.tableIndex,
+          row: selection.row,
+          col: selection.col,
+          nestedIndex: normalizedIndex,
+        },
+      });
+    } catch (e) {
+      console.error("focusNestedTableInCell failed:", e);
+    }
+  },
+
+  focusParentTable: () => {
+    const focus = get().nestedTableFocus;
+    if (!focus) return;
+    set({
+      nestedTableFocus: null,
+      selection: {
+        sectionIndex: focus.sectionIndex,
+        paragraphIndex: focus.paragraphIndex,
+        type: "table",
+        tableIndex: focus.tableIndex,
+        objectType: "table",
+      },
+    });
   },
 
   setActiveFormat: (fmt) =>
@@ -955,6 +1160,95 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       get().rebuild();
     } catch (e) {
       console.error("updateCellText failed:", e);
+    }
+  },
+
+  updateNestedTableCellText: (
+    sectionIndex,
+    paragraphIndex,
+    tableIndex,
+    row,
+    col,
+    nestedIndex,
+    nestedRow,
+    nestedCol,
+    text,
+  ) => {
+    const { doc } = get();
+    if (!doc) return;
+    try {
+      const section = doc.sections[sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[paragraphIndex];
+      if (!para) return;
+      const table = para.tables[tableIndex];
+      if (!table) return;
+      const targetCell = table.cell(row, col);
+      const nestedTables = listTopLevelNestedTables(targetCell.element);
+      const nestedTableElement = nestedTables[nestedIndex];
+      if (!nestedTableElement) return;
+      const nestedCellElement = findTableCellElementAt(nestedTableElement, nestedRow, nestedCol);
+      if (!nestedCellElement) return;
+      setTableCellElementText(nestedCellElement, text);
+      markSectionDirty(para);
+      get().rebuild();
+    } catch (e) {
+      console.error("updateNestedTableCellText failed:", e);
+    }
+  },
+
+  updateNestedTableCellBackground: (
+    sectionIndex,
+    paragraphIndex,
+    tableIndex,
+    row,
+    col,
+    nestedIndex,
+    startRow,
+    startCol,
+    endRow,
+    endCol,
+    color,
+  ) => {
+    const { doc } = get();
+    if (!doc) return;
+    try {
+      const section = doc.sections[sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[paragraphIndex];
+      if (!para) return;
+      const table = para.tables[tableIndex];
+      if (!table) return;
+      const targetCell = table.cell(row, col);
+      const nestedTables = listTopLevelNestedTables(targetCell.element);
+      const nestedTableElement = nestedTables[nestedIndex];
+      if (!nestedTableElement) return;
+
+      get().pushUndo();
+
+      const minRow = Math.min(startRow, endRow);
+      const maxRow = Math.max(startRow, endRow);
+      const minCol = Math.min(startCol, endCol);
+      const maxCol = Math.max(startCol, endCol);
+      const processed = new Set<Element>();
+      let changed = false;
+
+      for (let nestedRow = minRow; nestedRow <= maxRow; nestedRow += 1) {
+        for (let nestedCol = minCol; nestedCol <= maxCol; nestedCol += 1) {
+          const nestedCellElement = findTableCellElementAt(nestedTableElement, nestedRow, nestedCol);
+          if (!nestedCellElement || processed.has(nestedCellElement)) continue;
+          processed.add(nestedCellElement);
+          changed =
+            setTableCellElementBackground(doc, nestedTableElement, nestedRow, nestedCol, color)
+            || changed;
+        }
+      }
+
+      if (!changed) return;
+      markSectionDirty(para);
+      get().rebuild();
+    } catch (e) {
+      console.error("updateNestedTableCellBackground failed:", e);
     }
   },
 
@@ -1909,6 +2203,80 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       get().rebuild();
     } catch (e) {
       console.error("addTable failed:", e);
+    }
+  },
+
+  insertChart: (opts) => {
+    const { doc, selection } = get();
+    if (!doc) return;
+    try {
+      get().pushUndo();
+
+      const sectionIndex = selection?.sectionIndex ?? 0;
+      const section = doc.sections[sectionIndex];
+      if (!section) return;
+
+      const baseParagraphIndex =
+        selection?.paragraphIndex ?? (section.paragraphs.length > 0 ? section.paragraphs.length - 1 : -1);
+      const safeBaseParagraphIndex = Math.max(-1, Math.min(section.paragraphs.length - 1, baseParagraphIndex));
+      const insertAt = safeBaseParagraphIndex + 1;
+
+      const title = String(opts?.title ?? "").trim() || "차트";
+      const chartType = opts?.chartType === "line" ? "line" : "bar";
+      const rawCategories = (opts?.categories ?? []).map((v) => String(v ?? "").trim()).filter(Boolean);
+      const rawValues = (opts?.values ?? [])
+        .map((v) => (Number.isFinite(v) ? Number(v) : NaN))
+        .filter((v) => Number.isFinite(v)) as number[];
+
+      const defaultCategories = ["항목 1", "항목 2", "항목 3"];
+      const defaultValues = [100, 80, 60];
+
+      const rowCount = Math.max(
+        1,
+        Math.min(
+          12,
+          Math.max(
+            rawCategories.length,
+            rawValues.length,
+            3,
+          ),
+        ),
+      );
+
+      const categories = Array.from({ length: rowCount }, (_v, idx) => rawCategories[idx] ?? defaultCategories[idx] ?? `항목 ${idx + 1}`);
+      const values = Array.from({ length: rowCount }, (_v, idx) => rawValues[idx] ?? defaultValues[idx] ?? 0);
+
+      const chartParagraph = doc.insertParagraphAt(sectionIndex, insertAt, `[차트:${chartType}] ${title}`);
+      chartParagraph.addTable(rowCount + 1, 2);
+      const tableIndex = Math.max(0, chartParagraph.tables.length - 1);
+      const table = chartParagraph.tables[tableIndex];
+      if (!table) {
+        get().rebuild();
+        return;
+      }
+
+      table.setCellText(0, 0, "항목");
+      table.setCellText(0, 1, "값");
+      for (let i = 0; i < rowCount; i += 1) {
+        table.setCellText(i + 1, 0, categories[i]!);
+        table.setCellText(i + 1, 1, String(values[i]!));
+      }
+
+      set({
+        selection: {
+          sectionIndex,
+          paragraphIndex: insertAt,
+          type: "cell",
+          tableIndex,
+          row: 1,
+          col: 1,
+          objectType: "table",
+        },
+      });
+
+      get().rebuild();
+    } catch (e) {
+      console.error("insertChart failed:", e);
     }
   },
 
@@ -3041,6 +3409,40 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   // Table structure operations
+  insertNestedTableInCell: (rows, cols) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null || selection.row == null || selection.col == null) return;
+    try {
+      const safeRows = Math.max(1, Math.min(20, Math.floor(rows)));
+      const safeCols = Math.max(1, Math.min(20, Math.floor(cols)));
+      get().pushUndo();
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      const targetCell = table.cell(selection.row, selection.col);
+      const borderFillIdRef =
+        targetCell.borderFillIDRef
+        ?? table.borderFillIDRef
+        ?? doc.ensureBasicBorderFill();
+      targetCell.addTable(safeRows, safeCols, { borderFillIdRef });
+      set({
+        selection: {
+          ...selection,
+          type: "cell",
+          endRow: undefined,
+          endCol: undefined,
+          objectType: "table",
+        },
+      });
+      get().rebuild();
+    } catch (e) {
+      console.error("insertNestedTableInCell failed:", e);
+    }
+  },
+
   insertTableRow: (position) => {
     const { doc, selection } = get();
     if (!doc || !selection || selection.tableIndex == null || selection.row == null) return;
