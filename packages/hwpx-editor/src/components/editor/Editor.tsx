@@ -32,6 +32,7 @@ import { ShapeDialog } from "../dialog/ShapeDialog";
 import { TocDialog } from "../dialog/TocDialog";
 import { CaptionDialog } from "../dialog/CaptionDialog";
 import { PanelRight } from "lucide-react";
+import { redirectToLoginFromEditor } from "@/lib/auth-redirect";
 
 const MAX_OPEN_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 
@@ -93,6 +94,7 @@ declare global {
         revision: number;
         hasDocument: boolean;
         selection: unknown;
+        nestedTableFocus: unknown;
         sidebarOpen: boolean;
         sidebarTab: string;
         error: string | null;
@@ -124,6 +126,7 @@ declare global {
           fontSize: number | null;
           textColor: string | null;
         } | null;
+        selectedCellNestedTableCount: number;
       };
       getPageDebug: () => {
         pageWidthPx: number;
@@ -187,6 +190,9 @@ export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading }: Edit
           );
 
           if (!response.ok) {
+            if (response.status === 401 && redirectToLoginFromEditor()) {
+              return;
+            }
             const fallback =
               response.status === 401
                 ? "로그인 후 내 드라이브 문서를 열 수 있습니다."
@@ -381,6 +387,7 @@ export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading }: Edit
           revision: store.revision,
           hasDocument: Boolean(store.doc),
           selection: store.selection,
+          nestedTableFocus: store.nestedTableFocus,
           sidebarOpen: store.uiState.sidebarOpen,
           sidebarTab: store.uiState.sidebarTab,
           error: store.error,
@@ -414,6 +421,23 @@ export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading }: Edit
           sel?.row != null && sel?.col != null
             ? table.cells[sel.row]?.[sel.col]
             : null;
+        const selectedDocCell =
+          sel?.row != null && sel?.col != null
+            ? store.doc?.sections?.[sIdx]?.paragraphs?.[pIdx]?.tables?.[tIdx]?.cell(sel.row, sel.col)
+            : null;
+        const countNestedTables = (cell: { element?: Element } | null | undefined): number => {
+          const element = cell?.element;
+          if (!element) return 0;
+          const descendants = element.getElementsByTagName("*");
+          let count = 0;
+          for (let i = 0; i < descendants.length; i += 1) {
+            const el = descendants.item(i);
+            if (!el) continue;
+            const local = el.localName || el.nodeName.split(":").pop() || "";
+            if (local === "tbl") count += 1;
+          }
+          return count;
+        };
         const toStyleDebug = (
           source: {
             borderLeft?: { type?: string } | null;
@@ -449,6 +473,7 @@ export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading }: Edit
                 textColor: selectedCell.textColor ?? null,
               }
             : null,
+          selectedCellNestedTableCount: countNestedTables(selectedDocCell),
         };
       },
       getPageDebug: () => {
@@ -854,7 +879,7 @@ export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading }: Edit
 
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
               {/* Ruler must share the same center column as page view for precise alignment */}
-              <HorizontalRuler />
+              {uiState.showRuler ? <HorizontalRuler /> : null}
               <PageView />
             </div>
 
@@ -889,6 +914,7 @@ function StatusBar() {
   const doc = useEditorStore((s) => s.doc);
   const viewModel = useEditorStore((s) => s.viewModel);
   const selection = useEditorStore((s) => s.selection);
+  const nestedTableFocus = useEditorStore((s) => s.nestedTableFocus);
   const openWordCountDialog = useEditorStore((s) => s.openWordCountDialog);
 
   if (!doc || !viewModel) return null;
@@ -898,6 +924,9 @@ function StatusBar() {
   // Estimate page count (1 section = 1 page minimum)
   const sectionCount = viewModel.sections.length;
   const selectionInfo = (() => {
+    if (nestedTableFocus) {
+      return `중첩 표 선택 (문단 ${nestedTableFocus.paragraphIndex + 1}, 셀 R${nestedTableFocus.row + 1}C${nestedTableFocus.col + 1})`;
+    }
     if (!selection) return "선택 없음";
     if (selection.objectType === "image") return `그림 선택 (문단 ${selection.paragraphIndex + 1})`;
     if (selection.objectType === "textBox") return `글상자 선택 (문단 ${selection.paragraphIndex + 1})`;

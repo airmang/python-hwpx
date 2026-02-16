@@ -38,6 +38,7 @@ export interface ExtendedFormat {
 export interface UIState {
   sidebarOpen: boolean;
   sidebarTab: SidebarTab;
+  showRuler: boolean;
   saveDialogOpen: boolean;
   charFormatDialogOpen: boolean;
   paraFormatDialogOpen: boolean;
@@ -115,6 +116,7 @@ export interface UndoRedoActions {
 export interface UIActions {
   toggleSidebar: () => void;
   setSidebarTab: (tab: SidebarTab) => void;
+  toggleRuler: () => void;
   openTemplateDialog: () => void;
   closeTemplateDialog: () => void;
   openHeaderFooterDialog: () => void;

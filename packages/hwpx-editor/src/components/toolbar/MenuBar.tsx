@@ -27,6 +27,8 @@ interface MenuBarProps {
 export function MenuBar({ leadingContent }: MenuBarProps) {
   const doc = useEditorStore((s) => s.doc);
   const selection = useEditorStore((s) => s.selection);
+  const showRuler = useEditorStore((s) => s.uiState.showRuler);
+  const toggleRuler = useEditorStore((s) => s.toggleRuler);
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -128,7 +130,7 @@ export function MenuBar({ leadingContent }: MenuBarProps) {
       label: "보기",
       items: [
         { label: "서식 사이드바", action: () => store().toggleSidebar() },
-        { label: "눈금자", disabled: true, dividerAfter: true },
+        { label: showRuler ? "눈금자 숨기기" : "눈금자 표시", disabled: false, action: () => toggleRuler(), dividerAfter: true },
         { label: "확대", shortcut: "Ctrl++", disabled: false, action: () => store().zoomIn() },
         { label: "축소", shortcut: "Ctrl+-", disabled: false, action: () => store().zoomOut() },
         { label: "전체 화면", shortcut: "F11", disabled: false, action: () => { void toggleFullscreen(); } },

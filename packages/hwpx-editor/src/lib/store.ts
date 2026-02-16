@@ -47,6 +47,7 @@ export interface ExtendedFormat {
 export interface UIState {
   sidebarOpen: boolean;
   sidebarTab: SidebarTab;
+  showRuler: boolean;
   saveDialogOpen: boolean;
   charFormatDialogOpen: boolean;
   paraFormatDialogOpen: boolean;
@@ -320,6 +321,7 @@ export interface EditorStore {
   // UI actions
   toggleSidebar: () => void;
   setSidebarTab: (tab: SidebarTab) => void;
+  toggleRuler: () => void;
 
   // Text editing
   updateParagraphText: (
@@ -950,6 +952,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   uiState: {
     sidebarOpen: true,
     sidebarTab: "char",
+    showRuler: true,
     saveDialogOpen: false,
     charFormatDialogOpen: false,
     paraFormatDialogOpen: false,
@@ -1121,6 +1124,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setSidebarTab: (tab) =>
     set((s) => ({
       uiState: { ...s.uiState, sidebarTab: tab },
+    })),
+
+  toggleRuler: () =>
+    set((s) => ({
+      uiState: { ...s.uiState, showRuler: !s.uiState.showRuler },
     })),
 
   setLoading: (loading) => set({ loading }),
