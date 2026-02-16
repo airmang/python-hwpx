@@ -159,13 +159,14 @@ interface EditorProps {
   leftPanel?: ReactNode;
   rightPanel?: ReactNode;
   topMenuLeading?: ReactNode;
+  leftCanvasSlot?: ReactNode;
 }
 
 export function Editor(props: EditorProps) {
   return <EditorWithPanels {...props} />;
 }
 
-export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading }: EditorProps = {}) {
+export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading, leftCanvasSlot }: EditorProps = {}) {
   const doc = useEditorStore((s) => s.doc);
   const loading = useEditorStore((s) => s.loading);
   const error = useEditorStore((s) => s.error);
@@ -644,16 +645,91 @@ export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading }: Edit
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target instanceof HTMLElement ? e.target : null;
-      if (!target?.closest('[data-hwpx-editor-root="true"]')) return;
+      const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const inEditorTarget = Boolean(target?.closest('[data-hwpx-editor-root="true"]'));
+      const inEditorActive = Boolean(active?.closest('[data-hwpx-editor-root="true"]'));
+      if (!inEditorTarget && !inEditorActive) return;
 
       // Let native browser/input behavior win inside form controls.
-      const isFormControl = Boolean(target.closest("input, textarea, select"));
+      const focusHost = target ?? active;
+      const isFormControl = Boolean(focusHost?.closest("input, textarea, select"));
       if (isFormControl) return;
 
       const store = useEditorStore.getState();
       const mod = e.ctrlKey || e.metaKey;
       const ctrlOnly = e.ctrlKey && !e.metaKey;
       const key = e.key.toLowerCase();
+
+      const selectEditableContents = (editable: HTMLElement) => {
+        const sel = window.getSelection();
+        if (!sel) return;
+        const range = document.createRange();
+        range.selectNodeContents(editable);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      };
+
+      const selectAllInCurrentEditorContext = (): boolean => {
+        const current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        const editable = current?.isContentEditable
+          ? current
+          : current?.closest<HTMLElement>("[contenteditable='true']") ?? null;
+
+        if (editable) {
+          selectEditableContents(editable);
+          if (editable.dataset.hwpxParagraph === "1") {
+            const sectionIndex = Number(editable.dataset.sectionIndex);
+            const paragraphIndex = Number(editable.dataset.paragraphIndex);
+            if (Number.isFinite(sectionIndex) && Number.isFinite(paragraphIndex)) {
+              const length = (editable.textContent ?? "").length;
+              store.setSelection({
+                sectionIndex,
+                paragraphIndex,
+                type: "paragraph",
+                textStartOffset: 0,
+                textEndOffset: length,
+                cursorOffset: length,
+              });
+            }
+          }
+          return true;
+        }
+
+        if (store.selection?.type === "paragraph") {
+          store.selectParagraphAll();
+          return true;
+        }
+
+        const firstParagraph = document.querySelector<HTMLElement>(
+          "[data-page] [data-hwpx-paragraph='1'][contenteditable='true']",
+        );
+        if (firstParagraph) {
+          firstParagraph.focus();
+          selectEditableContents(firstParagraph);
+          const sectionIndex = Number(firstParagraph.dataset.sectionIndex);
+          const paragraphIndex = Number(firstParagraph.dataset.paragraphIndex);
+          if (Number.isFinite(sectionIndex) && Number.isFinite(paragraphIndex)) {
+            const length = (firstParagraph.textContent ?? "").length;
+            store.setSelection({
+              sectionIndex,
+              paragraphIndex,
+              type: "paragraph",
+              textStartOffset: 0,
+              textEndOffset: length,
+              cursorOffset: length,
+            });
+          }
+          return true;
+        }
+
+        return false;
+      };
+
+      if (mod && !e.altKey && !e.shiftKey && key === "a") {
+        e.preventDefault();
+        selectAllInCurrentEditorContext();
+        return;
+      }
 
       if (ctrlOnly && e.shiftKey && key === "n") {
         e.preventDefault();
@@ -881,7 +957,7 @@ export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading }: Edit
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
               {/* Ruler must share the same center column as page view for precise alignment */}
               {uiState.showRuler ? <HorizontalRuler /> : null}
-              <PageView />
+              <PageView leftCanvasSlot={leftCanvasSlot} />
             </div>
 
             {rightPanel ? (

@@ -92,6 +92,7 @@ export function ParagraphBlock({
       const desiredEnd = selection.textEndOffset ?? selection.cursorOffset ?? desiredStart;
       programmaticSelectionRef.current = true;
       syncDomSelection(ref.current, desiredStart, desiredEnd);
+      scrollCaretIntoView(ref.current);
       window.setTimeout(() => {
         programmaticSelectionRef.current = false;
       }, 0);
@@ -116,6 +117,7 @@ export function ParagraphBlock({
     if (desiredStart == null || desiredEnd == null) return;
     programmaticSelectionRef.current = true;
     syncDomSelection(ref.current, desiredStart, desiredEnd);
+    scrollCaretIntoView(ref.current);
     window.setTimeout(() => {
       programmaticSelectionRef.current = false;
     }, 0);
@@ -149,7 +151,16 @@ export function ParagraphBlock({
       paragraphIndex: localIndex,
       type: "paragraph",
     });
+    if (ref.current) {
+      scrollCaretIntoView(ref.current);
+    }
   }, [sectionIndex, localIndex, setSelection]);
+
+  const handleInput = useCallback(() => {
+    if (ref.current) {
+      scrollCaretIntoView(ref.current);
+    }
+  }, []);
 
   // Track text selection changes within this paragraph
   const updateTextSelection = useCallback(() => {
@@ -182,6 +193,7 @@ export function ParagraphBlock({
         textEndOffset: endOffset,
         cursorOffset: endOffset,
       });
+      scrollCaretIntoView(ref.current);
       return;
     }
 
@@ -191,6 +203,7 @@ export function ParagraphBlock({
       type: "paragraph",
       cursorOffset: startOffset,
     });
+    scrollCaretIntoView(ref.current);
   }, [sectionIndex, localIndex, setSelection]);
 
   // Listen for selection changes
@@ -394,6 +407,7 @@ export function ParagraphBlock({
             data-paragraph-index={localIndex}
             onBlur={handleBlur}
             onFocus={handleFocus}
+            onInput={handleInput}
             onKeyDown={handleKeyDown}
             className="outline-none leading-relaxed caret-gray-900"
           >
@@ -436,6 +450,7 @@ export function ParagraphBlock({
             data-paragraph-index={localIndex}
             onBlur={handleBlur}
             onFocus={handleFocus}
+            onInput={handleInput}
             onKeyDown={handleKeyDown}
             className="outline-none leading-relaxed caret-gray-900"
           >
@@ -483,6 +498,7 @@ export function ParagraphBlock({
             data-paragraph-index={localIndex}
             onBlur={handleBlur}
             onFocus={handleFocus}
+            onInput={handleInput}
             onKeyDown={handleKeyDown}
             className="outline-none leading-relaxed caret-gray-900"
           >
@@ -545,6 +561,7 @@ export function ParagraphBlock({
       data-paragraph-index={localIndex}
       onBlur={handleBlur}
       onFocus={handleFocus}
+      onInput={handleInput}
       onKeyDown={handleKeyDown}
       className="outline-none min-h-[1.5em] caret-gray-900"
       style={paraStyle}
@@ -603,4 +620,52 @@ function syncDomSelection(root: HTMLElement, startOffset: number, endOffset: num
   range.setEnd(endNode, Math.min(endInNode, endNode.nodeValue?.length ?? 0));
   sel.removeAllRanges();
   sel.addRange(range);
+}
+
+function findVerticalScrollContainer(element: HTMLElement): HTMLElement | null {
+  const explicitContainer = element.closest<HTMLElement>("[data-hwpx-scroll-container]");
+  if (explicitContainer) return explicitContainer;
+
+  let current: HTMLElement | null = element.parentElement;
+  while (current) {
+    const style = window.getComputedStyle(current);
+    const overflowY = style.overflowY;
+    const overflow = style.overflow;
+    const canScroll =
+      overflowY === "auto" ||
+      overflowY === "scroll" ||
+      overflow === "auto" ||
+      overflow === "scroll";
+    if (canScroll && current.scrollHeight > current.clientHeight) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return null;
+}
+
+function scrollCaretIntoView(editable: HTMLElement) {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return;
+
+  const range = selection.getRangeAt(0);
+  if (!editable.contains(range.commonAncestorContainer)) return;
+
+  const caretRect = range.getBoundingClientRect();
+  if (caretRect.height === 0 && caretRect.width === 0) return;
+
+  const container = findVerticalScrollContainer(editable);
+  if (!container) return;
+
+  const padding = 20;
+  const containerRect =
+    container === document.scrollingElement
+      ? { top: 0, bottom: window.innerHeight }
+      : container.getBoundingClientRect();
+
+  if (caretRect.bottom > containerRect.bottom - padding) {
+    container.scrollTop += caretRect.bottom - (containerRect.bottom - padding);
+  } else if (caretRect.top < containerRect.top + padding) {
+    container.scrollTop -= containerRect.top + padding - caretRect.top;
+  }
 }

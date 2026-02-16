@@ -78,18 +78,18 @@ export function SaveDialog() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3"
       onClick={(e) => {
         if (e.target === e.currentTarget) closeSaveDialog();
       }}
     >
-      <div className="bg-white rounded-lg shadow-xl w-96 p-5">
+      <div className="w-[min(95vw,28rem)] max-h-[90vh] overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
         <h2 className="text-sm font-semibold text-gray-800 mb-4">
           다른 이름으로 저장
         </h2>
 
         <label className="block text-xs text-gray-600 mb-1.5">파일 이름</label>
-        <div className="flex items-center gap-0 mb-5">
+        <div className="mb-5 flex items-center gap-0">
           <input
             ref={inputRef}
             type="text"
@@ -99,14 +99,14 @@ export function SaveDialog() {
             className="flex-1 h-8 px-2 text-sm border border-gray-300 rounded-l focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
             aria-label="파일 이름"
           />
-          <span className="h-8 px-2 flex items-center text-sm text-gray-500 bg-gray-100 border border-l-0 border-gray-300 rounded-r">
+          <span className="flex h-8 shrink-0 items-center rounded-r border border-l-0 border-gray-300 bg-gray-100 px-2 text-sm text-gray-500">
             .hwpx
           </span>
         </div>
 
         {serverFeedback ? (
           <div
-            className={`mb-4 rounded border px-3 py-2 text-xs ${
+            className={`mb-4 rounded border px-3 py-2 text-xs leading-relaxed break-words ${
               serverFeedback.kind === "success"
                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                 : "border-rose-200 bg-rose-50 text-rose-700"
@@ -125,24 +125,24 @@ export function SaveDialog() {
           </div>
         ) : null}
 
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button
             onClick={closeSaveDialog}
-            className="px-4 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+            className="w-full rounded border border-gray-300 px-4 py-1.5 text-xs text-gray-600 hover:bg-gray-50 sm:w-auto"
           >
             취소
           </button>
           <button
             onClick={handleLocalSave}
             disabled={!filename.trim() || loading}
-            className="px-4 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full rounded bg-blue-600 px-4 py-1.5 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
           >
             로컬 저장
           </button>
           <button
             onClick={handleServerSave}
             disabled={!filename.trim() || loading}
-            className="px-4 py-1.5 text-xs rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full rounded bg-emerald-600 px-4 py-1.5 text-xs text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
           >
             {serverDocumentId ? "서버 덮어쓰기" : "서버 저장"}
           </button>

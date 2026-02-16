@@ -104,6 +104,55 @@ export function MenuBar({ leadingContent }: MenuBarProps) {
     window.alert(`${feature} 전용 UI는 준비 중입니다.\n현재는 ${target} 화면으로 연결합니다.`);
   };
 
+  const handleSelectAll = () => {
+    const s = store();
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const editable = active?.isContentEditable
+      ? active
+      : active?.closest<HTMLElement>("[contenteditable='true']") ?? null;
+
+    const selectContents = (el: HTMLElement) => {
+      const selection = window.getSelection();
+      if (!selection) return;
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    };
+
+    if (editable) {
+      selectContents(editable);
+      if (editable.dataset.hwpxParagraph === "1") {
+        const sectionIndex = Number(editable.dataset.sectionIndex);
+        const paragraphIndex = Number(editable.dataset.paragraphIndex);
+        if (Number.isFinite(sectionIndex) && Number.isFinite(paragraphIndex)) {
+          const length = (editable.textContent ?? "").length;
+          s.setSelection({
+            sectionIndex,
+            paragraphIndex,
+            type: "paragraph",
+            textStartOffset: 0,
+            textEndOffset: length,
+            cursorOffset: length,
+          });
+        }
+      }
+      return;
+    }
+
+    if (s.selection?.type === "paragraph") {
+      s.selectParagraphAll();
+      return;
+    }
+
+    const firstParagraph = document.querySelector<HTMLElement>(
+      "[data-page] [data-hwpx-paragraph='1'][contenteditable='true']",
+    );
+    if (!firstParagraph) return;
+    firstParagraph.focus();
+    selectContents(firstParagraph);
+  };
+
   const menus: Menu[] = [
     {
       label: "파일",
@@ -125,7 +174,7 @@ export function MenuBar({ leadingContent }: MenuBarProps) {
         { label: "복사", shortcut: "Ctrl+C", action: () => document.execCommand("copy") },
         { label: "붙이기", shortcut: "Ctrl+V", action: () => document.execCommand("paste"), dividerAfter: true },
         { label: "클립보드/스니펫", shortcut: "Ctrl+Shift+V", disabled, action: () => store().openClipboardDialog(), dividerAfter: true },
-        { label: "모두 선택", shortcut: "Ctrl+A", action: () => document.execCommand("selectAll") },
+        { label: "모두 선택", shortcut: "Ctrl+A", action: () => handleSelectAll() },
         { label: "찾기", shortcut: "Ctrl+Shift+F", disabled, action: () => store().openFindReplaceDialog() },
         { label: "찾아 바꾸기", shortcut: "Ctrl+Shift+H", disabled, action: () => store().openFindReplaceDialog() },
       ],
@@ -143,8 +192,16 @@ export function MenuBar({ leadingContent }: MenuBarProps) {
     {
       label: "입력",
       items: [
-        { label: "표…", disabled: disabled || !selection, action: () => { /* handled via InsertGroup dialog */ } },
-        { label: "그림…", disabled, action: () => { /* handled via InsertGroup file input */ } },
+        {
+          label: "표…",
+          disabled: disabled || !selection,
+          action: () => window.dispatchEvent(new CustomEvent("hwpx-open-insert-table-dialog")),
+        },
+        {
+          label: "그림…",
+          disabled,
+          action: () => window.dispatchEvent(new CustomEvent("hwpx-open-insert-image-file")),
+        },
         { label: "도형", disabled, action: () => store().openShapeDialog() },
         { label: "캡션/목차…", shortcut: "Ctrl+Alt+C", disabled, action: () => store().openCaptionDialog() },
         { label: "차트", disabled, action: () => store().insertChart(), dividerAfter: true },

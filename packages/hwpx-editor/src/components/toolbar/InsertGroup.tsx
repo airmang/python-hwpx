@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Table, BarChart3, Shapes, ImageIcon, Save, Columns, FileDown } from "lucide-react";
 import { useEditorStore } from "@/lib/store";
 import { ToolbarButton } from "./ToolbarButton";
@@ -28,6 +28,24 @@ export function InsertGroup() {
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const disabled = !doc;
+
+  useEffect(() => {
+    const handleOpenTableDialog = () => {
+      if (disabled || !selection) return;
+      setShowTableDialog(true);
+    };
+    const handleOpenImagePicker = () => {
+      if (disabled) return;
+      imageInputRef.current?.click();
+    };
+
+    window.addEventListener("hwpx-open-insert-table-dialog", handleOpenTableDialog);
+    window.addEventListener("hwpx-open-insert-image-file", handleOpenImagePicker);
+    return () => {
+      window.removeEventListener("hwpx-open-insert-table-dialog", handleOpenTableDialog);
+      window.removeEventListener("hwpx-open-insert-image-file", handleOpenImagePicker);
+    };
+  }, [disabled, selection]);
 
   const handleAddTable = useCallback(() => {
     if (!selection) return;

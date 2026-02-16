@@ -3960,7 +3960,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         const fallback = response.status === 401
           ? "로그인 후 서버 저장이 가능합니다."
           : "서버 저장에 실패했습니다.";
-        const error = payload?.error || fallback;
+        const error = response.status === 401 ? fallback : (payload?.error || fallback);
         set({ error });
         return { ok: false, status: response.status, error };
       }

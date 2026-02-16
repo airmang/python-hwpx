@@ -166,6 +166,7 @@ export interface ParagraphVM {
   images: ImageVM[];
   textBoxes: TextBoxVM[];
   equations: EquationVM[];
+  pageBreakBefore: boolean;
   alignment: string;
   lineSpacing: number;
   spacingBefore: number;
@@ -1433,6 +1434,7 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
         images,
         textBoxes,
         equations,
+        pageBreakBefore: para.pageBreak,
         alignment,
         lineSpacing,
         spacingBefore,

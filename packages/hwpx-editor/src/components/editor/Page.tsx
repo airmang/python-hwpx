@@ -116,6 +116,7 @@ export function Page({ section }: PageProps) {
   // Determine page number position
   const pageNumAtTop = pageNum?.pos?.startsWith("TOP");
   const pageNumAtBottom = pageNum?.pos?.startsWith("BOTTOM") || (pageNum && !pageNumAtTop);
+  const pageBoundaryLineY = Math.max(section.pageHeightPx - 1, 0);
 
   const normalizeTextAlign = (value?: string | null): React.CSSProperties["textAlign"] => {
     const normalized = value?.toUpperCase();
@@ -152,6 +153,7 @@ export function Page({ section }: PageProps) {
       style={{
         width: section.pageWidthPx,
         minHeight: section.pageHeightPx,
+        backgroundImage: `repeating-linear-gradient(to bottom, transparent 0px, transparent ${pageBoundaryLineY}px, #e5e7eb ${pageBoundaryLineY}px, #e5e7eb ${section.pageHeightPx}px)`,
         ...pageBorderStyle,
       }}
     >
@@ -220,13 +222,24 @@ export function Page({ section }: PageProps) {
 
         <div className="relative z-10">
           {section.paragraphs.map((para, idx) => (
-            <ParagraphBlock
-              key={`${section.sectionIndex}-${idx}-r${revision}`}
-              paragraph={para}
-              sectionIndex={section.sectionIndex}
-              localIndex={idx}
-              paragraphCount={section.paragraphs.length}
-            />
+            <div key={`${section.sectionIndex}-${idx}-r${revision}`}>
+              {para.pageBreakBefore && idx > 0 ? (
+                <div
+                  data-page-break-marker="true"
+                  className="my-6 flex items-center gap-3 text-[10px] text-gray-400"
+                >
+                  <div className="h-px flex-1 border-t border-dashed border-gray-300" />
+                  <span className="tracking-[0.08em]">쪽 나눔</span>
+                  <div className="h-px flex-1 border-t border-dashed border-gray-300" />
+                </div>
+              ) : null}
+              <ParagraphBlock
+                paragraph={para}
+                sectionIndex={section.sectionIndex}
+                localIndex={idx}
+                paragraphCount={section.paragraphs.length}
+              />
+            </div>
           ))}
         </div>
       </div>
