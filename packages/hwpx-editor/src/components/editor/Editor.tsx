@@ -413,6 +413,7 @@ export function EditorWithPanels({ leftPanel, rightPanel, topMenuLeading }: Edit
             firstCellStyle: null,
             selectedCellStyle: null,
             selectedCellTextStyle: null,
+            selectedCellNestedTableCount: 0,
           };
         }
         const anchorCellCount = table.cells.flat().filter((c) => c.isAnchor).length;

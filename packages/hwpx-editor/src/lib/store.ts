@@ -3672,13 +3672,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
       const totalWidth = table.width > 0
         ? table.width
-        : Array.from({ length: colCount }).reduce((sum, _, colIdx) => {
-            try {
-              return sum + table.cell(0, colIdx).width;
-            } catch {
-              return sum;
+        : (() => {
+            let sum = 0;
+            for (let colIdx = 0; colIdx < colCount; colIdx += 1) {
+              try {
+                sum += table.cell(0, colIdx).width;
+              } catch {
+                // ignore invalid cells
+              }
             }
-          }, 0);
+            return sum;
+          })();
       const each = Math.floor(Math.max(totalWidth, 0) / colCount);
 
       for (let c = 0; c < colCount; c += 1) {
@@ -3713,13 +3717,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
       const totalHeight = table.height > 0
         ? table.height
-        : Array.from({ length: rowCount }).reduce((sum, _, rowIdx) => {
-            try {
-              return sum + table.cell(rowIdx, 0).height;
-            } catch {
-              return sum;
+        : (() => {
+            let sum = 0;
+            for (let rowIdx = 0; rowIdx < rowCount; rowIdx += 1) {
+              try {
+                sum += table.cell(rowIdx, 0).height;
+              } catch {
+                // ignore invalid cells
+              }
             }
-          }, 0);
+            return sum;
+          })();
       const each = Math.floor(Math.max(totalHeight, 0) / rowCount);
 
       for (let r = 0; r < rowCount; r += 1) {
