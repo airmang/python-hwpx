@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import base64
 import binascii
 from dataclasses import dataclass, field
@@ -1364,3 +1365,5 @@ __all__ = [
     "parse_track_change_authors",
     "parse_track_changes",
 ]
+
+logger = logging.getLogger(__name__)

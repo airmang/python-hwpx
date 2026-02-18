@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple, TypeVar
@@ -29,6 +30,8 @@ from .header import (
     parse_track_changes,
 )
 from .utils import parse_int
+
+logger = logging.getLogger(__name__)
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HP = f"{{{_HP_NS}}}"
@@ -2602,13 +2605,15 @@ class HwpxOxmlHeader:
     def _begin_num_element(self, create: bool = False) -> ET.Element | None:
         element = self._element.find(f"{_HH}beginNum")
         if element is None and create:
-            element = ET.SubElement(self._element, f"{_HH}beginNum")
+            element = self._element.makeelement(f"{_HH}beginNum", {})
+            self._element.append(element)
         return element
 
     def _ref_list_element(self, create: bool = False) -> ET.Element | None:
         element = self._element.find(f"{_HH}refList")
         if element is None and create:
-            element = ET.SubElement(self._element, f"{_HH}refList")
+            element = self._element.makeelement(f"{_HH}refList", {})
+            self._element.append(element)
             self.mark_dirty()
         return element
 
@@ -2618,7 +2623,8 @@ class HwpxOxmlHeader:
             return None
         element = ref_list.find(f"{_HH}borderFills")
         if element is None and create:
-            element = ET.SubElement(ref_list, f"{_HH}borderFills", {"itemCnt": "0"})
+            element = ref_list.makeelement(f"{_HH}borderFills", {"itemCnt": "0"})
+            ref_list.append(element)
             self.mark_dirty()
         return element
 
@@ -2628,7 +2634,8 @@ class HwpxOxmlHeader:
             return None
         element = ref_list.find(f"{_HH}charProperties")
         if element is None and create:
-            element = ET.SubElement(ref_list, f"{_HH}charProperties", {"itemCnt": "0"})
+            element = ref_list.makeelement(f"{_HH}charProperties", {"itemCnt": "0"})
+            ref_list.append(element)
             self.mark_dirty()
         return element
 
@@ -2800,7 +2807,10 @@ class HwpxOxmlHeader:
             return existing
 
         new_id = self._allocate_border_fill_id(element)
-        element.append(_create_basic_border_fill_element(new_id))
+        new_border_fill = _create_basic_border_fill_element(new_id)
+        if isinstance(element, LET._Element):
+            new_border_fill = LET.fromstring(ET.tostring(new_border_fill, encoding="utf-8"))
+        element.append(new_border_fill)
         self._update_border_fills_item_count(element)
         self.mark_dirty()
         return new_id
@@ -3079,23 +3089,57 @@ class HwpxOxmlDocument:
         history_paths = package.history_paths()
         version_path = package.version_path()
 
-        sections = [
-            HwpxOxmlSection(path, package.get_xml(path)) for path in section_paths
-        ]
-        headers = [HwpxOxmlHeader(path, package.get_xml(path)) for path in header_paths]
-        master_pages = [
-            HwpxOxmlMasterPage(path, package.get_xml(path))
-            for path in master_page_paths
-            if package.has_part(path)
-        ]
-        histories = [
-            HwpxOxmlHistory(path, package.get_xml(path))
-            for path in history_paths
-            if package.has_part(path)
-        ]
+        sections: list[HwpxOxmlSection] = []
+        for section_index, path in enumerate(section_paths):
+            try:
+                sections.append(HwpxOxmlSection(path, package.get_xml(path)))
+            except Exception:
+                logger.exception(
+                    "section 파싱 실패: section_index=%d, part_path=%s",
+                    section_index,
+                    path,
+                )
+                raise
+
+        headers: list[HwpxOxmlHeader] = []
+        for path in header_paths:
+            try:
+                headers.append(HwpxOxmlHeader(path, package.get_xml(path)))
+            except Exception:
+                logger.exception("header 파싱 실패: part_path=%s", path)
+                raise
+
+        master_pages: list[HwpxOxmlMasterPage] = []
+        for path in master_page_paths:
+            if not package.has_part(path):
+                logger.warning("masterPage 파트 누락: part_path=%s", path)
+                continue
+            try:
+                master_pages.append(HwpxOxmlMasterPage(path, package.get_xml(path)))
+            except Exception:
+                logger.exception("masterPage 파싱 실패: part_path=%s", path)
+                raise
+
+        histories: list[HwpxOxmlHistory] = []
+        for path in history_paths:
+            if not package.has_part(path):
+                logger.warning("history 파트 누락: part_path=%s", path)
+                continue
+            try:
+                histories.append(HwpxOxmlHistory(path, package.get_xml(path)))
+            except Exception:
+                logger.exception("history 파싱 실패: part_path=%s", path)
+                raise
+
         version = None
         if version_path and package.has_part(version_path):
-            version = HwpxOxmlVersion(version_path, package.get_xml(version_path))
+            try:
+                version = HwpxOxmlVersion(version_path, package.get_xml(version_path))
+            except Exception:
+                logger.exception("version 파싱 실패: part_path=%s", version_path)
+                raise
+        elif version_path:
+            logger.warning("manifest가 가리키는 version 파트가 누락되었습니다: part_path=%s", version_path)
         return cls(
             manifest,
             sections,
