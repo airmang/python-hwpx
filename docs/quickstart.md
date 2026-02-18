@@ -19,7 +19,7 @@ Jupyter Notebook이나 IPython에서 실험하면 XML 구조를 꾸준히 탐색
 ```python
 from io import BytesIO
 
-from hwpx.document import HwpxDocument
+from hwpx import HwpxDocument
 from hwpx.templates import blank_document_bytes
 
 source = BytesIO(blank_document_bytes())

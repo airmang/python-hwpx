@@ -41,7 +41,7 @@ $env:PYTHONPATH = "$(Get-Location)\src;" + $env:PYTHONPATH
 
 ```python
 from io import BytesIO
-from hwpx.document import HwpxDocument
+from hwpx import HwpxDocument
 
 with open("sample.hwpx", "rb") as fp:
     data = fp.read()

@@ -20,6 +20,8 @@ from .tools.text_extractor import (
     TextExtractor,
 )
 from .tools.object_finder import FoundElement, ObjectFinder
+from .document import HwpxDocument
+from .package import HwpxPackage
 
 __all__ = [
     "__version__",
@@ -29,4 +31,6 @@ __all__ = [
     "TextExtractor",
     "FoundElement",
     "ObjectFinder",
+    "HwpxDocument",
+    "HwpxPackage",
 ]
