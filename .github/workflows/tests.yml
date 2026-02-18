@@ -1,0 +1,36 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: pip install -e .[test]
+
+      - name: Run tests and keep summary log
+        run: |
+          pytest -v -ra 2>&1 | tee pytest-summary.log
+
+      - name: Upload pytest summary log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-summary-${{ matrix.python-version }}
+          path: pytest-summary.log
