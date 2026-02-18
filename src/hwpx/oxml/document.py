@@ -3067,7 +3067,7 @@ class HwpxOxmlDocument:
 
     @classmethod
     def from_package(cls, package: "HwpxPackage") -> "HwpxOxmlDocument":
-        from hwpx.package import HwpxPackage  # Local import to avoid cycle during typing
+        from hwpx.opc.package import HwpxPackage  # Local import to avoid cycle during typing
 
         if not isinstance(package, HwpxPackage):
             raise TypeError("package must be an instance of HwpxPackage")

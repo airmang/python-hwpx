@@ -8,7 +8,7 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 import pytest
 
 from hwpx.document import HwpxDocument
-from hwpx.package import HwpxPackage
+from hwpx.opc.package import HwpxPackage
 from hwpx.tools import load_default_schemas, validate_document
 from hwpx.templates import blank_document_bytes
 

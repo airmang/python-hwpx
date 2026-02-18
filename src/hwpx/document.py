@@ -31,7 +31,7 @@ from .oxml import (
     TrackChange,
     TrackChangeAuthor,
 )
-from .package import HwpxPackage
+from .opc.package import HwpxPackage
 from .templates import blank_document_bytes
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
@@ -54,7 +54,12 @@ class HwpxDocument:
         cls,
         source: str | PathLike[str] | bytes | BinaryIO,
     ) -> "HwpxDocument":
-        """Open *source* and return a :class:`HwpxDocument` instance."""
+        """Open *source* and return a :class:`HwpxDocument` instance.
+
+        Raises:
+            HwpxStructureError: 필수 파일이나 구조가 올바르지 않은 HWPX를 열 때 발생합니다.
+            HwpxPackageError: 패키지를 여는 과정에서 일반적인 I/O/포맷 오류가 발생하면 전달됩니다.
+        """
         package = HwpxPackage.open(source)
         root = HwpxOxmlDocument.from_package(package)
         return cls(package, root)
@@ -67,7 +72,11 @@ class HwpxDocument:
 
     @classmethod
     def from_package(cls, package: HwpxPackage) -> "HwpxDocument":
-        """Create a document backed by an existing :class:`HwpxPackage`."""
+        """Create a document backed by an existing :class:`HwpxPackage`.
+
+        Args:
+            package: :class:`hwpx.opc.package.HwpxPackage` 인스턴스.
+        """
         root = HwpxOxmlDocument.from_package(package)
         return cls(package, root)
 

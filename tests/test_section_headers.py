@@ -8,7 +8,7 @@ from typing import cast
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml import HwpxOxmlDocument, HwpxOxmlSection
-from hwpx.package import HwpxPackage
+from hwpx.opc.package import HwpxPackage
 
 
 HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
