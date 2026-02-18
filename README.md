@@ -38,7 +38,7 @@ Sphinx 문서는 `docs/` 아래에 있으며, `python -m pip install -r docs/req
 ```python
 from io import BytesIO
 
-from hwpx.document import HwpxDocument
+from hwpx import HwpxDocument
 from hwpx.templates import blank_document_bytes
 
 # 1) 빈 템플릿으로 문서 열기

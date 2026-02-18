@@ -7,7 +7,7 @@
 ```python
 from io import BytesIO
 
-from hwpx.document import HwpxDocument
+from hwpx import HwpxDocument
 from hwpx.templates import blank_document_bytes
 
 document = HwpxDocument.open(BytesIO(blank_document_bytes()))
@@ -18,7 +18,7 @@ document.save("playground.hwpx")
 ## 1. 보고서 템플릿에 표와 개체 추가하기
 
 ```python
-from hwpx.document import HwpxDocument
+from hwpx import HwpxDocument
 
 document = HwpxDocument.open("examples/FormattingShowcase.hwpx")
 section = document.sections[-1]

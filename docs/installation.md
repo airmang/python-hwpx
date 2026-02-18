@@ -23,7 +23,7 @@ python -m pip install python-hwpx
 python - <<'PY'
 from io import BytesIO
 
-from hwpx.document import HwpxDocument
+from hwpx import HwpxDocument
 from hwpx.templates import blank_document_bytes
 
 doc = HwpxDocument.open(BytesIO(blank_document_bytes()))
@@ -57,7 +57,7 @@ PY
 
 ```bash
 python - <<'PY'
-from hwpx.opc.package import HwpxPackage
+from hwpx import HwpxPackage
 print("Package class loaded:", hasattr(HwpxPackage, "open"))
 PY
 ```

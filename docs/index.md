@@ -41,7 +41,7 @@ api_reference
 자세한 단계별 설명은 {doc}`quickstart`에서 확인할 수 있습니다.
 
 ```python
-from hwpx.document import HwpxDocument
+from hwpx import HwpxDocument
 
 # 1) 문서 열기
 document = HwpxDocument.open("sample.hwpx")
