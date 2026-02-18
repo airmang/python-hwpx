@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import io
 from datetime import datetime
+import logging
 import uuid
-import xml.etree.ElementTree as ET
 
 from os import PathLike
-from typing import BinaryIO, Iterator, List, Tuple
+from typing import Any, BinaryIO, Iterator
+
+from lxml import etree
 
 from .oxml import (
     Bullet,
@@ -31,7 +34,7 @@ from .oxml import (
     TrackChange,
     TrackChangeAuthor,
 )
-from .package import HwpxPackage
+from .opc.package import HwpxPackage
 from .templates import blank_document_bytes
 
 ET.register_namespace("hp", "http://www.hancom.co.kr/hwpml/2011/paragraph")
@@ -44,13 +47,49 @@ _HP = f"{{{_HP_NS}}}"
 _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
 _HH = f"{{{_HH_NS}}}"
 
+logger = logging.getLogger(__name__)
+
+
+def _append_element(
+    parent: Any,
+    tag: str,
+    attributes: dict[str, str] | None = None,
+) -> Any:
+    """Create and append a child element that matches *parent*'s element type."""
+
+    child = parent.makeelement(tag, attributes or {})
+    parent.append(child)
+    return child
+
 
 class HwpxDocument:
     """Provides a user-friendly API for editing HWPX documents."""
 
-    def __init__(self, package: HwpxPackage, root: HwpxOxmlDocument):
+    def __init__(
+        self,
+        package: HwpxPackage,
+        root: HwpxOxmlDocument,
+        *,
+        managed_resources: tuple[Any, ...] = (),
+    ):
         self._package = package
         self._root = root
+        self._managed_resources = list(managed_resources)
+        self._closed = False
+
+    def __repr__(self) -> str:
+        """Return a compact and safe summary of the document state."""
+
+        return (
+            f"{self.__class__.__name__}("
+            f"sections={len(self.sections)}, "
+            f"paragraphs={len(self.paragraphs)}, "
+            f"headers={len(self.headers)}, "
+            f"master_pages={len(self.master_pages)}, "
+            f"histories={len(self.histories)}, "
+            f"closed={self._closed}"
+            ")"
+        )
 
     # ------------------------------------------------------------------
     # construction helpers
@@ -59,10 +98,21 @@ class HwpxDocument:
         cls,
         source: str | PathLike[str] | bytes | BinaryIO,
     ) -> "HwpxDocument":
-        """Open *source* and return a :class:`HwpxDocument` instance."""
-        package = HwpxPackage.open(source)
+        """Open *source* and return a :class:`HwpxDocument` instance.
+
+        Raises:
+            HwpxStructureError: 필수 파일이나 구조가 올바르지 않은 HWPX를 열 때 발생합니다.
+            HwpxPackageError: 패키지를 여는 과정에서 일반적인 I/O/포맷 오류가 발생하면 전달됩니다.
+        """
+        internal_resources: list[Any] = []
+        open_source = source
+        if isinstance(source, bytes):
+            stream = io.BytesIO(source)
+            open_source = stream
+            internal_resources.append(stream)
+        package = HwpxPackage.open(open_source)
         root = HwpxOxmlDocument.from_package(package)
-        return cls(package, root)
+        return cls(package, root, managed_resources=tuple(internal_resources))
 
     @classmethod
     def new(cls) -> "HwpxDocument":
@@ -72,9 +122,68 @@ class HwpxDocument:
 
     @classmethod
     def from_package(cls, package: HwpxPackage) -> "HwpxDocument":
-        """Create a document backed by an existing :class:`HwpxPackage`."""
+        """Create a document backed by an existing :class:`HwpxPackage`.
+
+        Args:
+            package: :class:`hwpx.opc.package.HwpxPackage` 인스턴스.
+        """
         root = HwpxOxmlDocument.from_package(package)
         return cls(package, root)
+
+    def __enter__(self) -> "HwpxDocument":
+        """컨텍스트 매니저 진입 시 현재 문서 인스턴스를 반환합니다."""
+
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+        """예외 발생 여부와 무관하게 내부 자원을 안전하게 정리합니다."""
+
+        self.close()
+        return False
+
+    def close(self) -> None:
+        """문서가 관리하는 내부 패키지/스트림 자원을 정리합니다.
+
+        정리 정책:
+        - ``flush()`` 가능한 자원은 먼저 flush를 시도합니다.
+        - ``close()`` 가능한 자원은 flush 이후 close를 시도합니다.
+        - flush/close 중 발생한 예외는 로깅하고 무시하여 정리 루틴을 계속 진행합니다.
+        - 같은 문서에서 ``close()``를 여러 번 호출해도 안전합니다.
+        """
+
+        if self._closed:
+            return
+
+        self._flush_resource(self._package)
+        for resource in self._managed_resources:
+            self._flush_resource(resource)
+
+        self._close_resource(self._package)
+        for resource in self._managed_resources:
+            self._close_resource(resource)
+
+        self._managed_resources.clear()
+        self._closed = True
+
+    @staticmethod
+    def _flush_resource(resource: Any) -> None:
+        flush = getattr(resource, "flush", None)
+        if not callable(flush):
+            return
+        try:
+            flush()
+        except Exception:
+            logger.debug("자원 flush 중 예외를 무시합니다: resource=%r", resource, exc_info=True)
+
+    @staticmethod
+    def _close_resource(resource: Any) -> None:
+        close = getattr(resource, "close", None)
+        if not callable(close):
+            return
+        try:
+            close()
+        except Exception:
+            logger.debug("자원 close 중 예외를 무시합니다: resource=%r", resource, exc_info=True)
 
     # ------------------------------------------------------------------
     # properties exposing document content
@@ -89,22 +198,22 @@ class HwpxDocument:
         return self._root
 
     @property
-    def sections(self) -> List[HwpxOxmlSection]:
+    def sections(self) -> list[HwpxOxmlSection]:
         """Return the sections contained in the document."""
         return self._root.sections
 
     @property
-    def headers(self) -> List[HwpxOxmlHeader]:
+    def headers(self) -> list[HwpxOxmlHeader]:
         """Return the header parts referenced by the document."""
         return self._root.headers
 
     @property
-    def master_pages(self) -> List[HwpxOxmlMasterPage]:
+    def master_pages(self) -> list[HwpxOxmlMasterPage]:
         """Return the master-page parts declared in the manifest."""
         return self._root.master_pages
 
     @property
-    def histories(self) -> List[HwpxOxmlHistory]:
+    def histories(self) -> list[HwpxOxmlHistory]:
         """Return document history parts referenced by the manifest."""
         return self._root.histories
 
@@ -195,10 +304,10 @@ class HwpxDocument:
         return self._root.track_change_author(author_id_ref)
 
     @property
-    def memos(self) -> List[HwpxOxmlMemo]:
+    def memos(self) -> list[HwpxOxmlMemo]:
         """Return all memo entries declared in every section."""
 
-        memos: List[HwpxOxmlMemo] = []
+        memos: list[HwpxOxmlMemo] = []
         for section in self._root.sections:
             memos.extend(section.memos)
         return memos
@@ -275,9 +384,10 @@ class HwpxDocument:
             char_ref = "0"
         char_ref = str(char_ref)
 
-        run_begin = ET.Element(f"{_HP}run", {"charPrIDRef": char_ref})
-        ctrl_begin = ET.SubElement(run_begin, f"{_HP}ctrl")
-        field_begin = ET.SubElement(
+        paragraph_element = paragraph.element
+        run_begin = paragraph_element.makeelement(f"{_HP}run", {"charPrIDRef": char_ref})
+        ctrl_begin = _append_element(run_begin, f"{_HP}ctrl")
+        field_begin = _append_element(
             ctrl_begin,
             f"{_HP}fieldBegin",
             {
@@ -289,14 +399,14 @@ class HwpxDocument:
             },
         )
 
-        parameters = ET.SubElement(field_begin, f"{_HP}parameters", {"count": "5", "name": ""})
-        ET.SubElement(parameters, f"{_HP}stringParam", {"name": "ID"}).text = memo.id or ""
-        ET.SubElement(parameters, f"{_HP}integerParam", {"name": "Number"}).text = str(max(1, number))
-        ET.SubElement(parameters, f"{_HP}stringParam", {"name": "CreateDateTime"}).text = created_value
-        ET.SubElement(parameters, f"{_HP}stringParam", {"name": "Author"}).text = author_value
-        ET.SubElement(parameters, f"{_HP}stringParam", {"name": "MemoShapeID"}).text = memo_shape_id
+        parameters = _append_element(field_begin, f"{_HP}parameters", {"count": "5", "name": ""})
+        _append_element(parameters, f"{_HP}stringParam", {"name": "ID"}).text = memo.id or ""
+        _append_element(parameters, f"{_HP}integerParam", {"name": "Number"}).text = str(max(1, number))
+        _append_element(parameters, f"{_HP}stringParam", {"name": "CreateDateTime"}).text = created_value
+        _append_element(parameters, f"{_HP}stringParam", {"name": "Author"}).text = author_value
+        _append_element(parameters, f"{_HP}stringParam", {"name": "MemoShapeID"}).text = memo_shape_id
 
-        sub_list = ET.SubElement(
+        sub_list = _append_element(
             field_begin,
             f"{_HP}subList",
             {
@@ -306,7 +416,7 @@ class HwpxDocument:
                 "vertAlign": "TOP",
             },
         )
-        sub_para = ET.SubElement(
+        sub_para = _append_element(
             sub_list,
             f"{_HP}p",
             {
@@ -318,12 +428,12 @@ class HwpxDocument:
                 "merged": "0",
             },
         )
-        sub_run = ET.SubElement(sub_para, f"{_HP}run", {"charPrIDRef": char_ref})
-        ET.SubElement(sub_run, f"{_HP}t").text = memo.id or field_value
+        sub_run = _append_element(sub_para, f"{_HP}run", {"charPrIDRef": char_ref})
+        _append_element(sub_run, f"{_HP}t").text = memo.id or field_value
 
-        run_end = ET.Element(f"{_HP}run", {"charPrIDRef": char_ref})
-        ctrl_end = ET.SubElement(run_end, f"{_HP}ctrl")
-        ET.SubElement(ctrl_end, f"{_HP}fieldEnd", {"beginIDRef": field_value, "fieldid": field_value})
+        run_end = paragraph_element.makeelement(f"{_HP}run", {"charPrIDRef": char_ref})
+        ctrl_end = _append_element(run_end, f"{_HP}ctrl")
+        _append_element(ctrl_end, f"{_HP}fieldEnd", {"beginIDRef": field_value, "fieldid": field_value})
 
         paragraph.element.insert(0, run_begin)
         paragraph.element.append(run_end)
@@ -389,7 +499,7 @@ class HwpxDocument:
         return memo, target_paragraph, field_value
 
     @property
-    def paragraphs(self) -> List[HwpxOxmlParagraph]:
+    def paragraphs(self) -> list[HwpxOxmlParagraph]:
         """Return all paragraphs across every section."""
         return self._root.paragraphs
 
@@ -435,10 +545,10 @@ class HwpxDocument:
         underline_type: str | None = None,
         underline_color: str | None = None,
         char_pr_id_ref: str | int | None = None,
-    ) -> List[HwpxOxmlRun]:
+    ) -> list[HwpxOxmlRun]:
         """Return runs matching the requested style criteria."""
 
-        matches: List[HwpxOxmlRun] = []
+        matches: list[HwpxOxmlRun] = []
         target_char = str(char_pr_id_ref).strip() if char_pr_id_ref is not None else None
 
         for run in self.iter_runs():

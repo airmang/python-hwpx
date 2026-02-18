@@ -2,13 +2,27 @@
 
 from __future__ import annotations
 
+import logging
+import io
 from dataclasses import dataclass
-from io import BytesIO
+from pathlib import Path
 from typing import BinaryIO, Iterable, Iterator, Mapping, MutableMapping
-from xml.etree import ElementTree as ET
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
+from lxml import etree
+
+from .xml_utils import (
+    extract_xml_declaration,
+    iter_declared_namespaces,
+    parse_xml,
+    serialize_xml,
+)
+
 __all__ = ["HwpxPackage", "HwpxPackageError", "HwpxStructureError", "RootFile", "VersionInfo"]
+
+logger = logging.getLogger(__name__)
+
+_OPF_NS = "http://www.idpf.org/2007/opf/"
 
 
 class HwpxPackageError(Exception):
@@ -40,7 +54,7 @@ class VersionInfo:
 
     def __init__(
         self,
-        element: ET.Element,
+        element: etree._Element,
         namespaces: Mapping[str, str],
         xml_declaration: bytes | None,
     ) -> None:
@@ -51,28 +65,18 @@ class VersionInfo:
 
     @classmethod
     def from_bytes(cls, data: bytes) -> VersionInfo:
-        element = ET.fromstring(data)
+        element = parse_xml(data)
         namespaces = cls._collect_namespaces(data)
         declaration = cls._extract_declaration(data)
         return cls(element, namespaces, declaration)
 
     @staticmethod
     def _collect_namespaces(data: bytes) -> Mapping[str, str]:
-        namespaces: dict[str, str] = {}
-        for event, elem in ET.iterparse(BytesIO(data), events=("start-ns",)):
-            prefix, uri = elem
-            namespaces[prefix or ""] = uri
-        return namespaces
+        return iter_declared_namespaces(data)
 
     @staticmethod
     def _extract_declaration(data: bytes) -> bytes | None:
-        data = data.lstrip()
-        if not data.startswith(b"<?xml"):
-            return None
-        end = data.find(b"?>")
-        if end == -1:
-            return None
-        return data[: end + 2]
+        return extract_xml_declaration(data)
 
     @property
     def attributes(self) -> Mapping[str, str]:
@@ -90,12 +94,7 @@ class VersionInfo:
         return self._element.tag
 
     def to_bytes(self) -> bytes:
-        for prefix, uri in self._namespaces.items():
-            ET.register_namespace(prefix, uri)
-        stream = BytesIO()
-        tree = ET.ElementTree(self._element)
-        tree.write(stream, encoding="utf-8", xml_declaration=False)
-        xml_body = stream.getvalue()
+        xml_body = serialize_xml(self._element, xml_declaration=False)
         if self._xml_declaration:
             return self._xml_declaration + xml_body
         return xml_body
@@ -115,6 +114,8 @@ class HwpxPackage:
     VERSION_PATH = "version.xml"
     MIMETYPE_PATH = "mimetype"
     DEFAULT_MIMETYPE = "application/hwp+zip"
+    MANIFEST_PATH = "Contents/content.hpf"
+    HEADER_PATH = "Contents/header.xml"
 
     def __init__(
         self,
@@ -127,12 +128,26 @@ class HwpxPackage:
         self._rootfiles = list(rootfiles)
         self._version = version_info
         self._mimetype = mimetype
+        self._manifest_tree: etree._Element | None = None
+        self._spine_cache: list[str] | None = None
+        self._section_paths_cache: list[str] | None = None
+        self._header_paths_cache: list[str] | None = None
+        self._master_page_paths_cache: list[str] | None = None
+        self._history_paths_cache: list[str] | None = None
+        self._version_path_cache: str | None = None
+        self._version_path_cache_resolved = False
         self._validate_structure()
 
     @classmethod
-    def open(cls, pkg_file: str | BinaryIO) -> HwpxPackage:
-        with ZipFile(pkg_file, "r") as zf:
-            files = {info.filename: zf.read(info) for info in zf.infolist()}
+    def open(cls, pkg_file: str | Path | bytes | bytearray | BinaryIO) -> HwpxPackage:
+        if isinstance(pkg_file, (bytes, bytearray)):
+            stream: str | Path | BinaryIO = io.BytesIO(pkg_file)
+        else:
+            stream = pkg_file
+
+        with ZipFile(stream, "r") as zf:
+            files = {info.filename: zf.read(info.filename) for info in zf.infolist()}
+        logger.debug("HWPX 패키지 파일 목록 %d개를 로드했습니다.", len(files))
         if cls.MIMETYPE_PATH not in files:
             raise HwpxStructureError("HWPX package is missing the mandatory 'mimetype' file.")
         mimetype = files[cls.MIMETYPE_PATH].decode("utf-8")
@@ -147,21 +162,29 @@ class HwpxPackage:
             raise HwpxStructureError(
                 "HWPX package is missing 'META-INF/container.xml'."
             )
-        root = ET.fromstring(data)
+        try:
+            root = parse_xml(data)
+        except Exception:
+            logger.exception("container.xml 파싱에 실패했습니다.")
+            raise
         rootfiles = []
         for elem in root.findall(".//{*}rootfile"):
-            full_path = (
-                elem.get("full-path")
-                or elem.get("fullPath")
-                or elem.get("full_path")
-            )
+            full_path_attr = elem.get("full-path")
+            full_path = full_path_attr or elem.get("fullPath") or elem.get("full_path")
+            if full_path and not full_path_attr:
+                logger.warning(
+                    "container.xml rootfile이 비표준 경로 속성명을 사용했습니다: %s",
+                    elem.attrib,
+                )
             if not full_path:
                 raise HwpxStructureError("container.xml contains a rootfile without 'full-path'.")
-            media_type = (
-                elem.get("media-type")
-                or elem.get("mediaType")
-                or elem.get("media_type")
-            )
+            media_type_attr = elem.get("media-type")
+            media_type = media_type_attr or elem.get("mediaType") or elem.get("media_type")
+            if media_type and not media_type_attr:
+                logger.warning(
+                    "container.xml rootfile이 비표준 media-type 속성명을 사용했습니다: %s",
+                    elem.attrib,
+                )
             rootfiles.append(RootFile(full_path, media_type))
         if not rootfiles:
             raise HwpxStructureError("container.xml does not declare any rootfiles.")
@@ -197,7 +220,12 @@ class HwpxPackage:
         for rootfile in self._rootfiles:
             if rootfile.media_type == "application/hwpml-package+xml":
                 return rootfile
-        return self._rootfiles[0]
+        selected = self._rootfiles[0]
+        logger.warning(
+            "표준 media_type 메인 rootfile이 없어 첫 항목으로 대체합니다: path=%s",
+            selected.full_path,
+        )
+        return selected
 
     @property
     def version_info(self) -> VersionInfo:
@@ -208,6 +236,7 @@ class HwpxPackage:
         try:
             return self._files[norm_path]
         except KeyError as exc:
+            logger.warning("파트 누락: path=%s", norm_path)
             raise HwpxPackageError(f"File '{norm_path}' is not present in the package.") from exc
 
     def write(self, path: str, data: bytes | str) -> None:
@@ -223,6 +252,7 @@ class HwpxPackage:
         elif norm_path == self.VERSION_PATH:
             pending_version = self._parse_version(data)
         self._files[norm_path] = data
+        self._invalidate_caches(norm_path)
         if norm_path == self.MIMETYPE_PATH:
             self._mimetype = mimetype
         elif norm_path == self.CONTAINER_PATH:
@@ -251,24 +281,234 @@ class HwpxPackage:
     def files(self) -> list[str]:
         return sorted(self._files)
 
-    def save(self, pkg_file: str | BinaryIO) -> None:
+    def part_names(self) -> list[str]:
+        return self.files()
+
+    def has_part(self, part_name: str) -> bool:
+        return self._normalize_path(part_name) in self._files
+
+    def get_part(self, part_name: str) -> bytes:
+        return self.read(part_name)
+
+    def set_part(self, part_name: str, payload: bytes | str | etree._Element) -> None:
+        if isinstance(payload, etree._Element):
+            data = serialize_xml(payload, xml_declaration=True)
+        elif isinstance(payload, str):
+            data = payload.encode("utf-8")
+        elif isinstance(payload, bytes):
+            data = payload
+        else:
+            raise TypeError(f"unsupported part payload type: {type(payload)!r}")
+        self.write(part_name, data)
+
+    def get_xml(self, part_name: str) -> etree._Element:
+        return parse_xml(self.read(part_name))
+
+    def set_xml(self, part_name: str, element: etree._Element) -> None:
+        self.set_part(part_name, element)
+
+    def get_text(self, part_name: str, encoding: str = "utf-8") -> str:
+        return self.read(part_name).decode(encoding)
+
+    def manifest_tree(self) -> etree._Element:
+        if self._manifest_tree is None:
+            self._manifest_tree = self.get_xml(self.MANIFEST_PATH)
+        return self._manifest_tree
+
+    def _manifest_items(self) -> list[etree._Element]:
+        manifest = self.manifest_tree()
+        ns = {"opf": _OPF_NS}
+        return list(manifest.findall("./opf:manifest/opf:item", ns))
+
+    @staticmethod
+    def _normalized_manifest_value(element: etree._Element) -> str:
+        values = [
+            element.attrib.get("id", ""),
+            element.attrib.get("href", ""),
+            element.attrib.get("media-type", ""),
+            element.attrib.get("properties", ""),
+        ]
+        return " ".join(part.lower() for part in values if part)
+
+    @classmethod
+    def _manifest_matches(cls, element: etree._Element, *candidates: str) -> bool:
+        normalized = cls._normalized_manifest_value(element)
+        return any(candidate in normalized for candidate in candidates if candidate)
+
+    def _resolve_spine_paths(self) -> list[str]:
+        if self._spine_cache is None:
+            manifest = self.manifest_tree()
+            ns = {"opf": _OPF_NS}
+            manifest_items: dict[str, str] = {}
+            for item in manifest.findall("./opf:manifest/opf:item", ns):
+                item_id = item.attrib.get("id")
+                href = item.attrib.get("href", "")
+                if item_id and href:
+                    manifest_items[item_id] = href
+            spine_paths: list[str] = []
+            for itemref in manifest.findall("./opf:spine/opf:itemref", ns):
+                idref = itemref.attrib.get("idref")
+                if not idref:
+                    continue
+                href = manifest_items.get(idref)
+                if href:
+                    spine_paths.append(href)
+            self._spine_cache = spine_paths
+        return self._spine_cache
+
+    def section_paths(self) -> list[str]:
+        if self._section_paths_cache is None:
+            from pathlib import PurePosixPath
+
+            paths = [
+                path
+                for path in self._resolve_spine_paths()
+                if path and PurePosixPath(path).name.startswith("section")
+            ]
+            if not paths:
+                logger.warning("manifest spine에서 section 경로를 찾지 못해 파일명 기반 fallback을 사용합니다.")
+                paths = [
+                    name
+                    for name in self._files.keys()
+                    if PurePosixPath(name).name.startswith("section")
+                ]
+            self._section_paths_cache = paths
+        return list(self._section_paths_cache)
+
+    def header_paths(self) -> list[str]:
+        if self._header_paths_cache is None:
+            from pathlib import PurePosixPath
+
+            paths = [
+                path
+                for path in self._resolve_spine_paths()
+                if path and PurePosixPath(path).name.startswith("header")
+            ]
+            if not paths and self.has_part(self.HEADER_PATH):
+                logger.warning(
+                    "manifest spine에서 header 경로를 찾지 못해 기본 header 경로 fallback을 사용합니다: %s",
+                    self.HEADER_PATH,
+                )
+                paths = [self.HEADER_PATH]
+            self._header_paths_cache = paths
+        return list(self._header_paths_cache)
+
+    def master_page_paths(self) -> list[str]:
+        if self._master_page_paths_cache is None:
+            from pathlib import PurePosixPath
+
+            paths = [
+                item.attrib.get("href", "")
+                for item in self._manifest_items()
+                if self._manifest_matches(item, "masterpage", "master-page")
+                and item.attrib.get("href")
+            ]
+            if not paths:
+                logger.warning("manifest에서 masterPage를 찾지 못해 파일명 탐색 fallback을 사용합니다.")
+                paths = [
+                    name
+                    for name in self._files.keys()
+                    if "master" in PurePosixPath(name).name.lower()
+                    and "page" in PurePosixPath(name).name.lower()
+                ]
+            self._master_page_paths_cache = paths
+        return list(self._master_page_paths_cache)
+
+    def history_paths(self) -> list[str]:
+        if self._history_paths_cache is None:
+            from pathlib import PurePosixPath
+
+            paths = [
+                item.attrib.get("href", "")
+                for item in self._manifest_items()
+                if self._manifest_matches(item, "history") and item.attrib.get("href")
+            ]
+            if not paths:
+                logger.warning("manifest에서 history를 찾지 못해 파일명 탐색 fallback을 사용합니다.")
+                paths = [
+                    name
+                    for name in self._files.keys()
+                    if "history" in PurePosixPath(name).name.lower()
+                ]
+            self._history_paths_cache = paths
+        return list(self._history_paths_cache)
+
+    def version_path(self) -> str | None:
+        if not self._version_path_cache_resolved:
+            path: str | None = None
+            for item in self._manifest_items():
+                if self._manifest_matches(item, "version"):
+                    href = item.attrib.get("href", "").strip()
+                    if href:
+                        path = href
+                        break
+            if path is None and self.has_part(self.VERSION_PATH):
+                logger.warning(
+                    "manifest에서 version 파트를 찾지 못해 기본 경로 fallback을 사용합니다: %s",
+                    self.VERSION_PATH,
+                )
+                path = self.VERSION_PATH
+            self._version_path_cache = path
+            self._version_path_cache_resolved = True
+        return self._version_path_cache
+
+    def _invalidate_caches(self, changed_path: str) -> None:
+        if changed_path == self.MANIFEST_PATH:
+            self._manifest_tree = None
+            self._spine_cache = None
+            self._section_paths_cache = None
+            self._header_paths_cache = None
+            self._master_page_paths_cache = None
+            self._history_paths_cache = None
+            self._version_path_cache = None
+            self._version_path_cache_resolved = False
+        elif changed_path == self.VERSION_PATH:
+            self._version_path_cache_resolved = False
+
+    def save(
+        self,
+        pkg_file: str | Path | BinaryIO | None = None,
+        updates: Mapping[str, bytes | str | etree._Element] | None = None,
+    ) -> str | Path | BinaryIO | bytes | None:
+        if updates:
+            for part_name, payload in updates.items():
+                self.set_part(part_name, payload)
+
+        destination = pkg_file
+        if destination is None:
+            buffer = io.BytesIO()
+            self._save_to_zip(buffer)
+            return buffer.getvalue()
+
+        self._save_to_zip(destination)
+        return destination
+
+    def _save_to_zip(self, pkg_file: str | Path | BinaryIO) -> None:
         self._files[self.MIMETYPE_PATH] = self._mimetype.encode("utf-8")
         if self._version.dirty:
             self._files[self.VERSION_PATH] = self._version.to_bytes()
             self._version.mark_clean()
         self._validate_structure()
         with ZipFile(pkg_file, "w") as zf:
-            self._write_mimetype(zf)
-            for name in sorted(self._files):
-                if name == self.MIMETYPE_PATH:
-                    continue
-                data = self._files[name]
-                info = ZipInfo(name)
-                info.compress_type = ZIP_DEFLATED
-                zf.writestr(info, data)
+            self._write_archive(zf)
+
+    def _write_archive(self, zf: ZipFile) -> None:
+        self._write_mimetype(zf)
+        for name in sorted(self._files):
+            if name == self.MIMETYPE_PATH:
+                continue
+            self._write_zip_entry(zf, name, self._files[name], ZIP_DEFLATED)
+
+    @staticmethod
+    def _write_zip_entry(zf: ZipFile, path: str, payload: bytes, compress_type: int) -> None:
+        info = ZipInfo(path)
+        info.compress_type = compress_type
+        zf.writestr(info, payload)
 
     def _write_mimetype(self, zf: ZipFile) -> None:
-        info = ZipInfo(self.MIMETYPE_PATH)
-        info.compress_type = ZIP_STORED
-        zf.writestr(info, self._files[self.MIMETYPE_PATH])
-
+        self._write_zip_entry(
+            zf,
+            self.MIMETYPE_PATH,
+            self._files[self.MIMETYPE_PATH],
+            ZIP_STORED,
+        )

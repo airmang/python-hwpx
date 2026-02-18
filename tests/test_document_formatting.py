@@ -11,7 +11,7 @@ from hwpx.oxml.document import (
     HwpxOxmlParagraph,
     HwpxOxmlSection,
 )
-from hwpx.package import HwpxPackage
+from hwpx.opc.package import HwpxPackage
 
 
 HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"

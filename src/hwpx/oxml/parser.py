@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Callable, Dict, Optional
 
 from lxml import etree
@@ -67,3 +68,5 @@ __all__ = [
     "parse_header_xml",
     "parse_section_xml",
 ]
+
+logger = logging.getLogger(__name__)

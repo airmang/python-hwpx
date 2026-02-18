@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import io
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 import pytest
+from lxml import etree
 
 from hwpx.document import HwpxDocument
-from hwpx.package import HwpxPackage
+from hwpx.opc.package import HwpxPackage
 from hwpx.tools import load_default_schemas, validate_document
 from hwpx.templates import blank_document_bytes
 
@@ -150,7 +150,7 @@ def test_master_page_history_and_version_round_trip(tmp_path: Path) -> None:
     assert manifest_list is not None
 
     def add_manifest_item(item_id: str, href: str) -> None:
-        ET.SubElement(
+        etree.SubElement(
             manifest_list,
             f"{{{ns['opf']}}}item",
             {"id": item_id, "href": href, "media-type": "application/xml"},
@@ -162,8 +162,8 @@ def test_master_page_history_and_version_round_trip(tmp_path: Path) -> None:
     package.set_xml(package.MANIFEST_PATH, manifest)
 
     hm_ns = "http://www.hancom.co.kr/hwpml/2011/master-page"
-    master_root = ET.Element(f"{{{hm_ns}}}masterPage")
-    ET.SubElement(
+    master_root = etree.Element(f"{{{hm_ns}}}masterPage")
+    etree.SubElement(
         master_root,
         f"{{{hm_ns}}}masterPageItem",
         {"id": "0", "type": "BOTH", "name": "초기 바탕쪽"},
@@ -171,9 +171,9 @@ def test_master_page_history_and_version_round_trip(tmp_path: Path) -> None:
     package.set_xml("Contents/masterPages/masterPage0.xml", master_root)
 
     hhs_ns = "http://www.hancom.co.kr/hwpml/2011/history"
-    history_root = ET.Element(f"{{{hhs_ns}}}history")
-    history_entry = ET.SubElement(history_root, f"{{{hhs_ns}}}historyEntry", {"id": "0"})
-    comment = ET.SubElement(history_entry, f"{{{hhs_ns}}}comment")
+    history_root = etree.Element(f"{{{hhs_ns}}}history")
+    history_entry = etree.SubElement(history_root, f"{{{hhs_ns}}}historyEntry", {"id": "0"})
+    comment = etree.SubElement(history_entry, f"{{{hhs_ns}}}comment")
     comment.text = "초기 내역"
     package.set_xml("Contents/history.xml", history_root)
 

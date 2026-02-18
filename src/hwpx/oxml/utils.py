@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Optional, Tuple, Union
+
+logger = logging.getLogger(__name__)
 
 from lxml import etree
 

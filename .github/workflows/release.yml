@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "[0-9]*"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate tag/version consistency
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG_NAME="${GITHUB_REF_NAME}"
+          TAG_VERSION="${TAG_NAME#v}"
+
+          PYPROJECT_VERSION=$(python - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+          print(data["project"]["version"])
+          PY
+          )
+
+          CHANGELOG_VERSION=$(python - <<'PY'
+          import re
+          from pathlib import Path
+
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          match = re.search(r"^## \[([^\]]+)\]", changelog, re.MULTILINE)
+          if not match:
+              raise SystemExit("CHANGELOG.md에서 버전 섹션(## [x.y.z])을 찾지 못했습니다.")
+          print(match.group(1).strip())
+          PY
+          )
+
+          echo "Tag version: ${TAG_VERSION}"
+          echo "pyproject version: ${PYPROJECT_VERSION}"
+          echo "changelog version: ${CHANGELOG_VERSION}"
+
+          if [[ "${TAG_VERSION}" != "${PYPROJECT_VERSION}" ]]; then
+            echo "태그 버전(${TAG_VERSION})과 pyproject 버전(${PYPROJECT_VERSION})이 일치하지 않습니다." >&2
+            exit 1
+          fi
+
+          if [[ "${TAG_VERSION}" != "${CHANGELOG_VERSION}" ]]; then
+            echo "태그 버전(${TAG_VERSION})과 changelog 최신 버전(${CHANGELOG_VERSION})이 일치하지 않습니다." >&2
+            exit 1
+          fi
+
+      - name: Extract latest changelog section for release notes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          lines = Path("CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+          start = next((i for i, line in enumerate(lines) if line.startswith("## [")), None)
+          if start is None:
+              raise SystemExit("CHANGELOG.md에서 릴리스 섹션을 찾지 못했습니다.")
+
+          end = next(
+              (i for i in range(start + 1, len(lines)) if lines[i].startswith("## [")),
+              len(lines),
+          )
+
+          section = "\n".join(lines[start:end]).strip() + "\n"
+          Path("release_notes.md").write_text(section, encoding="utf-8")
+          PY
+
+      - name: Build distributions (migrated from scripts/build-and-publish.sh)
+        run: |
+          python -m pip install --upgrade build twine
+          rm -rf dist build
+          python -m build
+          twine check dist/*
+
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release_notes.md
+          files: dist/*

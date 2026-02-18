@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import logging
 from .body import (
     Paragraph,
     Run,
@@ -15,21 +16,22 @@ from .body import (
 )
 from .common import GenericElement, parse_generic_element
 
+from .header_part import HwpxOxmlHeader
+from .memo import HwpxOxmlMemo
+from .paragraph import HwpxOxmlParagraph
+from .section import HwpxOxmlSection
+from .table import HwpxOxmlTable
+
 from .document import (
     DocumentNumbering,
     HwpxOxmlDocument,
-    HwpxOxmlHeader,
     HwpxOxmlHistory,
     HwpxOxmlInlineObject,
     HwpxOxmlMasterPage,
-    HwpxOxmlMemo,
     HwpxOxmlMemoGroup,
-    HwpxOxmlParagraph,
     HwpxOxmlRun,
-    HwpxOxmlSection,
     HwpxOxmlSectionHeaderFooter,
     HwpxOxmlSectionProperties,
-    HwpxOxmlTable,
     HwpxOxmlTableCell,
     HwpxTableGridPosition,
     HwpxOxmlTableRow,
@@ -213,4 +215,6 @@ __all__ = [
     "parse_section_xml",
     "parse_text_span",
 ]
+
+logger = logging.getLogger(__name__)
 
