@@ -35,8 +35,11 @@ jobs:
         run: pyright
 
       - name: Run tests and keep summary log
+        env:
+          # 단계적 도입: 기준을 50 -> 60 -> 70으로 상향합니다.
+          COVERAGE_FAIL_UNDER: 50
         run: |
-          pytest -v -ra 2>&1 | tee pytest-summary.log
+          pytest -v -ra --cov=hwpx --cov-report=term-missing --cov-fail-under=${COVERAGE_FAIL_UNDER} 2>&1 | tee pytest-summary.log
 
       - name: Upload pytest summary log
         if: always()

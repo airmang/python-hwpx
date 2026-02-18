@@ -2183,7 +2183,9 @@ class HwpxOxmlParagraph:
             default_char = self.char_pr_id_ref or "0"
             if default_char is not None:
                 attrs["charPrIDRef"] = str(default_char)
-        return ET.SubElement(self.element, f"{_HP}run", attrs)
+        run = self.element.makeelement(f"{_HP}run", attrs)
+        self.element.append(run)
+        return run
 
     def add_run(
         self,
@@ -2264,6 +2266,9 @@ class HwpxOxmlParagraph:
             height=height,
             border_fill_id_ref=resolved_border_fill,
         )
+        if type(table_element) is not type(run):
+            table_element = LET.fromstring(ET.tostring(table_element, encoding="utf-8"))
+
         run.append(table_element)
         self.section.mark_dirty()
         return HwpxOxmlTable(table_element, self)
@@ -2585,7 +2590,7 @@ class HwpxOxmlSection:
         if style_id_ref is not None:
             attrs["styleIDRef"] = str(style_id_ref)
 
-        paragraph = ET.Element(f"{_HP}p", attrs)
+        paragraph = self._element.makeelement(f"{_HP}p", attrs)
 
         if include_run:
             run_attrs = dict(run_attributes or {})
@@ -2594,9 +2599,11 @@ class HwpxOxmlSection:
             elif "charPrIDRef" not in run_attrs:
                 run_attrs["charPrIDRef"] = "0"
 
-            run = ET.SubElement(paragraph, f"{_HP}run", run_attrs)
-            text_element = ET.SubElement(run, f"{_HP}t")
+            run = paragraph.makeelement(f"{_HP}run", run_attrs)
+            paragraph.append(run)
+            text_element = run.makeelement(f"{_HP}t", {})
             text_element.text = text
+            run.append(text_element)
 
         self._element.append(paragraph)
         self._dirty = True
