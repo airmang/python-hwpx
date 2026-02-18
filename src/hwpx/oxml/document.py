@@ -31,6 +31,10 @@ from .header import (
 )
 from .utils import parse_int
 
+ET.register_namespace("hp", "http://www.hancom.co.kr/hwpml/2011/paragraph")
+ET.register_namespace("hs", "http://www.hancom.co.kr/hwpml/2011/section")
+ET.register_namespace("hc", "http://www.hancom.co.kr/hwpml/2011/core")
+ET.register_namespace("hh", "http://www.hancom.co.kr/hwpml/2011/head")
 logger = logging.getLogger(__name__)
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
