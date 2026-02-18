@@ -1628,6 +1628,17 @@ class HwpxOxmlTable:
         self.element = element
         self.paragraph = paragraph
 
+    def __repr__(self) -> str:
+        """Return a compact and safe summary of table geometry."""
+
+        return (
+            f"{self.__class__.__name__}("
+            f"rows={self.row_count}, "
+            f"cols={self.column_count}, "
+            f"physical_rows={len(self.rows)}"
+            ")"
+        )
+
     @classmethod
     def create(
         cls,
@@ -2085,6 +2096,18 @@ class HwpxOxmlParagraph:
     element: ET.Element
     section: HwpxOxmlSection
 
+    def __repr__(self) -> str:
+        """Return a compact and safe summary of paragraph contents."""
+
+        runs = self._run_elements()
+        return (
+            f"{self.__class__.__name__}("
+            f"runs={len(runs)}, "
+            f"tables={len(self.tables)}, "
+            f"text_length={len(self.text)}"
+            ")"
+        )
+
     def to_model(self) -> "body.Paragraph":
         xml_bytes = ET.tostring(self.element, encoding="utf-8")
         node = LET.fromstring(xml_bytes)
@@ -2430,6 +2453,17 @@ class HwpxOxmlSection:
         self._dirty = False
         self._properties_cache: HwpxOxmlSectionProperties | None = None
         self._document = document
+
+    def __repr__(self) -> str:
+        """Return a compact and safe summary of section structure."""
+
+        return (
+            f"{self.__class__.__name__}("
+            f"part_name={self.part_name!r}, "
+            f"paragraphs={len(self.paragraphs)}, "
+            f"memos={len(self.memos)}"
+            ")"
+        )
 
     def _section_properties_element(self) -> ET.Element | None:
         return self._element.find(f".//{_HP}secPr")

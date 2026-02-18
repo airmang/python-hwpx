@@ -72,6 +72,20 @@ class HwpxDocument:
         self._managed_resources = list(managed_resources)
         self._closed = False
 
+    def __repr__(self) -> str:
+        """Return a compact and safe summary of the document state."""
+
+        return (
+            f"{self.__class__.__name__}("
+            f"sections={len(self.sections)}, "
+            f"paragraphs={len(self.paragraphs)}, "
+            f"headers={len(self.headers)}, "
+            f"master_pages={len(self.master_pages)}, "
+            f"histories={len(self.histories)}, "
+            f"closed={self._closed}"
+            ")"
+        )
+
     # ------------------------------------------------------------------
     # construction helpers
     @classmethod
