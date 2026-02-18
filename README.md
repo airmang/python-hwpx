@@ -58,7 +58,7 @@ table.set_cell_text(1, 1, str(len(document.paragraphs)))
 document.add_memo_with_anchor("배포 전 검토", paragraph=paragraph, memo_shape_id_ref="0")
 
 # 3) 다른 이름으로 저장
-document.save("output/example.hwpx")
+document.save_to_path("output/example.hwpx")
 ```
 
 `HwpxDocument.add_table()`은 문서에 정의된 테두리 채우기가 없으면 헤더 참조 목록에 "기본 실선" `borderFill`을 만들어 표와 모든 셀에 참조를 연결합니다.
@@ -66,6 +66,17 @@ document.save("output/example.hwpx")
 표 셀 텍스트를 편집하는 `table.set_cell_text()`는 기존 단락에 남아 있는 `lineSegArray`와 같은 줄 배치 캐시를 제거하여 한/글이 문서를 다시 열 때 줄바꿈을 새로 계산하도록 합니다. 병합된 표 구조를 다뤄야 한다면 `table.iter_grid()` 또는 `table.get_cell_map()`으로 논리 격자와 실제 셀의 매핑을 확인하고, `set_cell_text(..., logical=True, split_merged=True)`로 논리 좌표 기반 편집과 자동 병합 해제를 동시에 처리할 수 있습니다.
 
 더 많은 실전 패턴은 [빠른 시작](docs/quickstart.md)과 [사용 가이드](docs/usage.md)의 "빠른 예제 모음"에서 확인할 수 있습니다.
+
+### 저장 API 변경 안내
+
+`HwpxDocument`는 저장 사용 케이스를 다음처럼 분리해 제공합니다.
+
+- `save_to_path(path) -> str | PathLike[str]`: 지정한 경로로 저장하고 같은 경로를 반환
+- `save_to_stream(stream) -> BinaryIO`: 파일/버퍼 스트림에 저장하고 같은 스트림을 반환
+- `to_bytes() -> bytes`: 메모리에서 직렬화한 바이트를 반환
+
+기존 `save()`는 하위 호환을 위해 유지되지만 deprecated 경고를 발생시킵니다. 새 코드에서는 위 3개 메서드 사용을 권장합니다.
+
 
 ## 문서
  [사용법](https://airmang.github.io/python-hwpx/)

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import io
+import warnings
 from datetime import datetime
 import logging
 import uuid
 
 from os import PathLike
-from typing import Any, BinaryIO, Iterator
+from typing import Any, BinaryIO, Iterator, overload
 
 from lxml import etree
 
@@ -822,12 +823,62 @@ class HwpxDocument:
             target_section = self._root.sections[-1]
         target_section.properties.remove_footer(page_type=page_type)
 
+    def save_to_path(self, path: str | PathLike[str]) -> str | PathLike[str]:
+        """Persist pending changes to *path* and return the same path."""
+
+        updates = self._root.serialize()
+        result = self._package.save(path, updates)
+        self._root.reset_dirty()
+        return path if result is None else result
+
+    def save_to_stream(self, stream: BinaryIO) -> BinaryIO:
+        """Persist pending changes to *stream* and return the same stream."""
+
+        updates = self._root.serialize()
+        result = self._package.save(stream, updates)
+        self._root.reset_dirty()
+        return stream if result is None else result
+
+    def to_bytes(self) -> bytes:
+        """Serialize pending changes and return the HWPX archive as bytes."""
+
+        updates = self._root.serialize()
+        result = self._package.save(None, updates)
+        self._root.reset_dirty()
+        if isinstance(result, bytes):
+            return result
+        raise TypeError("package.save(None) must return bytes")
+
+    @overload
+    def save(self, path_or_stream: None = None) -> bytes: ...
+
+    @overload
+    def save(self, path_or_stream: str | PathLike[str]) -> str | PathLike[str]: ...
+
+    @overload
+    def save(self, path_or_stream: BinaryIO) -> BinaryIO: ...
+
     def save(
         self,
         path_or_stream: str | PathLike[str] | BinaryIO | None = None,
-    ) -> str | PathLike[str] | BinaryIO | bytes | None:
-        """Persist pending changes to *path_or_stream* or the original source."""
-        updates = self._root.serialize()
-        result = self._package.save(path_or_stream, updates)
-        self._root.reset_dirty()
-        return result
+    ) -> str | PathLike[str] | BinaryIO | bytes:
+        """Deprecated compatibility wrapper around save_to_path/save_to_stream/to_bytes.
+
+        Deprecated:
+            ``save()``는 하위 호환을 위해 유지되며 향후 제거될 수 있습니다.
+            - 경로 저장: ``save_to_path(path)``
+            - 스트림 저장: ``save_to_stream(stream)``
+            - 바이트 반환: ``to_bytes()``
+        """
+
+        warnings.warn(
+            "HwpxDocument.save()는 deprecated 예정입니다. "
+            "save_to_path()/save_to_stream()/to_bytes() 사용을 권장합니다.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if path_or_stream is None:
+            return self.to_bytes()
+        if isinstance(path_or_stream, (str, PathLike)):
+            return self.save_to_path(path_or_stream)
+        return self.save_to_stream(path_or_stream)
