@@ -66,3 +66,16 @@ def test_missing_required_files_raise_structure_error() -> None:
 
     with pytest.raises(HwpxStructureError):
         HwpxPackage.open(_build_package(include_version=False))
+
+
+def test_save_preserves_expected_compress_type_per_entry() -> None:
+    package = HwpxPackage.open(_build_package())
+
+    output = package.save()
+    with ZipFile(io.BytesIO(output), "r") as archive:
+        infos = archive.infolist()
+
+    assert infos[0].filename == "mimetype"
+    assert infos[0].compress_type == ZIP_STORED
+    for info in infos[1:]:
+        assert info.compress_type == ZIP_DEFLATED

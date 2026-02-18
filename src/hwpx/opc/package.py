@@ -490,16 +490,25 @@ class HwpxPackage:
             self._version.mark_clean()
         self._validate_structure()
         with ZipFile(pkg_file, "w") as zf:
-            self._write_mimetype(zf)
-            for name in sorted(self._files):
-                if name == self.MIMETYPE_PATH:
-                    continue
-                data = self._files[name]
-                info = ZipInfo(name)
-                info.compress_type = ZIP_DEFLATED
-                zf.writestr(info, data)
+            self._write_archive(zf)
+
+    def _write_archive(self, zf: ZipFile) -> None:
+        self._write_mimetype(zf)
+        for name in sorted(self._files):
+            if name == self.MIMETYPE_PATH:
+                continue
+            self._write_zip_entry(zf, name, self._files[name], ZIP_DEFLATED)
+
+    @staticmethod
+    def _write_zip_entry(zf: ZipFile, path: str, payload: bytes, compress_type: int) -> None:
+        info = ZipInfo(path)
+        info.compress_type = compress_type
+        zf.writestr(info, payload)
 
     def _write_mimetype(self, zf: ZipFile) -> None:
-        info = ZipInfo(self.MIMETYPE_PATH)
-        info.compress_type = ZIP_STORED
-        zf.writestr(info, self._files[self.MIMETYPE_PATH])
+        self._write_zip_entry(
+            zf,
+            self.MIMETYPE_PATH,
+            self._files[self.MIMETYPE_PATH],
+            ZIP_STORED,
+        )
