@@ -37,6 +37,10 @@ dev = [
 test = [
     "pytest>=7.4",
 ]
+typecheck = [
+    "mypy>=1.10",
+    "pyright>=1.1.390",
+]
 
 [project.urls]
 Homepage = "https://github.com/airmang/python-hwpx"
@@ -63,3 +67,19 @@ include = ["hwpx*"]
 pythonpath = ["src"]
 addopts = "-ra"
 testpaths = ["tests"]
+
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src/hwpx/document.py", "src/hwpx/oxml/document.py"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["hwpx.document", "hwpx.oxml.document"]
+ignore_errors = true
+
+[tool.pyright]
+include = ["src/hwpx/document.py", "src/hwpx/oxml/document.py"]
+pythonVersion = "3.10"
+typeCheckingMode = "off"
+reportMissingTypeStubs = false

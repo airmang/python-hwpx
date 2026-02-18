@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple, TypeVar
+from typing import Callable, Iterable, Iterator, Optional, Sequence, TypeVar
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
@@ -56,7 +56,7 @@ _BASIC_BORDER_FILL_ATTRIBUTES = {
     "breakCellSeparateLine": "0",
 }
 
-_BASIC_BORDER_CHILDREN: Tuple[Tuple[str, dict[str, str]], ...] = (
+_BASIC_BORDER_CHILDREN: tuple[tuple[str, dict[str, str]], ...] = (
     ("slash", {"type": "NONE", "Crooked": "0", "isCounter": "0"}),
     ("backSlash", {"type": "NONE", "Crooked": "0", "isCounter": "0"}),
     ("leftBorder", {"type": "SOLID", "width": "0.12 mm", "color": "#000000"}),
@@ -193,7 +193,7 @@ def _create_basic_border_fill_element(border_id: str) -> ET.Element:
     return element
 
 
-def _distribute_size(total: int, parts: int) -> List[int]:
+def _distribute_size(total: int, parts: int) -> list[int]:
     """Return *parts* integers that sum to *total* and are as even as possible."""
 
     if parts <= 0:
@@ -201,7 +201,7 @@ def _distribute_size(total: int, parts: int) -> List[int]:
 
     base = total // parts
     remainder = total - (base * parts)
-    sizes: List[int] = []
+    sizes: list[int] = []
     for index in range(parts):
         value = base
         if remainder > 0:
@@ -311,8 +311,8 @@ class RunStyle:
     """Represents the resolved character style applied to a run."""
 
     id: str
-    attributes: Dict[str, str]
-    child_attributes: Dict[str, Dict[str, str]]
+    attributes: dict[str, str]
+    child_attributes: dict[str, dict[str, str]]
 
     def text_color(self) -> str | None:
         return self.attributes.get("textColor")
@@ -345,8 +345,8 @@ class RunStyle:
         return True
 
 
-def _char_properties_from_header(element: ET.Element) -> Dict[str, RunStyle]:
-    mapping: Dict[str, RunStyle] = {}
+def _char_properties_from_header(element: ET.Element) -> dict[str, RunStyle]:
+    mapping: dict[str, RunStyle] = {}
     ref_list = element.find(f"{_HH}refList")
     if ref_list is None:
         return mapping
@@ -359,7 +359,7 @@ def _char_properties_from_header(element: ET.Element) -> Dict[str, RunStyle]:
         if not char_id:
             continue
         attributes = {key: value for key, value in child.attrib.items() if key != "id"}
-        child_attributes: Dict[str, Dict[str, str]] = {}
+        child_attributes: dict[str, dict[str, str]] = {}
         for grandchild in child:
             if len(list(grandchild)) == 0 and (grandchild.text is None or not grandchild.text.strip()):
                 child_attributes[_element_local_name(grandchild)] = {
@@ -524,7 +524,7 @@ class HwpxOxmlSectionHeaderFooter:
     def text(self) -> str:
         """Return the concatenated text content of the header/footer."""
 
-        parts: List[str] = []
+        parts: list[str] = []
         for node in self.element.findall(f".//{_HP}t"):
             if node.text:
                 parts.append(node.text)
@@ -883,16 +883,16 @@ class HwpxOxmlSectionProperties:
         return element
 
     @property
-    def headers(self) -> List[HwpxOxmlSectionHeaderFooter]:
-        wrappers: List[HwpxOxmlSectionHeaderFooter] = []
+    def headers(self) -> list[HwpxOxmlSectionHeaderFooter]:
+        wrappers: list[HwpxOxmlSectionHeaderFooter] = []
         for element in self.element.findall(f"{_HP}header"):
             apply = self._match_apply_for_element("header", element)
             wrappers.append(HwpxOxmlSectionHeaderFooter(element, self, apply))
         return wrappers
 
     @property
-    def footers(self) -> List[HwpxOxmlSectionHeaderFooter]:
-        wrappers: List[HwpxOxmlSectionHeaderFooter] = []
+    def footers(self) -> list[HwpxOxmlSectionHeaderFooter]:
+        wrappers: list[HwpxOxmlSectionHeaderFooter] = []
         for element in self.element.findall(f"{_HP}footer"):
             apply = self._match_apply_for_element("footer", element)
             wrappers.append(HwpxOxmlSectionHeaderFooter(element, self, apply))
@@ -977,7 +977,7 @@ class HwpxOxmlRun:
         self.element = replacement
         self.paragraph.section.mark_dirty()
 
-    def _current_format_flags(self) -> Tuple[bool, bool, bool] | None:
+    def _current_format_flags(self) -> tuple[bool, bool, bool] | None:
         style = self.style
         if style is None:
             return None
@@ -1038,7 +1038,7 @@ class HwpxOxmlRun:
             self.element.set("charPrIDRef", new_value)
             self.paragraph.section.mark_dirty()
 
-    def _plain_text_nodes(self) -> List[ET.Element]:
+    def _plain_text_nodes(self) -> list[ET.Element]:
         return [
             node
             for node in self.element.findall(f"{_HP}t")
@@ -1053,7 +1053,7 @@ class HwpxOxmlRun:
 
     @property
     def text(self) -> str:
-        parts: List[str] = []
+        parts: list[str] = []
         for node in self.element.findall(f"{_HP}t"):
             parts.append("".join(node.itertext()))
         return "".join(parts)
@@ -1117,8 +1117,8 @@ class HwpxOxmlRun:
                 else:
                     setattr(self.element, self.attr, "")
 
-        def _gather_segments(node: ET.Element) -> List[_Segment]:
-            segments: List[_Segment] = []
+        def _gather_segments(node: ET.Element) -> list[_Segment]:
+            segments: list[_Segment] = []
 
             def visit(element: ET.Element) -> None:
                 text_value = element.text or ""
@@ -1131,8 +1131,8 @@ class HwpxOxmlRun:
             visit(node)
             return segments
 
-        def _segment_boundaries(segments: Sequence[_Segment]) -> List[Tuple[int, int]]:
-            bounds: List[Tuple[int, int]] = []
+        def _segment_boundaries(segments: Sequence[_Segment]) -> list[tuple[int, int]]:
+            bounds: list[tuple[int, int]] = []
             offset = 0
             for segment in segments:
                 start = offset
@@ -1140,7 +1140,7 @@ class HwpxOxmlRun:
                 bounds.append((start, offset))
             return bounds
 
-        def _distribute(total: int, weights: Sequence[int]) -> List[int]:
+        def _distribute(total: int, weights: Sequence[int]) -> list[int]:
             if not weights:
                 return []
             if total <= 0:
@@ -1158,7 +1158,7 @@ class HwpxOxmlRun:
 
             allocation = []
             remainder = total
-            residuals: List[Tuple[int, int]] = []
+            residuals: list[tuple[int, int]] = []
             for index, weight in enumerate(weights):
                 share = total * weight // weight_sum
                 allocation.append(share)
@@ -1180,13 +1180,13 @@ class HwpxOxmlRun:
             return allocation
 
         def _apply_replacement(
-            segments: List[_Segment],
+            segments: list[_Segment],
             start: int,
             end: int,
             replacement_text: str,
         ) -> None:
             bounds = _segment_boundaries(segments)
-            affected: List[Tuple[int, int, int]] = []
+            affected: list[tuple[int, int, int]] = []
             for index, (seg_start, seg_end) in enumerate(bounds):
                 if start >= seg_end or end <= seg_start:
                     continue
@@ -1212,7 +1212,7 @@ class HwpxOxmlRun:
                 replacement_offset += share
                 segment.set(prefix + portion + suffix)
 
-        segments: List[_Segment] = []
+        segments: list[_Segment] = []
         for text_node in self.element.findall(f"{_HP}t"):
             segments.extend(_gather_segments(text_node))
 
@@ -1297,7 +1297,7 @@ class HwpxOxmlMemoGroup:
         self.section = section
 
     @property
-    def memos(self) -> List["HwpxOxmlMemo"]:
+    def memos(self) -> list["HwpxOxmlMemo"]:
         return [
             HwpxOxmlMemo(child, self)
             for child in self.element.findall(f"{_HP}memo")
@@ -1394,15 +1394,15 @@ class HwpxOxmlMemo:
         return None
 
     @property
-    def paragraphs(self) -> List["HwpxOxmlParagraph"]:
-        paragraphs: List[HwpxOxmlParagraph] = []
+    def paragraphs(self) -> list["HwpxOxmlParagraph"]:
+        paragraphs: list[HwpxOxmlParagraph] = []
         for node in self.element.findall(f".//{_HP}p"):
             paragraphs.append(HwpxOxmlParagraph(node, self.group.section))
         return paragraphs
 
     @property
     def text(self) -> str:
-        parts: List[str] = []
+        parts: list[str] = []
         for paragraph in self.paragraphs:
             value = paragraph.text
             if value:
@@ -1525,7 +1525,7 @@ class HwpxOxmlTableCell:
         return text
 
     @property
-    def address(self) -> Tuple[int, int]:
+    def address(self) -> tuple[int, int]:
         addr = self._addr_element()
         if addr is None:
             return (0, 0)
@@ -1534,7 +1534,7 @@ class HwpxOxmlTableCell:
         return (row, col)
 
     @property
-    def span(self) -> Tuple[int, int]:
+    def span(self) -> tuple[int, int]:
         span = self._span_element()
         row_span = int(span.get("rowSpan", "1"))
         col_span = int(span.get("colSpan", "1"))
@@ -1590,8 +1590,8 @@ class HwpxTableGridPosition:
     row: int
     column: int
     cell: HwpxOxmlTableCell
-    anchor: Tuple[int, int]
-    span: Tuple[int, int]
+    anchor: tuple[int, int]
+    span: tuple[int, int]
 
     @property
     def is_anchor(self) -> bool:
@@ -1614,7 +1614,7 @@ class HwpxOxmlTableRow:
         self.table = table
 
     @property
-    def cells(self) -> List[HwpxOxmlTableCell]:
+    def cells(self) -> list[HwpxOxmlTableCell]:
         return [
             HwpxOxmlTableCell(cell_element, self.table, self.element)
             for cell_element in self.element.findall(f"{_HP}tc")
@@ -1756,11 +1756,11 @@ class HwpxOxmlTable:
         return len(first_row.findall(f"{_HP}tc"))
 
     @property
-    def rows(self) -> List[HwpxOxmlTableRow]:
+    def rows(self) -> list[HwpxOxmlTableRow]:
         return [HwpxOxmlTableRow(row, self) for row in self.element.findall(f"{_HP}tr")]
 
-    def _build_cell_grid(self) -> dict[Tuple[int, int], HwpxTableGridPosition]:
-        mapping: dict[Tuple[int, int], HwpxTableGridPosition] = {}
+    def _build_cell_grid(self) -> dict[tuple[int, int], HwpxTableGridPosition]:
+        mapping: dict[tuple[int, int], HwpxTableGridPosition] = {}
         for row in self.element.findall(f"{_HP}tr"):
             for cell_element in row.findall(f"{_HP}tc"):
                 wrapper = HwpxOxmlTableCell(cell_element, self, row)
@@ -1824,12 +1824,12 @@ class HwpxOxmlTable:
                     )
                 yield entry
 
-    def get_cell_map(self) -> List[List[HwpxTableGridPosition]]:
+    def get_cell_map(self) -> list[list[HwpxTableGridPosition]]:
         """Return a 2D list mapping logical positions to physical cells."""
 
         row_count = self.row_count
         col_count = self.column_count
-        grid: List[List[HwpxTableGridPosition | None]] = [
+        grid: list[list[HwpxTableGridPosition | None]] = [
             [None for _ in range(col_count)] for _ in range(row_count)
         ]
         for entry in self.iter_grid():
@@ -2129,7 +2129,7 @@ class HwpxOxmlParagraph:
         self.element = replacement
         self.section.mark_dirty()
 
-    def _run_elements(self) -> List[ET.Element]:
+    def _run_elements(self) -> list[ET.Element]:
         return self.element.findall(f"{_HP}run")
 
     def _ensure_run(self) -> ET.Element:
@@ -2144,14 +2144,14 @@ class HwpxOxmlParagraph:
         return ET.SubElement(self.element, f"{_HP}run", run_attrs)
 
     @property
-    def runs(self) -> List[HwpxOxmlRun]:
+    def runs(self) -> list[HwpxOxmlRun]:
         """Return the runs contained in this paragraph."""
         return [HwpxOxmlRun(run, self) for run in self._run_elements()]
 
     @property
     def text(self) -> str:
         """Return the concatenated textual content of this paragraph."""
-        texts: List[str] = []
+        texts: list[str] = []
         for text_element in self.element.findall(f".//{_HP}t"):
             if text_element.text:
                 texts.append(text_element.text)
@@ -2223,10 +2223,10 @@ class HwpxOxmlParagraph:
         return HwpxOxmlRun(run_element, self)
 
     @property
-    def tables(self) -> List["HwpxOxmlTable"]:
+    def tables(self) -> list["HwpxOxmlTable"]:
         """Return the tables embedded within this paragraph."""
 
-        tables: List[HwpxOxmlTable] = []
+        tables: list[HwpxOxmlTable] = []
         for run in self._run_elements():
             for child in run:
                 if child.tag == f"{_HP}tbl":
@@ -2513,7 +2513,7 @@ class HwpxOxmlSection:
         self._document = document
 
     @property
-    def paragraphs(self) -> List[HwpxOxmlParagraph]:
+    def paragraphs(self) -> list[HwpxOxmlParagraph]:
         """Return the paragraphs defined in this section."""
         return [HwpxOxmlParagraph(elm, self) for elm in self._paragraph_elements()]
 
@@ -2532,7 +2532,7 @@ class HwpxOxmlSection:
         return HwpxOxmlMemoGroup(element, self)
 
     @property
-    def memos(self) -> List[HwpxOxmlMemo]:
+    def memos(self) -> list[HwpxOxmlMemo]:
         group = self.memo_group
         if group is None:
             return []
@@ -2698,7 +2698,7 @@ class HwpxOxmlHeader:
             if candidate not in existing:
                 return candidate
 
-        numeric_ids: List[int] = []
+        numeric_ids: list[int] = []
         for value in existing:
             try:
                 numeric_ids.append(int(value))
@@ -2718,7 +2718,7 @@ class HwpxOxmlHeader:
         }
         existing.discard("")
 
-        numeric_ids: List[int] = []
+        numeric_ids: list[int] = []
         for value in existing:
             try:
                 numeric_ids.append(int(value))
@@ -2859,7 +2859,7 @@ class HwpxOxmlHeader:
         mapping: dict[str, GenericElement] = {}
         for border_fill in fill_list.fills:
             raw_id = border_fill.attributes.get("id")
-            keys: List[str] = []
+            keys: list[str] = []
             if raw_id:
                 keys.append(raw_id)
                 try:
@@ -2881,7 +2881,7 @@ class HwpxOxmlHeader:
         return LET.fromstring(ET.tostring(element, encoding="utf-8"))
 
     @staticmethod
-    def _lookup_by_id(mapping: Dict[str, T], identifier: int | str | None) -> T | None:
+    def _lookup_by_id(mapping: dict[str, T], identifier: int | str | None) -> T | None:
         if identifier is None:
             return None
 
@@ -3188,19 +3188,19 @@ class HwpxOxmlDocument:
         return self._manifest
 
     @property
-    def sections(self) -> List[HwpxOxmlSection]:
+    def sections(self) -> list[HwpxOxmlSection]:
         return list(self._sections)
 
     @property
-    def headers(self) -> List[HwpxOxmlHeader]:
+    def headers(self) -> list[HwpxOxmlHeader]:
         return list(self._headers)
 
     @property
-    def master_pages(self) -> List[HwpxOxmlMasterPage]:
+    def master_pages(self) -> list[HwpxOxmlMasterPage]:
         return list(self._master_pages)
 
     @property
-    def histories(self) -> List[HwpxOxmlHistory]:
+    def histories(self) -> list[HwpxOxmlHistory]:
         return list(self._histories)
 
     @property
@@ -3254,7 +3254,7 @@ class HwpxOxmlDocument:
         target = (bool(bold), bool(italic), bool(underline))
         header = self._headers[0]
 
-        def element_flags(element: ET.Element) -> Tuple[bool, bool, bool]:
+        def element_flags(element: ET.Element) -> tuple[bool, bool, bool]:
             bold_present = element.find(f"{_HH}bold") is not None
             italic_present = element.find(f"{_HH}italic") is not None
             underline_element = element.find(f"{_HH}underline")
@@ -3411,8 +3411,8 @@ class HwpxOxmlDocument:
         return HwpxOxmlHeader._lookup_by_id(self.track_change_authors, author_id_ref)
 
     @property
-    def paragraphs(self) -> List[HwpxOxmlParagraph]:
-        paragraphs: List[HwpxOxmlParagraph] = []
+    def paragraphs(self) -> list[HwpxOxmlParagraph]:
+        paragraphs: list[HwpxOxmlParagraph] = []
         for section in self._sections:
             paragraphs.extend(section.paragraphs)
         return paragraphs
