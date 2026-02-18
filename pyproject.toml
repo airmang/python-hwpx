@@ -55,6 +55,7 @@ where = ["src"]
 include = ["hwpx*"]
 
 [tool.setuptools.package-data]
+"hwpx" = ["py.typed"]
 "hwpx.tools" = ["_schemas/*.xsd"]
 "hwpx.data" = ["Skeleton.hwpx"]
 
