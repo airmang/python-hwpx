@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime
 import uuid
-import xml.etree.ElementTree as ET
 
 from os import PathLike
-from typing import BinaryIO, Iterator, List, Tuple
+from typing import Any, BinaryIO, Iterator, List, Tuple
+
+from lxml import etree
 
 from .oxml import (
     Bullet,
@@ -38,6 +39,18 @@ _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HP = f"{{{_HP_NS}}}"
 _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
 _HH = f"{{{_HH_NS}}}"
+
+
+def _append_element(
+    parent: Any,
+    tag: str,
+    attributes: dict[str, str] | None = None,
+) -> Any:
+    """Create and append a child element that matches *parent*'s element type."""
+
+    child = parent.makeelement(tag, attributes or {})
+    parent.append(child)
+    return child
 
 
 class HwpxDocument:
@@ -279,9 +292,10 @@ class HwpxDocument:
             char_ref = "0"
         char_ref = str(char_ref)
 
-        run_begin = ET.Element(f"{_HP}run", {"charPrIDRef": char_ref})
-        ctrl_begin = ET.SubElement(run_begin, f"{_HP}ctrl")
-        field_begin = ET.SubElement(
+        paragraph_element = paragraph.element
+        run_begin = paragraph_element.makeelement(f"{_HP}run", {"charPrIDRef": char_ref})
+        ctrl_begin = _append_element(run_begin, f"{_HP}ctrl")
+        field_begin = _append_element(
             ctrl_begin,
             f"{_HP}fieldBegin",
             {
@@ -293,14 +307,14 @@ class HwpxDocument:
             },
         )
 
-        parameters = ET.SubElement(field_begin, f"{_HP}parameters", {"count": "5", "name": ""})
-        ET.SubElement(parameters, f"{_HP}stringParam", {"name": "ID"}).text = memo.id or ""
-        ET.SubElement(parameters, f"{_HP}integerParam", {"name": "Number"}).text = str(max(1, number))
-        ET.SubElement(parameters, f"{_HP}stringParam", {"name": "CreateDateTime"}).text = created_value
-        ET.SubElement(parameters, f"{_HP}stringParam", {"name": "Author"}).text = author_value
-        ET.SubElement(parameters, f"{_HP}stringParam", {"name": "MemoShapeID"}).text = memo_shape_id
+        parameters = _append_element(field_begin, f"{_HP}parameters", {"count": "5", "name": ""})
+        _append_element(parameters, f"{_HP}stringParam", {"name": "ID"}).text = memo.id or ""
+        _append_element(parameters, f"{_HP}integerParam", {"name": "Number"}).text = str(max(1, number))
+        _append_element(parameters, f"{_HP}stringParam", {"name": "CreateDateTime"}).text = created_value
+        _append_element(parameters, f"{_HP}stringParam", {"name": "Author"}).text = author_value
+        _append_element(parameters, f"{_HP}stringParam", {"name": "MemoShapeID"}).text = memo_shape_id
 
-        sub_list = ET.SubElement(
+        sub_list = _append_element(
             field_begin,
             f"{_HP}subList",
             {
@@ -310,7 +324,7 @@ class HwpxDocument:
                 "vertAlign": "TOP",
             },
         )
-        sub_para = ET.SubElement(
+        sub_para = _append_element(
             sub_list,
             f"{_HP}p",
             {
@@ -322,12 +336,12 @@ class HwpxDocument:
                 "merged": "0",
             },
         )
-        sub_run = ET.SubElement(sub_para, f"{_HP}run", {"charPrIDRef": char_ref})
-        ET.SubElement(sub_run, f"{_HP}t").text = memo.id or field_value
+        sub_run = _append_element(sub_para, f"{_HP}run", {"charPrIDRef": char_ref})
+        _append_element(sub_run, f"{_HP}t").text = memo.id or field_value
 
-        run_end = ET.Element(f"{_HP}run", {"charPrIDRef": char_ref})
-        ctrl_end = ET.SubElement(run_end, f"{_HP}ctrl")
-        ET.SubElement(ctrl_end, f"{_HP}fieldEnd", {"beginIDRef": field_value, "fieldid": field_value})
+        run_end = paragraph_element.makeelement(f"{_HP}run", {"charPrIDRef": char_ref})
+        ctrl_end = _append_element(run_end, f"{_HP}ctrl")
+        _append_element(ctrl_end, f"{_HP}fieldEnd", {"beginIDRef": field_value, "fieldid": field_value})
 
         paragraph.element.insert(0, run_begin)
         paragraph.element.append(run_end)

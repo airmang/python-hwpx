@@ -5,10 +5,17 @@ from __future__ import annotations
 import io
 from dataclasses import dataclass
 from pathlib import Path
-from io import BytesIO
 from typing import BinaryIO, Iterable, Iterator, Mapping, MutableMapping
-from xml.etree import ElementTree as ET
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
+
+from lxml import etree
+
+from .xml_utils import (
+    extract_xml_declaration,
+    iter_declared_namespaces,
+    parse_xml,
+    serialize_xml,
+)
 
 __all__ = ["HwpxPackage", "HwpxPackageError", "HwpxStructureError", "RootFile", "VersionInfo"]
 
@@ -44,7 +51,7 @@ class VersionInfo:
 
     def __init__(
         self,
-        element: ET.Element,
+        element: etree._Element,
         namespaces: Mapping[str, str],
         xml_declaration: bytes | None,
     ) -> None:
@@ -55,28 +62,18 @@ class VersionInfo:
 
     @classmethod
     def from_bytes(cls, data: bytes) -> VersionInfo:
-        element = ET.fromstring(data)
+        element = parse_xml(data)
         namespaces = cls._collect_namespaces(data)
         declaration = cls._extract_declaration(data)
         return cls(element, namespaces, declaration)
 
     @staticmethod
     def _collect_namespaces(data: bytes) -> Mapping[str, str]:
-        namespaces: dict[str, str] = {}
-        for event, elem in ET.iterparse(BytesIO(data), events=("start-ns",)):
-            prefix, uri = elem
-            namespaces[prefix or ""] = uri
-        return namespaces
+        return iter_declared_namespaces(data)
 
     @staticmethod
     def _extract_declaration(data: bytes) -> bytes | None:
-        data = data.lstrip()
-        if not data.startswith(b"<?xml"):
-            return None
-        end = data.find(b"?>")
-        if end == -1:
-            return None
-        return data[: end + 2]
+        return extract_xml_declaration(data)
 
     @property
     def attributes(self) -> Mapping[str, str]:
@@ -94,12 +91,7 @@ class VersionInfo:
         return self._element.tag
 
     def to_bytes(self) -> bytes:
-        for prefix, uri in self._namespaces.items():
-            ET.register_namespace(prefix, uri)
-        stream = BytesIO()
-        tree = ET.ElementTree(self._element)
-        tree.write(stream, encoding="utf-8", xml_declaration=False)
-        xml_body = stream.getvalue()
+        xml_body = serialize_xml(self._element, xml_declaration=False)
         if self._xml_declaration:
             return self._xml_declaration + xml_body
         return xml_body
@@ -133,7 +125,7 @@ class HwpxPackage:
         self._rootfiles = list(rootfiles)
         self._version = version_info
         self._mimetype = mimetype
-        self._manifest_tree: ET.Element | None = None
+        self._manifest_tree: etree._Element | None = None
         self._spine_cache: list[str] | None = None
         self._section_paths_cache: list[str] | None = None
         self._header_paths_cache: list[str] | None = None
@@ -166,7 +158,7 @@ class HwpxPackage:
             raise HwpxStructureError(
                 "HWPX package is missing 'META-INF/container.xml'."
             )
-        root = ET.fromstring(data)
+        root = parse_xml(data)
         rootfiles = []
         for elem in root.findall(".//{*}rootfile"):
             full_path = (
@@ -280,9 +272,9 @@ class HwpxPackage:
     def get_part(self, part_name: str) -> bytes:
         return self.read(part_name)
 
-    def set_part(self, part_name: str, payload: bytes | str | ET.Element) -> None:
-        if isinstance(payload, ET.Element):
-            data = ET.tostring(payload, encoding="utf-8", xml_declaration=True)
+    def set_part(self, part_name: str, payload: bytes | str | etree._Element) -> None:
+        if isinstance(payload, etree._Element):
+            data = serialize_xml(payload, xml_declaration=True)
         elif isinstance(payload, str):
             data = payload.encode("utf-8")
         elif isinstance(payload, bytes):
@@ -291,27 +283,27 @@ class HwpxPackage:
             raise TypeError(f"unsupported part payload type: {type(payload)!r}")
         self.write(part_name, data)
 
-    def get_xml(self, part_name: str) -> ET.Element:
-        return ET.fromstring(self.read(part_name))
+    def get_xml(self, part_name: str) -> etree._Element:
+        return parse_xml(self.read(part_name))
 
-    def set_xml(self, part_name: str, element: ET.Element) -> None:
+    def set_xml(self, part_name: str, element: etree._Element) -> None:
         self.set_part(part_name, element)
 
     def get_text(self, part_name: str, encoding: str = "utf-8") -> str:
         return self.read(part_name).decode(encoding)
 
-    def manifest_tree(self) -> ET.Element:
+    def manifest_tree(self) -> etree._Element:
         if self._manifest_tree is None:
             self._manifest_tree = self.get_xml(self.MANIFEST_PATH)
         return self._manifest_tree
 
-    def _manifest_items(self) -> list[ET.Element]:
+    def _manifest_items(self) -> list[etree._Element]:
         manifest = self.manifest_tree()
         ns = {"opf": _OPF_NS}
         return list(manifest.findall("./opf:manifest/opf:item", ns))
 
     @staticmethod
-    def _normalized_manifest_value(element: ET.Element) -> str:
+    def _normalized_manifest_value(element: etree._Element) -> str:
         values = [
             element.attrib.get("id", ""),
             element.attrib.get("href", ""),
@@ -321,7 +313,7 @@ class HwpxPackage:
         return " ".join(part.lower() for part in values if part)
 
     @classmethod
-    def _manifest_matches(cls, element: ET.Element, *candidates: str) -> bool:
+    def _manifest_matches(cls, element: etree._Element, *candidates: str) -> bool:
         normalized = cls._normalized_manifest_value(element)
         return any(candidate in normalized for candidate in candidates if candidate)
 
@@ -447,7 +439,7 @@ class HwpxPackage:
     def save(
         self,
         pkg_file: str | Path | BinaryIO | None = None,
-        updates: Mapping[str, bytes | str | ET.Element] | None = None,
+        updates: Mapping[str, bytes | str | etree._Element] | None = None,
     ) -> str | Path | BinaryIO | bytes | None:
         if updates:
             for part_name, payload in updates.items():
