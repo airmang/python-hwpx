@@ -30,6 +30,16 @@ print("첫 번째 문단 텍스트:", document.paragraphs[0].text)
 
 `HwpxDocument.open()`은 파일 경로, 바이트, 파일 객체 등 다양한 입력을 받아 문서를 로드합니다. 반환된 `document` 객체는 섹션, 문단, 표 등 주요 구성 요소에 바로 접근할 수 있는 고수준 API를 제공합니다.
 
+컨텍스트 매니저(`with`)와 함께 사용하면 블록 종료 시점(정상/예외 모두)에도 내부 자원 정리가 자동으로 수행됩니다.
+
+```python
+from hwpx import HwpxDocument
+
+with HwpxDocument.open("input/sample.hwpx") as document:
+    document.add_paragraph("with 블록 안에서 안전하게 편집")
+    document.save("output/sample-updated.hwpx")
+```
+
 ## 2. 새 문단 추가하기
 
 ```python

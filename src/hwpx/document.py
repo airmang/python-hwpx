@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 from datetime import datetime
 import logging
 import uuid
@@ -59,9 +60,17 @@ def _append_element(
 class HwpxDocument:
     """Provides a user-friendly API for editing HWPX documents."""
 
-    def __init__(self, package: HwpxPackage, root: HwpxOxmlDocument):
+    def __init__(
+        self,
+        package: HwpxPackage,
+        root: HwpxOxmlDocument,
+        *,
+        managed_resources: tuple[Any, ...] = (),
+    ):
         self._package = package
         self._root = root
+        self._managed_resources = list(managed_resources)
+        self._closed = False
 
     # ------------------------------------------------------------------
     # construction helpers
@@ -76,9 +85,15 @@ class HwpxDocument:
             HwpxStructureError: 필수 파일이나 구조가 올바르지 않은 HWPX를 열 때 발생합니다.
             HwpxPackageError: 패키지를 여는 과정에서 일반적인 I/O/포맷 오류가 발생하면 전달됩니다.
         """
-        package = HwpxPackage.open(source)
+        internal_resources: list[Any] = []
+        open_source = source
+        if isinstance(source, bytes):
+            stream = io.BytesIO(source)
+            open_source = stream
+            internal_resources.append(stream)
+        package = HwpxPackage.open(open_source)
         root = HwpxOxmlDocument.from_package(package)
-        return cls(package, root)
+        return cls(package, root, managed_resources=tuple(internal_resources))
 
     @classmethod
     def new(cls) -> "HwpxDocument":
@@ -95,6 +110,61 @@ class HwpxDocument:
         """
         root = HwpxOxmlDocument.from_package(package)
         return cls(package, root)
+
+    def __enter__(self) -> "HwpxDocument":
+        """컨텍스트 매니저 진입 시 현재 문서 인스턴스를 반환합니다."""
+
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+        """예외 발생 여부와 무관하게 내부 자원을 안전하게 정리합니다."""
+
+        self.close()
+        return False
+
+    def close(self) -> None:
+        """문서가 관리하는 내부 패키지/스트림 자원을 정리합니다.
+
+        정리 정책:
+        - ``flush()`` 가능한 자원은 먼저 flush를 시도합니다.
+        - ``close()`` 가능한 자원은 flush 이후 close를 시도합니다.
+        - flush/close 중 발생한 예외는 로깅하고 무시하여 정리 루틴을 계속 진행합니다.
+        - 같은 문서에서 ``close()``를 여러 번 호출해도 안전합니다.
+        """
+
+        if self._closed:
+            return
+
+        self._flush_resource(self._package)
+        for resource in self._managed_resources:
+            self._flush_resource(resource)
+
+        self._close_resource(self._package)
+        for resource in self._managed_resources:
+            self._close_resource(resource)
+
+        self._managed_resources.clear()
+        self._closed = True
+
+    @staticmethod
+    def _flush_resource(resource: Any) -> None:
+        flush = getattr(resource, "flush", None)
+        if not callable(flush):
+            return
+        try:
+            flush()
+        except Exception:
+            logger.debug("자원 flush 중 예외를 무시합니다: resource=%r", resource, exc_info=True)
+
+    @staticmethod
+    def _close_resource(resource: Any) -> None:
+        close = getattr(resource, "close", None)
+        if not callable(close):
+            return
+        try:
+            close()
+        except Exception:
+            logger.debug("자원 close 중 예외를 무시합니다: resource=%r", resource, exc_info=True)
 
     # ------------------------------------------------------------------
     # properties exposing document content
