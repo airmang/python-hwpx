@@ -129,8 +129,14 @@
 
 #### 영속성(Persistence)
 
-- `save(path_or_stream=None)`
-  - 변경된(dirty) XML 파트를 내부 패키지를 통해 직렬화하고, 변경 사항을 원본 소스, 새 경로 또는 파일과 유사한 객체에 씁니다.
+- `save_to_path(path) -> str | PathLike[str]`
+  - 변경된 XML 파트를 지정한 경로에 저장하고 입력 경로를 그대로 반환합니다.
+- `save_to_stream(stream) -> BinaryIO`
+  - 변경된 XML 파트를 파일과 유사한 바이너리 스트림에 저장하고 입력 스트림을 그대로 반환합니다.
+- `to_bytes() -> bytes`
+  - 변경된 XML 파트를 직렬화한 HWPX ZIP 바이트를 반환합니다.
+- `save(path_or_stream=None) -> str | PathLike[str] | BinaryIO | bytes`
+  - 하위 호환용 래퍼입니다. 내부에서 `save_to_path()`/`save_to_stream()`/`to_bytes()`를 호출하며 `DeprecationWarning`을 발생시킵니다.
 
 ***
 
