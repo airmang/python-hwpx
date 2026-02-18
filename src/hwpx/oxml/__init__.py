@@ -15,21 +15,22 @@ from .body import (
 )
 from .common import GenericElement, parse_generic_element
 
+from .header_part import HwpxOxmlHeader
+from .memo import HwpxOxmlMemo
+from .paragraph import HwpxOxmlParagraph
+from .section import HwpxOxmlSection
+from .table import HwpxOxmlTable
+
 from .document import (
     DocumentNumbering,
     HwpxOxmlDocument,
-    HwpxOxmlHeader,
     HwpxOxmlHistory,
     HwpxOxmlInlineObject,
     HwpxOxmlMasterPage,
-    HwpxOxmlMemo,
     HwpxOxmlMemoGroup,
-    HwpxOxmlParagraph,
     HwpxOxmlRun,
-    HwpxOxmlSection,
     HwpxOxmlSectionHeaderFooter,
     HwpxOxmlSectionProperties,
-    HwpxOxmlTable,
     HwpxOxmlTableCell,
     HwpxTableGridPosition,
     HwpxOxmlTableRow,
