@@ -8,7 +8,7 @@ import logging
 import uuid
 
 from os import PathLike
-from typing import Any, BinaryIO, Iterator, List, Tuple
+from typing import Any, BinaryIO, Iterator
 
 from lxml import etree
 
@@ -193,22 +193,22 @@ class HwpxDocument:
         return self._root
 
     @property
-    def sections(self) -> List[HwpxOxmlSection]:
+    def sections(self) -> list[HwpxOxmlSection]:
         """Return the sections contained in the document."""
         return self._root.sections
 
     @property
-    def headers(self) -> List[HwpxOxmlHeader]:
+    def headers(self) -> list[HwpxOxmlHeader]:
         """Return the header parts referenced by the document."""
         return self._root.headers
 
     @property
-    def master_pages(self) -> List[HwpxOxmlMasterPage]:
+    def master_pages(self) -> list[HwpxOxmlMasterPage]:
         """Return the master-page parts declared in the manifest."""
         return self._root.master_pages
 
     @property
-    def histories(self) -> List[HwpxOxmlHistory]:
+    def histories(self) -> list[HwpxOxmlHistory]:
         """Return document history parts referenced by the manifest."""
         return self._root.histories
 
@@ -299,10 +299,10 @@ class HwpxDocument:
         return self._root.track_change_author(author_id_ref)
 
     @property
-    def memos(self) -> List[HwpxOxmlMemo]:
+    def memos(self) -> list[HwpxOxmlMemo]:
         """Return all memo entries declared in every section."""
 
-        memos: List[HwpxOxmlMemo] = []
+        memos: list[HwpxOxmlMemo] = []
         for section in self._root.sections:
             memos.extend(section.memos)
         return memos
@@ -494,7 +494,7 @@ class HwpxDocument:
         return memo, target_paragraph, field_value
 
     @property
-    def paragraphs(self) -> List[HwpxOxmlParagraph]:
+    def paragraphs(self) -> list[HwpxOxmlParagraph]:
         """Return all paragraphs across every section."""
         return self._root.paragraphs
 
@@ -540,10 +540,10 @@ class HwpxDocument:
         underline_type: str | None = None,
         underline_color: str | None = None,
         char_pr_id_ref: str | int | None = None,
-    ) -> List[HwpxOxmlRun]:
+    ) -> list[HwpxOxmlRun]:
         """Return runs matching the requested style criteria."""
 
-        matches: List[HwpxOxmlRun] = []
+        matches: list[HwpxOxmlRun] = []
         target_char = str(char_pr_id_ref).strip() if char_pr_id_ref is not None else None
 
         for run in self.iter_runs():

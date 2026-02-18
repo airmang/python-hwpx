@@ -22,7 +22,17 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install -e .[test]
+        run: pip install -e .[test,typecheck]
+
+
+      - name: Validate gradual typing migration scope
+        run: python scripts/check_typing_generics_scope.py
+
+      - name: Run mypy (gradual scope)
+        run: mypy
+
+      - name: Run pyright (gradual scope)
+        run: pyright
 
       - name: Run tests and keep summary log
         run: |

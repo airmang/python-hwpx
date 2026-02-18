@@ -33,3 +33,13 @@
 
 오타 수정부터 새 파서 추가까지 모든 기여를 환영합니다. HWPX 생태계를 위한
 더 나은 도구를 함께 만들어 주셔서 감사합니다!
+
+## 타입 힌트 및 `from __future__ import annotations` 정책
+
+- 이 저장소는 Python 3.10을 최소 지원 버전으로 유지하므로, 타입 힌트는 `list`/`dict`/`tuple` 같은 **내장 제네릭(PEP 585)** 을 우선 사용합니다.
+- 신규 파일에서 타입 힌트에 전방 참조(아직 정의되지 않은 클래스 이름)나 `|` 유니온 표기를 사용한다면 `from __future__ import annotations`를 파일 상단에 추가하세요.
+- 기존 파일을 수정할 때도 같은 기준을 적용해 파일 단위로 일관성을 맞춥니다. 즉, 해당 파일이 미래 지연 평가가 필요하면 유지하고, 필요하지 않으면 제거합니다.
+- 점진 변환 범위(현재: `src/hwpx/document.py`, `src/hwpx/oxml/document.py`)는 CI에서 다음 항목으로 검증합니다.
+  - `scripts/check_typing_generics_scope.py`: `List`/`Dict`/`Tuple` 별칭 사용 금지 확인
+  - `mypy`, `pyright`: 지정된 파일 범위 타입 검사
+
