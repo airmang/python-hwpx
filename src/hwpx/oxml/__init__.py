@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import logging
 from .body import (
     Paragraph,
     Run,
@@ -214,4 +215,6 @@ __all__ = [
     "parse_section_xml",
     "parse_text_span",
 ]
+
+logger = logging.getLogger(__name__)
 

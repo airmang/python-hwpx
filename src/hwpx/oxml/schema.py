@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Union
 from urllib.parse import unquote, urlparse
+
+logger = logging.getLogger(__name__)
 
 from lxml import etree
 

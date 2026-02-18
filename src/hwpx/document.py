@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 import uuid
 
 from os import PathLike
@@ -39,6 +40,8 @@ _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HP = f"{{{_HP_NS}}}"
 _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
 _HH = f"{{{_HH_NS}}}"
+
+logger = logging.getLogger(__name__)
 
 
 def _append_element(
