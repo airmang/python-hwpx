@@ -74,31 +74,22 @@ export function readCharFormat(style: RunStyle | null, doc?: HwpxDocument | null
 
   if (!style) return result;
 
-  const normalizeFlag = (value?: string | null): boolean =>
-    value === "1" || value?.toLowerCase() === "true";
-
-  // HWPX charPr often stores bold/italic as child tags (<hh:bold />, <hh:italic />)
-  // instead of root attributes.
-  result.bold =
-    normalizeFlag(style.attributes["bold"]) ||
-    style.childAttributes["bold"] != null;
-  result.italic =
-    normalizeFlag(style.attributes["italic"]) ||
-    style.childAttributes["italic"] != null;
+  result.bold = style.attributes["bold"] === "1";
+  result.italic = style.attributes["italic"] === "1";
 
   // Underline
   const underlineChild = style.childAttributes["underline"];
   result.underline =
     underlineChild != null &&
-    ((underlineChild["type"] == null) ||
-      underlineChild["type"].toUpperCase() !== "NONE");
+    underlineChild["type"] != null &&
+    underlineChild["type"] !== "NONE";
 
   // Strikethrough
   const strikeChild = style.childAttributes["strikeout"];
   result.strikethrough =
     strikeChild != null &&
-    ((strikeChild["type"] == null) ||
-      strikeChild["type"].toUpperCase() !== "NONE");
+    strikeChild["type"] != null &&
+    strikeChild["type"] !== "NONE";
 
   // Text color
   result.textColor = style.attributes["textColor"] ?? null;

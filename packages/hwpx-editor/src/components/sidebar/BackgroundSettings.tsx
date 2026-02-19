@@ -1,16 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { SidebarField } from "./SidebarField";
-import { ColorPicker } from "../toolbar/ColorPicker";
 
 interface BackgroundSettingsProps {
   disabled?: boolean;
 }
 
 export function BackgroundSettings({ disabled }: BackgroundSettingsProps) {
-  const [color, setColor] = useState("#FFFFFF");
-
   return (
     <div className="space-y-1">
       <SidebarField label="채우기">
@@ -25,12 +21,11 @@ export function BackgroundSettings({ disabled }: BackgroundSettingsProps) {
         </select>
       </SidebarField>
       <SidebarField label="배경색">
-        <ColorPicker
-          color={color}
-          onChange={setColor}
+        <input
+          type="color"
+          defaultValue="#ffffff"
           disabled={disabled}
-          variant="swatch"
-          title="배경 색상"
+          className="w-6 h-6 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
         />
       </SidebarField>
     </div>

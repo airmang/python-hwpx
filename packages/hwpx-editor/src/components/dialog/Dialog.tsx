@@ -1,37 +1,17 @@
 "use client";
 
-import { X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 
 interface DialogProps {
   title: string;
-  description?: string;
   open: boolean;
   onClose: () => void;
   onApply?: () => void;
   children: ReactNode;
   width?: number;
-  footer?: ReactNode;
-  hideDefaultFooter?: boolean;
-  closeLabel?: string;
-  applyLabel?: string;
-  contentClassName?: string;
 }
 
-export function Dialog({
-  title,
-  description,
-  open,
-  onClose,
-  onApply,
-  children,
-  width = 560,
-  footer,
-  hideDefaultFooter = false,
-  closeLabel = "취소",
-  applyLabel = "설정",
-  contentClassName,
-}: DialogProps) {
+export function Dialog({ title, open, onClose, onApply, children, width = 560 }: DialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,61 +26,39 @@ export function Dialog({
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30">
       <div
         ref={dialogRef}
-        className="flex max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
-        style={{ maxWidth: width }}
-        onMouseDown={(e) => e.stopPropagation()}
+        className="bg-[#f0f0f0] rounded-lg shadow-2xl flex flex-col max-h-[90vh]"
+        style={{ width }}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-6 py-5">
-          <div className="min-w-0">
-            <div className="text-lg font-semibold tracking-tight text-gray-900">{title}</div>
-            {description ? (
-              <p className="mt-1 text-sm text-gray-500">{description}</p>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
-            aria-label="닫기"
-          >
-            <X className="h-4 w-4" />
-          </button>
+        {/* Title bar */}
+        <div className="text-center py-2.5 text-sm font-medium text-gray-800 border-b border-gray-300/50">
+          {title}
         </div>
 
-        <div className={`flex-1 overflow-auto px-6 py-5 ${contentClassName ?? ""}`}>
+        {/* Content */}
+        <div className="flex-1 overflow-auto px-5 py-3">
           {children}
         </div>
 
-        {footer ? (
-          <div className="border-t border-gray-200 px-6 py-4">{footer}</div>
-        ) : hideDefaultFooter ? null : (
-          <div className="flex justify-end gap-2 border-t border-gray-200 px-6 py-4">
+        {/* Footer with buttons */}
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-300/50">
+          <button
+            onClick={onClose}
+            className="px-6 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 text-gray-700"
+          >
+            취소
+          </button>
+          {onApply && (
             <button
-              type="button"
-              onClick={onClose}
-              className="h-10 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              onClick={onApply}
+              className="px-6 py-1.5 text-sm bg-blue-500 border border-blue-600 rounded hover:bg-blue-600 text-white font-medium"
             >
-              {closeLabel}
+              설정
             </button>
-            {onApply ? (
-              <button
-                type="button"
-                onClick={onApply}
-                className="h-10 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700"
-              >
-                {applyLabel}
-              </button>
-            ) : null}
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

@@ -76,9 +76,9 @@ export interface ParagraphInfo {
 }
 
 export type HighlightBehavior = "ignore" | "markers";
-export type NoteBehavior = "ignore" | "marker" | "inline";
-export type HyperlinkBehavior = "ignore" | "marker" | "target";
-export type ControlBehavior = "ignore" | "marker" | "nested";
+export type NoteBehavior = "ignore" | "placeholder" | "inline";
+export type HyperlinkBehavior = "ignore" | "placeholder" | "target";
+export type ControlBehavior = "ignore" | "placeholder" | "nested";
 
 export interface AnnotationOptions {
   highlight?: HighlightBehavior;
@@ -87,12 +87,12 @@ export interface AnnotationOptions {
   footnote?: NoteBehavior;
   endnote?: NoteBehavior;
   noteInlineFormat?: string;
-  noteMarkerFormat?: string;
+  notePlaceholder?: string;
   hyperlink?: HyperlinkBehavior;
   hyperlinkTargetFormat?: string;
-  hyperlinkMarkerFormat?: string;
+  hyperlinkPlaceholder?: string;
   control?: ControlBehavior;
-  controlMarkerFormat?: string;
+  controlPlaceholder?: string;
 }
 
 function collectTextFromElement(element: Element): string {

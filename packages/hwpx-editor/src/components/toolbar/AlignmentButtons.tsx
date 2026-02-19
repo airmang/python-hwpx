@@ -12,11 +12,11 @@ import { ToolbarButton } from "./ToolbarButton";
 import type { AlignmentType } from "@/lib/constants";
 
 const ALIGNMENT_ICONS: Record<AlignmentType, React.ReactNode> = {
-  LEFT: <AlignLeft className="w-5 h-5" />,
-  CENTER: <AlignCenter className="w-5 h-5" />,
-  RIGHT: <AlignRight className="w-5 h-5" />,
-  JUSTIFY: <AlignJustify className="w-5 h-5" />,
-  DISTRIBUTE: <Columns2 className="w-5 h-5" />,
+  LEFT: <AlignLeft className="w-3.5 h-3.5" />,
+  CENTER: <AlignCenter className="w-3.5 h-3.5" />,
+  RIGHT: <AlignRight className="w-3.5 h-3.5" />,
+  JUSTIFY: <AlignJustify className="w-3.5 h-3.5" />,
+  DISTRIBUTE: <Columns2 className="w-3.5 h-3.5" />,
 };
 
 const ALIGNMENT_LABELS: Record<AlignmentType, string> = {

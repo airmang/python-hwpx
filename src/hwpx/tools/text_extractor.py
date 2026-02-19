@@ -61,9 +61,9 @@ _OBJECT_CONTAINERS = {
 _ObjectBehavior = Union[str, None]
 
 HighlightBehavior = Literal["ignore", "markers"]
-NoteBehavior = Literal["ignore", "marker", "inline"]
-HyperlinkBehavior = Literal["ignore", "marker", "target"]
-ControlBehavior = Literal["ignore", "marker", "nested"]
+NoteBehavior = Literal["ignore", "placeholder", "inline"]
+HyperlinkBehavior = Literal["ignore", "placeholder", "target"]
+ControlBehavior = Literal["ignore", "placeholder", "nested"]
 
 
 @dataclass(frozen=True)
@@ -78,17 +78,17 @@ class AnnotationOptions:
     footnote: NoteBehavior = "ignore"
     endnote: NoteBehavior = "ignore"
     note_inline_format: str = "[{kind}:{text}]"
-    note_marker_format: str = "[{kind}:{inst_id}]"
+    note_placeholder: str = "[{kind}:{inst_id}]"
     note_summary: str = "{kind}:{inst_id}"
     note_joiner: str = " "
 
     hyperlink: HyperlinkBehavior = "ignore"
     hyperlink_target_format: str = "<{target}>"
-    hyperlink_marker_format: str = "[LINK:{target}]"
+    hyperlink_placeholder: str = "[LINK:{target}]"
     hyperlink_summary: str = "{target}"
 
     control: ControlBehavior = "ignore"
-    control_marker_format: str = "[CTRL:{name}]"
+    control_placeholder: str = "[CTRL:{name}]"
     control_summary: str = "{name}"
     control_joiner: str = "\n"
 
@@ -140,7 +140,7 @@ class ParagraphInfo:
         self,
         *,
         object_behavior: _ObjectBehavior = "skip",
-        object_marker_format: Optional[str] = None,
+        object_placeholder: Optional[str] = None,
         preserve_breaks: bool = True,
         annotations: Optional[AnnotationOptions] = None,
     ) -> str:
@@ -149,7 +149,7 @@ class ParagraphInfo:
         return self._extractor.paragraph_text(
             self.element,
             object_behavior=object_behavior,
-            object_marker_format=object_marker_format,
+            object_placeholder=object_placeholder,
             preserve_breaks=preserve_breaks,
             annotations=annotations,
         )
@@ -267,7 +267,7 @@ class TextExtractor:
         paragraph: ET.Element,
         *,
         object_behavior: _ObjectBehavior = "skip",
-        object_marker_format: Optional[str] = None,
+        object_placeholder: Optional[str] = None,
         preserve_breaks: bool = True,
         annotations: Optional[AnnotationOptions] = None,
     ) -> str:
@@ -304,7 +304,7 @@ class TextExtractor:
                         child,
                         fragments,
                         behavior=object_behavior,
-                        marker=object_marker_format,
+                        placeholder=object_placeholder,
                         preserve_breaks=preserve_breaks,
                         annotations=annotations,
                     )
@@ -313,7 +313,7 @@ class TextExtractor:
                         child,
                         fragments,
                         behavior=object_behavior,
-                        marker=object_marker_format,
+                        placeholder=object_placeholder,
                         preserve_breaks=preserve_breaks,
                         annotations=annotations,
                     )
@@ -325,23 +325,23 @@ class TextExtractor:
         fragments: list[str],
         *,
         behavior: _ObjectBehavior,
-        marker: Optional[str],
+        placeholder: Optional[str],
         preserve_breaks: bool,
         annotations: Optional[AnnotationOptions],
     ) -> None:
         tag = strip_namespace(element.tag)
         if behavior == "skip" or behavior is None:
             return
-        if behavior == "marker":
-            marker = marker or "[{type}]"
-            fragments.append(marker.format(type=tag))
+        if behavior == "placeholder":
+            placeholder = placeholder or "[{type}]"
+            fragments.append(placeholder.format(type=tag))
             return
         if behavior == "nested":
             for inner_paragraph in element.findall(".//hp:p", namespaces=self.namespaces):
                 text = self.paragraph_text(
                     inner_paragraph,
                     object_behavior=behavior,
-                    object_marker_format=marker,
+                    object_placeholder=placeholder,
                     preserve_breaks=preserve_breaks,
                     annotations=annotations,
                 )
@@ -360,7 +360,7 @@ class TextExtractor:
         fragments: list[str],
         *,
         behavior: _ObjectBehavior,
-        marker: Optional[str],
+        placeholder: Optional[str],
         preserve_breaks: bool,
         annotations: Optional[AnnotationOptions],
     ) -> None:
@@ -373,16 +373,16 @@ class TextExtractor:
                 preserve_breaks=preserve_breaks,
             )
             return
-        if behavior == "marker":
-            marker = marker or "[{type}]"
-            fragments.append(marker.format(type=tag))
+        if behavior == "placeholder":
+            placeholder = placeholder or "[{type}]"
+            fragments.append(placeholder.format(type=tag))
         elif behavior == "nested":
             # Attempt to gather nested paragraph text for unknown containers.
             for inner_paragraph in element.findall(".//hp:p", namespaces=self.namespaces):
                 text = self.paragraph_text(
                     inner_paragraph,
                     object_behavior=behavior,
-                    object_marker_format=marker,
+                    object_placeholder=placeholder,
                     preserve_breaks=preserve_breaks,
                     annotations=annotations,
                 )
@@ -452,9 +452,9 @@ class TextExtractor:
         kind_name = "footnote" if kind == "footNote" else "endnote"
         inst_id = element.get("instId") or ""
 
-        if option == "marker":
+        if option == "placeholder":
             fragments.append(
-                annotations.note_marker_format.format(kind=kind_name, inst_id=inst_id)
+                annotations.note_placeholder.format(kind=kind_name, inst_id=inst_id)
             )
             return
 
@@ -505,14 +505,14 @@ class TextExtractor:
             if text:
                 fragments.append(text)
             return
-        if behavior == "marker":
+        if behavior == "placeholder":
             first_child = next(iter(element), None)
             name = strip_namespace(first_child.tag) if first_child is not None else "ctrl"
             ctrl_type = (
                 first_child.get("type") if first_child is not None else element.get("type")
             )
             fragments.append(
-                annotations.control_marker_format.format(name=name, type=ctrl_type or "")
+                annotations.control_placeholder.format(name=name, type=ctrl_type or "")
             )
 
     def _handle_hyperlink(
@@ -523,9 +523,9 @@ class TextExtractor:
     ) -> None:
         behavior = annotations.hyperlink
         target = _resolve_hyperlink_target(field_begin, self.namespaces)
-        if behavior == "marker":
+        if behavior == "placeholder":
             fragments.append(
-                annotations.hyperlink_marker_format.format(target=target or "")
+                annotations.hyperlink_placeholder.format(target=target or "")
             )
         elif behavior == "target":
             if target:
@@ -540,7 +540,7 @@ class TextExtractor:
         skip_empty: bool = True,
         include_nested: bool = True,
         object_behavior: _ObjectBehavior = "skip",
-        object_marker_format: Optional[str] = None,
+        object_placeholder: Optional[str] = None,
         preserve_breaks: bool = True,
         annotations: Optional[AnnotationOptions] = None,
     ) -> str:
@@ -550,7 +550,7 @@ class TextExtractor:
         for paragraph in self.iter_document_paragraphs(include_nested=include_nested):
             text = paragraph.text(
                 object_behavior=object_behavior,
-                object_marker_format=object_marker_format,
+                object_placeholder=object_placeholder,
                 preserve_breaks=preserve_breaks,
                 annotations=annotations,
             )
@@ -608,7 +608,7 @@ def _resolve_note_text(
         text = extractor.paragraph_text(
             inner_paragraph,
             object_behavior="skip",
-            object_marker_format=None,
+            object_placeholder=None,
             preserve_breaks=preserve_breaks,
             annotations=annotations,
         )
@@ -631,7 +631,7 @@ def _resolve_control_nested_text(
         text = extractor.paragraph_text(
             inner_paragraph,
             object_behavior="skip",
-            object_marker_format=None,
+            object_placeholder=None,
             preserve_breaks=preserve_breaks,
             annotations=annotations,
         )

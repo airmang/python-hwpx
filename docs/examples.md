@@ -92,8 +92,8 @@ options = AnnotationOptions(
     footnote="inline",
     endnote="inline",
     hyperlink="target",
-    control="marker",
-    control_marker_format="[CTRL:{name}]",
+    control="placeholder",
+    control_placeholder="[CTRL:{name}]",
 )
 
 with TextExtractor("examples/FormattingShowcase.hwpx") as extractor:
@@ -110,7 +110,7 @@ with TextExtractor("examples/FormattingShowcase.hwpx") as extractor:
         )
 ```
 
-`AnnotationOptions`를 활용하면 하이라이트 구간이 `[HIGHLIGHT color=#ffff00]텍스트[/HIGHLIGHT]` 형태로 출력되고, 각주와 미주 내용은 인라인으로 삽입됩니다. 하이퍼링크는 실제 URL을 포함하며, 컨트롤은 `control_marker_format` 형식에 따라 표시 문자열로 치환됩니다.
+`AnnotationOptions`를 활용하면 하이라이트 구간이 `[HIGHLIGHT color=#ffff00]텍스트[/HIGHLIGHT]` 형태로 출력되고, 각주와 미주 내용은 인라인으로 삽입됩니다. 하이퍼링크는 실제 URL을 포함하며, 컨트롤은 `control_placeholder` 형식에 따라 자리표시자로 치환됩니다.
 
 ## 3. 특정 태그를 검색해 요약 정보 만들기
 

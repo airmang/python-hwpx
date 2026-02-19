@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useEditorStore } from "@/lib/store";
 import { PAGE_SIZE_PRESETS, type OrientationType } from "@/lib/constants";
 import { hwpToMm } from "@/lib/hwp-units";
@@ -9,25 +9,11 @@ import { SidebarField } from "./SidebarField";
 
 const PAGE_NUMBER_POSITIONS = [
   { value: "none", label: "없음" },
-  { value: "header-left", label: "머리말 왼쪽" },
   { value: "header-center", label: "머리말 가운데" },
   { value: "header-right", label: "머리말 오른쪽" },
-  { value: "footer-left", label: "꼬리말 왼쪽" },
   { value: "footer-center", label: "꼬리말 가운데" },
   { value: "footer-right", label: "꼬리말 오른쪽" },
 ] as const;
-
-function uiPageNumPosition(pos?: string | null): string {
-  const upper = (pos ?? "").toUpperCase();
-  if (!upper) return "none";
-  if (upper.includes("TOP") && upper.includes("LEFT")) return "header-left";
-  if (upper.includes("TOP") && upper.includes("RIGHT")) return "header-right";
-  if (upper.includes("TOP")) return "header-center";
-  if (upper.includes("BOTTOM") && upper.includes("LEFT")) return "footer-left";
-  if (upper.includes("BOTTOM") && upper.includes("RIGHT")) return "footer-right";
-  if (upper.includes("BOTTOM")) return "footer-center";
-  return "none";
-}
 
 export function PageSetupPanel() {
   const doc = useEditorStore((s) => s.doc);
@@ -36,7 +22,6 @@ export function PageSetupPanel() {
   const updatePageMargins = useEditorStore((s) => s.updatePageMargins);
   const updatePageOrientation = useEditorStore((s) => s.updatePageOrientation);
   const setPageNumbering = useEditorStore((s) => s.setPageNumbering);
-  const setColumnCount = useEditorStore((s) => s.setColumnCount);
   const viewModel = useEditorStore((s) => s.viewModel);
 
   const [pageNumPosition, setPageNumPosition] = useState("none");
@@ -45,11 +30,9 @@ export function PageSetupPanel() {
   const disabled = !doc;
   const sIdx = selection?.sectionIndex ?? 0;
   const section = doc?.sections[sIdx];
-  const sectionVm = viewModel?.sections[sIdx];
 
   const pageSize = section?.properties.pageSize;
   const pageMargins = section?.properties.pageMargins;
-  const columnLayout = section?.properties.columnLayout;
 
   const widthMm = pageSize ? parseFloat(hwpToMm(pageSize.width).toFixed(1)) : 210;
   const heightMm = pageSize ? parseFloat(hwpToMm(pageSize.height).toFixed(1)) : 297;
@@ -63,14 +46,6 @@ export function PageSetupPanel() {
   const headerMm = pageMargins ? parseFloat(hwpToMm(pageMargins.header).toFixed(1)) : 15;
   const footerMm = pageMargins ? parseFloat(hwpToMm(pageMargins.footer).toFixed(1)) : 15;
   const gutterMm = pageMargins ? parseFloat(hwpToMm(pageMargins.gutter).toFixed(1)) : 0;
-  const columnCount = columnLayout?.colCount ?? 1;
-  const columnGapMm = columnLayout ? parseFloat(hwpToMm(columnLayout.sameGap).toFixed(1)) : 8;
-
-  useEffect(() => {
-    const pos = uiPageNumPosition(sectionVm?.pageNum?.pos);
-    setPageNumPosition(pos);
-    setPageNumStart(Math.max(1, sectionVm?.startPageNumber ?? 1));
-  }, [sectionVm?.pageNum?.pos, sectionVm?.startPageNumber]);
 
   // Find matching preset
   const matchedPreset = PAGE_SIZE_PRESETS.find(
@@ -204,43 +179,6 @@ export function PageSetupPanel() {
             </button>
           ))}
         </div>
-      </SidebarSection>
-
-      <SidebarSection title="단(열) 설정">
-        <SidebarField label="열 개수">
-          <select
-            disabled={disabled}
-            value={columnCount}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              if (!Number.isNaN(v)) setColumnCount(v, columnGapMm);
-            }}
-            className={inputClass}
-          >
-            {[1, 2, 3, 4].map((v) => (
-              <option key={v} value={v}>
-                {v}단
-              </option>
-            ))}
-          </select>
-        </SidebarField>
-        <SidebarField label="열 간격">
-          <div className="flex items-center gap-1">
-            <input
-              type="number"
-              step="0.1"
-              min={0}
-              value={columnGapMm}
-              disabled={disabled || columnCount <= 1}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                if (!isNaN(v) && v >= 0) setColumnCount(columnCount, v);
-              }}
-              className={inputClass}
-            />
-            <span className="text-[10px] text-gray-400 flex-shrink-0">mm</span>
-          </div>
-        </SidebarField>
       </SidebarSection>
 
       <SidebarSection title="용지 여백">

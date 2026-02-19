@@ -3,13 +3,11 @@
 import { useRef, useCallback, useEffect } from "react";
 import type { ParagraphVM } from "@/lib/view-model";
 import { useEditorStore } from "@/lib/store";
-import { fontFamilyCssStack } from "@/lib/constants";
 import { RunSpan } from "./RunSpan";
 import { TableBlock } from "./TableBlock";
 import { ImageBlock } from "./ImageBlock";
 import { TextBoxBlock } from "./TextBoxBlock";
 import { EquationBlock } from "./EquationBlock";
-import { ChartBlock } from "./ChartBlock";
 
 interface ParagraphBlockProps {
   paragraph: ParagraphVM;
@@ -34,19 +32,6 @@ function alignmentToCSS(alignment: string): React.CSSProperties["textAlign"] {
   }
 }
 
-function parseChartMeta(paragraph: ParagraphVM): { chartType: "bar" | "line"; title: string } | null {
-  const raw = paragraph.runs.map((run) => run.text).join("").trim();
-  if (!raw) return null;
-  const matched = raw.match(/^\[차트(?::(bar|line|막대|선))?\]\s*(.*)$/i);
-  if (!matched) return null;
-
-  const token = (matched[1] ?? "").toLowerCase();
-  const chartType: "bar" | "line" =
-    token === "line" || token === "선" ? "line" : "bar";
-  const title = (matched[2] ?? "").trim() || "차트";
-  return { chartType, title };
-}
-
 export function ParagraphBlock({
   paragraph,
   sectionIndex,
@@ -60,7 +45,6 @@ export function ParagraphBlock({
   const mergeParagraphWithPrevious = useEditorStore((s) => s.mergeParagraphWithPrevious);
   const deleteBlock = useEditorStore((s) => s.deleteBlock);
   const ref = useRef<HTMLDivElement>(null);
-  const programmaticSelectionRef = useRef(false);
 
   const revision = useEditorStore((s) => s.revision);
   const hasTables = paragraph.tables.length > 0;
@@ -68,7 +52,6 @@ export function ParagraphBlock({
   const hasTextBoxes = paragraph.textBoxes.length > 0;
   const hasEquations = paragraph.equations.length > 0;
   const hasText = paragraph.runs.length > 0;
-  const chartMeta = hasTables ? parseChartMeta(paragraph) : null;
 
   // Auto-focus when this paragraph is selected (e.g. after splitParagraph)
   useEffect(() => {
@@ -76,62 +59,18 @@ export function ParagraphBlock({
       selection &&
       selection.sectionIndex === sectionIndex &&
       selection.paragraphIndex === localIndex &&
-      selection.type === "paragraph" &&
-      !selection.objectType &&
       ref.current &&
       document.activeElement !== ref.current
     ) {
-      const active = document.activeElement as HTMLElement | null;
-      const inFormControl = Boolean(active?.closest("input, textarea, select"));
-      if (!inFormControl) {
-        ref.current.focus();
+      ref.current.focus();
+      // Place cursor at start
+      const sel = window.getSelection();
+      if (sel) {
+        sel.selectAllChildren(ref.current);
+        sel.collapseToStart();
       }
-
-      // Place cursor at start by default; if store has offsets, sync DOM selection.
-      const desiredStart = selection.textStartOffset ?? selection.cursorOffset ?? 0;
-      const desiredEnd = selection.textEndOffset ?? selection.cursorOffset ?? desiredStart;
-      programmaticSelectionRef.current = true;
-      syncDomSelection(ref.current, desiredStart, desiredEnd);
-      scrollCaretIntoView(ref.current);
-      window.setTimeout(() => {
-        programmaticSelectionRef.current = false;
-      }, 0);
     }
   }, [revision, sectionIndex, localIndex, selection]);
-
-  // When selection offsets are updated programmatically (e.g. smart selection),
-  // sync DOM selection even if the paragraph is already focused.
-  useEffect(() => {
-    if (
-      !selection ||
-      selection.sectionIndex !== sectionIndex ||
-      selection.paragraphIndex !== localIndex ||
-      selection.type !== "paragraph" ||
-      selection.objectType ||
-      !ref.current
-    ) {
-      return;
-    }
-    const desiredStart = selection.textStartOffset ?? selection.cursorOffset;
-    const desiredEnd = selection.textEndOffset ?? selection.cursorOffset;
-    if (desiredStart == null || desiredEnd == null) return;
-    programmaticSelectionRef.current = true;
-    syncDomSelection(ref.current, desiredStart, desiredEnd);
-    scrollCaretIntoView(ref.current);
-    window.setTimeout(() => {
-      programmaticSelectionRef.current = false;
-    }, 0);
-  }, [
-    sectionIndex,
-    localIndex,
-    selection?.sectionIndex,
-    selection?.paragraphIndex,
-    selection?.type,
-    selection?.objectType,
-    selection?.textStartOffset,
-    selection?.textEndOffset,
-    selection?.cursorOffset,
-  ]);
 
   const handleBlur = useCallback(() => {
     if (!ref.current) return;
@@ -151,16 +90,7 @@ export function ParagraphBlock({
       paragraphIndex: localIndex,
       type: "paragraph",
     });
-    if (ref.current) {
-      scrollCaretIntoView(ref.current);
-    }
   }, [sectionIndex, localIndex, setSelection]);
-
-  const handleInput = useCallback(() => {
-    if (ref.current) {
-      scrollCaretIntoView(ref.current);
-    }
-  }, []);
 
   // Track text selection changes within this paragraph
   const updateTextSelection = useCallback(() => {
@@ -183,7 +113,7 @@ export function ParagraphBlock({
     preRangeEnd.setEnd(range.endContainer, range.endOffset);
     const endOffset = preRangeEnd.toString().length;
 
-    // Always track caret offset; for ranges keep both start/end.
+    // Only update if there's an actual selection (not just cursor)
     if (startOffset !== endOffset) {
       setSelection({
         sectionIndex,
@@ -191,26 +121,21 @@ export function ParagraphBlock({
         type: "paragraph",
         textStartOffset: startOffset,
         textEndOffset: endOffset,
-        cursorOffset: endOffset,
       });
-      scrollCaretIntoView(ref.current);
-      return;
+    } else {
+      // Clear text range when selection is collapsed (cursor only)
+      setSelection({
+        sectionIndex,
+        paragraphIndex: localIndex,
+        type: "paragraph",
+      });
     }
-
-    setSelection({
-      sectionIndex,
-      paragraphIndex: localIndex,
-      type: "paragraph",
-      cursorOffset: startOffset,
-    });
-    scrollCaretIntoView(ref.current);
   }, [sectionIndex, localIndex, setSelection]);
 
   // Listen for selection changes
   useEffect(() => {
     const handleSelectionChange = () => {
       if (document.activeElement === ref.current) {
-        if (programmaticSelectionRef.current) return;
         updateTextSelection();
       }
     };
@@ -390,7 +315,7 @@ export function ParagraphBlock({
     paddingTop: paragraph.spacingBefore || undefined,
     paddingBottom: paragraph.spacingAfter || undefined,
     fontSize: paragraph.defaultFontSize ? `${paragraph.defaultFontSize}pt` : undefined,
-    fontFamily: paragraph.defaultFontFamily ? fontFamilyCssStack(paragraph.defaultFontFamily) : undefined,
+    fontFamily: paragraph.defaultFontFamily || undefined,
   };
 
   // If paragraph has tables, render them
@@ -402,14 +327,9 @@ export function ParagraphBlock({
             ref={ref}
             contentEditable
             suppressContentEditableWarning
-            data-hwpx-paragraph="1"
-            data-section-index={sectionIndex}
-            data-paragraph-index={localIndex}
             onBlur={handleBlur}
             onFocus={handleFocus}
-            onInput={handleInput}
-            onKeyDown={handleKeyDown}
-            className="outline-none leading-relaxed caret-gray-900"
+            className="outline-none leading-relaxed"
           >
             {paragraph.runs.map((run, i) => (
               <RunSpan key={i} run={run} />
@@ -417,20 +337,12 @@ export function ParagraphBlock({
           </div>
         )}
         {paragraph.tables.map((table) => (
-          <div key={table.tableIndex}>
-            {chartMeta && table.tableIndex === 0 ? (
-              <ChartBlock
-                title={chartMeta.title}
-                chartType={chartMeta.chartType}
-                table={table}
-              />
-            ) : null}
-            <TableBlock
-              table={table}
-              sectionIndex={sectionIndex}
-              paragraphIndex={localIndex}
-            />
-          </div>
+          <TableBlock
+            key={table.tableIndex}
+            table={table}
+            sectionIndex={sectionIndex}
+            paragraphIndex={localIndex}
+          />
         ))}
       </div>
     );
@@ -445,14 +357,9 @@ export function ParagraphBlock({
             ref={ref}
             contentEditable
             suppressContentEditableWarning
-            data-hwpx-paragraph="1"
-            data-section-index={sectionIndex}
-            data-paragraph-index={localIndex}
             onBlur={handleBlur}
             onFocus={handleFocus}
-            onInput={handleInput}
-            onKeyDown={handleKeyDown}
-            className="outline-none leading-relaxed caret-gray-900"
+            className="outline-none leading-relaxed"
           >
             {paragraph.runs.map((run, i) => (
               <RunSpan key={i} run={run} />
@@ -493,14 +400,9 @@ export function ParagraphBlock({
             ref={ref}
             contentEditable
             suppressContentEditableWarning
-            data-hwpx-paragraph="1"
-            data-section-index={sectionIndex}
-            data-paragraph-index={localIndex}
             onBlur={handleBlur}
             onFocus={handleFocus}
-            onInput={handleInput}
-            onKeyDown={handleKeyDown}
-            className="outline-none leading-relaxed caret-gray-900"
+            className="outline-none leading-relaxed"
           >
             {paragraph.runs.map((run, i) => (
               <RunSpan key={i} run={run} />
@@ -556,14 +458,10 @@ export function ParagraphBlock({
       ref={ref}
       contentEditable
       suppressContentEditableWarning
-      data-hwpx-paragraph="1"
-      data-section-index={sectionIndex}
-      data-paragraph-index={localIndex}
       onBlur={handleBlur}
       onFocus={handleFocus}
-      onInput={handleInput}
       onKeyDown={handleKeyDown}
-      className="outline-none min-h-[1.5em] caret-gray-900"
+      className="outline-none min-h-[1.5em]"
       style={paraStyle}
     >
       {paragraph.runs.length > 0 ? (
@@ -573,99 +471,4 @@ export function ParagraphBlock({
       )}
     </div>
   );
-}
-
-function syncDomSelection(root: HTMLElement, startOffset: number, endOffset: number) {
-  const sel = window.getSelection();
-  if (!sel) return;
-
-  const start = Math.max(0, startOffset);
-  const end = Math.max(0, endOffset);
-
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let current = 0;
-  let startNode: Text | null = null;
-  let endNode: Text | null = null;
-  let startInNode = 0;
-  let endInNode = 0;
-
-  while (walker.nextNode()) {
-    const node = walker.currentNode as Text;
-    const text = node.nodeValue ?? "";
-    const len = text.length;
-    if (!startNode && start <= current + len) {
-      startNode = node;
-      startInNode = Math.max(0, start - current);
-    }
-    if (!endNode && end <= current + len) {
-      endNode = node;
-      endInNode = Math.max(0, end - current);
-      break;
-    }
-    current += len;
-  }
-
-  // Empty paragraph fallback: collapse to start of root.
-  if (!startNode || !endNode) {
-    sel.removeAllRanges();
-    const range = document.createRange();
-    range.selectNodeContents(root);
-    range.collapse(true);
-    sel.addRange(range);
-    return;
-  }
-
-  const range = document.createRange();
-  range.setStart(startNode, Math.min(startInNode, startNode.nodeValue?.length ?? 0));
-  range.setEnd(endNode, Math.min(endInNode, endNode.nodeValue?.length ?? 0));
-  sel.removeAllRanges();
-  sel.addRange(range);
-}
-
-function findVerticalScrollContainer(element: HTMLElement): HTMLElement | null {
-  const explicitContainer = element.closest<HTMLElement>("[data-hwpx-scroll-container]");
-  if (explicitContainer) return explicitContainer;
-
-  let current: HTMLElement | null = element.parentElement;
-  while (current) {
-    const style = window.getComputedStyle(current);
-    const overflowY = style.overflowY;
-    const overflow = style.overflow;
-    const canScroll =
-      overflowY === "auto" ||
-      overflowY === "scroll" ||
-      overflow === "auto" ||
-      overflow === "scroll";
-    if (canScroll && current.scrollHeight > current.clientHeight) {
-      return current;
-    }
-    current = current.parentElement;
-  }
-  return null;
-}
-
-function scrollCaretIntoView(editable: HTMLElement) {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return;
-
-  const range = selection.getRangeAt(0);
-  if (!editable.contains(range.commonAncestorContainer)) return;
-
-  const caretRect = range.getBoundingClientRect();
-  if (caretRect.height === 0 && caretRect.width === 0) return;
-
-  const container = findVerticalScrollContainer(editable);
-  if (!container) return;
-
-  const padding = 20;
-  const containerRect =
-    container === document.scrollingElement
-      ? { top: 0, bottom: window.innerHeight }
-      : container.getBoundingClientRect();
-
-  if (caretRect.bottom > containerRect.bottom - padding) {
-    container.scrollTop += caretRect.bottom - (containerRect.bottom - padding);
-  } else if (caretRect.top < containerRect.top + padding) {
-    container.scrollTop -= containerRect.top + padding - caretRect.top;
-  }
 }

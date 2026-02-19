@@ -57,78 +57,38 @@ export function FormatSidebar() {
     }
   }, [context]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleWheelCapture = (e: React.WheelEvent<HTMLDivElement>) => {
-    const nativeEvent = e.nativeEvent as WheelEvent & {
-      composedPath?: () => EventTarget[];
-    };
-    const path = nativeEvent.composedPath?.() ?? [];
-    const pathNumberInput = path.find(
-      (node): node is HTMLInputElement =>
-        node instanceof HTMLInputElement && node.type === "number",
-    );
-    const targetNumberInput =
-      e.target instanceof HTMLInputElement && e.target.type === "number"
-        ? e.target
-        : null;
-    const numberInput = pathNumberInput ?? targetNumberInput;
-    if (!numberInput) return;
-
-    const container = e.currentTarget;
-    const maxScrollTop = Math.max(container.scrollHeight - container.clientHeight, 0);
-    const canScrollDown = container.scrollTop < maxScrollTop;
-    const canScrollUp = container.scrollTop > 0;
-    const scrollingDown = e.deltaY > 0;
-    const canConsumeWheel = scrollingDown ? canScrollDown : canScrollUp;
-
-    // Number inputs consume wheel events; reroute wheel to sidebar scroll.
-    // At boundaries, do not block default so outer editor/page can continue scrolling.
-    if (!canConsumeWheel) return;
-    numberInput.blur();
-    e.preventDefault();
-    container.scrollTop = Math.min(Math.max(container.scrollTop + e.deltaY, 0), maxScrollTop);
-  };
-
   if (!uiState.sidebarOpen) return null;
 
   const activeTab = uiState.sidebarTab;
 
   return (
-    <div className="w-72 min-h-0 border-l border-gray-200 bg-white flex flex-col overflow-hidden flex-shrink-0">
-      <div className="flex items-center justify-end border-b border-gray-200 px-1 py-0.5">
+    <div className="w-72 border-l border-gray-200 bg-white flex flex-col overflow-hidden flex-shrink-0">
+      {/* Tab header */}
+      <div className="flex items-center border-b border-gray-200">
+        {tabs.map(({ tab, label }) => (
+          <button
+            key={tab}
+            onClick={() => setSidebarTab(tab)}
+            className={`flex-1 py-2 text-xs font-medium text-center transition-colors ${
+              activeTab === tab
+                ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50/50"
+                : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
         <button
-          type="button"
           onClick={toggleSidebar}
-          className="p-1.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+          className="p-1.5 mr-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100"
           title="사이드바 닫기"
-          aria-label="사이드바 닫기"
         >
-          <PanelRightClose aria-hidden="true" className="w-4 h-4" />
+          <PanelRightClose className="w-4 h-4" />
         </button>
-        {context === "table" && (
-          <div className="mr-auto flex rounded-md border border-gray-200 overflow-hidden">
-            {tabs.map((tabDef) => (
-              <button
-                key={tabDef.tab}
-                type="button"
-                onClick={() => setSidebarTab(tabDef.tab)}
-                className={`px-2.5 py-1.5 text-[11px] transition-colors ${
-                  activeTab === tabDef.tab
-                    ? "bg-blue-50 text-blue-700"
-                    : "bg-white text-gray-600 hover:bg-gray-50"
-                }`}
-              >
-                {tabDef.label}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Tab content */}
-      <div
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
-        onWheelCapture={handleWheelCapture}
-      >
+      <div className="flex-1 overflow-auto">
         {activeTab === "char" && <CharFormatPanel />}
         {activeTab === "para" && <ParaFormatPanel />}
         {activeTab === "page" && <PageSetupPanel />}

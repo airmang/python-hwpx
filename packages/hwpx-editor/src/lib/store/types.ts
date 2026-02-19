@@ -38,7 +38,6 @@ export interface ExtendedFormat {
 export interface UIState {
   sidebarOpen: boolean;
   sidebarTab: SidebarTab;
-  showRuler: boolean;
   saveDialogOpen: boolean;
   charFormatDialogOpen: boolean;
   paraFormatDialogOpen: boolean;
@@ -93,7 +92,6 @@ export interface EditorState {
   undoStack: UndoEntry[];
   redoStack: UndoEntry[];
   templates: Template[];
-  serverDocumentId: string | null;
 }
 
 // Action interfaces by category
@@ -116,7 +114,6 @@ export interface UndoRedoActions {
 export interface UIActions {
   toggleSidebar: () => void;
   setSidebarTab: (tab: SidebarTab) => void;
-  toggleRuler: () => void;
   openTemplateDialog: () => void;
   closeTemplateDialog: () => void;
   openHeaderFooterDialog: () => void;
@@ -157,12 +154,6 @@ export interface FileActions {
   openDocument: (data: Uint8Array) => Promise<void>;
   saveDocument: () => Promise<void>;
   saveDocumentAs: (filename: string) => Promise<void>;
-  saveDocumentToServer: (filename: string) => Promise<{
-    ok: boolean;
-    status: number;
-    documentId?: string;
-    error?: string;
-  }>;
   printDocument: () => void;
   exportPDF: () => Promise<void>;
 }
@@ -192,15 +183,6 @@ export type ShapeType = "rectangle" | "ellipse" | "line" | "arrow";
 
 export interface ShapeActions {
   insertShape: (shapeType: ShapeType, widthMm: number, heightMm: number) => void;
-}
-
-export interface ChartActions {
-  insertChart: (opts?: {
-    title?: string;
-    chartType?: "bar" | "line";
-    categories?: string[];
-    values?: number[];
-  }) => void;
 }
 
 export interface TextEditingActions {
@@ -239,17 +221,6 @@ export interface ImageActions {
   updatePictureSize: (widthMm: number, heightMm: number) => void;
   resizeImage: (deltaWidthHwp: number, deltaHeightHwp: number) => void;
   setImageOutMargin: (margins: Partial<{ top: number; bottom: number; left: number; right: number }>) => void;
-  setImageTextWrap: (textWrap: string) => void;
-  setImageTreatAsChar: (treatAsChar: boolean) => void;
-  setImageOffsets: (offsets: Partial<{ horzMm: number; vertMm: number }>) => void;
-  setImageOffsetRelTo: (relTo: Partial<{ horzRelTo: string; vertRelTo: string }>) => void;
-  setImageSizeProtect: (protect: boolean) => void;
-  setImageScale: (scaleXPercent: number, scaleYPercent: number) => void;
-  setImageCrop: (crop: Partial<{ leftMm: number; rightMm: number; topMm: number; bottomMm: number }>) => void;
-  setImageAdjustment: (adjust: Partial<{ brightness: number; contrast: number; effect: string; alpha: number }>) => void;
-  setImageRotation: (angle: number) => void;
-  setImageLock: (locked: boolean) => void;
-  deleteSelectedObject: () => void;
 }
 
 export interface PageActions {
@@ -257,13 +228,8 @@ export interface PageActions {
   updatePageMargins: (margins: Partial<{ left: number; right: number; top: number; bottom: number; header: number; footer: number; gutter: number }>) => void;
   updatePageOrientation: (orientation: OrientationType) => void;
   setColumnCount: (colCount: number, gapMm?: number) => void;
-  setPageNumbering: (opts: { position: string; startNumber: number; format?: string }) => void;
-  setHeaderFooter: (opts: {
-    headerText?: string;
-    footerText?: string;
-    headerPosition?: "left" | "center" | "right";
-    footerPosition?: "left" | "center" | "right";
-  }) => void;
+  setPageNumbering: (opts: { position: string; startNumber: number }) => void;
+  setHeaderFooter: (opts: { headerText?: string; footerText?: string }) => void;
   insertColumnBreak: () => void;
   insertPageBreak: () => void;
   insertFootnote: () => void;
@@ -292,5 +258,4 @@ export interface EditorStore extends
   ImageActions,
   PageActions,
   TemplateActions,
-  ChartActions,
   ShapeActions {}

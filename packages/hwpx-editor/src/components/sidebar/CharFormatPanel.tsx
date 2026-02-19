@@ -1,18 +1,11 @@
 "use client";
 
-import { Highlighter, Type } from "lucide-react";
 import { useEditorStore } from "@/lib/store";
-import {
-  DEFAULT_FONT_FAMILY,
-  FONT_FAMILIES,
-  FONT_SIZES,
-  fontFamilyCssStack,
-} from "@/lib/constants";
+import { FONT_FAMILIES, FONT_SIZES } from "@/lib/constants";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarField } from "./SidebarField";
 import { BorderSettings } from "./BorderSettings";
 import { BackgroundSettings } from "./BackgroundSettings";
-import { ColorPicker } from "../toolbar/ColorPicker";
 
 export function CharFormatPanel() {
   const extendedFormat = useEditorStore((s) => s.extendedFormat);
@@ -45,13 +38,12 @@ export function CharFormatPanel() {
         <SidebarField label="글꼴">
           <select
             disabled={disabled}
-            data-hwpx-testid="char-font-family"
-            value={cf.fontFamily || DEFAULT_FONT_FAMILY}
+            value={cf.fontFamily || "맑은 고딕"}
             onChange={(e) => setFontFamily(e.target.value)}
             className="w-full h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40"
           >
             {FONT_FAMILIES.map((f) => (
-              <option key={f} value={f} style={{ fontFamily: fontFamilyCssStack(f) }}>
+              <option key={f} value={f} style={{ fontFamily: fontFamilyCss(f) }}>
                 {f}
               </option>
             ))}
@@ -60,7 +52,6 @@ export function CharFormatPanel() {
         <SidebarField label="크기">
           <select
             disabled={disabled}
-            data-hwpx-testid="char-font-size"
             value={String(cf.fontSize || 10)}
             onChange={(e) => setFontSize(Number(e.target.value))}
             className="w-full h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40"
@@ -73,14 +64,18 @@ export function CharFormatPanel() {
           </select>
         </SidebarField>
         <SidebarField label="색상">
-          <ColorPicker
-            color={cf.textColor ?? "#000000"}
-            onChange={(color) => setTextColor(color)}
-            icon={<Type className="w-4 h-4" />}
-            title="글자 색"
-            disabled={disabled}
-            buttonClassName="p-1.5"
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={cf.textColor && cf.textColor !== "none" ? cf.textColor : "#000000"}
+              onChange={(e) => setTextColor(e.target.value)}
+              disabled={disabled}
+              className="w-6 h-6 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
+            />
+            <span className="text-[10px] text-gray-400">
+              {cf.textColor && cf.textColor !== "none" ? cf.textColor : "#000000"}
+            </span>
+          </div>
         </SidebarField>
       </SidebarSection>
 
@@ -95,15 +90,18 @@ export function CharFormatPanel() {
 
       <SidebarSection title="형광펜">
         <SidebarField label="색상">
-          <ColorPicker
-            color={cf.highlightColor ?? "none"}
-            onChange={(color) => setHighlightColor(color)}
-            icon={<Highlighter className="w-4 h-4" />}
-            title="형광펜 색"
-            disabled={disabled}
-            allowNone
-            buttonClassName="p-1.5"
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={cf.highlightColor && cf.highlightColor !== "none" ? cf.highlightColor : "#FFFF00"}
+              onChange={(e) => setHighlightColor(e.target.value)}
+              disabled={disabled}
+              className="w-6 h-6 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
+            />
+            <span className="text-[10px] text-gray-400">
+              {cf.highlightColor || "없음"}
+            </span>
+          </div>
         </SidebarField>
       </SidebarSection>
 
@@ -116,6 +114,12 @@ export function CharFormatPanel() {
       </SidebarSection>
     </div>
   );
+}
+
+function fontFamilyCss(name: string): string {
+  if (name === "Noto Sans KR") return "var(--font-noto-sans-kr), sans-serif";
+  if (name === "Noto Serif KR") return "var(--font-noto-serif-kr), serif";
+  return `"${name}", sans-serif`;
 }
 
 function FormatTag({ label, active, onClick, disabled }: { label: string; active: boolean; onClick?: () => void; disabled?: boolean }) {

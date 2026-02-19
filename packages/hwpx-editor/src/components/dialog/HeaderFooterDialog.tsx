@@ -7,6 +7,7 @@ import { DialogSection } from "./DialogSection";
 import { DialogTabs } from "./DialogTabs";
 
 export function HeaderFooterDialog() {
+  const doc = useEditorStore((s) => s.doc);
   const viewModel = useEditorStore((s) => s.viewModel);
   const selection = useEditorStore((s) => s.selection);
   const uiState = useEditorStore((s) => s.uiState);
@@ -19,58 +20,26 @@ export function HeaderFooterDialog() {
   const [activeTab, setActiveTab] = useState<"header" | "footer">("header");
   const [headerText, setHeaderText] = useState(section?.headerText ?? "");
   const [footerText, setFooterText] = useState(section?.footerText ?? "");
-  const [headerPosition, setHeaderPosition] = useState<"left" | "center" | "right">(
-    section?.headerAlign?.toUpperCase() === "LEFT"
-      ? "left"
-      : section?.headerAlign?.toUpperCase() === "RIGHT"
-        ? "right"
-        : "center",
-  );
-  const [footerPosition, setFooterPosition] = useState<"left" | "center" | "right">(
-    section?.footerAlign?.toUpperCase() === "LEFT"
-      ? "left"
-      : section?.footerAlign?.toUpperCase() === "RIGHT"
-        ? "right"
-        : "center",
-  );
+  const [headerPosition, setHeaderPosition] = useState<"left" | "center" | "right">("center");
+  const [footerPosition, setFooterPosition] = useState<"left" | "center" | "right">("center");
 
   useEffect(() => {
     if (uiState.headerFooterDialogOpen && section) {
       setHeaderText(section.headerText);
       setFooterText(section.footerText);
-      setHeaderPosition(
-        section.headerAlign?.toUpperCase() === "LEFT"
-          ? "left"
-          : section.headerAlign?.toUpperCase() === "RIGHT"
-            ? "right"
-            : "center",
-      );
-      setFooterPosition(
-        section.footerAlign?.toUpperCase() === "LEFT"
-          ? "left"
-          : section.footerAlign?.toUpperCase() === "RIGHT"
-            ? "right"
-            : "center",
-      );
     }
-  }, [
-    uiState.headerFooterDialogOpen,
-    section?.headerText,
-    section?.footerText,
-    section?.headerAlign,
-    section?.footerAlign,
-  ]);
+  }, [uiState.headerFooterDialogOpen, section?.headerText, section?.footerText]);
 
   const handleApply = () => {
-    setHeaderFooter({ headerText, footerText, headerPosition, footerPosition });
+    setHeaderFooter({ headerText, footerText });
     closeHeaderFooterDialog();
   };
 
-  const insertToken = (token: string) => {
+  const insertPlaceholder = (placeholder: string) => {
     if (activeTab === "header") {
-      setHeaderText((prev) => prev + token);
+      setHeaderText((prev) => prev + placeholder);
     } else {
-      setFooterText((prev) => prev + token);
+      setFooterText((prev) => prev + placeholder);
     }
   };
 
@@ -88,9 +57,12 @@ export function HeaderFooterDialog() {
       width={480}
     >
       <DialogTabs
-        tabs={["머리말", "꼬리말"]}
-        activeTab={activeTab === "header" ? 0 : 1}
-        onTabChange={(index) => setActiveTab(index === 0 ? "header" : "footer")}
+        tabs={[
+          { id: "header", label: "머리말" },
+          { id: "footer", label: "꼬리말" },
+        ]}
+        activeTab={activeTab}
+        onTabChange={(id) => setActiveTab(id as "header" | "footer")}
       />
 
       {activeTab === "header" && (
@@ -98,17 +70,17 @@ export function HeaderFooterDialog() {
           <textarea
             value={headerText}
             onChange={(e) => setHeaderText(e.target.value)}
-            aria-label="머리말 내용"
+            placeholder="머리말 내용을 입력하세요"
             className={`${inputClass} h-20 resize-none`}
           />
           <div className="flex gap-2 mt-2">
-            <button className={btnClass} onClick={() => insertToken("{{page}}")}>
+            <button className={btnClass} onClick={() => insertPlaceholder("{{page}}")}>
               쪽 번호
             </button>
-            <button className={btnClass} onClick={() => insertToken("{{total}}")}>
+            <button className={btnClass} onClick={() => insertPlaceholder("{{total}}")}>
               총 쪽 수
             </button>
-            <button className={btnClass} onClick={() => insertToken("{{date}}")}>
+            <button className={btnClass} onClick={() => insertPlaceholder("{{date}}")}>
               날짜
             </button>
           </div>
@@ -150,17 +122,17 @@ export function HeaderFooterDialog() {
           <textarea
             value={footerText}
             onChange={(e) => setFooterText(e.target.value)}
-            aria-label="꼬리말 내용"
+            placeholder="꼬리말 내용을 입력하세요"
             className={`${inputClass} h-20 resize-none`}
           />
           <div className="flex gap-2 mt-2">
-            <button className={btnClass} onClick={() => insertToken("{{page}}")}>
+            <button className={btnClass} onClick={() => insertPlaceholder("{{page}}")}>
               쪽 번호
             </button>
-            <button className={btnClass} onClick={() => insertToken("{{total}}")}>
+            <button className={btnClass} onClick={() => insertPlaceholder("{{total}}")}>
               총 쪽 수
             </button>
-            <button className={btnClass} onClick={() => insertToken("{{date}}")}>
+            <button className={btnClass} onClick={() => insertPlaceholder("{{date}}")}>
               날짜
             </button>
           </div>

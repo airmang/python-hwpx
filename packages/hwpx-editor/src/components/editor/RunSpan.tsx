@@ -1,7 +1,6 @@
 "use client";
 
 import type { RunVM } from "@/lib/view-model";
-import { fontFamilyCssStack } from "@/lib/constants";
 
 interface RunSpanProps {
   run: RunVM;
@@ -11,8 +10,8 @@ interface RunSpanProps {
 export function RunSpan({ run, tabWidth = 40 }: RunSpanProps) {
   const style: React.CSSProperties = {};
 
-  if (run.bold) style.fontWeight = 700;
-  if (run.italic) style.fontStyle = "oblique 10deg";
+  if (run.bold) style.fontWeight = "bold";
+  if (run.italic) style.fontStyle = "italic";
 
   // Text decoration (underline + strikethrough)
   const decorations: string[] = [];
@@ -22,7 +21,13 @@ export function RunSpan({ run, tabWidth = 40 }: RunSpanProps) {
 
   if (run.color && run.color !== "#000000") style.color = run.color;
   if (run.fontFamily) {
-    style.fontFamily = fontFamilyCssStack(run.fontFamily);
+    if (run.fontFamily === "Noto Sans KR") {
+      style.fontFamily = "var(--font-noto-sans-kr), sans-serif";
+    } else if (run.fontFamily === "Noto Serif KR") {
+      style.fontFamily = "var(--font-noto-serif-kr), serif";
+    } else {
+      style.fontFamily = run.fontFamily;
+    }
   }
   if (run.fontSize) style.fontSize = `${run.fontSize}pt`;
   if (run.highlightColor) style.backgroundColor = run.highlightColor;

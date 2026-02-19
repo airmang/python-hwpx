@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useEditorStore } from "@/lib/store";
 import { Dialog } from "./Dialog";
 import { DialogSection } from "./DialogSection";
-import { parseHeaderXml, serializeXml } from "@ubermensch1218/hwpxcore";
 
 interface StyleItem {
   id: string;
@@ -17,7 +16,6 @@ export function StyleDialog() {
   const uiState = useEditorStore((s) => s.uiState);
   const closeStyleDialog = useEditorStore((s) => s.closeStyleDialog);
   const applyStyle = useEditorStore((s) => s.applyStyle);
-  const applyStyleToDocument = useEditorStore((s) => s.applyStyleToDocument);
 
   const [styles, setStyles] = useState<StyleItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -25,20 +23,19 @@ export function StyleDialog() {
   useEffect(() => {
     if (uiState.styleDialogOpen && doc) {
       try {
+        const headers = doc.oxml.headers;
         const styleList: StyleItem[] = [];
-        const header = doc.headers[0];
-        if (header) {
-          const parsed = parseHeaderXml(serializeXml(header.element));
-          const styles = parsed.refList?.styles?.styles ?? [];
-          for (const style of styles) {
-            if (style.name) {
-              const id = style.rawId ?? (style.id != null ? String(style.id) : null);
-              if (!id) continue;
-              styleList.push({
-                id,
-                name: style.name,
-                type: style.type ?? "para",
-              });
+        for (const header of headers) {
+          const refList = header.refList;
+          if (refList?.styles?.styles) {
+            for (const style of refList.styles.styles) {
+              if (style.id != null && style.name) {
+                styleList.push({
+                  id: String(style.id),
+                  name: style.name,
+                  type: style.type ?? "para",
+                });
+              }
             }
           }
         }
@@ -113,22 +110,7 @@ export function StyleDialog() {
       )}
 
       <div className="text-xs text-gray-500 mt-3">
-        <div>선택한 스타일을 현재 문단에 적용합니다.</div>
-        <div className="mt-2 flex gap-2">
-          <button
-            type="button"
-            className="px-3 py-1.5 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50 text-gray-700"
-            disabled={!selectedId}
-            onClick={() => {
-              if (!selectedId) return;
-              applyStyleToDocument(selectedId);
-              closeStyleDialog();
-            }}
-            title="문서 전체 문단에 스타일을 적용합니다."
-          >
-            문서 전체 적용
-          </button>
-        </div>
+        선택한 스타일을 현재 문단에 적용합니다.
       </div>
     </Dialog>
   );

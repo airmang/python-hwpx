@@ -1,35 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useEditorStore } from "@/lib/store";
 import { Dialog } from "./Dialog";
 import { DialogSection } from "./DialogSection";
 
-function uiPositionFromPageNumPos(pos?: string | null): string {
-  const upper = pos?.toUpperCase() ?? "";
-  if (upper.includes("TOP") && upper.includes("LEFT")) return "header-left";
-  if (upper.includes("TOP") && upper.includes("RIGHT")) return "header-right";
-  if (upper.includes("TOP")) return "header-center";
-  if (upper.includes("BOTTOM") && upper.includes("LEFT")) return "footer-left";
-  if (upper.includes("BOTTOM") && upper.includes("RIGHT")) return "footer-right";
-  if (upper.includes("BOTTOM")) return "footer-center";
-  return "footer-center";
-}
-
-function uiFormatFromPageNumFormat(formatType?: string | null): string {
-  const upper = formatType?.toUpperCase() ?? "";
-  if (upper === "ROMAN") return "roman-upper";
-  if (upper === "ROMAN_LOWER") return "roman-lower";
-  if (upper === "ALPHA_UPPER") return "alpha-upper";
-  if (upper === "ALPHA_LOWER") return "alpha-lower";
-  if (upper === "KOREAN") return "korean";
-  if (upper === "HANJA") return "hanja";
-  return "arabic";
-}
-
 export function PageNumberDialog() {
-  const selection = useEditorStore((s) => s.selection);
-  const viewModel = useEditorStore((s) => s.viewModel);
   const uiState = useEditorStore((s) => s.uiState);
   const closePageNumberDialog = useEditorStore((s) => s.closePageNumberDialog);
   const setPageNumbering = useEditorStore((s) => s.setPageNumbering);
@@ -37,29 +13,9 @@ export function PageNumberDialog() {
   const [position, setPosition] = useState<string>("footer-center");
   const [startNumber, setStartNumber] = useState(1);
   const [format, setFormat] = useState<string>("arabic");
-  const sectionIdx = selection?.sectionIndex ?? 0;
-  const section = viewModel?.sections[sectionIdx];
-
-  useEffect(() => {
-    if (!uiState.pageNumberDialogOpen || !section) return;
-    if (!section.pageNum) {
-      setPosition("none");
-      setFormat("arabic");
-    } else {
-      setPosition(uiPositionFromPageNumPos(section.pageNum.pos));
-      setFormat(uiFormatFromPageNumFormat(section.pageNum.formatType));
-    }
-    setStartNumber(Math.max(1, section.startPageNumber || 1));
-  }, [
-    uiState.pageNumberDialogOpen,
-    section?.pageNum?.pos,
-    section?.pageNum?.formatType,
-    section?.startPageNumber,
-    section,
-  ]);
 
   const handleApply = () => {
-    setPageNumbering({ position, startNumber, format });
+    setPageNumbering({ position, startNumber });
     closePageNumberDialog();
   };
 
@@ -163,13 +119,13 @@ export function PageNumberDialog() {
           onChange={(e) => setFormat(e.target.value)}
           className={inputClass}
         >
-          <option value="arabic">1, 2, 3, …</option>
-          <option value="roman-lower">i, ii, iii, …</option>
-          <option value="roman-upper">I, II, III, …</option>
-          <option value="alpha-lower">a, b, c, …</option>
-          <option value="alpha-upper">A, B, C, …</option>
-          <option value="korean">가, 나, 다, …</option>
-          <option value="hanja">一, 二, 三, …</option>
+          <option value="arabic">1, 2, 3, ...</option>
+          <option value="roman-lower">i, ii, iii, ...</option>
+          <option value="roman-upper">I, II, III, ...</option>
+          <option value="alpha-lower">a, b, c, ...</option>
+          <option value="alpha-upper">A, B, C, ...</option>
+          <option value="korean">가, 나, 다, ...</option>
+          <option value="hanja">一, 二, 三, ...</option>
         </select>
       </DialogSection>
 

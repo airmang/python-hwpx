@@ -881,13 +881,13 @@ from hwpx.tools.text_extractor import AnnotationOptions, TextExtractor
 options = AnnotationOptions(
     highlight="markers",
     footnote="inline",
-    endnote="marker",
+    endnote="placeholder",
     note_inline_format="[{kind}:{text}]",
-    note_marker_format="[{kind}:{inst_id}]",
+    note_placeholder="[{kind}:{inst_id}]",
     hyperlink="target",
     hyperlink_target_format="[LINK:{target}]",
-    control="marker",
-    control_marker_format="[CTRL {name} {type}]",
+    control="placeholder",
+    control_placeholder="[CTRL {name} {type}]",
 )
 
 with TextExtractor("sample.hwpx") as extractor:
@@ -899,8 +899,8 @@ with TextExtractor("sample.hwpx") as extractor:
 
 문단 객체(`ParagraphInfo`)의 `text()` 메서드에는 추가로 다음과 같은 인자를 전달할 수 있습니다.
 
-- `object_behavior`: 표, 도형 등 인라인 개체를 `"skip"`, `"marker"`, `"nested"` 중 하나로 처리합니다.
-- `object_marker_format`: 표시 문자열 모드를 사용할 때 형식을 지정합니다.
+- `object_behavior`: 표, 도형 등 인라인 개체를 `"skip"`, `"placeholder"`, `"nested"` 중 하나로 처리합니다.
+- `object_placeholder`: 자리표시자 모드를 사용할 때 형식을 지정합니다.
 - `preserve_breaks`: 줄바꿈과 탭을 유지할지 여부를 결정합니다.
 
 `iter_sections()`와 `iter_paragraphs()` 메서드를 사용하면 원하는 구역에만 접근하거나 중첩 문단을 제외하는 등 탐색 범위를 세밀하게 조정할 수 있습니다.
@@ -914,7 +914,7 @@ from hwpx.tools.object_finder import ObjectFinder
 from hwpx.tools.text_extractor import AnnotationOptions
 
 finder = ObjectFinder("sample.hwpx")
-options = AnnotationOptions(hyperlink="target", control="marker")
+options = AnnotationOptions(hyperlink="target", control="placeholder")
 
 for match in finder.iter_annotations(options=options):
     print(match.kind, match.value, match.element.path)

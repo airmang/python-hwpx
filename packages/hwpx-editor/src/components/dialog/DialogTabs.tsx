@@ -8,16 +8,16 @@ interface DialogTabsProps {
 
 export function DialogTabs({ tabs, activeTab, onTabChange }: DialogTabsProps) {
   return (
-    <div className="mb-5 flex w-full gap-1 rounded-xl border border-gray-200 bg-gray-100 p-1">
+    <div className="flex justify-center gap-0 mb-4">
       {tabs.map((label, idx) => (
         <button
           key={label}
           onClick={() => onTabChange(idx)}
-          className={`h-9 flex-1 rounded-lg border text-sm transition-colors ${
+          className={`px-4 py-1.5 text-xs border transition-colors ${
             activeTab === idx
-              ? "border-gray-300 bg-white font-semibold text-gray-900 shadow-sm"
-              : "border-transparent bg-transparent text-gray-500 hover:text-gray-700"
-          }`}
+              ? "bg-white border-gray-300 font-semibold text-gray-900 shadow-sm"
+              : "bg-transparent border-transparent text-gray-500 hover:text-gray-700"
+          } ${idx === 0 ? "rounded-l" : ""} ${idx === tabs.length - 1 ? "rounded-r" : ""}`}
         >
           {label}
         </button>

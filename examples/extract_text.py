@@ -29,14 +29,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--object-behavior",
-        choices=("skip", "marker", "nested"),
+        choices=("skip", "placeholder", "nested"),
         default="skip",
         help="How to treat embedded objects encountered while reading a paragraph.",
     )
     parser.add_argument(
-        "--marker-format",
+        "--placeholder",
         default="[object]",
-        help="Marker text to use when --object-behavior=marker.",
+        help="Placeholder text to use when --object-behavior=placeholder.",
     )
     return parser.parse_args()
 
@@ -47,14 +47,14 @@ def main() -> None:
     if not document.exists():
         raise SystemExit(f"Document not found: {document}")
 
-    marker = args.marker_format if args.object_behavior == "marker" else None
+    placeholder = args.placeholder if args.object_behavior == "placeholder" else None
 
     with TextExtractor(document) as extractor:
         printed = 0
         for paragraph in extractor.iter_document_paragraphs(include_nested=args.include_nested):
             text = paragraph.text(
                 object_behavior=args.object_behavior,
-                object_marker_format=marker,
+                object_placeholder=placeholder,
             ).strip()
             if not text:
                 continue

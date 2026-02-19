@@ -74,26 +74,6 @@ describe("표 생성 및 편집", () => {
     expect(tbl2.rows.length).toBe(2);
     expect(tbl2.cell(1, 2).text).toBe("HWPX 표 테스트");
   });
-
-  it("셀 안에 중첩 표를 삽입할 수 있다", async () => {
-    const doc = await HwpxDocument.open(skeletonBytes);
-    const borderFillId = doc.ensureBasicBorderFill();
-    const para = doc.addParagraph();
-    const outer = para.addTable(1, 1, { borderFillIdRef: borderFillId });
-    const nested = outer.cell(0, 0).addTable(2, 2, { borderFillIdRef: borderFillId });
-    nested.setCellText(0, 0, "중첩 표");
-
-    const saved = await doc.save();
-    const doc2 = await HwpxDocument.open(saved);
-    const restoredOuter = doc2.tables[doc2.tables.length - 1]!;
-    const restoredCellEl = restoredOuter.cell(0, 0).element;
-    const nestedTables = Array.from(restoredCellEl.getElementsByTagName("*")).filter((el) => {
-      const local = el.localName ?? el.nodeName.split(":").pop() ?? "";
-      return local === "tbl";
-    });
-
-    expect(nestedTables.length).toBeGreaterThanOrEqual(1);
-  });
 });
 
 // ── 스타일 (Style) ─────────────────────────────────────────────────────
@@ -181,20 +161,6 @@ describe("텍스트 치환", () => {
     const saved = await doc.save();
     const doc2 = await HwpxDocument.open(saved);
     expect(doc2.text).toContain("수정된 텍스트입니다.");
-  });
-
-  it("정규식 치환 (Run.replaceTextRegex)", async () => {
-    const doc = await HwpxDocument.open(skeletonBytes);
-    const para = doc.addParagraph();
-    const run = para.addRun("Hello 123, hello 456");
-
-    const replaced = run.replaceTextRegex(/hello\s(\d+)/ig, "Hi-$1");
-    expect(replaced).toBe(2);
-    expect(run.text).toBe("Hi-123, Hi-456");
-
-    const limited = run.replaceTextRegex(/\d+/g, "X", 1);
-    expect(limited).toBe(1);
-    expect(run.text).toBe("Hi-X, Hi-456");
   });
 });
 

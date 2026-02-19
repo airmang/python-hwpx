@@ -310,8 +310,6 @@ export class HwpxOxmlDocument {
     lineSpacingValue?: number; // e.g. 160 for 1.6x (percent)
     marginLeft?: number; // hwpUnit
     marginRight?: number; // hwpUnit
-    marginBefore?: number; // hwpUnit (paragraph spacing before, "prev")
-    marginAfter?: number; // hwpUnit (paragraph spacing after, "next")
     indent?: number; // hwpUnit (first-line indent, "intent" in HWPX)
     baseParaPrId?: string | number;
   }): string {
@@ -322,8 +320,6 @@ export class HwpxOxmlDocument {
     const targetLineSpacingValue = opts.lineSpacingValue != null ? String(Math.round(opts.lineSpacingValue)) : null;
     const targetMarginLeft = opts.marginLeft != null ? String(Math.round(opts.marginLeft)) : null;
     const targetMarginRight = opts.marginRight != null ? String(Math.round(opts.marginRight)) : null;
-    const targetMarginBefore = opts.marginBefore != null ? String(Math.round(opts.marginBefore)) : null;
-    const targetMarginAfter = opts.marginAfter != null ? String(Math.round(opts.marginAfter)) : null;
     const targetIndent = opts.indent != null ? String(Math.round(opts.indent)) : null;
 
     const predicate = (element: Element): boolean => {
@@ -337,19 +333,11 @@ export class HwpxOxmlDocument {
         const v = ls?.getAttribute("value") ?? "160";
         if (v !== targetLineSpacingValue) return false;
       }
-      if (
-        targetMarginLeft != null ||
-        targetMarginRight != null ||
-        targetMarginBefore != null ||
-        targetMarginAfter != null ||
-        targetIndent != null
-      ) {
+      if (targetMarginLeft != null || targetMarginRight != null || targetIndent != null) {
         const margin = findChild(element, HH_NS, "margin");
         if (!margin) return false;
         if (targetMarginLeft != null && (margin.getAttribute("left") ?? "0") !== targetMarginLeft) return false;
         if (targetMarginRight != null && (margin.getAttribute("right") ?? "0") !== targetMarginRight) return false;
-        if (targetMarginBefore != null && (margin.getAttribute("prev") ?? "0") !== targetMarginBefore) return false;
-        if (targetMarginAfter != null && (margin.getAttribute("next") ?? "0") !== targetMarginAfter) return false;
         if (targetIndent != null && (margin.getAttribute("intent") ?? "0") !== targetIndent) return false;
       }
       return true;
@@ -375,21 +363,13 @@ export class HwpxOxmlDocument {
           if (!ls.getAttribute("type")) ls.setAttribute("type", "PERCENT");
         }
       }
-      if (
-        targetMarginLeft != null ||
-        targetMarginRight != null ||
-        targetMarginBefore != null ||
-        targetMarginAfter != null ||
-        targetIndent != null
-      ) {
+      if (targetMarginLeft != null || targetMarginRight != null || targetIndent != null) {
         let margin = findChild(element, HH_NS, "margin");
         if (!margin) {
           margin = subElement(element, HH_NS, "margin", { intent: "0", left: "0", right: "0", prev: "0", next: "0" });
         }
         if (targetMarginLeft != null) margin.setAttribute("left", targetMarginLeft);
         if (targetMarginRight != null) margin.setAttribute("right", targetMarginRight);
-        if (targetMarginBefore != null) margin.setAttribute("prev", targetMarginBefore);
-        if (targetMarginAfter != null) margin.setAttribute("next", targetMarginAfter);
         if (targetIndent != null) margin.setAttribute("intent", targetIndent);
       }
     };
