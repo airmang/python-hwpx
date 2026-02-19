@@ -45,7 +45,7 @@ function FirstLineHandle({ positionPx, onDrag }: HandleProps) {
       title="첫줄 들여쓰기"
     >
       <svg width="10" height="8" viewBox="0 0 10 8">
-        <polygon points="5,8 0,0 10,0" fill="#4A90D9" />
+        <polygon points="5,8 0,0 10,0" fill="#2563EB" />
       </svg>
     </div>
   );
@@ -59,7 +59,9 @@ function LeftIndentHandle({ positionPx, onDrag }: HandleProps) {
       e.preventDefault();
       e.stopPropagation();
       startXRef.current = e.clientX;
-      const onMove = (me: MouseEvent) => {};
+      const onMove = (_me: MouseEvent) => {
+        document.body.style.cursor = "ew-resize";
+      };
       const onUp = (me: MouseEvent) => {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
@@ -77,12 +79,12 @@ function LeftIndentHandle({ positionPx, onDrag }: HandleProps) {
   return (
     <div
       className="absolute cursor-ew-resize select-none"
-      style={{ left: positionPx - 5, bottom: 0 }}
+      style={{ left: positionPx - 5, bottom: 1 }}
       onMouseDown={onMouseDown}
       title="둘째줄 시작 위치 (왼쪽 들여쓰기)"
     >
       <svg width="10" height="8" viewBox="0 0 10 8">
-        <polygon points="5,0 10,8 0,8" fill="#4A90D9" />
+        <polygon points="5,0 10,8 0,8" fill="#2563EB" />
       </svg>
     </div>
   );
@@ -96,7 +98,9 @@ function CombinedHandle({ positionPx, onDrag }: HandleProps) {
       e.preventDefault();
       e.stopPropagation();
       startXRef.current = e.clientX;
-      const onMove = (me: MouseEvent) => {};
+      const onMove = (_me: MouseEvent) => {
+        document.body.style.cursor = "ew-resize";
+      };
       const onUp = (me: MouseEvent) => {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
@@ -114,12 +118,12 @@ function CombinedHandle({ positionPx, onDrag }: HandleProps) {
   return (
     <div
       className="absolute cursor-ew-resize select-none"
-      style={{ left: positionPx - 4, bottom: 8 }}
+      style={{ left: positionPx - 5, bottom: 11 }}
       onMouseDown={onMouseDown}
       title="왼쪽 여백 전체 이동"
     >
-      <svg width="8" height="6" viewBox="0 0 8 6">
-        <rect x="0" y="0" width="8" height="6" fill="#4A90D9" rx="1" />
+      <svg width="10" height="6" viewBox="0 0 10 6">
+        <rect x="0" y="0" width="10" height="6" fill="#2563EB" />
       </svg>
     </div>
   );
@@ -159,9 +163,11 @@ export function HorizontalRuler() {
     const px = mm / mmPerPx;
     const major = mm % 10 === 0;
     const medium = mm % 5 === 0 && !major;
+    const labelNum = Math.round(mm / 10);
     ticks.push({
       position: px,
-      label: major ? String(Math.round(mm / 10)) : "",
+      // Start labels from 1 (hide the 0 marker) for clearer ruler reading.
+      label: major && labelNum > 0 ? String(labelNum) : "",
       major,
       medium,
     });

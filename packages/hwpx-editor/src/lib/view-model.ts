@@ -65,6 +65,31 @@ export interface TableCellVM {
   borderFillIDRef: string | null;
   vertAlign: string;  // "TOP" | "CENTER" | "BOTTOM"
   style: CellStyleVM | null;
+  fontFamily: string | null;
+  fontSize: number | null;
+  textColor: string | null;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
+  nestedTableCount: number;
+  nestedTables: NestedTableVM[];
+}
+
+export interface NestedTableCellVM {
+  row: number;
+  col: number;
+  rowSpan: number;
+  colSpan: number;
+  isAnchor: boolean;
+  text: string;
+  backgroundColor: string | null;
+}
+
+export interface NestedTableVM {
+  rowCount: number;
+  colCount: number;
+  cells: NestedTableCellVM[][];
 }
 
 export interface TableVM {
@@ -88,8 +113,29 @@ export interface ImageVM {
   heightPx: number;
   widthHwp: number;
   heightHwp: number;
+  originalWidthHwp: number;
+  originalHeightHwp: number;
+  scaleXPercent: number;
+  scaleYPercent: number;
   binaryItemIdRef: string;
   outMargin: MarginVM;
+  textWrap: string;
+  treatAsChar: boolean;
+  horzRelTo: string;
+  vertRelTo: string;
+  horzOffset: number;
+  vertOffset: number;
+  cropLeftHwp: number;
+  cropRightHwp: number;
+  cropTopHwp: number;
+  cropBottomHwp: number;
+  sizeProtected: boolean;
+  locked: boolean;
+  rotationAngle: number;
+  brightness: number;
+  contrast: number;
+  effect: string;
+  alpha: number;
 }
 
 export interface EquationVM {
@@ -120,6 +166,7 @@ export interface ParagraphVM {
   images: ImageVM[];
   textBoxes: TextBoxVM[];
   equations: EquationVM[];
+  pageBreakBefore: boolean;
   alignment: string;
   lineSpacing: number;
   spacingBefore: number;
@@ -167,8 +214,11 @@ export interface SectionVM {
   footerHeightPx: number;
   paragraphs: ParagraphVM[];
   sectionIndex: number;
+  startPageNumber: number;
   headerText: string;
   footerText: string;
+  headerAlign: string;
+  footerAlign: string;
   footnotes: FootnoteVM[];
   endnotes: FootnoteVM[];
   columnLayout: ColumnLayoutVM;
@@ -211,22 +261,30 @@ function extractRunStyle(
     };
   }
 
-  const bold = style.attributes["bold"] === "1";
-  const italic = style.attributes["italic"] === "1";
+  const normalizeFlag = (value?: string | null): boolean =>
+    value === "1" || value?.toLowerCase() === "true";
+
+  // HWPX charPr often stores bold/italic as child tags (<hh:bold />, <hh:italic />).
+  const bold =
+    normalizeFlag(style.attributes["bold"]) ||
+    style.childAttributes["bold"] != null;
+  const italic =
+    normalizeFlag(style.attributes["italic"]) ||
+    style.childAttributes["italic"] != null;
 
   // Check underline child element
   const underlineChild = style.childAttributes["underline"];
   const underline =
     underlineChild != null &&
-    underlineChild["type"] != null &&
-    underlineChild["type"] !== "NONE";
+    ((underlineChild["type"] == null) ||
+      underlineChild["type"].toUpperCase() !== "NONE");
 
   // Strikethrough
   const strikeChild = style.childAttributes["strikeout"];
+  const strikeType = strikeChild?.["type"] ?? strikeChild?.["shape"] ?? null;
   const strikethrough =
-    strikeChild != null &&
-    strikeChild["type"] != null &&
-    strikeChild["type"] !== "NONE";
+    strikeType != null &&
+    strikeType.toUpperCase() !== "NONE";
 
   const color = style.attributes["textColor"] ?? null;
 
@@ -262,6 +320,168 @@ function extractRunStyle(
   }
 
   return { bold, italic, underline, strikethrough, color, fontFamily, fontSize, highlightColor, letterSpacing };
+}
+
+function extractCellTextStyle(cellElement: Element, doc: HwpxDocument) {
+  const stack: Element[] = [cellElement];
+  let paragraphCharPrIdRef: string | null = null;
+  const readCharPrRef = (el: Element): string | null =>
+    el.getAttribute("charPrIDRef")
+    ?? el.getAttribute("charPrIdRef")
+    ?? el.getAttribute("charPrRef");
+  while (stack.length > 0) {
+    const current = stack.shift()!;
+    const local = current.localName ?? current.nodeName.split(":").pop() ?? "";
+    if (local === "p" && paragraphCharPrIdRef == null) {
+      paragraphCharPrIdRef = readCharPrRef(current);
+    }
+    if (local === "run") {
+      const charPrIdRef = readCharPrRef(current);
+      const style = doc.charProperty(charPrIdRef ?? paragraphCharPrIdRef);
+      return extractRunStyle(style, doc);
+    }
+    for (const child of Array.from(current.childNodes)) {
+      if (child.nodeType === 1) stack.push(child as Element);
+    }
+  }
+  if (paragraphCharPrIdRef) {
+    return extractRunStyle(doc.charProperty(paragraphCharPrIdRef), doc);
+  }
+  return extractRunStyle(null, doc);
+}
+
+function elementLocalName(element: Element): string {
+  return element.localName ?? element.nodeName.split(":").pop() ?? "";
+}
+
+function extractTextFromCellElement(cellElement: Element): string {
+  const descendants = cellElement.getElementsByTagName("*");
+  const parts: string[] = [];
+  for (let i = 0; i < descendants.length; i += 1) {
+    const el = descendants.item(i);
+    if (!el || elementLocalName(el) !== "t") continue;
+    if (el.textContent) parts.push(el.textContent);
+  }
+  return parts.join("");
+}
+
+function extractNestedTables(cellElement: Element, doc: HwpxDocument): NestedTableVM[] {
+  const descendants = cellElement.getElementsByTagName("*");
+  const nestedTables: NestedTableVM[] = [];
+
+  for (let i = 0; i < descendants.length; i += 1) {
+    const el = descendants.item(i);
+    if (!el) continue;
+    if (elementLocalName(el) !== "tbl") continue;
+
+    let hasAncestorTable = false;
+    let parent: Element | null = el.parentElement;
+    while (parent && parent !== cellElement) {
+      if (elementLocalName(parent) === "tbl") {
+        hasAncestorTable = true;
+        break;
+      }
+      parent = parent.parentElement;
+    }
+    if (hasAncestorTable) continue;
+    const tableBorderFillId = el.getAttribute("borderFillIDRef");
+
+    const attrRowCount = parseInt(el.getAttribute("rowCnt") ?? "", 10);
+    const attrColCount = parseInt(el.getAttribute("colCnt") ?? "", 10);
+    const directRows = Array.from(el.childNodes).filter((node) => {
+      if (node.nodeType !== 1) return false;
+      return elementLocalName(node as Element) === "tr";
+    }) as Element[];
+    const firstRow = directRows[0] ?? null;
+    const directCols = firstRow
+      ? Array.from(firstRow.childNodes).filter((node) => {
+          if (node.nodeType !== 1) return false;
+          return elementLocalName(node as Element) === "tc";
+        }).length
+      : 0;
+
+    const tcElements = Array.from(el.getElementsByTagName("*")).filter(
+      (node) => elementLocalName(node) === "tc",
+    );
+    const anchors = tcElements.map((tc) => {
+      const addr = Array.from(tc.childNodes).find((child) => {
+        if (child.nodeType !== 1) return false;
+        return elementLocalName(child as Element) === "cellAddr";
+      }) as Element | undefined;
+      const span = Array.from(tc.childNodes).find((child) => {
+        if (child.nodeType !== 1) return false;
+        return elementLocalName(child as Element) === "cellSpan";
+      }) as Element | undefined;
+      const rowAddr = parseInt(addr?.getAttribute("rowAddr") ?? "0", 10);
+      const colAddr = parseInt(addr?.getAttribute("colAddr") ?? "0", 10);
+      const rowSpan = parseInt(span?.getAttribute("rowSpan") ?? "1", 10);
+      const colSpan = parseInt(span?.getAttribute("colSpan") ?? "1", 10);
+      const cellBorderFillId = tc.getAttribute("borderFillIDRef") ?? tableBorderFillId;
+      let backgroundColor: string | null = null;
+      if (cellBorderFillId) {
+        try {
+          const borderFill = doc.oxml.getBorderFillInfo(cellBorderFillId);
+          backgroundColor = borderFill?.backgroundColor ?? null;
+        } catch {
+          // ignore broken borderFill references
+        }
+      }
+      return {
+        row: Number.isFinite(rowAddr) ? rowAddr : 0,
+        col: Number.isFinite(colAddr) ? colAddr : 0,
+        rowSpan: Math.max(1, Number.isFinite(rowSpan) ? rowSpan : 1),
+        colSpan: Math.max(1, Number.isFinite(colSpan) ? colSpan : 1),
+        text: extractTextFromCellElement(tc),
+        backgroundColor,
+      };
+    });
+
+    const inferredRowCount =
+      anchors.reduce((max, cell) => Math.max(max, cell.row + cell.rowSpan), 0) || directRows.length;
+    const inferredColCount =
+      anchors.reduce((max, cell) => Math.max(max, cell.col + cell.colSpan), 0) || directCols;
+    const rowCount = Number.isFinite(attrRowCount) && attrRowCount > 0 ? attrRowCount : inferredRowCount;
+    const colCount = Number.isFinite(attrColCount) && attrColCount > 0 ? attrColCount : inferredColCount;
+    const safeRowCount = Math.max(1, rowCount);
+    const safeColCount = Math.max(1, colCount);
+    const grid: NestedTableCellVM[][] = Array.from({ length: safeRowCount }, (_, rowIndex) =>
+      Array.from({ length: safeColCount }, (_, colIndex) => ({
+        row: rowIndex,
+        col: colIndex,
+        rowSpan: 1,
+        colSpan: 1,
+        isAnchor: false,
+        text: "",
+        backgroundColor: null,
+      })),
+    );
+
+    for (const anchor of anchors) {
+      for (let r = anchor.row; r < anchor.row + anchor.rowSpan; r += 1) {
+        if (r < 0 || r >= safeRowCount) continue;
+        for (let c = anchor.col; c < anchor.col + anchor.colSpan; c += 1) {
+          if (c < 0 || c >= safeColCount) continue;
+          grid[r]![c] = {
+            row: anchor.row,
+            col: anchor.col,
+            rowSpan: anchor.rowSpan,
+            colSpan: anchor.colSpan,
+            isAnchor: r === anchor.row && c === anchor.col,
+            text: r === anchor.row && c === anchor.col ? anchor.text : "",
+            backgroundColor: anchor.backgroundColor,
+          };
+        }
+      }
+    }
+
+    nestedTables.push({
+      rowCount: safeRowCount,
+      colCount: safeColCount,
+      cells: grid,
+    });
+  }
+
+  return nestedTables;
 }
 
 /** Find equation elements inside a run. */
@@ -377,8 +597,54 @@ function findTextBoxRefs(
 /** Find binaryItemIDRef from a picture element inside a run. */
 function findPictureRefs(
   runElement: Element,
-): { binaryItemIdRef: string; width: number; height: number }[] {
-  const results: { binaryItemIdRef: string; width: number; height: number }[] = [];
+): {
+  binaryItemIdRef: string;
+  width: number;
+  height: number;
+  originalWidth: number;
+  originalHeight: number;
+  textWrap: string;
+  treatAsChar: boolean;
+  horzRelTo: string;
+  vertRelTo: string;
+  horzOffset: number;
+  vertOffset: number;
+  clipLeft: number;
+  clipRight: number;
+  clipTop: number;
+  clipBottom: number;
+  sizeProtected: boolean;
+  locked: boolean;
+  rotationAngle: number;
+  brightness: number;
+  contrast: number;
+  effect: string;
+  alpha: number;
+}[] {
+  const results: {
+    binaryItemIdRef: string;
+    width: number;
+    height: number;
+    originalWidth: number;
+    originalHeight: number;
+    textWrap: string;
+    treatAsChar: boolean;
+    horzRelTo: string;
+    vertRelTo: string;
+    horzOffset: number;
+    vertOffset: number;
+    clipLeft: number;
+    clipRight: number;
+    clipTop: number;
+    clipBottom: number;
+    sizeProtected: boolean;
+    locked: boolean;
+    rotationAngle: number;
+    brightness: number;
+    contrast: number;
+    effect: string;
+    alpha: number;
+  }[] = [];
 
   // Look for <pic> elements inside the run
   const children = runElement.childNodes;
@@ -392,6 +658,26 @@ function findPictureRefs(
     // Get size from curSz
     let width = 0;
     let height = 0;
+    let originalWidth = 0;
+    let originalHeight = 0;
+    const textWrap = el.getAttribute("textWrap") ?? "TOP_AND_BOTTOM";
+    const locked = (el.getAttribute("lock") ?? "0") === "1";
+    let treatAsChar = true;
+    let horzRelTo = "COLUMN";
+    let vertRelTo = "PARA";
+    let horzOffset = 0;
+    let vertOffset = 0;
+    let clipLeft = 0;
+    let clipRight = 0;
+    let clipTop = 0;
+    let clipBottom = 0;
+    let sizeProtected = false;
+    let rotationAngle = 0;
+    let brightness = 0;
+    let contrast = 0;
+    let effect = "REAL_PIC";
+    let alpha = 0;
+    let binaryItemIdRef: string | null = null;
     const picChildren = el.childNodes;
     for (let j = 0; j < picChildren.length; j++) {
       const pc = picChildren.item(j);
@@ -404,25 +690,95 @@ function findPictureRefs(
         height = parseInt(pel.getAttribute("height") ?? "0", 10);
       }
 
+      if (pName === "orgSz") {
+        originalWidth = parseInt(pel.getAttribute("width") ?? "0", 10);
+        originalHeight = parseInt(pel.getAttribute("height") ?? "0", 10);
+      }
+
+      if (pName === "pos") {
+        treatAsChar = (pel.getAttribute("treatAsChar") ?? "1") === "1";
+        horzRelTo = pel.getAttribute("horzRelTo") ?? "COLUMN";
+        vertRelTo = pel.getAttribute("vertRelTo") ?? "PARA";
+        horzOffset = parseInt(pel.getAttribute("horzOffset") ?? "0", 10);
+        vertOffset = parseInt(pel.getAttribute("vertOffset") ?? "0", 10);
+      }
+
+      if (pName === "imgClip") {
+        clipLeft = parseInt(pel.getAttribute("left") ?? "0", 10);
+        clipRight = parseInt(pel.getAttribute("right") ?? "0", 10);
+        clipTop = parseInt(pel.getAttribute("top") ?? "0", 10);
+        clipBottom = parseInt(pel.getAttribute("bottom") ?? "0", 10);
+      }
+
+      if (pName === "sz") {
+        sizeProtected = (pel.getAttribute("protect") ?? "0") === "1";
+      }
+
+      if (pName === "rotationInfo") {
+        rotationAngle = parseInt(pel.getAttribute("angle") ?? "0", 10);
+      }
+
       // Find img element inside pic (possibly nested in renderingInfo or directly)
       if (pName === "img") {
+        brightness = parseInt(pel.getAttribute("bright") ?? "0", 10);
+        contrast = parseInt(pel.getAttribute("contrast") ?? "0", 10);
+        effect = pel.getAttribute("effect") ?? "REAL_PIC";
+        alpha = parseInt(pel.getAttribute("alpha") ?? "0", 10);
         const ref = pel.getAttribute("binaryItemIDRef");
-        if (ref) results.push({ binaryItemIdRef: ref, width, height });
+        if (ref) binaryItemIdRef = ref;
       }
     }
 
-    // Also search deeper for img (might be in a sub-element)
-    const allDescendants = el.getElementsByTagName("*");
-    for (let k = 0; k < allDescendants.length; k++) {
-      const desc = allDescendants.item(k);
-      if (!desc) continue;
-      const dName = desc.localName || desc.nodeName.split(":").pop() || "";
-      if (dName === "img") {
+    if (!binaryItemIdRef) {
+      // Also search deeper for img (might be in a sub-element)
+      const allDescendants = el.getElementsByTagName("*");
+      for (let k = 0; k < allDescendants.length; k++) {
+        const desc = allDescendants.item(k);
+        if (!desc) continue;
+        const dName = desc.localName || desc.nodeName.split(":").pop() || "";
+        if (dName !== "img") continue;
+
+        brightness = parseInt(desc.getAttribute("bright") ?? "0", 10);
+        contrast = parseInt(desc.getAttribute("contrast") ?? "0", 10);
+        effect = desc.getAttribute("effect") ?? "REAL_PIC";
+        alpha = parseInt(desc.getAttribute("alpha") ?? "0", 10);
         const ref = desc.getAttribute("binaryItemIDRef");
-        if (ref && !results.some((r) => r.binaryItemIdRef === ref)) {
-          results.push({ binaryItemIdRef: ref, width, height });
+        if (ref) {
+          binaryItemIdRef = ref;
+          break;
         }
       }
+    }
+
+    if (binaryItemIdRef) {
+      const resolvedOrgWidth = originalWidth > 0 ? originalWidth : width;
+      const resolvedOrgHeight = originalHeight > 0 ? originalHeight : height;
+      const resolvedClipRight = clipRight > 0 ? clipRight : width;
+      const resolvedClipBottom = clipBottom > 0 ? clipBottom : height;
+      results.push({
+        binaryItemIdRef,
+        width,
+        height,
+        originalWidth: resolvedOrgWidth,
+        originalHeight: resolvedOrgHeight,
+        textWrap,
+        treatAsChar,
+        horzRelTo,
+        vertRelTo,
+        horzOffset,
+        vertOffset,
+        clipLeft,
+        clipRight: resolvedClipRight,
+        clipTop,
+        clipBottom: resolvedClipBottom,
+        sizeProtected,
+        locked,
+        rotationAngle,
+        brightness,
+        contrast,
+        effect,
+        alpha,
+      });
     }
   }
 
@@ -449,6 +805,42 @@ function buildParaPrLookup(doc: HwpxDocument): Map<string, ParagraphProperty> {
   return lookup;
 }
 
+function findFirstParagraphElement(root: Element): Element | null {
+  const all = root.getElementsByTagName("*");
+  for (let i = 0; i < all.length; i++) {
+    const el = all.item(i);
+    if (!el) continue;
+    const localName = el.localName || el.nodeName.split(":").pop() || "";
+    if (localName === "p") return el;
+  }
+  return null;
+}
+
+function extractHeaderFooterAlignment(
+  headerFooterElement: Element | null,
+  paraPrLookup: Map<string, ParagraphProperty>,
+): string {
+  if (!headerFooterElement) return "CENTER";
+  const para = findFirstParagraphElement(headerFooterElement);
+  if (!para) return "CENTER";
+  const paraPrIdRef =
+    para.getAttribute("paraPrIDRef") ??
+    para.getAttribute("paraPrIdRef") ??
+    para.getAttribute("paraPrRef");
+  if (!paraPrIdRef) return "CENTER";
+  const paraPr = paraPrLookup.get(paraPrIdRef);
+  const horizontal = paraPr?.align?.horizontal;
+  if (!horizontal) return "CENTER";
+  const normalized = horizontal.toUpperCase();
+  if (normalized === "LEFT" || normalized === "CENTER" || normalized === "RIGHT") {
+    return normalized;
+  }
+  if (normalized === "JUSTIFY" || normalized === "DISTRIBUTE") {
+    return "CENTER";
+  }
+  return "CENTER";
+}
+
 export function buildViewModel(doc: HwpxDocument): EditorViewModel {
   const imageMap = extractImages(doc.package);
   const paraPrLookup = buildParaPrLookup(doc);
@@ -465,13 +857,21 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
     // Extract header/footer text
     let headerText = "";
     let footerText = "";
+    let headerAlign = "CENTER";
+    let footerAlign = "CENTER";
     try {
       const hdr = props.getHeader("BOTH");
-      if (hdr) headerText = hdr.text;
+      if (hdr) {
+        headerText = hdr.text;
+        headerAlign = extractHeaderFooterAlignment(hdr.element, paraPrLookup);
+      }
     } catch { /* no header */ }
     try {
       const ftr = props.getFooter("BOTH");
-      if (ftr) footerText = ftr.text;
+      if (ftr) {
+        footerText = ftr.text;
+        footerAlign = extractHeaderFooterAlignment(ftr.element, paraPrLookup);
+      }
     } catch { /* no footer */ }
 
     // Extract footnotes from paragraph annotation elements
@@ -536,6 +936,14 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
       }
     } catch { /* ignore */ }
 
+    let startPageNumber = 1;
+    try {
+      const start = props.startNumbering.page;
+      startPageNumber = start > 0 ? start : 1;
+    } catch {
+      startPageNumber = 1;
+    }
+
     // Extract page border fill
     let pageBorderFillVM: PageBorderFillVM | null = null;
     try {
@@ -572,8 +980,11 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
       footerHeightPx: hwpToPx(pageMargins.footer ?? 0),
       paragraphs: [],
       sectionIndex: sIdx,
+      startPageNumber,
       headerText,
       footerText,
+      headerAlign,
+      footerAlign,
       footnotes,
       endnotes,
       columnLayout: columnLayoutVM,
@@ -757,8 +1168,29 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
               heightPx: hwpToPx(ref.height),
               widthHwp: ref.width,
               heightHwp: ref.height,
+              originalWidthHwp: ref.originalWidth,
+              originalHeightHwp: ref.originalHeight,
+              scaleXPercent: ref.originalWidth > 0 ? (ref.width * 100) / ref.originalWidth : 100,
+              scaleYPercent: ref.originalHeight > 0 ? (ref.height * 100) / ref.originalHeight : 100,
               binaryItemIdRef: ref.binaryItemIdRef,
               outMargin,
+              textWrap: ref.textWrap,
+              treatAsChar: ref.treatAsChar,
+              horzRelTo: ref.horzRelTo,
+              vertRelTo: ref.vertRelTo,
+              horzOffset: ref.horzOffset,
+              vertOffset: ref.vertOffset,
+              cropLeftHwp: Math.max(ref.clipLeft, 0),
+              cropRightHwp: Math.max(ref.width - ref.clipRight, 0),
+              cropTopHwp: Math.max(ref.clipTop, 0),
+              cropBottomHwp: Math.max(ref.height - ref.clipBottom, 0),
+              sizeProtected: ref.sizeProtected,
+              locked: ref.locked,
+              rotationAngle: ref.rotationAngle,
+              brightness: ref.brightness,
+              contrast: ref.contrast,
+              effect: ref.effect,
+              alpha: ref.alpha,
             });
           }
         }
@@ -829,11 +1261,21 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
                 borderFillIDRef: null,
                 vertAlign: "CENTER",
                 style: null,
+                fontFamily: null,
+                fontSize: null,
+                textColor: null,
+                bold: false,
+                italic: false,
+                underline: false,
+                strikethrough: false,
+                nestedTableCount: 0,
+                nestedTables: [],
               });
               continue;
             }
 
             const isAnchor = pos.anchor[0] === r && pos.anchor[1] === c;
+            const textStyle = extractCellTextStyle(pos.cell.element, doc);
             const cellBfId = pos.cell.element.getAttribute("borderFillIDRef");
             let cellStyle: CellStyleVM | null = null;
             if (cellBfId) {
@@ -850,6 +1292,7 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
                 }
               } catch { /* ignore */ }
             }
+            const nestedTables = isAnchor ? extractNestedTables(pos.cell.element, doc) : [];
             row.push({
               row: r,
               col: c,
@@ -861,12 +1304,23 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
               isAnchor,
               borderFillIDRef: cellBfId,
               vertAlign: (() => {
-                const sl = Array.from(pos.cell.element.childNodes).find(
-                  (n) => n.nodeType === 1 && ((n as Element).localName === "subList" || (n as Element).nodeName.split(":").pop() === "subList"),
-                ) as Element | undefined;
+                const el = pos.cell.element as Element & { querySelector?: (selector: string) => Element | null };
+                const sl = (typeof el.querySelector === "function" ? el.querySelector("subList") : null) ??
+                  Array.from(pos.cell.element.childNodes).find(
+                    (n) => n.nodeType === 1 && ((n as Element).localName === "subList" || (n as Element).nodeName.split(":").pop() === "subList"),
+                  ) as Element | undefined;
                 return (sl?.getAttribute?.("vertAlign") ?? "CENTER").toUpperCase();
               })(),
               style: cellStyle,
+              fontFamily: textStyle.fontFamily,
+              fontSize: textStyle.fontSize,
+              textColor: textStyle.color,
+              bold: textStyle.bold,
+              italic: textStyle.italic,
+              underline: textStyle.underline,
+              strikethrough: textStyle.strikethrough,
+              nestedTableCount: nestedTables.length,
+              nestedTables,
             });
           }
           cellsVM.push(row);
@@ -980,6 +1434,7 @@ export function buildViewModel(doc: HwpxDocument): EditorViewModel {
         images,
         textBoxes,
         equations,
+        pageBreakBefore: para.pageBreak,
         alignment,
         lineSpacing,
         spacingBefore,

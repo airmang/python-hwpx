@@ -76,13 +76,13 @@ def test_paragraph_text_annotation_rendering(sample_archive: ZipFile) -> None:
     options = AnnotationOptions(
         highlight="markers",
         footnote="inline",
-        endnote="placeholder",
+        endnote="marker",
         note_inline_format="[{kind}:{text}]",
-        note_placeholder="[{kind}:{inst_id}]",
+        note_marker_format="[{kind}:{inst_id}]",
         hyperlink="target",
         hyperlink_target_format="[LINK:{target}]",
-        control="placeholder",
-        control_placeholder="[CTRL {name} {type}]",
+        control="marker",
+        control_marker_format="[CTRL {name} {type}]",
     )
 
     with TextExtractor(sample_archive) as extractor:
@@ -99,13 +99,13 @@ def test_object_finder_iter_annotations(sample_archive: ZipFile) -> None:
     options = AnnotationOptions(
         highlight="markers",
         footnote="inline",
-        endnote="placeholder",
+        endnote="marker",
         note_inline_format="[{kind}:{text}]",
-        note_placeholder="[{kind}:{inst_id}]",
+        note_marker_format="[{kind}:{inst_id}]",
         hyperlink="target",
         hyperlink_target_format="[LINK:{target}]",
-        control="placeholder",
-        control_placeholder="[CTRL {name} {type}]",
+        control="marker",
+        control_marker_format="[CTRL {name} {type}]",
     )
 
     finder = ObjectFinder(sample_archive)

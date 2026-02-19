@@ -5,6 +5,7 @@ import { useEditorStore } from "@/lib/store";
 import { hwpToMm } from "@/lib/hwp-units";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarField } from "./SidebarField";
+import { ColorPicker } from "../toolbar/ColorPicker";
 
 const BORDER_TYPES = [
   { value: "NONE", label: "없음" },
@@ -24,6 +25,15 @@ function roundMm(hwp: number): number {
   return Math.round(hwpToMm(hwp) * 10) / 10;
 }
 
+function pxToMm(px: number): number {
+  return (px * 25.4) / 96;
+}
+
+function normalizeMm(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.round(value * 10) / 10);
+}
+
 export function TablePropertiesPanel() {
   const selection = useEditorStore((s) => s.selection);
   const viewModel = useEditorStore((s) => s.viewModel);
@@ -34,11 +44,16 @@ export function TablePropertiesPanel() {
   const setTableInMargin = useEditorStore((s) => s.setTableInMargin);
   const setTableBorder = useEditorStore((s) => s.setTableBorder);
   const setTableBackground = useEditorStore((s) => s.setTableBackground);
+  const moveTableRow = useEditorStore((s) => s.moveTableRow);
+  const moveTableColumn = useEditorStore((s) => s.moveTableColumn);
+  const distributeTableColumns = useEditorStore((s) => s.distributeTableColumns);
+  const distributeTableRows = useEditorStore((s) => s.distributeTableRows);
 
   const sIdx = selection?.sectionIndex ?? 0;
   const pIdx = selection?.paragraphIndex ?? 0;
   const tIdx = selection?.tableIndex ?? 0;
 
+  const sectionVm = viewModel?.sections[sIdx];
   const table = viewModel?.sections[sIdx]?.paragraphs[pIdx]?.tables[tIdx];
   const hasTable = !!table;
 
@@ -105,8 +120,92 @@ export function TablePropertiesPanel() {
   const inputClass =
     "w-full h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40";
 
+  const bodyWidthPx = sectionVm
+    ? sectionVm.pageWidthPx - sectionVm.marginLeftPx - sectionVm.marginRightPx
+    : 0;
+  const bodyWidthMm = bodyWidthPx ? pxToMm(bodyWidthPx) : 0;
+  // Collapsed table border renders about 1px in visual width; keep a 1px buffer
+  // so the right border line does not get clipped at full-width fit.
+  const visualBorderCompMm = pxToMm(1);
+
+  const fitWidthKeepingOuterMargin = useCallback(() => {
+    if (!hasTable || !sectionVm) return;
+    const target = Math.max(10, Number((bodyWidthMm - outLeft - outRight - visualBorderCompMm).toFixed(1)));
+    setEditWidth(target);
+    setTableSize(target, editHeight);
+  }, [bodyWidthMm, editHeight, hasTable, outLeft, outRight, sectionVm, setTableSize, visualBorderCompMm]);
+
+  const fillBodyWidth = useCallback(() => {
+    if (!hasTable || !sectionVm) return;
+    const target = Math.max(10, Number((bodyWidthMm - visualBorderCompMm).toFixed(1)));
+    setOutLeft(0);
+    setOutRight(0);
+    setTableOutMargin({ top: outTop, bottom: outBottom, left: 0, right: 0 });
+    setEditWidth(target);
+    setTableSize(target, editHeight);
+  }, [bodyWidthMm, editHeight, hasTable, outBottom, outTop, sectionVm, setTableOutMargin, setTableSize, visualBorderCompMm]);
+
   return (
     <div className="text-xs">
+      <SidebarSection title="구조">
+        <div className="grid grid-cols-2 gap-1">
+          <button
+            type="button"
+            disabled={!hasTable || selection?.row == null}
+            onClick={() => moveTableRow("up")}
+            className="py-1.5 rounded border border-gray-200 bg-white text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="현재 줄을 위로 이동(병합 표는 미지원)"
+          >
+            줄 ↑
+          </button>
+          <button
+            type="button"
+            disabled={!hasTable || selection?.row == null}
+            onClick={() => moveTableRow("down")}
+            className="py-1.5 rounded border border-gray-200 bg-white text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="현재 줄을 아래로 이동(병합 표는 미지원)"
+          >
+            줄 ↓
+          </button>
+          <button
+            type="button"
+            disabled={!hasTable || selection?.col == null}
+            onClick={() => moveTableColumn("left")}
+            className="py-1.5 rounded border border-gray-200 bg-white text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="현재 칸을 왼쪽으로 이동(병합 표는 미지원)"
+          >
+            칸 ←
+          </button>
+          <button
+            type="button"
+            disabled={!hasTable || selection?.col == null}
+            onClick={() => moveTableColumn("right")}
+            className="py-1.5 rounded border border-gray-200 bg-white text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="현재 칸을 오른쪽으로 이동(병합 표는 미지원)"
+          >
+            칸 →
+          </button>
+          <button
+            type="button"
+            disabled={!hasTable}
+            onClick={distributeTableColumns}
+            className="py-1.5 rounded border border-gray-200 bg-white text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="열 너비 균등 분배(병합 표는 미지원)"
+          >
+            열 균등
+          </button>
+          <button
+            type="button"
+            disabled={!hasTable}
+            onClick={distributeTableRows}
+            className="py-1.5 rounded border border-gray-200 bg-white text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="행 높이 균등 분배(병합 표는 미지원)"
+          >
+            행 균등
+          </button>
+        </div>
+      </SidebarSection>
+
       <SidebarSection title="여러 쪽 지원">
         <div className="mb-2">
           <span className="text-[11px] text-gray-600 block mb-1.5">쪽 경계에서</span>
@@ -183,8 +282,11 @@ export function TablePropertiesPanel() {
             step={1}
             min={10}
             onChange={(e) => setEditWidth(Number(e.target.value))}
-            onBlur={() => {
-              if (hasTable && editWidth > 0) setTableSize(editWidth, editHeight);
+            onBlur={(e) => {
+              const safeWidth = Math.max(10, normalizeMm(editWidth));
+              e.currentTarget.value = String(safeWidth);
+              setEditWidth(safeWidth);
+              if (hasTable) setTableSize(safeWidth, editHeight);
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && hasTable && editWidth > 0) {
@@ -202,8 +304,11 @@ export function TablePropertiesPanel() {
             step={1}
             min={10}
             onChange={(e) => setEditHeight(Number(e.target.value))}
-            onBlur={() => {
-              if (hasTable && editHeight > 0) setTableSize(editWidth, editHeight);
+            onBlur={(e) => {
+              const safeHeight = Math.max(10, normalizeMm(editHeight));
+              e.currentTarget.value = String(safeHeight);
+              setEditHeight(safeHeight);
+              if (hasTable) setTableSize(editWidth, safeHeight);
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && hasTable && editHeight > 0) {
@@ -213,6 +318,26 @@ export function TablePropertiesPanel() {
             className={inputClass}
           />
         </SidebarField>
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            disabled={!hasTable || !sectionVm}
+            onClick={fitWidthKeepingOuterMargin}
+            className="h-7 rounded border border-gray-300 bg-white text-[10px] font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="현재 바깥 여백을 유지한 채 본문 폭에 맞춥니다."
+          >
+            본문 폭 맞춤
+          </button>
+          <button
+            type="button"
+            disabled={!hasTable || !sectionVm}
+            onClick={fillBodyWidth}
+            className="h-7 rounded border border-gray-300 bg-white text-[10px] font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="좌우 바깥 여백을 0으로 맞춘 뒤 본문 폭을 꽉 채웁니다."
+          >
+            종이 폭 꽉 채우기
+          </button>
+        </div>
       </SidebarSection>
 
       <SidebarSection title="표 정보">
@@ -221,7 +346,7 @@ export function TablePropertiesPanel() {
             type="number"
             value={table?.rowCount ?? 0}
             disabled
-            onChange={() => {}}
+            readOnly
             className={inputClass}
           />
         </SidebarField>
@@ -230,7 +355,7 @@ export function TablePropertiesPanel() {
             type="number"
             value={table?.colCount ?? 0}
             disabled
-            onChange={() => {}}
+            readOnly
             className={inputClass}
           />
         </SidebarField>
@@ -240,28 +365,60 @@ export function TablePropertiesPanel() {
         <SidebarField label="위 (mm)">
           <input type="number" value={outTop} disabled={!hasTable} step={0.1} min={0}
             onChange={(e) => setOutTop(Number(e.target.value))}
-            onBlur={() => hasTable && setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight })}
+            onBlur={(e) => {
+              const top = normalizeMm(outTop);
+              const bottom = normalizeMm(outBottom);
+              const left = normalizeMm(outLeft);
+              const right = normalizeMm(outRight);
+              e.currentTarget.value = String(top);
+              setOutTop(top); setOutBottom(bottom); setOutLeft(left); setOutRight(right);
+              if (hasTable) setTableOutMargin({ top, bottom, left, right });
+            }}
             onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight }); }}
             className={inputClass} />
         </SidebarField>
         <SidebarField label="아래 (mm)">
           <input type="number" value={outBottom} disabled={!hasTable} step={0.1} min={0}
             onChange={(e) => setOutBottom(Number(e.target.value))}
-            onBlur={() => hasTable && setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight })}
+            onBlur={(e) => {
+              const top = normalizeMm(outTop);
+              const bottom = normalizeMm(outBottom);
+              const left = normalizeMm(outLeft);
+              const right = normalizeMm(outRight);
+              e.currentTarget.value = String(bottom);
+              setOutTop(top); setOutBottom(bottom); setOutLeft(left); setOutRight(right);
+              if (hasTable) setTableOutMargin({ top, bottom, left, right });
+            }}
             onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight }); }}
             className={inputClass} />
         </SidebarField>
         <SidebarField label="왼쪽 (mm)">
           <input type="number" value={outLeft} disabled={!hasTable} step={0.1} min={0}
             onChange={(e) => setOutLeft(Number(e.target.value))}
-            onBlur={() => hasTable && setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight })}
+            onBlur={(e) => {
+              const top = normalizeMm(outTop);
+              const bottom = normalizeMm(outBottom);
+              const left = normalizeMm(outLeft);
+              const right = normalizeMm(outRight);
+              e.currentTarget.value = String(left);
+              setOutTop(top); setOutBottom(bottom); setOutLeft(left); setOutRight(right);
+              if (hasTable) setTableOutMargin({ top, bottom, left, right });
+            }}
             onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight }); }}
             className={inputClass} />
         </SidebarField>
         <SidebarField label="오른쪽 (mm)">
           <input type="number" value={outRight} disabled={!hasTable} step={0.1} min={0}
             onChange={(e) => setOutRight(Number(e.target.value))}
-            onBlur={() => hasTable && setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight })}
+            onBlur={(e) => {
+              const top = normalizeMm(outTop);
+              const bottom = normalizeMm(outBottom);
+              const left = normalizeMm(outLeft);
+              const right = normalizeMm(outRight);
+              e.currentTarget.value = String(right);
+              setOutTop(top); setOutBottom(bottom); setOutLeft(left); setOutRight(right);
+              if (hasTable) setTableOutMargin({ top, bottom, left, right });
+            }}
             onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableOutMargin({ top: outTop, bottom: outBottom, left: outLeft, right: outRight }); }}
             className={inputClass} />
         </SidebarField>
@@ -271,28 +428,60 @@ export function TablePropertiesPanel() {
         <SidebarField label="위 (mm)">
           <input type="number" value={inTop} disabled={!hasTable} step={0.1} min={0}
             onChange={(e) => setInTop(Number(e.target.value))}
-            onBlur={() => hasTable && setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight })}
+            onBlur={(e) => {
+              const top = normalizeMm(inTop);
+              const bottom = normalizeMm(inBottom);
+              const left = normalizeMm(inLeft);
+              const right = normalizeMm(inRight);
+              e.currentTarget.value = String(top);
+              setInTop(top); setInBottom(bottom); setInLeft(left); setInRight(right);
+              if (hasTable) setTableInMargin({ top, bottom, left, right });
+            }}
             onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight }); }}
             className={inputClass} />
         </SidebarField>
         <SidebarField label="아래 (mm)">
           <input type="number" value={inBottom} disabled={!hasTable} step={0.1} min={0}
             onChange={(e) => setInBottom(Number(e.target.value))}
-            onBlur={() => hasTable && setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight })}
+            onBlur={(e) => {
+              const top = normalizeMm(inTop);
+              const bottom = normalizeMm(inBottom);
+              const left = normalizeMm(inLeft);
+              const right = normalizeMm(inRight);
+              e.currentTarget.value = String(bottom);
+              setInTop(top); setInBottom(bottom); setInLeft(left); setInRight(right);
+              if (hasTable) setTableInMargin({ top, bottom, left, right });
+            }}
             onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight }); }}
             className={inputClass} />
         </SidebarField>
         <SidebarField label="왼쪽 (mm)">
           <input type="number" value={inLeft} disabled={!hasTable} step={0.1} min={0}
             onChange={(e) => setInLeft(Number(e.target.value))}
-            onBlur={() => hasTable && setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight })}
+            onBlur={(e) => {
+              const top = normalizeMm(inTop);
+              const bottom = normalizeMm(inBottom);
+              const left = normalizeMm(inLeft);
+              const right = normalizeMm(inRight);
+              e.currentTarget.value = String(left);
+              setInTop(top); setInBottom(bottom); setInLeft(left); setInRight(right);
+              if (hasTable) setTableInMargin({ top, bottom, left, right });
+            }}
             onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight }); }}
             className={inputClass} />
         </SidebarField>
         <SidebarField label="오른쪽 (mm)">
           <input type="number" value={inRight} disabled={!hasTable} step={0.1} min={0}
             onChange={(e) => setInRight(Number(e.target.value))}
-            onBlur={() => hasTable && setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight })}
+            onBlur={(e) => {
+              const top = normalizeMm(inTop);
+              const bottom = normalizeMm(inBottom);
+              const left = normalizeMm(inLeft);
+              const right = normalizeMm(inRight);
+              e.currentTarget.value = String(right);
+              setInTop(top); setInBottom(bottom); setInLeft(left); setInRight(right);
+              if (hasTable) setTableInMargin({ top, bottom, left, right });
+            }}
             onKeyDown={(e) => { if (e.key === "Enter" && hasTable) setTableInMargin({ top: inTop, bottom: inBottom, left: inLeft, right: inRight }); }}
             className={inputClass} />
         </SidebarField>
@@ -324,12 +513,12 @@ export function TablePropertiesPanel() {
           </select>
         </SidebarField>
         <SidebarField label="색상">
-          <input
-            type="color"
-            value={tblBorderColor}
+          <ColorPicker
+            color={tblBorderColor}
             disabled={!hasTable}
-            onChange={(e) => setTblBorderColor(e.target.value)}
-            className="w-full h-6 p-0 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
+            onChange={setTblBorderColor}
+            variant="swatch"
+            title="표 테두리 색상"
           />
         </SidebarField>
         <button
@@ -358,15 +547,15 @@ export function TablePropertiesPanel() {
         </div>
         {!tblNoBg && (
           <SidebarField label="색상">
-            <input
-              type="color"
-              value={tblBgColor}
+            <ColorPicker
+              color={tblBgColor}
               disabled={!hasTable}
-              onChange={(e) => {
-                setTblBgColor(e.target.value);
-                if (hasTable) setTableBackground(e.target.value);
+              onChange={(nextColor) => {
+                setTblBgColor(nextColor);
+                if (hasTable) setTableBackground(nextColor);
               }}
-              className="w-full h-6 p-0 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
+              variant="swatch"
+              title="표 배경 색상"
             />
           </SidebarField>
         )}

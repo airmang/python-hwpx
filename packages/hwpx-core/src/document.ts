@@ -190,6 +190,8 @@ export class HwpxDocument {
     lineSpacingValue?: number;
     marginLeft?: number;
     marginRight?: number;
+    marginBefore?: number;
+    marginAfter?: number;
     indent?: number;
     baseParaPrId?: string | number;
   }): string {

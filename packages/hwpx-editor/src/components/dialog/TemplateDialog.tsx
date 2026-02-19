@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useEditorStore } from "@/lib/store";
-import { X, Plus, Trash2, FileText } from "lucide-react";
+import { Plus, Trash2, FileText } from "lucide-react";
+import { Dialog } from "./Dialog";
 
 export function TemplateDialog() {
   const isOpen = useEditorStore((s) => s.uiState.templateDialogOpen);
@@ -51,135 +52,133 @@ export function TemplateDialog() {
 
   if (!isOpen) return null;
 
+  const footer = (
+    <div className="flex justify-end">
+      <button
+        type="button"
+        onClick={closeDialog}
+        className="h-10 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
+      >
+        닫기
+      </button>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-lg shadow-xl w-[500px] max-h-[80vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b">
-          <h2 className="text-sm font-semibold">문서 템플릿</h2>
-          <button
-            onClick={closeDialog}
-            className="p-1 hover:bg-gray-100 rounded"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-4">
-          {/* Template List */}
-          <div className="space-y-2 mb-4">
-            {templates.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 text-sm">
-                저장된 템플릿이 없습니다.
-                <br />
-                자주 사용하는 문서를 템플릿으로 추가하세요.
-              </div>
-            ) : (
-              templates.map((tpl) => (
-                <div
-                  key={tpl.id}
-                  className="flex items-center gap-3 p-3 border rounded hover:bg-gray-50 group"
-                >
-                  <FileText className="w-5 h-5 text-blue-500 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">{tpl.name}</div>
-                    <div className="text-xs text-gray-500 truncate">{tpl.path}</div>
-                    {tpl.description && (
-                      <div className="text-xs text-gray-400 truncate">{tpl.description}</div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => removeTemplate(tpl.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="삭제"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Add Form */}
-          {showAddForm ? (
-            <div className="border rounded p-3 space-y-2 bg-gray-50">
-              <div className="text-xs font-medium text-gray-600 mb-2">새 템플릿 추가</div>
-              <div>
-                <label className="text-xs text-gray-500">이름</label>
-                <input
-                  type="text"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="예: 외주용역계약서"
-                  className="w-full px-2 py-1.5 text-sm border rounded mt-0.5"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">파일 경로</label>
-                <div className="flex gap-2 mt-0.5">
-                  <input
-                    type="text"
-                    value={newPath}
-                    onChange={(e) => setNewPath(e.target.value)}
-                    placeholder="/path/to/template.hwp"
-                    className="flex-1 px-2 py-1.5 text-sm border rounded"
-                  />
-                  <button
-                    onClick={handleFileSelect}
-                    className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded"
-                  >
-                    찾기
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">설명 (선택)</label>
-                <input
-                  type="text"
-                  value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  placeholder="간단한 설명"
-                  className="w-full px-2 py-1.5 text-sm border rounded mt-0.5"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  onClick={() => setShowAddForm(false)}
-                  className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded"
-                >
-                  취소
-                </button>
-                <button
-                  onClick={handleAdd}
-                  disabled={!newName.trim() || !newPath.trim()}
-                  className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-                >
-                  추가
-                </button>
-              </div>
+    <Dialog
+      title="문서 템플릿"
+      description="자주 쓰는 문서를 템플릿으로 등록해 빠르게 불러옵니다."
+      open={isOpen}
+      onClose={closeDialog}
+      width={620}
+      footer={footer}
+    >
+      <div className="space-y-4">
+        <div className="space-y-2">
+          {templates.length === 0 ? (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 py-8 text-center text-sm text-gray-500">
+              저장된 템플릿이 없습니다.
+              <br />
+              자주 사용하는 문서를 템플릿으로 추가하세요.
             </div>
           ) : (
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="flex items-center justify-center gap-2 w-full py-2 text-sm text-blue-600 hover:bg-blue-50 border border-dashed border-blue-300 rounded"
-            >
-              <Plus className="w-4 h-4" />
-              템플릿 추가
-            </button>
+            templates.map((tpl) => (
+              <div
+                key={tpl.id}
+                className="group flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 hover:bg-gray-50"
+              >
+                <FileText className="h-5 w-5 flex-shrink-0 text-blue-500" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-gray-800">{tpl.name}</div>
+                  <div className="truncate text-xs text-gray-500">{tpl.path}</div>
+                  {tpl.description ? (
+                    <div className="truncate text-xs text-gray-400">{tpl.description}</div>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeTemplate(tpl.id)}
+                  className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+                  title="삭제"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-4 py-3 border-t bg-gray-50 flex justify-end">
+        {showAddForm ? (
+          <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+            <div className="mb-2 text-xs font-medium text-gray-600">새 템플릿 추가</div>
+            <div>
+              <label className="text-xs text-gray-500">이름</label>
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                aria-label="템플릿 이름"
+                className="mt-0.5 h-9 w-full rounded-lg border border-gray-300 px-2.5 text-sm focus:border-blue-400 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">파일 경로</label>
+              <div className="mt-0.5 flex gap-2">
+                <input
+                  type="text"
+                  value={newPath}
+                  onChange={(e) => setNewPath(e.target.value)}
+                  aria-label="템플릿 파일 경로"
+                  className="h-9 flex-1 rounded-lg border border-gray-300 px-2.5 text-sm focus:border-blue-400 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleFileSelect}
+                  className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  찾기
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">설명 (선택)</label>
+              <input
+                type="text"
+                value={newDesc}
+                onChange={(e) => setNewDesc(e.target.value)}
+                aria-label="템플릿 설명"
+                className="mt-0.5 h-9 w-full rounded-lg border border-gray-300 px-2.5 text-sm focus:border-blue-400 focus:outline-none"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddForm(false)}
+                className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleAdd}
+                disabled={!newName.trim() || !newPath.trim()}
+                className="h-9 rounded-lg bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                추가
+              </button>
+            </div>
+          </div>
+        ) : (
           <button
-            onClick={closeDialog}
-            className="px-4 py-1.5 text-sm bg-gray-200 hover:bg-gray-300 rounded"
+            type="button"
+            onClick={() => setShowAddForm(true)}
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 text-sm font-medium text-blue-600 hover:bg-blue-50"
           >
-            닫기
+            <Plus className="h-4 w-4" />
+            템플릿 추가
           </button>
-        </div>
+        )}
       </div>
-    </div>
+    </Dialog>
   );
 }

@@ -4,7 +4,6 @@ import { useEditorStore } from "@/lib/store";
 import {
   ALIGNMENT_OPTIONS,
   LINE_SPACING_OPTIONS,
-  type AlignmentType,
 } from "@/lib/constants";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarField } from "./SidebarField";
@@ -17,6 +16,11 @@ export function ParaFormatPanel() {
   const selection = useEditorStore((s) => s.selection);
   const setAlignment = useEditorStore((s) => s.setAlignment);
   const setLineSpacing = useEditorStore((s) => s.setLineSpacing);
+  const setLeftIndent = useEditorStore((s) => s.setLeftIndent);
+  const setRightIndent = useEditorStore((s) => s.setRightIndent);
+  const setFirstLineIndent = useEditorStore((s) => s.setFirstLineIndent);
+  const setParagraphSpacingBefore = useEditorStore((s) => s.setParagraphSpacingBefore);
+  const setParagraphSpacingAfter = useEditorStore((s) => s.setParagraphSpacingAfter);
 
   const disabled = !doc || !selection;
   const pf = extendedFormat.para;
@@ -53,7 +57,7 @@ export function ParaFormatPanel() {
             type="number"
             value={pf.indentLeft}
             disabled={disabled}
-            onChange={() => {}}
+            onChange={(e) => setLeftIndent(Number(e.target.value) || 0)}
             className="w-full h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40"
           />
         </SidebarField>
@@ -62,7 +66,7 @@ export function ParaFormatPanel() {
             type="number"
             value={pf.indentRight}
             disabled={disabled}
-            onChange={() => {}}
+            onChange={(e) => setRightIndent(Number(e.target.value) || 0)}
             className="w-full h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40"
           />
         </SidebarField>
@@ -71,7 +75,7 @@ export function ParaFormatPanel() {
             type="number"
             value={pf.firstLineIndent}
             disabled={disabled}
-            onChange={() => {}}
+            onChange={(e) => setFirstLineIndent(Number(e.target.value) || 0)}
             className="w-full h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40"
           />
         </SidebarField>
@@ -104,7 +108,7 @@ export function ParaFormatPanel() {
             type="number"
             value={pf.spacingBefore}
             disabled={disabled}
-            onChange={() => {}}
+            onChange={(e) => setParagraphSpacingBefore(Number(e.target.value) || 0)}
             className="w-full h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40"
           />
         </SidebarField>
@@ -113,7 +117,7 @@ export function ParaFormatPanel() {
             type="number"
             value={pf.spacingAfter}
             disabled={disabled}
-            onChange={() => {}}
+            onChange={(e) => setParagraphSpacingAfter(Number(e.target.value) || 0)}
             className="w-full h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40"
           />
         </SidebarField>

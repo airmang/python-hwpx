@@ -118,6 +118,38 @@ export class HwpxOxmlRun {
     return totalReplacements;
   }
 
+  replaceTextRegex(pattern: RegExp, replacement: string, count?: number): number {
+    const source = pattern?.source;
+    if (!source) throw new Error("pattern must be a valid RegExp");
+    if (count != null && count <= 0) return 0;
+
+    const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+    const global = new RegExp(source, flags);
+
+    let totalReplacements = 0;
+    let remaining = count ?? Infinity;
+
+    for (const textNode of findAllChildren(this.element, HP_NS, "t")) {
+      if (remaining <= 0) break;
+      const content = textNode.textContent ?? "";
+      global.lastIndex = 0;
+      let local = 0;
+      const next = content.replace(global, (match, ...args) => {
+        if (remaining <= 0) return match;
+        remaining -= 1;
+        local += 1;
+        totalReplacements += 1;
+        return applyReplacementTemplate(replacement, match, args);
+      });
+      if (local > 0) {
+        textNode.textContent = next;
+      }
+    }
+
+    if (totalReplacements > 0) this.paragraph.section.markDirty();
+    return totalReplacements;
+  }
+
   remove(): void {
     try {
       this.paragraph.element.removeChild(this.element);
@@ -136,6 +168,24 @@ export class HwpxOxmlRun {
     if (nodes.length > 0) return nodes[0]!;
     return subElement(this.element, HP_NS, "t");
   }
+}
+
+function applyReplacementTemplate(template: string, match: string, args: unknown[]): string {
+  // args is [...groups, offset, input] for String.prototype.replace callback.
+  const tailOffset = args.length >= 2 ? args.length - 2 : 0;
+  const groups = args.slice(0, tailOffset).map((v) => (v == null ? "" : String(v)));
+  const offset = typeof args[tailOffset] === "number" ? (args[tailOffset] as number) : 0;
+  const input = typeof args[tailOffset + 1] === "string" ? (args[tailOffset + 1] as string) : "";
+
+  return template.replace(/\$(\$|&|`|'|\d{1,2})/g, (_whole, token: string) => {
+    if (token === "$") return "$";
+    if (token === "&") return match;
+    if (token === "`") return input.slice(0, offset);
+    if (token === "'") return input.slice(offset + match.length);
+    const n = parseInt(token, 10);
+    if (Number.isFinite(n) && n > 0) return groups[n - 1] ?? "";
+    return "";
+  });
 }
 
 // -- HwpxOxmlParagraph --
@@ -457,9 +507,18 @@ export class HwpxOxmlParagraph {
   /** Return all <pic> elements across all runs. */
   get pictures(): Element[] {
     const pics: Element[] = [];
+    const seen = new Set<Element>();
     for (const run of findAllChildren(this.element, HP_NS, "run")) {
       for (const child of childElements(run)) {
-        if (elementLocalName(child) === "pic") pics.push(child);
+        if (elementLocalName(child) !== "pic") continue;
+        if (seen.has(child)) continue;
+        seen.add(child);
+        pics.push(child);
+      }
+      for (const descendant of findAllDescendants(run, "pic")) {
+        if (seen.has(descendant)) continue;
+        seen.add(descendant);
+        pics.push(descendant);
       }
     }
     return pics;
@@ -512,6 +571,250 @@ export class HwpxOxmlParagraph {
     this.section.markDirty();
   }
 
+  /** Get picture original size (orgSz) by index. */
+  getPictureOriginalSize(pictureIndex: number): { width: number; height: number } {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return { width: 0, height: 0 };
+    const org = findChild(pic, HP_NS, "orgSz");
+    const cur = findChild(pic, HP_NS, "curSz");
+    const width = parseInt(org?.getAttribute("width") ?? cur?.getAttribute("width") ?? "0", 10);
+    const height = parseInt(org?.getAttribute("height") ?? cur?.getAttribute("height") ?? "0", 10);
+    return { width, height };
+  }
+
+  /** Whether picture size is protected by index. */
+  isPictureSizeProtected(pictureIndex: number): boolean {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return false;
+    const sz = findChild(pic, HP_NS, "sz");
+    return (sz?.getAttribute("protect") ?? "0") === "1";
+  }
+
+  /** Set picture size protection by index. */
+  setPictureSizeProtected(pictureIndex: number, protect: boolean): void {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return;
+    let sz = findChild(pic, HP_NS, "sz");
+    if (!sz) {
+      const cur = findChild(pic, HP_NS, "curSz");
+      const width = cur?.getAttribute("width") ?? "1";
+      const height = cur?.getAttribute("height") ?? "1";
+      sz = subElement(pic, HP_NS, "sz", {
+        width,
+        widthRelTo: "ABSOLUTE",
+        height,
+        heightRelTo: "ABSOLUTE",
+        protect: "0",
+      });
+    }
+    sz.setAttribute("protect", protect ? "1" : "0");
+    this.section.markDirty();
+  }
+
+  /** Get picture clipping rectangle by index. */
+  getPictureClip(pictureIndex: number): { left: number; right: number; top: number; bottom: number } {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return { left: 0, right: 0, top: 0, bottom: 0 };
+    const cur = findChild(pic, HP_NS, "curSz");
+    const width = parseInt(cur?.getAttribute("width") ?? "0", 10);
+    const height = parseInt(cur?.getAttribute("height") ?? "0", 10);
+    const clip = findChild(pic, HP_NS, "imgClip");
+    if (!clip) {
+      return { left: 0, right: width, top: 0, bottom: height };
+    }
+    return {
+      left: parseInt(clip.getAttribute("left") ?? "0", 10),
+      right: parseInt(clip.getAttribute("right") ?? String(width), 10),
+      top: parseInt(clip.getAttribute("top") ?? "0", 10),
+      bottom: parseInt(clip.getAttribute("bottom") ?? String(height), 10),
+    };
+  }
+
+  /** Set picture clipping rectangle by index. */
+  setPictureClip(
+    pictureIndex: number,
+    clipRect: Partial<{ left: number; right: number; top: number; bottom: number }>,
+  ): void {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return;
+    const cur = findChild(pic, HP_NS, "curSz");
+    const width = parseInt(cur?.getAttribute("width") ?? "1", 10);
+    const height = parseInt(cur?.getAttribute("height") ?? "1", 10);
+    let clip = findChild(pic, HP_NS, "imgClip");
+    if (!clip) {
+      clip = subElement(pic, HP_NS, "imgClip", {
+        left: "0",
+        right: String(width),
+        top: "0",
+        bottom: String(height),
+      });
+    }
+
+    const left = clipRect.left ?? parseInt(clip.getAttribute("left") ?? "0", 10);
+    const right = clipRect.right ?? parseInt(clip.getAttribute("right") ?? String(width), 10);
+    const top = clipRect.top ?? parseInt(clip.getAttribute("top") ?? "0", 10);
+    const bottom = clipRect.bottom ?? parseInt(clip.getAttribute("bottom") ?? String(height), 10);
+
+    clip.setAttribute("left", String(Math.max(0, Math.min(left, width - 1))));
+    clip.setAttribute("right", String(Math.max(1, Math.min(right, width))));
+    clip.setAttribute("top", String(Math.max(0, Math.min(top, height - 1))));
+    clip.setAttribute("bottom", String(Math.max(1, Math.min(bottom, height))));
+    this.section.markDirty();
+  }
+
+  /** Get picture image adjustment by index. */
+  getPictureImageAdjust(pictureIndex: number): { bright: number; contrast: number; effect: string; alpha: number } {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return { bright: 0, contrast: 0, effect: "REAL_PIC", alpha: 0 };
+    const img = findAllDescendants(pic, "img")[0];
+    if (!img) return { bright: 0, contrast: 0, effect: "REAL_PIC", alpha: 0 };
+    return {
+      bright: parseInt(img.getAttribute("bright") ?? "0", 10),
+      contrast: parseInt(img.getAttribute("contrast") ?? "0", 10),
+      effect: img.getAttribute("effect") ?? "REAL_PIC",
+      alpha: parseInt(img.getAttribute("alpha") ?? "0", 10),
+    };
+  }
+
+  /** Set picture image adjustment by index. */
+  setPictureImageAdjust(
+    pictureIndex: number,
+    opts: Partial<{ bright: number; contrast: number; effect: string; alpha: number }>,
+  ): void {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return;
+    const img = findAllDescendants(pic, "img")[0];
+    if (!img) return;
+    if (opts.bright != null) img.setAttribute("bright", String(Math.max(-100, Math.min(100, Math.round(opts.bright)))));
+    if (opts.contrast != null) img.setAttribute("contrast", String(Math.max(-100, Math.min(100, Math.round(opts.contrast)))));
+    if (opts.effect != null) img.setAttribute("effect", opts.effect);
+    if (opts.alpha != null) img.setAttribute("alpha", String(Math.max(0, Math.min(255, Math.round(opts.alpha)))));
+    this.section.markDirty();
+  }
+
+  /** Get picture lock by index. */
+  getPictureLock(pictureIndex: number): boolean {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return false;
+    return (pic.getAttribute("lock") ?? "0") === "1";
+  }
+
+  /** Set picture lock by index. */
+  setPictureLock(pictureIndex: number, lock: boolean): void {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return;
+    pic.setAttribute("lock", lock ? "1" : "0");
+    this.section.markDirty();
+  }
+
+  /** Get picture rotation angle by index. */
+  getPictureRotationAngle(pictureIndex: number): number {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return 0;
+    const rot = findChild(pic, HP_NS, "rotationInfo");
+    return parseInt(rot?.getAttribute("angle") ?? "0", 10);
+  }
+
+  /** Set picture rotation angle by index. */
+  setPictureRotationAngle(pictureIndex: number, angle: number): void {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return;
+    let rot = findChild(pic, HP_NS, "rotationInfo");
+    if (!rot) {
+      const cur = findChild(pic, HP_NS, "curSz");
+      const width = parseInt(cur?.getAttribute("width") ?? "1", 10);
+      const height = parseInt(cur?.getAttribute("height") ?? "1", 10);
+      rot = subElement(pic, HP_NS, "rotationInfo", {
+        angle: "0",
+        centerX: String(Math.floor(width / 2)),
+        centerY: String(Math.floor(height / 2)),
+        rotateimage: "1",
+      });
+    }
+    rot.setAttribute("angle", String(Math.round(angle)));
+    this.section.markDirty();
+  }
+
+  /** Get picture text wrapping mode by index. */
+  getPictureTextWrap(pictureIndex: number): string {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return "TOP_AND_BOTTOM";
+    return pic.getAttribute("textWrap") ?? "TOP_AND_BOTTOM";
+  }
+
+  /** Set picture text wrapping mode by index. */
+  setPictureTextWrap(pictureIndex: number, textWrap: string): void {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return;
+    pic.setAttribute("textWrap", textWrap);
+    this.section.markDirty();
+  }
+
+  /** Get picture positioning info by index. */
+  getPicturePosition(pictureIndex: number): {
+    treatAsChar: boolean;
+    horzRelTo: string;
+    vertRelTo: string;
+    horzOffset: number;
+    vertOffset: number;
+  } {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) {
+      return {
+        treatAsChar: true,
+        horzRelTo: "COLUMN",
+        vertRelTo: "PARA",
+        horzOffset: 0,
+        vertOffset: 0,
+      };
+    }
+    const pos = findChild(pic, HP_NS, "pos");
+    return {
+      treatAsChar: (pos?.getAttribute("treatAsChar") ?? "1") === "1",
+      horzRelTo: pos?.getAttribute("horzRelTo") ?? "COLUMN",
+      vertRelTo: pos?.getAttribute("vertRelTo") ?? "PARA",
+      horzOffset: parseInt(pos?.getAttribute("horzOffset") ?? "0", 10),
+      vertOffset: parseInt(pos?.getAttribute("vertOffset") ?? "0", 10),
+    };
+  }
+
+  /** Set picture positioning info by index. */
+  setPicturePosition(
+    pictureIndex: number,
+    opts: Partial<{
+      treatAsChar: boolean;
+      horzRelTo: string;
+      vertRelTo: string;
+      horzOffset: number;
+      vertOffset: number;
+    }>,
+  ): void {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return;
+    let pos = findChild(pic, HP_NS, "pos");
+    if (!pos) {
+      pos = subElement(pic, HP_NS, "pos", {
+        treatAsChar: "1",
+        affectLSpacing: "0",
+        flowWithText: "1",
+        allowOverlap: "0",
+        holdAnchorAndSO: "0",
+        vertRelTo: "PARA",
+        horzRelTo: "COLUMN",
+        vertAlign: "TOP",
+        horzAlign: "LEFT",
+        vertOffset: "0",
+        horzOffset: "0",
+      });
+    }
+    if (opts.treatAsChar != null) pos.setAttribute("treatAsChar", opts.treatAsChar ? "1" : "0");
+    if (opts.horzRelTo != null) pos.setAttribute("horzRelTo", opts.horzRelTo);
+    if (opts.vertRelTo != null) pos.setAttribute("vertRelTo", opts.vertRelTo);
+    if (opts.horzOffset != null) pos.setAttribute("horzOffset", String(opts.horzOffset));
+    if (opts.vertOffset != null) pos.setAttribute("vertOffset", String(opts.vertOffset));
+    this.section.markDirty();
+  }
+
   /** Get picture outer margin by index. */
   getPictureOutMargin(pictureIndex: number): HwpxMargin {
     const pic = this.pictures[pictureIndex];
@@ -536,6 +839,21 @@ export class HwpxOxmlParagraph {
     if (margin.bottom != null) el.setAttribute("bottom", String(Math.max(margin.bottom, 0)));
     if (margin.left != null) el.setAttribute("left", String(Math.max(margin.left, 0)));
     if (margin.right != null) el.setAttribute("right", String(Math.max(margin.right, 0)));
+    this.section.markDirty();
+  }
+
+  /** Remove picture element by index. */
+  removePicture(pictureIndex: number): void {
+    const pic = this.pictures[pictureIndex];
+    if (!pic) return;
+    const run = pic.parentNode;
+    run?.removeChild(pic);
+
+    // Remove empty run container if no element children remain.
+    if (run && run.nodeType === 1 && childElements(run as Element).length === 0) {
+      run.parentNode?.removeChild(run);
+    }
+
     this.section.markDirty();
   }
 
@@ -803,6 +1121,21 @@ export class HwpxOxmlParagraph {
         tElements[i]!.textContent = "";
       }
     }
+    this.section.markDirty();
+  }
+
+  /** Remove text box element by index. */
+  removeTextBox(index: number): void {
+    const box = this.textBoxes[index];
+    if (!box) return;
+    const run = box.parentNode;
+    run?.removeChild(box);
+
+    // Remove empty run container if no element children remain.
+    if (run && run.nodeType === 1 && childElements(run as Element).length === 0) {
+      run.parentNode?.removeChild(run);
+    }
+
     this.section.markDirty();
   }
 

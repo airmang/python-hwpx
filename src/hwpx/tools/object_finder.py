@@ -251,8 +251,8 @@ class ObjectFinder:
                         behavior = render_options.hyperlink
                         if behavior == "target":
                             value = render_options.hyperlink_target_format.format(target=target)
-                        elif behavior == "placeholder":
-                            value = render_options.hyperlink_placeholder.format(target=target)
+                        elif behavior == "marker":
+                            value = render_options.hyperlink_marker_format.format(target=target)
                         else:
                             value = render_options.hyperlink_summary.format(target=target)
                         yield AnnotationMatch("hyperlink", found, value)
@@ -281,8 +281,8 @@ class ObjectFinder:
                                 render_options,
                                 preserve_breaks=preserve_breaks,
                             )
-                        elif behavior == "placeholder":
-                            value = render_options.control_placeholder.format(name=name, type=ctrl_type)
+                        elif behavior == "marker":
+                            value = render_options.control_marker_format.format(name=name, type=ctrl_type)
                         else:
                             value = render_options.control_summary.format(name=name, type=ctrl_type)
                         yield AnnotationMatch("control", found, value)
@@ -310,8 +310,8 @@ class ObjectFinder:
                 preserve_breaks=preserve_breaks,
             )
             value = options.note_inline_format.format(kind=kind, inst_id=inst_id, text=text)
-        elif behavior == "placeholder":
-            value = options.note_placeholder.format(kind=kind, inst_id=inst_id)
+        elif behavior == "marker":
+            value = options.note_marker_format.format(kind=kind, inst_id=inst_id)
         else:
             value = options.note_summary.format(kind=kind, inst_id=inst_id)
         return AnnotationMatch(kind, found, value)

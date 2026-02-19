@@ -72,7 +72,7 @@ export function TocDialog() {
           value={selectedTitle}
           onChange={(e) => setSelectedTitle(e.target.value)}
           className="mt-2 w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="직접 입력..."
+          aria-label="차례 제목 직접 입력"
         />
       </DialogSection>
 

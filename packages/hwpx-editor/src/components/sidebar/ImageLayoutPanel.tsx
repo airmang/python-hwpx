@@ -17,6 +17,13 @@ export function ImageLayoutPanel() {
   const viewModel = useEditorStore((s) => s.viewModel);
   const updatePictureSize = useEditorStore((s) => s.updatePictureSize);
   const setImageOutMargin = useEditorStore((s) => s.setImageOutMargin);
+  const setImageTextWrap = useEditorStore((s) => s.setImageTextWrap);
+  const setImageTreatAsChar = useEditorStore((s) => s.setImageTreatAsChar);
+  const setImageOffsets = useEditorStore((s) => s.setImageOffsets);
+  const setImageOffsetRelTo = useEditorStore((s) => s.setImageOffsetRelTo);
+  const setImageSizeProtect = useEditorStore((s) => s.setImageSizeProtect);
+  const setImageRotation = useEditorStore((s) => s.setImageRotation);
+  const setImageLock = useEditorStore((s) => s.setImageLock);
 
   const sIdx = selection?.sectionIndex ?? 0;
   const pIdx = selection?.paragraphIndex ?? 0;
@@ -32,6 +39,9 @@ export function ImageLayoutPanel() {
   const [omBottom, setOmBottom] = useState(image ? roundMm(image.outMargin.bottom) : 0);
   const [omLeft, setOmLeft] = useState(image ? roundMm(image.outMargin.left) : 0);
   const [omRight, setOmRight] = useState(image ? roundMm(image.outMargin.right) : 0);
+  const [horzMm, setHorzMm] = useState(image ? roundMm(image.horzOffset) : 0);
+  const [vertMm, setVertMm] = useState(image ? roundMm(image.vertOffset) : 0);
+  const [rotationAngle, setRotationAngle] = useState(image?.rotationAngle ?? 0);
 
   useEffect(() => {
     if (!image) return;
@@ -39,11 +49,46 @@ export function ImageLayoutPanel() {
     setOmBottom(roundMm(image.outMargin.bottom));
     setOmLeft(roundMm(image.outMargin.left));
     setOmRight(roundMm(image.outMargin.right));
-  }, [image?.outMargin.top, image?.outMargin.bottom, image?.outMargin.left, image?.outMargin.right]);
+    setHorzMm(roundMm(image.horzOffset));
+    setVertMm(roundMm(image.vertOffset));
+    setRotationAngle(image.rotationAngle);
+  }, [
+    image?.outMargin.top,
+    image?.outMargin.bottom,
+    image?.outMargin.left,
+    image?.outMargin.right,
+    image?.horzOffset,
+    image?.vertOffset,
+    image?.rotationAngle,
+  ]);
 
   const applyOutMargin = () => {
     if (hasImage) setImageOutMargin({ top: omTop, bottom: omBottom, left: omLeft, right: omRight });
   };
+
+  const applyOffsets = () => {
+    if (hasImage) setImageOffsets({ horzMm, vertMm });
+  };
+
+  const applyRotation = () => {
+    if (hasImage) setImageRotation(rotationAngle);
+  };
+
+  const activeWrap = image?.textWrap ?? "TOP_AND_BOTTOM";
+  const treatAsChar = image?.treatAsChar ?? true;
+
+  const wrapOptions: { label: string; value: string }[] = [
+    { label: "어울림", value: "SQUARE" },
+    { label: "자리차지", value: "TOP_AND_BOTTOM" },
+    { label: "글 뒤로", value: "BEHIND_TEXT" },
+    { label: "글 앞으로", value: "IN_FRONT_OF_TEXT" },
+  ];
+
+  const relToOptions = [
+    { value: "PARA", label: "문단" },
+    { value: "COLUMN", label: "단" },
+    { value: "PAGE", label: "쪽" },
+  ] as const;
 
   const inputClass =
     "w-full h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40";
@@ -90,7 +135,13 @@ export function ImageLayoutPanel() {
           </div>
         </SidebarField>
         <label className="flex items-center gap-2 text-[11px] text-gray-600 mt-1">
-          <input type="checkbox" disabled className="w-3 h-3" />
+          <input
+            type="checkbox"
+            disabled={!hasImage}
+            checked={image?.sizeProtected ?? false}
+            onChange={(e) => setImageSizeProtect(e.target.checked)}
+            className="w-3 h-3"
+          />
           크기 고정
         </label>
       </SidebarSection>
@@ -99,15 +150,23 @@ export function ImageLayoutPanel() {
         <div className="mb-2">
           <span className="text-[11px] text-gray-600 block mb-1.5">본문과의 배치</span>
           <div className="flex gap-1">
-            {["어울림", "자리차지", "글 뒤로", "글 앞으로"].map((label, i) => (
+            {wrapOptions.map(({ label, value }, i) => (
               <button
                 key={label}
-                disabled
+                type="button"
+                disabled={!hasImage}
+                onClick={() => {
+                  if (!hasImage) return;
+                  setImageTextWrap(value);
+                  if (value !== "BEHIND_TEXT" && value !== "IN_FRONT_OF_TEXT") {
+                    setImageTreatAsChar(value === "TOP_AND_BOTTOM");
+                  }
+                }}
                 className={`flex-1 py-1.5 rounded border text-[9px] transition-colors flex flex-col items-center gap-0.5 ${
-                  i === 0
+                  activeWrap === value
                     ? "bg-blue-50 border-blue-300 text-blue-700"
                     : "bg-white border-gray-200 text-gray-500"
-                } disabled:opacity-60 disabled:cursor-not-allowed`}
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
               >
                 <svg width="20" height="16" viewBox="0 0 20 16" fill="none" className="mx-auto">
                   <line x1="2" y1="2" x2="18" y2="2" stroke="currentColor" strokeWidth="1" opacity="0.4" />
@@ -139,24 +198,62 @@ export function ImageLayoutPanel() {
           </div>
         </div>
         <label className="flex items-center gap-2 text-[11px] text-gray-600 mb-3">
-          <input type="checkbox" disabled className="w-3 h-3" />
+          <input
+            type="checkbox"
+            disabled={!hasImage}
+            checked={treatAsChar}
+            onChange={(e) => setImageTreatAsChar(e.target.checked)}
+            className="w-3 h-3"
+          />
           글자처럼 취급
         </label>
         <SidebarField label="가로">
           <div className="flex items-center gap-1">
-            <select disabled className="h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40 w-16 flex-shrink-0">
-              <option>문단</option>
+            <select
+              disabled={!hasImage}
+              value={image?.horzRelTo ?? "COLUMN"}
+              onChange={(e) => setImageOffsetRelTo({ horzRelTo: e.target.value })}
+              className="h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40 w-16 flex-shrink-0"
+            >
+              {relToOptions.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
-            <input type="number" disabled value={0} onChange={() => {}} className={inputClass} />
+            <input
+              type="number"
+              step="0.1"
+              value={horzMm}
+              disabled={!hasImage}
+              onChange={(e) => setHorzMm(Number(e.target.value))}
+              onBlur={applyOffsets}
+              onKeyDown={(e) => { if (e.key === "Enter") applyOffsets(); }}
+              className={inputClass}
+            />
             <span className="text-[10px] text-gray-400 flex-shrink-0">mm</span>
           </div>
         </SidebarField>
         <SidebarField label="세로">
           <div className="flex items-center gap-1">
-            <select disabled className="h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40 w-16 flex-shrink-0">
-              <option>문단</option>
+            <select
+              disabled={!hasImage}
+              value={image?.vertRelTo ?? "PARA"}
+              onChange={(e) => setImageOffsetRelTo({ vertRelTo: e.target.value })}
+              className="h-6 px-1 text-[11px] border border-gray-300 rounded bg-white disabled:opacity-40 w-16 flex-shrink-0"
+            >
+              {relToOptions.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
-            <input type="number" disabled value={0} onChange={() => {}} className={inputClass} />
+            <input
+              type="number"
+              step="0.1"
+              value={vertMm}
+              disabled={!hasImage}
+              onChange={(e) => setVertMm(Number(e.target.value))}
+              onBlur={applyOffsets}
+              onKeyDown={(e) => { if (e.key === "Enter") applyOffsets(); }}
+              className={inputClass}
+            />
             <span className="text-[10px] text-gray-400 flex-shrink-0">mm</span>
           </div>
         </SidebarField>
@@ -164,13 +261,21 @@ export function ImageLayoutPanel() {
 
       <SidebarSection title="개체 회전/기울이기" defaultOpen={false}>
         <SidebarField label="회전각">
-          <input type="number" disabled value={0} onChange={() => {}} className={inputClass} />
+          <input
+            type="number"
+            disabled={!hasImage}
+            value={rotationAngle}
+            onChange={(e) => setRotationAngle(Number(e.target.value))}
+            onBlur={applyRotation}
+            onKeyDown={(e) => { if (e.key === "Enter") applyRotation(); }}
+            className={inputClass}
+          />
         </SidebarField>
         <SidebarField label="가로 기울이기">
-          <input type="number" disabled value={0} onChange={() => {}} className={inputClass} />
+          <input type="number" disabled readOnly value={0} className={inputClass} />
         </SidebarField>
         <SidebarField label="세로 기울이기">
-          <input type="number" disabled value={0} onChange={() => {}} className={inputClass} />
+          <input type="number" disabled readOnly value={0} className={inputClass} />
         </SidebarField>
       </SidebarSection>
 
@@ -181,7 +286,13 @@ export function ImageLayoutPanel() {
           </select>
         </SidebarField>
         <label className="flex items-center gap-2 text-[11px] text-gray-600">
-          <input type="checkbox" disabled className="w-3 h-3" />
+          <input
+            type="checkbox"
+            disabled={!hasImage}
+            checked={image?.locked ?? false}
+            onChange={(e) => setImageLock(e.target.checked)}
+            className="w-3 h-3"
+          />
           개체 보호
         </label>
       </SidebarSection>

@@ -11,6 +11,7 @@ interface ToolbarDropdownProps {
   className?: string;
   width?: string;
   icon?: ReactNode;
+  testId?: string;
 }
 
 export function ToolbarDropdown({
@@ -22,6 +23,7 @@ export function ToolbarDropdown({
   className = "",
   width = "w-28",
   icon,
+  testId,
 }: ToolbarDropdownProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -40,15 +42,15 @@ export function ToolbarDropdown({
   const selectedLabel = options.find((o) => o.value === value)?.label ?? value;
 
   return (
-    <div ref={ref} className={`relative ${className}`} title={title}>
+    <div ref={ref} className={`relative ${className}`} title={title} data-hwpx-testid={testId}>
       <button
         disabled={disabled}
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1 ${width} h-7 px-2 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50 text-left disabled:opacity-40 disabled:cursor-not-allowed`}
+        className={`flex items-center gap-1.5 ${width} h-9 px-2.5 text-sm border border-gray-300 rounded bg-white hover:bg-gray-50 text-left disabled:opacity-40 disabled:cursor-not-allowed`}
       >
         {icon}
         <span className="flex-1 truncate">{selectedLabel}</span>
-        <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -61,7 +63,7 @@ export function ToolbarDropdown({
                 onChange(opt.value);
                 setOpen(false);
               }}
-              className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 ${
+              className={`block w-full text-left px-3 py-2 text-sm hover:bg-blue-50 ${
                 opt.value === value ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700"
               }`}
             >

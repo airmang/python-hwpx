@@ -1,12 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { SidebarField } from "./SidebarField";
+import { ColorPicker } from "../toolbar/ColorPicker";
 
 interface BorderSettingsProps {
   disabled?: boolean;
 }
 
 export function BorderSettings({ disabled }: BorderSettingsProps) {
+  const [color, setColor] = useState("#000000");
+
   return (
     <div className="space-y-1">
       <SidebarField label="종류">
@@ -34,11 +38,12 @@ export function BorderSettings({ disabled }: BorderSettingsProps) {
         </select>
       </SidebarField>
       <SidebarField label="색">
-        <input
-          type="color"
-          defaultValue="#000000"
+        <ColorPicker
+          color={color}
+          onChange={setColor}
           disabled={disabled}
-          className="w-6 h-6 border border-gray-300 rounded cursor-pointer disabled:opacity-40"
+          variant="swatch"
+          title="테두리 색상"
         />
       </SidebarField>
     </div>
