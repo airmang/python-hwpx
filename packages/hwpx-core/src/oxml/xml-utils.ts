@@ -7,6 +7,7 @@ import {
   serializeXml,
   localName as domLocalName,
   childElements,
+  createElement,
 } from "../xml/dom.js";
 
 export const HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph";
@@ -218,13 +219,7 @@ export function createNsElement(
   localNameStr: string,
   attributes?: Record<string, string>,
 ): Element {
-  const el = doc.createElementNS(ns, localNameStr);
-  if (attributes) {
-    for (const [key, value] of Object.entries(attributes)) {
-      el.setAttribute(key, value);
-    }
-  }
-  return el;
+  return createElement(doc, ns, localNameStr, attributes);
 }
 
 export function subElement(

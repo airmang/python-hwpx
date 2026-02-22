@@ -11,6 +11,15 @@ import { DOMParser as XmlDOMParser, XMLSerializer as XmlSerializer } from "@xmld
 const _parser = new XmlDOMParser();
 const _serializer = new XmlSerializer();
 
+const PREFERRED_NAMESPACE_PREFIX: Record<string, string> = {
+  "http://www.hancom.co.kr/hwpml/2011/paragraph": "hp",
+  "http://www.hancom.co.kr/hwpml/2016/paragraph": "hp10",
+  "http://www.hancom.co.kr/hwpml/2011/section": "hs",
+  "http://www.hancom.co.kr/hwpml/2011/core": "hc",
+  "http://www.hancom.co.kr/hwpml/2011/head": "hh",
+  "http://www.idpf.org/2007/opf/": "opf",
+};
+
 /** Parse an XML string into a Document. */
 export function parseXml(xml: string): Document {
   return _parser.parseFromString(xml, "text/xml") as unknown as Document;
@@ -37,7 +46,15 @@ export function createElement(
   name: string,
   attributes?: Record<string, string>,
 ): Element {
-  const el = ns ? doc.createElementNS(ns, name) : doc.createElement(name);
+  let qualifiedName = name;
+  if (ns && !name.includes(":")) {
+    const preferred = PREFERRED_NAMESPACE_PREFIX[ns];
+    if (preferred) {
+      qualifiedName = `${preferred}:${name}`;
+    }
+  }
+
+  const el = ns ? doc.createElementNS(ns, qualifiedName) : doc.createElement(qualifiedName);
   if (attributes) {
     for (const [key, value] of Object.entries(attributes)) {
       el.setAttribute(key, value);

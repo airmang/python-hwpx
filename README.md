@@ -51,7 +51,18 @@ doc.addParagraph('새 문단');
 
 // 저장
 const bytes = await doc.save();
+
+// 저장 목적지별 API
+const bytes2 = await doc.saveToBuffer();
+const blob = await doc.saveToBlob();
+await doc.saveToPath('./out.hwpx');
 ```
+
+### 호환성/검증 포인트
+
+- HWPX ZIP 저장 시 `mimetype`를 첫 엔트리 + 무압축(STORE)으로 처리합니다.
+- XML 직렬화에서 HWPX 네임스페이스 접두사(`hp`, `hs`, `hc`, `hh`)를 우선 사용합니다.
+- 비표준 container/manifest 구조를 만났을 때 fallback 경고 핸들러를 통해 진단 정보를 받을 수 있습니다.
 
 ### @ubermensch1218/hwpxeditor
 

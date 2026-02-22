@@ -339,7 +339,7 @@ function genericElementToXml(doc: Document, element: GenericElement): Element {
       localTag = tag.substring(idx + 1);
     }
   }
-  const node = ns ? doc.createElementNS(ns, localTag) : doc.createElement(localTag);
+  const node = createElement(doc, ns, localTag);
   for (const [key, value] of Object.entries(element.attributes)) {
     node.setAttribute(key, value);
   }
@@ -367,7 +367,7 @@ function trackChangeMarkToXml(doc: Document, mark: TrackChangeMark): Element {
       localTag = tag.substring(idx + 1);
     }
   }
-  const node = ns ? doc.createElementNS(ns, localTag) : doc.createElement(localTag);
+  const node = createElement(doc, ns, localTag);
   for (const [key, value] of Object.entries(attrs)) {
     node.setAttribute(key, value);
   }
@@ -396,7 +396,7 @@ function textSpanToXml(doc: Document, span: TextSpan): Element {
       localTag = tag.substring(idx + 1);
     }
   }
-  const node = ns ? doc.createElementNS(ns, localTag) : doc.createElement(localTag);
+  const node = createElement(doc, ns, localTag);
   for (const [key, value] of Object.entries(span.attributes)) {
     node.setAttribute(key, value);
   }
@@ -427,7 +427,7 @@ function controlToXml(doc: Document, control: Control): Element {
       localTag = tag.substring(idx + 1);
     }
   }
-  const node = ns ? doc.createElementNS(ns, localTag) : doc.createElement(localTag);
+  const node = createElement(doc, ns, localTag);
   for (const [key, value] of Object.entries(attrs)) {
     node.setAttribute(key, value);
   }
@@ -448,7 +448,7 @@ function tableToXml(doc: Document, table: Table): Element {
       localTag = tag.substring(idx + 1);
     }
   }
-  const node = ns ? doc.createElementNS(ns, localTag) : doc.createElement(localTag);
+  const node = createElement(doc, ns, localTag);
   for (const [key, value] of Object.entries(table.attributes)) {
     node.setAttribute(key, value);
   }
@@ -469,7 +469,7 @@ function inlineObjectToXml(doc: Document, obj: InlineObject): Element {
       localTag = tag.substring(idx + 1);
     }
   }
-  const node = ns ? doc.createElementNS(ns, localTag) : doc.createElement(localTag);
+  const node = createElement(doc, ns, localTag);
   for (const [key, value] of Object.entries(obj.attributes)) {
     node.setAttribute(key, value);
   }
@@ -505,7 +505,7 @@ export function serializeRun(doc: Document, run: Run): Element {
       localTag = tag.substring(idx + 1);
     }
   }
-  const node = ns ? doc.createElementNS(ns, localTag) : doc.createElement(localTag);
+  const node = createElement(doc, ns, localTag);
   for (const [key, value] of Object.entries(attrs)) {
     node.setAttribute(key, value);
   }
@@ -550,7 +550,7 @@ export function serializeParagraph(doc: Document, paragraph: Paragraph): Element
       localTag = tag.substring(idx + 1);
     }
   }
-  const node = ns ? doc.createElementNS(ns, localTag) : doc.createElement(localTag);
+  const node = createElement(doc, ns, localTag);
   for (const [key, value] of Object.entries(attrs)) {
     node.setAttribute(key, value);
   }
