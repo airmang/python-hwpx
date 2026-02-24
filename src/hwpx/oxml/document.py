@@ -1784,11 +1784,27 @@ class HwpxOxmlTable:
 
     def _build_cell_grid(self) -> dict[tuple[int, int], HwpxTableGridPosition]:
         mapping: dict[tuple[int, int], HwpxTableGridPosition] = {}
+
+        def _is_deactivated_cell(
+            cell: HwpxOxmlTableCell, span: tuple[int, int]
+        ) -> bool:
+            span_row, span_col = span
+            if span_row != 1 or span_col != 1:
+                return False
+            if cell.width != 0 or cell.height != 0:
+                return False
+            for text_element in cell.element.findall(f".//{_HP}t"):
+                if text_element.text:
+                    return False
+            return True
+
         for row in self.element.findall(f"{_HP}tr"):
             for cell_element in row.findall(f"{_HP}tc"):
                 wrapper = HwpxOxmlTableCell(cell_element, self, row)
                 start_row, start_col = wrapper.address
                 span_row, span_col = wrapper.span
+                wrapper_span = (span_row, span_col)
+                wrapper_is_deactivated = _is_deactivated_cell(wrapper, wrapper_span)
                 for logical_row in range(start_row, start_row + span_row):
                     for logical_col in range(start_col, start_col + span_col):
                         key = (logical_row, logical_col)
@@ -1804,6 +1820,28 @@ class HwpxOxmlTable:
                             existing is not None
                             and existing.cell.element is not wrapper.element
                         ):
+                            existing_span = existing.span
+                            existing_spans_multiple = (
+                                existing_span[0] != 1 or existing_span[1] != 1
+                            )
+                            wrapper_spans_multiple = (
+                                wrapper_span[0] != 1 or wrapper_span[1] != 1
+                            )
+                            existing_is_deactivated = _is_deactivated_cell(
+                                existing.cell, existing_span
+                            )
+
+                            if (
+                                wrapper_is_deactivated
+                                and existing_spans_multiple
+                            ):
+                                continue
+                            if (
+                                existing_is_deactivated
+                                and wrapper_spans_multiple
+                            ):
+                                mapping[key] = entry
+                                continue
                             raise ValueError(
                                 "table grid contains overlapping cell spans"
                             )
@@ -2101,11 +2139,13 @@ class HwpxOxmlTable:
 
         for element in removal_elements:
             row_element = element_to_row.get(element)
-            if row_element is not None:
-                try:
-                    row_element.remove(element)
-                except ValueError:
-                    continue
+            if row_element is None:
+                continue
+            wrapper = HwpxOxmlTableCell(element, self, row_element)
+            wrapper.set_span(1, 1)
+            wrapper.set_size(0, 0)
+            for text_element in element.findall(f".//{_HP}t"):
+                text_element.text = ""
 
         target.set_span(new_row_span, new_col_span)
         target.set_size(total_width or target.width, total_height or target.height)

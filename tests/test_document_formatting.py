@@ -423,17 +423,43 @@ def test_table_merge_cells_updates_spans_and_structure() -> None:
     table = document.add_table(3, 3, section=section)
     initial_width = table.cell(0, 0).width
     initial_height = table.cell(0, 0).height
+    table.set_cell_text(0, 1, "Top Right")
+    table.set_cell_text(1, 0, "Bottom Left")
+    table.set_cell_text(1, 1, "Bottom Right")
     section.reset_dirty()
 
     merged = table.merge_cells(0, 0, 1, 1)
+
+    physical_by_address = {
+        cell.address: cell for row in table.rows for cell in row.cells
+    }
+    covered_top_right = physical_by_address[(0, 1)]
+    covered_bottom_left = physical_by_address[(1, 0)]
+    covered_bottom_right = physical_by_address[(1, 1)]
 
     assert merged.span == (2, 2)
     assert merged.width >= initial_width
     assert merged.height >= initial_height
     assert table.cell(0, 1).element is merged.element
     assert table.cell(1, 0).element is merged.element
-    assert len(table.rows[0].cells) == 2
-    assert len(table.rows[1].cells) == 1
+    assert table.cell(1, 1).element is merged.element
+    assert len(table.rows[0].cells) == 3
+    assert len(table.rows[1].cells) == 3
+    assert covered_top_right.element is not merged.element
+    assert covered_top_right.span == (1, 1)
+    assert covered_top_right.width == 0
+    assert covered_top_right.height == 0
+    assert covered_top_right.text == ""
+    assert covered_bottom_left.element is not merged.element
+    assert covered_bottom_left.span == (1, 1)
+    assert covered_bottom_left.width == 0
+    assert covered_bottom_left.height == 0
+    assert covered_bottom_left.text == ""
+    assert covered_bottom_right.element is not merged.element
+    assert covered_bottom_right.span == (1, 1)
+    assert covered_bottom_right.width == 0
+    assert covered_bottom_right.height == 0
+    assert covered_bottom_right.text == ""
     assert section.dirty is True
 
 
