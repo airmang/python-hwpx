@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re as _re
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Callable, Iterable, Iterator, Optional, Sequence, TypeVar
@@ -71,6 +72,24 @@ _BASIC_BORDER_CHILDREN: tuple[tuple[str, dict[str, str]], ...] = (
 )
 
 T = TypeVar("T")
+
+# Characters forbidden inside XML 1.0 text nodes (XML spec §2.2).
+# Tab (U+0009) is legal XML but illegal inside <hp:t>; it must be
+# represented as a <hp:ctrl id="tab"/> element instead.
+_ILLEGAL_XML_CHARS = _re.compile(
+    r"[\x00-\x08\x09\x0b\x0c\x0d\x0e-\x1f\ufffe\uffff]"
+)
+
+
+def _sanitize_text(value: str) -> str:
+    """Strip characters that are illegal inside an HWPML ``<hp:t>`` node.
+
+    Tab (``\\t`` / U+0009) is stripped because HWPML requires it to be
+    represented as a dedicated ``<hp:ctrl>`` element, not as raw text.
+    Carriage return (``\\r`` / U+000D) is stripped; newline (``\\n`` / U+000A)
+    is preserved for multiline cells.
+    """
+    return _ILLEGAL_XML_CHARS.sub("", value)
 
 
 def _serialize_xml(element: ET.Element) -> bytes:
@@ -541,7 +560,7 @@ class HwpxOxmlSectionHeaderFooter:
             if child.tag == f"{_HP}subList":
                 self.element.remove(child)
         text_node = self._ensure_text_element()
-        text_node.text = value
+        text_node.text = _sanitize_text(value)
         self._properties.section.mark_dirty()
 
 
@@ -1066,7 +1085,7 @@ class HwpxOxmlRun:
     def text(self, value: str) -> None:
         primary = self._ensure_plain_text_node()
         changed = (primary.text or "") != value
-        primary.text = value
+        primary.text = _sanitize_text(value)
         for node in self._plain_text_nodes()[1:]:
             if node.text:
                 node.text = ""
@@ -1578,7 +1597,7 @@ class HwpxOxmlTableCell:
     @text.setter
     def text(self, value: str) -> None:
         text_element = self._ensure_text_element()
-        text_element.text = value
+        text_element.text = _sanitize_text(value)
         self.element.set("dirty", "1")
         self.table.mark_dirty()
 
@@ -2171,7 +2190,7 @@ class HwpxOxmlParagraph:
                     run.remove(child)
         run = self._ensure_run()
         text_element = ET.SubElement(run, f"{_HP}t")
-        text_element.text = value
+        text_element.text = _sanitize_text(value)
         self.section.mark_dirty()
 
     def _create_run_for_object(

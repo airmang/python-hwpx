@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import cast
+from typing import Callable, cast
 import pytest
 import xml.etree.ElementTree as ET
 
@@ -73,6 +73,74 @@ def _build_section_with_properties() -> tuple[HwpxOxmlSection, ET.Element]:
     section = HwpxOxmlSection("section0.xml", section_element)
     section.reset_dirty()
     return section, sec_pr
+
+
+def _set_header_text_and_get_xml_text(value: str) -> str:
+    section, _ = _build_section_with_properties()
+    header = section.properties.set_header_text("seed")
+    header.text = value
+    text_element = header.element.find(f".//{HP}t")
+    assert text_element is not None
+    return text_element.text or ""
+
+
+def _set_run_text_and_get_xml_text(value: str) -> str:
+    _, paragraph = _build_section_with_paragraph()
+    run = paragraph.runs[0]
+    run.text = value
+    text_element = run.element.find(f"{HP}t")
+    assert text_element is not None
+    return text_element.text or ""
+
+
+def _set_table_cell_text_and_get_xml_text(value: str) -> str:
+    section_element = ET.Element(f"{HS}sec")
+    section = HwpxOxmlSection("section0.xml", section_element)
+    manifest = ET.Element("manifest")
+    root = HwpxOxmlDocument(manifest, [section], [])
+    document = HwpxDocument(cast(HwpxPackage, object()), root)
+
+    table = document.add_table(1, 1, section=section)
+    table.set_cell_text(0, 0, value)
+    text_element = table.cell(0, 0).element.find(f".//{HP}t")
+    assert text_element is not None
+    return text_element.text or ""
+
+
+def _set_paragraph_text_and_get_xml_text(value: str) -> str:
+    _, paragraph = _build_section_with_paragraph()
+    paragraph.text = value
+    text_element = paragraph.element.find(f".//{HP}t")
+    assert text_element is not None
+    return text_element.text or ""
+
+
+_TEXT_SETTER_APPLIERS: tuple[Callable[[str], str], ...] = (
+    _set_header_text_and_get_xml_text,
+    _set_run_text_and_get_xml_text,
+    _set_table_cell_text_and_get_xml_text,
+    _set_paragraph_text_and_get_xml_text,
+)
+
+_TEXT_SETTER_IDS = ("header_footer", "run", "table_cell", "paragraph")
+
+_TEXT_SANITIZATION_CASES: tuple[tuple[str, str], ...] = (
+    ("a\tb", "ab"),
+    ("left\r\nright", "left\nright"),
+    ("a\x01b", "ab"),
+    ("line1\nline2", "line1\nline2"),
+    ("", ""),
+)
+
+
+@pytest.mark.parametrize("apply_setter", _TEXT_SETTER_APPLIERS, ids=_TEXT_SETTER_IDS)
+@pytest.mark.parametrize(("raw_text", "expected"), _TEXT_SANITIZATION_CASES)
+def test_text_setters_sanitize_illegal_xml_characters(
+    apply_setter: Callable[[str], str],
+    raw_text: str,
+    expected: str,
+) -> None:
+    assert apply_setter(raw_text) == expected
 
 
 def test_paragraph_allows_updating_para_pr_id_ref() -> None:
