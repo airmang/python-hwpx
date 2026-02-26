@@ -1,11 +1,50 @@
+# Python bytecode
 __pycache__/
 *.py[cod]
-*.egg-info/
+*.pyd
+
+# Packaging / build artifacts
 *.egg
-/dist/
-/build/
-/.pytest_cache/
-/.mypy_cache/
-/.ruff_cache/
-/.venv/
+*.egg-info/
+build/
+dist/
+pip-wheel-metadata/
+site/
+
+# Test / coverage caches
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Type checker / linter caches
+.mypy_cache/
+.pyright/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Docs build output
+docs/_build/
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# IDE/editor settings
+.idea/
+.vscode/
+*.code-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs / local env files
 *.log
+.env
+.env.*
