@@ -7,11 +7,43 @@ from typing import Mapping
 
 from lxml import etree
 
+# Mapping of 2016 HWPML namespace URIs to their 2011 equivalents.
+# Documents created with Hancom Office 2016+ may use these newer URIs.
+# Normalising to 2011 at parse time lets the rest of the codebase use a
+# single set of namespace constants without any lookup changes.
+_HWPML_2016_TO_2011: tuple[tuple[bytes, bytes], ...] = (
+    (b"http://www.hancom.co.kr/hwpml/2016/paragraph", b"http://www.hancom.co.kr/hwpml/2011/paragraph"),
+    (b"http://www.hancom.co.kr/hwpml/2016/head", b"http://www.hancom.co.kr/hwpml/2011/head"),
+    (b"http://www.hancom.co.kr/hwpml/2016/section", b"http://www.hancom.co.kr/hwpml/2011/section"),
+    (b"http://www.hancom.co.kr/hwpml/2016/core", b"http://www.hancom.co.kr/hwpml/2011/core"),
+    (b"http://www.hancom.co.kr/hwpml/2016/master-page", b"http://www.hancom.co.kr/hwpml/2011/master-page"),
+    (b"http://www.hancom.co.kr/hwpml/2016/history", b"http://www.hancom.co.kr/hwpml/2011/history"),
+    (b"http://www.hancom.co.kr/hwpml/2016/app", b"http://www.hancom.co.kr/hwpml/2011/app"),
+)
+
+
+def normalize_hwpml_namespaces(data: bytes) -> bytes:
+    """Replace 2016 HWPML namespace URIs with their 2011 equivalents.
+
+    This is a byte-level transformation applied **before** XML parsing so that
+    all downstream code can rely on a single, consistent set of namespace
+    constants (the 2011 family).  The replacement is harmless for documents
+    that already use 2011 namespaces because the 2016 byte sequences simply
+    won't appear.
+    """
+    for old, new in _HWPML_2016_TO_2011:
+        if old in data:
+            data = data.replace(old, new)
+    return data
+
 
 def parse_xml(data: bytes) -> etree._Element:
-    """바이트 XML 문서를 파싱해 루트 요소를 반환한다."""
+    """바이트 XML 문서를 파싱해 루트 요소를 반환한다.
 
-    return etree.fromstring(data)
+    2016 HWPML 네임스페이스는 파싱 전에 2011 버전으로 자동 정규화된다.
+    """
+
+    return etree.fromstring(normalize_hwpml_namespaces(data))
 
 
 def parse_xml_with_namespaces(data: bytes) -> tuple[etree._Element, Mapping[str, str]]:
@@ -23,10 +55,14 @@ def parse_xml_with_namespaces(data: bytes) -> tuple[etree._Element, Mapping[str,
 
 
 def iter_declared_namespaces(data: bytes) -> Mapping[str, str]:
-    """XML 선언 순서를 보존한 네임스페이스 매핑을 추출한다."""
+    """XML 선언 순서를 보존한 네임스페이스 매핑을 추출한다.
 
+    2016 HWPML 네임스페이스는 2011 버전으로 정규화된다.
+    """
+
+    normalized = normalize_hwpml_namespaces(data)
     namespaces: dict[str, str] = {}
-    for _, elem in etree.iterparse(BytesIO(data), events=("start-ns",)):
+    for _, elem in etree.iterparse(BytesIO(normalized), events=("start-ns",)):
         prefix, uri = elem
         namespaces[prefix or ""] = uri
     return namespaces

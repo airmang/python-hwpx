@@ -10,7 +10,7 @@ import logging
 import uuid
 
 from os import PathLike
-from typing import Any, BinaryIO, Iterator, overload
+from typing import Any, BinaryIO, Iterator, Sequence, overload
 
 from lxml import etree
 
@@ -23,10 +23,12 @@ from .oxml import (
     HwpxOxmlInlineObject,
     HwpxOxmlMasterPage,
     HwpxOxmlMemo,
+    HwpxOxmlNote,
     HwpxOxmlParagraph,
     HwpxOxmlRun,
     HwpxOxmlSection,
     HwpxOxmlSectionHeaderFooter,
+    HwpxOxmlShape,
     HwpxOxmlTable,
     HwpxOxmlVersion,
     MemoShape,
@@ -73,11 +75,13 @@ class HwpxDocument:
         root: HwpxOxmlDocument,
         *,
         managed_resources: tuple[Any, ...] = (),
+        validate_on_save: bool = False,
     ):
         self._package = package
         self._root = root
         self._managed_resources = list(managed_resources)
         self._closed = False
+        self.validate_on_save = validate_on_save
 
     def __repr__(self) -> str:
         """Return a compact and safe summary of the document state."""
@@ -629,9 +633,16 @@ class HwpxDocument:
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         include_run: bool = True,
+        inherit_style: bool = True,
         **extra_attrs: str,
     ) -> HwpxOxmlParagraph:
         """Append a paragraph to the document and return it.
+
+        When *inherit_style* is ``True`` (the default) and no explicit
+        style references are given, the new paragraph inherits
+        ``paraPrIDRef``, ``styleIDRef`` and ``charPrIDRef`` from the
+        last paragraph in the target section so that consecutive
+        paragraphs share the same formatting.
 
         Formatting references may be overridden via ``para_pr_id_ref``,
         ``style_id_ref`` and ``char_pr_id_ref``. Any additional keyword
@@ -646,6 +657,7 @@ class HwpxDocument:
             char_pr_id_ref=char_pr_id_ref,
             run_attributes=run_attributes,
             include_run=include_run,
+            inherit_style=inherit_style,
             **extra_attrs,
         )
 
@@ -755,6 +767,236 @@ class HwpxDocument:
             char_pr_id_ref=char_pr_id_ref,
         )
 
+    # ------------------------------------------------------------------
+    # Footnote / Endnote helpers
+    # ------------------------------------------------------------------
+
+    def add_footnote(
+        self,
+        text: str,
+        paragraph: HwpxOxmlParagraph | None = None,
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlNote:
+        """Add a footnote to an existing paragraph, or create a new one.
+
+        When *paragraph* is ``None`` a new paragraph is appended to the given
+        (or last) section.
+        """
+
+        if paragraph is None:
+            paragraph = self.add_paragraph(
+                "",
+                section=section,
+                section_index=section_index,
+                include_run=False,
+            )
+        return paragraph.add_footnote(text, char_pr_id_ref=char_pr_id_ref)
+
+    def add_endnote(
+        self,
+        text: str,
+        paragraph: HwpxOxmlParagraph | None = None,
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlNote:
+        """Add an endnote to an existing paragraph, or create a new one."""
+
+        if paragraph is None:
+            paragraph = self.add_paragraph(
+                "",
+                section=section,
+                section_index=section_index,
+                include_run=False,
+            )
+        return paragraph.add_endnote(text, char_pr_id_ref=char_pr_id_ref)
+
+    # ------------------------------------------------------------------
+    # Drawing shapes
+    # ------------------------------------------------------------------
+
+    def add_line(
+        self,
+        start_x: int = 0,
+        start_y: int = 0,
+        end_x: int = 14400,
+        end_y: int = 0,
+        *,
+        line_color: str = "#000000",
+        line_width: str = "283",
+        treat_as_char: bool = True,
+        paragraph: HwpxOxmlParagraph | None = None,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> HwpxOxmlShape:
+        """Insert a line drawing shape.
+
+        Coordinates are in HWPUNIT (7200 per inch).
+        """
+        if paragraph is None:
+            paragraph = self.add_paragraph(
+                "", section=section, section_index=section_index,
+                include_run=False,
+            )
+        return paragraph.add_line(
+            start_x, start_y, end_x, end_y,
+            line_color=line_color, line_width=line_width,
+            treat_as_char=treat_as_char,
+        )
+
+    def add_rectangle(
+        self,
+        width: int = 14400,
+        height: int = 7200,
+        *,
+        ratio: int = 0,
+        line_color: str = "#000000",
+        line_width: str = "283",
+        fill_color: str | None = None,
+        treat_as_char: bool = True,
+        paragraph: HwpxOxmlParagraph | None = None,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> HwpxOxmlShape:
+        """Insert a rectangle drawing shape.
+
+        Dimensions are in HWPUNIT.  *ratio* controls corner roundness
+        (0 = sharp, 50 = semicircle).
+        """
+        if paragraph is None:
+            paragraph = self.add_paragraph(
+                "", section=section, section_index=section_index,
+                include_run=False,
+            )
+        return paragraph.add_rectangle(
+            width, height, ratio=ratio,
+            line_color=line_color, line_width=line_width,
+            fill_color=fill_color, treat_as_char=treat_as_char,
+        )
+
+    def add_ellipse(
+        self,
+        width: int = 14400,
+        height: int = 7200,
+        *,
+        line_color: str = "#000000",
+        line_width: str = "283",
+        fill_color: str | None = None,
+        treat_as_char: bool = True,
+        paragraph: HwpxOxmlParagraph | None = None,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> HwpxOxmlShape:
+        """Insert an ellipse drawing shape.
+
+        Dimensions are in HWPUNIT.
+        """
+        if paragraph is None:
+            paragraph = self.add_paragraph(
+                "", section=section, section_index=section_index,
+                include_run=False,
+            )
+        return paragraph.add_ellipse(
+            width, height,
+            line_color=line_color, line_width=line_width,
+            fill_color=fill_color, treat_as_char=treat_as_char,
+        )
+
+    # ------------------------------------------------------------------
+    # Column layout
+    # ------------------------------------------------------------------
+
+    def set_columns(
+        self,
+        col_count: int = 2,
+        *,
+        col_type: str = "NEWSPAPER",
+        layout: str = "LEFT",
+        same_size: bool = True,
+        same_gap: int = 1200,
+        column_widths: "Sequence[tuple[int, int]] | None" = None,
+        separator_type: str | None = None,
+        separator_width: str | None = None,
+        separator_color: str | None = None,
+        paragraph: HwpxOxmlParagraph | None = None,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert a column definition control.
+
+        This adds a ``<hp:ctrl><hp:colPr>`` element to the specified paragraph.
+        Text that follows will be laid out in the specified number of columns.
+
+        Args:
+            col_count: Number of columns (1–255).
+            col_type: ``NEWSPAPER``, ``BALANCED_NEWSPAPER``, or ``PARALLEL``.
+            same_gap: Gap in HWPUNIT (7200 = 1 inch).
+            separator_type: Optional column separator line type (e.g. ``SOLID``).
+        """
+        if paragraph is None:
+            paragraph = self.add_paragraph(
+                "", section=section, section_index=section_index,
+                include_run=False,
+            )
+        return paragraph.add_column_definition(
+            col_count,
+            col_type=col_type,
+            layout=layout,
+            same_size=same_size,
+            same_gap=same_gap,
+            column_widths=column_widths,
+            separator_type=separator_type,
+            separator_width=separator_width,
+            separator_color=separator_color,
+        )
+
+    # ------------------------------------------------------------------
+    # Bookmarks and hyperlinks
+    # ------------------------------------------------------------------
+
+    def add_bookmark(
+        self,
+        name: str,
+        *,
+        paragraph: HwpxOxmlParagraph | None = None,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert a bookmark marker in the document.
+
+        Returns the ``<hp:ctrl>`` wrapper element.
+        """
+        if paragraph is None:
+            paragraph = self.add_paragraph(
+                "", section=section, section_index=section_index,
+                include_run=False,
+            )
+        return paragraph.add_bookmark(name)
+
+    def add_hyperlink(
+        self,
+        url: str,
+        display_text: str,
+        *,
+        paragraph: HwpxOxmlParagraph | None = None,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert a hyperlink (fieldBegin + text + fieldEnd).
+
+        Returns the ``<hp:ctrl>`` wrapper containing the ``<hp:fieldBegin>``.
+        """
+        if paragraph is None:
+            paragraph = self.add_paragraph(
+                "", section=section, section_index=section_index,
+                include_run=False,
+            )
+        return paragraph.add_hyperlink(url, display_text)
+
     def set_header_text(
         self,
         text: str,
@@ -829,9 +1071,195 @@ class HwpxDocument:
             target_section = self._root.sections[-1]
         target_section.properties.remove_footer(page_type=page_type)
 
+    # ------------------------------------------------------------------
+    # BinData / Image management
+    # ------------------------------------------------------------------
+
+    _FORMAT_TO_MEDIA_TYPE: dict[str, str] = {
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png": "image/png",
+        "gif": "image/gif",
+        "bmp": "image/bmp",
+        "tiff": "image/tiff",
+        "tif": "image/tiff",
+        "svg": "image/svg+xml",
+    }
+
+    def add_image(
+        self,
+        image_data: bytes,
+        image_format: str,
+        *,
+        item_id: str | None = None,
+    ) -> str:
+        """Embed an image file and return the manifest item id.
+
+        Args:
+            image_data: Raw image bytes.
+            image_format: Image format extension (``jpg``, ``png``, …).
+            item_id: Optional explicit manifest item id.  When omitted an
+                     auto-generated ``BIN####`` id is used.
+
+        Returns:
+            The manifest item id that can be passed to
+            ``binaryItemIDRef`` when constructing a ``<hp:pic>`` element.
+        """
+
+        fmt = image_format.lower().lstrip(".")
+        media_type = self._FORMAT_TO_MEDIA_TYPE.get(fmt, f"image/{fmt}")
+
+        # Determine a unique item id
+        if item_id is None:
+            existing_ids: set[str] = set()
+            header = self._root.headers[0] if self._root.headers else None
+            if header is not None:
+                for bi in header.list_bin_items():
+                    existing_ids.add(bi.get("id", ""))
+            n = len(existing_ids) + 1
+            while True:
+                item_id = f"BIN{n:04d}"
+                if item_id not in existing_ids:
+                    break
+                n += 1
+
+        # File path inside the ZIP
+        bin_data_name = f"{item_id}.{fmt}"
+        bin_data_path = f"BinData/{bin_data_name}"
+
+        # 1) Write image bytes into the package
+        self._package.write(bin_data_path, image_data)
+
+        # 2) Register in manifest
+        self._package.add_manifest_item(item_id, bin_data_path, media_type)
+
+        # 3) Register in header binDataList
+        header = self._root.headers[0] if self._root.headers else None
+        if header is not None:
+            header.add_bin_item(
+                item_type="Embedding",
+                bin_data_id=bin_data_name,
+                format=fmt,
+            )
+
+        return item_id
+
+    def list_images(self) -> list[dict[str, str]]:
+        """Return metadata dicts for all embedded binary data items.
+
+        Each dict contains the ``<hh:binItem>`` attributes (``id``, ``Type``,
+        ``BinData``, ``Format``, …).
+        """
+
+        header = self._root.headers[0] if self._root.headers else None
+        if header is None:
+            return []
+        return header.list_bin_items()
+
+    def remove_image(self, item_id: str) -> bool:
+        """Remove an embedded image by its manifest item id.
+
+        This removes the binary data from the ZIP, the manifest entry, and
+        the header binItem entry.
+
+        Returns:
+            ``True`` if any component was removed.
+        """
+
+        removed = False
+        header = self._root.headers[0] if self._root.headers else None
+
+        # Find file path and binItem numeric id from header metadata
+        bin_data_path: str | None = None
+        bin_item_numeric_id: str | None = None
+        if header is not None:
+            for bi in header.list_bin_items():
+                bin_data_val = bi.get("BinData", "")
+                # Match by data file name prefix (e.g. "BIN0001" matches "BIN0001.jpg")
+                if bin_data_val.startswith(item_id):
+                    bin_item_numeric_id = bi.get("id")
+                    if bin_data_val:
+                        bin_data_path = f"BinData/{bin_data_val}"
+                    break
+
+        # Also try manifest-based lookup for the file path
+        if bin_data_path is None:
+            manifest_el = self._package._manifest_element()
+            if manifest_el is not None:
+                ns = {"opf": "http://www.idpf.org/2007/opf/"}
+                for it in manifest_el.findall("opf:item", ns):
+                    if it.get("id") == item_id:
+                        href = it.get("href", "")
+                        if href:
+                            bin_data_path = href
+                        break
+
+        # Remove from header binDataList (use the numeric id)
+        if header is not None and bin_item_numeric_id is not None:
+            if header.remove_bin_item(bin_item_numeric_id):
+                removed = True
+
+        # Remove from manifest
+        if self._package.remove_manifest_item(item_id):
+            removed = True
+
+        # Remove from ZIP
+        if bin_data_path and self._package.has_part(bin_data_path):
+            self._package.delete(bin_data_path)
+            removed = True
+
+        return removed
+
+    # ------------------------------------------------------------------
+    # Export helpers
+    # ------------------------------------------------------------------
+
+    def export_text(self, **kwargs: object) -> str:
+        """Export content as plain text.  Keyword args forwarded to :func:`~hwpx.tools.exporter.export_text`."""
+        from .tools.exporter import export_text
+        return export_text(self, **kwargs)  # type: ignore[arg-type]
+
+    def export_html(self, **kwargs: object) -> str:
+        """Export content as HTML.  Keyword args forwarded to :func:`~hwpx.tools.exporter.export_html`."""
+        from .tools.exporter import export_html
+        return export_html(self, **kwargs)  # type: ignore[arg-type]
+
+    def export_markdown(self, **kwargs: object) -> str:
+        """Export content as Markdown.  Keyword args forwarded to :func:`~hwpx.tools.exporter.export_markdown`."""
+        from .tools.exporter import export_markdown
+        return export_markdown(self, **kwargs)  # type: ignore[arg-type]
+
+    # ------------------------------------------------------------------
+    # Validation
+    # ------------------------------------------------------------------
+
+    def validate(self) -> "ValidationReport":
+        """Run XML schema validation on the current document state.
+
+        Returns a :class:`~hwpx.tools.validator.ValidationReport` with
+        any issues found.  This does **not** require ``validate_on_save``
+        to be enabled.
+        """
+        from .tools.validator import validate_document
+
+        return validate_document(self._to_bytes_raw())
+
+    def _run_pre_save_validation(self) -> None:
+        """Raise if validate_on_save is enabled and the document is invalid."""
+        if not self.validate_on_save:
+            return
+        report = self.validate()
+        if not report.ok:
+            msgs = "; ".join(str(i) for i in report.issues[:5])
+            remaining = len(report.issues) - 5
+            if remaining > 0:
+                msgs += f" … and {remaining} more"
+            raise ValueError(f"Document validation failed: {msgs}")
+
     def save_to_path(self, path: str | PathLike[str]) -> str | PathLike[str]:
         """Persist pending changes to *path* and return the same path."""
 
+        self._run_pre_save_validation()
         updates = self._root.serialize()
         result = self._package.save(path, updates)
         self._root.reset_dirty()
@@ -840,6 +1268,7 @@ class HwpxDocument:
     def save_to_stream(self, stream: BinaryIO) -> BinaryIO:
         """Persist pending changes to *stream* and return the same stream."""
 
+        self._run_pre_save_validation()
         updates = self._root.serialize()
         result = self._package.save(stream, updates)
         self._root.reset_dirty()
@@ -848,6 +1277,11 @@ class HwpxDocument:
     def to_bytes(self) -> bytes:
         """Serialize pending changes and return the HWPX archive as bytes."""
 
+        self._run_pre_save_validation()
+        return self._to_bytes_raw()
+
+    def _to_bytes_raw(self) -> bytes:
+        """Serialize without validation (used by :meth:`validate`)."""
         updates = self._root.serialize()
         result = self._package.save(None, updates)
         self._root.reset_dirty()

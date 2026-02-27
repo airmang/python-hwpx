@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import io
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO, Iterable, Iterator, Mapping, MutableMapping
@@ -452,6 +454,59 @@ class HwpxPackage:
             self._version_path_cache_resolved = True
         return self._version_path_cache
 
+    # ------------------------------------------------------------------
+    # Manifest item helpers (for BinData / images)
+    # ------------------------------------------------------------------
+
+    def _manifest_element(self) -> etree._Element | None:
+        """Return the ``<opf:manifest>`` element."""
+        manifest = self.manifest_tree()
+        ns = {"opf": _OPF_NS}
+        return manifest.find("opf:manifest", ns)
+
+    def add_manifest_item(
+        self,
+        item_id: str,
+        href: str,
+        media_type: str,
+    ) -> None:
+        """Add an ``<opf:item>`` to the manifest if *item_id* is not present."""
+        manifest_el = self._manifest_element()
+        if manifest_el is None:
+            raise HwpxStructureError("Manifest does not contain an <opf:manifest> element.")
+
+        ns = {"opf": _OPF_NS}
+        for existing in manifest_el.findall("opf:item", ns):
+            if existing.get("id") == item_id:
+                return  # already present
+
+        new_item = manifest_el.makeelement(
+            f"{{{_OPF_NS}}}item",
+            {"id": item_id, "href": href, "media-type": media_type},
+        )
+        manifest_el.append(new_item)
+        self._persist_manifest()
+
+    def remove_manifest_item(self, item_id: str) -> bool:
+        """Remove an ``<opf:item>`` by id.  Returns ``True`` on success."""
+        manifest_el = self._manifest_element()
+        if manifest_el is None:
+            return False
+
+        ns = {"opf": _OPF_NS}
+        for existing in manifest_el.findall("opf:item", ns):
+            if existing.get("id") == item_id:
+                manifest_el.remove(existing)
+                self._persist_manifest()
+                return True
+        return False
+
+    def _persist_manifest(self) -> None:
+        """Write the in-memory manifest tree back to the package."""
+        tree = self._manifest_tree
+        if tree is not None:
+            self.set_part(self.MANIFEST_PATH, tree)
+
     def _invalidate_caches(self, changed_path: str) -> None:
         if changed_path == self.MANIFEST_PATH:
             self._manifest_tree = None
@@ -489,8 +544,46 @@ class HwpxPackage:
             self._files[self.VERSION_PATH] = self._version.to_bytes()
             self._version.mark_clean()
         self._validate_structure()
-        with ZipFile(pkg_file, "w") as zf:
-            self._write_archive(zf)
+
+        if isinstance(pkg_file, (str, Path)):
+            # Atomic write: write to a temp file first, verify, then rename.
+            target = Path(pkg_file)
+            fd, tmp_path = tempfile.mkstemp(
+                dir=str(target.parent), suffix=".hwpx.tmp"
+            )
+            try:
+                with os.fdopen(fd, "wb") as tmp_fh:
+                    with ZipFile(tmp_fh, "w") as zf:
+                        self._write_archive(zf)
+                # Verify archive integrity before replacing the original.
+                with ZipFile(tmp_path, "r") as zf_check:
+                    bad = zf_check.testzip()
+                    if bad is not None:
+                        raise HwpxPackageError(
+                            f"ZIP integrity check failed for entry '{bad}'"
+                        )
+                os.replace(tmp_path, str(target))
+            except BaseException:
+                # Clean up the temp file on any error.
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
+        else:
+            # Stream target: write to a BytesIO first, verify, then copy.
+            buffer = io.BytesIO()
+            with ZipFile(buffer, "w") as zf:
+                self._write_archive(zf)
+            buffer.seek(0)
+            with ZipFile(buffer, "r") as zf_check:
+                bad = zf_check.testzip()
+                if bad is not None:
+                    raise HwpxPackageError(
+                        f"ZIP integrity check failed for entry '{bad}'"
+                    )
+            buffer.seek(0)
+            pkg_file.write(buffer.read())
 
     def _write_archive(self, zf: ZipFile) -> None:
         self._write_mimetype(zf)

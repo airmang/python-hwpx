@@ -1,5 +1,10 @@
 """Tooling helpers for inspecting HWPX archives."""
 
+from .exporter import (
+    export_html,
+    export_markdown,
+    export_text,
+)
 from .object_finder import FoundElement, ObjectFinder
 from .text_extractor import (
     DEFAULT_NAMESPACES,
@@ -33,4 +38,7 @@ __all__ = [
     "ValidationReport",
     "load_default_schemas",
     "validate_document",
+    "export_text",
+    "export_html",
+    "export_markdown",
 ]
