@@ -120,6 +120,12 @@
 
 - `add_paragraph(text="", ...) -> HwpxOxmlParagraph`
   - 대상 섹션에 단락을 추가합니다. 선택적으로 단락 및 런 서식 참조를 재정의하거나 추가 단락 속성을 주입할 수 있습니다.
+- `remove_paragraph(paragraph_or_index, section=None, section_index=None)`
+  - 단락을 삭제합니다. 인스턴스 또는 인덱스를 받습니다. `section`/`section_index`로 대상 섹션을 지정합니다.
+- `add_section(after=None) -> HwpxOxmlSection`
+  - 새 섹션을 문서에 추가합니다. `after`로 삽입 위치를 지정합니다. manifest/spine에 자동 등록됩니다.
+- `remove_section(section_or_index)`
+  - 섹션을 삭제합니다. 인스턴스 또는 인덱스를 받습니다. 마지막 섹션 삭제 시 `ValueError`가 발생합니다.
 - `add_table(rows, cols, ...) -> HwpxOxmlTable`
   - 단락을 삽입하고 그 안에 표 인라인 객체를 생성한 후, 표 래퍼를 반환합니다. `border_fill_id_ref`를 생략하면 헤더 참조 목록에 기본 실선 `borderFill`을 생성하고 표와 셀에 자동으로 연결합니다.
 - `add_shape(shape_type, ...) -> HwpxOxmlInlineObject`
@@ -398,6 +404,7 @@
 - `runs`: 각 런에 대한 `HwpxOxmlRun` 래퍼를 반환하는 프로퍼티입니다.
 - `text`: 런들의 텍스트를 연결하는 프로퍼티입니다. setter는 다른 자식 노드를 보존하면서 텍스트 내용을 교체합니다.
 - `add_run(text="", ...)`: 새 런을 추가하고, 선택적으로 소유 문서를 통해 일치하는 글자 스타일을 생성한 후, 래퍼를 반환합니다.
+- `remove()`: 단락을 소유 섹션에서 삭제합니다. 섹션의 마지막 단락이면 `ValueError`가 발생합니다.
 - `tables`: 단락 내에 포함된 `HwpxOxmlTable` 래퍼를 반환하는 프로퍼티입니다.
 - `add_table(...)`, `add_shape(...)`, `add_control(...)`: 적절한 런을 생성하여 인라인 객체(표, 도형, 컨트롤)를 삽입하고 래퍼 객체를 반환합니다.
 - `para_pr_id_ref`, `style_id_ref`, `char_pr_id_ref`: 단락 수준의 서식 재정의를 허용하는 setter가 있는 프로퍼티입니다.
@@ -413,6 +420,7 @@
 - `memos`: 섹션의 메모 래퍼를 반환하는 프로퍼티입니다.
 - `add_memo(...)`: 메모 그룹이 있는지 확인한 후 `HwpxOxmlMemoGroup.add_memo()`에 위임하는 편의 메서드입니다.
 - `add_paragraph(text="", ...)`: 선택적 서식 재정의와 함께 단락 엘리먼트를 추가하고 그 래퍼를 반환합니다.
+- `remove_paragraph(paragraph_or_index)`: 단락 인스턴스 또는 인덱스로 단락을 삭제합니다. 마지막 단락 삭제 시 `ValueError`가 발생합니다.
 - `mark_dirty()`, `dirty`, `reset_dirty()`: 섹션을 저장해야 하는지 여부를 추적합니다.
 - `to_bytes() -> bytes`: `_serialize_xml()`을 사용하여 섹션 엘리먼트를 직렬화합니다.
 
@@ -441,7 +449,10 @@
 - `memo_shape(memo_shape_id_ref)`: ID로 메모 모양을 가져옵니다.
 - `paragraphs`: 모든 섹션의 단락 래퍼를 연결하여 반환하는 프로퍼티입니다.
 - `add_paragraph(...)`: `section` 또는 `section_index`를 사용하여 대상 섹션을 선택하여 단락을 추가하도록 섹션에 위임합니다. 기본값은 마지막 섹션입니다.
-- `serialize() -> dict[str, bytes]`: 변경된(dirty) 섹션/헤더에 대한 업데이트된 파트 페이로드 딕셔너리를 반환합니다.
+- `remove_paragraph(paragraph_or_index, section=None, section_index=None)`: 단락을 삭제합니다. 인스턴스 또는 인덱스를 받습니다.
+- `add_section(after=None) -> HwpxOxmlSection`: 새 섹션을 추가합니다. manifest에 `<opf:item>`과 `<opf:itemref>`를 자동 등록합니다.
+- `remove_section(section_or_index)`: 섹션을 삭제합니다. 인스턴스 또는 인덱스를 받으며, 마지막 섹션 삭제 시 `ValueError`가 발생합니다.
+- `serialize() -> dict[str, bytes]`: 변경된(dirty) 섹션/헤더에 대한 업데이트된 파트 페이로드 딕셔너리를 반환합니다. manifest가 변경된 경우 함께 포함됩니다.
 - `reset_dirty()`: 저장 후 모든 섹션과 헤더를 깨끗한(clean) 상태로 표시합니다.
 - 내부 헬퍼는 캐시된 런 스타일을 유지 관리합니다.
 
@@ -587,6 +598,32 @@
 - `_iter_parts(document)`: `HwpxDocument`의 모든 헤더와 섹션에 대해 `(파트 이름, XML 바이트, 헤더 여부)`를 순회하는 내부 헬퍼입니다.
 - `_issues_from_error(part_name, exc)`: `lxml` 유효성 검사 오류를 `ValidationIssue` 인스턴스로 정규화합니다.
 - `validate_document(source, ...)`: 문서를 열고, 제공되지 않은 경우 기본 스키마를 로드하며, 각 헤더 및 섹션 파트를 적절한 파서로 검증하고 이슈를 집계합니다.
+
+***
+
+## 모듈 `hwpx.oxml.namespaces`
+
+OWPML 스키마에서 반복적으로 사용되는 네임스페이스 URI와 Clark 표기 접두사를 공유 상수로 제공합니다.
+
+### 상수
+
+| 상수 | 값 | 용도 |
+|------|-----|------|
+| `HP_NS` | `http://www.hancom.co.kr/hwpml/2011/paragraph` | 단락 네임스페이스 URI |
+| `HP` | `{http://www.hancom.co.kr/hwpml/2011/paragraph}` | Clark 표기 접두사 |
+| `HH_NS` | `http://www.hancom.co.kr/hwpml/2011/head` | 헤더 네임스페이스 URI |
+| `HH` | `{http://www.hancom.co.kr/hwpml/2011/head}` | Clark 표기 접두사 |
+| `HC_NS` | `http://www.hancom.co.kr/hwpml/2011/core` | 코어 네임스페이스 URI |
+| `HC` | `{http://www.hancom.co.kr/hwpml/2011/core}` | Clark 표기 접두사 |
+| `HS_NS` | `http://www.hancom.co.kr/hwpml/2011/section` | 섹션 네임스페이스 URI |
+| `HS` | `{http://www.hancom.co.kr/hwpml/2011/section}` | Clark 표기 접두사 |
+| `HP_2016_NS` | `http://www.hancom.co.kr/hwpml/2016/paragraph` | 2016 단락 네임스페이스 |
+| `HH_2016_NS` | `http://www.hancom.co.kr/hwpml/2016/head` | 2016 헤더 네임스페이스 |
+| `HC_2016_NS` | `http://www.hancom.co.kr/hwpml/2016/core` | 2016 코어 네임스페이스 |
+
+***
+
+## 공개 심볼 (`hwpx.__init__`)
 - `main(argv=None)`: 인자를 파싱하고, 문서를 검증하며, 결과를 출력하는 명령줄 진입점입니다. 성공 시 0을, 이슈 발생 시 0이 아닌 값을 반환합니다.
 
 ***

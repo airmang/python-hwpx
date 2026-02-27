@@ -20,6 +20,7 @@ examples
 
 schema-overview
 faq
+changelog
 ```
 
 ```{toctree}
@@ -32,11 +33,12 @@ api_reference
 
 ## 지금 바로 시작하기
 
-아래는 `python-hwpx`의 대표적인 패턴 세 가지입니다.
+아래는 `python-hwpx`의 대표적인 패턴 네 가지입니다.
 
 1. 로컬 HWPX 문서를 열어 문단을 읽어오기
 2. 빈 템플릿에서 새 문서를 만들고 표 및 메모를 추가하기
-3. 완성된 문서를 파일로 저장하기
+3. 단락 삭제·섹션 추가 등 문서 구조 변경하기
+4. 완성된 문서를 파일로 저장하기
 
 자세한 단계별 설명은 {doc}`quickstart`에서 확인할 수 있습니다.
 
@@ -56,11 +58,14 @@ memo, _, field_id = document.add_memo_with_anchor(
     paragraph=paragraph,
     memo_shape_id_ref="0",
 )
-print("생성된 메모 ID:", memo.id)
-print("필드 컨트롤 ID:", field_id)
 
-# 3) 저장
-document.save("updated-sample.hwpx")
+# 3) 단락 삭제 · 섹션 추가
+document.remove_paragraph(document.paragraphs[-1])
+new_sec = document.add_section()
+new_sec.add_paragraph("새 섹션의 첫 문단")
+
+# 4) 저장 (원자적 쓰기 + ZIP 무결성 검증)
+document.save_to_path("updated-sample.hwpx")
 ```
 
 ```{seealso}

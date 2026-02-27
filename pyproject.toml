@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx"
-version = "2.3"
+version = "2.4"
 description = "Hancom HWPX 패키지를 로드하고 편집하기 위한 Python 유틸리티 모음"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = { file = "LICENSE" }

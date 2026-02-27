@@ -54,7 +54,7 @@ extensions = [
 templates_path = ["_templates"]
 exclude_patterns: list[str] = ["_build", "Thumbs.db", ".DS_Store"]
 
-language = "en"
+language = "ko"
 
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
@@ -65,7 +65,7 @@ html_theme_options = {
 }
 
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", "objects.inv"),
+    "python": ("https://docs.python.org/3", None),
 }
 
 autosummary_generate = True

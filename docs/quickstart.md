@@ -37,7 +37,7 @@ from hwpx import HwpxDocument
 
 with HwpxDocument.open("input/sample.hwpx") as document:
     document.add_paragraph("with 블록 안에서 안전하게 편집")
-    document.save("output/sample-updated.hwpx")
+    document.save_to_path("output/sample-updated.hwpx")
 ```
 
 ## 2. 새 문단 추가하기
@@ -54,7 +54,42 @@ print("추가된 문단:", paragraph.text)
 
 문단은 항상 특정 섹션에 속합니다. 섹션을 지정하지 않으면 마지막 섹션을 사용합니다. 리턴값으로 받은 `paragraph`는 런(run) 추가, 메모 앵커 연결 등 후속 조작을 할 때 계속 활용할 수 있습니다.
 
-## 3. 표 만들기와 값 채우기
+## 3. 단락 삭제하기
+
+불필요한 단락은 인스턴스 또는 인덱스로 삭제할 수 있습니다.
+
+```python
+# 인스턴스로 삭제
+paragraph = document.paragraphs[-1]
+document.remove_paragraph(paragraph)
+
+# 인덱스로 삭제 (섹션 내 인덱스)
+section.remove_paragraph(0)
+```
+
+```{note}
+섹션에는 최소 하나의 단락이 필요합니다. 마지막 단락을 삭제하면 `ValueError`가 발생합니다.
+```
+
+## 4. 섹션 추가·삭제
+
+여러 레이아웃이 필요한 문서라면 섹션을 동적으로 추가하거나 삭제할 수 있습니다.
+
+```python
+# 문서 끝에 새 섹션 추가
+new_section = document.add_section()
+new_section.add_paragraph("두 번째 섹션의 내용")
+
+# 특정 위치에 삽입 (섹션 0 뒤)
+mid_section = document.add_section(after=0)
+
+# 섹션 삭제 (인덱스 또는 인스턴스)
+document.remove_section(mid_section)
+```
+
+추가된 섹션은 manifest/spine에 자동으로 등록되며, 저장 시 별도의 XML 파트(`Contents/sectionN.xml`)로 기록됩니다.
+
+## 5. 표 만들기와 값 채우기
 
 ```python
 table = document.add_table(rows=2, cols=2, section=section)
@@ -73,7 +108,7 @@ table.set_cell_text(1, 1, str(len(document.paragraphs)))
 병합된 표를 다룰 때는 `table.iter_grid()`/`table.get_cell_map()`으로 논리 좌표와 실제 셀을 매핑할 수 있으며, `table.set_cell_text(..., logical=True, split_merged=True)`로 논리 좌표 기반 편집과 병합 해제를 한 번에 처리할 수 있습니다.
 ```
 
-## 4. 메모와 필드 컨트롤 추가하기
+## 6. 메모와 필드 컨트롤 추가하기
 
 ```python
 memo, paragraph, field_id = document.add_memo_with_anchor(
@@ -92,15 +127,27 @@ print("필드 컨트롤 ID:", field_id)
 문서에 MEMO 컨트롤이 없으면 한/글에서 메모 풍선이 보이지 않습니다. `add_memo_with_anchor()`는 필수 컨트롤을 자동으로 만들어 주므로 초보자도 안전하게 사용할 수 있습니다.
 ```
 
-## 5. 다른 이름으로 저장하기
+## 7. 다른 이름으로 저장하기
 
 ```python
 output_path = "output/quickstart.hwpx"
-document.save(output_path)
+document.save_to_path(output_path)
 print("저장 완료:", output_path)
 ```
 
-`HwpxDocument.save()`에 경로를 넘기면 zip 기반의 HWPX 아카이브가 생성됩니다. 디렉터리가 없다면 `Path(output_path).parent.mkdir(parents=True, exist_ok=True)`로 먼저 준비해 주세요.
+`save_to_path()`는 원자적 쓰기(임시 파일 → rename)와 ZIP 무결성 검증을 수행합니다. 스트림으로 저장하려면 `save_to_stream()`을, 바이트로 직렬화하려면 `to_bytes()`를 사용하세요.
+
+```python
+# 스트림으로 저장
+from io import BytesIO
+buf = BytesIO()
+document.save_to_stream(buf)
+
+# 바이트로 직렬화
+raw = document.to_bytes()
+```
+
+디렉터리가 없다면 `Path(output_path).parent.mkdir(parents=True, exist_ok=True)`로 먼저 준비해 주세요.
 
 ## 다음 단계
 

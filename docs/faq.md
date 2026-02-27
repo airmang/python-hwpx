@@ -50,7 +50,11 @@ document = HwpxDocument.open(BytesIO(data))
 print(len(document.paragraphs))
 ```
 
-수정된 결과를 바이트로 받고 싶다면 `document.save()` 호출 시 경로를 생략하면 됩니다.
+수정된 결과를 바이트로 받고 싶다면 `document.to_bytes()`를 호출하세요.
+
+```python
+raw = document.to_bytes()
+```
 
 ## 중첩 문단을 제외하거나 특정 섹션만 순회하려면 어떻게 해야 하나요?
 
@@ -69,4 +73,26 @@ with TextExtractor("sample.hwpx") as extractor:
 
 ## 저장 시 원본 파일을 덮어쓰지 않고 새 파일로 만들고 싶습니다.
 
-`HwpxDocument.save("output.hwpx")`처럼 경로를 지정하면 해당 경로로 새 ZIP 아카이브가 생성됩니다. 이미 열린 파일 객체나 `BytesIO` 버퍼를 전달해도 되며, 반환값으로 새 경로 또는 버퍼가 제공됩니다.
+`document.save_to_path("output.hwpx")`처럼 경로를 지정하면 해당 경로로 새 ZIP 아카이브가 생성됩니다. 스트림으로 저장하려면 `save_to_stream()`을, 바이트로 변환하려면 `to_bytes()`를 사용하세요.
+
+```python
+# 파일로 저장
+document.save_to_path("output.hwpx")
+
+# 바이트로 직렬화
+raw = document.to_bytes()
+```
+
+## 단락을 삭제하면 오류가 발생합니다.
+
+섹션에는 최소 하나의 단락이 필요합니다. 마지막 단락을 삭제하려고 하면 `ValueError`가 발생합니다. 삭제 전에 단락 수를 확인하세요.
+
+```python
+section = document.sections[0]
+if len(section.paragraphs) > 1:
+    section.paragraphs[-1].remove()
+```
+
+## 섹션을 추가하면 한/글에서 보이지 않습니다.
+
+`document.add_section()`은 내부적으로 manifest/spine에 새 섹션을 자동 등록합니다. 반드시 `save_to_path()`로 저장해야 변경 사항이 반영됩니다. 저수준 API를 사용해 직접 섹션 XML을 만들었다면 manifest에 항목을 추가하지 않았을 가능성이 있으므로, 고수준 API(`HwpxDocument.add_section()`)를 사용하는 것을 권장합니다.

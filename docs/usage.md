@@ -1,6 +1,6 @@
 # 사용 가이드
 
-python-hwpx-codex는 HWPX 컨테이너를 검증하고 편집하기 위한 여러 계층의 API를 제공합니다. 이 문서에서는 패키지 수준에서 문서를 여는 방법부터 문단과 주석을 다루는 고수준 도구까지 핵심 사용 패턴을 소개합니다.
+python-hwpx는 HWPX 컨테이너를 검증하고 편집하기 위한 여러 계층의 API를 제공합니다. 이 문서에서는 패키지 수준에서 문서를 여는 방법부터 문단과 주석을 다루는 고수준 도구까지 핵심 사용 패턴을 소개합니다.
 
 ## 빠른 예제 모음
 
@@ -20,7 +20,7 @@ from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
 document.add_paragraph("첫 문단입니다.")
-document.save("new-document.hwpx")
+document.save_to_path("new-document.hwpx")
 ```
 
 ### 예제 3: 특정 단어 일괄 교체
@@ -30,7 +30,7 @@ from hwpx import HwpxDocument
 
 document = HwpxDocument.open("my-document.hwpx")
 document.replace_text_in_runs("TODO", "DONE", text_color="#FF0000")
-document.save("my-document-updated.hwpx")
+document.save_to_path("my-document-updated.hwpx")
 ```
 
 ### 예제 4: 문서 전체 메모 확인
@@ -62,7 +62,7 @@ from hwpx import HwpxDocument
 
 document = HwpxDocument.open("my-document.hwpx")
 buffer = BytesIO()
-document.save(buffer)
+document.save_to_stream(buffer)
 raw_bytes = buffer.getvalue()
 print("bytes:", len(raw_bytes))
 ```
@@ -73,7 +73,7 @@ print("bytes:", len(raw_bytes))
 from hwpx import HwpxDocument
 
 document = HwpxDocument.open("my-document.hwpx")
-document.save("output/copy.hwpx")
+document.save_to_path("output/copy.hwpx")
 ```
 
 ### 예제 8: 바이트 스트림에서 열기
@@ -648,7 +648,7 @@ if document.master_pages:
     if item is not None:
         item.set("name", "보고서 바탕쪽")
         master.mark_dirty()
-document.save("my-document.hwpx")
+document.save_to_path("my-document.hwpx")
 ```
 
 ### 예제 60: 문서 이력 주석 갱신
@@ -664,7 +664,7 @@ for history in document.histories:
     if comment is not None:
         comment.text = "QA 점검 완료"
         history.mark_dirty()
-document.save("my-document.hwpx")
+document.save_to_path("my-document.hwpx")
 ```
 
 ### 예제 61: 버전 메타데이터 업데이트
@@ -676,7 +676,62 @@ document = HwpxDocument.open("my-document.hwpx")
 if document.version:
     document.version.element.set("appVersion", "15.0.0.100 WIN32")
     document.version.mark_dirty()
-    document.save("my-document.hwpx")
+    document.save_to_path("my-document.hwpx")
+```
+
+### 예제 62: 단락 삭제하기
+
+```python
+from hwpx import HwpxDocument
+
+document = HwpxDocument.open("my-document.hwpx")
+# 마지막 단락 삭제
+if len(document.sections[0].paragraphs) > 1:
+    document.remove_paragraph(document.paragraphs[-1])
+document.save_to_path("my-document.hwpx")
+```
+
+### 예제 63: 섹션 내 인덱스로 단락 삭제
+
+```python
+from hwpx import HwpxDocument
+
+document = HwpxDocument.open("my-document.hwpx")
+section = document.sections[0]
+if len(section.paragraphs) > 1:
+    section.remove_paragraph(0)
+```
+
+### 예제 64: 새 섹션 추가
+
+```python
+from hwpx import HwpxDocument
+
+document = HwpxDocument.open("my-document.hwpx")
+new_section = document.add_section()
+new_section.add_paragraph("새 섹션의 내용")
+document.save_to_path("my-document.hwpx")
+```
+
+### 예제 65: 특정 위치에 섹션 삽입
+
+```python
+from hwpx import HwpxDocument
+
+document = HwpxDocument.open("my-document.hwpx")
+mid = document.add_section(after=0)
+mid.add_paragraph("중간에 삽입")
+print("섹션 수:", len(document.sections))
+```
+
+### 예제 66: 섹션 삭제
+
+```python
+from hwpx import HwpxDocument
+
+document = HwpxDocument.open("my-document.hwpx")
+if len(document.sections) > 1:
+    document.remove_section(len(document.sections) - 1)
 ```
 
 
@@ -751,6 +806,51 @@ options.set_page_size(width=72000, height=43200, orientation="WIDELY")
 options.set_page_margins(left=2000, right=2000, header=1500, footer=1500)
 
 document.headers[0].set_begin_numbering(page=1)
+```
+
+## 단락 삭제
+
+문단 객체의 `remove()` 메서드를 호출하거나, 섹션/문서 수준에서 인덱스 또는 인스턴스로 단락을 삭제할 수 있습니다.
+
+```python
+# 인스턴스로 삭제
+paragraph = document.paragraphs[-1]
+document.remove_paragraph(paragraph)
+
+# 섹션 내 인덱스로 삭제
+section = document.sections[0]
+section.remove_paragraph(2)
+
+# 단락 객체에서 직접 삭제
+section.paragraphs[1].remove()
+```
+
+```{warning}
+섹션에는 최소 하나의 단락이 필요합니다. 마지막 단락을 삭제하려고 하면 `ValueError`가 발생합니다.
+```
+
+## 섹션 추가·삭제
+
+문서에 새 섹션을 추가하거나 기존 섹션을 삭제할 수 있습니다. 섹션 추가 시 manifest/spine에 자동 등록되므로 별도의 매니페스트 조작이 필요 없습니다.
+
+```python
+# 문서 끝에 새 섹션 추가
+new_section = document.add_section()
+new_section.add_paragraph("새 섹션의 첫 문단")
+
+# 특정 위치에 삽입 (섹션 0 뒤)
+mid_section = document.add_section(after=0)
+mid_section.add_paragraph("중간에 삽입된 섹션")
+
+# 인스턴스로 삭제
+document.remove_section(mid_section)
+
+# 인덱스로 삭제
+document.remove_section(1)
+```
+
+```{warning}
+문서에는 최소 하나의 섹션이 필요합니다. 마지막 섹션을 삭제하려고 하면 `ValueError`가 발생합니다.
 ```
 
 ## 메모 다루기
@@ -865,10 +965,10 @@ assert run.bold is True and run.underline is True
 
 런의 `bold`, `italic`, `underline` 속성은 문서와 연결된 상태에서만 동작하며, 속성을 변경하면 헤더의 `charProperties` 목록과 관련 캐시가 자동으로 업데이트됩니다.
 
-편집이 끝나면 `HwpxDocument.save()`를 호출해 변경 사항을 원본 또는 새 파일에 기록합니다.
+편집이 끝나면 `save_to_path()` 또는 `save_to_stream()`을 호출해 변경 사항을 파일이나 스트림에 기록합니다.
 
 ```python
-document.save("edited.hwpx")
+document.save_to_path("edited.hwpx")
 ```
 
 ## 텍스트 추출과 주석 표현
@@ -933,12 +1033,27 @@ for element in paragraphs_with_bookmark:
 
 ## 변경 사항 저장과 결과물 확인
 
-`HwpxDocument.save()`는 내부적으로 `hwpx.package.HwpxPackage.save()`를 호출하여 수정된 파트만 새 ZIP 아카이브로 직렬화합니다. 저장 대상 경로를 생략하면 원본 파일을 덮어쓰고, 파일 객체나 바이트 버퍼를 전달하면 인메모리 출력도 지원합니다.
+`HwpxDocument`는 세 가지 저장 방법을 제공합니다.
+
+| 메서드 | 설명 |
+|--------|------|
+| `save_to_path(path)` | 원자적 쓰기 + ZIP 무결성 검증 후 파일 저장 |
+| `save_to_stream(stream)` | `BinaryIO` 스트림에 기록 |
+| `to_bytes()` | `bytes`로 직렬화 |
 
 ```python
-buffer = document.save()  # 원본 경로가 없을 때는 bytes 를 반환
+# 파일로 저장
+document.save_to_path("result.hwpx")
+
+# 스트림으로 저장
+from io import BytesIO
+buf = BytesIO()
+document.save_to_stream(buf)
+
+# 바이트로 직렬화
+raw = document.to_bytes()
 with open("result.hwpx", "wb") as fp:
-    fp.write(buffer)
+    fp.write(raw)
 ```
 
-패키지 수준에서 바로 작업하고 싶다면 `HwpxPackage.set_part()`/`save()`를 사용해 XML 조각을 교체할 수도 있습니다. 다만 고수준 API(`HwpxDocument`)를 통해 편집한 경우에는 `document.save()`를 호출해 내부 캐시 상태를 깨끗하게 유지하는 것이 좋습니다.
+패키지 수준에서 바로 작업하고 싶다면 `HwpxPackage.set_part()`/`save()`를 사용해 XML 조각을 교체할 수도 있습니다. 다만 고수준 API(`HwpxDocument`)를 통해 편집한 경우에는 `save_to_path()`를 호출해 내부 캐시 상태를 깨끗하게 유지하는 것이 좋습니다.

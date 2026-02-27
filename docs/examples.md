@@ -12,7 +12,7 @@ from hwpx.templates import blank_document_bytes
 
 document = HwpxDocument.open(BytesIO(blank_document_bytes()))
 document.add_paragraph("첫 문단입니다.")
-document.save("playground.hwpx")
+document.save_to_path("playground.hwpx")
 ```
 
 ## 1. 보고서 템플릿에 표와 개체 추가하기
@@ -77,10 +77,37 @@ document.add_control(
     attributes={"id": "guideline-1", "type": "LINE"},
 )
 
-document.save("examples/FormattingShowcase-updated.hwpx")
+document.save_to_path("examples/FormattingShowcase-updated.hwpx")
 ```
 
-## 2. 하이라이트와 주석을 포함한 텍스트 보고서 생성하기
+## 2. 단락 삭제와 섹션 관리
+
+```python
+from hwpx import HwpxDocument
+
+document = HwpxDocument.open("examples/FormattingShowcase.hwpx")
+section = document.sections[0]
+
+# 빈 단락 제거
+for para in list(section.paragraphs):
+    if not para.text.strip() and len(section.paragraphs) > 1:
+        para.remove()
+
+# 새 섹션 추가 후 내용 작성
+new_sec = document.add_section()
+new_sec.add_paragraph("부록 A")
+new_sec.add_paragraph("추가 데이터가 여기에 들어갑니다.")
+
+print("섹션 수:", len(document.sections))
+
+# 필요 없는 섹션 삭제
+if len(document.sections) > 1:
+    document.remove_section(len(document.sections) - 1)
+
+document.save_to_path("examples/cleaned.hwpx")
+```
+
+## 3. 하이라이트와 주석을 포함한 텍스트 보고서 생성하기
 
 ```python
 from hwpx.tools.text_extractor import AnnotationOptions, TextExtractor
@@ -112,7 +139,7 @@ with TextExtractor("examples/FormattingShowcase.hwpx") as extractor:
 
 `AnnotationOptions`를 활용하면 하이라이트 구간이 `[HIGHLIGHT color=#ffff00]텍스트[/HIGHLIGHT]` 형태로 출력되고, 각주와 미주 내용은 인라인으로 삽입됩니다. 하이퍼링크는 실제 URL을 포함하며, 컨트롤은 `control_placeholder` 형식에 따라 자리표시자로 치환됩니다.
 
-## 3. 특정 태그를 검색해 요약 정보 만들기
+## 4. 특정 태그를 검색해 요약 정보 만들기
 
 ```python
 from hwpx.tools.object_finder import ObjectFinder
