@@ -268,7 +268,7 @@ class TestFileIO:
         doc = _new()
         doc.add_paragraph("file test")
         path = tmp_path / "test.hwpx"
-        doc.save(str(path))
+        doc.save_to_path(str(path))
         doc2 = HwpxDocument.open(str(path))
         texts = [p.text for p in doc2.paragraphs]
         assert "file test" in texts
@@ -277,7 +277,7 @@ class TestFileIO:
         doc = _new()
         doc.add_paragraph("bytesio")
         buf = io.BytesIO()
-        doc.save(buf)
+        doc.save_to_stream(buf)
         buf.seek(0)
         doc2 = HwpxDocument.open(buf)
         texts = [p.text for p in doc2.paragraphs]

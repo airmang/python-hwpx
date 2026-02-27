@@ -2021,10 +2021,11 @@ class HwpxOxmlTableCell:
 
     @property
     def text(self) -> str:
-        text_element = self.element.find(f".//{_HP}t")
-        if text_element is None or text_element.text is None:
-            return ""
-        return text_element.text
+        parts: list[str] = []
+        for t_elem in self.element.findall(f".//{_HP}t"):
+            if t_elem.text:
+                parts.append(t_elem.text)
+        return "".join(parts)
 
     @text.setter
     def text(self, value: str) -> None:
@@ -2800,6 +2801,26 @@ class HwpxOxmlParagraph:
         _clear_paragraph_layout_cache(self.element)
         self.section.mark_dirty()
 
+    def remove(self) -> None:
+        """Remove this paragraph from its parent section.
+
+        After removal, the paragraph wrapper should no longer be used.
+        Raises ``ValueError`` if the section would become empty (HWPX
+        requires at least one ``<hp:p>`` per section).
+        """
+        parent = self.section.element
+        siblings = parent.findall(f"{_HP}p")
+        if len(siblings) <= 1:
+            raise ValueError(
+                "섹션에는 최소 하나의 단락이 필요합니다. "
+                "마지막 단락은 삭제할 수 없습니다."
+            )
+        try:
+            parent.remove(self.element)
+        except ValueError:  # pragma: no cover – defensive
+            return
+        self.section.mark_dirty()
+
     def _create_run_for_object(
         self,
         run_attributes: dict[str, str] | None = None,
@@ -3177,7 +3198,6 @@ class HwpxOxmlParagraph:
             The ``<hp:ctrl>`` element wrapping the ``<hp:fieldBegin>``.
         """
         field_id = _object_id()
-        field_inst_id = _object_id()
 
         # Run 1: fieldBegin
         run1 = self._create_run_for_object(char_pr_id_ref=char_pr_id_ref)
@@ -3549,6 +3569,23 @@ class HwpxOxmlSection:
             char_pr_id_ref=char_pr_id_ref,
             attributes=attributes,
         )
+
+    def remove_paragraph(
+        self,
+        paragraph: HwpxOxmlParagraph | int,
+    ) -> None:
+        """Remove *paragraph* from this section.
+
+        Accepts either a :class:`HwpxOxmlParagraph` instance or an integer
+        index into :attr:`paragraphs`.  Raises ``ValueError`` if the section
+        would become empty (HWPX requires at least one ``<hp:p>``).
+        """
+        if isinstance(paragraph, int):
+            paras = self.paragraphs
+            if paragraph < 0 or paragraph >= len(paras):
+                raise IndexError(f"단락 인덱스 {paragraph}이(가) 범위를 벗어났습니다 (총 {len(paras)}개)")
+            paragraph = paras[paragraph]
+        paragraph.remove()
 
     def add_paragraph(
         self,
@@ -4215,6 +4252,7 @@ class HwpxOxmlDocument:
         self._histories = list(histories or [])
         self._version = version
         self._char_property_cache: dict[str, RunStyle] | None = None
+        self._manifest_dirty = False
 
         for section in self._sections:
             section.attach_document(self)
@@ -4567,9 +4605,153 @@ class HwpxOxmlDocument:
             **extra_attrs,
         )
 
+    def remove_paragraph(
+        self,
+        paragraph: HwpxOxmlParagraph | int,
+        *,
+        section: "HwpxOxmlSection | None" = None,
+        section_index: int | None = None,
+    ) -> None:
+        """Remove *paragraph* from the document.
+
+        When *paragraph* is an integer it is treated as an index into the
+        paragraphs of the specified (or last) section.
+        """
+        if isinstance(paragraph, int):
+            if section is None and section_index is not None:
+                section = self._sections[section_index]
+            if section is None:
+                if not self._sections:
+                    raise ValueError("document does not contain any sections")
+                section = self._sections[-1]
+            section.remove_paragraph(paragraph)
+        else:
+            paragraph.remove()
+
+    # ------------------------------------------------------------------
+    # Section management
+    # ------------------------------------------------------------------
+
+    def add_section(self, *, after: int | None = None) -> HwpxOxmlSection:
+        """Append a new empty section to the document.
+
+        If *after* is given, the section is inserted after the section at
+        that index. Otherwise it is appended at the end.
+
+        Returns the newly created :class:`HwpxOxmlSection`.
+        """
+        # Determine part name
+        existing_indices: list[int] = []
+        for sec in self._sections:
+            import re as _section_re
+            m = _section_re.search(r'section(\d+)', sec.part_name)
+            if m:
+                existing_indices.append(int(m.group(1)))
+        next_index = (max(existing_indices) + 1) if existing_indices else 0
+        section_id = f"section{next_index}"
+        part_name = f"Contents/{section_id}.xml"
+
+        # Build minimal section XML
+        section_element = ET.Element(f"{_HP}sec")
+        para_attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
+        para = ET.SubElement(section_element, f"{_HP}p", para_attrs)
+        run = ET.SubElement(para, f"{_HP}run", {"charPrIDRef": "0"})
+        ET.SubElement(run, f"{_HP}t")
+
+        new_section = HwpxOxmlSection(part_name, section_element, self)
+
+        if after is not None:
+            insert_pos = min(after + 1, len(self._sections))
+            self._sections.insert(insert_pos, new_section)
+        else:
+            self._sections.append(new_section)
+
+        # Update manifest: add <opf:item> and <opf:itemref>
+        self._add_section_to_manifest(section_id, part_name)
+
+        new_section.mark_dirty()
+        return new_section
+
+    def remove_section(
+        self, section: "HwpxOxmlSection | int",
+    ) -> None:
+        """Remove a section from the document.
+
+        Accepts either a :class:`HwpxOxmlSection` or an integer index.
+        Raises ``ValueError`` if the document would be left with no sections.
+        """
+        if len(self._sections) <= 1:
+            raise ValueError(
+                "문서에는 최소 하나의 섹션이 필요합니다. 마지막 섹션은 삭제할 수 없습니다."
+            )
+        if isinstance(section, int):
+            if section < 0 or section >= len(self._sections):
+                raise IndexError(
+                    f"섹션 인덱스 {section}이(가) 범위를 벗어났습니다 (총 {len(self._sections)}개)"
+                )
+            removed = self._sections.pop(section)
+        else:
+            try:
+                self._sections.remove(section)
+                removed = section
+            except ValueError:
+                raise ValueError("해당 섹션이 이 문서에 속하지 않습니다.") from None
+
+        # Update manifest: remove <opf:item> and <opf:itemref>
+        self._remove_section_from_manifest(removed.part_name)
+
+    # ------------------------------------------------------------------
+    # Manifest helpers (private)
+    # ------------------------------------------------------------------
+
+    _OPF_NS = "http://www.idpf.org/2007/opf/"
+
+    def _add_section_to_manifest(self, section_id: str, href: str) -> None:
+        """Add an ``<opf:item>`` + ``<opf:itemref>`` for a new section."""
+        ns = {"opf": self._OPF_NS}
+        manifest_el = self._manifest.find("opf:manifest", ns)
+        spine_el = self._manifest.find("opf:spine", ns)
+        if manifest_el is not None:
+            item = manifest_el.makeelement(
+                f"{{{self._OPF_NS}}}item",
+                {"id": section_id, "href": href, "media-type": "application/xml"},
+            )
+            manifest_el.append(item)
+        if spine_el is not None:
+            itemref = spine_el.makeelement(
+                f"{{{self._OPF_NS}}}itemref",
+                {"idref": section_id, "linear": "yes"},
+            )
+            spine_el.append(itemref)
+        self._manifest_dirty = True
+
+    def _remove_section_from_manifest(self, part_name: str) -> None:
+        """Remove the ``<opf:item>`` + ``<opf:itemref>`` for a deleted section."""
+        ns = {"opf": self._OPF_NS}
+        manifest_el = self._manifest.find("opf:manifest", ns)
+        spine_el = self._manifest.find("opf:spine", ns)
+
+        # Find the item by href
+        target_id: str | None = None
+        if manifest_el is not None:
+            for item in manifest_el.findall("opf:item", ns):
+                if item.get("href") == part_name:
+                    target_id = item.get("id")
+                    manifest_el.remove(item)
+                    break
+
+        if target_id and spine_el is not None:
+            for itemref in spine_el.findall("opf:itemref", ns):
+                if itemref.get("idref") == target_id:
+                    spine_el.remove(itemref)
+                    break
+        self._manifest_dirty = True
+
     def serialize(self) -> dict[str, bytes]:
         """Return a mapping of part names to updated XML payloads."""
         updates: dict[str, bytes] = {}
+        if self._manifest_dirty:
+            updates["Contents/content.hpf"] = _serialize_xml(self._manifest)
         for section in self._sections:
             if section.dirty:
                 updates[section.part_name] = section.to_bytes()
@@ -4592,6 +4774,7 @@ class HwpxOxmlDocument:
 
     def reset_dirty(self) -> None:
         """Mark all parts as clean after a successful save."""
+        self._manifest_dirty = False
         for section in self._sections:
             section.reset_dirty()
         for header in self._headers:

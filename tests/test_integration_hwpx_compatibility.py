@@ -202,7 +202,7 @@ def test_master_page_history_and_version_round_trip(tmp_path: Path) -> None:
     version_part.mark_dirty()
 
     output_path = tmp_path / "master_history_roundtrip.hwpx"
-    document.save(output_path)
+    document.save_to_path(output_path)
 
     reopened = HwpxDocument.open(output_path)
     assert reopened.master_pages

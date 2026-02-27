@@ -504,6 +504,44 @@ class HwpxDocument:
 
         return memo, target_paragraph, field_value
 
+    def remove_paragraph(
+        self,
+        paragraph: HwpxOxmlParagraph | int,
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> None:
+        """Remove a paragraph from the document.
+
+        *paragraph* may be a :class:`HwpxOxmlParagraph` instance or an
+        integer index into the paragraphs of the specified (or last)
+        section.
+
+        Raises ``ValueError`` if the target section would become empty.
+        """
+        self._root.remove_paragraph(
+            paragraph,
+            section=section,
+            section_index=section_index,
+        )
+
+    def add_section(self, *, after: int | None = None) -> HwpxOxmlSection:
+        """Append a new empty section to the document.
+
+        If *after* is given, the section is inserted after the section at
+        that index.  Returns the newly created section.
+        """
+        return self._root.add_section(after=after)
+
+    def remove_section(
+        self, section: HwpxOxmlSection | int,
+    ) -> None:
+        """Remove a section from the document.
+
+        Raises ``ValueError`` if the document would have no sections left.
+        """
+        self._root.remove_section(section)
+
     @property
     def paragraphs(self) -> list[HwpxOxmlParagraph]:
         """Return all paragraphs across every section."""
