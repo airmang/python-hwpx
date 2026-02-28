@@ -2541,7 +2541,12 @@ class HwpxOxmlTable:
                     existing_target.set_size(col_width, row_height)
                     continue
 
-                new_cell_element = ET.Element(f"{_HP}tc", dict(template_attrs))
+                # Use makeelement() so the new cell matches the XML engine
+                # of the existing tree (stdlib ET or lxml).  ET.Element()
+                # always produces stdlib elements which cannot be appended to
+                # an lxml tree (and vice-versa), causing TypeError at runtime
+                # when splitting cells in documents parsed via lxml.
+                new_cell_element = row_element.makeelement(f"{_HP}tc", dict(template_attrs))
                 for child in preserved_children:
                     new_cell_element.append(deepcopy(child))
 
