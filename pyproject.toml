@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx"
-version = "2.6"
+version = "2.7"
 description = "Hancom HWPX 패키지를 로드하고 편집하기 위한 Python 유틸리티 모음"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = { file = "LICENSE" }
@@ -49,9 +49,12 @@ Documentation = "https://github.com/airmang/python-hwpx/tree/main/docs"
 Issues = "https://github.com/airmang/python-hwpx/issues"
 
 [project.scripts]
+hwpx-unpack = "hwpx.tools.archive_cli:unpack_main"
+hwpx-pack = "hwpx.tools.archive_cli:pack_main"
 hwpx-validate = "hwpx.tools.validator:main"
 hwpx-validate-package = "hwpx.tools.package_validator:main"
 hwpx-page-guard = "hwpx.tools.page_guard:main"
+hwpx-analyze-template = "hwpx.tools.template_analyzer:main"
 hwpx-text-extract = "hwpx.tools.text_extract_cli:main"
 
 [tool.setuptools]

@@ -1,3 +1,9 @@
+"""Proxy checks for layout drift between a reference and an output HWPX.
+
+This module does not calculate rendered page counts. It compares structural and
+textual metrics that often correlate with page-layout drift.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -16,6 +22,22 @@ NS = {
     "opf": "http://www.idpf.org/2007/opf/",
 }
 
+_SHAPE_TAGS = {
+    "line",
+    "rect",
+    "ellipse",
+    "arc",
+    "polygon",
+    "curve",
+    "connectLine",
+    "textart",
+    "pic",
+    "compose",
+    "equation",
+    "ole",
+    "container",
+}
+
 __all__ = [
     "DocumentMetrics",
     "collect_metrics",
@@ -31,7 +53,11 @@ class DocumentMetrics:
     page_break_count: int
     column_break_count: int
     table_count: int
+    shape_count: int
+    control_count: int
     table_shapes: list[tuple[str, str, str, str, str, str]]
+    shape_types: list[tuple[str, int]]
+    control_types: list[tuple[str, int]]
     text_char_total: int
     text_char_total_nospace: int
     paragraph_text_lengths: list[int]
@@ -66,6 +92,12 @@ def _text_of_t_node(node: etree._Element) -> str:
     return "".join(node.itertext())
 
 
+def _local_name(tag: str) -> str:
+    if "}" in tag:
+        return tag.split("}", 1)[1]
+    return tag
+
+
 def _iter_section_roots(source: str | Path | bytes | BinaryIO) -> Iterable[etree._Element]:
     if isinstance(source, bytes):
         archive = ZipFile(io.BytesIO(source), "r")
@@ -85,6 +117,8 @@ def collect_metrics(source: str | Path | bytes | BinaryIO) -> DocumentMetrics:
     paragraphs: list[etree._Element] = []
     tables: list[etree._Element] = []
     table_shapes: list[tuple[str, str, str, str, str, str]] = []
+    shape_types: dict[str, int] = {}
+    control_types: dict[str, int] = {}
     paragraph_text_lengths: list[int] = []
     text_char_total = 0
     text_char_total_nospace = 0
@@ -99,6 +133,19 @@ def collect_metrics(source: str | Path | bytes | BinaryIO) -> DocumentMetrics:
 
         section_tables = root.xpath(".//hp:tbl", namespaces=NS)
         tables.extend(section_tables)
+
+        for element in root.iter():
+            name = _local_name(element.tag)
+            if name in _SHAPE_TAGS:
+                shape_types[name] = shape_types.get(name, 0) + 1
+            if name == "ctrl":
+                control_counted = False
+                for child in element:
+                    child_name = _local_name(child.tag)
+                    control_types[child_name] = control_types.get(child_name, 0) + 1
+                    control_counted = True
+                if not control_counted:
+                    control_types["ctrl"] = control_types.get("ctrl", 0) + 1
 
         for table in section_tables:
             size = table.find("hp:sz", namespaces=NS)
@@ -132,7 +179,11 @@ def collect_metrics(source: str | Path | bytes | BinaryIO) -> DocumentMetrics:
         page_break_count=page_break_count,
         column_break_count=column_break_count,
         table_count=len(tables),
+        shape_count=sum(shape_types.values()),
+        control_count=sum(control_types.values()),
         table_shapes=table_shapes,
+        shape_types=sorted(shape_types.items()),
+        control_types=sorted(control_types.items()),
         text_char_total=text_char_total,
         text_char_total_nospace=text_char_total_nospace,
         paragraph_text_lengths=paragraph_text_lengths,
@@ -173,8 +224,18 @@ def compare_metrics(
         )
     if reference.table_count != output.table_count:
         errors.append(f"table count mismatch: ref={reference.table_count}, out={output.table_count}")
+    if reference.shape_count != output.shape_count:
+        errors.append(f"shape count mismatch: ref={reference.shape_count}, out={output.shape_count}")
+    if reference.control_count != output.control_count:
+        errors.append(
+            f"control count mismatch: ref={reference.control_count}, out={output.control_count}"
+        )
     if reference.table_shapes != output.table_shapes:
         errors.append("table shape mismatch (rowCnt/colCnt/width/height/repeatHeader/pageBreak)")
+    if reference.shape_types != output.shape_types:
+        errors.append("shape type histogram mismatch")
+    if reference.control_types != output.control_types:
+        errors.append("control type histogram mismatch")
 
     text_delta = _ratio_delta(reference.text_char_total_nospace, output.text_char_total_nospace)
     if text_delta > max_text_delta_ratio:
@@ -202,7 +263,9 @@ def compare_metrics(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Reference-vs-output HWPX page drift guard")
+    parser = argparse.ArgumentParser(
+        description="Reference-vs-output HWPX layout-drift proxy checker"
+    )
     parser.add_argument("--reference", "-r", required=True, help="Reference HWPX path")
     parser.add_argument("--output", "-o", required=True, help="Output HWPX path")
     parser.add_argument("--max-text-delta-ratio", type=float, default=0.15)

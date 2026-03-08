@@ -2,6 +2,19 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [2.7] - 2026-03-08
+### 추가
+- `hwpx-unpack`, `hwpx-pack`, `hwpx-analyze-template` CLI를 추가했습니다.
+- `src/hwpx/tools/archive_cli.py`를 추가해 unpack/pack 워크플로를 패키지 레벨 도구로 승격했습니다.
+- unpack 시 `.hwpx-pack-metadata.json`을 기록하고, pack 시 이를 사용해 원본 ZIP 엔트리 순서/압축 방식을 가능한 범위에서 보존하도록 했습니다.
+- `src/hwpx/tools/template_analyzer.py`와 `DevDoc/hwpxskill_gap_audit.md`를 추가했습니다.
+
+### 변경
+- `scripts/office/unpack.py`, `scripts/office/pack.py`, `scripts/analyze_template.py`를 패키지 도구 래퍼로 정리했습니다.
+- `page_guard`에 shape/control count 및 히스토그램 비교를 추가하고, rendered page count가 아닌 layout-drift proxy임을 문서와 CLI 설명에 명시했습니다.
+- README와 `docs/usage.md`에 새 CLI 사용 예시를 추가했습니다.
+- 새 tooling에 대한 CLI/추출/overwrite/page-guard 회귀 테스트를 강화했습니다.
+
 ## [2.6] - 2026-03-08
 ### 추가
 - `hwpx-validate-package` CLI와 `hwpx.tools.package_validator`를 추가해 ZIP/OPC/HWPX 패키지 구조, `mimetype`, `container.xml`, manifest/spine 참조, XML well-formedness를 점검할 수 있게 했습니다.

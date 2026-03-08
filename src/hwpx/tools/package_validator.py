@@ -68,13 +68,15 @@ def _parse_xml(payload: bytes) -> ET.Element:
 def _container_rootfiles(container_root: ET.Element) -> list[str]:
     paths: list[str] = []
     for namespace in CONTAINER_NS.values():
-        paths.extend(
-            elem.get("full-path")
-            or elem.get("fullPath")
-            or elem.get("full_path")
-            for elem in container_root.findall(f".//{{{namespace}}}rootfile")
-        )
-    return [path for path in paths if path]
+        for elem in container_root.findall(f".//{{{namespace}}}rootfile"):
+            path = (
+                elem.get("full-path")
+                or elem.get("fullPath")
+                or elem.get("full_path")
+            )
+            if path:
+                paths.append(path)
+    return paths
 
 
 def _manifest_hrefs(manifest_root: ET.Element) -> set[str]:

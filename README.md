@@ -98,7 +98,8 @@ doc.save_to_path("결과물.hwpx")
 | 🔎 **객체 검색** | 태그/속성/XPath | 특정 요소 탐색, 주석 이터레이터 |
 | 🎨 **스타일 치환** | 서식 기반 필터 | 색상/밑줄/charPrIDRef 기반 Run 검색 및 교체 |
 | 📤 **내보내기** | 텍스트/HTML/Markdown | 문서 변환 출력 |
-| ✅ **유효성 검사** | XSD 스키마 | CLI(`hwpx-validate`) 및 API |
+| ✅ **유효성 검사** | XSD + 패키지 구조 | CLI(`hwpx-validate`, `hwpx-validate-package`) 및 API |
+| 🧰 **워크플로 도구** | unpack/pack/template analyze/page guard | 템플릿 보존형 XML-first 작업 보조 |
 | 🏗️ **저수준 XML** | 데이터클래스 매핑 | OWPML 스키마 ↔ Python 객체 직접 조작 |
 | 🔄 **네임스페이스 호환** | 자동 정규화 | HWPML 2016 → 2011 자동 변환 |
 
@@ -195,10 +196,15 @@ python-hwpx
 │   ├── body.py          #   타입이 지정된 본문 모델
 │   └── common.py        #   범용 XML ↔ 데이터클래스
 ├── hwpx.tools
+│   ├── archive_cli      #   unpack/pack CLI 및 재패킹 메타데이터
 │   ├── text_extractor   #   텍스트 추출 파이프라인
+│   ├── text_extract_cli #   텍스트 추출 CLI
 │   ├── object_finder    #   객체 탐색 유틸리티
 │   ├── exporter         #   텍스트/HTML/Markdown 내보내기
-│   └── validator        #   스키마 유효성 검사 (hwpx-validate CLI)
+│   ├── validator        #   스키마 유효성 검사 (hwpx-validate CLI)
+│   ├── package_validator#   ZIP/OPC/HWPX 구조 검사
+│   ├── page_guard       #   layout-drift proxy
+│   └── template_analyzer#   레퍼런스 문서 분석/추출
 └── hwpx.templates       # 내장 빈 문서 템플릿
 ```
 
@@ -207,7 +213,25 @@ python-hwpx
 ```bash
 # HWPX 문서 스키마 유효성 검사
 hwpx-validate 문서.hwpx
+
+# ZIP/OPC/HWPX 패키지 구조 검사
+hwpx-validate-package 문서.hwpx
+
+# HWPX 풀기 / 다시 묶기
+hwpx-unpack 문서.hwpx ./unpacked
+hwpx-pack ./unpacked ./repacked.hwpx
+
+# 레퍼런스 템플릿 분석과 파트 추출
+hwpx-analyze-template 문서.hwpx --extract-dir ./template-parts --json
+
+# plain / markdown 텍스트 추출
+hwpx-text-extract 문서.hwpx --format markdown --output 문서.md
+
+# 레이아웃 드리프트 프록시 비교
+hwpx-page-guard --reference 원본.hwpx --output 결과.hwpx
 ```
+
+`hwpx-page-guard`는 렌더된 실제 쪽수를 계산하지 않습니다. 대신 단락 수, 표 수, shape/control 수, 명시적 page/column break, 텍스트 길이 통계를 비교해 레이아웃 드리프트 위험을 탐지하는 프록시 도구입니다.
 
 ## 문서
 

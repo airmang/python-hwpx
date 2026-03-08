@@ -2,6 +2,30 @@
 
 python-hwpx는 HWPX 컨테이너를 검증하고 편집하기 위한 여러 계층의 API를 제공합니다. 이 문서에서는 패키지 수준에서 문서를 여는 방법부터 문단과 주석을 다루는 고수준 도구까지 핵심 사용 패턴을 소개합니다.
 
+## CLI 워크플로
+
+라이브러리 API 외에도 템플릿 보존형 작업 흐름을 위한 CLI를 제공합니다.
+
+```bash
+# 패키지 구조 점검
+hwpx-validate-package sample.hwpx
+
+# XML-first 편집용 unpack / pack
+hwpx-unpack sample.hwpx ./sample-unpacked
+hwpx-pack ./sample-unpacked ./sample-repacked.hwpx
+
+# 템플릿 분석과 파트 추출
+hwpx-analyze-template sample.hwpx --extract-dir ./template-parts --json
+
+# 텍스트 추출
+hwpx-text-extract sample.hwpx --format markdown --output sample.md
+
+# 레이아웃 드리프트 프록시
+hwpx-page-guard --reference sample.hwpx --output edited.hwpx
+```
+
+`hwpx-page-guard`는 실제 렌더러의 쪽수를 계산하지 않고, 구조 및 텍스트 통계를 비교해 레이아웃 변화 위험을 탐지하는 프록시 검사기입니다.
+
 ## 빠른 예제 모음
 
 ### 예제 1: 문단 수 세기
