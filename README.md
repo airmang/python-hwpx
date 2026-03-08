@@ -99,7 +99,7 @@ doc.save_to_path("결과물.hwpx")
 | 🎨 **스타일 치환** | 서식 기반 필터 | 색상/밑줄/charPrIDRef 기반 Run 검색 및 교체 |
 | 📤 **내보내기** | 텍스트/HTML/Markdown | 문서 변환 출력 |
 | ✅ **유효성 검사** | XSD + 패키지 구조 | CLI(`hwpx-validate`, `hwpx-validate-package`) 및 API |
-| 🧰 **워크플로 도구** | unpack/pack/template analyze/page guard | 템플릿 보존형 XML-first 작업 보조 |
+| 🧰 **작업 도구** | unpack/pack/분석/비교 | 패키지 점검과 재구성 작업 보조 |
 | 🏗️ **저수준 XML** | 데이터클래스 매핑 | OWPML 스키마 ↔ Python 객체 직접 조작 |
 | 🔄 **네임스페이스 호환** | 자동 정규화 | HWPML 2016 → 2011 자동 변환 |
 
@@ -203,7 +203,7 @@ python-hwpx
 │   ├── exporter         #   텍스트/HTML/Markdown 내보내기
 │   ├── validator        #   스키마 유효성 검사 (hwpx-validate CLI)
 │   ├── package_validator#   ZIP/OPC/HWPX 구조 검사
-│   ├── page_guard       #   layout-drift proxy
+│   ├── page_guard       #   구조 변화 징후 점검
 │   └── template_analyzer#   레퍼런스 문서 분석/추출
 └── hwpx.templates       # 내장 빈 문서 템플릿
 ```
@@ -222,7 +222,7 @@ hwpx-unpack 문서.hwpx ./unpacked
 hwpx-unpack 문서.hwpx ./pretty-unpacked --pretty-xml
 hwpx-pack ./unpacked ./repacked.hwpx
 
-# 레퍼런스 템플릿 분석과 pack-ready 추출
+# 레퍼런스 문서 분석과 작업 디렉터리 추출
 hwpx-analyze-template 문서.hwpx --extract-dir ./template-parts --json
 hwpx-pack ./template-parts ./template-roundtrip.hwpx
 hwpx-validate-package ./template-roundtrip.hwpx
@@ -230,15 +230,15 @@ hwpx-validate-package ./template-roundtrip.hwpx
 # plain / markdown 텍스트 추출
 hwpx-text-extract 문서.hwpx --format markdown --output 문서.md
 
-# 레이아웃 드리프트 프록시 비교
+# 문서 구조 변화 징후 비교
 hwpx-page-guard --reference 원본.hwpx --output 결과.hwpx
 ```
 
-`hwpx-page-guard`는 렌더된 실제 쪽수를 계산하지 않습니다. 대신 단락 수, 표 수, shape/control 수, 명시적 page/column break, 텍스트 길이 통계를 비교해 레이아웃 드리프트 위험을 탐지하는 프록시 도구입니다.
+`hwpx-page-guard`는 렌더된 실제 쪽수를 계산하지 않습니다. 대신 단락 수, 표 수, shape/control 수, 명시적 page/column break, 텍스트 길이 같은 구조 지표를 비교해 편집 전후 변화 징후를 빠르게 점검합니다.
 
-`hwpx-validate-package`는 `Contents/content.hpf` 같은 고정 경로를 강제하지 않고, `META-INF/container.xml`과 선택된 rootfile/manifest 관계를 따라가며 검사합니다. 엔진이 fallback으로 열 수 있는 비표준 패키지는 가능한 경우 경고로 구분합니다.
+`hwpx-validate-package`는 `Contents/content.hpf` 같은 고정 경로를 전제로 두지 않고, `META-INF/container.xml`과 실제 rootfile/manifest 선언을 따라가며 패키지 구조를 확인합니다. 엔진이 열 수 있는 비표준 패키지는 가능한 경우 경고로 분리해 보여줍니다.
 
-`hwpx-analyze-template --extract-dir`는 covered fixture 기준으로 `hwpx-pack`과 `hwpx-validate-package`, 그리고 엔진 open 경로에 다시 투입할 수 있는 pack-ready 작업 디렉터리를 만듭니다. 이건 재패킹 가능성을 목표로 한 것이지, 렌더링 fidelity를 보장한다는 뜻은 아닙니다.
+`hwpx-analyze-template --extract-dir`는 다시 묶고 점검하기 쉬운 작업 디렉터리를 만듭니다. 재구성과 구조 검증에 필요한 파일을 함께 꺼내는 용도이며, 편집기에서의 최종 렌더링 결과까지 보장한다는 뜻은 아닙니다.
 
 ## 문서
 

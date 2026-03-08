@@ -5,7 +5,7 @@
 ## [2.8] - 2026-03-08
 ### 변경
 - `HwpxPackage`와 OXML 로딩/저장이 rootfile/manifest-relative 경로를 실제로 따르도록 정렬했습니다.
-- `hwpx-analyze-template --extract-dir`가 pack-ready 작업 디렉터리와 `.hwpx-pack-metadata.json`을 생성하도록 확장했습니다.
+- `hwpx-analyze-template --extract-dir`가 재구성에 바로 쓸 수 있는 작업 디렉터리와 `.hwpx-pack-metadata.json`을 생성하도록 확장했습니다.
 - `hwpx-validate-package`를 엔진 정합 기준으로 재작성해 dynamic rootfile/manifest 관계, CRC, fallback warning을 구분하도록 했습니다.
 - `hwpx-unpack` 기본값을 raw-byte preserving으로 바꾸고 `--pretty-xml` opt-in을 추가했습니다.
 - tooling/OPC 회귀 테스트를 확대하고, coverage threshold를 60으로 올렸으며, pyright는 touched OPC/tooling 범위에서 `basic`으로 상향했습니다.
@@ -23,7 +23,7 @@
 
 ### 변경
 - `scripts/office/unpack.py`, `scripts/office/pack.py`, `scripts/analyze_template.py`를 패키지 도구 래퍼로 정리했습니다.
-- `page_guard`에 shape/control count 및 히스토그램 비교를 추가하고, rendered page count가 아닌 layout-drift proxy임을 문서와 CLI 설명에 명시했습니다.
+- `page_guard`에 shape/control count 및 히스토그램 비교를 추가하고, 실제 페이지 수 계산기가 아니라 구조 변화 징후 점검 도구임을 문서와 CLI 설명에 명시했습니다.
 - README와 `docs/usage.md`에 새 CLI 사용 예시를 추가했습니다.
 - 새 tooling에 대한 CLI/추출/overwrite/page-guard 회귀 테스트를 강화했습니다.
 

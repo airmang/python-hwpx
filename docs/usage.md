@@ -15,7 +15,7 @@ hwpx-unpack sample.hwpx ./sample-unpacked
 hwpx-unpack sample.hwpx ./sample-pretty --pretty-xml
 hwpx-pack ./sample-unpacked ./sample-repacked.hwpx
 
-# 템플릿 분석과 pack-ready 작업 디렉터리 추출
+# 템플릿 분석과 작업 디렉터리 추출
 hwpx-analyze-template sample.hwpx --extract-dir ./template-parts --json
 hwpx-pack ./template-parts ./template-roundtrip.hwpx
 hwpx-validate-package ./template-roundtrip.hwpx
@@ -23,15 +23,15 @@ hwpx-validate-package ./template-roundtrip.hwpx
 # 텍스트 추출
 hwpx-text-extract sample.hwpx --format markdown --output sample.md
 
-# 레이아웃 드리프트 프록시
+# 문서 구조 변화 징후 점검
 hwpx-page-guard --reference sample.hwpx --output edited.hwpx
 ```
 
-`hwpx-page-guard`는 실제 렌더러의 쪽수를 계산하지 않고, 구조 및 텍스트 통계를 비교해 레이아웃 변화 위험을 탐지하는 프록시 검사기입니다.
+`hwpx-page-guard`는 실제 렌더러의 쪽수를 계산하지 않고, 구조 및 텍스트 통계를 비교해 편집 전후 변화 징후를 점검하는 도구입니다.
 
-`hwpx-validate-package`는 고정 기본 경로를 가정하지 않고 `container.xml`과 rootfile/manifest 관계를 따라가며 검사합니다. 엔진이 fallback으로 열 수 있는 비표준 패키지는 에러 대신 경고로 분리할 수 있습니다.
+`hwpx-validate-package`는 고정 기본 경로를 전제로 두지 않고 `container.xml`과 실제 rootfile/manifest 관계를 따라가며 검사합니다. 엔진이 열 수 있는 비표준 패키지는 에러 대신 경고로 분리해 볼 수 있습니다.
 
-`hwpx-analyze-template --extract-dir`는 `mimetype`, `META-INF/container.xml`, rootfile, manifest-related parts, 중요 자산, `.hwpx-pack-metadata.json`을 포함한 pack-ready 작업 디렉터리를 만듭니다. covered fixture 기준으로 재패킹/재검증 가능한 범위를 목표로 하며, 렌더링 fidelity를 보장하지는 않습니다.
+`hwpx-analyze-template --extract-dir`는 `mimetype`, `META-INF/container.xml`, rootfile, manifest 관련 파일, 중요 자산, `.hwpx-pack-metadata.json`을 포함한 작업 디렉터리를 만듭니다. 다시 묶고 구조를 점검하는 흐름을 돕기 위한 것이며, 렌더링 결과까지 보장하지는 않습니다.
 
 ## 빠른 예제 모음
 
