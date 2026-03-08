@@ -6,6 +6,16 @@ from .exporter import (
     export_text,
 )
 from .object_finder import FoundElement, ObjectFinder
+from .package_validator import (
+    PackageValidationIssue,
+    PackageValidationReport,
+    validate_package,
+)
+from .page_guard import (
+    DocumentMetrics,
+    collect_metrics,
+    compare_metrics,
+)
 from .text_extractor import (
     DEFAULT_NAMESPACES,
     ParagraphInfo,
@@ -33,6 +43,12 @@ __all__ = [
     "strip_namespace",
     "FoundElement",
     "ObjectFinder",
+    "PackageValidationIssue",
+    "PackageValidationReport",
+    "validate_package",
+    "DocumentMetrics",
+    "collect_metrics",
+    "compare_metrics",
     "DocumentSchemas",
     "ValidationIssue",
     "ValidationReport",

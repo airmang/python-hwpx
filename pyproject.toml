@@ -50,6 +50,9 @@ Issues = "https://github.com/airmang/python-hwpx/issues"
 
 [project.scripts]
 hwpx-validate = "hwpx.tools.validator:main"
+hwpx-validate-package = "hwpx.tools.package_validator:main"
+hwpx-page-guard = "hwpx.tools.page_guard:main"
+hwpx-text-extract = "hwpx.tools.text_extract_cli:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

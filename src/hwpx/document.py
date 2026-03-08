@@ -1280,7 +1280,7 @@ class HwpxDocument:
         """
         from .tools.validator import validate_document
 
-        return validate_document(self._to_bytes_raw())
+        return validate_document(self._to_bytes_raw(reset_dirty=False))
 
     def _run_pre_save_validation(self) -> None:
         """Raise if validate_on_save is enabled and the document is invalid."""
@@ -1318,11 +1318,16 @@ class HwpxDocument:
         self._run_pre_save_validation()
         return self._to_bytes_raw()
 
-    def _to_bytes_raw(self) -> bytes:
-        """Serialize without validation (used by :meth:`validate`)."""
+    def _to_bytes_raw(self, *, reset_dirty: bool = True) -> bytes:
+        """Serialize without validation.
+
+        When ``reset_dirty`` is ``False``, the document remains marked as
+        modified after the archive snapshot is generated.
+        """
         updates = self._root.serialize()
         result = self._package.save(None, updates)
-        self._root.reset_dirty()
+        if reset_dirty:
+            self._root.reset_dirty()
         if isinstance(result, bytes):
             return result
         raise TypeError("package.save(None) must return bytes")
