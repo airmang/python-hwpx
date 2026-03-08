@@ -1,0 +1,50 @@
+{
+  "fixture_id": "header-footer-placeholder",
+  "category": "header/footer replacement",
+  "description": "Header and footer tokens are updated through explicit header/footer handling.",
+  "scenarios": [
+    {
+      "id": "replace-header-and-footer",
+      "description": "Header/footer placeholders update without corrupting the package or section structure.",
+      "operation": {
+        "type": "token_replace",
+        "scopes": ["headers", "footers"],
+        "search": "{{HDR1}}",
+        "replacement": "HEAD0001"
+      },
+      "assertions": {
+        "expected_replacements": 1,
+        "page_guard_pass": true,
+        "metric_fields_unchanged": [
+          "section_count",
+          "paragraph_count",
+          "table_count"
+        ],
+        "header_contains": ["HEAD0001"],
+        "header_absent": ["{{HDR1}}"]
+      }
+    },
+    {
+      "id": "replace-footer-token",
+      "description": "Footer-only replacement updates the footer token and leaves body text untouched.",
+      "operation": {
+        "type": "token_replace",
+        "scopes": ["footers"],
+        "search": "{{FTR1}}",
+        "replacement": "FOOT0001"
+      },
+      "assertions": {
+        "expected_replacements": 1,
+        "page_guard_pass": true,
+        "metric_fields_unchanged": [
+          "section_count",
+          "paragraph_count",
+          "table_count"
+        ],
+        "footer_contains": ["FOOT0001"],
+        "footer_absent": ["{{FTR1}}"],
+        "body_contains": ["Body stays stable"]
+      }
+    }
+  ]
+}

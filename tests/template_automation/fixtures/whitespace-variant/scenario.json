@@ -1,0 +1,28 @@
+{
+  "fixture_id": "whitespace-variant",
+  "category": "whitespace-variant text",
+  "description": "A logical value appears with uneven internal spacing.",
+  "scenarios": [
+    {
+      "id": "normalized-whitespace-replacement",
+      "description": "Whitespace-normalized replacement succeeds only when explicitly requested.",
+      "operation": {
+        "type": "normalized_text_replace",
+        "scopes": ["body"],
+        "search": "Han River High",
+        "replacement": "East Lake High"
+      },
+      "assertions": {
+        "expected_replacements": 1,
+        "page_guard_pass": true,
+        "metric_fields_unchanged": [
+          "section_count",
+          "paragraph_count",
+          "table_count"
+        ],
+        "body_contains": ["East Lake High"],
+        "body_absent": ["Han   River    High"]
+      }
+    }
+  ]
+}

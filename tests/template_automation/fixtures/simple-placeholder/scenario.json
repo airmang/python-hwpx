@@ -1,0 +1,44 @@
+{
+  "fixture_id": "simple-placeholder",
+  "category": "simple placeholder replacement",
+  "description": "Single-run body token for exact token replacement.",
+  "scenarios": [
+    {
+      "id": "replace-name-token",
+      "description": "Exact token replacement succeeds on a simple placeholder.",
+      "operation": {
+        "type": "token_replace",
+        "scopes": ["body"],
+        "search": "{{NAME}}",
+        "replacement": "ALICE001"
+      },
+      "assertions": {
+        "expected_replacements": 1,
+        "page_guard_pass": true,
+        "metric_fields_unchanged": [
+          "section_count",
+          "paragraph_count",
+          "table_count",
+          "shape_count",
+          "control_count"
+        ],
+        "body_contains": ["ALICE001"],
+        "all_text_absent": ["{{NAME}}"]
+      }
+    },
+    {
+      "id": "missing-token-strict-fails",
+      "description": "Missing tokens fail loudly when the automation contract requires a replacement.",
+      "operation": {
+        "type": "token_replace",
+        "scopes": ["body"],
+        "search": "{{MISSING}}",
+        "replacement": "MISS0001",
+        "strict": true
+      },
+      "assertions": {
+        "expected_error": "expected at least 1 replacement"
+      }
+    }
+  ]
+}

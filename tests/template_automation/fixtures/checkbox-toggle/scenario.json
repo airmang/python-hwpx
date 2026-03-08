@@ -1,0 +1,40 @@
+{
+  "fixture_id": "checkbox-toggle",
+  "category": "checkbox or symbol-toggle style template",
+  "description": "Symbol toggles require an explicit rule-based path.",
+  "scenarios": [
+    {
+      "id": "token-replace-does-not-guess-checkboxes",
+      "description": "Normal token replacement does not pretend checkbox-like symbols are token placeholders.",
+      "operation": {
+        "type": "token_replace",
+        "scopes": ["body"],
+        "search": "{{CHECKED}}",
+        "replacement": "CHECK001"
+      },
+      "assertions": {
+        "expected_replacements": 0,
+        "page_guard_pass": true,
+        "body_contains": ["□ Option A", "■ Option B"]
+      }
+    },
+    {
+      "id": "explicit-symbol-toggle",
+      "description": "Checkbox text toggles only through an explicit symbol rule set.",
+      "operation": {
+        "type": "toggle_symbol",
+        "scopes": ["body"],
+        "toggle_rules": [
+          {"from": "□ Option A", "to": "■ Option A"},
+          {"from": "■ Option B", "to": "□ Option B"}
+        ]
+      },
+      "assertions": {
+        "expected_replacements": 2,
+        "page_guard_pass": true,
+        "body_contains": ["■ Option A", "□ Option B"],
+        "body_absent": ["□ Option A", "■ Option B"]
+      }
+    }
+  ]
+}

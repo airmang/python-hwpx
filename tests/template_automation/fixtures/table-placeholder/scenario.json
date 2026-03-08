@@ -1,0 +1,28 @@
+{
+  "fixture_id": "table-placeholder",
+  "category": "table-contained replacement",
+  "description": "A token lives inside a table cell rather than a top-level body paragraph.",
+  "scenarios": [
+    {
+      "id": "replace-table-token",
+      "description": "Exact token replacement reaches table-contained text and keeps the table structure stable.",
+      "operation": {
+        "type": "token_replace",
+        "scopes": ["tables"],
+        "search": "{{CELL}}",
+        "replacement": "CELL0001"
+      },
+      "assertions": {
+        "expected_replacements": 1,
+        "page_guard_pass": true,
+        "metric_fields_unchanged": [
+          "section_count",
+          "paragraph_count",
+          "table_count"
+        ],
+        "table_contains": ["CELL0001"],
+        "table_absent": ["{{CELL}}"]
+      }
+    }
+  ]
+}

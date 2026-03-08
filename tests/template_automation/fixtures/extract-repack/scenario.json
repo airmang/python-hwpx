@@ -1,0 +1,34 @@
+{
+  "fixture_id": "extract-repack",
+  "category": "extract -> modify -> repack workflow",
+  "description": "Pack-ready extraction is modified and repacked through the repository tooling.",
+  "scenarios": [
+    {
+      "id": "analyze-extract-patch-repack",
+      "description": "Template analyzer extraction produces a pack-ready workspace that can be patched, repacked, and revalidated.",
+      "operation": {
+        "type": "extract_patch_repack",
+        "part_replacements": [
+          {
+            "path": "Contents/section0.xml",
+            "search": "{{PACK}}",
+            "replacement": "PACK0001"
+          }
+        ]
+      },
+      "assertions": {
+        "expected_replacements": 1,
+        "page_guard_pass": true,
+        "metric_fields_unchanged": [
+          "section_count",
+          "paragraph_count",
+          "table_count"
+        ],
+        "body_contains": ["PACK0001"],
+        "body_absent": ["{{PACK}}"],
+        "analysis_manifest_path": "Contents/content.hpf",
+        "extract_metadata_exists": true
+      }
+    }
+  ]
+}

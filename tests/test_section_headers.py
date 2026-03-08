@@ -141,3 +141,20 @@ def test_document_helpers_manage_header_apply_nodes() -> None:
 
     document.remove_header(section=section)
     assert sec_pr.find(f"{HP}headerApply") is None
+
+
+def test_header_footer_helpers_work_on_real_hwpx_document() -> None:
+    document = HwpxDocument.new()
+
+    document.set_header_text("Header {{HDR1}}")
+    document.set_footer_text("Footer {{FTR1}}")
+
+    reopened = HwpxDocument.open(document.to_bytes())
+
+    header = reopened.sections[0].properties.get_header()
+    footer = reopened.sections[0].properties.get_footer()
+
+    assert header is not None
+    assert footer is not None
+    assert header.text == "Header {{HDR1}}"
+    assert footer.text == "Footer {{FTR1}}"

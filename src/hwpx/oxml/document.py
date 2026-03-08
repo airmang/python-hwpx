@@ -47,6 +47,8 @@ logger = logging.getLogger(__name__)
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HP = f"{{{_HP_NS}}}"
+_HS_NS = "http://www.hancom.co.kr/hwpml/2011/section"
+_HS = f"{{{_HS_NS}}}"
 _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
 _HH = f"{{{_HH_NS}}}"
 
@@ -535,18 +537,22 @@ class HwpxOxmlSectionHeaderFooter:
     def _ensure_text_element(self) -> ET.Element:
         sublist = self.element.find(f"{_HP}subList")
         if sublist is None:
-            sublist = ET.SubElement(self.element, f"{_HP}subList", self._initial_sublist_attributes())
+            sublist = _append_child(
+                self.element,
+                f"{_HP}subList",
+                self._initial_sublist_attributes(),
+            )
         paragraph = sublist.find(f"{_HP}p")
         if paragraph is None:
             paragraph_attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
             paragraph_attrs["id"] = _paragraph_id()
-            paragraph = ET.SubElement(sublist, f"{_HP}p", paragraph_attrs)
+            paragraph = _append_child(sublist, f"{_HP}p", paragraph_attrs)
         run = paragraph.find(f"{_HP}run")
         if run is None:
-            run = ET.SubElement(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
+            run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
         text = run.find(f"{_HP}t")
         if text is None:
-            text = ET.SubElement(run, f"{_HP}t")
+            text = _append_child(run, f"{_HP}t")
         return text
 
     @property
@@ -851,7 +857,7 @@ class HwpxOxmlSectionProperties:
             attrs = {"applyPageType": page_type}
             if header_id is not None:
                 attrs[self._apply_id_attributes(tag)[0]] = header_id
-            apply = ET.SubElement(self.element, f"{_HP}{tag}Apply", attrs)
+            apply = _append_child(self.element, f"{_HP}{tag}Apply", attrs)
             changed = True
         else:
             if apply.get("applyPageType") != page_type:
@@ -897,7 +903,7 @@ class HwpxOxmlSectionProperties:
         element = self._find_header_footer(tag, page_type)
         changed = False
         if element is None:
-            element = ET.SubElement(
+            element = _append_child(
                 self.element,
                 f"{_HP}{tag}",
                 {"id": _object_id(), "applyPageType": page_type},
@@ -3493,11 +3499,11 @@ class HwpxOxmlSection:
         if paragraph is None:
             paragraph_attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
             paragraph_attrs["id"] = _paragraph_id()
-            paragraph = ET.SubElement(self._element, f"{_HP}p", paragraph_attrs)
+            paragraph = _append_child(self._element, f"{_HP}p", paragraph_attrs)
         run = paragraph.find(f"{_HP}run")
         if run is None:
-            run = ET.SubElement(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
-        element = ET.SubElement(run, f"{_HP}secPr")
+            run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
+        element = _append_child(run, f"{_HP}secPr")
         self._properties_cache = None
         self.mark_dirty()
         return element
@@ -4660,7 +4666,7 @@ class HwpxOxmlDocument:
         part_name = f"Contents/{section_id}.xml"
 
         # Build minimal section XML
-        section_element = ET.Element(f"{_HP}sec")
+        section_element = ET.Element(f"{_HS}sec")
         para_attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
         para = ET.SubElement(section_element, f"{_HP}p", para_attrs)
         run = ET.SubElement(para, f"{_HP}run", {"charPrIDRef": "0"})

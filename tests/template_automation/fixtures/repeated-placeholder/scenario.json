@@ -1,0 +1,49 @@
+{
+  "fixture_id": "repeated-placeholder",
+  "category": "repeated placeholder replacement",
+  "description": "The same token appears in multiple body paragraphs.",
+  "scenarios": [
+    {
+      "id": "replace-all-occurrences",
+      "description": "Multi-location token replacement reports the full replacement count.",
+      "operation": {
+        "type": "token_replace",
+        "scopes": ["body"],
+        "search": "{{NAME}}",
+        "replacement": "ALICE001"
+      },
+      "assertions": {
+        "expected_replacements": 3,
+        "page_guard_pass": true,
+        "metric_fields_unchanged": [
+          "section_count",
+          "paragraph_count",
+          "table_count"
+        ],
+        "body_contains": ["ALICE001"],
+        "body_absent": ["{{NAME}}"]
+      }
+    },
+    {
+      "id": "replace-first-occurrence-only",
+      "description": "A limited token replacement touches only the first matching location.",
+      "operation": {
+        "type": "token_replace",
+        "scopes": ["body"],
+        "search": "{{NAME}}",
+        "replacement": "ALICE001",
+        "limit": 1
+      },
+      "assertions": {
+        "expected_replacements": 1,
+        "page_guard_pass": true,
+        "metric_fields_unchanged": [
+          "section_count",
+          "paragraph_count",
+          "table_count"
+        ],
+        "body_contains": ["ALICE001", "{{NAME}}"]
+      }
+    }
+  ]
+}

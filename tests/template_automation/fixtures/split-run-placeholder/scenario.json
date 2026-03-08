@@ -1,0 +1,28 @@
+{
+  "fixture_id": "split-run-placeholder",
+  "category": "split-run placeholder",
+  "description": "A logical token is split across multiple runs.",
+  "scenarios": [
+    {
+      "id": "exact-token-reports-zero",
+      "description": "Exact token replacement does not silently act like split runs are contiguous placeholders.",
+      "operation": {
+        "type": "token_replace",
+        "scopes": ["body"],
+        "search": "{{NAME}}",
+        "replacement": "ALICE001"
+      },
+      "assertions": {
+        "expected_replacements": 0,
+        "page_guard_pass": true,
+        "metric_fields_unchanged": [
+          "section_count",
+          "paragraph_count",
+          "table_count"
+        ],
+        "body_contains": ["{{NAME}}"],
+        "body_absent": ["ALICE001"]
+      }
+    }
+  ]
+}
