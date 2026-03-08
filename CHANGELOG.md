@@ -2,6 +2,14 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [2.8] - 2026-03-08
+### 변경
+- `HwpxPackage`와 OXML 로딩/저장이 rootfile/manifest-relative 경로를 실제로 따르도록 정렬했습니다.
+- `hwpx-analyze-template --extract-dir`가 pack-ready 작업 디렉터리와 `.hwpx-pack-metadata.json`을 생성하도록 확장했습니다.
+- `hwpx-validate-package`를 엔진 정합 기준으로 재작성해 dynamic rootfile/manifest 관계, CRC, fallback warning을 구분하도록 했습니다.
+- `hwpx-unpack` 기본값을 raw-byte preserving으로 바꾸고 `--pretty-xml` opt-in을 추가했습니다.
+- tooling/OPC 회귀 테스트를 확대하고, coverage threshold를 60으로 올렸으며, pyright는 touched OPC/tooling 범위에서 `basic`으로 상향했습니다.
+
 ## [2.7.1] - 2026-03-08
 ### 변경
 - 공개 저장소와 배포 산출물에서 내부 감사 문서를 제거했습니다.

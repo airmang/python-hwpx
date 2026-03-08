@@ -3,11 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import asdict, dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Sequence
 from xml.etree import ElementTree as ET
 
 from ..opc.package import HwpxPackage
+from ..opc.relationships import parse_manifest_relationships
+from .archive_cli import unpack_hwpx
 from .page_guard import DocumentMetrics, collect_metrics
 
 _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
@@ -36,8 +38,12 @@ class TemplateAnalysis:
     part_names: tuple[str, ...]
     rootfiles: tuple[str, ...]
     manifest_path: str
+    manifest_item_paths: tuple[str, ...]
     header_paths: tuple[str, ...]
     section_paths: tuple[str, ...]
+    master_page_paths: tuple[str, ...]
+    history_paths: tuple[str, ...]
+    bin_data_paths: tuple[str, ...]
     version_path: str | None
     header_summary: HeaderSummary
     proxy_metrics: DocumentMetrics
@@ -59,23 +65,36 @@ def _summarize_header(element: ET.Element | None) -> HeaderSummary:
     )
 
 
+def _is_bindata_path(path: str) -> bool:
+    return any(part.lower() == "bindata" for part in PurePosixPath(path).parts)
+
+
 def analyze_template(source: str | Path) -> TemplateAnalysis:
     source_path = Path(source)
     package = HwpxPackage.open(source_path)
+    relationships = parse_manifest_relationships(
+        package.manifest_tree(),
+        package.main_content.full_path,
+        known_parts=package.part_names(),
+    )
 
     header_paths = tuple(package.header_paths())
     header_xml = package.get_xml(header_paths[0]) if header_paths else None
-    manifest_path = package.main_content.full_path
-    version_path = package.version_path()
 
     return TemplateAnalysis(
         source_name=source_path.name,
         part_names=tuple(package.part_names()),
         rootfiles=tuple(rootfile.full_path for rootfile in package.iter_rootfiles()),
-        manifest_path=manifest_path,
+        manifest_path=package.main_content.full_path,
+        manifest_item_paths=tuple(item.resolved_path for item in relationships.items),
         header_paths=header_paths,
         section_paths=tuple(package.section_paths()),
-        version_path=version_path,
+        master_page_paths=tuple(package.master_page_paths()),
+        history_paths=tuple(package.history_paths()),
+        bin_data_paths=tuple(
+            item.resolved_path for item in relationships.items if _is_bindata_path(item.resolved_path)
+        ),
+        version_path=package.version_path(),
         header_summary=_summarize_header(header_xml),
         proxy_metrics=collect_metrics(source_path),
     )
@@ -100,18 +119,9 @@ def extract_template_parts(
     written: list[Path] = []
 
     if extract_dir is not None:
-        root = Path(extract_dir)
-        root.mkdir(parents=True, exist_ok=True)
-        written.append(_write_part(package, package.main_content.full_path, root / package.main_content.full_path))
-        for part_name in package.header_paths():
-            written.append(_write_part(package, part_name, root / part_name))
-        for part_name in package.section_paths():
-            written.append(_write_part(package, part_name, root / part_name))
-        version_path = package.version_path()
-        if version_path and package.has_part(version_path):
-            written.append(_write_part(package, version_path, root / version_path))
-        if package.has_part(package.CONTAINER_PATH):
-            written.append(_write_part(package, package.CONTAINER_PATH, root / package.CONTAINER_PATH))
+        result = unpack_hwpx(source_path, extract_dir, pretty_xml=False)
+        written.extend(result.output_dir / entry.path for entry in result.entries)
+        written.append(result.metadata_path)
 
     if extract_header is not None:
         header_paths = package.header_paths()
@@ -141,6 +151,9 @@ def _print_summary(analysis: TemplateAnalysis) -> None:
     print(f"rootfiles: {', '.join(analysis.rootfiles) or '(none)'}")
     print(f"headers: {', '.join(analysis.header_paths) or '(none)'}")
     print(f"sections: {', '.join(analysis.section_paths) or '(none)'}")
+    print(f"masterPages: {', '.join(analysis.master_page_paths) or '(none)'}")
+    print(f"histories: {', '.join(analysis.history_paths) or '(none)'}")
+    print(f"BinData: {', '.join(analysis.bin_data_paths) or '(none)'}")
     if analysis.version_path:
         print(f"version part: {analysis.version_path}")
     print(
@@ -163,14 +176,17 @@ def _print_summary(analysis: TemplateAnalysis) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Analyze a reference HWPX template for template-preserving workflows"
+        description="Analyze a reference HWPX template for pack-ready, template-preserving workflows"
     )
     parser.add_argument("input", help="Input HWPX path")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON summary")
     parser.add_argument("--output-json", help="Write the JSON summary to a file")
     parser.add_argument(
         "--extract-dir",
-        help="Copy manifest, header, sections, version, and container.xml into a directory",
+        help=(
+            "Create a pack-ready extracted workspace that preserves archive-relative paths "
+            "and hwpx-pack metadata"
+        ),
     )
     parser.add_argument("--extract-header", help="Copy the first header.xml part to a path")
     parser.add_argument("--extract-section", help="Copy the first section XML part to a path")

@@ -4249,7 +4249,9 @@ class HwpxOxmlDocument:
         master_pages: Sequence[HwpxOxmlMasterPage] | None = None,
         histories: Sequence[HwpxOxmlHistory] | None = None,
         version: HwpxOxmlVersion | None = None,
+        manifest_path: str = "Contents/content.hpf",
     ):
+        self._manifest_path = manifest_path
         self._manifest = manifest
         self._sections = list(sections)
         self._headers = list(headers)
@@ -4277,7 +4279,7 @@ class HwpxOxmlDocument:
         if not isinstance(package, HwpxPackage):
             raise TypeError("package must be an instance of HwpxPackage")
 
-        manifest = package.get_xml(package.MANIFEST_PATH)
+        manifest = package.manifest_tree()
         section_paths = package.section_paths()
         header_paths = package.header_paths()
         master_page_paths = package.master_page_paths()
@@ -4342,6 +4344,7 @@ class HwpxOxmlDocument:
             master_pages=master_pages,
             histories=histories,
             version=version,
+            manifest_path=package.main_content.full_path,
         )
 
     @property
@@ -4756,7 +4759,7 @@ class HwpxOxmlDocument:
         """Return a mapping of part names to updated XML payloads."""
         updates: dict[str, bytes] = {}
         if self._manifest_dirty:
-            updates["Contents/content.hpf"] = _serialize_xml(self._manifest)
+            updates[self._manifest_path] = _serialize_xml(self._manifest)
         for section in self._sections:
             if section.dirty:
                 updates[section.part_name] = section.to_bytes()

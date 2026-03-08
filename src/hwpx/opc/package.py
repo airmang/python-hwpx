@@ -7,12 +7,21 @@ import io
 import os
 import tempfile
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import BinaryIO, Iterable, Iterator, Mapping, MutableMapping
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
-from lxml import etree
+from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
+from .relationships import (
+    MAIN_ROOTFILE_MEDIA_TYPE,
+    OPF_NS,
+    is_header_part_name,
+    is_section_part_name,
+    normalize_part_name,
+    parse_container_rootfiles,
+    parse_manifest_relationships,
+)
 from .xml_utils import (
     extract_xml_declaration,
     iter_declared_namespaces,
@@ -23,8 +32,6 @@ from .xml_utils import (
 __all__ = ["HwpxPackage", "HwpxPackageError", "HwpxStructureError", "RootFile", "VersionInfo"]
 
 logger = logging.getLogger(__name__)
-
-_OPF_NS = "http://www.idpf.org/2007/opf/"
 
 
 class HwpxPackageError(Exception):
@@ -169,25 +176,10 @@ class HwpxPackage:
         except Exception:
             logger.exception("container.xml 파싱에 실패했습니다.")
             raise
-        rootfiles = []
-        for elem in root.findall(".//{*}rootfile"):
-            full_path_attr = elem.get("full-path")
-            full_path = full_path_attr or elem.get("fullPath") or elem.get("full_path")
-            if full_path and not full_path_attr:
-                logger.warning(
-                    "container.xml rootfile이 비표준 경로 속성명을 사용했습니다: %s",
-                    elem.attrib,
-                )
-            if not full_path:
-                raise HwpxStructureError("container.xml contains a rootfile without 'full-path'.")
-            media_type_attr = elem.get("media-type")
-            media_type = media_type_attr or elem.get("mediaType") or elem.get("media_type")
-            if media_type and not media_type_attr:
-                logger.warning(
-                    "container.xml rootfile이 비표준 media-type 속성명을 사용했습니다: %s",
-                    elem.attrib,
-                )
-            rootfiles.append(RootFile(full_path, media_type))
+        rootfiles = [
+            RootFile(ref.full_path, ref.media_type)
+            for ref in parse_container_rootfiles(root)
+        ]
         if not rootfiles:
             raise HwpxStructureError("container.xml does not declare any rootfiles.")
         return rootfiles
@@ -201,10 +193,6 @@ class HwpxPackage:
     def _validate_structure(self) -> None:
         for rootfile in self._rootfiles:
             rootfile.ensure_exists(self._files)
-        if not any(path.startswith(("Contents/", "Content/")) for path in self._files):
-            raise HwpxStructureError(
-                "HWPX package does not contain a 'Contents' directory."
-            )
 
     @property
     def mimetype(self) -> str:
@@ -220,7 +208,7 @@ class HwpxPackage:
     @property
     def main_content(self) -> RootFile:
         for rootfile in self._rootfiles:
-            if rootfile.media_type == "application/hwpml-package+xml":
+            if rootfile.media_type == MAIN_ROOTFILE_MEDIA_TYPE:
                 return rootfile
         selected = self._rootfiles[0]
         logger.warning(
@@ -254,7 +242,6 @@ class HwpxPackage:
         elif norm_path == self.VERSION_PATH:
             pending_version = self._parse_version(data)
         self._files[norm_path] = data
-        self._invalidate_caches(norm_path)
         if norm_path == self.MIMETYPE_PATH:
             self._mimetype = mimetype
         elif norm_path == self.CONTAINER_PATH:
@@ -263,6 +250,7 @@ class HwpxPackage:
         elif norm_path == self.VERSION_PATH:
             assert pending_version is not None
             self._version = pending_version
+        self._invalidate_caches(norm_path)
         self._validate_structure()
 
     def delete(self, path: str) -> None:
@@ -274,11 +262,12 @@ class HwpxPackage:
                 "Cannot remove mandatory files ('mimetype', 'container.xml', 'version.xml')."
             )
         del self._files[norm_path]
+        self._invalidate_caches(norm_path)
         self._validate_structure()
 
     @staticmethod
     def _normalize_path(path: str) -> str:
-        return path.replace("\\", "/")
+        return normalize_part_name(path)
 
     def files(self) -> list[str]:
         return sorted(self._files)
@@ -314,13 +303,12 @@ class HwpxPackage:
 
     def manifest_tree(self) -> etree._Element:
         if self._manifest_tree is None:
-            self._manifest_tree = self.get_xml(self.MANIFEST_PATH)
+            self._manifest_tree = self.get_xml(self.main_content.full_path)
         return self._manifest_tree
 
     def _manifest_items(self) -> list[etree._Element]:
         manifest = self.manifest_tree()
-        ns = {"opf": _OPF_NS}
-        return list(manifest.findall("./opf:manifest/opf:item", ns))
+        return list(manifest.findall("./opf:manifest/opf:item", OPF_NS))
 
     @staticmethod
     def _normalized_manifest_value(element: etree._Element) -> str:
@@ -339,52 +327,37 @@ class HwpxPackage:
 
     def _resolve_spine_paths(self) -> list[str]:
         if self._spine_cache is None:
-            manifest = self.manifest_tree()
-            ns = {"opf": _OPF_NS}
-            manifest_items: dict[str, str] = {}
-            for item in manifest.findall("./opf:manifest/opf:item", ns):
-                item_id = item.attrib.get("id")
-                href = item.attrib.get("href", "")
-                if item_id and href:
-                    manifest_items[item_id] = href
-            spine_paths: list[str] = []
-            for itemref in manifest.findall("./opf:spine/opf:itemref", ns):
-                idref = itemref.attrib.get("idref")
-                if not idref:
-                    continue
-                href = manifest_items.get(idref)
-                if href:
-                    spine_paths.append(href)
-            self._spine_cache = spine_paths
+            relationships = parse_manifest_relationships(
+                self.manifest_tree(),
+                self.main_content.full_path,
+                known_parts=self._files.keys(),
+            )
+            self._spine_cache = list(relationships.spine_paths)
         return self._spine_cache
 
     def section_paths(self) -> list[str]:
         if self._section_paths_cache is None:
-            from pathlib import PurePosixPath
-
             paths = [
                 path
                 for path in self._resolve_spine_paths()
-                if path and PurePosixPath(path).name.startswith("section")
+                if path and is_section_part_name(path)
             ]
             if not paths:
                 logger.warning("manifest spine에서 section 경로를 찾지 못해 파일명 기반 fallback을 사용합니다.")
                 paths = [
                     name
                     for name in self._files.keys()
-                    if PurePosixPath(name).name.startswith("section")
+                    if is_section_part_name(name)
                 ]
             self._section_paths_cache = paths
         return list(self._section_paths_cache)
 
     def header_paths(self) -> list[str]:
         if self._header_paths_cache is None:
-            from pathlib import PurePosixPath
-
             paths = [
                 path
                 for path in self._resolve_spine_paths()
-                if path and PurePosixPath(path).name.startswith("header")
+                if path and is_header_part_name(path)
             ]
             if not paths and self.has_part(self.HEADER_PATH):
                 logger.warning(
@@ -397,14 +370,13 @@ class HwpxPackage:
 
     def master_page_paths(self) -> list[str]:
         if self._master_page_paths_cache is None:
-            from pathlib import PurePosixPath
-
-            paths = [
-                item.attrib.get("href", "")
-                for item in self._manifest_items()
-                if self._manifest_matches(item, "masterpage", "master-page")
-                and item.attrib.get("href")
-            ]
+            paths = list(
+                parse_manifest_relationships(
+                    self.manifest_tree(),
+                    self.main_content.full_path,
+                    known_parts=self._files.keys(),
+                ).master_page_paths
+            )
             if not paths:
                 logger.warning("manifest에서 masterPage를 찾지 못해 파일명 탐색 fallback을 사용합니다.")
                 paths = [
@@ -418,13 +390,13 @@ class HwpxPackage:
 
     def history_paths(self) -> list[str]:
         if self._history_paths_cache is None:
-            from pathlib import PurePosixPath
-
-            paths = [
-                item.attrib.get("href", "")
-                for item in self._manifest_items()
-                if self._manifest_matches(item, "history") and item.attrib.get("href")
-            ]
+            paths = list(
+                parse_manifest_relationships(
+                    self.manifest_tree(),
+                    self.main_content.full_path,
+                    known_parts=self._files.keys(),
+                ).history_paths
+            )
             if not paths:
                 logger.warning("manifest에서 history를 찾지 못해 파일명 탐색 fallback을 사용합니다.")
                 paths = [
@@ -437,13 +409,11 @@ class HwpxPackage:
 
     def version_path(self) -> str | None:
         if not self._version_path_cache_resolved:
-            path: str | None = None
-            for item in self._manifest_items():
-                if self._manifest_matches(item, "version"):
-                    href = item.attrib.get("href", "").strip()
-                    if href:
-                        path = href
-                        break
+            path = parse_manifest_relationships(
+                self.manifest_tree(),
+                self.main_content.full_path,
+                known_parts=self._files.keys(),
+            ).version_path
             if path is None and self.has_part(self.VERSION_PATH):
                 logger.warning(
                     "manifest에서 version 파트를 찾지 못해 기본 경로 fallback을 사용합니다: %s",
@@ -461,8 +431,7 @@ class HwpxPackage:
     def _manifest_element(self) -> etree._Element | None:
         """Return the ``<opf:manifest>`` element."""
         manifest = self.manifest_tree()
-        ns = {"opf": _OPF_NS}
-        return manifest.find("opf:manifest", ns)
+        return manifest.find("opf:manifest", OPF_NS)
 
     def add_manifest_item(
         self,
@@ -475,13 +444,12 @@ class HwpxPackage:
         if manifest_el is None:
             raise HwpxStructureError("Manifest does not contain an <opf:manifest> element.")
 
-        ns = {"opf": _OPF_NS}
-        for existing in manifest_el.findall("opf:item", ns):
+        for existing in manifest_el.findall("opf:item", OPF_NS):
             if existing.get("id") == item_id:
                 return  # already present
 
         new_item = manifest_el.makeelement(
-            f"{{{_OPF_NS}}}item",
+            f"{{{OPF_NS['opf']}}}item",
             {"id": item_id, "href": href, "media-type": media_type},
         )
         manifest_el.append(new_item)
@@ -493,8 +461,7 @@ class HwpxPackage:
         if manifest_el is None:
             return False
 
-        ns = {"opf": _OPF_NS}
-        for existing in manifest_el.findall("opf:item", ns):
+        for existing in manifest_el.findall("opf:item", OPF_NS):
             if existing.get("id") == item_id:
                 manifest_el.remove(existing)
                 self._persist_manifest()
@@ -505,20 +472,18 @@ class HwpxPackage:
         """Write the in-memory manifest tree back to the package."""
         tree = self._manifest_tree
         if tree is not None:
-            self.set_part(self.MANIFEST_PATH, tree)
+            self.set_part(self.main_content.full_path, tree)
 
     def _invalidate_caches(self, changed_path: str) -> None:
-        if changed_path == self.MANIFEST_PATH:
+        if changed_path in {self.CONTAINER_PATH, self.main_content.full_path}:
             self._manifest_tree = None
-            self._spine_cache = None
-            self._section_paths_cache = None
-            self._header_paths_cache = None
-            self._master_page_paths_cache = None
-            self._history_paths_cache = None
-            self._version_path_cache = None
-            self._version_path_cache_resolved = False
-        elif changed_path == self.VERSION_PATH:
-            self._version_path_cache_resolved = False
+        self._spine_cache = None
+        self._section_paths_cache = None
+        self._header_paths_cache = None
+        self._master_page_paths_cache = None
+        self._history_paths_cache = None
+        self._version_path_cache = None
+        self._version_path_cache_resolved = False
 
     def save(
         self,

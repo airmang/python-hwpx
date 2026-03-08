@@ -4,21 +4,25 @@ import argparse
 import io
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from pathlib import Path
-from typing import BinaryIO, Sequence
+from pathlib import Path, PurePosixPath
+from typing import BinaryIO, Literal, Sequence
 from zipfile import ZIP_STORED, BadZipFile, ZipFile
 
+from ..opc.relationships import (
+    MAIN_ROOTFILE_MEDIA_TYPE,
+    is_section_part_name,
+    parse_container_rootfiles,
+    parse_manifest_relationships,
+    select_main_rootfile,
+)
+
 EXPECTED_MIMETYPE = "application/hwp+zip"
+MIMETYPE_PATH = "mimetype"
 CONTAINER_PATH = "META-INF/container.xml"
-MANIFEST_PATH = "Contents/content.hpf"
 HEADER_PATH = "Contents/header.xml"
 VERSION_PATH = "version.xml"
-REQUIRED_CORE_FILES = ("mimetype", CONTAINER_PATH, MANIFEST_PATH, HEADER_PATH, VERSION_PATH)
-OPF_NS = {"opf": "http://www.idpf.org/2007/opf/"}
-CONTAINER_NS = {
-    "ct": "urn:oasis:names:tc:opendocument:xmlns:container",
-    "ocf": "urn:oasis:names:tc:opendocument:xmlns:container",
-}
+
+IssueLevel = Literal["error", "warning"]
 
 __all__ = [
     "PackageValidationIssue",
@@ -32,6 +36,11 @@ __all__ = [
 class PackageValidationIssue:
     part_name: str
     message: str
+    level: IssueLevel = "error"
+
+    @property
+    def is_error(self) -> bool:
+        return self.level == "error"
 
     def __str__(self) -> str:  # pragma: no cover - human readable helper
         return f"{self.part_name}: {self.message}"
@@ -43,8 +52,16 @@ class PackageValidationReport:
     issues: tuple[PackageValidationIssue, ...]
 
     @property
+    def errors(self) -> tuple[PackageValidationIssue, ...]:
+        return tuple(issue for issue in self.issues if issue.is_error)
+
+    @property
+    def warnings(self) -> tuple[PackageValidationIssue, ...]:
+        return tuple(issue for issue in self.issues if not issue.is_error)
+
+    @property
     def ok(self) -> bool:
-        return not self.issues
+        return not self.errors
 
     def __bool__(self) -> bool:  # pragma: no cover - convenience alias
         return self.ok
@@ -65,43 +82,31 @@ def _parse_xml(payload: bytes) -> ET.Element:
         raise ValueError(f"malformed XML: {exc}") from exc
 
 
-def _container_rootfiles(container_root: ET.Element) -> list[str]:
-    paths: list[str] = []
-    for namespace in CONTAINER_NS.values():
-        for elem in container_root.findall(f".//{{{namespace}}}rootfile"):
-            path = (
-                elem.get("full-path")
-                or elem.get("fullPath")
-                or elem.get("full_path")
-            )
-            if path:
-                paths.append(path)
-    return paths
+def _error(issues: list[PackageValidationIssue], part_name: str, message: str) -> None:
+    issues.append(PackageValidationIssue(part_name, message, "error"))
 
 
-def _manifest_hrefs(manifest_root: ET.Element) -> set[str]:
-    hrefs: set[str] = set()
-    for item in manifest_root.findall(".//opf:item", OPF_NS):
-        href = item.get("href")
-        if href:
-            hrefs.add(href)
-    return hrefs
+def _warning(issues: list[PackageValidationIssue], part_name: str, message: str) -> None:
+    issues.append(PackageValidationIssue(part_name, message, "warning"))
 
 
-def _spine_hrefs(manifest_root: ET.Element) -> list[str]:
-    hrefs: list[str] = []
-    id_to_href: dict[str, str] = {}
-    for item in manifest_root.findall(".//opf:item", OPF_NS):
-        item_id = item.get("id")
-        href = item.get("href")
-        if item_id and href:
-            id_to_href[item_id] = href
+def _safe_read(zf: ZipFile, part_name: str) -> bytes | None:
+    try:
+        return zf.read(part_name)
+    except (BadZipFile, KeyError, OSError):
+        return None
 
-    for itemref in manifest_root.findall(".//opf:itemref", OPF_NS):
-        idref = itemref.get("idref")
-        if idref and idref in id_to_href:
-            hrefs.append(id_to_href[idref])
-    return hrefs
+
+def _fallback_named_parts(names: set[str], *, token: str, extra_token: str | None = None) -> list[str]:
+    matches: list[str] = []
+    for name in sorted(names):
+        part_name = PurePosixPath(name).name.lower()
+        if token not in part_name:
+            continue
+        if extra_token is not None and extra_token not in part_name:
+            continue
+        matches.append(name)
+    return matches
 
 
 def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidationReport:
@@ -117,101 +122,229 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
         )
 
     with archive as zf:
-        names = zf.namelist()
+        infos = [info for info in zf.infolist() if not info.is_dir()]
+        names = [info.filename for info in infos]
+        name_set = set(names)
         checked_parts.extend(names)
 
-        for required in REQUIRED_CORE_FILES:
-            if required not in names:
-                issues.append(PackageValidationIssue(required, "missing required file"))
-
-        if not names:
-            issues.append(PackageValidationIssue("archive", "empty archive"))
+        if not infos:
+            _error(issues, "archive", "empty archive")
             return PackageValidationReport(tuple(checked_parts), tuple(issues))
 
-        if "mimetype" in names:
-            try:
-                mimetype = zf.read("mimetype").decode("utf-8").strip()
-            except UnicodeDecodeError:
-                mimetype = "<binary>"
-            if mimetype != EXPECTED_MIMETYPE:
-                issues.append(
-                    PackageValidationIssue(
-                        "mimetype",
+        bad_entry = zf.testzip()
+        if bad_entry is not None:
+            _error(issues, bad_entry, "ZIP CRC/integrity check failed")
+
+        if MIMETYPE_PATH not in name_set:
+            _error(issues, MIMETYPE_PATH, "missing required file")
+        else:
+            mimetype_bytes = _safe_read(zf, MIMETYPE_PATH)
+            if mimetype_bytes is None:
+                _error(issues, MIMETYPE_PATH, "unable to read entry for integrity validation")
+            else:
+                try:
+                    mimetype = mimetype_bytes.decode("utf-8").strip()
+                except UnicodeDecodeError:
+                    mimetype = "<binary>"
+                if mimetype != EXPECTED_MIMETYPE:
+                    _error(
+                        issues,
+                        MIMETYPE_PATH,
                         f"expected {EXPECTED_MIMETYPE!r}, got {mimetype!r}",
                     )
-                )
-            if names[0] != "mimetype":
-                issues.append(PackageValidationIssue("mimetype", "must be the first ZIP entry"))
-            if zf.getinfo("mimetype").compress_type != ZIP_STORED:
-                issues.append(PackageValidationIssue("mimetype", "must use ZIP_STORED"))
+                if infos[0].filename != MIMETYPE_PATH:
+                    _error(issues, MIMETYPE_PATH, "must be the first ZIP entry")
+                if zf.getinfo(MIMETYPE_PATH).compress_type != ZIP_STORED:
+                    _error(issues, MIMETYPE_PATH, "must use ZIP_STORED")
+
+        if CONTAINER_PATH not in name_set:
+            _error(issues, CONTAINER_PATH, "missing required file")
+        if VERSION_PATH not in name_set:
+            _error(issues, VERSION_PATH, "missing required file under current engine semantics")
 
         xml_roots: dict[str, ET.Element] = {}
         for name in names:
             if not (name.endswith(".xml") or name.endswith(".hpf")):
                 continue
+            payload = _safe_read(zf, name)
+            if payload is None:
+                _error(issues, name, "unable to read entry for XML parsing")
+                continue
             try:
-                xml_roots[name] = _parse_xml(zf.read(name))
+                xml_roots[name] = _parse_xml(payload)
             except ValueError as exc:
-                issues.append(PackageValidationIssue(name, str(exc)))
+                _error(issues, name, str(exc))
 
         container_root = xml_roots.get(CONTAINER_PATH)
-        if container_root is not None:
-            rootfiles = _container_rootfiles(container_root)
-            if not rootfiles:
-                issues.append(PackageValidationIssue(CONTAINER_PATH, "declares no rootfile entries"))
-            for rootfile in rootfiles:
-                if rootfile not in names:
-                    issues.append(
-                        PackageValidationIssue(
-                            CONTAINER_PATH,
-                            f"rootfile points to missing part {rootfile!r}",
-                        )
-                    )
+        if container_root is None:
+            return PackageValidationReport(tuple(checked_parts), tuple(issues))
 
-        manifest_root = xml_roots.get(MANIFEST_PATH)
-        if manifest_root is not None:
-            hrefs = _manifest_hrefs(manifest_root)
-            for href in sorted(hrefs):
-                if href not in names:
-                    issues.append(
-                        PackageValidationIssue(
-                            MANIFEST_PATH,
-                            f"manifest href missing from archive: {href}",
-                        )
-                    )
+        rootfiles = parse_container_rootfiles(container_root)
+        if not rootfiles:
+            _error(issues, CONTAINER_PATH, "declares no rootfile entries")
+            return PackageValidationReport(tuple(checked_parts), tuple(issues))
 
-            spine_hrefs = _spine_hrefs(manifest_root)
-            if not spine_hrefs:
-                issues.append(PackageValidationIssue(MANIFEST_PATH, "spine declares no section parts"))
-            for href in spine_hrefs:
-                if href not in names:
-                    issues.append(
-                        PackageValidationIssue(
-                            MANIFEST_PATH,
-                            f"spine item missing from archive: {href}",
-                        )
-                    )
-
-            if HEADER_PATH in names and HEADER_PATH not in hrefs:
-                issues.append(
-                    PackageValidationIssue(MANIFEST_PATH, "header.xml is not referenced in manifest")
+        for rootfile in rootfiles:
+            if rootfile.full_path not in name_set:
+                _error(
+                    issues,
+                    CONTAINER_PATH,
+                    f"rootfile points to missing part {rootfile.full_path!r}",
                 )
+
+        selected_rootfile, used_rootfile_fallback = select_main_rootfile(rootfiles)
+        if selected_rootfile is None:
+            return PackageValidationReport(tuple(checked_parts), tuple(issues))
+        if used_rootfile_fallback:
+            _warning(
+                issues,
+                CONTAINER_PATH,
+                "no rootfile is marked as "
+                f"{MAIN_ROOTFILE_MEDIA_TYPE!r}; engine will use the first declaration "
+                f"{selected_rootfile.full_path!r}",
+            )
+
+        manifest_root = xml_roots.get(selected_rootfile.full_path)
+        if manifest_root is None:
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                "selected main rootfile is missing or not well-formed XML",
+            )
+            return PackageValidationReport(tuple(checked_parts), tuple(issues))
+
+        relationships = parse_manifest_relationships(
+            manifest_root,
+            selected_rootfile.full_path,
+            known_parts=name_set,
+        )
+
+        for item in relationships.items:
+            if item.resolved_path not in name_set:
+                _error(
+                    issues,
+                    selected_rootfile.full_path,
+                    f"manifest href missing from archive: {item.href!r} -> {item.resolved_path!r}",
+                )
+
+        for idref in relationships.dangling_idrefs:
+            _warning(
+                issues,
+                selected_rootfile.full_path,
+                f"spine itemref references missing manifest id {idref!r}",
+            )
+
+        section_paths = [path for path in relationships.spine_paths if is_section_part_name(path)]
+        if section_paths:
+            for path in section_paths:
+                if path not in name_set:
+                    _error(
+                        issues,
+                        selected_rootfile.full_path,
+                        f"spine section part missing from archive: {path!r}",
+                    )
+        else:
+            fallback_sections = [name for name in sorted(name_set) if is_section_part_name(name)]
+            if fallback_sections:
+                _warning(
+                    issues,
+                    selected_rootfile.full_path,
+                    "manifest spine does not resolve any section parts; engine will fall back "
+                    "to filename-based section discovery",
+                )
+            else:
+                _error(
+                    issues,
+                    selected_rootfile.full_path,
+                    "no section parts found in manifest spine or archive fallback",
+                )
+
+        if not relationships.header_paths and HEADER_PATH in name_set:
+            _warning(
+                issues,
+                selected_rootfile.full_path,
+                "manifest spine does not resolve a header part; engine will fall back to "
+                f"{HEADER_PATH!r}",
+            )
+
+        for path in relationships.header_paths:
+            if path not in name_set:
+                _error(
+                    issues,
+                    selected_rootfile.full_path,
+                    f"header part missing from archive: {path!r}",
+                )
+
+        if not relationships.master_page_paths:
+            fallback_master_pages = _fallback_named_parts(name_set, token="master", extra_token="page")
+            if fallback_master_pages:
+                _warning(
+                    issues,
+                    selected_rootfile.full_path,
+                    "manifest does not reference masterPage parts; engine will fall back to "
+                    "filename-based discovery",
+                )
+        for path in relationships.master_page_paths:
+            if path not in name_set:
+                _error(
+                    issues,
+                    selected_rootfile.full_path,
+                    f"masterPage part missing from archive: {path!r}",
+                )
+
+        if not relationships.history_paths:
+            fallback_histories = _fallback_named_parts(name_set, token="history")
+            if fallback_histories:
+                _warning(
+                    issues,
+                    selected_rootfile.full_path,
+                    "manifest does not reference history parts; engine will fall back to "
+                    "filename-based discovery",
+                )
+        for path in relationships.history_paths:
+            if path not in name_set:
+                _error(
+                    issues,
+                    selected_rootfile.full_path,
+                    f"history part missing from archive: {path!r}",
+                )
+
+        if relationships.version_path is None and VERSION_PATH in name_set:
+            _warning(
+                issues,
+                selected_rootfile.full_path,
+                "manifest does not reference a version part; engine will fall back to "
+                f"{VERSION_PATH!r}",
+            )
+        elif relationships.version_path is not None and relationships.version_path not in name_set:
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                f"manifest version part missing from archive: {relationships.version_path!r}",
+            )
 
     return PackageValidationReport(tuple(checked_parts), tuple(issues))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate HWPX package structure")
+    parser = argparse.ArgumentParser(
+        description="Validate HWPX package structure using engine-aligned ZIP/container/manifest checks"
+    )
     parser.add_argument("source", help="Path to the HWPX file")
     args = parser.parse_args(argv)
 
     report = validate_package(args.source)
-    if report.issues:
-        for issue in report.issues:
-            print(f"ERROR: {issue}")
+    for issue in report.issues:
+        prefix = "ERROR" if issue.is_error else "WARN"
+        print(f"{prefix}: {issue}")
+
+    if report.errors:
         return 1
 
-    print("All package validations passed.")
+    if report.warnings:
+        print("Package validation passed with warnings.")
+    else:
+        print("All package validations passed.")
     return 0
 
 

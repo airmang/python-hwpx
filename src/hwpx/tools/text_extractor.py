@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Dict, Iterator, Mapping, Optional, Sequence, Tuple, Union, Literal
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
+
+from ..opc.relationships import (
+    is_section_part_name,
+    parse_container_rootfiles,
+    parse_manifest_relationships,
+    select_main_rootfile,
+)
 
 __all__ = [
     "DEFAULT_NAMESPACES",
@@ -34,7 +41,7 @@ DEFAULT_NAMESPACES: Dict[str, str] = {
     "opf": "http://www.idpf.org/2007/opf/",
 }
 
-_SECTION_PATTERN = re.compile(r"^Contents/section(\d+)\.xml$")
+_SECTION_PATTERN = re.compile(r"^section(\d+)\.xml$", re.IGNORECASE)
 
 _OBJECT_CONTAINERS = {
     "tbl",
@@ -418,10 +425,10 @@ class TextExtractor:
                         annotations.highlight_start.format(color=color or "")
                     )
             elif tag == "markpenEnd":
-                color = highlight_stack.pop() if highlight_stack else ""
+                end_color: str | None = highlight_stack.pop() if highlight_stack else ""
                 if annotations and highlight_mode == "markers":
                     fragments.append(
-                        annotations.highlight_end.format(color=color or "")
+                        annotations.highlight_end.format(color=end_color or "")
                     )
             else:
                 self._render_text_element(child, fragments, annotations)
@@ -430,9 +437,11 @@ class TextExtractor:
                 fragments.append(child.tail)
 
         while highlight_stack:
-            color = highlight_stack.pop()
+            remaining_color: str | None = highlight_stack.pop()
             if annotations and highlight_mode == "markers":
-                fragments.append(annotations.highlight_end.format(color=color or ""))
+                fragments.append(
+                    annotations.highlight_end.format(color=remaining_color or "")
+                )
 
     def _handle_note(
         self,
@@ -563,26 +572,34 @@ class TextExtractor:
     # Internal helpers
     # ------------------------------------------------------------------
     def _iter_section_files(self, archive: ZipFile) -> Iterator[str]:
+        manifest_path: str | None = None
         try:
-            manifest = archive.read("Contents/content.hpf")
-        except KeyError:
-            manifest = None
+            container_root = ET.fromstring(archive.read("META-INF/container.xml"))
+        except (ET.ParseError, KeyError):
+            container_root = None
 
-        if manifest:
-            root = ET.fromstring(manifest)
-            items = [
-                item.get("href")
-                for item in root.findall(".//opf:item", namespaces=self.namespaces)
-                if item.get("href") and _SECTION_PATTERN.match(item.get("href"))
-            ]
-            if items:
-                return iter(items)
+        if container_root is not None:
+            rootfiles = parse_container_rootfiles(container_root)
+            main_rootfile, _ = select_main_rootfile(rootfiles)
+            if main_rootfile is not None and main_rootfile.full_path in archive.namelist():
+                manifest_path = main_rootfile.full_path
 
-        section_files = [
-            name
-            for name in archive.namelist()
-            if _SECTION_PATTERN.match(name)
-        ]
+        if manifest_path is not None:
+            try:
+                manifest_root = ET.fromstring(archive.read(manifest_path))
+            except (ET.ParseError, KeyError):
+                manifest_root = None
+            if manifest_root is not None:
+                relationships = parse_manifest_relationships(
+                    manifest_root,
+                    manifest_path,
+                    known_parts=archive.namelist(),
+                )
+                items = [path for path in relationships.spine_paths if is_section_part_name(path)]
+                if items:
+                    return iter(items)
+
+        section_files = [name for name in archive.namelist() if is_section_part_name(name)]
         section_files.sort(key=_section_sort_key)
         return iter(section_files)
 
@@ -646,7 +663,7 @@ def _resolve_control_nested_text(
 
 def _resolve_hyperlink_target(
     field_begin: ET.Element,
-    namespaces: Mapping[str, str],
+    namespaces: Dict[str, str],
 ) -> Optional[str]:
     params = field_begin.find("hp:parameters", namespaces=namespaces)
     if params is None:
@@ -720,7 +737,7 @@ def describe_element_path(
 
 
 def _section_sort_key(name: str) -> Tuple[int, str]:
-    match = _SECTION_PATTERN.match(name)
+    match = _SECTION_PATTERN.match(PurePosixPath(name).name)
     if match:
         return (int(match.group(1)), name)
     return (0, name)

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx"
-version = "2.7.1"
+version = "2.8"
 description = "Hancom HWPX 패키지를 로드하고 편집하기 위한 Python 유틸리티 모음"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = { file = "LICENSE" }
@@ -78,7 +78,18 @@ testpaths = ["tests"]
 
 [tool.mypy]
 python_version = "3.10"
-files = ["src/hwpx/document.py", "src/hwpx/oxml/document.py"]
+files = [
+    "src/hwpx/document.py",
+    "src/hwpx/oxml/document.py",
+    "src/hwpx/opc/package.py",
+    "src/hwpx/opc/relationships.py",
+    "src/hwpx/tools/archive_cli.py",
+    "src/hwpx/tools/package_validator.py",
+    "src/hwpx/tools/page_guard.py",
+    "src/hwpx/tools/template_analyzer.py",
+    "src/hwpx/tools/text_extract_cli.py",
+    "src/hwpx/tools/text_extractor.py",
+]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
@@ -86,7 +97,18 @@ module = ["hwpx.document", "hwpx.oxml.document"]
 ignore_errors = true
 
 [tool.pyright]
-include = ["src/hwpx/document.py", "src/hwpx/oxml/document.py"]
+# Keep basic pyright focused on OPC/tooling modules that currently pass
+# without suppressing their real diagnostics.
+include = [
+    "src/hwpx/opc/package.py",
+    "src/hwpx/opc/relationships.py",
+    "src/hwpx/tools/archive_cli.py",
+    "src/hwpx/tools/package_validator.py",
+    "src/hwpx/tools/page_guard.py",
+    "src/hwpx/tools/template_analyzer.py",
+    "src/hwpx/tools/text_extract_cli.py",
+    "src/hwpx/tools/text_extractor.py",
+]
 pythonVersion = "3.10"
-typeCheckingMode = "off"
+typeCheckingMode = "basic"
 reportMissingTypeStubs = false

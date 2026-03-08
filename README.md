@@ -217,12 +217,15 @@ hwpx-validate 문서.hwpx
 # ZIP/OPC/HWPX 패키지 구조 검사
 hwpx-validate-package 문서.hwpx
 
-# HWPX 풀기 / 다시 묶기
+# HWPX 풀기 / 다시 묶기 (기본값: XML/HWPF 바이트 보존)
 hwpx-unpack 문서.hwpx ./unpacked
+hwpx-unpack 문서.hwpx ./pretty-unpacked --pretty-xml
 hwpx-pack ./unpacked ./repacked.hwpx
 
-# 레퍼런스 템플릿 분석과 파트 추출
+# 레퍼런스 템플릿 분석과 pack-ready 추출
 hwpx-analyze-template 문서.hwpx --extract-dir ./template-parts --json
+hwpx-pack ./template-parts ./template-roundtrip.hwpx
+hwpx-validate-package ./template-roundtrip.hwpx
 
 # plain / markdown 텍스트 추출
 hwpx-text-extract 문서.hwpx --format markdown --output 문서.md
@@ -232,6 +235,10 @@ hwpx-page-guard --reference 원본.hwpx --output 결과.hwpx
 ```
 
 `hwpx-page-guard`는 렌더된 실제 쪽수를 계산하지 않습니다. 대신 단락 수, 표 수, shape/control 수, 명시적 page/column break, 텍스트 길이 통계를 비교해 레이아웃 드리프트 위험을 탐지하는 프록시 도구입니다.
+
+`hwpx-validate-package`는 `Contents/content.hpf` 같은 고정 경로를 강제하지 않고, `META-INF/container.xml`과 선택된 rootfile/manifest 관계를 따라가며 검사합니다. 엔진이 fallback으로 열 수 있는 비표준 패키지는 가능한 경우 경고로 구분합니다.
+
+`hwpx-analyze-template --extract-dir`는 covered fixture 기준으로 `hwpx-pack`과 `hwpx-validate-package`, 그리고 엔진 open 경로에 다시 투입할 수 있는 pack-ready 작업 디렉터리를 만듭니다. 이건 재패킹 가능성을 목표로 한 것이지, 렌더링 fidelity를 보장한다는 뜻은 아닙니다.
 
 ## 문서
 

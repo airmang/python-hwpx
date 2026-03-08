@@ -4,13 +4,14 @@ import argparse
 import json
 import os
 import shutil
+import sys
 import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Sequence
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
-from lxml import etree
+from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
 from .package_validator import validate_package
 
@@ -171,7 +172,7 @@ def _summarize_pack_validation(output_path: Path) -> None:
     report = validate_package(output_path)
     if report.ok:
         return
-    summary = "\n".join(f"- {issue}" for issue in report.issues[:10])
+    summary = "\n".join(f"- {issue}" for issue in report.errors[:10])
     raise ValueError(f"packed archive failed validation:\n{summary}")
 
 
@@ -180,7 +181,7 @@ def unpack_hwpx(
     output_dir: str | Path,
     *,
     overwrite: bool = False,
-    pretty_xml: bool = True,
+    pretty_xml: bool = False,
 ) -> UnpackResult:
     source_path = Path(source)
     if not source_path.is_file():
@@ -201,6 +202,29 @@ def unpack_hwpx(
 
     metadata_path = _write_pack_metadata(destination, entries)
     return UnpackResult(output_dir=destination, metadata_path=metadata_path, entries=entries)
+
+
+def _add_unpack_xml_format_args(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--pretty-xml",
+        action="store_true",
+        help="Reformat XML/HWPF payloads for easier manual inspection",
+    )
+    group.add_argument(
+        "--no-pretty-xml",
+        action="store_true",
+        help="Deprecated alias for the default raw-byte preserving behavior",
+    )
+
+
+def _resolve_pretty_xml_flag(args: argparse.Namespace) -> bool:
+    if getattr(args, "no_pretty_xml", False):
+        print(
+            "WARN: --no-pretty-xml is deprecated because raw XML preservation is now the default.",
+            file=sys.stderr,
+        )
+    return bool(getattr(args, "pretty_xml", False))
 
 
 def pack_hwpx(
@@ -251,7 +275,9 @@ def pack_hwpx(
 
 
 def unpack_main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Unpack an HWPX file into a directory")
+    parser = argparse.ArgumentParser(
+        description="Unpack an HWPX file into a directory (raw XML bytes are preserved by default)"
+    )
     parser.add_argument("input", help="Input .hwpx path")
     parser.add_argument("output", help="Output directory")
     parser.add_argument(
@@ -259,11 +285,7 @@ def unpack_main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Allow deleting an existing non-empty output directory",
     )
-    parser.add_argument(
-        "--no-pretty-xml",
-        action="store_true",
-        help="Keep XML payloads in their original byte formatting",
-    )
+    _add_unpack_xml_format_args(parser)
     args = parser.parse_args(argv)
 
     try:
@@ -271,7 +293,7 @@ def unpack_main(argv: Sequence[str] | None = None) -> int:
             args.input,
             args.output,
             overwrite=args.force,
-            pretty_xml=not args.no_pretty_xml,
+            pretty_xml=_resolve_pretty_xml_flag(args),
         )
     except Exception as exc:
         print(f"ERROR: {exc}")
@@ -311,7 +333,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     unpack_parser.add_argument("input")
     unpack_parser.add_argument("output")
     unpack_parser.add_argument("--force", action="store_true")
-    unpack_parser.add_argument("--no-pretty-xml", action="store_true")
+    _add_unpack_xml_format_args(unpack_parser)
 
     pack_parser = subparsers.add_parser("pack", help="Pack a directory into HWPX")
     pack_parser.add_argument("input")
@@ -323,6 +345,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         forward = [args.input, args.output]
         if args.force:
             forward.append("--force")
+        if args.pretty_xml:
+            forward.append("--pretty-xml")
         if args.no_pretty_xml:
             forward.append("--no-pretty-xml")
         return unpack_main(forward)

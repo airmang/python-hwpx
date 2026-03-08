@@ -7,14 +7,14 @@ textual metrics that often correlate with page-layout drift.
 from __future__ import annotations
 
 import argparse
-import io
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import BinaryIO, Iterable, Sequence
-from zipfile import ZipFile
 
-from lxml import etree
+from lxml import etree  # type: ignore[reportAttributeAccessIssue]
+
+from ..opc.package import HwpxPackage
 
 NS = {
     "hp": "http://www.hancom.co.kr/hwpml/2011/paragraph",
@@ -63,31 +63,6 @@ class DocumentMetrics:
     paragraph_text_lengths: list[int]
 
 
-def _section_files(zf: ZipFile) -> list[str]:
-    try:
-        root = etree.fromstring(zf.read("Contents/content.hpf"))
-    except KeyError:
-        return [
-            name
-            for name in zf.namelist()
-            if name.startswith("Contents/section") and name.endswith(".xml")
-        ]
-
-    id_to_href: dict[str, str] = {}
-    for item in root.findall(".//opf:item", namespaces=NS):
-        item_id = item.get("id")
-        href = item.get("href")
-        if item_id and href:
-            id_to_href[item_id] = href
-
-    files: list[str] = []
-    for itemref in root.findall(".//opf:itemref", namespaces=NS):
-        idref = itemref.get("idref")
-        if idref and idref in id_to_href:
-            files.append(id_to_href[idref])
-    return files
-
-
 def _text_of_t_node(node: etree._Element) -> str:
     return "".join(node.itertext())
 
@@ -99,16 +74,9 @@ def _local_name(tag: str) -> str:
 
 
 def _iter_section_roots(source: str | Path | bytes | BinaryIO) -> Iterable[etree._Element]:
-    if isinstance(source, bytes):
-        archive = ZipFile(io.BytesIO(source), "r")
-    else:
-        archive = ZipFile(source, "r")
-
-    try:
-        for name in _section_files(archive):
-            yield etree.fromstring(archive.read(name))
-    finally:
-        archive.close()
+    package = HwpxPackage.open(source)
+    for name in package.section_paths():
+        yield package.get_xml(name)
 
 
 def collect_metrics(source: str | Path | bytes | BinaryIO) -> DocumentMetrics:
@@ -273,8 +241,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="Print collected metrics as JSON")
     args = parser.parse_args(argv)
 
-    reference = collect_metrics(args.reference)
-    output = collect_metrics(args.output)
+    try:
+        reference = collect_metrics(args.reference)
+        output = collect_metrics(args.output)
+    except Exception as exc:
+        print(f"ERROR: {exc}")
+        return 1
 
     if args.json:
         print(
