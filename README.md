@@ -13,8 +13,9 @@
 
 ---
 
-`python-hwpx`는 한컴오피스의 [HWPX 포맷](https://www.hancom.com/)을 순수 Python으로 다루는 라이브러리입니다.
+`python-hwpx`는 한컴오피스의 [HWPX 포맷](https://www.hancom.com/)을 순수 Python으로 다루는 라이브러리이자 CLI 도구 모음입니다.
 한/글 설치 없이, OS에 관계없이 HWPX 문서의 구조를 파싱하고 콘텐츠를 조작할 수 있습니다.
+문서 편집 API뿐 아니라 스키마/패키지 검증, unpack/pack, 템플릿 분석 같은 XML-first 워크플로도 함께 제공합니다.
 
 > **pyhwpx / pyhwp와 다른 점?**
 > | | python-hwpx | pyhwpx | pyhwp |
@@ -26,7 +27,7 @@
 
 ## 🌍 크로스 플랫폼 지원
 
-HWPX 파일은 **ZIP + XML** 구조이므로, 한/글 프로그램 없이 Python만으로 완벽하게 읽고 쓸 수 있습니다.
+HWPX 파일은 **ZIP + XML** 구조이므로, 한/글 프로그램 없이 Python만으로 읽고 편집하는 워크플로를 구성할 수 있습니다.
 
 | 플랫폼 | 읽기 | 쓰기 | 비고 |
 |--------|------|------|------|
@@ -48,14 +49,14 @@ pip install python-hwpx
 ```python
 from hwpx import HwpxDocument
 
-# 기존 문서 열기
-doc = HwpxDocument.open("보고서.hwpx")
-
 # 빈 문서 새로 만들기
 doc = HwpxDocument.new()
 
+# 기존 문서를 수정하려면:
+# doc = HwpxDocument.open("보고서.hwpx")
+
 # 문단 추가
-doc.add_paragraph("python-hwpx로 생성한 문단입니다.")
+paragraph = doc.add_paragraph("python-hwpx로 생성한 문단입니다.")
 
 # 표 추가 (2×3)
 table = doc.add_table(rows=2, cols=3)
@@ -63,9 +64,8 @@ table.set_cell_text(0, 0, "이름")
 table.set_cell_text(0, 1, "부서")
 table.set_cell_text(0, 2, "연락처")
 
-# 메모 추가 (한/글에서 바로 표시)
-paragraph = doc.paragraphs[0]
-doc.add_memo_with_anchor("검토 필요", paragraph=paragraph)
+# 메모 추가 (기본 템플릿의 memo shape 사용)
+doc.add_memo_with_anchor("검토 필요", paragraph=paragraph, memo_shape_id_ref="0")
 
 # 저장
 doc.save_to_path("결과물.hwpx")
@@ -99,7 +99,7 @@ doc.save_to_path("결과물.hwpx")
 | 🎨 **스타일 치환** | 서식 기반 필터 | 색상/밑줄/charPrIDRef 기반 Run 검색 및 교체 |
 | 📤 **내보내기** | 텍스트/HTML/Markdown | 문서 변환 출력 |
 | ✅ **유효성 검사** | XSD + 패키지 구조 | CLI(`hwpx-validate`, `hwpx-validate-package`) 및 API |
-| 🧰 **작업 도구** | unpack/pack/분석/비교 | 패키지 점검과 재구성 작업 보조 |
+| 🧰 **작업 도구** | unpack/pack/분석/비교 | pack-ready 작업 디렉터리 추출과 재구성 점검 |
 | 🏗️ **저수준 XML** | 데이터클래스 매핑 | OWPML 스키마 ↔ Python 객체 직접 조작 |
 | 🔄 **네임스페이스 호환** | 자동 정규화 | HWPML 2016 → 2011 자동 변환 |
 
@@ -107,7 +107,7 @@ doc.save_to_path("결과물.hwpx")
 
 ### 📄 문서 편집
 
-문단, 표, 메모, 머리말/꼬리말을 Python 객체로 다룹니다.
+문단, 표, 메모, 머리글/바닥글을 Python 객체로 다룹니다.
 
 ```python
 # 단락 추가·삭제
@@ -119,9 +119,9 @@ new_sec = doc.add_section()          # 문서 끝에 섹션 추가
 new_sec.add_paragraph("두 번째 섹션 내용")
 doc.remove_section(1)                # 인덱스로 섹션 삭제
 
-# 머리말·꼬리말
+# 머리글·바닥글
 doc.set_header_text("기밀 문서", page_type="BOTH")
-doc.set_footer_text("— 1 —", page_type="BOTH")
+doc.set_footer_text("1 / 10", page_type="BOTH")
 
 # 표 셀 병합·분할
 table.merge_cells(0, 0, 1, 1)   # (0,0)~(1,1) 병합
@@ -134,13 +134,14 @@ table.set_cell_text(0, 0, "병합된 셀", logical=True, split_merged=True)
 from hwpx import TextExtractor, ObjectFinder
 
 # 텍스트 추출
-for section in TextExtractor("문서.hwpx"):
-    for para in section.paragraphs:
-        print(para.text)
+with TextExtractor("문서.hwpx") as extractor:
+    for section in extractor.iter_sections():
+        for para in extractor.iter_paragraphs(section):
+            print(para.text())
 
 # 특정 객체 탐색
-for obj in ObjectFinder("문서.hwpx").find("tbl"):
-    print(obj.tag, obj.attributes)
+for obj in ObjectFinder("문서.hwpx").find_all(tag="tbl"):
+    print(obj.tag, obj.path)
 ```
 
 ### 🎨 스타일 기반 텍스트 치환

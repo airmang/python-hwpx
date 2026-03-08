@@ -129,6 +129,7 @@ def _create_paragraph_element(
     style_id_ref: str | int | None = None,
     paragraph_attributes: Optional[dict[str, str]] = None,
     run_attributes: Optional[dict[str, str]] = None,
+    parent: ET.Element | None = None,
 ) -> ET.Element:
     """Return a paragraph element populated with a single run and text node."""
 
@@ -140,7 +141,10 @@ def _create_paragraph_element(
     if style_id_ref is not None:
         attrs["styleIDRef"] = str(style_id_ref)
 
-    paragraph = ET.Element(f"{_HP}p", attrs)
+    if parent is None:
+        paragraph = ET.Element(f"{_HP}p", attrs)
+    else:
+        paragraph = parent.makeelement(f"{_HP}p", attrs)
 
     run_attrs: dict[str, str] = dict(run_attributes or {})
     if char_pr_id_ref is not None:
@@ -148,8 +152,10 @@ def _create_paragraph_element(
     else:
         run_attrs.setdefault("charPrIDRef", "0")
 
-    run = ET.SubElement(paragraph, f"{_HP}run", run_attrs)
-    text_element = ET.SubElement(run, f"{_HP}t")
+    run = paragraph.makeelement(f"{_HP}run", run_attrs)
+    paragraph.append(run)
+    text_element = run.makeelement(f"{_HP}t", {})
+    run.append(text_element)
     text_element.text = text
     return paragraph
 
@@ -1368,7 +1374,7 @@ class HwpxOxmlMemoGroup:
         memo_attrs.setdefault("id", memo_id or _memo_id())
         if memo_shape_id_ref is not None:
             memo_attrs.setdefault("memoShapeIDRef", str(memo_shape_id_ref))
-        memo_element = ET.SubElement(self.element, f"{_HP}memo", memo_attrs)
+        memo_element = _append_child(self.element, f"{_HP}memo", memo_attrs)
         memo = HwpxOxmlMemo(memo_element, self)
         memo.set_text(text, char_pr_id_ref=char_pr_id_ref)
         self.section.mark_dirty()
@@ -1472,10 +1478,11 @@ class HwpxOxmlMemo:
         for child in list(self.element):
             if _element_local_name(child) in {"paraList", "p"}:
                 self.element.remove(child)
-        para_list = ET.SubElement(self.element, f"{_HP}paraList")
+        para_list = _append_child(self.element, f"{_HP}paraList", {})
         paragraph = _create_paragraph_element(
             desired,
             char_pr_id_ref=existing_char if existing_char is not None else "0",
+            parent=para_list,
         )
         para_list.append(paragraph)
         self.group.section.mark_dirty()
@@ -3542,7 +3549,7 @@ class HwpxOxmlSection:
     def _memo_group_element(self, create: bool = False) -> ET.Element | None:
         element = self._element.find(f"{_HP}memogroup")
         if element is None and create:
-            element = ET.SubElement(self._element, f"{_HP}memogroup")
+            element = _append_child(self._element, f"{_HP}memogroup", {})
             self.mark_dirty()
         return element
 

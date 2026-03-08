@@ -238,6 +238,24 @@ def test_add_memo_with_anchor_creates_paragraph_when_missing() -> None:
     assert field_end.get("beginIDRef") == "field-02"
 
 
+def test_add_memo_with_anchor_roundtrips_on_real_document() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("Quick start anchor")
+
+    memo, anchored, field_id = document.add_memo_with_anchor(
+        "Quick start memo",
+        paragraph=paragraph,
+        memo_shape_id_ref="0",
+    )
+
+    assert anchored is paragraph
+    assert memo.text == "Quick start memo"
+    assert field_id
+
+    reopened = HwpxDocument.open(document.to_bytes())
+    assert any(item.text == "Quick start memo" for item in reopened.memos)
+
+
 def test_document_ensure_run_style_creates_bold_entry() -> None:
     document, _, header = _build_document()
 
