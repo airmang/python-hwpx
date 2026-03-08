@@ -2,12 +2,16 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [2.7.1] - 2026-03-08
+### 변경
+- 공개 저장소와 배포 산출물에서 내부 감사 문서를 제거했습니다.
+
 ## [2.7] - 2026-03-08
 ### 추가
 - `hwpx-unpack`, `hwpx-pack`, `hwpx-analyze-template` CLI를 추가했습니다.
 - `src/hwpx/tools/archive_cli.py`를 추가해 unpack/pack 워크플로를 패키지 레벨 도구로 승격했습니다.
 - unpack 시 `.hwpx-pack-metadata.json`을 기록하고, pack 시 이를 사용해 원본 ZIP 엔트리 순서/압축 방식을 가능한 범위에서 보존하도록 했습니다.
-- `src/hwpx/tools/template_analyzer.py`와 `DevDoc/hwpxskill_gap_audit.md`를 추가했습니다.
+- `src/hwpx/tools/template_analyzer.py`를 추가했습니다.
 
 ### 변경
 - `scripts/office/unpack.py`, `scripts/office/pack.py`, `scripts/analyze_template.py`를 패키지 도구 래퍼로 정리했습니다.
