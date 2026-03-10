@@ -209,37 +209,6 @@ python-hwpx
 └── hwpx.templates       # 내장 빈 문서 템플릿
 ```
 
-## CLI
-
-```bash
-# HWPX 문서 스키마 유효성 검사
-hwpx-validate 문서.hwpx
-
-# ZIP/OPC/HWPX 패키지 구조 검사
-hwpx-validate-package 문서.hwpx
-
-# HWPX 풀기 / 다시 묶기 (기본값: XML/HWPF 바이트 보존)
-hwpx-unpack 문서.hwpx ./unpacked
-hwpx-unpack 문서.hwpx ./pretty-unpacked --pretty-xml
-hwpx-pack ./unpacked ./repacked.hwpx
-
-# 레퍼런스 문서 분석과 작업 디렉터리 추출
-hwpx-analyze-template 문서.hwpx --extract-dir ./template-parts --json
-hwpx-pack ./template-parts ./template-roundtrip.hwpx
-hwpx-validate-package ./template-roundtrip.hwpx
-
-# plain / markdown 텍스트 추출
-hwpx-text-extract 문서.hwpx --format markdown --output 문서.md
-
-# 문서 구조 변화 징후 비교
-hwpx-page-guard --reference 원본.hwpx --output 결과.hwpx
-```
-
-`hwpx-page-guard`는 렌더된 실제 쪽수를 계산하지 않습니다. 대신 단락 수, 표 수, shape/control 수, 명시적 page/column break, 텍스트 길이 같은 구조 지표를 비교해 편집 전후 변화 징후를 빠르게 점검합니다.
-
-`hwpx-validate-package`는 `Contents/content.hpf` 같은 고정 경로를 전제로 두지 않고, `META-INF/container.xml`과 실제 rootfile/manifest 선언을 따라가며 패키지 구조를 확인합니다. 엔진이 열 수 있는 비표준 패키지는 가능한 경우 경고로 분리해 보여줍니다.
-
-`hwpx-analyze-template --extract-dir`는 다시 묶고 점검하기 쉬운 작업 디렉터리를 만듭니다. 재구성과 구조 검증에 필요한 파일을 함께 꺼내는 용도이며, 편집기에서의 최종 렌더링 결과까지 보장한다는 뜻은 아닙니다.
 
 ## 문서
 
