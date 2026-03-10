@@ -6,7 +6,7 @@
   <p align="center">
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/v/python-hwpx?color=blue&label=PyPI" alt="PyPI"></a>
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/pyversions/python-hwpx" alt="Python"></a>
-    <a href="https://github.com/airmang/python-hwpx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
+    <a href="https://github.com/airmang/python-hwpx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Custom%20Noncommercial-orange" alt="License: Custom Non-Commercial"></a>
     <a href="https://airmang.github.io/python-hwpx/"><img src="https://img.shields.io/badge/docs-Sphinx-8CA1AF" alt="Docs"></a>
   </p>
 </p>
@@ -286,13 +286,15 @@ pytest
 
 ## License
 
-[MIT](LICENSE) © 고규현 (Kyuhyun Koh)
+[Custom Non-Commercial License](LICENSE) © python-hwpx Maintainers
+
+Commercial use requires separate permission from the copyright holders.
 
 <br>
 
-## Author
+## Maintainer
 
-**고규현** — 광교고등학교 정보·컴퓨터 교사
+Primary maintainer/contact: **고규현** — 광교고등학교 정보·컴퓨터 교사
 
 - ✉️ [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
 - 🐙 [@airmang](https://github.com/airmang)
