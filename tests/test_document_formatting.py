@@ -119,10 +119,9 @@ _TEXT_SETTER_APPLIERS: tuple[Callable[[str], str], ...] = (
     _set_header_text_and_get_xml_text,
     _set_run_text_and_get_xml_text,
     _set_table_cell_text_and_get_xml_text,
-    _set_paragraph_text_and_get_xml_text,
 )
 
-_TEXT_SETTER_IDS = ("header_footer", "run", "table_cell", "paragraph")
+_TEXT_SETTER_IDS = ("header_footer", "run", "table_cell")
 
 _TEXT_SANITIZATION_CASES: tuple[tuple[str, str], ...] = (
     ("a\tb", "ab"),
@@ -131,6 +130,18 @@ _TEXT_SANITIZATION_CASES: tuple[tuple[str, str], ...] = (
     ("line1\nline2", "line1\nline2"),
     ("", ""),
 )
+
+
+def test_paragraph_text_setter_serializes_tabs_as_elements() -> None:
+    _, paragraph = _build_section_with_paragraph()
+
+    paragraph.text = "left	right"
+
+    run = paragraph.element.find(f"{HP}run")
+    assert run is not None
+    children = list(run)
+    assert [child.tag for child in children] == [f"{HP}t", f"{HP}tab", f"{HP}t"]
+    assert paragraph.text == "left	right"
 
 
 @pytest.mark.parametrize("apply_setter", _TEXT_SETTER_APPLIERS, ids=_TEXT_SETTER_IDS)
