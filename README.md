@@ -144,6 +144,8 @@ for obj in ObjectFinder("문서.hwpx").find_all(tag="tbl"):
     print(obj.tag, obj.path)
 ```
 
+`hp:tab`과 `ctrl id="tab"`은 탭 문자(`\t`)로 보존됩니다. 따라서 `Paragraph.text`, `TextExtractor`, `export_text()`/`export_html()`/`export_markdown()` 경로에서 같은 탭 의미를 유지한 채 roundtrip 할 수 있습니다. 필요하면 `preserve_breaks=False`로 줄바꿈/탭을 공백 기반으로 평탄화할 수 있습니다.
+
 ### 🎨 스타일 기반 텍스트 치환
 
 서식(색상, 밑줄, charPrIDRef)으로 런을 필터링해 선택적으로 교체합니다.

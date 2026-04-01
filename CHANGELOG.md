@@ -2,6 +2,12 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [Unreleased] - 2026-04-01
+### 변경
+- `hp:tab` 및 `ctrl id="tab"` 지원을 README와 usage 문서에 반영했습니다.
+- `Paragraph.text`, `TextExtractor`, 텍스트/HTML/Markdown exporter가 탭 의미를 `\t`로 보존한다는 점을 문서화했습니다.
+- `preserve_breaks` 옵션이 탭/줄바꿈 평탄화 여부를 제어한다는 설명을 보강했습니다.
+
 ## [2.8.2] - 2026-03-08
 ### 변경
 - README를 현재 공개 API와 CLI 범위에 맞춰 정리했습니다. Quick start, 텍스트 추출, 객체 검색 예시를 실제 호출 방식 기준으로 수정했습니다.
