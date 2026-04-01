@@ -269,6 +269,9 @@ class TextExtractor:
     # ------------------------------------------------------------------
     # Text helpers
     # ------------------------------------------------------------------
+    def _is_tab_control(self, element: ET.Element) -> bool:
+        return strip_namespace(element.tag) == "ctrl" and (element.get("id") or "").lower() == "tab"
+
     def paragraph_text(
         self,
         paragraph: ET.Element,
@@ -289,7 +292,7 @@ class TextExtractor:
                 elif tag == "lineBreak":
                     if preserve_breaks:
                         fragments.append("\n")
-                elif tag == "tab":
+                elif tag == "tab" or self._is_tab_control(child):
                     fragments.append("\t" if preserve_breaks else " ")
                 elif tag in {"footNote", "endNote"}:
                     self._handle_note(

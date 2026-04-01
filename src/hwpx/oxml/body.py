@@ -43,7 +43,7 @@ _TRACK_CHANGE_MARK_NAMES = {
 }
 
 InlineMark = Union[GenericElement, "TrackChangeMark"]
-RunChild = Union[GenericElement, "Control", "Table", "InlineObject", "TextSpan"]
+RunChild = Union[GenericElement, "Control", "Table", "InlineObject", "TextSpan", "Tab"]
 ParagraphChild = Union["Run", GenericElement]
 
 
@@ -106,6 +106,12 @@ class InlineObject:
 
 
 @dataclass(slots=True)
+class Tab:
+    tag: str
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
 class Table:
     tag: str
     attributes: Dict[str, str] = field(default_factory=dict)
@@ -120,6 +126,7 @@ class Run:
     controls: List[Control] = field(default_factory=list)
     tables: List[Table] = field(default_factory=list)
     inline_objects: List[InlineObject] = field(default_factory=list)
+    tabs: List[Tab] = field(default_factory=list)
     text_spans: List[TextSpan] = field(default_factory=list)
     other_children: List[GenericElement] = field(default_factory=list)
     attributes: Dict[str, str] = field(default_factory=dict)
@@ -227,6 +234,10 @@ def parse_table_element(node: etree._Element) -> Table:
     )
 
 
+def parse_tab_element(node: etree._Element) -> Tab:
+    return Tab(tag=node.tag, attributes={key: value for key, value in node.attrib.items()})
+
+
 def parse_run_element(node: etree._Element) -> Run:
     attributes = {key: value for key, value in node.attrib.items()}
     char_pr_id_ref = parse_int(attributes.pop("charPrIDRef", None))
@@ -247,6 +258,10 @@ def parse_run_element(node: etree._Element) -> Run:
             span = parse_text_span(child)
             run.text_spans.append(span)
             run.content.append(span)
+        elif name == "tab":
+            tab = parse_tab_element(child)
+            run.tabs.append(tab)
+            run.content.append(tab)
         elif name == "tbl":
             table = parse_table_element(child)
             run.tables.append(table)
@@ -342,6 +357,10 @@ def _text_span_to_xml(span: TextSpan) -> etree._Element:
     return node
 
 
+def _tab_to_xml(tab: Tab) -> etree._Element:
+    return etree.Element(_qualified_tag(tab.tag, "tab"), dict(tab.attributes))
+
+
 def _control_to_xml(control: Control) -> etree._Element:
     attrs = dict(control.attributes)
     if control.control_type is not None:
@@ -376,6 +395,8 @@ def serialize_run(run: Run) -> etree._Element:
             node.append(_text_span_to_xml(child))
         elif isinstance(child, Control):
             node.append(_control_to_xml(child))
+        elif isinstance(child, Tab):
+            node.append(_tab_to_xml(child))
         elif isinstance(child, Table):
             node.append(_table_to_xml(child))
         elif isinstance(child, InlineObject):

@@ -121,6 +121,45 @@ def _memo_id() -> str:
     return str(uuid4().int & 0xFFFFFFFF)
 
 
+def _refresh_copied_paragraph_subtree_ids(paragraph: ET.Element) -> None:
+    """Assign fresh local identifiers inside a copied paragraph subtree.
+
+    This is intentionally narrow: it refreshes paragraph ids for the copied
+    paragraph and any nested paragraphs (for example inside table cells), plus
+    common object identifiers used by tables/shapes/notes. Reference-style
+    attributes such as ``borderFillIDRef`` are left untouched.
+    """
+
+    for node in paragraph.iter():
+        if node.tag == f"{_HP}p":
+            node.set("id", _paragraph_id())
+            continue
+
+        if "id" in node.attrib and node.tag in {
+            f"{_HP}tbl",
+            f"{_HP}pic",
+            f"{_HP}container",
+            f"{_HP}ole",
+            f"{_HP}equation",
+            f"{_HP}textart",
+            f"{_HP}video",
+            f"{_HP}header",
+            f"{_HP}footer",
+        }:
+            node.set("id", _object_id())
+
+        if "instId" in node.attrib:
+            node.set("instId", _object_id())
+
+
+def _clone_paragraph_element(paragraph: ET.Element) -> ET.Element:
+    """Return a deep-copied paragraph element with refreshed local ids."""
+
+    cloned = deepcopy(paragraph)
+    _refresh_copied_paragraph_subtree_ids(cloned)
+    return cloned
+
+
 def _create_paragraph_element(
     text: str,
     *,
@@ -154,9 +193,7 @@ def _create_paragraph_element(
 
     run = paragraph.makeelement(f"{_HP}run", run_attrs)
     paragraph.append(run)
-    text_element = run.makeelement(f"{_HP}t", {})
-    run.append(text_element)
-    text_element.text = text
+    _append_text_with_tabs(run, text)
     return paragraph
 
 
@@ -190,6 +227,20 @@ def _append_child(
     child = parent.makeelement(tag, attrib or {})
     parent.append(child)
     return child
+
+
+def _is_tab_control_element(node: ET.Element) -> bool:
+    return node.tag == f"{_HP}ctrl" and (node.get("id") or "").lower() == "tab"
+
+
+def _append_text_with_tabs(run: ET.Element, value: str) -> None:
+    segments = value.split("\t")
+    for index, segment in enumerate(segments):
+        text_element = run.makeelement(f"{_HP}t", {})
+        text_element.text = _sanitize_text(segment)
+        run.append(text_element)
+        if index < len(segments) - 1:
+            run.append(run.makeelement(f"{_HP}tab", {}))
 
 
 def _normalize_length(value: str | None) -> str:
@@ -2097,9 +2148,7 @@ class HwpxOxmlTableCell:
             run_attrs["charPrIDRef"] = "0"
 
         run = _append_child(paragraph, f"{_HP}run", run_attrs)
-        t = run.makeelement(f"{_HP}t", {})
-        t.text = _sanitize_text(text)
-        run.append(t)
+        _append_text_with_tabs(run, text)
 
         self.table.mark_dirty()
         section = self.table.paragraph.section
@@ -2762,9 +2811,13 @@ class HwpxOxmlParagraph:
     def text(self) -> str:
         """Return the concatenated textual content of this paragraph."""
         texts: list[str] = []
-        for text_element in self.element.findall(f".//{_HP}t"):
-            if text_element.text:
-                texts.append(text_element.text)
+        for run in self._run_elements():
+            for child in run:
+                if child.tag == f"{_HP}t":
+                    if child.text:
+                        texts.append(child.text)
+                elif child.tag == f"{_HP}tab" or _is_tab_control_element(child):
+                    texts.append("\t")
         return "".join(texts)
 
     @text.setter
@@ -2780,10 +2833,10 @@ class HwpxOxmlParagraph:
         # Identify first run — its charPrIDRef will be kept.
         first_run = self._ensure_run()
 
-        # Remove <hp:t> from ALL runs.
+        # Remove existing text/tab nodes from all runs.
         for run in runs:
             for child in list(run):
-                if child.tag == f"{_HP}t":
+                if child.tag == f"{_HP}t" or child.tag == f"{_HP}tab" or _is_tab_control_element(child):
                     run.remove(child)
 
         # Remove non-first runs that are now empty (only had text).
@@ -2794,10 +2847,8 @@ class HwpxOxmlParagraph:
             if len(list(run)) == 0:
                 self.element.remove(run)
 
-        # Write the new text into the first run.
-        text_element = first_run.makeelement(f"{_HP}t", {})
-        text_element.text = _sanitize_text(value)
-        first_run.append(text_element)
+        # Write the new text into the first run, preserving tabs as <hp:tab/>.
+        _append_text_with_tabs(first_run, value)
         _clear_paragraph_layout_cache(self.element)
         self.section.mark_dirty()
 
@@ -3668,13 +3719,42 @@ class HwpxOxmlSection:
 
             run = paragraph.makeelement(f"{_HP}run", run_attrs)
             paragraph.append(run)
-            text_element = run.makeelement(f"{_HP}t", {})
-            text_element.text = text
-            run.append(text_element)
+            _append_text_with_tabs(run, text)
 
         self._element.append(paragraph)
         self._dirty = True
         return HwpxOxmlParagraph(paragraph, self)
+
+    def insert_paragraphs(
+        self,
+        index: int,
+        paragraphs: Sequence[HwpxOxmlParagraph | ET.Element],
+    ) -> list[HwpxOxmlParagraph]:
+        """Insert paragraph copies at *index* and return wrappers for them."""
+
+        existing = self.paragraphs
+        if index < 0 or index > len(existing):
+            raise IndexError(f"단락 인덱스 {index}이(가) 범위를 벗어났습니다 (총 {len(existing)}개)")
+
+        inserted: list[HwpxOxmlParagraph] = []
+        for offset, paragraph in enumerate(paragraphs):
+            source_element = paragraph.element if isinstance(paragraph, HwpxOxmlParagraph) else paragraph
+            cloned = _clone_paragraph_element(source_element)
+            self._element.insert(index + offset, cloned)
+            inserted.append(HwpxOxmlParagraph(cloned, self))
+
+        if inserted:
+            self._dirty = True
+        return inserted
+
+    def copy_paragraph_range(self, start: int, end: int) -> list[ET.Element]:
+        """Return deep-copied paragraph elements for the inclusive range."""
+
+        paragraphs = self.paragraphs
+        total = len(paragraphs)
+        if start < 0 or end < 0 or start >= total or end >= total or start > end:
+            raise IndexError(f"문단 범위 {start}..{end}이(가) 유효하지 않습니다 (총 {total}개)")
+        return [_clone_paragraph_element(paragraphs[index].element) for index in range(start, end + 1)]
 
     def mark_dirty(self) -> None:
         self._dirty = True
@@ -4648,6 +4728,42 @@ class HwpxOxmlDocument:
             section.remove_paragraph(paragraph)
         else:
             paragraph.remove()
+
+    def copy_paragraph_range(
+        self,
+        start: int,
+        end: int,
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> list[ET.Element]:
+        """Return deep-copied paragraph elements for an inclusive range."""
+
+        if section is None and section_index is not None:
+            section = self._sections[section_index]
+        if section is None:
+            if not self._sections:
+                raise ValueError("document does not contain any sections")
+            section = self._sections[-1]
+        return section.copy_paragraph_range(start, end)
+
+    def insert_paragraphs(
+        self,
+        index: int,
+        paragraphs: Sequence[HwpxOxmlParagraph | ET.Element],
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> list[HwpxOxmlParagraph]:
+        """Insert copied paragraphs into the requested section."""
+
+        if section is None and section_index is not None:
+            section = self._sections[section_index]
+        if section is None:
+            if not self._sections:
+                raise ValueError("document does not contain any sections")
+            section = self._sections[-1]
+        return section.insert_paragraphs(index, paragraphs)
 
     # ------------------------------------------------------------------
     # Section management
