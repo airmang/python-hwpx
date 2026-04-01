@@ -1028,11 +1028,13 @@ with TextExtractor("sample.hwpx") as extractor:
             print(text)
 ```
 
+`hp:tab` 또는 `ctrl id="tab"`이 들어 있는 문단도 같은 방식으로 처리됩니다. 예를 들어 `left<tab>right` 형태의 런은 `paragraph.text()`에서 `"left\tright"`로 보이며, `HwpxDocument`로 다시 저장한 뒤 다시 열어도 탭 의미가 유지됩니다.
+
 문단 객체(`ParagraphInfo`)의 `text()` 메서드에는 추가로 다음과 같은 인자를 전달할 수 있습니다.
 
 - `object_behavior`: 표, 도형 등 인라인 개체를 `"skip"`, `"placeholder"`, `"nested"` 중 하나로 처리합니다.
 - `object_placeholder`: 자리표시자 모드를 사용할 때 형식을 지정합니다.
-- `preserve_breaks`: 줄바꿈과 탭을 유지할지 여부를 결정합니다.
+- `preserve_breaks`: 줄바꿈과 탭을 유지할지 여부를 결정합니다. 기본값은 `True`이며, `hp:tab`과 `ctrl id="tab"`은 `\t`로 렌더링됩니다. `False`로 주면 탭/줄바꿈을 공백 기반으로 평탄화할 수 있습니다.
 
 `iter_sections()`와 `iter_paragraphs()` 메서드를 사용하면 원하는 구역에만 접근하거나 중첩 문단을 제외하는 등 탐색 범위를 세밀하게 조정할 수 있습니다.
 
