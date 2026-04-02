@@ -10,8 +10,12 @@ def _resolve_version() -> str:
     except PackageNotFoundError:
         return "0+unknown"
 
+def __getattr__(name: str) -> object:
+    """Resolve dynamic module attributes."""
 
-__version__ = _resolve_version()
+    if name == "__version__":
+        return _resolve_version()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 from .tools.text_extractor import (
     DEFAULT_NAMESPACES,

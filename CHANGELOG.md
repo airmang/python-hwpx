@@ -2,11 +2,20 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
-## [Unreleased] - 2026-04-01
+## [2.9.0] - 2026-04-02
+### 추가
+- `HwpxDocument.get_table_map()`, `find_cell_by_label()`, `fill_by_path()`를 추가해 HWPX 양식/템플릿 표를 문서 순서 기반으로 탐색하고 채울 수 있게 했습니다.
+- `hwpx.tools.table_navigation` 모듈을 추가해 엔진 레벨에서 재사용 가능한 표 탐색, 라벨 정규화, 방향 이동, 배치 채우기 helper를 공개했습니다.
+
 ### 변경
-- `hp:tab` 및 `ctrl id="tab"` 지원을 README와 usage 문서에 반영했습니다.
-- `Paragraph.text`, `TextExtractor`, 텍스트/HTML/Markdown exporter가 탭 의미를 `\t`로 보존한다는 점을 문서화했습니다.
-- `preserve_breaks` 옵션이 탭/줄바꿈 평탄화 여부를 제어한다는 설명을 보강했습니다.
+- 라벨 매칭이 공백 축약, 대소문자 무시, 후행 콜론 허용 규칙을 따르도록 정규화 로직을 추가했습니다.
+- 표 자동화 API에 대한 회귀 테스트와 README/API 레퍼런스 문서를 추가했습니다.
+
+## [2.8.3] - 2026-03-10
+### 변경
+- 저장소와 배포 메타데이터의 라이선스 표기를 실제 `LICENSE` 파일과 일치하도록 정렬했습니다.
+- `pyproject.toml`을 PEP 639 방식의 `LicenseRef-python-hwpx-NonCommercial` + `license-files` 구성으로 갱신하고, 잘못된 MIT 분류자를 제거했습니다.
+- README 라이선스 배지/섹션을 커스텀 비상업적 라이선스 기준으로 수정하고, wheel/sdist 산출물의 라이선스 메타데이터를 검증하는 회귀 테스트를 추가했습니다.
 
 ## [2.8.2] - 2026-03-08
 ### 변경

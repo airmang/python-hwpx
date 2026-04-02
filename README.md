@@ -6,7 +6,7 @@
   <p align="center">
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/v/python-hwpx?color=blue&label=PyPI" alt="PyPI"></a>
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/pyversions/python-hwpx" alt="Python"></a>
-    <a href="https://github.com/airmang/python-hwpx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
+    <a href="https://github.com/airmang/python-hwpx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Custom%20Noncommercial-orange" alt="License: Custom Non-Commercial"></a>
     <a href="https://airmang.github.io/python-hwpx/"><img src="https://img.shields.io/badge/docs-Sphinx-8CA1AF" alt="Docs"></a>
   </p>
 </p>
@@ -86,6 +86,7 @@ doc.save_to_path("결과물.hwpx")
 | 📝 **단락** | 추가/삭제/편집/서식 | 텍스트 설정, 단락 삭제(`remove_paragraph`), 스타일 참조 |
 | ✏️ **Run** | 텍스트 조각 | 추가, 교체, 볼드/이탤릭/밑줄/색상 서식 |
 | 📊 **표(Table)** | 생성/편집/병합 | N×M 표 생성, 셀 텍스트, 셀 병합/분할, 중첩 테이블 |
+| 🧭 **표 자동화** | 탐색/채우기 | 테이블 맵, 라벨 기반 셀 탐색, 경로 기반 배치 채우기 |
 | 📑 **섹션** | 추가/삭제 | `add_section(after=)`, `remove_section()`, manifest 자동 관리 |
 | 🖼️ **이미지** | 임베드/삭제 | 바이너리 데이터 관리, manifest 자동 등록 |
 | ✏️ **도형** | 선/사각형/타원 | OWPML 명세 준수 도형 삽입 |
@@ -126,6 +127,17 @@ doc.set_footer_text("1 / 10", page_type="BOTH")
 # 표 셀 병합·분할
 table.merge_cells(0, 0, 1, 1)   # (0,0)~(1,1) 병합
 table.set_cell_text(0, 0, "병합된 셀", logical=True, split_merged=True)
+
+# 양식형 표 자동 채우기
+form = doc.add_table(2, 2)
+form.cell(0, 0).text = "성명:"
+form.cell(1, 0).text = "소속"
+
+doc.find_cell_by_label("성명")    # {"matches": [...], "count": 1}
+doc.fill_by_path({
+    "성명 > right": "홍길동",
+    "소속 > right": "플랫폼팀",
+})
 ```
 
 ### 🔍 텍스트 추출 & 검색
@@ -257,13 +269,15 @@ pytest
 
 ## License
 
-[MIT](LICENSE) © 고규현 (Kyuhyun Koh)
+[Custom Non-Commercial License](LICENSE) © python-hwpx Maintainers
+
+Commercial use requires separate permission from the copyright holders.
 
 <br>
 
-## Author
+## Maintainer
 
-**고규현** — 광교고등학교 정보·컴퓨터 교사
+Primary maintainer/contact: **고규현** — 광교고등학교 정보·컴퓨터 교사
 
 - ✉️ [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
 - 🐙 [@airmang](https://github.com/airmang)

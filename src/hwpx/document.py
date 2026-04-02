@@ -10,7 +10,7 @@ import logging
 import uuid
 
 from os import PathLike
-from typing import Any, BinaryIO, Iterator, Sequence, overload
+from typing import TYPE_CHECKING, Any, BinaryIO, Iterator, Mapping, Sequence, overload
 
 from lxml import etree
 
@@ -52,6 +52,9 @@ _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
 _HH = f"{{{_HH_NS}}}"
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from .tools.table_navigation import TableFillResult, TableLabelSearchResult, TableMapResult
 
 
 def _append_element(
@@ -740,6 +743,34 @@ class HwpxDocument:
             run_attributes=run_attributes,
             char_pr_id_ref=char_pr_id_ref,
         )
+
+    def get_table_map(self) -> TableMapResult:
+        """Return compact metadata for every table in document order."""
+
+        from .tools.table_navigation import get_table_map
+
+        return get_table_map(self)
+
+    def find_cell_by_label(
+        self,
+        label_text: str,
+        direction: str = "right",
+    ) -> TableLabelSearchResult:
+        """Return every label/target cell pair that matches *label_text*."""
+
+        from .tools.table_navigation import find_cell_by_label
+
+        return find_cell_by_label(self, label_text, direction=direction)
+
+    def fill_by_path(
+        self,
+        mappings: Mapping[str, str],
+    ) -> TableFillResult:
+        """Fill table cells using ``label > direction > ...`` navigation paths."""
+
+        from .tools.table_navigation import fill_by_path
+
+        return fill_by_path(self, mappings)
 
     def add_shape(
         self,

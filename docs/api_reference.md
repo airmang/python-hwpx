@@ -128,6 +128,12 @@
   - 섹션을 삭제합니다. 인스턴스 또는 인덱스를 받습니다. 마지막 섹션 삭제 시 `ValueError`가 발생합니다.
 - `add_table(rows, cols, ...) -> HwpxOxmlTable`
   - 단락을 삽입하고 그 안에 표 인라인 객체를 생성한 후, 표 래퍼를 반환합니다. `border_fill_id_ref`를 생략하면 헤더 참조 목록에 기본 실선 `borderFill`을 생성하고 표와 셀에 자동으로 연결합니다.
+- `get_table_map() -> dict`
+  - 문서 순서대로 표를 스캔하고 `table_index`, `paragraph_index`, 행·열 수, 추정 헤더 텍스트, 첫 행 미리보기, 빈 표 여부를 반환합니다.
+- `find_cell_by_label(label_text, direction="right") -> dict`
+  - 모든 표를 순회하며 라벨 셀을 찾고, `right`/`down` 방향으로 인접한 타깃 셀 정보를 모두 반환합니다. 라벨 매칭은 공백·대소문자·후행 콜론을 정규화합니다.
+- `fill_by_path(mappings) -> dict`
+  - `"라벨 > 방향 > 방향"` 형식의 경로를 해석해 셀 값을 일괄 기록합니다. 라벨 미발견, 다중 후보, 범위 초과는 개별 실패 항목으로 보고하고 나머지 매핑은 계속 처리합니다.
 - `add_shape(shape_type, ...) -> HwpxOxmlInlineObject`
   - 새 단락에 태그 이름을 사용하여 인라인 그리기 요소를 삽입합니다.
 - `add_control(...) -> HwpxOxmlInlineObject`
