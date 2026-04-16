@@ -1,0 +1,29 @@
+name: fieldcodes-min
+id: 10-fieldcodes-min
+status: sanitized
+tier: editor_authored_sanitized_canonical
+source_kind: editor_authored_original
+source_path: private://hwpx_smoke/10_fieldcodes_min.hwpx
+fixture_path: fields/10_fieldcodes_min.hwpx
+covers:
+  - python-hwpx
+  - hwpx-mcp-server
+  - hwpx-skill
+features:
+  text_chars: 58
+  paragraphs: 3
+  tables: 0
+signals:
+  tags:
+    - fieldBegin
+    - fieldEnd
+    - pageNum
+review:
+  agent_reviewed: true
+  privacy_scrub_needed: false
+  sanitized_local_copy: true
+  semantic_confirmation_pending: false
+recommended_uses:
+  - field_code_read
+  - hyperlink_regression
+  - page_number_control_check

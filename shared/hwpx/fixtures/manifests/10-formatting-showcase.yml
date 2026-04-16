@@ -1,0 +1,29 @@
+name: formatting-showcase
+id: 10-formatting
+status: candidate
+tier: canonical_candidate
+source_kind: repo_asset
+source_path: examples/FormattingShowcase.hwpx
+intended_fixture_path: styles/10-formatting-showcase.hwpx
+manual_review_required: true
+privacy_review_required: false
+editor_authored_required: true
+covers:
+  - python-hwpx
+  - hwpx-mcp-server
+  - hwpx-skill
+features:
+  text_chars: 131
+  paragraphs: 13
+  tables: 1
+checks:
+  tables: 1
+  paragraphs_min: 10
+recommended_uses:
+  - formatting_preservation
+  - table_read
+  - merged_cell_smoke
+  - text_extract_smoke
+notes:
+  - 굵기, 기울임, 색상, 표가 같이 들어간다.
+  - 현재 가장 실용적인 style fixture 후보다.

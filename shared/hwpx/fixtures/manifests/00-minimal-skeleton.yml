@@ -1,0 +1,25 @@
+name: minimal-skeleton
+id: 00-minimal
+status: candidate
+tier: canonical_candidate
+source_kind: repo_asset
+source_path: examples/Skeleton.hwpx
+intended_fixture_path: core/00-minimal-skeleton.hwpx
+manual_review_required: true
+privacy_review_required: false
+editor_authored_required: true
+covers:
+  - python-hwpx
+  - hwpx-mcp-server
+  - hwpx-skill
+features:
+  text_chars: 0
+  paragraphs: 1
+  tables: 0
+recommended_uses:
+  - open_save_roundtrip
+  - archive_pack_unpack
+  - minimal_package_validation
+notes:
+  - 가장 작은 baseline 후보다.
+  - 텍스트 추출 회귀 검증에는 단독 사용이 약하다.

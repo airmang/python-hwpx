@@ -1,0 +1,30 @@
+name: table-merge-min
+id: 30-table-merge-min
+status: sanitized
+tier: editor_authored_sanitized_canonical
+source_kind: editor_authored_original
+source_path: private://hwpx_smoke/30_table_merge_min.hwpx
+fixture_path: tables/30_table_merge_min.hwpx
+covers:
+  - python-hwpx
+  - hwpx-mcp-server
+  - hwpx-skill
+features:
+  text_chars: 18
+  paragraphs: 10
+  tables: 1
+signals:
+  tags:
+    - tbl
+    - tr
+    - tc
+    - cellSpan
+review:
+  agent_reviewed: true
+  privacy_scrub_needed: false
+  sanitized_local_copy: true
+  semantic_confirmation_pending: false
+recommended_uses:
+  - merged_table_read
+  - table_structure_regression
+  - cell_span_validation

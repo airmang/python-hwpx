@@ -1,0 +1,35 @@
+name: history-version-min
+id: 60-history-version-min
+status: provisional
+tier: editor_authored_sanitized_structural_placeholder
+source_kind: editor_authored_original
+source_path: private://hwpx_smoke/60_history_version_min.hwpx
+fixture_path: history/60_history_version_min.hwpx
+covers:
+  - python-hwpx
+  - hwpx-mcp-server
+  - hwpx-skill
+features:
+  text_chars: 9
+  paragraphs: 1
+  tables: 0
+signals:
+  files:
+    - version.xml
+  preview_tokens:
+    - test_test
+review:
+  agent_reviewed: true
+  privacy_scrub_needed: false
+  sanitized_local_copy: true
+  semantic_confirmation_pending: false
+  semantic_confirmation_result: no_distinct_history_or_version_feature_found
+recommended_uses:
+  - basic_open_read_smoke
+  - archive_structure_smoke
+do_not_use_for:
+  - history_feature_validation
+  - version_specific_semantic_validation
+notes:
+  - version.xml은 모든 imported fixture에 공통이다.
+  - dedicated history fixture가 필요하면 별도 editor-authored 원본을 새로 확보해야 한다.

@@ -1,0 +1,26 @@
+name: smoke-min
+id: 00-smoke-min
+status: sanitized
+tier: editor_authored_sanitized_canonical
+source_kind: editor_authored_original
+source_path: private://hwpx_smoke/00_smoke_min.hwpx
+fixture_path: core/00_smoke_min.hwpx
+covers:
+  - python-hwpx
+  - hwpx-mcp-server
+  - hwpx-skill
+features:
+  text_chars: 59
+  paragraphs: 3
+  tables: 0
+signals:
+  preview_tokens:
+    - <<SMOKE_01>>
+review:
+  agent_reviewed: true
+  privacy_scrub_needed: false
+  sanitized_local_copy: true
+  semantic_confirmation_pending: false
+recommended_uses:
+  - minimal_read_smoke
+  - placeholder_preservation

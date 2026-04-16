@@ -42,6 +42,18 @@ api_reference
 
 자세한 단계별 설명은 {doc}`quickstart`에서 확인할 수 있습니다.
 
+## 작업별 바로가기
+
+원하는 작업부터 바로 들어가도 된다.
+
+- **문서를 빨리 열고 저장까지 해보고 싶다** → {doc}`quickstart`
+- **문단, 표, 메모, 스타일 예제를 폭넓게 보고 싶다** → {doc}`usage`
+- **실행 가능한 예제 파일을 보고 싶다** → {doc}`examples`
+- **설치부터 다시 확인하고 싶다** → {doc}`installation`
+- **클래스/메서드 시그니처를 바로 찾고 싶다** → {doc}`api_reference`
+- **패키지 구조와 스키마를 이해하고 싶다** → {doc}`schema-overview`
+- **스택 통합 fixture/smoke 자료를 보고 싶다** → 저장소의 `shared/hwpx/README.md`
+
 ```python
 from hwpx import HwpxDocument
 

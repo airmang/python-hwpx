@@ -1,0 +1,29 @@
+name: master-min
+id: 50-master-min
+status: sanitized
+tier: editor_authored_sanitized_canonical
+source_kind: editor_authored_original
+source_path: private://hwpx_smoke/50_master_min.hwpx
+fixture_path: sections/50_master_min.hwpx
+covers:
+  - python-hwpx
+  - hwpx-mcp-server
+  - hwpx-skill
+features:
+  text_chars: 83
+  paragraphs: 6
+  tables: 0
+signals:
+  tags:
+    - header
+    - footer
+review:
+  agent_reviewed: true
+  privacy_scrub_needed: false
+  sanitized_local_copy: true
+  semantic_confirmation_pending: false
+recommended_uses:
+  - header_footer_read
+  - section_control_regression
+notes:
+  - preview text는 비어 있지만 section XML에서 header/footer control이 확인된다.

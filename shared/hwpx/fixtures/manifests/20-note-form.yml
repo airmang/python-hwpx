@@ -1,0 +1,28 @@
+name: note-form
+id: 20-form
+status: candidate
+tier: canonical_candidate
+source_kind: repo_asset
+source_path: examples/note_example.hwpx
+intended_fixture_path: forms/20-note-form.hwpx
+manual_review_required: true
+privacy_review_required: true
+editor_authored_required: true
+covers:
+  - python-hwpx
+  - hwpx-mcp-server
+  - hwpx-skill
+features:
+  text_chars: 857
+  paragraphs: 81
+  tables: 1
+checks:
+  tables: 1
+  paragraphs_min: 50
+recommended_uses:
+  - form_extraction
+  - label_value_read
+  - mixed_body_and_table_validation
+notes:
+  - 신청서형 문서라 구조 검증에 좋다.
+  - public canonical 승격 전 내용 검토가 필요하다.

@@ -1,0 +1,85 @@
+{
+  "fixtures": [
+    {
+      "id": "00-smoke-min",
+      "relative_path": "core/00_smoke_min.hwpx",
+      "text_chars": 59,
+      "paragraphs": 3,
+      "tables": 0,
+      "preview_tokens": ["<<SMOKE_01>>"],
+      "required_xml_tags": [],
+      "category": "minimal"
+    },
+    {
+      "id": "10-fieldcodes-min",
+      "relative_path": "fields/10_fieldcodes_min.hwpx",
+      "text_chars": 58,
+      "paragraphs": 3,
+      "tables": 0,
+      "preview_tokens": ["<<FIELD_MIN_CASE_01>>", "하이퍼링크입니다"],
+      "required_xml_tags": ["fieldBegin", "fieldEnd", "pageNum"],
+      "category": "field"
+    },
+    {
+      "id": "20-formcontrols-min",
+      "relative_path": "forms/20_formcontrols_min.hwpx",
+      "text_chars": 20,
+      "paragraphs": 4,
+      "tables": 0,
+      "preview_tokens": ["<<FORM_MIN_CASE_01>>"],
+      "required_xml_tags": ["checkBtn", "radioBtn", "edit"],
+      "category": "form"
+    },
+    {
+      "id": "30-table-merge-min",
+      "relative_path": "tables/30_table_merge_min.hwpx",
+      "text_chars": 18,
+      "paragraphs": 10,
+      "tables": 1,
+      "preview_tokens": ["<<TABLE_MERGE_01>>"],
+      "required_xml_tags": ["tbl", "cellSpan"],
+      "category": "table"
+    },
+    {
+      "id": "40-trackchange-min",
+      "relative_path": "change-tracking/40_trackchange_min.hwpx",
+      "text_chars": 20,
+      "paragraphs": 2,
+      "tables": 0,
+      "preview_tokens": ["NEW_LINE_1", "<<TC_01>>"],
+      "required_xml_tags": ["insertBegin", "insertEnd"],
+      "category": "track-change"
+    },
+    {
+      "id": "50-master-min",
+      "relative_path": "sections/50_master_min.hwpx",
+      "text_chars": 83,
+      "paragraphs": 6,
+      "tables": 0,
+      "preview_tokens": [],
+      "required_xml_tags": ["header", "footer"],
+      "category": "section"
+    },
+    {
+      "id": "60-history-version-min",
+      "relative_path": "history/60_history_version_min.hwpx",
+      "text_chars": 9,
+      "paragraphs": 1,
+      "tables": 0,
+      "preview_tokens": ["test_test"],
+      "required_xml_tags": [],
+      "category": "provisional-gap",
+      "notes": "version.xml is common to all imported fixtures. Do not use this file as a dedicated history/version semantic baseline."
+    },
+    {
+      "id": "99-all-in-one-stress",
+      "relative_path": "stress/99_all_in_one_stress.hwpx",
+      "text_chars": 55,
+      "paragraphs": 28,
+      "tables": 2,
+      "preview_tokens": ["TEST"],
+      "required_xml_tags": ["fieldBegin", "checkBtn", "header", "footer", "tbl"],
+      "category": "stress"
+    }
+  ]
+}

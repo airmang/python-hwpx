@@ -1,0 +1,27 @@
+name: trackchange-min
+id: 40-trackchange-min
+status: sanitized
+tier: editor_authored_sanitized_canonical
+source_kind: editor_authored_original
+source_path: private://hwpx_smoke/40_trackchange_min.hwpx
+fixture_path: change-tracking/40_trackchange_min.hwpx
+covers:
+  - python-hwpx
+  - hwpx-mcp-server
+  - hwpx-skill
+features:
+  text_chars: 20
+  paragraphs: 2
+  tables: 0
+signals:
+  tags:
+    - insertBegin
+    - insertEnd
+review:
+  agent_reviewed: true
+  privacy_scrub_needed: false
+  sanitized_local_copy: true
+  semantic_confirmation_pending: false
+recommended_uses:
+  - track_change_detection
+  - inserted_text_regression

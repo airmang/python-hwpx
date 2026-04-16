@@ -1,0 +1,29 @@
+name: formcontrols-min
+id: 20-formcontrols-min
+status: sanitized
+tier: editor_authored_sanitized_canonical
+source_kind: editor_authored_original
+source_path: private://hwpx_smoke/20_formcontrols_min.hwpx
+fixture_path: forms/20_formcontrols_min.hwpx
+covers:
+  - python-hwpx
+  - hwpx-mcp-server
+  - hwpx-skill
+features:
+  text_chars: 20
+  paragraphs: 4
+  tables: 0
+signals:
+  tags:
+    - checkBtn
+    - radioBtn
+    - edit
+review:
+  agent_reviewed: true
+  privacy_scrub_needed: false
+  sanitized_local_copy: true
+  semantic_confirmation_pending: false
+recommended_uses:
+  - form_control_read
+  - checkbox_radio_regression
+  - edit_control_detection

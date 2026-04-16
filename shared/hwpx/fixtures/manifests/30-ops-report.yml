@@ -1,0 +1,29 @@
+name: ops-report
+id: 30-ops-report
+status: candidate
+tier: canonical_candidate
+source_kind: repo_asset
+source_path: ../hwpx-mcp-server/tests/hwpx_mcp_test.hwpx
+intended_fixture_path: reports/30-ops-report.hwpx
+manual_review_required: true
+privacy_review_required: true
+editor_authored_required: true
+covers:
+  - python-hwpx
+  - hwpx-mcp-server
+  - hwpx-skill
+features:
+  text_chars: 6783
+  paragraphs: 659
+  tables: 18
+checks:
+  tables_min: 10
+  paragraphs_min: 300
+recommended_uses:
+  - large_document_read
+  - search_replace_regression
+  - table_heavy_mcp_smoke
+  - performance_baseline
+notes:
+  - 대형 문서 baseline으로 강하다.
+  - 민감정보/배포 적합성 검토 전에는 candidate로만 둔다.

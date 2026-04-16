@@ -1,0 +1,28 @@
+name: generated-sample
+id: 90-generated-sample
+status: active
+tier: supplemental
+source_kind: generated_or_test_asset
+source_path: ../hwpx-mcp-server/tests/sample.hwpx
+intended_fixture_path: supplemental/90-generated-sample.hwpx
+manual_review_required: false
+privacy_review_required: false
+editor_authored_required: false
+covers:
+  - python-hwpx
+  - hwpx-mcp-server
+  - hwpx-skill
+features:
+  text_chars: 237
+  paragraphs: 13
+  tables: 1
+recommended_uses:
+  - deterministic_search_replace
+  - contract_test
+  - e2e_smoke
+forbidden_uses:
+  - canonical_baseline
+  - public_standard_fixture
+notes:
+  - generated 계열이므로 canonical 승격 금지.
+  - writer regression과 search/replace smoke에만 쓴다.

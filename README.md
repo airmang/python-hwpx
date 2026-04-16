@@ -17,6 +17,21 @@
 한/글 설치 없이, OS에 관계없이 HWPX 문서의 구조를 파싱하고 콘텐츠를 조작할 수 있습니다.
 문서 편집 API뿐 아니라 스키마/패키지 검증, unpack/pack, 템플릿 분석 같은 XML-first 워크플로도 함께 제공합니다.
 
+## ⚡ 30초 시작
+
+가장 짧은 성공 경로는 이것이다.
+
+```python
+from hwpx import HwpxDocument
+
+doc = HwpxDocument.new()
+doc.add_paragraph("첫 HWPX 문서")
+doc.save_to_path("hello.hwpx")
+```
+
+기존 문서를 고치려면 `HwpxDocument.open("기존문서.hwpx")`로 열어서 같은 방식으로 수정하면 된다.
+고급 XML/패키지 제어는 뒤로 미루고, 처음에는 `new/open -> add/edit -> save_to_path` 흐름만 잡으면 충분하다.
+
 > **pyhwpx / pyhwp와 다른 점?**
 > | | python-hwpx | pyhwpx | pyhwp |
 > |---|---|---|---|
@@ -233,6 +248,7 @@ python-hwpx
 | **[📚 사용 가이드](https://airmang.github.io/python-hwpx/usage.html)** | 50+ 실전 사용 패턴 |
 | **[🔧 API 레퍼런스](https://airmang.github.io/python-hwpx/api_reference.html)** | 클래스·메서드 상세 명세 |
 | **[📐 스키마 개요](https://airmang.github.io/python-hwpx/schema-overview.html)** | OWPML 스키마 구조 설명 |
+| **[🧪 스택 통합 자료](shared/hwpx/README.md)** | fixture, smoke, validation, compatibility 운영 자료 |
 
 ## 지원 포맷
 

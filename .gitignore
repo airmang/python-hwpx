@@ -28,9 +28,11 @@ htmlcov/
 venv/
 env/
 ENV/
+shared/hwpx/.venv-*/
 
 # Docs build output
 docs/_build/
+shared/hwpx/tmp/
 
 # Notebook checkpoints
 .ipynb_checkpoints/

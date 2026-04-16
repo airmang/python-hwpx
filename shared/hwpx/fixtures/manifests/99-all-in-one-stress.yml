@@ -1,0 +1,31 @@
+name: all-in-one-stress
+id: 99-all-in-one-stress
+status: sanitized
+tier: editor_authored_sanitized_canonical
+source_kind: editor_authored_original
+source_path: private://hwpx_smoke/99_all_in_one_stress.hwpx
+fixture_path: stress/99_all_in_one_stress.hwpx
+covers:
+  - python-hwpx
+  - hwpx-mcp-server
+  - hwpx-skill
+features:
+  text_chars: 55
+  paragraphs: 28
+  tables: 2
+signals:
+  tags:
+    - fieldBegin
+    - checkBtn
+    - header
+    - footer
+    - tbl
+review:
+  agent_reviewed: true
+  privacy_scrub_needed: false
+  sanitized_local_copy: true
+  semantic_confirmation_pending: false
+recommended_uses:
+  - integrated_regression
+  - multi_feature_stress
+  - smoke_bundle_validation
