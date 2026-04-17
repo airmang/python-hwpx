@@ -64,10 +64,12 @@
   - `shared/hwpx/benchmarks/modelcontextprotocol-servers.md`
   - `shared/hwpx/benchmarks/open-xml-sdk.md`
   - `shared/hwpx/benchmarks/vscode-agent-skills.md`
+  - `shared/hwpx/benchmarks/docx4j.md`
+  - `shared/hwpx/benchmarks/pyhwp.md`
   - `shared/hwpx/HWPX_STACK_ACTION_MAP.md`
 - 현재 남은 일:
   - 액션맵 기준으로 각 레포 수정 묶음을 계속 실행
-  - 다음 후보 검토 (`docx4j`, `pyhwp`)
+  - 다음 후보 검토 (`pyhwpx`, filesystem/git 계열 MCP servers, 공개 skill collections)
 
 ## P2
 

@@ -145,10 +145,13 @@
 - `shared/hwpx/benchmarks/modelcontextprotocol-servers.md`
 - `shared/hwpx/benchmarks/open-xml-sdk.md`
 - `shared/hwpx/benchmarks/vscode-agent-skills.md`
+- `shared/hwpx/benchmarks/docx4j.md`
+- `shared/hwpx/benchmarks/pyhwp.md`
 
 다음 후보:
-- `docx4j`
-- `pyhwp`
+- `pyhwpx`
+- filesystem / git 계열 MCP servers
+- 공개 skill collections
 
 ## 6. 추천 우선순위
 
@@ -158,6 +161,7 @@
 3. `modelcontextprotocol/servers`
 4. VS Code Agent Skills docs/examples
 5. `pyhwp`
+6. `docx4j`
 
 이유:
 - 코어 API 설계
@@ -165,6 +169,7 @@
 - MCP 표면 설계
 - Skill 구조화
 - 한글 문서 도메인 인접성
+- 복잡한 XML 라이브러리의 계층 운영 방식
 
 한 줄 원칙:
 
