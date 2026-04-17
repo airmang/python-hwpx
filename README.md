@@ -32,6 +32,55 @@ doc.save_to_path("hello.hwpx")
 기존 문서를 고치려면 `HwpxDocument.open("기존문서.hwpx")`로 열어서 같은 방식으로 수정하면 된다.
 고급 XML/패키지 제어는 뒤로 미루고, 처음에는 `new/open -> add/edit -> save_to_path` 흐름만 잡으면 충분하다.
 
+## 어디부터 읽으면 되나
+
+필요한 작업부터 바로 들어가면 된다.
+
+- **첫 파일을 열고 저장하는 최소 경로** → [`docs/quickstart.md`](docs/quickstart.md)
+- **문단, 표, 메모, 섹션 편집 패턴** → [`docs/usage.md`](docs/usage.md)
+- **텍스트 추출, 구조 조회, 검증/패키지 작업** → [`docs/usage.md`](docs/usage.md)
+- **패키지 구조와 스키마 심화** → [`docs/schema-overview.md`](docs/schema-overview.md)
+- **실행 가능한 예제 모음** → [`docs/examples.md`](docs/examples.md)
+- **설치 검증과 개발 환경 확인** → [`docs/installation.md`](docs/installation.md)
+
+## 설치
+
+```bash
+pip install python-hwpx
+```
+
+> 유일한 의존성은 `lxml`입니다.
+
+## Quick Start
+
+```python
+from hwpx import HwpxDocument
+
+# 기존 문서를 열어 수정
+document = HwpxDocument.open("보고서.hwpx")
+document.add_paragraph("자동화로 추가한 문단입니다.")
+document.save_to_path("보고서-수정.hwpx")
+```
+
+새 문서를 바로 만들고 싶다면 이렇게 시작하면 된다.
+
+```python
+from hwpx import HwpxDocument
+
+document = HwpxDocument.new()
+document.add_paragraph("python-hwpx로 만든 새 문서")
+document.save_to_path("새문서.hwpx")
+```
+
+> 💡 컨텍스트 매니저도 지원합니다:
+> ```python
+> with HwpxDocument.open("보고서.hwpx") as doc:
+>     doc.add_paragraph("자동으로 리소스가 정리됩니다.")
+>     doc.save_to_path("결과물.hwpx")
+> ```
+
+표, 메모, 텍스트 추출, 검증, 패키지/XML 심화는 [`docs/quickstart.md`](docs/quickstart.md)와 [`docs/usage.md`](docs/usage.md)에서 바로 이어진다.
+
 > **pyhwpx / pyhwp와 다른 점?**
 > | | python-hwpx | pyhwpx | pyhwp |
 > |---|---|---|---|
@@ -50,48 +99,6 @@ HWPX 파일은 **ZIP + XML** 구조이므로, 한/글 프로그램 없이 Python
 | ✅ macOS | ✅ | ✅ | 한컴오피스 Mac |
 | ✅ Linux | ✅ | ✅ | 한컴오피스 Linux |
 | ✅ CI/CD | ✅ | ✅ | Docker, GitHub Actions 등 |
-
-## 설치
-
-```bash
-pip install python-hwpx
-```
-
-> 유일한 의존성은 `lxml`입니다.
-
-## Quick Start
-
-```python
-from hwpx import HwpxDocument
-
-# 빈 문서 새로 만들기
-doc = HwpxDocument.new()
-
-# 기존 문서를 수정하려면:
-# doc = HwpxDocument.open("보고서.hwpx")
-
-# 문단 추가
-paragraph = doc.add_paragraph("python-hwpx로 생성한 문단입니다.")
-
-# 표 추가 (2×3)
-table = doc.add_table(rows=2, cols=3)
-table.set_cell_text(0, 0, "이름")
-table.set_cell_text(0, 1, "부서")
-table.set_cell_text(0, 2, "연락처")
-
-# 메모 추가 (기본 템플릿의 memo shape 사용)
-doc.add_memo_with_anchor("검토 필요", paragraph=paragraph, memo_shape_id_ref="0")
-
-# 저장
-doc.save_to_path("결과물.hwpx")
-```
-
-> 💡 컨텍스트 매니저도 지원합니다:
-> ```python
-> with HwpxDocument.open("보고서.hwpx") as doc:
->     doc.add_paragraph("자동으로 리소스가 정리됩니다.")
->     doc.save_to_path("결과물.hwpx")
-> ```
 
 ## 주요 기능 한눈에 보기
 

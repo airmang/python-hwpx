@@ -1,6 +1,6 @@
 # python-hwpx 문서
 
-`python-hwpx`는 HWPX 문서를 읽고 편집하고 생성하는 파이썬 도구 모음입니다. 이 사이트는 파이썬 코드 예제를 중심으로 빠르게 실무에 적용할 수 있는 사용법을 안내합니다. 먼저 "5분 안에 문서 열기" 예제를 따라 한 뒤, 필요에 따라 설치, 사용 가이드, 참조 문서를 살펴보세요.
+`python-hwpx`는 HWPX 문서를 읽고 편집하고 생성하는 파이썬 도구 모음입니다. 가장 빠른 진입로는 `new/open -> add/edit -> save_to_path`입니다. 먼저 {doc}`quickstart`로 첫 성공 경로를 잡고, 그다음 필요에 따라 사용 가이드와 심화 문서를 보면 된다.
 
 ```{toctree}
 :maxdepth: 2
@@ -31,57 +31,43 @@ changelog
 api_reference
 ```
 
-## 지금 바로 시작하기
+## 가장 빠른 경로
 
-아래는 `python-hwpx`의 대표적인 패턴 네 가지입니다.
+처음에는 이 네 단계면 충분하다.
 
-1. 로컬 HWPX 문서를 열어 문단을 읽어오기
-2. 빈 템플릿에서 새 문서를 만들고 표 및 메모를 추가하기
-3. 단락 삭제·섹션 추가 등 문서 구조 변경하기
-4. 완성된 문서를 파일로 저장하기
-
-자세한 단계별 설명은 {doc}`quickstart`에서 확인할 수 있습니다.
-
-## 작업별 바로가기
-
-원하는 작업부터 바로 들어가도 된다.
-
-- **문서를 빨리 열고 저장까지 해보고 싶다** → {doc}`quickstart`
-- **문단, 표, 메모, 스타일 예제를 폭넓게 보고 싶다** → {doc}`usage`
-- **실행 가능한 예제 파일을 보고 싶다** → {doc}`examples`
-- **설치부터 다시 확인하고 싶다** → {doc}`installation`
-- **클래스/메서드 시그니처를 바로 찾고 싶다** → {doc}`api_reference`
-- **패키지 구조와 스키마를 이해하고 싶다** → {doc}`schema-overview`
-- **스택 통합 fixture/smoke 자료를 보고 싶다** → 저장소의 `shared/hwpx/README.md`
+1. 문서를 연다, 또는 새로 만든다.
+2. 문단 하나를 추가하거나 수정한다.
+3. `save_to_path()`로 저장한다.
+4. 더 복잡한 편집과 추출/검증은 다음 문서로 내려간다.
 
 ```python
 from hwpx import HwpxDocument
 
-# 1) 문서 열기
+# 기존 문서 수정
 document = HwpxDocument.open("sample.hwpx")
-print("문단 수:", len(document.paragraphs))
+document.add_paragraph("자동화로 추가한 문단")
+document.save_to_path("sample-updated.hwpx")
 
-# 2) 새 문단과 메모 추가
-section = document.sections[0]
-paragraph = document.add_paragraph("자동으로 추가된 문단", section=section)
-
-memo, _, field_id = document.add_memo_with_anchor(
-    "검토 의견은 여기에 적으세요.",
-    paragraph=paragraph,
-    memo_shape_id_ref="0",
-)
-
-# 3) 단락 삭제 · 섹션 추가
-document.remove_paragraph(document.paragraphs[-1])
-new_sec = document.add_section()
-new_sec.add_paragraph("새 섹션의 첫 문단")
-
-# 4) 저장 (원자적 쓰기 + ZIP 무결성 검증)
-document.save_to_path("updated-sample.hwpx")
+# 새 문서 생성
+new_document = HwpxDocument.new()
+new_document.add_paragraph("새 HWPX 문서")
+new_document.save_to_path("new-document.hwpx")
 ```
 
+## 작업별 바로가기
+
+원하는 작업 단위로 바로 들어가면 된다.
+
+- **첫 파일을 열고 저장하는 최소 경로** → {doc}`quickstart`
+- **문단, 표, 메모, 섹션 편집을 넓게 보고 싶다** → {doc}`usage`
+- **텍스트 추출, 구조 조회, 패키지 검증을 하고 싶다** → {doc}`usage`
+- **설치 확인과 개발 환경 점검이 먼저다** → {doc}`installation`
+- **실행 가능한 예제 파일을 보고 싶다** → {doc}`examples`
+- **패키지 구조와 스키마를 이해하고 싶다** → {doc}`schema-overview`
+- **클래스/메서드 시그니처를 바로 찾고 싶다** → {doc}`api_reference`
+
 ```{seealso}
-- {doc}`quickstart` — 설치부터 첫 번째 문서를 편집하기까지 따라 하는 튜토리얼
-- {doc}`usage` — 패키지 전반의 핵심 개념과 고급 편집 패턴
+- {doc}`quickstart` — 설치부터 첫 번째 문서를 열고 저장하기까지 따라 하는 튜토리얼
+- {doc}`usage` — 문단, 표, 메모, 추출, 검증, 패키지 조작까지 포함한 핵심 사용 패턴
 - {doc}`api_reference` — 세부 클래스와 함수 시그니처 모음
 ```
