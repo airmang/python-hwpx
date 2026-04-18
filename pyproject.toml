@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "python-hwpx"
 version = "2.9.0"
-description = "Hancom HWPX 패키지를 로드하고 편집하기 위한 Python 유틸리티 모음"
+description = "한글 없이 HWPX 문서를 열고, 편집하고, 생성하고, 검증하는 Python 자동화 라이브러리"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "LicenseRef-python-hwpx-NonCommercial"
 license-files = ["LICENSE"]
@@ -13,7 +13,7 @@ requires-python = ">=3.10"
 authors = [
     { name = "python-hwpx Maintainers" },
 ]
-keywords = ["hwp", "hwpx", "hancom", "opc", "xml"]
+keywords = ["hwp", "hwpx", "hancom", "opc", "xml", "document-automation", "validation", "template"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -46,7 +46,7 @@ typecheck = [
 
 [project.urls]
 Homepage = "https://github.com/airmang/python-hwpx"
-Documentation = "https://github.com/airmang/python-hwpx/tree/main/docs"
+Documentation = "https://airmang.github.io/python-hwpx/"
 Issues = "https://github.com/airmang/python-hwpx/issues"
 
 [project.scripts]
