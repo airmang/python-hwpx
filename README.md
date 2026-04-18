@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">python-hwpx</h1>
   <p align="center">
-    <strong>HWPX 문서를 Python으로 읽고, 편집하고, 생성합니다.</strong>
+    <strong>한글 없이 HWPX 문서를 Python으로 읽고, 편집하고, 생성하고, 검증합니다.</strong>
   </p>
   <p align="center">
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/v/python-hwpx?color=blue&label=PyPI" alt="PyPI"></a>
@@ -14,23 +14,67 @@
 ---
 
 `python-hwpx`는 한컴오피스의 [HWPX 포맷](https://www.hancom.com/)을 순수 Python으로 다루는 라이브러리이자 CLI 도구 모음입니다.
-한/글 설치 없이, OS에 관계없이 HWPX 문서의 구조를 파싱하고 콘텐츠를 조작할 수 있습니다.
-문서 편집 API뿐 아니라 스키마/패키지 검증, unpack/pack, 템플릿 분석 같은 XML-first 워크플로도 함께 제공합니다.
+한/글 설치 없이, OS에 관계없이 HWPX 문서를 열고, 고치고, 생성하고, 검증할 수 있습니다.
+단순 텍스트 추출용 래퍼가 아니라, **편집 API + 패키지 검증 + 템플릿 분석 + XML-first 워크플로**를 함께 제공하는 HWPX 자동화 기반 레이어를 목표로 합니다.
 
-## ⚡ 30초 시작
+## 이 저장소가 바로 해결하는 일
 
-가장 짧은 성공 경로는 이것이다.
+- **기존 HWPX를 열어 수정하고 다시 저장**
+- **양식형 표를 라벨 기반으로 탐색하고 채우기**
+- **텍스트, HTML, Markdown으로 추출해 후속 자동화로 넘기기**
+- **패키지 구조/XSD 검증, unpack/pack, 템플릿 분석**
+- **한/글 없이 CI, 서버, 로컬 개발 환경에서 같은 워크플로 유지**
+
+## 설치
+
+```bash
+pip install python-hwpx
+```
+
+> 유일한 런타임 의존성은 `lxml`입니다.
+
+## ⚡ 30초 안에 가치 확인
+
+### 1. 기존 문서를 열고 수정
 
 ```python
 from hwpx import HwpxDocument
 
-doc = HwpxDocument.new()
-doc.add_paragraph("첫 HWPX 문서")
-doc.save_to_path("hello.hwpx")
+document = HwpxDocument.open("보고서.hwpx")
+document.add_paragraph("자동화로 추가한 문단입니다.")
+document.save_to_path("보고서-수정.hwpx")
 ```
 
-기존 문서를 고치려면 `HwpxDocument.open("기존문서.hwpx")`로 열어서 같은 방식으로 수정하면 된다.
-고급 XML/패키지 제어는 뒤로 미루고, 처음에는 `new/open -> add/edit -> save_to_path` 흐름만 잡으면 충분하다.
+### 2. 양식형 표를 코드로 채우기
+
+```python
+from hwpx import HwpxDocument
+
+doc = HwpxDocument.open("신청서.hwpx")
+result = doc.fill_by_path({
+    "성명 > right": "홍길동",
+    "소속 > right": "플랫폼팀",
+})
+doc.save_to_path("신청서-작성완료.hwpx")
+
+print(result["applied_count"], result["failed_count"])
+```
+
+### 3. 텍스트 추출과 구조 검증
+
+```python
+from hwpx import HwpxDocument
+
+text = HwpxDocument.open("보고서.hwpx").export_markdown()
+print(text[:500])
+```
+
+```bash
+hwpx-validate-package 보고서.hwpx
+hwpx-analyze-template 보고서.hwpx
+```
+
+처음에는 `open/new -> edit/extract -> save_to_path` 흐름만 잡으면 된다. 패키지 구조, XML 파트, 템플릿 회귀 점검은 필요할 때만 확장하면 된다.
 
 ## 어디부터 읽으면 되나
 
@@ -39,28 +83,11 @@ doc.save_to_path("hello.hwpx")
 - **첫 파일을 열고 저장하는 최소 경로** → [`docs/quickstart.md`](docs/quickstart.md)
 - **문단, 표, 메모, 섹션 편집 패턴** → [`docs/usage.md`](docs/usage.md)
 - **텍스트 추출, 구조 조회, 검증/패키지 작업** → [`docs/usage.md`](docs/usage.md)
-- **패키지 구조와 스키마 심화** → [`docs/schema-overview.md`](docs/schema-overview.md)
 - **실행 가능한 예제 모음** → [`docs/examples.md`](docs/examples.md)
+- **패키지 구조와 스키마 심화** → [`docs/schema-overview.md`](docs/schema-overview.md)
 - **설치 검증과 개발 환경 확인** → [`docs/installation.md`](docs/installation.md)
 
-## 설치
-
-```bash
-pip install python-hwpx
-```
-
-> 유일한 의존성은 `lxml`입니다.
-
 ## Quick Start
-
-```python
-from hwpx import HwpxDocument
-
-# 기존 문서를 열어 수정
-document = HwpxDocument.open("보고서.hwpx")
-document.add_paragraph("자동화로 추가한 문단입니다.")
-document.save_to_path("보고서-수정.hwpx")
-```
 
 새 문서를 바로 만들고 싶다면 이렇게 시작하면 된다.
 
