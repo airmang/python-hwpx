@@ -2030,17 +2030,21 @@ class HwpxOxmlTableCell:
     def _ensure_text_element(self) -> ET.Element:
         sublist = self.element.find(f"{_HP}subList")
         if sublist is None:
-            sublist = ET.SubElement(self.element, f"{_HP}subList", _default_sublist_attributes())
+            sublist = _append_child(
+                self.element, f"{_HP}subList", _default_sublist_attributes()
+            )
         paragraph = sublist.find(f"{_HP}p")
         if paragraph is None:
-            paragraph = ET.SubElement(sublist, f"{_HP}p", _default_cell_paragraph_attributes())
+            paragraph = _append_child(
+                sublist, f"{_HP}p", _default_cell_paragraph_attributes()
+            )
         _clear_paragraph_layout_cache(paragraph)
         run = paragraph.find(f"{_HP}run")
         if run is None:
-            run = ET.SubElement(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
+            run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
         text = run.find(f"{_HP}t")
         if text is None:
-            text = ET.SubElement(run, f"{_HP}t")
+            text = _append_child(run, f"{_HP}t")
         return text
 
     @property
@@ -4535,9 +4539,9 @@ class HwpxOxmlDocument:
                 element.remove(child)
 
             if target[0]:
-                ET.SubElement(element, f"{_HH}bold")
+                _append_child(element, f"{_HH}bold")
             if target[1]:
-                ET.SubElement(element, f"{_HH}italic")
+                _append_child(element, f"{_HH}italic")
 
             underline_attrs = dict(base_underline_attrs)
             if target[2]:
@@ -4549,14 +4553,14 @@ class HwpxOxmlDocument:
                     underline_attrs["color"] = base_underline_attrs["color"]
                 if "color" not in underline_attrs:
                     underline_attrs["color"] = "#000000"
-                ET.SubElement(element, f"{_HH}underline", underline_attrs)
+                _append_child(element, f"{_HH}underline", underline_attrs)
             else:
                 attrs = dict(base_underline_attrs)
                 attrs["type"] = "NONE"
                 attrs.setdefault("shape", base_underline_attrs.get("shape", "SOLID"))
                 if "color" in base_underline_attrs:
                     attrs["color"] = base_underline_attrs["color"]
-                ET.SubElement(element, f"{_HH}underline", attrs)
+                _append_child(element, f"{_HH}underline", attrs)
 
         element = header.ensure_char_property(
             predicate=predicate,
