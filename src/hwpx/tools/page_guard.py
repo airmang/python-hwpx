@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Proxy checks for layout drift between a reference and an output HWPX.
 
 This module does not calculate rendered page counts. It compares structural and

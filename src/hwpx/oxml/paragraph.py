@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Paragraph-related OpenXML wrappers."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Object model mapping for the XML parts of an HWPX document."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tooling helpers for inspecting HWPX archives."""
 
 from .exporter import (

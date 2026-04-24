@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """XML 파싱/직렬화를 위한 OPC 공통 유틸리티."""
 
 from __future__ import annotations

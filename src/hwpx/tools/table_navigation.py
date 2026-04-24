@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Reusable helpers for HWPX table discovery and form-like navigation."""
 
 from __future__ import annotations

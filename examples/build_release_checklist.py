@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# SPDX-License-Identifier: Apache-2.0
 """Generate an HWPX document exercising memo and style-editing features."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Shared namespace constants for the HWPML/OWPML XML schemas.
 
 All modules that need HWPML namespace URIs should import from here

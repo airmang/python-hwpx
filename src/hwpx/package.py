@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """하위 호환을 위한 패키지 모듈.
 
 신규 코드는 :mod:`hwpx.opc.package` 를 직접 사용하세요.
