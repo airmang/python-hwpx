@@ -13,25 +13,31 @@
 
 ---
 
-`python-hwpx`는 한컴오피스의 [HWPX 포맷](https://www.hancom.com/)을 순수 Python으로 다루는 라이브러리이자 CLI 도구 모음입니다.
-한/글 설치 없이, OS에 관계없이 HWPX 문서를 열고, 고치고, 생성하고, 검증할 수 있습니다.
-단순 텍스트 추출용 래퍼가 아니라, **편집 API + 패키지 검증 + 템플릿 분석 + XML-first 워크플로**를 함께 제공하는 HWPX 자동화 기반 레이어를 목표로 합니다.
+## 🧩 HWPX Stack (3종)
 
-## 이 저장소가 바로 해결하는 일
+| 계층 | 레포 | 역할 |
+|---|---|---|
+| 📦 라이브러리 | **[`python-hwpx`](https://github.com/airmang/python-hwpx)** | 순수 파이썬 HWPX 파싱·편집·생성 코어 |
+| 🔌 MCP 서버 | [`hwpx-mcp-server`](https://github.com/airmang/hwpx-mcp-server) | MCP 클라이언트(Claude Desktop, VS Code 등)에서 HWPX 조작 |
+| 🎯 에이전트 스킬 | [`hwpx-skill`](https://github.com/airmang/hwpx-skill) | 에이전트가 HWPX를 바로 쓰게 해주는 공식 온보딩 스킬 |
 
-- **기존 HWPX를 열어 수정하고 다시 저장**
-- **양식형 표를 라벨 기반으로 탐색하고 채우기**
-- **텍스트, HTML, Markdown으로 추출해 후속 자동화로 넘기기**
-- **패키지 구조/XSD 검증, unpack/pack, 템플릿 분석**
-- **한/글 없이 CI, 서버, 로컬 개발 환경에서 같은 워크플로 유지**
+---
+## 왜 python-hwpx인가
 
-## 설치
+- 한컴오피스 설치 불필요 — 순수 파이썬으로 어디서나 동작
+- XML-first 워크플로 — 스키마 검증·unpack/pack까지 포함
+- 에이전트·자동화 친화 — MCP 서버·Skill이 같은 스택 위에서 직결
 
-```bash
-pip install python-hwpx
-```
+## 대항 라이브러리 비교
 
-> 유일한 런타임 의존성은 `lxml`입니다.
+| 항목 | python-hwpx | pyhwp(x) 류 | ole+bin 수작업 |
+|---|---|---|---|
+| HWPX Open XML 지원 | ✅ | ⚠️ 부분 | ❌ |
+| 한컴오피스 설치 불필요 | ✅ | ✅ | ✅ |
+| 편집/생성 API | ✅ | ❌ 대부분 읽기 | ❌ |
+| 스키마 검증 | ✅ | ❌ | ❌ |
+| AI 에이전트 연동 (MCP) | ✅ (hwpx-mcp-server) | ❌ | ❌ |
+| 유지보수 활성도 | ✅ 활발 | ⚠️ 가변 | — |
 
 ## ⚡ 30초 안에 가치 확인
 
@@ -86,6 +92,26 @@ hwpx-analyze-template 보고서.hwpx
 - **실행 가능한 예제 모음** → [`docs/examples.md`](docs/examples.md)
 - **패키지 구조와 스키마 심화** → [`docs/schema-overview.md`](docs/schema-overview.md)
 - **설치 검증과 개발 환경 확인** → [`docs/installation.md`](docs/installation.md)
+
+## examples 하이라이트
+
+<table>
+  <tr>
+    <td valign="top">
+      <strong><a href="examples/build_release_checklist.py">build_release_checklist.py</a></strong><br>
+      메모와 스타일 편집이 포함된 릴리스 체크리스트용 HWPX를 생성한다.
+    </td>
+    <td valign="top">
+      <strong><a href="examples/extract_text.py">extract_text.py</a></strong><br>
+      본문과 중첩 객체 텍스트를 CLI로 빠르게 추출한다.
+    </td>
+    <td valign="top">
+      <strong><a href="examples/find_objects.py">find_objects.py</a></strong><br>
+      태그·속성 기준으로 OWPML XML 노드를 추적한다.
+    </td>
+  </tr>
+</table>
+
 
 ## Quick Start
 
