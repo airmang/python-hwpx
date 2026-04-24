@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Helpers for resolving HWPX container and manifest relationships."""
 
 from __future__ import annotations

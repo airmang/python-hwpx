@@ -7,8 +7,8 @@ name = "python-hwpx"
 version = "2.9.0"
 description = "한글 없이 HWPX 문서를 열고, 편집하고, 생성하고, 검증하는 Python 자동화 라이브러리"
 readme = { file = "README.md", content-type = "text/markdown" }
-license = "LicenseRef-python-hwpx-NonCommercial"
-license-files = ["LICENSE"]
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.10"
 authors = [
     { name = "python-hwpx Maintainers" },
@@ -16,6 +16,7 @@ authors = [
 keywords = ["hwp", "hwpx", "hancom", "opc", "xml", "document-automation", "validation", "template"]
 classifiers = [
     "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",

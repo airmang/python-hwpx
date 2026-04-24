@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """점진 변환 대상 파일에서 typing 제네릭 별칭 사용을 검사한다."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 
 """Open XML helpers for the HWPX document format."""
 

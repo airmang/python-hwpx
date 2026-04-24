@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Helper utilities that locate XML objects inside HWPX archives."""
 
 from __future__ import annotations

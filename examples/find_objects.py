@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Use :class:`hwpx.tools.object_finder.ObjectFinder` to locate XML nodes."""
 
 from __future__ import annotations

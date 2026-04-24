@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Embedded templates and sample payloads for HWPX documents."""
 
 from __future__ import annotations

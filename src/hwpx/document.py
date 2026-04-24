@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """High-level representation of an HWPX document."""
 
 from __future__ import annotations

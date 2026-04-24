@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Simple demonstration of :class:`hwpx.tools.text_extractor.TextExtractor`."""
 
 from __future__ import annotations

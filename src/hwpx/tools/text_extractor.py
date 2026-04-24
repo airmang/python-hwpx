@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """High-level routines for traversing text inside HWPX documents."""
 
 from __future__ import annotations

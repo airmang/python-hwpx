@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """High-level utilities for working with HWPX documents."""
 
 from importlib.metadata import PackageNotFoundError, version as _metadata_version

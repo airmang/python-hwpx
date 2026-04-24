@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Export HWPX document content to plain text, HTML, and Markdown formats.
 
 All exporters accept either an :class:`~hwpx.document.HwpxDocument` instance

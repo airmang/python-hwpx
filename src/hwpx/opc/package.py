@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Utilities for reading and writing HWPX OPC packages."""
 
 from __future__ import annotations
