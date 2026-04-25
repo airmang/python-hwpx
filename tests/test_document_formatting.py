@@ -750,3 +750,47 @@ def test_paragraph_add_shape_and_control_updates_attributes() -> None:
     control.set_attribute("id", None)
     assert control.get_attribute("id") is None
     assert section.dirty is True
+
+
+# ---------------------------------------------------------------------------
+# Regression: issue #30 — stdlib ET.SubElement called on lxml _Element
+# https://github.com/airmang/python-hwpx/issues/30
+# ---------------------------------------------------------------------------
+
+
+def test_issue_30_set_cell_text_on_blank_cell() -> None:
+    """Setting ``cell.text`` on a cell that lacks ``<hp:subList>/<hp:p>/<hp:run>``
+    must not raise ``TypeError``.
+
+    Before the fix, ``HwpxOxmlTableCell._ensure_text_element`` used
+    ``ET.SubElement`` (stdlib) on ``self.element`` which is an
+    ``lxml.etree._Element``. This reproduces the call path reported by
+    ``@devnoff`` in issue #30 and by downstream consumers running
+    ``table.set_cell_text(...)`` on freshly created tables.
+    """
+
+    document = HwpxDocument.new()
+    table = document.add_table(rows=2, cols=2)
+
+    # Both the explicit API and the property setter must succeed.
+    table.set_cell_text(0, 0, "hello")
+    cells = list(table.rows[1].cells)
+    cells[1].text = "world"
+
+    assert table.rows[0].cells[0].text == "hello"
+    assert table.rows[1].cells[1].text == "world"
+
+
+def test_issue_30_add_run_bold() -> None:
+    """``paragraph.add_run(text, bold=True)`` must not raise ``TypeError``.
+
+    Before the fix, ``ensure_run_style``'s ``modifier`` closure called
+    ``ET.SubElement(element, ...)`` where ``element`` is an lxml element.
+    This is the original reproduction from the body of issue #30.
+    """
+
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("")
+    run = paragraph.add_run("hello", bold=True)
+
+    assert run.text == "hello"
