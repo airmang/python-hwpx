@@ -34,6 +34,11 @@
 오타 수정부터 새 파서 추가까지 모든 기여를 환영합니다. HWPX 생태계를 위한
 더 나은 도구를 함께 만들어 주셔서 감사합니다!
 
+## 기여자 명단
+
+머지된 PR이나 반영된 이슈 제보로 기여해 주신 분들은 [`CONTRIBUTORS.md`](CONTRIBUTORS.md)에
+릴리즈 단위로 등재됩니다. 릴리즈 노트와 `CONTRIBUTORS.md` 모두에서 이름을 확인하실 수 있습니다.
+
 ## 타입 힌트 및 `from __future__ import annotations` 정책
 
 - 이 저장소는 Python 3.10을 최소 지원 버전으로 유지하므로, 타입 힌트는 `list`/`dict`/`tuple` 같은 **내장 제네릭(PEP 585)** 을 우선 사용합니다.

@@ -342,6 +342,8 @@ pip install -e ".[dev]"
 pytest
 ```
 
+머지된 기여자 목록은 [CONTRIBUTORS.md](CONTRIBUTORS.md)에서 확인할 수 있습니다.
+
 ## License
 Apache License 2.0. See LICENSE and NOTICE.
 
