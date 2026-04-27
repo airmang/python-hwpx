@@ -45,10 +45,17 @@ jobs:
           from pathlib import Path
 
           changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
-          match = re.search(r"^## \[([^\]]+)\]", changelog, re.MULTILINE)
-          if not match:
+          # Skip the conventional [Unreleased] heading so keep-a-changelog
+          # workflow (pre-collecting notes above the released version) is
+          # preserved alongside tag-based release automation.
+          matches = re.findall(r"^## \[([^\]]+)\]", changelog, re.MULTILINE)
+          version = next(
+              (m.strip() for m in matches if m.strip().lower() != "unreleased"),
+              None,
+          )
+          if version is None:
               raise SystemExit("CHANGELOG.md에서 버전 섹션(## [x.y.z])을 찾지 못했습니다.")
-          print(match.group(1).strip())
+          print(version)
           PY
           )
 
@@ -72,7 +79,15 @@ jobs:
           from pathlib import Path
 
           lines = Path("CHANGELOG.md").read_text(encoding="utf-8").splitlines()
-          start = next((i for i, line in enumerate(lines) if line.startswith("## [")), None)
+          # Find the first released version heading, skipping [Unreleased].
+          start = next(
+              (
+                  i
+                  for i, line in enumerate(lines)
+                  if line.startswith("## [") and "unreleased" not in line.lower()
+              ),
+              None,
+          )
           if start is None:
               raise SystemExit("CHANGELOG.md에서 릴리스 섹션을 찾지 못했습니다.")
 
