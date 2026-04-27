@@ -109,17 +109,17 @@ def _serialize_xml(element: ET.Element) -> bytes:
 
 def _paragraph_id() -> str:
     """Generate an identifier for a new paragraph element."""
-    return str(uuid4().int & 0xFFFFFFFF)
+    return str(uuid4().int & 0x7FFFFFFF)
 
 
 def _object_id() -> str:
     """Generate an identifier suitable for table and shape objects."""
-    return str(uuid4().int & 0xFFFFFFFF)
+    return str(uuid4().int & 0x7FFFFFFF)
 
 
 def _memo_id() -> str:
     """Generate a lightweight identifier for memo elements."""
-    return str(uuid4().int & 0xFFFFFFFF)
+    return str(uuid4().int & 0x7FFFFFFF)
 
 
 def _refresh_copied_paragraph_subtree_ids(paragraph: ET.Element) -> None:
