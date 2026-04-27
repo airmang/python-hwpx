@@ -9,7 +9,7 @@ from zipfile import ZipFile
 import pytest
 
 
-LICENSE_EXPRESSION = "LicenseRef-python-hwpx-NonCommercial"
+LICENSE_EXPRESSION = "Apache-2.0"
 
 
 def _build_distribution(tmp_path: Path, distribution: str) -> Path:
