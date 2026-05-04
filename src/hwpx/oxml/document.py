@@ -31,6 +31,7 @@ from .header import (
     parse_track_change_authors,
     parse_track_changes,
 )
+from .namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from .utils import parse_int
 
 ET.register_namespace("hp", "http://www.hancom.co.kr/hwpml/2011/paragraph")
@@ -104,6 +105,21 @@ def _sanitize_text(value: str) -> str:
 
 def _serialize_xml(element: ET.Element) -> bytes:
     """Return a UTF-8 encoded XML document for *element*."""
+    xml_bytes = ET.tostring(element, encoding="utf-8", xml_declaration=False)
+    if element.tag in {_HS + "sec", _HH + "head"}:
+        root = LET.fromstring(xml_bytes)
+        wrapped = LET.Element(root.tag, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
+        wrapped.attrib.update(root.attrib)
+        wrapped.text = root.text
+        wrapped.tail = root.tail
+        for child in root:
+            wrapped.append(child)
+        return LET.tostring(
+            wrapped,
+            encoding="UTF-8",
+            xml_declaration=True,
+            standalone=True,
+        )
     return ET.tostring(element, encoding="utf-8", xml_declaration=True)
 
 

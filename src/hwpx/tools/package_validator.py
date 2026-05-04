@@ -3,14 +3,19 @@ from __future__ import annotations
 
 import argparse
 import io
+import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, Literal, Sequence
 from zipfile import ZIP_STORED, BadZipFile, ZipFile
 
+from lxml import etree as LET  # type: ignore[reportMissingImports]
+
+from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from ..opc.relationships import (
     MAIN_ROOTFILE_MEDIA_TYPE,
+    is_header_part_name,
     is_section_part_name,
     parse_container_rootfiles,
     parse_manifest_relationships,
@@ -22,6 +27,9 @@ MIMETYPE_PATH = "mimetype"
 CONTAINER_PATH = "META-INF/container.xml"
 HEADER_PATH = "Contents/header.xml"
 VERSION_PATH = "version.xml"
+
+_XML_DECLARATION_RE = re.compile(br"^<\?xml\s+([^?]*?)\?>", re.IGNORECASE)
+_STANDALONE_YES_RE = re.compile(br"\bstandalone\s*=\s*(['\"])yes\1", re.IGNORECASE)
 
 IssueLevel = Literal["error", "warning"]
 
@@ -81,6 +89,57 @@ def _parse_xml(payload: bytes) -> ET.Element:
         return ET.fromstring(payload)
     except ET.ParseError as exc:
         raise ValueError(f"malformed XML: {exc}") from exc
+
+
+def _root_declared_namespaces(payload: bytes) -> dict[str, str]:
+    try:
+        root = LET.fromstring(payload)
+    except LET.XMLSyntaxError:
+        return {}
+    return {"" if prefix is None else prefix: uri for prefix, uri in root.nsmap.items() if uri}
+
+
+def _has_standalone_yes_declaration(payload: bytes) -> bool:
+    stripped = payload.lstrip()
+    if stripped.startswith(b"\xef\xbb\xbf"):
+        stripped = stripped[3:]
+    match = _XML_DECLARATION_RE.match(stripped)
+    return bool(match and _STANDALONE_YES_RE.search(match.group(1)))
+
+
+def _check_hwpml_compat_root(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    payload: bytes,
+    root: ET.Element,
+) -> None:
+    if not (
+        is_section_part_name(part_name)
+        or is_header_part_name(part_name)
+        or part_name == HEADER_PATH
+    ):
+        return
+    if not (root.tag.endswith("}sec") or root.tag.endswith("}head")):
+        return
+    if not _has_standalone_yes_declaration(payload):
+        _error(
+            issues,
+            part_name,
+            'missing XML declaration with standalone="yes"',
+        )
+    declared = _root_declared_namespaces(payload)
+    missing = [
+        prefix
+        for prefix, uri in HWPML_COMPAT_ROOT_NAMESPACES.items()
+        if declared.get(prefix) != uri
+    ]
+    if missing:
+        _error(
+            issues,
+            part_name,
+            "missing Hancom-compatible HWPML root namespace declarations: "
+            + ", ".join(missing),
+        )
 
 
 def _error(issues: list[PackageValidationIssue], part_name: str, message: str) -> None:
@@ -172,7 +231,9 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
                 _error(issues, name, "unable to read entry for XML parsing")
                 continue
             try:
-                xml_roots[name] = _parse_xml(payload)
+                root = _parse_xml(payload)
+                xml_roots[name] = root
+                _check_hwpml_compat_root(issues, name, payload, root)
             except ValueError as exc:
                 _error(issues, name, str(exc))
 
