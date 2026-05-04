@@ -13,6 +13,7 @@ import pytest
 from hwpx import HwpxDocument
 from hwpx.opc.package import HwpxPackage
 from hwpx.opc.relationships import MAIN_ROOTFILE_MEDIA_TYPE, resolve_part_name
+from hwpx.oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from hwpx.tools import archive_cli
 from hwpx.tools.archive_cli import pack_hwpx, unpack_hwpx
 from hwpx.tools.package_validator import validate_package
@@ -22,10 +23,19 @@ from hwpx.tools.template_analyzer import analyze_template, extract_template_part
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _MIMETYPE = b"application/hwp+zip"
 _VERSION_XML = b'<?xml version="1.0" encoding="UTF-8"?><version appVersion="1.0"/>'
+
+
+def _hwpml_root_namespace_attrs() -> str:
+    return " ".join(
+        f'xmlns:{prefix}="{uri}"'
+        for prefix, uri in HWPML_COMPAT_ROOT_NAMESPACES.items()
+    )
+
+
 _HEADER_XML = (
-    b'<?xml version="1.0" encoding="UTF-8"?>'
-    b'<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head"/>'
-)
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    f"<hh:head {_hwpml_root_namespace_attrs()}/>"
+).encode("utf-8")
 _MASTER_PAGE_XML = (
     b'<?xml version="1.0" encoding="UTF-8"?>'
     b'<hm:masterPage xmlns:hm="http://www.hancom.co.kr/hwpml/2011/master-page">'
@@ -86,9 +96,8 @@ def _build_manifest_xml(
 
 def _build_section_xml(text: str) -> bytes:
     return (
-        '<?xml version="1.0" encoding="UTF-8"?>'
-        '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" '
-        'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">'
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f"<hs:sec {_hwpml_root_namespace_attrs()}>"
         '<hp:p id="1" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
         f'<hp:run charPrIDRef="0"><hp:t>{text}</hp:t></hp:run>'
         "</hp:p>"
@@ -104,6 +113,19 @@ def _zip_parts(parts: list[tuple[str, bytes]]) -> bytes:
                 archive.writestr(name, payload, compress_type=ZIP_STORED)
             else:
                 archive.writestr(name, payload)
+    return buffer.getvalue()
+
+
+def _replace_zip_part(package_bytes: bytes, part_name: str, payload: bytes) -> bytes:
+    buffer = io.BytesIO()
+    with ZipFile(io.BytesIO(package_bytes), "r") as source:
+        with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as archive:
+            for info in source.infolist():
+                replacement = payload if info.filename == part_name else source.read(info.filename)
+                if info.filename == "mimetype":
+                    archive.writestr(info.filename, replacement, compress_type=ZIP_STORED)
+                else:
+                    archive.writestr(info.filename, replacement)
     return buffer.getvalue()
 
 
@@ -203,6 +225,43 @@ def test_package_validator_accepts_valid_document() -> None:
 
     assert report.ok
     assert "Contents/header.xml" in report.checked_parts
+
+
+def test_add_paragraph_roundtrip_preserves_section_root_compat_metadata() -> None:
+    package_bytes, paths = _build_manual_package(text="Original paragraph")
+
+    document = HwpxDocument.open(package_bytes)
+    document.add_paragraph("Added paragraph")
+    roundtrip = document.to_bytes()
+
+    with ZipFile(io.BytesIO(roundtrip), "r") as archive:
+        section_xml = archive.read(paths["section"])
+
+    declaration = section_xml.split(b"?>", 1)[0]
+    assert b"standalone='yes'" in declaration or b'standalone="yes"' in declaration
+    for prefix, uri in HWPML_COMPAT_ROOT_NAMESPACES.items():
+        expected = f'xmlns:{prefix}="{uri}"'.encode("utf-8")
+        assert expected in section_xml
+    assert validate_package(roundtrip).ok
+
+
+def test_package_validator_rejects_section_root_metadata_regression() -> None:
+    package_bytes, paths = _build_manual_package(text="Original paragraph")
+    regressed_section_xml = (
+        b'<?xml version="1.0" encoding="UTF-8"?>'
+        b'<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" '
+        b'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">'
+        b'<hp:p id="1" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
+        b'<hp:run charPrIDRef="0"><hp:t>Regressed</hp:t></hp:run>'
+        b"</hp:p></hs:sec>"
+    )
+    regressed = _replace_zip_part(package_bytes, paths["section"], regressed_section_xml)
+
+    report = validate_package(regressed)
+
+    assert not report.ok
+    assert any("standalone" in issue.message for issue in report.errors)
+    assert any("root namespace declarations" in issue.message for issue in report.errors)
 
 
 def test_package_validator_reports_missing_mimetype() -> None:

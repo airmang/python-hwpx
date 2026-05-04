@@ -14,6 +14,8 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
+from ..opc.relationships import is_header_part_name, is_section_part_name
+from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from .package_validator import validate_package
 
 _XML_SUFFIXES = (".xml", ".hpf")
@@ -89,6 +91,30 @@ def _format_xml_bytes(payload: bytes) -> bytes:
         pretty_print=True,
         xml_declaration=True,
         encoding="UTF-8",
+    )
+
+
+def _normalize_hwpml_compat_root(rel_path: str, payload: bytes) -> bytes:
+    if not (is_section_part_name(rel_path) or is_header_part_name(rel_path)):
+        return payload
+    try:
+        root = etree.fromstring(payload)
+    except etree.XMLSyntaxError:
+        return payload
+    if not (root.tag.endswith("}sec") or root.tag.endswith("}head")):
+        return payload
+
+    wrapped = etree.Element(root.tag, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
+    wrapped.attrib.update(root.attrib)
+    wrapped.text = root.text
+    wrapped.tail = root.tail
+    for child in root:
+        wrapped.append(child)
+    return etree.tostring(
+        wrapped,
+        encoding="UTF-8",
+        xml_declaration=True,
+        standalone=True,
     )
 
 
@@ -261,7 +287,11 @@ def pack_hwpx(
                 compress_type = compress_types.get(rel_path, ZIP_DEFLATED)
                 if compress_type != ZIP_STORED:
                     compress_type = ZIP_DEFLATED
-                archive.write(root / rel_path, rel_path, compress_type=compress_type)
+                payload = _normalize_hwpml_compat_root(
+                    rel_path,
+                    (root / rel_path).read_bytes(),
+                )
+                archive.writestr(rel_path, payload, compress_type=compress_type)
 
         _summarize_pack_validation(tmp_path)
         os.replace(tmp_path, destination)

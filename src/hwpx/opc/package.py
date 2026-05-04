@@ -9,7 +9,7 @@ import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import BinaryIO, Iterable, Iterator, Mapping, MutableMapping
+from typing import BinaryIO, Iterable, Iterator, Mapping, MutableMapping, Sequence
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
@@ -133,11 +133,16 @@ class HwpxPackage:
         rootfiles: Iterable[RootFile],
         version_info: VersionInfo,
         mimetype: str,
+        *,
+        zip_infos: Mapping[str, ZipInfo] | None = None,
+        zip_order: Sequence[str] | None = None,
     ) -> None:
         self._files = files
         self._rootfiles = list(rootfiles)
         self._version = version_info
         self._mimetype = mimetype
+        self._zip_infos = dict(zip_infos or {})
+        self._zip_order = list(zip_order or files.keys())
         self._manifest_tree: etree._Element | None = None
         self._spine_cache: list[str] | None = None
         self._section_paths_cache: list[str] | None = None
@@ -156,14 +161,24 @@ class HwpxPackage:
             stream = pkg_file
 
         with ZipFile(stream, "r") as zf:
-            files = {info.filename: zf.read(info.filename) for info in zf.infolist()}
+            infos = [info for info in zf.infolist() if not info.is_dir()]
+            files = {info.filename: zf.read(info.filename) for info in infos}
+            zip_infos = {info.filename: info for info in infos}
+            zip_order = [info.filename for info in infos]
         logger.debug("HWPX 패키지 파일 목록 %d개를 로드했습니다.", len(files))
         if cls.MIMETYPE_PATH not in files:
             raise HwpxStructureError("HWPX package is missing the mandatory 'mimetype' file.")
         mimetype = files[cls.MIMETYPE_PATH].decode("utf-8")
         rootfiles = cls._parse_container(files.get(cls.CONTAINER_PATH))
         version_info = cls._parse_version(files.get(cls.VERSION_PATH))
-        package = cls(files, rootfiles, version_info, mimetype)
+        package = cls(
+            files,
+            rootfiles,
+            version_info,
+            mimetype,
+            zip_infos=zip_infos,
+            zip_order=zip_order,
+        )
         return package
 
     @staticmethod
@@ -243,6 +258,8 @@ class HwpxPackage:
         elif norm_path == self.VERSION_PATH:
             pending_version = self._parse_version(data)
         self._files[norm_path] = data
+        if norm_path not in self._zip_order:
+            self._zip_order.append(norm_path)
         if norm_path == self.MIMETYPE_PATH:
             self._mimetype = mimetype
         elif norm_path == self.CONTAINER_PATH:
@@ -263,6 +280,8 @@ class HwpxPackage:
                 "Cannot remove mandatory files ('mimetype', 'container.xml', 'version.xml')."
             )
         del self._files[norm_path]
+        self._zip_infos.pop(norm_path, None)
+        self._zip_order = [name for name in self._zip_order if name != norm_path]
         self._invalidate_caches(norm_path)
         self._validate_structure()
 
@@ -553,15 +572,47 @@ class HwpxPackage:
 
     def _write_archive(self, zf: ZipFile) -> None:
         self._write_mimetype(zf)
-        for name in sorted(self._files):
-            if name == self.MIMETYPE_PATH:
-                continue
+        written = {self.MIMETYPE_PATH}
+        ordered_names = [
+            name
+            for name in self._zip_order
+            if name != self.MIMETYPE_PATH and name in self._files
+        ]
+        new_names = sorted(
+            name for name in self._files if name not in written and name not in ordered_names
+        )
+        for name in [*ordered_names, *new_names]:
             self._write_zip_entry(zf, name, self._files[name], ZIP_DEFLATED)
+            written.add(name)
 
-    @staticmethod
-    def _write_zip_entry(zf: ZipFile, path: str, payload: bytes, compress_type: int) -> None:
-        info = ZipInfo(path)
-        info.compress_type = compress_type
+    def _zip_info_for_write(self, path: str, compress_type: int) -> ZipInfo:
+        original = self._zip_infos.get(path)
+        if original is None:
+            info = ZipInfo(path)
+            info.compress_type = compress_type
+            return info
+
+        info = ZipInfo(path, original.date_time)
+        info.compress_type = original.compress_type
+        info.comment = original.comment
+        info.extra = original.extra
+        info.create_system = original.create_system
+        info.create_version = original.create_version
+        info.extract_version = original.extract_version
+        info.flag_bits = original.flag_bits
+        info.volume = original.volume
+        info.internal_attr = original.internal_attr
+        info.external_attr = original.external_attr
+        return info
+
+    def _write_zip_entry(
+        self,
+        zf: ZipFile,
+        path: str,
+        payload: bytes,
+        compress_type: int,
+    ) -> None:
+        info = self._zip_info_for_write(path, compress_type)
         zf.writestr(info, payload)
 
     def _write_mimetype(self, zf: ZipFile) -> None:
