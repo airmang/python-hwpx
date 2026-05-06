@@ -640,3 +640,22 @@ OWPML 스키마에서 반복적으로 사용되는 네임스페이스 URI와 Cla
 
 - `hwpx.tools.text_extractor` 모듈의 `DEFAULT_NAMESPACES`, `ParagraphInfo`, `SectionInfo`, `TextExtractor`
 - `hwpx.tools.object_finder` 모듈의 `FoundElement`, `ObjectFinder`
+
+## Proposal presets
+
+Public import path:
+
+```python
+from hwpx.presets import (
+    ProposalSpec,
+    ProposalSection,
+    ProposalStylePreset,
+    create_proposal_document,
+    inspect_proposal_quality,
+    normalize_proposal_spec,
+)
+```
+
+- `create_proposal_document(spec, *, preset="clean_korean_proposal") -> HwpxDocument`: builds an unsaved proposal/planning document from a dict-like `ProposalSpec`.
+- `inspect_proposal_quality(source) -> dict`: returns a deterministic `proposal-quality-v2` report for required sections, tables, asset weight, validation, rubric scores, sample-derived proxy dimensions under `sample_match`, and visual-review gap status.
+- `ProposalStylePreset.ensure_tokens(document) -> dict[str, str]`: creates semantic run-style tokens through public `HwpxDocument.ensure_run_style()`.
