@@ -133,10 +133,6 @@ document.save_to_path("새문서.hwpx")
 
 표, 메모, 텍스트 추출, 검증, 패키지/XML 심화는 [`docs/quickstart.md`](docs/quickstart.md)와 [`docs/usage.md`](docs/usage.md)에서 바로 이어진다.
 
-### Codex plugin usage
-
-The `hwpx-plugin` bundle in the `hwpx-skill` repository consumes `python-hwpx` through `hwpx-mcp-server` and local quickcheck scripts. During local development, set `PYTHON_HWPX_REPO=/absolute/path/to/python-hwpx` so the plugin launcher uses this checkout as an editable dependency.
-
 > **pyhwpx / pyhwp와 다른 점?**
 > | | python-hwpx | pyhwpx | pyhwp |
 > |---|---|---|---|
@@ -144,6 +140,10 @@ The `hwpx-plugin` bundle in the `hwpx-skill` repository consumes `python-hwpx` t
 > | **한/글 설치** | 불필요 | 필요 (Windows COM) | 불필요 |
 > | **크로스 플랫폼** | ✅ Linux / macOS / Windows / CI | ❌ Windows 전용 | ✅ |
 > | **방식** | 직접 XML 파싱 | COM 자동화 | OLE 파싱 |
+
+## Codex plugin usage
+
+The `hwpx-plugin` bundle in the `hwpx-skill` repository consumes `python-hwpx` through `hwpx-mcp-server` and local quickcheck scripts. During local development, set `PYTHON_HWPX_REPO=/absolute/path/to/python-hwpx` so the plugin launcher uses this checkout as an editable dependency.
 
 ## 🌍 크로스 플랫폼 지원
 
