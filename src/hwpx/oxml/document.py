@@ -1607,6 +1607,58 @@ class HwpxOxmlNote:
         t.text = _sanitize_text(value)
         self.paragraph.section.mark_dirty()
 
+    @property
+    def body_paragraph(self) -> "HwpxOxmlParagraph":
+        """Return the note's body ``<hp:p>`` wrapped as :class:`HwpxOxmlParagraph`.
+
+        The body lives inside ``<hp:subList>`` and is distinct from
+        :attr:`paragraph`, which is the *hosting* paragraph (where the note
+        marker is inserted). Use this to add runs with mixed formatting
+        directly into the note body:
+
+        >>> note = para.add_footnote("기본 ")
+        >>> note.add_run("청색", char_pr_id_ref=5)
+        """
+        p = self.element.find(f".//{_HP}p")
+        if p is None:
+            raise ValueError("note has no body paragraph element")
+        return HwpxOxmlParagraph(p, self.paragraph.section)
+
+    def add_run(
+        self,
+        text: str = "",
+        *,
+        char_pr_id_ref: str | int | None = None,
+        bold: bool = False,
+        italic: bool = False,
+        underline: bool = False,
+        attributes: dict[str, str] | None = None,
+    ) -> "HwpxOxmlRun":
+        """Append a run to the note body paragraph (delegates to body_paragraph.add_run)."""
+        return self.body_paragraph.add_run(
+            text,
+            char_pr_id_ref=char_pr_id_ref,
+            bold=bold,
+            italic=italic,
+            underline=underline,
+            attributes=attributes,
+        )
+
+    def add_hyperlink(
+        self,
+        url: str,
+        display_text: str,
+        *,
+        char_pr_id_ref: str | int | None = None,
+    ) -> "HwpxOxmlInlineObject":
+        """Append a hyperlink to the note body paragraph.
+
+        Convenience wrapper around ``body_paragraph.add_hyperlink``.
+        """
+        return self.body_paragraph.add_hyperlink(
+            url, display_text, char_pr_id_ref=char_pr_id_ref
+        )
+
 
 def _default_sublist_attributes() -> dict[str, str]:
     """Return standard attributes for a ``<hp:subList>`` element.
@@ -3364,7 +3416,10 @@ class HwpxOxmlParagraph:
         sublist = _append_child(note_element, f"{_HP}subList", _default_sublist_attributes())
         p_attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
         paragraph = _append_child(sublist, f"{_HP}p", p_attrs)
-        note_run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
+        # 본문 run의 charPrIDRef도 인자를 따라가도록 적용 (host run과 동일 스타일).
+        # None이면 "0"(default).
+        body_cpr = "0" if char_pr_id_ref is None else str(char_pr_id_ref)
+        note_run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": body_cpr})
         t = _append_child(note_run, f"{_HP}t", {})
         t.text = _sanitize_text(text)
         self.section.mark_dirty()
