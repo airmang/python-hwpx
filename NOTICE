@@ -4,6 +4,17 @@ Copyright 2025-2026 airmang
 This product includes software developed by airmang.
 Licensed under the Apache License, Version 2.0.
 
+Clean-room implementation references:
+
+The HWPX repair and recovery tools include behavior ideas independently
+reimplemented from public references, without copying source code:
+
+- sakada3/hwp-ops (Apache-2.0): repair-repack behavior for placing the
+  mimetype entry first, storing it uncompressed, and running ZIP integrity
+  checks.
+- chrisryugj/kordoc (MIT): broken HWPX ZIP recovery behavior using Local File
+  Header scanning when the central directory is damaged.
+
 ────────────────────────────────────────
 DISCLAIMER — HWPX Format
 
