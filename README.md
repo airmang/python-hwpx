@@ -141,9 +141,12 @@ document.save_to_path("새문서.hwpx")
 > | **크로스 플랫폼** | ✅ Linux / macOS / Windows / CI | ❌ Windows 전용 | ✅ |
 > | **방식** | 직접 XML 파싱 | COM 자동화 | OLE 파싱 |
 
-## Codex plugin usage
+## HWPX plugin usage
 
-The `hwpx-plugin` bundle in the `hwpx-skill` repository consumes `python-hwpx` through `hwpx-mcp-server` and local quickcheck scripts. During local development, set `PYTHON_HWPX_REPO=/absolute/path/to/python-hwpx` so the plugin launcher uses this checkout as an editable dependency.
+The per-host bundles in the `hwpx-plugins` repository consume `python-hwpx` through
+`hwpx-mcp-server` and the local quickcheck scripts. During local development, set
+`PYTHON_HWPX_REPO=/absolute/path/to/python-hwpx` so the plugin launcher uses this checkout as an
+editable dependency.
 
 ## 🌍 크로스 플랫폼 지원
 
