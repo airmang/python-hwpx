@@ -1067,6 +1067,66 @@ class HwpxDocument:
             )
         return paragraph.add_hyperlink(url, display_text)
 
+    def _resolve_section(
+        self,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> HwpxOxmlSection:
+        target_section = section
+        if target_section is None and section_index is not None:
+            target_section = self._root.sections[section_index]
+        if target_section is None:
+            if not self._root.sections:
+                raise ValueError("document does not contain any sections")
+            target_section = self._root.sections[-1]
+        return target_section
+
+    def set_page_size(
+        self,
+        *,
+        width: int | None = None,
+        height: int | None = None,
+        orientation: str | None = None,
+        gutter_type: str | None = None,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> None:
+        """Set page dimensions on the requested section through the public facade."""
+
+        target_section = self._resolve_section(section=section, section_index=section_index)
+        target_section.properties.set_page_size(
+            width=width,
+            height=height,
+            orientation=orientation,
+            gutter_type=gutter_type,
+        )
+
+    def set_page_margins(
+        self,
+        *,
+        left: int | None = None,
+        right: int | None = None,
+        top: int | None = None,
+        bottom: int | None = None,
+        header: int | None = None,
+        footer: int | None = None,
+        gutter: int | None = None,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> None:
+        """Set page margins on the requested section through the public facade."""
+
+        target_section = self._resolve_section(section=section, section_index=section_index)
+        target_section.properties.set_page_margins(
+            left=left,
+            right=right,
+            top=top,
+            bottom=bottom,
+            header=header,
+            footer=footer,
+            gutter=gutter,
+        )
+
     def set_header_text(
         self,
         text: str,
@@ -1077,13 +1137,7 @@ class HwpxDocument:
     ) -> HwpxOxmlSectionHeaderFooter:
         """Ensure the requested section contains a header for *page_type* and set its text."""
 
-        target_section = section
-        if target_section is None and section_index is not None:
-            target_section = self._root.sections[section_index]
-        if target_section is None:
-            if not self._root.sections:
-                raise ValueError("document does not contain any sections")
-            target_section = self._root.sections[-1]
+        target_section = self._resolve_section(section=section, section_index=section_index)
         return target_section.properties.set_header_text(text, page_type=page_type)
 
     def set_footer_text(
@@ -1096,13 +1150,7 @@ class HwpxDocument:
     ) -> HwpxOxmlSectionHeaderFooter:
         """Ensure the requested section contains a footer for *page_type* and set its text."""
 
-        target_section = section
-        if target_section is None and section_index is not None:
-            target_section = self._root.sections[section_index]
-        if target_section is None:
-            if not self._root.sections:
-                raise ValueError("document does not contain any sections")
-            target_section = self._root.sections[-1]
+        target_section = self._resolve_section(section=section, section_index=section_index)
         return target_section.properties.set_footer_text(text, page_type=page_type)
 
     def remove_header(

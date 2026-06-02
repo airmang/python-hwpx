@@ -26,10 +26,12 @@ class BuilderSaveReport:
     validate_package: PackageValidationReport
     validate_document: ValidationReport
     reopened: ReopenReport
+    metadata: dict[str, str] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "path": str(self.path),
+            "metadata": dict(self.metadata or {}),
             "validate_package": {
                 "ok": self.validate_package.ok,
                 "issues": [str(issue) for issue in self.validate_package.issues],

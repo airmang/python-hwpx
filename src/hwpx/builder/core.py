@@ -15,6 +15,12 @@ from .report import BuilderSaveReport, ReopenReport
 BuilderChild = (
     "Heading | Paragraph | Bullet | NumberedList | Table | Image | PageBreak"
 )
+_HWP_UNITS_PER_MM = 7200 / 25.4
+_A4_HWP_SIZE = (59528, 84188)
+
+
+def _mm_to_hwp_units(value: float) -> int:
+    return round(value * _HWP_UNITS_PER_MM)
 
 
 @dataclass(frozen=True)
@@ -43,6 +49,13 @@ class Metadata:
     title: str = ""
     author: str = ""
     organization: str = ""
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "title": self.title,
+            "author": self.author,
+            "organization": self.organization,
+        }
 
 
 @dataclass(frozen=True)
@@ -136,7 +149,30 @@ class Section:
     header: Header | None = None
     footer: Footer | None = None
 
-    def lower(self, document: HwpxDocument) -> None:
+    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+        if self.page is not None:
+            if self.page == PageSize.A4:
+                width, height = _A4_HWP_SIZE
+            else:
+                width = _mm_to_hwp_units(self.page.width_mm)
+                height = _mm_to_hwp_units(self.page.height_mm)
+            document.set_page_size(
+                width=width,
+                height=height,
+                orientation=self.page.orientation,
+                section_index=section_index,
+            )
+        if self.margins is not None:
+            document.set_page_margins(
+                left=_mm_to_hwp_units(self.margins.left_mm),
+                right=_mm_to_hwp_units(self.margins.right_mm),
+                top=_mm_to_hwp_units(self.margins.top_mm),
+                bottom=_mm_to_hwp_units(self.margins.bottom_mm),
+                header=_mm_to_hwp_units(self.margins.header_mm),
+                footer=_mm_to_hwp_units(self.margins.footer_mm),
+                gutter=_mm_to_hwp_units(self.margins.gutter_mm),
+                section_index=section_index,
+            )
         for child in self.children:
             if isinstance(child, (Paragraph, PageBreak)):
                 child.lower(document)
@@ -151,8 +187,16 @@ class Document:
 
     def lower(self) -> HwpxDocument:
         document = HwpxDocument.new()
-        for section in self.sections:
-            section.lower(document)
+        if self.metadata is not None:
+            for label, value in (
+                ("제목", self.metadata.title),
+                ("작성자", self.metadata.author),
+                ("기관", self.metadata.organization),
+            ):
+                if value:
+                    document.add_paragraph(f"{label}: {value}", inherit_style=False)
+        for index, section in enumerate(self.sections):
+            section.lower(document, section_index=index)
         return document
 
     def save_to_path(self, path: str | PathLike[str]) -> BuilderSaveReport:
@@ -165,9 +209,11 @@ class Document:
             reopen_report = ReopenReport(ok=True, document=reopened_document)
         except Exception as exc:  # pragma: no cover - failure is surfaced in report
             reopen_report = ReopenReport(ok=False, error=f"{type(exc).__name__}: {exc}")
-        return BuilderSaveReport(
+        report = BuilderSaveReport(
             path=path,
             validate_package=package_report,
             validate_document=document_report,
             reopened=reopen_report,
+            metadata=self.metadata.as_dict() if self.metadata is not None else {},
         )
+        return report
