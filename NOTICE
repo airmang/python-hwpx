@@ -25,6 +25,13 @@ These form-fill references were used as behavior evidence only. The
 implementation is a clean-room Python implementation; no source code was
 copied, translated, vendored, or linked.
 
+## Test fixtures: hwpxlib sample corpus
+
+tests/fixtures/hwpxlib_corpus/ contains .hwpx sample files vendored from
+neolord0/hwpxlib (https://github.com/neolord0/hwpxlib), licensed Apache-2.0.
+Only sample DATA files are vendored; no hwpxlib source code or structure is
+copied (clean-room). Pinned ref is recorded in manifest.json.
+
 ────────────────────────────────────────
 DISCLAIMER — HWPX Format
 
