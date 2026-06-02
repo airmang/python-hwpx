@@ -28,3 +28,25 @@ def test_schema_failures_are_warnings_not_errors(tmp_path):
     report = validate_document(path)
     assert all(i.severity == "warning" for i in report.issues)
     assert report.ok is True
+
+
+def test_non_schema_failure_is_a_hard_error(tmp_path, monkeypatch):
+    # A genuine structural failure (not a DocumentInvalid schema violation) must
+    # stay severity="error" so .ok can be False — schema lint must not swallow it.
+    from hwpx.document import HwpxDocument
+    from hwpx.tools import validator as v
+
+    doc = HwpxDocument.new()
+    doc.add_paragraph("본문")
+    path = tmp_path / "d.hwpx"
+    doc.save_to_path(path)
+
+    def boom(payload, schema=None):
+        raise ValueError("not well-formed")
+
+    monkeypatch.setattr(v, "parse_header_xml", boom)
+    monkeypatch.setattr(v, "parse_section_xml", boom)
+
+    report = v.validate_document(path)
+    assert any(i.severity == "error" for i in report.issues)
+    assert report.ok is False

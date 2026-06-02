@@ -157,9 +157,13 @@ def validate_document(
         try:
             validator(payload, schema=schema)
         except etree.DocumentInvalid as exc:
+            # Schema-rule violations are lint warnings (the published OWPML schema
+            # diverges from Hancom's real behavior — see docs/owpml-deviations.md).
             issues.extend(_issues_from_error(part_name, exc))
-        except Exception as exc:  # pragma: no cover - defensive branch
-            issues.append(ValidationIssue(part_name=part_name, message=str(exc), severity="warning"))
+        except Exception as exc:
+            # A non-DocumentInvalid failure (e.g. not-well-formed XML, load error)
+            # is a genuine structural problem, not schema lint: keep it a hard error.
+            issues.append(ValidationIssue(part_name=part_name, message=str(exc), severity="error"))
 
     return ValidationReport(validated_parts=tuple(validated_parts), issues=tuple(issues))
 
