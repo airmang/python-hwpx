@@ -315,12 +315,39 @@ def _children_contain_page_number(children: Sequence[Paragraph | PageNumber]) ->
     return False
 
 
+def _run_is_rich(run: Run) -> bool:
+    return any(
+        (
+            run.bold,
+            run.italic,
+            run.underline,
+            run.color,
+            run.font,
+            run.size,
+            run.highlight,
+            run.strike,
+        )
+    )
+
+
+def _children_contain_rich_run(children: Sequence[Paragraph | PageNumber]) -> bool:
+    for child in children:
+        if not isinstance(child, Paragraph):
+            continue
+        if any(isinstance(grandchild, Run) and _run_is_rich(grandchild) for grandchild in child.children):
+            return True
+    return False
+
+
 def _section_feature_flags(section: "Section") -> dict[str, bool]:
     flags = {
         "metadata": False,
         "page_setup": section.page is not None or section.margins is not None,
         "header_footer": section.header is not None or section.footer is not None,
         "page_number": False,
+        "heading": False,
+        "rich_run": False,
+        "list": False,
         "table": False,
         "image": False,
         "page_break": False,
@@ -329,8 +356,19 @@ def _section_feature_flags(section: "Section") -> dict[str, bool]:
         flags["page_number"] = True
     if section.footer is not None and _children_contain_page_number(section.footer.children):
         flags["page_number"] = True
+    if section.header is not None and _children_contain_rich_run(section.header.children):
+        flags["rich_run"] = True
+    if section.footer is not None and _children_contain_rich_run(section.footer.children):
+        flags["rich_run"] = True
     for child in section.children:
-        if isinstance(child, Table):
+        if isinstance(child, Heading):
+            flags["heading"] = True
+        elif isinstance(child, Paragraph):
+            if any(isinstance(run, Run) and _run_is_rich(run) for run in child.children):
+                flags["rich_run"] = True
+        elif isinstance(child, (Bullet, NumberedList)):
+            flags["list"] = True
+        elif isinstance(child, Table):
             flags["table"] = True
         elif isinstance(child, Image):
             flags["image"] = True

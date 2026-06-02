@@ -635,6 +635,14 @@ class HwpxOxmlSectionHeaderFooter:
     def _initial_sublist_attributes(self) -> dict[str, str]:
         attrs = dict(_default_sublist_attributes())
         attrs["vertAlign"] = "TOP" if self.element.tag.endswith("header") else "BOTTOM"
+        size = self._properties.page_size
+        margins = self._properties.page_margins
+        text_width = max(size.width - margins.left - margins.right, 0)
+        text_height = margins.header if self.element.tag.endswith("header") else margins.footer
+        if text_width:
+            attrs["textWidth"] = str(text_width)
+        if text_height:
+            attrs["textHeight"] = str(text_height)
         return attrs
 
     def _ensure_text_element(self) -> ET.Element:
@@ -773,6 +781,9 @@ class HwpxOxmlSectionHeaderFooter:
         """Append the corpus-observed automatic page-number control."""
 
         target = paragraph if paragraph is not None else self._ensure_content_paragraph()
+        auto_run = _append_child(target, f"{_HP}run", {"charPrIDRef": "0"})
+        auto_ctrl = _append_child(auto_run, f"{_HP}ctrl", {})
+        _append_child(auto_ctrl, f"{_HP}autoNum", {"num": "1", "numType": "PAGE"})
         run = _append_child(target, f"{_HP}run", {"charPrIDRef": "0"})
         ctrl = _append_child(run, f"{_HP}ctrl", {})
         page_number = _append_child(
@@ -1164,6 +1175,37 @@ class HwpxOxmlSectionProperties:
             self.section.mark_dirty()
         return element
 
+    def _header_footer_control_run(self) -> ET.Element:
+        paragraph = self.section.element.find(f"{_HP}p")
+        if paragraph is None:
+            paragraph = _append_child(
+                self.section.element,
+                f"{_HP}p",
+                {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS},
+            )
+        run = paragraph.find(f"{_HP}run")
+        if run is None:
+            run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
+        return run
+
+    def _sync_header_footer_control(self, tag: str, source: ET.Element) -> None:
+        run = self._header_footer_control_run()
+        for ctrl in list(run.findall(f"{_HP}ctrl")):
+            if ctrl.find(f"{_HP}{tag}") is not None:
+                run.remove(ctrl)
+        ctrl = _append_child(run, f"{_HP}ctrl", {})
+        ctrl.append(deepcopy(source))
+        self.section.mark_dirty()
+
+    def _remove_header_footer_controls(self, tag: str) -> bool:
+        removed = False
+        for run in self.section.element.findall(f".//{_HP}run"):
+            for ctrl in list(run.findall(f"{_HP}ctrl")):
+                if ctrl.find(f"{_HP}{tag}") is not None:
+                    run.remove(ctrl)
+                    removed = True
+        return removed
+
     @property
     def headers(self) -> list[HwpxOxmlSectionHeaderFooter]:
         wrappers: list[HwpxOxmlSectionHeaderFooter] = []
@@ -1199,6 +1241,7 @@ class HwpxOxmlSectionProperties:
         apply = self._ensure_header_footer_apply("header", page_type, element)
         wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
         wrapper.text = text
+        self._sync_header_footer_control("header", element)
         return wrapper
 
     def set_footer_text(self, text: str, page_type: str = "BOTH") -> HwpxOxmlSectionHeaderFooter:
@@ -1206,6 +1249,7 @@ class HwpxOxmlSectionProperties:
         apply = self._ensure_header_footer_apply("footer", page_type, element)
         wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
         wrapper.text = text
+        self._sync_header_footer_control("footer", element)
         return wrapper
 
     def set_header_content(
@@ -1217,6 +1261,7 @@ class HwpxOxmlSectionProperties:
         apply = self._ensure_header_footer_apply("header", page_type, element)
         wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
         wrapper.set_content(content)
+        self._sync_header_footer_control("header", element)
         return wrapper
 
     def set_footer_content(
@@ -1228,6 +1273,7 @@ class HwpxOxmlSectionProperties:
         apply = self._ensure_header_footer_apply("footer", page_type, element)
         wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
         wrapper.set_content(content)
+        self._sync_header_footer_control("footer", element)
         return wrapper
 
     def remove_header(self, page_type: str = "BOTH") -> None:
@@ -1237,6 +1283,8 @@ class HwpxOxmlSectionProperties:
             self.element.remove(element)
             removed = True
         if self._remove_header_footer_apply("header", page_type, element):
+            removed = True
+        if self._remove_header_footer_controls("header"):
             removed = True
         if removed:
             self.section.mark_dirty()
@@ -1248,6 +1296,8 @@ class HwpxOxmlSectionProperties:
             self.element.remove(element)
             removed = True
         if self._remove_header_footer_apply("footer", page_type, element):
+            removed = True
+        if self._remove_header_footer_controls("footer"):
             removed = True
         if removed:
             self.section.mark_dirty()
