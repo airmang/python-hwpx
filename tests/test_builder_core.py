@@ -3,6 +3,7 @@ from __future__ import annotations
 from hwpx.document import HwpxDocument
 
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
+HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
 
 
 def test_builder_public_nodes_and_basic_save_report(tmp_path) -> None:
@@ -496,3 +497,52 @@ def test_builder_table_lowers_merge_ranges(tmp_path) -> None:
     assert table.cell(0, 0).span == (1, 3)
     assert table.cell(0, 0).text == "구분"
     assert table.cell(1, 0).text == "단계"
+
+
+def test_table_set_cell_shading_creates_fill_brush() -> None:
+    # SPIKE pin from reader_writer__SimpleTable.hwpx:
+    # - shaded/filled borderFill uses hc:fillBrush/hc:winBrush.
+    # - winBrush carries faceColor, hatchColor, alpha attributes.
+    document = HwpxDocument.new()
+    table = document.add_table(2, 2)
+
+    table.set_cell_shading(0, 0, "EAF1FB")
+
+    border_fill_id = table.cell(0, 0).element.get("borderFillIDRef")
+    assert border_fill_id is not None
+    border_fill = document.oxml.headers[0].element.find(f".//{HH}borderFill[@id='{border_fill_id}']")
+    assert border_fill is not None
+    win_brush = border_fill.find(f"{HC}fillBrush/{HC}winBrush")
+    assert win_brush is not None
+    assert win_brush.get("faceColor") == "#EAF1FB"
+    assert win_brush.get("hatchColor") == "#FF000000"
+    assert win_brush.get("alpha") == "0"
+
+
+def test_builder_table_lowers_header_shading(tmp_path) -> None:
+    from hwpx.builder import Document, Section, Table
+
+    path = tmp_path / "builder-table-shading.hwpx"
+    Document(
+        sections=[
+            Section(
+                children=[
+                    Table(
+                        header=["구분", "내용"],
+                        rows=[["1단계", "기반 구축"]],
+                        header_shading="EAF1FB",
+                    )
+                ]
+            )
+        ]
+    ).save_to_path(path)
+
+    reopened = HwpxDocument.open(path)
+    table = reopened.paragraphs[-1].tables[0]
+    for col_index in range(2):
+        border_fill_id = table.cell(0, col_index).element.get("borderFillIDRef")
+        border_fill = reopened.oxml.headers[0].element.find(f".//{HH}borderFill[@id='{border_fill_id}']")
+        assert border_fill is not None
+        win_brush = border_fill.find(f"{HC}fillBrush/{HC}winBrush")
+        assert win_brush is not None
+        assert win_brush.get("faceColor") == "#EAF1FB"

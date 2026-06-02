@@ -2552,6 +2552,18 @@ class HwpxOxmlTable:
         entry = self._grid_entry(row_index, col_index)
         return entry.cell
 
+    def set_cell_shading(self, row_index: int, col_index: int, color: str) -> None:
+        cell = self.cell(row_index, col_index)
+        document = self.paragraph.section.document
+        if document is None:
+            raise ValueError("table is not attached to a document")
+        border_fill_id = document.ensure_shading_border_fill(
+            color,
+            base_border_fill_id=cell.element.get("borderFillIDRef") or self.element.get("borderFillIDRef"),
+        )
+        cell.element.set("borderFillIDRef", border_fill_id)
+        self.mark_dirty()
+
     def set_cell_text(
         self,
         row_index: int,
@@ -4301,6 +4313,64 @@ class HwpxOxmlHeader:
         self.mark_dirty()
         return new_id
 
+    def ensure_shading_border_fill(
+        self,
+        color: str,
+        *,
+        base_border_fill_id: str | int | None = None,
+    ) -> str:
+        element = self._border_fills_element(create=True)
+        if element is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <borderFills> element")
+        face_color = _normalize_color(color) or "none"
+
+        for border_fill in element.findall(f"{_HH}borderFill"):
+            fill_brush = next(
+                (child for child in border_fill if _element_local_name(child) == "fillBrush"),
+                None,
+            )
+            if fill_brush is None:
+                continue
+            win_brush = next(
+                (child for child in fill_brush if _element_local_name(child) == "winBrush"),
+                None,
+            )
+            if win_brush is not None and win_brush.get("faceColor") == face_color:
+                border_id = border_fill.get("id")
+                if border_id:
+                    return border_id
+
+        base_element: ET.Element | None = None
+        if base_border_fill_id is not None:
+            base_element = element.find(f"{_HH}borderFill[@id='{base_border_fill_id}']")
+        if base_element is None:
+            existing_basic = self.find_basic_border_fill_id()
+            if existing_basic is not None:
+                base_element = element.find(f"{_HH}borderFill[@id='{existing_basic}']")
+        new_id = self._allocate_border_fill_id(element)
+        if base_element is None:
+            new_border_fill = _create_basic_border_fill_element(new_id)
+        else:
+            new_border_fill = deepcopy(base_element)
+            new_border_fill.set("id", new_id)
+            for child in list(new_border_fill):
+                if _element_local_name(child) == "fillBrush":
+                    new_border_fill.remove(child)
+
+        fill_brush = new_border_fill.makeelement(f"{_HC}fillBrush", {})
+        _append_child(
+            fill_brush,
+            f"{_HC}winBrush",
+            {"faceColor": face_color, "hatchColor": "#FF000000", "alpha": "0"},
+        )
+        new_border_fill.append(fill_brush)
+        if isinstance(element, LET._Element) and not isinstance(new_border_fill, LET._Element):
+            new_border_fill = LET.fromstring(ET.tostring(new_border_fill, encoding="utf-8"))
+        element.append(new_border_fill)
+        self._update_border_fills_item_count(element)
+        self.mark_dirty()
+        return new_id
+
     @property
     def border_fills(self) -> dict[str, GenericElement]:
         element = self._border_fills_element()
@@ -4944,6 +5014,19 @@ class HwpxOxmlDocument:
                 return existing
 
         return self._headers[0].ensure_basic_border_fill()
+
+    def ensure_shading_border_fill(
+        self,
+        color: str,
+        *,
+        base_border_fill_id: str | int | None = None,
+    ) -> str:
+        if not self._headers:
+            return "0"
+        return self._headers[0].ensure_shading_border_fill(
+            color,
+            base_border_fill_id=base_border_fill_id,
+        )
 
     @property
     def memo_shapes(self) -> dict[str, MemoShape]:

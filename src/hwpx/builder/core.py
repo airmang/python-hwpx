@@ -168,6 +168,7 @@ class Table:
     header: Sequence[str] = field(default_factory=tuple)
     rows: Sequence[Sequence[str]] = field(default_factory=tuple)
     merges: Sequence[str] = field(default_factory=tuple)
+    header_shading: str | None = None
 
     def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
         table_rows: list[Sequence[str]] = []
@@ -187,6 +188,9 @@ class Table:
                 table.cell(row_index, col_index).text = str(value)
         for merge in self.merges:
             table.merge_cells(merge)
+        if self.header and self.header_shading:
+            for col_index in range(column_count):
+                table.set_cell_shading(0, col_index, self.header_shading)
 
 
 @dataclass(frozen=True)
