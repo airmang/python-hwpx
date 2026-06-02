@@ -278,6 +278,16 @@ class HwpxDocument:
 
         return self._root.paragraph_property(para_pr_id_ref)
 
+    def ensure_numbering(
+        self,
+        *,
+        kind: str,
+        levels: Sequence[dict[str, str]] | None = None,
+    ) -> list[str]:
+        """Return paragraph property ids for bullet or numbered-list levels."""
+
+        return self._root.ensure_numbering(kind=kind, levels=levels)
+
     @property
     def styles(self) -> dict[str, Style]:
         """Return style definitions available in the document."""

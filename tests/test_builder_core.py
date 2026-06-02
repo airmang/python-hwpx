@@ -334,3 +334,79 @@ def test_builder_lowers_headings_with_level_aware_styles(tmp_path) -> None:
     assert heading_1_run.style is not None
     assert heading_2_run.style is not None
     assert int(heading_1_run.style.attributes["height"]) > int(heading_2_run.style.attributes["height"])
+
+
+def test_ensure_numbering_creates_sample_shaped_refs() -> None:
+    # SPIKE pin from tests/fixtures/hwpxlib_corpus/tool__textextractor__ParaHead.hwpx:
+    # - header has hh:bullets/hh:bullet id char useImage="0" with child hh:paraHead.
+    # - header has hh:numberings/hh:numbering id start with level-specific hh:paraHead.
+    # - paragraph properties have hh:heading type="BULLET|NUMBER" idRef="<bullet|numbering id>" level="0|1".
+    # - body paragraphs consume those properties via hp:p@paraPrIDRef.
+    document = HwpxDocument.new()
+
+    bullet_refs = document.ensure_numbering(
+        kind="bullet",
+        levels=[{"char": "-"}, {"char": "○"}],
+    )
+    number_refs = document.ensure_numbering(
+        kind="number",
+        levels=[{}, {}],
+    )
+
+    assert len(bullet_refs) == 2
+    assert len(number_refs) == 2
+
+    bullet_heading_0 = document.paragraph_property(bullet_refs[0]).heading
+    bullet_heading_1 = document.paragraph_property(bullet_refs[1]).heading
+    number_heading_0 = document.paragraph_property(number_refs[0]).heading
+    number_heading_1 = document.paragraph_property(number_refs[1]).heading
+
+    assert bullet_heading_0.type == "BULLET"
+    assert bullet_heading_0.level == 0
+    assert bullet_heading_1.type == "BULLET"
+    assert bullet_heading_1.level == 1
+    assert document.bullet(bullet_heading_0.id_ref).char == "-"
+    assert document.bullet(bullet_heading_1.id_ref).char == "○"
+    assert number_heading_0.type == "NUMBER"
+    assert number_heading_0.level == 0
+    assert number_heading_1.type == "NUMBER"
+    assert number_heading_1.level == 1
+
+    header = document.oxml.headers[0].element
+    assert header.find(f".//{HH}bullets/{HH}bullet[@char='-']/{HH}paraHead") is not None
+    numbering = header.find(f".//{HH}numberings/{HH}numbering[@id='{number_heading_0.id_ref}']")
+    assert numbering is not None
+    assert len(numbering.findall(f"{HH}paraHead")) >= 2
+
+
+def test_builder_lowers_multilevel_bullets_and_numbered_lists(tmp_path) -> None:
+    from hwpx.builder import Bullet, Document, NumberedList, Section
+
+    path = tmp_path / "builder-lists.hwpx"
+    Document(
+        sections=[
+            Section(
+                children=[
+                    Bullet(items=["목표 설정", "예산 편성"], level=0),
+                    Bullet(items=["세부 목표"], level=1),
+                    NumberedList(items=["1단계", "2단계"], level=0),
+                    NumberedList(items=["세부 단계"], level=1),
+                ]
+            )
+        ]
+    ).save_to_path(path)
+
+    reopened = HwpxDocument.open(path)
+    text = reopened.export_text()
+    for expected in ["목표 설정", "예산 편성", "세부 목표", "1단계", "2단계", "세부 단계"]:
+        assert expected in text
+
+    refs_by_text = {
+        paragraph.text: paragraph.para_pr_id_ref
+        for paragraph in reopened.paragraphs
+        if paragraph.text in {"목표 설정", "세부 목표", "1단계", "세부 단계"}
+    }
+    assert reopened.paragraph_property(refs_by_text["목표 설정"]).heading.level == 0
+    assert reopened.paragraph_property(refs_by_text["세부 목표"]).heading.level == 1
+    assert reopened.paragraph_property(refs_by_text["1단계"]).heading.type == "NUMBER"
+    assert reopened.paragraph_property(refs_by_text["세부 단계"]).heading.level == 1

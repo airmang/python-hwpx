@@ -129,11 +129,38 @@ class Bullet:
     items: Sequence[str]
     level: int = 0
 
+    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+        level_count = max(self.level + 1, 1)
+        refs = document.ensure_numbering(
+            kind="bullet",
+            levels=[{"char": char} for char in ("-", "○", "□", "•")[:level_count]],
+        )
+        para_pr_id = refs[self.level]
+        for item in self.items:
+            document.add_paragraph(
+                item,
+                section_index=section_index,
+                para_pr_id_ref=para_pr_id,
+                inherit_style=False,
+            )
+
 
 @dataclass(frozen=True)
 class NumberedList:
     items: Sequence[str]
     level: int = 0
+
+    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+        level_count = max(self.level + 1, 1)
+        refs = document.ensure_numbering(kind="number", levels=[{} for _ in range(level_count)])
+        para_pr_id = refs[self.level]
+        for item in self.items:
+            document.add_paragraph(
+                item,
+                section_index=section_index,
+                para_pr_id_ref=para_pr_id,
+                inherit_style=False,
+            )
 
 
 @dataclass(frozen=True)
@@ -204,6 +231,9 @@ class Section:
                 child.lower(document)
                 continue
             if isinstance(child, Heading):
+                child.lower(document, section_index=section_index)
+                continue
+            if isinstance(child, (Bullet, NumberedList)):
                 child.lower(document, section_index=section_index)
                 continue
             raise NotImplementedError(f"{type(child).__name__} lowering is not implemented yet")

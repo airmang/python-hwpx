@@ -7,7 +7,7 @@ import logging
 import re as _re
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Callable, Iterable, Iterator, Optional, Sequence, TypeVar
+from typing import Callable, Iterable, Iterator, Mapping, Optional, Sequence, TypeVar
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
@@ -4026,17 +4026,207 @@ class HwpxOxmlHeader:
             return None
         return ref_list.find(f"{_HH}memoProperties")
 
-    def _bullets_element(self) -> ET.Element | None:
-        ref_list = self._ref_list_element()
+    def _bullets_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
         if ref_list is None:
             return None
-        return ref_list.find(f"{_HH}bullets")
+        element = ref_list.find(f"{_HH}bullets")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}bullets", {"itemCnt": "0"})
+            ref_list.append(element)
+            self.mark_dirty()
+        return element
 
-    def _para_properties_element(self) -> ET.Element | None:
-        ref_list = self._ref_list_element()
+    def _numberings_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
         if ref_list is None:
             return None
-        return ref_list.find(f"{_HH}paraProperties")
+        element = ref_list.find(f"{_HH}numberings")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}numberings", {"itemCnt": "0"})
+            ref_list.append(element)
+            self.mark_dirty()
+        return element
+
+    def _para_properties_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        element = ref_list.find(f"{_HH}paraProperties")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}paraProperties", {"itemCnt": "0"})
+            ref_list.append(element)
+            self.mark_dirty()
+        return element
+
+    @staticmethod
+    def _allocate_ref_id(parent: ET.Element, child_tag: str) -> str:
+        existing: set[str] = {
+            child.get("id") or ""
+            for child in parent.findall(child_tag)
+        }
+        existing.discard("")
+        numeric_ids: list[int] = []
+        for value in existing:
+            try:
+                numeric_ids.append(int(value))
+            except ValueError:
+                continue
+        next_id = 1 if not numeric_ids else max(numeric_ids) + 1
+        candidate = str(next_id)
+        while candidate in existing:
+            next_id += 1
+            candidate = str(next_id)
+        return candidate
+
+    @staticmethod
+    def _update_item_count(parent: ET.Element, child_tag: str) -> None:
+        parent.set("itemCnt", str(len(parent.findall(child_tag))))
+
+    @staticmethod
+    def _default_para_head_attributes(level: int) -> dict[str, str]:
+        return {
+            "start": "1",
+            "level": str(level),
+            "align": "LEFT",
+            "useInstWidth": "1",
+            "autoIndent": "1",
+            "widthAdjust": "0",
+            "textOffsetType": "PERCENT",
+            "textOffset": "50",
+            "numFormat": "DIGIT",
+            "charPrIDRef": "4294967295",
+            "checkable": "0",
+        }
+
+    def _ensure_bullet_definition(self, char: str) -> str:
+        bullets = self._bullets_element(create=True)
+        if bullets is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <bullets> element")
+        for bullet in bullets.findall(f"{_HH}bullet"):
+            if bullet.get("char") == char:
+                bullet_id = bullet.get("id")
+                if bullet_id:
+                    return bullet_id
+
+        bullet_id = self._allocate_ref_id(bullets, f"{_HH}bullet")
+        bullet = bullets.makeelement(
+            f"{_HH}bullet",
+            {"id": bullet_id, "char": char, "useImage": "0"},
+        )
+        head_attrs = self._default_para_head_attributes(0)
+        head_attrs.pop("start", None)
+        head_attrs["useInstWidth"] = "0"
+        _append_child(bullet, f"{_HH}paraHead", head_attrs)
+        bullets.append(bullet)
+        self._update_item_count(bullets, f"{_HH}bullet")
+        self.mark_dirty()
+        return bullet_id
+
+    def _create_numbering_definition(self, level_count: int) -> str:
+        numberings = self._numberings_element(create=True)
+        if numberings is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <numberings> element")
+
+        numbering_id = self._allocate_ref_id(numberings, f"{_HH}numbering")
+        numbering = numberings.makeelement(
+            f"{_HH}numbering",
+            {"id": numbering_id, "start": "1"},
+        )
+        for index in range(level_count):
+            level = index + 1
+            head = _append_child(
+                numbering,
+                f"{_HH}paraHead",
+                self._default_para_head_attributes(level),
+            )
+            head.text = ".".join(f"^{part}" for part in range(1, level + 1)) + "."
+        numberings.append(numbering)
+        self._update_item_count(numberings, f"{_HH}numbering")
+        self.mark_dirty()
+        return numbering_id
+
+    def _ensure_para_property_heading(
+        self,
+        *,
+        heading_type: str,
+        id_ref: str,
+        level: int,
+    ) -> str:
+        para_properties = self._para_properties_element(create=True)
+        if para_properties is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <paraProperties> element")
+
+        for para_pr in para_properties.findall(f"{_HH}paraPr"):
+            heading = para_pr.find(f"{_HH}heading")
+            if heading is None:
+                continue
+            if (
+                heading.get("type") == heading_type
+                and heading.get("idRef") == str(id_ref)
+                and heading.get("level") == str(level)
+            ):
+                para_pr_id = para_pr.get("id")
+                if para_pr_id:
+                    return para_pr_id
+
+        base = para_properties.find(f"{_HH}paraPr")
+        para_pr = deepcopy(base) if base is not None else para_properties.makeelement(f"{_HH}paraPr", {})
+        para_pr.attrib.pop("id", None)
+        for heading in list(para_pr.findall(f"{_HH}heading")):
+            para_pr.remove(heading)
+        heading = para_pr.makeelement(
+            f"{_HH}heading",
+            {"type": heading_type, "idRef": str(id_ref), "level": str(level)},
+        )
+        insert_at = 0
+        for index, child in enumerate(list(para_pr)):
+            if _element_local_name(child) == "align":
+                insert_at = index + 1
+                break
+        para_pr.insert(insert_at, heading)
+        para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
+        para_pr.set("id", para_pr_id)
+        para_properties.append(para_pr)
+        self._update_item_count(para_properties, f"{_HH}paraPr")
+        self.mark_dirty()
+        return para_pr_id
+
+    def ensure_numbering(
+        self,
+        *,
+        kind: str,
+        levels: Sequence[dict[str, str]] | None = None,
+    ) -> list[str]:
+        resolved_levels = list(levels or [{}])
+        if not resolved_levels:
+            resolved_levels = [{}]
+        normalized_kind = kind.lower()
+        if normalized_kind == "bullet":
+            refs: list[str] = []
+            default_chars = ["-", "○", "□", "•"]
+            for index, level in enumerate(resolved_levels):
+                bullet_char = str(level.get("char") or default_chars[index % len(default_chars)])
+                bullet_id = self._ensure_bullet_definition(bullet_char)
+                refs.append(
+                    self._ensure_para_property_heading(
+                        heading_type="BULLET",
+                        id_ref=bullet_id,
+                        level=index,
+                    )
+                )
+            return refs
+        if normalized_kind in {"number", "numbered", "numbering"}:
+            numbering_id = self._create_numbering_definition(len(resolved_levels))
+            return [
+                self._ensure_para_property_heading(
+                    heading_type="NUMBER",
+                    id_ref=numbering_id,
+                    level=index,
+                )
+                for index in range(len(resolved_levels))
+            ]
+        raise ValueError("kind must be 'bullet' or 'number'")
 
     def _styles_element(self) -> ET.Element | None:
         ref_list = self._ref_list_element()
@@ -4773,6 +4963,16 @@ class HwpxOxmlDocument:
         self, para_pr_id_ref: int | str | None
     ) -> ParagraphProperty | None:
         return HwpxOxmlHeader._lookup_by_id(self.paragraph_properties, para_pr_id_ref)
+
+    def ensure_numbering(
+        self,
+        *,
+        kind: str,
+        levels: Sequence[dict[str, str]] | None = None,
+    ) -> list[str]:
+        if not self._headers:
+            raise ValueError("document does not contain any headers")
+        return self._headers[0].ensure_numbering(kind=kind, levels=levels)
 
     @property
     def styles(self) -> dict[str, Style]:
