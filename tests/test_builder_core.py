@@ -306,3 +306,31 @@ def test_builder_lowers_rich_runs_and_reopen_preserves_style(tmp_path) -> None:
     assert rich_run.style.attributes["textColor"] == "#C00000"
     assert rich_run.style.attributes["shadeColor"] == "#FFFF00"
     assert rich_run.style.child_attributes["strikeout"]["shape"] == "SOLID"
+
+
+def test_builder_lowers_headings_with_level_aware_styles(tmp_path) -> None:
+    from hwpx.builder import Document, Heading, Paragraph, Section
+
+    path = tmp_path / "builder-headings.hwpx"
+    Document(
+        sections=[
+            Section(
+                children=[
+                    Heading(level=1, text="추진 개요"),
+                    Heading(level=2, text="세부 목표"),
+                    Paragraph(text="본문"),
+                ]
+            )
+        ]
+    ).save_to_path(path)
+
+    reopened = HwpxDocument.open(path)
+    paragraphs = [paragraph for paragraph in reopened.paragraphs if paragraph.text in {"추진 개요", "세부 목표", "본문"}]
+    assert [paragraph.text for paragraph in paragraphs] == ["추진 개요", "세부 목표", "본문"]
+
+    heading_1_run = paragraphs[0].runs[0]
+    heading_2_run = paragraphs[1].runs[0]
+    assert heading_1_run.char_pr_id_ref != heading_2_run.char_pr_id_ref
+    assert heading_1_run.style is not None
+    assert heading_2_run.style is not None
+    assert int(heading_1_run.style.attributes["height"]) > int(heading_2_run.style.attributes["height"])

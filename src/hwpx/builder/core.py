@@ -107,6 +107,22 @@ class Heading:
     level: int
     text: str
 
+    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+        if self.level < 1 or self.level > 3:
+            raise ValueError("heading level must be between 1 and 3")
+        size_by_level = {1: 18, 2: 15, 3: 13}
+        char_pr_id = document.ensure_run_style(
+            bold=True,
+            size=size_by_level[self.level],
+            font="함초롬바탕",
+        )
+        document.add_paragraph(
+            self.text,
+            section_index=section_index,
+            char_pr_id_ref=char_pr_id,
+            inherit_style=False,
+        )
+
 
 @dataclass(frozen=True)
 class Bullet:
@@ -186,6 +202,9 @@ class Section:
         for child in self.children:
             if isinstance(child, (Paragraph, PageBreak)):
                 child.lower(document)
+                continue
+            if isinstance(child, Heading):
+                child.lower(document, section_index=section_index)
                 continue
             raise NotImplementedError(f"{type(child).__name__} lowering is not implemented yet")
 
