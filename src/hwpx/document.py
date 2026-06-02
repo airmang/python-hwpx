@@ -40,17 +40,15 @@ from .oxml import (
     TrackChangeAuthor,
 )
 from .opc.package import HwpxPackage
+from .oxml.namespaces import HH, HH_NS, HP, HP_NS, register_owpml_namespaces
 from .templates import blank_document_bytes
 
-ET.register_namespace("hp", "http://www.hancom.co.kr/hwpml/2011/paragraph")
-ET.register_namespace("hs", "http://www.hancom.co.kr/hwpml/2011/section")
-ET.register_namespace("hc", "http://www.hancom.co.kr/hwpml/2011/core")
-ET.register_namespace("hh", "http://www.hancom.co.kr/hwpml/2011/head")
+register_owpml_namespaces(ET.register_namespace)
 
-_HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
-_HP = f"{{{_HP_NS}}}"
-_HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
-_HH = f"{{{_HH_NS}}}"
+_HP_NS = HP_NS
+_HP = HP
+_HH_NS = HH_NS
+_HH = HH
 _HWP_UNITS_PER_MM = 7200 / 25.4
 
 logger = logging.getLogger(__name__)

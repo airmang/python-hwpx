@@ -16,6 +16,7 @@ from ..opc.relationships import (
     parse_manifest_relationships,
     select_main_rootfile,
 )
+from ..oxml.namespaces import DEFAULT_NAMESPACES as OWPML_DEFAULT_NAMESPACES
 
 __all__ = [
     "DEFAULT_NAMESPACES",
@@ -28,19 +29,7 @@ __all__ = [
     "strip_namespace",
 ]
 
-DEFAULT_NAMESPACES: Dict[str, str] = {
-    "hp": "http://www.hancom.co.kr/hwpml/2011/paragraph",
-    "hp10": "http://www.hancom.co.kr/hwpml/2016/paragraph",
-    "hs": "http://www.hancom.co.kr/hwpml/2011/section",
-    "hc": "http://www.hancom.co.kr/hwpml/2011/core",
-    "ha": "http://www.hancom.co.kr/hwpml/2011/app",
-    "hh": "http://www.hancom.co.kr/hwpml/2011/head",
-    "hhs": "http://www.hancom.co.kr/hwpml/2011/history",
-    "hm": "http://www.hancom.co.kr/hwpml/2011/master-page",
-    "hpf": "http://www.hancom.co.kr/schema/2011/hpf",
-    "dc": "http://purl.org/dc/elements/1.1/",
-    "opf": "http://www.idpf.org/2007/opf/",
-}
+DEFAULT_NAMESPACES: Dict[str, str] = dict(OWPML_DEFAULT_NAMESPACES)
 
 _SECTION_PATTERN = re.compile(r"^section(\d+)\.xml$", re.IGNORECASE)
 
@@ -237,12 +226,12 @@ class TextExtractor:
         root = section.element
         parent_map = build_parent_map(root)
         if include_nested:
-            paragraph_elements = list(root.findall(".//hp:p", namespaces=self.namespaces))
+            paragraph_elements = _descendants_by_local(root, "p")
         else:
             paragraph_elements = [
                 child
                 for child in root
-                if tag_matches(child.tag, "hp:p", self.namespaces)
+                if strip_namespace(child.tag) == "p"
             ]
 
         for index, element in enumerate(paragraph_elements):
@@ -285,7 +274,7 @@ class TextExtractor:
         """Return a string representation of a paragraph element."""
 
         fragments: list[str] = []
-        for run in paragraph.findall("hp:run", namespaces=self.namespaces):
+        for run in _children_by_local(paragraph, "run"):
             for child in run:
                 tag = strip_namespace(child.tag)
                 if tag == "t":
@@ -348,7 +337,7 @@ class TextExtractor:
             fragments.append(placeholder.format(type=tag))
             return
         if behavior == "nested":
-            for inner_paragraph in element.findall(".//hp:p", namespaces=self.namespaces):
+            for inner_paragraph in _descendants_by_local(element, "p"):
                 text = self.paragraph_text(
                     inner_paragraph,
                     object_behavior=behavior,
@@ -389,7 +378,7 @@ class TextExtractor:
             fragments.append(placeholder.format(type=tag))
         elif behavior == "nested":
             # Attempt to gather nested paragraph text for unknown containers.
-            for inner_paragraph in element.findall(".//hp:p", namespaces=self.namespaces):
+            for inner_paragraph in _descendants_by_local(element, "p"):
                 text = self.paragraph_text(
                     inner_paragraph,
                     object_behavior=behavior,
@@ -495,14 +484,14 @@ class TextExtractor:
         if annotations is None:
             return
 
-        field_begin = element.find("hp:fieldBegin", namespaces=self.namespaces)
+        field_begin = _first_child_by_local(element, "fieldBegin")
         if field_begin is not None:
             field_type = field_begin.get("type") or ""
             if field_type == "HYPERLINK":
                 self._handle_hyperlink(field_begin, fragments, annotations)
                 return
 
-        if element.find("hp:fieldEnd", namespaces=self.namespaces) is not None:
+        if _first_child_by_local(element, "fieldEnd") is not None:
             return
 
         behavior = annotations.control
@@ -620,12 +609,12 @@ def _resolve_note_text(
     *,
     preserve_breaks: bool,
 ) -> str:
-    sub_list = element.find("hp:subList", namespaces=extractor.namespaces)
+    sub_list = _first_child_by_local(element, "subList")
     if sub_list is None:
         return ""
 
     texts: list[str] = []
-    for inner_paragraph in sub_list.findall(".//hp:p", namespaces=extractor.namespaces):
+    for inner_paragraph in _descendants_by_local(sub_list, "p"):
         text = extractor.paragraph_text(
             inner_paragraph,
             object_behavior="skip",
@@ -648,7 +637,7 @@ def _resolve_control_nested_text(
     preserve_breaks: bool,
 ) -> str:
     texts: list[str] = []
-    for inner_paragraph in element.findall(".//hp:p", namespaces=extractor.namespaces):
+    for inner_paragraph in _descendants_by_local(element, "p"):
         text = extractor.paragraph_text(
             inner_paragraph,
             object_behavior="skip",
@@ -669,11 +658,11 @@ def _resolve_hyperlink_target(
     field_begin: ET.Element,
     namespaces: Dict[str, str],
 ) -> Optional[str]:
-    params = field_begin.find("hp:parameters", namespaces=namespaces)
+    params = _first_child_by_local(field_begin, "parameters")
     if params is None:
         return None
 
-    for string_param in params.findall("hp:stringParam", namespaces=namespaces):
+    for string_param in _children_by_local(params, "stringParam"):
         if string_param.get("name") == "Command":
             value = string_param.text or ""
             if "|" in value:
@@ -688,6 +677,25 @@ def strip_namespace(tag: str) -> str:
     if "}" in tag:
         return tag.split("}", 1)[1]
     return tag
+
+
+def _children_by_local(element: ET.Element, local_name: str) -> list[ET.Element]:
+    return [child for child in list(element) if strip_namespace(child.tag) == local_name]
+
+
+def _descendants_by_local(element: ET.Element, local_name: str) -> list[ET.Element]:
+    return [
+        child
+        for child in element.iter()
+        if child is not element and strip_namespace(child.tag) == local_name
+    ]
+
+
+def _first_child_by_local(element: ET.Element, local_name: str) -> ET.Element | None:
+    for child in element:
+        if strip_namespace(child.tag) == local_name:
+            return child
+    return None
 
 
 def tag_matches(candidate: str, query: Union[str, Sequence[str]], namespaces: Mapping[str, str]) -> bool:

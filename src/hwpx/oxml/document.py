@@ -31,28 +31,33 @@ from .header import (
     parse_track_change_authors,
     parse_track_changes,
 )
-from .namespaces import HWPML_COMPAT_ROOT_NAMESPACES
+from .namespaces import (
+    HWPML_COMPAT_ROOT_NAMESPACES,
+    HC,
+    HC_NS,
+    HH,
+    HH_NS,
+    HP,
+    HP_NS,
+    HS,
+    HS_NS,
+    register_owpml_namespaces,
+    tag_local_name,
+    tag_namespace,
+)
 from .utils import parse_int
 
-ET.register_namespace("hp", "http://www.hancom.co.kr/hwpml/2011/paragraph")
-ET.register_namespace("hs", "http://www.hancom.co.kr/hwpml/2011/section")
-ET.register_namespace("hc", "http://www.hancom.co.kr/hwpml/2011/core")
-ET.register_namespace("hh", "http://www.hancom.co.kr/hwpml/2011/head")
-# Hangul 2016+ documents may use 2016-series namespace URIs.  We normalise
-# them to 2011 at parse time (see opc.xml_utils.normalize_hwpml_namespaces),
-# so the prefixes below are registered purely for defensive serialisation.
-ET.register_namespace("hp10", "http://www.hancom.co.kr/hwpml/2016/paragraph")
-ET.register_namespace("hs10", "http://www.hancom.co.kr/hwpml/2016/section")
-ET.register_namespace("hc10", "http://www.hancom.co.kr/hwpml/2016/core")
-ET.register_namespace("hh10", "http://www.hancom.co.kr/hwpml/2016/head")
+register_owpml_namespaces(ET.register_namespace)
 logger = logging.getLogger(__name__)
 
-_HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
-_HP = f"{{{_HP_NS}}}"
-_HS_NS = "http://www.hancom.co.kr/hwpml/2011/section"
-_HS = f"{{{_HS_NS}}}"
-_HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
-_HH = f"{{{_HH_NS}}}"
+_HP_NS = HP_NS
+_HP = HP
+_HS_NS = HS_NS
+_HS = HS
+_HH_NS = HH_NS
+_HH = HH
+_HC_NS = HC_NS
+_HC = HC
 
 _DEFAULT_PARAGRAPH_ATTRS = {
     "paraPrIDRef": "0",
@@ -101,6 +106,22 @@ def _sanitize_text(value: str) -> str:
     is preserved for multiline cells.
     """
     return _ILLEGAL_XML_CHARS.sub("", value)
+
+
+def _child_tag_like(parent: ET.Element, local_name: str, fallback_namespace: str) -> str:
+    namespace = tag_namespace(parent.tag) or fallback_namespace
+    return f"{{{namespace}}}{local_name}"
+
+
+def _children_by_local(parent: ET.Element, local_name: str) -> list[ET.Element]:
+    return [child for child in list(parent) if tag_local_name(child.tag) == local_name]
+
+
+def _first_child_by_local(parent: ET.Element, local_name: str) -> ET.Element | None:
+    for child in parent:
+        if tag_local_name(child.tag) == local_name:
+            return child
+    return None
 
 
 _FONT_REF_ATTRIBUTES = ("hangul", "latin", "hanja", "japanese", "other", "symbol", "user")
@@ -229,7 +250,7 @@ def _create_paragraph_element(
     if parent is None:
         paragraph = ET.Element(f"{_HP}p", attrs)
     else:
-        paragraph = parent.makeelement(f"{_HP}p", attrs)
+        paragraph = parent.makeelement(_child_tag_like(parent, "p", _HP_NS), attrs)
 
     run_attrs: dict[str, str] = dict(run_attributes or {})
     if char_pr_id_ref is not None:
@@ -237,7 +258,7 @@ def _create_paragraph_element(
     else:
         run_attrs.setdefault("charPrIDRef", "0")
 
-    run = paragraph.makeelement(f"{_HP}run", run_attrs)
+    run = paragraph.makeelement(_child_tag_like(paragraph, "run", _HP_NS), run_attrs)
     paragraph.append(run)
     _append_text_with_tabs(run, text)
     return paragraph
@@ -276,17 +297,19 @@ def _append_child(
 
 
 def _is_tab_control_element(node: ET.Element) -> bool:
-    return node.tag == f"{_HP}ctrl" and (node.get("id") or "").lower() == "tab"
+    return tag_local_name(node.tag) == "ctrl" and (node.get("id") or "").lower() == "tab"
 
 
 def _append_text_with_tabs(run: ET.Element, value: str) -> None:
     segments = value.split("\t")
+    text_tag = _child_tag_like(run, "t", _HP_NS)
+    tab_tag = _child_tag_like(run, "tab", _HP_NS)
     for index, segment in enumerate(segments):
-        text_element = run.makeelement(f"{_HP}t", {})
+        text_element = run.makeelement(text_tag, {})
         text_element.text = _sanitize_text(segment)
         run.append(text_element)
         if index < len(segments) - 1:
-            run.append(run.makeelement(f"{_HP}tab", {}))
+            run.append(run.makeelement(tab_tag, {}))
 
 
 def _normalize_length(value: str | None) -> str:
@@ -1914,9 +1937,6 @@ class HwpxOxmlInlineObject:
 # Drawing shape helpers
 # ------------------------------------------------------------------
 
-_HC_NS = "http://www.hancom.co.kr/hwpml/2011/core"
-_HC = f"{{{_HC_NS}}}"
-
 _IDENTITY_MATRIX = {
     "e1": "1", "e2": "0", "e3": "0",
     "e4": "0", "e5": "1", "e6": "0",
@@ -3181,7 +3201,7 @@ class HwpxOxmlParagraph:
         self.section.mark_dirty()
 
     def _run_elements(self) -> list[ET.Element]:
-        return self.element.findall(f"{_HP}run")
+        return _children_by_local(self.element, "run")
 
     def _ensure_run(self) -> ET.Element:
         runs = self._run_elements()
@@ -3192,7 +3212,7 @@ class HwpxOxmlParagraph:
         default_char = self.char_pr_id_ref or "0"
         if default_char is not None:
             run_attrs["charPrIDRef"] = default_char
-        run = self.element.makeelement(f"{_HP}run", run_attrs)
+        run = self.element.makeelement(_child_tag_like(self.element, "run", _HP_NS), run_attrs)
         self.element.append(run)
         return run
 
@@ -3207,10 +3227,10 @@ class HwpxOxmlParagraph:
         texts: list[str] = []
         for run in self._run_elements():
             for child in run:
-                if child.tag == f"{_HP}t":
+                if tag_local_name(child.tag) == "t":
                     if child.text:
                         texts.append(child.text)
-                elif child.tag == f"{_HP}tab" or _is_tab_control_element(child):
+                elif tag_local_name(child.tag) == "tab" or _is_tab_control_element(child):
                     texts.append("\t")
         return "".join(texts)
 
@@ -3230,7 +3250,7 @@ class HwpxOxmlParagraph:
         # Remove existing text/tab nodes from all runs.
         for run in runs:
             for child in list(run):
-                if child.tag == f"{_HP}t" or child.tag == f"{_HP}tab" or _is_tab_control_element(child):
+                if tag_local_name(child.tag) in {"t", "tab"} or _is_tab_control_element(child):
                     run.remove(child)
 
         # Remove non-first runs that are now empty (only had text).
@@ -3987,15 +4007,23 @@ class HwpxOxmlSection:
         if element is not None:
             return element
 
-        paragraph = self._element.find(f"{_HP}p")
+        paragraph = _first_child_by_local(self._element, "p")
         if paragraph is None:
             paragraph_attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
             paragraph_attrs["id"] = _paragraph_id()
-            paragraph = _append_child(self._element, f"{_HP}p", paragraph_attrs)
-        run = paragraph.find(f"{_HP}run")
+            paragraph = _append_child(
+                self._element,
+                _child_tag_like(self._element, "p", _HP_NS),
+                paragraph_attrs,
+            )
+        run = _first_child_by_local(paragraph, "run")
         if run is None:
-            run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
-        element = _append_child(run, f"{_HP}secPr")
+            run = _append_child(
+                paragraph,
+                _child_tag_like(paragraph, "run", _HP_NS),
+                {"charPrIDRef": "0"},
+            )
+        element = _append_child(run, _child_tag_like(run, "secPr", _HP_NS))
         self._properties_cache = None
         self.mark_dirty()
         return element
@@ -4012,7 +4040,7 @@ class HwpxOxmlSection:
         return self._properties_cache
 
     def _paragraph_elements(self) -> Iterable[ET.Element]:
-        return self._element.findall(f"{_HP}p")
+        return _children_by_local(self._element, "p")
 
     @property
     def element(self) -> ET.Element:

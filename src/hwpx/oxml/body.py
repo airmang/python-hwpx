@@ -8,11 +8,11 @@ from typing import Dict, List, Optional, Union
 from lxml import etree
 
 from .common import GenericElement, parse_generic_element
+from .namespaces import HP
 from .utils import local_name, parse_bool, parse_int
 
 
-_DEFAULT_HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
-_DEFAULT_HP = f"{{{_DEFAULT_HP_NS}}}"
+_DEFAULT_HP = HP
 
 INLINE_OBJECT_NAMES = {
     "line",
