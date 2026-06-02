@@ -698,3 +698,185 @@ def test_builder_image_places_picture_and_caption(tmp_path) -> None:
     reopened = HwpxDocument.open(path)
     assert reopened.oxml.sections[0].element.find(f".//{HP}pic/{HC}img") is not None
     assert "학교 로고" in reopened.export_text()
+
+
+def test_header_footer_content_and_page_number_use_sample_shapes(tmp_path) -> None:
+    # SPIKE pin from reader_writer__HeaderFooter.hwpx:
+    # - hp:header/hp:subList@vertAlign="TOP"/hp:p/hp:run/hp:t holds rich header text.
+    # - hp:footer/hp:subList@vertAlign="BOTTOM"/hp:p/hp:run/hp:t holds footer text.
+    # SPIKE pin from reader_writer__PageFunctions.hwpx:
+    # - automatic page number token is hp:run/hp:ctrl/hp:pageNum
+    #   with pos="BOTTOM_CENTER", formatType="DIGIT", sideChar="-".
+    document = HwpxDocument.new()
+
+    header = document.set_header_text("학교 ")
+    page_number = header.add_page_number_field(format="page")
+    footer = document.set_footer_content(
+        [
+            {
+                "align": "center",
+                "children": [
+                    {"type": "run", "text": "쪽 "},
+                    {"type": "page_number", "format": "page/total"},
+                ],
+            }
+        ]
+    )
+
+    assert page_number.tag == f"{HP}pageNum"
+    assert page_number.get("pos") == "BOTTOM_CENTER"
+    assert page_number.get("formatType") == "DIGIT"
+    assert page_number.get("sideChar") == "-"
+    assert header.element.find(f"{HP}subList").get("vertAlign") == "TOP"
+    assert footer.element.find(f"{HP}subList").get("vertAlign") == "BOTTOM"
+    assert len(footer.element.findall(f".//{HP}ctrl/{HP}pageNum")) >= 1
+    assert "/" in footer.text
+
+    path = tmp_path / "header-footer-page-number.hwpx"
+    document.save_to_path(path)
+    reopened = HwpxDocument.open(path)
+    reopened_header = reopened.sections[0].properties.get_header()
+    reopened_footer = reopened.sections[0].properties.get_footer()
+    assert reopened_header is not None
+    assert reopened_footer is not None
+    assert reopened_header.element.find(f".//{HP}ctrl/{HP}pageNum") is not None
+    assert reopened_footer.element.find(f".//{HP}ctrl/{HP}pageNum") is not None
+
+
+def test_builder_lowers_rich_header_footer_page_numbers(tmp_path) -> None:
+    from hwpx.builder import Document, Footer, Header, PageNumber, Paragraph, Run, Section
+
+    path = tmp_path / "builder-header-footer-page-number.hwpx"
+    Document(
+        sections=[
+            Section(
+                header=Header(
+                    children=[
+                        Paragraph(
+                            align="right",
+                            children=[
+                                Run("OO학교  -  ", bold=True, color="C00000"),
+                                PageNumber(),
+                            ],
+                        )
+                    ]
+                ),
+                footer=Footer(
+                    children=[
+                        Paragraph(
+                            align="center",
+                            children=[
+                                PageNumber(format="page/total"),
+                            ],
+                        )
+                    ]
+                ),
+                children=[Paragraph(text="본문")],
+            )
+        ]
+    ).save_to_path(path)
+
+    reopened = HwpxDocument.open(path)
+    header = reopened.sections[0].properties.get_header()
+    footer = reopened.sections[0].properties.get_footer()
+    assert header is not None
+    assert footer is not None
+    assert "OO학교" in header.text
+    assert "/" in footer.text
+    assert header.element.find(f".//{HP}ctrl/{HP}pageNum") is not None
+    assert footer.element.find(f".//{HP}ctrl/{HP}pageNum") is not None
+    rich_text = header.element.find(f".//{HP}t[.='OO학교  -  ']")
+    assert rich_text is not None
+    rich_run = rich_text.getparent()
+    rich_style = reopened.char_property(rich_run.get("charPrIDRef"))
+    assert rich_style is not None
+    assert rich_style.attributes["textColor"] == "#C00000"
+    assert "bold" in rich_style.child_attributes
+
+
+def test_header_footer_page_number_and_rich_content_facades(tmp_path) -> None:
+    # SPIKE pin from reader_writer__HeaderFooter.hwpx:
+    # - hp:header/footer contains hp:subList with vertAlign TOP/BOTTOM.
+    # - subList contains hp:p > hp:run(charPrIDRef) > hp:t for text content.
+    # SPIKE pin from reader_writer__PageFunctions.hwpx:
+    # - section page-number control is hp:ctrl > hp:pageNum(pos, formatType, sideChar).
+    # Header/footer PageNumber uses the observed hp:ctrl > hp:pageNum token.
+    document = HwpxDocument.new()
+
+    raw_header = document.sections[0].properties.set_header_text("raw")
+    raw_page_num = raw_header.add_page_number_field()
+    assert raw_page_num.tag == f"{HP}pageNum"
+    assert raw_page_num.get("formatType") == "DIGIT"
+
+    header = document.set_header_content(
+        [
+            {
+                "align": "right",
+                "runs": [
+                    {"text": "OO학교  -  ", "bold": True},
+                    {"page_number": "page"},
+                ],
+            }
+        ]
+    )
+    footer = document.set_footer_content(
+        [
+            {
+                "align": "center",
+                "runs": [{"page_number": "page/total"}],
+            }
+        ]
+    )
+
+    assert header.text == "OO학교  -  "
+    assert header.element.find(f"{HP}subList/{HP}p/{HP}run/{HP}t") is not None
+    assert header.element.find(f".//{HP}ctrl/{HP}pageNum").get("formatType") == "DIGIT"
+    assert footer.element.find(f"{HP}subList").get("vertAlign") == "BOTTOM"
+    assert footer.element.find(f".//{HP}ctrl/{HP}pageNum").get("formatType") == "DIGIT"
+
+    path = tmp_path / "builder-header-footer-facade.hwpx"
+    document.save_to_path(path)
+    reopened = HwpxDocument.open(path)
+    reopened_header = reopened.sections[0].properties.get_header()
+    reopened_footer = reopened.sections[0].properties.get_footer()
+    assert reopened_header is not None
+    assert reopened_footer is not None
+    assert reopened_header.text == "OO학교  -  "
+    assert reopened_header.element.find(f".//{HP}ctrl/{HP}pageNum") is not None
+    assert reopened_footer.element.find(f".//{HP}ctrl/{HP}pageNum") is not None
+
+
+def test_builder_lowers_header_footer_page_numbers(tmp_path) -> None:
+    from hwpx.builder import Document, Footer, Header, PageNumber, Paragraph, Run, Section
+
+    path = tmp_path / "builder-header-footer.hwpx"
+    Document(
+        sections=[
+            Section(
+                header=Header(
+                    children=[
+                        Paragraph(
+                            align="right",
+                            children=[Run("OO학교  -  "), PageNumber()],
+                        )
+                    ]
+                ),
+                footer=Footer(
+                    children=[
+                        Paragraph(align="center", children=[PageNumber(format="page/total")]),
+                    ]
+                ),
+                children=[Paragraph(text="본문")],
+            )
+        ]
+    ).save_to_path(path)
+
+    reopened = HwpxDocument.open(path)
+    header = reopened.sections[0].properties.get_header()
+    footer = reopened.sections[0].properties.get_footer()
+    assert header is not None
+    assert footer is not None
+    assert header.text == "OO학교  -  "
+    assert header.element.find(f".//{HP}ctrl/{HP}pageNum") is not None
+    assert footer.element.find(f".//{HP}ctrl/{HP}pageNum") is not None
+    assert "본문" in reopened.export_text()

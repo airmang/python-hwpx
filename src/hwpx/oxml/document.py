@@ -7,7 +7,7 @@ import logging
 import re as _re
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Callable, Iterable, Iterator, Mapping, Optional, Sequence, TypeVar
+from typing import Any, Callable, Iterable, Iterator, Mapping, Optional, Sequence, TypeVar
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
@@ -681,6 +681,147 @@ class HwpxOxmlSectionHeaderFooter:
             _clear_paragraph_layout_cache(p_elem)
         self._properties.section.mark_dirty()
 
+    def _ensure_sublist(self) -> ET.Element:
+        sublist = self.element.find(f"{_HP}subList")
+        if sublist is None:
+            sublist = _append_child(
+                self.element,
+                f"{_HP}subList",
+                self._initial_sublist_attributes(),
+            )
+        return sublist
+
+    def clear_content(self) -> None:
+        """Remove existing rich/plain content while keeping header/footer linkage."""
+
+        removed = False
+        for child in list(self.element):
+            if child.tag == f"{_HP}subList":
+                self.element.remove(child)
+                removed = True
+        if removed:
+            self._properties.section.mark_dirty()
+
+    def add_paragraph(self, *, align: str | None = None) -> ET.Element:
+        """Append an empty paragraph to the header/footer subList."""
+
+        sublist = self._ensure_sublist()
+        paragraph_attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
+        paragraph_attrs["id"] = _paragraph_id()
+        if align:
+            document = self._properties.section.document
+            if document is not None and document.headers:
+                paragraph_attrs["paraPrIDRef"] = document.headers[0].ensure_paragraph_alignment(
+                    str(align)
+                )
+        paragraph = _append_child(sublist, f"{_HP}p", paragraph_attrs)
+        self._properties.section.mark_dirty()
+        return paragraph
+
+    def _ensure_content_paragraph(self) -> ET.Element:
+        sublist = self._ensure_sublist()
+        paragraph = sublist.find(f"{_HP}p")
+        if paragraph is None:
+            paragraph = self.add_paragraph()
+        return paragraph
+
+    def add_run(
+        self,
+        text: str,
+        *,
+        paragraph: ET.Element | None = None,
+        bold: bool = False,
+        italic: bool = False,
+        underline: bool = False,
+        color: str | None = None,
+        font: str | None = None,
+        size: int | float | None = None,
+        highlight: str | None = None,
+        strike: bool | None = None,
+    ) -> ET.Element:
+        """Append a text run to a header/footer paragraph."""
+
+        target = paragraph if paragraph is not None else self._ensure_content_paragraph()
+        char_pr_id_ref = "0"
+        if any((bold, italic, underline, color, font, size, highlight, strike)):
+            document = self._properties.section.document
+            if document is not None:
+                char_pr_id_ref = document.ensure_run_style(
+                    bold=bold,
+                    italic=italic,
+                    underline=underline,
+                    color=color,
+                    font=font,
+                    size=size,
+                    highlight=highlight,
+                    strike=strike,
+                )
+        run = _append_child(target, f"{_HP}run", {"charPrIDRef": str(char_pr_id_ref)})
+        text_node = _append_child(run, f"{_HP}t")
+        text_node.text = _sanitize_text(text)
+        _clear_paragraph_layout_cache(target)
+        self._properties.section.mark_dirty()
+        return run
+
+    def add_page_number_field(
+        self,
+        *,
+        paragraph: ET.Element | None = None,
+        format: str = "page",
+        position: str = "BOTTOM_CENTER",
+    ) -> ET.Element:
+        """Append the corpus-observed automatic page-number control."""
+
+        target = paragraph if paragraph is not None else self._ensure_content_paragraph()
+        run = _append_child(target, f"{_HP}run", {"charPrIDRef": "0"})
+        ctrl = _append_child(run, f"{_HP}ctrl", {})
+        page_number = _append_child(
+            ctrl,
+            f"{_HP}pageNum",
+            {"pos": position, "formatType": "DIGIT", "sideChar": "-"},
+        )
+        _clear_paragraph_layout_cache(target)
+        self._properties.section.mark_dirty()
+        return page_number
+
+    def set_content(self, content: Sequence[Mapping[str, Any]]) -> None:
+        """Replace header/footer content with paragraph/run/page-number specs."""
+
+        self.clear_content()
+        for paragraph_spec in content:
+            paragraph = self.add_paragraph(align=paragraph_spec.get("align"))
+            children = paragraph_spec.get("children")
+            if children is None:
+                children = paragraph_spec.get("runs")
+            children = children or ()
+            if not children and paragraph_spec.get("text"):
+                children = ({"type": "run", "text": paragraph_spec.get("text", "")},)
+            for child in children:
+                page_number_format = child.get("page_number")
+                kind = "page_number" if page_number_format is not None else str(child.get("type", "run"))
+                if kind == "run":
+                    self.add_run(
+                        str(child.get("text", "")),
+                        paragraph=paragraph,
+                        bold=bool(child.get("bold", False)),
+                        italic=bool(child.get("italic", False)),
+                        underline=bool(child.get("underline", False)),
+                        color=child.get("color"),
+                        font=child.get("font"),
+                        size=child.get("size"),
+                        highlight=child.get("highlight"),
+                        strike=child.get("strike"),
+                    )
+                    continue
+                if kind == "page_number":
+                    page_format = str(page_number_format or child.get("format", "page"))
+                    self.add_page_number_field(paragraph=paragraph, format=page_format)
+                    if page_format == "page/total":
+                        self.add_run("/", paragraph=paragraph)
+                        self.add_page_number_field(paragraph=paragraph, format=page_format)
+                    continue
+                raise ValueError(f"unsupported header/footer content type: {kind}")
+
 
 class HwpxOxmlSectionProperties:
     """Provides convenient access to ``<hp:secPr>`` configuration."""
@@ -1065,6 +1206,28 @@ class HwpxOxmlSectionProperties:
         apply = self._ensure_header_footer_apply("footer", page_type, element)
         wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
         wrapper.text = text
+        return wrapper
+
+    def set_header_content(
+        self,
+        content: Sequence[Mapping[str, Any]],
+        page_type: str = "BOTH",
+    ) -> HwpxOxmlSectionHeaderFooter:
+        element = self._ensure_header_footer("header", page_type)
+        apply = self._ensure_header_footer_apply("header", page_type, element)
+        wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
+        wrapper.set_content(content)
+        return wrapper
+
+    def set_footer_content(
+        self,
+        content: Sequence[Mapping[str, Any]],
+        page_type: str = "BOTH",
+    ) -> HwpxOxmlSectionHeaderFooter:
+        element = self._ensure_header_footer("footer", page_type)
+        apply = self._ensure_header_footer_apply("footer", page_type, element)
+        wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
+        wrapper.set_content(content)
         return wrapper
 
     def remove_header(self, page_type: str = "BOTH") -> None:
@@ -4346,6 +4509,55 @@ class HwpxOxmlHeader:
                 insert_at = index + 1
                 break
         para_pr.insert(insert_at, heading)
+        para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
+        para_pr.set("id", para_pr_id)
+        para_properties.append(para_pr)
+        self._update_item_count(para_properties, f"{_HH}paraPr")
+        self.mark_dirty()
+        return para_pr_id
+
+    def ensure_paragraph_alignment(self, align: str) -> str:
+        """Return a paragraph property id with the requested horizontal alignment."""
+
+        normalized = align.strip().upper()
+        aliases = {
+            "LEFT": "LEFT",
+            "START": "LEFT",
+            "CENTER": "CENTER",
+            "CENTRE": "CENTER",
+            "RIGHT": "RIGHT",
+            "END": "RIGHT",
+            "JUSTIFY": "JUSTIFY",
+        }
+        horizontal = aliases.get(normalized)
+        if horizontal is None:
+            raise ValueError(f"unsupported paragraph alignment: {align}")
+
+        para_properties = self._para_properties_element(create=True)
+        if para_properties is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <paraProperties> element")
+
+        for para_pr in para_properties.findall(f"{_HH}paraPr"):
+            align_element = para_pr.find(f"{_HH}align")
+            if align_element is not None and align_element.get("horizontal") == horizontal:
+                para_pr_id = para_pr.get("id")
+                if para_pr_id:
+                    return para_pr_id
+
+        base = para_properties.find(f"{_HH}paraPr")
+        para_pr = deepcopy(base) if base is not None else para_properties.makeelement(f"{_HH}paraPr", {})
+        para_pr.attrib.pop("id", None)
+        align_element = para_pr.find(f"{_HH}align")
+        if align_element is None:
+            align_element = para_pr.makeelement(
+                f"{_HH}align",
+                {"horizontal": horizontal, "vertical": "BASELINE"},
+            )
+            para_pr.insert(0, align_element)
+        else:
+            align_element.set("horizontal", horizontal)
+            if align_element.get("vertical") is None:
+                align_element.set("vertical", "BASELINE")
         para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
         para_pr.set("id", para_pr_id)
         para_properties.append(para_pr)

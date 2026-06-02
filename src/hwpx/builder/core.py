@@ -75,13 +75,15 @@ class Run:
 @dataclass(frozen=True)
 class Paragraph:
     text: str = ""
-    children: Sequence[Run] = field(default_factory=tuple)
+    children: Sequence[Run | PageNumber] = field(default_factory=tuple)
     align: str | None = None
 
     def lower(self, document: HwpxDocument) -> None:
         if self.children:
             paragraph = document.add_paragraph("", include_run=False, inherit_style=False)
             for run in self.children:
+                if isinstance(run, PageNumber):
+                    raise ValueError("PageNumber is only supported in Header/Footer content")
                 paragraph.add_run(
                     run.text,
                     bold=run.bold,
@@ -233,10 +235,75 @@ class PageNumber:
 class Header:
     children: Sequence[Paragraph | PageNumber] = field(default_factory=tuple)
 
+    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+        document.set_header_content(
+            _header_footer_content_specs(self.children),
+            section_index=section_index,
+        )
+
 
 @dataclass(frozen=True)
 class Footer:
     children: Sequence[Paragraph | PageNumber] = field(default_factory=tuple)
+
+    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+        document.set_footer_content(
+            _header_footer_content_specs(self.children),
+            section_index=section_index,
+        )
+
+
+def _run_content_spec(run: Run) -> dict[str, object]:
+    return {
+        "type": "run",
+        "text": run.text,
+        "bold": run.bold,
+        "italic": run.italic,
+        "underline": run.underline,
+        "color": run.color,
+        "font": run.font,
+        "size": run.size,
+        "highlight": run.highlight,
+        "strike": run.strike,
+    }
+
+
+def _page_number_content_spec(page_number: PageNumber) -> dict[str, object]:
+    return {"type": "page_number", "format": page_number.format}
+
+
+def _paragraph_content_spec(paragraph: Paragraph) -> dict[str, object]:
+    if paragraph.children:
+        children: list[dict[str, object]] = []
+        for child in paragraph.children:
+            if isinstance(child, Run):
+                children.append(_run_content_spec(child))
+                continue
+            if isinstance(child, PageNumber):
+                children.append(_page_number_content_spec(child))
+                continue
+            raise ValueError(f"unsupported header/footer paragraph child: {type(child).__name__}")
+    else:
+        children = [{"type": "run", "text": paragraph.text}]
+    spec: dict[str, object] = {"children": children}
+    if paragraph.align:
+        spec["align"] = paragraph.align
+    return spec
+
+
+def _header_footer_content_specs(
+    children: Sequence[Paragraph | PageNumber],
+) -> list[dict[str, object]]:
+    specs: list[dict[str, object]] = []
+    for child in children:
+        if isinstance(child, Paragraph):
+            specs.append(_paragraph_content_spec(child))
+            continue
+        if isinstance(child, PageNumber):
+            specs.append({"children": [_page_number_content_spec(child)]})
+            continue
+        raise ValueError(f"unsupported header/footer child: {type(child).__name__}")
+    return specs
 
 
 @dataclass(frozen=True)
@@ -273,6 +340,10 @@ class Section:
                 gutter=_mm_to_hwp_units(self.margins.gutter_mm),
                 section_index=section_index,
             )
+        if self.header is not None:
+            self.header.lower(document, section_index=section_index)
+        if self.footer is not None:
+            self.footer.lower(document, section_index=section_index)
         for child in self.children:
             if isinstance(child, (Paragraph, PageBreak)):
                 child.lower(document)

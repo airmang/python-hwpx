@@ -1254,6 +1254,32 @@ class HwpxDocument:
         target_section = self._resolve_section(section=section, section_index=section_index)
         return target_section.properties.set_footer_text(text, page_type=page_type)
 
+    def set_header_content(
+        self,
+        content: Sequence[Mapping[str, Any]],
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        page_type: str = "BOTH",
+    ) -> HwpxOxmlSectionHeaderFooter:
+        """Ensure the requested section contains a rich header for *page_type*."""
+
+        target_section = self._resolve_section(section=section, section_index=section_index)
+        return target_section.properties.set_header_content(content, page_type=page_type)
+
+    def set_footer_content(
+        self,
+        content: Sequence[Mapping[str, Any]],
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        page_type: str = "BOTH",
+    ) -> HwpxOxmlSectionHeaderFooter:
+        """Ensure the requested section contains a rich footer for *page_type*."""
+
+        target_section = self._resolve_section(section=section, section_index=section_index)
+        return target_section.properties.set_footer_content(content, page_type=page_type)
+
     def remove_header(
         self,
         *,
