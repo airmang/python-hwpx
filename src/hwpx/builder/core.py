@@ -169,6 +169,7 @@ class Table:
     rows: Sequence[Sequence[str]] = field(default_factory=tuple)
     merges: Sequence[str] = field(default_factory=tuple)
     header_shading: str | None = None
+    column_widths: Sequence[int | float] = field(default_factory=tuple)
 
     def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
         table_rows: list[Sequence[str]] = []
@@ -191,6 +192,8 @@ class Table:
         if self.header and self.header_shading:
             for col_index in range(column_count):
                 table.set_cell_shading(0, col_index, self.header_shading)
+        if self.column_widths:
+            table.set_column_widths(self.column_widths)
 
 
 @dataclass(frozen=True)

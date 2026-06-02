@@ -2564,6 +2564,42 @@ class HwpxOxmlTable:
         cell.element.set("borderFillIDRef", border_fill_id)
         self.mark_dirty()
 
+    def set_column_widths(self, weights: Sequence[int | float]) -> None:
+        if len(weights) != self.column_count:
+            raise ValueError("column width weights must match table column count")
+        numeric_weights = [max(float(weight), 0.0) for weight in weights]
+        if not any(numeric_weights):
+            raise ValueError("at least one column width weight must be positive")
+
+        sz = self.element.find(f"{_HP}sz")
+        if sz is not None and sz.get("width", "").isdigit():
+            total_width = int(sz.get("width", "0"))
+        else:
+            total_width = sum(self.cell(0, col).width for col in range(self.column_count))
+        weight_total = sum(numeric_weights)
+        column_widths: list[int] = []
+        allocated = 0
+        for index, weight in enumerate(numeric_weights):
+            if index == len(numeric_weights) - 1:
+                width = max(total_width - allocated, 0)
+            else:
+                width = round(total_width * weight / weight_total)
+                allocated += width
+            column_widths.append(width)
+
+        updated_cells: set[int] = set()
+        for entry in self.iter_grid():
+            marker = id(entry.cell.element)
+            if marker in updated_cells:
+                continue
+            updated_cells.add(marker)
+            start_row, start_col = entry.cell.address
+            span_row, span_col = entry.cell.span
+            if span_row <= 0 or span_col <= 0:
+                continue
+            width = sum(column_widths[start_col:start_col + span_col])
+            entry.cell.set_size(width=width)
+
     def set_cell_text(
         self,
         row_index: int,

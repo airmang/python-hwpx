@@ -546,3 +546,100 @@ def test_builder_table_lowers_header_shading(tmp_path) -> None:
         win_brush = border_fill.find(f"{HC}fillBrush/{HC}winBrush")
         assert win_brush is not None
         assert win_brush.get("faceColor") == "#EAF1FB"
+
+
+def test_table_set_column_widths_applies_weighted_cell_sizes() -> None:
+    document = HwpxDocument.new()
+    table = document.add_table(2, 3)
+
+    table.set_column_widths([2, 3, 1])
+
+    widths = [table.cell(0, col_index).width for col_index in range(3)]
+    assert widths == [7200, 10800, 3600]
+    assert [table.cell(1, col_index).width for col_index in range(3)] == widths
+
+
+def test_builder_table_integrates_widths_shading_and_merges(tmp_path) -> None:
+    from hwpx.builder import Document, Section, Table
+
+    path = tmp_path / "builder-table-integrated.hwpx"
+    Document(
+        sections=[
+            Section(
+                children=[
+                    Table(
+                        header=["구분", "내용", "기한"],
+                        rows=[
+                            ["1단계", "기반 구축", "3월"],
+                            ["2단계", "운영", "4월"],
+                        ],
+                        column_widths=[2, 3, 1],
+                        header_shading="EAF1FB",
+                        merges=["A2:A3"],
+                    )
+                ]
+            )
+        ]
+    ).save_to_path(path)
+
+    reopened = HwpxDocument.open(path)
+    table = reopened.paragraphs[-1].tables[0]
+    assert table.cell(1, 0).span == (2, 1)
+    assert table.cell(1, 0).text == "1단계"
+    assert table.cell(2, 0).element is table.cell(1, 0).element
+    assert table.cell(0, 1).width > table.cell(0, 0).width > table.cell(0, 2).width
+    assert [table.cell(0, col_index).text for col_index in range(3)] == ["구분", "내용", "기한"]
+    border_fill_id = table.cell(0, 0).element.get("borderFillIDRef")
+    border_fill = reopened.oxml.headers[0].element.find(f".//{HH}borderFill[@id='{border_fill_id}']")
+    assert border_fill is not None
+    assert border_fill.find(f"{HC}fillBrush/{HC}winBrush") is not None
+
+
+def test_table_set_column_widths_updates_cell_sizes(tmp_path) -> None:
+    # SPIKE pin from reader_writer__SimpleTable.hwpx:
+    # - hp:tbl/hp:sz stores table width.
+    # - each hp:tc has hp:cellSz width/height; merged anchors use summed width/height.
+    document = HwpxDocument.new()
+    table = document.add_table(2, 3)
+
+    table.set_column_widths([2, 3, 1])
+
+    assert [table.cell(0, col).width for col in range(3)] == [7200, 10800, 3600]
+    path = tmp_path / "table-column-widths.hwpx"
+    document.save_to_path(path)
+    reopened = HwpxDocument.open(path)
+    reopened_table = reopened.paragraphs[-1].tables[0]
+    assert [reopened_table.cell(1, col).width for col in range(3)] == [7200, 10800, 3600]
+
+
+def test_builder_table_integrates_widths_shading_and_merges(tmp_path) -> None:
+    from hwpx.builder import Document, Section, Table
+
+    path = tmp_path / "builder-table-integrated.hwpx"
+    Document(
+        sections=[
+            Section(
+                children=[
+                    Table(
+                        header=["구분", "내용", "기한"],
+                        rows=[
+                            ["1단계", "기반 구축", "3월"],
+                            ["2단계", "운영", "4월"],
+                        ],
+                        column_widths=[2, 3, 1],
+                        header_shading="EAF1FB",
+                        merges=["A1:C1"],
+                    )
+                ]
+            )
+        ]
+    ).save_to_path(path)
+
+    reopened = HwpxDocument.open(path)
+    table = reopened.paragraphs[-1].tables[0]
+    assert table.cell(0, 0).span == (1, 3)
+    assert table.cell(1, 0).text == "1단계"
+    assert [table.cell(1, col).width for col in range(3)] == [7200, 10800, 3600]
+    border_fill_id = table.cell(0, 0).element.get("borderFillIDRef")
+    border_fill = reopened.oxml.headers[0].element.find(f".//{HH}borderFill[@id='{border_fill_id}']")
+    assert border_fill.find(f"{HC}fillBrush/{HC}winBrush").get("faceColor") == "#EAF1FB"
