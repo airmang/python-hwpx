@@ -306,6 +306,58 @@ def _header_footer_content_specs(
     return specs
 
 
+def _children_contain_page_number(children: Sequence[Paragraph | PageNumber]) -> bool:
+    for child in children:
+        if isinstance(child, PageNumber):
+            return True
+        if isinstance(child, Paragraph) and any(isinstance(grandchild, PageNumber) for grandchild in child.children):
+            return True
+    return False
+
+
+def _section_feature_flags(section: "Section") -> dict[str, bool]:
+    flags = {
+        "metadata": False,
+        "page_setup": section.page is not None or section.margins is not None,
+        "header_footer": section.header is not None or section.footer is not None,
+        "page_number": False,
+        "table": False,
+        "image": False,
+        "page_break": False,
+    }
+    if section.header is not None and _children_contain_page_number(section.header.children):
+        flags["page_number"] = True
+    if section.footer is not None and _children_contain_page_number(section.footer.children):
+        flags["page_number"] = True
+    for child in section.children:
+        if isinstance(child, Table):
+            flags["table"] = True
+        elif isinstance(child, Image):
+            flags["image"] = True
+        elif isinstance(child, PageBreak):
+            flags["page_break"] = True
+    return flags
+
+
+def _merge_flags(*flag_sets: dict[str, bool]) -> dict[str, bool]:
+    merged: dict[str, bool] = {}
+    for flags in flag_sets:
+        for key, value in flags.items():
+            merged[key] = merged.get(key, False) or value
+    return merged
+
+
+def _hard_gates(package_report: object, document_report: object, reopen_report: ReopenReport) -> dict[str, str]:
+    document_warnings = getattr(document_report, "warnings", ())
+    return {
+        "package_validation": "pass" if getattr(package_report, "ok", False) else "fail",
+        "document_errors": "pass" if getattr(document_report, "ok", False) else "fail",
+        "schema_lint": "warning" if document_warnings else "pass",
+        "reopen": "pass" if reopen_report.ok else "fail",
+        "id_integrity": "unavailable",
+    }
+
+
 @dataclass(frozen=True)
 class Section:
     children: Sequence[Heading | Paragraph | Bullet | NumberedList | Table | Image | PageBreak] = field(
@@ -367,6 +419,17 @@ class Section:
 class Document:
     sections: Sequence[Section] = field(default_factory=lambda: (Section(),))
     metadata: Metadata | None = None
+    visual_review_required: bool | None = None
+
+    def feature_flags(self) -> dict[str, bool]:
+        flags = _merge_flags(*(_section_feature_flags(section) for section in self.sections))
+        flags["metadata"] = self.metadata is not None
+        layout_sensitive = any(
+            flags.get(key, False)
+            for key in ("header_footer", "page_number", "table", "image", "page_break")
+        )
+        flags["layout_sensitive"] = layout_sensitive
+        return flags
 
     def lower(self) -> HwpxDocument:
         document = HwpxDocument.new()
@@ -392,11 +455,20 @@ class Document:
             reopen_report = ReopenReport(ok=True, document=reopened_document)
         except Exception as exc:  # pragma: no cover - failure is surfaced in report
             reopen_report = ReopenReport(ok=False, error=f"{type(exc).__name__}: {exc}")
+        feature_flags = self.feature_flags()
+        visual_review_required = (
+            self.visual_review_required
+            if self.visual_review_required is not None
+            else feature_flags["layout_sensitive"]
+        )
         report = BuilderSaveReport(
             path=path,
             validate_package=package_report,
             validate_document=document_report,
             reopened=reopen_report,
             metadata=self.metadata.as_dict() if self.metadata is not None else {},
+            hard_gates=_hard_gates(package_report, document_report, reopen_report),
+            visual_review_required=visual_review_required,
+            feature_flags=feature_flags,
         )
         return report

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 
 from hwpx.document import HwpxDocument
 
@@ -880,3 +881,57 @@ def test_builder_lowers_header_footer_page_numbers(tmp_path) -> None:
     assert header.element.find(f".//{HP}ctrl/{HP}pageNum") is not None
     assert footer.element.find(f".//{HP}ctrl/{HP}pageNum") is not None
     assert "본문" in reopened.export_text()
+
+
+def test_builder_save_report_hard_gates_visual_review_and_to_dict(tmp_path) -> None:
+    from hwpx.builder import Document, PageBreak, Paragraph, Section, Table
+
+    path = tmp_path / "builder-save-report.hwpx"
+    report = Document(
+        sections=[
+            Section(
+                children=[
+                    Paragraph(text="보고서"),
+                    PageBreak(),
+                    Table(header=["구분", "내용"], rows=[["1", "점검"]]),
+                ]
+            )
+        ]
+    ).save_to_path(path)
+
+    assert report.path == path
+    assert report.validate_package.ok
+    assert report.validate_document.ok
+    assert isinstance(report.validate_document.warnings, tuple)
+    assert report.reopened.ok
+    assert report.hard_gates["package_validation"] == "pass"
+    assert report.hard_gates["document_errors"] == "pass"
+    assert report.hard_gates["schema_lint"] in {"pass", "warning"}
+    assert report.hard_gates["reopen"] == "pass"
+    assert report.hard_gates["id_integrity"] == "unavailable"
+    assert report.visual_review_required is True
+    assert report.feature_flags["table"] is True
+    assert report.feature_flags["page_break"] is True
+
+    payload = report.to_dict()
+    json.dumps(payload, ensure_ascii=False)
+    assert payload["visual_review_required"] is True
+    assert payload["hard_gates"]["id_integrity"] == "unavailable"
+    assert isinstance(payload["validate_document"]["warnings"], list)
+
+
+def test_builder_save_report_explicit_visual_review_and_save_contract(tmp_path) -> None:
+    from hwpx.builder import Document, Paragraph, Section
+
+    builder_path = tmp_path / "builder-explicit-visual.hwpx"
+    report = Document(
+        sections=[Section(children=[Paragraph(text="본문")])],
+        visual_review_required=True,
+    ).save_to_path(builder_path)
+    assert report.visual_review_required is True
+    assert report.feature_flags["layout_sensitive"] is False
+
+    document = HwpxDocument.new()
+    document.add_paragraph("기존 저장 계약")
+    document_path = tmp_path / "document-save-contract.hwpx"
+    assert document.save_to_path(document_path) == document_path
