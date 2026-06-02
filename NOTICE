@@ -14,6 +14,16 @@ reimplemented from public references, without copying source code:
   checks.
 - chrisryugj/kordoc (MIT): broken HWPX ZIP recovery behavior using Local File
   Header scanning when the central directory is damaged.
+- chrisryugj/kordoc (MIT): HWPX form-fill behavior ideas for preserving
+  text-node and run structure, including split text-range replacement and empty
+  run handling.
+- sakada3/hwp-ops (Apache-2.0): split-run placeholder scan/fill behavior
+  ideas, charPrIDRef heterogeneity warning, and touched-paragraph layout-cache
+  invalidation.
+
+These form-fill references were used as behavior evidence only. The
+implementation is a clean-room Python implementation; no source code was
+copied, translated, vendored, or linked.
 
 ────────────────────────────────────────
 DISCLAIMER — HWPX Format
