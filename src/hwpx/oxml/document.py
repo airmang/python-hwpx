@@ -2724,13 +2724,39 @@ class HwpxOxmlTable:
         self.mark_dirty()
         return self.cell(row_index, col_index)
 
+    @staticmethod
+    def _spreadsheet_column_index(value: str) -> int:
+        column = value.strip().upper()
+        if not column or not column.isalpha():
+            raise ValueError(f"invalid spreadsheet column: {value!r}")
+        index = 0
+        for char in column:
+            index = index * 26 + (ord(char) - ord("A") + 1)
+        return index - 1
+
+    @classmethod
+    def _parse_spreadsheet_range(cls, value: str) -> tuple[int, int, int, int]:
+        match = _re.fullmatch(r"\s*([A-Za-z]+)([0-9]+)\s*:\s*([A-Za-z]+)([0-9]+)\s*", value)
+        if match is None:
+            raise ValueError(f"invalid spreadsheet range: {value!r}")
+        start_col_label, start_row_label, end_col_label, end_row_label = match.groups()
+        start_row = int(start_row_label) - 1
+        end_row = int(end_row_label) - 1
+        start_col = cls._spreadsheet_column_index(start_col_label)
+        end_col = cls._spreadsheet_column_index(end_col_label)
+        return start_row, start_col, end_row, end_col
+
     def merge_cells(
         self,
-        start_row: int,
-        start_col: int,
-        end_row: int,
-        end_col: int,
+        start_row: int | str,
+        start_col: int | None = None,
+        end_row: int | None = None,
+        end_col: int | None = None,
     ) -> HwpxOxmlTableCell:
+        if isinstance(start_row, str):
+            start_row, start_col, end_row, end_col = self._parse_spreadsheet_range(start_row)
+        if start_col is None or end_row is None or end_col is None:
+            raise TypeError("merge_cells requires either a spreadsheet range or four coordinates")
         if start_row > end_row or start_col > end_col:
             raise ValueError("merge coordinates must describe a valid rectangle")
         if start_row < 0 or start_col < 0:

@@ -765,6 +765,15 @@ class HwpxDocument:
             char_pr_id_ref=char_pr_id_ref,
         )
 
+    def merge_table_cells(
+        self,
+        table: HwpxOxmlTable,
+        cell_range: str,
+    ) -> Any:
+        """Merge a table cell range using spreadsheet notation such as ``A1:C1``."""
+
+        return table.merge_cells(cell_range)
+
     def get_table_map(self) -> TableMapResult:
         """Return compact metadata for every table in document order."""
 

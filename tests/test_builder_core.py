@@ -410,3 +410,89 @@ def test_builder_lowers_multilevel_bullets_and_numbered_lists(tmp_path) -> None:
     assert reopened.paragraph_property(refs_by_text["세부 목표"]).heading.level == 1
     assert reopened.paragraph_property(refs_by_text["1단계"]).heading.type == "NUMBER"
     assert reopened.paragraph_property(refs_by_text["세부 단계"]).heading.level == 1
+
+
+def test_table_merge_cell_range_wrapper_uses_sample_span_shape(tmp_path) -> None:
+    # SPIKE pin from reader_writer__SimpleTable.hwpx:
+    # - merged anchor cell keeps hp:cellAddr and uses hp:cellSpan colSpan/rowSpan.
+    # - covered physical cells remain in rows with hp:cellSpan 1x1 and hp:cellSz width/height 0.
+    # - logical readers map covered positions back to the anchor cell.
+    document = HwpxDocument.new()
+    table = document.add_table(3, 3)
+    table.cell(0, 0).text = "merged"
+    table.cell(0, 1).text = "covered"
+    table.cell(0, 2).text = "covered2"
+
+    merged = document.merge_table_cells(table, "A1:C1")
+
+    assert merged.span == (1, 3)
+    assert table.cell(0, 0).text == "merged"
+    assert table.cell(0, 1).element is merged.element
+    assert table.cell(0, 2).element is merged.element
+
+    physical = {cell.address: cell for row in table.rows for cell in row.cells}
+    assert physical[(0, 1)].span == (1, 1)
+    assert physical[(0, 1)].width == 0
+    assert physical[(0, 1)].text == ""
+    assert physical[(0, 2)].span == (1, 1)
+    assert physical[(0, 2)].width == 0
+    assert physical[(0, 2)].text == ""
+
+    path = tmp_path / "builder-table-merge.hwpx"
+    document.save_to_path(path)
+    reopened = HwpxDocument.open(path)
+    reopened_table = next(table for paragraph in reopened.paragraphs for table in paragraph.tables)
+    assert reopened_table.cell(0, 0).span == (1, 3)
+    assert reopened_table.cell(0, 1).text == "merged"
+
+
+def test_table_merge_cells_accepts_spreadsheet_ranges(tmp_path) -> None:
+    # SPIKE pin from reader_writer__SimpleTable.hwpx:
+    # - merged cell keeps hp:cellAddr at the top-left anchor.
+    # - merge span is hp:cellSpan colSpan/rowSpan.
+    # - merged size is accumulated in hp:cellSz width/height; covered cells are removed or deactivated.
+    document = HwpxDocument.new()
+    table = document.add_table(3, 3)
+    table.cell(0, 0).text = "A1"
+    table.cell(1, 0).text = "A2"
+    table.cell(2, 0).text = "A3"
+
+    merged = table.merge_cells("A2:A3")
+    assert merged.address == (1, 0)
+    assert merged.span == (2, 1)
+    assert merged.text == "A2"
+
+    path = tmp_path / "table-merge-range.hwpx"
+    document.save_to_path(path)
+    reopened = HwpxDocument.open(path)
+    reopened_table = reopened.paragraphs[-1].tables[0]
+    assert reopened_table.cell(1, 0).span == (2, 1)
+    assert reopened_table.cell(1, 0).text == "A2"
+
+
+def test_builder_table_lowers_merge_ranges(tmp_path) -> None:
+    from hwpx.builder import Document, Section, Table
+
+    path = tmp_path / "builder-table-merge.hwpx"
+    Document(
+        sections=[
+            Section(
+                children=[
+                    Table(
+                        header=["구분", "내용", "기한"],
+                        rows=[
+                            ["단계", "통합", "3월"],
+                            ["후속", "검증", "4월"],
+                        ],
+                        merges=["A1:C1"],
+                    )
+                ]
+            )
+        ]
+    ).save_to_path(path)
+
+    reopened = HwpxDocument.open(path)
+    table = reopened.paragraphs[-1].tables[0]
+    assert table.cell(0, 0).span == (1, 3)
+    assert table.cell(0, 0).text == "구분"
+    assert table.cell(1, 0).text == "단계"

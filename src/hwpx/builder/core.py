@@ -167,6 +167,26 @@ class NumberedList:
 class Table:
     header: Sequence[str] = field(default_factory=tuple)
     rows: Sequence[Sequence[str]] = field(default_factory=tuple)
+    merges: Sequence[str] = field(default_factory=tuple)
+
+    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+        table_rows: list[Sequence[str]] = []
+        if self.header:
+            table_rows.append(self.header)
+        table_rows.extend(self.rows)
+        if not table_rows:
+            raise ValueError("table must contain a header or at least one row")
+        column_count = max(len(row) for row in table_rows)
+        table = document.add_table(
+            len(table_rows),
+            column_count,
+            section_index=section_index,
+        )
+        for row_index, row in enumerate(table_rows):
+            for col_index, value in enumerate(row):
+                table.cell(row_index, col_index).text = str(value)
+        for merge in self.merges:
+            table.merge_cells(merge)
 
 
 @dataclass(frozen=True)
@@ -234,6 +254,9 @@ class Section:
                 child.lower(document, section_index=section_index)
                 continue
             if isinstance(child, (Bullet, NumberedList)):
+                child.lower(document, section_index=section_index)
+                continue
+            if isinstance(child, Table):
                 child.lower(document, section_index=section_index)
                 continue
             raise NotImplementedError(f"{type(child).__name__} lowering is not implemented yet")
