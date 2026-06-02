@@ -64,6 +64,11 @@ class Run:
     bold: bool = False
     italic: bool = False
     underline: bool = False
+    color: str | None = None
+    font: str | None = None
+    size: int | float | None = None
+    highlight: str | None = None
+    strike: bool = False
 
 
 @dataclass(frozen=True)
@@ -81,6 +86,11 @@ class Paragraph:
                     bold=run.bold,
                     italic=run.italic,
                     underline=run.underline,
+                    color=run.color,
+                    font=run.font,
+                    size=run.size,
+                    highlight=run.highlight,
+                    strike=True if run.strike else None,
                 )
             return
         document.add_paragraph(self.text, inherit_style=False)

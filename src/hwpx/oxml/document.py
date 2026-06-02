@@ -103,6 +103,35 @@ def _sanitize_text(value: str) -> str:
     return _ILLEGAL_XML_CHARS.sub("", value)
 
 
+_FONT_REF_ATTRIBUTES = ("hangul", "latin", "hanja", "japanese", "other", "symbol", "user")
+_FONT_FACE_LANG_TO_REF = {
+    "HANGUL": "hangul",
+    "LATIN": "latin",
+    "HANJA": "hanja",
+    "JAPANESE": "japanese",
+    "OTHER": "other",
+    "SYMBOL": "symbol",
+    "USER": "user",
+}
+
+
+def _normalize_color(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    if normalized.lower() == "none":
+        return "none"
+    return "#" + normalized.lstrip("#").upper()
+
+
+def _char_height_from_points(value: int | float | None) -> str | None:
+    if value is None:
+        return None
+    return str(max(round(float(value) * 100), 0))
+
+
 def _serialize_xml(element: ET.Element) -> bytes:
     """Return a UTF-8 encoded XML document for *element*."""
     xml_bytes = ET.tostring(element, encoding="utf-8", xml_declaration=False)
@@ -2936,6 +2965,11 @@ class HwpxOxmlParagraph:
         bold: bool = False,
         italic: bool = False,
         underline: bool = False,
+        color: str | None = None,
+        font: str | None = None,
+        size: int | float | None = None,
+        highlight: str | None = None,
+        strike: bool | None = None,
         attributes: dict[str, str] | None = None,
     ) -> HwpxOxmlRun:
         """Append a new run to the paragraph and return its wrapper."""
@@ -2952,6 +2986,11 @@ class HwpxOxmlParagraph:
                         bold=bool(bold),
                         italic=bool(italic),
                         underline=bool(underline),
+                        color=color,
+                        font=font,
+                        size=size,
+                        highlight=highlight,
+                        strike=strike,
                     )
                     run_attrs["charPrIDRef"] = style_id
                 else:
@@ -3856,6 +3895,28 @@ class HwpxOxmlHeader:
         count = len(list(element.findall(f"{_HH}borderFill")))
         element.set("itemCnt", str(count))
 
+    def font_ref_for_face(self, face: str) -> dict[str, str] | None:
+        """Return ``hh:fontRef`` attributes for *face* when the header defines it."""
+
+        target = face.strip()
+        if not target:
+            return None
+
+        refs: dict[str, str] = {}
+        for fontface in self._element.findall(f".//{_HH}fontface"):
+            attr_name = _FONT_FACE_LANG_TO_REF.get(fontface.get("lang", "").upper())
+            if attr_name is None:
+                continue
+            for font in fontface.findall(f"{_HH}font"):
+                if font.get("face") == target and font.get("id"):
+                    refs[attr_name] = font.get("id", "")
+                    break
+
+        if not refs:
+            return None
+        fallback = next(iter(refs.values()))
+        return {name: refs.get(name, fallback) for name in _FONT_REF_ATTRIBUTES}
+
     def _allocate_char_property_id(
         self,
         element: ET.Element,
@@ -4522,6 +4583,11 @@ class HwpxOxmlDocument:
         bold: bool = False,
         italic: bool = False,
         underline: bool = False,
+        color: str | None = None,
+        font: str | None = None,
+        size: int | float | None = None,
+        highlight: str | None = None,
+        strike: bool | None = None,
         base_char_pr_id: str | int | None = None,
     ) -> str:
         """Return a char property identifier matching the requested flags."""
@@ -4529,8 +4595,12 @@ class HwpxOxmlDocument:
         if not self._headers:
             raise ValueError("document does not contain any headers")
 
-        target = (bool(bold), bool(italic), bool(underline))
         header = self._headers[0]
+        target = (bool(bold), bool(italic), bool(underline))
+        target_color = _normalize_color(color)
+        target_highlight = _normalize_color(highlight)
+        target_height = _char_height_from_points(size)
+        target_font_ref = header.font_ref_for_face(font) if font is not None else None
 
         def element_flags(element: ET.Element) -> tuple[bool, bool, bool]:
             bold_present = element.find(f"{_HH}bold") is not None
@@ -4541,12 +4611,36 @@ class HwpxOxmlDocument:
                 underline_present = underline_element.get("type", "").upper() != "NONE"
             return bold_present, italic_present, underline_present
 
+        def element_strike(element: ET.Element) -> bool:
+            strike_element = element.find(f"{_HH}strikeout")
+            if strike_element is None:
+                return False
+            return strike_element.get("shape", "").upper() != "NONE"
+
         def predicate(element: ET.Element) -> bool:
-            return element_flags(element) == target
+            if element_flags(element) != target:
+                return False
+            if target_color is not None and element.get("textColor") != target_color:
+                return False
+            if target_highlight is not None and element.get("shadeColor") != target_highlight:
+                return False
+            if target_height is not None and element.get("height") != target_height:
+                return False
+            if strike is not None and element_strike(element) != bool(strike):
+                return False
+            if target_font_ref is not None:
+                font_ref = element.find(f"{_HH}fontRef")
+                if font_ref is None:
+                    return False
+                if {key: font_ref.get(key, "") for key in _FONT_REF_ATTRIBUTES} != target_font_ref:
+                    return False
+            return True
 
         def modifier(element: ET.Element) -> None:
             underline_nodes = list(element.findall(f"{_HH}underline"))
             base_underline_attrs = dict(underline_nodes[0].attrib) if underline_nodes else {}
+            strike_nodes = list(element.findall(f"{_HH}strikeout"))
+            base_strike_attrs = dict(strike_nodes[0].attrib) if strike_nodes else {}
 
             for child in list(element.findall(f"{_HH}bold")):
                 element.remove(child)
@@ -4554,6 +4648,25 @@ class HwpxOxmlDocument:
                 element.remove(child)
             for child in underline_nodes:
                 element.remove(child)
+            for child in strike_nodes:
+                element.remove(child)
+
+            if target_color is not None:
+                element.set("textColor", target_color)
+            if target_highlight is not None:
+                element.set("shadeColor", target_highlight)
+            if target_height is not None:
+                element.set("height", target_height)
+            if target_font_ref is not None:
+                font_ref = element.find(f"{_HH}fontRef")
+                if font_ref is None:
+                    font_ref = element.makeelement(f"{_HH}fontRef", {})
+                    element.insert(0, font_ref)
+                for attr_name in list(font_ref.attrib.keys()):
+                    if attr_name not in _FONT_REF_ATTRIBUTES:
+                        del font_ref.attrib[attr_name]
+                for attr_name, attr_value in target_font_ref.items():
+                    font_ref.set(attr_name, attr_value)
 
             if target[0]:
                 _append_child(element, f"{_HH}bold")
@@ -4578,6 +4691,11 @@ class HwpxOxmlDocument:
                 if "color" in base_underline_attrs:
                     attrs["color"] = base_underline_attrs["color"]
                 _append_child(element, f"{_HH}underline", attrs)
+            if strike is not None:
+                strike_attrs = dict(base_strike_attrs)
+                strike_attrs["shape"] = "SOLID" if strike else "NONE"
+                strike_attrs.setdefault("color", base_strike_attrs.get("color", "#000000"))
+                _append_child(element, f"{_HH}strikeout", strike_attrs)
 
         element = header.ensure_char_property(
             predicate=predicate,

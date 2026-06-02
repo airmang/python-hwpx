@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from hwpx.document import HwpxDocument
 
+HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
+
 
 def test_builder_public_nodes_and_basic_save_report(tmp_path) -> None:
     from hwpx.builder import (
@@ -141,3 +143,166 @@ def test_builder_lowers_section_page_setup_and_metadata(tmp_path) -> None:
     )
     assert (margins.header, margins.footer) == (2835, 2835)
 
+
+def test_document_ensure_run_style_supports_rich_char_properties() -> None:
+    document = HwpxDocument.new()
+
+    # Corpus observation (sample data only):
+    # - error__20251107__test.hwpx charPr@id=46 uses textColor="#FF0000",
+    #   height="1000", child hh:fontRef with per-script ids, and
+    #   hh:strikeout shape="NONE" color="#000000".
+    # - error__20230728__test.hwpx charPr@id=259 uses shadeColor="#FFFF00".
+    # - strike samples also show hh:strikeout shape="SOLID" color="#000000".
+    style_id = document.ensure_run_style(
+        bold=True,
+        italic=True,
+        underline=True,
+        color="C00000",
+        font="함초롬바탕",
+        size=12,
+        highlight="FFFF00",
+        strike=True,
+    )
+
+    style = document.char_property(style_id)
+    assert style is not None
+    assert style.attributes["textColor"] == "#C00000"
+    assert style.attributes["height"] == "1200"
+    assert style.attributes["shadeColor"] == "#FFFF00"
+    assert "bold" in style.child_attributes
+    assert "italic" in style.child_attributes
+    assert style.child_attributes["underline"]["type"] == "SOLID"
+    assert style.child_attributes["strikeout"] == {
+        "shape": "SOLID",
+        "color": "#000000",
+    }
+    assert style.child_attributes["fontRef"] == {
+        "hangul": "1",
+        "latin": "1",
+        "hanja": "1",
+        "japanese": "1",
+        "other": "1",
+        "symbol": "1",
+        "user": "1",
+    }
+
+
+def test_builder_lowers_rich_runs_and_reopen_preserves_style(tmp_path) -> None:
+    from hwpx.builder import Document, Paragraph, Run, Section
+
+    path = tmp_path / "builder-rich-run.hwpx"
+    Document(
+        sections=[
+            Section(
+                children=[
+                    Paragraph(
+                        children=[
+                            Run("일반 "),
+                            Run(
+                                "강조",
+                                bold=True,
+                                italic=True,
+                                underline=True,
+                                color="C00000",
+                                font="함초롬바탕",
+                                size=12,
+                                highlight="FFFF00",
+                                strike=True,
+                            ),
+                        ]
+                    )
+                ]
+            )
+        ]
+    ).save_to_path(path)
+
+    reopened = HwpxDocument.open(path)
+    rich_run = next(run for run in reopened.iter_runs() if run.text == "강조")
+    assert rich_run.char_pr_id_ref is not None
+
+    style = rich_run.style
+    assert style is not None
+    assert style.attributes["textColor"] == "#C00000"
+    assert style.attributes["height"] == "1200"
+    assert style.attributes["shadeColor"] == "#FFFF00"
+    assert "bold" in style.child_attributes
+    assert "italic" in style.child_attributes
+    assert style.child_attributes["underline"]["type"] == "SOLID"
+    assert style.child_attributes["strikeout"]["shape"] == "SOLID"
+
+
+def test_ensure_run_style_supports_rich_char_properties() -> None:
+    # SPIKE pin from hwpxlib corpus output only:
+    # - error__20230728__test.hwpx charPr id=259 has height/textColor/shadeColor attrs,
+    #   hh:fontRef child, and hh:strikeout shape="NONE".
+    # - error__20230818__test.hwpx charPr id=63 uses active strikeout shape="SOLID".
+    # - skeleton/header fontfaces map face "함초롬바탕" to font id "1" for each language.
+    document = HwpxDocument.new()
+
+    char_id = document.ensure_run_style(
+        bold=True,
+        italic=True,
+        underline=True,
+        color="C00000",
+        font="함초롬바탕",
+        size=12,
+        highlight="FFFF00",
+        strike=True,
+    )
+
+    style = document.char_property(char_id)
+    assert style is not None
+    assert style.attributes["textColor"] == "#C00000"
+    assert style.attributes["shadeColor"] == "#FFFF00"
+    assert style.attributes["height"] == "1200"
+    assert style.child_attributes["fontRef"] == {
+        "hangul": "1",
+        "latin": "1",
+        "hanja": "1",
+        "japanese": "1",
+        "other": "1",
+        "symbol": "1",
+        "user": "1",
+    }
+    assert "bold" in style.child_attributes
+    assert "italic" in style.child_attributes
+    assert style.child_attributes["underline"]["type"] == "SOLID"
+    assert style.child_attributes["strikeout"]["shape"] == "SOLID"
+
+
+def test_builder_lowers_rich_runs_and_reopen_preserves_style(tmp_path) -> None:
+    from hwpx.builder import Document, Paragraph, Run, Section
+
+    path = tmp_path / "builder-rich-runs.hwpx"
+    report = Document(
+        sections=[
+            Section(
+                children=[
+                    Paragraph(
+                        children=[
+                            Run("plain "),
+                            Run(
+                                "rich",
+                                bold=True,
+                                color="C00000",
+                                font="함초롬바탕",
+                                size=12,
+                                highlight="FFFF00",
+                                strike=True,
+                            ),
+                            Run(" done"),
+                        ]
+                    )
+                ]
+            )
+        ]
+    ).save_to_path(path)
+
+    assert report.reopened.ok
+    reopened = HwpxDocument.open(path)
+    rich_run = next(run for paragraph in reopened.paragraphs for run in paragraph.runs if run.text == "rich")
+    assert rich_run.char_pr_id_ref is not None
+    assert rich_run.style is not None
+    assert rich_run.style.attributes["textColor"] == "#C00000"
+    assert rich_run.style.attributes["shadeColor"] == "#FFFF00"
+    assert rich_run.style.child_attributes["strikeout"]["shape"] == "SOLID"

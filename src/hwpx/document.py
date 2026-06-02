@@ -568,6 +568,11 @@ class HwpxDocument:
         bold: bool = False,
         italic: bool = False,
         underline: bool = False,
+        color: str | None = None,
+        font: str | None = None,
+        size: int | float | None = None,
+        highlight: str | None = None,
+        strike: bool | None = None,
         base_char_pr_id: str | int | None = None,
     ) -> str:
         """Return a ``charPr`` identifier matching the requested flags."""
@@ -576,6 +581,11 @@ class HwpxDocument:
             bold=bold,
             italic=italic,
             underline=underline,
+            color=color,
+            font=font,
+            size=size,
+            highlight=highlight,
+            strike=strike,
             base_char_pr_id=base_char_pr_id,
         )
 
