@@ -1947,6 +1947,63 @@ def _create_ellipse_element(
     return el
 
 
+def _create_picture_element(
+    binary_item_id_ref: str,
+    width: int,
+    height: int,
+    *,
+    align: str | None = None,
+    treat_as_char: bool = True,
+) -> ET.Element:
+    """Build a ``<hp:pic>`` element using the corpus-observed picture shape."""
+
+    el = ET.Element(f"{_HP}pic", {
+        "textWrap": "SQUARE",
+        "textFlow": "BOTH_SIDES",
+        "reverse": "0",
+    })
+    _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
+    el.set("numberingType", "PICTURE")
+
+    rect = _append_child(el, f"{_HP}imgRect", {})
+    _append_child(rect, f"{_HC}pt0", {"x": "0", "y": "0"})
+    _append_child(rect, f"{_HC}pt1", {"x": str(width), "y": "0"})
+    _append_child(rect, f"{_HC}pt2", {"x": str(width), "y": str(height)})
+    _append_child(rect, f"{_HC}pt3", {"x": "0", "y": str(height)})
+    _append_child(el, f"{_HP}imgClip", {
+        "left": "0",
+        "right": str(width),
+        "top": "0",
+        "bottom": str(height),
+    })
+    _append_child(el, f"{_HP}inMargin", {
+        "left": "0",
+        "right": "0",
+        "top": "0",
+        "bottom": "0",
+    })
+    _append_child(el, f"{_HP}imgDim", {
+        "dimwidth": str(width),
+        "dimheight": str(height),
+    })
+    _append_child(el, f"{_HC}img", {
+        "binaryItemIDRef": binary_item_id_ref,
+        "bright": "0",
+        "contrast": "0",
+        "effect": "REAL_PIC",
+        "alpha": "0",
+    })
+    _append_child(el, f"{_HP}effects", {})
+    _build_shape_base_children(el, width, height)
+
+    if align:
+        pos = el.find(f"{_HP}pos")
+        if pos is not None:
+            pos.set("horzAlign", align.upper())
+    _append_child(el, f"{_HP}shapeComment", {})
+    return el
+
+
 class HwpxOxmlShape:
     """Wrapper for a drawing shape element (``<hp:line>``, ``<hp:rect>``, ``<hp:ellipse>``, etc.)."""
 
@@ -3148,6 +3205,36 @@ class HwpxOxmlParagraph:
             char_pr_id_ref=char_pr_id_ref,
         )
         element = _append_child(run, f"{_HP}{shape_type}", dict(attributes or {}))
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(element, self)
+
+    def add_picture(
+        self,
+        binary_item_id_ref: str,
+        *,
+        width: int = 14400,
+        height: int = 14400,
+        align: str | None = None,
+        treat_as_char: bool = True,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert a corpus-shaped ``<hp:pic>`` referencing embedded BinData."""
+
+        run = self._create_run_for_object(
+            run_attributes,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+        element = _create_picture_element(
+            str(binary_item_id_ref),
+            int(width),
+            int(height),
+            align=align,
+            treat_as_char=treat_as_char,
+        )
+        if type(element) is not type(run):
+            element = LET.fromstring(ET.tostring(element, encoding="utf-8"))
+        run.append(element)
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(element, self)
 

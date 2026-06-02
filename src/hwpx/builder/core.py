@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from os import PathLike
+from pathlib import Path
 from typing import Sequence
 
 from hwpx.document import HwpxDocument
@@ -198,10 +199,29 @@ class Table:
 
 @dataclass(frozen=True)
 class Image:
-    path: str | PathLike[str]
+    path: str | PathLike[str] | bytes
     width_mm: float | None = None
     align: str | None = None
     caption: str | None = None
+    image_format: str | None = None
+
+    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+        if isinstance(self.path, bytes):
+            image_data = self.path
+            image_format = self.image_format or "png"
+        else:
+            image_path = Path(self.path)
+            image_data = image_path.read_bytes()
+            image_format = self.image_format or image_path.suffix.lstrip(".") or "png"
+        document.add_picture(
+            image_data,
+            image_format,
+            width_mm=self.width_mm,
+            align=self.align,
+            section_index=section_index,
+        )
+        if self.caption:
+            document.add_paragraph(self.caption, section_index=section_index, inherit_style=False)
 
 
 @dataclass(frozen=True)
@@ -264,6 +284,9 @@ class Section:
                 child.lower(document, section_index=section_index)
                 continue
             if isinstance(child, Table):
+                child.lower(document, section_index=section_index)
+                continue
+            if isinstance(child, Image):
                 child.lower(document, section_index=section_index)
                 continue
             raise NotImplementedError(f"{type(child).__name__} lowering is not implemented yet")

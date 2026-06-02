@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+import base64
+
 from hwpx.document import HwpxDocument
 
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
+HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+
+
+PNG_1X1 = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axwAqkAAAAASUVORK5CYII="
+)
 
 
 def test_builder_public_nodes_and_basic_save_report(tmp_path) -> None:
@@ -643,3 +651,50 @@ def test_builder_table_integrates_widths_shading_and_merges(tmp_path) -> None:
     border_fill_id = table.cell(0, 0).element.get("borderFillIDRef")
     border_fill = reopened.oxml.headers[0].element.find(f".//{HH}borderFill[@id='{border_fill_id}']")
     assert border_fill.find(f"{HC}fillBrush/{HC}winBrush").get("faceColor") == "#EAF1FB"
+
+
+def test_add_picture_registers_binary_and_places_body_pic(tmp_path) -> None:
+    # SPIKE pin from reader_writer__SimplePicture.hwpx:
+    # - body picture is hp:p/hp:run/hp:pic with child hc:img@binaryItemIDRef.
+    # - hp:pic also carries hp:sz, hp:pos, hp:imgRect, hp:curSz/orgSz.
+    document = HwpxDocument.new()
+
+    pic = document.add_picture(PNG_1X1, "png", width_mm=30)
+
+    img = pic.element.find(f"{HC}img")
+    assert img is not None
+    binary_ref = img.get("binaryItemIDRef")
+    assert binary_ref is not None
+    assert pic.element.find(f"{HP}sz") is not None
+    assert pic.element.find(f"{HP}pos") is not None
+    assert pic.element.find(f"{HP}imgRect") is not None
+    assert pic.element.find(f"{HP}curSz") is not None
+    assert document.package.has_part(f"BinData/{binary_ref}.png")
+    assert any(item.get("BinData") == f"{binary_ref}.png" for item in document.list_images())
+
+    path = tmp_path / "builder-picture.hwpx"
+    document.save_to_path(path)
+    reopened = HwpxDocument.open(path)
+    assert reopened.oxml.sections[0].element.find(f".//{HP}pic/{HC}img") is not None
+
+
+def test_builder_image_places_picture_and_caption(tmp_path) -> None:
+    from hwpx.builder import Document, Image, Section
+
+    image_path = tmp_path / "pixel.png"
+    image_path.write_bytes(PNG_1X1)
+    path = tmp_path / "builder-image.hwpx"
+
+    Document(
+        sections=[
+            Section(
+                children=[
+                    Image(image_path, width_mm=30, align="center", caption="학교 로고"),
+                ]
+            )
+        ]
+    ).save_to_path(path)
+
+    reopened = HwpxDocument.open(path)
+    assert reopened.oxml.sections[0].element.find(f".//{HP}pic/{HC}img") is not None
+    assert "학교 로고" in reopened.export_text()

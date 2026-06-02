@@ -51,6 +51,7 @@ _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HP = f"{{{_HP_NS}}}"
 _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
 _HH = f"{{{_HH_NS}}}"
+_HWP_UNITS_PER_MM = 7200 / 25.4
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,20 @@ def _append_element(
     child = parent.makeelement(tag, attributes or {})
     parent.append(child)
     return child
+
+
+def _mm_to_hwp_units(value: float) -> int:
+    return round(value * _HWP_UNITS_PER_MM)
+
+
+def _png_dimensions(image_data: bytes) -> tuple[int, int] | None:
+    if len(image_data) < 24 or not image_data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return None
+    width = int.from_bytes(image_data[16:20], "big")
+    height = int.from_bytes(image_data[20:24], "big")
+    if width <= 0 or height <= 0:
+        return None
+    return width, height
 
 
 class HwpxDocument:
@@ -761,6 +776,63 @@ class HwpxDocument:
             width=width,
             height=height,
             border_fill_id_ref=resolved_border_fill,
+            run_attributes=run_attributes,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+
+    def add_picture(
+        self,
+        image_data: bytes,
+        image_format: str,
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        width: int | None = None,
+        height: int | None = None,
+        width_mm: float | None = None,
+        height_mm: float | None = None,
+        align: str | None = None,
+        para_pr_id_ref: str | int | None = None,
+        style_id_ref: str | int | None = None,
+        char_pr_id_ref: str | int | None = None,
+        run_attributes: dict[str, str] | None = None,
+        **extra_attrs: str,
+    ) -> HwpxOxmlInlineObject:
+        """Embed image data and place a picture object in a new paragraph."""
+
+        binary_item_id_ref = self.add_image(image_data, image_format)
+
+        resolved_width = width
+        if resolved_width is None:
+            resolved_width = _mm_to_hwp_units(width_mm) if width_mm is not None else 14400
+
+        resolved_height = height
+        if resolved_height is None:
+            if height_mm is not None:
+                resolved_height = _mm_to_hwp_units(height_mm)
+            else:
+                dimensions = _png_dimensions(image_data)
+                if dimensions is not None:
+                    source_width, source_height = dimensions
+                    resolved_height = round(resolved_width * source_height / source_width)
+                else:
+                    resolved_height = resolved_width
+
+        paragraph = self.add_paragraph(
+            "",
+            section=section,
+            section_index=section_index,
+            para_pr_id_ref=para_pr_id_ref,
+            style_id_ref=style_id_ref,
+            char_pr_id_ref=char_pr_id_ref,
+            include_run=False,
+            **extra_attrs,
+        )
+        return paragraph.add_picture(
+            binary_item_id_ref,
+            width=resolved_width,
+            height=resolved_height,
+            align=align,
             run_attributes=run_attributes,
             char_pr_id_ref=char_pr_id_ref,
         )
