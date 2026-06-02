@@ -637,3 +637,31 @@ def test_inspect_document_authoring_quality_reports_gates_and_styles(tmp_path) -
     assert report["visual_review_required"] is True
     assert report["style_token_usage"]["used_run_style_count"] >= 3
     assert report["recovery"]["next_actions"]
+
+
+def test_v1_document_plan_lowers_through_builder_with_legacy_parity(tmp_path) -> None:
+    import hwpx.authoring as authoring
+
+    normalized = normalize_document_plan(_plan())
+    builder_document = authoring._lower_plan_to_builder_document(normalized)
+
+    assert builder_document.feature_flags()["table"] is True
+    assert builder_document.feature_flags()["page_break"] is True
+
+    output = tmp_path / "v1-builder-lowered.hwpx"
+    document = create_document_from_plan(normalized)
+    try:
+        document.save_to_path(output)
+    finally:
+        document.close()
+
+    reopened = HwpxDocument.open(output)
+    try:
+        full_text = reopened.export_text()
+        assert "• Provide AI literacy lessons for each grade band." in full_text
+        assert "Budget Plan" in full_text
+        assert any(paragraph.element.get("pageBreak") == "1" for paragraph in reopened.paragraphs)
+        tables = _table_texts(reopened)
+        assert any(row == ["Item", "Amount", "Note"] for table in tables for row in table)
+    finally:
+        reopened.close()

@@ -8,6 +8,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
+from .builder import (
+    Bullet as BuilderBullet,
+    Document as BuilderDocument,
+    Heading as BuilderHeading,
+    PageBreak as BuilderPageBreak,
+    Paragraph as BuilderParagraph,
+    Section as BuilderSection,
+    Table as BuilderTable,
+)
 from .document import HwpxDocument
 from .tools.package_validator import validate_package
 
@@ -345,6 +354,7 @@ def create_document_from_plan(
     )
     document = HwpxDocument.new()
     tokens = style_preset.ensure_tokens(document)
+    builder_document = _lower_plan_to_builder_document(normalized)
 
     if normalized.title:
         document.add_paragraph(
@@ -367,7 +377,7 @@ def create_document_from_plan(
         )
         _add_key_value_table(document, normalized.metadata, tokens)
 
-    for block in normalized.blocks:
+    for block in builder_document.sections[0].children:
         _render_block(document, block, tokens)
 
     return document
@@ -890,6 +900,76 @@ def _normalize_block(raw_block: Any, *, index: int) -> DocumentBlock:
     return DocumentBlock("page_break", {})
 
 
+def _lower_plan_to_builder_document(plan: DocumentPlan) -> BuilderDocument:
+    """Lower a normalized document plan to builder nodes.
+
+    v1 authoring keeps its historical title, metadata, style-token, and memo
+    rendering contracts, so this helper lowers the body blocks into public
+    builder nodes while ``create_document_from_plan`` supplies the existing
+    document-level framing.
+    """
+
+    children: list[Any] = []
+    for block in plan.blocks:
+        children.extend(_block_to_builder_nodes(block))
+    return BuilderDocument(sections=(BuilderSection(children=tuple(children)),))
+
+
+def _block_to_builder_nodes(block: DocumentBlock) -> tuple[Any, ...]:
+    if block.type == "heading":
+        return (
+            BuilderHeading(
+                level=int(block.data["level"]),
+                text=str(block.data["text"]),
+            ),
+        )
+    if block.type == "paragraph":
+        return (
+            BuilderParagraph(
+                text=str(block.data["text"]),
+                style=str(block.data.get("style") or "body"),
+            ),
+        )
+    if block.type == "bullets":
+        return (BuilderBullet(items=tuple(str(item) for item in block.data["items"])),)
+    if block.type == "table":
+        columns = list(block.data["columns"])
+        rows = list(block.data["rows"])
+        nodes: list[Any] = []
+        caption = str(block.data.get("caption") or "").strip()
+        if caption:
+            nodes.append(BuilderParagraph(text=caption, style="heading"))
+        nodes.append(
+            BuilderTable(
+                header=tuple(str(column["label"]) for column in columns),
+                rows=tuple(
+                    tuple(str(row.get(column["key"], "")) for column in columns)
+                    for row in rows
+                ),
+                column_widths=tuple(_plan_table_column_widths(columns)),
+            ),
+        )
+        return tuple(nodes)
+    if block.type == "memo":
+        return (block,)
+    if block.type == "page_break":
+        return (BuilderPageBreak(),)
+    raise ValueError(f"unsupported block type: {block.type!r}")
+
+
+def _plan_table_column_widths(columns: list[dict[str, Any]]) -> list[int]:
+    total = sum(max(int(column.get("widthWeight", 1)), 1) for column in columns)
+    if total <= 0:
+        return []
+    widths = [
+        round(_DEFAULT_TABLE_WIDTH * max(int(column.get("widthWeight", 1)), 1) / total)
+        for column in columns
+    ]
+    if widths:
+        widths[-1] += _DEFAULT_TABLE_WIDTH - sum(widths)
+    return widths
+
+
 def _normalize_columns(value: Any, *, index: int) -> list[dict[str, Any]]:
     if not isinstance(value, list) or not value:
         raise ValueError(f"blocks[{index}].columns must be a non-empty list")
@@ -935,36 +1015,36 @@ def _normalize_rows(
 
 def _render_block(
     document: HwpxDocument,
-    block: DocumentBlock,
+    block: Any,
     tokens: Mapping[str, str],
 ) -> None:
-    if block.type == "heading":
+    if isinstance(block, BuilderHeading):
         document.add_paragraph(
-            str(block.data["text"]),
+            block.text,
             char_pr_id_ref=tokens["heading"],
             inherit_style=False,
         )
         return
-    if block.type == "paragraph":
-        style = str(block.data.get("style") or "body")
+    if isinstance(block, BuilderParagraph):
+        style = str(block.style or "body")
         document.add_paragraph(
-            str(block.data["text"]),
+            block.text,
             char_pr_id_ref=tokens.get(style, tokens["body"]),
             inherit_style=False,
         )
         return
-    if block.type == "bullets":
-        for item in block.data["items"]:
+    if isinstance(block, BuilderBullet):
+        for item in block.items:
             document.add_paragraph(
                 f"• {item}",
                 char_pr_id_ref=tokens["bullet"],
                 inherit_style=False,
             )
         return
-    if block.type == "table":
-        _add_plan_table(document, block.data, tokens)
+    if isinstance(block, BuilderTable):
+        _add_builder_table(document, block, tokens)
         return
-    if block.type == "memo":
+    if isinstance(block, DocumentBlock) and block.type == "memo":
         paragraph = document.add_paragraph(
             str(block.data["text"]),
             char_pr_id_ref=tokens["body"],
@@ -972,8 +1052,10 @@ def _render_block(
         )
         document.add_memo_with_anchor(str(block.data["memo"]), paragraph=paragraph)
         return
-    if block.type == "page_break":
+    if isinstance(block, BuilderPageBreak):
         document.add_paragraph("", pageBreak="1", inherit_style=False)
+        return
+    raise ValueError(f"unsupported builder block: {type(block).__name__}")
 
 
 def _add_key_value_table(
@@ -1036,6 +1118,46 @@ def _add_plan_table(
                 row_index,
                 col_index,
                 str(row.get(column["key"], "")),
+                char_pr_id_ref=tokens["table_cell"],
+            )
+
+
+def _add_builder_table(
+    document: HwpxDocument,
+    table_node: BuilderTable,
+    tokens: Mapping[str, str],
+) -> None:
+    rows = [list(table_node.header), *(list(row) for row in table_node.rows)]
+    if not rows:
+        raise ValueError("table must contain a header or at least one row")
+    column_count = max(len(row) for row in rows)
+    table = document.add_table(
+        len(rows),
+        column_count,
+        width=_DEFAULT_TABLE_WIDTH,
+        char_pr_id_ref=tokens["table_cell"],
+    )
+    if table_node.column_widths:
+        for row in table.rows:
+            for col_index, cell in enumerate(row.cells):
+                if col_index < len(table_node.column_widths):
+                    cell.set_size(width=int(table_node.column_widths[col_index]))
+    for col_index, label in enumerate(table_node.header):
+        _set_table_cell_text(
+            table,
+            0,
+            col_index,
+            str(label),
+            char_pr_id_ref=tokens["table_header"],
+        )
+    row_offset = 1 if table_node.header else 0
+    for row_index, row in enumerate(table_node.rows, start=row_offset):
+        for col_index, value in enumerate(row):
+            _set_table_cell_text(
+                table,
+                row_index,
+                col_index,
+                str(value),
                 char_pr_id_ref=tokens["table_cell"],
             )
 

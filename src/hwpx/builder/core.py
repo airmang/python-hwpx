@@ -77,6 +77,7 @@ class Paragraph:
     text: str = ""
     children: Sequence[Run | PageNumber] = field(default_factory=tuple)
     align: str | None = None
+    style: str | None = None
 
     def lower(self, document: HwpxDocument) -> None:
         if self.children:
