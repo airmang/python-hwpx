@@ -11,3 +11,22 @@ Task 1 SPIKE observations:
   before-count greater than the after-count for the same element local-name is
   reported as structural loss.
 """
+
+
+from hwpx.tools.roundtrip_diff import roundtrip_report
+
+
+def test_roundtrip_report_shape(tmp_path):
+    from hwpx.document import HwpxDocument
+
+    doc = HwpxDocument.new()
+    doc.add_paragraph("본문")
+    p = tmp_path / "d.hwpx"
+    doc.save_to_path(p)
+
+    rep = roundtrip_report(p)
+
+    assert rep["reopened"] is True
+    assert isinstance(rep["lost_elements"], dict)
+    assert isinstance(rep["added_elements"], dict)
+    assert "p" in rep["before_counts"]
