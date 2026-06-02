@@ -13,7 +13,23 @@ Task 1 SPIKE observations:
 """
 
 
+import json
+from collections import Counter
+from pathlib import Path
+
+import pytest
+
 from hwpx.tools.roundtrip_diff import roundtrip_report
+
+
+CORPUS = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
+SAMPLES = [
+    s["file"]
+    for s in json.loads((CORPUS / "manifest.json").read_text("utf-8"))["samples"]
+]
+
+# 재오픈 자체가 실패하는 샘플(현재). 사유 명기, silent skip 금지.
+KNOWN_REOPEN_FAILURES: dict[str, str] = {}
 
 
 def test_roundtrip_report_shape(tmp_path):
@@ -30,3 +46,46 @@ def test_roundtrip_report_shape(tmp_path):
     assert isinstance(rep["lost_elements"], dict)
     assert isinstance(rep["added_elements"], dict)
     assert "p" in rep["before_counts"]
+
+
+def test_hwpxlib_manifest_contains_expected_47_samples():
+    assert len(SAMPLES) == 47
+
+
+@pytest.mark.parametrize("sample", SAMPLES)
+def test_corpus_sample_roundtrips(sample):
+    if sample in KNOWN_REOPEN_FAILURES:
+        pytest.xfail(KNOWN_REOPEN_FAILURES[sample])
+
+    rep = roundtrip_report(CORPUS / sample)
+
+    assert rep["reopened"] is True
+
+
+def test_emit_loss_inventory():
+    agg: Counter[str] = Counter()
+    per_sample = {}
+    for sample in SAMPLES:
+        if sample in KNOWN_REOPEN_FAILURES:
+            continue
+        rep = roundtrip_report(CORPUS / sample)
+        if rep["lost_elements"]:
+            per_sample[sample] = rep["lost_elements"]
+            agg.update(rep["lost_elements"])
+
+    out = Path("work/s021-roundtrip")
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "roundtrip_inventory.json").write_text(
+        json.dumps(
+            {
+                "aggregate_lost_by_local_name": dict(agg.most_common()),
+                "per_sample": per_sample,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        "utf-8",
+    )
+    print("LOSS INVENTORY:", dict(agg.most_common(20)))
+
+    assert (out / "roundtrip_inventory.json").exists()
