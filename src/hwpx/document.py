@@ -51,6 +51,7 @@ _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HP = f"{{{_HP_NS}}}"
 _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
 _HH = f"{{{_HH_NS}}}"
+_HWP_UNITS_PER_MM = 7200 / 25.4
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,20 @@ def _append_element(
     child = parent.makeelement(tag, attributes or {})
     parent.append(child)
     return child
+
+
+def _mm_to_hwp_units(value: float) -> int:
+    return round(value * _HWP_UNITS_PER_MM)
+
+
+def _png_dimensions(image_data: bytes) -> tuple[int, int] | None:
+    if len(image_data) < 24 or not image_data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return None
+    width = int.from_bytes(image_data[16:20], "big")
+    height = int.from_bytes(image_data[20:24], "big")
+    if width <= 0 or height <= 0:
+        return None
+    return width, height
 
 
 class HwpxDocument:
@@ -277,6 +292,16 @@ class HwpxDocument:
         """Return the paragraph property referenced by *para_pr_id_ref*."""
 
         return self._root.paragraph_property(para_pr_id_ref)
+
+    def ensure_numbering(
+        self,
+        *,
+        kind: str,
+        levels: Sequence[dict[str, str]] | None = None,
+    ) -> list[str]:
+        """Return paragraph property ids for bullet or numbered-list levels."""
+
+        return self._root.ensure_numbering(kind=kind, levels=levels)
 
     @property
     def styles(self) -> dict[str, Style]:
@@ -568,6 +593,11 @@ class HwpxDocument:
         bold: bool = False,
         italic: bool = False,
         underline: bool = False,
+        color: str | None = None,
+        font: str | None = None,
+        size: int | float | None = None,
+        highlight: str | None = None,
+        strike: bool | None = None,
         base_char_pr_id: str | int | None = None,
     ) -> str:
         """Return a ``charPr`` identifier matching the requested flags."""
@@ -576,6 +606,11 @@ class HwpxDocument:
             bold=bold,
             italic=italic,
             underline=underline,
+            color=color,
+            font=font,
+            size=size,
+            highlight=highlight,
+            strike=strike,
             base_char_pr_id=base_char_pr_id,
         )
 
@@ -744,6 +779,72 @@ class HwpxDocument:
             run_attributes=run_attributes,
             char_pr_id_ref=char_pr_id_ref,
         )
+
+    def add_picture(
+        self,
+        image_data: bytes,
+        image_format: str,
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        width: int | None = None,
+        height: int | None = None,
+        width_mm: float | None = None,
+        height_mm: float | None = None,
+        align: str | None = None,
+        para_pr_id_ref: str | int | None = None,
+        style_id_ref: str | int | None = None,
+        char_pr_id_ref: str | int | None = None,
+        run_attributes: dict[str, str] | None = None,
+        **extra_attrs: str,
+    ) -> HwpxOxmlInlineObject:
+        """Embed image data and place a picture object in a new paragraph."""
+
+        binary_item_id_ref = self.add_image(image_data, image_format)
+
+        resolved_width = width
+        if resolved_width is None:
+            resolved_width = _mm_to_hwp_units(width_mm) if width_mm is not None else 14400
+
+        resolved_height = height
+        if resolved_height is None:
+            if height_mm is not None:
+                resolved_height = _mm_to_hwp_units(height_mm)
+            else:
+                dimensions = _png_dimensions(image_data)
+                if dimensions is not None:
+                    source_width, source_height = dimensions
+                    resolved_height = round(resolved_width * source_height / source_width)
+                else:
+                    resolved_height = resolved_width
+
+        paragraph = self.add_paragraph(
+            "",
+            section=section,
+            section_index=section_index,
+            para_pr_id_ref=para_pr_id_ref,
+            style_id_ref=style_id_ref,
+            char_pr_id_ref=char_pr_id_ref,
+            include_run=False,
+            **extra_attrs,
+        )
+        return paragraph.add_picture(
+            binary_item_id_ref,
+            width=resolved_width,
+            height=resolved_height,
+            align=align,
+            run_attributes=run_attributes,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+
+    def merge_table_cells(
+        self,
+        table: HwpxOxmlTable,
+        cell_range: str,
+    ) -> Any:
+        """Merge a table cell range using spreadsheet notation such as ``A1:C1``."""
+
+        return table.merge_cells(cell_range)
 
     def get_table_map(self) -> TableMapResult:
         """Return compact metadata for every table in document order."""
@@ -1067,6 +1168,66 @@ class HwpxDocument:
             )
         return paragraph.add_hyperlink(url, display_text)
 
+    def _resolve_section(
+        self,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> HwpxOxmlSection:
+        target_section = section
+        if target_section is None and section_index is not None:
+            target_section = self._root.sections[section_index]
+        if target_section is None:
+            if not self._root.sections:
+                raise ValueError("document does not contain any sections")
+            target_section = self._root.sections[-1]
+        return target_section
+
+    def set_page_size(
+        self,
+        *,
+        width: int | None = None,
+        height: int | None = None,
+        orientation: str | None = None,
+        gutter_type: str | None = None,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> None:
+        """Set page dimensions on the requested section through the public facade."""
+
+        target_section = self._resolve_section(section=section, section_index=section_index)
+        target_section.properties.set_page_size(
+            width=width,
+            height=height,
+            orientation=orientation,
+            gutter_type=gutter_type,
+        )
+
+    def set_page_margins(
+        self,
+        *,
+        left: int | None = None,
+        right: int | None = None,
+        top: int | None = None,
+        bottom: int | None = None,
+        header: int | None = None,
+        footer: int | None = None,
+        gutter: int | None = None,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> None:
+        """Set page margins on the requested section through the public facade."""
+
+        target_section = self._resolve_section(section=section, section_index=section_index)
+        target_section.properties.set_page_margins(
+            left=left,
+            right=right,
+            top=top,
+            bottom=bottom,
+            header=header,
+            footer=footer,
+            gutter=gutter,
+        )
+
     def set_header_text(
         self,
         text: str,
@@ -1077,13 +1238,7 @@ class HwpxDocument:
     ) -> HwpxOxmlSectionHeaderFooter:
         """Ensure the requested section contains a header for *page_type* and set its text."""
 
-        target_section = section
-        if target_section is None and section_index is not None:
-            target_section = self._root.sections[section_index]
-        if target_section is None:
-            if not self._root.sections:
-                raise ValueError("document does not contain any sections")
-            target_section = self._root.sections[-1]
+        target_section = self._resolve_section(section=section, section_index=section_index)
         return target_section.properties.set_header_text(text, page_type=page_type)
 
     def set_footer_text(
@@ -1096,14 +1251,34 @@ class HwpxDocument:
     ) -> HwpxOxmlSectionHeaderFooter:
         """Ensure the requested section contains a footer for *page_type* and set its text."""
 
-        target_section = section
-        if target_section is None and section_index is not None:
-            target_section = self._root.sections[section_index]
-        if target_section is None:
-            if not self._root.sections:
-                raise ValueError("document does not contain any sections")
-            target_section = self._root.sections[-1]
+        target_section = self._resolve_section(section=section, section_index=section_index)
         return target_section.properties.set_footer_text(text, page_type=page_type)
+
+    def set_header_content(
+        self,
+        content: Sequence[Mapping[str, Any]],
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        page_type: str = "BOTH",
+    ) -> HwpxOxmlSectionHeaderFooter:
+        """Ensure the requested section contains a rich header for *page_type*."""
+
+        target_section = self._resolve_section(section=section, section_index=section_index)
+        return target_section.properties.set_header_content(content, page_type=page_type)
+
+    def set_footer_content(
+        self,
+        content: Sequence[Mapping[str, Any]],
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        page_type: str = "BOTH",
+    ) -> HwpxOxmlSectionHeaderFooter:
+        """Ensure the requested section contains a rich footer for *page_type*."""
+
+        target_section = self._resolve_section(section=section, section_index=section_index)
+        return target_section.properties.set_footer_content(content, page_type=page_type)
 
     def remove_header(
         self,

@@ -40,6 +40,7 @@ class ValidationIssue:
     message: str
     line: int | None = None
     column: int | None = None
+    severity: str = "error"
 
     def __str__(self) -> str:  # pragma: no cover - human readable helper
         location = ""
@@ -58,10 +59,18 @@ class ValidationReport:
     issues: tuple[ValidationIssue, ...]
 
     @property
-    def ok(self) -> bool:
-        """Whether every validated part satisfied the schema constraints."""
+    def errors(self) -> tuple[ValidationIssue, ...]:
+        return tuple(issue for issue in self.issues if issue.severity == "error")
 
-        return not self.issues
+    @property
+    def warnings(self) -> tuple[ValidationIssue, ...]:
+        return tuple(issue for issue in self.issues if issue.severity == "warning")
+
+    @property
+    def ok(self) -> bool:
+        """OK when there are no hard errors. Schema lint warnings do not fail."""
+
+        return not self.errors
 
     def __bool__(self) -> bool:  # pragma: no cover - convenience alias
         return self.ok
@@ -109,11 +118,12 @@ def _issues_from_error(part_name: str, exc: etree.DocumentInvalid) -> list[Valid
                     message=entry.message,
                     line=getattr(entry, "line", None),
                     column=getattr(entry, "column", None),
+                    severity="warning",
                 )
             )
         if recorded:
             return issues
-    issues.append(ValidationIssue(part_name=part_name, message=str(exc)))
+    issues.append(ValidationIssue(part_name=part_name, message=str(exc), severity="warning"))
     return issues
 
 
@@ -147,9 +157,13 @@ def validate_document(
         try:
             validator(payload, schema=schema)
         except etree.DocumentInvalid as exc:
+            # Schema-rule violations are lint warnings (the published OWPML schema
+            # diverges from Hancom's real behavior — see docs/owpml-deviations.md).
             issues.extend(_issues_from_error(part_name, exc))
-        except Exception as exc:  # pragma: no cover - defensive branch
-            issues.append(ValidationIssue(part_name=part_name, message=str(exc)))
+        except Exception as exc:
+            # A non-DocumentInvalid failure (e.g. not-well-formed XML, load error)
+            # is a genuine structural problem, not schema lint: keep it a hard error.
+            issues.append(ValidationIssue(part_name=part_name, message=str(exc), severity="error"))
 
     return ValidationReport(validated_parts=tuple(validated_parts), issues=tuple(issues))
 
@@ -174,10 +188,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if report.issues:
         for issue in report.issues:
-            print(f"ERROR: {issue}")
+            print(f"{issue.severity.upper()}: {issue}")
+
+    if not report.ok:
         return 1
 
-    print("All schema validations passed.")
+    if report.warnings:
+        print("Schema lint warnings found.")
+    else:
+        print("All schema validations passed.")
     return 0
 
 

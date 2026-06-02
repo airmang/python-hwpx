@@ -1,0 +1,290 @@
+{
+  "source_repo": "https://github.com/neolord0/hwpxlib",
+  "license": "Apache-2.0",
+  "pinned_ref": "3bbaaa90bdb1f14c58fd2f87c80105bc8fd37473",
+  "count": 47,
+  "samples": [
+    {
+      "file": "error__20230413__test.hwpx",
+      "source_path": "testFile/error/20230413/test.hwpx",
+      "feature": "regression",
+      "sha256": "764529df6d34151d25c37e0bb3a90749758bbbabf6cdd94febc57f52d45047e0"
+    },
+    {
+      "file": "error__20230426__HwpxTest1.hwpx",
+      "source_path": "testFile/error/20230426/HwpxTest1.hwpx",
+      "feature": "regression",
+      "sha256": "162d89cea32e18054f8de0186ce031c4e879e890b6c3ea6acbf561885c93e5dd"
+    },
+    {
+      "file": "error__20230728__test.hwpx",
+      "source_path": "testFile/error/20230728/test.hwpx",
+      "feature": "regression",
+      "sha256": "a19893fd9a0fbe01b31ef5083ea1f875299341401e1043d54cb51918b69c8583"
+    },
+    {
+      "file": "error__20230809__test.hwpx",
+      "source_path": "testFile/error/20230809/test.hwpx",
+      "feature": "regression",
+      "sha256": "bcb4760ffb6b615457ee5b23d5d24b4accb48591565c1d61a9bdc8c6030591ce"
+    },
+    {
+      "file": "error__20230818__test.hwpx",
+      "source_path": "testFile/error/20230818/test.hwpx",
+      "feature": "regression",
+      "sha256": "a18a83005f1956366d48493d34cfeb93775ab9fd37084a37f84af6c712eb7997"
+    },
+    {
+      "file": "error__20231219__test1.hwpx",
+      "source_path": "testFile/error/20231219/test1.hwpx",
+      "feature": "regression",
+      "sha256": "08016b9e4cece5832557c76dde91b81cc14fc9b7c7bbbd1c0346647efc639da3"
+    },
+    {
+      "file": "error__20240305__2022.hwpx",
+      "source_path": "testFile/error/20240305/2022.hwpx",
+      "feature": "regression",
+      "sha256": "4ef29c54502489212a9b05d794f80ccf1901d50e5f710810be93fd348cc47206"
+    },
+    {
+      "file": "error__20240416__presentation오류.hwpx",
+      "source_path": "testFile/error/20240416/presentation오류.hwpx",
+      "feature": "regression",
+      "sha256": "3893d2223010359786b72436dc25b7155df709ed9d3c955a10d3d0802ceb3a9c"
+    },
+    {
+      "file": "error__20240626__no_manifest.hwpx",
+      "source_path": "testFile/error/20240626/no_manifest.hwpx",
+      "feature": "regression",
+      "sha256": "7ab3a6c964efe9f8a10f0aff771d86f47b906f6130aab448a1932a5f0df7bba9"
+    },
+    {
+      "file": "error__20240919__테스트문서.hwpx",
+      "source_path": "testFile/error/20240919/테스트문서.hwpx",
+      "feature": "regression",
+      "sha256": "a02e0aece3b163a9da7592d272acc5a8d01269e2766b859b0a4c0c525558eadd"
+    },
+    {
+      "file": "error__20241104__mot.hwpx",
+      "source_path": "testFile/error/20241104/mot.hwpx",
+      "feature": "regression",
+      "sha256": "69aae28766f2b9c61d6dff748aee9a74eff2c5cfda737d2bff982503e7488519"
+    },
+    {
+      "file": "error__20250523__프로젝트 계획서.hwpx",
+      "source_path": "testFile/error/20250523/프로젝트 계획서.hwpx",
+      "feature": "regression",
+      "sha256": "4234e79af5be8592675b61da84b53c2b42d5516cfff0dfddb2f0892706cd1116"
+    },
+    {
+      "file": "error__20250808__2015년_12월_재난안전종합상황_분석_및_전망.hwpx",
+      "source_path": "testFile/error/20250808/2015년_12월_재난안전종합상황_분석_및_전망.hwpx",
+      "feature": "regression",
+      "sha256": "f72326c33e722d5f73c3283f4666b308a6a233860e22d6dcacb346e616be0e45"
+    },
+    {
+      "file": "error__20251107__test.hwpx",
+      "source_path": "testFile/error/20251107/test.hwpx",
+      "feature": "regression",
+      "sha256": "67162cbbae404ecf99bad44f1adf1579e5b224089d8146479144e0b238f18c18"
+    },
+    {
+      "file": "error__20251107__test_re.hwpx",
+      "source_path": "testFile/error/20251107/test_re.hwpx",
+      "feature": "regression",
+      "sha256": "9ca4924124eceff09fb0a7c3d2cc6bbe4bb73aa897639093801481922459bf76"
+    },
+    {
+      "file": "reader_writer__ChangeTrack.hwpx",
+      "source_path": "testFile/reader_writer/ChangeTrack.hwpx",
+      "feature": "track_change",
+      "sha256": "05e6384795611406b29302cf62326b6d1f0a9399d2fbc201fcbe459aa730e356"
+    },
+    {
+      "file": "reader_writer__HeaderFooter.hwpx",
+      "source_path": "testFile/reader_writer/HeaderFooter.hwpx",
+      "feature": "header_footer",
+      "sha256": "0920b3b519d6bd316b83f549d14ebeb5f49ea5a10f2d7895da8186f2610aa671"
+    },
+    {
+      "file": "reader_writer__MultiColumn.hwpx",
+      "source_path": "testFile/reader_writer/MultiColumn.hwpx",
+      "feature": "multi_column",
+      "sha256": "c5f0933d6d1fe0a2defd9be7ed3cb3839b16b7f2eabb85b1294f98a3a13badd3"
+    },
+    {
+      "file": "reader_writer__PageFunctions.hwpx",
+      "source_path": "testFile/reader_writer/PageFunctions.hwpx",
+      "feature": "page_number",
+      "sha256": "b2471d9869a457edf30e66496ee46525548cd6732b9699f0db309de061bccf5c"
+    },
+    {
+      "file": "reader_writer__PageSize_Margin.hwpx",
+      "source_path": "testFile/reader_writer/PageSize_Margin.hwpx",
+      "feature": "page_size_margin",
+      "sha256": "7ac9b4db7bb901b1039bf97685db56392358aa545847ffaddb949cc4ad594e4d"
+    },
+    {
+      "file": "reader_writer__SimpleArc.hwpx",
+      "source_path": "testFile/reader_writer/SimpleArc.hwpx",
+      "feature": "other",
+      "sha256": "7ed9db4553568ffad9999351db8514ffd42820056886889081b9a1573678e55b"
+    },
+    {
+      "file": "reader_writer__SimpleButtons.hwpx",
+      "source_path": "testFile/reader_writer/SimpleButtons.hwpx",
+      "feature": "other",
+      "sha256": "bc16c2e5e4171a467f97a7b70141e06109693a1558f4ed70e821aeec24a253e4"
+    },
+    {
+      "file": "reader_writer__SimpleComboBox.hwpx",
+      "source_path": "testFile/reader_writer/SimpleComboBox.hwpx",
+      "feature": "other",
+      "sha256": "bb8b3d1f2bd09ba4db0c677b2b9e79f5d29b3d7feeaaebdc7fbdbf998b07b8e9"
+    },
+    {
+      "file": "reader_writer__SimpleCompose.hwpx",
+      "source_path": "testFile/reader_writer/SimpleCompose.hwpx",
+      "feature": "other",
+      "sha256": "aa86795cfe02978f15a1d8d731e9454fe9fef8f852431da71d23c355ac633ca3"
+    },
+    {
+      "file": "reader_writer__SimpleConnectLine.hwpx",
+      "source_path": "testFile/reader_writer/SimpleConnectLine.hwpx",
+      "feature": "other",
+      "sha256": "51b1f8bd93cb22c247558910a37231f3b3f3e4df296e7a4d6a826b5ba09c3ae2"
+    },
+    {
+      "file": "reader_writer__SimpleContainer.hwpx",
+      "source_path": "testFile/reader_writer/SimpleContainer.hwpx",
+      "feature": "other",
+      "sha256": "580154ca2c584fdde6a705c94abf1e85ded62791f125dc7214e0157057765b1e"
+    },
+    {
+      "file": "reader_writer__SimpleCurve.hwpx",
+      "source_path": "testFile/reader_writer/SimpleCurve.hwpx",
+      "feature": "other",
+      "sha256": "413e41b121779b36a48bfd31117bb88e7edc3ebf0204473afd643787d1346126"
+    },
+    {
+      "file": "reader_writer__SimpleDutmal.hwpx",
+      "source_path": "testFile/reader_writer/SimpleDutmal.hwpx",
+      "feature": "other",
+      "sha256": "fec6c42fea4be719c7dab45e83ff10e42dea9bf8c99b6b5f3791e89a5565d99f"
+    },
+    {
+      "file": "reader_writer__SimpleEdit.hwpx",
+      "source_path": "testFile/reader_writer/SimpleEdit.hwpx",
+      "feature": "other",
+      "sha256": "fc15100ecd123a16d682d8958baa3dd9dc4e5ab4d04a9015cbf3b4a4e1cc9bb4"
+    },
+    {
+      "file": "reader_writer__SimpleEllipse.hwpx",
+      "source_path": "testFile/reader_writer/SimpleEllipse.hwpx",
+      "feature": "other",
+      "sha256": "1c1d19523afa10f4f70d2dd269087e94b041898700e30745ed11a40795ecc302"
+    },
+    {
+      "file": "reader_writer__SimpleEquation.hwpx",
+      "source_path": "testFile/reader_writer/SimpleEquation.hwpx",
+      "feature": "equation",
+      "sha256": "15091aadf5dc5ac451383472afbdf02af75c225db894f3f9ace621634db9d57a"
+    },
+    {
+      "file": "reader_writer__SimpleLine.hwpx",
+      "source_path": "testFile/reader_writer/SimpleLine.hwpx",
+      "feature": "other",
+      "sha256": "a663de1a52733ebabc05c6b52f2a6b4a7400cfbcec4c415959c96ca63e8c8aee"
+    },
+    {
+      "file": "reader_writer__SimpleOLE.hwpx",
+      "source_path": "testFile/reader_writer/SimpleOLE.hwpx",
+      "feature": "other",
+      "sha256": "bc4a762086e19eee05b14f7288e1443bc948a22ac8837d710c1cefa9f074a8b1"
+    },
+    {
+      "file": "reader_writer__SimplePicture.hwpx",
+      "source_path": "testFile/reader_writer/SimplePicture.hwpx",
+      "feature": "image",
+      "sha256": "7ed3bdf89986fd88fdbcd92eaeac3f852aa6984fb1f7ddf4dd4f582afe20084c"
+    },
+    {
+      "file": "reader_writer__SimplePolygon.hwpx",
+      "source_path": "testFile/reader_writer/SimplePolygon.hwpx",
+      "feature": "other",
+      "sha256": "63d5ec6f960c4c26c9ccd0061049ae3173c9041cbd2407c5d0805921d368a9c7"
+    },
+    {
+      "file": "reader_writer__SimpleRectangle.hwpx",
+      "source_path": "testFile/reader_writer/SimpleRectangle.hwpx",
+      "feature": "other",
+      "sha256": "6a5d37557c4b0c84c2439abbb93eee39df4bac6b1bd00c3f83650d9406580b66"
+    },
+    {
+      "file": "reader_writer__SimpleTable.hwpx",
+      "source_path": "testFile/reader_writer/SimpleTable.hwpx",
+      "feature": "table",
+      "sha256": "502d75c289813ce4b99648ecbc3cbe333bd8acd78e9f4b4b370566f308c1e6de"
+    },
+    {
+      "file": "reader_writer__SimpleTextArt.hwpx",
+      "source_path": "testFile/reader_writer/SimpleTextArt.hwpx",
+      "feature": "other",
+      "sha256": "627dad82847f86a0cf7f1ee5e04eef5710752510887002b8c5f6ba2665dede1c"
+    },
+    {
+      "file": "reader_writer__SimpleVideo.hwpx",
+      "source_path": "testFile/reader_writer/SimpleVideo.hwpx",
+      "feature": "other",
+      "sha256": "dd415c756a105236bf0ef398015f71751b30e3888e188c1ffed29ecefad0e7df"
+    },
+    {
+      "file": "reader_writer__sample1.hwpx",
+      "source_path": "testFile/reader_writer/sample1.hwpx",
+      "feature": "other",
+      "sha256": "516db143466d3bc43e6808d4d5dc9da63abf014ec637ef01594f27998a0bd6c2"
+    },
+    {
+      "file": "tool__blank.hwpx",
+      "source_path": "testFile/tool/blank.hwpx",
+      "feature": "other",
+      "sha256": "036ddf010cfbe288487b5958f93c459f60c83943242ba30709f538af9325e652"
+    },
+    {
+      "file": "tool__finder__TestFinder.hwpx",
+      "source_path": "testFile/tool/finder/TestFinder.hwpx",
+      "feature": "other",
+      "sha256": "ec92c904c2a1b27a6ca75f62125d66aa3dd84725595542d8af52d4f45fa6987a"
+    },
+    {
+      "file": "tool__textextractor__ParaHead.hwpx",
+      "source_path": "testFile/tool/textextractor/ParaHead.hwpx",
+      "feature": "other",
+      "sha256": "ac351385ba4d084eb93e898274ea5eb6928cd7d39db6ab890539c368e7dfc96b"
+    },
+    {
+      "file": "tool__textextractor__RectInPara.hwpx",
+      "source_path": "testFile/tool/textextractor/RectInPara.hwpx",
+      "feature": "other",
+      "sha256": "437617ea8f91abe66af6f2b05ab92ce36894fa6b44ab0b49c66c3f8edd0587b5"
+    },
+    {
+      "file": "tool__textextractor__RectInRect.hwpx",
+      "source_path": "testFile/tool/textextractor/RectInRect.hwpx",
+      "feature": "other",
+      "sha256": "d06be047a8c4507bef0abb92f64f3813a8d102b70334926f840a9b5e6d525c11"
+    },
+    {
+      "file": "tool__textextractor__Table.hwpx",
+      "source_path": "testFile/tool/textextractor/Table.hwpx",
+      "feature": "other",
+      "sha256": "af13702617b11bc080d4c069578fcb3b6a7aa6142590cacc72507cbd6324ea41"
+    },
+    {
+      "file": "tool__textextractor__multipara.hwpx",
+      "source_path": "testFile/tool/textextractor/multipara.hwpx",
+      "feature": "other",
+      "sha256": "90f2c930322626392c9748ca93fe3ab6a9a59a0ac3506c307900316394f4b271"
+    }
+  ]
+}

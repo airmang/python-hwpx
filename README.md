@@ -141,6 +141,13 @@ document.save_to_path("새문서.hwpx")
 > | **크로스 플랫폼** | ✅ Linux / macOS / Windows / CI | ❌ Windows 전용 | ✅ |
 > | **방식** | 직접 XML 파싱 | COM 자동화 | OLE 파싱 |
 
+## HWPX plugin usage
+
+The per-host bundles in the `hwpx-plugins` repository consume `python-hwpx` through
+`hwpx-mcp-server` and the local quickcheck scripts. During local development, set
+`PYTHON_HWPX_REPO=/absolute/path/to/python-hwpx` so the plugin launcher uses this checkout as an
+editable dependency.
+
 ## 🌍 크로스 플랫폼 지원
 
 HWPX 파일은 **ZIP + XML** 구조이므로, 한/글 프로그램 없이 Python만으로 읽고 편집하는 워크플로를 구성할 수 있습니다.
