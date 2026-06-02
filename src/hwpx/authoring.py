@@ -11,9 +11,18 @@ from typing import Any, Mapping
 from .builder import (
     Bullet as BuilderBullet,
     Document as BuilderDocument,
+    Footer as BuilderFooter,
+    Header as BuilderHeader,
     Heading as BuilderHeading,
+    Image as BuilderImage,
+    Margins as BuilderMargins,
+    Metadata as BuilderMetadata,
+    NumberedList as BuilderNumberedList,
     PageBreak as BuilderPageBreak,
+    PageNumber as BuilderPageNumber,
+    PageSize as BuilderPageSize,
     Paragraph as BuilderParagraph,
+    Run as BuilderRun,
     Section as BuilderSection,
     Table as BuilderTable,
 )
@@ -21,6 +30,7 @@ from .document import HwpxDocument
 from .tools.package_validator import validate_package
 
 DOCUMENT_PLAN_SCHEMA_VERSION = "hwpx.document_plan.v1"
+DOCUMENT_PLAN_V2_SCHEMA_VERSION = "hwpx.document_plan.v2"
 AUTHORING_REPORT_VERSION = "hwpx-authoring-quality-v1"
 OPERATING_PLAN_QUALITY_VERSION = "operating-plan-quality-v1"
 DEFAULT_STYLE_PRESET = "standard_korean_business"
@@ -63,6 +73,7 @@ class DocumentPlan:
     style_preset: str = DEFAULT_STYLE_PRESET
     quality_gates: dict[str, Any] = field(default_factory=dict)
     schema_version: str = DOCUMENT_PLAN_SCHEMA_VERSION
+    builder_document: BuilderDocument | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation of this plan."""
@@ -244,15 +255,20 @@ def validate_document_plan(plan: Mapping[str, Any]) -> PlanValidationReport:
         )
 
     schema_version = str(plan.get("schemaVersion") or "").strip()
-    if schema_version != DOCUMENT_PLAN_SCHEMA_VERSION:
+    if schema_version not in {DOCUMENT_PLAN_SCHEMA_VERSION, DOCUMENT_PLAN_V2_SCHEMA_VERSION}:
         issues.append(
             _plan_issue(
                 "invalid_schema_version",
                 "schemaVersion",
-                f"schemaVersion must be {DOCUMENT_PLAN_SCHEMA_VERSION!r}",
+                (
+                    f"schemaVersion must be {DOCUMENT_PLAN_SCHEMA_VERSION!r} "
+                    f"or {DOCUMENT_PLAN_V2_SCHEMA_VERSION!r}"
+                ),
                 suggestion=f"Set schemaVersion to {DOCUMENT_PLAN_SCHEMA_VERSION!r}.",
             )
         )
+    elif schema_version == DOCUMENT_PLAN_V2_SCHEMA_VERSION:
+        return _validate_document_plan_v2(plan, schema_version=schema_version)
 
     title = str(plan.get("title") or "").strip()
     if not title:
@@ -323,6 +339,20 @@ def normalize_document_plan(plan: Mapping[str, Any] | DocumentPlan) -> DocumentP
     if not report.ok:
         raise ValueError("; ".join(report.errors))
 
+    schema_version = str(plan.get("schemaVersion") or "").strip()
+    if schema_version == DOCUMENT_PLAN_V2_SCHEMA_VERSION:
+        return DocumentPlan(
+            schema_version=DOCUMENT_PLAN_V2_SCHEMA_VERSION,
+            title="",
+            subtitle="",
+            metadata={},
+            blocks=[],
+            style_preset=str(plan.get("stylePreset") or DEFAULT_STYLE_PRESET).strip()
+            or DEFAULT_STYLE_PRESET,
+            quality_gates=dict(_default_quality_gates() | dict(plan.get("qualityGates") or {})),
+            builder_document=_normalize_v2_builder_document(plan),
+        )
+
     blocks = [
         _normalize_block(raw_block, index=index)
         for index, raw_block in enumerate(plan.get("blocks") or [])
@@ -339,6 +369,136 @@ def normalize_document_plan(plan: Mapping[str, Any] | DocumentPlan) -> DocumentP
     )
 
 
+def _validate_document_plan_v2(
+    plan: Mapping[str, Any],
+    *,
+    schema_version: str,
+) -> PlanValidationReport:
+    issues: list[PlanValidationIssue] = []
+    sections = plan.get("sections")
+    if not isinstance(sections, list) or not sections:
+        issues.append(
+            _plan_issue(
+                "missing_sections",
+                "sections",
+                "sections must be a non-empty list",
+                suggestion="Add at least one section with a blocks array.",
+            )
+        )
+        return _plan_validation_report(issues, schema_version=schema_version)
+
+    for section_index, raw_section in enumerate(sections):
+        section_path = f"sections[{section_index}]"
+        if not isinstance(raw_section, Mapping):
+            issues.append(
+                _plan_issue(
+                    "section_not_object",
+                    section_path,
+                    f"{section_path} must be a mapping",
+                    suggestion="Use an object with optional header/footer and a blocks array.",
+                )
+            )
+            continue
+        blocks = raw_section.get("blocks", raw_section.get("children"))
+        if not isinstance(blocks, list) or not blocks:
+            issues.append(
+                _plan_issue(
+                    "missing_section_blocks",
+                    f"{section_path}.blocks",
+                    f"{section_path}.blocks must be a non-empty list",
+                    suggestion="Add builder blocks such as heading, paragraph, table, image, or page_break.",
+                )
+            )
+            continue
+        for block_index, raw_block in enumerate(blocks):
+            issues.extend(
+                _validate_v2_block(
+                    raw_block,
+                    path=f"{section_path}.blocks[{block_index}]",
+                )
+            )
+
+    metadata = plan.get("metadata", {})
+    if metadata is not None and not isinstance(metadata, Mapping):
+        issues.append(
+            _plan_issue(
+                "invalid_metadata",
+                "metadata",
+                "metadata must be a mapping when provided",
+                suggestion="Use an object with title, author, and organization fields or omit metadata.",
+            )
+        )
+    return _plan_validation_report(issues, schema_version=schema_version)
+
+
+def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue]:
+    if not isinstance(raw_block, Mapping):
+        return [
+            _plan_issue(
+                "block_not_object",
+                path,
+                f"{path} must be a mapping",
+                suggestion="Replace this block with a JSON object containing a supported builder type.",
+            )
+        ]
+    block_type = str(raw_block.get("type") or "").strip()
+    supported = {
+        "heading",
+        "paragraph",
+        "bullets",
+        "bullet",
+        "numbered_list",
+        "numberedList",
+        "table",
+        "image",
+        "page_break",
+        "pageBreak",
+    }
+    if block_type not in supported:
+        return [
+            _plan_issue(
+                "unsupported_block_type",
+                f"{path}.type",
+                f"{path}.type is unsupported: {block_type!r}",
+                suggestion="Use a public builder block type.",
+            )
+        ]
+    if block_type in {"heading", "image"}:
+        text_key = "text" if block_type == "heading" else "path"
+        if not str(raw_block.get(text_key) or "").strip():
+            return [
+                _plan_issue(
+                    "missing_text",
+                    f"{path}.{text_key}",
+                    f"{path}.{text_key} is required",
+                    suggestion=f"Add non-empty {text_key}.",
+                )
+            ]
+    if block_type in {"bullets", "bullet", "numbered_list", "numberedList"}:
+        if not _string_list(raw_block.get("items")):
+            return [
+                _plan_issue(
+                    "missing_list_items",
+                    f"{path}.items",
+                    f"{path}.items must be a non-empty list",
+                    suggestion="Add one or more list items.",
+                )
+            ]
+    if block_type == "table":
+        header = raw_block.get("header")
+        rows = raw_block.get("rows")
+        if not isinstance(header, list) and not isinstance(rows, list):
+            return [
+                _plan_issue(
+                    "missing_table_content",
+                    path,
+                    f"{path} must define header or rows",
+                    suggestion="Add a header array or rows array.",
+                )
+            ]
+    return []
+
+
 def create_document_from_plan(
     plan: Mapping[str, Any] | DocumentPlan,
     *,
@@ -347,6 +507,8 @@ def create_document_from_plan(
     """Create a formatted HWPX document from a declarative document plan."""
 
     normalized = normalize_document_plan(plan)
+    if normalized.builder_document is not None:
+        return normalized.builder_document.lower()
     style_preset = (
         preset
         if isinstance(preset, DocumentStylePreset)
@@ -900,6 +1062,172 @@ def _normalize_block(raw_block: Any, *, index: int) -> DocumentBlock:
     return DocumentBlock("page_break", {})
 
 
+def _normalize_v2_builder_document(plan: Mapping[str, Any]) -> BuilderDocument:
+    metadata = plan.get("metadata") or {}
+    builder_metadata = None
+    if isinstance(metadata, Mapping):
+        title = str(metadata.get("title") or plan.get("title") or "").strip()
+        author = str(metadata.get("author") or "").strip()
+        organization = str(metadata.get("organization") or "").strip()
+        if title or author or organization:
+            builder_metadata = BuilderMetadata(
+                title=title,
+                author=author,
+                organization=organization,
+            )
+    return BuilderDocument(
+        sections=tuple(
+            _normalize_v2_section(raw_section, index=index)
+            for index, raw_section in enumerate(plan.get("sections") or [])
+        ),
+        metadata=builder_metadata,
+        visual_review_required=_optional_bool(plan.get("visualReviewRequired")),
+    )
+
+
+def _normalize_v2_section(raw_section: Any, *, index: int) -> BuilderSection:
+    if not isinstance(raw_section, Mapping):
+        raise TypeError(f"sections[{index}] must be a mapping")
+    raw_blocks = raw_section.get("blocks", raw_section.get("children"))
+    return BuilderSection(
+        children=tuple(
+            _normalize_v2_block(raw_block, path=f"sections[{index}].blocks[{block_index}]")
+            for block_index, raw_block in enumerate(raw_blocks or [])
+        ),
+        page=_normalize_v2_page(raw_section.get("page")),
+        margins=_normalize_v2_margins(raw_section.get("margins")),
+        header=_normalize_v2_header_footer(raw_section.get("header"), kind="header"),
+        footer=_normalize_v2_header_footer(raw_section.get("footer"), kind="footer"),
+    )
+
+
+def _normalize_v2_page(value: Any) -> BuilderPageSize | None:
+    if not isinstance(value, Mapping):
+        return None
+    preset = str(value.get("preset") or "").strip().upper()
+    if preset == "A4":
+        return BuilderPageSize.A4
+    width = _float_value(value.get("widthMm", value.get("width_mm")), default=210)
+    height = _float_value(value.get("heightMm", value.get("height_mm")), default=297)
+    orientation = str(value.get("orientation") or "PORTRAIT").strip() or "PORTRAIT"
+    return BuilderPageSize(width_mm=width, height_mm=height, orientation=orientation)
+
+
+def _normalize_v2_margins(value: Any) -> BuilderMargins | None:
+    if not isinstance(value, Mapping):
+        return None
+    return BuilderMargins(
+        top_mm=_float_value(value.get("topMm", value.get("top_mm")), default=20),
+        right_mm=_float_value(value.get("rightMm", value.get("right_mm")), default=20),
+        bottom_mm=_float_value(value.get("bottomMm", value.get("bottom_mm")), default=20),
+        left_mm=_float_value(value.get("leftMm", value.get("left_mm")), default=20),
+        header_mm=_float_value(value.get("headerMm", value.get("header_mm")), default=10),
+        footer_mm=_float_value(value.get("footerMm", value.get("footer_mm")), default=10),
+        gutter_mm=_float_value(value.get("gutterMm", value.get("gutter_mm")), default=0),
+    )
+
+
+def _normalize_v2_header_footer(value: Any, *, kind: str) -> BuilderHeader | BuilderFooter | None:
+    if not isinstance(value, Mapping):
+        return None
+    children = tuple(_normalize_v2_header_footer_child(child) for child in value.get("children") or [])
+    if kind == "header":
+        return BuilderHeader(children=children)
+    return BuilderFooter(children=children)
+
+
+def _normalize_v2_header_footer_child(value: Any) -> BuilderParagraph | BuilderPageNumber:
+    if not isinstance(value, Mapping):
+        raise TypeError("header/footer children must be mappings")
+    child_type = str(value.get("type") or "paragraph").strip()
+    if child_type == "page_number":
+        return BuilderPageNumber(format=str(value.get("format") or "page"))
+    if child_type != "paragraph":
+        raise ValueError(f"unsupported header/footer child type: {child_type!r}")
+    children = tuple(_normalize_v2_paragraph_child(child) for child in value.get("children") or [])
+    return BuilderParagraph(
+        text=str(value.get("text") or ""),
+        children=children,
+        align=_optional_str(value.get("align")),
+    )
+
+
+def _normalize_v2_paragraph_child(value: Any) -> BuilderRun | BuilderPageNumber:
+    if not isinstance(value, Mapping):
+        raise TypeError("paragraph children must be mappings")
+    child_type = str(value.get("type") or "run").strip()
+    if child_type == "page_number":
+        return BuilderPageNumber(format=str(value.get("format") or "page"))
+    if child_type != "run":
+        raise ValueError(f"unsupported paragraph child type: {child_type!r}")
+    return BuilderRun(
+        text=str(value.get("text") or ""),
+        bold=bool(value.get("bold", False)),
+        italic=bool(value.get("italic", False)),
+        underline=bool(value.get("underline", False)),
+        color=_optional_str(value.get("color")),
+        font=_optional_str(value.get("font")),
+        size=_optional_number(value.get("size")),
+        highlight=_optional_str(value.get("highlight")),
+        strike=bool(value.get("strike", False)),
+    )
+
+
+def _normalize_v2_block(raw_block: Any, *, path: str) -> Any:
+    if not isinstance(raw_block, Mapping):
+        raise TypeError(f"{path} must be a mapping")
+    block_type = str(raw_block.get("type") or "").strip()
+    if block_type == "heading":
+        return BuilderHeading(
+            level=_int_value(raw_block.get("level", 1), default=1),
+            text=str(raw_block.get("text") or ""),
+        )
+    if block_type == "paragraph":
+        children = tuple(
+            child
+            for child in (_normalize_v2_paragraph_child(child) for child in raw_block.get("children") or [])
+            if isinstance(child, BuilderRun)
+        )
+        return BuilderParagraph(
+            text=str(raw_block.get("text") or ""),
+            children=children,
+            align=_optional_str(raw_block.get("align")),
+            style=_optional_str(raw_block.get("style")),
+        )
+    if block_type in {"bullets", "bullet"}:
+        return BuilderBullet(
+            items=tuple(_string_list(raw_block.get("items"))),
+            level=_int_value(raw_block.get("level", 0), default=0),
+        )
+    if block_type in {"numbered_list", "numberedList"}:
+        return BuilderNumberedList(
+            items=tuple(_string_list(raw_block.get("items"))),
+            level=_int_value(raw_block.get("level", 0), default=0),
+        )
+    if block_type == "table":
+        return BuilderTable(
+            header=tuple(str(item) for item in raw_block.get("header") or ()),
+            rows=tuple(tuple(str(cell) for cell in row) for row in raw_block.get("rows") or ()),
+            merges=tuple(str(item) for item in raw_block.get("merges") or ()),
+            header_shading=_optional_str(raw_block.get("headerShading", raw_block.get("header_shading"))),
+            column_widths=tuple(
+                _optional_number(item) or 0
+                for item in raw_block.get("columnWidths", raw_block.get("column_widths")) or ()
+            ),
+        )
+    if block_type == "image":
+        return BuilderImage(
+            path=str(raw_block.get("path") or ""),
+            width_mm=_optional_number(raw_block.get("widthMm", raw_block.get("width_mm"))),
+            align=_optional_str(raw_block.get("align")),
+            caption=_optional_str(raw_block.get("caption")),
+            image_format=_optional_str(raw_block.get("imageFormat", raw_block.get("image_format"))),
+        )
+    if block_type in {"page_break", "pageBreak"}:
+        return BuilderPageBreak()
+    raise ValueError(f"{path}.type is unsupported: {block_type!r}")
+
+
 def _lower_plan_to_builder_document(plan: DocumentPlan) -> BuilderDocument:
     """Lower a normalized document plan to builder nodes.
 
@@ -909,6 +1237,8 @@ def _lower_plan_to_builder_document(plan: DocumentPlan) -> BuilderDocument:
     document-level framing.
     """
 
+    if plan.builder_document is not None:
+        return plan.builder_document
     children: list[Any] = []
     for block in plan.blocks:
         children.extend(_block_to_builder_nodes(block))
@@ -1986,10 +2316,43 @@ def _int_value(value: Any, *, default: int) -> int:
         return default
 
 
+def _float_value(value: Any, *, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _optional_number(value: Any) -> int | float | None:
+    if value in (None, ""):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number.is_integer():
+        return int(number)
+    return number
+
+
+def _optional_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    return bool(value)
+
+
+def _optional_str(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    return text if text else None
+
+
 __all__ = [
     "AUTHORING_REPORT_VERSION",
     "DEFAULT_STYLE_PRESET",
     "DOCUMENT_PLAN_SCHEMA_VERSION",
+    "DOCUMENT_PLAN_V2_SCHEMA_VERSION",
     "DocumentBlock",
     "DocumentPlan",
     "DocumentStylePreset",
