@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from os import PathLike
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Mapping, Sequence
 
 from hwpx.document import HwpxDocument
 from hwpx.tools.package_validator import validate_package
@@ -14,7 +14,7 @@ from .report import BuilderSaveReport, ReopenReport
 
 
 BuilderChild = (
-    "Heading | Paragraph | Bullet | NumberedList | Table | Image | PageBreak"
+    "Heading | Paragraph | Bullet | NumberedList | Table | Image | Toc | PageBreak"
 )
 _HWP_UNITS_PER_MM = 7200 / 25.4
 _A4_HWP_SIZE = (59528, 84188)
@@ -104,6 +104,34 @@ class Paragraph:
 class PageBreak:
     def lower(self, document: HwpxDocument) -> None:
         document.add_paragraph("", pageBreak="1", inherit_style=False)
+
+
+@dataclass(frozen=True)
+class Toc:
+    title: str = "목차"
+    entries: Sequence[Mapping[str, Any]] = field(default_factory=tuple)
+
+    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+        title_style = document.ensure_run_style(bold=True, size=14)
+        entry_style = document.ensure_run_style()
+        document.add_paragraph(
+            self.title,
+            section_index=section_index,
+            char_pr_id_ref=title_style,
+            inherit_style=False,
+        )
+        for entry in self.entries:
+            text = str(entry.get("text") or "").strip()
+            if not text:
+                continue
+            page = str(entry.get("page") or "").strip()
+            line = f"{text}\t{page}" if page else text
+            document.add_paragraph(
+                line,
+                section_index=section_index,
+                char_pr_id_ref=entry_style,
+                inherit_style=False,
+            )
 
 
 @dataclass(frozen=True)
@@ -351,6 +379,7 @@ def _section_feature_flags(section: "Section") -> dict[str, bool]:
         "list": False,
         "table": False,
         "image": False,
+        "toc": False,
         "page_break": False,
     }
     if section.header is not None and _children_contain_page_number(section.header.children):
@@ -373,6 +402,8 @@ def _section_feature_flags(section: "Section") -> dict[str, bool]:
             flags["table"] = True
         elif isinstance(child, Image):
             flags["image"] = True
+        elif isinstance(child, Toc):
+            flags["toc"] = True
         elif isinstance(child, PageBreak):
             flags["page_break"] = True
     return flags
@@ -399,7 +430,7 @@ def _hard_gates(package_report: object, document_report: object, reopen_report: 
 
 @dataclass(frozen=True)
 class Section:
-    children: Sequence[Heading | Paragraph | Bullet | NumberedList | Table | Image | PageBreak] = field(
+    children: Sequence[Heading | Paragraph | Bullet | NumberedList | Table | Image | Toc | PageBreak] = field(
         default_factory=tuple
     )
     page: PageSize | None = None
@@ -449,6 +480,9 @@ class Section:
                 child.lower(document, section_index=section_index)
                 continue
             if isinstance(child, Image):
+                child.lower(document, section_index=section_index)
+                continue
+            if isinstance(child, Toc):
                 child.lower(document, section_index=section_index)
                 continue
             raise NotImplementedError(f"{type(child).__name__} lowering is not implemented yet")

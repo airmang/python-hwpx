@@ -26,6 +26,7 @@ from .builder import (
     Section as BuilderSection,
     Table as BuilderTable,
 )
+from .builder.core import Toc as BuilderToc
 from .document import HwpxDocument
 from .tools.package_validator import validate_package
 
@@ -451,6 +452,7 @@ def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue
         "numberedList",
         "table",
         "image",
+        "toc",
         "page_break",
         "pageBreak",
     }
@@ -1222,6 +1224,15 @@ def _normalize_v2_block(raw_block: Any, *, path: str) -> Any:
             align=_optional_str(raw_block.get("align")),
             caption=_optional_str(raw_block.get("caption")),
             image_format=_optional_str(raw_block.get("imageFormat", raw_block.get("image_format"))),
+        )
+    if block_type == "toc":
+        return BuilderToc(
+            title=str(raw_block.get("title") or "목차"),
+            entries=tuple(
+                entry
+                for entry in raw_block.get("entries") or ()
+                if isinstance(entry, Mapping)
+            ),
         )
     if block_type in {"page_break", "pageBreak"}:
         return BuilderPageBreak()

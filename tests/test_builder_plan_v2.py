@@ -21,6 +21,7 @@ from hwpx.builder import (
     Section,
     Table,
 )
+from hwpx.builder.core import Toc
 from hwpx.document import HwpxDocument
 
 HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
@@ -244,3 +245,64 @@ def test_plan_v2_expresses_builder_surface_and_matches_builder_output(tmp_path) 
         document.close()
 
     assert _signature(plan_path) == _signature(builder_path)
+
+
+def _toc_signature(path) -> dict:
+    document = HwpxDocument.open(path)
+    try:
+        text = document.export_text()
+        toc_paragraphs = [
+            paragraph.text
+            for paragraph in document.paragraphs
+            if paragraph.text in {"목차", "추진 개요\t1", "세부 목표\t2"}
+        ]
+        return {
+            "toc_paragraphs": toc_paragraphs,
+            "has_heading": "추진 개요" in text,
+            "has_body": "본문" in text,
+        }
+    finally:
+        document.close()
+
+
+def test_builder_and_plan_v2_lower_minimal_toc_node(tmp_path) -> None:
+    builder_path = tmp_path / "builder-toc.hwpx"
+    plan_path = tmp_path / "plan-v2-toc.hwpx"
+    entries = [
+        {"level": 1, "text": "추진 개요", "page": "1"},
+        {"level": 2, "text": "세부 목표", "page": "2"},
+    ]
+
+    Document(
+        sections=[
+            Section(
+                children=[
+                    Toc(entries=entries),
+                    Heading(level=1, text="추진 개요"),
+                    Paragraph(text="본문"),
+                ]
+            )
+        ]
+    ).save_to_path(builder_path)
+
+    plan = {
+        "schemaVersion": PLAN_V2_SCHEMA_VERSION,
+        "sections": [
+            {
+                "blocks": [
+                    {"type": "toc", "entries": entries},
+                    {"type": "heading", "level": 1, "text": "추진 개요"},
+                    {"type": "paragraph", "text": "본문"},
+                ]
+            }
+        ],
+    }
+    assert validate_document_plan(plan).ok is True
+
+    document = create_document_from_plan(plan)
+    try:
+        document.save_to_path(plan_path)
+    finally:
+        document.close()
+
+    assert _toc_signature(plan_path) == _toc_signature(builder_path)
