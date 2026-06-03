@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from os import PathLike
 from typing import Any
 
+from hwpx.tools.id_integrity import IdIntegrityReport, check_id_integrity
 from hwpx.tools.package_validator import PackageValidationReport
 from hwpx.tools.validator import ValidationReport
 
@@ -30,6 +31,19 @@ class BuilderSaveReport:
     hard_gates: dict[str, str] = field(default_factory=dict)
     visual_review_required: bool = False
     feature_flags: dict[str, bool] = field(default_factory=dict)
+    id_integrity: IdIntegrityReport | None = None
+
+    def __post_init__(self) -> None:
+        hard_gates = dict(self.hard_gates)
+        if hard_gates.get("id_integrity") in {None, "unavailable"}:
+            id_integrity = None
+            if self.reopened.ok and self.reopened.document is not None:
+                id_integrity = check_id_integrity(self.reopened.document)
+                hard_gates["id_integrity"] = "pass" if id_integrity.ok else "fail"
+            else:
+                hard_gates["id_integrity"] = "fail"
+            object.__setattr__(self, "hard_gates", hard_gates)
+            object.__setattr__(self, "id_integrity", id_integrity)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -56,4 +70,22 @@ class BuilderSaveReport:
                 "ok": self.reopened.ok,
                 "error": self.reopened.error,
             },
+            "id_integrity": (
+                None
+                if self.id_integrity is None
+                else {
+                    "ok": self.id_integrity.ok,
+                    "dangling": [str(item) for item in self.id_integrity.dangling],
+                    "ignored": [
+                        {
+                            "part": item.part,
+                            "element": item.element,
+                            "attr": item.attr,
+                            "value": item.value,
+                            "reason": item.reason,
+                        }
+                        for item in self.id_integrity.ignored
+                    ],
+                }
+            ),
         }

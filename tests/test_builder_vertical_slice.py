@@ -106,7 +106,7 @@ def test_builder_vertical_slice_hard_gates_and_sample_structures(tmp_path) -> No
     assert report.hard_gates["package_validation"] == "pass"
     assert report.hard_gates["document_errors"] == "pass"
     assert report.hard_gates["reopen"] == "pass"
-    assert report.hard_gates["id_integrity"] == "unavailable"
+    assert report.hard_gates["id_integrity"] == "pass"
     assert report.visual_review_required is True
     for feature in (
         "metadata",

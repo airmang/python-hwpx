@@ -6,7 +6,10 @@ from pathlib import Path
 import pytest
 
 from hwpx.document import HwpxDocument
+from hwpx.builder.report import BuilderSaveReport, ReopenReport
 from hwpx.tools.id_integrity import check_id_integrity
+from hwpx.tools.package_validator import PackageValidationReport
+from hwpx.tools.validator import ValidationReport
 
 
 CORPUS = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
@@ -69,3 +72,22 @@ def test_representative_corpus_documents_pass(name: str) -> None:
 
     assert report.ok is True
     assert report.dangling == []
+
+
+def test_builder_report_marks_dangling_id_integrity_fail(tmp_path) -> None:
+    doc = HwpxDocument.new()
+    doc.add_paragraph("본문")
+    _first_element_with_attr(doc, "charPrIDRef").set("charPrIDRef", "999999")
+
+    report = BuilderSaveReport(
+        path=tmp_path / "broken.hwpx",
+        validate_package=PackageValidationReport(checked_parts=(), issues=()),
+        validate_document=ValidationReport(validated_parts=(), issues=()),
+        reopened=ReopenReport(ok=True, document=doc),
+        hard_gates={"id_integrity": "unavailable"},
+    )
+
+    assert report.hard_gates["id_integrity"] == "fail"
+    assert report.id_integrity is not None
+    assert any(item.attr == "charPrIDRef" for item in report.id_integrity.dangling)
+    assert report.to_dict()["id_integrity"]["ok"] is False
