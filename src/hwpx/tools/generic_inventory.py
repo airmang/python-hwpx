@@ -13,6 +13,7 @@ from typing import Any, Iterable
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml import GenericElement, parse_section_xml
+from hwpx.oxml.body import InlineObject, Table
 
 
 def _manifest_samples(corpus_dir: Path) -> list[str]:
@@ -29,11 +30,19 @@ def _model_sections(source: str | Path | bytes) -> Iterable[Any]:
             yield parse_section_xml(ET.tostring(section.element, encoding="utf-8"))
 
 
-def _walk_model(value: Any) -> Iterable[GenericElement]:
+InventoryBoundary = GenericElement | InlineObject
+
+
+def _walk_model(value: Any) -> Iterable[InventoryBoundary]:
     if isinstance(value, GenericElement):
         yield value
-        for child in value.children:
-            yield from _walk_model(child)
+        return
+
+    if isinstance(value, InlineObject):
+        yield value
+        return
+
+    if isinstance(value, Table):
         return
 
     if isinstance(value, (str, bytes, bytearray, dict)) or value is None:

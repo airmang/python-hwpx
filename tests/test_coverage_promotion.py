@@ -11,7 +11,8 @@ from lxml import etree
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml import HwpxOxmlSection, parse_section_xml
-from hwpx.oxml.body import LineSeg, LineSegArray, TransformMatrix
+from hwpx.oxml import GenericElement
+from hwpx.oxml.body import InlineObject, LineSeg, LineSegArray, Table, TransformMatrix
 from hwpx.tools import generic_inventory
 from hwpx.tools.roundtrip_diff import roundtrip_report
 
@@ -57,6 +58,80 @@ def test_generic_inventory_scans_engine_generic_body_elements() -> None:
     assert top[0]["tag"]
     assert top[0]["count"] >= top[0]["documents"] >= 1
     assert set(top[0]) == {"tag", "count", "documents", "samples"}
+
+
+def test_generic_inventory_counts_outermost_generic_boundary_only() -> None:
+    model = GenericElement(
+        name="container",
+        tag="{http://www.hancom.co.kr/hwpml/2011/paragraph}container",
+        children=[
+            GenericElement(
+                name="run",
+                tag="{http://www.hancom.co.kr/hwpml/2011/paragraph}run",
+                children=[
+                    GenericElement(
+                        name="t",
+                        tag="{http://www.hancom.co.kr/hwpml/2011/paragraph}t",
+                    )
+                ],
+            )
+        ],
+    )
+
+    assert [element.name for element in generic_inventory._walk_model(model)] == ["container"]
+
+
+def test_generic_inventory_counts_inline_object_as_content_boundary() -> None:
+    model = InlineObject(
+        tag="{http://www.hancom.co.kr/hwpml/2011/paragraph}ellipse",
+        name="ellipse",
+        children=[
+            GenericElement(
+                name="pos",
+                tag="{http://www.hancom.co.kr/hwpml/2011/paragraph}pos",
+            )
+        ],
+    )
+
+    assert [element.name for element in generic_inventory._walk_model(model)] == ["ellipse"]
+
+
+def test_generic_inventory_skips_table_internals_for_b3_boundary() -> None:
+    model = Table(
+        tag="{http://www.hancom.co.kr/hwpml/2011/paragraph}tbl",
+        children=[
+            GenericElement(
+                name="tr",
+                tag="{http://www.hancom.co.kr/hwpml/2011/paragraph}tr",
+            )
+        ],
+    )
+
+    assert list(generic_inventory._walk_model(model)) == []
+
+
+def test_generic_inventory_fixed_top_prefers_content_boundaries() -> None:
+    inventory = generic_inventory.scan_corpus(CORPUS)
+    top_tags = [row["tag"] for row in generic_inventory.top_entries(inventory, limit=10)]
+
+    noisy_descendants = {
+        "run",
+        "p",
+        "t",
+        "tr",
+        "tc",
+        "cellSpan",
+        "cellAddr",
+        "cellMargin",
+        "cellSz",
+        "offset",
+        "pos",
+        "sz",
+        "renderingInfo",
+    }
+
+    assert noisy_descendants.isdisjoint(top_tags)
+    assert {"ellipse", "container", "pic"}.intersection(top_tags)
 
 
 def test_generic_inventory_writes_json(tmp_path: Path) -> None:
