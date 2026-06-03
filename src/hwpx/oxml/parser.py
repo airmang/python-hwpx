@@ -32,6 +32,7 @@ _ELEMENT_FACTORY["lineseg"] = body.parse_line_seg_element
 _ELEMENT_FACTORY["transMatrix"] = body.parse_transform_matrix_element
 _ELEMENT_FACTORY["scaMatrix"] = body.parse_transform_matrix_element
 _ELEMENT_FACTORY["rotMatrix"] = body.parse_transform_matrix_element
+_ELEMENT_FACTORY["edit"] = body.parse_form_edit_element
 for name in body.INLINE_OBJECT_NAMES:
     _ELEMENT_FACTORY.setdefault(name, body.parse_inline_object_element)
 for mark_name in ("insertBegin", "insertEnd", "deleteBegin", "deleteEnd"):

@@ -24,6 +24,10 @@ reimplemented from public references, without copying source code:
   observations for paragraph line segment elements (`linesegarray`, `lineseg`)
   and rendering matrix elements (`transMatrix`, `scaMatrix`, `rotMatrix`) from
   public model headers only.
+- hancom-io/hwpx-owpml-model (Apache-2.0): C1b form-control promotion
+  structure observations for `edit`, `comboBox`, and button-family controls
+  from public model headers only. hwpxlib sample packages were used only as
+  structure and roundtrip fixtures.
 
 These form-fill references were used as behavior evidence only. The
 implementation is a clean-room Python implementation; no source code was

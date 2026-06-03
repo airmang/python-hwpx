@@ -12,7 +12,14 @@ from lxml import etree
 from hwpx.document import HwpxDocument
 from hwpx.oxml import HwpxOxmlSection, parse_section_xml
 from hwpx.oxml import GenericElement
-from hwpx.oxml.body import InlineObject, LineSeg, LineSegArray, Table, TransformMatrix
+from hwpx.oxml.body import (
+    FormEditControl,
+    InlineObject,
+    LineSeg,
+    LineSegArray,
+    Table,
+    TransformMatrix,
+)
 from hwpx.tools import generic_inventory
 from hwpx.tools.roundtrip_diff import roundtrip_report
 
@@ -23,6 +30,7 @@ SAMPLES = [
     for sample in json.loads((CORPUS / "manifest.json").read_text("utf-8"))["samples"]
 ]
 SIMPLE_LINE = CORPUS / "reader_writer__SimpleLine.hwpx"
+SIMPLE_EDIT = CORPUS / "reader_writer__SimpleEdit.hwpx"
 
 
 def _section_xml(sample: Path, entry: str = "Contents/section0.xml") -> bytes:
@@ -303,3 +311,50 @@ def test_rotmatrix_model_roundtrips_through_paragraph_apply() -> None:
     assert updated_matrix.e2 == "0.5"
     paragraph_xml = ET.tostring(paragraph.element, encoding="utf-8")
     assert _local_count(paragraph_xml, "rotMatrix") == 1
+
+
+def test_edit_control_promoted_from_hwpxlib_sample() -> None:
+    section = parse_section_xml(_section_xml(SIMPLE_EDIT))
+    edits = [node for node in _walk(section) if isinstance(node, FormEditControl)]
+
+    assert edits
+    edit = edits[0]
+    assert edit.name == "edit"
+    assert edit.multi_line == "0"
+    assert edit.password_char == "X"
+    assert edit.max_length == 2147483647
+    assert edit.scroll_bars == "NONE"
+    assert edit.tab_key_behavior == "NEXT_OBJECT"
+    assert edit.num_only == "1"
+    assert edit.read_only == "0"
+    assert edit.align_text == "LEFT"
+    assert edit.attributes["name"] == "Edit1"
+    assert [child.name for child in edit.children[:2]] == ["formCharPr", "text"]
+
+
+def test_edit_control_model_roundtrips_through_paragraph_apply() -> None:
+    section_element = ET.fromstring(_section_xml(SIMPLE_EDIT))
+    section = HwpxOxmlSection("section0.xml", section_element)
+    paragraph = section.paragraphs[0]
+
+    model = paragraph.to_model()
+    edit = next(node for node in _walk(model) if isinstance(node, FormEditControl))
+    edit.max_length = 42
+    edit.read_only = "1"
+
+    paragraph.apply_model(model)
+    updated = paragraph.to_model()
+    updated_edit = next(node for node in _walk(updated) if isinstance(node, FormEditControl))
+
+    assert updated_edit.max_length == 42
+    assert updated_edit.read_only == "1"
+    paragraph_xml = ET.tostring(paragraph.element, encoding="utf-8")
+    assert _local_count(paragraph_xml, "edit") == 1
+    assert _local_count(paragraph_xml, "formCharPr") == 1
+
+
+def test_edit_control_sample_roundtrip_has_no_a1_loss() -> None:
+    rep = roundtrip_report(SIMPLE_EDIT)
+
+    assert rep["reopened"] is True
+    assert rep["lost_elements"] == {}

@@ -43,7 +43,7 @@ _TRACK_CHANGE_MARK_NAMES = {
     "deleteEnd",
 }
 
-PreservedElement = Union[GenericElement, "LineSegArray", "LineSeg", "TransformMatrix"]
+PreservedElement = Union[GenericElement, "LineSegArray", "LineSeg", "TransformMatrix", "FormEditControl"]
 InlineMark = Union[PreservedElement, "TrackChangeMark"]
 RunChild = Union[PreservedElement, "Control", "Table", "InlineObject", "TextSpan", "Tab"]
 ParagraphChild = Union["Run", PreservedElement]
@@ -159,6 +159,23 @@ class TransformMatrix:
     e4: Optional[str]
     e5: Optional[str]
     e6: Optional[str]
+    attributes: Dict[str, str] = field(default_factory=dict)
+    children: List[PreservedElement] = field(default_factory=list)
+    text: Optional[str] = None
+
+
+@dataclass(slots=True)
+class FormEditControl:
+    tag: str
+    name: str
+    multi_line: Optional[str]
+    password_char: Optional[str]
+    max_length: Optional[int]
+    scroll_bars: Optional[str]
+    tab_key_behavior: Optional[str]
+    num_only: Optional[str]
+    read_only: Optional[str]
+    align_text: Optional[str]
     attributes: Dict[str, str] = field(default_factory=dict)
     children: List[PreservedElement] = field(default_factory=list)
     text: Optional[str] = None
@@ -292,6 +309,25 @@ def parse_transform_matrix_element(node: etree._Element) -> TransformMatrix:
     )
 
 
+def parse_form_edit_element(node: etree._Element) -> FormEditControl:
+    attrs = {key: value for key, value in node.attrib.items()}
+    return FormEditControl(
+        tag=node.tag,
+        name=local_name(node),
+        multi_line=attrs.pop("multiLine", None),
+        password_char=attrs.pop("passwordChar", None),
+        max_length=_parse_int_attribute(attrs, "maxLength"),
+        scroll_bars=attrs.pop("scrollBars", None),
+        tab_key_behavior=attrs.pop("tabKeyBehavior", None),
+        num_only=attrs.pop("numOnly", None),
+        read_only=attrs.pop("readOnly", None),
+        align_text=attrs.pop("alignText", None),
+        attributes=attrs,
+        children=[parse_preserved_element(child) for child in node],
+        text=node.text if node.text is not None else None,
+    )
+
+
 def parse_preserved_element(node: etree._Element) -> PreservedElement:
     name = local_name(node)
     if name == "linesegarray":
@@ -300,6 +336,8 @@ def parse_preserved_element(node: etree._Element) -> PreservedElement:
         return parse_line_seg_element(node)
     if name in {"transMatrix", "scaMatrix", "rotMatrix"}:
         return parse_transform_matrix_element(node)
+    if name == "edit":
+        return parse_form_edit_element(node)
     return GenericElement(
         name=name,
         tag=node.tag,
@@ -505,6 +543,24 @@ def _transform_matrix_to_xml(matrix: TransformMatrix) -> etree._Element:
     return node
 
 
+def _form_edit_to_xml(edit: FormEditControl) -> etree._Element:
+    attrs = dict(edit.attributes)
+    _set_str_attr(attrs, "multiLine", edit.multi_line)
+    _set_str_attr(attrs, "passwordChar", edit.password_char)
+    _set_int_attr(attrs, "maxLength", edit.max_length)
+    _set_str_attr(attrs, "scrollBars", edit.scroll_bars)
+    _set_str_attr(attrs, "tabKeyBehavior", edit.tab_key_behavior)
+    _set_str_attr(attrs, "numOnly", edit.num_only)
+    _set_str_attr(attrs, "readOnly", edit.read_only)
+    _set_str_attr(attrs, "alignText", edit.align_text)
+    node = etree.Element(_qualified_tag(edit.tag, edit.name), attrs)
+    if edit.text:
+        node.text = edit.text
+    for child in edit.children:
+        node.append(_preserved_element_to_xml(child))
+    return node
+
+
 def _preserved_element_to_xml(element: PreservedElement) -> etree._Element:
     if isinstance(element, LineSegArray):
         return _line_seg_array_to_xml(element)
@@ -512,6 +568,8 @@ def _preserved_element_to_xml(element: PreservedElement) -> etree._Element:
         return _line_seg_to_xml(element)
     if isinstance(element, TransformMatrix):
         return _transform_matrix_to_xml(element)
+    if isinstance(element, FormEditControl):
+        return _form_edit_to_xml(element)
     return _generic_element_to_xml(element)
 
 
@@ -619,6 +677,7 @@ def serialize_paragraph(paragraph: Paragraph) -> etree._Element:
 
 __all__ = [
     "Control",
+    "FormEditControl",
     "InlineObject",
     "INLINE_OBJECT_NAMES",
     "LineSeg",
@@ -633,6 +692,7 @@ __all__ = [
     "TrackChangeMark",
     "TransformMatrix",
     "parse_control_element",
+    "parse_form_edit_element",
     "parse_inline_object_element",
     "parse_line_seg_array_element",
     "parse_line_seg_element",
