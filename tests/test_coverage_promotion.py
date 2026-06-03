@@ -13,6 +13,7 @@ from hwpx.document import HwpxDocument
 from hwpx.oxml import HwpxOxmlSection, parse_section_xml
 from hwpx.oxml import GenericElement
 from hwpx.oxml.body import (
+    FormComboBoxControl,
     FormEditControl,
     InlineObject,
     LineSeg,
@@ -31,6 +32,7 @@ SAMPLES = [
 ]
 SIMPLE_LINE = CORPUS / "reader_writer__SimpleLine.hwpx"
 SIMPLE_EDIT = CORPUS / "reader_writer__SimpleEdit.hwpx"
+SIMPLE_COMBO_BOX = CORPUS / "reader_writer__SimpleComboBox.hwpx"
 
 
 def _section_xml(sample: Path, entry: str = "Contents/section0.xml") -> bytes:
@@ -355,6 +357,49 @@ def test_edit_control_model_roundtrips_through_paragraph_apply() -> None:
 
 def test_edit_control_sample_roundtrip_has_no_a1_loss() -> None:
     rep = roundtrip_report(SIMPLE_EDIT)
+
+    assert rep["reopened"] is True
+    assert rep["lost_elements"] == {}
+
+
+def test_combo_box_control_promoted_from_hwpxlib_sample() -> None:
+    section = parse_section_xml(_section_xml(SIMPLE_COMBO_BOX))
+    controls = [node for node in _walk(section) if isinstance(node, FormComboBoxControl)]
+
+    assert controls
+    combo = controls[0]
+    assert combo.name == "comboBox"
+    assert combo.list_box_rows == 10
+    assert combo.list_box_width == 0
+    assert combo.edit_enable == "1"
+    assert combo.selected_value == ""
+    assert combo.attributes["name"] == "ComboBox1"
+    assert [child.name for child in combo.children[:2]] == ["formCharPr", "listItem"]
+
+
+def test_combo_box_control_model_roundtrips_through_paragraph_apply() -> None:
+    section_element = ET.fromstring(_section_xml(SIMPLE_COMBO_BOX))
+    section = HwpxOxmlSection("section0.xml", section_element)
+    paragraph = section.paragraphs[0]
+
+    model = paragraph.to_model()
+    combo = next(node for node in _walk(model) if isinstance(node, FormComboBoxControl))
+    combo.list_box_rows = 7
+    combo.selected_value = "selected"
+
+    paragraph.apply_model(model)
+    updated = paragraph.to_model()
+    updated_combo = next(node for node in _walk(updated) if isinstance(node, FormComboBoxControl))
+
+    assert updated_combo.list_box_rows == 7
+    assert updated_combo.selected_value == "selected"
+    paragraph_xml = ET.tostring(paragraph.element, encoding="utf-8")
+    assert _local_count(paragraph_xml, "comboBox") == 1
+    assert _local_count(paragraph_xml, "listItem") == 1
+
+
+def test_combo_box_control_sample_roundtrip_has_no_a1_loss() -> None:
+    rep = roundtrip_report(SIMPLE_COMBO_BOX)
 
     assert rep["reopened"] is True
     assert rep["lost_elements"] == {}

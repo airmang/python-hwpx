@@ -43,7 +43,14 @@ _TRACK_CHANGE_MARK_NAMES = {
     "deleteEnd",
 }
 
-PreservedElement = Union[GenericElement, "LineSegArray", "LineSeg", "TransformMatrix", "FormEditControl"]
+PreservedElement = Union[
+    GenericElement,
+    "LineSegArray",
+    "LineSeg",
+    "TransformMatrix",
+    "FormEditControl",
+    "FormComboBoxControl",
+]
 InlineMark = Union[PreservedElement, "TrackChangeMark"]
 RunChild = Union[PreservedElement, "Control", "Table", "InlineObject", "TextSpan", "Tab"]
 ParagraphChild = Union["Run", PreservedElement]
@@ -176,6 +183,19 @@ class FormEditControl:
     num_only: Optional[str]
     read_only: Optional[str]
     align_text: Optional[str]
+    attributes: Dict[str, str] = field(default_factory=dict)
+    children: List[PreservedElement] = field(default_factory=list)
+    text: Optional[str] = None
+
+
+@dataclass(slots=True)
+class FormComboBoxControl:
+    tag: str
+    name: str
+    list_box_rows: Optional[int]
+    list_box_width: Optional[int]
+    edit_enable: Optional[str]
+    selected_value: Optional[str]
     attributes: Dict[str, str] = field(default_factory=dict)
     children: List[PreservedElement] = field(default_factory=list)
     text: Optional[str] = None
@@ -328,6 +348,21 @@ def parse_form_edit_element(node: etree._Element) -> FormEditControl:
     )
 
 
+def parse_form_combo_box_element(node: etree._Element) -> FormComboBoxControl:
+    attrs = {key: value for key, value in node.attrib.items()}
+    return FormComboBoxControl(
+        tag=node.tag,
+        name=local_name(node),
+        list_box_rows=_parse_int_attribute(attrs, "listBoxRows"),
+        list_box_width=_parse_int_attribute(attrs, "listBoxWidth"),
+        edit_enable=attrs.pop("editEnable", None),
+        selected_value=attrs.pop("selectedValue", None),
+        attributes=attrs,
+        children=[parse_preserved_element(child) for child in node],
+        text=node.text if node.text is not None else None,
+    )
+
+
 def parse_preserved_element(node: etree._Element) -> PreservedElement:
     name = local_name(node)
     if name == "linesegarray":
@@ -338,6 +373,8 @@ def parse_preserved_element(node: etree._Element) -> PreservedElement:
         return parse_transform_matrix_element(node)
     if name == "edit":
         return parse_form_edit_element(node)
+    if name == "comboBox":
+        return parse_form_combo_box_element(node)
     return GenericElement(
         name=name,
         tag=node.tag,
@@ -561,6 +598,20 @@ def _form_edit_to_xml(edit: FormEditControl) -> etree._Element:
     return node
 
 
+def _form_combo_box_to_xml(combo: FormComboBoxControl) -> etree._Element:
+    attrs = dict(combo.attributes)
+    _set_int_attr(attrs, "listBoxRows", combo.list_box_rows)
+    _set_int_attr(attrs, "listBoxWidth", combo.list_box_width)
+    _set_str_attr(attrs, "editEnable", combo.edit_enable)
+    _set_str_attr(attrs, "selectedValue", combo.selected_value)
+    node = etree.Element(_qualified_tag(combo.tag, combo.name), attrs)
+    if combo.text:
+        node.text = combo.text
+    for child in combo.children:
+        node.append(_preserved_element_to_xml(child))
+    return node
+
+
 def _preserved_element_to_xml(element: PreservedElement) -> etree._Element:
     if isinstance(element, LineSegArray):
         return _line_seg_array_to_xml(element)
@@ -570,6 +621,8 @@ def _preserved_element_to_xml(element: PreservedElement) -> etree._Element:
         return _transform_matrix_to_xml(element)
     if isinstance(element, FormEditControl):
         return _form_edit_to_xml(element)
+    if isinstance(element, FormComboBoxControl):
+        return _form_combo_box_to_xml(element)
     return _generic_element_to_xml(element)
 
 
@@ -677,6 +730,7 @@ def serialize_paragraph(paragraph: Paragraph) -> etree._Element:
 
 __all__ = [
     "Control",
+    "FormComboBoxControl",
     "FormEditControl",
     "InlineObject",
     "INLINE_OBJECT_NAMES",
@@ -692,6 +746,7 @@ __all__ = [
     "TrackChangeMark",
     "TransformMatrix",
     "parse_control_element",
+    "parse_form_combo_box_element",
     "parse_form_edit_element",
     "parse_inline_object_element",
     "parse_line_seg_array_element",
