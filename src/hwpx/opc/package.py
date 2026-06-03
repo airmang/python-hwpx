@@ -593,7 +593,11 @@ class HwpxPackage:
             return info
 
         info = ZipInfo(path, original.date_time)
-        info.compress_type = original.compress_type
+        info.compress_type = (
+            compress_type
+            if path == self.MIMETYPE_PATH
+            else original.compress_type
+        )
         info.comment = original.comment
         info.extra = original.extra
         info.create_system = original.create_system

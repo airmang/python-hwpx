@@ -81,6 +81,22 @@ def test_save_preserves_expected_compress_type_per_entry() -> None:
         assert info.compress_type == ZIP_DEFLATED
 
 
+def test_save_rewrites_mimetype_as_stored_even_when_source_was_compressed() -> None:
+    buffer = io.BytesIO()
+    with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as archive:
+        archive.writestr("mimetype", _MIMETYPE)
+        archive.writestr("version.xml", _VERSION_XML)
+        archive.writestr("Contents/header.xml", _HEADER_XML)
+        archive.writestr("Contents/content.hpf", _MANIFEST_XML)
+        archive.writestr("META-INF/container.xml", _CONTAINER_XML)
+
+    package = HwpxPackage.open(buffer.getvalue())
+    output = package.save()
+
+    with ZipFile(io.BytesIO(output), "r") as archive:
+        assert archive.getinfo("mimetype").compress_type == ZIP_STORED
+
+
 def test_save_preserves_existing_archive_order_and_entry_metadata() -> None:
     buffer = io.BytesIO()
     with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as archive:
