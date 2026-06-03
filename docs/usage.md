@@ -1121,3 +1121,149 @@ assert report["sample_match"]["pass"] is True
 ```
 
 First-pass quality targets are rubric average `>= 4.0`, sample-match average `>= 4.0`, no failing sample-match dimension, no critical validation errors, and package payload under 5MB unless justified. The report is still proxy-based: `visual_review_required=True` means rendered visual parity is not claimed without a separate renderer/human review gate.
+
+## Agent document plan
+
+`hwpx.document_plan.v1` is a small declarative contract for agent-generated HWPX
+documents. It gives agents a stable JSON shape for headings, paragraphs, bullet
+groups, tables, and basic validation gates without requiring direct OWPML
+editing.
+
+```python
+from hwpx import create_document_from_plan, inspect_document_authoring_quality, validate_document_plan
+
+plan = {
+    "schemaVersion": "hwpx.document_plan.v1",
+    "title": "2026 AI Education Operating Plan",
+    "metadata": {"organization": "Sample School", "date": "2026-05-09"},
+    "blocks": [
+        {"type": "heading", "level": 1, "text": "Executive Summary"},
+        {"type": "paragraph", "text": "The plan connects lessons, training, and evidence review."},
+        {"type": "bullets", "items": ["Run grade-band AI lessons.", "Review outcomes each term."]},
+        {
+            "type": "table",
+            "caption": "Budget Plan",
+            "columns": [
+                {"key": "item", "label": "Item", "widthWeight": 2},
+                {"key": "amount", "label": "Amount", "widthWeight": 1},
+            ],
+            "rows": [{"item": "AI devices", "amount": "5,000,000 KRW"}],
+        },
+    ],
+    "qualityGates": {
+        "validatePackage": True,
+        "validateDocument": True,
+        "reopen": True,
+        "minTableCount": 1,
+        "requiredText": ["Executive Summary", "Budget Plan"],
+        "visualReviewRequired": True,
+    },
+}
+
+validation = validate_document_plan(plan)
+if not validation.ok:
+    for issue in validation.to_dict()["issues"]:
+        print(issue["code"], issue["path"], issue["message"])
+    for hint in validation.to_dict()["repairHints"]:
+        print(hint["action"], hint["path"], hint["message"])
+    raise SystemExit(1)
+
+doc = create_document_from_plan(plan)
+doc.save_to_path("agent-plan.hwpx")
+doc.close()
+
+report = inspect_document_authoring_quality("agent-plan.hwpx", plan=plan)
+assert report["pass"] is True
+assert report["validation"]["validate_package"]["ok"] is True
+assert report["validation"]["validate_document"]["ok"] is True
+```
+
+Validation reports include compatibility fields (`errors`, `warnings`) plus
+structured `issues[]` and `repairHints[]`. Use issue `path` values such as
+`blocks[3].rows[0]` to repair broken tables, switch unknown paragraph `style`
+tokens to supported tokens, and inspect `validation.*.issues[]` when package or
+schema checks fail.
+
+For operating-plan style drafts, pass `quality_profile="operating_plan"` to add
+a domain report under `report["profiles"]["operating_plan"]`:
+
+```python
+report = inspect_document_authoring_quality(
+    "operating-plan.hwpx",
+    plan=plan,
+    quality_profile="operating_plan",
+)
+operating = report["profiles"]["operating_plan"]
+assert operating["profile_version"] == "operating-plan-quality-v1"
+assert operating["dimensions"]["schedule_table"]["status"] in {"pass", "fail"}
+```
+
+The operating-plan profile checks front matter, required outline sections,
+schedule and budget/resource tables, expected outcomes, closing material,
+content density, and leftover placeholder markers. It returns `gaps[]` and
+`repair_hints[]` so regeneration can target missing evidence instead of merely
+re-running package validation. These gates are still proxy checks; they do not
+claim that the file visually matches a submitted form.
+
+V1 intentionally avoids arbitrary XML injection, binary `.hwp`, complex layout
+reproduction, and visual pass/fail claims. `visual_review_required=True` means
+the generated file passed structural gates but still needs a renderer or human
+review for final layout assurance.
+
+## Template form-fit
+
+`hwpx.template-formfit.baseline.v1` is for preserving an approved HWPX form
+while filling scalar lines, section scaffolds, and simple table regions from
+structured content. It is copy-first: analysis never writes files, and apply
+refuses source-in-place edits.
+
+The following is a schematic example, not a directly runnable sample by itself.
+Prerequisite: provide a real approved HWPX template and a
+`hwpx.template-formfit.baseline.v1` baseline JSON produced for that template.
+For a local quickcheck path, see the template-formfit examples in `hwpx-skill`.
+
+```python
+from hwpx import analyze_template_formfit, apply_template_formfit
+
+analysis = analyze_template_formfit(
+    "template.hwpx",
+    baseline="template-formfit-baseline.json",
+    content={
+        "school": {"name": "Gwanggyo High School"},
+        "sections": {
+            "background_purpose": [
+                "Expand AI classroom practice through a dedicated learning space.",
+                "Connect teacher planning, student projects, and local partners.",
+            ],
+            "timeline": {
+                "rows": [
+                    {"Month": "March", "Action": "Set up the steering group"},
+                    {"Month": "April", "Action": "Select equipment and layout"},
+                ]
+            },
+        },
+    },
+    destination="filled.hwpx",
+)
+assert analysis["mutated"] is False
+assert analysis["unresolved_count"] == 0
+
+result = apply_template_formfit(analysis=analysis, confirm=True)
+assert result["source"]["preserved"] is True
+assert result["validation"]["validate_package"]["ok"] is True
+assert result["validation"]["validate_document"]["ok"] is True
+assert result["residual_markers"]["blocking"] == []
+```
+
+If `visual_review_required=True`, the output still needs opened-document or
+human visual review before submission. The helper does not claim pixel-perfect
+layout parity, page-number correctness, or automatic image placement.
+
+```bash
+python3 ../hwpx-skill/scripts/visual_review.py output.hwpx --evidence output.visual-review.json --viewer auto --status observed_pass --screenshot output-page1.png
+```
+
+Use `--viewer none --status blocked` in CI or headless environments where no
+HWPX viewer is available. `blocked` records fallback evidence but does not clear
+the final submission gate. `observed_pass` requires `--screenshot`; observation
+text alone is not enough for a submission-ready claim.

@@ -160,3 +160,125 @@ for element in bookmarked:
 ```
 
 `ObjectFinder`는 XPath 표현식, 태그/속성 매칭, 주석 전용 이터레이터(`iter_annotations`)를 모두 지원하므로 문서 내부 구조를 탐색하거나 특정 개체만 선별하는 자동화 스크립트를 쉽게 작성할 수 있습니다.
+
+## 5. 선언형 document plan에서 HWPX 생성하기
+
+```python
+from hwpx import create_document_from_plan, inspect_document_authoring_quality, validate_document_plan
+
+plan = {
+    "schemaVersion": "hwpx.document_plan.v1",
+    "title": "2026 AI Education Operating Plan",
+    "blocks": [
+        {"type": "heading", "level": 1, "text": "Executive Summary"},
+        {"type": "paragraph", "text": "Agent-authored content is rendered through public python-hwpx APIs."},
+        {
+            "type": "table",
+            "caption": "Budget",
+            "columns": [
+                {"key": "item", "label": "Item"},
+                {"key": "amount", "label": "Amount"},
+            ],
+            "rows": [{"item": "AI devices", "amount": "5,000,000 KRW"}],
+        },
+    ],
+    "qualityGates": {
+        "validatePackage": True,
+        "validateDocument": True,
+        "reopen": True,
+        "minTableCount": 1,
+        "requiredText": ["Executive Summary", "Budget"],
+        "visualReviewRequired": True,
+    },
+}
+
+validation = validate_document_plan(plan)
+if not validation.ok:
+    for issue in validation.to_dict()["issues"]:
+        print(issue["code"], issue["path"], issue["message"])
+    raise SystemExit(1)
+
+document = create_document_from_plan(plan)
+document.save_to_path("examples/AgentDocumentPlan.hwpx")
+document.close()
+
+report = inspect_document_authoring_quality("examples/AgentDocumentPlan.hwpx", plan=plan)
+print(report["pass"], report["visual_review_required"])
+```
+
+`validate_document_plan()`은 기존 문자열 `errors`/`warnings`와 함께
+`issues[]`(`code`, `path`, `severity`, `suggestion`) 및 `repairHints[]`를
+반환합니다. table row 오류, 알 수 없는 style token, package/schema 검증
+오류가 있으면 이 필드를 기준으로 plan을 수정하고 다시 검증합니다.
+
+운영 계획서 후보는 별도 프로필을 켜서 제출 후보로서의 결손을 확인할 수
+있습니다.
+
+```python
+report = inspect_document_authoring_quality(
+    "examples/AgentDocumentPlan.hwpx",
+    plan=plan,
+    quality_profile="operating_plan",
+)
+operating = report["profiles"]["operating_plan"]
+print(operating["score"], operating["gaps"], operating["repair_hints"])
+```
+
+`operating-plan-quality-v1` 프로필은 앞표지/메타데이터, 필수 목차, 추진
+일정표, 사업비·자원 근거, 기대 효과, 제출·확인 마감 문구, 빈칸/작성표시
+잔여물을 검사합니다. 이 검사는 구조와 텍스트/표 증거 기반이며, 최종 양식
+맞춤은 렌더링 또는 사람의 시각 검토가 필요합니다.
+
+`inspect_operating_plan_quality(path).status == "ready"`는 파일 기반 품질
+판정입니다. `visual_review_required`가 true이면 최종 handoff에는 열린 문서
+증거가 필요합니다. 이 세 레포 스택에서는
+`../hwpx-skill/scripts/visual_review.py`로 `hwpx.visual-review.v1` 증거를
+기록하고 `current.status="observed_pass"`를 확인하거나, viewer가 없는
+환경에서는 `blocked`로 기록해 잔여 위험을 남깁니다.
+
+위 코드는 document-plan 품질 게이트의 핵심 흐름을 보여 주는 예시입니다.
+
+## 6. 승인된 양식을 보존하며 채우기
+
+이 코드는 흐름을 설명하는 schematic 예시입니다. 바로 실행하려면 사용자가
+보유한 실제 승인 HWPX 양식과 그 양식에서 만든
+`hwpx.template-formfit.baseline.v1` baseline JSON이 전제되어야 합니다. 로컬
+quickcheck 경로가 필요하면 `hwpx-skill`의 template-formfit 예제를 참고하세요.
+
+```python
+from hwpx import analyze_template_formfit, apply_template_formfit
+
+analysis = analyze_template_formfit(
+    "template.hwpx",
+    baseline="template-formfit-baseline.json",
+    content={
+        "school": {"name": "광교고등학교"},
+        "sections": {
+            "background_purpose": [
+                "AI 융합형 교육실 구축으로 학생 맞춤형 탐구 수업을 확대한다.",
+                "교원 공동 설계와 지역 연계를 통해 지속 가능한 운영 체계를 만든다.",
+            ],
+            "timeline": {
+                "rows": [
+                    {"월": "3월", "추진 내용": "운영 협의체 구성"},
+                    {"월": "4월", "추진 내용": "공간 설계 및 기자재 선정"},
+                ]
+            },
+        },
+    },
+    destination="filled.hwpx",
+)
+
+if analysis["unresolved_count"]:
+    print(analysis["unresolved"])
+    raise SystemExit(1)
+
+result = apply_template_formfit(analysis=analysis, confirm=True)
+assert result["handoff_status"] == "ready"
+assert result["source"]["preserved"] is True
+```
+
+`analyze_template_formfit()`은 원본을 변경하지 않고, 필수 anchor가 없거나
+둘 이상이면 `unresolved[]`로 막습니다. `apply_template_formfit()`은 원본과
+다른 destination에 복사한 뒤 적용하며, source hash/mtime 보존과
+package/schema validation, residual marker 결과를 반환합니다.
