@@ -19,6 +19,10 @@ BuilderChild = (
 _HWP_UNITS_PER_MM = 7200 / 25.4
 _A4_HWP_SIZE = (59528, 84188)
 
+# S-024 SPIKE: builder presets hook at Document.lower(), where a single
+# preset context can be passed into Heading/Run/Bullet lowering without
+# changing default node contracts or the plan-v1 authoring style-token path.
+
 
 def _mm_to_hwp_units(value: float) -> int:
     return round(value * _HWP_UNITS_PER_MM)
