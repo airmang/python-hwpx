@@ -43,9 +43,10 @@ _TRACK_CHANGE_MARK_NAMES = {
     "deleteEnd",
 }
 
-InlineMark = Union[GenericElement, "TrackChangeMark"]
-RunChild = Union[GenericElement, "Control", "Table", "InlineObject", "TextSpan", "Tab"]
-ParagraphChild = Union["Run", GenericElement]
+PreservedElement = Union[GenericElement, "LineSegArray", "LineSeg"]
+InlineMark = Union[PreservedElement, "TrackChangeMark"]
+RunChild = Union[PreservedElement, "Control", "Table", "InlineObject", "TextSpan", "Tab"]
+ParagraphChild = Union["Run", PreservedElement]
 
 
 @dataclass(slots=True)
@@ -95,7 +96,7 @@ class Control:
     tag: str
     control_type: Optional[str]
     attributes: Dict[str, str] = field(default_factory=dict)
-    children: List[GenericElement] = field(default_factory=list)
+    children: List[PreservedElement] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -103,7 +104,7 @@ class InlineObject:
     tag: str
     name: str
     attributes: Dict[str, str] = field(default_factory=dict)
-    children: List[GenericElement] = field(default_factory=list)
+    children: List[PreservedElement] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -116,20 +117,49 @@ class Tab:
 class Table:
     tag: str
     attributes: Dict[str, str] = field(default_factory=dict)
-    children: List[GenericElement] = field(default_factory=list)
+    children: List[PreservedElement] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class LineSeg:
+    tag: str
+    name: str
+    text_pos: Optional[int]
+    vert_pos: Optional[int]
+    vert_size: Optional[int]
+    text_height: Optional[int]
+    baseline: Optional[int]
+    spacing: Optional[int]
+    horz_pos: Optional[int]
+    horz_size: Optional[int]
+    flags: Optional[int]
+    attributes: Dict[str, str] = field(default_factory=dict)
+    children: List[PreservedElement] = field(default_factory=list)
+    text: Optional[str] = None
+
+
+@dataclass(slots=True)
+class LineSegArray:
+    tag: str
+    name: str
+    attributes: Dict[str, str] = field(default_factory=dict)
+    linesegs: List[LineSeg] = field(default_factory=list)
+    other_children: List[PreservedElement] = field(default_factory=list)
+    content: List[PreservedElement] = field(default_factory=list)
+    text: Optional[str] = None
 
 
 @dataclass(slots=True)
 class Run:
     tag: str
     char_pr_id_ref: Optional[int]
-    section_properties: List[GenericElement] = field(default_factory=list)
+    section_properties: List[PreservedElement] = field(default_factory=list)
     controls: List[Control] = field(default_factory=list)
     tables: List[Table] = field(default_factory=list)
     inline_objects: List[InlineObject] = field(default_factory=list)
     tabs: List[Tab] = field(default_factory=list)
     text_spans: List[TextSpan] = field(default_factory=list)
-    other_children: List[GenericElement] = field(default_factory=list)
+    other_children: List[PreservedElement] = field(default_factory=list)
     attributes: Dict[str, str] = field(default_factory=dict)
     content: List[RunChild] = field(default_factory=list)
 
@@ -145,7 +175,7 @@ class Paragraph:
     merged: Optional[bool]
     runs: List[Run] = field(default_factory=list)
     attributes: Dict[str, str] = field(default_factory=dict)
-    other_children: List[GenericElement] = field(default_factory=list)
+    other_children: List[PreservedElement] = field(default_factory=list)
     content: List[ParagraphChild] = field(default_factory=list)
 
 
@@ -154,7 +184,7 @@ class Section:
     tag: str
     attributes: Dict[str, str]
     paragraphs: List[Paragraph] = field(default_factory=list)
-    other_children: List[GenericElement] = field(default_factory=list)
+    other_children: List[PreservedElement] = field(default_factory=list)
 
 
 def _qualified_tag(tag: Optional[str], name: str) -> str:
@@ -187,11 +217,69 @@ def parse_track_change_mark(node: etree._Element) -> TrackChangeMark:
     )
 
 
+def _parse_int_attribute(attributes: Dict[str, str], name: str) -> Optional[int]:
+    return parse_int(attributes.pop(name, None))
+
+
+def parse_line_seg_element(node: etree._Element) -> LineSeg:
+    attrs = {key: value for key, value in node.attrib.items()}
+    return LineSeg(
+        tag=node.tag,
+        name=local_name(node),
+        text_pos=_parse_int_attribute(attrs, "textpos"),
+        vert_pos=_parse_int_attribute(attrs, "vertpos"),
+        vert_size=_parse_int_attribute(attrs, "vertsize"),
+        text_height=_parse_int_attribute(attrs, "textheight"),
+        baseline=_parse_int_attribute(attrs, "baseline"),
+        spacing=_parse_int_attribute(attrs, "spacing"),
+        horz_pos=_parse_int_attribute(attrs, "horzpos"),
+        horz_size=_parse_int_attribute(attrs, "horzsize"),
+        flags=_parse_int_attribute(attrs, "flags"),
+        attributes=attrs,
+        children=[parse_preserved_element(child) for child in node],
+        text=node.text if node.text is not None else None,
+    )
+
+
+def parse_line_seg_array_element(node: etree._Element) -> LineSegArray:
+    line_array = LineSegArray(
+        tag=node.tag,
+        name=local_name(node),
+        attributes={key: value for key, value in node.attrib.items()},
+        text=node.text if node.text is not None else None,
+    )
+
+    for child in node:
+        element = parse_preserved_element(child)
+        if isinstance(element, LineSeg):
+            line_array.linesegs.append(element)
+        else:
+            line_array.other_children.append(element)
+        line_array.content.append(element)
+
+    return line_array
+
+
+def parse_preserved_element(node: etree._Element) -> PreservedElement:
+    name = local_name(node)
+    if name == "linesegarray":
+        return parse_line_seg_array_element(node)
+    if name == "lineseg":
+        return parse_line_seg_element(node)
+    return GenericElement(
+        name=name,
+        tag=node.tag,
+        attributes={key: value for key, value in node.attrib.items()},
+        children=[parse_preserved_element(child) for child in node],
+        text=node.text if node.text is not None else None,
+    )
+
+
 def _parse_text_markup(node: etree._Element) -> InlineMark:
     name = local_name(node)
     if name in _TRACK_CHANGE_MARK_NAMES:
         return parse_track_change_mark(node)
-    return parse_generic_element(node)
+    return parse_preserved_element(node)
 
 
 def parse_text_span(node: etree._Element) -> TextSpan:
@@ -214,7 +302,7 @@ def parse_text_span(node: etree._Element) -> TextSpan:
 def parse_control_element(node: etree._Element) -> Control:
     attrs = {key: value for key, value in node.attrib.items()}
     control_type = attrs.pop("type", None)
-    children = [parse_generic_element(child) for child in node]
+    children = [parse_preserved_element(child) for child in node]
     return Control(tag=node.tag, control_type=control_type, attributes=attrs, children=children)
 
 
@@ -223,7 +311,7 @@ def parse_inline_object_element(node: etree._Element) -> InlineObject:
         tag=node.tag,
         name=local_name(node),
         attributes={key: value for key, value in node.attrib.items()},
-        children=[parse_generic_element(child) for child in node],
+        children=[parse_preserved_element(child) for child in node],
     )
 
 
@@ -231,7 +319,7 @@ def parse_table_element(node: etree._Element) -> Table:
     return Table(
         tag=node.tag,
         attributes={key: value for key, value in node.attrib.items()},
-        children=[parse_generic_element(child) for child in node],
+        children=[parse_preserved_element(child) for child in node],
     )
 
 
@@ -248,7 +336,7 @@ def parse_run_element(node: etree._Element) -> Run:
     for child in node:
         name = local_name(child)
         if name == "secPr":
-            element = parse_generic_element(child)
+            element = parse_preserved_element(child)
             run.section_properties.append(element)
             run.content.append(element)
         elif name == "ctrl":
@@ -272,7 +360,7 @@ def parse_run_element(node: etree._Element) -> Run:
             run.inline_objects.append(obj)
             run.content.append(obj)
         else:
-            element = parse_generic_element(child)
+            element = parse_preserved_element(child)
             run.other_children.append(element)
             run.content.append(element)
 
@@ -299,7 +387,7 @@ def parse_paragraph_element(node: etree._Element) -> Paragraph:
             paragraph.runs.append(run)
             paragraph.content.append(run)
         else:
-            element = parse_generic_element(child)
+            element = parse_preserved_element(child)
             paragraph.other_children.append(element)
             paragraph.content.append(element)
 
@@ -313,7 +401,7 @@ def parse_section_element(node: etree._Element) -> Section:
         if local_name(child) == "p":
             section.paragraphs.append(parse_paragraph_element(child))
         else:
-            section.other_children.append(parse_generic_element(child))
+            section.other_children.append(parse_preserved_element(child))
 
     return section
 
@@ -325,8 +413,49 @@ def _generic_element_to_xml(element: GenericElement) -> etree._Element:
     if element.text:
         node.text = element.text
     for child in element.children:
-        node.append(_generic_element_to_xml(child))
+        node.append(_preserved_element_to_xml(child))
     return node
+
+
+def _set_int_attr(attrs: Dict[str, str], name: str, value: Optional[int]) -> None:
+    if value is not None:
+        attrs[name] = str(value)
+
+
+def _line_seg_to_xml(line_seg: LineSeg) -> etree._Element:
+    attrs = dict(line_seg.attributes)
+    _set_int_attr(attrs, "textpos", line_seg.text_pos)
+    _set_int_attr(attrs, "vertpos", line_seg.vert_pos)
+    _set_int_attr(attrs, "vertsize", line_seg.vert_size)
+    _set_int_attr(attrs, "textheight", line_seg.text_height)
+    _set_int_attr(attrs, "baseline", line_seg.baseline)
+    _set_int_attr(attrs, "spacing", line_seg.spacing)
+    _set_int_attr(attrs, "horzpos", line_seg.horz_pos)
+    _set_int_attr(attrs, "horzsize", line_seg.horz_size)
+    _set_int_attr(attrs, "flags", line_seg.flags)
+    node = etree.Element(_qualified_tag(line_seg.tag, line_seg.name), attrs)
+    if line_seg.text:
+        node.text = line_seg.text
+    for child in line_seg.children:
+        node.append(_preserved_element_to_xml(child))
+    return node
+
+
+def _line_seg_array_to_xml(line_array: LineSegArray) -> etree._Element:
+    node = etree.Element(_qualified_tag(line_array.tag, line_array.name), dict(line_array.attributes))
+    if line_array.text:
+        node.text = line_array.text
+    for child in line_array.content:
+        node.append(_preserved_element_to_xml(child))
+    return node
+
+
+def _preserved_element_to_xml(element: PreservedElement) -> etree._Element:
+    if isinstance(element, LineSegArray):
+        return _line_seg_array_to_xml(element)
+    if isinstance(element, LineSeg):
+        return _line_seg_to_xml(element)
+    return _generic_element_to_xml(element)
 
 
 def _track_change_mark_to_xml(mark: TrackChangeMark) -> etree._Element:
@@ -343,7 +472,7 @@ def _track_change_mark_to_xml(mark: TrackChangeMark) -> etree._Element:
 def _inline_mark_to_xml(mark: InlineMark) -> etree._Element:
     if isinstance(mark, TrackChangeMark):
         return _track_change_mark_to_xml(mark)
-    return _generic_element_to_xml(mark)
+    return _preserved_element_to_xml(mark)
 
 
 def _text_span_to_xml(span: TextSpan) -> etree._Element:
@@ -368,21 +497,21 @@ def _control_to_xml(control: Control) -> etree._Element:
         attrs["type"] = control.control_type
     node = etree.Element(_qualified_tag(control.tag, "ctrl"), attrs)
     for child in control.children:
-        node.append(_generic_element_to_xml(child))
+        node.append(_preserved_element_to_xml(child))
     return node
 
 
 def _table_to_xml(table: Table) -> etree._Element:
     node = etree.Element(_qualified_tag(table.tag, "tbl"), dict(table.attributes))
     for child in table.children:
-        node.append(_generic_element_to_xml(child))
+        node.append(_preserved_element_to_xml(child))
     return node
 
 
 def _inline_object_to_xml(obj: InlineObject) -> etree._Element:
     node = etree.Element(_qualified_tag(obj.tag, obj.name), dict(obj.attributes))
     for child in obj.children:
-        node.append(_generic_element_to_xml(child))
+        node.append(_preserved_element_to_xml(child))
     return node
 
 
@@ -403,7 +532,7 @@ def serialize_run(run: Run) -> etree._Element:
         elif isinstance(child, InlineObject):
             node.append(_inline_object_to_xml(child))
         else:
-            node.append(_generic_element_to_xml(child))
+            node.append(_preserved_element_to_xml(child))
     return node
 
 
@@ -427,7 +556,7 @@ def serialize_paragraph(paragraph: Paragraph) -> etree._Element:
         if isinstance(child, Run):
             node.append(serialize_run(child))
         else:
-            node.append(_generic_element_to_xml(child))
+            node.append(_preserved_element_to_xml(child))
     return node
 
 
@@ -435,7 +564,10 @@ __all__ = [
     "Control",
     "InlineObject",
     "INLINE_OBJECT_NAMES",
+    "LineSeg",
+    "LineSegArray",
     "Paragraph",
+    "PreservedElement",
     "Run",
     "Section",
     "Table",
@@ -444,7 +576,10 @@ __all__ = [
     "TrackChangeMark",
     "parse_control_element",
     "parse_inline_object_element",
+    "parse_line_seg_array_element",
+    "parse_line_seg_element",
     "parse_paragraph_element",
+    "parse_preserved_element",
     "parse_run_element",
     "parse_section_element",
     "parse_table_element",

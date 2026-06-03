@@ -20,6 +20,9 @@ reimplemented from public references, without copying source code:
 - sakada3/hwp-ops (Apache-2.0): split-run placeholder scan/fill behavior
   ideas, charPrIDRef heterogeneity warning, and touched-paragraph layout-cache
   invalidation.
+- hancom-io/hwpx-owpml-model (Apache-2.0): C1 coverage promotion structure
+  observations for paragraph line segment elements (`linesegarray`, `lineseg`)
+  from public model headers only.
 
 These form-fill references were used as behavior evidence only. The
 implementation is a clean-room Python implementation; no source code was
