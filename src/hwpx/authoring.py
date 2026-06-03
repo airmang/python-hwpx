@@ -30,6 +30,7 @@ from .builder import (
 from .builder.core import Toc as BuilderToc
 from .document import HwpxDocument
 from .tools.package_validator import validate_package
+from .tools.table_cleanup import normalize_cell_text
 from .tools.report_utils import (
     calculate_age,
     calculate_ratios,
@@ -58,6 +59,7 @@ _SUPPORTED_BLOCK_TYPES = frozenset(
 _SUPPORTED_STYLE_TOKENS = frozenset(
     {"body", "title", "subtitle", "heading", "bullet", "table_header", "table_cell"}
 )
+_SUPPORTED_TABLE_PROFILES = frozenset({"government"})
 _BOOLEAN_QUALITY_GATES = frozenset(
     {"validatePackage", "validateDocument", "reopen", "visualReviewRequired"}
 )
@@ -937,6 +939,18 @@ def _validate_block(raw_block: Any, *, index: int) -> list[PlanValidationIssue]:
         issues.extend(column_issues)
         issues.extend(_validate_table_rows(raw_block.get("rows"), column_keys, path=path))
         issues.extend(_computed_field_issues(raw_block.get("caption"), path=f"{path}.caption"))
+        issues.extend(_computed_field_issues(raw_block.get("unit"), path=f"{path}.unit"))
+        table_profile = str(raw_block.get("tableProfile") or "").strip()
+        if table_profile and table_profile not in _SUPPORTED_TABLE_PROFILES:
+            issues.append(
+                _plan_issue(
+                    "unknown_table_profile",
+                    f"{path}.tableProfile",
+                    f"{path}.tableProfile is unknown: {table_profile!r}",
+                    severity="warning",
+                    suggestion="Use tableProfile='government' or omit tableProfile.",
+                )
+            )
         for column_index, column in enumerate(raw_block.get("columns") or []):
             if isinstance(column, Mapping):
                 issues.extend(
@@ -948,6 +962,8 @@ def _validate_block(raw_block: Any, *, index: int) -> list[PlanValidationIssue]:
         for row_index, row in enumerate(raw_block.get("rows") or []):
             if isinstance(row, Mapping):
                 for key, value in row.items():
+                    if isinstance(value, Mapping):
+                        value = value.get("text", value.get("value"))
                     issues.extend(
                         _computed_field_issues(
                             value,
@@ -1250,19 +1266,23 @@ def _normalize_block(raw_block: Any, *, index: int) -> DocumentBlock:
     if block_type == "table":
         columns = _normalize_columns(raw_block.get("columns"), index=index)
         rows = _normalize_rows(raw_block.get("rows"), columns, index=index)
-        caption = replace_computed_fields(str(raw_block.get("caption") or "").strip())
+        caption = replace_computed_fields(normalize_cell_text(raw_block.get("caption")))
+        unit = replace_computed_fields(normalize_cell_text(raw_block.get("unit")))
+        table_profile = str(raw_block.get("tableProfile") or "").strip()
         columns = [
-            {**column, "label": replace_computed_fields(str(column["label"]))}
+            {**column, "label": replace_computed_fields(normalize_cell_text(column["label"]))}
             for column in columns
         ]
         rows = [
             {key: replace_computed_fields(value) for key, value in row.items()}
             for row in rows
         ]
-        return DocumentBlock(
-            "table",
-            {"caption": caption, "columns": columns, "rows": rows},
-        )
+        data: dict[str, Any] = {"caption": caption, "columns": columns, "rows": rows}
+        if unit:
+            data["unit"] = unit
+        if table_profile:
+            data["tableProfile"] = table_profile
+        return DocumentBlock("table", data)
 
     if block_type == "memo":
         return DocumentBlock(
@@ -1512,6 +1532,9 @@ def _block_to_builder_nodes(block: DocumentBlock) -> tuple[Any, ...]:
                 column_widths=tuple(_plan_table_column_widths(columns)),
             ),
         )
+        unit = str(block.data.get("unit") or "").strip()
+        if unit:
+            nodes.append(BuilderParagraph(text=unit, style="body"))
         return tuple(nodes)
     if block.type == "memo":
         return (block,)
@@ -1547,7 +1570,7 @@ def _normalize_columns(value: Any, *, index: int) -> list[dict[str, Any]]:
         if key in seen:
             raise ValueError(f"blocks[{index}].columns contains duplicate key: {key!r}")
         seen.add(key)
-        label = str(raw_column.get("label") or key).strip()
+        label = normalize_cell_text(raw_column.get("label") or key)
         width_weight = _int_value(raw_column.get("widthWeight", 1), default=1)
         columns.append(
             {
@@ -1572,8 +1595,17 @@ def _normalize_rows(
     for row_index, raw_row in enumerate(value):
         if not isinstance(raw_row, Mapping):
             raise ValueError(f"blocks[{index}].rows[{row_index}] must be a mapping")
-        rows.append({key: str(raw_row.get(key, "")) for key in column_keys})
+        rows.append({key: _normalize_table_cell_value(raw_row.get(key, "")) for key in column_keys})
     return rows
+
+
+def _normalize_table_cell_value(value: Any) -> str:
+    if isinstance(value, Mapping):
+        text = value.get("text", value.get("value", ""))
+        if bool(value.get("preserveWhitespace", False)):
+            return str(text or "")
+        return normalize_cell_text(text)
+    return normalize_cell_text(value)
 
 
 def _render_block(
@@ -2230,6 +2262,7 @@ def _table_block_text(block: Mapping[str, Any]) -> str:
     for row in block.get("rows", []):
         if isinstance(row, Mapping):
             parts.extend(str(value) for value in row.values())
+    parts.append(str(block.get("unit") or ""))
     return "\n".join(parts)
 
 
@@ -2293,8 +2326,15 @@ def _document_table_blocks(document: HwpxDocument) -> list[Mapping[str, Any]]:
 
         text = str(getattr(paragraph, "text", "") or "").strip()
         if text:
+            if _looks_like_unit_text(text):
+                previous_text = ""
+                continue
             previous_text = text
     return blocks
+
+
+def _looks_like_unit_text(text: str) -> bool:
+    return text.startswith(("단위:", "단위："))
 
 
 def _looks_like_table_header_row(text_rows: list[list[str]]) -> bool:
