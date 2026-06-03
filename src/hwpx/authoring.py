@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+from ast import literal_eval as _literal
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
@@ -29,6 +30,15 @@ from .builder import (
 from .builder.core import Toc as BuilderToc
 from .document import HwpxDocument
 from .tools.package_validator import validate_package
+from .tools.report_utils import (
+    calculate_age,
+    calculate_ratios,
+    format_delta,
+    format_delta_percent,
+    format_krw_hangul,
+    format_number_commas,
+    normalize_korean_date,
+)
 
 DOCUMENT_PLAN_SCHEMA_VERSION = "hwpx.document_plan.v1"
 DOCUMENT_PLAN_V2_SCHEMA_VERSION = "hwpx.document_plan.v2"
@@ -53,6 +63,8 @@ _BOOLEAN_QUALITY_GATES = frozenset(
 )
 _INTEGER_QUALITY_GATES = frozenset({"minNonEmptyParagraphs", "minTableCount"})
 _LIST_QUALITY_GATES = frozenset({"requiredText"})
+_COMPUTED_FIELD_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
+_COMPUTED_CALL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)$", re.DOTALL)
 
 
 @dataclass(slots=True)
@@ -201,6 +213,143 @@ def _plan_validation_report(
         schema_version=schema_version,
         issues=tuple(issues),
     )
+
+
+_COMPUTED_FUNCTIONS = {
+    "krw_hangul": format_krw_hangul,
+    "commas": format_number_commas,
+    "age": calculate_age,
+    "delta": format_delta,
+    "delta_percent": format_delta_percent,
+    "ratio": calculate_ratios,
+    "date": normalize_korean_date,
+}
+
+
+class _ComputedFieldError(ValueError):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+def replace_computed_fields(text: str) -> str:
+    """Replace safe ``{{ function(args) }}`` report utility placeholders."""
+
+    def replacement(match: re.Match[str]) -> str:
+        return _evaluate_computed_field(match.group(1))
+
+    result = _COMPUTED_FIELD_RE.sub(replacement, text)
+    if "{{" in result or "}}" in result:
+        raise _ComputedFieldError(
+            "invalid_computed_field",
+            "computed field marker is malformed or unresolved",
+        )
+    return result
+
+
+def _evaluate_computed_field(expression: str) -> str:
+    match = _COMPUTED_CALL_RE.match(expression.strip())
+    if not match:
+        raise _ComputedFieldError(
+            "invalid_computed_field",
+            f"computed field must be a function call: {expression!r}",
+        )
+    function_name, raw_args = match.groups()
+    function = _COMPUTED_FUNCTIONS.get(function_name)
+    if function is None:
+        raise _ComputedFieldError(
+            "unknown_computed_field",
+            f"unknown computed field function: {function_name}",
+        )
+    args = [_parse_computed_arg(arg) for arg in _split_computed_args(raw_args)]
+    try:
+        return str(function(*args))
+    except Exception as exc:
+        raise _ComputedFieldError(
+            "invalid_computed_field",
+            f"computed field failed: {expression!r}",
+        ) from exc
+
+
+def _split_computed_args(raw_args: str) -> list[str]:
+    if not raw_args.strip():
+        return []
+    args: list[str] = []
+    start = 0
+    quote: str | None = None
+    escaped = False
+    for index, char in enumerate(raw_args):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and quote:
+            escaped = True
+            continue
+        if quote:
+            if char == quote:
+                quote = None
+            continue
+        if char in {"'", '"'}:
+            quote = char
+            continue
+        if char == ",":
+            args.append(raw_args[start:index].strip())
+            start = index + 1
+    if quote:
+        raise _ComputedFieldError("invalid_computed_field", "unterminated string argument")
+    args.append(raw_args[start:].strip())
+    return args
+
+
+def _parse_computed_arg(token: str) -> object:
+    if not token:
+        raise _ComputedFieldError("invalid_computed_field", "empty computed field argument")
+    if token[0] in {"'", '"'}:
+        try:
+            value = _literal(token)
+        except (SyntaxError, ValueError) as exc:
+            raise _ComputedFieldError("invalid_computed_field", "invalid string argument") from exc
+        if not isinstance(value, str):
+            raise _ComputedFieldError("invalid_computed_field", "only string literals are supported")
+        return value
+    if re.fullmatch(r"[+-]?\d+", token):
+        return int(token)
+    if re.fullmatch(r"[+-]?\d+\.\d+", token):
+        return float(token)
+    raise _ComputedFieldError(
+        "invalid_computed_field",
+        f"unsupported computed field argument: {token!r}",
+    )
+
+
+def _computed_field_issues(text: Any, *, path: str) -> list[PlanValidationIssue]:
+    value = str(text or "")
+    if "{{" not in value and "}}" not in value:
+        return []
+    issues: list[PlanValidationIssue] = []
+    for match in _COMPUTED_FIELD_RE.finditer(value):
+        try:
+            _evaluate_computed_field(match.group(1))
+        except _ComputedFieldError as exc:
+            issues.append(
+                _plan_issue(
+                    exc.code,
+                    path,
+                    str(exc),
+                    suggestion="Use a supported computed function such as krw_hangul, commas, delta, ratio, or date.",
+                )
+            )
+    residue = _COMPUTED_FIELD_RE.sub("", value)
+    if "{{" in residue or "}}" in residue:
+        issues.append(
+            _plan_issue(
+                "invalid_computed_field",
+                path,
+                "computed field marker is malformed or unresolved",
+                suggestion="Use balanced computed field delimiters such as {{ commas(1234) }}.",
+            )
+        )
+    return issues
 
 
 def _report_plan_issues(report: PlanValidationReport) -> tuple[PlanValidationIssue, ...]:
@@ -498,7 +647,35 @@ def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue
                     suggestion="Add a header array or rows array.",
                 )
             ]
-    return []
+    issues: list[PlanValidationIssue] = []
+    if block_type == "heading":
+        issues.extend(_computed_field_issues(raw_block.get("text"), path=f"{path}.text"))
+    elif block_type == "paragraph":
+        issues.extend(_computed_field_issues(raw_block.get("text"), path=f"{path}.text"))
+        for child_index, child in enumerate(raw_block.get("children") or []):
+            if isinstance(child, Mapping):
+                issues.extend(
+                    _computed_field_issues(
+                        child.get("text"),
+                        path=f"{path}.children[{child_index}].text",
+                    )
+                )
+    elif block_type in {"bullets", "bullet", "numbered_list", "numberedList"}:
+        for item_index, item in enumerate(_string_list(raw_block.get("items"))):
+            issues.extend(_computed_field_issues(item, path=f"{path}.items[{item_index}]"))
+    elif block_type == "table":
+        for header_index, header_value in enumerate(raw_block.get("header") or []):
+            issues.extend(_computed_field_issues(header_value, path=f"{path}.header[{header_index}]"))
+        for row_index, row in enumerate(raw_block.get("rows") or []):
+            if isinstance(row, (list, tuple)):
+                for col_index, value in enumerate(row):
+                    issues.extend(_computed_field_issues(value, path=f"{path}.rows[{row_index}][{col_index}]"))
+    elif block_type == "toc":
+        issues.extend(_computed_field_issues(raw_block.get("title"), path=f"{path}.title"))
+        for entry_index, entry in enumerate(raw_block.get("entries") or []):
+            if isinstance(entry, Mapping):
+                issues.extend(_computed_field_issues(entry.get("text"), path=f"{path}.entries[{entry_index}].text"))
+    return issues
 
 
 def create_document_from_plan(
@@ -738,8 +915,10 @@ def _validate_block(raw_block: Any, *, index: int) -> list[PlanValidationIssue]:
 
     if block_type == "heading":
         issues.extend(_validate_heading_block(raw_block, path=path))
+        issues.extend(_computed_field_issues(raw_block.get("text"), path=f"{path}.text"))
     elif block_type == "paragraph":
         issues.extend(_validate_paragraph_block(raw_block, path=path))
+        issues.extend(_computed_field_issues(raw_block.get("text"), path=f"{path}.text"))
     elif block_type == "bullets":
         items = _string_list(raw_block.get("items") or raw_block.get("bullets"))
         if not items:
@@ -751,12 +930,34 @@ def _validate_block(raw_block: Any, *, index: int) -> list[PlanValidationIssue]:
                     suggestion="Add a non-empty items array, or use a paragraph block instead.",
                 )
             )
+        for item_index, item in enumerate(items):
+            issues.extend(_computed_field_issues(item, path=f"{path}.items[{item_index}]"))
     elif block_type == "table":
         column_keys, column_issues = _validate_table_columns(raw_block.get("columns"), path=path)
         issues.extend(column_issues)
         issues.extend(_validate_table_rows(raw_block.get("rows"), column_keys, path=path))
+        issues.extend(_computed_field_issues(raw_block.get("caption"), path=f"{path}.caption"))
+        for column_index, column in enumerate(raw_block.get("columns") or []):
+            if isinstance(column, Mapping):
+                issues.extend(
+                    _computed_field_issues(
+                        column.get("label"),
+                        path=f"{path}.columns[{column_index}].label",
+                    )
+                )
+        for row_index, row in enumerate(raw_block.get("rows") or []):
+            if isinstance(row, Mapping):
+                for key, value in row.items():
+                    issues.extend(
+                        _computed_field_issues(
+                            value,
+                            path=f"{path}.rows[{row_index}].{key}",
+                        )
+                    )
     elif block_type == "memo":
         issues.extend(_validate_required_text_fields(raw_block, path=path, fields=("text", "memo")))
+        issues.extend(_computed_field_issues(raw_block.get("text"), path=f"{path}.text"))
+        issues.extend(_computed_field_issues(raw_block.get("memo"), path=f"{path}.memo"))
 
     return issues
 
@@ -1026,13 +1227,13 @@ def _normalize_block(raw_block: Any, *, index: int) -> DocumentBlock:
         if level < 1 or level > 3:
             raise ValueError(f"blocks[{index}].level must be between 1 and 3")
         text = _required_text(raw_block, "text", index)
-        return DocumentBlock("heading", {"level": level, "text": text})
+        return DocumentBlock("heading", {"level": level, "text": replace_computed_fields(text)})
 
     if block_type == "paragraph":
         return DocumentBlock(
             "paragraph",
             {
-                "text": _required_text(raw_block, "text", index),
+                "text": replace_computed_fields(_required_text(raw_block, "text", index)),
                 "style": str(raw_block.get("style") or "body").strip() or "body",
             },
         )
@@ -1041,12 +1242,23 @@ def _normalize_block(raw_block: Any, *, index: int) -> DocumentBlock:
         items = _string_list(raw_block.get("items") or raw_block.get("bullets"))
         if not items:
             raise ValueError(f"blocks[{index}].items must be a non-empty list")
-        return DocumentBlock("bullets", {"items": items})
+        return DocumentBlock(
+            "bullets",
+            {"items": [replace_computed_fields(item) for item in items]},
+        )
 
     if block_type == "table":
         columns = _normalize_columns(raw_block.get("columns"), index=index)
         rows = _normalize_rows(raw_block.get("rows"), columns, index=index)
-        caption = str(raw_block.get("caption") or "").strip()
+        caption = replace_computed_fields(str(raw_block.get("caption") or "").strip())
+        columns = [
+            {**column, "label": replace_computed_fields(str(column["label"]))}
+            for column in columns
+        ]
+        rows = [
+            {key: replace_computed_fields(value) for key, value in row.items()}
+            for row in rows
+        ]
         return DocumentBlock(
             "table",
             {"caption": caption, "columns": columns, "rows": rows},
@@ -1056,8 +1268,8 @@ def _normalize_block(raw_block: Any, *, index: int) -> DocumentBlock:
         return DocumentBlock(
             "memo",
             {
-                "text": _required_text(raw_block, "text", index),
-                "memo": _required_text(raw_block, "memo", index),
+                "text": replace_computed_fields(_required_text(raw_block, "text", index)),
+                "memo": replace_computed_fields(_required_text(raw_block, "memo", index)),
             },
         )
 
@@ -1148,7 +1360,7 @@ def _normalize_v2_header_footer_child(value: Any) -> BuilderParagraph | BuilderP
         raise ValueError(f"unsupported header/footer child type: {child_type!r}")
     children = tuple(_normalize_v2_paragraph_child(child) for child in value.get("children") or [])
     return BuilderParagraph(
-        text=str(value.get("text") or ""),
+        text=replace_computed_fields(str(value.get("text") or "")),
         children=children,
         align=_optional_str(value.get("align")),
     )
@@ -1163,7 +1375,7 @@ def _normalize_v2_paragraph_child(value: Any) -> BuilderRun | BuilderPageNumber:
     if child_type != "run":
         raise ValueError(f"unsupported paragraph child type: {child_type!r}")
     return BuilderRun(
-        text=str(value.get("text") or ""),
+        text=replace_computed_fields(str(value.get("text") or "")),
         bold=bool(value.get("bold", False)),
         italic=bool(value.get("italic", False)),
         underline=bool(value.get("underline", False)),
@@ -1182,7 +1394,7 @@ def _normalize_v2_block(raw_block: Any, *, path: str) -> Any:
     if block_type == "heading":
         return BuilderHeading(
             level=_int_value(raw_block.get("level", 1), default=1),
-            text=str(raw_block.get("text") or ""),
+            text=replace_computed_fields(str(raw_block.get("text") or "")),
         )
     if block_type == "paragraph":
         children = tuple(
@@ -1191,25 +1403,28 @@ def _normalize_v2_block(raw_block: Any, *, path: str) -> Any:
             if isinstance(child, BuilderRun)
         )
         return BuilderParagraph(
-            text=str(raw_block.get("text") or ""),
+            text=replace_computed_fields(str(raw_block.get("text") or "")),
             children=children,
             align=_optional_str(raw_block.get("align")),
             style=_optional_str(raw_block.get("style")),
         )
     if block_type in {"bullets", "bullet"}:
         return BuilderBullet(
-            items=tuple(_string_list(raw_block.get("items"))),
+            items=tuple(replace_computed_fields(item) for item in _string_list(raw_block.get("items"))),
             level=_int_value(raw_block.get("level", 0), default=0),
         )
     if block_type in {"numbered_list", "numberedList"}:
         return BuilderNumberedList(
-            items=tuple(_string_list(raw_block.get("items"))),
+            items=tuple(replace_computed_fields(item) for item in _string_list(raw_block.get("items"))),
             level=_int_value(raw_block.get("level", 0), default=0),
         )
     if block_type == "table":
         return BuilderTable(
-            header=tuple(str(item) for item in raw_block.get("header") or ()),
-            rows=tuple(tuple(str(cell) for cell in row) for row in raw_block.get("rows") or ()),
+            header=tuple(replace_computed_fields(str(item)) for item in raw_block.get("header") or ()),
+            rows=tuple(
+                tuple(replace_computed_fields(str(cell)) for cell in row)
+                for row in raw_block.get("rows") or ()
+            ),
             merges=tuple(str(item) for item in raw_block.get("merges") or ()),
             header_shading=_optional_str(raw_block.get("headerShading", raw_block.get("header_shading"))),
             column_widths=tuple(
@@ -1222,14 +1437,18 @@ def _normalize_v2_block(raw_block: Any, *, path: str) -> Any:
             path=str(raw_block.get("path") or ""),
             width_mm=_optional_number(raw_block.get("widthMm", raw_block.get("width_mm"))),
             align=_optional_str(raw_block.get("align")),
-            caption=_optional_str(raw_block.get("caption")),
+            caption=(
+                replace_computed_fields(str(raw_block.get("caption")))
+                if raw_block.get("caption") is not None
+                else None
+            ),
             image_format=_optional_str(raw_block.get("imageFormat", raw_block.get("image_format"))),
         )
     if block_type == "toc":
         return BuilderToc(
-            title=str(raw_block.get("title") or "목차"),
+            title=replace_computed_fields(str(raw_block.get("title") or "목차")),
             entries=tuple(
-                entry
+                {**entry, "text": replace_computed_fields(str(entry.get("text") or ""))}
                 for entry in raw_block.get("entries") or ()
                 if isinstance(entry, Mapping)
             ),

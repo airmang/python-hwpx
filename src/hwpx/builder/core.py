@@ -28,6 +28,12 @@ def _mm_to_hwp_units(value: float) -> int:
     return round(value * _HWP_UNITS_PER_MM)
 
 
+def _computed_text(text: str) -> str:
+    from hwpx.authoring import replace_computed_fields
+
+    return replace_computed_fields(text)
+
+
 @dataclass(frozen=True)
 class PageSize:
     width_mm: float
@@ -90,7 +96,7 @@ class Paragraph:
                 if isinstance(run, PageNumber):
                     raise ValueError("PageNumber is only supported in Header/Footer content")
                 paragraph.add_run(
-                    run.text,
+                    _computed_text(run.text),
                     bold=run.bold,
                     italic=run.italic,
                     underline=run.underline,
@@ -101,7 +107,7 @@ class Paragraph:
                     strike=True if run.strike else None,
                 )
             return
-        document.add_paragraph(self.text, inherit_style=False)
+        document.add_paragraph(_computed_text(self.text), inherit_style=False)
 
 
 @dataclass(frozen=True)
@@ -119,7 +125,7 @@ class Toc:
         title_style = document.ensure_run_style(bold=True, size=14)
         entry_style = document.ensure_run_style()
         document.add_paragraph(
-            self.title,
+            _computed_text(self.title),
             section_index=section_index,
             char_pr_id_ref=title_style,
             inherit_style=False,
@@ -131,7 +137,7 @@ class Toc:
             page = str(entry.get("page") or "").strip()
             line = f"{text}\t{page}" if page else text
             document.add_paragraph(
-                line,
+                _computed_text(line),
                 section_index=section_index,
                 char_pr_id_ref=entry_style,
                 inherit_style=False,
@@ -153,7 +159,7 @@ class Heading:
             font="함초롬바탕",
         )
         document.add_paragraph(
-            self.text,
+            _computed_text(self.text),
             section_index=section_index,
             char_pr_id_ref=char_pr_id,
             inherit_style=False,
@@ -174,7 +180,7 @@ class Bullet:
         para_pr_id = refs[self.level]
         for item in self.items:
             document.add_paragraph(
-                item,
+                _computed_text(item),
                 section_index=section_index,
                 para_pr_id_ref=para_pr_id,
                 inherit_style=False,
@@ -192,7 +198,7 @@ class NumberedList:
         para_pr_id = refs[self.level]
         for item in self.items:
             document.add_paragraph(
-                item,
+                _computed_text(item),
                 section_index=section_index,
                 para_pr_id_ref=para_pr_id,
                 inherit_style=False,
@@ -222,7 +228,7 @@ class Table:
         )
         for row_index, row in enumerate(table_rows):
             for col_index, value in enumerate(row):
-                table.cell(row_index, col_index).text = str(value)
+                table.cell(row_index, col_index).text = _computed_text(str(value))
         for merge in self.merges:
             table.merge_cells(merge)
         if self.header and self.header_shading:
@@ -256,7 +262,7 @@ class Image:
             section_index=section_index,
         )
         if self.caption:
-            document.add_paragraph(self.caption, section_index=section_index, inherit_style=False)
+            document.add_paragraph(_computed_text(self.caption), section_index=section_index, inherit_style=False)
 
 
 @dataclass(frozen=True)
@@ -289,7 +295,7 @@ class Footer:
 def _run_content_spec(run: Run) -> dict[str, object]:
     return {
         "type": "run",
-        "text": run.text,
+        "text": _computed_text(run.text),
         "bold": run.bold,
         "italic": run.italic,
         "underline": run.underline,
@@ -317,7 +323,7 @@ def _paragraph_content_spec(paragraph: Paragraph) -> dict[str, object]:
                 continue
             raise ValueError(f"unsupported header/footer paragraph child: {type(child).__name__}")
     else:
-        children = [{"type": "run", "text": paragraph.text}]
+        children = [{"type": "run", "text": _computed_text(paragraph.text)}]
     spec: dict[str, object] = {"children": children}
     if paragraph.align:
         spec["align"] = paragraph.align
