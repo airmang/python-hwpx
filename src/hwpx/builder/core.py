@@ -24,6 +24,93 @@ _A4_HWP_SIZE = (59528, 84188)
 # changing default node contracts or the plan-v1 authoring style-token path.
 
 
+@dataclass(frozen=True)
+class _BuilderPreset:
+    name: str = "default"
+
+    @property
+    def is_government_report(self) -> bool:
+        return self.name == "government_report"
+
+    def heading_style(self, level: int) -> dict[str, object]:
+        if self.is_government_report:
+            size_by_level = {1: 16, 2: 14, 3: 12}
+            color_by_level = {1: "1F4E79", 2: "2F5597", 3: "404040"}
+            return {
+                "bold": True,
+                "underline": level == 1,
+                "size": size_by_level[level],
+                "font": "함초롬바탕",
+                "color": color_by_level[level],
+            }
+        size_by_level = {1: 18, 2: 15, 3: 13}
+        return {
+            "bold": True,
+            "size": size_by_level[level],
+            "font": "함초롬바탕",
+        }
+
+    def paragraph_style(self, style: str | None) -> dict[str, object] | None:
+        if not self.is_government_report:
+            return None
+        normalized = (style or "").strip().lower()
+        if normalized == "callout":
+            return {
+                "bold": True,
+                "color": "1F4E79",
+                "font": "함초롬바탕",
+                "highlight": "EAF1FB",
+            }
+        if normalized in {"emphasis", "gov_emphasis"}:
+            return {"bold": True, "color": "1F4E79", "font": "함초롬바탕"}
+        return None
+
+    def run_style(self, run: "Run") -> dict[str, object]:
+        color = run.color
+        font = run.font
+        if self.is_government_report:
+            if run.bold and color is None:
+                color = "1F4E79"
+            if (run.bold or run.underline or run.highlight) and font is None:
+                font = "함초롬바탕"
+        return {
+            "bold": run.bold,
+            "italic": run.italic,
+            "underline": run.underline,
+            "color": color,
+            "font": font,
+            "size": run.size,
+            "highlight": run.highlight,
+            "strike": True if run.strike else None,
+        }
+
+    def bullet_char(self, *, level: int, style: str | None = None) -> str:
+        if self.is_government_report:
+            style_chars = {
+                "default": "•",
+                "square": "□",
+                "circle": "○",
+                "dash": "-",
+                "note": "※",
+                "star": "*",
+            }
+            normalized = (style or "default").strip().lower().replace("-", "_")
+            if normalized not in style_chars:
+                raise ValueError(f"unknown government_report bullet style: {style!r}")
+            return style_chars[normalized]
+        default_chars = ("-", "○", "□", "•")
+        return default_chars[level % len(default_chars)]
+
+
+def _builder_preset(value: str | None) -> _BuilderPreset:
+    normalized = (value or "default").strip().lower().replace("-", "_")
+    if normalized in {"", "default", "standard", "standard_korean_business"}:
+        return _BuilderPreset()
+    if normalized in {"government_report", "gov_report", "공문보고서"}:
+        return _BuilderPreset(name="government_report")
+    raise ValueError(f"unknown builder preset: {value!r}")
+
+
 def _mm_to_hwp_units(value: float) -> int:
     return round(value * _HWP_UNITS_PER_MM)
 
@@ -89,25 +176,25 @@ class Paragraph:
     align: str | None = None
     style: str | None = None
 
-    def lower(self, document: HwpxDocument) -> None:
+    def lower(self, document: HwpxDocument, *, preset: _BuilderPreset | None = None) -> None:
+        style_preset = preset or _BuilderPreset()
         if self.children:
             paragraph = document.add_paragraph("", include_run=False, inherit_style=False)
             for run in self.children:
                 if isinstance(run, PageNumber):
                     raise ValueError("PageNumber is only supported in Header/Footer content")
-                paragraph.add_run(
-                    _computed_text(run.text),
-                    bold=run.bold,
-                    italic=run.italic,
-                    underline=run.underline,
-                    color=run.color,
-                    font=run.font,
-                    size=run.size,
-                    highlight=run.highlight,
-                    strike=True if run.strike else None,
-                )
+                paragraph.add_run(_computed_text(run.text), **style_preset.run_style(run))
             return
-        document.add_paragraph(_computed_text(self.text), inherit_style=False)
+        style_kwargs = style_preset.paragraph_style(self.style)
+        if style_kwargs is None:
+            document.add_paragraph(_computed_text(self.text), inherit_style=False)
+            return
+        char_pr_id = document.ensure_run_style(**style_kwargs)
+        document.add_paragraph(
+            _computed_text(self.text),
+            char_pr_id_ref=char_pr_id,
+            inherit_style=False,
+        )
 
 
 @dataclass(frozen=True)
@@ -121,8 +208,19 @@ class Toc:
     title: str = "목차"
     entries: Sequence[Mapping[str, Any]] = field(default_factory=tuple)
 
-    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
-        title_style = document.ensure_run_style(bold=True, size=14)
+    def lower(
+        self,
+        document: HwpxDocument,
+        *,
+        section_index: int = 0,
+        preset: _BuilderPreset | None = None,
+    ) -> None:
+        style_preset = preset or _BuilderPreset()
+        title_style = (
+            document.ensure_run_style(**style_preset.heading_style(2))
+            if style_preset.is_government_report
+            else document.ensure_run_style(bold=True, size=14)
+        )
         entry_style = document.ensure_run_style()
         document.add_paragraph(
             _computed_text(self.title),
@@ -149,15 +247,17 @@ class Heading:
     level: int
     text: str
 
-    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+    def lower(
+        self,
+        document: HwpxDocument,
+        *,
+        section_index: int = 0,
+        preset: _BuilderPreset | None = None,
+    ) -> None:
         if self.level < 1 or self.level > 3:
             raise ValueError("heading level must be between 1 and 3")
-        size_by_level = {1: 18, 2: 15, 3: 13}
-        char_pr_id = document.ensure_run_style(
-            bold=True,
-            size=size_by_level[self.level],
-            font="함초롬바탕",
-        )
+        style_preset = preset or _BuilderPreset()
+        char_pr_id = document.ensure_run_style(**style_preset.heading_style(self.level))
         document.add_paragraph(
             _computed_text(self.text),
             section_index=section_index,
@@ -170,12 +270,29 @@ class Heading:
 class Bullet:
     items: Sequence[str]
     level: int = 0
+    style: str | None = None
 
-    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+    def lower(
+        self,
+        document: HwpxDocument,
+        *,
+        section_index: int = 0,
+        preset: _BuilderPreset | None = None,
+    ) -> None:
+        style_preset = preset or _BuilderPreset()
         level_count = max(self.level + 1, 1)
+        levels = [
+            {
+                "char": style_preset.bullet_char(
+                    level=index,
+                    style=self.style if index == self.level else None,
+                )
+            }
+            for index in range(level_count)
+        ]
         refs = document.ensure_numbering(
             kind="bullet",
-            levels=[{"char": char} for char in ("-", "○", "□", "•")[:level_count]],
+            levels=levels,
         )
         para_pr_id = refs[self.level]
         for item in self.items:
@@ -213,7 +330,13 @@ class Table:
     header_shading: str | None = None
     column_widths: Sequence[int | float] = field(default_factory=tuple)
 
-    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+    def lower(
+        self,
+        document: HwpxDocument,
+        *,
+        section_index: int = 0,
+        preset: _BuilderPreset | None = None,
+    ) -> None:
         table_rows: list[Sequence[str]] = []
         if self.header:
             table_rows.append(self.header)
@@ -246,7 +369,13 @@ class Image:
     caption: str | None = None
     image_format: str | None = None
 
-    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+    def lower(
+        self,
+        document: HwpxDocument,
+        *,
+        section_index: int = 0,
+        preset: _BuilderPreset | None = None,
+    ) -> None:
         if isinstance(self.path, bytes):
             image_data = self.path
             image_format = self.image_format or "png"
@@ -274,9 +403,15 @@ class PageNumber:
 class Header:
     children: Sequence[Paragraph | PageNumber] = field(default_factory=tuple)
 
-    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+    def lower(
+        self,
+        document: HwpxDocument,
+        *,
+        section_index: int = 0,
+        preset: _BuilderPreset | None = None,
+    ) -> None:
         document.set_header_content(
-            _header_footer_content_specs(self.children),
+            _header_footer_content_specs(self.children, preset=preset),
             section_index=section_index,
         )
 
@@ -285,24 +420,32 @@ class Header:
 class Footer:
     children: Sequence[Paragraph | PageNumber] = field(default_factory=tuple)
 
-    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+    def lower(
+        self,
+        document: HwpxDocument,
+        *,
+        section_index: int = 0,
+        preset: _BuilderPreset | None = None,
+    ) -> None:
         document.set_footer_content(
-            _header_footer_content_specs(self.children),
+            _header_footer_content_specs(self.children, preset=preset),
             section_index=section_index,
         )
 
 
-def _run_content_spec(run: Run) -> dict[str, object]:
+def _run_content_spec(run: Run, *, preset: _BuilderPreset | None = None) -> dict[str, object]:
+    style_preset = preset or _BuilderPreset()
+    style = style_preset.run_style(run)
     return {
         "type": "run",
         "text": _computed_text(run.text),
-        "bold": run.bold,
-        "italic": run.italic,
-        "underline": run.underline,
-        "color": run.color,
-        "font": run.font,
-        "size": run.size,
-        "highlight": run.highlight,
+        "bold": style["bold"],
+        "italic": style["italic"],
+        "underline": style["underline"],
+        "color": style["color"],
+        "font": style["font"],
+        "size": style["size"],
+        "highlight": style["highlight"],
         "strike": run.strike,
     }
 
@@ -311,12 +454,16 @@ def _page_number_content_spec(page_number: PageNumber) -> dict[str, object]:
     return {"type": "page_number", "format": page_number.format}
 
 
-def _paragraph_content_spec(paragraph: Paragraph) -> dict[str, object]:
+def _paragraph_content_spec(
+    paragraph: Paragraph,
+    *,
+    preset: _BuilderPreset | None = None,
+) -> dict[str, object]:
     if paragraph.children:
         children: list[dict[str, object]] = []
         for child in paragraph.children:
             if isinstance(child, Run):
-                children.append(_run_content_spec(child))
+                children.append(_run_content_spec(child, preset=preset))
                 continue
             if isinstance(child, PageNumber):
                 children.append(_page_number_content_spec(child))
@@ -332,11 +479,13 @@ def _paragraph_content_spec(paragraph: Paragraph) -> dict[str, object]:
 
 def _header_footer_content_specs(
     children: Sequence[Paragraph | PageNumber],
+    *,
+    preset: _BuilderPreset | None = None,
 ) -> list[dict[str, object]]:
     specs: list[dict[str, object]] = []
     for child in children:
         if isinstance(child, Paragraph):
-            specs.append(_paragraph_content_spec(child))
+            specs.append(_paragraph_content_spec(child, preset=preset))
             continue
         if isinstance(child, PageNumber):
             specs.append({"children": [_page_number_content_spec(child)]})
@@ -448,7 +597,13 @@ class Section:
     header: Header | None = None
     footer: Footer | None = None
 
-    def lower(self, document: HwpxDocument, *, section_index: int = 0) -> None:
+    def lower(
+        self,
+        document: HwpxDocument,
+        *,
+        section_index: int = 0,
+        preset: _BuilderPreset | None = None,
+    ) -> None:
         if self.page is not None:
             if self.page == PageSize.A4:
                 width, height = _A4_HWP_SIZE
@@ -473,27 +628,33 @@ class Section:
                 section_index=section_index,
             )
         if self.header is not None:
-            self.header.lower(document, section_index=section_index)
+            self.header.lower(document, section_index=section_index, preset=preset)
         if self.footer is not None:
-            self.footer.lower(document, section_index=section_index)
+            self.footer.lower(document, section_index=section_index, preset=preset)
         for child in self.children:
             if isinstance(child, (Paragraph, PageBreak)):
-                child.lower(document)
+                if isinstance(child, Paragraph):
+                    child.lower(document, preset=preset)
+                else:
+                    child.lower(document)
                 continue
             if isinstance(child, Heading):
-                child.lower(document, section_index=section_index)
+                child.lower(document, section_index=section_index, preset=preset)
                 continue
             if isinstance(child, (Bullet, NumberedList)):
-                child.lower(document, section_index=section_index)
+                if isinstance(child, Bullet):
+                    child.lower(document, section_index=section_index, preset=preset)
+                else:
+                    child.lower(document, section_index=section_index)
                 continue
             if isinstance(child, Table):
-                child.lower(document, section_index=section_index)
+                child.lower(document, section_index=section_index, preset=preset)
                 continue
             if isinstance(child, Image):
-                child.lower(document, section_index=section_index)
+                child.lower(document, section_index=section_index, preset=preset)
                 continue
             if isinstance(child, Toc):
-                child.lower(document, section_index=section_index)
+                child.lower(document, section_index=section_index, preset=preset)
                 continue
             raise NotImplementedError(f"{type(child).__name__} lowering is not implemented yet")
 
@@ -503,6 +664,7 @@ class Document:
     sections: Sequence[Section] = field(default_factory=lambda: (Section(),))
     metadata: Metadata | None = None
     visual_review_required: bool | None = None
+    preset: str | None = None
 
     def feature_flags(self) -> dict[str, bool]:
         flags = _merge_flags(*(_section_feature_flags(section) for section in self.sections))
@@ -516,6 +678,7 @@ class Document:
 
     def lower(self) -> HwpxDocument:
         document = HwpxDocument.new()
+        preset = _builder_preset(self.preset)
         if self.metadata is not None:
             for label, value in (
                 ("제목", self.metadata.title),
@@ -525,7 +688,7 @@ class Document:
                 if value:
                     document.add_paragraph(f"{label}: {value}", inherit_style=False)
         for index, section in enumerate(self.sections):
-            section.lower(document, section_index=index)
+            section.lower(document, section_index=index, preset=preset)
         return document
 
     def save_to_path(self, path: str | PathLike[str]) -> BuilderSaveReport:

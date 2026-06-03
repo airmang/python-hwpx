@@ -1296,6 +1296,8 @@ def _normalize_v2_builder_document(plan: Mapping[str, Any]) -> BuilderDocument:
         ),
         metadata=builder_metadata,
         visual_review_required=_optional_bool(plan.get("visualReviewRequired")),
+        preset=str(plan.get("preset") or plan.get("stylePreset") or DEFAULT_STYLE_PRESET).strip()
+        or DEFAULT_STYLE_PRESET,
     )
 
 
@@ -1412,6 +1414,7 @@ def _normalize_v2_block(raw_block: Any, *, path: str) -> Any:
         return BuilderBullet(
             items=tuple(replace_computed_fields(item) for item in _string_list(raw_block.get("items"))),
             level=_int_value(raw_block.get("level", 0), default=0),
+            style=_optional_str(raw_block.get("style")),
         )
     if block_type in {"numbered_list", "numberedList"}:
         return BuilderNumberedList(
