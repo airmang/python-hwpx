@@ -60,6 +60,7 @@ def test_corpus_sample_roundtrips(sample):
     rep = roundtrip_report(CORPUS / sample)
 
     assert rep["reopened"] is True
+    assert rep["lost_elements"] == {}
 
 
 def test_emit_loss_inventory():
