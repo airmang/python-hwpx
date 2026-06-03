@@ -29,6 +29,7 @@ _ELEMENT_FACTORY["ctrl"] = body.parse_control_element
 _ELEMENT_FACTORY["tbl"] = body.parse_table_element
 _ELEMENT_FACTORY["linesegarray"] = body.parse_line_seg_array_element
 _ELEMENT_FACTORY["lineseg"] = body.parse_line_seg_element
+_ELEMENT_FACTORY["transMatrix"] = body.parse_transform_matrix_element
 for name in body.INLINE_OBJECT_NAMES:
     _ELEMENT_FACTORY.setdefault(name, body.parse_inline_object_element)
 for mark_name in ("insertBegin", "insertEnd", "deleteBegin", "deleteEnd"):

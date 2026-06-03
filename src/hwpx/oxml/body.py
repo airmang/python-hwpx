@@ -43,7 +43,7 @@ _TRACK_CHANGE_MARK_NAMES = {
     "deleteEnd",
 }
 
-PreservedElement = Union[GenericElement, "LineSegArray", "LineSeg"]
+PreservedElement = Union[GenericElement, "LineSegArray", "LineSeg", "TransformMatrix"]
 InlineMark = Union[PreservedElement, "TrackChangeMark"]
 RunChild = Union[PreservedElement, "Control", "Table", "InlineObject", "TextSpan", "Tab"]
 ParagraphChild = Union["Run", PreservedElement]
@@ -146,6 +146,21 @@ class LineSegArray:
     linesegs: List[LineSeg] = field(default_factory=list)
     other_children: List[PreservedElement] = field(default_factory=list)
     content: List[PreservedElement] = field(default_factory=list)
+    text: Optional[str] = None
+
+
+@dataclass(slots=True)
+class TransformMatrix:
+    tag: str
+    name: str
+    e1: Optional[str]
+    e2: Optional[str]
+    e3: Optional[str]
+    e4: Optional[str]
+    e5: Optional[str]
+    e6: Optional[str]
+    attributes: Dict[str, str] = field(default_factory=dict)
+    children: List[PreservedElement] = field(default_factory=list)
     text: Optional[str] = None
 
 
@@ -260,12 +275,31 @@ def parse_line_seg_array_element(node: etree._Element) -> LineSegArray:
     return line_array
 
 
+def parse_transform_matrix_element(node: etree._Element) -> TransformMatrix:
+    attrs = {key: value for key, value in node.attrib.items()}
+    return TransformMatrix(
+        tag=node.tag,
+        name=local_name(node),
+        e1=attrs.pop("e1", None),
+        e2=attrs.pop("e2", None),
+        e3=attrs.pop("e3", None),
+        e4=attrs.pop("e4", None),
+        e5=attrs.pop("e5", None),
+        e6=attrs.pop("e6", None),
+        attributes=attrs,
+        children=[parse_preserved_element(child) for child in node],
+        text=node.text if node.text is not None else None,
+    )
+
+
 def parse_preserved_element(node: etree._Element) -> PreservedElement:
     name = local_name(node)
     if name == "linesegarray":
         return parse_line_seg_array_element(node)
     if name == "lineseg":
         return parse_line_seg_element(node)
+    if name == "transMatrix":
+        return parse_transform_matrix_element(node)
     return GenericElement(
         name=name,
         tag=node.tag,
@@ -450,11 +484,34 @@ def _line_seg_array_to_xml(line_array: LineSegArray) -> etree._Element:
     return node
 
 
+def _set_str_attr(attrs: Dict[str, str], name: str, value: Optional[str]) -> None:
+    if value is not None:
+        attrs[name] = value
+
+
+def _transform_matrix_to_xml(matrix: TransformMatrix) -> etree._Element:
+    attrs = dict(matrix.attributes)
+    _set_str_attr(attrs, "e1", matrix.e1)
+    _set_str_attr(attrs, "e2", matrix.e2)
+    _set_str_attr(attrs, "e3", matrix.e3)
+    _set_str_attr(attrs, "e4", matrix.e4)
+    _set_str_attr(attrs, "e5", matrix.e5)
+    _set_str_attr(attrs, "e6", matrix.e6)
+    node = etree.Element(_qualified_tag(matrix.tag, matrix.name), attrs)
+    if matrix.text:
+        node.text = matrix.text
+    for child in matrix.children:
+        node.append(_preserved_element_to_xml(child))
+    return node
+
+
 def _preserved_element_to_xml(element: PreservedElement) -> etree._Element:
     if isinstance(element, LineSegArray):
         return _line_seg_array_to_xml(element)
     if isinstance(element, LineSeg):
         return _line_seg_to_xml(element)
+    if isinstance(element, TransformMatrix):
+        return _transform_matrix_to_xml(element)
     return _generic_element_to_xml(element)
 
 
@@ -574,6 +631,7 @@ __all__ = [
     "TextMarkup",
     "TextSpan",
     "TrackChangeMark",
+    "TransformMatrix",
     "parse_control_element",
     "parse_inline_object_element",
     "parse_line_seg_array_element",
@@ -585,6 +643,7 @@ __all__ = [
     "parse_table_element",
     "parse_text_span",
     "parse_track_change_mark",
+    "parse_transform_matrix_element",
     "serialize_paragraph",
     "serialize_run",
 ]

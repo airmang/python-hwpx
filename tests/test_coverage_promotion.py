@@ -11,7 +11,7 @@ from lxml import etree
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml import HwpxOxmlSection, parse_section_xml
-from hwpx.oxml.body import LineSeg, LineSegArray
+from hwpx.oxml.body import LineSeg, LineSegArray, TransformMatrix
 from hwpx.tools import generic_inventory
 from hwpx.tools.roundtrip_diff import roundtrip_report
 
@@ -107,3 +107,44 @@ def test_linesegarray_sample_roundtrip_has_no_a1_loss() -> None:
 
     assert rep["reopened"] is True
     assert rep["lost_elements"] == {}
+
+
+def test_transmatrix_promoted_from_hwpxlib_sample() -> None:
+    section = parse_section_xml(_section_xml(SIMPLE_LINE))
+    matrices = [
+        node
+        for node in _walk(section)
+        if isinstance(node, TransformMatrix) and node.name == "transMatrix"
+    ]
+
+    assert matrices
+    matrix = matrices[0]
+    assert matrix.e1 == "1"
+    assert matrix.e5 == "1"
+    assert matrix.e6 == "0"
+
+
+def test_transmatrix_model_roundtrips_through_paragraph_apply() -> None:
+    section_element = ET.fromstring(_section_xml(SIMPLE_LINE))
+    section = HwpxOxmlSection("section0.xml", section_element)
+    paragraph = section.paragraphs[0]
+
+    model = paragraph.to_model()
+    matrix = next(
+        node
+        for node in _walk(model)
+        if isinstance(node, TransformMatrix) and node.name == "transMatrix"
+    )
+    matrix.e6 = "99"
+
+    paragraph.apply_model(model)
+    updated = paragraph.to_model()
+    updated_matrix = next(
+        node
+        for node in _walk(updated)
+        if isinstance(node, TransformMatrix) and node.name == "transMatrix"
+    )
+
+    assert updated_matrix.e6 == "99"
+    paragraph_xml = ET.tostring(paragraph.element, encoding="utf-8")
+    assert _local_count(paragraph_xml, "transMatrix") == 1
