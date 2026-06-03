@@ -298,7 +298,7 @@ def parse_preserved_element(node: etree._Element) -> PreservedElement:
         return parse_line_seg_array_element(node)
     if name == "lineseg":
         return parse_line_seg_element(node)
-    if name == "transMatrix":
+    if name in {"transMatrix", "scaMatrix"}:
         return parse_transform_matrix_element(node)
     return GenericElement(
         name=name,
