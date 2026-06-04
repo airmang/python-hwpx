@@ -4,6 +4,10 @@
 
 기여자 목록은 시간 역순(최근 기여가 위)입니다. 새 기여자를 추가할 때는 해당 릴리즈 항목 아래에 `- Name ([@github-handle](https://github.com/github-handle)) — 기여 내용` 형식으로 적어 주세요.
 
+## Unreleased
+
+- Dahyun Lee ([@AgentBridge-Lab](https://github.com/AgentBridge-Lab)) — rich Markdown export, 각주/미주 본문 helper, `charPrIDRef` 각주 본문 적용 수정, 회귀 테스트 추가 (#42).
+
 ## 2.9.1
 
 - Seonghoon Jeong ([@seonghoony](https://github.com/seonghoony)) — signed int32 범위 밖 ID 생성 버그 수정 (#34), 번들 Skeleton 템플릿 재생성 (#35), 회귀 테스트 추가.

@@ -79,6 +79,47 @@ hwpx-validate-package 보고서.hwpx
 hwpx-analyze-template 보고서.hwpx
 ```
 
+### 4. 풍부한 Markdown 변환 (서식·표·각주·이미지 보존)
+
+`export_markdown()`는 단순 평문 추출이고, `export_rich_markdown()`는 인라인 서식(`**굵게**`, `*기울임*`, `~~취소선~~`),
+표(중첩 포함, colspan/rowspan 안전), 도형 텍스트, 이미지, 각주/미주, 하이퍼링크, 제목(`#`/`##`) 자동 감지까지 보존한다.
+
+```python
+from hwpx import HwpxDocument
+
+doc = HwpxDocument.open("보고서.hwpx")
+
+md = doc.export_rich_markdown(
+    image_dir="out/images",          # BinData 이미지를 디스크에 추출
+    image_ref_prefix="images/",      # 마크다운 내 ![](images/...) 경로 접두
+    detect_headings=True,            # Ⅰ./1. 패턴 기반 #/## 자동
+)
+print(md)
+```
+
+문자열·경로·바이트도 그대로 받는다:
+
+```python
+from hwpx.tools.markdown_export import export_markdown
+
+md = export_markdown("보고서.hwpx")          # 경로
+md = export_markdown(open("a.hwpx", "rb").read())  # bytes
+```
+
+### 5. 각주 본문에 혼합 서식 / 하이퍼링크 추가
+
+`HwpxOxmlNote`에 `body_paragraph`, `add_run`, `add_hyperlink` helper가 있어 각주 본문을
+직접 paragraph로 다루지 않고도 인라인 서식·링크를 손쉽게 채울 수 있다.
+
+```python
+para = section.paragraphs[0]
+note = para.add_footnote("")  # 빈 각주 생성 후 본문 구성
+note.add_run("자세한 내용은 ", )
+note.add_run("정부 공식 사이트", bold=True)
+note.add_run("를 참고하라: ")
+note.add_hyperlink("https://www.kasa.go.kr", "우주항공청")
+```
+
 처음에는 `open/new -> edit/extract -> save_to_path` 흐름만 잡으면 된다. 패키지 구조, XML 파트, 템플릿 회귀 점검은 필요할 때만 확장하면 된다.
 
 ## 어디부터 읽으면 되나

@@ -1472,6 +1472,14 @@ class HwpxDocument:
         from .tools.exporter import export_markdown
         return export_markdown(self, **kwargs)  # type: ignore[arg-type]
 
+    def export_rich_markdown(self, **kwargs: object) -> str:
+        """Export rich Markdown preserving inline styles, tables, footnotes, hyperlinks, images, and shape text.
+
+        Keyword args forwarded to :func:`~hwpx.tools.markdown_export.export_markdown`.
+        """
+        from .tools.markdown_export import export_markdown as _rich
+        return _rich(self, **kwargs)  # type: ignore[arg-type]
+
     # ------------------------------------------------------------------
     # Validation
     # ------------------------------------------------------------------
