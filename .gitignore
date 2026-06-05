@@ -52,3 +52,9 @@ Thumbs.db
 *.log
 .env
 .env.*
+
+# Claude Code local settings (skills are tracked, local settings are not)
+.claude/settings.local.json
+
+# cctv_daily_report 생성 결과물 (보고서는 산출물이므로 추적 제외)
+outputs/

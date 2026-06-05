@@ -1,0 +1,5 @@
+.env
+tests/sample.jpg
+__pycache__/
+*.pyc
+.venv/

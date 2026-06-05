@@ -1,0 +1,104 @@
+# ============================================================================
+# Report Summary Server (vLLM only)
+#
+# Stand-alone vLLM 컨테이너. OpenAI 호환 HTTP API(/v1/chat/completions) 그대로
+# 노출. 백엔드는 이 엔드포인트 직접 호출. 별도 wrapper FastAPI 서버 없음 —
+# 프롬프트 빌더는 prompts.py 모듈을 백엔드가 import하여 사용.
+#
+# 환경변수 의미는 .env.example 주석 참고. boolean toggle (예:
+# ENABLE_PREFIX_CACHING) 과 optional 인자 (예: KV_CACHE_MEMORY_BYTES,
+# REASONING_PARSER, EXTRA_VLLM_ARGS) 는 컨테이너 내부 shell에서 조건 처리.
+# ============================================================================
+
+services:
+  report-vllm:
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:cu130-nightly}
+    container_name: report-vllm
+    ipc: host
+    # ports 형식: "호스트포트:컨테이너포트"
+    # ${VLLM_PORT:-8000} 은 .env의 VLLM_PORT 값 사용, 없으면 8000을 default로 사용한다는 의미.
+    # (compose 변수 보간 문법, 빼기 연산이 아님)
+    ports:
+      - "${VLLM_PORT:-8000}:8000"
+    volumes:
+      - ${HF_CACHE_DIR:-~/.cache/huggingface}:/root/.cache/huggingface
+    environment:
+      # --- 모델 / 토큰 ---
+      - VLLM_MODEL=${VLLM_MODEL:-Qwen/Qwen3.5-0.8B}
+      - HF_TOKEN=${HF_TOKEN:-}
+      - HF_HOME=/root/.cache/huggingface
+      # --- 병렬화 ---
+      - TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE:-1}
+      - DATA_PARALLEL_SIZE=${DATA_PARALLEL_SIZE:-1}
+      # --- VRAM / KV 캐시 / dtype ---
+      - GPU_MEMORY_UTILIZATION=${GPU_MEMORY_UTILIZATION:-0.2}
+      - KV_CACHE_MEMORY_BYTES=${KV_CACHE_MEMORY_BYTES:-1G}
+      - DTYPE=${DTYPE:-auto}
+      # --- 컨텍스트 / 동시 처리 ---
+      - MAX_MODEL_LEN=${MAX_MODEL_LEN:-4096}
+      - MAX_NUM_SEQS=${MAX_NUM_SEQS:-64}
+      - MAX_NUM_BATCHED_TOKENS=${MAX_NUM_BATCHED_TOKENS:-8192}
+      - LIMIT_MM_PER_PROMPT=${LIMIT_MM_PER_PROMPT:-{"image":1}}
+      # --- 처리량 최적화 / 모델 옵션 ---
+      - ENABLE_PREFIX_CACHING=${ENABLE_PREFIX_CACHING:-true}
+      - REASONING_PARSER=${REASONING_PARSER:-}
+      - VLLM_SEED=${VLLM_SEED:-0}
+      # --- 자유 입력 ---
+      - EXTRA_VLLM_ARGS=${EXTRA_VLLM_ARGS:-}
+      # --- GPU pinning ---
+      - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-0}
+    entrypoint:
+      - /bin/sh
+      - -c
+    command:
+      - |
+        set -e
+        OPT_ARGS=""
+
+        # boolean toggle
+        if [ "$${ENABLE_PREFIX_CACHING}" = "true" ]; then
+          OPT_ARGS="$${OPT_ARGS} --enable-prefix-caching"
+        fi
+
+        # optional value: 비어있으면 인자 자체 생략
+        if [ -n "$${KV_CACHE_MEMORY_BYTES}" ]; then
+          OPT_ARGS="$${OPT_ARGS} --kv-cache-memory-bytes $${KV_CACHE_MEMORY_BYTES}"
+        fi
+        if [ -n "$${REASONING_PARSER}" ]; then
+          OPT_ARGS="$${OPT_ARGS} --reasoning-parser $${REASONING_PARSER}"
+        fi
+        if [ "$${DATA_PARALLEL_SIZE}" != "1" ]; then
+          OPT_ARGS="$${OPT_ARGS} --data-parallel-size $${DATA_PARALLEL_SIZE}"
+        fi
+
+        echo "[entrypoint] starting vllm serve $${VLLM_MODEL}"
+        echo "[entrypoint] OPT_ARGS=$${OPT_ARGS}"
+        echo "[entrypoint] EXTRA_VLLM_ARGS=$${EXTRA_VLLM_ARGS}"
+
+        exec vllm serve "$${VLLM_MODEL}" \
+          --tensor-parallel-size "$${TENSOR_PARALLEL_SIZE}" \
+          --max-model-len "$${MAX_MODEL_LEN}" \
+          --max-num-seqs "$${MAX_NUM_SEQS}" \
+          --max-num-batched-tokens "$${MAX_NUM_BATCHED_TOKENS}" \
+          --gpu-memory-utilization "$${GPU_MEMORY_UTILIZATION}" \
+          --dtype "$${DTYPE}" \
+          --limit-mm-per-prompt "$${LIMIT_MM_PER_PROMPT}" \
+          --seed "$${VLLM_SEED}" \
+          --host 0.0.0.0 \
+          --port 8000 \
+          $${OPT_ARGS} \
+          $${EXTRA_VLLM_ARGS}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${GPU_COUNT:-1}
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 600s
