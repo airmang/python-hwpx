@@ -249,6 +249,7 @@ doc.set_footer_text("1 / 10", page_type="BOTH")
 # 표 셀 병합·분할
 table.merge_cells(0, 0, 1, 1)   # (0,0)~(1,1) 병합
 table.set_cell_text(0, 0, "병합된 셀", logical=True, split_merged=True)
+table.set_cell_text(0, 0, "line 1\nline 2", split_paragraphs=True)
 
 # 양식형 표 자동 채우기
 form = doc.add_table(2, 2)
@@ -261,6 +262,12 @@ doc.fill_by_path({
     "소속 > right": "플랫폼팀",
 })
 ```
+
+`doc.paragraphs`의 인덱스는 본문 직속 문단 0-based 기준입니다. 표 안 문단은
+본문 `paragraph_index`에 섞지 않고 `get_table_map()`의 cell `location`
+(`table_index`, `row`, `col`, `cell_paragraph_index`)으로 다룹니다.
+`get_table_map()`은 `caption_text`와 `preceding_paragraph_text`를 분리해
+반환하고, 셀 미리보기의 여러 문단은 `\n`으로 유지합니다.
 
 ### 🔍 텍스트 추출 & 검색
 

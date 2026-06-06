@@ -424,6 +424,48 @@ def test_table_cell_text_marks_cell_dirty_attribute() -> None:
     assert table.cell(0, 0).element.get("dirty") == "1"
 
 
+def test_table_set_cell_text_preserves_existing_char_pr_and_clears_extra_runs() -> None:
+    section_element = ET.Element(f"{HS}sec")
+    section = HwpxOxmlSection("section0.xml", section_element)
+    manifest = ET.Element("manifest")
+    root = HwpxOxmlDocument(manifest, [section], [])
+    document = HwpxDocument(cast(HwpxPackage, object()), root)
+
+    table = document.add_table(1, 1, section=section)
+    cell = table.cell(0, 0)
+    paragraph = cell.paragraphs[0]
+    first_run = paragraph.runs[0]
+    first_run.char_pr_id_ref = "7"
+    extra_run = paragraph.add_run(" suffix", char_pr_id_ref="9")
+
+    table.set_cell_text(0, 0, "updated code")
+
+    assert paragraph.runs[0].char_pr_id_ref == "7"
+    assert paragraph.runs[0].text == "updated code"
+    assert extra_run.char_pr_id_ref == "9"
+    assert extra_run.text == ""
+    assert cell.text == "updated code"
+
+
+def test_table_set_cell_text_can_split_multiline_input_into_paragraphs() -> None:
+    section_element = ET.Element(f"{HS}sec")
+    section = HwpxOxmlSection("section0.xml", section_element)
+    manifest = ET.Element("manifest")
+    root = HwpxOxmlDocument(manifest, [section], [])
+    document = HwpxDocument(cast(HwpxPackage, object()), root)
+
+    table = document.add_table(1, 1, section=section)
+    cell = table.cell(0, 0)
+    cell.paragraphs[0].runs[0].char_pr_id_ref = "11"
+
+    table.set_cell_text(0, 0, "line one\nline two", split_paragraphs=True)
+
+    paragraphs = cell.paragraphs
+    assert [paragraph.text for paragraph in paragraphs] == ["line one", "line two"]
+    assert [paragraph.runs[0].char_pr_id_ref for paragraph in paragraphs] == ["11", "11"]
+    assert cell.text == "line one\nline two"
+
+
 def test_table_merge_cells_updates_spans_and_structure() -> None:
     section_element = ET.Element(f"{HS}sec")
     section = HwpxOxmlSection("section0.xml", section_element)

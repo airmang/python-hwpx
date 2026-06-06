@@ -2487,6 +2487,9 @@ class HwpxOxmlTableCell:
 
     @property
     def text(self) -> str:
+        paragraphs = self.paragraphs
+        if paragraphs:
+            return "\n".join(paragraph.text or "" for paragraph in paragraphs)
         parts: list[str] = []
         for t_elem in self.element.findall(f".//{_HP}t"):
             if t_elem.text:
@@ -2495,8 +2498,79 @@ class HwpxOxmlTableCell:
 
     @text.setter
     def text(self, value: str) -> None:
+        self.set_text(value)
+
+    def _first_run_char_pr_id_ref(self) -> str:
+        for paragraph in self.paragraphs:
+            for run in paragraph.runs:
+                if run.char_pr_id_ref is not None:
+                    return str(run.char_pr_id_ref)
+        return "0"
+
+    def _paragraph_format_attrs(self, paragraph: "HwpxOxmlParagraph" | None = None) -> dict[str, str]:
+        source = paragraph.element if paragraph is not None else None
+        attrs = dict(_default_cell_paragraph_attributes())
+        if source is not None:
+            for key in ("paraPrIDRef", "styleIDRef", "pageBreak", "columnBreak", "merged"):
+                value = source.get(key)
+                if value is not None:
+                    attrs[key] = value
+        attrs["id"] = _paragraph_id()
+        return attrs
+
+    def _run_char_pr_for_line(self, paragraphs: Sequence["HwpxOxmlParagraph"], index: int) -> str:
+        if index < len(paragraphs):
+            for run in paragraphs[index].runs:
+                if run.char_pr_id_ref is not None:
+                    return str(run.char_pr_id_ref)
+        return self._first_run_char_pr_id_ref()
+
+    def _set_split_paragraph_text(self, value: str) -> None:
+        sublist = self._ensure_sublist()
+        existing = self.paragraphs
+        lines = (value or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        if not lines:
+            lines = [""]
+
+        for paragraph in list(sublist.findall(f"{_HP}p")):
+            sublist.remove(paragraph)
+
+        for index, line in enumerate(lines):
+            source = existing[index] if index < len(existing) else existing[0] if existing else None
+            paragraph = _append_child(sublist, f"{_HP}p", self._paragraph_format_attrs(source))
+            run = _append_child(
+                paragraph,
+                f"{_HP}run",
+                {"charPrIDRef": self._run_char_pr_for_line(existing, index)},
+            )
+            _append_text_with_tabs(run, line)
+
+    def set_text(
+        self,
+        value: str,
+        *,
+        preserve_format: bool = True,
+        split_paragraphs: bool = False,
+    ) -> None:
+        if split_paragraphs:
+            self._set_split_paragraph_text(value)
+            self.element.set("dirty", "1")
+            self.table.mark_dirty()
+            return
+
         text_element = self._ensure_text_element()
         text_element.text = _sanitize_text(value)
+        for node in self.element.findall(f".//{_HP}t"):
+            if node is text_element:
+                continue
+            if node.text:
+                node.text = ""
+        if not preserve_format:
+            run = text_element
+            while run is not None and _element_local_name(run) != "run":
+                run = run.getparent() if hasattr(run, "getparent") else None
+            if run is not None:
+                run.set("charPrIDRef", "0")
         self.element.set("dirty", "1")
         self.table.mark_dirty()
 
@@ -2960,6 +3034,8 @@ class HwpxOxmlTable:
         *,
         logical: bool = False,
         split_merged: bool = False,
+        preserve_format: bool = True,
+        split_paragraphs: bool = False,
     ) -> None:
         if logical:
             entry = self._grid_entry(row_index, col_index)
@@ -2969,7 +3045,11 @@ class HwpxOxmlTable:
                 cell = entry.cell
         else:
             cell = self.cell(row_index, col_index)
-        cell.text = text
+        cell.set_text(
+            text,
+            preserve_format=preserve_format,
+            split_paragraphs=split_paragraphs,
+        )
 
     def split_merged_cell(
         self, row_index: int, col_index: int

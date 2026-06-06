@@ -41,10 +41,14 @@ class TableMapEntry(TypedDict):
 
     table_index: int
     paragraph_index: int
+    location: dict[str, object]
     rows: int
     cols: int
+    caption_text: str
+    preceding_paragraph_text: str
     header_text: str
     first_row_preview: list[str]
+    cells: list[dict[str, object]]
     is_empty: bool
 
 
@@ -107,6 +111,8 @@ class TableFillResult(TypedDict):
 class _AnchoredTable:
     table: HwpxOxmlTable
     paragraph_index: int
+    caption_text: str
+    preceding_paragraph_text: str
     header_text: str
 
 
@@ -115,6 +121,8 @@ class _IndexedTable:
     table_index: int
     table: HwpxOxmlTable
     paragraph_index: int
+    caption_text: str
+    preceding_paragraph_text: str
     header_text: str
 
 
@@ -193,6 +201,8 @@ def _collect_tables_from_paragraph(
                 _AnchoredTable(
                     table=table,
                     paragraph_index=anchor_paragraph_index,
+                    caption_text=paragraph_prefix_text,
+                    preceding_paragraph_text=last_header_text,
                     header_text=header_text,
                 )
             )
@@ -227,6 +237,8 @@ def _collect_document_tables(document: HwpxDocument) -> list[_IndexedTable]:
             table_index=table_index,
             table=item.table,
             paragraph_index=item.paragraph_index,
+            caption_text=item.caption_text,
+            preceding_paragraph_text=item.preceding_paragraph_text,
             header_text=item.header_text,
         )
         for table_index, item in enumerate(anchored_tables)
@@ -234,7 +246,11 @@ def _collect_document_tables(document: HwpxDocument) -> list[_IndexedTable]:
 
 
 def _cell_text(table: HwpxOxmlTable, row_index: int, col_index: int) -> str:
-    return table.cell(row_index, col_index).text
+    cell = table.cell(row_index, col_index)
+    paragraphs = list(getattr(cell, "paragraphs", []) or [])
+    if paragraphs:
+        return "\n".join(paragraph.text or "" for paragraph in paragraphs)
+    return cell.text
 
 
 def _table_is_empty(table: HwpxOxmlTable) -> bool:
@@ -249,6 +265,62 @@ def _first_row_preview(table: HwpxOxmlTable) -> list[str]:
     if table.row_count == 0:
         return []
     return [_cell_text(table, 0, col_index) for col_index in range(table.column_count)]
+
+
+def _body_paragraph_location(paragraph_index: int) -> dict[str, object]:
+    return {"kind": "body_paragraph", "paragraph_index": paragraph_index}
+
+
+def _table_cell_paragraph_location(
+    table_index: int,
+    row_index: int,
+    col_index: int,
+    cell_paragraph_index: int,
+) -> dict[str, object]:
+    return {
+        "kind": "table_cell_paragraph",
+        "table_index": table_index,
+        "row": row_index,
+        "col": col_index,
+        "cell_paragraph_index": cell_paragraph_index,
+    }
+
+
+def _table_cells(table_ref: _IndexedTable) -> list[dict[str, object]]:
+    cells: list[dict[str, object]] = []
+    for row_index in range(table_ref.table.row_count):
+        for col_index in range(table_ref.table.column_count):
+            cell = table_ref.table.cell(row_index, col_index)
+            paragraphs = list(getattr(cell, "paragraphs", []) or [])
+            paragraph_payloads: list[dict[str, object]] = []
+            for cell_paragraph_index, paragraph in enumerate(paragraphs):
+                paragraph_payloads.append(
+                    {
+                        "cell_paragraph_index": cell_paragraph_index,
+                        "text": paragraph.text or "",
+                        "location": _table_cell_paragraph_location(
+                            table_ref.table_index,
+                            row_index,
+                            col_index,
+                            cell_paragraph_index,
+                        ),
+                    }
+                )
+            cells.append(
+                {
+                    "row": row_index,
+                    "col": col_index,
+                    "text": _cell_text(table_ref.table, row_index, col_index),
+                    "paragraphs": paragraph_payloads,
+                    "location": {
+                        "kind": "table_cell",
+                        "table_index": table_ref.table_index,
+                        "row": row_index,
+                        "col": col_index,
+                    },
+                }
+            )
+    return cells
 
 
 def _direction_delta(direction: PathDirection) -> tuple[int, int]:
@@ -337,10 +409,14 @@ def get_table_map(document: HwpxDocument) -> TableMapResult:
             {
                 "table_index": table_ref.table_index,
                 "paragraph_index": table_ref.paragraph_index,
+                "location": _body_paragraph_location(table_ref.paragraph_index),
                 "rows": table_ref.table.row_count,
                 "cols": table_ref.table.column_count,
+                "caption_text": table_ref.caption_text,
+                "preceding_paragraph_text": table_ref.preceding_paragraph_text,
                 "header_text": table_ref.header_text,
                 "first_row_preview": _first_row_preview(table_ref.table),
+                "cells": _table_cells(table_ref),
                 "is_empty": _table_is_empty(table_ref.table),
             }
         )
