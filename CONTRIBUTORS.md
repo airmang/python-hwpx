@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 2.10.2
+
 - Dahyun Lee ([@AgentBridge-Lab](https://github.com/AgentBridge-Lab)) — rich Markdown export, 각주/미주 본문 helper, `charPrIDRef` 각주 본문 적용 수정, 회귀 테스트 추가 (#42).
 
 ## 2.9.1
