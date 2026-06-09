@@ -5,6 +5,7 @@ import json
 import struct
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
@@ -15,14 +16,16 @@ from hwpx.opc.package import HwpxPackage
 from hwpx.opc.relationships import MAIN_ROOTFILE_MEDIA_TYPE, resolve_part_name
 from hwpx.oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from hwpx.tools import archive_cli
+from hwpx.tools import validator as validator_module
 from hwpx.tools.archive_cli import pack_hwpx, unpack_hwpx
-from hwpx.tools.package_validator import validate_package
+from hwpx.tools.package_validator import validate_editor_open_safety, validate_package
 from hwpx.tools.page_guard import collect_metrics, compare_metrics
 from hwpx.tools.template_analyzer import analyze_template, extract_template_parts
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _MIMETYPE = b"application/hwp+zip"
 _VERSION_XML = b'<?xml version="1.0" encoding="UTF-8"?><version appVersion="1.0"/>'
+_HP_NS = HWPML_COMPAT_ROOT_NAMESPACES["hp"]
 
 
 def _hwpml_root_namespace_attrs() -> str:
@@ -127,6 +130,20 @@ def _replace_zip_part(package_bytes: bytes, part_name: str, payload: bytes) -> b
                 else:
                     archive.writestr(info.filename, replacement)
     return buffer.getvalue()
+
+
+def _package_with_stale_lineseg_textpos() -> bytes:
+    package_bytes, paths = _build_manual_package(text="Original paragraph")
+    stale_section_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f"<hs:sec {_hwpml_root_namespace_attrs()}>"
+        '<hp:p id="1" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
+        '<hp:run charPrIDRef="0"><hp:t>Short text</hp:t></hp:run>'
+        '<hp:linesegarray><hp:lineseg textpos="20"/></hp:linesegarray>'
+        "</hp:p>"
+        "</hs:sec>"
+    ).encode("utf-8")
+    return _replace_zip_part(package_bytes, paths["section"], stale_section_xml)
 
 
 def _build_manual_package(
@@ -245,6 +262,25 @@ def test_add_paragraph_roundtrip_preserves_section_root_compat_metadata() -> Non
     assert validate_package(roundtrip).ok
 
 
+def test_save_normalizes_named_paragraph_style_references() -> None:
+    package_bytes = HwpxDocument.new().to_bytes()
+    with ZipFile(io.BytesIO(package_bytes), "r") as archive:
+        section_path = next(name for name in archive.namelist() if name.startswith("Contents/section"))
+        section_xml = archive.read(section_path)
+
+    named_style_xml = section_xml.replace(b'styleIDRef="0"', b'styleIDRef="Normal"', 1)
+    package_bytes = _replace_zip_part(package_bytes, section_path, named_style_xml)
+
+    document = HwpxDocument.open(package_bytes)
+    roundtrip = document.to_bytes()
+
+    assert validate_editor_open_safety(roundtrip).ok
+    with ZipFile(io.BytesIO(roundtrip), "r") as archive:
+        saved_section_xml = archive.read(section_path)
+    assert b'styleIDRef="Normal"' not in saved_section_xml
+    assert b'styleIDRef="0"' in saved_section_xml
+
+
 def test_package_validator_rejects_section_root_metadata_regression() -> None:
     package_bytes, paths = _build_manual_package(text="Original paragraph")
     regressed_section_xml = (
@@ -262,6 +298,25 @@ def test_package_validator_rejects_section_root_metadata_regression() -> None:
     assert not report.ok
     assert any("standalone" in issue.message for issue in report.errors)
     assert any("root namespace declarations" in issue.message for issue in report.errors)
+
+
+def test_package_validator_rejects_stale_lineseg_textpos() -> None:
+    package_bytes, paths = _build_manual_package(text="Original paragraph")
+    stale_section_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f"<hs:sec {_hwpml_root_namespace_attrs()}>"
+        '<hp:p id="1" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
+        '<hp:run charPrIDRef="0"><hp:t>Short text</hp:t></hp:run>'
+        '<hp:linesegarray><hp:lineseg textpos="20"/></hp:linesegarray>'
+        "</hp:p>"
+        "</hs:sec>"
+    ).encode("utf-8")
+    regressed = _replace_zip_part(package_bytes, paths["section"], stale_section_xml)
+
+    report = validate_package(regressed)
+
+    assert not report.ok
+    assert any("stale lineseg" in issue.message for issue in report.errors)
 
 
 def test_package_validator_reports_missing_mimetype() -> None:
@@ -432,8 +487,9 @@ def test_unpack_pack_roundtrip_via_cli(tmp_path: Path) -> None:
     metadata_path = unpack_dir / archive_cli._PACK_METADATA_NAME
     assert metadata_path.is_file()
 
-    _run_module("hwpx.tools.archive_cli", "pack", str(unpack_dir), str(repacked))
+    pack_result = _run_module("hwpx.tools.archive_cli", "pack", str(unpack_dir), str(repacked))
 
+    assert "open_safety_ok=true" in pack_result.stdout
     assert validate_package(repacked.read_bytes()).ok
     assert compare_metrics(
         collect_metrics(source.read_bytes()),
@@ -462,6 +518,110 @@ def test_pack_refuses_existing_output_without_force(tmp_path: Path) -> None:
 
     with pytest.raises(FileExistsError):
         pack_hwpx(unpack_dir, repacked)
+
+
+def test_pack_rejects_stale_lineseg_and_preserves_existing_output(tmp_path: Path) -> None:
+    source = tmp_path / "source.hwpx"
+    unpack_dir = tmp_path / "unpacked"
+    repacked = tmp_path / "result.hwpx"
+    source.write_bytes(_document_with_structure().to_bytes())
+    unpack_hwpx(source, unpack_dir)
+    section_path = unpack_dir / "Contents" / "section0.xml"
+    section_tree = ET.parse(section_path)
+    paragraph = next(
+        (
+            candidate
+            for candidate in section_tree.getroot().iter()
+            if candidate.tag == f"{{{_HP_NS}}}p" and "".join(candidate.itertext())
+        ),
+        None,
+    )
+    assert paragraph is not None
+    line_array = ET.SubElement(paragraph, f"{{{_HP_NS}}}linesegarray")
+    ET.SubElement(line_array, f"{{{_HP_NS}}}lineseg", textpos="999")
+    section_tree.write(section_path, encoding="utf-8", xml_declaration=True)
+    repacked.write_bytes(b"existing output")
+
+    with pytest.raises(ValueError, match="stale lineseg"):
+        pack_hwpx(unpack_dir, repacked, overwrite=True)
+
+    assert repacked.read_bytes() == b"existing output"
+
+
+def test_editor_open_safety_report_rejects_stale_lineseg() -> None:
+    package_bytes = _package_with_stale_lineseg_textpos()
+
+    report = validate_editor_open_safety(package_bytes)
+
+    assert report.ok is False
+    assert any("stale lineseg" in str(issue) for issue in report.blocking_package_errors)
+    assert "stale lineseg" in report.summary
+
+
+def test_editor_open_safety_report_rejects_document_validation_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package_bytes = _document_with_structure().to_bytes()
+
+    def fail_validation(_source: object) -> object:
+        raise RuntimeError("schema unavailable")
+
+    monkeypatch.setattr(validator_module, "validate_document", fail_validation)
+
+    report = validate_editor_open_safety(package_bytes)
+
+    assert report.ok is False
+    assert "document validation could not run" in report.summary
+    assert report.to_dict()["validateDocument"]["ok"] is False
+
+
+def test_editor_open_safety_report_rejects_document_validation_hard_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package_bytes = _document_with_structure().to_bytes()
+
+    class FailedDocumentReport:
+        ok = False
+        errors = ("broken section XML",)
+        warnings = ()
+
+    monkeypatch.setattr(
+        validator_module,
+        "validate_document",
+        lambda _source: FailedDocumentReport(),
+    )
+
+    report = validate_editor_open_safety(package_bytes)
+
+    assert report.ok is False
+    assert "document validation failed: broken section XML" in report.summary
+    assert report.to_dict()["validateDocument"]["ok"] is False
+
+
+def test_pack_rejects_editor_open_safety_failure_and_preserves_existing_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FailedOpenSafety:
+        ok = False
+        summary = "forced reopen failure"
+
+    source = tmp_path / "source.hwpx"
+    unpack_dir = tmp_path / "unpacked"
+    repacked = tmp_path / "result.hwpx"
+    source.write_bytes(_document_with_structure().to_bytes())
+    unpack_hwpx(source, unpack_dir)
+    repacked.write_bytes(b"existing output")
+    monkeypatch.setattr(
+        archive_cli,
+        "validate_editor_open_safety",
+        lambda _path: _FailedOpenSafety(),
+    )
+
+    with pytest.raises(ValueError, match="editor-open safety"):
+        pack_hwpx(unpack_dir, repacked, overwrite=True)
+
+    assert repacked.read_bytes() == b"existing output"
 
 
 def test_page_guard_detects_shape_and_control_drift() -> None:
@@ -517,8 +677,9 @@ def test_analyze_template_extract_dir_is_pack_ready(tmp_path: Path) -> None:
     assert (extract_dir / archive_cli._PACK_METADATA_NAME).is_file()
     assert any(path.name == archive_cli._PACK_METADATA_NAME for path in written)
 
-    pack_hwpx(extract_dir, repacked)
+    pack_result = pack_hwpx(extract_dir, repacked)
 
+    assert pack_result.open_safety["ok"] is True
     assert validate_package(repacked).ok
     reopened = HwpxPackage.open(repacked)
     assert "Contents/masterPages/masterPage0.xml" in reopened.master_page_paths()

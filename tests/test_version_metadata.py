@@ -23,3 +23,12 @@ def test_resolve_version_returns_fallback_when_metadata_is_missing(monkeypatch: 
     monkeypatch.setattr(hwpx, "_metadata_version", _raise_not_found)
 
     assert hwpx._resolve_version() == "0+unknown"
+
+
+def test_top_level_exports_editor_open_safety_api() -> None:
+    assert "EditorOpenSafetyReport" in hwpx.__all__
+    assert "PackageValidationReport" in hwpx.__all__
+    assert "validate_editor_open_safety" in hwpx.__all__
+    assert "validate_package" in hwpx.__all__
+    assert callable(hwpx.validate_editor_open_safety)
+    assert callable(hwpx.validate_package)

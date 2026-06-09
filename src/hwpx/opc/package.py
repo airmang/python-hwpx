@@ -14,6 +14,7 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
+from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from .relationships import (
     MAIN_ROOTFILE_MEDIA_TYPE,
     OPF_NS,
@@ -33,6 +34,22 @@ from .xml_utils import (
 __all__ = ["HwpxPackage", "HwpxPackageError", "HwpxStructureError", "RootFile", "VersionInfo"]
 
 logger = logging.getLogger(__name__)
+_UNCHECKED_SAVE_TOKEN = object()
+_LAYOUT_CACHE_ELEMENT_NAMES = {"linesegarray"}
+
+
+class _UncheckedSaveBuffer(io.BytesIO):
+    """Internal buffer marker for diagnostic snapshots that skip open-safety."""
+
+
+def _is_integer_literal(value: str | None) -> bool:
+    if value is None:
+        return False
+    try:
+        int(value.strip())
+    except (TypeError, ValueError):
+        return False
+    return True
 
 
 class HwpxPackageError(Exception):
@@ -41,6 +58,149 @@ class HwpxPackageError(Exception):
 
 class HwpxStructureError(HwpxPackageError):
     """Raised when the underlying HWPX package violates the required structure."""
+
+
+def _summarize_validation_issues(issues: Sequence[object], *, limit: int = 5) -> str:
+    selected = [str(issue) for issue in issues[:limit]]
+    remaining = len(issues) - len(selected)
+    summary = "; ".join(selected)
+    if remaining > 0:
+        summary += f" ... and {remaining} more"
+    return summary
+
+
+def _require_unchecked_save_token(token: object | None) -> None:
+    if token is not _UNCHECKED_SAVE_TOKEN:
+        raise HwpxPackageError(
+            "unchecked HWPX save is an internal diagnostic path and requires "
+            "the package-private unchecked save token"
+        )
+
+
+def _require_unchecked_save_buffer(destination: object) -> None:
+    if not isinstance(destination, _UncheckedSaveBuffer):
+        raise HwpxPackageError(
+            "unchecked HWPX save is diagnostic-only and cannot write to "
+            "caller-provided file paths or streams"
+        )
+
+
+def _capture_stream_checkpoint(stream: BinaryIO) -> tuple[int, bytes] | None:
+    try:
+        position = stream.tell()
+    except (AttributeError, OSError):
+        return None
+    try:
+        tail = stream.read()
+    except (AttributeError, OSError):
+        try:
+            end_position = stream.seek(0, os.SEEK_END)
+        except (AttributeError, OSError):
+            return None
+        try:
+            stream.seek(position)
+        except (AttributeError, OSError):
+            return None
+        if end_position == position:
+            return position, b""
+        return None
+    try:
+        stream.seek(position)
+    except (AttributeError, OSError):
+        return None
+    return position, tail
+
+
+def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes] | None) -> None:
+    if checkpoint is None:
+        return
+    position, tail = checkpoint
+    try:
+        stream.seek(position)
+        if tail:
+            stream.write(tail)
+            stream.truncate(position + len(tail))
+        else:
+            stream.truncate(position)
+        stream.seek(position)
+    except (AttributeError, OSError):
+        return
+
+
+def _write_stream_or_rollback(stream: BinaryIO, data: bytes) -> None:
+    checkpoint = _capture_stream_checkpoint(stream)
+    if checkpoint is None:
+        raise HwpxPackageError(
+            "HWPX package stream save requires a checkpointable stream; "
+            "use save(path) with a filesystem path for non-seekable outputs"
+        )
+    try:
+        written = stream.write(data)
+        if written is not None and written != len(data):
+            raise HwpxPackageError(
+                "short write while saving HWPX package stream: "
+                f"wrote {written} of {len(data)} bytes"
+            )
+    except BaseException:
+        _rollback_stream(stream, checkpoint)
+        raise
+
+
+def _local_name(element: etree._Element) -> str:
+    tag = element.tag
+    if not isinstance(tag, str):
+        return ""
+    try:
+        return etree.QName(element).localname
+    except ValueError:
+        if "}" in tag:
+            return tag.rsplit("}", 1)[1]
+        return tag
+
+
+def _strip_section_layout_caches(payload: bytes) -> bytes:
+    root = parse_xml(payload)
+    removed = False
+    for parent in root.iter():
+        for child in list(parent):
+            if _local_name(child).lower() in _LAYOUT_CACHE_ELEMENT_NAMES:
+                parent.remove(child)
+                removed = True
+    return _serialize_hwpml_root(root) if removed else payload
+
+
+def _serialize_hwpml_root(root: etree._Element) -> bytes:
+    local_name = _local_name(root)
+    if local_name not in {"sec", "head"}:
+        return serialize_xml(root, xml_declaration=True)
+
+    wrapped = etree.Element(root.tag, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
+    wrapped.attrib.update(root.attrib)
+    wrapped.text = root.text
+    wrapped.tail = root.tail
+    for child in root:
+        wrapped.append(child)
+    return etree.tostring(
+        wrapped,
+        encoding="UTF-8",
+        xml_declaration=True,
+        standalone=True,
+    )
+
+
+def _normalize_hwpml_root_payload(path: str, payload: bytes) -> bytes:
+    if not (is_section_part_name(path) or is_header_part_name(path) or path == HwpxPackage.HEADER_PATH):
+        return payload
+    root = parse_xml(payload)
+    if _local_name(root) not in {"sec", "head"}:
+        return payload
+    return _serialize_hwpml_root(root)
+
+
+def _sanitize_part_for_write(path: str, payload: bytes) -> bytes:
+    if is_section_part_name(path):
+        payload = _strip_section_layout_caches(payload)
+    return _normalize_hwpml_root_payload(path, payload)
 
 
 @dataclass(frozen=True)
@@ -151,6 +311,7 @@ class HwpxPackage:
         self._history_paths_cache: list[str] | None = None
         self._version_path_cache: str | None = None
         self._version_path_cache_resolved = False
+        self._archive_write_depth = 0
         self._validate_structure()
 
     @classmethod
@@ -249,6 +410,7 @@ class HwpxPackage:
         norm_path = self._normalize_path(path)
         if isinstance(data, str):
             data = data.encode("utf-8")
+        data = _sanitize_part_for_write(norm_path, data)
         pending_rootfiles: list[RootFile] | None = None
         pending_version: VersionInfo | None = None
         if norm_path == self.MIMETYPE_PATH:
@@ -505,6 +667,82 @@ class HwpxPackage:
         self._version_path_cache = None
         self._version_path_cache_resolved = False
 
+    def _iter_header_part_paths_for_safety_normalization(self) -> list[str]:
+        paths: list[str] = []
+        try:
+            paths.extend(self.header_paths())
+        except Exception:
+            logger.debug("failed to resolve header paths for safety normalization", exc_info=True)
+        paths.extend(
+            path
+            for path in self._files
+            if is_header_part_name(path) or path == self.HEADER_PATH
+        )
+        return list(dict.fromkeys(path for path in paths if path in self._files))
+
+    def _iter_section_part_paths_for_safety_normalization(self) -> list[str]:
+        paths: list[str] = []
+        try:
+            paths.extend(self.section_paths())
+        except Exception:
+            logger.debug("failed to resolve section paths for safety normalization", exc_info=True)
+        paths.extend(path for path in self._files if is_section_part_name(path))
+        return list(dict.fromkeys(path for path in paths if path in self._files))
+
+    def _style_name_id_map_for_safety_normalization(self) -> dict[str, str]:
+        aliases: dict[str, str] = {}
+        conflicts: set[str] = set()
+        for path in self._iter_header_part_paths_for_safety_normalization():
+            try:
+                root = parse_xml(self._files[path])
+            except Exception:
+                continue
+            for style in root.iter():
+                if _local_name(style) != "style":
+                    continue
+                style_id = style.get("id")
+                if not _is_integer_literal(style_id):
+                    continue
+                resolved_id = style_id.strip()
+                for attr_name in ("name", "engName"):
+                    alias = (style.get(attr_name) or "").strip()
+                    if not alias:
+                        continue
+                    existing = aliases.get(alias)
+                    if existing is not None and existing != resolved_id:
+                        conflicts.add(alias)
+                        continue
+                    aliases[alias] = resolved_id
+
+        for alias in conflicts:
+            aliases.pop(alias, None)
+        return aliases
+
+    def _normalize_named_style_references_for_safety(self) -> None:
+        style_ids_by_name = self._style_name_id_map_for_safety_normalization()
+        if not style_ids_by_name:
+            return
+
+        for path in self._iter_section_part_paths_for_safety_normalization():
+            try:
+                root = parse_xml(self._files[path])
+            except Exception:
+                continue
+            changed = False
+            for paragraph in root.iter():
+                if _local_name(paragraph) != "p":
+                    continue
+                style_id_ref = paragraph.get("styleIDRef")
+                if style_id_ref is None or _is_integer_literal(style_id_ref):
+                    continue
+                replacement = style_ids_by_name.get(style_id_ref.strip())
+                if replacement is None or replacement == style_id_ref:
+                    continue
+                paragraph.set("styleIDRef", replacement)
+                changed = True
+            if changed:
+                self._files[path] = _serialize_hwpml_root(root)
+
     def save(
         self,
         pkg_file: str | Path | BinaryIO | None = None,
@@ -516,18 +754,65 @@ class HwpxPackage:
 
         destination = pkg_file
         if destination is None:
-            buffer = io.BytesIO()
-            self._save_to_zip(buffer)
-            return buffer.getvalue()
+            return self._save_to_bytes(verify_open_safety=True, mark_clean=True)
 
-        self._save_to_zip(destination)
+        self._save_to_zip(destination, verify_open_safety=True)
         return destination
 
-    def _save_to_zip(self, pkg_file: str | Path | BinaryIO) -> None:
+    def _save_bytes_unchecked(
+        self,
+        updates: Mapping[str, bytes | str | etree._Element] | None = None,
+        *,
+        _unchecked_token: object | None = None,
+    ) -> bytes:
+        """Return archive bytes without editor-open validation for internal diagnostics."""
+
+        _require_unchecked_save_token(_unchecked_token)
+        if updates:
+            for part_name, payload in updates.items():
+                self.set_part(part_name, payload)
+        return self._save_to_bytes(
+            verify_open_safety=False,
+            mark_clean=False,
+            _unchecked_token=_UNCHECKED_SAVE_TOKEN,
+        )
+
+    def _save_to_bytes(
+        self,
+        *,
+        verify_open_safety: bool,
+        mark_clean: bool,
+        _unchecked_token: object | None = None,
+    ) -> bytes:
+        if not verify_open_safety:
+            _require_unchecked_save_token(_unchecked_token)
+        buffer: io.BytesIO = (
+            _UncheckedSaveBuffer() if not verify_open_safety else io.BytesIO()
+        )
+        self._save_to_zip(
+            buffer,
+            verify_open_safety=verify_open_safety,
+            mark_clean=mark_clean,
+            _unchecked_token=_unchecked_token,
+        )
+        return buffer.getvalue()
+
+    def _save_to_zip(
+        self,
+        pkg_file: str | Path | BinaryIO,
+        *,
+        verify_open_safety: bool,
+        mark_clean: bool = True,
+        _unchecked_token: object | None = None,
+    ) -> None:
+        if not verify_open_safety:
+            _require_unchecked_save_token(_unchecked_token)
+            _require_unchecked_save_buffer(pkg_file)
         self._files[self.MIMETYPE_PATH] = self._mimetype.encode("utf-8")
+        version_was_dirty = self._version.dirty
         if self._version.dirty:
             self._files[self.VERSION_PATH] = self._version.to_bytes()
-            self._version.mark_clean()
+        self._normalize_named_style_references_for_safety()
         self._validate_structure()
 
         if isinstance(pkg_file, (str, Path)):
@@ -539,7 +824,7 @@ class HwpxPackage:
             try:
                 with os.fdopen(fd, "wb") as tmp_fh:
                     with ZipFile(tmp_fh, "w") as zf:
-                        self._write_archive(zf)
+                        self._write_archive_from_save(zf)
                 # Verify archive integrity before replacing the original.
                 with ZipFile(tmp_path, "r") as zf_check:
                     bad = zf_check.testzip()
@@ -547,7 +832,11 @@ class HwpxPackage:
                         raise HwpxPackageError(
                             f"ZIP integrity check failed for entry '{bad}'"
                         )
+                if verify_open_safety:
+                    self._verify_editor_open_safe_archive(Path(tmp_path))
                 os.replace(tmp_path, str(target))
+                if mark_clean and version_was_dirty:
+                    self._version.mark_clean()
             except BaseException:
                 # Clean up the temp file on any error.
                 try:
@@ -559,7 +848,7 @@ class HwpxPackage:
             # Stream target: write to a BytesIO first, verify, then copy.
             buffer = io.BytesIO()
             with ZipFile(buffer, "w") as zf:
-                self._write_archive(zf)
+                self._write_archive_from_save(zf)
             buffer.seek(0)
             with ZipFile(buffer, "r") as zf_check:
                 bad = zf_check.testzip()
@@ -567,10 +856,38 @@ class HwpxPackage:
                     raise HwpxPackageError(
                         f"ZIP integrity check failed for entry '{bad}'"
                     )
+            if verify_open_safety:
+                self._verify_editor_open_safe_archive(buffer.getvalue())
             buffer.seek(0)
-            pkg_file.write(buffer.read())
+            payload = buffer.read()
+            _write_stream_or_rollback(pkg_file, payload)
+            if mark_clean and version_was_dirty:
+                self._version.mark_clean()
+
+    @classmethod
+    def _verify_editor_open_safe_archive(cls, source: str | Path | bytes) -> None:
+        from ..tools.package_validator import validate_editor_open_safety
+
+        report = validate_editor_open_safety(source)
+        if not report.ok:
+            raise HwpxPackageError(
+                "Generated HWPX package failed open-safety validation: "
+                + report.summary
+            )
+
+    def _write_archive_from_save(self, zf: ZipFile) -> None:
+        self._archive_write_depth += 1
+        try:
+            self._write_archive(zf)
+        finally:
+            self._archive_write_depth -= 1
 
     def _write_archive(self, zf: ZipFile) -> None:
+        if self._archive_write_depth <= 0:
+            raise HwpxPackageError(
+                "raw HWPX archive writing is an internal save path; use "
+                "HwpxPackage.save() so editor-open safety validation runs"
+            )
         self._write_mimetype(zf)
         written = {self.MIMETYPE_PATH}
         ordered_names = [
@@ -616,6 +933,11 @@ class HwpxPackage:
         payload: bytes,
         compress_type: int,
     ) -> None:
+        if self._archive_write_depth <= 0:
+            raise HwpxPackageError(
+                "raw HWPX ZIP entry writing is an internal save path; use "
+                "HwpxPackage.save() so editor-open safety validation runs"
+            )
         info = self._zip_info_for_write(path, compress_type)
         zf.writestr(info, payload)
 

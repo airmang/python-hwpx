@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import io
 from typing import Callable, cast
+from zipfile import ZipFile
 import pytest
 import xml.etree.ElementTree as ET
 
@@ -12,6 +14,7 @@ from hwpx.oxml.document import (
     HwpxOxmlSection,
 )
 from hwpx.opc.package import HwpxPackage
+from hwpx.tools.package_validator import validate_package
 
 
 HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
@@ -400,6 +403,62 @@ def test_table_set_cell_text_removes_layout_cache() -> None:
     assert table.cell(0, 0).text == "Updated"
     assert paragraph.find(f"{HP}lineSegArray") is None
     assert paragraph.find(f"{HP}linesegarray") is None
+
+
+def test_save_removes_stale_layout_cache_after_low_level_text_edit() -> None:
+    document = HwpxDocument.new()
+    try:
+        paragraph = document.add_paragraph("Original paragraph with enough text for cached layout")
+        document.to_bytes()
+
+        paragraph_element = paragraph.element
+        line_array = paragraph_element.makeelement(f"{HP}linesegarray", {})
+        line_array.append(paragraph_element.makeelement(f"{HP}lineseg", {"textpos": "40"}))
+        paragraph_element.append(line_array)
+        text_element = paragraph_element.find(f".//{HP}t")
+        assert text_element is not None
+        text_element.text = "Short"
+
+        archive_bytes = document.to_bytes()
+    finally:
+        document.close()
+
+    assert validate_package(archive_bytes).ok
+    with ZipFile(io.BytesIO(archive_bytes), "r") as archive:
+        section_xml = archive.read("Contents/section0.xml")
+
+    assert b"Short" in section_xml
+    root = ET.fromstring(section_xml)
+    paragraphs = [node for node in root.iter() if node.tag.endswith("}p")]
+    assert paragraphs[-1].find(f"{HP}linesegarray") is None
+
+
+def test_save_removes_layout_cache_from_dirty_complex_paragraph() -> None:
+    document = HwpxDocument.new()
+    try:
+        paragraph = document.add_paragraph("Complex cached paragraph")
+        document.to_bytes()
+
+        paragraph_element = paragraph.element
+        extra_run = paragraph_element.makeelement(f"{HP}run", {"charPrIDRef": "0"})
+        extra_run.append(paragraph_element.makeelement(f"{HP}ctrl", {"id": "field"}))
+        paragraph_element.append(extra_run)
+        line_array = paragraph_element.makeelement(f"{HP}linesegarray", {})
+        line_array.append(paragraph_element.makeelement(f"{HP}lineseg", {"textpos": "999"}))
+        paragraph_element.append(line_array)
+        paragraph.section.mark_dirty()
+
+        archive_bytes = document.to_bytes()
+    finally:
+        document.close()
+
+    assert validate_package(archive_bytes).ok
+    with ZipFile(io.BytesIO(archive_bytes), "r") as archive:
+        section_xml = archive.read("Contents/section0.xml")
+
+    root = ET.fromstring(section_xml)
+    paragraphs = [node for node in root.iter() if node.tag.endswith("}p")]
+    assert paragraphs[-1].find(f"{HP}linesegarray") is None
 
 
 def test_table_cell_text_marks_cell_dirty_attribute() -> None:

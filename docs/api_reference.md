@@ -54,9 +54,9 @@
 #### 영속성(Persistence)
 
 - `save(path_or_stream=None, updates=None)`
-  - 보류 중인 업데이트를 영구 저장하고 대상 경로/스트림/바이트를 반환합니다. 대상이 제공되지 않으면 원본 소스를 재사용하고, 그렇지 않으면 요청된 파일 시스템 위치나 스트림에 zip 아카이브를 작성합니다.
-- `_write_to_stream(stream)` 및 `_write_archive(archive)`
-  - `save()` 메서드를 위해 zip 직렬화를 처리하는 내부 유틸리티입니다.
+  - 보류 중인 업데이트를 적용한 뒤 editor-open safety 검증을 통과한 경우에만 대상 경로/스트림/바이트를 반환합니다. 대상이 제공되지 않으면 `bytes`를 반환하고, 경로나 스트림이 제공되면 검증된 임시 ZIP을 만든 뒤 대상에 반영합니다.
+  - `verify_open_safety=False` 같은 우회 파라미터는 public API에서 지원하지 않습니다.
+  - `_write_archive()`, `_write_zip_entry()`, `_write_mimetype()` 같은 raw ZIP writer는 save 내부 컨텍스트 전용입니다. 직접 호출하지 말고 `save()`를 사용해야 package validation, document validation, reopen 검증이 함께 실행됩니다.
 
 ***
 
@@ -149,6 +149,33 @@
   - 변경된 XML 파트를 직렬화한 HWPX ZIP 바이트를 반환합니다.
 - `save(path_or_stream=None) -> str | PathLike[str] | BinaryIO | bytes`
   - 하위 호환용 래퍼입니다. 내부에서 `save_to_path()`/`save_to_stream()`/`to_bytes()`를 호출하며 `DeprecationWarning`을 발생시킵니다.
+
+***
+
+## 모듈 `hwpx.tools.package_validator`
+
+- `validate_editor_open_safety(source) -> EditorOpenSafetyReport`
+  - `from hwpx import validate_editor_open_safety` 또는 `from hwpx.tools.package_validator import validate_editor_open_safety`로 사용할 수 있습니다. package validation, document validation, 재오픈 검증을 함께 수행해 편집기 handoff 전에 확인할 수 있는 구조화 리포트를 반환합니다.
+- `validate_package(source) -> PackageValidationReport`
+  - `from hwpx import validate_package` 또는 `from hwpx.tools.package_validator import validate_package`로 사용할 수 있습니다. ZIP/OPC/HWPX 패키지 구조와 editor-open 관련 hard error를 검사합니다.
+
+***
+
+## 모듈 `hwpx.tools.archive_cli`
+
+- `pack_hwpx(input_dir, output_path, *, overwrite=False) -> PackResult`
+  - pack-ready 디렉터리를 HWPX로 재패킹하고, 검증된 임시 ZIP만 대상 경로로 교체합니다. `PackResult.open_safety`에는 `validate_editor_open_safety(...).to_dict()` 결과가 들어갑니다.
+- `unpack_hwpx(source, output_dir, *, overwrite=False, pretty_xml=False) -> UnpackResult`
+  - HWPX를 디렉터리로 풉니다. 이 함수는 HWPX 출력 파일을 만들지 않으며, 재패킹은 `pack_hwpx()`를 사용해야 합니다.
+
+***
+
+## 모듈 `hwpx.tools.repair`
+
+- `repair_repack(source, output_path, *, overwrite=False, ...) -> RepairResult`
+  - 기존 ZIP 중앙 디렉터리가 읽히는 HWPX를 재정렬/재패킹하고, CRC, package validation, editor-open safety 검증을 통과한 결과만 대상 경로로 교체합니다. `RepairResult.open_safety`는 handoff evidence입니다.
+- `repair_from_recovered(source, output_path, *, overwrite=False, ...) -> RepairResult`
+  - Local File Header 스캔으로 복구한 엔트리를 새 HWPX로 재구성하고, 같은 검증을 통과한 경우에만 출력합니다.
 
 ***
 
@@ -512,8 +539,8 @@
 - `delete(path)`: 필수가 아닌 파일을 제거하고 패키지를 다시 검증합니다.
 - `_normalize_path(path)`: 일관성을 위해 백슬래시를 슬래시로 변환하는 내부 헬퍼입니다.
 - `files()`: 패키지에 포함된 파일 이름의 정렬된 목록을 반환합니다.
-- `save(pkg_file)`: 패키지를 디스크나 파일과 유사한 객체에 씁니다. mimetype이 압축되지 않은 상태로 저장되도록 하고, 변경된 `version.xml`을 직렬화하며, 구조를 검증하고, 다른 파일들은 deflate 압축으로 씁니다.
-- `_write_mimetype(zf)`: OPC 사양에 따라 `ZIP_STORED`를 사용하여 mimetype 항목을 쓰는 내부 헬퍼입니다.
+- `save(pkg_file)`: 패키지를 디스크나 파일과 유사한 객체에 씁니다. `mimetype`이 압축되지 않은 상태로 저장되도록 하고, 변경된 `version.xml`을 직렬화하며, 구조 검증과 editor-open safety 검증을 통과한 결과만 대상에 반영합니다.
+- raw ZIP writer 메서드는 내부 구현 세부사항입니다. 직접 호출하면 safety 검증을 건너뛸 수 있으므로 public 사용 경로가 아니며, 현재 구현은 save 내부 컨텍스트 밖의 직접 호출을 거부합니다.
 
 ***
 

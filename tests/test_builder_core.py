@@ -908,7 +908,10 @@ def test_builder_save_report_hard_gates_visual_review_and_to_dict(tmp_path) -> N
     assert report.hard_gates["document_errors"] == "pass"
     assert report.hard_gates["schema_lint"] in {"pass", "warning"}
     assert report.hard_gates["reopen"] == "pass"
+    assert report.hard_gates["editor_open_safety"] == "pass"
     assert report.hard_gates["id_integrity"] == "pass"
+    assert report.editor_open_safety is not None
+    assert report.editor_open_safety.ok is True
     assert report.visual_review_required is True
     assert report.feature_flags["table"] is True
     assert report.feature_flags["page_break"] is True
@@ -916,6 +919,8 @@ def test_builder_save_report_hard_gates_visual_review_and_to_dict(tmp_path) -> N
     payload = report.to_dict()
     json.dumps(payload, ensure_ascii=False)
     assert payload["visual_review_required"] is True
+    assert payload["editor_open_safety"]["ok"] is True
+    assert payload["hard_gates"]["editor_open_safety"] == "pass"
     assert payload["hard_gates"]["id_integrity"] == "pass"
     assert isinstance(payload["validate_document"]["warnings"], list)
 

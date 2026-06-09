@@ -7,7 +7,7 @@ import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import BinaryIO, Literal, Sequence
+from typing import Any, BinaryIO, Literal, Sequence
 from zipfile import ZIP_STORED, BadZipFile, ZipFile
 
 from lxml import etree as LET  # type: ignore[reportMissingImports]
@@ -34,11 +34,23 @@ _STANDALONE_YES_RE = re.compile(br"\bstandalone\s*=\s*(['\"])yes\1", re.IGNORECA
 IssueLevel = Literal["error", "warning"]
 
 __all__ = [
+    "EDITOR_OPEN_ADVISORY_ERROR_MARKERS",
     "PackageValidationIssue",
     "PackageValidationReport",
+    "EditorOpenSafetyReport",
+    "is_editor_open_blocking_issue",
+    "validate_editor_open_safety",
     "validate_package",
     "main",
 ]
+
+EDITOR_OPEN_ADVISORY_ERROR_MARKERS = (
+    'missing XML declaration with standalone="yes"',
+    "missing Hancom-compatible HWPML root namespace declarations",
+    "manifest href missing from archive",
+    "must be the first ZIP entry",
+    "must use ZIP_STORED",
+)
 
 
 @dataclass(frozen=True)
@@ -53,6 +65,14 @@ class PackageValidationIssue:
 
     def __str__(self) -> str:  # pragma: no cover - human readable helper
         return f"{self.part_name}: {self.message}"
+
+
+def is_editor_open_blocking_issue(issue: PackageValidationIssue) -> bool:
+    """Return whether a package issue should block editor-open-safe saves."""
+
+    if not issue.is_error:
+        return False
+    return not any(marker in issue.message for marker in EDITOR_OPEN_ADVISORY_ERROR_MARKERS)
 
 
 @dataclass(frozen=True)
@@ -74,6 +94,125 @@ class PackageValidationReport:
 
     def __bool__(self) -> bool:  # pragma: no cover - convenience alias
         return self.ok
+
+
+@dataclass(frozen=True)
+class EditorOpenSafetyReport:
+    """Combined checks used before handing a saved HWPX to an editor."""
+
+    validate_package: PackageValidationReport
+    validate_document: Any | None
+    blocking_package_errors: tuple[PackageValidationIssue, ...]
+    reopen_ok: bool
+    reopen_error: str | None = None
+    document_validation_error: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        document_ok = (
+            self.document_validation_error is None
+            and self.validate_document is not None
+            and bool(getattr(self.validate_document, "ok", False))
+        )
+        return not self.blocking_package_errors and self.reopen_ok and document_ok
+
+    @property
+    def summary(self) -> str:
+        if self.ok:
+            return "editor-open safety verification passed"
+        failures: list[str] = []
+        if self.blocking_package_errors:
+            failures.extend(str(issue) for issue in self.blocking_package_errors[:10])
+        if not self.reopen_ok and self.reopen_error:
+            failures.append(f"reopen failed: {self.reopen_error}")
+        if self.document_validation_error:
+            failures.append(
+                f"document validation could not run: {self.document_validation_error}"
+            )
+        document_report = self.validate_document
+        if document_report is not None and not bool(getattr(document_report, "ok", False)):
+            errors = list(getattr(document_report, "errors", ()))
+            if errors:
+                failures.extend(
+                    f"document validation failed: {error}"
+                    for error in errors[:10]
+                )
+            else:
+                failures.append("document validation failed")
+        return "; ".join(failures) if failures else "editor-open safety verification failed"
+
+    def to_dict(self) -> dict[str, Any]:
+        document_report = self.validate_document
+        return {
+            "ok": self.ok,
+            "summary": self.summary,
+            "validatePackage": {
+                "ok": self.validate_package.ok,
+                "errors": [str(issue) for issue in self.validate_package.errors],
+                "warnings": [str(issue) for issue in self.validate_package.warnings],
+                "blockingErrors": [
+                    str(issue) for issue in self.blocking_package_errors
+                ],
+            },
+            "validateDocument": (
+                {
+                    "ok": False,
+                    "errors": [self.document_validation_error],
+                    "warnings": [],
+                }
+                if document_report is None
+                else {
+                    "ok": bool(getattr(document_report, "ok", False)),
+                    "errors": [
+                        str(issue) for issue in getattr(document_report, "errors", ())
+                    ],
+                    "warnings": [
+                        str(issue) for issue in getattr(document_report, "warnings", ())
+                    ],
+                }
+            ),
+            "reopen": {"ok": self.reopen_ok, "error": self.reopen_error},
+        }
+
+
+def validate_editor_open_safety(source: str | Path | bytes) -> EditorOpenSafetyReport:
+    """Return package/document/reopen evidence for editor-open-safe handoff."""
+
+    package_report = validate_package(source)
+    blocking_errors = tuple(
+        issue for issue in package_report.errors if is_editor_open_blocking_issue(issue)
+    )
+
+    document_report: Any | None = None
+    document_error: str | None = None
+    try:
+        from .validator import validate_document
+
+        document_report = validate_document(source)
+    except Exception as exc:  # noqa: BLE001 - reported as evidence, not hidden
+        document_error = f"{type(exc).__name__}: {exc}"
+
+    reopen_ok = False
+    reopen_error: str | None = None
+    try:
+        from ..document import HwpxDocument
+
+        reopened = HwpxDocument.open(source)
+        try:
+            reopen_ok = True
+        finally:
+            reopened.close()
+    except Exception as exc:  # noqa: BLE001 - reported as evidence, not hidden
+        reopen_error = f"{type(exc).__name__}: {exc}"
+
+    return EditorOpenSafetyReport(
+        validate_package=package_report,
+        validate_document=document_report,
+        blocking_package_errors=blocking_errors,
+        reopen_ok=reopen_ok,
+        reopen_error=reopen_error,
+        document_validation_error=document_error,
+    )
 
 
 def _open_zip(source: str | Path | bytes | BinaryIO) -> ZipFile:
@@ -140,6 +279,80 @@ def _check_hwpml_compat_root(
             "missing Hancom-compatible HWPML root namespace declarations: "
             + ", ".join(missing),
         )
+
+
+def _local_name(element: ET.Element) -> str:
+    tag = element.tag
+    if "}" in tag:
+        return tag.rsplit("}", 1)[1]
+    return tag
+
+
+def _simple_paragraph_text_length(paragraph: ET.Element) -> int | None:
+    """Return visible text length for plain text-only paragraphs.
+
+    Paragraphs containing fields, shapes, tables, or other embedded controls are
+    skipped to avoid guessing how a specific editor counts their layout units.
+    """
+
+    total = 0
+    for child in paragraph:
+        child_name = _local_name(child).lower()
+        if child_name == "linesegarray":
+            continue
+        if child_name != "run":
+            return None
+        for run_child in child:
+            run_child_name = _local_name(run_child).lower()
+            if run_child_name == "t":
+                total += len("".join(run_child.itertext()))
+            elif run_child_name in {"tab", "linebreak", "hyphen", "nbspace"}:
+                total += 1
+            else:
+                return None
+    return total
+
+
+def _check_line_seg_text_positions(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    root: ET.Element,
+) -> None:
+    if not is_section_part_name(part_name):
+        return
+
+    for paragraph_index, paragraph in enumerate(
+        element for element in root.iter() if _local_name(element) == "p"
+    ):
+        text_length = _simple_paragraph_text_length(paragraph)
+        if text_length is None:
+            continue
+        for child in paragraph:
+            if _local_name(child).lower() != "linesegarray":
+                continue
+            for line_seg in child:
+                if _local_name(line_seg).lower() != "lineseg":
+                    continue
+                textpos_raw = line_seg.get("textpos")
+                if textpos_raw is None:
+                    continue
+                try:
+                    textpos = int(textpos_raw)
+                except ValueError:
+                    _error(
+                        issues,
+                        part_name,
+                        f"paragraph {paragraph_index} has non-integer lineseg textpos={textpos_raw!r}",
+                    )
+                    continue
+                if textpos > text_length:
+                    _error(
+                        issues,
+                        part_name,
+                        "paragraph "
+                        f"{paragraph_index} has stale lineseg textpos={textpos} "
+                        f"beyond text length {text_length}",
+                    )
 
 
 def _error(issues: list[PackageValidationIssue], part_name: str, message: str) -> None:
@@ -234,6 +447,7 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
                 root = _parse_xml(payload)
                 xml_roots[name] = root
                 _check_hwpml_compat_root(issues, name, payload, root)
+                _check_line_seg_text_positions(issues, name, root)
             except ValueError as exc:
                 _error(issues, name, str(exc))
 

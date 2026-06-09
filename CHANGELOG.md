@@ -4,6 +4,30 @@
 
 ## [Unreleased]
 
+## [2.10.3] - 2026-06-09
+### 추가
+- `hwpx.tools.validate_editor_open_safety()`와 `EditorOpenSafetyReport`를 추가해 package validation, document validation, 재오픈 검증을 한 곳에서 확인할 수 있게 했습니다.
+
+### 수정
+- 텍스트를 줄이는 저수준 편집 뒤 stale `hp:linesegarray`가 남아 한컴 편집기에서 열리지 않을 수 있는 문제를 막기 위해, 저장 직전 plain-text 문단의 무효한 layout cache를 제거합니다.
+- 편집된 section과 public 저수준 section write 경로는 모든 `hp:lineSegArray` layout cache를 제거해, 복합 문단처럼 stale 여부를 안전하게 계산하기 어려운 경우도 편집기가 다시 계산하도록 했습니다.
+- public 저수준 section/header XML write 경로도 Hancom-compatible root namespace 선언과 `standalone="yes"` XML declaration을 보정해 generic XML serializer 출력이 그대로 저장되지 않도록 했습니다.
+- `HwpxDocument.to_bytes()`, `save_to_path()`, `save_to_stream()`이 생성된 패키지의 editor-open safety를 확인한 뒤에만 결과를 반환하거나 쓰도록 보강했습니다. `save_to_path()`는 safety 실패 시 기존 대상 파일을 교체하지 않습니다.
+- `HwpxPackage.save()`도 editor-open safety를 기본 검증해 저수준 package 직접 편집이 unsafe HWPX를 bytes/path/stream으로 내보내지 않도록 막습니다.
+- public `HwpxPackage.save()`에서 editor-open safety 검증을 우회하는 파라미터를 제공하지 않도록 정리했습니다. 검증 실패 상태의 bytes snapshot은 package 내부 진단 토큰이 있는 경로에서만 생성하며, unchecked 경로는 caller-provided file path/stream에 직접 쓸 수 없습니다.
+- `HwpxDocument._to_bytes_raw()`의 open-safety bypass 인자를 제거해 document 객체에서 unchecked bytes를 얻는 실수성 우회 경로를 더 좁혔습니다.
+- private archive writer도 save 내부 컨텍스트에서만 동작하게 해, `_write_archive()`/`_write_zip_entry()` 직접 호출로 editor-open safety 검증을 건너뛴 ZIP을 만드는 실수성 우회 경로를 막았습니다.
+- 문서/package 저장 중 open-safety, 실제 파일 쓰기, stream short write가 실패하면 dirty 상태를 성공처럼 정리하지 않도록 보강했습니다. seek 가능하고 안전하게 복원 가능한 stream은 쓰기 실패 시 원래 내용으로 rollback합니다.
+- archive pack CLI가 재패킹 결과를 editor-open safety 리포트로 재검증하고, 실패 시 기존 output을 보존합니다. 성공 시 `PackResult.open_safety`와 CLI `open_safety_ok=true` 출력으로 handoff evidence를 제공합니다.
+- repair/recover 출력도 CRC와 package validation 뒤에 editor-open safety를 재검증하고, section의 `hp:lineSegArray` layout cache 제거와 section/header root namespace 및 `standalone="yes"` 보정을 적용합니다. 실패 시 기존 output은 보존하고, 성공 시 `RepairResult.open_safety`로 handoff evidence를 제공합니다.
+- template form-fit apply가 최종 목적지에 먼저 복사하지 않고 temp 파일에서 저장 및 editor-open safety 검증을 끝낸 뒤에만 교체하도록 보강했습니다.
+- builder `Document.save_to_path()` 리포트에 `editor_open_safety` hard gate와 세부 리포트를 포함합니다.
+- template form-fit paragraph clone 경로가 텍스트를 직접 바꿀 때도 layout cache를 제거합니다.
+- package validator가 실제 텍스트 길이를 넘어서는 `lineseg/@textpos`를 hard error로 보고하도록 보강했습니다.
+- `EditorOpenSafetyReport.ok`가 package/reopen뿐 아니라 document validation 실행 실패와 hard error도 반영하도록 보강했습니다.
+- 저장 직전 paragraph의 `styleIDRef`가 `Normal`/`본문`처럼 header style 이름으로 잘못 들어간 경우, 일치하는 numeric style id로 정규화해 저수준 편집 산출물이 document validation에서 차단되거나 편집기 오픈 리스크를 만들지 않도록 했습니다.
+- `HwpxPackage.save(updates=...)` 같은 순수 package 저수준 저장 경로도 header style 이름으로 된 paragraph `styleIDRef`를 numeric id로 정규화해, MCP를 거치지 않는 직접 ZIP/XML 편집 산출물도 같은 safety 보정을 받도록 했습니다.
+
 ## [2.10.2] - 2026-06-06
 ### 추가
 - `hwpx.tools.markdown_export.export_markdown()`와 `HwpxDocument.export_rich_markdown()`을 추가해 풍부한 Markdown 변환을 지원합니다. 인라인 서식(굵게/기울임/취소선/색상/하이라이트), 표 병합 셀(colspan/rowspan HTML), 중첩 표 재귀, `rect`/`ellipse`/`polygon` 도형 내부 paragraph, BinData 이미지 추출, `Ⅰ.`/`1.` 패턴 기반 헤딩 감지(`# `/`## `), 각주·미주(정확 위치 마커 + `fn1`/`en1` 일련번호 + 본문 인라인 서식), 하이퍼링크(`[text](url)`) 보존을 한 번에 처리합니다. 기존 `HwpxDocument.export_markdown()`은 그대로 유지됩니다.

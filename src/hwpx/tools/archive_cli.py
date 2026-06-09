@@ -9,14 +9,14 @@ import sys
 import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
 from ..opc.relationships import is_header_part_name, is_section_part_name
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
-from .package_validator import validate_package
+from .package_validator import validate_editor_open_safety, validate_package
 
 _XML_SUFFIXES = (".xml", ".hpf")
 _PACK_METADATA_NAME = ".hwpx-pack-metadata.json"
@@ -50,6 +50,7 @@ class UnpackResult:
 class PackResult:
     output_path: Path
     entries: tuple[str, ...]
+    open_safety: dict[str, Any]
 
 
 def _guard_destructive_target(path: Path) -> None:
@@ -195,10 +196,16 @@ def _resolve_write_order(paths: set[str], metadata: tuple[ArchiveEntryInfo, ...]
     return tuple(ordered)
 
 
-def _summarize_pack_validation(output_path: Path) -> None:
+def _summarize_pack_validation(output_path: Path) -> dict[str, Any]:
     report = validate_package(output_path)
     if report.ok:
-        return
+        safety_report = validate_editor_open_safety(output_path)
+        if safety_report.ok:
+            return safety_report.to_dict()
+        raise ValueError(
+            "packed archive failed editor-open safety validation:\n"
+            + safety_report.summary
+        )
     summary = "\n".join(f"- {issue}" for issue in report.errors[:10])
     raise ValueError(f"packed archive failed validation:\n{summary}")
 
@@ -293,7 +300,7 @@ def pack_hwpx(
                 )
                 archive.writestr(rel_path, payload, compress_type=compress_type)
 
-        _summarize_pack_validation(tmp_path)
+        open_safety = _summarize_pack_validation(tmp_path)
         os.replace(tmp_path, destination)
     except BaseException:
         try:
@@ -302,7 +309,11 @@ def pack_hwpx(
             pass
         raise
 
-    return PackResult(output_path=destination, entries=ordered_paths)
+    return PackResult(
+        output_path=destination,
+        entries=ordered_paths,
+        open_safety=open_safety,
+    )
 
 
 def unpack_main(argv: Sequence[str] | None = None) -> int:
@@ -353,6 +364,7 @@ def pack_main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     print(f"Packed {args.input} -> {result.output_path}")
+    print(f"open_safety_ok={str(bool(result.open_safety.get('ok'))).lower()}")
     return 0
 
 

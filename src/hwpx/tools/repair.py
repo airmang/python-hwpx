@@ -6,10 +6,14 @@ import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
-from .package_validator import MIMETYPE_PATH, validate_package
+from lxml import etree
+
+from ..opc.relationships import is_header_part_name, is_section_part_name
+from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
+from .package_validator import MIMETYPE_PATH, validate_editor_open_safety, validate_package
 from .recover import recover_entries
 
 __all__ = [
@@ -26,6 +30,7 @@ class RepairResult:
     entries: tuple[str, ...]
     reordered: bool
     crc_ok: bool
+    open_safety: dict[str, Any]
     recovered: bool = False
 
 
@@ -90,7 +95,69 @@ def _validation_error_summary(path: Path) -> str | None:
     return "\n".join(f"- {issue}" for issue in report.errors[:10])
 
 
-def _replace_with_validated_archive(tmp_path: Path, destination: Path) -> bool:
+def _local_name(element: etree._Element) -> str:
+    tag = element.tag
+    if not isinstance(tag, str):
+        return ""
+    if "}" in tag:
+        return tag.rsplit("}", 1)[1]
+    return tag
+
+
+def _serialize_hwpml_compat_root(root: etree._Element) -> bytes:
+    wrapped = etree.Element(root.tag, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
+    wrapped.attrib.update(root.attrib)
+    wrapped.text = root.text
+    wrapped.tail = root.tail
+    for child in root:
+        wrapped.append(child)
+    return etree.tostring(
+        wrapped,
+        encoding="UTF-8",
+        xml_declaration=True,
+        standalone=True,
+    )
+
+
+def _normalize_hwpml_compat_root(part_name: str, payload: bytes) -> bytes:
+    if not (is_section_part_name(part_name) or is_header_part_name(part_name)):
+        return payload
+    try:
+        root = etree.fromstring(payload)
+    except etree.XMLSyntaxError:
+        return payload
+    if _local_name(root) not in {"sec", "head"}:
+        return payload
+    return _serialize_hwpml_compat_root(root)
+
+
+def _repair_section_layout_cache(part_name: str, payload: bytes) -> bytes:
+    if not is_section_part_name(part_name):
+        return _normalize_hwpml_compat_root(part_name, payload)
+    try:
+        root = etree.fromstring(payload)
+    except etree.XMLSyntaxError:
+        return payload
+
+    changed = False
+    for paragraph in root.iter():
+        if _local_name(paragraph) != "p":
+            continue
+        for child in list(paragraph):
+            if _local_name(child).lower() != "linesegarray":
+                continue
+            paragraph.remove(child)
+            changed = True
+
+    if changed or _local_name(root) in {"sec", "head"}:
+        return _serialize_hwpml_compat_root(root)
+    return payload
+
+
+def _replace_with_validated_archive(
+    tmp_path: Path,
+    destination: Path,
+) -> tuple[bool, dict[str, Any]]:
     try:
         with ZipFile(tmp_path, "r") as archive:
             crc_ok = archive.testzip() is None
@@ -101,8 +168,16 @@ def _replace_with_validated_archive(tmp_path: Path, destination: Path) -> bool:
         if validation_summary is not None:
             raise ValueError(f"repaired archive failed validation:\n{validation_summary}")
 
+        open_safety = validate_editor_open_safety(tmp_path)
+        if not open_safety.ok:
+            raise ValueError(
+                "repaired archive failed editor-open safety validation:\n"
+                + open_safety.summary
+            )
+        open_safety_dict = open_safety.to_dict()
+
         os.replace(tmp_path, destination)
-        return crc_ok
+        return crc_ok, open_safety_dict
     except BaseException:
         try:
             tmp_path.unlink(missing_ok=True)
@@ -147,12 +222,16 @@ def repair_repack(
                 compress_type = ZIP_STORED if entry.info.filename == MIMETYPE_PATH else entry.info.compress_type
                 if compress_type != ZIP_STORED:
                     compress_type = ZIP_DEFLATED
-                archive.writestr(
-                    _clone_info(entry.info, compress_type=compress_type),
+                payload = _repair_section_layout_cache(
+                    entry.info.filename,
                     entry.payload,
                 )
+                archive.writestr(
+                    _clone_info(entry.info, compress_type=compress_type),
+                    payload,
+                )
 
-        crc_ok = _replace_with_validated_archive(tmp_path, destination)
+        crc_ok, open_safety = _replace_with_validated_archive(tmp_path, destination)
     except BaseException:
         try:
             tmp_path.unlink(missing_ok=True)
@@ -165,6 +244,7 @@ def repair_repack(
         entries=original_names,
         reordered=reordered,
         crc_ok=crc_ok,
+        open_safety=open_safety,
     )
 
 
@@ -202,9 +282,10 @@ def repair_from_recovered(
             for name in ordered_names:
                 if name == MIMETYPE_PATH:
                     continue
-                archive.writestr(name, recovered[name], compress_type=ZIP_DEFLATED)
+                payload = _repair_section_layout_cache(name, recovered[name])
+                archive.writestr(name, payload, compress_type=ZIP_DEFLATED)
 
-        crc_ok = _replace_with_validated_archive(tmp_path, destination)
+        crc_ok, open_safety = _replace_with_validated_archive(tmp_path, destination)
     except BaseException:
         try:
             tmp_path.unlink(missing_ok=True)
@@ -217,6 +298,7 @@ def repair_from_recovered(
         entries=original_names,
         reordered=reordered,
         crc_ok=crc_ok,
+        open_safety=open_safety,
         recovered=True,
     )
 
@@ -252,6 +334,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             [
                 f"reordered={str(result.reordered).lower()}",
                 f"crc_ok={str(result.crc_ok).lower()}",
+                f"open_safety_ok={str(bool(result.open_safety.get('ok'))).lower()}",
                 f"recovered={str(result.recovered).lower()}",
             ]
         )

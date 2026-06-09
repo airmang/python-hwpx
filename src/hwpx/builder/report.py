@@ -6,7 +6,7 @@ from os import PathLike
 from typing import Any
 
 from hwpx.tools.id_integrity import IdIntegrityReport, check_id_integrity
-from hwpx.tools.package_validator import PackageValidationReport
+from hwpx.tools.package_validator import EditorOpenSafetyReport, PackageValidationReport
 from hwpx.tools.validator import ValidationReport
 
 
@@ -32,6 +32,7 @@ class BuilderSaveReport:
     visual_review_required: bool = False
     feature_flags: dict[str, bool] = field(default_factory=dict)
     id_integrity: IdIntegrityReport | None = None
+    editor_open_safety: EditorOpenSafetyReport | None = None
 
     def __post_init__(self) -> None:
         hard_gates = dict(self.hard_gates)
@@ -52,6 +53,11 @@ class BuilderSaveReport:
             "hard_gates": dict(self.hard_gates),
             "visual_review_required": self.visual_review_required,
             "feature_flags": dict(self.feature_flags),
+            "editor_open_safety": (
+                None
+                if self.editor_open_safety is None
+                else self.editor_open_safety.to_dict()
+            ),
             "validate_package": {
                 "ok": self.validate_package.ok,
                 "checked_parts": list(self.validate_package.checked_parts),

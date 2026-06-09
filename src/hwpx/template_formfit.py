@@ -6,12 +6,14 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Any, Mapping
 
 from .document import HwpxDocument
-from .tools.package_validator import validate_package
+from .tools.package_validator import validate_editor_open_safety, validate_package
 from .tools.validator import validate_document
 
 TEMPLATE_FORMFIT_BASELINE_SCHEMA_VERSION = "hwpx.template-formfit.baseline.v1"
@@ -131,29 +133,47 @@ def apply_template_formfit(
     source_before_hash = _sha256_file(source_path)
     source_before_mtime = source_path.stat().st_mtime_ns
     destination_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source_path, destination_path)
-    copied_hash = _sha256_file(destination_path)
-
-    applied: list[dict[str, Any]] = []
-    doc = HwpxDocument.open(destination_path)
-    try:
-        for target in plan.get("resolved", []):
-            applied.append(_apply_target(doc, dict(target)))
-        doc.save_to_path(destination_path)
-    finally:
-        doc.close()
-
-    validation = _runtime_validation(destination_path)
-    residual_markers = _residual_markers(
-        destination_path,
-        plan.get("residual_marker_policy") or {},
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(destination_path.parent),
+        suffix=(destination_path.suffix or ".hwpx") + ".tmp",
     )
-    destination_hash = _sha256_file(destination_path)
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        shutil.copy2(source_path, tmp_path)
+        copied_hash = _sha256_file(tmp_path)
+
+        applied: list[dict[str, Any]] = []
+        doc = HwpxDocument.open(tmp_path)
+        try:
+            for target in plan.get("resolved", []):
+                applied.append(_apply_target(doc, dict(target)))
+            doc.save_to_path(tmp_path)
+        finally:
+            doc.close()
+
+        validation = _runtime_validation(tmp_path)
+        if not validation["openSafety"]["ok"]:
+            raise ValueError(
+                "template form-fit output failed editor-open safety validation: "
+                + validation["openSafety"]["summary"]
+            )
+        residual_markers = _residual_markers(
+            tmp_path,
+            plan.get("residual_marker_policy") or {},
+        )
+        destination_hash = _sha256_file(tmp_path)
+        os.replace(tmp_path, destination_path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
     source_after_hash = _sha256_file(source_path)
     source_after_mtime = source_path.stat().st_mtime_ns
     ready = (
         bool(validation["validate_package"]["ok"])
         and bool(validation["validate_document"]["ok"])
+        and bool(validation["openSafety"]["ok"])
         and not residual_markers["blocking"]
     )
     return {
@@ -473,6 +493,14 @@ def _paragraph_clone_with_text(template: Any, text: str) -> Any:
     return cloned
 
 
+def _remove_layout_cache(element: Any) -> None:
+    for child in list(element):
+        if _local_name(child.tag).lower() == "linesegarray":
+            element.remove(child)
+        else:
+            _remove_layout_cache(child)
+
+
 class _ParagraphElementAdapter:
     def __init__(self, element: Any):
         self.element = element
@@ -489,6 +517,7 @@ class _ParagraphElementAdapter:
             text_nodes[0].text = value
             for node in text_nodes[1:]:
                 node.text = ""
+        _remove_layout_cache(self.element)
 
 
 def _local_name(tag: Any) -> str:
@@ -498,9 +527,11 @@ def _local_name(tag: Any) -> str:
 def _runtime_validation(path: Path) -> dict[str, Any]:
     package_report = validate_package(path)
     document_report = validate_document(path)
+    open_safety = validate_editor_open_safety(path)
     return {
         "validate_package": _report_payload(package_report, "checked_parts"),
         "validate_document": _report_payload(document_report, "validated_parts"),
+        "openSafety": open_safety.to_dict(),
     }
 
 

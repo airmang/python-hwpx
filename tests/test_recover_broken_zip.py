@@ -7,7 +7,8 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, BadZipFile, ZipFile
 
 import pytest
 
-from hwpx.tools.package_validator import validate_package
+import hwpx.tools.repair as repair_module
+from hwpx.tools.package_validator import validate_editor_open_safety, validate_package
 from hwpx.tools.recover import RecoverError, recover_entries
 from hwpx.tools.repair import repair_from_recovered
 from tests.test_repair_repack import _valid_parts
@@ -236,8 +237,96 @@ def test_repair_from_recovered_writes_valid_mimetype_first_package(tmp_path: Pat
     assert result.recovered is True
     assert result.reordered is True
     assert result.crc_ok is True
+    assert result.open_safety["ok"] is True
     assert validate_package(output).ok
     with ZipFile(output, "r") as archive:
         infos = archive.infolist()
         assert infos[0].filename == "mimetype"
         assert infos[0].compress_type == ZIP_STORED
+
+
+def test_repair_from_recovered_removes_stale_lineseg_layout_cache(tmp_path: Path) -> None:
+    source = tmp_path / "broken-stale-lineseg.hwpx"
+    output = tmp_path / "repaired.hwpx"
+    stale_parts = [
+        (
+            name,
+            payload.replace(
+                b"</hp:p>",
+                b'<hp:linesegarray><hp:lineseg textpos="999"/></hp:linesegarray></hp:p>',
+                1,
+            ),
+            compress_type,
+        )
+        if name == "Contents/section0.xml"
+        else (name, payload, compress_type)
+        for name, payload, compress_type in _valid_parts()
+    ]
+    _write_zip(source, stale_parts)
+    _truncate_before_central_directory(source)
+
+    result = repair_from_recovered(source, output)
+
+    assert result.recovered is True
+    assert result.crc_ok is True
+    assert validate_editor_open_safety(output).ok
+    with ZipFile(output, "r") as archive:
+        section_xml = archive.read("Contents/section0.xml").lower()
+    assert b"linesegarray" not in section_xml
+
+
+def test_repair_from_recovered_removes_complex_paragraph_layout_cache(tmp_path: Path) -> None:
+    source = tmp_path / "broken-complex-lineseg.hwpx"
+    output = tmp_path / "repaired.hwpx"
+    stale_parts = [
+        (
+            name,
+            payload.replace(
+                b"</hp:p>",
+                b'<hp:run charPrIDRef="0"><hp:ctrl id="field"/></hp:run>'
+                b'<hp:linesegarray><hp:lineseg textpos="999"/></hp:linesegarray></hp:p>',
+                1,
+            ),
+            compress_type,
+        )
+        if name == "Contents/section0.xml"
+        else (name, payload, compress_type)
+        for name, payload, compress_type in _valid_parts()
+    ]
+    _write_zip(source, stale_parts)
+    _truncate_before_central_directory(source)
+
+    result = repair_from_recovered(source, output)
+
+    assert result.recovered is True
+    assert result.crc_ok is True
+    assert validate_editor_open_safety(output).ok
+    with ZipFile(output, "r") as archive:
+        section_xml = archive.read("Contents/section0.xml").lower()
+    assert b"linesegarray" not in section_xml
+
+
+def test_repair_from_recovered_open_safety_failure_preserves_existing_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FailedOpenSafety:
+        ok = False
+        summary = "forced reopen failure"
+
+    source = tmp_path / "broken.hwpx"
+    output = tmp_path / "existing.hwpx"
+    _write_zip(source, _valid_parts())
+    _truncate_before_central_directory(source)
+    output.write_bytes(b"existing output")
+    monkeypatch.setattr(
+        repair_module,
+        "validate_editor_open_safety",
+        lambda _path: _FailedOpenSafety(),
+    )
+
+    with pytest.raises(ValueError, match="editor-open safety"):
+        repair_from_recovered(source, output, overwrite=True)
+
+    assert output.read_bytes() == b"existing output"
+    assert list(tmp_path.glob("*.hwpx.tmp")) == []

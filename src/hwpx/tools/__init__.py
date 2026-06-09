@@ -8,8 +8,12 @@ from .exporter import (
 )
 from .object_finder import FoundElement, ObjectFinder
 from .package_validator import (
+    EDITOR_OPEN_ADVISORY_ERROR_MARKERS,
+    EditorOpenSafetyReport,
     PackageValidationIssue,
     PackageValidationReport,
+    is_editor_open_blocking_issue,
+    validate_editor_open_safety,
     validate_package,
 )
 from .page_guard import (
@@ -68,8 +72,12 @@ __all__ = [
     "get_table_map",
     "FoundElement",
     "ObjectFinder",
+    "EDITOR_OPEN_ADVISORY_ERROR_MARKERS",
+    "EditorOpenSafetyReport",
     "PackageValidationIssue",
     "PackageValidationReport",
+    "is_editor_open_blocking_issue",
+    "validate_editor_open_safety",
     "validate_package",
     "DocumentMetrics",
     "collect_metrics",

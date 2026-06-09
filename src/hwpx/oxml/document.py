@@ -267,12 +267,69 @@ def _create_paragraph_element(
 _LAYOUT_CACHE_ELEMENT_NAMES = {"linesegarray"}
 
 
-def _clear_paragraph_layout_cache(paragraph: ET.Element) -> None:
+def _clear_paragraph_layout_cache(paragraph: ET.Element) -> int:
     """Remove cached layout metadata such as ``<hp:lineSegArray>``."""
 
+    removed = 0
     for child in list(paragraph):
         if _element_local_name(child).lower() in _LAYOUT_CACHE_ELEMENT_NAMES:
             paragraph.remove(child)
+            removed += 1
+    return removed
+
+
+def _simple_paragraph_text_length(paragraph: ET.Element) -> int | None:
+    total = 0
+    for child in paragraph:
+        child_name = _element_local_name(child).lower()
+        if child_name in _LAYOUT_CACHE_ELEMENT_NAMES:
+            continue
+        if child_name != "run":
+            return None
+        for run_child in child:
+            run_child_name = _element_local_name(run_child).lower()
+            if run_child_name == "t":
+                total += len("".join(run_child.itertext()))
+            elif run_child_name in {
+                "tab",
+                "linebreak",
+                "hyphen",
+                "nbspace",
+            } or _is_tab_control_element(run_child):
+                total += 1
+            else:
+                return None
+    return total
+
+
+def _remove_stale_paragraph_layout_cache(paragraph: ET.Element) -> bool:
+    text_length = _simple_paragraph_text_length(paragraph)
+    if text_length is None:
+        return False
+
+    stale = False
+    for child in paragraph:
+        if _element_local_name(child).lower() not in _LAYOUT_CACHE_ELEMENT_NAMES:
+            continue
+        for line_seg in child:
+            if _element_local_name(line_seg).lower() != "lineseg":
+                continue
+            textpos = line_seg.get("textpos")
+            if textpos is None:
+                continue
+            try:
+                if int(textpos) > text_length:
+                    stale = True
+                    break
+            except ValueError:
+                stale = True
+                break
+        if stale:
+            break
+
+    if stale:
+        _clear_paragraph_layout_cache(paragraph)
+    return stale
 
 
 def _element_local_name(node: ET.Element) -> str:
@@ -316,6 +373,16 @@ def _normalize_length(value: str | None) -> str:
     if value is None:
         return ""
     return value.replace(" ", "").lower()
+
+
+def _is_integer_literal(value: str | None) -> bool:
+    if value is None:
+        return False
+    try:
+        int(value.strip())
+    except (TypeError, ValueError):
+        return False
+    return True
 
 
 def _border_fill_is_basic_solid_line(element: ET.Element) -> bool:
@@ -4373,6 +4440,36 @@ class HwpxOxmlSection:
     def reset_dirty(self) -> None:
         self._dirty = False
 
+    def remove_stale_layout_caches(self) -> int:
+        """Drop paragraph layout caches that no longer match plain text length."""
+
+        removed = 0
+        for paragraph in self._element.iter():
+            if _element_local_name(paragraph) != "p":
+                continue
+            if _remove_stale_paragraph_layout_cache(paragraph):
+                removed += 1
+        if removed:
+            self.mark_dirty()
+        return removed
+
+    def remove_layout_caches(self) -> int:
+        """Drop all paragraph layout caches from this section.
+
+        Layout cache is editor-derived metadata. Once a section has been
+        modified, preserving it is riskier than allowing the editor to
+        recalculate it on open.
+        """
+
+        removed = 0
+        for paragraph in self._element.iter():
+            if _element_local_name(paragraph) != "p":
+                continue
+            removed += _clear_paragraph_layout_cache(paragraph)
+        if removed:
+            self.mark_dirty()
+        return removed
+
     def to_bytes(self) -> bytes:
         return _serialize_xml(self._element)
 
@@ -5651,6 +5748,60 @@ class HwpxOxmlDocument:
     def style(self, style_id_ref: int | str | None) -> Style | None:
         return HwpxOxmlHeader._lookup_by_id(self.styles, style_id_ref)
 
+    def _style_name_id_map(self) -> dict[str, str]:
+        """Return unique style name/engName aliases that resolve to numeric ids."""
+
+        aliases: dict[str, str] = {}
+        conflicts: set[str] = set()
+        for header in self._headers:
+            for style in header.element.iter():
+                if _element_local_name(style) != "style":
+                    continue
+                style_id = style.get("id")
+                if not _is_integer_literal(style_id):
+                    continue
+                resolved_id = style_id.strip()
+                for attr_name in ("name", "engName"):
+                    alias = (style.get(attr_name) or "").strip()
+                    if not alias:
+                        continue
+                    existing = aliases.get(alias)
+                    if existing is not None and existing != resolved_id:
+                        conflicts.add(alias)
+                        continue
+                    aliases[alias] = resolved_id
+
+        for alias in conflicts:
+            aliases.pop(alias, None)
+        return aliases
+
+    def _normalize_named_style_references(self) -> int:
+        """Convert paragraph ``styleIDRef`` names to ids when headers define them."""
+
+        style_ids_by_name = self._style_name_id_map()
+        if not style_ids_by_name:
+            return 0
+
+        replacements = 0
+        for section in self._sections:
+            section_replacements = 0
+            for paragraph in section.element.iter():
+                if _element_local_name(paragraph) != "p":
+                    continue
+                style_id_ref = paragraph.get("styleIDRef")
+                if style_id_ref is None or _is_integer_literal(style_id_ref):
+                    continue
+                replacement = style_ids_by_name.get(style_id_ref.strip())
+                if replacement is None:
+                    continue
+                if style_id_ref != replacement:
+                    paragraph.set("styleIDRef", replacement)
+                    section_replacements += 1
+            if section_replacements:
+                section.mark_dirty()
+                replacements += section_replacements
+        return replacements
+
     @property
     def track_changes(self) -> dict[str, TrackChange]:
         mapping: dict[str, TrackChange] = {}
@@ -5893,8 +6044,14 @@ class HwpxOxmlDocument:
     def serialize(self) -> dict[str, bytes]:
         """Return a mapping of part names to updated XML payloads."""
         updates: dict[str, bytes] = {}
+        self._normalize_named_style_references()
         if self._manifest_dirty:
             updates[self._manifest_path] = _serialize_xml(self._manifest)
+        for section in self._sections:
+            if section.dirty:
+                section.remove_layout_caches()
+            else:
+                section.remove_stale_layout_caches()
         for section in self._sections:
             if section.dirty:
                 updates[section.part_name] = section.to_bytes()

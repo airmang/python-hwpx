@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import xml.etree.ElementTree as ET
 from pathlib import Path
+
+import pytest
 
 from hwpx import (
     HwpxDocument,
@@ -9,6 +12,8 @@ from hwpx import (
     apply_template_formfit,
     inspect_operating_plan_quality,
 )
+from hwpx.oxml.namespaces import HP
+from hwpx.template_formfit import _ParagraphElementAdapter
 from hwpx.tools.package_validator import validate_package
 from hwpx.tools.validator import validate_document
 
@@ -150,6 +155,19 @@ def _write_operating_plan_template(path: Path) -> None:
         doc.close()
 
 
+def test_template_formfit_paragraph_adapter_removes_layout_cache() -> None:
+    paragraph = ET.Element(f"{HP}p")
+    run = ET.SubElement(paragraph, f"{HP}run")
+    text = ET.SubElement(run, f"{HP}t")
+    text.text = "Original paragraph"
+    ET.SubElement(paragraph, f"{HP}linesegarray")
+
+    _ParagraphElementAdapter(paragraph).text = "Short text"
+
+    assert paragraph.find(f"{HP}linesegarray") is None
+    assert paragraph.find(f".//{HP}t").text == "Short text"
+
+
 def test_analyze_template_formfit_is_non_mutating_and_reports_required_targets(tmp_path: Path) -> None:
     source = tmp_path / "template.hwpx"
     destination = tmp_path / "filled.hwpx"
@@ -195,6 +213,7 @@ def test_apply_template_formfit_copies_source_and_returns_validation_evidence(tm
     assert result["destination"]["changed"] is True
     assert result["validation"]["validate_package"]["ok"] is True
     assert result["validation"]["validate_document"]["ok"] is True
+    assert result["validation"]["openSafety"]["ok"] is True
     assert result["residual_markers"]["blocking"] == []
     assert validate_package(destination).ok
     assert validate_document(destination).ok
@@ -211,6 +230,48 @@ def test_apply_template_formfit_copies_source_and_returns_validation_evidence(tm
         assert "TODO" not in text
     finally:
         reopened.close()
+
+
+def test_apply_template_formfit_preserves_destination_when_open_safety_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import hwpx.template_formfit as template_formfit
+
+    class _FailedOpenSafety:
+        ok = False
+        summary = "forced unsafe output"
+
+        def to_dict(self) -> dict[str, object]:
+            return {
+                "ok": False,
+                "summary": self.summary,
+                "validatePackage": {"ok": False, "errors": ["forced"], "warnings": []},
+                "validateDocument": {"ok": True, "errors": [], "warnings": []},
+                "reopen": {"ok": False, "error": "forced"},
+            }
+
+    source = tmp_path / "template.hwpx"
+    destination = tmp_path / "filled.hwpx"
+    _write_template(source)
+    HwpxDocument.new().save_to_path(destination)
+    destination_before = destination.read_bytes()
+    analysis = analyze_template_formfit(
+        source,
+        baseline=_baseline(),
+        content=_content(),
+        destination=destination,
+    )
+    monkeypatch.setattr(
+        template_formfit,
+        "validate_editor_open_safety",
+        lambda _path: _FailedOpenSafety(),
+    )
+
+    with pytest.raises(ValueError, match="editor-open safety"):
+        apply_template_formfit(analysis=analysis, confirm=True)
+
+    assert destination.read_bytes() == destination_before
 
 
 def test_template_formfit_output_has_file_only_operating_plan_quality(tmp_path: Path) -> None:

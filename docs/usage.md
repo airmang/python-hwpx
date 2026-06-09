@@ -1070,9 +1070,9 @@ for element in paragraphs_with_bookmark:
 
 | 메서드 | 설명 |
 |--------|------|
-| `save_to_path(path)` | 원자적 쓰기 + ZIP 무결성 검증 후 파일 저장 |
-| `save_to_stream(stream)` | `BinaryIO` 스트림에 기록 |
-| `to_bytes()` | `bytes`로 직렬화 |
+| `save_to_path(path)` | 원자적 쓰기 + ZIP 무결성 + editor-open safety 검증 후 파일 저장 |
+| `save_to_stream(stream)` | 검증된 HWPX만 `BinaryIO` 스트림에 기록 |
+| `to_bytes()` | 검증된 HWPX를 `bytes`로 직렬화 |
 
 ```python
 # 파일로 저장
@@ -1089,7 +1089,9 @@ with open("result.hwpx", "wb") as fp:
     fp.write(raw)
 ```
 
-패키지 수준에서 바로 작업하고 싶다면 `HwpxPackage.set_part()`/`save()`를 사용해 XML 조각을 교체할 수도 있습니다. 다만 고수준 API(`HwpxDocument`)를 통해 편집한 경우에는 `save_to_path()`를 호출해 내부 캐시 상태를 깨끗하게 유지하는 것이 좋습니다.
+저장 API는 결과 HWPX를 편집기에서 열 수 있는지 확인하기 위해 패키지 검증, document validation, 재오픈 검증을 수행합니다. 별도 pack/repack 파이프라인에서 같은 증거가 필요하면 `hwpx.validate_editor_open_safety(path)` 또는 `hwpx.tools.validate_editor_open_safety(path)`를 호출해 `EditorOpenSafetyReport`를 확인하세요.
+
+패키지 수준에서 바로 작업하고 싶다면 `HwpxPackage.set_part()`/`save()`를 사용해 XML 조각을 교체할 수도 있습니다. 이 경우에도 최종 출력은 반드시 `HwpxPackage.save()`를 거쳐야 합니다. `_write_archive()`나 `_write_zip_entry()` 같은 raw ZIP writer는 내부 구현 세부사항이며, safety 검증을 건너뛴 산출물을 만들 수 있으므로 직접 호출하지 마세요.
 
 ## Agent-first proposal preset
 

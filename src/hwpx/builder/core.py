@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from hwpx.document import HwpxDocument
+from hwpx.tools.package_validator import validate_editor_open_safety
 from hwpx.tools.package_validator import validate_package
 from hwpx.tools.validator import validate_document
 
@@ -576,13 +577,24 @@ def _merge_flags(*flag_sets: dict[str, bool]) -> dict[str, bool]:
     return merged
 
 
-def _hard_gates(package_report: object, document_report: object, reopen_report: ReopenReport) -> dict[str, str]:
+def _hard_gates(
+    package_report: object,
+    document_report: object,
+    reopen_report: ReopenReport,
+    editor_open_safety_report: object | None = None,
+) -> dict[str, str]:
     document_warnings = getattr(document_report, "warnings", ())
+    editor_open_safety_ok = (
+        True
+        if editor_open_safety_report is None
+        else bool(getattr(editor_open_safety_report, "ok", False))
+    )
     return {
         "package_validation": "pass" if getattr(package_report, "ok", False) else "fail",
         "document_errors": "pass" if getattr(document_report, "ok", False) else "fail",
         "schema_lint": "warning" if document_warnings else "pass",
         "reopen": "pass" if reopen_report.ok else "fail",
+        "editor_open_safety": "pass" if editor_open_safety_ok else "fail",
         "id_integrity": "unavailable",
     }
 
@@ -696,6 +708,7 @@ class Document:
         document.save_to_path(path)
         package_report = validate_package(path)
         document_report = validate_document(path)
+        editor_open_safety_report = validate_editor_open_safety(path)
         try:
             reopened_document = HwpxDocument.open(path)
             reopen_report = ReopenReport(ok=True, document=reopened_document)
@@ -713,8 +726,14 @@ class Document:
             validate_document=document_report,
             reopened=reopen_report,
             metadata=self.metadata.as_dict() if self.metadata is not None else {},
-            hard_gates=_hard_gates(package_report, document_report, reopen_report),
+            hard_gates=_hard_gates(
+                package_report,
+                document_report,
+                reopen_report,
+                editor_open_safety_report,
+            ),
             visual_review_required=visual_review_required,
             feature_flags=feature_flags,
+            editor_open_safety=editor_open_safety_report,
         )
         return report

@@ -25,6 +25,12 @@ from .tools.text_extractor import (
     TextExtractor,
 )
 from .tools.object_finder import FoundElement, ObjectFinder
+from .tools.package_validator import (
+    EditorOpenSafetyReport,
+    PackageValidationReport,
+    validate_editor_open_safety,
+    validate_package,
+)
 from .document import HwpxDocument
 from .package import HwpxPackage
 from .authoring import (
@@ -58,7 +64,9 @@ __all__ = [
     "DocumentBlock",
     "DocumentPlan",
     "DocumentStylePreset",
+    "EditorOpenSafetyReport",
     "ParagraphInfo",
+    "PackageValidationReport",
     "PlanValidationReport",
     "SectionInfo",
     "TEMPLATE_FORMFIT_BASELINE_SCHEMA_VERSION",
@@ -76,4 +84,6 @@ __all__ = [
     "inspect_operating_plan_quality",
     "normalize_document_plan",
     "validate_document_plan",
+    "validate_editor_open_safety",
+    "validate_package",
 ]
