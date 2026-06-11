@@ -6,6 +6,11 @@ from .exporter import (
     export_markdown,
     export_text,
 )
+from .advanced_generators import (
+    build_image_grid,
+    build_meeting_nameplates,
+    build_organization_chart,
+)
 from .layout_preview import (
     LayoutPreview,
     PreviewPage,
@@ -62,6 +67,9 @@ from .validator import (
 
 __all__ = [
     "DEFAULT_NAMESPACES",
+    "build_image_grid",
+    "build_meeting_nameplates",
+    "build_organization_chart",
     "ParagraphInfo",
     "SectionInfo",
     "TextExtractor",

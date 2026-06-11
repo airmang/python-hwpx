@@ -25,6 +25,11 @@ from .tools.text_extractor import (
     TextExtractor,
 )
 from .tools.object_finder import FoundElement, ObjectFinder
+from .tools.advanced_generators import (
+    build_image_grid,
+    build_meeting_nameplates,
+    build_organization_chart,
+)
 from .tools.official_lint import (
     OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION,
     inspect_official_document_style,
@@ -98,6 +103,9 @@ __all__ = [
     "FoundElement",
     "ObjectFinder",
     "OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION",
+    "build_image_grid",
+    "build_meeting_nameplates",
+    "build_organization_chart",
     "PlanValidationIssue",
     "HwpxDocument",
     "HwpxPackage",

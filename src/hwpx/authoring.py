@@ -32,6 +32,7 @@ from .builder.core import Toc as BuilderToc
 from .document import HwpxDocument
 from .tools.package_validator import validate_package
 from .tools.table_cleanup import normalize_cell_text
+from .tools.advanced_generators import build_image_grid
 from .tools.report_utils import (
     calculate_age,
     calculate_ratios,
@@ -604,6 +605,8 @@ def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue
         "numberedList",
         "table",
         "image",
+        "image_grid",
+        "imageGrid",
         "toc",
         "page_break",
         "pageBreak",
@@ -630,6 +633,27 @@ def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue
                     suggestion=f"Add non-empty {text_key}.",
                 )
             ]
+    if block_type in {"image_grid", "imageGrid"}:
+        images = raw_block.get("images")
+        if not isinstance(images, list) or not images:
+            return [
+                _plan_issue(
+                    "missing_image_grid_images",
+                    f"{path}.images",
+                    f"{path}.images must be a non-empty list",
+                    suggestion="Add image items with path and optional caption fields.",
+                )
+            ]
+        for image_index, image in enumerate(images):
+            if not isinstance(image, Mapping) or not str(image.get("path") or "").strip():
+                return [
+                    _plan_issue(
+                        "missing_image_path",
+                        f"{path}.images[{image_index}].path",
+                        f"{path}.images[{image_index}].path is required",
+                        suggestion="Set a non-empty image path.",
+                    )
+                ]
     if block_type in {"bullets", "bullet", "numbered_list", "numberedList"}:
         if not _string_list(raw_block.get("items")):
             return [
@@ -675,6 +699,10 @@ def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue
             if isinstance(row, (list, tuple)):
                 for col_index, value in enumerate(row):
                     issues.extend(_computed_field_issues(value, path=f"{path}.rows[{row_index}][{col_index}]"))
+    elif block_type in {"image_grid", "imageGrid"}:
+        for image_index, image in enumerate(raw_block.get("images") or []):
+            if isinstance(image, Mapping):
+                issues.extend(_computed_field_issues(image.get("caption"), path=f"{path}.images[{image_index}].caption"))
     elif block_type in {"approval_box", "approvalBox"}:
         for label_index, label in enumerate(raw_block.get("labels") or []):
             issues.extend(_computed_field_issues(label, path=f"{path}.labels[{label_index}]"))
@@ -1332,11 +1360,15 @@ def _normalize_v2_section(raw_section: Any, *, index: int) -> BuilderSection:
     if not isinstance(raw_section, Mapping):
         raise TypeError(f"sections[{index}] must be a mapping")
     raw_blocks = raw_section.get("blocks", raw_section.get("children"))
+    children: list[Any] = []
+    for block_index, raw_block in enumerate(raw_blocks or []):
+        normalized = _normalize_v2_block(raw_block, path=f"sections[{index}].blocks[{block_index}]")
+        if isinstance(normalized, tuple):
+            children.extend(normalized)
+        else:
+            children.append(normalized)
     return BuilderSection(
-        children=tuple(
-            _normalize_v2_block(raw_block, path=f"sections[{index}].blocks[{block_index}]")
-            for block_index, raw_block in enumerate(raw_blocks or [])
-        ),
+        children=tuple(children),
         page=_normalize_v2_page(raw_section.get("page")),
         margins=_normalize_v2_margins(raw_section.get("margins")),
         header=_normalize_v2_header_footer(raw_section.get("header"), kind="header"),
@@ -1477,6 +1509,8 @@ def _normalize_v2_block(raw_block: Any, *, path: str) -> Any:
             ),
             header_shading=str(raw_block.get("headerShading", raw_block.get("header_shading")) or "EAF1FB"),
         )
+    if block_type in {"image_grid", "imageGrid"}:
+        return _image_grid_builder_nodes(raw_block)
     if block_type == "image":
         return BuilderImage(
             path=str(raw_block.get("path") or ""),
@@ -1501,6 +1535,49 @@ def _normalize_v2_block(raw_block: Any, *, path: str) -> Any:
     if block_type in {"page_break", "pageBreak"}:
         return BuilderPageBreak()
     raise ValueError(f"{path}.type is unsupported: {block_type!r}")
+
+
+def _image_grid_builder_nodes(raw_block: Mapping[str, Any]) -> tuple[Any, ...]:
+    block = build_image_grid(
+        [
+            {
+                "path": str(image.get("path") or ""),
+                "caption": replace_computed_fields(str(image.get("caption") or "")),
+            }
+            for image in raw_block.get("images") or ()
+            if isinstance(image, Mapping)
+        ],
+        columns=_int_value(raw_block.get("columns"), default=2),
+        image_width_mm=_optional_number(raw_block.get("imageWidthMm", raw_block.get("image_width_mm"))),
+    )
+    columns = int(block["columns"])
+    images = list(block["images"])
+    rows: list[tuple[str, ...]] = []
+    for offset in range(0, len(images), columns):
+        row = []
+        for image_index, image in enumerate(images[offset : offset + columns], start=offset + 1):
+            row.append(f"{image_index}. {image['caption']} ({Path(str(image['path'])).name})")
+        row.extend("" for _ in range(columns - len(row)))
+        rows.append(tuple(row))
+    image_width = _optional_number(raw_block.get("imageWidthMm", raw_block.get("image_width_mm")))
+    nodes: list[Any] = [
+        BuilderTable(
+            header=tuple(f"사진 {index + 1}" for index in range(columns)),
+            rows=tuple(rows),
+            header_shading=_optional_str(raw_block.get("headerShading", raw_block.get("header_shading"))) or "EAF1FB",
+            column_widths=tuple(1 for _ in range(columns)),
+        )
+    ]
+    for image_index, image in enumerate(images, start=1):
+        nodes.append(
+            BuilderImage(
+                path=str(image["path"]),
+                width_mm=image_width,
+                align=_optional_str(raw_block.get("align")) or "center",
+                caption=f"{image_index}. {image['caption']}",
+            )
+        )
+    return tuple(nodes)
 
 
 def _lower_plan_to_builder_document(plan: DocumentPlan) -> BuilderDocument:
