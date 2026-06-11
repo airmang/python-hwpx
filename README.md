@@ -225,6 +225,19 @@ HWPX 파일은 **ZIP + XML** 구조이므로, 한/글 프로그램 없이 Python
 | 🧰 **작업 도구** | unpack/pack/분석/비교 | pack-ready 작업 디렉터리 추출과 재구성 점검 |
 | 🏗️ **저수준 XML** | 데이터클래스 매핑 | OWPML 스키마 ↔ Python 객체 직접 조작 |
 | 🔄 **네임스페이스 호환** | 자동 정규화 | HWPML 2016 → 2011 자동 변환 |
+| 🏗️ **빌더** | 조립형 생성 | `hwpx.builder` — Section/Heading/Table/Image/Header 조립, 하드게이트 저장 리포트 |
+| ✅ **편집기 오픈 안전** | `validate_editor_open_safety` | 저장/팩/리페어/빌더 출력 게이트, `openSafety` 증거 반환 |
+| 🧪 **퍼징 수렴 루프** | `hwpx.tools.fuzz` | 시드 결정적 시나리오 생성 · 3중 오라클 러너 · 회귀 fixture 박제 |
+| 🖥️ **레이아웃 프리뷰** | `hwpx.tools.layout_preview` | 페이지 박스·표·여백 근사 HTML/PNG (에이전트 자기검증용) |
+| 🧷 **바이트 보존 패치** | `hwpx.patch` | section XML 바이트 splice — 미수정 영역 바이트 보존 |
+| 📐 **기존 문서 서식 편집** | 문단·페이지 | 정렬·줄간격·들여쓰기·문단 간격, 용지·여백·방향, 머리말/쪽번호, 불릿/번호 |
+| 🖊️ **누름틀** | 양식 필드 | 클릭히어 필드 조회·서식 보존 채움 |
+| 🏛️ **공문서 도구** | `official_lint` · 결재란 | 항목기호 위계·"끝." 표시·붙임·날짜 표기 lint, 결재란 프리셋 |
+| 📷 **고급 생성기** | `advanced_generators` | 사진대지(image_grid)·회의 명패·표 기반 조직도 |
+| 🆚 **신구대조** | `doc_diff` | 문단 LCS diff·신구대조표 생성·참조 정합 lint |
+| 📨 **메일머지·표 계산** | `mail_merge` | 템플릿+데이터 N부 대량 생성, 표 합계·평균 |
+| 🪄 **서식 이식** | `style_profile` | 참조 문서 프로파일 추출·적용, 템플릿 레지스트리 |
+| 🛡️ **입력 강건화** | `opc.security` | XML entity 폭탄·ZIP 압축 폭탄 가드 |
 
 ## 기능 상세
 
