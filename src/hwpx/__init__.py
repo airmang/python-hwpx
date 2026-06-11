@@ -31,6 +31,11 @@ from .tools.package_validator import (
     validate_editor_open_safety,
     validate_package,
 )
+from .tools.layout_preview import (
+    LayoutPreview,
+    PreviewPage,
+    render_layout_preview,
+)
 from .patch import (
     BytePreservingPatchResult,
     ParagraphTextPatch,
@@ -79,6 +84,8 @@ __all__ = [
     "ParagraphTextPatch",
     "PatchApplied",
     "PatchSkipped",
+    "LayoutPreview",
+    "PreviewPage",
     "SectionInfo",
     "TEMPLATE_FORMFIT_BASELINE_SCHEMA_VERSION",
     "TEMPLATE_FORMFIT_PLAN_SCHEMA_VERSION",
@@ -98,4 +105,5 @@ __all__ = [
     "validate_editor_open_safety",
     "validate_package",
     "paragraph_patch",
+    "render_layout_preview",
 ]

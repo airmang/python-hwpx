@@ -6,6 +6,11 @@ from .exporter import (
     export_markdown,
     export_text,
 )
+from .layout_preview import (
+    LayoutPreview,
+    PreviewPage,
+    render_layout_preview,
+)
 from .object_finder import FoundElement, ObjectFinder
 from .package_validator import (
     EDITOR_OPEN_ADVISORY_ERROR_MARKERS,
@@ -90,4 +95,7 @@ __all__ = [
     "export_text",
     "export_html",
     "export_markdown",
+    "LayoutPreview",
+    "PreviewPage",
+    "render_layout_preview",
 ]
