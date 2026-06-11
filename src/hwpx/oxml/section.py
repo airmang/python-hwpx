@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import logging
-from .document import HwpxOxmlSection
+from ._document_impl import HwpxOxmlSection, HwpxOxmlSectionHeaderFooter, HwpxOxmlSectionProperties
 
-__all__ = ["HwpxOxmlSection"]
+__all__ = ["HwpxOxmlSection", "HwpxOxmlSectionHeaderFooter", "HwpxOxmlSectionProperties"]
 
 logger = logging.getLogger(__name__)

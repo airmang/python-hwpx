@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from .document import HwpxOxmlHeader
+from ._document_impl import HwpxOxmlHeader
 
 __all__ = ["HwpxOxmlHeader"]
 

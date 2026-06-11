@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import logging
-from .document import HwpxOxmlTable
+from ._document_impl import HwpxOxmlTable, HwpxOxmlTableCell, HwpxOxmlTableRow, HwpxTableGridPosition
 
-__all__ = ["HwpxOxmlTable"]
+__all__ = ["HwpxOxmlTable", "HwpxOxmlTableCell", "HwpxOxmlTableRow", "HwpxTableGridPosition"]
 
 logger = logging.getLogger(__name__)

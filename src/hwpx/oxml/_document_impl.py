@@ -1,0 +1,6087 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Object model mapping for the XML parts of an HWPX document."""
+
+from __future__ import annotations
+
+import logging
+import re as _re
+from copy import deepcopy
+from dataclasses import dataclass
+from typing import Any, Callable, Iterable, Iterator, Mapping, Optional, Sequence, TypeVar
+from uuid import uuid4
+import xml.etree.ElementTree as ET
+
+from lxml import etree as LET
+
+from . import body
+from .common import GenericElement
+from .header import (
+    Bullet,
+    MemoProperties,
+    MemoShape,
+    ParagraphProperty,
+    Style,
+    TrackChange,
+    TrackChangeAuthor,
+    memo_shape_from_attributes,
+    parse_bullets,
+    parse_border_fills,
+    parse_paragraph_properties,
+    parse_styles,
+    parse_track_change_authors,
+    parse_track_changes,
+)
+from .namespaces import (
+    HWPML_COMPAT_ROOT_NAMESPACES,
+    HC,
+    HC_NS,
+    HH,
+    HH_NS,
+    HP,
+    HP_NS,
+    HS,
+    HS_NS,
+    register_owpml_namespaces,
+    tag_local_name,
+    tag_namespace,
+)
+from .utils import parse_int
+
+register_owpml_namespaces(ET.register_namespace)
+logger = logging.getLogger(__name__)
+
+_HP_NS = HP_NS
+_HP = HP
+_HS_NS = HS_NS
+_HS = HS
+_HH_NS = HH_NS
+_HH = HH
+_HC_NS = HC_NS
+_HC = HC
+
+_DEFAULT_PARAGRAPH_ATTRS = {
+    "paraPrIDRef": "0",
+    "styleIDRef": "0",
+    "pageBreak": "0",
+    "columnBreak": "0",
+    "merged": "0",
+}
+
+_DEFAULT_CELL_WIDTH = 7200
+_DEFAULT_CELL_HEIGHT = 3600
+
+_BASIC_BORDER_FILL_ATTRIBUTES = {
+    "threeD": "0",
+    "shadow": "0",
+    "centerLine": "NONE",
+    "breakCellSeparateLine": "0",
+}
+
+_BASIC_BORDER_CHILDREN: tuple[tuple[str, dict[str, str]], ...] = (
+    ("slash", {"type": "NONE", "Crooked": "0", "isCounter": "0"}),
+    ("backSlash", {"type": "NONE", "Crooked": "0", "isCounter": "0"}),
+    ("leftBorder", {"type": "SOLID", "width": "0.12 mm", "color": "#000000"}),
+    ("rightBorder", {"type": "SOLID", "width": "0.12 mm", "color": "#000000"}),
+    ("topBorder", {"type": "SOLID", "width": "0.12 mm", "color": "#000000"}),
+    ("bottomBorder", {"type": "SOLID", "width": "0.12 mm", "color": "#000000"}),
+    ("diagonal", {"type": "SOLID", "width": "0.1 mm", "color": "#000000"}),
+)
+
+T = TypeVar("T")
+
+# Characters forbidden inside XML 1.0 text nodes (XML spec §2.2).
+# Tab (U+0009) is legal XML but illegal inside <hp:t>; it must be
+# represented as a <hp:ctrl id="tab"/> element instead.
+_ILLEGAL_XML_CHARS = _re.compile(
+    r"[\x00-\x08\x09\x0b\x0c\x0d\x0e-\x1f\ufffe\uffff]"
+)
+
+
+def _sanitize_text(value: str) -> str:
+    """Strip characters that are illegal inside an HWPML ``<hp:t>`` node.
+
+    Tab (``\\t`` / U+0009) is stripped because HWPML requires it to be
+    represented as a dedicated ``<hp:ctrl>`` element, not as raw text.
+    Carriage return (``\\r`` / U+000D) is stripped; newline (``\\n`` / U+000A)
+    is preserved for multiline cells.
+    """
+    return _ILLEGAL_XML_CHARS.sub("", value)
+
+
+def _child_tag_like(parent: ET.Element, local_name: str, fallback_namespace: str) -> str:
+    namespace = tag_namespace(parent.tag) or fallback_namespace
+    return f"{{{namespace}}}{local_name}"
+
+
+def _children_by_local(parent: ET.Element, local_name: str) -> list[ET.Element]:
+    return [child for child in list(parent) if tag_local_name(child.tag) == local_name]
+
+
+def _first_child_by_local(parent: ET.Element, local_name: str) -> ET.Element | None:
+    for child in parent:
+        if tag_local_name(child.tag) == local_name:
+            return child
+    return None
+
+
+_FONT_REF_ATTRIBUTES = ("hangul", "latin", "hanja", "japanese", "other", "symbol", "user")
+_FONT_FACE_LANG_TO_REF = {
+    "HANGUL": "hangul",
+    "LATIN": "latin",
+    "HANJA": "hanja",
+    "JAPANESE": "japanese",
+    "OTHER": "other",
+    "SYMBOL": "symbol",
+    "USER": "user",
+}
+
+
+def _normalize_color(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    if normalized.lower() == "none":
+        return "none"
+    return "#" + normalized.lstrip("#").upper()
+
+
+def _char_height_from_points(value: int | float | None) -> str | None:
+    if value is None:
+        return None
+    return str(max(round(float(value) * 100), 0))
+
+
+def _serialize_xml(element: ET.Element) -> bytes:
+    """Return a UTF-8 encoded XML document for *element*."""
+    xml_bytes = ET.tostring(element, encoding="utf-8", xml_declaration=False)
+    if element.tag in {_HS + "sec", _HH + "head"}:
+        root = LET.fromstring(xml_bytes)
+        wrapped = LET.Element(root.tag, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
+        wrapped.attrib.update(root.attrib)
+        wrapped.text = root.text
+        wrapped.tail = root.tail
+        for child in root:
+            wrapped.append(child)
+        return LET.tostring(
+            wrapped,
+            encoding="UTF-8",
+            xml_declaration=True,
+            standalone=True,
+        )
+    return ET.tostring(element, encoding="utf-8", xml_declaration=True)
+
+
+def _paragraph_id() -> str:
+    """Generate an identifier for a new paragraph element."""
+    return str(uuid4().int & 0x7FFFFFFF)
+
+
+def _object_id() -> str:
+    """Generate an identifier suitable for table and shape objects."""
+    return str(uuid4().int & 0x7FFFFFFF)
+
+
+def _memo_id() -> str:
+    """Generate a lightweight identifier for memo elements."""
+    return str(uuid4().int & 0x7FFFFFFF)
+
+
+def _refresh_copied_paragraph_subtree_ids(paragraph: ET.Element) -> None:
+    """Assign fresh local identifiers inside a copied paragraph subtree.
+
+    This is intentionally narrow: it refreshes paragraph ids for the copied
+    paragraph and any nested paragraphs (for example inside table cells), plus
+    common object identifiers used by tables/shapes/notes. Reference-style
+    attributes such as ``borderFillIDRef`` are left untouched.
+    """
+
+    for node in paragraph.iter():
+        if node.tag == f"{_HP}p":
+            node.set("id", _paragraph_id())
+            continue
+
+        if "id" in node.attrib and node.tag in {
+            f"{_HP}tbl",
+            f"{_HP}pic",
+            f"{_HP}container",
+            f"{_HP}ole",
+            f"{_HP}equation",
+            f"{_HP}textart",
+            f"{_HP}video",
+            f"{_HP}header",
+            f"{_HP}footer",
+        }:
+            node.set("id", _object_id())
+
+        if "instId" in node.attrib:
+            node.set("instId", _object_id())
+
+
+def _clone_paragraph_element(paragraph: ET.Element) -> ET.Element:
+    """Return a deep-copied paragraph element with refreshed local ids."""
+
+    cloned = deepcopy(paragraph)
+    _refresh_copied_paragraph_subtree_ids(cloned)
+    return cloned
+
+
+def _create_paragraph_element(
+    text: str,
+    *,
+    char_pr_id_ref: str | int | None = None,
+    para_pr_id_ref: str | int | None = None,
+    style_id_ref: str | int | None = None,
+    paragraph_attributes: Optional[dict[str, str]] = None,
+    run_attributes: Optional[dict[str, str]] = None,
+    parent: ET.Element | None = None,
+) -> ET.Element:
+    """Return a paragraph element populated with a single run and text node."""
+
+    attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
+    attrs.update(paragraph_attributes or {})
+
+    if para_pr_id_ref is not None:
+        attrs["paraPrIDRef"] = str(para_pr_id_ref)
+    if style_id_ref is not None:
+        attrs["styleIDRef"] = str(style_id_ref)
+
+    if parent is None:
+        paragraph = ET.Element(f"{_HP}p", attrs)
+    else:
+        paragraph = parent.makeelement(_child_tag_like(parent, "p", _HP_NS), attrs)
+
+    run_attrs: dict[str, str] = dict(run_attributes or {})
+    if char_pr_id_ref is not None:
+        run_attrs.setdefault("charPrIDRef", str(char_pr_id_ref))
+    else:
+        run_attrs.setdefault("charPrIDRef", "0")
+
+    run = paragraph.makeelement(_child_tag_like(paragraph, "run", _HP_NS), run_attrs)
+    paragraph.append(run)
+    _append_text_with_tabs(run, text)
+    return paragraph
+
+
+_LAYOUT_CACHE_ELEMENT_NAMES = {"linesegarray"}
+
+
+def _clear_paragraph_layout_cache(paragraph: ET.Element) -> int:
+    """Remove cached layout metadata such as ``<hp:lineSegArray>``."""
+
+    removed = 0
+    for child in list(paragraph):
+        if _element_local_name(child).lower() in _LAYOUT_CACHE_ELEMENT_NAMES:
+            paragraph.remove(child)
+            removed += 1
+    return removed
+
+
+def _simple_paragraph_text_length(paragraph: ET.Element) -> int | None:
+    total = 0
+    for child in paragraph:
+        child_name = _element_local_name(child).lower()
+        if child_name in _LAYOUT_CACHE_ELEMENT_NAMES:
+            continue
+        if child_name != "run":
+            return None
+        for run_child in child:
+            run_child_name = _element_local_name(run_child).lower()
+            if run_child_name == "t":
+                total += len("".join(run_child.itertext()))
+            elif run_child_name in {
+                "tab",
+                "linebreak",
+                "hyphen",
+                "nbspace",
+            } or _is_tab_control_element(run_child):
+                total += 1
+            else:
+                return None
+    return total
+
+
+def _remove_stale_paragraph_layout_cache(paragraph: ET.Element) -> bool:
+    text_length = _simple_paragraph_text_length(paragraph)
+    if text_length is None:
+        return False
+
+    stale = False
+    for child in paragraph:
+        if _element_local_name(child).lower() not in _LAYOUT_CACHE_ELEMENT_NAMES:
+            continue
+        for line_seg in child:
+            if _element_local_name(line_seg).lower() != "lineseg":
+                continue
+            textpos = line_seg.get("textpos")
+            if textpos is None:
+                continue
+            try:
+                if int(textpos) > text_length:
+                    stale = True
+                    break
+            except ValueError:
+                stale = True
+                break
+        if stale:
+            break
+
+    if stale:
+        _clear_paragraph_layout_cache(paragraph)
+    return stale
+
+
+def _element_local_name(node: ET.Element) -> str:
+    tag = node.tag
+    if "}" in tag:
+        return tag.split("}", 1)[1]
+    return tag
+
+
+def _append_child(
+    parent: ET.Element,
+    tag: str,
+    attrib: dict[str, str] | None = None,
+) -> ET.Element:
+    """Create and append a child element compatible with both lxml and stdlib.
+
+    Uses ``parent.makeelement()`` so the child type matches the parent.
+    """
+    child = parent.makeelement(tag, attrib or {})
+    parent.append(child)
+    return child
+
+
+def _is_tab_control_element(node: ET.Element) -> bool:
+    return tag_local_name(node.tag) == "ctrl" and (node.get("id") or "").lower() == "tab"
+
+
+def _append_text_with_tabs(run: ET.Element, value: str) -> None:
+    segments = value.split("\t")
+    text_tag = _child_tag_like(run, "t", _HP_NS)
+    tab_tag = _child_tag_like(run, "tab", _HP_NS)
+    for index, segment in enumerate(segments):
+        text_element = run.makeelement(text_tag, {})
+        text_element.text = _sanitize_text(segment)
+        run.append(text_element)
+        if index < len(segments) - 1:
+            run.append(run.makeelement(tab_tag, {}))
+
+
+def _normalize_length(value: str | None) -> str:
+    if value is None:
+        return ""
+    return value.replace(" ", "").lower()
+
+
+def _is_integer_literal(value: str | None) -> bool:
+    if value is None:
+        return False
+    try:
+        int(value.strip())
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def _border_fill_is_basic_solid_line(element: ET.Element) -> bool:
+    if _element_local_name(element) != "borderFill":
+        return False
+
+    for attr, expected in _BASIC_BORDER_FILL_ATTRIBUTES.items():
+        actual = element.get(attr)
+        if attr == "centerLine":
+            if (actual or "").upper() != expected:
+                return False
+        else:
+            if actual != expected:
+                return False
+
+    for child_name, child_attrs in _BASIC_BORDER_CHILDREN:
+        child = element.find(f"{_HH}{child_name}")
+        if child is None:
+            return False
+        for attr, expected in child_attrs.items():
+            actual = child.get(attr)
+            if attr == "type":
+                if (actual or "").upper() != expected:
+                    return False
+            elif attr == "width":
+                if _normalize_length(actual) != _normalize_length(expected):
+                    return False
+            elif attr == "color":
+                if (actual or "").upper() != expected.upper():
+                    return False
+            else:
+                if actual != expected:
+                    return False
+
+    for child in element:
+        if _element_local_name(child) == "fillBrush":
+            return False
+
+    return True
+
+
+def _create_basic_border_fill_element(border_id: str) -> ET.Element:
+    attrs = {"id": border_id, **_BASIC_BORDER_FILL_ATTRIBUTES}
+    element = ET.Element(f"{_HH}borderFill", attrs)
+    for child_name, child_attrs in _BASIC_BORDER_CHILDREN:
+        ET.SubElement(element, f"{_HH}{child_name}", dict(child_attrs))
+    return element
+
+
+def _distribute_size(total: int, parts: int) -> list[int]:
+    """Return *parts* integers that sum to *total* and are as even as possible."""
+
+    if parts <= 0:
+        return []
+
+    base = total // parts
+    remainder = total - (base * parts)
+    sizes: list[int] = []
+    for index in range(parts):
+        value = base
+        if remainder > 0:
+            value += 1
+            remainder -= 1
+        sizes.append(max(value, 0))
+    return sizes
+
+
+def _default_cell_attributes(border_fill_id_ref: str) -> dict[str, str]:
+    return {
+        "name": "",
+        "header": "0",
+        "hasMargin": "0",
+        "protect": "0",
+        "editable": "0",
+        "dirty": "0",
+        "borderFillIDRef": border_fill_id_ref,
+    }
+
+
+def _default_cell_paragraph_attributes() -> dict[str, str]:
+    attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
+    attrs["id"] = _paragraph_id()
+    return attrs
+
+
+def _default_cell_margin_attributes() -> dict[str, str]:
+    return {"left": "0", "right": "0", "top": "0", "bottom": "0"}
+
+
+def _get_int_attr(element: ET.Element, name: str, default: int = 0) -> int:
+    """Return *name* attribute of *element* as an integer."""
+
+    value = element.get(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+@dataclass(slots=True)
+class PageSize:
+    """Represents the size and orientation of a page."""
+
+    width: int
+    height: int
+    orientation: str
+    gutter_type: str
+
+
+@dataclass(slots=True)
+class PageMargins:
+    """Encapsulates page margin values in HWP units."""
+
+    left: int
+    right: int
+    top: int
+    bottom: int
+    header: int
+    footer: int
+    gutter: int
+
+
+@dataclass(slots=True)
+class SectionStartNumbering:
+    """Starting numbers for section-level counters."""
+
+    page_starts_on: str
+    page: int
+    picture: int
+    table: int
+    equation: int
+
+
+@dataclass(slots=True)
+class DocumentNumbering:
+    """Document-wide numbering initial values defined in ``<hh:beginNum>``."""
+
+    page: int = 1
+    footnote: int = 1
+    endnote: int = 1
+    picture: int = 1
+    table: int = 1
+    equation: int = 1
+
+
+@dataclass(slots=True)
+class RunStyle:
+    """Represents the resolved character style applied to a run."""
+
+    id: str
+    attributes: dict[str, str]
+    child_attributes: dict[str, dict[str, str]]
+
+    def text_color(self) -> str | None:
+        return self.attributes.get("textColor")
+
+    def underline_type(self) -> str | None:
+        underline = self.child_attributes.get("underline")
+        if underline is None:
+            return None
+        return underline.get("type")
+
+    def underline_color(self) -> str | None:
+        underline = self.child_attributes.get("underline")
+        if underline is None:
+            return None
+        return underline.get("color")
+
+    def matches(
+        self,
+        *,
+        text_color: str | None = None,
+        underline_type: str | None = None,
+        underline_color: str | None = None,
+    ) -> bool:
+        if text_color is not None and self.text_color() != text_color:
+            return False
+        if underline_type is not None and self.underline_type() != underline_type:
+            return False
+        if underline_color is not None and self.underline_color() != underline_color:
+            return False
+        return True
+
+
+def _char_properties_from_header(element: ET.Element) -> dict[str, RunStyle]:
+    mapping: dict[str, RunStyle] = {}
+    ref_list = element.find(f"{_HH}refList")
+    if ref_list is None:
+        return mapping
+    char_props_element = ref_list.find(f"{_HH}charProperties")
+    if char_props_element is None:
+        return mapping
+
+    for child in char_props_element.findall(f"{_HH}charPr"):
+        char_id = child.get("id")
+        if not char_id:
+            continue
+        attributes = {key: value for key, value in child.attrib.items() if key != "id"}
+        child_attributes: dict[str, dict[str, str]] = {}
+        for grandchild in child:
+            if len(list(grandchild)) == 0 and (grandchild.text is None or not grandchild.text.strip()):
+                child_attributes[_element_local_name(grandchild)] = {
+                    key: value for key, value in grandchild.attrib.items()
+                }
+        style = RunStyle(id=char_id, attributes=attributes, child_attributes=child_attributes)
+        if char_id not in mapping:
+            mapping[char_id] = style
+        try:
+            normalized = str(int(char_id))
+        except (TypeError, ValueError):
+            normalized = None
+        if normalized and normalized not in mapping:
+            mapping[normalized] = style
+    return mapping
+
+
+class HwpxOxmlSectionHeaderFooter:
+    """Wraps a ``<hp:header>`` or ``<hp:footer>`` element."""
+
+    def __init__(
+        self,
+        element: ET.Element,
+        properties: "HwpxOxmlSectionProperties",
+        apply_element: ET.Element | None = None,
+    ):
+        self.element = element
+        self._properties = properties
+        self._apply_element = apply_element
+
+    @property
+    def apply_element(self) -> ET.Element | None:
+        """Return the corresponding ``<hp:headerApply>``/``<hp:footerApply>`` element."""
+
+        return self._apply_element
+
+    @property
+    def id(self) -> str | None:
+        """Return the identifier assigned to the header/footer element."""
+
+        return self.element.get("id")
+
+    @id.setter
+    def id(self, value: str | None) -> None:
+        if value is None:
+            changed = False
+            if "id" in self.element.attrib:
+                del self.element.attrib["id"]
+                changed = True
+            if self._update_apply_reference(None):
+                changed = True
+            if changed:
+                self._properties.section.mark_dirty()
+            return
+
+        new_value = str(value)
+        changed = False
+        if self.element.get("id") != new_value:
+            self.element.set("id", new_value)
+            changed = True
+        if self._update_apply_reference(new_value):
+            changed = True
+        if changed:
+            self._properties.section.mark_dirty()
+
+    @property
+    def apply_page_type(self) -> str:
+        """Return the page type the header/footer applies to."""
+
+        value = self.element.get("applyPageType")
+        if value is not None:
+            return value
+        if self._apply_element is not None:
+            return self._apply_element.get("applyPageType", "BOTH")
+        return "BOTH"
+
+    @apply_page_type.setter
+    def apply_page_type(self, value: str) -> None:
+        changed = False
+        if self.element.get("applyPageType") != value:
+            self.element.set("applyPageType", value)
+            changed = True
+        if self._apply_element is not None and self._apply_element.get("applyPageType") != value:
+            self._apply_element.set("applyPageType", value)
+            changed = True
+        if changed:
+            self._properties.section.mark_dirty()
+
+    def _apply_id_attributes(self) -> tuple[str, ...]:
+        if self.element.tag.endswith("header"):
+            return ("idRef", "headerIDRef", "headerIdRef", "headerRef")
+        return ("idRef", "footerIDRef", "footerIdRef", "footerRef")
+
+    def _update_apply_reference(self, value: str | None) -> bool:
+        apply = self._apply_element
+        if apply is None:
+            return False
+
+        candidate_keys = {name.lower() for name in self._apply_id_attributes()}
+        attr_candidates: list[str] = []
+        for name in list(apply.attrib.keys()):
+            if name.lower() in candidate_keys:
+                attr_candidates.append(name)
+
+        changed = False
+        if value is None:
+            for attr in attr_candidates:
+                if attr in apply.attrib:
+                    del apply.attrib[attr]
+                    changed = True
+            return changed
+
+        target_attr = None
+        for attr in attr_candidates:
+            lower = attr.lower()
+            if lower == "idref" or (
+                self.element.tag.endswith("header") and "header" in lower
+            ) or (
+                self.element.tag.endswith("footer") and "footer" in lower
+            ):
+                target_attr = attr
+                break
+        if target_attr is None:
+            target_attr = self._apply_id_attributes()[0]
+
+        if apply.get(target_attr) != value:
+            apply.set(target_attr, value)
+            changed = True
+
+        for attr in list(apply.attrib.keys()):
+            if attr == target_attr:
+                continue
+            if attr.lower() in candidate_keys:
+                del apply.attrib[attr]
+                changed = True
+
+        return changed
+
+    def _initial_sublist_attributes(self) -> dict[str, str]:
+        attrs = dict(_default_sublist_attributes())
+        attrs["vertAlign"] = "TOP" if self.element.tag.endswith("header") else "BOTTOM"
+        size = self._properties.page_size
+        margins = self._properties.page_margins
+        text_width = max(size.width - margins.left - margins.right, 0)
+        text_height = margins.header if self.element.tag.endswith("header") else margins.footer
+        if text_width:
+            attrs["textWidth"] = str(text_width)
+        if text_height:
+            attrs["textHeight"] = str(text_height)
+        return attrs
+
+    def _ensure_text_element(self) -> ET.Element:
+        sublist = self.element.find(f"{_HP}subList")
+        if sublist is None:
+            sublist = _append_child(
+                self.element,
+                f"{_HP}subList",
+                self._initial_sublist_attributes(),
+            )
+        paragraph = sublist.find(f"{_HP}p")
+        if paragraph is None:
+            paragraph_attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
+            paragraph_attrs["id"] = _paragraph_id()
+            paragraph = _append_child(sublist, f"{_HP}p", paragraph_attrs)
+        run = paragraph.find(f"{_HP}run")
+        if run is None:
+            run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
+        text = run.find(f"{_HP}t")
+        if text is None:
+            text = _append_child(run, f"{_HP}t")
+        return text
+
+    @property
+    def text(self) -> str:
+        """Return the concatenated text content of the header/footer."""
+
+        parts: list[str] = []
+        for node in self.element.findall(f".//{_HP}t"):
+            if node.text:
+                parts.append(node.text)
+        return "".join(parts)
+
+    @text.setter
+    def text(self, value: str) -> None:
+        # Replace existing content with a simple paragraph.
+        for child in list(self.element):
+            if child.tag == f"{_HP}subList":
+                self.element.remove(child)
+        text_node = self._ensure_text_element()
+        text_node.text = _sanitize_text(value)
+        # Clear cached lineseg so Hangul recalculates layout.
+        for p_elem in self.element.findall(f".//{_HP}p"):
+            _clear_paragraph_layout_cache(p_elem)
+        self._properties.section.mark_dirty()
+
+    def _ensure_sublist(self) -> ET.Element:
+        sublist = self.element.find(f"{_HP}subList")
+        if sublist is None:
+            sublist = _append_child(
+                self.element,
+                f"{_HP}subList",
+                self._initial_sublist_attributes(),
+            )
+        return sublist
+
+    def clear_content(self) -> None:
+        """Remove existing rich/plain content while keeping header/footer linkage."""
+
+        removed = False
+        for child in list(self.element):
+            if child.tag == f"{_HP}subList":
+                self.element.remove(child)
+                removed = True
+        if removed:
+            self._properties.section.mark_dirty()
+
+    def add_paragraph(self, *, align: str | None = None) -> ET.Element:
+        """Append an empty paragraph to the header/footer subList."""
+
+        sublist = self._ensure_sublist()
+        paragraph_attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
+        paragraph_attrs["id"] = _paragraph_id()
+        if align:
+            document = self._properties.section.document
+            if document is not None and document.headers:
+                paragraph_attrs["paraPrIDRef"] = document.headers[0].ensure_paragraph_alignment(
+                    str(align)
+                )
+        paragraph = _append_child(sublist, f"{_HP}p", paragraph_attrs)
+        self._properties.section.mark_dirty()
+        return paragraph
+
+    def _ensure_content_paragraph(self) -> ET.Element:
+        sublist = self._ensure_sublist()
+        paragraph = sublist.find(f"{_HP}p")
+        if paragraph is None:
+            paragraph = self.add_paragraph()
+        return paragraph
+
+    def add_run(
+        self,
+        text: str,
+        *,
+        paragraph: ET.Element | None = None,
+        bold: bool = False,
+        italic: bool = False,
+        underline: bool = False,
+        color: str | None = None,
+        font: str | None = None,
+        size: int | float | None = None,
+        highlight: str | None = None,
+        strike: bool | None = None,
+    ) -> ET.Element:
+        """Append a text run to a header/footer paragraph."""
+
+        target = paragraph if paragraph is not None else self._ensure_content_paragraph()
+        char_pr_id_ref = "0"
+        if any((bold, italic, underline, color, font, size, highlight, strike)):
+            document = self._properties.section.document
+            if document is not None:
+                char_pr_id_ref = document.ensure_run_style(
+                    bold=bold,
+                    italic=italic,
+                    underline=underline,
+                    color=color,
+                    font=font,
+                    size=size,
+                    highlight=highlight,
+                    strike=strike,
+                )
+        run = _append_child(target, f"{_HP}run", {"charPrIDRef": str(char_pr_id_ref)})
+        text_node = _append_child(run, f"{_HP}t")
+        text_node.text = _sanitize_text(text)
+        _clear_paragraph_layout_cache(target)
+        self._properties.section.mark_dirty()
+        return run
+
+    def add_page_number_field(
+        self,
+        *,
+        paragraph: ET.Element | None = None,
+        format: str = "page",
+        position: str = "BOTTOM_CENTER",
+    ) -> ET.Element:
+        """Append the corpus-observed automatic page-number control."""
+
+        target = paragraph if paragraph is not None else self._ensure_content_paragraph()
+        auto_run = _append_child(target, f"{_HP}run", {"charPrIDRef": "0"})
+        auto_ctrl = _append_child(auto_run, f"{_HP}ctrl", {})
+        _append_child(auto_ctrl, f"{_HP}autoNum", {"num": "1", "numType": "PAGE"})
+        run = _append_child(target, f"{_HP}run", {"charPrIDRef": "0"})
+        ctrl = _append_child(run, f"{_HP}ctrl", {})
+        page_number = _append_child(
+            ctrl,
+            f"{_HP}pageNum",
+            {"pos": position, "formatType": "DIGIT", "sideChar": "-"},
+        )
+        _clear_paragraph_layout_cache(target)
+        self._properties.section.mark_dirty()
+        return page_number
+
+    def set_content(self, content: Sequence[Mapping[str, Any]]) -> None:
+        """Replace header/footer content with paragraph/run/page-number specs."""
+
+        self.clear_content()
+        for paragraph_spec in content:
+            paragraph = self.add_paragraph(align=paragraph_spec.get("align"))
+            children = paragraph_spec.get("children")
+            if children is None:
+                children = paragraph_spec.get("runs")
+            children = children or ()
+            if not children and paragraph_spec.get("text"):
+                children = ({"type": "run", "text": paragraph_spec.get("text", "")},)
+            for child in children:
+                page_number_format = child.get("page_number")
+                kind = "page_number" if page_number_format is not None else str(child.get("type", "run"))
+                if kind == "run":
+                    self.add_run(
+                        str(child.get("text", "")),
+                        paragraph=paragraph,
+                        bold=bool(child.get("bold", False)),
+                        italic=bool(child.get("italic", False)),
+                        underline=bool(child.get("underline", False)),
+                        color=child.get("color"),
+                        font=child.get("font"),
+                        size=child.get("size"),
+                        highlight=child.get("highlight"),
+                        strike=child.get("strike"),
+                    )
+                    continue
+                if kind == "page_number":
+                    page_format = str(page_number_format or child.get("format", "page"))
+                    self.add_page_number_field(paragraph=paragraph, format=page_format)
+                    if page_format == "page/total":
+                        self.add_run("/", paragraph=paragraph)
+                        self.add_page_number_field(paragraph=paragraph, format=page_format)
+                    continue
+                raise ValueError(f"unsupported header/footer content type: {kind}")
+
+
+class HwpxOxmlSectionProperties:
+    """Provides convenient access to ``<hp:secPr>`` configuration."""
+
+    def __init__(self, element: ET.Element, section: "HwpxOxmlSection"):
+        self.element = element
+        self.section = section
+
+    # -- page configuration -------------------------------------------------
+    def _page_pr_element(self, create: bool = False) -> ET.Element | None:
+        page_pr = self.element.find(f"{_HP}pagePr")
+        if page_pr is None and create:
+            page_pr = ET.SubElement(
+                self.element,
+                f"{_HP}pagePr",
+                {"landscape": "PORTRAIT", "width": "0", "height": "0", "gutterType": "LEFT_ONLY"},
+            )
+            self.section.mark_dirty()
+        return page_pr
+
+    def _margin_element(self, create: bool = False) -> ET.Element | None:
+        page_pr = self._page_pr_element(create=create)
+        if page_pr is None:
+            return None
+        margin = page_pr.find(f"{_HP}margin")
+        if margin is None and create:
+            margin = ET.SubElement(
+                page_pr,
+                f"{_HP}margin",
+                {
+                    "left": "0",
+                    "right": "0",
+                    "top": "0",
+                    "bottom": "0",
+                    "header": "0",
+                    "footer": "0",
+                    "gutter": "0",
+                },
+            )
+            self.section.mark_dirty()
+        return margin
+
+    @property
+    def page_size(self) -> PageSize:
+        page_pr = self._page_pr_element()
+        if page_pr is None:
+            return PageSize(width=0, height=0, orientation="PORTRAIT", gutter_type="LEFT_ONLY")
+        return PageSize(
+            width=_get_int_attr(page_pr, "width", 0),
+            height=_get_int_attr(page_pr, "height", 0),
+            orientation=page_pr.get("landscape", "PORTRAIT"),
+            gutter_type=page_pr.get("gutterType", "LEFT_ONLY"),
+        )
+
+    def set_page_size(
+        self,
+        *,
+        width: int | None = None,
+        height: int | None = None,
+        orientation: str | None = None,
+        gutter_type: str | None = None,
+    ) -> None:
+        page_pr = self._page_pr_element(create=True)
+        if page_pr is None:
+            return
+
+        changed = False
+        if width is not None:
+            value = str(max(width, 0))
+            if page_pr.get("width") != value:
+                page_pr.set("width", value)
+                changed = True
+        if height is not None:
+            value = str(max(height, 0))
+            if page_pr.get("height") != value:
+                page_pr.set("height", value)
+                changed = True
+        if orientation is not None and page_pr.get("landscape") != orientation:
+            page_pr.set("landscape", orientation)
+            changed = True
+        if gutter_type is not None and page_pr.get("gutterType") != gutter_type:
+            page_pr.set("gutterType", gutter_type)
+            changed = True
+        if changed:
+            self.section.mark_dirty()
+
+    @property
+    def page_margins(self) -> PageMargins:
+        margin = self._margin_element()
+        if margin is None:
+            return PageMargins(left=0, right=0, top=0, bottom=0, header=0, footer=0, gutter=0)
+        return PageMargins(
+            left=_get_int_attr(margin, "left", 0),
+            right=_get_int_attr(margin, "right", 0),
+            top=_get_int_attr(margin, "top", 0),
+            bottom=_get_int_attr(margin, "bottom", 0),
+            header=_get_int_attr(margin, "header", 0),
+            footer=_get_int_attr(margin, "footer", 0),
+            gutter=_get_int_attr(margin, "gutter", 0),
+        )
+
+    def set_page_margins(
+        self,
+        *,
+        left: int | None = None,
+        right: int | None = None,
+        top: int | None = None,
+        bottom: int | None = None,
+        header: int | None = None,
+        footer: int | None = None,
+        gutter: int | None = None,
+    ) -> None:
+        margin = self._margin_element(create=True)
+        if margin is None:
+            return
+
+        changed = False
+        for name, value in (
+            ("left", left),
+            ("right", right),
+            ("top", top),
+            ("bottom", bottom),
+            ("header", header),
+            ("footer", footer),
+            ("gutter", gutter),
+        ):
+            if value is None:
+                continue
+            safe_value = str(max(value, 0))
+            if margin.get(name) != safe_value:
+                margin.set(name, safe_value)
+                changed = True
+        if changed:
+            self.section.mark_dirty()
+
+    # -- numbering ----------------------------------------------------------
+    @property
+    def start_numbering(self) -> SectionStartNumbering:
+        start_num = self.element.find(f"{_HP}startNum")
+        if start_num is None:
+            return SectionStartNumbering(
+                page_starts_on="BOTH",
+                page=0,
+                picture=0,
+                table=0,
+                equation=0,
+            )
+        return SectionStartNumbering(
+            page_starts_on=start_num.get("pageStartsOn", "BOTH"),
+            page=_get_int_attr(start_num, "page", 0),
+            picture=_get_int_attr(start_num, "pic", 0),
+            table=_get_int_attr(start_num, "tbl", 0),
+            equation=_get_int_attr(start_num, "equation", 0),
+        )
+
+    def set_start_numbering(
+        self,
+        *,
+        page_starts_on: str | None = None,
+        page: int | None = None,
+        picture: int | None = None,
+        table: int | None = None,
+        equation: int | None = None,
+    ) -> None:
+        start_num = self.element.find(f"{_HP}startNum")
+        if start_num is None:
+            start_num = ET.SubElement(
+                self.element,
+                f"{_HP}startNum",
+                {
+                    "pageStartsOn": "BOTH",
+                    "page": "0",
+                    "pic": "0",
+                    "tbl": "0",
+                    "equation": "0",
+                },
+            )
+            self.section.mark_dirty()
+
+        changed = False
+        if page_starts_on is not None and start_num.get("pageStartsOn") != page_starts_on:
+            start_num.set("pageStartsOn", page_starts_on)
+            changed = True
+
+        for name, value in (
+            ("page", page),
+            ("pic", picture),
+            ("tbl", table),
+            ("equation", equation),
+        ):
+            if value is None:
+                continue
+            safe_value = str(max(value, 0))
+            if start_num.get(name) != safe_value:
+                start_num.set(name, safe_value)
+                changed = True
+
+        if changed:
+            self.section.mark_dirty()
+
+    # -- header/footer helpers ---------------------------------------------
+    def _apply_id_attributes(self, tag: str) -> tuple[str, ...]:
+        base = "header" if tag == "header" else "footer"
+        return ("idRef", f"{base}IDRef", f"{base}IdRef", f"{base}Ref")
+
+    def _apply_elements(self, tag: str) -> list[ET.Element]:
+        return self.element.findall(f"{_HP}{tag}Apply")
+
+    def _apply_reference(self, apply: ET.Element, tag: str) -> str | None:
+        candidate_keys = {name.lower() for name in self._apply_id_attributes(tag)}
+        for attr, value in apply.attrib.items():
+            if attr.lower() in candidate_keys and value:
+                return value
+        return None
+
+    def _match_apply_for_element(self, tag: str, element: ET.Element | None) -> ET.Element | None:
+        if element is None:
+            return None
+
+        target_id = element.get("id")
+        if target_id:
+            for apply in self._apply_elements(tag):
+                if self._apply_reference(apply, tag) == target_id:
+                    return apply
+
+        page_type = element.get("applyPageType", "BOTH")
+        for apply in self._apply_elements(tag):
+            if apply.get("applyPageType", "BOTH") == page_type:
+                return apply
+        return None
+
+    def _set_apply_reference(
+        self,
+        apply: ET.Element,
+        tag: str,
+        new_id: str | None,
+    ) -> bool:
+        candidate_keys = {name.lower(): name for name in self._apply_id_attributes(tag)}
+        existing_attrs = [
+            attr for attr in list(apply.attrib.keys()) if attr.lower() in candidate_keys
+        ]
+
+        changed = False
+        if new_id is None:
+            for attr in existing_attrs:
+                if attr in apply.attrib:
+                    del apply.attrib[attr]
+                    changed = True
+            return changed
+
+        if existing_attrs:
+            target_attr = existing_attrs[0]
+        else:
+            target_attr = self._apply_id_attributes(tag)[0]
+
+        if apply.get(target_attr) != new_id:
+            apply.set(target_attr, new_id)
+            changed = True
+
+        for attr in existing_attrs:
+            if attr != target_attr and attr in apply.attrib:
+                del apply.attrib[attr]
+                changed = True
+
+        return changed
+
+    def _ensure_header_footer_apply(
+        self,
+        tag: str,
+        page_type: str,
+        element: ET.Element,
+    ) -> ET.Element:
+        apply = self._match_apply_for_element(tag, element)
+        header_id = element.get("id")
+        changed = False
+        if apply is None:
+            attrs = {"applyPageType": page_type}
+            if header_id is not None:
+                attrs[self._apply_id_attributes(tag)[0]] = header_id
+            apply = _append_child(self.element, f"{_HP}{tag}Apply", attrs)
+            changed = True
+        else:
+            if apply.get("applyPageType") != page_type:
+                apply.set("applyPageType", page_type)
+                changed = True
+            if self._set_apply_reference(apply, tag, header_id):
+                changed = True
+        if changed:
+            self.section.mark_dirty()
+        return apply
+
+    def _remove_header_footer_apply(
+        self,
+        tag: str,
+        page_type: str,
+        element: ET.Element | None = None,
+    ) -> bool:
+        apply = self._match_apply_for_element(tag, element)
+        if apply is None:
+            for candidate in self._apply_elements(tag):
+                if candidate.get("applyPageType", "BOTH") == page_type:
+                    apply = candidate
+                    break
+        if apply is None and element is not None:
+            target_id = element.get("id")
+            if target_id:
+                for candidate in self._apply_elements(tag):
+                    if self._apply_reference(candidate, tag) == target_id:
+                        apply = candidate
+                        break
+        if apply is None:
+            return False
+        self.element.remove(apply)
+        return True
+
+    def _find_header_footer(self, tag: str, page_type: str) -> ET.Element | None:
+        for element in self.element.findall(f"{_HP}{tag}"):
+            if element.get("applyPageType", "BOTH") == page_type:
+                return element
+        return None
+
+    def _ensure_header_footer(self, tag: str, page_type: str) -> ET.Element:
+        element = self._find_header_footer(tag, page_type)
+        changed = False
+        if element is None:
+            element = _append_child(
+                self.element,
+                f"{_HP}{tag}",
+                {"id": _object_id(), "applyPageType": page_type},
+            )
+            changed = True
+        else:
+            if element.get("applyPageType") != page_type:
+                element.set("applyPageType", page_type)
+                changed = True
+        if element.get("id") is None:
+            element.set("id", _object_id())
+            changed = True
+        if changed:
+            self.section.mark_dirty()
+        return element
+
+    def _header_footer_control_run(self) -> ET.Element:
+        paragraph = self.section.element.find(f"{_HP}p")
+        if paragraph is None:
+            paragraph = _append_child(
+                self.section.element,
+                f"{_HP}p",
+                {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS},
+            )
+        run = paragraph.find(f"{_HP}run")
+        if run is None:
+            run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
+        return run
+
+    def _sync_header_footer_control(self, tag: str, source: ET.Element) -> None:
+        run = self._header_footer_control_run()
+        for ctrl in list(run.findall(f"{_HP}ctrl")):
+            if ctrl.find(f"{_HP}{tag}") is not None:
+                run.remove(ctrl)
+        ctrl = _append_child(run, f"{_HP}ctrl", {})
+        ctrl.append(deepcopy(source))
+        self.section.mark_dirty()
+
+    def _remove_header_footer_controls(self, tag: str) -> bool:
+        removed = False
+        for run in self.section.element.findall(f".//{_HP}run"):
+            for ctrl in list(run.findall(f"{_HP}ctrl")):
+                if ctrl.find(f"{_HP}{tag}") is not None:
+                    run.remove(ctrl)
+                    removed = True
+        return removed
+
+    @property
+    def headers(self) -> list[HwpxOxmlSectionHeaderFooter]:
+        wrappers: list[HwpxOxmlSectionHeaderFooter] = []
+        for element in self.element.findall(f"{_HP}header"):
+            apply = self._match_apply_for_element("header", element)
+            wrappers.append(HwpxOxmlSectionHeaderFooter(element, self, apply))
+        return wrappers
+
+    @property
+    def footers(self) -> list[HwpxOxmlSectionHeaderFooter]:
+        wrappers: list[HwpxOxmlSectionHeaderFooter] = []
+        for element in self.element.findall(f"{_HP}footer"):
+            apply = self._match_apply_for_element("footer", element)
+            wrappers.append(HwpxOxmlSectionHeaderFooter(element, self, apply))
+        return wrappers
+
+    def get_header(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
+        element = self._find_header_footer("header", page_type)
+        if element is None:
+            return None
+        apply = self._match_apply_for_element("header", element)
+        return HwpxOxmlSectionHeaderFooter(element, self, apply)
+
+    def get_footer(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
+        element = self._find_header_footer("footer", page_type)
+        if element is None:
+            return None
+        apply = self._match_apply_for_element("footer", element)
+        return HwpxOxmlSectionHeaderFooter(element, self, apply)
+
+    def set_header_text(self, text: str, page_type: str = "BOTH") -> HwpxOxmlSectionHeaderFooter:
+        element = self._ensure_header_footer("header", page_type)
+        apply = self._ensure_header_footer_apply("header", page_type, element)
+        wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
+        wrapper.text = text
+        self._sync_header_footer_control("header", element)
+        return wrapper
+
+    def set_footer_text(self, text: str, page_type: str = "BOTH") -> HwpxOxmlSectionHeaderFooter:
+        element = self._ensure_header_footer("footer", page_type)
+        apply = self._ensure_header_footer_apply("footer", page_type, element)
+        wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
+        wrapper.text = text
+        self._sync_header_footer_control("footer", element)
+        return wrapper
+
+    def set_header_content(
+        self,
+        content: Sequence[Mapping[str, Any]],
+        page_type: str = "BOTH",
+    ) -> HwpxOxmlSectionHeaderFooter:
+        element = self._ensure_header_footer("header", page_type)
+        apply = self._ensure_header_footer_apply("header", page_type, element)
+        wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
+        wrapper.set_content(content)
+        self._sync_header_footer_control("header", element)
+        return wrapper
+
+    def set_footer_content(
+        self,
+        content: Sequence[Mapping[str, Any]],
+        page_type: str = "BOTH",
+    ) -> HwpxOxmlSectionHeaderFooter:
+        element = self._ensure_header_footer("footer", page_type)
+        apply = self._ensure_header_footer_apply("footer", page_type, element)
+        wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
+        wrapper.set_content(content)
+        self._sync_header_footer_control("footer", element)
+        return wrapper
+
+    def remove_header(self, page_type: str = "BOTH") -> None:
+        element = self._find_header_footer("header", page_type)
+        removed = False
+        if element is not None:
+            self.element.remove(element)
+            removed = True
+        if self._remove_header_footer_apply("header", page_type, element):
+            removed = True
+        if self._remove_header_footer_controls("header"):
+            removed = True
+        if removed:
+            self.section.mark_dirty()
+
+    def remove_footer(self, page_type: str = "BOTH") -> None:
+        element = self._find_header_footer("footer", page_type)
+        removed = False
+        if element is not None:
+            self.element.remove(element)
+            removed = True
+        if self._remove_header_footer_apply("footer", page_type, element):
+            removed = True
+        if self._remove_header_footer_controls("footer"):
+            removed = True
+        if removed:
+            self.section.mark_dirty()
+
+
+class HwpxOxmlRun:
+    """Lightweight wrapper around an ``<hp:run>`` element."""
+
+    def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
+        self.element = element
+        self.paragraph = paragraph
+
+    def to_model(self) -> "body.Run":
+        xml_bytes = ET.tostring(self.element, encoding="utf-8")
+        node = LET.fromstring(xml_bytes)
+        return body.parse_run_element(node)
+
+    @property
+    def model(self) -> "body.Run":
+        return self.to_model()
+
+    def apply_model(self, model: "body.Run") -> None:
+        new_node = body.serialize_run(model)
+        xml_bytes = LET.tostring(new_node)
+        replacement = ET.fromstring(xml_bytes)
+        parent = self.paragraph.element
+        run_children = list(parent)
+        index = run_children.index(self.element)
+        parent.remove(self.element)
+        parent.insert(index, replacement)
+        self.element = replacement
+        self.paragraph.section.mark_dirty()
+
+    def _current_format_flags(self) -> tuple[bool, bool, bool] | None:
+        style = self.style
+        if style is None:
+            return None
+        bold = "bold" in style.child_attributes
+        italic = "italic" in style.child_attributes
+        underline_attrs = style.child_attributes.get("underline")
+        underline = False
+        if underline_attrs is not None:
+            underline = underline_attrs.get("type", "").upper() != "NONE"
+        return bold, italic, underline
+
+    def _apply_format_change(
+        self,
+        *,
+        bold: bool | None = None,
+        italic: bool | None = None,
+        underline: bool | None = None,
+    ) -> None:
+        document = self.paragraph.section.document
+        if document is None:
+            raise RuntimeError("run is not attached to a document")
+
+        current = self._current_format_flags()
+        if current is None:
+            current = (False, False, False)
+
+        target = [
+            current[0] if bold is None else bool(bold),
+            current[1] if italic is None else bool(italic),
+            current[2] if underline is None else bool(underline),
+        ]
+
+        if tuple(target) == current:
+            return
+
+        style_id = document.ensure_run_style(
+            bold=target[0],
+            italic=target[1],
+            underline=target[2],
+        )
+        self.char_pr_id_ref = style_id
+
+    @property
+    def char_pr_id_ref(self) -> str | None:
+        """Return the character property reference applied to the run."""
+        return self.element.get("charPrIDRef")
+
+    @char_pr_id_ref.setter
+    def char_pr_id_ref(self, value: str | int | None) -> None:
+        if value is None:
+            if "charPrIDRef" in self.element.attrib:
+                del self.element.attrib["charPrIDRef"]
+                self.paragraph.section.mark_dirty()
+            return
+
+        new_value = str(value)
+        if self.element.get("charPrIDRef") != new_value:
+            self.element.set("charPrIDRef", new_value)
+            self.paragraph.section.mark_dirty()
+
+    def _plain_text_nodes(self) -> list[ET.Element]:
+        return [
+            node
+            for node in self.element.findall(f"{_HP}t")
+            if len(list(node)) == 0
+        ]
+
+    def _ensure_plain_text_node(self) -> ET.Element:
+        nodes = self._plain_text_nodes()
+        if nodes:
+            return nodes[0]
+        t = self.element.makeelement(f"{_HP}t", {})
+        self.element.append(t)
+        return t
+
+    @property
+    def text(self) -> str:
+        parts: list[str] = []
+        for node in self.element.findall(f"{_HP}t"):
+            parts.append("".join(node.itertext()))
+        return "".join(parts)
+
+    @text.setter
+    def text(self, value: str) -> None:
+        primary = self._ensure_plain_text_node()
+        changed = (primary.text or "") != value
+        primary.text = _sanitize_text(value)
+        for node in self._plain_text_nodes()[1:]:
+            if node.text:
+                node.text = ""
+                changed = True
+        # Also clear text from <hp:t> nodes that have children (mixed
+        # content).  The child markup is preserved; only the direct text
+        # is removed so the displayed content is not duplicated.
+        for node in self.element.findall(f"{_HP}t"):
+            if len(list(node)) > 0 and node is not primary:
+                if node.text:
+                    node.text = ""
+                    changed = True
+        if changed:
+            _clear_paragraph_layout_cache(self.paragraph.element)
+            self.paragraph.section.mark_dirty()
+
+    @property
+    def style(self) -> RunStyle | None:
+        document = self.paragraph.section.document
+        if document is None:
+            return None
+        char_pr_id = self.char_pr_id_ref
+        if char_pr_id is None:
+            return None
+        return document.char_property(char_pr_id)
+
+    def replace_text(
+        self,
+        search: str,
+        replacement: str,
+        *,
+        count: int | None = None,
+        _clear_layout: bool = True,
+    ) -> int:
+        """Replace ``search`` with ``replacement`` within ``<hp:t>`` nodes.
+
+        The replacement traverses nested markup tags (e.g. highlights) and
+        preserves the existing element structure so formatting metadata remains
+        intact. Returns the number of replacements that were performed.
+        """
+
+        if not search:
+            raise ValueError("search text must be a non-empty string")
+
+        if count is not None and count <= 0:
+            return 0
+
+        # Helper structure to keep references to text segments and update them
+        # while editing nested nodes.
+        class _Segment:
+            __slots__ = ("element", "attr", "text")
+
+            def __init__(self, element: ET.Element, attr: str, text: str) -> None:
+                self.element = element
+                self.attr = attr
+                self.text = text
+
+            def set(self, value: str) -> None:
+                self.text = value
+                if value:
+                    setattr(self.element, self.attr, value)
+                else:
+                    setattr(self.element, self.attr, "")
+
+        def _gather_segments(node: ET.Element) -> list[_Segment]:
+            segments: list[_Segment] = []
+
+            def visit(element: ET.Element) -> None:
+                text_value = element.text or ""
+                segments.append(_Segment(element, "text", text_value))
+                for child in list(element):
+                    visit(child)
+                    tail_value = child.tail or ""
+                    segments.append(_Segment(child, "tail", tail_value))
+
+            visit(node)
+            return segments
+
+        def _segment_boundaries(segments: Sequence[_Segment]) -> list[tuple[int, int]]:
+            bounds: list[tuple[int, int]] = []
+            offset = 0
+            for segment in segments:
+                start = offset
+                offset += len(segment.text)
+                bounds.append((start, offset))
+            return bounds
+
+        def _distribute(total: int, weights: Sequence[int]) -> list[int]:
+            if not weights:
+                return []
+            if total <= 0:
+                return [0 for _ in weights]
+            weight_sum = sum(weights)
+            if weight_sum <= 0:
+                # Evenly spread characters when no weight information is
+                # available (e.g. replacement inside empty segments).
+                base = total // len(weights)
+                remainder = total - base * len(weights)
+                allocation = [base] * len(weights)
+                for index in range(remainder):
+                    allocation[index] += 1
+                return allocation
+
+            allocation = []
+            remainder = total
+            residuals: list[tuple[int, int]] = []
+            for index, weight in enumerate(weights):
+                share = total * weight // weight_sum
+                allocation.append(share)
+                remainder -= share
+                residuals.append((total * weight % weight_sum, index))
+
+            # Distribute leftover characters based on the size of the modulus so
+            # that larger weights receive the extra characters first.
+            residuals.sort(key=lambda item: (-item[0], item[1]))
+            idx = 0
+            while remainder > 0 and residuals:
+                _, target = residuals[idx]
+                allocation[target] += 1
+                remainder -= 1
+                idx = (idx + 1) % len(residuals)
+
+            if remainder > 0:
+                allocation[-1] += remainder
+            return allocation
+
+        def _apply_replacement(
+            segments: list[_Segment],
+            start: int,
+            end: int,
+            replacement_text: str,
+        ) -> None:
+            bounds = _segment_boundaries(segments)
+            affected: list[tuple[int, int, int]] = []
+            for index, (seg_start, seg_end) in enumerate(bounds):
+                if start >= seg_end or end <= seg_start:
+                    continue
+                local_start = max(0, start - seg_start)
+                local_end = min(len(segments[index].text), end - seg_start)
+                affected.append((index, local_start, local_end))
+
+            if not affected:
+                return
+
+            weights = [local_end - local_start for _, local_start, local_end in affected]
+            allocation = _distribute(len(replacement_text), weights)
+
+            replacement_offset = 0
+            first_index = affected[0][0]
+            last_index = affected[-1][0]
+
+            for (segment_index, local_start, local_end), share in zip(affected, allocation):
+                segment = segments[segment_index]
+                prefix = segment.text[:local_start] if segment_index == first_index else ""
+                suffix = segment.text[local_end:] if segment_index == last_index else ""
+                portion = replacement_text[replacement_offset : replacement_offset + share]
+                replacement_offset += share
+                segment.set(prefix + portion + suffix)
+
+        segments: list[_Segment] = []
+        for text_node in self.element.findall(f"{_HP}t"):
+            segments.extend(_gather_segments(text_node))
+
+        if not segments:
+            return 0
+
+        total_replacements = 0
+        remaining = count
+        search_start = 0
+        combined = "".join(segment.text for segment in segments)
+
+        while True:
+            if remaining is not None and remaining <= 0:
+                break
+            position = combined.find(search, search_start)
+            if position == -1:
+                break
+            end_position = position + len(search)
+            _apply_replacement(segments, position, end_position, replacement)
+            total_replacements += 1
+            if remaining is not None:
+                remaining -= 1
+            combined = "".join(segment.text for segment in segments)
+            if replacement:
+                search_start = position + len(replacement)
+            else:
+                search_start = position
+            if search_start > len(combined):
+                search_start = len(combined)
+
+        if total_replacements:
+            if _clear_layout:
+                _clear_paragraph_layout_cache(self.paragraph.element)
+            self.paragraph.section.mark_dirty()
+        return total_replacements
+
+    def remove(self) -> None:
+        parent = self.paragraph.element
+        try:
+            parent.remove(self.element)
+        except ValueError:  # pragma: no cover - defensive branch
+            return
+        self.paragraph.section.mark_dirty()
+
+    @property
+    def bold(self) -> bool | None:
+        flags = self._current_format_flags()
+        if flags is None:
+            return None
+        return flags[0]
+
+    @bold.setter
+    def bold(self, value: bool | None) -> None:
+        self._apply_format_change(bold=value)
+
+    @property
+    def italic(self) -> bool | None:
+        flags = self._current_format_flags()
+        if flags is None:
+            return None
+        return flags[1]
+
+    @italic.setter
+    def italic(self, value: bool | None) -> None:
+        self._apply_format_change(italic=value)
+
+    @property
+    def underline(self) -> bool | None:
+        flags = self._current_format_flags()
+        if flags is None:
+            return None
+        return flags[2]
+
+    @underline.setter
+    def underline(self, value: bool | None) -> None:
+        self._apply_format_change(underline=value)
+
+
+class HwpxOxmlMemoGroup:
+    """Wrapper providing access to ``<hp:memogroup>`` containers."""
+
+    def __init__(self, element: ET.Element, section: "HwpxOxmlSection"):
+        self.element = element
+        self.section = section
+
+    @property
+    def memos(self) -> list["HwpxOxmlMemo"]:
+        return [
+            HwpxOxmlMemo(child, self)
+            for child in self.element.findall(f"{_HP}memo")
+        ]
+
+    def add_memo(
+        self,
+        text: str = "",
+        *,
+        memo_shape_id_ref: str | int | None = None,
+        memo_id: str | None = None,
+        char_pr_id_ref: str | int | None = None,
+        attributes: Optional[dict[str, str]] = None,
+    ) -> "HwpxOxmlMemo":
+        memo_attrs = dict(attributes or {})
+        memo_attrs.setdefault("id", memo_id or _memo_id())
+        if memo_shape_id_ref is not None:
+            memo_attrs.setdefault("memoShapeIDRef", str(memo_shape_id_ref))
+        memo_element = _append_child(self.element, f"{_HP}memo", memo_attrs)
+        memo = HwpxOxmlMemo(memo_element, self)
+        memo.set_text(text, char_pr_id_ref=char_pr_id_ref)
+        self.section.mark_dirty()
+        return memo
+
+    def _cleanup(self) -> None:
+        if list(self.element):
+            return
+        try:
+            self.section.element.remove(self.element)
+        except ValueError:  # pragma: no cover - defensive branch
+            return
+        self.section.mark_dirty()
+
+
+class HwpxOxmlMemo:
+    """Represents a memo entry contained within a memo group."""
+
+    def __init__(self, element: ET.Element, group: HwpxOxmlMemoGroup):
+        self.element = element
+        self.group = group
+
+    @property
+    def id(self) -> str | None:
+        return self.element.get("id")
+
+    @id.setter
+    def id(self, value: str | None) -> None:
+        if value is None:
+            if "id" in self.element.attrib:
+                del self.element.attrib["id"]
+                self.group.section.mark_dirty()
+            return
+        new_value = str(value)
+        if self.element.get("id") != new_value:
+            self.element.set("id", new_value)
+            self.group.section.mark_dirty()
+
+    @property
+    def memo_shape_id_ref(self) -> str | None:
+        return self.element.get("memoShapeIDRef")
+
+    @memo_shape_id_ref.setter
+    def memo_shape_id_ref(self, value: str | int | None) -> None:
+        if value is None:
+            if "memoShapeIDRef" in self.element.attrib:
+                del self.element.attrib["memoShapeIDRef"]
+                self.group.section.mark_dirty()
+            return
+        new_value = str(value)
+        if self.element.get("memoShapeIDRef") != new_value:
+            self.element.set("memoShapeIDRef", new_value)
+            self.group.section.mark_dirty()
+
+    @property
+    def attributes(self) -> dict[str, str]:
+        return dict(self.element.attrib)
+
+    def set_attribute(self, name: str, value: str | int | None) -> None:
+        if value is None:
+            if name in self.element.attrib:
+                del self.element.attrib[name]
+                self.group.section.mark_dirty()
+            return
+        new_value = str(value)
+        if self.element.get(name) != new_value:
+            self.element.set(name, new_value)
+            self.group.section.mark_dirty()
+
+    def _infer_char_pr_id_ref(self) -> str | None:
+        for paragraph in self.paragraphs:
+            for run in paragraph.runs:
+                if run.char_pr_id_ref:
+                    return run.char_pr_id_ref
+        return None
+
+    @property
+    def paragraphs(self) -> list["HwpxOxmlParagraph"]:
+        paragraphs: list[HwpxOxmlParagraph] = []
+        for node in self.element.findall(f".//{_HP}p"):
+            paragraphs.append(HwpxOxmlParagraph(node, self.group.section))
+        return paragraphs
+
+    @property
+    def text(self) -> str:
+        parts: list[str] = []
+        for paragraph in self.paragraphs:
+            value = paragraph.text
+            if value:
+                parts.append(value)
+        return "\n".join(parts)
+
+    def set_text(
+        self,
+        value: str,
+        *,
+        char_pr_id_ref: str | int | None = None,
+    ) -> None:
+        desired = value or ""
+        existing_char = char_pr_id_ref or self._infer_char_pr_id_ref()
+        for child in list(self.element):
+            if _element_local_name(child) in {"paraList", "p"}:
+                self.element.remove(child)
+        para_list = _append_child(self.element, f"{_HP}paraList", {})
+        paragraph = _create_paragraph_element(
+            desired,
+            char_pr_id_ref=existing_char if existing_char is not None else "0",
+            parent=para_list,
+        )
+        para_list.append(paragraph)
+        self.group.section.mark_dirty()
+
+    @text.setter
+    def text(self, value: str) -> None:
+        self.set_text(value)
+
+    def remove(self) -> None:
+        try:
+            self.group.element.remove(self.element)
+        except ValueError:  # pragma: no cover - defensive branch
+            return
+        self.group.section.mark_dirty()
+        self.group._cleanup()
+
+
+class HwpxOxmlNote:
+    """Wraps a ``<hp:footNote>`` or ``<hp:endNote>`` element."""
+
+    def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
+        self.element = element
+        self.paragraph = paragraph
+
+    @property
+    def kind(self) -> str:
+        """Return ``'footNote'`` or ``'endNote'``."""
+        return _element_local_name(self.element)
+
+    @property
+    def inst_id(self) -> str | None:
+        return self.element.get("instId")
+
+    @property
+    def text(self) -> str:
+        """Return the note body text."""
+        texts: list[str] = []
+        for t in self.element.findall(f".//{_HP}t"):
+            if t.text:
+                texts.append(t.text)
+        return "".join(texts)
+
+    @text.setter
+    def text(self, value: str) -> None:
+        """Replace the note body text."""
+        sublist = self.element.find(f"{_HP}subList")
+        if sublist is None:
+            sublist = _append_child(self.element, f"{_HP}subList", _default_sublist_attributes())
+        for p in sublist.findall(f"{_HP}p"):
+            sublist.remove(p)
+        paragraph = _append_child(sublist, f"{_HP}p", {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS})
+        run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
+        t = _append_child(run, f"{_HP}t", {})
+        t.text = _sanitize_text(value)
+        self.paragraph.section.mark_dirty()
+
+    @property
+    def body_paragraph(self) -> "HwpxOxmlParagraph":
+        """Return the note's body ``<hp:p>`` wrapped as :class:`HwpxOxmlParagraph`.
+
+        The body lives inside ``<hp:subList>`` and is distinct from
+        :attr:`paragraph`, which is the *hosting* paragraph (where the note
+        marker is inserted). Use this to add runs with mixed formatting
+        directly into the note body:
+
+        >>> note = para.add_footnote("기본 ")
+        >>> note.add_run("청색", char_pr_id_ref=5)
+        """
+        p = self.element.find(f".//{_HP}p")
+        if p is None:
+            raise ValueError("note has no body paragraph element")
+        return HwpxOxmlParagraph(p, self.paragraph.section)
+
+    def add_run(
+        self,
+        text: str = "",
+        *,
+        char_pr_id_ref: str | int | None = None,
+        bold: bool = False,
+        italic: bool = False,
+        underline: bool = False,
+        color: str | None = None,
+        font: str | None = None,
+        size: int | float | None = None,
+        highlight: str | None = None,
+        strike: bool | None = None,
+        attributes: dict[str, str] | None = None,
+    ) -> "HwpxOxmlRun":
+        """Append a run to the note body paragraph (delegates to body_paragraph.add_run)."""
+        return self.body_paragraph.add_run(
+            text,
+            char_pr_id_ref=char_pr_id_ref,
+            bold=bold,
+            italic=italic,
+            underline=underline,
+            color=color,
+            font=font,
+            size=size,
+            highlight=highlight,
+            strike=strike,
+            attributes=attributes,
+        )
+
+    def add_hyperlink(
+        self,
+        url: str,
+        display_text: str,
+        *,
+        char_pr_id_ref: str | int | None = None,
+    ) -> "HwpxOxmlInlineObject":
+        """Append a hyperlink to the note body paragraph.
+
+        Convenience wrapper around ``body_paragraph.add_hyperlink``.
+        """
+        return self.body_paragraph.add_hyperlink(
+            url, display_text, char_pr_id_ref=char_pr_id_ref
+        )
+
+
+def _default_sublist_attributes() -> dict[str, str]:
+    """Return standard attributes for a ``<hp:subList>`` element.
+
+    Matches real HWPX output and the OWPML ParaListType schema.
+    ``vertAlign`` defaults to "CENTER" for table cells; callers can
+    override as needed.
+    """
+    return {
+        "id": "",
+        "textDirection": "HORIZONTAL",
+        "lineWrap": "BREAK",
+        "vertAlign": "CENTER",
+        "linkListIDRef": "0",
+        "linkListNextIDRef": "0",
+        "textWidth": "0",
+        "textHeight": "0",
+        "hasTextRef": "0",
+        "hasNumRef": "0",
+    }
+
+
+class HwpxOxmlInlineObject:
+    """Wrapper providing attribute helpers for inline objects."""
+
+    def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
+        self.element = element
+        self.paragraph = paragraph
+
+    @property
+    def tag(self) -> str:
+        """Return the fully qualified XML tag for the inline object."""
+
+        return self.element.tag
+
+    @property
+    def attributes(self) -> dict[str, str]:
+        """Return a copy of the element attributes."""
+
+        return dict(self.element.attrib)
+
+    def get_attribute(self, name: str) -> str | None:
+        """Return the value of attribute *name* if present."""
+
+        return self.element.get(name)
+
+    def set_attribute(self, name: str, value: str | int | None) -> None:
+        """Update or remove attribute *name* and mark the paragraph dirty."""
+
+        if value is None:
+            if name in self.element.attrib:
+                del self.element.attrib[name]
+                self.paragraph.section.mark_dirty()
+            return
+
+        new_value = str(value)
+        if self.element.get(name) != new_value:
+            self.element.set(name, new_value)
+            self.paragraph.section.mark_dirty()
+
+
+# ------------------------------------------------------------------
+# Drawing shape helpers
+# ------------------------------------------------------------------
+
+_IDENTITY_MATRIX = {
+    "e1": "1", "e2": "0", "e3": "0",
+    "e4": "0", "e5": "1", "e6": "0",
+}
+
+_DEFAULT_LINE_SHAPE_ATTRS: dict[str, str] = {
+    "color": "#000000",
+    "width": "283",
+    "style": "SOLID",
+    "endCap": "FLAT",
+    "headStyle": "NORMAL",
+    "tailStyle": "NORMAL",
+    "headfill": "1",
+    "tailfill": "1",
+    "headSz": "SMALL_SMALL",
+    "tailSz": "SMALL_SMALL",
+    "outlineStyle": "NORMAL",
+    "alpha": "0",
+}
+
+
+def _build_shape_common_children(
+    parent: ET.Element,
+    width: int,
+    height: int,
+    *,
+    treat_as_char: bool = True,
+    inst_id: str | None = None,
+) -> None:
+    """Append the common AbstractShapeComponent + AbstractShapeObject children.
+
+    These are shared by LINE, RECT, ELLIPSE, and other drawing objects.
+    The child order follows the **real HWPX output** produced by Hancom Word
+    rather than the strict XSD inheritance sequence:
+
+    AbstractShapeComponentType children (first):
+        offset, orgSz, curSz, flip, rotationInfo, renderingInfo
+
+    (Callers insert AbstractDrawingObjectType + type-specific children here.)
+
+    AbstractShapeObjectType children (last, via ``_build_shape_base_children``):
+        sz, pos, outMargin
+    """
+    w = str(width)
+    h = str(height)
+    the_id = inst_id or _object_id()
+
+    parent.set("id", the_id)
+    parent.set("zOrder", "0")
+    parent.set("numberingType", "NONE")
+    parent.set("lock", "0")
+    parent.set("dropcapstyle", "None")
+    parent.set("href", "")
+    parent.set("groupLevel", "0")
+    parent.set("instid", the_id)
+
+    # --- AbstractShapeComponentType children (come first in real files) ---
+    _append_child(parent, f"{_HP}offset", {"x": "0", "y": "0"})
+    _append_child(parent, f"{_HP}orgSz", {"width": w, "height": h})
+    _append_child(parent, f"{_HP}curSz", {"width": w, "height": h})
+    _append_child(parent, f"{_HP}flip", {
+        "horizontal": "0", "vertical": "0",
+    })
+    cx = str(width // 2)
+    cy = str(height // 2)
+    _append_child(parent, f"{_HP}rotationInfo", {
+        "angle": "0", "centerX": cx, "centerY": cy, "rotateimage": "1",
+    })
+
+    ri = _append_child(parent, f"{_HP}renderingInfo", {})
+    _append_child(ri, f"{_HC}transMatrix", dict(_IDENTITY_MATRIX))
+    _append_child(ri, f"{_HC}scaMatrix", dict(_IDENTITY_MATRIX))
+    _append_child(ri, f"{_HC}rotMatrix", dict(_IDENTITY_MATRIX))
+
+    # Store treat_as_char for _build_shape_base_children
+    parent.set("_treatAsChar", "1" if treat_as_char else "0")
+
+
+def _build_shape_base_children(
+    parent: ET.Element,
+    width: int,
+    height: int,
+) -> None:
+    """Append AbstractShapeObjectType children (sz, pos, outMargin).
+
+    These come **last** in real HWPX output, after type-specific children.
+    """
+    w = str(width)
+    h = str(height)
+    treat_as_char = parent.get("_treatAsChar", "1") == "1"
+    # Remove the temporary marker attribute
+    if "_treatAsChar" in parent.attrib:
+        del parent.attrib["_treatAsChar"]
+
+    _append_child(parent, f"{_HP}sz", {
+        "width": w, "height": h,
+        "widthRelTo": "ABSOLUTE", "heightRelTo": "ABSOLUTE",
+        "protect": "0",
+    })
+    pos_attrs: dict[str, str] = {
+        "treatAsChar": "1" if treat_as_char else "0",
+        "affectLSpacing": "0",
+    }
+    if not treat_as_char:
+        pos_attrs.update({
+            "flowWithText": "0", "allowOverlap": "1",
+            "holdAnchorAndSO": "0",
+            "vertRelTo": "PARA", "vertAlign": "TOP",
+            "horzRelTo": "COLUMN", "horzAlign": "LEFT",
+            "vertOffset": "0", "horzOffset": "0",
+        })
+    else:
+        pos_attrs.update({
+            "flowWithText": "1", "allowOverlap": "0",
+            "holdAnchorAndSO": "0",
+            "vertRelTo": "PARA", "horzRelTo": "COLUMN",
+            "vertAlign": "TOP", "horzAlign": "LEFT",
+            "vertOffset": "0", "horzOffset": "0",
+        })
+    _append_child(parent, f"{_HP}pos", pos_attrs)
+    _append_child(parent, f"{_HP}outMargin", {
+        "left": "0", "right": "0", "top": "0", "bottom": "0",
+    })
+
+
+def _build_drawing_object_children(
+    parent: ET.Element,
+    *,
+    line_color: str = "#000000",
+    line_width: str = "283",
+    line_style: str = "SOLID",
+    fill_color: str | None = None,
+) -> None:
+    """Append AbstractDrawingObjectType children: lineShape, fillBrush, shadow."""
+    ls_attrs = dict(_DEFAULT_LINE_SHAPE_ATTRS)
+    ls_attrs["color"] = line_color
+    ls_attrs["width"] = line_width
+    ls_attrs["style"] = line_style
+    _append_child(parent, f"{_HP}lineShape", ls_attrs)
+
+    if fill_color is not None:
+        fb = _append_child(parent, f"{_HP}fillBrush", {})
+        _append_child(fb, f"{_HP}winBrush", {
+            "faceColor": fill_color, "hatchColor": "#FFFFFF",
+        })
+
+    _append_child(parent, f"{_HP}shadow", {
+        "type": "NONE", "color": "#B2B2B2",
+        "offsetX": "0", "offsetY": "0", "alpha": "0",
+    })
+
+
+def _create_line_element(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    *,
+    line_color: str = "#000000",
+    line_width: str = "283",
+    treat_as_char: bool = True,
+) -> ET.Element:
+    """Build a complete ``<hp:line>`` element matching real HWPX output."""
+    import math
+
+    dx = abs(end_x - start_x)
+    dy = abs(end_y - start_y)
+    w = int(math.hypot(dx, dy)) if dx or dy else 0
+    h = 0  # lines have zero height in their bounding box
+
+    el = ET.Element(f"{_HP}line", {"isReverseHV": "0"})
+    # 1) AbstractShapeComponentType children (offset, orgSz, … renderingInfo)
+    _build_shape_common_children(el, w, h, treat_as_char=treat_as_char)
+    # 2) AbstractDrawingObjectType children (lineShape, shadow)
+    _build_drawing_object_children(
+        el, line_color=line_color, line_width=line_width,
+    )
+    # 3) LineType-specific children
+    _append_child(el, f"{_HP}startPt", {"x": str(start_x), "y": str(start_y)})
+    _append_child(el, f"{_HP}endPt", {"x": str(end_x), "y": str(end_y)})
+    # 4) AbstractShapeObjectType children last (sz, pos, outMargin)
+    _build_shape_base_children(el, w, h)
+    return el
+
+
+def _create_rectangle_element(
+    width: int,
+    height: int,
+    *,
+    ratio: int = 0,
+    line_color: str = "#000000",
+    line_width: str = "283",
+    fill_color: str | None = None,
+    treat_as_char: bool = True,
+) -> ET.Element:
+    """Build a complete ``<hp:rect>`` element matching real HWPX output."""
+    el = ET.Element(f"{_HP}rect", {"ratio": str(ratio)})
+    _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
+    _build_drawing_object_children(
+        el, line_color=line_color, line_width=line_width,
+        fill_color=fill_color,
+    )
+    _append_child(el, f"{_HP}pt0", {"x": "0", "y": "0"})
+    _append_child(el, f"{_HP}pt1", {"x": str(width), "y": "0"})
+    _append_child(el, f"{_HP}pt2", {"x": str(width), "y": str(height)})
+    _append_child(el, f"{_HP}pt3", {"x": "0", "y": str(height)})
+    _build_shape_base_children(el, width, height)
+    return el
+
+
+def _create_ellipse_element(
+    width: int,
+    height: int,
+    *,
+    line_color: str = "#000000",
+    line_width: str = "283",
+    fill_color: str | None = None,
+    treat_as_char: bool = True,
+) -> ET.Element:
+    """Build a complete ``<hp:ellipse>`` element matching real HWPX output."""
+    el = ET.Element(f"{_HP}ellipse", {
+        "intervalDirty": "0",
+        "hasArcPr": "0",
+        "arcType": "NORMAL",
+    })
+    _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
+    _build_drawing_object_children(
+        el, line_color=line_color, line_width=line_width,
+        fill_color=fill_color,
+    )
+    cx = str(width // 2)
+    cy = str(height // 2)
+    _append_child(el, f"{_HC}center", {"x": cx, "y": cy})
+    _append_child(el, f"{_HC}ax1", {"x": str(width), "y": cy})
+    _append_child(el, f"{_HC}ax2", {"x": cx, "y": str(height)})
+    _append_child(el, f"{_HC}start1", {"x": str(width), "y": cy})
+    _append_child(el, f"{_HC}end1", {"x": str(width), "y": cy})
+    _append_child(el, f"{_HC}start2", {"x": str(width), "y": cy})
+    _append_child(el, f"{_HC}end2", {"x": str(width), "y": cy})
+    _build_shape_base_children(el, width, height)
+    return el
+
+
+def _create_picture_element(
+    binary_item_id_ref: str,
+    width: int,
+    height: int,
+    *,
+    align: str | None = None,
+    treat_as_char: bool = True,
+) -> ET.Element:
+    """Build a ``<hp:pic>`` element using the corpus-observed picture shape."""
+
+    el = ET.Element(f"{_HP}pic", {
+        "textWrap": "SQUARE",
+        "textFlow": "BOTH_SIDES",
+        "reverse": "0",
+    })
+    _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
+    el.set("numberingType", "PICTURE")
+
+    rect = _append_child(el, f"{_HP}imgRect", {})
+    _append_child(rect, f"{_HC}pt0", {"x": "0", "y": "0"})
+    _append_child(rect, f"{_HC}pt1", {"x": str(width), "y": "0"})
+    _append_child(rect, f"{_HC}pt2", {"x": str(width), "y": str(height)})
+    _append_child(rect, f"{_HC}pt3", {"x": "0", "y": str(height)})
+    _append_child(el, f"{_HP}imgClip", {
+        "left": "0",
+        "right": str(width),
+        "top": "0",
+        "bottom": str(height),
+    })
+    _append_child(el, f"{_HP}inMargin", {
+        "left": "0",
+        "right": "0",
+        "top": "0",
+        "bottom": "0",
+    })
+    _append_child(el, f"{_HP}imgDim", {
+        "dimwidth": str(width),
+        "dimheight": str(height),
+    })
+    _append_child(el, f"{_HC}img", {
+        "binaryItemIDRef": binary_item_id_ref,
+        "bright": "0",
+        "contrast": "0",
+        "effect": "REAL_PIC",
+        "alpha": "0",
+    })
+    _append_child(el, f"{_HP}effects", {})
+    _build_shape_base_children(el, width, height)
+
+    if align:
+        pos = el.find(f"{_HP}pos")
+        if pos is not None:
+            pos.set("horzAlign", align.upper())
+    _append_child(el, f"{_HP}shapeComment", {})
+    return el
+
+
+class HwpxOxmlShape:
+    """Wrapper for a drawing shape element (``<hp:line>``, ``<hp:rect>``, ``<hp:ellipse>``, etc.)."""
+
+    def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
+        self.element = element
+        self.paragraph = paragraph
+
+    # --- basic properties --------------------------------------------------
+
+    @property
+    def shape_type(self) -> str:
+        """Return the local tag name (e.g. ``'line'``, ``'rect'``, ``'ellipse'``)."""
+        return _element_local_name(self.element)
+
+    @property
+    def inst_id(self) -> str | None:
+        return self.element.get("instid") or self.element.get("id")
+
+    @property
+    def attributes(self) -> dict[str, str]:
+        return dict(self.element.attrib)
+
+    # --- size access -------------------------------------------------------
+
+    @property
+    def width(self) -> int:
+        sz = self.element.find(f"{_HP}sz")
+        if sz is not None:
+            return int(sz.get("width", "0"))
+        return 0
+
+    @property
+    def height(self) -> int:
+        sz = self.element.find(f"{_HP}sz")
+        if sz is not None:
+            return int(sz.get("height", "0"))
+        return 0
+
+    def resize(self, width: int, height: int) -> None:
+        """Update all size-related sub-elements and mark dirty."""
+        w, h = str(width), str(height)
+        for tag in ("sz", "orgSz", "curSz"):
+            child = self.element.find(f"{_HP}{tag}")
+            if child is not None:
+                child.set("width", w)
+                child.set("height", h)
+        rot = self.element.find(f"{_HP}rotationInfo")
+        if rot is not None:
+            rot.set("centerX", str(width // 2))
+            rot.set("centerY", str(height // 2))
+        self.paragraph.section.mark_dirty()
+
+    # --- line shape access -------------------------------------------------
+
+    @property
+    def line_color(self) -> str | None:
+        ls = self.element.find(f"{_HP}lineShape")
+        return ls.get("color") if ls is not None else None
+
+    @line_color.setter
+    def line_color(self, value: str) -> None:
+        ls = self.element.find(f"{_HP}lineShape")
+        if ls is not None:
+            ls.set("color", value)
+            self.paragraph.section.mark_dirty()
+
+    @property
+    def line_style(self) -> str | None:
+        ls = self.element.find(f"{_HP}lineShape")
+        return ls.get("style") if ls is not None else None
+
+    @line_style.setter
+    def line_style(self, value: str) -> None:
+        ls = self.element.find(f"{_HP}lineShape")
+        if ls is not None:
+            ls.set("style", value)
+            self.paragraph.section.mark_dirty()
+
+    # --- generic attribute access ------------------------------------------
+
+    def get_attribute(self, name: str) -> str | None:
+        return self.element.get(name)
+
+    def set_attribute(self, name: str, value: str | int | None) -> None:
+        if value is None:
+            if name in self.element.attrib:
+                del self.element.attrib[name]
+                self.paragraph.section.mark_dirty()
+            return
+        new_value = str(value)
+        if self.element.get(name) != new_value:
+            self.element.set(name, new_value)
+            self.paragraph.section.mark_dirty()
+
+    def __repr__(self) -> str:
+        return f"<HwpxOxmlShape type={self.shape_type!r} id={self.inst_id!r}>"
+
+
+class HwpxOxmlTableCell:
+    """Represents an individual table cell."""
+
+    def __init__(
+        self,
+        element: ET.Element,
+        table: "HwpxOxmlTable",
+        row_element: ET.Element,
+    ):
+        self.element = element
+        self.table = table
+        self._row_element = row_element
+
+    def _addr_element(self) -> ET.Element | None:
+        return self.element.find(f"{_HP}cellAddr")
+
+    def _span_element(self) -> ET.Element:
+        span = self.element.find(f"{_HP}cellSpan")
+        if span is None:
+            span = ET.SubElement(self.element, f"{_HP}cellSpan", {"colSpan": "1", "rowSpan": "1"})
+        return span
+
+    def _size_element(self) -> ET.Element:
+        size = self.element.find(f"{_HP}cellSz")
+        if size is None:
+            size = ET.SubElement(self.element, f"{_HP}cellSz", {"width": "0", "height": "0"})
+        return size
+
+    def _ensure_text_element(self) -> ET.Element:
+        sublist = self.element.find(f"{_HP}subList")
+        if sublist is None:
+            sublist = _append_child(
+                self.element, f"{_HP}subList", _default_sublist_attributes()
+            )
+        paragraph = sublist.find(f"{_HP}p")
+        if paragraph is None:
+            paragraph = _append_child(
+                sublist, f"{_HP}p", _default_cell_paragraph_attributes()
+            )
+        _clear_paragraph_layout_cache(paragraph)
+        run = paragraph.find(f"{_HP}run")
+        if run is None:
+            run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
+        text = run.find(f"{_HP}t")
+        if text is None:
+            text = _append_child(run, f"{_HP}t")
+        return text
+
+    @property
+    def address(self) -> tuple[int, int]:
+        addr = self._addr_element()
+        if addr is None:
+            return (0, 0)
+        row = int(addr.get("rowAddr", "0"))
+        col = int(addr.get("colAddr", "0"))
+        return (row, col)
+
+    @property
+    def span(self) -> tuple[int, int]:
+        span = self._span_element()
+        row_span = int(span.get("rowSpan", "1"))
+        col_span = int(span.get("colSpan", "1"))
+        return (row_span, col_span)
+
+    def set_span(self, row_span: int, col_span: int) -> None:
+        span = self._span_element()
+        span.set("rowSpan", str(max(row_span, 1)))
+        span.set("colSpan", str(max(col_span, 1)))
+        self.table.mark_dirty()
+
+    @property
+    def width(self) -> int:
+        size = self._size_element()
+        return int(size.get("width", "0"))
+
+    @property
+    def height(self) -> int:
+        size = self._size_element()
+        return int(size.get("height", "0"))
+
+    def set_size(self, width: int | None = None, height: int | None = None) -> None:
+        size = self._size_element()
+        if width is not None:
+            size.set("width", str(max(width, 0)))
+        if height is not None:
+            size.set("height", str(max(height, 0)))
+        self.table.mark_dirty()
+
+    @property
+    def text(self) -> str:
+        paragraphs = self.paragraphs
+        if paragraphs:
+            return "\n".join(paragraph.text or "" for paragraph in paragraphs)
+        parts: list[str] = []
+        for t_elem in self.element.findall(f".//{_HP}t"):
+            if t_elem.text:
+                parts.append(t_elem.text)
+        return "".join(parts)
+
+    @text.setter
+    def text(self, value: str) -> None:
+        self.set_text(value)
+
+    def _first_run_char_pr_id_ref(self) -> str:
+        for paragraph in self.paragraphs:
+            for run in paragraph.runs:
+                if run.char_pr_id_ref is not None:
+                    return str(run.char_pr_id_ref)
+        return "0"
+
+    def _paragraph_format_attrs(self, paragraph: "HwpxOxmlParagraph" | None = None) -> dict[str, str]:
+        source = paragraph.element if paragraph is not None else None
+        attrs = dict(_default_cell_paragraph_attributes())
+        if source is not None:
+            for key in ("paraPrIDRef", "styleIDRef", "pageBreak", "columnBreak", "merged"):
+                value = source.get(key)
+                if value is not None:
+                    attrs[key] = value
+        attrs["id"] = _paragraph_id()
+        return attrs
+
+    def _run_char_pr_for_line(self, paragraphs: Sequence["HwpxOxmlParagraph"], index: int) -> str:
+        if index < len(paragraphs):
+            for run in paragraphs[index].runs:
+                if run.char_pr_id_ref is not None:
+                    return str(run.char_pr_id_ref)
+        return self._first_run_char_pr_id_ref()
+
+    def _set_split_paragraph_text(self, value: str) -> None:
+        sublist = self._ensure_sublist()
+        existing = self.paragraphs
+        lines = (value or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        if not lines:
+            lines = [""]
+
+        for paragraph in list(sublist.findall(f"{_HP}p")):
+            sublist.remove(paragraph)
+
+        for index, line in enumerate(lines):
+            source = existing[index] if index < len(existing) else existing[0] if existing else None
+            paragraph = _append_child(sublist, f"{_HP}p", self._paragraph_format_attrs(source))
+            run = _append_child(
+                paragraph,
+                f"{_HP}run",
+                {"charPrIDRef": self._run_char_pr_for_line(existing, index)},
+            )
+            _append_text_with_tabs(run, line)
+
+    def set_text(
+        self,
+        value: str,
+        *,
+        preserve_format: bool = True,
+        split_paragraphs: bool = False,
+    ) -> None:
+        if split_paragraphs:
+            self._set_split_paragraph_text(value)
+            self.element.set("dirty", "1")
+            self.table.mark_dirty()
+            return
+
+        text_element = self._ensure_text_element()
+        text_element.text = _sanitize_text(value)
+        for node in self.element.findall(f".//{_HP}t"):
+            if node is text_element:
+                continue
+            if node.text:
+                node.text = ""
+        if not preserve_format:
+            run = text_element
+            while run is not None and _element_local_name(run) != "run":
+                run = run.getparent() if hasattr(run, "getparent") else None
+            if run is not None:
+                run.set("charPrIDRef", "0")
+        self.element.set("dirty", "1")
+        self.table.mark_dirty()
+
+    def remove(self) -> None:
+        self._row_element.remove(self.element)
+        self.table.mark_dirty()
+
+    # ------------------------------------------------------------------
+    # Nested content helpers
+    # ------------------------------------------------------------------
+
+    def _ensure_sublist(self) -> ET.Element:
+        """Return (or lazily create) the ``<hp:subList>`` container."""
+        sublist = self.element.find(f"{_HP}subList")
+        if sublist is None:
+            sublist = _append_child(self.element, f"{_HP}subList", _default_sublist_attributes())
+        return sublist
+
+    @property
+    def paragraphs(self) -> list["HwpxOxmlParagraph"]:
+        """Return paragraphs inside this cell's ``<hp:subList>``."""
+        sublist = self.element.find(f"{_HP}subList")
+        if sublist is None:
+            return []
+        section = self.table.paragraph.section
+        return [HwpxOxmlParagraph(p, section) for p in sublist.findall(f"{_HP}p")]
+
+    def add_paragraph(
+        self,
+        text: str = "",
+        *,
+        para_pr_id_ref: str | int | None = None,
+        style_id_ref: str | int | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> "HwpxOxmlParagraph":
+        """Append a paragraph to this cell and return it."""
+        sublist = self._ensure_sublist()
+
+        attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
+        if para_pr_id_ref is not None:
+            attrs["paraPrIDRef"] = str(para_pr_id_ref)
+        if style_id_ref is not None:
+            attrs["styleIDRef"] = str(style_id_ref)
+
+        paragraph = _append_child(sublist, f"{_HP}p", attrs)
+
+        run_attrs: dict[str, str] = {}
+        if char_pr_id_ref is not None:
+            run_attrs["charPrIDRef"] = str(char_pr_id_ref)
+        else:
+            run_attrs["charPrIDRef"] = "0"
+
+        run = _append_child(paragraph, f"{_HP}run", run_attrs)
+        _append_text_with_tabs(run, text)
+
+        self.table.mark_dirty()
+        section = self.table.paragraph.section
+        return HwpxOxmlParagraph(paragraph, section)
+
+    @property
+    def tables(self) -> list["HwpxOxmlTable"]:
+        """Return nested tables inside this cell."""
+        result: list["HwpxOxmlTable"] = []
+        for para in self.paragraphs:
+            result.extend(para.tables)
+        return result
+
+    def add_table(
+        self,
+        rows: int,
+        cols: int,
+        *,
+        width: int | None = None,
+        height: int | None = None,
+        border_fill_id_ref: str | int | None = None,
+    ) -> "HwpxOxmlTable":
+        """Insert a nested table inside this cell.
+
+        The table is created inside a new paragraph within the cell's
+        ``<hp:subList>``.
+        """
+        # Resolve border fill ID
+        if border_fill_id_ref is None:
+            document = self.table.paragraph.section.document
+            if document is not None:
+                border_fill_id_ref = document.ensure_basic_border_fill()
+            else:
+                border_fill_id_ref = "0"
+
+        # Create a host paragraph for the nested table
+        para = self.add_paragraph("")
+        return para.add_table(
+            rows,
+            cols,
+            width=width,
+            height=height,
+            border_fill_id_ref=border_fill_id_ref,
+        )
+
+
+@dataclass(frozen=True)
+class HwpxTableGridPosition:
+    """Mapping between a logical table position and a physical cell."""
+
+    row: int
+    column: int
+    cell: HwpxOxmlTableCell
+    anchor: tuple[int, int]
+    span: tuple[int, int]
+
+    @property
+    def is_anchor(self) -> bool:
+        return (self.row, self.column) == self.anchor
+
+    @property
+    def row_span(self) -> int:
+        return self.span[0]
+
+    @property
+    def col_span(self) -> int:
+        return self.span[1]
+
+
+class HwpxOxmlTableRow:
+    """Represents a table row."""
+
+    def __init__(self, element: ET.Element, table: "HwpxOxmlTable"):
+        self.element = element
+        self.table = table
+
+    @property
+    def cells(self) -> list[HwpxOxmlTableCell]:
+        return [
+            HwpxOxmlTableCell(cell_element, self.table, self.element)
+            for cell_element in self.element.findall(f"{_HP}tc")
+        ]
+
+
+class HwpxOxmlTable:
+    """Representation of an ``<hp:tbl>`` inline object."""
+
+    def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
+        self.element = element
+        self.paragraph = paragraph
+
+    def __repr__(self) -> str:
+        """Return a compact and safe summary of table geometry."""
+
+        return (
+            f"{self.__class__.__name__}("
+            f"rows={self.row_count}, "
+            f"cols={self.column_count}, "
+            f"physical_rows={len(self.rows)}"
+            ")"
+        )
+
+    @classmethod
+    def create(
+        cls,
+        rows: int,
+        cols: int,
+        *,
+        width: int | None = None,
+        height: int | None = None,
+        border_fill_id_ref: str | int | None = None,
+    ) -> ET.Element:
+        if rows <= 0 or cols <= 0:
+            raise ValueError("rows and cols must be positive integers")
+
+        table_width = width if width is not None else cols * _DEFAULT_CELL_WIDTH
+        table_height = height if height is not None else rows * _DEFAULT_CELL_HEIGHT
+        if border_fill_id_ref is None:
+            raise ValueError("border_fill_id_ref must be provided")
+        border_fill = str(border_fill_id_ref)
+
+        table_attrs = {
+            "id": _object_id(),
+            "zOrder": "0",
+            "numberingType": "TABLE",
+            "textWrap": "TOP_AND_BOTTOM",
+            "textFlow": "BOTH_SIDES",
+            "lock": "0",
+            "dropcapstyle": "None",
+            "pageBreak": "CELL",
+            "repeatHeader": "0",
+            "rowCnt": str(rows),
+            "colCnt": str(cols),
+            "cellSpacing": "0",
+            "borderFillIDRef": border_fill,
+            "noAdjust": "0",
+        }
+
+        table = ET.Element(f"{_HP}tbl", table_attrs)
+        ET.SubElement(
+            table,
+            f"{_HP}sz",
+            {
+                "width": str(max(table_width, 0)),
+                "widthRelTo": "ABSOLUTE",
+                "height": str(max(table_height, 0)),
+                "heightRelTo": "ABSOLUTE",
+                "protect": "0",
+            },
+        )
+        ET.SubElement(
+            table,
+            f"{_HP}pos",
+            {
+                "treatAsChar": "1",
+                "affectLSpacing": "0",
+                "flowWithText": "1",
+                "allowOverlap": "0",
+                "holdAnchorAndSO": "0",
+                "vertRelTo": "PARA",
+                "horzRelTo": "COLUMN",
+                "vertAlign": "TOP",
+                "horzAlign": "LEFT",
+                "vertOffset": "0",
+                "horzOffset": "0",
+            },
+        )
+        ET.SubElement(table, f"{_HP}outMargin", _default_cell_margin_attributes())
+        ET.SubElement(table, f"{_HP}inMargin", _default_cell_margin_attributes())
+
+        column_widths = _distribute_size(max(table_width, 0), cols)
+        row_heights = _distribute_size(max(table_height, 0), rows)
+
+        for row_index in range(rows):
+            row = ET.SubElement(table, f"{_HP}tr")
+            for col_index in range(cols):
+                cell = ET.SubElement(row, f"{_HP}tc", _default_cell_attributes(border_fill))
+                sublist = ET.SubElement(cell, f"{_HP}subList", _default_sublist_attributes())
+                paragraph = ET.SubElement(sublist, f"{_HP}p", _default_cell_paragraph_attributes())
+                run = ET.SubElement(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
+                ET.SubElement(run, f"{_HP}t")
+                ET.SubElement(
+                    cell,
+                    f"{_HP}cellAddr",
+                    {"colAddr": str(col_index), "rowAddr": str(row_index)},
+                )
+                ET.SubElement(cell, f"{_HP}cellSpan", {"colSpan": "1", "rowSpan": "1"})
+                ET.SubElement(
+                    cell,
+                    f"{_HP}cellSz",
+                    {
+                        "width": str(column_widths[col_index] if column_widths else 0),
+                        "height": str(row_heights[row_index] if row_heights else 0),
+                    },
+                )
+                ET.SubElement(cell, f"{_HP}cellMargin", _default_cell_margin_attributes())
+        return table
+
+    def mark_dirty(self) -> None:
+        self.paragraph.section.mark_dirty()
+
+    @property
+    def row_count(self) -> int:
+        value = self.element.get("rowCnt")
+        if value is not None and value.isdigit():
+            return int(value)
+        return len(self.element.findall(f"{_HP}tr"))
+
+    @property
+    def column_count(self) -> int:
+        value = self.element.get("colCnt")
+        if value is not None and value.isdigit():
+            return int(value)
+        first_row = self.element.find(f"{_HP}tr")
+        if first_row is None:
+            return 0
+        return len(first_row.findall(f"{_HP}tc"))
+
+    @property
+    def rows(self) -> list[HwpxOxmlTableRow]:
+        return [HwpxOxmlTableRow(row, self) for row in self.element.findall(f"{_HP}tr")]
+
+    def _build_cell_grid(self) -> dict[tuple[int, int], HwpxTableGridPosition]:
+        mapping: dict[tuple[int, int], HwpxTableGridPosition] = {}
+
+        def _is_deactivated_cell(
+            cell: HwpxOxmlTableCell, span: tuple[int, int]
+        ) -> bool:
+            span_row, span_col = span
+            if span_row != 1 or span_col != 1:
+                return False
+            if cell.width != 0 or cell.height != 0:
+                return False
+            for text_element in cell.element.findall(f".//{_HP}t"):
+                if text_element.text:
+                    return False
+            return True
+
+        for row in self.element.findall(f"{_HP}tr"):
+            for cell_element in row.findall(f"{_HP}tc"):
+                wrapper = HwpxOxmlTableCell(cell_element, self, row)
+                start_row, start_col = wrapper.address
+                span_row, span_col = wrapper.span
+                wrapper_span = (span_row, span_col)
+                wrapper_is_deactivated = _is_deactivated_cell(wrapper, wrapper_span)
+                for logical_row in range(start_row, start_row + span_row):
+                    for logical_col in range(start_col, start_col + span_col):
+                        key = (logical_row, logical_col)
+                        existing = mapping.get(key)
+                        entry = HwpxTableGridPosition(
+                            row=logical_row,
+                            column=logical_col,
+                            cell=wrapper,
+                            anchor=(start_row, start_col),
+                            span=(span_row, span_col),
+                        )
+                        if (
+                            existing is not None
+                            and existing.cell.element is not wrapper.element
+                        ):
+                            existing_span = existing.span
+                            existing_spans_multiple = (
+                                existing_span[0] != 1 or existing_span[1] != 1
+                            )
+                            wrapper_spans_multiple = (
+                                wrapper_span[0] != 1 or wrapper_span[1] != 1
+                            )
+                            existing_is_deactivated = _is_deactivated_cell(
+                                existing.cell, existing_span
+                            )
+
+                            if (
+                                wrapper_is_deactivated
+                                and existing_spans_multiple
+                            ):
+                                continue
+                            if (
+                                existing_is_deactivated
+                                and wrapper_spans_multiple
+                            ):
+                                mapping[key] = entry
+                                continue
+                            raise ValueError(
+                                "table grid contains overlapping cell spans"
+                            )
+                        mapping[key] = entry
+        return mapping
+
+    def _grid_entry(self, row_index: int, col_index: int) -> HwpxTableGridPosition:
+        if row_index < 0 or col_index < 0:
+            raise IndexError("row_index and col_index must be non-negative")
+
+        row_count = self.row_count
+        col_count = self.column_count
+        if row_index >= row_count or col_index >= col_count:
+            raise IndexError(
+                "cell coordinates (%d, %d) exceed table bounds %dx%d"
+                % (row_index, col_index, row_count, col_count)
+            )
+
+        entry = self._build_cell_grid().get((row_index, col_index))
+        if entry is None:
+            raise IndexError(
+                "cell coordinates (%d, %d) are covered by a merged cell"
+                " without an accessible anchor; inspect iter_grid() for details"
+                % (row_index, col_index)
+            )
+        return entry
+
+    def iter_grid(self) -> Iterator[HwpxTableGridPosition]:
+        """Yield grid-aware mappings for every logical table position."""
+
+        mapping = self._build_cell_grid()
+        row_count = self.row_count
+        col_count = self.column_count
+        for row_index in range(row_count):
+            for col_index in range(col_count):
+                entry = mapping.get((row_index, col_index))
+                if entry is None:
+                    raise IndexError(
+                        "cell coordinates (%d, %d) do not resolve to a physical cell"
+                        % (row_index, col_index)
+                    )
+                yield entry
+
+    def get_cell_map(self) -> list[list[HwpxTableGridPosition]]:
+        """Return a 2D list mapping logical positions to physical cells."""
+
+        row_count = self.row_count
+        col_count = self.column_count
+        grid: list[list[HwpxTableGridPosition | None]] = [
+            [None for _ in range(col_count)] for _ in range(row_count)
+        ]
+        for entry in self.iter_grid():
+            grid[entry.row][entry.column] = entry
+
+        for row_index in range(row_count):
+            for col_index in range(col_count):
+                if grid[row_index][col_index] is None:
+                    raise IndexError(
+                        "cell coordinates (%d, %d) do not resolve to a physical cell"
+                        % (row_index, col_index)
+                    )
+
+        return [
+            [grid[row_index][col_index] for col_index in range(col_count)]
+            for row_index in range(row_count)
+        ]
+
+    def cell(self, row_index: int, col_index: int) -> HwpxOxmlTableCell:
+        entry = self._grid_entry(row_index, col_index)
+        return entry.cell
+
+    def set_cell_shading(self, row_index: int, col_index: int, color: str) -> None:
+        cell = self.cell(row_index, col_index)
+        document = self.paragraph.section.document
+        if document is None:
+            raise ValueError("table is not attached to a document")
+        border_fill_id = document.ensure_shading_border_fill(
+            color,
+            base_border_fill_id=cell.element.get("borderFillIDRef") or self.element.get("borderFillIDRef"),
+        )
+        cell.element.set("borderFillIDRef", border_fill_id)
+        self.mark_dirty()
+
+    def set_column_widths(self, weights: Sequence[int | float]) -> None:
+        if len(weights) != self.column_count:
+            raise ValueError("column width weights must match table column count")
+        numeric_weights = [max(float(weight), 0.0) for weight in weights]
+        if not any(numeric_weights):
+            raise ValueError("at least one column width weight must be positive")
+
+        sz = self.element.find(f"{_HP}sz")
+        if sz is not None and sz.get("width", "").isdigit():
+            total_width = int(sz.get("width", "0"))
+        else:
+            total_width = sum(self.cell(0, col).width for col in range(self.column_count))
+        weight_total = sum(numeric_weights)
+        column_widths: list[int] = []
+        allocated = 0
+        for index, weight in enumerate(numeric_weights):
+            if index == len(numeric_weights) - 1:
+                width = max(total_width - allocated, 0)
+            else:
+                width = round(total_width * weight / weight_total)
+                allocated += width
+            column_widths.append(width)
+
+        updated_cells: set[int] = set()
+        for entry in self.iter_grid():
+            marker = id(entry.cell.element)
+            if marker in updated_cells:
+                continue
+            updated_cells.add(marker)
+            start_row, start_col = entry.cell.address
+            span_row, span_col = entry.cell.span
+            if span_row <= 0 or span_col <= 0:
+                continue
+            width = sum(column_widths[start_col:start_col + span_col])
+            entry.cell.set_size(width=width)
+
+    def set_cell_text(
+        self,
+        row_index: int,
+        col_index: int,
+        text: str,
+        *,
+        logical: bool = False,
+        split_merged: bool = False,
+        preserve_format: bool = True,
+        split_paragraphs: bool = False,
+    ) -> None:
+        if logical:
+            entry = self._grid_entry(row_index, col_index)
+            if split_merged and not entry.is_anchor:
+                cell = self.split_merged_cell(row_index, col_index)
+            else:
+                cell = entry.cell
+        else:
+            cell = self.cell(row_index, col_index)
+        cell.set_text(
+            text,
+            preserve_format=preserve_format,
+            split_paragraphs=split_paragraphs,
+        )
+
+    def split_merged_cell(
+        self, row_index: int, col_index: int
+    ) -> HwpxOxmlTableCell:
+        entry = self._grid_entry(row_index, col_index)
+        cell = entry.cell
+        start_row, start_col = entry.anchor
+        span_row, span_col = entry.span
+
+        if span_row == 1 and span_col == 1:
+            return cell
+
+        row_elements = self.element.findall(f"{_HP}tr")
+        if len(row_elements) < start_row + span_row:
+            raise IndexError(
+                "table rows missing while splitting merged cell covering"
+                f" ({start_row}, {start_col})"
+            )
+
+        width_segments = _distribute_size(cell.width, span_col)
+        height_segments = _distribute_size(cell.height, span_row)
+        if not width_segments:
+            width_segments = [cell.width] + [0] * (span_col - 1)
+        if not height_segments:
+            height_segments = [cell.height] + [0] * (span_row - 1)
+
+        template_attrs = {key: value for key, value in cell.element.attrib.items()}
+        preserved_children = [
+            deepcopy(child)
+            for child in cell.element
+            if _element_local_name(child)
+            not in {"subList", "cellAddr", "cellSpan", "cellSz", "cellMargin"}
+        ]
+        template_sublist = cell.element.find(f"{_HP}subList")
+        template_margin = cell.element.find(f"{_HP}cellMargin")
+
+        for row_offset in range(span_row):
+            logical_row = start_row + row_offset
+            row_element = row_elements[logical_row]
+            row_height = height_segments[row_offset] if row_offset < len(height_segments) else cell.height
+            for col_offset in range(span_col):
+                logical_col = start_col + col_offset
+                col_width = width_segments[col_offset] if col_offset < len(width_segments) else cell.width
+
+                if row_offset == 0 and col_offset == 0:
+                    addr = cell._addr_element()
+                    if addr is None:
+                        addr = ET.SubElement(cell.element, f"{_HP}cellAddr")
+                    addr.set("rowAddr", str(start_row))
+                    addr.set("colAddr", str(start_col))
+                    span_element = cell._span_element()
+                    span_element.set("rowSpan", "1")
+                    span_element.set("colSpan", "1")
+                    size_element = cell._size_element()
+                    size_element.set("width", str(col_width))
+                    size_element.set("height", str(row_height))
+                    continue
+
+                existing_target: HwpxOxmlTableCell | None = None
+                for existing in row_element.findall(f"{_HP}tc"):
+                    wrapper = HwpxOxmlTableCell(existing, self, row_element)
+                    existing_row, existing_col = wrapper.address
+                    span_r, span_c = wrapper.span
+                    if existing_row == logical_row and existing_col == logical_col:
+                        existing_target = wrapper
+                        break
+                    if (
+                        existing_row <= logical_row < existing_row + span_r
+                        and existing_col <= logical_col < existing_col + span_c
+                    ):
+                        if wrapper.element is cell.element:
+                            continue
+                        raise ValueError(
+                            "Cannot split merged cell covering (%d, %d) because"
+                            " position (%d, %d) overlaps another merged cell"
+                            % (start_row, start_col, logical_row, logical_col)
+                        )
+
+                if existing_target is not None:
+                    existing_target.set_span(1, 1)
+                    existing_target.set_size(col_width, row_height)
+                    continue
+
+                # Use makeelement() so the new cell matches the XML engine
+                # of the existing tree (stdlib ET or lxml).  ET.Element()
+                # always produces stdlib elements which cannot be appended to
+                # an lxml tree (and vice-versa), causing TypeError at runtime
+                # when splitting cells in documents parsed via lxml.
+                new_cell_element = row_element.makeelement(f"{_HP}tc", dict(template_attrs))
+                for child in preserved_children:
+                    new_cell_element.append(deepcopy(child))
+
+                sublist_attrs = _default_sublist_attributes()
+                template_para = None
+                if template_sublist is not None:
+                    for key, value in template_sublist.attrib.items():
+                        if key == "id":
+                            continue
+                        sublist_attrs.setdefault(key, value)
+                    template_para = template_sublist.find(f"{_HP}p")
+
+                sublist = ET.SubElement(new_cell_element, f"{_HP}subList", sublist_attrs)
+                paragraph_attrs = _default_cell_paragraph_attributes()
+                run_attrs = {"charPrIDRef": "0"}
+                if template_para is not None:
+                    for key, value in template_para.attrib.items():
+                        if key == "id":
+                            continue
+                        paragraph_attrs.setdefault(key, value)
+                    template_run = template_para.find(f"{_HP}run")
+                    if template_run is not None:
+                        run_attrs = dict(template_run.attrib)
+                        if "charPrIDRef" not in run_attrs:
+                            run_attrs["charPrIDRef"] = "0"
+                paragraph = ET.SubElement(sublist, f"{_HP}p", paragraph_attrs)
+                run = ET.SubElement(paragraph, f"{_HP}run", run_attrs)
+                ET.SubElement(run, f"{_HP}t")
+
+                ET.SubElement(
+                    new_cell_element,
+                    f"{_HP}cellAddr",
+                    {"rowAddr": str(logical_row), "colAddr": str(logical_col)},
+                )
+                ET.SubElement(
+                    new_cell_element,
+                    f"{_HP}cellSpan",
+                    {"rowSpan": "1", "colSpan": "1"},
+                )
+                ET.SubElement(
+                    new_cell_element,
+                    f"{_HP}cellSz",
+                    {"width": str(col_width), "height": str(row_height)},
+                )
+                if template_margin is not None:
+                    new_cell_element.append(deepcopy(template_margin))
+                else:
+                    ET.SubElement(
+                        new_cell_element,
+                        f"{_HP}cellMargin",
+                        _default_cell_margin_attributes(),
+                    )
+
+                existing_cells = list(row_element.findall(f"{_HP}tc"))
+                insert_index = len(existing_cells)
+                for idx, existing in enumerate(existing_cells):
+                    wrapper = HwpxOxmlTableCell(existing, self, row_element)
+                    if wrapper.address[1] > logical_col:
+                        insert_index = idx
+                        break
+                row_element.insert(insert_index, new_cell_element)
+
+        self.mark_dirty()
+        return self.cell(row_index, col_index)
+
+    @staticmethod
+    def _spreadsheet_column_index(value: str) -> int:
+        column = value.strip().upper()
+        if not column or not column.isalpha():
+            raise ValueError(f"invalid spreadsheet column: {value!r}")
+        index = 0
+        for char in column:
+            index = index * 26 + (ord(char) - ord("A") + 1)
+        return index - 1
+
+    @classmethod
+    def _parse_spreadsheet_range(cls, value: str) -> tuple[int, int, int, int]:
+        match = _re.fullmatch(r"\s*([A-Za-z]+)([0-9]+)\s*:\s*([A-Za-z]+)([0-9]+)\s*", value)
+        if match is None:
+            raise ValueError(f"invalid spreadsheet range: {value!r}")
+        start_col_label, start_row_label, end_col_label, end_row_label = match.groups()
+        start_row = int(start_row_label) - 1
+        end_row = int(end_row_label) - 1
+        start_col = cls._spreadsheet_column_index(start_col_label)
+        end_col = cls._spreadsheet_column_index(end_col_label)
+        return start_row, start_col, end_row, end_col
+
+    def merge_cells(
+        self,
+        start_row: int | str,
+        start_col: int | None = None,
+        end_row: int | None = None,
+        end_col: int | None = None,
+    ) -> HwpxOxmlTableCell:
+        if isinstance(start_row, str):
+            start_row, start_col, end_row, end_col = self._parse_spreadsheet_range(start_row)
+        if start_col is None or end_row is None or end_col is None:
+            raise TypeError("merge_cells requires either a spreadsheet range or four coordinates")
+        if start_row > end_row or start_col > end_col:
+            raise ValueError("merge coordinates must describe a valid rectangle")
+        if start_row < 0 or start_col < 0:
+            raise IndexError("merge coordinates must be non-negative")
+        if end_row >= self.row_count or end_col >= self.column_count:
+            raise IndexError("merge coordinates exceed table bounds")
+
+        target = self.cell(start_row, start_col)
+        addr_row, addr_col = target.address
+        if addr_row != start_row or addr_col != start_col:
+            raise ValueError("top-left cell must align with merge starting position")
+
+        new_row_span = end_row - start_row + 1
+        new_col_span = end_col - start_col + 1
+
+        element_to_row: dict[ET.Element, ET.Element] = {}
+        for row in self.element.findall(f"{_HP}tr"):
+            for cell in row.findall(f"{_HP}tc"):
+                element_to_row[cell] = row
+
+        removal_elements: set[ET.Element] = set()
+        width_elements: set[ET.Element] = set()
+        height_elements: set[ET.Element] = set()
+        total_width = 0
+        total_height = 0
+
+        for row_index in range(start_row, end_row + 1):
+            for col_index in range(start_col, end_col + 1):
+                cell = self.cell(row_index, col_index)
+                cell_row, cell_col = cell.address
+                span_row, span_col = cell.span
+                if (
+                    cell_row < start_row
+                    or cell_col < start_col
+                    or cell_row + span_row - 1 > end_row
+                    or cell_col + span_col - 1 > end_col
+                ):
+                    raise ValueError("Cells to merge must be entirely inside the merge region")
+                if row_index == start_row and cell.element not in width_elements:
+                    width_elements.add(cell.element)
+                    total_width += cell.width
+                if col_index == start_col and cell.element not in height_elements:
+                    height_elements.add(cell.element)
+                    total_height += cell.height
+                if cell.element is not target.element:
+                    removal_elements.add(cell.element)
+
+        if not removal_elements and target.span == (new_row_span, new_col_span):
+            return target
+
+        for element in removal_elements:
+            row_element = element_to_row.get(element)
+            if row_element is None:
+                continue
+            wrapper = HwpxOxmlTableCell(element, self, row_element)
+            wrapper.set_span(1, 1)
+            wrapper.set_size(0, 0)
+            for text_element in element.findall(f".//{_HP}t"):
+                text_element.text = ""
+
+        target.set_span(new_row_span, new_col_span)
+        target.set_size(total_width or target.width, total_height or target.height)
+        self.mark_dirty()
+        return target
+
+@dataclass
+class HwpxOxmlParagraph:
+    """Lightweight wrapper around an ``<hp:p>`` element."""
+
+    element: ET.Element
+    section: HwpxOxmlSection
+
+    def __repr__(self) -> str:
+        """Return a compact and safe summary of paragraph contents."""
+
+        runs = self._run_elements()
+        return (
+            f"{self.__class__.__name__}("
+            f"runs={len(runs)}, "
+            f"tables={len(self.tables)}, "
+            f"text_length={len(self.text)}"
+            ")"
+        )
+
+    def to_model(self) -> "body.Paragraph":
+        xml_bytes = ET.tostring(self.element, encoding="utf-8")
+        node = LET.fromstring(xml_bytes)
+        return body.parse_paragraph_element(node)
+
+    @property
+    def model(self) -> "body.Paragraph":
+        return self.to_model()
+
+    def apply_model(self, model: "body.Paragraph") -> None:
+        new_node = body.serialize_paragraph(model)
+        xml_bytes = LET.tostring(new_node)
+        replacement = ET.fromstring(xml_bytes)
+        parent = self.section.element
+        paragraph_children = list(parent)
+        index = paragraph_children.index(self.element)
+        parent.remove(self.element)
+        parent.insert(index, replacement)
+        self.element = replacement
+        self.section.mark_dirty()
+
+    def _run_elements(self) -> list[ET.Element]:
+        return _children_by_local(self.element, "run")
+
+    def _ensure_run(self) -> ET.Element:
+        runs = self._run_elements()
+        if runs:
+            return runs[0]
+
+        run_attrs: dict[str, str] = {}
+        default_char = self.char_pr_id_ref or "0"
+        if default_char is not None:
+            run_attrs["charPrIDRef"] = default_char
+        run = self.element.makeelement(_child_tag_like(self.element, "run", _HP_NS), run_attrs)
+        self.element.append(run)
+        return run
+
+    @property
+    def runs(self) -> list[HwpxOxmlRun]:
+        """Return the runs contained in this paragraph."""
+        return [HwpxOxmlRun(run, self) for run in self._run_elements()]
+
+    @property
+    def text(self) -> str:
+        """Return the concatenated textual content of this paragraph."""
+        texts: list[str] = []
+        for run in self._run_elements():
+            for child in run:
+                if tag_local_name(child.tag) == "t":
+                    if child.text:
+                        texts.append(child.text)
+                elif tag_local_name(child.tag) == "tab" or _is_tab_control_element(child):
+                    texts.append("\t")
+        return "".join(texts)
+
+    @text.setter
+    def text(self, value: str) -> None:
+        """Replace the textual contents of this paragraph.
+
+        Style references (``paraPrIDRef``, ``styleIDRef`` on the paragraph and
+        ``charPrIDRef`` on the surviving run) are preserved.  Empty runs that
+        contained only text nodes are removed to keep the XML clean.
+        """
+        runs = self._run_elements()
+
+        # Identify first run — its charPrIDRef will be kept.
+        first_run = self._ensure_run()
+
+        # Remove existing text/tab nodes from all runs.
+        for run in runs:
+            for child in list(run):
+                if tag_local_name(child.tag) in {"t", "tab"} or _is_tab_control_element(child):
+                    run.remove(child)
+
+        # Remove non-first runs that are now empty (only had text).
+        # Runs with non-text children (tables, shapes, controls) are kept.
+        for run in runs:
+            if run is first_run:
+                continue
+            if len(list(run)) == 0:
+                self.element.remove(run)
+
+        # Write the new text into the first run, preserving tabs as <hp:tab/>.
+        _append_text_with_tabs(first_run, value)
+        _clear_paragraph_layout_cache(self.element)
+        self.section.mark_dirty()
+
+    def clear_text(self) -> None:
+        """Remove all text content while preserving styles and non-text elements.
+
+        Style references on the paragraph and surviving runs are kept intact.
+        Empty runs are cleaned up.
+        """
+        runs = self._run_elements()
+        for run in runs:
+            for child in list(run):
+                if child.tag == f"{_HP}t":
+                    run.remove(child)
+        # Remove runs that are now completely empty.
+        for run in list(runs):
+            if len(list(run)) == 0:
+                self.element.remove(run)
+        _clear_paragraph_layout_cache(self.element)
+        self.section.mark_dirty()
+
+    def remove(self) -> None:
+        """Remove this paragraph from its parent section.
+
+        After removal, the paragraph wrapper should no longer be used.
+        Raises ``ValueError`` if the section would become empty (HWPX
+        requires at least one ``<hp:p>`` per section).
+        """
+        parent = self.section.element
+        siblings = parent.findall(f"{_HP}p")
+        if len(siblings) <= 1:
+            raise ValueError(
+                "섹션에는 최소 하나의 단락이 필요합니다. "
+                "마지막 단락은 삭제할 수 없습니다."
+            )
+        try:
+            parent.remove(self.element)
+        except ValueError:  # pragma: no cover – defensive
+            return
+        self.section.mark_dirty()
+
+    def _create_run_for_object(
+        self,
+        run_attributes: dict[str, str] | None = None,
+        *,
+        char_pr_id_ref: str | int | None = None,
+    ) -> ET.Element:
+        attrs = dict(run_attributes or {})
+        if char_pr_id_ref is not None:
+            attrs.setdefault("charPrIDRef", str(char_pr_id_ref))
+        elif "charPrIDRef" not in attrs:
+            default_char = self.char_pr_id_ref or "0"
+            if default_char is not None:
+                attrs["charPrIDRef"] = str(default_char)
+        run = self.element.makeelement(f"{_HP}run", attrs)
+        self.element.append(run)
+        return run
+
+    def add_run(
+        self,
+        text: str = "",
+        *,
+        char_pr_id_ref: str | int | None = None,
+        bold: bool = False,
+        italic: bool = False,
+        underline: bool = False,
+        color: str | None = None,
+        font: str | None = None,
+        size: int | float | None = None,
+        highlight: str | None = None,
+        strike: bool | None = None,
+        attributes: dict[str, str] | None = None,
+    ) -> HwpxOxmlRun:
+        """Append a new run to the paragraph and return its wrapper."""
+
+        run_attrs = dict(attributes or {})
+
+        if "charPrIDRef" not in run_attrs:
+            if char_pr_id_ref is not None:
+                run_attrs["charPrIDRef"] = str(char_pr_id_ref)
+            else:
+                document = self.section.document
+                if document is not None:
+                    style_id = document.ensure_run_style(
+                        bold=bool(bold),
+                        italic=bool(italic),
+                        underline=bool(underline),
+                        color=color,
+                        font=font,
+                        size=size,
+                        highlight=highlight,
+                        strike=strike,
+                    )
+                    run_attrs["charPrIDRef"] = style_id
+                else:
+                    default_char = self.char_pr_id_ref or "0"
+                    if default_char is not None:
+                        run_attrs["charPrIDRef"] = str(default_char)
+
+        run_element = _append_child(self.element, f"{_HP}run", run_attrs)
+        text_element = _append_child(run_element, f"{_HP}t", {})
+        text_element.text = text
+        self.section.mark_dirty()
+        return HwpxOxmlRun(run_element, self)
+
+    @property
+    def tables(self) -> list["HwpxOxmlTable"]:
+        """Return the tables embedded within this paragraph."""
+
+        tables: list[HwpxOxmlTable] = []
+        for run in self._run_elements():
+            for child in run:
+                if child.tag == f"{_HP}tbl":
+                    tables.append(HwpxOxmlTable(child, self))
+        return tables
+
+    def add_table(
+        self,
+        rows: int,
+        cols: int,
+        *,
+        width: int | None = None,
+        height: int | None = None,
+        border_fill_id_ref: str | int | None = None,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlTable:
+        if border_fill_id_ref is None:
+            document = self.section.document
+            if document is not None:
+                resolved_border_fill: str | int = document.ensure_basic_border_fill()
+            else:
+                resolved_border_fill = "0"
+        else:
+            resolved_border_fill = border_fill_id_ref
+
+        run = self._create_run_for_object(
+            run_attributes,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+        table_element = HwpxOxmlTable.create(
+            rows,
+            cols,
+            width=width,
+            height=height,
+            border_fill_id_ref=resolved_border_fill,
+        )
+        if type(table_element) is not type(run):
+            table_element = LET.fromstring(ET.tostring(table_element, encoding="utf-8"))
+
+        run.append(table_element)
+        self.section.mark_dirty()
+        return HwpxOxmlTable(table_element, self)
+
+    def add_shape(
+        self,
+        shape_type: str,
+        attributes: dict[str, str] | None = None,
+        *,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert a generic shape element.
+
+        For spec-compliant LINE / RECT / ELLIPSE shapes, prefer the
+        dedicated ``add_line``, ``add_rectangle``, and ``add_ellipse``
+        methods which build the full OWPML child structure.
+        """
+        if not shape_type:
+            raise ValueError("shape_type must be a non-empty string")
+        run = self._create_run_for_object(
+            run_attributes,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+        element = _append_child(run, f"{_HP}{shape_type}", dict(attributes or {}))
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(element, self)
+
+    def add_picture(
+        self,
+        binary_item_id_ref: str,
+        *,
+        width: int = 14400,
+        height: int = 14400,
+        align: str | None = None,
+        treat_as_char: bool = True,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert a corpus-shaped ``<hp:pic>`` referencing embedded BinData."""
+
+        run = self._create_run_for_object(
+            run_attributes,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+        element = _create_picture_element(
+            str(binary_item_id_ref),
+            int(width),
+            int(height),
+            align=align,
+            treat_as_char=treat_as_char,
+        )
+        if type(element) is not type(run):
+            element = LET.fromstring(ET.tostring(element, encoding="utf-8"))
+        run.append(element)
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(element, self)
+
+    # ------------------------------------------------------------------
+    # Spec-compliant drawing shape helpers
+    # ------------------------------------------------------------------
+
+    def _insert_shape_element(
+        self,
+        element: ET.Element,
+        *,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlShape:
+        """Attach a pre-built shape element into a new run and return a wrapper."""
+        run = self._create_run_for_object(
+            run_attributes,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+        # Ensure element type matches the run type (lxml vs stdlib ET)
+        if type(element) is not type(run):
+            element = LET.fromstring(ET.tostring(element, encoding="utf-8"))
+        run.append(element)
+        self.section.mark_dirty()
+        return HwpxOxmlShape(element, self)
+
+    def add_line(
+        self,
+        start_x: int = 0,
+        start_y: int = 0,
+        end_x: int = 14400,
+        end_y: int = 0,
+        *,
+        line_color: str = "#000000",
+        line_width: str = "283",
+        treat_as_char: bool = True,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlShape:
+        """Insert a spec-compliant ``<hp:line>`` drawing shape.
+
+        Coordinates are in HWPUNIT (7200 per inch).
+        """
+        el = _create_line_element(
+            start_x, start_y, end_x, end_y,
+            line_color=line_color,
+            line_width=line_width,
+            treat_as_char=treat_as_char,
+        )
+        return self._insert_shape_element(
+            el, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
+        )
+
+    def add_rectangle(
+        self,
+        width: int = 14400,
+        height: int = 7200,
+        *,
+        ratio: int = 0,
+        line_color: str = "#000000",
+        line_width: str = "283",
+        fill_color: str | None = None,
+        treat_as_char: bool = True,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlShape:
+        """Insert a spec-compliant ``<hp:rect>`` drawing shape.
+
+        Dimensions are in HWPUNIT.  *ratio* controls corner roundness
+        (0 = sharp, 50 = semicircle).
+        """
+        el = _create_rectangle_element(
+            width, height,
+            ratio=ratio,
+            line_color=line_color,
+            line_width=line_width,
+            fill_color=fill_color,
+            treat_as_char=treat_as_char,
+        )
+        return self._insert_shape_element(
+            el, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
+        )
+
+    def add_ellipse(
+        self,
+        width: int = 14400,
+        height: int = 7200,
+        *,
+        line_color: str = "#000000",
+        line_width: str = "283",
+        fill_color: str | None = None,
+        treat_as_char: bool = True,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlShape:
+        """Insert a spec-compliant ``<hp:ellipse>`` drawing shape.
+
+        Dimensions are in HWPUNIT.
+        """
+        el = _create_ellipse_element(
+            width, height,
+            line_color=line_color,
+            line_width=line_width,
+            fill_color=fill_color,
+            treat_as_char=treat_as_char,
+        )
+        return self._insert_shape_element(
+            el, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
+        )
+
+    @property
+    def shapes(self) -> list[HwpxOxmlShape]:
+        """Return all drawing shapes embedded in this paragraph."""
+        shape_tags = {f"{_HP}line", f"{_HP}rect", f"{_HP}ellipse",
+                      f"{_HP}arc", f"{_HP}polygon", f"{_HP}curve",
+                      f"{_HP}connectLine"}
+        result: list[HwpxOxmlShape] = []
+        for run in self._run_elements():
+            for child in run:
+                if child.tag in shape_tags:
+                    result.append(HwpxOxmlShape(child, self))
+        return result
+
+    def add_control(
+        self,
+        attributes: dict[str, str] | None = None,
+        *,
+        control_type: str | None = None,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        attrs = dict(attributes or {})
+        if control_type is not None:
+            attrs.setdefault("type", control_type)
+        run = self._create_run_for_object(
+            run_attributes,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+        element = ET.SubElement(run, f"{_HP}ctrl", attrs)
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(element, self)
+
+    # ------------------------------------------------------------------
+    # Column definition helpers
+    # ------------------------------------------------------------------
+
+    def add_column_definition(
+        self,
+        col_count: int = 2,
+        *,
+        col_type: str = "NEWSPAPER",
+        layout: str = "LEFT",
+        same_size: bool = True,
+        same_gap: int = 1200,
+        column_widths: Sequence[tuple[int, int]] | None = None,
+        separator_type: str | None = None,
+        separator_width: str | None = None,
+        separator_color: str | None = None,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert a column definition control ``<hp:ctrl><hp:colPr>…</hp:colPr></hp:ctrl>``.
+
+        Args:
+            col_count: Number of columns (1–255).
+            col_type: ``NEWSPAPER``, ``BALANCED_NEWSPAPER``, or ``PARALLEL``.
+            layout: ``LEFT``, ``RIGHT``, or ``MIRROR``.
+            same_size: If ``True`` all columns have equal width.
+            same_gap: Gap between columns when *same_size* is ``True`` (HWPUNIT).
+            column_widths: When *same_size* is ``False``, a sequence of
+                ``(width, gap)`` tuples – one per column.
+            separator_type: Line type for the column separator (e.g. ``SOLID``).
+            separator_width: Line width (e.g. ``0.12 mm``).
+            separator_color: Line colour (e.g. ``#000000``).
+        """
+        if not 1 <= col_count <= 255:
+            raise ValueError("col_count must be between 1 and 255")
+
+        run = self._create_run_for_object(
+            run_attributes, char_pr_id_ref=char_pr_id_ref,
+        )
+        ctrl = _append_child(run, f"{_HP}ctrl", {})
+        col_pr_attrs: dict[str, str] = {
+            "id": _object_id(),
+            "type": col_type,
+            "layout": layout,
+            "colCount": str(col_count),
+            "sameSz": str(same_size).lower(),
+            "sameGap": str(same_gap) if same_size else "0",
+        }
+        col_pr = _append_child(ctrl, f"{_HP}colPr", col_pr_attrs)
+
+        # Optional column separator line
+        if separator_type or separator_width or separator_color:
+            line_attrs: dict[str, str] = {}
+            if separator_type:
+                line_attrs["type"] = separator_type
+            if separator_width:
+                line_attrs["width"] = separator_width
+            if separator_color:
+                line_attrs["color"] = separator_color
+            _append_child(col_pr, f"{_HP}colLine", line_attrs)
+
+        # Individual column sizes when same_size=False
+        if not same_size and column_widths:
+            for w, g in column_widths:
+                _append_child(col_pr, f"{_HP}colSz", {
+                    "width": str(w), "gap": str(g),
+                })
+
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(ctrl, self)
+
+    # ------------------------------------------------------------------
+    # Bookmark / Hyperlink helpers
+    # ------------------------------------------------------------------
+
+    def add_bookmark(
+        self,
+        name: str,
+        *,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert a bookmark marker ``<hp:ctrl><hp:bookmark name="..."/></hp:ctrl>``.
+
+        The bookmark name can be referenced by hyperlinks or cross-references.
+        """
+        run = self._create_run_for_object(
+            run_attributes, char_pr_id_ref=char_pr_id_ref,
+        )
+        ctrl = _append_child(run, f"{_HP}ctrl", {})
+        _append_child(ctrl, f"{_HP}bookmark", {"name": name})
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(ctrl, self)
+
+    def add_hyperlink(
+        self,
+        url: str,
+        display_text: str,
+        *,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert a hyperlink spanning three runs: fieldBegin, text, fieldEnd.
+
+        Args:
+            url: The target URL or bookmark reference.
+            display_text: The visible text for the hyperlink.
+
+        Returns:
+            The ``<hp:ctrl>`` element wrapping the ``<hp:fieldBegin>``.
+        """
+        field_id = _object_id()
+
+        # Run 1: fieldBegin
+        run1 = self._create_run_for_object(char_pr_id_ref=char_pr_id_ref)
+        ctrl1 = _append_child(run1, f"{_HP}ctrl", {})
+        fb_attrs: dict[str, str] = {
+            "id": field_id,
+            "type": "HYPERLINK",
+            "name": url,
+            "editable": "false",
+            "dirty": "false",
+        }
+        _append_child(ctrl1, f"{_HP}fieldBegin", fb_attrs)
+
+        # Run 2: visible text content
+        run2 = self._create_run_for_object(char_pr_id_ref=char_pr_id_ref)
+        t = _append_child(run2, f"{_HP}t", {})
+        t.text = _sanitize_text(display_text)
+
+        # Run 3: fieldEnd
+        run3 = self._create_run_for_object(char_pr_id_ref=char_pr_id_ref)
+        ctrl3 = _append_child(run3, f"{_HP}ctrl", {})
+        _append_child(ctrl3, f"{_HP}fieldEnd", {"beginIDRef": field_id})
+
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(ctrl1, self)
+
+    @property
+    def bookmarks(self) -> list[str]:
+        """Return the names of all bookmarks in this paragraph."""
+        names: list[str] = []
+        for run in self._run_elements():
+            for ctrl in run.findall(f"{_HP}ctrl"):
+                for bm in ctrl.findall(f"{_HP}bookmark"):
+                    name = bm.get("name", "")
+                    if name:
+                        names.append(name)
+        return names
+
+    @property
+    def hyperlinks(self) -> list[dict[str, str]]:
+        """Return metadata for all hyperlinks in this paragraph.
+
+        Each dict has ``id``, ``url`` (from the ``name`` attribute),
+        and ``type`` keys.
+        """
+        result: list[dict[str, str]] = []
+        for run in self._run_elements():
+            for ctrl in run.findall(f"{_HP}ctrl"):
+                for fb in ctrl.findall(f"{_HP}fieldBegin"):
+                    if fb.get("type") == "HYPERLINK":
+                        result.append({
+                            "id": fb.get("id", ""),
+                            "url": fb.get("name", ""),
+                            "type": fb.get("type", ""),
+                        })
+        return result
+
+    # ------------------------------------------------------------------
+    # Footnote / Endnote helpers
+    # ------------------------------------------------------------------
+
+    def _add_note(
+        self,
+        tag: str,
+        text: str,
+        *,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlNote:
+        """Insert a ``<hp:footNote>`` or ``<hp:endNote>`` element."""
+
+        run = self._create_run_for_object(run_attributes, char_pr_id_ref=char_pr_id_ref)
+        note_element = _append_child(run, f"{_HP}{tag}", {"instId": _object_id()})
+        sublist = _append_child(note_element, f"{_HP}subList", _default_sublist_attributes())
+        p_attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
+        paragraph = _append_child(sublist, f"{_HP}p", p_attrs)
+        # 본문 run의 charPrIDRef도 인자를 따라가도록 적용 (host run과 동일 스타일).
+        # None이면 "0"(default).
+        body_cpr = "0" if char_pr_id_ref is None else str(char_pr_id_ref)
+        note_run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": body_cpr})
+        t = _append_child(note_run, f"{_HP}t", {})
+        t.text = _sanitize_text(text)
+        self.section.mark_dirty()
+        return HwpxOxmlNote(note_element, self)
+
+    def add_footnote(
+        self,
+        text: str,
+        *,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlNote:
+        """Insert a footnote at the end of this paragraph."""
+        return self._add_note("footNote", text, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref)
+
+    def add_endnote(
+        self,
+        text: str,
+        *,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlNote:
+        """Insert an endnote at the end of this paragraph."""
+        return self._add_note("endNote", text, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref)
+
+    @property
+    def footnotes(self) -> list[HwpxOxmlNote]:
+        """Return all footnotes in this paragraph."""
+        return [
+            HwpxOxmlNote(el, self)
+            for el in self.element.findall(f".//{_HP}footNote")
+        ]
+
+    @property
+    def endnotes(self) -> list[HwpxOxmlNote]:
+        """Return all endnotes in this paragraph."""
+        return [
+            HwpxOxmlNote(el, self)
+            for el in self.element.findall(f".//{_HP}endNote")
+        ]
+
+    @property
+    def para_pr_id_ref(self) -> str | None:
+        """Return the paragraph property reference applied to this paragraph."""
+        return self.element.get("paraPrIDRef")
+
+    @para_pr_id_ref.setter
+    def para_pr_id_ref(self, value: str | int | None) -> None:
+        if value is None:
+            if "paraPrIDRef" in self.element.attrib:
+                del self.element.attrib["paraPrIDRef"]
+                self.section.mark_dirty()
+            return
+
+        new_value = str(value)
+        if self.element.get("paraPrIDRef") != new_value:
+            self.element.set("paraPrIDRef", new_value)
+            self.section.mark_dirty()
+
+    @property
+    def style_id_ref(self) -> str | None:
+        """Return the style reference applied to this paragraph."""
+        return self.element.get("styleIDRef")
+
+    @style_id_ref.setter
+    def style_id_ref(self, value: str | int | None) -> None:
+        if value is None:
+            if "styleIDRef" in self.element.attrib:
+                del self.element.attrib["styleIDRef"]
+                self.section.mark_dirty()
+            return
+
+        new_value = str(value)
+        if self.element.get("styleIDRef") != new_value:
+            self.element.set("styleIDRef", new_value)
+            self.section.mark_dirty()
+
+    @property
+    def char_pr_id_ref(self) -> str | None:
+        """Return the shared character property reference across runs.
+
+        If runs use multiple different references the value ``None`` is
+        returned, indicating the paragraph does not have a uniform character
+        style applied.
+        """
+
+        values: set[str] = set()
+        for run in self._run_elements():
+            value = run.get("charPrIDRef")
+            if value is not None:
+                values.add(value)
+
+        if not values:
+            return None
+        if len(values) == 1:
+            return next(iter(values))
+        return None
+
+    @char_pr_id_ref.setter
+    def char_pr_id_ref(self, value: str | int | None) -> None:
+        new_value = None if value is None else str(value)
+        runs = self._run_elements()
+        if not runs:
+            runs = [self._ensure_run()]
+
+        changed = False
+        for run in runs:
+            if new_value is None:
+                if "charPrIDRef" in run.attrib:
+                    del run.attrib["charPrIDRef"]
+                    changed = True
+            else:
+                if run.get("charPrIDRef") != new_value:
+                    run.set("charPrIDRef", new_value)
+                    changed = True
+
+        if changed:
+            self.section.mark_dirty()
+
+
+class _HwpxOxmlSimplePart:
+    """Common base for standalone XML parts that are not sections or headers."""
+
+    def __init__(
+        self,
+        part_name: str,
+        element: ET.Element,
+        document: "HwpxOxmlDocument" | None = None,
+    ):
+        self.part_name = part_name
+        self._element = element
+        self._document = document
+        self._dirty = False
+
+    @property
+    def element(self) -> ET.Element:
+        return self._element
+
+    @property
+    def document(self) -> "HwpxOxmlDocument" | None:
+        return self._document
+
+    def attach_document(self, document: "HwpxOxmlDocument") -> None:
+        self._document = document
+
+    @property
+    def dirty(self) -> bool:
+        return self._dirty
+
+    def mark_dirty(self) -> None:
+        self._dirty = True
+
+    def reset_dirty(self) -> None:
+        self._dirty = False
+
+    def replace_element(self, element: ET.Element) -> None:
+        self._element = element
+        self.mark_dirty()
+
+    def to_bytes(self) -> bytes:
+        return _serialize_xml(self._element)
+
+
+class HwpxOxmlMasterPage(_HwpxOxmlSimplePart):
+    """Represents a master page part in the package."""
+
+
+class HwpxOxmlHistory(_HwpxOxmlSimplePart):
+    """Represents a document history part."""
+
+
+class HwpxOxmlVersion(_HwpxOxmlSimplePart):
+    """Represents the ``version.xml`` part."""
+
+
+class HwpxOxmlSection:
+    """Represents the contents of a section XML part."""
+
+    def __init__(
+        self,
+        part_name: str,
+        element: ET.Element,
+        document: "HwpxOxmlDocument" | None = None,
+    ):
+        self.part_name = part_name
+        self._element = element
+        self._dirty = False
+        self._properties_cache: HwpxOxmlSectionProperties | None = None
+        self._document = document
+
+    def __repr__(self) -> str:
+        """Return a compact and safe summary of section structure."""
+
+        return (
+            f"{self.__class__.__name__}("
+            f"part_name={self.part_name!r}, "
+            f"paragraphs={len(self.paragraphs)}, "
+            f"memos={len(self.memos)}"
+            ")"
+        )
+
+    def _section_properties_element(self) -> ET.Element | None:
+        return self._element.find(f".//{_HP}secPr")
+
+    def _ensure_section_properties_element(self) -> ET.Element:
+        element = self._section_properties_element()
+        if element is not None:
+            return element
+
+        paragraph = _first_child_by_local(self._element, "p")
+        if paragraph is None:
+            paragraph_attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
+            paragraph_attrs["id"] = _paragraph_id()
+            paragraph = _append_child(
+                self._element,
+                _child_tag_like(self._element, "p", _HP_NS),
+                paragraph_attrs,
+            )
+        run = _first_child_by_local(paragraph, "run")
+        if run is None:
+            run = _append_child(
+                paragraph,
+                _child_tag_like(paragraph, "run", _HP_NS),
+                {"charPrIDRef": "0"},
+            )
+        element = _append_child(run, _child_tag_like(run, "secPr", _HP_NS))
+        self._properties_cache = None
+        self.mark_dirty()
+        return element
+
+    @property
+    def properties(self) -> HwpxOxmlSectionProperties:
+        """Return a wrapper exposing section-level options."""
+
+        if self._properties_cache is None:
+            element = self._section_properties_element()
+            if element is None:
+                element = self._ensure_section_properties_element()
+            self._properties_cache = HwpxOxmlSectionProperties(element, self)
+        return self._properties_cache
+
+    def _paragraph_elements(self) -> Iterable[ET.Element]:
+        return _children_by_local(self._element, "p")
+
+    @property
+    def element(self) -> ET.Element:
+        """Return the underlying XML element."""
+        return self._element
+
+    @property
+    def document(self) -> "HwpxOxmlDocument" | None:
+        return self._document
+
+    def attach_document(self, document: "HwpxOxmlDocument") -> None:
+        self._document = document
+
+    @property
+    def paragraphs(self) -> list[HwpxOxmlParagraph]:
+        """Return the paragraphs defined in this section."""
+        return [HwpxOxmlParagraph(elm, self) for elm in self._paragraph_elements()]
+
+    def _memo_group_element(self, create: bool = False) -> ET.Element | None:
+        element = self._element.find(f"{_HP}memogroup")
+        if element is None and create:
+            element = _append_child(self._element, f"{_HP}memogroup", {})
+            self.mark_dirty()
+        return element
+
+    @property
+    def memo_group(self) -> HwpxOxmlMemoGroup | None:
+        element = self._memo_group_element()
+        if element is None:
+            return None
+        return HwpxOxmlMemoGroup(element, self)
+
+    @property
+    def memos(self) -> list[HwpxOxmlMemo]:
+        group = self.memo_group
+        if group is None:
+            return []
+        return group.memos
+
+    def add_memo(
+        self,
+        text: str = "",
+        *,
+        memo_shape_id_ref: str | int | None = None,
+        memo_id: str | None = None,
+        char_pr_id_ref: str | int | None = None,
+        attributes: Optional[dict[str, str]] = None,
+    ) -> HwpxOxmlMemo:
+        element = self._memo_group_element(create=True)
+        if element is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create memo group element")
+        group = HwpxOxmlMemoGroup(element, self)
+        return group.add_memo(
+            text,
+            memo_shape_id_ref=memo_shape_id_ref,
+            memo_id=memo_id,
+            char_pr_id_ref=char_pr_id_ref,
+            attributes=attributes,
+        )
+
+    def remove_paragraph(
+        self,
+        paragraph: HwpxOxmlParagraph | int,
+    ) -> None:
+        """Remove *paragraph* from this section.
+
+        Accepts either a :class:`HwpxOxmlParagraph` instance or an integer
+        index into :attr:`paragraphs`.  Raises ``ValueError`` if the section
+        would become empty (HWPX requires at least one ``<hp:p>``).
+        """
+        if isinstance(paragraph, int):
+            paras = self.paragraphs
+            if paragraph < 0 or paragraph >= len(paras):
+                raise IndexError(f"단락 인덱스 {paragraph}이(가) 범위를 벗어났습니다 (총 {len(paras)}개)")
+            paragraph = paras[paragraph]
+        paragraph.remove()
+
+    def add_paragraph(
+        self,
+        text: str = "",
+        *,
+        para_pr_id_ref: str | int | None = None,
+        style_id_ref: str | int | None = None,
+        char_pr_id_ref: str | int | None = None,
+        run_attributes: dict[str, str] | None = None,
+        include_run: bool = True,
+        inherit_style: bool = True,
+        **extra_attrs: str,
+    ) -> HwpxOxmlParagraph:
+        """Create a new paragraph element appended to this section.
+
+        When *inherit_style* is ``True`` (the default) and no explicit
+        ``paraPrIDRef``, ``styleIDRef`` or ``charPrIDRef`` is given, the
+        values are inherited from the **last** paragraph in the section so
+        that consecutive paragraphs share the same formatting.
+
+        The optional ``para_pr_id_ref`` and ``style_id_ref`` parameters
+        control the paragraph-level references, while ``char_pr_id_ref`` and
+        ``run_attributes`` customise the initial ``<hp:run>`` element when
+        ``include_run`` is :data:`True`.
+        """
+
+        # Collect style refs from the last paragraph for inheritance.
+        prev_para_ref: str | None = None
+        prev_style_ref: str | None = None
+        prev_char_ref: str | None = None
+        if inherit_style:
+            existing = self.paragraphs
+            if existing:
+                last = existing[-1]
+                prev_para_ref = last.para_pr_id_ref
+                prev_style_ref = last.style_id_ref
+                prev_char_ref = last.char_pr_id_ref
+
+        attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
+        attrs.update(extra_attrs)
+
+        if para_pr_id_ref is not None:
+            attrs["paraPrIDRef"] = str(para_pr_id_ref)
+        elif prev_para_ref is not None:
+            attrs["paraPrIDRef"] = prev_para_ref
+        if style_id_ref is not None:
+            attrs["styleIDRef"] = str(style_id_ref)
+        elif prev_style_ref is not None:
+            attrs["styleIDRef"] = prev_style_ref
+
+        paragraph = self._element.makeelement(f"{_HP}p", attrs)
+
+        if include_run:
+            run_attrs = dict(run_attributes or {})
+            if char_pr_id_ref is not None:
+                run_attrs["charPrIDRef"] = str(char_pr_id_ref)
+            elif "charPrIDRef" not in run_attrs:
+                if prev_char_ref is not None:
+                    run_attrs["charPrIDRef"] = prev_char_ref
+                else:
+                    run_attrs["charPrIDRef"] = "0"
+
+            run = paragraph.makeelement(f"{_HP}run", run_attrs)
+            paragraph.append(run)
+            _append_text_with_tabs(run, text)
+
+        self._element.append(paragraph)
+        self._dirty = True
+        return HwpxOxmlParagraph(paragraph, self)
+
+    def insert_paragraphs(
+        self,
+        index: int,
+        paragraphs: Sequence[HwpxOxmlParagraph | ET.Element],
+    ) -> list[HwpxOxmlParagraph]:
+        """Insert paragraph copies at *index* and return wrappers for them."""
+
+        existing = self.paragraphs
+        if index < 0 or index > len(existing):
+            raise IndexError(f"단락 인덱스 {index}이(가) 범위를 벗어났습니다 (총 {len(existing)}개)")
+
+        inserted: list[HwpxOxmlParagraph] = []
+        for offset, paragraph in enumerate(paragraphs):
+            source_element = paragraph.element if isinstance(paragraph, HwpxOxmlParagraph) else paragraph
+            cloned = _clone_paragraph_element(source_element)
+            self._element.insert(index + offset, cloned)
+            inserted.append(HwpxOxmlParagraph(cloned, self))
+
+        if inserted:
+            self._dirty = True
+        return inserted
+
+    def copy_paragraph_range(self, start: int, end: int) -> list[ET.Element]:
+        """Return deep-copied paragraph elements for the inclusive range."""
+
+        paragraphs = self.paragraphs
+        total = len(paragraphs)
+        if start < 0 or end < 0 or start >= total or end >= total or start > end:
+            raise IndexError(f"문단 범위 {start}..{end}이(가) 유효하지 않습니다 (총 {total}개)")
+        return [_clone_paragraph_element(paragraphs[index].element) for index in range(start, end + 1)]
+
+    def mark_dirty(self) -> None:
+        self._dirty = True
+
+    @property
+    def dirty(self) -> bool:
+        return self._dirty
+
+    def reset_dirty(self) -> None:
+        self._dirty = False
+
+    def remove_stale_layout_caches(self) -> int:
+        """Drop paragraph layout caches that no longer match plain text length."""
+
+        removed = 0
+        for paragraph in self._element.iter():
+            if _element_local_name(paragraph) != "p":
+                continue
+            if _remove_stale_paragraph_layout_cache(paragraph):
+                removed += 1
+        if removed:
+            self.mark_dirty()
+        return removed
+
+    def remove_layout_caches(self) -> int:
+        """Drop all paragraph layout caches from this section.
+
+        Layout cache is editor-derived metadata. Once a section has been
+        modified, preserving it is riskier than allowing the editor to
+        recalculate it on open.
+        """
+
+        removed = 0
+        for paragraph in self._element.iter():
+            if _element_local_name(paragraph) != "p":
+                continue
+            removed += _clear_paragraph_layout_cache(paragraph)
+        if removed:
+            self.mark_dirty()
+        return removed
+
+    def to_bytes(self) -> bytes:
+        return _serialize_xml(self._element)
+
+
+class HwpxOxmlHeader:
+    """Represents a header XML part."""
+
+    def __init__(self, part_name: str, element: ET.Element, document: "HwpxOxmlDocument" | None = None):
+        self.part_name = part_name
+        self._element = element
+        self._dirty = False
+        self._document = document
+
+    @property
+    def element(self) -> ET.Element:
+        return self._element
+
+    @property
+    def document(self) -> "HwpxOxmlDocument" | None:
+        return self._document
+
+    def attach_document(self, document: "HwpxOxmlDocument") -> None:
+        self._document = document
+
+    def _begin_num_element(self, create: bool = False) -> ET.Element | None:
+        element = self._element.find(f"{_HH}beginNum")
+        if element is None and create:
+            element = self._element.makeelement(f"{_HH}beginNum", {})
+            self._element.append(element)
+        return element
+
+    def _ref_list_element(self, create: bool = False) -> ET.Element | None:
+        element = self._element.find(f"{_HH}refList")
+        if element is None and create:
+            element = self._element.makeelement(f"{_HH}refList", {})
+            self._element.append(element)
+            self.mark_dirty()
+        return element
+
+    def _border_fills_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        element = ref_list.find(f"{_HH}borderFills")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}borderFills", {"itemCnt": "0"})
+            ref_list.append(element)
+            self.mark_dirty()
+        return element
+
+    def _char_properties_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        element = ref_list.find(f"{_HH}charProperties")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}charProperties", {"itemCnt": "0"})
+            ref_list.append(element)
+            self.mark_dirty()
+        return element
+
+    def _update_char_properties_item_count(self, element: ET.Element) -> None:
+        count = len(list(element.findall(f"{_HH}charPr")))
+        element.set("itemCnt", str(count))
+
+    def _update_border_fills_item_count(self, element: ET.Element) -> None:
+        count = len(list(element.findall(f"{_HH}borderFill")))
+        element.set("itemCnt", str(count))
+
+    def font_ref_for_face(self, face: str) -> dict[str, str] | None:
+        """Return ``hh:fontRef`` attributes for *face* when the header defines it."""
+
+        target = face.strip()
+        if not target:
+            return None
+
+        refs: dict[str, str] = {}
+        for fontface in self._element.findall(f".//{_HH}fontface"):
+            attr_name = _FONT_FACE_LANG_TO_REF.get(fontface.get("lang", "").upper())
+            if attr_name is None:
+                continue
+            for font in fontface.findall(f"{_HH}font"):
+                if font.get("face") == target and font.get("id"):
+                    refs[attr_name] = font.get("id", "")
+                    break
+
+        if not refs:
+            return None
+        fallback = next(iter(refs.values()))
+        return {name: refs.get(name, fallback) for name in _FONT_REF_ATTRIBUTES}
+
+    def _allocate_char_property_id(
+        self,
+        element: ET.Element,
+        *,
+        preferred_id: str | int | None = None,
+    ) -> str:
+        existing: set[str] = {
+            child.get("id") or ""
+            for child in element.findall(f"{_HH}charPr")
+        }
+        existing.discard("")
+
+        if preferred_id is not None:
+            candidate = str(preferred_id)
+            if candidate not in existing:
+                return candidate
+
+        numeric_ids: list[int] = []
+        for value in existing:
+            try:
+                numeric_ids.append(int(value))
+            except ValueError:
+                continue
+        next_id = 0 if not numeric_ids else max(numeric_ids) + 1
+        candidate = str(next_id)
+        while candidate in existing:
+            next_id += 1
+            candidate = str(next_id)
+        return candidate
+
+    def _allocate_border_fill_id(self, element: ET.Element) -> str:
+        existing: set[str] = {
+            child.get("id") or ""
+            for child in element.findall(f"{_HH}borderFill")
+        }
+        existing.discard("")
+
+        numeric_ids: list[int] = []
+        for value in existing:
+            try:
+                numeric_ids.append(int(value))
+            except ValueError:
+                continue
+        next_id = 0 if not numeric_ids else max(numeric_ids) + 1
+        candidate = str(next_id)
+        while candidate in existing:
+            next_id += 1
+            candidate = str(next_id)
+        return candidate
+
+    def ensure_char_property(
+        self,
+        *,
+        predicate: Callable[[ET.Element], bool] | None = None,
+        modifier: Callable[[ET.Element], None] | None = None,
+        base_char_pr_id: str | int | None = None,
+        preferred_id: str | int | None = None,
+    ) -> ET.Element:
+        """Return a ``<hh:charPr>`` element matching *predicate* or create one.
+
+        When an existing entry satisfies *predicate*, it is returned unchanged.
+        Otherwise a new element is produced by cloning ``base_char_pr_id`` (or the
+        first available entry) and applying *modifier* before assigning a fresh
+        identifier and updating ``itemCnt``.
+        """
+
+        char_props = self._char_properties_element(create=True)
+        if char_props is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <charProperties> element")
+
+        if predicate is not None:
+            for child in char_props.findall(f"{_HH}charPr"):
+                if predicate(child):
+                    return child
+
+        base_element: ET.Element | None = None
+        if base_char_pr_id is not None:
+            base_element = char_props.find(f"{_HH}charPr[@id='{base_char_pr_id}']")
+        if base_element is None:
+            existing = char_props.find(f"{_HH}charPr")
+            if existing is not None:
+                base_element = existing
+
+        if base_element is None:
+            new_char_pr = ET.Element(f"{_HH}charPr")
+        else:
+            new_char_pr = deepcopy(base_element)
+            if "id" in new_char_pr.attrib:
+                del new_char_pr.attrib["id"]
+
+        if modifier is not None:
+            modifier(new_char_pr)
+
+        char_id = self._allocate_char_property_id(char_props, preferred_id=preferred_id)
+        new_char_pr.set("id", char_id)
+        char_props.append(new_char_pr)
+        self._update_char_properties_item_count(char_props)
+        self.mark_dirty()
+        document = self.document
+        if document is not None:
+            document.invalidate_char_property_cache()
+        return new_char_pr
+
+    def _memo_properties_element(self) -> ET.Element | None:
+        ref_list = self._element.find(f"{_HH}refList")
+        if ref_list is None:
+            return None
+        return ref_list.find(f"{_HH}memoProperties")
+
+    def _bullets_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        element = ref_list.find(f"{_HH}bullets")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}bullets", {"itemCnt": "0"})
+            ref_list.append(element)
+            self.mark_dirty()
+        return element
+
+    def _numberings_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        element = ref_list.find(f"{_HH}numberings")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}numberings", {"itemCnt": "0"})
+            ref_list.append(element)
+            self.mark_dirty()
+        return element
+
+    def _para_properties_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        element = ref_list.find(f"{_HH}paraProperties")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}paraProperties", {"itemCnt": "0"})
+            ref_list.append(element)
+            self.mark_dirty()
+        return element
+
+    @staticmethod
+    def _allocate_ref_id(parent: ET.Element, child_tag: str) -> str:
+        existing: set[str] = {
+            child.get("id") or ""
+            for child in parent.findall(child_tag)
+        }
+        existing.discard("")
+        numeric_ids: list[int] = []
+        for value in existing:
+            try:
+                numeric_ids.append(int(value))
+            except ValueError:
+                continue
+        next_id = 1 if not numeric_ids else max(numeric_ids) + 1
+        candidate = str(next_id)
+        while candidate in existing:
+            next_id += 1
+            candidate = str(next_id)
+        return candidate
+
+    @staticmethod
+    def _update_item_count(parent: ET.Element, child_tag: str) -> None:
+        parent.set("itemCnt", str(len(parent.findall(child_tag))))
+
+    @staticmethod
+    def _default_para_head_attributes(level: int) -> dict[str, str]:
+        return {
+            "start": "1",
+            "level": str(level),
+            "align": "LEFT",
+            "useInstWidth": "1",
+            "autoIndent": "1",
+            "widthAdjust": "0",
+            "textOffsetType": "PERCENT",
+            "textOffset": "50",
+            "numFormat": "DIGIT",
+            "charPrIDRef": "4294967295",
+            "checkable": "0",
+        }
+
+    def _ensure_bullet_definition(self, char: str) -> str:
+        bullets = self._bullets_element(create=True)
+        if bullets is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <bullets> element")
+        for bullet in bullets.findall(f"{_HH}bullet"):
+            if bullet.get("char") == char:
+                bullet_id = bullet.get("id")
+                if bullet_id:
+                    return bullet_id
+
+        bullet_id = self._allocate_ref_id(bullets, f"{_HH}bullet")
+        bullet = bullets.makeelement(
+            f"{_HH}bullet",
+            {"id": bullet_id, "char": char, "useImage": "0"},
+        )
+        head_attrs = self._default_para_head_attributes(0)
+        head_attrs.pop("start", None)
+        head_attrs["useInstWidth"] = "0"
+        _append_child(bullet, f"{_HH}paraHead", head_attrs)
+        bullets.append(bullet)
+        self._update_item_count(bullets, f"{_HH}bullet")
+        self.mark_dirty()
+        return bullet_id
+
+    def _create_numbering_definition(self, level_count: int) -> str:
+        numberings = self._numberings_element(create=True)
+        if numberings is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <numberings> element")
+
+        numbering_id = self._allocate_ref_id(numberings, f"{_HH}numbering")
+        numbering = numberings.makeelement(
+            f"{_HH}numbering",
+            {"id": numbering_id, "start": "1"},
+        )
+        for index in range(level_count):
+            level = index + 1
+            head = _append_child(
+                numbering,
+                f"{_HH}paraHead",
+                self._default_para_head_attributes(level),
+            )
+            head.text = ".".join(f"^{part}" for part in range(1, level + 1)) + "."
+        numberings.append(numbering)
+        self._update_item_count(numberings, f"{_HH}numbering")
+        self.mark_dirty()
+        return numbering_id
+
+    def _ensure_para_property_heading(
+        self,
+        *,
+        heading_type: str,
+        id_ref: str,
+        level: int,
+    ) -> str:
+        para_properties = self._para_properties_element(create=True)
+        if para_properties is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <paraProperties> element")
+
+        for para_pr in para_properties.findall(f"{_HH}paraPr"):
+            heading = para_pr.find(f"{_HH}heading")
+            if heading is None:
+                continue
+            if (
+                heading.get("type") == heading_type
+                and heading.get("idRef") == str(id_ref)
+                and heading.get("level") == str(level)
+            ):
+                para_pr_id = para_pr.get("id")
+                if para_pr_id:
+                    return para_pr_id
+
+        base = para_properties.find(f"{_HH}paraPr")
+        para_pr = deepcopy(base) if base is not None else para_properties.makeelement(f"{_HH}paraPr", {})
+        para_pr.attrib.pop("id", None)
+        for heading in list(para_pr.findall(f"{_HH}heading")):
+            para_pr.remove(heading)
+        heading = para_pr.makeelement(
+            f"{_HH}heading",
+            {"type": heading_type, "idRef": str(id_ref), "level": str(level)},
+        )
+        insert_at = 0
+        for index, child in enumerate(list(para_pr)):
+            if _element_local_name(child) == "align":
+                insert_at = index + 1
+                break
+        para_pr.insert(insert_at, heading)
+        para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
+        para_pr.set("id", para_pr_id)
+        para_properties.append(para_pr)
+        self._update_item_count(para_properties, f"{_HH}paraPr")
+        self.mark_dirty()
+        return para_pr_id
+
+    def ensure_paragraph_alignment(self, align: str) -> str:
+        """Return a paragraph property id with the requested horizontal alignment."""
+
+        normalized = align.strip().upper()
+        aliases = {
+            "LEFT": "LEFT",
+            "START": "LEFT",
+            "CENTER": "CENTER",
+            "CENTRE": "CENTER",
+            "RIGHT": "RIGHT",
+            "END": "RIGHT",
+            "JUSTIFY": "JUSTIFY",
+        }
+        horizontal = aliases.get(normalized)
+        if horizontal is None:
+            raise ValueError(f"unsupported paragraph alignment: {align}")
+
+        para_properties = self._para_properties_element(create=True)
+        if para_properties is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <paraProperties> element")
+
+        for para_pr in para_properties.findall(f"{_HH}paraPr"):
+            align_element = para_pr.find(f"{_HH}align")
+            if align_element is not None and align_element.get("horizontal") == horizontal:
+                para_pr_id = para_pr.get("id")
+                if para_pr_id:
+                    return para_pr_id
+
+        base = para_properties.find(f"{_HH}paraPr")
+        para_pr = deepcopy(base) if base is not None else para_properties.makeelement(f"{_HH}paraPr", {})
+        para_pr.attrib.pop("id", None)
+        align_element = para_pr.find(f"{_HH}align")
+        if align_element is None:
+            align_element = para_pr.makeelement(
+                f"{_HH}align",
+                {"horizontal": horizontal, "vertical": "BASELINE"},
+            )
+            para_pr.insert(0, align_element)
+        else:
+            align_element.set("horizontal", horizontal)
+            if align_element.get("vertical") is None:
+                align_element.set("vertical", "BASELINE")
+        para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
+        para_pr.set("id", para_pr_id)
+        para_properties.append(para_pr)
+        self._update_item_count(para_properties, f"{_HH}paraPr")
+        self.mark_dirty()
+        return para_pr_id
+
+    def ensure_numbering(
+        self,
+        *,
+        kind: str,
+        levels: Sequence[dict[str, str]] | None = None,
+    ) -> list[str]:
+        resolved_levels = list(levels or [{}])
+        if not resolved_levels:
+            resolved_levels = [{}]
+        normalized_kind = kind.lower()
+        if normalized_kind == "bullet":
+            refs: list[str] = []
+            default_chars = ["-", "○", "□", "•"]
+            for index, level in enumerate(resolved_levels):
+                bullet_char = str(level.get("char") or default_chars[index % len(default_chars)])
+                bullet_id = self._ensure_bullet_definition(bullet_char)
+                refs.append(
+                    self._ensure_para_property_heading(
+                        heading_type="BULLET",
+                        id_ref=bullet_id,
+                        level=index,
+                    )
+                )
+            return refs
+        if normalized_kind in {"number", "numbered", "numbering"}:
+            numbering_id = self._create_numbering_definition(len(resolved_levels))
+            return [
+                self._ensure_para_property_heading(
+                    heading_type="NUMBER",
+                    id_ref=numbering_id,
+                    level=index,
+                )
+                for index in range(len(resolved_levels))
+            ]
+        raise ValueError("kind must be 'bullet' or 'number'")
+
+    def _styles_element(self) -> ET.Element | None:
+        ref_list = self._ref_list_element()
+        if ref_list is None:
+            return None
+        return ref_list.find(f"{_HH}styles")
+
+    def _track_changes_element(self) -> ET.Element | None:
+        ref_list = self._ref_list_element()
+        if ref_list is None:
+            return None
+        return ref_list.find(f"{_HH}trackChanges")
+
+    def _track_change_authors_element(self) -> ET.Element | None:
+        ref_list = self._ref_list_element()
+        if ref_list is None:
+            return None
+        return ref_list.find(f"{_HH}trackChangeAuthors")
+
+    def find_basic_border_fill_id(self) -> str | None:
+        element = self._border_fills_element()
+        if element is None:
+            return None
+        for child in element.findall(f"{_HH}borderFill"):
+            if _border_fill_is_basic_solid_line(child):
+                identifier = child.get("id")
+                if identifier:
+                    return identifier
+        return None
+
+    def ensure_basic_border_fill(self) -> str:
+        element = self._border_fills_element(create=True)
+        if element is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <borderFills> element")
+
+        existing = self.find_basic_border_fill_id()
+        if existing is not None:
+            return existing
+
+        new_id = self._allocate_border_fill_id(element)
+        new_border_fill = _create_basic_border_fill_element(new_id)
+        if isinstance(element, LET._Element):
+            new_border_fill = LET.fromstring(ET.tostring(new_border_fill, encoding="utf-8"))
+        element.append(new_border_fill)
+        self._update_border_fills_item_count(element)
+        self.mark_dirty()
+        return new_id
+
+    def ensure_shading_border_fill(
+        self,
+        color: str,
+        *,
+        base_border_fill_id: str | int | None = None,
+    ) -> str:
+        element = self._border_fills_element(create=True)
+        if element is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <borderFills> element")
+        face_color = _normalize_color(color) or "none"
+
+        for border_fill in element.findall(f"{_HH}borderFill"):
+            fill_brush = next(
+                (child for child in border_fill if _element_local_name(child) == "fillBrush"),
+                None,
+            )
+            if fill_brush is None:
+                continue
+            win_brush = next(
+                (child for child in fill_brush if _element_local_name(child) == "winBrush"),
+                None,
+            )
+            if win_brush is not None and win_brush.get("faceColor") == face_color:
+                border_id = border_fill.get("id")
+                if border_id:
+                    return border_id
+
+        base_element: ET.Element | None = None
+        if base_border_fill_id is not None:
+            base_element = element.find(f"{_HH}borderFill[@id='{base_border_fill_id}']")
+        if base_element is None:
+            existing_basic = self.find_basic_border_fill_id()
+            if existing_basic is not None:
+                base_element = element.find(f"{_HH}borderFill[@id='{existing_basic}']")
+        new_id = self._allocate_border_fill_id(element)
+        if base_element is None:
+            new_border_fill = _create_basic_border_fill_element(new_id)
+        else:
+            new_border_fill = deepcopy(base_element)
+            new_border_fill.set("id", new_id)
+            for child in list(new_border_fill):
+                if _element_local_name(child) == "fillBrush":
+                    new_border_fill.remove(child)
+
+        fill_brush = new_border_fill.makeelement(f"{_HC}fillBrush", {})
+        _append_child(
+            fill_brush,
+            f"{_HC}winBrush",
+            {"faceColor": face_color, "hatchColor": "#FF000000", "alpha": "0"},
+        )
+        new_border_fill.append(fill_brush)
+        if isinstance(element, LET._Element) and not isinstance(new_border_fill, LET._Element):
+            new_border_fill = LET.fromstring(ET.tostring(new_border_fill, encoding="utf-8"))
+        element.append(new_border_fill)
+        self._update_border_fills_item_count(element)
+        self.mark_dirty()
+        return new_id
+
+    @property
+    def border_fills(self) -> dict[str, GenericElement]:
+        element = self._border_fills_element()
+        if element is None:
+            return {}
+
+        fill_list = parse_border_fills(self._convert_to_lxml(element))
+        mapping: dict[str, GenericElement] = {}
+        for border_fill in fill_list.fills:
+            raw_id = border_fill.attributes.get("id")
+            keys: list[str] = []
+            if raw_id:
+                keys.append(raw_id)
+                try:
+                    normalized = str(int(raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = border_fill
+        return mapping
+
+    def border_fill(self, border_fill_id_ref: int | str | None) -> GenericElement | None:
+        return self._lookup_by_id(self.border_fills, border_fill_id_ref)
+
+    @staticmethod
+    def _convert_to_lxml(element: ET.Element) -> LET._Element:
+        return LET.fromstring(ET.tostring(element, encoding="utf-8"))
+
+    @staticmethod
+    def _lookup_by_id(mapping: dict[str, T], identifier: int | str | None) -> T | None:
+        if identifier is None:
+            return None
+
+        if isinstance(identifier, str):
+            key = identifier.strip()
+        else:
+            key = str(identifier)
+
+        if not key:
+            return None
+
+        value = mapping.get(key)
+        if value is not None:
+            return value
+
+        try:
+            normalized = str(int(key))
+        except (TypeError, ValueError):
+            return None
+        return mapping.get(normalized)
+
+    @property
+    def begin_numbering(self) -> DocumentNumbering:
+        element = self._begin_num_element()
+        if element is None:
+            return DocumentNumbering()
+        return DocumentNumbering(
+            page=_get_int_attr(element, "page", 1),
+            footnote=_get_int_attr(element, "footnote", 1),
+            endnote=_get_int_attr(element, "endnote", 1),
+            picture=_get_int_attr(element, "pic", 1),
+            table=_get_int_attr(element, "tbl", 1),
+            equation=_get_int_attr(element, "equation", 1),
+        )
+
+    def set_begin_numbering(
+        self,
+        *,
+        page: int | None = None,
+        footnote: int | None = None,
+        endnote: int | None = None,
+        picture: int | None = None,
+        table: int | None = None,
+        equation: int | None = None,
+    ) -> None:
+        element = self._begin_num_element(create=True)
+        if element is None:
+            return
+
+        current = self.begin_numbering
+        values = {
+            "page": page if page is not None else current.page,
+            "footnote": footnote if footnote is not None else current.footnote,
+            "endnote": endnote if endnote is not None else current.endnote,
+            "pic": picture if picture is not None else current.picture,
+            "tbl": table if table is not None else current.table,
+            "equation": equation if equation is not None else current.equation,
+        }
+
+        changed = False
+        for attr, value in values.items():
+            safe_value = str(max(value, 0))
+            if element.get(attr) != safe_value:
+                element.set(attr, safe_value)
+                changed = True
+
+        if changed:
+            self.mark_dirty()
+
+    @property
+    def memo_shapes(self) -> dict[str, MemoShape]:
+        memo_props_element = self._memo_properties_element()
+        if memo_props_element is None:
+            return {}
+
+        memo_shapes = [
+            memo_shape_from_attributes(child.attrib)
+            for child in memo_props_element.findall(f"{_HH}memoPr")
+        ]
+        memo_properties = MemoProperties(
+            item_cnt=parse_int(memo_props_element.get("itemCnt")),
+            memo_shapes=memo_shapes,
+            attributes={
+                key: value
+                for key, value in memo_props_element.attrib.items()
+                if key != "itemCnt"
+            },
+        )
+        return memo_properties.as_dict()
+
+    def memo_shape(self, memo_shape_id_ref: int | str | None) -> MemoShape | None:
+        if memo_shape_id_ref is None:
+            return None
+
+        if isinstance(memo_shape_id_ref, str):
+            key = memo_shape_id_ref.strip()
+        else:
+            key = str(memo_shape_id_ref)
+
+        if not key:
+            return None
+
+        shapes = self.memo_shapes
+        shape = shapes.get(key)
+        if shape is not None:
+            return shape
+
+        try:
+            normalized = str(int(key))
+        except (TypeError, ValueError):
+            return None
+        return shapes.get(normalized)
+
+    @property
+    def bullets(self) -> dict[str, Bullet]:
+        bullets_element = self._bullets_element()
+        if bullets_element is None:
+            return {}
+
+        bullet_list = parse_bullets(self._convert_to_lxml(bullets_element))
+        return bullet_list.as_dict()
+
+    def bullet(self, bullet_id_ref: int | str | None) -> Bullet | None:
+        return self._lookup_by_id(self.bullets, bullet_id_ref)
+
+    @property
+    def paragraph_properties(self) -> dict[str, ParagraphProperty]:
+        para_props_element = self._para_properties_element()
+        if para_props_element is None:
+            return {}
+
+        para_properties = parse_paragraph_properties(
+            self._convert_to_lxml(para_props_element)
+        )
+        return para_properties.as_dict()
+
+    def paragraph_property(
+        self, para_pr_id_ref: int | str | None
+    ) -> ParagraphProperty | None:
+        return self._lookup_by_id(self.paragraph_properties, para_pr_id_ref)
+
+    @property
+    def styles(self) -> dict[str, Style]:
+        styles_element = self._styles_element()
+        if styles_element is None:
+            return {}
+
+        style_list = parse_styles(self._convert_to_lxml(styles_element))
+        return style_list.as_dict()
+
+    def style(self, style_id_ref: int | str | None) -> Style | None:
+        return self._lookup_by_id(self.styles, style_id_ref)
+
+    @property
+    def track_changes(self) -> dict[str, TrackChange]:
+        changes_element = self._track_changes_element()
+        if changes_element is None:
+            return {}
+
+        change_list = parse_track_changes(self._convert_to_lxml(changes_element))
+        return change_list.as_dict()
+
+    def track_change(self, change_id_ref: int | str | None) -> TrackChange | None:
+        return self._lookup_by_id(self.track_changes, change_id_ref)
+
+    @property
+    def track_change_authors(self) -> dict[str, TrackChangeAuthor]:
+        authors_element = self._track_change_authors_element()
+        if authors_element is None:
+            return {}
+
+        author_list = parse_track_change_authors(
+            self._convert_to_lxml(authors_element)
+        )
+        return author_list.as_dict()
+
+    def track_change_author(
+        self, author_id_ref: int | str | None
+    ) -> TrackChangeAuthor | None:
+        return self._lookup_by_id(self.track_change_authors, author_id_ref)
+
+    @property
+    def dirty(self) -> bool:
+        return self._dirty
+
+    def mark_dirty(self) -> None:
+        self._dirty = True
+
+    def reset_dirty(self) -> None:
+        self._dirty = False
+
+    # ------------------------------------------------------------------
+    # BinData / Image management
+    # ------------------------------------------------------------------
+
+    def _bin_data_list_element(self, create: bool = False) -> ET.Element | None:
+        """Return the ``<hh:binDataList>`` element inside ``<hh:refList>``."""
+
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        element = ref_list.find(f"{_HH}binDataList")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}binDataList", {"itemCnt": "0"})
+            ref_list.append(element)
+            self.mark_dirty()
+        return element
+
+    def _update_bin_data_list_count(self, bin_data_list: ET.Element) -> None:
+        count = len(list(bin_data_list.findall(f"{_HH}binItem")))
+        bin_data_list.set("itemCnt", str(count))
+
+    def _allocate_bin_item_id(self, bin_data_list: ET.Element) -> str:
+        """Return the next available numeric id for a ``<hh:binItem>``."""
+
+        existing: set[int] = set()
+        for child in bin_data_list.findall(f"{_HH}binItem"):
+            raw = child.get("id")
+            if raw is not None:
+                try:
+                    existing.add(int(raw))
+                except ValueError:
+                    pass
+        next_id = 0 if not existing else max(existing) + 1
+        return str(next_id)
+
+    def add_bin_item(
+        self,
+        *,
+        item_type: str = "Embedding",
+        bin_data_id: str | None = None,
+        format: str | None = None,
+        a_path: str | None = None,
+        r_path: str | None = None,
+    ) -> tuple[str, ET.Element]:
+        """Add a ``<hh:binItem>`` and return ``(id, element)``.
+
+        For embedded images *bin_data_id* should be the ``BIN0001.jpg``-style
+        identifier stored in the ZIP and *format* should be the image format
+        extension (``jpg``, ``png``, …).
+        """
+
+        bin_data_list = self._bin_data_list_element(create=True)
+        if bin_data_list is None:  # pragma: no cover
+            raise RuntimeError("failed to create <binDataList> element")
+
+        item_id = self._allocate_bin_item_id(bin_data_list)
+
+        attrs: dict[str, str] = {"id": item_id, "Type": item_type}
+        if bin_data_id is not None:
+            attrs["BinData"] = bin_data_id
+        if format is not None:
+            attrs["Format"] = format
+        if a_path is not None:
+            attrs["APath"] = a_path
+        if r_path is not None:
+            attrs["RPath"] = r_path
+
+        element = bin_data_list.makeelement(f"{_HH}binItem", attrs)
+        bin_data_list.append(element)
+        self._update_bin_data_list_count(bin_data_list)
+        self.mark_dirty()
+        return item_id, element
+
+    def list_bin_items(self) -> list[dict[str, str]]:
+        """Return a list of dicts describing each ``<hh:binItem>``."""
+
+        bin_data_list = self._bin_data_list_element()
+        if bin_data_list is None:
+            return []
+        items: list[dict[str, str]] = []
+        for child in bin_data_list.findall(f"{_HH}binItem"):
+            items.append(dict(child.attrib))
+        return items
+
+    def remove_bin_item(self, item_id: str | int) -> bool:
+        """Remove a ``<hh:binItem>`` by ID.  Returns ``True`` if removed."""
+
+        bin_data_list = self._bin_data_list_element()
+        if bin_data_list is None:
+            return False
+        target_id = str(item_id)
+        for child in bin_data_list.findall(f"{_HH}binItem"):
+            if child.get("id") == target_id:
+                bin_data_list.remove(child)
+                self._update_bin_data_list_count(bin_data_list)
+                self.mark_dirty()
+                return True
+        return False
+
+    def to_bytes(self) -> bytes:
+        return _serialize_xml(self._element)
+
+
+class HwpxOxmlDocument:
+    """Aggregates the XML parts that make up an HWPX document."""
+
+    def __init__(
+        self,
+        manifest: ET.Element,
+        sections: Sequence[HwpxOxmlSection],
+        headers: Sequence[HwpxOxmlHeader],
+        *,
+        master_pages: Sequence[HwpxOxmlMasterPage] | None = None,
+        histories: Sequence[HwpxOxmlHistory] | None = None,
+        version: HwpxOxmlVersion | None = None,
+        manifest_path: str = "Contents/content.hpf",
+    ):
+        self._manifest_path = manifest_path
+        self._manifest = manifest
+        self._sections = list(sections)
+        self._headers = list(headers)
+        self._master_pages = list(master_pages or [])
+        self._histories = list(histories or [])
+        self._version = version
+        self._char_property_cache: dict[str, RunStyle] | None = None
+        self._manifest_dirty = False
+
+        for section in self._sections:
+            section.attach_document(self)
+        for header in self._headers:
+            header.attach_document(self)
+        for master_page in self._master_pages:
+            master_page.attach_document(self)
+        for history in self._histories:
+            history.attach_document(self)
+        if self._version is not None:
+            self._version.attach_document(self)
+
+    @classmethod
+    def from_package(cls, package: "HwpxPackage") -> "HwpxOxmlDocument":
+        from hwpx.opc.package import HwpxPackage  # Local import to avoid cycle during typing
+
+        if not isinstance(package, HwpxPackage):
+            raise TypeError("package must be an instance of HwpxPackage")
+
+        manifest = package.manifest_tree()
+        section_paths = package.section_paths()
+        header_paths = package.header_paths()
+        master_page_paths = package.master_page_paths()
+        history_paths = package.history_paths()
+        version_path = package.version_path()
+
+        sections: list[HwpxOxmlSection] = []
+        for section_index, path in enumerate(section_paths):
+            try:
+                sections.append(HwpxOxmlSection(path, package.get_xml(path)))
+            except Exception:
+                logger.exception(
+                    "section 파싱 실패: section_index=%d, part_path=%s",
+                    section_index,
+                    path,
+                )
+                raise
+
+        headers: list[HwpxOxmlHeader] = []
+        for path in header_paths:
+            try:
+                headers.append(HwpxOxmlHeader(path, package.get_xml(path)))
+            except Exception:
+                logger.exception("header 파싱 실패: part_path=%s", path)
+                raise
+
+        master_pages: list[HwpxOxmlMasterPage] = []
+        for path in master_page_paths:
+            if not package.has_part(path):
+                logger.warning("masterPage 파트 누락: part_path=%s", path)
+                continue
+            try:
+                master_pages.append(HwpxOxmlMasterPage(path, package.get_xml(path)))
+            except Exception:
+                logger.exception("masterPage 파싱 실패: part_path=%s", path)
+                raise
+
+        histories: list[HwpxOxmlHistory] = []
+        for path in history_paths:
+            if not package.has_part(path):
+                logger.warning("history 파트 누락: part_path=%s", path)
+                continue
+            try:
+                histories.append(HwpxOxmlHistory(path, package.get_xml(path)))
+            except Exception:
+                logger.exception("history 파싱 실패: part_path=%s", path)
+                raise
+
+        version = None
+        if version_path and package.has_part(version_path):
+            try:
+                version = HwpxOxmlVersion(version_path, package.get_xml(version_path))
+            except Exception:
+                logger.exception("version 파싱 실패: part_path=%s", version_path)
+                raise
+        elif version_path:
+            logger.warning("manifest가 가리키는 version 파트가 누락되었습니다: part_path=%s", version_path)
+        return cls(
+            manifest,
+            sections,
+            headers,
+            master_pages=master_pages,
+            histories=histories,
+            version=version,
+            manifest_path=package.main_content.full_path,
+        )
+
+    @property
+    def manifest(self) -> ET.Element:
+        return self._manifest
+
+    @property
+    def sections(self) -> list[HwpxOxmlSection]:
+        return list(self._sections)
+
+    @property
+    def headers(self) -> list[HwpxOxmlHeader]:
+        return list(self._headers)
+
+    @property
+    def master_pages(self) -> list[HwpxOxmlMasterPage]:
+        return list(self._master_pages)
+
+    @property
+    def histories(self) -> list[HwpxOxmlHistory]:
+        return list(self._histories)
+
+    @property
+    def version(self) -> HwpxOxmlVersion | None:
+        return self._version
+
+    def _ensure_char_property_cache(self) -> dict[str, RunStyle]:
+        if self._char_property_cache is None:
+            mapping: dict[str, RunStyle] = {}
+            for header in self._headers:
+                mapping.update(_char_properties_from_header(header.element))
+            self._char_property_cache = mapping
+        return self._char_property_cache
+
+    def invalidate_char_property_cache(self) -> None:
+        self._char_property_cache = None
+
+    @property
+    def char_properties(self) -> dict[str, RunStyle]:
+        return dict(self._ensure_char_property_cache())
+
+    def char_property(self, char_pr_id_ref: int | str | None) -> RunStyle | None:
+        if char_pr_id_ref is None:
+            return None
+        key = str(char_pr_id_ref).strip()
+        if not key:
+            return None
+        cache = self._ensure_char_property_cache()
+        style = cache.get(key)
+        if style is not None:
+            return style
+        try:
+            normalized = str(int(key))
+        except (TypeError, ValueError):
+            return None
+        return cache.get(normalized)
+
+    def ensure_run_style(
+        self,
+        *,
+        bold: bool = False,
+        italic: bool = False,
+        underline: bool = False,
+        color: str | None = None,
+        font: str | None = None,
+        size: int | float | None = None,
+        highlight: str | None = None,
+        strike: bool | None = None,
+        base_char_pr_id: str | int | None = None,
+    ) -> str:
+        """Return a char property identifier matching the requested flags."""
+
+        if not self._headers:
+            raise ValueError("document does not contain any headers")
+
+        header = self._headers[0]
+        target = (bool(bold), bool(italic), bool(underline))
+        target_color = _normalize_color(color)
+        target_highlight = _normalize_color(highlight)
+        target_height = _char_height_from_points(size)
+        target_font_ref = header.font_ref_for_face(font) if font is not None else None
+
+        def element_flags(element: ET.Element) -> tuple[bool, bool, bool]:
+            bold_present = element.find(f"{_HH}bold") is not None
+            italic_present = element.find(f"{_HH}italic") is not None
+            underline_element = element.find(f"{_HH}underline")
+            underline_present = False
+            if underline_element is not None:
+                underline_present = underline_element.get("type", "").upper() != "NONE"
+            return bold_present, italic_present, underline_present
+
+        def element_strike(element: ET.Element) -> bool:
+            strike_element = element.find(f"{_HH}strikeout")
+            if strike_element is None:
+                return False
+            return strike_element.get("shape", "").upper() != "NONE"
+
+        def predicate(element: ET.Element) -> bool:
+            if element_flags(element) != target:
+                return False
+            if target_color is not None and element.get("textColor") != target_color:
+                return False
+            if target_highlight is not None and element.get("shadeColor") != target_highlight:
+                return False
+            if target_height is not None and element.get("height") != target_height:
+                return False
+            if strike is not None and element_strike(element) != bool(strike):
+                return False
+            if target_font_ref is not None:
+                font_ref = element.find(f"{_HH}fontRef")
+                if font_ref is None:
+                    return False
+                if {key: font_ref.get(key, "") for key in _FONT_REF_ATTRIBUTES} != target_font_ref:
+                    return False
+            return True
+
+        def modifier(element: ET.Element) -> None:
+            underline_nodes = list(element.findall(f"{_HH}underline"))
+            base_underline_attrs = dict(underline_nodes[0].attrib) if underline_nodes else {}
+            strike_nodes = list(element.findall(f"{_HH}strikeout"))
+            base_strike_attrs = dict(strike_nodes[0].attrib) if strike_nodes else {}
+
+            for child in list(element.findall(f"{_HH}bold")):
+                element.remove(child)
+            for child in list(element.findall(f"{_HH}italic")):
+                element.remove(child)
+            for child in underline_nodes:
+                element.remove(child)
+            for child in strike_nodes:
+                element.remove(child)
+
+            if target_color is not None:
+                element.set("textColor", target_color)
+            if target_highlight is not None:
+                element.set("shadeColor", target_highlight)
+            if target_height is not None:
+                element.set("height", target_height)
+            if target_font_ref is not None:
+                font_ref = element.find(f"{_HH}fontRef")
+                if font_ref is None:
+                    font_ref = element.makeelement(f"{_HH}fontRef", {})
+                    element.insert(0, font_ref)
+                for attr_name in list(font_ref.attrib.keys()):
+                    if attr_name not in _FONT_REF_ATTRIBUTES:
+                        del font_ref.attrib[attr_name]
+                for attr_name, attr_value in target_font_ref.items():
+                    font_ref.set(attr_name, attr_value)
+
+            if target[0]:
+                _append_child(element, f"{_HH}bold")
+            if target[1]:
+                _append_child(element, f"{_HH}italic")
+
+            underline_attrs = dict(base_underline_attrs)
+            if target[2]:
+                underline_attrs.setdefault("type", "SOLID")
+                if underline_attrs.get("type", "").upper() == "NONE":
+                    underline_attrs["type"] = "SOLID"
+                underline_attrs.setdefault("shape", base_underline_attrs.get("shape", "SOLID"))
+                if "color" not in underline_attrs and "color" in base_underline_attrs:
+                    underline_attrs["color"] = base_underline_attrs["color"]
+                if "color" not in underline_attrs:
+                    underline_attrs["color"] = "#000000"
+                _append_child(element, f"{_HH}underline", underline_attrs)
+            else:
+                attrs = dict(base_underline_attrs)
+                attrs["type"] = "NONE"
+                attrs.setdefault("shape", base_underline_attrs.get("shape", "SOLID"))
+                if "color" in base_underline_attrs:
+                    attrs["color"] = base_underline_attrs["color"]
+                _append_child(element, f"{_HH}underline", attrs)
+            if strike is not None:
+                strike_attrs = dict(base_strike_attrs)
+                strike_attrs["shape"] = "SOLID" if strike else "NONE"
+                strike_attrs.setdefault("color", base_strike_attrs.get("color", "#000000"))
+                _append_child(element, f"{_HH}strikeout", strike_attrs)
+
+        element = header.ensure_char_property(
+            predicate=predicate,
+            modifier=modifier,
+            base_char_pr_id=base_char_pr_id,
+        )
+
+        char_id = element.get("id")
+        if char_id is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("charPr element is missing an id")
+        return char_id
+
+    @property
+    def border_fills(self) -> dict[str, GenericElement]:
+        mapping: dict[str, GenericElement] = {}
+        for header in self._headers:
+            mapping.update(header.border_fills)
+        return mapping
+
+    def border_fill(self, border_fill_id_ref: int | str | None) -> GenericElement | None:
+        return HwpxOxmlHeader._lookup_by_id(self.border_fills, border_fill_id_ref)
+
+    def ensure_basic_border_fill(self) -> str:
+        if not self._headers:
+            return "0"
+
+        for header in self._headers:
+            existing = header.find_basic_border_fill_id()
+            if existing is not None:
+                return existing
+
+        return self._headers[0].ensure_basic_border_fill()
+
+    def ensure_shading_border_fill(
+        self,
+        color: str,
+        *,
+        base_border_fill_id: str | int | None = None,
+    ) -> str:
+        if not self._headers:
+            return "0"
+        return self._headers[0].ensure_shading_border_fill(
+            color,
+            base_border_fill_id=base_border_fill_id,
+        )
+
+    @property
+    def memo_shapes(self) -> dict[str, MemoShape]:
+        shapes: dict[str, MemoShape] = {}
+        for header in self._headers:
+            shapes.update(header.memo_shapes)
+        return shapes
+
+    def memo_shape(self, memo_shape_id_ref: int | str | None) -> MemoShape | None:
+        if memo_shape_id_ref is None:
+            return None
+        key = str(memo_shape_id_ref).strip()
+        if not key:
+            return None
+        shapes = self.memo_shapes
+        shape = shapes.get(key)
+        if shape is not None:
+            return shape
+        try:
+            normalized = str(int(key))
+        except (TypeError, ValueError):
+            return None
+        return shapes.get(normalized)
+
+    @property
+    def bullets(self) -> dict[str, Bullet]:
+        mapping: dict[str, Bullet] = {}
+        for header in self._headers:
+            mapping.update(header.bullets)
+        return mapping
+
+    def bullet(self, bullet_id_ref: int | str | None) -> Bullet | None:
+        return HwpxOxmlHeader._lookup_by_id(self.bullets, bullet_id_ref)
+
+    @property
+    def paragraph_properties(self) -> dict[str, ParagraphProperty]:
+        mapping: dict[str, ParagraphProperty] = {}
+        for header in self._headers:
+            mapping.update(header.paragraph_properties)
+        return mapping
+
+    def paragraph_property(
+        self, para_pr_id_ref: int | str | None
+    ) -> ParagraphProperty | None:
+        return HwpxOxmlHeader._lookup_by_id(self.paragraph_properties, para_pr_id_ref)
+
+    def ensure_numbering(
+        self,
+        *,
+        kind: str,
+        levels: Sequence[dict[str, str]] | None = None,
+    ) -> list[str]:
+        if not self._headers:
+            raise ValueError("document does not contain any headers")
+        return self._headers[0].ensure_numbering(kind=kind, levels=levels)
+
+    @property
+    def styles(self) -> dict[str, Style]:
+        mapping: dict[str, Style] = {}
+        for header in self._headers:
+            mapping.update(header.styles)
+        return mapping
+
+    def style(self, style_id_ref: int | str | None) -> Style | None:
+        return HwpxOxmlHeader._lookup_by_id(self.styles, style_id_ref)
+
+    def _style_name_id_map(self) -> dict[str, str]:
+        """Return unique style name/engName aliases that resolve to numeric ids."""
+
+        aliases: dict[str, str] = {}
+        conflicts: set[str] = set()
+        for header in self._headers:
+            for style in header.element.iter():
+                if _element_local_name(style) != "style":
+                    continue
+                style_id = style.get("id")
+                if not _is_integer_literal(style_id):
+                    continue
+                resolved_id = style_id.strip()
+                for attr_name in ("name", "engName"):
+                    alias = (style.get(attr_name) or "").strip()
+                    if not alias:
+                        continue
+                    existing = aliases.get(alias)
+                    if existing is not None and existing != resolved_id:
+                        conflicts.add(alias)
+                        continue
+                    aliases[alias] = resolved_id
+
+        for alias in conflicts:
+            aliases.pop(alias, None)
+        return aliases
+
+    def _normalize_named_style_references(self) -> int:
+        """Convert paragraph ``styleIDRef`` names to ids when headers define them."""
+
+        style_ids_by_name = self._style_name_id_map()
+        if not style_ids_by_name:
+            return 0
+
+        replacements = 0
+        for section in self._sections:
+            section_replacements = 0
+            for paragraph in section.element.iter():
+                if _element_local_name(paragraph) != "p":
+                    continue
+                style_id_ref = paragraph.get("styleIDRef")
+                if style_id_ref is None or _is_integer_literal(style_id_ref):
+                    continue
+                replacement = style_ids_by_name.get(style_id_ref.strip())
+                if replacement is None:
+                    continue
+                if style_id_ref != replacement:
+                    paragraph.set("styleIDRef", replacement)
+                    section_replacements += 1
+            if section_replacements:
+                section.mark_dirty()
+                replacements += section_replacements
+        return replacements
+
+    @property
+    def track_changes(self) -> dict[str, TrackChange]:
+        mapping: dict[str, TrackChange] = {}
+        for header in self._headers:
+            mapping.update(header.track_changes)
+        return mapping
+
+    def track_change(self, change_id_ref: int | str | None) -> TrackChange | None:
+        return HwpxOxmlHeader._lookup_by_id(self.track_changes, change_id_ref)
+
+    @property
+    def track_change_authors(self) -> dict[str, TrackChangeAuthor]:
+        mapping: dict[str, TrackChangeAuthor] = {}
+        for header in self._headers:
+            mapping.update(header.track_change_authors)
+        return mapping
+
+    def track_change_author(
+        self, author_id_ref: int | str | None
+    ) -> TrackChangeAuthor | None:
+        return HwpxOxmlHeader._lookup_by_id(self.track_change_authors, author_id_ref)
+
+    @property
+    def paragraphs(self) -> list[HwpxOxmlParagraph]:
+        paragraphs: list[HwpxOxmlParagraph] = []
+        for section in self._sections:
+            paragraphs.extend(section.paragraphs)
+        return paragraphs
+
+    def add_paragraph(
+        self,
+        text: str = "",
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        para_pr_id_ref: str | int | None = None,
+        style_id_ref: str | int | None = None,
+        char_pr_id_ref: str | int | None = None,
+        run_attributes: dict[str, str] | None = None,
+        include_run: bool = True,
+        inherit_style: bool = True,
+        **extra_attrs: str,
+    ) -> HwpxOxmlParagraph:
+        """Append a new paragraph to the requested section."""
+        if section is None and section_index is not None:
+            section = self._sections[section_index]
+        if section is None:
+            if not self._sections:
+                raise ValueError("document does not contain any sections")
+            section = self._sections[-1]
+        return section.add_paragraph(
+            text,
+            para_pr_id_ref=para_pr_id_ref,
+            style_id_ref=style_id_ref,
+            char_pr_id_ref=char_pr_id_ref,
+            run_attributes=run_attributes,
+            include_run=include_run,
+            inherit_style=inherit_style,
+            **extra_attrs,
+        )
+
+    def remove_paragraph(
+        self,
+        paragraph: HwpxOxmlParagraph | int,
+        *,
+        section: "HwpxOxmlSection | None" = None,
+        section_index: int | None = None,
+    ) -> None:
+        """Remove *paragraph* from the document.
+
+        When *paragraph* is an integer it is treated as an index into the
+        paragraphs of the specified (or last) section.
+        """
+        if isinstance(paragraph, int):
+            if section is None and section_index is not None:
+                section = self._sections[section_index]
+            if section is None:
+                if not self._sections:
+                    raise ValueError("document does not contain any sections")
+                section = self._sections[-1]
+            section.remove_paragraph(paragraph)
+        else:
+            paragraph.remove()
+
+    def copy_paragraph_range(
+        self,
+        start: int,
+        end: int,
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> list[ET.Element]:
+        """Return deep-copied paragraph elements for an inclusive range."""
+
+        if section is None and section_index is not None:
+            section = self._sections[section_index]
+        if section is None:
+            if not self._sections:
+                raise ValueError("document does not contain any sections")
+            section = self._sections[-1]
+        return section.copy_paragraph_range(start, end)
+
+    def insert_paragraphs(
+        self,
+        index: int,
+        paragraphs: Sequence[HwpxOxmlParagraph | ET.Element],
+        *,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> list[HwpxOxmlParagraph]:
+        """Insert copied paragraphs into the requested section."""
+
+        if section is None and section_index is not None:
+            section = self._sections[section_index]
+        if section is None:
+            if not self._sections:
+                raise ValueError("document does not contain any sections")
+            section = self._sections[-1]
+        return section.insert_paragraphs(index, paragraphs)
+
+    # ------------------------------------------------------------------
+    # Section management
+    # ------------------------------------------------------------------
+
+    def add_section(self, *, after: int | None = None) -> HwpxOxmlSection:
+        """Append a new empty section to the document.
+
+        If *after* is given, the section is inserted after the section at
+        that index. Otherwise it is appended at the end.
+
+        Returns the newly created :class:`HwpxOxmlSection`.
+        """
+        # Determine part name
+        existing_indices: list[int] = []
+        for sec in self._sections:
+            import re as _section_re
+            m = _section_re.search(r'section(\d+)', sec.part_name)
+            if m:
+                existing_indices.append(int(m.group(1)))
+        next_index = (max(existing_indices) + 1) if existing_indices else 0
+        section_id = f"section{next_index}"
+        part_name = f"Contents/{section_id}.xml"
+
+        # Build minimal section XML
+        section_element = ET.Element(f"{_HS}sec")
+        para_attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
+        para = ET.SubElement(section_element, f"{_HP}p", para_attrs)
+        run = ET.SubElement(para, f"{_HP}run", {"charPrIDRef": "0"})
+        ET.SubElement(run, f"{_HP}t")
+
+        new_section = HwpxOxmlSection(part_name, section_element, self)
+
+        if after is not None:
+            insert_pos = min(after + 1, len(self._sections))
+            self._sections.insert(insert_pos, new_section)
+        else:
+            self._sections.append(new_section)
+
+        # Update manifest: add <opf:item> and <opf:itemref>
+        self._add_section_to_manifest(section_id, part_name)
+
+        new_section.mark_dirty()
+        return new_section
+
+    def remove_section(
+        self, section: "HwpxOxmlSection | int",
+    ) -> None:
+        """Remove a section from the document.
+
+        Accepts either a :class:`HwpxOxmlSection` or an integer index.
+        Raises ``ValueError`` if the document would be left with no sections.
+        """
+        if len(self._sections) <= 1:
+            raise ValueError(
+                "문서에는 최소 하나의 섹션이 필요합니다. 마지막 섹션은 삭제할 수 없습니다."
+            )
+        if isinstance(section, int):
+            if section < 0 or section >= len(self._sections):
+                raise IndexError(
+                    f"섹션 인덱스 {section}이(가) 범위를 벗어났습니다 (총 {len(self._sections)}개)"
+                )
+            removed = self._sections.pop(section)
+        else:
+            try:
+                self._sections.remove(section)
+                removed = section
+            except ValueError:
+                raise ValueError("해당 섹션이 이 문서에 속하지 않습니다.") from None
+
+        # Update manifest: remove <opf:item> and <opf:itemref>
+        self._remove_section_from_manifest(removed.part_name)
+
+    # ------------------------------------------------------------------
+    # Manifest helpers (private)
+    # ------------------------------------------------------------------
+
+    _OPF_NS = "http://www.idpf.org/2007/opf/"
+
+    def _add_section_to_manifest(self, section_id: str, href: str) -> None:
+        """Add an ``<opf:item>`` + ``<opf:itemref>`` for a new section."""
+        ns = {"opf": self._OPF_NS}
+        manifest_el = self._manifest.find("opf:manifest", ns)
+        spine_el = self._manifest.find("opf:spine", ns)
+        if manifest_el is not None:
+            item = manifest_el.makeelement(
+                f"{{{self._OPF_NS}}}item",
+                {"id": section_id, "href": href, "media-type": "application/xml"},
+            )
+            manifest_el.append(item)
+        if spine_el is not None:
+            itemref = spine_el.makeelement(
+                f"{{{self._OPF_NS}}}itemref",
+                {"idref": section_id, "linear": "yes"},
+            )
+            spine_el.append(itemref)
+        self._manifest_dirty = True
+
+    def _remove_section_from_manifest(self, part_name: str) -> None:
+        """Remove the ``<opf:item>`` + ``<opf:itemref>`` for a deleted section."""
+        ns = {"opf": self._OPF_NS}
+        manifest_el = self._manifest.find("opf:manifest", ns)
+        spine_el = self._manifest.find("opf:spine", ns)
+
+        # Find the item by href
+        target_id: str | None = None
+        if manifest_el is not None:
+            for item in manifest_el.findall("opf:item", ns):
+                if item.get("href") == part_name:
+                    target_id = item.get("id")
+                    manifest_el.remove(item)
+                    break
+
+        if target_id and spine_el is not None:
+            for itemref in spine_el.findall("opf:itemref", ns):
+                if itemref.get("idref") == target_id:
+                    spine_el.remove(itemref)
+                    break
+        self._manifest_dirty = True
+
+    def serialize(self) -> dict[str, bytes]:
+        """Return a mapping of part names to updated XML payloads."""
+        updates: dict[str, bytes] = {}
+        self._normalize_named_style_references()
+        if self._manifest_dirty:
+            updates[self._manifest_path] = _serialize_xml(self._manifest)
+        for section in self._sections:
+            if section.dirty:
+                section.remove_layout_caches()
+            else:
+                section.remove_stale_layout_caches()
+        for section in self._sections:
+            if section.dirty:
+                updates[section.part_name] = section.to_bytes()
+        headers_dirty = False
+        for header in self._headers:
+            if header.dirty:
+                updates[header.part_name] = header.to_bytes()
+                headers_dirty = True
+        if headers_dirty:
+            self.invalidate_char_property_cache()
+        for master_page in self._master_pages:
+            if master_page.dirty:
+                updates[master_page.part_name] = master_page.to_bytes()
+        for history in self._histories:
+            if history.dirty:
+                updates[history.part_name] = history.to_bytes()
+        if self._version is not None and self._version.dirty:
+            updates[self._version.part_name] = self._version.to_bytes()
+        return updates
+
+    def reset_dirty(self) -> None:
+        """Mark all parts as clean after a successful save."""
+        self._manifest_dirty = False
+        for section in self._sections:
+            section.reset_dirty()
+        for header in self._headers:
+            header.reset_dirty()
+        for master_page in self._master_pages:
+            master_page.reset_dirty()
+        for history in self._histories:
+            history.reset_dirty()
+        if self._version is not None:
+            self._version.reset_dirty()

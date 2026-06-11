@@ -18,31 +18,19 @@ from .body import (
 from .common import GenericElement, parse_generic_element
 
 from .header_part import HwpxOxmlHeader
-from .memo import HwpxOxmlMemo
+from .memo import HwpxOxmlMemo, HwpxOxmlMemoGroup, HwpxOxmlNote
+from .numbering import DocumentNumbering, SectionStartNumbering
+from .objects import HwpxOxmlInlineObject, HwpxOxmlShape
 from .paragraph import HwpxOxmlParagraph
-from .section import HwpxOxmlSection
-from .table import HwpxOxmlTable
+from .run import HwpxOxmlRun, RunStyle
+from .section import HwpxOxmlSection, HwpxOxmlSectionHeaderFooter, HwpxOxmlSectionProperties
+from .simple_parts import HwpxOxmlHistory, HwpxOxmlMasterPage, HwpxOxmlVersion
+from .table import HwpxOxmlTable, HwpxOxmlTableCell, HwpxOxmlTableRow, HwpxTableGridPosition
 
 from .document import (
-    DocumentNumbering,
     HwpxOxmlDocument,
-    HwpxOxmlHistory,
-    HwpxOxmlInlineObject,
-    HwpxOxmlMasterPage,
-    HwpxOxmlMemoGroup,
-    HwpxOxmlNote,
-    HwpxOxmlRun,
-    HwpxOxmlSectionHeaderFooter,
-    HwpxOxmlSectionProperties,
-    HwpxOxmlShape,
-    HwpxOxmlTableCell,
-    HwpxTableGridPosition,
-    HwpxOxmlTableRow,
-    HwpxOxmlVersion,
     PageMargins,
     PageSize,
-    RunStyle,
-    SectionStartNumbering,
 )
 
 from .header import (
@@ -220,4 +208,3 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
-

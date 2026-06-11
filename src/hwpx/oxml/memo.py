@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import logging
-from .document import HwpxOxmlMemo
+from ._document_impl import HwpxOxmlMemo, HwpxOxmlMemoGroup, HwpxOxmlNote
 
-__all__ = ["HwpxOxmlMemo"]
+__all__ = ["HwpxOxmlMemo", "HwpxOxmlMemoGroup", "HwpxOxmlNote"]
 
 logger = logging.getLogger(__name__)

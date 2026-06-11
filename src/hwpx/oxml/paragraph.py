@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from .document import HwpxOxmlParagraph
+from ._document_impl import HwpxOxmlParagraph
 
 __all__ = ["HwpxOxmlParagraph"]
 
