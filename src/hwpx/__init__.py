@@ -25,6 +25,10 @@ from .tools.text_extractor import (
     TextExtractor,
 )
 from .tools.object_finder import FoundElement, ObjectFinder
+from .tools.official_lint import (
+    OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION,
+    inspect_official_document_style,
+)
 from .tools.package_validator import (
     EditorOpenSafetyReport,
     PackageValidationReport,
@@ -60,6 +64,7 @@ from .authoring import (
     normalize_document_plan,
     validate_document_plan,
 )
+from .builder import approval_box
 from .template_formfit import (
     TEMPLATE_FORMFIT_BASELINE_SCHEMA_VERSION,
     TEMPLATE_FORMFIT_PLAN_SCHEMA_VERSION,
@@ -92,13 +97,16 @@ __all__ = [
     "TextExtractor",
     "FoundElement",
     "ObjectFinder",
+    "OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION",
     "PlanValidationIssue",
     "HwpxDocument",
     "HwpxPackage",
     "create_document_from_plan",
     "analyze_template_formfit",
     "apply_template_formfit",
+    "approval_box",
     "inspect_document_authoring_quality",
+    "inspect_official_document_style",
     "inspect_operating_plan_quality",
     "normalize_document_plan",
     "validate_document_plan",

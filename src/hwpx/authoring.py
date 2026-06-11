@@ -26,6 +26,7 @@ from .builder import (
     Run as BuilderRun,
     Section as BuilderSection,
     Table as BuilderTable,
+    approval_box as BuilderApprovalBox,
 )
 from .builder.core import Toc as BuilderToc
 from .document import HwpxDocument
@@ -606,6 +607,8 @@ def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue
         "toc",
         "page_break",
         "pageBreak",
+        "approval_box",
+        "approvalBox",
     }
     if block_type not in supported:
         return [
@@ -672,6 +675,10 @@ def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue
             if isinstance(row, (list, tuple)):
                 for col_index, value in enumerate(row):
                     issues.extend(_computed_field_issues(value, path=f"{path}.rows[{row_index}][{col_index}]"))
+    elif block_type in {"approval_box", "approvalBox"}:
+        for label_index, label in enumerate(raw_block.get("labels") or []):
+            issues.extend(_computed_field_issues(label, path=f"{path}.labels[{label_index}]"))
+        issues.extend(_computed_field_issues(raw_block.get("delegated"), path=f"{path}.delegated"))
     elif block_type == "toc":
         issues.extend(_computed_field_issues(raw_block.get("title"), path=f"{path}.title"))
         for entry_index, entry in enumerate(raw_block.get("entries") or []):
@@ -1454,6 +1461,21 @@ def _normalize_v2_block(raw_block: Any, *, path: str) -> Any:
                 _optional_number(item) or 0
                 for item in raw_block.get("columnWidths", raw_block.get("column_widths")) or ()
             ),
+        )
+    if block_type in {"approval_box", "approvalBox"}:
+        labels = tuple(replace_computed_fields(str(item)) for item in _string_list(raw_block.get("labels")))
+        return BuilderApprovalBox(
+            labels=labels or None,
+            approver_rows=_int_value(
+                raw_block.get("approverRows", raw_block.get("approver_rows")),
+                default=2,
+            ),
+            delegated=(
+                replace_computed_fields(str(raw_block.get("delegated")))
+                if raw_block.get("delegated") is not None
+                else None
+            ),
+            header_shading=str(raw_block.get("headerShading", raw_block.get("header_shading")) or "EAF1FB"),
         )
     if block_type == "image":
         return BuilderImage(

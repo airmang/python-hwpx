@@ -362,6 +362,50 @@ class Table:
             table.set_column_widths(self.column_widths)
 
 
+def approval_box(
+    *,
+    labels: Sequence[str] | None = None,
+    approver_rows: int = 2,
+    delegated: str | None = None,
+    header_shading: str = "EAF1FB",
+) -> Table:
+    """Return a merged approval/sign-off table for official documents."""
+
+    normalized_labels = tuple(str(label).strip() for label in (labels or ("기안", "검토", "결재", "전결")) if str(label).strip())
+    if not normalized_labels:
+        normalized_labels = ("기안", "검토", "결재", "전결")
+    delegated_label = str(delegated or "").strip()
+    if delegated_label and delegated_label not in normalized_labels:
+        normalized_labels = (*normalized_labels, delegated_label)
+    row_count = max(int(approver_rows), 1)
+    rows = tuple(tuple("" for _ in normalized_labels) for _ in range(row_count))
+    if row_count < 2:
+        merges: tuple[str, ...] = ()
+    else:
+        merges = tuple(
+            f"{_spreadsheet_column_name(index)}2:{_spreadsheet_column_name(index)}{row_count + 1}"
+            for index in range(len(normalized_labels))
+        )
+    return Table(
+        header=normalized_labels,
+        rows=rows,
+        merges=merges,
+        header_shading=header_shading,
+        column_widths=tuple(1 for _ in normalized_labels),
+    )
+
+
+def _spreadsheet_column_name(index: int) -> str:
+    if index < 0:
+        raise ValueError("column index must be non-negative")
+    value = index + 1
+    letters: list[str] = []
+    while value:
+        value, remainder = divmod(value - 1, 26)
+        letters.append(chr(ord("A") + remainder))
+    return "".join(reversed(letters))
+
+
 @dataclass(frozen=True)
 class Image:
     path: str | PathLike[str] | bytes

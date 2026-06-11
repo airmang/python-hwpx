@@ -18,6 +18,7 @@ from .core import (
     Run,
     Section,
     Table,
+    approval_box,
 )
 from .report import BuilderSaveReport, ReopenReport
 
@@ -40,4 +41,5 @@ __all__ = [
     "Run",
     "Section",
     "Table",
+    "approval_box",
 ]

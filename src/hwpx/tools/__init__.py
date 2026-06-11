@@ -12,6 +12,10 @@ from .layout_preview import (
     render_layout_preview,
 )
 from .object_finder import FoundElement, ObjectFinder
+from .official_lint import (
+    OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION,
+    inspect_official_document_style,
+)
 from .package_validator import (
     EDITOR_OPEN_ADVISORY_ERROR_MARKERS,
     EditorOpenSafetyReport,
@@ -77,6 +81,8 @@ __all__ = [
     "get_table_map",
     "FoundElement",
     "ObjectFinder",
+    "OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION",
+    "inspect_official_document_style",
     "EDITOR_OPEN_ADVISORY_ERROR_MARKERS",
     "EditorOpenSafetyReport",
     "PackageValidationIssue",
