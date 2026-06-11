@@ -16,6 +16,8 @@ from typing import Any, Mapping
 from xml.etree import ElementTree as ET
 from zipfile import BadZipFile, ZipFile
 
+from ..opc.security import guard_zip_file, parse_xml_stdlib
+
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
 _HC_NS = "http://www.hancom.co.kr/hwpml/2011/core"
@@ -155,6 +157,7 @@ def _read_package_parts(source: str | Path | bytes) -> tuple[dict[str, bytes], l
         else:
             archive = Path(source)
         with ZipFile(archive) as zf:
+            guard_zip_file(zf)
             return {name: zf.read(name) for name in zf.namelist()}, warnings
     except (BadZipFile, FileNotFoundError, OSError) as exc:
         raise ValueError(f"unable to read HWPX package: {exc}") from exc
@@ -166,8 +169,8 @@ def _parse_xml(parts: Mapping[str, bytes], name: str, warnings: list[str]) -> ET
         warnings.append(f"missing XML part: {name}")
         return None
     try:
-        return ET.fromstring(payload)
-    except ET.ParseError as exc:
+        return parse_xml_stdlib(payload, part_name=name)
+    except ValueError as exc:
         warnings.append(f"unable to parse XML part {name}: {exc}")
         return None
 

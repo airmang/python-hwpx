@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import io
+from typing import Mapping
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 import pytest
@@ -14,6 +15,7 @@ from hwpx.opc.package import (
     HwpxStructureError,
     _UNCHECKED_SAVE_TOKEN,
 )
+from hwpx.opc.security import HwpxSecurityError
 from hwpx.oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from hwpx.tools.package_validator import (
     is_editor_open_blocking_issue,
@@ -71,12 +73,19 @@ _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
 
 
-def _build_package(*, include_mimetype: bool = True, include_container: bool = True, include_version: bool = True) -> bytes:
+def _build_package(
+    *,
+    include_mimetype: bool = True,
+    include_container: bool = True,
+    include_version: bool = True,
+    overrides: Mapping[str, bytes] | None = None,
+) -> bytes:
     parts: dict[str, bytes] = {
         "Contents/content.hpf": _MANIFEST_XML,
         "Contents/header.xml": _HEADER_XML,
         "Contents/section0.xml": _SECTION_XML,
     }
+    parts.update(overrides or {})
     if include_mimetype:
         parts["mimetype"] = _MIMETYPE
     if include_container:
@@ -103,6 +112,38 @@ def test_open_and_save_roundtrip() -> None:
     output = package.save()
     reopened = HwpxPackage.open(output)
     assert reopened.read("Contents/header.xml") == _HEADER_XML
+
+
+def test_xml_entity_bomb_is_rejected_before_expansion() -> None:
+    entity_payload = (
+        b"<?xml version='1.0' encoding='UTF-8'?>"
+        b"<!DOCTYPE lolz ["
+        b"<!ENTITY lol 'lol'>"
+        b"<!ENTITY lol1 '&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;'>"
+        b"]>"
+        b"<hs:sec xmlns:hs='http://www.hancom.co.kr/hwpml/2011/section'>&lol1;</hs:sec>"
+    )
+    package_bytes = _build_package(overrides={"Contents/section0.xml": entity_payload})
+
+    package = HwpxPackage.open(package_bytes)
+    with pytest.raises(HwpxSecurityError, match="DTD/entity"):
+        package.get_xml("Contents/section0.xml")
+
+    report = validate_package(package_bytes)
+    assert not report.ok
+    assert any("DTD/entity" in str(issue) for issue in report.errors)
+
+
+def test_zip_compression_bomb_is_rejected_before_member_reads() -> None:
+    bomb_payload = b"<root>" + (b"a" * (8 * 1024 * 1024)) + b"</root>"
+    package_bytes = _build_package(overrides={"Contents/bomb.xml": bomb_payload})
+
+    with pytest.raises(HwpxSecurityError, match="compression ratio"):
+        HwpxPackage.open(package_bytes)
+
+    report = validate_package(package_bytes)
+    assert not report.ok
+    assert any("compression ratio" in str(issue) for issue in report.errors)
 
 
 def _section_xml_with_stale_lineseg(*, complex_paragraph: bool = False) -> bytes:

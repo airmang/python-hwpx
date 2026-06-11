@@ -21,6 +21,13 @@ from ..opc.relationships import (
     parse_manifest_relationships,
     select_main_rootfile,
 )
+from ..opc.security import (
+    HwpxSecurityError,
+    guard_xml_bytes,
+    guard_xml_depth,
+    guard_zip_file,
+    parse_xml_stdlib,
+)
 
 EXPECTED_MIMETYPE = "application/hwp+zip"
 MIMETYPE_PATH = "mimetype"
@@ -226,16 +233,16 @@ def _open_zip(source: str | Path | bytes | BinaryIO) -> ZipFile:
 
 
 def _parse_xml(payload: bytes) -> ET.Element:
-    try:
-        return ET.fromstring(payload)
-    except ET.ParseError as exc:
-        raise ValueError(f"malformed XML: {exc}") from exc
+    return parse_xml_stdlib(payload)
 
 
 def _root_declared_namespaces(payload: bytes) -> dict[str, str]:
     try:
-        root = LET.fromstring(payload)
-    except LET.XMLSyntaxError:
+        guard_xml_bytes(payload)
+        parser = LET.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
+        root = LET.fromstring(payload, parser=parser)
+        guard_xml_depth(root)
+    except (LET.XMLSyntaxError, ValueError):
         return {}
     return {"" if prefix is None else prefix: uri for prefix, uri in root.nsmap.items() if uri}
 
@@ -544,6 +551,11 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
         names = [info.filename for info in infos]
         name_set = set(names)
         checked_parts.extend(names)
+        try:
+            guard_zip_file(zf)
+        except HwpxSecurityError as exc:
+            _error(issues, "archive", str(exc))
+            return PackageValidationReport(tuple(checked_parts), tuple(issues))
 
         if not infos:
             _error(issues, "archive", "empty archive")

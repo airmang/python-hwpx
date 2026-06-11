@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
+from ..opc.security import guard_zip_file, parse_xml_stdlib
+
 if TYPE_CHECKING:
     from ..document import HwpxDocument
 
@@ -32,8 +34,9 @@ def _section_xmls(source: HwpxDocument | bytes) -> list[ET.Element]:
     """Return a list of section root elements from *source*."""
     if isinstance(source, bytes):
         with ZipFile(io.BytesIO(source)) as zf:
+            guard_zip_file(zf)
             names = sorted(n for n in zf.namelist() if _SECTION_RE.match(n))
-            return [ET.fromstring(zf.read(n)) for n in names]
+            return [parse_xml_stdlib(zf.read(n), part_name=n) for n in names]
     return [sec.element for sec in source._root.sections]
 
 

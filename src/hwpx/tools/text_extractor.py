@@ -16,6 +16,7 @@ from ..opc.relationships import (
     parse_manifest_relationships,
     select_main_rootfile,
 )
+from ..opc.security import guard_zip_file, parse_xml_stdlib
 from ..oxml.namespaces import DEFAULT_NAMESPACES as OWPML_DEFAULT_NAMESPACES
 
 __all__ = [
@@ -185,6 +186,7 @@ class TextExtractor:
             else:
                 self._zip = ZipFile(self._source)  # type: ignore[arg-type]
                 self._owns_zip = True
+            guard_zip_file(self._zip)
         return self._zip
 
     def close(self) -> None:
@@ -212,7 +214,7 @@ class TextExtractor:
         section_files = list(self._iter_section_files(archive))
         for index, name in enumerate(section_files):
             data = archive.read(name)
-            element = ET.fromstring(data)
+            element = parse_xml_stdlib(data, part_name=name)
             yield SectionInfo(index=index, name=name, element=element)
 
     def iter_paragraphs(
@@ -567,8 +569,11 @@ class TextExtractor:
     def _iter_section_files(self, archive: ZipFile) -> Iterator[str]:
         manifest_path: str | None = None
         try:
-            container_root = ET.fromstring(archive.read("META-INF/container.xml"))
-        except (ET.ParseError, KeyError):
+            container_root = parse_xml_stdlib(
+                archive.read("META-INF/container.xml"),
+                part_name="META-INF/container.xml",
+            )
+        except (ValueError, KeyError):
             container_root = None
 
         if container_root is not None:
@@ -579,8 +584,8 @@ class TextExtractor:
 
         if manifest_path is not None:
             try:
-                manifest_root = ET.fromstring(archive.read(manifest_path))
-            except (ET.ParseError, KeyError):
+                manifest_root = parse_xml_stdlib(archive.read(manifest_path), part_name=manifest_path)
+            except (ValueError, KeyError):
                 manifest_root = None
             if manifest_root is not None:
                 relationships = parse_manifest_relationships(

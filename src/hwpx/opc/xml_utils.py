@@ -8,6 +8,8 @@ from typing import Mapping
 
 from lxml import etree
 
+from .security import guard_xml_bytes, guard_xml_depth
+
 # Mapping of 2016 HWPML namespace URIs to their 2011 equivalents.
 # Documents created with Hancom Office 2016+ may use these newer URIs.
 # Normalising to 2011 at parse time lets the rest of the codebase use a
@@ -44,7 +46,11 @@ def parse_xml(data: bytes) -> etree._Element:
     2016 HWPML 네임스페이스는 파싱 전에 2011 버전으로 자동 정규화된다.
     """
 
-    return etree.fromstring(normalize_hwpml_namespaces(data))
+    guard_xml_bytes(data)
+    parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
+    root = etree.fromstring(normalize_hwpml_namespaces(data), parser=parser)
+    guard_xml_depth(root)
+    return root
 
 
 def parse_xml_with_namespaces(data: bytes) -> tuple[etree._Element, Mapping[str, str]]:
@@ -61,9 +67,16 @@ def iter_declared_namespaces(data: bytes) -> Mapping[str, str]:
     2016 HWPML 네임스페이스는 2011 버전으로 정규화된다.
     """
 
+    guard_xml_bytes(data)
     normalized = normalize_hwpml_namespaces(data)
     namespaces: dict[str, str] = {}
-    for _, elem in etree.iterparse(BytesIO(normalized), events=("start-ns",)):
+    for _, elem in etree.iterparse(
+        BytesIO(normalized),
+        events=("start-ns",),
+        resolve_entities=False,
+        no_network=True,
+        huge_tree=False,
+    ):
         prefix, uri = elem
         namespaces[prefix or ""] = uri
     return namespaces
