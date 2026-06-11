@@ -240,6 +240,14 @@ class VersionInfo:
         declaration = cls._extract_declaration(data)
         return cls(element, namespaces, declaration)
 
+    @classmethod
+    def default(cls) -> VersionInfo:
+        return cls.from_bytes(
+            b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            b'<hv:HCFVersion xmlns:hv="http://www.hancom.co.kr/hwpml/2011/version" '
+            b'tagetApplication="WORDPROCESSOR" major="5" minor="1" micro="1" buildNumber="0"/>'
+        )
+
     @staticmethod
     def _collect_namespaces(data: bytes) -> Mapping[str, str]:
         return iter_declared_namespaces(data)
@@ -364,7 +372,8 @@ class HwpxPackage:
     @staticmethod
     def _parse_version(data: bytes | None) -> VersionInfo:
         if data is None:
-            raise HwpxStructureError("HWPX package is missing 'version.xml'.")
+            logger.warning("HWPX package is missing optional 'version.xml'; using defaults.")
+            return VersionInfo.default()
         return VersionInfo.from_bytes(data)
 
     def _validate_structure(self) -> None:

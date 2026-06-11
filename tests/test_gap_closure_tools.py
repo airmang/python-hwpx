@@ -377,7 +377,7 @@ def test_package_validator_accepts_nondefault_rootfile_fixture() -> None:
     report = validate_package(package_bytes)
 
     assert report.ok
-    assert not report.warnings
+    assert not any("rootfile" in issue.message for issue in report.warnings)
     assert package.main_content.full_path == paths["manifest"]
     assert package.header_paths() == [paths["header"]]
     assert package.section_paths() == [paths["section"]]

@@ -31,6 +31,13 @@ from .tools.package_validator import (
     validate_editor_open_safety,
     validate_package,
 )
+from .patch import (
+    BytePreservingPatchResult,
+    ParagraphTextPatch,
+    PatchApplied,
+    PatchSkipped,
+    paragraph_patch,
+)
 from .document import HwpxDocument
 from .package import HwpxPackage
 from .authoring import (
@@ -67,7 +74,11 @@ __all__ = [
     "EditorOpenSafetyReport",
     "ParagraphInfo",
     "PackageValidationReport",
+    "BytePreservingPatchResult",
     "PlanValidationReport",
+    "ParagraphTextPatch",
+    "PatchApplied",
+    "PatchSkipped",
     "SectionInfo",
     "TEMPLATE_FORMFIT_BASELINE_SCHEMA_VERSION",
     "TEMPLATE_FORMFIT_PLAN_SCHEMA_VERSION",
@@ -86,4 +97,5 @@ __all__ = [
     "validate_document_plan",
     "validate_editor_open_safety",
     "validate_package",
+    "paragraph_patch",
 ]

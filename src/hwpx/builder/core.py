@@ -72,8 +72,8 @@ class _BuilderPreset:
         if self.is_government_report:
             if run.bold and color is None:
                 color = "1F4E79"
-            if (run.bold or run.underline or run.highlight) and font is None:
-                font = "함초롬바탕"
+        if (run.bold or run.underline or run.highlight) and font is None:
+            font = "함초롬바탕"
         return {
             "bold": run.bold,
             "italic": run.italic,

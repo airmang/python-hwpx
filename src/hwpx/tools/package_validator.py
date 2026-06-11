@@ -27,6 +27,8 @@ MIMETYPE_PATH = "mimetype"
 CONTAINER_PATH = "META-INF/container.xml"
 HEADER_PATH = "Contents/header.xml"
 VERSION_PATH = "version.xml"
+PREVIEW_TEXT_PATH = "Preview/PrvText.txt"
+RECOMMENDED_HANCOM_TARGET = "HWP2018"
 
 _XML_DECLARATION_RE = re.compile(br"^<\?xml\s+([^?]*?)\?>", re.IGNORECASE)
 _STANDALONE_YES_RE = re.compile(br"\bstandalone\s*=\s*(['\"])yes\1", re.IGNORECASE)
@@ -288,6 +290,17 @@ def _local_name(element: ET.Element) -> str:
     return tag
 
 
+def _children_by_local(element: ET.Element, name: str) -> list[ET.Element]:
+    return [child for child in list(element) if _local_name(child) == name]
+
+
+def _first_child_by_local(element: ET.Element, name: str) -> ET.Element | None:
+    for child in list(element):
+        if _local_name(child) == name:
+            return child
+    return None
+
+
 def _simple_paragraph_text_length(paragraph: ET.Element) -> int | None:
     """Return visible text length for plain text-only paragraphs.
 
@@ -353,6 +366,138 @@ def _check_line_seg_text_positions(
                         f"{paragraph_index} has stale lineseg textpos={textpos} "
                         f"beyond text length {text_length}",
                     )
+
+
+def _check_table_editor_acceptance(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    root: ET.Element,
+) -> None:
+    if not is_section_part_name(part_name):
+        return
+
+    required_table_children = ("sz", "pos", "outMargin", "inMargin")
+    required_cell_children = ("subList", "cellAddr", "cellSpan", "cellSz", "cellMargin")
+    for table_index, table in enumerate(
+        element for element in root.iter() if _local_name(element) == "tbl"
+    ):
+        for child_name in required_table_children:
+            if _first_child_by_local(table, child_name) is None:
+                _error(
+                    issues,
+                    part_name,
+                    f"table {table_index} missing Hancom-required hp:{child_name}",
+                )
+        for cell_index, cell in enumerate(
+            element for element in table.iter() if _local_name(element) == "tc"
+        ):
+            for child_name in required_cell_children:
+                if _first_child_by_local(cell, child_name) is None:
+                    _error(
+                        issues,
+                        part_name,
+                        "table "
+                        f"{table_index} cell {cell_index} missing Hancom-required hp:{child_name}",
+                    )
+
+
+def _check_section_properties_location(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    root: ET.Element,
+) -> None:
+    if not is_section_part_name(part_name):
+        return
+
+    section_properties = next(
+        (element for element in root.iter() if _local_name(element) == "secPr"),
+        None,
+    )
+    if section_properties is None:
+        _warning(issues, part_name, "missing hp:secPr section properties")
+        return
+
+    first_paragraph = _first_child_by_local(root, "p")
+    first_run = (
+        _first_child_by_local(first_paragraph, "run")
+        if first_paragraph is not None
+        else None
+    )
+    if first_run is None or _first_child_by_local(first_run, "secPr") is not section_properties:
+        _warning(
+            issues,
+            part_name,
+            "hp:secPr must be carried by the first paragraph's first hp:run",
+        )
+
+
+def _check_header_editor_acceptance(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    root: ET.Element,
+) -> None:
+    if part_name != HEADER_PATH or _local_name(root) != "head":
+        return
+
+    compatible = _first_child_by_local(root, "compatibleDocument")
+    if compatible is None:
+        _warning(issues, part_name, "missing hh:compatibleDocument declaration")
+    else:
+        target_program = compatible.get("targetProgram")
+        if not target_program:
+            _warning(issues, part_name, "hh:compatibleDocument missing targetProgram")
+        elif target_program != RECOMMENDED_HANCOM_TARGET:
+            _warning(
+                issues,
+                part_name,
+                "hh:compatibleDocument targetProgram is "
+                f"{target_program!r}; {RECOMMENDED_HANCOM_TARGET!r} is recommended "
+                "for macOS Hancom compatibility",
+            )
+
+    version = root.get("version")
+    if version != "1.4":
+        _warning(
+            issues,
+            part_name,
+            f"hh:head version is {version!r}; '1.4' is the measured compatibility baseline",
+        )
+
+
+def _char_properties(root: ET.Element) -> dict[str, ET.Element]:
+    return {
+        element.get("id", ""): element
+        for element in root.iter()
+        if _local_name(element) == "charPr" and element.get("id")
+    }
+
+
+def _check_bold_fontref_axis(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    root: ET.Element,
+) -> None:
+    if part_name != HEADER_PATH or _local_name(root) != "head":
+        return
+
+    for char_pr_id, char_pr in _char_properties(root).items():
+        if _first_child_by_local(char_pr, "bold") is None:
+            continue
+        font_ref = _first_child_by_local(char_pr, "fontRef")
+        if font_ref is None:
+            _warning(
+                issues,
+                part_name,
+                f"bold charPr id={char_pr_id!r} has no hh:fontRef; "
+                "macOS Hancom may not synthesize bold weight",
+            )
+            continue
+        if not any(font_ref.get(attr) for attr in ("hangul", "latin", "hanja")):
+            _warning(
+                issues,
+                part_name,
+                f"bold charPr id={char_pr_id!r} has an empty hh:fontRef",
+            )
 
 
 def _error(issues: list[PackageValidationIssue], part_name: str, message: str) -> None:
@@ -433,7 +578,28 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
         if CONTAINER_PATH not in name_set:
             _error(issues, CONTAINER_PATH, "missing required file")
         if VERSION_PATH not in name_set:
-            _error(issues, VERSION_PATH, "missing required file under current engine semantics")
+            _warning(
+                issues,
+                VERSION_PATH,
+                "missing optional version.xml; minimum editor-open package set allows omission",
+            )
+
+        if PREVIEW_TEXT_PATH not in name_set:
+            _warning(
+                issues,
+                PREVIEW_TEXT_PATH,
+                "missing Preview/PrvText.txt; macOS Hancom compatibility may require it",
+            )
+        else:
+            preview_bytes = _safe_read(zf, PREVIEW_TEXT_PATH)
+            if preview_bytes is None:
+                _error(issues, PREVIEW_TEXT_PATH, "unable to read preview text entry")
+            elif len(preview_bytes) > 1024 * 1024:
+                _warning(
+                    issues,
+                    PREVIEW_TEXT_PATH,
+                    "Preview/PrvText.txt is unusually large; expected a compact text snapshot",
+                )
 
         xml_roots: dict[str, ET.Element] = {}
         for name in names:
@@ -448,6 +614,10 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
                 xml_roots[name] = root
                 _check_hwpml_compat_root(issues, name, payload, root)
                 _check_line_seg_text_positions(issues, name, root)
+                _check_table_editor_acceptance(issues, name, root)
+                _check_section_properties_location(issues, name, root)
+                _check_header_editor_acceptance(issues, name, root)
+                _check_bold_fontref_axis(issues, name, root)
             except ValueError as exc:
                 _error(issues, name, str(exc))
 

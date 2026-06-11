@@ -485,8 +485,9 @@ def test_missing_required_files_raise_structure_error() -> None:
     with pytest.raises(HwpxStructureError):
         HwpxPackage.open(_build_package(include_container=False))
 
-    with pytest.raises(HwpxStructureError):
-        HwpxPackage.open(_build_package(include_version=False))
+    package = HwpxPackage.open(_build_package(include_version=False))
+    assert package.version_path() is None
+    assert package.version_info.get("tagetApplication") == "WORDPROCESSOR"
 
 
 def test_save_preserves_expected_compress_type_per_entry() -> None:
