@@ -30,6 +30,14 @@ from .tools.advanced_generators import (
     build_meeting_nameplates,
     build_organization_chart,
 )
+from .tools.doc_diff import (
+    DOC_DIFF_REPORT_VERSION,
+    REFERENCE_CONSISTENCY_REPORT_VERSION,
+    build_comparison_table_plan,
+    diff_paragraphs,
+    doc_diff,
+    inspect_reference_consistency,
+)
 from .tools.official_lint import (
     OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION,
     inspect_official_document_style,
@@ -103,9 +111,14 @@ __all__ = [
     "FoundElement",
     "ObjectFinder",
     "OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION",
+    "DOC_DIFF_REPORT_VERSION",
+    "REFERENCE_CONSISTENCY_REPORT_VERSION",
+    "build_comparison_table_plan",
     "build_image_grid",
     "build_meeting_nameplates",
     "build_organization_chart",
+    "diff_paragraphs",
+    "doc_diff",
     "PlanValidationIssue",
     "HwpxDocument",
     "HwpxPackage",
@@ -115,6 +128,7 @@ __all__ = [
     "approval_box",
     "inspect_document_authoring_quality",
     "inspect_official_document_style",
+    "inspect_reference_consistency",
     "inspect_operating_plan_quality",
     "normalize_document_plan",
     "validate_document_plan",

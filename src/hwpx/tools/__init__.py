@@ -11,6 +11,14 @@ from .advanced_generators import (
     build_meeting_nameplates,
     build_organization_chart,
 )
+from .doc_diff import (
+    DOC_DIFF_REPORT_VERSION,
+    REFERENCE_CONSISTENCY_REPORT_VERSION,
+    build_comparison_table_plan,
+    diff_paragraphs,
+    doc_diff,
+    inspect_reference_consistency,
+)
 from .layout_preview import (
     LayoutPreview,
     PreviewPage,
@@ -70,6 +78,12 @@ __all__ = [
     "build_image_grid",
     "build_meeting_nameplates",
     "build_organization_chart",
+    "DOC_DIFF_REPORT_VERSION",
+    "REFERENCE_CONSISTENCY_REPORT_VERSION",
+    "build_comparison_table_plan",
+    "diff_paragraphs",
+    "doc_diff",
+    "inspect_reference_consistency",
     "ParagraphInfo",
     "SectionInfo",
     "TextExtractor",
