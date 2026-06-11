@@ -867,10 +867,25 @@ class HwpxOxmlSectionHeaderFooter:
         paragraph: ET.Element | None = None,
         format: str = "page",
         position: str = "BOTTOM_CENTER",
+        format_type: str | None = None,
     ) -> ET.Element:
         """Append the corpus-observed automatic page-number control."""
 
         target = paragraph if paragraph is not None else self._ensure_content_paragraph()
+        normalized_format = str(format_type or format or "DIGIT").strip().upper()
+        format_aliases = {
+            "PAGE": "DIGIT",
+            "PAGE/TOTAL": "DIGIT",
+            "NUMBER": "DIGIT",
+            "DIGIT": "DIGIT",
+            "ROMAN": "ROMAN_CAPITAL",
+            "ROMAN_UPPER": "ROMAN_CAPITAL",
+            "ROMAN_LOWER": "ROMAN_SMALL",
+            "ALPHA": "LATIN_CAPITAL",
+            "ALPHA_UPPER": "LATIN_CAPITAL",
+            "ALPHA_LOWER": "LATIN_SMALL",
+        }
+        page_format_type = format_aliases.get(normalized_format, normalized_format)
         auto_run = _append_child(target, f"{_HP}run", {"charPrIDRef": "0"})
         auto_ctrl = _append_child(auto_run, f"{_HP}ctrl", {})
         _append_child(auto_ctrl, f"{_HP}autoNum", {"num": "1", "numType": "PAGE"})
@@ -879,7 +894,7 @@ class HwpxOxmlSectionHeaderFooter:
         page_number = _append_child(
             ctrl,
             f"{_HP}pageNum",
-            {"pos": position, "formatType": "DIGIT", "sideChar": "-"},
+            {"pos": position, "formatType": page_format_type, "sideChar": "-"},
         )
         _clear_paragraph_layout_cache(target)
         self._properties.section.mark_dirty()
@@ -916,10 +931,20 @@ class HwpxOxmlSectionHeaderFooter:
                     continue
                 if kind == "page_number":
                     page_format = str(page_number_format or child.get("format", "page"))
-                    self.add_page_number_field(paragraph=paragraph, format=page_format)
+                    self.add_page_number_field(
+                        paragraph=paragraph,
+                        format=page_format,
+                        position=str(child.get("position", "BOTTOM_CENTER")),
+                        format_type=child.get("formatType") or child.get("format_type"),
+                    )
                     if page_format == "page/total":
                         self.add_run("/", paragraph=paragraph)
-                        self.add_page_number_field(paragraph=paragraph, format=page_format)
+                        self.add_page_number_field(
+                            paragraph=paragraph,
+                            format=page_format,
+                            position=str(child.get("position", "BOTTOM_CENTER")),
+                            format_type=child.get("formatType") or child.get("format_type"),
+                        )
                     continue
                 raise ValueError(f"unsupported header/footer content type: {kind}")
 
@@ -4767,24 +4792,40 @@ class HwpxOxmlHeader:
         self.mark_dirty()
         return bullet_id
 
-    def _create_numbering_definition(self, level_count: int) -> str:
+    def _create_numbering_definition(self, levels: int | Sequence[Mapping[str, str]]) -> str:
+        if isinstance(levels, int):
+            level_specs: list[Mapping[str, str]] = [{} for _ in range(max(1, levels))]
+        else:
+            level_specs = list(levels) or [{}]
+
         numberings = self._numberings_element(create=True)
         if numberings is None:  # pragma: no cover - defensive branch
             raise RuntimeError("failed to create <numberings> element")
 
+        first_start = str(level_specs[0].get("start") or "1")
         numbering_id = self._allocate_ref_id(numberings, f"{_HH}numbering")
         numbering = numberings.makeelement(
             f"{_HH}numbering",
-            {"id": numbering_id, "start": "1"},
+            {"id": numbering_id, "start": first_start},
         )
-        for index in range(level_count):
+        for index, level_spec in enumerate(level_specs):
             level = index + 1
+            head_attrs = self._default_para_head_attributes(level)
+            num_format = level_spec.get("numFormat") or level_spec.get("format")
+            if num_format:
+                head_attrs["numFormat"] = str(num_format).upper()
+            start = level_spec.get("start")
+            if start is not None:
+                head_attrs["start"] = str(start)
             head = _append_child(
                 numbering,
                 f"{_HH}paraHead",
-                self._default_para_head_attributes(level),
+                head_attrs,
             )
-            head.text = ".".join(f"^{part}" for part in range(1, level + 1)) + "."
+            head.text = str(
+                level_spec.get("text")
+                or ".".join(f"^{part}" for part in range(1, level + 1)) + "."
+            )
         numberings.append(numbering)
         self._update_item_count(numberings, f"{_HH}numbering")
         self.mark_dirty()
@@ -4839,19 +4880,7 @@ class HwpxOxmlHeader:
     def ensure_paragraph_alignment(self, align: str) -> str:
         """Return a paragraph property id with the requested horizontal alignment."""
 
-        normalized = align.strip().upper()
-        aliases = {
-            "LEFT": "LEFT",
-            "START": "LEFT",
-            "CENTER": "CENTER",
-            "CENTRE": "CENTER",
-            "RIGHT": "RIGHT",
-            "END": "RIGHT",
-            "JUSTIFY": "JUSTIFY",
-        }
-        horizontal = aliases.get(normalized)
-        if horizontal is None:
-            raise ValueError(f"unsupported paragraph alignment: {align}")
+        horizontal = self._normalize_paragraph_alignment(align)
 
         para_properties = self._para_properties_element(create=True)
         if para_properties is None:  # pragma: no cover - defensive branch
@@ -4885,6 +4914,199 @@ class HwpxOxmlHeader:
         self.mark_dirty()
         return para_pr_id
 
+    @staticmethod
+    def _normalize_paragraph_alignment(align: str) -> str:
+        normalized = align.strip().upper()
+        aliases = {
+            "LEFT": "LEFT",
+            "START": "LEFT",
+            "CENTER": "CENTER",
+            "CENTRE": "CENTER",
+            "MIDDLE": "CENTER",
+            "RIGHT": "RIGHT",
+            "END": "RIGHT",
+            "JUSTIFY": "JUSTIFY",
+            "DISTRIBUTE": "DISTRIBUTE",
+        }
+        horizontal = aliases.get(normalized)
+        if horizontal is None:
+            raise ValueError(f"unsupported paragraph alignment: {align}")
+        return horizontal
+
+    @staticmethod
+    def _id_matches(raw_id: str | None, target: str | int | None) -> bool:
+        if raw_id is None or target is None:
+            return False
+        raw = str(raw_id).strip()
+        candidate = str(target).strip()
+        if raw == candidate:
+            return True
+        try:
+            return int(raw) == int(candidate)
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _direct_child_by_local(parent: ET.Element, local_name: str) -> ET.Element | None:
+        for child in parent:
+            if _element_local_name(child) == local_name:
+                return child
+        return None
+
+    @staticmethod
+    def _descendants_by_local(parent: ET.Element, local_name: str) -> list[ET.Element]:
+        return [
+            child
+            for child in parent.iter()
+            if child is not parent and _element_local_name(child) == local_name
+        ]
+
+    @staticmethod
+    def _remove_descendants_by_local(parent: ET.Element, local_name: str) -> None:
+        for candidate_parent in list(parent.iter()):
+            for child in list(candidate_parent):
+                if _element_local_name(child) == local_name:
+                    candidate_parent.remove(child)
+
+    @staticmethod
+    def _insert_child_after(
+        parent: ET.Element,
+        child: ET.Element,
+        after_local_names: set[str],
+    ) -> None:
+        insert_at = 0
+        for index, existing in enumerate(list(parent)):
+            if _element_local_name(existing) in after_local_names:
+                insert_at = index + 1
+        parent.insert(insert_at, child)
+
+    def _ensure_direct_para_child(
+        self,
+        para_pr: ET.Element,
+        local_name: str,
+        *,
+        after_local_names: set[str],
+    ) -> ET.Element:
+        child = self._direct_child_by_local(para_pr, local_name)
+        if child is not None:
+            return child
+        child = para_pr.makeelement(f"{_HH}{local_name}", {})
+        self._insert_child_after(para_pr, child, after_local_names)
+        return child
+
+    def _base_para_property(
+        self,
+        para_properties: ET.Element,
+        base_para_pr_id: str | int | None,
+    ) -> ET.Element | None:
+        if base_para_pr_id is not None:
+            for para_pr in para_properties.findall(f"{_HH}paraPr"):
+                if self._id_matches(para_pr.get("id"), base_para_pr_id):
+                    return para_pr
+        return para_properties.find(f"{_HH}paraPr")
+
+    @staticmethod
+    def _set_margin_unit_value(element: ET.Element, value: int) -> None:
+        safe_value = str(int(value))
+        if "value" in element.attrib or tag_namespace(element.tag) == _HC_NS:
+            element.set("value", safe_value)
+            element.set("unit", "HWPUNIT")
+            element.text = None
+            return
+        element.text = safe_value
+        if "unit" in element.attrib:
+            element.set("unit", "HWPUNIT")
+
+    def _apply_paragraph_margins(self, para_pr: ET.Element, margins: Mapping[str, int]) -> None:
+        margin_elements = self._descendants_by_local(para_pr, "margin")
+        if not margin_elements:
+            margin = self._ensure_direct_para_child(
+                para_pr,
+                "margin",
+                after_local_names={"breakSetting", "autoSpacing", "heading", "align"},
+            )
+            margin_elements = [margin]
+
+        for margin in margin_elements:
+            for name, value in margins.items():
+                if value is None:
+                    continue
+                child = self._direct_child_by_local(margin, name)
+                if child is None:
+                    child = margin.makeelement(f"{_HH}{name}", {})
+                    margin.append(child)
+                self._set_margin_unit_value(child, int(value))
+
+    def _apply_paragraph_line_spacing(self, para_pr: ET.Element, percent: int | float) -> None:
+        value = str(int(round(float(percent))))
+        line_spacing_elements = self._descendants_by_local(para_pr, "lineSpacing")
+        if not line_spacing_elements:
+            line_spacing = self._ensure_direct_para_child(
+                para_pr,
+                "lineSpacing",
+                after_local_names={"margin"},
+            )
+            line_spacing_elements = [line_spacing]
+        for line_spacing in line_spacing_elements:
+            line_spacing.set("type", "PERCENT")
+            line_spacing.set("value", value)
+            line_spacing.set("unit", "PERCENT")
+
+    def ensure_paragraph_format(
+        self,
+        *,
+        base_para_pr_id: str | int | None = None,
+        alignment: str | None = None,
+        line_spacing_percent: int | float | None = None,
+        margins: Mapping[str, int] | None = None,
+        heading: Mapping[str, str | int] | None = None,
+    ) -> str:
+        """Return a new paragraph property id with requested formatting changes."""
+
+        para_properties = self._para_properties_element(create=True)
+        if para_properties is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <paraProperties> element")
+
+        base = self._base_para_property(para_properties, base_para_pr_id)
+        para_pr = deepcopy(base) if base is not None else para_properties.makeelement(f"{_HH}paraPr", {})
+        para_pr.attrib.pop("id", None)
+
+        if alignment is not None:
+            align_element = self._ensure_direct_para_child(
+                para_pr,
+                "align",
+                after_local_names=set(),
+            )
+            align_element.set("horizontal", self._normalize_paragraph_alignment(alignment))
+            if align_element.get("vertical") is None:
+                align_element.set("vertical", "BASELINE")
+
+        if heading is not None:
+            self._remove_descendants_by_local(para_pr, "heading")
+            heading_element = para_pr.makeelement(
+                f"{_HH}heading",
+                {
+                    "type": str(heading.get("type", "NONE")).upper(),
+                    "idRef": str(heading.get("idRef", heading.get("id_ref", "0"))),
+                    "level": str(heading.get("level", "0")),
+                },
+            )
+            self._insert_child_after(para_pr, heading_element, {"align"})
+
+        clean_margins = {name: value for name, value in dict(margins or {}).items() if value is not None}
+        if clean_margins:
+            self._apply_paragraph_margins(para_pr, clean_margins)
+
+        if line_spacing_percent is not None:
+            self._apply_paragraph_line_spacing(para_pr, line_spacing_percent)
+
+        para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
+        para_pr.set("id", para_pr_id)
+        para_properties.append(para_pr)
+        self._update_item_count(para_properties, f"{_HH}paraPr")
+        self.mark_dirty()
+        return para_pr_id
+
     def ensure_numbering(
         self,
         *,
@@ -4910,7 +5132,7 @@ class HwpxOxmlHeader:
                 )
             return refs
         if normalized_kind in {"number", "numbered", "numbering"}:
-            numbering_id = self._create_numbering_definition(len(resolved_levels))
+            numbering_id = self._create_numbering_definition(resolved_levels)
             return [
                 self._ensure_para_property_heading(
                     heading_type="NUMBER",
