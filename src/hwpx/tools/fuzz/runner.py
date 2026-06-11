@@ -208,6 +208,7 @@ def _id_integrity_dict(document: HwpxDocument) -> dict[str, Any]:
     return {
         "ok": report.ok,
         "dangling": [str(item) for item in report.dangling],
+        "orphanBinData": [str(item) for item in report.orphan_bin_data],
         "ignored": [str(item) for item in report.ignored],
     }
 

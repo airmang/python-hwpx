@@ -82,6 +82,16 @@ class BuilderSaveReport:
                 else {
                     "ok": self.id_integrity.ok,
                     "dangling": [str(item) for item in self.id_integrity.dangling],
+                    "orphan_bin_data": [
+                        {
+                            "item_id": item.item_id,
+                            "path": item.path,
+                            "aliases": list(item.aliases),
+                            "sources": list(item.sources),
+                            "severity": item.severity,
+                        }
+                        for item in self.id_integrity.orphan_bin_data
+                    ],
                     "ignored": [
                         {
                             "part": item.part,

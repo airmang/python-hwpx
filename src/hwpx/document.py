@@ -13,7 +13,7 @@ import logging
 import uuid
 
 from os import PathLike
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, BinaryIO, Iterator, Mapping, Sequence, overload
 
 from lxml import etree
@@ -46,13 +46,14 @@ from .opc.package import (
     HwpxPackage,
     _UNCHECKED_SAVE_TOKEN,
 )
-from .oxml.namespaces import HH, HH_NS, HP, HP_NS, register_owpml_namespaces
+from .oxml.namespaces import HC, HH, HH_NS, HP, HP_NS, register_owpml_namespaces
 from .templates import blank_document_bytes
 
 register_owpml_namespaces(ET.register_namespace)
 
 _HP_NS = HP_NS
 _HP = HP
+_HC = HC
 _HH_NS = HH_NS
 _HH = HH
 _HWP_UNITS_PER_MM = 7200 / 25.4
@@ -87,6 +88,16 @@ def _png_dimensions(image_data: bytes) -> tuple[int, int] | None:
     if width <= 0 or height <= 0:
         return None
     return width, height
+
+
+def _bin_data_stem(value: Any) -> str | None:
+    if value is None:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    stem = PurePosixPath(raw).stem
+    return stem or None
 
 
 def _write_bytes_atomically(path: str | PathLike[str], data: bytes) -> None:
@@ -926,6 +937,95 @@ class HwpxDocument:
             char_pr_id_ref=char_pr_id_ref,
         )
 
+    def _iter_picture_images(
+        self,
+    ) -> Iterator[tuple[int, HwpxOxmlSection, Any, Any]]:
+        for section_index, section in enumerate(self._root.sections):
+            for picture in section.element.findall(f".//{_HP}pic"):
+                image = picture.find(f"{_HC}img")
+                if image is not None:
+                    yield section_index, section, picture, image
+
+    def picture_references(self) -> list[dict[str, Any]]:
+        """Return body picture references in document order."""
+
+        refs: list[dict[str, Any]] = []
+        for picture_index, (section_index, _section, picture, image) in enumerate(self._iter_picture_images()):
+            size = picture.find(f"{_HP}sz")
+            refs.append(
+                {
+                    "picture_index": picture_index,
+                    "section_index": section_index,
+                    "binaryItemIDRef": image.get("binaryItemIDRef"),
+                    "width": size.get("width") if size is not None else None,
+                    "height": size.get("height") if size is not None else None,
+                }
+            )
+        return refs
+
+    def replace_picture(
+        self,
+        image_data: bytes,
+        image_format: str,
+        *,
+        picture_index: int = 0,
+        binary_item_id_ref: str | None = None,
+        remove_orphaned: bool = True,
+        item_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Replace a body picture's image asset while preserving its geometry.
+
+        The existing ``<hp:pic>`` element is left in place.  Only the child
+        ``<hc:img>`` ``binaryItemIDRef`` is changed, so size, position, crop,
+        rotation, and wrapping geometry remain untouched.
+        """
+
+        if picture_index < 0:
+            raise IndexError("picture_index must be non-negative")
+
+        selected: tuple[int, HwpxOxmlSection, Any, Any] | None = None
+        matched_index = -1
+        for current_index, picture in enumerate(self._iter_picture_images()):
+            _section_index, _section, _picture_element, image = picture
+            current_ref = (image.get("binaryItemIDRef") or "").strip()
+            if binary_item_id_ref is not None and current_ref != str(binary_item_id_ref):
+                continue
+            matched_index += 1
+            if matched_index == picture_index:
+                selected = picture
+                break
+
+        if selected is None:
+            if binary_item_id_ref is None:
+                raise IndexError(f"picture_index {picture_index} is out of range")
+            raise IndexError(
+                f"picture_index {picture_index} for binaryItemIDRef "
+                f"{binary_item_id_ref!r} is out of range"
+            )
+
+        section_index, section, _picture_element, image = selected
+        old_ref = (image.get("binaryItemIDRef") or "").strip()
+        new_ref = self.add_image(image_data, image_format, item_id=item_id)
+        image.set("binaryItemIDRef", new_ref)
+        section.mark_dirty()
+
+        removed_old_image = False
+        if remove_orphaned and old_ref and old_ref != new_ref:
+            if not any(
+                (other_image.get("binaryItemIDRef") or "").strip() == old_ref
+                for _other_section_index, _other_section, _other_picture, other_image in self._iter_picture_images()
+            ):
+                removed_old_image = self.remove_image(old_ref)
+
+        return {
+            "picture_index": matched_index,
+            "section_index": section_index,
+            "old_binaryItemIDRef": old_ref,
+            "new_binaryItemIDRef": new_ref,
+            "removedOldImage": removed_old_image,
+            "geometryPreserved": True,
+        }
+
     def merge_table_cells(
         self,
         table: HwpxOxmlTable,
@@ -1443,19 +1543,18 @@ class HwpxDocument:
         fmt = image_format.lower().lstrip(".")
         media_type = self._FORMAT_TO_MEDIA_TYPE.get(fmt, f"image/{fmt}")
 
+        existing_ids = self._existing_image_item_ids()
+
         # Determine a unique item id
         if item_id is None:
-            existing_ids: set[str] = set()
-            header = self._root.headers[0] if self._root.headers else None
-            if header is not None:
-                for bi in header.list_bin_items():
-                    existing_ids.add(bi.get("id", ""))
-            n = len(existing_ids) + 1
+            n = 1
             while True:
                 item_id = f"BIN{n:04d}"
                 if item_id not in existing_ids:
                     break
                 n += 1
+        elif item_id in existing_ids:
+            raise ValueError(f"image item_id {item_id!r} already exists")
 
         # File path inside the ZIP
         bin_data_name = f"{item_id}.{fmt}"
@@ -1477,6 +1576,36 @@ class HwpxDocument:
             )
 
         return item_id
+
+    def _existing_image_item_ids(self) -> set[str]:
+        existing_ids: set[str] = set()
+        header = self._root.headers[0] if self._root.headers else None
+        if header is not None:
+            for item in header.list_bin_items():
+                stem = _bin_data_stem(item.get("BinData"))
+                if stem:
+                    existing_ids.add(stem)
+
+        for item in self._package._manifest_items():
+            href = str(item.get("href", "")).strip()
+            media_type = str(item.get("media-type", "")).strip().lower()
+            href_path = PurePosixPath(href)
+            if (
+                media_type.startswith("image/")
+                or (len(href_path.parts) >= 2 and href_path.parts[0] == "BinData")
+            ):
+                item_id = str(item.get("id", "")).strip()
+                if item_id:
+                    existing_ids.add(item_id)
+                stem = _bin_data_stem(href)
+                if stem:
+                    existing_ids.add(stem)
+
+        for part_name in self._package.part_names():
+            path = PurePosixPath(str(part_name))
+            if len(path.parts) >= 2 and path.parts[0] == "BinData" and path.stem:
+                existing_ids.add(path.stem)
+        return existing_ids
 
     def list_images(self) -> list[dict[str, str]]:
         """Return metadata dicts for all embedded binary data items.
