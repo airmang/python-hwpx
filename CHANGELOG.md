@@ -4,6 +4,27 @@
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-06-12
+### 추가
+- 시드 결정적 퍼징 수렴 루프 `hwpx.tools.fuzz`(시나리오 카탈로그·생성기·3중 오라클 러너·최소화)와 `tests/fixtures/fuzz_regressions` 회귀 박제 수트를 추가했습니다.
+- 레이아웃 근사 프리뷰 렌더러 `hwpx.tools.layout_preview`를 추가했습니다(페이지 박스·표·여백 근사 HTML/PNG — 에이전트 자기검증용).
+- section XML 바이트 splice 기반 문단 패치 경로 `hwpx.patch`를 추가했습니다(미수정 영역 바이트 보존).
+- 그림 자산 안전 삽입·치환 API(`add_picture` 및 치환 워크플로)와 manifest 검증을 추가했습니다.
+- 기존 문서 서식 편집 API를 추가했습니다: 문단 정렬·줄간격·들여쓰기·문단 간격, 용지·여백·방향, 머리말/꼬리말·쪽번호, 불릿/번호 형식.
+- 누름틀(클릭히어 필드) 1급 조회·채움 API를 추가했습니다.
+- 공문서 작성규정 lint `hwpx.tools.official_lint`(항목기호 위계·"끝." 표시·붙임·날짜 표기)와 결재란 프리셋을 추가했습니다.
+- 고급 생성기 `hwpx.tools.advanced_generators`를 추가했습니다: 사진대지(`build_image_grid`)·회의 명패(`build_meeting_nameplates`)·표 기반 조직도.
+- 신구대조 문단 diff와 참조 정합 lint `hwpx.tools.doc_diff`를 추가했습니다.
+- 메일머지 대량 생성과 표 합계·평균 계산 유틸 `hwpx.tools.mail_merge`를 추가했습니다.
+- 참조 문서 서식 프로파일 추출·적용과 템플릿 레지스트리 `hwpx.tools.style_profile`을 추가했습니다.
+- template analyzer 리포트를 강화했습니다(열너비 재구성·cell margin·vertAlign).
+
+### 변경
+- `hwpx.oxml.document` 모놀리스(5,700여 줄)를 요소별 모듈(`_document_impl` 외 18개)로 분할했습니다. 공개 API는 변하지 않습니다.
+
+### 수정
+- 신뢰할 수 없는 입력 파싱을 강건화했습니다(`hwpx.opc.security`): XML entity 선언 거부와 깊이/크기 한도, ZIP 압축비·멤버 수 한도를 적용해 entity 폭탄·압축 폭탄 입력을 안전하게 거부합니다.
+
 ## [2.10.3] - 2026-06-09
 ### 추가
 - `hwpx.tools.validate_editor_open_safety()`와 `EditorOpenSafetyReport`를 추가해 package validation, document validation, 재오픈 검증을 한 곳에서 확인할 수 있게 했습니다.
