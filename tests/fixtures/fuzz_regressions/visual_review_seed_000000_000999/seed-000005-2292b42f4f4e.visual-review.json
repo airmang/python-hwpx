@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "hwpx.visual-review.v1",
+  "target": {
+    "path": "/private/tmp/hwpx-s038-seed-000000-000999/visual_samples/seed-000005-2292b42f4f4e.hwpx",
+    "name": "seed-000005-2292b42f4f4e.hwpx",
+    "size_bytes": 8940,
+    "mtime": "2026-06-11T11:58:26Z",
+    "sha256": "54782fa845aa89f07abae26ec7be27833808b421996ee16884668dc3026bbc35"
+  },
+  "quality": {
+    "available": true,
+    "report_version": "operating-plan-quality-v1",
+    "status": "needs_revision",
+    "score": 2.56,
+    "pass": false,
+    "gaps": [
+      "front_matter: missing front matter metadata evidence",
+      "required_outline: missing required operating-plan sections",
+      "content_density: operating-plan content is too sparse",
+      "schedule_table: missing schedule table with enough execution rows",
+      "budget_resource_evidence: missing budget/resource evidence with amounts and calculation basis",
+      "expected_outcomes: missing expected outcomes or performance-management evidence",
+      "closing_material: missing closing, submission, review, or confirmation material"
+    ],
+    "repair_hints": [
+      {
+        "dimension": "front_matter",
+        "action": "revise",
+        "message": "Add visible document metadata near the beginning: 기관, 작성일, and 문서 유형."
+      },
+      {
+        "dimension": "required_outline",
+        "action": "revise",
+        "message": "Add the missing operating-plan headings and body content: purpose, operating_plan, schedule_budget, curriculum, expected_outcomes, closing."
+      },
+      {
+        "dimension": "content_density",
+        "action": "revise",
+        "message": "Expand section body text with school context, implementation detail, evidence, and review criteria."
+      },
+      {
+        "dimension": "schedule_table",
+        "action": "revise",
+        "message": "Add a 추진 일정 table with preparation, operation, and evaluation rows including period/activity/owner."
+      },
+      {
+        "dimension": "budget_resource_evidence",
+        "action": "revise",
+        "message": "Add a 사업비/예산 table with item, amount, ratio or calculation-basis rows."
+      },
+      {
+        "dimension": "expected_outcomes",
+        "action": "revise",
+        "message": "Add a 기대 효과/성과 관리 section with measurable outcomes and review evidence."
+      },
+      {
+        "dimension": "closing_material",
+        "action": "revise",
+        "message": "Add a closing/submission block that states review, confirmation, submission, or signature context."
+      }
+    ],
+    "visual_review_required": true
+  },
+  "viewer": {
+    "mode": "command:open -a 'Hancom Office HWP'",
+    "available": true,
+    "command": "open -a 'Hancom Office HWP'",
+    "launched": false
+  },
+  "current": {
+    "iteration": 3,
+    "status": "needs_review",
+    "timestamp": "2026-06-11T12:02:38Z",
+    "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/scripts/visual_review.py",
+    "review_method": "s038-seed-fuzz-o3-preflight",
+    "screenshot_path": null,
+    "observations": [
+      "viewer_detection=hancom",
+      "viewer_reason=Hancom Office HWP app found in /Applications"
+    ],
+    "layout_risks": [
+      "Viewer is available, but no opened-document visual pass has been recorded."
+    ],
+    "notes": "S-038 O3 batch preflight evidence for 20 O1/O2-passing seeded fuzz samples.",
+    "regenerated_from": "",
+    "structural_acceptance": {
+      "opens": true,
+      "roundtrip_ok": true,
+      "status": "accepted"
+    }
+  },
+  "iterations": [
+    {
+      "iteration": 1,
+      "status": "needs_review",
+      "timestamp": "2026-06-11T11:58:59Z",
+      "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/scripts/visual_review.py",
+      "review_method": "s038-seed-fuzz-o3",
+      "screenshot_path": null,
+      "observations": [
+        "viewer_detection=hancom",
+        "viewer_reason=Hancom Office HWP app found in /Applications"
+      ],
+      "layout_risks": [
+        "Viewer is available, but no opened-document visual pass has been recorded."
+      ],
+      "notes": "S-038 O3 visual_review_batch evidence for 20 O1/O2-passing seeded fuzz samples.",
+      "regenerated_from": "",
+      "structural_acceptance": {
+        "opens": null,
+        "roundtrip_ok": null,
+        "status": "skipped",
+        "reason": "ModuleNotFoundError: No module named 'hwpx'"
+      }
+    },
+    {
+      "iteration": 2,
+      "status": "needs_review",
+      "timestamp": "2026-06-11T12:01:55Z",
+      "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/scripts/visual_review.py",
+      "review_method": "s038-seed-fuzz-o3-preflight",
+      "screenshot_path": null,
+      "observations": [
+        "viewer_detection=hancom",
+        "viewer_reason=Hancom Office HWP app found in /Applications"
+      ],
+      "layout_risks": [
+        "Viewer is available, but no opened-document visual pass has been recorded."
+      ],
+      "notes": "S-038 O3 batch preflight evidence for 20 O1/O2-passing seeded fuzz samples.",
+      "regenerated_from": "",
+      "structural_acceptance": {
+        "opens": null,
+        "roundtrip_ok": null,
+        "status": "skipped",
+        "reason": "ModuleNotFoundError: No module named 'lxml'"
+      }
+    }
+  ],
+  "summary": {
+    "resolved_visual_review_required": "needs_review",
+    "ready_for_submission_claim": false,
+    "residual_layout_risk_count": 1
+  }
+}
