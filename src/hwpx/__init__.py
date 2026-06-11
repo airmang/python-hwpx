@@ -38,6 +38,16 @@ from .tools.doc_diff import (
     doc_diff,
     inspect_reference_consistency,
 )
+from .tools.mail_merge import (
+    MAIL_MERGE_REPORT_VERSION,
+    inspect_mail_merge_placeholders,
+    load_mail_merge_rows,
+    mail_merge,
+)
+from .tools.table_compute import (
+    TABLE_COMPUTE_REPORT_VERSION,
+    table_compute,
+)
 from .tools.official_lint import (
     OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION,
     inspect_official_document_style,
@@ -113,6 +123,8 @@ __all__ = [
     "OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION",
     "DOC_DIFF_REPORT_VERSION",
     "REFERENCE_CONSISTENCY_REPORT_VERSION",
+    "MAIL_MERGE_REPORT_VERSION",
+    "TABLE_COMPUTE_REPORT_VERSION",
     "build_comparison_table_plan",
     "build_image_grid",
     "build_meeting_nameplates",
@@ -127,13 +139,17 @@ __all__ = [
     "apply_template_formfit",
     "approval_box",
     "inspect_document_authoring_quality",
+    "inspect_mail_merge_placeholders",
     "inspect_official_document_style",
     "inspect_reference_consistency",
     "inspect_operating_plan_quality",
+    "load_mail_merge_rows",
+    "mail_merge",
     "normalize_document_plan",
     "validate_document_plan",
     "validate_editor_open_safety",
     "validate_package",
     "paragraph_patch",
     "render_layout_preview",
+    "table_compute",
 ]

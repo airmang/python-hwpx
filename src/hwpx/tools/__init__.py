@@ -19,6 +19,16 @@ from .doc_diff import (
     doc_diff,
     inspect_reference_consistency,
 )
+from .mail_merge import (
+    MAIL_MERGE_REPORT_VERSION,
+    inspect_mail_merge_placeholders,
+    load_mail_merge_rows,
+    mail_merge,
+)
+from .table_compute import (
+    TABLE_COMPUTE_REPORT_VERSION,
+    table_compute,
+)
 from .layout_preview import (
     LayoutPreview,
     PreviewPage,
@@ -84,6 +94,12 @@ __all__ = [
     "diff_paragraphs",
     "doc_diff",
     "inspect_reference_consistency",
+    "MAIL_MERGE_REPORT_VERSION",
+    "inspect_mail_merge_placeholders",
+    "load_mail_merge_rows",
+    "mail_merge",
+    "TABLE_COMPUTE_REPORT_VERSION",
+    "table_compute",
     "ParagraphInfo",
     "SectionInfo",
     "TextExtractor",
