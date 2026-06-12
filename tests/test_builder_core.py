@@ -344,6 +344,15 @@ def test_builder_lowers_headings_with_level_aware_styles(tmp_path) -> None:
     assert heading_1_run.style is not None
     assert heading_2_run.style is not None
     assert int(heading_1_run.style.attributes["height"]) > int(heading_2_run.style.attributes["height"])
+    outline_styles = {
+        str(style.raw_id if style.raw_id is not None else style.id): int(
+            style.name.rsplit(" ", 1)[-1]
+        )
+        for style in reopened.styles.values()
+        if (style.name or "").startswith("개요 ")
+    }
+    assert outline_styles.get(str(paragraphs[0].style_id_ref)) == 1
+    assert outline_styles.get(str(paragraphs[1].style_id_ref)) == 2
 
 
 def test_ensure_numbering_creates_sample_shaped_refs() -> None:

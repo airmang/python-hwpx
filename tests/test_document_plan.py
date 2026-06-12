@@ -344,6 +344,54 @@ def test_create_document_from_plan_generates_valid_formatted_hwpx(tmp_path) -> N
         reopened.close()
 
 
+def test_document_plan_headings_use_outline_paragraph_styles() -> None:
+    document = create_document_from_plan(_plan())
+    try:
+        outline_styles = {
+            str(style.raw_id if style.raw_id is not None else style.id): int(
+                style.name.rsplit(" ", 1)[-1]
+            )
+            for style in document.styles.values()
+            if (style.name or "").startswith("개요 ")
+        }
+        heading_levels = {
+            (paragraph.text or "").strip(): outline_styles.get(str(paragraph.style_id_ref))
+            for paragraph in document.paragraphs
+            if (paragraph.text or "").strip() in {"Executive Summary", "Budget"}
+        }
+
+        assert heading_levels == {"Executive Summary": 1, "Budget": 2}
+    finally:
+        document.close()
+
+
+def test_document_plan_title_and_heading_styles_have_visual_hierarchy() -> None:
+    document = create_document_from_plan(_plan())
+    try:
+        runs_by_text = {
+            (paragraph.text or "").strip(): paragraph.runs[0]
+            for paragraph in document.paragraphs
+            if (paragraph.text or "").strip()
+        }
+
+        title_style = runs_by_text["2026 AI Education Operating Plan"].style
+        subtitle_style = runs_by_text["Draft for internal review"].style
+        heading_style = runs_by_text["Executive Summary"].style
+        body_style = runs_by_text[
+            "The program connects classroom practice, teacher training, and evidence review."
+        ].style
+
+        assert title_style is not None
+        assert subtitle_style is not None
+        assert heading_style is not None
+        assert body_style is not None
+        assert int(title_style.attributes["height"]) > int(heading_style.attributes["height"])
+        assert int(heading_style.attributes["height"]) > int(body_style.attributes["height"])
+        assert int(subtitle_style.attributes["height"]) > int(body_style.attributes["height"])
+    finally:
+        document.close()
+
+
 def test_operating_plan_vertical_slice_reports_required_content_and_tables(tmp_path) -> None:
     output = tmp_path / "operating-plan.hwpx"
     plan = _operating_plan()

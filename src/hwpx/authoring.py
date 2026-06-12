@@ -168,22 +168,55 @@ class DocumentStylePreset:
     heading_bold: bool = True
     heading_underline: bool = True
     table_header_bold: bool = True
+    title_size: int = 18
+    subtitle_size: int = 12
+    heading_size: int = 14
+    font: str = "함초롬바탕"
 
     def ensure_tokens(self, document: HwpxDocument) -> dict[str, str]:
         """Create/reuse run styles and return semantic token IDs."""
 
         return {
-            "title": document.ensure_run_style(bold=self.title_bold),
-            "subtitle": document.ensure_run_style(italic=self.subtitle_italic),
+            "title": document.ensure_run_style(
+                bold=self.title_bold,
+                size=self.title_size,
+                font=self.font,
+            ),
+            "subtitle": document.ensure_run_style(
+                italic=self.subtitle_italic,
+                size=self.subtitle_size,
+                font=self.font,
+            ),
             "heading": document.ensure_run_style(
                 bold=self.heading_bold,
                 underline=self.heading_underline,
+                size=self.heading_size,
+                font=self.font,
             ),
             "body": document.ensure_run_style(),
             "bullet": document.ensure_run_style(),
             "table_header": document.ensure_run_style(bold=self.table_header_bold),
             "table_cell": document.ensure_run_style(),
         }
+
+
+def _outline_style_refs(document: HwpxDocument, level: int) -> dict[str, str | int]:
+    """Return paragraph style refs for a HWP outline heading level, if available."""
+
+    safe_level = min(10, max(1, int(level)))
+    for style in document.styles.values():
+        name = str(style.name or "")
+        eng_name = str(style.eng_name or "")
+        if name == f"개요 {safe_level}" or eng_name == f"Outline {safe_level}":
+            refs: dict[str, str | int] = {}
+            style_id = style.raw_id if style.raw_id is not None else style.id
+            if style_id is None:
+                continue
+            refs["style_id_ref"] = style_id
+            if style.para_pr_id_ref is not None:
+                refs["para_pr_id_ref"] = int(style.para_pr_id_ref)
+            return refs
+    return {}
 
 
 def _plan_issue(
@@ -1717,6 +1750,7 @@ def _render_block(
             block.text,
             char_pr_id_ref=tokens["heading"],
             inherit_style=False,
+            **_outline_style_refs(document, block.level),
         )
         return
     if isinstance(block, BuilderParagraph):

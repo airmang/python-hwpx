@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+## [2.11.1] - 2026-06-12
+### 수정
+- `create_document_from_plan()`의 `heading` block과 builder `Heading`이 기본 템플릿의 `개요 N`/`Outline N` 문단 스타일을 실제로 적용하도록 수정했습니다. 생성 문서가 한컴 개요/문서 탐색과 MCP outline readback에서 구조화된 제목으로 인식됩니다.
+- document-plan 기본 스타일 preset에 제목 18pt, 부제 12pt, 장 제목 14pt 글자 크기와 함초롬바탕 폰트를 적용해 보고서 생성 시 제목/본문 시각 위계가 명확하게 보이도록 했습니다.
+
 ## [2.11.0] - 2026-06-12
 ### 추가
 - 시드 결정적 퍼징 수렴 루프 `hwpx.tools.fuzz`(시나리오 카탈로그·생성기·3중 오라클 러너·최소화)와 `tests/fixtures/fuzz_regressions` 회귀 박제 수트를 추가했습니다.

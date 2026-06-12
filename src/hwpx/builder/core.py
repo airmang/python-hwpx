@@ -25,6 +25,25 @@ _A4_HWP_SIZE = (59528, 84188)
 # changing default node contracts or the plan-v1 authoring style-token path.
 
 
+def _outline_style_refs(document: HwpxDocument, level: int) -> dict[str, str | int]:
+    """Return paragraph style refs for the built-in HWP outline level, if present."""
+
+    safe_level = min(10, max(1, int(level)))
+    for style in document.styles.values():
+        name = str(style.name or "")
+        eng_name = str(style.eng_name or "")
+        if name == f"개요 {safe_level}" or eng_name == f"Outline {safe_level}":
+            refs: dict[str, str | int] = {}
+            style_id = style.raw_id if style.raw_id is not None else style.id
+            if style_id is None:
+                continue
+            refs["style_id_ref"] = style_id
+            if style.para_pr_id_ref is not None:
+                refs["para_pr_id_ref"] = int(style.para_pr_id_ref)
+            return refs
+    return {}
+
+
 @dataclass(frozen=True)
 class _BuilderPreset:
     name: str = "default"
@@ -264,6 +283,7 @@ class Heading:
             section_index=section_index,
             char_pr_id_ref=char_pr_id,
             inherit_style=False,
+            **_outline_style_refs(document, self.level),
         )
 
 
