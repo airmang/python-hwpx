@@ -1,34 +1,26 @@
-"""report_template.hwpx 기반 보고서 렌더링.
+"""토큰 기반 HWPX 보고서 렌더링.
 
-template 안의 placeholder들 (사용자가 정리한 새 양식):
-  paragraph 단위 (인덱스로 접근 가능)
-    13  날짜              "2026-05-11"
-    23  관제센터          "○○시 CCTV 통합관제센터"
-    24  부서명             "[ AI 관제팀 ]"
-    30  헤더              "1. 기본 정보"            (유지)
-    31  본문              "-보고 일자 ..."
-    32  본문              "-보고 대상 시간 ..."
-    33  본문              "-전체 CCTV ..."
-    34  헤더              "2. 일일 탐지 현황"        (유지)
-    35  본문              "전체 탐지 알림 ..."
-    36  헤더              "3. 주요 탐지 이벤트"      (유지)
-    37  본문              "1) ... 2) ... 3) ..."
-    38  헤더              "4. 금일 관제 요약"        (유지)
-    39  본문              "오늘 CCTV 활동은 ..."
-    40  헤더              "배경"                    (유지)
-    41  본문              "주요 detected 이벤트는 ..."
-    43  본문              "[CAM-12] A fire ..."  (visual summary 합본)
-    44  헤더              "5. 특이사항 및 확인 필요 사항" (유지)
-    45  본문              "특수 주의사항은 ..."
+베이스 템플릿(report_template_blank.hwpx)에 박힌 {{token}}을 찾아 값으로 치환한다.
+문단 인덱스에 의존하지 않으므로 템플릿에 문단이 추가/삭제/이동돼도 토큰만 있으면 동작한다.
 
-  표 / 도형 안 (paragraph 0, 4, 26, 27 내부 nested 노드 — 내용 비의존 치환)
-    표 1×1 sec/p[0]   "○○시 CCTV 통합관제센터"  (정확 일치 → 관제센터명)
-    표 5×1 sec/p[4]   제목(정확 일치), "일일 보고 (" 접두 일치 → 날짜 자막
-    도형 sec/p[26]    제목(정확 일치)
-    표 1×1 sec/p[27]  개요 박스 본문 t 전부 → daily (현재 텍스트와 무관)
+토큰 종류
+  단일 라인 토큰 (substring 치환, 본문+표/도형 어디서든)
+    {{report_date}}              보고 일자       (p13, 날짜 자막 "일일 보고 (...)")
+    {{center_name}}              관제센터명      (p23, 표지 표)
+    {{event_stats}}              일일 탐지 통계 한 줄
+    {{main_events}}              주요 이벤트 1~3 한 줄
+    {{daily_summary}}            금일 관제 요약  (본문 + 개요 박스)
+    {{main_event_description}}   주요 이벤트 설명
+    {{visual_summary}}           VLM 시각 요약 합본
+    {{special_note}}             특이사항 + 확인 필요
 
-  헤더 paragraph(30/34/36/38/40/44)는 그대로 두고 매핑하지 않는다.
-  blank/채워진 양식 모두에서 동작하도록 _replace_nested가 직전 데이터에 의존하지 않음.
+  다중 라인 토큰 (문단 전체가 토큰과 일치하면 <hp:lineBreak/>로 채움)
+    {{basic_info_1}}             보고 일자 / 관제센터
+    {{basic_info_2}}             보고 대상 시간
+    {{basic_info_3}}             전체 CCTV / 분석 대상 CCTV / 보고서 생성
+
+제목("CCTV AI 탐지 일일 보고서")·부서명("[ AI 관제팀 ]")·섹션 헤더는 템플릿에
+literal로 남겨 두고 토큰화하지 않는다(보고서마다 바뀌지 않음).
 """
 
 from __future__ import annotations
@@ -47,8 +39,6 @@ _STATUS_KO = {
     "need_review": "확인 필요",
     "false_positive": "오탐 의심",
 }
-
-_TITLE = "CCTV AI 탐지 일일 보고서"
 
 # HWPML paragraph 네임스페이스 (hp 접두사)
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
@@ -140,37 +130,21 @@ def _format_special_block(text_ko: dict[str, str]) -> str:
     return special or review or "특이사항 없음"
 
 
-def _iter_t(paragraph_element):
-    for el in paragraph_element.iter():
-        if etree.QName(el).localname == "t" and el.text and el.text.strip():
-            yield el
+def _replace_single_tokens(section_element, replacements: dict[str, str]) -> None:
+    """모든 t 노드에서 {{token}} 부분문자열을 값으로 치환 (인덱스 비의존).
 
-
-def _replace_nested(section_element, *, center_name, title, date_subtitle, daily):
-    """표/도형 안 t 노드를 내용 비의존(prefix·위치 기반)으로 치환.
-
-    빈 양식·채워진 양식 어느 쪽이든 동작하도록, 직전 실행 데이터에 의존하지 않는다.
-      - 제목 자막  : "CCTV AI 탐지 일일 보고서" 정확 일치 → title
-      - 관제센터    : "○○시 CCTV 통합관제센터" 정확 일치 → center_name
-      - 날짜 자막   : "일일 보고 (" 로 시작하는 t → date_subtitle
-      - 개요 박스   : paragraph 27 내부 본문 t 전부 → daily
+    토큰이 본문·표·도형 어디에 있든, 한 t 안에 다른 텍스트와 섞여 있든
+    (예: "일일 보고 ({{report_date}})") 동작한다.
     """
-    paragraphs = list(section_element)
-    for p_idx in (0, 4, 26):
-        if p_idx >= len(paragraphs):
+    for el in section_element.iter():
+        if etree.QName(el).localname != "t" or not el.text:
             continue
-        for el in _iter_t(paragraphs[p_idx]):
-            if el.text == title:
-                el.text = title
-            elif el.text == "○○시 CCTV 통합관제센터":
-                el.text = center_name
-            elif el.text.startswith("일일 보고 ("):
-                el.text = date_subtitle
-
-    # 개요 박스(paragraph 27): 현재 텍스트와 무관하게 본문 t를 daily로 교체
-    if 27 < len(paragraphs):
-        for el in _iter_t(paragraphs[27]):
-            el.text = daily
+        text = el.text
+        for token, value in replacements.items():
+            if token in text:
+                text = text.replace(token, value)
+        if text != el.text:
+            el.text = text
 
 
 def render(
@@ -193,36 +167,30 @@ def render(
     doc = HwpxDocument.open(template_path)
     section = doc.sections[0]
 
-    # 1) paragraph 단위 텍스트 치환 (paragraph.text 세터는 자동 mark_dirty)
-    paragraph_replacements: dict[int, str] = {
-        13: info["report_date"],
-        23: info["center_name"],
-        # 24는 "[ AI 관제팀 ]" 그대로 유지 - 매핑 안 함
-        35: _format_stats_line(summary),
-        37: _format_main_events_line(main_events),
-        39: daily,
-        41: main_desc,
-        43: _format_visual_summary(main_events),
-        45: _format_special_block(text_ko),
+    # 1) 줄바꿈이 필요한 다중 라인 토큰: 문단 텍스트가 토큰과 정확히 일치하면
+    #    <hp:lineBreak/>로 채운다. (인덱스가 아니라 토큰으로 문단을 찾는다)
+    multiline_tokens: dict[str, list[str]] = {
+        "{{basic_info_1}}": basic1,
+        "{{basic_info_2}}": basic2,
+        "{{basic_info_3}}": basic3,
     }
+    for paragraph in section.paragraphs:
+        lines = multiline_tokens.get(paragraph.text.strip())
+        if lines is not None:
+            _set_multiline(paragraph, lines)
 
-    for idx, new_text in paragraph_replacements.items():
-        if idx < len(section.paragraphs):
-            section.paragraphs[idx].text = new_text
-
-    # 1-1) 기본 정보(31/32/33)는 항목별 줄바꿈(<hp:lineBreak/>)으로 채운다
-    for idx, lines in ((31, basic1), (32, basic2), (33, basic3)):
-        if idx < len(section.paragraphs):
-            _set_multiline(section.paragraphs[idx], lines)
-
-    # 2) 표/도형 안 nested t 노드 치환 (lxml 직접 수정 → mark_dirty 필요)
-    _replace_nested(
-        section.element,
-        center_name=info["center_name"],
-        title=_TITLE,
-        date_subtitle=f"일일 보고 ({info['report_date']})",
-        daily=daily,
-    )
+    # 2) 단일 라인 토큰: 모든 t 노드에서 substring 치환 (본문+표/도형 일괄)
+    single_tokens: dict[str, str] = {
+        "{{report_date}}": info["report_date"],
+        "{{center_name}}": info["center_name"],
+        "{{event_stats}}": _format_stats_line(summary),
+        "{{main_events}}": _format_main_events_line(main_events),
+        "{{daily_summary}}": daily,
+        "{{main_event_description}}": main_desc,
+        "{{visual_summary}}": _format_visual_summary(main_events),
+        "{{special_note}}": _format_special_block(text_ko),
+    }
+    _replace_single_tokens(section.element, single_tokens)
 
     section.mark_dirty()
     doc.save_to_path(output_path)

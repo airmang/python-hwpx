@@ -10,6 +10,7 @@ from . import config
 from .event_selector import pick_main
 from .mock_data import CctvEvent, build_mock_dataset
 from .renderer import render
+from .sources import EventSource, MockEventSource
 from .statistics import aggregate
 from .summarizer import generate_en_block, rule_based_fallback
 from .text_utils import clean_block, strip_emoji
@@ -46,11 +47,17 @@ def run_report(
     output_dir: Path | None = None,
     skip_vlm: bool = False,
     skip_llm: bool = False,
+    source: EventSource | None = None,
 ) -> Path:
-    """end-to-end. 생성된 HWPX 파일 경로 반환."""
+    """end-to-end. 생성된 HWPX 파일 경로 반환.
+
+    source 미지정 시 MockEventSource(하드코딩 mock)를 사용한다.
+    실데이터 연동 시 EventSource 구현체를 주입한다.
+    """
     report_date = report_date or config.today_iso()
-    print(f"[1/7] mock dataset for {report_date}")
-    info, events = build_mock_dataset(report_date)
+    source = source or MockEventSource()
+    print(f"[1/7] load dataset for {report_date} via {type(source).__name__}")
+    info, events = source.load(report_date)
 
     print("[2/7] aggregate statistics")
     event_summary = aggregate(events)

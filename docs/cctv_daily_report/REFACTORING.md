@@ -76,7 +76,7 @@
 
 - 0단계: 현재 동작본 커밋 (기준점 확보)
 - 1단계(위생) [완료 2026-06-05]: 하드코딩 날짜 정리(3), private 누수 제거(7), `sys.path` 핵 정리(5), 문서 `docs/`로 이동(9)
-- 2단계(구조): 데이터 소스 인터페이스 추상화(2), 렌더러 토큰 치환 전환(4)
+- 2단계(구조) [완료 2026-06-05]: 데이터 소스 인터페이스 추상화(2), 렌더러 토큰 치환 전환(4)
 - 3단계(결정 후): 패키지 등록 여부(1), 번역 단계 제거 여부(6)
 - 각 단계마다 최소 단위 테스트 추가(8)
 
@@ -93,6 +93,22 @@
   `docs/cctv_daily_report/`로 이동(루트엔 코어 repo 문서만 잔존).
 - 검증: import 무결성 OK, `--report-date` 미지정 시 오늘 날짜로 렌더,
   rule-based fallback 경로 동작, `hwpx-validate-package` 통과.
+
+### 2단계 완료 내역
+
+- (2) `sources.py` 신설: `EventSource` 프로토콜 + `MockEventSource`.
+  `pipeline.run_report(..., source=None)`에 주입, 미지정 시 `MockEventSource`.
+  실데이터 연동 시 pipeline 수정 없이 `EventSource` 구현체만 추가하면 됨.
+  `CctvEvent`/`ReportInfo`가 소스↔pipeline 계약.
+- (4) 렌더러를 문단 인덱스 → `{{token}}` 치환 방식으로 전환.
+  - blank 템플릿에 토큰 임베드(단일 라인 8종 + 다중 라인 3종).
+  - `_replace_single_tokens`(substring, 본문+표/도형 일괄) +
+    다중 라인 토큰은 `_set_multiline`(<hp:lineBreak/>).
+  - 제목·부서명·섹션 헤더는 literal 유지(보고서마다 불변).
+  - 렌더러에서 하드코딩 문단 인덱스 완전 제거.
+- 검증: 토큰 잔존 0, `hwpx-validate-package` 통과, 줄바꿈 3개 정상.
+  구조 변경 내성 증명 — 템플릿 앞에 문단을 끼워 인덱스를 +1 밀어도
+  토큰 치환 정상(구버전 인덱스 렌더러였다면 전부 깨졌을 케이스).
 
 ## 5. 손대지 않을 것
 
