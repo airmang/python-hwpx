@@ -166,6 +166,32 @@ Measured over 6 genuine Hancom-saved docs × 3 mutations (17 valid pairs):
 
 ---
 
+## macOS cross-validation (Mac 한컴 oracle, v12.30.0, 2026-06-24)
+
+**The Windows verdict reproduces on the Mac oracle.** The same harness was run on
+macOS with the new `MacHancomOracle` (`Hancom Office HWP.app` driven via
+computer-use GUI → PDF; see `src/hwpx/visual/_render_hwpx_mac.applescript`)
+substituting for `hancom_render.ps1`. Input: one genuine Hancom-saved `.hwpx`
+(synthetic doc re-saved through Hancom's `다른 이름으로 저장하기` → 6 `linesegarray`
+in section0; `control_valid 3/3`).
+
+| mutation | verdict | max_diff | signal |
+|---|---|---|---|
+| `short_to_long` | **`lineseg_matters`** | 0.0066 (≥ eps 0.005) | stale single-line cache crammed the grown title onto one line; ON re-laid it to two |
+| `long_to_short` | `hancom_relayouts` | 0.0000 | clean edit; ON==OFF |
+| `same_length_ko` | `hancom_relayouts` | 0.0000 | clean edit; ON==OFF |
+
+The text-growth defect is the same one Windows saw — the stale `lineSegArray`
+(describing the *original short* `방송 신청서`) forces the lengthened paragraph into
+the cached single line instead of wrapping; the cache-stripped (ON) render wraps
+correctly. So the Mac backend confirms: **stripping is load-bearing on text
+growth, harmless on clean edits.** Render fidelity matches COM; the Mac transport
+is dev/spot-check grade (slower, GUI-serialized) — COM stays canonical for
+CI/scale. (Evidence PNGs are reproducible out-of-tree; genuine Hancom docs and
+renders aren't committed, same as the Windows run.)
+
+---
+
 ## Verified vs. not (honest status, macOS session 2026-06-23)
 
 **Verified here (ran on macOS):**

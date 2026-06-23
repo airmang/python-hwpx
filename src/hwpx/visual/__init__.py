@@ -3,13 +3,17 @@
 
 Public API::
 
-    from hwpx.visual import RenderOracle, visual_check, VisualReport, EditMask
+    from hwpx.visual import resolve_oracle, visual_check, VisualReport, EditMask
+    from hwpx.visual import WindowsComOracle, MacHancomOracle, NullOracle
 
-``visual_check`` renders a before/after ``.hwpx`` pair through Hancom (via
-``RenderOracle``) and returns a ``VisualReport`` judging overlap / overflow /
-out-of-mask change. Off-Windows (no Hancom) it degrades to a structural report
-(``render_checked=False``) instead of crashing — see the module docstrings and
-the implementation plan §0.0 for the assurance-tier contract.
+``visual_check`` renders a before/after ``.hwpx`` pair through a Hancom backend
+and returns a ``VisualReport`` judging overlap / overflow / out-of-mask change.
+``resolve_oracle()`` picks the best reachable backend — ``WindowsComOracle``
+(COM; CI/scale), then ``MacHancomOracle`` (``Hancom Office HWP.app`` via GUI;
+dev/spot-check), else ``NullOracle``. With no Hancom reachable it degrades to a
+structural report (``render_checked=False``) instead of crashing — see the
+module docstrings and the implementation plan §0.0 for the assurance-tier
+contract. ``RenderOracle`` is a backward-compatible alias of ``WindowsComOracle``.
 
 The imaging stack (pymupdf / Pillow / numpy) is an optional dependency; install
 it with ``pip install python-hwpx[visual]``. Importing this package never
@@ -23,9 +27,39 @@ from .masks import EditMask
 from .report import VisualReport
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from .oracle import RenderOracle, visual_check
+    from .oracle import (
+        MacHancomOracle,
+        NullOracle,
+        RenderBackend,
+        RenderOracle,
+        WindowsComOracle,
+        resolve_oracle,
+        visual_check,
+    )
 
-__all__ = ["RenderOracle", "visual_check", "VisualReport", "EditMask"]
+_ORACLE_EXPORTS = frozenset(
+    {
+        "RenderBackend",
+        "WindowsComOracle",
+        "MacHancomOracle",
+        "NullOracle",
+        "RenderOracle",
+        "resolve_oracle",
+        "visual_check",
+    }
+)
+
+__all__ = [
+    "resolve_oracle",
+    "visual_check",
+    "RenderBackend",
+    "WindowsComOracle",
+    "MacHancomOracle",
+    "NullOracle",
+    "RenderOracle",
+    "VisualReport",
+    "EditMask",
+]
 
 
 def __dir__() -> list[str]:
@@ -36,7 +70,7 @@ def __getattr__(name: str):
     # Lazy so importing the package stays light, and so running
     # ``python -m hwpx.visual.oracle`` does not pre-import the submodule
     # (which would trigger a runpy "found in sys.modules" RuntimeWarning).
-    if name in ("RenderOracle", "visual_check"):
+    if name in _ORACLE_EXPORTS:
         from . import oracle
 
         return getattr(oracle, name)

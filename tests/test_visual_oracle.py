@@ -15,10 +15,21 @@ box; see ``scripts/visualcomplete-baseline/README.md``.
 """
 from __future__ import annotations
 
+import os
+import sys
+
 import pytest
 
 from hwpx.visual import EditMask, RenderOracle, VisualReport, visual_check
+from hwpx.visual import (
+    MacHancomOracle,
+    NullOracle,
+    RenderBackend,
+    WindowsComOracle,
+    resolve_oracle,
+)
 from hwpx.visual import detectors, diff
+from hwpx.visual import oracle as oracle_module
 
 
 class _UnavailableOracle:
@@ -158,6 +169,129 @@ def test_visual_check_oracle_smoke_identical_doc(tmp_path) -> None:
     after.write_bytes(data)
 
     report = visual_check(str(before), str(after), oracle=RenderOracle())
+
+    assert report.render_checked is True
+    assert report.ok is True
+    assert report.max_diff_ratio == 0.0
+    assert report.overlap_detected is False
+    assert report.page_count_changed is False
+
+
+# --------------------------------------------------------------------------- #
+# Multi-backend resolver + base contract (portable)
+# --------------------------------------------------------------------------- #
+def test_render_oracle_is_windows_com_alias() -> None:
+    # Backward compatibility: ``RenderOracle`` used to BE the Windows COM oracle.
+    assert RenderOracle is WindowsComOracle
+    assert isinstance(WindowsComOracle(), RenderBackend)
+
+
+class _CountingBackend(RenderBackend):
+    """Exercises the base serial ``render_many`` (the Mac backend uses it)."""
+
+    def __init__(self, *, ready: bool) -> None:
+        self._ready = ready
+        self.calls: list[tuple[str, str | None]] = []
+
+    def available(self) -> bool:
+        return self._ready
+
+    def render_pdf(self, hwpx_path: str, out_pdf: str | None = None) -> str | None:
+        self.calls.append((hwpx_path, out_pdf))
+        return out_pdf
+
+
+def test_render_backend_serial_render_many_calls_render_pdf() -> None:
+    backend = _CountingBackend(ready=True)
+    pairs = [("a.hwpx", "a.pdf"), ("b.hwpx", "b.pdf")]
+    result = backend.render_many(pairs)
+    assert result == {"a.hwpx": "a.pdf", "b.hwpx": "b.pdf"}
+    assert backend.calls == pairs  # one render_pdf per pair, in order
+
+
+def test_render_backend_unavailable_skips_render_pdf() -> None:
+    backend = _CountingBackend(ready=False)
+    result = backend.render_many([("a.hwpx", "a.pdf")])
+    assert result == {"a.hwpx": None}
+    assert backend.calls == []  # never touched the renderer
+
+
+def test_resolve_oracle_resolution_order(monkeypatch) -> None:
+    # Windows COM preferred, then Mac GUI, else the Null degrade sentinel.
+    monkeypatch.setattr(WindowsComOracle, "available", lambda self: False)
+    monkeypatch.setattr(MacHancomOracle, "available", lambda self: False)
+    assert isinstance(resolve_oracle(), NullOracle)
+
+    monkeypatch.setattr(MacHancomOracle, "available", lambda self: True)
+    assert isinstance(resolve_oracle(), MacHancomOracle)
+
+    monkeypatch.setattr(WindowsComOracle, "available", lambda self: True)
+    assert isinstance(resolve_oracle(), WindowsComOracle)
+
+
+def test_resolve_oracle_returns_render_backend() -> None:
+    backend = resolve_oracle()
+    assert isinstance(backend, RenderBackend)
+    assert hasattr(backend, "available") and hasattr(backend, "render_many")
+
+
+def test_null_oracle_degrades_via_visual_check() -> None:
+    report = visual_check("before.hwpx", "after.hwpx", oracle=NullOracle())
+    assert report.render_checked is False
+    assert report.ok is True
+    assert report.warnings and "RENDER_ORACLE_UNAVAILABLE" in report.warnings[0]
+
+
+# --------------------------------------------------------------------------- #
+# Mac backend availability guards (portable)
+# --------------------------------------------------------------------------- #
+def test_mac_oracle_unavailable_off_darwin(monkeypatch) -> None:
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert MacHancomOracle().available() is False
+
+
+def test_mac_oracle_unavailable_without_hancom(monkeypatch) -> None:
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(oracle_module, "_MAC_APP_CANDIDATES", ())
+    monkeypatch.setattr(MacHancomOracle, "_app_path", lambda self: None)
+    assert MacHancomOracle().available() is False
+
+
+@pytest.mark.skipif(
+    sys.platform != "darwin" or MacHancomOracle()._app_path() is None,
+    reason="macOS + Hancom Office HWP.app required",
+)
+def test_mac_oracle_available_on_this_mac() -> None:
+    assert MacHancomOracle().available() is True
+
+
+# --------------------------------------------------------------------------- #
+# Mac oracle smoke (macOS + Hancom + imaging; opt-in — drives the GUI)
+# --------------------------------------------------------------------------- #
+def _mac_oracle_ready() -> bool:
+    return (
+        MacHancomOracle().available()
+        and detectors.imaging_available()
+        and diff.pymupdf_available()
+    )
+
+
+@pytest.mark.skipif(
+    not (_mac_oracle_ready() and os.environ.get("HWPX_MAC_ORACLE_SMOKE")),
+    reason="set HWPX_MAC_ORACLE_SMOKE=1 on macOS+Hancom+imaging to drive the GUI render smoke",
+)
+def test_mac_oracle_smoke_identical_doc(tmp_path) -> None:
+    from hwpx import HwpxDocument
+
+    document = HwpxDocument.new()
+    document.add_paragraph("VisualComplete Mac 오라클 스모크 본문")
+    data = document.to_bytes()
+    before = tmp_path / "before.hwpx"
+    after = tmp_path / "after.hwpx"
+    before.write_bytes(data)
+    after.write_bytes(data)
+
+    report = visual_check(str(before), str(after), oracle=MacHancomOracle())
 
     assert report.render_checked is True
     assert report.ok is True

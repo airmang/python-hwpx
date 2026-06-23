@@ -1,10 +1,27 @@
 # SPDX-License-Identifier: Apache-2.0
 """The reusable VisualComplete render gate.
 
-``RenderOracle`` is the swappable Hancom-render adapter (Windows + COM via a
-packaged PowerShell backend). ``visual_check`` renders a before/after ``.hwpx``
-pair through it, scores the result with :mod:`hwpx.visual.diff`, and returns a
-:class:`hwpx.visual.report.VisualReport`.
+The oracle is the *renderer*, not the *transport*: any reachable Hancom (한글)
+is a faithful backend (implementation plan §0.0). This module ships two, behind
+one interface, plus a resolver that picks the best reachable one:
+
+* :class:`WindowsComOracle` — Hancom COM via a packaged PowerShell backend.
+  Canonical for CI/scale: fast, deterministic, batchable.
+* :class:`MacHancomOracle` — ``Hancom Office HWP.app`` driven through the GUI
+  (no AppleScript dictionary / headless CLI on that build), via a packaged
+  AppleScript that scripts the menus. Same render engine; ideal for
+  dev/spot-check, but slower and brittle (modal dialogs, single GUI session) —
+  renders are serialized.
+* :class:`NullOracle` — ``available() == False``; the degrade sentinel when no
+  Hancom is reachable.
+
+``resolve_oracle()`` returns the first reachable backend (Windows → Mac → Null).
+``RenderOracle`` is a backward-compatible alias of :class:`WindowsComOracle`.
+
+``visual_check`` renders a before/after ``.hwpx`` pair through whichever backend
+it is given, scores the result with :mod:`hwpx.visual.diff`, and returns a
+:class:`hwpx.visual.report.VisualReport`. It only needs ``available()`` and
+``render_many()``, so it is backend-agnostic.
 
 Assurance is tiered and never blurred (implementation plan §0.0): off-oracle, or
 without the imaging stack, ``visual_check`` degrades to ``render_checked=False``
@@ -30,14 +47,48 @@ from .masks import EditMask
 from .report import VisualReport
 
 _BACKEND_SCRIPT = "_render_hwpx.ps1"
+_MAC_BACKEND_SCRIPT = "_render_hwpx_mac.applescript"
 _COM_REGISTRY_KEYS = (
     r"HWPFrame.HwpObject\CLSID",
     r"SOFTWARE\Classes\HWPFrame.HwpObject\CLSID",
     r"SOFTWARE\Classes\Wow6432Node\HWPFrame.HwpObject\CLSID",
 )
+_MAC_BUNDLE_ID = "com.hancom.office.hwp12.mac.general"
+_MAC_APP_CANDIDATES = (
+    "/Applications/Hancom Office HWP.app",
+    "/Applications/Hancom Office HWP 2024.app",
+    "/Applications/Hancom Office HWP 2022.app",
+)
 
 
-class RenderOracle:
+class RenderBackend:
+    """Common render-oracle interface.
+
+    ``visual_check`` only requires :meth:`available` and :meth:`render_many`.
+    The default :meth:`render_many` serializes :meth:`render_pdf` — correct for
+    the GUI backend (single session, one doc at a time); the COM backend
+    overrides it to reuse one Hancom session across the batch.
+    """
+
+    def available(self) -> bool:  # pragma: no cover - overridden
+        return False
+
+    def render_pdf(self, hwpx_path: str, out_pdf: str | None = None) -> str | None:
+        raise NotImplementedError
+
+    def render_many(self, pairs: list[tuple[str, str]]) -> dict[str, str | None]:
+        result: dict[str, str | None] = {src: None for src, _ in pairs}
+        if not pairs or not self.available():
+            return result
+        for src, pdf in pairs:
+            try:
+                result[src] = self.render_pdf(src, pdf)
+            except Exception:
+                result[src] = None
+        return result
+
+
+class WindowsComOracle(RenderBackend):
     """Adapter that renders ``.hwpx`` → PDF through Hancom (한글) COM.
 
     Isolated and swappable: off-Windows (or where Hancom is not registered)
@@ -140,6 +191,161 @@ class RenderOracle:
         return self.render_many([(hwpx_path, out_pdf)]).get(hwpx_path)
 
 
+class MacHancomOracle(RenderBackend):
+    """Adapter that renders ``.hwpx`` → PDF through ``Hancom Office HWP.app``.
+
+    *Dev / spot-check grade.* The render is as faithful as COM (same Hancom
+    engine), but the transport is GUI automation: this build ships no AppleScript
+    dictionary and no headless convert CLI, so a packaged AppleScript
+    (``_render_hwpx_mac.applescript``) drives the menus through System Events:
+
+        open <input> → 파일 (File) > "PDF로 저장하기..." → NSSavePanel (Return = 저장)
+        → 파일 > "문서 닫기"
+
+    The save panel is *document-relative* (it pre-fills 위치 = the input's
+    directory and the name field = the input's stem), so :meth:`render_pdf`
+    stages the input as ``<out_dir>/<out_stem>.hwpx`` and the panel writes exactly
+    ``<out_dir>/<out_stem>.pdf`` with no path typing. The target is pre-deleted so
+    no overwrite sheet appears.
+
+    Operational notes: the GUI is a single shared session, so renders MUST be
+    serialized (the default serial :meth:`render_many` does this). Requires a
+    logged-in GUI session and Automation + Accessibility permission for the
+    process that runs ``osascript``. Windows COM stays canonical for CI/scale.
+    """
+
+    def __init__(
+        self,
+        *,
+        timeout: float = 300.0,
+        dpi: int = 150,
+        osascript: str = "osascript",
+    ) -> None:
+        self.timeout = timeout
+        self.dpi = dpi
+        self._osascript = osascript
+
+    def _app_path(self) -> str | None:
+        for candidate in _MAC_APP_CANDIDATES:
+            if os.path.isdir(candidate):
+                return candidate
+        # Fall back to a Spotlight lookup by bundle id (handles non-default
+        # install locations / localized app names).
+        try:
+            proc = subprocess.run(
+                ["mdfind", f"kMDItemCFBundleIdentifier == '{_MAC_BUNDLE_ID}'"],
+                capture_output=True, text=True, timeout=10.0, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        for line in proc.stdout.splitlines():
+            line = line.strip()
+            if line.endswith(".app") and os.path.isdir(line):
+                return line
+        return None
+
+    def available(self) -> bool:
+        """True only on macOS with ``Hancom Office HWP.app`` installed."""
+
+        if sys.platform != "darwin":
+            return False
+        return self._app_path() is not None
+
+    def render_pdf(self, hwpx_path: str, out_pdf: str | None = None) -> str | None:
+        """Render a single ``.hwpx`` to PDF via the GUI; returns the path or ``None``."""
+
+        if not self.available():
+            return None
+        if out_pdf is None:
+            handle, out_pdf = tempfile.mkstemp(suffix=".pdf")
+            os.close(handle)
+
+        src = os.path.abspath(hwpx_path)
+        out_pdf = os.path.abspath(out_pdf)
+        out_dir = os.path.dirname(out_pdf)
+        out_stem = os.path.splitext(os.path.basename(out_pdf))[0]
+        os.makedirs(out_dir, exist_ok=True)
+
+        # Stage the input next to the target, named as the target stem, so the
+        # document-relative save panel needs no typing (see class docstring).
+        staged = os.path.join(out_dir, out_stem + ".hwpx")
+        staged_is_source = os.path.abspath(staged) == src
+
+        try:  # pre-delete target -> the overwrite ("대치?") sheet never appears
+            if os.path.exists(out_pdf):
+                os.remove(out_pdf)
+        except OSError:
+            pass
+
+        cleanup_staged = False
+        try:
+            if not staged_is_source:
+                shutil.copyfile(src, staged)
+                cleanup_staged = True
+            with resources.as_file(
+                resources.files("hwpx.visual").joinpath(_MAC_BACKEND_SCRIPT)
+            ) as script:
+                cmd = [
+                    self._osascript, str(script), staged, out_pdf, str(int(self.timeout)),
+                ]
+                try:
+                    subprocess.run(
+                        cmd, capture_output=True, text=True,
+                        timeout=self.timeout + 60.0, check=False,
+                    )
+                except (subprocess.TimeoutExpired, OSError):
+                    return None
+            if os.path.exists(out_pdf) and os.path.getsize(out_pdf) > 0:
+                return out_pdf
+            return None
+        finally:
+            if cleanup_staged:
+                try:
+                    os.remove(staged)
+                except OSError:
+                    pass
+
+
+class NullOracle(RenderBackend):
+    """Sentinel backend for environments with no reachable Hancom.
+
+    ``available()`` is always ``False`` so ``visual_check`` degrades to a
+    labelled structural pass rather than crashing.
+    """
+
+    def available(self) -> bool:
+        return False
+
+    def render_pdf(self, hwpx_path: str, out_pdf: str | None = None) -> str | None:
+        return None
+
+
+def resolve_oracle(
+    *,
+    powershell: str | None = None,
+    timeout: float = 300.0,
+    dpi: int = 150,
+    osascript: str = "osascript",
+) -> RenderBackend:
+    """Return the best reachable render backend (Windows COM → Mac GUI → Null).
+
+    Windows COM is canonical (CI/scale); Mac GUI is the dev/spot-check fallback;
+    :class:`NullOracle` is the degrade sentinel when no Hancom is reachable.
+    """
+
+    windows = WindowsComOracle(powershell=powershell, timeout=timeout, dpi=dpi)
+    if windows.available():
+        return windows
+    mac = MacHancomOracle(timeout=timeout, dpi=dpi, osascript=osascript)
+    if mac.available():
+        return mac
+    return NullOracle()
+
+
+# Backward-compatible alias: ``RenderOracle`` was the Windows COM oracle.
+RenderOracle = WindowsComOracle
+
+
 def _degraded(message: str) -> VisualReport:
     return VisualReport(ok=True, render_checked=False, warnings=[message])
 
@@ -148,7 +354,7 @@ def visual_check(
     before_hwpx: str | None,
     after_hwpx: str,
     *,
-    oracle: RenderOracle,
+    oracle: RenderBackend,
     edit_mask: EditMask | None = None,
     diff_eps: float = 0.005,
     dpi: int = 150,
@@ -164,7 +370,7 @@ def visual_check(
 
     if oracle is None or not oracle.available():
         return _degraded(
-            "RENDER_ORACLE_UNAVAILABLE: Hancom COM not available on this platform; "
+            "RENDER_ORACLE_UNAVAILABLE: no Hancom reachable on this platform; "
             "structural degrade -- visual_complete is unverified, not confirmed."
         )
     if not (detectors.imaging_available() and diff.pymupdf_available()):
@@ -268,7 +474,7 @@ def _main(argv: list[str] | None = None) -> int:
     except Exception:
         pass
 
-    oracle = RenderOracle(dpi=args.dpi)
+    oracle = resolve_oracle(dpi=args.dpi)
     work = None
     if args.out:
         os.makedirs(args.out, exist_ok=True)
@@ -288,4 +494,12 @@ if __name__ == "__main__":
     raise SystemExit(_main())
 
 
-__all__ = ["RenderOracle", "visual_check"]
+__all__ = [
+    "RenderBackend",
+    "WindowsComOracle",
+    "MacHancomOracle",
+    "NullOracle",
+    "RenderOracle",
+    "resolve_oracle",
+    "visual_check",
+]
