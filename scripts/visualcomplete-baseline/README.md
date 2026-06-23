@@ -7,18 +7,24 @@ it?* This harness measures that with Hancom itself as the oracle.
 
 It exists because two facts changed the plan:
 
-1. **lineSegArray invalidation already ships.** The engine doesn't just strip on
-   edit — `opc/package.py:_sanitize_part_for_write` calls
-   `_strip_section_layout_caches` **unconditionally on every section write**
-   (`opc/package.py:201-204`). Anything saved through `HwpxPackage` carries **no**
-   layout cache. So the spec's P1 ("build scoped dirty-range invalidation") is
-   not greenfield — it's *already done, bluntly* (nuke-all-on-save).
-2. **The bug was never measured.** Nobody confirmed 글자 겹침 still reproduces.
-   So step one is measurement, not engine-building.
+1. **lineSegArray invalidation already ships — but per re-serialized section, not
+   "unconditionally".** `opc/package.py:_sanitize_part_for_write` →
+   `_strip_section_layout_caches` runs **inside `package.write()`**
+   (`opc/package.py:201-204`), case-insensitively matching the real lowercase
+   `<hp:linesegarray>`. But `package.write()` is only called for sections the
+   document model **re-serializes**, i.e. the ones it edited. In a multi-section
+   doc, editing one section leaves the *other* sections' caches in place
+   (measured: doc with 3 sections, edit section0 → section0 184→0, section1/2
+   kept 283/72). That's harmless for content edits — HWPX section breaks are hard
+   layout boundaries, so one section's caches can't go stale from another
+   section's edit — but the earlier "unconditional on every section write" claim
+   was wrong. So P1 ("scoped dirty-range invalidation") is *already done bluntly*
+   **for the save path**, not greenfield.
+2. **The bug was never measured.** *(Now measured — see "Result" below: it
+   reproduces, stripping is load-bearing.)*
 
-The only known path that could still emit a stale cache is the byte-preserving
-`patch.py` ZIP-splice path — test it explicitly with `--via-patch` once wired
-(not yet implemented; see "Open items").
+The one save path that genuinely emitted a stale cache is the byte-preserving
+`patch.py` ZIP-splice path. Confirmed leaking (and now fixed) — see "Result".
 
 ---
 
@@ -130,6 +136,36 @@ was the whole point.
 
 ---
 
+## Result (Windows + 한글 Office 2022 v12, COM oracle, 2026-06-23)
+
+**Verdict: `lineseg_matters` — stripping the stale cache is load-bearing.**
+
+Measured over 6 genuine Hancom-saved docs × 3 mutations (17 valid pairs):
+`lineseg_matters` 8 · `hancom_relayouts` 9 · `inconclusive` 1.
+
+- **Text growth (`short_to_long`) reproduces 글자 겹침.** A 방송신청서 form title
+  overflowed its stale single-line slot — glyphs piled on top of each other and
+  2 pages collapsed to 1. Confirmed visually in the Hancom PDF.
+- **Text shrink / same-length → ON==OFF (diff 0.0).** Hancom re-layouts; the
+  retained cache is harmless. The open-safety validator additionally *rejects*
+  the worst shrink case (`textpos > text length`), which is why one pair is
+  `inconclusive` (OFF refused to save).
+- `doc06`'s marginal 0.0086 diff (identical across all 3 mutations, no overlap
+  signature) is cached-vs-fresh rounding noise, not 글자 겹침.
+
+**Consequences acted on:**
+- The save-path (blanket-ish) strip is correct — kept.
+- **`patch.py` byte path was leaking** (no strip; its only guard,
+  `validate_editor_open_safety`, can't detect text-*growth* staleness without
+  doing layout). **Fixed**: the splice now drops the patched paragraph's
+  `<hp:linesegarray>` (`patch.py:_strip_paragraph_layout_cache`). Regression:
+  `tests/test_kordoc_absorption.py::test_byte_preserving_patch_strips_only_patched_paragraph_layout_cache`.
+  Re-rendered through Hancom: the prior overlap smear is gone.
+- Validator left as-is (textpos>length is its clean invariant; growth staleness
+  isn't robustly detectable without layout — strip on patch is the right fix).
+
+---
+
 ## Verified vs. not (honest status, macOS session 2026-06-23)
 
 **Verified here (ran on macOS):**
@@ -139,13 +175,21 @@ was the whole point.
 - `diff_ratio`/`overlap_score` behave on synthetic clean-vs-collapsed pages
   (diff 0.0 vs 0.104; tall_band_ratio 1.0 vs 4.44; overlap signature fires).
 
-**NOT verified (needs your Windows+한컴 box):**
-- `hancom_render.ps1` actually exporting PDF (COM not available on macOS).
-- End-to-end `rasterize_score.py` on real Hancom PDFs.
-- That repo fixtures reproduce the bug — they can't; **supply real Hancom docs**.
+**Now verified on Windows + 한글 Office 2022 v12 (2026-06-23):**
+- `hancom_render.ps1` exports PDF via COM — needed two build fixes: `Open` takes
+  the full `(path, "", "")` signature on this build (1-arg fails to bind);
+  `SaveAs(...,"PDF","")` works as-is.
+- End-to-end `rasterize_score.py` on real Hancom PDFs (see "Result").
+- Repo fixtures can't reproduce the bug (all stripped). Real Hancom-saved docs
+  were sourced from local Downloads/Documents and processed out-of-tree.
+- **Harness counter bug found + fixed**: `run_pairs.py`/`make_injected_fixture.py`
+  counted only camelCase `lineSegArray`, but real Hangul writes lowercase
+  `linesegarray`, so `control_valid` was a false 0 on every real doc. Now
+  `re.IGNORECASE` (matches the engine's own case-insensitive strip).
 
 ## Open items
-- `--via-patch` mode for `run_pairs.py` to also exercise the `patch.py`
-  byte-splice path (the one save path that could bypass the package strip).
+- ~~`--via-patch` mode~~ — the `patch.py` byte path was exercised directly
+  (out-of-tree) and **fixed** with a unit regression. An in-tree `--via-patch`
+  flag for `run_pairs.py` would still be a convenience.
 - Form-fill mutation (`fill_form_field`) in the battery, once an anchored
   form fixture is available.

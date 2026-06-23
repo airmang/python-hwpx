@@ -54,7 +54,7 @@ def inject(src: Path, out: Path) -> int:
             if name == "mimetype":
                 continue
             zout.writestr(name, items[name])
-    return len(re.findall(rb"<[^>/][^>]*[lL]ineSegArray\b", new_payload))
+    return len(re.findall(rb"<[^>/][^>]*linesegarray\b", new_payload, re.IGNORECASE))
 
 
 def main(argv=None) -> int:

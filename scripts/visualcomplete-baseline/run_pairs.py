@@ -35,8 +35,12 @@ from hwpx.document import HwpxDocument  # noqa: E402
 from lineseg_toggle import lineseg_invalidation  # noqa: E402
 from mutate import MUTATIONS  # noqa: E402
 
-# Count only opening <...lineSegArray ...> elements (exclude </...> closers).
-_LINESEG_RE = re.compile(rb"<[^>/][^>]*[lL]ineSegArray\b")
+# Count only opening <...linesegarray ...> elements (exclude </...> closers).
+# Case-insensitive: real Hangul output writes lowercase <hp:linesegarray>, while
+# synthetic fixtures may use camelCase <hp:lineSegArray>. The engine's strip
+# (opc/package.py) matches case-insensitively, so the control self-check must too,
+# else every real Hancom-saved doc falsely reports control_valid=0.
+_LINESEG_RE = re.compile(rb"<[^>/][^>]*linesegarray\b", re.IGNORECASE)
 
 
 def _count_linesegarray(hwpx_path: Path) -> int:

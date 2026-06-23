@@ -58,7 +58,10 @@ try {
         $pdf  = Join-Path $OutDir ($name + ".pdf")
         $opened = $false; $saved = $false; $err = $null
         try {
-            $opened = [bool]$hwp.Open($src)
+            # This Hangul build (Office 2022, v12) exposes Open with a fixed
+            # (filename, format, arg) signature; the 1-arg form fails to bind.
+            # Empty format = auto-detect. SaveAs(...,"PDF","") works as-is.
+            $opened = [bool]$hwp.Open($src, "", "")
             if ($opened) {
                 # SaveAs with explicit "PDF" format. If a particular Hangul build
                 # rejects this, switch to the HAction "FileSaveAsPdf" path — this
