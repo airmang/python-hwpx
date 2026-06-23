@@ -34,6 +34,17 @@ _RUN_OPEN_RE = re.compile(
     rb"<(?P<prefix>(?:[A-Za-z_][\w.-]*:)?)(?P<tag>run)\b(?P<attrs>[^>]*)>",
     re.DOTALL,
 )
+# Layout cache Hangul emits as <hp:linesegarray> (with <hp:lineseg> children).
+# Splicing new text into a paragraph invalidates its cached line geometry, so the
+# byte path must drop the cache; otherwise Hangul renders the new text into the
+# stale line slots and overlapping glyphs (글자 겹침) result. Matches the container
+# form and the (rare) self-closing form, with any namespace prefix, case-insensitive
+# to mirror the engine's own case-insensitive strip in opc/package.py.
+_LINESEG_ARRAY_RE = re.compile(
+    rb"<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)linesegarray\b"
+    rb"(?:[^>]*?/>|[^>]*>.*?</(?P=ns)linesegarray>)",
+    re.DOTALL | re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -260,6 +271,17 @@ def _paragraph_spans(section_xml: bytes) -> list[_ParagraphSpan]:
     ]
 
 
+def _strip_paragraph_layout_cache(paragraph: bytes) -> bytes:
+    """Remove a paragraph's ``<hp:linesegarray>`` layout cache.
+
+    Run after a text splice: the cached line geometry describes the *old* text, so
+    leaving it in place makes Hangul lay the new text onto stale line slots and
+    overlap (글자 겹침). Stripping it forces a recompute on open.
+    """
+
+    return _LINESEG_ARRAY_RE.sub(b"", paragraph)
+
+
 def _patch_section_xml(
     section_path: str,
     section_xml: bytes,
@@ -289,7 +311,13 @@ def _patch_section_xml(
         start, end, replacement, original_text = edit
         if original_text == patch.text:
             continue
-        edits.append((span.start + start, span.start + end, replacement))
+        # Apply the text splice within the paragraph, then strip its now-stale
+        # layout cache and replace the whole paragraph span. This guarantees the
+        # patched paragraph carries no <hp:linesegarray>, so Hangul recomputes the
+        # line layout for the new text instead of reusing the old geometry.
+        patched_paragraph = _apply_edits(span.payload, [(start, end, replacement)])
+        patched_paragraph = _strip_paragraph_layout_cache(patched_paragraph)
+        edits.append((span.start, span.end, patched_paragraph))
         applied.append(
             PatchApplied(
                 section_path=section_path,

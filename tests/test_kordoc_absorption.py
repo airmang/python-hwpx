@@ -223,3 +223,64 @@ def test_byte_preserving_patch_skips_unsupported_block_edit_without_mutation() -
     assert result.data == package_bytes
     assert result.byte_identical is True
     assert result.skipped[0].reason == "line break insertion is unsupported"
+
+
+# Real Hangul layout cache: lowercase <hp:linesegarray>/<hp:lineseg>. A measured
+# baseline (Hancom COM oracle) confirmed that retaining this cache after a text
+# edit makes Hangul render the new text onto stale line geometry (글자 겹침). The
+# byte-splice path must therefore drop the patched paragraph's cache.
+_LINESEG = (
+    b'<hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="1000" '
+    b'textheight="1000" baseline="850" spacing="600" horzpos="0" '
+    b'horzsize="42520" flags="393216"/></hp:linesegarray>'
+)
+
+
+def _inject_lineseg_after(section: bytes, text_marker: bytes) -> bytes:
+    start = section.find(text_marker)
+    assert start != -1, f"marker {text_marker!r} not found in section"
+    close = section.find(b"</hp:p>", start)
+    assert close != -1, "no </hp:p> after marker"
+    return section[:close] + _LINESEG + section[close:]
+
+
+def test_byte_preserving_patch_strips_only_patched_paragraph_layout_cache() -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("alpha")
+    document.add_paragraph("bravo")
+    package_bytes = document.to_bytes()
+
+    with ZipFile(io.BytesIO(package_bytes), "r") as archive:
+        section = archive.read("Contents/section0.xml")
+    section = _inject_lineseg_after(section, b"<hp:t>alpha</hp:t>")
+    section = _inject_lineseg_after(section, b"<hp:t>bravo</hp:t>")
+    seeded = _replace_zip_part(package_bytes, "Contents/section0.xml", section)
+    assert section.lower().count(b"<hp:linesegarray>") == 2
+
+    # Grow paragraph 1 (alpha); leave paragraph 2 (bravo) untouched.
+    result = paragraph_patch(
+        seeded,
+        [
+            ParagraphTextPatch(
+                "Contents/section0.xml",
+                1,
+                "alpha 서울특별시 강남구 테헤란로 123길 45, 678호 추가 기재 사항입니다",
+            )
+        ],
+    )
+
+    assert result.skipped == ()
+    assert result.applied[0].original_text == "alpha"
+    assert result.open_safety["ok"] is True
+
+    with ZipFile(io.BytesIO(result.data), "r") as archive:
+        patched = archive.read("Contents/section0.xml")
+
+    # The patched paragraph's stale cache is gone; the untouched paragraph keeps its
+    # (still-valid) cache — strip is targeted, not blanket.
+    assert patched.lower().count(b"<hp:linesegarray>") == 1
+    alpha_pos = patched.find("추가 기재 사항입니다".encode("utf-8"))
+    bravo_pos = patched.find(b"<hp:t>bravo</hp:t>")
+    assert alpha_pos != -1 and bravo_pos != -1
+    remaining = patched.lower().find(b"<hp:linesegarray>")
+    assert remaining > alpha_pos, "remaining cache should belong to the untouched bravo paragraph"
