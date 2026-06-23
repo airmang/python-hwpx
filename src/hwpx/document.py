@@ -524,6 +524,23 @@ class HwpxDocument:
 
         return self._root.border_fill(border_fill_id_ref)
 
+    def ensure_border_fill(
+        self,
+        *,
+        border_color: str = "#BFBFBF",
+        border_width: str = "0.12 mm",
+        fill_color: str | None = None,
+        active_borders: Sequence[str] | None = None,
+    ) -> str:
+        """Return a borderFill id matching the requested border/fill attributes."""
+
+        return self._root.ensure_border_fill(
+            border_color=border_color,
+            border_width=border_width,
+            fill_color=fill_color,
+            active_borders=active_borders,
+        )
+
     @property
     def memo_shapes(self) -> dict[str, MemoShape]:
         """Return memo shapes available in the header reference lists."""
@@ -1759,6 +1776,9 @@ class HwpxDocument:
         spacing_before_pt: float | None = None,
         spacing_after_pt: float | None = None,
         outline_level: int | None = None,
+        bottom_border: bool = False,
+        border_color: str = "#BFBFBF",
+        border_width: str = "0.12 mm",
     ) -> dict[str, Any]:
         """Apply paragraph-level formatting using human units.
 
@@ -1768,6 +1788,7 @@ class HwpxDocument:
 
         if not self._root.headers:
             raise ValueError("document does not contain any headers")
+        header = self._root.headers[0]
 
         if line_spacing_percent is not None and float(line_spacing_percent) <= 0:
             raise ValueError("line_spacing_percent must be positive")
@@ -1799,14 +1820,31 @@ class HwpxDocument:
             and line_spacing_percent is None
             and not margins
             and heading is None
+            and not bottom_border
         ):
             raise ValueError("at least one paragraph formatting option is required")
+
+        border: dict[str, str] | None = None
+        if bottom_border:
+            border_fill_id = header.ensure_border_fill(
+                border_color=border_color,
+                border_width=border_width,
+                active_borders=("bottom",),
+            )
+            border = {
+                "borderFillIDRef": border_fill_id,
+                "offsetLeft": "0",
+                "offsetRight": "0",
+                "offsetTop": "0",
+                "offsetBottom": "0",
+                "connect": "0",
+                "ignoreMargin": "0",
+            }
 
         targets = self._resolve_paragraph_targets(
             paragraph_index=paragraph_index,
             paragraph_indexes=paragraph_indexes,
         )
-        header = self._root.headers[0]
         formatted: list[dict[str, Any]] = []
         for index, paragraph in targets:
             para_pr_id = header.ensure_paragraph_format(
@@ -1815,6 +1853,7 @@ class HwpxDocument:
                 line_spacing_percent=line_spacing_percent,
                 margins=margins,
                 heading=heading,
+                border=border,
             )
             paragraph.para_pr_id_ref = para_pr_id
             formatted.append({"paragraph_index": index, "paraPrIDRef": para_pr_id})

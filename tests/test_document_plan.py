@@ -14,6 +14,10 @@ from hwpx import (
 from hwpx.tools.package_validator import validate_package
 from hwpx.tools.validator import validate_document
 
+HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
+HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
+HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+
 
 def _plan() -> dict:
     return {
@@ -388,6 +392,111 @@ def test_document_plan_title_and_heading_styles_have_visual_hierarchy() -> None:
         assert int(title_style.attributes["height"]) > int(heading_style.attributes["height"])
         assert int(heading_style.attributes["height"]) > int(body_style.attributes["height"])
         assert int(subtitle_style.attributes["height"]) > int(body_style.attributes["height"])
+    finally:
+        document.close()
+
+
+def test_document_plan_applies_page_rule_and_table_polish() -> None:
+    plan = {
+        "schemaVersion": DOCUMENT_PLAN_SCHEMA_VERSION,
+        "title": "Styled Plan",
+        "blocks": [
+            {"type": "heading", "level": 1, "text": "Section"},
+            {"type": "paragraph", "text": "Plain text remains plain."},
+            {
+                "type": "table",
+                "columns": [
+                    {"key": "item", "label": "Item"},
+                    {"key": "owner", "label": "Owner"},
+                ],
+                "rows": [{"item": "Launch", "owner": "Team"}],
+            },
+        ],
+    }
+    document = create_document_from_plan(plan)
+    try:
+        margins = document.sections[0].properties.page_margins
+        assert margins.left == 7087
+        assert margins.right == 7087
+        assert margins.top == 7087
+        assert margins.bottom == 7087
+
+        paragraphs = {
+            (paragraph.text or "").strip(): paragraph
+            for paragraph in document.paragraphs
+            if (paragraph.text or "").strip()
+        }
+        title_prop = document.paragraph_property(paragraphs["Styled Plan"].para_pr_id_ref)
+        heading_prop = document.paragraph_property(paragraphs["Section"].para_pr_id_ref)
+        assert title_prop is not None
+        assert heading_prop is not None
+        assert title_prop.align is not None
+        assert title_prop.align.horizontal == "CENTER"
+        assert title_prop.border is not None
+        assert heading_prop.border is not None
+
+        title_border = document.oxml.headers[0].element.find(
+            f".//{HH}borderFill[@id='{title_prop.border.border_fill_id_ref}']"
+        )
+        assert title_border is not None
+        assert title_border.find(f"{HH}bottomBorder").get("type") == "SOLID"
+        assert title_border.find(f"{HH}leftBorder").get("type") == "NONE"
+        assert title_border.find(f"{HH}rightBorder").get("type") == "NONE"
+        assert title_border.find(f"{HH}topBorder").get("type") == "NONE"
+
+        table = next(table for paragraph in document.paragraphs for table in paragraph.tables)
+        header_cell = table.cell(0, 0)
+        body_cell = table.cell(1, 0)
+        header_fill = document.oxml.headers[0].element.find(
+            f".//{HH}borderFill[@id='{header_cell.element.get('borderFillIDRef')}']"
+        )
+        body_fill = document.oxml.headers[0].element.find(
+            f".//{HH}borderFill[@id='{body_cell.element.get('borderFillIDRef')}']"
+        )
+        assert header_fill.find(f"{HC}fillBrush/{HC}winBrush").get("faceColor") == "#F2F2F2"
+        assert body_fill.find(f"{HC}fillBrush") is None
+        assert all(
+            header_fill.find(f"{HH}{side}Border").get("color") == "#BFBFBF"
+            for side in ("left", "right", "top", "bottom")
+        )
+        assert header_cell.element.get("hasMargin") == "1"
+        assert header_cell.element.find(f"{HP}cellMargin").attrib == {
+            "left": "425",
+            "right": "425",
+            "top": "425",
+            "bottom": "425",
+        }
+        assert header_cell.element.find(f"{HP}subList").get("vertAlign") == "CENTER"
+        header_para_prop = document.paragraph_property(header_cell.paragraphs[0].para_pr_id_ref)
+        assert header_para_prop.align.horizontal == "CENTER"
+        assert "bold" in header_cell.paragraphs[0].runs[0].style.child_attributes
+    finally:
+        document.close()
+
+
+def test_document_plan_paragraph_supports_inline_rich_runs() -> None:
+    plan = {
+        "schemaVersion": DOCUMENT_PLAN_SCHEMA_VERSION,
+        "title": "Runs",
+        "blocks": [
+            {
+                "type": "paragraph",
+                "runs": [
+                    {"text": "plain "},
+                    {"text": "bold", "bold": True},
+                    {"text": " red", "color": "C00000"},
+                ],
+            }
+        ],
+    }
+
+    assert validate_document_plan(plan).ok is True
+    document = create_document_from_plan(plan)
+    try:
+        paragraph = next(paragraph for paragraph in document.paragraphs if paragraph.text == "plain bold red")
+        assert [run.text for run in paragraph.runs] == ["plain ", "bold", " red"]
+        assert "bold" in paragraph.runs[1].style.child_attributes
+        assert paragraph.runs[2].style.attributes["textColor"] == "#C00000"
     finally:
         document.close()
 

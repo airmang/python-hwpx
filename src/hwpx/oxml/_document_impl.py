@@ -87,6 +87,13 @@ _BASIC_BORDER_CHILDREN: tuple[tuple[str, dict[str, str]], ...] = (
     ("diagonal", {"type": "SOLID", "width": "0.1 mm", "color": "#000000"}),
 )
 
+_BORDER_SIDE_ELEMENTS = {
+    "left": "leftBorder",
+    "right": "rightBorder",
+    "top": "topBorder",
+    "bottom": "bottomBorder",
+}
+
 T = TypeVar("T")
 
 # Characters forbidden inside XML 1.0 text nodes (XML spec §2.2).
@@ -429,6 +436,128 @@ def _create_basic_border_fill_element(border_id: str) -> ET.Element:
     element = ET.Element(f"{_HH}borderFill", attrs)
     for child_name, child_attrs in _BASIC_BORDER_CHILDREN:
         ET.SubElement(element, f"{_HH}{child_name}", dict(child_attrs))
+    return element
+
+
+def _border_fill_child_attrs(
+    *,
+    active: bool,
+    color: str,
+    width: str,
+) -> dict[str, str]:
+    return {
+        "type": "SOLID" if active else "NONE",
+        "width": width,
+        "color": color,
+    }
+
+
+def _normalize_border_side_names(active_borders: Iterable[str] | None) -> set[str]:
+    if active_borders is None:
+        return set(_BORDER_SIDE_ELEMENTS)
+    normalized: set[str] = set()
+    for side in active_borders:
+        key = str(side).strip().lower()
+        if key not in _BORDER_SIDE_ELEMENTS:
+            raise ValueError(f"unsupported border side: {side!r}")
+        normalized.add(key)
+    return normalized
+
+
+def _border_fill_fill_color(element: ET.Element) -> str | None:
+    fill_brush = next(
+        (child for child in element if _element_local_name(child) == "fillBrush"),
+        None,
+    )
+    if fill_brush is None:
+        return None
+    win_brush = next(
+        (child for child in fill_brush if _element_local_name(child) == "winBrush"),
+        None,
+    )
+    if win_brush is None:
+        return None
+    return win_brush.get("faceColor")
+
+
+def _border_fill_matches(
+    element: ET.Element,
+    *,
+    border_color: str,
+    border_width: str,
+    fill_color: str | None,
+    active_borders: set[str],
+) -> bool:
+    if _element_local_name(element) != "borderFill":
+        return False
+    for attr, expected in _BASIC_BORDER_FILL_ATTRIBUTES.items():
+        actual = element.get(attr)
+        if attr == "centerLine":
+            if (actual or "").upper() != expected:
+                return False
+        elif actual != expected:
+            return False
+
+    expected_fill = _normalize_color(fill_color)
+    if _border_fill_fill_color(element) != expected_fill:
+        return False
+
+    for side, child_name in _BORDER_SIDE_ELEMENTS.items():
+        child = element.find(f"{_HH}{child_name}")
+        if child is None:
+            return False
+        expected_type = "SOLID" if side in active_borders else "NONE"
+        if (child.get("type") or "").upper() != expected_type:
+            return False
+        if _normalize_length(child.get("width")) != _normalize_length(border_width):
+            return False
+        if (child.get("color") or "").upper() != border_color.upper():
+            return False
+
+    for child_name in ("slash", "backSlash", "diagonal"):
+        child = element.find(f"{_HH}{child_name}")
+        if child is None:
+            return False
+        if (child.get("type") or "").upper() != "NONE":
+            return False
+
+    return True
+
+
+def _create_border_fill_element(
+    border_id: str,
+    *,
+    border_color: str,
+    border_width: str,
+    fill_color: str | None,
+    active_borders: set[str],
+) -> ET.Element:
+    element = ET.Element(f"{_HH}borderFill", {"id": border_id, **_BASIC_BORDER_FILL_ATTRIBUTES})
+    ET.SubElement(element, f"{_HH}slash", {"type": "NONE", "Crooked": "0", "isCounter": "0"})
+    ET.SubElement(element, f"{_HH}backSlash", {"type": "NONE", "Crooked": "0", "isCounter": "0"})
+    for side, child_name in _BORDER_SIDE_ELEMENTS.items():
+        ET.SubElement(
+            element,
+            f"{_HH}{child_name}",
+            _border_fill_child_attrs(
+                active=side in active_borders,
+                color=border_color,
+                width=border_width,
+            ),
+        )
+    ET.SubElement(
+        element,
+        f"{_HH}diagonal",
+        _border_fill_child_attrs(active=False, color=border_color, width=border_width),
+    )
+    normalized_fill = _normalize_color(fill_color)
+    if normalized_fill is not None:
+        fill_brush = ET.SubElement(element, f"{_HC}fillBrush")
+        ET.SubElement(
+            fill_brush,
+            f"{_HC}winBrush",
+            {"faceColor": normalized_fill, "hatchColor": "#FF000000", "alpha": "0"},
+        )
     return element
 
 
@@ -5052,6 +5181,24 @@ class HwpxOxmlHeader:
             line_spacing.set("value", value)
             line_spacing.set("unit", "PERCENT")
 
+    def _apply_paragraph_border(self, para_pr: ET.Element, border: Mapping[str, str | int]) -> None:
+        self._remove_descendants_by_local(para_pr, "border")
+        attrs = {
+            "borderFillIDRef": str(border.get("borderFillIDRef", border.get("border_fill_id_ref", "0"))),
+            "offsetLeft": str(border.get("offsetLeft", border.get("offset_left", "0"))),
+            "offsetRight": str(border.get("offsetRight", border.get("offset_right", "0"))),
+            "offsetTop": str(border.get("offsetTop", border.get("offset_top", "0"))),
+            "offsetBottom": str(border.get("offsetBottom", border.get("offset_bottom", "0"))),
+            "connect": str(border.get("connect", "0")),
+            "ignoreMargin": str(border.get("ignoreMargin", border.get("ignore_margin", "0"))),
+        }
+        border_element = para_pr.makeelement(f"{_HH}border", attrs)
+        self._insert_child_after(
+            para_pr,
+            border_element,
+            {"align", "heading", "breakSetting", "autoSpacing", "margin", "lineSpacing", "switch"},
+        )
+
     def ensure_paragraph_format(
         self,
         *,
@@ -5060,6 +5207,7 @@ class HwpxOxmlHeader:
         line_spacing_percent: int | float | None = None,
         margins: Mapping[str, int] | None = None,
         heading: Mapping[str, str | int] | None = None,
+        border: Mapping[str, str | int] | None = None,
     ) -> str:
         """Return a new paragraph property id with requested formatting changes."""
 
@@ -5099,6 +5247,9 @@ class HwpxOxmlHeader:
 
         if line_spacing_percent is not None:
             self._apply_paragraph_line_spacing(para_pr, line_spacing_percent)
+
+        if border is not None:
+            self._apply_paragraph_border(para_pr, border)
 
         para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
         para_pr.set("id", para_pr_id)
@@ -5183,6 +5334,50 @@ class HwpxOxmlHeader:
 
         new_id = self._allocate_border_fill_id(element)
         new_border_fill = _create_basic_border_fill_element(new_id)
+        if isinstance(element, LET._Element):
+            new_border_fill = LET.fromstring(ET.tostring(new_border_fill, encoding="utf-8"))
+        element.append(new_border_fill)
+        self._update_border_fills_item_count(element)
+        self.mark_dirty()
+        return new_id
+
+    def ensure_border_fill(
+        self,
+        *,
+        border_color: str = "#BFBFBF",
+        border_width: str = "0.12 mm",
+        fill_color: str | None = None,
+        active_borders: Iterable[str] | None = None,
+    ) -> str:
+        element = self._border_fills_element(create=True)
+        if element is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <borderFills> element")
+
+        normalized_border_color = _normalize_color(border_color) or "#BFBFBF"
+        normalized_border_width = str(border_width or "0.12 mm")
+        normalized_active_borders = _normalize_border_side_names(active_borders)
+        normalized_fill_color = _normalize_color(fill_color)
+
+        for border_fill in element.findall(f"{_HH}borderFill"):
+            if _border_fill_matches(
+                border_fill,
+                border_color=normalized_border_color,
+                border_width=normalized_border_width,
+                fill_color=normalized_fill_color,
+                active_borders=normalized_active_borders,
+            ):
+                border_id = border_fill.get("id")
+                if border_id:
+                    return border_id
+
+        new_id = self._allocate_border_fill_id(element)
+        new_border_fill = _create_border_fill_element(
+            new_id,
+            border_color=normalized_border_color,
+            border_width=normalized_border_width,
+            fill_color=normalized_fill_color,
+            active_borders=normalized_active_borders,
+        )
         if isinstance(element, LET._Element):
             new_border_fill = LET.fromstring(ET.tostring(new_border_fill, encoding="utf-8"))
         element.append(new_border_fill)
@@ -5891,6 +6086,23 @@ class HwpxOxmlDocument:
                 return existing
 
         return self._headers[0].ensure_basic_border_fill()
+
+    def ensure_border_fill(
+        self,
+        *,
+        border_color: str = "#BFBFBF",
+        border_width: str = "0.12 mm",
+        fill_color: str | None = None,
+        active_borders: Iterable[str] | None = None,
+    ) -> str:
+        if not self._headers:
+            return "0"
+        return self._headers[0].ensure_border_fill(
+            border_color=border_color,
+            border_width=border_width,
+            fill_color=fill_color,
+            active_borders=active_borders,
+        )
 
     def ensure_shading_border_fill(
         self,

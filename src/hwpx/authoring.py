@@ -30,6 +30,7 @@ from .builder import (
 )
 from .builder.core import Toc as BuilderToc
 from .document import HwpxDocument
+from .oxml.namespaces import HP as _HP
 from .tools.package_validator import validate_package
 from .tools.table_cleanup import normalize_cell_text
 from .tools.advanced_generators import build_image_grid
@@ -48,7 +49,7 @@ DOCUMENT_PLAN_V2_SCHEMA_VERSION = "hwpx.document_plan.v2"
 AUTHORING_REPORT_VERSION = "hwpx-authoring-quality-v1"
 OPERATING_PLAN_QUALITY_VERSION = "operating-plan-quality-v1"
 DEFAULT_STYLE_PRESET = "standard_korean_business"
-_DEFAULT_TABLE_WIDTH = 48_000
+_DEFAULT_TABLE_WIDTH = 45_000  # ~158.7mm (HWPUNIT): fits A4(210mm) content at 25mm margins (~160mm). 48000(~169mm) overflowed the right margin in Hancom.
 _METADATA_LABELS = {
     "organization": "기관",
     "author": "작성자",
@@ -62,6 +63,10 @@ _SUPPORTED_STYLE_TOKENS = frozenset(
     {"body", "title", "subtitle", "heading", "bullet", "table_header", "table_cell"}
 )
 _SUPPORTED_TABLE_PROFILES = frozenset({"government"})
+_DEFAULT_PAGE_MARGIN_MM = 25
+_TABLE_BORDER_COLOR = "#BFBFBF"
+_TABLE_HEADER_FILL = "#F2F2F2"
+_TABLE_CELL_MARGIN = "425"
 _BOOLEAN_QUALITY_GATES = frozenset(
     {"validatePackage", "validateDocument", "reopen", "visualReviewRequired"}
 )
@@ -164,14 +169,23 @@ class DocumentStylePreset:
 
     name: str = DEFAULT_STYLE_PRESET
     title_bold: bool = True
-    subtitle_italic: bool = True
+    subtitle_italic: bool = False
     heading_bold: bool = True
-    heading_underline: bool = True
+    heading_underline: bool = False
     table_header_bold: bool = True
-    title_size: int = 18
+    title_size: int = 20
     subtitle_size: int = 12
     heading_size: int = 14
-    font: str = "함초롬바탕"
+    body_size: int = 11
+    meta_size: int = 10
+    font: str = "함초롬돋움"
+    title_color: str | None = "#1F3864"
+    heading_color: str | None = "#1F3864"
+    subtitle_color: str | None = "#595959"
+    meta_color: str | None = "#595959"
+    title_rule: bool = True
+    heading_rule: bool = True
+    rule_color: str = "#BFBFBF"
 
     def ensure_tokens(self, document: HwpxDocument) -> dict[str, str]:
         """Create/reuse run styles and return semantic token IDs."""
@@ -181,22 +195,37 @@ class DocumentStylePreset:
                 bold=self.title_bold,
                 size=self.title_size,
                 font=self.font,
+                color=self.title_color,
             ),
             "subtitle": document.ensure_run_style(
                 italic=self.subtitle_italic,
                 size=self.subtitle_size,
                 font=self.font,
+                color=self.subtitle_color,
             ),
             "heading": document.ensure_run_style(
                 bold=self.heading_bold,
                 underline=self.heading_underline,
                 size=self.heading_size,
                 font=self.font,
+                color=self.heading_color,
             ),
-            "body": document.ensure_run_style(),
-            "bullet": document.ensure_run_style(),
-            "table_header": document.ensure_run_style(bold=self.table_header_bold),
-            "table_cell": document.ensure_run_style(),
+            "body": document.ensure_run_style(size=self.body_size, font=self.font),
+            "bullet": document.ensure_run_style(size=self.body_size, font=self.font),
+            "meta": document.ensure_run_style(
+                size=self.meta_size,
+                font=self.font,
+                color=self.meta_color,
+            ),
+            "table_header": document.ensure_run_style(
+                bold=self.table_header_bold,
+                size=self.body_size,
+                font=self.font,
+            ),
+            "table_cell": document.ensure_run_style(
+                size=self.body_size,
+                font=self.font,
+            ),
         }
 
 
@@ -714,12 +743,15 @@ def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue
         issues.extend(_computed_field_issues(raw_block.get("text"), path=f"{path}.text"))
     elif block_type == "paragraph":
         issues.extend(_computed_field_issues(raw_block.get("text"), path=f"{path}.text"))
-        for child_index, child in enumerate(raw_block.get("children") or []):
+        children = raw_block.get("children")
+        if children is None:
+            children = raw_block.get("runs")
+        for child_index, child in enumerate(children or []):
             if isinstance(child, Mapping):
                 issues.extend(
                     _computed_field_issues(
                         child.get("text"),
-                        path=f"{path}.children[{child_index}].text",
+                        path=f"{path}.runs[{child_index}].text",
                     )
                 )
     elif block_type in {"bullets", "bullet", "numbered_list", "numberedList"}:
@@ -764,32 +796,59 @@ def create_document_from_plan(
         else DocumentStylePreset(name=str(preset or normalized.style_preset or DEFAULT_STYLE_PRESET))
     )
     document = HwpxDocument.new()
+    document.set_page_setup(
+        margins_mm={
+            "left": _DEFAULT_PAGE_MARGIN_MM,
+            "right": _DEFAULT_PAGE_MARGIN_MM,
+            "top": _DEFAULT_PAGE_MARGIN_MM,
+            "bottom": _DEFAULT_PAGE_MARGIN_MM,
+        }
+    )
     tokens = style_preset.ensure_tokens(document)
     builder_document = _lower_plan_to_builder_document(normalized)
 
     if normalized.title:
-        document.add_paragraph(
+        paragraph = document.add_paragraph(
             normalized.title,
             char_pr_id_ref=tokens["title"],
             inherit_style=False,
         )
+        _format_para(
+            document,
+            paragraph,
+            alignment="center",
+            line_spacing=130,
+            after_pt=2,
+            bottom_border=style_preset.title_rule,
+            border_color=style_preset.rule_color,
+        )
     if normalized.subtitle:
-        document.add_paragraph(
+        paragraph = document.add_paragraph(
             normalized.subtitle,
             char_pr_id_ref=tokens["subtitle"],
             inherit_style=False,
         )
+        _format_para(document, paragraph, line_spacing=130, after_pt=10)
 
     if normalized.metadata:
-        document.add_paragraph(
+        paragraph = document.add_paragraph(
             "문서 정보",
             char_pr_id_ref=tokens["heading"],
             inherit_style=False,
         )
+        _format_para(
+            document,
+            paragraph,
+            line_spacing=150,
+            before_pt=14,
+            after_pt=4,
+            bottom_border=style_preset.heading_rule,
+            border_color=style_preset.rule_color,
+        )
         _add_key_value_table(document, normalized.metadata, tokens)
 
     for block in builder_document.sections[0].children:
-        _render_block(document, block, tokens)
+        _render_block(document, block, tokens, style_preset=style_preset)
 
     return document
 
@@ -989,6 +1048,14 @@ def _validate_block(raw_block: Any, *, index: int) -> list[PlanValidationIssue]:
     elif block_type == "paragraph":
         issues.extend(_validate_paragraph_block(raw_block, path=path))
         issues.extend(_computed_field_issues(raw_block.get("text"), path=f"{path}.text"))
+        for run_index, run in enumerate(raw_block.get("runs") or []):
+            if isinstance(run, Mapping):
+                issues.extend(
+                    _computed_field_issues(
+                        run.get("text"),
+                        path=f"{path}.runs[{run_index}].text",
+                    )
+                )
     elif block_type == "bullets":
         items = _string_list(raw_block.get("items") or raw_block.get("bullets"))
         if not items:
@@ -1075,7 +1142,37 @@ def _validate_heading_block(raw_block: Mapping[str, Any], *, path: str) -> list[
 
 
 def _validate_paragraph_block(raw_block: Mapping[str, Any], *, path: str) -> list[PlanValidationIssue]:
-    issues = _validate_required_text_fields(raw_block, path=path, fields=("text",))
+    issues: list[PlanValidationIssue] = []
+    text = str(raw_block.get("text") or "").strip()
+    runs = raw_block.get("runs")
+    has_rich_runs = False
+    if runs is not None:
+        if not isinstance(runs, list):
+            issues.append(
+                _plan_issue(
+                    "invalid_runs",
+                    f"{path}.runs",
+                    f"{path}.runs must be a list of run objects",
+                    suggestion="Use runs=[{'text': '...', 'bold': true, 'color': '#1F3864'}].",
+                )
+            )
+        else:
+            for run_index, run in enumerate(runs):
+                run_path = f"{path}.runs[{run_index}]"
+                if not isinstance(run, Mapping):
+                    issues.append(
+                        _plan_issue(
+                            "invalid_run",
+                            run_path,
+                            f"{run_path} must be a mapping",
+                            suggestion="Use a run object with text and optional bold/color fields.",
+                        )
+                    )
+                    continue
+                if str(run.get("text") or "").strip():
+                    has_rich_runs = True
+    if not text and not has_rich_runs:
+        issues.extend(_validate_required_text_fields(raw_block, path=path, fields=("text",)))
     style = str(raw_block.get("style") or "body").strip() or "body"
     if style not in _SUPPORTED_STYLE_TOKENS:
         issues.append(
@@ -1314,12 +1411,21 @@ def _normalize_block(raw_block: Any, *, index: int) -> DocumentBlock:
         return DocumentBlock("heading", {"level": level, "text": replace_computed_fields(text)})
 
     if block_type == "paragraph":
+        runs = _normalize_paragraph_runs(raw_block.get("runs"), index=index)
+        text = (
+            replace_computed_fields(str(raw_block.get("text") or ""))
+            if runs
+            else replace_computed_fields(_required_text(raw_block, "text", index))
+        )
+        data: dict[str, Any] = {
+            "text": text,
+            "style": str(raw_block.get("style") or "body").strip() or "body",
+        }
+        if runs:
+            data["runs"] = runs
         return DocumentBlock(
             "paragraph",
-            {
-                "text": replace_computed_fields(_required_text(raw_block, "text", index)),
-                "style": str(raw_block.get("style") or "body").strip() or "body",
-            },
+            data,
         )
 
     if block_type == "bullets":
@@ -1362,6 +1468,29 @@ def _normalize_block(raw_block: Any, *, index: int) -> DocumentBlock:
         )
 
     return DocumentBlock("page_break", {})
+
+
+def _normalize_paragraph_runs(value: Any, *, index: int) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(f"blocks[{index}].runs must be a list")
+    runs: list[dict[str, Any]] = []
+    for run_index, raw_run in enumerate(value):
+        if not isinstance(raw_run, Mapping):
+            raise ValueError(f"blocks[{index}].runs[{run_index}] must be a mapping")
+        text = replace_computed_fields(str(raw_run.get("text") or ""))
+        if not text:
+            continue
+        run: dict[str, Any] = {"text": text}
+        if "bold" in raw_run:
+            run["bold"] = bool(raw_run.get("bold"))
+        if "color" in raw_run:
+            color = _optional_str(raw_run.get("color"))
+            if color is not None:
+                run["color"] = color
+        runs.append(run)
+    return runs
 
 
 def _normalize_v2_builder_document(plan: Mapping[str, Any]) -> BuilderDocument:
@@ -1491,9 +1620,12 @@ def _normalize_v2_block(raw_block: Any, *, path: str) -> Any:
             text=replace_computed_fields(str(raw_block.get("text") or "")),
         )
     if block_type == "paragraph":
+        raw_children = raw_block.get("children")
+        if raw_children is None:
+            raw_children = raw_block.get("runs")
         children = tuple(
             child
-            for child in (_normalize_v2_paragraph_child(child) for child in raw_block.get("children") or [])
+            for child in (_normalize_v2_paragraph_child(child) for child in raw_children or [])
             if isinstance(child, BuilderRun)
         )
         return BuilderParagraph(
@@ -1639,6 +1771,15 @@ def _block_to_builder_nodes(block: DocumentBlock) -> tuple[Any, ...]:
             ),
         )
     if block.type == "paragraph":
+        runs = block.data.get("runs") or []
+        if runs:
+            return (
+                BuilderParagraph(
+                    text=str(block.data.get("text") or ""),
+                    children=tuple(_builder_run_from_plan(run) for run in runs),
+                    style=str(block.data.get("style") or "body"),
+                ),
+            )
         return (
             BuilderParagraph(
                 text=str(block.data["text"]),
@@ -1673,6 +1814,14 @@ def _block_to_builder_nodes(block: DocumentBlock) -> tuple[Any, ...]:
     if block.type == "page_break":
         return (BuilderPageBreak(),)
     raise ValueError(f"unsupported block type: {block.type!r}")
+
+
+def _builder_run_from_plan(run: Mapping[str, Any]) -> BuilderRun:
+    return BuilderRun(
+        text=str(run.get("text") or ""),
+        bold=bool(run.get("bold", False)),
+        color=_optional_str(run.get("color")),
+    )
 
 
 def _plan_table_column_widths(columns: list[dict[str, Any]]) -> list[int]:
@@ -1740,34 +1889,134 @@ def _normalize_table_cell_value(value: Any) -> str:
     return normalize_cell_text(value)
 
 
+def _format_para(
+    document: HwpxDocument,
+    paragraph: Any,
+    *,
+    alignment: str | None = None,
+    line_spacing: int | None = None,
+    before_pt: float | None = None,
+    after_pt: float | None = None,
+    bottom_border: bool = False,
+    border_color: str = "#BFBFBF",
+) -> None:
+    """Apply breathing-room paragraph spacing to a freshly added paragraph.
+
+    Uses the public ``set_paragraph_format`` so unit conversion and paraPr
+    deduplication are handled by the engine. Failures are non-fatal: spacing is
+    a presentation nicety, never a reason to abort document generation.
+    """
+
+    kwargs: dict[str, Any] = {}
+    if alignment is not None:
+        kwargs["alignment"] = alignment
+    if line_spacing is not None:
+        kwargs["line_spacing_percent"] = line_spacing
+    if before_pt is not None:
+        kwargs["spacing_before_pt"] = before_pt
+    if after_pt is not None:
+        kwargs["spacing_after_pt"] = after_pt
+    if bottom_border:
+        kwargs["bottom_border"] = True
+        kwargs["border_color"] = border_color
+    if not kwargs:
+        return
+    try:
+        index = document.paragraphs.index(paragraph)
+        document.set_paragraph_format(paragraph_index=index, **kwargs)
+    except (ValueError, KeyError):
+        return
+
+
+def _add_rich_runs(
+    document: HwpxDocument,
+    paragraph: Any,
+    runs: Any,
+    *,
+    base_char_pr_id: str,
+) -> None:
+    for run in runs:
+        if not isinstance(run, BuilderRun):
+            raise ValueError(f"unsupported paragraph child: {type(run).__name__}")
+        char_pr_id = document.ensure_run_style(
+            bold=bool(run.bold),
+            italic=bool(run.italic),
+            underline=bool(run.underline),
+            color=run.color,
+            font=run.font,
+            size=run.size,
+            highlight=run.highlight,
+            strike=run.strike,
+            base_char_pr_id=base_char_pr_id,
+        )
+        paragraph.add_run(str(run.text or ""), char_pr_id_ref=char_pr_id)
+
+
 def _render_block(
     document: HwpxDocument,
     block: Any,
     tokens: Mapping[str, str],
+    *,
+    style_preset: DocumentStylePreset,
 ) -> None:
     if isinstance(block, BuilderHeading):
-        document.add_paragraph(
+        paragraph = document.add_paragraph(
             block.text,
             char_pr_id_ref=tokens["heading"],
             inherit_style=False,
             **_outline_style_refs(document, block.level),
         )
+        _format_para(
+            document,
+            paragraph,
+            line_spacing=150,
+            before_pt=14,
+            after_pt=4,
+            bottom_border=style_preset.heading_rule,
+            border_color=style_preset.rule_color,
+        )
         return
     if isinstance(block, BuilderParagraph):
         style = str(block.style or "body")
-        document.add_paragraph(
+        if block.children:
+            paragraph = document.add_paragraph("", include_run=False, inherit_style=False)
+            _add_rich_runs(
+                document,
+                paragraph,
+                block.children,
+                base_char_pr_id=tokens.get(style, tokens["body"]),
+            )
+            _format_para(
+                document,
+                paragraph,
+                line_spacing=165,
+                after_pt=4,
+                bottom_border=style == "heading" and style_preset.heading_rule,
+                border_color=style_preset.rule_color,
+            )
+            return
+        paragraph = document.add_paragraph(
             block.text,
             char_pr_id_ref=tokens.get(style, tokens["body"]),
             inherit_style=False,
         )
+        _format_para(
+            document,
+            paragraph,
+            line_spacing=165,
+            after_pt=4,
+            bottom_border=style == "heading" and style_preset.heading_rule,
+            border_color=style_preset.rule_color,
+        )
         return
     if isinstance(block, BuilderBullet):
         for item in block.items:
-            document.add_paragraph(
+            paragraph = document.add_paragraph(
                 f"• {item}",
                 char_pr_id_ref=tokens["bullet"],
                 inherit_style=False,
             )
+            _format_para(document, paragraph, line_spacing=150, after_pt=2)
         return
     if isinstance(block, BuilderTable):
         _add_builder_table(document, block, tokens)
@@ -1848,6 +2097,7 @@ def _add_plan_table(
                 str(row.get(column["key"], "")),
                 char_pr_id_ref=tokens["table_cell"],
             )
+    _style_plan_table(document, table, header_fill=_TABLE_HEADER_FILL)
 
 
 def _add_builder_table(
@@ -1888,6 +2138,12 @@ def _add_builder_table(
                 str(value),
                 char_pr_id_ref=tokens["table_cell"],
             )
+    _style_plan_table(
+        document,
+        table,
+        header_fill=table_node.header_shading or _TABLE_HEADER_FILL,
+        header_rows=1 if table_node.header else 0,
+    )
 
 
 def _set_table_cell_text(
@@ -1902,6 +2158,47 @@ def _set_table_cell_text(
     cell = table.cell(row_index, col_index)
     for paragraph in cell.paragraphs:
         paragraph.char_pr_id_ref = char_pr_id_ref
+
+
+def _style_plan_table(
+    document: HwpxDocument,
+    table: Any,
+    *,
+    header_fill: str,
+    header_rows: int = 1,
+) -> None:
+    border_fill_id = document.ensure_border_fill(border_color=_TABLE_BORDER_COLOR)
+    header_fill_id = document.ensure_border_fill(
+        border_color=_TABLE_BORDER_COLOR,
+        fill_color=header_fill,
+    )
+    table.element.set("borderFillIDRef", border_fill_id)
+    center_para_pr_id: str | None = None
+    if header_rows and document.oxml.headers:
+        center_para_pr_id = document.oxml.headers[0].ensure_paragraph_format(alignment="center")
+
+    for row_index, row in enumerate(table.rows):
+        for cell in row.cells:
+            is_header = row_index < header_rows
+            cell.element.set("borderFillIDRef", header_fill_id if is_header else border_fill_id)
+            cell.element.set("hasMargin", "1")
+            _set_cell_margin(cell)
+            sublist = cell.element.find(f"{_HP}subList")
+            if sublist is not None:
+                sublist.set("vertAlign", "CENTER")
+            if is_header and center_para_pr_id is not None:
+                for paragraph in cell.paragraphs:
+                    paragraph.para_pr_id_ref = center_para_pr_id
+    table.mark_dirty()
+
+
+def _set_cell_margin(cell: Any) -> None:
+    margin = cell.element.find(f"{_HP}cellMargin")
+    if margin is None:
+        margin = cell.element.makeelement(f"{_HP}cellMargin", {})
+        cell.element.append(margin)
+    for side in ("left", "right", "top", "bottom"):
+        margin.set(side, _TABLE_CELL_MARGIN)
 
 
 def _apply_column_widths(table: Any, columns: list[dict[str, Any]]) -> None:
