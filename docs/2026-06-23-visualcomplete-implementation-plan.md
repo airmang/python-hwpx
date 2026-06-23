@@ -1,14 +1,61 @@
-# HWPX VisualComplete — Implementation Plan v0.2 (re-baselined by measurement)
+# HWPX VisualComplete — Implementation Plan v0.3 (re-baselined by measurement)
 
 **Audience:** the engineer/agent continuing this on the Windows + 한컴(COM) machine.
 **Read this first; it is self-contained.** It supersedes the v0.1 "VisualComplete
-Engine Spec" — every place the two disagree, v0.2 wins, because v0.2 is grounded in
-an actual Hancom-oracle measurement that v0.1 never ran.
+Engine Spec" — every place the two disagree, this plan wins, because it is grounded
+in an actual Hancom-oracle measurement that v0.1 never ran.
+
+> **v0.3 change:** added §0.0 "The verification ceiling" — makes the
+> oracle-portability limit an explicit docx-grade constraint, and defines tiered
+> assurance for environments without Hancom. (Still deferred, to fill on arrival:
+> font-metric FormFit + mail-merge-at-scale, field/dynamic-content recalculation.)
 
 North star: **DOCX-grade stability for HWPX.** A write succeeds only when the
 result is `visualComplete=true` — opens clean in Hancom, content correct, edits
 preserve original style/tables, form values fit their slots, nothing overlaps,
 new docs look human-made.
+
+---
+
+## 0.0 The verification ceiling (read before believing "docx-grade")
+
+**docx-grade stability is reachable, but its proof is not portable — and that is a
+structural constraint, not an implementation detail.**
+
+Why docx tooling is stable: it leans on **LibreOffice** — a faithful,
+Word-compatible renderer that is free, headless, and runs on any CI/OS. So "does
+this docx render correctly" is verifiable *everywhere, cheaply*.
+
+HWPX has **no such renderer.** The only faithful oracle is **Hancom (한글)
+itself** — Windows-only, GUI-rooted, licensed, driven via COM. There is no free
+headless HWPX renderer that matches Hancom's line-breaking/layout. Therefore:
+
+- `visualComplete=true` is a **render-backed guarantee only where Hancom runs.**
+  Everywhere else it necessarily degrades to *structural plausibility*
+  (integrity + XML + OPC/ID + layout lint + open-safety + FormFit measurement) —
+  which is "probably fine," **not** "verified."
+- This is the single biggest gap between HWPX and docx, and **no amount of code in
+  this plan removes it.** It can only be *managed honestly*.
+
+### Assurance tiers (the engine MUST distinguish these, never blur them)
+
+| tier | environment | what runs | what `visualComplete` may claim |
+|---|---|---|---|
+| **Oracle-verified** | Windows + 한컴 (COM) | full structural + **Hancom render diff/overlap/overflow** | `visual_complete=true`, `render_checked=true` — true docx-grade |
+| **Structural** | no Hancom (Linux/cloud/macOS) | integrity, XML, OPC/ID, layout lint, open-safety, FormFit measurement | `render_checked=false`; **`visual_complete` MUST be `unverified`, never `true`** — surfaced as "open-safe + structural," not docx-grade |
+
+**Engine contract (binding on Phase A/B):**
+- `visual_complete=true` **requires** `render_checked=true`. Off-oracle, the top
+  achievable result is an explicitly-labeled *structural* pass — `ok` may be
+  `true`, but `visual_complete` is reported `unverified`, never silently `true`.
+- An explicit `allow_unverified_visual_complete` escape hatch may exist for
+  expert/batch use, but it must be opt-in and recorded in the report.
+
+**Product implication:** to deliver docx-grade in production, a **Hancom render
+worker (Windows/COM) must be part of the topology** — as a CI gate and/or a
+batch verification stage. Plan the deployment around the oracle's location, not
+the other way around. (For high-volume mail-merge this becomes a throughput
+problem — see the deferred "template-once-measure" note in Phase C.)
 
 ---
 
@@ -198,6 +245,12 @@ edits to `document.py` form-fill, `form_fill.py`.
 - Until the oracle backs a `fail`, default `overflow=warn` for any field whose
   measurement confidence is low (measurement honesty over false precision).
 
+**Deferred (v0.3 backlog, fill on arrival):** (a) promote measurement to real font
+metrics (HarfBuzz + bundled 한컴 fonts) so `fail` is trustworthy without rendering
+every fill; (b) **template-once-measure** for mail-merge — measure the slot on the
+template a single time, then trust it for N batch fills (the per-doc oracle is too
+slow at volume; see §0.0). Both are out of scope for the first FormFit pass.
+
 ---
 
 ### Phase D — LayoutLint / structural visual smoke (renderer-less guard)
@@ -292,6 +345,10 @@ authoring need appears. Keep it out of the stability path.
 7. MCP write tools never report `visualComplete=false` as success.
 8. The Phase-A oracle gates the above on a real Hancom-saved corpus, with badge
    thresholds met.
+9. **Assurance is tiered, never blurred (§0.0):** `visual_complete=true` requires
+   `render_checked=true`; without the Hancom oracle the engine reports an
+   explicitly-labeled *structural* pass (`visual_complete=unverified`), never a
+   silent `true`. docx-grade is claimed only on the oracle-verified tier.
 
 ---
 
