@@ -1,14 +1,20 @@
-# HWPX VisualComplete — Implementation Plan v0.3 (re-baselined by measurement)
+# HWPX VisualComplete — Implementation Plan v0.4 (re-baselined by measurement)
 
 **Audience:** the engineer/agent continuing this on the Windows + 한컴(COM) machine.
 **Read this first; it is self-contained.** It supersedes the v0.1 "VisualComplete
 Engine Spec" — every place the two disagree, this plan wins, because it is grounded
 in an actual Hancom-oracle measurement that v0.1 never ran.
 
-> **v0.3 change:** added §0.0 "The verification ceiling" — makes the
-> oracle-portability limit an explicit docx-grade constraint, and defines tiered
-> assurance for environments without Hancom. (Still deferred, to fill on arrival:
-> font-metric FormFit + mail-merge-at-scale, field/dynamic-content recalculation.)
+> **v0.4 change:** corrected §0.0 — the oracle boundary is "Hancom reachable," NOT
+> "Windows." Mac 한컴 (`Hancom Office HWP.app`, confirmed installed) driven via
+> computer-use is a faithful oracle backend (same render engine; equivalent for
+> overlap/overflow/open checks), ideal for dev/spot-check; Windows COM stays
+> better for CI/scale. The degraded tier is only *no Hancom at all*. Phase A
+> `RenderOracle` is now multi-backend.
+> **v0.3 change:** added §0.0 "The verification ceiling" — tiered assurance;
+> `visual_complete=true` requires `render_checked=true` (DoD #9).
+> *Still deferred, to fill on arrival:* font-metric FormFit + mail-merge-at-scale,
+> field/dynamic-content recalculation.
 
 North star: **DOCX-grade stability for HWPX.** A write succeeds only when the
 result is `visualComplete=true` — opens clean in Hancom, content correct, edits
@@ -26,36 +32,51 @@ Why docx tooling is stable: it leans on **LibreOffice** — a faithful,
 Word-compatible renderer that is free, headless, and runs on any CI/OS. So "does
 this docx render correctly" is verifiable *everywhere, cheaply*.
 
-HWPX has **no such renderer.** The only faithful oracle is **Hancom (한글)
-itself** — Windows-only, GUI-rooted, licensed, driven via COM. There is no free
-headless HWPX renderer that matches Hancom's line-breaking/layout. Therefore:
+HWPX has **no free headless renderer** matching Hancom's line-breaking/layout.
+The only faithful oracle is **Hancom (한글) itself** — but the oracle is the
+*renderer*, not the *transport*. Any environment where a Hancom app runs and can
+be driven is a faithful oracle. **The real boundary is "Hancom reachable," not
+"Windows."** Two backends, same render engine, different operational profiles:
 
-- `visualComplete=true` is a **render-backed guarantee only where Hancom runs.**
-  Everywhere else it necessarily degrades to *structural plausibility*
-  (integrity + XML + OPC/ID + layout lint + open-safety + FormFit measurement) —
-  which is "probably fine," **not** "verified."
-- This is the single biggest gap between HWPX and docx, and **no amount of code in
-  this plan removes it.** It can only be *managed honestly*.
+| backend | transport | fidelity | operational |
+|---|---|---|---|
+| **Windows 한컴** | **COM API** (programmatic) | canonical (what most recipients open) | fast, deterministic, scriptable, parallelizable, CI-friendly |
+| **macOS 한컴** (`Hancom Office HWP.app`, e.g. v12.30, confirmed installed here) | **computer-use GUI** — no AppleScript/sdef, so open→File→Print→PDF / screenshot | high-fidelity proxy (different build; minor font/layout deltas vs Windows) | slower, brittle (modal dialogs/timing), hard to parallelize, needs a logged-in GUI session |
+
+So: **Mac Hancom via computer-use is a legitimate render oracle** — equivalent for
+the pass/fail checks we run (overlap / overflow / open-safe). It is ideal for
+**dev + spot verification**; COM is materially better for **CI gates and
+high-volume mail-merge throughput**. Treat Windows 한컴 as the *canonical* target
+render, Mac as an excellent second instance.
+
+The genuinely degraded case is only **no Hancom at all** (a Linux/cloud/headless
+CI box with no Hancom app reachable). There, and only there, `visualComplete`
+falls back to *structural plausibility* (integrity + XML + OPC/ID + layout lint +
+open-safety + FormFit measurement) — "probably fine," **not** "verified." This
+narrower gap (not Windows-vs-rest, but Hancom-vs-no-Hancom) is the real residual
+distance from docx, and code in this plan manages it honestly rather than erasing it.
 
 ### Assurance tiers (the engine MUST distinguish these, never blur them)
 
 | tier | environment | what runs | what `visualComplete` may claim |
 |---|---|---|---|
-| **Oracle-verified** | Windows + 한컴 (COM) | full structural + **Hancom render diff/overlap/overflow** | `visual_complete=true`, `render_checked=true` — true docx-grade |
-| **Structural** | no Hancom (Linux/cloud/macOS) | integrity, XML, OPC/ID, layout lint, open-safety, FormFit measurement | `render_checked=false`; **`visual_complete` MUST be `unverified`, never `true`** — surfaced as "open-safe + structural," not docx-grade |
+| **Oracle-verified** | **any reachable Hancom** — Windows COM *or* Mac computer-use | full structural + **Hancom render diff/overlap/overflow** | `visual_complete=true`, `render_checked=true` — true docx-grade |
+| **Structural** | **no Hancom reachable** (Linux/cloud/headless CI) | integrity, XML, OPC/ID, layout lint, open-safety, FormFit measurement | `render_checked=false`; **`visual_complete` MUST be `unverified`, never `true`** — "open-safe + structural," not docx-grade |
 
 **Engine contract (binding on Phase A/B):**
-- `visual_complete=true` **requires** `render_checked=true`. Off-oracle, the top
-  achievable result is an explicitly-labeled *structural* pass — `ok` may be
-  `true`, but `visual_complete` is reported `unverified`, never silently `true`.
+- `visual_complete=true` **requires** `render_checked=true` (from *either* oracle
+  backend). Off-oracle, the top achievable result is an explicitly-labeled
+  *structural* pass — `ok` may be `true`, but `visual_complete` is reported
+  `unverified`, never silently `true`.
 - An explicit `allow_unverified_visual_complete` escape hatch may exist for
   expert/batch use, but it must be opt-in and recorded in the report.
 
-**Product implication:** to deliver docx-grade in production, a **Hancom render
-worker (Windows/COM) must be part of the topology** — as a CI gate and/or a
-batch verification stage. Plan the deployment around the oracle's location, not
-the other way around. (For high-volume mail-merge this becomes a throughput
-problem — see the deferred "template-once-measure" note in Phase C.)
+**Product implication:** the verification stage must have **some Hancom reachable**
+— Windows/COM as the CI/scale gate, Mac/computer-use as a viable dev or
+spot-check backend. Plan the deployment around an oracle being reachable, not
+around a specific OS. (For high-volume mail-merge the per-doc oracle is a
+throughput problem regardless of backend — see the deferred "template-once-measure"
+note in Phase C.)
 
 ---
 
@@ -143,9 +164,12 @@ judged by it. It is ~80% built already.
    `scripts/visualcomplete-baseline/` into a small reusable module, e.g.
    `src/hwpx/visual/oracle.py` with a clean API:
    ```python
-   class RenderOracle:                 # adapter; Hancom COM on Windows
+   class RenderOracle:                 # protocol; pick the first available backend
        def available(self) -> bool: ...
        def render_pdf(self, hwpx_path: str) -> str | None: ...   # -> pdf path
+   # backends (§0.0): WindowsComOracle (COM; CI/scale) and
+   # MacHancomOracle (computer-use GUI: open->Print->PDF; dev/spot-check, no API).
+   # A resolver returns the best reachable backend, else a NullOracle (available()==False).
 
    def visual_check(
        before_hwpx: str | None,        # None for new-doc generation
@@ -157,9 +181,12 @@ judged by it. It is ~80% built already.
    ```
 2. Define `VisualReport` (§Appendix A) and `EditMask` (regions the edit was
    allowed to change; everything outside must stay pixel-stable).
-3. Keep the COM call isolated and swappable (a `RenderOracle` that returns
-   `available()==False` off-Windows, so the engine degrades to structural-only
-   with a warning rather than crashing).
+3. Keep each backend isolated and swappable behind `RenderOracle`. Implement
+   `WindowsComOracle` (shells to `hancom_render.ps1` or `pywin32`) and
+   `MacHancomOracle` (computer-use GUI: open in `Hancom Office HWP.app` →
+   File→Print→Save as PDF; no AppleScript, so screenshot/keystroke driving). When
+   no backend is reachable, the resolver returns a NullOracle (`available()==False`)
+   so the engine degrades to structural-only with a warning rather than crashing.
 4. CLI: `python -m hwpx.visual.oracle --before a.hwpx --after b.hwpx --out report/`.
 
 **File targets.** `src/hwpx/visual/{__init__,oracle,diff,masks,detectors,report}.py`;
