@@ -63,6 +63,7 @@ hwpx-page-guard = "hwpx.tools.page_guard:main"
 hwpx-analyze-template = "hwpx.tools.template_analyzer:main"
 hwpx-text-extract = "hwpx.tools.text_extract_cli:main"
 hwpx-repair = "hwpx.tools.repair:main"
+hwpx-conformance = "hwpx.conformance.runner:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
@@ -81,6 +82,10 @@ include = ["hwpx*"]
     "profiles/*/profile.json",
     "profiles/*/template.hwpx",
     "profiles/*/fragments/*.xml",
+]
+"hwpx.conformance" = [
+    "corpus/corpus.json",
+    "corpus/*.hwpx",
 ]
 
 [tool.pytest.ini_options]

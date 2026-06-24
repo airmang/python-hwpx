@@ -1,0 +1,41 @@
+{
+  "corpus": "public",
+  "badges": {
+    "open_safe": {
+      "status": "pass",
+      "passRate": 1.0
+    },
+    "semantic_safe": {
+      "status": "pass",
+      "passRate": 1.0
+    },
+    "form_safe": {
+      "status": "pass",
+      "passRate": 1.0
+    },
+    "visual_complete": {
+      "status": "unverified",
+      "passRate": 0.0
+    }
+  },
+  "cases": {
+    "public-notice": {
+      "open_safe": "pass",
+      "semantic_safe": "pass",
+      "form_safe": "skip",
+      "visual_complete": "unverified"
+    },
+    "public-report-table": {
+      "open_safe": "pass",
+      "semantic_safe": "pass",
+      "form_safe": "pass",
+      "visual_complete": "unverified"
+    },
+    "public-meeting-summary": {
+      "open_safe": "pass",
+      "semantic_safe": "pass",
+      "form_safe": "skip",
+      "visual_complete": "unverified"
+    }
+  }
+}
