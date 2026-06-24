@@ -148,7 +148,10 @@ def apply_template_formfit(
         try:
             for target in plan.get("resolved", []):
                 applied.append(_apply_target(doc, dict(target)))
-            doc.save_to_path(tmp_path)
+            # Funnel the write through the single SavePipeline and keep its uniform
+            # report (plan §2 Phase B). The serialized bytes reach disk only via the
+            # pipeline; the os.replace below merely publishes that gated temp.
+            visual_complete = doc.save_report(tmp_path)
         finally:
             doc.close()
 
@@ -197,6 +200,7 @@ def apply_template_formfit(
         },
         "applied": applied,
         "validation": validation,
+        "visual_complete": visual_complete.to_dict(),
         "residual_markers": residual_markers,
         "visual_review_required": bool(plan.get("visual_review_required", True)),
         "visual_review_regions": list(plan.get("visual_review_regions") or []),

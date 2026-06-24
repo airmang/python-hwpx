@@ -12,7 +12,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
-from .tools.package_validator import validate_editor_open_safety
+from .quality import QualityPolicy, SavePipeline
+from .quality.report import VisualCompleteReport
 
 _PARAGRAPH_RE = re.compile(
     rb"<(?:[A-Za-z_][\w.-]*:)?p\b[^>]*>.*?</(?:[A-Za-z_][\w.-]*:)?p>",
@@ -93,6 +94,10 @@ class BytePreservingPatchResult:
     byte_identical: bool
     zip_method: str
     open_safety: dict[str, Any]
+    # The uniform Phase-B report from the single SavePipeline this byte-path write
+    # funnelled through (plan §2 Phase B). Additive and defaulted so existing
+    # keyword construction is unaffected.
+    visual_complete: VisualCompleteReport | None = None
 
     @property
     def ok(self) -> bool:
@@ -107,6 +112,9 @@ class BytePreservingPatchResult:
             "byteIdentical": self.byte_identical,
             "zipMethod": self.zip_method,
             "openSafety": self.open_safety,
+            "visualComplete": (
+                None if self.visual_complete is None else self.visual_complete.to_dict()
+            ),
         }
 
 
@@ -150,8 +158,7 @@ def paragraph_patch(
     source_bytes = _read_source_bytes(source)
     normalized_patches = tuple(_normalize_patch(item) for item in patches)
     if not normalized_patches:
-        open_safety = validate_editor_open_safety(source_bytes).to_dict()
-        _write_output(output_path, source_bytes)
+        open_safety, visual_complete = _finalize(source_bytes, output_path, source=source)
         return BytePreservingPatchResult(
             data=source_bytes,
             applied=(),
@@ -160,6 +167,7 @@ def paragraph_patch(
             byte_identical=True,
             zip_method="none",
             open_safety=open_safety,
+            visual_complete=visual_complete,
         )
 
     with ZipFile(io.BytesIO(source_bytes), "r") as archive:
@@ -191,8 +199,7 @@ def paragraph_patch(
             changed_parts[section_path] = updated_xml
 
     if skipped:
-        open_safety = validate_editor_open_safety(source_bytes).to_dict()
-        _write_output(output_path, source_bytes)
+        open_safety, visual_complete = _finalize(source_bytes, output_path, source=source)
         return BytePreservingPatchResult(
             data=source_bytes,
             applied=tuple(applied),
@@ -201,11 +208,11 @@ def paragraph_patch(
             byte_identical=True,
             zip_method="skipped",
             open_safety=open_safety,
+            visual_complete=visual_complete,
         )
 
     if not changed_parts:
-        open_safety = validate_editor_open_safety(source_bytes).to_dict()
-        _write_output(output_path, source_bytes)
+        open_safety, visual_complete = _finalize(source_bytes, output_path, source=source)
         return BytePreservingPatchResult(
             data=source_bytes,
             applied=tuple(applied),
@@ -214,6 +221,7 @@ def paragraph_patch(
             byte_identical=True,
             zip_method="none",
             open_safety=open_safety,
+            visual_complete=visual_complete,
         )
 
     try:
@@ -223,8 +231,7 @@ def paragraph_patch(
         output = _rewrite_zip_entries(source_bytes, changed_parts)
         zip_method = "zipfile-rewrite-fallback"
 
-    open_safety = validate_editor_open_safety(output).to_dict()
-    _write_output(output_path, output)
+    open_safety, visual_complete = _finalize(output, output_path, source=source)
     return BytePreservingPatchResult(
         data=output,
         applied=tuple(applied),
@@ -233,6 +240,7 @@ def paragraph_patch(
         byte_identical=output == source_bytes,
         zip_method=zip_method,
         open_safety=open_safety,
+        visual_complete=visual_complete,
     )
 
 
@@ -242,9 +250,36 @@ def _read_source_bytes(source: str | Path | bytes) -> bytes:
     return Path(source).read_bytes()
 
 
-def _write_output(output_path: str | Path | None, payload: bytes) -> None:
-    if output_path is not None:
-        Path(output_path).write_bytes(payload)
+def _finalize(
+    payload: bytes,
+    output_path: str | Path | None,
+    *,
+    source: str | Path | bytes,
+) -> tuple[dict[str, Any], VisualCompleteReport]:
+    """Funnel the produced bytes through the single SavePipeline (byte path).
+
+    The lineseg-stripping ZIP-splice above is untouched; this performs only the
+    open-safety gate + the (now atomic) write + the uniform ``VisualCompleteReport``,
+    so the byte path no longer bypasses the gate (plan §2 Phase B, "zero bypass").
+    ``publish="always"`` preserves the byte path's historical behaviour of writing
+    the produced bytes regardless of the gate verdict; ``open_safety`` is surfaced
+    exactly as the prior ``validate_editor_open_safety(...).to_dict()`` did.
+    """
+
+    before = source if isinstance(source, (str, Path)) else None
+    report = SavePipeline().run(
+        payload,
+        output_path=output_path,
+        quality=QualityPolicy.transparent(),
+        before=before,
+        publish="always",
+        source_label="patch.paragraph_patch",
+    )
+    open_safety = report.open_safety.detail or {
+        "ok": report.open_safety.ok,
+        "summary": report.open_safety.summary,
+    }
+    return open_safety, report
 
 
 def _normalize_patch(item: ParagraphTextPatch | Mapping[str, Any]) -> ParagraphTextPatch:

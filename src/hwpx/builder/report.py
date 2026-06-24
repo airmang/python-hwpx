@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from os import PathLike
 from typing import Any
 
+from hwpx.quality import VisualCompleteReport
 from hwpx.tools.id_integrity import IdIntegrityReport, check_id_integrity
 from hwpx.tools.package_validator import EditorOpenSafetyReport, PackageValidationReport
 from hwpx.tools.validator import ValidationReport
@@ -33,6 +34,10 @@ class BuilderSaveReport:
     feature_flags: dict[str, bool] = field(default_factory=dict)
     id_integrity: IdIntegrityReport | None = None
     editor_open_safety: EditorOpenSafetyReport | None = None
+    # The uniform Phase-B report from the SavePipeline the builder save funnelled
+    # through (plan §2 Phase B). Additive: ``None`` only if a caller builds a
+    # report by hand without going through ``Document.save_to_path``.
+    visual_complete: VisualCompleteReport | None = None
 
     def __post_init__(self) -> None:
         hard_gates = dict(self.hard_gates)
@@ -53,6 +58,9 @@ class BuilderSaveReport:
             "hard_gates": dict(self.hard_gates),
             "visual_review_required": self.visual_review_required,
             "feature_flags": dict(self.feature_flags),
+            "visual_complete": (
+                None if self.visual_complete is None else self.visual_complete.to_dict()
+            ),
             "editor_open_safety": (
                 None
                 if self.editor_open_safety is None

@@ -100,6 +100,11 @@ from .authoring import (
     validate_document_plan,
 )
 from .builder import approval_box
+from .quality import (
+    QualityPolicy,
+    SavePipeline,
+    VisualCompleteReport,
+)
 from .template_formfit import (
     TEMPLATE_FORMFIT_BASELINE_SCHEMA_VERSION,
     TEMPLATE_FORMFIT_PLAN_SCHEMA_VERSION,
@@ -108,6 +113,9 @@ from .template_formfit import (
 )
 
 __all__ = [
+    "QualityPolicy",
+    "SavePipeline",
+    "VisualCompleteReport",
     "__version__",
     "AUTHORING_REPORT_VERSION",
     "DEFAULT_NAMESPACES",

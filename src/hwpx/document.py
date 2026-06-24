@@ -48,6 +48,8 @@ from .opc.package import (
     _UNCHECKED_SAVE_TOKEN,
 )
 from .oxml.namespaces import HC, HH, HH_NS, HP, HP_NS, register_owpml_namespaces
+from .quality import QualityPolicy, SavePipeline, VisualCompleteReport
+from .quality.report import OpenSafetyReport
 from .templates import blank_document_bytes
 
 register_owpml_namespaces(ET.register_namespace)
@@ -266,80 +268,11 @@ def _bin_data_stem(value: Any) -> str | None:
     return stem or None
 
 
-def _write_bytes_atomically(path: str | PathLike[str], data: bytes) -> None:
-    target = Path(path)
-    fd, tmp_path = tempfile.mkstemp(dir=str(target.parent), suffix=".hwpx.tmp")
-    try:
-        with os.fdopen(fd, "wb") as tmp_fh:
-            tmp_fh.write(data)
-        os.replace(tmp_path, str(target))
-    except BaseException:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-        raise
-
-
-def _capture_stream_checkpoint(stream: BinaryIO) -> tuple[int, bytes] | None:
-    try:
-        position = stream.tell()
-    except (AttributeError, OSError):
-        return None
-    try:
-        tail = stream.read()
-    except (AttributeError, OSError):
-        try:
-            end_position = stream.seek(0, os.SEEK_END)
-        except (AttributeError, OSError):
-            return None
-        try:
-            stream.seek(position)
-        except (AttributeError, OSError):
-            return None
-        if end_position == position:
-            return position, b""
-        return None
-    try:
-        stream.seek(position)
-    except (AttributeError, OSError):
-        return None
-    return position, tail
-
-
-def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes] | None) -> None:
-    if checkpoint is None:
-        return
-    position, tail = checkpoint
-    try:
-        stream.seek(position)
-        if tail:
-            stream.write(tail)
-            stream.truncate(position + len(tail))
-        else:
-            stream.truncate(position)
-        stream.seek(position)
-    except (AttributeError, OSError):
-        return
-
-
-def _write_stream_or_rollback(stream: BinaryIO, data: bytes) -> None:
-    checkpoint = _capture_stream_checkpoint(stream)
-    if checkpoint is None:
-        raise OSError(
-            "HWPX stream save requires a checkpointable stream; "
-            "use save_to_path() for non-seekable outputs"
-        )
-    try:
-        written = stream.write(data)
-        if written is not None and written != len(data):
-            raise OSError(
-                "short write while saving HWPX stream: "
-                f"wrote {written} of {len(data)} bytes"
-            )
-    except BaseException:
-        _rollback_stream(stream, checkpoint)
-        raise
+# The atomic byte writer and the stream checkpoint/rollback writer now live in
+# ``hwpx.quality.save_pipeline`` — the single SavePipeline is the only thing that
+# writes serialized HWPX output to a destination (plan §2 Phase B, "zero bypass").
+# ``save_to_path`` / ``save_to_stream`` / ``save_report`` route every write through
+# ``self._save_pipeline.run(...)`` below.
 
 
 def _summarize_validation_issues(issues: Sequence[Any], *, limit: int = 5) -> str:
@@ -367,6 +300,10 @@ class HwpxDocument:
         self._managed_resources = list(managed_resources)
         self._closed = False
         self.validate_on_save = validate_on_save
+        # The one gate every write funnels through (plan §2 Phase B). The oracle
+        # is resolved lazily and only when a policy actually renders, so normal
+        # (transparent) saves never probe Hancom.
+        self._save_pipeline = SavePipeline()
 
     def __repr__(self) -> str:
         """Return a compact and safe summary of the document state."""
@@ -2578,12 +2515,43 @@ class HwpxDocument:
                 + report.summary
             )
 
+    def _gate_and_write(
+        self,
+        archive_bytes: bytes,
+        *,
+        output_path: str | PathLike[str] | None = None,
+        output_stream: BinaryIO | None = None,
+        source_label: str,
+    ) -> VisualCompleteReport:
+        """Funnel a serialized archive through the SavePipeline (transparent).
+
+        ``_to_bytes_raw`` already ran open-safety and raised on failure, so the
+        gate is transparent here — it performs the single atomic write and returns
+        the uniform report. Raises if the gate unexpectedly rejects the bytes.
+        """
+
+        report = self._save_pipeline.run(
+            archive_bytes,
+            output_path=output_path,
+            output_stream=output_stream,
+            quality=QualityPolicy.transparent(),
+            open_safety=OpenSafetyReport.passed("validated during serialize"),
+            publish="on_pass",
+            source_label=source_label,
+        )
+        if not report.ok:
+            detail = "; ".join(str(error) for error in report.errors)
+            raise ValueError(f"Document save failed the quality gate: {detail}")
+        return report
+
     def save_to_path(self, path: str | PathLike[str]) -> str | PathLike[str]:
         """Persist pending changes to *path* and return the same path."""
 
         self._run_pre_save_validation()
         archive_bytes = self._to_bytes_raw(reset_dirty=False)
-        _write_bytes_atomically(path, archive_bytes)
+        self._gate_and_write(
+            archive_bytes, output_path=path, source_label="document.save_to_path"
+        )
         self._mark_save_clean()
         return path
 
@@ -2592,9 +2560,59 @@ class HwpxDocument:
 
         self._run_pre_save_validation()
         archive_bytes = self._to_bytes_raw(reset_dirty=False)
-        _write_stream_or_rollback(stream, archive_bytes)
+        self._gate_and_write(
+            archive_bytes, output_stream=stream, source_label="document.save_to_stream"
+        )
         self._mark_save_clean()
         return stream
+
+    def save_report(
+        self,
+        path_or_stream: str | PathLike[str] | BinaryIO | None = None,
+        *,
+        quality: QualityPolicy | None = None,
+        before: str | PathLike[str] | None = None,
+        edit_mask: Any | None = None,
+        ledger: Any | None = None,
+    ) -> VisualCompleteReport:
+        """Save through the SavePipeline and return the full ``VisualCompleteReport``.
+
+        This is the canonical Phase-B write: it funnels through the one gate and
+        returns the uniform report (open-safety, reference integrity, and — when
+        the policy renders and a Hancom oracle is reachable — the visual verdict).
+        ``quality`` defaults to :meth:`QualityPolicy.transparent` so the call is a
+        drop-in for ``save_to_path`` that simply also hands back the report; pass
+        ``QualityPolicy.strict()`` (or ``render_check="required"``) to demand the
+        oracle-verified ``visual_complete`` tier (plan §0.0).
+
+        Like the legacy savers it raises only if the serialize step's open-safety
+        check fails; all other gate outcomes are returned in the report.
+        """
+
+        self._run_pre_save_validation()
+        archive_bytes = self._to_bytes_raw(reset_dirty=False)
+
+        output_path: str | PathLike[str] | None = None
+        output_stream: BinaryIO | None = None
+        if isinstance(path_or_stream, (str, PathLike)):
+            output_path = path_or_stream
+        elif path_or_stream is not None:
+            output_stream = path_or_stream
+
+        report = self._save_pipeline.run(
+            archive_bytes,
+            output_path=output_path,
+            output_stream=output_stream,
+            quality=quality or QualityPolicy.transparent(),
+            before=before,
+            edit_mask=edit_mask,
+            ledger=ledger,
+            reference_document=self,
+            source_label="document.save_report",
+        )
+        if report.ok:
+            self._mark_save_clean()
+        return report
 
     def to_bytes(self) -> bytes:
         """Serialize pending changes and return the HWPX archive as bytes."""

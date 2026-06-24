@@ -769,7 +769,10 @@ class Document:
 
     def save_to_path(self, path: str | PathLike[str]) -> BuilderSaveReport:
         document = self.lower()
-        document.save_to_path(path)
+        # Funnel the write through the single SavePipeline and keep its uniform
+        # report (plan §2 Phase B). Transparent policy -> behaviour-identical to
+        # the prior ``document.save_to_path`` for a from-scratch (new) document.
+        visual_complete = document.save_report(path)
         package_report = validate_package(path)
         document_report = validate_document(path)
         editor_open_safety_report = validate_editor_open_safety(path)
@@ -799,5 +802,6 @@ class Document:
             visual_review_required=visual_review_required,
             feature_flags=feature_flags,
             editor_open_safety=editor_open_safety_report,
+            visual_complete=visual_complete,
         )
         return report

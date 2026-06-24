@@ -206,7 +206,9 @@ def test_save_to_path_keeps_low_level_version_dirty_when_write_fails(tmp_path: P
     def fail_write(_path: str | Path, _payload: bytes) -> None:
         raise OSError("disk full")
 
-    monkeypatch.setattr(document_module, "_write_bytes_atomically", fail_write)
+    # The atomic writer now lives in the single SavePipeline that every write
+    # funnels through; patch it there to simulate a write failure.
+    monkeypatch.setattr("hwpx.quality.save_pipeline.write_bytes_atomically", fail_write)
 
     with pytest.raises(OSError, match="disk full"):
         document.save_to_path(tmp_path / "failed.hwpx")
