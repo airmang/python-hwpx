@@ -105,11 +105,18 @@ def _uncertainty_band(text: str) -> float:
     return weighted / total if total else _CLASS_UNCERTAINTY["other"]
 
 
+# In-word punctuation a Latin run may break *after* (Hancom / UAX #14): an email,
+# URL, file path, or hyphenated model number wraps at these — it is NOT one
+# unbreakable token. Without this the overflow lint false-positives on such cells.
+_LATIN_BREAK_AFTER = frozenset("/\\-.@:_?=&,;")
+
+
 def _break_opportunities(text: str) -> set[int]:
     """Indices *before which* a soft line break may occur.
 
     Korean wraps after spaces (word level) and Hancom also allows a break between
-    a wide/Hangul glyph and the next character. Latin words stay whole.
+    a wide/Hangul glyph and the next character. A pure-Latin run stays whole
+    EXCEPT after in-word punctuation (``_LATIN_BREAK_AFTER``), where Hancom wraps.
     """
 
     opportunities: set[int] = set()
@@ -122,6 +129,9 @@ def _break_opportunities(text: str) -> set[int]:
             "hangul",
             "wide",
         ):
+            opportunities.add(index)
+            continue
+        if prev in _LATIN_BREAK_AFTER and cur not in (" ", "\t"):
             opportunities.add(index)
     return opportunities
 

@@ -49,6 +49,10 @@ class DirtyLayoutRange:
     part: str
     story_id: str = "body"
     story_type: StoryType = "body"
+    # ``start_paragraph`` / ``end_paragraph`` index paragraphs in **flat document
+    # order** (``root.iter()`` over ``<hp:p>``, cell ``subList`` paragraphs
+    # INCLUDED) — the same numbering ``package_validator`` and the LayoutLint
+    # dirty/lineseg check use. Producers must follow it or the lint mislocates.
     start_paragraph: int | None = None
     end_paragraph: int | None = None
     table_path: list[int] | None = None

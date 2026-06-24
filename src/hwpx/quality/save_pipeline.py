@@ -174,8 +174,15 @@ class SavePipeline:
         debug_dir: str | PathLike[str] | None = None,
         source_label: str = "document",
         reference_document: Any | None = None,
+        required_fields: set[str] | None = None,
     ) -> VisualCompleteReport:
-        """Gate *data*, compose a :class:`VisualCompleteReport`, save or roll back."""
+        """Gate *data*, compose a :class:`VisualCompleteReport`, save or roll back.
+
+        *required_fields* (field ids/names that must be filled) is forwarded to the
+        layout lint so an empty declared-required form field is a hard fail under a
+        strict ``layout_lint`` (plan §2 D). It is opt-in: with no set, plain
+        templates with intentionally-blank fields are never flagged.
+        """
 
         quality = quality or QualityPolicy()
         warnings: list[str] = []
@@ -189,11 +196,17 @@ class SavePipeline:
             data, quality, warnings, errors, reference_document
         )
 
-        # 4-5. semantic / form / layout assertions (passthrough until C/D land).
+        # 4-5. semantic / form / layout assertions. Semantic/form ride in from the
+        # editing layer (Phase C); the layout smoke (Phase D) runs here unless the
+        # caller supplied its own report or the policy disables it.
         semantic = semantic or SemanticReport.passed()
         form = form or FormReport.passed()
-        layout = layout or LayoutReport.passed()
         aesthetic = aesthetic or AestheticReport.passed()
+        if layout is None:
+            layout = self._check_layout(
+                data, quality, ledger, form, errors, warnings,
+                reference_document, required_fields,
+            )
 
         # 6. open-safety. A caller that already validated during serialize (the
         # legacy document savers) may pass a precomputed report to avoid re-running.
@@ -355,6 +368,65 @@ class SavePipeline:
             )
         return OpenSafetyReport(ok=report.ok, summary=report.summary, detail=report.to_dict())
 
+    def _check_layout(
+        self,
+        data: bytes,
+        quality: QualityPolicy,
+        ledger: DirtyLayoutLedger | None,
+        form: FormReport,
+        errors: list[QualityError],
+        warnings: list[str],
+        reference_document: Any | None,
+        required_fields: set[str] | None = None,
+    ) -> LayoutReport:
+        """Renderer-less layout smoke (plan §2 Phase D), policy-gated.
+
+        ``layout_lint="strict"`` lets provable defects (stale lineseg, malformed
+        table, dirty/lineseg leak, gross overflow under overflow=fail) block the
+        save; ``"warn"`` surfaces them without blocking; ``"off"`` skips entirely.
+        """
+
+        if quality.layout_lint == "off":
+            return LayoutReport.passed()
+
+        from hwpx.layout.lint import (
+            STALE_LINESEG_DETECTED,
+            TABLE_STRUCTURE_INVALID,
+            lint_layout,
+        )
+
+        try:
+            lint = lint_layout(
+                data,
+                ledger=ledger,
+                form=form,
+                document=reference_document,
+                overflow_policy=quality.overflow_policy,
+                required_fields=required_fields,
+            )
+        except Exception as exc:  # pragma: no cover - defensive: never crash the gate
+            warnings.append(f"layout lint skipped: {type(exc).__name__}: {exc}")
+            return LayoutReport.passed()
+
+        if quality.layout_lint == "warn":
+            lint = lint.demote_errors()
+
+        if not lint.ok:
+            # Don't double-count a defect another stage already surfaced: when
+            # reference/open-safety run, they own the stale-lineseg and table
+            # codes (under their own codes), so only add the lint-unique ones to
+            # the flat error list. The full set stays on ``report.layout``.
+            covered_elsewhere = (
+                quality.require_reference_integrity or quality.require_open_safety
+            )
+            structural = {STALE_LINESEG_DETECTED, TABLE_STRUCTURE_INVALID}
+            for code in lint.error_codes:
+                if code in structural and covered_elsewhere:
+                    continue
+                message = next((str(f) for f in lint.errors if f.code == code), code)
+                errors.append(QualityError(code, message))
+        return lint.to_quality_report()
+
     def _check_visual(
         self,
         data: bytes,
@@ -471,6 +543,7 @@ class SavePipeline:
             "render_check": quality.render_check,
             "xsd_mode": quality.xsd_mode,
             "overflow_policy": quality.overflow_policy,
+            "layout_lint": quality.layout_lint,
             "allow_expert_unsafe": quality.allow_expert_unsafe,
         }
 

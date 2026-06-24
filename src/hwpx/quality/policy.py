@@ -23,6 +23,7 @@ RenderCheck = Literal["off", "auto", "required"]
 XsdMode = Literal["off", "lint"]
 OverflowPolicy = Literal["fail", "warn", "truncate"]
 LayoutInvalidation = Literal["none", "paragraph", "following", "story", "document"]
+LayoutLint = Literal["off", "warn", "strict"]
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,9 @@ class QualityPolicy:
     render_check: RenderCheck = "auto"  # auto = use the oracle if one is reachable
     xsd_mode: XsdMode = "lint"  # soft by default (plan Appendix C)
     overflow_policy: OverflowPolicy = "fail"
+    # Renderer-less layout smoke (plan §2 Phase D). "strict" = errors block (gives
+    # the no-Hancom structural tier teeth); "warn" = surface only; "off" = skip.
+    layout_lint: LayoutLint = "strict"
     preserve_unmodified_parts: bool = True
     allow_expert_unsafe: bool = False
     # Phase-B additions (beyond the condensed Appendix-A list).
@@ -59,6 +63,7 @@ class QualityPolicy:
             render_check="off",
             xsd_mode="off",
             overflow_policy="warn",
+            layout_lint="off",
             require_reference_integrity=False,
         )
 
@@ -86,4 +91,5 @@ __all__ = [
     "XsdMode",
     "OverflowPolicy",
     "LayoutInvalidation",
+    "LayoutLint",
 ]
