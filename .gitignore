@@ -52,3 +52,6 @@ Thumbs.db
 *.log
 .env
 .env.*
+
+# local scratch / measurement artifacts (oracle PDFs, PNGs, calibration)
+work/

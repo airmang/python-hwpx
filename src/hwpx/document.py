@@ -1406,8 +1406,20 @@ class HwpxDocument:
         field_index: int | None = None,
         field_id: str | None = None,
         name: str | None = None,
+        fit_policy: "FitPolicy | None" = None,
+        box_width: int | None = None,
+        font_pt: float | None = None,
     ) -> dict[str, Any]:
-        """Fill a native form/click-here field while preserving surrounding runs."""
+        """Fill a native form/click-here field while preserving surrounding runs.
+
+        When *fit_policy* and *box_width* (the field's usable width, in HWPUNIT)
+        are supplied, the value is run through the FormFit engine (plan §2 C): it
+        is measured against the box and may be shrunk/​truncated, the inserted run
+        is re-pointed at a smaller ``charPr`` for a real (oracle-visible) shrink,
+        and the response carries a ``fit`` verdict with ``ok`` propagated from it.
+        Without a box width a native field has no reliable geometry, so the fit is
+        reported low-confidence and never hard-fails (measurement honesty).
+        """
 
         matches = self._iter_form_field_matches()
         match = self._select_form_field(
@@ -1424,8 +1436,17 @@ class HwpxDocument:
             begin_run_index=int(match["_begin_run_index"]),
             end_run_index=match.get("_end_run_index"),
         )
+
+        fit_result = None
+        write_value = str(value)
+        if fit_policy is not None:
+            fit_result = self._measure_form_field_fit(
+                str(value), match, fit_policy, box_width, font_pt
+            )
+            write_value = fit_result.applied_value
+
         text_nodes: list[Any] = match.get("_text_nodes", [])
-        sanitized = _sanitize_field_text(str(value))
+        sanitized = _sanitize_field_text(write_value)
         if text_nodes:
             primary = text_nodes[0]
             primary.text = sanitized
@@ -1438,6 +1459,9 @@ class HwpxDocument:
         else:
             self._insert_form_field_text_run(match, sanitized)
 
+        if fit_result is not None:
+            self._apply_form_field_fit_style(match, fit_result)
+
         _clear_form_field_layout_cache(paragraph.element)
         paragraph.section.mark_dirty()
         updated = self._iter_form_field_matches()[int(match["index"])]
@@ -1447,8 +1471,8 @@ class HwpxDocument:
             end_run_index=updated.get("_end_run_index"),
         )
         field = {key: value for key, value in updated.items() if not key.startswith("_")}
-        return {
-            "ok": True,
+        response = {
+            "ok": True if fit_result is None else fit_result.ok,
             "field": field,
             "before_value": before_value,
             "after_value": str(field.get("current_value", "")),
@@ -1456,6 +1480,88 @@ class HwpxDocument:
             "style_after": after_style,
             "style_preserved": before_style == after_style[: len(before_style)],
         }
+        if fit_result is not None:
+            response["fit"] = fit_result.to_dict()
+            if not fit_result.ok:
+                response["suggestedRetry"] = fit_result.suggested_retry()
+        return response
+
+    def _measure_form_field_fit(
+        self,
+        value: str,
+        match: Mapping[str, Any],
+        fit_policy: "FitPolicy",
+        box_width: int | None,
+        font_pt: float | None,
+    ) -> "FitResult":
+        """Run the FormFit engine for a native field (plan §2 C)."""
+
+        from hwpx.form_fit import DEFAULT_SAFETY, FitEngine, FitResult, SlotMetrics
+
+        runs = match["_runs"]
+        begin_index = int(match["_begin_run_index"])
+        begin_ref = None
+        if 0 <= begin_index < len(runs):
+            begin_ref = runs[begin_index].get("charPrIDRef")
+        if begin_ref is None:
+            begin_ref = match["_paragraph"].char_pr_id_ref or "0"
+        resolved_pt = font_pt if font_pt is not None else self._font_pt_for_ref(begin_ref)
+        field_id = str(match.get("name") or match.get("field_id") or match.get("index"))
+
+        if not box_width:
+            # No reliable geometry: measure-free, low-confidence, never a hard fail.
+            return FitResult(
+                ok=True,
+                value=value,
+                applied_value=value,
+                font_pt=resolved_pt,
+                confidence="low",
+                warnings=[
+                    "native field has no box_width; fit is unverified — supply "
+                    "box_width or rely on the render oracle"
+                ],
+                field_id=field_id,
+            )
+
+        slot = SlotMetrics(
+            available_width=float(box_width) * DEFAULT_SAFETY,
+            font_pt=resolved_pt,
+            max_lines=fit_policy.effective_max_lines,
+        )
+        return FitEngine().fit(value, slot, fit_policy, field_id=field_id)
+
+    def _font_pt_for_ref(self, char_pr_id_ref: object) -> float:
+        style = self.char_property(char_pr_id_ref)
+        if style is not None:
+            height = style.attributes.get("height")
+            if height:
+                try:
+                    return int(height) / 100.0
+                except (TypeError, ValueError):  # pragma: no cover - defensive
+                    pass
+        return 10.0
+
+    def _apply_form_field_fit_style(
+        self, match: Mapping[str, Any], fit_result: "FitResult"
+    ) -> None:
+        """Materialise a font shrink on the field's primary run (real change)."""
+
+        new_pt = fit_result.applied_style_changes.get("font_pt")
+        if not new_pt:
+            return
+        text_nodes: list[Any] = match.get("_text_nodes", [])
+        run = None
+        if text_nodes and hasattr(text_nodes[0], "getparent"):
+            run = text_nodes[0].getparent()
+        if run is None:
+            return
+        base_ref = run.get("charPrIDRef")
+        try:
+            new_ref = self.ensure_run_style(size=float(new_pt), base_char_pr_id=base_ref)
+        except Exception:  # pragma: no cover - defensive: never break the fill
+            fit_result.warnings.append("font shrink could not be materialised")
+            return
+        run.set("charPrIDRef", str(new_ref))
 
     def fill_by_path(
         self,

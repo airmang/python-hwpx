@@ -3257,7 +3257,19 @@ class HwpxOxmlTable:
         split_merged: bool = False,
         preserve_format: bool = True,
         split_paragraphs: bool = False,
-    ) -> None:
+        fit: "FitPolicy | None" = None,
+        ledger: Any | None = None,
+    ) -> "FitResult | None":
+        """Set cell text. When *fit* is given, run the FormFit engine (plan §2 C).
+
+        Without *fit* this is the historical raw set (returns ``None``). With a
+        :class:`~hwpx.form_fit.policy.FitPolicy` the value is measured against the
+        cell box and wrapped/shrunk/failed accordingly; the returned
+        :class:`~hwpx.form_fit.report.FitResult` carries the verdict (and an
+        ``overflow=fail`` miss makes ``ok`` ``False``). ``split_paragraphs`` is
+        ignored in fit mode — line breaks are decided by measurement.
+        """
+
         if logical:
             entry = self._grid_entry(row_index, col_index)
             if split_merged and not entry.is_anchor:
@@ -3266,11 +3278,28 @@ class HwpxOxmlTable:
                 cell = entry.cell
         else:
             cell = self.cell(row_index, col_index)
+
+        if fit is not None:
+            from hwpx.form_fit.apply import fit_cell_text
+
+            section = self.paragraph.section
+            return fit_cell_text(
+                cell,
+                text,
+                fit,
+                document=getattr(section, "document", None),
+                ledger=ledger,
+                part_name=getattr(section, "part_name", None),
+                field_id=f"r{row_index}c{col_index}",
+                preserve_format=preserve_format,
+            )
+
         cell.set_text(
             text,
             preserve_format=preserve_format,
             split_paragraphs=split_paragraphs,
         )
+        return None
 
     def split_merged_cell(
         self, row_index: int, col_index: int
