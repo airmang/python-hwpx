@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-06-24
+### 추가
+- `hwpx.quality` — 단일 저장 게이트 `SavePipeline`, `QualityPolicy`, `VisualCompleteReport`. 모든 직렬화 출력이 이 게이트를 통과합니다(무결성·XML·OPC/ID·열림안전·시각 오라클 → 단일 리포트). `HwpxDocument.save_report(...)`로 노출.
+- `hwpx.form_fit` — FormFit 엔진(`FitPolicy`/`FitResult`). 폼 값이 셀/필드 박스에 맞는지 측정(한글=1.0em, 한컴 실측 보정)해 wrap/shrink/truncate/fail 처리. `set_cell_text(fit=...)` / `fill_form_field(fit_policy=...)`로 연결.
+- `hwpx.layout` — 렌더러 없는 구조적 시각 스모크 `lint_layout`(stale lineseg·dirty/lineseg·overflow risk·표 구조). `QualityPolicy.layout_lint`로 SavePipeline 하드 게이트로 연결.
+- `hwpx.design` — 검증된 한컴 저장 템플릿 + harvest 프래그먼트로 새 문서를 생성하는 `compose`/`DocumentPlan`/profile 빌더. `official_notice`/`report`/`application_form` 프로파일 동봉.
+- 시각 오라클 `hwpx.visual`에 Mac 한컴 백엔드(`MacHancomOracle`) 추가.
+
 ## [2.11.1] - 2026-06-12
 ### 수정
 - `create_document_from_plan()`의 `heading` block과 builder `Heading`이 기본 템플릿의 `개요 N`/`Outline N` 문단 스타일을 실제로 적용하도록 수정했습니다. 생성 문서가 한컴 개요/문서 탐색과 MCP outline readback에서 구조화된 제목으로 인식됩니다.
