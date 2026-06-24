@@ -41,6 +41,23 @@ jobs:
         run: |
           pytest -v -ra --cov=hwpx --cov-report=term-missing --cov-fail-under=${COVERAGE_FAIL_UNDER} 2>&1 | tee pytest-summary.log
 
+      - name: Conformance — structural badge tiers vs golden (plan §2 Phase G)
+        run: |
+          # No Hancom in CI: the structural tiers (Open / Semantic / Form) gate
+          # here and VisualComplete is reported unverified (§0.0). A dropped pass
+          # rate against the committed golden fails the job — regression as a
+          # number, not a vibe. The oracle tier runs on a Hancom-reachable box.
+          hwpx-conformance run --tier structural \
+            --check tests/conformance/golden/structural.json \
+            --out conformance-report 2>/dev/null
+
+      - name: Upload conformance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-report-${{ matrix.python-version }}
+          path: conformance-report
+
       - name: Upload pytest summary log
         if: always()
         uses: actions/upload-artifact@v4
