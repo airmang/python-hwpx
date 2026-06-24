@@ -4,7 +4,7 @@
 
 ## [Unreleased]
 ### 추가
-- `hwpx.conformance` — VisualComplete 적합성 코퍼스 + 배지 등급(plan §2 Phase G). `hwpx-conformance run`이 코퍼스를 4개 배지 등급(Open-Safe/Semantic-Safe/Form-Safe/VisualComplete)으로 채점하고 등급별 통과율을 산출합니다. 임계값은 엄격 기본값(구조 등급 100%, 폼셋 overflow 0%, VisualComplete ≥95%). golden 베이스라인(`tests/conformance/golden/structural.json`) 대비 회귀를 숫자로 감지하며(`--check`), CI가 구조 등급을 추적합니다. 어슈어런스 등급은 절대 섞지 않습니다(§0.0): 한컴이 없는 구조 실행은 VisualComplete를 `unverified`로 보고하고, 오라클 실행(도달 가능한 한컴 백엔드)만 VisualComplete를 검증합니다.
+- `hwpx.conformance` — VisualComplete 적합성 코퍼스 + 배지 등급(plan §2 Phase G). `hwpx-conformance run`이 코퍼스를 4개 배지 등급(Open-Safe/Semantic-Safe/Form-Safe/VisualComplete)으로 채점하고 등급별 통과율을 산출합니다. 임계값은 엄격 기본값(구조 등급 100%, 폼셋 overflow 0%, VisualComplete ≥95%). golden 베이스라인(`tests/conformance/golden/structural.json`) 대비 회귀를 숫자로 감지하며(`--check`), CI가 구조 등급을 추적합니다. 어슈어런스 등급은 절대 섞지 않습니다(§0.0): 한컴이 없는 구조 실행은 VisualComplete를 `unverified`로 보고하고, 오라클 실행(도달 가능한 한컴 백엔드)만 VisualComplete를 검증합니다. 케이스에 `before`(+선택적 `editMask`)를 선언하면 VisualComplete가 오라클의 **before/after diff 경로**로 게이트됩니다(마스크 밖 변경·글자 겹침을 잡음). `expectVisualDefect`는 일부러 깨뜨린 쌍을 positive control로 삼아 게이트가 결함을 실제로 잡는지 검증합니다. (실측: 실제 한컴-저장 코퍼스에서 clean 쌍은 통과, out-of-slot 변경은 catch.)
 
 ## [2.12.0] - 2026-06-24
 ### 추가

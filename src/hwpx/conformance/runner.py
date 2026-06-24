@@ -153,7 +153,7 @@ def _eval_form_safe(data: bytes, case: ConformanceCase) -> TierVerdict:
 
 
 def _eval_visual(
-    path: Path, case: ConformanceCase, oracle: Any | None
+    corpus: ConformanceCorpus, case: ConformanceCase, oracle: Any | None
 ) -> TierVerdict:
     if oracle is None or not oracle.available():
         return TierVerdict(
@@ -162,31 +162,65 @@ def _eval_visual(
 
     from hwpx.visual.oracle import visual_check
 
+    after = corpus.path_for(case)
+    before = corpus.root / case.before if case.before else None
+    edit_mask = case.build_edit_mask()
+
     with tempfile.TemporaryDirectory(prefix="hwpx-conformance-") as work:
-        report = visual_check(None, str(path), oracle=oracle, work_dir=work)
+        report = visual_check(
+            str(before) if before is not None else None,
+            str(after),
+            oracle=oracle,
+            edit_mask=edit_mask,
+            work_dir=work,
+        )
     if not report.render_checked:
         return TierVerdict(
             "visual_complete",
             "unverified",
             "; ".join(report.warnings) or "render not checked",
         )
-    status = "pass" if report.ok else "fail"
+
     flags = [
         label
         for label, flag in (
             ("overlap", report.overlap_detected),
             ("overflow", report.overflow_detected),
+            ("out-of-mask change", report.unexpected_diff_outside_mask),
             ("table-break", report.table_break_detected),
+            ("page-count change", report.page_count_changed),
         )
         if flag
     ]
+    defect = not report.ok
+
+    if case.expect_visual_defect:
+        # Positive control: the gate must *catch* the planted defect.
+        status = "pass" if defect else "fail"
+        detail = (
+            "defect correctly caught (" + "; ".join(flags) + ")"
+            if defect
+            else "EXPECTED a visual defect but the oracle saw none"
+        )
+        return TierVerdict(
+            "visual_complete", status, detail, metrics={"checked": 1, "expected_defect": True}
+        )
+
+    status = "pass" if not defect else "fail"
+    if before is None:
+        # Conservative single-render pass: confirms faithful rasterisation +
+        # stable pagination only; overlap/overflow need a before baseline.
+        detail = "; ".join(flags) or "single-render faithful (no before/mask diff)"
+    else:
+        detail = "; ".join(flags) or "before/after diff clean (oracle-verified)"
     return TierVerdict(
         "visual_complete",
         status,
-        "; ".join(flags) or "render clean",
+        detail,
         metrics={
             "overflow_count": 1 if report.overflow_detected else 0,
             "checked": 1,
+            "diffed": before is not None,
         },
     )
 
@@ -211,7 +245,7 @@ def evaluate_case(
     verdicts["semantic_safe"] = _eval_semantic(data, case)
     verdicts["form_safe"] = _eval_form_safe(data, case)
     if tier == "oracle":
-        verdicts["visual_complete"] = _eval_visual(path, case, oracle)
+        verdicts["visual_complete"] = _eval_visual(corpus, case, oracle)
     else:
         verdicts["visual_complete"] = TierVerdict(
             "visual_complete", "unverified", "structural tier (no render)"

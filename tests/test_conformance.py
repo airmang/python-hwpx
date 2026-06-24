@@ -194,22 +194,95 @@ def test_visual_pass_and_fail_with_fake_oracle(
     from hwpx.visual.report import VisualReport
 
     case = next(c for c in corpus.cases if c.id == "public-notice")
-    path = corpus.path_for(case)
 
     def _clean(*_a, **_k) -> VisualReport:
         return VisualReport(ok=True, render_checked=True)
 
     monkeypatch.setattr("hwpx.visual.oracle.visual_check", _clean)
-    verdict = runner_module._eval_visual(path, case, _FakeOracle())
+    verdict = runner_module._eval_visual(corpus, case, _FakeOracle())
     assert verdict.status == "pass"
 
     def _defect(*_a, **_k) -> VisualReport:
         return VisualReport(ok=False, render_checked=True, overflow_detected=True)
 
     monkeypatch.setattr("hwpx.visual.oracle.visual_check", _defect)
-    verdict = runner_module._eval_visual(path, case, _FakeOracle())
+    verdict = runner_module._eval_visual(corpus, case, _FakeOracle())
     assert verdict.status == "fail"
     assert verdict.metrics["overflow_count"] == 1
+
+
+def _pair_corpus(tmp_path, **case_kwargs) -> tuple[ConformanceCorpus, ConformanceCase]:
+    """A 2-file corpus (before+after) under tmp_path for edit-pair visual tests."""
+
+    doc = HwpxDocument.new()
+    doc.add_paragraph("edit-pair 본문")
+    data = doc.to_bytes()
+    (tmp_path / "before.hwpx").write_bytes(data)
+    (tmp_path / "after.hwpx").write_bytes(data)
+    case = ConformanceCase(
+        id="pair", path="after.hwpx", before="before.hwpx", **case_kwargs
+    )
+    return ConformanceCorpus(root=tmp_path, cases=[case]), case
+
+
+def test_visual_edit_pair_uses_diff_path(corpus, tmp_path, monkeypatch) -> None:
+    from hwpx.visual.report import VisualReport
+
+    pair_corpus, case = _pair_corpus(
+        tmp_path, edit_mask={0: [[0.1, 0.1, 0.4, 0.2]]}
+    )
+    seen: dict = {}
+
+    def _record(before, after, *, oracle, edit_mask=None, **_k) -> VisualReport:
+        seen["before"] = before
+        seen["edit_mask"] = edit_mask
+        return VisualReport(ok=True, render_checked=True)
+
+    monkeypatch.setattr("hwpx.visual.oracle.visual_check", _record)
+    verdict = runner_module._eval_visual(pair_corpus, case, _FakeOracle())
+    assert verdict.status == "pass"
+    assert verdict.metrics["diffed"] is True
+    # The before render and the declared mask reach the oracle (real teeth).
+    assert seen["before"] is not None and seen["before"].endswith("before.hwpx")
+    assert seen["edit_mask"] is not None
+    assert seen["edit_mask"].regions[0] == [(0.1, 0.1, 0.4, 0.2)]
+
+
+def test_visual_expect_defect_passes_when_caught(tmp_path, monkeypatch) -> None:
+    from hwpx.visual.report import VisualReport
+
+    pair_corpus, case = _pair_corpus(tmp_path, expect_visual_defect=True)
+
+    def _defect(*_a, **_k) -> VisualReport:
+        return VisualReport(
+            ok=False, render_checked=True, unexpected_diff_outside_mask=True
+        )
+
+    monkeypatch.setattr("hwpx.visual.oracle.visual_check", _defect)
+    # The planted defect is caught -> the positive control passes.
+    assert runner_module._eval_visual(pair_corpus, case, _FakeOracle()).status == "pass"
+
+    def _clean(*_a, **_k) -> VisualReport:
+        return VisualReport(ok=True, render_checked=True)
+
+    monkeypatch.setattr("hwpx.visual.oracle.visual_check", _clean)
+    # No defect where one was expected -> the control FAILS (the gate went blind).
+    assert runner_module._eval_visual(pair_corpus, case, _FakeOracle()).status == "fail"
+
+
+def test_build_edit_mask_round_trips() -> None:
+    case = ConformanceCase(
+        id="m",
+        path="a.hwpx",
+        before="b.hwpx",
+        edit_mask={0: [[0.0, 0.0, 0.5, 0.5]], 1: [[0.2, 0.2, 0.3, 0.3]]},
+        expect_visual_defect=True,
+    )
+    restored = ConformanceCase.from_dict(case.to_dict())
+    assert restored == case
+    mask = case.build_edit_mask()
+    assert mask.regions[0] == [(0.0, 0.0, 0.5, 0.5)]
+    assert mask.regions[1] == [(0.2, 0.2, 0.3, 0.3)]
 
 
 # --------------------------------------------------------------------------- #

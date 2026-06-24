@@ -77,7 +77,18 @@ class FormSlot:
 
 @dataclass(slots=True)
 class ConformanceCase:
-    """One measured document and the badge expectations declared for it."""
+    """One measured document and the badge expectations declared for it.
+
+    ``path`` is the document scored by every tier. ``before`` (optional) turns the
+    VisualComplete tier into the oracle's **diff path** with real teeth: the
+    before/after renders are compared and any change *outside* ``edit_mask`` (a
+    fill spilling out of its slot, a stale-cache 글자 겹침) fails the case. Without
+    ``before`` the visual tier is a conservative single-render pass (it only
+    confirms the doc rasterizes with stable pagination — overlap/overflow needs a
+    baseline, plan §2 Phase A/E). ``expect_visual_defect`` flips the sense so a
+    deliberately-broken pair is a *positive control*: it passes when the oracle
+    catches the defect, proving the gate is not rubber-stamping.
+    """
 
     id: str
     path: str
@@ -87,6 +98,9 @@ class ConformanceCase:
     required_fields: list[str] = field(default_factory=list)
     form_slots: list[FormSlot] = field(default_factory=list)
     expect_open_safe: bool = True
+    before: str | None = None
+    edit_mask: dict[int, list[list[float]]] | None = None
+    expect_visual_defect: bool = False
     note: str = ""
 
     def applies(self, tier: BadgeTier) -> bool:
@@ -109,8 +123,32 @@ class ConformanceCase:
             return True
         return False
 
+    def build_edit_mask(self) -> "Any | None":
+        """Materialise ``edit_mask`` into a :class:`hwpx.visual.masks.EditMask`.
+
+        Returns ``None`` when no mask is declared (strictest: nothing outside is
+        allowed to change). Imported lazily so the structural tier never needs the
+        visual package.
+        """
+
+        if not self.edit_mask:
+            return None
+        from hwpx.visual.masks import EditMask
+
+        regions = {
+            int(page): [tuple(float(v) for v in rect) for rect in rects]
+            for page, rects in self.edit_mask.items()
+        }
+        return EditMask(regions=regions)
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ConformanceCase":
+        raw_mask = data.get("editMask", data.get("edit_mask"))
+        edit_mask = (
+            {int(page): [list(rect) for rect in rects] for page, rects in raw_mask.items()}
+            if raw_mask
+            else None
+        )
         return cls(
             id=str(data["id"]),
             path=str(data["path"]),
@@ -129,6 +167,11 @@ class ConformanceCase:
             expect_open_safe=bool(
                 data.get("expectOpenSafe", data.get("expect_open_safe", True))
             ),
+            before=data.get("before"),
+            edit_mask=edit_mask,
+            expect_visual_defect=bool(
+                data.get("expectVisualDefect", data.get("expect_visual_defect", False))
+            ),
             note=str(data.get("note", "")),
         )
 
@@ -146,6 +189,15 @@ class ConformanceCase:
             out["formSlots"] = [slot.to_dict() for slot in self.form_slots]
         if not self.expect_open_safe:
             out["expectOpenSafe"] = False
+        if self.before is not None:
+            out["before"] = self.before
+        if self.edit_mask:
+            out["editMask"] = {
+                str(page): [list(rect) for rect in rects]
+                for page, rects in self.edit_mask.items()
+            }
+        if self.expect_visual_defect:
+            out["expectVisualDefect"] = True
         if self.note:
             out["note"] = self.note
         return out
