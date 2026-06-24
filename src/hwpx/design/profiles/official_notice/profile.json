@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "hwpx.design.profile.v1",
+  "id": "official_notice",
+  "template": "template.hwpx",
+  "fragments": {
+    "title": "fragments/title.xml",
+    "heading": "fragments/heading.xml",
+    "body": "fragments/body.xml",
+    "info_table": "fragments/info_table.xml"
+  },
+  "page": {
+    "width": 59528,
+    "height": 84188,
+    "orientation": "WIDELY",
+    "margins": {
+      "left": 5669,
+      "right": 5669,
+      "top": 4251,
+      "bottom": 2834
+    }
+  },
+  "char_pr_count": 65,
+  "style_coverage_threshold": 0.98,
+  "source_basename": "경기도교육청 미래교육담당관_교육용 상용클라우드서비스 이용 안내.hwpx"
+}
