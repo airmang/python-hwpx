@@ -142,3 +142,48 @@ def test_real_document_roundtrip_is_semantically_equal() -> None:
     data = document.to_bytes()
     rt = HwpxDocument.open(data).to_bytes()
     assert compare_documents_semantic(data, rt).ok
+
+
+# --------------------------------------------------------------------------- #
+# Item 4: ranked roundtrip batch harness                                       #
+# --------------------------------------------------------------------------- #
+from pathlib import Path  # noqa: E402
+
+_CORPUS = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
+
+
+def test_classify_generated_document_passes(tmp_path) -> None:
+    from hwpx.conformance.roundtrip_batch import classify_sample
+
+    document = HwpxDocument.new()
+    document.add_paragraph("본문")
+    path = tmp_path / "gen.hwpx"
+    document.save_to_path(path)
+    result = classify_sample(path)
+    assert result.status == "PASS"
+    assert not result.is_hard_fail
+
+
+def test_corpus_batch_has_no_structural_failures() -> None:
+    from hwpx.conformance.roundtrip_batch import run_corpus
+
+    report = run_corpus(_CORPUS)
+    assert len(report.results) == 47
+    # No PARSE/SERIALIZE/REPARSE failures across the corpus.
+    assert report.ok, report.counts
+    assert report.hard_fail_count == 0
+    # Every sample is at worst a gradable diff, never a hard fail.
+    assert all(r.status in {"PASS", "ROUND2_DIFF"} for r in report.results), report.counts
+
+
+def test_batch_report_tsv_and_json_shape() -> None:
+    from hwpx.conformance.roundtrip_batch import BatchReport, SampleResult
+
+    report = BatchReport(results=[SampleResult("a.hwpx", "PASS", source_semantic_drift=True)])
+    tsv = report.to_tsv()
+    assert tsv.startswith("sample\tstatus\tsource_drift\tdetail")
+    assert "a.hwpx\tPASS\t1\t" in tsv
+    payload = report.to_dict()
+    assert payload["ok"] is True
+    assert payload["counts"] == {"PASS": 1}
+    assert payload["sourceDriftCount"] == 1
