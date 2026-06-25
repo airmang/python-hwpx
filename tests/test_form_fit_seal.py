@@ -53,6 +53,30 @@ def test_find_seal_anchor_last_occurrence_wins():
     assert anchor is not None and anchor.glyph.text == "동"  # the foot line wins
 
 
+def test_find_seal_anchor_matches_sender_wrapped_across_lines():
+    # a narrow 발신·결재 cell wraps "행정안전부장관 홍길동" into two visual lines;
+    # the anchor is the last glyph of the LAST wrapped line.
+    line1 = _line("행정안전부장관", y=100.0)
+    line2 = _line("홍길동", y=120.0)
+    anchor = seal.find_seal_anchor(line1 + line2, SENDER)
+    assert anchor is not None
+    assert anchor.glyph.text == "동"
+
+
+def test_find_seal_anchor_single_line_still_wins_over_wrap_fallback():
+    # when a single line carries the whole sender, the wrap fallback must not fire
+    one = _line(SENDER, y=300.0)
+    extra = _line("행정안전부장관", y=100.0)  # a stray earlier mention on its own line
+    anchor = seal.find_seal_anchor(extra + one, SENDER)
+    assert anchor is not None and anchor.glyph.text == "동"
+
+
+def test_find_seal_anchor_no_spurious_multiline_match():
+    # unrelated lines whose concatenation does NOT contain the sender -> no anchor
+    boxes = _line("행정안전부", y=100.0) + _line("총무과", y=120.0)
+    assert seal.find_seal_anchor(boxes, SENDER) is None
+
+
 def test_check_seal_centered_passes():
     boxes = _line(SENDER)
     anchor = seal.find_seal_anchor(boxes, SENDER)

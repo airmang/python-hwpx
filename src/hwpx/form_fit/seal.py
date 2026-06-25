@@ -51,6 +51,9 @@ _SEAL_CENTER_TOL_PT = 6.0
 _OCCLUSION_FRAC = 0.5
 # Lines are grouped by y-center proximity within this fraction of glyph height.
 _LINE_Y_FRAC = 0.6
+# A 발신명의 that wraps in a narrow cell spans at most this many consecutive lines
+# (the multi-line anchor fallback window).
+_MAX_WRAP_LINES = 3
 
 
 def _norm(text: str) -> str:
@@ -119,14 +122,35 @@ def find_seal_anchor(
     if not needle:
         return None
     candidates = boxes if page is None else [b for b in boxes if b.page == page]
+    lines = _group_lines(candidates)
+
+    # Pass 1 — the issuer line on a single visual line (the common case).
     match: SealAnchor | None = None
-    for line in _group_lines(candidates):
+    for line in lines:
         line_text = "".join(b.text for b in line)
         if needle in _norm(line_text):
             # last glyph that carries ink (skip trailing whitespace glyphs)
             inked = [b for b in line if b.text and not b.text.isspace()]
             if inked:
                 match = SealAnchor(glyph=inked[-1], line_text=line_text)
+    if match is not None:
+        return match
+
+    # Pass 2 (fallback) — a 발신명의 that *wrapped* across consecutive lines in a
+    # narrow 발신·결재 cell. Grow a small same-page window; the anchor is the last
+    # inked glyph of the line where the needle completes. Bounded window avoids
+    # matching a stray first part against a coincidental later completion.
+    for start in range(len(lines)):
+        acc = ""
+        for end in range(start, min(start + _MAX_WRAP_LINES, len(lines))):
+            if lines[end][0].page != lines[start][0].page:
+                break
+            acc += _norm("".join(b.text for b in lines[end]))
+            if end > start and needle in acc:
+                inked = [b for b in lines[end] if b.text and not b.text.isspace()]
+                if inked:
+                    match = SealAnchor(glyph=inked[-1], line_text=acc)
+                break  # smallest window for this start; later starts (doc order) win
     return match
 
 
