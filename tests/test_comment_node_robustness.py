@@ -21,7 +21,7 @@ from hwpx.document import HwpxDocument
 from hwpx.oxml import body
 from hwpx.oxml.namespaces import tag_local_name, tag_namespace
 
-FIXTURE = Path(__file__).parent / "fixtures" / "m2_corpus" / "irb_form_blank.hwpx"
+FIXTURE = Path(__file__).parent / "fixtures" / "reader_robustness" / "irb_form_blank.hwpx"
 
 HP = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 

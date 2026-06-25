@@ -21,7 +21,7 @@ _FIXTURE = (
     Path(__file__).resolve().parents[1]
     / "tests"
     / "fixtures"
-    / "m2_corpus"
+    / "reader_robustness"
     / "irb_form_blank.hwpx"
 )
 
