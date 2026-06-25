@@ -415,6 +415,41 @@ def detect_overflow(
     return out
 
 
+def diff_overflow(
+    blank_boxes: Sequence[WordBox],
+    blank_clips: Sequence[Rect],
+    filled_boxes: Sequence[WordBox],
+    filled_clips: Sequence[Rect],
+    *,
+    tol: float = _OVERFLOW_TOL_PT,
+) -> list[tuple[WordBox, Rect]]:
+    """Cell-escapes the *fill* introduces (filled render minus blank baseline).
+
+    Absolute cell-clip overflow is baseline-prone on dense real forms: ``find_
+    tables`` reconstructs cell borders with ~1pt imprecision, so a clean form flags
+    a steady population of marginal escapes that exist *identically* in the blank
+    render (measured: 171 on a clean ``form_002``, all < 4pt, median 1.25pt). Like
+    :func:`diff_overlaps`, this subtracts that baseline by glyph identity (page +
+    text), count-aware: a filled escape counts only when its identity is absent from
+    the blank baseline or appears more times than in it. On a clean fill the result
+    is 0; what remains is the new escape the fill actually caused.
+    """
+
+    from collections import Counter
+
+    blank_esc = detect_overflow(blank_boxes, blank_clips, tol=tol)
+    filled_esc = detect_overflow(filled_boxes, filled_clips, tol=tol)
+    baseline = Counter((b.page, b.text) for b, _r in blank_esc)
+    seen: "Counter[tuple]" = Counter()
+    new: list[tuple[WordBox, Rect]] = []
+    for box, clip in filled_esc:
+        key = (box.page, box.text)
+        seen[key] += 1
+        if seen[key] > baseline.get(key, 0):
+            new.append((box, clip))
+    return new
+
+
 # --- frozen fixture (provenance-bound, fail-closed) -------------------------
 
 def sha256_file(path: str) -> str:
@@ -987,7 +1022,10 @@ def verify_form_fill_differential(
     Renders blank and filled once each, then decides all three offline against the
     same captures:
 
-    * **overflow** — glyphs escaping their owning cell on the filled render;
+    * **overflow** — NEW cell-escapes the fill introduced (:func:`diff_overflow`
+      subtracts the blank baseline; absolute overflow is baseline-prone — a dense
+      clean form carries ~171 find_tables border-noise escapes identical in both
+      renders);
     * **layout_stable** — the blank→filled structural diff (page count + table
       shapes), the signal that catches a reflow overflow alone misses;
     * **overlap_detected** — the NEW glyph collisions the fill introduced
@@ -1000,7 +1038,7 @@ def verify_form_fill_differential(
     """
 
     try:
-        blank_glyphs, _blank_clips, blank_sig, _bb = render_form_layout(
+        blank_glyphs, blank_clips, blank_sig, _bb = render_form_layout(
             blank_hwpx, oracle=oracle
         )
     except OracleUnavailable as exc:
@@ -1013,7 +1051,10 @@ def verify_form_fill_differential(
         return unverified_verdict(f"filled render failed: {exc}")
 
     diff = diff_layout(blank_sig, filled_sig, require_table_shapes=require_table_shapes)
-    overflow = detect_overflow(filled_glyphs, clips, tol=tol)
+    # overflow is DIFFERENTIAL (blank baseline subtracted): dense real forms carry a
+    # steady find_tables border-noise population of marginal escapes identical in both
+    # renders (171 on a clean form_002) — absolute overflow would false-fail them.
+    overflow = diff_overflow(blank_glyphs, blank_clips, filled_glyphs, clips, tol=tol)
     new_overlaps = diff_overlaps(
         blank_glyphs, filled_glyphs, area_eps=area_eps, area_frac=area_frac
     )
@@ -1115,6 +1156,7 @@ __all__ = [
     "detect_overlaps",
     "diff_overlaps",
     "detect_overflow",
+    "diff_overflow",
     "verdict_from_boxes",
     "unverified_verdict",
     "render_glyph_boxes",

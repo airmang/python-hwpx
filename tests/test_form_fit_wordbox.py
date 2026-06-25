@@ -761,6 +761,49 @@ def test_verify_layout_stability_with_precomputed_blank_signature(tmp_path):
     assert v.render_checked and v.layout_stable is True
 
 
+# --- P2: differential overflow (filled escapes minus blank baseline) ---------
+
+def _clip():
+    return wb.Rect(50.0, 5.0, 110.0, 30.0, label="c0", page=0)
+
+
+def _esc(text, page=0):
+    # center 107.5 inside the clip, but x1=115 escapes the 110 right edge by 5pt
+    return wb.WordBox(x0=100.0, y0=10.0, x1=115.0, y1=20.0, text=text, page=page)
+
+
+def _inside(text, page=0):
+    return wb.WordBox(x0=60.0, y0=10.0, x1=75.0, y1=20.0, text=text, page=page)
+
+
+def test_diff_overflow_cancels_baseline_escape():
+    # the same marginal find_tables-noise escape in BOTH renders cancels (the 171 lesson)
+    clips = [_clip()]
+    blank = [_esc("가")]
+    filled = [_esc("가")]
+    assert wb.detect_overflow(blank, clips, tol=1.0)             # absolute would flag it
+    assert wb.diff_overflow(blank, clips, filled, clips, tol=1.0) == []
+
+
+def test_diff_overflow_flags_new_escape():
+    clips = [_clip()]
+    blank = [_inside("가")]   # fits in blank
+    filled = [_esc("가")]     # the fill pushed it out of the cell
+    assert len(wb.diff_overflow(blank, clips, filled, clips, tol=1.0)) == 1
+
+
+def test_diff_overflow_count_aware():
+    clips = [_clip()]
+    blank = [_esc("가")]                 # one baseline escape
+    filled = [_esc("가"), _esc("가")]    # two -> exactly one is new
+    assert len(wb.diff_overflow(blank, clips, filled, clips, tol=1.0)) == 1
+
+
+def test_diff_overflow_clean_has_none():
+    clips = [_clip()]
+    assert wb.diff_overflow([_inside("가")], clips, [_inside("가")], clips, tol=1.0) == []
+
+
 # --- P2: differential overlap (filled-render collisions minus blank baseline) -
 
 def _ov(x, y, text="x", page=0, size=5.0):
