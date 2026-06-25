@@ -89,3 +89,56 @@ def test_builder_verify_reports_section_reconciliation() -> None:
     assert report.ok
     assert report.sections_reconciled is True
     assert report.to_dict()["reconcile"]["ok"] is True
+
+
+# --------------------------------------------------------------------------- #
+# Item 3: semantic (value-level) IR equality                                   #
+# --------------------------------------------------------------------------- #
+_NS = 'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"'
+_TWO_RUNS = (
+    f"<sec {_NS}><hp:p><hp:run><hp:t>Hello</hp:t></hp:run>"
+    f"<hp:run><hp:t>World</hp:t></hp:run></hp:p></sec>"
+)
+_FLATTENED = (
+    f"<sec {_NS}><hp:p><hp:run><hp:t>HelloWorld</hp:t></hp:run></hp:p></sec>"
+)
+
+
+def _doc_bytes(section_xml: str) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("Contents/section0.xml", section_xml)
+    return buffer.getvalue()
+
+
+def test_projection_keeps_run_sequence() -> None:
+    from hwpx.tools.ir_equality import project_section_xml
+
+    assert project_section_xml(_TWO_RUNS) == [[("t", "Hello"), ("t", "World")]]
+
+
+def test_semantic_compare_detects_run_flattening() -> None:
+    from hwpx.tools.ir_equality import compare_documents_semantic
+
+    report = compare_documents_semantic(_doc_bytes(_TWO_RUNS), _doc_bytes(_FLATTENED))
+    assert not report.ok
+    # the flatten collapses 2 runs -> 1, surfaced as a length difference on para 0
+    assert any("doc[0]" in d and "!= 1" in d for d in report.differences)
+
+
+def test_semantic_compare_equal_documents() -> None:
+    from hwpx.tools.ir_equality import compare_documents_semantic
+
+    report = compare_documents_semantic(_doc_bytes(_TWO_RUNS), _doc_bytes(_TWO_RUNS))
+    assert report.ok
+
+
+def test_real_document_roundtrip_is_semantically_equal() -> None:
+    from hwpx.tools.ir_equality import compare_documents_semantic
+
+    document = HwpxDocument.new()
+    document.add_paragraph("문단 하나")
+    document.add_table(2, 2)
+    data = document.to_bytes()
+    rt = HwpxDocument.open(data).to_bytes()
+    assert compare_documents_semantic(data, rt).ok
