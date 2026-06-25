@@ -102,6 +102,32 @@ def test_add_picture_default_is_inline_treat_as_char():
     assert pos is not None and pos.get("treatAsChar") == "1"
 
 
+def test_add_picture_pos_overrides_requires_floating():
+    # pos_overrides (PAPER relTo/offset) on an INLINE pic is a contradictory
+    # inline/floating mix — reject it rather than emit a confusing element.
+    document = HwpxDocument.new()
+    ref = document.add_image(PNG_1X1, "png")
+    with pytest.raises(ValueError):
+        document.paragraphs[0].add_picture(
+            ref, treat_as_char=True, pos_overrides={"horzRelTo": "PAPER", "horzOffset": 100}
+        )
+
+
+def test_place_seal_records_explicit_page_for_multipage():
+    document = _doc_with_sender("제목", SENDER)
+    placement = seal.place_seal(
+        document,
+        image_data=PNG_1X1,
+        image_format="png",
+        sender_text=SENDER,
+        anchor_center_pt=(300.0, 400.0),
+        seal_width_mm=25.0,
+        page=2,
+    )
+    assert placement.placed is True
+    assert placement.page == 2  # the anchor's render page, recorded for cross-check
+
+
 # --------------------------------------------------------------------------- #
 # place_seal — bind floating pic to the source 발신명의 paragraph
 # --------------------------------------------------------------------------- #

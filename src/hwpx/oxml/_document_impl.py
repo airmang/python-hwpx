@@ -3871,6 +3871,12 @@ class HwpxOxmlParagraph:
         seal stamped over a line does not reflow the text it overlaps).
         """
 
+        if pos_overrides and treat_as_char:
+            raise ValueError(
+                "pos_overrides is for floating placement; pass treat_as_char=False "
+                "(a PAPER-relative <hp:pos> on an inline pic is contradictory)"
+            )
+
         run = self._create_run_for_object(
             run_attributes,
             char_pr_id_ref=char_pr_id_ref,

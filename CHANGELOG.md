@@ -5,6 +5,8 @@
 ## [Unreleased]
 ### 추가
 - `find_seal_anchor` — 발신명의가 좁은 표 셀에서 **여러 줄로 wrap**된 경우도 앵커를 찾는 fallback(연속 줄 윈도우, 최대 3줄). 단일 줄 매칭이 우선이라 기존 동작 불변; spurious 다중줄 매칭은 윈도우·동일페이지로 차단.
+### 수정
+- `paragraph.add_picture` — `treat_as_char=True`(inline)인데 `pos_overrides`(PAPER relTo/offset)를 주면 모순된 inline/floating `<hp:pos>`를 방출하던 것을 `ValueError`로 fail-fast. floating 배치는 `treat_as_char=False`에서만.
 
 ## [2.14.0] - 2026-06-25
 ### 추가
