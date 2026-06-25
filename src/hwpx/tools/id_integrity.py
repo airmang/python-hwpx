@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Any, Iterable, Mapping
 
+from hwpx.oxml.canonical_defaults import CHAR_PR_ID_REF_UNSET
+
 
 _ATTR_TO_TABLE = {
     "charPrIDRef": "char_properties",
@@ -43,7 +45,8 @@ _FONTFACE_LANG_TO_ATTR = {
 }
 
 _ALLOWED_SENTINELS = {
-    "charPrIDRef": {"4294967295"},
+    # 0xFFFFFFFF (UINT -1): the OWPML "unset charPrIDRef" sentinel, not a dangling id.
+    "charPrIDRef": {str(CHAR_PR_ID_REF_UNSET)},
 }
 
 _EMPTY_TABLE_IS_ALLOWED = {"memoShapeIDRef"}

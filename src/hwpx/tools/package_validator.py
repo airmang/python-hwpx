@@ -35,7 +35,15 @@ CONTAINER_PATH = "META-INF/container.xml"
 HEADER_PATH = "Contents/header.xml"
 VERSION_PATH = "version.xml"
 PREVIEW_TEXT_PATH = "Preview/PrvText.txt"
-RECOMMENDED_HANCOM_TARGET = "HWP2018"
+RECOMMENDED_HANCOM_TARGET = "HWP201X"
+# Both markers appear in real Hancom output across versions/filters: HWP2018 in
+# some converted corpora, HWP201X in current Hancom-saved files and our captured
+# Skeleton.hwpx (the from-scratch template every new document clones). Accept
+# either so our own canonical output does not trip a false warning.
+ACCEPTED_HANCOM_TARGETS = frozenset({"HWP2018", "HWP201X"})
+# hh:head version: 1.4 was the original measured baseline; current Hancom emits
+# 1.5 (our Skeleton.hwpx is 1.5). Accept both measured baselines.
+ACCEPTED_HEAD_VERSIONS = frozenset({"1.4", "1.5"})
 
 _XML_DECLARATION_RE = re.compile(br"^<\?xml\s+([^?]*?)\?>", re.IGNORECASE)
 _STANDALONE_YES_RE = re.compile(br"\bstandalone\s*=\s*(['\"])yes\1", re.IGNORECASE)
@@ -453,21 +461,23 @@ def _check_header_editor_acceptance(
         target_program = compatible.get("targetProgram")
         if not target_program:
             _warning(issues, part_name, "hh:compatibleDocument missing targetProgram")
-        elif target_program != RECOMMENDED_HANCOM_TARGET:
+        elif target_program not in ACCEPTED_HANCOM_TARGETS:
             _warning(
                 issues,
                 part_name,
                 "hh:compatibleDocument targetProgram is "
-                f"{target_program!r}; {RECOMMENDED_HANCOM_TARGET!r} is recommended "
-                "for macOS Hancom compatibility",
+                f"{target_program!r}; expected one of "
+                f"{sorted(ACCEPTED_HANCOM_TARGETS)} "
+                f"({RECOMMENDED_HANCOM_TARGET!r} recommended) for Hancom compatibility",
             )
 
     version = root.get("version")
-    if version != "1.4":
+    if version not in ACCEPTED_HEAD_VERSIONS:
         _warning(
             issues,
             part_name,
-            f"hh:head version is {version!r}; '1.4' is the measured compatibility baseline",
+            f"hh:head version is {version!r}; expected one of "
+            f"{sorted(ACCEPTED_HEAD_VERSIONS)} (measured compatibility baselines)",
         )
 
 

@@ -20,10 +20,17 @@ from .core import (
     Table,
     approval_box,
 )
-from .report import BuilderSaveReport, ReopenReport
+from .report import (
+    FIDELITY_CONTRACT,
+    BuilderSaveReport,
+    BuilderVerifyReport,
+    ReopenReport,
+)
 
 __all__ = [
+    "FIDELITY_CONTRACT",
     "BuilderSaveReport",
+    "BuilderVerifyReport",
     "Bullet",
     "Document",
     "Footer",

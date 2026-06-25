@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from hwpx.document import HwpxDocument
+from hwpx.tools.id_integrity import check_id_integrity
+from hwpx.tools.idempotence import IdempotenceReport, check_idempotent_pair
 from hwpx.tools.package_validator import validate_editor_open_safety
 from hwpx.tools.package_validator import validate_package
 from hwpx.tools.validator import validate_document
 
-from .report import BuilderSaveReport, ReopenReport
+from .report import BuilderSaveReport, BuilderVerifyReport, ReopenReport
 
 
 BuilderChild = (
@@ -805,3 +807,96 @@ class Document:
             visual_complete=visual_complete,
         )
         return report
+
+    def verify(self) -> BuilderVerifyReport:
+        """Dry, no-disk pre-write verification of the built document.
+
+        Lowers the document to bytes in memory and runs the save hard gates
+        (package, document, editor-open-safety, reopen) *plus* id-integrity and
+        a two-round idempotence check — a strictly stronger gate set than
+        :meth:`save_to_path` (whose report leaves id-integrity to the reader and
+        does not check idempotence) — without writing any file. Returns a
+        compact signal so a caller can branch on ``ok`` and read a
+        section/paragraph count before paying to materialize a real save.
+
+        Serialization itself can fail (e.g. open-safety rejects the output); in
+        that case this returns ``ok=False`` with ``serialize_error`` set rather
+        than raising, so a caller (fuzz loop, agent) can always branch on the
+        result.
+
+        See :data:`hwpx.builder.report.FIDELITY_CONTRACT` for what a green
+        verdict proves vs. does not prove.
+        """
+
+        try:
+            data = self.lower().to_bytes()
+        except Exception as exc:  # the document cannot even be serialized
+            return BuilderVerifyReport(
+                ok=False,
+                reopen_ok=False,
+                package_ok=False,
+                document_ok=False,
+                editor_open_safety_ok=False,
+                id_integrity_ok=False,
+                idempotent=False,
+                serialize_error=f"{type(exc).__name__}: {exc}",
+            )
+
+        package_report = validate_package(data)
+        document_report = validate_document(data)
+        editor_open_safety_report = validate_editor_open_safety(data)
+
+        reopened: HwpxDocument | None = None
+        reopen_error: str | None = None
+        try:
+            reopened = HwpxDocument.open(data)
+        except Exception as exc:  # surfaced in the report rather than raised
+            reopen_error = f"{type(exc).__name__}: {exc}"
+
+        id_integrity = (
+            check_id_integrity(reopened) if reopened is not None else None
+        )
+
+        # Fixed-point check on the EXACT bytes the gates above validated (gen-1)
+        # vs. their reopen-and-resave (gen-2), so the idempotence verdict refers
+        # to the bytes we would actually write, not a later generation.
+        idempotence: IdempotenceReport | None = None
+        serialize_error: str | None = None
+        try:
+            idempotence = check_idempotent_pair(data, HwpxDocument.open(data).to_bytes())
+        except Exception as exc:
+            serialize_error = f"{type(exc).__name__}: {exc}"
+
+        package_ok = bool(getattr(package_report, "ok", False))
+        document_ok = bool(getattr(document_report, "ok", False))
+        editor_open_safety_ok = bool(getattr(editor_open_safety_report, "ok", False))
+        id_integrity_ok = bool(getattr(id_integrity, "ok", False))
+        idempotent = bool(idempotence is not None and idempotence.ok)
+        reopen_ok = reopened is not None
+        section_count = len(reopened.sections) if reopened is not None else 0
+        paragraph_count = len(reopened.paragraphs) if reopened is not None else 0
+
+        ok = (
+            package_ok
+            and document_ok
+            and editor_open_safety_ok
+            and id_integrity_ok
+            and reopen_ok
+            and idempotent
+        )
+
+        return BuilderVerifyReport(
+            ok=ok,
+            reopen_ok=reopen_ok,
+            package_ok=package_ok,
+            document_ok=document_ok,
+            editor_open_safety_ok=editor_open_safety_ok,
+            id_integrity_ok=id_integrity_ok,
+            idempotent=idempotent,
+            section_count=section_count,
+            paragraph_count=paragraph_count,
+            byte_length=len(data),
+            reopen_error=reopen_error,
+            serialize_error=serialize_error,
+            idempotence=idempotence,
+        )

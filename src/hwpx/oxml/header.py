@@ -789,11 +789,25 @@ def parse_track_change_config(node: etree._Element) -> TrackChangeConfig:
     return TrackChangeConfig(flags=parse_int(node.get("flags")), encryption=encryption)
 
 
+def _embed_flag(node: etree._Element) -> bool:
+    """Read the font ``isEmbedded`` flag, tolerant of both spellings.
+
+    Hancom's OWPML reference model and some Hancom output use the single-d
+    spelling ``isEmbeded``; other corpora carry the double-d ``isEmbedded``.
+    Accept either on read so embedded fonts are never silently misclassified.
+    Emitted spelling is left unchanged pending a Hancom-oracle confirmation.
+    """
+    raw = node.get("isEmbedded")
+    if raw is None:
+        raw = node.get("isEmbeded")
+    return parse_bool(raw, default=False) or False
+
+
 def parse_font_substitution(node: etree._Element) -> FontSubstitution:
     return FontSubstitution(
         face=node.get("face", ""),
         type=node.get("type", ""),
-        is_embedded=parse_bool(node.get("isEmbedded"), default=False) or False,
+        is_embedded=_embed_flag(node),
         binary_item_id_ref=node.get("binaryItemIDRef"),
     )
 
@@ -820,7 +834,7 @@ def parse_font(node: etree._Element) -> Font:
         id=parse_int(node.get("id")),
         face=node.get("face", ""),
         type=node.get("type"),
-        is_embedded=parse_bool(node.get("isEmbedded"), default=False) or False,
+        is_embedded=_embed_flag(node),
         binary_item_id_ref=node.get("binaryItemIDRef"),
         substitution=substitution,
         type_info=type_info,
