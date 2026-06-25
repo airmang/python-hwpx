@@ -218,3 +218,41 @@ def test_garbage_plan_schema_version_still_errors() -> None:
     codes = {issue.code for issue in report.issues}
     assert "invalid_schema_version" in codes
     assert not report.ok
+
+
+# --------------------------------------------------------------------------- #
+# Item 6: document_plan JSON Schema artifact                                   #
+# --------------------------------------------------------------------------- #
+def test_document_plan_schema_is_built_from_live_constants() -> None:
+    from hwpx import get_document_plan_schema
+    from hwpx.authoring import (
+        DOCUMENT_PLAN_SCHEMA_VERSION,
+        DOCUMENT_PLAN_V2_SCHEMA_VERSION,
+        _SUPPORTED_BLOCK_TYPES,
+    )
+
+    schema = get_document_plan_schema()
+    assert schema["type"] == "object"
+    assert set(schema["required"]) == {"schemaVersion", "blocks"}
+    assert set(schema["properties"]["schemaVersion"]["enum"]) == {
+        DOCUMENT_PLAN_SCHEMA_VERSION,
+        DOCUMENT_PLAN_V2_SCHEMA_VERSION,
+    }
+    block_types = schema["properties"]["blocks"]["items"]["properties"]["type"]["enum"]
+    assert set(block_types) == set(_SUPPORTED_BLOCK_TYPES)  # never drifts
+    assert schema["$id"].endswith("document_plan.schema.json")
+
+
+def test_valid_plan_conforms_to_schema_when_jsonschema_available() -> None:
+    import pytest
+
+    jsonschema = pytest.importorskip("jsonschema")
+    from hwpx import get_document_plan_schema
+    from hwpx.authoring import DOCUMENT_PLAN_SCHEMA_VERSION
+
+    plan = {
+        "schemaVersion": DOCUMENT_PLAN_SCHEMA_VERSION,
+        "title": "t",
+        "blocks": [{"type": "paragraph", "text": "x"}],
+    }
+    jsonschema.validate(plan, get_document_plan_schema())

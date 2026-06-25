@@ -470,6 +470,54 @@ def _plan_repair_hints(issues: tuple[PlanValidationIssue, ...]) -> list[dict[str
     return hints
 
 
+DOCUMENT_PLAN_SCHEMA_ID = "https://airmang.github.io/hwpx-plugins/schemas/document_plan.schema.json"
+
+
+def get_document_plan_schema() -> dict[str, Any]:
+    """Return a JSON Schema (draft 2020-12) for the declarative document plan.
+
+    Built live from the validator's own constants so it never drifts from the
+    accepted contract. Usable directly as an LLM Structured-Outputs / external
+    JSON-Schema-validation contract: it constrains the envelope (schemaVersion,
+    a non-empty ``blocks`` array, each block carrying a known ``type``) while
+    leaving block bodies open (``additionalProperties``) for forward-compat.
+    """
+
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": DOCUMENT_PLAN_SCHEMA_ID,
+        "title": "HWPX Document Plan",
+        "type": "object",
+        "required": ["schemaVersion", "blocks"],
+        "additionalProperties": True,
+        "properties": {
+            "schemaVersion": {
+                "type": "string",
+                "enum": [DOCUMENT_PLAN_SCHEMA_VERSION, DOCUMENT_PLAN_V2_SCHEMA_VERSION],
+                "description": "Plan schema version. Newer same-family versions validate best-effort.",
+            },
+            "title": {"type": "string"},
+            "metadata": {"type": "object"},
+            "blocks": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "required": ["type"],
+                    "additionalProperties": True,
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "enum": sorted(_SUPPORTED_BLOCK_TYPES),
+                            "description": "Block kind. Body fields depend on the type.",
+                        }
+                    },
+                },
+            },
+        },
+    }
+
+
 def validate_document_plan(plan: Mapping[str, Any]) -> PlanValidationReport:
     """Return validation errors for a ``hwpx.document_plan.v1`` mapping."""
 
