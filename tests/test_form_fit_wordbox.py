@@ -794,10 +794,39 @@ def test_diff_overlaps_tolerates_subpixel_jitter():
     assert wb.diff_overlaps(blank, filled) == []
 
 
-def test_diff_overlaps_flags_when_shift_exceeds_tol():
+def test_diff_overlaps_cancels_moved_baseline_by_identity():
+    # adversarial finding #4/#5: a benign baseline over-print that merely TRANSLATES
+    # (an in-page reflow diff_layout cannot see) must still cancel by identity, not
+    # resurface as a false "new" overlap. Position-keyed cancellation flooded here.
     blank = [_ov(10, 10, "글"), _ov(12, 10, "겹")]
-    filled = [_ov(40, 40, "글"), _ov(42, 40, "겹")]            # same pair, far away
+    filled = [_ov(40, 40, "글"), _ov(42, 40, "겹")]  # same identity, shifted far
+    assert wb.diff_overlaps(blank, filled) == []
+
+
+def test_diff_overlaps_count_aware_flags_extra_occurrence():
+    # one (글,겹) over-print in blank, TWO in filled -> exactly one is new
+    blank = [_ov(10, 10, "글"), _ov(12, 10, "겹")]
+    filled = [_ov(10, 10, "글"), _ov(12, 10, "겹"), _ov(60, 60, "글"), _ov(62, 60, "겹")]
     assert len(wb.diff_overlaps(blank, filled)) == 1
+
+
+def test_diff_overlaps_catches_tiny_glyph_over_wide_glyph():
+    # adversarial finding #2: a narrow glyph fully inside a wide one (period crammed
+    # onto a CJK label) is the textbook 글자겹침; the area-fraction gate scores it
+    # 1.0 where the old min(width) center gate missed it.
+    wide = wb.WordBox(x0=100, y0=100, x1=120, y1=120, text="한")        # 20x20
+    period = wb.WordBox(x0=114, y0=108, x1=117, y1=112, text=".")        # fully inside, off-center
+    assert wb._overprint_fraction(wide, period) >= 0.9
+    assert len(wb.diff_overlaps([wide], [wide, period])) == 1
+
+
+def test_diff_overlaps_excludes_vertical_flow_edge_touch():
+    # adversarial finding #6: vertically-adjacent CJK glyphs touch edge-to-edge
+    # (same column, one glyph-height apart) — normal vertical flow, NOT an over-print.
+    top = wb.WordBox(x0=100, y0=100, x1=114, y1=114, text="국")
+    bottom = wb.WordBox(x0=100, y0=113, x1=114, y1=127, text="주")  # ~1pt y-overlap
+    assert wb._overprint_fraction(top, bottom) < wb._OVERLAP_AREA_FRAC
+    assert wb.diff_overlaps([], [top, bottom]) == []
 
 
 def test_diff_overlaps_empty_blank_flags_all():
@@ -817,9 +846,9 @@ def test_diff_overlaps_ignores_jittering_adjacent_flow():
         ]
 
     blank = row(10)
-    filled = row(25)  # whole row shifted +15pt (>> tol), still pure adjacent flow
+    filled = row(25)  # whole row shifted +15pt, still pure adjacent flow
     assert wb.detect_overlaps(blank)              # adjacent boxes DO collide rawly
-    assert wb.diff_overlaps(blank, filled) == []  # ...but the stack gate drops them
+    assert wb.diff_overlaps(blank, filled) == []  # ...but the over-print area gate drops them
 
 
 def test_diff_overlaps_is_page_isolated():
@@ -924,14 +953,13 @@ def test_mac_form_fill_overflow0_layout_stable_smoke(tmp_path):
     filled = tmp_path / "public_official_filled.hwpx"
     doc.save_to_path(str(filled))
 
+    # one comprehensive verdict: overflow + layout-stability + differential overlap
     oracle = MacHancomOracle(timeout=120)
-    _glyphs, _clips, blank_sig, _backend = wb.render_form_layout(blank, oracle=oracle)
-    verdict = wb.verify_form_layout_stability(
-        str(filled), blank_signature=blank_sig, oracle=oracle
-    )
+    verdict = wb.verify_form_fill_differential(blank, str(filled), oracle=oracle)
 
     assert verdict.render_checked is True
     assert verdict.layout_stable is True       # page + table-shape structure preserved
     assert verdict.overflow_checked is True    # table cells were detected
     assert verdict.overflow_detected is False  # overflow 0
+    assert verdict.overlap_detected is False   # no NEW 글자겹침 (baseline cancelled)
     assert verdict.ok is True

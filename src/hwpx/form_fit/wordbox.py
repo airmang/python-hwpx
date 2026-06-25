@@ -46,20 +46,18 @@ _OVERLAP_AREA_EPS_PT2 = 0.20
 # owned by a table cell stay inside it with ~1pt slack, so 0 false positives at
 # tol=0; 1pt absorbs find_tables border-rounding without masking a real escape.
 _OVERFLOW_TOL_PT = 1.0
-# Differential-overlap match tolerance (pt). A filled-render collision is the same
-# benign baseline collision as a blank-render one when their centers sit within
-# this distance; sized to absorb sub-glyph render jitter between two renders
-# without merging genuinely distinct collisions.
-_OVERLAP_DIFF_TOL_PT = 3.0
-# A collision is a 겹침 *candidate* (an over-print/stack, not normal adjacent
-# flow) when the glyph centers sit closer along the advance axis than this
-# fraction of the glyph width. Measured on a real gov form: normal horizontal CJK
-# flow sits at median ~0.96 (centers ~one glyph-width apart, p10 ~0.67) while a
-# genuine stack sits near 0. Gating at 0.5 collapses 1371 raw collisions to ~111
-# stable stacks; the blank-vs-filled differential then cancels that baseline to 0
-# on a clean fill (the ~1298 jittery normal-flow pairs are what broke a naive
-# position-only differential — 522 false positives — so they must be gated first).
-_OVERLAP_STACK_RATIO = 0.5
+# A collision is an OVER-PRINT (a 글자 겹침 candidate, not normal flow) when the
+# intersection covers at least this fraction of the SMALLER glyph's area. The gate
+# is axis-agnostic: normal horizontal flow (a thin advance-axis sliver) AND normal
+# vertical flow (edge-to-edge touch) both yield a small fraction and are excluded,
+# while a real over-print — collapsed 자간, a punctuation/digit crammed onto a wide
+# CJK glyph, a collapsed line — yields a large fraction. Calibrated on a real gov
+# form (public_official_table, 2904 glyphs): frac>=0.30 collapses 1371 raw
+# collisions to 13 stable over-prints (identical blank vs filled), the identity
+# differential then cancels that baseline to 0 on a clean fill, while catching the
+# period-in-CJK (frac 1.0) and collapsed-자간 (frac ~0.45) over-prints that a
+# center-distance gate missed (adversarial review, 2026-06-25).
+_OVERLAP_AREA_FRAC = 0.30
 # Fixture schema version (load migrates / rejects unknown majors).
 _FIXTURE_VERSION = 1
 # Tool stamp recorded in fixture provenance.
@@ -299,39 +297,46 @@ def detect_overlaps(
     return hits
 
 
-def _collision_center(a: WordBox, b: WordBox) -> tuple[float, float]:
-    """Center of the intersection rectangle of two colliding boxes (PDF pt)."""
+def _overprint_fraction(a: WordBox, b: WordBox) -> float:
+    """Intersection area as a fraction of the smaller glyph's area (0..1).
 
-    cx = (max(a.x0, b.x0) + min(a.x1, b.x1)) / 2.0
-    cy = (max(a.y0, b.y0) + min(a.y1, b.y1)) / 2.0
-    return cx, cy
-
-
-def _is_stacked(a: WordBox, b: WordBox, stack_ratio: float) -> bool:
-    """True when two colliding glyphs over-print rather than flow side by side.
-
-    Normal horizontal text advances by ~one glyph width between centers; an
-    over-print/stack (the 글자 겹침 failure) puts the centers nearly on top of each
-    other. Comparing the center gap along the advance axis to the glyph width
-    separates the two — an angle the area/relative-area gates (which a clean form's
-    PUA symbols defeat at frac=1.0) cannot.
+    Axis-agnostic measure of *how much* two glyphs over-print. Normal flow
+    (horizontal sliver or vertical edge-touch) is a small fraction; a stack/cram is
+    a large one. This succeeds where a center-distance gate fails: it does not
+    assume the advance axis (so collapsed 자간, vertical text and collapsed lines
+    are all covered) and it is symmetric to glyph size (a tiny glyph fully inside a
+    wide CJK glyph scores 1.0, the canonical 글자 겹침 a ``min(width)`` gate missed).
     """
 
-    width = min(a.width, b.width)
-    if width <= 0:
-        return True  # degenerate glyph: treat as a stack rather than silently drop
-    dcx = abs((a.x0 + a.x1) / 2.0 - (b.x0 + b.x1) / 2.0)
-    return (dcx / width) < stack_ratio
+    overlap = a.overlap_area(b)
+    if overlap <= 0.0:
+        return 0.0
+    smaller = min(a.width * a.height, b.width * b.height)
+    if smaller <= 0.0:
+        return 1.0  # degenerate glyph fully covered: treat as an over-print
+    return overlap / smaller
 
 
-def _stacked_collisions(
-    boxes: Sequence[WordBox], *, area_eps: float, stack_ratio: float
+def _overprint_collisions(
+    boxes: Sequence[WordBox], *, area_eps: float, area_frac: float
 ) -> list[tuple[WordBox, WordBox]]:
     return [
         (a, b)
         for a, b in detect_overlaps(boxes, area_eps=area_eps)
-        if _is_stacked(a, b, stack_ratio)
+        if _overprint_fraction(a, b) >= area_frac
     ]
+
+
+def _overlap_identity(a: WordBox, b: WordBox) -> tuple:
+    """Position-invariant identity of a collision: page + canonical glyph-text pair.
+
+    Keying on glyph identity (not absolute position) makes the differential robust
+    to benign intra-page reflow — a baseline over-print that merely translates keeps
+    its identity and cancels — while a genuinely new over-print carries a new pair,
+    or a higher *count* of an existing pair on the page.
+    """
+
+    return (a.page,) + tuple(sorted((a.text, b.text)))
 
 
 def diff_overlaps(
@@ -339,56 +344,41 @@ def diff_overlaps(
     filled_boxes: Sequence[WordBox],
     *,
     area_eps: float = _OVERLAP_AREA_EPS_PT2,
-    tol: float = _OVERLAP_DIFF_TOL_PT,
-    stack_ratio: float = _OVERLAP_STACK_RATIO,
+    area_frac: float = _OVERLAP_AREA_FRAC,
 ) -> list[tuple[WordBox, WordBox]]:
     """Glyph over-prints the *fill* introduces (filled render minus blank baseline).
 
     Absolute glyph-overlap is unusable on real forms — a clean gov form already
-    carries ~1371 benign collisions, and ~1298 of those are just normal adjacent
-    CJK flow (boxes touching along the advance axis) that shifts position under any
-    fill, so a naive position differential drowns in false positives (measured:
-    522 on a clean fill). Two gates fix it:
+    carries ~1371 benign collisions, almost all normal adjacent CJK flow. Two gates
+    isolate the new 글자 겹침 a fill causes:
 
-    1. **stack gate** — keep only *over-print* collisions (centers nearly coincident
-       along the advance axis, :func:`_is_stacked`), dropping normal flow. This
-       collapses the ~1371 to a stable ~111 (identical count blank vs filled).
-    2. **differential** — a surviving filled collision counts only when **no**
-       blank collision sits within ``tol`` pt of its center (same page), cancelling
-       that stable baseline (punctuation-after-CJK, PUA stacks). On a clean fill the
-       result is 0; what remains is the new 글자 겹침 the fill caused.
+    1. **over-print gate** (:func:`_overprint_fraction`) — keep only collisions whose
+       intersection covers a real fraction (``area_frac``) of the smaller glyph,
+       dropping normal horizontal *and* vertical flow. This collapses the ~1371 raw
+       collisions to ~13 stable over-prints (identical count blank vs filled).
+    2. **identity differential** — cancel each surviving filled over-print against a
+       blank one of the *same identity* (page + glyph-text pair), count-aware. A
+       filled over-print is new only when its identity is absent from the blank
+       baseline or appears more times than in it.
 
-    Position-keyed cancellation assumes the layout did not move, so pair this with
-    :func:`diff_layout` / :func:`verify_form_fill_differential`, which fail first
-    when the page reflows.
+    Identity (not position) keying is deliberate: an earlier position-keyed version
+    both masked a real cram landing near a benign seam and flooded false positives
+    whenever a benign stack merely translated >tol under an in-page reflow that
+    :func:`diff_layout` cannot see (adversarial review, 2026-06-25). On a clean fill
+    the result is 0; what remains is the new over-print the fill introduced.
     """
 
-    from collections import defaultdict
+    from collections import Counter
 
-    blank_hits = _stacked_collisions(blank_boxes, area_eps=area_eps, stack_ratio=stack_ratio)
-    filled_hits = _stacked_collisions(filled_boxes, area_eps=area_eps, stack_ratio=stack_ratio)
-    # Bucket blank collision centers on a `tol`-sized grid for O(1) neighborhood
-    # lookup (avoids an O(blank×filled) scan on the ~1371-collision baseline).
-    buckets: dict[tuple[int, int, int], list[tuple[float, float]]] = defaultdict(list)
-    for a, b in blank_hits:
-        cx, cy = _collision_center(a, b)
-        buckets[(a.page, int(cx // tol), int(cy // tol))].append((cx, cy))
+    blank_hits = _overprint_collisions(blank_boxes, area_eps=area_eps, area_frac=area_frac)
+    filled_hits = _overprint_collisions(filled_boxes, area_eps=area_eps, area_frac=area_frac)
+    baseline = Counter(_overlap_identity(a, b) for a, b in blank_hits)
+    seen: "Counter[tuple]" = Counter()
     new: list[tuple[WordBox, WordBox]] = []
     for a, b in filled_hits:
-        cx, cy = _collision_center(a, b)
-        gx, gy = int(cx // tol), int(cy // tol)
-        matched = False
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                for bx, by in buckets.get((a.page, gx + dx, gy + dy), ()):
-                    if abs(bx - cx) <= tol and abs(by - cy) <= tol:
-                        matched = True
-                        break
-                if matched:
-                    break
-            if matched:
-                break
-        if not matched:
+        key = _overlap_identity(a, b)
+        seen[key] += 1
+        if seen[key] > baseline.get(key, 0):
             new.append((a, b))
     return new
 
@@ -989,9 +979,8 @@ def verify_form_fill_differential(
     oracle: Any = None,
     tol: float = _OVERFLOW_TOL_PT,
     require_table_shapes: bool = True,
-    overlap_tol: float = _OVERLAP_DIFF_TOL_PT,
     area_eps: float = _OVERLAP_AREA_EPS_PT2,
-    stack_ratio: float = _OVERLAP_STACK_RATIO,
+    area_frac: float = _OVERLAP_AREA_FRAC,
 ) -> FormFillVerdict:
     """Full P2 verdict for a filled form: overflow + layout-stability + overlap.
 
@@ -1026,7 +1015,7 @@ def verify_form_fill_differential(
     diff = diff_layout(blank_sig, filled_sig, require_table_shapes=require_table_shapes)
     overflow = detect_overflow(filled_glyphs, clips, tol=tol)
     new_overlaps = diff_overlaps(
-        blank_glyphs, filled_glyphs, area_eps=area_eps, tol=overlap_tol, stack_ratio=stack_ratio
+        blank_glyphs, filled_glyphs, area_eps=area_eps, area_frac=area_frac
     )
     note_bits: list[str] = []
     if not clips:
