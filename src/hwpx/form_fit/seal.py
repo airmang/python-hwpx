@@ -8,7 +8,7 @@ against the Hancom render boxes — reusing the word-box oracle
 (:mod:`hwpx.form_fit.wordbox`) rather than guessing from the document model, since
 the truth is where Hancom *drew* the glyph, not where the XML nominally puts it.
 
-Two pure-geometry entry points, offline-testable:
+Pure-geometry decision entry points (slice 1), offline-testable:
 
 * :func:`find_seal_anchor` — locate the last glyph of the 발신명의 line in a set of
   glyph boxes (the seal's intended center).
@@ -17,8 +17,17 @@ Two pure-geometry entry points, offline-testable:
   text. The check **discriminates** (a centered seal passes, a mis-placed one
   fails) so an evaluator can run it — FR-003 / acceptance #3.
 
-All coordinates are PDF points (the unit the wordbox oracle reports), origin
-top-left (y grows downward).
+Placement entry points (slice 2) — turn the decision into an actual seal:
+
+* :func:`seal_pos_offsets` — map an anchor center (PDF pt) to the PAPER-relative
+  ``<hp:pos>`` offsets (HWPUNIT) that land a seal's *center* on it.
+* :func:`place_seal` — embed a seal image and attach it as a **floating** picture
+  to the source 발신명의 paragraph (``add_picture`` is inline-only), so it lands on
+  that paragraph's page at the computed absolute position.
+
+All render coordinates are PDF points (the unit the wordbox oracle reports), origin
+top-left (y grows downward). HWPX positions are HWPUNIT (7200 per inch), so a PDF
+point is exactly ``100`` HWPUNIT (``7200 / 72``).
 """
 from __future__ import annotations
 
@@ -27,6 +36,13 @@ from dataclasses import dataclass, field
 from typing import Any, Sequence
 
 from .wordbox import Rect, WordBox
+
+# 1 PDF point = 7200/72 = 100 HWPUNIT (HWPUNIT is 7200 per inch).
+_PT_TO_HWPUNIT = 100.0
+# 1 mm = 7200/25.4 HWPUNIT.
+_MM_TO_HWPUNIT = 7200.0 / 25.4
+# A typical 관인/직인 is ~2.5 cm square.
+_DEFAULT_SEAL_MM = 25.0
 
 # Default seal-center tolerance (pt). The seal center must land within this of the
 # anchor glyph's center to count as "centered on the last glyph".
@@ -214,9 +230,198 @@ def check_seal_placement(
     )
 
 
+# ------------------------------------------------------------------
+# Placement (slice 2) — put the seal where slice 1 says it belongs.
+# ------------------------------------------------------------------
+
+
+def seal_pos_offsets(
+    anchor_center_pt: tuple[float, float],
+    seal_width_hu: int,
+    seal_height_hu: int,
+    *,
+    pt_to_hwpunit: float = _PT_TO_HWPUNIT,
+) -> tuple[int, int]:
+    """Map a seal-center target (PDF pt) to PAPER ``<hp:pos>`` offsets (HWPUNIT).
+
+    A floating ``<hp:pic>`` positioned ``horzRelTo="PAPER" vertRelTo="PAPER"`` with
+    ``horzAlign="LEFT" vertAlign="TOP"`` places its **top-left** corner at
+    ``(horzOffset, vertOffset)`` from the paper's top-left. To center a seal of
+    ``seal_width_hu × seal_height_hu`` on ``anchor_center_pt`` the offset is the
+    anchor (converted to HWPUNIT) minus half the seal. Offsets are clamped to ``≥ 0``
+    because the schema types them ``xs:nonNegativeInteger`` (a seal hanging off the
+    top/left edge would otherwise be rejected).
+    """
+
+    cx_pt, cy_pt = anchor_center_pt
+    horz = round(cx_pt * pt_to_hwpunit - seal_width_hu / 2.0)
+    vert = round(cy_pt * pt_to_hwpunit - seal_height_hu / 2.0)
+    return max(0, horz), max(0, vert)
+
+
+@dataclass
+class SealPlacement:
+    """Result of attaching a 직인 image to a document (FR-003, slice 2).
+
+    ``page`` is the render page the caller said the anchor came from (or ``None``);
+    a caller can cross-check it against the seal's page from ``extract_image_boxes``.
+    ``clamped`` is ``True`` when the seal sat so close to the paper's top/left edge
+    that the offset was clamped to 0 — the realized center then differs from the
+    requested anchor (honest signal rather than a silent mis-stamp).
+    """
+
+    placed: bool
+    paragraph_index: int = -1
+    binary_item_id: str = ""
+    horz_offset: int = 0
+    vert_offset: int = 0
+    seal_width_hu: int = 0
+    seal_height_hu: int = 0
+    page: int | None = None
+    clamped: bool = False
+    note: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "placed": self.placed,
+            "paragraphIndex": self.paragraph_index,
+            "binaryItemId": self.binary_item_id,
+            "horzOffset": self.horz_offset,
+            "vertOffset": self.vert_offset,
+            "sealWidthHU": self.seal_width_hu,
+            "sealHeightHU": self.seal_height_hu,
+            "page": self.page,
+            "clamped": self.clamped,
+            "note": self.note,
+        }
+
+
+def _iter_all_paragraphs(document: Any) -> "list[Any]":
+    """Body paragraphs **and** table-cell paragraphs (recursively), in order.
+
+    ``document.paragraphs`` only surfaces a section's direct-child paragraphs, so a
+    발신명의 inside a 발신·결재 table box would be invisible to :func:`place_seal`
+    (and the seal silently un-placeable). This descends into ``paragraph.tables`` →
+    ``table.cells`` → ``cell.paragraphs`` so the issuer line is found wherever Hancom
+    actually renders it. Duck-typed and defensive: any model missing the table API
+    simply yields its body paragraphs.
+    """
+
+    out: list[Any] = []
+
+    def _walk(paragraph: Any) -> None:
+        out.append(paragraph)
+        for table in getattr(paragraph, "tables", None) or []:
+            for row in getattr(table, "rows", None) or []:
+                for cell in getattr(row, "cells", None) or []:
+                    for cell_para in getattr(cell, "paragraphs", None) or []:
+                        _walk(cell_para)
+
+    for paragraph in document.paragraphs:
+        _walk(paragraph)
+    return out
+
+
+def place_seal(
+    document: Any,
+    *,
+    image_data: bytes,
+    image_format: str,
+    sender_text: str,
+    anchor_center_pt: tuple[float, float],
+    seal_width_mm: float = _DEFAULT_SEAL_MM,
+    seal_height_mm: float | None = None,
+    pt_to_hwpunit: float = _PT_TO_HWPUNIT,
+    allow_overlap: bool = True,
+    page: int | None = None,
+) -> SealPlacement:
+    """Embed *image_data* and place it as a floating 직인 on the 발신명의 page.
+
+    The seal is attached to the **source paragraph** whose text contains
+    ``sender_text`` (last occurrence wins — the issuer line sits near the document
+    foot). The search descends into table cells (:func:`_iter_all_paragraphs`) so a
+    발신명의 inside a 발신·결재 box is found. Anchoring the floating picture to that
+    paragraph makes it land on that paragraph's page; ``anchor_center_pt`` (from the
+    render oracle) is the **sole geometric authority** for the position, via
+    :func:`seal_pos_offsets` — the paragraph match only selects the page.
+
+    **Single-page / co-located-page assumption.** The PAPER offset is *page-relative*,
+    so ``anchor_center_pt`` must come from the same render page the source paragraph
+    lands on. For a single-page letter (the common 공문) this holds. For a multi-page
+    document, pass ``page`` (the anchor's render page) — it is recorded on the result
+    so the caller can cross-check against the seal's page from
+    :func:`hwpx.form_fit.wordbox.extract_image_boxes`. ``place_seal`` does not itself
+    re-render, so it cannot detect a page mismatch; the oracle verdict is the gate.
+
+    ``add_picture`` is inline-only, so this uses its floating path
+    (``treat_as_char=False`` + PAPER ``pos_overrides``). Returns a
+    :class:`SealPlacement`; when no 발신명의 paragraph is found it fails **closed**
+    (``placed=False``, nothing inserted) rather than guessing a position.
+    """
+
+    needle = _norm(sender_text)
+    if not needle:
+        return SealPlacement(placed=False, note="empty sender_text")
+
+    paragraphs = _iter_all_paragraphs(document)
+    target_index: int | None = None
+    for index, paragraph in enumerate(paragraphs):
+        if needle in _norm(paragraph.text):
+            target_index = index  # last occurrence wins
+    if target_index is None:
+        return SealPlacement(placed=False, note="발신명의 paragraph not found")
+
+    seal_w_hu = round(seal_width_mm * _MM_TO_HWPUNIT)
+    height_mm = seal_width_mm if seal_height_mm is None else seal_height_mm
+    seal_h_hu = round(height_mm * _MM_TO_HWPUNIT)
+    horz, vert = seal_pos_offsets(
+        anchor_center_pt, seal_w_hu, seal_h_hu, pt_to_hwpunit=pt_to_hwpunit
+    )
+    # honest signal: a near-edge anchor whose top-left would be negative is clamped to
+    # 0, so the realized center no longer equals the requested anchor.
+    raw_h = round(anchor_center_pt[0] * pt_to_hwpunit - seal_w_hu / 2.0)
+    raw_v = round(anchor_center_pt[1] * pt_to_hwpunit - seal_h_hu / 2.0)
+    clamped = raw_h < 0 or raw_v < 0
+
+    binary_item_id = document.add_image(image_data, image_format)
+    paragraphs[target_index].add_picture(
+        binary_item_id,
+        width=seal_w_hu,
+        height=seal_h_hu,
+        treat_as_char=False,
+        # IN_FRONT_OF_TEXT: the seal is stamped *over* the 발신명의 line; without it
+        # Hancom wraps the overlapped glyphs and shoves them aside (oracle-confirmed).
+        text_wrap="IN_FRONT_OF_TEXT",
+        pos_overrides={
+            "horzRelTo": "PAPER",
+            "vertRelTo": "PAPER",
+            "horzAlign": "LEFT",
+            "vertAlign": "TOP",
+            "horzOffset": horz,
+            "vertOffset": vert,
+            "allowOverlap": "1" if allow_overlap else "0",
+        },
+    )
+    return SealPlacement(
+        placed=True,
+        paragraph_index=target_index,
+        binary_item_id=str(binary_item_id),
+        horz_offset=horz,
+        vert_offset=vert,
+        seal_width_hu=seal_w_hu,
+        seal_height_hu=seal_h_hu,
+        page=page,
+        clamped=clamped,
+        note="seal clamped to paper edge" if clamped else "",
+    )
+
+
 __all__ = [
     "SealAnchor",
     "SealVerdict",
+    "SealPlacement",
     "find_seal_anchor",
     "check_seal_placement",
+    "seal_pos_offsets",
+    "place_seal",
 ]

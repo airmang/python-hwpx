@@ -455,6 +455,20 @@ def test_extract_degrades_when_fitz_absent(monkeypatch):
         wb.extract_glyph_boxes("/nonexistent.pdf")
 
 
+def test_extract_image_boxes_degrades_when_fitz_absent(monkeypatch):
+    monkeypatch.setattr(wb, "fitz_available", lambda: False)
+    with pytest.raises(wb.OracleUnavailable):
+        wb.extract_image_boxes("/nonexistent.pdf")
+
+
+@pytest.mark.skipif(not wb.fitz_available(), reason="PyMuPDF (fitz) not installed")
+def test_extract_image_boxes_unreadable_pdf_degrades(tmp_path):
+    bad = tmp_path / "not.pdf"
+    bad.write_bytes(b"this is not a pdf")
+    with pytest.raises(wb.OracleUnavailable):
+        wb.extract_image_boxes(str(bad))
+
+
 # --- P2: cell-clip extraction + overflow verify ----------------------------
 
 def _grid_pdf(path, *, overflow_text=False):
@@ -952,6 +966,29 @@ def test_verify_differential_clean_has_no_new_overlap(tmp_path):
 def test_verify_differential_degrades_on_render_fail():
     v = wb.verify_form_fill_differential("b.hwpx", "f.hwpx", oracle=_UnavailableOracle())
     assert v.render_checked is False and "unverified" in v.note
+
+
+@pytest.mark.skipif(not wb.fitz_available(), reason="PyMuPDF (fitz) not installed")
+def test_extract_image_boxes_returns_image_rects(tmp_path):
+    """An embedded image (e.g. a placed 직인) is found by its rendered rect — the
+    seal is a picture, not a glyph, so ``get_text`` would never surface it."""
+    import fitz
+
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 8, 8))
+    pix.clear_with(128)
+    rendered = tmp_path / "img.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=300, height=400)
+    page.insert_image(fitz.Rect(50, 100, 130, 180), pixmap=pix)  # an 80x80 box
+    doc.save(str(rendered))
+    doc.close()
+
+    boxes = wb.extract_image_boxes(str(rendered))
+    assert len(boxes) == 1
+    box = boxes[0]
+    assert box.page == 0
+    assert abs(box.x0 - 50) < 1.0 and abs(box.y0 - 100) < 1.0
+    assert abs(box.x1 - 130) < 1.0 and abs(box.y1 - 180) < 1.0
 
 
 # --- P2: live Hancom oracle smoke (FR-002 — overflow-0 + layout-stable) ------

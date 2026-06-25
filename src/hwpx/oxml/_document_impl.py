@@ -2470,11 +2470,13 @@ def _create_picture_element(
     *,
     align: str | None = None,
     treat_as_char: bool = True,
+    pos_overrides: dict[str, str | int] | None = None,
+    text_wrap: str | None = None,
 ) -> ET.Element:
     """Build a ``<hp:pic>`` element using the corpus-observed picture shape."""
 
     el = ET.Element(f"{_HP}pic", {
-        "textWrap": "SQUARE",
+        "textWrap": text_wrap or "SQUARE",
         "textFlow": "BOTH_SIDES",
         "reverse": "0",
     })
@@ -2516,6 +2518,19 @@ def _create_picture_element(
         pos = el.find(f"{_HP}pos")
         if pos is not None:
             pos.set("horzAlign", align.upper())
+    if pos_overrides:
+        pos = el.find(f"{_HP}pos")
+        if pos is not None:
+            # Floating placement: relTo / align / offset onto the <hp:pos> built by
+            # _build_shape_base_children (its treat_as_char=False branch).
+            for key, value in pos_overrides.items():
+                if value is None:
+                    continue
+                if key in ("horzOffset", "vertOffset"):
+                    # schema: xs:nonNegativeInteger — coerce/clamp so a stray negative
+                    # or fractional offset can never produce an invalid HWPX.
+                    value = max(0, round(float(value)))
+                pos.set(key, str(value))
     _append_child(el, f"{_HP}shapeComment", {})
     return el
 
@@ -3841,10 +3856,20 @@ class HwpxOxmlParagraph:
         height: int = 14400,
         align: str | None = None,
         treat_as_char: bool = True,
+        pos_overrides: dict[str, str | int] | None = None,
+        text_wrap: str | None = None,
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> HwpxOxmlInlineObject:
-        """Insert a corpus-shaped ``<hp:pic>`` referencing embedded BinData."""
+        """Insert a corpus-shaped ``<hp:pic>`` referencing embedded BinData.
+
+        With ``treat_as_char=False`` and ``pos_overrides`` the picture is placed as a
+        **floating** object: ``pos_overrides`` sets ``horz/vertRelTo`` (e.g. ``PAPER``),
+        ``horz/vertAlign`` and ``horz/vertOffset`` (HWPUNIT, non-negative) on the
+        ``<hp:pos>`` so the image lands at a fixed page position (used by 직인 placement).
+        ``text_wrap`` overrides the pic's ``textWrap`` (e.g. ``IN_FRONT_OF_TEXT`` so a
+        seal stamped over a line does not reflow the text it overlaps).
+        """
 
         run = self._create_run_for_object(
             run_attributes,
@@ -3856,6 +3881,8 @@ class HwpxOxmlParagraph:
             int(height),
             align=align,
             treat_as_char=treat_as_char,
+            pos_overrides=pos_overrides,
+            text_wrap=text_wrap,
         )
         if type(element) is not type(run):
             element = LET.fromstring(ET.tostring(element, encoding="utf-8"))

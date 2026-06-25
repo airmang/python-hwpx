@@ -711,6 +711,44 @@ def extract_cell_clips(pdf_path: str, *, page: int | None = None) -> list[Rect]:
     return clips
 
 
+def extract_image_boxes(pdf_path: str, *, page: int | None = None) -> list[Rect]:
+    """Extract embedded-image rectangles (PDF points) from a render.
+
+    A placed 직인/관인 is a *picture*, so it never appears in the ``get_text`` glyph
+    boxes; ``page.get_image_info()`` reports each image's ``bbox`` in the same
+    top-left PDF-point space as the glyph boxes, so the seal rect feeds straight into
+    :func:`hwpx.form_fit.seal.check_seal_placement` with no transform. A page whose
+    image analysis raises contributes no boxes rather than crashing the check.
+    """
+
+    if not fitz_available():
+        raise OracleUnavailable("PyMuPDF (fitz) is not installed")
+    import fitz
+
+    boxes: list[Rect] = []
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception as exc:
+        raise OracleUnavailable(f"unreadable PDF: {type(exc).__name__}") from exc
+    with doc:
+        for pno in _page_indices(doc, page):
+            try:
+                infos = doc[pno].get_image_info()
+            except Exception:
+                continue  # image analysis failed on this page -> no boxes, no crash
+            for ii, info in enumerate(infos):
+                bbox = info.get("bbox") if isinstance(info, dict) else None
+                if not bbox or len(bbox) < 4 or not _finite(*bbox[:4]):
+                    continue
+                boxes.append(
+                    Rect(
+                        float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3]),
+                        label=f"p{pno}i{ii}", page=int(pno),
+                    )
+                )
+    return boxes
+
+
 def render_form_geometry(
     hwpx_path: str, *, oracle: Any = None, page: int | None = None
 ) -> tuple[list[WordBox], list[Rect], list[tuple[float, float]], str]:
