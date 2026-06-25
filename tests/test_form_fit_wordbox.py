@@ -759,3 +759,58 @@ def test_verify_layout_stability_with_precomputed_blank_signature(tmp_path):
         "f.hwpx", blank_signature=baseline, oracle=_stub_oracle(fixed=filled_pdf)
     )
     assert v.render_checked and v.layout_stable is True
+
+
+# --- P2: live Hancom oracle smoke (FR-002 — overflow-0 + layout-stable) ------
+
+def _mac_form_oracle_ready() -> bool:
+    try:
+        from hwpx.visual.oracle import MacHancomOracle
+
+        return MacHancomOracle().available() and wb.fitz_available()
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(
+    not (_mac_form_oracle_ready() and os.environ.get("HWPX_MAC_ORACLE_SMOKE")),
+    reason="set HWPX_MAC_ORACLE_SMOKE=1 on macOS+Hancom to drive the form-fill render smoke",
+)
+def test_mac_form_fill_overflow0_layout_stable_smoke(tmp_path):
+    """A real Korean gov form, filled via ``form_fit``, opens Hancom-clean (FR-002).
+
+    Layout-neutral same-length substitutions into the 담당 부서 contact block must
+    leave the document intact: overflow 0, layout stable (page + table-shape count),
+    oracle-verified. Calibrated 2026-06-25 on ``public_official_table`` — ``find_
+    tables`` table-shapes are deterministic across the fill, so ``require_table_
+    shapes=True`` does not false-trigger on a clean fill (blank/filled both render
+    5 pages, shapes ((1,2),(3,4),(1,2)), 2904 glyphs).
+    """
+
+    from hwpx.document import HwpxDocument
+    from hwpx.form_fit.policy import FitPolicy
+    from hwpx.visual.oracle import MacHancomOracle
+
+    blank = "tests/fixtures/m2_corpus/public_official_table.hwpx"
+    doc = HwpxDocument.open(blank)
+    tables = []
+    for paragraph in doc.paragraphs:
+        tables.extend(getattr(paragraph, "tables", []))
+    contact = tables[4]  # the 담당 부서 / 책임자 block
+    for row, col, value in [(0, 1, "행정안전부"), (0, 4, "홍길동"), (1, 4, "김영수"), (3, 4, "이지은")]:
+        result = contact.set_cell_text(row, col, value, fit=FitPolicy.keep())
+        assert result is not None and result.ok and not result.overflow_detected
+    filled = tmp_path / "public_official_filled.hwpx"
+    doc.save_to_path(str(filled))
+
+    oracle = MacHancomOracle(timeout=120)
+    _glyphs, _clips, blank_sig, _backend = wb.render_form_layout(blank, oracle=oracle)
+    verdict = wb.verify_form_layout_stability(
+        str(filled), blank_signature=blank_sig, oracle=oracle
+    )
+
+    assert verdict.render_checked is True
+    assert verdict.layout_stable is True       # page + table-shape structure preserved
+    assert verdict.overflow_checked is True    # table cells were detected
+    assert verdict.overflow_detected is False  # overflow 0
+    assert verdict.ok is True
