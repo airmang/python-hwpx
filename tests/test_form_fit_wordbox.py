@@ -761,6 +761,127 @@ def test_verify_layout_stability_with_precomputed_blank_signature(tmp_path):
     assert v.render_checked and v.layout_stable is True
 
 
+# --- P2: differential overlap (filled-render collisions minus blank baseline) -
+
+def _ov(x, y, text="x", page=0, size=5.0):
+    """A small square glyph box centered near (x, y)."""
+    return wb.WordBox(x0=x, y0=y, x1=x + size, y1=y + size, text=text, page=page)
+
+
+def test_diff_overlaps_cancels_identical_baseline():
+    # one collision at the same spot in BOTH renders -> nothing new
+    blank = [_ov(10, 10, "글"), _ov(12, 10, "겹")]
+    filled = [_ov(10, 10, "글"), _ov(12, 10, "겹")]
+    assert wb.detect_overlaps(blank)  # the baseline collision is real
+    assert wb.diff_overlaps(blank, filled) == []
+
+
+def test_diff_overlaps_flags_new_collision():
+    blank = [_ov(10, 10, "글"), _ov(12, 10, "겹")]              # baseline only
+    filled = [
+        _ov(10, 10, "글"), _ov(12, 10, "겹"),                   # same baseline
+        _ov(50, 50, "新"), _ov(52, 50, "規"),                   # NEW collision
+    ]
+    new = wb.diff_overlaps(blank, filled)
+    assert len(new) == 1
+    assert {new[0][0].text, new[0][1].text} == {"新", "規"}
+
+
+def test_diff_overlaps_tolerates_subpixel_jitter():
+    # the whole baseline collision shifts < tol between renders -> still cancels
+    blank = [_ov(10.0, 10.0, "글"), _ov(12.0, 10.0, "겹")]
+    filled = [_ov(10.4, 10.3, "글"), _ov(12.4, 10.3, "겹")]
+    assert wb.diff_overlaps(blank, filled) == []
+
+
+def test_diff_overlaps_flags_when_shift_exceeds_tol():
+    blank = [_ov(10, 10, "글"), _ov(12, 10, "겹")]
+    filled = [_ov(40, 40, "글"), _ov(42, 40, "겹")]            # same pair, far away
+    assert len(wb.diff_overlaps(blank, filled)) == 1
+
+
+def test_diff_overlaps_empty_blank_flags_all():
+    filled = [_ov(10, 10, "글"), _ov(12, 10, "겹")]
+    assert len(wb.diff_overlaps([], filled)) == 1
+
+
+def test_diff_overlaps_ignores_jittering_adjacent_flow():
+    # The calibration lesson (522 false positives): normal adjacent CJK flow —
+    # centers ~one glyph-width apart — collides rawly but is NOT 겹침, and it shifts
+    # position between renders. The stack gate must drop it so the differential does
+    # not drown. A whole row shifted past `tol` must still yield zero new overlaps.
+    def row(x0):
+        return [
+            wb.WordBox(x0=x0 + i * 6, y0=10, x1=x0 + i * 6 + 8, y1=18, text=t, page=0)
+            for i, t in enumerate("가나다라")
+        ]
+
+    blank = row(10)
+    filled = row(25)  # whole row shifted +15pt (>> tol), still pure adjacent flow
+    assert wb.detect_overlaps(blank)              # adjacent boxes DO collide rawly
+    assert wb.diff_overlaps(blank, filled) == []  # ...but the stack gate drops them
+
+
+def test_diff_overlaps_is_page_isolated():
+    blank = [_ov(10, 10, "글", page=0), _ov(12, 10, "겹", page=0)]
+    filled = [_ov(10, 10, "글", page=1), _ov(12, 10, "겹", page=1)]  # same coords, page 1
+    # a collision on page 1 is NOT cancelled by an identical one on page 0
+    assert len(wb.diff_overlaps(blank, filled)) == 1
+
+
+def _overlap_pdf(path, *, extra=False):
+    """PDF with a baseline glyph collision; optionally a second 'new' one.
+
+    Uses wide Latin glyphs (fitz's built-in font has no CJK, so 한글 would render
+    as a single substitute glyph and never collide).
+    """
+    import fitz
+
+    doc = fitz.open()
+    page = doc.new_page(width=400, height=400)
+    # baseline collision (present in BOTH renders): two glyphs OVER-PRINTED (centers
+    # nearly coincident) so it reads as a stack, not normal adjacent flow.
+    page.insert_text((50, 100), "M", fontsize=40)
+    page.insert_text((53, 100), "W", fontsize=40)  # ~on top of M -> stacked
+    if extra:
+        # a second, NEW stacked collision far enough away to be a distinct location
+        page.insert_text((50, 300), "M", fontsize=40)
+        page.insert_text((53, 300), "W", fontsize=40)
+    doc.save(str(path))
+    doc.close()
+
+
+@pytest.mark.skipif(not wb.fitz_available(), reason="PyMuPDF (fitz) not installed")
+def test_verify_differential_flags_only_new_overlap(tmp_path):
+    blank_pdf = tmp_path / "b.pdf"
+    filled_pdf = tmp_path / "f.pdf"
+    _overlap_pdf(blank_pdf, extra=False)
+    _overlap_pdf(filled_pdf, extra=True)
+    oracle = _stub_oracle(mapping={"b.hwpx": blank_pdf, "f.hwpx": filled_pdf})
+    v = wb.verify_form_fill_differential("b.hwpx", "f.hwpx", oracle=oracle)
+    assert v.render_checked is True
+    assert v.overlap_detected is True and not v.ok
+    assert len(v.overlap) >= 1
+    assert "new glyph overlap" in v.note
+
+
+@pytest.mark.skipif(not wb.fitz_available(), reason="PyMuPDF (fitz) not installed")
+def test_verify_differential_clean_has_no_new_overlap(tmp_path):
+    blank_pdf = tmp_path / "b.pdf"
+    filled_pdf = tmp_path / "f.pdf"
+    _overlap_pdf(blank_pdf, extra=False)
+    _overlap_pdf(filled_pdf, extra=False)  # identical baseline, no new collision
+    oracle = _stub_oracle(mapping={"b.hwpx": blank_pdf, "f.hwpx": filled_pdf})
+    v = wb.verify_form_fill_differential("b.hwpx", "f.hwpx", oracle=oracle)
+    assert v.render_checked is True
+    assert v.overlap_detected is False  # the baseline collision cancels
+
+
+def test_verify_differential_degrades_on_render_fail():
+    v = wb.verify_form_fill_differential("b.hwpx", "f.hwpx", oracle=_UnavailableOracle())
+    assert v.render_checked is False and "unverified" in v.note
+
+
 # --- P2: live Hancom oracle smoke (FR-002 — overflow-0 + layout-stable) ------
 
 def _mac_form_oracle_ready() -> bool:
