@@ -656,6 +656,224 @@ def verify_form_overflow(
     )
 
 
+# --- layout stability (differential: blank render vs filled render) ---------
+
+@dataclass(frozen=True, slots=True)
+class LayoutSignature:
+    """Structural fingerprint of a rendered form: page count + per-table shape.
+
+    The layout-stability signal is **differential** — a fill must not change the
+    document's structure, so we compare the blank render's signature against the
+    filled render's and never assert an absolute (Constitution V; mirrors the P1
+    lesson that absolute glyph-overlap is unusable on real forms). Page count is
+    the dominant, high-confidence signal — a fill that spills onto a new page is
+    the canonical layout collapse. Per-table ``(rows, cols)`` is the finer
+    row/column signal; ``find_tables`` is content-sensitive, so it is judged as a
+    multiset *delta* (blank vs filled), not an absolute count.
+    """
+
+    page_count: int
+    table_shapes: tuple[tuple[int, int], ...] = ()
+    page_sizes: tuple[tuple[float, float], ...] = ()
+
+    @property
+    def table_shape_multiset(self) -> tuple[tuple[int, int], ...]:
+        """Order-independent ``(rows, cols)`` multiset — table *order* is not structure."""
+
+        return tuple(sorted(self.table_shapes))
+
+    @property
+    def row_total(self) -> int:
+        return sum(rows for rows, _cols in self.table_shapes)
+
+
+def extract_layout_signature(pdf_path: str) -> LayoutSignature:
+    """Extract the structural signature (page count + per-table shape) of a PDF.
+
+    Per-page ``find_tables`` failures contribute no tables rather than crashing
+    (same tolerance as :func:`extract_cell_clips`).
+    """
+
+    if not fitz_available():
+        raise OracleUnavailable("PyMuPDF (fitz) is not installed")
+    import fitz
+
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception as exc:  # truncated / non-PDF bytes -> degrade, never crash
+        raise OracleUnavailable(f"unreadable PDF: {type(exc).__name__}") from exc
+    shapes: list[tuple[int, int]] = []
+    sizes: list[tuple[float, float]] = []
+    with doc:
+        for page in doc:
+            sizes.append((float(page.rect.width), float(page.rect.height)))
+            try:
+                tables = page.find_tables().tables
+            except Exception:
+                continue  # layout analysis failed on this page -> no tables, no crash
+            for table in tables:
+                rows = getattr(table, "row_count", None)
+                cols = getattr(table, "col_count", None)
+                if isinstance(rows, int) and isinstance(cols, int) and rows >= 0 and cols >= 0:
+                    shapes.append((rows, cols))
+        page_count = len(doc)
+    return LayoutSignature(
+        page_count=page_count, table_shapes=tuple(shapes), page_sizes=tuple(sizes)
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class LayoutDiff:
+    """Differential layout-stability verdict (blank render vs filled render)."""
+
+    stable: bool
+    page_count_stable: bool
+    table_shapes_stable: bool
+    blank: LayoutSignature
+    filled: LayoutSignature
+    reasons: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "stable": self.stable,
+            "pageCountStable": self.page_count_stable,
+            "tableShapesStable": self.table_shapes_stable,
+            "blankPages": self.blank.page_count,
+            "filledPages": self.filled.page_count,
+            "reasons": list(self.reasons),
+        }
+
+
+def diff_layout(
+    blank: LayoutSignature,
+    filled: LayoutSignature,
+    *,
+    require_table_shapes: bool = True,
+) -> LayoutDiff:
+    """Compare a blank render's signature to the filled render's.
+
+    ``page_count`` must match (the hard signal). ``table_shapes`` must match as a
+    multiset when ``require_table_shapes`` (default): a fill that grows or splits a
+    row changes a table's ``(rows, cols)``. A corpus where ``find_tables`` proves
+    too content-sensitive to bind can pass ``require_table_shapes=False`` to keep
+    table shapes *advisory* (still reported in ``reasons``, but not gating
+    ``stable``) — the calibration knob, decided by measurement, not assumption.
+    """
+
+    page_count_stable = blank.page_count == filled.page_count
+    table_shapes_stable = blank.table_shape_multiset == filled.table_shape_multiset
+    reasons: list[str] = []
+    if not page_count_stable:
+        reasons.append(f"page count {blank.page_count}->{filled.page_count}")
+    if not table_shapes_stable:
+        reasons.append(
+            f"table shapes {list(blank.table_shape_multiset)}"
+            f"->{list(filled.table_shape_multiset)}"
+        )
+    stable = page_count_stable and (table_shapes_stable or not require_table_shapes)
+    return LayoutDiff(
+        stable=stable,
+        page_count_stable=page_count_stable,
+        table_shapes_stable=table_shapes_stable,
+        blank=blank,
+        filled=filled,
+        reasons=tuple(reasons),
+    )
+
+
+def render_form_layout(
+    hwpx_path: str, *, oracle: Any = None, page: int | None = None
+) -> tuple[list[WordBox], list[Rect], LayoutSignature, str]:
+    """Render once via Hancom and return ``(glyphs, clips, signature, backend)``.
+
+    One render feeds all three offline checks (overflow, overlap, layout). Any
+    backend/parse/IO failure degrades to :class:`OracleUnavailable` (the fill path
+    never crashes), exactly like :func:`render_form_geometry`.
+    """
+
+    try:
+        if oracle is None:
+            from hwpx.visual.oracle import resolve_oracle
+
+            oracle = resolve_oracle()
+        if not oracle.available():
+            raise OracleUnavailable("no reachable Hancom render backend")
+        fd, pdf = tempfile.mkstemp(suffix=".pdf")
+        os.close(fd)
+        try:
+            rendered = oracle.render_pdf(hwpx_path, pdf)
+            if not rendered or not os.path.exists(rendered) or os.path.getsize(rendered) == 0:
+                raise OracleUnavailable("Hancom render produced no PDF")
+            glyphs = extract_glyph_boxes(rendered, page=page)
+            clips = extract_cell_clips(rendered, page=page)
+            signature = extract_layout_signature(rendered)
+            if signature.page_count == 0:  # a 0-page render is a failed render
+                raise OracleUnavailable("Hancom render produced an empty (0-page) PDF")
+            return glyphs, clips, signature, type(oracle).__name__
+        finally:
+            try:
+                os.remove(pdf)
+            except OSError:
+                pass
+    except OracleUnavailable:
+        raise
+    except Exception as exc:  # backend/copyfile/subprocess/parse -> degrade, never crash
+        raise OracleUnavailable(f"render backend failed: {type(exc).__name__}") from exc
+
+
+def verify_form_layout_stability(
+    filled_hwpx: str,
+    *,
+    blank_hwpx: str | None = None,
+    blank_signature: LayoutSignature | None = None,
+    oracle: Any = None,
+    tol: float = _OVERFLOW_TOL_PT,
+    require_table_shapes: bool = True,
+) -> FormFillVerdict:
+    """Differential overflow + layout-stability verdict for a filled form (P2).
+
+    The blank baseline is ``blank_signature`` when given (template-once / frozen,
+    so a corpus pays the blank render only once), else a one-time render of
+    ``blank_hwpx``. The filled form is rendered once for overflow + its own
+    signature, and ``layout_stable`` becomes the REAL :func:`diff_layout` verdict
+    (no longer a passthrough). Honest-degrades to ``unverified`` when no baseline is
+    available or any render fails (Constitution V/IX) — never a silent pass.
+    """
+
+    if blank_signature is None:
+        if not blank_hwpx:
+            return unverified_verdict(
+                "no blank baseline (need blank_hwpx or blank_signature)"
+            )
+        try:
+            _bg, _bc, blank_signature, _bb = render_form_layout(blank_hwpx, oracle=oracle)
+        except OracleUnavailable as exc:
+            return unverified_verdict(f"blank baseline render failed: {exc}")
+    try:
+        glyphs, clips, filled_sig, _backend = render_form_layout(filled_hwpx, oracle=oracle)
+    except OracleUnavailable as exc:
+        return unverified_verdict(f"filled render failed: {exc}")
+    diff = diff_layout(blank_signature, filled_sig, require_table_shapes=require_table_shapes)
+    overflow = detect_overflow(glyphs, clips, tol=tol)
+    note_bits: list[str] = []
+    if not clips:
+        note_bits.append("no table cells detected (overflow not evaluated)")
+    if not diff.stable:
+        note_bits.append("layout unstable: " + "; ".join(diff.reasons))
+    return FormFillVerdict(
+        render_checked=True,
+        overflow_detected=bool(overflow),
+        overflow_checked=bool(clips),
+        overlap_detected=False,  # differential overlap is the next P2 slice
+        layout_stable=diff.stable,
+        overflow=[
+            {"box": _box_brief(b), "clip": r.label, "escapePt": round(r.overflow_of(b), 2)}
+            for b, r in overflow
+        ],
+        note="; ".join(note_bits),
+    )
+
+
 def verify_form_fill(
     hwpx_path: str,
     *,
@@ -738,4 +956,10 @@ __all__ = [
     "extract_cell_clips",
     "render_form_geometry",
     "verify_form_overflow",
+    "LayoutSignature",
+    "LayoutDiff",
+    "extract_layout_signature",
+    "diff_layout",
+    "render_form_layout",
+    "verify_form_layout_stability",
 ]

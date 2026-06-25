@@ -592,3 +592,170 @@ def test_verify_renders_and_freezes_via_stub_oracle(tmp_path):
     assert reloaded.source_sha256 == wb.sha256_file(str(src))  # provenance bound
     assert reloaded.backend == "_StubOracle"
     assert reloaded.boxes  # per-glyph capture produced boxes
+
+
+# --- P2: layout stability (differential blank-render vs filled-render) -------
+
+def _layout_pdf(path, *, pages=1, rows=2, cols=2):
+    """N-page PDF; each page draws one bordered rows×cols grid with text per cell.
+
+    ``find_tables`` needs cell text to detect the table (measured), so every cell
+    carries a token.
+    """
+    import fitz
+
+    cw, ch = 110.0, 36.0
+    x0, y0 = 40.0, 40.0
+    width = x0 * 2 + cols * cw
+    height = y0 * 2 + rows * ch
+    doc = fitz.open()
+    for _ in range(pages):
+        page = doc.new_page(width=width, height=height)
+        xs = [x0 + i * cw for i in range(cols + 1)]
+        ys = [y0 + j * ch for j in range(rows + 1)]
+        for x in xs:
+            page.draw_line((x, ys[0]), (x, ys[-1]), color=(0, 0, 0), width=1)
+        for y in ys:
+            page.draw_line((xs[0], y), (xs[-1], y), color=(0, 0, 0), width=1)
+        for r in range(rows):
+            for c in range(cols):
+                page.insert_text((xs[c] + 6, ys[r] + 24), f"r{r}c{c}", fontsize=9)
+    doc.save(str(path))
+    doc.close()
+
+
+def _stub_oracle(*, mapping=None, fixed=None):
+    """Oracle stub whose ``render_pdf`` returns a pre-rendered PDF path.
+
+    ``mapping``: hwpx_path -> pdf path (distinct blank/filled renders).
+    ``fixed``: one pdf returned for any input.
+    """
+
+    class _O:
+        def available(self):
+            return True
+
+        def render_pdf(self, hwpx_path, out_pdf=None):
+            if mapping is not None:
+                return str(mapping[hwpx_path])
+            return str(fixed)
+
+    return _O()
+
+
+@pytest.mark.skipif(not wb.fitz_available(), reason="PyMuPDF (fitz) not installed")
+def test_layout_signature_captures_pages_and_tables(tmp_path):
+    pdf = tmp_path / "two.pdf"
+    _layout_pdf(pdf, pages=2, rows=3, cols=2)
+    sig = wb.extract_layout_signature(str(pdf))
+    assert sig.page_count == 2
+    assert sig.table_shapes  # at least one table detected
+    assert all(r > 0 and c > 0 for r, c in sig.table_shapes)
+
+
+def test_diff_layout_identical_is_stable():
+    sig = wb.LayoutSignature(page_count=2, table_shapes=((3, 2), (3, 2)))
+    diff = wb.diff_layout(sig, sig)
+    assert diff.stable and diff.page_count_stable and diff.table_shapes_stable
+    assert diff.reasons == ()
+
+
+def test_diff_layout_page_growth_is_unstable():
+    blank = wb.LayoutSignature(page_count=1, table_shapes=((3, 2),))
+    filled = wb.LayoutSignature(page_count=2, table_shapes=((3, 2),))
+    diff = wb.diff_layout(blank, filled)
+    assert not diff.stable and not diff.page_count_stable
+    assert any("page count" in r for r in diff.reasons)
+
+
+def test_diff_layout_row_growth_is_unstable():
+    blank = wb.LayoutSignature(page_count=1, table_shapes=((3, 2),))
+    filled = wb.LayoutSignature(page_count=1, table_shapes=((4, 2),))  # a row split/grew
+    diff = wb.diff_layout(blank, filled)
+    assert diff.page_count_stable and not diff.table_shapes_stable and not diff.stable
+    assert any("table shapes" in r for r in diff.reasons)
+
+
+def test_diff_layout_table_order_independent():
+    blank = wb.LayoutSignature(page_count=1, table_shapes=((3, 2), (5, 4)))
+    filled = wb.LayoutSignature(page_count=1, table_shapes=((5, 4), (3, 2)))
+    assert wb.diff_layout(blank, filled).stable  # multiset, not sequence
+
+
+def test_diff_layout_table_shapes_advisory_when_not_required():
+    blank = wb.LayoutSignature(page_count=1, table_shapes=((3, 2),))
+    filled = wb.LayoutSignature(page_count=1, table_shapes=((4, 2),))
+    diff = wb.diff_layout(blank, filled, require_table_shapes=False)
+    assert diff.stable  # page count is the only gate when table shapes are advisory
+    assert not diff.table_shapes_stable  # still computed + reported honestly
+    assert any("table shapes" in r for r in diff.reasons)
+
+
+def test_extract_layout_signature_degrades_when_fitz_absent(monkeypatch):
+    monkeypatch.setattr(wb, "fitz_available", lambda: False)
+    with pytest.raises(wb.OracleUnavailable):
+        wb.extract_layout_signature("/nonexistent.pdf")
+
+
+def test_verify_layout_stability_degrades_without_baseline():
+    # neither blank_hwpx nor blank_signature -> honest unverified before any render
+    v = wb.verify_form_layout_stability("filled.hwpx")
+    assert v.render_checked is False and v.ok is False
+    assert "no blank baseline" in v.note
+
+
+def test_verify_layout_stability_degrades_when_render_fails():
+    v = wb.verify_form_layout_stability(
+        "filled.hwpx",
+        blank_signature=wb.LayoutSignature(page_count=1),
+        oracle=_UnavailableOracle(),
+    )
+    assert v.render_checked is False and "unverified" in v.note
+
+
+@pytest.mark.skipif(not wb.fitz_available(), reason="PyMuPDF (fitz) not installed")
+def test_render_form_layout_returns_signature(tmp_path):
+    pdf = tmp_path / "f.pdf"
+    _layout_pdf(pdf, pages=1, rows=2, cols=2)
+    glyphs, clips, sig, backend = wb.render_form_layout(
+        "x.hwpx", oracle=_stub_oracle(fixed=pdf)
+    )
+    assert sig.page_count == 1 and sig.table_shapes
+    assert clips  # the grid is detected as overflow clips too
+    assert backend == "_O"
+
+
+@pytest.mark.skipif(not wb.fitz_available(), reason="PyMuPDF (fitz) not installed")
+def test_verify_layout_stability_stable_via_stub_oracle(tmp_path):
+    blank_pdf = tmp_path / "blank.pdf"
+    filled_pdf = tmp_path / "filled.pdf"
+    _layout_pdf(blank_pdf, pages=1, rows=3, cols=2)
+    _layout_pdf(filled_pdf, pages=1, rows=3, cols=2)  # same structure, fill stayed put
+    oracle = _stub_oracle(mapping={"blank.hwpx": blank_pdf, "filled.hwpx": filled_pdf})
+    v = wb.verify_form_layout_stability("filled.hwpx", blank_hwpx="blank.hwpx", oracle=oracle)
+    assert v.render_checked and v.layout_stable is True
+    assert not v.overflow_detected and v.ok
+
+
+@pytest.mark.skipif(not wb.fitz_available(), reason="PyMuPDF (fitz) not installed")
+def test_verify_layout_stability_detects_page_growth(tmp_path):
+    blank_pdf = tmp_path / "blank.pdf"
+    filled_pdf = tmp_path / "filled.pdf"
+    _layout_pdf(blank_pdf, pages=1, rows=3, cols=2)
+    _layout_pdf(filled_pdf, pages=2, rows=3, cols=2)  # the fill spilled onto a 2nd page
+    oracle = _stub_oracle(mapping={"b.hwpx": blank_pdf, "f.hwpx": filled_pdf})
+    v = wb.verify_form_layout_stability("f.hwpx", blank_hwpx="b.hwpx", oracle=oracle)
+    assert v.render_checked and v.layout_stable is False and not v.ok
+    assert "layout unstable" in v.note and "page count" in v.note
+
+
+@pytest.mark.skipif(not wb.fitz_available(), reason="PyMuPDF (fitz) not installed")
+def test_verify_layout_stability_with_precomputed_blank_signature(tmp_path):
+    # template-once: the blank baseline is a frozen signature; only the filled renders
+    filled_pdf = tmp_path / "filled.pdf"
+    _layout_pdf(filled_pdf, pages=1, rows=3, cols=2)
+    baseline = wb.extract_layout_signature(str(filled_pdf))  # the template's shape
+    v = wb.verify_form_layout_stability(
+        "f.hwpx", blank_signature=baseline, oracle=_stub_oracle(fixed=filled_pdf)
+    )
+    assert v.render_checked and v.layout_stable is True
