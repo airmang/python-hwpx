@@ -90,6 +90,31 @@ def test_fit_aware_batch_strict_skips_missing_required(tmp_path):
     assert row3["created"] is False  # not generated
 
 
+def test_fit_measures_narrowest_cell_when_token_in_multiple(tmp_path):
+    # the same {{x}} sits in a wide AND a narrow cell; template-once-measure must use
+    # the *narrowest* slot so a value that fits the wide one but not the narrow one is
+    # still flagged (conservative — if it fits the narrowest it fits all).
+    doc = HwpxDocument.new()
+    table = doc.add_paragraph("").add_table(1, 2)
+    wide = table.cell(0, 0)
+    wide.set_size(width=40000)
+    wide.set_text("{{x}}")
+    narrow = table.cell(0, 1)
+    narrow.set_size(width=3000)
+    narrow.set_text("{{x}}")
+    template = tmp_path / "multi.hwpx"
+    doc.save_to_path(template)
+
+    report = mail_merge(
+        template,
+        [{"x": "홍길동홍길동"}],  # fits 40000 but overflows ~3000
+        output_dir=tmp_path / "out",
+        fit_policy=FitPolicy.keep(),
+    )
+    assert report["needsReview"], "narrowest slot should have flagged the overflow"
+    assert "overflow" in report["needsReview"][0]["reasons"]
+
+
 def test_no_fit_policy_keeps_raw_behaviour_and_empty_isolation(tmp_path):
     template = tmp_path / "template.hwpx"
     _template(template)

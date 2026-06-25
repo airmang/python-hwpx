@@ -469,6 +469,26 @@ def test_extract_image_boxes_unreadable_pdf_degrades(tmp_path):
         wb.extract_image_boxes(str(bad))
 
 
+@pytest.mark.skipif(not wb.fitz_available(), reason="PyMuPDF (fitz) not installed")
+def test_extract_image_boxes_page_analysis_failure_skips_not_crashes(tmp_path, monkeypatch):
+    # a page whose image analysis raises contributes no boxes rather than crashing
+    import fitz
+
+    rendered = tmp_path / "img.pdf"
+    doc = fitz.open()
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 8, 8))
+    pix.clear_with(128)
+    doc.new_page(width=200, height=200).insert_image(fitz.Rect(10, 10, 50, 50), pixmap=pix)
+    doc.save(str(rendered))
+    doc.close()
+
+    def _boom(self, *a, **k):
+        raise RuntimeError("layout analysis failed")
+
+    monkeypatch.setattr(fitz.Page, "get_image_info", _boom)
+    assert wb.extract_image_boxes(str(rendered)) == []  # degraded, no crash
+
+
 # --- P2: cell-clip extraction + overflow verify ----------------------------
 
 def _grid_pdf(path, *, overflow_text=False):
