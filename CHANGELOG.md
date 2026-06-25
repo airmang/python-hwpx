@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-06-25
+### 추가
+- `hwpx.form_fit.seal` — 직인/관인 배치 + 규정 검사(M2 P3). `find_seal_anchor`(발신명의 줄의 끝글자=도장 중심), `check_seal_placement`(중심 tol·가림 글자 차별 pass/fail), `seal_pos_offsets`(PDF pt 앵커→PAPER HWPUNIT offset), `place_seal`(발신명의 소스 문단—표 셀까지 탐색—에 직인을 floating 스탬프; 오라클 검증 0.12pt, fail-closed, page/clamp 정직신호).
+- `hwpx.form_fit.wordbox.extract_image_boxes` — 렌더된 PDF에서 임베디드 이미지(직인) rect 추출. 직인은 글자가 아니라 그림이라 `get_text`로 안 잡힘.
+- `add_picture(treat_as_char=False, pos_overrides=, text_wrap=)` — floating 그림 경로. PAPER 상대 `<hp:pos>`(offset은 xs:nonNegativeInteger로 coerce) + `textWrap`(직인은 `IN_FRONT_OF_TEXT`로 텍스트 안 밀고 위에 스탬프).
+- `mail_merge(fit_policy=, max_lines=)` — fit-aware 배치(M2 P4 / FR-004). 각 placeholder 슬롯을 템플릿에서 한 번 측정(template-once-measure, advance-model·오라클 불필요)하고 레코드별로 fit. 넘침/결측 행을 `needsReview[]`/`skipped[]`(reason 코드 + retry advice)로 격리—자동 truncate 없음. `[xlsx]` extra(openpyxl)로 Excel/명부(.xlsx/.xlsm) 수용.
+### 수정
+- 임베디드 이미지 manifest `<opf:item>`에 `isEmbeded="1"`(OWPML 단일-d 철자) 방출 — 없으면 한컴이 `add_picture`로 넣은 **모든 그림을 렌더 드롭**하던 잠복 버그(한컴 GUI 렌더로 확정).
+- `mail_merge`가 **표 셀** 안 placeholder도 치환 — `replace_text_in_runs`(본문 전용)가 셀 런에 안 닿아 발신·결재/안내 표 안 `{{토큰}}`이 미치환으로 남던 버그.
+
 ## [2.13.0] - 2026-06-24
 ### 추가
 - `hwpx.conformance` — VisualComplete 적합성 코퍼스 + 배지 등급(plan §2 Phase G). `hwpx-conformance run`이 코퍼스를 4개 배지 등급(Open-Safe/Semantic-Safe/Form-Safe/VisualComplete)으로 채점하고 등급별 통과율을 산출합니다. 임계값은 엄격 기본값(구조 등급 100%, 폼셋 overflow 0%, VisualComplete ≥95%). golden 베이스라인(`tests/conformance/golden/structural.json`) 대비 회귀를 숫자로 감지하며(`--check`), CI가 구조 등급을 추적합니다. 어슈어런스 등급은 절대 섞지 않습니다(§0.0): 한컴이 없는 구조 실행은 VisualComplete를 `unverified`로 보고하고, 오라클 실행(도달 가능한 한컴 백엔드)만 VisualComplete를 검증합니다. 케이스에 `before`(+선택적 `editMask`)를 선언하면 VisualComplete가 오라클의 **before/after diff 경로**로 게이트됩니다(마스크 밖 변경·글자 겹침을 잡음). `expectVisualDefect`는 일부러 깨뜨린 쌍을 positive control로 삼아 게이트가 결함을 실제로 잡는지 검증합니다. (실측: 실제 한컴-저장 코퍼스에서 clean 쌍은 통과, out-of-slot 변경은 catch.)
