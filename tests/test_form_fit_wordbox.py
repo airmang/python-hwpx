@@ -963,3 +963,34 @@ def test_mac_form_fill_overflow0_layout_stable_smoke(tmp_path):
     assert verdict.overflow_detected is False  # overflow 0
     assert verdict.overlap_detected is False   # no NEW 글자겹침 (baseline cancelled)
     assert verdict.ok is True
+
+
+@pytest.mark.skipif(
+    not (_mac_form_oracle_ready() and os.environ.get("HWPX_MAC_ORACLE_SMOKE")),
+    reason="set HWPX_MAC_ORACLE_SMOKE=1 on macOS+Hancom to drive the 글자겹침 render smoke",
+)
+def test_mac_glyph_overprint_caught_smoke():
+    """The positive case: a real Hancom-rendered 글자겹침 is caught (FR-002).
+
+    ``slot_overprint.hwpx`` is the same 발신명의 line as ``slot_clean.hwpx`` with 자간
+    compressed to −50 % — the canonical 방송신청서 failure where a value is crammed
+    into a slot until consecutive glyphs over-print. The differential-overlap signal
+    MUST flag it, and it is caught by NO other signal: the compressed text takes less
+    width (no cell escape → overflow 0) and the page count is unchanged (layout
+    stable). Complements ``…_overflow0_layout_stable_smoke`` (the clean negative).
+    """
+
+    from hwpx.visual.oracle import MacHancomOracle
+
+    base = "tests/fixtures/glyph_overlap"
+    oracle = MacHancomOracle(timeout=120)
+    verdict = wb.verify_form_fill_differential(
+        f"{base}/slot_clean.hwpx", f"{base}/slot_overprint.hwpx", oracle=oracle
+    )
+
+    assert verdict.render_checked is True
+    assert verdict.overlap_detected is True    # the real 글자겹침 is detected
+    assert verdict.overflow_detected is False  # compressed text never escapes a cell
+    assert verdict.layout_stable is True       # same page/structure
+    assert verdict.ok is False                 # ...so overlap is the sole failing signal
+    assert verdict.overlap                     # colliding glyph pairs are reported
