@@ -38,6 +38,8 @@ def load_mail_merge_rows(data: str | Path | Sequence[Mapping[str, Any]] | Mappin
             with path.open("r", encoding="utf-8") as stream:
                 payload = json.load(stream)
             return load_mail_merge_rows(payload)
+        if suffix in (".xlsx", ".xlsm"):
+            return _load_xlsx_rows(path)
         raise ValueError(f"unsupported mail merge data file: {path}")
 
     if isinstance(data, Mapping):
@@ -51,6 +53,44 @@ def load_mail_merge_rows(data: str | Path | Sequence[Mapping[str, Any]] | Mappin
         if not isinstance(row, Mapping):
             raise TypeError(f"mail merge row {index} must be a mapping")
         rows.append({str(key): value for key, value in row.items()})
+    return rows
+
+
+def _load_xlsx_rows(path: Path) -> list[dict[str, Any]]:
+    """Read a roster (명부) from the first sheet of an .xlsx/.xlsm workbook.
+
+    The first non-empty row is the header (placeholder keys); each later row is a
+    record. Cells are coerced to ``str`` (so ``{{no}}`` from an integer cell merges
+    cleanly) and fully-empty rows are dropped. ``openpyxl`` is an optional dependency
+    (``python-hwpx[xlsx]``) — absent, a clear ImportError tells the caller to install.
+    """
+
+    try:
+        from openpyxl import load_workbook
+    except ImportError as exc:  # pragma: no cover - exercised only without openpyxl
+        raise ImportError(
+            "reading .xlsx rosters requires openpyxl — install python-hwpx[xlsx]"
+        ) from exc
+
+    workbook = load_workbook(path, read_only=True, data_only=True)
+    try:
+        sheet = workbook.active
+        header: list[str] | None = None
+        rows: list[dict[str, Any]] = []
+        for raw in sheet.iter_rows(values_only=True):
+            if raw is None or all(cell is None for cell in raw):
+                continue
+            if header is None:
+                header = [str(cell).strip() if cell is not None else "" for cell in raw]
+                continue
+            record: dict[str, Any] = {}
+            for key, cell in zip(header, raw):
+                if not key:
+                    continue
+                record[key] = "" if cell is None else str(cell)
+            rows.append(record)
+    finally:
+        workbook.close()
     return rows
 
 
