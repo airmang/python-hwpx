@@ -631,8 +631,15 @@ class HwpxPackage:
         item_id: str,
         href: str,
         media_type: str,
+        *,
+        extra_attrs: dict[str, str] | None = None,
     ) -> None:
-        """Add an ``<opf:item>`` to the manifest if *item_id* is not present."""
+        """Add an ``<opf:item>`` to the manifest if *item_id* is not present.
+
+        ``extra_attrs`` carries item-specific manifest attributes — notably
+        ``isEmbeded="1"`` for embedded BinData images (OWPML's single-d spelling),
+        which real Hancom requires to render an embedded picture.
+        """
         manifest_el = self._manifest_element()
         if manifest_el is None:
             raise HwpxStructureError("Manifest does not contain an <opf:manifest> element.")
@@ -641,10 +648,10 @@ class HwpxPackage:
             if existing.get("id") == item_id:
                 return  # already present
 
-        new_item = manifest_el.makeelement(
-            f"{{{OPF_NS['opf']}}}item",
-            {"id": item_id, "href": href, "media-type": media_type},
-        )
+        attrs = {"id": item_id, "href": href, "media-type": media_type}
+        if extra_attrs:
+            attrs.update(extra_attrs)
+        new_item = manifest_el.makeelement(f"{{{OPF_NS['opf']}}}item", attrs)
         manifest_el.append(new_item)
         self._persist_manifest()
 

@@ -70,6 +70,18 @@ def test_add_picture_updates_section_manifest_and_bindata_then_validates(tmp_pat
     _assert_repair_repack_validates(source, repaired)
 
 
+def test_add_picture_manifest_item_marks_embedded(tmp_path: Path) -> None:
+    """The image's ``<opf:item>`` must carry ``isEmbeded="1"`` — without it real
+    Hancom does NOT render the embedded picture (oracle-confirmed 2026-06-25; real
+    Hancom files mark every embedded BinData image this way)."""
+    document = HwpxDocument.new()
+    document.add_picture(PNG_1X1, "png", width=7200, height=7200)
+
+    items = [i for i in document.package._manifest_items() if i.get("id") == "BIN0001"]
+    assert len(items) == 1
+    assert items[0].get("isEmbeded") == "1"
+
+
 def test_replace_picture_preserves_geometry_and_replaces_only_asset_graph(tmp_path: Path) -> None:
     document = HwpxDocument.new()
     document.add_picture(PNG_1X1, "png", width=11111, height=22222)

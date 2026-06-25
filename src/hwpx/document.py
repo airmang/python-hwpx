@@ -2446,8 +2446,11 @@ class HwpxDocument:
         # 1) Write image bytes into the package
         self._package.write(bin_data_path, image_data)
 
-        # 2) Register in manifest
-        self._package.add_manifest_item(item_id, bin_data_path, media_type)
+        # 2) Register in manifest. ``isEmbeded="1"`` (OWPML's single-d spelling) marks
+        #    the BinData image as embedded — real Hancom drops the picture without it.
+        self._package.add_manifest_item(
+            item_id, bin_data_path, media_type, extra_attrs={"isEmbeded": "1"}
+        )
 
         # 3) Register in header binDataList
         header = self._root.headers[0] if self._root.headers else None
