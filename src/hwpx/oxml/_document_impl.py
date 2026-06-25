@@ -340,10 +340,10 @@ def _remove_stale_paragraph_layout_cache(paragraph: ET.Element) -> bool:
 
 
 def _element_local_name(node: ET.Element) -> str:
-    tag = node.tag
-    if "}" in tag:
-        return tag.split("}", 1)[1]
-    return tag
+    # Delegates to ``tag_local_name`` so comment / PI nodes (whose ``tag`` is a
+    # callable such as ``etree.Comment``, not a string) yield ``""`` instead of
+    # raising; ``""`` never matches a real OWPML tag, so such nodes are skipped.
+    return tag_local_name(node.tag)
 
 
 def _append_child(

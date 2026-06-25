@@ -9,13 +9,21 @@ logger = logging.getLogger(__name__)
 
 from lxml import etree
 
+from .namespaces import tag_local_name
+
 _TRUE_VALUES = {"1", "true", "True", "TRUE"}
 _FALSE_VALUES = {"0", "false", "False", "FALSE"}
 
 
 def local_name(node: etree._Element) -> str:
-    """Return the local (namespace-stripped) tag name for *node*."""
-    return etree.QName(node).localname
+    """Return the local (namespace-stripped) tag name for *node*.
+
+    Comment and processing-instruction nodes expose a callable ``tag`` (e.g.
+    ``lxml.etree.Comment``) instead of a string; ``tag_local_name`` maps those
+    to ``""`` so callers that filter children by local name transparently skip
+    them (mirrors ``tag_local_name`` / ``_element_local_name``).
+    """
+    return tag_local_name(node.tag)
 
 
 def parse_int(value: Optional[str], *, allow_none: bool = True) -> Optional[int]:

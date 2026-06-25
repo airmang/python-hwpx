@@ -82,16 +82,29 @@ def namespace_family(uri: str) -> str | None:
 
 
 def tag_namespace(tag: str) -> str | None:
-    """Return the namespace URI from an expanded XML tag."""
+    """Return the namespace URI from an expanded XML tag.
 
-    if tag.startswith("{"):
+    Comment and processing-instruction nodes expose a callable ``tag`` (e.g.
+    ``lxml.etree.Comment``) instead of a string; such nodes have no namespace,
+    so ``None`` is returned rather than raising ``AttributeError``.
+    """
+
+    if isinstance(tag, str) and tag.startswith("{"):
         return tag[1:].split("}", 1)[0]
     return None
 
 
 def tag_local_name(tag: str) -> str:
-    """Return the local-name component from an XML tag."""
+    """Return the local-name component from an XML tag.
 
+    Comment and processing-instruction nodes expose a callable ``tag`` (e.g.
+    ``lxml.etree.Comment``) instead of a string; they have no element
+    local-name, so ``""`` is returned. ``""`` never matches a real OWPML tag,
+    so callers that filter children by local name transparently skip them.
+    """
+
+    if not isinstance(tag, str):
+        return ""
     if tag.startswith("{"):
         return tag.split("}", 1)[1]
     return tag

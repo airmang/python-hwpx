@@ -45,6 +45,7 @@ _TRACK_CHANGE_MARK_NAMES = {
 
 PreservedElement = Union[
     GenericElement,
+    "CommentElement",
     "LineSegArray",
     "LineSeg",
     "TransformMatrix",
@@ -199,6 +200,23 @@ class FormComboBoxControl:
     attributes: Dict[str, str] = field(default_factory=dict)
     children: List[PreservedElement] = field(default_factory=list)
     text: Optional[str] = None
+
+
+@dataclass(slots=True)
+class CommentElement:
+    """Round-trips an XML comment or processing-instruction child node.
+
+    Comment and processing-instruction nodes expose a callable ``tag``
+    (``etree.Comment`` / ``etree.PI``) rather than a string, so the generic
+    element model cannot represent them: feeding that callable to
+    ``etree.Element`` raises ``TypeError``. This dedicated model captures the
+    node faithfully so it can be reconstructed via :func:`etree.Comment` /
+    :func:`etree.ProcessingInstruction`.
+    """
+
+    kind: str  # "comment" or "pi"
+    text: Optional[str] = None
+    target: Optional[str] = None  # processing-instruction target
 
 
 @dataclass(slots=True)
@@ -363,7 +381,24 @@ def parse_form_combo_box_element(node: etree._Element) -> FormComboBoxControl:
     )
 
 
+def parse_comment_element(node: etree._Element) -> CommentElement:
+    """Build a :class:`CommentElement` from a comment / PI *node*.
+
+    Such nodes expose a callable ``tag`` instead of a string; ``node.tag is
+    etree.PI`` distinguishes processing instructions (which carry a ``target``)
+    from plain comments.
+    """
+
+    if node.tag is etree.PI:
+        return CommentElement(kind="pi", text=node.text, target=node.target)
+    return CommentElement(kind="comment", text=node.text)
+
+
 def parse_preserved_element(node: etree._Element) -> PreservedElement:
+    if not isinstance(node.tag, str):
+        # Comment / processing-instruction node: ``local_name`` would return ""
+        # and ``GenericElement`` cannot round-trip a callable tag.
+        return parse_comment_element(node)
     name = local_name(node)
     if name == "linesegarray":
         return parse_line_seg_array_element(node)
@@ -612,7 +647,15 @@ def _form_combo_box_to_xml(combo: FormComboBoxControl) -> etree._Element:
     return node
 
 
+def _comment_element_to_xml(element: CommentElement) -> etree._Element:
+    if element.kind == "pi":
+        return etree.ProcessingInstruction(element.target or "", element.text or "")
+    return etree.Comment(element.text)
+
+
 def _preserved_element_to_xml(element: PreservedElement) -> etree._Element:
+    if isinstance(element, CommentElement):
+        return _comment_element_to_xml(element)
     if isinstance(element, LineSegArray):
         return _line_seg_array_to_xml(element)
     if isinstance(element, LineSeg):
@@ -729,6 +772,7 @@ def serialize_paragraph(paragraph: Paragraph) -> etree._Element:
 
 
 __all__ = [
+    "CommentElement",
     "Control",
     "FormComboBoxControl",
     "FormEditControl",
@@ -745,6 +789,7 @@ __all__ = [
     "TextSpan",
     "TrackChangeMark",
     "TransformMatrix",
+    "parse_comment_element",
     "parse_control_element",
     "parse_form_combo_box_element",
     "parse_form_edit_element",

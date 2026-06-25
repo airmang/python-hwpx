@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO, Iterable, Sequence
@@ -91,16 +90,20 @@ def load_default_schemas(schema_dir: Path | None = None) -> DocumentSchemas:
 def _iter_parts(document: HwpxDocument) -> Iterable[tuple[str, bytes, bool]]:
     """Yield ``(part_name, xml_bytes, is_header)`` tuples for schema checks."""
 
+    # Serialize with lxml (not stdlib ET): the elements are lxml nodes, and
+    # comment / processing-instruction children carry a callable ``.tag`` that
+    # stdlib ``ET.tostring`` cannot serialize (raises TypeError). lxml's own
+    # serializer handles them correctly.
     for header in document.oxml.headers:
         yield (
             header.part_name,
-            ET.tostring(header.element, encoding="utf-8"),
+            etree.tostring(header.element, encoding="utf-8"),
             True,
         )
     for section in document.oxml.sections:
         yield (
             section.part_name,
-            ET.tostring(section.element, encoding="utf-8"),
+            etree.tostring(section.element, encoding="utf-8"),
             False,
         )
 
