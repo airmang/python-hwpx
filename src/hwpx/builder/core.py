@@ -9,6 +9,7 @@ from typing import Any, Mapping, Sequence
 from hwpx.document import HwpxDocument
 from hwpx.tools.id_integrity import check_id_integrity
 from hwpx.tools.idempotence import IdempotenceReport, check_idempotent_pair
+from hwpx.tools.package_reconcile import reconcile_package_with_document
 from hwpx.tools.package_validator import validate_editor_open_safety
 from hwpx.tools.package_validator import validate_package
 from hwpx.tools.validator import validate_document
@@ -829,7 +830,8 @@ class Document:
         """
 
         try:
-            data = self.lower().to_bytes()
+            lowered = self.lower()
+            data = lowered.to_bytes()
         except Exception as exc:  # the document cannot even be serialized
             return BuilderVerifyReport(
                 ok=False,
@@ -839,6 +841,7 @@ class Document:
                 editor_open_safety_ok=False,
                 id_integrity_ok=False,
                 idempotent=False,
+                sections_reconciled=False,
                 serialize_error=f"{type(exc).__name__}: {exc}",
             )
 
@@ -867,6 +870,9 @@ class Document:
         except Exception as exc:
             serialize_error = f"{type(exc).__name__}: {exc}"
 
+        # Output-vs-intent: produced section parts must match the source model.
+        reconcile = reconcile_package_with_document(data, lowered)
+
         package_ok = bool(getattr(package_report, "ok", False))
         document_ok = bool(getattr(document_report, "ok", False))
         editor_open_safety_ok = bool(getattr(editor_open_safety_report, "ok", False))
@@ -883,6 +889,7 @@ class Document:
             and id_integrity_ok
             and reopen_ok
             and idempotent
+            and reconcile.ok
         )
 
         return BuilderVerifyReport(
@@ -893,10 +900,12 @@ class Document:
             editor_open_safety_ok=editor_open_safety_ok,
             id_integrity_ok=id_integrity_ok,
             idempotent=idempotent,
+            sections_reconciled=reconcile.ok,
             section_count=section_count,
             paragraph_count=paragraph_count,
             byte_length=len(data),
             reopen_error=reopen_error,
             serialize_error=serialize_error,
             idempotence=idempotence,
+            reconcile=reconcile,
         )

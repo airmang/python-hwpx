@@ -8,6 +8,7 @@ from typing import Any
 from hwpx.quality import VisualCompleteReport
 from hwpx.tools.id_integrity import IdIntegrityReport, check_id_integrity
 from hwpx.tools.idempotence import IdempotenceReport
+from hwpx.tools.package_reconcile import PackageReconcileReport
 from hwpx.tools.package_validator import EditorOpenSafetyReport, PackageValidationReport
 from hwpx.tools.validator import ValidationReport
 
@@ -159,12 +160,14 @@ class BuilderVerifyReport:
     editor_open_safety_ok: bool
     id_integrity_ok: bool
     idempotent: bool
+    sections_reconciled: bool = True
     section_count: int = 0
     paragraph_count: int = 0
     byte_length: int = 0
     reopen_error: str | None = None
     serialize_error: str | None = None
     idempotence: IdempotenceReport | None = None
+    reconcile: PackageReconcileReport | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -175,6 +178,7 @@ class BuilderVerifyReport:
             "editor_open_safety_ok": self.editor_open_safety_ok,
             "id_integrity_ok": self.id_integrity_ok,
             "idempotent": self.idempotent,
+            "sections_reconciled": self.sections_reconciled,
             "section_count": self.section_count,
             "paragraph_count": self.paragraph_count,
             "byte_length": self.byte_length,
@@ -183,6 +187,7 @@ class BuilderVerifyReport:
             "idempotence": (
                 None if self.idempotence is None else self.idempotence.to_dict()
             ),
+            "reconcile": (None if self.reconcile is None else self.reconcile.to_dict()),
             "fidelity_contract": {
                 "proves": list(FIDELITY_CONTRACT["proves"]),
                 "does_not_prove": list(FIDELITY_CONTRACT["does_not_prove"]),

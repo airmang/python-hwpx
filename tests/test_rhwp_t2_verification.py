@@ -51,3 +51,41 @@ def test_authored_paragraphs_never_disable_snap_to_grid() -> None:
 def test_canonical_numbering_start_default_is_one() -> None:
     # The audited table is the single source; the emit path uses "1".
     assert NUMBERING_START_DEFAULT == 1
+
+
+# --------------------------------------------------------------------------- #
+# Item 2: output-vs-intent section reconciliation                              #
+# --------------------------------------------------------------------------- #
+def test_reconcile_matches_for_authored_document() -> None:
+    from hwpx.tools.package_reconcile import reconcile_package_with_document
+
+    document = HwpxDocument.new()
+    document.add_paragraph("a")
+    report = reconcile_package_with_document(document.to_bytes(), document)
+    assert report.ok
+    assert report.expected_sections == report.produced_sections == 1
+
+
+def test_reconcile_detects_section_count_mismatch() -> None:
+    from hwpx.tools.package_reconcile import reconcile_package_with_document
+
+    document = HwpxDocument.new()
+    data = document.to_bytes()  # 1 section part
+
+    class _FakeModel:
+        sections = (object(), object())  # claims 2 sections
+
+    report = reconcile_package_with_document(data, _FakeModel())
+    assert not report.ok
+    assert report.expected_sections == 2
+    assert report.produced_sections == 1
+    assert "section part count mismatch" in report.summary()
+
+
+def test_builder_verify_reports_section_reconciliation() -> None:
+    from hwpx.builder import Document, Paragraph, Section
+
+    report = Document(sections=[Section(children=[Paragraph(text="x")])]).verify()
+    assert report.ok
+    assert report.sections_reconciled is True
+    assert report.to_dict()["reconcile"]["ok"] is True
