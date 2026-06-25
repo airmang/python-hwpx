@@ -187,3 +187,34 @@ def test_batch_report_tsv_and_json_shape() -> None:
     assert payload["ok"] is True
     assert payload["counts"] == {"PASS": 1}
     assert payload["sourceDriftCount"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# Item 5: forward-compatible plan schemaVersion handling                       #
+# --------------------------------------------------------------------------- #
+def test_newer_plan_schema_version_warns_not_rejects() -> None:
+    from hwpx.authoring import validate_document_plan
+
+    plan = {
+        "schemaVersion": "hwpx.document_plan.v3",  # newer than latest known (v2)
+        "title": "테스트",
+        "blocks": [{"type": "paragraph", "text": "본문"}],
+    }
+    report = validate_document_plan(plan)
+    codes = {issue.code for issue in report.issues}
+    assert "invalid_schema_version" not in codes  # not hard-rejected
+    assert "forward_schema_version" in codes  # warned instead
+    forward = next(i for i in report.issues if i.code == "forward_schema_version")
+    assert forward.severity == "warning"
+    assert report.schema_version == "hwpx.document_plan.v3"
+
+
+def test_garbage_plan_schema_version_still_errors() -> None:
+    from hwpx.authoring import validate_document_plan
+
+    report = validate_document_plan(
+        {"schemaVersion": "not-a-version", "title": "x", "blocks": [{"type": "paragraph", "text": "y"}]}
+    )
+    codes = {issue.code for issue in report.issues}
+    assert "invalid_schema_version" in codes
+    assert not report.ok

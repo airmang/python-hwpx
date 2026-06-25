@@ -265,6 +265,27 @@ def _plan_issue(
     )
 
 
+_PLAN_FAMILY_PREFIX = "hwpx.document_plan.v"
+
+
+def _is_forward_plan_version(version: str) -> bool:
+    """True if *version* is a newer same-family plan schema (forward-compat).
+
+    e.g. ``hwpx.document_plan.v3`` when the latest known is v2 — validate
+    best-effort with a warning rather than hard-rejecting.
+    """
+    if not version.startswith(_PLAN_FAMILY_PREFIX):
+        return False
+    suffix = version[len(_PLAN_FAMILY_PREFIX):]
+    if not suffix.isdigit():
+        return False
+    latest_known = max(
+        int(DOCUMENT_PLAN_SCHEMA_VERSION.rsplit("v", 1)[-1]),
+        int(DOCUMENT_PLAN_V2_SCHEMA_VERSION.rsplit("v", 1)[-1]),
+    )
+    return int(suffix) > latest_known
+
+
 def _plan_validation_report(
     issues: list[PlanValidationIssue],
     *,
@@ -472,6 +493,31 @@ def validate_document_plan(plan: Mapping[str, Any]) -> PlanValidationReport:
 
     schema_version = str(plan.get("schemaVersion") or "").strip()
     if schema_version not in {DOCUMENT_PLAN_SCHEMA_VERSION, DOCUMENT_PLAN_V2_SCHEMA_VERSION}:
+        if _is_forward_plan_version(schema_version):
+            # Forward-compat: a newer same-family version warns and validates as
+            # the latest known schema (best-effort) instead of hard-rejecting, so
+            # a plan emitted against a newer schema still generates. Unknown newer
+            # fields are simply ignored by the v2 validator.
+            issues.append(
+                _plan_issue(
+                    "forward_schema_version",
+                    "schemaVersion",
+                    (
+                        f"schemaVersion {schema_version!r} is newer than the latest "
+                        f"known {DOCUMENT_PLAN_V2_SCHEMA_VERSION!r}; validating as "
+                        "latest known (best-effort)."
+                    ),
+                    severity="warning",
+                    suggestion="Unknown newer fields are ignored; verify the output.",
+                )
+            )
+            v2_report = _validate_document_plan_v2(
+                plan, schema_version=DOCUMENT_PLAN_V2_SCHEMA_VERSION
+            )
+            return _plan_validation_report(
+                [*issues, *v2_report.issues],
+                schema_version=schema_version,
+            )
         issues.append(
             _plan_issue(
                 "invalid_schema_version",
