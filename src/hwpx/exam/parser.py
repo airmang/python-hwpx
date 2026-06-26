@@ -123,7 +123,12 @@ def parse_exam_markdown(md: str, *, title: str = "") -> ExamDoc:
             continue
 
         m_choice = _CHOICE_RE.match(line)
-        if m_choice and cur_q is not None:
+        if m_choice:
+            # A 답항(choice) cannot exist without an active 문항. Even inside an
+            # open 세트, a choice before the first member must fail loud rather
+            # than be silently swallowed into the set passage.
+            if cur_q is None:
+                raise ExamParseError(i, line, "답항(choice) outside any 문항")
             cur_q.add_choice(m_choice.group("mark"), normalize_cell_text(m_choice.group("t")))
             continue
 

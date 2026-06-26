@@ -61,3 +61,14 @@ def test_content_before_any_question_header_fails_loud():
     with pytest.raises(ExamParseError) as exc:
         parse_exam_markdown("본문이 문항 헤더 없이 먼저 나온다.\n## 1.\n발문\n")
     assert exc.value.line_no == 1
+
+
+def test_choice_inside_set_before_any_member_fails_loud():
+    # A 답항(choice) cannot exist without an active 문항. Inside an open 세트
+    # but before the first '### N.' member, a circled-digit line must raise —
+    # it must NOT be silently swallowed into the set passage.
+    md = "## 3∼4. 세트\n다음 글을 읽고 물음에 답하시오.\n① 가\n### 3.\n발문\n"
+    with pytest.raises(ExamParseError) as exc:
+        parse_exam_markdown(md)
+    assert exc.value.line_no == 3
+    assert exc.value.text == "① 가"
