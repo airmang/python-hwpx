@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 ### 추가
+- `hwpx.exam`: re-typeset an authored exam (Markdown) into a school form `.hwpx`
+  — Exam IR + strict md parser, form profiler (role→existing form style),
+  keep-together body composition (insert into the form's body region, never
+  append; 관리박스 + footer preserved byte-identical), and an oracle convergence
+  driver `compose_exam_into_form`. The driver renders via Hancom and, when the
+  composed 문항 are in the extractable text layer, verifies 문항-split / overflow
+  / placeholder integrity (inserting column/page breaks to converge); when they
+  are not (forms whose body Hancom exports as vector curves) or no oracle is
+  available, it returns `render_checked`/`splits=None` + `needs_review` rather
+  than a silent pass (Constitution V — honest unverified).
 - `find_seal_anchor` — 발신명의가 좁은 표 셀에서 **여러 줄로 wrap**된 경우도 앵커를 찾는 fallback(연속 줄 윈도우, 최대 3줄). 단일 줄 매칭이 우선이라 기존 동작 불변; spurious 다중줄 매칭은 윈도우·동일페이지로 차단.
 ### 수정
 - `paragraph.add_picture` — `treat_as_char=True`(inline)인데 `pos_overrides`(PAPER relTo/offset)를 주면 모순된 inline/floating `<hp:pos>`를 방출하던 것을 `ValueError`로 fail-fast. floating 배치는 `treat_as_char=False`에서만.
