@@ -5261,6 +5261,24 @@ class HwpxOxmlHeader:
             {"align", "heading", "breakSetting", "autoSpacing", "margin", "lineSpacing", "switch"},
         )
 
+    def _apply_paragraph_break_setting(
+        self, para_pr: ET.Element, break_setting: Mapping[str, bool]
+    ) -> None:
+        element = self._ensure_direct_para_child(
+            para_pr,
+            "breakSetting",
+            after_local_names={"align", "heading"},
+        )
+        attr_map = {
+            "keep_with_next": "keepWithNext",
+            "keep_lines": "keepLines",
+            "page_break_before": "pageBreakBefore",
+            "widow_orphan": "widowOrphan",
+        }
+        for key, attr in attr_map.items():
+            if key in break_setting and break_setting[key] is not None:
+                element.set(attr, "1" if break_setting[key] else "0")
+
     def ensure_paragraph_format(
         self,
         *,
@@ -5270,6 +5288,7 @@ class HwpxOxmlHeader:
         margins: Mapping[str, int] | None = None,
         heading: Mapping[str, str | int] | None = None,
         border: Mapping[str, str | int] | None = None,
+        break_setting: Mapping[str, bool] | None = None,
     ) -> str:
         """Return a new paragraph property id with requested formatting changes."""
 
@@ -5310,6 +5329,8 @@ class HwpxOxmlHeader:
         if line_spacing_percent is not None:
             self._apply_paragraph_line_spacing(para_pr, line_spacing_percent)
 
+        if break_setting:
+            self._apply_paragraph_break_setting(para_pr, break_setting)
         if border is not None:
             self._apply_paragraph_border(para_pr, border)
 
