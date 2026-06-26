@@ -1,7 +1,7 @@
 """Exam re-typesetting (조판): authored exam Markdown -> school form .hwpx body."""
 from __future__ import annotations
 
-from .compose import ComposePlan, ParaSpec, lower_exam, replace_body_region
+from .compose import ComposePlan, ComposeResult, ParaSpec, compose_exam_into_form, lower_exam, replace_body_region
 from .ir import ExamDoc, Placeholder, Question, QuestionSet
 from .measure import (
     SplitReport,
@@ -18,4 +18,5 @@ __all__ = [
     "FormProfile", "FormProfileError", "ResolvedStyle", "profile_form",
     "column_x_bounds", "group_question_blocks", "measure_question_splits", "SplitReport",
     "ParaSpec", "lower_exam", "replace_body_region", "ComposePlan",
+    "ComposeResult", "compose_exam_into_form",
 ]

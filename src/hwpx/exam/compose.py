@@ -9,9 +9,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from hwpx.document import HwpxDocument
+from hwpx.form_fit.wordbox import detect_overflow, extract_glyph_boxes
+from hwpx.visual.oracle import resolve_oracle
 
 from .ir import ExamDoc, Question, QuestionSet
-from .profile import FormProfile, ResolvedStyle
+from .measure import measure_question_splits
+from .parser import parse_exam_markdown
+from .profile import FormProfile, ResolvedStyle, profile_form
 
 
 @dataclass(slots=True)
@@ -124,3 +128,93 @@ def replace_body_region(doc: HwpxDocument, profile: FormProfile, specs: list[Par
         if spec.is_question_head and spec.question_number is not None:
             anchors[spec.question_number] = start + offset
     return anchors
+
+
+# ---------------------------------------------------------------------------
+# Convergence driver (Task 8)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class ComposeResult:
+    out_path: str
+    render_checked: bool
+    splits: int | None
+    overflow: int | None
+    placeholders_ok: bool
+    rounds: int
+    needs_review: bool
+    notes: tuple[str, ...]
+
+
+def _insert_break(section, head_index: int, kind: str) -> None:
+    attr = "pageBreak" if kind == "page" else "columnBreak"
+    section.paragraphs[head_index].element.set(attr, "1")
+    section.mark_dirty()
+
+
+def compose_exam_into_form(
+    form_path: str,
+    exam_md: str,
+    out_path: str,
+    *,
+    oracle=None,
+    max_rounds: int = 2,
+    role_style_names=None,
+) -> ComposeResult:
+    notes: list[str] = []
+    exam = parse_exam_markdown(exam_md)
+    expected_ph = {ph.raw_text for q in exam.iter_questions() for ph in q.placeholders}
+
+    doc = HwpxDocument.open(form_path)
+    prof = profile_form(doc, role_style_names=role_style_names)
+    specs = lower_exam(exam, prof)
+    anchors = replace_body_region(doc, prof, specs)
+    doc.save_to_path(out_path)
+    notes.append(
+        f"composed {len(list(exam.iter_questions()))} 문항 into body"
+        f" [{prof.body_start}..{prof.body_end}]"
+    )
+
+    if oracle is None:
+        oracle = resolve_oracle()
+    if not oracle.available():
+        notes.append("oracle unavailable -> render_checked=false, needs_review=true (no silent true)")
+        return ComposeResult(out_path, False, None, None, True, 0, True, tuple(notes))
+
+    rounds = 0
+    splits = overflow = None
+    placeholders_ok = True
+    while rounds < max_rounds:
+        rounds += 1
+        pdf = oracle.render_pdf(out_path)
+        if not pdf:
+            notes.append(f"round {rounds}: render returned None -> render_checked=false")
+            return ComposeResult(out_path, False, None, None, True, rounds, True, tuple(notes))
+        report = measure_question_splits(pdf)
+        glyphs = extract_glyph_boxes(pdf)
+        rendered_text = "".join(g.text for g in glyphs)
+        placeholders_ok = all(
+            ph.replace(" ", "") in rendered_text.replace(" ", "")
+            for ph in expected_ph
+        )
+        overflow = len(detect_overflow(glyphs))
+        splits = report.n_splits
+        notes.append(
+            f"round {rounds}: splits={splits} kinds={report.kinds}"
+            f" overflow={overflow} ph_ok={placeholders_ok}"
+        )
+        if splits == 0:
+            break
+        # fix: force a break on each straddling 문항's head paragraph, then re-render
+        section = doc.sections[0]
+        for block_id in report.split_ids:
+            head_index = anchors.get(block_id)
+            if head_index is None:
+                notes.append(f"round {rounds}: split id {block_id!r} has no anchor (skipped)")
+                continue
+            kind = "page" if report.kinds.get("page") else "column"
+            _insert_break(section, head_index, kind)
+        doc.save_to_path(out_path)
+
+    needs_review = splits is None or splits > 0 or not placeholders_ok
+    return ComposeResult(out_path, True, splits, overflow, placeholders_ok, rounds, needs_review, tuple(notes))
