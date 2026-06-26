@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from hwpx.document import HwpxDocument
-from hwpx.form_fit.wordbox import detect_overflow, extract_glyph_boxes
+from hwpx.form_fit.wordbox import detect_overflow, extract_cell_clips, extract_glyph_boxes
 from hwpx.visual.oracle import resolve_oracle
 
 from .ir import ExamDoc, Question, QuestionSet
@@ -192,12 +192,13 @@ def compose_exam_into_form(
             return ComposeResult(out_path, False, None, None, True, rounds, True, tuple(notes))
         report = measure_question_splits(pdf)
         glyphs = extract_glyph_boxes(pdf)
+        clips = extract_cell_clips(pdf)
         rendered_text = "".join(g.text for g in glyphs)
         placeholders_ok = all(
             ph.replace(" ", "") in rendered_text.replace(" ", "")
             for ph in expected_ph
         )
-        overflow = len(detect_overflow(glyphs))
+        overflow = len(detect_overflow(glyphs, clips))
         splits = report.n_splits
         notes.append(
             f"round {rounds}: splits={splits} kinds={report.kinds}"
