@@ -1819,6 +1819,9 @@ class HwpxDocument:
         spacing_before_pt: float | None = None,
         spacing_after_pt: float | None = None,
         outline_level: int | None = None,
+        keep_with_next: bool | None = None,
+        keep_lines: bool | None = None,
+        page_break_before: bool | None = None,
         bottom_border: bool = False,
         border_color: str = "#BFBFBF",
         border_width: str = "0.12 mm",
@@ -1826,7 +1829,9 @@ class HwpxDocument:
         """Apply paragraph-level formatting using human units.
 
         Millimetre inputs are converted to HWP units; paragraph spacing uses
-        points; line spacing is stored as a percent value.
+        points; line spacing is stored as a percent value. ``keep_with_next`` /
+        ``keep_lines`` / ``page_break_before`` set the paragraph's keep-together
+        (``<hh:breakSetting>``) flags via a freshly minted paraPr.
         """
 
         if not self._root.headers:
@@ -1858,12 +1863,21 @@ class HwpxDocument:
             else:
                 raise ValueError("outline_level must be between 0 and 10")
 
+        break_setting: dict[str, bool] = {}
+        if keep_with_next is not None:
+            break_setting["keep_with_next"] = bool(keep_with_next)
+        if keep_lines is not None:
+            break_setting["keep_lines"] = bool(keep_lines)
+        if page_break_before is not None:
+            break_setting["page_break_before"] = bool(page_break_before)
+
         if (
             alignment is None
             and line_spacing_percent is None
             and not margins
             and heading is None
             and not bottom_border
+            and not break_setting
         ):
             raise ValueError("at least one paragraph formatting option is required")
 
@@ -1897,6 +1911,7 @@ class HwpxDocument:
                 margins=margins,
                 heading=heading,
                 border=border,
+                break_setting=break_setting or None,
             )
             paragraph.para_pr_id_ref = para_pr_id
             formatted.append({"paragraph_index": index, "paraPrIDRef": para_pr_id})
