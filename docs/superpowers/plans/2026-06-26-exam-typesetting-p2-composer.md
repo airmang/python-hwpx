@@ -1332,6 +1332,11 @@ git commit -m "feat(exam): composer core — lower IR to form body, keep-togethe
 
 ### Task 8: Convergence driver + oracle smoke gate — `compose_exam_into_form`
 
+> **ORACLE-MEASURED REVISION (2026-06-26, render_checked=TRUE on the real A_form).** Running the oracle smoke surfaced a finding that no offline test could: **Hancom exports this 원안지 form's body text as vector curves, not extractable text.** `fitz.extract_glyph_boxes` recovers only the 관리박스 chrome (≈551 chars) — *none* of the composed 문항. Confirmed inherent to the form (the unedited `B_submitted`, a real filled exam with 4184 chars of questions, renders the same way: 617 chrome glyphs, zero question text). So the text-glyph gate is **structurally blind** to this form: it cannot measure 문항-split / overflow / placeholders. The composer itself is **correct** — verified VISUALLY (the composed exam renders faithfully in the 2-column B4 layout, 관리박스 + footer preserved; image evidence at `specs/003-exam-typesetting/evidence/p2-composer-render/`). Revisions (owner-approved "honest-unverified + visual proof"):
+> 1. `measure_question_splits(..., valid_ids=set(anchors))` — only composed 문항 numbers open a block, so chrome numbers (a "2026." year) no longer false-positive.
+> 2. The driver reads `report.n_blocks == 0` (no composed 문항 in the extractable text) as **curve-export / unverifiable** → returns `render_checked=True, splits=None, overflow=None, needs_review=True` with the reason in `notes` — never a silent 0 (Constitution V).
+> 3. The smoke test asserts THIS honest outcome (`splits is None`, `needs_review`, reason note), not `splits==0`. The text-gate split/overflow/placeholder path stays valid for text-extractable renders (covered by Task 6's synthetic-glyph unit tests). A true automated body gate for curve forms (image/OCR-based) is a future enhancement (Plan 3/4).
+
 **Files:**
 - Modify: `python-hwpx/src/hwpx/exam/compose.py` (add `ComposeResult`, `compose_exam_into_form`, `_insert_break`)
 - Modify: `python-hwpx/src/hwpx/exam/__init__.py` (export `compose_exam_into_form`, `ComposeResult`)

@@ -25,3 +25,23 @@ def test_group_question_blocks_slices_on_number_marker():
     blocks = group_question_blocks(glyphs)
     assert [b.id for b in blocks] == ["1", "2"]
     assert len(blocks[0].glyphs) == 4  # "1." + choice line belong to Q1
+
+
+def test_valid_ids_ignores_chrome_numbers_and_detects_curve_export():
+    # A "2026." chrome line (a year in the form's preserved 관리박스) plus a real
+    # composed "1." 문항. With valid_ids scoped to the composed numbers, the
+    # chrome year is NOT a marker; with NO composed 문항 present, n_blocks == 0
+    # (the signal the driver reads as a curve-export / unverifiable render).
+    chrome = [
+        _g("2", 10, 10, line=0), _g("0", 16, 10, line=0), _g("2", 22, 10, line=0),
+        _g("6", 28, 10, line=0), _g(".", 34, 10, line=0),
+    ]
+    q1 = [_g("1", 10, 40, line=1), _g(".", 18, 40, line=1), _g("가", 26, 40, line=1)]
+
+    # unscoped: the chrome "2026." opens a spurious block (set — order depends on
+    # the column/reading-order heuristic, which is not what this test pins)
+    assert {b.id for b in group_question_blocks(chrome + q1)} == {"2026", "1"}
+    # scoped to composed {"1"}: only the real 문항 is a block; chrome ignored
+    assert [b.id for b in group_question_blocks(chrome + q1, valid_ids={"1"})] == ["1"]
+    # chrome only, scoped to composed {"1".."14"}: zero blocks -> curve-export signal
+    assert group_question_blocks(chrome, valid_ids={str(i) for i in range(1, 15)}) == []

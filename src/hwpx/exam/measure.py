@@ -36,7 +36,12 @@ def column_x_bounds(glyphs) -> list[tuple[float, float]]:
     return bounds
 
 
-def group_question_blocks(glyphs, *, marker_re: re.Pattern = DEFAULT_QUESTION_MARKER) -> list[Block]:
+def group_question_blocks(
+    glyphs,
+    *,
+    marker_re: re.Pattern = DEFAULT_QUESTION_MARKER,
+    valid_ids: set[str] | None = None,
+) -> list[Block]:
     """Group glyphs into one Block per question, sliced on *marker_re*.
 
     A question owns every glyph from its marker's (page, line position) up to
@@ -44,6 +49,12 @@ def group_question_blocks(glyphs, *, marker_re: re.Pattern = DEFAULT_QUESTION_MA
     ``m.group(1)`` — the captured group from *marker_re*.
 
     Reading order is (page, column [left before right by page mid], y, x).
+
+    *valid_ids*, when given, restricts which marker matches count as a question
+    start: a line is treated as a marker only if its captured id is in the set.
+    This scopes grouping to the questions actually composed, so stray numeric-
+    dot text in the form's preserved chrome (e.g. a "2026." year) never opens a
+    spurious block.
     """
     if not glyphs:
         return []
@@ -78,6 +89,8 @@ def group_question_blocks(glyphs, *, marker_re: re.Pattern = DEFAULT_QUESTION_MA
     cur_glyphs: list = []
     for rec in ordered:
         m = marker_re.search(rec["text"]) or marker_re.search(rec["text"].replace(" ", ""))
+        if m is not None and valid_ids is not None and m.group(1) not in valid_ids:
+            m = None  # numeric-dot text that is not a composed 문항 (chrome) — not a marker
         if m is not None:
             if cur_id is not None:
                 blocks.append(Block(id=cur_id, glyphs=cur_glyphs))
@@ -101,19 +114,30 @@ class SplitReport:
     split_ids: tuple[str, ...]
 
 
-def measure_question_splits(pdf_path: str, *, marker_re: re.Pattern = DEFAULT_QUESTION_MARKER) -> SplitReport:
+def measure_question_splits(
+    pdf_path: str,
+    *,
+    marker_re: re.Pattern = DEFAULT_QUESTION_MARKER,
+    valid_ids: set[str] | None = None,
+) -> SplitReport:
     """Extract glyphs from *pdf_path* and report how many blocks are split.
 
     Args:
         pdf_path: Path to a rendered PDF.
         marker_re: Compiled regex whose group(1) identifies the question number.
             Defaults to :data:`DEFAULT_QUESTION_MARKER`.
+        valid_ids: When given, only marker matches whose id is in this set open a
+            block (scopes grouping to the composed 문항; ignores chrome numbers).
+            ``n_blocks == 0`` then means none of the composed 문항 were found in
+            the extractable text layer — the caller treats that as *unverifiable*
+            (e.g. a form whose body Hancom exports as vector curves), never a
+            silent "0 splits".
 
     Returns:
         A :class:`SplitReport` summarising split counts, block counts, and kinds.
     """
     glyphs = extract_glyph_boxes(pdf_path)
-    blocks = group_question_blocks(glyphs, marker_re=marker_re)
+    blocks = group_question_blocks(glyphs, marker_re=marker_re, valid_ids=valid_ids)
     page_height = max((g.y1 for g in glyphs), default=0.0)
     bounds = column_x_bounds(glyphs)
     splits = detect_block_splits(blocks, bounds, page_height)

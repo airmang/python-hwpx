@@ -181,6 +181,8 @@ def compose_exam_into_form(
         notes.append("oracle unavailable -> render_checked=false, needs_review=true (no silent true)")
         return ComposeResult(out_path, False, None, None, True, 0, True, tuple(notes))
 
+    valid_ids = set(anchors)
+    n_questions = len(valid_ids)
     rounds = 0
     splits = overflow = None
     placeholders_ok = True
@@ -190,7 +192,23 @@ def compose_exam_into_form(
         if not pdf:
             notes.append(f"round {rounds}: render returned None -> render_checked=false")
             return ComposeResult(out_path, False, None, None, True, rounds, True, tuple(notes))
-        report = measure_question_splits(pdf)
+        # Scope split grouping to the composed 문항 numbers so the form's preserved
+        # chrome (e.g. a "2026." year in the 관리박스) never opens a spurious block.
+        report = measure_question_splits(pdf, valid_ids=valid_ids)
+        if report.n_blocks == 0:
+            # None of the composed 문항 are in the extractable text layer: Hancom
+            # exported the body as vector curves (observed on the school 원안지
+            # forms, blank and filled alike). The text-glyph gate is structurally
+            # blind here, so 문항-split / overflow / placeholder integrity are
+            # UNVERIFIABLE — report unverified + needs_review, never a silent 0
+            # (Constitution V). Visual verification (rendered image) is required.
+            notes.append(
+                f"round {rounds}: 0 of {n_questions} composed 문항 found in the"
+                " extractable text layer — Hancom curve-export form; 문항-split,"
+                " overflow and placeholder integrity are UNVERIFIABLE by the text"
+                " gate. Visual verification required (render the output)."
+            )
+            return ComposeResult(out_path, True, None, None, True, rounds, True, tuple(notes))
         glyphs = extract_glyph_boxes(pdf)
         clips = extract_cell_clips(pdf)
         rendered_text = "".join(g.text for g in glyphs)
@@ -202,7 +220,7 @@ def compose_exam_into_form(
         splits = report.n_splits
         notes.append(
             f"round {rounds}: splits={splits} kinds={report.kinds}"
-            f" overflow={overflow} ph_ok={placeholders_ok}"
+            f" overflow={overflow} ph_ok={placeholders_ok} blocks={report.n_blocks}/{n_questions}"
         )
         if splits == 0:
             break
