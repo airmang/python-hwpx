@@ -711,7 +711,7 @@ git commit -m "feat(exam): measure-first A_form body-region probe + evidence rec
 - Produces:
   - `@dataclass(frozen=True, slots=True) ResolvedStyle(name: str, style_id: str, para_pr_id: str|None, char_pr_id: str|None)`.
   - `@dataclass(frozen=True, slots=True) FormProfile(role_styles: dict[str,ResolvedStyle], admin_box_index: int, body_start: int, body_end: int, replaceable_indices: tuple[int,...], structural_indices: tuple[int,...], ambiguous_indices: tuple[int,...])`.
-  - `profile_form(doc: HwpxDocument, *, role_style_names: Mapping[str,str]|None=None) -> FormProfile` — resolves required form styles by **name** (there is no `style_by_name` API; iterate `doc.styles.values()`), classifies section-0 body paragraphs into replaceable / structural / ambiguous using the Task-4 rule, and **raises `FormProfileError`** if a required role style is missing.
+  - `profile_form(doc: HwpxDocument, *, role_style_names: Mapping[str,str]|None=None) -> FormProfile` — resolves required form styles by **name** (there is no `style_by_name` API; iterate `doc.styles.values()`), **delimits the body region by the question/answer styles only** (per the Task-4 measurement: `바탕글` also clothes 관리박스 [0] and the footer tail, so only `문항자동번호넣기`/`N행답항`/`(보기)박스안내용`/`박스안내용` anchor the body → `body_start..body_end`; the full span is `replaceable_indices`, 관리박스 [0] and the `[body_end+1..]` footer/essay tail are preserved), and **raises `FormProfileError`** if a required role style is missing.
   - `class FormProfileError(ValueError)`.
 - **Default role→style names** (forms A/B): `{"normal":"바탕글", "number":"문항자동번호넣기", "choice1":"1행답항", "choice2":"2행답항", "choice3":"3행답항", "choice5":"5행답항", "box_guide":"(보기)박스안내용", "box":"박스안내용"}`.
 
@@ -737,8 +737,13 @@ def test_profile_resolves_required_styles_and_body_region():
         rs = profile.role_styles[role]
         assert rs.style_id is not None and rs.name
     assert profile.admin_box_index == 0
-    assert 0 < profile.body_start <= profile.body_end
-    assert len(profile.replaceable_indices) >= 1
+    # measured (scripts/exam_profile_a_form.py / evidence/a-form-body-map.json):
+    # question/answer styles span [1..70]; 관리박스 [0] and the trailing 바탕글
+    # footer/essay zone [71..100] are preserved, NOT in the body.
+    assert profile.body_start == 1
+    assert profile.body_end == 70
+    assert profile.body_end < len(doc.sections[0].paragraphs) - 1  # footer not in body
+    assert profile.replaceable_indices == tuple(range(1, 71))
     assert not profile.ambiguous_indices  # A_form is known/clean in v1
 
 
@@ -846,36 +851,38 @@ def profile_form(
             char_pr_id=None if style.char_pr_id_ref is None else str(style.char_pr_id_ref),
         )
 
-    replaceable_style_names = {rs.name for rs in role_styles.values()}
+    # Anchor the body region on the QUESTION/ANSWER styles ONLY. 바탕글(normal)
+    # also clothes the 관리박스 [0] and the trailing footer/essay zone, so it
+    # cannot delimit the body (measured: A_form [0] and [71..100] are all 바탕글;
+    # the question/answer slots span [1..70], footer marker sits at [99]).
+    anchor_names = {rs.name for role, rs in role_styles.items() if role != "normal"}
     section = doc.sections[0]
     paragraphs = section.paragraphs
 
-    replaceable: list[int] = []
+    anchors: list[int] = []
     for idx, para in enumerate(paragraphs):
-        if idx == 0:  # 관리박스
+        if idx == 0:  # 관리박스 (never replaceable)
             continue
         sid = para.style_id_ref
         style = doc.style(sid) if sid is not None else None
-        if style is not None and style.name in replaceable_style_names:
-            replaceable.append(idx)
+        if style is not None and style.name in anchor_names:
+            anchors.append(idx)
 
-    if not replaceable:
-        raise FormProfileError("no replaceable body paragraphs found (form profile failed)")
+    if not anchors:
+        raise FormProfileError("no question/answer-style body paragraphs found (form profile failed)")
 
-    body_start, body_end = replaceable[0], replaceable[-1]
-    structural = [
-        idx
-        for idx in range(body_start, body_end + 1)
-        if idx not in replaceable
-    ]
+    body_start, body_end = anchors[0], anchors[-1]
+    # The whole [body_start..body_end] span is recomposed from the exam IR
+    # (inline 바탕글 lines + 논술형 scaffolding within it included); 관리박스 [0]
+    # and the tail [body_end+1..] (footer / essay answer space) are preserved.
     return FormProfile(
         role_styles=role_styles,
         admin_box_index=0,
         body_start=body_start,
         body_end=body_end,
-        replaceable_indices=tuple(replaceable),
-        structural_indices=tuple(structural),
-        ambiguous_indices=(),  # v1: structural paras are re-emitted from IR, not preserved
+        replaceable_indices=tuple(range(body_start, body_end + 1)),
+        structural_indices=(),
+        ambiguous_indices=(),  # v1: the body span is recomposed wholesale from the IR
     )
 ```
 
