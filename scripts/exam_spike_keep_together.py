@@ -45,7 +45,6 @@ import json
 import os
 import sys
 import xml.etree.ElementTree as ET
-from collections import defaultdict
 from pathlib import Path
 
 # Make the in-repo package importable when run as a plain script.
@@ -61,6 +60,11 @@ from hwpx.visual.oracle import (  # noqa: E402
     resolve_oracle,
 )
 from hwpx.form_fit.wordbox import extract_glyph_boxes  # noqa: E402
+import re as _re  # noqa: E402
+from hwpx.exam.measure import column_x_bounds as _column_x_bounds  # noqa: E402
+from hwpx.exam.measure import group_question_blocks, measure_question_splits  # noqa: E402
+
+_QNN_MARKER = _re.compile(r"\[\s*\[\s*Q\s*0*(\d+)\s*\]\s*\]")
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
@@ -184,121 +188,19 @@ def _build_variant(bed_path: str | None, variant: str, out_path: str) -> str:
 # ---------------------------------------------------------------------------
 # Measurement.
 # ---------------------------------------------------------------------------
-def _column_x_bounds(glyphs, page_width_guess: float | None = None) -> list[tuple[float, float]]:
-    """Derive two column x-ranges by splitting the body x-extent at mid-gutter.
-
-    Cluster glyph x-centers into a left group and a right group at the page
-    mid-line; the bounds are each group's [min x0, max x1].  A small inward
-    margin keeps gutter-adjacent glyphs unambiguous.
-    """
-    if not glyphs:
-        return []
-    xs0 = min(g.x0 for g in glyphs)
-    xs1 = max(g.x1 for g in glyphs)
-    mid = (xs0 + xs1) / 2.0
-    left = [g for g in glyphs if (g.x0 + g.x1) / 2.0 < mid]
-    right = [g for g in glyphs if (g.x0 + g.x1) / 2.0 >= mid]
-    bounds: list[tuple[float, float]] = []
-    if left:
-        bounds.append((min(g.x0 for g in left), max(g.x1 for g in left)))
-    if right:
-        bounds.append((min(g.x0 for g in right), max(g.x1 for g in right)))
-    return bounds
-
+# NOTE: _column_x_bounds, _group_blocks, and _measure_splits are now thin
+# wrappers that delegate to hwpx.exam.measure (DRY).  The spike passes its
+# own [[QNN]] marker so the grouping semantics are identical to before.
 
 def _group_blocks(glyphs) -> list[Block]:
-    """Group glyphs into one Block per question via the ``[[QNN]]`` markers.
-
-    A question owns every glyph from its marker's (page, line position) up to
-    the next question's marker, in reading order.  We reconstruct reading order
-    from (page, then column, then y, then x) and slice on marker occurrences.
-    """
-    if not glyphs:
-        return []
-
-    # First, find the marker anchors. The marker text "[[Q07]]" is rendered as
-    # individual glyphs; we locate each '[' '[' 'Q' digit digit ']' ']' run is
-    # overkill, so instead detect the digit pair that follows "[[Q". Simpler:
-    # rebuild per-line text and tag lines that contain a marker.
-    #
-    # Build per (page, block, line) the ordered glyph list and its joined text.
-    line_key = lambda g: (g.page, g.block, g.line)
-    lines: dict[tuple, list] = defaultdict(list)
-    for g in glyphs:
-        lines[line_key(g)].append(g)
-
-    line_records = []
-    for key, gl in lines.items():
-        gl_sorted = sorted(gl, key=lambda g: g.x0)
-        text = "".join(g.text for g in gl_sorted)
-        # column center for ordering: average x-center
-        cx = sum((g.x0 + g.x1) / 2.0 for g in gl_sorted) / len(gl_sorted)
-        cy = sum((g.y0 + g.y1) / 2.0 for g in gl_sorted) / len(gl_sorted)
-        line_records.append(
-            {
-                "page": key[0],
-                "cx": cx,
-                "cy": cy,
-                "text": text,
-                "glyphs": gl_sorted,
-            }
-        )
-
-    # Reading order: page asc, then column (left/right by page mid), then y, x.
-    by_page: dict[int, list] = defaultdict(list)
-    for rec in line_records:
-        by_page[rec["page"]].append(rec)
-    ordered: list[dict] = []
-    for page in sorted(by_page):
-        recs = by_page[page]
-        xs0 = min(r["cx"] for r in recs)
-        xs1 = max(r["cx"] for r in recs)
-        mid = (xs0 + xs1) / 2.0
-        recs.sort(key=lambda r: (0 if r["cx"] < mid else 1, r["cy"], r["cx"]))
-        ordered.extend(recs)
-
-    # Slice ordered lines into questions on marker boundaries.
-    import re
-
-    marker_re = re.compile(r"\[\s*\[\s*Q\s*0*(\d+)\s*\]\s*\]")
-    blocks: list[Block] = []
-    cur_id: str | None = None
-    cur_glyphs: list = []
-    for rec in ordered:
-        m = marker_re.search(rec["text"].replace(" ", ""))
-        # The space-stripped match handles glyph spacing in joined text.
-        if m is None:
-            # Try on raw text too (some renders keep no spaces).
-            m = marker_re.search(rec["text"])
-        if m is not None:
-            if cur_id is not None:
-                blocks.append(Block(id=cur_id, glyphs=cur_glyphs))
-            cur_id = f"Q{int(m.group(1)):02d}"
-            cur_glyphs = list(rec["glyphs"])
-        elif cur_id is not None:
-            cur_glyphs.extend(rec["glyphs"])
-    if cur_id is not None:
-        blocks.append(Block(id=cur_id, glyphs=cur_glyphs))
-    return blocks
+    """Group glyphs into Blocks via the ``[[QNN]]`` markers (delegates to measure)."""
+    return group_question_blocks(glyphs, marker_re=_QNN_MARKER)
 
 
 def _measure_splits(pdf_path: str) -> tuple[int, int, int, dict[str, int], list[str]]:
-    """Return ``(n_splits, n_blocks, n_glyphs, kinds, split_ids)`` for a render.
-
-    ``kinds`` is ``{"column": n, "page": m}`` — the column/page breakdown is the
-    diagnostic that distinguishes "keepWithNext holds within a column" from
-    "keepWithNext holds across a page break".
-    """
-    glyphs = extract_glyph_boxes(pdf_path)
-    blocks = _group_blocks(glyphs)
-    page_height = max((g.y1 for g in glyphs), default=0.0)
-    bounds = _column_x_bounds(glyphs)
-    splits = detect_block_splits(blocks, bounds, page_height)
-    kinds: dict[str, int] = {}
-    for s in splits:
-        kinds[s.kind] = kinds.get(s.kind, 0) + 1
-    split_ids = [s.block_id for s in splits]
-    return len(splits), len(blocks), len(glyphs), kinds, split_ids
+    """Return ``(n_splits, n_blocks, n_glyphs, kinds, split_ids)`` for a render."""
+    r = measure_question_splits(pdf_path, marker_re=_QNN_MARKER)
+    return r.n_splits, r.n_blocks, r.n_glyphs, dict(r.kinds), list(r.split_ids)
 
 
 # ---------------------------------------------------------------------------
