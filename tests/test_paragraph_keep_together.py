@@ -8,9 +8,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "glyph_overlap" / "slot_clean.hwp
 
 
 def _reopen(document: HwpxDocument) -> HwpxDocument:
-    buffer = io.BytesIO()
-    document.save(buffer)
-    return HwpxDocument.open(io.BytesIO(buffer.getvalue()))
+    return HwpxDocument.open(io.BytesIO(document.to_bytes()))
 
 
 def test_ensure_paragraph_format_writes_keep_together_break_setting():
@@ -34,6 +32,7 @@ def test_ensure_paragraph_format_writes_keep_together_break_setting():
     reopened = _reopen(document)
     rt = reopened.oxml.headers[0].element.find(f".//{HH}paraPr[@id='{new_id}']")
     assert rt.find(f"{HH}breakSetting").get("keepWithNext") == "1"
+    assert rt.find(f"{HH}breakSetting").get("keepLines") == "1"
 
 
 def test_paragraph_can_carry_column_break():

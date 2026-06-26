@@ -5329,7 +5329,7 @@ class HwpxOxmlHeader:
         if line_spacing_percent is not None:
             self._apply_paragraph_line_spacing(para_pr, line_spacing_percent)
 
-        if break_setting:
+        if break_setting is not None:
             self._apply_paragraph_break_setting(para_pr, break_setting)
         if border is not None:
             self._apply_paragraph_border(para_pr, border)
