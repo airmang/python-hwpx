@@ -42,9 +42,12 @@ import tempfile
 from importlib import resources
 from pathlib import Path
 
+from dataclasses import dataclass
+
 from . import detectors, diff
 from .masks import EditMask
 from .report import VisualReport
+from hwpx.form_fit.wordbox import WordBox
 
 _BACKEND_SCRIPT = "_render_hwpx.ps1"
 _MAC_BACKEND_SCRIPT = "_render_hwpx_mac.applescript"
@@ -455,6 +458,71 @@ def visual_check(
             shutil.rmtree(work, ignore_errors=True)
 
 
+@dataclass
+class Block:
+    """One logical 문항/answer unit identified by its glyphs."""
+
+    id: str
+    glyphs: list  # list[WordBox]
+
+
+@dataclass
+class BlockSplit:
+    """A block that was found to straddle a column or page boundary."""
+
+    block_id: str
+    kind: str  # "column" | "page"
+
+
+def _column_index(x_center: float, column_x_bounds: list) -> int:
+    """Return the index of the column containing *x_center*, or -1 if none."""
+    for i, (x0, x1) in enumerate(column_x_bounds):
+        if x0 <= x_center <= x1:
+            return i
+    return -1  # outside any column (overflow handled elsewhere)
+
+
+def detect_block_splits(
+    blocks: list,
+    column_x_bounds: list,
+    page_height: float,
+) -> list:
+    """Return a :class:`BlockSplit` for every block whose glyphs span more than
+    one page *or* more than one column.
+
+    The detector is pure: it operates on explicit column boundaries and the
+    :class:`WordBox` page field only — no Hancom oracle or fitz needed.
+
+    Args:
+        blocks: List of :class:`Block` objects to inspect.
+        column_x_bounds: Ordered sequence of ``(x0, x1)`` tuples defining each
+            column's horizontal extent (PDF points).  Typically two entries for
+            a two-column exam sheet.
+        page_height: Page height in PDF points.  Accepted but not used by this
+            implementation (reserved for future y-position-based page detection).
+
+    Returns:
+        A list of :class:`BlockSplit`; empty when every block is wholly within
+        one column on one page.
+    """
+    splits = []
+    for block in blocks:
+        if not block.glyphs:
+            continue
+        pages = {g.page for g in block.glyphs}
+        if len(pages) > 1:
+            splits.append(BlockSplit(block_id=block.id, kind="page"))
+            continue
+        cols = {
+            _column_index((g.x0 + g.x1) / 2.0, column_x_bounds)
+            for g in block.glyphs
+        }
+        cols.discard(-1)  # glyphs outside all columns are not counted
+        if len(cols) > 1:
+            splits.append(BlockSplit(block_id=block.id, kind="column"))
+    return splits
+
+
 def _main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -502,4 +570,8 @@ __all__ = [
     "RenderOracle",
     "resolve_oracle",
     "visual_check",
+    "WordBox",
+    "Block",
+    "BlockSplit",
+    "detect_block_splits",
 ]
