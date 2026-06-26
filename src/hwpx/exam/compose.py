@@ -45,10 +45,10 @@ def _lower_question(q: Question) -> list[ParaSpec]:
     for i, choice in enumerate(q.choices):
         specs.append(ParaSpec(text=choice, role=_choice_role(len(q.choices), i),
                               keep_with_next=True, is_question_head=False, question_number=q.number))
-    for ph in q.placeholders:
-        # keep the literal placeholder on its own line so a human can find it
-        specs.append(ParaSpec(text=ph.raw_text, role="normal", keep_with_next=True,
-                              is_question_head=False, question_number=q.number))
+    # Placeholders ([그림N]/[표N]/[식N]) are preserved verbatim INSIDE the stem text
+    # by the parser (in authored order), so they are NOT re-emitted here — doing so
+    # rendered each one twice (once inline, once standalone). The Placeholder IR
+    # entries remain as metadata for the gate's integrity check.
     if specs:
         specs[-1].keep_with_next = False  # last para of the 문항 may break before the next
     return specs
@@ -114,7 +114,7 @@ def replace_body_region(doc: HwpxDocument, profile: FormProfile, specs: list[Par
             )
         )
 
-    inserted = section.insert_paragraphs(start, temp)   # deep-clone into the body
+    section.insert_paragraphs(start, temp)   # deep-clone into the body
     for wrapper in reversed(temp):
         section.remove_paragraph(wrapper)               # drop the temporary tail copies
     for wrapper in old_slots:
@@ -224,15 +224,13 @@ def compose_exam_into_form(
         )
         if splits == 0:
             break
-        # fix: force a break on each straddling 문항's head paragraph, then re-render
+        # fix: force a break on each straddling 문항's head paragraph, then re-render.
+        # split_ids ⊆ valid_ids = set(anchors) (the grouping is scoped), so every
+        # block_id resolves to a head index.
         section = doc.sections[0]
+        kind = "page" if report.kinds.get("page") else "column"
         for block_id in report.split_ids:
-            head_index = anchors.get(block_id)
-            if head_index is None:
-                notes.append(f"round {rounds}: split id {block_id!r} has no anchor (skipped)")
-                continue
-            kind = "page" if report.kinds.get("page") else "column"
-            _insert_break(section, head_index, kind)
+            _insert_break(section, anchors[block_id], kind)
         doc.save_to_path(out_path)
 
     needs_review = splits is None or splits > 0 or not placeholders_ok

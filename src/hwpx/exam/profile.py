@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from hwpx.document import HwpxDocument
+from hwpx.oxml import Style
 
 DEFAULT_ROLE_STYLE_NAMES: dict[str, str] = {
     "normal": "바탕글",
@@ -46,8 +47,8 @@ class FormProfile:
     ambiguous_indices: tuple[int, ...]
 
 
-def _name_index(doc: HwpxDocument) -> dict[str, "object"]:
-    index: dict[str, object] = {}
+def _name_index(doc: HwpxDocument) -> dict[str, Style]:
+    index: dict[str, Style] = {}
     for style in doc.styles.values():
         if style.name:
             index.setdefault(style.name, style)

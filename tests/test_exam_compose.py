@@ -12,7 +12,10 @@ FIX = Path(__file__).parent / "fixtures" / "exam"
 def _exam():
     q1 = ir.Question(number="1", stem="발문 하나", choices=("① 가", "② 나"), points="3")
     ph = ir.Placeholder(id="그림1", kind="img", raw_text="[그림1]")
-    q2 = ir.Question(number="2", stem="발문 둘", choices=("① 다", "② 라"), placeholders=(ph,))
+    # Real parser keeps the [그림N] marker INLINE in the stem (parser.py) and also
+    # records it in .placeholders; the fixture mirrors that so the composer is
+    # exercised the way live input reaches it.
+    q2 = ir.Question(number="2", stem="발문 둘 [그림1]", choices=("① 다", "② 라"), placeholders=(ph,))
     return ir.ExamDoc(title="t", blocks=(q1, q2))
 
 
@@ -29,6 +32,21 @@ def test_lower_sets_keep_with_next_on_all_but_last_para_of_each_question():
     # literal number prefix + placeholder preserved verbatim
     assert specs[heads[0]].text.startswith("1.")
     assert any("[그림1]" in s.text for s in specs)
+
+
+def test_stem_placeholder_rendered_exactly_once():
+    # Regression: the parser leaves [그림N] inline in the stem AND lists it in
+    # Question.placeholders. The composer must render the marker once (from the
+    # stem) and must NOT also emit a standalone placeholder paragraph, or it
+    # appears twice in the body. (compose.py _lower_question)
+    doc = HwpxDocument.open(FIX / "A_form.hwpx")
+    profile = profile_form(doc)
+    ph = ir.Placeholder(id="그림1", kind="img", raw_text="[그림1]")
+    q = ir.Question(number="1", stem="도형 [그림1] 을 보고", choices=("① 가", "② 나"),
+                    placeholders=(ph,))
+    specs = lower_exam(ir.ExamDoc(title="t", blocks=(q,)), profile)
+    occurrences = sum(s.text.count("[그림1]") for s in specs)
+    assert occurrences == 1, f"placeholder should render once, got {occurrences}"
 
 
 def test_replace_body_region_inserts_into_body_and_preserves_admin_box_and_tail():
