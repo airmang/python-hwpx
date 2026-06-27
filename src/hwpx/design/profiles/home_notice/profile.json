@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "hwpx.design.profile.v1",
+  "id": "home_notice",
+  "template": "template.hwpx",
+  "fragments": {
+    "title": "fragments/title.xml",
+    "heading": "fragments/heading.xml",
+    "body": "fragments/body.xml"
+  },
+  "page": {
+    "width": 59528,
+    "height": 84186,
+    "orientation": "WIDELY",
+    "margins": {
+      "left": 4251,
+      "right": 4251,
+      "top": 1417,
+      "bottom": 0
+    }
+  },
+  "char_pr_count": 54,
+  "style_coverage_threshold": 0.98,
+  "source_basename": "ganghwa_records.hwpx"
+}
