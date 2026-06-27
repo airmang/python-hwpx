@@ -3,7 +3,10 @@
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
 ## [Unreleased]
+
+## [2.15.0] - 2026-06-27
 ### 추가
+- `HwpxDocument.set_paragraph_format(keep_with_next=, keep_lines=, page_break_before=)` — 문단 keep-together 플래그를 엔진 `ensure_paragraph_format(break_setting=)`로 전달한다(새 paraPr 발행, 기존 paraPr 미수정 = 무손실). 시험지 조판 등에서 한 문항이 단/쪽 경계에서 잘리지 않게 묶을 때 쓴다.
 - `hwpx.exam`: re-typeset an authored exam (Markdown) into a school form `.hwpx`
   — Exam IR + strict md parser, form profiler (role→existing form style),
   keep-together body composition (insert into the form's body region, never
