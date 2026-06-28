@@ -874,12 +874,124 @@ def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue
     return issues
 
 
+# --- M3 (S-057) document-type -> design profile routing ------------------------
+# Maps a plan's document_type (Korean label or profile id) to a committed
+# hwpx.design profile. When it resolves, create_document_from_plan composes from
+# the harvested, Hancom-opens-clean profile skeleton instead of the from-scratch
+# builder. Unknown types keep the legacy from-scratch path (regression-safe).
+_DOCTYPE_TO_PROFILE = {
+    "공문": "official_notice",
+    "공문서": "official_notice",
+    "official_notice": "official_notice",
+    "보고서": "report",
+    "report": "report",
+    "government_report": "report",
+    "가정통신문": "home_notice",
+    "home_notice": "home_notice",
+}
+_DOCTYPE_METADATA_KEYS = (
+    "document_type",
+    "문서 유형",
+    "문서유형",
+    "문서 종류",
+    "문서종류",
+    "documentType",
+)
+# 결문 (closing block) fields in their canonical render order.
+_GYEOLMUN_FIELDS = (
+    ("issuer", "발신명의"),
+    ("productionNumber", "생산등록번호"),
+    ("enforcementDate", "시행일"),
+    ("disclosure", "공개구분"),
+)
+
+
+def _plan_document_type(plan: Any) -> str:
+    """Read the plan's document type from metadata (preferred) or top level."""
+
+    if not isinstance(plan, Mapping):
+        return ""
+    metadata = plan.get("metadata")
+    metadata = metadata if isinstance(metadata, Mapping) else {}
+    for key in _DOCTYPE_METADATA_KEYS:
+        value = metadata.get(key) or plan.get(key)
+        if value:
+            return str(value).strip()
+    return ""
+
+
+def _resolve_design_profile(plan: Any) -> str | None:
+    """Return a committed design profile id for the plan's document_type, or None."""
+
+    raw = _plan_document_type(plan)
+    if not raw:
+        return None
+    from hwpx import design as _design
+
+    profile_id = _DOCTYPE_TO_PROFILE.get(raw)
+    if profile_id and profile_id in _design.available_profiles():
+        return profile_id
+    return None
+
+
+def _bridge_to_design_plan(plan: Mapping[str, Any], profile_id: str):
+    """Lower a document_plan mapping onto a :class:`hwpx.design.plan.DocumentPlan`.
+
+    Heading level 1 -> ``heading`` role, level >= 2 -> ``subheading``; paragraphs
+    and bullet items -> ``body``; tables -> an ``info`` table block. 결문 메타
+    fields are appended as trailing ``body`` blocks in canonical order (P0 proved
+    these survive a Hancom render).
+    """
+
+    from hwpx.design.plan import Block as _Block, DocumentPlan as _DesignPlan
+
+    blocks: list = []
+    for raw in plan.get("blocks") or []:
+        if not isinstance(raw, Mapping):
+            continue
+        block_type = str(raw.get("type") or "paragraph")
+        if block_type == "heading":
+            level = int(raw.get("level") or 1)
+            role = "heading" if level <= 1 else "subheading"
+            blocks.append(_Block(type="paragraph", role=role, text=str(raw.get("text") or "")))
+        elif block_type == "paragraph":
+            blocks.append(_Block(type="paragraph", role="body", text=str(raw.get("text") or "")))
+        elif block_type == "bullets":
+            for item in raw.get("items") or []:
+                blocks.append(_Block(type="paragraph", role="body", text=str(item)))
+        elif block_type == "table":
+            columns = [str(c) for c in (raw.get("columns") or raw.get("header") or [])]
+            rows = [[str(c) for c in row] for row in (raw.get("rows") or [])]
+            blocks.append(_Block(type="table", role="info", columns=columns, rows=rows))
+        # page_break / memo: no design role -> skipped
+    gyeolmun = plan.get("gyeolmun")
+    if isinstance(gyeolmun, Mapping):
+        for key, label in _GYEOLMUN_FIELDS:
+            value = gyeolmun.get(key)
+            if value:
+                blocks.append(_Block(type="paragraph", role="body", text=f"{label}  {value}"))
+    return _DesignPlan(profile=profile_id, title=str(plan.get("title") or ""), blocks=blocks)
+
+
 def create_document_from_plan(
     plan: Mapping[str, Any] | DocumentPlan,
     *,
     preset: str | DocumentStylePreset | None = None,
 ) -> HwpxDocument:
     """Create a formatted HWPX document from a declarative document plan."""
+
+    if isinstance(plan, Mapping):
+        profile_id = _resolve_design_profile(plan)
+        if profile_id is not None:
+            from hwpx import design as _design
+
+            design_plan = _bridge_to_design_plan(plan, profile_id)
+            data, result = _design.compose_bytes(design_plan, production=True)
+            if not result.ok:
+                raise ValueError(
+                    f"profile compose failed for {profile_id!r}: {result.errors}"
+                )
+            return HwpxDocument.open(data)
 
     normalized = normalize_document_plan(plan)
     if normalized.builder_document is not None:
