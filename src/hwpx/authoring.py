@@ -973,6 +973,27 @@ def _bridge_to_design_plan(plan: Mapping[str, Any], profile_id: str):
     return _DesignPlan(profile=profile_id, title=str(plan.get("title") or ""), blocks=blocks)
 
 
+def _korean_proofing_status(plan: Any, normalized_plan: "DocumentPlan | None") -> str:
+    """Honest 맞춤법/공공언어 status (Constitution V/IX) — never asserts 'passed'.
+
+    No free offline Korean spell/spacing oracle exists, so the default is
+    ``unverified``. If the plan signals an LLM self-proof pass it is labelled
+    ``llm_proofed_not_oracle_verified`` — proofed, but NOT oracle-verified.
+    """
+
+    metadata: Mapping[str, Any] = {}
+    if isinstance(plan, Mapping) and isinstance(plan.get("metadata"), Mapping):
+        metadata = plan["metadata"]
+    elif normalized_plan is not None:
+        metadata = normalized_plan.metadata
+    signal = str(
+        metadata.get("korean_proofing") or metadata.get("korean_proofing_status") or ""
+    ).strip().lower()
+    if signal in {"llm", "llm_proofed", "llm-proofed", "llm_proofed_not_oracle_verified"}:
+        return "llm_proofed_not_oracle_verified"
+    return "unverified"
+
+
 def create_document_from_plan(
     plan: Mapping[str, Any] | DocumentPlan,
     *,
@@ -1146,11 +1167,29 @@ def inspect_document_authoring_quality(
             and not profiles["operating_plan"].get("pass", False)
         ):
             gaps.append("operating plan quality failed")
+
+        document_type = ""
+        if isinstance(plan, Mapping):
+            document_type = _plan_document_type(plan)
+        elif normalized_plan is not None:
+            document_type = str(normalized_plan.metadata.get("document_type", "") or "")
+        gongmun_structure: dict[str, Any] | None = None
+        if _DOCTYPE_TO_PROFILE.get(document_type.strip()) == "official_notice":
+            from hwpx.tools.official_lint import (
+                inspect_official_document_style as _gongmun_lint,
+            )
+
+            gongmun_structure = _gongmun_lint(document, document_type="공문")
+            if not gongmun_structure.get("structure_pass", True):
+                gaps.append("공문 structure gate failed")
+        korean_proofing_status = _korean_proofing_status(plan, normalized_plan)
         return {
             "report_version": AUTHORING_REPORT_VERSION,
             "schemaVersion": DOCUMENT_PLAN_SCHEMA_VERSION,
             "plan_validation": plan_validation,
             "pass": not gaps,
+            "korean_proofing_status": korean_proofing_status,
+            "gongmun_structure": gongmun_structure,
             "block_counts": _block_counts(normalized_plan),
             "document": {
                 "paragraph_count": len(document.paragraphs),

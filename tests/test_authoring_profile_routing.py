@@ -94,3 +94,42 @@ def test_unknown_type_uses_from_scratch_path():
     doc = create_document_from_plan(_plan(metadata={"document_type": "메모"}))
     assert isinstance(doc, HwpxDocument)
     doc.close()
+
+
+# --- Task 3: authoring quality surfaces 공문 gate + korean_proofing_status ---
+def _quality_of(plan):
+    import tempfile
+    from pathlib import Path
+    from hwpx.authoring import inspect_document_authoring_quality
+
+    doc = create_document_from_plan(plan)
+    with tempfile.TemporaryDirectory() as tmp:
+        f = Path(tmp) / "g.hwpx"
+        doc.save_to_path(str(f))
+        doc.close()
+        return inspect_document_authoring_quality(str(f), plan=plan)
+
+
+def test_quality_surfaces_gongmun_structure_and_proofing():
+    plan = _plan(
+        blocks=[{"type": "paragraph", "text": "수신  각급학교장"},
+                {"type": "heading", "level": 1, "text": "1. 관련"},
+                {"type": "paragraph", "text": "가. 협조하여 주시기 바랍니다.  끝."}],
+        gyeolmun={"issuer": "○○교육지원청교육장", "enforcementDate": "2026. 6. 27.", "disclosure": "공개"},
+    )
+    rep = _quality_of(plan)
+    assert rep["korean_proofing_status"] == "unverified"
+    assert rep["gongmun_structure"] is not None
+    assert rep["gongmun_structure"]["structure_pass"] is True
+
+
+def test_quality_proofing_llm_label():
+    plan = _plan(
+        metadata={"document_type": "공문", "korean_proofing": "llm_proofed"},
+        blocks=[{"type": "paragraph", "text": "수신  각급학교장"},
+                {"type": "heading", "level": 1, "text": "1. 관련"},
+                {"type": "paragraph", "text": "가. 협조.  끝."}],
+        gyeolmun={"issuer": "○○교육지원청교육장", "enforcementDate": "2026. 6. 27.", "disclosure": "공개"},
+    )
+    rep = _quality_of(plan)
+    assert rep["korean_proofing_status"] == "llm_proofed_not_oracle_verified"
