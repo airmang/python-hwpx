@@ -1085,8 +1085,15 @@ def inspect_document_authoring_quality(
     *,
     plan: Mapping[str, Any] | DocumentPlan | None = None,
     quality_profile: str | Mapping[str, Any] | None = None,
+    verify_render: bool = False,
 ) -> dict[str, Any]:
-    """Return deterministic structural quality evidence for generated HWPX."""
+    """Return deterministic structural quality evidence for generated HWPX.
+
+    When *verify_render* is true AND a Mac Hancom oracle is reachable, the
+    document is rendered and ``render_checked``/``visual_complete`` become real
+    receipts. Otherwise ``render_checked`` is ``False`` and ``visual_complete``
+    is ``"unverified"`` — never a silent true (Constitution V).
+    """
 
     normalized_plan: DocumentPlan | None = None
     plan_validation: dict[str, Any] | None = None
@@ -1114,6 +1121,32 @@ def inspect_document_authoring_quality(
         package_report = validate_package(path if path is not None else package_payload)
         document_report = document.validate()
         reopened = _can_reopen(path, package_payload)
+        render_checked = False
+        visual_complete: Any = "unverified"
+        if verify_render:
+            from hwpx.visual import oracle as _oracle
+
+            _mac = _oracle.MacHancomOracle()
+            if _mac.available():
+                import tempfile as _tf
+
+                with _tf.TemporaryDirectory() as _tmp:
+                    _hwpx = Path(_tmp) / "render_check.hwpx"
+                    _hwpx.write_bytes(package_payload)
+                    _pdf = Path(_tmp) / "render_check.pdf"
+                    _rendered = _mac.render_pdf(str(_hwpx), str(_pdf))
+                    if _rendered and Path(_rendered).exists():
+                        try:
+                            import fitz as _fitz
+
+                            _doc = _fitz.open(_rendered)
+                            _has_text = any(pg.get_text().strip() for pg in _doc)
+                            _doc.close()
+                            render_checked = bool(_has_text)
+                            visual_complete = render_checked
+                        except Exception:
+                            render_checked = False
+                            visual_complete = "unverified"
         non_empty_texts = [
             (paragraph.text or "").strip()
             for paragraph in document.paragraphs
@@ -1197,6 +1230,8 @@ def inspect_document_authoring_quality(
                 "table_count": table_count,
                 "page_break_count": page_break_count,
             },
+            "render_checked": render_checked,
+            "visual_complete": visual_complete,
             "validation": {
                 "reopened": reopened,
                 "validate_package": {
@@ -1215,7 +1250,7 @@ def inspect_document_authoring_quality(
             "style_token_usage": style_usage,
             "recovery": recovery,
             "profiles": profiles,
-            "visual_review_required": bool(gates.get("visualReviewRequired", True)),
+            "visual_review_required": bool(gates.get("visualReviewRequired", True)) and not render_checked,
             "gaps": gaps,
         }
     finally:
