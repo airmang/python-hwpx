@@ -960,8 +960,20 @@ def _bridge_to_design_plan(plan: Mapping[str, Any], profile_id: str):
             for item in raw.get("items") or []:
                 blocks.append(_Block(type="paragraph", role="body", text=str(item)))
         elif block_type == "table":
-            columns = [str(c) for c in (raw.get("columns") or raw.get("header") or [])]
-            rows = [[str(c) for c in row] for row in (raw.get("rows") or [])]
+            raw_cols = list(raw.get("columns") or raw.get("header") or [])
+            if raw_cols and isinstance(raw_cols[0], Mapping):
+                # document_plan schema: columns=[{key,label}], rows=[{key: value}]
+                keys = [str(c.get("key") or c.get("label") or "") for c in raw_cols]
+                columns = [str(c.get("label") or c.get("key") or "") for c in raw_cols]
+                rows = []
+                for row in raw.get("rows") or []:
+                    if isinstance(row, Mapping):
+                        rows.append([str(row.get(k, "")) for k in keys])
+                    elif isinstance(row, (list, tuple)):
+                        rows.append([str(c) for c in row])
+            else:
+                columns = [str(c) for c in raw_cols]
+                rows = [[str(c) for c in row] for row in (raw.get("rows") or [])]
             blocks.append(_Block(type="table", role="info", columns=columns, rows=rows))
         # page_break / memo: no design role -> skipped
     gyeolmun = plan.get("gyeolmun")

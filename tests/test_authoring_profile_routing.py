@@ -57,6 +57,19 @@ def test_bridge_level2_is_subheading():
     assert ("paragraph", "subheading") in [(b.type, b.role) for b in dp.blocks]
 
 
+def test_bridge_converts_mapping_table():
+    # document_plan tables are mapping-based: columns=[{key,label}], rows=[{key:value}]
+    plan = _plan(blocks=[{
+        "type": "table",
+        "columns": [{"key": "dept", "label": "부서"}, {"key": "rate", "label": "달성률"}],
+        "rows": [{"dept": "기획부", "rate": "100%"}, {"dept": "운영부", "rate": "93%"}],
+    }])
+    dp = _bridge_to_design_plan(plan, "report")
+    table = [b for b in dp.blocks if b.type == "table"][0]
+    assert table.columns == ["부서", "달성률"]
+    assert table.rows == [["기획부", "100%"], ["운영부", "93%"]]
+
+
 def test_bridge_bullets_become_body():
     dp = _bridge_to_design_plan(
         _plan(blocks=[{"type": "bullets", "items": ["가. 첫째", "나. 둘째"]}]), "official_notice"
