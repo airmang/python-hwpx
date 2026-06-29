@@ -71,9 +71,26 @@ def inspect_official_document_style(source: Any) -> dict[str, Any]:
     }
 
 
+def _document_paragraph_texts(paragraphs: Any) -> list[str]:
+    """Flatten paragraph text including nested table-cell text.
+
+    Real 시행문 carry the 두문(수신·경유) and 결문(발신명의·시행·공개구분) inside
+    tables, which top-level ``document.paragraphs`` does not descend into.
+    """
+
+    texts: list[str] = []
+    for paragraph in paragraphs:
+        texts.append(paragraph.text)
+        for table in getattr(paragraph, "tables", ()):
+            for row in table.rows:
+                for cell in row.cells:
+                    texts.extend(_document_paragraph_texts(cell.paragraphs))
+    return texts
+
+
 def _paragraphs_from_source(source: Any) -> list[str]:
     if isinstance(source, HwpxDocument):
-        return [paragraph.text for paragraph in source.paragraphs]
+        return _document_paragraph_texts(source.paragraphs)
     if isinstance(source, Path):
         return _paragraphs_from_path(source)
     if isinstance(source, str):
@@ -96,7 +113,7 @@ def _paragraphs_from_source(source: Any) -> list[str]:
 def _paragraphs_from_path(path: Path) -> list[str]:
     document = HwpxDocument.open(path)
     try:
-        return [paragraph.text for paragraph in document.paragraphs]
+        return _document_paragraph_texts(document.paragraphs)
     finally:
         document.close()
 
