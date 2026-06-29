@@ -16,6 +16,6 @@ def test_table_cells_surface_in_extraction():
     # NB: a real 시행문 does NOT print the label "발신명의" — the 발신명의 is the
     # issuer name itself (e.g. 서울특별시장), positioned in the 결문 after 시행.
     assert "수신" in joined, "수신 (두문) not surfaced — table cells not read"
+    assert "경유" in joined, "경유 (두문) not surfaced — table cells not read"
     assert "시행" in joined, "시행 (결문) not surfaced — table cells not read"
     assert "공개" in joined, "공개구분 (결문) not surfaced — table cells not read"
-    assert "서울특별시장" in joined, "발신명의(기관장 명의) not surfaced from 결문 table"

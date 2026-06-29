@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+## [2.16.0] - 2026-06-29
+### 추가
+- **M3 문서 작성 (S-057)**: `create_document_from_plan` 이 `document_type`(공문/보고서/가정통신문)을 보고 실제 한컴-harvest 프로파일(`hwpx.design.compose`)로 라우팅합니다. 미매칭 유형은 기존 제로베이스 경로를 유지하고 `-> HwpxDocument` 반환 계약을 보존합니다. 공문은 결문 메타 `document_plan.gyeolmun = {issuer, productionNumber, enforcementDate, disclosure}` 를 지원합니다.
+- `hwpx.design.profiles.home_notice` — 실제 가정통신문에서 harvest한 디자인 프로파일.
+- **공문 구조 hard-gate**: `inspect_official_document_style(source, *, document_type="공문")` 이 시행문 척추(수신·발신명의·시행·공개구분·끝.)를 ERROR 심각도로 검사하고 `structure_pass` 를 반환합니다. 표 셀까지 읽는 table-aware 텍스트 추출(실 시행문의 두문/결문은 표 안에 있음)을 추가했고, 진짜 시행문(`tests/fixtures/m3_gongmun_gold/seoul_sihaengmun.hwpx`)을 앵커로 삼습니다.
+- `inspect_document_authoring_quality` 에 `korean_proofing_status`(정직 `unverified` / `llm_proofed_not_oracle_verified`, 거짓 통과 없음)와 `verify_render=True` 시 실제 한컴 렌더 영수증 `render_checked`/`visual_complete` 를 추가했습니다.
+### 비고
+- 각주(footnote) 작성은 한컴 렌더가 확인되지 않아 honest-deferred(`unverified`) 상태입니다.
+
 ## [2.15.0] - 2026-06-27
 ### 추가
 - `HwpxDocument.set_paragraph_format(keep_with_next=, keep_lines=, page_break_before=)` — 문단 keep-together 플래그를 엔진 `ensure_paragraph_format(break_setting=)`로 전달한다(새 paraPr 발행, 기존 paraPr 미수정 = 무손실). 시험지 조판 등에서 한 문항이 단/쪽 경계에서 잘리지 않게 묶을 때 쓴다.
