@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [2.18.0] - 2026-07-01
+### 추가
+- **M5 개인정보(PII) 마스킹 엔진 (S-059)**: `hwpx.tools.pii` — `detect_pii` / `mask_pii` / `mask_value` / `PIIPolicy`. 기계검증 세트(주민등록번호·휴대폰·이메일·카드+Luhn)는 항상-on high-confidence, 맥락형(계좌·주소·이름)은 라벨 게이트 low-confidence(과마스킹 방지). 필드 최소화 `minimize_fields`, 가명 `Pseudonymizer`(결정적 토큰맵), 비식별 `deidentify`(불가역 salted-SHA256), 로그 위생 `PiiLogFilter` / `scrub_exception_message`.
+- **메일머지·추출 경로 마스킹**: `mail_merge(masking_policy=DEFAULT_POLICY)` 기본 ON — 명부 산출물의 기계검증 PII 자동 마스킹(마스킹 길이로 FitPolicy 재측정). `export_text` / `export_html` / `export_markdown(masking_policy=...)` opt-in 추출 마스킹(기본 `None` = 내부 placeholder 탐지 보존).
+### 비고
+- 폼필(form-fill) 경로 마스킹·`scan_personal_info`·전 경로 0-누출 게이트는 MCP 표면(hwpx-mcp-server) 단계에서 합류합니다.
+
 ## [2.17.0] - 2026-06-30
 ### 추가
 - **M4 변경추적(redline) 저작 (S-058)**: `HwpxDocument.add_tracked_insert` / `add_tracked_delete` / `add_tracked_replace` — 에이전트가 변경추적(삽입/삭제/치환)을 작성자·일자와 함께 저작하고, 사람이 한컴 검토 리본에서 개별 수락/거부할 수 있습니다. 헤더 `trackChanges`/`trackChangeAuthors` surgical splice(작성자 dedup·표시 플래그) + 본문 `insertBegin/End`·`deleteBegin/End` 마크(charPrIDRef 상속, paraend=0). 한컴 수용성은 measure-first 스파이크로 입증(실 Windows 한컴 COM `IsTrackChange=1`·opens-clean·roundtrip + 검토 리본 수락→반영/거부→취소 확인).

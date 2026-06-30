@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx"
-version = "2.17.0"
+version = "2.18.0"
 description = "한글 없이 HWPX 문서를 열고, 편집하고, 생성하고, 검증하는 Python 자동화 라이브러리"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "Apache-2.0"
@@ -81,7 +81,7 @@ include = ["hwpx*"]
 "hwpx" = ["py.typed"]
 "hwpx.tools" = ["_schemas/*.xsd"]
 "hwpx.data" = ["Skeleton.hwpx"]
-"hwpx.visual" = ["_render_hwpx.ps1", "_render_hwpx_mac.applescript"]
+"hwpx.visual" = ["_render_hwpx.ps1", "_render_hwpx_mac.applescript", "_hancom_open_rate.ps1"]
 "hwpx.design" = [
     "profiles/*/profile.json",
     "profiles/*/template.hwpx",
