@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PII detection and masking helpers.
+"""PII detection, masking, and structural privacy helpers.
 
 The machine-checkable set is intentionally always enabled by default. Contextual
 patterns are label-gated and reported as low-confidence to avoid broad free-text
@@ -7,9 +7,12 @@ over-masking.
 """
 from __future__ import annotations
 
+import hashlib
+import logging
 import re
+from collections.abc import Iterable, Mapping, Sized
 from dataclasses import dataclass
-from typing import Literal, TypedDict
+from typing import Any, Literal, TypedDict
 
 
 Confidence = Literal["high", "low"]
@@ -41,6 +44,21 @@ class PIIPolicy:
 
 
 DEFAULT_POLICY = PIIPolicy()
+
+__all__ = [
+    "Confidence",
+    "DEFAULT_POLICY",
+    "PIIPolicy",
+    "PIISpan",
+    "PiiLogFilter",
+    "Pseudonymizer",
+    "deidentify",
+    "detect_pii",
+    "mask_pii",
+    "mask_value",
+    "minimize_fields",
+    "scrub_exception_message",
+]
 
 _RRN_RE = re.compile(r"(?<!\d)(?P<front>\d{6})-?(?P<gender>[1-4])(?P<rear>\d{6})(?!\d)")
 _PHONE_RE = re.compile(
@@ -206,8 +224,110 @@ def mask_value(value: str, pii_type: str, policy: PIIPolicy = DEFAULT_POLICY) ->
     return _mask_generic(value, policy)
 
 
+def minimize_fields(
+    record: Mapping[str, Any],
+    allowed: Iterable[str],
+    *,
+    drop_empty: bool = False,
+) -> dict[str, Any]:
+    """Return a minimized copy containing only allowed fields.
+
+    Output order follows the order of ``allowed``. Missing fields are skipped.
+    When ``drop_empty`` is true, ``None`` and empty sized values are omitted
+    while falsey scalars such as ``0`` and ``False`` are retained.
+    """
+
+    minimized: dict[str, Any] = {}
+    for key in allowed:
+        if key not in record:
+            continue
+        value = record[key]
+        if drop_empty and _is_empty_value(value):
+            continue
+        minimized[key] = value
+    return minimized
+
+
+class Pseudonymizer:
+    """Deterministic in-memory reversible pseudonym token map.
+
+    ``mapping()`` exposes the value-to-token map. Persisting that map outside
+    this instance makes the pseudonymization reversible; v1 keeps it in memory
+    only.
+    """
+
+    def __init__(self) -> None:
+        self._tokens: dict[str, str] = {}
+        self._counts: dict[str, int] = {}
+
+    def token(self, value: str, *, kind: str = "이름") -> str:
+        """Return a stable token for ``value`` within this instance."""
+
+        if value in self._tokens:
+            return self._tokens[value]
+        count = self._counts.get(kind, 0) + 1
+        self._counts[kind] = count
+        token = f"{kind}_{count:03d}"
+        self._tokens[value] = token
+        return token
+
+    def mapping(self) -> dict[str, str]:
+        """Return a copy of the in-memory value-to-token map."""
+
+        return dict(self._tokens)
+
+
+def deidentify(value: str, *, salt: str, length: int = 12) -> str:
+    """Return an irreversible deterministic salted hash token."""
+
+    digest = hashlib.sha256((salt + "\x00" + value).encode()).hexdigest()
+    return "di_" + digest[:length]
+
+
+class PiiLogFilter(logging.Filter):
+    """Logging filter that masks PII in formatted log messages."""
+
+    def __init__(self, name: str = "", policy: PIIPolicy = DEFAULT_POLICY) -> None:
+        super().__init__(name)
+        self.policy = policy
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = _scrub_log_value(record.msg, self.policy)
+        record.args = _scrub_log_value(record.args, self.policy)
+        try:
+            message = record.getMessage()
+        except Exception:
+            message = str(record.msg)
+        masked_message = mask_pii(message, self.policy)
+        record.msg = masked_message
+        record.args = ()
+        return True
+
+
+def scrub_exception_message(msg: str, policy: PIIPolicy = DEFAULT_POLICY) -> str:
+    """Mask PII in an exception message before exposing or logging it."""
+
+    return mask_pii(msg, policy)
+
+
 def _span(kind: str, start: int, end: int, value: str, confidence: Confidence) -> PIISpan:
     return {"type": kind, "start": start, "end": end, "value": value, "confidence": confidence}
+
+
+def _is_empty_value(value: Any) -> bool:
+    if value is None:
+        return True
+    return isinstance(value, Sized) and len(value) == 0
+
+
+def _scrub_log_value(value: Any, policy: PIIPolicy) -> Any:
+    if isinstance(value, str):
+        return mask_pii(value, policy)
+    if isinstance(value, tuple):
+        return tuple(_scrub_log_value(item, policy) for item in value)
+    if isinstance(value, Mapping):
+        return {key: _scrub_log_value(item, policy) for key, item in value.items()}
+    return value
 
 
 def _normalize_type(pii_type: str) -> str:
