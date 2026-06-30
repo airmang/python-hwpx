@@ -43,6 +43,11 @@ _TRACK_CHANGE_MARK_NAMES = {
     "deleteEnd",
 }
 
+_TRACK_CHANGE_TYPES = {
+    "insert": "insert",
+    "delete": "delete",
+}
+
 PreservedElement = Union[
     GenericElement,
     "CommentElement",
@@ -263,8 +268,148 @@ def _qualified_tag(tag: Optional[str], name: str) -> str:
     return f"{_DEFAULT_HP}{name}"
 
 
+def _tag_namespace(tag: Optional[str]) -> Optional[str]:
+    if not tag or not tag.startswith("{") or "}" not in tag:
+        return None
+    return tag[1:].split("}", 1)[0]
+
+
+def _child_tag_like(parent_tag: Optional[str], name: str) -> str:
+    namespace = _tag_namespace(parent_tag)
+    if namespace:
+        return f"{{{namespace}}}{name}"
+    return _qualified_tag(None, name)
+
+
 def _bool_to_str(value: bool) -> str:
     return "true" if value else "false"
+
+
+def _bool_to_flag(value: bool) -> str:
+    return "1" if value else "0"
+
+
+def create_track_change_mark(
+    change_type: str,
+    *,
+    is_begin: bool,
+    tc_id: int,
+    mark_id: int,
+    para_end: bool | None = None,
+) -> TrackChangeMark:
+    """Create a typed inline tracked-change boundary mark."""
+
+    normalized = _TRACK_CHANGE_TYPES.get(change_type.strip().lower())
+    if normalized is None:
+        raise ValueError("change_type must be 'insert' or 'delete'")
+    name = f"{normalized}{'Begin' if is_begin else 'End'}"
+    return TrackChangeMark(
+        tag=_qualified_tag(None, name),
+        name=name,
+        change_type=normalized,
+        is_begin=is_begin,
+        para_end=para_end,
+        tc_id=int(tc_id),
+        id=int(mark_id),
+    )
+
+
+def append_tracked_insert_to_run(
+    run: Run,
+    text: str,
+    *,
+    tc_id: int,
+    mark_id: int,
+) -> None:
+    """Append tracked inserted *text* to the last text span in *run*."""
+
+    if not text:
+        raise ValueError("tracked insert text must be non-empty")
+
+    if run.text_spans:
+        span = run.text_spans[-1]
+    else:
+        span = TextSpan(tag=_child_tag_like(run.tag, "t"), leading_text="")
+        run.text_spans.append(span)
+        run.content.append(span)
+
+    span.marks.append(
+        TextMarkup(
+            create_track_change_mark("insert", is_begin=True, tc_id=tc_id, mark_id=mark_id),
+            text,
+        )
+    )
+    span.marks.append(
+        TextMarkup(
+            create_track_change_mark(
+                "insert",
+                is_begin=False,
+                tc_id=tc_id,
+                mark_id=mark_id,
+                para_end=False,
+            )
+        )
+    )
+
+
+def wrap_tracked_delete_in_span(
+    span: TextSpan,
+    *,
+    tc_id: int,
+    mark_id: int,
+    match: str | None = None,
+) -> bool:
+    """Wrap a whole span or a substring in tracked delete marks."""
+
+    if match == "":
+        raise ValueError("match must be a non-empty string")
+
+    begin = TextMarkup(
+        create_track_change_mark("delete", is_begin=True, tc_id=tc_id, mark_id=mark_id)
+    )
+    end = TextMarkup(
+        create_track_change_mark(
+            "delete",
+            is_begin=False,
+            tc_id=tc_id,
+            mark_id=mark_id,
+            para_end=False,
+        )
+    )
+
+    if match is None:
+        if not span.text:
+            return False
+        leading = span.leading_text
+        span.leading_text = ""
+        begin.trailing_text = leading
+        span.marks.insert(0, begin)
+        span.marks.append(end)
+        return True
+
+    index = span.leading_text.find(match)
+    if index >= 0:
+        before = span.leading_text[:index]
+        after = span.leading_text[index + len(match) :]
+        span.leading_text = before
+        begin.trailing_text = match
+        end.trailing_text = after
+        span.marks[0:0] = [begin, end]
+        return True
+
+    for mark_index, markup in enumerate(span.marks):
+        index = markup.trailing_text.find(match)
+        if index < 0:
+            continue
+        before = markup.trailing_text[:index]
+        after = markup.trailing_text[index + len(match) :]
+        markup.trailing_text = before
+        begin.trailing_text = match
+        end.trailing_text = after
+        span.marks[mark_index + 1 : mark_index + 1] = [begin, end]
+        return True
+
+    return False
 
 
 def parse_track_change_mark(node: etree._Element) -> TrackChangeMark:
@@ -670,13 +815,14 @@ def _preserved_element_to_xml(element: PreservedElement) -> etree._Element:
 
 
 def _track_change_mark_to_xml(mark: TrackChangeMark) -> etree._Element:
-    attrs = dict(mark.attributes)
-    if mark.para_end is not None:
-        attrs["paraend"] = _bool_to_str(mark.para_end)
-    if mark.tc_id is not None:
-        attrs["TcId"] = str(mark.tc_id)
+    attrs: Dict[str, str] = {}
     if mark.id is not None:
         attrs["Id"] = str(mark.id)
+    if mark.tc_id is not None:
+        attrs["TcId"] = str(mark.tc_id)
+    if mark.para_end is not None:
+        attrs["paraend"] = _bool_to_flag(mark.para_end)
+    attrs.update(mark.attributes)
     return etree.Element(_qualified_tag(mark.tag, mark.name), attrs)
 
 
@@ -789,6 +935,8 @@ __all__ = [
     "TextSpan",
     "TrackChangeMark",
     "TransformMatrix",
+    "append_tracked_insert_to_run",
+    "create_track_change_mark",
     "parse_comment_element",
     "parse_control_element",
     "parse_form_combo_box_element",
@@ -806,6 +954,7 @@ __all__ = [
     "parse_transform_matrix_element",
     "serialize_paragraph",
     "serialize_run",
+    "wrap_tracked_delete_in_span",
 ]
 
 logger = logging.getLogger(__name__)

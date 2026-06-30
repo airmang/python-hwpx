@@ -5,6 +5,7 @@ import logging
 import base64
 import binascii
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Dict, List, Mapping, Optional
 
 from lxml import etree
@@ -578,7 +579,7 @@ class TrackChangeAuthor:
     id: Optional[int]
     raw_id: Optional[str]
     name: Optional[str]
-    mark: Optional[bool]
+    mark: Optional[bool | int]
     color: Optional[str]
     attributes: Dict[str, str] = field(default_factory=dict)
 
@@ -700,6 +701,128 @@ class Header:
         if self.ref_list is None or self.ref_list.track_change_authors is None:
             return None
         return self.ref_list.track_change_authors.author_by_id(author_id_ref)
+
+    def add_track_change(
+        self,
+        change_type: str,
+        *,
+        author_name: str = "AI Agent",
+        date: str | None = None,
+    ) -> int:
+        """Append tracked-change metadata and return the new change id."""
+
+        normalized_type = normalize_track_change_type(change_type)
+        resolved_author = author_name.strip() or "AI Agent"
+
+        if self.ref_list is None:
+            self.ref_list = RefList()
+        ref_list = self.ref_list
+
+        if ref_list.track_change_authors is None:
+            ref_list.track_change_authors = TrackChangeAuthorList(item_cnt=0, authors=[])
+        author_list = ref_list.track_change_authors
+
+        author = next(
+            (candidate for candidate in author_list.authors if candidate.name == resolved_author),
+            None,
+        )
+        if author is None:
+            author_id = _next_track_change_author_id(author_list.authors)
+            author = TrackChangeAuthor(
+                id=author_id,
+                raw_id=None,
+                name=resolved_author,
+                mark=author_id,
+                color=None,
+            )
+            author_list.authors.append(author)
+        else:
+            author_id = _resolved_id(author.id, author.raw_id)
+        author_list.item_cnt = len(author_list.authors)
+
+        if ref_list.track_changes is None:
+            ref_list.track_changes = TrackChangeList(item_cnt=0, changes=[])
+        change_list = ref_list.track_changes
+
+        change_id = _next_track_change_id(change_list.changes)
+        change_list.changes.append(
+            TrackChange(
+                id=change_id,
+                raw_id=None,
+                change_type=normalized_type,
+                date=format_track_change_date(date),
+                author_id=author_id,
+                char_shape_id=None,
+                para_shape_id=None,
+                hide=False,
+            )
+        )
+        change_list.item_cnt = len(change_list.changes)
+
+        if self.track_change_config is None:
+            self.track_change_config = TrackChangeConfig(flags=1)
+        else:
+            self.track_change_config.flags = (self.track_change_config.flags or 0) | 1
+        return change_id
+
+
+def format_track_change_date(value: str | None = None) -> str:
+    if value is not None:
+        return value
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def normalize_track_change_type(change_type: str) -> str:
+    normalized = change_type.strip().lower()
+    aliases = {
+        "insert": "Insert",
+        "delete": "Delete",
+        "charshape": "CharShape",
+        "char_shape": "CharShape",
+        "char-shape": "CharShape",
+    }
+    resolved = aliases.get(normalized)
+    if resolved is None:
+        raise ValueError("change_type must be 'Insert', 'Delete', or 'CharShape'")
+    return resolved
+
+
+def _resolved_id(identifier: int | None, raw_id: str | None) -> int:
+    if identifier is not None:
+        return identifier
+    if raw_id is not None:
+        return int(raw_id)
+    raise ValueError("tracked-change reference is missing an id")
+
+
+def _next_numeric_id(values: list[int]) -> int:
+    return 1 if not values else max(values) + 1
+
+
+def _next_track_change_id(changes: List[TrackChange]) -> int:
+    ids: list[int] = []
+    for change in changes:
+        if change.id is not None:
+            ids.append(change.id)
+        elif change.raw_id is not None:
+            try:
+                ids.append(int(change.raw_id))
+            except ValueError:
+                continue
+    return _next_numeric_id(ids)
+
+
+def _next_track_change_author_id(authors: List[TrackChangeAuthor]) -> int:
+    ids: list[int] = []
+    for author in authors:
+        if author.id is not None:
+            ids.append(author.id)
+        elif author.raw_id is not None:
+            try:
+                ids.append(int(author.raw_id))
+            except ValueError:
+                continue
+    return _next_numeric_id(ids)
 
 
 def parse_begin_num(node: etree._Element) -> BeginNum:
@@ -1226,11 +1349,12 @@ def parse_track_change_author(node: etree._Element) -> TrackChangeAuthor:
     attributes = {
         key: value for key, value in node.attrib.items() if key not in known_attrs
     }
+    mark = _parse_track_change_author_mark(node.get("mark"))
     return TrackChangeAuthor(
         id=parse_int(node.get("id")),
         raw_id=node.get("id"),
         name=node.get("name"),
-        mark=parse_bool(node.get("mark")),
+        mark=mark,
         color=node.get("color"),
         attributes=attributes,
     )
@@ -1301,12 +1425,80 @@ def parse_header_element(node: etree._Element) -> Header:
             header.doc_option = parse_doc_option(child)
         elif name == "metaTag":
             header.meta_tag = text_or_none(child)
-        elif name == "trackchangeConfig":
+        elif name in {"trackchageConfig", "trackchangeConfig"}:
             header.track_change_config = parse_track_change_config(child)
         else:
             header.other_elements.setdefault(name, []).append(parse_generic_element(child))
 
     return header
+
+
+def _parse_track_change_author_mark(value: str | None) -> bool | int | None:
+    if value is None:
+        return None
+    try:
+        return parse_bool(value)
+    except ValueError:
+        return parse_int(value, allow_none=False)
+
+
+def _set_optional_int_attr(
+    attributes: Dict[str, str],
+    name: str,
+    value: int | None,
+) -> None:
+    if value is not None:
+        attributes[name] = str(value)
+
+
+def _set_optional_str_attr(
+    attributes: Dict[str, str],
+    name: str,
+    value: str | None,
+) -> None:
+    if value is not None:
+        attributes[name] = value
+
+
+def _set_optional_flag_attr(
+    attributes: Dict[str, str],
+    name: str,
+    value: bool | None,
+) -> None:
+    if value is not None:
+        attributes[name] = "1" if value else "0"
+
+
+def track_change_to_xml(change: TrackChange) -> etree._Element:
+    attributes = dict(change.attributes)
+    _set_optional_str_attr(attributes, "type", change.change_type)
+    _set_optional_str_attr(attributes, "date", change.date)
+    _set_optional_int_attr(attributes, "authorID", change.author_id)
+    _set_optional_int_attr(attributes, "charShapeID", change.char_shape_id)
+    _set_optional_int_attr(attributes, "paraShapeID", change.para_shape_id)
+    _set_optional_flag_attr(attributes, "hide", change.hide)
+    _set_optional_int_attr(attributes, "id", change.id)
+    if change.raw_id is not None and change.id is None:
+        attributes["id"] = change.raw_id
+    return etree.Element(f"{{http://www.hancom.co.kr/hwpml/2011/head}}trackChange", attributes)
+
+
+def track_change_author_to_xml(author: TrackChangeAuthor) -> etree._Element:
+    attributes = dict(author.attributes)
+    _set_optional_str_attr(attributes, "name", author.name)
+    if author.mark is not None:
+        if isinstance(author.mark, bool):
+            attributes["mark"] = "1" if author.mark else "0"
+        else:
+            attributes["mark"] = str(author.mark)
+    _set_optional_int_attr(attributes, "id", author.id)
+    if author.raw_id is not None and author.id is None:
+        attributes["id"] = author.raw_id
+    _set_optional_str_attr(attributes, "color", author.color)
+    return etree.Element(
+        f"{{http://www.hancom.co.kr/hwpml/2011/head}}trackChangeAuthor",
+        attributes,
+    )
 
 
 __all__ = [
@@ -1350,7 +1542,9 @@ __all__ = [
     "TrackChangeAuthorList",
     "TrackChangeConfig",
     "TrackChangeList",
+    "format_track_change_date",
     "memo_shape_from_attributes",
+    "normalize_track_change_type",
     "parse_begin_num",
     "parse_bullet",
     "parse_bullet_para_head",
@@ -1379,6 +1573,8 @@ __all__ = [
     "parse_track_change_author",
     "parse_track_change_authors",
     "parse_track_changes",
+    "track_change_author_to_xml",
+    "track_change_to_xml",
 ]
 
 logger = logging.getLogger(__name__)

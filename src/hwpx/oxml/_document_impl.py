@@ -17,6 +17,7 @@ from . import body
 from .common import GenericElement
 from .header import (
     Bullet,
+    Header,
     MemoProperties,
     MemoShape,
     ParagraphProperty,
@@ -26,10 +27,14 @@ from .header import (
     memo_shape_from_attributes,
     parse_bullets,
     parse_border_fills,
+    parse_header_element,
     parse_paragraph_properties,
     parse_styles,
+    parse_track_change_config,
     parse_track_change_authors,
     parse_track_changes,
+    track_change_author_to_xml,
+    track_change_to_xml,
 )
 from .namespaces import (
     HWPML_COMPAT_ROOT_NAMESPACES,
@@ -1566,8 +1571,11 @@ class HwpxOxmlRun:
     def apply_model(self, model: "body.Run") -> None:
         new_node = body.serialize_run(model)
         xml_bytes = LET.tostring(new_node)
-        replacement = ET.fromstring(xml_bytes)
         parent = self.paragraph.element
+        if isinstance(parent, LET._Element):
+            replacement = LET.fromstring(xml_bytes)
+        else:
+            replacement = ET.fromstring(xml_bytes)
         run_children = list(parent)
         index = run_children.index(self.element)
         parent.remove(self.element)
@@ -3598,8 +3606,11 @@ class HwpxOxmlParagraph:
     def apply_model(self, model: "body.Paragraph") -> None:
         new_node = body.serialize_paragraph(model)
         xml_bytes = LET.tostring(new_node)
-        replacement = ET.fromstring(xml_bytes)
         parent = self.section.element
+        if isinstance(parent, LET._Element):
+            replacement = LET.fromstring(xml_bytes)
+        else:
+            replacement = ET.fromstring(xml_bytes)
         paragraph_children = list(parent)
         index = paragraph_children.index(self.element)
         parent.remove(self.element)
@@ -3627,6 +3638,99 @@ class HwpxOxmlParagraph:
     def runs(self) -> list[HwpxOxmlRun]:
         """Return the runs contained in this paragraph."""
         return [HwpxOxmlRun(run, self) for run in self._run_elements()]
+
+    def _last_text_run_for_tracked_insert(
+        self,
+        *,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlRun:
+        desired_char = None if char_pr_id_ref is None else str(char_pr_id_ref)
+        runs = self.runs
+
+        if desired_char is not None:
+            for run in reversed(runs):
+                if run.char_pr_id_ref != desired_char:
+                    continue
+                if run.to_model().text_spans:
+                    return run
+            return self.add_run("", char_pr_id_ref=desired_char)
+
+        for run in reversed(runs):
+            if run.to_model().text_spans:
+                return run
+        return self.add_run("", char_pr_id_ref=self.char_pr_id_ref or "0")
+
+    def add_tracked_insert(
+        self,
+        text: str,
+        *,
+        change_id: int,
+        mark_id: int,
+        char_pr_id_ref: str | int | None = None,
+    ) -> None:
+        sanitized = _sanitize_text(text)
+        if not sanitized:
+            raise ValueError("tracked insert text must be non-empty")
+
+        run = self._last_text_run_for_tracked_insert(char_pr_id_ref=char_pr_id_ref)
+        model = run.to_model()
+        body.append_tracked_insert_to_run(
+            model,
+            sanitized,
+            tc_id=change_id,
+            mark_id=mark_id,
+        )
+        run.apply_model(model)
+
+    def add_tracked_delete(
+        self,
+        *,
+        change_id: int,
+        first_mark_id: int,
+        match: str | None = None,
+    ) -> int:
+        if match == "":
+            raise ValueError("match must be a non-empty string")
+
+        next_mark_id = first_mark_id
+        if match is not None:
+            for run in self.runs:
+                model = run.to_model()
+                if match not in "".join(span.text for span in model.text_spans):
+                    continue
+                for span in model.text_spans:
+                    if body.wrap_tracked_delete_in_span(
+                        span,
+                        tc_id=change_id,
+                        mark_id=next_mark_id,
+                        match=match,
+                    ):
+                        run.apply_model(model)
+                        return next_mark_id + 1
+                raise ValueError("match crosses inline markup and cannot be wrapped safely")
+            raise ValueError("match text was not found in the paragraph")
+
+        modified = False
+        for run in self.runs:
+            model = run.to_model()
+            changed = False
+            for span in model.text_spans:
+                if not span.text:
+                    continue
+                body.wrap_tracked_delete_in_span(
+                    span,
+                    tc_id=change_id,
+                    mark_id=next_mark_id,
+                )
+                next_mark_id += 1
+                changed = True
+            if changed:
+                run.apply_model(model)
+                modified = True
+
+        if not modified:
+            raise ValueError("paragraph contains no text to delete")
+        return next_mark_id
 
     @property
     def text(self) -> str:
@@ -4710,6 +4814,15 @@ class HwpxOxmlHeader:
     def attach_document(self, document: "HwpxOxmlDocument") -> None:
         self._document = document
 
+    def to_model(self) -> Header:
+        return parse_header_element(self._convert_to_lxml(self._element))
+
+    @staticmethod
+    def _coerce_serialized_child(parent: ET.Element, child: LET._Element) -> ET.Element:
+        if isinstance(parent, LET._Element):
+            return child
+        return ET.fromstring(LET.tostring(child, encoding="utf-8"))
+
     def _begin_num_element(self, create: bool = False) -> ET.Element | None:
         element = self._element.find(f"{_HH}beginNum")
         if element is None and create:
@@ -5383,17 +5496,115 @@ class HwpxOxmlHeader:
             return None
         return ref_list.find(f"{_HH}styles")
 
-    def _track_changes_element(self) -> ET.Element | None:
-        ref_list = self._ref_list_element()
+    def _track_changes_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
         if ref_list is None:
             return None
         return ref_list.find(f"{_HH}trackChanges")
 
-    def _track_change_authors_element(self) -> ET.Element | None:
-        ref_list = self._ref_list_element()
+    def _track_changes_element_or_create(self) -> ET.Element:
+        ref_list = self._ref_list_element(create=True)
+        if ref_list is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <refList> element")
+        element = ref_list.find(f"{_HH}trackChanges")
+        if element is None:
+            element = ref_list.makeelement(f"{_HH}trackChanges", {"itemCnt": "0"})
+            ref_list.append(element)
+            self.mark_dirty()
+        return element
+
+    def _track_change_authors_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
         if ref_list is None:
             return None
         return ref_list.find(f"{_HH}trackChangeAuthors")
+
+    def _track_change_authors_element_or_create(self) -> ET.Element:
+        ref_list = self._ref_list_element(create=True)
+        if ref_list is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <refList> element")
+        element = ref_list.find(f"{_HH}trackChangeAuthors")
+        if element is None:
+            element = ref_list.makeelement(f"{_HH}trackChangeAuthors", {"itemCnt": "0"})
+            ref_list.append(element)
+            self.mark_dirty()
+        return element
+
+    def _track_change_config_element(self, create: bool = False) -> ET.Element | None:
+        for child in self._element:
+            if tag_local_name(child.tag) in {"trackchageConfig", "trackchangeConfig"}:
+                return child
+        if not create:
+            return None
+        element = self._element.makeelement(f"{_HH}trackchageConfig", {"flags": "0"})
+        self._element.append(element)
+        self.mark_dirty()
+        return element
+
+    @property
+    def track_change_config(self):
+        element = self._track_change_config_element()
+        if element is None:
+            return None
+        return parse_track_change_config(self._convert_to_lxml(element))
+
+    def add_track_change(
+        self,
+        change_type: str,
+        *,
+        author_name: str = "AI Agent",
+        date: str | None = None,
+    ) -> int:
+        model = self.to_model()
+        change_id = model.add_track_change(
+            change_type,
+            author_name=author_name,
+            date=date,
+        )
+        if model.ref_list is None or model.ref_list.track_changes is None:
+            raise RuntimeError("failed to create tracked-change metadata")
+
+        change = next(
+            candidate
+            for candidate in model.ref_list.track_changes.changes
+            if candidate.id == change_id
+        )
+        changes_element = self._track_changes_element_or_create()
+        changes_element.append(
+            self._coerce_serialized_child(changes_element, track_change_to_xml(change))
+        )
+        changes_element.set("itemCnt", str(model.ref_list.track_changes.item_cnt or 0))
+
+        authors = model.ref_list.track_change_authors
+        if authors is not None and change.author_id is not None:
+            author = authors.author_by_id(change.author_id)
+            if author is not None:
+                authors_element = self._track_change_authors_element_or_create()
+                existing_ids = {
+                    child.get("id")
+                    for child in authors_element.findall(f"{_HH}trackChangeAuthor")
+                }
+                author_ids = {str(author.id)} if author.id is not None else set()
+                if author.raw_id is not None:
+                    author_ids.add(author.raw_id)
+                if not existing_ids.intersection(author_ids):
+                    authors_element.append(
+                        self._coerce_serialized_child(
+                            authors_element,
+                            track_change_author_to_xml(author),
+                        )
+                    )
+                authors_element.set("itemCnt", str(authors.item_cnt or 0))
+
+        config_element = self._track_change_config_element(create=True)
+        if config_element is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <trackchageConfig> element")
+        flags = 1
+        if model.track_change_config is not None and model.track_change_config.flags is not None:
+            flags = model.track_change_config.flags
+        config_element.set("flags", str(flags | 1))
+        self.mark_dirty()
+        return change_id
 
     def find_basic_border_fill_id(self) -> str | None:
         element = self._border_fills_element()
@@ -6340,6 +6551,41 @@ class HwpxOxmlDocument:
         self, author_id_ref: int | str | None
     ) -> TrackChangeAuthor | None:
         return HwpxOxmlHeader._lookup_by_id(self.track_change_authors, author_id_ref)
+
+    def add_track_change(
+        self,
+        change_type: str,
+        *,
+        author_name: str = "AI Agent",
+        date: str | None = None,
+    ) -> int:
+        if not self._headers:
+            raise ValueError("document does not contain any headers")
+        return self._headers[0].add_track_change(
+            change_type,
+            author_name=author_name,
+            date=date,
+        )
+
+    def next_track_change_mark_id(self) -> int:
+        max_id = 0
+        for section in self._sections:
+            for element in section.element.iter():
+                if tag_local_name(element.tag) not in {
+                    "insertBegin",
+                    "insertEnd",
+                    "deleteBegin",
+                    "deleteEnd",
+                }:
+                    continue
+                raw_id = element.get("Id")
+                if raw_id is None:
+                    continue
+                try:
+                    max_id = max(max_id, int(raw_id))
+                except ValueError:
+                    continue
+        return max_id + 1
 
     @property
     def paragraphs(self) -> list[HwpxOxmlParagraph]:

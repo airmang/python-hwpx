@@ -10,10 +10,13 @@ from .body import (
     Run,
     Section,
     TextSpan,
+    append_tracked_insert_to_run,
+    create_track_change_mark,
     parse_paragraph_element,
     parse_run_element,
     parse_section_element,
     parse_text_span,
+    wrap_tracked_delete_in_span,
 )
 from .common import GenericElement, parse_generic_element
 
@@ -74,7 +77,9 @@ from .header import (
     TrackChangeAuthorList,
     TrackChangeConfig,
     TrackChangeList,
+    format_track_change_date,
     memo_shape_from_attributes,
+    normalize_track_change_type,
     parse_begin_num,
     parse_bullet,
     parse_bullet_para_head,
@@ -98,6 +103,8 @@ from .header import (
     parse_track_change_author,
     parse_track_change_authors,
     parse_track_changes,
+    track_change_author_to_xml,
+    track_change_to_xml,
 )
 from .parser import element_to_model, parse_header_xml, parse_section_xml
 from .schema import load_schema
@@ -173,7 +180,10 @@ __all__ = [
     "TrackChangeList",
     "TextSpan",
     "XmlSource",
+    "append_tracked_insert_to_run",
+    "create_track_change_mark",
     "element_to_model",
+    "format_track_change_date",
     "load_schema",
     "parse_begin_num",
     "parse_bullet",
@@ -202,9 +212,13 @@ __all__ = [
     "parse_track_change_author",
     "parse_track_change_authors",
     "parse_track_changes",
+    "normalize_track_change_type",
     "parse_section_element",
     "parse_section_xml",
     "parse_text_span",
+    "track_change_author_to_xml",
+    "track_change_to_xml",
+    "wrap_tracked_delete_in_span",
 ]
 
 logger = logging.getLogger(__name__)
