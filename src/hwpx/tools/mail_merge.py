@@ -14,6 +14,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from ..document import HwpxDocument
 from .exporter import export_text
 from .package_validator import validate_editor_open_safety
+from .pii import DEFAULT_POLICY, PIIPolicy, mask_pii
 
 MAIL_MERGE_REPORT_VERSION = "mail-merge-v1"
 
@@ -180,6 +181,7 @@ def mail_merge(
     split_newlines: bool = True,
     fit_policy: "Any | None" = None,
     max_lines: int = 1,
+    masking_policy: "PIIPolicy | None" = DEFAULT_POLICY,
 ) -> dict[str, Any]:
     """Generate one HWPX per row from a placeholder template.
 
@@ -237,6 +239,7 @@ def mail_merge(
                     "unresolvedPlaceholders": [item["token"] for item in placeholders if item["key"] in missing_keys],
                     "openSafety": None,
                     "fitFields": [],
+                    "maskedFields": [],
                     "reasons": ["missing_required"],
                     "ok": False,
                 }
@@ -247,11 +250,17 @@ def mail_merge(
         row_cells = _iter_cells(document)
         replaced_count = 0
         fit_fields: list[dict[str, Any]] = []
+        masked_fields: list[str] = []
         try:
             for placeholder in placeholders:
                 key = str(placeholder["key"])
                 token = str(placeholder["token"])
                 value = "" if _is_missing(row.get(key)) else str(row.get(key))
+                if masking_policy is not None:
+                    masked_value = mask_pii(value, masking_policy)
+                    if masked_value != value and key not in masked_fields:
+                        masked_fields.append(key)
+                    value = masked_value
                 if not split_newlines:
                     value = value.replace("\r\n", " ").replace("\n", " ")
                 apply_value = value
@@ -287,6 +296,7 @@ def mail_merge(
                 "unresolvedPlaceholders": unresolved,
                 "openSafety": open_safety,
                 "fitFields": fit_fields,
+                "maskedFields": masked_fields,
                 "reasons": reasons,
                 "ok": row_ok,
             }
