@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+## [2.17.0] - 2026-06-30
+### 추가
+- **M4 변경추적(redline) 저작 (S-058)**: `HwpxDocument.add_tracked_insert` / `add_tracked_delete` / `add_tracked_replace` — 에이전트가 변경추적(삽입/삭제/치환)을 작성자·일자와 함께 저작하고, 사람이 한컴 검토 리본에서 개별 수락/거부할 수 있습니다. 헤더 `trackChanges`/`trackChangeAuthors` surgical splice(작성자 dedup·표시 플래그) + 본문 `insertBegin/End`·`deleteBegin/End` 마크(charPrIDRef 상속, paraend=0). 한컴 수용성은 measure-first 스파이크로 입증(실 Windows 한컴 COM `IsTrackChange=1`·opens-clean·roundtrip + 검토 리본 수락→반영/거부→취소 확인).
+- `hwpx.tools.redline.verify_redline(before, after, *, oracle=None)` — 구조 검증(변경 수·TcId 마크 연결·표시 플래그·opens-clean) + `visual_check` `render_checked` 를 정직하게 fold(오라클 없으면 `unverified`, 거짓 통과 없음).
+### 수정
+- **메모(코멘트) 본문이 숫자로 표시되던 버그**: `attach_memo_field` 가 MEMO 필드 subList에 코멘트 내용 대신 메모 ID(숫자)를 넣어, 한컴이 메모 박스에 숫자를 렌더했습니다. 한컴 오라클 구조에 맞춰 subList에 코멘트 텍스트를 넣고 `MemoShapeIDRef`(기본 65535)로 박스를 연결하도록 수정했습니다(실 Windows 한컴 검증).
+### 비고
+- 수락/거부는 사람이 한컴 검토 리본에서 수행합니다(COM accept 액션 미노출 — 정석 워크플로).
+- byte-identity: 미수정 part(ZIP 엔트리)는 byte-identical. 수정 섹션 내부의 문단단위 완전 byte-identical(surgical splice)은 stretch로 연기(한컴 렌더·수용엔 무영향).
+
 ## [2.16.0] - 2026-06-29
 ### 추가
 - **M3 문서 작성 (S-057)**: `create_document_from_plan` 이 `document_type`(공문/보고서/가정통신문)을 보고 실제 한컴-harvest 프로파일(`hwpx.design.compose`)로 라우팅합니다. 미매칭 유형은 기존 제로베이스 경로를 유지하고 `-> HwpxDocument` 반환 계약을 보존합니다. 공문은 결문 메타 `document_plan.gyeolmun = {issuer, productionNumber, enforcementDate, disclosure}` 를 지원합니다.
