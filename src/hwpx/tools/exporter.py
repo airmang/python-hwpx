@@ -14,6 +14,7 @@ from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
 from ..opc.security import guard_zip_file, parse_xml_stdlib
+from .pii import PIIPolicy, mask_pii
 
 if TYPE_CHECKING:
     from ..document import HwpxDocument
@@ -64,7 +65,18 @@ def _paragraph_text(p: ET.Element, *, tab_token: str = "\t") -> str:
     return "".join(parts)
 
 
-def _table_cells_text(tbl: ET.Element, *, tab_token: str = "\t") -> list[list[str]]:
+def _mask_text(text: str, masking_policy: "PIIPolicy | None") -> str:
+    if masking_policy is None:
+        return text
+    return mask_pii(text, masking_policy)
+
+
+def _table_cells_text(
+    tbl: ET.Element,
+    *,
+    tab_token: str = "\t",
+    masking_policy: "PIIPolicy | None" = None,
+) -> list[list[str]]:
     """Return a row-major 2D list of cell texts from a table element."""
     rows: list[list[str]] = []
     for tr in tbl.findall(f"{_HP}tr"):
@@ -75,7 +87,7 @@ def _table_cells_text(tbl: ET.Element, *, tab_token: str = "\t") -> list[list[st
                 text = _paragraph_text(paragraph, tab_token=tab_token)
                 if text:
                     cell_parts.append(text)
-            row.append("\n".join(cell_parts).strip())
+            row.append(_mask_text("\n".join(cell_parts).strip(), masking_policy))
         rows.append(row)
     return rows
 
@@ -84,19 +96,27 @@ def _find_tables(p: ET.Element) -> list[ET.Element]:
     return p.findall(f".//{_HP}tbl")
 
 
-def export_text(source: HwpxDocument | bytes, *, paragraph_separator: str = "\n", section_separator: str = "\n\n", include_tables: bool = True, tab_token: str = "\t") -> str:
+def export_text(
+    source: HwpxDocument | bytes,
+    *,
+    paragraph_separator: str = "\n",
+    section_separator: str = "\n\n",
+    include_tables: bool = True,
+    tab_token: str = "\t",
+    masking_policy: "PIIPolicy | None" = None,
+) -> str:
     """Export document content as plain text."""
     sections = _section_xmls(source)
     section_texts: list[str] = []
     for section_root in sections:
         para_texts: list[str] = []
         for p in _iter_paragraphs(section_root):
-            text = _paragraph_text(p, tab_token=tab_token)
+            text = _mask_text(_paragraph_text(p, tab_token=tab_token), masking_policy)
             if text:
                 para_texts.append(text)
             if include_tables:
                 for tbl in _find_tables(p):
-                    rows = _table_cells_text(tbl, tab_token=tab_token)
+                    rows = _table_cells_text(tbl, tab_token=tab_token, masking_policy=masking_policy)
                     for row in rows:
                         para_texts.append(tab_token.join(row))
         section_texts.append(paragraph_separator.join(para_texts))
@@ -107,7 +127,15 @@ def _escape_html(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
-def export_html(source: HwpxDocument | bytes, *, include_tables: bool = True, full_document: bool = True, title: str = "HWPX Document", tab_token: str = "\t") -> str:
+def export_html(
+    source: HwpxDocument | bytes,
+    *,
+    include_tables: bool = True,
+    full_document: bool = True,
+    title: str = "HWPX Document",
+    tab_token: str = "\t",
+    masking_policy: "PIIPolicy | None" = None,
+) -> str:
     """Export document content as HTML."""
     sections = _section_xmls(source)
     body_parts: list[str] = []
@@ -115,12 +143,12 @@ def export_html(source: HwpxDocument | bytes, *, include_tables: bool = True, fu
         if sec_idx > 0:
             body_parts.append("<hr />")
         for p in _iter_paragraphs(section_root):
-            text = _paragraph_text(p, tab_token=tab_token)
+            text = _mask_text(_paragraph_text(p, tab_token=tab_token), masking_policy)
             if text:
                 body_parts.append(f"<p>{_escape_html(text)}</p>")
             if include_tables:
                 for tbl in _find_tables(p):
-                    rows = _table_cells_text(tbl, tab_token=tab_token)
+                    rows = _table_cells_text(tbl, tab_token=tab_token, masking_policy=masking_policy)
                     if rows:
                         body_parts.append('<table border="1">')
                         for row in rows:
@@ -146,20 +174,27 @@ def export_html(source: HwpxDocument | bytes, *, include_tables: bool = True, fu
     return body
 
 
-def export_markdown(source: HwpxDocument | bytes, *, include_tables: bool = True, section_separator: str = "\n---\n\n", tab_token: str = "\t") -> str:
+def export_markdown(
+    source: HwpxDocument | bytes,
+    *,
+    include_tables: bool = True,
+    section_separator: str = "\n---\n\n",
+    tab_token: str = "\t",
+    masking_policy: "PIIPolicy | None" = None,
+) -> str:
     """Export document content as Markdown."""
     sections = _section_xmls(source)
     section_parts: list[str] = []
     for section_root in sections:
         lines: list[str] = []
         for p in _iter_paragraphs(section_root):
-            text = _paragraph_text(p, tab_token=tab_token)
+            text = _mask_text(_paragraph_text(p, tab_token=tab_token), masking_policy)
             if text:
                 lines.append(text)
                 lines.append("")
             if include_tables:
                 for tbl in _find_tables(p):
-                    rows = _table_cells_text(tbl, tab_token=tab_token)
+                    rows = _table_cells_text(tbl, tab_token=tab_token, masking_policy=masking_policy)
                     if rows:
                         header = rows[0]
                         lines.append("| " + " | ".join(header) + " |")
