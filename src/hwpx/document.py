@@ -659,7 +659,11 @@ class HwpxDocument:
         _append_element(parameters, f"{_HP}integerParam", {"name": "Number"}).text = str(max(1, number))
         _append_element(parameters, f"{_HP}stringParam", {"name": "CreateDateTime"}).text = created_value
         _append_element(parameters, f"{_HP}stringParam", {"name": "Author"}).text = author_value
-        _append_element(parameters, f"{_HP}stringParam", {"name": "MemoShapeID"}).text = memo_shape_id
+        # Hancom's own files use ``MemoShapeIDRef`` (65535 = the built-in default memo
+        # shape) — an empty/absent ref leaves the memo box unlinked.
+        _append_element(parameters, f"{_HP}stringParam", {"name": "MemoShapeIDRef"}).text = (
+            memo_shape_id or "65535"
+        )
 
         sub_list = _append_element(
             field_begin,
@@ -684,7 +688,10 @@ class HwpxDocument:
             },
         )
         sub_run = _append_element(sub_para, f"{_HP}run", {"charPrIDRef": char_ref})
-        _append_element(sub_run, f"{_HP}t").text = memo.id or field_value
+        # The MEMO field's subList holds the comment TEXT — this is what Hancom shows
+        # in the margin memo box. (Previously this emitted ``memo.id``, so Hancom
+        # rendered the numeric id instead of the comment.)
+        _append_element(sub_run, f"{_HP}t").text = memo.text or ""
 
         run_end = paragraph_element.makeelement(f"{_HP}run", {"charPrIDRef": char_ref})
         ctrl_end = _append_element(run_end, f"{_HP}ctrl")

@@ -200,9 +200,16 @@ def test_attach_memo_field_inserts_control_runs() -> None:
     parameters = field_begin.find(f"{HP}parameters")
     assert parameters is not None
     assert parameters.get("count") == "5"
-    memo_shape_param = parameters.find(f"{HP}stringParam[@name='MemoShapeID']")
+    memo_shape_param = parameters.find(f"{HP}stringParam[@name='MemoShapeIDRef']")
     assert memo_shape_param is not None
     assert memo_shape_param.text == memo.memo_shape_id_ref
+
+    # Regression (Hancom oracle): the MEMO field subList carries the comment TEXT —
+    # this is what Hancom shows in the margin memo box. Previously it emitted the memo
+    # id, so Hancom rendered a number instead of the comment.
+    sub_text = field_begin.find(f"{HP}subList/{HP}p/{HP}run/{HP}t")
+    assert sub_text is not None
+    assert sub_text.text == "Follow-up"
 
     field_end = runs[-1].find(f"{HP}ctrl/{HP}fieldEnd")
     assert field_end is not None
