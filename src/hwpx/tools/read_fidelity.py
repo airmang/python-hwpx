@@ -146,6 +146,16 @@ def _style_to_span(text: str, style: Any, fontfaces: dict[str, dict[str, str]]) 
     )
 
 
+def fontface_maps(doc: HwpxDocument) -> dict[str, dict[str, str]]:
+    """Public: ``{lang: {font_id: face_name}}`` for surface reuse (MCP)."""
+    return _fontface_maps(doc)
+
+
+def run_span(text: str, style: Any, fontfaces: dict[str, dict[str, str]] | None = None) -> RunSpan:
+    """Public: resolve one run's :class:`RunSpan` (fontfaces from :func:`fontface_maps`)."""
+    return _style_to_span(text, style, fontfaces or {})
+
+
 def resolve_run_spans(doc: HwpxDocument) -> list[RunSpan]:
     """Return the resolved inline formatting for every body run, in order."""
     fontfaces = _fontface_maps(doc)
