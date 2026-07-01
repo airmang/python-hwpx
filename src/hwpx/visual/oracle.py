@@ -50,6 +50,7 @@ from .report import VisualReport
 from hwpx.form_fit.wordbox import WordBox
 
 _BACKEND_SCRIPT = "_render_hwpx.ps1"
+_OPEN_RATE_SCRIPT = "_hancom_open_rate.ps1"
 _MAC_BACKEND_SCRIPT = "_render_hwpx_mac.applescript"
 _COM_REGISTRY_KEYS = (
     r"HWPFrame.HwpObject\CLSID",
@@ -192,6 +193,190 @@ class WindowsComOracle(RenderBackend):
             handle, out_pdf = tempfile.mkstemp(suffix=".pdf")
             os.close(handle)
         return self.render_many([(hwpx_path, out_pdf)]).get(hwpx_path)
+
+    def open_check_many(self, paths: list[str]) -> list[dict[str, object]]:
+        """OPEN-check ``paths`` through Hancom COM and return per-file verdicts.
+
+        This is the M9 open-rate primitive (specs/007-open-rate FR-001). It is
+        deliberately DISTINCT from :meth:`render_many`: it surfaces the real
+        Hancom ``opened`` boolean as its own signal — never conflated with the
+        ``saved``/render verdict that :meth:`render_many` (and ``visual_check``
+        at oracle.py:402) report. ``opened`` answers "did real Hancom load this
+        generated file without a corruption modal", which is the published
+        open-rate; ``saved`` answers a different question (did it render to PDF).
+
+        Each entry is::
+
+            {
+                "path": str,            # the input path as requested
+                "opened": bool | None,  # True/False from Hancom; None = unverified
+                "parsed": bool | None,  # opened and GetPageText(1..) textLength>0
+                "text_length": int | None,
+                "error": str | None,
+                "retried": bool,        # opened only on the single retry pass
+                "status": str,          # "ok" | "open_failed" | "unverified"
+            }
+
+        Honest degrade (constitution V/VI): off-Windows or where Hancom is not
+        reachable, EVERY entry is returned with ``opened=None`` and
+        ``status="unverified"`` — NEVER ``False`` (that would slander a file we
+        never tested) and NEVER a silent ``True``. The aggregator maps
+        ``unverified`` to the unverified bucket, not the numerator or denominator
+        success count.
+        """
+
+        if not paths:
+            return []
+        if not self.available():
+            return [self._unverified_entry(p) for p in paths]
+
+        abs_paths = [os.path.abspath(p) for p in paths]
+        # path -> requested (original) string, for surfacing the caller's path.
+        requested = {os.path.abspath(p): p for p in paths}
+
+        tmp = tempfile.mkdtemp(prefix="hwpx-open-rate-")
+        try:
+            jsonl_path = os.path.join(tmp, "checkpoint.jsonl")
+            res_path = os.path.join(tmp, "result.json")
+            with resources.as_file(
+                resources.files("hwpx.visual").joinpath(_OPEN_RATE_SCRIPT)
+            ) as ps1:
+                cmd = [
+                    self._powershell, "-NoProfile", "-NonInteractive",
+                    "-ExecutionPolicy", "Bypass", "-File", str(ps1),
+                    "-OutJsonl", jsonl_path, "-OutJson", res_path,
+                    "-Path", *abs_paths,
+                ]
+                try:
+                    subprocess.run(
+                        cmd, capture_output=True,
+                        timeout=self.timeout + 60.0 * len(paths), check=False,
+                    )
+                except (subprocess.TimeoutExpired, OSError):
+                    # Subprocess never finished: prefer the crash-safe checkpoint
+                    # (records written per-file) before degrading the rest.
+                    return self._merge_checkpoint(abs_paths, requested, jsonl_path)
+
+            entries = self._read_open_result(res_path)
+            if entries is None:
+                # No parseable consolidated result: fall back to the checkpoint.
+                return self._merge_checkpoint(abs_paths, requested, jsonl_path)
+            return self._entries_from_records(abs_paths, requested, entries)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    @staticmethod
+    def _unverified_entry(path: str) -> dict[str, object]:
+        return {
+            "path": path,
+            "opened": None,
+            "parsed": None,
+            "text_length": None,
+            "error": "OPEN_ORACLE_UNAVAILABLE: no Hancom reachable on this platform",
+            "retried": False,
+            "status": "unverified",
+        }
+
+    @staticmethod
+    def _normalise_record(record: dict[str, object]) -> dict[str, object]:
+        """Map one PS1 ``{sourcePath,opened,textLength,error,retried}`` record to
+        the ``open_check_many`` entry shape (open/render distinction preserved)."""
+
+        opened_raw = record.get("opened")
+        opened = bool(opened_raw) if opened_raw is not None else None
+        text_length = record.get("textLength")
+        try:
+            text_length = int(text_length) if text_length is not None else None
+        except (TypeError, ValueError):
+            text_length = None
+        error = record.get("error")
+        parsed: bool | None
+        if opened is None:
+            parsed = None
+        else:
+            parsed = bool(opened and (text_length or 0) > 0)
+        status = "ok" if opened else ("unverified" if opened is None else "open_failed")
+        return {
+            "path": record.get("sourcePath"),
+            "opened": opened,
+            "parsed": parsed,
+            "text_length": text_length,
+            "error": error,
+            "retried": bool(record.get("retried", False)),
+            "status": status,
+        }
+
+    @staticmethod
+    def _read_open_result(res_path: str) -> list[dict[str, object]] | None:
+        if not os.path.exists(res_path):
+            return None
+        try:
+            # PowerShell Set-Content -Encoding UTF8 prepends a BOM; utf-8-sig
+            # strips it (and reads BOM-less output fine too).
+            with open(res_path, encoding="utf-8-sig") as handle:
+                data = json.load(handle)
+        except (json.JSONDecodeError, ValueError, OSError):
+            return None
+        if isinstance(data, dict):  # single file -> ConvertTo-Json emits an object
+            data = [data]
+        if not isinstance(data, list):
+            return None
+        return data
+
+    def _entries_from_records(
+        self,
+        abs_paths: list[str],
+        requested: dict[str, str],
+        records: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        """Align PS1 records back to the requested order, degrading any missing
+        file to ``unverified`` (never silently dropped)."""
+
+        by_path: dict[str, dict[str, object]] = {}
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            if record.get("_meta"):  # repair-mode-probe meta line, not a verdict
+                continue
+            norm = self._normalise_record(record)
+            src = norm.get("path")
+            if isinstance(src, str):
+                by_path[os.path.abspath(src)] = norm
+        out: list[dict[str, object]] = []
+        for abs_path in abs_paths:
+            norm = by_path.get(abs_path)
+            if norm is None:
+                out.append(self._unverified_entry(requested.get(abs_path, abs_path)))
+            else:
+                # Surface the caller's original path string.
+                norm["path"] = requested.get(abs_path, norm.get("path"))
+                out.append(norm)
+        return out
+
+    def _merge_checkpoint(
+        self,
+        abs_paths: list[str],
+        requested: dict[str, str],
+        jsonl_path: str,
+    ) -> list[dict[str, object]]:
+        """Recover verdicts from the per-file JSONL checkpoint after a crash or
+        timeout; files with no checkpoint record degrade to ``unverified``."""
+
+        records: list[dict[str, object]] = []
+        if os.path.exists(jsonl_path):
+            try:
+                with open(jsonl_path, encoding="utf-8-sig") as handle:
+                    for line in handle:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            records.append(json.loads(line))
+                        except (json.JSONDecodeError, ValueError):
+                            continue
+            except OSError:
+                records = []
+        return self._entries_from_records(abs_paths, requested, records)
 
 
 class MacHancomOracle(RenderBackend):
