@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-07-02
+### 추가
+- **M6 런서식 충실 읽기 하니스 (S-060)**: `hwpx.tools.read_fidelity` — `resolve_run_spans`(런별 bold/italic/underline/strikeout/color/size_pt/font/super-subscript를 charPr+fontface 해석), `collect_notes`(각주/미주 본문 + 본문 서식), `roundtrip_fidelity`/`corpus_fidelity`(콘텐츠-레벨 라운드트립 충실도), `spans_fidelity`/`notes_fidelity` 비교기, 공개 `fontface_maps`/`run_span`. 요소-카운트만 재던 `roundtrip_diff`와 달리 charPr-해석 런-스팬 및 각주 본문의 무손실을 측정한다.
+- `strikeout`은 shape 속성으로 정규화(항상 존재하는 `<hh:strikeout shape="NONE"/>`가 상시-on으로 오독되던 문제 회피), `underline` type `NONE`→`None` 정규화.
+### 비고
+- 코퍼스 런서식 라운드트립 충실도 1.0(4075 런 / hwpxlib 47편). reading 차원 4→5(구조적 corpus-scale, 오라클 불요). 설치 MCP 표면 노출은 hwpx-mcp-server 2.11.0에서 합류.
+
 ## [2.18.0] - 2026-07-01
 ### 추가
 - **M5 개인정보(PII) 마스킹 엔진 (S-059)**: `hwpx.tools.pii` — `detect_pii` / `mask_pii` / `mask_value` / `PIIPolicy`. 기계검증 세트(주민등록번호·휴대폰·이메일·카드+Luhn)는 항상-on high-confidence, 맥락형(계좌·주소·이름)은 라벨 게이트 low-confidence(과마스킹 방지). 필드 최소화 `minimize_fields`, 가명 `Pseudonymizer`(결정적 토큰맵), 비식별 `deidentify`(불가역 salted-SHA256), 로그 위생 `PiiLogFilter` / `scrub_exception_message`.
