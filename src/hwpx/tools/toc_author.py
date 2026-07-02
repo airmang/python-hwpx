@@ -155,6 +155,87 @@ def _entry_paragraph(numbered_title: str, page: int, target_id: str, char_pr: st
     return p
 
 
+_COLLECTED_STYLE_ID = "0"
+
+
+def _paragraph_own_text(p_el: ET.Element) -> str:
+    """Text carried by the paragraph's direct runs (nested table text excluded)."""
+    parts: list[str] = []
+    for run in p_el.findall(f"{_HP}run"):
+        for t in run.findall(f"{_HP}t"):
+            parts.append("".join(t.itertext()))
+    return "".join(parts)
+
+
+def _inside_header_footer(p_el: ET.Element, stop: ET.Element) -> bool:
+    current = p_el.getparent()
+    while current is not None and current is not stop:
+        if current.tag in (f"{_HP}header", f"{_HP}footer"):
+            return True
+        current = current.getparent()
+    return False
+
+
+def ensure_body_styles_not_collected(doc: HwpxDocument) -> int:
+    """Route non-empty 바탕글(style 0) paragraphs onto the 본문/Body style.
+
+    Measured ContentsStyles trap (M7): the emitted TOC Command pins
+    ``ContentsStyles:wstring:0:``, so on regeneration Hancom collects every
+    non-empty style-0 paragraph as a TOC entry — body text must not sit on
+    style 0 while a native TOC is present (the M7 demo authored body on
+    본문/style 1). Only ``styleIDRef`` is rewritten; a missing ``paraPrIDRef``
+    is pinned to the 바탕글 paraPr first so the effective formatting cannot
+    change. Header/footer paragraphs and empty paragraphs are left alone
+    (the M7 demo's empty style-0 skeleton paragraph was measured as not
+    collected). Call this BEFORE :func:`add_native_toc` so the TOC region's
+    own style-0 paragraphs (gold contract) are not rerouted.
+
+    Returns the number of rerouted paragraphs. Raises :class:`ValueError`
+    when the document has no 본문/Body style to route onto, refusing to
+    silently produce a TOC that would swallow the body text as entries.
+    """
+    body_style_id: str | None = None
+    collected_para_pr = "0"
+    for style_id, style in (doc.styles or {}).items():
+        name = (getattr(style, "name", "") or "").strip()
+        eng_name = (getattr(style, "eng_name", "") or "").strip()
+        raw = getattr(style, "raw_id", None)
+        resolved = str(raw if raw is not None else style_id)
+        if resolved == _COLLECTED_STYLE_ID:
+            para_ref = getattr(style, "para_pr_id_ref", None)
+            if para_ref is not None:
+                collected_para_pr = str(para_ref)
+            continue
+        if body_style_id is None and (name == "본문" or eng_name == "Body"):
+            body_style_id = resolved
+    if body_style_id is None:
+        raise ValueError(
+            "native TOC requires a non-collected body style: this document has "
+            "no 본문/Body style to route 바탕글(style 0) body text onto, and "
+            "Hancom's ContentsStyles:0 regeneration would collect that text as "
+            "TOC entries (measured M7 trap)"
+        )
+    rerouted = 0
+    for section in doc.oxml.sections:
+        section_rerouted = 0
+        sec_el = section.element
+        for p_el in sec_el.iter(f"{_HP}p"):
+            if p_el.get("styleIDRef", _COLLECTED_STYLE_ID) != _COLLECTED_STYLE_ID:
+                continue
+            if not _paragraph_own_text(p_el).strip():
+                continue
+            if _inside_header_footer(p_el, sec_el):
+                continue
+            if p_el.get("paraPrIDRef") is None:
+                p_el.set("paraPrIDRef", collected_para_pr)
+            p_el.set("styleIDRef", body_style_id)
+            section_rerouted += 1
+        if section_rerouted:
+            section.mark_dirty()
+        rerouted += section_rerouted
+    return rerouted
+
+
 def mark_toc_dirty(doc: HwpxDocument) -> int:
     """Set ``dirty="1"`` on every TABLEOFCONTENTS field — the measured
     re-number trigger: Hancom regenerates a dirty TOC (entries, styles, page

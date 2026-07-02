@@ -28,7 +28,7 @@ from .builder import (
     Table as BuilderTable,
     approval_box as BuilderApprovalBox,
 )
-from .builder.core import Toc as BuilderToc
+from .builder.core import NativeToc as BuilderNativeToc, Toc as BuilderToc
 from .document import HwpxDocument
 from .oxml.namespaces import HP as _HP
 from .tools.package_validator import validate_package
@@ -867,6 +867,19 @@ def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue
             issues.extend(_computed_field_issues(label, path=f"{path}.labels[{label_index}]"))
         issues.extend(_computed_field_issues(raw_block.get("delegated"), path=f"{path}.delegated"))
     elif block_type == "toc":
+        native = raw_block.get("native")
+        if native is not None and not isinstance(native, bool):
+            issues.append(
+                _plan_issue(
+                    "invalid_native_flag",
+                    f"{path}.native",
+                    f"{path}.native must be a boolean when provided",
+                    suggestion=(
+                        "Set native to true for a Hancom-native auto TOC "
+                        "(entries regenerate on open) or omit it for the static list."
+                    ),
+                )
+            )
         issues.extend(_computed_field_issues(raw_block.get("title"), path=f"{path}.title"))
         for entry_index, entry in enumerate(raw_block.get("entries") or []):
             if isinstance(entry, Mapping):
@@ -1981,6 +1994,22 @@ def _normalize_v2_block(raw_block: Any, *, path: str) -> Any:
             image_format=_optional_str(raw_block.get("imageFormat", raw_block.get("image_format"))),
         )
     if block_type == "toc":
+        if bool(raw_block.get("native")):
+            # M9-full FR-005: lower to the Hancom-native TABLEOFCONTENTS field
+            # (M7 contract) instead of the static plaintext list. Entries are
+            # generated from the document's outline headings after the whole
+            # plan is composed; any static "entries" are ignored (Hancom
+            # regenerates the region on open with dirty=1).
+            native_kwargs: dict[str, Any] = {}
+            if raw_block.get("title"):
+                native_kwargs["title"] = replace_computed_fields(str(raw_block["title"]))
+            return BuilderNativeToc(
+                level=_int_value(raw_block.get("level", 2), default=2),
+                leader=_int_value(raw_block.get("leader", 3), default=3),
+                hyperlink=bool(raw_block.get("hyperlink", True)),
+                dirty=bool(raw_block.get("dirty", True)),
+                **native_kwargs,
+            )
         return BuilderToc(
             title=replace_computed_fields(str(raw_block.get("title") or "목차")),
             entries=tuple(

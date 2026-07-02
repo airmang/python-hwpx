@@ -18,7 +18,7 @@ from .report import BuilderSaveReport, BuilderVerifyReport, ReopenReport
 
 
 BuilderChild = (
-    "Heading | Paragraph | Bullet | NumberedList | Table | Image | Toc | PageBreak"
+    "Heading | Paragraph | Bullet | NumberedList | Table | Image | Toc | NativeToc | PageBreak"
 )
 _HWP_UNITS_PER_MM = 7200 / 25.4
 _A4_HWP_SIZE = (59528, 84188)
@@ -263,6 +263,62 @@ class Toc:
                 char_pr_id_ref=entry_style,
                 inherit_style=False,
             )
+
+
+@dataclass(frozen=True)
+class NativeToc:
+    """Hancom-native TABLEOFCONTENTS field block (M7 / S-062 contract).
+
+    Unlike :class:`Toc` (a static ``text\\tpage`` plaintext list), this lowers
+    to the measured native field region via
+    :func:`hwpx.tools.toc_author.add_native_toc` AFTER the whole document is
+    composed: the region is inserted at the paragraph position where this
+    block appeared, entries are generated from the document's outline
+    (개요-styled) headings, and ``dirty=True`` (default, measured semantics)
+    makes Hancom regenerate entries/styles/page numbers on its next open.
+
+    Composition also enforces the measured ContentsStyles trap first: body
+    text on the collected style 0 (바탕글) is routed onto 본문/Body via
+    :func:`hwpx.tools.toc_author.ensure_body_styles_not_collected`, or the
+    lowering fails loudly rather than emit a TOC that swallows body text.
+    """
+
+    title: str = "<제목 차례>"
+    level: int = 2
+    leader: int = 3
+    hyperlink: bool = True
+    dirty: bool = True
+
+
+def _apply_native_tocs(
+    document: HwpxDocument,
+    pending: Sequence[tuple[int, NativeToc]],
+) -> None:
+    """Insert deferred native TOC regions into the fully composed document."""
+
+    if not pending:
+        return
+    if len(pending) > 1:
+        raise ValueError(
+            "only one native TOC per document is supported "
+            "(the M7 contract measured a single TABLEOFCONTENTS field)"
+        )
+    from hwpx.tools.toc_author import add_native_toc, ensure_body_styles_not_collected
+
+    at_index, node = pending[0]
+    # Measured trap first: body text must leave the collected style 0 BEFORE
+    # the region is inserted, so the region's own style-0 paragraphs (gold
+    # contract) are not rerouted.
+    ensure_body_styles_not_collected(document)
+    add_native_toc(
+        document,
+        at_index=at_index,
+        title=_computed_text(node.title),
+        level=node.level,
+        leader=node.leader,
+        hyperlink=node.hyperlink,
+        dirty=node.dirty,
+    )
 
 
 @dataclass(frozen=True)
@@ -629,7 +685,7 @@ def _section_feature_flags(section: "Section") -> dict[str, bool]:
             flags["table"] = True
         elif isinstance(child, Image):
             flags["image"] = True
-        elif isinstance(child, Toc):
+        elif isinstance(child, (Toc, NativeToc)):
             flags["toc"] = True
         elif isinstance(child, PageBreak):
             flags["page_break"] = True
@@ -668,9 +724,9 @@ def _hard_gates(
 
 @dataclass(frozen=True)
 class Section:
-    children: Sequence[Heading | Paragraph | Bullet | NumberedList | Table | Image | Toc | PageBreak] = field(
-        default_factory=tuple
-    )
+    children: Sequence[
+        Heading | Paragraph | Bullet | NumberedList | Table | Image | Toc | NativeToc | PageBreak
+    ] = field(default_factory=tuple)
     page: PageSize | None = None
     margins: Margins | None = None
     header: Header | None = None
@@ -682,6 +738,7 @@ class Section:
         *,
         section_index: int = 0,
         preset: _BuilderPreset | None = None,
+        native_toc_sink: list[tuple[int, NativeToc]] | None = None,
     ) -> None:
         if self.page is not None:
             if self.page == PageSize.A4:
@@ -710,6 +767,7 @@ class Section:
             self.header.lower(document, section_index=section_index, preset=preset)
         if self.footer is not None:
             self.footer.lower(document, section_index=section_index, preset=preset)
+        pending_native_tocs = native_toc_sink if native_toc_sink is not None else []
         for child in self.children:
             if isinstance(child, (Paragraph, PageBreak)):
                 if isinstance(child, Paragraph):
@@ -735,7 +793,23 @@ class Section:
             if isinstance(child, Toc):
                 child.lower(document, section_index=section_index, preset=preset)
                 continue
+            if isinstance(child, NativeToc):
+                if section_index != 0:
+                    raise ValueError(
+                        "native TOC is only supported in the first section "
+                        "(the measured M7 contract inserts into section 0)"
+                    )
+                # Record the paragraph position where the block appeared; the
+                # field region is inserted after the whole document is lowered
+                # so the entry source (outline headings) is complete.
+                pending_native_tocs.append(
+                    (len(document.oxml.sections[0].paragraphs), child)
+                )
+                continue
             raise NotImplementedError(f"{type(child).__name__} lowering is not implemented yet")
+        if native_toc_sink is None:
+            # standalone Section.lower call: resolve deferred TOCs now
+            _apply_native_tocs(document, pending_native_tocs)
 
 
 @dataclass(frozen=True)
@@ -766,8 +840,15 @@ class Document:
             ):
                 if value:
                     document.add_paragraph(f"{label}: {value}", inherit_style=False)
+        pending_native_tocs: list[tuple[int, NativeToc]] = []
         for index, section in enumerate(self.sections):
-            section.lower(document, section_index=index, preset=preset)
+            section.lower(
+                document,
+                section_index=index,
+                preset=preset,
+                native_toc_sink=pending_native_tocs,
+            )
+        _apply_native_tocs(document, pending_native_tocs)
         return document
 
     def save_to_path(self, path: str | PathLike[str]) -> BuilderSaveReport:
