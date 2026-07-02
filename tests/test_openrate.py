@@ -13,8 +13,12 @@ These prove the apparatus WITHOUT Hancom, using a fake open-check backend:
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
+import re
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -28,6 +32,21 @@ assert _spec and _spec.loader
 cor = importlib.util.module_from_spec(_spec)
 sys.modules["corpus_open_rate"] = cor
 _spec.loader.exec_module(cor)
+
+
+def _load_script(name: str):
+    spec = importlib.util.spec_from_file_location(name, _SCRIPTS / f"{name}.py")
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+# The generator's MCP-surface import is lazy (v1-only), so the module imports
+# cleanly in the python-hwpx venv for the v2 pure functions under test.
+gen = _load_script("generate_openrate_corpus")
+bfl = _load_script("openrate_box_filelist")
 
 
 def _v(path, *, opened, text_length=None, error=None, retried=False, repaired=False):
@@ -558,3 +577,298 @@ def test_main_coverage_floor_blocks_exit0_when_nothing_judged(tmp_path):
     ]
     assert cor.main(args) == 3                       # coverage floor
     assert cor.main(args + ["--allow-degraded"]) == 0  # intentional dry run is allowed
+
+
+# =========================================================================== #
+# corpus v2 (specs/010 FR-002) — pure-function units of the generator.
+# NO real generation here: small synthetic inputs only.
+# =========================================================================== #
+
+def _fake_v1_manifest():
+    """Miniature frozen-v1 manifest exercising the v2 collision-skip logic."""
+    return {
+        "schemaVersion": "hwpx.openrate.frozen-manifest.v1",
+        "requested_total": 4,
+        "produced_total": 4,
+        "records": [
+            {"id": "formfit-m2_a-short", "bucket": "form-fit",
+             "seed": "formfit:m2:a:short", "produced": True,
+             "output_path": "/v1/form-fit/formfit-m2_a-short.hwpx"},
+            {"id": "authored-bogoseo-00", "bucket": "authored",
+             "seed": "authored:bogoseo:00", "produced": True,
+             "output_path": "/v1/authored/authored-bogoseo-00.hwpx"},
+            {"id": "authored-bogoseo-01", "bucket": "authored",
+             "seed": "authored:bogoseo:01", "produced": True,
+             "output_path": "/v1/authored/authored-bogoseo-01.hwpx"},
+            {"id": "redline-00-authored-bogoseo-00", "bucket": "redline",
+             "seed": "redline:authored-bogoseo-00", "produced": True,
+             "output_path": "/v1/redline/redline-00-authored-bogoseo-00.hwpx",
+             "input_path": "/v1/authored/authored-bogoseo-00.hwpx"},
+        ],
+    }
+
+
+# --------------------------------------------------------------------------- #
+# pii roster: deterministic, pattern-valid, and masked by the SHIPPED default
+# --------------------------------------------------------------------------- #
+
+def test_pii_roster_is_deterministic_and_pattern_valid():
+    r1 = gen.synthetic_pii_roster(35)
+    r2 = gen.synthetic_pii_roster(35)
+    assert r1 == r2                                   # no randomness, index-derived
+    assert len(r1) == 35
+    # unique probe values per row (each output greps for ITS OWN raw values)
+    for key in ("rrn", "phone", "email", "card"):
+        assert len({row[key] for row in r1}) == 35, key
+    for row in r1:
+        assert re.fullmatch(r"\d{6}-[1-4]\d{6}", row["rrn"])
+        mm, dd = int(row["rrn"][2:4]), int(row["rrn"][4:6])
+        assert 1 <= mm <= 12 and 1 <= dd <= 28        # range-safe fake dates
+        assert re.fullmatch(r"010-\d{4}-\d{4}", row["phone"])
+        assert re.fullmatch(r"[a-z0-9]+@example\.com", row["email"])
+        assert re.fullmatch(r"\d{4}-\d{4}-\d{4}-\d{4}", row["card"])
+        assert gen.luhn_ok(row["card"])               # card must survive Luhn gate
+
+
+def test_pii_roster_values_are_masked_by_shipped_default_policy():
+    # The corpus property under test: the SHIPPED engine default masks every
+    # machine-PII field, so raw probe values never reach the merged outputs.
+    from hwpx.tools.pii import mask_pii
+
+    row = gen.synthetic_pii_roster(3)[2]
+    for key in ("rrn", "phone", "email", "card"):
+        masked = mask_pii(row[key])
+        assert masked != row[key], key
+        assert row[key] not in masked, key            # raw value fully absent
+
+
+def test_luhn_check_digit_roundtrip():
+    payload = "411122003300100"
+    card = payload + gen.luhn_check_digit(payload)
+    assert len(card) == 16
+    assert gen.luhn_ok(card)
+    # flipping any digit breaks it (sanity that the checker is not vacuous)
+    broken = ("9" if card[0] != "9" else "1") + card[1:]
+    assert not gen.luhn_ok(broken)
+
+
+# --------------------------------------------------------------------------- #
+# form-fit-wide: v1-combo extraction + collision skip
+# --------------------------------------------------------------------------- #
+
+def test_v1_formfit_combos_parses_colon_tags():
+    combos = gen.v1_formfit_combos(_fake_v1_manifest())
+    assert combos == {("m2:a", "short")}
+
+
+def test_plan_form_fit_wide_skips_v1_combos_and_is_deterministic():
+    combos = {("m2:a", "short")}
+    inputs = [("m2:a", Path("/in/a.hwpx")), ("corpus:b", Path("/in/b.hwpx"))]
+    planned = gen.plan_form_fit_wide(inputs, combos)
+    keys = [(tag, length) for tag, _p, length in planned]
+    assert ("m2:a", "short") not in keys              # v1 combo skipped, not duplicated
+    assert ("m2:a", "medium") in keys and ("m2:a", "overflow") in keys
+    # untouched input keeps the full 3-length sweep, in sweep order
+    assert [k for k in keys if k[0] == "corpus:b"] == [
+        ("corpus:b", "short"), ("corpus:b", "medium"), ("corpus:b", "overflow")
+    ]
+    assert len(planned) == 5                          # 2*3 - 1 v1 collision
+    assert planned == gen.plan_form_fit_wide(inputs, combos)
+
+
+# --------------------------------------------------------------------------- #
+# redline-wide: round-robin ops + v1 coverage skip
+# --------------------------------------------------------------------------- #
+
+def test_v1_redline_covered_attributes_insert_and_replace():
+    covered = gen.v1_redline_covered(_fake_v1_manifest())
+    # the frozen v1 generator applied insert always + replace conditionally
+    assert covered == {
+        ("authored-bogoseo-00", "insert"), ("authored-bogoseo-00", "replace"),
+    }
+
+
+def test_plan_redline_wide_round_robin_and_skip():
+    stems = [f"authored-bogoseo-{i:02d}" for i in range(6)]
+    covered = gen.v1_redline_covered(_fake_v1_manifest())
+    planned = gen.plan_redline_wide(stems, covered)
+    ops = dict(planned)
+    # i=0 -> insert on bogoseo-00 = v1-covered -> SKIPPED not duplicated
+    assert "authored-bogoseo-00" not in ops
+    assert ops["authored-bogoseo-01"] == "delete"     # round-robin holds positions
+    assert ops["authored-bogoseo-02"] == "replace"
+    assert ops["authored-bogoseo-03"] == "insert"
+    assert ops["authored-bogoseo-04"] == "delete"
+    assert ops["authored-bogoseo-05"] == "replace"
+    assert len(planned) == 5
+    assert planned == gen.plan_redline_wide(stems, covered)
+
+
+def test_v1_authored_sources_sorted_produced_only():
+    manifest = _fake_v1_manifest()
+    manifest["records"].append(
+        {"id": "authored-withheld", "bucket": "authored", "produced": False,
+         "seed": "authored:x", "output_path": None}
+    )
+    sources = gen.v1_authored_sources(manifest)
+    assert [s for s, _p in sources] == ["authored-bogoseo-00", "authored-bogoseo-01"]
+
+
+# --------------------------------------------------------------------------- #
+# manifest merge: v1 by reference + box_rel layout
+# --------------------------------------------------------------------------- #
+
+def test_merge_manifests_box_rel_and_counts(tmp_path):
+    v1_root = tmp_path / "openrate-corpus"
+    v2_root = tmp_path / "openrate-corpus-v2"
+    shipped_root = tmp_path / "repo"
+    v1 = {
+        "schemaVersion": "hwpx.openrate.frozen-manifest.v1",
+        "produced_total": 1,
+        "records": [{"id": "a", "bucket": "authored", "produced": True,
+                     "output_path": str(v1_root / "authored" / "a.hwpx")}],
+    }
+    v2 = {
+        "schemaVersion": "hwpx.openrate.frozen-manifest.v2",
+        "records": [
+            {"id": "b", "bucket": "pii-merge", "stratum": "pii-merge",
+             "produced": True,
+             "output_path": str(v2_root / "pii-merge" / "merged" / "b.hwpx")},
+            {"id": "c", "bucket": "shipped-artifacts", "stratum": "shipped-artifacts",
+             "produced": True,
+             "output_path": str(shipped_root / "demo" / "M4-redline" / "c.hwpx")},
+            {"id": "d", "bucket": "redline-wide", "stratum": "redline-wide",
+             "produced": False, "output_path": None},
+        ],
+    }
+    combined = gen.merge_manifests(
+        v1, v2, v1_root=v1_root, v2_root=v2_root, shipped_root=shipped_root
+    )
+    by_id = {r["id"]: r for r in combined["records"]}
+    assert by_id["a"]["corpus"] == "v1"
+    assert by_id["a"]["box_rel"] == "v1/authored/a.hwpx"
+    assert by_id["a"]["stratum"] == "authored"        # backfilled from bucket
+    assert by_id["b"]["corpus"] == "v2"
+    assert by_id["b"]["box_rel"] == "v2/pii-merge/merged/b.hwpx"
+    assert by_id["c"]["box_rel"] == "shipped/demo/M4-redline/c.hwpx"
+    assert by_id["d"]["box_rel"] is None              # withheld -> never listed
+    assert combined["schemaVersion"] == "hwpx.openrate.combined-manifest.v1"
+    assert combined["requested_total"] == 4
+    assert combined["produced_total"] == 3
+    assert combined["generatedAt"] is None            # root stamps; never now()
+    assert combined["counts_per_stratum"]["v1:authored"] == {"requested": 1, "produced": 1}
+    # inputs are NOT mutated (v1 stays frozen even in memory)
+    assert "corpus" not in v1["records"][0]
+    assert "box_rel" not in v2["records"][0]
+
+
+# --------------------------------------------------------------------------- #
+# shipped-artifacts inventory on a tmp fixture tree
+# --------------------------------------------------------------------------- #
+
+def test_inventory_shipped_artifacts_tmp_tree(tmp_path):
+    root = tmp_path / "repo"
+    demo_dir = root / "demo" / "M4-redline" / "out"
+    demo_dir.mkdir(parents=True)
+    good = demo_dir / "sample.hwpx"
+    with zipfile.ZipFile(good, "w") as z:
+        z.writestr("mimetype", "application/hwp+zip")
+    bad = demo_dir / "notzip.hwpx"
+    bad.write_bytes(b"this is not a zip container")
+
+    records, excluded = gen.inventory_shipped_artifacts(
+        [("demo", root / "demo")], base_root=root, check_open_safety=False
+    )
+    assert [Path(p).name for p in excluded] == ["notzip.hwpx"]  # defensive exclude
+    assert len(records) == 1
+    rec = records[0]
+    assert rec["output_path"] == str(good)
+    assert rec["bucket"] == "shipped-artifacts" == rec["stratum"]
+    assert rec["produced"] is True
+    assert rec["output_sha256"] == hashlib.sha256(good.read_bytes()).hexdigest()
+    assert rec["size_bytes"] == good.stat().st_size
+    assert rec["provenance"] == "demo/M4-redline/out"
+    assert rec["milestone"] == "M4-redline"
+    assert rec["hostile_input"] is False              # tagging hook present, unused
+    assert rec["static_open_safety_ok"] is None       # honest: check was skipped
+    # determinism: a second scan yields the identical inventory
+    again, _ = gen.inventory_shipped_artifacts(
+        [("demo", root / "demo")], base_root=root, check_open_safety=False
+    )
+    assert again == records
+
+
+def test_inventory_shipped_artifacts_static_open_safety_is_honest(tmp_path):
+    # A bare zip is NOT a valid hwpx: with the check on, the pre-filter must say
+    # False (never silently true).
+    root = tmp_path / "repo"
+    d = root / "demo" / "M1"
+    d.mkdir(parents=True)
+    with zipfile.ZipFile(d / "barezip.hwpx", "w") as z:
+        z.writestr("mimetype", "application/hwp+zip")
+    records, _ = gen.inventory_shipped_artifacts(
+        [("demo", root / "demo")], base_root=root, check_open_safety=True
+    )
+    assert records[0]["static_open_safety_ok"] is False
+
+
+# --------------------------------------------------------------------------- #
+# box filelist --combined: box_rel layout + v1/ negatives prefix + fail-closed
+# --------------------------------------------------------------------------- #
+
+def _write_combined_fixture(tmp_path, *, drop_box_rel=False):
+    records = [
+        {"id": "a", "bucket": "authored", "corpus": "v1", "produced": True,
+         "output_path": "/x/openrate-corpus/authored/a.hwpx",
+         "box_rel": "v1/authored/a.hwpx"},
+        {"id": "b", "bucket": "pii-merge", "corpus": "v2", "produced": True,
+         "output_path": "/x/openrate-corpus-v2/pii-merge/merged/b.hwpx",
+         "box_rel": "v2/pii-merge/merged/b.hwpx"},
+        {"id": "c", "bucket": "shipped-artifacts", "corpus": "v2", "produced": True,
+         "output_path": "/x/repo/demo/M4-redline/c.hwpx",
+         "box_rel": "shipped/demo/M4-redline/c.hwpx"},
+    ]
+    if drop_box_rel:
+        del records[1]["box_rel"]
+    manifest = tmp_path / "combined_manifest.json"
+    manifest.write_text(json.dumps({
+        "schemaVersion": "hwpx.openrate.combined-manifest.v1",
+        "produced_total": 3,
+        "records": records,
+    }), encoding="utf-8")
+    negatives = tmp_path / "negatives.json"
+    negatives.write_text(json.dumps({
+        "schemaVersion": "hwpx.openrate.negatives.v2",
+        "negatives": [
+            {"path": "/x/openrate-corpus/_negatives/not_zip.hwpx",
+             "tier": "must_refuse", "kind": "synthetic:not_zip", "name": "not_zip.hwpx"},
+        ],
+    }), encoding="utf-8")
+    return manifest, negatives
+
+
+def test_box_filelist_combined_mode_uses_box_rel(tmp_path):
+    manifest, negatives = _write_combined_fixture(tmp_path)
+    out = tmp_path / "box_run.filelist"
+    rc = bfl.main([
+        "--manifest", str(manifest), "--negatives-manifest", str(negatives),
+        "--combined", "--out", str(out), "--box-root", "C:\\openrate\\corpus",
+    ])
+    assert rc == 0
+    lines = out.read_text(encoding="utf-8").splitlines()
+    # negatives FIRST (spike gate), inside the mirrored v1 tree
+    assert lines[0] == "C:\\openrate\\corpus\\v1\\not_zip.hwpx"
+    assert "C:\\openrate\\corpus\\v1\\authored\\a.hwpx" in lines
+    assert "C:\\openrate\\corpus\\v2\\pii-merge\\merged\\b.hwpx" in lines
+    assert "C:\\openrate\\corpus\\shipped\\demo\\M4-redline\\c.hwpx" in lines
+    assert len(lines) == 4                            # 1 negative + 3 produced
+
+
+def test_box_filelist_combined_missing_box_rel_fails_closed(tmp_path):
+    manifest, negatives = _write_combined_fixture(tmp_path, drop_box_rel=True)
+    out = tmp_path / "box_run.filelist"
+    rc = bfl.main([
+        "--manifest", str(manifest), "--negatives-manifest", str(negatives),
+        "--combined", "--out", str(out), "--box-root", "C:\\openrate\\corpus",
+    ])
+    assert rc == 1                                    # never silently drop a member

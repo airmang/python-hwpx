@@ -14,6 +14,10 @@ opens, before the operator commits to the full 100-file sitting), then produced.
 The box then runs:
     $files = Get-Content C:\\openrate\\box_run.filelist
     C:\\openrate\\hancom_open_rate.ps1 -Path $files -OutJsonl C:\\openrate\\verdicts.jsonl -ProbeRepairMode
+
+corpus v2 (specs/010): pass ``--combined`` with the combined v1+v2 manifest
+(records carry ``box_rel``; the box mirrors ``{v1/**, v2/**, shipped/**}``).
+Without the flag, behavior is byte-identical to the frozen v1 run.
 """
 from __future__ import annotations
 
@@ -50,6 +54,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--box-root", default="C:\\openrate\\corpus",
                     help="the box path that the corpus tree is rsync'd to")
     ap.add_argument("--out", default=str(CORPUS / "box_run.filelist"))
+    ap.add_argument("--combined", action="store_true",
+                    help="the manifest is a combined v1+v2 manifest "
+                         "(hwpx.openrate.combined-manifest.v1) whose records carry "
+                         "box_rel; the box mirrors the {v1/**, v2/**, shipped/**} "
+                         "layout, so negatives (which live in the v1 tree) are "
+                         "prefixed v1/. Default (off) keeps v1 behavior byte-identical.")
     args = ap.parse_args(argv)
 
     manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
@@ -64,6 +74,8 @@ def main(argv: list[str] | None = None) -> int:
     soft = len(neg_records) - hard
     for r in neg_records:
         rel = _relpath_under_corpus(str(r["path"]))
+        if args.combined:
+            rel = "v1/" + rel  # negatives live inside the mirrored v1 tree
         lines.append(_to_box_path(rel, args.box_root))
 
     # Produced files (frozen manifest population).
@@ -74,7 +86,17 @@ def main(argv: list[str] | None = None) -> int:
         if r.get("output_path") and bool(r.get("produced", r.get("output_path") is not None))
     ]
     for r in produced:
-        rel = _relpath_under_corpus(str(r["output_path"]))
+        if args.combined:
+            rel = r.get("box_rel")
+            if not rel:  # fail closed: a combined record without box_rel would
+                # silently drop a population member from the box run.
+                sys.stderr.write(
+                    f"ERROR: combined manifest record {r.get('id')!r} has no box_rel "
+                    "— regenerate the combined manifest (merge_manifests).\n"
+                )
+                return 1
+        else:
+            rel = _relpath_under_corpus(str(r["output_path"]))
         lines.append(_to_box_path(rel, args.box_root))
 
     out = Path(args.out)
