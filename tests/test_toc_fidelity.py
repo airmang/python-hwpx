@@ -165,18 +165,26 @@ def test_oracle_leg_detects_stale_after_page_shift(monkeypatch):
 
 
 def test_heading_line_matching_rejects_toc_entries_and_body_echo(monkeypatch):
-    """The two real-render false-match modes must stay dead: a TOC entry line
-    (trailing leader+digits) and a body echo (line continues past the title)
-    never count as the heading's page."""
+    """The three real-render false-match modes must stay dead: a TOC entry line
+    (trailing leader+digits), a body echo (line continues past the title), and —
+    measured against a real render of our own emission — a TOC entry whose page
+    digit WRAPS to its own line (entry line then looks exactly like a numbered
+    heading; last-match wins because the body always follows the TOC)."""
     pages = {
-        0: ["< 제목 차례 >", "1. 개요 첫 번째 ..... 1", "개요 첫 번째의 본문입니다"],
+        0: [
+            "< 제목 차례 >",
+            "1. 개요 첫 번째 ..... 1",   # entry with inline page digits
+            "2. 개요 첫 번째",           # entry whose page digit wrapped...
+            "1",                          # ...to its own line
+            "개요 첫 번째의 본문입니다",  # body echo
+        ],
         3: ["1. 개요 첫 번째"],
     }
     monkeypatch.setattr(
         "hwpx.form_fit.wordbox.extract_word_boxes", lambda pdf, **kw: _fake_boxes(pages)
     )
     result = tf.heading_rendered_pages("synthetic.pdf", {"x": "개요 첫 번째"})
-    assert result == {"x": 4}  # only the real heading line on fitz page 3 -> page 4
+    assert result == {"x": 4}  # the real heading line on fitz page 3 -> page 4
 
 
 # ── live Hancom render smoke (opt-in only — never in the default suite) ─

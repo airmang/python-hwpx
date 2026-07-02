@@ -274,8 +274,12 @@ def heading_rendered_pages(pdf_path: str, headings: dict[str, str]) -> dict[str,
         if needle:
             for page, line_text in lines:
                 if line_text == needle or _OUTLINE_PREFIX_RE.sub("", line_text) == needle:
+                    # LAST match wins: the TOC region precedes the body, and a
+                    # TOC entry whose page digit wraps to its own line (no
+                    # right tab stop) is indistinguishable from a numbered
+                    # heading line — measured against a real render of our own
+                    # emission. The real heading always follows the TOC.
                     found = page + 1  # fitz 0-based -> Hancom 1-based
-                    break
         result[para_id] = found
     return result
 
