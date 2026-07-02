@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+## [2.20.0] - 2026-07-02
+### 추가
+- **M7 네이티브 자동 차례·상호참조 (S-062)**: `hwpx.tools.toc_author` — `add_native_toc`(한컴 네이티브 `TABLEOFCONTENTS` 필드영역 + Command DSL, `dirty=1` 기본 = 한컴이 처음 여는 순간 항목·차례 스타일·쪽번호를 재계산), `add_page_crossref`(쪽 번호 `CROSSREF` 필드 + 캐시 결과런 — 한컴이 편집/저장 시 자동 재계산), `mark_toc_dirty`(편집 후 재번호 재트리거), `ensure_paragraph_anchor_id`/`outline_heading_paragraphs`. 계약은 실제 한컴 저작 gold pair에서 리버스엔지니어링(`tests/fixtures/m7_toc_gold/`).
+- **차례 충실도 하니스**: `hwpx.tools.toc_fidelity` — `parse_toc_model`(하이퍼링크·평문 재생성 항목 모두), `structural_report`(오라클 없이도 CROSSREF↔차례 캐시 모순으로 stale 탐지), `toc_verify`(한컴 렌더 대조 `toc_correctness_ratio`, 무오라클 시 정직 `unverified`), `grow_paragraph`.
+- **Mac 오라클 새로고침 레그**: `MacHancomOracle.refresh_document`(+`_refresh_hwpx_mac.applescript`) — 열기→dirty 필드 재생성→제자리 저장→닫기. dirty-재생성 직후 같은 세션 PDF export가 이 한컴 빌드를 크래시시키는 실측 때문에 refresh와 render는 의도적으로 별도 세션.
+### 수정
+- Mac 렌더 스크립트 `waitForFile`이 `%%EOF` 트레일러를 요구 — size>0만으로는 비동기 export 도중의 잘린 PDF를 캡처했다(실측).
+### 비고
+- E2E 오라클 증명: 저작→새로고침→ratio 1.0(2/5/8쪽) → 재페이지네이션+`mark_toc_dirty`→새로고침→ratio 1.0 + 페이지 SHIFT(2/7/10). 실측 수집 규칙: `ContentsStyles:0:`이 바탕글(스타일 0) 문단도 차례 항목으로 수집 — 본문은 본문(스타일 1) 등 비수집 스타일 권장. MCP 표면(`add_toc`·`add_cross_reference`·`verify_toc`)은 hwpx-mcp-server 2.12.0에서 합류.
+
 ## [2.19.0] - 2026-07-02
 ### 추가
 - **M6 런서식 충실 읽기 하니스 (S-060)**: `hwpx.tools.read_fidelity` — `resolve_run_spans`(런별 bold/italic/underline/strikeout/color/size_pt/font/super-subscript를 charPr+fontface 해석), `collect_notes`(각주/미주 본문 + 본문 서식), `roundtrip_fidelity`/`corpus_fidelity`(콘텐츠-레벨 라운드트립 충실도), `spans_fidelity`/`notes_fidelity` 비교기, 공개 `fontface_maps`/`run_span`. 요소-카운트만 재던 `roundtrip_diff`와 달리 charPr-해석 런-스팬 및 각주 본문의 무손실을 측정한다.
