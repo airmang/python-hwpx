@@ -130,3 +130,49 @@ def test_emitted_fields_survive_structural_roundtrip():
     assert report["after_counts"].get("fieldBegin", 0) >= 5  # 1 TOC + 3 entries + 1 xref
     assert report["after_counts"].get("fieldEnd", 0) >= 5
     assert report["after_counts"].get("tab", 0) >= 3
+
+
+def test_native_toc_dirty_default_and_mark_toc_dirty():
+    """dirty=1 is the measured re-number trigger (Hancom regenerates the region
+    on open); authored TOCs default to it, and mark_toc_dirty re-arms it."""
+    from lxml import etree as LET
+
+    _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+
+    def toc_dirty(doc):
+        for sec in doc.oxml.sections:
+            for fb in sec.element.iter(f"{_HP}fieldBegin"):
+                if fb.get("type") == "TABLEOFCONTENTS":
+                    return fb.get("dirty")
+        return None
+
+    doc, headings = _doc_with_headings(2)
+    ta.add_native_toc(doc, headings=headings)
+    assert toc_dirty(doc) == "1"  # default: first Hancom open recomputes
+
+    doc2, headings2 = _doc_with_headings(2)
+    ta.add_native_toc(doc2, headings=headings2, dirty=False)
+    assert toc_dirty(doc2) == "0"
+    assert ta.mark_toc_dirty(doc2) == 1
+    assert toc_dirty(doc2) == "1"
+
+
+def test_parse_plain_regenerated_entries_inside_region():
+    """Hancom's ContentsHyperlink:0 regeneration emits PLAIN entries (no
+    HYPERLINK field) — the harness must still see them inside the TOC region."""
+    doc, headings = _doc_with_headings(2)
+    ta.add_native_toc(doc, headings=headings, hyperlink=False)
+    # strip the HYPERLINK wrappers to simulate Hancom's plain regeneration
+    from lxml import etree as LET
+
+    _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    for sec in doc.oxml.sections:
+        for fb in list(sec.element.iter(f"{_HP}fieldBegin")):
+            if fb.get("type") == "HYPERLINK":
+                ctrl = fb.getparent()
+                run = ctrl.getparent()
+                run.remove(ctrl)
+    model = tf.parse_toc_model(HwpxDocument.open(doc.to_bytes()))
+    assert len(model.entries) == 2
+    assert all(e.target_id is None for e in model.entries)  # identity by title
+    assert all(e.cached_page == 1 for e in model.entries)

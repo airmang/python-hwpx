@@ -122,6 +122,7 @@ def parse_toc_model(source: str | Path | bytes | HwpxDocument) -> TocModel:
 
     for section in doc.oxml.sections:
         root = section.element
+        inside_toc = False  # region state spans paragraphs (fieldBegin..fieldEnd)
         for p_el in root.iter(f"{_HP}p"):
             pid = p_el.get("id")
             if pid and pid not in model.paragraph_texts:
@@ -136,22 +137,28 @@ def parse_toc_model(source: str | Path | bytes | HwpxDocument) -> TocModel:
                     if tag == f"{_HP}ctrl":
                         info = _field_type(child)
                         if info is None:
-                            # fieldEnd (or other ctrl) — closes an open crossref
-                            if crossref is not None and child.find(f"{_HP}fieldEnd") is not None:
-                                model.crossrefs.append(
-                                    CrossRef(
-                                        target_id=crossref["target"],
-                                        cached_page=crossref["page"],
-                                        ref_content_type=crossref["content_type"],
+                            end = child.find(f"{_HP}fieldEnd")
+                            if end is not None:
+                                # closes an open crossref…
+                                if crossref is not None:
+                                    model.crossrefs.append(
+                                        CrossRef(
+                                            target_id=crossref["target"],
+                                            cached_page=crossref["page"],
+                                            ref_content_type=crossref["content_type"],
+                                        )
                                     )
-                                )
-                                crossref = None
+                                    crossref = None
+                                # …or the TOC region itself
+                                if inside_toc and end.get("beginIDRef") == model.toc_field_id:
+                                    inside_toc = False
                             continue
                         begin, ftype = info
                         params = _string_params(begin)
                         if ftype == "TABLEOFCONTENTS":
                             model.toc_field_id = begin.get("id")
                             model.toc_command = params.get("Command")
+                            inside_toc = True
                         elif ftype == "CROSSREF":
                             crossref = {
                                 "target": _target_of(params),
@@ -167,7 +174,11 @@ def parse_toc_model(source: str | Path | bytes | HwpxDocument) -> TocModel:
                                 crossref["page"] = int(digits)
                             continue
                         tab = child.find(f"{_HP}tab")
-                        if tab is not None and hyperlink_target is not None:
+                        if tab is not None and (hyperlink_target is not None or inside_toc):
+                            # Hyperlinked entry (ContentsHyperlink:1, gold) or the
+                            # PLAIN entry Hancom regenerates with ContentsHyperlink:0
+                            # (measured on a refreshed save): same t+tab+page shape,
+                            # no target reference — identity resolves by title.
                             title = (child.text or "").strip()
                             page_text = (tab.tail or "").strip()
                             model.entries.append(
@@ -307,11 +318,27 @@ def toc_verify(
     }
 
     model = parse_toc_model(source)
-    headings = {
-        t: model.paragraph_texts[t]
-        for t in {e.target_id for e in model.entries} | {c.target_id for c in model.crossrefs}
-        if t and t in model.paragraph_texts and model.paragraph_texts[t].strip()
-    }
+
+    def _entry_key(entry: TocEntry) -> str | None:
+        """Lookup key for an entry: its anchor id, or (plain regenerated
+        entries carry no target reference) a title-derived key."""
+        if entry.target_id:
+            return entry.target_id
+        stripped = _OUTLINE_PREFIX_RE.sub("", _normalize(entry.title))
+        return f"title::{stripped}" if stripped else None
+
+    headings: dict[str, str] = {}
+    for t in {e.target_id for e in model.entries} | {c.target_id for c in model.crossrefs}:
+        if t and t in model.paragraph_texts and model.paragraph_texts[t].strip():
+            headings[t] = model.paragraph_texts[t]
+    for entry in model.entries:
+        key = _entry_key(entry)
+        if key and key.startswith("title::"):
+            # identity by title: the rendered heading line equals the entry
+            # title minus its numbering prefix
+            title = _OUTLINE_PREFIX_RE.sub("", entry.title.strip()).strip()
+            if title:
+                headings[key] = title
 
     rendered_pdf = pdf_path
     if rendered_pdf is None and oracle is not None:
@@ -347,7 +374,7 @@ def toc_verify(
     correct = 0
     entry_rows: list[dict[str, Any]] = []
     for entry in model.entries:
-        actual_page = actual.get(entry.target_id or "")
+        actual_page = actual.get(_entry_key(entry) or "")
         row = entry.to_dict() | {"actualPage": actual_page}
         if entry.cached_page is not None and actual_page is not None:
             scored += 1

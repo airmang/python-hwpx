@@ -81,7 +81,7 @@ include = ["hwpx*"]
 "hwpx" = ["py.typed"]
 "hwpx.tools" = ["_schemas/*.xsd"]
 "hwpx.data" = ["Skeleton.hwpx"]
-"hwpx.visual" = ["_render_hwpx.ps1", "_render_hwpx_mac.applescript", "_hancom_open_rate.ps1"]
+"hwpx.visual" = ["_render_hwpx.ps1", "_render_hwpx_mac.applescript", "_refresh_hwpx_mac.applescript", "_hancom_open_rate.ps1"]
 "hwpx.design" = [
     "profiles/*/profile.json",
     "profiles/*/template.hwpx",

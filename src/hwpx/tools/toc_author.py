@@ -155,6 +155,22 @@ def _entry_paragraph(numbered_title: str, page: int, target_id: str, char_pr: st
     return p
 
 
+def mark_toc_dirty(doc: HwpxDocument) -> int:
+    """Set ``dirty="1"`` on every TABLEOFCONTENTS field — the measured
+    re-number trigger: Hancom regenerates a dirty TOC (entries, styles, page
+    numbers) when it next opens the document. Call after edits that shift
+    pagination. Returns the number of fields marked."""
+    count = 0
+    for section in doc.oxml.sections:
+        for begin in section.element.iter(f"{_HP}fieldBegin"):
+            if begin.get("type") == "TABLEOFCONTENTS":
+                begin.set("dirty", "1")
+                count += 1
+        if count:
+            section.mark_dirty()
+    return count
+
+
 def add_native_toc(
     doc: HwpxDocument,
     *,
@@ -163,14 +179,22 @@ def add_native_toc(
     level: int = 2,
     leader: int = 3,
     hyperlink: bool = True,
+    dirty: bool = True,
     headings: Sequence[Any] | None = None,
 ) -> dict[str, Any]:
     """Insert a Hancom-native TABLEOFCONTENTS field region at ``at_index``.
 
     Entries are generated from ``headings`` (paragraph wrappers) or, when
     omitted, auto-detected 개요/Outline-styled paragraphs. Emitted entry page
-    numbers are naive estimates (page 1) pending a Hancom 차례 새로 고침 —
-    exactly the semi-manual semantics P0 measured. Returns a summary dict.
+    numbers are naive estimates; with ``dirty=True`` (default, measured
+    semantics) Hancom regenerates the whole region — correct entries, styles,
+    and page numbers — on its next open, so the first thing a user sees is a
+    TOC Hancom itself computed. Returns a summary dict.
+
+    Collection note (measured): Hancom collects outline-styled paragraphs and
+    — via the ``ContentsStyles:wstring:0:`` command — style-0 (바탕글)
+    paragraphs too; give body text a non-collected style (e.g. 본문, style 1)
+    or it will appear as TOC entries after regeneration.
     """
     if headings is None:
         detected = outline_heading_paragraphs(doc)
@@ -193,7 +217,10 @@ def add_native_toc(
         "pageBreak": "0", "columnBreak": "0", "merged": "0",
     })
     run = ET.SubElement(open_p, f"{_HP}run", {"charPrIDRef": "0"})
-    begin = _field_begin(run, ftype="TABLEOFCONTENTS", field_id=toc_field_id, editable="1", dirty="0")
+    begin = _field_begin(
+        run, ftype="TABLEOFCONTENTS", field_id=toc_field_id,
+        editable="1", dirty="1" if dirty else "0",
+    )
     params = ET.SubElement(begin, f"{_HP}parameters", {"cnt": "2", "name": ""})
     _param(params, "integerParam", "Prop", "8")
     _param(

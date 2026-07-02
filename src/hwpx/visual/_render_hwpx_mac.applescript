@@ -162,8 +162,12 @@ on waitForWindowGone(winName, secs)
 end waitForWindowGone
 
 on waitForFile(p, secs)
+	-- size>0 alone is NOT completion: Hancom streams the PDF asynchronously and
+	-- closing the document mid-write truncates it (measured: a TOC-regenerating
+	-- document produced a deterministic %%EOF-less torso). Require the PDF
+	-- trailer marker so the export has actually finished before we move on.
 	repeat (secs * 2) times
-		if (do shell script "test -s " & quoted form of p & " && echo 1 || echo 0") is "1" then
+		if (do shell script "test -s " & quoted form of p & " && tail -c 64 " & quoted form of p & " | grep -q '%%EOF' && echo 1 || echo 0") is "1" then
 			return true
 		end if
 		delay 0.5

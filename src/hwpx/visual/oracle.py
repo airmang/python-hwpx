@@ -52,6 +52,7 @@ from hwpx.form_fit.wordbox import WordBox
 _BACKEND_SCRIPT = "_render_hwpx.ps1"
 _OPEN_RATE_SCRIPT = "_hancom_open_rate.ps1"
 _MAC_BACKEND_SCRIPT = "_render_hwpx_mac.applescript"
+_MAC_REFRESH_SCRIPT = "_refresh_hwpx_mac.applescript"
 _COM_REGISTRY_KEYS = (
     r"HWPFrame.HwpObject\CLSID",
     r"SOFTWARE\Classes\HWPFrame.HwpObject\CLSID",
@@ -492,6 +493,42 @@ class MacHancomOracle(RenderBackend):
                     os.remove(staged)
                 except OSError:
                     pass
+
+    def refresh_document(self, hwpx_path: str) -> bool:
+        """Open ``hwpx_path``, let dirty fields regenerate, save in place, close.
+
+        The measured native-TOC re-number trigger (M7): a ``dirty="1"``
+        TABLEOFCONTENTS is rebuilt on open — Hancom itself computes entries and
+        page numbers — and CROSSREF caches recompute automatically. Exporting a
+        PDF from the same regenerating session crashes this Hancom build
+        (deterministic truncated PDFs, then the process dies), so refresh and
+        render are intentionally two separate sessions. Returns True when the
+        file was re-saved.
+        """
+        if not self.available():
+            return False
+        src = os.path.abspath(hwpx_path)
+        try:
+            before = os.stat(src).st_mtime_ns
+        except OSError:
+            return False
+        with resources.as_file(
+            resources.files("hwpx.visual").joinpath(_MAC_REFRESH_SCRIPT)
+        ) as script:
+            cmd = [self._osascript, str(script), src, str(int(self.timeout))]
+            try:
+                proc = subprocess.run(
+                    cmd, capture_output=True, text=True,
+                    timeout=self.timeout + 60.0, check=False,
+                )
+            except (subprocess.TimeoutExpired, OSError):
+                return False
+        if "OK" not in (proc.stdout or ""):
+            return False
+        try:
+            return os.stat(src).st_mtime_ns != before
+        except OSError:
+            return False
 
 
 class NullOracle(RenderBackend):
