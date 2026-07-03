@@ -17,9 +17,12 @@ import pytest
 from hwpx.table_patch import (
     build_grid,
     fill_cells,
+    apply_table_ops,
     _direct_cells,
     _first_paragraph_span,
     _iter_table_spans,
+    _uniform_col_widths,
+    _parse_table,
 )
 
 FIXT = Path(__file__).parent / "fixtures"
@@ -136,3 +139,109 @@ def test_unresolvable_address_is_skipped_without_mutation(simple):
     assert res.skipped and res.skipped[0].reason == "table_index out of range"
     res2 = fill_cells(simple, [{"table_index": 0, "row": 999, "col": 999, "text": "X"}])
     assert res2.data == simple and res2.skipped[0].reason == "cell address out of range"
+
+
+# --- P2: table structure primitives -------------------------------------------
+
+def _tables(data: bytes):
+    _, sec = _section(data)
+    return sec, _iter_table_spans(sec)
+
+
+def _grid_of(sec: bytes, span) -> "tuple":
+    return build_grid(sec[span[0]:span[1]])
+
+
+def _find_table(data: bytes, pred):
+    sec, spans = _tables(data)
+    for ti, sp in enumerate(spans):
+        if pred(sec[sp[0]:sp[1]]):
+            return ti
+    return None
+
+
+def test_delete_row_reconciles_and_preserves_untouched(merged):
+    def ok(tbl: bytes):
+        _p, rows, _s = _parse_table(tbl.decode("utf-8"))
+        return len(rows) >= 3
+    ti = _find_table(merged, ok)
+    assert ti is not None
+    sec0, spans0 = _tables(merged)
+    n_before = _grid_of(sec0, spans0[ti])[1].row_count
+    res = apply_table_ops(merged, [{"op": "delete_row", "table_index": ti, "row": 1}])
+    assert res.ok, res.skipped
+    sec1, spans1 = _tables(res.data)
+    rep = _grid_of(sec1, spans1[ti])[1]
+    assert rep.ok and rep.row_count == n_before - 1
+    # a different, untouched table is byte-identical
+    other = 0 if ti != 0 else len(spans0) - 1
+    assert sec0[spans0[other][0]:spans0[other][1]] == sec1[spans1[other][0]:spans1[other][1]]
+
+
+def test_insert_row_by_clone_grows_and_validates(merged):
+    def has_clonable(tbl: bytes):
+        _p, rows, _s = _parse_table(tbl.decode("utf-8"))
+        for i, r in enumerate(rows):
+            spans = re.findall(r'rowSpan="(\d+)"', r)
+            if spans and all(s == "1" for s in spans) and "<hp:t>" in r:
+                return True
+        return False
+    ti = _find_table(merged, has_clonable)
+    assert ti is not None
+    sec0, spans0 = _tables(merged)
+    tbl0 = sec0[spans0[ti][0]:spans0[ti][1]].decode("utf-8")
+    _p, rows, _s = _parse_table(tbl0)
+    ref = next(i for i, r in enumerate(rows) if all(s == "1" for s in re.findall(r'rowSpan="(\d+)"', r)) and "<hp:t>" in r)
+    n_before = _grid_of(sec0, spans0[ti])[1].row_count
+    res = apply_table_ops(merged, [{"op": "insert_row_by_clone", "table_index": ti, "ref_row": ref, "count": 2}])
+    assert res.ok, res.skipped
+    sec1, spans1 = _tables(res.data)
+    rep = _grid_of(sec1, spans1[ti])[1]
+    assert rep.ok and rep.row_count == n_before + 2
+
+
+def test_delete_table_drops_one_and_keeps_rest(merged):
+    sec0, spans0 = _tables(merged)
+    n = len(spans0)
+    res = apply_table_ops(merged, [{"op": "delete_table", "table_index": n - 1}])
+    assert res.ok, res.skipped
+    _, spans1 = _tables(res.data)
+    assert len(spans1) == n - 1
+
+
+def test_delete_column_with_cascade(merged):
+    # pick a table with a uniform-width row and >2 columns
+    def ok(tbl: bytes):
+        _p, rows, _s = _parse_table(tbl.decode("utf-8"))
+        w = _uniform_col_widths(rows)
+        return w is not None and len(w) > 2
+    ti = _find_table(merged, ok)
+    if ti is None:
+        pytest.skip("no uniform multi-column table in fixture")
+    sec0, spans0 = _tables(merged)
+    cols_before = _grid_of(sec0, spans0[ti])[1].col_count
+    res = apply_table_ops(merged, [{"op": "delete_column", "table_index": ti, "col": 1}])
+    assert res.ok, res.skipped
+    sec1, spans1 = _tables(res.data)
+    rep = _grid_of(sec1, spans1[ti])[1]
+    assert rep.ok and rep.col_count == cols_before - 1
+
+
+def test_structure_op_out_of_range_is_failclosed(merged):
+    res = apply_table_ops(merged, [{"op": "delete_row", "table_index": 9999, "row": 0}])
+    assert res.byte_identical is True
+    assert res.skipped and "out of range" in res.skipped[0].reason
+
+
+def test_ops_then_fill_chains(merged):
+    # delete a table, then fill a cell in another table — both reflected
+    sec0, spans0 = _tables(merged)
+    n = len(spans0)
+    res = apply_table_ops(merged, [
+        {"op": "delete_table", "table_index": n - 1},
+        {"op": "fill_cell", "table_index": 0, "row": 0, "col": 0, "text": "체이닝OK"},
+    ])
+    assert res.ok, res.skipped
+    _, spans1 = _tables(res.data)
+    assert len(spans1) == n - 1
+    assert "체이닝OK" in _section(res.data)[1].decode("utf-8")
