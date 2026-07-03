@@ -196,6 +196,80 @@ def _all_paragraph_spans(cell: bytes) -> list[tuple[int, int]]:
     return [(m.start(), m.end()) for m in _P_SPAN_RE.finditer(masked)]
 
 
+# --- font shrink-to-fit helpers (byte-preserving charPr materialisation) ------
+
+def _header_part_name(parts: Mapping[str, bytes]) -> str | None:
+    return next((n for n in parts if n.endswith("header.xml")), None)
+
+def _charpr_height(header: bytes, cid: str) -> int | None:
+    m = re.search(rb'<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?\bid="' + re.escape(cid.encode()) + rb'"[^>]*?\bheight="(\d+)"', header)
+    return int(m.group(1)) if m else None
+
+def _cell_run_charpr(cell: bytes) -> str | None:
+    m = re.search(rb'<(?:[A-Za-z_][\w.-]*:)?run\b[^>]*?\bcharPrIDRef="(\d+)"', cell)
+    return m.group(1).decode() if m else None
+
+def _cell_inner_width(cell: bytes) -> int:
+    w = _iattr(cell, "cellSz", "width") or 0
+    m = re.search(rb'<(?:[A-Za-z_][\w.-]*:)?cellMargin\b[^>]*?\bleft="(\d+)"[^>]*?\bright="(\d+)"', cell)
+    left, right = (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+    return max(w - left - right, 0)
+
+def _materialize_charpr(header: bytes, base_id: str, new_height: int, cache: dict[tuple[str, int], str]) -> tuple[bytes, str]:
+    """Clone charPr *base_id* with *new_height*, append it to the charProperties
+    list (itemCnt bumped), return (new_header, new_charpr_id). Deduped via *cache*."""
+    key = (base_id, new_height)
+    if key in cache:
+        return header, cache[key]
+    bid = re.escape(base_id.encode())
+    m = re.search(rb'<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?\bid="' + bid + rb'".*?</(?:[A-Za-z_][\w.-]*:)?charPr>', header, re.DOTALL)
+    if m is None:
+        m = re.search(rb'<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?\bid="' + bid + rb'"[^>]*/>', header)
+    if m is None:
+        raise KeyError(f"base charPr {base_id} not found")
+    ids = [int(x) for x in re.findall(rb'<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?\bid="(\d+)"', header)]
+    new_id = str((max(ids) + 1) if ids else 0)
+    clone = re.sub(rb'(\bid=")\d+(")', rb'\g<1>' + new_id.encode() + rb'\g<2>', m.group(0), count=1)
+    if re.search(rb'\bheight="\d+"', clone):
+        clone = re.sub(rb'(\bheight=")\d+(")', rb'\g<1>' + str(new_height).encode() + rb'\g<2>', clone, count=1)
+    close = re.search(rb'</(?:[A-Za-z_][\w.-]*:)?charProperties>', header)
+    if close is None:
+        raise KeyError("charProperties close tag not found")
+    header = header[:close.start()] + clone + header[close.start():]
+    header = re.sub(
+        rb'(<(?:[A-Za-z_][\w.-]*:)?charProperties\b[^>]*?\bitemCnt=")(\d+)(")',
+        lambda mm: mm.group(1) + str(int(mm.group(2)) + 1).encode() + mm.group(3),
+        header, count=1,
+    )
+    cache[key] = new_id
+    return header, new_id
+
+def _shrunk_font_id(header: bytes, cell_bytes: bytes, text: str, target_lines: int, min_font_pt: float,
+                    cache: dict[tuple[str, int], str]) -> tuple[bytes, str, str] | None:
+    """If *text* needs more than *target_lines* at the cell's base font, decide a
+    shrink (form_fit FitEngine) and materialise it. Returns (new_header, base_id,
+    new_id) or None (no shrink needed / not resolvable)."""
+    from .form_fit.engine import FitEngine
+    from .form_fit.measure import SlotMetrics
+    from .form_fit.policy import FitPolicy
+
+    base_id = _cell_run_charpr(cell_bytes)
+    if base_id is None:
+        return None
+    inner = _cell_inner_width(cell_bytes)
+    base_h = _charpr_height(header, base_id)
+    if not inner or not base_h:
+        return None
+    base_pt = base_h / 100.0
+    slot = SlotMetrics(available_width=inner * 0.94, font_pt=base_pt, max_lines=target_lines)
+    result = FitEngine().fit(text, slot, FitPolicy(mode="wrap_then_shrink", max_lines=target_lines, min_font_pt=min_font_pt))
+    new_pt = result.font_pt
+    if not new_pt or new_pt >= base_pt - 1e-6:
+        return None
+    header, new_id = _materialize_charpr(header, base_id, int(round(new_pt * 100)), cache)
+    return header, base_id, new_id
+
+
 # --- public API ---------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -256,16 +330,17 @@ class CellFillResult:
         }
 
 
-def _normalize(cell: Mapping[str, Any] | Any) -> tuple[str, int, int, int, str]:
+def _normalize(cell: Mapping[str, Any] | Any) -> tuple[str, int, int, int, str, int | None]:
     get = cell.get if isinstance(cell, Mapping) else (lambda k, d=None: getattr(cell, k, d))
     section = str(get("section_path") or get("sectionPath") or "Contents/section0.xml")
     table_index = get("table_index", get("tableIndex"))
     row = get("row")
     col = get("col")
     text = get("text")
+    max_lines = get("max_lines", get("maxLines"))
     if table_index is None or row is None or col is None or text is None:
         raise ValueError("cell fill requires table_index, row, col, text")
-    return section, int(table_index), int(row), int(col), str(text)
+    return section, int(table_index), int(row), int(col), str(text), (int(max_lines) if max_lines else None)
 
 
 def fill_cells(
@@ -273,6 +348,8 @@ def fill_cells(
     cells: Sequence[Mapping[str, Any] | Any],
     *,
     output_path: str | Path | None = None,
+    fit_max_lines: int | None = None,
+    min_font_pt: float = 8.0,
 ) -> CellFillResult:
     """Byte-preserving fill of table cells by ``(table_index, row, col)`` address.
 
@@ -281,6 +358,12 @@ def fill_cells(
     parts and untouched tables round-trip byte-identical. Empty / self-closing
     cells are filled (text inserted), never silently reported as done. An
     unresolvable address is reported in ``skipped`` and mutates nothing.
+
+    **Font shrink-to-fit** (optional): when ``fit_max_lines`` is set (or a cell
+    carries ``max_lines``), a cell whose text would wrap past that many lines at
+    its template font is shrunk — the smallest font ``>= min_font_pt`` that fits
+    (form_fit FitEngine) is materialised as a real ``charPr`` and the cell's run
+    points at it. Column widths and the rest of the document are untouched.
     """
     source_bytes = _read_source_bytes(source)
     specs = [_normalize(c) for c in cells]
@@ -292,23 +375,28 @@ def fill_cells(
     with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as zf:
         parts = {i.filename: zf.read(i.filename) for i in zf.infolist() if not i.is_dir()}
 
+    header_name = _header_part_name(parts)
+    header_xml = parts.get(header_name) if header_name else None
+    charpr_cache: dict[tuple[str, int], str] = {}
+    header_changed = False
+
     applied: list[CellApplied] = []
     skipped: list[CellSkipped] = []
-    by_section: dict[str, list[tuple[int, int, int, str]]] = {}
-    for section, ti, row, col, text in specs:
-        by_section.setdefault(section, []).append((ti, row, col, text))
+    by_section: dict[str, list[tuple[int, int, int, str, int | None]]] = {}
+    for section, ti, row, col, text, mx in specs:
+        by_section.setdefault(section, []).append((ti, row, col, text, mx))
 
     changed_parts: dict[str, bytes] = {}
     for section_path, section_specs in by_section.items():
         section_xml = parts.get(section_path)
         if section_xml is None:
-            skipped.extend(CellSkipped(section_path, ti, r, c, "section part not found") for ti, r, c, _ in section_specs)
+            skipped.extend(CellSkipped(section_path, ti, r, c, "section part not found") for ti, r, c, _t, _m in section_specs)
             continue
         table_spans = _iter_table_spans(section_xml)
         # accumulate byte edits over the whole section (table region splices)
         section_edits: list[tuple[int, int, bytes]] = []
         occupied: list[tuple[int, int]] = []  # filled paragraph spans (merge-collision guard)
-        for ti, row, col, text in section_specs:
+        for ti, row, col, text, mx in section_specs:
             if ti < 0 or ti >= len(table_spans):
                 skipped.append(CellSkipped(section_path, ti, row, col, "table_index out of range"))
                 continue
@@ -324,6 +412,16 @@ def fill_cells(
             if not p_spans:
                 skipped.append(CellSkipped(section_path, ti, row, col, "cell has no paragraph"))
                 continue
+            # Font shrink-to-fit: a cell with a max-lines target whose text would
+            # wrap past it gets its run pointed at a smaller (materialised) charPr.
+            shrink: tuple[str, str] | None = None
+            target = mx or fit_max_lines
+            if target and header_xml is not None and text.strip():
+                res = _shrunk_font_id(header_xml, cell_bytes, text, target, min_font_pt, charpr_cache)
+                if res is not None:
+                    header_xml, base_id, new_id = res
+                    header_changed = True
+                    shrink = (base_id, new_id)
             # Replace the WHOLE cell's visible text with `text`: line k -> paragraph k,
             # trailing paragraphs are emptied (so stale multi-line template content —
             # e.g. stacked 성취기준 codes — does not survive). newline-separated text
@@ -348,6 +446,9 @@ def fill_cells(
                     collided = True
                     break
                 new_para = _strip_paragraph_layout_cache(replacement if (_s, _e) == (0, len(para)) else _apply_edits(para, [(_s, _e, replacement)]))
+                if shrink is not None:
+                    base_id, new_id = shrink
+                    new_para = re.sub(rb'(charPrIDRef=")' + re.escape(base_id.encode()) + rb'(")', rb"\g<1>" + new_id.encode() + rb"\g<2>", new_para)
                 occupied.append((a0, a1))
                 cell_edits.append((a0, a1, new_para))
             if collided:
@@ -361,6 +462,9 @@ def fill_cells(
             new_section = _apply_edits(section_xml, section_edits)
             if new_section != section_xml:
                 changed_parts[section_path] = new_section
+
+    if header_changed and header_name and header_xml is not None:
+        changed_parts[header_name] = header_xml
 
     if not changed_parts:
         open_safety, _ = _finalize(source_bytes, output_path, source=source)

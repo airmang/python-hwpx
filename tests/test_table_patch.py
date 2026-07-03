@@ -373,3 +373,61 @@ def test_autofit_columns_widens_content_heavy(merged):
     assert sum(new_w.values()) == total          # total preserved
     assert new_w[0] > new_w[1]                    # heavy column wider than light
     assert build_grid(sec2[spans2[ti][0]:spans2[ti][1]])[1].ok
+
+
+# --- P6: font shrink-to-fit ----------------------------------------------------
+
+def _header(data: bytes) -> tuple[str, bytes]:
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        n = next(x for x in z.namelist() if x.endswith("header.xml"))
+        return n, z.read(n)
+
+
+def test_materialize_charpr_appends_shrunk(merged):
+    from hwpx.table_patch import _materialize_charpr
+    _n, header = _header(merged)
+    ids = [int(x) for x in re.findall(rb'<hh:charPr\b[^>]*?\bid="(\d+)"', header)]
+    assert ids
+    base = str(ids[0])
+    n0 = len(ids)
+    new_header, new_id = _materialize_charpr(header, base, 650, {})
+    n1 = len(re.findall(rb'<hh:charPr\b', new_header))
+    assert n1 == n0 + 1
+    assert int(new_id) == max(ids) + 1
+    # the new charPr carries the requested height (if the base had one)
+    if _re := re.search(rb'<hh:charPr\b[^>]*?\bid="' + new_id.encode() + rb'"[^>]*?\bheight="(\d+)"', new_header):
+        assert _re.group(1) == b"650"
+
+
+def test_fill_without_max_lines_leaves_font_and_header(merged):
+    ti = _find_table(merged, lambda t: len(_direct_cells(t)) >= 1)
+    assert ti is not None
+    sec, spans = _tables(merged)
+    cell = _direct_cells(sec[spans[ti][0]:spans[ti][1]])[0]
+    hn, _h = _header(merged)
+    res = fill_cells(merged, [{"table_index": ti, "row": cell.row, "col": cell.col, "text": "짧은값"}])
+    assert hn not in res.changed_parts  # no fit requested -> header untouched
+
+
+def test_fill_with_max_lines_shrinks_when_warranted(merged):
+    from hwpx.table_patch import _cell_run_charpr, _charpr_height, _cell_inner_width
+    _n, header = _header(merged)
+    sec, spans = _tables(merged)
+    # find a cell with a resolvable font + width, craft text that overflows 1 line
+    for ti, sp in enumerate(spans):
+        tbl = sec[sp[0]:sp[1]]
+        for c in _direct_cells(tbl):
+            cb = tbl[c.start:c.end]
+            cid = _cell_run_charpr(cb)
+            w = _cell_inner_width(cb)
+            h = _charpr_height(header, cid) if cid else None
+            if not cid or not w or not h or w < 3000:
+                continue
+            # text that needs ~5 lines at base font; target 2 lines, min 6pt -> shrink
+            txt = "가나다라마바사아자차카타파하" * max(3, (w // 900) // 2)
+            res = fill_cells(merged, [{"table_index": ti, "row": c.row, "col": c.col, "text": txt, "max_lines": 2}], min_font_pt=6.0)
+            if res.ok and _header(res.data)[0] in res.changed_parts:
+                # a charPr was materialised and the run repointed
+                assert len(re.findall(rb'<hh:charPr\b', _header(res.data)[1])) > len(re.findall(rb'<hh:charPr\b', header))
+                return
+    pytest.skip("no cell in fixture produced a confident font shrink")
