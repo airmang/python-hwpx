@@ -19,389 +19,138 @@
 |---|---|---|
 | 📦 라이브러리 | **[`python-hwpx`](https://github.com/airmang/python-hwpx)** | 순수 파이썬 HWPX 파싱·편집·생성 코어 |
 | 🔌 MCP 서버 | [`hwpx-mcp-server`](https://github.com/airmang/hwpx-mcp-server) | MCP 클라이언트(Claude Desktop, VS Code 등)에서 HWPX 조작 |
-| 🎯 에이전트 스킬 | [`hwpx-skill`](https://github.com/airmang/hwpx-skill) | 에이전트가 HWPX를 바로 쓰게 해주는 공식 온보딩 스킬 |
+| 🎯 에이전트 스킬 | [`hwpx-skill`](https://github.com/airmang/hwpx-plugins) | 에이전트가 HWPX를 바로 쓰게 해주는 공식 온보딩 스킬 |
 
 ---
+
 ## 왜 python-hwpx인가
 
-- 한컴오피스 설치 불필요 — 순수 파이썬으로 어디서나 동작
-- XML-first 워크플로 — 스키마 검증·unpack/pack까지 포함
-- 에이전트·자동화 친화 — MCP 서버·Skill이 같은 스택 위에서 직결
+- **한컴오피스 설치 불필요** — HWPX는 ZIP+XML(OWPML/OPC) 구조라, 순수 파이썬으로 Windows·macOS·Linux·CI 어디서나 읽고 씁니다.
+- **읽기부터 생성까지 한 코어** — 텍스트/서식 추출, 문단·표·양식 편집, 새 문서 생성, XSD 스키마 검증을 하나의 API로 처리합니다.
+- **에이전트·자동화 친화** — 같은 스택 위에서 `hwpx-mcp-server`와 공식 스킬이 직결됩니다.
 
-## 대항 라이브러리 비교
-
-| 항목 | python-hwpx | pyhwp(x) 류 | ole+bin 수작업 |
-|---|---|---|---|
-| HWPX Open XML 지원 | ✅ | ⚠️ 부분 | ❌ |
-| 한컴오피스 설치 불필요 | ✅ | ✅ | ✅ |
-| 편집/생성 API | ✅ | ❌ 대부분 읽기 | ❌ |
-| 스키마 검증 | ✅ | ❌ | ❌ |
-| AI 에이전트 연동 (MCP) | ✅ (hwpx-mcp-server) | ❌ | ❌ |
-
-## ⚡ 30초 안에 가치 확인
-
-### 1. 기존 문서를 열고 수정
-
-```python
-from hwpx import HwpxDocument
-
-document = HwpxDocument.open("보고서.hwpx")
-document.add_paragraph("자동화로 추가한 문단입니다.")
-document.save_to_path("보고서-수정.hwpx")
-```
-
-### 2. 양식형 표를 코드로 채우기
-
-```python
-from hwpx import HwpxDocument
-
-doc = HwpxDocument.open("신청서.hwpx")
-result = doc.fill_by_path({
-    "성명 > right": "홍길동",
-    "소속 > right": "플랫폼팀",
-})
-doc.save_to_path("신청서-작성완료.hwpx")
-
-print(result["applied_count"], result["failed_count"])
-```
-
-### 3. 텍스트 추출과 구조 검증
-
-```python
-from hwpx import HwpxDocument
-
-text = HwpxDocument.open("보고서.hwpx").export_markdown()
-print(text[:500])
-```
+## 빠른 시작
 
 ```bash
-hwpx-validate-package 보고서.hwpx
-hwpx-analyze-template 보고서.hwpx
+pip install python-hwpx      # Python 3.10+ · lxml ≥ 4.9
 ```
-
-### 4. 풍부한 Markdown 변환 (서식·표·각주·이미지 보존)
-
-`export_markdown()`는 단순 평문 추출이고, `export_rich_markdown()`는 인라인 서식(`**굵게**`, `*기울임*`, `~~취소선~~`),
-표(중첩 포함, colspan/rowspan 안전), 도형 텍스트, 이미지, 각주/미주, 하이퍼링크, 제목(`#`/`##`) 자동 감지까지 보존한다.
 
 ```python
 from hwpx import HwpxDocument
 
+# 기존 문서 열기 → 편집 → 저장
 doc = HwpxDocument.open("보고서.hwpx")
+doc.add_paragraph("자동화로 추가한 문단입니다.")
+doc.save_to_path("보고서-수정.hwpx")
 
-md = doc.export_rich_markdown(
-    image_dir="out/images",          # BinData 이미지를 디스크에 추출
-    image_ref_prefix="images/",      # 마크다운 내 ![](images/...) 경로 접두
-    detect_headings=True,            # Ⅰ./1. 패턴 기반 #/## 자동
-)
-print(md)
+# 새 문서 만들기
+new = HwpxDocument.new()
+new.add_paragraph("python-hwpx로 만든 새 문서")
+new.save_to_path("새문서.hwpx")
 ```
 
-문자열·경로·바이트도 그대로 받는다:
-
-```python
-from hwpx.tools.markdown_export import export_markdown
-
-md = export_markdown("보고서.hwpx")          # 경로
-md = export_markdown(open("a.hwpx", "rb").read())  # bytes
-```
-
-### 5. 각주 본문에 혼합 서식 / 하이퍼링크 추가
-
-`HwpxOxmlNote`에 `body_paragraph`, `add_run`, `add_hyperlink` helper가 있어 각주 본문을
-직접 paragraph로 다루지 않고도 인라인 서식·링크를 손쉽게 채울 수 있다.
-
-```python
-para = section.paragraphs[0]
-note = para.add_footnote("")  # 빈 각주 생성 후 본문 구성
-note.add_run("자세한 내용은 ", )
-note.add_run("정부 공식 사이트", bold=True)
-note.add_run("를 참고하라: ")
-note.add_hyperlink("https://www.kasa.go.kr", "우주항공청")
-```
-
-처음에는 `open/new -> edit/extract -> save_to_path` 흐름만 잡으면 된다. 패키지 구조, XML 파트, 템플릿 회귀 점검은 필요할 때만 확장하면 된다.
-
-## 어디부터 읽으면 되나
-
-필요한 작업부터 바로 들어가면 된다.
-
-- **첫 파일을 열고 저장하는 최소 경로** → [`docs/quickstart.md`](docs/quickstart.md)
-- **문단, 표, 메모, 섹션 편집 패턴** → [`docs/usage.md`](docs/usage.md)
-- **텍스트 추출, 구조 조회, 검증/패키지 작업** → [`docs/usage.md`](docs/usage.md)
-- **실행 가능한 예제 모음** → [`docs/examples.md`](docs/examples.md)
-- **패키지 구조와 스키마 심화** → [`docs/schema-overview.md`](docs/schema-overview.md)
-- **설치 검증과 개발 환경 확인** → [`docs/installation.md`](docs/installation.md)
-
-## examples 하이라이트
-
-<table>
-  <tr>
-    <td valign="top">
-      <strong><a href="examples/build_release_checklist.py">build_release_checklist.py</a></strong><br>
-      메모와 스타일 편집이 포함된 릴리스 체크리스트용 HWPX를 생성한다.
-    </td>
-    <td valign="top">
-      <strong><a href="examples/extract_text.py">extract_text.py</a></strong><br>
-      본문과 중첩 객체 텍스트를 CLI로 빠르게 추출한다.
-    </td>
-    <td valign="top">
-      <strong><a href="examples/find_objects.py">find_objects.py</a></strong><br>
-      태그·속성 기준으로 OWPML XML 노드를 추적한다.
-    </td>
-  </tr>
-</table>
-
-
-## Quick Start
-
-새 문서를 바로 만들고 싶다면 이렇게 시작하면 된다.
-
-```python
-from hwpx import HwpxDocument
-
-document = HwpxDocument.new()
-document.add_paragraph("python-hwpx로 만든 새 문서")
-document.save_to_path("새문서.hwpx")
-```
-
-> 💡 컨텍스트 매니저도 지원합니다:
+> 💡 컨텍스트 매니저도 지원합니다 — `with` 블록을 벗어나면 리소스가 자동 정리됩니다:
 > ```python
 > with HwpxDocument.open("보고서.hwpx") as doc:
 >     doc.add_paragraph("자동으로 리소스가 정리됩니다.")
 >     doc.save_to_path("결과물.hwpx")
 > ```
 
-표, 메모, 텍스트 추출, 검증, 패키지/XML 심화는 [`docs/quickstart.md`](docs/quickstart.md)와 [`docs/usage.md`](docs/usage.md)에서 바로 이어진다.
+`open`/`new` → `edit`/`extract` → `save_to_path` 흐름만 잡으면 나머지는 필요할 때 확장하면 됩니다.
 
-> **pyhwpx / pyhwp와 다른 점?**
-> | | python-hwpx | pyhwpx | pyhwp |
-> |---|---|---|---|
-> | **대상 포맷** | `.hwpx` (OWPML/OPC) | `.hwpx` | `.hwp` (v5 바이너리) |
-> | **한/글 설치** | 불필요 | 필요 (Windows COM) | 불필요 |
-> | **크로스 플랫폼** | ✅ Linux / macOS / Windows / CI | ❌ Windows 전용 | ✅ |
-> | **방식** | 직접 XML 파싱 | COM 자동화 | OLE 파싱 |
+## 무엇을 하나
 
-## HWPX plugin usage
-
-The per-host bundles in the `hwpx-plugins` repository consume `python-hwpx` through
-`hwpx-mcp-server` and the local quickcheck scripts. During local development, set
-`PYTHON_HWPX_REPO=/absolute/path/to/python-hwpx` so the plugin launcher uses this checkout as an
-editable dependency.
-
-## 🌍 크로스 플랫폼 지원
-
-HWPX 파일은 **ZIP + XML** 구조이므로, 한/글 프로그램 없이 Python만으로 읽고 편집하는 워크플로를 구성할 수 있습니다.
-
-| 플랫폼 | 읽기 | 쓰기 | 비고 |
-|--------|------|------|------|
-| ✅ Windows | ✅ | ✅ | 한컴오피스 |
-| ✅ macOS | ✅ | ✅ | 한컴오피스 Mac |
-| ✅ Linux | ✅ | ✅ | 한컴오피스 Linux |
-| ✅ CI/CD | ✅ | ✅ | Docker, GitHub Actions 등 |
-
-## 주요 기능 한눈에 보기
-
-| 카테고리 | 기능 | 설명 |
-|----------|------|------|
-| 📄 **문서 I/O** | 열기/저장/생성 | 파일, 바이트, 스트림 입출력 · 원자적 저장 · ZIP 무결성 검증 |
-| 📝 **단락** | 추가/삭제/편집/서식 | 텍스트 설정, 단락 삭제(`remove_paragraph`), 스타일 참조 |
-| ✏️ **Run** | 텍스트 조각 | 추가, 교체, 볼드/이탤릭/밑줄/색상 서식 |
-| 📊 **표(Table)** | 생성/편집/병합 | N×M 표 생성, 셀 텍스트, 셀 병합/분할, 중첩 테이블 |
-| 🧭 **표 자동화** | 탐색/채우기 | 테이블 맵, 라벨 기반 셀 탐색, 경로 기반 배치 채우기 |
-| 📑 **섹션** | 추가/삭제 | `add_section(after=)`, `remove_section()`, manifest 자동 관리 |
-| 🖼️ **이미지** | 임베드/삭제 | 바이너리 데이터 관리, manifest 자동 등록 |
-| ✏️ **도형** | 선/사각형/타원 | OWPML 명세 준수 도형 삽입 |
-| 📑 **머리글/바닥글** | 설정/제거 | 홀수/짝수/양쪽 페이지 구분 |
-| 💬 **메모** | 추가/삭제 | 앵커 기반 메모, 메모 셰이프 참조 |
-| 📌 **각주/미주** | 추가 | 텍스트 접근 |
-| 🔗 **북마크/하이퍼링크** | 삽입/조회 | URL 링크, 내부 북마크 |
-| 📰 **다단 편집** | 컬럼 정의 | 다단 레이아웃 제어 |
-| 🔍 **텍스트 추출** | 파이프라인 | 섹션/단락 순회, 주석 렌더링, 중첩 객체 제어 |
-| 🔎 **객체 검색** | 태그/속성/XPath | 특정 요소 탐색, 주석 이터레이터 |
-| 🎨 **스타일 치환** | 서식 기반 필터 | 색상/밑줄/charPrIDRef 기반 Run 검색 및 교체 |
-| 📤 **내보내기** | 텍스트/HTML/Markdown | 문서 변환 출력 |
-| ✅ **유효성 검사** | XSD + 패키지 구조 | CLI(`hwpx-validate`, `hwpx-validate-package`) 및 API |
-| 🧰 **작업 도구** | unpack/pack/분석/비교 | pack-ready 작업 디렉터리 추출과 재구성 점검 |
-| 🏗️ **저수준 XML** | 데이터클래스 매핑 | OWPML 스키마 ↔ Python 객체 직접 조작 |
-| 🔄 **네임스페이스 호환** | 자동 정규화 | HWPML 2016 → 2011 자동 변환 |
-| 🏗️ **빌더** | 조립형 생성 | `hwpx.builder` — Section/Heading/Table/Image/Header 조립, 하드게이트 저장 리포트 |
-| ✅ **편집기 오픈 안전** | `validate_editor_open_safety` | 저장/팩/리페어/빌더 출력 게이트, `openSafety` 증거 반환 |
-| 🧪 **퍼징 수렴 루프** | `hwpx.tools.fuzz` | 시드 결정적 시나리오 생성 · 3중 오라클 러너 · 회귀 fixture 박제 |
-| 🖥️ **레이아웃 프리뷰** | `hwpx.tools.layout_preview` | 페이지 박스·표·여백 근사 HTML/PNG (에이전트 자기검증용) |
-| 🧷 **바이트 보존 패치** | `hwpx.patch` | section XML 바이트 splice — 미수정 영역 바이트 보존 |
-| 📐 **기존 문서 서식 편집** | 문단·페이지 | 정렬·줄간격·들여쓰기·문단 간격, 용지·여백·방향, 머리말/쪽번호, 불릿/번호 |
-| 🖊️ **누름틀** | 양식 필드 | 클릭히어 필드 조회·서식 보존 채움 |
-| 🏛️ **공문서 도구** | `official_lint` · 결재란 | 항목기호 위계·"끝." 표시·붙임·날짜 표기 lint, 결재란 프리셋 |
-| 📷 **고급 생성기** | `advanced_generators` | 사진대지(image_grid)·회의 명패·표 기반 조직도 |
-| 🆚 **신구대조** | `doc_diff` | 문단 LCS diff·신구대조표 생성·참조 정합 lint |
-| 📨 **메일머지·표 계산** | `mail_merge` | 템플릿+데이터 N부 대량 생성, 표 합계·평균 |
-| 🪄 **서식 이식** | `style_profile` | 참조 문서 프로파일 추출·적용, 템플릿 레지스트리 |
-| 🛡️ **입력 강건화** | `opc.security` | XML entity 폭탄·ZIP 압축 폭탄 가드 |
-
-## 기능 상세
-
-### 📄 문서 편집
-
-문단, 표, 메모, 머리글/바닥글을 Python 객체로 다룹니다.
+### 🔍 읽기 · 추출
+- 텍스트/HTML/Markdown 내보내기 — `export_text()` · `export_html()` · `export_markdown()`
+- **풍부한 Markdown** — `export_rich_markdown()`은 인라인 서식(`**굵게**`·`*기울임*`·`~~취소선~~`), 중첩 표(colspan/rowspan 안전), 도형 텍스트, 이미지, 각주/미주, 하이퍼링크, 제목(`#`/`##`) 자동 감지까지 보존
+- `TextExtractor` / `ObjectFinder` — 섹션·문단 순회, 태그·속성·XPath로 객체 탐색 (`hp:tab`은 `\t`로 보존, roundtrip 안전)
 
 ```python
-# 단락 추가·삭제
-doc.add_paragraph("새 문단")
-doc.remove_paragraph(doc.paragraphs[-1])   # 마지막 단락 삭제
-
-# 섹션 추가·삭제
-new_sec = doc.add_section()          # 문서 끝에 섹션 추가
-new_sec.add_paragraph("두 번째 섹션 내용")
-doc.remove_section(1)                # 인덱스로 섹션 삭제
-
-# 머리글·바닥글
-doc.set_header_text("기밀 문서", page_type="BOTH")
-doc.set_footer_text("1 / 10", page_type="BOTH")
-
-# 표 셀 병합·분할
-table.merge_cells(0, 0, 1, 1)   # (0,0)~(1,1) 병합
-table.set_cell_text(0, 0, "병합된 셀", logical=True, split_merged=True)
-table.set_cell_text(0, 0, "line 1\nline 2", split_paragraphs=True)
-
-# 양식형 표 자동 채우기
-form = doc.add_table(2, 2)
-form.cell(0, 0).text = "성명:"
-form.cell(1, 0).text = "소속"
-
-doc.find_cell_by_label("성명")    # {"matches": [...], "count": 1}
-doc.fill_by_path({
-    "성명 > right": "홍길동",
-    "소속 > right": "플랫폼팀",
-})
+doc = HwpxDocument.open("보고서.hwpx")
+md = doc.export_rich_markdown(
+    image_dir="out/images",       # BinData 이미지를 디스크에 추출
+    image_ref_prefix="images/",   # 마크다운 내 ![](images/...) 경로 접두
+    detect_headings=True,         # Ⅰ./1. 패턴 기반 #/## 자동
+)
 ```
 
-`doc.paragraphs`의 인덱스는 본문 직속 문단 0-based 기준입니다. 표 안 문단은
-본문 `paragraph_index`에 섞지 않고 `get_table_map()`의 cell `location`
-(`table_index`, `row`, `col`, `cell_paragraph_index`)으로 다룹니다.
-`get_table_map()`은 `caption_text`와 `preceding_paragraph_text`를 분리해
-반환하고, 셀 미리보기의 여러 문단은 `\n`으로 유지합니다.
-
-### 🔍 텍스트 추출 & 검색
-
-```python
-from hwpx import TextExtractor, ObjectFinder
-
-# 텍스트 추출
-with TextExtractor("문서.hwpx") as extractor:
-    for section in extractor.iter_sections():
-        for para in extractor.iter_paragraphs(section):
-            print(para.text())
-
-# 특정 객체 탐색
-for obj in ObjectFinder("문서.hwpx").find_all(tag="tbl"):
-    print(obj.tag, obj.path)
-```
-
-`hp:tab`과 `ctrl id="tab"`은 탭 문자(`\t`)로 보존됩니다. 따라서 `Paragraph.text`, `TextExtractor`, `export_text()`/`export_html()`/`export_markdown()` 경로에서 같은 탭 의미를 유지한 채 roundtrip 할 수 있습니다. 필요하면 `preserve_breaks=False`로 줄바꿈/탭을 공백 기반으로 평탄화할 수 있습니다.
-
-### 🎨 스타일 기반 텍스트 치환
-
-서식(색상, 밑줄, charPrIDRef)으로 런을 필터링해 선택적으로 교체합니다.
+### ✏️ 편집
+- 문단 추가/삭제/서식, Run 단위 볼드·이탤릭·밑줄·색상
+- 섹션 추가/삭제(`add_section(after=)`·`remove_section()`, manifest 자동 관리)
+- 표 생성·셀 텍스트·병합/분할·중첩 테이블, 이미지 임베드, 머리글/바닥글, 메모(앵커 기반), 각주/미주, 북마크/하이퍼링크, 다단 편집
+- **기존 문서 서식 편집** — 정렬·줄간격·들여쓰기·문단 간격, 용지·여백·방향, 쪽번호, 불릿/번호
+- **스타일 기반 치환** — 색상·밑줄·`charPrIDRef`로 Run을 필터링해 선택 교체(`replace_text_in_runs`·`find_runs_by_style`)
 
 ```python
 # 빨간색 텍스트만 찾아서 치환
-doc.replace_text_in_runs(
-    "임시", "확정",
-    text_color="#FF0000",
-)
-
-# 특정 서식의 런 검색
-runs = doc.find_runs_by_style(underline_type="SINGLE")
+doc.replace_text_in_runs("임시", "확정", text_color="#FF0000")
 ```
 
-### 📤 내보내기
+### 🖊️ 양식 채우기 (byte-preserving)
+- 누름틀(클릭히어) 필드 조회·서식 보존 채움, 라벨 기반 셀 탐색(`find_cell_by_label`)·경로 채우기(`fill_by_path`)
+- **바이트 보존 구조 편집** — 셀 채우기 / 행·열·표 삭제·삽입 / 열 너비 오토핏 / 폰트 shrink-to-fit 을 문서 재조립 없이 수행해 양식 서식을 그대로 보존. 미수정 영역은 `hwpx.patch`가 section XML 바이트를 splice해 손대지 않음
 
 ```python
-# 텍스트, HTML, Markdown으로 변환
-text = doc.export_text()
-html = doc.export_html()
-md   = doc.export_markdown()
+doc = HwpxDocument.open("신청서.hwpx")
+result = doc.fill_by_path({
+    "성명 > right": "홍길동",
+    "소속 > right": "플랫폼팀",
+})
+doc.save_to_path("신청서-작성완료.hwpx")
+print(result["applied_count"], result["failed_count"])
 ```
 
-### 🏗️ 저수준 XML 제어
+### 🏗️ 생성 · 공문서 도구
+- `hwpx.builder` — Section/Heading/Table/Image/Header 조립형 생성 + 하드게이트 저장 리포트
+- 공문서 도구 — `official_lint`(항목기호 위계·"끝." 표시·붙임·날짜 lint), 결재란 프리셋
+- `advanced_generators` — 사진대지(image_grid)·회의 명패·표 기반 조직도
+- `mail_merge` — 템플릿+데이터 N부 대량 생성, 표 합계·평균 계산
+- `doc_diff` — 문단 LCS diff·신구대조표·참조 정합 lint
+- `style_profile` — 참조 문서 프로파일 추출·적용, 템플릿 레지스트리
 
-OWPML 스키마에 매핑된 데이터클래스로 XML 구조를 직접 다룹니다.
+### ✅ 검증 · 안전 · 저수준
+- XSD 스키마 + 패키지 구조 검증 — CLI `hwpx-validate` · `hwpx-validate-package`, `hwpx-analyze-template`
+- `validate_editor_open_safety` — 저장/팩/리페어/빌더 출력 게이트, `openSafety` 증거 반환
+- `hwpx.tools.fuzz`(시드 결정적 시나리오·3중 오라클) · `hwpx.tools.layout_preview`(페이지 박스 근사 HTML/PNG 자기검증) · `opc.security`(XML entity·ZIP 압축 폭탄 가드)
+- `hwpx.oxml` 데이터클래스로 OWPML 스키마 ↔ Python 객체 직접 조작, HWPML 2016→2011 네임스페이스 자동 정규화
 
-```python
-# 헤더 참조 목록
-doc.border_fills    # 테두리 채우기
-doc.bullets         # 글머리표
-doc.styles          # 스타일
-doc.track_changes   # 변경 추적
-
-# 바탕쪽·이력·버전 파트
-doc.master_pages
-doc.histories
-doc.version
+```bash
+hwpx-validate-package 보고서.hwpx
+hwpx-analyze-template 보고서.hwpx
 ```
 
-## 아키텍처
+> 전체 기능·클래스·메서드 목록은 [사용 가이드](docs/usage.md)와 [API 레퍼런스](https://airmang.github.io/python-hwpx/api_reference.html)를 참고하세요.
 
-```
-python-hwpx
-├── hwpx.document        # 고수준 편집 API (HwpxDocument)
-├── hwpx.opc             # OPC 컨테이너 읽기/쓰기 (원자적 저장, ZIP 무결성 검증)
-├── hwpx.oxml            # OWPML XML ↔ 데이터클래스 매핑
-│   ├── document.py      #   섹션, 문단, 표, 런, 메모, 도형, 노트
-│   ├── header.py        #   헤더 참조 목록 (스타일, 글머리표, 변경추적 등)
-│   ├── body.py          #   타입이 지정된 본문 모델
-│   └── common.py        #   범용 XML ↔ 데이터클래스
-├── hwpx.tools
-│   ├── archive_cli      #   unpack/pack CLI 및 재패킹 메타데이터
-│   ├── text_extractor   #   텍스트 추출 파이프라인
-│   ├── text_extract_cli #   텍스트 추출 CLI
-│   ├── object_finder    #   객체 탐색 유틸리티
-│   ├── exporter         #   텍스트/HTML/Markdown 내보내기
-│   ├── validator        #   스키마 유효성 검사 (hwpx-validate CLI)
-│   ├── package_validator#   ZIP/OPC/HWPX 구조 검사
-│   ├── page_guard       #   구조 변화 징후 점검
-│   └── template_analyzer#   레퍼런스 문서 분석/추출
-└── hwpx.templates       # 내장 빈 문서 템플릿
-```
+## 대항 라이브러리 비교
 
+| | python-hwpx | pyhwpx | pyhwp |
+|---|---|---|---|
+| **대상 포맷** | `.hwpx` (OWPML/OPC) | `.hwpx` | `.hwp` (v5 바이너리) |
+| **한/글 설치** | 불필요 | 필요 (Windows COM) | 불필요 |
+| **크로스 플랫폼** | ✅ Linux / macOS / Windows / CI | ❌ Windows 전용 | ✅ |
+| **편집/생성 API** | ✅ | ✅ (COM) | ❌ 대부분 읽기 |
+| **스키마 검증** | ✅ | ❌ | ❌ |
+| **AI 에이전트 연동 (MCP)** | ✅ `hwpx-mcp-server` | ❌ | ❌ |
 
-## 문서
-
-| | |
-|---|---|
-| **[📖 전체 문서](https://airmang.github.io/python-hwpx/)** | Sphinx 기반 API 레퍼런스, 사용 가이드, FAQ |
-| **[🚀 빠른 시작](https://airmang.github.io/python-hwpx/quickstart.html)** | 5분 안에 HWPX 문서 다루기 |
-| **[📚 사용 가이드](https://airmang.github.io/python-hwpx/usage.html)** | 50+ 실전 사용 패턴 |
-| **[🔧 API 레퍼런스](https://airmang.github.io/python-hwpx/api_reference.html)** | 클래스·메서드 상세 명세 |
-| **[📐 스키마 개요](https://airmang.github.io/python-hwpx/schema-overview.html)** | OWPML 스키마 구조 설명 |
-| **[🧪 스택 통합 자료](shared/hwpx/README.md)** | fixture, smoke, validation, compatibility 운영 자료 |
-
-## 지원 포맷
-
-| 포맷 | 확장자 | 읽기 | 쓰기 |
-|------|--------|------|------|
-| HWPX | `.hwpx` | ✅ | ✅ |
-| HWP | `.hwp` | ❌ | ❌ |
-
-> **Note:** HWP(v5 바이너리) 파일은 지원하지 않습니다. 한컴오피스에서 HWPX로 변환 후 사용하세요.
-
-## 요구 사항
-
-- Python 3.10+
-- lxml ≥ 4.9
+> HWP(v5 바이너리) 파일은 지원하지 않습니다. 한컴오피스에서 HWPX로 변환 후 사용하세요.
 
 ## 알려진 제약
 
-- `add_shape()` / `add_control()`은 한/글이 요구하는 모든 하위 요소를 생성하지 않습니다.
-  복잡한 개체를 추가할 때는 한/글에서 열어 검증해 주세요.
-- 이미지 삽입 시 바이너리 임베드는 지원하지만, `<hp:pic>` 요소의 완전한 자동 생성은 제공하지 않습니다.
+- `add_shape()` / `add_control()`은 한/글이 요구하는 모든 하위 요소를 생성하지 않습니다. 복잡한 개체 추가 시 한/글에서 열어 검증하세요.
+- 이미지 바이너리 임베드는 지원하지만 `<hp:pic>` 요소의 완전 자동 생성은 제공하지 않습니다.
 - 암호화된 HWPX 파일의 암복호화는 지원하지 않습니다.
+
+## 더 보기
+
+- **[🚀 빠른 시작](docs/quickstart.md)** · **[📚 사용 가이드](docs/usage.md)** — 첫 파일 열기부터 문단·표·메모·섹션 편집, 텍스트 추출·검증까지
+- **[💡 예제 모음](docs/examples.md)** · [`examples/`](examples/) — `build_release_checklist.py`(메모·스타일 편집 HWPX 생성), `extract_text.py`(CLI 텍스트 추출), `find_objects.py`(OWPML 노드 추적) 등
+- **[📐 스키마 개요](docs/schema-overview.md)** · **[🔧 설치 검증](docs/installation.md)**
+- **[📖 전체 문서 (Sphinx)](https://airmang.github.io/python-hwpx/)** — API 레퍼런스·50+ 실전 패턴·FAQ
+- **[📝 CHANGELOG](CHANGELOG.md)** · **[🤝 CONTRIBUTING](CONTRIBUTING.md)** · **[👥 CONTRIBUTORS](CONTRIBUTORS.md)**
 
 ## 기여하기
 
 버그 리포트, 기능 제안, PR 모두 환영합니다.
-개발 환경 설정과 테스트 방법은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
 
 ```bash
 git clone https://github.com/airmang/python-hwpx.git
@@ -410,12 +159,9 @@ pip install -e ".[dev]"
 pytest
 ```
 
-머지된 기여자 목록은 [CONTRIBUTORS.md](CONTRIBUTORS.md)에서 확인할 수 있습니다.
-
 ## License
-Apache License 2.0. See LICENSE and NOTICE.
 
-<br>
+Apache License 2.0. See LICENSE and NOTICE.
 
 ## Maintainer
 

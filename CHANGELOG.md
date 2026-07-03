@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [2.23.0] - 2026-07-03
+### 추가
+- **폰트 shrink-to-fit (M10 후속, S-064)**: `hwpx.table_patch.fill_cells`에 `fit_max_lines`(+ 셀별 `max_lines`) — 셀 텍스트가 템플릿 폰트로 목표 줄수를 넘겨 wrap되면 `form_fit` FitEngine이 확신을 갖고 들어가는 가장 큰 폰트(≥ `min_font_pt`)를 골라 **실제 `<hh:charPr>`로 재료화**(base charPr 복제·height 변경)하고 셀 run을 그 charPr로 재지정. byte-preserving(header.xml의 새 charPr + 해당 섹션만 변경, opt-in이라 목표 없는 채움은 바이트 동일). FitEngine 정직 게이트가 borderline shrink는 거부(확실히 들어갈 때만 축소).
+### 비고
+- 오라클 실증: 실제 3학년 양식 성취기준 셀을 긴 텍스트 + `max_lines=4`로 채우니 9pt→6.5pt 축소, 실한컴 clean 렌더(나머지 표는 9pt 유지). 정직: 도교육청 폼은 base 9pt라 축소 여지(→8pt)가 작아 `autofit_columns`(가로)가 주력이고 폰트 축소는 보조; base 폰트 큰 폼엔 효과적. README 3스택 정비(python-hwpx 425→171·mcp 599→184·skill 471→178줄) 동반.
+
 ## [2.22.0] - 2026-07-03
 ### 추가
 - **열 너비 조정 (M10 후속, S-064)**: `hwpx.table_patch.apply_table_ops` 새 op 2종 — `set_column_widths(table_index, widths)`(명시적 논리 열너비; 각 셀 cellSz.width = 걸친 열들의 합, 병합 인식)·`autofit_columns(table_index)`(내용에 맞춰 열너비 재균형: demand = 최장 단일-span 셀 텍스트폭[`form_fit` 어드밴스 모델], sqrt-damped로 문단 열 폭주 방지, 열별 최소폭 floor, 표 총폭 보존). 둘 다 **byte-preserving**(cellSz만 편집, charPr/header 불변)이며 grid 검증. 배경: 텍스트가 길어지면 한컴이 행 높이를 자동으로 늘려 넘침은 없으나 좁은 열은 촘촘히 wrap됨 — autofit이 내용 많은 열을 넓혀 완화한다(오라클 실증: 운영계획 성취기준 열 14186→16441, wrap 약 16→9줄, 총폭 보존).
