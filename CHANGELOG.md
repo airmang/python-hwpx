@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-07-03
+### 추가
+- **M10 바이트보존 구조적 양식채움 (S-064)**: `hwpx.table_patch` — 2026-07-03 실전 실패(도교육청 평가계획 양식을 재생성으로 채워 서식 파괴)를 드라이버로, S-052 바이트 코어 위에 "양식 채움 층"을 완성. `fill_cells(source, cells)` — `(table_index, row, col)` 주소로 셀 텍스트를 바이트보존 splice(빈/self-closing 셀 삽입, 다중 문단 셀 전체 교체, 병합 앵커 해석). 미변경 셀·표·섹션은 **바이트 동일**(원칙 VII), no-op=바이트동일, 미해결 주소는 mutate 없이 `skipped`.
+- **표 구조 프리미티브** `apply_table_ops(source, ops)`: `delete_column`(자유폭 재분배 + 열삭제로 빈 행 생기면 캐스케이드 삭제·rowSpan 붕괴)·`delete_row`·`delete_table`·`insert_row_by_clone`(rowSpan==1 참조행 복제, 서식보존·문단 id 리프레시 — 균등 재생성 금지). 각 편집 후 `build_grid` 검증(overlap/hole/oob)으로 무효면 거부(fail-closed, 원칙 VI). 중첩표 거부.
+- **실한컴 오라클 게이트** `verify_fill(before, after, require=)`: `resolve_oracle`+`visual_check`로 before/after를 실제 한컴 렌더 대조 → `render_checked`·overflow·overlap(글자겹침)·page_count. 오라클 없으면 정직 degrade(`render_checked=False`), `require=True`면 fail-closed. open-safety/HTML 프리뷰를 한컴 수용으로 오인 금지.
+### 비고
+- 오라클 실증: 실제 3학년 양식에서 `delete_column`(반영비율 7→5열 캐스케이드)·`insert_row_by_clone`(세부기준 +행, 85병합 표)·content-complete 운영계획 채움이 실한컴에서 서식보존·clean 렌더. MCP 표면(`apply_table_ops`·`verify_form_fill`)은 hwpx-mcp-server 2.13.0에서 합류.
+
 ## [2.20.0] - 2026-07-02
 ### 추가
 - **M7 네이티브 자동 차례·상호참조 (S-062)**: `hwpx.tools.toc_author` — `add_native_toc`(한컴 네이티브 `TABLEOFCONTENTS` 필드영역 + Command DSL, `dirty=1` 기본 = 한컴이 처음 여는 순간 항목·차례 스타일·쪽번호를 재계산), `add_page_crossref`(쪽 번호 `CROSSREF` 필드 + 캐시 결과런 — 한컴이 편집/저장 시 자동 재계산), `mark_toc_dirty`(편집 후 재번호 재트리거), `ensure_paragraph_anchor_id`/`outline_heading_paragraphs`. 계약은 실제 한컴 저작 gold pair에서 리버스엔지니어링(`tests/fixtures/m7_toc_gold/`).
