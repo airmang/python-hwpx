@@ -696,7 +696,67 @@ def apply_table_ops(
     )
 
 
+# --- P3: real-Hancom oracle gate for form-fill (FR-005) -----------------------
+
+class RenderCheckRequired(RuntimeError):
+    """``verify_fill(require=True)`` but no real Hancom oracle rendered."""
+
+
+def verify_fill(
+    before: str | Path | bytes | None,
+    after: str | Path | bytes,
+    *,
+    oracle: Any = None,
+    require: bool = False,
+    edit_mask: Any = None,
+    work_dir: str | None = None,
+):
+    """Render *before*/*after* in **real Hancom** and judge the fill.
+
+    Wires the real oracle (:func:`hwpx.visual.oracle.resolve_oracle` /
+    :func:`~hwpx.visual.oracle.visual_check`) into the form-fill verdict so a
+    caller never mistakes structural validity (open-safety) or a lenient HTML
+    preview for Hancom acceptance -- the exact 2026-07-03 overclaim. Returns a
+    ``VisualReport`` carrying ``render_checked`` plus ``overflow_detected`` /
+    ``overlap_detected`` (글자겹침) / ``page_count_changed``.
+
+    Honest degrade (Constitution V): with no reachable Hancom / imaging stack the
+    report is ``render_checked=False, ok=True`` and nothing raises -- **unless**
+    ``require=True``, which fails closed with :class:`RenderCheckRequired`.
+    """
+    import os
+    import shutil
+    import tempfile
+
+    from .visual.oracle import resolve_oracle, visual_check
+
+    after_bytes = _read_source_bytes(after)
+    before_bytes = _read_source_bytes(before) if before is not None else None
+    if oracle is None:
+        oracle = resolve_oracle()
+
+    tmp = tempfile.mkdtemp(prefix="hwpx-verify-")
+    try:
+        after_path = os.path.join(tmp, "after.hwpx")
+        Path(after_path).write_bytes(after_bytes)
+        before_path = None
+        if before_bytes is not None:
+            before_path = os.path.join(tmp, "before.hwpx")
+            Path(before_path).write_bytes(before_bytes)
+        report = visual_check(before_path, after_path, oracle=oracle, edit_mask=edit_mask, work_dir=work_dir)
+    finally:
+        if work_dir is None:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    if require and not report.render_checked:
+        raise RenderCheckRequired(
+            "render_check='required' but no Hancom oracle rendered: "
+            + "; ".join(list(report.warnings) + list(report.errors))
+        )
+    return report
+
+
 __all__ = [
     "fill_cells", "build_grid", "GridReport", "CellFillResult", "CellApplied", "CellSkipped",
-    "apply_table_ops", "TableStructureError",
+    "apply_table_ops", "TableStructureError", "verify_fill", "RenderCheckRequired",
 ]

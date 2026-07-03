@@ -245,3 +245,31 @@ def test_ops_then_fill_chains(merged):
     _, spans1 = _tables(res.data)
     assert len(spans1) == n - 1
     assert "체이닝OK" in _section(res.data)[1].decode("utf-8")
+
+
+# --- P3: oracle gate (honest degrade + fail-closed) ---------------------------
+
+import os as _os
+from hwpx.table_patch import verify_fill, RenderCheckRequired
+from hwpx.visual.oracle import NullOracle
+
+
+def test_verify_fill_degrades_without_oracle(merged):
+    res = fill_cells(merged, [{"table_index": 0, "row": 0, "col": 0, "text": "검증테스트"}])
+    report = verify_fill(merged, res.data, oracle=NullOracle())
+    assert report.render_checked is False
+    assert report.ok is True  # honest degrade: unverified, not a failure, never raises
+
+
+def test_verify_fill_required_fails_closed_without_oracle(merged):
+    res = fill_cells(merged, [{"table_index": 0, "row": 0, "col": 0, "text": "검증테스트"}])
+    with pytest.raises(RenderCheckRequired):
+        verify_fill(merged, res.data, oracle=NullOracle(), require=True)
+
+
+@pytest.mark.skipif(_os.environ.get("HWPX_MAC_ORACLE_SMOKE") != "1", reason="opt-in real-Hancom smoke")
+def test_verify_fill_render_checked_with_real_oracle(merged):
+    res = fill_cells(merged, [{"table_index": 0, "row": 0, "col": 0, "text": "검증테스트"}])
+    report = verify_fill(merged, res.data)
+    assert report.render_checked is True
+    assert report.overlap_detected is False  # cell text fill introduces no 글자겹침
