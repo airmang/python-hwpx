@@ -320,3 +320,56 @@ def test_multiple_cells_same_table_no_overlap(merged):
     txt = _section(res.data)[1].decode("utf-8")
     # at least the distinct (non-merge-colliding) cells landed
     assert sum(f"V{i}" in txt for i in range(3)) >= 1
+
+
+# --- P6: column-width fit (set_column_widths / autofit_columns) ---------------
+
+def _uniform_row_table(data: bytes):
+    """Find a table with a uniform (all colSpan=1) row and >=3 columns."""
+    from hwpx.table_patch import _uniform_col_widths
+    sec, spans = _tables(data)
+    for ti, sp in enumerate(spans):
+        rows = _parse_table(sec[sp[0]:sp[1]].decode("utf-8"))[1]
+        w = _uniform_col_widths(rows)
+        if w and len(w) >= 3:
+            return ti, w
+    return None, None
+
+
+def test_set_column_widths_preserves_total_and_grid(merged):
+    from hwpx.table_patch import _uniform_col_widths
+    ti, w = _uniform_row_table(merged)
+    if ti is None:
+        pytest.skip("no uniform multi-column table")
+    total = sum(w.values())
+    target = {c: total // len(w) for c in range(len(w))}
+    target[0] += total - sum(target.values())  # exact total
+    res = apply_table_ops(merged, [{"op": "set_column_widths", "table_index": ti, "widths": target}])
+    assert res.ok, res.skipped
+    sec2, spans2 = _tables(res.data)
+    rep = build_grid(sec2[spans2[ti][0]:spans2[ti][1]])[1]
+    assert rep.ok
+    new_w = _uniform_col_widths(_parse_table(sec2[spans2[ti][0]:spans2[ti][1]].decode("utf-8"))[1])
+    assert sum(new_w.values()) == total
+
+
+def test_autofit_columns_widens_content_heavy(merged):
+    from hwpx.table_patch import _uniform_col_widths
+    ti, w = _uniform_row_table(merged)
+    if ti is None:
+        pytest.skip("no uniform multi-column table")
+    total = sum(w.values())
+    # make col 0 content-heavy, col 1 light, then autofit
+    long_txt = "가나다라마바사아자차카타파하" * 6
+    filled = fill_cells(merged, [
+        {"table_index": ti, "row": 0, "col": 0, "text": long_txt},
+        {"table_index": ti, "row": 0, "col": 1, "text": "짧"},
+    ])
+    res = apply_table_ops(filled.data, [{"op": "autofit_columns", "table_index": ti}])
+    assert res.ok, res.skipped
+    sec2, spans2 = _tables(res.data)
+    new_w = _uniform_col_widths(_parse_table(sec2[spans2[ti][0]:spans2[ti][1]].decode("utf-8"))[1])
+    assert new_w is not None
+    assert sum(new_w.values()) == total          # total preserved
+    assert new_w[0] > new_w[1]                    # heavy column wider than light
+    assert build_grid(sec2[spans2[ti][0]:spans2[ti][1]])[1].ok

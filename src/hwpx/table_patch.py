@@ -600,6 +600,57 @@ def _insert_row_by_clone(table: str, ref_row: int, count: int = 1) -> str:
     return _rebuild(prefix, new_rows, suffix, rowcnt=len(new_rows))
 
 
+def _set_column_widths(table: str, new_widths: dict[int, int]) -> str:
+    """Set logical column widths (HWPUNIT). Each cell's cellSz.width = sum of its
+    spanned columns' new widths. Byte-preserving cellSz edits; grid unchanged."""
+    _guard_flat(table)
+    prefix, rows, suffix = _parse_table(table)
+
+    def fix(tc: str):
+        ca = _si(tc, "cellAddr", "colAddr")
+        cs = _si(tc, "cellSpan", "colSpan") or 1
+        w = sum(int(new_widths.get(c, 0)) for c in range(ca, ca + cs))
+        if w > 0:
+            tc = _ss(tc, "cellSz", "width", w)
+        return tc
+
+    rows = [_map_cells(r, fix) for r in rows]
+    return _rebuild(prefix, rows, suffix)
+
+
+def _autofit_columns(table: str, *, min_frac: float = 0.06, damp: float = 0.5) -> str:
+    """Rebalance column widths to content: content-heavy columns widen, light ones
+    narrow, table total width preserved. Demand = longest single-span cell's text
+    width (form_fit advance model), sqrt-damped so a paragraph column doesn't run
+    away; every column keeps a floor of *min_frac* of the total."""
+    from .form_fit.measure import estimate_text_width
+
+    prefix, rows, suffix = _parse_table(table)
+    cur = _uniform_col_widths(rows)
+    if cur is None:
+        raise TableStructureError("no uniform (all colSpan=1) row to autofit widths")
+    ncol = max(cur) + 1
+    total = sum(cur.values())
+    demand = {c: 0.0 for c in range(ncol)}
+    for r in rows:
+        for tc in _S_TC.findall(r):
+            if (_si(tc, "cellSpan", "colSpan") or 1) != 1:
+                continue
+            ca = _si(tc, "cellAddr", "colAddr")
+            txt = "".join(re.findall(r"<hp:t>(.*?)</hp:t>", tc, re.DOTALL))
+            demand[ca] = max(demand[ca], estimate_text_width(txt, 10.0))
+    weight = {c: max(demand[c], 1.0) ** damp for c in range(ncol)}
+    sw = sum(weight.values()) or 1.0
+    floor = total * min_frac
+    raw = {c: max(floor, total * weight[c] / sw) for c in range(ncol)}
+    scale = total / (sum(raw.values()) or 1.0)
+    new = {c: int(round(raw[c] * scale)) for c in range(ncol)}
+    # absorb rounding drift into the widest column so the total is exact
+    drift = total - sum(new.values())
+    new[max(new, key=lambda c: new[c])] += drift
+    return _set_column_widths(table, new)
+
+
 def _validate_or_raise(table: str) -> None:
     _grid, rep = build_grid(table.encode("utf-8"))
     if not rep.ok:
@@ -608,10 +659,17 @@ def _validate_or_raise(table: str) -> None:
 
 # --- section-level application (byte-region splice back) ----------------------
 
+def _widths_arg(o: Mapping[str, Any]) -> dict[int, int]:
+    w = o["widths"]
+    return {int(k): int(v) for k, v in w.items()} if isinstance(w, Mapping) else {i: int(v) for i, v in enumerate(w)}
+
+
 _STRUCT_OPS = {
     "delete_column": lambda t, o: _collapse_empty_rows(_delete_columns(t, o["cols"] if "cols" in o else [o["col"]])),
     "delete_row": lambda t, o: _delete_rows(t, o["rows"] if "rows" in o else [o["row"]]),
     "insert_row_by_clone": lambda t, o: _insert_row_by_clone(t, o["ref_row"], int(o.get("count", 1))),
+    "set_column_widths": lambda t, o: _set_column_widths(t, _widths_arg(o)),
+    "autofit_columns": lambda t, o: _autofit_columns(t, min_frac=float(o.get("min_frac", 0.06)), damp=float(o.get("damp", 0.5))),
 }
 
 
