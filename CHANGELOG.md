@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [2.22.0] - 2026-07-03
+### 추가
+- **열 너비 조정 (M10 후속, S-064)**: `hwpx.table_patch.apply_table_ops` 새 op 2종 — `set_column_widths(table_index, widths)`(명시적 논리 열너비; 각 셀 cellSz.width = 걸친 열들의 합, 병합 인식)·`autofit_columns(table_index)`(내용에 맞춰 열너비 재균형: demand = 최장 단일-span 셀 텍스트폭[`form_fit` 어드밴스 모델], sqrt-damped로 문단 열 폭주 방지, 열별 최소폭 floor, 표 총폭 보존). 둘 다 **byte-preserving**(cellSz만 편집, charPr/header 불변)이며 grid 검증. 배경: 텍스트가 길어지면 한컴이 행 높이를 자동으로 늘려 넘침은 없으나 좁은 열은 촘촘히 wrap됨 — autofit이 내용 많은 열을 넓혀 완화한다(오라클 실증: 운영계획 성취기준 열 14186→16441, wrap 약 16→9줄, 총폭 보존).
+
 ## [2.21.0] - 2026-07-03
 ### 추가
 - **M10 바이트보존 구조적 양식채움 (S-064)**: `hwpx.table_patch` — 2026-07-03 실전 실패(도교육청 평가계획 양식을 재생성으로 채워 서식 파괴)를 드라이버로, S-052 바이트 코어 위에 "양식 채움 층"을 완성. `fill_cells(source, cells)` — `(table_index, row, col)` 주소로 셀 텍스트를 바이트보존 splice(빈/self-closing 셀 삽입, 다중 문단 셀 전체 교체, 병합 앵커 해석). 미변경 셀·표·섹션은 **바이트 동일**(원칙 VII), no-op=바이트동일, 미해결 주소는 mutate 없이 `skipped`.
