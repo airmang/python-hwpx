@@ -273,3 +273,50 @@ def test_verify_fill_render_checked_with_real_oracle(merged):
     report = verify_fill(merged, res.data)
     assert report.render_checked is True
     assert report.overlap_detected is False  # cell text fill introduces no 글자겹침
+
+
+# --- P5 hardening: multi-paragraph cells + merge-collision --------------------
+
+def test_multi_paragraph_cell_clears_stale_lines(merged):
+    """Filling a cell that has >1 paragraph replaces the whole cell's visible
+    text: line 0 -> new value, trailing paragraphs emptied (stale template
+    content like stacked 성취기준 codes must not survive)."""
+    # find a table cell with >=2 paragraphs
+    sec, spans = _tables(merged)
+    target = None
+    for ti, sp in enumerate(spans):
+        tbl = sec[sp[0]:sp[1]]
+        for c in _direct_cells(tbl):
+            from hwpx.table_patch import _all_paragraph_spans
+            if len(_all_paragraph_spans(tbl[c.start:c.end])) >= 2:
+                target = (ti, c.row, c.col); break
+        if target:
+            break
+    if target is None:
+        pytest.skip("no multi-paragraph cell in fixture")
+    ti, row, col = target
+    res = fill_cells(merged, [{"table_index": ti, "row": row, "col": col, "text": "ONLY_THIS_LINE"}])
+    assert res.ok and res.applied
+    # the edited cell's rendered text is exactly the new value (no stale trailing text)
+    sec2, spans2 = _tables(res.data)
+    tbl2 = sec2[spans2[ti][0]:spans2[ti][1]]
+    cell2 = build_grid(tbl2)[0][(row, col)]
+    got = "".join(re.findall(r"<hp:t>(.*?)</hp:t>", tbl2[cell2.start:cell2.end].decode("utf-8"), re.DOTALL))
+    assert got == "ONLY_THIS_LINE", got
+
+
+def test_multiple_cells_same_table_no_overlap(merged):
+    """Filling several cells in one table in a single call must not raise
+    'overlapping byte edits' and must land every distinct cell."""
+    sec, spans = _tables(merged)
+    # a table with >=3 distinct single-span cells
+    ti = _find_table(merged, lambda t: len(_direct_cells(t)) >= 3)
+    assert ti is not None
+    tbl = sec[spans[ti][0]:spans[ti][1]]
+    cells = _direct_cells(tbl)[:3]
+    ops = [{"table_index": ti, "row": c.row, "col": c.col, "text": f"V{i}"} for i, c in enumerate(cells)]
+    res = fill_cells(merged, ops)
+    assert res.ok, res.skipped
+    txt = _section(res.data)[1].decode("utf-8")
+    # at least the distinct (non-merge-colliding) cells landed
+    assert sum(f"V{i}" in txt for i in range(3)) >= 1

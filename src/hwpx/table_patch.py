@@ -181,14 +181,19 @@ def build_grid(table: bytes) -> tuple[dict[tuple[int, int], _Cell], GridReport]:
     return grid, GridReport(not issues, n_rows, n_cols, tuple(issues))
 
 
+_P_SPAN_RE = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?p\b.*?</(?:[A-Za-z_][\w.-]*:)?p>", re.DOTALL)
+
 def _first_paragraph_span(cell: bytes) -> tuple[int, int] | None:
     """Byte span of the cell's first ``<hp:p>...</hp:p>`` (its own subList's
     first paragraph), skipping any nested table content."""
+    m = _P_SPAN_RE.search(_mask_nested_tables(cell))
+    return (m.start(), m.end()) if m else None
+
+def _all_paragraph_spans(cell: bytes) -> list[tuple[int, int]]:
+    """Byte spans of every direct ``<hp:p>`` of the cell (its own paragraphs,
+    not nested-table ones)."""
     masked = _mask_nested_tables(cell)
-    m = re.search(rb"<(?:[A-Za-z_][\w.-]*:)?p\b.*?</(?:[A-Za-z_][\w.-]*:)?p>", masked, re.DOTALL)
-    if m is None:
-        return None
-    return m.start(), m.end()
+    return [(m.start(), m.end()) for m in _P_SPAN_RE.finditer(masked)]
 
 
 # --- public API ---------------------------------------------------------------
@@ -302,6 +307,7 @@ def fill_cells(
         table_spans = _iter_table_spans(section_xml)
         # accumulate byte edits over the whole section (table region splices)
         section_edits: list[tuple[int, int, bytes]] = []
+        occupied: list[tuple[int, int]] = []  # filled paragraph spans (merge-collision guard)
         for ti, row, col, text in section_specs:
             if ti < 0 or ti >= len(table_spans):
                 skipped.append(CellSkipped(section_path, ti, row, col, "table_index out of range"))
@@ -314,24 +320,43 @@ def fill_cells(
                 skipped.append(CellSkipped(section_path, ti, row, col, "cell address out of range"))
                 continue
             cell_bytes = table[cell.start:cell.end]
-            p_span = _first_paragraph_span(cell_bytes)
-            if p_span is None:
+            p_spans = _all_paragraph_spans(cell_bytes)
+            if not p_spans:
                 skipped.append(CellSkipped(section_path, ti, row, col, "cell has no paragraph"))
                 continue
-            para = cell_bytes[p_span[0]:p_span[1]]
-            edit = _text_edit_for_paragraph(para, text)
-            if edit is None:
-                skipped.append(CellSkipped(section_path, ti, row, col, "cell has no patchable hp:run"))
+            # Replace the WHOLE cell's visible text with `text`: line k -> paragraph k,
+            # trailing paragraphs are emptied (so stale multi-line template content —
+            # e.g. stacked 성취기준 codes — does not survive). newline-separated text
+            # fills successive paragraphs.
+            lines = text.split("\n")
+            cell_edits: list[tuple[int, int, bytes]] = []
+            first_orig: str | None = None
+            collided = False
+            for idx, (ps, pe) in enumerate(p_spans):
+                para = cell_bytes[ps:pe]
+                line = lines[idx] if idx < len(lines) else ""
+                edit = _text_edit_for_paragraph(para, line)
+                if edit is None:
+                    continue
+                _s, _e, replacement, original_text = edit
+                if idx == 0:
+                    first_orig = original_text
+                if original_text == line:
+                    continue
+                a0, a1 = ts + cell.start + ps, ts + cell.start + pe
+                if any(a0 < oe and os < a1 for os, oe in occupied):
+                    collided = True
+                    break
+                new_para = _strip_paragraph_layout_cache(replacement if (_s, _e) == (0, len(para)) else _apply_edits(para, [(_s, _e, replacement)]))
+                occupied.append((a0, a1))
+                cell_edits.append((a0, a1, new_para))
+            if collided:
+                skipped.append(CellSkipped(section_path, ti, row, col, "cell shares a merged region already filled by an earlier address"))
                 continue
-            _s, _e, replacement, original_text = edit
-            if original_text == text:
+            if not cell_edits:
                 continue
-            new_para = _strip_paragraph_layout_cache(replacement if (_s, _e) == (0, len(para)) else _apply_edits(para, [(_s, _e, replacement)]))
-            # absolute offsets within the SECTION
-            abs_start = ts + cell.start + p_span[0]
-            abs_end = ts + cell.start + p_span[1]
-            section_edits.append((abs_start, abs_end, new_para))
-            applied.append(CellApplied(section_path, ti, row, col, original_text, text))
+            section_edits.extend(cell_edits)
+            applied.append(CellApplied(section_path, ti, row, col, first_orig or "", text))
         if section_edits:
             new_section = _apply_edits(section_xml, section_edits)
             if new_section != section_xml:
