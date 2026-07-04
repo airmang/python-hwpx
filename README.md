@@ -63,6 +63,7 @@ new.save_to_path("새문서.hwpx")
 ### 🔍 읽기 · 추출
 - 텍스트/HTML/Markdown 내보내기 — `export_text()` · `export_html()` · `export_markdown()`
 - **풍부한 Markdown** — `export_rich_markdown()`은 인라인 서식(`**굵게**`·`*기울임*`·`~~취소선~~`), 중첩 표(colspan/rowspan 안전), 도형 텍스트, 이미지, 각주/미주, 하이퍼링크, 제목(`#`/`##`) 자동 감지까지 보존
+- **문서 ingest 게이트웨이** — `hwpx.ingest.DocumentIngestor`가 HWPX를 감지해 rich Markdown과 섹션/표 메타데이터로 정규화
 - `TextExtractor` / `ObjectFinder` — 섹션·문단 순회, 태그·속성·XPath로 객체 탐색 (`hp:tab`은 `\t`로 보존, roundtrip 안전)
 
 ```python
