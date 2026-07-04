@@ -330,6 +330,138 @@ class CellFillResult:
         }
 
 
+# --- FR-002: anchor / heading addressing (byte-level, unique-or-skip) ---------
+#
+# A table can be addressed by the text of its preceding section heading/label
+# ("[6] 평가의 종류와 반영비율", "나. 학기 단위 성취수준") instead of a table_index
+# that delete_table shifts; a cell by an adjacent label ("담당교사" -> right). An
+# anchor that resolves to 0 or >1 targets is SKIPPED with a reason (fail-closed,
+# Constitution VI), never guessed. Resolution is byte-level (no re-serialization).
+
+def _norm_anchor(s: str) -> str:
+    return re.sub(r"[\s\[\]().·,:/\-]+", "", str(s)).lower()
+
+_ANCHOR_T = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?t>(.*?)</(?:[A-Za-z_][\w.-]*:)?t>", re.DOTALL)
+_ANCHOR_TR = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?tr\b")
+
+def _text_of(chunk: bytes) -> str:
+    return "".join(m.group(1).decode("utf-8", "replace") for m in _ANCHOR_T.finditer(chunk))
+
+def _phys_row_count(table: bytes) -> int:
+    return len(_ANCHOR_TR.findall(_mask_nested_tables(table[_open_tag_end(table):])))
+
+def _find_tables_by_anchor(section: bytes, anchor: str, spans: list[tuple[int, int]] | None = None) -> list[int]:
+    """Indices of tables whose preceding-heading window contains *anchor*.
+
+    A table's window runs from the end of the nearest preceding **data** table
+    (>=2 physical rows) up to its own start, so it captures the numbered
+    header-box tables (1-row) and heading paragraphs between them, but not the
+    table's own cells. Bounded to 8 KiB of lookback."""
+    if spans is None:
+        spans = _iter_table_spans(section)
+    na = _norm_anchor(anchor)
+    if not na:
+        return []
+    is_data = [_phys_row_count(section[s:e]) >= 2 for (s, e) in spans]
+    matches: list[int] = []
+    for ti, (s, _e) in enumerate(spans):
+        w_start = 0
+        for j in range(ti - 1, -1, -1):
+            if is_data[j]:
+                w_start = spans[j][1]
+                break
+        w_start = max(w_start, s - 8000)
+        if na in _norm_anchor(_text_of(section[w_start:s])):
+            matches.append(ti)
+    return matches
+
+def _resolve_cell_anchor(table: bytes, label: str, direction: str) -> list[tuple[int, int]]:
+    """Logical (row, col) of the cell *direction* of the unique cell containing
+    *label*. direction in {right,left,below,above}."""
+    grid, _rep = build_grid(table)
+    nl = _norm_anchor(label)
+    if not nl:
+        return []
+    seen: set[tuple[int, int]] = set()
+    targets: list[tuple[int, int]] = []
+    for _key, cell in grid.items():
+        span_id = (cell.start, cell.end)
+        if span_id in seen:
+            continue
+        seen.add(span_id)
+        if nl in _norm_anchor(_text_of(table[cell.start:cell.end])):
+            if direction == "left":
+                tr, tc = cell.row, cell.col - 1
+            elif direction == "below":
+                tr, tc = cell.row + cell.row_span, cell.col
+            elif direction == "above":
+                tr, tc = cell.row - 1, cell.col
+            else:  # right (default)
+                tr, tc = cell.row, cell.col + cell.col_span
+            if (tr, tc) in grid:
+                targets.append((tr, tc))
+    return targets
+
+def _resolve_anchor_cells(parts: Mapping[str, bytes], cells: Sequence[Any]) -> tuple[list[Any], list[CellSkipped]]:
+    """Turn anchor-bearing cell specs into concrete (table_index,row,col) specs.
+    Coordinate specs pass through untouched; unresolvable anchors -> CellSkipped."""
+    out: list[Any] = []
+    skips: list[CellSkipped] = []
+    span_cache: dict[str, list[tuple[int, int]]] = {}
+    for cell in cells:
+        get = cell.get if isinstance(cell, Mapping) else (lambda k, d=None: getattr(cell, k, d))
+        section = str(get("section_path") or get("sectionPath") or "Contents/section0.xml")
+        ti = get("table_index", get("tableIndex"))
+        row, col = get("row"), get("col")
+        tanchor = get("table_anchor") or get("tableAnchor")
+        canchor = get("cell_anchor") or get("cellAnchor")
+        if tanchor is None and canchor is None:
+            out.append(cell)
+            continue
+        sec = parts.get(section)
+        if sec is None:
+            skips.append(CellSkipped(section, -1, -1, -1, "section part not found"))
+            continue
+        spans = span_cache.setdefault(section, _iter_table_spans(sec))
+        if ti is None and tanchor is not None:
+            m = _find_tables_by_anchor(sec, str(tanchor), spans)
+            if len(m) == 1:
+                ti = m[0]
+            elif not m:
+                skips.append(CellSkipped(section, -1, -1, -1, f"table anchor {tanchor!r} matched no table"))
+                continue
+            else:
+                skips.append(CellSkipped(section, -1, -1, -1, f"table anchor {tanchor!r} ambiguous ({len(m)} tables)"))
+                continue
+        if ti is None:
+            skips.append(CellSkipped(section, -1, -1, -1, "cell needs table_index or table_anchor"))
+            continue
+        ti = int(ti)
+        if (row is None or col is None) and canchor is not None:
+            if not (0 <= ti < len(spans)):
+                skips.append(CellSkipped(section, ti, -1, -1, "table out of range for cell anchor"))
+                continue
+            s, e = spans[ti]
+            cget = canchor.get if isinstance(canchor, Mapping) else (lambda k, d=None: getattr(canchor, k, d))
+            label = cget("label") or ""
+            direction = str(cget("dir") or cget("direction") or "right")
+            m2 = _resolve_cell_anchor(sec[s:e], str(label), direction)
+            if len(m2) == 1:
+                row, col = m2[0]
+            elif not m2:
+                skips.append(CellSkipped(section, ti, -1, -1, f"cell anchor {label!r}/{direction} matched no cell"))
+                continue
+            else:
+                skips.append(CellSkipped(section, ti, -1, -1, f"cell anchor {label!r}/{direction} ambiguous ({len(m2)})"))
+                continue
+        nd: dict[str, Any] = {"section_path": section, "table_index": ti, "row": row, "col": col, "text": get("text")}
+        mx = get("max_lines", get("maxLines"))
+        if mx is not None:
+            nd["max_lines"] = mx
+        out.append(nd)
+    return out, skips
+
+
 def _normalize(cell: Mapping[str, Any] | Any) -> tuple[str, int, int, int, str, int | None]:
     get = cell.get if isinstance(cell, Mapping) else (lambda k, d=None: getattr(cell, k, d))
     section = str(get("section_path") or get("sectionPath") or "Contents/section0.xml")
@@ -366,8 +498,7 @@ def fill_cells(
     points at it. Column widths and the rest of the document are untouched.
     """
     source_bytes = _read_source_bytes(source)
-    specs = [_normalize(c) for c in cells]
-    if not specs:
+    if not cells:
         open_safety, _ = _finalize(source_bytes, output_path, source=source)
         return CellFillResult(source_bytes, (), (), (), True, "none", open_safety)
 
@@ -375,16 +506,25 @@ def fill_cells(
     with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as zf:
         parts = {i.filename: zf.read(i.filename) for i in zf.infolist() if not i.is_dir()}
 
+    # FR-002: resolve table/cell anchors to concrete (table_index,row,col) first.
+    resolved_cells, anchor_skips = _resolve_anchor_cells(parts, cells)
+    specs = [_normalize(c) for c in resolved_cells]
+
     header_name = _header_part_name(parts)
     header_xml = parts.get(header_name) if header_name else None
     charpr_cache: dict[tuple[str, int], str] = {}
     header_changed = False
 
     applied: list[CellApplied] = []
-    skipped: list[CellSkipped] = []
+    skipped: list[CellSkipped] = list(anchor_skips)
     by_section: dict[str, list[tuple[int, int, int, str, int | None]]] = {}
     for section, ti, row, col, text, mx in specs:
         by_section.setdefault(section, []).append((ti, row, col, text, mx))
+
+    if not by_section:
+        # every spec was an unresolvable anchor -> source unchanged, skips reported.
+        open_safety, _ = _finalize(source_bytes, output_path, source=source)
+        return CellFillResult(source_bytes, tuple(applied), tuple(skipped), (), True, "none", open_safety)
 
     changed_parts: dict[str, bytes] = {}
     for section_path, section_specs in by_section.items():
@@ -930,12 +1070,25 @@ def apply_table_ops(
         if section is None:
             skipped.append(CellSkipped(sp, -1, -1, -1, "section part not found"))
             continue
-        try:
-            ti = int(op.get("table_index", op.get("tableIndex")))
-        except (TypeError, ValueError):
-            skipped.append(CellSkipped(sp, -1, -1, -1, f"{name}: table_index required"))
-            continue
         spans = _iter_table_spans(section)
+        ti_raw = op.get("table_index", op.get("tableIndex"))
+        tanchor = op.get("table_anchor") or op.get("tableAnchor")
+        if ti_raw is None and tanchor is not None:
+            m = _find_tables_by_anchor(section, str(tanchor), spans)
+            if len(m) == 1:
+                ti = m[0]
+            elif not m:
+                skipped.append(CellSkipped(sp, -1, -1, -1, f"{name}: table anchor {tanchor!r} matched no table"))
+                continue
+            else:
+                skipped.append(CellSkipped(sp, -1, -1, -1, f"{name}: table anchor {tanchor!r} ambiguous ({len(m)} tables)"))
+                continue
+        else:
+            try:
+                ti = int(ti_raw)
+            except (TypeError, ValueError):
+                skipped.append(CellSkipped(sp, -1, -1, -1, f"{name}: table_index or table_anchor required"))
+                continue
         if ti < 0 or ti >= len(spans):
             skipped.append(CellSkipped(sp, ti, -1, -1, "table_index out of range"))
             continue

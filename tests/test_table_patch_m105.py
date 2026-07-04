@@ -15,10 +15,12 @@ import pytest
 
 from hwpx.table_patch import (
     apply_table_ops,
+    fill_cells,
     build_grid,
     _iter_table_spans,
     _direct_cells,
     _parse_table,
+    _find_tables_by_anchor,
     _S_TC,
     _si,
 )
@@ -156,6 +158,62 @@ def test_delete_column_drops_jeonggi_and_preserves_width(form2):
 
 def test_delete_column_rest_byte_identical(form2):
     res = apply_table_ops(form2, [{"op": "delete_column", "table_index": 22, "cols": [2, 3, 4, 5]}])
+    _, secb = _section(form2)
+    _, seco = _section(res.data)
+    sb, so = _iter_table_spans(secb), _iter_table_spans(seco)
+    for i in range(len(sb)):
+        if i == 22:
+            continue
+        assert secb[sb[i][0]:sb[i][1]] == seco[so[i][0]:so[i][1]]
+
+
+# ---- FR-002 anchor / heading addressing ------------------------------------
+def test_table_anchor_resolves_uniquely(form2):
+    # heading text lives in the numbered header-box table before the data table.
+    m = _find_tables_by_anchor(_section(form2)[1], "평가의 종류와 반영비율")
+    assert m == [22]
+    m2 = _find_tables_by_anchor(_section(form2)[1], "나. 학기 단위 성취수준")
+    assert m2 == [14]
+
+
+def test_fill_by_table_anchor(form2):
+    res = fill_cells(form2, [{"table_anchor": "평가의 종류와 반영비율", "row": 0, "col": 0, "text": "평가유형"}])
+    assert res.applied and res.applied[0].table_index == 22
+    assert "평가유형" in _table(res.data, 22).decode("utf-8")
+
+
+def test_table_anchor_index_safe_after_deletes(form2):
+    # delete 5 data tables before 반영비율 [22], then fill it BY HEADING ANCHOR;
+    # the anchor must resolve against the post-delete indices (22 -> 17).
+    ops = [
+        {"op": "delete_table", "table_index": 20},
+        {"op": "delete_table", "table_index": 19},
+        {"op": "delete_table", "table_index": 18},
+        {"op": "delete_table", "table_index": 17},
+        {"op": "delete_table", "table_index": 15},
+        {"op": "fill_cell", "table_anchor": "평가의 종류와 반영비율", "row": 0, "col": 0, "text": "AI평가유형"},
+    ]
+    res = apply_table_ops(form2, ops)
+    assert res.ok, res.skipped
+    assert res.applied and res.applied[0].table_index == 17  # 22 - 5 deletes
+    tbl = _table(res.data, 17).decode("utf-8")
+    assert "AI평가유형" in tbl and "수행평가" in tbl  # landed in the right (반영비율) table
+
+
+def test_table_anchor_absent_is_skipped(form2):
+    res = fill_cells(form2, [{"table_anchor": "존재하지않는제목ZZZ", "row": 0, "col": 0, "text": "x"}])
+    assert res.byte_identical is True
+    assert res.skipped and "matched no table" in res.skipped[0].reason
+
+
+def test_cell_anchor_right(form2):
+    res = fill_cells(form2, [{"table_index": 24, "cell_anchor": {"label": "평가 영역명", "dir": "right"}, "text": "테스트영역"}])
+    assert res.applied, res.skipped
+    assert "테스트영역" in _table(res.data, 24).decode("utf-8")
+
+
+def test_anchor_untouched_tables_byte_identical(form2):
+    res = fill_cells(form2, [{"table_anchor": "평가의 종류와 반영비율", "row": 0, "col": 0, "text": "평가유형"}])
     _, secb = _section(form2)
     _, seco = _section(res.data)
     sb, so = _iter_table_spans(secb), _iter_table_spans(seco)
