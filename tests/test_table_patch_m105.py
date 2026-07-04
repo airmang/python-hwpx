@@ -221,3 +221,20 @@ def test_anchor_untouched_tables_byte_identical(form2):
         if i == 22:
             continue
         assert secb[sb[i][0]:sb[i][1]] == seco[so[i][0]:so[i][1]]
+
+
+# ---- FR-006 compact document map -------------------------------------------
+def test_table_summary_is_compact_and_complete(form2):
+    import json
+    from hwpx.table_patch import table_summary
+    summ = table_summary(form2)
+    assert len(summ) == 37                              # every table present
+    # bounded: whole 37-table summary well under the token limit (heavy map truncates ~1.1M)
+    blob = json.dumps(summ, ensure_ascii=False)
+    assert len(blob) < 12000, len(blob)
+    # each entry carries dims + heading + first-row, no per-cell dump
+    banyoung = next(t for t in summ if "평가의 종류와 반영비율" in t["heading"])
+    assert banyoung["tableIndex"] == 22 and (banyoung["rows"], banyoung["cols"]) == (9, 10)
+    assert banyoung["merges"] == 26 and "정기시험" in banyoung["firstRow"]
+    seongchwi = summ[8]
+    assert (seongchwi["rows"], seongchwi["cols"]) == (11, 3) and "성취기준" in seongchwi["firstRow"]

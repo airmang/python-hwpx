@@ -345,7 +345,8 @@ _ANCHOR_T = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?t>(.*?)</(?:[A-Za-z_][\w.-]*:)?
 _ANCHOR_TR = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?tr\b")
 
 def _text_of(chunk: bytes) -> str:
-    return "".join(m.group(1).decode("utf-8", "replace") for m in _ANCHOR_T.finditer(chunk))
+    txt = "".join(m.group(1).decode("utf-8", "replace") for m in _ANCHOR_T.finditer(chunk))
+    return re.sub(r"<[^>]+>", "", txt)  # strip inline run markup (markpenEnd, tab, ...)
 
 def _phys_row_count(table: bytes) -> int:
     return len(_ANCHOR_TR.findall(_mask_nested_tables(table[_open_tag_end(table):])))
@@ -1195,7 +1196,49 @@ def verify_fill(
     return report
 
 
+# --- FR-006: compact document map (summary, no per-cell dump) -----------------
+
+def table_summary(source: str | Path | bytes) -> list[dict[str, Any]]:
+    """Compact per-table map (FR-006) — bounded output for a whole form in one read.
+
+    For each table: ``{tableIndex, sectionPath, rows, cols (logical), merges,
+    heading (preceding section heading/label), firstRow (first logical row
+    preview)}`` — **no per-cell paragraph dump**, so a 37-table form fits well
+    under the token limit. ``tableIndex``/``sectionPath`` match the addressing
+    :func:`apply_table_ops`/:func:`fill_cells` accept; ``heading`` is the same
+    text :func:`_find_tables_by_anchor` resolves. The heavy full map stays.
+    """
+    data = _read_source_bytes(source)
+    out: list[dict[str, Any]] = []
+    for sp, section in sorted(_sections(data).items()):
+        spans = _iter_table_spans(section)
+        is_data = [_phys_row_count(section[s:e]) >= 2 for (s, e) in spans]
+        for ti, (s, e) in enumerate(spans):
+            table = section[s:e]
+            grid, rep = build_grid(table)
+            merges = sum(1 for c in _direct_cells(table) if c.row_span > 1 or c.col_span > 1)
+            w_start = 0
+            for j in range(ti - 1, -1, -1):
+                if is_data[j]:
+                    w_start = spans[j][1]
+                    break
+            w_start = max(w_start, s - 8000)
+            heading = " ".join(_text_of(section[w_start:s]).split())[-70:]
+            first: list[str] = []
+            for col in range(rep.col_count):
+                c = grid.get((0, col))
+                cell_txt = " ".join(_text_of(table[c.start:c.end]).split())[:22] if c else ""
+                if not first or first[-1] != cell_txt:
+                    first.append(cell_txt)
+            out.append({
+                "tableIndex": ti, "sectionPath": sp,
+                "rows": rep.row_count, "cols": rep.col_count, "merges": merges,
+                "heading": heading, "firstRow": " | ".join(first)[:90],
+            })
+    return out
+
+
 __all__ = [
     "fill_cells", "build_grid", "GridReport", "CellFillResult", "CellApplied", "CellSkipped",
-    "apply_table_ops", "TableStructureError", "verify_fill", "RenderCheckRequired",
+    "apply_table_ops", "TableStructureError", "verify_fill", "RenderCheckRequired", "table_summary",
 ]
