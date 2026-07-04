@@ -556,6 +556,39 @@ def _uniform_col_widths(rows: list[str]) -> dict[int, int] | None:
     return None
 
 
+def _grid_col_widths(table: str) -> dict[int, int] | None:
+    """Per-column widths derived from the *merged* grid (FR-003) — for tables that
+    have no single uniform ``colSpan==1`` row (e.g. the 반영비율 반영표).
+
+    Every ``colSpan==1`` cell gives its column's width exactly; a remaining column
+    that is only ever spanned takes an even split of a covering cell's width across
+    its still-unknown columns. Returns ``None`` (fail-closed) if any logical column
+    stays underivable, so :func:`_delete_columns` refuses rather than guessing.
+    """
+    tb = table.encode("utf-8")
+    _grid, rep = build_grid(tb)
+    ncol = rep.col_count
+    cells = _direct_cells(tb)
+    widths: dict[int, int] = {}
+    for c in cells:
+        w = _iattr(tb[c.start:c.end], "cellSz", "width")
+        if c.col_span == 1 and w:
+            widths[c.col] = w
+    for c in cells:  # fill columns only ever covered by a spanning cell
+        w = _iattr(tb[c.start:c.end], "cellSz", "width")
+        if c.col_span > 1 and w:
+            span = range(c.col, c.col + c.col_span)
+            unknown = [x for x in span if x not in widths]
+            if unknown:
+                known = sum(widths[x] for x in span if x in widths)
+                each = max(1, (w - known) // len(unknown))
+                for i, x in enumerate(unknown):
+                    widths[x] = each + ((w - known) - each * len(unknown) if i == len(unknown) - 1 else 0)
+    if any(c not in widths for c in range(ncol)):
+        return None
+    return widths
+
+
 def _delete_columns(table: str, del_cols: Iterable[int]) -> str:
     _guard_flat(table)
     del_cols = sorted(set(del_cols))
@@ -565,7 +598,14 @@ def _delete_columns(table: str, del_cols: Iterable[int]) -> str:
     prefix, rows, suffix = _parse_table(table)
     widths = _uniform_col_widths(rows)
     if widths is None:
-        raise TableStructureError("no uniform (all colSpan=1) row to derive column widths")
+        # FR-003: no uniform colSpan==1 row -> derive widths from the merged grid.
+        widths = _grid_col_widths(table)
+    if widths is None:
+        raise TableStructureError(
+            "delete_column: no uniform (all colSpan=1) row and merged grid widths "
+            "are underivable -- refusing (fail-closed). Fallback: split the merged "
+            "header cell that straddles the dropped column manually, then retry."
+        )
     ncol = max(widths) + 1
     freed = sum(widths[c] for c in del_cols)
     survivors = [c for c in range(ncol) if c not in del_cols]
@@ -704,6 +744,61 @@ def _insert_row_by_clone(table: str, ref_row: int, count: int = 1) -> str:
     return _rebuild(prefix, new_rows, suffix, rowcnt=len(new_rows))
 
 
+def _insert_block_by_clone(table: str, r0: int, r1: int, count: int = 1) -> str:
+    """Clone a contiguous **vertical-merge block** (physical rows ``r0..r1``) *count*
+    times, preserving the block's internal span pattern (FR-001).
+
+    The 성취기준 A~E unit is one such block: a leading cell with ``rowSpan=N`` plus
+    ``N`` rows of ``rowSpan==1`` cells. :func:`_insert_row_by_clone` refuses it (its
+    ref row carries the row-spanning anchor); this clones the whole unit, offsets the
+    clones' ``rowAddr`` by the block height, shifts every row below, refreshes
+    paragraph ids, and grows ``rowCnt``. Fail-closed (Constitution VI): the block must
+    be a clean merge unit — no cell inside spans out of ``[r0,r1]`` and no cell
+    outside straddles the boundary — else it raises. Formatting (borderFill/paraPr/
+    charPr/cellSz) is carried verbatim from the reference block.
+    """
+    _guard_flat(table)
+    if count < 1:
+        return table
+    prefix, rows, suffix = _parse_table(table)
+    if not (0 <= r0 <= r1 < len(rows)):
+        raise TableStructureError(f"insert_block_by_clone: ref_rows [{r0},{r1}] out of range (nrows={len(rows)})")
+    block_h = r1 - r0 + 1
+    for i, row in enumerate(rows):
+        for tc in _S_TC.findall(row):
+            ra = _si(tc, "cellAddr", "rowAddr")
+            rs = _si(tc, "cellSpan", "rowSpan") or 1
+            top, bot = ra, ra + rs - 1
+            inside = r0 <= i <= r1
+            if inside and (top < r0 or bot > r1):
+                raise TableStructureError(
+                    f"insert_block_by_clone: cell at row{top} rowSpan{rs} crosses the block "
+                    f"[{r0},{r1}] boundary -- ref_rows is not a clean vertical-merge unit"
+                )
+            if not inside and (top < r0 <= bot or top <= r1 < bot):
+                raise TableStructureError(
+                    f"insert_block_by_clone: outside cell at row{top} rowSpan{rs} straddles the "
+                    f"block [{r0},{r1}] -- refusing (fail-closed)"
+                )
+
+    def shift(tc: str):
+        ra = _si(tc, "cellAddr", "rowAddr")
+        if ra > r1:
+            return _ss(tc, "cellAddr", "rowAddr", ra + count * block_h)
+        return tc
+
+    shifted = [_map_cells(r, shift) for r in rows]
+    block = rows[r0:r1 + 1]
+    clones: list[str] = []
+    for k in range(1, count + 1):
+        for row in block:
+            clone = _map_cells(row, lambda tc: _ss(tc, "cellAddr", "rowAddr", (_si(tc, "cellAddr", "rowAddr")) + k * block_h))
+            clone = _refresh_ids(clone, 100003 * k + 7)
+            clones.append(clone)
+    new_rows = shifted[: r1 + 1] + clones + shifted[r1 + 1:]
+    return _rebuild(prefix, new_rows, suffix, rowcnt=len(new_rows))
+
+
 def _set_column_widths(table: str, new_widths: dict[int, int]) -> str:
     """Set logical column widths (HWPUNIT). Each cell's cellSz.width = sum of its
     spanned columns' new widths. Byte-preserving cellSz edits; grid unchanged."""
@@ -772,6 +867,7 @@ _STRUCT_OPS = {
     "delete_column": lambda t, o: _collapse_empty_rows(_delete_columns(t, o["cols"] if "cols" in o else [o["col"]])),
     "delete_row": lambda t, o: _delete_rows(t, o["rows"] if "rows" in o else [o["row"]]),
     "insert_row_by_clone": lambda t, o: _insert_row_by_clone(t, o["ref_row"], int(o.get("count", 1))),
+    "insert_block_by_clone": lambda t, o: _insert_block_by_clone(t, int(o["ref_rows"][0]), int(o["ref_rows"][1]), int(o.get("count", 1))),
     "set_column_widths": lambda t, o: _set_column_widths(t, _widths_arg(o)),
     "autofit_columns": lambda t, o: _autofit_columns(t, min_frac=float(o.get("min_frac", 0.06)), damp=float(o.get("damp", 0.5))),
 }
@@ -808,7 +904,10 @@ def apply_table_ops(
     each changed table back so untouched bytes stay identical.
 
     Op dicts: ``{op: 'delete_column'|'delete_row'|'delete_table'|
-    'insert_row_by_clone'|'fill_cell', section_path?, table_index, ...}``.
+    'insert_row_by_clone'|'insert_block_by_clone'|'fill_cell', section_path?,
+    table_index, ...}``. ``insert_block_by_clone`` takes ``ref_rows: [r0, r1]``
+    (a vertical-merge block) + ``count``; ``delete_column`` derives widths from the
+    merged grid when no uniform ``colSpan==1`` row exists (FR-003).
     Structure ops run first, in order; ``delete_table`` shifts later table indices,
     so sequence table deletes in reverse index order (as the recipe does). Every
     structure edit is grid-validated and refuses on an invalid result
