@@ -7,6 +7,7 @@ test parses the owner-local real review MD when present (skips in CI).
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -413,15 +414,52 @@ def test_scorer_ratio_content_penalises_sample():
     assert any("반영비율 carries" in f for f in ds.findings)
 
 
-def test_fill_rubrics_2022_reports_chaejeom_defer():
-    """no-silent-true: the 2022-개정 rubric 수행수준 채점기준 ladder has no byte-preserving
-    map to the review's flat score ladder, so the recipe must REPORT that defer
-    (NEEDS_REVIEW) rather than read as fully filled."""
-    from hwpx.evalplan_fill import fill_evalplan
+def test_fill_rubrics_2022_normalizes_and_fills_chaejeom_ladder():
+    """The 2022-개정 rubric 수행수준 채점기준 ladder is reshaped (delete_row /
+    insert_row_by_clone -- byte-preserving, NOT regeneration) to the review MD's level
+    count per 평가요소 and filled with the MD descriptors + 배점. When every rubric is
+    reconciled, ZERO '채점기준 NEEDS_REVIEW' notes remain (no-silent-true: a rubric that
+    CANNOT be reconciled would still emit one)."""
+    from hwpx.evalplan_fill import (
+        fill_evalplan, _rubric_indices, _grid_of, _pf_bounds, _pf_groups, _pf_desc_col,
+    )
+    from hwpx.table_patch import _text_of
+
     c = parse_review_md(SYNTHETIC_2022)
     res = fill_evalplan(str(BLANK_2HAK), c, phase="all")
+    d = res["_data"]
     rr = res["content_report"]["rubrics"]
-    assert any("NEEDS_REVIEW" in s and "채점기준" in s for s in rr["skipped"]), rr["skipped"]
+
+    # (1) the 채점기준 ladder is no longer deferred anywhere.
+    assert not [s for s in rr["skipped"] if "NEEDS_REVIEW" in s and "채점기준" in s], rr["skipped"]
+    assert rr["filled"] == len(c.rubrics)
+
+    # (2) each rubric's 평가요소 region now has exactly one grid row per MD ladder level,
+    #     carrying that level's descriptor + 배점 (the sample rows are gone).
+    idxs = _rubric_indices(d)
+    for ri, rub in enumerate(c.rubrics):
+        items = [row for row in rub.rows if not row[0].startswith("기본점수")]
+        _sp, tb, grid, rep = _grid_of(d, idxs[ri])
+        ph, base = _pf_bounds(tb, grid, rep)
+        groups = _pf_groups(tb, ph, base)
+        assert len(groups) == len(items), (ri, len(groups), len(items))
+        bat_col = rep.col_count - 1
+        desc_col = _pf_desc_col(tb, ph, base, bat_col)
+        for gi, (r0, _h) in enumerate(groups):
+            ladder = [cl for cl in re.split(r"\s*/\s*", items[gi][1]) if re.search(r"\*\*\d+\*\*", cl)]
+            for k, clause in enumerate(ladder):
+                score = re.search(r"\*\*(\d+)\*\*", clause).group(1)
+                desc = re.sub(r"\s*\*\*\d+\*\*\s*", "", clause).strip()
+                dcell = grid.get((r0 + k, desc_col))
+                bcell = grid.get((r0 + k, bat_col))
+                assert dcell is not None and desc in _text_of(tb[dcell.start:dcell.end]), (ri, gi, k, desc)
+                assert bcell is not None and _text_of(tb[bcell.start:bcell.end]).strip() == score, (ri, gi, k, score)
+
+    # (3) byte-preserving: no rubric table was regenerated (structure ops + cell splices
+    #     only). The B-fidelity axis flags a regenerated table if any is rebuilt.
+    from hwpx.formfill_quality import score_format_fidelity
+    b = score_format_fidelity(d, str(BLANK_2HAK))
+    assert not (b.detail or {}).get("regenerated_tables"), b.detail
 
 
 def test_fill_sections_preserves_numbering_and_drops_no_content():
