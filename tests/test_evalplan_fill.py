@@ -251,6 +251,32 @@ def test_fill_evalplan_phase_all_is_byte_preserving():
     assert b.detail["carry_rate"] > 0.6
 
 
+def test_fill_sections_preserves_numbering_and_drops_no_content():
+    """fill_sections keeps each item's 가./나./다. ordinal and, when items exceed
+    the fixed placeholder slots, appends the surplus (with ordinals) to the last
+    slot -- never dropping content. §11 analysis is honestly deferred."""
+    from hwpx.evalplan_fill import fill_sections
+    from hwpx.patch import _PARAGRAPH_RE
+    from hwpx.table_patch import _sections, _text_of
+    # content with MORE 목적 items than the blank's 3 placeholders -> forces packing
+    md = SYNTHETIC.replace(
+        "### 1. 평가의 목적\n가. 목적 하나. 나. 목적 둘.",
+        "### 1. 평가의 목적\n가. 알파. 나. 베타. 다. 감마. 라. 델타. 마. 엡실론.")
+    c = parse_review_md(md)
+    data, report = fill_sections(BLANK_3HAK.read_bytes(), c)
+    assert report["filled"] >= 3
+    assert any("analysis" in d for d in report["deferred"])   # §11 honest defer
+    sx = sorted(_sections(data).items())[0][1]
+    paras = [_text_of(m.group(0)).strip() for m in _PARAGRAPH_RE.finditer(sx)]
+    i = next(i for i, t in enumerate(paras) if t == "평가의 목적")
+    slots = paras[i + 1:i + 4]
+    assert slots[0].startswith("가. 알파")                     # numbering preserved
+    assert slots[1].startswith("나. 베타")
+    joined = " ".join(slots)
+    for frag in ("델타", "엡실론"):                            # surplus not dropped
+        assert frag in joined
+
+
 _MD = Path(os.path.expanduser(
     "~/School/Prep/2학기_평가계획/검토용_MD/2026_2학기_3학년_인공지능기초_검토용.md"))
 _GOLD = Path(os.path.expanduser(

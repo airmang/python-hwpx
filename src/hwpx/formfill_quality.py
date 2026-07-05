@@ -167,6 +167,16 @@ def _all_text(source: str | Path | bytes) -> str:
     return "\n".join(t.text for t in _tables(source))
 
 
+def _document_text(source: str | Path | bytes) -> str:
+    """Complete document text -- table cells AND section paragraphs. Section
+    prose (목적/방향/방침 items) lives in paragraphs outside any table, so a
+    table-only read blind-spots it (a filled section reads the same as an unfilled
+    one). This reads the whole section XML text so the D content check can see
+    prose fills."""
+    data = _read_source_bytes(source)
+    return "\n".join(" ".join(_text_of(sec).split()) for sec in _sections(data).values())
+
+
 def _looks_like_path(x: Any) -> bool:
     if isinstance(x, Path):
         return True
@@ -464,11 +474,17 @@ _SECTION_RE = re.compile(r"(\d+)\s*(평가의 목적|평가의 기본 방향|평
 _STD_CODE_RE = re.compile(r"\[1\d[가-힣A-Za-z]*\d\d-\d\d\]")
 
 
+def _clean_anchor(a: str) -> str:
+    # drop markdown emphasis so a review anchor like "기본점수 **14**" matches the
+    # produced cell text "기본점수 14" (produced strips markup).
+    return a.replace("*", "").replace(" ", "")
+
+
 def _present_frac(anchors: Sequence[str], norm_prod: str) -> float | None:
-    anchors = [a for a in anchors if a and len(a) >= 3]
+    anchors = [a for a in anchors if a and len(a.replace("*", "").strip()) >= 3]
     if not anchors:
         return None
-    hit = sum(1 for a in anchors if a.replace(" ", "") in norm_prod)
+    hit = sum(1 for a in anchors if _clean_anchor(a) in norm_prod)
     return hit / len(anchors)
 
 
@@ -525,7 +541,9 @@ def score_content(produced: str | Path, *, content: str | Path | None = None,
     in unfilled regions, would falsely score high (no-silent-true)."""
     key, name, weight = "D", "content_completeness", 15
     tabs = _tables(produced)
-    full_text = "\n".join(t.text for t in tabs)
+    # whole-document text (tables + section paragraphs) so section-prose fills,
+    # which live in paragraphs, are visible to the content-fidelity check.
+    full_text = _document_text(produced)
 
     checks: list[tuple[str, bool, str]] = []
     # sections [1]~[11] -- look for the numbered section labels in the section tables

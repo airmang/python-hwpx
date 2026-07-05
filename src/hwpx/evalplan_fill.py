@@ -619,66 +619,64 @@ def _prose_items(raw: str, header_words: Sequence[str] = ()) -> list[str]:
     return [it for it in items if it and not it.startswith("평가")]
 
 
-def fill_sections(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, Any]]:
-    """Fill the 가./나./다. prose placeholders of §1 목적 / §2 기본방향 / §3 방침 /
-    §11 결과분석 with the review MD's items (byte-preserving paragraph splices).
+_ORDINALS = "가나다라마바사아자차카타파하"
 
-    The blank ships three empty '가.'/'나.'/'다.' placeholder paragraphs per prose
-    section; the review has more items, so items are distributed across the three
-    slots (surplus items merged into the last slot) -- content preserved, honest
-    about the slot limit. Uses :func:`hwpx.patch.paragraph_patch`, which only
-    *replaces* existing paragraphs (never inserts), so the document geometry is
-    untouched. Sections whose placeholders can't be located are reported, not
-    faked."""
+
+def fill_sections(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, Any]]:
+    """Fill the 가./나./다. prose slots of §1 목적 / §2 기본방향 / §3 방침 with the
+    review MD's items (byte-preserving paragraph splices).
+
+    A slot = a paragraph starting with an ordinal marker ('가.'…), whether empty
+    (§1/§2 ship empty placeholders) or already holding the blank's generic sample
+    prose (§3). Each slot keeps its ordinal ('가. <item>') so the numbering
+    survives, and NO item is dropped: when the review has more items than slots,
+    the surplus is appended -- with its own ordinals -- to the last slot (the
+    blank's fixed placeholder count can't grow, and paragraph_patch only
+    *replaces*). §11 결과분석 is deferred (its 가./(1)(2)(3)/나. sub-structure would
+    be flattened) and keeps the blank's generic content -- reported, not faked.
+    Sections whose slots can't be located are reported."""
     from .patch import paragraph_patch, _PARAGRAPH_RE
     from .table_patch import _sections, _text_of
 
-    report: dict[str, Any] = {"filled": 0, "skipped": []}
+    report: dict[str, Any] = {"filled": 0, "skipped": [], "deferred": ["analysis(§11): rich sub-structure kept generic"]}
     sections = _sections(data)
     if not sections:
         return data, report
     sp = sorted(sections)[0]
     section = sections[sp]
-    paras = list(_PARAGRAPH_RE.finditer(section))
-    texts = [_text_of(m.group(0)).strip() for m in paras]
+    texts = [_text_of(m.group(0)).strip() for m in _PARAGRAPH_RE.finditer(section)]
 
-    # locate each prose section's placeholder run: the first index of a section's
-    # numbered header paragraph (bare '평가의 목적' etc.), then the '가.'/'나.'/'다.'
-    # paragraphs that follow it before the next section header.
-    def slots_after(header_kw: str, next_kws: Sequence[str]) -> list[int]:
+    def slots_after(header_kw: str, next_kw: str) -> list[int]:
         try:
             hi = next(i for i, t in enumerate(texts) if t == header_kw)
         except StopIteration:
             return []
-        # boundary = next section header
         end = len(texts)
-        for nk in next_kws:
-            for j in range(hi + 1, len(texts)):
-                if texts[j] == nk:
-                    end = min(end, j)
-                    break
-        slots = [j for j in range(hi + 1, end) if re.match(r"^[가-힣]\.\s*$", texts[j]) or texts[j] in ("가.", "나.", "다.")]
-        return slots
+        for j in range(hi + 1, len(texts)):
+            if texts[j] == next_kw:
+                end = j
+                break
+        # a slot = a paragraph whose text is an ordinal marker (empty or filled)
+        return [j for j in range(hi + 1, end)
+                if re.match(r"^[가나다라마바사아자차카타파하]\.(\s|$)", texts[j])]
 
     plan = [
-        ("purposes", "평가의 목적", ("평가의 기본 방향",), ("평가의 목적",)),
-        ("directions", "평가의 기본 방향", ("평가 방침",), ("평가의 기본 방향",)),
+        ("purposes", "평가의 목적", "평가의 기본 방향", ("평가의 목적",)),
+        ("directions", "평가의 기본 방향", "평가 방침", ("평가의 기본 방향",)),
+        ("policies", "평가 방침", "성취기준 및 성취수준", ("평가 방침",)),
     ]
     patches: list[dict[str, Any]] = []
-    for attr, header, nexts, titlewords in plan:
-        raw = getattr(content, attr, "")
-        items = _prose_items(raw, titlewords)
-        slots = slots_after(header, nexts)
+    for attr, header, nxt, titlewords in plan:
+        items = _prose_items(getattr(content, attr, ""), titlewords)
+        slots = slots_after(header, nxt)
         if not slots or not items:
             if items:
-                report["skipped"].append(f"{attr}: no empty 가/나/다 placeholder to fill")
+                report["skipped"].append(f"{attr}: no ordinal placeholder located")
             continue
-        # distribute items across slots (surplus merged into last)
+        # number every item, then pack into the fixed slots without dropping any
+        numbered = [f"{_ORDINALS[i]}. {it}" for i, it in enumerate(items)]
         k = len(slots)
-        if len(items) <= k:
-            packed = items
-        else:
-            packed = items[:k - 1] + [" ".join(items[k - 1:])]
+        packed = numbered if len(numbered) <= k else numbered[:k - 1] + [" ".join(numbered[k - 1:])]
         for slot_idx, text in zip(slots, packed):
             patches.append({"section_path": sp, "paragraph_index": slot_idx, "text": text})
 
