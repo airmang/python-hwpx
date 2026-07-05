@@ -159,6 +159,18 @@ def test_content_axis_runs_and_reports():
     assert 0 <= a.score <= a.weight
 
 
+def test_content_foreign_sample_penalty(tmp_path):
+    """A produced file that still holds the blank's sample standard codes (not in
+    the review MD) is penalised -- content must REPLACE samples, not add beside."""
+    md = tmp_path / "c.md"
+    md.write_text("[12신규01-01] 신규 표준 하나", encoding="utf-8")
+    # blank scored against a review whose codes it does not contain, with blank as
+    # the sample reference -> every blank code is 'foreign' and still present.
+    a = score_content(BLANK, content=str(md), blank=BLANK)
+    assert a.detail["leftover_sample_frac"] > 0.5
+    assert a.detail["content_match"] == 0.0
+
+
 def test_compliance_flags_regular_exam_on_blank():
     """Blank still has the 정기시험 column -> the gold-calibrated lint flags it."""
     a = score_compliance(BLANK)

@@ -163,6 +163,10 @@ _BORDERFILL_RE = re.compile(rb'borderFillIDRef="(\d+)"')
 _WIDTH_RE = re.compile(rb'<(?:[A-Za-z_][\w.-]*:)?cellSz\b[^>]*\bwidth="(\d+)"')
 
 
+def _all_text(source: str | Path | bytes) -> str:
+    return "\n".join(t.text for t in _tables(source))
+
+
 def _looks_like_path(x: Any) -> bool:
     if isinstance(x, Path):
         return True
@@ -511,12 +515,14 @@ def _content_region_fill(md_text: str, norm_prod: str) -> dict[str, float]:
     return regions
 
 
-def score_content(produced: str | Path, *, content: str | Path | None = None) -> AxisScore:
+def score_content(produced: str | Path, *, content: str | Path | None = None,
+                  blank: str | Path | None = None) -> AxisScore:
     """D axis. Sections present, ratio sums to 100 (왼쪽 우선), and -- when the
     review ``content`` is given -- the produced actually carries THAT content
-    (curriculum standard codes overlap), not the blank's leftover sample text.
-    Without the content check a structurally-perfect but unfilled form would
-    falsely score full marks (no-silent-true)."""
+    (per-region prose overlap) AND has replaced the blank's sample content
+    (``blank`` given: no leftover foreign standard codes). Without these a
+    structurally-perfect but unfilled form, or one still showing sample content
+    in unfilled regions, would falsely score high (no-silent-true)."""
     key, name, weight = "D", "content_completeness", 15
     tabs = _tables(produced)
     full_text = "\n".join(t.text for t in tabs)
@@ -541,13 +547,28 @@ def score_content(produced: str | Path, *, content: str | Path | None = None) ->
         md_text = Path(content).read_text(encoding="utf-8") if _looks_like_path(content) else str(content)
         norm_prod = full_text.replace(" ", "")
         region_detail = _content_region_fill(md_text, norm_prod)
+        # foreign-sample penalty: the produced must REPLACE the blank's sample
+        # content, not merely add correct content beside it. Standard codes that
+        # are in the blank but not in the review MD are leftover sample text; if
+        # they survive, the corresponding region is not really filled.
+        foreign_frac = 0.0
+        if blank is not None:
+            blank_codes = set(_STD_CODE_RE.findall(_all_text(blank)))
+            md_codes = set(_STD_CODE_RE.findall(md_text))
+            foreign = blank_codes - md_codes
+            got = set(_STD_CODE_RE.findall(full_text))
+            if foreign:
+                foreign_frac = len(foreign & got) / len(foreign)
         if region_detail:
-            content_match = sum(region_detail.values()) / len(region_detail)
+            raw = sum(region_detail.values()) / len(region_detail)
+            content_match = raw * (1.0 - foreign_frac)
             ok = content_match >= 0.6
             weak = {k: round(v, 2) for k, v in region_detail.items() if v < 0.6}
-            checks.append(("content matches review MD (all regions)", ok,
-                           "" if ok else f"content_match={content_match:.0%}; under-filled regions {weak} "
-                           f"-- produced still holds blank sample content there"))
+            msg = f"content_match={content_match:.0%} (fill={raw:.0%}, leftover-sample={foreign_frac:.0%})"
+            if weak:
+                msg += f"; under-filled regions {weak}"
+            checks.append(("content matches review MD (all regions, samples replaced)", ok,
+                           "" if ok else msg + " -- produced still holds blank sample content"))
 
     # 반영비율: parse percentages in the ratio table, sum ~100, non-increasing
     ratio_tabs = [t for t in tabs if _classify(t) == "ratio"]
@@ -602,7 +623,8 @@ def score_content(produced: str | Path, *, content: str | Path | None = None) ->
     findings.append("note: empty-required-cell detection is coarse (text-presence only)")
     return AxisScore(key, name, weight, score, status, findings,
                      {"missing_sections": missing, "passed": passed, "total": len(checks),
-                      "content_match": content_match, "region_fill": region_detail})
+                      "content_match": content_match, "region_fill": region_detail,
+                      "leftover_sample_frac": round(foreign_frac, 3) if content is not None else None})
 
 
 # --------------------------------------------------------------------------- #
@@ -691,7 +713,7 @@ def score_form_fill(
                       ["render skipped (run_render=False) -- A unverified"])
     b = score_format_fidelity(produced, blank)
     c = score_structure(produced, gold, expected=expected_skeleton)
-    d = score_content(produced, content=content)
+    d = score_content(produced, content=content, blank=blank)
     e = score_compliance(produced)
     axes = [a, b, c, d, e]
     total = sum(ax.score for ax in axes)
