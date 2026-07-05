@@ -353,6 +353,66 @@ def test_fill_evalplan_phase_all_is_byte_preserving():
     assert b.detail["carry_rate"] > 0.6
 
 
+def test_fill_ratio_replaces_sample_and_lands_md_numbers():
+    """fill_ratio maps the review §6 반영비율 onto the produced 반영비율 table by row
+    label: the 영역 만점 numbers, 영역 names, and 성취기준 codes replace the blank's
+    통합과학 sample (byte-preserving, no regeneration)."""
+    from hwpx.evalplan_fill import fill_ratio, _classify_index, _grid_of
+    from hwpx.formfill_quality import score_format_fidelity
+    from hwpx.table_patch import _text_of
+    c = parse_review_md(SYNTHETIC)
+    # start from the structurally-restructured (정기시험 removed) blank
+    from hwpx.evalplan_fill import plan_structural_ops
+    from hwpx.table_patch import apply_table_ops
+    plan = plan_structural_ops(str(BLANK_3HAK), c)
+    data = apply_table_ops(str(BLANK_3HAK), plan["ops"]).data
+    data, report = fill_ratio(data, c)
+    assert not report["skipped"], report["skipped"]
+    assert report["rows_filled"] >= 3
+    ti = _classify_index(data, "ratio")
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    rows = {}
+    for r in range(rep.row_count):
+        c0 = grid.get((r, 0))
+        rows[_text_of(tb[c0.start:c0.end]).strip()] = r
+    # 영역 만점 numbers landed
+    r = rows["영역 만점(반영 비율)"]
+    assert "60점(60%)" in _text_of(tb[grid[(r, 1)].start:grid[(r, 1)].end])
+    assert "40점(40%)" in _text_of(tb[grid[(r, 2)].start:grid[(r, 2)].end])
+    # 영역 names landed in the 시기/영역 row
+    r = rows["시기/영역"]
+    assert "영역 가" in _text_of(tb[grid[(r, 1)].start:grid[(r, 1)].end])
+    # the MD 반영비율 numbers are present in the ratio table (sample % replaced)
+    assert "60%" in _text_of(tb) and "40%" in _text_of(tb)
+    # byte formatting preserved (not regenerated)
+    assert score_format_fidelity(data, str(BLANK_3HAK)).detail["carry_rate"] > 0.6
+
+
+def test_scorer_ratio_content_penalises_sample():
+    """score_content's ratio-content region + '반영비율 carries MD numbers' check
+    catch a SAMPLE 반영비율 (50/50/50 → sums to 100 somewhere) that the old sum-only
+    check waved through -- an unfilled ratio scores its region low."""
+    import hwpx.evalplan_fill as ef
+    from hwpx.evalplan_fill import fill_evalplan
+    from hwpx.formfill_quality import score_content
+    c = parse_review_md(SYNTHETIC)
+    # disable fill_ratio -> the produced keeps the blank's SAMPLE 반영비율
+    orig = ef.fill_ratio
+    ef.fill_ratio = lambda data, content: (data, {"skipped": ["disabled for test"]})
+    try:
+        sample = fill_evalplan(str(BLANK_3HAK), c, phase="all")["_data"]
+    finally:
+        ef.fill_ratio = orig
+    filled = fill_evalplan(str(BLANK_3HAK), c, phase="all")["_data"]
+    ds = score_content(sample, content=SYNTHETIC, blank=str(BLANK_3HAK))
+    df = score_content(filled, content=SYNTHETIC, blank=str(BLANK_3HAK))
+    # the filled ratio scores its region much higher than the sample
+    assert df.detail["region_fill"]["ratio_content"] > ds.detail["region_fill"]["ratio_content"]
+    assert df.detail["region_fill"]["ratio_content"] >= 0.9
+    # the sample trips the explicit "carries MD numbers" finding
+    assert any("반영비율 carries" in f for f in ds.findings)
+
+
 def test_fill_sections_preserves_numbering_and_drops_no_content():
     """fill_sections keeps each item's 가./나./다. ordinal and, when items exceed
     the fixed placeholder slots, appends the surplus (with ordinals) to the last
@@ -523,16 +583,25 @@ def test_real_3hak_review_md_skeleton():
 @pytest.mark.skipif(not _MD.exists(), reason="owner-local review MD not present (not vendored)")
 def test_real_3hak_content_fill_replaces_all_foreign_samples():
     """The real 3학년 phase='all' fill drops the leftover-sample fraction (음악 +
-    한국사 codes) to <=0.10 -- structural proof the achievement + rubric samples
-    were actually replaced (no render needed)."""
+    한국사 + 통합과학 codes) to 0 -- structural proof the achievement + rubric + ratio
+    samples were actually replaced (no render needed)."""
+    import re
     from hwpx.evalplan_fill import fill_evalplan
-    from hwpx.formfill_quality import score_content
+    from hwpx.formfill_quality import score_content, _document_text
     c = parse_review_file(str(_MD))
     res = fill_evalplan(str(BLANK_3HAK), c, phase="all")
-    d = score_content(res["_data"], content=str(_MD), blank=str(BLANK_3HAK))
+    data = res["_data"]
+    d = score_content(data, content=str(_MD), blank=str(BLANK_3HAK))
     assert d.detail["leftover_sample_frac"] <= 0.10
+    assert d.detail["leftover_sample_frac"] <= 0.03
     assert d.detail["region_fill"]["achievement_prose"] >= 0.9
     assert d.detail["region_fill"]["rubric_items"] >= 0.8
+    assert d.detail["region_fill"]["ratio_content"] >= 0.9    # 반영비율 table filled
+    # ZERO foreign standard codes survive (통과/통사/음/한사 all gone; only 인기 remain)
+    txt = _document_text(data)
+    foreign = [x for x in set(re.findall(r"\[\d?\d?[가-힣A-Za-z]+\d[\d\-]*\]", txt))
+               if not x.startswith("[12인기")]
+    assert foreign == [], f"foreign sample codes survived: {foreign}"
 
 
 _MD_2HAK = Path(os.path.expanduser(
@@ -553,10 +622,12 @@ def test_real_2hak_review_md_skeleton():
 
 @pytest.mark.skipif(not _MD_2HAK.exists(), reason="owner-local 2학년 review MD not present (not vendored)")
 def test_real_2hak_content_fill_reaches_target_structure():
-    """The real 2학년 phase='all' fill produces the collapsed target skeleton and
-    lands its achievement + rubric content (no render needed)."""
+    """The real 2학년 phase='all' fill produces the collapsed target skeleton, lands
+    its achievement + rubric + ratio content, and leaves NO foreign sample code
+    (통사/통과/공국/미술 all replaced) (no render needed)."""
+    import re
     from hwpx.evalplan_fill import fill_evalplan
-    from hwpx.formfill_quality import score_content, _skeleton
+    from hwpx.formfill_quality import score_content, _skeleton, _document_text
     c = parse_review_file(str(_MD_2HAK))
     res = fill_evalplan(str(BLANK_2HAK), c, phase="all")
     data = res["_data"]
@@ -566,4 +637,12 @@ def test_real_2hak_content_fill_reaches_target_structure():
     d = score_content(data, content=str(_MD_2HAK), blank=str(BLANK_2HAK))
     assert d.detail["region_fill"]["achievement_prose"] >= 0.9
     assert d.detail["region_fill"]["rubric_items"] >= 0.6
+    assert d.detail["region_fill"]["ratio_content"] >= 0.9    # 반영비율 table filled
     assert d.detail["leftover_sample_frac"] <= 0.10
+    assert d.detail["leftover_sample_frac"] <= 0.03
+    # ZERO foreign standard codes survive (including the 2-part [10통사2-01-03] rubric
+    # sample and the single-digit-prefix [9미…] second-block sample)
+    txt = _document_text(data)
+    foreign = [x for x in set(re.findall(r"\[\d?\d?[가-힣A-Za-z]+\d[\d\-]*\]", txt))
+               if not x.startswith("[12인기")]
+    assert foreign == [], f"foreign sample codes survived: {foreign}"

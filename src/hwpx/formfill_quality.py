@@ -486,7 +486,10 @@ _SECTION_RE = re.compile(r"(\d+)\s*(평가의 목적|평가의 기본 방향|평
                          r"수행평가 미응시|평가 유의사항|평가 결과)")
 
 
-_STD_CODE_RE = re.compile(r"\[1\d[가-힣A-Za-z]*\d\d-\d\d\]")
+# Curriculum standard codes in ANY subject's numbering: 2-part ([12인기01-01]) and
+# 3-part ([10통사2-01-03]). The 3-part form matters for leftover-sample detection
+# -- a rubric left holding 통합사회 sample codes must not read as clean.
+_STD_CODE_RE = re.compile(r"\[\d\d[가-힣A-Za-z]*\d+(?:-\d+)+\]")
 
 
 def _clean_anchor(a: str) -> str:
@@ -543,7 +546,44 @@ def _content_region_fill(md_text: str, norm_prod: str) -> dict[str, float]:
     f = _present_frac(secs, norm_prod)
     if f is not None:
         regions["section_prose"] = f
+    # ratio table (§6): the MD's per-영역 반영비율 numbers AND 영역 names must land in
+    # the produced 반영비율 table. The old ratio D-check only demanded *some* subset of
+    # percentages summing to 100 -- a leftover SAMPLE (50/50/50 → finds 100) passed.
+    # This region pins the actual MD numbers (e.g. 35%/35%/30%) + area names, so a
+    # sample ratio scores low and a genuinely-filled one scores high (no-silent-true).
+    ratio_anchors = _ratio_anchors(c)
+    f = _present_frac(ratio_anchors, norm_prod)
+    if f is not None:
+        regions["ratio_content"] = f
     return regions
+
+
+def _ratio_anchors(content: Any) -> list[str]:
+    """Distinctive anchors of the review §6 반영비율 table: each 영역's 반영비율 number
+    (from the 영역 만점(반영비율) row, e.g. '35%' / '30%') plus each 영역 name. Used by
+    D's ratio-content check so a produced table carrying the SAMPLE 반영비율 (not the
+    MD's) scores low."""
+    anchors: list[str] = []
+    # 영역 names from the §6 header (drop the leading 구분 label + trailing 합계)
+    hdr = list(getattr(content, "ratio_header", []) or [])
+    for name in hdr[1:]:
+        if "합계" in name:
+            continue
+        # the circled-number prefix ('① …') is a strong, non-sample anchor
+        n = name.strip()
+        if len(n) >= 4:
+            anchors.append(n[:18])
+    # 반영비율 numbers from the 영역 만점(반영비율) row (the '(NN%)' inside each cell)
+    for row in getattr(content, "ratio_rows", []) or []:
+        if not row:
+            continue
+        if "만점" in row[0] or "반영비율" in row[0].replace(" ", ""):
+            for cell in row[1:]:
+                for m in re.findall(r"\d+\s*%", cell):
+                    anchors.append(m.replace(" ", ""))
+            break
+    # de-dup while preserving order
+    return list(dict.fromkeys(a for a in anchors if a))
 
 
 def score_content(produced: str | Path, *, content: str | Path | None = None,
@@ -632,6 +672,27 @@ def score_content(produced: str | Path, *, content: str | Path | None = None,
             ratio_msg = "no percentages found in ratio table"
     if ratio_ok is not None:
         checks.append(("반영비율 sum=100 & non-increasing", ratio_ok, "" if ratio_ok else ratio_msg))
+
+    # 반영비율 CONTENT (when the review MD is given): the sum-to-100 check above is
+    # satisfied by a SAMPLE 반영비율 (50/50/50 finds 100 somewhere), so it is a blind
+    # spot. Require the produced ratio table to actually carry the MD's per-영역
+    # 반영비율 numbers (e.g. 35/35/30) -- a leftover sample lacks them and fails.
+    if ratio_tabs and content is not None:
+        try:
+            from .evalplan_fill import parse_review_md
+            cc = parse_review_md(md_text)
+        except Exception:
+            cc = None
+        want_pcts = [a for a in (_ratio_anchors(cc) if cc else []) if a.endswith("%")]
+        if want_pcts:
+            rt_norm = ratio_tabs[0].text.replace(" ", "")
+            hit = sum(1 for p in want_pcts if p in rt_norm)
+            frac_pcts = hit / len(want_pcts)
+            rc_ok = frac_pcts >= 0.9
+            checks.append(("반영비율 carries MD's 영역 반영비율 numbers", rc_ok,
+                           "" if rc_ok else
+                           f"only {hit}/{len(want_pcts)} of the MD 반영비율 numbers {want_pcts} "
+                           f"present -- ratio table still holds SAMPLE percentages"))
 
     # weighted: content fidelity ("전 섹션 채움") dominates -- a structurally perfect
     # but unfilled form must not reach the loop's >=90 threshold on structure alone.

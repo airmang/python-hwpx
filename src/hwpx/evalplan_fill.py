@@ -595,29 +595,65 @@ def _fill_rubric_2022(data: bytes, ti: int, rub: Rubric) -> tuple[bytes, list[st
     _sp, tb, grid, rep = _grid_of(data, ti)
     lastcol = rep.col_count - 1
 
-    # locate the 평가요소 header row and 기본점수 row to bound the 수행수준 region
-    ph = base = None
+    # locate the 수행과제 / 성취기준-label / 평가요소 header / 기본점수 rows.
+    task_row = std_label_row = ph = base = None
     for r in range(rep.row_count):
         c0 = grid.get((r, 0))
         if c0 is None:
             continue
         t0 = _text_of(tb[c0.start:c0.end]).strip()
-        if t0.replace(" ", "") == "평가요소":
+        t0c = t0.replace(" ", "")
+        if task_row is None and t0c == "수행과제":
+            task_row = r
+        if std_label_row is None and t0c == "성취기준":
+            std_label_row = r
+        if t0c == "평가요소":
             ph = r
         if base is None and "기본점수" in t0:
             base = r
 
     cells: list[dict[str, Any]] = []
-    # header: title / points / standards -- addressed by adjacent label (geometry-free)
+    # header: title / points -- addressed by adjacent label (geometry-free)
     cells.append({"table_index": ti, "cell_anchor": {"label": "평가 영역명", "dir": "right"},
                   "text": rub.title, "max_lines": 2})
     cells.append({"table_index": ti, "cell_anchor": {"label": "영역 만점", "dir": "right"},
                   "text": f"{rub.points}점", "max_lines": 1})
-    # NOTE: the review 성취기준 codes are intentionally NOT written here -- the '성취
-    # 기준' cell's right neighbour is the '성취기준별 성취수준' A~E sub-table banner (a
-    # section header, not a value slot), so overwriting it would corrupt the block.
-    # The codes already reach the produced doc via the schedule + achievement fills;
-    # honest-defer keeps this rich grid's structure intact.
+
+    # 성취기준 codes: the '성취기준' LABEL row's right neighbour is the '성취기준별
+    # 성취수준' A~E banner (a section header, NOT a value slot) -- so we write the
+    # codes into the A~E block's col-0 LEADER cell(s) instead (the merged cells that
+    # span the A..E rows and currently carry the blank's foreign sample codes).
+    # The blank can ship SEVERAL sample 성취기준 blocks under one rubric (each its own
+    # A~E leader); the MD supplies one codes string per rubric, so we overwrite EVERY
+    # leader between the 성취기준 label row and the next 평가 방법 section, leaving no
+    # foreign code behind (the first carries the codes; the rest are blanked).
+    if rub.standards and std_label_row is not None:
+        method_row = next((r for r in range(std_label_row + 1, rep.row_count)
+                           if (c0 := grid.get((r, 0))) is not None
+                           and "평가" in _text_of(tb[c0.start:c0.end])
+                           and "방법" in _text_of(tb[c0.start:c0.end])), rep.row_count)
+        leaders = [c.row for c in sorted(_direct_cells(tb), key=lambda c: c.row)
+                   if c.col == 0 and std_label_row < c.row < method_row and c.row_span >= 2]
+        if leaders:
+            for j, lr in enumerate(leaders):
+                cells.append({"table_index": ti, "row": lr, "col": 0,
+                              "text": rub.standards if j == 0 else "", "max_lines": 4})
+        else:
+            skipped.append(f"rubric ti={ti}: no A~E 성취기준 block leader to place codes")
+
+    # 수행과제: the blank ships a foreign sample task (통사 인권 문제 …). The MD has no
+    # dedicated 수행과제 string, so synthesise a faithful one from THIS area's 평가항목
+    # labels (the tasks the rubric actually scores) -- replaces the sample subject.
+    if task_row is not None:
+        items = [_item_label(row[0]) for row in rub.rows if not row[0].startswith("기본점수")]
+        if items:
+            task_cell = grid.get((task_row, 1)) or grid.get((task_row, lastcol))
+            if task_cell is not None:
+                # find the logical column of the task value cell (right of the label)
+                tcol = next((cc for cc in range(1, rep.col_count)
+                             if grid.get((task_row, cc)) is task_cell), 1)
+                cells.append({"table_index": ti, "row": task_row, "col": tcol,
+                              "text": "∙" + " ∙".join(items), "max_lines": 3})
 
     # 평가요소 수행수준 leader cells: col0 merged cells strictly inside (ph, base)
     if ph is not None and base is not None:
@@ -921,6 +957,190 @@ def _schedule_index(data: bytes) -> int | None:
     return None
 
 
+_PCT_RE = re.compile(r"(\d+)\s*%")
+
+
+def _ratio_columns(tb: bytes, grid, rep) -> tuple[int, list[int], int | None]:
+    """(label_col, area_cols, total_col) of a 반영비율 grid.
+
+    ``label_col`` is the right-most column of the header's left-most (구분/평가 종류)
+    cell -- 3학년 spans 1 column, 2학년 spans 2 -- so reading a row's label from col 0
+    is safe but *writing* area values must start after this. ``total_col`` is the
+    header column carrying '합계'. ``area_cols`` are the columns strictly between the
+    label span and 합계 (the per-영역 data columns), 정기시험 already deleted."""
+    from .table_patch import _text_of
+    c00 = grid.get((0, 0))
+    label_cols = [cc for cc in range(rep.col_count) if grid.get((0, cc)) is c00]
+    label_col = label_cols[-1] if label_cols else 0
+    total_col = None
+    for cc in range(rep.col_count):
+        cell = grid.get((0, cc))
+        if cell and "합계" in _text_of(tb[cell.start:cell.end]):
+            total_col = cc
+            break
+    area_cols = [cc for cc in range(label_col + 1, rep.col_count) if cc != total_col]
+    return label_col, area_cols, total_col
+
+
+def _ratio_row_source(label: str, content: EvalPlanContent) -> tuple[str, list[str], str | None] | None:
+    """Map a produced 반영비율 row *label* to its MD source: a ``(kind, area_values,
+    total)`` tuple, or None to leave the row untouched.
+
+    The blank ships more rows than the MD's 5 data rows (a plain '반영 비율' %-only
+    summary + a '시기/영역' area-name row on top of the MD's 영역 만점/논술형/시기/
+    성취기준/평가요소), so the mapping is by tolerant label keyword, not position:
+
+    * '영역 만점' → the MD 영역 만점(반영비율) cells ('35점(35%)' …)
+    * plain '반영 비율' (NOT 영역 만점) → the bare percentages of 영역 만점 ('35%' …)
+    * '시기/영역' (area-name row) → the MD ratio_header 영역 names
+    * '논술형' → MD 논술형 평가 반영비율
+    * '평가 시기' / '시기' (without 영역) → MD 평가 시기
+    * '성취기준' → MD 성취기준  (this is where the blank's foreign sample codes live)
+    * '평가요소' → MD 평가요소
+    """
+    lab = label.replace(" ", "")
+    rows = {r[0].replace(" ", ""): r for r in content.ratio_rows}
+
+    def row(*keys: str) -> list[str] | None:
+        for k in rows:
+            if any(key in k for key in keys):
+                return rows[k]
+        return None
+
+    def data_and_total(r: list[str] | None) -> tuple[list[str], str | None] | None:
+        if not r:
+            return None
+        vals = r[1:]
+        total = vals[-1] if len(vals) > len(_area_names(content)) else None
+        # area values are the leading cells; a trailing 합계 (last) is the total
+        area = vals[:len(_area_names(content))]
+        return area, total
+
+    areas = _area_names(content)
+    if "영역만점" in lab:
+        dt = data_and_total(row("영역만점", "만점"))
+        return ("영역 만점", dt[0], dt[1]) if dt else None
+    if lab.startswith("반영비율") or lab == "반영비율":
+        dt = data_and_total(row("영역만점", "만점"))
+        if not dt:
+            return None
+        pcts = [(_PCT_RE.search(v).group(0) if _PCT_RE.search(v) else v) for v in dt[0]]
+        return ("반영 비율", pcts, dt[1])
+    if "시기/영역" in lab or lab == "시기영역":
+        # the area-name row: fill from the MD ratio_header 영역 names
+        return ("영역명", list(areas), None)
+    if "논술형" in lab:
+        dt = data_and_total(row("논술형"))
+        return ("논술형", dt[0], dt[1]) if dt else None
+    if "평가시기" in lab or (lab.startswith("시기") and "영역" not in lab):
+        dt = data_and_total(row("평가시기", "시기"))
+        return ("평가 시기", dt[0], dt[1]) if dt else None
+    if "성취기준" in lab:
+        dt = data_and_total(row("성취기준"))
+        return ("성취기준", dt[0], dt[1]) if dt else None
+    if "평가요소" in lab:
+        dt = data_and_total(row("평가요소"))
+        return ("평가요소", dt[0], dt[1]) if dt else None
+    return None
+
+
+def _area_names(content: EvalPlanContent) -> list[str]:
+    """The 영역 names from the MD §6 header ('① 문제해결에 …', …) -- every header cell
+    that is not the leading 구분 label or the trailing 합계."""
+    hdr = content.ratio_header
+    if not hdr:
+        return []
+    inner = hdr[1:]
+    if inner and "합계" in inner[-1]:
+        inner = inner[:-1]
+    return inner
+
+
+def fill_ratio(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, Any]]:
+    """Fill the 반영비율 (평가의 종류와 반영비율) table's data cells from the review MD
+    §6 (byte-preserving). The recipe deletes the 정기시험 column but never wrote the
+    수행평가 area data, so the produced table carries 100% sample content (50/50/50 %,
+    통합과학 subjects, 통과 성취기준 codes). This maps ``content.ratio_rows`` onto the
+    produced rows by their left-most LABEL (tolerant keyword match, so 반영 비율 vs
+    영역 만점 both resolve) and fills the per-영역 columns + the 시기/영역 area names +
+    the header 영역 names. Handles BOTH forms (3학년 5-col, 2학년 6-col with a 2-col
+    label span). No-op / reported if the MD ships no §6 table."""
+    from .table_patch import fill_cells, _text_of
+
+    report: dict[str, Any] = {"rows_filled": 0, "skipped": []}
+    if not content.ratio_rows and not content.ratio_header:
+        report["skipped"].append("MD has no §6 ratio table")
+        return data, report
+    ti = _classify_index(data, "ratio")
+    if ti is None:
+        report["skipped"].append("no ratio table found")
+        return data, report
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    label_col, area_cols, total_col = _ratio_columns(tb, grid, rep)
+    areas = _area_names(content)
+    if not area_cols:
+        report["skipped"].append(f"no area columns detected (label_col={label_col}, total_col={total_col})")
+        return data, report
+
+    cells: list[dict[str, Any]] = []
+    # header 평가 종류 row (r0): the area-name header cells still say '수행평가' -- leave
+    # them (they are the 평가 종류, correctly 수행평가); the 영역 names go in the 시기/영역
+    # row so they are not duplicated.
+    for r in range(1, rep.row_count):
+        c0 = grid.get((r, 0))
+        label = _text_of(tb[c0.start:c0.end]).strip() if c0 else ""
+        src = _ratio_row_source(label, content)
+        if src is None:
+            continue
+        kind, area_vals, total = src
+        wrote = False
+        # Dedup horizontally-merged area cells: the blank collapses some rows' 영역
+        # columns into ONE spanned cell (e.g. the '반영 비율' summary is a single
+        # cell over all 영역). Writing per-column would collide on the same physical
+        # cell; instead we write ONE value per distinct cell. A merged summary cell
+        # takes the row's 합계 (its meaning is the aggregate), a merged non-summary
+        # cell takes the joined area values; distinct per-영역 cells take their own
+        # value, and an MD '—' CLEARS the blank's leftover sample (writes empty).
+        seen_cells: set[tuple[int, int]] = set()
+        for k, cc in enumerate(area_cols):
+            cell = grid.get((r, cc))
+            if cell is None:
+                continue
+            key = (cell.start, cell.end)
+            if key in seen_cells:
+                continue
+            seen_cells.add(key)
+            spanned = [ac for ac in area_cols if grid.get((r, ac)) is cell]
+            if len(spanned) > 1:
+                # a merged area cell — one physical cell over several 영역 columns
+                if kind == "반영 비율":
+                    val = (total or "").strip()
+                else:
+                    parts = [area_vals[area_cols.index(ac)].strip()
+                             for ac in spanned if area_cols.index(ac) < len(area_vals)]
+                    parts = [p for p in parts if p and p != "—"]
+                    val = " / ".join(dict.fromkeys(parts))
+            else:
+                val = area_vals[k].strip() if k < len(area_vals) else ""
+                if val == "—":
+                    val = ""      # clear leftover sample where the MD has no value
+            cells.append({"table_index": ti, "row": r, "col": cc, "text": val, "max_lines": 3})
+            wrote = True
+        # 합계 column: fill only when the MD supplies a concrete total (not '—')
+        if total and total.strip() not in ("", "—") and total_col is not None and grid.get((r, total_col)):
+            cells.append({"table_index": ti, "row": r, "col": total_col, "text": total.strip(), "max_lines": 1})
+        if wrote:
+            report["rows_filled"] += 1
+
+    if not cells:
+        report["skipped"].append("no ratio rows matched the MD labels")
+        return data, report
+    fr = fill_cells(data, cells)
+    report["filled_cells"] = len(fr.applied)
+    report["skipped"].extend(s.reason for s in fr.skipped)
+    return fr.data, report
+
+
 def fill_evalplan(
     blank: str,
     content: EvalPlanContent,
@@ -949,6 +1169,7 @@ def fill_evalplan(
         data, content_report["achievement"] = fill_achievement(data, content)
         data, content_report["levels"] = fill_levels(data, content)
         data, content_report["rubrics"] = fill_rubrics(data, content)
+        data, content_report["ratio"] = fill_ratio(data, content)
         data, content_report["sections"] = fill_sections(data, content)
 
     if output is not None:
@@ -970,5 +1191,6 @@ def parse_review_file(path: str) -> EvalPlanContent:
 __all__ = [
     "EvalPlanContent", "Rubric", "parse_review_md", "parse_review_file",
     "expected_skeleton", "plan_structural_ops", "fill_evalplan",
-    "fill_schedule", "fill_achievement", "fill_levels", "fill_rubrics", "fill_sections",
+    "fill_schedule", "fill_achievement", "fill_levels", "fill_rubrics", "fill_ratio",
+    "fill_sections",
 ]
