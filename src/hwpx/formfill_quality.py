@@ -460,6 +460,57 @@ _SECTION_RE = re.compile(r"(\d+)\s*(평가의 목적|평가의 기본 방향|평
 _STD_CODE_RE = re.compile(r"\[1\d[가-힣A-Za-z]*\d\d-\d\d\]")
 
 
+def _present_frac(anchors: Sequence[str], norm_prod: str) -> float | None:
+    anchors = [a for a in anchors if a and len(a) >= 3]
+    if not anchors:
+        return None
+    hit = sum(1 for a in anchors if a.replace(" ", "") in norm_prod)
+    return hit / len(anchors)
+
+
+def _content_region_fill(md_text: str, norm_prod: str) -> dict[str, float]:
+    """Per-region fill fraction of the review MD's content in the produced doc.
+
+    Regions (schedule codes / achievement level prose / rubric items / section
+    prose) are measured separately so filling one cannot mask the others.
+    Falls back to raw standard-code overlap if the structured parse is
+    unavailable."""
+    regions: dict[str, float] = {}
+    try:
+        from .evalplan_fill import parse_review_md
+        c = parse_review_md(md_text)
+    except Exception:
+        want = set(_STD_CODE_RE.findall(md_text))
+        got_norm = norm_prod
+        if want:
+            regions["codes"] = sum(1 for w in want if w.replace(" ", "") in got_norm) / len(want)
+        return regions
+
+    # schedule: curriculum standard codes
+    codes = _STD_CODE_RE.findall(md_text)
+    f = _present_frac(list(dict.fromkeys(codes)), norm_prod)
+    if f is not None:
+        regions["schedule_codes"] = f
+    # achievement: the 상 (highest) descriptor of each standard row
+    ach = [row[1][:16] for row in c.achievement_std if len(row) >= 2 and row[1]]
+    f = _present_frac(ach, norm_prod)
+    if f is not None:
+        regions["achievement_prose"] = f
+    # rubric: the 평가항목 label of each rubric row
+    items = [r.rows[i][0][:12] for r in c.rubrics for i in range(len(r.rows)) if r.rows[i] and r.rows[i][0]]
+    f = _present_frac(items, norm_prod)
+    if f is not None:
+        regions["rubric_items"] = f
+    # sections: a distinctive opening phrase of §1/§2/§3/§11 prose
+    secs = [s[:18] for s in (c.purposes, c.directions, c.policies, c.analysis) if s]
+    # strip leading "가." markers for a cleaner anchor
+    secs = [re.sub(r"^[가-힣]\.\s*", "", s) for s in secs]
+    f = _present_frac(secs, norm_prod)
+    if f is not None:
+        regions["section_prose"] = f
+    return regions
+
+
 def score_content(produced: str | Path, *, content: str | Path | None = None) -> AxisScore:
     """D axis. Sections present, ratio sums to 100 (왼쪽 우선), and -- when the
     review ``content`` is given -- the produced actually carries THAT content
@@ -479,20 +530,24 @@ def score_content(produced: str | Path, *, content: str | Path | None = None) ->
     checks.append(("sections [1]~[11] present", not missing,
                    "" if not missing else f"missing sections: {missing}"))
 
-    # content fidelity: the produced must carry the review MD's standard codes,
-    # not the blank's sample codes. A structural-only file (samples not replaced)
-    # fails this -- exactly the signal that content is not yet filled.
+    # content fidelity: the produced must carry the review MD's content across
+    # ALL major regions -- not just one. Standard codes concentrate in the
+    # schedule, so a schedule-only fill would max a code-only check while
+    # achievement / rubric / section prose is still blank sample text. Averaging
+    # per-region fill fractions keeps D honest (no-silent-true).
     content_match = None
+    region_detail: dict[str, float] = {}
     if content is not None:
         md_text = Path(content).read_text(encoding="utf-8") if _looks_like_path(content) else str(content)
-        want = set(_STD_CODE_RE.findall(md_text))
-        got = set(_STD_CODE_RE.findall(full_text))
-        if want:
-            content_match = len(want & got) / len(want)
-            ok = content_match >= 0.5
-            checks.append(("content matches review MD (standard codes)", ok,
-                           "" if ok else f"only {len(want & got)}/{len(want)} MD standard codes present "
-                           f"({content_match:.0%}) -- produced likely still holds blank sample content"))
+        norm_prod = full_text.replace(" ", "")
+        region_detail = _content_region_fill(md_text, norm_prod)
+        if region_detail:
+            content_match = sum(region_detail.values()) / len(region_detail)
+            ok = content_match >= 0.6
+            weak = {k: round(v, 2) for k, v in region_detail.items() if v < 0.6}
+            checks.append(("content matches review MD (all regions)", ok,
+                           "" if ok else f"content_match={content_match:.0%}; under-filled regions {weak} "
+                           f"-- produced still holds blank sample content there"))
 
     # 반영비율: parse percentages in the ratio table, sum ~100, non-increasing
     ratio_tabs = [t for t in tabs if _classify(t) == "ratio"]
@@ -529,7 +584,9 @@ def score_content(produced: str | Path, *, content: str | Path | None = None) ->
     sections_ok = 1.0 if not missing else 0.0
     ratio_frac = 1.0 if (ratio_ok in (True, None)) else 0.0
     if content_match is not None:
-        frac = 0.2 * sections_ok + 0.2 * ratio_frac + 0.6 * content_match
+        # content fill dominates: section labels are nearly free (they ship in the
+        # blank), so a labels-present-but-unfilled form must not clear the gate.
+        frac = 0.1 * sections_ok + 0.1 * ratio_frac + 0.8 * content_match
     else:
         frac = 0.5 * sections_ok + 0.5 * ratio_frac
     score = weight * frac
@@ -545,7 +602,7 @@ def score_content(produced: str | Path, *, content: str | Path | None = None) ->
     findings.append("note: empty-required-cell detection is coarse (text-presence only)")
     return AxisScore(key, name, weight, score, status, findings,
                      {"missing_sections": missing, "passed": passed, "total": len(checks),
-                      "content_match": content_match})
+                      "content_match": content_match, "region_fill": region_detail})
 
 
 # --------------------------------------------------------------------------- #

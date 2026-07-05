@@ -171,7 +171,7 @@ def test_content_fidelity_axis_flags_unfilled(tmp_path):
     md.write_text("[12합성01-01] [12합성01-02] [12합성01-03]", encoding="utf-8")
     a = score_content(str(BLANK_3HAK), content=str(md))   # blank has no 합성 codes
     assert a.detail["content_match"] == 0.0
-    assert any("standard codes" in f for f in a.findings)
+    assert any("content matches review MD" in f for f in a.findings)
 
 
 _MD = Path(os.path.expanduser(
