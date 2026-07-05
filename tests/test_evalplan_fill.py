@@ -563,6 +563,72 @@ def test_fill_evalplan_2022_phase_all_byte_preserving():
     assert b.detail["carry_rate"] > 0.6
 
 
+def test_fill_rubric_2022_ae_descriptors_replace_sample_prose():
+    """The 2022-개정 rubric 성취기준별 성취수준 A~E block ships the blank's foreign sample
+    descriptors (통합사회/미술 프로젝트 prose). ``_fill_rubric_2022`` now splices each A~E
+    block's 서술 cells from the review MD's per-standard 성취수준 (block *i* ← the *i*-th
+    referenced standard), byte-preserving. Assert on the PUBLIC fixture + synthetic MD
+    that the primary block descriptors are the MD's (A→상상, …, E→최하), the blank's
+    sample prose (사회적 소수자/인권 문제/조형 요소) is gone from every FILLED 서술 cell,
+    and an A~E block with no referenced standard is left as-is and REPORTED (fail-
+    closed -- no fabricated standard mapping, no corruption)."""
+    from hwpx.evalplan_fill import (
+        fill_evalplan, _rubric_indices, _grid_of, _std_level_map,
+    )
+    from hwpx.table_patch import _text_of, _direct_cells
+    from hwpx.formfill_quality import score_format_fidelity
+
+    c = parse_review_md(SYNTHETIC_2022)
+    # synthetic §4가 gives [12합성01-01] -> 상상1/상1/중1/하1/최하1 (5 descriptors)
+    std_levels = _std_level_map(c.achievement_std)
+    assert std_levels["[12합성01-01]"] == ["상상1", "상1", "중1", "하1", "최하1"]
+
+    res = fill_evalplan(str(BLANK_2HAK), c, phase="all")
+    data = res["_data"]
+    idxs = _rubric_indices(data)
+    assert len(idxs) == len(c.rubrics)
+
+    SAMPLE = ("사회적 소수자", "인권 문제", "인포그래픽", "조형 요소", "삼투현상")
+
+    def ae_desc_by_grade(ti):
+        """{grade: [서술 text, ...]} for every A~E grade row of rubric table ``ti``."""
+        _sp, tb, grid, _rep = _grid_of(data, ti)
+        out: dict[str, list[str]] = {}
+        for cell in sorted(_direct_cells(tb), key=lambda x: x.row):
+            g = _text_of(tb[cell.start:cell.end]).strip()
+            if g in ("A", "B", "C", "D", "E") and cell.col_span == 1:
+                d = grid.get((cell.row, cell.col + 1))
+                if d is not None and d.col > cell.col:
+                    out.setdefault(g, []).append(_text_of(tb[d.start:d.end]).strip())
+        return out
+
+    # rubric[0] '영역 가' references [12합성01-01]: its single A~E block is the MD's.
+    r0 = ae_desc_by_grade(idxs[0])
+    assert r0["A"] == ["상상1"] and r0["E"] == ["최하1"]
+    assert r0["B"] == ["상1"] and r0["C"] == ["중1"] and r0["D"] == ["하1"]
+
+    # rubric[2] '영역 다' references [12합성01-02]: A→상상2 … E→최하2.
+    r2 = ae_desc_by_grade(idxs[2])
+    assert r2["A"] == ["상상2"] and r2["E"] == ["최하2"]
+
+    # rubric[1] '영역 나' references ONE standard ([12합성01-02]) but the blank ships TWO
+    # A~E blocks: block 0 is filled from that standard; block 1 (no 2nd referenced
+    # standard) is left as-is and reported -- fail-closed, never fabricated.
+    r1 = ae_desc_by_grade(idxs[1])
+    assert r1["A"][0] == "상상2"                        # first block filled from the std
+    assert any("block 1" in s and "no 1-th referenced standard" in s
+               for s in res["content_report"]["rubrics"]["skipped"])
+
+    # every FILLED 서술 cell (blocks driven by a real standard) is free of sample prose.
+    filled_texts = r0["A"] + r0["B"] + r0["C"] + r0["D"] + r0["E"] + r2["A"] + [r1["A"][0]]
+    for t in filled_texts:
+        assert not any(s in t for s in SAMPLE), f"sample prose survived in filled A~E cell: {t!r}"
+
+    # anti-regeneration: the fill is a byte-preserving cell splice, not a rebuild.
+    b = score_format_fidelity(data, str(BLANK_2HAK))
+    assert b.detail["carry_rate"] > 0.6
+
+
 _MD = Path(os.path.expanduser(
     "~/School/Prep/2학기_평가계획/검토용_MD/2026_2학기_3학년_인공지능기초_검토용.md"))
 _GOLD = Path(os.path.expanduser(

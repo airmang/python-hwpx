@@ -579,16 +579,125 @@ def _item_label(row0: str) -> str:
     return re.sub(r"\*\*(\d+)\*\*", r"\1", row0).replace("**", "").strip()
 
 
-def _fill_rubric_2022(data: bytes, ti: int, rub: Rubric) -> tuple[bytes, list[str]]:
+def _std_level_map(achievement_std: list[list[str]]) -> dict[str, list[str]]:
+    """Map each 성취기준 code -> its ``[A, B, C, D, E]`` 성취수준 descriptors from the
+    review MD's §4가 table (row = ``[code+진술, A, B, C, D, E]``). Codes with fewer
+    than five descriptor columns are skipped (honest: no partial level fill)."""
+    out: dict[str, list[str]] = {}
+    for row in achievement_std:
+        if not row:
+            continue
+        m = _STD_CODE.search(row[0])
+        if m is None:
+            continue
+        levels = [c.strip() for c in row[1:6]]
+        if len(levels) == 5 and all(levels):
+            out[m.group(0)] = levels
+    return out
+
+
+def _fill_rubric_ae_levels(
+    ti: int, tb: bytes, grid, rep, rub: Rubric, std_levels: dict[str, list[str]],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Address the A~E descriptor cells of a 2022-개정 rubric's 성취기준별 성취수준 block
+    with the review MD's real 성취수준 descriptors for the rubric's PRIMARY standard.
+
+    A block is a run of rows whose grade-label cell (the col immediately left of the
+    wide 서술 cell) holds 'A'..'E'; the blank ships the descriptors as a foreign sample
+    (통합사회/미술 프로젝트 prose). The blank can ship SEVERAL A~E blocks under one rubric
+    (one per sample standard). We locate every block after the '성취기준' label row and
+    fill the *i*-th block from the *i*-th referenced standard's review 성취수준 (the
+    PRIMARY -- first -- standard drives block 0), splicing that standard's A→col+1 …
+    E→col+5 descriptor into each grade row's 서술 cell. Standard codes come from
+    ``rub.standards`` (a ``~`` range contributes only its leading code); a block with
+    no matching standard is left untouched (honest -- no fabricated mapping).
+
+    Returns ``(cells, skipped)``: cell specs for :func:`fill_cells` and fail-closed
+    skip reasons (no A~E block, or a standard has no MD 성취수준 row). Only the 서술
+    descriptor cell of each grade row is addressed -- the grade label and the span-5
+    성취기준 leader are left untouched."""
+    from .table_patch import _text_of, _direct_cells
+
+    codes = _STD_CODE.findall(rub.standards or "")
+    if not codes:
+        return [], [f"rubric ti={ti}: no standard code in {rub.standards!r} for A~E levels"]
+
+    # '성취기준' label row bounds the block start; the next '평가 방법' row bounds its end.
+    std_label_row = next(
+        (r for r in range(rep.row_count)
+         if (c0 := grid.get((r, 0))) is not None
+         and _text_of(tb[c0.start:c0.end]).replace(" ", "").strip() == "성취기준"),
+        None,
+    )
+    if std_label_row is None:
+        return [], [f"rubric ti={ti}: no '성취기준' label row to anchor A~E block"]
+    method_row = next(
+        (r for r in range(std_label_row + 1, rep.row_count)
+         if (c0 := grid.get((r, 0))) is not None
+         and "평가" in _text_of(tb[c0.start:c0.end]) and "방법" in _text_of(tb[c0.start:c0.end])),
+        rep.row_count,
+    )
+
+    # A grade cell is a direct 1x1 cell holding exactly one of 'A'..'E' in the block;
+    # its 서술 descriptor is the direct cell in the same row starting at grade.col+1.
+    grade_rows: list[tuple[str, int, int]] = []  # (grade, row, grade_col)
+    for c in sorted(_direct_cells(tb), key=lambda c: c.row):
+        if not (std_label_row < c.row < method_row):
+            continue
+        t = _text_of(tb[c.start:c.end]).strip()
+        if t in ("A", "B", "C", "D", "E") and c.col_span == 1:
+            grade_rows.append((t, c.row, c.col))
+    if not grade_rows:
+        return [], [f"rubric ti={ti}: no A~E grade rows in 성취기준별 성취수준 block"]
+
+    # split into contiguous A→…→E blocks (a new 'A' starts a new block); the blank can
+    # ship several sample blocks under one rubric (one per sample standard).
+    blocks: list[list[tuple[str, int, int]]] = []
+    for g, r, col in grade_rows:
+        if g == "A" or not blocks:
+            blocks.append([])
+        blocks[-1].append((g, r, col))
+
+    cells: list[dict[str, Any]] = []
+    skipped: list[str] = []
+    for bi, block in enumerate(blocks):
+        # map the i-th block to the i-th referenced standard; the primary standard
+        # drives block 0. A block past the referenced standards is left untouched.
+        if bi >= len(codes):
+            skipped.append(f"rubric ti={ti}: A~E block {bi} has no {bi}-th referenced standard -- left as-is")
+            continue
+        levels = std_levels.get(codes[bi])
+        if levels is None:
+            skipped.append(f"rubric ti={ti}: standard {codes[bi]} (block {bi}) not in review 성취수준 map")
+            continue
+        lvl_by_grade = dict(zip("ABCDE", levels))
+        for g, r, gcol in block:
+            desc = grid.get((r, gcol + 1))
+            if desc is None or desc.col <= gcol:
+                skipped.append(f"rubric ti={ti}: grade {g} row {r} has no 서술 cell right of col {gcol}")
+                continue
+            text = lvl_by_grade.get(g)
+            if not text:
+                continue
+            # address the 서술 cell by its own top-left logical position (merge-safe).
+            cells.append({"table_index": ti, "row": desc.row, "col": desc.col,
+                          "text": text, "max_lines": 4})
+    return cells, skipped
+
+
+def _fill_rubric_2022(data: bytes, ti: int, rub: Rubric,
+                      std_levels: dict[str, list[str]] | None = None) -> tuple[bytes, list[str]]:
     """Fill ONE 2022-개정 수행평가 세부기준 rubric table (평가 영역명 layout) from a
     review rubric, byte-preserving. These tables are heterogeneous rich grids
     (수행과제 / 성취기준 A~E block / 평가방법 / 학생 유의사항 / 평가요소 수행수준 blocks /
     기본점수·장기미인정), so rather than reshape them (fail-closed: no faithful 1:1
     row map exists for a flat MD item list), we overwrite only the cleanly-addressable
     label cells the scorer measures: the 평가 영역명 (title), 영역 만점 (points), 성취
-    기준 (codes), the 평가요소 수행수준 leader cells (the review 평가항목 labels, packed
-    onto the blank's 요소 blocks in order), and the 기본점수 / 장기 미인정 배점. Every
-    other cell (the sample descriptors) is left as-is -- honest, not corrupted."""
+    기준 (codes), the 성취기준별 성취수준 A~E descriptors (from the primary standard's
+    review 성취수준, via ``std_levels``), the 평가요소 수행수준 leader cells (the review
+    평가항목 labels, packed onto the blank's 요소 blocks in order), and the 기본점수 /
+    장기 미인정 배점. The remaining 수행수준 채점기준 descriptor cells are left as-is --
+    honest, not corrupted."""
     from .table_patch import fill_cells, _text_of, _direct_cells
 
     skipped: list[str] = []
@@ -640,6 +749,14 @@ def _fill_rubric_2022(data: bytes, ti: int, rub: Rubric) -> tuple[bytes, list[st
                               "text": rub.standards if j == 0 else "", "max_lines": 4})
         else:
             skipped.append(f"rubric ti={ti}: no A~E 성취기준 block leader to place codes")
+
+    # 성취기준별 성취수준 A~E descriptors: the blank ships the 서술 cells as a foreign
+    # sample (통합사회/미술 프로젝트 prose). Splice the primary standard's review 성취수준
+    # into each grade row's 서술 cell (fail-closed: reported, never corrupted).
+    if std_levels:
+        ae_cells, ae_sk = _fill_rubric_ae_levels(ti, tb, grid, rep, rub, std_levels)
+        cells.extend(ae_cells)
+        skipped.extend(ae_sk)
 
     # 수행과제: the blank ships a foreign sample task (통사 인권 문제 …). The MD has no
     # dedicated 수행과제 string, so synthesise a faithful one from THIS area's 평가항목
@@ -703,13 +820,14 @@ def fill_rubrics(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str
     # 2022-개정 route: fill each rubric table's label cells (no reshape).
     idxs0 = _rubric_indices(data)
     if idxs0 and _rubric_is_2022(data, idxs0[0]):
+        std_levels = _std_level_map(content.achievement_std)
         filled = 0
         for i, rub in enumerate(content.rubrics):
             idxs = _rubric_indices(data)
             if i >= len(idxs):
                 report["skipped"].append(f"rubric {i}: no matching blank table")
                 continue
-            data, sk = _fill_rubric_2022(data, idxs[i], rub)
+            data, sk = _fill_rubric_2022(data, idxs[i], rub, std_levels)
             report["skipped"].extend(sk)
             filled += 1
         report["filled"] = filled
