@@ -380,15 +380,28 @@ def _skeleton(source: str | Path) -> dict[str, Any]:
     return {"kinds": kinds, "ratio_has_regular_exam": ratio_has_regular, "n_tables": len(tabs)}
 
 
-def score_structure(produced: str | Path, gold: str | Path) -> AxisScore:
-    """C axis. Match the gold skeleton's delete/keep policy and block counts."""
+def score_structure(
+    produced: str | Path,
+    gold: str | Path,
+    *,
+    expected: dict[str, int] | None = None,
+) -> AxisScore:
+    """C axis. **Policy** (delete/keep) is matched to the gold skeleton -- it is
+    stable across semesters -- while **block counts** are matched to
+    ``expected`` (content-derived: achievement/level/rubric/achieve_rate table
+    counts). Gold is 1학기 (4 areas); a 2학기 fill legitimately has different
+    counts, so comparing counts to gold would false-penalise a correct fill.
+    With ``expected=None`` counts fall back to gold's (same-semester assumption,
+    flagged)."""
     key, name, weight = "C", "structure_conformance", 20
     ps = _skeleton(produced)
     gs = _skeleton(gold)
     pk, gk = ps["kinds"], gs["kinds"]
+    count_ref = expected if expected is not None else gk
+    ref_src = "content-expected" if expected is not None else "gold (same-semester assumption)"
 
     checks: list[tuple[str, bool, str]] = []
-    # deletion policy: red / optional tables gold removed, produced must too
+    # deletion policy vs gold (stable across semesters)
     for kind, label in [("seokcha", "석차등급 red table"),
                         ("submit", "제출 안내 red table"),
                         ("notice_star", "★유의 red table")]:
@@ -401,24 +414,25 @@ def score_structure(produced: str | Path, gold: str | Path) -> AxisScore:
     ok = (ps["ratio_has_regular_exam"] == gs["ratio_has_regular_exam"])
     checks.append(("ratio:정기시험 column policy", ok,
                    "" if ok else f"gold 정기시험={gs['ratio_has_regular_exam']} / produced={ps['ratio_has_regular_exam']}"))
-    # block counts vs gold
+    # block counts vs content-expected (or gold fallback)
     for kind, label in [("achievement", "성취기준·평가기준 blocks"),
                         ("level", "영역별 성취수준 blocks"),
                         ("rubric", "수행평가 세부기준 blocks"),
                         ("achieve_rate", "기준 성취율/성취도 tables")]:
-        g, p = gk.get(kind, 0), pk.get(kind, 0)
+        g, p = count_ref.get(kind, 0), pk.get(kind, 0)
         ok = (g == p)
         checks.append((f"count:{label}", ok,
-                       "" if ok else f"gold {g} vs produced {p}"))
+                       "" if ok else f"expected {g} vs produced {p} ({ref_src})"))
 
     passed = sum(1 for _l, ok, _m in checks if ok)
     total = len(checks)
     score = weight * (passed / total) if total else 0.0
-    findings = [f"structure checks {passed}/{total} match gold skeleton"]
+    findings = [f"structure checks {passed}/{total} (policy vs gold, counts vs {ref_src})"]
     for label, ok, msg in checks:
         if not ok:
             findings.append(f"MISMATCH {label}: {msg}")
-    detail = {"produced_kinds": pk, "gold_kinds": gk, "passed": passed, "total": total}
+    detail = {"produced_kinds": pk, "gold_kinds": gk, "count_ref": count_ref,
+              "passed": passed, "total": total}
     return AxisScore(key, name, weight, score, MEASURED, findings, detail)
 
 
@@ -557,6 +571,7 @@ def score_form_fill(
     oracle: Any | None = None,
     produced_pdf: str | Path | None = None,
     content: str | Path | None = None,
+    expected_skeleton: dict[str, int] | None = None,
     expected_pages: int | None = None,
     work_dir: str | Path | None = None,
     run_render: bool = True,
@@ -574,7 +589,7 @@ def score_form_fill(
         a = AxisScore("A", "render_cleanliness", 30, 0.0, UNVERIFIED,
                       ["render skipped (run_render=False) -- A unverified"])
     b = score_format_fidelity(produced, blank)
-    c = score_structure(produced, gold)
+    c = score_structure(produced, gold, expected=expected_skeleton)
     d = score_content(produced, content=content)
     e = score_compliance(produced)
     axes = [a, b, c, d, e]

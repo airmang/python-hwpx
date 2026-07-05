@@ -122,6 +122,24 @@ def test_structure_self_is_full():
     assert a.key == "C" and a.score == a.weight
 
 
+def test_structure_counts_use_content_expected_not_gold():
+    """Counts are matched to the content-derived `expected`, not gold's counts —
+    a cross-semester fill has different block counts than the 1학기 gold."""
+    # produced == blank (so its own counts), gold == blank too. Force an
+    # `expected` that disagrees with the actual counts -> those checks fail,
+    # proving `expected` (not gold) drives the count checks.
+    real = _skeleton(BLANK)["kinds"]
+    bogus = {"achievement": real.get("achievement", 0) + 5,
+             "level": real.get("level", 0) + 5,
+             "rubric": real.get("rubric", 0) + 5,
+             "achieve_rate": real.get("achieve_rate", 0)}
+    a = score_structure(BLANK, BLANK, expected=bogus)
+    assert any("content-expected" in f for f in a.findings)
+    # with matching expected, count checks pass
+    ok = score_structure(BLANK, BLANK, expected=real)
+    assert ok.score >= a.score
+
+
 def test_structure_blank_vs_itself_kinds_present():
     """The blank form still carries the red/optional tables + 정기시험 column."""
     sk = _skeleton(BLANK)
