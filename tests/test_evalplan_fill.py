@@ -174,8 +174,87 @@ def test_content_fidelity_axis_flags_unfilled(tmp_path):
     assert any("content matches review MD" in f for f in a.findings)
 
 
+def test_prose_drops_section_title_line():
+    """The numbered-section prose fields must not carry the '### N. 평가의 목적'
+    title the section regex sweeps in -- the D scorer anchors on the first prose
+    words, so a leaked title breaks the anchor."""
+    c = parse_review_md(SYNTHETIC)
+    assert not c.purposes.startswith("평가의 목적")   # title line dropped
+    assert "목적 하나" in c.purposes                  # prose kept
+    assert not c.policies.startswith("평가 방침")
+
+
+def test_fill_achievement_reshapes_and_fills():
+    """fill_achievement drops the 평가준거 column, grows to N clean 상/중/하 blocks,
+    fills each standard's code + descriptors, and stays a valid grid -- no
+    regeneration (byte formatting carried)."""
+    from hwpx.evalplan_fill import fill_achievement, _classify_index, _grid_of
+    from hwpx.formfill_quality import score_format_fidelity
+    c = parse_review_md(SYNTHETIC)
+    blank = BLANK_3HAK.read_bytes()
+    data, report = fill_achievement(blank, c)
+    assert not report["skipped"], report["skipped"]
+    ti = _classify_index(data, "achievement")
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    assert rep.ok
+    assert rep.col_count == 3                          # 평가준거 column dropped
+    assert rep.row_count == 1 + 3 * len(c.achievement_std)  # header + 3 rows/std
+    # each standard's code landed in its leader cell
+    from hwpx.table_patch import _text_of
+    for i, std in enumerate(c.achievement_std):
+        leader = grid.get((1 + 3 * i, 0))
+        assert std[0][:10] in _text_of(tb[leader.start:leader.end])
+    # 상/중/하 labels preserved from the clone
+    assert _text_of(tb[grid[(1, 1)].start:grid[(1, 1)].end]).strip() == "상"
+    # format not regenerated
+    assert score_format_fidelity(data, BLANK_3HAK).detail["carry_rate"] > 0.7
+
+
+def test_fill_rubrics_replaces_sample_codes_and_lands_items():
+    """fill_rubrics shrinks each rubric's example item block to the review item
+    count, replaces the 한국사 sample 성취기준 codes, and lands the 평가항목 labels."""
+    from hwpx.evalplan_fill import fill_rubrics, _rubric_indices, _grid_of, _cell_text
+    from hwpx.formfill_quality import _all_text, _STD_CODE_RE
+    c = parse_review_md(SYNTHETIC)
+    blank = BLANK_3HAK.read_bytes()
+    data, report = fill_rubrics(blank, c)
+    assert not report["skipped"], report["skipped"]
+    # the sample 한국사 codes (in the blank, not the review) are replaced
+    foreign = set(_STD_CODE_RE.findall(_all_text(blank))) - set(_STD_CODE_RE.findall(SYNTHETIC))
+    got = set(_STD_CODE_RE.findall(_all_text(data)))
+    hansa = {code for code in foreign if "한사" in code}
+    assert not (hansa & got), f"leftover 한국사 codes: {sorted(hansa & got)}"
+    # every review 평가항목 label appears in the produced text
+    full = _all_text(data).replace(" ", "")
+    for r in c.rubrics:
+        for item in [row[0] for row in r.rows if not row[0].startswith("기본점수")]:
+            assert item.replace(" ", "") in full, f"missing item {item!r}"
+    # grids stay valid
+    for ti in _rubric_indices(data):
+        _sp, _tb, _grid, rep = _grid_of(data, ti)
+        assert rep.ok
+
+
+def test_fill_evalplan_phase_all_is_byte_preserving():
+    """phase='all' runs every content fill and still preserves the blank's byte
+    formatting (surviving tables carried, edited tables reuse the blank vocab) --
+    the anti-regeneration gate."""
+    from hwpx.evalplan_fill import fill_evalplan
+    from hwpx.formfill_quality import score_format_fidelity
+    c = parse_review_md(SYNTHETIC)
+    res = fill_evalplan(str(BLANK_3HAK), c, phase="all")
+    prod = res["_data"]
+    assert res["content_report"]["achievement"]["filled"] > 0
+    assert res["content_report"]["rubrics"]["filled"] > 0
+    b = score_format_fidelity(prod, str(BLANK_3HAK))
+    assert b.score >= 20                                # B axis (byte-preserving) gate
+    assert b.detail["carry_rate"] > 0.6
+
+
 _MD = Path(os.path.expanduser(
     "~/School/Prep/2학기_평가계획/검토용_MD/2026_2학기_3학년_인공지능기초_검토용.md"))
+_GOLD = Path(os.path.expanduser(
+    "~/School/Prep/2학기_평가계획/01_참고_기제출본/2026_1학기_3학년_인공지능기초.hwpx"))
 
 
 @pytest.mark.skipif(not _MD.exists(), reason="owner-local review MD not present (not vendored)")
@@ -187,3 +266,18 @@ def test_real_3hak_review_md_skeleton():
     assert expected_skeleton(c) == {
         "achievement": 1, "level": 1, "rubric": 3, "achieve_rate": 1, "ratio": 1}
     assert [r.points for r in c.rubrics] == [35, 35, 30]
+
+
+@pytest.mark.skipif(not _MD.exists(), reason="owner-local review MD not present (not vendored)")
+def test_real_3hak_content_fill_replaces_all_foreign_samples():
+    """The real 3학년 phase='all' fill drops the leftover-sample fraction (음악 +
+    한국사 codes) to <=0.10 -- structural proof the achievement + rubric samples
+    were actually replaced (no render needed)."""
+    from hwpx.evalplan_fill import fill_evalplan
+    from hwpx.formfill_quality import score_content
+    c = parse_review_file(str(_MD))
+    res = fill_evalplan(str(BLANK_3HAK), c, phase="all")
+    d = score_content(res["_data"], content=str(_MD), blank=str(BLANK_3HAK))
+    assert d.detail["leftover_sample_frac"] <= 0.10
+    assert d.detail["region_fill"]["achievement_prose"] >= 0.9
+    assert d.detail["region_fill"]["rubric_items"] >= 0.8
