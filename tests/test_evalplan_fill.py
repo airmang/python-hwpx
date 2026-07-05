@@ -110,7 +110,8 @@ def test_parse_synthetic_structure():
 def test_expected_skeleton_synthetic():
     c = parse_review_md(SYNTHETIC)
     sk = expected_skeleton(c)
-    assert sk == {"achievement": 1, "level": 1, "rubric": 2, "achieve_rate": 1, "ratio": 1}
+    assert sk == {"achievement": 1, "level": 1, "minlevel": 0,
+                  "rubric": 2, "achieve_rate": 1, "ratio": 1}
 
 
 def test_empty_sections_not_invented():
@@ -122,6 +123,107 @@ def test_empty_sections_not_invented():
 
 FIXT = Path(__file__).parent / "fixtures" / "m105_evalplan"
 BLANK_3HAK = FIXT / "blank_form_3hak.hwpx"
+BLANK_2HAK = FIXT / "blank_form_1-2hak.hwpx"   # 2022-개정 (1·2학년) public form
+
+
+# A synthetic 2022-개정 (2학년) review markdown: unified A~E 성취기준 table, grade-major
+# 학기 단위 성취수준 (A~E), a 5-band 성취율 table, a 3-area 반영비율, and 평가 영역명 rubrics
+# -- exercises every 2022-개정 recipe path with no PII.
+SYNTHETIC_2022 = """# 2026학년도 2학기 2학년 「합성 과목」 교수학습운영 및 평가계획 (검토용)
+
+> **담당교사: 김철수** · 수행평가 100% · 성취도 5단계
+
+## Ⅰ. 교수학습 운영 계획
+
+| 월 | 주 | 단원 | 성취기준 | 수업방법 | 주안점 |
+|---|---|---|---|---|---|
+| 8 | 3 | 단원1 | [12합성01-01] | 강의 | 주안점1 |
+| 8 | 4 | 단원2 | [12합성01-02] | 실습 | 주안점2 |
+
+## Ⅱ. 평가 세부 계획
+
+### 1. 평가의 목적
+가. 목적 하나. 나. 목적 둘.
+
+### 2. 평가의 기본 방향
+가. 방향.
+
+### 3. 평가 방침
+가. 방침.
+
+### 4. 성취기준 및 성취수준
+**가. 성취기준별 성취수준(A~E)**
+
+| 성취기준 | A | B | C | D | E |
+|---|---|---|---|---|---|
+| [12합성01-01] 표준 하나 | 상상1 | 상1 | 중1 | 하1 | 최하1 |
+| [12합성01-02] 표준 둘 | 상상2 | 상2 | 중2 | 하2 | 최하2 |
+
+**나. 학기 단위 성취수준(A~E)**
+
+| 수준 | 일반적 특성 |
+|---|---|
+| A | 특성 A. |
+| B | 특성 B. |
+| C | 특성 C. |
+| D | 특성 D. |
+| E | 특성 E. |
+
+### 5. 기준 성취율과 성취도
+| 성취율(원점수) | 성취도 |
+|---|---|
+| 90% 이상 | A |
+| 80% 이상 ~ 90% 미만 | B |
+| 70% 이상 ~ 80% 미만 | C |
+| 60% 이상 ~ 70% 미만 | D |
+| 60% 미만 | E |
+
+### 6. 평가의 종류와 반영비율 (수행평가 100%)
+
+| 구분 | ① 영역 가 | ② 영역 나 | ③ 영역 다 | 합계 |
+|---|---|---|---|---|
+| 영역 만점 | 45점(45%) | 30점(30%) | 25점(25%) | 100% |
+
+### 7. 수행평가 세부기준
+
+**① 영역 가 (45점)** · [12합성01-01]
+
+| 평가항목 | 채점 기준(배점) |
+|---|---|
+| 알파 항목 구현하기 | 완비 **30** / 부분 **20** |
+| 베타 항목 완성하기 | 완비 **15** / 부분 **10** |
+| 기본점수 **18** · 장기 미인정 결석 **17** | |
+
+**② 영역 나 (30점)** · [12합성01-02]
+
+| 평가항목 | 채점 기준(배점) |
+|---|---|
+| 감마 식별하기 | 정확 **10** / 부분 **6** |
+| 델타 적용하기 | 정확 **10** / 부분 **6** |
+| 엡실론 논술하기 | 정확 **10** / 부분 **6** |
+| 기본점수 **12** · 장기 미인정 결석 **11** | |
+
+**③ 영역 다 (25점)** · [12합성01-02]
+
+| 평가항목 | 채점 기준(배점) |
+|---|---|
+| 제타 해석하기 | 근거 **9** / 부분 **5** |
+| 에타 판단하기 | 근거 **8** / 부분 **4** |
+| 세타 평가하기 | 근거 **8** / 부분 **4** |
+| 기본점수 **10** · 장기 미인정 결석 **9** | |
+
+### 8. 정의적 능력 평가
+- 요소 하나.
+
+### 9. 수행평가 미응시자
+가. 처리.
+
+### 10. 평가 유의사항
+- 유의.
+
+### 11. 평가 결과 분석 및 활용
+- 활용.
+"""
 
 
 def _content_2area():
@@ -277,6 +379,130 @@ def test_fill_sections_preserves_numbering_and_drops_no_content():
         assert frag in joined
 
 
+# --------------------------------------------------------------------------- #
+# 2022-개정 (2학년) generalization -- exercised on the PUBLIC 1·2학년 fixture with the
+# synthetic 2022 review markdown (no PII). These pin the classifier + fills that
+# make one recipe cover both 개정.
+# --------------------------------------------------------------------------- #
+
+
+def test_classify_recognizes_2022_signatures():
+    """The 2022-개정 blank's per-area 성취기준 (A~E), 학기 단위 성취수준, 영역별 최소 성취
+    수준, and 평가 영역명 rubric tables are classified -- and the 최소 성취수준 table is
+    NOT miscounted as an achievement block (it would inflate the C-axis count)."""
+    from hwpx.formfill_quality import _skeleton
+    k = _skeleton(str(BLANK_2HAK))["kinds"]
+    assert k.get("achievement", 0) == 6      # 6 per-area 국어 samples
+    assert k.get("level", 0) == 1            # 학기 단위 성취수준
+    assert k.get("minlevel", 0) == 1         # 영역별 최소 성취수준 (공통과목 전용)
+    assert k.get("rubric", 0) == 4           # 평가 영역명 rubrics (incl. 1 surplus)
+    assert k.get("achieve_rate", 0) == 4     # 4 성취율 variants
+
+
+def test_expected_skeleton_2022_is_collapsed():
+    c = parse_review_md(SYNTHETIC_2022)
+    assert len(c.achievement_std) == 2 and all(len(r) == 6 for r in c.achievement_std)
+    assert [r[0] for r in c.levels] == ["A", "B", "C", "D", "E"]   # grade-major
+    assert len(c.achieve_rate) == 5                                # 5-band
+    assert expected_skeleton(c) == {
+        "achievement": 1, "level": 1, "minlevel": 0, "rubric": 3, "achieve_rate": 1, "ratio": 1}
+
+
+def test_plan_structural_ops_2022_keeps_5band_and_drops_minlevel():
+    """The 2022-개정 structural plan keeps the single 5단계 성취율 table (content-
+    matched, NOT the 3학년 'delete 5단계' rule), deletes the 최소 성취수준 table, prunes
+    the surplus achievement / rubric samples, and strips the 정기시험 column."""
+    from hwpx.evalplan_fill import plan_structural_ops
+    from hwpx.formfill_quality import _skeleton
+    from hwpx.table_patch import apply_table_ops
+    c = parse_review_md(SYNTHETIC_2022)
+    plan = plan_structural_ops(str(BLANK_2HAK), c)
+    assert any("최소 성취수준" in t for t in plan["transcript"])       # minlevel deleted
+    assert any("5단계" in t for t in plan["transcript"])              # 5-band kept
+    res = apply_table_ops(str(BLANK_2HAK), plan["ops"])
+    assert res.ok and not res.skipped
+    k = _skeleton(res.data)["kinds"]
+    assert k.get("achievement", 0) == 1 and k.get("level", 0) == 1
+    assert k.get("minlevel", 0) == 0 and k.get("rubric", 0) == 3
+    assert k.get("achieve_rate", 0) == 1                             # exactly one kept
+    assert _skeleton(res.data)["ratio_has_regular_exam"] is False     # 정기시험 stripped
+
+
+def test_fill_achievement_2022_five_level_blocks():
+    """fill_achievement drives the block height off the MD level count: the 2022-
+    개정 unified table becomes N clean 5-row A~E blocks, each filled from the review
+    (leader code + A..E descriptors), staying a valid byte-preserving grid."""
+    from hwpx.evalplan_fill import (fill_evalplan, _classify_index, _grid_of)
+    from hwpx.formfill_quality import score_format_fidelity
+    from hwpx.table_patch import _text_of
+    c = parse_review_md(SYNTHETIC_2022)
+    res = fill_evalplan(str(BLANK_2HAK), c, phase="all")
+    data = res["_data"]
+    assert res["content_report"]["achievement"]["filled"] == 2 * 5 + 2   # descriptors + leaders
+    ti = _classify_index(data, "achievement")
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    assert rep.ok and rep.col_count == 3
+    assert rep.row_count == 1 + 5 * len(c.achievement_std)              # header + 5 rows/std
+    # each standard's code landed in its leader, and its E descriptor in the last row
+    for i, std in enumerate(c.achievement_std):
+        lr = 1 + 5 * i
+        assert std[0][:10] in _text_of(tb[grid[(lr, 0)].start:grid[(lr, 0)].end])
+        assert std[5] in _text_of(tb[grid[(lr + 4, 2)].start:grid[(lr + 4, 2)].end])
+    # A/B/C/D/E labels preserved from the clone
+    assert [_text_of(tb[grid[(1 + k, 1)].start:grid[(1 + k, 1)].end]).strip() for k in range(5)] \
+        == ["A", "B", "C", "D", "E"]
+    assert score_format_fidelity(data, str(BLANK_2HAK)).detail["carry_rate"] > 0.6
+
+
+def test_fill_levels_2022_grade_major():
+    """fill_levels maps the grade-major review levels onto the 학기 단위 성취수준 A~E
+    rows by grade label (not positional), filling all five descriptor cells."""
+    from hwpx.evalplan_fill import fill_evalplan, _classify_index, _grid_of
+    from hwpx.table_patch import _text_of
+    c = parse_review_md(SYNTHETIC_2022)
+    res = fill_evalplan(str(BLANK_2HAK), c, phase="all")
+    data = res["_data"]
+    assert res["content_report"]["levels"]["filled"] == 5
+    ti = _classify_index(data, "level")
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    got = [_text_of(tb[grid[(r, rep.col_count - 1)].start:grid[(r, rep.col_count - 1)].end]).strip()
+           for r in range(1, rep.row_count)]
+    assert got == ["특성 A.", "특성 B.", "특성 C.", "특성 D.", "특성 E."]
+
+
+def test_fill_rubrics_2022_lands_item_labels():
+    """The 2022-개정 rubric fill lands every 평가항목 label + the 영역 title/points into
+    the 평가 영역명 rubric tables (no reshape, byte-preserving), and keeps grids valid."""
+    from hwpx.evalplan_fill import fill_evalplan, _rubric_indices, _grid_of
+    from hwpx.formfill_quality import _all_text
+    c = parse_review_md(SYNTHETIC_2022)
+    res = fill_evalplan(str(BLANK_2HAK), c, phase="all")
+    data = res["_data"]
+    full = _all_text(data).replace(" ", "")
+    for r in c.rubrics:
+        for item in [row[0] for row in r.rows if not row[0].startswith("기본점수")]:
+            assert item.replace(" ", "") in full, f"missing rubric item {item!r}"
+        assert r.title.replace(" ", "") in full                        # 평가 영역명 filled
+    for ti in _rubric_indices(data):
+        _sp, _tb, _grid, rep = _grid_of(data, ti)
+        assert rep.ok
+
+
+def test_fill_evalplan_2022_phase_all_byte_preserving():
+    """phase='all' on the 2022-개정 fixture preserves the blank's byte formatting
+    (surviving tables carried, edited tables reuse the blank vocab) -- the anti-
+    regeneration gate -- while producing the collapsed target skeleton."""
+    from hwpx.evalplan_fill import fill_evalplan
+    from hwpx.formfill_quality import score_format_fidelity, _skeleton
+    c = parse_review_md(SYNTHETIC_2022)
+    res = fill_evalplan(str(BLANK_2HAK), c, phase="all")
+    data = res["_data"]
+    assert _skeleton(data)["kinds"].get("achievement") == 1
+    b = score_format_fidelity(data, str(BLANK_2HAK))
+    assert b.score >= 20                                               # B axis gate
+    assert b.detail["carry_rate"] > 0.6
+
+
 _MD = Path(os.path.expanduser(
     "~/School/Prep/2학기_평가계획/검토용_MD/2026_2학기_3학년_인공지능기초_검토용.md"))
 _GOLD = Path(os.path.expanduser(
@@ -290,7 +516,7 @@ def test_real_3hak_review_md_skeleton():
     assert len(c.schedule) == 21 and len(c.achievement_std) == 8
     assert len(c.levels) == 3
     assert expected_skeleton(c) == {
-        "achievement": 1, "level": 1, "rubric": 3, "achieve_rate": 1, "ratio": 1}
+        "achievement": 1, "level": 1, "minlevel": 0, "rubric": 3, "achieve_rate": 1, "ratio": 1}
     assert [r.points for r in c.rubrics] == [35, 35, 30]
 
 
@@ -307,3 +533,37 @@ def test_real_3hak_content_fill_replaces_all_foreign_samples():
     assert d.detail["leftover_sample_frac"] <= 0.10
     assert d.detail["region_fill"]["achievement_prose"] >= 0.9
     assert d.detail["region_fill"]["rubric_items"] >= 0.8
+
+
+_MD_2HAK = Path(os.path.expanduser(
+    "~/School/Prep/2학기_평가계획/검토용_MD/2026_2학기_2학년_인공지능기초_검토용.md"))
+
+
+@pytest.mark.skipif(not _MD_2HAK.exists(), reason="owner-local 2학년 review MD not present (not vendored)")
+def test_real_2hak_review_md_skeleton():
+    c = parse_review_file(str(_MD_2HAK))
+    assert c.teacher == "고규현"
+    assert len(c.schedule) == 21 and len(c.achievement_std) == 8
+    assert [r[0] for r in c.levels] == ["A", "B", "C", "D", "E"]      # grade-major
+    assert len(c.achieve_rate) == 5                                    # 5-band
+    assert expected_skeleton(c) == {
+        "achievement": 1, "level": 1, "minlevel": 0, "rubric": 3, "achieve_rate": 1, "ratio": 1}
+    assert [r.points for r in c.rubrics] == [45, 30, 25]
+
+
+@pytest.mark.skipif(not _MD_2HAK.exists(), reason="owner-local 2학년 review MD not present (not vendored)")
+def test_real_2hak_content_fill_reaches_target_structure():
+    """The real 2학년 phase='all' fill produces the collapsed target skeleton and
+    lands its achievement + rubric content (no render needed)."""
+    from hwpx.evalplan_fill import fill_evalplan
+    from hwpx.formfill_quality import score_content, _skeleton
+    c = parse_review_file(str(_MD_2HAK))
+    res = fill_evalplan(str(BLANK_2HAK), c, phase="all")
+    data = res["_data"]
+    k = _skeleton(data)["kinds"]
+    assert k.get("achievement") == 1 and k.get("level") == 1 and k.get("rubric") == 3
+    assert k.get("minlevel", 0) == 0
+    d = score_content(data, content=str(_MD_2HAK), blank=str(BLANK_2HAK))
+    assert d.detail["region_fill"]["achievement_prose"] >= 0.9
+    assert d.detail["region_fill"]["rubric_items"] >= 0.6
+    assert d.detail["leftover_sample_frac"] <= 0.10

@@ -381,12 +381,27 @@ def _classify(t: _Table) -> str:
         return "submit"                          # red submit table -> deleted
     if t.rows == 1 and t.cols == 1 and t.text.startswith("★유의"):
         return "notice_star"                     # red ★유의 table -> deleted
+    # --- 2015-개정 (3학년) signatures -----------------------------------------
     if fr.startswith("교육과정 성취기준") and "평가기준" in fr:
-        return "achievement"                     # 성취기준·평가기준
+        return "achievement"                     # 성취기준·평가기준 (상/중/하)
     if fr.startswith("성취수준") and "일반적 특성" in fr:
-        return "level"                           # 영역별 성취수준
+        return "level"                           # 영역별 성취수준 (A/B/C)
     if fr.startswith("교육과정성취기준"):
         return "rubric"                          # 수행평가 세부기준 rubric
+    # --- 2022-개정 (2학년) signatures ------------------------------------------
+    # The 최소 성취수준 (E) table shares the "성취기준별 성취수준" first-row phrase with
+    # the per-area achievement table, so it MUST be matched first (its "최소 능력"
+    # column is the discriminator) -- otherwise it would count as an achievement
+    # block and inflate the C-axis count.
+    if "최소 능력" in fr or "최소 성취수준" in fr:
+        return "minlevel"                        # 영역별 최소 성취수준 (공통과목 전용)
+    if "성취기준별 성취수준" in fr and "최소" not in fr:
+        return "achievement"                     # per-area 성취기준별 성취수준 (A~E)
+    if "학기 단위 성취수준" in fr:
+        return "level"                           # 학기 단위 성취수준 (A~E)
+    if fr.startswith("평가 영역명") and "영역 만점" in fr:
+        return "rubric"                          # 수행평가 세부기준 rubric (평가 영역명)
+    # --- shared signatures ----------------------------------------------------
     if "평가 종류" in fr or ("수행평가" in fr and "합계" in fr):
         return "ratio"                           # 평가의 종류와 반영비율
     if "성취율" in fr and "성취도" in fr:

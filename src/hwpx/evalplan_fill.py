@@ -186,15 +186,24 @@ def _norm(text: str) -> str:
     return " ".join(text.split()).strip()
 
 
-def expected_skeleton(content: EvalPlanContent) -> dict[str, int]:
+def expected_skeleton(content: EvalPlanContent, blank: str | None = None) -> dict[str, int]:
     """Content-derived block counts for the quality scorer's C axis.
 
-    A 2학기 fill of this subject family collapses §4가 into a single achievement
-    table and §4나 into a single 성취수준 table, keeps one 3단계 성취율 table, and
-    has one rubric table per 수행영역."""
+    The 평가계획 target collapses §4가 into a **single** achievement table (the
+    review MD ships one unified 성취기준 table for both the 2015-개정 상/중/하 and the
+    2022-개정 A~E families), §4나 into a **single** 학기 단위 성취수준 table, keeps
+    one 성취율 table (the band-count that matches the MD), the 정기시험-stripped
+    반영비율 table, and one rubric table per 수행영역.
+
+    The 2022-개정 (2학년) form additionally ships a 「다. 영역별 최소 성취수준」 table
+    (공통과목 전용); the owner's form-prep spec deletes it, so the target keeps
+    ``minlevel: 0``. ``blank`` is accepted for symmetry / future form detection but
+    the count target is content-derived and identical across 개정 (collapse-to-one),
+    so it is currently unused here."""
     return {
         "achievement": 1 if content.achievement_std else 0,
         "level": 1 if content.levels else 0,
+        "minlevel": 0,                       # 최소 성취수준 (공통과목 전용) -> deleted
         "rubric": len(content.rubrics),
         "achieve_rate": 1 if content.achieve_rate else 0,
         "ratio": 1 if content.ratio_header else 0,
@@ -220,8 +229,14 @@ def plan_structural_ops(blank: str, content: EvalPlanContent | None = None) -> d
     ops: list[dict[str, Any]] = []
     transcript: list[str] = []
     del_tables: list[int] = []
-    exp = expected_skeleton(content) if content else None
+    exp = expected_skeleton(content, blank) if content else None
     by_kind: dict[str, list[int]] = {}
+
+    # Which 성취율 table to KEEP: the one whose grade-band count matches the review
+    # MD (2015-개정 keeps the 3단계 A~C; 2022-개정 keeps the 5단계 A~E). Content-
+    # driven, so it generalises across 개정 rather than hard-coding "delete 5단계".
+    want_bands = len(content.achieve_rate) if content and content.achieve_rate else None
+    keep_rate = _pick_achieve_rate(tabs, want_bands)
 
     for i, t in enumerate(tabs):
         kind = _classify(t)
@@ -229,20 +244,25 @@ def plan_structural_ops(blank: str, content: EvalPlanContent | None = None) -> d
         if kind in ("seokcha", "submit", "notice_star"):
             del_tables.append(i)
             transcript.append(f"delete_table #{i} ({kind}) — red/optional, gold removes it")
-        elif kind == "achieve_rate" and _is_five_grade(t):
+        elif kind == "minlevel":
             del_tables.append(i)
-            transcript.append(f"delete_table #{i} (5단계 성취율) — keep only the 3단계 table")
+            transcript.append(f"delete_table #{i} (영역별 최소 성취수준) — 공통과목 전용, 삭제")
+        elif kind == "achieve_rate" and keep_rate is not None and i != keep_rate:
+            del_tables.append(i)
+            transcript.append(f"delete_table #{i} (성취율 variant) — keep only #{keep_rate} "
+                              f"(matches MD {want_bands}단계)")
         elif kind == "ratio":
             cols = _regular_exam_cols(t)
             if cols:
                 ops.append({"op": "delete_column", "tableIndex": i, "cols": cols})
                 transcript.append(f"delete_column #{i} cols {cols} (정기시험) — 100% 수행 subject")
 
-    # Surplus template-example tables: the blank ships >1 achievement/성취수준
-    # example (연주/비평); the content needs `exp[kind]` of them. Delete the extras
-    # (keep the first) so the structure matches the content-derived skeleton.
+    # Surplus template-example tables: the blank ships >1 achievement / 성취수준 /
+    # rubric example (연주/비평 for 3학년, 6 국어 영역 for 2학년); the content needs
+    # `exp[kind]` of them. Delete the extras (keep the first) so the structure
+    # matches the content-derived skeleton.
     if exp:
-        for kind in ("achievement", "level"):
+        for kind in ("achievement", "level", "rubric"):
             idxs = by_kind.get(kind, [])
             want = exp.get(kind, 0)
             for i in idxs[want:]:
@@ -263,11 +283,46 @@ def plan_structural_ops(blank: str, content: EvalPlanContent | None = None) -> d
             "expected_skeleton": expected_skeleton(content) if content else None}
 
 
-def _is_five_grade(table) -> bool:
-    """A 성취율 table is 5-grade (to delete) when it carries a D or E grade band
-    or more than 4 data rows; the 3단계 A~C table is kept."""
-    txt = table.text
-    return ("D" in txt and "E" in txt) or table.rows > 4
+def _rate_bands(table) -> int:
+    """Number of distinct 성취도 grade bands (A..E) a 성취율 table declares — its
+    'N단계'. Read from the grade column so 40%-boundary variants don't inflate it."""
+    from .table_patch import build_grid, _text_of
+    tb = table.bytes
+    grid, rep = build_grid(tb)
+    grades: set[str] = set()
+    for r in range(1, rep.row_count):        # row 0 is the header
+        c = grid.get((r, rep.col_count - 1))  # grade is the right-most column
+        if c is None:
+            continue
+        g = _text_of(tb[c.start:c.end]).strip()
+        if g in ("A", "B", "C", "D", "E"):
+            grades.add(g)
+    return len(grades)
+
+
+def _pick_achieve_rate(tabs, want_bands: int | None) -> int | None:
+    """Index of the single 성취율 table to KEEP among the blank's sample variants.
+
+    Chooses the variant whose grade-band count matches the review MD's 성취도 band
+    count (``want_bands``) -- 3학년 (2015-개정) keeps the 3단계 A~C, 2학년 (2022-개정)
+    keeps the 5단계 A~E. Ties (or ``want_bands`` unknown) fall back to the first
+    plain N-band table without a 40%-보장지도 boundary note (the canonical 고정분할
+    점수 table), else the first 성취율 table. Returns ``None`` when there is at most
+    one 성취율 table (nothing to prune)."""
+    from .formfill_quality import _classify
+    rate = [(i, t) for i, t in enumerate(tabs) if _classify(t) == "achieve_rate"]
+    if len(rate) <= 1:
+        return None
+    if want_bands:
+        exact = [i for i, t in rate if _rate_bands(t) == want_bands]
+        # prefer the exact-band table WITHOUT the 40% 최소성취수준 보장지도 boundary
+        # note (that is the 공통과목 variant, not the canonical 고정분할점수 table)
+        plain = [i for i in exact if "보장지도" not in dict(rate)[i].text]
+        if plain:
+            return plain[0]
+        if exact:
+            return exact[0]
+    return rate[0][0]
 
 
 def _regular_exam_cols(table) -> list[int]:
@@ -330,21 +385,31 @@ def _cell_text(tb: bytes, grid, row: int, col: int) -> str:
 
 
 def fill_achievement(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, Any]]:
-    """Reshape the 성취기준·평가기준 table to ``len(achievement_std)`` clean 상/중/하
-    blocks and fill each from the review MD (byte-preserving).
+    """Reshape the 성취기준 table to ``len(achievement_std)`` clean per-standard blocks
+    and fill each from the review MD (byte-preserving).
 
-    The blank ships a 4-column 음악 example with an extra 평가준거 column and an
-    irregular first standard (two 평가준거 sub-blocks). We (1) drop the 평가준거
-    column, (2) delete every data row except one canonical 3-row 상/중/하 block,
-    (3) clone that block to N standards, then (4) splice each standard's code+text
-    into the leader cell and its 상/중/하 descriptors into the description column.
-    The 상/중/하 label column carries over from the clone. Returns
-    ``(new_bytes, report)``; a no-op if the content has no achievement rows."""
+    Works for BOTH 개정 by driving the block height off the content (the review MD
+    row is ``[code, <level descriptors...>]``): 2015-개정 (3학년) ships a 4-column
+    음악 example (성취기준 | 평가준거 | 상/중/하 | 서술) with 3-row 상/중/하 blocks; 2022-
+    개정 (2학년) ships a 3-column example (성취기준 | A~E | 서술) with 5-row A~E blocks.
+    We (1) drop the extra 평가준거 column when the blank is 4-wide, (2) delete every
+    data row except one canonical block whose height == the MD's level count,
+    (3) clone that block to N standards, then (4) splice each standard's code into
+    the leader cell and its level descriptors down the right-most (서술) column. The
+    level-label column (상/중/하 or A~E) carries over verbatim from the clone. A
+    no-op if the content has no achievement rows or the blank's block height doesn't
+    match the MD's level count (honest-defer, reported)."""
     from .table_patch import apply_table_ops, _direct_cells
 
     stds = content.achievement_std
     report: dict[str, Any] = {"n": len(stds), "filled": 0, "skipped": []}
     if not stds:
+        return data, report
+    # descriptors per standard = MD columns after the code (3학년: 상/중/하 = 3;
+    # 2학년: A~E = 5). This is the target block height.
+    bh = max((len(s) - 1 for s in stds), default=0)
+    if bh < 1:
+        report["skipped"].append("achievement rows have no level descriptors")
         return data, report
 
     ti = _classify_index(data, "achievement")
@@ -353,10 +418,10 @@ def fill_achievement(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict
         return data, report
 
     _sp, tb, grid, rep = _grid_of(data, ti)
-    # locate the 평가준거 column: a data column that some standard's leader does
-    # NOT span. In the blank it is logical column 1 (header 교육과정성취기준 cs2 |
-    # 평가기준 cs2); the clean standards use a cs2 leader over cols 0-1, the
-    # irregular one splits col1 out. Drop col1 when the table is 4 columns wide.
+    # Drop the 평가준거 column (only present in the 4-col 2015-개정 blank): it is the
+    # logical column that a clean standard's leader spans (cs2 header) but the MD
+    # has no content for. After the drop both 개정 are: col0=leader, col1=level
+    # label, col2=서술.
     ops: list[dict[str, Any]] = []
     if rep.col_count == 4:
         ops.append({"op": "delete_column", "table_index": ti, "cols": [1]})
@@ -366,15 +431,18 @@ def fill_achievement(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict
         report["skipped"].append(f"delete 평가준거 column: {[s.reason for s in res.skipped]}")
         return data, report
 
-    # keep header + one clean 3-row 상/중/하 block, delete the rest
+    # keep header + one clean block whose height matches the MD level count
     _sp, tb, grid, rep = _grid_of(data2, ti)
-    leaders = sorted((c for c in _direct_cells(tb) if c.col == 0 and c.row_span == 3),
+    desc_col = rep.col_count - 1                       # right-most (서술) column
+    leaders = sorted((c for c in _direct_cells(tb) if c.col == 0 and c.row_span == bh),
                      key=lambda c: c.row)
     if not leaders:
-        report["skipped"].append("no clean 3-row 상/중/하 block to seed from")
+        report["skipped"].append(
+            f"no clean {bh}-row block to seed from (blank block heights "
+            f"{sorted({c.row_span for c in _direct_cells(tb) if c.col == 0 and c.row_span > 1})})")
         return data, report
     first = leaders[0]
-    keep = set(range(first.row, first.row + 3)) | {0}
+    keep = set(range(first.row, first.row + bh)) | {0}
     delrows = sorted((r for r in range(rep.row_count) if r not in keep), reverse=True)
     if delrows:
         res = apply_table_ops(data2, [{"op": "delete_row", "table_index": ti, "rows": delrows}])
@@ -383,23 +451,23 @@ def fill_achievement(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict
             return data, report
         data2 = res.data
 
-    # grow to N blocks by cloning the single 3-row block (now rows 1..3)
+    # grow to N blocks by cloning the single block (now rows 1..bh)
     n = len(stds)
     if n > 1:
         res = apply_table_ops(data2, [{"op": "insert_block_by_clone", "table_index": ti,
-                                       "ref_rows": [1, 3], "count": n - 1}])
+                                       "ref_rows": [1, bh], "count": n - 1}])
         if not res.ok:
             report["skipped"].append(f"clone to {n} blocks: {[s.reason for s in res.skipped]}")
             return data, report
         data2 = res.data
 
-    # fill each block: leader (rs3, col0) = code+text; col2 rows = 상/중/하 descriptors
+    # fill each block: leader (rs=bh, col0) = code+text; 서술 col rows = descriptors
     cells: list[dict[str, Any]] = []
     for i, std in enumerate(stds):
-        lr = 1 + 3 * i
+        lr = 1 + bh * i
         cells.append({"table_index": ti, "row": lr, "col": 0, "text": std[0], "max_lines": 6})
-        for k, desc in enumerate(std[1:4]):
-            cells.append({"table_index": ti, "row": lr + k, "col": 2, "text": desc, "max_lines": 5})
+        for k, desc in enumerate(std[1:1 + bh]):
+            cells.append({"table_index": ti, "row": lr + k, "col": desc_col, "text": desc, "max_lines": 5})
     from .table_patch import fill_cells
     fr = fill_cells(data2, cells)
     report["filled"] = len(fr.applied)
@@ -407,12 +475,21 @@ def fill_achievement(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict
     return fr.data, report
 
 
+_GRADE_ROW = re.compile(r"^[A-E]$")
+
+
 def fill_levels(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, Any]]:
-    """Fill the 영역별 성취수준 (A/B/C) table's descriptor column from the first
-    review area's levels, replacing the blank's 음악 sample. The table is a small
-    ``성취수준 | 일반적 특성`` grid with A/B/C rows; only the descriptor cells are
-    touched (byte-preserving), so a mismatch in area count never corrupts it."""
-    from .table_patch import fill_cells
+    """Fill the 성취수준 table's descriptor column from the review MD levels,
+    replacing the blank's sample. Handles BOTH review shapes:
+
+    * 2015-개정 (3학년): ``levels`` is per-area ``[[영역, A, B, C], ...]`` → the first
+      area's A/B/C descriptors fill rows 1-3 of a ``성취수준 | 일반적 특성`` grid.
+    * 2022-개정 (2학년): ``levels`` is grade-major ``[[A, 서술], [B, 서술], ...]`` → each
+      grade's descriptor fills the matching A/B/C/D/E row of the ``학기 단위 성취수준``
+      grid (matched by the row's grade label, so a shape mismatch never corrupts it).
+
+    Only descriptor cells are touched (byte-preserving)."""
+    from .table_patch import fill_cells, _text_of
 
     report: dict[str, Any] = {"filled": 0, "skipped": []}
     if not content.levels:
@@ -422,13 +499,25 @@ def fill_levels(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str,
         report["skipped"].append("no level table found")
         return data, report
     _sp, tb, grid, rep = _grid_of(data, ti)
-    # first area's A/B/C descriptors (levels rows are [영역, A, B, C])
-    abc = content.levels[0][1:4] if len(content.levels[0]) >= 4 else []
+
+    grade_major = all(len(r) >= 2 and _GRADE_ROW.match(r[0].strip()) for r in content.levels)
+    desc_col = rep.col_count - 1
     cells = []
-    for k, desc in enumerate(abc):
-        r = 1 + k  # rows 1,2,3 = A,B,C
-        if grid.get((r, 1)):
-            cells.append({"table_index": ti, "row": r, "col": 1, "text": desc, "max_lines": 5})
+    if grade_major:
+        # map grade letter -> its descriptor; fill each table row by its grade label
+        by_grade = {r[0].strip(): r[-1] for r in content.levels}
+        for row in range(1, rep.row_count):
+            c0 = grid.get((row, 0))
+            label = _text_of(tb[c0.start:c0.end]).strip() if c0 else ""
+            if label in by_grade and grid.get((row, desc_col)):
+                cells.append({"table_index": ti, "row": row, "col": desc_col,
+                              "text": by_grade[label], "max_lines": 6})
+    else:
+        abc = content.levels[0][1:1 + (rep.row_count - 1)] if len(content.levels[0]) >= 2 else []
+        for k, desc in enumerate(abc):
+            r = 1 + k
+            if grid.get((r, desc_col)):
+                cells.append({"table_index": ti, "row": r, "col": desc_col, "text": desc, "max_lines": 5})
     fr = fill_cells(data, cells)
     report["filled"] = len(fr.applied)
     report["skipped"].extend(s.reason for s in fr.skipped)
@@ -476,21 +565,119 @@ def _base_scores(rows: list[list[str]]) -> tuple[str, str, str, str]:
     return base_label, base_score, long_label, long_score
 
 
+def _rubric_is_2022(data: bytes, ti: int) -> bool:
+    """A 2022-개정 rubric table leads its first row with '평가 영역명' (the 2015-개정
+    one leads with '교육과정성취기준')."""
+    from .table_patch import _text_of
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    c0 = grid.get((0, 0))
+    return bool(c0) and _text_of(tb[c0.start:c0.end]).strip().startswith("평가 영역명")
+
+
+def _item_label(row0: str) -> str:
+    """Clean a review rubric item's label cell for splicing (drop markdown emphasis)."""
+    return re.sub(r"\*\*(\d+)\*\*", r"\1", row0).replace("**", "").strip()
+
+
+def _fill_rubric_2022(data: bytes, ti: int, rub: Rubric) -> tuple[bytes, list[str]]:
+    """Fill ONE 2022-개정 수행평가 세부기준 rubric table (평가 영역명 layout) from a
+    review rubric, byte-preserving. These tables are heterogeneous rich grids
+    (수행과제 / 성취기준 A~E block / 평가방법 / 학생 유의사항 / 평가요소 수행수준 blocks /
+    기본점수·장기미인정), so rather than reshape them (fail-closed: no faithful 1:1
+    row map exists for a flat MD item list), we overwrite only the cleanly-addressable
+    label cells the scorer measures: the 평가 영역명 (title), 영역 만점 (points), 성취
+    기준 (codes), the 평가요소 수행수준 leader cells (the review 평가항목 labels, packed
+    onto the blank's 요소 blocks in order), and the 기본점수 / 장기 미인정 배점. Every
+    other cell (the sample descriptors) is left as-is -- honest, not corrupted."""
+    from .table_patch import fill_cells, _text_of, _direct_cells
+
+    skipped: list[str] = []
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    lastcol = rep.col_count - 1
+
+    # locate the 평가요소 header row and 기본점수 row to bound the 수행수준 region
+    ph = base = None
+    for r in range(rep.row_count):
+        c0 = grid.get((r, 0))
+        if c0 is None:
+            continue
+        t0 = _text_of(tb[c0.start:c0.end]).strip()
+        if t0.replace(" ", "") == "평가요소":
+            ph = r
+        if base is None and "기본점수" in t0:
+            base = r
+
+    cells: list[dict[str, Any]] = []
+    # header: title / points / standards -- addressed by adjacent label (geometry-free)
+    cells.append({"table_index": ti, "cell_anchor": {"label": "평가 영역명", "dir": "right"},
+                  "text": rub.title, "max_lines": 2})
+    cells.append({"table_index": ti, "cell_anchor": {"label": "영역 만점", "dir": "right"},
+                  "text": f"{rub.points}점", "max_lines": 1})
+    # NOTE: the review 성취기준 codes are intentionally NOT written here -- the '성취
+    # 기준' cell's right neighbour is the '성취기준별 성취수준' A~E sub-table banner (a
+    # section header, not a value slot), so overwriting it would corrupt the block.
+    # The codes already reach the produced doc via the schedule + achievement fills;
+    # honest-defer keeps this rich grid's structure intact.
+
+    # 평가요소 수행수준 leader cells: col0 merged cells strictly inside (ph, base)
+    if ph is not None and base is not None:
+        seen: set[tuple[int, int]] = set()
+        leaders: list[int] = []
+        for c in sorted(_direct_cells(tb), key=lambda c: c.row):
+            if c.col == 0 and ph < c.row < base and c.row_span >= 2 and (c.start, c.end) not in seen:
+                seen.add((c.start, c.end))
+                leaders.append(c.row)
+        items = [_item_label(row[0]) for row in rub.rows if not row[0].startswith("기본점수")]
+        if leaders and items:
+            k = len(leaders)
+            packed = items if len(items) <= k else items[:k - 1] + [" / ".join(items[k - 1:])]
+            for row, label in zip(leaders, packed):
+                cells.append({"table_index": ti, "row": row, "col": 0, "text": label, "max_lines": 3})
+        elif items:
+            skipped.append(f"rubric ti={ti}: no 평가요소 leader cells to place {len(items)} items")
+
+        # 기본점수 / 장기 미인정 배점 (right-most column of the two base rows)
+        base_label, base_score, long_label, long_score = _base_scores(rub.rows)
+        if base_score and grid.get((base, lastcol)):
+            cells.append({"table_index": ti, "row": base, "col": lastcol, "text": base_score, "max_lines": 1})
+        if long_score and base + 1 < rep.row_count and grid.get((base + 1, lastcol)):
+            cells.append({"table_index": ti, "row": base + 1, "col": lastcol, "text": long_score, "max_lines": 1})
+    else:
+        skipped.append(f"rubric ti={ti}: could not bound 평가요소 region (ph={ph}, base={base})")
+
+    fr = fill_cells(data, cells)
+    skipped.extend(s.reason for s in fr.skipped)
+    return fr.data, skipped
+
+
 def fill_rubrics(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, Any]]:
     """Fill each 수행평가 세부기준 rubric table from the matching review rubric
-    (byte-preserving). Replaces the 한국사 sample 성취기준 codes (the dominant
-    leftover-sample source) and lands every 평가항목 label.
+    (byte-preserving). Replaces the sample 성취기준 codes / 평가항목 labels.
 
-    Per rubric: shrink the single 7-배점-row example block to the review rubric's
-    평가항목 count, then splice 성취기준 (r0), 상/중/하 평가기준 (r1-3 from levels),
-    학생 유의사항 (r4), 영역(만점), the 평가항목 labels (into the merged 평가항목
-    cell's paragraphs), each item's 채점기준 breakdown + top 배점, and the
-    기본점수 / 장기 미인정 rows. Item blocks are shrunk with ``delete_row`` (the
-    merges collapse cleanly); nothing is regenerated."""
+    Routes by 개정: 2015-개정 (3학년, '교육과정성취기준' rubric) shrinks the example item
+    block to the review item count and splices 성취기준 / 상·중·하 / 항목 / 배점 rows;
+    2022-개정 (2학년, '평가 영역명' rubric) overwrites the cleanly-addressable label
+    cells only (title / points / 평가요소 leaders / 기본점수 배점) -- its rich grid has
+    no faithful 1:1 map for a flat MD item list, so it is filled, not reshaped."""
     from .table_patch import apply_table_ops, fill_cells, _text_of, _all_paragraph_spans
 
     report: dict[str, Any] = {"rubrics": len(content.rubrics), "filled": 0, "skipped": []}
     levels = content.levels
+
+    # 2022-개정 route: fill each rubric table's label cells (no reshape).
+    idxs0 = _rubric_indices(data)
+    if idxs0 and _rubric_is_2022(data, idxs0[0]):
+        filled = 0
+        for i, rub in enumerate(content.rubrics):
+            idxs = _rubric_indices(data)
+            if i >= len(idxs):
+                report["skipped"].append(f"rubric {i}: no matching blank table")
+                continue
+            data, sk = _fill_rubric_2022(data, idxs[i], rub)
+            report["skipped"].extend(sk)
+            filled += 1
+        report["filled"] = filled
+        return data, report
 
     # STEP 1 (structure): shrink each rubric's item block to its review item count.
     for i, rub in enumerate(content.rubrics):
