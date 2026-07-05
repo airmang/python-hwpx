@@ -413,6 +413,17 @@ def test_scorer_ratio_content_penalises_sample():
     assert any("반영비율 carries" in f for f in ds.findings)
 
 
+def test_fill_rubrics_2022_reports_chaejeom_defer():
+    """no-silent-true: the 2022-개정 rubric 수행수준 채점기준 ladder has no byte-preserving
+    map to the review's flat score ladder, so the recipe must REPORT that defer
+    (NEEDS_REVIEW) rather than read as fully filled."""
+    from hwpx.evalplan_fill import fill_evalplan
+    c = parse_review_md(SYNTHETIC_2022)
+    res = fill_evalplan(str(BLANK_2HAK), c, phase="all")
+    rr = res["content_report"]["rubrics"]
+    assert any("NEEDS_REVIEW" in s and "채점기준" in s for s in rr["skipped"]), rr["skipped"]
+
+
 def test_fill_sections_preserves_numbering_and_drops_no_content():
     """fill_sections keeps each item's 가./나./다. ordinal and, when items exceed
     the fixed placeholder slots, appends the surplus (with ordinals) to the last

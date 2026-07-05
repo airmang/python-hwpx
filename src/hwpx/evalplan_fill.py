@@ -800,6 +800,14 @@ def _fill_rubric_2022(data: bytes, ti: int, rub: Rubric,
 
     fr = fill_cells(data, cells)
     skipped.extend(s.reason for s in fr.skipped)
+    # honest-defer (no-silent-true): the 수행수준 채점기준 descriptor ladder is NOT
+    # filled -- the blank decomposes each 평가요소 into sample-specific sub-item
+    # rows whose count/scores have no faithful byte-preserving map to the review's
+    # flat 평가항목 × level ladder. Reshaping = regeneration (forbidden); writing MD
+    # text onto mismatched score rows = corruption (fail-closed). Surfaced so the
+    # caller does not read this rubric as fully filled.
+    skipped.append(f"rubric ti={ti}: NEEDS_REVIEW — 수행수준 채점기준 descriptor ladder "
+                   "left as blank sample (no byte-preserving map to review score ladder)")
     return fr.data, skipped
 
 
