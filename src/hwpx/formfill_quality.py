@@ -163,6 +163,14 @@ _BORDERFILL_RE = re.compile(rb'borderFillIDRef="(\d+)"')
 _WIDTH_RE = re.compile(rb'<(?:[A-Za-z_][\w.-]*:)?cellSz\b[^>]*\bwidth="(\d+)"')
 
 
+def _looks_like_path(x: Any) -> bool:
+    if isinstance(x, Path):
+        return True
+    if isinstance(x, str):
+        return ("\n" not in x) and (x.endswith((".md", ".txt", ".markdown")) or Path(x).exists())
+    return False
+
+
 def _borderfill_vocab(tables: Sequence[_Table]) -> set[str]:
     v: set[str] = set()
     for t in tables:
@@ -349,6 +357,10 @@ def _classify(t: _Table) -> str:
     """Coarse table type from its first-row / heading signature."""
     fr = " | ".join(t.first_row)
     txt = t.text
+    # A numbered section-header table ("5 | | 기준 성취율과 성취도") is a divider, not
+    # a content table -- exclude it so it never counts as achieve_rate/ratio/etc.
+    if t.rows == 1 and t.first_row and t.first_row[0].strip().isdigit():
+        return "other"
     if "석차등급" in fr and "원점수" in fr:
         return "seokcha"                         # red table -> should be deleted
     if "제출" in fr and ("모아찍기" in txt or "인쇄물" in txt):
@@ -445,8 +457,15 @@ _SECTION_RE = re.compile(r"(\d+)\s*(평가의 목적|평가의 기본 방향|평
                          r"수행평가 미응시|평가 유의사항|평가 결과)")
 
 
+_STD_CODE_RE = re.compile(r"\[1\d[가-힣A-Za-z]*\d\d-\d\d\]")
+
+
 def score_content(produced: str | Path, *, content: str | Path | None = None) -> AxisScore:
-    """D axis. Sections present, ratio row sums to 100 and is non-increasing."""
+    """D axis. Sections present, ratio sums to 100 (왼쪽 우선), and -- when the
+    review ``content`` is given -- the produced actually carries THAT content
+    (curriculum standard codes overlap), not the blank's leftover sample text.
+    Without the content check a structurally-perfect but unfilled form would
+    falsely score full marks (no-silent-true)."""
     key, name, weight = "D", "content_completeness", 15
     tabs = _tables(produced)
     full_text = "\n".join(t.text for t in tabs)
@@ -459,6 +478,21 @@ def score_content(produced: str | Path, *, content: str | Path | None = None) ->
     missing = [lab for lab in labels if lab.replace(" ", "") not in full_text.replace(" ", "")]
     checks.append(("sections [1]~[11] present", not missing,
                    "" if not missing else f"missing sections: {missing}"))
+
+    # content fidelity: the produced must carry the review MD's standard codes,
+    # not the blank's sample codes. A structural-only file (samples not replaced)
+    # fails this -- exactly the signal that content is not yet filled.
+    content_match = None
+    if content is not None:
+        md_text = Path(content).read_text(encoding="utf-8") if _looks_like_path(content) else str(content)
+        want = set(_STD_CODE_RE.findall(md_text))
+        got = set(_STD_CODE_RE.findall(full_text))
+        if want:
+            content_match = len(want & got) / len(want)
+            ok = content_match >= 0.5
+            checks.append(("content matches review MD (standard codes)", ok,
+                           "" if ok else f"only {len(want & got)}/{len(want)} MD standard codes present "
+                           f"({content_match:.0%}) -- produced likely still holds blank sample content"))
 
     # 반영비율: parse percentages in the ratio table, sum ~100, non-increasing
     ratio_tabs = [t for t in tabs if _classify(t) == "ratio"]
@@ -490,18 +524,28 @@ def score_content(produced: str | Path, *, content: str | Path | None = None) ->
     if ratio_ok is not None:
         checks.append(("반영비율 sum=100 & non-increasing", ratio_ok, "" if ratio_ok else ratio_msg))
 
-    passed = sum(1 for _l, ok, _m in checks if ok)
-    total = len(checks)
-    score = weight * (passed / total) if total else 0.0
+    # weighted: content fidelity ("전 섹션 채움") dominates -- a structurally perfect
+    # but unfilled form must not reach the loop's >=90 threshold on structure alone.
+    sections_ok = 1.0 if not missing else 0.0
+    ratio_frac = 1.0 if (ratio_ok in (True, None)) else 0.0
+    if content_match is not None:
+        frac = 0.2 * sections_ok + 0.2 * ratio_frac + 0.6 * content_match
+    else:
+        frac = 0.5 * sections_ok + 0.5 * ratio_frac
+    score = weight * frac
     status = MEASURED
-    findings = [f"content checks {passed}/{total}"]
+    passed = sum(1 for _l, ok, _m in checks if ok)
+    findings = [f"content checks {passed}/{len(checks)}"
+                + (f"; content_match={content_match:.0%}" if content_match is not None else "")]
     for label, ok, msg in checks:
         if not ok:
             findings.append(f"INCOMPLETE {label}: {msg}")
-    # note the limits honestly
+    if content is None:
+        findings.append("note: no review content given -- content-fidelity unchecked (D is structural only)")
     findings.append("note: empty-required-cell detection is coarse (text-presence only)")
     return AxisScore(key, name, weight, score, status, findings,
-                     {"missing_sections": missing, "passed": passed, "total": total})
+                     {"missing_sections": missing, "passed": passed, "total": len(checks),
+                      "content_match": content_match})
 
 
 # --------------------------------------------------------------------------- #

@@ -120,6 +120,60 @@ def test_empty_sections_not_invented():
     assert sk["rubric"] == 0 and sk["achievement"] == 0
 
 
+FIXT = Path(__file__).parent / "fixtures" / "m105_evalplan"
+BLANK_3HAK = FIXT / "blank_form_3hak.hwpx"
+
+
+def _content_2area():
+    return parse_review_md(SYNTHETIC)
+
+
+def test_plan_structural_ops_index_safe_order():
+    """Column deletes must precede table deletes (they don't shift table indices),
+    and table deletes must be in descending index order -- otherwise a later
+    delete_column lands on a shifted table and silently corrupts it."""
+    from hwpx.evalplan_fill import plan_structural_ops
+    plan = plan_structural_ops(str(BLANK_3HAK), _content_2area())
+    ops = plan["ops"]
+    kinds = [o["op"] for o in ops]
+    # every delete_column comes before every delete_table
+    if "delete_column" in kinds and "delete_table" in kinds:
+        assert kinds.index("delete_column") < kinds.index("delete_table")
+    # table deletes are strictly descending by index
+    tdel = [o["tableIndex"] for o in ops if o["op"] == "delete_table"]
+    assert tdel == sorted(tdel, reverse=True)
+    # the red tables + 정기시험 column are targeted
+    assert any(o["op"] == "delete_column" for o in ops)  # 정기시험
+    assert len(tdel) >= 3                                 # seokcha/submit/notice + 5단계/surplus
+
+
+def test_fill_evalplan_structural_is_byte_preserving_and_removes_red():
+    """The structural transform applies cleanly, removes the red/정기시험 material,
+    and keeps every surviving table's formatting (no regeneration)."""
+    from hwpx.evalplan_fill import fill_evalplan
+    from hwpx.formfill_quality import _skeleton, score_format_fidelity
+    res = fill_evalplan(str(BLANK_3HAK), _content_2area())
+    assert res["ok"] and not res["skipped"]
+    prod = res["_data"]
+    sk = _skeleton(prod)
+    assert sk["ratio_has_regular_exam"] is False          # 정기시험 removed
+    assert sk["kinds"].get("seokcha", 0) == 0             # red table gone
+    # surviving tables carried verbatim -> high B (not a rebuild)
+    b = score_format_fidelity(prod, str(BLANK_3HAK))
+    assert b.detail["carry_rate"] > 0.8
+
+
+def test_content_fidelity_axis_flags_unfilled(tmp_path):
+    """D content-fidelity: a produced file lacking the review's standard codes
+    scores low (not a silent pass)."""
+    from hwpx.formfill_quality import score_content
+    md = tmp_path / "c.md"
+    md.write_text("[12합성01-01] [12합성01-02] [12합성01-03]", encoding="utf-8")
+    a = score_content(str(BLANK_3HAK), content=str(md))   # blank has no 합성 codes
+    assert a.detail["content_match"] == 0.0
+    assert any("standard codes" in f for f in a.findings)
+
+
 _MD = Path(os.path.expanduser(
     "~/School/Prep/2학기_평가계획/검토용_MD/2026_2학기_3학년_인공지능기초_검토용.md"))
 

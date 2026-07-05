@@ -189,6 +189,113 @@ def expected_skeleton(content: EvalPlanContent) -> dict[str, int]:
     }
 
 
+def plan_structural_ops(blank: str, content: EvalPlanContent | None = None) -> dict[str, Any]:
+    """Confident, gold-policy structural edits for a 평가계획 blank (no content
+    fills): delete the red/optional tables and the 정기시험 columns, keeping the
+    original formatting byte-for-byte. Targets are located by *classification*
+    (reusable across the form family), not fixed indices. Returns
+    ``{"ops": [...], "transcript": [...]}`` — feed ``ops`` to
+    :func:`hwpx.table_patch.apply_table_ops`. Table deletes are emitted in
+    descending index order so earlier indices stay valid (column deletes do not
+    shift table indices).
+
+    Deferred (needs content mapping into the blank's rich cells, honest-defer):
+    achievement / 성취수준 / rubric block restructuring and cell text fills.
+    """
+    from .formfill_quality import _classify, _tables
+
+    tabs = _tables(blank)
+    ops: list[dict[str, Any]] = []
+    transcript: list[str] = []
+    del_tables: list[int] = []
+    exp = expected_skeleton(content) if content else None
+    by_kind: dict[str, list[int]] = {}
+
+    for i, t in enumerate(tabs):
+        kind = _classify(t)
+        by_kind.setdefault(kind, []).append(i)
+        if kind in ("seokcha", "submit", "notice_star"):
+            del_tables.append(i)
+            transcript.append(f"delete_table #{i} ({kind}) — red/optional, gold removes it")
+        elif kind == "achieve_rate" and _is_five_grade(t):
+            del_tables.append(i)
+            transcript.append(f"delete_table #{i} (5단계 성취율) — keep only the 3단계 table")
+        elif kind == "ratio":
+            cols = _regular_exam_cols(t)
+            if cols:
+                ops.append({"op": "delete_column", "tableIndex": i, "cols": cols})
+                transcript.append(f"delete_column #{i} cols {cols} (정기시험) — 100% 수행 subject")
+
+    # Surplus template-example tables: the blank ships >1 achievement/성취수준
+    # example (연주/비평); the content needs `exp[kind]` of them. Delete the extras
+    # (keep the first) so the structure matches the content-derived skeleton.
+    if exp:
+        for kind in ("achievement", "level"):
+            idxs = by_kind.get(kind, [])
+            want = exp.get(kind, 0)
+            for i in idxs[want:]:
+                if i not in del_tables:
+                    del_tables.append(i)
+                    transcript.append(f"delete_table #{i} (surplus {kind} example) — "
+                                      f"content needs {want}, blank ships {len(idxs)}")
+
+    for i in sorted(set(del_tables), reverse=True):
+        ops.append({"op": "delete_table", "tableIndex": i})
+    # INDEX-SAFE ORDER: column deletes FIRST (they modify a table in place and do
+    # not shift table indices, so original indices are valid), THEN table deletes
+    # in descending index order (so each delete leaves lower indices unchanged).
+    # Emitting table deletes first would shift the ratio table under a later
+    # delete_column and silently corrupt the wrong table.
+    ops.sort(key=lambda o: (o["op"] == "delete_table", -o.get("tableIndex", 0)))
+    return {"ops": ops, "transcript": transcript,
+            "expected_skeleton": expected_skeleton(content) if content else None}
+
+
+def _is_five_grade(table) -> bool:
+    """A 성취율 table is 5-grade (to delete) when it carries a D or E grade band
+    or more than 4 data rows; the 3단계 A~C table is kept."""
+    txt = table.text
+    return ("D" in txt and "E" in txt) or table.rows > 4
+
+
+def _regular_exam_cols(table) -> list[int]:
+    """Logical column indices of the 정기시험 span in a 반영비율 table header."""
+    from .table_patch import build_grid, _direct_cells, _text_of
+    tb = table.bytes
+    grid, rep = build_grid(tb)
+    cols: list[int] = []
+    for col in range(rep.col_count):
+        c = grid.get((0, col))
+        if c and "정기시험" in _text_of(tb[c.start:c.end]):
+            cols.append(col)
+    return cols
+
+
+def fill_evalplan(
+    blank: str,
+    content: EvalPlanContent,
+    *,
+    output: str | None = None,
+    phase: str = "structural",
+) -> dict[str, Any]:
+    """Apply the recipe to a blank form. ``phase="structural"`` runs the
+    confident deletions only (content cell fills are a later phase). Returns the
+    apply result dict plus the op-plan transcript."""
+    from .table_patch import apply_table_ops
+
+    plan = plan_structural_ops(blank, content)
+    result = apply_table_ops(blank, plan["ops"])
+    payload = result.to_dict()
+    if output is not None and not result.byte_identical:
+        from pathlib import Path as _P
+        _P(output).write_bytes(result.data)
+        payload["outputPath"] = output
+    payload["transcript"] = plan["transcript"]
+    payload["expected_skeleton"] = plan["expected_skeleton"]
+    payload["_data"] = result.data
+    return payload
+
+
 def parse_review_file(path: str) -> EvalPlanContent:
     import pathlib
     return parse_review_md(pathlib.Path(path).read_text(encoding="utf-8"))
@@ -196,5 +303,5 @@ def parse_review_file(path: str) -> EvalPlanContent:
 
 __all__ = [
     "EvalPlanContent", "Rubric", "parse_review_md", "parse_review_file",
-    "expected_skeleton",
+    "expected_skeleton", "plan_structural_ops", "fill_evalplan",
 ]
