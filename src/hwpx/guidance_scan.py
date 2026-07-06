@@ -105,6 +105,7 @@ class ScannedParagraph:
     body_index: int  # 소속 최상위 문단의 섹션 내 순번
     cell: CellLoc | None
     spans: list[tuple[str, str, str]]  # (char_pr_id, hex_color, text)
+    first_char_pr_id: str | None = None  # 텍스트가 비어도 서식 컨텍스트를 잃지 않기 위해
 
     @property
     def text(self) -> str:
@@ -146,6 +147,7 @@ class GuidanceReport:
     placeholder_candidates: list[Candidate]
     conditional_choices: list[Candidate]
     questions: list[str]
+    empty_cell_candidates: list[Candidate] = field(default_factory=list)
     stats: dict[str, int] = field(default_factory=dict)
     limitations: list[str] = field(
         default_factory=lambda: [
@@ -188,15 +190,29 @@ class GuidanceReport:
                 + (f" — 서식 {fmt}" if fmt else "")
             )
         lines.append("")
-        lines.append(f"## ⑤ placeholder 후보 ({len(self.placeholder_candidates)})")
+        lines.append(f"## ⑤ 빈 셀(채움 후보, {len(self.empty_cell_candidates)}) — 표별")
+        by_table: dict[str, list[Candidate]] = {}
+        for c in self.empty_cell_candidates:
+            key = c.cell.label().split(" ")[0] if c.cell else "본문"
+            by_table.setdefault(key, []).append(c)
+        for key, cands in by_table.items():
+            examples = []
+            for c in cands[:3]:
+                fmt = next((s.split(":", 1)[1] for s in c.signals if s.startswith("format:")), "")
+                detail = ", ".join(part for part in (c.text_preview, fmt) if part)
+                examples.append(f"r{c.cell.row}c{c.cell.col}({detail})")
+            more = f" 외 {len(cands) - 3}건" if len(cands) > 3 else ""
+            lines.append(f"- {key}: 빈 셀 {len(cands)}개 — {' · '.join(examples)}{more}")
+        lines.append("")
+        lines.append(f"## ⑥ placeholder 후보 ({len(self.placeholder_candidates)})")
         for c in self.placeholder_candidates:
             lines.append(f"- [{c.confidence}] {c.location} — “{c.text_preview}” 〔{', '.join(c.signals)}〕")
         lines.append("")
-        lines.append(f"## ⑥ 조건부 선택 블록 ({len(self.conditional_choices)})")
+        lines.append(f"## ⑦ 조건부 선택 블록 ({len(self.conditional_choices)})")
         for c in self.conditional_choices:
             lines.append(f"- {c.location} — “{c.text_preview}”")
         lines.append("")
-        lines.append("## ⑦ 질문 목록 (확신 없음 — 사용자 결정 필요)")
+        lines.append("## ⑧ 질문 목록 (확신 없음 — 사용자 결정 필요)")
         for q in self.questions:
             lines.append(f"- {q}")
         lines.append("")
@@ -227,8 +243,11 @@ class _Walker:
 
     def walk_paragraph(self, p_el, section_index: int, body_index: int, cell: CellLoc | None) -> None:
         spans: list[tuple[str, str, str]] = []
+        first_cpr: str | None = None
         for run in (c for c in p_el if _local(c) == "run"):
             cpr = run.get("charPrIDRef", "0")
+            if first_cpr is None:
+                first_cpr = cpr
             hex_color = self._hex_of(cpr)
             for child in run:
                 tag = _local(child)
@@ -241,7 +260,10 @@ class _Walker:
                 elif tag in _SHAPE_TAGS or tag == "container":
                     self.walk_container(child, section_index, body_index, cell)
         self.out.append(
-            ScannedParagraph(section_index=section_index, body_index=body_index, cell=cell, spans=spans)
+            ScannedParagraph(
+                section_index=section_index, body_index=body_index, cell=cell,
+                spans=spans, first_char_pr_id=first_cpr,
+            )
         )
 
     def walk_container(self, el, section_index: int, body_index: int, cell: CellLoc | None) -> None:
@@ -427,6 +449,42 @@ def scan_form_guidance(source: Union[str, Path, HwpxDocument]) -> GuidanceReport
             )
             agg["paragraphs"] += 1
 
+    # 채울 곳 후보: 완전히 빈 셀 + 인접 라벨 문맥 + 서식 컨텍스트
+    cell_paras: dict[tuple[int, int, int], list[ScannedParagraph]] = {}
+    for para in paragraphs:
+        if para.cell is not None and para.cell.row >= 0:
+            key = (para.cell.table_index, para.cell.row, para.cell.col)
+            cell_paras.setdefault(key, []).append(para)
+
+    def _cell_joined(key: tuple[int, int, int]) -> str:
+        return "".join(p.text for p in cell_paras.get(key, [])).strip()
+
+    empty_cell_candidates: list[Candidate] = []
+    for (tbl, row, col), plist in sorted(cell_paras.items()):
+        if _cell_joined((tbl, row, col)):
+            continue
+        label = ""
+        for nkey, tag in (((tbl, row, col - 1), "좌측"), ((tbl, row - 1, col), "상단")):
+            ntext = _cell_joined(nkey)
+            if ntext:
+                label = f"{tag}: {_preview(ntext, 24)}"
+                break
+        signals = ["empty_cell"]
+        cprid = plist[0].first_char_pr_id
+        if cprid is not None:
+            style = chars.get(str(cprid))
+            if style is not None:
+                height = style.attributes.get("height")
+                size = f"{int(height) / 100:g}pt" if height and height.isdigit() else "?"
+                bold = "·bold" if "bold" in style.child_attributes else ""
+                signals.append(f"format:{size}{bold}")
+        empty_cell_candidates.append(
+            Candidate(
+                location=plist[0].location(), signals=signals, confidence="medium",
+                text_preview=label or "(라벨 없음)", cell=plist[0].cell,
+            )
+        )
+
     # 질문 목록
     questions: list[str] = []
     bound = {b.family for b in legend}
@@ -452,6 +510,7 @@ def scan_form_guidance(source: Union[str, Path, HwpxDocument]) -> GuidanceReport
         placeholder_candidates=placeholder_candidates,
         conditional_choices=conditional_choices,
         questions=questions,
+        empty_cell_candidates=empty_cell_candidates,
         stats={
             "paragraphs": len(paragraphs),
             "tables": tables_total,
