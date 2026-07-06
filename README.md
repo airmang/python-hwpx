@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/airmang-python-hwpx-badge.png)](https://mseep.ai/app/airmang-python-hwpx)
+
 <p align="center">
   <h1 align="center">python-hwpx</h1>
   <p align="center">
