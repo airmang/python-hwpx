@@ -133,3 +133,21 @@ def test_dry_run_writes_nothing(work, tmp_path):
     assert res.transcript[0]["status"] == "would_apply"
     assert not out.exists() and work.read_bytes() == original
     assert not res.byte_identical  # would-be 바이트는 실제로 달라짐(증거)
+
+
+def test_replace_text_strips_stale_layout_cache(work, tmp_path):
+    """긴 텍스트로 교체 시 편집 문단의 linesegarray를 제거해야 한컴이 줄배치를
+    재계산한다 — 안 지우면 줄겹침 렌더(2026-07-07 AI중점학교 신청서 실측 결함)."""
+    out = tmp_path / "out.hwpx"
+    long_text = ("아주 긴 교체 텍스트로 원본 슬롯보다 훨씬 길어서 여러 줄로 배치되어야 하는 문장 " * 5).strip()
+    res = apply_body_ops(
+        work,
+        [{"op": "replace_text", "find": "성취수준별 고정분할점수(5단계)", "replace": long_text}],
+        output_path=out,
+    )
+    assert res.ok
+    xml = _section(out)
+    idx = xml.find(long_text[:20])
+    assert idx > 0
+    para = xml[xml.rfind("<hp:p", 0, idx): xml.find("</hp:p>", idx)]
+    assert "linesegarray" not in para

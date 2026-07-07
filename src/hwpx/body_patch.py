@@ -61,6 +61,19 @@ def direct_paragraph_spans(section_xml: str) -> list[tuple[int, int]]:
     return spans
 
 
+def _all_paragraph_spans(section_xml: str) -> list[tuple[int, int]]:
+    """모든 깊이의 ``<hp:p>`` 블록 span (셀 내부 포함) — lineseg 무효화 대상 탐색용."""
+    spans: list[tuple[int, int]] = []
+    stack: list[int] = []
+    for m in _P_EDGE_RE.finditer(section_xml):
+        if m.group().startswith("</"):
+            if stack:
+                spans.append((stack.pop(), m.end()))
+        else:
+            stack.append(m.start())
+    return spans
+
+
 def _preview(text: str, limit: int = 60) -> str:
     flat = re.sub(r"\s+", " ", text).strip()
     return flat[: limit - 1] + "…" if len(flat) > limit else flat
@@ -110,8 +123,30 @@ def _op_replace_text(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[str, An
             f"replace_text: {find!r} matched {len(hits)} time(s) inside <hp:t> "
             f"(expected {expected}) — run-spanning or ambiguous text is refused"
         )
-    for a, b in reversed(hits):
-        xml = xml[:a] + esc_replace + xml[b:]
+    # 편집된 문단의 linesegarray(한컴 줄배치 캐시)를 함께 제거해야 한다 — 안 지우면
+    # 한컴이 옛 텍스트 기준 줄배치를 재사용해 긴 새 텍스트가 겹쳐 렌더된다
+    # (2026-07-07 AI중점학교 신청서 실측: 교체 문단만 줄겹침, lineseg 제거된
+    # 클론 문단은 정상). 문단 단위로 묶어 뒤에서부터: 치환 → 캐시 제거 → 재조립.
+    para_spans = _all_paragraph_spans(xml)
+
+    def _innermost(pos: int) -> tuple[int, int]:
+        best = None
+        for a, b in para_spans:
+            if a <= pos < b and (best is None or (a >= best[0] and b <= best[1])):
+                best = (a, b)
+        if best is None:
+            raise ValueError("replace_text: match outside any <hp:p> paragraph")
+        return best
+
+    by_para: dict[tuple[int, int], list[tuple[int, int]]] = {}
+    for hit in hits:
+        by_para.setdefault(_innermost(hit[0]), []).append(hit)
+    for (pa, pb), phits in sorted(by_para.items(), reverse=True):
+        block = xml[pa:pb]
+        for a, b in sorted(phits, reverse=True):
+            block = block[: a - pa] + esc_replace + block[b - pa:]
+        block = _strip_paragraph_layout_cache(block.encode("utf-8")).decode("utf-8")
+        xml = xml[:pa] + block + xml[pb:]
     return xml, {"find": _preview(find), "replace": _preview(replace), "hits": expected}
 
 
