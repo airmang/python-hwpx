@@ -1016,7 +1016,63 @@ _STRUCT_OPS = {
     "insert_block_by_clone": lambda t, o: _insert_block_by_clone(t, int(o["ref_rows"][0]), int(o["ref_rows"][1]), int(o.get("count", 1))),
     "set_column_widths": lambda t, o: _set_column_widths(t, _widths_arg(o)),
     "autofit_columns": lambda t, o: _autofit_columns(t, min_frac=float(o.get("min_frac", 0.06)), damp=float(o.get("damp", 0.5))),
+    "set_row_heights": lambda t, o: _set_row_heights(
+        t, {int(k): int(v) for k, v in dict(o["heights"]).items()}),
 }
+
+
+def _set_row_heights(table: str, heights: Mapping[int, int]) -> str:
+    """행높이 명시 설정(HWPUNIT, 1pt=100) — Stage 3 간격 프리미티브.
+
+    rowSpan==1 셀은 해당 행 높이로, 병합 셀은 덮는 행들의 (새/현재) 높이 합으로
+    cellSz height를 재계산한다. 현재 행높이를 유도할 수 없는 행이 끼면 refuse
+    (fail-closed). 사람 편집자의 "행높이 늘리고/줄여 페이지 안 재배분"에 해당."""
+    if len(re.findall(r"<hp:tbl\b", table)) > 1:
+        raise TableStructureError("set_row_heights: nested table inside — refuse")
+    m_rows = re.search(r'<hp:tbl\b[^>]*\browCnt="(\d+)"', table)
+    row_cnt = int(m_rows.group(1)) if m_rows else 0
+    for r in heights:
+        if not 0 <= r < row_cnt:
+            raise TableStructureError(f"set_row_heights: row {r} out of range (0..{row_cnt - 1})")
+    cells: list[tuple[int, int, int, int, int]] = []
+    for m in re.finditer(r"<hp:tc\b.*?</hp:tc>", table, re.S):
+        blk = m.group(0)
+        ra = re.search(r'<hp:cellAddr\b[^>]*\browAddr="(\d+)"', blk)
+        rs = re.search(r'<hp:cellSpan\b[^>]*\browSpan="(\d+)"', blk)
+        hz = re.search(r'<hp:cellSz\b[^>]*\bheight="(\d+)"', blk)
+        if ra is None or hz is None:
+            raise TableStructureError("set_row_heights: cell without cellAddr/cellSz")
+        cells.append((m.start(), m.end(), int(ra.group(1)),
+                      int(rs.group(1)) if rs else 1, int(hz.group(1))))
+    current: dict[int, int] = {}
+    for _, _, ra, rs, h in cells:
+        if rs == 1 and ra not in current:
+            current[ra] = h
+
+    def _new_height(ra: int, rs: int) -> int:
+        total = 0
+        for r in range(ra, ra + rs):
+            if r in heights:
+                total += heights[r]
+            elif r in current:
+                total += current[r]
+            else:
+                raise TableStructureError(
+                    f"set_row_heights: row {r} current height underivable (no rowSpan==1 cell)")
+        return total
+
+    out = table
+    for start, end, ra, rs, h in sorted(cells, reverse=True):
+        if not any(r in heights for r in range(ra, ra + rs)):
+            continue
+        nh = _new_height(ra, rs)
+        if nh == h:
+            continue
+        blk = out[start:end]
+        blk = re.sub(r'(<hp:cellSz\b[^>]*\bheight=")\d+(")',
+                     lambda mm: mm.group(1) + str(nh) + mm.group(2), blk, count=1)
+        out = out[:start] + blk + out[end:]
+    return out
 
 
 def _p_wrapper_span(section: bytes, table_start: int) -> tuple[int, int]:
