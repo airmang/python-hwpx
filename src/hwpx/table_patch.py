@@ -855,6 +855,71 @@ def _refresh_ids(row: str, bump: int) -> str:
     return _PARA_ID_RE.sub(lambda m: m.group(1) + str((int(m.group(2)) + bump) & 0x7FFFFFFF) + m.group(3), row)
 
 
+def _blank_cell_text(tc: str) -> str:
+    """Empty every ``<hp:t>`` in a cell + drop stale linesegarray (keep formatting).
+
+    The layout cache references text positions of the OLD text; leaving it on an
+    emptied paragraph makes Hangul reject the file ("stale lineseg beyond text
+    length"). Stripping it forces recomputation."""
+    tc = re.sub(r"(<hp:t\b[^>]*>).*?(</hp:t>)", r"\1\2", tc, flags=re.S)
+    tc = re.sub(
+        r"<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)linesegarray\b(?:[^>]*?/>|[^>]*>.*?</(?P=ns)linesegarray>)",
+        "", tc, flags=re.S,
+    )
+    return tc
+
+
+def _insert_tc_in_order(row: str, new_tc: str, col: int) -> str:
+    """Insert *new_tc* into a ``<hp:tr>`` keeping tcs in ascending colAddr order."""
+    at = None
+    for m in _S_TC.finditer(row):
+        if (_si(m.group(0), "cellAddr", "colAddr") or 0) > col:
+            at = m.start()
+            break
+    if at is None:
+        at = row.rindex("</hp:tr>")
+    return row[:at] + new_tc + row[at:]
+
+
+def _split_cell_vertical(table: str, row: int, col: int, sizes: Sequence[int]) -> str:
+    """Split the rowSpan cell at (row, col) into ``len(sizes)`` stacked cells with
+    the given rowSpans (``sum(sizes)`` must equal the current rowSpan). The first
+    keeps (row, col); each subsequent boundary gets a NEW cell cloned from the
+    original (borderFill/cellSz/paraPr inherited, text blanked, ids refreshed)
+    inserted in colAddr order. Grid-validated; fail-closed."""
+    _guard_flat(table)
+    sizes = [int(s) for s in sizes]
+    if len(sizes) < 2 or any(s < 1 for s in sizes):
+        raise TableStructureError("split_cell_vertical: sizes must be >=2 positive integers")
+    prefix, rows, suffix = _parse_table(table)
+    if not 0 <= row < len(rows):
+        raise TableStructureError(f"split_cell_vertical: row {row} out of range")
+    target = None
+    for tc in _S_TC.findall(rows[row]):
+        if _si(tc, "cellAddr", "rowAddr") == row and _si(tc, "cellAddr", "colAddr") == col:
+            target = tc
+            break
+    if target is None:
+        raise TableStructureError(f"split_cell_vertical: no cell at (row={row}, col={col})")
+    cur = _si(target, "cellSpan", "rowSpan") or 1
+    if sum(sizes) != cur:
+        raise TableStructureError(f"split_cell_vertical: sizes sum {sum(sizes)} != current rowSpan {cur}")
+
+    rows[row] = rows[row].replace(target, _ss(target, "cellSpan", "rowSpan", sizes[0]), 1)
+    boundary = row
+    for i in range(1, len(sizes)):
+        boundary += sizes[i - 1]
+        if boundary >= len(rows):
+            raise TableStructureError("split_cell_vertical: boundary beyond table rows")
+        new_tc = _ss(target, "cellSpan", "rowSpan", sizes[i])
+        new_tc = _ss(new_tc, "cellAddr", "rowAddr", boundary)
+        new_tc = _refresh_ids(_blank_cell_text(new_tc), 7000 + i)
+        rows[boundary] = _insert_tc_in_order(rows[boundary], new_tc, col)
+    out = _rebuild(prefix, rows, suffix)
+    _validate_or_raise(out)
+    return out
+
+
 def _insert_row_by_clone(table: str, ref_row: int, count: int = 1) -> str:
     """Insert *count* rows after physical row *ref_row* by cloning it (formatting
     preserved, paragraph ids refreshed). Rows below shift; cells spanning across
@@ -1018,6 +1083,8 @@ _STRUCT_OPS = {
     "autofit_columns": lambda t, o: _autofit_columns(t, min_frac=float(o.get("min_frac", 0.06)), damp=float(o.get("damp", 0.5))),
     "set_row_heights": lambda t, o: _set_row_heights(
         t, {int(k): int(v) for k, v in dict(o["heights"]).items()}),
+    "split_cell_vertical": lambda t, o: _split_cell_vertical(
+        t, int(o["row"]), int(o["col"]), o["sizes"]),
 }
 
 
