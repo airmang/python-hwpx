@@ -1385,6 +1385,23 @@ def apply_table_ops(
                 ps, pe = _p_wrapper_span(section, ts)
                 new_section = section[:ps] + section[pe:]
                 dims_after = "deleted"
+            elif name == "clone_table":
+                ps, pe = _p_wrapper_span(section, ts)
+                block = section[ps:pe].decode("utf-8")
+                count = int(op.get("count", 1))
+                if count < 1:
+                    raise TableStructureError("clone_table: count must be >= 1")
+                clones = "".join(
+                    _PARA_ID_RE.sub(
+                        lambda m, k=k: m.group(1)
+                        + str((int(m.group(2)) + 900000 + k * 7919) & 0x7FFFFFFF)
+                        + m.group(3),
+                        block,
+                    )
+                    for k in range(1, count + 1)
+                )
+                new_section = section[:pe] + clones.encode("utf-8") + section[pe:]
+                dims_after = f"cloned x{count}"
             elif name in _STRUCT_OPS:
                 new_table = _STRUCT_OPS[name](section[ts:te].decode("utf-8"), op)
                 _validate_or_raise(new_table)

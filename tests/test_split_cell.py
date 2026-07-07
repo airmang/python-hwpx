@@ -98,3 +98,16 @@ def test_dry_run_no_write(work, tmp_path):
         output_path=out, dry_run=True,
     )
     assert res.transcript[0]["status"] == "would_apply" and not out.exists()
+
+
+def test_clone_table_duplicates_whole_table(work, tmp_path):
+    from hwpx.table_patch import table_summary
+    before = len(table_summary(str(work)))
+    out = tmp_path / "out.hwpx"
+    res = apply_table_ops(work, [{"op": "clone_table", "table_index": 9, "count": 2}], output_path=out)
+    assert res.ok, res.skipped
+    assert res.transcript[0]["dims"].endswith("cloned x2")
+    after = table_summary(str(out))
+    assert len(after) == before + 2
+    # 원본과 복제본이 같은 구조
+    assert after[9]["rows"] == after[10]["rows"] == after[11]["rows"]
