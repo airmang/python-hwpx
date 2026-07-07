@@ -313,13 +313,15 @@ class CellFillResult:
     byte_identical: bool
     zip_method: str
     open_safety: dict[str, Any]
+    # 구조 op별 해석·검증 결과(승인 근거) — dry-run 상의 루프의 기계 증거.
+    transcript: tuple[dict[str, Any], ...] = ()
 
     @property
     def ok(self) -> bool:
         return bool(self.open_safety.get("ok")) and not self.skipped
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out = {
             "ok": self.ok,
             "applied": [a.to_dict() for a in self.applied],
             "skipped": [s.to_dict() for s in self.skipped],
@@ -328,6 +330,9 @@ class CellFillResult:
             "zipMethod": self.zip_method,
             "openSafety": self.open_safety,
         }
+        if self.transcript:
+            out["transcript"] = list(self.transcript)
+        return out
 
 
 # --- FR-002: anchor / heading addressing (byte-level, unique-or-skip) ---------
@@ -1035,11 +1040,23 @@ def _sections(data: bytes) -> dict[str, bytes]:
         return {n: z.read(n) for n in z.namelist() if re.search(r"section\d+\.xml$", n)}
 
 
+def _table_dims(table: str | bytes) -> str:
+    """``"RxC"`` from the table's own rowCnt/colCnt attributes (transcript용)."""
+    text = table.decode("utf-8", "ignore") if isinstance(table, bytes) else table
+    m = re.search(r'rowCnt="(\d+)"[^>]*colCnt="(\d+)"|colCnt="(\d+)"[^>]*rowCnt="(\d+)"', text)
+    if not m:
+        return "?"
+    if m.group(1) is not None:
+        return f"{m.group(1)}x{m.group(2)}"
+    return f"{m.group(4)}x{m.group(3)}"
+
+
 def apply_table_ops(
     source: str | Path | bytes,
     ops: Sequence[Mapping[str, Any]],
     *,
     output_path: str | Path | None = None,
+    dry_run: bool = False,
 ) -> CellFillResult:
     """Apply structure ops (then cell fills) to a document, byte-region splicing
     each changed table back so untouched bytes stay identical.
@@ -1054,6 +1071,11 @@ def apply_table_ops(
     structure edit is grid-validated and refuses on an invalid result
     (fail-closed). Cell fills are then applied on the restructured document via
     :func:`fill_cells`.
+
+    ``dry_run=True`` runs the identical pipeline (resolution·validation·fail-closed
+    전부 실제) but never writes ``output_path`` — 상의 루프에서 "이 계획이 무엇을
+    바꾸는지"를 transcript(구조 op별 해석·전후 dims)와 applied(old→new 텍스트)로
+    보여주는 승인 근거용.
     """
     source_bytes = _read_source_bytes(source)
     struct_ops = [o for o in ops if o.get("op") != "fill_cell"]
@@ -1063,6 +1085,10 @@ def apply_table_ops(
     sections = _sections(source_bytes)
     skipped: list[CellSkipped] = []
     changed: set[str] = set()
+    transcript: list[dict[str, Any]] = []
+
+    def _log(name, sp, ti, status, **extra) -> None:
+        transcript.append({"op": name, "sectionPath": sp, "tableIndex": ti, "status": status, **extra})
 
     for op in struct_ops:
         name = op.get("op")
@@ -1070,46 +1096,60 @@ def apply_table_ops(
         section = sections.get(sp)
         if section is None:
             skipped.append(CellSkipped(sp, -1, -1, -1, "section part not found"))
+            _log(name, sp, -1, "refused: section part not found")
             continue
         spans = _iter_table_spans(section)
         ti_raw = op.get("table_index", op.get("tableIndex"))
         tanchor = op.get("table_anchor") or op.get("tableAnchor")
+        resolved_by = "index"
         if ti_raw is None and tanchor is not None:
+            resolved_by = f"anchor:{tanchor}"
             m = _find_tables_by_anchor(section, str(tanchor), spans)
             if len(m) == 1:
                 ti = m[0]
             elif not m:
                 skipped.append(CellSkipped(sp, -1, -1, -1, f"{name}: table anchor {tanchor!r} matched no table"))
+                _log(name, sp, -1, "refused: anchor matched no table", resolvedBy=resolved_by)
                 continue
             else:
                 skipped.append(CellSkipped(sp, -1, -1, -1, f"{name}: table anchor {tanchor!r} ambiguous ({len(m)} tables)"))
+                _log(name, sp, -1, f"refused: anchor ambiguous ({len(m)} tables)", resolvedBy=resolved_by)
                 continue
         else:
             try:
                 ti = int(ti_raw)
             except (TypeError, ValueError):
                 skipped.append(CellSkipped(sp, -1, -1, -1, f"{name}: table_index or table_anchor required"))
+                _log(name, sp, -1, "refused: table_index or table_anchor required")
                 continue
         if ti < 0 or ti >= len(spans):
             skipped.append(CellSkipped(sp, ti, -1, -1, "table_index out of range"))
+            _log(name, sp, ti, "refused: table_index out of range", resolvedBy=resolved_by)
             continue
         ts, te = spans[ti]
+        dims_before = _table_dims(section[ts:te])
         try:
             if name == "delete_table":
                 ps, pe = _p_wrapper_span(section, ts)
                 new_section = section[:ps] + section[pe:]
+                dims_after = "deleted"
             elif name in _STRUCT_OPS:
                 new_table = _STRUCT_OPS[name](section[ts:te].decode("utf-8"), op)
                 _validate_or_raise(new_table)
                 new_section = section[:ts] + new_table.encode("utf-8") + section[te:]
+                dims_after = _table_dims(new_table)
             else:
                 skipped.append(CellSkipped(sp, ti, -1, -1, f"unknown op {name!r}"))
+                _log(name, sp, ti, f"refused: unknown op {name!r}", resolvedBy=resolved_by)
                 continue
         except TableStructureError as exc:
             skipped.append(CellSkipped(sp, ti, -1, -1, f"{name}: {exc}"))
+            _log(name, sp, ti, f"refused: {exc}", resolvedBy=resolved_by, dims=dims_before)
             continue
         sections[sp] = new_section
         changed.add(sp)
+        _log(name, sp, ti, "would_apply" if dry_run else "applied",
+             resolvedBy=resolved_by, dims=f"{dims_before}→{dims_after}")
 
     intermediate = source_bytes
     if changed:
@@ -1118,21 +1158,24 @@ def apply_table_ops(
         except ValueError:
             intermediate = _rewrite_zip_entries(source_bytes, {sp: sections[sp] for sp in changed})
 
+    effective_output = None if dry_run else output_path
     if fill_ops:
-        fres = fill_cells(intermediate, fill_ops, output_path=output_path)
+        fres = fill_cells(intermediate, fill_ops, output_path=effective_output)
         return CellFillResult(
             fres.data, fres.applied, tuple(skipped) + fres.skipped,
             tuple(sorted(changed | set(fres.changed_parts))),
             fres.data == source_bytes,
             "partial-local-record-copy" if (changed or fres.changed_parts) else "none",
             fres.open_safety,
+            tuple(transcript),
         )
 
-    open_safety, _ = _finalize(intermediate, output_path, source=source)
+    open_safety, _ = _finalize(intermediate, effective_output, source=source)
     return CellFillResult(
         intermediate, (), tuple(skipped), tuple(sorted(changed)),
         intermediate == source_bytes,
         "partial-local-record-copy" if changed else "none", open_safety,
+        tuple(transcript),
     )
 
 
