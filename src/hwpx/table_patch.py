@@ -1075,6 +1075,134 @@ def _set_row_heights(table: str, heights: Mapping[int, int]) -> str:
     return out
 
 
+def _materialize_parapr(header: bytes, base_id: str, line_spacing: int,
+                        cache: dict[tuple[str, int], str]) -> tuple[bytes, str]:
+    """paraPr *base_id*를 lineSpacing만 바꾼 변형으로 복제(header 추가·itemCnt 범프).
+
+    lineSpacing은 hp:switch/hp:case 분기 안에도 중복 존재하므로 클론 내 전부 치환."""
+    key = (base_id, line_spacing)
+    if key in cache:
+        return header, cache[key]
+    bid = re.escape(base_id.encode())
+    m = re.search(rb'<(?:[A-Za-z_][\w.-]*:)?paraPr\b[^>]*?\bid="' + bid + rb'".*?</(?:[A-Za-z_][\w.-]*:)?paraPr>', header, re.DOTALL)
+    if m is None:
+        raise KeyError(f"base paraPr {base_id} not found")
+    ids = [int(x) for x in re.findall(rb'<(?:[A-Za-z_][\w.-]*:)?paraPr\b[^>]*?\bid="(\d+)"', header)]
+    new_id = str(max(ids) + 1 if ids else 0)
+    clone = re.sub(rb'(\bid=")\d+(")', rb'\g<1>' + new_id.encode() + rb'\g<2>', m.group(0), count=1)
+    clone = re.sub(rb'(<(?:[A-Za-z_][\w.-]*:)?lineSpacing\b[^>]*?\bvalue=")\d+(")',
+                   lambda mm: mm.group(1) + str(line_spacing).encode() + mm.group(2), clone)
+    close = re.search(rb'</(?:[A-Za-z_][\w.-]*:)?paraProperties>', header)
+    if close is None:
+        raise KeyError("paraProperties close tag not found")
+    header = header[:close.start()] + clone + header[close.start():]
+    header = re.sub(
+        rb'(<(?:[A-Za-z_][\w.-]*:)?paraProperties\b[^>]*?\bitemCnt=")(\d+)(")',
+        lambda mm: mm.group(1) + str(int(mm.group(2)) + 1).encode() + mm.group(3),
+        header, count=1,
+    )
+    cache[key] = new_id
+    return header, new_id
+
+
+def _apply_cell_line_spacing(
+    source_bytes: bytes, ops: Sequence[Mapping[str, Any]],
+) -> tuple[bytes, list[dict[str, Any]], list[CellSkipped]]:
+    """셀 내부 문단 줄간격 조정 패스 — Stage 3 간격 프리미티브(사람 편집 1순위 수단).
+
+    op: {op:'set_cell_line_spacing', section_path?, table_index|table_anchor,
+    cells:[[r,c],...] 또는 rows:[r,...], line_spacing:int(PERCENT)}. 대상 셀의
+    각 문단 paraPr을 lineSpacing 변형으로 재매핑하고 linesegarray를 제거한다
+    (stale 캐시 줄겹침 방지). 중첩 표를 품은 셀은 refuse."""
+    import io, zipfile
+    with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as zf:
+        parts = {i.filename: zf.read(i.filename) for i in zf.infolist() if not i.is_dir()}
+    header_name = _header_part_name(parts)
+    header = parts.get(header_name)
+    transcript: list[dict[str, Any]] = []
+    skipped: list[CellSkipped] = []
+    cache: dict[tuple[str, int], str] = {}
+    changed_parts: set[str] = set()
+
+    for op in ops:
+        sp = str(op.get("section_path") or op.get("sectionPath") or "Contents/section0.xml")
+        entry: dict[str, Any] = {"op": "set_cell_line_spacing", "sectionPath": sp}
+        section = parts.get(sp)
+        spacing = int(op.get("line_spacing", op.get("lineSpacing", 0)))
+        if section is None or header is None or spacing <= 0:
+            skipped.append(CellSkipped(sp, -1, -1, -1, "set_cell_line_spacing: bad section/header/line_spacing"))
+            entry["status"] = "refused: bad section/header/line_spacing"
+            transcript.append(entry)
+            continue
+        spans = _iter_table_spans(section)
+        ti_raw = op.get("table_index", op.get("tableIndex"))
+        tanchor = op.get("table_anchor") or op.get("tableAnchor")
+        if ti_raw is None and tanchor is not None:
+            m = _find_tables_by_anchor(section, str(tanchor), spans)
+            if len(m) != 1:
+                skipped.append(CellSkipped(sp, -1, -1, -1, f"set_cell_line_spacing: anchor {tanchor!r} → {len(m)} tables"))
+                entry["status"] = f"refused: anchor → {len(m)} tables"
+                transcript.append(entry)
+                continue
+            ti = m[0]
+        else:
+            ti = int(ti_raw)
+        if not 0 <= ti < len(spans):
+            skipped.append(CellSkipped(sp, ti, -1, -1, "set_cell_line_spacing: table_index out of range"))
+            entry["status"] = "refused: table_index out of range"
+            transcript.append(entry)
+            continue
+        ts, te = spans[ti]
+        table = section[ts:te].decode("utf-8")
+        want_cells = {(int(r), int(c)) for r, c in op.get("cells", [])}
+        want_rows = {int(r) for r in op.get("rows", [])}
+        touched = 0
+        out_table = table
+        for m in sorted(re.finditer(r"<hp:tc\b.*?</hp:tc>", table, re.S), key=lambda x: -x.start()):
+            blk = m.group(0)
+            ra = re.search(r'<hp:cellAddr\b[^>]*\browAddr="(\d+)"', blk)
+            ca = re.search(r'<hp:cellAddr\b[^>]*\bcolAddr="(\d+)"', blk)
+            if ra is None or ca is None:
+                continue
+            r, c = int(ra.group(1)), int(ca.group(1))
+            if not ((r, c) in want_cells or r in want_rows):
+                continue
+            if "<hp:tbl" in blk:
+                skipped.append(CellSkipped(sp, ti, r, c, "set_cell_line_spacing: nested table in cell — refuse"))
+                continue
+            new_blk = blk
+            for pm in sorted(re.finditer(r"<hp:p\b.*?</hp:p>", new_blk, re.S), key=lambda x: -x.start()):
+                pblk = pm.group(0)
+                pid = re.search(r'\bparaPrIDRef="(\d+)"', pblk)
+                if pid is None:
+                    continue
+                header, new_id = _materialize_parapr(header, pid.group(1), spacing, cache)
+                pblk2 = pblk.replace(f'paraPrIDRef="{pid.group(1)}"', f'paraPrIDRef="{new_id}"', 1)
+                pblk2 = _strip_paragraph_layout_cache(pblk2.encode("utf-8")).decode("utf-8")
+                new_blk = new_blk[: pm.start()] + pblk2 + new_blk[pm.end():]
+            if new_blk != blk:
+                out_table = out_table[: m.start()] + new_blk + out_table[m.end():]
+                touched += 1
+        if out_table != table:
+            parts[sp] = section[:ts] + out_table.encode("utf-8") + section[te:]
+            changed_parts.add(sp)
+        entry.update({"tableIndex": ti, "lineSpacing": spacing, "cellsTouched": touched,
+                      "status": "applied" if touched else "refused: no matching cells"})
+        if not touched:
+            skipped.append(CellSkipped(sp, ti, -1, -1, "set_cell_line_spacing: no matching cells"))
+        transcript.append(entry)
+
+    if changed_parts and header_name:
+        parts[header_name] = header
+        payload = {n: parts[n] for n in changed_parts | {header_name}}
+        try:
+            out = _patch_zip_entries(source_bytes, payload)
+        except ValueError:
+            out = _rewrite_zip_entries(source_bytes, payload)
+        return out, transcript, skipped
+    return source_bytes, transcript, skipped
+
+
 def _p_wrapper_span(section: bytes, table_start: int) -> tuple[int, int]:
     """Byte span of the <hp:p> paragraph that wraps the table starting at
     *table_start* (used by delete_table)."""
@@ -1134,7 +1262,8 @@ def apply_table_ops(
     보여주는 승인 근거용.
     """
     source_bytes = _read_source_bytes(source)
-    struct_ops = [o for o in ops if o.get("op") != "fill_cell"]
+    struct_ops = [o for o in ops if o.get("op") not in ("fill_cell", "set_cell_line_spacing")]
+    spacing_ops = [o for o in ops if o.get("op") == "set_cell_line_spacing"]
     fill_ops = [{**o, "section_path": o.get("section_path") or o.get("sectionPath") or "Contents/section0.xml"}
                 for o in ops if o.get("op") == "fill_cell"]
 
@@ -1213,6 +1342,17 @@ def apply_table_ops(
             intermediate = _patch_zip_entries(source_bytes, {sp: sections[sp] for sp in changed})
         except ValueError:
             intermediate = _rewrite_zip_entries(source_bytes, {sp: sections[sp] for sp in changed})
+
+    if spacing_ops:
+        intermediate, sp_transcript, sp_skips = _apply_cell_line_spacing(intermediate, spacing_ops)
+        if dry_run:
+            for e in sp_transcript:
+                if e.get("status") == "applied":
+                    e["status"] = "would_apply"
+        transcript.extend(sp_transcript)
+        skipped.extend(sp_skips)
+        if intermediate != source_bytes:
+            changed.update(e["sectionPath"] for e in sp_transcript if "would_apply" in e.get("status", "") or e.get("status") == "applied")
 
     effective_output = None if dry_run else output_path
     if fill_ops:
