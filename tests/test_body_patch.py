@@ -151,3 +151,27 @@ def test_replace_text_strips_stale_layout_cache(work, tmp_path):
     assert idx > 0
     para = xml[xml.rfind("<hp:p", 0, idx): xml.find("</hp:p>", idx)]
     assert "linesegarray" not in para
+
+
+def test_restyle_text_normalizes_slot_style(work, tmp_path):
+    """안내용 슬롯 서식(파랑 등)을 상속한 텍스트를 본문 서식으로 정규화 —
+    원본 charPr은 불변, 변형은 header에 새 id로."""
+    out = tmp_path / "out.hwpx"
+    res = apply_body_ops(
+        work,
+        [{"op": "restyle_text", "find": "함께 노래하는 음악", "count": 2, "text_color": "#000000"}],
+        output_path=out,
+    )
+    assert res.ok, res.skipped
+    entry = res.transcript[0]
+    assert entry["status"] == "applied" and entry["charPr"]
+    base, new = entry["charPr"][-1].split("→")
+    header = zipfile.ZipFile(out).read("Contents/header.xml").decode("utf-8")
+    import re as _re
+    new_block = _re.search(r'<hh:charPr\b[^>]*\bid="' + new + r'".*?</hh:charPr>|<hh:charPr\b[^>]*\bid="' + new + r'"[^>]*/>', header, _re.DOTALL).group(0)
+    assert 'textColor="#000000"' in new_block
+    assert "<hh:italic" not in new_block
+    # 원본 charPr도 여전히 존재(다른 파란 런들은 유지)
+    assert _re.search(r'<hh:charPr\b[^>]*\bid="' + base + r'"', header)
+    xml = _section(out)
+    assert f'charPrIDRef="{new}"' in xml
