@@ -175,3 +175,49 @@ def test_restyle_text_normalizes_slot_style(work, tmp_path):
     assert _re.search(r'<hh:charPr\b[^>]*\bid="' + base + r'"', header)
     xml = _section(out)
     assert f'charPrIDRef="{new}"' in xml
+
+
+def test_set_paragraph_text_by_index(work, tmp_path):
+    xml = _section(work)
+    texts = _texts(xml)
+    idx = next(i for i, t in enumerate(texts) if t.strip() == "가.")
+    out = tmp_path / "out.hwpx"
+    res = apply_body_ops(
+        work, [{"op": "set_paragraph_text", "index": idx, "text": "가. 새로 채운 목적 문장이다."}],
+        output_path=out,
+    )
+    assert res.ok, res.skipped
+    assert _texts(_section(out))[idx] == "가. 새로 채운 목적 문장이다."
+    # lineseg 제거됨
+    xml2 = _section(out)
+    para = xml2[direct_paragraph_spans(xml2)[idx][0]: direct_paragraph_spans(xml2)[idx][1]]
+    assert "linesegarray" not in para
+
+
+def test_strip_runs_by_color_reaches_cells(work, tmp_path):
+    """셀 내부 포함 문서 전체의 red 런 텍스트가 비워진다(색 기반 검증)."""
+    import hwpx.guidance_scan as gs
+    from hwpx.body_patch import strip_runs_by_color
+    from hwpx.fill_residue import _scan_paragraphs
+    out = tmp_path / "out.hwpx"
+    res = strip_runs_by_color(work, ["#FF0000"], output_path=out)
+    assert res.ok, res.open_safety
+    assert res.transcript and sum(t["runsBlanked"] for t in res.transcript) >= 30
+    # 산출물에 가시 텍스트를 가진 red-family 런이 남지 않음(셀 포함)
+    for pp in _scan_paragraphs(str(out)):
+        for cpr, hexc, t in pp.spans:
+            assert not (t.strip() and gs._color_family(hexc) == "red"), f"red 런 잔존: {t!r} @ {pp.location()}"
+
+
+def test_recolor_runs_exact_hex(work, tmp_path):
+    """정확 hex 매칭으로 재색 — 계열 다른 디자인색은 불변."""
+    import hwpx.guidance_scan as gs
+    from hwpx.body_patch import recolor_runs_by_color
+    from hwpx.fill_residue import _scan_paragraphs
+    out = tmp_path / "out.hwpx"
+    res = recolor_runs_by_color(work, ["#0000FF"], "#000000", output_path=out)
+    assert res.ok, res.open_safety
+    # #0000FF 정확색 런이 사라짐(→검정), 하지만 다른 파랑계열(디자인)은 남을 수 있음
+    for pp in _scan_paragraphs(str(out)):
+        for cpr, hexc, t in pp.spans:
+            assert hexc.upper() != "#0000FF" or not t.strip(), f"#0000FF 잔존: {t!r}"

@@ -15,6 +15,9 @@ Ops (index = 섹션 직속 ``<hp:p>`` 문서순, **op 실행 시점의 현재 �
 - ``insert_paragraph_by_clone``  {ref_index, count=1, texts=[...]?}
     참조 문단을 서식 verbatim 복제(id 재작성·linesegarray 제거) 후 ref 뒤에 삽입.
     texts[i]가 있으면 해당 클론의 텍스트를 교체 — **이웃 문단 서식 상속** 경로.
+- ``set_paragraph_text``  {index, text}
+    index번째 섹션 직속 문단의 텍스트를 통째 설정(fill_cell의 본문판) — 빈/마커
+    문단("가." 등)에 내용을 넣을 때. 첫 런 서식 상속, stale linesegarray 제거.
 - ``reorder_paragraphs``  {start, end, order}
     연속 구간 [start..end]를 order(구간 내 상대 인덱스 순열)로 재배열.
 - ``restyle_text``  {find, count=1, text_color?, drop_italic=True}
@@ -41,7 +44,10 @@ from .patch import (
     _text_edit_for_paragraph,
 )
 
-__all__ = ["BodyOpsResult", "apply_body_ops", "direct_paragraph_spans"]
+__all__ = [
+    "BodyOpsResult", "apply_body_ops", "direct_paragraph_spans",
+    "strip_runs_by_color", "recolor_runs_by_color",
+]
 
 _P_EDGE_RE = re.compile(r"<hp:p[ >]|</hp:p>")
 _T_CONTENT_RE = re.compile(r"<hp:t(?:\s[^>]*)?>(.*?)</hp:t>", re.S)
@@ -304,13 +310,188 @@ def _op_restyle_text(xml: str, op: Mapping[str, Any], ctx: dict[str, Any]) -> tu
                  "textColor": text_color, "dropItalic": drop_italic}
 
 
+def _op_set_paragraph_text(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[str, Any]]:
+    spans = direct_paragraph_spans(xml)
+    index = int(op["index"])
+    if not 0 <= index < len(spans):
+        raise ValueError(f"set_paragraph_text: index {index} out of range (0..{len(spans) - 1})")
+    a, b = spans[index]
+    block = xml[a:b]
+    if _TBL_RE.search(block):
+        raise ValueError("set_paragraph_text: paragraph wraps a table — refuse")
+    edited = _text_edit_for_paragraph(block.encode("utf-8"), str(op["text"]))
+    if edited is None:
+        raise ValueError("set_paragraph_text: paragraph has no text run to set")
+    new_block = _strip_paragraph_layout_cache(edited[2]).decode("utf-8")
+    old = "".join(m.group(1) for m in _T_CONTENT_RE.finditer(block))
+    return xml[:a] + new_block + xml[b:], {"index": index, "old": _preview(html.unescape(old)),
+                                           "new": _preview(str(op["text"]))}
+
+
 _OPS = {
     "replace_text": _op_replace_text,
     "delete_paragraph": _op_delete_paragraph,
     "insert_paragraph_by_clone": _op_insert_paragraph_by_clone,
     "reorder_paragraphs": _op_reorder_paragraphs,
+    "set_paragraph_text": _op_set_paragraph_text,
     "restyle_text": _op_restyle_text,  # dispatch에서 ctx 전달로 특수 처리
 }
+
+
+def recolor_runs_by_color(
+    source: str | Path | bytes,
+    from_hexes: Sequence[str],
+    to_color: str,
+    *,
+    output_path: str | Path | None = None,
+    dry_run: bool = False,
+) -> BodyOpsResult:
+    """문서 전체(셀 포함)에서 지정 색(정확 hex)의 run을 to_color로 재색.
+
+    양식이 "이 색 글씨는 과목별로 수정"(평가계획 파랑)이라 선언한 슬롯을 채우면
+    슬롯 색을 상속하는데, 채운 내용은 사람 본문이므로 검정이어야 한다. from_hexes와
+    정확히 일치하는 charPr을 to_color 변형으로 복제(header)하고 해당 run의
+    charPrIDRef만 재매핑한다(글꼴·크기 등 나머지 서식 보존). 디자인색 오염 방지를
+    위해 계열이 아닌 **정확 hex** 매칭."""
+    source_bytes = _read_source_bytes(source)
+    from_set = {h.upper() for h in from_hexes}
+    import io, zipfile
+
+    with zipfile.ZipFile(io.BytesIO(source_bytes)) as z:
+        names = z.namelist()
+        header_name = next((n for n in names if n.endswith("header.xml")), None)
+        header_xml = z.read(header_name).decode("utf-8") if header_name else ""
+        sections = {n: z.read(n).decode("utf-8") for n in names if re.search(r"section\d+\.xml$", n)}
+
+    ids = set()
+    for cm in re.finditer(r"<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?>", header_xml):
+        idm = re.search(r'\bid="(\d+)"', cm.group(0))
+        colm = re.search(r'\btextColor="([^"]+)"', cm.group(0))
+        if idm and colm and colm.group(1).upper() in from_set:
+            ids.add(idm.group(1))
+
+    cache: dict[tuple, str] = {}
+    idmap: dict[str, str] = {}
+    for rid in sorted(ids, key=int):
+        header_xml, new_id = _materialize_restyled_charpr(header_xml, rid, to_color, False, cache)
+        idmap[rid] = new_id
+
+    transcript: list[dict[str, Any]] = []
+    changed: set[str] = set()
+    for sp, xml in sections.items():
+        n = [0]
+
+        def _remap(m: "re.Match") -> str:
+            old = m.group(1)
+            if old not in idmap:
+                return m.group(0)
+            n[0] += 1
+            return m.group(0).replace(f'charPrIDRef="{old}"', f'charPrIDRef="{idmap[old]}"', 1)
+
+        new_xml = re.sub(r'<hp:run\b[^>]*\bcharPrIDRef="(\d+)"[^>]*>', _remap, xml)
+        if n[0] == 0:
+            continue
+        sections[sp] = new_xml
+        changed.add(sp)
+        transcript.append({"op": "recolor_runs_by_color", "sectionPath": sp,
+                          "runsRecolored": n[0], "toColor": to_color,
+                          "status": "would_apply" if dry_run else "applied"})
+
+    intermediate = source_bytes
+    if changed and header_name:
+        payload = {sp: sections[sp].encode("utf-8") for sp in changed}
+        payload[header_name] = header_xml.encode("utf-8")
+        try:
+            intermediate = _patch_zip_entries(source_bytes, payload)
+        except ValueError:
+            intermediate = _rewrite_zip_entries(source_bytes, payload)
+    open_safety, _ = _finalize(intermediate, None if dry_run else output_path, source=source)
+    return BodyOpsResult(intermediate, (), tuple(transcript), tuple(sorted(changed)),
+                         intermediate == source_bytes, open_safety)
+
+
+def strip_runs_by_color(
+    source: str | Path | bytes,
+    hex_colors: Sequence[str],
+    *,
+    output_path: str | Path | None = None,
+    dry_run: bool = False,
+) -> BodyOpsResult:
+    """문서 전체(셀 내부 포함)에서 지정 색의 run 텍스트를 비운다(런 구조 유지).
+
+    양식이 색 범례로 "이 색 글씨는 모두 삭제"를 선언한 경우(평가계획 빨강)의
+    일괄 청소 — 안내문·범례가 셀·헤딩 표에 흩어진 red run이라 문단 op가 못 닿는
+    문제를 해결한다. charPrIDRef가 header에서 target textColor를 가리키는 run의
+    ``<hp:t>`` 내용을 비우고, 그 run이 든 문단의 stale linesegarray를 제거한다.
+    미변경 부분은 byte-identical."""
+    source_bytes = _read_source_bytes(source)
+    import io, zipfile
+
+    targets = {h.upper() for h in hex_colors}
+    with zipfile.ZipFile(io.BytesIO(source_bytes)) as z:
+        names = z.namelist()
+        header_name = next((n for n in names if n.endswith("header.xml")), None)
+        header_xml = z.read(header_name).decode("utf-8") if header_name else ""
+        sections = {n: z.read(n).decode("utf-8") for n in names if re.search(r"section\d+\.xml$", n)}
+
+    # 계열 매칭(잔존 게이트와 정렬): 대상 색의 _color_family에 드는 모든 charPr.
+    from .guidance_scan import _color_family
+    target_families = {_color_family(h) for h in targets}
+    ids = set()
+    for cm in re.finditer(r"<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?>", header_xml):
+        tag = cm.group(0)
+        idm = re.search(r'\bid="(\d+)"', tag)
+        colm = re.search(r'\btextColor="([^"]+)"', tag)
+        if not (idm and colm):
+            continue
+        col = colm.group(1).upper()
+        if col in targets or _color_family(col) in target_families:
+            ids.add(idm.group(1))
+    transcript: list[dict[str, Any]] = []
+    changed: set[str] = set()
+    total = 0
+    counter = {"n": 0}
+    run_re = re.compile(
+        r"(?P<open><hp:run\b[^>]*\bcharPrIDRef=\"(\d+)\"[^>]*>)(?P<body>.*?)(?P<close></hp:run>)",
+        re.S,
+    )
+
+    def _sub(m: "re.Match") -> str:
+        if m.group(2) not in ids:
+            return m.group(0)
+        body = re.sub(r"(<hp:t\b[^>]*>).*?(</hp:t>)", r"\1\2", m.group("body"), flags=re.S)
+        if body != m.group("body"):
+            counter["n"] += 1
+        return m.group("open") + body + m.group("close")
+
+    for sp, xml in sections.items():
+        counter["n"] = 0
+        new_xml = run_re.sub(_sub, xml)
+        n = counter["n"]
+        if n == 0:
+            continue
+        # 편집된 문단들의 linesegarray 제거(재계산)
+        new_xml = re.sub(
+            r"(<hp:p\b(?:(?!</hp:p>).)*?<hp:t\b[^>]*></hp:t>(?:(?!</hp:p>).)*?)"
+            r"<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)linesegarray\b(?:[^>]*?/>|[^>]*>.*?</(?P=ns)linesegarray>)",
+            r"\1", new_xml, flags=re.S,
+        )
+        sections[sp] = new_xml
+        changed.add(sp)
+        total += n
+        transcript.append({"op": "strip_runs_by_color", "sectionPath": sp,
+                           "runsBlanked": n, "status": "would_apply" if dry_run else "applied"})
+
+    intermediate = source_bytes
+    if changed:
+        payload = {sp: sections[sp].encode("utf-8") for sp in changed}
+        try:
+            intermediate = _patch_zip_entries(source_bytes, payload)
+        except ValueError:
+            intermediate = _rewrite_zip_entries(source_bytes, payload)
+    open_safety, _ = _finalize(intermediate, None if dry_run else output_path, source=source)
+    return BodyOpsResult(intermediate, (), tuple(transcript), tuple(sorted(changed)),
+                         intermediate == source_bytes, open_safety)
 
 
 def apply_body_ops(
