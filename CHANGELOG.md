@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [2.24.0] - 2026-07-08
+### 추가
+- **Stage 3 범용 form-fill 프리미티브 (universal form-fill goal)**: 임의 양식을 제출본급으로 채우는 동적 파이프라인의 손. `hwpx.guidance_scan.scan_form_guidance`(비변형 정찰: 셀·캡션 포함 색 신호/범례/placeholder/빈 셀 후보). `hwpx.body_patch`(표 밖 문단 바이트보존 op: replace_text·delete_paragraph·insert_paragraph_by_clone·reorder_paragraphs·restyle_text·set_paragraph_text + 문서전체 `strip_runs_by_color`(범례 "이 색=삭제" 구동)·`recolor_runs_by_color`(슬롯색→본문색)). `hwpx.table_patch` 신규 op: `split_cell_vertical`(병합 셀 N그룹 분할)·`clone_table`(표 복제)·`set_row_heights`·`set_cell_line_spacing` + `apply_table_ops(dry_run=)` transcript. `hwpx.fill_residue.inspect_fill_residue`(채움본 잔존물 zero-체크 게이트).
+### 비고
+- 평가계획 3학년 실양식을 처음부터 끝까지(삭제·재구성·채움·청소·recolor) 범용 프리미티브만으로 완성, 실한컴 렌더 + 오너 실물 검수 PASS로 검증(도메인 전용 코드 0줄).
+
+
 ## [2.23.0] - 2026-07-03
 ### 추가
 - **폰트 shrink-to-fit (M10 후속, S-064)**: `hwpx.table_patch.fill_cells`에 `fit_max_lines`(+ 셀별 `max_lines`) — 셀 텍스트가 템플릿 폰트로 목표 줄수를 넘겨 wrap되면 `form_fit` FitEngine이 확신을 갖고 들어가는 가장 큰 폰트(≥ `min_font_pt`)를 골라 **실제 `<hh:charPr>`로 재료화**(base charPr 복제·height 변경)하고 셀 run을 그 charPr로 재지정. byte-preserving(header.xml의 새 charPr + 해당 섹션만 변경, opt-in이라 목표 없는 채움은 바이트 동일). FitEngine 정직 게이트가 borderline shrink는 거부(확실히 들어갈 때만 축소).
