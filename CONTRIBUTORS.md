@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- rolee74 ([@rolee74](https://github.com/rolee74)) — lxml 상한을 `<7`로 완화하여 lxml 6.x 지원 (#46).
+
 ## 2.10.2
 
 - Dahyun Lee ([@AgentBridge-Lab](https://github.com/AgentBridge-Lab)) — rich Markdown export, 각주/미주 본문 helper, `charPrIDRef` 각주 본문 적용 수정, 회귀 테스트 추가 (#42).
