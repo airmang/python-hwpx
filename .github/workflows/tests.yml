@@ -36,8 +36,8 @@ jobs:
 
       - name: Run tests and keep summary log
         env:
-          # 이번 hardening 범위에서 안정적으로 지킬 수 있는 수준까지 현실적으로 상향합니다.
-          COVERAGE_FAIL_UNDER: 60
+          # 2026-07 실측 86%에서 출발하는 회귀 방지 래칫.
+          COVERAGE_FAIL_UNDER: 80
         run: |
           pytest -v -ra --cov=hwpx --cov-report=term-missing --cov-fail-under=${COVERAGE_FAIL_UNDER} 2>&1 | tee pytest-summary.log
 

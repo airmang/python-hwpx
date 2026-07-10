@@ -11,7 +11,27 @@ permissions:
   id-token: write
 
 jobs:
+  prepublish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install release test dependencies
+        run: python -m pip install -e ".[test,typecheck]"
+      - name: Run typing checks
+        run: |
+          python scripts/check_typing_generics_scope.py
+          mypy
+          pyright
+      - name: Run tests with coverage ratchet
+        run: pytest -q --cov=hwpx --cov-report=term-missing --cov-fail-under=80
+      - name: Run structural conformance gate
+        run: hwpx-conformance run --tier structural --check tests/conformance/golden/structural.json --out conformance-report
+
   release:
+    needs: prepublish
     runs-on: ubuntu-latest
 
     steps:

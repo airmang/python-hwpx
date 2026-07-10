@@ -100,11 +100,19 @@ testpaths = ["tests"]
 
 [tool.mypy]
 python_version = "3.10"
+# Explicit gradual-migration allowlist: transitive imports enter the gate only
+# after they are added here and made clean themselves.
+follow_imports = "skip"
 files = [
     "src/hwpx/document.py",
     "src/hwpx/oxml/document.py",
     "src/hwpx/opc/package.py",
     "src/hwpx/opc/relationships.py",
+    "src/hwpx/oxml/paragraph.py",
+    "src/hwpx/oxml/run.py",
+    "src/hwpx/oxml/table.py",
+    "src/hwpx/quality/policy.py",
+    "src/hwpx/quality/report.py",
     "src/hwpx/tools/archive_cli.py",
     "src/hwpx/tools/package_validator.py",
     "src/hwpx/tools/page_guard.py",
@@ -126,6 +134,11 @@ ignore_errors = true
 include = [
     "src/hwpx/opc/package.py",
     "src/hwpx/opc/relationships.py",
+    "src/hwpx/oxml/paragraph.py",
+    "src/hwpx/oxml/run.py",
+    "src/hwpx/oxml/table.py",
+    "src/hwpx/quality/policy.py",
+    "src/hwpx/quality/report.py",
     "src/hwpx/tools/archive_cli.py",
     "src/hwpx/tools/package_validator.py",
     "src/hwpx/tools/page_guard.py",
