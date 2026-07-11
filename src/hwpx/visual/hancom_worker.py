@@ -166,6 +166,7 @@ class SerializedHancomWorker:
         self._lock = threading.Lock()
         self._session: RenderSession | None = None
         self._generation = 0
+        self._poisoned_thread: threading.Thread | None = None
 
     def _new_session(self) -> RenderSession:
         self._generation += 1
@@ -186,6 +187,11 @@ class SerializedHancomWorker:
             self._lock.release()
 
     def _render_locked(self, job: WorkerJob) -> WorkerResult:
+        if self._poisoned_thread is not None:
+            if self._poisoned_thread.is_alive():
+                return self._failure(job, "POISONED_SESSION_STILL_RUNNING", retryable=True)
+            self._poisoned_thread = None
+            self._restart_session()
         actual = sha256_file(job.input_path)
         if actual != job.input_content_hash:
             return self._failure(job, "INPUT_HASH_MISMATCH", retryable=False)
@@ -209,7 +215,10 @@ class SerializedHancomWorker:
             if thread.is_alive():
                 session.abort()
                 thread.join(self.abort_grace_seconds)
-                self._restart_session()
+                if thread.is_alive():
+                    self._poisoned_thread = thread
+                else:
+                    self._restart_session()
                 return self._failure(job, "COM_WATCHDOG_TIMEOUT", retryable=True)
             if "error" in outcome or not outcome.get("pdf") or not pdf.is_file():
                 self._restart_session()

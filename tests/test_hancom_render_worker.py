@@ -91,6 +91,27 @@ def test_watchdog_aborts_poisoned_session_and_restarts_generation(tmp_path):
     assert len(sessions) == 2 and second.session_generation == 2
 
 
+class NonCooperativeSession(BlockingSession):
+    def abort(self):
+        self.aborted = True
+
+
+def test_noncooperative_timed_out_session_blocks_all_new_com_work(tmp_path):
+    sessions = []
+    def factory():
+        session = NonCooperativeSession(); sessions.append(session); return session
+    worker = SerializedHancomWorker(
+        tmp_path / "worker", session_factory=factory, worker_version="test/1",
+        timeout_seconds=0.01, abort_grace_seconds=0.01,
+    )
+    first = worker.render(job(tmp_path, "0001"))
+    second = worker.render(job(tmp_path, "0002"))
+    assert first.terminal_reason == "COM_WATCHDOG_TIMEOUT"
+    assert second.terminal_reason == "POISONED_SESSION_STILL_RUNNING"
+    assert len(sessions) == 1
+    sessions[0].stop.set()
+
+
 class SerialProbeSession(DeterministicFakeSession):
     def __init__(self, probe):
         super().__init__(); self.probe = probe
