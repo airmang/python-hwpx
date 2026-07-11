@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "hwpx.render-measurement.v1",
+  "corpusId": "s068-mixed-100-v1",
+  "corpusContractHash": "5bb221d90c5cd138fa7561ae09eea41a25154fdd2f9f54cf2011c49d6dfab442",
+  "documents": 100,
+  "bucketCounts": {
+    "simple_text": 15,
+    "tables_and_merges": 20,
+    "known_templates": 15,
+    "unknown_forms": 15,
+    "images_and_shapes": 10,
+    "multi_section_multipage": 10,
+    "large_near_limit": 10,
+    "invalid_or_unsupported": 5
+  },
+  "queueReopenInterval": 10,
+  "duplicateSubmissionAttempts": 100,
+  "lostJobs": 0,
+  "duplicateTerminalReceipts": 0,
+  "terminalAccountingRate": 1.0,
+  "exactAccounting": true,
+  "successAvailability": 0.0,
+  "latencySeconds": {
+    "p50": 50.95,
+    "p95": 95.905,
+    "p99": 99.901
+  },
+  "renderChecked": false,
+  "realHancom": false,
+  "terminalReason": "MEASUREMENT_NO_REAL_HANCOM",
+  "note": "Queue accounting baseline only; real-Hancom availability is measured by the approved soak/E2E gate."
+}
