@@ -24,6 +24,21 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .masks import EditMask
+from .fixture_corpus import FixtureCase, FixtureCorpus, FixturePage, load_fixture_manifest
+from .page_qa import inspect_fixture_case, inspect_page_png, inspect_page_set
+from .qa_contracts import (
+    TAXONOMY_VERSION,
+    DefectCategory,
+    DocumentTarget,
+    Evidence,
+    FindingSeverity,
+    NormalizedBBox,
+    PageVerdict,
+    Provenance,
+    VerdictStatus,
+    VisualFinding,
+    VisualVerdict,
+)
 from .report import VisualReport
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -59,6 +74,24 @@ __all__ = [
     "RenderOracle",
     "VisualReport",
     "EditMask",
+    "TAXONOMY_VERSION",
+    "DefectCategory",
+    "FindingSeverity",
+    "VerdictStatus",
+    "NormalizedBBox",
+    "Evidence",
+    "Provenance",
+    "DocumentTarget",
+    "VisualFinding",
+    "PageVerdict",
+    "VisualVerdict",
+    "FixturePage",
+    "FixtureCase",
+    "FixtureCorpus",
+    "load_fixture_manifest",
+    "inspect_page_png",
+    "inspect_page_set",
+    "inspect_fixture_case",
 ]
 
 
@@ -75,4 +108,3 @@ def __getattr__(name: str):
 
         return getattr(oracle, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
