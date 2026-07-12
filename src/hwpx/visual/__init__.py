@@ -85,6 +85,7 @@ __all__ = [
     "VisualFinding",
     "PageVerdict",
     "VisualVerdict",
+    "measure_fixture_corpus",
     "FixturePage",
     "FixtureCase",
     "FixtureCorpus",
@@ -107,4 +108,8 @@ def __getattr__(name: str):
         from . import oracle
 
         return getattr(oracle, name)
+    if name == "measure_fixture_corpus":
+        from .qa_metrics import measure_fixture_corpus
+
+        return measure_fixture_corpus
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

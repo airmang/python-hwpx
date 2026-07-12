@@ -1,0 +1,86 @@
+{
+  "schema": "hwpx.visual-qa-metrics/v1",
+  "assurance": "fixture",
+  "renderChecked": false,
+  "counts": {
+    "cases": 4,
+    "expectedCritical": 3,
+    "predictedCritical": 3,
+    "truePositive": 3,
+    "falsePositive": 0,
+    "falseNegative": 0
+  },
+  "criticalRecall": 1.0,
+  "criticalRecall95CI": [
+    0.4385029682449546,
+    1.0
+  ],
+  "criticalPrecision": 1.0,
+  "criticalPrecision95CI": [
+    0.4385029682449546,
+    1.0
+  ],
+  "defectFalseAcceptanceRate": 0.0,
+  "defectFalseAcceptance95CI": [
+    5.551115123125783e-17,
+    0.5614970317550454
+  ],
+  "cleanFalseRejectionRate": 0.0,
+  "cleanFalseRejection95CI": [
+    0.0,
+    0.7934506856227626
+  ],
+  "thresholds": {
+    "criticalRecall": 0.95,
+    "criticalPrecision": 0.9,
+    "defectFalseAcceptanceRate": 0.01,
+    "cleanFalseRejectionRate": 0.01
+  },
+  "gatePassed": true,
+  "perCategory": {
+    "text_clipping_overlap": {
+      "tp": 2,
+      "fp": 0,
+      "fn": 0
+    },
+    "unexpected_blank_page": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0
+    }
+  },
+  "cases": [
+    {
+      "caseId": "clean-layout-001",
+      "classification": "clean",
+      "status": "pass",
+      "renderChecked": false,
+      "expectedCritical": 0,
+      "predictedCritical": 0
+    },
+    {
+      "caseId": "natural-overprint-001",
+      "classification": "natural",
+      "status": "fail",
+      "renderChecked": false,
+      "expectedCritical": 1,
+      "predictedCritical": 1
+    },
+    {
+      "caseId": "injected-edge-clip-001",
+      "classification": "injected",
+      "status": "fail",
+      "renderChecked": false,
+      "expectedCritical": 1,
+      "predictedCritical": 1
+    },
+    {
+      "caseId": "injected-blank-001",
+      "classification": "injected",
+      "status": "fail",
+      "renderChecked": false,
+      "expectedCritical": 1,
+      "predictedCritical": 1
+    }
+  ]
+}

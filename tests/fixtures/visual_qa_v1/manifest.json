@@ -39,13 +39,16 @@
           "category": "text_clipping_overlap",
           "severity": "critical",
           "bbox": [
-            0.11,
-            0.58,
-            0.82,
-            0.64
+            0.1167,
+            0.587,
+            0.818,
+            0.638
           ],
-          "labelStatus": "pending",
-          "labelers": []
+          "labelStatus": "adjudicated",
+          "labelers": [
+            "reviewer-a",
+            "reviewer-b"
+          ]
         }
       ],
       "provenance": {
@@ -71,13 +74,16 @@
           "category": "text_clipping_overlap",
           "severity": "critical",
           "bbox": [
-            0.77,
-            0.57,
+            0.775,
+            0.573,
             1.0,
-            0.59
+            0.584
           ],
-          "labelStatus": "pending",
-          "labelers": []
+          "labelStatus": "adjudicated",
+          "labelers": [
+            "reviewer-a",
+            "reviewer-b"
+          ]
         }
       ],
       "provenance": {
@@ -106,8 +112,11 @@
             1.0,
             1.0
           ],
-          "labelStatus": "pending",
-          "labelers": []
+          "labelStatus": "adjudicated",
+          "labelers": [
+            "reviewer-a",
+            "reviewer-b"
+          ]
         }
       ],
       "provenance": {
