@@ -41,12 +41,124 @@
     "text_clipping_overlap": {
       "tp": 2,
       "fp": 0,
-      "fn": 0
+      "fn": 0,
+      "recall": 1.0,
+      "recall95CI": [
+        0.34238022750665303,
+        1.0
+      ],
+      "precision": 1.0,
+      "precision95CI": [
+        0.34238022750665303,
+        1.0
+      ],
+      "sampleSufficient": true
+    },
+    "cell_overflow": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "recall": null,
+      "recall95CI": null,
+      "precision": null,
+      "precision95CI": null,
+      "sampleSufficient": false
     },
     "unexpected_blank_page": {
       "tp": 1,
       "fp": 0,
-      "fn": 0
+      "fn": 0,
+      "recall": 1.0,
+      "recall95CI": [
+        0.20654931437723745,
+        1.0
+      ],
+      "precision": 1.0,
+      "precision95CI": [
+        0.20654931437723745,
+        1.0
+      ],
+      "sampleSufficient": true
+    },
+    "leftover_guidance_placeholder_sample": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "recall": null,
+      "recall95CI": null,
+      "precision": null,
+      "precision95CI": null,
+      "sampleSufficient": false
+    },
+    "empty_required_field": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "recall": null,
+      "recall95CI": null,
+      "precision": null,
+      "precision95CI": null,
+      "sampleSufficient": false
+    },
+    "orphan_bullet_heading": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "recall": null,
+      "recall95CI": null,
+      "precision": null,
+      "precision95CI": null,
+      "sampleSufficient": false
+    },
+    "table_grid_border_anomaly": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "recall": null,
+      "recall95CI": null,
+      "precision": null,
+      "precision95CI": null,
+      "sampleSufficient": false
+    },
+    "font_color_alignment_inconsistency": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "recall": null,
+      "recall95CI": null,
+      "precision": null,
+      "precision95CI": null,
+      "sampleSufficient": false
+    },
+    "image_seal_misplacement": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "recall": null,
+      "recall95CI": null,
+      "precision": null,
+      "precision95CI": null,
+      "sampleSufficient": false
+    },
+    "header_footer_page_number_loss": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "recall": null,
+      "recall95CI": null,
+      "precision": null,
+      "precision95CI": null,
+      "sampleSufficient": false
+    },
+    "implausible_whitespace_density": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "recall": null,
+      "recall95CI": null,
+      "precision": null,
+      "precision95CI": null,
+      "sampleSufficient": false
     }
   },
   "cases": [

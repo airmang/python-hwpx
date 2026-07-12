@@ -15,3 +15,12 @@ def test_frozen_fixture_metrics_pass_and_remain_unverified() -> None:
     assert report["renderChecked"] is False
     assert report["assurance"] == "fixture"
     assert report["criticalRecall95CI"]
+    assert set(report["perCategory"]) == {
+        "text_clipping_overlap", "cell_overflow", "unexpected_blank_page",
+        "leftover_guidance_placeholder_sample", "empty_required_field",
+        "orphan_bullet_heading", "table_grid_border_anomaly",
+        "font_color_alignment_inconsistency", "image_seal_misplacement",
+        "header_footer_page_number_loss", "implausible_whitespace_density",
+    }
+    assert report["perCategory"]["text_clipping_overlap"]["recall95CI"]
+    assert report["perCategory"]["cell_overflow"]["sampleSufficient"] is False

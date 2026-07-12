@@ -8,7 +8,7 @@ from typing import Any
 
 from .fixture_corpus import FixtureCorpus
 from .page_qa import inspect_fixture_case
-from .qa_contracts import FindingSeverity, VerdictStatus
+from .qa_contracts import DefectCategory, FindingSeverity, VerdictStatus
 
 
 def _wilson(successes: int, total: int, z: float = 1.959963984540054) -> list[float] | None:
@@ -73,6 +73,20 @@ def measure_fixture_corpus(corpus: FixtureCorpus) -> dict[str, Any]:
     precision = len(true_positive) / len(predicted) if predicted else None
     defect_false_acceptance = defect_accepted / defect_total if defect_total else None
     clean_false_rejection = clean_rejected / clean_total if clean_total else None
+    category_report: dict[str, dict[str, Any]] = {}
+    for category in DefectCategory:
+        counts = per_category[category.value]
+        expected_total = counts["tp"] + counts["fn"]
+        predicted_total = counts["tp"] + counts["fp"]
+        category_report[category.value] = {
+            **counts,
+            "recall": counts["tp"] / expected_total if expected_total else None,
+            "recall95CI": _wilson(counts["tp"], expected_total),
+            "precision": counts["tp"] / predicted_total if predicted_total else None,
+            "precision95CI": _wilson(counts["tp"], predicted_total),
+            "sampleSufficient": expected_total > 0,
+        }
+
     return {
         "schema": "hwpx.visual-qa-metrics/v1",
         "assurance": "fixture",
@@ -100,7 +114,7 @@ def measure_fixture_corpus(corpus: FixtureCorpus) -> dict[str, Any]:
             and defect_false_acceptance is not None and defect_false_acceptance <= 0.01
             and clean_false_rejection is not None and clean_false_rejection <= 0.01
         ),
-        "perCategory": dict(sorted(per_category.items())),
+        "perCategory": category_report,
         "cases": case_rows,
     }
 
