@@ -54,12 +54,14 @@ from .registry import (
     validate_storage_roots,
 )
 from .scenario import PRACTICE_SCENARIO_SCHEMA, scenario_id, validate_scenario
+from .sanitize import DERIVATIVE_ID_PATTERN, sanitize_document_copy
 from .split import SPLIT_MANIFEST_SCHEMA, build_split_manifest, validate_split_manifest
 
 __all__ = [
     "LINEAGE_KINDS",
     "CONTROLLED_MUTATION_SCHEMA",
     "EVALUATOR_MANIFEST_SCHEMA",
+    "DERIVATIVE_ID_PATTERN",
     "ForgeConfig",
     "PRIVATE_REGISTRY_SCHEMA",
     "PRACTICE_SCENARIO_SCHEMA",
@@ -86,6 +88,7 @@ __all__ = [
     "intake_discovery_rows",
     "redact_private_record",
     "scenario_id",
+    "sanitize_document_copy",
     "runner_view",
     "reverse_mutation",
     "snapshot_source_tree",
