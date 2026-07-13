@@ -71,12 +71,28 @@ def _canonical_sha256(value: object) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
-def opaque_document_id(source_sha256: str, *, id_key: bytes) -> str:
-    """Return a stable keyed identifier that does not expose the source digest."""
+def opaque_document_id(
+    source_sha256: str,
+    *,
+    id_key: bytes,
+    occurrence_key: str | None = None,
+) -> str:
+    """Return a stable keyed identifier that does not expose source coordinates.
+
+    ``occurrence_key`` distinguishes byte-identical files while remaining
+    hidden inside the HMAC.  Both observations can then be retained and joined
+    through exact-duplicate lineage.
+    """
     digest = _require_sha256(source_sha256, "source_sha256")
     if not isinstance(id_key, bytes) or len(id_key) < 32:
         raise ValueError("id_key must contain at least 32 bytes")
-    token = hmac.new(id_key, bytes.fromhex(digest), hashlib.sha256).hexdigest()[:20].upper()
+    payload = bytes.fromhex(digest)
+    if occurrence_key is not None:
+        occurrence = unicodedata.normalize("NFC", str(occurrence_key).replace("\\", "/"))
+        if not occurrence:
+            raise ValueError("occurrence_key cannot be empty")
+        payload += b"\x00" + occurrence.encode("utf-8")
+    token = hmac.new(id_key, payload, hashlib.sha256).hexdigest()[:20].upper()
     return f"HWC-{token}"
 
 

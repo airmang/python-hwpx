@@ -71,6 +71,19 @@ def test_keyed_document_id_is_stable_and_does_not_expose_source_hash() -> None:
         opaque_document_id(digest, id_key=b"short")
 
 
+def test_keyed_document_id_distinguishes_hidden_occurrences() -> None:
+    digest = _digest("same-source")
+    first = opaque_document_id(digest, id_key=ID_KEY, occurrence_key="copy-a.hwpx")
+    second = opaque_document_id(digest, id_key=ID_KEY, occurrence_key="copy-b.hwpx")
+
+    assert first != second
+    assert opaque_document_id(
+        digest,
+        id_key=ID_KEY,
+        occurrence_key="copy-a.hwpx",
+    ) == first
+
+
 def test_none_detected_is_not_eligibility_without_review() -> None:
     record = _private_record(decision="unreviewed")
     assert validate_private_record(record)["privacy"]["detectorStatus"] == "none_detected"

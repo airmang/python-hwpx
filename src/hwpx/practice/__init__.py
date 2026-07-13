@@ -11,6 +11,12 @@ from .lineage import (
     build_lineage_groups,
     validate_partition_closure,
 )
+from .intake import (
+    IntakeResult,
+    ReviewDecision,
+    apply_review_decision,
+    intake_discovery_rows,
+)
 from .registry import (
     PRIVATE_REGISTRY_SCHEMA,
     REDACTED_REGISTRY_SCHEMA,
@@ -25,6 +31,7 @@ from .registry import (
     validate_storage_roots,
 )
 from .scenario import PRACTICE_SCENARIO_SCHEMA, scenario_id, validate_scenario
+from .split import SPLIT_MANIFEST_SCHEMA, build_split_manifest, validate_split_manifest
 
 __all__ = [
     "LINEAGE_KINDS",
@@ -33,16 +40,23 @@ __all__ = [
     "REDACTED_REGISTRY_SCHEMA",
     "SOURCE_INTEGRITY_SCHEMA",
     "LineageEdge",
+    "IntakeResult",
+    "ReviewDecision",
+    "SPLIT_MANIFEST_SCHEMA",
+    "apply_review_decision",
     "assert_redacted_payload",
     "build_lineage_groups",
+    "build_split_manifest",
     "build_source_integrity_receipt",
     "eligibility_status",
     "opaque_document_id",
+    "intake_discovery_rows",
     "redact_private_record",
     "scenario_id",
     "snapshot_source_tree",
     "validate_partition_closure",
     "validate_private_record",
     "validate_scenario",
+    "validate_split_manifest",
     "validate_storage_roots",
 ]
