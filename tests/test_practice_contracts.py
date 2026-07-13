@@ -170,7 +170,22 @@ def _scenario() -> dict:
         "taskKind": "known_template_fill",
         "difficulty": "routine",
         "instruction": "합성 담당자와 합성 날짜를 지정된 칸에 입력한다.",
-        "syntheticInputs": {"담당자": "연습담당자", "날짜": "2099. 1. 1."},
+        "syntheticInputs": {
+            "schema": "hwpx.synthetic-dossier/v1",
+            "synthetic": True,
+            "fields": {"담당자": "합성-연습담당자", "날짜": "합성-일자-2099-01-01"},
+        },
+        "controlledMutation": {
+            "schema": "hwpx.controlled-mutation/v1",
+            "synthetic": True,
+            "taskKind": "known_template_fill",
+            "operation": "fill_known_fields",
+            "target": {"kind": "declared_field_map"},
+            "before": {},
+            "after": {},
+            "reversible": True,
+        },
+        "allowedWorkflow": "known_form_fill",
         "privacy": {"syntheticInputsOnly": True, "localOnly": True},
         "startArtifact": {"artifactId": "ART-0001", "sha256": _digest("artifact")},
         "budgets": {"toolCalls": 12, "attempts": 2, "repairRounds": 0, "elapsedSeconds": 120},
@@ -181,6 +196,14 @@ def _scenario() -> dict:
         ],
         "gold": {"kind": "verifier", "verifierId": "verify-form-v1"},
         "visualCompleteExpected": False,
+        "provenance": {
+            "generator": "test-generator",
+            "evaluator": "test-evaluator",
+            "core": "test-core",
+            "server": "test-server",
+            "skill": "test-skill",
+            "toolSpecHash": "test-tool-spec",
+        },
     }
     base["scenarioId"] = scenario_id(base)
     return base

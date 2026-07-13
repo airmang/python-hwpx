@@ -70,6 +70,17 @@ def validate_scenario(value: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("a synthetic instruction is required")
     if raw.get("expectedTerminalState") not in EXPECTED_TERMINAL_STATES:
         raise ValueError("unsupported expectedTerminalState")
+    if not isinstance(raw.get("allowedWorkflow"), str) or not raw["allowedWorkflow"]:
+        raise ValueError("allowedWorkflow is required")
+
+    synthetic_inputs = _require_mapping(raw.get("syntheticInputs"), "syntheticInputs")
+    if synthetic_inputs.get("synthetic") is not True:
+        raise ValueError("syntheticInputs must be visibly synthetic")
+    mutation = _require_mapping(raw.get("controlledMutation"), "controlledMutation")
+    if mutation.get("synthetic") is not True or mutation.get("taskKind") != raw["taskKind"]:
+        raise ValueError("controlledMutation must be synthetic and match taskKind")
+    if not isinstance(mutation.get("reversible"), bool):
+        raise ValueError("controlledMutation requires an explicit reversible flag")
 
     privacy = _require_mapping(raw.get("privacy"), "privacy")
     if privacy.get("syntheticInputsOnly") is not True or privacy.get("localOnly") is not True:
@@ -111,6 +122,11 @@ def validate_scenario(value: Mapping[str, Any]) -> dict[str, Any]:
     gold = _require_mapping(raw.get("gold"), "gold")
     if not gold.get("kind") or not (gold.get("verifierId") or SHA256_PATTERN.fullmatch(str(gold.get("sha256", "")))):
         raise ValueError("gold requires kind plus verifierId or sha256")
+
+    provenance = _require_mapping(raw.get("provenance"), "provenance")
+    for key in ("generator", "evaluator", "core", "server", "skill", "toolSpecHash"):
+        if not provenance.get(key):
+            raise ValueError(f"provenance.{key} is required")
 
     expected_id = scenario_id(raw)
     supplied_id = str(raw.get("scenarioId", ""))
