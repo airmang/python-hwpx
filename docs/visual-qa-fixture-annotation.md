@@ -33,6 +33,20 @@ Critical findings are hard gates. No aggregate score, provider agreement, or
 clean finding can cancel them. Missing, unreadable, duplicate, or unexpected
 pages produce `unverified`, never `pass`.
 
+Corpus promotion uses `hwpx.visual-qa-metrics/v2`. By default every category in
+the frozen taxonomy is required. Each required category needs at least five
+adjudicated critical examples and its Wilson 95% recall lower bound must meet
+the frozen critical-recall threshold. Aggregate critical recall and precision
+also use their Wilson lower bounds; defect false acceptance and clean false
+rejection use their Wilson upper bounds. Point estimates alone never promote a
+corpus.
+
+A caller may explicitly narrow the required-category set only by recording both
+a non-empty `reason` and a durable `source` in `required_categories_provenance`.
+The narrowed scope and provenance are copied into the metrics receipt. Narrowing
+coverage does not relax any confidence-bound threshold and therefore cannot make
+a small corpus pass merely because its observed point estimates are perfect.
+
 ## Annotation procedure
 
 1. Labelers inspect the entire page independently, without detector output.

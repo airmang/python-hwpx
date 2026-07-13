@@ -1,5 +1,5 @@
 {
-  "schema": "hwpx.visual-qa-metrics/v1",
+  "schema": "hwpx.visual-qa-metrics/v2",
   "assurance": "fixture",
   "renderChecked": false,
   "counts": {
@@ -30,13 +30,58 @@
     0.0,
     0.7934506856227626
   ],
+  "gateContract": {
+    "requiredCategories": [
+      "text_clipping_overlap",
+      "cell_overflow",
+      "unexpected_blank_page",
+      "leftover_guidance_placeholder_sample",
+      "empty_required_field",
+      "orphan_bullet_heading",
+      "table_grid_border_anomaly",
+      "font_color_alignment_inconsistency",
+      "image_seal_misplacement",
+      "header_footer_page_number_loss",
+      "implausible_whitespace_density"
+    ],
+    "minimumCategorySamples": 5,
+    "scopeProvenance": {
+      "mode": "full_taxonomy",
+      "taxonomyVersion": "hwpx-visual-defects/1.0"
+    },
+    "requiredCoveragePassed": false,
+    "requiredRecallBoundsPassed": false,
+    "aggregateBounds": {
+      "criticalRecallLower": false,
+      "criticalPrecisionLower": false,
+      "defectFalseAcceptanceUpper": false,
+      "cleanFalseRejectionUpper": false
+    },
+    "failedRequirements": [
+      "category:text_clipping_overlap:minimum_samples",
+      "category:cell_overflow:minimum_samples",
+      "category:unexpected_blank_page:minimum_samples",
+      "category:leftover_guidance_placeholder_sample:minimum_samples",
+      "category:empty_required_field:minimum_samples",
+      "category:orphan_bullet_heading:minimum_samples",
+      "category:table_grid_border_anomaly:minimum_samples",
+      "category:font_color_alignment_inconsistency:minimum_samples",
+      "category:image_seal_misplacement:minimum_samples",
+      "category:header_footer_page_number_loss:minimum_samples",
+      "category:implausible_whitespace_density:minimum_samples",
+      "aggregate:criticalRecallLower",
+      "aggregate:criticalPrecisionLower",
+      "aggregate:defectFalseAcceptanceUpper",
+      "aggregate:cleanFalseRejectionUpper"
+    ]
+  },
   "thresholds": {
     "criticalRecall": 0.95,
     "criticalPrecision": 0.9,
     "defectFalseAcceptanceRate": 0.01,
     "cleanFalseRejectionRate": 0.01
   },
-  "gatePassed": true,
+  "gatePassed": false,
   "perCategory": {
     "text_clipping_overlap": {
       "tp": 2,
@@ -52,7 +97,10 @@
         0.34238022750665303,
         1.0
       ],
-      "sampleSufficient": true
+      "required": true,
+      "minimumSamples": 5,
+      "sampleSufficient": false,
+      "recallLowerBoundPassed": false
     },
     "cell_overflow": {
       "tp": 0,
@@ -62,7 +110,10 @@
       "recall95CI": null,
       "precision": null,
       "precision95CI": null,
-      "sampleSufficient": false
+      "required": true,
+      "minimumSamples": 5,
+      "sampleSufficient": false,
+      "recallLowerBoundPassed": false
     },
     "unexpected_blank_page": {
       "tp": 1,
@@ -78,7 +129,10 @@
         0.20654931437723745,
         1.0
       ],
-      "sampleSufficient": true
+      "required": true,
+      "minimumSamples": 5,
+      "sampleSufficient": false,
+      "recallLowerBoundPassed": false
     },
     "leftover_guidance_placeholder_sample": {
       "tp": 0,
@@ -88,7 +142,10 @@
       "recall95CI": null,
       "precision": null,
       "precision95CI": null,
-      "sampleSufficient": false
+      "required": true,
+      "minimumSamples": 5,
+      "sampleSufficient": false,
+      "recallLowerBoundPassed": false
     },
     "empty_required_field": {
       "tp": 0,
@@ -98,7 +155,10 @@
       "recall95CI": null,
       "precision": null,
       "precision95CI": null,
-      "sampleSufficient": false
+      "required": true,
+      "minimumSamples": 5,
+      "sampleSufficient": false,
+      "recallLowerBoundPassed": false
     },
     "orphan_bullet_heading": {
       "tp": 0,
@@ -108,7 +168,10 @@
       "recall95CI": null,
       "precision": null,
       "precision95CI": null,
-      "sampleSufficient": false
+      "required": true,
+      "minimumSamples": 5,
+      "sampleSufficient": false,
+      "recallLowerBoundPassed": false
     },
     "table_grid_border_anomaly": {
       "tp": 0,
@@ -118,7 +181,10 @@
       "recall95CI": null,
       "precision": null,
       "precision95CI": null,
-      "sampleSufficient": false
+      "required": true,
+      "minimumSamples": 5,
+      "sampleSufficient": false,
+      "recallLowerBoundPassed": false
     },
     "font_color_alignment_inconsistency": {
       "tp": 0,
@@ -128,7 +194,10 @@
       "recall95CI": null,
       "precision": null,
       "precision95CI": null,
-      "sampleSufficient": false
+      "required": true,
+      "minimumSamples": 5,
+      "sampleSufficient": false,
+      "recallLowerBoundPassed": false
     },
     "image_seal_misplacement": {
       "tp": 0,
@@ -138,7 +207,10 @@
       "recall95CI": null,
       "precision": null,
       "precision95CI": null,
-      "sampleSufficient": false
+      "required": true,
+      "minimumSamples": 5,
+      "sampleSufficient": false,
+      "recallLowerBoundPassed": false
     },
     "header_footer_page_number_loss": {
       "tp": 0,
@@ -148,7 +220,10 @@
       "recall95CI": null,
       "precision": null,
       "precision95CI": null,
-      "sampleSufficient": false
+      "required": true,
+      "minimumSamples": 5,
+      "sampleSufficient": false,
+      "recallLowerBoundPassed": false
     },
     "implausible_whitespace_density": {
       "tp": 0,
@@ -158,7 +233,10 @@
       "recall95CI": null,
       "precision": null,
       "precision95CI": null,
-      "sampleSufficient": false
+      "required": true,
+      "minimumSamples": 5,
+      "sampleSufficient": false,
+      "recallLowerBoundPassed": false
     }
   },
   "cases": [
