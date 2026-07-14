@@ -59,6 +59,7 @@ Documentation = "https://airmang.github.io/python-hwpx/"
 Issues = "https://github.com/airmang/python-hwpx/issues"
 
 [project.scripts]
+hwpx = "hwpx.agent.cli:main"
 hwpx-unpack = "hwpx.tools.archive_cli:unpack_main"
 hwpx-pack = "hwpx.tools.archive_cli:pack_main"
 hwpx-validate = "hwpx.tools.validator:main"
