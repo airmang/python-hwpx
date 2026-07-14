@@ -314,6 +314,14 @@ def test_digest_fields_do_not_trigger_random_numeric_pii_false_positive() -> Non
         assert_receipt_safe({"detailCode": "1141632752923"})
 
 
+def test_content_addressed_ids_do_not_trigger_random_numeric_pii_false_positive() -> None:
+    assert_receipt_safe({"idempotencyKey": "EVK-60F6878483794548A279"})
+    assert_receipt_safe({"artifactId": "OUT-60F6878483794548A279"})
+
+    with pytest.raises(ValueError, match="detected PII"):
+        assert_receipt_safe({"operatorKey": "010-1234-5678"})
+
+
 def test_terminal_receipt_is_redacted_content_addressed_and_tamper_evident() -> None:
     receipt = redact_run_receipt(_run())
     assert receipt == redact_run_receipt(_run())

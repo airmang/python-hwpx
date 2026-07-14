@@ -28,6 +28,10 @@ OPAQUE_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9_-]{3,79}$")
 REASON_CODE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
 CODE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{1,63}$")
 TOOL_SPEC_HASH_PATTERN = re.compile(r"^(?:[a-f0-9]{16}|[a-f0-9]{64})$")
+CONTENT_ADDRESSED_ID_PATTERN = re.compile(
+    r"^(?:PRUN|PCMP|EVT|EVK|IDEM|OUT|VER|ART|DER|SCN|DSP|PSEL|EXP|PSBX)-"
+    r"[A-Z0-9][A-Z0-9_-]{3,64}$"
+)
 
 ACTIVE_RUN_STATES = frozenset({"queued", "running", "cancelling"})
 TERMINAL_RUN_STATES = frozenset(
@@ -200,6 +204,9 @@ def assert_receipt_safe(
             )
             digest_key = key_hint.endswith("sha256") or key_hint.endswith("hash")
             if digest_key and digest_value:
+                return
+            opaque_key = key_hint.endswith("id") or key_hint.endswith("key")
+            if opaque_key and CONTENT_ADDRESSED_ID_PATTERN.fullmatch(item):
                 return
             if detect_pii(item):
                 raise ValueError(f"public practice payload contains detected PII at {pointer}")
