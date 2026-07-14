@@ -1238,6 +1238,119 @@ def test_structural_production_adapter_measures_real_hwpX_row_insertion(tmp_path
     assert all(item["status"] == "unverified" for item in stale_start["checks"])
 
 
+def test_structural_adapter_normalizes_preserved_merges_for_cloned_row(
+    tmp_path,
+) -> None:
+    from hwpx.document import HwpxDocument
+    from hwpx.oxml.namespaces import HP
+    from hwpx.table_patch import apply_table_ops
+
+    start = tmp_path / "merge-clone-start.hwpx"
+    output = tmp_path / "merge-clone-output.hwpx"
+    merge_loss = tmp_path / "merge-clone-loss.hwpx"
+
+    before = HwpxDocument.new()
+    table = before.add_table(3, 7)
+
+    def merge_and_prune(target, row: int, start_col: int, end_col: int) -> None:
+        target.merge_cells(row, start_col, row, end_col)
+        row_element = list(target.element.findall(f"{HP}tr"))[row]
+        for cell in list(row_element.findall(f"{HP}tc")):
+            address = cell.find(f"{HP}cellAddr")
+            column = int(address.get("colAddr", "-1")) if address is not None else -1
+            if start_col < column <= end_col:
+                row_element.remove(cell)
+        target.mark_dirty()
+
+    for col, value in enumerate(("BASE-A", "BASE-B", "BASE-C")):
+        table.set_cell_text(0, col, value)
+    merge_and_prune(table, 0, 2, 6)
+    for col, value in enumerate(
+        ("OLD-A", "OLD-B", "", "", "OLD-C", "OLD-D", "OLD-E")
+    ):
+        table.set_cell_text(1, col, value)
+    merge_and_prune(table, 1, 1, 3)
+    for col in range(7):
+        table.set_cell_text(2, col, f"TAIL-{col}")
+    before.save_to_path(start)
+    before.close()
+
+    expected_values = ("SYN-A", "SYN-B", "SYN-C")
+    result = apply_table_ops(
+        start,
+        [
+            {"op": "insert_row_by_clone", "table_index": 0, "ref_row": 0},
+            *(
+                {
+                    "op": "fill_cell",
+                    "table_index": 0,
+                    "row": 1,
+                    "col": col,
+                    "text": value,
+                }
+                for col, value in enumerate(expected_values)
+            ),
+        ],
+        output_path=output,
+    )
+    assert result.open_safety is not None and result.open_safety["ok"] is True
+
+    start_sha = hashlib.sha256(start.read_bytes()).hexdigest()
+    row_sha = domain_row_sha256(expected_values)
+    value_shas = [domain_value_sha256(value) for value in expected_values]
+    policy_sha = structural_verifier_policy_sha256(
+        expected_start_sha256=start_sha,
+        expected_row_sha256=row_sha,
+        expected_value_sha256s=value_shas,
+    )
+
+    def evaluate(path: Path) -> dict:
+        requirement = build_domain_requirement(
+            scenario_sha256=_sha("merge-clone-scenario"),
+            artifact_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+            task_kind="structural_edit",
+            family="lesson_materials",
+            verifier_policy_sha256s={"structural_table": policy_sha},
+        )
+        return build_structural_table_domain_evidence_from_artifacts(
+            requirement,
+            start,
+            path,
+            expected_start_sha256=start_sha,
+            expected_row_sha256=row_sha,
+            expected_value_sha256s=value_shas,
+            observed_terminal_state="completed",
+        )
+
+    evidence = evaluate(output)
+    assert evidence["status"] == "passed"
+    assert all(item["status"] == "passed" for item in evidence["checks"])
+
+    damaged = HwpxDocument.new()
+    damaged_table = damaged.add_table(4, 7)
+    for col, value in enumerate(("BASE-A", "BASE-B", "BASE-C")):
+        damaged_table.set_cell_text(0, col, value)
+    merge_and_prune(damaged_table, 0, 2, 6)
+    for col, value in enumerate(expected_values):
+        damaged_table.set_cell_text(1, col, value)
+    merge_and_prune(damaged_table, 1, 2, 6)
+    for col, value in enumerate(
+        ("OLD-A", "OLD-B", "", "", "OLD-C", "OLD-D", "OLD-E")
+    ):
+        damaged_table.set_cell_text(2, col, value)
+    for col in range(7):
+        damaged_table.set_cell_text(3, col, f"TAIL-{col}")
+    damaged.save_to_path(merge_loss)
+    damaged.close()
+
+    loss_evidence = evaluate(merge_loss)
+    loss_statuses = {
+        item["code"]: item["status"] for item in loss_evidence["checks"]
+    }
+    assert loss_statuses["merged_cells_preserved"] == "failed"
+    assert loss_evidence["status"] == "failed"
+
+
 def test_structural_adapter_requires_expected_values_in_newly_inserted_row(tmp_path) -> None:
     from hwpx.document import HwpxDocument
 

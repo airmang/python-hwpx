@@ -2097,6 +2097,7 @@ def _structural_measurement(path: str | Path) -> dict[str, Any]:
                     "rows": report.row_count,
                     "cols": report.col_count,
                     "gridOk": report.ok,
+                    "merges": sorted(merge_signature),
                     "mergeSha256": _sha256(
                         {
                             "section": section_path,
@@ -2109,6 +2110,48 @@ def _structural_measurement(path: str | Path) -> dict[str, Any]:
                 }
             )
     return {"tables": tables}
+
+
+def _merge_topology_preserved_after_row_insertion(
+    before_merges: Sequence[Sequence[int]],
+    after_merges: Sequence[Sequence[int]],
+    *,
+    inserted_row: int,
+) -> bool:
+    """Compare merge topology after one physical row insertion.
+
+    Existing merges below the insertion move by one row, while a vertical merge
+    crossing the insertion grows by one row.  A cloned source row may also add
+    an exact copy of its horizontal merges on the inserted row.  No other merge
+    addition, deletion, relocation, or span change is accepted.
+    """
+
+    if isinstance(inserted_row, bool) or not isinstance(inserted_row, int) or inserted_row < 1:
+        return False
+
+    before = sorted(tuple(int(value) for value in row) for row in before_merges)
+    after = sorted(tuple(int(value) for value in row) for row in after_merges)
+    if any(len(row) != 4 for row in before + after):
+        return False
+
+    shifted: list[tuple[int, int, int, int]] = []
+    for row, col, row_span, col_span in before:
+        if row >= inserted_row:
+            row += 1
+        elif row < inserted_row < row + row_span:
+            row_span += 1
+        shifted.append((row, col, row_span, col_span))
+    shifted.sort()
+    if after == shifted:
+        return True
+
+    source_row = inserted_row - 1
+    cloned_horizontal = sorted(
+        (inserted_row, col, 1, col_span)
+        for row, col, row_span, col_span in before
+        if row == source_row and row_span == 1 and col_span > 1
+    )
+    return bool(cloned_horizontal) and after == sorted(shifted + cloned_horizontal)
 
 
 def build_structural_table_domain_evidence_from_artifacts(
@@ -2171,9 +2214,9 @@ def build_structural_table_domain_evidence_from_artifacts(
             for old, new in zip(before_tables, after_tables):
                 columns_preserved = columns_preserved and old["cols"] == new["cols"]
                 grids_valid = grids_valid and old["gridOk"] is True and new["gridOk"] is True
-                merges_preserved = merges_preserved and old["mergeSha256"] == new["mergeSha256"]
                 delta = new["rows"] - old["rows"]
                 deltas.append(delta)
+                matching_insertion_indices: list[int] = []
                 if delta == 1 and len(new["rowHashes"]) == len(old["rowHashes"]) + 1:
                     for inserted_index, candidate_hash in enumerate(new["rowHashes"]):
                         without_candidate = (
@@ -2187,7 +2230,22 @@ def build_structural_table_domain_evidence_from_artifacts(
                                 set(new["rowValueHashes"][inserted_index])
                             )
                         ):
+                            matching_insertion_indices.append(inserted_index)
                             inserted_row_matches = True
+                if delta == 0:
+                    table_merges_preserved = old["merges"] == new["merges"]
+                elif delta == 1:
+                    table_merges_preserved = any(
+                        _merge_topology_preserved_after_row_insertion(
+                            old["merges"],
+                            new["merges"],
+                            inserted_row=inserted_index,
+                        )
+                        for inserted_index in matching_insertion_indices
+                    )
+                else:
+                    table_merges_preserved = False
+                merges_preserved = merges_preserved and table_merges_preserved
         geometry_pass = bool(
             same_count
             and columns_preserved
