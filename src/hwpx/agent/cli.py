@@ -12,6 +12,14 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from .catalog import agent_catalog, human_help
+from .blueprint import (
+    blueprint_catalog,
+    blueprint_human_help,
+    dump_document_blueprint,
+    read_blueprint_bundle,
+    repack_blueprint_bundle,
+    replay_document_blueprint,
+)
 from .commands import apply_document_commands
 from .document import HwpxAgentDocument
 from .model import (
@@ -91,6 +99,26 @@ def _exit_code(error: AgentError | None) -> int:
 
 def _read_text(source: str, stdin: TextIO) -> str:
     return stdin.read() if source == "-" else Path(source).read_text(encoding="utf-8")
+
+
+def _read_binary(source: str, stdin: TextIO) -> bytes:
+    if source != "-":
+        return Path(source).read_bytes()
+    stream = getattr(stdin, "buffer", stdin)
+    data = stream.read()
+    if not isinstance(data, bytes):
+        raise CliUsageError("binary bundle stdin requires a binary-capable stream")
+    return data
+
+
+def _write_binary(data: bytes, stdout: TextIO) -> None:
+    stream = getattr(stdout, "buffer", stdout)
+    try:
+        written = stream.write(data)
+    except TypeError as exc:
+        raise CliUsageError("binary bundle stdout requires a binary-capable stream") from exc
+    if written is not None and written != len(data):
+        raise OSError("short write while emitting blueprint bundle")
 
 
 def _json_value(value: str, *, name: str, stdin: TextIO) -> Any:
@@ -201,6 +229,38 @@ def build_parser() -> argparse.ArgumentParser:
     batch_parser.add_argument("--input", help="envelope input when request contains command(s)")
     batch_parser.add_argument("--output", help="envelope output when request contains command(s)")
     _add_mutation_options(batch_parser)
+
+    dump_parser = subparsers.add_parser(
+        "dump",
+        help="dump, inspect, or safely repack a typed semantic blueprint",
+        description=blueprint_human_help(),
+    )
+    dump_parser.add_argument("source", nargs="?", help="source HWPX for dump")
+    dump_parser.add_argument("--path", default="/", help="revision-bound canonical source path")
+    dump_parser.add_argument("--mode", choices=("portable", "source-bound"), default="portable")
+    dump_parser.add_argument("--output", "-o", help=".hwpxbp path, or '-' for raw bundle stdout")
+    dump_parser.add_argument("--expected-revision")
+    dump_parser.add_argument("--overwrite", action="store_true")
+    dump_parser.add_argument("--no-assets", action="store_false", dest="include_assets", default=True)
+    dump_parser.add_argument(
+        "--inspection",
+        action="store_false",
+        dest="require_replayable",
+        default=True,
+        help="allow an inspection-only bundle with explicit unsupported inventory",
+    )
+    dump_parser.add_argument("--inspect", metavar="BUNDLE", help="validate and print one bundle manifest; '-' reads binary stdin")
+    dump_parser.add_argument("--repack", metavar="BUNDLE", help="validated source bundle for safe typed JSON repack")
+    dump_parser.add_argument("--manifest", help="edited manifest JSON path, or '-' for text stdin")
+    _add_output_options(dump_parser)
+
+    replay_parser = subparsers.add_parser(
+        "replay",
+        help="atomically replay a validated blueprint request",
+        description=blueprint_human_help(),
+    )
+    replay_parser.add_argument("request", help="replay request JSON path, or '-' for stdin")
+    _add_output_options(replay_parser)
     return parser
 
 
@@ -246,6 +306,27 @@ def _result_human(result: AgentBatchResult) -> str:
         f"inputRevision: {result.input_revision}\n"
         f"documentRevision: {result.document_revision}\n"
         f"output: {result.output_filename}"
+    )
+
+
+def _blueprint_human(value: Mapping[str, Any]) -> str:
+    if not value.get("ok"):
+        error = value.get("error") or {}
+        return f"FAILED [{error.get('code', 'verification_failed')}] {error.get('message', '')}"
+    if value.get("schemaVersion") == "hwpx.agent-blueprint-replay-result/v1":
+        state = "DRY-RUN" if value.get("dryRun") else "COMMITTED"
+        return (
+            f"{state}: {value.get('rootPath') or '-'}\n"
+            f"blueprintHash: {value.get('blueprintHash')}\n"
+            f"documentRevision: {value.get('documentRevision')}\n"
+            f"output: {value.get('outputFilename')}"
+        )
+    return (
+        f"BLUEPRINT: {value.get('blueprintHash')}\n"
+        f"mode: {value.get('mode')}\n"
+        f"nodes: {value.get('nodeCount')}\n"
+        f"dependencies: {value.get('dependencyCount')}\n"
+        f"output: {value.get('outputFilename')}"
     )
 
 
@@ -360,6 +441,85 @@ def _run_query(args: argparse.Namespace) -> Mapping[str, Any]:
         return result.to_dict()
 
 
+def _bundle_payload(bundle: Any, *, output_filename: str | None = None) -> dict[str, Any]:
+    manifest = dict(bundle.manifest)
+    return {
+        "ok": True,
+        "schemaVersion": manifest["schemaVersion"],
+        "blueprintHash": manifest["blueprintHash"],
+        "bundleSha256": bundle.bundle_sha256,
+        "bundleBytes": bundle.size,
+        "outputFilename": output_filename,
+        "mode": manifest["mode"],
+        "root": dict(manifest["root"]),
+        "nodeCount": len(manifest["nodes"]),
+        "dependencyCount": len(manifest["styles"]) + len(manifest["numbering"]) + len(manifest["resources"]),
+        "assetCount": len(bundle.assets),
+        "unsupported": list(manifest["unsupported"]),
+        "fidelity": dict(manifest["fidelity"]),
+        "manifest": manifest,
+    }
+
+
+def _run_dump(args: argparse.Namespace, *, stdin: TextIO, stdout: TextIO) -> int:
+    modes = sum(value is not None for value in (args.source, args.inspect, args.repack))
+    if modes != 1:
+        raise CliUsageError("dump requires exactly one source, --inspect, or --repack mode")
+    if args.inspect is not None:
+        if args.output or args.manifest:
+            raise CliUsageError("--inspect does not accept --output or --manifest")
+        payload = _bundle_payload(read_blueprint_bundle(_read_binary(args.inspect, stdin)))
+    elif args.repack is not None:
+        if not args.manifest or not args.output or args.output == "-":
+            raise CliUsageError("--repack requires --manifest and a file --output")
+        manifest = _json_value(f"@{args.manifest}" if args.manifest != "-" else "@-", name="manifest", stdin=stdin)
+        if not isinstance(manifest, Mapping):
+            raise CliUsageError("manifest must be a JSON object")
+        bundle = repack_blueprint_bundle(
+            args.repack,
+            args.output,
+            dict(manifest),
+            overwrite=args.overwrite,
+        )
+        payload = _bundle_payload(bundle, output_filename=str(args.output))
+    else:
+        if args.manifest:
+            raise CliUsageError("--manifest is valid only with --repack")
+        output = None if args.output in {None, "-"} else args.output
+        result = dump_document_blueprint(
+            args.source,
+            path=args.path,
+            mode=args.mode,
+            expected_revision=args.expected_revision,
+            output=output,
+            overwrite=args.overwrite,
+            include_assets=args.include_assets,
+            require_replayable=args.require_replayable,
+        )
+        if args.output == "-":
+            _write_binary(result.bundle_bytes, stdout)
+            return EXIT_OK
+        payload = result.to_dict()
+    if args.output_format == "human":
+        stdout.write(_blueprint_human(payload) + "\n")
+    else:
+        _json_dump(payload, stdout, line=args.output_format == "jsonl")
+    return EXIT_OK
+
+
+def _run_replay(args: argparse.Namespace, *, stdin: TextIO, stdout: TextIO) -> int:
+    request = _json_value(f"@{args.request}", name="replay request", stdin=stdin)
+    if not isinstance(request, Mapping):
+        raise CliUsageError("replay request must be a JSON object")
+    result = replay_document_blueprint(dict(request), idempotency_store={})
+    payload = result.to_dict()
+    if args.output_format == "human":
+        stdout.write(_blueprint_human(payload) + "\n")
+    else:
+        _json_dump(payload, stdout, line=args.output_format == "jsonl")
+    return _exit_code(result.error)
+
+
 def _run_mutation(
     args: argparse.Namespace,
     *,
@@ -404,6 +564,12 @@ def main(
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             args = parser.parse_args(list(argv) if argv is not None else None)
         if args.command == "help":
+            if args.kind == "blueprint":
+                if args.json_help:
+                    _json_dump(blueprint_catalog(), stdout)
+                else:
+                    stdout.write(blueprint_human_help())
+                return EXIT_OK
             if args.json_help:
                 payload = agent_catalog() if args.kind is None else {
                     "schemaVersion": agent_catalog()["schemaVersion"],
@@ -419,6 +585,10 @@ def main(
         if args.command == "query":
             _emit(_run_query(args), args.output_format, stdout)
             return EXIT_OK
+        if args.command == "dump":
+            return _run_dump(args, stdin=stdin, stdout=stdout)
+        if args.command == "replay":
+            return _run_replay(args, stdin=stdin, stdout=stdout)
         return _run_mutation(args, stdin=stdin, stdout=stdout)
     except CliUsageError as exc:
         error = _usage_error(str(exc))

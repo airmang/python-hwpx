@@ -9,6 +9,7 @@ import pytest
 
 from hwpx import HwpxDocument
 from hwpx.agent import AGENT_BATCH_SCHEMA, HwpxAgentDocument
+from hwpx.agent.blueprint import read_blueprint_bundle
 from hwpx.agent.cli import (
     EXIT_CONFLICT,
     EXIT_OK,
@@ -49,6 +50,20 @@ def _run(argv: list[str], stdin_text: str = "") -> tuple[int, str, str]:
     return code, stdout.getvalue(), stderr.getvalue()
 
 
+class _BinaryStdout:
+    def __init__(self) -> None:
+        self.buffer = self
+        self.data = bytearray()
+
+    def write(self, value: bytes | str) -> int:
+        encoded = value.encode("utf-8") if isinstance(value, str) else value
+        self.data.extend(encoded)
+        return len(encoded)
+
+    def flush(self) -> None:
+        return None
+
+
 def _path(source: Path, kind: str, identity: str) -> str:
     with HwpxAgentDocument.open(source) as agent:
         return next(
@@ -86,6 +101,112 @@ def test_help_human_and_json_come_from_shared_catalog() -> None:
         "move",
         "copy",
     ]
+
+    code, payload, error = _run(["help", "blueprint", "--json"])
+    assert code == EXIT_OK and error == ""
+    blueprint = json.loads(payload)
+    assert blueprint["surfaces"] == {"cli": ["dump", "replay"], "mcpMaximumTools": 2}
+
+
+def test_blueprint_dump_inspect_repack_and_binary_stdout_are_deterministic(tmp_path: Path) -> None:
+    source = tmp_path / "input.hwpx"
+    first = tmp_path / "first.hwpxbp"
+    second = tmp_path / "second.hwpxbp"
+    repacked = tmp_path / "repacked.hwpxbp"
+    manifest_path = tmp_path / "manifest.json"
+    _fixture(source)
+    paragraph = _path(source, "paragraph", "101")
+
+    for output in (first, second):
+        code, payload, error = _run(
+            [
+                "dump",
+                str(source),
+                "--path",
+                paragraph,
+                "--output",
+                str(output),
+                "--expected-revision",
+                _revision(source),
+            ]
+        )
+        assert code == EXIT_OK and error == ""
+        assert json.loads(payload)["outputFilename"] == str(output)
+    assert first.read_bytes() == second.read_bytes()
+
+    code, payload, error = _run(["dump", "--inspect", str(first)])
+    assert code == EXIT_OK and error == ""
+    inspected = json.loads(payload)
+    manifest_path.write_text(json.dumps(inspected["manifest"], ensure_ascii=False), encoding="utf-8")
+    code, payload, error = _run(
+        [
+            "dump",
+            "--repack",
+            str(first),
+            "--manifest",
+            str(manifest_path),
+            "--output",
+            str(repacked),
+        ]
+    )
+    assert code == EXIT_OK and error == ""
+    assert json.loads(payload)["blueprintHash"] == inspected["blueprintHash"]
+    assert repacked.read_bytes() == first.read_bytes()
+
+    binary = _BinaryStdout()
+    stderr = io.StringIO()
+    code = main(
+        ["dump", str(source), "--path", paragraph, "--output", "-"],
+        stdin=io.StringIO(),
+        stdout=binary,  # type: ignore[arg-type]
+        stderr=stderr,
+    )
+    assert code == EXIT_OK and stderr.getvalue() == ""
+    assert read_blueprint_bundle(bytes(binary.data)).manifest["blueprintHash"] == inspected["blueprintHash"]
+
+
+def test_blueprint_replay_reads_request_from_stdin_and_commits_atomically(tmp_path: Path) -> None:
+    source = tmp_path / "input.hwpx"
+    bundle = tmp_path / "block.hwpxbp"
+    target = tmp_path / "target.hwpx"
+    output = tmp_path / "output.hwpx"
+    _fixture(source)
+    paragraph = _path(source, "paragraph", "101")
+    code, payload, error = _run(
+        ["dump", str(source), "--path", paragraph, "--output", str(bundle)]
+    )
+    assert code == EXIT_OK and error == ""
+    blueprint_hash = json.loads(payload)["blueprintHash"]
+    with HwpxDocument.new() as document:
+        document.sections[0].paragraphs[0].text = "TARGET"
+        document.save_to_path(target)
+    request = {
+        "schemaVersion": "hwpx.agent-blueprint-replay/v1",
+        "bundle": {"filename": str(bundle), "blueprintHash": blueprint_hash},
+        "target": {"input": str(target), "output": str(output), "overwrite": False},
+        "targetParent": "/section[1]",
+        "position": {"mode": "append"},
+        "mode": "portable",
+        "mappingPolicy": {"strict": True},
+        "expectedRevision": _revision(target),
+        "idempotencyKey": "cli-blueprint-1",
+        "dryRun": False,
+        "quality": "transparent",
+        "verificationRequirements": [
+            "package",
+            "reopen",
+            "openSafety",
+            "semanticDiff",
+            "bytePreservation",
+        ],
+    }
+    code, payload, error = _run(["replay", "-"], json.dumps(request, ensure_ascii=False))
+    assert code == EXIT_OK and error == ""
+    result = json.loads(payload)
+    assert result["ok"] is True
+    assert result["verificationReport"]["savePipeline"]["ok"] is True
+    assert result["verificationReport"]["openSafety"]["ok"] is True
+    assert output.exists()
 
 
 def test_view_get_query_json_and_human(tmp_path: Path) -> None:
