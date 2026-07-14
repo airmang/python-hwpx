@@ -449,13 +449,7 @@ def test_table_merge_cell_range_wrapper_uses_sample_span_shape(tmp_path) -> None
     assert table.cell(0, 1).element is merged.element
     assert table.cell(0, 2).element is merged.element
 
-    physical = {cell.address: cell for row in table.rows for cell in row.cells}
-    assert physical[(0, 1)].span == (1, 1)
-    assert physical[(0, 1)].width == 0
-    assert physical[(0, 1)].text == ""
-    assert physical[(0, 2)].span == (1, 1)
-    assert physical[(0, 2)].width == 0
-    assert physical[(0, 2)].text == ""
+    assert [cell.address for cell in table.rows[0].cells] == [(0, 0)]
 
     path = tmp_path / "builder-table-merge.hwpx"
     document.save_to_path(path)
@@ -469,7 +463,7 @@ def test_table_merge_cells_accepts_spreadsheet_ranges(tmp_path) -> None:
     # SPIKE pin from reader_writer__SimpleTable.hwpx:
     # - merged cell keeps hp:cellAddr at the top-left anchor.
     # - merge span is hp:cellSpan colSpan/rowSpan.
-    # - merged size is accumulated in hp:cellSz width/height; covered cells are removed or deactivated.
+    # - merged size is accumulated in hp:cellSz width/height; covered cells are removed.
     document = HwpxDocument.new()
     table = document.add_table(3, 3)
     table.cell(0, 0).text = "A1"

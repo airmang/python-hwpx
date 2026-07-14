@@ -3370,7 +3370,7 @@ class HwpxOxmlTable:
                 if row_offset == 0 and col_offset == 0:
                     addr = cell._addr_element()
                     if addr is None:
-                        addr = ET.SubElement(cell.element, f"{_HP}cellAddr")
+                        addr = _append_child(cell.element, f"{_HP}cellAddr")
                     addr.set("rowAddr", str(start_row))
                     addr.set("colAddr", str(start_col))
                     span_element = cell._span_element()
@@ -3424,7 +3424,7 @@ class HwpxOxmlTable:
                         sublist_attrs.setdefault(key, value)
                     template_para = template_sublist.find(f"{_HP}p")
 
-                sublist = ET.SubElement(new_cell_element, f"{_HP}subList", sublist_attrs)
+                sublist = _append_child(new_cell_element, f"{_HP}subList", sublist_attrs)
                 paragraph_attrs = _default_cell_paragraph_attributes()
                 run_attrs = {"charPrIDRef": "0"}
                 if template_para is not None:
@@ -3437,21 +3437,21 @@ class HwpxOxmlTable:
                         run_attrs = dict(template_run.attrib)
                         if "charPrIDRef" not in run_attrs:
                             run_attrs["charPrIDRef"] = "0"
-                paragraph = ET.SubElement(sublist, f"{_HP}p", paragraph_attrs)
-                run = ET.SubElement(paragraph, f"{_HP}run", run_attrs)
-                ET.SubElement(run, f"{_HP}t")
+                paragraph = _append_child(sublist, f"{_HP}p", paragraph_attrs)
+                run = _append_child(paragraph, f"{_HP}run", run_attrs)
+                _append_child(run, f"{_HP}t")
 
-                ET.SubElement(
+                _append_child(
                     new_cell_element,
                     f"{_HP}cellAddr",
                     {"rowAddr": str(logical_row), "colAddr": str(logical_col)},
                 )
-                ET.SubElement(
+                _append_child(
                     new_cell_element,
                     f"{_HP}cellSpan",
                     {"rowSpan": "1", "colSpan": "1"},
                 )
-                ET.SubElement(
+                _append_child(
                     new_cell_element,
                     f"{_HP}cellSz",
                     {"width": str(col_width), "height": str(row_height)},
@@ -3459,7 +3459,7 @@ class HwpxOxmlTable:
                 if template_margin is not None:
                     new_cell_element.append(deepcopy(template_margin))
                 else:
-                    ET.SubElement(
+                    _append_child(
                         new_cell_element,
                         f"{_HP}cellMargin",
                         _default_cell_margin_attributes(),
@@ -3564,11 +3564,13 @@ class HwpxOxmlTable:
             row_element = element_to_row.get(element)
             if row_element is None:
                 continue
-            wrapper = HwpxOxmlTableCell(element, self, row_element)
-            wrapper.set_span(1, 1)
-            wrapper.set_size(0, 0)
-            for text_element in element.findall(f".//{_HP}t"):
-                text_element.text = ""
+            # Native Hancom HWPX omits physical ``hp:tc`` elements covered by
+            # a merged anchor.  Keeping zero-sized cells at the covered
+            # addresses looks logically equivalent to our grid mapper, but
+            # Hancom Office can classify that table structure as damaged.
+            # ``split_merged_cell`` already recreates omitted cells, so remove
+            # them here instead of retaining deactivated placeholders.
+            row_element.remove(element)
 
         target.set_span(new_row_span, new_col_span)
         target.set_size(total_width or target.width, total_height or target.height)
