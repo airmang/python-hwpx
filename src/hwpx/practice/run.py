@@ -25,6 +25,7 @@ PRACTICE_RUN_RECEIPT_SCHEMA = "hwpx.practice-run-receipt/v1"
 RUN_ID_PATTERN = re.compile(r"^PRUN-[A-F0-9]{20}$")
 EVENT_ID_PATTERN = re.compile(r"^EVT-[A-F0-9]{20}$")
 OPAQUE_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9_-]{3,79}$")
+EVALUATOR_KEY_ID_PATTERN = re.compile(r"^EVK-[A-F0-9]{20}$")
 REASON_CODE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
 CODE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{1,63}$")
 TOOL_SPEC_HASH_PATTERN = re.compile(r"^(?:[a-f0-9]{16}|[a-f0-9]{64})$")
@@ -244,10 +245,17 @@ def validate_exact_provenance(value: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("provenance.toolSpec.sha256 must be a 16- or 64-hex digest")
 
     evaluator = dict(_require_mapping(raw["evaluator"], "provenance.evaluator"))
-    _require_exact_keys(evaluator, {"version", "sha256"}, "provenance.evaluator")
+    _require_exact_keys(
+        evaluator,
+        {"version", "sha256", "authenticationKeyId"},
+        "provenance.evaluator",
+    )
     evaluator_version = str(evaluator["version"]).strip()
     if not evaluator_version or evaluator_version.casefold() in _PLACEHOLDER_VERSIONS:
         raise ValueError("provenance.evaluator.version must be exact")
+    evaluator_key_id = str(evaluator["authenticationKeyId"])
+    if not EVALUATOR_KEY_ID_PATTERN.fullmatch(evaluator_key_id):
+        raise ValueError("provenance.evaluator.authenticationKeyId must be exact")
 
     return {
         "stack": normalized_stack,
@@ -255,6 +263,7 @@ def validate_exact_provenance(value: Mapping[str, Any]) -> dict[str, Any]:
         "evaluator": {
             "version": evaluator_version,
             "sha256": _require_sha(evaluator["sha256"], "provenance.evaluator.sha256"),
+            "authenticationKeyId": evaluator_key_id,
         },
     }
 
@@ -382,6 +391,24 @@ def _validate_artifact(value: Mapping[str, Any]) -> dict[str, Any]:
     _require_sha(raw["sha256"], "artifact.sha256")
     _require_int(raw["bytes"], "artifact.bytes")
     return raw
+
+
+def _validate_retained_output_bytes(
+    artifacts: Sequence[Mapping[str, Any]], usage: Mapping[str, int]
+) -> None:
+    """Require exact accounting whenever retained output metadata exists.
+
+    A terminal run may account attempted output bytes after cleanup without
+    retaining an output artifact.  Once an output artifact is retained in the
+    receipt, however, its exact inventory must be the accounting source of
+    truth so missing-evaluator aggregates cannot under-report it.
+    """
+
+    outputs = [item for item in artifacts if item["role"] == "output"]
+    if outputs and usage["artifactBytes"] != sum(item["bytes"] for item in outputs):
+        raise ValueError(
+            "usage.artifactBytes must equal retained output artifact bytes"
+        )
 
 
 def _validate_evidence_ref(value: Mapping[str, Any], name: str) -> dict[str, Any]:
@@ -589,6 +616,7 @@ def validate_practice_run(value: Mapping[str, Any]) -> dict[str, Any]:
     if len({item["artifactId"] for item in artifacts}) != len(artifacts):
         raise ValueError("artifact IDs must be unique")
     raw["artifacts"] = artifacts
+    _validate_retained_output_bytes(raw["artifacts"], raw["usage"])
     raw["evidence"] = _validate_evidence(raw["evidence"])
 
     if state == "completed" and not (
@@ -695,6 +723,7 @@ def validate_run_receipt(
     raw["artifacts"] = [_validate_artifact(item) for item in raw["artifacts"]]
     if len({item["artifactId"] for item in raw["artifacts"]}) != len(raw["artifacts"]):
         raise ValueError("receipt artifact IDs must be unique")
+    _validate_retained_output_bytes(raw["artifacts"], raw["usage"])
     raw["evidence"] = _validate_evidence(raw["evidence"])
     if raw["state"] == "completed" and not (
         raw["evidence"]["openSafety"]["status"] == "passed"

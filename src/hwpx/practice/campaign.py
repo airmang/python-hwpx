@@ -9,6 +9,7 @@ from typing import Any
 
 from .registry import SHA256_PATTERN
 from .run import (
+    OPAQUE_ID_PATTERN,
     RUN_ID_PATTERN,
     TERMINAL_RUN_STATES,
     assert_receipt_safe,
@@ -104,8 +105,10 @@ def _validate_run_reference(value: Mapping[str, Any]) -> dict[str, Any]:
         "runId",
         "scenarioId",
         "scenarioSha256",
+        "evaluationPolicySha256",
         "runnerManifestSha256",
         "derivativeSha256",
+        "startArtifactId",
         "startArtifactSha256",
         "family",
         "difficulty",
@@ -117,6 +120,8 @@ def _validate_run_reference(value: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("campaign runId must be opaque")
     if not SCENARIO_ID_PATTERN.fullmatch(str(raw["scenarioId"])):
         raise ValueError("campaign scenarioId must be opaque")
+    if not OPAQUE_ID_PATTERN.fullmatch(str(raw["startArtifactId"])):
+        raise ValueError("campaign startArtifactId must be opaque")
     family = str(raw["family"])
     difficulty = str(raw["difficulty"])
     if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{1,63}", family):
@@ -130,12 +135,17 @@ def _validate_run_reference(value: Mapping[str, Any]) -> dict[str, Any]:
         "scenarioSha256": _require_sha(
             raw["scenarioSha256"], "campaign run scenarioSha256"
         ),
+        "evaluationPolicySha256": _require_sha(
+            raw["evaluationPolicySha256"],
+            "campaign run evaluationPolicySha256",
+        ),
         "runnerManifestSha256": _require_sha(
             raw["runnerManifestSha256"], "campaign run runnerManifestSha256"
         ),
         "derivativeSha256": _require_sha(
             raw["derivativeSha256"], "campaign run derivativeSha256"
         ),
+        "startArtifactId": str(raw["startArtifactId"]),
         "startArtifactSha256": _require_sha(
             raw["startArtifactSha256"], "campaign run startArtifactSha256"
         ),

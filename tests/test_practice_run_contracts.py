@@ -38,6 +38,7 @@ def _provenance() -> dict:
         "evaluator": {
             "version": "practice-evaluator/v1",
             "sha256": _digest("evaluator-policy"),
+            "authenticationKeyId": "EVK-0123456789ABCDEF0123",
         },
     }
 
@@ -152,8 +153,10 @@ def _run_ref(run: dict, *, family: str = "known_form_fill") -> dict:
         "runId": run["runId"],
         "scenarioId": run["scenarioRef"]["scenarioId"],
         "scenarioSha256": run["scenarioRef"]["scenarioSha256"],
+        "evaluationPolicySha256": _digest("evaluation-policy"),
         "runnerManifestSha256": run["scenarioRef"]["runnerManifestSha256"],
         "derivativeSha256": run["scenarioRef"]["derivativeSha256"],
+        "startArtifactId": run["scenarioRef"]["startArtifactId"],
         "startArtifactSha256": run["scenarioRef"]["startArtifactSha256"],
         "family": family,
         "difficulty": "routine",
@@ -224,6 +227,35 @@ def test_budget_and_provenance_are_fail_closed_and_exact() -> None:
     run["runId"] = practice_run_id(run)
     with pytest.raises(ValueError, match="must be exact"):
         validate_practice_run(run)
+
+
+@pytest.mark.parametrize("state", ["completed", "failed", "incomplete"])
+def test_retained_output_artifact_bytes_cannot_be_underreported(state: str) -> None:
+    run = _run(state=state)
+    run["usage"]["artifactBytes"] = 1
+    with pytest.raises(ValueError, match="retained output artifact bytes"):
+        validate_practice_run(run)
+
+    run = _run(state=state)
+    receipt = redact_run_receipt(run)
+    receipt["usage"]["artifactBytes"] = 1
+    receipt["receiptSha256"] = hashlib.sha256(
+        json.dumps(
+            {key: value for key, value in receipt.items() if key != "receiptSha256"},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    with pytest.raises(ValueError, match="retained output artifact bytes"):
+        validate_run_receipt(receipt)
+
+
+def test_nonretained_attempt_bytes_remain_accountable_without_output_metadata() -> None:
+    run = _run(state="failed")
+    run["artifacts"] = []
+    assert validate_practice_run(run)["usage"]["artifactBytes"] == 1024
+
 
     run = _run()
     run["provenance"]["toolSpec"]["sha256"] = "too-short"
