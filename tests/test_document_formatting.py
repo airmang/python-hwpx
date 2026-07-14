@@ -405,6 +405,28 @@ def test_table_set_cell_text_removes_layout_cache() -> None:
     assert paragraph.find(f"{HP}linesegarray") is None
 
 
+def test_table_set_cell_text_converts_squeeze_to_break() -> None:
+    section_element = ET.Element(f"{HS}sec")
+    section = HwpxOxmlSection("section0.xml", section_element)
+    manifest = ET.Element("manifest")
+    root = HwpxOxmlDocument(manifest, [section], [])
+    document = HwpxDocument(cast(HwpxPackage, object()), root)
+
+    table = document.add_table(1, 1, section=section)
+    cell = table.cell(0, 0)
+    sublist = cell.element.find(f"{HP}subList")
+    assert sublist is not None
+    sublist.set("lineWrap", "SQUEEZE")
+
+    table.set_cell_text(0, 0, "한 줄 폭을 넘는 신규 검토 의견 " * 8)
+
+    assert sublist.get("lineWrap") == "BREAK"
+
+    sublist.set("lineWrap", "SQUEEZE")
+    table.set_cell_text(0, 0, cell.text)
+    assert sublist.get("lineWrap") == "SQUEEZE"
+
+
 def test_save_removes_stale_layout_cache_after_low_level_text_edit() -> None:
     document = HwpxDocument.new()
     try:

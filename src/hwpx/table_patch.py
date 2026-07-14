@@ -182,6 +182,9 @@ def build_grid(table: bytes) -> tuple[dict[tuple[int, int], _Cell], GridReport]:
 
 
 _P_SPAN_RE = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?p\b.*?</(?:[A-Za-z_][\w.-]*:)?p>", re.DOTALL)
+_SQUEEZE_WRAP_RE = re.compile(
+    rb'<(?:[A-Za-z_][\w.-]*:)?subList\b[^>]*?\blineWrap="(?P<value>SQUEEZE)"'
+)
 
 def _first_paragraph_span(cell: bytes) -> tuple[int, int] | None:
     """Byte span of the cell's first ``<hp:p>...</hp:p>`` (its own subList's
@@ -194,6 +197,22 @@ def _all_paragraph_spans(cell: bytes) -> list[tuple[int, int]]:
     not nested-table ones)."""
     masked = _mask_nested_tables(cell)
     return [(m.start(), m.end()) for m in _P_SPAN_RE.finditer(masked)]
+
+
+def _squeeze_wrap_edit(cell: bytes) -> tuple[int, int, bytes] | None:
+    """Return a minimal edit that makes a filled cell wrap instead of squeeze.
+
+    Hancom's ``lineWrap=SQUEEZE`` keeps long replacement text on the existing
+    line by compressing glyph advances.  Template placeholders often fit, but
+    real filled values can become nearly unreadable even though their charPr
+    spacing is normal.  Only the addressed cell's direct subList is considered;
+    nested tables remain untouched.
+    """
+
+    match = _SQUEEZE_WRAP_RE.search(_mask_nested_tables(cell))
+    if match is None:
+        return None
+    return match.start("value"), match.end("value"), b"BREAK"
 
 
 # --- font shrink-to-fit helpers (byte-preserving charPr materialisation) ------
@@ -602,6 +621,17 @@ def fill_cells(
                 continue
             if not cell_edits:
                 continue
+            # A template's short placeholder may legitimately fit under
+            # lineWrap=SQUEEZE, while a real filled value is compressed until
+            # glyphs appear to overlap.  Changed non-empty values must wrap and
+            # reflow; preserve SQUEEZE for no-op/clear operations.
+            if text.strip():
+                wrap_edit = _squeeze_wrap_edit(cell_bytes)
+                if wrap_edit is not None:
+                    ws, we, replacement = wrap_edit
+                    section_edits.append(
+                        (ts + cell.start + ws, ts + cell.start + we, replacement)
+                    )
             section_edits.extend(cell_edits)
             applied.append(CellApplied(section_path, ti, row, col, first_orig or "", text))
         if section_edits:

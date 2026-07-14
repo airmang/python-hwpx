@@ -107,6 +107,48 @@ def test_fill_changes_only_target_and_preserves_rest(simple):
     assert "CELL_FILLED_X" in sec2.decode("utf-8")
 
 
+def test_fill_cell_converts_squeeze_to_break_only_in_touched_cell(merged):
+    _, sec = _section(merged)
+    targets = []
+    for ti, (start, end) in enumerate(_iter_table_spans(sec)):
+        table = sec[start:end]
+        for cell in _direct_cells(table):
+            cell_bytes = table[cell.start:cell.end]
+            if b'lineWrap="SQUEEZE"' in cell_bytes:
+                targets.append((ti, cell.row, cell.col))
+    assert len(targets) >= 2
+
+    ti, row, col = targets[0]
+    result = fill_cells(
+        merged,
+        [{"table_index": ti, "row": row, "col": col, "text": "긴 신규 검토 의견 " * 12}],
+    )
+    assert result.ok
+
+    _, changed_section = _section(result.data)
+    changed_spans = _iter_table_spans(changed_section)
+    changed_table = changed_section[changed_spans[ti][0]:changed_spans[ti][1]]
+    changed_cell = build_grid(changed_table)[0][(row, col)]
+    changed_cell_bytes = changed_table[changed_cell.start:changed_cell.end]
+    assert b'lineWrap="BREAK"' in changed_cell_bytes
+    assert b'lineWrap="SQUEEZE"' not in changed_cell_bytes
+
+    other_ti, other_row, other_col = targets[1]
+    other_table = changed_section[changed_spans[other_ti][0]:changed_spans[other_ti][1]]
+    other_cell = build_grid(other_table)[0][(other_row, other_col)]
+    assert b'lineWrap="SQUEEZE"' in other_table[other_cell.start:other_cell.end]
+
+    original_table = sec[_iter_table_spans(sec)[ti][0]:_iter_table_spans(sec)[ti][1]]
+    original_cell = build_grid(original_table)[0][(row, col)]
+    original_text = _cell_text(original_table, original_cell)
+    noop = fill_cells(
+        merged,
+        [{"table_index": ti, "row": row, "col": col, "text": original_text}],
+    )
+    assert noop.byte_identical is True
+    assert noop.data == merged
+
+
 def test_untouched_table_is_byte_identical(merged):
     _, sec = _section(merged)
     spans = _iter_table_spans(sec)

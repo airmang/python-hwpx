@@ -2796,14 +2796,23 @@ class HwpxOxmlTableCell:
         preserve_format: bool = True,
         split_paragraphs: bool = False,
     ) -> None:
+        previous_text = self.text
+        sanitized_value = _sanitize_text(value)
+        if sanitized_value and sanitized_value != previous_text:
+            sublist = self._ensure_sublist()
+            if (sublist.get("lineWrap") or "").upper() == "SQUEEZE":
+                # SQUEEZE can compress a longer filled value until Hancom
+                # renders adjacent glyphs on top of each other.  New content
+                # should wrap/reflow; untouched template cells keep their mode.
+                sublist.set("lineWrap", "BREAK")
         if split_paragraphs:
-            self._set_split_paragraph_text(value)
+            self._set_split_paragraph_text(sanitized_value)
             self.element.set("dirty", "1")
             self.table.mark_dirty()
             return
 
         text_element = self._ensure_text_element()
-        text_element.text = _sanitize_text(value)
+        text_element.text = sanitized_value
         for node in self.element.findall(f".//{_HP}t"):
             if node is text_element:
                 continue
