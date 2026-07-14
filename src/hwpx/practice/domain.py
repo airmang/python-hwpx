@@ -37,6 +37,12 @@ DOMAIN_TERMINAL_SOURCE_EVIDENCE_SCHEMA = (
     "hwpx.practice-domain-terminal-source-evidence/v1"
 )
 FORM_TARGET_POLICY_SCHEMA = "hwpx.practice-form-target-policy/v1"
+FORM_DIFFERENTIAL_RECEIPT_SCHEMA = (
+    "hwpx.practice-form-differential-receipt/v1"
+)
+FORM_DIFFERENTIAL_SOURCE_EVIDENCE_SCHEMA = (
+    "hwpx.practice-form-differential-source-evidence/v1"
+)
 EXAM_ORACLE_RECEIPT_SCHEMA = "hwpx.practice-exam-oracle-receipt/v1"
 EXAM_ORACLE_AUTH_SCHEMA = "hwpx.practice-exam-oracle-auth/v1"
 ABSTENTION_INVENTORY_AUTH_SCHEMA = "hwpx.practice-abstention-inventory-auth/v1"
@@ -117,6 +123,7 @@ _VERIFIER_ID_PATTERN = re.compile(r"^VER-[A-F0-9]{20}$")
 _VERSION_PATTERN = re.compile(r"^[a-z][a-z0-9_.-]{1,63}/v[1-9][0-9]*$")
 _EXAM_ORACLE_KEY_ID_PATTERN = re.compile(r"^EOK-[A-F0-9]{20}$")
 _ABSTENTION_INVENTORY_KEY_ID_PATTERN = re.compile(r"^AOK-[A-F0-9]{20}$")
+_FORM_RENDER_BACKEND_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,127}$")
 _ZERO_SHA256 = "0" * 64
 MAX_DOMAIN_ARTIFACT_BYTES = MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES
 
@@ -226,6 +233,200 @@ def structural_verifier_policy_sha256(
             "expectedValueSha256s": values,
         }
     )
+
+
+def form_differential_oracle_provenance_sha256(*, backend: str) -> str:
+    """Identify the closed differential verifier/backend contract."""
+
+    backend_name = str(backend)
+    if not _FORM_RENDER_BACKEND_PATTERN.fullmatch(backend_name):
+        raise ValueError("form render backend is invalid")
+    return _sha256(
+        {
+            "schema": "hwpx.practice-form-differential-provenance/v1",
+            "backend": backend_name,
+            "verifier": "hwpx.form_fit.wordbox.verify_form_fill_differential",
+            "contract": "blank-filled-overflow-overlap-layout/v1",
+        }
+    )
+
+
+def form_differential_receipt_sha256(value: Mapping[str, Any]) -> str:
+    """Hash the semantic content of one frozen differential receipt."""
+
+    return _content_hash(
+        _require_mapping(value, "form differential receipt"), "receiptSha256"
+    )
+
+
+def serialize_form_differential_receipt(value: Mapping[str, Any]) -> bytes:
+    """Return the unique content-addressed byte representation for an asset."""
+
+    return _canonical_bytes(validate_form_differential_receipt(value))
+
+
+def form_verifier_policy_sha256(
+    *,
+    target_policy_sha256: str,
+    differential_receipt_asset_sha256: str,
+) -> str:
+    """Bind cell targets and one exact frozen differential receipt asset."""
+
+    return _sha256(
+        {
+            "schema": "hwpx.practice-form-verifier-policy/v1",
+            "targetPolicySha256": _require_sha(
+                target_policy_sha256, "targetPolicySha256"
+            ),
+            "differentialReceiptAssetSha256": _require_sha(
+                differential_receipt_asset_sha256,
+                "differentialReceiptAssetSha256",
+            ),
+        }
+    )
+
+
+def build_form_differential_receipt(
+    blank_path: str | Path,
+    output_path: str | Path,
+    *,
+    oracle: object,
+) -> dict[str, Any]:
+    """Measure and freeze a real blank→filled Hancom differential verdict.
+
+    The API accepts artifacts and an oracle, never caller-supplied verdict
+    booleans.  Both artifacts are snapshotted before the renderer sees them.
+    Unavailable or incomplete rendering is rejected instead of producing a
+    receipt that could later be mistaken for a pass.
+    """
+
+    if oracle is None:
+        raise ValueError("a concrete form render oracle is required")
+    backend = f"{type(oracle).__module__}.{type(oracle).__name__}"
+    if not _FORM_RENDER_BACKEND_PATTERN.fullmatch(backend):
+        raise ValueError("form render backend is invalid")
+    blank_payload = _read_hwpx_snapshot(blank_path)
+    output_payload = _read_hwpx_snapshot(output_path)
+    from hwpx.form_fit.wordbox import verify_form_fill_differential
+
+    with ExitStack() as stack:
+        blank_snapshot = stack.enter_context(
+            _strict_snapshot_path(blank_payload, suffix=".hwpx")
+        )
+        output_snapshot = stack.enter_context(
+            _strict_snapshot_path(output_payload, suffix=".hwpx")
+        )
+        verdict = verify_form_fill_differential(
+            str(blank_snapshot), str(output_snapshot), oracle=oracle
+        )
+    if verdict.render_checked is not True:
+        raise ValueError("form differential render was not checked")
+    if not isinstance(verdict.layout_stable, bool):
+        raise ValueError("form differential layout verdict is incomplete")
+    receipt: dict[str, Any] = {
+        "schema": FORM_DIFFERENTIAL_RECEIPT_SCHEMA,
+        "blankArtifact": {
+            "sha256": hashlib.sha256(blank_payload).hexdigest(),
+            "bytes": len(blank_payload),
+        },
+        "outputArtifact": {
+            "sha256": hashlib.sha256(output_payload).hexdigest(),
+            "bytes": len(output_payload),
+        },
+        "backend": backend,
+        "oracleProvenanceSha256": form_differential_oracle_provenance_sha256(
+            backend=backend
+        ),
+        "renderChecked": True,
+        "overflowChecked": verdict.overflow_checked is True,
+        "overflowDetected": verdict.overflow_detected is True,
+        "overlapDetected": verdict.overlap_detected is True,
+        "layoutStable": verdict.layout_stable,
+    }
+    receipt["verdict"] = (
+        "passed"
+        if receipt["overflowChecked"]
+        and not receipt["overflowDetected"]
+        and not receipt["overlapDetected"]
+        and receipt["layoutStable"]
+        else "failed"
+    )
+    assert_receipt_safe(receipt)
+    receipt["receiptSha256"] = form_differential_receipt_sha256(receipt)
+    return validate_form_differential_receipt(receipt)
+
+
+def validate_form_differential_receipt(
+    value: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate exact artifact/provenance/verdict bindings fail closed."""
+
+    raw = dict(_require_mapping(value, "form differential receipt"))
+    assert_receipt_safe(raw)
+    _require_exact_keys(
+        raw,
+        {
+            "schema",
+            "blankArtifact",
+            "outputArtifact",
+            "backend",
+            "oracleProvenanceSha256",
+            "renderChecked",
+            "overflowChecked",
+            "overflowDetected",
+            "overlapDetected",
+            "layoutStable",
+            "verdict",
+            "receiptSha256",
+        },
+        "form differential receipt",
+    )
+    if raw["schema"] != FORM_DIFFERENTIAL_RECEIPT_SCHEMA:
+        raise ValueError("unsupported form differential receipt schema")
+    for field in ("blankArtifact", "outputArtifact"):
+        artifact = dict(_require_mapping(raw[field], field))
+        _require_exact_keys(artifact, {"sha256", "bytes"}, field)
+        size = artifact["bytes"]
+        if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+            raise ValueError("form differential artifact bytes must be positive")
+        raw[field] = {
+            "sha256": _require_sha(artifact["sha256"], f"{field}.sha256"),
+            "bytes": size,
+        }
+    backend = str(raw["backend"])
+    if not _FORM_RENDER_BACKEND_PATTERN.fullmatch(backend):
+        raise ValueError("form render backend is invalid")
+    raw["backend"] = backend
+    if _require_sha(
+        raw["oracleProvenanceSha256"], "oracleProvenanceSha256"
+    ) != form_differential_oracle_provenance_sha256(backend=backend):
+        raise ValueError("form render provenance mismatch")
+    for field in (
+        "renderChecked",
+        "overflowChecked",
+        "overflowDetected",
+        "overlapDetected",
+        "layoutStable",
+    ):
+        if not isinstance(raw[field], bool):
+            raise ValueError(f"form differential {field} must be boolean")
+    if raw["renderChecked"] is not True:
+        raise ValueError("form differential receipt must be render checked")
+    expected_verdict = (
+        "passed"
+        if raw["overflowChecked"]
+        and not raw["overflowDetected"]
+        and not raw["overlapDetected"]
+        and raw["layoutStable"]
+        else "failed"
+    )
+    if raw["verdict"] != expected_verdict:
+        raise ValueError("form differential verdict mismatch")
+    if _require_sha(raw["receiptSha256"], "receiptSha256") != (
+        form_differential_receipt_sha256(raw)
+    ):
+        raise ValueError("form differential receipt hash mismatch")
+    return raw
 
 
 def exam_verifier_policy_sha256(
@@ -969,12 +1170,51 @@ def _validate_domain_source_evidence(
     artifact_sha256: str,
     oracle_authentication_keys: Mapping[str, bytes] | None,
 ) -> dict[str, Any] | None:
-    if verifier_family not in {"exam", "must_abstain"}:
+    if verifier_family not in {"exam", "form_fill", "must_abstain"}:
         if value is not None:
             raise ValueError(
-                "only exam or must-abstain evidence may carry source evidence"
+                "only form, exam, or must-abstain evidence may carry source evidence"
             )
         return None
+    if verifier_family == "form_fill":
+        if value is None:
+            return None
+        raw = dict(_require_mapping(value, "form differential source evidence"))
+        _require_exact_keys(
+            raw,
+            {
+                "schema",
+                "assetSha256",
+                "receiptSha256",
+                "targetPolicySha256",
+                "receipt",
+            },
+            "form differential source evidence",
+        )
+        if raw["schema"] != FORM_DIFFERENTIAL_SOURCE_EVIDENCE_SCHEMA:
+            raise ValueError("unsupported form differential source evidence schema")
+        receipt = validate_form_differential_receipt(
+            _require_mapping(raw["receipt"], "form differential source receipt")
+        )
+        asset_sha = _require_sha(raw["assetSha256"], "sourceEvidence.assetSha256")
+        target_policy_sha = _require_sha(
+            raw["targetPolicySha256"], "sourceEvidence.targetPolicySha256"
+        )
+        receipt_sha = _require_sha(
+            raw["receiptSha256"], "sourceEvidence.receiptSha256"
+        )
+        if (
+            receipt_sha != receipt["receiptSha256"]
+            or receipt["outputArtifact"]["sha256"] != artifact_sha256
+        ):
+            raise ValueError("form differential source evidence binding mismatch")
+        return {
+            "schema": FORM_DIFFERENTIAL_SOURCE_EVIDENCE_SCHEMA,
+            "assetSha256": asset_sha,
+            "receiptSha256": receipt_sha,
+            "targetPolicySha256": target_policy_sha,
+            "receipt": receipt,
+        }
     if verifier_family == "must_abstain":
         if value is None:
             # Legacy/raw boolean evidence may remain structurally inspectable,
@@ -1254,6 +1494,31 @@ def validate_domain_evidence(
         ]
         if normalized != derived_checks:
             raise ValueError("exam checks do not match authenticated oracle evidence")
+    elif verifier_family == "form_fill":
+        source = raw["sourceEvidence"]
+        if source is None:
+            if raw["status"] == "passed":
+                raise ValueError(
+                    "passed form evidence requires frozen differential evidence"
+                )
+        else:
+            expected_policy_sha = form_verifier_policy_sha256(
+                target_policy_sha256=source["targetPolicySha256"],
+                differential_receipt_asset_sha256=source["assetSha256"],
+            )
+            policy_bound = raw["verifierPolicySha256"] == expected_policy_sha
+            render_pass = (
+                policy_bound and source["receipt"]["verdict"] == "passed"
+            )
+            synthetic = next(
+                item
+                for item in normalized
+                if item["code"] == "synthetic_values_verified"
+            )
+            if synthetic["status"] == "passed" and not render_pass:
+                raise ValueError(
+                    "form synthetic pass contradicts frozen differential evidence"
+                )
     elif verifier_family == "must_abstain" and raw["sourceEvidence"] is not None:
         source = raw["sourceEvidence"]
         receipt = source["receipt"]
@@ -1783,6 +2048,22 @@ def validate_domain_evaluation_bundle(
                     "exam source evidence does not match frozen verifier policy"
                 )
         elif (
+            item["verifierFamily"] == "form_fill"
+            and item["sourceEvidence"] is not None
+        ):
+            source = item["sourceEvidence"]
+            expected_policy_sha = form_verifier_policy_sha256(
+                target_policy_sha256=source["targetPolicySha256"],
+                differential_receipt_asset_sha256=source["assetSha256"],
+            )
+            if (
+                _verifier_policy_sha256(requirement, "form_fill")
+                != expected_policy_sha
+            ):
+                raise ValueError(
+                    "form source evidence does not match frozen verifier policy"
+                )
+        elif (
             item["verifierFamily"] == "must_abstain"
             and item["sourceEvidence"] is not None
         ):
@@ -1969,37 +2250,67 @@ def build_form_fill_domain_evidence_from_artifacts(
     blank_path: str | Path,
     *,
     target_policy: Mapping[str, Any],
+    frozen_differential_receipt_path: str | Path,
+    frozen_differential_receipt_asset_sha256: str,
     observed_terminal_state: str,
-    frozen_render_path: str | Path | None = None,
-    oracle: Any = None,
 ) -> dict[str, Any]:
-    """Measure form-fill evidence from the artifact and independent core gates."""
+    """Measure form-fill evidence against an exact frozen differential receipt.
+
+    The runner cannot provide render booleans.  The evaluator reads one
+    content-addressed receipt asset, validates its artifact/provenance/verdict
+    contract, then independently measures targets and residue from private
+    snapshots.  Any missing, stale, swapped, or malformed input leaves every
+    check unverified.
+    """
 
     policy = validate_form_target_policy(target_policy)
+    expected_asset_sha = _require_sha(
+        frozen_differential_receipt_asset_sha256,
+        "frozenDifferentialReceiptAssetSha256",
+    )
     checks: dict[str, object] = {
         "mapping_complete": None,
         "residue_absent": None,
         "synthetic_values_verified": None,
     }
+    source_evidence: dict[str, Any] | None = None
     try:
         frozen = validate_domain_requirement(requirement)
         output_payload = _read_hwpx_snapshot(output_path)
         blank_payload = _read_hwpx_snapshot(blank_path)
+        receipt_asset = _read_bounded_snapshot(
+            frozen_differential_receipt_path
+        )
+        if hashlib.sha256(receipt_asset).hexdigest() != expected_asset_sha:
+            raise ValueError("form differential receipt asset hash mismatch")
+        receipt_value = json.loads(receipt_asset.decode("utf-8"))
+        receipt = validate_form_differential_receipt(
+            _require_mapping(receipt_value, "form differential receipt asset")
+        )
+        expected_policy_sha = form_verifier_policy_sha256(
+            target_policy_sha256=policy["policySha256"],
+            differential_receipt_asset_sha256=expected_asset_sha,
+        )
         if (
             hashlib.sha256(output_payload).hexdigest() != frozen["artifactSha256"]
             or hashlib.sha256(blank_payload).hexdigest()
             != policy["blankArtifactSha256"]
-            or _verifier_policy_sha256(frozen, "form_fill") != policy["policySha256"]
+            or _verifier_policy_sha256(frozen, "form_fill")
+            != expected_policy_sha
+            or receipt["blankArtifact"]
+            != {
+                "sha256": hashlib.sha256(blank_payload).hexdigest(),
+                "bytes": len(blank_payload),
+            }
+            or receipt["outputArtifact"]
+            != {
+                "sha256": hashlib.sha256(output_payload).hexdigest(),
+                "bytes": len(output_payload),
+            }
         ):
             raise ValueError("form artifact binding mismatch")
         from hwpx.fill_residue import inspect_fill_residue
-        from hwpx.form_fit.wordbox import verify_form_fill
 
-        render_payload = (
-            _read_bounded_snapshot(frozen_render_path)
-            if frozen_render_path is not None
-            else None
-        )
         with ExitStack() as stack:
             output_snapshot = stack.enter_context(
                 _strict_snapshot_path(output_payload, suffix=".hwpx")
@@ -2007,17 +2318,7 @@ def build_form_fill_domain_evidence_from_artifacts(
             blank_snapshot = stack.enter_context(
                 _strict_snapshot_path(blank_payload, suffix=".hwpx")
             )
-            render_snapshot = (
-                stack.enter_context(_strict_snapshot_path(render_payload, suffix=".json"))
-                if render_payload is not None
-                else None
-            )
             residue = inspect_fill_residue(output_snapshot, blank=blank_snapshot)
-            verdict = verify_form_fill(
-                str(output_snapshot),
-                frozen_path=str(render_snapshot) if render_snapshot is not None else None,
-                oracle=oracle,
-            )
             mapping_complete = all(
                 _bound_cell_value_sha256(blank_snapshot, binding)
                 == binding["blankValueSha256"]
@@ -2036,14 +2337,19 @@ def build_form_fill_domain_evidence_from_artifacts(
             residue_status = True
         if not values_present:
             synthetic_status: bool | None = False
-        elif verdict.render_checked is not True:
-            synthetic_status = None
         else:
-            synthetic_status = verdict.ok is True
+            synthetic_status = receipt["verdict"] == "passed"
         checks = {
             "mapping_complete": mapping_complete,
             "residue_absent": residue_status,
             "synthetic_values_verified": synthetic_status,
+        }
+        source_evidence = {
+            "schema": FORM_DIFFERENTIAL_SOURCE_EVIDENCE_SCHEMA,
+            "assetSha256": expected_asset_sha,
+            "receiptSha256": receipt["receiptSha256"],
+            "targetPolicySha256": policy["policySha256"],
+            "receipt": receipt,
         }
     except Exception:  # missing/stale artifact or unavailable independent verifier
         pass
@@ -2052,7 +2358,8 @@ def build_form_fill_domain_evidence_from_artifacts(
         verifier_family="form_fill",
         checks=checks,
         observed_terminal_state=observed_terminal_state,
-        verifier_version="hwpx-form-independent/v1",
+        verifier_version="hwpx-form-differential/v1",
+        source_evidence=source_evidence,
     )
 
 
@@ -2784,6 +3091,8 @@ __all__ = [
     "DOMAIN_STATUSES",
     "EXAM_ORACLE_AUTH_SCHEMA",
     "EXAM_ORACLE_RECEIPT_SCHEMA",
+    "FORM_DIFFERENTIAL_RECEIPT_SCHEMA",
+    "FORM_DIFFERENTIAL_SOURCE_EVIDENCE_SCHEMA",
     "MAX_DOMAIN_ARTIFACT_BYTES",
     "VERIFIER_CHECKS",
     "abstention_inventory_authentication_key_id",
@@ -2794,6 +3103,7 @@ __all__ = [
     "build_edit_domain_evidence_from_semantic",
     "build_exam_domain_evidence",
     "build_exam_oracle_receipt",
+    "build_form_differential_receipt",
     "build_form_target_policy",
     "build_form_fill_domain_evidence_from_artifacts",
     "build_must_abstain_domain_evidence_from_receipt",
@@ -2809,14 +3119,19 @@ __all__ = [
     "exam_oracle_authentication_key_id",
     "exam_verifier_policy_sha256",
     "evaluate_domain",
+    "form_differential_oracle_provenance_sha256",
+    "form_differential_receipt_sha256",
     "form_target_policy_sha256",
+    "form_verifier_policy_sha256",
     "must_abstain_verifier_policy_sha256",
     "official_verifier_policy_sha256",
     "structural_verifier_policy_sha256",
+    "serialize_form_differential_receipt",
     "validate_domain_evidence",
     "validate_domain_evaluation_bundle",
     "validate_domain_requirement",
     "validate_domain_result",
     "validate_exam_oracle_receipt",
+    "validate_form_differential_receipt",
     "validate_form_target_policy",
 ]

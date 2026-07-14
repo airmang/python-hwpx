@@ -23,6 +23,7 @@ from hwpx.practice.domain import (
     build_edit_domain_evidence_from_semantic,
     build_exam_domain_evidence,
     build_exam_oracle_receipt,
+    build_form_differential_receipt,
     build_form_target_policy,
     build_form_fill_domain_evidence,
     build_form_fill_domain_evidence_from_artifacts,
@@ -40,14 +41,19 @@ from hwpx.practice.domain import (
     domain_value_sha256,
     exam_oracle_authentication_key_id,
     exam_verifier_policy_sha256,
+    form_differential_oracle_provenance_sha256,
+    form_differential_receipt_sha256,
+    form_verifier_policy_sha256,
     must_abstain_verifier_policy_sha256,
     official_verifier_policy_sha256,
+    serialize_form_differential_receipt,
     structural_verifier_policy_sha256,
     evaluate_domain,
     validate_domain_evidence,
     validate_domain_evaluation_bundle,
     validate_domain_requirement,
     validate_domain_result,
+    validate_form_differential_receipt,
 )
 from hwpx.practice.run import (
     PRACTICE_RUN_EVENT_SCHEMA,
@@ -64,6 +70,97 @@ ABSTENTION_INVENTORY_KEY = b"abstention-inventory-test-key-32bytes!"
 
 def _sha(label: str) -> str:
     return hashlib.sha256(label.encode()).hexdigest()
+
+
+def _write_form_differential_asset(
+    blank: Path,
+    output: Path,
+    target: Path,
+    *,
+    verdict: str = "passed",
+) -> tuple[str, dict]:
+    backend = "tests.FrozenDifferentialOracle"
+    receipt = {
+        "schema": "hwpx.practice-form-differential-receipt/v1",
+        "blankArtifact": {
+            "sha256": hashlib.sha256(blank.read_bytes()).hexdigest(),
+            "bytes": blank.stat().st_size,
+        },
+        "outputArtifact": {
+            "sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
+            "bytes": output.stat().st_size,
+        },
+        "backend": backend,
+        "oracleProvenanceSha256": form_differential_oracle_provenance_sha256(
+            backend=backend
+        ),
+        "renderChecked": True,
+        "overflowChecked": True,
+        "overflowDetected": verdict != "passed",
+        "overlapDetected": False,
+        "layoutStable": True,
+        "verdict": verdict,
+    }
+    receipt["receiptSha256"] = form_differential_receipt_sha256(receipt)
+    payload = serialize_form_differential_receipt(receipt)
+    target.write_bytes(payload)
+    return hashlib.sha256(payload).hexdigest(), receipt
+
+
+def test_form_differential_receipt_builder_binds_snapshots_and_verdict(
+    tmp_path, monkeypatch
+) -> None:
+    from types import SimpleNamespace
+
+    import hwpx.form_fit.wordbox as wordbox_module
+    from hwpx.document import HwpxDocument
+
+    blank = tmp_path / "blank.hwpx"
+    output = tmp_path / "output.hwpx"
+    for path, value in ((blank, "BLANK"), (output, "SYNTHETIC")):
+        document = HwpxDocument.new()
+        table = document.add_table(1, 1)
+        table.set_cell_text(0, 0, value)
+        document.save_to_path(path)
+        document.close()
+
+    class FrozenOracle:
+        pass
+
+    oracle = FrozenOracle()
+
+    def differential(blank_snapshot, output_snapshot, *, oracle):  # noqa: ANN001
+        assert Path(blank_snapshot) != blank
+        assert Path(output_snapshot) != output
+        assert oracle is not None
+        assert hashlib.sha256(Path(blank_snapshot).read_bytes()).hexdigest() == (
+            hashlib.sha256(blank.read_bytes()).hexdigest()
+        )
+        assert hashlib.sha256(Path(output_snapshot).read_bytes()).hexdigest() == (
+            hashlib.sha256(output.read_bytes()).hexdigest()
+        )
+        return SimpleNamespace(
+            render_checked=True,
+            overflow_checked=True,
+            overflow_detected=False,
+            overlap_detected=False,
+            layout_stable=True,
+        )
+
+    monkeypatch.setattr(
+        wordbox_module, "verify_form_fill_differential", differential
+    )
+    receipt = build_form_differential_receipt(blank, output, oracle=oracle)
+    assert receipt["verdict"] == "passed"
+    assert receipt["renderChecked"] is True
+    assert validate_form_differential_receipt(receipt) == receipt
+    assert hashlib.sha256(serialize_form_differential_receipt(receipt)).hexdigest()
+
+    forged = copy.deepcopy(receipt)
+    forged["overflowDetected"] = True
+    forged["receiptSha256"] = form_differential_receipt_sha256(forged)
+    with pytest.raises(ValueError, match="verdict mismatch"):
+        validate_form_differential_receipt(forged)
 
 
 def _must_policy() -> dict[str, str]:
@@ -1102,18 +1199,26 @@ def test_production_adapters_cannot_pass_missing_artifacts_or_receipts(
             }
         ],
     )
+    missing_receipt_sha = _sha("missing-form-differential-receipt")
     form_requirement = build_domain_requirement(
         scenario_sha256=_sha("scenario"),
         artifact_sha256=_sha("missing-output"),
         task_kind="known_template_fill",
         family="notice",
-        verifier_policy_sha256s={"form_fill": target_policy["policySha256"]},
+        verifier_policy_sha256s={
+            "form_fill": form_verifier_policy_sha256(
+                target_policy_sha256=target_policy["policySha256"],
+                differential_receipt_asset_sha256=missing_receipt_sha,
+            )
+        },
     )
     form = build_form_fill_domain_evidence_from_artifacts(
         form_requirement,
         missing,
         missing,
         target_policy=target_policy,
+        frozen_differential_receipt_path=missing,
+        frozen_differential_receipt_asset_sha256=missing_receipt_sha,
         observed_terminal_state="completed",
     )
     assert form["status"] == "unverified"
@@ -1492,39 +1597,73 @@ def test_form_production_adapter_binds_expected_values_to_exact_cells(tmp_path) 
             },
         ],
     )
+    receipt_path = tmp_path / "filled-differential.json"
+    receipt_sha, _receipt = _write_form_differential_asset(
+        blank, output, receipt_path
+    )
     requirement = build_domain_requirement(
         scenario_sha256=_sha("scenario"),
         artifact_sha256=hashlib.sha256(output.read_bytes()).hexdigest(),
         task_kind="known_template_fill",
         family="notice",
-        verifier_policy_sha256s={"form_fill": policy["policySha256"]},
+        verifier_policy_sha256s={
+            "form_fill": form_verifier_policy_sha256(
+                target_policy_sha256=policy["policySha256"],
+                differential_receipt_asset_sha256=receipt_sha,
+            )
+        },
     )
     evidence = build_form_fill_domain_evidence_from_artifacts(
         requirement,
         output,
         blank,
         target_policy=policy,
+        frozen_differential_receipt_path=receipt_path,
+        frozen_differential_receipt_asset_sha256=receipt_sha,
         observed_terminal_state="completed",
-        oracle=_UnavailableOracle(),
     )
     statuses = {item["code"]: item["status"] for item in evidence["checks"]}
     assert statuses["mapping_complete"] == "passed"
-    assert statuses["synthetic_values_verified"] == "unverified"
+    assert statuses["synthetic_values_verified"] == "passed"
 
+    tampered_receipt_path = tmp_path / "tampered-differential.json"
+    tampered_receipt_path.write_bytes(receipt_path.read_bytes() + b"\n")
+    tampered = build_form_fill_domain_evidence_from_artifacts(
+        requirement,
+        output,
+        blank,
+        target_policy=policy,
+        frozen_differential_receipt_path=tampered_receipt_path,
+        frozen_differential_receipt_asset_sha256=receipt_sha,
+        observed_terminal_state="completed",
+    )
+    assert tampered["status"] == "unverified"
+    assert tampered["sourceEvidence"] is None
+
+    swapped_receipt_path = tmp_path / "swapped-differential.json"
+    swapped_receipt_sha, _swapped_receipt = _write_form_differential_asset(
+        blank, swapped, swapped_receipt_path
+    )
     swapped_requirement = build_domain_requirement(
         scenario_sha256=_sha("scenario"),
         artifact_sha256=hashlib.sha256(swapped.read_bytes()).hexdigest(),
         task_kind="known_template_fill",
         family="notice",
-        verifier_policy_sha256s={"form_fill": policy["policySha256"]},
+        verifier_policy_sha256s={
+            "form_fill": form_verifier_policy_sha256(
+                target_policy_sha256=policy["policySha256"],
+                differential_receipt_asset_sha256=swapped_receipt_sha,
+            )
+        },
     )
     swapped_evidence = build_form_fill_domain_evidence_from_artifacts(
         swapped_requirement,
         swapped,
         blank,
         target_policy=policy,
+        frozen_differential_receipt_path=swapped_receipt_path,
+        frozen_differential_receipt_asset_sha256=swapped_receipt_sha,
         observed_terminal_state="completed",
-        oracle=_UnavailableOracle(),
     )
     swapped_statuses = {
         item["code"]: item["status"] for item in swapped_evidence["checks"]
@@ -1532,6 +1671,30 @@ def test_form_production_adapter_binds_expected_values_to_exact_cells(tmp_path) 
     assert swapped_statuses["mapping_complete"] == "passed"
     assert swapped_statuses["synthetic_values_verified"] == "failed"
     assert swapped_evidence["status"] == "failed"
+
+    stale_requirement = build_domain_requirement(
+        scenario_sha256=_sha("scenario"),
+        artifact_sha256=hashlib.sha256(swapped.read_bytes()).hexdigest(),
+        task_kind="known_template_fill",
+        family="notice",
+        verifier_policy_sha256s={
+            "form_fill": form_verifier_policy_sha256(
+                target_policy_sha256=policy["policySha256"],
+                differential_receipt_asset_sha256=receipt_sha,
+            )
+        },
+    )
+    stale = build_form_fill_domain_evidence_from_artifacts(
+        stale_requirement,
+        swapped,
+        blank,
+        target_policy=policy,
+        frozen_differential_receipt_path=receipt_path,
+        frozen_differential_receipt_asset_sha256=receipt_sha,
+        observed_terminal_state="completed",
+    )
+    assert stale["status"] == "unverified"
+    assert stale["sourceEvidence"] is None
 
 
 def test_must_abstain_adapter_detects_unrecorded_sandbox_outputs(tmp_path) -> None:
@@ -1735,10 +1898,7 @@ def test_must_abstain_requires_exact_empty_and_rejects_inventory_race(
 def test_form_adapter_uses_one_private_snapshot_across_verifiers(
     tmp_path, monkeypatch
 ) -> None:
-    from types import SimpleNamespace
-
     import hwpx.fill_residue as residue_module
-    import hwpx.form_fit.wordbox as wordbox_module
     from hwpx.document import HwpxDocument
 
     blank = tmp_path / "blank.hwpx"
@@ -1766,12 +1926,21 @@ def test_form_adapter_uses_one_private_snapshot_across_verifiers(
             }
         ],
     )
+    receipt_path = tmp_path / "differential.json"
+    receipt_sha, _receipt = _write_form_differential_asset(
+        blank, output, receipt_path
+    )
     requirement = build_domain_requirement(
         scenario_sha256=_sha("scenario"),
         artifact_sha256=hashlib.sha256(output.read_bytes()).hexdigest(),
         task_kind="known_template_fill",
         family="notice",
-        verifier_policy_sha256s={"form_fill": policy["policySha256"]},
+        verifier_policy_sha256s={
+            "form_fill": form_verifier_policy_sha256(
+                target_policy_sha256=policy["policySha256"],
+                differential_receipt_asset_sha256=receipt_sha,
+            )
+        },
     )
     real_residue = residue_module.inspect_fill_residue
 
@@ -1784,16 +1953,13 @@ def test_form_adapter_uses_one_private_snapshot_across_verifiers(
 
     globals_blank = blank
     monkeypatch.setattr(residue_module, "inspect_fill_residue", swap_originals)
-    monkeypatch.setattr(
-        wordbox_module,
-        "verify_form_fill",
-        lambda *args, **kwargs: SimpleNamespace(render_checked=True, ok=True),
-    )
     evidence = build_form_fill_domain_evidence_from_artifacts(
         requirement,
         output,
         blank,
         target_policy=policy,
+        frozen_differential_receipt_path=receipt_path,
+        frozen_differential_receipt_asset_sha256=receipt_sha,
         observed_terminal_state="completed",
     )
     assert evidence["status"] == "passed"
