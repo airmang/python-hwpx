@@ -31,11 +31,10 @@ def _write_supported_fixture(path: Path, *, paragraph_id: str = "102") -> str:
         image_ref = document.add_image(PNG, "png")
         paragraph.add_picture(image_ref, width=7200, height=3600)
         table = paragraph.add_table(2, 2)
-        table.rows[0].cells[0].text = "항목"
+        table.rows[0].cells[0].text = "항목 / 담당"
         table.rows[0].cells[1].text = "내용"
-        table.rows[1].cells[0].text = "담당"
         table.rows[1].cells[1].text = "홍길동"
-        table.rows[0].cells[0].set_span(2, 1)
+        table.merge_cells("A1:A2")
         begin_run = paragraph.element.makeelement(f"{HP}run", {"charPrIDRef": "0"})
         begin_ctrl = begin_run.makeelement(f"{HP}ctrl", {"type": "FORM"})
         begin_ctrl.append(

@@ -277,17 +277,80 @@ class TypedNativeBridge:
         row_ids = [child for child in node["children"] if self.nodes[child]["kind"] == "row"]
         if len(row_ids) != len(table.rows):
             raise AgentContractError("invariant_violation", "table row count does not match graph", target=node_id)
+        cell_layout = self._table_cell_layout(row_ids, int(properties["columnCount"]))
+        for cell_id, row_index, column_index, row_span, column_span in cell_layout:
+            if row_span > 1 or column_span > 1:
+                table.merge_cells(
+                    row_index,
+                    column_index,
+                    row_index + row_span - 1,
+                    column_index + column_span - 1,
+                )
         for row_id, row in zip(row_ids, table.rows, strict=True):
-            self._populate_row(row_id, row)
+            self._bind_row(row_id, row)
+        for cell_id, row_index, column_index, _row_span, _column_span in cell_layout:
+            self._populate_cell(cell_id, table.cell(row_index, column_index))
         return table
 
-    def _populate_row(self, node_id: str, row: Any) -> None:
+    def _table_cell_layout(
+        self,
+        row_ids: list[str],
+        column_count: int,
+    ) -> list[tuple[str, int, int, int, int]]:
+        occupancy = [[False for _ in range(column_count)] for _ in row_ids]
+        layout: list[tuple[str, int, int, int, int]] = []
+        for row_index, row_id in enumerate(row_ids):
+            column_index = 0
+            cell_ids = [
+                child
+                for child in self.nodes[row_id]["children"]
+                if self.nodes[child]["kind"] == "cell"
+            ]
+            for cell_id in cell_ids:
+                while column_index < column_count and occupancy[row_index][column_index]:
+                    column_index += 1
+                properties = self.nodes[cell_id]["properties"]
+                row_span = int(properties.get("rowSpan") or 1)
+                column_span = int(properties.get("columnSpan") or 1)
+                if (
+                    column_index >= column_count
+                    or row_index + row_span > len(row_ids)
+                    or column_index + column_span > column_count
+                ):
+                    raise AgentContractError(
+                        "invariant_violation",
+                        "table cell spans exceed the declared grid",
+                        target=cell_id,
+                    )
+                for occupied_row in range(row_index, row_index + row_span):
+                    for occupied_column in range(column_index, column_index + column_span):
+                        if occupancy[occupied_row][occupied_column]:
+                            raise AgentContractError(
+                                "invariant_violation",
+                                "table cell spans overlap",
+                                target=cell_id,
+                            )
+                        occupancy[occupied_row][occupied_column] = True
+                layout.append((cell_id, row_index, column_index, row_span, column_span))
+                column_index += column_span
+        if any(not occupied for row in occupancy for occupied in row):
+            raise AgentContractError(
+                "invariant_violation",
+                "table graph does not cover the declared grid",
+            )
+        return layout
+
+    def _bind_row(self, node_id: str, row: Any) -> None:
         node = self.nodes[node_id]
         self.created[node_id] = CreatedBinding("row", row)
         height = node["properties"].get("heightMm")
         if height is not None:
             for cell in row.cells:
                 cell.set_size(height=_mm_units(height, cell.height))
+
+    def _populate_row(self, node_id: str, row: Any) -> None:
+        node = self.nodes[node_id]
+        self._bind_row(node_id, row)
         cell_ids = [child for child in node["children"] if self.nodes[child]["kind"] == "cell"]
         if len(cell_ids) != len(row.cells):
             raise AgentContractError("invariant_violation", "table cell count does not match graph", target=node_id)
