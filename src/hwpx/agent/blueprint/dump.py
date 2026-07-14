@@ -208,6 +208,75 @@ def _picture_resource(
     return resource, payload
 
 
+def _first_descendant(element: Any, kind: str) -> Any | None:
+    return next((child for child in element.iter() if _local_name(child) == kind), None)
+
+
+def _portable_properties(record: NodeRecord) -> dict[str, Any]:
+    properties = dict(record.summary)
+    if record.kind == "section":
+        # The section part filename is an implementation/package coordinate,
+        # not a portable construction property.
+        properties.pop("partId", None)
+    elif record.kind == "cell":
+        # Row/column are source-document addresses. The graph order and spans
+        # carry the portable structure, while replay may insert the cell's row
+        # at a different target address.
+        properties.pop("row", None)
+        properties.pop("column", None)
+    elif record.kind == "row":
+        # Like cell addresses, the row index is determined by the target
+        # insertion point and is not part of the portable row payload.
+        properties.pop("index", None)
+    elif record.kind == "picture":
+        pos = _first_descendant(record.native, "pos")
+        if pos is not None:
+            properties["treatAsChar"] = str(pos.get("treatAsChar", "1")) not in {"0", "false", "False"}
+            properties["alignment"] = pos.get("horzAlign")
+    elif record.kind == "shape":
+        element = record.native.element
+        pos = _first_descendant(element, "pos")
+        line = _first_descendant(element, "lineShape")
+        fill = _first_descendant(element, "winBrush")
+        properties.update(
+            {
+                "treatAsChar": (
+                    str(pos.get("treatAsChar", "1")) not in {"0", "false", "False"}
+                    if pos is not None
+                    else True
+                ),
+                "lineColor": line.get("color") if line is not None else None,
+                "lineWidth": line.get("width") if line is not None else None,
+                "fillColor": fill.get("faceColor") if fill is not None else None,
+                "ratio": element.get("ratio") if _local_name(element) == "rect" else None,
+            }
+        )
+    elif record.kind == "form-field":
+        properties["hasEnd"] = bool(record.native.get("has_end"))
+    return properties
+
+
+def _native_element(record: NodeRecord) -> Any | None:
+    native = record.native
+    if record.kind == "form-field":
+        return None
+    return getattr(native, "element", native)
+
+
+def _host_run_path(record: NodeRecord, selected: Mapping[str, NodeRecord]) -> str | None:
+    if record.kind not in {"table", "picture", "shape", "footnote", "endnote"}:
+        return None
+    element = _native_element(record)
+    parent = element.getparent() if element is not None and hasattr(element, "getparent") else None
+    for candidate in selected.values():
+        if candidate.kind != "run" or candidate.parent_path != record.parent_path:
+            continue
+        run_element = candidate.native.element
+        if parent is run_element or (element is not None and any(child is element for child in run_element)):
+            return candidate.path
+    return None
+
+
 def _ordered_subtree(
     agent: HwpxAgentDocument, root: NodeRecord
 ) -> list[tuple[NodeRecord, int]]:
@@ -260,12 +329,15 @@ def _make_manifest(
     resources: dict[str, dict[str, Any]] = {}
     assets: dict[str, bytes] = {}
     unsupported: list[dict[str, str]] = []
+    references: list[dict[str, Any]] = []
     nodes: list[dict[str, Any]] = []
+    selected = {record.path: record for record, _depth in ordered}
 
     for record, _depth in ordered:
         style_refs: list[str] = []
         numbering_refs: list[str] = []
         resource_refs: list[str] = []
+        node_references: list[str] = []
         dependency = _style_dependency(agent, record)
         if dependency is not None:
             styles.setdefault(str(dependency["key"]), dependency)
@@ -294,17 +366,55 @@ def _make_manifest(
                 assets.setdefault(str(resource["assetPath"]), payload)
                 resource_refs.append(str(resource["key"]))
 
+        if record.kind == "shape":
+            shape_type = str(record.summary.get("shapeType") or "")
+            if shape_type not in {"rect", "ellipse"} or not _portable_properties(record).get("treatAsChar"):
+                reason = "only inline rectangle/ellipse shapes are portable in blueprint v1"
+                unsupported.append({"path": record.path, "kind": "shape", "reason": reason})
+                node_unsupported.append(reason)
+
+        host_run_path = _host_run_path(record, selected)
+        if host_run_path is not None:
+            references.append(
+                {
+                    "from": logical_ids[record.path],
+                    "field": "hostRun",
+                    "to": logical_ids[host_run_path],
+                    "required": True,
+                }
+            )
+            node_references.append("hostRun")
+        if record.kind == "form-field" and record.parent_path is not None:
+            paragraph = selected.get(record.parent_path)
+            run_paths = [
+                path
+                for path in (paragraph.child_paths if paragraph is not None else [])
+                if path in selected and selected[path].kind == "run"
+            ]
+            for field, index_key in (("hostRun", "_begin_run_index"), ("endRun", "_end_run_index")):
+                raw_index = record.native.get(index_key)
+                if isinstance(raw_index, int) and 0 <= raw_index < len(run_paths):
+                    references.append(
+                        {
+                            "from": logical_ids[record.path],
+                            "field": field,
+                            "to": logical_ids[run_paths[raw_index]],
+                            "required": True,
+                        }
+                    )
+                    node_references.append(field)
+
         replayable = not node_unsupported
         native_id = record.attributes.get("id") or record.stable_id
         node = {
             "blueprintId": logical_ids[record.path],
             "kind": record.kind,
-            "properties": dict(record.summary),
+            "properties": _portable_properties(record),
             "children": [logical_ids[path] for path in record.child_paths],
             "styleRefs": sorted(style_refs),
             "numberingRefs": sorted(numbering_refs),
             "resourceRefs": sorted(resource_refs),
-            "references": [],
+            "references": sorted(node_references),
             "sourceHint": {"nativeId": native_id, "path": record.path},
             "support": {
                 "replayable": replayable,
@@ -313,6 +423,10 @@ def _make_manifest(
         }
         nodes.append(node)
 
+    if root_record.kind in {"cell", "form-field"}:
+        reason = f"standalone {root_record.kind} insertion is unavailable in blueprint v1"
+        unsupported.append({"path": root_record.path, "kind": root_record.kind, "reason": reason})
+        nodes[0]["support"] = {"replayable": False, "fidelity": "unsupported"}
     all_replayable = not unsupported and all(node["support"]["replayable"] for node in nodes)
     if require_replayable and not all_replayable:
         first = unsupported[0] if unsupported else {"path": root_record.path, "reason": "not replayable"}
@@ -339,7 +453,7 @@ def _make_manifest(
         "styles": [styles[key] for key in sorted(styles)],
         "numbering": [numbering[key] for key in sorted(numbering)],
         "resources": [resources[key] for key in sorted(resources)],
-        "references": [],
+        "references": references,
         "unsupported": unsupported,
         "capabilities": {
             "dump": True,

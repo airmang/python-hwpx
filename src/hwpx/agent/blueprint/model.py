@@ -14,8 +14,11 @@ from ..model import (
     AGENT_CATALOG_SCHEMA,
     NODE_KINDS,
     REVISION_PATTERN,
+    VERIFICATION_REQUIREMENTS,
     AgentContractError,
     AgentError,
+    _validate_position,
+    _validate_quality,
 )
 
 BLUEPRINT_SCHEMA = "hwpx.agent-blueprint/v1"
@@ -513,17 +516,20 @@ def validate_replay_request(value: Mapping[str, Any]) -> dict[str, Any]:
         raise AgentContractError("invalid_syntax", "unsupported replay mode", target="mode")
     bundle = _object(request["bundle"], "bundle")
     _exact_keys(bundle, required={"filename", "blueprintHash"}, name="bundle")
+    if not isinstance(bundle["filename"], str) or not bundle["filename"].strip():
+        raise AgentContractError("invalid_syntax", "bundle.filename cannot be empty", target="bundle.filename")
     if not SHA256_PATTERN.fullmatch(str(bundle["blueprintHash"])):
         raise AgentContractError("invalid_syntax", "bundle blueprintHash is invalid", target="bundle.blueprintHash")
     target = _object(request["target"], "target")
     _exact_keys(target, required={"input", "output", "overwrite"}, name="target")
+    for field_name in ("input", "output"):
+        if not isinstance(target[field_name], str) or not target[field_name].strip():
+            raise AgentContractError("invalid_syntax", f"target.{field_name} cannot be empty", target=f"target.{field_name}")
     if not isinstance(target["overwrite"], bool):
         raise AgentContractError("invalid_syntax", "target.overwrite must be boolean", target="target.overwrite")
     if not str(request["targetParent"]).startswith("/"):
         raise AgentContractError("invalid_syntax", "targetParent must be semantic", target="targetParent")
-    position = _object(request["position"], "position")
-    if position.get("mode") not in {"append", "prepend", "index", "before", "after"}:
-        raise AgentContractError("invalid_syntax", "position mode is invalid", target="position.mode")
+    position = _validate_position(request["position"], "position")
     policy = _object(request["mappingPolicy"], "mappingPolicy")
     _exact_keys(policy, required={"strict"}, name="mappingPolicy")
     if not isinstance(policy["strict"], bool):
@@ -536,8 +542,24 @@ def validate_replay_request(value: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(request["dryRun"], bool):
         raise AgentContractError("invalid_syntax", "dryRun must be boolean", target="dryRun")
     requirements = [str(item) for item in _list(request["verificationRequirements"], "verificationRequirements")]
+    unknown_requirements = sorted(set(requirements) - set(VERIFICATION_REQUIREMENTS))
+    if unknown_requirements:
+        raise AgentContractError(
+            "invalid_syntax",
+            f"unsupported verification requirements: {unknown_requirements}",
+            target="verificationRequirements",
+        )
+    quality = _validate_quality(request["quality"])
     _validate_public_json(request, name="replay")
-    return {**request, "bundle": bundle, "target": target, "position": position, "mappingPolicy": policy, "verificationRequirements": requirements}
+    return {
+        **request,
+        "bundle": bundle,
+        "target": target,
+        "position": position,
+        "mappingPolicy": policy,
+        "quality": quality,
+        "verificationRequirements": requirements,
+    }
 
 
 @dataclass(frozen=True, slots=True)

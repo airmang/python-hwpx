@@ -14,6 +14,8 @@ from .bundle import (
     write_blueprint_bundle,
 )
 from .dump import BlueprintDumpResult, dump_document_blueprint
+from .mapping import ReplayPlan
+from .replay import replay_document_blueprint
 from .model import (
     BLUEPRINT_CATALOG_SCHEMA,
     BLUEPRINT_REPLAY_RESULT_SCHEMA,
@@ -36,6 +38,7 @@ __all__ = [
     "BlueprintBundle",
     "BlueprintDumpResult",
     "BlueprintReplayResult",
+    "ReplayPlan",
     "blueprint_catalog",
     "blueprint_catalog_hash",
     "blueprint_hash",
@@ -47,6 +50,7 @@ __all__ = [
     "dump_document_blueprint",
     "read_blueprint_bundle",
     "repack_blueprint_bundle",
+    "replay_document_blueprint",
     "validate_blueprint_manifest",
     "validate_replay_request",
     "with_blueprint_hash",
