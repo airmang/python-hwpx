@@ -50,6 +50,11 @@ on run argv
 		if not (waitForWindowNamed(inputBase, timeoutSecs)) then
 			return "ERR: document window did not open: " & inputBase
 		end if
+		-- A prior timed-out render can leave a same-named window behind, and
+		-- LaunchServices does not guarantee that the newly opened document is
+		-- frontmost. Raise the exact staged document before using its File menu.
+		raiseWindowNamed(inputBase)
+		delay 0.3
 
 		-- 3) 파일 > "PDF로 저장하기..."  (open the export save panel)
 		clickFileMenuItemByPrefix(savePdfPrefix)
@@ -58,7 +63,7 @@ on run argv
 		if not (waitForWindowNamed(pdfDialogTitle, 30)) then
 			return "ERR: PDF save dialog did not appear"
 		end if
-		delay 0.4
+		delay 1.0
 
 		-- 5) Press Return = the default 저장 button (no typing: panel is
 		--    pre-filled with 위치=out_dir, name=out_stem from the staged input).
@@ -67,6 +72,15 @@ on run argv
 			delay 0.3
 			key code 36 -- Return
 		end tell
+		-- Some Hancom builds expose the dialog before its default button is
+		-- ready. Retry Return once only while the same dialog is still present.
+		delay 1.0
+		if listContains(windowNames(), pdfDialogTitle) then
+			tell application "System Events" to tell process procName
+				set frontmost to true
+				key code 36
+			end tell
+		end if
 
 		-- 6) Defensive: a "대치(replace)?" sheet only appears if the target still
 		--    exists. Dismiss it (대치) if present, then wait for the file.
@@ -122,6 +136,15 @@ on clickFileMenuItemByPrefix(prefix)
 		error "menu item not found: " & prefix
 	end tell
 end clickFileMenuItemByPrefix
+
+on raiseWindowNamed(winName)
+	tell application "System Events" to tell process procName
+		set frontmost to true
+		try
+			perform action "AXRaise" of (first window whose name is winName)
+		end try
+	end tell
+end raiseWindowNamed
 
 -- Window polling uses the ATOMIC ``name of windows`` string list (never a held
 -- ``repeat with w in windows`` element reference): the save dialog appears and

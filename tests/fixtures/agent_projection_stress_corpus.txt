@@ -1,0 +1,5 @@
+exam/A_form.hwpx
+exam/B_submitted.hwpx
+fuzz_regressions/seed-000000-baseline.hwpx
+hwpxlib_corpus/reader_writer__SimpleTable.hwpx
+hwpxlib_corpus/reader_writer__SimplePicture.hwpx

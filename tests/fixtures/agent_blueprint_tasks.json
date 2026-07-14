@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "hwpx.agent-blueprint-task-pack/v1",
+  "feature": "020-agent-blueprint-replay",
+  "baselineStage": "STG-d89e34ff7729",
+  "tasks": [
+    {"id": "BP001", "family": "dump", "case": "paragraph subtree", "terminal": "success"},
+    {"id": "BP002", "family": "dump", "case": "merged table subtree", "terminal": "success"},
+    {"id": "BP003", "family": "dump", "case": "document root", "terminal": "success"},
+    {"id": "BP004", "family": "dump", "case": "form field and memo", "terminal": "success"},
+    {"id": "BP005", "family": "dump", "case": "picture asset", "terminal": "success"},
+    {"id": "BP006", "family": "determinism", "case": "repeated bundle bytes", "terminal": "success"},
+    {"id": "BP007", "family": "source-bound", "case": "matching dependency fingerprints", "terminal": "success"},
+    {"id": "BP008", "family": "portable", "case": "exact style reuse", "terminal": "success"},
+    {"id": "BP009", "family": "portable", "case": "same-name style conflict", "terminal": "success"},
+    {"id": "BP010", "family": "portable", "case": "numbering collision", "terminal": "success"},
+    {"id": "BP011", "family": "portable", "case": "resource collision and dedup", "terminal": "success"},
+    {"id": "BP012", "family": "replay", "case": "dry-run then real", "terminal": "success"},
+    {"id": "BP013", "family": "replay", "case": "idempotent response-loss retry", "terminal": "success"},
+    {"id": "BP014", "family": "replay", "case": "stale target revision", "terminal": "structured-refusal"},
+    {"id": "BP015", "family": "replay", "case": "volatile destination", "terminal": "structured-refusal"},
+    {"id": "BP016", "family": "fidelity", "case": "unsupported descendant", "terminal": "structured-refusal"},
+    {"id": "BP017", "family": "fidelity", "case": "degraded strict replay", "terminal": "structured-refusal"},
+    {"id": "BP018", "family": "security", "case": "hostile bundle", "terminal": "structured-refusal"},
+    {"id": "BP019", "family": "verification", "case": "required oracle unavailable", "terminal": "unverified"},
+    {"id": "BP020", "family": "installed", "case": "human-authored block transplant", "terminal": "oracle-clean"}
+  ]
+}

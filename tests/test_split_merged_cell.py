@@ -97,6 +97,8 @@ def test_split_block_merge_restores_all_cells() -> None:
 
     table.merge_cells(0, 0, 1, 1)
     assert table.cell(0, 0).span == (2, 2)
+    assert [cell.address for cell in table.rows[0].cells] == [(0, 0), (0, 2)]
+    assert [cell.address for cell in table.rows[1].cells] == [(1, 2)]
 
     table.split_merged_cell(0, 0)
 
@@ -104,6 +106,8 @@ def test_split_block_merge_restores_all_cells() -> None:
         for c in range(2):
             cell = table.cell(r, c)
             assert cell.span == (1, 1), f"cell ({r},{c}) span should be (1,1)"
+    assert [cell.address for cell in table.rows[0].cells] == [(0, 0), (0, 1), (0, 2)]
+    assert [cell.address for cell in table.rows[1].cells] == [(1, 0), (1, 1), (1, 2)]
 
 
 # --------------------------------------------------------------------------- #

@@ -1,0 +1,128 @@
+{
+  "schema": "hwpx.visual-fixture-manifest/v1",
+  "taxonomyVersion": "hwpx-visual-defects/1.0",
+  "assurance": "fixture",
+  "generator": {
+    "path": "generate.py",
+    "version": "1.0.0"
+  },
+  "cases": [
+    {
+      "id": "clean-layout-001",
+      "classification": "clean",
+      "pages": [
+        {
+          "page": 0,
+          "path": "clean_page.png",
+          "sha256": "be9909d88e9554d843d64f7db9dc336f09a68e162f6e1c676b614feb793ff398"
+        }
+      ],
+      "annotations": [],
+      "provenance": {
+        "kind": "generated-clean",
+        "generator": "generate.py"
+      }
+    },
+    {
+      "id": "natural-overprint-001",
+      "classification": "natural",
+      "pages": [
+        {
+          "page": 0,
+          "path": "natural_overprint_page.png",
+          "sha256": "573c2b47df1e69f744fc584d29fe5ebf46ed599592ea5684c6509fe3acd5931c"
+        }
+      ],
+      "annotations": [
+        {
+          "page": 0,
+          "category": "text_clipping_overlap",
+          "severity": "critical",
+          "bbox": [
+            0.1167,
+            0.587,
+            0.818,
+            0.638
+          ],
+          "labelStatus": "adjudicated",
+          "labelers": [
+            "reviewer-a",
+            "reviewer-b"
+          ]
+        }
+      ],
+      "provenance": {
+        "kind": "preserved-historical-failure-morphology",
+        "sourceDocument": "../glyph_overlap/slot_overprint.hwpx",
+        "sourceSha256": "55a971129d13627353c469a9af52619f0526aefe2b577c5852dfc8f84b29abf3",
+        "claim": "deterministic fixture, not a Hancom render"
+      }
+    },
+    {
+      "id": "injected-edge-clip-001",
+      "classification": "injected",
+      "pages": [
+        {
+          "page": 0,
+          "path": "injected_edge_clip_page.png",
+          "sha256": "b172148b25b1660522b812a1d3154b1285a12287a5f70812acc51bafe86fa682"
+        }
+      ],
+      "annotations": [
+        {
+          "page": 0,
+          "category": "text_clipping_overlap",
+          "severity": "critical",
+          "bbox": [
+            0.775,
+            0.573,
+            1.0,
+            0.584
+          ],
+          "labelStatus": "adjudicated",
+          "labelers": [
+            "reviewer-a",
+            "reviewer-b"
+          ]
+        }
+      ],
+      "provenance": {
+        "kind": "injected",
+        "operation": "ink-to-right-page-edge"
+      }
+    },
+    {
+      "id": "injected-blank-001",
+      "classification": "injected",
+      "pages": [
+        {
+          "page": 0,
+          "path": "injected_blank_page.png",
+          "sha256": "76441e504c8cda7db9a81b369ee9a1e4dfd9ffb39f78b6352981527cd5cb05dd"
+        }
+      ],
+      "annotations": [
+        {
+          "page": 0,
+          "category": "unexpected_blank_page",
+          "severity": "critical",
+          "bbox": [
+            0.0,
+            0.0,
+            1.0,
+            1.0
+          ],
+          "labelStatus": "adjudicated",
+          "labelers": [
+            "reviewer-a",
+            "reviewer-b"
+          ]
+        }
+      ],
+      "provenance": {
+        "kind": "injected",
+        "operation": "remove-all-page-ink"
+      }
+    }
+  ]
+}

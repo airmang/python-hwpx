@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -263,6 +264,17 @@ def test_mac_oracle_unavailable_without_hancom(monkeypatch) -> None:
 )
 def test_mac_oracle_available_on_this_mac() -> None:
     assert MacHancomOracle().available() is True
+
+
+def test_mac_oracle_script_raises_exact_window_and_retries_late_dialog() -> None:
+    script = (
+        Path(oracle_module.__file__).with_name("_render_hwpx_mac.applescript")
+    ).read_text(encoding="utf-8")
+
+    assert "raiseWindowNamed(inputBase)" in script
+    assert 'perform action "AXRaise"' in script
+    assert "if listContains(windowNames(), pdfDialogTitle) then" in script
+    assert script.count("key code 36") >= 2
 
 
 # --------------------------------------------------------------------------- #

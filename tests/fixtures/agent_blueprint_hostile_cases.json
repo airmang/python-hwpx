@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "hwpx.agent-blueprint-threat-matrix/v1",
+  "cases": [
+    "duplicate-blueprint-json",
+    "absolute-entry-path",
+    "parent-traversal-entry",
+    "symlink-entry",
+    "nested-archive-entry",
+    "xml-entry",
+    "unknown-entry",
+    "asset-hash-mismatch",
+    "asset-mime-mismatch",
+    "decompression-ratio-limit",
+    "manifest-size-limit",
+    "asset-count-limit",
+    "asset-size-limit",
+    "total-asset-size-limit",
+    "node-depth-limit",
+    "duplicate-logical-id",
+    "missing-child",
+    "reference-cycle",
+    "orphan-reference",
+    "private-coordinate-leak",
+    "catalog-version-skew",
+    "required-oracle-unavailable"
+  ]
+}
