@@ -416,6 +416,14 @@ class HwpxAgentDocument:
                         for match in matches:
                             object_indexes["form-field"] += 1
                             self._project_form_field(match, path, object_indexes["form-field"])
+                    elif len(child) > 0 and all(
+                        _local_name(control_child) in {"fieldEnd", "colPr", "secPr"}
+                        for control_child in child
+                    ):
+                        # A matched FORM field is projected from its fieldBegin. Its paired
+                        # fieldEnd and section/column controls carry no additional subtree
+                        # semantics and must not make an otherwise complete block unsupported.
+                        continue
                     else:
                         record.mark_unsupported("ctrl")
                 elif local not in _IGNORED_INLINE_KINDS:

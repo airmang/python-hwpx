@@ -277,6 +277,7 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
     if not nodes or len(nodes) > MAX_BLUEPRINT_NODES:
         raise AgentContractError("resource_limit", "node count is outside limits", target="nodes")
     node_ids: set[str] = set()
+    nodes_by_id: dict[str, dict[str, Any]] = {}
     detached_nodes: list[dict[str, Any]] = []
     for index, item in enumerate(nodes):
         name = f"nodes[{index}]"
@@ -307,11 +308,16 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
             node[field_name] = [str(item) for item in _list(node[field_name], f"{name}.{field_name}")]
         support = _object(node["support"], f"{name}.support")
         _exact_keys(support, required={"replayable", "fidelity"}, name=f"{name}.support")
+        if not isinstance(support["replayable"], bool):
+            raise AgentContractError("invalid_syntax", f"{name}.support replayable must be boolean", target=name)
         if support["fidelity"] not in FIDELITY_LEVELS:
             raise AgentContractError("invalid_syntax", f"{name}.support fidelity is invalid", target=name)
+        node["properties"] = _object(node["properties"], f"{name}.properties")
+        node["sourceHint"] = _object(node["sourceHint"], f"{name}.sourceHint")
         _validate_public_json(node["properties"], name=f"{name}.properties")
         _validate_public_json(node["sourceHint"], name=f"{name}.sourceHint")
         detached_nodes.append(node)
+        nodes_by_id[node_id] = node
 
     if str(root["blueprintId"]) not in node_ids:
         raise AgentContractError("invariant_violation", "root does not reference a node", target="root")
@@ -321,6 +327,39 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
                 raise AgentContractError(
                     "invariant_violation", "node child reference is missing", target=f"nodes[{index}].children"
                 )
+
+    root_id = str(root["blueprintId"])
+    if nodes_by_id[root_id]["kind"] != root["kind"]:
+        raise AgentContractError("invariant_violation", "root kind does not match its node", target="root")
+    parent_counts: dict[str, int] = {node_id: 0 for node_id in node_ids}
+    for node in detached_nodes:
+        for child in node["children"]:
+            parent_counts[child] += 1
+    if parent_counts[root_id] != 0 or any(
+        count != 1 for node_id, count in parent_counts.items() if node_id != root_id
+    ):
+        raise AgentContractError(
+            "invariant_violation", "blueprint nodes must form one rooted tree", target="nodes"
+        )
+    visited: set[str] = set()
+    visiting: set[str] = set()
+
+    def visit(node_id: str, depth: int) -> None:
+        if depth > MAX_BLUEPRINT_DEPTH:
+            raise AgentContractError("resource_limit", "blueprint node depth exceeds limit", target=node_id)
+        if node_id in visiting:
+            raise AgentContractError("invariant_violation", "blueprint node graph contains a cycle", target=node_id)
+        if node_id in visited:
+            return
+        visiting.add(node_id)
+        for child_id in nodes_by_id[node_id]["children"]:
+            visit(child_id, depth + 1)
+        visiting.remove(node_id)
+        visited.add(node_id)
+
+    visit(root_id, 0)
+    if visited != node_ids:
+        raise AgentContractError("invariant_violation", "blueprint contains orphan nodes", target="nodes")
 
     styles = _list(manifest["styles"], "styles")
     numbering = _list(manifest["numbering"], "numbering")
@@ -340,17 +379,71 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
     detached_resources = [
         _validate_resource(item, name=f"resources[{index}]") for index, item in enumerate(resources)
     ]
+    style_keys = [str(item["key"]) for item in detached_styles]
+    numbering_keys = [str(item["key"]) for item in detached_numbering]
+    resource_keys = [str(item["key"]) for item in detached_resources]
+    dependency_keys = style_keys + numbering_keys + resource_keys
+    if len(dependency_keys) != len(set(dependency_keys)):
+        raise AgentContractError("invariant_violation", "dependency keys must be unique", target="styles")
+    asset_paths = [str(item["assetPath"]) for item in detached_resources]
+    if len(asset_paths) != len(set(asset_paths)):
+        raise AgentContractError("invariant_violation", "resource asset paths must be unique", target="resources")
     if sum(int(item["size"]) for item in detached_resources) > MAX_TOTAL_ASSET_BYTES:
         raise AgentContractError("resource_limit", "total asset bytes exceed limit", target="resources")
+
+    style_key_set = set(style_keys)
+    numbering_key_set = set(numbering_keys)
+    resource_key_set = set(resource_keys)
+    for index, node in enumerate(detached_nodes):
+        if not set(node["styleRefs"]) <= style_key_set:
+            raise AgentContractError("invariant_violation", "node has an orphan style reference", target=f"nodes[{index}].styleRefs")
+        if not set(node["numberingRefs"]) <= numbering_key_set:
+            raise AgentContractError("invariant_violation", "node has an orphan numbering reference", target=f"nodes[{index}].numberingRefs")
+        if not set(node["resourceRefs"]) <= resource_key_set:
+            raise AgentContractError("invariant_violation", "node has an orphan resource reference", target=f"nodes[{index}].resourceRefs")
 
     references = _list(manifest["references"], "references")
     if len(references) > MAX_REFERENCES:
         raise AgentContractError("resource_limit", "reference count exceeds limit", target="references")
+    reference_records: list[dict[str, Any]] = []
+    reference_edges: dict[str, list[str]] = {node_id: [] for node_id in node_ids}
     for index, item in enumerate(references):
         record = _object(item, f"references[{index}]")
         _exact_keys(record, required={"from", "field", "to", "required"}, name=f"references[{index}]")
         if str(record["from"]) not in node_ids:
             raise AgentContractError("invariant_violation", "reference source is missing", target=f"references[{index}]")
+        if not isinstance(record["required"], bool):
+            raise AgentContractError("invalid_syntax", "reference required must be boolean", target=f"references[{index}]")
+        target = str(record["to"])
+        if target not in node_ids and target not in set(dependency_keys):
+            raise AgentContractError("invariant_violation", "reference target is missing", target=f"references[{index}]")
+        if target in node_ids:
+            reference_edges[str(record["from"])].append(target)
+        reference_records.append(record)
+    for index, node in enumerate(detached_nodes):
+        declared_fields = {
+            str(record["field"])
+            for record in reference_records
+            if str(record["from"]) == str(node["blueprintId"])
+        }
+        if set(node["references"]) != declared_fields:
+            raise AgentContractError("invariant_violation", "node reference inventory is inconsistent", target=f"nodes[{index}].references")
+    reference_visited: set[str] = set()
+    reference_visiting: set[str] = set()
+
+    def visit_reference(node_id: str) -> None:
+        if node_id in reference_visiting:
+            raise AgentContractError("invariant_violation", "semantic reference graph contains a cycle", target=node_id)
+        if node_id in reference_visited:
+            return
+        reference_visiting.add(node_id)
+        for target_id in reference_edges[node_id]:
+            visit_reference(target_id)
+        reference_visiting.remove(node_id)
+        reference_visited.add(node_id)
+
+    for node_id in sorted(node_ids):
+        visit_reference(node_id)
 
     unsupported = _list(manifest["unsupported"], "unsupported")
     for index, item in enumerate(unsupported):
@@ -359,13 +452,22 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
 
     capabilities = _object(manifest["capabilities"], "capabilities")
     _exact_keys(capabilities, required={"dump", "replay", "kinds"}, name="capabilities")
+    if not isinstance(capabilities["dump"], bool) or not isinstance(capabilities["replay"], bool):
+        raise AgentContractError("invalid_syntax", "capability flags must be boolean", target="capabilities")
+    capability_kinds = [str(item) for item in _list(capabilities["kinds"], "capabilities.kinds")]
+    if len(capability_kinds) != len(set(capability_kinds)) or any(kind not in NODE_KINDS for kind in capability_kinds):
+        raise AgentContractError("unknown_kind", "capability kinds are invalid", target="capabilities.kinds")
+    capabilities["kinds"] = capability_kinds
     limits = _object(manifest["limits"], "limits")
     if limits != blueprint_limits():
         raise AgentContractError("verification_failed", "blueprint limits do not match v1", target="limits")
     fidelity = _object(manifest["fidelity"], "fidelity")
     _exact_keys(fidelity, required={"replayable", "ceiling", "reasons"}, name="fidelity")
+    if not isinstance(fidelity["replayable"], bool):
+        raise AgentContractError("invalid_syntax", "fidelity replayable must be boolean", target="fidelity.replayable")
     if fidelity["ceiling"] not in FIDELITY_LEVELS:
         raise AgentContractError("invalid_syntax", "fidelity ceiling is invalid", target="fidelity.ceiling")
+    fidelity["reasons"] = [str(item) for item in _list(fidelity["reasons"], "fidelity.reasons")]
 
     _validate_public_json(manifest, name="blueprint")
     declared_hash = manifest["blueprintHash"]
@@ -380,7 +482,7 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
         "styles": detached_styles,
         "numbering": detached_numbering,
         "resources": detached_resources,
-        "references": [dict(item) for item in references],
+        "references": reference_records,
         "unsupported": [dict(item) for item in unsupported],
     }
 
