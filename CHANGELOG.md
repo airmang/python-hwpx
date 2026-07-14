@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [2.24.1] - 2026-07-14
+### 수정
+- 표 셀의 `lineWrap="SQUEEZE"`가 긴 신규 값을 한 줄 폭에 강제 압축해 글자가 포개지던 문제를 수정했습니다. 바이트보존 `fill_cells`/`apply_table_ops(fill_cell)`와 일반 `set_cell_text` 모두 실제로 변경된 비어 있지 않은 셀만 `BREAK`로 전환하고, 미편집 셀·no-op·지우기 작업의 원래 모드는 보존합니다.
+
 ## [2.24.0] - 2026-07-08
 ### 추가
 - **Stage 3 범용 form-fill 프리미티브 (universal form-fill goal)**: 임의 양식을 제출본급으로 채우는 동적 파이프라인의 손. `hwpx.guidance_scan.scan_form_guidance`(비변형 정찰: 셀·캡션 포함 색 신호/범례/placeholder/빈 셀 후보). `hwpx.body_patch`(표 밖 문단 바이트보존 op: replace_text·delete_paragraph·insert_paragraph_by_clone·reorder_paragraphs·restyle_text·set_paragraph_text + 문서전체 `strip_runs_by_color`(범례 "이 색=삭제" 구동)·`recolor_runs_by_color`(슬롯색→본문색)). `hwpx.table_patch` 신규 op: `split_cell_vertical`(병합 셀 N그룹 분할)·`clone_table`(표 복제)·`set_row_heights`·`set_cell_line_spacing` + `apply_table_ops(dry_run=)` transcript. `hwpx.fill_residue.inspect_fill_residue`(채움본 잔존물 zero-체크 게이트).
