@@ -20,6 +20,21 @@ from .commands import apply_document_commands
 from .document import HwpxAgentDocument, NodeRecord
 from .path import PathSegment, SemanticPath, canonicalize_path, parse_path
 from .query import QueryResult, SemanticSelector, parse_selector
+from .blueprint import (
+    BLUEPRINT_CATALOG_SCHEMA,
+    BLUEPRINT_REPLAY_RESULT_SCHEMA,
+    BLUEPRINT_REPLAY_SCHEMA,
+    BLUEPRINT_SCHEMA,
+    BlueprintReplayResult,
+    blueprint_catalog,
+    blueprint_catalog_hash,
+    blueprint_hash,
+    blueprint_human_help,
+    blueprint_json_schemas,
+    blueprint_limits,
+    validate_blueprint_manifest,
+    validate_replay_request,
+)
 
 __all__ = [
     "AGENT_BATCH_RESULT_SCHEMA",
@@ -28,10 +43,15 @@ __all__ = [
     "AGENT_COMMAND_SCHEMA",
     "AGENT_ERROR_SCHEMA",
     "AGENT_NODE_SCHEMA",
+    "BLUEPRINT_CATALOG_SCHEMA",
+    "BLUEPRINT_REPLAY_RESULT_SCHEMA",
+    "BLUEPRINT_REPLAY_SCHEMA",
+    "BLUEPRINT_SCHEMA",
     "AgentBatchResult",
     "AgentContractError",
     "AgentError",
     "AgentNode",
+    "BlueprintReplayResult",
     "HwpxAgentDocument",
     "NodeRecord",
     "PathSegment",
@@ -42,6 +62,12 @@ __all__ = [
     "agent_json_schemas",
     "agent_contract_manifest",
     "apply_document_commands",
+    "blueprint_catalog",
+    "blueprint_catalog_hash",
+    "blueprint_hash",
+    "blueprint_human_help",
+    "blueprint_json_schemas",
+    "blueprint_limits",
     "canonicalize_path",
     "catalog_hash",
     "human_help",
@@ -50,4 +76,6 @@ __all__ = [
     "parse_selector",
     "validate_agent_batch",
     "validate_agent_command",
+    "validate_blueprint_manifest",
+    "validate_replay_request",
 ]
