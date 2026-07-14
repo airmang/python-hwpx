@@ -303,6 +303,17 @@ def test_public_contract_structurally_rejects_private_content_and_evaluator_leak
         assert_receipt_safe({"safe": {"runId": _run()["runId"]}, "leak": leak})
 
 
+def test_digest_fields_do_not_trigger_random_numeric_pii_false_positive() -> None:
+    # This valid SHA-256 contains a digit run that the natural-language PII
+    # detector classifies as a resident number. Digest fields are structural,
+    # not natural-language content, so their validators own format checking.
+    digest = "9ba99e191f60937160edad4a46da76d8e1b8e1141632752923a4cf9ef0099a15"
+    assert_receipt_safe({"responseSha256": digest})
+
+    with pytest.raises(ValueError, match="detected PII"):
+        assert_receipt_safe({"detailCode": "1141632752923"})
+
+
 def test_terminal_receipt_is_redacted_content_addressed_and_tamper_evident() -> None:
     receipt = redact_run_receipt(_run())
     assert receipt == redact_run_receipt(_run())

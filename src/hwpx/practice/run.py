@@ -165,7 +165,7 @@ def assert_receipt_safe(
 
     assert_redacted_payload(value, sensitive_values=sensitive_values)
 
-    def visit(item: object, pointer: str) -> None:
+    def visit(item: object, pointer: str, *, key_hint: str = "") -> None:
         if isinstance(item, Mapping):
             for key, child in item.items():
                 normalized = _normalized_key(key)
@@ -179,17 +179,28 @@ def assert_receipt_safe(
                     raise ValueError(
                         f"public practice payload contains forbidden private/evaluator field at {pointer}/{key}"
                     )
-                visit(child, f"{pointer}/{key}")
+                visit(child, f"{pointer}/{key}", key_hint=normalized)
             return
         if isinstance(item, (list, tuple)):
             for index, child in enumerate(item):
-                visit(child, f"{pointer}/{index}")
+                visit(child, f"{pointer}/{index}", key_hint=key_hint)
             return
         if isinstance(item, str):
             if item.casefold() in {"gold", "holdout"}:
                 raise ValueError(
                     f"public practice payload contains evaluator partition data at {pointer}"
                 )
+            # Content digests are already format-checked by the surrounding
+            # contract validators.  Running natural-language PII detection on
+            # their random hex digits creates false resident-number matches.
+            digest_value = bool(
+                SHA256_PATTERN.fullmatch(item)
+                or TOOL_SPEC_HASH_PATTERN.fullmatch(item)
+                or re.fullmatch(r"sha256:[a-f0-9]{64}", item)
+            )
+            digest_key = key_hint.endswith("sha256") or key_hint.endswith("hash")
+            if digest_key and digest_value:
+                return
             if detect_pii(item):
                 raise ValueError(f"public practice payload contains detected PII at {pointer}")
 
