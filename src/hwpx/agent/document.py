@@ -55,6 +55,14 @@ def _first_child(element: Any, local_name: str) -> Any | None:
     return None
 
 
+def _child_text(element: Any, local_name: str) -> str | None:
+    child = _first_child(element, local_name)
+    if child is None:
+        return None
+    value = "".join(str(part) for part in child.itertext()).strip()
+    return _bounded_text(value) if value else None
+
+
 def _identity(element: Any, *names: str) -> str | None:
     for name in names:
         value = element.get(name)
@@ -430,7 +438,7 @@ class HwpxAgentDocument:
             summary={
                 "rowCount": table.row_count,
                 "columnCount": table.column_count,
-                "caption": element.get("caption"),
+                "caption": _child_text(element, "caption"),
                 "widthMm": _mm(size.get("width")) if size is not None else None,
                 "alignment": pos.get("horzAlign") if pos is not None else None,
             },
@@ -442,7 +450,7 @@ class HwpxAgentDocument:
         self._add_record(table_record)
         for child in element:
             local = _local_name(child)
-            if local not in {"sz", "pos", "outMargin", "inMargin", "tr"}:
+            if local not in {"sz", "pos", "caption", "outMargin", "inMargin", "tr"}:
                 table_record.mark_unsupported(local)
         for row_index, row in enumerate(table.rows, start=1):
             row_path = path.child(indexed_segment("row", row_index))
@@ -527,7 +535,11 @@ class HwpxAgentDocument:
                 stability=stability,
                 summary={
                     "name": name,
-                    "altText": element.get("altText") or element.get("title"),
+                    "altText": (
+                        _child_text(element, "shapeComment")
+                        or element.get("altText")
+                        or element.get("title")
+                    ),
                     "widthMm": _mm(size.get("width")) if size is not None else None,
                     "heightMm": _mm(size.get("height")) if size is not None else None,
                 },
@@ -558,7 +570,11 @@ class HwpxAgentDocument:
                 summary={
                     "shapeType": shape.shape_type,
                     "name": name,
-                    "altText": element.get("altText") or element.get("title"),
+                    "altText": (
+                        _child_text(element, "shapeComment")
+                        or element.get("altText")
+                        or element.get("title")
+                    ),
                     "xMm": _mm(pos.get("horzOffset")) if pos is not None else None,
                     "yMm": _mm(pos.get("vertOffset")) if pos is not None else None,
                     "widthMm": _mm(shape.width),

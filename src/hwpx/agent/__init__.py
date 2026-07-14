@@ -16,6 +16,7 @@ from .model import (
     validate_agent_command,
 )
 from .catalog import agent_catalog, agent_json_schemas, catalog_hash, human_help, node_help
+from .commands import apply_document_commands
 from .document import HwpxAgentDocument, NodeRecord
 from .path import PathSegment, SemanticPath, canonicalize_path, parse_path
 from .query import QueryResult, SemanticSelector, parse_selector
@@ -40,6 +41,7 @@ __all__ = [
     "agent_catalog",
     "agent_json_schemas",
     "agent_contract_manifest",
+    "apply_document_commands",
     "canonicalize_path",
     "catalog_hash",
     "human_help",
