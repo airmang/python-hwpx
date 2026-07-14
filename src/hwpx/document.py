@@ -1378,7 +1378,23 @@ class HwpxDocument:
         matches: list[dict[str, Any]] = []
         paragraph_index = 0
         for section_index, section in enumerate(self.sections):
-            for paragraph_index_in_section, paragraph in enumerate(section.paragraphs):
+            direct_indexes = {
+                paragraph.element: index
+                for index, paragraph in enumerate(section.paragraphs)
+            }
+
+            def iter_content_paragraphs(element: Any) -> Iterator[Any]:
+                for child in element:
+                    local = _local_name(child)
+                    if local == "memogroup":
+                        continue
+                    if local == "p":
+                        yield child
+                    yield from iter_content_paragraphs(child)
+
+            for paragraph_element in iter_content_paragraphs(section.element):
+                paragraph = HwpxOxmlParagraph(paragraph_element, section)
+                paragraph_index_in_section = direct_indexes.get(paragraph_element, -1)
                 runs = [child for child in paragraph.element if _local_name(child) == "run"]
                 for run_index, run in enumerate(runs):
                     children = list(run)

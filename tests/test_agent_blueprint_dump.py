@@ -50,14 +50,29 @@ def _write_supported_fixture(path: Path, *, paragraph_id: str = "102") -> str:
         begin_ctrl.append(
             begin_ctrl.makeelement(
                 f"{HP}fieldBegin",
-                {"id": "601", "fieldName": "담당자", "type": "FORM", "editable": "true"},
+                {
+                    "id": "601",
+                    "fieldid": "601",
+                    "name": "담당자",
+                    "prompt": "담당자",
+                    "type": "CLICK_HERE",
+                    "editable": "true",
+                },
             )
         )
+        begin = begin_ctrl[-1]
+        parameters = begin.makeelement(f"{HP}parameters", {"count": "2"})
+        name_param = parameters.makeelement(f"{HP}stringParam", {"name": "FieldName"})
+        name_param.text = "담당자"
+        prompt_param = parameters.makeelement(f"{HP}stringParam", {"name": "Instruction"})
+        prompt_param.text = "담당자"
+        parameters.extend((name_param, prompt_param))
+        begin.append(parameters)
         begin_run.append(begin_ctrl)
         paragraph.element.append(begin_run)
         end_run = paragraph.element.makeelement(f"{HP}run", {"charPrIDRef": "0"})
-        end_ctrl = end_run.makeelement(f"{HP}ctrl", {"type": "FORM"})
-        end_ctrl.append(end_ctrl.makeelement(f"{HP}fieldEnd", {"beginIDRef": "601"}))
+        end_ctrl = end_run.makeelement(f"{HP}ctrl", {})
+        end_ctrl.append(end_ctrl.makeelement(f"{HP}fieldEnd", {"beginIDRef": "601", "fieldid": "601"}))
         end_run.append(end_ctrl)
         paragraph.element.append(end_run)
         paragraph.section.mark_dirty()

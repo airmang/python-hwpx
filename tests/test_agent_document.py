@@ -77,6 +77,53 @@ def test_projection_covers_semantic_kinds_without_raw_leakage() -> None:
     assert "packagePath" not in serialized
 
 
+def test_projection_and_form_api_cover_fields_nested_in_table_cells() -> None:
+    with HwpxDocument.new() as document:
+        table = document.add_table(1, 1)
+        table.element.set("id", "nested-table")
+        paragraph = table.rows[0].cells[0].paragraphs[0]
+        paragraph.text = "승인 담당: "
+
+        begin_run = paragraph.element.makeelement(f"{HP}run", {"charPrIDRef": "0"})
+        begin_ctrl = begin_run.makeelement(f"{HP}ctrl", {})
+        begin_ctrl.append(
+            begin_ctrl.makeelement(
+                f"{HP}fieldBegin",
+                {
+                    "id": "nested-field",
+                    "fieldid": "nested-field-native",
+                    "name": "표셀담당",
+                    "type": "CLICK_HERE",
+                    "editable": "1",
+                },
+            )
+        )
+        begin_run.append(begin_ctrl)
+        paragraph.element.append(begin_run)
+        paragraph.add_run("교육과정부장")
+        end_run = paragraph.element.makeelement(f"{HP}run", {"charPrIDRef": "0"})
+        end_ctrl = end_run.makeelement(f"{HP}ctrl", {})
+        end_ctrl.append(
+            end_ctrl.makeelement(
+                f"{HP}fieldEnd",
+                {"beginIDRef": "nested-field", "fieldid": "nested-field-native"},
+            )
+        )
+        end_run.append(end_ctrl)
+        paragraph.element.append(end_run)
+        paragraph.section.mark_dirty()
+
+        fields = document.list_form_fields()
+        agent = HwpxAgentDocument.from_document(document, revision=REVISION)
+        projected = [record for record in agent.records if record.kind == "form-field"]
+
+    assert [field["name"] for field in fields] == ["표셀담당"]
+    assert fields[0]["current_value"] == "교육과정부장"
+    assert len(projected) == 1
+    assert projected[0].summary["name"] == "표셀담당"
+    assert "/table" in projected[0].path and "/cell[1]/" in projected[0].path
+
+
 def test_paths_are_deterministic_across_save_and_reopen(tmp_path: Path) -> None:
     first_path = tmp_path / "first.hwpx"
     second_path = tmp_path / "second.hwpx"

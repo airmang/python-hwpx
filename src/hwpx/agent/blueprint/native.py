@@ -126,6 +126,20 @@ def _move_to_host_run(paragraph: Any, native: Any, host_run: Any) -> None:
             paragraph.element.remove(temporary_run)
         host_run.element.append(element)
         paragraph.section.mark_dirty()
+    _remove_empty_text_placeholders(host_run)
+
+
+def _remove_empty_text_placeholders(run: Any) -> None:
+    """Drop builder placeholders before attaching native controls.
+
+    Hancom ignores a table or inline control that follows an empty ``t`` in the
+    same run even though the semantic reader can still see it.  Preserve real
+    run text, but remove empty builder-created text nodes from control runs.
+    """
+
+    for child in list(run.element):
+        if _local_name(child) == "t" and not "".join(child.itertext()) and not child.tail:
+            run.element.remove(child)
 
 
 class TypedNativeBridge:
@@ -435,7 +449,9 @@ class TypedNativeBridge:
     def _create_form_field(self, node_id: str, paragraph: Any) -> None:
         node = self.nodes[node_id]
         properties = node["properties"]
-        if str(properties.get("fieldType") or "FORM").upper() != "FORM":
+        field_type = str(properties.get("fieldType") or "ClickHere")
+        normalized_type = field_type.replace("_", "").replace("-", "").upper()
+        if normalized_type not in {"FORM", "CLICKHERE", "NURUMTUL", "누름틀"}:
             raise AgentContractError("unsupported_content", "only FORM fields are replayable", target=node_id)
         host_id = self.references.get((node_id, "hostRun"))
         end_id = self.references.get((node_id, "endRun"))
@@ -443,28 +459,48 @@ class TypedNativeBridge:
             raise AgentContractError("invariant_violation", "form field run references are incomplete", target=node_id)
         host_run = self.created[host_id].native
         end_run = self.created[end_id].native
+        begin_id = self._identity()
         field_id = self._identity()
-        ctrl = host_run.element.makeelement(f"{HP}ctrl", {"type": "FORM"})
+        direction = str(properties.get("value") or "")[:4096]
+        command_payload = (
+            f"Direction:wstring:{len(direction)}:{direction} HelpState:wstring:0:  "
+        )
+        ctrl = host_run.element.makeelement(f"{HP}ctrl", {})
         begin = ctrl.makeelement(
             f"{HP}fieldBegin",
             {
-                "id": field_id,
-                "fieldName": str(properties.get("name") or "")[:512],
-                "type": "FORM",
-                "editable": "false" if properties.get("readOnly") else "true",
+                "id": begin_id,
+                "fieldid": field_id,
+                "name": str(properties.get("name") or "")[:512],
+                "type": "CLICK_HERE" if normalized_type in {"FORM", "CLICKHERE"} else field_type,
+                "editable": "0" if properties.get("readOnly") else "1",
+                "dirty": "0",
+                "zorder": "-1",
+                "metaTag": "",
             },
         )
+        parameters = begin.makeelement(f"{HP}parameters", {"cnt": "3", "name": ""})
+        prop = parameters.makeelement(f"{HP}integerParam", {"name": "Prop"})
+        prop.text = "9"
+        command = parameters.makeelement(f"{HP}stringParam", {"name": "Command"})
+        command.text = f"Clickhere:set:{max(0, len(command_payload) - 1)}:{command_payload}"
+        direction_param = parameters.makeelement(f"{HP}stringParam", {"name": "Direction"})
+        direction_param.text = direction
+        parameters.extend((prop, command, direction_param))
+        begin.append(parameters)
         ctrl.append(begin)
+        _remove_empty_text_placeholders(host_run)
         host_run.element.append(ctrl)
         end_ctrl = end_run.element.makeelement(f"{HP}ctrl", {"type": "FORM"})
         end_ctrl.append(
             end_ctrl.makeelement(
-                f"{HP}fieldEnd", {"beginIDRef": field_id, "fieldid": field_id}
+                f"{HP}fieldEnd", {"beginIDRef": begin_id, "fieldid": field_id}
             )
         )
+        _remove_empty_text_placeholders(end_run)
         end_run.element.append(end_ctrl)
         paragraph.section.mark_dirty()
-        self.created[node_id] = CreatedBinding("form-field", None, field_id)
+        self.created[node_id] = CreatedBinding("form-field", None, begin_id)
 
     def _create_inline_or_table(self, node_id: str, paragraph: Any) -> Any:
         node = self.nodes[node_id]

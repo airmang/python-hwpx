@@ -105,7 +105,7 @@ class HwpxAgentDocument:
         self._records: dict[str, NodeRecord] = {}
         self._ordered_paths: list[str] = []
         self._ambiguous_paths: set[str] = set()
-        self._form_fields_by_paragraph: dict[tuple[int, int], list[dict[str, Any]]] = defaultdict(list)
+        self._form_fields_by_paragraph: dict[Any, list[dict[str, Any]]] = defaultdict(list)
         self._form_control_positions: set[tuple[int, int, int, int]] = set()
         self._id_counts: Counter[tuple[str, str]] = Counter()
         self._field_name_counts: Counter[str] = Counter()
@@ -168,7 +168,9 @@ class HwpxAgentDocument:
         for match in matches:
             section_index = int(match["section_index"])
             paragraph_index = int(match["paragraph_index_in_section"])
-            self._form_fields_by_paragraph[(section_index, paragraph_index)].append(match)
+            paragraph = match.get("_paragraph")
+            if paragraph is not None:
+                self._form_fields_by_paragraph[paragraph.element].append(match)
             self._form_control_positions.add(
                 (
                     section_index,
@@ -359,9 +361,8 @@ class HwpxAgentDocument:
             if local not in {"run", "lineSegArray", "linesegarray"}:
                 record.mark_unsupported(local)
         fields_by_position: dict[tuple[int, int], list[dict[str, Any]]] = defaultdict(list)
-        if paragraph_index_in_section is not None:
-            for match in self._form_fields_by_paragraph[(section_index, paragraph_index_in_section)]:
-                fields_by_position[(int(match["run_index"]), int(match["child_index"]))].append(match)
+        for match in self._form_fields_by_paragraph[paragraph.element]:
+            fields_by_position[(int(match["run_index"]), int(match["child_index"]))].append(match)
 
         object_indexes: Counter[str] = Counter()
         for run_index, run in enumerate(paragraph.runs, start=1):

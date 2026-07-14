@@ -216,8 +216,11 @@ def _portable_properties(record: NodeRecord) -> dict[str, Any]:
     properties = dict(record.summary)
     if record.kind == "section":
         # The section part filename is an implementation/package coordinate,
-        # not a portable construction property.
+        # and its one-based index is a source-document coordinate. Neither is
+        # a portable construction property: replay may append the section at a
+        # different target index.
         properties.pop("partId", None)
+        properties.pop("index", None)
     elif record.kind == "cell":
         # Row/column are source-document addresses. The graph order and spans
         # carry the portable structure, while replay may insert the cell's row

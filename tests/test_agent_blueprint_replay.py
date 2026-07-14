@@ -40,14 +40,29 @@ def _write_supported_fixture(path: Path, *, paragraph_id: str = "102") -> str:
         begin_ctrl.append(
             begin_ctrl.makeelement(
                 f"{HP}fieldBegin",
-                {"id": "601", "fieldName": "담당자", "type": "FORM", "editable": "true"},
+                {
+                    "id": "601",
+                    "fieldid": "601",
+                    "name": "담당자",
+                    "prompt": "담당자",
+                    "type": "CLICK_HERE",
+                    "editable": "true",
+                },
             )
         )
+        begin = begin_ctrl[-1]
+        parameters = begin.makeelement(f"{HP}parameters", {"count": "2"})
+        name_param = parameters.makeelement(f"{HP}stringParam", {"name": "FieldName"})
+        name_param.text = "담당자"
+        prompt_param = parameters.makeelement(f"{HP}stringParam", {"name": "Instruction"})
+        prompt_param.text = "담당자"
+        parameters.extend((name_param, prompt_param))
+        begin.append(parameters)
         begin_run.append(begin_ctrl)
         paragraph.element.append(begin_run)
         end_run = paragraph.element.makeelement(f"{HP}run", {"charPrIDRef": "0"})
-        end_ctrl = end_run.makeelement(f"{HP}ctrl", {"type": "FORM"})
-        end_ctrl.append(end_ctrl.makeelement(f"{HP}fieldEnd", {"beginIDRef": "601"}))
+        end_ctrl = end_run.makeelement(f"{HP}ctrl", {})
+        end_ctrl.append(end_ctrl.makeelement(f"{HP}fieldEnd", {"beginIDRef": "601", "fieldid": "601"}))
         end_run.append(end_ctrl)
         paragraph.element.append(end_run)
         paragraph.section.mark_dirty()
@@ -153,6 +168,27 @@ def test_portable_replay_preserves_merged_table_form_note_shape_and_media(tmp_pa
     assert field.summary["name"] == "담당자"
     assert picture.summary["widthMm"] == 25.4
     assert result.verification_report["commit"] == {"ok": True, "atomic": True, "savedOnce": True}
+    with HwpxDocument.open(output) as document:
+        control_runs = [
+            run
+            for section in document.sections
+            for run in section.element.iter(f"{HP}run")
+            if any(
+                child.tag.rsplit("}", 1)[-1]
+                in {"tbl", "pic", "rect", "footNote", "endNote", "ctrl"}
+                for child in run
+            )
+        ]
+        assert control_runs
+        assert all(
+            not any(
+                child.tag.rsplit("}", 1)[-1] == "t"
+                and not "".join(child.itertext())
+                and not child.tail
+                for child in run
+            )
+            for run in control_runs
+        )
 
 
 def test_source_bound_replay_reuses_exact_fingerprints(tmp_path: Path) -> None:
@@ -261,6 +297,39 @@ def test_before_position_and_document_root_children_are_supported(tmp_path: Path
     )
     assert full_result.ok is True
     assert full_result.semantic_diff["scope"] == "document-root-children"
+
+
+def test_standalone_section_replay_ignores_source_index_at_append_destination(tmp_path: Path) -> None:
+    source = tmp_path / "section-source.hwpx"
+    target = tmp_path / "section-target.hwpx"
+    bundle = tmp_path / "section.hwpxbp"
+    output = tmp_path / "section-output.hwpx"
+    with HwpxDocument.new() as document:
+        document.sections[0].paragraphs[0].text = "APPENDED SECTION"
+        document.save_to_path(source)
+    with HwpxAgentDocument.open(source) as agent:
+        section_path = next(record.path for record in agent.records if record.kind == "section")
+    dumped = dump_document_blueprint(source, path=section_path, output=bundle)
+    section_node = next(node for node in dumped.manifest["nodes"] if node["kind"] == "section")
+    assert "index" not in section_node["properties"]
+
+    _write_target(target)
+    result = replay_document_blueprint(
+        _request(
+            bundle,
+            str(dumped.manifest["blueprintHash"]),
+            target,
+            output,
+            target_parent="/",
+        )
+    )
+
+    assert result.ok is True
+    assert result.root_path == "/section[2]"
+    assert result.semantic_diff["ok"] is True
+    with HwpxDocument.open(output) as document:
+        assert len(document.sections) == 2
+        assert document.sections[1].paragraphs[0].text == "APPENDED SECTION"
 
 
 def test_standalone_row_replays_but_cell_dump_fails_closed(tmp_path: Path) -> None:
