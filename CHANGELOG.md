@@ -4,6 +4,26 @@
 
 ## [Unreleased]
 
+## [2.29.0] - 2026-07-15
+
+### 추가
+- **타입드 에이전트 문서 인터페이스와 블루프린트 재생**: 안정적인 semantic path/query, revision-bound
+  atomic command, 통합 `hwpx` CLI, deterministic `.hwpxbp` dump와 strict portable/source-bound replay를
+  추가했습니다. 스타일·번호·리소스·참조는 typed semantic signature로 매핑하고, raw XML 없이
+  fidelity/identity/dependency/lossless/openSafety 영수증을 반환합니다.
+- **내구성 렌더·시각 QA·연습 하니스**: supervised Hancom render worker, resumable queue/poison-session
+  처리, fixture 기반 page QA와 blind evaluation 계약, 암호화·경로 비공개 private-corpus practice
+  scenario/campaign/evaluator 기반을 추가했습니다.
+
+### 수정
+- 블루프린트 replay가 병합 표 grid와 한컴 네이티브 control을 보존하도록 보강했습니다.
+- 공개 2.24.1의 안전 동작을 유지해, 실제로 변경된 비어 있지 않은 `lineWrap="SQUEEZE"` 셀만
+  `BREAK`로 전환하고 no-op·지우기·미편집 셀은 원래 모드를 보존합니다.
+
+### 비고
+- 2.25.0–2.28.0은 공개 배포가 아니라 단계별 로컬 후보였으며, 그 누적 변경을 이 2.29.0 공개
+  항목으로 통합합니다.
+
 ## [2.24.1] - 2026-07-14
 ### 수정
 - 표 셀의 `lineWrap="SQUEEZE"`가 긴 신규 값을 한 줄 폭에 강제 압축해 글자가 포개지던 문제를 수정했습니다. 바이트보존 `fill_cells`/`apply_table_ops(fill_cell)`와 일반 `set_cell_text` 모두 실제로 변경된 비어 있지 않은 셀만 `BREAK`로 전환하고, 미편집 셀·no-op·지우기 작업의 원래 모드는 보존합니다.
