@@ -35,7 +35,15 @@ def _forbidden_path(path: str, kind: str) -> bool:
     if path.startswith(common_prefixes):
         return True
     if kind == "core":
-        return path.startswith(("shared/hwpx/", "docs/superpowers/", "tests/evidence/", "examples/out/"))
+        return path == "src/hwpx/practice.py" or path.startswith(
+            (
+                "shared/hwpx/",
+                "docs/superpowers/",
+                "tests/evidence/",
+                "examples/out/",
+                "src/hwpx/practice/",
+            )
+        ) or bool(re.fullmatch(r"tests/test_practice_.*\.py", path))
     if kind == "mcp":
         return (
             path.startswith("docs/superpowers/")
@@ -67,7 +75,16 @@ def _text_bytes(path: Path) -> bytes | None:
 
 def _wheel_failures() -> list[str]:
     failures: list[str] = []
-    rejected = ("tests/", "shared/hwpx/", "docs/superpowers/", "examples/out/", ".harness/", ".omx/")
+    rejected = (
+        "tests/",
+        "shared/hwpx/",
+        "docs/superpowers/",
+        "examples/out/",
+        ".harness/",
+        ".omx/",
+        "hwpx/practice.py",
+        "hwpx/practice/",
+    )
     for wheel in sorted((ROOT / "dist").glob("*.whl")):
         with zipfile.ZipFile(wheel) as archive:
             names = archive.namelist()
@@ -84,6 +101,32 @@ def _wheel_failures() -> list[str]:
                 ]
                 if any(line.startswith("requires-dist: modelcontextprotocol") for line in requirements):
                     failures.append(f"{wheel.relative_to(ROOT)} declares modelcontextprotocol")
+    return failures
+
+
+def _internal_qa_runtime_failures(tracked: list[str], kind: str) -> list[str]:
+    if kind != "core":
+        return []
+
+    markers = (
+        ("practice namespace", b"hwpx." + b"practice"),
+        ("relative practice import", b"from " + b".practice"),
+        ("private-corpus schema", b"hwpx." + b"private-corpus"),
+        ("synthetic dossier schema", b"hwpx." + b"synthetic-dossier"),
+        ("controlled mutation schema", b"hwpx." + b"controlled-mutation"),
+        ("private practice domain", b"private_" + b"practice"),
+        ("unavailable campaign sentinel", b"CAMPAIGN_" + b"UNAVAILABLE"),
+    )
+    failures: list[str] = []
+    for rel in tracked:
+        if not rel.startswith("src/hwpx/") or not rel.endswith(".py"):
+            continue
+        data = _text_bytes(ROOT / rel)
+        if data is None:
+            continue
+        for label, marker in markers:
+            if marker in data:
+                failures.append(f"internal QA runtime marker ({label}): {rel}")
     return failures
 
 
@@ -165,6 +208,7 @@ def main() -> int:
 
     failures.extend(_hwpx_member_failures(tracked, workstation_path, private_markers))
     failures.extend(_action_pin_failures(tracked))
+    failures.extend(_internal_qa_runtime_failures(tracked, kind))
     failures.extend(_wheel_failures())
     if failures:
         for failure in failures:

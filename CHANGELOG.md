@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-07-16
+
+### 변경
+- 공개 배포에서 내부 품질 검증용 `hwpx.practice` 런타임과 관련 Python API를 제거했습니다.
+  문서 작성·편집·검증, 시험지, 평가계획, 범용 양식 채움 기능과 공개 conformance 흐름은
+  그대로 유지됩니다.
+
+### 수정
+- 높이가 서로 다른 물리 행을 삭제할 때 병합 셀 높이를 평균값으로 줄이던 문제를 수정했습니다.
+  이제 삭제 행의 실제 최대 높이를 사용해 평가계획 표를 다시 배치해도 병합 높이 합과 한컴
+  편집기 열기 안전성이 유지됩니다.
+
+### 보안
+- 소스·wheel·sdist·import 표면에 내부 품질 검증 런타임이 다시 포함되지 않도록 공개 위생과
+  패키징 회귀 게이트를 추가했습니다.
+
 ## [2.29.2] - 2026-07-15
 
 ### 수정
@@ -35,9 +51,8 @@
   atomic command, 통합 `hwpx` CLI, deterministic `.hwpxbp` dump와 strict portable/source-bound replay를
   추가했습니다. 스타일·번호·리소스·참조는 typed semantic signature로 매핑하고, raw XML 없이
   fidelity/identity/dependency/lossless/openSafety 영수증을 반환합니다.
-- **내구성 렌더·시각 QA·연습 하니스**: supervised Hancom render worker, resumable queue/poison-session
-  처리, fixture 기반 page QA와 blind evaluation 계약, 암호화·경로 비공개 private-corpus practice
-  scenario/campaign/evaluator 기반을 추가했습니다.
+- **내구성 렌더·시각 QA**: supervised Hancom render worker, resumable queue/poison-session 처리와
+  fixture 기반 page QA·blind evaluation 계약을 추가했습니다.
 
 ### 수정
 - 블루프린트 replay가 병합 표 grid와 한컴 네이티브 control을 보존하도록 보강했습니다.

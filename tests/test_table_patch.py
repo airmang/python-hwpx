@@ -23,6 +23,7 @@ from hwpx.table_patch import (
     _iter_table_spans,
     _uniform_col_widths,
     _parse_table,
+    _delete_rows,
 )
 
 FIXT = Path(__file__).parent / "fixtures"
@@ -218,6 +219,49 @@ def test_delete_row_reconciles_and_preserves_untouched(merged):
     # a different, untouched table is byte-identical
     other = 0 if ti != 0 else len(spans0) - 1
     assert sec0[spans0[other][0]:spans0[other][1]] == sec1[spans1[other][0]:spans1[other][1]]
+
+
+def test_delete_row_uses_tallest_direct_cell_for_unequal_physical_height():
+    """Merged height loses the deleted physical row's exact (maximum) height.
+
+    The middle row deliberately has direct-cell heights 283 and 3000.  Its
+    physical height is 3000, not the smaller cell and not the merged cell's
+    6000//3 average (2000).
+    """
+    def cell(row: int, col: int, row_span: int, height: int) -> str:
+        return (
+            "<hp:tc>"
+            f'<hp:cellAddr colAddr="{col}" rowAddr="{row}"/>'
+            f'<hp:cellSpan colSpan="1" rowSpan="{row_span}"/>'
+            f'<hp:cellSz width="1000" height="{height}"/>'
+            "</hp:tc>"
+        )
+
+    table = (
+        '<hp:tbl rowCnt="3" colCnt="3">'
+        f"<hp:tr>{cell(0, 0, 3, 6000)}{cell(0, 1, 1, 1000)}{cell(0, 2, 1, 1000)}</hp:tr>"
+        f"<hp:tr>{cell(1, 1, 1, 283)}{cell(1, 2, 1, 3000)}</hp:tr>"
+        f"<hp:tr>{cell(2, 1, 1, 2000)}{cell(2, 2, 1, 2000)}</hp:tr>"
+        "</hp:tbl>"
+    )
+
+    result = _delete_rows(table, [1])
+    grid, report = build_grid(result.encode())
+    assert report.ok and (report.row_count, report.col_count) == (2, 3)
+
+    merged_cell = grid[(0, 0)]
+    merged_xml = result.encode()[merged_cell.start:merged_cell.end]
+    assert merged_cell.row_span == 2
+    assert re.search(rb'<hp:cellSz\b[^>]*\bheight="3000"', merged_xml)
+
+    surviving_heights = {}
+    for address in ((0, 1), (0, 2), (1, 1), (1, 2)):
+        direct = grid[address]
+        direct_xml = result.encode()[direct.start:direct.end]
+        match = re.search(rb'<hp:cellSz\b[^>]*\bheight="(\d+)"', direct_xml)
+        assert match is not None
+        surviving_heights[address] = int(match.group(1))
+    assert surviving_heights == {(0, 1): 1000, (0, 2): 1000, (1, 1): 2000, (1, 2): 2000}
 
 
 def test_insert_row_by_clone_grows_and_validates(merged):

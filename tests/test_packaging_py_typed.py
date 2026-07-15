@@ -30,9 +30,13 @@ def test_py_typed_is_included_in_built_distributions(tmp_path: Path, distributio
         with ZipFile(wheel_path) as wheel_archive:
             wheel_members = set(wheel_archive.namelist())
         assert "hwpx/py.typed" in wheel_members
+        assert "hwpx/practice.py" not in wheel_members
+        assert not any(name.startswith("hwpx/practice/") for name in wheel_members)
         return
 
     sdist_path = next(tmp_path.glob("*.tar.gz"))
     with tarfile.open(sdist_path, "r:gz") as sdist_archive:
         sdist_members = sdist_archive.getnames()
     assert any(name.endswith("/src/hwpx/py.typed") for name in sdist_members)
+    assert not any(name.endswith("/src/hwpx/practice.py") for name in sdist_members)
+    assert not any("/src/hwpx/practice/" in name for name in sdist_members)

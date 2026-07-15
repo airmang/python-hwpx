@@ -414,6 +414,41 @@ def test_scorer_ratio_content_penalises_sample():
     assert any("반영비율 carries" in f for f in ds.findings)
 
 
+def test_2015_rubric_shrink_survives_repair_repack(tmp_path):
+    """The real evalplan path keeps exact merged heights through repair/repack."""
+    from hwpx.evalplan_fill import fill_evalplan, _grid_of, _rubric_indices
+    from hwpx.table_patch import _direct_cells
+    from hwpx.tools.package_validator import validate_editor_open_safety
+    from hwpx.tools.repair import repair_repack
+
+    data = fill_evalplan(
+        str(BLANK_3HAK), parse_review_md(SYNTHETIC), phase="all",
+    )["_data"]
+    produced = tmp_path / "evalplan-filled.hwpx"
+    repaired = tmp_path / "evalplan-filled-repaired.hwpx"
+    produced.write_bytes(data)
+
+    repair = repair_repack(produced, repaired)
+    assert repair.open_safety["ok"] is True
+    assert validate_editor_open_safety(repaired).ok
+
+    repaired_data = repaired.read_bytes()
+    ti = _rubric_indices(repaired_data)[0]
+    _sp, table, _grid, report = _grid_of(repaired_data, ti)
+    assert report.ok
+
+    heights = {}
+    for cell in _direct_cells(table):
+        block = table[cell.start:cell.end]
+        match = re.search(rb'<hp:cellSz\b[^>]*\bheight="(\d+)"', block)
+        assert match is not None
+        heights[(cell.row, cell.col, cell.row_span)] = int(match.group(1))
+
+    assert heights[(6, 0, 4)] == 9464
+    assert heights[(6, 1, 2)] == 5200
+    assert heights[(6, 2, 2)] == 5200
+
+
 def test_fill_rubrics_2022_normalizes_and_fills_chaejeom_ladder():
     """The 2022-개정 rubric 수행수준 채점기준 ladder is reshaped (delete_row /
     insert_row_by_clone -- byte-preserving, NOT regeneration) to the review MD's level

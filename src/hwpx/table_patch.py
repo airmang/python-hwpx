@@ -840,6 +840,25 @@ def _collapse_empty_rows(table: str) -> str:
     return _rebuild(prefix, rows, suffix, rowcnt=rowcnt)
 
 
+def _physical_row_height(rows: Sequence[str], row: int) -> int | None:
+    """Return the exact height of a physical row when direct cells expose it.
+
+    A physical row can contain several ``rowSpan==1`` cells with different
+    ``cellSz`` heights.  Hancom uses the tallest direct cell as the row height;
+    shorter values can belong to sparse/covered-looking cells.  ``None`` means
+    the row is covered entirely by vertical merges and remains underivable.
+    """
+    heights: list[int] = []
+    for physical_row in rows:
+        for tc in _S_TC.findall(physical_row):
+            ra = _si(tc, "cellAddr", "rowAddr")
+            rs = _si(tc, "cellSpan", "rowSpan") or 1
+            height = _si(tc, "cellSz", "height")
+            if ra == row and rs == 1 and height is not None and height > 0:
+                heights.append(height)
+    return max(heights) if heights else None
+
+
 def _delete_rows(table: str, del_rows: Iterable[int]) -> str:
     """Delete physical rows by index, reconciling rowAddr/rowSpan and covering
     cells' height."""
@@ -849,6 +868,7 @@ def _delete_rows(table: str, del_rows: Iterable[int]) -> str:
     for empty in del_rows:
         if empty >= len(rows):
             raise TableStructureError(f"row index {empty} out of range")
+        exact_height = _physical_row_height(rows, empty)
         heights = []
         for r in rows:
             for tc in _S_TC.findall(r):
@@ -857,7 +877,9 @@ def _delete_rows(table: str, del_rows: Iterable[int]) -> str:
                     h = _si(tc, "cellSz", "height")
                     if h:
                         heights.append(h // rs)
-        drop_h = min(heights) if heights else 0
+        # Prefer the exact physical-row height.  Fully merged rows expose no
+        # rowSpan==1 cell, so preserve the previous conservative estimate there.
+        drop_h = exact_height if exact_height is not None else (min(heights) if heights else 0)
 
         def fix(tc: str):
             ra, rs = _si(tc, "cellAddr", "rowAddr"), _si(tc, "cellSpan", "rowSpan") or 1

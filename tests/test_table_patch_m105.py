@@ -27,6 +27,7 @@ from hwpx.table_patch import (
 
 FIXT = Path(__file__).parent / "fixtures" / "m105_evalplan"
 FORM_2HAK = FIXT / "blank_form_1-2hak.hwpx"
+FORM_3HAK = FIXT / "blank_form_3hak.hwpx"
 
 
 def _section(data: bytes) -> tuple[str, bytes]:
@@ -64,6 +65,11 @@ def _total_width(data: bytes, ti: int) -> int:
 @pytest.fixture(scope="module")
 def form2() -> bytes:
     return FORM_2HAK.read_bytes()
+
+
+@pytest.fixture(scope="module")
+def form3() -> bytes:
+    return FORM_3HAK.read_bytes()
 
 
 # ---- FR-001 merged-block clone --------------------------------------------
@@ -165,6 +171,31 @@ def test_delete_column_rest_byte_identical(form2):
         if i == 22:
             continue
         assert secb[sb[i][0]:sb[i][1]] == seco[so[i][0]:so[i][1]]
+
+
+# ---- delete_row with unequal physical row heights --------------------------
+def test_delete_rows_preserves_evalplan_merged_height_sums(form3):
+    """The 2015 rubric has non-uniform criterion/base row heights.
+
+    Reducing its seven-row criterion block to three rows must subtract each
+    deleted physical row's native height from every covering merged cell.
+    """
+    res = apply_table_ops(
+        form3,
+        [{"op": "delete_row", "table_index": 20, "rows": [9, 10, 11, 12]}],
+    )
+    assert res.ok, res.skipped
+
+    table = _table(res.data, 20)
+    _grid_map, rep = build_grid(table)
+    assert rep.ok and (rep.row_count, rep.col_count) == (11, 5)
+
+    merged_heights = {}
+    for cell in _direct_cells(table):
+        if cell.row == 6 and cell.col in (0, 1, 2):
+            cell_xml = table[cell.start:cell.end].decode("utf-8")
+            merged_heights[(cell.col, cell.row_span)] = _si(cell_xml, "cellSz", "height")
+    assert merged_heights == {(0, 5): 12064, (1, 3): 7800, (2, 3): 7800}
 
 
 # ---- FR-002 anchor / heading addressing ------------------------------------
