@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx"
-version = "2.29.0"
+version = "2.29.1"
 description = "한글 없이 HWPX 문서를 열고, 편집하고, 생성하고, 검증하는 Python 자동화 라이브러리"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "Apache-2.0"
@@ -45,6 +45,8 @@ dev = [
 ]
 test = [
     "build>=1.0",
+    "numpy>=1.26",
+    "pillow>=10.0",
     "pytest>=7.4",
     "pytest-cov>=5.0",
 ]
