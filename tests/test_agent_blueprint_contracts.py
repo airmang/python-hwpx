@@ -132,7 +132,7 @@ def test_manifest_rejects_hash_mismatch_and_absolute_private_label() -> None:
     with pytest.raises(AgentContractError):
         validate_blueprint_manifest(manifest)
     manifest = _manifest()
-    manifest["source"]["label"] = "/Users/private/source.hwpx"
+    manifest["source"]["label"] = "/workspace/private/source.hwpx"
     manifest = with_blueprint_hash(manifest)
     with pytest.raises(AgentContractError):
         validate_blueprint_manifest(manifest)

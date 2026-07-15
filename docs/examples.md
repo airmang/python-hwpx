@@ -252,7 +252,7 @@ analysis = analyze_template_formfit(
     "template.hwpx",
     baseline="template-formfit-baseline.json",
     content={
-        "school": {"name": "광교고등학교"},
+        "school": {"name": "샘플고등학교"},
         "sections": {
             "background_purpose": [
                 "AI 융합형 교육실 구축으로 학생 맞춤형 탐구 수업을 확대한다.",

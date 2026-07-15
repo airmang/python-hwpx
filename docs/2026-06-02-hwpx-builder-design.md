@@ -3,7 +3,7 @@
 - 상태: 설계 확정 (브레인스토밍 완료, 구현 계획 작성 대기)
 - 작성일: 2026-06-02
 - 범위: cross-stack (`python-hwpx` → `hwpx-mcp-server` → `hwpx-skill`)
-- 관련 문서: [`agent-doc-authoring-roadmap.md`](agent-doc-authoring-roadmap.md) (선행 document-plan v1 로드맵)
+- 관련 공개 문서: [`schema-overview.md`](schema-overview.md), [`usage.md`](usage.md)
 
 ---
 
@@ -256,7 +256,11 @@ report = doc.save_to_path("운영계획.hwpx")   # validate + reopen 내장
 
 ## 9. 검증 루프 (한컴 = 레이아웃 + 수용성 양축 오라클)
 
-> **재사용 주의:** 시각 검증 루프 자체는 본 스펙이 새로 만드는 것이 아니라, **기존 `docs/superpowers/plans/2026-05-30-computeruse-visual-review-loop.md`(Wily Stage S-005)에 위임**한다. 그 플랜이 이미 `visual_review.py` 증거 계약(`observed_pass`/`needs_review`/`blocked`, 타임스탬프, 스크린샷 경로, CI fallback, 반복 이력)을 정의·구현한다. 본 스펙의 기여는 두 가지뿐이다: (1) 빌더 리포트가 그 계약과 연결되도록 `visual_review_required`를 노출, (2) **축 A(구조 수용성)를 그 루프에 추가** — S-005는 시각/레이아웃 증거 중심이므로 "복구 다이얼로그 없이 열림 + 라운드트립" 수용성 검사는 본 스펙이 보강한다.
+> **재사용 주의:** 시각 검증 루프 자체는 본 스펙이 새로 만드는 것이 아니다. 공개
+> `hwpx.visual-review.v1` 증거 계약(`observed_pass`/`needs_review`/`blocked`, 타임스탬프,
+> 스크린샷 경로, CI fallback, 반복 이력)을 재사용한다. 본 스펙의 기여는 두 가지뿐이다:
+> (1) 빌더 리포트가 그 계약과 연결되도록 `visual_review_required`를 노출, (2) 시각/레이아웃
+> 증거에 "복구 다이얼로그 없이 열림 + 라운드트립" 구조 수용성 검사를 추가한다.
 
 빌더 리포트의 `visual_review_required=true`가 이 루프를 트리거한다. ComputerUse + 설치된 한컴오피스를 오라클로 쓴다. 라이브러리가 아니라 **스킬/MCP 오케스트레이션 레이어**(S-005의 `hwpx-skill/scripts/visual_review.py` 확장)에 둔다.
 

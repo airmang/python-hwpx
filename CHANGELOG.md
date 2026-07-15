@@ -4,6 +4,19 @@
 
 ## [Unreleased]
 
+## [2.29.2] - 2026-07-15
+
+### 수정
+- 공개 저장소의 운영 기록·생성 산출물·workstation 경로를 제거하고, 실제 회귀 입력은 명시적인
+  합성 fixture 디렉터리로 이동했습니다. 패키지에 포함되는 HWPX 예제와 conformance corpus의
+  작성자 메타데이터도 합성 값으로 정규화했습니다.
+- 치명적 정적 오류를 차단하는 Ruff `E9,F` 및 텍스트/HWPX/wheel 공개 위생 게이트를 추가하고,
+  기존에 이름이 겹쳐 실행되지 않던 builder 회귀 테스트를 고유 이름으로 복구했습니다.
+
+### 보안
+- GitHub Actions를 불변 커밋으로 고정하고 CodeQL, dependency review, Dependabot, CycloneDX SBOM,
+  SECURITY/CODEOWNERS 정책을 릴리스 표면에 추가했습니다.
+
 ## [2.29.1] - 2026-07-15
 
 ### 수정

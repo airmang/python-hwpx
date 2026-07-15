@@ -12,7 +12,7 @@ import json
 import math
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 
 BENCHMARK_SCHEMA = "hwpx.blind-real-work-eval/v1"
 RESULT_SCHEMA = "hwpx.blind-real-work-eval-result/v1"

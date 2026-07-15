@@ -6,7 +6,6 @@ import tempfile
 from pathlib import Path
 
 from hwpx.authoring import create_document_from_plan
-from hwpx.document import HwpxDocument
 from hwpx.tools.official_lint import inspect_official_document_style as lint
 
 GOLD = "tests/fixtures/m3_gongmun_gold/seoul_sihaengmun.hwpx"

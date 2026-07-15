@@ -8,7 +8,6 @@ overflow; a borderline overflow is downgraded to a warning for the render oracle
 """
 from __future__ import annotations
 
-import math
 
 import pytest
 

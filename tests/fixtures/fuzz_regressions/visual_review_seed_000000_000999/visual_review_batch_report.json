@@ -50,7 +50,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000000-33e3d745e037.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000000-33e3d745e037.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -63,7 +63,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000001-2772a341a07d.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000001-2772a341a07d.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -76,7 +76,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000002-b8d8f3dc718f.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000002-b8d8f3dc718f.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -89,7 +89,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000003-710dbd610d8d.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000003-710dbd610d8d.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -102,7 +102,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000004-1f1339b53f2b.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000004-1f1339b53f2b.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -115,7 +115,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000005-2292b42f4f4e.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000005-2292b42f4f4e.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -128,7 +128,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000006-88c53dbf7539.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000006-88c53dbf7539.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -141,7 +141,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000007-d8299724ea8d.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000007-d8299724ea8d.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -154,7 +154,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000008-b37b93b01a83.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000008-b37b93b01a83.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -167,7 +167,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000009-85395706b88b.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000009-85395706b88b.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -180,7 +180,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000010-341456e54a2b.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000010-341456e54a2b.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -193,7 +193,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000011-2bc6a11da013.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000011-2bc6a11da013.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -206,7 +206,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000012-6a3ad4148eec.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000012-6a3ad4148eec.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -219,7 +219,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000013-09f2007b840b.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000013-09f2007b840b.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -232,7 +232,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000014-83c237078d8b.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000014-83c237078d8b.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -245,7 +245,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000015-a9c44ece06b8.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000015-a9c44ece06b8.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -258,7 +258,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000016-83cbc0fede5d.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000016-83cbc0fede5d.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -271,7 +271,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000017-3e672e01d440.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000017-3e672e01d440.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -284,7 +284,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000018-cd4b37d53ae7.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000018-cd4b37d53ae7.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,
@@ -297,7 +297,7 @@
       "axis_a": "accepted",
       "axis_b": "needs_review",
       "status": "needs_review",
-      "evidence": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000019-8983800eba1e.visual-review.json",
+      "evidence": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/seed-000019-8983800eba1e.visual-review.json",
       "structural_acceptance": {
         "opens": true,
         "roundtrip_ok": true,

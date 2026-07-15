@@ -13,7 +13,6 @@ from types import ModuleType
 
 from . import _document_impl as _impl
 from ._document_impl import *  # noqa: F401,F403
-from ._document_impl import _memo_id, _object_id, _paragraph_id
 
 __all__ = [name for name in dir(_impl) if not name.startswith("_")]
 

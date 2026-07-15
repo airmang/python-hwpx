@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Seoul
+    groups:
+      python-dependencies:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Seoul
+    groups:
+      github-actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 5

@@ -211,7 +211,6 @@ def test_strip_runs_by_color_reaches_cells(work, tmp_path):
 
 def test_recolor_runs_exact_hex(work, tmp_path):
     """정확 hex 매칭으로 재색 — 계열 다른 디자인색은 불변."""
-    import hwpx.guidance_scan as gs
     from hwpx.body_patch import recolor_runs_by_color
     from hwpx.fill_residue import _scan_paragraphs
     out = tmp_path / "out.hwpx"

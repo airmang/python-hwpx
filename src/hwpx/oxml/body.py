@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Union
 
 from lxml import etree
 
-from .common import GenericElement, parse_generic_element
+from .common import GenericElement
 from .namespaces import HP
 from .utils import local_name, parse_bool, parse_int
 

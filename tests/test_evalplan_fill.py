@@ -316,7 +316,7 @@ def test_fill_achievement_reshapes_and_fills():
 def test_fill_rubrics_replaces_sample_codes_and_lands_items():
     """fill_rubrics shrinks each rubric's example item block to the review item
     count, replaces the 한국사 sample 성취기준 codes, and lands the 평가항목 labels."""
-    from hwpx.evalplan_fill import fill_rubrics, _rubric_indices, _grid_of, _cell_text
+    from hwpx.evalplan_fill import fill_rubrics, _rubric_indices, _grid_of
     from hwpx.formfill_quality import _all_text, _STD_CODE_RE
     c = parse_review_md(SYNTHETIC)
     blank = BLANK_3HAK.read_bytes()

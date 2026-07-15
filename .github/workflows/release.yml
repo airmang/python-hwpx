@@ -14,12 +14,16 @@ jobs:
   prepublish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
       - name: Install release test dependencies
         run: python -m pip install -e ".[test,typecheck]"
+      - name: Check public repository hygiene
+        run: python scripts/check_public_hygiene.py
+      - name: Run first-stage Ruff gate
+        run: ruff check --select E9,F .
       - name: Run typing checks
         run: |
           python scripts/check_typing_generics_scope.py
@@ -36,10 +40,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
 
@@ -126,12 +130,29 @@ jobs:
           rm -rf dist build
           python -m build
           twine check dist/*
+          python scripts/check_public_hygiene.py
+
+      - name: Generate release SBOM
+        run: |
+          python -m venv .sbom-runtime
+          .sbom-runtime/bin/python -m pip install dist/*.whl
+          python -m venv .sbom-tool
+          .sbom-tool/bin/python -m pip install "cyclonedx-bom==7.3.0"
+          mkdir -p release-artifacts
+          .sbom-tool/bin/cyclonedx-py environment .sbom-runtime/bin/python \
+            --pyproject pyproject.toml \
+            --mc-type library \
+            --output-reproducible \
+            --output-format JSON \
+            --output-file "release-artifacts/python-hwpx-${GITHUB_REF_NAME}.cdx.json"
 
       - name: Publish package to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@c12583777ecdfd3be55c69cf75464299dc01057e # v3
         with:
           body_path: release_notes.md
-          files: dist/*
+          files: |
+            dist/*
+            release-artifacts/*

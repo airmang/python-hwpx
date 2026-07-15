@@ -8,7 +8,6 @@ from zipfile import ZipFile
 import pytest
 from lxml import etree
 
-import hwpx.document as document_module
 from hwpx.document import HwpxDocument
 from hwpx.opc.package import HwpxPackageError
 from hwpx.tools.package_validator import validate_editor_open_safety

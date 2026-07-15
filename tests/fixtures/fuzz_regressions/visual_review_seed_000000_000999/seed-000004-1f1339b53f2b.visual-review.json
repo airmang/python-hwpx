@@ -71,7 +71,7 @@
     "iteration": 3,
     "status": "needs_review",
     "timestamp": "2026-06-11T12:02:38Z",
-    "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/scripts/visual_review.py",
+    "tool_path": "${HWPX_SKILL_ROOT}/scripts/visual_review.py",
     "review_method": "s038-seed-fuzz-o3-preflight",
     "screenshot_path": null,
     "observations": [
@@ -94,7 +94,7 @@
       "iteration": 1,
       "status": "needs_review",
       "timestamp": "2026-06-11T11:58:59Z",
-      "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/scripts/visual_review.py",
+      "tool_path": "${HWPX_SKILL_ROOT}/scripts/visual_review.py",
       "review_method": "s038-seed-fuzz-o3",
       "screenshot_path": null,
       "observations": [
@@ -117,7 +117,7 @@
       "iteration": 2,
       "status": "needs_review",
       "timestamp": "2026-06-11T12:01:55Z",
-      "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/scripts/visual_review.py",
+      "tool_path": "${HWPX_SKILL_ROOT}/scripts/visual_review.py",
       "review_method": "s038-seed-fuzz-o3-preflight",
       "screenshot_path": null,
       "observations": [

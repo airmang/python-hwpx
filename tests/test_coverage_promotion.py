@@ -9,7 +9,6 @@ from typing import Any
 
 from lxml import etree
 
-from hwpx.document import HwpxDocument
 from hwpx.oxml import HwpxOxmlSection, parse_section_xml
 from hwpx.oxml import GenericElement
 from hwpx.oxml.body import (

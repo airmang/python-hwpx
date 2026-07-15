@@ -1,4 +1,3 @@
-import re
 
 from hwpx.visual.oracle import WordBox
 from hwpx.exam.measure import column_x_bounds, group_question_blocks

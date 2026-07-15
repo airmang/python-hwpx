@@ -17,7 +17,7 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXAMPLES = REPO_ROOT / "examples"
-FIXTURES = REPO_ROOT / "shared" / "hwpx" / "fixtures"
+FIXTURES = Path(__file__).parent / "fixtures" / "markdown_export"
 
 HWPML_2011 = {
     "app": "http://www.hancom.co.kr/hwpml/2011/app",
@@ -62,12 +62,12 @@ def showcase_doc():
 
 @pytest.fixture
 def table_merge_doc():
-    return HwpxDocument.open(str(FIXTURES / "tables" / "30_table_merge_min.hwpx"))
+    return HwpxDocument.open(str(FIXTURES / "30_table_merge_min.hwpx"))
 
 
 @pytest.fixture
 def stress_doc():
-    return HwpxDocument.open(str(FIXTURES / "stress" / "99_all_in_one_stress.hwpx"))
+    return HwpxDocument.open(str(FIXTURES / "99_all_in_one_stress.hwpx"))
 
 
 # ──────────────────────────────────────────────────────────────────

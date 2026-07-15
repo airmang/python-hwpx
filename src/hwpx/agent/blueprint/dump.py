@@ -16,7 +16,6 @@ from ..document import HwpxAgentDocument, NodeRecord
 from ..model import AGENT_CATALOG_SCHEMA, NODE_KINDS, AgentContractError
 from .bundle import (
     ALLOWED_MEDIA_TYPES,
-    BlueprintBundle,
     build_blueprint_bundle,
     read_blueprint_bundle,
     write_blueprint_bundle,

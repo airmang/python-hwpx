@@ -71,9 +71,9 @@
     "iteration": 2,
     "status": "observed_pass",
     "timestamp": "2026-06-11T12:03:06Z",
-    "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/scripts/visual_review.py",
+    "tool_path": "${HWPX_SKILL_ROOT}/scripts/visual_review.py",
     "review_method": "computer-use",
-    "screenshot_path": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999_screenshots/seed-000008-b37b93b01a83.png",
+    "screenshot_path": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999_screenshots/seed-000008-b37b93b01a83.png",
     "observations": [
       "Opened in Hancom Office HWP without recovery, conversion, password, repair, or error dialog in the captured viewport.",
       "Generated seeded fuzz text and table content rendered visibly in the captured page viewport."
@@ -92,9 +92,9 @@
       "iteration": 1,
       "status": "observed_pass",
       "timestamp": "2026-06-11T12:01:23Z",
-      "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/scripts/visual_review.py",
+      "tool_path": "${HWPX_SKILL_ROOT}/scripts/visual_review.py",
       "review_method": "computer-use",
-      "screenshot_path": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999_screenshots/seed-000008-b37b93b01a83.png",
+      "screenshot_path": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999_screenshots/seed-000008-b37b93b01a83.png",
       "observations": [
         "Opened in Hancom Office HWP without recovery, conversion, password, repair, or error dialog in the captured viewport.",
         "Generated seeded fuzz text and table content rendered visibly in the captured page viewport."

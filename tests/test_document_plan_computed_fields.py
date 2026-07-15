@@ -7,7 +7,7 @@ from hwpx import (
     create_document_from_plan,
     validate_document_plan,
 )
-from hwpx.builder import Bullet, Document, Heading, Paragraph, Run, Section, Table
+from hwpx.builder import Bullet, Document, Heading, Paragraph, Run, Section
 from hwpx.document import HwpxDocument
 
 DOCUMENT_PLAN_V2_SCHEMA_VERSION = "hwpx.document_plan.v2"

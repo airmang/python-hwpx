@@ -1538,16 +1538,10 @@ def test_semantic_output_resource_guard_runs_before_hashing(
 def test_idempotency_replay_is_size_and_zip_guarded_before_hashing(
     edited_artifacts: tuple[Path, Path, list[str]], tmp_path: Path
 ) -> None:
-    start, output, changed = edited_artifacts
+    start, output, _changed = edited_artifacts
     huge = tmp_path / "oversized-replay.hwpx"
     with huge.open("wb") as stream:
         stream.truncate(MAX_EVALUATOR_ARCHIVE_BYTES + 1)
-    policy = _policy(
-        start,
-        output,
-        changed,
-        expected_diff=semantic_diff_sha256(start, output),
-    )
     with pytest.raises(ValueError, match="archive limit"):
         _replay_receipt(start, output, huge)
 

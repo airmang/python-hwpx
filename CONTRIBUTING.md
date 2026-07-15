@@ -23,6 +23,17 @@
   설치되어 추가적인 `PYTHONPATH` 설정이 필요 없습니다. 인터프리터에서
   `import hwpx`가 정상적으로 동작하는지 확인하세요.
 
+5. **공개 저장소 게이트를 실행**합니다:
+  ```bash
+  python scripts/check_public_hygiene.py
+  ruff check --select E9,F .
+  pytest -q
+  ```
+
+실제 문서나 고객·학교·기관에서 유래한 파일, 개인정보, 로컬 절대 경로, 내부
+작업 기록은 커밋하지 마세요. 회귀 fixture는 재현 가능한 합성 데이터로 만들고
+출처·기대 동작을 가까운 README나 테스트에 기록해 주세요.
+
 
 ## 풀 리퀘스트 체크리스트
 
@@ -47,4 +58,3 @@
 - 점진 변환 범위(현재: `src/hwpx/document.py`, `src/hwpx/oxml/document.py`)는 CI에서 다음 항목으로 검증합니다.
   - `scripts/check_typing_generics_scope.py`: `List`/`Dict`/`Tuple` 별칭 사용 금지 확인
   - `mypy`, `pyright`: 지정된 파일 범위 타입 검사
-

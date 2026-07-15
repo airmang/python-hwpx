@@ -22,7 +22,6 @@ from hwpx.formfill_quality import (
     score_form_fill,
     score_format_fidelity,
     score_structure,
-    _classify,
     _skeleton,
     _tables,
 )

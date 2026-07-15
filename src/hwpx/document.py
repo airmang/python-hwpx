@@ -5,19 +5,16 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 import io
-import os
 import re
-import tempfile
 import warnings
 from datetime import datetime
 import logging
 import uuid
 
 from os import PathLike
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, BinaryIO, Iterator, Mapping, Sequence, overload
 
-from lxml import etree
 
 from .oxml import (
     Bullet,
@@ -65,6 +62,9 @@ _HWP_UNITS_PER_PT = 100
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from .form_fit.policy import FitPolicy
+    from .form_fit.report import FitResult
+    from .tools.validator import ValidationReport
     from .tools.table_navigation import TableFillResult, TableLabelSearchResult, TableMapResult
 
 

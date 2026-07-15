@@ -6,17 +6,13 @@ style preservation, nested tables, OWPML alignment, and exporters.
 
 from __future__ import annotations
 
-import io
 import xml.etree.ElementTree as ET
 
-import pytest
 
 from hwpx import HwpxDocument
 from hwpx.oxml.document import (
-    HwpxOxmlParagraph,
     HwpxOxmlShape,
     HwpxOxmlTable,
-    HwpxOxmlTableCell,
     _create_ellipse_element,
     _create_line_element,
     _create_rectangle_element,
@@ -118,7 +114,6 @@ class TestShapeInsertion:
     def test_shape_child_order_matches_real_hwpx(self):
         """Verify ASC → ADO → type-specific → ASO ordering."""
         el = _create_rectangle_element(100, 50)
-        ns = "http://www.hancom.co.kr/hwpml/2011/paragraph"
         children = [c.tag.split("}")[-1] for c in el]
         # ASC first
         assert children.index("offset") < children.index("orgSz")
@@ -173,7 +168,7 @@ class TestColumnEditing:
         doc = _new_doc()
         p = doc.add_paragraph("cols")
         p.add_column_definition(col_count=2, same_gap=850)
-        b = doc.to_bytes()
+        doc.to_bytes()
         # Roundtrip
         xml_str = ET.tostring(p.element, encoding="unicode")
         assert "colPr" in xml_str
@@ -322,7 +317,7 @@ class TestStylePreservation:
 
     def test_style_inheritance_default(self):
         doc = _new_doc()
-        p1 = doc.add_paragraph("first", para_pr_id_ref="5", style_id_ref="3", char_pr_id_ref="7")
+        doc.add_paragraph("first", para_pr_id_ref="5", style_id_ref="3", char_pr_id_ref="7")
         p2 = doc.add_paragraph("second")
         assert p2.para_pr_id_ref == "5"
         assert p2.style_id_ref == "3"
@@ -330,7 +325,7 @@ class TestStylePreservation:
 
     def test_style_inheritance_disabled(self):
         doc = _new_doc()
-        p1 = doc.add_paragraph("first", para_pr_id_ref="5")
+        doc.add_paragraph("first", para_pr_id_ref="5")
         p2 = doc.add_paragraph("second", inherit_style=False)
         assert p2.para_pr_id_ref == "0"
 

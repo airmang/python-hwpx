@@ -7,7 +7,7 @@ import logging
 import re as _re
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Iterator, Mapping, Optional, Sequence, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, Mapping, Optional, Sequence, TypeVar
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
@@ -51,6 +51,11 @@ from .namespaces import (
     tag_namespace,
 )
 from .utils import parse_int
+
+if TYPE_CHECKING:
+    from hwpx.form_fit.policy import FitPolicy
+    from hwpx.form_fit.report import FitResult
+    from hwpx.opc.package import HwpxPackage
 
 register_owpml_namespaces(ET.register_namespace)
 logger = logging.getLogger(__name__)

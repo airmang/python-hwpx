@@ -8,9 +8,7 @@ from __future__ import annotations
 
 import io
 import pathlib
-import tempfile
 
-import pytest
 
 from hwpx import HwpxDocument
 

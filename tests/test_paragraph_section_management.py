@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import io
 import pytest
 
 from hwpx import HwpxDocument
-from hwpx.oxml.document import HwpxOxmlParagraph, HwpxOxmlSection
 
 
 def _new() -> HwpxDocument:

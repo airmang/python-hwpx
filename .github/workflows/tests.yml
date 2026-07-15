@@ -14,16 +14,21 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: pip install -e .[test,typecheck]
 
+      - name: Check public repository hygiene
+        run: python scripts/check_public_hygiene.py
+
+      - name: Run first-stage Ruff gate
+        run: ruff check --select E9,F .
 
       - name: Validate gradual typing migration scope
         run: python scripts/check_typing_generics_scope.py
@@ -53,14 +58,14 @@ jobs:
 
       - name: Upload conformance report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: conformance-report-${{ matrix.python-version }}
           path: conformance-report
 
       - name: Upload pytest summary log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: pytest-summary-${{ matrix.python-version }}
           path: pytest-summary.log

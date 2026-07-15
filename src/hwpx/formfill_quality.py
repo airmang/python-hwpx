@@ -36,7 +36,6 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .table_patch import (
-    _direct_cells,
     _iter_table_spans,
     _read_source_bytes,
     _sections,

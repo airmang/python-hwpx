@@ -69,7 +69,7 @@ def _baseline() -> dict:
 
 def _content() -> dict:
     return {
-        "school": {"name": "광교고등학교"},
+        "school": {"name": "샘플고등학교"},
         "sections": {
             "background_purpose": [
                 "AI 융합형 교육실 구축으로 학생 맞춤형 탐구 수업을 확대한다.",
@@ -223,7 +223,7 @@ def test_apply_template_formfit_copies_source_and_returns_validation_evidence(tm
     reopened = HwpxDocument.open(destination)
     try:
         text = reopened.export_text()
-        assert "학 교 명 : 광교고등학교" in text
+        assert "학 교 명 : 샘플고등학교" in text
         assert "AI 융합형 교육실 구축으로 학생 맞춤형 탐구 수업" in text
         assert "운영 협의체 구성" in text
         assert "작성 필요" not in text

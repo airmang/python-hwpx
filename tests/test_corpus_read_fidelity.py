@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
 from hwpx.tools.read_fidelity import corpus_fidelity
 

@@ -14,7 +14,7 @@ gate on :func:`imaging_available` and degrade otherwise.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from PIL import Image
@@ -88,7 +88,6 @@ def new_ink_ratio_outside_mask(before: "Image.Image", after: "Image.Image", rect
     output but not the original, in a region the edit was not allowed to paint.
     """
 
-    import numpy as np
 
     before, after = _match_size(before, after)
     new_ink = _ink_mask(after) & ~_ink_mask(before)

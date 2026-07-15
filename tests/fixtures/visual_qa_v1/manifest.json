@@ -54,7 +54,7 @@
       "provenance": {
         "kind": "preserved-historical-failure-morphology",
         "sourceDocument": "../glyph_overlap/slot_overprint.hwpx",
-        "sourceSha256": "55a971129d13627353c469a9af52619f0526aefe2b577c5852dfc8f84b29abf3",
+        "sourceSha256": "063b5e3c134a9f9c0759413ae286ea1e690a2756afa5747d59bba81e191a8c32",
         "claim": "deterministic fixture, not a Hancom render"
       }
     },

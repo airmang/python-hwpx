@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from hwpx.document import HwpxDocument
-from hwpx.oxml import HwpxOxmlTable
 from hwpx.oxml.namespaces import HH, HP
 
 from ..commands import _add, _insert_direct_child, _insert_inline, _remove_inline_element, _table_caption

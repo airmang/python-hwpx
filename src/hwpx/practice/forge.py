@@ -12,7 +12,7 @@ from typing import Any
 
 from .dossier import synthetic_dossier
 from .mutations import controlled_mutation, mutation_sha256
-from .registry import DOCUMENT_ID_PATTERN, SHA256_PATTERN, assert_redacted_payload
+from .registry import SHA256_PATTERN, assert_redacted_payload
 from .scenario import PRACTICE_SCENARIO_SCHEMA, validate_scenario
 from .split import validate_split_manifest
 

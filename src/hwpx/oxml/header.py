@@ -1480,7 +1480,7 @@ def track_change_to_xml(change: TrackChange) -> etree._Element:
     _set_optional_int_attr(attributes, "id", change.id)
     if change.raw_id is not None and change.id is None:
         attributes["id"] = change.raw_id
-    return etree.Element(f"{{http://www.hancom.co.kr/hwpml/2011/head}}trackChange", attributes)
+    return etree.Element("{http://www.hancom.co.kr/hwpml/2011/head}trackChange", attributes)
 
 
 def track_change_author_to_xml(author: TrackChangeAuthor) -> etree._Element:
@@ -1496,7 +1496,7 @@ def track_change_author_to_xml(author: TrackChangeAuthor) -> etree._Element:
         attributes["id"] = author.raw_id
     _set_optional_str_attr(attributes, "color", author.color)
     return etree.Element(
-        f"{{http://www.hancom.co.kr/hwpml/2011/head}}trackChangeAuthor",
+        "{http://www.hancom.co.kr/hwpml/2011/head}trackChangeAuthor",
         attributes,
     )
 

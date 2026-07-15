@@ -8,7 +8,6 @@ import logging
 import shutil
 import tempfile
 from contextlib import contextmanager
-from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from random import Random

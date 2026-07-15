@@ -32,7 +32,7 @@ point is exactly ``100`` HWPUNIT (``7200 / 72``).
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Sequence
 
 from .wordbox import Rect, WordBox
@@ -219,8 +219,7 @@ def check_seal_placement(
     offset = math.hypot(scx - acx, scy - acy)
     centered = offset <= tol_pt
 
-    # Glyphs the seal sits on top of, excluding the anchor's own line (intended).
-    anchor_line = set(_norm(anchor.line_text))  # cheap line-membership proxy by text
+    # Glyphs the seal sits on top of, excluding the anchor's own baseline.
     anchor_cy = anchor.center[1]
     occluded = 0
     for g in boxes:

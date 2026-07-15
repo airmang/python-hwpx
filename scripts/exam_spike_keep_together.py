@@ -40,7 +40,6 @@ is general Hancom behaviour, so a clean 2-column bed is valid).
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 import os
 import sys
@@ -56,12 +55,9 @@ from hwpx.document import HwpxDocument  # noqa: E402
 from hwpx.visual.oracle import (  # noqa: E402
     Block,
     MacHancomOracle,
-    detect_block_splits,
     resolve_oracle,
 )
-from hwpx.form_fit.wordbox import extract_glyph_boxes  # noqa: E402
 import re as _re  # noqa: E402
-from hwpx.exam.measure import column_x_bounds as _column_x_bounds  # noqa: E402
 from hwpx.exam.measure import group_question_blocks, measure_question_splits  # noqa: E402
 
 _QNN_MARKER = _re.compile(r"\[\s*\[\s*Q\s*0*(\d+)\s*\]\s*\]")

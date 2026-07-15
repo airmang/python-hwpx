@@ -175,7 +175,7 @@ Apache License 2.0. See LICENSE and NOTICE.
 
 ## Maintainer
 
-Primary maintainer/contact: **고규현** — 광교고등학교 정보·컴퓨터 교사
+Primary maintainer/contact: **Kohkyuhyun** ([@airmang](https://github.com/airmang))
 
 - ✉️ [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
 - 🐙 [@airmang](https://github.com/airmang)

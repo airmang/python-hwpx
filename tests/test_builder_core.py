@@ -197,7 +197,7 @@ def test_document_ensure_run_style_supports_rich_char_properties() -> None:
     }
 
 
-def test_builder_lowers_rich_runs_and_reopen_preserves_style(tmp_path) -> None:
+def test_builder_lowers_korean_rich_run_and_reopen_preserves_style(tmp_path) -> None:
     from hwpx.builder import Document, Paragraph, Run, Section
 
     path = tmp_path / "builder-rich-run.hwpx"
@@ -280,7 +280,7 @@ def test_ensure_run_style_supports_rich_char_properties() -> None:
     assert style.child_attributes["strikeout"]["shape"] == "SOLID"
 
 
-def test_builder_lowers_rich_runs_and_reopen_preserves_style(tmp_path) -> None:
+def test_builder_lowers_mixed_rich_runs_and_reopen_preserves_style(tmp_path) -> None:
     from hwpx.builder import Document, Paragraph, Run, Section
 
     path = tmp_path / "builder-rich-runs.hwpx"
@@ -571,7 +571,7 @@ def test_table_set_column_widths_applies_weighted_cell_sizes() -> None:
     assert [table.cell(1, col_index).width for col_index in range(3)] == widths
 
 
-def test_builder_table_integrates_widths_shading_and_merges(tmp_path) -> None:
+def test_builder_table_integrates_vertical_merge(tmp_path) -> None:
     from hwpx.builder import Document, Section, Table
 
     path = tmp_path / "builder-table-integrated.hwpx"
@@ -624,7 +624,7 @@ def test_table_set_column_widths_updates_cell_sizes(tmp_path) -> None:
     assert [reopened_table.cell(1, col).width for col in range(3)] == [7200, 10800, 3600]
 
 
-def test_builder_table_integrates_widths_shading_and_merges(tmp_path) -> None:
+def test_builder_table_integrates_header_merge(tmp_path) -> None:
     from hwpx.builder import Document, Section, Table
 
     path = tmp_path / "builder-table-integrated.hwpx"

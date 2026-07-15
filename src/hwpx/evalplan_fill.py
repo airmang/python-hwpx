@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Sequence
 
 _CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮"
 
@@ -327,7 +327,7 @@ def _pick_achieve_rate(tabs, want_bands: int | None) -> int | None:
 
 def _regular_exam_cols(table) -> list[int]:
     """Logical column indices of the 정기시험 span in a 반영비율 table header."""
-    from .table_patch import build_grid, _direct_cells, _text_of
+    from .table_patch import build_grid, _text_of
     tb = table.bytes
     grid, rep = build_grid(tb)
     cols: list[int] = []
@@ -1084,7 +1084,7 @@ def fill_rubrics(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str
     cells (title / points / 성취기준 / A~E / 수행과제 / 평가요소 leaders / 기본점수 배점),
     reshapes+fills the 수행수준 채점기준 ladder, and rewrites each rubric's ordinal
     heading paragraph (가./나./다. + sample project title) to the review 영역명."""
-    from .table_patch import apply_table_ops, fill_cells, _text_of, _all_paragraph_spans
+    from .table_patch import apply_table_ops, fill_cells, _all_paragraph_spans
 
     report: dict[str, Any] = {"rubrics": len(content.rubrics), "filled": 0, "skipped": []}
     levels = content.levels
@@ -1122,7 +1122,6 @@ def fill_rubrics(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str
         if hdr is None or base is None:
             report["skipped"].append(f"rubric {i}: could not bound item block")
             continue
-        item_rows = base - (hdr + 1)          # blank example block height (7)
         first_item = hdr + 1
         todel = list(range(first_item + n, base))   # keep n, drop the surplus
         if todel:
@@ -1471,7 +1470,6 @@ def fill_ratio(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, 
         return data, report
     _sp, tb, grid, rep = _grid_of(data, ti)
     label_col, area_cols, total_col = _ratio_columns(tb, grid, rep)
-    areas = _area_names(content)
     if not area_cols:
         report["skipped"].append(f"no area columns detected (label_col={label_col}, total_col={total_col})")
         return data, report

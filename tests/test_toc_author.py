@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
 from hwpx import validate_editor_open_safety
 from hwpx.document import HwpxDocument
@@ -135,7 +134,6 @@ def test_emitted_fields_survive_structural_roundtrip():
 def test_native_toc_dirty_default_and_mark_toc_dirty():
     """dirty=1 is the measured re-number trigger (Hancom regenerates the region
     on open); authored TOCs default to it, and mark_toc_dirty re-arms it."""
-    from lxml import etree as LET
 
     _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
@@ -163,7 +161,6 @@ def test_parse_plain_regenerated_entries_inside_region():
     doc, headings = _doc_with_headings(2)
     ta.add_native_toc(doc, headings=headings, hyperlink=False)
     # strip the HYPERLINK wrappers to simulate Hancom's plain regeneration
-    from lxml import etree as LET
 
     _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
     for sec in doc.oxml.sections:

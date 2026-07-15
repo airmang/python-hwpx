@@ -6,9 +6,13 @@ from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
+from typing import TYPE_CHECKING
 import xml.etree.ElementTree as ET
 
 from hwpx.document import HwpxDocument
+
+if TYPE_CHECKING:
+    from hwpx.oxml import HwpxOxmlHeader
 
 HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
 HH = f"{{{HH_NS}}}"

@@ -1,8 +1,8 @@
 {
   "schemaVersion": "hwpx.fuzz.visual-review-summary.v1",
-  "batchPreflightReport": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/visual_review_batch_report.json",
-  "observedEvidenceDir": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999_observed",
-  "screenshotDir": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999_screenshots",
+  "batchPreflightReport": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999/visual_review_batch_report.json",
+  "observedEvidenceDir": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999_observed",
+  "screenshotDir": "${REPO_ROOT}/tests/fixtures/fuzz_regressions/visual_review_seed_000000_000999_screenshots",
   "observedEvidenceCount": 20,
   "observedPassCount": 20,
   "readyForSubmissionClaimCount": 20,

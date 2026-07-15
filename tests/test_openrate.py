@@ -472,10 +472,10 @@ def test_jsonl_open_checker_basename_join_backslash_meta_and_repaired(tmp_path):
     )
     checker = cor.jsonl_open_checker(str(jsonl))
     out = checker([
-        "/Users/me/work/openrate-corpus/authored/a.hwpx",
-        "/Users/me/work/openrate-corpus/authored/b.hwpx",
-        "/Users/me/work/openrate-corpus/authored/c.hwpx",
-        "/Users/me/work/openrate-corpus/authored/missing.hwpx",  # no verdict -> unverified
+        "/workspace/openrate-corpus/authored/a.hwpx",
+        "/workspace/openrate-corpus/authored/b.hwpx",
+        "/workspace/openrate-corpus/authored/c.hwpx",
+        "/workspace/openrate-corpus/authored/missing.hwpx",  # no verdict -> unverified
     ])
     by_base = {p["path"].rsplit("/", 1)[-1]: p for p in out}
     assert by_base["a.hwpx"]["opened"] is True and by_base["a.hwpx"]["text_length"] == 42

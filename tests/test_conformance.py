@@ -8,7 +8,6 @@ The real-Hancom verification is the opt-in oracle run, not these tests.
 """
 from __future__ import annotations
 
-import io
 import json
 from pathlib import Path
 
@@ -16,8 +15,6 @@ import pytest
 
 from hwpx import HwpxDocument
 from hwpx.conformance import (
-    Badge,
-    BadgeThresholds,
     CaseResult,
     ConformanceCase,
     ConformanceCorpus,

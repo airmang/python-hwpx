@@ -194,10 +194,23 @@ def test_compose_returns_not_ok_when_open_safety_raises(tmp_path, monkeypatch):
 # --------------------------------------------------------------------------- #
 # Privacy: no residual source PII in committed templates or generated docs.
 # --------------------------------------------------------------------------- #
-_PII_NEEDLES = [
-    "홍옥수", "csteacher", "bluewave", "shkimde", "옥지현", "keris", "kokyu",
-    "광교", "매원", "경기도교육청", "학교공간혁신", "상용클라우드",
+_PUBLIC_PRIVACY_SENTINELS = [
+    "source-author@example.invalid",
+    "private-origin-user",
+    "source-institution.example",
+    "source-location.example",
+    "source-project-code",
 ]
+
+
+def _privacy_needles() -> list[str]:
+    """Return synthetic public sentinels plus an optional private-CI denylist."""
+    private = [
+        value.strip().lower()
+        for value in os.environ.get("HWPX_PRIVATE_PII_NEEDLES", "").split(",")
+        if value.strip()
+    ]
+    return _PUBLIC_PRIVACY_SENTINELS + private
 
 
 def _text_blob(data: bytes) -> str:
@@ -213,13 +226,19 @@ def _text_blob(data: bytes) -> str:
 
 @pytest.mark.parametrize("pid", PROFILES)
 def test_profile_and_output_carry_no_source_pii(pid):
+    needles = _privacy_needles()
     prof = load_profile(pid)
     blob = _text_blob(prof.template_bytes)
-    assert not [n for n in _PII_NEEDLES if n in blob], pid
+    assert not [n for n in needles if n in blob], pid
     data, res = compose_bytes(_plan(pid))
     assert res.ok
     out_blob = _text_blob(data)
-    assert not [n for n in _PII_NEEDLES if n in out_blob], pid
+    assert not [n for n in needles if n in out_blob], pid
+
+
+def test_private_ci_privacy_needles_are_supported(monkeypatch):
+    monkeypatch.setenv("HWPX_PRIVATE_PII_NEEDLES", "private-ci-sentinel,second-private-marker")
+    assert _privacy_needles()[-2:] == ["private-ci-sentinel", "second-private-marker"]
 
 
 # --------------------------------------------------------------------------- #
