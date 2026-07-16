@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">python-hwpx</h1>
   <p align="center">
-    <strong>한글 없이 HWPX 문서를 Python으로 읽고, 편집하고, 생성하고, 검증합니다.</strong>
+    <strong>한글 없이 HWPX 문서를 Python으로 읽고, 편집하고, 생성하고, 구조를 검증합니다.</strong>
   </p>
   <p align="center">
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/v/python-hwpx?color=blue&label=PyPI" alt="PyPI"></a>
@@ -19,15 +19,27 @@
 |---|---|---|
 | 📦 라이브러리 | **[`python-hwpx`](https://github.com/airmang/python-hwpx)** | 순수 파이썬 HWPX 파싱·편집·생성 코어 |
 | 🔌 MCP 서버 | [`hwpx-mcp-server`](https://github.com/airmang/hwpx-mcp-server) | MCP 클라이언트(Claude Desktop, VS Code 등)에서 HWPX 조작 |
-| 🎯 에이전트 스킬 | [`hwpx-skill`](https://github.com/airmang/hwpx-plugins) | 에이전트가 HWPX를 바로 쓰게 해주는 공식 온보딩 스킬 |
+| 🎯 에이전트 스킬 | [`hwpx-plugin`](https://github.com/airmang/hwpx-plugins) | 에이전트가 HWPX를 바로 쓰게 해주는 first-party 플러그인·스킬 번들 |
+
+`python-hwpx`는 HWPX 파싱·편집·생성을 제공하는 코어 라이브러리이며,
+`hwpx-mcp-server`와 `hwpx-plugin`은 같은 프로젝트가 직접 유지보수하는 first-party 연동 구성요소입니다.
+“first-party”는 프로젝트 유지보수 관계를 뜻하며, 한컴 또는 제3자의 공식 인증을 뜻하지 않습니다.
+
+현재 검증 중인 릴리스 후보와 최소 호환 코어 버전은 모두 `python-hwpx 3.1.0`입니다.
+이 버전 좌표는 별도 소유자 승인 전까지 공개 또는 배포를 뜻하지 않습니다.
+현재 패키지 분류는 `Development Status :: 3 - Alpha`입니다. 이 분류는 API와 제품의
+성숙도를 나타내며, 릴리스 후보 버전이나 플러그인의 최소 호환 버전을 대신하지 않습니다.
 
 ---
 
 ## 왜 python-hwpx인가
 
-- **한컴오피스 설치 불필요** — HWPX는 ZIP+XML(OWPML/OPC) 구조라, 순수 파이썬으로 Windows·macOS·Linux·CI 어디서나 읽고 씁니다.
+- **코어 편집에 한컴오피스 설치 불필요** — HWPX는 ZIP+XML(OWPML/OPC) 구조라, 순수 파이썬으로 Windows·macOS·Linux·CI 어디서나 읽고 씁니다.
 - **읽기부터 생성까지 한 코어** — 텍스트/서식 추출, 문단·표·양식 편집, 새 문서 생성, XSD 스키마 검증을 하나의 API로 처리합니다.
-- **에이전트·자동화 친화** — 같은 스택 위에서 `hwpx-mcp-server`와 공식 스킬이 직결됩니다.
+- **에이전트·자동화 친화** — 같은 프로젝트가 유지보수하는 `hwpx-mcp-server`와 `hwpx-plugin`이 코어에 연결됩니다.
+
+문서 파싱·편집·생성은 순수 Python으로 수행할 수 있습니다. 다만 페이지 나눔, 표 넘침,
+글꼴 대체 등 최종 시각 품질을 확언하려면 필요에 따라 실제 한컴 렌더 오라클을 별도로 사용합니다.
 
 ## 빠른 시작
 

@@ -106,6 +106,16 @@ QUALITY_KEYS = frozenset(
         "requireReferenceIntegrity",
     }
 )
+_QUALITY_ENUM_VALUES = {
+    "mode": QUALITY_MODES,
+    "renderCheck": ("off", "auto", "required"),
+    "xsdMode": ("off", "lint"),
+    "overflowPolicy": ("fail", "warn", "truncate"),
+    "layoutLint": ("off", "warn", "strict"),
+}
+_QUALITY_BOOLEAN_KEYS = frozenset(
+    {"preserveUnmodifiedParts", "requireReferenceIntegrity"}
+)
 
 # The v1 public property vocabulary.  P2's command catalog consumes this exact
 # manifest.  A property absent here cannot be set through generic commands.
@@ -329,8 +339,20 @@ def _validate_quality(value: object) -> str | dict[str, Any] | None:
             f"batch.quality contains unknown fields: {sorted(extra)}",
             target="batch.quality",
         )
-    if quality.get("mode", "transparent") not in QUALITY_MODES:
-        raise AgentContractError("invalid_syntax", "batch.quality.mode is unsupported", target="batch.quality.mode")
+    for name, choices in _QUALITY_ENUM_VALUES.items():
+        if name in quality and quality[name] not in choices:
+            raise AgentContractError(
+                "invalid_syntax",
+                f"batch.quality.{name} is unsupported",
+                target=f"batch.quality.{name}",
+            )
+    for name in _QUALITY_BOOLEAN_KEYS:
+        if name in quality and not isinstance(quality[name], bool):
+            raise AgentContractError(
+                "invalid_syntax",
+                f"batch.quality.{name} must be boolean",
+                target=f"batch.quality.{name}",
+            )
     _validate_json_value(quality, name="batch.quality")
     return quality
 

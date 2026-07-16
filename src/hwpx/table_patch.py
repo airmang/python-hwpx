@@ -324,6 +324,35 @@ class CellSkipped:
 
 
 @dataclass(frozen=True)
+class ResolvedCellTarget:
+    """One non-mutating, merge-aware table-cell locator resolution.
+
+    ``logical_row``/``logical_col`` record the address selected by the label
+    semantics.  ``row``/``col`` are the physical ``cellAddr`` coordinates of
+    the covering cell and are therefore the coordinates a semantic document
+    projection can bind to exactly, even when the logical address lands inside
+    a row/column-spanning cell.
+    """
+
+    section_path: str
+    table_index: int
+    logical_row: int
+    logical_col: int
+    row: int
+    col: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "sectionPath": self.section_path,
+            "tableIndex": self.table_index,
+            "logicalRow": self.logical_row,
+            "logicalColumn": self.logical_col,
+            "physicalRow": self.row,
+            "physicalColumn": self.col,
+        }
+
+
+@dataclass(frozen=True)
 class CellFillResult:
     data: bytes
     applied: tuple[CellApplied, ...]
@@ -400,9 +429,17 @@ def _find_tables_by_anchor(section: bytes, anchor: str, spans: list[tuple[int, i
             matches.append(ti)
     return matches
 
-def _resolve_cell_anchor(table: bytes, label: str, direction: str) -> list[tuple[int, int]]:
+def _resolve_cell_anchor(
+    table: bytes,
+    label: str,
+    direction: str,
+    *,
+    exact: bool = False,
+) -> list[tuple[int, int]]:
     """Logical (row, col) of the cell *direction* of the unique cell containing
-    *label*. direction in {right,left,below,above}."""
+    *label*. ``exact=True`` requires normalized equality for canonical planning;
+    the compatibility default retains normalized substring matching. direction
+    in {right,left,below,above}."""
     grid, _rep = build_grid(table)
     nl = _norm_anchor(label)
     if not nl:
@@ -414,7 +451,9 @@ def _resolve_cell_anchor(table: bytes, label: str, direction: str) -> list[tuple
         if span_id in seen:
             continue
         seen.add(span_id)
-        if nl in _norm_anchor(_text_of(table[cell.start:cell.end])):
+        normalized_cell_text = _norm_anchor(_text_of(table[cell.start:cell.end]))
+        label_matches = normalized_cell_text == nl if exact else nl in normalized_cell_text
+        if label_matches:
             if direction == "left":
                 tr, tc = cell.row, cell.col - 1
             elif direction == "below":
@@ -427,7 +466,12 @@ def _resolve_cell_anchor(table: bytes, label: str, direction: str) -> list[tuple
                 targets.append((tr, tc))
     return targets
 
-def _resolve_anchor_cells(parts: Mapping[str, bytes], cells: Sequence[Any]) -> tuple[list[Any], list[CellSkipped]]:
+def _resolve_anchor_cells(
+    parts: Mapping[str, bytes],
+    cells: Sequence[Any],
+    *,
+    exact_cell_labels: bool = False,
+) -> tuple[list[Any], list[CellSkipped]]:
     """Turn anchor-bearing cell specs into concrete (table_index,row,col) specs.
     Coordinate specs pass through untouched; unresolvable anchors -> CellSkipped."""
     out: list[Any] = []
@@ -470,7 +514,12 @@ def _resolve_anchor_cells(parts: Mapping[str, bytes], cells: Sequence[Any]) -> t
             cget = canchor.get if isinstance(canchor, Mapping) else (lambda k, d=None: getattr(canchor, k, d))
             label = cget("label") or ""
             direction = str(cget("dir") or cget("direction") or "right")
-            m2 = _resolve_cell_anchor(sec[s:e], str(label), direction)
+            m2 = _resolve_cell_anchor(
+                sec[s:e],
+                str(label),
+                direction,
+                exact=exact_cell_labels,
+            )
             if len(m2) == 1:
                 row, col = m2[0]
             elif not m2:
@@ -500,6 +549,70 @@ def _normalize(cell: Mapping[str, Any] | Any) -> tuple[str, int, int, int, str, 
     return section, int(table_index), int(row), int(col), str(text), (int(max_lines) if max_lines else None)
 
 
+def resolve_cell_target(
+    source: str | Path | bytes,
+    locator: Mapping[str, Any],
+) -> ResolvedCellTarget:
+    """Resolve one existing table/cell locator without mutating the package.
+
+    This is the narrow public planning seam for the same heading/table semantics
+    used by :func:`fill_cells`, with stricter normalized-exact adjacent labels.
+    It deliberately raises instead of returning a guessed target: zero/multiple
+    anchor matches, absent sections, invalid table indices, and out-of-range
+    cells all fail closed.
+    """
+
+    source_bytes = _read_source_bytes(source)
+    import io
+    import zipfile
+
+    with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as archive:
+        parts = {
+            info.filename: archive.read(info.filename)
+            for info in archive.infolist()
+            if not info.is_dir()
+        }
+
+    # _resolve_anchor_cells also accepts concrete coordinates.  A placeholder
+    # text value is supplied only because its historical fill-cell record shape
+    # includes text; no edit or serialization occurs here.
+    spec = dict(locator)
+    spec.setdefault("text", "")
+    # Mixed-form planning is a canonical, fail-closed path: after whitespace
+    # and punctuation normalization, a cell label must be exactly equal.  The
+    # older fill_cells compatibility path deliberately keeps substring matching.
+    resolved, skipped = _resolve_anchor_cells(parts, [spec], exact_cell_labels=True)
+    if skipped:
+        raise ValueError(skipped[0].reason)
+    if len(resolved) != 1:
+        raise ValueError("cell locator did not resolve exactly one target")
+
+    section_path, table_index, logical_row, logical_col, _text, _max_lines = _normalize(
+        resolved[0]
+    )
+    section = parts.get(section_path)
+    if section is None:
+        raise ValueError("section part not found")
+    spans = _iter_table_spans(section)
+    if not 0 <= table_index < len(spans):
+        raise ValueError("table_index out of range")
+    start, end = spans[table_index]
+    grid, report = build_grid(section[start:end])
+    if not report.ok:
+        raise ValueError("table grid is invalid: " + "; ".join(report.issues[:5]))
+    cell = grid.get((logical_row, logical_col))
+    if cell is None:
+        raise ValueError("cell address out of range")
+    return ResolvedCellTarget(
+        section_path=section_path,
+        table_index=table_index,
+        logical_row=logical_row,
+        logical_col=logical_col,
+        row=cell.row,
+        col=cell.col,
+    )
+
+
 def fill_cells(
     source: str | Path | bytes,
     cells: Sequence[Mapping[str, Any] | Any],
@@ -527,7 +640,8 @@ def fill_cells(
         open_safety, _ = _finalize(source_bytes, output_path, source=source)
         return CellFillResult(source_bytes, (), (), (), True, "none", open_safety)
 
-    import io, zipfile
+    import io
+    import zipfile
     with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as zf:
         parts = {i.filename: zf.read(i.filename) for i in zf.infolist() if not i.is_dir()}
 
@@ -1233,7 +1347,8 @@ def _apply_cell_line_spacing(
     cells:[[r,c],...] 또는 rows:[r,...], line_spacing:int(PERCENT)}. 대상 셀의
     각 문단 paraPr을 lineSpacing 변형으로 재매핑하고 linesegarray를 제거한다
     (stale 캐시 줄겹침 방지). 중첩 표를 품은 셀은 refuse."""
-    import io, zipfile
+    import io
+    import zipfile
     with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as zf:
         parts = {i.filename: zf.read(i.filename) for i in zf.infolist() if not i.is_dir()}
     header_name = _header_part_name(parts)
@@ -1338,7 +1453,8 @@ def _p_wrapper_span(section: bytes, table_start: int) -> tuple[int, int]:
 
 
 def _sections(data: bytes) -> dict[str, bytes]:
-    import io, zipfile
+    import io
+    import zipfile
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         return {n: z.read(n) for n in z.namelist() if re.search(r"section\d+\.xml$", n)}
 
@@ -1615,5 +1731,6 @@ def table_summary(source: str | Path | bytes) -> list[dict[str, Any]]:
 
 __all__ = [
     "fill_cells", "build_grid", "GridReport", "CellFillResult", "CellApplied", "CellSkipped",
+    "ResolvedCellTarget", "resolve_cell_target",
     "apply_table_ops", "TableStructureError", "verify_fill", "RenderCheckRequired", "table_summary",
 ]

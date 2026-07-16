@@ -4,6 +4,29 @@
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-07-16
+
+### 추가
+- **타입드 혼합 양식 계획기**: `hwpx.mixed-form-plan/v1`이 네이티브 필드, 고유 라벨 셀,
+  revision-bound canonical path, 본문 직접 단일-run anchor를 하나의 엄격한 계획으로 받습니다.
+  모든 대상을 먼저 canonical path로 해석한 뒤 기존 `hwpx.agent-batch/v1` 한 건으로 컴파일하며,
+  `apply_document_commands`만 실행기로 사용해 dry-run·rollback·idempotency·단일 저장 게이트를
+  그대로 보장합니다.
+- 병합 셀의 논리 좌표를 실제 `cellAddr` 앵커로 정규화하는 비변형 `resolve_cell_target` 계획
+  프리미티브와 공개 plan/compiled-plan JSON Schema를 추가했습니다.
+
+### 변경
+- 에이전트 batch JSON Schema를 정본 카탈로그에 추가하고 quality 객체의 enum·boolean 필드를
+  엄격하게 검증해 알 수 없는 값이 실행 단계까지 전달되지 않도록 했습니다.
+- 혼합 양식 출력이 입력과 동일한 resolved path·symlink·hardlink인 경우 계획과 적용 직전에
+  거부하고, 셀 라벨은 정규화된 정확 일치만 허용합니다. 컴파일 계획은 locator별 node/path/
+  section/좌표 불변식을 검증하며, 멱등성 식별자에 공개 locator 요청 hash를 포함합니다.
+
+### 검증
+- 합성 1쪽 한국어 혼합 양식으로 네 locator 동시 적용, 드라이런 무출력, 주입 실패 rollback,
+  idempotent replay/conflict, 미변경 OPC member 바이트 보존, 재열기와 `openSafety.ok`를 고정했습니다.
+  `evalplan` 회귀는 유지하며 `exam` 모듈은 혼합 양식 경로에 가져오지 않습니다.
+
 ## [3.0.0] - 2026-07-16
 
 ### 변경

@@ -9,10 +9,16 @@ from copy import deepcopy
 from typing import Any
 
 from .model import (
+    AGENT_BATCH_SCHEMA,
     AGENT_CATALOG_SCHEMA,
+    MAX_COMMANDS,
     AgentContractError,
     NODE_KINDS,
     NODE_PROPERTY_CATALOG_V1,
+    QUALITY_KEYS,
+    QUALITY_MODES,
+    REVISION_PATTERN,
+    VERIFICATION_REQUIREMENTS,
     agent_contract_manifest,
 )
 
@@ -78,6 +84,22 @@ def agent_json_schemas() -> dict[str, Any]:
                 "properties": {key: value for key, value in properties.items() if key in allowed},
             }
         )
+    quality_object = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "mode": {"enum": list(QUALITY_MODES)},
+            "renderCheck": {"enum": ["off", "auto", "required"]},
+            "xsdMode": {"enum": ["off", "lint"]},
+            "overflowPolicy": {"enum": ["fail", "warn", "truncate"]},
+            "layoutLint": {"enum": ["off", "warn", "strict"]},
+            "preserveUnmodifiedParts": {"type": "boolean"},
+            "requireReferenceIntegrity": {"type": "boolean"},
+        },
+    }
+    if set(quality_object["properties"]) != set(QUALITY_KEYS):  # pragma: no cover
+        raise AssertionError("quality JSON Schema drifted from QUALITY_KEYS")
+
     return {
         "node": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -112,6 +134,69 @@ def agent_json_schemas() -> dict[str, Any]:
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "title": "HwpxAgentCommand v1",
             "oneOf": command_variants,
+        },
+        "batch": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "HwpxAgentBatch v1",
+            "type": "object",
+            "required": [
+                "schemaVersion",
+                "input",
+                "output",
+                "commands",
+                "expectedRevision",
+                "idempotencyKey",
+                "dryRun",
+                "quality",
+                "verificationRequirements",
+            ],
+            "additionalProperties": False,
+            "properties": {
+                "schemaVersion": {"const": AGENT_BATCH_SCHEMA},
+                "input": {
+                    "type": "object",
+                    "required": ["filename"],
+                    "additionalProperties": False,
+                    "properties": {"filename": {"type": "string", "minLength": 1}},
+                },
+                "output": {
+                    "type": "object",
+                    "required": ["filename", "overwrite"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "filename": {"type": "string", "minLength": 1},
+                        "overwrite": {"type": "boolean"},
+                    },
+                },
+                "commands": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": MAX_COMMANDS,
+                    "items": {"oneOf": deepcopy(command_variants)},
+                },
+                "expectedRevision": {
+                    "type": ["string", "null"],
+                    "pattern": REVISION_PATTERN.pattern,
+                },
+                "idempotencyKey": {
+                    "type": ["string", "null"],
+                    "minLength": 1,
+                    "maxLength": 128,
+                },
+                "dryRun": {"type": "boolean"},
+                "quality": {
+                    "oneOf": [
+                        {"enum": list(QUALITY_MODES)},
+                        deepcopy(quality_object),
+                        {"type": "null"},
+                    ]
+                },
+                "verificationRequirements": {
+                    "type": "array",
+                    "items": {"enum": list(VERIFICATION_REQUIREMENTS)},
+                    "uniqueItems": True,
+                },
+            },
         },
         "queryInput": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
