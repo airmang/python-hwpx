@@ -39,6 +39,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from importlib import resources
 from pathlib import Path
 
@@ -64,6 +65,49 @@ _MAC_APP_CANDIDATES = (
     "/Applications/Hancom Office HWP 2024.app",
     "/Applications/Hancom Office HWP 2022.app",
 )
+_STRUCTURAL_ONLY_ENV = "HWPX_ORACLE_STRUCTURAL_ONLY"
+_TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
+# The reachability probe must answer well under the customer E2E budget; a
+# TCC-blocked osascript otherwise hangs until the full render timeout.
+_MAC_PROBE_TIMEOUT = 5.0
+_MAC_PROBE_SCRIPT = 'tell application "System Events" to count processes'
+# Process-lifetime probe verdict per osascript binary: the TCC grant cannot
+# change for an already-running process, so one probe per process is honest.
+_MAC_PROBE_CACHE: dict[str, bool] = {}
+
+
+def structural_only() -> bool:
+    """True when ``HWPX_ORACLE_STRUCTURAL_ONLY`` requests no-oracle operation.
+
+    In this mode every verification degrades to the labelled structural path:
+    ``resolve_oracle`` returns :class:`NullOracle` and the Mac GUI backend
+    reports ``available() == False`` even when Hancom is installed.
+    """
+
+    return os.environ.get(_STRUCTURAL_ONLY_ENV, "").strip().lower() in _TRUTHY_ENV_VALUES
+
+
+def _deadline_from(budget_seconds: float | None) -> float | None:
+    """Turn an optional budget into an absolute monotonic deadline."""
+
+    if budget_seconds is None:
+        return None
+    return time.monotonic() + max(0.0, budget_seconds)
+
+
+def _clamped_timeout(base: float, deadline: float | None) -> float | None:
+    """Clamp ``base`` to the remaining deadline budget.
+
+    ``None`` means the budget is already exhausted: the caller must degrade
+    without spawning the subprocess at all.
+    """
+
+    if deadline is None:
+        return base
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return None
+    return min(base, remaining)
 
 
 class RenderBackend:
@@ -108,10 +152,14 @@ class WindowsComOracle(RenderBackend):
         powershell: str | None = None,
         timeout: float = 300.0,
         dpi: int = 150,
+        budget_seconds: float | None = None,
     ) -> None:
         self._powershell = powershell or "powershell"
         self.timeout = timeout
         self.dpi = dpi
+        # Single externally-propagated deadline: every subprocess timeout in
+        # one public call is clamped so the whole call fits this budget.
+        self.budget_seconds = budget_seconds
 
     def available(self) -> bool:
         """True only on Windows with the ``HWPFrame.HwpObject`` COM class registered."""
@@ -142,6 +190,10 @@ class WindowsComOracle(RenderBackend):
         result: dict[str, str | None] = {src: None for src, _ in pairs}
         if not pairs or not self.available():
             return result
+        deadline = _deadline_from(self.budget_seconds)
+        run_timeout = _clamped_timeout(self.timeout + 60.0 * len(pairs), deadline)
+        if run_timeout is None:
+            return result
 
         tmp = tempfile.mkdtemp(prefix="hwpx-render-")
         try:
@@ -159,7 +211,7 @@ class WindowsComOracle(RenderBackend):
                 ]
                 try:
                     subprocess.run(
-                        cmd, capture_output=True, timeout=self.timeout + 60.0 * len(pairs),
+                        cmd, capture_output=True, timeout=run_timeout,
                         check=False,
                     )
                 except (subprocess.TimeoutExpired, OSError):
@@ -230,6 +282,10 @@ class WindowsComOracle(RenderBackend):
             return []
         if not self.available():
             return [self._unverified_entry(p) for p in paths]
+        deadline = _deadline_from(self.budget_seconds)
+        run_timeout = _clamped_timeout(self.timeout + 60.0 * len(paths), deadline)
+        if run_timeout is None:
+            return [self._unverified_entry(p) for p in paths]
 
         abs_paths = [os.path.abspath(p) for p in paths]
         # path -> requested (original) string, for surfacing the caller's path.
@@ -251,7 +307,7 @@ class WindowsComOracle(RenderBackend):
                 try:
                     subprocess.run(
                         cmd, capture_output=True,
-                        timeout=self.timeout + 60.0 * len(paths), check=False,
+                        timeout=run_timeout, check=False,
                     )
                 except (subprocess.TimeoutExpired, OSError):
                     # Subprocess never finished: prefer the crash-safe checkpoint
@@ -285,11 +341,13 @@ class WindowsComOracle(RenderBackend):
 
         opened_raw = record.get("opened")
         opened = bool(opened_raw) if opened_raw is not None else None
-        text_length = record.get("textLength")
-        try:
-            text_length = int(text_length) if text_length is not None else None
-        except (TypeError, ValueError):
-            text_length = None
+        text_length: int | None = None
+        text_length_raw = record.get("textLength")
+        if isinstance(text_length_raw, (bool, int, float, str)):
+            try:
+                text_length = int(text_length_raw)
+            except (TypeError, ValueError):
+                text_length = None
         error = record.get("error")
         parsed: bool | None
         if opened is None:
@@ -345,13 +403,13 @@ class WindowsComOracle(RenderBackend):
                 by_path[os.path.abspath(src)] = norm
         out: list[dict[str, object]] = []
         for abs_path in abs_paths:
-            norm = by_path.get(abs_path)
-            if norm is None:
+            found = by_path.get(abs_path)
+            if found is None:
                 out.append(self._unverified_entry(requested.get(abs_path, abs_path)))
             else:
                 # Surface the caller's original path string.
-                norm["path"] = requested.get(abs_path, norm.get("path"))
-                out.append(norm)
+                found["path"] = requested.get(abs_path, found.get("path"))
+                out.append(found)
         return out
 
     def _merge_checkpoint(
@@ -409,10 +467,14 @@ class MacHancomOracle(RenderBackend):
         timeout: float = 300.0,
         dpi: int = 150,
         osascript: str = "osascript",
+        budget_seconds: float | None = None,
     ) -> None:
         self.timeout = timeout
         self.dpi = dpi
         self._osascript = osascript
+        # Single externally-propagated deadline: every subprocess timeout in
+        # one public call is clamped so the whole call fits this budget.
+        self.budget_seconds = budget_seconds
 
     def _app_path(self) -> str | None:
         for candidate in _MAC_APP_CANDIDATES:
@@ -433,12 +495,46 @@ class MacHancomOracle(RenderBackend):
                 return line
         return None
 
-    def available(self) -> bool:
-        """True only on macOS with ``Hancom Office HWP.app`` installed."""
+    def _automation_reachable(self) -> bool:
+        """Fast preflight for GUI automation (System Events + Automation TCC).
 
+        An installed Hancom does NOT imply the GUI transport works: without a
+        logged-in GUI session or with Automation/Apple Events denied, osascript
+        blocks until its own timeout — far beyond any caller budget. This probe
+        answers within :data:`_MAC_PROBE_TIMEOUT` seconds and is cached for the
+        process lifetime (TCC grants cannot change for a running process).
+        """
+
+        cached = _MAC_PROBE_CACHE.get(self._osascript)
+        if cached is not None:
+            return cached
+        reachable = False
+        try:
+            proc = subprocess.run(
+                [self._osascript, "-e", _MAC_PROBE_SCRIPT],
+                capture_output=True, text=True,
+                timeout=_MAC_PROBE_TIMEOUT, check=False,
+            )
+            reachable = proc.returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            reachable = False
+        _MAC_PROBE_CACHE[self._osascript] = reachable
+        return reachable
+
+    def available(self) -> bool:
+        """True only on macOS with Hancom installed AND GUI automation reachable.
+
+        ``HWPX_ORACLE_STRUCTURAL_ONLY`` forces ``False`` so no caller can enter
+        GUI automation in structural-only operation.
+        """
+
+        if structural_only():
+            return False
         if sys.platform != "darwin":
             return False
-        return self._app_path() is not None
+        if self._app_path() is None:
+            return False
+        return self._automation_reachable()
 
     def render_pdf(self, hwpx_path: str, out_pdf: str | None = None) -> str | None:
         """Render a single ``.hwpx`` to PDF via the GUI; returns the path or ``None``."""
@@ -466,6 +562,14 @@ class MacHancomOracle(RenderBackend):
         except OSError:
             pass
 
+        deadline = _deadline_from(self.budget_seconds)
+        run_timeout = _clamped_timeout(self.timeout + 60.0, deadline)
+        if run_timeout is None:
+            return None
+        # The AppleScript receives its own internal wait limit; keep it inside
+        # the clamped subprocess timeout so the script never outlives the budget.
+        script_timeout = max(1, int(min(self.timeout, run_timeout)))
+
         cleanup_staged = False
         try:
             if not staged_is_source:
@@ -475,12 +579,12 @@ class MacHancomOracle(RenderBackend):
                 resources.files("hwpx.visual").joinpath(_MAC_BACKEND_SCRIPT)
             ) as script:
                 cmd = [
-                    self._osascript, str(script), staged, out_pdf, str(int(self.timeout)),
+                    self._osascript, str(script), staged, out_pdf, str(script_timeout),
                 ]
                 try:
                     subprocess.run(
                         cmd, capture_output=True, text=True,
-                        timeout=self.timeout + 60.0, check=False,
+                        timeout=run_timeout, check=False,
                     )
                 except (subprocess.TimeoutExpired, OSError):
                     return None
@@ -507,6 +611,11 @@ class MacHancomOracle(RenderBackend):
         """
         if not self.available():
             return False
+        deadline = _deadline_from(self.budget_seconds)
+        run_timeout = _clamped_timeout(self.timeout + 60.0, deadline)
+        if run_timeout is None:
+            return False
+        script_timeout = max(1, int(min(self.timeout, run_timeout)))
         src = os.path.abspath(hwpx_path)
         try:
             before = os.stat(src).st_mtime_ns
@@ -515,11 +624,11 @@ class MacHancomOracle(RenderBackend):
         with resources.as_file(
             resources.files("hwpx.visual").joinpath(_MAC_REFRESH_SCRIPT)
         ) as script:
-            cmd = [self._osascript, str(script), src, str(int(self.timeout))]
+            cmd = [self._osascript, str(script), src, str(script_timeout)]
             try:
                 proc = subprocess.run(
                     cmd, capture_output=True, text=True,
-                    timeout=self.timeout + 60.0, check=False,
+                    timeout=run_timeout, check=False,
                 )
             except (subprocess.TimeoutExpired, OSError):
                 return False
@@ -551,17 +660,27 @@ def resolve_oracle(
     timeout: float = 300.0,
     dpi: int = 150,
     osascript: str = "osascript",
+    budget_seconds: float | None = None,
 ) -> RenderBackend:
     """Return the best reachable render backend (Windows COM → Mac GUI → Null).
 
     Windows COM is canonical (CI/scale); Mac GUI is the dev/spot-check fallback;
     :class:`NullOracle` is the degrade sentinel when no Hancom is reachable.
+    ``HWPX_ORACLE_STRUCTURAL_ONLY`` short-circuits to :class:`NullOracle`, and
+    ``budget_seconds`` propagates one external deadline into every backend
+    subprocess timeout.
     """
 
-    windows = WindowsComOracle(powershell=powershell, timeout=timeout, dpi=dpi)
+    if structural_only():
+        return NullOracle()
+    windows = WindowsComOracle(
+        powershell=powershell, timeout=timeout, dpi=dpi, budget_seconds=budget_seconds,
+    )
     if windows.available():
         return windows
-    mac = MacHancomOracle(timeout=timeout, dpi=dpi, osascript=osascript)
+    mac = MacHancomOracle(
+        timeout=timeout, dpi=dpi, osascript=osascript, budget_seconds=budget_seconds,
+    )
     if mac.available():
         return mac
     return NullOracle()

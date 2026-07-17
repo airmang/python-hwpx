@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+### 추가
+- 선택적 Mac GUI 오라클(`MacHancomOracle`)에 도달성 프로브를 추가했습니다. 한컴 앱이
+  설치돼 있어도 GUI 세션·Automation(TCC) 권한이 없으면 5초 이내에 `available() == False`로
+  정직하게 강등되며(프로세스 수명 캐시), 기존 구조 검증 경로가 그대로 동작합니다.
+- 렌더 오라클에 단일 외부 예산 전파를 추가했습니다. `budget_seconds`(생성자·
+  `resolve_oracle`)가 지정되면 내부의 모든 subprocess 타임아웃이 남은 예산으로
+  clamp되고, 예산 소진 시 subprocess를 생성하지 않고 즉시 강등합니다.
+- `HWPX_ORACLE_STRUCTURAL_ONLY` 환경변수를 추가했습니다. 설정 시 `resolve_oracle()`은
+  `NullOracle`을 반환하고 Mac GUI 백엔드는 어떤 경로로도 GUI 자동화에 진입하지
+  않습니다(구조 판정 전용 모드).
+
+### 변경
+- `src/hwpx/visual/oracle.py`를 mypy·pyright 점진적 게이트에 편입하고 기존 타입 오류
+  2건(textLength 협소화, 검증 항목 변수 재사용)을 수정했습니다.
+
 ## [3.2.0] - 2026-07-17
 
 ### 추가
