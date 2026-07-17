@@ -183,3 +183,25 @@ def test_resolve_oracle_propagates_budget(monkeypatch) -> None:
     backend = resolve_oracle(budget_seconds=42.0)
     assert isinstance(backend, MacHancomOracle)
     assert backend.budget_seconds == 42.0
+
+
+def test_resolve_oracle_reads_env_budget(monkeypatch) -> None:
+    """One externally-declared deadline reaches every resolve_oracle() caller."""
+
+    monkeypatch.delenv("HWPX_ORACLE_STRUCTURAL_ONLY", raising=False)
+    monkeypatch.setattr(WindowsComOracle, "available", lambda self: False)
+    monkeypatch.setattr(MacHancomOracle, "available", lambda self: True)
+
+    monkeypatch.setenv("HWPX_ORACLE_BUDGET_SECONDS", "75")
+    backend = resolve_oracle()
+    assert isinstance(backend, MacHancomOracle)
+    assert backend.budget_seconds == 75.0
+
+    # Explicit parameter wins over the environment.
+    assert resolve_oracle(budget_seconds=10.0).budget_seconds == 10.0
+
+    # Invalid values are ignored; negative values mean exhausted.
+    monkeypatch.setenv("HWPX_ORACLE_BUDGET_SECONDS", "abc")
+    assert resolve_oracle().budget_seconds is None
+    monkeypatch.setenv("HWPX_ORACLE_BUDGET_SECONDS", "-5")
+    assert resolve_oracle().budget_seconds == 0.0

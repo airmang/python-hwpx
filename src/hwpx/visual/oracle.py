@@ -76,6 +76,9 @@ _MAC_PROBE_SCRIPT = 'tell application "System Events" to count processes'
 _MAC_PROBE_CACHE: dict[str, bool] = {}
 
 
+_BUDGET_ENV = "HWPX_ORACLE_BUDGET_SECONDS"
+
+
 def structural_only() -> bool:
     """True when ``HWPX_ORACLE_STRUCTURAL_ONLY`` requests no-oracle operation.
 
@@ -85,6 +88,25 @@ def structural_only() -> bool:
     """
 
     return os.environ.get(_STRUCTURAL_ONLY_ENV, "").strip().lower() in _TRUTHY_ENV_VALUES
+
+
+def env_budget_seconds() -> float | None:
+    """The externally-declared oracle budget, or ``None`` when unset/invalid.
+
+    ``HWPX_ORACLE_BUDGET_SECONDS`` is the single deadline a hosting process
+    (customer E2E, installed verify) declares once; ``resolve_oracle`` threads
+    it into every backend subprocess timeout. Non-numeric values are ignored;
+    zero or negative means the budget is already exhausted.
+    """
+
+    raw = os.environ.get(_BUDGET_ENV, "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    return max(0.0, value)
 
 
 def _deadline_from(budget_seconds: float | None) -> float | None:
@@ -673,6 +695,8 @@ def resolve_oracle(
 
     if structural_only():
         return NullOracle()
+    if budget_seconds is None:
+        budget_seconds = env_budget_seconds()
     windows = WindowsComOracle(
         powershell=powershell, timeout=timeout, dpi=dpi, budget_seconds=budget_seconds,
     )

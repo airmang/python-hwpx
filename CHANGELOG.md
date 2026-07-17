@@ -14,6 +14,9 @@
 - `HWPX_ORACLE_STRUCTURAL_ONLY` 환경변수를 추가했습니다. 설정 시 `resolve_oracle()`은
   `NullOracle`을 반환하고 Mac GUI 백엔드는 어떤 경로로도 GUI 자동화에 진입하지
   않습니다(구조 판정 전용 모드).
+- `HWPX_ORACLE_BUDGET_SECONDS` 환경변수를 추가했습니다. 호스팅 프로세스가 한 번
+  선언한 외부 deadline이 `resolve_oracle()`의 모든 호출 지점(코어 verify·MCP 핸들러)에
+  자동 전파됩니다. 명시적 `budget_seconds` 파라미터가 env보다 우선합니다.
 
 ### 변경
 - `src/hwpx/visual/oracle.py`를 mypy·pyright 점진적 게이트에 편입하고 기존 타입 오류
