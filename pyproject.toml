@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx"
-version = "3.1.0"
+version = "3.2.0"
 description = "한글 없이 HWPX 문서를 열고, 편집하고, 생성하고, 검증하는 Python 자동화 라이브러리"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "Apache-2.0"
@@ -109,11 +109,25 @@ python_version = "3.10"
 follow_imports = "skip"
 files = [
     "src/hwpx/document.py",
+    "src/hwpx/agent/commands.py",
+    "src/hwpx/agent/document.py",
+    "src/hwpx/agent/story.py",
+    "src/hwpx/oxml/_document_impl.py",
+    "src/hwpx/oxml/_document_primitives.py",
     "src/hwpx/oxml/document.py",
+    "src/hwpx/oxml/document_parts.py",
+    "src/hwpx/oxml/header_part.py",
+    "src/hwpx/oxml/memo.py",
+    "src/hwpx/oxml/numbering.py",
+    "src/hwpx/oxml/objects.py",
     "src/hwpx/opc/package.py",
     "src/hwpx/opc/relationships.py",
     "src/hwpx/oxml/paragraph.py",
     "src/hwpx/oxml/run.py",
+    "src/hwpx/oxml/section.py",
+    "src/hwpx/oxml/section_format.py",
+    "src/hwpx/oxml/section_story.py",
+    "src/hwpx/oxml/simple_parts.py",
     "src/hwpx/oxml/table.py",
     "src/hwpx/quality/policy.py",
     "src/hwpx/quality/report.py",
@@ -128,18 +142,30 @@ files = [
 ]
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]
-module = ["hwpx.document", "hwpx.oxml.document"]
-ignore_errors = true
-
 [tool.pyright]
-# Keep basic pyright focused on OPC/tooling modules that currently pass
-# without suppressing their real diagnostics.
+# Keep basic pyright focused on the explicit gradual scope. Feature 025 adds
+# both central facades and every extracted/touched runtime owner to the gate.
 include = [
+    "src/hwpx/document.py",
+    "src/hwpx/agent/commands.py",
+    "src/hwpx/agent/document.py",
+    "src/hwpx/agent/story.py",
+    "src/hwpx/oxml/_document_impl.py",
+    "src/hwpx/oxml/_document_primitives.py",
+    "src/hwpx/oxml/document.py",
+    "src/hwpx/oxml/document_parts.py",
+    "src/hwpx/oxml/header_part.py",
+    "src/hwpx/oxml/memo.py",
+    "src/hwpx/oxml/numbering.py",
+    "src/hwpx/oxml/objects.py",
     "src/hwpx/opc/package.py",
     "src/hwpx/opc/relationships.py",
     "src/hwpx/oxml/paragraph.py",
     "src/hwpx/oxml/run.py",
+    "src/hwpx/oxml/section.py",
+    "src/hwpx/oxml/section_format.py",
+    "src/hwpx/oxml/section_story.py",
+    "src/hwpx/oxml/simple_parts.py",
     "src/hwpx/oxml/table.py",
     "src/hwpx/quality/policy.py",
     "src/hwpx/quality/report.py",

@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
 
-from lxml import etree as LET
+from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml import HwpxOxmlTable
@@ -38,6 +38,12 @@ from .model import (
     validate_agent_batch,
 )
 from .path import parse_path
+from .story import (
+    HEADER_STORY_EDITABLE_PROPERTIES,
+    HEADER_STORY_KIND,
+    HeaderStoryBinding,
+    try_parse_header_story_path,
+)
 
 _EMPTY_REVISION = "sha256:" + hashlib.sha256(b"").hexdigest()
 _HWP_UNITS_PER_MM = 7200 / 25.4
@@ -242,6 +248,21 @@ def _validate_property_values(kind: str, properties: Mapping[str, Any], *, creat
             raise AgentContractError("unknown_property", f"untyped property: {target}", target=target)
 
 
+def _validate_header_story_properties(properties: Mapping[str, Any]) -> None:
+    unknown = sorted(set(properties) - HEADER_STORY_EDITABLE_PROPERTIES)
+    if unknown:
+        raise AgentContractError(
+            "unknown_property",
+            f"header does not support properties: {unknown}",
+            target=f"header.{unknown[0]}",
+        )
+    if "text" not in properties:
+        raise AgentContractError(
+            "invalid_syntax", "existing header set requires text", target="header.text"
+        )
+    _require_string(properties["text"], "header.text")
+
+
 def _preflight(batch: Mapping[str, Any]) -> None:
     """Reject the complete static command matrix before the first mutation."""
 
@@ -254,6 +275,9 @@ def _preflight(batch: Mapping[str, Any]) -> None:
                 return alias_kinds[command_id][field]
             except KeyError as exc:  # validate_agent_batch already checks ordering
                 raise AgentContractError("not_found", f"unknown command alias: {value}") from exc
+        story = try_parse_header_story_path(value)
+        if story is not None:
+            return story.kind
         parsed = parse_path(value)
         return parsed.segments[-1].kind if parsed.segments else "document"
 
@@ -264,6 +288,9 @@ def _preflight(batch: Mapping[str, Any]) -> None:
                 return alias_kinds[command_id]["parentPath" if field == "path" else field]
             except KeyError:
                 return "document"
+        story = try_parse_header_story_path(value)
+        if story is not None:
+            return "section"
         parsed = parse_path(value)
         return parsed.segments[-2].kind if len(parsed.segments) > 1 else "document"
 
@@ -298,6 +325,19 @@ def _preflight(batch: Mapping[str, Any]) -> None:
             }
             continue
         source_kind = reference_kind(command["path"])
+        if source_kind == HEADER_STORY_KIND:
+            if op != "set":
+                raise AgentContractError(
+                    "unsupported_operation",
+                    f"{op} is unsupported for {source_kind}",
+                    target=command["commandId"],
+                )
+            _validate_header_story_properties(command["properties"])
+            alias_kinds[command["commandId"]] = {
+                "path": source_kind,
+                "parentPath": "section",
+            }
+            continue
         if op not in NODE_PROPERTY_CATALOG_V1[source_kind]["operations"]:
             raise AgentContractError(
                 "unsupported_operation",
@@ -309,11 +349,11 @@ def _preflight(batch: Mapping[str, Any]) -> None:
         destination_kind = parent_kind(command["path"])
         if op in {"move", "copy"}:
             destination_kind = reference_kind(command["parent"])
-            expected_parent = _MOVE_COPY_PARENTS.get(source_kind)
-            if destination_kind != expected_parent:
+            move_parent = _MOVE_COPY_PARENTS.get(source_kind)
+            if destination_kind != move_parent:
                 raise AgentContractError(
                     "incompatible_parent",
-                    f"{source_kind} requires a {expected_parent} parent, not {destination_kind}",
+                    f"{source_kind} requires a {move_parent} parent, not {destination_kind}",
                     target=command["commandId"],
                 )
         alias_kinds[command["commandId"]] = {
@@ -570,6 +610,42 @@ def _mark_containing_section(document: HwpxDocument, target: Any) -> None:
     raise AgentContractError("not_found", "mutated element is detached")
 
 
+def _apply_header_story_set(
+    binding: HeaderStoryBinding, properties: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Apply the bounded existing-header mutation through its OXML owner."""
+
+    _validate_header_story_properties(properties)
+    try:
+        binding.native.set_simple_text_preserving(properties["text"])
+    except AgentContractError:
+        raise
+    except ValueError as exc:
+        # The OXML owner uses ValueError for rich/control-bearing or otherwise
+        # structurally unsafe headers.  Do not let it degrade to the generic
+        # invariant envelope or fall back to the destructive whole-story setter.
+        message = str(exc) or "header content cannot be edited losslessly"
+        lowered = message.lower()
+        code = (
+            "ambiguous_target"
+            if "ambiguous" in lowered
+            else "not_found"
+            if "not found" in lowered
+            else "unsupported_content"
+        )
+        raise AgentContractError(
+            code,
+            message,
+            target=binding.path,
+        ) from exc
+    return {
+        "text": {
+            "before": binding.text,
+            "after": properties["text"],
+        }
+    }
+
+
 def _apply_set(document: HwpxDocument, record: NodeRecord, properties: Mapping[str, Any]) -> dict[str, Any]:
     _ensure_operation(record, "set")
     _validate_property_values(record.kind, properties, creating=False)
@@ -711,7 +787,10 @@ def _add(
         if "pageHeightMm" in properties:
             size_kwargs["height"] = round(properties["pageHeightMm"] * _HWP_UNITS_PER_MM)
         if size_kwargs:
-            created.properties.set_page_size(**size_kwargs)
+            created.properties.set_page_size(
+                width=size_kwargs.get("width"),
+                height=size_kwargs.get("height"),
+            )
         return created
     if kind == "paragraph":
         created = parent.native.add_paragraph(str(properties.get("text", "")))
@@ -1081,6 +1160,47 @@ def _member_diff(before: bytes, after: bytes) -> dict[str, Any]:
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 
 
+def _verify_header_story_candidates(
+    candidate_data: bytes,
+    candidate_revision: str,
+    expectations: Mapping[str, Mapping[str, str]],
+) -> dict[str, Any]:
+    receipts: list[dict[str, Any]] = []
+    if expectations:
+        with HwpxDocument.open(candidate_data) as reopened:
+            view = HwpxAgentDocument.from_document(
+                reopened, revision=candidate_revision
+            )
+            for expectation in expectations.values():
+                path = expectation["path"]
+                binding = view._resolve_header_story(path)
+                if (
+                    binding.stable_id != expectation["stableId"]
+                    or binding.page_type != expectation["pageType"]
+                    or binding.text != expectation["text"]
+                ):
+                    raise AgentContractError(
+                        "verification_failed",
+                        "reopened header story does not match the committed binding",
+                        target=path,
+                    )
+                receipts.append(
+                    {
+                        "commandId": expectation["commandId"],
+                        "path": binding.path,
+                        "stableId": binding.stable_id,
+                        "pageType": binding.page_type,
+                        "textMatched": True,
+                    }
+                )
+    return {
+        "schemaVersion": "hwpx.agent-story-preservation/v1",
+        "ok": True,
+        "storyCount": len(receipts),
+        "stories": receipts,
+    }
+
+
 def _request_hash(batch: Mapping[str, Any]) -> str:
     payload = json.dumps(
         batch,
@@ -1192,6 +1312,7 @@ def apply_document_commands(
         aliases: dict[str, dict[str, str]] = {}
         identity_changes: list[Mapping[str, str]] = []
         semantic_changes: list[Mapping[str, Any]] = []
+        story_expectations: dict[str, Mapping[str, str]] = {}
         _call_fault(fault_injector, "before_open")
         with HwpxDocument.open(input_data) as document:
             view = HwpxAgentDocument.from_document(document, revision=input_revision)
@@ -1203,11 +1324,24 @@ def apply_document_commands(
                 parent_path: str | None = None
                 changed: dict[str, Any] = {}
                 generated: list[dict[str, str]] = []
+                target_native: Any | None = None
+                story_before: HeaderStoryBinding | None = None
                 if op == "set":
                     resolved_path = _resolve_alias(command["path"], aliases)
-                    record = view.resolve_record(resolved_path, expected_revision=input_revision)
-                    changed = _apply_set(document, record, command["properties"])
-                    target_native = record.native
+                    story_path = try_parse_header_story_path(resolved_path)
+                    if story_path is not None:
+                        story_before = view._resolve_header_story(
+                            story_path, expected_revision=input_revision
+                        )
+                        changed = _apply_header_story_set(
+                            story_before, command["properties"]
+                        )
+                    else:
+                        record = view.resolve_record(
+                            resolved_path, expected_revision=input_revision
+                        )
+                        changed = _apply_set(document, record, command["properties"])
+                        target_native = record.native
                 elif op == "add":
                     parent_path = _resolve_alias(command["parent"], aliases)
                     parent = view.resolve_record(parent_path, expected_revision=input_revision)
@@ -1244,7 +1378,26 @@ def apply_document_commands(
 
                 _call_fault(fault_injector, "after_command", index)
                 view = HwpxAgentDocument.from_document(document, revision=input_revision)
-                if op == "set" and resolved_path is not None:
+                result_stable_id: str | None = None
+                if story_before is not None and resolved_path is not None:
+                    target_story = view._resolve_header_story(resolved_path)
+                    if target_story.stable_id != story_before.stable_id:
+                        raise AgentContractError(
+                            "invariant_violation",
+                            "header story identity changed during text edit",
+                            target=resolved_path,
+                        )
+                    result_path = target_story.path
+                    result_parent = target_story.parent_path
+                    result_stable_id = target_story.stable_id
+                    story_expectations[target_story.binding_key] = {
+                        "commandId": command_id,
+                        "path": target_story.path,
+                        "stableId": target_story.stable_id,
+                        "pageType": target_story.page_type,
+                        "text": command["properties"]["text"],
+                    }
+                elif op == "set" and resolved_path is not None:
                     # Some native bindings (notably form fields) are request-local
                     # match dictionaries.  A property edit is non-structural, so
                     # its canonical path is the durable post-edit lookup key.
@@ -1269,6 +1422,11 @@ def apply_document_commands(
                     "generatedIdentities": generated,
                     "warnings": [],
                 }
+                if result_stable_id is not None:
+                    # Command results are already an untyped JSON mapping.  This
+                    # story-only receipt carries the actual stable identity
+                    # without changing AgentBatchResult or the ToolSpec schema.
+                    result["stableId"] = result_stable_id
                 command_results.append(result)
                 semantic_changes.append(
                     {
@@ -1285,6 +1443,12 @@ def apply_document_commands(
             _call_fault(fault_injector, "after_serialize")
 
             candidate_revision = _revision(candidate_data)
+            if story_expectations:
+                verification["storyPreservation"] = _verify_header_story_candidates(
+                    candidate_data,
+                    candidate_revision,
+                    story_expectations,
+                )
             semantic_diff = {
                 "schemaVersion": "hwpx.agent-semantic-diff/v1",
                 "inputRevision": input_revision,

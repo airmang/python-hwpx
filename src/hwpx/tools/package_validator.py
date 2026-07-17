@@ -45,8 +45,8 @@ ACCEPTED_HANCOM_TARGETS = frozenset({"HWP2018", "HWP201X"})
 # 1.5 (our Skeleton.hwpx is 1.5). Accept both measured baselines.
 ACCEPTED_HEAD_VERSIONS = frozenset({"1.4", "1.5"})
 
-_XML_DECLARATION_RE = re.compile(br"^<\?xml\s+([^?]*?)\?>", re.IGNORECASE)
-_STANDALONE_YES_RE = re.compile(br"\bstandalone\s*=\s*(['\"])yes\1", re.IGNORECASE)
+_XML_DECLARATION_RE = re.compile(rb"^<\?xml\s+([^?]*?)\?>", re.IGNORECASE)
+_STANDALONE_YES_RE = re.compile(rb"\bstandalone\s*=\s*(['\"])yes\1", re.IGNORECASE)
 
 IssueLevel = Literal["error", "warning"]
 
@@ -89,7 +89,9 @@ def is_editor_open_blocking_issue(issue: PackageValidationIssue) -> bool:
 
     if not issue.is_error:
         return False
-    return not any(marker in issue.message for marker in EDITOR_OPEN_ADVISORY_ERROR_MARKERS)
+    return not any(
+        marker in issue.message for marker in EDITOR_OPEN_ADVISORY_ERROR_MARKERS
+    )
 
 
 @dataclass(frozen=True)
@@ -147,16 +149,21 @@ class EditorOpenSafetyReport:
                 f"document validation could not run: {self.document_validation_error}"
             )
         document_report = self.validate_document
-        if document_report is not None and not bool(getattr(document_report, "ok", False)):
+        if document_report is not None and not bool(
+            getattr(document_report, "ok", False)
+        ):
             errors = list(getattr(document_report, "errors", ()))
             if errors:
                 failures.extend(
-                    f"document validation failed: {error}"
-                    for error in errors[:10]
+                    f"document validation failed: {error}" for error in errors[:10]
                 )
             else:
                 failures.append("document validation failed")
-        return "; ".join(failures) if failures else "editor-open safety verification failed"
+        return (
+            "; ".join(failures)
+            if failures
+            else "editor-open safety verification failed"
+        )
 
     def to_dict(self) -> dict[str, Any]:
         document_report = self.validate_document
@@ -252,7 +259,11 @@ def _root_declared_namespaces(payload: bytes) -> dict[str, str]:
         guard_xml_depth(root)
     except (LET.XMLSyntaxError, ValueError):
         return {}
-    return {"" if prefix is None else prefix: uri for prefix, uri in root.nsmap.items() if uri}
+    return {
+        "" if prefix is None else prefix: uri
+        for prefix, uri in root.nsmap.items()
+        if uri
+    }
 
 
 def _has_standalone_yes_declaration(payload: bytes) -> bool:
@@ -438,7 +449,10 @@ def _check_section_properties_location(
         if first_paragraph is not None
         else None
     )
-    if first_run is None or _first_child_by_local(first_run, "secPr") is not section_properties:
+    if (
+        first_run is None
+        or _first_child_by_local(first_run, "secPr") is not section_properties
+    ):
         _warning(
             issues,
             part_name,
@@ -521,7 +535,9 @@ def _error(issues: list[PackageValidationIssue], part_name: str, message: str) -
     issues.append(PackageValidationIssue(part_name, message, "error"))
 
 
-def _warning(issues: list[PackageValidationIssue], part_name: str, message: str) -> None:
+def _warning(
+    issues: list[PackageValidationIssue], part_name: str, message: str
+) -> None:
     issues.append(PackageValidationIssue(part_name, message, "warning"))
 
 
@@ -532,7 +548,9 @@ def _safe_read(zf: ZipFile, part_name: str) -> bytes | None:
         return None
 
 
-def _fallback_named_parts(names: set[str], *, token: str, extra_token: str | None = None) -> list[str]:
+def _fallback_named_parts(
+    names: set[str], *, token: str, extra_token: str | None = None
+) -> list[str]:
     matches: list[str] = []
     for name in sorted(names):
         part_name = PurePosixPath(name).name.lower()
@@ -580,7 +598,11 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
         else:
             mimetype_bytes = _safe_read(zf, MIMETYPE_PATH)
             if mimetype_bytes is None:
-                _error(issues, MIMETYPE_PATH, "unable to read entry for integrity validation")
+                _error(
+                    issues,
+                    MIMETYPE_PATH,
+                    "unable to read entry for integrity validation",
+                )
             else:
                 try:
                     mimetype = mimetype_bytes.decode("utf-8").strip()
@@ -702,8 +724,12 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
                 f"spine itemref references missing manifest id {idref!r}",
             )
 
-        section_paths = [path for path in relationships.spine_paths if is_section_part_name(path)]
+        section_paths = [
+            path for path in relationships.spine_paths if is_section_part_name(path)
+        ]
+        resolved_section_paths: list[str]
         if section_paths:
+            resolved_section_paths = list(dict.fromkeys(section_paths))
             for path in section_paths:
                 if path not in name_set:
                     _error(
@@ -712,8 +738,11 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
                         f"spine section part missing from archive: {path!r}",
                     )
         else:
-            fallback_sections = [name for name in sorted(name_set) if is_section_part_name(name)]
+            fallback_sections = [
+                name for name in sorted(name_set) if is_section_part_name(name)
+            ]
             if fallback_sections:
+                resolved_section_paths = fallback_sections
                 _warning(
                     issues,
                     selected_rootfile.full_path,
@@ -721,10 +750,43 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
                     "to filename-based section discovery",
                 )
             else:
+                resolved_section_paths = []
                 _error(
                     issues,
                     selected_rootfile.full_path,
                     "no section parts found in manifest spine or archive fallback",
+                )
+
+        resolved_header_paths = list(dict.fromkeys(relationships.header_paths))
+        if not resolved_header_paths and HEADER_PATH in name_set:
+            resolved_header_paths = [HEADER_PATH]
+        for header_path in resolved_header_paths:
+            header_root = xml_roots.get(header_path)
+            if header_root is None or _local_name(header_root) != "head":
+                continue
+            declared_section_count = header_root.get("secCnt")
+            if declared_section_count is None:
+                _warning(
+                    issues,
+                    header_path,
+                    "hh:head secCnt is missing; resolved section count cannot be cross-checked",
+                )
+                continue
+            try:
+                parsed_section_count = int(declared_section_count)
+            except ValueError:
+                _error(
+                    issues,
+                    header_path,
+                    f"hh:head secCnt must be an integer, got {declared_section_count!r}",
+                )
+                continue
+            if parsed_section_count != len(resolved_section_paths):
+                _error(
+                    issues,
+                    header_path,
+                    "hh:head secCnt does not match resolved section count: "
+                    f"declared={parsed_section_count}, resolved={len(resolved_section_paths)}",
                 )
 
         if not relationships.header_paths and HEADER_PATH in name_set:
@@ -744,7 +806,9 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
                 )
 
         if not relationships.master_page_paths:
-            fallback_master_pages = _fallback_named_parts(name_set, token="master", extra_token="page")
+            fallback_master_pages = _fallback_named_parts(
+                name_set, token="master", extra_token="page"
+            )
             if fallback_master_pages:
                 _warning(
                     issues,
@@ -784,7 +848,10 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
                 "manifest does not reference a version part; engine will fall back to "
                 f"{VERSION_PATH!r}",
             )
-        elif relationships.version_path is not None and relationships.version_path not in name_set:
+        elif (
+            relationships.version_path is not None
+            and relationships.version_path not in name_set
+        ):
             _error(
                 issues,
                 selected_rootfile.full_path,

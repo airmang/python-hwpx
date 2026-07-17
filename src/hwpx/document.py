@@ -13,7 +13,7 @@ import uuid
 
 from os import PathLike
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Any, BinaryIO, Iterator, Mapping, Sequence, overload
+from typing import TYPE_CHECKING, Any, BinaryIO, Iterator, Mapping, Sequence, cast, overload
 
 
 from .oxml import (
@@ -65,7 +65,12 @@ if TYPE_CHECKING:
     from .form_fit.policy import FitPolicy
     from .form_fit.report import FitResult
     from .tools.validator import ValidationReport
-    from .tools.table_navigation import TableFillResult, TableLabelSearchResult, TableMapResult
+    from .tools.table_navigation import (
+        SearchDirection,
+        TableFillResult,
+        TableLabelSearchResult,
+        TableMapResult,
+    )
 
 
 def _append_element(
@@ -343,7 +348,9 @@ class HwpxDocument:
             stream = io.BytesIO(source)
             open_source = stream
             internal_resources.append(stream)
-        package = HwpxPackage.open(open_source)
+        # HwpxPackage/ZipFile accepts os.PathLike at runtime; its narrower
+        # compatibility annotation intentionally remains frozen.
+        package = HwpxPackage.open(cast(Any, open_source))
         root = HwpxOxmlDocument.from_package(package)
         return cls(package, root, managed_resources=tuple(internal_resources))
 
@@ -368,7 +375,7 @@ class HwpxDocument:
 
         return self
 
-    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:  # type: ignore[exit-return]  # frozen public signature
         """예외 발생 여부와 무관하게 내부 자원을 안전하게 정리합니다."""
 
         self.close()
@@ -1072,7 +1079,7 @@ class HwpxDocument:
             run_attributes=run_attributes,
             include_run=include_run,
             inherit_style=inherit_style,
-            **extra_attrs,
+            **cast(Any, extra_attrs),
         )
 
     def add_table(
@@ -1105,7 +1112,7 @@ class HwpxDocument:
             style_id_ref=style_id_ref,
             char_pr_id_ref=char_pr_id_ref,
             include_run=False,
-            **extra_attrs,
+            **cast(Any, extra_attrs),
         )
         return paragraph.add_table(
             rows,
@@ -1163,7 +1170,7 @@ class HwpxDocument:
             style_id_ref=style_id_ref,
             char_pr_id_ref=char_pr_id_ref,
             include_run=False,
-            **extra_attrs,
+            **cast(Any, extra_attrs),
         )
         return paragraph.add_picture(
             binary_item_id_ref,
@@ -1288,7 +1295,11 @@ class HwpxDocument:
 
         from .tools.table_navigation import find_cell_by_label
 
-        return find_cell_by_label(self, label_text, direction=direction)
+        return find_cell_by_label(
+            self,
+            label_text,
+            direction=cast("SearchDirection", direction),
+        )
 
     def _find_field_end_position(
         self,
@@ -1664,7 +1675,7 @@ class HwpxDocument:
         return FitEngine().fit(value, slot, fit_policy, field_id=field_id)
 
     def _font_pt_for_ref(self, char_pr_id_ref: object) -> float:
-        style = self.char_property(char_pr_id_ref)
+        style = self.char_property(cast(Any, char_pr_id_ref))
         if style is not None:
             height = style.attributes.get("height")
             if height:
@@ -1729,7 +1740,7 @@ class HwpxDocument:
             style_id_ref=style_id_ref,
             char_pr_id_ref=char_pr_id_ref,
             include_run=False,
-            **extra_attrs,
+            **cast(Any, extra_attrs),
         )
         return paragraph.add_shape(
             shape_type,
@@ -1761,7 +1772,7 @@ class HwpxDocument:
             style_id_ref=style_id_ref,
             char_pr_id_ref=char_pr_id_ref,
             include_run=False,
-            **extra_attrs,
+            **cast(Any, extra_attrs),
         )
         return paragraph.add_control(
             attributes=attributes,

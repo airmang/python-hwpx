@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from os import PathLike
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence, cast
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml import HwpxOxmlShape
@@ -22,7 +22,14 @@ from .model import (
     NODE_PROPERTY_CATALOG_V1,
 )
 from .path import SemanticPath, canonicalize_path, identified_segment, indexed_segment
+from .query import QueryRecord as _QueryRecord
 from .query import QueryResult, evaluate_selector, parse_selector
+from .story import (
+    HeaderStoryBinding,
+    HeaderStoryPath,
+    parse_header_story_path,
+    resolve_header_story,
+)
 
 _HWP_UNITS_PER_MM = 7200 / 25.4
 _SHAPE_KINDS = frozenset({"line", "rect", "ellipse", "arc", "polygon", "curve", "connectLine"})
@@ -129,7 +136,7 @@ class HwpxAgentDocument:
     def __enter__(self) -> "HwpxAgentDocument":
         return self
 
-    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:  # type: ignore[exit-return]  # frozen public signature
         self.close()
         return False
 
@@ -689,6 +696,25 @@ class HwpxAgentDocument:
             raise AgentContractError("volatile_target", "target has a positional path", target=canonical)
         return record
 
+    def _resolve_header_story(
+        self,
+        path: str | HeaderStoryPath,
+        *,
+        expected_revision: str | None = None,
+    ) -> HeaderStoryBinding:
+        """Resolve the private command-only existing-header seam.
+
+        Header stories deliberately remain absent from ``records``, ``get``,
+        and ``query`` so the frozen public projection/catalog does not drift.
+        """
+
+        parsed = parse_header_story_path(path) if isinstance(path, str) else path
+        if expected_revision is not None and expected_revision != self.revision:
+            raise AgentContractError(
+                "stale_revision", "document revision does not match", target=parsed.canonical
+            )
+        return resolve_header_story(self.document, parsed)
+
     def _public_node(self, record: NodeRecord, *, depth: int, child_limit: int) -> AgentNode:
         supported_total = len(record.child_paths)
         selected_paths = record.child_paths[:child_limit] if depth > 0 else []
@@ -751,7 +777,8 @@ class HwpxAgentDocument:
         if expected_revision is not None and expected_revision != self.revision:
             raise AgentContractError("stale_revision", "document revision does not match", target="selector")
         parsed = parse_selector(selector)
-        matches, truncated = evaluate_selector(self.records, parsed, limit=limit)
+        query_records = cast(Sequence[_QueryRecord], self.records)
+        matches, truncated = evaluate_selector(query_records, parsed, limit=limit)
         if not 0 <= node_depth <= MAX_VIEW_DEPTH:
             raise AgentContractError("resource_limit", "nodeDepth is out of bounds", target="nodeDepth")
         if not 1 <= child_limit <= MAX_CHILDREN_PER_NODE:
@@ -760,7 +787,12 @@ class HwpxAgentDocument:
             selector=selector,
             revision=self.revision,
             nodes=tuple(
-                self._public_node(record, depth=node_depth, child_limit=child_limit) for record in matches
+                self._public_node(
+                    cast(NodeRecord, record),
+                    depth=node_depth,
+                    child_limit=child_limit,
+                )
+                for record in matches
             ),
             truncated=truncated,
         )

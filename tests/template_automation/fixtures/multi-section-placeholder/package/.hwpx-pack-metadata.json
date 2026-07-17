@@ -6,7 +6,7 @@
       "compress_type": 0
     },
     {
-      "path": "Contents/content.hpf",
+      "path": "version.xml",
       "compress_type": 8
     },
     {
@@ -18,11 +18,23 @@
       "compress_type": 8
     },
     {
-      "path": "Contents/section1.xml",
+      "path": "Preview/PrvText.txt",
+      "compress_type": 8
+    },
+    {
+      "path": "settings.xml",
+      "compress_type": 8
+    },
+    {
+      "path": "Preview/PrvImage.png",
       "compress_type": 8
     },
     {
       "path": "META-INF/container.rdf",
+      "compress_type": 8
+    },
+    {
+      "path": "Contents/content.hpf",
       "compress_type": 8
     },
     {
@@ -34,19 +46,7 @@
       "compress_type": 8
     },
     {
-      "path": "Preview/PrvImage.png",
-      "compress_type": 8
-    },
-    {
-      "path": "Preview/PrvText.txt",
-      "compress_type": 8
-    },
-    {
-      "path": "settings.xml",
-      "compress_type": 8
-    },
-    {
-      "path": "version.xml",
+      "path": "Contents/section1.xml",
       "compress_type": 8
     }
   ]

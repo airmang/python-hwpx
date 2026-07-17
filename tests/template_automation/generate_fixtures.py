@@ -12,48 +12,48 @@ from hwpx.tools.archive_cli import unpack_hwpx
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures"
 MIMETYPE = b"application/hwp+zip"
 VERSION_XML = (
-    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>"
-    "<hv:HCFVersion xmlns:hv=\"http://www.hancom.co.kr/hwpml/2011/version\" "
-    "targetApplication=\"WORDPROCESSOR\" major=\"5\" minor=\"0\" micro=\"5\" "
-    "buildNumber=\"0\" os=\"1\" xmlVersion=\"1.4\" application=\"Hancom Office Hangul\" "
-    "appVersion=\"9, 1, 1, 5656 WIN32LEWindows_Unknown_Version\"/>"
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+    '<hv:HCFVersion xmlns:hv="http://www.hancom.co.kr/hwpml/2011/version" '
+    'targetApplication="WORDPROCESSOR" major="5" minor="0" micro="5" '
+    'buildNumber="0" os="1" xmlVersion="1.4" application="Hancom Office Hangul" '
+    'appVersion="9, 1, 1, 5656 WIN32LEWindows_Unknown_Version"/>'
 ).encode("utf-8")
 CONTAINER_XML_TEMPLATE = (
-    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>"
-    "<ocf:container xmlns:ocf=\"urn:oasis:names:tc:opendocument:xmlns:container\" "
-    "xmlns:hpf=\"http://www.hancom.co.kr/schema/2011/hpf\">"
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+    '<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container" '
+    'xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf">'
     "<ocf:rootfiles>"
-    "<ocf:rootfile full-path=\"{manifest_path}\" media-type=\"application/hwpml-package+xml\"/>"
+    '<ocf:rootfile full-path="{manifest_path}" media-type="application/hwpml-package+xml"/>'
     "</ocf:rootfiles>"
     "</ocf:container>"
 )
 MANIFEST_XML_TEMPLATE = (
-    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>"
-    "<opf:package xmlns:opf=\"http://www.idpf.org/2007/opf\">"
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+    '<opf:package xmlns:opf="http://www.idpf.org/2007/opf">'
     "<opf:metadata/>"
     "<opf:manifest>"
-    "<opf:item id=\"header\" href=\"{header_href}\" media-type=\"application/xml\"/>"
-    "<opf:item id=\"section0\" href=\"{section_href}\" media-type=\"application/xml\"/>"
-    "<opf:item id=\"version\" href=\"{version_href}\" media-type=\"application/xml\"/>"
+    '<opf:item id="header" href="{header_href}" media-type="application/xml"/>'
+    '<opf:item id="section0" href="{section_href}" media-type="application/xml"/>'
+    '<opf:item id="version" href="{version_href}" media-type="application/xml"/>'
     "</opf:manifest>"
     "<opf:spine>"
-    "<opf:itemref idref=\"header\"/>"
-    "<opf:itemref idref=\"section0\"/>"
+    '<opf:itemref idref="header"/>'
+    '<opf:itemref idref="section0"/>'
     "</opf:spine>"
     "</opf:package>"
 )
 HEADER_XML = (
-    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>"
-    "<hh:head xmlns:hh=\"http://www.hancom.co.kr/hwpml/2011/head\" version=\"1.3.0\" secCnt=\"1\">"
-    "<hh:beginNum page=\"1\" footnote=\"1\" endnote=\"1\" pic=\"1\" tbl=\"1\" equation=\"1\"/>"
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+    '<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" version="1.3.0" secCnt="1">'
+    '<hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>'
     "</hh:head>"
 ).encode("utf-8")
 SECTION_XML_TEMPLATE = (
-    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>"
-    "<hs:sec xmlns:hs=\"http://www.hancom.co.kr/hwpml/2011/section\" "
-    "xmlns:hp=\"http://www.hancom.co.kr/hwpml/2011/paragraph\">"
-    "<hp:p id=\"1\" paraPrIDRef=\"0\" styleIDRef=\"0\" pageBreak=\"0\" columnBreak=\"0\" merged=\"0\">"
-    "<hp:run charPrIDRef=\"0\"><hp:t>{text}</hp:t></hp:run>"
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+    '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" '
+    'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">'
+    '<hp:p id="1" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
+    '<hp:run charPrIDRef="0"><hp:t>{text}</hp:t></hp:run>'
     "</hp:p>"
     "</hs:sec>"
 )
@@ -126,9 +126,13 @@ def _build_header_footer_placeholder() -> bytes:
 
 def _build_multi_section_placeholder() -> bytes:
     document = HwpxDocument.new()
-    document.paragraphs[0].text = "Section zero keeps {{SEC0}}"
+    first_paragraph = document.paragraphs[0]
+    first_paragraph.element.set("id", "0")
+    first_paragraph.text = "Section zero keeps {{SEC0}}"
     second_section = document.add_section()
-    second_section.paragraphs[0].text = "Section one updates {{SEC1}}"
+    second_paragraph = second_section.paragraphs[0]
+    second_paragraph.element.set("id", "1")
+    second_paragraph.text = "Section one updates {{SEC1}}"
     return document.to_bytes()
 
 
@@ -177,7 +181,10 @@ def _build_nonstandard_rootfile() -> bytes:
             ).encode("utf-8"),
         ),
         (header_path, HEADER_XML),
-        (section_path, SECTION_XML_TEMPLATE.format(text="Alt root {{ROOT}}").encode("utf-8")),
+        (
+            section_path,
+            SECTION_XML_TEMPLATE.format(text="Alt root {{ROOT}}").encode("utf-8"),
+        ),
     ]
     return _zip_parts(parts)
 
@@ -202,4 +209,3 @@ def generate_fixtures() -> None:
 
 if __name__ == "__main__":
     generate_fixtures()
-

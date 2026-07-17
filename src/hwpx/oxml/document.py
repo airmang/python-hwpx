@@ -14,7 +14,9 @@ from types import ModuleType
 from . import _document_impl as _impl
 from ._document_impl import *  # noqa: F401,F403
 
-__all__ = [name for name in dir(_impl) if not name.startswith("_")]
+__all__ = [  # type: ignore[reportUnsupportedDunderAll]  # frozen dynamic facade export
+    name for name in dir(_impl) if not name.startswith("_")
+]
 
 
 class _DocumentFacade(ModuleType):

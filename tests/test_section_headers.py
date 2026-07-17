@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
+from pathlib import Path
 import xml.etree.ElementTree as ET
+
+import pytest
 
 from typing import cast
 
@@ -15,6 +19,7 @@ HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 HS_NS = "http://www.hancom.co.kr/hwpml/2011/section"
 HP = f"{{{HP_NS}}}"
 HS = f"{{{HS_NS}}}"
+FUZZ_BASELINE = Path(__file__).parent / "fixtures/fuzz_regressions/seed-000000-baseline.hwpx"
 
 
 def _build_section_with_sec_pr() -> tuple[HwpxOxmlSection, ET.Element]:
@@ -37,6 +42,16 @@ def _apply_reference(apply_element: ET.Element, *candidates: str) -> str | None:
         if value:
             return value
     return None
+
+
+def _mirrored_stories(
+    section: HwpxOxmlSection, kind: str, native_id: str
+) -> list[ET.Element]:
+    return [
+        story
+        for story in section.element.findall(f".//{HP}ctrl/{HP}{kind}")
+        if story.get("id") == native_id
+    ]
 
 
 def test_set_header_text_creates_header_apply() -> None:
@@ -158,3 +173,120 @@ def test_header_footer_helpers_work_on_real_hwpx_document() -> None:
     assert footer is not None
     assert header.text == "Header {{HDR1}}"
     assert footer.text == "Footer {{FTR1}}"
+
+
+def test_preserving_header_text_adds_only_missing_target_mirror() -> None:
+    document = HwpxDocument.open(FUZZ_BASELINE)
+    section = document.sections[0]
+    target = section.properties.get_header("BOTH")
+    unrelated = section.properties.get_header("EVEN")
+    assert target is not None and target.id is not None
+    assert unrelated is not None and unrelated.id is not None
+    assert _mirrored_stories(section, "header", target.id) == []
+
+    target_paragraph = target.element.find(f"{HP}subList/{HP}p")
+    target_run = target.element.find(f"{HP}subList/{HP}p/{HP}run")
+    unrelated_logical_before = ET.tostring(unrelated.element)
+    unrelated_mirror_before = ET.tostring(
+        _mirrored_stories(section, "header", unrelated.id)[0]
+    )
+
+    section.reset_dirty()
+    target.set_simple_text_preserving("S-080 preserved header")
+
+    mirrors = _mirrored_stories(section, "header", target.id)
+    assert len(mirrors) == 1
+    assert target.text == "S-080 preserved header"
+    assert "".join(mirrors[0].itertext()) == "S-080 preserved header"
+    assert target.element.find(f"{HP}subList/{HP}p") is target_paragraph
+    assert target.element.find(f"{HP}subList/{HP}p/{HP}run") is target_run
+    assert ET.tostring(unrelated.element) == unrelated_logical_before
+    assert ET.tostring(_mirrored_stories(section, "header", unrelated.id)[0]) == (
+        unrelated_mirror_before
+    )
+    assert section.dirty is True
+
+
+def test_preserving_header_text_updates_existing_mirror_in_place() -> None:
+    document = HwpxDocument.open(FUZZ_BASELINE)
+    section = document.sections[0]
+    target = section.properties.get_header("BOTH")
+    assert target is not None and target.id is not None
+    target.set_simple_text_preserving("first value")
+    mirror = _mirrored_stories(section, "header", target.id)[0]
+    mirror_paragraph = mirror.find(f"{HP}subList/{HP}p")
+    mirror_run = mirror.find(f"{HP}subList/{HP}p/{HP}run")
+
+    target.set_simple_text_preserving("second value")
+
+    mirrors = _mirrored_stories(section, "header", target.id)
+    assert mirrors == [mirror]
+    assert mirrors[0].find(f"{HP}subList/{HP}p") is mirror_paragraph
+    assert mirrors[0].find(f"{HP}subList/{HP}p/{HP}run") is mirror_run
+    assert target.text == "second value"
+    assert "".join(mirror.itertext()) == "second value"
+
+
+@pytest.mark.parametrize("invalid_text", ["tab\ttext", "line\nbreak", "bad\x01text"])
+def test_preserving_header_text_rejects_structural_text_without_mutation(
+    invalid_text: str,
+) -> None:
+    document = HwpxDocument.open(FUZZ_BASELINE)
+    section = document.sections[0]
+    target = section.properties.get_header("BOTH")
+    assert target is not None
+    before = ET.tostring(section.element)
+    section.reset_dirty()
+
+    with pytest.raises(ValueError):
+        target.set_simple_text_preserving(invalid_text)
+
+    assert ET.tostring(section.element) == before
+    assert section.dirty is False
+
+
+def test_preserving_header_text_rejects_rich_story_without_mutation() -> None:
+    document = HwpxDocument.open(FUZZ_BASELINE)
+    section = document.sections[0]
+    target = section.properties.get_header("BOTH")
+    assert target is not None
+    paragraph = target.element.find(f"{HP}subList/{HP}p")
+    assert paragraph is not None
+    paragraph.append(paragraph.makeelement(f"{HP}run", {"charPrIDRef": "0"}))
+    before = ET.tostring(section.element)
+    section.reset_dirty()
+
+    with pytest.raises(ValueError, match="rich or control-bearing"):
+        target.set_simple_text_preserving("must fail")
+
+    assert ET.tostring(section.element) == before
+    assert section.dirty is False
+
+
+def test_preserving_header_text_rejects_duplicate_mirror_without_mutation() -> None:
+    document = HwpxDocument.open(FUZZ_BASELINE)
+    section = document.sections[0]
+    target = section.properties.get_header("BOTH")
+    assert target is not None and target.id is not None
+    target.set_simple_text_preserving("mirrored")
+    mirror = _mirrored_stories(section, "header", target.id)[0]
+    original_control = next(
+        control
+        for control in section.element.findall(f".//{HP}ctrl")
+        if mirror in list(control)
+    )
+    duplicate_control = deepcopy(original_control)
+    original_run = next(
+        run
+        for run in section.element.findall(f".//{HP}run")
+        if original_control in list(run)
+    )
+    original_run.append(duplicate_control)
+    before = ET.tostring(section.element)
+    section.reset_dirty()
+
+    with pytest.raises(ValueError, match="ambiguous"):
+        target.set_simple_text_preserving("must fail")
+
+    assert ET.tostring(section.element) == before
+    assert section.dirty is False
