@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-07-18
+
 ### 추가
 - 선택적 Mac GUI 오라클(`MacHancomOracle`)에 도달성 프로브를 추가했습니다. 한컴 앱이
   설치돼 있어도 GUI 세션·Automation(TCC) 권한이 없으면 5초 이내에 `available() == False`로
