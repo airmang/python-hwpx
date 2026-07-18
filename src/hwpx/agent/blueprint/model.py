@@ -242,10 +242,7 @@ def _validate_resource(value: object, *, name: str) -> dict[str, Any]:
     return record
 
 
-def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool = True) -> dict[str, Any]:
-    """Validate and detach one strict ``hwpx.agent-blueprint/v1`` manifest."""
-
-    manifest = _object(value, "blueprint")
+def _validate_manifest_header(manifest: dict[str, Any]) -> None:
     _exact_keys(manifest, required=_MANIFEST_KEYS, name="blueprint")
     if manifest["schemaVersion"] != BLUEPRINT_SCHEMA:
         raise AgentContractError("invalid_syntax", "unsupported blueprint schema", target="schemaVersion")
@@ -257,12 +254,16 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
     if mode not in BLUEPRINT_MODES:
         raise AgentContractError("invalid_syntax", "unsupported blueprint mode", target="mode")
 
+
+def _validate_source(manifest: dict[str, Any]) -> None:
     source = _object(manifest["source"], "source")
     _exact_keys(source, required={"revision", "label"}, name="source")
     if not REVISION_PATTERN.fullmatch(str(source["revision"])):
         raise AgentContractError("invalid_syntax", "source.revision must be sha256", target="source.revision")
     _validate_public_json(source, name="source")
 
+
+def _validate_root(manifest: dict[str, Any]) -> dict[str, Any]:
     root = _object(manifest["root"], "root")
     _exact_keys(
         root,
@@ -275,7 +276,12 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
         raise AgentContractError("unknown_kind", "root kind is unknown", target="root.kind")
     if not str(root["sourcePath"]).startswith("/"):
         raise AgentContractError("invalid_syntax", "root sourcePath must be semantic", target="root.sourcePath")
+    return root
 
+
+def _validate_nodes(
+    manifest: dict[str, Any],
+) -> tuple[list[dict[str, Any]], set[str], dict[str, dict[str, Any]]]:
     nodes = _list(manifest["nodes"], "nodes")
     if not nodes or len(nodes) > MAX_BLUEPRINT_NODES:
         raise AgentContractError("resource_limit", "node count is outside limits", target="nodes")
@@ -321,7 +327,15 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
         _validate_public_json(node["sourceHint"], name=f"{name}.sourceHint")
         detached_nodes.append(node)
         nodes_by_id[node_id] = node
+    return detached_nodes, node_ids, nodes_by_id
 
+
+def _check_node_tree_shape(
+    root: dict[str, Any],
+    detached_nodes: list[dict[str, Any]],
+    node_ids: set[str],
+    nodes_by_id: dict[str, dict[str, Any]],
+) -> str:
     if str(root["blueprintId"]) not in node_ids:
         raise AgentContractError("invariant_violation", "root does not reference a node", target="root")
     for index, node in enumerate(detached_nodes):
@@ -344,6 +358,14 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
         raise AgentContractError(
             "invariant_violation", "blueprint nodes must form one rooted tree", target="nodes"
         )
+    return root_id
+
+
+def _check_node_reachability(
+    root_id: str,
+    node_ids: set[str],
+    nodes_by_id: dict[str, dict[str, Any]],
+) -> None:
     visited: set[str] = set()
     visiting: set[str] = set()
 
@@ -364,6 +386,10 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
     if visited != node_ids:
         raise AgentContractError("invariant_violation", "blueprint contains orphan nodes", target="nodes")
 
+
+def _validate_dependency_records(
+    manifest: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     styles = _list(manifest["styles"], "styles")
     numbering = _list(manifest["numbering"], "numbering")
     resources = _list(manifest["resources"], "resources")
@@ -382,6 +408,14 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
     detached_resources = [
         _validate_resource(item, name=f"resources[{index}]") for index, item in enumerate(resources)
     ]
+    return detached_styles, detached_numbering, detached_resources
+
+
+def _check_dependency_uniqueness(
+    detached_styles: list[dict[str, Any]],
+    detached_numbering: list[dict[str, Any]],
+    detached_resources: list[dict[str, Any]],
+) -> list[str]:
     style_keys = [str(item["key"]) for item in detached_styles]
     numbering_keys = [str(item["key"]) for item in detached_numbering]
     resource_keys = [str(item["key"]) for item in detached_resources]
@@ -393,10 +427,18 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
         raise AgentContractError("invariant_violation", "resource asset paths must be unique", target="resources")
     if sum(int(item["size"]) for item in detached_resources) > MAX_TOTAL_ASSET_BYTES:
         raise AgentContractError("resource_limit", "total asset bytes exceed limit", target="resources")
+    return dependency_keys
 
-    style_key_set = set(style_keys)
-    numbering_key_set = set(numbering_keys)
-    resource_key_set = set(resource_keys)
+
+def _check_node_dependency_refs(
+    detached_nodes: list[dict[str, Any]],
+    detached_styles: list[dict[str, Any]],
+    detached_numbering: list[dict[str, Any]],
+    detached_resources: list[dict[str, Any]],
+) -> None:
+    style_key_set = {str(item["key"]) for item in detached_styles}
+    numbering_key_set = {str(item["key"]) for item in detached_numbering}
+    resource_key_set = {str(item["key"]) for item in detached_resources}
     for index, node in enumerate(detached_nodes):
         if not set(node["styleRefs"]) <= style_key_set:
             raise AgentContractError("invariant_violation", "node has an orphan style reference", target=f"nodes[{index}].styleRefs")
@@ -405,6 +447,12 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
         if not set(node["resourceRefs"]) <= resource_key_set:
             raise AgentContractError("invariant_violation", "node has an orphan resource reference", target=f"nodes[{index}].resourceRefs")
 
+
+def _validate_reference_records(
+    manifest: dict[str, Any],
+    node_ids: set[str],
+    dependency_keys: list[str],
+) -> tuple[list[dict[str, Any]], dict[str, list[str]]]:
     references = _list(manifest["references"], "references")
     if len(references) > MAX_REFERENCES:
         raise AgentContractError("resource_limit", "reference count exceeds limit", target="references")
@@ -423,6 +471,13 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
         if target in node_ids:
             reference_edges[str(record["from"])].append(target)
         reference_records.append(record)
+    return reference_records, reference_edges
+
+
+def _check_reference_inventory(
+    detached_nodes: list[dict[str, Any]],
+    reference_records: list[dict[str, Any]],
+) -> None:
     for index, node in enumerate(detached_nodes):
         declared_fields = {
             str(record["field"])
@@ -431,6 +486,12 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
         }
         if set(node["references"]) != declared_fields:
             raise AgentContractError("invariant_violation", "node reference inventory is inconsistent", target=f"nodes[{index}].references")
+
+
+def _check_reference_acyclicity(
+    node_ids: set[str],
+    reference_edges: dict[str, list[str]],
+) -> None:
     reference_visited: set[str] = set()
     reference_visiting: set[str] = set()
 
@@ -448,6 +509,8 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
     for node_id in sorted(node_ids):
         visit_reference(node_id)
 
+
+def _validate_metadata_sections(manifest: dict[str, Any]) -> list[Any]:
     unsupported = _list(manifest["unsupported"], "unsupported")
     for index, item in enumerate(unsupported):
         record = _object(item, f"unsupported[{index}]")
@@ -471,7 +534,10 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
     if fidelity["ceiling"] not in FIDELITY_LEVELS:
         raise AgentContractError("invalid_syntax", "fidelity ceiling is invalid", target="fidelity.ceiling")
     fidelity["reasons"] = [str(item) for item in _list(fidelity["reasons"], "fidelity.reasons")]
+    return unsupported
 
+
+def _verify_manifest_integrity(manifest: dict[str, Any], verify_hash: bool) -> None:
     _validate_public_json(manifest, name="blueprint")
     declared_hash = manifest["blueprintHash"]
     if not SHA256_PATTERN.fullmatch(str(declared_hash)):
@@ -479,6 +545,36 @@ def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool =
     if verify_hash and declared_hash != blueprint_hash(manifest):
         raise AgentContractError("verification_failed", "blueprintHash mismatch", target="blueprintHash")
     canonical_manifest_bytes(manifest, include_hash=True)
+
+
+def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool = True) -> dict[str, Any]:
+    """Validate and detach one strict ``hwpx.agent-blueprint/v1`` manifest."""
+
+    manifest = _object(value, "blueprint")
+    _validate_manifest_header(manifest)
+    _validate_source(manifest)
+    root = _validate_root(manifest)
+
+    detached_nodes, node_ids, nodes_by_id = _validate_nodes(manifest)
+    root_id = _check_node_tree_shape(root, detached_nodes, node_ids, nodes_by_id)
+    _check_node_reachability(root_id, node_ids, nodes_by_id)
+
+    detached_styles, detached_numbering, detached_resources = _validate_dependency_records(manifest)
+    dependency_keys = _check_dependency_uniqueness(
+        detached_styles, detached_numbering, detached_resources
+    )
+    _check_node_dependency_refs(
+        detached_nodes, detached_styles, detached_numbering, detached_resources
+    )
+
+    reference_records, reference_edges = _validate_reference_records(
+        manifest, node_ids, dependency_keys
+    )
+    _check_reference_inventory(detached_nodes, reference_records)
+    _check_reference_acyclicity(node_ids, reference_edges)
+
+    unsupported = _validate_metadata_sections(manifest)
+    _verify_manifest_integrity(manifest, verify_hash)
     return {
         **manifest,
         "nodes": detached_nodes,

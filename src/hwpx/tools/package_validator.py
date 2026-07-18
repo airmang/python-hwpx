@@ -8,13 +8,15 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, BinaryIO, Literal, Sequence
-from zipfile import ZIP_STORED, BadZipFile, ZipFile
+from zipfile import ZIP_STORED, BadZipFile, ZipFile, ZipInfo
 
 from lxml import etree as LET  # type: ignore[reportMissingImports]
 
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from ..opc.relationships import (
     MAIN_ROOTFILE_MEDIA_TYPE,
+    ManifestRelationships,
+    RootFileRef,
     is_header_part_name,
     is_section_part_name,
     parse_container_rootfiles,
@@ -562,6 +564,312 @@ def _fallback_named_parts(
     return matches
 
 
+def _check_mimetype(
+    zf: ZipFile,
+    infos: list[ZipInfo],
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    if MIMETYPE_PATH not in name_set:
+        _error(issues, MIMETYPE_PATH, "missing required file")
+        return
+    mimetype_bytes = _safe_read(zf, MIMETYPE_PATH)
+    if mimetype_bytes is None:
+        _error(
+            issues,
+            MIMETYPE_PATH,
+            "unable to read entry for integrity validation",
+        )
+        return
+    try:
+        mimetype = mimetype_bytes.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        mimetype = "<binary>"
+    if mimetype != EXPECTED_MIMETYPE:
+        _error(
+            issues,
+            MIMETYPE_PATH,
+            f"expected {EXPECTED_MIMETYPE!r}, got {mimetype!r}",
+        )
+    if infos[0].filename != MIMETYPE_PATH:
+        _error(issues, MIMETYPE_PATH, "must be the first ZIP entry")
+    if zf.getinfo(MIMETYPE_PATH).compress_type != ZIP_STORED:
+        _error(issues, MIMETYPE_PATH, "must use ZIP_STORED")
+
+
+def _check_required_presence(
+    name_set: set[str], issues: list[PackageValidationIssue]
+) -> None:
+    if CONTAINER_PATH not in name_set:
+        _error(issues, CONTAINER_PATH, "missing required file")
+    if VERSION_PATH not in name_set:
+        _warning(
+            issues,
+            VERSION_PATH,
+            "missing optional version.xml; minimum editor-open package set allows omission",
+        )
+
+
+def _check_preview_text(
+    zf: ZipFile, name_set: set[str], issues: list[PackageValidationIssue]
+) -> None:
+    if PREVIEW_TEXT_PATH not in name_set:
+        _warning(
+            issues,
+            PREVIEW_TEXT_PATH,
+            "missing Preview/PrvText.txt; macOS Hancom compatibility may require it",
+        )
+        return
+    preview_bytes = _safe_read(zf, PREVIEW_TEXT_PATH)
+    if preview_bytes is None:
+        _error(issues, PREVIEW_TEXT_PATH, "unable to read preview text entry")
+    elif len(preview_bytes) > 1024 * 1024:
+        _warning(
+            issues,
+            PREVIEW_TEXT_PATH,
+            "Preview/PrvText.txt is unusually large; expected a compact text snapshot",
+        )
+
+
+def _parse_all_xml(
+    zf: ZipFile, names: list[str], issues: list[PackageValidationIssue]
+) -> dict[str, ET.Element]:
+    xml_roots: dict[str, ET.Element] = {}
+    for name in names:
+        if not (name.endswith(".xml") or name.endswith(".hpf")):
+            continue
+        payload = _safe_read(zf, name)
+        if payload is None:
+            _error(issues, name, "unable to read entry for XML parsing")
+            continue
+        try:
+            root = _parse_xml(payload)
+            xml_roots[name] = root
+            _check_hwpml_compat_root(issues, name, payload, root)
+            _check_line_seg_text_positions(issues, name, root)
+            _check_table_editor_acceptance(issues, name, root)
+            _check_section_properties_location(issues, name, root)
+            _check_header_editor_acceptance(issues, name, root)
+            _check_bold_fontref_axis(issues, name, root)
+        except ValueError as exc:
+            _error(issues, name, str(exc))
+    return xml_roots
+
+
+def _check_rootfile_parts(
+    rootfiles: tuple[RootFileRef, ...],
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    for rootfile in rootfiles:
+        if rootfile.full_path not in name_set:
+            _error(
+                issues,
+                CONTAINER_PATH,
+                f"rootfile points to missing part {rootfile.full_path!r}",
+            )
+
+
+def _check_manifest_hrefs(
+    relationships: ManifestRelationships,
+    selected_rootfile: RootFileRef,
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    for item in relationships.items:
+        if item.resolved_path not in name_set:
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                f"manifest href missing from archive: {item.href!r} -> {item.resolved_path!r}",
+            )
+
+    for idref in relationships.dangling_idrefs:
+        _warning(
+            issues,
+            selected_rootfile.full_path,
+            f"spine itemref references missing manifest id {idref!r}",
+        )
+
+
+def _resolve_section_paths(
+    relationships: ManifestRelationships,
+    selected_rootfile: RootFileRef,
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> list[str]:
+    section_paths = [
+        path for path in relationships.spine_paths if is_section_part_name(path)
+    ]
+    resolved_section_paths: list[str]
+    if section_paths:
+        resolved_section_paths = list(dict.fromkeys(section_paths))
+        for path in section_paths:
+            if path not in name_set:
+                _error(
+                    issues,
+                    selected_rootfile.full_path,
+                    f"spine section part missing from archive: {path!r}",
+                )
+    else:
+        fallback_sections = [
+            name for name in sorted(name_set) if is_section_part_name(name)
+        ]
+        if fallback_sections:
+            resolved_section_paths = fallback_sections
+            _warning(
+                issues,
+                selected_rootfile.full_path,
+                "manifest spine does not resolve any section parts; engine will fall back "
+                "to filename-based section discovery",
+            )
+        else:
+            resolved_section_paths = []
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                "no section parts found in manifest spine or archive fallback",
+            )
+    return resolved_section_paths
+
+
+def _check_header_section_counts(
+    relationships: ManifestRelationships,
+    xml_roots: dict[str, ET.Element],
+    resolved_section_paths: list[str],
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    resolved_header_paths = list(dict.fromkeys(relationships.header_paths))
+    if not resolved_header_paths and HEADER_PATH in name_set:
+        resolved_header_paths = [HEADER_PATH]
+    for header_path in resolved_header_paths:
+        header_root = xml_roots.get(header_path)
+        if header_root is None or _local_name(header_root) != "head":
+            continue
+        declared_section_count = header_root.get("secCnt")
+        if declared_section_count is None:
+            _warning(
+                issues,
+                header_path,
+                "hh:head secCnt is missing; resolved section count cannot be cross-checked",
+            )
+            continue
+        try:
+            parsed_section_count = int(declared_section_count)
+        except ValueError:
+            _error(
+                issues,
+                header_path,
+                f"hh:head secCnt must be an integer, got {declared_section_count!r}",
+            )
+            continue
+        if parsed_section_count != len(resolved_section_paths):
+            _error(
+                issues,
+                header_path,
+                "hh:head secCnt does not match resolved section count: "
+                f"declared={parsed_section_count}, resolved={len(resolved_section_paths)}",
+            )
+
+
+def _check_header_fallback(
+    relationships: ManifestRelationships,
+    name_set: set[str],
+    selected_rootfile: RootFileRef,
+    issues: list[PackageValidationIssue],
+) -> None:
+    if not relationships.header_paths and HEADER_PATH in name_set:
+        _warning(
+            issues,
+            selected_rootfile.full_path,
+            "manifest spine does not resolve a header part; engine will fall back to "
+            f"{HEADER_PATH!r}",
+        )
+
+    for path in relationships.header_paths:
+        if path not in name_set:
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                f"header part missing from archive: {path!r}",
+            )
+
+
+def _check_master_page_parts(
+    relationships: ManifestRelationships,
+    name_set: set[str],
+    selected_rootfile: RootFileRef,
+    issues: list[PackageValidationIssue],
+) -> None:
+    if not relationships.master_page_paths:
+        fallback_master_pages = _fallback_named_parts(
+            name_set, token="master", extra_token="page"
+        )
+        if fallback_master_pages:
+            _warning(
+                issues,
+                selected_rootfile.full_path,
+                "manifest does not reference masterPage parts; engine will fall back to "
+                "filename-based discovery",
+            )
+    for path in relationships.master_page_paths:
+        if path not in name_set:
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                f"masterPage part missing from archive: {path!r}",
+            )
+
+
+def _check_history_parts(
+    relationships: ManifestRelationships,
+    name_set: set[str],
+    selected_rootfile: RootFileRef,
+    issues: list[PackageValidationIssue],
+) -> None:
+    if not relationships.history_paths:
+        fallback_histories = _fallback_named_parts(name_set, token="history")
+        if fallback_histories:
+            _warning(
+                issues,
+                selected_rootfile.full_path,
+                "manifest does not reference history parts; engine will fall back to "
+                "filename-based discovery",
+            )
+    for path in relationships.history_paths:
+        if path not in name_set:
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                f"history part missing from archive: {path!r}",
+            )
+
+
+def _check_version_part(
+    relationships: ManifestRelationships,
+    name_set: set[str],
+    selected_rootfile: RootFileRef,
+    issues: list[PackageValidationIssue],
+) -> None:
+    if relationships.version_path is None and VERSION_PATH in name_set:
+        _warning(
+            issues,
+            selected_rootfile.full_path,
+            "manifest does not reference a version part; engine will fall back to "
+            f"{VERSION_PATH!r}",
+        )
+    elif (
+        relationships.version_path is not None
+        and relationships.version_path not in name_set
+    ):
+        _error(
+            issues,
+            selected_rootfile.full_path,
+            f"manifest version part missing from archive: {relationships.version_path!r}",
+        )
+
+
 def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidationReport:
     checked_parts: list[str] = []
     issues: list[PackageValidationIssue] = []
@@ -593,77 +901,11 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
         if bad_entry is not None:
             _error(issues, bad_entry, "ZIP CRC/integrity check failed")
 
-        if MIMETYPE_PATH not in name_set:
-            _error(issues, MIMETYPE_PATH, "missing required file")
-        else:
-            mimetype_bytes = _safe_read(zf, MIMETYPE_PATH)
-            if mimetype_bytes is None:
-                _error(
-                    issues,
-                    MIMETYPE_PATH,
-                    "unable to read entry for integrity validation",
-                )
-            else:
-                try:
-                    mimetype = mimetype_bytes.decode("utf-8").strip()
-                except UnicodeDecodeError:
-                    mimetype = "<binary>"
-                if mimetype != EXPECTED_MIMETYPE:
-                    _error(
-                        issues,
-                        MIMETYPE_PATH,
-                        f"expected {EXPECTED_MIMETYPE!r}, got {mimetype!r}",
-                    )
-                if infos[0].filename != MIMETYPE_PATH:
-                    _error(issues, MIMETYPE_PATH, "must be the first ZIP entry")
-                if zf.getinfo(MIMETYPE_PATH).compress_type != ZIP_STORED:
-                    _error(issues, MIMETYPE_PATH, "must use ZIP_STORED")
+        _check_mimetype(zf, infos, name_set, issues)
+        _check_required_presence(name_set, issues)
+        _check_preview_text(zf, name_set, issues)
 
-        if CONTAINER_PATH not in name_set:
-            _error(issues, CONTAINER_PATH, "missing required file")
-        if VERSION_PATH not in name_set:
-            _warning(
-                issues,
-                VERSION_PATH,
-                "missing optional version.xml; minimum editor-open package set allows omission",
-            )
-
-        if PREVIEW_TEXT_PATH not in name_set:
-            _warning(
-                issues,
-                PREVIEW_TEXT_PATH,
-                "missing Preview/PrvText.txt; macOS Hancom compatibility may require it",
-            )
-        else:
-            preview_bytes = _safe_read(zf, PREVIEW_TEXT_PATH)
-            if preview_bytes is None:
-                _error(issues, PREVIEW_TEXT_PATH, "unable to read preview text entry")
-            elif len(preview_bytes) > 1024 * 1024:
-                _warning(
-                    issues,
-                    PREVIEW_TEXT_PATH,
-                    "Preview/PrvText.txt is unusually large; expected a compact text snapshot",
-                )
-
-        xml_roots: dict[str, ET.Element] = {}
-        for name in names:
-            if not (name.endswith(".xml") or name.endswith(".hpf")):
-                continue
-            payload = _safe_read(zf, name)
-            if payload is None:
-                _error(issues, name, "unable to read entry for XML parsing")
-                continue
-            try:
-                root = _parse_xml(payload)
-                xml_roots[name] = root
-                _check_hwpml_compat_root(issues, name, payload, root)
-                _check_line_seg_text_positions(issues, name, root)
-                _check_table_editor_acceptance(issues, name, root)
-                _check_section_properties_location(issues, name, root)
-                _check_header_editor_acceptance(issues, name, root)
-                _check_bold_fontref_axis(issues, name, root)
-            except ValueError as exc:
-                _error(issues, name, str(exc))
+        xml_roots = _parse_all_xml(zf, names, issues)
 
         container_root = xml_roots.get(CONTAINER_PATH)
         if container_root is None:
@@ -674,13 +916,7 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
             _error(issues, CONTAINER_PATH, "declares no rootfile entries")
             return PackageValidationReport(tuple(checked_parts), tuple(issues))
 
-        for rootfile in rootfiles:
-            if rootfile.full_path not in name_set:
-                _error(
-                    issues,
-                    CONTAINER_PATH,
-                    f"rootfile points to missing part {rootfile.full_path!r}",
-                )
+        _check_rootfile_parts(rootfiles, name_set, issues)
 
         selected_rootfile, used_rootfile_fallback = select_main_rootfile(rootfiles)
         if selected_rootfile is None:
@@ -709,154 +945,17 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
             known_parts=name_set,
         )
 
-        for item in relationships.items:
-            if item.resolved_path not in name_set:
-                _error(
-                    issues,
-                    selected_rootfile.full_path,
-                    f"manifest href missing from archive: {item.href!r} -> {item.resolved_path!r}",
-                )
-
-        for idref in relationships.dangling_idrefs:
-            _warning(
-                issues,
-                selected_rootfile.full_path,
-                f"spine itemref references missing manifest id {idref!r}",
-            )
-
-        section_paths = [
-            path for path in relationships.spine_paths if is_section_part_name(path)
-        ]
-        resolved_section_paths: list[str]
-        if section_paths:
-            resolved_section_paths = list(dict.fromkeys(section_paths))
-            for path in section_paths:
-                if path not in name_set:
-                    _error(
-                        issues,
-                        selected_rootfile.full_path,
-                        f"spine section part missing from archive: {path!r}",
-                    )
-        else:
-            fallback_sections = [
-                name for name in sorted(name_set) if is_section_part_name(name)
-            ]
-            if fallback_sections:
-                resolved_section_paths = fallback_sections
-                _warning(
-                    issues,
-                    selected_rootfile.full_path,
-                    "manifest spine does not resolve any section parts; engine will fall back "
-                    "to filename-based section discovery",
-                )
-            else:
-                resolved_section_paths = []
-                _error(
-                    issues,
-                    selected_rootfile.full_path,
-                    "no section parts found in manifest spine or archive fallback",
-                )
-
-        resolved_header_paths = list(dict.fromkeys(relationships.header_paths))
-        if not resolved_header_paths and HEADER_PATH in name_set:
-            resolved_header_paths = [HEADER_PATH]
-        for header_path in resolved_header_paths:
-            header_root = xml_roots.get(header_path)
-            if header_root is None or _local_name(header_root) != "head":
-                continue
-            declared_section_count = header_root.get("secCnt")
-            if declared_section_count is None:
-                _warning(
-                    issues,
-                    header_path,
-                    "hh:head secCnt is missing; resolved section count cannot be cross-checked",
-                )
-                continue
-            try:
-                parsed_section_count = int(declared_section_count)
-            except ValueError:
-                _error(
-                    issues,
-                    header_path,
-                    f"hh:head secCnt must be an integer, got {declared_section_count!r}",
-                )
-                continue
-            if parsed_section_count != len(resolved_section_paths):
-                _error(
-                    issues,
-                    header_path,
-                    "hh:head secCnt does not match resolved section count: "
-                    f"declared={parsed_section_count}, resolved={len(resolved_section_paths)}",
-                )
-
-        if not relationships.header_paths and HEADER_PATH in name_set:
-            _warning(
-                issues,
-                selected_rootfile.full_path,
-                "manifest spine does not resolve a header part; engine will fall back to "
-                f"{HEADER_PATH!r}",
-            )
-
-        for path in relationships.header_paths:
-            if path not in name_set:
-                _error(
-                    issues,
-                    selected_rootfile.full_path,
-                    f"header part missing from archive: {path!r}",
-                )
-
-        if not relationships.master_page_paths:
-            fallback_master_pages = _fallback_named_parts(
-                name_set, token="master", extra_token="page"
-            )
-            if fallback_master_pages:
-                _warning(
-                    issues,
-                    selected_rootfile.full_path,
-                    "manifest does not reference masterPage parts; engine will fall back to "
-                    "filename-based discovery",
-                )
-        for path in relationships.master_page_paths:
-            if path not in name_set:
-                _error(
-                    issues,
-                    selected_rootfile.full_path,
-                    f"masterPage part missing from archive: {path!r}",
-                )
-
-        if not relationships.history_paths:
-            fallback_histories = _fallback_named_parts(name_set, token="history")
-            if fallback_histories:
-                _warning(
-                    issues,
-                    selected_rootfile.full_path,
-                    "manifest does not reference history parts; engine will fall back to "
-                    "filename-based discovery",
-                )
-        for path in relationships.history_paths:
-            if path not in name_set:
-                _error(
-                    issues,
-                    selected_rootfile.full_path,
-                    f"history part missing from archive: {path!r}",
-                )
-
-        if relationships.version_path is None and VERSION_PATH in name_set:
-            _warning(
-                issues,
-                selected_rootfile.full_path,
-                "manifest does not reference a version part; engine will fall back to "
-                f"{VERSION_PATH!r}",
-            )
-        elif (
-            relationships.version_path is not None
-            and relationships.version_path not in name_set
-        ):
-            _error(
-                issues,
-                selected_rootfile.full_path,
-                f"manifest version part missing from archive: {relationships.version_path!r}",
-            )
+        _check_manifest_hrefs(relationships, selected_rootfile, name_set, issues)
+        resolved_section_paths = _resolve_section_paths(
+            relationships, selected_rootfile, name_set, issues
+        )
+        _check_header_section_counts(
+            relationships, xml_roots, resolved_section_paths, name_set, issues
+        )
+        _check_header_fallback(relationships, name_set, selected_rootfile, issues)
+        _check_master_page_parts(relationships, name_set, selected_rootfile, issues)
+        _check_history_parts(relationships, name_set, selected_rootfile, issues)
+        _check_version_part(relationships, name_set, selected_rootfile, issues)
 
     return PackageValidationReport(tuple(checked_parts), tuple(issues))
 
