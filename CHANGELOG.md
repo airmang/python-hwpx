@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+## [3.3.1] - 2026-07-18
+
+### Internal
+- 최악 복잡도 검증기 2종을 행동 보존 분해합니다:
+  `validate_blueprint_manifest`(C901 60→1, 헬퍼 14개)와
+  `validate_package`(53→10, 헬퍼 12개). 에러 문자열·검사 순서·manifest 불변성은
+  기준선과 verbatim 동일하며 테스트 델타 0으로 실증했습니다.
+- 공개 표면·계약 변화는 없습니다. S-083 릴리스 트레인(hwpx-mcp-server 4.3.0 ·
+  hwpx-plugin 0.6.0)과 좌표를 맞추는 릴리스입니다.
+
 ## [3.3.0] - 2026-07-18
 
 ### 추가
