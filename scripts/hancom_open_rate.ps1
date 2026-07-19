@@ -214,7 +214,10 @@ function Get-JudgedBasenames {
         $hasError = ($null -ne $rec.error) -and ([string]$rec.error -ne "")
         $retried = [bool]$rec.retried
         if ($hasError -and -not $retried) { continue }   # unretried exception -> re-attempt on resume
-        $set[[System.IO.Path]::GetFileName([string]$rec.sourcePath)] = $true
+        # S-063 v2: key by FULL path, not basename — the shipped stratum carries
+        # many duplicate basenames (task_eval document.hwpx trees), and a
+        # basename key silently skips them as pseudo-duplicates.
+        $set[([string]$rec.sourcePath).ToLowerInvariant()] = $true
     }
     return $set
 }
@@ -321,15 +324,15 @@ try {
     $hwp = New-HwpObject
     foreach ($item in $Path) {
         $inputPath = Resolve-InputPath $item
-        $base = [System.IO.Path]::GetFileName($inputPath)
-        if ($judged.ContainsKey($base)) {
-            Write-Host ("skip (already judged): " + $base)
+        $pathKey = ([string]$inputPath).ToLowerInvariant()
+        if ($judged.ContainsKey($pathKey)) {
+            Write-Host ("skip (already judged): " + $inputPath)
             continue
         }
         $record = Invoke-OpenCheck -Hwp $hwp -InputPath $inputPath -PageLimit $MaxPages -TimeoutSec $OpenTimeoutSec -Retried $false
         Write-Checkpoint -JsonlPath $OutJsonl -Record $record
         $records.Add($record)
-        $judged[$base] = $true
+        $judged[$pathKey] = $true
         if ($null -ne $record.error) {
             $thisRunErrorPaths.Add($inputPath)
             # Watchdog: a COM error may have poisoned the session — re-create it.
