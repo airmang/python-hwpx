@@ -36,7 +36,10 @@ function Close-Hwp {
     }
 }
 
-$jobsList = @(Get-Content -LiteralPath $Jobs -Raw -Encoding UTF8 | ConvertFrom-Json)
+# PS 5.1: ConvertFrom-Json emits a JSON array as ONE Object[] pipeline item, so
+# @(...) would wrap it into a single-element list. Enumerate to get real rows.
+$jobsParsed = Get-Content -LiteralPath $Jobs -Raw -Encoding UTF8 | ConvertFrom-Json
+$jobsList = @($jobsParsed | ForEach-Object { $_ })
 if ($jobsList.Count -ne 5) {
     throw "P0 render spike requires exactly five jobs; got $($jobsList.Count)"
 }
