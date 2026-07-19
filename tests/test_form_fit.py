@@ -201,6 +201,99 @@ def test_warn_policy_never_fails():
 
 
 # --------------------------------------------------------------------------- #
+# Vertical (row-height) budget — S-085 P1.
+# --------------------------------------------------------------------------- #
+def _vslot(width=6000, font_pt=10.0, height=None, ratio=None, unavailable=False):
+    return SlotMetrics(
+        available_width=width,
+        font_pt=font_pt,
+        available_height=height,
+        line_spacing_ratio=ratio,
+        height_unavailable=unavailable,
+    )
+
+
+def test_line_height_and_budget_math():
+    slot = _vslot(height=3300)  # default 160% pitch → 1600/line; tight 1.0 → 1000/line
+    assert slot.line_height(10.0) == pytest.approx(1600.0)
+    assert slot.height_lines(10.0) == 2          # floor(3300 / 1600)
+    assert slot.height_lines_optimistic(10.0) == 3  # floor(3300 / 1000)
+
+
+def test_budget_uses_declared_percent_line_spacing():
+    slot = _vslot(height=3300, ratio=2.0)  # declared 200% → 2000/line
+    assert slot.line_height(10.0) == pytest.approx(2000.0)
+    assert slot.height_lines(10.0) == 1          # floor(3300 / 2000)
+    # Optimistic budget never uses a looser pitch than the tight floor.
+    assert slot.height_lines_optimistic(10.0) == 3  # floor(3300 / 1000)
+
+
+def test_budget_is_none_without_height_and_never_below_one():
+    assert _vslot(height=None).height_lines(10.0) is None
+    assert _vslot(height=None).height_lines_optimistic(10.0) is None
+    # A cell shorter than one line still reports a 1-line budget (guaranteed floor).
+    assert _vslot(height=500).height_lines(10.0) == 1
+
+
+def test_no_height_budget_is_width_only_with_warning_when_unavailable():
+    engine = FitEngine()
+    warned = engine.fit("홍길동", _vslot(height=None, unavailable=True), FitPolicy())
+    assert warned.ok and any("width-only" in w for w in warned.warnings)
+    # A caller that never had a height (native field) must NOT get the warning.
+    silent = engine.fit("홍길동", _vslot(height=None, unavailable=False), FitPolicy())
+    assert silent.ok and not any("width-only" in w for w in silent.warnings)
+
+
+def test_value_fits_within_ample_height_is_unchanged():
+    engine = FitEngine()
+    # 11 Hangul wrap to 2 lines in a 6000-wide slot; a 6000-tall cell budgets 3.
+    result = engine.fit("가" * 11, _vslot(height=6000), FitPolicy(mode="wrap"))
+    assert result.ok and not result.overflow_detected
+    assert not any("row will grow" in w for w in result.warnings)
+
+
+def test_modest_vertical_overflow_warns_and_defers_to_oracle():
+    engine = FitEngine()
+    # 2 lines needed, 1-line height budget → modest growth: reported, never a fail.
+    result = engine.fit("가" * 11, _vslot(height=1600), FitPolicy(mode="wrap"))
+    assert result.ok is True
+    assert result.overflow_detected is True
+    assert result.errors == []
+    assert any("row will grow" in w for w in result.warnings)
+
+
+def test_gross_vertical_balloon_fails_closed_when_cannot_shrink():
+    engine = FitEngine()
+    # 4 lines in a 1-line budget = a gross balloon; wrap mode cannot shrink → fail.
+    result = engine.fit(
+        "가" * 20, _vslot(height=1600), FitPolicy(mode="wrap", overflow="fail")
+    )
+    assert result.ok is False and result.overflow_detected
+    assert any("FIELD_OVERFLOW" in e for e in result.errors)
+
+
+def test_gross_vertical_balloon_shrinks_when_allowed():
+    engine = FitEngine()
+    before = _vslot(height=1600)
+    result = engine.fit("가" * 20, before, FitPolicy(mode="wrap_then_shrink", min_font_pt=8.0))
+    assert result.ok is True
+    assert result.font_pt is not None and result.font_pt < before.font_pt
+    assert result.applied_style_changes.get("from_font_pt") == 10.0
+
+
+def test_expand_row_bypasses_the_height_budget():
+    engine = FitEngine()
+    # A gross balloon is accepted (no fail) when row growth is opted into explicitly.
+    result = engine.fit(
+        "가" * 20,
+        _vslot(height=1600),
+        FitPolicy(mode="wrap_then_shrink", allow_row_expand=True),
+    )
+    assert result.ok is True
+    assert not any("FIELD_OVERFLOW" in e for e in result.errors)
+
+
+# --------------------------------------------------------------------------- #
 # Report adapter → the one VisualCompleteReport.
 # --------------------------------------------------------------------------- #
 def test_to_form_report_folds_results():

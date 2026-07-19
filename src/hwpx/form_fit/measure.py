@@ -53,6 +53,31 @@ _CLASS_UNCERTAINTY: dict[str, float] = {
 # multiplicative factor so it scales and also buys headroom on the advance error.
 DEFAULT_SAFETY = 0.93
 
+# --- Vertical (line-height) model ------------------------------------------- #
+# Per-line vertical advance as a multiple of the em (font height in HWPUNIT).
+# HWP's application default is 160% line spacing, so a line occupies ~1.6 em; this
+# is the advance used when a paragraph declares no explicit lineSpacing, and it
+# matches ``layout.lint._LINE_SPACING``. Used as the *expected* pitch for the
+# authored vertical budget (the point at which the row is warned it will grow).
+DEFAULT_LINE_SPACING_RATIO = 1.6
+
+# Tightest per-line advance Hancom is observed to use (a glyph box with no leading).
+# Measured on the M9 wild-form corpus: two soft-wrapped lines render inside cells
+# only ~2.0 em tall, so the real pitch bottoms out near 1.0 em. Used to compute the
+# *optimistic* (most generous) height budget, so a vertical overflow is only treated
+# as high confidence when content overflows even at this tightest pitch.
+MIN_LINE_SPACING_RATIO = 1.0
+
+# A vertical overflow is a *hard* balloon (shrink-or-refuse) only when content needs
+# at least this multiple of the optimistic authored line budget AND this many extra
+# lines in absolute terms. Below the gross threshold the row may grow only modestly
+# and the render oracle arbitrates. Measure-first calibration on the M9 corpus: a
+# hard cap at the optimistic budget mis-refuses 47% of known-good multi-line cells,
+# whereas this gross gate mis-refuses 2% — it fires on page-shifting balloons only.
+# (Same balloon philosophy as ``layout.lint._BALLOON_FACTOR``.)
+GROSS_ROW_GROWTH_FACTOR = 2.0
+MIN_ROW_GROWTH_LINES = 2
+
 Confidence = Literal["high", "low"]
 
 
@@ -189,10 +214,61 @@ class SlotMetrics:
     max_lines: int = 1
     raw_width: float | None = None  # cellSz.width before margins (diagnostics)
     source: str = "cell"
+    # Vertical budget. ``available_height`` is the usable inner height (HWPUNIT)
+    # after top/bottom cell margins + the safety inset. ``None`` means the vertical
+    # room was not (or could not be) measured, and the fit stays width-only.
+    available_height: float | None = None
+    # Per-line advance as a multiple of the em, from the cell's declared paragraph
+    # line spacing (PERCENT). ``None`` falls back to ``DEFAULT_LINE_SPACING_RATIO``.
+    line_spacing_ratio: float | None = None
+    # A cell height existed but was unusable (merged row-span fragment, or an
+    # auto-grow floor shorter than one line). Records "height budget unavailable"
+    # so the fit reports width-only honestly rather than guessing a vertical fit.
+    height_unavailable: bool = False
 
     @property
     def capacity(self) -> float:
         return self.available_width * self.max_lines
+
+    def _line_ratio(self) -> float:
+        ratio = self.line_spacing_ratio
+        return ratio if ratio and ratio > 0 else DEFAULT_LINE_SPACING_RATIO
+
+    def line_height(self, font_pt: float | None = None) -> float:
+        """Expected per-line vertical advance in HWPUNIT at *font_pt*."""
+
+        pt = self.font_pt if font_pt is None else font_pt
+        return pt * 100.0 * self._line_ratio()
+
+    def height_lines(self, font_pt: float | None = None) -> int | None:
+        """Expected vertical line budget at *font_pt* (declared/default pitch).
+
+        ``None`` when the vertical room is unmeasured. Never less than 1 — a cell
+        always accommodates its first line; the risk we guard is *growth* past it.
+        """
+
+        if self.available_height is None:
+            return None
+        line_h = self.line_height(font_pt)
+        if line_h <= 0:
+            return None
+        return max(int(self.available_height // line_h), 1)
+
+    def height_lines_optimistic(self, font_pt: float | None = None) -> int | None:
+        """Most-generous vertical budget (tightest plausible pitch).
+
+        This is the basis for the *confidence* of a vertical overflow: content that
+        overflows even this budget is grossly too tall regardless of pitch error.
+        """
+
+        if self.available_height is None:
+            return None
+        pt = self.font_pt if font_pt is None else font_pt
+        ratio = min(self._line_ratio(), MIN_LINE_SPACING_RATIO)
+        line_h = pt * 100.0 * ratio
+        if line_h <= 0:
+            return None
+        return max(int(self.available_height // line_h), 1)
 
 
 @dataclass(slots=True)
@@ -291,6 +367,50 @@ def _cell_margin(cell_element: object) -> tuple[int, int]:
     return (0, 0)
 
 
+def _cell_margin_vertical(cell_element: object) -> tuple[int, int]:
+    """Return (top, bottom) cellMargin in HWPUNIT, defaulting to 0."""
+
+    for child in cell_element:  # type: ignore[attr-defined]
+        if _local_name(child.tag) == "cellMargin":
+            return (
+                int(child.get("top", "0") or 0),
+                int(child.get("bottom", "0") or 0),
+            )
+    return (0, 0)
+
+
+def _first_para_line_spacing_ratio(cell: object, document: object) -> float | None:
+    """Per-line em multiple from the cell's first paragraph line spacing (PERCENT).
+
+    Only PERCENT spacing maps cleanly onto the em-relative line-height model; FIXED
+    / ATLEAST / BETWEENLINES are left to the conservative default so we never invent
+    a font-independent pitch (the shrink ladder varies the font).
+    """
+
+    try:
+        paragraphs = cell.paragraphs  # type: ignore[attr-defined]
+    except Exception:  # pragma: no cover - defensive
+        return None
+    for paragraph in paragraphs:
+        ref = getattr(paragraph, "para_pr_id_ref", None)
+        if ref is None or document is None:
+            continue
+        try:
+            prop = document.paragraph_property(ref)  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - defensive
+            prop = None
+        spacing = getattr(prop, "line_spacing", None) if prop is not None else None
+        if spacing is None or not getattr(spacing, "value", None):
+            continue
+        if (getattr(spacing, "spacing_type", None) or "PERCENT").upper() != "PERCENT":
+            return None
+        try:
+            return int(spacing.value) / 100.0
+        except (TypeError, ValueError):  # pragma: no cover - defensive
+            return None
+    return None
+
+
 def _first_run_font_pt(cell: object, document: object) -> float:
     """Resolve the cell's first run font size in points (default 10pt)."""
 
@@ -339,6 +459,14 @@ def resolve_slot_metrics(
     verified against Hancom's own ``lineSeg/@horzsize`` (±10 HWPUNIT on 82% of
     cells; the safety factor covers the rest plus paragraph indent, which is left
     to the HarfBuzz pass).
+
+    ``available_height`` follows the same philosophy — ``(cellSz.height - top -
+    bottom margin) * safety`` — but is recorded as *unavailable* (``None`` +
+    ``height_unavailable``) whenever the authored height is not a real ceiling:
+    a merged cell (its ``cellSz.height`` is a single-row fragment, not the spanned
+    height), a cell with no height, or an auto-grow floor shorter than one line
+    (Hancom simply grows the row past it). The fit then stays width-only rather
+    than guess a vertical fit.
     """
 
     raw_width = float(getattr(cell, "width", 0) or 0)
@@ -346,12 +474,35 @@ def resolve_slot_metrics(
     left, right = _cell_margin(element) if element is not None else (0, 0)
     inner = max(raw_width - left - right, 0.0) * safety
     resolved_pt = font_pt if font_pt is not None else _first_run_font_pt(cell, document)
+    line_ratio = _first_para_line_spacing_ratio(cell, document)
+
+    available_height: float | None = None
+    height_unavailable = False
+    raw_height = float(getattr(cell, "height", 0) or 0)
+    try:
+        row_span = int(getattr(cell, "span", (1, 1))[0])
+    except Exception:  # pragma: no cover - defensive
+        row_span = 1
+    top, bottom = _cell_margin_vertical(element) if element is not None else (0, 0)
+    inner_h = max(raw_height - top - bottom, 0.0) * safety if raw_height > 0 else 0.0
+    # A cell authored shorter than one line at the tightest pitch is an auto-grow
+    # floor, not a ceiling (Hancom grows the row past it); a merged row-span's
+    # cellSz.height is only one of the spanned rows. Neither is a usable budget.
+    one_line = resolved_pt * 100.0 * MIN_LINE_SPACING_RATIO
+    if row_span <= 1 and inner_h >= one_line:
+        available_height = inner_h
+    else:
+        height_unavailable = True
+
     return SlotMetrics(
         available_width=inner,
         font_pt=resolved_pt,
         max_lines=max(max_lines, 1),
         raw_width=raw_width,
         source="cell",
+        available_height=available_height,
+        line_spacing_ratio=line_ratio,
+        height_unavailable=height_unavailable,
     )
 
 
@@ -360,6 +511,10 @@ __all__ = [
     "Measurement",
     "Confidence",
     "DEFAULT_SAFETY",
+    "DEFAULT_LINE_SPACING_RATIO",
+    "MIN_LINE_SPACING_RATIO",
+    "GROSS_ROW_GROWTH_FACTOR",
+    "MIN_ROW_GROWTH_LINES",
     "classify_char",
     "char_advance",
     "estimate_text_width",

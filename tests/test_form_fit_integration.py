@@ -84,6 +84,21 @@ def test_fit_records_ledger_entry_on_style_change():
     assert entry.reason in ("style_changed", "form_filled")
 
 
+def test_fit_row_height_balloon_refuses_through_real_cell():
+    # A real cell with a short authored height: a grossly too-tall value must not be
+    # accepted as a silent 100-line row growth — it fails closed (S-085 P1).
+    doc = HwpxDocument.new()
+    table = doc.add_table(1, 1)
+    cell = table.cell(0, 0)
+    cell.set_size(width=6000, height=1800)  # ~1-line-tall cell
+    result = table.set_cell_text(
+        0, 0, "서울특별시 강남구 테헤란로 " * 8,
+        fit=FitPolicy(mode="wrap_then_shrink", overflow="fail", min_font_pt=8.0),
+    )
+    assert result is not None and result.ok is False
+    assert result.overflow_detected and any("FIELD_OVERFLOW" in e for e in result.errors)
+
+
 def test_fit_borderline_overflow_downgrades_to_warn():
     # ~5 Hangul (5000) into a slot whose inner width lands just under that after
     # the 0.93 safety factor → borderline, must NOT hard-fail.
