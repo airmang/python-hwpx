@@ -872,3 +872,204 @@ def test_box_filelist_combined_missing_box_rel_fails_closed(tmp_path):
         "--combined", "--out", str(out), "--box-root", "C:\\openrate\\corpus",
     ])
     assert rc == 1                                    # never silently drop a member
+
+
+# =========================================================================== #
+# corpus v2 (specs/010 P3) — combined-corpus aggregation: box_rel join, render
+# supply, redline-aware parsed, provenance rollup. v1 fallbacks unchanged.
+# =========================================================================== #
+
+def _v2_item(id_, stratum, path, *, produced=True, box_rel=None, render_verdict=None):
+    return {
+        "id": id_, "bucket": stratum, "stratum": stratum,
+        "output_path": path if produced else None, "produced": produced,
+        "box_rel": box_rel, "render_verdict": render_verdict,
+    }
+
+
+def test_jsonl_checker_box_rel_join_disambiguates_duplicate_basenames(tmp_path):
+    # The shipped stratum has many files named document.hwpx: a basename join would
+    # collide them. The box_rel suffix join (path -> box_rel -> m9-full/ suffix)
+    # resolves each local file to its OWN verdict.
+    jsonl = tmp_path / "v.jsonl"
+    jsonl.write_text(
+        "\n".join([
+            '{"sourcePath":"C:\\\\openrate\\\\m9-full\\\\shipped\\\\a\\\\document.hwpx","opened":true,"textLength":10}',
+            '{"sourcePath":"C:\\\\openrate\\\\m9-full\\\\shipped\\\\b\\\\document.hwpx","opened":false,"error":"corrupt"}',
+        ]) + "\n",
+        encoding="utf-8",
+    )
+    p2b = {
+        "/local/a/document.hwpx": "shipped/a/document.hwpx",
+        "/local/b/document.hwpx": "shipped/b/document.hwpx",
+    }
+    checker = cor.jsonl_open_checker(str(jsonl), path_to_boxrel=p2b)
+    out = {v["path"]: v for v in checker(["/local/a/document.hwpx", "/local/b/document.hwpx"])}
+    assert out["/local/a/document.hwpx"]["opened"] is True
+    assert out["/local/a/document.hwpx"]["text_length"] == 10
+    assert out["/local/b/document.hwpx"]["opened"] is False   # distinct verdict, not collided
+    # Without the map, the basename join collides both onto the LAST record (the bug
+    # this join fixes): both resolve to the same verdict.
+    plain = cor.jsonl_open_checker(str(jsonl))
+    collided = {v["path"]: v for v in plain(["/local/a/document.hwpx", "/local/b/document.hwpx"])}
+    assert collided["/local/a/document.hwpx"]["opened"] == collided["/local/b/document.hwpx"]["opened"]
+
+
+def test_render_tier_classification_v2_includes_unavailable_redline():
+    items = [
+        _v2_item("a", "authored", "/a.hwpx"),
+        _v2_item("blank", "shipped-artifacts", "/blank.hwpx"),      # opens blank, renders a PDF
+        _v2_item("rl", "redline", "/rl.hwpx"),                       # redline stratum
+        _v2_item("m4", "shipped-artifacts", "/m4.hwpx"),             # redline-class by id
+        _v2_item("norow", "authored", "/norow.hwpx"),                # no render row
+        _v2_item("failr", "authored", "/failr.hwpx"),                # render attempted+failed
+    ]
+    verdicts = {
+        "/a.hwpx": _v("/a.hwpx", opened=True, text_length=50),
+        "/blank.hwpx": _v("/blank.hwpx", opened=True, text_length=0),
+        "/rl.hwpx": _v("/rl.hwpx", opened=True, text_length=0),      # GetTextFile FLOOR artifact
+        "/m4.hwpx": _v("/m4.hwpx", opened=True, text_length=0),
+        "/norow.hwpx": _v("/norow.hwpx", opened=True, text_length=50),
+        "/failr.hwpx": _v("/failr.hwpx", opened=True, text_length=50),
+    }
+    render_by_id = {
+        "a": {"saved": True, "pdfBytes": 1000},
+        "blank": {"saved": True, "pdfBytes": 500},     # saved but NOT parsed -> unverified (nesting)
+        "m4": {"saved": False, "pdfBytes": 0},          # ignored: redline-class -> unavailable
+        "failr": {"saved": False, "pdfBytes": 0},       # attempted + failed -> render_failed
+    }
+    agg = cor.aggregate(
+        items, verdicts,
+        render_by_id=render_by_id,
+        redline_parsed_by_id={"rl": True},
+        redline_content_ids=frozenset({"m4"}),
+    )
+    t = agg["totals"]
+    assert t["render_checked"] == 1                     # only 'a' (parsed + saved-ok)
+    assert t["render_unavailable_redline"] == 2         # rl (stratum) + m4 (content id)
+    assert t["render_failed"] == 1                       # failr
+    assert t["render_unverified"] == 2                   # blank (saved but not parsed) + norow (no row)
+    # exactly one render bucket per produced item
+    assert (t["render_checked"] + t["render_unavailable_redline"]
+            + t["render_failed"] + t["render_unverified"]) == t["produced"]
+    # nesting render_checked ⊆ parsed ⊆ opens_clean holds per stratum
+    for b in agg["strata"]:
+        assert b["render_checked"] <= b["parsed"] <= b["opens_clean"]
+
+
+def test_redline_aware_parsed_override_uses_initscan_not_gettextfile():
+    # A tracked-change doc opens clean but GetTextFile returns 0 (FLOOR artifact).
+    items = [_v2_item("rl", "redline", "/rl.hwpx")]
+    verdicts = {"/rl.hwpx": _v("/rl.hwpx", opened=True, text_length=0)}
+    # Without the redline probe, the frozen textLength rule says NOT parsed.
+    b0 = cor.aggregate(items, verdicts)["strata"][0]
+    assert b0["opens_clean"] == 1 and b0["parsed"] == 0
+    # With the InitScan probe ok, the redline stratum IS parsed (override).
+    b1 = cor.aggregate(items, verdicts, redline_parsed_by_id={"rl": True})["strata"][0]
+    assert b1["parsed"] == 1 and b1["parsed"] <= b1["opens_clean"]
+    # A redline probe that itself found no text keeps parsed=0 (no silent true).
+    b2 = cor.aggregate(items, verdicts, redline_parsed_by_id={"rl": False})["strata"][0]
+    assert b2["parsed"] == 0
+    # The override is stratum-scoped: a non-redline doc ignores the redline map.
+    items_nr = [_v2_item("s", "shipped-artifacts", "/s.hwpx")]
+    v_nr = {"/s.hwpx": _v("/s.hwpx", opened=True, text_length=0)}
+    b3 = cor.aggregate(items_nr, v_nr, redline_parsed_by_id={"s": True})["strata"][0]
+    assert b3["parsed"] == 0                              # textLength rule, not the redline map
+
+
+def test_provenance_rollup_math_product_plus_tag_equals_full():
+    items = [
+        _v2_item("p1", "authored", "/p1.hwpx", box_rel="v1/p1.hwpx"),
+        _v2_item("p2", "shipped-artifacts", "/p2.hwpx", box_rel="shipped/demo/other/p2.hwpx"),
+        _v2_item("f1", "shipped-artifacts", "/f1.hwpx",
+                 box_rel="shipped/demo/020-agent-blueprint-replay/probes/f1.hwpx"),
+        _v2_item("f2", "shipped-artifacts", "/f2.hwpx",
+                 box_rel="shipped/demo/formfill-master/f2.hwpx"),
+    ]
+    verdicts = {
+        "/p1.hwpx": _v("/p1.hwpx", opened=True, text_length=10),
+        "/p2.hwpx": _v("/p2.hwpx", opened=True, text_length=10),
+        "/f1.hwpx": _v("/f1.hwpx", opened=False, error="corrupt"),   # a probe that refuses to open
+        "/f2.hwpx": _v("/f2.hwpx", opened=True, text_length=0),       # a fixture that opens blank
+    }
+    tags = {"internal-fixture": [
+        "shipped/demo/020-agent-blueprint-replay/probes/", "shipped/demo/formfill-master/"]}
+    rep = cor.build_report(
+        items, verdicts,
+        negatives=["/n.hwpx"],
+        negative_verdicts_by_path={"/n.hwpx": _v("/n.hwpx", opened=False)},
+        provenance_tags=tags,
+    )
+    prov = rep["provenance"]
+    assert prov["product_count"] == 2
+    assert prov["tag_counts"]["internal-fixture"] == 2
+    prod, intr, full = prov["product"], prov["tags"]["internal-fixture"], rep["totals"]
+    # product + tag reconstitute the full-corpus counts exactly (nothing lost/added)
+    for k in ("produced", "opened", "parsed", "judged", "opens_clean"):
+        assert prod[k] + intr[k] == full[k], k
+    # product excludes the fixtures (identity-based, not outcome-based)
+    assert prod["opened"] == 2 and prod["parsed"] == 2
+    assert intr["opened"] == 1 and intr["parsed"] == 0
+    # FULL totals published unchanged alongside the product headline
+    assert full["produced"] == 4 and full["parsed"] == 2
+
+
+def test_v1_fallback_unchanged_when_no_v2_supply(tmp_path):
+    # render_by_id absent -> render tier from item['render_verdict'] (v1 path), and
+    # a 'redline' bucket is NOT reclassified as render_unavailable_redline (that rule
+    # only fires once real render receipts are supplied).
+    items = [
+        _item("authored", "/a/x.hwpx", render=True),
+        _item("authored", "/a/y.hwpx", render=False),
+        _item("redline", "/a/r.hwpx", render=None),
+    ]
+    verdicts = {
+        "/a/x.hwpx": _v("/a/x.hwpx", opened=True, text_length=9),
+        "/a/y.hwpx": _v("/a/y.hwpx", opened=True, text_length=9),
+        "/a/r.hwpx": _v("/a/r.hwpx", opened=True, text_length=9),
+    }
+    agg = cor.aggregate(items, verdicts)
+    t = agg["totals"]
+    assert t["render_checked"] == 1                      # x
+    assert t["render_failed"] == 1                        # y
+    assert t["render_unavailable_redline"] == 0           # v1 path never emits this bucket
+    assert t["render_unverified"] == 1                    # r (render_verdict None)
+    # jsonl checker with no map -> basename join (v1 behaviour), unchanged.
+    jsonl = tmp_path / "v.jsonl"
+    jsonl.write_text(
+        '{"sourcePath":"C:\\\\x\\\\x.hwpx","opened":true,"textLength":9}\n', encoding="utf-8"
+    )
+    out = cor.jsonl_open_checker(str(jsonl))(["/anywhere/x.hwpx"])
+    assert out[0]["opened"] is True and out[0]["text_length"] == 9
+
+
+def test_render_receipts_and_redline_parsed_loaders(tmp_path):
+    # render loader keys by sourceId; redline loader keys by id (strip .hwpx) and
+    # reads the InitScan byref mask-0 probe.
+    rjson = tmp_path / "render.jsonl"
+    rjson.write_text(
+        "\n".join([
+            '{"_meta":"m9-render-batch-v1","jobCount":2}',
+            '{"sourceId":"authored-00","saved":true,"pdfBytes":2048}',
+            '{"sourceId":"authored-01","saved":false,"pdfBytes":0}',
+        ]) + "\n",
+        encoding="utf-8",
+    )
+    rb = cor.render_receipts_from_jsonl(str(rjson))
+    assert set(rb) == {"authored-00", "authored-01"}     # _meta line skipped
+    assert rb["authored-00"]["saved"] is True
+
+    rl = tmp_path / "redline.jsonl"
+    rl.write_text(
+        "\n".join([
+            '{"_meta":"m9-p0-redline-text-v1","documentCount":2}',
+            '{"sourceId":"redline-00.hwpx","probes":['
+            '{"method":"InitScan/GetText","callShape":"byref","option":0,"ok":true,"textLength":177},'
+            '{"method":"GetTextFile","format":"TEXT","ok":true,"textLength":0}]}',
+            '{"sourceId":"redline-01.hwpx","probes":['
+            '{"method":"InitScan/GetText","callShape":"byref","option":0,"ok":true,"textLength":0}]}',
+        ]) + "\n",
+        encoding="utf-8",
+    )
+    rp = cor.redline_parsed_from_jsonl(str(rl))
+    assert rp == {"redline-00": True, "redline-01": False}   # id strip + textLength>0 gate

@@ -75,6 +75,24 @@ if _SRC.is_dir() and str(_SRC) not in sys.path:
 # one is WindowsComOracle.open_check_many; the fake one is for tests.
 OpenChecker = Callable[[list[str]], list[dict[str, Any]]]
 
+# Strata whose PDF export Hancom refuses (tracked-change docs): their render tier
+# is ``render_unavailable_redline`` (never render_failed) and their parsed tier is
+# supplied by the InitScan/GetText probe, not GetTextFile (frozen P0 metric, box
+# spike 2026-07-19: SaveAs("PDF") returns saved=false, GetTextFile textLength=0).
+REDLINE_STRATA = frozenset({"redline", "redline-wide"})
+
+# Ids that are redline-class by DOCUMENT PROPERTY (tracked-change) even though
+# their stratum is not redline — the shipped M4 redline demo. Box P2 (2026-07-19):
+# opened=true but SaveAs('PDF') refused, the third independent proof of the export
+# block (receipt.md). Render tier = render_unavailable_redline, not render_failed.
+_M9_REDLINE_CONTENT_IDS = frozenset({"shipped-demo-M4-redline-redline"})
+
+# The box-mirror layout roots every shipped file under ``m9-full/``; the combined
+# manifest's ``box_rel`` is exactly the suffix after this marker. The v2 verdict
+# join keys on that suffix (case-folded) so duplicate basenames (many shipped
+# ``document.hwpx``) each resolve to their own verdict.
+_BOX_ROOT_MARKER = "m9-full/"
+
 
 # --------------------------------------------------------------------------- #
 # Pure aggregation helpers (no Hancom, no I/O) — these are what the unit test
@@ -127,6 +145,9 @@ def aggregate(
     *,
     requested_total: int | None = None,
     strata_requested: dict[str, int] | None = None,
+    render_by_id: dict[str, dict[str, Any]] | None = None,
+    redline_parsed_by_id: dict[str, bool] | None = None,
+    redline_content_ids: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     """Compute the per-stratum tiers + denominators from manifest items + verdicts.
 
@@ -135,9 +156,25 @@ def aggregate(
     output_path to its open-check verdict dict. A produced item with no verdict
     is ``unverified``; a withheld item (produced=false) is an end-to-end failure
     and is counted in ``produced`` denominators as a non-open.
+
+    v2 combined-corpus supply (all optional — absent => v1 behaviour unchanged):
+
+    * ``render_by_id`` — box render receipts keyed by manifest ``id``. When given,
+      the render tier is receipt-driven (``saved && pdfBytes>0`` => render_checked,
+      gated on parsed; a row that failed => render_failed; no row => unverified) and
+      redline-class docs become ``render_unavailable_redline``. When ``None`` the v1
+      per-item ``render_verdict`` path is used verbatim.
+    * ``redline_parsed_by_id`` — InitScan/GetText parsed verdict keyed by ``id``.
+      For ``REDLINE_STRATA`` records the parsed tier reads this (GetTextFile returns
+      0 for tracked-change docs — the FLOOR artifact); every other stratum keeps the
+      frozen ``textLength>0`` definition.
+    * ``redline_content_ids`` — ids that are redline-class by DOCUMENT PROPERTY even
+      though their stratum is not redline (e.g. the shipped M4 demo).
     """
 
     strata_requested = strata_requested or {}
+    redline_parsed_by_id = redline_parsed_by_id or {}
+    redline_content_ids = redline_content_ids or frozenset()
     buckets: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
 
     def _bucket(name: str) -> dict[str, Any]:
@@ -152,6 +189,7 @@ def aggregate(
                 "render_checked": 0,      # tier 3: parsed & render_verdict==true
                 "render_unverified": 0,   # render verdict not supplied
                 "render_failed": 0,       # render_verdict==false
+                "render_unavailable_redline": 0,  # tracked-change doc: SaveAs PDF refused
                 "open_failed": 0,         # opened==false (incl. withheld)
                 "unverified": 0,          # oracle could not judge (opened None)
                 "retried_clean": 0,       # opened but non-clean (retried or auto-repaired)
@@ -185,44 +223,57 @@ def aggregate(
         repaired = bool(verdict.get("repaired")) if verdict else False
         text_length = verdict.get("text_length") if verdict else None
         error = verdict.get("error") if verdict else None
+        stratum = str(item.get("stratum") or item.get("bucket") or "?")
+        item_id = item.get("id")
 
+        # Resolve the open state and whether the file reached the parsed tier
+        # WITHOUT early-continuing, so the render tier is assigned exactly once
+        # (below) for every produced item — including non-clean opens, which the
+        # redline-render rule must still be able to reach.
+        parsed = False
         if opened is None:
             # Honest unverified: oracle could not judge. Not opened, not failed.
             bucket["unverified"] += 1
-            bucket["render_unverified"] += 1
-            continue
-        if not opened:
+        elif not opened:
             bucket["open_failed"] += 1
-            bucket["render_unverified"] += 1
             bucket["failures"].append(
                 {"path": out_path, "reason": error or "opened=false"}
             )
-            continue
-
-        # opened == True from here. A file that only opened on the retry pass
-        # (FR-002d) OR that Hancom silently auto-repaired (dirty after a fresh
-        # Open — the per-file repair canary, S2) is NON-clean: it counts toward
-        # open_rate (it loaded) but is excluded from the opens_clean headline and
-        # from the nested parsed/render tiers.
-        if retried or repaired:
+        elif retried or repaired:
+            # A file that only opened on the retry pass (FR-002d) OR that Hancom
+            # silently auto-repaired (dirty after a fresh Open — the per-file
+            # repair canary, S2) is NON-clean: it counts toward open_rate (it
+            # loaded) but is excluded from the opens_clean headline and from the
+            # nested parsed/render tiers.
             bucket["retried_clean"] += 1
             reason = (
                 "opened only on retry (non-clean)" if retried
                 else "opened but auto-repaired (dirty on load; non-clean)"
             )
             bucket["failures"].append({"path": out_path, "reason": reason})
-            bucket["render_unverified"] += 1
-            continue
-
-        bucket["opens_clean"] += 1
-        if (text_length or 0) > 0:
-            bucket["parsed"] += 1
-            # render_checked ⊆ parsed ⊆ opens_clean: only a file that reached the
-            # parsed tier can carry a render verdict, so accumulate render there.
-            _accumulate_render(bucket, item)
         else:
-            # opened clean but empty (no text): cannot be render_checked.
-            bucket["render_unverified"] += 1
+            bucket["opens_clean"] += 1
+            # Redline-aware parsed: tracked-change strata carry no GetTextFile
+            # text (Hancom returns 0 — the FLOOR artifact), so their parsed tier
+            # is the InitScan/GetText probe; every other stratum keeps textLength.
+            if stratum in REDLINE_STRATA and redline_parsed_by_id:
+                parsed = bool(redline_parsed_by_id.get(item_id))
+            else:
+                parsed = (text_length or 0) > 0
+            if parsed:
+                bucket["parsed"] += 1
+
+        # Render tier: exactly one bucket per produced item. render_checked is
+        # gated on parsed (nesting render_checked ⊆ parsed ⊆ opens_clean); the
+        # redline exclusion is a document property, not an outcome.
+        bucket[
+            _classify_render(
+                item,
+                parsed=parsed,
+                render_by_id=render_by_id,
+                redline_content_ids=redline_content_ids,
+            )
+        ] += 1
 
     # Materialise effective_keys -> counts and drop the set (not JSON-serialisable).
     strata: list[dict[str, Any]] = []
@@ -300,16 +351,47 @@ def aggregate(
     return {"strata": strata, "totals": totals}
 
 
-def _accumulate_render(bucket: dict[str, Any], item: dict[str, Any]) -> None:
-    """Fold the optional per-file render verdict into the third (render_checked) tier."""
+def _classify_render(
+    item: dict[str, Any],
+    *,
+    parsed: bool,
+    render_by_id: dict[str, dict[str, Any]] | None,
+    redline_content_ids: frozenset[str],
+) -> str:
+    """Return the render-tier bucket key for one produced item (exactly one).
 
-    rv = item.get("render_verdict", None)
-    if rv is None:
-        bucket["render_unverified"] += 1
-    elif bool(rv):
-        bucket["render_checked"] += 1
-    else:
-        bucket["render_failed"] += 1
+    v1 (``render_by_id is None``): the per-item ``render_verdict`` rides on the
+    item and is meaningful only for a parsed doc — non-parsed => render_unverified,
+    else True => render_checked / False => render_failed / None => render_unverified.
+
+    v2 (``render_by_id`` supplied — the box render batch): a redline-class doc
+    (stratum in ``REDLINE_STRATA`` or id in ``redline_content_ids``) is
+    ``render_unavailable_redline`` (SaveAs PDF refused — a document property, never
+    a failure). Otherwise the receipt decides: ``saved && pdfBytes>0`` =>
+    render_checked *if parsed* (nesting; a blank doc that still emits a PDF is not a
+    content render, so it degrades to render_unverified), a row that did not save =>
+    render_failed, no row => render_unverified.
+    """
+
+    if render_by_id is None:
+        if not parsed:
+            return "render_unverified"
+        rv = item.get("render_verdict", None)
+        if rv is None:
+            return "render_unverified"
+        return "render_checked" if bool(rv) else "render_failed"
+
+    stratum = str(item.get("stratum") or item.get("bucket") or "?")
+    item_id = item.get("id")
+    if stratum in REDLINE_STRATA or (item_id is not None and item_id in redline_content_ids):
+        return "render_unavailable_redline"
+    row = render_by_id.get(item_id) if item_id is not None else None
+    if row is None:
+        return "render_unverified"
+    saved_ok = bool(row.get("saved")) and (row.get("pdfBytes", row.get("pdf_bytes")) or 0) > 0
+    if saved_ok:
+        return "render_checked" if parsed else "render_unverified"
+    return "render_failed"
 
 
 def _rate(num: int, den: int | None) -> float | None:
@@ -321,7 +403,8 @@ def _rate(num: int, den: int | None) -> float | None:
 def _sum_strata(strata: list[dict[str, Any]]) -> dict[str, Any]:
     keys = (
         "requested", "produced", "withheld", "opens_clean", "parsed",
-        "render_checked", "render_unverified", "render_failed", "open_failed",
+        "render_checked", "render_unverified", "render_failed",
+        "render_unavailable_redline", "open_failed",
         "unverified", "retried_clean", "effective_n", "opened", "judged",
         "open_denominator",
     )
@@ -420,6 +503,20 @@ def evaluate_negatives(
     }
 
 
+def _provenance_tag(item: dict[str, Any], tags: dict[str, list[str]]) -> str | None:
+    """Return the first tag whose box_rel prefix matches this item, else None.
+
+    Tagging is by FILE IDENTITY (box_rel prefix), never by outcome — a probe that
+    happens to open cleanly is still an internal fixture (no survivorship bias).
+    """
+
+    box_rel = item.get("box_rel") or ""
+    for tag, prefixes in tags.items():
+        if any(box_rel.startswith(p) for p in prefixes):
+            return tag
+    return None
+
+
 def build_report(
     items: list[dict[str, Any]],
     verdicts_by_path: dict[str, dict[str, Any]],
@@ -429,6 +526,11 @@ def build_report(
     requested_total: int | None = None,
     strata_requested: dict[str, int] | None = None,
     tool_versions: dict[str, Any] | None = None,
+    render_by_id: dict[str, dict[str, Any]] | None = None,
+    redline_parsed_by_id: dict[str, bool] | None = None,
+    redline_content_ids: frozenset[str] | None = None,
+    parsed_source_by_stratum: dict[str, str] | None = None,
+    provenance_tags: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     """Assemble the full ``report.json`` dict (pure; no I/O, no clock)."""
 
@@ -437,6 +539,9 @@ def build_report(
         verdicts_by_path,
         requested_total=requested_total,
         strata_requested=strata_requested,
+        render_by_id=render_by_id,
+        redline_parsed_by_id=redline_parsed_by_id,
+        redline_content_ids=redline_content_ids,
     )
     neg = evaluate_negatives(negatives or [], negative_verdicts_by_path or {})
 
@@ -444,6 +549,37 @@ def build_report(
     for bucket in agg["strata"]:
         for f in bucket["failures"]:
             failures.append({"bucket": bucket["bucket"], **f})
+
+    # Provenance rollup (specs/010 P3): the FULL-corpus numbers above are published
+    # unchanged; alongside them we publish a "product" rollup (records NOT tagged as
+    # internal fixtures) and each tag's own rollup, using the identical denominator
+    # discipline (same aggregate over the subset). Neither replaces the other.
+    provenance: dict[str, Any] | None = None
+    if provenance_tags:
+        def _rollup(subset: list[dict[str, Any]]) -> dict[str, Any]:
+            return aggregate(
+                subset,
+                verdicts_by_path,
+                render_by_id=render_by_id,
+                redline_parsed_by_id=redline_parsed_by_id,
+                redline_content_ids=redline_content_ids,
+            )["totals"]
+
+        tagged: dict[str, list[dict[str, Any]]] = {t: [] for t in provenance_tags}
+        product_items: list[dict[str, Any]] = []
+        for item in items:
+            tag = _provenance_tag(item, provenance_tags)
+            (tagged[tag] if tag is not None else product_items).append(item)
+        provenance = {
+            "definition": provenance_tags,
+            "note": "Headline = the 'product' rollup (records NOT matching any "
+            "internal-fixture box_rel prefix). The FULL-corpus totals are published "
+            "unchanged alongside; tagging is by file identity, not outcome.",
+            "product": _rollup(product_items),
+            "product_count": len(product_items),
+            "tags": {t: _rollup(sub) for t, sub in tagged.items()},
+            "tag_counts": {t: len(sub) for t, sub in tagged.items()},
+        }
 
     report = {
         "schemaVersion": 1,
@@ -461,14 +597,23 @@ def build_report(
             "emit_rate = produced/requested; emit_x_open = emit_rate * open_rate; withheld "
             "counts as end-to-end failure",
             "intervalRule": "rule of three: k=0 -> >= 1 - 3/N (95% CI); 100% is never printed",
-            "renderCheckedNote": "render_checked is unverified unless a per-file render verdict "
-            "is supplied (seed sample only); never fabricated by this aggregator",
+            "renderCheckedNote": "render_checked = parsed AND box SaveAs('PDF') saved with "
+            "pdfBytes>0 (nesting render_checked ⊆ parsed ⊆ opens_clean). A doc that opens "
+            "blank (textLength=0) but still emits a PDF is render_unverified, not render_checked. "
+            "render_unavailable_redline = tracked-change docs whose PDF export Hancom refuses "
+            "(document property, never render_failed). render_failed = a render row that did not "
+            "save; render_unverified = no render row / off-box.",
+            "parsedSourceByStratum": parsed_source_by_stratum or {},
+            "parsedSourceNote": "Non-redline strata: parsed = GetTextFile('TEXT') textLength>0. "
+            "REDLINE_STRATA (redline, redline-wide): parsed = InitScan/GetText byref mask-0 "
+            "textLength>0 (GetTextFile returns 0 for tracked-change docs — the FLOOR artifact).",
         },
         "harness_valid": neg["harness_valid"],
         "errors": neg["errors"],
         "warnings": neg["warnings"],
         "strata": agg["strata"],
         "totals": agg["totals"],
+        "provenance": provenance,
         "failures": failures,
         "negatives": {
             "table": neg["negatives"],
@@ -499,19 +644,46 @@ def _verdicts_by_path(verdicts: Iterable[dict[str, Any]]) -> dict[str, dict[str,
     return out
 
 
-def jsonl_open_checker(jsonl_path: str) -> OpenChecker:
+def _box_rel_suffix(src: str) -> str | None:
+    """The path suffix after the box-mirror root (``m9-full/``), lower-cased.
+
+    ``C:\\openrate\\m9-full\\shipped\\demo\\x\\document.hwpx`` -> ``shipped/demo/x/
+    document.hwpx``. Returns ``None`` when the marker is absent (so basename-join
+    verdicts and _meta lines don't collide into a spurious key).
+    """
+
+    norm = str(src).replace("\\", "/").lower()
+    idx = norm.find(_BOX_ROOT_MARKER)
+    if idx < 0:
+        return None
+    return norm[idx + len(_BOX_ROOT_MARKER):]
+
+
+def jsonl_open_checker(
+    jsonl_path: str,
+    path_to_boxrel: dict[str, str] | None = None,
+) -> OpenChecker:
     """Open-checker backed by a PS1-produced JSONL (a Windows box run).
 
     The box writes one record per file ``{sourcePath, opened, textLength, error,
-    retried}``. Absolute paths differ across the Mac<->Windows ship, so verdicts
-    are joined to corpus/negative files by BASENAME (the P2 generator gives every
-    output a unique id-based filename, so basenames are unique). Non-file records
-    (e.g. the ``{"_meta":"repair-mode-probe"}`` line) have no basename and are
-    skipped. A produced file with no matching record degrades to ``unverified``
-    (never silently opened/failed).
+    retried}``. Two join strategies, tried in order per queried path:
+
+    * v2 combined corpus (``path_to_boxrel`` given): the shipped stratum has many
+      duplicate basenames (``document.hwpx`` etc.), so a basename join is unsafe.
+      Each local ``output_path`` maps to its ``box_rel``; verdicts are keyed by the
+      normalised path suffix after ``m9-full/`` (== box_rel, case-folded) so every
+      file resolves its EXACT verdict. Falls back to the basename join below when a
+      queried path has no box_rel (e.g. negatives, which live outside the manifest).
+    * v1 (``path_to_boxrel`` absent, or path not in it): the P2 generator gives every
+      output a unique id-based filename, so a BASENAME join is unambiguous.
+
+    Non-file records (e.g. ``{"_meta":...}``) have no key and are skipped. A file
+    with no matching record degrades to ``unverified`` (never silently opened/failed).
     """
 
+    path_to_boxrel = path_to_boxrel or {}
     by_base: dict[str, dict[str, Any]] = {}
+    by_suffix: dict[str, dict[str, Any]] = {}
     # utf-8-sig: Windows PowerShell 5.1 `Add-Content -Encoding UTF8` prepends a BOM
     # to the first line. Without stripping it, json.loads on line 1 raises and the
     # record is silently dropped — which, absent a leading _meta probe line, would
@@ -532,11 +704,20 @@ def jsonl_open_checker(jsonl_path: str) -> OpenChecker:
             base = os.path.basename(str(src).replace("\\", "/"))
             if base:
                 by_base[base] = rec
+            suffix = _box_rel_suffix(src)
+            if suffix is not None:
+                by_suffix[suffix] = rec
+
+    def _resolve(p: str) -> dict[str, Any] | None:
+        box_rel = path_to_boxrel.get(p)
+        if box_rel:
+            return by_suffix.get(box_rel.lower())
+        return by_base.get(os.path.basename(str(p).replace("\\", "/")))
 
     def checker(paths: list[str]) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
         for p in paths:
-            rec = by_base.get(os.path.basename(str(p).replace("\\", "/")))
+            rec = _resolve(p)
             if rec is None:
                 out.append(_v(p, opened=None, error="no verdict in JSONL for this file"))
                 continue
@@ -557,6 +738,64 @@ def jsonl_open_checker(jsonl_path: str) -> OpenChecker:
         return out
 
     return checker
+
+
+def render_receipts_from_jsonl(jsonl_path: str) -> dict[str, dict[str, Any]]:
+    """Load box render receipts keyed by ``sourceId`` (== manifest id, unique).
+
+    Rows are ``{sourceId, stratum, opened, saved, pdfBytes, ...}``; the leading
+    ``{_meta:...}`` batch header (no sourceId) is skipped.
+    """
+
+    out: dict[str, dict[str, Any]] = {}
+    with open(jsonl_path, encoding="utf-8-sig") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            sid = rec.get("sourceId")
+            if sid:
+                out[str(sid)] = rec
+    return out
+
+
+def redline_parsed_from_jsonl(jsonl_path: str) -> dict[str, bool]:
+    """Load the redline InitScan/GetText parsed verdict keyed by manifest ``id``.
+
+    The redline probe file keys on ``sourceId`` = ``<id>.hwpx``; the frozen parsed
+    definition is the InitScan/GetText **byref, mask-0** probe with textLength>0
+    (GetTextFile returns 0 for tracked-change docs — the FLOOR artifact).
+    """
+
+    out: dict[str, bool] = {}
+    with open(jsonl_path, encoding="utf-8-sig") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            sid = rec.get("sourceId")
+            if not sid:
+                continue
+            key = sid[:-5] if str(sid).endswith(".hwpx") else str(sid)
+            parsed = False
+            for probe in rec.get("probes", []):
+                if (
+                    probe.get("method") == "InitScan/GetText"
+                    and probe.get("callShape") == "byref"
+                    and probe.get("option") == 0
+                ):
+                    parsed = bool(probe.get("ok")) and (probe.get("textLength") or 0) > 0
+                    break
+            out[key] = parsed
+    return out
 
 
 def real_open_checker(powershell: str | None = None, timeout: float = 300.0) -> OpenChecker:
@@ -590,6 +829,11 @@ def run(
     requested_total: int | None = None,
     strata_requested: dict[str, int] | None = None,
     tool_versions: dict[str, Any] | None = None,
+    render_by_id: dict[str, dict[str, Any]] | None = None,
+    redline_parsed_by_id: dict[str, bool] | None = None,
+    redline_content_ids: frozenset[str] | None = None,
+    parsed_source_by_stratum: dict[str, str] | None = None,
+    provenance_tags: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     """Drive the open check over produced items + negatives and build the report."""
 
@@ -612,6 +856,11 @@ def run(
         requested_total=requested_total,
         strata_requested=strata_requested,
         tool_versions=tool_versions or _collect_tool_versions(),
+        render_by_id=render_by_id,
+        redline_parsed_by_id=redline_parsed_by_id,
+        redline_content_ids=redline_content_ids,
+        parsed_source_by_stratum=parsed_source_by_stratum,
+        provenance_tags=provenance_tags,
     )
 
 
@@ -726,6 +975,15 @@ def _strata_requested(manifest: dict[str, Any]) -> dict[str, int]:
                 out[str(bucket)] = int(info.get("requested", 0))
             else:
                 out[str(bucket)] = int(info or 0)
+    if not out:
+        # Combined-manifest schema: counts_per_stratum maps "<corpus>:<stratum>" ->
+        # {requested, produced}. Records group by bucket == stratum, so strip the
+        # corpus prefix to recover the per-bucket requested count.
+        cps = manifest.get("counts_per_stratum") or {}
+        for key, info in cps.items():
+            stratum = str(key).split(":", 1)[-1]
+            requested = int(info.get("requested", 0)) if isinstance(info, dict) else int(info or 0)
+            out[stratum] = out.get(stratum, 0) + requested
     return out
 
 
@@ -764,6 +1022,24 @@ def main(argv: list[str] | None = None) -> int:
         help="ingest per-file open verdicts from a PS1-produced JSONL (the box run), "
         "matched by basename — use this when hancom_open_rate.ps1 ran on the Windows "
         "box and only the JSONL was copied back (no live oracle / no Python on the box)",
+    )
+    parser.add_argument(
+        "--render-verdicts-jsonl",
+        default=None,
+        help="box render receipts JSONL (joined by sourceId == manifest id). Enables the "
+        "receipt-driven render tier + render_unavailable_redline for tracked-change docs",
+    )
+    parser.add_argument(
+        "--redline-verdicts-jsonl",
+        default=None,
+        help="box InitScan/GetText probe JSONL for the redline strata (parsed override — "
+        "GetTextFile returns 0 for tracked-change docs, the FLOOR artifact)",
+    )
+    parser.add_argument(
+        "--provenance-tags",
+        default=None,
+        help='JSON file mapping tag -> [box_rel prefixes]; the report gains a provenance '
+        'rollup (per-tag totals + a "product" rollup of untagged records)',
     )
     parser.add_argument(
         "--out",
@@ -808,7 +1084,16 @@ def main(argv: list[str] | None = None) -> int:
         if args.verdicts_jsonl:
             if not os.path.exists(args.verdicts_jsonl):
                 parser.error(f"verdicts JSONL not found: {args.verdicts_jsonl}")
-            checker = jsonl_open_checker(args.verdicts_jsonl)
+            # Combined-corpus join: each local output_path -> its box_rel so the
+            # verdict lookup keys on the exact box-mirror suffix (duplicate shipped
+            # basenames each resolve to their own verdict). v1 manifests carry no
+            # box_rel -> this map is empty -> basename join, unchanged.
+            path_to_boxrel = {
+                str(r["output_path"]): str(r["box_rel"])
+                for r in _items_from_manifest(manifest)
+                if r.get("output_path") and r.get("box_rel")
+            }
+            checker = jsonl_open_checker(args.verdicts_jsonl, path_to_boxrel=path_to_boxrel)
         else:
             checker = real_open_checker(powershell=args.powershell, timeout=args.timeout)
         tool_versions = None
@@ -841,6 +1126,35 @@ def main(argv: list[str] | None = None) -> int:
             "or --negatives (or use --fake-backend for a smoke run)"
         )
 
+    # v2 render / redline / provenance supply. Each is fail-CLOSED: set-but-missing
+    # is an error (a wrong path must not silently drop a whole axis).
+    render_by_id: dict[str, dict[str, Any]] | None = None
+    if args.render_verdicts_jsonl:
+        if not os.path.exists(args.render_verdicts_jsonl):
+            parser.error(f"render verdicts JSONL not found: {args.render_verdicts_jsonl}")
+        render_by_id = render_receipts_from_jsonl(args.render_verdicts_jsonl)
+    redline_parsed_by_id: dict[str, bool] | None = None
+    if args.redline_verdicts_jsonl:
+        if not os.path.exists(args.redline_verdicts_jsonl):
+            parser.error(f"redline verdicts JSONL not found: {args.redline_verdicts_jsonl}")
+        redline_parsed_by_id = redline_parsed_from_jsonl(args.redline_verdicts_jsonl)
+    provenance_tags: dict[str, list[str]] | None = None
+    if args.provenance_tags:
+        if not os.path.exists(args.provenance_tags):
+            parser.error(f"provenance tags file not found: {args.provenance_tags}")
+        provenance_tags = load_manifest(args.provenance_tags)
+
+    # Per-stratum parsed provenance (which probe fed the parsed tier), for the report.
+    strata_seen = {str(r.get("stratum") or r.get("bucket") or "?") for r in _items_from_manifest(manifest)}
+    parsed_source_by_stratum = {
+        s: (
+            "InitScan/GetText (byref, mask 0), textLength>0"
+            if s in REDLINE_STRATA and redline_parsed_by_id
+            else "GetTextFile('TEXT'), textLength>0"
+        )
+        for s in sorted(strata_seen)
+    }
+
     report = run(
         _items_from_manifest(manifest),
         open_checker=checker,
@@ -848,6 +1162,11 @@ def main(argv: list[str] | None = None) -> int:
         requested_total=_requested_total(manifest),
         strata_requested=_strata_requested(manifest),
         tool_versions=tool_versions,
+        render_by_id=render_by_id,
+        redline_parsed_by_id=redline_parsed_by_id,
+        redline_content_ids=_M9_REDLINE_CONTENT_IDS,
+        parsed_source_by_stratum=parsed_source_by_stratum,
+        provenance_tags=provenance_tags,
     )
 
     out_path = Path(args.out)
@@ -873,11 +1192,23 @@ def main(argv: list[str] | None = None) -> int:
             "an intentional off-box dry run.\n"
         )
         return 3
-    print(
-        f"wrote {out_path} (harness_valid={report['harness_valid']}, judged={judged}, "
-        f"parsed_rate={report['totals'].get('parsed_rate')} [HEADLINE], "
-        f"open_rate={report['totals'].get('open_rate')})"
-    )
+    prov = report.get("provenance")
+    if prov:
+        p = prov["product"]
+        print(
+            f"wrote {out_path} (harness_valid={report['harness_valid']}, judged={judged})\n"
+            f"  PRODUCT [HEADLINE]: n={prov['product_count']} opened={p['opened']}/{p['judged']} "
+            f"parsed={p['parsed']}/{p['judged']} (rate={p.get('parsed_rate')}) "
+            f"render_checked={p['render_checked']} render_unavailable_redline={p['render_unavailable_redline']}\n"
+            f"  FULL: opened={report['totals']['opened']}/{report['totals']['judged']} "
+            f"parsed_rate={report['totals'].get('parsed_rate')}"
+        )
+    else:
+        print(
+            f"wrote {out_path} (harness_valid={report['harness_valid']}, judged={judged}, "
+            f"parsed_rate={report['totals'].get('parsed_rate')} [HEADLINE], "
+            f"open_rate={report['totals'].get('open_rate')})"
+        )
     return 0
 
 
