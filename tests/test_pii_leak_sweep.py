@@ -244,7 +244,10 @@ def test_resolve_output_path_reroots_foreign_absolute_paths(tmp_path: Path) -> N
     target.parent.mkdir(parents=True)
     target.write_bytes(b"stub")
 
-    foreign = "/home/elsewhere/work/openrate-corpus-v2/pii-merge/merged/pii-01.hwpx"
+    # A foreign ABSOLUTE prefix that must reroot onto corpus_root. Deliberately
+    # NOT workstation-shaped (/home/..., /Users/...) — the public-hygiene gate
+    # rejects those byte patterns anywhere in the tracked tree.
+    foreign = "/srv/elsewhere/work/openrate-corpus-v2/pii-merge/merged/pii-01.hwpx"
     assert sweep_mod.resolve_output_path(foreign, corpus_root) == target
     # relative form also resolves; unresolvable returns None
     assert (

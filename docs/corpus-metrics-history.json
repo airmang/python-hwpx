@@ -16,7 +16,7 @@
     },
     {
       "measuredAt": "2026-07-19",
-      "stack": "python-hwpx 3.4.0 candidate (corpus v2)",
+      "stack": "python-hwpx 3.4.1 candidate (corpus v2)",
       "corpus": {"version": "v2 (additive over frozen v1)", "producedN": 497, "negativeControls": 9, "internalFixtureTagged": 21},
       "oracle": "real Hancom COM 12.0.0.3288 (Windows box, unattended) + Mac Hancom GUI sample",
       "open": {"pass": 476, "n": 476, "rate": 1.0, "lowerBound": 0.9937, "denominator": "product-provenance"},
