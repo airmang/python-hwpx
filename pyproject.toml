@@ -109,6 +109,14 @@ python_version = "3.10"
 follow_imports = "skip"
 files = [
     "src/hwpx/document.py",
+    "src/hwpx/_document/_units.py",
+    "src/hwpx/_document/fields.py",
+    "src/hwpx/_document/layout.py",
+    "src/hwpx/_document/media.py",
+    "src/hwpx/_document/memos.py",
+    "src/hwpx/_document/persistence.py",
+    "src/hwpx/_document/shapes.py",
+    "src/hwpx/_document/tracked.py",
     "src/hwpx/agent/commands.py",
     "src/hwpx/agent/document.py",
     "src/hwpx/agent/story.py",
@@ -148,6 +156,14 @@ ignore_missing_imports = true
 # both central facades and every extracted/touched runtime owner to the gate.
 include = [
     "src/hwpx/document.py",
+    "src/hwpx/_document/_units.py",
+    "src/hwpx/_document/fields.py",
+    "src/hwpx/_document/layout.py",
+    "src/hwpx/_document/media.py",
+    "src/hwpx/_document/memos.py",
+    "src/hwpx/_document/persistence.py",
+    "src/hwpx/_document/shapes.py",
+    "src/hwpx/_document/tracked.py",
     "src/hwpx/agent/commands.py",
     "src/hwpx/agent/document.py",
     "src/hwpx/agent/story.py",
