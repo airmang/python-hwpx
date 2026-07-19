@@ -364,6 +364,111 @@ def _detect_heading(text: str) -> str | None:
 # ──────────────────────────────────────────────────────────────────
 # Public API
 # ──────────────────────────────────────────────────────────────────
+def _export_resolve_doc(source: Union[HwpxDocument, str, Path, bytes]) -> HwpxDocument:
+    if isinstance(source, HwpxDocument):
+        return source
+    if isinstance(source, (bytes, bytearray)):
+        import io
+        return HwpxDocument.open(io.BytesIO(source))
+    return HwpxDocument.open(str(source))
+
+
+def _export_dedupe_md(md: str, p) -> str:
+    # 중복 가드 1: paragraph text가 표 셀 안에 동일하게 들어있으면 표가 정식
+    if md and p.tables:
+        plain = (p.text or "").strip()
+        all_cell_text = "".join(
+            (cell.text or "")
+            for tbl in p.tables
+            for row in tbl.rows
+            for cell in row.cells
+        )
+        if plain and plain in all_cell_text:
+            md = ""
+
+    # 중복 가드 2: 도형 보유 시 paragraph text는 도형 텍스트의 흘러나옴
+    if md and any(_has_descendant(p.element, tag) for tag in SHAPE_TAGS):
+        md = ""
+    return md
+
+
+def _export_shape_lines(p, doc, notes) -> list[str]:
+    # 도형 내부 paragraph 추출 (표 안 도형은 cell_to_md에서 처리됨)
+    shape_lines: list[str] = []
+    seen_p = set()
+    for sub in p.tables:
+        for nested_p in _descendants(sub.element, "p"):
+            seen_p.add(id(nested_p))
+    for tag in SHAPE_TAGS:
+        for shape in _descendants(p.element, tag):
+            for sub_p in _descendants(shape, "p"):
+                pid = id(sub_p)
+                if pid in seen_p:
+                    continue
+                seen_p.add(pid)
+                sub_md = _p_element_to_md(sub_p, doc, notes).strip()
+                if sub_md:
+                    shape_lines.append(sub_md)
+    return shape_lines
+
+
+def _export_paragraph_lines(p, doc, mapping, notes, detect_headings: bool) -> list[str]:
+    md = _p_element_to_md(p.element, doc, notes).strip()
+    imgs = _paragraph_images(p.element, mapping)
+    tables = [_table_to_md(t, doc, mapping, 0, notes) for t in p.tables]
+
+    md = _export_dedupe_md(md, p)
+    shape_lines = _export_shape_lines(p, doc, notes)
+
+    # 헤딩 감지 (1x1 표 셀에 있는 경우 포함)
+    promoted = None
+    if detect_headings:
+        if md:
+            promoted = _detect_heading(md)
+        elif p.tables and len(p.tables) == 1:
+            t = p.tables[0]
+            if t.row_count == 1 and t.column_count == 1:
+                cell_text = _cell_to_md(
+                    t.rows[0].cells[0], doc, mapping, 0, notes
+                )
+                promoted = _detect_heading(cell_text)
+                if promoted:
+                    return [promoted]
+
+    out: list[str] = []
+    if promoted:
+        out.append(promoted)
+    elif md:
+        out.append(md)
+    out.extend(shape_lines)
+    out.extend(imgs)
+    out.extend(tables)
+    return out
+
+
+def _export_notes_appendix(body: str, notes, notes_section_separator: str) -> str:
+    # 각주/미주 instId → fn1/en1 일련번호 매핑 + 정의 부록
+    seq_map: dict[str, dict[str, int]] = {"fn": {}, "en": {}}
+    for kind, inst_id, _ in notes:
+        if inst_id not in seq_map[kind]:
+            seq_map[kind][inst_id] = len(seq_map[kind]) + 1
+
+    for kind, m in seq_map.items():
+        for inst_id, seq in m.items():
+            body = body.replace(f"[^{kind}{inst_id}]", f"[^{kind}{seq}]")
+
+    body += notes_section_separator
+    seen = set()
+    for kind, inst_id, text in notes:
+        key = (kind, inst_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        seq = seq_map[kind][inst_id]
+        body += f"\n[^{kind}{seq}]: {text}\n"
+    return body
+
+
 def export_markdown(
     source: Union[HwpxDocument, str, Path, bytes],
     *,
@@ -387,102 +492,18 @@ def export_markdown(
     notes_section_separator : str
         각주/미주 정의 부록 앞에 삽입할 separator.
     """
-    if isinstance(source, HwpxDocument):
-        doc = source
-    elif isinstance(source, (bytes, bytearray)):
-        import io
-        doc = HwpxDocument.open(io.BytesIO(source))
-    else:
-        doc = HwpxDocument.open(str(source))
-
+    doc = _export_resolve_doc(source)
     mapping = _build_image_map(doc, Path(image_dir) if image_dir else None, image_ref_prefix)
     notes: list[tuple] = []
     lines: list[str] = []
 
     for section in doc.sections:
         for p in section.paragraphs:
-            md = _p_element_to_md(p.element, doc, notes).strip()
-            imgs = _paragraph_images(p.element, mapping)
-            tables = [_table_to_md(t, doc, mapping, 0, notes) for t in p.tables]
-
-            # 중복 가드 1: paragraph text가 표 셀 안에 동일하게 들어있으면 표가 정식
-            if md and p.tables:
-                plain = (p.text or "").strip()
-                all_cell_text = "".join(
-                    (cell.text or "")
-                    for tbl in p.tables
-                    for row in tbl.rows
-                    for cell in row.cells
-                )
-                if plain and plain in all_cell_text:
-                    md = ""
-
-            # 중복 가드 2: 도형 보유 시 paragraph text는 도형 텍스트의 흘러나옴
-            if md and any(_has_descendant(p.element, tag) for tag in SHAPE_TAGS):
-                md = ""
-
-            # 도형 내부 paragraph 추출 (표 안 도형은 cell_to_md에서 처리됨)
-            shape_lines: list[str] = []
-            seen_p = set()
-            for sub in p.tables:
-                for nested_p in _descendants(sub.element, "p"):
-                    seen_p.add(id(nested_p))
-            for tag in SHAPE_TAGS:
-                for shape in _descendants(p.element, tag):
-                    for sub_p in _descendants(shape, "p"):
-                        pid = id(sub_p)
-                        if pid in seen_p:
-                            continue
-                        seen_p.add(pid)
-                        sub_md = _p_element_to_md(sub_p, doc, notes).strip()
-                        if sub_md:
-                            shape_lines.append(sub_md)
-
-            # 헤딩 감지 (1x1 표 셀에 있는 경우 포함)
-            promoted = None
-            if detect_headings:
-                if md:
-                    promoted = _detect_heading(md)
-                elif p.tables and len(p.tables) == 1:
-                    t = p.tables[0]
-                    if t.row_count == 1 and t.column_count == 1:
-                        cell_text = _cell_to_md(
-                            t.rows[0].cells[0], doc, mapping, 0, notes
-                        )
-                        promoted = _detect_heading(cell_text)
-                        if promoted:
-                            lines.append(promoted)
-                            continue
-
-            if promoted:
-                lines.append(promoted)
-            elif md:
-                lines.append(md)
-            lines.extend(shape_lines)
-            lines.extend(imgs)
-            lines.extend(tables)
+            lines.extend(_export_paragraph_lines(p, doc, mapping, notes, detect_headings))
 
     body = "\n\n".join(lines)
 
-    # 각주/미주 instId → fn1/en1 일련번호 매핑 + 정의 부록
     if notes:
-        seq_map: dict[str, dict[str, int]] = {"fn": {}, "en": {}}
-        for kind, inst_id, _ in notes:
-            if inst_id not in seq_map[kind]:
-                seq_map[kind][inst_id] = len(seq_map[kind]) + 1
-
-        for kind, m in seq_map.items():
-            for inst_id, seq in m.items():
-                body = body.replace(f"[^{kind}{inst_id}]", f"[^{kind}{seq}]")
-
-        body += notes_section_separator
-        seen = set()
-        for kind, inst_id, text in notes:
-            key = (kind, inst_id)
-            if key in seen:
-                continue
-            seen.add(key)
-            seq = seq_map[kind][inst_id]
-            body += f"\n[^{kind}{seq}]: {text}\n"
+        body = _export_notes_appendix(body, notes, notes_section_separator)
 
     return body
