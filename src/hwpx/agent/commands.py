@@ -646,6 +646,119 @@ def _apply_header_story_set(
     }
 
 
+def _apply_set_paragraph(document: HwpxDocument, native: Any, properties: Mapping[str, Any]) -> None:
+    if "text" in properties:
+        native.text = properties["text"]
+    if "style" in properties:
+        native.style_id_ref = _style_id(document, properties["style"])
+    format_kwargs: dict[str, Any] = {}
+    if "alignment" in properties:
+        format_kwargs["alignment"] = properties["alignment"]
+    if "lineSpacingPercent" in properties:
+        format_kwargs["line_spacing_percent"] = properties["lineSpacingPercent"]
+    if "keepWithNext" in properties:
+        format_kwargs["keep_with_next"] = properties["keepWithNext"]
+    if "breakBefore" in properties:
+        format_kwargs["page_break_before"] = properties["breakBefore"]
+    if format_kwargs:
+        document.set_paragraph_format(
+            paragraph_index=_global_paragraph_index(document, native), **format_kwargs
+        )
+
+
+def _apply_set_run(document: HwpxDocument, native: Any, properties: Mapping[str, Any]) -> None:
+    if "text" in properties:
+        native.text = properties["text"]
+    style = native.style
+    child_attrs = style.child_attributes if style is not None else {}
+    flags = {
+        "bold": "bold" in child_attrs,
+        "italic": "italic" in child_attrs,
+        "underline": child_attrs.get("underline", {}).get("type", "NONE").upper() != "NONE",
+    }
+    for name in flags:
+        if name in properties:
+            flags[name] = properties[name]
+    if set(properties) - {"text"}:
+        requested_font = properties.get("fontName")
+        if requested_font is not None and not any(
+            header.font_ref_for_face(requested_font) is not None
+            for header in document._root.headers  # type: ignore[attr-defined]
+        ):
+            raise AgentContractError(
+                "not_found", f"font is not declared by the document: {requested_font!r}", target="run.fontName"
+            )
+        style_id = document.ensure_run_style(
+            **flags,
+            color=properties.get("color"),
+            font=requested_font,
+            size=properties.get("fontSizePt"),
+            base_char_pr_id=native.char_pr_id_ref,
+        )
+        native.char_pr_id_ref = style_id
+
+
+def _apply_set_table(native: Any, properties: Mapping[str, Any], record: NodeRecord) -> None:
+    if "caption" in properties:
+        _table_caption(native, properties["caption"])
+    if "alignment" in properties:
+        pos = next((child for child in native.element if _local_name(child) == "pos"), None)
+        if pos is None:
+            raise AgentContractError("unsupported_content", "table has no position element", target=record.path)
+        pos.set("horzAlign", properties["alignment"].upper())
+        native.mark_dirty()
+
+
+def _apply_set_row(native: Any, properties: Mapping[str, Any]) -> None:
+    height = round(_require_number(properties["heightMm"], "row.heightMm", positive=True) * _HWP_UNITS_PER_MM)
+    for cell in native.cells:
+        cell.set_size(height=height)
+
+
+def _apply_set_cell(native: Any, properties: Mapping[str, Any], record: NodeRecord) -> None:
+    if "text" in properties:
+        native.text = properties["text"]
+    if "verticalAlignment" in properties:
+        sublist = next((child for child in native.element if _local_name(child) == "subList"), None)
+        if sublist is None:
+            raise AgentContractError("unsupported_content", "cell has no subList", target=record.path)
+        sublist.set("vertAlign", properties["verticalAlignment"].upper())
+        native.table.mark_dirty()
+    if "backgroundColor" in properties:
+        row, column = native.address
+        native.table.set_cell_shading(row, column, properties["backgroundColor"])
+
+
+def _apply_set_form_field(document: HwpxDocument, native: Any, properties: Mapping[str, Any], record: NodeRecord) -> None:
+    if "value" in properties:
+        document.fill_form_field(properties["value"], field_index=int(native["index"]))
+    if "readOnly" in properties:
+        runs = native.get("_runs") or []
+        try:
+            ctrl = list(runs[int(native["run_index"])])[int(native["child_index"])]
+            begin = next(child for child in ctrl if _local_name(child) == "fieldBegin")
+        except (IndexError, KeyError, StopIteration, TypeError) as exc:
+            raise AgentContractError(
+                "unsupported_content", "form-field control is incomplete", target=record.path
+            ) from exc
+        begin.set("editable", "false" if properties["readOnly"] else "true")
+        paragraph = native["_paragraph"]
+        paragraph.section.mark_dirty()
+
+
+def _apply_set_picture_shape(document: HwpxDocument, native: Any, kind: str, properties: Mapping[str, Any]) -> None:
+    target_element = _element(native)
+    _set_shape_comment(target_element, properties["altText"])
+    if kind == "shape":
+        native.paragraph.section.mark_dirty()
+    else:
+        _mark_containing_section(document, target_element)
+
+
+def _set_result_summary(record: NodeRecord, properties: Mapping[str, Any]) -> dict[str, Any]:
+    return {name: {"before": record.summary.get(name), "after": value} for name, value in properties.items()}
+
+
 def _apply_set(document: HwpxDocument, record: NodeRecord, properties: Mapping[str, Any]) -> dict[str, Any]:
     _ensure_operation(record, "set")
     _validate_property_values(record.kind, properties, creating=False)
@@ -653,107 +766,26 @@ def _apply_set(document: HwpxDocument, record: NodeRecord, properties: Mapping[s
     kind = record.kind
 
     if kind == "paragraph":
-        if "text" in properties:
-            native.text = properties["text"]
-        if "style" in properties:
-            native.style_id_ref = _style_id(document, properties["style"])
-        format_kwargs: dict[str, Any] = {}
-        if "alignment" in properties:
-            format_kwargs["alignment"] = properties["alignment"]
-        if "lineSpacingPercent" in properties:
-            format_kwargs["line_spacing_percent"] = properties["lineSpacingPercent"]
-        if "keepWithNext" in properties:
-            format_kwargs["keep_with_next"] = properties["keepWithNext"]
-        if "breakBefore" in properties:
-            format_kwargs["page_break_before"] = properties["breakBefore"]
-        if format_kwargs:
-            document.set_paragraph_format(
-                paragraph_index=_global_paragraph_index(document, native), **format_kwargs
-            )
+        _apply_set_paragraph(document, native, properties)
     elif kind == "run":
-        if "text" in properties:
-            native.text = properties["text"]
-        style = native.style
-        child_attrs = style.child_attributes if style is not None else {}
-        flags = {
-            "bold": "bold" in child_attrs,
-            "italic": "italic" in child_attrs,
-            "underline": child_attrs.get("underline", {}).get("type", "NONE").upper() != "NONE",
-        }
-        for name in flags:
-            if name in properties:
-                flags[name] = properties[name]
-        if set(properties) - {"text"}:
-            requested_font = properties.get("fontName")
-            if requested_font is not None and not any(
-                header.font_ref_for_face(requested_font) is not None
-                for header in document._root.headers  # type: ignore[attr-defined]
-            ):
-                raise AgentContractError(
-                    "not_found", f"font is not declared by the document: {requested_font!r}", target="run.fontName"
-                )
-            style_id = document.ensure_run_style(
-                **flags,
-                color=properties.get("color"),
-                font=requested_font,
-                size=properties.get("fontSizePt"),
-                base_char_pr_id=native.char_pr_id_ref,
-            )
-            native.char_pr_id_ref = style_id
+        _apply_set_run(document, native, properties)
     elif kind == "table":
-        if "caption" in properties:
-            _table_caption(native, properties["caption"])
-        if "alignment" in properties:
-            pos = next((child for child in native.element if _local_name(child) == "pos"), None)
-            if pos is None:
-                raise AgentContractError("unsupported_content", "table has no position element", target=record.path)
-            pos.set("horzAlign", properties["alignment"].upper())
-            native.mark_dirty()
+        _apply_set_table(native, properties, record)
     elif kind == "row":
-        height = round(_require_number(properties["heightMm"], "row.heightMm", positive=True) * _HWP_UNITS_PER_MM)
-        for cell in native.cells:
-            cell.set_size(height=height)
+        _apply_set_row(native, properties)
     elif kind == "cell":
-        if "text" in properties:
-            native.text = properties["text"]
-        if "verticalAlignment" in properties:
-            sublist = next((child for child in native.element if _local_name(child) == "subList"), None)
-            if sublist is None:
-                raise AgentContractError("unsupported_content", "cell has no subList", target=record.path)
-            sublist.set("vertAlign", properties["verticalAlignment"].upper())
-            native.table.mark_dirty()
-        if "backgroundColor" in properties:
-            row, column = native.address
-            native.table.set_cell_shading(row, column, properties["backgroundColor"])
+        _apply_set_cell(native, properties, record)
     elif kind == "form-field":
-        if "value" in properties:
-            document.fill_form_field(properties["value"], field_index=int(native["index"]))
-        if "readOnly" in properties:
-            runs = native.get("_runs") or []
-            try:
-                ctrl = list(runs[int(native["run_index"])])[int(native["child_index"])]
-                begin = next(child for child in ctrl if _local_name(child) == "fieldBegin")
-            except (IndexError, KeyError, StopIteration, TypeError) as exc:
-                raise AgentContractError(
-                    "unsupported_content", "form-field control is incomplete", target=record.path
-                ) from exc
-            begin.set("editable", "false" if properties["readOnly"] else "true")
-            paragraph = native["_paragraph"]
-            paragraph.section.mark_dirty()
+        _apply_set_form_field(document, native, properties, record)
     elif kind in {"picture", "shape"}:
-        target_element = _element(native)
-        _set_shape_comment(target_element, properties["altText"])
-        if kind == "shape":
-            native.paragraph.section.mark_dirty()
-        else:
-            _mark_containing_section(document, target_element)
+        _apply_set_picture_shape(document, native, kind, properties)
     elif kind == "memo":
         native.text = properties["text"]
     elif kind in {"footnote", "endnote"}:
         native.text = properties["text"]
     else:
         raise AgentContractError("unsupported_operation", f"set is unsupported for {kind}", target=record.path)
-    return {name: {"before": record.summary.get(name), "after": value} for name, value in properties.items()}
+    return _set_result_summary(record, properties)
 
 
 def _apply_create_properties(

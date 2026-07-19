@@ -362,14 +362,15 @@ def _format_context(para: ScannedParagraph, chars: dict) -> str:
     return ""
 
 
-def scan_form_guidance(source: Union[str, Path, HwpxDocument]) -> GuidanceReport:
-    """양식을 정찰해 지울 것/수정할 것/placeholder/질문 후보 리포트를 만든다(비변형)."""
+def _scan_resolve_source(source: Union[str, Path, HwpxDocument]) -> tuple[HwpxDocument, str]:
     if isinstance(source, HwpxDocument):
-        doc, src_name = source, "<document>"
-    else:
-        doc, src_name = HwpxDocument.open(str(source)), str(source)
+        return source, "<document>"
+    return HwpxDocument.open(str(source)), str(source)
 
-    chars = doc._root.char_properties
+
+def _scan_collect_paragraphs(
+    doc: HwpxDocument, chars: dict
+) -> tuple[list[ScannedParagraph], int]:
     paragraphs: list[ScannedParagraph] = []
     tables_total = 0
     for s_idx, section in enumerate(doc.sections):
@@ -378,8 +379,10 @@ def scan_form_guidance(source: Union[str, Path, HwpxDocument]) -> GuidanceReport
             walker.walk_paragraph(p.element, s_idx, b_idx, None)
         paragraphs.extend(walker.out)
         tables_total += walker.table_counter + 1
+    return paragraphs, tables_total
 
-    # 색 인벤토리
+
+def _scan_color_inventory(paragraphs: list[ScannedParagraph]) -> tuple[dict[str, dict], int]:
     inventory: dict[str, dict] = {}
     colored_runs = 0
     for para in paragraphs:
@@ -395,8 +398,58 @@ def scan_form_guidance(source: Union[str, Path, HwpxDocument]) -> GuidanceReport
             flat = _preview(text, 40)
             if flat and len(entry["samples"]) < 5 and flat not in entry["samples"]:
                 entry["samples"].append(flat)
+    return inventory, colored_runs
 
-    legend = _parse_legend(paragraphs)
+
+def _scan_delete_candidate(
+    para: ScannedParagraph, text: str, families: set[str], delete_family: set[str]
+) -> Candidate | None:
+    signals: list[str] = []
+    if delete_family & families:
+        signals.append("legend:삭제색")
+    kw = _GUIDANCE_KEYWORD.search(text)
+    if kw:
+        signals.append(f"keyword:{kw.group(0)}")
+    if signals:
+        confidence = "high" if "legend:삭제색" in signals else "medium"
+        # 삭제색 신호는 색 run만 있어도 후보(문장 일부만 빨강인 경우 포함)
+        if "legend:삭제색" in signals or kw:
+            return Candidate(
+                location=para.location(), signals=signals, confidence=confidence,
+                text_preview=_preview(text), cell=para.cell,
+            )
+    return None
+
+
+def _scan_placeholder_candidates(para: ScannedParagraph, text: str) -> list[Candidate]:
+    out: list[Candidate] = []
+    for name, pat in _PLACEHOLDER_PATTERNS.items():
+        m = pat.search(text)
+        if m:
+            out.append(
+                Candidate(
+                    location=para.location(), signals=[f"placeholder:{name}"],
+                    confidence="high" if name in ("circle_blank", "square_blank") else "medium",
+                    text_preview=_preview(text), cell=para.cell,
+                )
+            )
+    return out
+
+
+def _scan_accumulate_modify(
+    modify_by_table: dict[str, dict], para: ScannedParagraph, text: str, chars: dict
+) -> None:
+    key = f"표{para.cell.table_index}" if para.cell else f"§{para.section_index} 본문"
+    agg = modify_by_table.setdefault(
+        key, {"paragraphs": 0, "sample": _preview(text, 60),
+              "format_context": _format_context(para, chars)}
+    )
+    agg["paragraphs"] += 1
+
+
+def _scan_candidates(
+    paragraphs: list[ScannedParagraph], legend: list[LegendBinding], chars: dict
+) -> tuple[list[Candidate], list[Candidate], list[Candidate], dict[str, dict]]:
     delete_family = {b.family for b in legend if b.action == "delete"}
     modify_family = {b.family for b in legend if b.action == "modify"}
 
@@ -410,82 +463,75 @@ def scan_form_guidance(source: Union[str, Path, HwpxDocument]) -> GuidanceReport
         if not text.strip():
             continue
         families = {_color_family(h) for h in para.colors()}
-        signals: list[str] = []
-        if delete_family & families:
-            signals.append("legend:삭제색")
-        kw = _GUIDANCE_KEYWORD.search(text)
-        if kw:
-            signals.append(f"keyword:{kw.group(0)}")
-        if signals:
-            confidence = "high" if "legend:삭제색" in signals else "medium"
-            # 삭제색 신호는 색 run만 있어도 후보(문장 일부만 빨강인 경우 포함)
-            if "legend:삭제색" in signals or kw:
-                delete_candidates.append(
-                    Candidate(
-                        location=para.location(), signals=signals, confidence=confidence,
-                        text_preview=_preview(text), cell=para.cell,
-                    )
-                )
-        for name, pat in _PLACEHOLDER_PATTERNS.items():
-            m = pat.search(text)
-            if m:
-                placeholder_candidates.append(
-                    Candidate(
-                        location=para.location(), signals=[f"placeholder:{name}"],
-                        confidence="high" if name in ("circle_blank", "square_blank") else "medium",
-                        text_preview=_preview(text), cell=para.cell,
-                    )
-                )
+        cand = _scan_delete_candidate(para, text, families, delete_family)
+        if cand is not None:
+            delete_candidates.append(cand)
+        placeholder_candidates.extend(_scan_placeholder_candidates(para, text))
         if _CONDITIONAL_CHOICE.search(text):
             conditional_choices.append(
                 Candidate(location=para.location(), signals=["conditional_choice"],
                           confidence="high", text_preview=_preview(text), cell=para.cell)
             )
         if modify_family & families:
-            key = f"표{para.cell.table_index}" if para.cell else f"§{para.section_index} 본문"
-            agg = modify_by_table.setdefault(
-                key, {"paragraphs": 0, "sample": _preview(text, 60),
-                      "format_context": _format_context(para, chars)}
-            )
-            agg["paragraphs"] += 1
+            _scan_accumulate_modify(modify_by_table, para, text, chars)
 
-    # 채울 곳 후보: 완전히 빈 셀 + 인접 라벨 문맥 + 서식 컨텍스트
+    return delete_candidates, placeholder_candidates, conditional_choices, modify_by_table
+
+
+def _scan_cell_joined(
+    cell_paras: dict[tuple[int, int, int], list[ScannedParagraph]],
+    key: tuple[int, int, int],
+) -> str:
+    return "".join(p.text for p in cell_paras.get(key, [])).strip()
+
+
+def _scan_empty_cell_candidate(
+    cell_paras: dict[tuple[int, int, int], list[ScannedParagraph]],
+    tbl: int,
+    row: int,
+    col: int,
+    plist: list[ScannedParagraph],
+    chars: dict,
+) -> Candidate:
+    label = ""
+    for nkey, tag in (((tbl, row, col - 1), "좌측"), ((tbl, row - 1, col), "상단")):
+        ntext = _scan_cell_joined(cell_paras, nkey)
+        if ntext:
+            label = f"{tag}: {_preview(ntext, 24)}"
+            break
+    signals = ["empty_cell"]
+    cprid = plist[0].first_char_pr_id
+    if cprid is not None:
+        style = chars.get(str(cprid))
+        if style is not None:
+            height = style.attributes.get("height")
+            size = f"{int(height) / 100:g}pt" if height and height.isdigit() else "?"
+            bold = "·bold" if "bold" in style.child_attributes else ""
+            signals.append(f"format:{size}{bold}")
+    return Candidate(
+        location=plist[0].location(), signals=signals, confidence="medium",
+        text_preview=label or "(라벨 없음)", cell=plist[0].cell,
+    )
+
+
+def _scan_empty_cells(paragraphs: list[ScannedParagraph], chars: dict) -> list[Candidate]:
     cell_paras: dict[tuple[int, int, int], list[ScannedParagraph]] = {}
     for para in paragraphs:
         if para.cell is not None and para.cell.row >= 0:
             key = (para.cell.table_index, para.cell.row, para.cell.col)
             cell_paras.setdefault(key, []).append(para)
 
-    def _cell_joined(key: tuple[int, int, int]) -> str:
-        return "".join(p.text for p in cell_paras.get(key, [])).strip()
-
     empty_cell_candidates: list[Candidate] = []
     for (tbl, row, col), plist in sorted(cell_paras.items()):
-        if _cell_joined((tbl, row, col)):
+        if _scan_cell_joined(cell_paras, (tbl, row, col)):
             continue
-        label = ""
-        for nkey, tag in (((tbl, row, col - 1), "좌측"), ((tbl, row - 1, col), "상단")):
-            ntext = _cell_joined(nkey)
-            if ntext:
-                label = f"{tag}: {_preview(ntext, 24)}"
-                break
-        signals = ["empty_cell"]
-        cprid = plist[0].first_char_pr_id
-        if cprid is not None:
-            style = chars.get(str(cprid))
-            if style is not None:
-                height = style.attributes.get("height")
-                size = f"{int(height) / 100:g}pt" if height and height.isdigit() else "?"
-                bold = "·bold" if "bold" in style.child_attributes else ""
-                signals.append(f"format:{size}{bold}")
         empty_cell_candidates.append(
-            Candidate(
-                location=plist[0].location(), signals=signals, confidence="medium",
-                text_preview=label or "(라벨 없음)", cell=plist[0].cell,
-            )
+            _scan_empty_cell_candidate(cell_paras, tbl, row, col, plist, chars)
         )
+    return empty_cell_candidates
 
-    # 질문 목록
+
+def _scan_unbound_color_questions(inventory: dict, legend: list[LegendBinding]) -> list[str]:
     questions: list[str] = []
     bound = {b.family for b in legend}
     for hex_color, info in sorted(inventory.items(), key=lambda kv: -kv[1]["runs"]):
@@ -493,6 +539,16 @@ def scan_form_guidance(source: Union[str, Path, HwpxDocument]) -> GuidanceReport
             questions.append(
                 f"`{hex_color}`({info['family']}) run {info['runs']}개의 의미가 범례에 없음 — 유지/수정/삭제 중 무엇인가? 예: {info['samples'][0] if info['samples'] else ''}"
             )
+    return questions
+
+
+def _scan_questions(
+    inventory: dict,
+    legend: list[LegendBinding],
+    conditional_choices: list[Candidate],
+    placeholder_candidates: list[Candidate],
+) -> list[str]:
+    questions = _scan_unbound_color_questions(inventory, legend)
     for c in conditional_choices:
         questions.append(f"{c.location} 조건부 블록 — 어느 쪽을 남길지 결정 필요: “{c.text_preview[:60]}”")
     for c in placeholder_candidates:
@@ -500,6 +556,21 @@ def scan_form_guidance(source: Union[str, Path, HwpxDocument]) -> GuidanceReport
             questions.append(f"{c.location} 빈칸(◯◯◯) — 들어갈 실제 값은? “{c.text_preview[:40]}”")
     if not legend:
         questions.append("색 범례 문장을 찾지 못함 — 색의 의미(유지/수정/삭제)를 알려달라.")
+    return questions
+
+
+def scan_form_guidance(source: Union[str, Path, HwpxDocument]) -> GuidanceReport:
+    """양식을 정찰해 지울 것/수정할 것/placeholder/질문 후보 리포트를 만든다(비변형)."""
+    doc, src_name = _scan_resolve_source(source)
+    chars = doc._root.char_properties
+    paragraphs, tables_total = _scan_collect_paragraphs(doc, chars)
+    inventory, colored_runs = _scan_color_inventory(paragraphs)
+    legend = _parse_legend(paragraphs)
+    delete_candidates, placeholder_candidates, conditional_choices, modify_by_table = (
+        _scan_candidates(paragraphs, legend, chars)
+    )
+    empty_cell_candidates = _scan_empty_cells(paragraphs, chars)
+    questions = _scan_questions(inventory, legend, conditional_choices, placeholder_candidates)
 
     return GuidanceReport(
         source=src_name,

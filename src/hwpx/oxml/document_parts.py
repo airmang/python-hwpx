@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
 import logging
 from typing import TYPE_CHECKING, Iterable, Sequence
 import xml.etree.ElementTree as ET
@@ -46,6 +47,144 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _RunStyleSpec:
+    """Resolved run-style target shared by the ensure_run_style predicate/modifier."""
+
+    flags: tuple[bool, bool, bool]
+    color: str | None
+    highlight: str | None
+    height: str | None
+    strike: bool | None
+    font_ref: dict[str, str] | None
+
+
+def _run_style_element_flags(element: ET.Element) -> tuple[bool, bool, bool]:
+    bold_present = element.find(f"{_HH}bold") is not None
+    italic_present = element.find(f"{_HH}italic") is not None
+    underline_element = element.find(f"{_HH}underline")
+    underline_present = False
+    if underline_element is not None:
+        underline_present = underline_element.get("type", "").upper() != "NONE"
+    return bold_present, italic_present, underline_present
+
+
+def _run_style_element_strike(element: ET.Element) -> bool:
+    strike_element = element.find(f"{_HH}strikeout")
+    if strike_element is None:
+        return False
+    return strike_element.get("shape", "").upper() != "NONE"
+
+
+def _run_style_predicate(element: ET.Element, spec: _RunStyleSpec) -> bool:
+    if _run_style_element_flags(element) != spec.flags:
+        return False
+    if spec.color is not None and element.get("textColor") != spec.color:
+        return False
+    if (
+        spec.highlight is not None
+        and element.get("shadeColor") != spec.highlight
+    ):
+        return False
+    if spec.height is not None and element.get("height") != spec.height:
+        return False
+    if spec.strike is not None and _run_style_element_strike(element) != bool(spec.strike):
+        return False
+    if spec.font_ref is not None:
+        font_ref = element.find(f"{_HH}fontRef")
+        if font_ref is None:
+            return False
+        if {
+            key: font_ref.get(key, "") for key in _FONT_REF_ATTRIBUTES
+        } != spec.font_ref:
+            return False
+    return True
+
+
+def _run_style_apply_font_and_colors(element: ET.Element, spec: _RunStyleSpec) -> None:
+    if spec.color is not None:
+        element.set("textColor", spec.color)
+    if spec.highlight is not None:
+        element.set("shadeColor", spec.highlight)
+    if spec.height is not None:
+        element.set("height", spec.height)
+    if spec.font_ref is not None:
+        font_ref = element.find(f"{_HH}fontRef")
+        if font_ref is None:
+            font_ref = element.makeelement(f"{_HH}fontRef", {})
+            element.insert(0, font_ref)
+        for attr_name in list(font_ref.attrib.keys()):
+            if attr_name not in _FONT_REF_ATTRIBUTES:
+                del font_ref.attrib[attr_name]
+        for attr_name, attr_value in spec.font_ref.items():
+            font_ref.set(attr_name, attr_value)
+
+
+def _run_style_apply_underline(
+    element: ET.Element, base_underline_attrs: dict[str, str], want_underline: bool
+) -> None:
+    underline_attrs = dict(base_underline_attrs)
+    if want_underline:
+        underline_attrs.setdefault("type", "SOLID")
+        if underline_attrs.get("type", "").upper() == "NONE":
+            underline_attrs["type"] = "SOLID"
+        underline_attrs.setdefault(
+            "shape", base_underline_attrs.get("shape", "SOLID")
+        )
+        if "color" not in underline_attrs and "color" in base_underline_attrs:
+            underline_attrs["color"] = base_underline_attrs["color"]
+        if "color" not in underline_attrs:
+            underline_attrs["color"] = "#000000"
+        _append_child(element, f"{_HH}underline", underline_attrs)
+    else:
+        attrs = dict(base_underline_attrs)
+        attrs["type"] = "NONE"
+        attrs.setdefault("shape", base_underline_attrs.get("shape", "SOLID"))
+        if "color" in base_underline_attrs:
+            attrs["color"] = base_underline_attrs["color"]
+        _append_child(element, f"{_HH}underline", attrs)
+
+
+def _run_style_apply_strikeout(
+    element: ET.Element, base_strike_attrs: dict[str, str], strike: bool | None
+) -> None:
+    if strike is not None:
+        strike_attrs = dict(base_strike_attrs)
+        strike_attrs["shape"] = "SOLID" if strike else "NONE"
+        strike_attrs.setdefault(
+            "color", base_strike_attrs.get("color", "#000000")
+        )
+        _append_child(element, f"{_HH}strikeout", strike_attrs)
+
+
+def _run_style_modifier(element: ET.Element, spec: _RunStyleSpec) -> None:
+    underline_nodes = list(element.findall(f"{_HH}underline"))
+    base_underline_attrs = (
+        dict(underline_nodes[0].attrib) if underline_nodes else {}
+    )
+    strike_nodes = list(element.findall(f"{_HH}strikeout"))
+    base_strike_attrs = dict(strike_nodes[0].attrib) if strike_nodes else {}
+
+    for child in list(element.findall(f"{_HH}bold")):
+        element.remove(child)
+    for child in list(element.findall(f"{_HH}italic")):
+        element.remove(child)
+    for child in underline_nodes:
+        element.remove(child)
+    for child in strike_nodes:
+        element.remove(child)
+
+    _run_style_apply_font_and_colors(element, spec)
+
+    if spec.flags[0]:
+        _append_child(element, f"{_HH}bold")
+    if spec.flags[1]:
+        _append_child(element, f"{_HH}italic")
+
+    _run_style_apply_underline(element, base_underline_attrs, spec.flags[2])
+    _run_style_apply_strikeout(element, base_strike_attrs, spec.strike)
 
 
 class HwpxOxmlDocument:
@@ -237,121 +376,17 @@ class HwpxOxmlDocument:
             raise ValueError("document does not contain any headers")
 
         header = self._headers[0]
-        target = (bool(bold), bool(italic), bool(underline))
-        target_color = _normalize_color(color)
-        target_highlight = _normalize_color(highlight)
-        target_height = _char_height_from_points(size)
-        target_font_ref = header.font_ref_for_face(font) if font is not None else None
-
-        def element_flags(element: ET.Element) -> tuple[bool, bool, bool]:
-            bold_present = element.find(f"{_HH}bold") is not None
-            italic_present = element.find(f"{_HH}italic") is not None
-            underline_element = element.find(f"{_HH}underline")
-            underline_present = False
-            if underline_element is not None:
-                underline_present = underline_element.get("type", "").upper() != "NONE"
-            return bold_present, italic_present, underline_present
-
-        def element_strike(element: ET.Element) -> bool:
-            strike_element = element.find(f"{_HH}strikeout")
-            if strike_element is None:
-                return False
-            return strike_element.get("shape", "").upper() != "NONE"
-
-        def predicate(element: ET.Element) -> bool:
-            if element_flags(element) != target:
-                return False
-            if target_color is not None and element.get("textColor") != target_color:
-                return False
-            if (
-                target_highlight is not None
-                and element.get("shadeColor") != target_highlight
-            ):
-                return False
-            if target_height is not None and element.get("height") != target_height:
-                return False
-            if strike is not None and element_strike(element) != bool(strike):
-                return False
-            if target_font_ref is not None:
-                font_ref = element.find(f"{_HH}fontRef")
-                if font_ref is None:
-                    return False
-                if {
-                    key: font_ref.get(key, "") for key in _FONT_REF_ATTRIBUTES
-                } != target_font_ref:
-                    return False
-            return True
-
-        def modifier(element: ET.Element) -> None:
-            underline_nodes = list(element.findall(f"{_HH}underline"))
-            base_underline_attrs = (
-                dict(underline_nodes[0].attrib) if underline_nodes else {}
-            )
-            strike_nodes = list(element.findall(f"{_HH}strikeout"))
-            base_strike_attrs = dict(strike_nodes[0].attrib) if strike_nodes else {}
-
-            for child in list(element.findall(f"{_HH}bold")):
-                element.remove(child)
-            for child in list(element.findall(f"{_HH}italic")):
-                element.remove(child)
-            for child in underline_nodes:
-                element.remove(child)
-            for child in strike_nodes:
-                element.remove(child)
-
-            if target_color is not None:
-                element.set("textColor", target_color)
-            if target_highlight is not None:
-                element.set("shadeColor", target_highlight)
-            if target_height is not None:
-                element.set("height", target_height)
-            if target_font_ref is not None:
-                font_ref = element.find(f"{_HH}fontRef")
-                if font_ref is None:
-                    font_ref = element.makeelement(f"{_HH}fontRef", {})
-                    element.insert(0, font_ref)
-                for attr_name in list(font_ref.attrib.keys()):
-                    if attr_name not in _FONT_REF_ATTRIBUTES:
-                        del font_ref.attrib[attr_name]
-                for attr_name, attr_value in target_font_ref.items():
-                    font_ref.set(attr_name, attr_value)
-
-            if target[0]:
-                _append_child(element, f"{_HH}bold")
-            if target[1]:
-                _append_child(element, f"{_HH}italic")
-
-            underline_attrs = dict(base_underline_attrs)
-            if target[2]:
-                underline_attrs.setdefault("type", "SOLID")
-                if underline_attrs.get("type", "").upper() == "NONE":
-                    underline_attrs["type"] = "SOLID"
-                underline_attrs.setdefault(
-                    "shape", base_underline_attrs.get("shape", "SOLID")
-                )
-                if "color" not in underline_attrs and "color" in base_underline_attrs:
-                    underline_attrs["color"] = base_underline_attrs["color"]
-                if "color" not in underline_attrs:
-                    underline_attrs["color"] = "#000000"
-                _append_child(element, f"{_HH}underline", underline_attrs)
-            else:
-                attrs = dict(base_underline_attrs)
-                attrs["type"] = "NONE"
-                attrs.setdefault("shape", base_underline_attrs.get("shape", "SOLID"))
-                if "color" in base_underline_attrs:
-                    attrs["color"] = base_underline_attrs["color"]
-                _append_child(element, f"{_HH}underline", attrs)
-            if strike is not None:
-                strike_attrs = dict(base_strike_attrs)
-                strike_attrs["shape"] = "SOLID" if strike else "NONE"
-                strike_attrs.setdefault(
-                    "color", base_strike_attrs.get("color", "#000000")
-                )
-                _append_child(element, f"{_HH}strikeout", strike_attrs)
-
+        spec = _RunStyleSpec(
+            flags=(bool(bold), bool(italic), bool(underline)),
+            color=_normalize_color(color),
+            highlight=_normalize_color(highlight),
+            height=_char_height_from_points(size),
+            strike=strike,
+            font_ref=header.font_ref_for_face(font) if font is not None else None,
+        )
         element = header.ensure_char_property(
-            predicate=predicate,
-            modifier=modifier,
+            predicate=lambda el: _run_style_predicate(el, spec),
+            modifier=lambda el: _run_style_modifier(el, spec),
             base_char_pr_id=base_char_pr_id,
         )
 
