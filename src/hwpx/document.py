@@ -5,12 +5,10 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 import io
-import warnings
 from datetime import datetime
 import logging
 
 from os import PathLike
-from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, BinaryIO, Iterator, Mapping, Sequence, cast, overload
 
 
@@ -40,27 +38,21 @@ from .oxml import (
 )
 from .opc.package import (
     HwpxPackage,
-    _UNCHECKED_SAVE_TOKEN,
 )
-from .oxml.namespaces import HC, HH, HH_NS, HP, HP_NS, register_owpml_namespaces
+from .oxml.namespaces import register_owpml_namespaces
 from .quality import QualityPolicy, SavePipeline, VisualCompleteReport
-from .quality.report import OpenSafetyReport
 from .templates import blank_document_bytes
 
 from ._document import fields as _fields
 from ._document import memos as _memos
 from ._document import tracked as _tracked
+from ._document import layout as _layout
+from ._document import media as _media
+from ._document import persistence as _persistence
+from ._document import shapes as _shapes
 from ._document.memos import _append_element  # noqa: F401  # test_coverage_targets imports this name
 
 register_owpml_namespaces(ET.register_namespace)
-
-_HP_NS = HP_NS
-_HP = HP
-_HC = HC
-_HH_NS = HH_NS
-_HH = HH
-_HWP_UNITS_PER_MM = 7200 / 25.4
-_HWP_UNITS_PER_PT = 100
 
 logger = logging.getLogger(__name__)
 
@@ -73,79 +65,6 @@ if TYPE_CHECKING:
         TableLabelSearchResult,
         TableMapResult,
     )
-
-
-def _mm_to_hwp_units(value: float) -> int:
-    return round(value * _HWP_UNITS_PER_MM)
-
-
-def _pt_to_hwp_units(value: float) -> int:
-    return round(value * _HWP_UNITS_PER_PT)
-
-
-_PAPER_SIZES_MM: dict[str, tuple[float, float]] = {
-    "A3": (297.0, 420.0),
-    "A4": (210.0, 297.0),
-    "A5": (148.0, 210.0),
-    "B4": (257.0, 364.0),
-    "B5": (182.0, 257.0),
-    "LETTER": (215.9, 279.4),
-    "LEGAL": (215.9, 355.6),
-}
-
-
-def _normalize_page_orientation(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = value.strip().upper()
-    aliases = {
-        "PORTRAIT": "PORTRAIT",
-        "NARROW": "PORTRAIT",
-        "NARROWLY": "PORTRAIT",
-        "LANDSCAPE": "WIDELY",
-        "WIDE": "WIDELY",
-        "WIDELY": "WIDELY",
-    }
-    orientation = aliases.get(normalized)
-    if orientation is None:
-        raise ValueError(f"unsupported page orientation: {value}")
-    return orientation
-
-
-def _png_dimensions(image_data: bytes) -> tuple[int, int] | None:
-    if len(image_data) < 24 or not image_data.startswith(b"\x89PNG\r\n\x1a\n"):
-        return None
-    width = int.from_bytes(image_data[16:20], "big")
-    height = int.from_bytes(image_data[20:24], "big")
-    if width <= 0 or height <= 0:
-        return None
-    return width, height
-
-
-def _bin_data_stem(value: Any) -> str | None:
-    if value is None:
-        return None
-    raw = str(value).strip()
-    if not raw:
-        return None
-    stem = PurePosixPath(raw).stem
-    return stem or None
-
-
-# The atomic byte writer and the stream checkpoint/rollback writer now live in
-# ``hwpx.quality.save_pipeline`` — the single SavePipeline is the only thing that
-# writes serialized HWPX output to a destination (plan §2 Phase B, "zero bypass").
-# ``save_to_path`` / ``save_to_stream`` / ``save_report`` route every write through
-# ``self._save_pipeline.run(...)`` below.
-
-
-def _summarize_validation_issues(issues: Sequence[Any], *, limit: int = 5) -> str:
-    selected = [str(issue) for issue in issues[:limit]]
-    remaining = len(issues) - len(selected)
-    summary = "; ".join(selected)
-    if remaining > 0:
-        summary += f" ... and {remaining} more"
-    return summary
 
 
 class HwpxDocument:
@@ -866,68 +785,29 @@ class HwpxDocument:
     ) -> HwpxOxmlInlineObject:
         """Embed image data and place a picture object in a new paragraph."""
 
-        binary_item_id_ref = self.add_image(image_data, image_format)
-
-        resolved_width = width
-        if resolved_width is None:
-            resolved_width = _mm_to_hwp_units(width_mm) if width_mm is not None else 14400
-
-        resolved_height = height
-        if resolved_height is None:
-            if height_mm is not None:
-                resolved_height = _mm_to_hwp_units(height_mm)
-            else:
-                dimensions = _png_dimensions(image_data)
-                if dimensions is not None:
-                    source_width, source_height = dimensions
-                    resolved_height = round(resolved_width * source_height / source_width)
-                else:
-                    resolved_height = resolved_width
-
-        paragraph = self.add_paragraph(
-            "",
+        return _media.add_picture(
+            self,
+            image_data=image_data,
+            image_format=image_format,
             section=section,
             section_index=section_index,
+            width=width,
+            height=height,
+            width_mm=width_mm,
+            height_mm=height_mm,
+            align=align,
             para_pr_id_ref=para_pr_id_ref,
             style_id_ref=style_id_ref,
             char_pr_id_ref=char_pr_id_ref,
-            include_run=False,
-            **cast(Any, extra_attrs),
-        )
-        return paragraph.add_picture(
-            binary_item_id_ref,
-            width=resolved_width,
-            height=resolved_height,
-            align=align,
             run_attributes=run_attributes,
-            char_pr_id_ref=char_pr_id_ref,
+            **extra_attrs,
         )
 
-    def _iter_picture_images(
-        self,
-    ) -> Iterator[tuple[int, HwpxOxmlSection, Any, Any]]:
-        for section_index, section in enumerate(self._root.sections):
-            for picture in section.element.findall(f".//{_HP}pic"):
-                image = picture.find(f"{_HC}img")
-                if image is not None:
-                    yield section_index, section, picture, image
 
     def picture_references(self) -> list[dict[str, Any]]:
         """Return body picture references in document order."""
 
-        refs: list[dict[str, Any]] = []
-        for picture_index, (section_index, _section, picture, image) in enumerate(self._iter_picture_images()):
-            size = picture.find(f"{_HP}sz")
-            refs.append(
-                {
-                    "picture_index": picture_index,
-                    "section_index": section_index,
-                    "binaryItemIDRef": image.get("binaryItemIDRef"),
-                    "width": size.get("width") if size is not None else None,
-                    "height": size.get("height") if size is not None else None,
-                }
-            )
-        return refs
+        return _media.picture_references(self)
 
     def replace_picture(
         self,
@@ -946,51 +826,15 @@ class HwpxDocument:
         rotation, and wrapping geometry remain untouched.
         """
 
-        if picture_index < 0:
-            raise IndexError("picture_index must be non-negative")
-
-        selected: tuple[int, HwpxOxmlSection, Any, Any] | None = None
-        matched_index = -1
-        for current_index, picture in enumerate(self._iter_picture_images()):
-            _section_index, _section, _picture_element, image = picture
-            current_ref = (image.get("binaryItemIDRef") or "").strip()
-            if binary_item_id_ref is not None and current_ref != str(binary_item_id_ref):
-                continue
-            matched_index += 1
-            if matched_index == picture_index:
-                selected = picture
-                break
-
-        if selected is None:
-            if binary_item_id_ref is None:
-                raise IndexError(f"picture_index {picture_index} is out of range")
-            raise IndexError(
-                f"picture_index {picture_index} for binaryItemIDRef "
-                f"{binary_item_id_ref!r} is out of range"
-            )
-
-        section_index, section, _picture_element, image = selected
-        old_ref = (image.get("binaryItemIDRef") or "").strip()
-        new_ref = self.add_image(image_data, image_format, item_id=item_id)
-        image.set("binaryItemIDRef", new_ref)
-        section.mark_dirty()
-
-        removed_old_image = False
-        if remove_orphaned and old_ref and old_ref != new_ref:
-            if not any(
-                (other_image.get("binaryItemIDRef") or "").strip() == old_ref
-                for _other_section_index, _other_section, _other_picture, other_image in self._iter_picture_images()
-            ):
-                removed_old_image = self.remove_image(old_ref)
-
-        return {
-            "picture_index": matched_index,
-            "section_index": section_index,
-            "old_binaryItemIDRef": old_ref,
-            "new_binaryItemIDRef": new_ref,
-            "removedOldImage": removed_old_image,
-            "geometryPreserved": True,
-        }
+        return _media.replace_picture(
+            self,
+            image_data=image_data,
+            image_format=image_format,
+            picture_index=picture_index,
+            binary_item_id_ref=binary_item_id_ref,
+            remove_orphaned=remove_orphaned,
+            item_id=item_id,
+        )
 
     def merge_table_cells(
         self,
@@ -1095,21 +939,17 @@ class HwpxDocument:
     ) -> HwpxOxmlInlineObject:
         """Insert an inline shape into a new paragraph."""
 
-        paragraph = self.add_paragraph(
-            "",
+        return _shapes.add_shape(
+            self,
+            shape_type=shape_type,
             section=section,
             section_index=section_index,
+            attributes=attributes,
             para_pr_id_ref=para_pr_id_ref,
             style_id_ref=style_id_ref,
             char_pr_id_ref=char_pr_id_ref,
-            include_run=False,
-            **cast(Any, extra_attrs),
-        )
-        return paragraph.add_shape(
-            shape_type,
-            attributes=attributes,
             run_attributes=run_attributes,
-            char_pr_id_ref=char_pr_id_ref,
+            **extra_attrs,
         )
 
     def add_control(
@@ -1127,21 +967,17 @@ class HwpxDocument:
     ) -> HwpxOxmlInlineObject:
         """Insert a control inline object into a new paragraph."""
 
-        paragraph = self.add_paragraph(
-            "",
+        return _shapes.add_control(
+            self,
             section=section,
             section_index=section_index,
+            attributes=attributes,
+            control_type=control_type,
             para_pr_id_ref=para_pr_id_ref,
             style_id_ref=style_id_ref,
             char_pr_id_ref=char_pr_id_ref,
-            include_run=False,
-            **cast(Any, extra_attrs),
-        )
-        return paragraph.add_control(
-            attributes=attributes,
-            control_type=control_type,
             run_attributes=run_attributes,
-            char_pr_id_ref=char_pr_id_ref,
+            **extra_attrs,
         )
 
     # ------------------------------------------------------------------
@@ -1163,14 +999,14 @@ class HwpxDocument:
         (or last) section.
         """
 
-        if paragraph is None:
-            paragraph = self.add_paragraph(
-                "",
-                section=section,
-                section_index=section_index,
-                include_run=False,
-            )
-        return paragraph.add_footnote(text, char_pr_id_ref=char_pr_id_ref)
+        return _shapes.add_footnote(
+            self,
+            text=text,
+            paragraph=paragraph,
+            section=section,
+            section_index=section_index,
+            char_pr_id_ref=char_pr_id_ref,
+        )
 
     def add_endnote(
         self,
@@ -1183,14 +1019,14 @@ class HwpxDocument:
     ) -> HwpxOxmlNote:
         """Add an endnote to an existing paragraph, or create a new one."""
 
-        if paragraph is None:
-            paragraph = self.add_paragraph(
-                "",
-                section=section,
-                section_index=section_index,
-                include_run=False,
-            )
-        return paragraph.add_endnote(text, char_pr_id_ref=char_pr_id_ref)
+        return _shapes.add_endnote(
+            self,
+            text=text,
+            paragraph=paragraph,
+            section=section,
+            section_index=section_index,
+            char_pr_id_ref=char_pr_id_ref,
+        )
 
     # ------------------------------------------------------------------
     # Drawing shapes
@@ -1214,15 +1050,19 @@ class HwpxDocument:
 
         Coordinates are in HWPUNIT (7200 per inch).
         """
-        if paragraph is None:
-            paragraph = self.add_paragraph(
-                "", section=section, section_index=section_index,
-                include_run=False,
-            )
-        return paragraph.add_line(
-            start_x, start_y, end_x, end_y,
-            line_color=line_color, line_width=line_width,
+
+        return _shapes.add_line(
+            self,
+            start_x=start_x,
+            start_y=start_y,
+            end_x=end_x,
+            end_y=end_y,
+            line_color=line_color,
+            line_width=line_width,
             treat_as_char=treat_as_char,
+            paragraph=paragraph,
+            section=section,
+            section_index=section_index,
         )
 
     def add_rectangle(
@@ -1244,15 +1084,19 @@ class HwpxDocument:
         Dimensions are in HWPUNIT.  *ratio* controls corner roundness
         (0 = sharp, 50 = semicircle).
         """
-        if paragraph is None:
-            paragraph = self.add_paragraph(
-                "", section=section, section_index=section_index,
-                include_run=False,
-            )
-        return paragraph.add_rectangle(
-            width, height, ratio=ratio,
-            line_color=line_color, line_width=line_width,
-            fill_color=fill_color, treat_as_char=treat_as_char,
+
+        return _shapes.add_rectangle(
+            self,
+            width=width,
+            height=height,
+            ratio=ratio,
+            line_color=line_color,
+            line_width=line_width,
+            fill_color=fill_color,
+            treat_as_char=treat_as_char,
+            paragraph=paragraph,
+            section=section,
+            section_index=section_index,
         )
 
     def add_ellipse(
@@ -1272,46 +1116,24 @@ class HwpxDocument:
 
         Dimensions are in HWPUNIT.
         """
-        if paragraph is None:
-            paragraph = self.add_paragraph(
-                "", section=section, section_index=section_index,
-                include_run=False,
-            )
-        return paragraph.add_ellipse(
-            width, height,
-            line_color=line_color, line_width=line_width,
-            fill_color=fill_color, treat_as_char=treat_as_char,
+
+        return _shapes.add_ellipse(
+            self,
+            width=width,
+            height=height,
+            line_color=line_color,
+            line_width=line_width,
+            fill_color=fill_color,
+            treat_as_char=treat_as_char,
+            paragraph=paragraph,
+            section=section,
+            section_index=section_index,
         )
 
     # ------------------------------------------------------------------
     # Existing-document formatting
     # ------------------------------------------------------------------
 
-    def _resolve_paragraph_targets(
-        self,
-        *,
-        paragraph_index: int | None = None,
-        paragraph_indexes: Sequence[int] | None = None,
-    ) -> list[tuple[int, HwpxOxmlParagraph]]:
-        paragraphs = self.paragraphs
-        if not paragraphs:
-            raise ValueError("document does not contain any paragraphs")
-        if paragraph_index is not None and paragraph_indexes is not None:
-            raise ValueError("use either paragraph_index or paragraph_indexes, not both")
-
-        if paragraph_indexes is None:
-            indexes = list(range(len(paragraphs))) if paragraph_index is None else [paragraph_index]
-        else:
-            indexes = [int(index) for index in paragraph_indexes]
-            if not indexes:
-                raise ValueError("paragraph_indexes must not be empty")
-
-        targets: list[tuple[int, HwpxOxmlParagraph]] = []
-        for index in indexes:
-            if index < 0 or index >= len(paragraphs):
-                raise IndexError("paragraph index out of range")
-            targets.append((index, paragraphs[index]))
-        return targets
 
     def set_paragraph_format(
         self,
@@ -1341,97 +1163,25 @@ class HwpxDocument:
         (``<hh:breakSetting>``) flags via a freshly minted paraPr.
         """
 
-        if not self._root.headers:
-            raise ValueError("document does not contain any headers")
-        header = self._root.headers[0]
-
-        if line_spacing_percent is not None and float(line_spacing_percent) <= 0:
-            raise ValueError("line_spacing_percent must be positive")
-
-        margins: dict[str, int] = {}
-        if first_line_indent_mm is not None:
-            margins["intent"] = _mm_to_hwp_units(float(first_line_indent_mm))
-        if indent_left_mm is not None:
-            margins["left"] = _mm_to_hwp_units(float(indent_left_mm))
-        if indent_right_mm is not None:
-            margins["right"] = _mm_to_hwp_units(float(indent_right_mm))
-        if spacing_before_pt is not None:
-            margins["prev"] = _pt_to_hwp_units(float(spacing_before_pt))
-        if spacing_after_pt is not None:
-            margins["next"] = _pt_to_hwp_units(float(spacing_after_pt))
-
-        heading: dict[str, str | int] | None = None
-        if outline_level is not None:
-            level = int(outline_level)
-            if level <= 0:
-                heading = {"type": "NONE", "idRef": "0", "level": "0"}
-            elif level <= 10:
-                heading = {"type": "OUTLINE", "idRef": "0", "level": str(level - 1)}
-            else:
-                raise ValueError("outline_level must be between 0 and 10")
-
-        break_setting: dict[str, bool] = {}
-        if keep_with_next is not None:
-            break_setting["keep_with_next"] = bool(keep_with_next)
-        if keep_lines is not None:
-            break_setting["keep_lines"] = bool(keep_lines)
-        if page_break_before is not None:
-            break_setting["page_break_before"] = bool(page_break_before)
-
-        if (
-            alignment is None
-            and line_spacing_percent is None
-            and not margins
-            and heading is None
-            and not bottom_border
-            and not break_setting
-        ):
-            raise ValueError("at least one paragraph formatting option is required")
-
-        border: dict[str, str] | None = None
-        if bottom_border:
-            border_fill_id = header.ensure_border_fill(
-                border_color=border_color,
-                border_width=border_width,
-                active_borders=("bottom",),
-            )
-            border = {
-                "borderFillIDRef": border_fill_id,
-                "offsetLeft": "0",
-                "offsetRight": "0",
-                "offsetTop": "0",
-                "offsetBottom": "0",
-                "connect": "0",
-                "ignoreMargin": "0",
-            }
-
-        targets = self._resolve_paragraph_targets(
+        return _layout.set_paragraph_format(
+            self,
             paragraph_index=paragraph_index,
             paragraph_indexes=paragraph_indexes,
+            alignment=alignment,
+            line_spacing_percent=line_spacing_percent,
+            indent_left_mm=indent_left_mm,
+            indent_right_mm=indent_right_mm,
+            first_line_indent_mm=first_line_indent_mm,
+            spacing_before_pt=spacing_before_pt,
+            spacing_after_pt=spacing_after_pt,
+            outline_level=outline_level,
+            keep_with_next=keep_with_next,
+            keep_lines=keep_lines,
+            page_break_before=page_break_before,
+            bottom_border=bottom_border,
+            border_color=border_color,
+            border_width=border_width,
         )
-        formatted: list[dict[str, Any]] = []
-        for index, paragraph in targets:
-            para_pr_id = header.ensure_paragraph_format(
-                base_para_pr_id=paragraph.para_pr_id_ref,
-                alignment=alignment,
-                line_spacing_percent=line_spacing_percent,
-                margins=margins,
-                heading=heading,
-                border=border,
-                break_setting=break_setting or None,
-            )
-            paragraph.para_pr_id_ref = para_pr_id
-            formatted.append({"paragraph_index": index, "paraPrIDRef": para_pr_id})
-
-        return {
-            "formatted": len(formatted),
-            "paragraphs": formatted,
-            "units": {
-                "indent": "mm",
-                "paragraphSpacing": "pt",
-                "lineSpacing": "%",
-            },
-        }
 
     def set_list_format(
         self,
@@ -1446,52 +1196,16 @@ class HwpxDocument:
     ) -> dict[str, Any]:
         """Apply bullet or numbered-list paragraph properties to paragraphs."""
 
-        if level < 1:
-            raise ValueError("level must be 1 or greater")
-        if not self._root.headers:
-            raise ValueError("document does not contain any headers")
-
-        level_specs: list[dict[str, str]] = [{} for _ in range(level)]
-        if bullet_char:
-            level_specs[level - 1]["char"] = str(bullet_char)
-        if number_format:
-            level_specs[level - 1]["format"] = str(number_format).upper()
-        if start is not None:
-            level_specs[level - 1]["start"] = str(max(1, int(start)))
-
-        refs = self._root.ensure_numbering(kind=kind, levels=level_specs)
-        list_para_pr_id = refs[level - 1]
-        header = self._root.headers[0]
-        list_para_pr = header.element.find(f".//{_HH}paraPr[@id='{list_para_pr_id}']")
-        heading_element = list_para_pr.find(f"{_HH}heading") if list_para_pr is not None else None
-        if heading_element is None:
-            raise RuntimeError("failed to create list paragraph property")
-        heading = {
-            "type": heading_element.get("type", "NONE"),
-            "idRef": heading_element.get("idRef", "0"),
-            "level": heading_element.get("level", str(level - 1)),
-        }
-        targets = self._resolve_paragraph_targets(
+        return _layout.set_list_format(
+            self,
             paragraph_index=paragraph_index,
             paragraph_indexes=paragraph_indexes,
+            kind=kind,
+            level=level,
+            bullet_char=bullet_char,
+            number_format=number_format,
+            start=start,
         )
-
-        formatted: list[dict[str, Any]] = []
-        for index, paragraph in targets:
-            para_pr_id = header.ensure_paragraph_format(
-                base_para_pr_id=paragraph.para_pr_id_ref,
-                heading=heading,
-            )
-            paragraph.para_pr_id_ref = para_pr_id
-            formatted.append({"paragraph_index": index, "paraPrIDRef": para_pr_id})
-
-        return {
-            "formatted": len(formatted),
-            "paragraphs": formatted,
-            "kind": kind,
-            "level": level,
-            "paraPrIDRef": formatted[0]["paraPrIDRef"] if formatted else list_para_pr_id,
-        }
 
     def set_page_setup(
         self,
@@ -1515,76 +1229,25 @@ class HwpxDocument:
     ) -> dict[str, Any]:
         """Set page size, margins, orientation, and optional columns in human units."""
 
-        normalized_orientation = _normalize_page_orientation(orientation)
-        target_width_mm = width_mm
-        target_height_mm = height_mm
-        if paper_size:
-            paper_key = paper_size.strip().upper()
-            if paper_key not in _PAPER_SIZES_MM:
-                raise ValueError(f"unsupported paper_size: {paper_size}")
-            paper_width, paper_height = _PAPER_SIZES_MM[paper_key]
-            target_width_mm = paper_width if target_width_mm is None else target_width_mm
-            target_height_mm = paper_height if target_height_mm is None else target_height_mm
-
-        if target_width_mm is not None and target_height_mm is not None:
-            if normalized_orientation == "WIDELY" and target_width_mm < target_height_mm:
-                target_width_mm, target_height_mm = target_height_mm, target_width_mm
-            elif normalized_orientation == "PORTRAIT" and target_width_mm > target_height_mm:
-                target_width_mm, target_height_mm = target_height_mm, target_width_mm
-
-        width = _mm_to_hwp_units(float(target_width_mm)) if target_width_mm is not None else None
-        height = _mm_to_hwp_units(float(target_height_mm)) if target_height_mm is not None else None
-        if width is not None or height is not None or normalized_orientation is not None:
-            self.set_page_size(
-                width=width,
-                height=height,
-                orientation=normalized_orientation,
-                section=section,
-                section_index=section_index,
-            )
-
-        margin_source = dict(margins_mm or {})
-        margin_values = {
-            "left": margin_left_mm if margin_left_mm is not None else margin_source.get("left"),
-            "right": margin_right_mm if margin_right_mm is not None else margin_source.get("right"),
-            "top": margin_top_mm if margin_top_mm is not None else margin_source.get("top"),
-            "bottom": margin_bottom_mm if margin_bottom_mm is not None else margin_source.get("bottom"),
-            "header": header_margin_mm if header_margin_mm is not None else margin_source.get("header"),
-            "footer": footer_margin_mm if footer_margin_mm is not None else margin_source.get("footer"),
-            "gutter": gutter_mm if gutter_mm is not None else margin_source.get("gutter"),
-        }
-        hwp_margins = {
-            name: _mm_to_hwp_units(float(value))
-            for name, value in margin_values.items()
-            if value is not None
-        }
-        if hwp_margins:
-            self.set_page_margins(
-                section=section,
-                section_index=section_index,
-                **hwp_margins,
-            )
-
-        column_result: dict[str, Any] | None = None
-        if columns is not None:
-            col_count = int(columns)
-            if col_count < 1:
-                raise ValueError("columns must be 1 or greater")
-            gap = _mm_to_hwp_units(float(column_gap_mm or 0))
-            self.set_columns(
-                col_count=col_count,
-                same_gap=gap,
-                section=section,
-                section_index=section_index,
-            )
-            column_result = {"count": col_count, "gap": gap}
-
-        return {
-            "pageSize": {"width": width, "height": height, "orientation": normalized_orientation},
-            "margins": hwp_margins,
-            "columns": column_result,
-            "units": {"page": "mm", "margins": "mm", "columnsGap": "mm"},
-        }
+        return _layout.set_page_setup(
+            self,
+            paper_size=paper_size,
+            width_mm=width_mm,
+            height_mm=height_mm,
+            orientation=orientation,
+            margins_mm=margins_mm,
+            margin_left_mm=margin_left_mm,
+            margin_right_mm=margin_right_mm,
+            margin_top_mm=margin_top_mm,
+            margin_bottom_mm=margin_bottom_mm,
+            header_margin_mm=header_margin_mm,
+            footer_margin_mm=footer_margin_mm,
+            gutter_mm=gutter_mm,
+            columns=columns,
+            column_gap_mm=column_gap_mm,
+            section=section,
+            section_index=section_index,
+        )
 
     # ------------------------------------------------------------------
     # Column layout
@@ -1617,13 +1280,10 @@ class HwpxDocument:
             same_gap: Gap in HWPUNIT (7200 = 1 inch).
             separator_type: Optional column separator line type (e.g. ``SOLID``).
         """
-        if paragraph is None:
-            paragraph = self.add_paragraph(
-                "", section=section, section_index=section_index,
-                include_run=False,
-            )
-        return paragraph.add_column_definition(
-            col_count,
+
+        return _layout.set_columns(
+            self,
+            col_count=col_count,
             col_type=col_type,
             layout=layout,
             same_size=same_size,
@@ -1632,6 +1292,9 @@ class HwpxDocument:
             separator_type=separator_type,
             separator_width=separator_width,
             separator_color=separator_color,
+            paragraph=paragraph,
+            section=section,
+            section_index=section_index,
         )
 
     # ------------------------------------------------------------------
@@ -1650,12 +1313,14 @@ class HwpxDocument:
 
         Returns the ``<hp:ctrl>`` wrapper element.
         """
-        if paragraph is None:
-            paragraph = self.add_paragraph(
-                "", section=section, section_index=section_index,
-                include_run=False,
-            )
-        return paragraph.add_bookmark(name)
+
+        return _layout.add_bookmark(
+            self,
+            name=name,
+            paragraph=paragraph,
+            section=section,
+            section_index=section_index,
+        )
 
     def add_hyperlink(
         self,
@@ -1670,26 +1335,16 @@ class HwpxDocument:
 
         Returns the ``<hp:ctrl>`` wrapper containing the ``<hp:fieldBegin>``.
         """
-        if paragraph is None:
-            paragraph = self.add_paragraph(
-                "", section=section, section_index=section_index,
-                include_run=False,
-            )
-        return paragraph.add_hyperlink(url, display_text)
 
-    def _resolve_section(
-        self,
-        section: HwpxOxmlSection | None = None,
-        section_index: int | None = None,
-    ) -> HwpxOxmlSection:
-        target_section = section
-        if target_section is None and section_index is not None:
-            target_section = self._root.sections[section_index]
-        if target_section is None:
-            if not self._root.sections:
-                raise ValueError("document does not contain any sections")
-            target_section = self._root.sections[-1]
-        return target_section
+        return _layout.add_hyperlink(
+            self,
+            url=url,
+            display_text=display_text,
+            paragraph=paragraph,
+            section=section,
+            section_index=section_index,
+        )
+
 
     def set_page_size(
         self,
@@ -1703,12 +1358,14 @@ class HwpxDocument:
     ) -> None:
         """Set page dimensions on the requested section through the public facade."""
 
-        target_section = self._resolve_section(section=section, section_index=section_index)
-        target_section.properties.set_page_size(
+        return _layout.set_page_size(
+            self,
             width=width,
             height=height,
             orientation=orientation,
             gutter_type=gutter_type,
+            section=section,
+            section_index=section_index,
         )
 
     def set_page_margins(
@@ -1726,8 +1383,8 @@ class HwpxDocument:
     ) -> None:
         """Set page margins on the requested section through the public facade."""
 
-        target_section = self._resolve_section(section=section, section_index=section_index)
-        target_section.properties.set_page_margins(
+        return _layout.set_page_margins(
+            self,
             left=left,
             right=right,
             top=top,
@@ -1735,6 +1392,8 @@ class HwpxDocument:
             header=header,
             footer=footer,
             gutter=gutter,
+            section=section,
+            section_index=section_index,
         )
 
     def set_header_text(
@@ -1747,8 +1406,13 @@ class HwpxDocument:
     ) -> HwpxOxmlSectionHeaderFooter:
         """Ensure the requested section contains a header for *page_type* and set its text."""
 
-        target_section = self._resolve_section(section=section, section_index=section_index)
-        return target_section.properties.set_header_text(text, page_type=page_type)
+        return _layout.set_header_text(
+            self,
+            text=text,
+            section=section,
+            section_index=section_index,
+            page_type=page_type,
+        )
 
     def set_footer_text(
         self,
@@ -1760,8 +1424,13 @@ class HwpxDocument:
     ) -> HwpxOxmlSectionHeaderFooter:
         """Ensure the requested section contains a footer for *page_type* and set its text."""
 
-        target_section = self._resolve_section(section=section, section_index=section_index)
-        return target_section.properties.set_footer_text(text, page_type=page_type)
+        return _layout.set_footer_text(
+            self,
+            text=text,
+            section=section,
+            section_index=section_index,
+            page_type=page_type,
+        )
 
     def set_header_content(
         self,
@@ -1773,8 +1442,13 @@ class HwpxDocument:
     ) -> HwpxOxmlSectionHeaderFooter:
         """Ensure the requested section contains a rich header for *page_type*."""
 
-        target_section = self._resolve_section(section=section, section_index=section_index)
-        return target_section.properties.set_header_content(content, page_type=page_type)
+        return _layout.set_header_content(
+            self,
+            content=content,
+            section=section,
+            section_index=section_index,
+            page_type=page_type,
+        )
 
     def set_footer_content(
         self,
@@ -1786,8 +1460,13 @@ class HwpxDocument:
     ) -> HwpxOxmlSectionHeaderFooter:
         """Ensure the requested section contains a rich footer for *page_type*."""
 
-        target_section = self._resolve_section(section=section, section_index=section_index)
-        return target_section.properties.set_footer_content(content, page_type=page_type)
+        return _layout.set_footer_content(
+            self,
+            content=content,
+            section=section,
+            section_index=section_index,
+            page_type=page_type,
+        )
 
     def set_header_footer(
         self,
@@ -1801,36 +1480,11 @@ class HwpxDocument:
     ) -> HwpxOxmlSectionHeaderFooter:
         """Set a header or footer using plain text or rich content specs."""
 
-        normalized = kind.strip().lower()
-        if normalized not in {"header", "footer"}:
-            raise ValueError("kind must be 'header' or 'footer'")
-        if content is not None and text is not None:
-            raise ValueError("use either text or content, not both")
-        if content is not None:
-            if normalized == "header":
-                return self.set_header_content(
-                    content,
-                    section=section,
-                    section_index=section_index,
-                    page_type=page_type,
-                )
-            return self.set_footer_content(
-                content,
-                section=section,
-                section_index=section_index,
-                page_type=page_type,
-            )
-
-        value = "" if text is None else text
-        if normalized == "header":
-            return self.set_header_text(
-                value,
-                section=section,
-                section_index=section_index,
-                page_type=page_type,
-            )
-        return self.set_footer_text(
-            value,
+        return _layout.set_header_footer(
+            self,
+            kind=kind,
+            text=text,
+            content=content,
             section=section,
             section_index=section_index,
             page_type=page_type,
@@ -1852,26 +1506,18 @@ class HwpxDocument:
     ) -> HwpxOxmlSectionHeaderFooter:
         """Replace header/footer content with an automatic page-number field."""
 
-        children: list[dict[str, Any]] = []
-        if prefix:
-            children.append({"type": "run", "text": prefix})
-        children.append(
-            {
-                "type": "page_number",
-                "page_number": format,
-                "position": position,
-                "formatType": format_type,
-            }
-        )
-        if suffix:
-            children.append({"type": "run", "text": suffix})
-
-        return self.set_header_footer(
-            kind=target,
-            content=[{"align": align, "children": children}],
+        return _layout.set_page_number(
+            self,
+            target=target,
+            page_type=page_type,
+            format=format,
+            align=align,
+            position=position,
+            prefix=prefix,
+            suffix=suffix,
+            format_type=format_type,
             section=section,
             section_index=section_index,
-            page_type=page_type,
         )
 
     def remove_header(
@@ -1883,14 +1529,12 @@ class HwpxDocument:
     ) -> None:
         """Remove the header linked to *page_type* from the requested section if present."""
 
-        target_section = section
-        if target_section is None and section_index is not None:
-            target_section = self._root.sections[section_index]
-        if target_section is None:
-            if not self._root.sections:
-                return
-            target_section = self._root.sections[-1]
-        target_section.properties.remove_header(page_type=page_type)
+        return _layout.remove_header(
+            self,
+            section=section,
+            section_index=section_index,
+            page_type=page_type,
+        )
 
     def remove_footer(
         self,
@@ -1901,14 +1545,12 @@ class HwpxDocument:
     ) -> None:
         """Remove the footer linked to *page_type* from the requested section if present."""
 
-        target_section = section
-        if target_section is None and section_index is not None:
-            target_section = self._root.sections[section_index]
-        if target_section is None:
-            if not self._root.sections:
-                return
-            target_section = self._root.sections[-1]
-        target_section.properties.remove_footer(page_type=page_type)
+        return _layout.remove_footer(
+            self,
+            section=section,
+            section_index=section_index,
+            page_type=page_type,
+        )
 
     # ------------------------------------------------------------------
     # BinData / Image management
@@ -1945,75 +1587,13 @@ class HwpxDocument:
             ``binaryItemIDRef`` when constructing a ``<hp:pic>`` element.
         """
 
-        fmt = image_format.lower().lstrip(".")
-        media_type = self._FORMAT_TO_MEDIA_TYPE.get(fmt, f"image/{fmt}")
-
-        existing_ids = self._existing_image_item_ids()
-
-        # Determine a unique item id
-        if item_id is None:
-            n = 1
-            while True:
-                item_id = f"BIN{n:04d}"
-                if item_id not in existing_ids:
-                    break
-                n += 1
-        elif item_id in existing_ids:
-            raise ValueError(f"image item_id {item_id!r} already exists")
-
-        # File path inside the ZIP
-        bin_data_name = f"{item_id}.{fmt}"
-        bin_data_path = f"BinData/{bin_data_name}"
-
-        # 1) Write image bytes into the package
-        self._package.write(bin_data_path, image_data)
-
-        # 2) Register in manifest. ``isEmbeded="1"`` (OWPML's single-d spelling) marks
-        #    the BinData image as embedded — real Hancom drops the picture without it.
-        self._package.add_manifest_item(
-            item_id, bin_data_path, media_type, extra_attrs={"isEmbeded": "1"}
+        return _media.add_image(
+            self,
+            image_data=image_data,
+            image_format=image_format,
+            item_id=item_id,
         )
 
-        # 3) Register in header binDataList
-        header = self._root.headers[0] if self._root.headers else None
-        if header is not None:
-            header.add_bin_item(
-                item_type="Embedding",
-                bin_data_id=bin_data_name,
-                format=fmt,
-            )
-
-        return item_id
-
-    def _existing_image_item_ids(self) -> set[str]:
-        existing_ids: set[str] = set()
-        header = self._root.headers[0] if self._root.headers else None
-        if header is not None:
-            for item in header.list_bin_items():
-                stem = _bin_data_stem(item.get("BinData"))
-                if stem:
-                    existing_ids.add(stem)
-
-        for item in self._package._manifest_items():
-            href = str(item.get("href", "")).strip()
-            media_type = str(item.get("media-type", "")).strip().lower()
-            href_path = PurePosixPath(href)
-            if (
-                media_type.startswith("image/")
-                or (len(href_path.parts) >= 2 and href_path.parts[0] == "BinData")
-            ):
-                item_id = str(item.get("id", "")).strip()
-                if item_id:
-                    existing_ids.add(item_id)
-                stem = _bin_data_stem(href)
-                if stem:
-                    existing_ids.add(stem)
-
-        for part_name in self._package.part_names():
-            path = PurePosixPath(str(part_name))
-            if len(path.parts) >= 2 and path.parts[0] == "BinData" and path.stem:
-                existing_ids.add(path.stem)
-        return existing_ids
 
     def list_images(self) -> list[dict[str, str]]:
         """Return metadata dicts for all embedded binary data items.
@@ -2022,10 +1602,7 @@ class HwpxDocument:
         ``BinData``, ``Format``, …).
         """
 
-        header = self._root.headers[0] if self._root.headers else None
-        if header is None:
-            return []
-        return header.list_bin_items()
+        return _media.list_images(self)
 
     def remove_image(self, item_id: str) -> bool:
         """Remove an embedded image by its manifest item id.
@@ -2037,49 +1614,10 @@ class HwpxDocument:
             ``True`` if any component was removed.
         """
 
-        removed = False
-        header = self._root.headers[0] if self._root.headers else None
-
-        # Find file path and binItem numeric id from header metadata
-        bin_data_path: str | None = None
-        bin_item_numeric_id: str | None = None
-        if header is not None:
-            for bi in header.list_bin_items():
-                bin_data_val = bi.get("BinData", "")
-                # Match by data file name prefix (e.g. "BIN0001" matches "BIN0001.jpg")
-                if bin_data_val.startswith(item_id):
-                    bin_item_numeric_id = bi.get("id")
-                    if bin_data_val:
-                        bin_data_path = f"BinData/{bin_data_val}"
-                    break
-
-        # Also try manifest-based lookup for the file path
-        if bin_data_path is None:
-            manifest_el = self._package._manifest_element()
-            if manifest_el is not None:
-                ns = {"opf": "http://www.idpf.org/2007/opf/"}
-                for it in manifest_el.findall("opf:item", ns):
-                    if it.get("id") == item_id:
-                        href = it.get("href", "")
-                        if href:
-                            bin_data_path = href
-                        break
-
-        # Remove from header binDataList (use the numeric id)
-        if header is not None and bin_item_numeric_id is not None:
-            if header.remove_bin_item(bin_item_numeric_id):
-                removed = True
-
-        # Remove from manifest
-        if self._package.remove_manifest_item(item_id):
-            removed = True
-
-        # Remove from ZIP
-        if bin_data_path and self._package.has_part(bin_data_path):
-            self._package.delete(bin_data_path)
-            removed = True
-
-        return removed
+        return _media.remove_image(
+            self,
+            item_id=item_id,
+        )
 
     # ------------------------------------------------------------------
     # Export helpers
@@ -2087,26 +1625,38 @@ class HwpxDocument:
 
     def export_text(self, **kwargs: object) -> str:
         """Export content as plain text.  Keyword args forwarded to :func:`~hwpx.tools.exporter.export_text`."""
-        from .tools.exporter import export_text
-        return export_text(self, **kwargs)  # type: ignore[arg-type]
+
+        return _persistence.export_text(
+            self,
+            **kwargs,
+        )
 
     def export_html(self, **kwargs: object) -> str:
         """Export content as HTML.  Keyword args forwarded to :func:`~hwpx.tools.exporter.export_html`."""
-        from .tools.exporter import export_html
-        return export_html(self, **kwargs)  # type: ignore[arg-type]
+
+        return _persistence.export_html(
+            self,
+            **kwargs,
+        )
 
     def export_markdown(self, **kwargs: object) -> str:
         """Export content as Markdown.  Keyword args forwarded to :func:`~hwpx.tools.exporter.export_markdown`."""
-        from .tools.exporter import export_markdown
-        return export_markdown(self, **kwargs)  # type: ignore[arg-type]
+
+        return _persistence.export_markdown(
+            self,
+            **kwargs,
+        )
 
     def export_rich_markdown(self, **kwargs: object) -> str:
         """Export rich Markdown preserving inline styles, tables, footnotes, hyperlinks, images, and shape text.
 
         Keyword args forwarded to :func:`~hwpx.tools.markdown_export.export_markdown`.
         """
-        from .tools.markdown_export import export_markdown as _rich
-        return _rich(self, **kwargs)  # type: ignore[arg-type]
+
+        return _persistence.export_rich_markdown(
+            self,
+            **kwargs,
+        )
 
     # ------------------------------------------------------------------
     # Validation
@@ -2119,83 +1669,34 @@ class HwpxDocument:
         any issues found.  This does **not** require ``validate_on_save``
         to be enabled.
         """
-        from .tools.validator import validate_document
 
-        return validate_document(
-            self._to_bytes_for_validation()
-        )
+        return _persistence.validate(self)
 
-    def _run_pre_save_validation(self) -> None:
-        """Raise if validate_on_save is enabled and the document is invalid."""
-        if not self.validate_on_save:
-            return
-        report = self.validate()
-        if not report.ok:
-            msgs = _summarize_validation_issues(report.issues)
-            raise ValueError(f"Document validation failed: {msgs}")
 
     def _run_open_safety_validation(self, archive_bytes: bytes) -> None:
         """Raise if generated bytes are unsafe to hand to an HWPX editor."""
 
-        from .tools.package_validator import validate_editor_open_safety
-
-        report = validate_editor_open_safety(archive_bytes)
-        if not report.ok:
-            raise ValueError(
-                "Generated HWPX package failed open-safety validation: "
-                + report.summary
-            )
-
-    def _gate_and_write(
-        self,
-        archive_bytes: bytes,
-        *,
-        output_path: str | PathLike[str] | None = None,
-        output_stream: BinaryIO | None = None,
-        source_label: str,
-    ) -> VisualCompleteReport:
-        """Funnel a serialized archive through the SavePipeline (transparent).
-
-        ``_to_bytes_raw`` already ran open-safety and raised on failure, so the
-        gate is transparent here — it performs the single atomic write and returns
-        the uniform report. Raises if the gate unexpectedly rejects the bytes.
-        """
-
-        report = self._save_pipeline.run(
-            archive_bytes,
-            output_path=output_path,
-            output_stream=output_stream,
-            quality=QualityPolicy.transparent(),
-            open_safety=OpenSafetyReport.passed("validated during serialize"),
-            publish="on_pass",
-            source_label=source_label,
+        return _persistence._run_open_safety_validation(
+            self,
+            archive_bytes=archive_bytes,
         )
-        if not report.ok:
-            detail = "; ".join(str(error) for error in report.errors)
-            raise ValueError(f"Document save failed the quality gate: {detail}")
-        return report
+
 
     def save_to_path(self, path: str | PathLike[str]) -> str | PathLike[str]:
         """Persist pending changes to *path* and return the same path."""
 
-        self._run_pre_save_validation()
-        archive_bytes = self._to_bytes_raw(reset_dirty=False)
-        self._gate_and_write(
-            archive_bytes, output_path=path, source_label="document.save_to_path"
+        return _persistence.save_to_path(
+            self,
+            path=path,
         )
-        self._mark_save_clean()
-        return path
 
     def save_to_stream(self, stream: BinaryIO) -> BinaryIO:
         """Persist pending changes to *stream* and return the same stream."""
 
-        self._run_pre_save_validation()
-        archive_bytes = self._to_bytes_raw(reset_dirty=False)
-        self._gate_and_write(
-            archive_bytes, output_stream=stream, source_label="document.save_to_stream"
+        return _persistence.save_to_stream(
+            self,
+            stream=stream,
         )
-        self._mark_save_clean()
-        return stream
 
     def save_report(
         self,
@@ -2220,36 +1721,19 @@ class HwpxDocument:
         check fails; all other gate outcomes are returned in the report.
         """
 
-        self._run_pre_save_validation()
-        archive_bytes = self._to_bytes_raw(reset_dirty=False)
-
-        output_path: str | PathLike[str] | None = None
-        output_stream: BinaryIO | None = None
-        if isinstance(path_or_stream, (str, PathLike)):
-            output_path = path_or_stream
-        elif path_or_stream is not None:
-            output_stream = path_or_stream
-
-        report = self._save_pipeline.run(
-            archive_bytes,
-            output_path=output_path,
-            output_stream=output_stream,
-            quality=quality or QualityPolicy.transparent(),
+        return _persistence.save_report(
+            self,
+            path_or_stream=path_or_stream,
+            quality=quality,
             before=before,
             edit_mask=edit_mask,
             ledger=ledger,
-            reference_document=self,
-            source_label="document.save_report",
         )
-        if report.ok:
-            self._mark_save_clean()
-        return report
 
     def to_bytes(self) -> bytes:
         """Serialize pending changes and return the HWPX archive as bytes."""
 
-        self._run_pre_save_validation()
-        return self._to_bytes_raw()
+        return _persistence.to_bytes(self)
 
     def _to_bytes_raw(
         self,
@@ -2261,33 +1745,12 @@ class HwpxDocument:
         When ``reset_dirty`` is ``False``, the document remains marked as
         modified after the archive snapshot is generated.
         """
-        updates = self._root.serialize()
-        if updates:
-            for part_name, payload in updates.items():
-                self._package.set_part(part_name, payload)
-        result = self._package._save_to_bytes(
-            verify_open_safety=True,
-            mark_clean=False,
-        )
-        if isinstance(result, bytes):
-            self._run_open_safety_validation(result)
-            if reset_dirty:
-                self._mark_save_clean()
-            return result
-        raise TypeError("package.save(None) must return bytes")
 
-    def _to_bytes_for_validation(self) -> bytes:
-        """Serialize current state for document validation without handing bytes to callers."""
-
-        updates = self._root.serialize()
-        return self._package._save_bytes_unchecked(
-            updates,
-            _unchecked_token=_UNCHECKED_SAVE_TOKEN,
+        return _persistence._to_bytes_raw(
+            self,
+            reset_dirty=reset_dirty,
         )
 
-    def _mark_save_clean(self) -> None:
-        self._root.reset_dirty()
-        self._package.version_info.mark_clean()
 
     @overload
     def save(self, path_or_stream: None = None) -> bytes: ...
@@ -2311,14 +1774,4 @@ class HwpxDocument:
             - 바이트 반환: ``to_bytes()``
         """
 
-        warnings.warn(
-            "HwpxDocument.save()는 deprecated 예정입니다. "
-            "save_to_path()/save_to_stream()/to_bytes() 사용을 권장합니다.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if path_or_stream is None:
-            return self.to_bytes()
-        if isinstance(path_or_stream, (str, PathLike)):
-            return self.save_to_path(path_or_stream)
-        return self.save_to_stream(path_or_stream)
+        return _persistence.save(self, path_or_stream=path_or_stream)

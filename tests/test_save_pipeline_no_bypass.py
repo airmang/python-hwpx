@@ -62,8 +62,13 @@ def test_no_public_write_path_writes_serialized_output_directly() -> None:
 
 
 def test_every_write_path_routes_through_the_gate() -> None:
+    # S-084 moved the document savers behind the facade into the persistence
+    # owner (``hwpx._document.persistence``); the gate call now reads
+    # ``doc._save_pipeline.run(`` there instead of ``self._save_pipeline.run(``
+    # in document.py. The document write surface still routes through the gate.
     document = WRITE_MODULES["document"].read_text(encoding="utf-8")
-    assert "self._save_pipeline.run(" in document
+    persistence = (_SRC / "_document" / "persistence.py").read_text(encoding="utf-8")
+    assert "self._save_pipeline.run(" in document or "_save_pipeline.run(" in persistence
     patch = WRITE_MODULES["patch"].read_text(encoding="utf-8")
     assert "SavePipeline().run(" in patch
     builder = WRITE_MODULES["builder"].read_text(encoding="utf-8")
