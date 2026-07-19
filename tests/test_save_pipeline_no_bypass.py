@@ -33,12 +33,21 @@ WRITE_MODULES = {
 }
 
 
+def _document_owner_sources() -> dict[str, str]:
+    """The S-084 domain owners behind the facade are write-surface too."""
+    return {
+        f"_document/{path.name}": path.read_text(encoding="utf-8")
+        for path in sorted((_SRC / "_document").glob("*.py"))
+    }
+
+
 # --------------------------------------------------------------------------- #
 # Static: the single writer + no direct destination writes
 # --------------------------------------------------------------------------- #
 def test_atomic_writers_defined_only_in_save_pipeline() -> None:
-    for name, path in WRITE_MODULES.items():
-        src = path.read_text(encoding="utf-8")
+    sources = {name: path.read_text(encoding="utf-8") for name, path in WRITE_MODULES.items()}
+    sources.update(_document_owner_sources())
+    for name, src in sources.items():
         for forbidden in (
             "def write_bytes_atomically",
             "def _write_bytes_atomically",
@@ -49,9 +58,14 @@ def test_atomic_writers_defined_only_in_save_pipeline() -> None:
 
 
 def test_no_public_write_path_writes_serialized_output_directly() -> None:
-    # document / patch / builder never write the output archive themselves.
-    for name in ("document", "patch", "builder"):
-        src = WRITE_MODULES[name].read_text(encoding="utf-8")
+    # document (facade + _document owners) / patch / builder never write the
+    # output archive themselves.
+    sources = {
+        name: WRITE_MODULES[name].read_text(encoding="utf-8")
+        for name in ("document", "patch", "builder")
+    }
+    sources.update(_document_owner_sources())
+    for name, src in sources.items():
         assert "os.replace(" not in src, f"{name} writes output outside the pipeline"
         assert ".write_bytes(" not in src, f"{name} writes output outside the pipeline"
     # template_formfit publishes the *pipeline-produced* temp via exactly one
@@ -66,9 +80,8 @@ def test_every_write_path_routes_through_the_gate() -> None:
     # owner (``hwpx._document.persistence``); the gate call now reads
     # ``doc._save_pipeline.run(`` there instead of ``self._save_pipeline.run(``
     # in document.py. The document write surface still routes through the gate.
-    document = WRITE_MODULES["document"].read_text(encoding="utf-8")
     persistence = (_SRC / "_document" / "persistence.py").read_text(encoding="utf-8")
-    assert "self._save_pipeline.run(" in document or "_save_pipeline.run(" in persistence
+    assert "doc._save_pipeline.run(" in persistence
     patch = WRITE_MODULES["patch"].read_text(encoding="utf-8")
     assert "SavePipeline().run(" in patch
     builder = WRITE_MODULES["builder"].read_text(encoding="utf-8")
