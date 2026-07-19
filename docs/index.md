@@ -18,6 +18,7 @@ examples
 :hidden:
 :caption: 심화 주제
 
+corpus-metrics
 schema-overview
 faq
 changelog

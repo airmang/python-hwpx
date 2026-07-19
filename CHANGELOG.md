@@ -4,6 +4,31 @@
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-07-19
+
+### Added
+- 선언형 문서 계획(plan-v2)에 네이티브 자동 목차 옵션(`native: true`)을 추가합니다.
+  정적 목차를 내려쓴 뒤 한컴이 열기 시점에 재계산하는 TABLEOFCONTENTS 필드로
+  승격하며, 본문 스타일 수집 가드(바탕글-수집 함정)를 포함합니다.
+- M9 출판 코퍼스 도구를 추가합니다: 코퍼스 v2 additive 생성기, 무인 실한컴 박스
+  판정(오픈/파싱·스케일 렌더 배치·redline InitScan 프로브), 축별 검증 드라이버
+  (byte-identity·PII 0-leak·저작 품질·양식 채움 차등·TOC 검증)와 결합 집계기
+  (provenance 이중 발행·redline-aware parsed·렌더 티어).
+- 실측 결과를 문서로 발행합니다: `docs/corpus-metrics.md`(축 주석 포함)와
+  릴리스별 기계 판독 히스토리 `docs/corpus-metrics-history.json`.
+
+### Fixed
+- 오픈레이트 박스 러너의 재개 키를 basename에서 전체 경로로 바꿔, 중복 파일명을
+  가진 코퍼스에서 파일이 조용히 건너뛰어지던 문제를 고칩니다.
+- Windows PowerShell 5.1에서 렌더 잡 배열이 1개 객체로 접히던 열거 함정을 고칩니다.
+
+### Internal
+- `HwpxDocument` facade를 도메인 owner 8모듈로 행동 보존 분해합니다
+  (2,961→1,777줄; 공개 표면 97멤버 characterization 스냅샷으로 동결).
+- 복잡도 상위 함수 5종+1을 분해해 C901 초과를 120→114로 낮추고, owner 모듈을
+  mypy/pyright 점진 게이트에 편입합니다(40파일 clean).
+
+
 ## [3.3.1] - 2026-07-18
 
 ### Internal
