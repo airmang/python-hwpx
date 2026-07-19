@@ -271,13 +271,26 @@ class FitEngine:
         if verdict == "fits":
             return result
         if verdict == "modest":
+            # S-085 P1 calibration round 2 (differential-measured): the modest
+            # band is where pages actually shift, so try to shrink INTO the
+            # budget first; only defer to the oracle when no font >= min can
+            # land the value fully inside the authored height.
+            if policy.may_shrink:
+                shrunk = self._try_shrink_for_height(
+                    value, slot, policy, wrap_lines, field_id, accept_modest=False
+                )
+                if shrunk is not None:
+                    return shrunk
             result.overflow_detected = True
             result.warnings.append(_ROW_GROWTH_NOTE)
             return result
 
-        # Gross vertical balloon: shrink until it is no longer gross, else fail-closed.
+        # Gross vertical balloon: shrink (prefer a full fit, else the least
+        # growth), else fail-closed.
         if policy.may_shrink:
-            shrunk = self._try_shrink_for_height(value, slot, policy, wrap_lines, field_id)
+            shrunk = self._try_shrink_for_height(
+                value, slot, policy, wrap_lines, field_id, accept_modest=True
+            )
             if shrunk is not None:
                 return shrunk
         return self._overflow_height(value, slot, policy, field_id, wrapped, font)
@@ -303,45 +316,77 @@ class FitEngine:
         policy: FitPolicy,
         wrap_lines: int,
         field_id: str | None,
+        *,
+        accept_modest: bool,
     ) -> FitResult | None:
-        """Largest font (>= min) where the value fits width *and* is not a gross
-        vertical balloon. A residual *modest* growth is kept but reported."""
+        """Largest font (>= min) that lands the value INSIDE the height budget.
+
+        Walks the shrink ladder preferring a full vertical fit ("fits"). When
+        ``accept_modest`` is true and no font achieves a full fit, the largest
+        candidate whose growth is merely *modest* (never gross) is returned as
+        the least-damage fallback, reported and deferred to the oracle.
+        """
 
         ceiling = policy.max_font_pt or slot.font_pt
         candidate = min(slot.font_pt, ceiling)
+        modest_candidate: tuple[float, int] | None = None
         while candidate >= policy.min_font_pt - 1e-9:
             trial = replace(slot, font_pt=candidate, max_lines=wrap_lines)
             m = measure(value, trial)
-            verdict = self._height_verdict(slot, m.lines, candidate)
-            if m.fits and m.confidence == "high" and verdict != "gross":
-                changes: dict[str, object] = {}
-                warnings: list[str] = []
-                if candidate != slot.font_pt:
-                    changes = {
-                        "font_pt": round(candidate, 2),
-                        "from_font_pt": round(slot.font_pt, 2),
-                    }
-                    warnings.append(
-                        f"font shrunk {slot.font_pt:g}pt → {candidate:g}pt to fit the row height"
+            if m.fits and m.confidence == "high":
+                verdict = self._height_verdict(slot, m.lines, candidate)
+                if verdict == "fits":
+                    return self._shrunk_result(
+                        value, slot, candidate, m.lines, wrap_lines, field_id,
+                        modest=False,
                     )
-                if wrap_lines > 1 and m.lines > 1:
-                    changes["wrapped_lines"] = m.lines
-                if verdict == "modest":
-                    warnings.append(_ROW_GROWTH_NOTE)
-                return FitResult(
-                    ok=True,
-                    value=value,
-                    applied_value=value,
-                    applied_style_changes=changes,
-                    lines=m.lines,
-                    font_pt=round(candidate, 2),
-                    confidence="high",
-                    overflow_detected=(verdict == "modest"),
-                    warnings=warnings,
-                    field_id=field_id,
-                )
+                if verdict == "modest" and modest_candidate is None:
+                    modest_candidate = (candidate, m.lines)
             candidate = round(candidate - _SHRINK_STEP_PT, 4)
+        if accept_modest and modest_candidate is not None:
+            font_pt, lines = modest_candidate
+            return self._shrunk_result(
+                value, slot, font_pt, lines, wrap_lines, field_id, modest=True
+            )
         return None
+
+    def _shrunk_result(
+        self,
+        value: str,
+        slot: SlotMetrics,
+        candidate: float,
+        lines: int,
+        wrap_lines: int,
+        field_id: str | None,
+        *,
+        modest: bool,
+    ) -> FitResult:
+        changes: dict[str, object] = {}
+        warnings: list[str] = []
+        if candidate != slot.font_pt:
+            changes = {
+                "font_pt": round(candidate, 2),
+                "from_font_pt": round(slot.font_pt, 2),
+            }
+            warnings.append(
+                f"font shrunk {slot.font_pt:g}pt → {candidate:g}pt to fit the row height"
+            )
+        if wrap_lines > 1 and lines > 1:
+            changes["wrapped_lines"] = lines
+        if modest:
+            warnings.append(_ROW_GROWTH_NOTE)
+        return FitResult(
+            ok=True,
+            value=value,
+            applied_value=value,
+            applied_style_changes=changes,
+            lines=lines,
+            font_pt=round(candidate, 2),
+            confidence="high",
+            overflow_detected=modest,
+            warnings=warnings,
+            field_id=field_id,
+        )
 
     def _overflow_height(
         self,

@@ -308,3 +308,32 @@ def test_to_form_report_folds_results():
     assert len(report.fields) == 2
     assert report.fields[0]["fieldId"] == "name"
     assert any("FIELD_OVERFLOW" in e for e in report.errors)
+
+
+def test_modest_vertical_overflow_shrinks_into_budget_when_possible():
+    # S-085 P1 round 2 (differential-measured): the modest band is where pages
+    # actually shift, so wrap_then_shrink must land INSIDE the height budget
+    # instead of warning and letting the row grow.
+    engine = FitEngine()
+    # height=2400: 2 lines exceed the 1-line budget at 10pt (modest), but a
+    # shrink to 7.5pt lands both lines fully inside the budget.
+    before = _vslot(height=2400)
+    result = engine.fit(
+        "가" * 11, before, FitPolicy(mode="wrap_then_shrink", min_font_pt=6.0)
+    )
+    assert result.ok is True
+    assert result.overflow_detected is False
+    assert not any("row will grow" in w for w in result.warnings)
+    assert result.font_pt is not None and result.font_pt < before.font_pt
+
+
+def test_modest_vertical_overflow_defers_when_shrink_cannot_reach_budget():
+    # height=1600 cannot hold two lines even at min font — the honest outcome
+    # stays the reported modest deferral, never a false shrink claim.
+    engine = FitEngine()
+    result = engine.fit(
+        "가" * 11, _vslot(height=1600), FitPolicy(mode="wrap_then_shrink", min_font_pt=6.0)
+    )
+    assert result.ok is True
+    assert result.overflow_detected is True
+    assert any("row will grow" in w for w in result.warnings)
