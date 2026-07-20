@@ -42,7 +42,7 @@
 `hwpx-mcp-server`와 `hwpx-plugin`은 같은 프로젝트가 직접 유지보수하는 first-party 연동 구성요소입니다.
 “first-party”는 프로젝트 유지보수 관계를 뜻하며, 한컴 또는 제3자의 공식 인증을 뜻하지 않습니다.
 
-현재 PyPI 공개 릴리스는 `python-hwpx 3.6.0`입니다. 일반
+현재 PyPI 공개 릴리스는 `python-hwpx 3.7.0`입니다. 일반
 `pip install python-hwpx`로 이 릴리스를 설치할 수 있습니다.
 현재 패키지 분류는 `Development Status :: 3 - Alpha`입니다. 이 분류는 API와 제품의
 성숙도를 나타내며, 공개 버전이나 플러그인의 최소 호환 버전을 대신하지 않습니다.

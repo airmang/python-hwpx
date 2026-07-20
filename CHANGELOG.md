@@ -4,6 +4,34 @@
 
 ## [Unreleased]
 
+## [3.7.0] - 2026-07-21
+
+### Added — Safe Write Contract
+- 일반 저장 경로가 **명시적 쓰기 모드**를 받습니다:
+  `save_to_path(path, mode="patch"|"rebuild"|"auto", fallback="error"|"rebuild",
+  return_report=True)`. 반환 기본값은 기존과 동일(경로)이며 `return_report=True`
+  일 때만 스키마버전드 **`hwpx.mutation-report/v1`** 영수증을 반환합니다 —
+  요청/실제 모드, 변경 part 목록(+가능한 경우 실제 범위, coordinate space 명시),
+  보존 보증 3계층(미수정 part payload / zip local record / whole package),
+  수행한 검증의 3값 기록(passed/failed/not_performed).
+- **무음 강등 없음**: `mode="patch"`에서 요청 보존 등급을 만족하지 못하면
+  출력 파일을 쓰지 않고 typed `PreservationDowngradeError`를 던집니다.
+  `fallback="rebuild"`로 명시 동의한 경우에만 진행하며 영수증에
+  `fallbackUsed: true`가 남습니다. 보존은 단언이 아니라 **open-시점 기준선
+  대비 실측**입니다(발행 성공 시 기준선 전진).
+- 기존 쓰기 결과 4종(BytePreservingPatchResult·CellFillResult·BodyOpsResult·
+  AgentBatchResult)에 `as_mutation_report()` 사영 추가 — byte-splice 계열은
+  `source=`(bytes/str/Path) 제공 시 보존 3계층과 실제 스플라이스 범위를
+  실측 보고, 미제공 시 정직 강등. 기존 필드·to_dict 출력은 불변(additive).
+
+### Docs
+- README 포지셔닝 개정(§안전 자동화 계층+검증된 저작), **지원 매트릭스**
+  공개(docs/support-matrix.md — Parse/Preserve/Edit/Create/Render-verified/
+  Unsupported-but-preserved/Unsupported-and-rejected, 셀별 증거 링크),
+  docs/safe-write-contract.md 신설, 헤드라인 지표에 corpus·분모·측정일·
+  assurance 병기(오픈 수용률 하한 표기를 rule-of-three 99.37%로 정밀화).
+
+
 ## [3.6.0] - 2026-07-20
 
 ### Fixed
