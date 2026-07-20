@@ -214,103 +214,115 @@ def _validate_header_story_properties(properties: Mapping[str, Any]) -> None:
     _require_string(properties["text"], "header.text")
 
 
-def _preflight(batch: Mapping[str, Any]) -> None:
-    """Reject the complete static command matrix before the first mutation."""
+def _preflight_reference_kind(value: str, alias_kinds: Mapping[str, Mapping[str, str]]) -> str:
+    if value.startswith("$"):
+        command_id, field = value[1:].split(".", 1)
+        try:
+            return alias_kinds[command_id][field]
+        except KeyError as exc:  # validate_agent_batch already checks ordering
+            raise AgentContractError("not_found", f"unknown command alias: {value}") from exc
+    story = try_parse_header_story_path(value)
+    if story is not None:
+        return story.kind
+    parsed = parse_path(value)
+    return parsed.segments[-1].kind if parsed.segments else "document"
 
-    alias_kinds: dict[str, dict[str, str]] = {}
 
-    def reference_kind(value: str) -> str:
-        if value.startswith("$"):
-            command_id, field = value[1:].split(".", 1)
-            try:
-                return alias_kinds[command_id][field]
-            except KeyError as exc:  # validate_agent_batch already checks ordering
-                raise AgentContractError("not_found", f"unknown command alias: {value}") from exc
-        story = try_parse_header_story_path(value)
-        if story is not None:
-            return story.kind
-        parsed = parse_path(value)
-        return parsed.segments[-1].kind if parsed.segments else "document"
+def _preflight_parent_kind(value: str, alias_kinds: Mapping[str, Mapping[str, str]]) -> str:
+    if value.startswith("$"):
+        command_id, field = value[1:].split(".", 1)
+        try:
+            return alias_kinds[command_id]["parentPath" if field == "path" else field]
+        except KeyError:
+            return "document"
+    story = try_parse_header_story_path(value)
+    if story is not None:
+        return "section"
+    parsed = parse_path(value)
+    return parsed.segments[-2].kind if len(parsed.segments) > 1 else "document"
 
-    def parent_kind(value: str) -> str:
-        if value.startswith("$"):
-            command_id, field = value[1:].split(".", 1)
-            try:
-                return alias_kinds[command_id]["parentPath" if field == "path" else field]
-            except KeyError:
-                return "document"
-        story = try_parse_header_story_path(value)
-        if story is not None:
-            return "section"
-        parsed = parse_path(value)
-        return parsed.segments[-2].kind if len(parsed.segments) > 1 else "document"
 
-    for command in batch["commands"]:
-        op = command["op"]
-        if op == "add":
-            kind = command["kind"]
-            if kind not in _ADD_PARENTS:
-                raise AgentContractError(
-                    "unsupported_operation", f"add is unsupported for {kind}", target=command["commandId"]
-                )
-            _validate_property_values(kind, command["properties"], creating=True)
-            if kind == "table" and not {"rowCount", "columnCount"} <= set(command["properties"]):
-                raise AgentContractError(
-                    "invalid_syntax", "table add requires rowCount and columnCount", target=command["commandId"]
-                )
-            if kind == "row" and "cellCount" not in command["properties"]:
-                raise AgentContractError(
-                    "invalid_syntax", "row add requires cellCount", target=command["commandId"]
-                )
-            destination_kind = reference_kind(command["parent"])
-            expected_parent = _ADD_PARENTS[kind]
-            if destination_kind != expected_parent:
-                raise AgentContractError(
-                    "incompatible_parent",
-                    f"{kind} requires a {expected_parent} parent, not {destination_kind}",
-                    target=command["commandId"],
-                )
-            alias_kinds[command["commandId"]] = {
-                "path": kind,
-                "parentPath": destination_kind,
-            }
-            continue
-        source_kind = reference_kind(command["path"])
-        if source_kind == HEADER_STORY_KIND:
-            if op != "set":
-                raise AgentContractError(
-                    "unsupported_operation",
-                    f"{op} is unsupported for {source_kind}",
-                    target=command["commandId"],
-                )
-            _validate_header_story_properties(command["properties"])
-            alias_kinds[command["commandId"]] = {
-                "path": source_kind,
-                "parentPath": "section",
-            }
-            continue
-        if op not in NODE_PROPERTY_CATALOG_V1[source_kind]["operations"]:
+def _preflight_add_command(command: Mapping[str, Any], alias_kinds: dict[str, dict[str, str]]) -> None:
+    kind = command["kind"]
+    if kind not in _ADD_PARENTS:
+        raise AgentContractError(
+            "unsupported_operation", f"add is unsupported for {kind}", target=command["commandId"]
+        )
+    _validate_property_values(kind, command["properties"], creating=True)
+    if kind == "table" and not {"rowCount", "columnCount"} <= set(command["properties"]):
+        raise AgentContractError(
+            "invalid_syntax", "table add requires rowCount and columnCount", target=command["commandId"]
+        )
+    if kind == "row" and "cellCount" not in command["properties"]:
+        raise AgentContractError(
+            "invalid_syntax", "row add requires cellCount", target=command["commandId"]
+        )
+    destination_kind = _preflight_reference_kind(command["parent"], alias_kinds)
+    expected_parent = _ADD_PARENTS[kind]
+    if destination_kind != expected_parent:
+        raise AgentContractError(
+            "incompatible_parent",
+            f"{kind} requires a {expected_parent} parent, not {destination_kind}",
+            target=command["commandId"],
+        )
+    alias_kinds[command["commandId"]] = {
+        "path": kind,
+        "parentPath": destination_kind,
+    }
+
+
+def _preflight_mutate_command(
+    op: str, command: Mapping[str, Any], alias_kinds: dict[str, dict[str, str]]
+) -> None:
+    source_kind = _preflight_reference_kind(command["path"], alias_kinds)
+    if source_kind == HEADER_STORY_KIND:
+        if op != "set":
             raise AgentContractError(
                 "unsupported_operation",
                 f"{op} is unsupported for {source_kind}",
                 target=command["commandId"],
             )
-        if op == "set":
-            _validate_property_values(source_kind, command["properties"], creating=False)
-        destination_kind = parent_kind(command["path"])
-        if op in {"move", "copy"}:
-            destination_kind = reference_kind(command["parent"])
-            move_parent = _MOVE_COPY_PARENTS.get(source_kind)
-            if destination_kind != move_parent:
-                raise AgentContractError(
-                    "incompatible_parent",
-                    f"{source_kind} requires a {move_parent} parent, not {destination_kind}",
-                    target=command["commandId"],
-                )
+        _validate_header_story_properties(command["properties"])
         alias_kinds[command["commandId"]] = {
             "path": source_kind,
-            "parentPath": destination_kind,
+            "parentPath": "section",
         }
+        return
+    if op not in NODE_PROPERTY_CATALOG_V1[source_kind]["operations"]:
+        raise AgentContractError(
+            "unsupported_operation",
+            f"{op} is unsupported for {source_kind}",
+            target=command["commandId"],
+        )
+    if op == "set":
+        _validate_property_values(source_kind, command["properties"], creating=False)
+    destination_kind = _preflight_parent_kind(command["path"], alias_kinds)
+    if op in {"move", "copy"}:
+        destination_kind = _preflight_reference_kind(command["parent"], alias_kinds)
+        move_parent = _MOVE_COPY_PARENTS.get(source_kind)
+        if destination_kind != move_parent:
+            raise AgentContractError(
+                "incompatible_parent",
+                f"{source_kind} requires a {move_parent} parent, not {destination_kind}",
+                target=command["commandId"],
+            )
+    alias_kinds[command["commandId"]] = {
+        "path": source_kind,
+        "parentPath": destination_kind,
+    }
+
+
+def _preflight(batch: Mapping[str, Any]) -> None:
+    """Reject the complete static command matrix before the first mutation."""
+
+    alias_kinds: dict[str, dict[str, str]] = {}
+
+    for command in batch["commands"]:
+        op = command["op"]
+        if op == "add":
+            _preflight_add_command(command, alias_kinds)
+            continue
+        _preflight_mutate_command(op, command, alias_kinds)
 
 
 def _resolve_alias(value: str, aliases: Mapping[str, Mapping[str, str]]) -> str:
