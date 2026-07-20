@@ -25,6 +25,8 @@ so the caller can fail closed to the original script text.
 
 from __future__ import annotations
 
+from typing import Any
+
 from .tokens import (
     ACCENTS,
     BIG_OPERATORS,
@@ -49,6 +51,33 @@ class EquationConversionError(ValueError):
     """Raised when an EqEdit script cannot be converted to LaTeX."""
 
 
+def _lex_quoted_literal(source: str, i: int, tokens: list[str]) -> int:
+    """Consume a quoted EqEdit text run; unterminated quotes swallow the rest."""
+
+    j = source.find('"', i + 1)
+    if j == -1:
+        tokens.append(source[i:])
+        return len(source)
+    tokens.append(source[i : j + 1])
+    return j + 1
+
+
+def _lex_symbol_operator(source: str, i: int, tokens: list[str]) -> int | None:
+    for op in _SYMBOL_OPS_SORTED:
+        if source.startswith(op, i):
+            tokens.append(op)
+            return i + len(op)
+    return None
+
+
+def _lex_run(source: str, i: int, tokens: list[str], predicate: Any) -> int:
+    j = i
+    while j < len(source) and predicate(source[j]):
+        j += 1
+    tokens.append(source[i:j])
+    return j
+
+
 def _tokenize(source: str) -> list[str]:
     tokens: list[str] = []
     i = 0
@@ -57,46 +86,21 @@ def _tokenize(source: str) -> list[str]:
         ch = source[i]
         if ch.isspace():
             i += 1
-            continue
-        if ch == '"':  # quoted literal → EqEdit text run
-            j = source.find('"', i + 1)
-            if j == -1:
-                # Unterminated quote: consume the rest as a literal.
-                tokens.append(source[i:])
-                break
-            tokens.append(source[i : j + 1])
-            i = j + 1
-            continue
-        matched = False
-        for op in _SYMBOL_OPS_SORTED:
-            if source.startswith(op, i):
-                tokens.append(op)
-                i += len(op)
-                matched = True
-                break
-        if matched:
-            continue
-        if ch in _BREAK_CHARS:
+        elif ch == '"':
+            i = _lex_quoted_literal(source, i, tokens)
+        elif (advanced := _lex_symbol_operator(source, i, tokens)) is not None:
+            i = advanced
+        elif ch in _BREAK_CHARS:
             tokens.append(ch)
             i += 1
-            continue
-        if ch.isdigit() or ch == ".":
-            j = i
-            while j < n and (source[j].isdigit() or source[j] == "."):
-                j += 1
-            tokens.append(source[i:j])
-            i = j
-            continue
-        if ch.isalpha():
-            j = i
-            while j < n and source[j].isalpha():
-                j += 1
-            tokens.append(source[i:j])
-            i = j
-            continue
-        # Any other single character (operators like + - = < > , ! ; :).
-        tokens.append(ch)
-        i += 1
+        elif ch.isdigit() or ch == ".":
+            i = _lex_run(source, i, tokens, lambda c: c.isdigit() or c == ".")
+        elif ch.isalpha():
+            i = _lex_run(source, i, tokens, str.isalpha)
+        else:
+            # Any other single character (operators like + - = < > , ! ; :).
+            tokens.append(ch)
+            i += 1
     return tokens
 
 

@@ -4,6 +4,24 @@
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-07-21
+
+### Added — 문서 프리뷰 뷰어
+- `render_document_viewer`: 한컴 없이 문서를 **스크롤 통독**하는 self-contained
+  HTML 뷰어(상단바·현재 페이지 표시·키보드 탐색·외부 리소스 0). 충실도 배지가
+  한계를 정직하게 표시합니다(텍스트 근사·페이지네이션은 한컴과 다를 수 있음).
+- **수식 실제 렌더**: `hwpx.equation` — `<hp:equation>`의 EqEdit 스크립트를
+  clean-room 토큰맵으로 LaTeX로 변환해 MathML로 렌더합니다(선택 extra
+  `python-hwpx[preview]` = latex2mathml). 실한컴 ground-truth와 시각 대조로
+  검증(specs 증거). 변환 불가/라이브러리 부재 시 **빈칸 대신** 원문·LaTeX
+  코드블록으로 정직 표시하고, 그림·도형은 자리표시 마커로 보입니다 — 기존
+  프리뷰가 수식을 조용히 빈 문단으로 떨구던 동작은 제거됐습니다.
+
+### Internal
+- MCP 경계 타이핑 정밀화를 위한 evalplan 경로 Path/str 유니온(순수 어노테이션).
+- 복잡도 3물결: 최상위 15개 함수 분해(C901 115→100), characterization 39건 추가.
+
+
 ## [3.7.0] - 2026-07-21
 
 ### Added — Safe Write Contract

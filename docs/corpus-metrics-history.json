@@ -129,6 +129,11 @@
       "measuredAt": "2026-07-21",
       "stack": "python-hwpx 3.7.0 (corpus v2; no new box run)",
       "note": "Safe Write Contract shipped (explicit write mode, mutation-report/v1 receipts, no-silent-fallback with an open-time measured baseline; support matrix published). Oracle-facing corpus numbers carried from the 3.6.0 measurement — no re-render was needed for a save-contract addition; byte-preservation semantics are covered by the in-repo measured gates."
+    },
+    {
+      "measuredAt": "2026-07-21",
+      "stack": "python-hwpx 3.8.0 (corpus v2; no new box run)",
+      "note": "Document preview viewer + MathML equation rendering shipped ([preview] extra); complexity wave 3 and typing seam carried from the debt branch. Oracle-facing corpus numbers carried from 3.6.0 measurement."
     }
   ]
 }
