@@ -23,7 +23,7 @@
 |---|---|---|
 | 문단·표 저작/편집 | Parse·Preserve·Edit·Create·Render-verified | corpus-metrics「오픈 수용률」476/476, 「저작 품질 게이트」실저작 58/58, 「렌더 검증」416건 |
 | 표 구조 변경(행·열·표 삭제/삽입, 열 오토핏) | Preserve·Edit | `hwpx.table_patch`; corpus-metrics「바이트 보존」497/497(patch 경로) |
-| 양식 채움(byte-splice) | Preserve·Edit | `hwpx.patch`·`table_patch`·`body_patch`; corpus-metrics「바이트 보존」497/497. 서식 충실 차등은 wild 공개 양식 49.2% — 잔여 과제로 명기(「양식 채움 fit 실측」·「구조결함 1차 실측」절) |
+| 양식 채움(byte-splice) | Preserve·Edit | `hwpx.patch`·`table_patch`·`body_patch`; corpus-metrics「바이트 보존」497/497. wild 공개 양식의 서식 충실은 구조결함 픽스 후 **무음 서식파괴 16.7%**(판정 66조합, 불가능 타깃은 typed 거부 35건·산출분 pass 17/28) — 잔여는 페이지 리플·표 shape 2부류로 명명(「구조결함 1차 실측」절) |
 | 그림 삽입/치환 | Edit·Create | `add_picture`·`add_image`·`replace_picture`. `<hp:pic>` 완전 자동 생성과 복잡 개체는 미제공이므로 한컴에서 확인 권장(README「알려진 제약」) |
 | 차트 | Unsupported-but-preserved | 차트 생성 API 없음(kordoc 흡수 갭). 기존 차트 part는 patch 저장 시 바이트 보존(497/497) |
 | 수식 | Parse·Unsupported-but-preserved | 코어에 수식 저작 API 없음. 기존 수식 개체는 파싱·patch 보존됨(수식 미리보기 렌더는 뷰어/플러그인 계층) |
