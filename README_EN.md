@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">python-hwpx</h1>
   <p align="center">
-    <strong>Read, edit, generate, and structurally validate HWPX documents in Python — without Hancom Office.</strong>
+    <strong>A Python layer for safely automating HWPX without Hancom — minimal-scope edits, verified authoring, a receipt on every write.</strong>
   </p>
   <p align="center">
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/v/python-hwpx?color=blue&label=PyPI" alt="PyPI"></a>
@@ -12,6 +12,23 @@
 </p>
 
 <p align="center"><a href="README.md">한국어</a> | English</p>
+
+---
+
+> **python-hwpx is a Python layer for safely automating HWPX without Hancom.** It
+> edits existing documents in the minimal scope, generates new documents in a form
+> verified to be accepted by real Hancom, leaves change/preservation/verification
+> receipts on every write, and can delegate full interpretation and rendering to
+> specialized backends.
+
+- **Minimal-scope edits** — untouched parts stay byte-for-byte on save (byte
+  preservation 497/497 on the patch path, frozen corpus v2 · 2026-07-19).
+- **Verified authoring** — from-scratch generation lands in a form real Hancom
+  accepts (produced-output Hancom open 476/476 all-pass, authoring quality gate 58/58).
+- **A receipt on every write** — the representative save paths return a
+  [Safe Write Contract](docs/safe-write-contract.md) `MutationReport`
+  (`hwpx.mutation-report/v1`) that **measures** the actual write mode, preservation
+  grade, and verification result.
 
 ---
 
@@ -40,13 +57,17 @@ version or the minimum compatible version of the plugin.
 ## We speak in measurements — Published Corpus
 
 The outputs of this stack are verified by **exhaustive measurement against real
-Hancom Office**, not by claims (frozen corpus N=497, 2026-07-19; details and caveats
-in the
+Hancom Office**, not by claims (frozen corpus v2, N=497 produced outputs, 2026-07-19,
+real Hancom 12.0.0.3288 COM/GUI oracle; details and caveats in the
 [measured corpus metrics](https://airmang.github.io/python-hwpx/corpus-metrics.html)):
 
-- **Hancom open-acceptance rate 100%** (476/476 all-pass, lower bound ≥99.4%) · parsing 96.2%
-- **Byte preservation of untouched regions 100%** (497/497, patch path) · **personal-info 0-leak**
-- 416 render-verified cases + an honesty bucket (PDF export of tracked-change documents is refused by Hancom itself — published as a measured limitation)
+- **Hancom open-acceptance 476/476 all-pass** (frozen corpus v2 · 2026-07-19 · real
+  Hancom COM `Open()` · rule-of-three lower bound 99.37%) · parsing 96.2% (458/476)
+- **Byte preservation of untouched regions 497/497** (patch path only, zip-part diff ·
+  no oracle needed) · **personal-info 0-leak** (35 docs / 140 synthetic values)
+- 416/476 render-verified (real Hancom `SaveAs("PDF")`) + honesty bucket of 43 (PDF
+  export of tracked-change documents is refused by Hancom itself — a measured
+  limitation) + 17 unverified
 - Form-fill differential is 49.2% on wild public forms — **we publish the low number as-is** and record it as remaining work
 
 > These numbers are on the *output acceptance* axis (does real Hancom accept the files we produce).
@@ -156,6 +177,62 @@ hwpx-analyze-template 보고서.hwpx
 ```
 
 > For the full list of features, classes, and methods, see the [usage guide](docs/usage.md) and the [API reference](https://airmang.github.io/python-hwpx/api_reference.html).
+
+## Safe Write Contract
+
+The representative save paths (`save_to_path` · `save_to_stream` · `to_bytes`)
+**decide the requested preservation grade before writing and return a receipt that
+measures what actually changed.**
+
+```python
+from hwpx.mutation_report import PreservationDowngradeError
+
+# Save with a receipt — picks the strongest achievable grade (mode="auto" default)
+report = doc.save_to_path("result.hwpx", return_report=True)
+print(report.actual_mode)                                     # "patch" | "rebuild"
+print(report.preservation.untouched_part_payloads.to_dict())  # {"verified": 17, "changed": 0}
+
+# Force patch grade — writes nothing and raises if it can't be met (fail-closed)
+try:
+    doc.save_to_path("result.hwpx", mode="patch", fallback="error")
+except PreservationDowngradeError as exc:
+    print(exc.offending_parts, exc.suggestion)
+```
+
+- `mode="patch" | "rebuild" | "auto"` (default `auto`) · `fallback="error" | "rebuild"` (default `error`).
+- With `mode="patch"` + `fallback="error"`, if an untouched part cannot stay
+  byte-identical the save writes **nothing** and raises `PreservationDowngradeError`
+  (no silent rebuild).
+- `MutationReport` reports `requestedMode`/`actualMode`/`fallbackUsed`, changed parts
+  with coordinate-tagged byte ranges, three preservation layers (part payload · ZIP
+  record · whole package), and three verification values (`passed`/`failed`/`not_performed`)
+  — all **measured**, never asserted.
+
+> Full parameters and the `MutationReport` schema are in the [Safe Write Contract doc](docs/safe-write-contract.md).
+
+## Support matrix
+
+Actual per-capability grade (frozen corpus v2 · 2026-07-19 · real Hancom 12.0.0.3288
+oracle). Status vocabulary: **Parse / Preserve / Edit / Create / Render-verified /
+Unsupported-but-preserved / Unsupported-and-rejected**.
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Paragraph·table authoring/editing | Parse·Preserve·Edit·Create·Render-verified | open 476/476 · authoring gate 58/58 · render 416 |
+| Table structure change (row·col·table, autofit) | Preserve·Edit | `hwpx.table_patch` · byte preservation 497/497 |
+| Form filling (byte-splice) | Preserve·Edit | `hwpx.patch`·`table_patch`·`body_patch` · byte preservation 497/497 (wild fidelity after the structural-defect fix: silent breakage 16.7%, typed refusals 35/66, produced pass 17/28; remaining work) |
+| Picture insert/replace | Edit·Create | `add_picture`·`replace_picture` (verify complex objects in Hancom) |
+| Chart | Unsupported-but-preserved | no create API · existing chart parts patch-preserved |
+| Equation | Parse·Unsupported-but-preserved | no authoring API · existing equations parsed·patch-preserved |
+| Tracked changes (redline) | Edit·Create | `add_tracked_*` · real Hancom `IsTrackChange=1` (Hancom refuses PDF export → `render_unavailable`, honestly bucketed) |
+| Memo (comment) | Edit·Create·Render-verified | `add_memo*` · verified on real Windows Hancom |
+| Footnote/endnote | Edit·Create | `add_footnote`·`add_endnote` (no independent render gate) |
+| Native TOC / cross-reference | Create·Render-verified | `add_native_toc`·`toc_verify` · structure 15/15 · page alignment 5/5 |
+| Encrypted HWPX | Unsupported-and-rejected | no decryption · encrypted parts rejected at parse |
+| HWP 5.x binary | Unsupported-and-rejected | not a ZIP → `BadZipFile` on open (convert to HWPX first) |
+| Click-here field (누름틀) creation | Parse·Edit | existing fields queried·format-preservingly filled · **no dedicated new-field creation tool** |
+
+> Grade rationale and detailed evidence pointers are in the [support matrix doc](docs/support-matrix.md).
 
 ## Comparison with competing libraries
 
