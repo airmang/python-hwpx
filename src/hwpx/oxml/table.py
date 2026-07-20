@@ -989,17 +989,9 @@ class HwpxOxmlTable:
         end_col = cls._spreadsheet_column_index(end_col_label)
         return start_row, start_col, end_row, end_col
 
-    def merge_cells(
-        self,
-        start_row: int | str,
-        start_col: int | None = None,
-        end_row: int | None = None,
-        end_col: int | None = None,
+    def _resolve_merge_target(
+        self, start_row: int, start_col: int, end_row: int, end_col: int
     ) -> HwpxOxmlTableCell:
-        if isinstance(start_row, str):
-            start_row, start_col, end_row, end_col = self._parse_spreadsheet_range(start_row)
-        if start_col is None or end_row is None or end_col is None:
-            raise TypeError("merge_cells requires either a spreadsheet range or four coordinates")
         if start_row > end_row or start_col > end_col:
             raise ValueError("merge coordinates must describe a valid rectangle")
         if start_row < 0 or start_col < 0:
@@ -1011,15 +1003,18 @@ class HwpxOxmlTable:
         addr_row, addr_col = target.address
         if addr_row != start_row or addr_col != start_col:
             raise ValueError("top-left cell must align with merge starting position")
+        return target
 
-        new_row_span = end_row - start_row + 1
-        new_col_span = end_col - start_col + 1
-
+    def _build_element_to_row_map(self) -> dict[ET.Element, ET.Element]:
         element_to_row: dict[ET.Element, ET.Element] = {}
         for row in self.element.findall(f"{_HP}tr"):
             for cell_element in row.findall(f"{_HP}tc"):
                 element_to_row[cell_element] = row
+        return element_to_row
 
+    def _scan_merge_region(
+        self, start_row: int, start_col: int, end_row: int, end_col: int, target: HwpxOxmlTableCell
+    ) -> tuple[set[ET.Element], int, int]:
         removal_elements: set[ET.Element] = set()
         width_elements: set[ET.Element] = set()
         height_elements: set[ET.Element] = set()
@@ -1046,10 +1041,12 @@ class HwpxOxmlTable:
                     total_height += cell.height
                 if cell.element is not target.element:
                     removal_elements.add(cell.element)
+        return removal_elements, total_width, total_height
 
-        if not removal_elements and target.span == (new_row_span, new_col_span):
-            return target
-
+    @staticmethod
+    def _remove_merged_cell_elements(
+        removal_elements: set[ET.Element], element_to_row: dict[ET.Element, ET.Element]
+    ) -> None:
         for element in removal_elements:
             row_element = element_to_row.get(element)
             if row_element is None:
@@ -1061,6 +1058,32 @@ class HwpxOxmlTable:
             # ``split_merged_cell`` already recreates omitted cells, so remove
             # them here instead of retaining deactivated placeholders.
             row_element.remove(element)
+
+    def merge_cells(
+        self,
+        start_row: int | str,
+        start_col: int | None = None,
+        end_row: int | None = None,
+        end_col: int | None = None,
+    ) -> HwpxOxmlTableCell:
+        if isinstance(start_row, str):
+            start_row, start_col, end_row, end_col = self._parse_spreadsheet_range(start_row)
+        if start_col is None or end_row is None or end_col is None:
+            raise TypeError("merge_cells requires either a spreadsheet range or four coordinates")
+
+        target = self._resolve_merge_target(start_row, start_col, end_row, end_col)
+        new_row_span = end_row - start_row + 1
+        new_col_span = end_col - start_col + 1
+
+        element_to_row = self._build_element_to_row_map()
+        removal_elements, total_width, total_height = self._scan_merge_region(
+            start_row, start_col, end_row, end_col, target
+        )
+
+        if not removal_elements and target.span == (new_row_span, new_col_span):
+            return target
+
+        self._remove_merged_cell_elements(removal_elements, element_to_row)
 
         target.set_span(new_row_span, new_col_span)
         target.set_size(total_width or target.width, total_height or target.height)
