@@ -118,7 +118,7 @@ class BytePreservingPatchResult:
             ),
         }
 
-    def as_mutation_report(self, *, source: bytes | None = None) -> MutationReport:
+    def as_mutation_report(self, *, source: bytes | str | Path | None = None) -> MutationReport:
         """Project this byte-splice result onto the ``hwpx.mutation-report/v1``
         spine (specs/032 §3). Additive — the fields above are untouched.
 

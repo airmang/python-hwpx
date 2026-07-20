@@ -240,3 +240,27 @@ def test_stream_return_report_has_null_path() -> None:
     assert report.path is None
     assert report.to_dict()["path"] is None
     assert buffer.getvalue() != b""
+
+
+def test_byte_splice_projection_accepts_path_source(tmp_path) -> None:
+    from pathlib import Path as _P
+
+    from hwpx.table_patch import fill_cells
+
+    fixture = _P(__file__).parent / "fixtures" / "m2_corpus" / "form_002.hwpx"
+    out = tmp_path / "filled.hwpx"
+    result = fill_cells(
+        fixture, [{"table_index": 0, "row": 1, "col": 1, "text": "검증"}],
+        output_path=out,
+    )
+    # A caller naturally holds the source *path*; the projection must accept it
+    # (str and Path) and measure the same preservation as raw bytes.
+    for source in (fixture, str(fixture), fixture.read_bytes()):
+        report = result.as_mutation_report(source=source)
+        payload = report.to_dict()
+        assert payload["actualMode"] == "patch"
+        assert payload["preservation"]["untouchedPartPayloads"]["changed"] == 0
+        parts = [p["path"] for p in payload["changedParts"]]
+        assert any(p.endswith("section0.xml") for p in parts)
+        ranges = payload["changedParts"][0]["ranges"]
+        assert ranges and ranges[0]["coordinateSpace"] == "uncompressed-part-bytes"

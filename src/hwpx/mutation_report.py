@@ -16,6 +16,7 @@ byte-equality is never promised (deflate/producer differences, survey §2d).
 from __future__ import annotations
 
 import zipfile
+from pathlib import Path
 from dataclasses import dataclass, field
 from io import BytesIO
 from typing import Any, Literal, Mapping, Sequence
@@ -442,7 +443,7 @@ def project_byte_splice(
     byte_identical: bool,
     open_safety: Mapping[str, Any] | None,
     visual: VerificationValue = "not_performed",
-    source: bytes | None = None,
+    source: bytes | str | Path | None = None,
 ) -> MutationReport:
     """Project a byte-splice result (patch/table_patch/body_patch) onto v1.
 
@@ -455,6 +456,8 @@ def project_byte_splice(
     """
 
     if source is not None:
+        if not isinstance(source, bytes):
+            source = Path(source).read_bytes()
         before_members = read_archive_members(source)
         before_infos = read_archive_infos(source)
         after_members = read_archive_members(data)

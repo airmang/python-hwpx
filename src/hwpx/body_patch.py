@@ -114,7 +114,7 @@ class BodyOpsResult:
             "openSafety": self.open_safety,
         }
 
-    def as_mutation_report(self, *, source: bytes | None = None) -> MutationReport:
+    def as_mutation_report(self, *, source: bytes | str | Path | None = None) -> MutationReport:
         """Project this body-ops result onto ``hwpx.mutation-report/v1`` (specs/032
         §3). Additive — the fields above are untouched. This path never renders,
         so the visual verdict stays ``not_performed``. Pass the original *source*
