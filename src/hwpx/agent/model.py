@@ -15,6 +15,15 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..mutation_report import (
+    ChangedPart,
+    MutationReport,
+    PreservationCounts,
+    PreservationSummary,
+    verification_from_open_safety,
+    visual_value_from_status,
+)
+
 AGENT_NODE_SCHEMA = "hwpx.agent-node/v1"
 AGENT_COMMAND_SCHEMA = "hwpx.agent-command/v1"
 AGENT_BATCH_SCHEMA = "hwpx.agent-batch/v1"
@@ -666,6 +675,53 @@ class AgentBatchResult:
             "verificationReport": dict(self.verification_report),
             "error": None if self.error is None else self.error.to_dict(),
         }
+
+    def as_mutation_report(self) -> MutationReport:
+        """Project this transaction result onto ``hwpx.mutation-report/v1`` (specs/032
+        §3). Additive — the fields above are untouched.
+
+        The agent write is a family-A rebuild (``document.to_bytes()``), so
+        ``actualMode`` is ``"rebuild"`` and changed parts carry no ranges (a rebuilt
+        part is re-serialized whole). Preservation and verification are read from the
+        already-measured ``verification_report`` (``bytePreservation`` = the shared
+        ``_member_diff``, ``openSafety``, ``realHancom``); layers that report never
+        measured — local ZIP records, an absent oracle — stay zero-verified /
+        ``not_performed`` rather than being promoted to a pass.
+        """
+
+        report = self.verification_report
+        byte = report.get("bytePreservation") or {}
+        changed_names = [
+            *byte.get("changedMembers", ()),
+            *byte.get("addedMembers", ()),
+            *byte.get("removedMembers", ()),
+        ]
+        changed_parts = tuple(
+            ChangedPart(path=str(name), reason="dirty-part", ranges=None)
+            for name in changed_names
+        )
+        unchanged = byte.get("unchangedMemberCount")
+        preservation = PreservationSummary(
+            untouched_part_payloads=PreservationCounts(
+                verified=unchanged if isinstance(unchanged, int) else 0, changed=0
+            ),
+            untouched_local_zip_records=PreservationCounts(verified=0, changed=0),
+            whole_package_identical=bool(byte) and not changed_names,
+        )
+        real_hancom = report.get("realHancom") or {}
+        verification = verification_from_open_safety(
+            report.get("openSafety"),
+            visual=visual_value_from_status(real_hancom.get("status")),
+        )
+        return MutationReport(
+            requested_mode="rebuild",
+            actual_mode="rebuild",
+            fallback_used=False,
+            changed_parts=changed_parts,
+            preservation=preservation,
+            verification=verification,
+            path=self.output_filename,
+        )
 
 
 def agent_contract_manifest() -> dict[str, Any]:

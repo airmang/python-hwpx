@@ -18,7 +18,7 @@ from __future__ import annotations
 import zipfile
 from dataclasses import dataclass, field
 from io import BytesIO
-from typing import Any, Literal, Mapping
+from typing import Any, Literal, Mapping, Sequence
 from zipfile import ZipInfo
 
 MUTATION_REPORT_SCHEMA = "hwpx.mutation-report/v1"
@@ -348,6 +348,155 @@ def _zip_record_preserved(before: ZipInfo | None, after: ZipInfo | None) -> bool
     )
 
 
+# --------------------------------------------------------------------------- #
+# Projection helpers — turn an existing result model's own evidence into a
+# MutationReport without asserting a layer the model never measured (specs/032
+# §3, survey §7/§9). ``not_performed`` and ``ranges=None`` are the honest
+# defaults; a silent pass is never fabricated.
+# --------------------------------------------------------------------------- #
+def verification_value(ok: bool | None) -> VerificationValue:
+    """``True→passed``, ``False→failed``, ``None→not_performed`` (No Silent True)."""
+
+    if ok is True:
+        return "passed"
+    if ok is False:
+        return "failed"
+    return "not_performed"
+
+
+def visual_value_from_status(status: str | None) -> VerificationValue:
+    """Map a ``VisualCompleteReport`` tri-state to a verification value.
+
+    ``"unverified"`` (render did not run) maps to ``not_performed``, never to a
+    silent pass (survey §9). Mirrors ``persistence._verification_summary``.
+    """
+
+    if status == "verified":
+        return "passed"
+    if status == "failed":
+        return "failed"
+    return "not_performed"
+
+
+def _nested_ok(value: Any) -> bool | None:
+    """The ``ok`` verdict of an open-safety sub-report, or ``None`` if absent."""
+
+    if isinstance(value, Mapping):
+        ok = value.get("ok")
+        return ok if isinstance(ok, bool) else None
+    if isinstance(value, bool):
+        return value
+    return None
+
+
+def verification_from_open_safety(
+    open_safety: Mapping[str, Any] | None,
+    *,
+    visual: VerificationValue = "not_performed",
+) -> VerificationSummary:
+    """Project the byte-splice family's ``open_safety`` dict onto a summary.
+
+    The dict is an ``EditorOpenSafetyReport.to_dict()`` (``ok`` +
+    ``validatePackage``/``reopen`` sub-verdicts) or the small ``{"ok", "summary"}``
+    fallback. Any sub-verdict the dict does not carry stays ``not_performed`` —
+    an absent measurement is never promoted to a pass.
+    """
+
+    data = open_safety or {}
+    overall = data.get("ok")
+    return VerificationSummary(
+        package=verification_value(_nested_ok(data.get("validatePackage"))),
+        open_safety=verification_value(overall if isinstance(overall, bool) else None),
+        reopen=verification_value(_nested_ok(data.get("reopen"))),
+        visual=visual,
+    )
+
+
+def changed_ranges_in_part(before: bytes, after: bytes) -> tuple[ByteRange, ...]:
+    """The minimal contiguous changed span, in *after* coordinates, between two
+    versions of one part's uncompressed payload.
+
+    Returns the smallest ``[start, end)`` outside which *before* and *after* are
+    byte-identical — exact for a single contiguous splice, a tight bounding span
+    when several edits land in one part. Empty when the payloads are identical.
+    The byte-splice result models do not retain their spliced offsets, so this
+    reconstructs the span from the original source the caller still holds.
+    """
+
+    if before == after:
+        return ()
+    limit = min(len(before), len(after))
+    prefix = 0
+    while prefix < limit and before[prefix] == after[prefix]:
+        prefix += 1
+    suffix = 0
+    while suffix < limit - prefix and before[-1 - suffix] == after[-1 - suffix]:
+        suffix += 1
+    return (ByteRange(start=prefix, end=len(after) - suffix),)
+
+
+def project_byte_splice(
+    *,
+    data: bytes,
+    changed_part_names: Sequence[str],
+    byte_identical: bool,
+    open_safety: Mapping[str, Any] | None,
+    visual: VerificationValue = "not_performed",
+    source: bytes | None = None,
+) -> MutationReport:
+    """Project a byte-splice result (patch/table_patch/body_patch) onto v1.
+
+    ``actualMode`` is ``"patch"`` — a byte splice is patch-grade by nature. When
+    the caller supplies the original *source*, preservation is fully **measured**
+    against it (reusing :func:`measure_save`) and each changed shared part carries
+    real ranges; without *source* the three preservation layers degrade honestly
+    (``wholePackageIdentical`` from the model's ``byte_identical``, the untouched
+    counts left at zero-verified) and ranges are ``None``.
+    """
+
+    if source is not None:
+        before_members = read_archive_members(source)
+        before_infos = read_archive_infos(source)
+        after_members = read_archive_members(data)
+        measurement = measure_save(
+            before_members, before_infos, data, set(changed_part_names)
+        )
+        changed_parts = tuple(
+            ChangedPart(
+                path=part.path,
+                reason=part.reason,
+                ranges=(
+                    changed_ranges_in_part(
+                        before_members[part.path], after_members[part.path]
+                    )
+                    if part.path in before_members and part.path in after_members
+                    else None
+                ),
+            )
+            for part in measurement.changed_parts
+        )
+        preservation = measurement.preservation
+    else:
+        changed_parts = tuple(
+            ChangedPart(path=name, reason="dirty-part", ranges=None)
+            for name in changed_part_names
+        )
+        preservation = PreservationSummary(
+            untouched_part_payloads=PreservationCounts(verified=0, changed=0),
+            untouched_local_zip_records=PreservationCounts(verified=0, changed=0),
+            whole_package_identical=byte_identical,
+        )
+    return MutationReport(
+        requested_mode="patch",
+        actual_mode="patch",
+        fallback_used=False,
+        changed_parts=changed_parts,
+        preservation=preservation,
+        verification=verification_from_open_safety(open_safety, visual=visual),
+        path=None,
+    )
+
+
 __all__ = [
     "MUTATION_REPORT_SCHEMA",
     "COORDINATE_SPACE",
@@ -364,4 +513,9 @@ __all__ = [
     "read_archive_infos",
     "diff_members",
     "member_diff_bytes",
+    "verification_value",
+    "visual_value_from_status",
+    "verification_from_open_safety",
+    "changed_ranges_in_part",
+    "project_byte_splice",
 ]

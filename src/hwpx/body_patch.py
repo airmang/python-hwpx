@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from .mutation_report import MutationReport, project_byte_splice
 from .patch import (
     _finalize,
     _patch_zip_entries,
@@ -112,6 +113,21 @@ class BodyOpsResult:
             "byteIdentical": self.byte_identical,
             "openSafety": self.open_safety,
         }
+
+    def as_mutation_report(self, *, source: bytes | None = None) -> MutationReport:
+        """Project this body-ops result onto ``hwpx.mutation-report/v1`` (specs/032
+        §3). Additive — the fields above are untouched. This path never renders,
+        so the visual verdict stays ``not_performed``. Pass the original *source*
+        for real ranges and a measured preservation summary.
+        """
+
+        return project_byte_splice(
+            data=self.data,
+            changed_part_names=self.changed_parts,
+            byte_identical=self.byte_identical,
+            open_safety=self.open_safety,
+            source=source,
+        )
 
 
 def _op_replace_text(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[str, Any]]:

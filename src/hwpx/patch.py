@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
+from .mutation_report import MutationReport, project_byte_splice, visual_value_from_status
 from .quality import QualityPolicy, SavePipeline
 from .quality.report import VisualCompleteReport
 
@@ -116,6 +117,29 @@ class BytePreservingPatchResult:
                 None if self.visual_complete is None else self.visual_complete.to_dict()
             ),
         }
+
+    def as_mutation_report(self, *, source: bytes | None = None) -> MutationReport:
+        """Project this byte-splice result onto the ``hwpx.mutation-report/v1``
+        spine (specs/032 §3). Additive — the fields above are untouched.
+
+        Pass the original *source* bytes to get real changed-part ranges and a
+        fully measured preservation summary; without it the projection degrades
+        honestly (ranges ``None``, untouched counts zero-verified).
+        """
+
+        visual = (
+            visual_value_from_status(self.visual_complete.visual_complete_status)
+            if self.visual_complete is not None
+            else "not_performed"
+        )
+        return project_byte_splice(
+            data=self.data,
+            changed_part_names=self.changed_parts,
+            byte_identical=self.byte_identical,
+            open_safety=self.open_safety,
+            visual=visual,
+            source=source,
+        )
 
 
 @dataclass(frozen=True)

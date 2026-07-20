@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+from .mutation_report import MutationReport, project_byte_splice
 from .patch import (
     _apply_edits,
     _patch_zip_entries,
@@ -381,6 +382,21 @@ class CellFillResult:
         if self.transcript:
             out["transcript"] = list(self.transcript)
         return out
+
+    def as_mutation_report(self, *, source: bytes | None = None) -> MutationReport:
+        """Project this cell-fill result onto ``hwpx.mutation-report/v1`` (specs/032
+        §3). Additive — the fields above are untouched. This path never renders,
+        so the visual verdict stays ``not_performed``. Pass the original *source*
+        for real ranges and a measured preservation summary.
+        """
+
+        return project_byte_splice(
+            data=self.data,
+            changed_part_names=self.changed_parts,
+            byte_identical=self.byte_identical,
+            open_safety=self.open_safety,
+            source=source,
+        )
 
 
 # --- FR-002: anchor / heading addressing (byte-level, unique-or-skip) ---------
