@@ -16,6 +16,7 @@ from typing import Any, Mapping
 from xml.etree import ElementTree as ET
 from zipfile import BadZipFile, ZipFile
 
+from ..equation import render_equation
 from ..opc.security import guard_zip_file, parse_xml_stdlib
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
@@ -28,6 +29,27 @@ _HC = f"{{{_HC_NS}}}"
 _HS = f"{{{_HS_NS}}}"
 
 _HWP_UNITS_PER_MM = 7200 / 25.4
+
+# Inline object tags (children of ``<hp:run>``) that are rendered as honest
+# placeholder markers instead of being silently dropped (Constitution VI).
+_PICTURE_TAG = f"{_HP}pic"
+_OLE_TAG = f"{_HP}ole"
+_EQUATION_TAG = f"{_HP}equation"
+_SHAPE_TAGS = frozenset(
+    f"{_HP}{name}"
+    for name in (
+        "container",
+        "rect",
+        "ellipse",
+        "line",
+        "arc",
+        "polygon",
+        "curve",
+        "connectLine",
+        "textart",
+    )
+)
+
 _DEFAULT_PAGE_WIDTH_MM = 210.0
 _DEFAULT_PAGE_HEIGHT_MM = 297.0
 _DEFAULT_MARGINS_MM = {
@@ -39,6 +61,17 @@ _DEFAULT_MARGINS_MM = {
     "footer": 15.0,
     "gutter": 0.0,
 }
+
+
+@dataclass
+class _ObjectCounter:
+    """Document-wide running index for placeholder markers (pictures)."""
+
+    pictures: int = 0
+
+    def next_picture(self) -> int:
+        self.pictures += 1
+        return self.pictures
 
 
 @dataclass(frozen=True)
@@ -296,21 +329,45 @@ def _style_attr(items: Mapping[str, str | float | int | None]) -> str:
     return html.escape("; ".join(pairs), quote=True)
 
 
-def _render_inline_runs(paragraph: ET.Element, styles: Mapping[str, Any]) -> str:
+def _render_equation_element(equation: ET.Element) -> str:
+    script_node = equation.find(f"{_HP}script")
+    script = (script_node.text or "") if script_node is not None else ""
+    return render_equation(script).html
+
+
+def _render_object_marker(label: str) -> str:
+    return f'<span class="hwpx-object-marker">⟦{html.escape(label)}⟧</span>'
+
+
+def _render_inline_runs(
+    paragraph: ET.Element,
+    styles: Mapping[str, Any],
+    counter: _ObjectCounter,
+) -> str:
     spans: list[str] = []
     char_styles = styles["char"]
     for run in paragraph.findall(f"{_HP}run"):
         text = _find_text_in_run(run)
-        if not text:
-            continue
-        char_style = char_styles.get(run.get("charPrIDRef") or "0", {})
-        style = _style_attr(
-            {
-                "font-size": _fmt_pt(char_style.get("font_size_pt", 10.0)),
-                "color": char_style.get("color", "#000000"),
-            }
-        )
-        spans.append(f'<span style="{style}">{html.escape(text)}</span>')
+        if text:
+            char_style = char_styles.get(run.get("charPrIDRef") or "0", {})
+            style = _style_attr(
+                {
+                    "font-size": _fmt_pt(char_style.get("font_size_pt", 10.0)),
+                    "color": char_style.get("color", "#000000"),
+                }
+            )
+            spans.append(f'<span style="{style}">{html.escape(text)}</span>')
+        # Inline objects that carry no text are rendered as real content or an
+        # honest marker -- never dropped to a blank (Constitution VI).
+        for child in run:
+            if child.tag == _EQUATION_TAG:
+                spans.append(_render_equation_element(child))
+            elif child.tag == _PICTURE_TAG:
+                spans.append(_render_object_marker(f"그림 {counter.next_picture()}"))
+            elif child.tag == _OLE_TAG:
+                spans.append(_render_object_marker("개체"))
+            elif child.tag in _SHAPE_TAGS:
+                spans.append(_render_object_marker("도형"))
     return "".join(spans)
 
 
@@ -343,7 +400,11 @@ def _border_style(border_ref: str | None, styles: Mapping[str, Any]) -> dict[str
     }
 
 
-def _render_table(table: ET.Element, styles: Mapping[str, Any]) -> str:
+def _render_table(
+    table: ET.Element,
+    styles: Mapping[str, Any],
+    counter: _ObjectCounter,
+) -> str:
     size = table.find(f"{_HP}sz")
     table_width = _hwp_to_mm(size.get("width") if size is not None else None)
     table_style = _style_attr(
@@ -380,7 +441,9 @@ def _render_table(table: ET.Element, styles: Mapping[str, Any]) -> str:
             )
             body_parts = []
             for para in tc.findall(f".//{_HP}p"):
-                body_parts.append(_render_paragraph(para, styles, include_tables=False))
+                body_parts.append(
+                    _render_paragraph(para, styles, counter, include_tables=False)
+                )
             if not body_parts:
                 body_parts.append("&nbsp;")
             span = tc.find(f"{_HP}cellSpan")
@@ -402,10 +465,11 @@ def _render_table(table: ET.Element, styles: Mapping[str, Any]) -> str:
 def _render_paragraph(
     paragraph: ET.Element,
     styles: Mapping[str, Any],
+    counter: _ObjectCounter,
     *,
     include_tables: bool = True,
 ) -> str:
-    text_html = _render_inline_runs(paragraph, styles)
+    text_html = _render_inline_runs(paragraph, styles, counter)
     css = _paragraph_style(paragraph, styles)
     classes = ["hwpx-paragraph"]
     if not text_html:
@@ -414,7 +478,7 @@ def _render_paragraph(
     result = [f'<p class="{" ".join(classes)}" style="{css}">{text_html}</p>']
     if include_tables:
         for table in paragraph.findall(f".//{_HP}tbl"):
-            result.append(_render_table(table, styles))
+            result.append(_render_table(table, styles, counter))
     return "".join(result)
 
 
@@ -433,6 +497,7 @@ def _render_page(
     paragraphs: list[ET.Element],
     section: ET.Element,
     styles: Mapping[str, Any],
+    counter: _ObjectCounter,
 ) -> tuple[str, PreviewPage]:
     width_mm, height_mm, margins_mm = _page_spec(section)
     page_id = f"hwpx-preview-page-{page_index + 1}"
@@ -446,7 +511,7 @@ def _render_page(
             ),
         }
     )
-    body = "".join(_render_paragraph(p, styles) for p in paragraphs)
+    body = "".join(_render_paragraph(p, styles, counter) for p in paragraphs)
     table_count = sum(len(p.findall(f".//{_HP}tbl")) for p in paragraphs)
     page = PreviewPage(
         index=page_index,
@@ -481,6 +546,18 @@ def _base_css(mode: str) -> str:
         ".hwpx-empty-paragraph { min-height: 1em; }\n"
         ".hwpx-table { font-size: 10pt; }\n"
         ".hwpx-table td { box-sizing: border-box; overflow-wrap: anywhere; }\n"
+        ".hwpx-equation { display: inline-block; vertical-align: middle; }\n"
+        ".hwpx-equation math { font-size: 1.08em; }\n"
+        ".hwpx-equation-fallback { display: inline-flex; align-items: baseline; "
+        "gap: 0.4em; padding: 0.05em 0.4em; border: 1px solid #d7b48a; "
+        "border-radius: 4px; background: #fff7ec; white-space: normal; }\n"
+        ".hwpx-equation-tag { font-size: 0.72em; color: #8a5a12; "
+        "font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; }\n"
+        ".hwpx-equation-fallback code { font-size: 0.9em; color: #40320f; "
+        "font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; }\n"
+        ".hwpx-object-marker { display: inline-block; padding: 0 0.3em; "
+        "border: 1px dashed #9aa2ad; border-radius: 4px; color: #4b5563; "
+        "font-size: 0.9em; background: #eef1f5; }\n"
         "@media print { body { padding: 0; background: #fff; } "
         ".hwpx-preview-page { margin: 0; box-shadow: none; page-break-after: always; } }\n"
         f"{long_page_css}"
@@ -537,6 +614,7 @@ def render_layout_preview(
     parts, warnings = _read_package_parts(source)
     header = _parse_xml(parts, "Contents/header.xml", warnings)
     styles = _collect_style_maps(header)
+    counter = _ObjectCounter()
     pages_html: list[str] = []
     pages: list[PreviewPage] = []
     for section_index, name in enumerate(_section_names(parts)):
@@ -553,6 +631,7 @@ def render_layout_preview(
                 paragraphs,
                 section,
                 styles,
+                counter,
             )
             pages_html.append(page_html)
             pages.append(page)
