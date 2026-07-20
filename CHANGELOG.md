@@ -4,6 +4,25 @@
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-07-20
+
+### Added
+- 양식 채움 fit 판정에 **수직(행 높이) 예산**을 도입합니다. 이전에는 셀의 가로
+  폭만 측정해 세로로 100줄까지 "맞음"으로 판정, 축소도 거부도 발동하지 않고 행이
+  조용히 자라 페이지를 밀었습니다. 이제 `available_height`(셀 높이 − 상하 마진)와
+  글꼴별 라인하이트로 세로 예산을 재서, `wrap_then_shrink`는 값을 예산 안으로
+  축소하고, 최소 글꼴에서도 안 들어가는 과대 입력은 `overflow="fail"`에서 **typed
+  거부**(FIELD_OVERFLOW)로 돌려줍니다. `allow_row_expand`/`expand_row`는 명시적
+  opt-out입니다. `FitPolicy.keep()`과 폭-only 경로는 바이트 불변입니다.
+
+### Measured (정직 발견)
+- wild 공개 양식 전수 재측정(실한컴): 양식 채움 차등이 fit-on 32/63 = 50.8%
+  (fit-off 31/63 = 49.2%). 기대-통과 층(short+medium)은 61.4%로 **이동 없음** —
+  fit은 wild 실패의 지배 레버가 아니며, 지배 원인은 구조적 3부류(채움-겹침·다중
+  페이지 경계 밀림·표 구조 민감도)임이 측정됐습니다. 상세는 `docs/corpus-metrics.md`
+  및 leap 데모 `demo/S-085-wild-formfill/`.
+
+
 ## [3.4.1] - 2026-07-19
 
 ### Note

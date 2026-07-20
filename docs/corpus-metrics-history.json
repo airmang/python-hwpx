@@ -6,10 +6,22 @@
     {
       "measuredAt": "2026-07-01",
       "stack": "python-hwpx 2.29.x (corpus v1 FLOOR)",
-      "corpus": {"version": "v1", "producedN": 100, "negativeControls": 7},
+      "corpus": {
+        "version": "v1",
+        "producedN": 100,
+        "negativeControls": 7
+      },
       "oracle": "real Hancom COM (Windows box), unattended",
-      "open": {"pass": 100, "n": 100, "rate": 1.0},
-      "parsed": {"pass": 95, "n": 100, "rate": 0.95},
+      "open": {
+        "pass": 100,
+        "n": 100,
+        "rate": 1.0
+      },
+      "parsed": {
+        "pass": 95,
+        "n": 100,
+        "rate": 0.95
+      },
       "render": null,
       "byteIdentity": null,
       "pii": null
@@ -17,16 +29,86 @@
     {
       "measuredAt": "2026-07-19",
       "stack": "python-hwpx 3.4.1 candidate (corpus v2)",
-      "corpus": {"version": "v2 (additive over frozen v1)", "producedN": 497, "negativeControls": 9, "internalFixtureTagged": 21},
+      "corpus": {
+        "version": "v2 (additive over frozen v1)",
+        "producedN": 497,
+        "negativeControls": 9,
+        "internalFixtureTagged": 21
+      },
       "oracle": "real Hancom COM 12.0.0.3288 (Windows box, unattended) + Mac Hancom GUI sample",
-      "open": {"pass": 476, "n": 476, "rate": 1.0, "lowerBound": 0.9937, "denominator": "product-provenance"},
-      "parsed": {"pass": 458, "n": 476, "rate": 0.9622, "note": "redline docs judged via InitScan/GetText (42/42); textless docs count as non-parsed by definition"},
-      "render": {"checked": 416, "unavailableRedline": 43, "unverified": 17, "failed": 0, "n": 476, "note": "Hancom refuses PDF export of tracked-change documents (measured limitation)"},
-      "byteIdentity": {"pass": 497, "n": 497, "rate": 1.0, "scope": "untouched parts, patch path only"},
-      "pii": {"leaks": 0, "documents": 35, "syntheticValues": 140, "surfaces": "engine + 3 MCP extraction surfaces"},
-      "formFillDifferential": {"pass": 31, "n": 63, "rate": 0.4921, "note": "wild public form bases, intent-stratified: short 15/22, medium 12/22, overflow-stress 7/22; honest robustness finding"},
-      "authoringGates": {"pass": 58, "n": 65, "note": "the 7 fails are intentional 결문-absent negative variants; real authored docs 58/58"},
-      "nativeToc": {"structural": "15/15", "renumberSample": "5/5 (Mac Hancom refresh->render, session-separated)"}
+      "open": {
+        "pass": 476,
+        "n": 476,
+        "rate": 1.0,
+        "lowerBound": 0.9937,
+        "denominator": "product-provenance"
+      },
+      "parsed": {
+        "pass": 458,
+        "n": 476,
+        "rate": 0.9622,
+        "note": "redline docs judged via InitScan/GetText (42/42); textless docs count as non-parsed by definition"
+      },
+      "render": {
+        "checked": 416,
+        "unavailableRedline": 43,
+        "unverified": 17,
+        "failed": 0,
+        "n": 476,
+        "note": "Hancom refuses PDF export of tracked-change documents (measured limitation)"
+      },
+      "byteIdentity": {
+        "pass": 497,
+        "n": 497,
+        "rate": 1.0,
+        "scope": "untouched parts, patch path only"
+      },
+      "pii": {
+        "leaks": 0,
+        "documents": 35,
+        "syntheticValues": 140,
+        "surfaces": "engine + 3 MCP extraction surfaces"
+      },
+      "formFillDifferential": {
+        "pass": 31,
+        "n": 63,
+        "rate": 0.4921,
+        "note": "wild public form bases, intent-stratified: short 15/22, medium 12/22, overflow-stress 7/22; honest robustness finding"
+      },
+      "authoringGates": {
+        "pass": 58,
+        "n": 65,
+        "note": "the 7 fails are intentional 결문-absent negative variants; real authored docs 58/58"
+      },
+      "nativeToc": {
+        "structural": "15/15",
+        "renumberSample": "5/5 (Mac Hancom refresh->render, session-separated)"
+      }
+    },
+    {
+      "measuredAt": "2026-07-20",
+      "stack": "python-hwpx 3.5.0 (corpus v2, S-085 fit measurement)",
+      "note": "height-budget fit engine shipped; wild form-fill differential fit-on 32/63=50.8% vs fit-off 31/63=49.2%; expected-pass layer 61.4% unchanged — fit is not the dominant lever, three structural defect classes named (fill-overlap, multi-page boundary, table-shape). Corpus open/parse/byte/pii/toc unchanged from 3.4.1.",
+      "formFillFit": {
+        "fitOff": {
+          "pass": 31,
+          "n": 63
+        },
+        "fitOn": {
+          "pass": 32,
+          "n": 63
+        },
+        "expectedPassLayer": {
+          "pass": 27,
+          "n": 44,
+          "note": "short+medium, 0 movement"
+        },
+        "overflowLayer": {
+          "fitOff": 7,
+          "fitOn": 8,
+          "n": 22
+        }
+      }
     }
   ]
 }
