@@ -172,7 +172,7 @@ def test_section_set_part_strips_layout_cache_before_save() -> None:
     package = HwpxPackage.open(_build_package())
     package.set_part(
         "Contents/section0.xml",
-        _section_xml_with_stale_lineseg(complex_paragraph=True),
+        _section_xml_with_stale_lineseg(),
     )
 
     stored_section = package.read("Contents/section0.xml")
@@ -195,11 +195,7 @@ def test_save_updates_strips_section_layout_cache() -> None:
     package = HwpxPackage.open(_build_package())
 
     output = package.save(
-        updates={
-            "Contents/section0.xml": _section_xml_with_stale_lineseg(
-                complex_paragraph=True
-            )
-        }
+        updates={"Contents/section0.xml": _section_xml_with_stale_lineseg()}
     )
 
     assert isinstance(output, bytes)
@@ -208,6 +204,42 @@ def test_save_updates_strips_section_layout_cache() -> None:
     with ZipFile(io.BytesIO(output), "r") as archive:
         section_xml = archive.read("Contents/section0.xml")
     assert b"linesegarray" not in section_xml.lower()
+
+
+def test_section_set_part_preserves_unjudgeable_layout_cache() -> None:
+    # A paragraph carrying controls cannot be judged at the byte boundary, so
+    # its cache is preserved: the mutating APIs upstream own invalidation.
+    # Blanket stripping forced whole-document re-layout (specs/031 P0).
+    package = HwpxPackage.open(_build_package())
+    package.set_part(
+        "Contents/section0.xml",
+        _section_xml_with_stale_lineseg(complex_paragraph=True),
+    )
+
+    stored_section = package.read("Contents/section0.xml")
+    assert b"linesegarray" in stored_section.lower()
+
+
+def test_section_set_part_preserves_valid_layout_cache() -> None:
+    # textpos within the paragraph text length: the authored layout is valid
+    # and must survive the write untouched.
+    section = etree.fromstring(_SECTION_XML)
+    paragraph = section.find(f".//{{{_HP_NS}}}p")
+    assert paragraph is not None
+    line_array = etree.SubElement(paragraph, f"{{{_HP_NS}}}linesegarray")
+    etree.SubElement(line_array, f"{{{_HP_NS}}}lineseg", textpos="0")
+    payload = etree.tostring(section, xml_declaration=True, encoding="UTF-8")
+
+    package = HwpxPackage.open(_build_package())
+    package.set_part("Contents/section0.xml", payload)
+
+    stored_section = package.read("Contents/section0.xml")
+    assert b"linesegarray" in stored_section.lower()
+
+    output = package.save()
+    with ZipFile(io.BytesIO(output), "r") as archive:
+        section_xml = archive.read("Contents/section0.xml")
+    assert b"linesegarray" in section_xml.lower()
 
 
 def test_save_updates_normalizes_named_section_style_reference() -> None:

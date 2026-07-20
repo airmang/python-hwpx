@@ -209,6 +209,7 @@ class HwpxOxmlTableCell:
                 sublist.set("lineWrap", "BREAK")
         if split_paragraphs:
             self._set_split_paragraph_text(sanitized_value)
+            self._clear_own_layout_caches()
             self.element.set("dirty", "1")
             self.table.mark_dirty()
             return
@@ -226,8 +227,18 @@ class HwpxOxmlTableCell:
                 current = current.getparent() if hasattr(current, "getparent") else None
             if current is not None:
                 current.set("charPrIDRef", "0")
+        self._clear_own_layout_caches()
         self.element.set("dirty", "1")
         self.table.mark_dirty()
+
+    def _clear_own_layout_caches(self) -> None:
+        # Edit-scoped invalidation: only this cell's paragraphs lose their
+        # layout caches, so Hancom re-lays-out just the filled cell instead of
+        # the whole section (specs/031 P0 — the whole-section nuke shifted
+        # pages and stacked glyphs on multi-page forms).
+        for node in self.element.iter():
+            if _element_local_name(node) == "p":
+                _clear_paragraph_layout_cache(node)
 
     def remove(self) -> None:
         self._row_element.remove(self.element)

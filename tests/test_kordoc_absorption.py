@@ -252,10 +252,11 @@ def test_byte_preserving_patch_strips_only_patched_paragraph_layout_cache() -> N
 
     with ZipFile(io.BytesIO(package_bytes), "r") as archive:
         section = archive.read("Contents/section0.xml")
+    base_count = section.lower().count(b"<hp:linesegarray>")
     section = _inject_lineseg_after(section, b"<hp:t>alpha</hp:t>")
     section = _inject_lineseg_after(section, b"<hp:t>bravo</hp:t>")
     seeded = _replace_zip_part(package_bytes, "Contents/section0.xml", section)
-    assert section.lower().count(b"<hp:linesegarray>") == 2
+    assert section.lower().count(b"<hp:linesegarray>") == base_count + 2
 
     # Grow paragraph 1 (alpha); leave paragraph 2 (bravo) untouched.
     result = paragraph_patch(
@@ -276,11 +277,12 @@ def test_byte_preserving_patch_strips_only_patched_paragraph_layout_cache() -> N
     with ZipFile(io.BytesIO(result.data), "r") as archive:
         patched = archive.read("Contents/section0.xml")
 
-    # The patched paragraph's stale cache is gone; the untouched paragraph keeps its
-    # (still-valid) cache — strip is targeted, not blanket.
-    assert patched.lower().count(b"<hp:linesegarray>") == 1
+    # The patched paragraph's stale cache is gone; untouched paragraphs (the
+    # template seed and bravo) keep theirs — strip is targeted, not blanket.
+    assert patched.lower().count(b"<hp:linesegarray>") == base_count + 1
     alpha_pos = patched.find("추가 기재 사항입니다".encode("utf-8"))
     bravo_pos = patched.find(b"<hp:t>bravo</hp:t>")
     assert alpha_pos != -1 and bravo_pos != -1
-    remaining = patched.lower().find(b"<hp:linesegarray>")
-    assert remaining > alpha_pos, "remaining cache should belong to the untouched bravo paragraph"
+    assert patched.lower().find(b"<hp:linesegarray>", alpha_pos) > bravo_pos, (
+        "the cache after the patched paragraph should belong to untouched bravo"
+    )

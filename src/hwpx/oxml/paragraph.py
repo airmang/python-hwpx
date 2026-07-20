@@ -914,6 +914,9 @@ class HwpxOxmlParagraph:
                     changed = True
 
         if changed:
+            # A style swap changes glyph metrics, so the cached line layout of
+            # this paragraph no longer holds.
+            _clear_paragraph_layout_cache(self.element)
             self.section.mark_dirty()
 
 __all__ = ["HwpxOxmlParagraph"]

@@ -159,10 +159,69 @@ def _local_name(element: etree._Element) -> str:
         return tag
 
 
+def _paragraph_plain_text_length(paragraph: etree._Element) -> int | None:
+    """Plain text length of a simple paragraph, or ``None`` when unjudgeable.
+
+    Mirrors the oxml-side stale detector: only paragraphs made purely of runs
+    with text/tab-like children can be judged at the byte boundary; anything
+    else (controls, tables, fields) returns ``None`` so its cache is kept.
+    """
+    total = 0
+    for child in paragraph:
+        child_name = _local_name(child).lower()
+        if child_name in _LAYOUT_CACHE_ELEMENT_NAMES:
+            continue
+        if child_name != "run":
+            return None
+        for run_child in child:
+            run_child_name = _local_name(run_child).lower()
+            if run_child_name == "t":
+                total += len("".join(run_child.itertext()))
+            elif run_child_name in {"tab", "linebreak", "hyphen", "nbspace"}:
+                total += 1
+            else:
+                return None
+    return total
+
+
+def _paragraph_layout_cache_is_stale(paragraph: etree._Element) -> bool:
+    text_length = _paragraph_plain_text_length(paragraph)
+    if text_length is None:
+        return False
+    for child in paragraph:
+        if _local_name(child).lower() not in _LAYOUT_CACHE_ELEMENT_NAMES:
+            continue
+        for line_seg in child:
+            if _local_name(line_seg).lower() != "lineseg":
+                continue
+            textpos = line_seg.get("textpos")
+            if textpos is None:
+                continue
+            try:
+                if int(textpos) > text_length:
+                    return True
+            except ValueError:
+                return True
+    return False
+
+
 def _strip_section_layout_caches(payload: bytes) -> bytes:
+    """Drop only *stale* paragraph layout caches from a section payload.
+
+    Valid caches are the authored layout of untouched paragraphs; removing
+    them forces the editor to re-lay-out entire multi-page documents, which
+    shifted page counts and stacked glyphs in the wild form-fill differential
+    (specs/031 P0 receipt). The mutating APIs upstream clear the caches of
+    exactly the paragraphs they touch, so this byte-boundary sweep only
+    guards against writers that left a provably stale cache behind.
+    """
     root = parse_xml(payload)
     removed = False
     for parent in root.iter():
+        if _local_name(parent).lower() != "p":
+            continue
+        if not _paragraph_layout_cache_is_stale(parent):
+            continue
         for child in list(parent):
             if _local_name(child).lower() in _LAYOUT_CACHE_ELEMENT_NAMES:
                 parent.remove(child)

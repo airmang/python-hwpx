@@ -1086,10 +1086,14 @@ class HwpxOxmlDocument:
         if self._manifest_dirty:
             updates[self._manifest_path] = _serialize_xml(self._manifest)
         for section in self._sections:
-            if section.dirty:
-                section.remove_layout_caches()
-            else:
-                section.remove_stale_layout_caches()
+            # Edit-scoped invalidation: the mutating APIs (cell/paragraph/run
+            # text and style setters) clear the caches of exactly the
+            # paragraphs they touch, so even a dirty section only needs the
+            # stale sweep as a safety net. Nuking every cache here forced
+            # Hancom to re-lay-out untouched pages of multi-page forms, which
+            # is what stacked glyphs and shifted page counts in the wild
+            # form-fill differential (specs/031 P0 receipt).
+            section.remove_stale_layout_caches()
         for section in self._sections:
             if section.dirty:
                 updates[section.part_name] = section.to_bytes()

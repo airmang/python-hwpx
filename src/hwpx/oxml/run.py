@@ -320,12 +320,16 @@ class HwpxOxmlRun:
         if value is None:
             if "charPrIDRef" in self.element.attrib:
                 del self.element.attrib["charPrIDRef"]
+                _clear_paragraph_layout_cache(self.paragraph.element)
                 self.paragraph.section.mark_dirty()
             return
 
         new_value = str(value)
         if self.element.get("charPrIDRef") != new_value:
             self.element.set("charPrIDRef", new_value)
+            # A style swap changes glyph metrics, so the cached line layout of
+            # the containing paragraph no longer holds.
+            _clear_paragraph_layout_cache(self.paragraph.element)
             self.paragraph.section.mark_dirty()
 
     def _plain_text_nodes(self) -> list[ET.Element]:

@@ -452,10 +452,12 @@ def test_save_removes_stale_layout_cache_after_low_level_text_edit() -> None:
     assert b"Short" in section_xml
     root = ET.fromstring(section_xml)
     paragraphs = [node for node in root.iter() if node.tag.endswith("}p")]
+    # textpos=40 against 5 chars of text is provably stale, so the save-time
+    # stale sweep removes it even though the writer bypassed the APIs.
     assert paragraphs[-1].find(f"{HP}linesegarray") is None
 
 
-def test_save_removes_layout_cache_from_dirty_complex_paragraph() -> None:
+def test_save_preserves_unjudgeable_layout_cache_on_dirty_complex_paragraph() -> None:
     document = HwpxDocument.new()
     try:
         paragraph = document.add_paragraph("Complex cached paragraph")
@@ -480,7 +482,12 @@ def test_save_removes_layout_cache_from_dirty_complex_paragraph() -> None:
 
     root = ET.fromstring(section_xml)
     paragraphs = [node for node in root.iter() if node.tag.endswith("}p")]
-    assert paragraphs[-1].find(f"{HP}linesegarray") is None
+    # Raw element mutation bypasses the mutating APIs, and a control-bearing
+    # paragraph cannot be judged at the byte boundary — the cache survives.
+    # Callers that hand-mutate elements own their invalidation (the text and
+    # style setters clear caches themselves; blanket save-time stripping broke
+    # untouched pages, specs/031 P0).
+    assert paragraphs[-1].find(f"{HP}linesegarray") is not None
 
 
 def test_table_cell_text_marks_cell_dirty_attribute() -> None:

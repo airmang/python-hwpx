@@ -148,7 +148,10 @@ def test_save_to_path_normalizes_low_level_package_part_mutation_before_replace(
     assert validate_editor_open_safety(target).ok
     with ZipFile(target, "r") as archive:
         section_xml = archive.read("Contents/section0.xml")
-    assert b"linesegarray" not in section_xml.lower()
+    # The template seed paragraph carries section-property controls, so the
+    # byte boundary cannot judge the injected cache; it is preserved and the
+    # low-level writer owns invalidation (specs/031 P0 doctrine).
+    assert b"linesegarray" in section_xml.lower()
 
 
 def test_save_to_stream_returns_same_stream() -> None:
