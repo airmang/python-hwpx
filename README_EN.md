@@ -15,9 +15,9 @@
 <p align="center"><a href="README.md">한국어</a> | English</p>
 
 Existing documents are edited in place — untouched regions stay byte-identical.
-New documents are produced in a form real Hancom Office accepts, and every output
-is measured against real Hancom and published as-is —
-[measured corpus metrics](https://airmang.github.io/python-hwpx/corpus-metrics.html).
+New documents are produced in a form real Hancom Office accepts. HWPX is a
+ZIP+XML (OWPML/OPC) format, so everything runs in pure Python on
+Windows, macOS, Linux, and CI.
 
 | | Repo | Role |
 |---|---|---|
@@ -44,19 +44,55 @@ doc.save_to_path("report-edited.hwpx")
 - **Read & extract** — text/HTML/rich Markdown export (formatting, nested tables, footnotes preserved), XPath object search
 - **Edit** — paragraphs, tables, images, headers/footers, memos, footnotes; line spacing, margins, page numbers
 - **Form filling** — label/path-based cell filling, byte-preserving structural edits (rows, columns, autofit, shrink-to-fit)
-- **Create** — composable builder, official-document lint and approval blocks, photo sheets, nameplates, org charts, mail merge, old-vs-new comparison tables
+- **Create** — composable builder, official-document lint and approval blocks, photo sheets, nameplates, org charts, mail merge, comparison tables
 - **Tracked changes & TOC** — redline authoring, native table of contents and cross-references
 - **Verify & safety** — XSD/package validation CLIs, open-safety gate, a receipt on every write (`MutationReport`)
 
 More: [usage guide](docs/usage.md) · [API reference](https://airmang.github.io/python-hwpx/) · [examples](docs/examples.md)
 
-## Why you can trust it
+### Form filling — values change, formatting doesn't
 
-- [Safe Write Contract](docs/safe-write-contract.md) — the preservation grade is decided before writing, and a measured receipt of actual changes is returned (fail-closed)
-- [Support matrix](docs/support-matrix.md) — real support grades per capability; what doesn't work is graded too
-- [Measured corpus metrics](https://airmang.github.io/python-hwpx/corpus-metrics.html) — exhaustive real-Hancom measurements with caveats; low numbers are published as-is
+```python
+doc = HwpxDocument.open("application.hwpx")
+result = doc.fill_by_path({
+    "성명 > right": "홍길동",
+    "소속 > right": "플랫폼팀",
+})
+doc.save_to_path("application-filled.hwpx")
+```
 
-Development status is Alpha — the API may change.
+Cells are located by their labels; everything you didn't touch keeps its
+original bytes.
+
+### Every save comes with a receipt
+
+```python
+report = doc.save_to_path("out.hwpx", return_report=True)
+print(report.actual_mode)        # "patch" — saved without rebuilding the document
+print(report.preservation.untouched_part_payloads.to_dict())
+                                 # {"verified": 17, "changed": 0}
+```
+
+If the requested preservation grade can't be honored, nothing is written
+(fail-closed). Full rules: [Safe Write Contract](docs/safe-write-contract.md).
+
+## Measured, not claimed
+
+Every output is measured against real Hancom Office and published as-is
+(frozen corpus, N=497):
+
+- **Hancom opens 476/476 all-pass** — real Hancom opens every file we produce
+- **Byte preservation of untouched regions 497/497** · personal-info 0-leak
+- **Render-verified 416/476** + honesty bucket of 43 — cases where Hancom itself refuses PDF export are counted, not hidden
+- Low numbers are published as-is — full figures and caveats: [measured corpus metrics](https://airmang.github.io/python-hwpx/corpus-metrics.html)
+
+What works and what doesn't is graded per capability in the
+[support matrix](docs/support-matrix.md). Development status is Alpha — the API
+may change.
+
+> These numbers are on the *output acceptance* axis (does real Hancom accept the
+> files we produce) — a different axis from document *parsing recall*, so do not
+> compare them side by side with parser-project figures.
 
 ## Comparison
 
@@ -83,6 +119,10 @@ Development status is Alpha — the API may change.
 [Discussions](https://github.com/airmang/python-hwpx/discussions) ·
 [internals field guide](docs/internals/) ·
 [CONTRIBUTING](CONTRIBUTING.md)
+
+New to HWPX internals? Start with the [internals field guide](docs/internals/) —
+layout caches, TOC fields, OPC repacking and other behaviors verified against
+real Hancom.
 
 ## Acknowledgements
 

@@ -15,8 +15,8 @@
 <p align="center">한국어 | <a href="README_EN.md">English</a></p>
 
 기존 문서는 손댄 곳만 고치고(미수정 영역은 바이트 그대로), 새 문서는 실제
-한컴오피스가 받아들이는 형태로 만듭니다. 산출물은 실제 한컴으로 전수 측정해
-그대로 공개합니다 — [실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html).
+한컴오피스가 받아들이는 형태로 만듭니다. HWPX는 ZIP+XML(OWPML/OPC) 구조라
+Windows·macOS·Linux·CI 어디서든 순수 파이썬으로 동작합니다.
 
 | | 레포 | 역할 |
 |---|---|---|
@@ -49,13 +49,45 @@ doc.save_to_path("보고서-수정.hwpx")
 
 자세한 내용: [사용 가이드](docs/usage.md) · [API 레퍼런스](https://airmang.github.io/python-hwpx/) · [예제](docs/examples.md)
 
-## 신뢰의 근거
+### 양식 채우기 — 서식은 그대로, 값만
 
-- [안전한 쓰기 계약](docs/safe-write-contract.md) — 보존 등급을 쓰기 전에 판정하고, 실제 변경을 측정한 영수증을 반환합니다(fail-closed)
-- [지원 매트릭스](docs/support-matrix.md) — 기능별 실제 지원 등급, 안 되는 것도 등급으로 명시
-- [실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html) — 실한컴 전수 측정 수치와 주의사항, 낮은 숫자도 그대로 발행
+```python
+doc = HwpxDocument.open("신청서.hwpx")
+result = doc.fill_by_path({
+    "성명 > right": "홍길동",
+    "소속 > right": "플랫폼팀",
+})
+doc.save_to_path("신청서-작성완료.hwpx")
+```
 
-현재 개발 상태는 Alpha입니다 — API는 바뀔 수 있습니다.
+라벨 기준으로 셀을 찾아 채우고, 손대지 않은 영역은 원본 바이트가 그대로 유지됩니다.
+
+### 저장에는 영수증이 따라옵니다
+
+```python
+report = doc.save_to_path("결과.hwpx", return_report=True)
+print(report.actual_mode)        # "patch" — 문서 재조립 없이 저장됨
+print(report.preservation.untouched_part_payloads.to_dict())
+                                 # {"verified": 17, "changed": 0}
+```
+
+요청한 보존 등급을 지킬 수 없으면 아무것도 쓰지 않고 실패합니다(fail-closed).
+전체 규칙은 [안전한 쓰기 계약](docs/safe-write-contract.md)에 있습니다.
+
+## 실측으로 말합니다
+
+산출물 전수를 실제 한컴오피스로 측정해 그대로 공개합니다(동결 코퍼스 N=497):
+
+- **한컴 오픈 476/476 all-pass** — 우리가 만든 파일을 실한컴이 전부 엽니다
+- **미수정 영역 바이트 보존 497/497** · 개인정보 0-leak
+- **렌더 검증 416/476** + 정직 버킷 43 — 한컴 자체가 PDF export를 거부한 케이스도 숨기지 않고 집계
+- 낮은 숫자도 그대로 발행합니다 — 전체 수치·주의사항: [실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html)
+
+기능별로 되는 것과 안 되는 것은 [지원 매트릭스](docs/support-matrix.md)에 등급으로
+명시되어 있습니다. 현재 개발 상태는 Alpha입니다 — API는 바뀔 수 있습니다.
+
+> 위 수치는 *생성물 수용률* 축입니다(만든 파일을 실한컴이 받는가). 문서 *파싱 recall*과는
+> 다른 축이므로 파서 프로젝트 수치와 병치 비교하지 마세요.
 
 ## 비교
 
@@ -82,6 +114,9 @@ doc.save_to_path("보고서-수정.hwpx")
 [Discussions](https://github.com/airmang/python-hwpx/discussions) ·
 [내부 실전 가이드](docs/internals/) ·
 [CONTRIBUTING](CONTRIBUTING.md)
+
+HWPX 내부 구조가 처음이라면 [내부 실전 가이드](docs/internals/)부터 — 실제 한/글
+동작에서 확인된 조판 캐시·목차 필드·OPC 재패킹 같은 실전 지식을 정리해 두었습니다.
 
 ## 감사의 말
 
