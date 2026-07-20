@@ -14,9 +14,7 @@ import copy
 import hashlib
 import json
 import re
-import zipfile
 from collections.abc import Callable, Mapping, MutableMapping
-from io import BytesIO
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
@@ -24,6 +22,7 @@ from xml.etree import ElementTree as ET
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
 from hwpx.document import HwpxDocument
+from hwpx.mutation_report import member_diff_bytes
 from hwpx.oxml import HwpxOxmlTable
 from hwpx.quality import QualityPolicy, SavePipeline
 from hwpx.tools.package_validator import validate_editor_open_safety
@@ -1172,24 +1171,9 @@ def _quality_policy(value: str | Mapping[str, Any] | None) -> QualityPolicy:
 
 
 def _member_diff(before: bytes, after: bytes) -> dict[str, Any]:
-    try:
-        with zipfile.ZipFile(BytesIO(before)) as old_zip, zipfile.ZipFile(BytesIO(after)) as new_zip:
-            old_names = set(old_zip.namelist())
-            new_names = set(new_zip.namelist())
-            shared = sorted(old_names & new_names)
-            changed = [name for name in shared if old_zip.read(name) != new_zip.read(name)]
-            unchanged = len(shared) - len(changed)
-            return {
-                "ok": True,
-                "changedMembers": changed,
-                "addedMembers": sorted(new_names - old_names),
-                "removedMembers": sorted(old_names - new_names),
-                "unchangedMemberCount": unchanged,
-                "beforeMemberCount": len(old_names),
-                "afterMemberCount": len(new_names),
-            }
-    except (OSError, zipfile.BadZipFile) as exc:
-        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    # Shared with the Safe Write Contract's MutationReport spine: one uncompressed
+    # member comparison, one home for the diff shape (mutation_report.py).
+    return member_diff_bytes(before, after)
 
 
 def _verify_header_story_candidates(
