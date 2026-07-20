@@ -7,7 +7,7 @@ import hashlib
 import json
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 SCENARIO_SCHEMA_VERSION = "hwpx.fuzz.scenario.v1"
 REPORT_SCHEMA_VERSION = "hwpx.fuzz.report.v1"
@@ -186,104 +186,125 @@ def _replace_all(values: list[str], search: str, replacement: str, limit: int | 
     return replaced
 
 
+@dataclass
+class _ExpectedState:
+    """Mutable accumulator threaded through the per-operation handlers below.
+
+    A field (not a bare local) because ``replace_text`` must *replace* the
+    body-text list wholesale, not mutate it in place.
+    """
+
+    body_texts: list[str]
+    table_cells: list[list[list[str]]]
+    merged_cells: dict[int, set[tuple[int, int]]]
+
+
+def _op_build_document(op: dict[str, Any], state: _ExpectedState) -> None:
+    for text in op.get("paragraphs") or []:
+        if text:
+            state.body_texts.append(str(text))
+    table = op.get("table") or {}
+    if table:
+        rows: list[list[str]] = []
+        header = [str(value) for value in table.get("header") or []]
+        if header:
+            rows.append(header)
+        for row in table.get("rows") or []:
+            rows.append([str(value) for value in row])
+        if rows:
+            state.table_cells.append(rows)
+            state.merged_cells[len(state.table_cells) - 1] = set()
+
+
+def _op_append_text(op: dict[str, Any], state: _ExpectedState) -> None:
+    text = str(op.get("text", ""))
+    if text:
+        state.body_texts.append(text)
+
+
+def _op_add_table(op: dict[str, Any], state: _ExpectedState) -> None:
+    cells = [
+        [str(value) for value in row]
+        for row in (op.get("cells") or [])
+    ]
+    if cells:
+        state.table_cells.append(cells)
+        state.merged_cells[len(state.table_cells) - 1] = set()
+
+
+def _op_set_table_cell_text(op: dict[str, Any], state: _ExpectedState) -> None:
+    table_index = int(op.get("table_index", 0))
+    row = int(op.get("row", 0))
+    col = int(op.get("col", 0))
+    if (row, col) in state.merged_cells.get(table_index, set()):
+        row, col = 0, 0
+    if (
+        0 <= table_index < len(state.table_cells)
+        and 0 <= row < len(state.table_cells[table_index])
+        and 0 <= col < len(state.table_cells[table_index][row])
+    ):
+        state.table_cells[table_index][row][col] = str(op.get("text", ""))
+
+
+def _op_merge_table_cells(op: dict[str, Any], state: _ExpectedState) -> None:
+    table_index = int(op.get("table_index", 0))
+    cell_range = str(op.get("range", ""))
+    if 0 <= table_index < len(state.table_cells) and cell_range == "A1:B1":
+        rows = state.table_cells[table_index]
+        if rows and len(rows[0]) >= 2:
+            rows[0][1] = ""
+            state.merged_cells.setdefault(table_index, set()).add((0, 1))
+
+
+def _op_replace_text(op: dict[str, Any], state: _ExpectedState) -> None:
+    search = str(op.get("search", ""))
+    replacement = str(op.get("replacement", ""))
+    limit_value = op.get("limit")
+    limit = int(limit_value) if limit_value is not None else None
+    if search:
+        state.body_texts = _replace_all(state.body_texts, search, replacement, limit)
+
+
+def _op_add_memo(op: dict[str, Any], state: _ExpectedState) -> None:
+    anchor_text = str(op.get("anchor_text", ""))
+    if anchor_text:
+        state.body_texts.append(anchor_text)
+
+
+_EXPECTED_OP_HANDLERS: dict[str, Callable[[dict[str, Any], _ExpectedState], None]] = {
+    "build_document": _op_build_document,
+    "add_paragraph": _op_append_text,
+    "add_styled_run": _op_append_text,
+    "add_table": _op_add_table,
+    "set_table_cell_text": _op_set_table_cell_text,
+    "merge_table_cells": _op_merge_table_cells,
+    "replace_text": _op_replace_text,
+    "add_memo": _op_add_memo,
+}
+
+
 def derive_expected(operations: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     """Derive observable text expectations from a scenario operation sequence."""
 
-    body_texts: list[str] = []
-    table_cells: list[list[list[str]]] = []
-    merged_cells: dict[int, set[tuple[int, int]]] = {}
+    state = _ExpectedState(body_texts=[], table_cells=[], merged_cells={})
 
     for raw_op in operations:
         op = dict(raw_op)
         name = str(op.get("op", ""))
-        if name == "build_document":
-            for text in op.get("paragraphs") or []:
-                if text:
-                    body_texts.append(str(text))
-            table = op.get("table") or {}
-            if table:
-                rows: list[list[str]] = []
-                header = [str(value) for value in table.get("header") or []]
-                if header:
-                    rows.append(header)
-                for row in table.get("rows") or []:
-                    rows.append([str(value) for value in row])
-                if rows:
-                    table_cells.append(rows)
-                    merged_cells[len(table_cells) - 1] = set()
-            continue
+        handler = _EXPECTED_OP_HANDLERS.get(name)
+        if handler is not None:
+            handler(op, state)
 
-        if name == "add_paragraph":
-            text = str(op.get("text", ""))
-            if text:
-                body_texts.append(text)
-            continue
-
-        if name == "add_styled_run":
-            text = str(op.get("text", ""))
-            if text:
-                body_texts.append(text)
-            continue
-
-        if name == "add_table":
-            cells = [
-                [str(value) for value in row]
-                for row in (op.get("cells") or [])
-            ]
-            if cells:
-                table_cells.append(cells)
-                merged_cells[len(table_cells) - 1] = set()
-            continue
-
-        if name == "set_table_cell_text":
-            table_index = int(op.get("table_index", 0))
-            row = int(op.get("row", 0))
-            col = int(op.get("col", 0))
-            if (row, col) in merged_cells.get(table_index, set()):
-                row, col = 0, 0
-            if (
-                0 <= table_index < len(table_cells)
-                and 0 <= row < len(table_cells[table_index])
-                and 0 <= col < len(table_cells[table_index][row])
-            ):
-                table_cells[table_index][row][col] = str(op.get("text", ""))
-            continue
-
-        if name == "merge_table_cells":
-            table_index = int(op.get("table_index", 0))
-            cell_range = str(op.get("range", ""))
-            if 0 <= table_index < len(table_cells) and cell_range == "A1:B1":
-                rows = table_cells[table_index]
-                if rows and len(rows[0]) >= 2:
-                    rows[0][1] = ""
-                    merged_cells.setdefault(table_index, set()).add((0, 1))
-            continue
-
-        if name == "replace_text":
-            search = str(op.get("search", ""))
-            replacement = str(op.get("replacement", ""))
-            limit_value = op.get("limit")
-            limit = int(limit_value) if limit_value is not None else None
-            if search:
-                body_texts = _replace_all(body_texts, search, replacement, limit)
-            continue
-
-        if name == "add_memo":
-            anchor_text = str(op.get("anchor_text", ""))
-            if anchor_text:
-                body_texts.append(anchor_text)
-            continue
-
-    body_expected = [text for text in body_texts if text]
+    body_expected = [text for text in state.body_texts if text]
     table_expected: list[str] = []
-    for cells in table_cells:
+    for cells in state.table_cells:
         table_expected.extend(_text_values(cells))
 
     return {
         "texts": body_expected + table_expected,
         "bodyTexts": body_expected,
         "tableTexts": table_expected,
-        "table_count": len(table_cells),
+        "table_count": len(state.table_cells),
         "catalog_operations": sorted({str(op.get("op", "")) for op in operations if op.get("op")}),
     }
 
