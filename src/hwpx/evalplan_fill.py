@@ -900,37 +900,11 @@ def _fill_rubric_ae_levels(
     return cells, skipped
 
 
-def _fill_rubric_2022(data: bytes, ti: int, rub: Rubric,
-                      std_levels: dict[str, list[str]] | None = None) -> tuple[bytes, list[str]]:
-    """Fill ONE 2022-개정 수행평가 세부기준 rubric table (평가 영역명 layout) from a
-    review rubric, byte-preserving. These tables are heterogeneous rich grids
-    (수행과제 / 성취기준 A~E block / 평가방법 / 학생 유의사항 / 평가요소 수행수준 blocks /
-    기본점수·장기미인정). We overwrite the cleanly-addressable label cells the scorer
-    measures -- the 평가 영역명 (title), 영역 만점 (points), 성취기준 (codes), the 성취
-    기준별 성취수준 A~E descriptors (from the primary standard's review 성취수준, via
-    ``std_levels``), the 평가요소 수행수준 leader cells (the review 평가항목 labels), the
-    수행과제 task, and the 기본점수 / 장기 미인정 배점 -- AND reshape+fill the 수행수준
-    채점기준 descriptor ladder (:func:`_fill_rubric_2022_ladder`): each 평가요소 group is
-    normalized (delete_row / insert_row_by_clone -- reshape, NOT regeneration) to the
-    MD ladder's level count, then each level's descriptor + 배점 is spliced in. A rubric
-    whose ladder can't be reconciled cleanly is left as blank sample and reported
-    (NEEDS_REVIEW, fail-closed) rather than corrupted."""
-    from .table_patch import fill_cells, _text_of, _direct_cells
+def _locate_rubric_2022_rows(tb: bytes, grid: Any, rep: Any) -> tuple[int | None, int | None, int | None, int | None]:
+    """Locate the 수행과제 / 성취기준-label / 평가요소 header / 기본점수 rows."""
 
-    skipped: list[str] = []
+    from .table_patch import _text_of
 
-    # STEP 0 (structure+content): reshape and fill the 수행수준 채점기준 ladder FIRST --
-    # it deletes/clones rows, so the label-cell locations below must be found on the
-    # reshaped grid. Fail-closed: on any reconciliation failure the ladder pass returns
-    # the input bytes unchanged and its notes carry the reason (a NEEDS_REVIEW note is
-    # re-emitted at the end when ``ladder_filled`` is False).
-    data, ladder_filled, ladder_notes = _fill_rubric_2022_ladder(data, ti, rub)
-    skipped.extend(ladder_notes)
-
-    _sp, tb, grid, rep = _grid_of(data, ti)
-    lastcol = rep.col_count - 1
-
-    # locate the 수행과제 / 성취기준-label / 평가요소 header / 기본점수 rows.
     task_row = std_label_row = ph = base = None
     for r in range(rep.row_count):
         c0 = grid.get((r, 0))
@@ -946,47 +920,76 @@ def _fill_rubric_2022(data: bytes, ti: int, rub: Rubric,
             ph = r
         if base is None and "기본점수" in t0:
             base = r
+    return task_row, std_label_row, ph, base
+
+
+def _rubric_2022_header_cells(ti: int, rub: Rubric) -> list[dict[str, Any]]:
+    # header: title / points -- addressed by adjacent label (geometry-free)
+    return [
+        {"table_index": ti, "cell_anchor": {"label": "평가 영역명", "dir": "right"},
+         "text": rub.title, "max_lines": 2},
+        {"table_index": ti, "cell_anchor": {"label": "영역 만점", "dir": "right"},
+         "text": f"{rub.points}점", "max_lines": 1},
+    ]
+
+
+def _rubric_2022_standards_method_row(tb: bytes, grid: Any, rep: Any, std_label_row: int) -> int:
+    from .table_patch import _text_of
+
+    return next(
+        (
+            r for r in range(std_label_row + 1, rep.row_count)
+            if (c0 := grid.get((r, 0))) is not None
+            and "평가" in _text_of(tb[c0.start:c0.end])
+            and "방법" in _text_of(tb[c0.start:c0.end])
+        ),
+        rep.row_count,
+    )
+
+
+def _rubric_2022_standards_leader_rows(tb: bytes, std_label_row: int, method_row: int) -> list[int]:
+    from .table_patch import _direct_cells
+
+    return [
+        c.row for c in sorted(_direct_cells(tb), key=lambda c: c.row)
+        if c.col == 0 and std_label_row < c.row < method_row and c.row_span >= 2
+    ]
+
+
+def _rubric_2022_standards_cells(
+    ti: int, rub: Rubric, tb: bytes, grid: Any, rep: Any, std_label_row: int | None
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """성취기준 codes: the '성취기준' LABEL row's right neighbour is the '성취기준별
+    성취수준' A~E banner (a section header, NOT a value slot) -- so we write the
+    codes into the A~E block's col-0 LEADER cell(s) instead (the merged cells that
+    span the A..E rows and currently carry the blank's foreign sample codes).
+    The blank can ship SEVERAL sample 성취기준 blocks under one rubric (each its own
+    A~E leader); the MD supplies one codes string per rubric, so we overwrite EVERY
+    leader between the 성취기준 label row and the next 평가 방법 section, leaving no
+    foreign code behind (the first carries the codes; the rest are blanked)."""
 
     cells: list[dict[str, Any]] = []
-    # header: title / points -- addressed by adjacent label (geometry-free)
-    cells.append({"table_index": ti, "cell_anchor": {"label": "평가 영역명", "dir": "right"},
-                  "text": rub.title, "max_lines": 2})
-    cells.append({"table_index": ti, "cell_anchor": {"label": "영역 만점", "dir": "right"},
-                  "text": f"{rub.points}점", "max_lines": 1})
-
-    # 성취기준 codes: the '성취기준' LABEL row's right neighbour is the '성취기준별
-    # 성취수준' A~E banner (a section header, NOT a value slot) -- so we write the
-    # codes into the A~E block's col-0 LEADER cell(s) instead (the merged cells that
-    # span the A..E rows and currently carry the blank's foreign sample codes).
-    # The blank can ship SEVERAL sample 성취기준 blocks under one rubric (each its own
-    # A~E leader); the MD supplies one codes string per rubric, so we overwrite EVERY
-    # leader between the 성취기준 label row and the next 평가 방법 section, leaving no
-    # foreign code behind (the first carries the codes; the rest are blanked).
+    skipped: list[str] = []
     if rub.standards and std_label_row is not None:
-        method_row = next((r for r in range(std_label_row + 1, rep.row_count)
-                           if (c0 := grid.get((r, 0))) is not None
-                           and "평가" in _text_of(tb[c0.start:c0.end])
-                           and "방법" in _text_of(tb[c0.start:c0.end])), rep.row_count)
-        leaders = [c.row for c in sorted(_direct_cells(tb), key=lambda c: c.row)
-                   if c.col == 0 and std_label_row < c.row < method_row and c.row_span >= 2]
+        method_row = _rubric_2022_standards_method_row(tb, grid, rep, std_label_row)
+        leaders = _rubric_2022_standards_leader_rows(tb, std_label_row, method_row)
         if leaders:
             for j, lr in enumerate(leaders):
                 cells.append({"table_index": ti, "row": lr, "col": 0,
                               "text": rub.standards if j == 0 else "", "max_lines": 4})
         else:
             skipped.append(f"rubric ti={ti}: no A~E 성취기준 block leader to place codes")
+    return cells, skipped
 
-    # 성취기준별 성취수준 A~E descriptors: the blank ships the 서술 cells as a foreign
-    # sample (통합사회/미술 프로젝트 prose). Splice the primary standard's review 성취수준
-    # into each grade row's 서술 cell (fail-closed: reported, never corrupted).
-    if std_levels:
-        ae_cells, ae_sk = _fill_rubric_ae_levels(ti, tb, grid, rep, rub, std_levels)
-        cells.extend(ae_cells)
-        skipped.extend(ae_sk)
 
-    # 수행과제: the blank ships a foreign sample task (통사 인권 문제 …). The MD has no
-    # dedicated 수행과제 string, so synthesise a faithful one from THIS area's 평가항목
-    # labels (the tasks the rubric actually scores) -- replaces the sample subject.
+def _rubric_2022_task_cells(
+    ti: int, rub: Rubric, grid: Any, rep: Any, task_row: int | None
+) -> list[dict[str, Any]]:
+    """수행과제: the blank ships a foreign sample task (통사 인권 문제 …). The MD has no
+    dedicated 수행과제 string, so synthesise a faithful one from THIS area's 평가항목
+    labels (the tasks the rubric actually scores) -- replaces the sample subject."""
+
+    cells: list[dict[str, Any]] = []
     if task_row is not None:
         items = [_item_label(row[0]) for row in rub.rows if not row[0].startswith("기본점수")]
         if items:
@@ -1000,32 +1003,116 @@ def _fill_rubric_2022(data: bytes, ti: int, rub: Rubric,
             if task_cell is not None:
                 cells.append({"table_index": ti, "row": task_cell.row, "col": task_cell.col,
                               "text": "∙" + " ∙".join(items), "max_lines": 3})
+    return cells
 
-    # 평가요소 수행수준 leader cells: col0 merged cells strictly inside (ph, base)
-    if ph is not None and base is not None:
-        seen: set[tuple[int, int]] = set()
-        leaders: list[int] = []
-        for c in sorted(_direct_cells(tb), key=lambda c: c.row):
-            if c.col == 0 and ph < c.row < base and c.row_span >= 2 and (c.start, c.end) not in seen:
-                seen.add((c.start, c.end))
-                leaders.append(c.row)
-        items = [_item_label(row[0]) for row in rub.rows if not row[0].startswith("기본점수")]
-        if leaders and items:
-            k = len(leaders)
-            packed = items if len(items) <= k else items[:k - 1] + [" / ".join(items[k - 1:])]
-            for row, label in zip(leaders, packed):
-                cells.append({"table_index": ti, "row": row, "col": 0, "text": label, "max_lines": 3})
-        elif items:
-            skipped.append(f"rubric ti={ti}: no 평가요소 leader cells to place {len(items)} items")
 
-        # 기본점수 / 장기 미인정 배점 (right-most column of the two base rows)
-        base_label, base_score, long_label, long_score = _base_scores(rub.rows)
-        if base_score and grid.get((base, lastcol)):
-            cells.append({"table_index": ti, "row": base, "col": lastcol, "text": base_score, "max_lines": 1})
-        if long_score and base + 1 < rep.row_count and grid.get((base + 1, lastcol)):
-            cells.append({"table_index": ti, "row": base + 1, "col": lastcol, "text": long_score, "max_lines": 1})
-    else:
-        skipped.append(f"rubric ti={ti}: could not bound 평가요소 region (ph={ph}, base={base})")
+def _rubric_2022_element_leader_rows(tb: bytes, ph: int, base: int) -> list[int]:
+    from .table_patch import _direct_cells
+
+    seen: set[tuple[int, int]] = set()
+    leaders: list[int] = []
+    for c in sorted(_direct_cells(tb), key=lambda c: c.row):
+        if c.col == 0 and ph < c.row < base and c.row_span >= 2 and (c.start, c.end) not in seen:
+            seen.add((c.start, c.end))
+            leaders.append(c.row)
+    return leaders
+
+
+def _rubric_2022_element_label_cells(
+    ti: int, rub: Rubric, leaders: list[int]
+) -> tuple[list[dict[str, Any]], list[str]]:
+    items = [_item_label(row[0]) for row in rub.rows if not row[0].startswith("기본점수")]
+    cells: list[dict[str, Any]] = []
+    skipped: list[str] = []
+    if leaders and items:
+        k = len(leaders)
+        packed = items if len(items) <= k else items[:k - 1] + [" / ".join(items[k - 1:])]
+        for row, label in zip(leaders, packed):
+            cells.append({"table_index": ti, "row": row, "col": 0, "text": label, "max_lines": 3})
+    elif items:
+        skipped.append(f"rubric ti={ti}: no 평가요소 leader cells to place {len(items)} items")
+    return cells, skipped
+
+
+def _rubric_2022_base_score_cells(
+    ti: int, rub: Rubric, grid: Any, rep: Any, base: int, lastcol: int
+) -> list[dict[str, Any]]:
+    base_label, base_score, long_label, long_score = _base_scores(rub.rows)
+    cells: list[dict[str, Any]] = []
+    if base_score and grid.get((base, lastcol)):
+        cells.append({"table_index": ti, "row": base, "col": lastcol, "text": base_score, "max_lines": 1})
+    if long_score and base + 1 < rep.row_count and grid.get((base + 1, lastcol)):
+        cells.append({"table_index": ti, "row": base + 1, "col": lastcol, "text": long_score, "max_lines": 1})
+    return cells
+
+
+def _rubric_2022_leader_and_base_cells(
+    ti: int, rub: Rubric, tb: bytes, grid: Any, rep: Any, ph: int | None, base: int | None, lastcol: int
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """평가요소 수행수준 leader cells (col0 merged cells strictly inside (ph, base))
+    plus the 기본점수 / 장기 미인정 배점 (right-most column of the two base rows)."""
+
+    if ph is None or base is None:
+        return [], [f"rubric ti={ti}: could not bound 평가요소 region (ph={ph}, base={base})"]
+    leaders = _rubric_2022_element_leader_rows(tb, ph, base)
+    label_cells, skipped = _rubric_2022_element_label_cells(ti, rub, leaders)
+    base_cells = _rubric_2022_base_score_cells(ti, rub, grid, rep, base, lastcol)
+    return label_cells + base_cells, skipped
+
+
+def _fill_rubric_2022(data: bytes, ti: int, rub: Rubric,
+                      std_levels: dict[str, list[str]] | None = None) -> tuple[bytes, list[str]]:
+    """Fill ONE 2022-개정 수행평가 세부기준 rubric table (평가 영역명 layout) from a
+    review rubric, byte-preserving. These tables are heterogeneous rich grids
+    (수행과제 / 성취기준 A~E block / 평가방법 / 학생 유의사항 / 평가요소 수행수준 blocks /
+    기본점수·장기미인정). We overwrite the cleanly-addressable label cells the scorer
+    measures -- the 평가 영역명 (title), 영역 만점 (points), 성취기준 (codes), the 성취
+    기준별 성취수준 A~E descriptors (from the primary standard's review 성취수준, via
+    ``std_levels``), the 평가요소 수행수준 leader cells (the review 평가항목 labels), the
+    수행과제 task, and the 기본점수 / 장기 미인정 배점 -- AND reshape+fill the 수행수준
+    채점기준 descriptor ladder (:func:`_fill_rubric_2022_ladder`): each 평가요소 group is
+    normalized (delete_row / insert_row_by_clone -- reshape, NOT regeneration) to the
+    MD ladder's level count, then each level's descriptor + 배점 is spliced in. A rubric
+    whose ladder can't be reconciled cleanly is left as blank sample and reported
+    (NEEDS_REVIEW, fail-closed) rather than corrupted."""
+    from .table_patch import fill_cells
+
+    skipped: list[str] = []
+
+    # STEP 0 (structure+content): reshape and fill the 수행수준 채점기준 ladder FIRST --
+    # it deletes/clones rows, so the label-cell locations below must be found on the
+    # reshaped grid. Fail-closed: on any reconciliation failure the ladder pass returns
+    # the input bytes unchanged and its notes carry the reason (a NEEDS_REVIEW note is
+    # re-emitted at the end when ``ladder_filled`` is False).
+    data, ladder_filled, ladder_notes = _fill_rubric_2022_ladder(data, ti, rub)
+    skipped.extend(ladder_notes)
+
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    lastcol = rep.col_count - 1
+
+    task_row, std_label_row, ph, base = _locate_rubric_2022_rows(tb, grid, rep)
+
+    cells: list[dict[str, Any]] = _rubric_2022_header_cells(ti, rub)
+
+    standards_cells, standards_sk = _rubric_2022_standards_cells(ti, rub, tb, grid, rep, std_label_row)
+    cells.extend(standards_cells)
+    skipped.extend(standards_sk)
+
+    # 성취기준별 성취수준 A~E descriptors: the blank ships the 서술 cells as a foreign
+    # sample (통합사회/미술 프로젝트 prose). Splice the primary standard's review 성취수준
+    # into each grade row's 서술 cell (fail-closed: reported, never corrupted).
+    if std_levels:
+        ae_cells, ae_sk = _fill_rubric_ae_levels(ti, tb, grid, rep, rub, std_levels)
+        cells.extend(ae_cells)
+        skipped.extend(ae_sk)
+
+    cells.extend(_rubric_2022_task_cells(ti, rub, grid, rep, task_row))
+
+    leader_base_cells, leader_base_sk = _rubric_2022_leader_and_base_cells(
+        ti, rub, tb, grid, rep, ph, base, lastcol
+    )
+    cells.extend(leader_base_cells)
+    skipped.extend(leader_base_sk)
 
     fr = fill_cells(data, cells)
     skipped.extend(s.reason for s in fr.skipped)
@@ -1085,32 +1172,47 @@ def fill_rubrics(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str
     cells (title / points / 성취기준 / A~E / 수행과제 / 평가요소 leaders / 기본점수 배점),
     reshapes+fills the 수행수준 채점기준 ladder, and rewrites each rubric's ordinal
     heading paragraph (가./나./다. + sample project title) to the review 영역명."""
-    from .table_patch import apply_table_ops, fill_cells, _all_paragraph_spans
 
     report: dict[str, Any] = {"rubrics": len(content.rubrics), "filled": 0, "skipped": []}
-    levels = content.levels
 
     # 2022-개정 route: fill each rubric table's label cells + 채점기준 ladder + heading.
     idxs0 = _rubric_indices(data)
     if idxs0 and _rubric_is_2022(data, idxs0[0]):
-        std_levels = _std_level_map(content.achievement_std)
-        filled = 0
-        for i, rub in enumerate(content.rubrics):
-            idxs = _rubric_indices(data)
-            if i >= len(idxs):
-                report["skipped"].append(f"rubric {i}: no matching blank table")
-                continue
-            data, sk = _fill_rubric_2022(data, idxs[i], rub, std_levels)
-            report["skipped"].extend(sk)
-            filled += 1
-        # rewrite each rubric's ordinal heading paragraph (outside the table) that holds
-        # the blank's sample project title (가. 인권 문제 해결 프로젝트 …).
-        data, head_sk = _fill_rubric_headings(data, content)
-        report["skipped"].extend(head_sk)
-        report["filled"] = filled
-        return data, report
+        return _fill_rubrics_2022_route(data, content, report)
 
     # STEP 1 (structure): shrink each rubric's item block to its review item count.
+    data = _shrink_rubric_item_blocks(data, content, report)
+    # STEP 2 (content): fill each rubric's cells.
+    data = _fill_rubric_cells_legacy(data, content, report)
+    return data, report
+
+
+def _fill_rubrics_2022_route(
+    data: bytes, content: EvalPlanContent, report: dict[str, Any]
+) -> tuple[bytes, dict[str, Any]]:
+    std_levels = _std_level_map(content.achievement_std)
+    filled = 0
+    for i, rub in enumerate(content.rubrics):
+        idxs = _rubric_indices(data)
+        if i >= len(idxs):
+            report["skipped"].append(f"rubric {i}: no matching blank table")
+            continue
+        data, sk = _fill_rubric_2022(data, idxs[i], rub, std_levels)
+        report["skipped"].extend(sk)
+        filled += 1
+    # rewrite each rubric's ordinal heading paragraph (outside the table) that holds
+    # the blank's sample project title (가. 인권 문제 해결 프로젝트 …).
+    data, head_sk = _fill_rubric_headings(data, content)
+    report["skipped"].extend(head_sk)
+    report["filled"] = filled
+    return data, report
+
+
+def _shrink_rubric_item_blocks(data: bytes, content: EvalPlanContent, report: dict[str, Any]) -> bytes:
+    """STEP 1: shrink each rubric's item block to its review item count."""
+
+    from .table_patch import apply_table_ops
+
     for i, rub in enumerate(content.rubrics):
         items = [row for row in rub.rows if not row[0].startswith("기본점수")]
         n = max(1, len(items))
@@ -1131,77 +1233,149 @@ def fill_rubrics(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str
                 report["skipped"].append(f"rubric {i} shrink: {[s.reason for s in res.skipped]}")
                 continue
             data = res.data
+    return data
 
-    # STEP 2 (content): fill each rubric's cells.
+
+def _fill_rubric_cells_legacy(data: bytes, content: EvalPlanContent, report: dict[str, Any]) -> bytes:
+    """STEP 2: fill each rubric's cells (2015-개정 route)."""
+
+    levels = content.levels
     for i, rub in enumerate(content.rubrics):
         idxs = _rubric_indices(data)
         if i >= len(idxs):
             continue
         ti = idxs[i]
-        hdr, base, _nrows = _rubric_bounds(data, ti)
-        if hdr is None or base is None:
-            continue
-        first_item = hdr + 1
-        items = [row for row in rub.rows if not row[0].startswith("기본점수")]
-        n = len(items)
-        _sp, tb, grid, rep = _grid_of(data, ti)
+        levels_for_area = levels[i] if i < len(levels) else None
+        data, skipped, filled_count = _fill_rubric_legacy_cells(
+            data, ti, rub, levels_for_area, content.achievement_std
+        )
+        report["filled"] += filled_count
+        report["skipped"].extend(f"rubric {i}: {s.reason}" for s in skipped)
+    return data
 
-        cells: list[dict[str, Any]] = []
-        # r0 성취기준 (replaces 한국사 sample codes)
-        std_text = rub.standards or (content.achievement_std and "")
-        if std_text:
-            cells.append({"table_index": ti, "row": 0, "col": 1, "text": std_text, "max_lines": 3})
-        # r1-3 상/중/하 평가기준 from the matching area's A/B/C descriptors
-        if i < len(levels) and len(levels[i]) >= 4:
-            for k, desc in enumerate(levels[i][1:4]):
-                rr = 1 + k
-                if grid.get((rr, 2)):
-                    cells.append({"table_index": ti, "row": rr, "col": 2, "text": desc, "max_lines": 4})
-        # 영역(만점) leader
-        area_cell = grid.get((first_item, 0))
-        if area_cell is not None:
-            cells.append({"table_index": ti, "row": first_item, "col": 0,
-                          "text": f"{rub.title}({rub.points}점)", "max_lines": 3})
-        # 평가항목 labels -> the merged 평가항목 cell's paragraphs (one line per item)
-        item_cell = grid.get((first_item, 1))
-        if item_cell is not None:
-            n_para = len(_all_paragraph_spans(tb[item_cell.start:item_cell.end]))
-            labels = [it[0] for it in items]
-            if n_para >= 1:
-                # pack labels across available paragraphs; extras merged into the last
-                if len(labels) <= n_para:
-                    packed = labels
-                else:
-                    packed = labels[:n_para - 1] + [" · ".join(labels[n_para - 1:])]
-                cells.append({"table_index": ti, "row": first_item, "col": 1,
-                              "text": "\n".join(packed), "max_lines": 2})
-        # per-item 채점기준 rows (col3) + top 배점 (col4)
-        for k, it in enumerate(items):
-            rr = first_item + k
-            if rr >= base:
-                break
-            if grid.get((rr, 3)):
-                cells.append({"table_index": ti, "row": rr, "col": 3,
-                              "text": _batjeom_line(it[0], it[1]), "max_lines": 3})
-            top = _top_batjeom(it[1])
-            if top and grid.get((rr, 4)):
-                cells.append({"table_index": ti, "row": rr, "col": 4, "text": top, "max_lines": 1})
-        # 기본점수 / 장기 미인정 rows
-        base_label, base_score, long_label, long_score = _base_scores(rub.rows)
-        if grid.get((base, 1)):
-            cells.append({"table_index": ti, "row": base, "col": 1, "text": base_label, "max_lines": 2})
-        if base_score and grid.get((base, 4)):
-            cells.append({"table_index": ti, "row": base, "col": 4, "text": base_score, "max_lines": 1})
-        if grid.get((base + 1, 1)):
-            cells.append({"table_index": ti, "row": base + 1, "col": 1, "text": long_label, "max_lines": 2})
-        if long_score and grid.get((base + 1, 4)):
-            cells.append({"table_index": ti, "row": base + 1, "col": 4, "text": long_score, "max_lines": 1})
 
-        fr = fill_cells(data, cells)
-        data = fr.data
-        report["filled"] += len(fr.applied)
-        report["skipped"].extend(f"rubric {i}: {s.reason}" for s in fr.skipped)
-    return data, report
+def _fill_rubric_legacy_cells(
+    data: bytes,
+    ti: int,
+    rub: Rubric,
+    levels_for_area: Sequence[str] | None,
+    achievement_std: Any,
+) -> tuple[bytes, list[Any], int]:
+    """Fill one legacy (2015-개정) rubric table's cells.
+
+    Returns (data, skip_reasons, filled_count).
+    """
+
+    from .table_patch import fill_cells
+
+    hdr, base, _nrows = _rubric_bounds(data, ti)
+    if hdr is None or base is None:
+        return data, [], 0
+    first_item = hdr + 1
+    items = [row for row in rub.rows if not row[0].startswith("기본점수")]
+    _sp, tb, grid, _rep = _grid_of(data, ti)
+
+    cells: list[dict[str, Any]] = []
+    # r0 성취기준 (replaces 한국사 sample codes)
+    std_cell = _rubric_std_cell(ti, rub, achievement_std)
+    if std_cell is not None:
+        cells.append(std_cell)
+    # r1-3 상/중/하 평가기준 from the matching area's A/B/C descriptors
+    cells.extend(_rubric_level_cells(ti, levels_for_area, grid))
+    # 영역(만점) leader
+    area_cell = _rubric_area_leader_cell(ti, rub, first_item, grid)
+    if area_cell is not None:
+        cells.append(area_cell)
+    # 평가항목 labels -> the merged 평가항목 cell's paragraphs (one line per item)
+    item_cell = _rubric_item_labels_cell(ti, first_item, grid, tb, items)
+    if item_cell is not None:
+        cells.append(item_cell)
+    # per-item 채점기준 rows (col3) + top 배점 (col4)
+    cells.extend(_rubric_item_criteria_cells(ti, first_item, base, grid, items))
+    # 기본점수 / 장기 미인정 rows
+    cells.extend(_rubric_base_score_cells(ti, base, grid, rub.rows))
+
+    fr = fill_cells(data, cells)
+    return fr.data, list(fr.skipped), len(fr.applied)
+
+
+def _rubric_std_cell(ti: int, rub: Rubric, achievement_std: Any) -> dict[str, Any] | None:
+    std_text = rub.standards or (achievement_std and "")
+    if std_text:
+        return {"table_index": ti, "row": 0, "col": 1, "text": std_text, "max_lines": 3}
+    return None
+
+
+def _rubric_level_cells(
+    ti: int, levels_for_area: Sequence[str] | None, grid: Any
+) -> list[dict[str, Any]]:
+    cells: list[dict[str, Any]] = []
+    if levels_for_area is not None and len(levels_for_area) >= 4:
+        for k, desc in enumerate(levels_for_area[1:4]):
+            rr = 1 + k
+            if grid.get((rr, 2)):
+                cells.append({"table_index": ti, "row": rr, "col": 2, "text": desc, "max_lines": 4})
+    return cells
+
+
+def _rubric_area_leader_cell(ti: int, rub: Rubric, first_item: int, grid: Any) -> dict[str, Any] | None:
+    if grid.get((first_item, 0)) is not None:
+        return {"table_index": ti, "row": first_item, "col": 0,
+                "text": f"{rub.title}({rub.points}점)", "max_lines": 3}
+    return None
+
+
+def _rubric_item_labels_cell(
+    ti: int, first_item: int, grid: Any, tb: Any, items: list[list[str]]
+) -> dict[str, Any] | None:
+    from .table_patch import _all_paragraph_spans
+
+    item_cell = grid.get((first_item, 1))
+    if item_cell is None:
+        return None
+    n_para = len(_all_paragraph_spans(tb[item_cell.start:item_cell.end]))
+    labels = [it[0] for it in items]
+    if n_para < 1:
+        return None
+    # pack labels across available paragraphs; extras merged into the last
+    if len(labels) <= n_para:
+        packed = labels
+    else:
+        packed = labels[:n_para - 1] + [" · ".join(labels[n_para - 1:])]
+    return {"table_index": ti, "row": first_item, "col": 1, "text": "\n".join(packed), "max_lines": 2}
+
+
+def _rubric_item_criteria_cells(
+    ti: int, first_item: int, base: int, grid: Any, items: list[list[str]]
+) -> list[dict[str, Any]]:
+    cells: list[dict[str, Any]] = []
+    for k, it in enumerate(items):
+        rr = first_item + k
+        if rr >= base:
+            break
+        if grid.get((rr, 3)):
+            cells.append({"table_index": ti, "row": rr, "col": 3,
+                          "text": _batjeom_line(it[0], it[1]), "max_lines": 3})
+        top = _top_batjeom(it[1])
+        if top and grid.get((rr, 4)):
+            cells.append({"table_index": ti, "row": rr, "col": 4, "text": top, "max_lines": 1})
+    return cells
+
+
+def _rubric_base_score_cells(
+    ti: int, base: int, grid: Any, rub_rows: list[list[str]]
+) -> list[dict[str, Any]]:
+    base_label, base_score, long_label, long_score = _base_scores(rub_rows)
+    cells: list[dict[str, Any]] = []
+    if grid.get((base, 1)):
+        cells.append({"table_index": ti, "row": base, "col": 1, "text": base_label, "max_lines": 2})
+    if base_score and grid.get((base, 4)):
+        cells.append({"table_index": ti, "row": base, "col": 4, "text": base_score, "max_lines": 1})
+    if grid.get((base + 1, 1)):
+        cells.append({"table_index": ti, "row": base + 1, "col": 1, "text": long_label, "max_lines": 2})
+    if long_score and grid.get((base + 1, 4)):
+        cells.append({"table_index": ti, "row": base + 1, "col": 4, "text": long_score, "max_lines": 1})
+    return cells
 
 
 def _rubric_bounds(data: bytes, ti: int) -> tuple[int | None, int | None, int]:

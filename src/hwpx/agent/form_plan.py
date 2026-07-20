@@ -1142,11 +1142,9 @@ def plan_mixed_form_fill(request: Mapping[str, Any]) -> MixedFormPlan:
     )
 
 
-def validate_mixed_form_plan(value: MixedFormPlan | Mapping[str, Any]) -> MixedFormPlan:
-    """Validate a detached compiled plan, including its content hash."""
+def _validate_mixed_form_plan_digests(plan: Mapping[str, Any]) -> tuple[str, str, str]:
+    """Return (input_revision, request_hash, plan_hash) after schema/sha256 checks."""
 
-    plan = value.to_dict() if isinstance(value, MixedFormPlan) else _object(value, "mixedFormPlan")
-    _exact_keys(plan, required=_COMPILED_PLAN_KEYS, name="mixedFormPlan")
     if plan["schemaVersion"] != MIXED_FORM_COMPILED_PLAN_SCHEMA:
         raise AgentContractError(
             "invalid_syntax", "unsupported mixed-form plan schema", target="schemaVersion"
@@ -1163,103 +1161,169 @@ def validate_mixed_form_plan(value: MixedFormPlan | Mapping[str, Any]) -> MixedF
             raise AgentContractError(
                 "invalid_syntax", f"mixedFormPlan.{name} must be sha256", target=name
             )
+    return input_revision, request_hash, plan_hash
 
+
+def _parse_mixed_form_resolution_fields(
+    name: str, resolution: Mapping[str, Any]
+) -> tuple[str, str, str, int | None, int | None, int | None, int | None, int | None, int | None, str, Any]:
+    """Extract + type/shape-validate one resolution's fields (no locator-kind cross-checks).
+
+    Returns (locator_kind, node_kind, stability, section, table_index, logical_row,
+    logical_column, physical_row, physical_column, path, parsed_path).
+    """
+
+    locator_kind = str(resolution["locatorKind"])
+    node_kind = str(resolution["nodeKind"])
+    stability = str(resolution["stability"])
+    if locator_kind not in MIXED_FORM_LOCATOR_KINDS:
+        raise AgentContractError("unknown_kind", "unknown plan locator kind", target=name)
+    if node_kind not in _FILLABLE_NODE_KINDS:
+        raise AgentContractError("unknown_kind", "plan targets a non-fillable kind", target=name)
+    if stability not in STABILITY_LEVELS:
+        raise AgentContractError("invalid_syntax", "unknown path stability", target=name)
+    section = resolution["section"]
+    if section is not None:
+        section = _positive_integer(section, f"{name}.section")
+    table_index = _nonnegative_integer_or_none(resolution["tableIndex"], f"{name}.tableIndex")
+    logical_row = _nonnegative_integer_or_none(resolution["logicalRow"], f"{name}.logicalRow")
+    logical_column = _nonnegative_integer_or_none(
+        resolution["logicalColumn"], f"{name}.logicalColumn"
+    )
+    physical_row = _nonnegative_integer_or_none(
+        resolution["physicalRow"], f"{name}.physicalRow"
+    )
+    physical_column = _nonnegative_integer_or_none(
+        resolution["physicalColumn"], f"{name}.physicalColumn"
+    )
+    path = _nonempty_string(resolution["path"], f"{name}.path")
+    parsed_path = parse_path(path)
+    if parsed_path.canonical != path or not parsed_path.segments:
+        raise AgentContractError(
+            "invalid_syntax", "resolution path must be canonical and non-root", target=f"{name}.path"
+        )
+    path_kind = parsed_path.segments[-1].kind
+    if node_kind != path_kind:
+        raise AgentContractError(
+            "invariant_violation",
+            "resolution nodeKind does not match its canonical path kind",
+            target=name,
+        )
+    return (
+        locator_kind, node_kind, stability, section, table_index,
+        logical_row, logical_column, physical_row, physical_column, path, parsed_path,
+    )
+
+
+def _check_label_cell_or_table_coordinates(
+    name: str, locator_kind: str, node_kind: str, section: int | None, coordinates: tuple[Any, ...]
+) -> None:
+    if locator_kind == "labelCell":
+        if section is None or any(item is None for item in coordinates) or node_kind != "cell":
+            raise AgentContractError(
+                "invariant_violation", "labelCell plan lacks a physical resolution", target=name
+            )
+    elif any(item is not None for item in coordinates):
+        raise AgentContractError(
+            "invariant_violation", "non-table plan carries table coordinates", target=name
+        )
+
+
+def _check_native_field_invariant(name: str, locator_kind: str, node_kind: str, section: int | None) -> None:
+    if locator_kind == "nativeField" and (node_kind != "form-field" or section is not None):
+        raise AgentContractError(
+            "invariant_violation",
+            "nativeField plan must resolve only to a form-field without section metadata",
+            target=name,
+        )
+
+
+def _check_canonical_path_invariant(name: str, locator_kind: str, section: int | None) -> None:
+    if locator_kind == "canonicalPath" and section is not None:
+        raise AgentContractError(
+            "invariant_violation",
+            "canonicalPath plan must not carry locator section metadata",
+            target=name,
+        )
+
+
+def _check_body_anchor_invariant(name: str, locator_kind: str, node_kind: str, section: int | None) -> None:
+    if locator_kind == "bodyAnchor" and (node_kind != "run" or section is None):
+        raise AgentContractError(
+            "invariant_violation",
+            "bodyAnchor plan must resolve to a run in its declared section",
+            target=name,
+        )
+
+
+def _check_resolution_section_membership(
+    name: str, locator_kind: str, parsed_path: Any, section: int | None
+) -> None:
+    if locator_kind in {"labelCell", "bodyAnchor"}:
+        first = parsed_path.segments[0]
+        if first.kind != "section" or first.index != section:
+            raise AgentContractError(
+                "invariant_violation",
+                "resolution path does not belong to its declared section",
+                target=name,
+            )
+
+
+def _check_locator_kind_invariants(
+    name: str,
+    locator_kind: str,
+    node_kind: str,
+    section: int | None,
+    coordinates: tuple[Any, ...],
+    parsed_path: Any,
+) -> None:
+    _check_label_cell_or_table_coordinates(name, locator_kind, node_kind, section, coordinates)
+    _check_native_field_invariant(name, locator_kind, node_kind, section)
+    _check_canonical_path_invariant(name, locator_kind, section)
+    _check_body_anchor_invariant(name, locator_kind, node_kind, section)
+    _check_resolution_section_membership(name, locator_kind, parsed_path, section)
+
+
+def _validate_one_mixed_form_resolution(index: int, raw_resolution: Any) -> MixedFormResolution:
+    name = f"mixedFormPlan.resolutions[{index}]"
+    resolution = _object(raw_resolution, name)
+    _exact_keys(resolution, required=_RESOLUTION_KEYS, name=name)
+    (
+        locator_kind, node_kind, stability, section, table_index,
+        logical_row, logical_column, physical_row, physical_column, path, parsed_path,
+    ) = _parse_mixed_form_resolution_fields(name, resolution)
+    coordinates = (table_index, logical_row, logical_column, physical_row, physical_column)
+    _check_locator_kind_invariants(name, locator_kind, node_kind, section, coordinates, parsed_path)
+    operation_id = str(resolution["operationId"])
+    if not COMMAND_ID_PATTERN.fullmatch(operation_id):
+        raise AgentContractError("invalid_syntax", "invalid resolution operationId", target=name)
+    return MixedFormResolution(
+        operation_id=operation_id,
+        locator_kind=locator_kind,
+        path=path,
+        node_kind=node_kind,
+        stability=stability,
+        section=section,
+        table_index=table_index,
+        logical_row=logical_row,
+        logical_column=logical_column,
+        physical_row=physical_row,
+        physical_column=physical_column,
+    )
+
+
+def _validate_mixed_form_resolutions(plan: Mapping[str, Any]) -> list[MixedFormResolution]:
     raw_resolutions = _array(plan["resolutions"], "mixedFormPlan.resolutions")
-    resolutions: list[MixedFormResolution] = []
-    for index, raw_resolution in enumerate(raw_resolutions):
-        name = f"mixedFormPlan.resolutions[{index}]"
-        resolution = _object(raw_resolution, name)
-        _exact_keys(resolution, required=_RESOLUTION_KEYS, name=name)
-        locator_kind = str(resolution["locatorKind"])
-        node_kind = str(resolution["nodeKind"])
-        stability = str(resolution["stability"])
-        if locator_kind not in MIXED_FORM_LOCATOR_KINDS:
-            raise AgentContractError("unknown_kind", "unknown plan locator kind", target=name)
-        if node_kind not in _FILLABLE_NODE_KINDS:
-            raise AgentContractError("unknown_kind", "plan targets a non-fillable kind", target=name)
-        if stability not in STABILITY_LEVELS:
-            raise AgentContractError("invalid_syntax", "unknown path stability", target=name)
-        section = resolution["section"]
-        if section is not None:
-            section = _positive_integer(section, f"{name}.section")
-        table_index = _nonnegative_integer_or_none(resolution["tableIndex"], f"{name}.tableIndex")
-        logical_row = _nonnegative_integer_or_none(resolution["logicalRow"], f"{name}.logicalRow")
-        logical_column = _nonnegative_integer_or_none(
-            resolution["logicalColumn"], f"{name}.logicalColumn"
-        )
-        physical_row = _nonnegative_integer_or_none(
-            resolution["physicalRow"], f"{name}.physicalRow"
-        )
-        physical_column = _nonnegative_integer_or_none(
-            resolution["physicalColumn"], f"{name}.physicalColumn"
-        )
-        path = _nonempty_string(resolution["path"], f"{name}.path")
-        parsed_path = parse_path(path)
-        if parsed_path.canonical != path or not parsed_path.segments:
-            raise AgentContractError(
-                "invalid_syntax", "resolution path must be canonical and non-root", target=f"{name}.path"
-            )
-        path_kind = parsed_path.segments[-1].kind
-        if node_kind != path_kind:
-            raise AgentContractError(
-                "invariant_violation",
-                "resolution nodeKind does not match its canonical path kind",
-                target=name,
-            )
-        coordinates = (table_index, logical_row, logical_column, physical_row, physical_column)
-        if locator_kind == "labelCell":
-            if section is None or any(item is None for item in coordinates) or node_kind != "cell":
-                raise AgentContractError(
-                    "invariant_violation", "labelCell plan lacks a physical resolution", target=name
-                )
-        elif any(item is not None for item in coordinates):
-            raise AgentContractError(
-                "invariant_violation", "non-table plan carries table coordinates", target=name
-            )
-        if locator_kind == "nativeField" and (node_kind != "form-field" or section is not None):
-            raise AgentContractError(
-                "invariant_violation",
-                "nativeField plan must resolve only to a form-field without section metadata",
-                target=name,
-            )
-        if locator_kind == "canonicalPath" and section is not None:
-            raise AgentContractError(
-                "invariant_violation",
-                "canonicalPath plan must not carry locator section metadata",
-                target=name,
-            )
-        if locator_kind == "bodyAnchor" and (node_kind != "run" or section is None):
-            raise AgentContractError(
-                "invariant_violation",
-                "bodyAnchor plan must resolve to a run in its declared section",
-                target=name,
-            )
-        if locator_kind in {"labelCell", "bodyAnchor"}:
-            first = parsed_path.segments[0]
-            if first.kind != "section" or first.index != section:
-                raise AgentContractError(
-                    "invariant_violation",
-                    "resolution path does not belong to its declared section",
-                    target=name,
-                )
-        operation_id = str(resolution["operationId"])
-        if not COMMAND_ID_PATTERN.fullmatch(operation_id):
-            raise AgentContractError("invalid_syntax", "invalid resolution operationId", target=name)
-        resolutions.append(
-            MixedFormResolution(
-                operation_id=operation_id,
-                locator_kind=locator_kind,
-                path=path,
-                node_kind=node_kind,
-                stability=stability,
-                section=section,
-                table_index=table_index,
-                logical_row=logical_row,
-                logical_column=logical_column,
-                physical_row=physical_row,
-                physical_column=physical_column,
-            )
-        )
+    return [
+        _validate_one_mixed_form_resolution(index, raw_resolution)
+        for index, raw_resolution in enumerate(raw_resolutions)
+    ]
+
+
+def _validate_mixed_form_batch_alignment(
+    plan: Mapping[str, Any], input_revision: str, resolutions: list[MixedFormResolution]
+) -> Mapping[str, Any]:
+    """Validate the compiled batch matches its resolutions 1:1; return the batch shape."""
 
     normalized_batch = validate_agent_batch(_object(plan["batch"], "mixedFormPlan.batch"))
     batch = _batch_request_shape(normalized_batch)
@@ -1295,6 +1359,17 @@ def validate_mixed_form_plan(value: MixedFormPlan | Mapping[str, Any]) -> MixedF
                 "compiled command has a non-fill property",
                 target=resolution.operation_id,
             )
+    return batch
+
+
+def validate_mixed_form_plan(value: MixedFormPlan | Mapping[str, Any]) -> MixedFormPlan:
+    """Validate a detached compiled plan, including its content hash."""
+
+    plan = value.to_dict() if isinstance(value, MixedFormPlan) else _object(value, "mixedFormPlan")
+    _exact_keys(plan, required=_COMPILED_PLAN_KEYS, name="mixedFormPlan")
+    input_revision, request_hash, plan_hash = _validate_mixed_form_plan_digests(plan)
+    resolutions = _validate_mixed_form_resolutions(plan)
+    batch = _validate_mixed_form_batch_alignment(plan, input_revision, resolutions)
 
     hash_payload = deepcopy(plan)
     hash_payload["planHash"] = None

@@ -741,6 +741,25 @@ def _validate_document_plan_v2(
     return _plan_validation_report(issues, schema_version=schema_version)
 
 
+_V2_SUPPORTED_BLOCK_TYPES = {
+    "heading",
+    "paragraph",
+    "bullets",
+    "bullet",
+    "numbered_list",
+    "numberedList",
+    "table",
+    "image",
+    "image_grid",
+    "imageGrid",
+    "toc",
+    "page_break",
+    "pageBreak",
+    "approval_box",
+    "approvalBox",
+}
+
+
 def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue]:
     if not isinstance(raw_block, Mapping):
         return [
@@ -752,24 +771,7 @@ def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue
             )
         ]
     block_type = str(raw_block.get("type") or "").strip()
-    supported = {
-        "heading",
-        "paragraph",
-        "bullets",
-        "bullet",
-        "numbered_list",
-        "numberedList",
-        "table",
-        "image",
-        "image_grid",
-        "imageGrid",
-        "toc",
-        "page_break",
-        "pageBreak",
-        "approval_box",
-        "approvalBox",
-    }
-    if block_type not in supported:
+    if block_type not in _V2_SUPPORTED_BLOCK_TYPES:
         return [
             _plan_issue(
                 "unsupported_block_type",
@@ -778,112 +780,203 @@ def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue
                 suggestion="Use a public builder block type.",
             )
         ]
+    required_field_issues = _validate_v2_block_required_fields(raw_block, block_type, path=path)
+    if required_field_issues is not None:
+        return required_field_issues
+    return _v2_block_computed_field_issues(raw_block, block_type, path=path)
+
+
+def _validate_v2_block_required_fields(
+    raw_block: Mapping[str, Any], block_type: str, *, path: str
+) -> list[PlanValidationIssue] | None:
+    """Return issues for a missing required field, or None when the block is complete."""
+
     if block_type in {"heading", "image"}:
-        text_key = "text" if block_type == "heading" else "path"
-        if not str(raw_block.get(text_key) or "").strip():
-            return [
-                _plan_issue(
-                    "missing_text",
-                    f"{path}.{text_key}",
-                    f"{path}.{text_key} is required",
-                    suggestion=f"Add non-empty {text_key}.",
-                )
-            ]
+        return _require_v2_text_field(raw_block, block_type, path=path)
     if block_type in {"image_grid", "imageGrid"}:
-        images = raw_block.get("images")
-        if not isinstance(images, list) or not images:
-            return [
-                _plan_issue(
-                    "missing_image_grid_images",
-                    f"{path}.images",
-                    f"{path}.images must be a non-empty list",
-                    suggestion="Add image items with path and optional caption fields.",
-                )
-            ]
-        for image_index, image in enumerate(images):
-            if not isinstance(image, Mapping) or not str(image.get("path") or "").strip():
-                return [
-                    _plan_issue(
-                        "missing_image_path",
-                        f"{path}.images[{image_index}].path",
-                        f"{path}.images[{image_index}].path is required",
-                        suggestion="Set a non-empty image path.",
-                    )
-                ]
+        return _require_v2_image_grid_images(raw_block, path=path)
     if block_type in {"bullets", "bullet", "numbered_list", "numberedList"}:
-        if not _string_list(raw_block.get("items")):
-            return [
-                _plan_issue(
-                    "missing_list_items",
-                    f"{path}.items",
-                    f"{path}.items must be a non-empty list",
-                    suggestion="Add one or more list items.",
-                )
-            ]
+        return _require_v2_list_items(raw_block, path=path)
     if block_type == "table":
-        header = raw_block.get("header")
-        rows = raw_block.get("rows")
-        if not isinstance(header, list) and not isinstance(rows, list):
+        return _require_v2_table_content(raw_block, path=path)
+    return None
+
+
+def _require_v2_text_field(
+    raw_block: Mapping[str, Any], block_type: str, *, path: str
+) -> list[PlanValidationIssue] | None:
+    text_key = "text" if block_type == "heading" else "path"
+    if not str(raw_block.get(text_key) or "").strip():
+        return [
+            _plan_issue(
+                "missing_text",
+                f"{path}.{text_key}",
+                f"{path}.{text_key} is required",
+                suggestion=f"Add non-empty {text_key}.",
+            )
+        ]
+    return None
+
+
+def _require_v2_image_grid_images(
+    raw_block: Mapping[str, Any], *, path: str
+) -> list[PlanValidationIssue] | None:
+    images = raw_block.get("images")
+    if not isinstance(images, list) or not images:
+        return [
+            _plan_issue(
+                "missing_image_grid_images",
+                f"{path}.images",
+                f"{path}.images must be a non-empty list",
+                suggestion="Add image items with path and optional caption fields.",
+            )
+        ]
+    for image_index, image in enumerate(images):
+        if not isinstance(image, Mapping) or not str(image.get("path") or "").strip():
             return [
                 _plan_issue(
-                    "missing_table_content",
-                    path,
-                    f"{path} must define header or rows",
-                    suggestion="Add a header array or rows array.",
+                    "missing_image_path",
+                    f"{path}.images[{image_index}].path",
+                    f"{path}.images[{image_index}].path is required",
+                    suggestion="Set a non-empty image path.",
                 )
             ]
-    issues: list[PlanValidationIssue] = []
+    return None
+
+
+def _require_v2_list_items(
+    raw_block: Mapping[str, Any], *, path: str
+) -> list[PlanValidationIssue] | None:
+    if not _string_list(raw_block.get("items")):
+        return [
+            _plan_issue(
+                "missing_list_items",
+                f"{path}.items",
+                f"{path}.items must be a non-empty list",
+                suggestion="Add one or more list items.",
+            )
+        ]
+    return None
+
+
+def _require_v2_table_content(
+    raw_block: Mapping[str, Any], *, path: str
+) -> list[PlanValidationIssue] | None:
+    header = raw_block.get("header")
+    rows = raw_block.get("rows")
+    if not isinstance(header, list) and not isinstance(rows, list):
+        return [
+            _plan_issue(
+                "missing_table_content",
+                path,
+                f"{path} must define header or rows",
+                suggestion="Add a header array or rows array.",
+            )
+        ]
+    return None
+
+
+def _v2_block_computed_field_issues(
+    raw_block: Mapping[str, Any], block_type: str, *, path: str
+) -> list[PlanValidationIssue]:
     if block_type == "heading":
-        issues.extend(_computed_field_issues(raw_block.get("text"), path=f"{path}.text"))
-    elif block_type == "paragraph":
-        issues.extend(_computed_field_issues(raw_block.get("text"), path=f"{path}.text"))
-        children = raw_block.get("children")
-        if children is None:
-            children = raw_block.get("runs")
-        for child_index, child in enumerate(children or []):
-            if isinstance(child, Mapping):
-                issues.extend(
-                    _computed_field_issues(
-                        child.get("text"),
-                        path=f"{path}.runs[{child_index}].text",
-                    )
-                )
-    elif block_type in {"bullets", "bullet", "numbered_list", "numberedList"}:
-        for item_index, item in enumerate(_string_list(raw_block.get("items"))):
-            issues.extend(_computed_field_issues(item, path=f"{path}.items[{item_index}]"))
-    elif block_type == "table":
-        for header_index, header_value in enumerate(raw_block.get("header") or []):
-            issues.extend(_computed_field_issues(header_value, path=f"{path}.header[{header_index}]"))
-        for row_index, row in enumerate(raw_block.get("rows") or []):
-            if isinstance(row, (list, tuple)):
-                for col_index, value in enumerate(row):
-                    issues.extend(_computed_field_issues(value, path=f"{path}.rows[{row_index}][{col_index}]"))
-    elif block_type in {"image_grid", "imageGrid"}:
-        for image_index, image in enumerate(raw_block.get("images") or []):
-            if isinstance(image, Mapping):
-                issues.extend(_computed_field_issues(image.get("caption"), path=f"{path}.images[{image_index}].caption"))
-    elif block_type in {"approval_box", "approvalBox"}:
-        for label_index, label in enumerate(raw_block.get("labels") or []):
-            issues.extend(_computed_field_issues(label, path=f"{path}.labels[{label_index}]"))
-        issues.extend(_computed_field_issues(raw_block.get("delegated"), path=f"{path}.delegated"))
-    elif block_type == "toc":
-        native = raw_block.get("native")
-        if native is not None and not isinstance(native, bool):
-            issues.append(
-                _plan_issue(
-                    "invalid_native_flag",
-                    f"{path}.native",
-                    f"{path}.native must be a boolean when provided",
-                    suggestion=(
-                        "Set native to true for a Hancom-native auto TOC "
-                        "(entries regenerate on open) or omit it for the static list."
-                    ),
+        return _computed_field_issues(raw_block.get("text"), path=f"{path}.text")
+    if block_type == "paragraph":
+        return _v2_paragraph_computed_field_issues(raw_block, path=path)
+    if block_type in {"bullets", "bullet", "numbered_list", "numberedList"}:
+        return _v2_list_computed_field_issues(raw_block, path=path)
+    if block_type == "table":
+        return _v2_table_computed_field_issues(raw_block, path=path)
+    if block_type in {"image_grid", "imageGrid"}:
+        return _v2_image_grid_computed_field_issues(raw_block, path=path)
+    if block_type in {"approval_box", "approvalBox"}:
+        return _v2_approval_box_computed_field_issues(raw_block, path=path)
+    if block_type == "toc":
+        return _v2_toc_computed_field_issues(raw_block, path=path)
+    return []
+
+
+def _v2_paragraph_computed_field_issues(
+    raw_block: Mapping[str, Any], *, path: str
+) -> list[PlanValidationIssue]:
+    issues = _computed_field_issues(raw_block.get("text"), path=f"{path}.text")
+    children = raw_block.get("children")
+    if children is None:
+        children = raw_block.get("runs")
+    for child_index, child in enumerate(children or []):
+        if isinstance(child, Mapping):
+            issues.extend(
+                _computed_field_issues(
+                    child.get("text"),
+                    path=f"{path}.runs[{child_index}].text",
                 )
             )
-        issues.extend(_computed_field_issues(raw_block.get("title"), path=f"{path}.title"))
-        for entry_index, entry in enumerate(raw_block.get("entries") or []):
-            if isinstance(entry, Mapping):
-                issues.extend(_computed_field_issues(entry.get("text"), path=f"{path}.entries[{entry_index}].text"))
+    return issues
+
+
+def _v2_list_computed_field_issues(
+    raw_block: Mapping[str, Any], *, path: str
+) -> list[PlanValidationIssue]:
+    issues: list[PlanValidationIssue] = []
+    for item_index, item in enumerate(_string_list(raw_block.get("items"))):
+        issues.extend(_computed_field_issues(item, path=f"{path}.items[{item_index}]"))
+    return issues
+
+
+def _v2_table_computed_field_issues(
+    raw_block: Mapping[str, Any], *, path: str
+) -> list[PlanValidationIssue]:
+    issues: list[PlanValidationIssue] = []
+    for header_index, header_value in enumerate(raw_block.get("header") or []):
+        issues.extend(_computed_field_issues(header_value, path=f"{path}.header[{header_index}]"))
+    for row_index, row in enumerate(raw_block.get("rows") or []):
+        if isinstance(row, (list, tuple)):
+            for col_index, value in enumerate(row):
+                issues.extend(_computed_field_issues(value, path=f"{path}.rows[{row_index}][{col_index}]"))
+    return issues
+
+
+def _v2_image_grid_computed_field_issues(
+    raw_block: Mapping[str, Any], *, path: str
+) -> list[PlanValidationIssue]:
+    issues: list[PlanValidationIssue] = []
+    for image_index, image in enumerate(raw_block.get("images") or []):
+        if isinstance(image, Mapping):
+            issues.extend(_computed_field_issues(image.get("caption"), path=f"{path}.images[{image_index}].caption"))
+    return issues
+
+
+def _v2_approval_box_computed_field_issues(
+    raw_block: Mapping[str, Any], *, path: str
+) -> list[PlanValidationIssue]:
+    issues: list[PlanValidationIssue] = []
+    for label_index, label in enumerate(raw_block.get("labels") or []):
+        issues.extend(_computed_field_issues(label, path=f"{path}.labels[{label_index}]"))
+    issues.extend(_computed_field_issues(raw_block.get("delegated"), path=f"{path}.delegated"))
+    return issues
+
+
+def _v2_toc_computed_field_issues(
+    raw_block: Mapping[str, Any], *, path: str
+) -> list[PlanValidationIssue]:
+    issues: list[PlanValidationIssue] = []
+    native = raw_block.get("native")
+    if native is not None and not isinstance(native, bool):
+        issues.append(
+            _plan_issue(
+                "invalid_native_flag",
+                f"{path}.native",
+                f"{path}.native must be a boolean when provided",
+                suggestion=(
+                    "Set native to true for a Hancom-native auto TOC "
+                    "(entries regenerate on open) or omit it for the static list."
+                ),
+            )
+        )
+    issues.extend(_computed_field_issues(raw_block.get("title"), path=f"{path}.title"))
+    for entry_index, entry in enumerate(raw_block.get("entries") or []):
+        if isinstance(entry, Mapping):
+            issues.extend(_computed_field_issues(entry.get("text"), path=f"{path}.entries[{entry_index}].text"))
     return issues
 
 

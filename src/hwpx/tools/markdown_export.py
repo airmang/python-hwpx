@@ -14,6 +14,7 @@ Preserves:
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from html import escape as html_escape
 from pathlib import Path
 from typing import Union
@@ -190,36 +191,77 @@ def _paragraph_images(p_el, mapping: dict[str, str]) -> list[str]:
 # ──────────────────────────────────────────────────────────────────
 # Paragraph element → markdown (재귀 진입점)
 # ──────────────────────────────────────────────────────────────────
+@dataclass
+class _MdParagraphState:
+    """Accumulator threaded through the run/ctrl/note handlers below.
+
+    A dataclass (not bare locals in a closure) so each handler can be a
+    plain top-level function instead of a nested closure over ``nonlocal``.
+    """
+
+    output: list[str] = field(default_factory=list)
+    items: list[tuple] = field(default_factory=list)
+    link_url: str | None = None
+    link_items: list[tuple] = field(default_factory=list)
+
+
+def _md_flush_items(state: _MdParagraphState, base_cp, chars) -> None:
+    if state.items:
+        state.output.append(_render_runs(state.items, base_cp, chars))
+        state.items = []
+
+
+def _md_flush_link(state: _MdParagraphState, base_cp, chars) -> None:
+    if state.link_url is None:
+        return
+    text = _render_runs(state.link_items, base_cp, chars)
+    if text:
+        state.output.append(f"[{text}]({state.link_url})" if state.link_url else text)
+    state.link_url = None
+    state.link_items = []
+
+
+def _md_push_text(state: _MdParagraphState, cpr, text) -> None:
+    if state.link_url is not None:
+        state.link_items.append((cpr, text))
+    else:
+        state.items.append((cpr, text))
+
+
+def _md_handle_ctrl_child(child, state: _MdParagraphState, base_cp, chars) -> None:
+    for gc in child:
+        gctag = _local_name(gc)
+        if gctag == "fieldBegin" and gc.get("type") == "HYPERLINK":
+            _md_flush_items(state, base_cp, chars)
+            state.link_url = gc.get("name", "")
+        elif gctag == "fieldEnd":
+            _md_flush_link(state, base_cp, chars)
+
+
+def _md_handle_note_child(
+    child, tag: str, state: _MdParagraphState, base_cp, chars, doc, notes_out: list | None
+) -> None:
+    inst_id = child.get("instId", "")
+    kind = "fn" if tag == "footNote" else "en"
+    marker = f"[^{kind}{inst_id}]"
+    if state.link_url is not None:
+        _md_flush_link(state, base_cp, chars)
+    else:
+        _md_flush_items(state, base_cp, chars)
+    state.output.append(marker)
+    if notes_out is not None:
+        body_parts = []
+        for fp in _descendants(child, "p"):
+            sub_md = _p_element_to_md(fp, doc, None).strip()
+            if sub_md:
+                body_parts.append(sub_md)
+        notes_out.append((kind, inst_id, " ".join(body_parts)))
+
+
 def _p_element_to_md(p_el, doc, notes_out: list | None = None) -> str:
     chars = doc._root.char_properties
     base_cp = chars.get("0")
-
-    output: list[str] = []
-    items: list[tuple] = []
-    link_url: str | None = None
-    link_items: list[tuple] = []
-
-    def flush_items():
-        nonlocal items
-        if items:
-            output.append(_render_runs(items, base_cp, chars))
-            items = []
-
-    def flush_link():
-        nonlocal link_url, link_items
-        if link_url is None:
-            return
-        text = _render_runs(link_items, base_cp, chars)
-        if text:
-            output.append(f"[{text}]({link_url})" if link_url else text)
-        link_url = None
-        link_items = []
-
-    def push_text(cpr, text):
-        if link_url is not None:
-            link_items.append((cpr, text))
-        else:
-            items.append((cpr, text))
+    state = _MdParagraphState()
 
     for run in _direct_children(p_el, "run"):
         cpr = run.get("charPrIDRef", "0")
@@ -227,35 +269,15 @@ def _p_element_to_md(p_el, doc, notes_out: list | None = None) -> str:
             tag = _local_name(child)
             if tag == "t":
                 if child.text:
-                    push_text(cpr, child.text)
+                    _md_push_text(state, cpr, child.text)
             elif tag == "ctrl":
-                for gc in child:
-                    gctag = _local_name(gc)
-                    if gctag == "fieldBegin" and gc.get("type") == "HYPERLINK":
-                        flush_items()
-                        link_url = gc.get("name", "")
-                    elif gctag == "fieldEnd":
-                        flush_link()
+                _md_handle_ctrl_child(child, state, base_cp, chars)
             elif tag in ("footNote", "endNote"):
-                inst_id = child.get("instId", "")
-                kind = "fn" if tag == "footNote" else "en"
-                marker = f"[^{kind}{inst_id}]"
-                if link_url is not None:
-                    flush_link()
-                else:
-                    flush_items()
-                output.append(marker)
-                if notes_out is not None:
-                    body_parts = []
-                    for fp in _descendants(child, "p"):
-                        sub_md = _p_element_to_md(fp, doc, None).strip()
-                        if sub_md:
-                            body_parts.append(sub_md)
-                    notes_out.append((kind, inst_id, " ".join(body_parts)))
+                _md_handle_note_child(child, tag, state, base_cp, chars, doc, notes_out)
 
-    flush_items()
-    flush_link()
-    return "".join(output)
+    _md_flush_items(state, base_cp, chars)
+    _md_flush_link(state, base_cp, chars)
+    return "".join(state.output)
 
 
 # ──────────────────────────────────────────────────────────────────
