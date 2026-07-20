@@ -85,6 +85,10 @@ from .ingest import (
     HwpxMarkdownConverter,
     UnsupportedDocumentFormat,
 )
+from .mutation_report import (
+    MutationReport,
+    PreservationDowngradeError,
+)
 from .patch import (
     BytePreservingPatchResult,
     ParagraphTextPatch,
@@ -146,6 +150,8 @@ __all__ = [
     "ParagraphInfo",
     "PackageValidationReport",
     "BytePreservingPatchResult",
+    "MutationReport",
+    "PreservationDowngradeError",
     "PlanValidationReport",
     "ParagraphTextPatch",
     "PatchApplied",

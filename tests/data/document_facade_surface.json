@@ -281,11 +281,11 @@
  },
  "save_to_path": {
   "kind": "method",
-  "signature": "(self, path: 'str | PathLike[str]') -> 'str | PathLike[str]'"
+  "signature": "(self, path: 'str | PathLike[str]', *, mode: 'Mode' = 'auto', fallback: 'Fallback' = 'error', return_report: 'bool' = False) -> 'str | PathLike[str] | MutationReport'"
  },
  "save_to_stream": {
   "kind": "method",
-  "signature": "(self, stream: 'BinaryIO') -> 'BinaryIO'"
+  "signature": "(self, stream: 'BinaryIO', *, mode: 'Mode' = 'auto', fallback: 'Fallback' = 'error', return_report: 'bool' = False) -> 'BinaryIO | MutationReport'"
  },
  "sections": {
   "kind": "property"
@@ -347,7 +347,7 @@
  },
  "to_bytes": {
   "kind": "method",
-  "signature": "(self) -> 'bytes'"
+  "signature": "(self, *, mode: 'Mode' = 'auto', fallback: 'Fallback' = 'error') -> 'bytes'"
  },
  "track_change": {
   "kind": "method",

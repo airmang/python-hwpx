@@ -9,7 +9,17 @@ from datetime import datetime
 import logging
 
 from os import PathLike
-from typing import TYPE_CHECKING, Any, BinaryIO, Iterator, Mapping, Sequence, cast, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    BinaryIO,
+    Iterator,
+    Literal,
+    Mapping,
+    Sequence,
+    cast,
+    overload,
+)
 
 
 from .oxml import (
@@ -40,6 +50,7 @@ from .opc.package import (
     HwpxPackage,
 )
 from .oxml.namespaces import register_owpml_namespaces
+from .mutation_report import Fallback, Mode, MutationReport
 from .quality import QualityPolicy, SavePipeline, VisualCompleteReport
 from .templates import blank_document_bytes
 
@@ -1682,20 +1693,92 @@ class HwpxDocument:
         )
 
 
-    def save_to_path(self, path: str | PathLike[str]) -> str | PathLike[str]:
-        """Persist pending changes to *path* and return the same path."""
+    @overload
+    def save_to_path(
+        self,
+        path: str | PathLike[str],
+        *,
+        mode: Mode = ...,
+        fallback: Fallback = ...,
+        return_report: Literal[False] = ...,
+    ) -> str | PathLike[str]: ...
+
+    @overload
+    def save_to_path(
+        self,
+        path: str | PathLike[str],
+        *,
+        mode: Mode = ...,
+        fallback: Fallback = ...,
+        return_report: Literal[True],
+    ) -> MutationReport: ...
+
+    def save_to_path(
+        self,
+        path: str | PathLike[str],
+        *,
+        mode: Mode = "auto",
+        fallback: Fallback = "error",
+        return_report: bool = False,
+    ) -> str | PathLike[str] | MutationReport:
+        """Persist pending changes to *path* and return the same path.
+
+        ``return_report=True`` returns the Safe Write Contract
+        :class:`~hwpx.mutation_report.MutationReport` instead. ``mode="patch"``
+        with ``fallback="error"`` raises
+        :class:`~hwpx.mutation_report.PreservationDowngradeError` and writes
+        nothing when an untouched part would not stay byte-identical.
+        """
 
         return _persistence.save_to_path(
             self,
             path=path,
+            mode=mode,
+            fallback=fallback,
+            return_report=return_report,
         )
 
-    def save_to_stream(self, stream: BinaryIO) -> BinaryIO:
-        """Persist pending changes to *stream* and return the same stream."""
+    @overload
+    def save_to_stream(
+        self,
+        stream: BinaryIO,
+        *,
+        mode: Mode = ...,
+        fallback: Fallback = ...,
+        return_report: Literal[False] = ...,
+    ) -> BinaryIO: ...
+
+    @overload
+    def save_to_stream(
+        self,
+        stream: BinaryIO,
+        *,
+        mode: Mode = ...,
+        fallback: Fallback = ...,
+        return_report: Literal[True],
+    ) -> MutationReport: ...
+
+    def save_to_stream(
+        self,
+        stream: BinaryIO,
+        *,
+        mode: Mode = "auto",
+        fallback: Fallback = "error",
+        return_report: bool = False,
+    ) -> BinaryIO | MutationReport:
+        """Persist pending changes to *stream* and return the same stream.
+
+        ``return_report=True`` returns the Safe Write Contract
+        :class:`~hwpx.mutation_report.MutationReport` instead. See
+        :meth:`save_to_path` for the ``mode``/``fallback`` grade semantics.
+        """
 
         return _persistence.save_to_stream(
             self,
             stream=stream,
+            mode=mode,
+            fallback=fallback,
+            return_report=return_report,
         )
 
     def save_report(
@@ -1730,10 +1813,21 @@ class HwpxDocument:
             ledger=ledger,
         )
 
-    def to_bytes(self) -> bytes:
-        """Serialize pending changes and return the HWPX archive as bytes."""
+    def to_bytes(
+        self,
+        *,
+        mode: Mode = "auto",
+        fallback: Fallback = "error",
+    ) -> bytes:
+        """Serialize pending changes and return the HWPX archive as bytes.
 
-        return _persistence.to_bytes(self)
+        ``mode="patch"`` with ``fallback="error"`` raises
+        :class:`~hwpx.mutation_report.PreservationDowngradeError` before
+        returning when the archive is not patch-grade; the byte return itself is
+        unchanged.
+        """
+
+        return _persistence.to_bytes(self, mode=mode, fallback=fallback)
 
     def _to_bytes_raw(
         self,

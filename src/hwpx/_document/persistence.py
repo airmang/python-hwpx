@@ -5,8 +5,18 @@ from __future__ import annotations
 
 import warnings
 from os import PathLike
-from typing import TYPE_CHECKING, Any, BinaryIO, Sequence
+from typing import TYPE_CHECKING, Any, BinaryIO, Literal, Sequence
 
+from ..mutation_report import (
+    Fallback,
+    Mode,
+    MutationReport,
+    PreservationDowngradeError,
+    PreservationMeasurement,
+    VerificationSummary,
+    VerificationValue,
+    measure_save,
+)
 from ..opc.package import _UNCHECKED_SAVE_TOKEN
 from ..quality import QualityPolicy
 from ..quality.report import OpenSafetyReport
@@ -120,27 +130,170 @@ def _gate_and_write(
     return report
 
 
-def save_to_path(doc: "HwpxDocument", path: str | PathLike[str]) -> str | PathLike[str]:
-    """Persist pending changes to *path* and return the same path."""
+def _build_measured(
+    doc: "HwpxDocument", *, reset_dirty: bool
+) -> tuple[bytes, PreservationMeasurement]:
+    """Serialize + open-safety validate exactly like ``_to_bytes_raw`` and measure
+    the built archive's preservation against the pre-save part payloads.
+
+    The pre-save snapshot is captured *before* the ``serialize()`` updates are
+    applied so a per-save normalizer touching a part the editor never declared
+    dirty surfaces as an ``unexpected`` change (Safe Write Contract §2).
+    """
+
+    package = doc._package
+    source_members = dict(package._files)
+    source_infos = dict(package._zip_infos)
+    updates = doc._root.serialize()
+    predeclared = set(updates)
+    if updates:
+        for part_name, payload in updates.items():
+            package.set_part(part_name, payload)
+    result = package._save_to_bytes(verify_open_safety=True, mark_clean=False)
+    if not isinstance(result, bytes):
+        raise TypeError("package.save(None) must return bytes")
+    doc._run_open_safety_validation(result)
+    if reset_dirty:
+        _mark_save_clean(doc)
+    measurement = measure_save(source_members, source_infos, result, predeclared)
+    return result, measurement
+
+
+def _resolve_grade(
+    mode: Mode,
+    fallback: Fallback,
+    measurement: PreservationMeasurement,
+) -> tuple[Literal["patch", "rebuild"], bool]:
+    """Return ``(actual_mode, fallback_used)``; raise before any write when a
+    requested ``patch`` grade is unmet and ``fallback="error"`` (§1)."""
+
+    if mode == "patch" and not measurement.patch_grade_ok:
+        if fallback == "error":
+            raise PreservationDowngradeError(
+                requested_mode=mode,
+                achieved_grade=measurement.achieved_grade,
+                offending_parts=measurement.offending_parts,
+                suggestion=(
+                    "route these edits through a byte-preserving primitive "
+                    "(hwpx.patch/table_patch/body_patch) or pass fallback='rebuild'."
+                ),
+            )
+        return "rebuild", True
+    if mode == "auto":
+        return measurement.achieved_grade, False
+    if mode == "patch":
+        return "patch", False
+    return "rebuild", False
+
+
+def _verification_summary(report: "VisualCompleteReport") -> VerificationSummary:
+    """Reflect what the pipeline actually ran; never fabricate a pass (§2)."""
+
+    package: VerificationValue = "passed" if report.ok else "failed"
+    open_safety: VerificationValue = "passed" if report.open_safety.ok else "failed"
+    # Open-safety validation (which includes the reopen probe) already ran during
+    # serialize and raised on failure, so reaching here means reopen passed.
+    reopen: VerificationValue = "passed"
+    status = report.visual_complete_status
+    visual: VerificationValue = (
+        "passed"
+        if status == "verified"
+        else "failed"
+        if status == "failed"
+        else "not_performed"
+    )
+    return VerificationSummary(
+        package=package, open_safety=open_safety, reopen=reopen, visual=visual
+    )
+
+
+def _compose_mutation_report(
+    *,
+    path: str | None,
+    requested_mode: Mode,
+    actual_mode: Literal["patch", "rebuild"],
+    fallback_used: bool,
+    measurement: PreservationMeasurement,
+    report: "VisualCompleteReport",
+) -> MutationReport:
+    return MutationReport(
+        requested_mode=requested_mode,
+        actual_mode=actual_mode,
+        fallback_used=fallback_used,
+        changed_parts=measurement.changed_parts,
+        preservation=measurement.preservation,
+        verification=_verification_summary(report),
+        path=path,
+    )
+
+
+def save_to_path(
+    doc: "HwpxDocument",
+    path: str | PathLike[str],
+    *,
+    mode: Mode = "auto",
+    fallback: Fallback = "error",
+    return_report: bool = False,
+) -> str | PathLike[str] | MutationReport:
+    """Persist pending changes to *path*.
+
+    Returns *path* by default; ``return_report=True`` returns the
+    :class:`~hwpx.mutation_report.MutationReport` receipt instead. ``mode`` and
+    ``fallback`` are the Safe Write Contract grade controls — ``mode="patch"``
+    with ``fallback="error"`` raises :class:`PreservationDowngradeError` and
+    writes nothing when the save cannot keep every untouched part byte-identical.
+    """
 
     _run_pre_save_validation(doc)
-    archive_bytes = doc._to_bytes_raw(reset_dirty=False)
-    _gate_and_write(doc,
-        archive_bytes, output_path=path, source_label="document.save_to_path"
+    archive_bytes, measurement = _build_measured(doc, reset_dirty=False)
+    actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
+    report = _gate_and_write(
+        doc, archive_bytes, output_path=path, source_label="document.save_to_path"
     )
     _mark_save_clean(doc)
+    if return_report:
+        return _compose_mutation_report(
+            path=str(path),
+            requested_mode=mode,
+            actual_mode=actual_mode,
+            fallback_used=fallback_used,
+            measurement=measurement,
+            report=report,
+        )
     return path
 
 
-def save_to_stream(doc: "HwpxDocument", stream: BinaryIO) -> BinaryIO:
-    """Persist pending changes to *stream* and return the same stream."""
+def save_to_stream(
+    doc: "HwpxDocument",
+    stream: BinaryIO,
+    *,
+    mode: Mode = "auto",
+    fallback: Fallback = "error",
+    return_report: bool = False,
+) -> BinaryIO | MutationReport:
+    """Persist pending changes to *stream*.
+
+    Returns *stream* by default; ``return_report=True`` returns the
+    :class:`~hwpx.mutation_report.MutationReport` receipt instead. See
+    :func:`save_to_path` for the ``mode``/``fallback`` grade semantics.
+    """
 
     _run_pre_save_validation(doc)
-    archive_bytes = doc._to_bytes_raw(reset_dirty=False)
-    _gate_and_write(doc,
-        archive_bytes, output_stream=stream, source_label="document.save_to_stream"
+    archive_bytes, measurement = _build_measured(doc, reset_dirty=False)
+    actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
+    report = _gate_and_write(
+        doc, archive_bytes, output_stream=stream, source_label="document.save_to_stream"
     )
     _mark_save_clean(doc)
+    if return_report:
+        return _compose_mutation_report(
+            path=None,
+            requested_mode=mode,
+            actual_mode=actual_mode,
+            fallback_used=fallback_used,
+            measurement=measurement,
+            report=report,
+        )
     return stream
 
 
@@ -193,11 +346,26 @@ def save_report(
     return report
 
 
-def to_bytes(doc: "HwpxDocument") -> bytes:
-    """Serialize pending changes and return the HWPX archive as bytes."""
+def to_bytes(
+    doc: "HwpxDocument",
+    *,
+    mode: Mode = "auto",
+    fallback: Fallback = "error",
+) -> bytes:
+    """Serialize pending changes and return the HWPX archive as bytes.
+
+    ``mode``/``fallback`` enforce the Safe Write Contract grade the same way as
+    :func:`save_to_path`: ``mode="patch"`` with ``fallback="error"`` raises
+    :class:`PreservationDowngradeError` before returning when the archive is not
+    patch-grade. There is no ``return_report`` — the enforcement is via the typed
+    exception, so the byte return stays unchanged.
+    """
 
     _run_pre_save_validation(doc)
-    return doc._to_bytes_raw()
+    archive_bytes, measurement = _build_measured(doc, reset_dirty=False)
+    _resolve_grade(mode, fallback, measurement)
+    _mark_save_clean(doc)
+    return archive_bytes
 
 
 def _to_bytes_raw(
