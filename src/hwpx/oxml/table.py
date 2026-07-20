@@ -749,6 +749,177 @@ class HwpxOxmlTable:
         )
         return None
 
+    @staticmethod
+    def _split_cell_size_segments(size: int, span: int) -> list[int]:
+        segments = _distribute_size(size, span)
+        if not segments:
+            segments = [size] + [0] * (span - 1)
+        return segments
+
+    @staticmethod
+    def _split_merged_cell_update_anchor(
+        cell: HwpxOxmlTableCell, start_row: int, start_col: int, col_width: int, row_height: int
+    ) -> None:
+        addr = cell._addr_element()
+        if addr is None:
+            addr = _append_child(cell.element, f"{_HP}cellAddr")
+        addr.set("rowAddr", str(start_row))
+        addr.set("colAddr", str(start_col))
+        span_element = cell._span_element()
+        span_element.set("rowSpan", "1")
+        span_element.set("colSpan", "1")
+        size_element = cell._size_element()
+        size_element.set("width", str(col_width))
+        size_element.set("height", str(row_height))
+
+    def _find_split_cell_overlap(
+        self,
+        row_element: Any,
+        cell: HwpxOxmlTableCell,
+        start_row: int,
+        start_col: int,
+        logical_row: int,
+        logical_col: int,
+    ) -> HwpxOxmlTableCell | None:
+        for existing in row_element.findall(f"{_HP}tc"):
+            wrapper = HwpxOxmlTableCell(existing, self, row_element)
+            existing_row, existing_col = wrapper.address
+            span_r, span_c = wrapper.span
+            if existing_row == logical_row and existing_col == logical_col:
+                return wrapper
+            if (
+                existing_row <= logical_row < existing_row + span_r
+                and existing_col <= logical_col < existing_col + span_c
+            ):
+                if wrapper.element is cell.element:
+                    continue
+                raise ValueError(
+                    "Cannot split merged cell covering (%d, %d) because"
+                    " position (%d, %d) overlaps another merged cell"
+                    % (start_row, start_col, logical_row, logical_col)
+                )
+        return None
+
+    @staticmethod
+    def _copy_attrs_excluding_id(source_attrs: Any, target: dict[str, str]) -> None:
+        for key, value in source_attrs.items():
+            if key == "id":
+                continue
+            target.setdefault(key, value)
+
+    @staticmethod
+    def _build_split_cell_element(
+        row_element: Any,
+        template_attrs: dict[str, str],
+        preserved_children: list[Any],
+        template_sublist: Any,
+        template_margin: Any,
+        logical_row: int,
+        logical_col: int,
+        col_width: int,
+        row_height: int,
+    ) -> Any:
+        # Use makeelement() so the new cell matches the XML engine
+        # of the existing tree (stdlib ET or lxml).  ET.Element()
+        # always produces stdlib elements which cannot be appended to
+        # an lxml tree (and vice-versa), causing TypeError at runtime
+        # when splitting cells in documents parsed via lxml.
+        new_cell_element = row_element.makeelement(f"{_HP}tc", dict(template_attrs))
+        for child in preserved_children:
+            new_cell_element.append(deepcopy(child))
+
+        sublist_attrs = _default_sublist_attributes()
+        template_para = None
+        if template_sublist is not None:
+            HwpxOxmlTable._copy_attrs_excluding_id(template_sublist.attrib, sublist_attrs)
+            template_para = template_sublist.find(f"{_HP}p")
+
+        sublist = _append_child(new_cell_element, f"{_HP}subList", sublist_attrs)
+        paragraph_attrs = _default_cell_paragraph_attributes()
+        run_attrs = {"charPrIDRef": "0"}
+        if template_para is not None:
+            HwpxOxmlTable._copy_attrs_excluding_id(template_para.attrib, paragraph_attrs)
+            template_run = template_para.find(f"{_HP}run")
+            if template_run is not None:
+                run_attrs = dict(template_run.attrib)
+                if "charPrIDRef" not in run_attrs:
+                    run_attrs["charPrIDRef"] = "0"
+        paragraph = _append_child(sublist, f"{_HP}p", paragraph_attrs)
+        run = _append_child(paragraph, f"{_HP}run", run_attrs)
+        _append_child(run, f"{_HP}t")
+
+        _append_child(
+            new_cell_element,
+            f"{_HP}cellAddr",
+            {"rowAddr": str(logical_row), "colAddr": str(logical_col)},
+        )
+        _append_child(
+            new_cell_element,
+            f"{_HP}cellSpan",
+            {"rowSpan": "1", "colSpan": "1"},
+        )
+        _append_child(
+            new_cell_element,
+            f"{_HP}cellSz",
+            {"width": str(col_width), "height": str(row_height)},
+        )
+        if template_margin is not None:
+            new_cell_element.append(deepcopy(template_margin))
+        else:
+            _append_child(
+                new_cell_element,
+                f"{_HP}cellMargin",
+                _default_cell_margin_attributes(),
+            )
+        return new_cell_element
+
+    def _insert_split_cell_at_position(
+        self, row_element: Any, new_cell_element: Any, logical_col: int
+    ) -> None:
+        existing_cells = list(row_element.findall(f"{_HP}tc"))
+        insert_index = len(existing_cells)
+        for idx, existing in enumerate(existing_cells):
+            wrapper = HwpxOxmlTableCell(existing, self, row_element)
+            if wrapper.address[1] > logical_col:
+                insert_index = idx
+                break
+        row_element.insert(insert_index, new_cell_element)
+
+    def _fill_split_cell_position(
+        self,
+        cell: HwpxOxmlTableCell,
+        row_element: Any,
+        start_row: int,
+        start_col: int,
+        template_attrs: dict[str, str],
+        preserved_children: list[Any],
+        template_sublist: Any,
+        template_margin: Any,
+        row_offset: int,
+        col_offset: int,
+        logical_row: int,
+        logical_col: int,
+        row_height: int,
+        col_width: int,
+    ) -> None:
+        if row_offset == 0 and col_offset == 0:
+            self._split_merged_cell_update_anchor(cell, start_row, start_col, col_width, row_height)
+            return
+
+        existing_target = self._find_split_cell_overlap(
+            row_element, cell, start_row, start_col, logical_row, logical_col
+        )
+        if existing_target is not None:
+            existing_target.set_span(1, 1)
+            existing_target.set_size(col_width, row_height)
+            return
+
+        new_cell_element = self._build_split_cell_element(
+            row_element, template_attrs, preserved_children, template_sublist, template_margin,
+            logical_row, logical_col, col_width, row_height,
+        )
+        self._insert_split_cell_at_position(row_element, new_cell_element, logical_col)
+
     def split_merged_cell(
         self, row_index: int, col_index: int
     ) -> HwpxOxmlTableCell:
@@ -767,12 +938,8 @@ class HwpxOxmlTable:
                 f" ({start_row}, {start_col})"
             )
 
-        width_segments = _distribute_size(cell.width, span_col)
-        height_segments = _distribute_size(cell.height, span_row)
-        if not width_segments:
-            width_segments = [cell.width] + [0] * (span_col - 1)
-        if not height_segments:
-            height_segments = [cell.height] + [0] * (span_row - 1)
+        width_segments = self._split_cell_size_segments(cell.width, span_col)
+        height_segments = self._split_cell_size_segments(cell.height, span_row)
 
         template_attrs = {key: value for key, value in cell.element.attrib.items()}
         preserved_children = [
@@ -791,113 +958,11 @@ class HwpxOxmlTable:
             for col_offset in range(span_col):
                 logical_col = start_col + col_offset
                 col_width = width_segments[col_offset] if col_offset < len(width_segments) else cell.width
-
-                if row_offset == 0 and col_offset == 0:
-                    addr = cell._addr_element()
-                    if addr is None:
-                        addr = _append_child(cell.element, f"{_HP}cellAddr")
-                    addr.set("rowAddr", str(start_row))
-                    addr.set("colAddr", str(start_col))
-                    span_element = cell._span_element()
-                    span_element.set("rowSpan", "1")
-                    span_element.set("colSpan", "1")
-                    size_element = cell._size_element()
-                    size_element.set("width", str(col_width))
-                    size_element.set("height", str(row_height))
-                    continue
-
-                existing_target: HwpxOxmlTableCell | None = None
-                for existing in row_element.findall(f"{_HP}tc"):
-                    wrapper = HwpxOxmlTableCell(existing, self, row_element)
-                    existing_row, existing_col = wrapper.address
-                    span_r, span_c = wrapper.span
-                    if existing_row == logical_row and existing_col == logical_col:
-                        existing_target = wrapper
-                        break
-                    if (
-                        existing_row <= logical_row < existing_row + span_r
-                        and existing_col <= logical_col < existing_col + span_c
-                    ):
-                        if wrapper.element is cell.element:
-                            continue
-                        raise ValueError(
-                            "Cannot split merged cell covering (%d, %d) because"
-                            " position (%d, %d) overlaps another merged cell"
-                            % (start_row, start_col, logical_row, logical_col)
-                        )
-
-                if existing_target is not None:
-                    existing_target.set_span(1, 1)
-                    existing_target.set_size(col_width, row_height)
-                    continue
-
-                # Use makeelement() so the new cell matches the XML engine
-                # of the existing tree (stdlib ET or lxml).  ET.Element()
-                # always produces stdlib elements which cannot be appended to
-                # an lxml tree (and vice-versa), causing TypeError at runtime
-                # when splitting cells in documents parsed via lxml.
-                new_cell_element = row_element.makeelement(f"{_HP}tc", dict(template_attrs))
-                for child in preserved_children:
-                    new_cell_element.append(deepcopy(child))
-
-                sublist_attrs = _default_sublist_attributes()
-                template_para = None
-                if template_sublist is not None:
-                    for key, value in template_sublist.attrib.items():
-                        if key == "id":
-                            continue
-                        sublist_attrs.setdefault(key, value)
-                    template_para = template_sublist.find(f"{_HP}p")
-
-                sublist = _append_child(new_cell_element, f"{_HP}subList", sublist_attrs)
-                paragraph_attrs = _default_cell_paragraph_attributes()
-                run_attrs = {"charPrIDRef": "0"}
-                if template_para is not None:
-                    for key, value in template_para.attrib.items():
-                        if key == "id":
-                            continue
-                        paragraph_attrs.setdefault(key, value)
-                    template_run = template_para.find(f"{_HP}run")
-                    if template_run is not None:
-                        run_attrs = dict(template_run.attrib)
-                        if "charPrIDRef" not in run_attrs:
-                            run_attrs["charPrIDRef"] = "0"
-                paragraph = _append_child(sublist, f"{_HP}p", paragraph_attrs)
-                run = _append_child(paragraph, f"{_HP}run", run_attrs)
-                _append_child(run, f"{_HP}t")
-
-                _append_child(
-                    new_cell_element,
-                    f"{_HP}cellAddr",
-                    {"rowAddr": str(logical_row), "colAddr": str(logical_col)},
+                self._fill_split_cell_position(
+                    cell, row_element, start_row, start_col,
+                    template_attrs, preserved_children, template_sublist, template_margin,
+                    row_offset, col_offset, logical_row, logical_col, row_height, col_width,
                 )
-                _append_child(
-                    new_cell_element,
-                    f"{_HP}cellSpan",
-                    {"rowSpan": "1", "colSpan": "1"},
-                )
-                _append_child(
-                    new_cell_element,
-                    f"{_HP}cellSz",
-                    {"width": str(col_width), "height": str(row_height)},
-                )
-                if template_margin is not None:
-                    new_cell_element.append(deepcopy(template_margin))
-                else:
-                    _append_child(
-                        new_cell_element,
-                        f"{_HP}cellMargin",
-                        _default_cell_margin_attributes(),
-                    )
-
-                existing_cells = list(row_element.findall(f"{_HP}tc"))
-                insert_index = len(existing_cells)
-                for idx, existing in enumerate(existing_cells):
-                    wrapper = HwpxOxmlTableCell(existing, self, row_element)
-                    if wrapper.address[1] > logical_col:
-                        insert_index = idx
-                        break
-                row_element.insert(insert_index, new_cell_element)
 
         self.mark_dirty()
         return self.cell(row_index, col_index)
