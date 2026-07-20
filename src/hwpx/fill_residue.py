@@ -83,6 +83,92 @@ def _scan_paragraphs(source: Union[str, Path, HwpxDocument]):
     return out
 
 
+def _collect_blank_residue_texts(
+    blank: Union[str, Path],
+) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+    """(blank_delete_texts, blank_modify_texts) -- (text, 위치 힌트) pairs from the
+    blank's legend-declared delete/modify color families."""
+
+    blank_report = scan_form_guidance(blank)
+    delete_families = {b.family for b in blank_report.legend if b.action == "delete"}
+    modify_families = {b.family for b in blank_report.legend if b.action == "modify"}
+    blank_delete_texts: list[tuple[str, str]] = []
+    blank_modify_texts: list[tuple[str, str]] = []
+    for bp in _scan_paragraphs(blank):
+        for _, hex_color, text in bp.spans:
+            t = text.strip()
+            if not t:
+                continue
+            fam = _color_family(hex_color)
+            if fam in delete_families:
+                blank_delete_texts.append((t, bp.location()))
+            elif fam in modify_families and len(t) >= _MIN_SAMPLE_LEN:
+                blank_modify_texts.append((t, bp.location()))
+    return blank_delete_texts, blank_modify_texts
+
+
+def _check_delete_color_residue(
+    blank_delete_texts: list[tuple[str, str]], produced_text: str
+) -> list[ResidueFinding]:
+    """삭제색 잔존: blank의 삭제색 텍스트가 produced에 남음."""
+
+    findings: list[ResidueFinding] = []
+    seen: set[str] = set()
+    for t, loc in blank_delete_texts:
+        if t in seen:
+            continue
+        seen.add(t)
+        if t in produced_text:
+            findings.append(ResidueFinding(
+                "delete_color_residue", "error", loc, t[:80],
+                "blank 범례가 '삭제'로 선언한 색의 텍스트가 잔존"))
+    return findings
+
+
+def _check_unmodified_sample(
+    blank_modify_texts: list[tuple[str, str]], produced_text: str
+) -> list[ResidueFinding]:
+    """미수정 샘플: 수정색 텍스트가 blank와 동일하게 잔존."""
+
+    findings: list[ResidueFinding] = []
+    seen: set[str] = set()
+    for t, loc in blank_modify_texts:
+        if t in seen:
+            continue
+        seen.add(t)
+        if t in produced_text:
+            findings.append(ResidueFinding(
+                "unmodified_sample", "error", loc, t[:80],
+                "blank 범례가 '수정'으로 선언한 텍스트가 그대로 잔존(샘플 미교체)"))
+    return findings
+
+
+def _check_placeholder_residue(paras: list) -> tuple[list[ResidueFinding], list[ResidueFinding]]:
+    """placeholder 잔존 (errors, needs_review)."""
+
+    errors: list[ResidueFinding] = []
+    needs_review: list[ResidueFinding] = []
+    for p in paras:
+        text = p.text
+        if not text.strip():
+            continue
+        for name, pat in _PLACEHOLDER_RES.items():
+            if pat.search(text):
+                errors.append(ResidueFinding(
+                    "placeholder", "error", p.location(), text.strip()[:80],
+                    f"placeholder:{name}"))
+        for name, pat in _AMBIGUOUS_RES.items():
+            if pat.search(text):
+                needs_review.append(ResidueFinding(
+                    "placeholder_ambiguous", "needs_review", p.location(),
+                    text.strip()[:80], f"placeholder?:{name} — 각주 표식일 수 있음"))
+        if _MARKER_ONLY.match(text):
+            needs_review.append(ResidueFinding(
+                "marker_only", "needs_review", p.location(), text.strip()[:20],
+                "목록 마커만 있는 문단 — 의도된 빈 자리인지 사람 판단"))
+    return errors, needs_review
+
+
 def inspect_fill_residue(
     produced: Union[str, Path],
     blank: Union[str, Path, None] = None,
@@ -92,66 +178,17 @@ def inspect_fill_residue(
     paras = _scan_paragraphs(produced)
     produced_text = "\n".join(p.text for p in paras)
 
-    delete_families: set[str] = set()
-    modify_families: set[str] = set()
-    blank_delete_texts: list[tuple[str, str]] = []  # (text, 위치 힌트)
+    blank_delete_texts: list[tuple[str, str]] = []
     blank_modify_texts: list[tuple[str, str]] = []
     if blank is not None:
-        blank_report = scan_form_guidance(blank)
-        delete_families = {b.family for b in blank_report.legend if b.action == "delete"}
-        modify_families = {b.family for b in blank_report.legend if b.action == "modify"}
-        for bp in _scan_paragraphs(blank):
-            for _, hex_color, text in bp.spans:
-                t = text.strip()
-                if not t:
-                    continue
-                fam = _color_family(hex_color)
-                if fam in delete_families:
-                    blank_delete_texts.append((t, bp.location()))
-                elif fam in modify_families and len(t) >= _MIN_SAMPLE_LEN:
-                    blank_modify_texts.append((t, bp.location()))
+        blank_delete_texts, blank_modify_texts = _collect_blank_residue_texts(blank)
 
-    # 1) 삭제색 잔존: blank의 삭제색 텍스트가 produced에 남음
-    seen: set[str] = set()
-    for t, loc in blank_delete_texts:
-        if t in seen:
-            continue
-        seen.add(t)
-        if t in produced_text:
-            report.errors.append(ResidueFinding(
-                "delete_color_residue", "error", loc, t[:80],
-                "blank 범례가 '삭제'로 선언한 색의 텍스트가 잔존"))
+    report.errors.extend(_check_delete_color_residue(blank_delete_texts, produced_text))
+    report.errors.extend(_check_unmodified_sample(blank_modify_texts, produced_text))
 
-    # 2) 미수정 샘플: 수정색 텍스트가 blank와 동일하게 잔존
-    seen.clear()
-    for t, loc in blank_modify_texts:
-        if t in seen:
-            continue
-        seen.add(t)
-        if t in produced_text:
-            report.errors.append(ResidueFinding(
-                "unmodified_sample", "error", loc, t[:80],
-                "blank 범례가 '수정'으로 선언한 텍스트가 그대로 잔존(샘플 미교체)"))
-
-    # 3) placeholder 잔존
-    for p in paras:
-        text = p.text
-        if not text.strip():
-            continue
-        for name, pat in _PLACEHOLDER_RES.items():
-            if pat.search(text):
-                report.errors.append(ResidueFinding(
-                    "placeholder", "error", p.location(), text.strip()[:80],
-                    f"placeholder:{name}"))
-        for name, pat in _AMBIGUOUS_RES.items():
-            if pat.search(text):
-                report.needs_review.append(ResidueFinding(
-                    "placeholder_ambiguous", "needs_review", p.location(),
-                    text.strip()[:80], f"placeholder?:{name} — 각주 표식일 수 있음"))
-        if _MARKER_ONLY.match(text):
-            report.needs_review.append(ResidueFinding(
-                "marker_only", "needs_review", p.location(), text.strip()[:20],
-                "목록 마커만 있는 문단 — 의도된 빈 자리인지 사람 판단"))
+    placeholder_errors, placeholder_needs_review = _check_placeholder_residue(paras)
+    report.errors.extend(placeholder_errors)
+    report.needs_review.extend(placeholder_needs_review)
 
     report.stats = {
         "paragraphs": len(paras),
