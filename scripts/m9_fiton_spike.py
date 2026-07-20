@@ -95,8 +95,15 @@ def main() -> int:
                 doc.close()
             else:
                 try:
-                    fit_cell_text(cell, value, policy, document=doc)
-                    doc.save_to_path(out_path)
+                    fit_result = fit_cell_text(cell, value, policy, document=doc)
+                    if not fit_result.ok and fit_result.overflow_detected:
+                        # Typed refusal: the engine declined this value for this
+                        # slot — honor it instead of persisting a known-broken
+                        # fill (the caller enforces the verdict by contract).
+                        status = "refused_by_policy"
+                        reason = "; ".join(fit_result.errors)[:300] or "typed overflow refusal"
+                    else:
+                        doc.save_to_path(out_path)
                 finally:
                     doc.close()
         except Exception as exc:

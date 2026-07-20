@@ -387,3 +387,18 @@ def test_inline_object_width_measured_from_cell(tmp_path) -> None:
     assert slot.inline_object_count == 1
     assert slot.inline_object_width == 6519.0
     assert slot.available_width < 1000  # 7261 - 6519
+
+
+def test_inline_control_consuming_whole_width_gets_named_refusal() -> None:
+    from hwpx.form_fit.measure import SlotMetrics
+
+    slot = SlotMetrics(
+        available_width=0.0,
+        font_pt=10.0,
+        max_lines=1,
+        inline_object_width=8000.0,
+        inline_object_count=1,
+    )
+    result = FitEngine().fit("값", slot, FitPolicy())
+    assert not result.ok and result.overflow_detected
+    assert any("leave no usable width" in e for e in result.errors)

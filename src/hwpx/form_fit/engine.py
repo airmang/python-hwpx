@@ -97,6 +97,29 @@ class FitEngine:
         if policy.mode == "expand_row":
             return self._expand_row(value, slot, policy, field_id)
 
+        # Inline objects can consume the whole line; with less than a glyph of
+        # width left there is nothing to reshape into — refuse with a message
+        # that names the cause instead of an absurd wrapped-line estimate.
+        if (
+            int(getattr(slot, "inline_object_count", 0) or 0)
+            and slot.available_width < slot.font_pt * 100.0 * 0.6
+        ):
+            return FitResult(
+                ok=False,
+                value=value,
+                applied_value=value,
+                lines=0,
+                font_pt=slot.font_pt,
+                overflow_detected=True,
+                confidence="high",
+                errors=[
+                    "FIELD_OVERFLOW: inline control(s) leave no usable width in "
+                    "this cell; choose the intended value cell or allow row "
+                    "expansion"
+                ],
+                field_id=field_id,
+            )
+
         # Reshaping ladder: wrap, shrink, or wrap_then_shrink, then fail_on_overflow.
         wrap_lines = policy.effective_max_lines if policy.may_wrap else 1
         wrap_slot = replace(slot, max_lines=wrap_lines)
