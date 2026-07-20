@@ -38,10 +38,16 @@ visual = [
 xlsx = [
     "openpyxl>=3.1",
 ]
+# Document preview viewer equation rendering: LaTeX -> MathML. Optional; without
+# it the preview fails closed to a LaTeX code block instead of dropping equations.
+preview = [
+    "latex2mathml>=3.77",
+]
 dev = [
     "build>=1.0",
     "twine>=4.0",
     "pytest>=7.4",
+    "latex2mathml>=3.77",
 ]
 test = [
     "build>=1.0",
@@ -50,6 +56,7 @@ test = [
     "pytest>=7.4",
     "pytest-cov>=5.0",
     "ruff>=0.12",
+    "latex2mathml>=3.77",
 ]
 typecheck = [
     "mypy>=1.10",
@@ -110,6 +117,12 @@ follow_imports = "skip"
 files = [
     "src/hwpx/document.py",
     "src/hwpx/mutation_report.py",
+    "src/hwpx/equation/__init__.py",
+    "src/hwpx/equation/tokens.py",
+    "src/hwpx/equation/eqedit.py",
+    "src/hwpx/equation/mathml.py",
+    "src/hwpx/equation/render.py",
+    "src/hwpx/tools/document_viewer.py",
     "src/hwpx/_document/_units.py",
     "src/hwpx/_document/fields.py",
     "src/hwpx/_document/layout.py",
@@ -158,6 +171,12 @@ ignore_missing_imports = true
 include = [
     "src/hwpx/document.py",
     "src/hwpx/mutation_report.py",
+    "src/hwpx/equation/__init__.py",
+    "src/hwpx/equation/tokens.py",
+    "src/hwpx/equation/eqedit.py",
+    "src/hwpx/equation/mathml.py",
+    "src/hwpx/equation/render.py",
+    "src/hwpx/tools/document_viewer.py",
     "src/hwpx/_document/_units.py",
     "src/hwpx/_document/fields.py",
     "src/hwpx/_document/layout.py",

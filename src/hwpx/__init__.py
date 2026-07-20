@@ -75,6 +75,10 @@ from .tools.layout_preview import (
     PreviewPage,
     render_layout_preview,
 )
+from .tools.document_viewer import (
+    DocumentViewer,
+    render_document_viewer,
+)
 from .ingest import (
     ConversionAttempt,
     DocumentConverter,
@@ -206,6 +210,8 @@ __all__ = [
     "validate_package",
     "paragraph_patch",
     "render_layout_preview",
+    "render_document_viewer",
+    "DocumentViewer",
     "register_template",
     "table_compute",
 ]

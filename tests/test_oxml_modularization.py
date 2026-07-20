@@ -234,7 +234,9 @@ def _assert_acyclic(edges: dict[str, set[str]]) -> None:
 def test_frozen_facade_exports_remain_exact() -> None:
     # 78 -> 80: S-089 P1 adds the Safe Write Contract's public MutationReport and
     # PreservationDowngradeError to the package surface.
-    assert len(hwpx.__all__) == 80
+    # 80 -> 82: S-092 P1 adds the document preview viewer surface
+    # (render_document_viewer, DocumentViewer).
+    assert len(hwpx.__all__) == 82
     assert len(oxml.__all__) == 110
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 

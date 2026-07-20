@@ -34,6 +34,11 @@ from .layout_preview import (
     PreviewPage,
     render_layout_preview,
 )
+from .document_viewer import (
+    DocumentViewer,
+    FIDELITY_BADGE,
+    render_document_viewer,
+)
 from .object_finder import FoundElement, ObjectFinder
 from .official_lint import (
     OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION,
@@ -164,4 +169,7 @@ __all__ = [
     "LayoutPreview",
     "PreviewPage",
     "render_layout_preview",
+    "DocumentViewer",
+    "FIDELITY_BADGE",
+    "render_document_viewer",
 ]
