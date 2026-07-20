@@ -109,6 +109,21 @@
           "n": 22
         }
       }
+    },
+    {
+      "measuredAt": "2026-07-20",
+      "stack": "python-hwpx 3.6.0 (corpus v2, S-087 structural defect fix)",
+      "note": "inline treat-as-char object width modeled in the fit slot; silent layout breakage across judged wild fill combos drops 31/66 (47%) -> 11/66 (16.7%), impossible targets become typed refusals (35/66); produced-fill differential passes 17/28. Residual named: page-ripple 5, table-shape 6. Corpus open/parse/byte/pii unchanged.",
+      "formFillStructural": {
+        "judged": 66,
+        "typedRefusals": 35,
+        "producedPass": 20,
+        "producedFail": 11,
+        "silentBreakRate": {
+          "before": "31/66",
+          "after": "11/66"
+        }
+      }
     }
   ]
 }
