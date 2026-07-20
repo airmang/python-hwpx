@@ -65,8 +65,11 @@ def test_single_cell_fill_invalidates_only_that_cell(blank_section: bytes) -> No
     try:
         cell = _first_fillable_cell(doc)
         assert cell is not None
-        result = fit_cell_text(cell, "김민준", FitPolicy(), document=doc)
-        assert result.ok
+        # keep-mode always writes the value; this test pins cache scoping, not
+        # the fit verdict (the checkbox-sharing cell is now a typed refusal
+        # under the reshaping policies — see test_form_fit inline-control tests).
+        result = fit_cell_text(cell, "김민준", FitPolicy.keep(), document=doc)
+        assert result.applied_value == "김민준"
         cell_cache_count = sum(
             1
             for node in cell.element.iter()

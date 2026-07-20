@@ -337,3 +337,53 @@ def test_modest_vertical_overflow_defers_when_shrink_cannot_reach_budget():
     assert result.ok is True
     assert result.overflow_detected is True
     assert any("row will grow" in w for w in result.warnings)
+
+
+def test_inline_control_width_narrows_slot_and_refuses_wrap() -> None:
+    """S-087 defect ①: a checkbox sharing the cell line consumes its declared
+    width; a value that no longer fits must be a typed refusal, not a silent
+    "fits" that grows the row and repaginates the form on real Hancom."""
+    from hwpx.form_fit.measure import SlotMetrics
+
+    slot = SlotMetrics(
+        available_width=742.0,          # 7261 - 6519 checkbox, as measured
+        font_pt=11.0,
+        max_lines=1,
+        available_height=1581.0,
+        inline_object_width=6519.0,
+        inline_object_count=1,
+    )
+    result = FitEngine().fit("김민준", slot, FitPolicy())
+    assert not result.ok
+    assert result.overflow_detected
+    assert any("FIELD_OVERFLOW" in e for e in result.errors)
+    assert any("inline control" in w for w in result.warnings)
+
+
+def test_inline_object_width_measured_from_cell(tmp_path) -> None:
+    from pathlib import Path
+
+    from hwpx.document import HwpxDocument
+    from hwpx.form_fit.measure import resolve_slot_metrics
+
+    fixture = Path(__file__).parent / "fixtures" / "m2_corpus" / "form_002.hwpx"
+    doc = HwpxDocument.open(fixture)
+    try:
+        target = None
+        for paragraph in doc.sections[0].paragraphs:
+            for table in paragraph.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        text = "".join(
+                            getattr(p, "text", "") or ""
+                            for p in getattr(cell, "paragraphs", [])
+                        )
+                        if text.strip() == "" and target is None:
+                            target = cell
+        assert target is not None
+        slot = resolve_slot_metrics(target, doc, max_lines=1)
+    finally:
+        doc.close()
+    assert slot.inline_object_count == 1
+    assert slot.inline_object_width == 6519.0
+    assert slot.available_width < 1000  # 7261 - 6519

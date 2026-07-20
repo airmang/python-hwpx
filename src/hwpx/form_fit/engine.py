@@ -56,6 +56,26 @@ class FitEngine:
         *,
         field_id: str | None = None,
     ) -> FitResult:
+        result = self._fit_decide(value, slot, policy, field_id=field_id)
+        inline_count = int(getattr(slot, "inline_object_count", 0) or 0)
+        if inline_count and (value or "") != "":
+            inline_width = float(getattr(slot, "inline_object_width", 0.0) or 0.0)
+            result.warnings.append(
+                f"cell line shared with {inline_count} inline control(s) "
+                f"({inline_width:.0f} HWPUNIT deducted from the width budget); "
+                "control-sharing cells are unusual fill targets — verify with a "
+                "render gate or pick the intended value cell"
+            )
+        return result
+
+    def _fit_decide(
+        self,
+        value: str,
+        slot: SlotMetrics,
+        policy: FitPolicy | None = None,
+        *,
+        field_id: str | None = None,
+    ) -> FitResult:
         policy = policy or FitPolicy()
         value = "" if value is None else str(value)
 

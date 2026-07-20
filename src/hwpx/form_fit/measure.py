@@ -221,6 +221,13 @@ class SlotMetrics:
     # Per-line advance as a multiple of the em, from the cell's declared paragraph
     # line spacing (PERCENT). ``None`` falls back to ``DEFAULT_LINE_SPACING_RATIO``.
     line_spacing_ratio: float | None = None
+    # Width already consumed on the line by inline treat-as-char objects
+    # (checkboxes, form controls, pictures) that share the target paragraph.
+    # Their declared ``hp:sz/@width`` is subtracted from the usable width —
+    # ignoring them made the engine call "fits" on a fill that real Hancom
+    # wrapped, growing the row and repaginating a 10-page form (S-087 P0).
+    inline_object_width: float = 0.0
+    inline_object_count: int = 0
     # A cell height existed but was unusable (merged row-span fragment, or an
     # auto-grow floor shorter than one line). Records "height budget unavailable"
     # so the fit reports width-only honestly rather than guessing a vertical fit.
@@ -473,6 +480,11 @@ def resolve_slot_metrics(
     element = getattr(cell, "element", None)
     left, right = _cell_margin(element) if element is not None else (0, 0)
     inner = max(raw_width - left - right, 0.0) * safety
+    inline_width, inline_count = (
+        _inline_object_width(element) if element is not None else (0.0, 0)
+    )
+    if inline_width:
+        inner = max(inner - inline_width, 0.0)
     resolved_pt = font_pt if font_pt is not None else _first_run_font_pt(cell, document)
     line_ratio = _first_para_line_spacing_ratio(cell, document)
 
@@ -503,7 +515,47 @@ def resolve_slot_metrics(
         available_height=available_height,
         line_spacing_ratio=line_ratio,
         height_unavailable=height_unavailable,
+        inline_object_width=inline_width,
+        inline_object_count=inline_count,
     )
+
+
+def _inline_object_width(cell_element: object) -> tuple[float, int]:
+    """Total declared width of inline treat-as-char objects in the cell.
+
+    Checkboxes and similar form controls flow on the text line
+    (``hp:pos/@treatAsChar='1'``) and consume their ``hp:sz/@width``; a fill
+    value shares whatever width remains. Objects without a declared size are
+    counted but contribute 0 width (the count still signals reduced trust).
+    """
+
+    total = 0.0
+    count = 0
+    iter_fn = getattr(cell_element, "iter", None)
+    if iter_fn is None:
+        return 0.0, 0
+    for node in iter_fn():
+        tag = getattr(node, "tag", "")
+        if not isinstance(tag, str):
+            continue
+        local = tag.rsplit("}", 1)[-1].lower()
+        if local != "pos":
+            continue
+        if (node.get("treatAsChar") or "").strip() not in {"1", "true", "TRUE"}:
+            continue
+        holder = node.getparent() if hasattr(node, "getparent") else None
+        if holder is None:
+            continue
+        count += 1
+        for sibling in holder:
+            sib_local = str(getattr(sibling, "tag", "")).rsplit("}", 1)[-1].lower()
+            if sib_local == "sz":
+                try:
+                    total += float(sibling.get("width") or 0)
+                except (TypeError, ValueError):
+                    pass
+                break
+    return total, count
 
 
 __all__ = [
