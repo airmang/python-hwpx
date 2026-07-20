@@ -68,7 +68,7 @@ real Hancom 12.0.0.3288 COM/GUI oracle; details and caveats in the
 - 416/476 render-verified (real Hancom `SaveAs("PDF")`) + honesty bucket of 43 (PDF
   export of tracked-change documents is refused by Hancom itself — a measured
   limitation) + 17 unverified
-- Form-fill differential is 49.2% on wild public forms — **we publish the low number as-is** and record it as remaining work
+- Wild-form filling after the structural-defect fix: **silent layout breakage 16.7%** (66 judged combos; impossible targets are 35 typed refusals, produced fills pass 17/28) — **we publish the low numbers as-is** and name the residual (page ripple, table shape)
 
 > These numbers are on the *output acceptance* axis (does real Hancom accept the files we produce).
 > This is a different axis from document *parsing recall*, so do not compare it side by side with parser-project figures.

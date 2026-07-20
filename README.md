@@ -62,7 +62,7 @@
   · **개인정보 0-leak** (35문서/합성 140값)
 - 렌더 검증 416/476 (실한컴 `SaveAs("PDF")`) + 정직 버킷 43건(변경추적 문서의 PDF
   export는 한컴 자체가 거부 — 실측 한계로 발행) + 미검증 17건
-- 양식 채움 차등은 wild 공개 양식에서 49.2% — **낮은 숫자도 그대로 발행**하고 잔여 과제로 명기합니다
+- wild 공개 양식 채움은 구조결함 픽스 후 **무음 서식파괴 16.7%**(판정 66조합, 못 담는 타깃은 typed 거부 35건·산출분 pass 17/28) — **낮은 숫자도 그대로 발행**하고 잔여(페이지 리플·표 shape)를 명명합니다
 
 > 이 숫자들은 *생성물 수용률* 축입니다(우리가 만든 파일을 실제 한컴이 받아들이는가).
 > 문서 *파싱 recall*과는 다른 축이므로 파서 프로젝트 수치와 병치 비교하지 마세요.
@@ -210,7 +210,7 @@ Unsupported-but-preserved / Unsupported-and-rejected**.
 |---|---|---|
 | 문단·표 저작/편집 | Parse·Preserve·Edit·Create·Render-verified | 오픈 476/476 · 실저작 게이트 58/58 · 렌더 416 |
 | 표 구조 변경(행·열·표, 오토핏) | Preserve·Edit | `hwpx.table_patch` · 바이트 보존 497/497 |
-| 양식 채움(byte-splice) | Preserve·Edit | `hwpx.patch`·`table_patch`·`body_patch` · 보존 497/497 (서식 차등 wild 49.2%, 잔여 과제) |
+| 양식 채움(byte-splice) | Preserve·Edit | `hwpx.patch`·`table_patch`·`body_patch` · 보존 497/497 (wild 무음 서식파괴 16.7%·typed 거부 35/66, 잔여 명명) |
 | 그림 삽입/치환 | Edit·Create | `add_picture`·`replace_picture` (복잡 개체는 한컴 확인 권장) |
 | 차트 | Unsupported-but-preserved | 생성 API 없음 · 기존 차트 part는 patch 보존 |
 | 수식 | Parse·Unsupported-but-preserved | 저작 API 없음 · 기존 수식 파싱·patch 보존 |
