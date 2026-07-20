@@ -142,8 +142,16 @@ def _build_measured(
     """
 
     package = doc._package
-    source_members = dict(package._files)
-    source_infos = dict(package._zip_infos)
+    # Measure against the OPEN-TIME baseline, not the current package state: a
+    # low-level ``set_part`` applied before this save already lives in
+    # ``_files``, and measuring against it would silently launder that change
+    # through a ``mode="patch"`` grade (Safe Write Contract §1, fail-closed).
+    source_members = dict(
+        getattr(package, "_opened_members", None) or package._files
+    )
+    source_infos = dict(
+        getattr(package, "_opened_zip_infos", None) or package._zip_infos
+    )
     updates = doc._root.serialize()
     predeclared = set(updates)
     if updates:
@@ -407,6 +415,11 @@ def _to_bytes_for_validation(doc: "HwpxDocument") -> bytes:
 def _mark_save_clean(doc: "HwpxDocument") -> None:
     doc._root.reset_dirty()
     doc._package.version_info.mark_clean()
+    # The published archive is the new preservation baseline for any further
+    # save on this document instance.
+    package = doc._package
+    package._opened_members = dict(package._files)
+    package._opened_zip_infos = dict(package._zip_infos)
 
 
 def save(

@@ -366,10 +366,17 @@ class HwpxPackage:
         zip_order: Sequence[str] | None = None,
     ) -> None:
         self._files = files
+        # Open-time baseline for the Safe Write Contract: preservation must be
+        # measured against what was actually opened, or a low-level set_part
+        # applied before save() would count as "already there" and slip past a
+        # mode="patch" grade unnoticed. Values are immutable bytes, so this
+        # holds references, not copies.
+        self._opened_members: dict[str, bytes] = dict(files)
         self._rootfiles = list(rootfiles)
         self._version = version_info
         self._mimetype = mimetype
         self._zip_infos = dict(zip_infos or {})
+        self._opened_zip_infos: dict[str, ZipInfo] = dict(zip_infos or {})
         self._zip_order = list(zip_order or files.keys())
         self._manifest_tree: etree._Element | None = None
         self._spine_cache: list[str] | None = None

@@ -264,3 +264,60 @@ def test_byte_splice_projection_accepts_path_source(tmp_path) -> None:
         assert any(p.endswith("section0.xml") for p in parts)
         ranges = payload["changedParts"][0]["ranges"]
         assert ranges and ranges[0]["coordinateSpace"] == "uncompressed-part-bytes"
+
+
+def test_sneaky_low_level_part_swap_is_refused_under_patch_mode(tmp_path) -> None:
+    """A set_part applied before save must not launder through mode="patch".
+
+    The measurement baseline is the OPEN-TIME archive: without it, the swapped
+    part is already inside the package when the pre-save snapshot is taken and
+    the downgrade goes undetected (found live by the demo prototype).
+    """
+    from pathlib import Path as _P
+
+    from hwpx.document import HwpxDocument
+    from hwpx.mutation_report import PreservationDowngradeError
+
+    fixture = _P(__file__).parent / "fixtures" / "m2_corpus" / "form_002.hwpx"
+    target = tmp_path / "refused.hwpx"
+
+    doc = HwpxDocument.open(fixture)
+    try:
+        payload = doc._package.read("Contents/header.xml")
+        doc._package.set_part("Contents/header.xml", payload + b"<!-- sneaky -->")
+        with pytest.raises(PreservationDowngradeError):
+            doc.save_to_path(target, mode="patch")
+        assert not target.exists()
+        # fallback="rebuild" is the explicit consent path — publishes + reports.
+        report = doc.save_to_path(
+            target, mode="patch", fallback="rebuild", return_report=True
+        )
+        assert target.exists()
+        payload_dict = report.to_dict()
+        assert payload_dict["fallbackUsed"] is True
+        assert any(
+            part["path"].endswith("header.xml")
+            for part in payload_dict["changedParts"]
+        )
+    finally:
+        doc.close()
+
+
+def test_second_save_measures_against_the_published_baseline(tmp_path) -> None:
+    from pathlib import Path as _P
+
+    from hwpx.document import HwpxDocument
+
+    fixture = _P(__file__).parent / "fixtures" / "m2_corpus" / "form_002.hwpx"
+    doc = HwpxDocument.open(fixture)
+    try:
+        doc.add_paragraph("첫 저장")
+        doc.save_to_path(tmp_path / "one.hwpx")
+        # After a successful publish the baseline advances: an immediate
+        # unchanged save is whole-package quiet, not a re-report of save one.
+        report = doc.save_to_path(
+            tmp_path / "two.hwpx", mode="patch", return_report=True
+        )
+        assert report.to_dict()["preservation"]["untouchedPartPayloads"]["changed"] == 0
+    finally:
+        doc.close()
