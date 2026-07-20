@@ -120,11 +120,12 @@ HWPX 내부 구조가 처음이라면 [내부 실전 가이드](docs/internals/)
 
 ## 감사의 말
 
-[OWPML (KS X 6101)](https://www.kssn.net/search/stddetail.do?itemNo=K001010119985) — 기반 표준 ·
-[hancom-io/hwpx-owpml-model](https://github.com/hancom-io/hwpx-owpml-model) — 구조 참조 ·
-[neolord0/hwpxlib](https://github.com/neolord0/hwpxlib) — 오라클 샘플 ·
-[edwardkim/rhwp](https://github.com/edwardkim/rhwp) — 검증 게이트 영감 ·
-범정부오피스 — 워크플로 아이디어
+아래 공개 표준·프로젝트에 빚지고 있습니다.
+
+- **[OWPML — 개방형 워드프로세서 마크업 언어 (KS X 6101)](https://www.kssn.net/search/stddetail.do?itemNo=K001010119985)** — HWPX가 기반하는 한국 산업 표준
+- **[hancom-io/hwpx-owpml-model](https://github.com/hancom-io/hwpx-owpml-model)** — OWPML 요소 구조 참조 모델 · **[neolord0/hwpxlib](https://github.com/neolord0/hwpxlib)** — 오라클 샘플 코퍼스
+- **[edwardkim/rhwp](https://github.com/edwardkim/rhwp)** — 멱등성·검증 게이트 설계 영감
+- **범정부오피스** — 공무 문서 편집 워크플로 아이디어
 
 ## License · Maintainer
 

@@ -126,11 +126,12 @@ real Hancom.
 
 ## Acknowledgements
 
-[OWPML (KS X 6101)](https://www.kssn.net/search/stddetail.do?itemNo=K001010119985) — underlying standard ·
-[hancom-io/hwpx-owpml-model](https://github.com/hancom-io/hwpx-owpml-model) — structure reference ·
-[neolord0/hwpxlib](https://github.com/neolord0/hwpxlib) — oracle samples ·
-[edwardkim/rhwp](https://github.com/edwardkim/rhwp) — verification-gate inspiration ·
-the Korean government office suite — workflow ideas
+This project is indebted to the following open standards and projects.
+
+- **[OWPML — Open Word-Processor Markup Language (KS X 6101)](https://www.kssn.net/search/stddetail.do?itemNo=K001010119985)** — the Korean industrial standard HWPX is built on
+- **[hancom-io/hwpx-owpml-model](https://github.com/hancom-io/hwpx-owpml-model)** — OWPML element-structure reference model · **[neolord0/hwpxlib](https://github.com/neolord0/hwpxlib)** — oracle sample corpus
+- **[edwardkim/rhwp](https://github.com/edwardkim/rhwp)** — inspiration for idempotency and verification gates
+- **the Korean government office suite** — official-document workflow ideas
 
 ## License · Maintainer
 
