@@ -1085,32 +1085,47 @@ def fill_rubrics(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str
     cells (title / points / 성취기준 / A~E / 수행과제 / 평가요소 leaders / 기본점수 배점),
     reshapes+fills the 수행수준 채점기준 ladder, and rewrites each rubric's ordinal
     heading paragraph (가./나./다. + sample project title) to the review 영역명."""
-    from .table_patch import apply_table_ops, fill_cells, _all_paragraph_spans
 
     report: dict[str, Any] = {"rubrics": len(content.rubrics), "filled": 0, "skipped": []}
-    levels = content.levels
 
     # 2022-개정 route: fill each rubric table's label cells + 채점기준 ladder + heading.
     idxs0 = _rubric_indices(data)
     if idxs0 and _rubric_is_2022(data, idxs0[0]):
-        std_levels = _std_level_map(content.achievement_std)
-        filled = 0
-        for i, rub in enumerate(content.rubrics):
-            idxs = _rubric_indices(data)
-            if i >= len(idxs):
-                report["skipped"].append(f"rubric {i}: no matching blank table")
-                continue
-            data, sk = _fill_rubric_2022(data, idxs[i], rub, std_levels)
-            report["skipped"].extend(sk)
-            filled += 1
-        # rewrite each rubric's ordinal heading paragraph (outside the table) that holds
-        # the blank's sample project title (가. 인권 문제 해결 프로젝트 …).
-        data, head_sk = _fill_rubric_headings(data, content)
-        report["skipped"].extend(head_sk)
-        report["filled"] = filled
-        return data, report
+        return _fill_rubrics_2022_route(data, content, report)
 
     # STEP 1 (structure): shrink each rubric's item block to its review item count.
+    data = _shrink_rubric_item_blocks(data, content, report)
+    # STEP 2 (content): fill each rubric's cells.
+    data = _fill_rubric_cells_legacy(data, content, report)
+    return data, report
+
+
+def _fill_rubrics_2022_route(
+    data: bytes, content: EvalPlanContent, report: dict[str, Any]
+) -> tuple[bytes, dict[str, Any]]:
+    std_levels = _std_level_map(content.achievement_std)
+    filled = 0
+    for i, rub in enumerate(content.rubrics):
+        idxs = _rubric_indices(data)
+        if i >= len(idxs):
+            report["skipped"].append(f"rubric {i}: no matching blank table")
+            continue
+        data, sk = _fill_rubric_2022(data, idxs[i], rub, std_levels)
+        report["skipped"].extend(sk)
+        filled += 1
+    # rewrite each rubric's ordinal heading paragraph (outside the table) that holds
+    # the blank's sample project title (가. 인권 문제 해결 프로젝트 …).
+    data, head_sk = _fill_rubric_headings(data, content)
+    report["skipped"].extend(head_sk)
+    report["filled"] = filled
+    return data, report
+
+
+def _shrink_rubric_item_blocks(data: bytes, content: EvalPlanContent, report: dict[str, Any]) -> bytes:
+    """STEP 1: shrink each rubric's item block to its review item count."""
+
+    from .table_patch import apply_table_ops
+
     for i, rub in enumerate(content.rubrics):
         items = [row for row in rub.rows if not row[0].startswith("기본점수")]
         n = max(1, len(items))
@@ -1131,77 +1146,149 @@ def fill_rubrics(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str
                 report["skipped"].append(f"rubric {i} shrink: {[s.reason for s in res.skipped]}")
                 continue
             data = res.data
+    return data
 
-    # STEP 2 (content): fill each rubric's cells.
+
+def _fill_rubric_cells_legacy(data: bytes, content: EvalPlanContent, report: dict[str, Any]) -> bytes:
+    """STEP 2: fill each rubric's cells (2015-개정 route)."""
+
+    levels = content.levels
     for i, rub in enumerate(content.rubrics):
         idxs = _rubric_indices(data)
         if i >= len(idxs):
             continue
         ti = idxs[i]
-        hdr, base, _nrows = _rubric_bounds(data, ti)
-        if hdr is None or base is None:
-            continue
-        first_item = hdr + 1
-        items = [row for row in rub.rows if not row[0].startswith("기본점수")]
-        n = len(items)
-        _sp, tb, grid, rep = _grid_of(data, ti)
+        levels_for_area = levels[i] if i < len(levels) else None
+        data, skipped, filled_count = _fill_rubric_legacy_cells(
+            data, ti, rub, levels_for_area, content.achievement_std
+        )
+        report["filled"] += filled_count
+        report["skipped"].extend(f"rubric {i}: {s.reason}" for s in skipped)
+    return data
 
-        cells: list[dict[str, Any]] = []
-        # r0 성취기준 (replaces 한국사 sample codes)
-        std_text = rub.standards or (content.achievement_std and "")
-        if std_text:
-            cells.append({"table_index": ti, "row": 0, "col": 1, "text": std_text, "max_lines": 3})
-        # r1-3 상/중/하 평가기준 from the matching area's A/B/C descriptors
-        if i < len(levels) and len(levels[i]) >= 4:
-            for k, desc in enumerate(levels[i][1:4]):
-                rr = 1 + k
-                if grid.get((rr, 2)):
-                    cells.append({"table_index": ti, "row": rr, "col": 2, "text": desc, "max_lines": 4})
-        # 영역(만점) leader
-        area_cell = grid.get((first_item, 0))
-        if area_cell is not None:
-            cells.append({"table_index": ti, "row": first_item, "col": 0,
-                          "text": f"{rub.title}({rub.points}점)", "max_lines": 3})
-        # 평가항목 labels -> the merged 평가항목 cell's paragraphs (one line per item)
-        item_cell = grid.get((first_item, 1))
-        if item_cell is not None:
-            n_para = len(_all_paragraph_spans(tb[item_cell.start:item_cell.end]))
-            labels = [it[0] for it in items]
-            if n_para >= 1:
-                # pack labels across available paragraphs; extras merged into the last
-                if len(labels) <= n_para:
-                    packed = labels
-                else:
-                    packed = labels[:n_para - 1] + [" · ".join(labels[n_para - 1:])]
-                cells.append({"table_index": ti, "row": first_item, "col": 1,
-                              "text": "\n".join(packed), "max_lines": 2})
-        # per-item 채점기준 rows (col3) + top 배점 (col4)
-        for k, it in enumerate(items):
-            rr = first_item + k
-            if rr >= base:
-                break
-            if grid.get((rr, 3)):
-                cells.append({"table_index": ti, "row": rr, "col": 3,
-                              "text": _batjeom_line(it[0], it[1]), "max_lines": 3})
-            top = _top_batjeom(it[1])
-            if top and grid.get((rr, 4)):
-                cells.append({"table_index": ti, "row": rr, "col": 4, "text": top, "max_lines": 1})
-        # 기본점수 / 장기 미인정 rows
-        base_label, base_score, long_label, long_score = _base_scores(rub.rows)
-        if grid.get((base, 1)):
-            cells.append({"table_index": ti, "row": base, "col": 1, "text": base_label, "max_lines": 2})
-        if base_score and grid.get((base, 4)):
-            cells.append({"table_index": ti, "row": base, "col": 4, "text": base_score, "max_lines": 1})
-        if grid.get((base + 1, 1)):
-            cells.append({"table_index": ti, "row": base + 1, "col": 1, "text": long_label, "max_lines": 2})
-        if long_score and grid.get((base + 1, 4)):
-            cells.append({"table_index": ti, "row": base + 1, "col": 4, "text": long_score, "max_lines": 1})
 
-        fr = fill_cells(data, cells)
-        data = fr.data
-        report["filled"] += len(fr.applied)
-        report["skipped"].extend(f"rubric {i}: {s.reason}" for s in fr.skipped)
-    return data, report
+def _fill_rubric_legacy_cells(
+    data: bytes,
+    ti: int,
+    rub: Rubric,
+    levels_for_area: Sequence[str] | None,
+    achievement_std: Any,
+) -> tuple[bytes, list[Any], int]:
+    """Fill one legacy (2015-개정) rubric table's cells.
+
+    Returns (data, skip_reasons, filled_count).
+    """
+
+    from .table_patch import fill_cells
+
+    hdr, base, _nrows = _rubric_bounds(data, ti)
+    if hdr is None or base is None:
+        return data, [], 0
+    first_item = hdr + 1
+    items = [row for row in rub.rows if not row[0].startswith("기본점수")]
+    _sp, tb, grid, _rep = _grid_of(data, ti)
+
+    cells: list[dict[str, Any]] = []
+    # r0 성취기준 (replaces 한국사 sample codes)
+    std_cell = _rubric_std_cell(ti, rub, achievement_std)
+    if std_cell is not None:
+        cells.append(std_cell)
+    # r1-3 상/중/하 평가기준 from the matching area's A/B/C descriptors
+    cells.extend(_rubric_level_cells(ti, levels_for_area, grid))
+    # 영역(만점) leader
+    area_cell = _rubric_area_leader_cell(ti, rub, first_item, grid)
+    if area_cell is not None:
+        cells.append(area_cell)
+    # 평가항목 labels -> the merged 평가항목 cell's paragraphs (one line per item)
+    item_cell = _rubric_item_labels_cell(ti, first_item, grid, tb, items)
+    if item_cell is not None:
+        cells.append(item_cell)
+    # per-item 채점기준 rows (col3) + top 배점 (col4)
+    cells.extend(_rubric_item_criteria_cells(ti, first_item, base, grid, items))
+    # 기본점수 / 장기 미인정 rows
+    cells.extend(_rubric_base_score_cells(ti, base, grid, rub.rows))
+
+    fr = fill_cells(data, cells)
+    return fr.data, list(fr.skipped), len(fr.applied)
+
+
+def _rubric_std_cell(ti: int, rub: Rubric, achievement_std: Any) -> dict[str, Any] | None:
+    std_text = rub.standards or (achievement_std and "")
+    if std_text:
+        return {"table_index": ti, "row": 0, "col": 1, "text": std_text, "max_lines": 3}
+    return None
+
+
+def _rubric_level_cells(
+    ti: int, levels_for_area: Sequence[str] | None, grid: Any
+) -> list[dict[str, Any]]:
+    cells: list[dict[str, Any]] = []
+    if levels_for_area is not None and len(levels_for_area) >= 4:
+        for k, desc in enumerate(levels_for_area[1:4]):
+            rr = 1 + k
+            if grid.get((rr, 2)):
+                cells.append({"table_index": ti, "row": rr, "col": 2, "text": desc, "max_lines": 4})
+    return cells
+
+
+def _rubric_area_leader_cell(ti: int, rub: Rubric, first_item: int, grid: Any) -> dict[str, Any] | None:
+    if grid.get((first_item, 0)) is not None:
+        return {"table_index": ti, "row": first_item, "col": 0,
+                "text": f"{rub.title}({rub.points}점)", "max_lines": 3}
+    return None
+
+
+def _rubric_item_labels_cell(
+    ti: int, first_item: int, grid: Any, tb: Any, items: list[list[str]]
+) -> dict[str, Any] | None:
+    from .table_patch import _all_paragraph_spans
+
+    item_cell = grid.get((first_item, 1))
+    if item_cell is None:
+        return None
+    n_para = len(_all_paragraph_spans(tb[item_cell.start:item_cell.end]))
+    labels = [it[0] for it in items]
+    if n_para < 1:
+        return None
+    # pack labels across available paragraphs; extras merged into the last
+    if len(labels) <= n_para:
+        packed = labels
+    else:
+        packed = labels[:n_para - 1] + [" · ".join(labels[n_para - 1:])]
+    return {"table_index": ti, "row": first_item, "col": 1, "text": "\n".join(packed), "max_lines": 2}
+
+
+def _rubric_item_criteria_cells(
+    ti: int, first_item: int, base: int, grid: Any, items: list[list[str]]
+) -> list[dict[str, Any]]:
+    cells: list[dict[str, Any]] = []
+    for k, it in enumerate(items):
+        rr = first_item + k
+        if rr >= base:
+            break
+        if grid.get((rr, 3)):
+            cells.append({"table_index": ti, "row": rr, "col": 3,
+                          "text": _batjeom_line(it[0], it[1]), "max_lines": 3})
+        top = _top_batjeom(it[1])
+        if top and grid.get((rr, 4)):
+            cells.append({"table_index": ti, "row": rr, "col": 4, "text": top, "max_lines": 1})
+    return cells
+
+
+def _rubric_base_score_cells(
+    ti: int, base: int, grid: Any, rub_rows: list[list[str]]
+) -> list[dict[str, Any]]:
+    base_label, base_score, long_label, long_score = _base_scores(rub_rows)
+    cells: list[dict[str, Any]] = []
+    if grid.get((base, 1)):
+        cells.append({"table_index": ti, "row": base, "col": 1, "text": base_label, "max_lines": 2})
+    if base_score and grid.get((base, 4)):
+        cells.append({"table_index": ti, "row": base, "col": 4, "text": base_score, "max_lines": 1})
+    if grid.get((base + 1, 1)):
+        cells.append({"table_index": ti, "row": base + 1, "col": 1, "text": long_label, "max_lines": 2})
+    if long_score and grid.get((base + 1, 4)):
+        cells.append({"table_index": ti, "row": base + 1, "col": 4, "text": long_score, "max_lines": 1})
+    return cells
 
 
 def _rubric_bounds(data: bytes, ti: int) -> tuple[int | None, int | None, int]:
