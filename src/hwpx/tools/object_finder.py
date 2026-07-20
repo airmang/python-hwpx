@@ -174,6 +174,95 @@ class ObjectFinder:
             )
         )
 
+    _NOTE_TAGS = {"footnote": ".//hp:footNote", "endnote": ".//hp:endNote"}
+
+    def _iter_highlight_annotations(
+        self, section: SectionInfo, parent_map: Mapping[ET.Element, ET.Element], render_options: AnnotationOptions
+    ) -> Iterator[AnnotationMatch]:
+        for element in section.element.findall(".//hp:markpenBegin", namespaces=self.namespaces):
+            path = describe_element_path(element, parent_map)
+            found = FoundElement(section=section, path=path, element=element)
+            color = element.get("color") or ""
+            if render_options.highlight == "markers":
+                value = render_options.highlight_start.format(color=color)
+            else:
+                value = render_options.highlight_summary.format(color=color)
+            yield AnnotationMatch("highlight", found, value)
+
+    def _iter_note_kind_annotations(
+        self,
+        extractor: TextExtractor,
+        section: SectionInfo,
+        parent_map: Mapping[ET.Element, ET.Element],
+        kind: str,
+        render_options: AnnotationOptions,
+        preserve_breaks: bool,
+    ) -> Iterator[AnnotationMatch]:
+        for element in section.element.findall(self._NOTE_TAGS[kind], namespaces=self.namespaces):
+            yield self._format_note_annotation(
+                extractor,
+                section,
+                parent_map,
+                element,
+                kind=kind,
+                options=render_options,
+                preserve_breaks=preserve_breaks,
+            )
+
+    def _iter_hyperlink_annotations(
+        self, section: SectionInfo, parent_map: Mapping[ET.Element, ET.Element], render_options: AnnotationOptions
+    ) -> Iterator[AnnotationMatch]:
+        for element in section.element.findall(".//hp:fieldBegin", namespaces=self.namespaces):
+            field_type = (element.get("type") or "").upper()
+            if field_type != "HYPERLINK":
+                continue
+            path = describe_element_path(element, parent_map)
+            found = FoundElement(section=section, path=path, element=element)
+            target = _resolve_hyperlink_target(element, self.namespaces) or ""
+            behavior = render_options.hyperlink
+            if behavior == "target":
+                value = render_options.hyperlink_target_format.format(target=target)
+            elif behavior == "placeholder":
+                value = render_options.hyperlink_placeholder.format(target=target)
+            else:
+                value = render_options.hyperlink_summary.format(target=target)
+            yield AnnotationMatch("hyperlink", found, value)
+
+    def _iter_control_annotations(
+        self,
+        extractor: TextExtractor,
+        section: SectionInfo,
+        parent_map: Mapping[ET.Element, ET.Element],
+        render_options: AnnotationOptions,
+        preserve_breaks: bool,
+    ) -> Iterator[AnnotationMatch]:
+        for element in section.element.findall(".//hp:ctrl", namespaces=self.namespaces):
+            field_begin = element.find("hp:fieldBegin", namespaces=self.namespaces)
+            if field_begin is not None and (field_begin.get("type") or "").upper() == "HYPERLINK":
+                continue
+            if element.find("hp:fieldEnd", namespaces=self.namespaces) is not None:
+                continue
+            path = describe_element_path(element, parent_map)
+            found = FoundElement(section=section, path=path, element=element)
+            first_child = next(iter(element), None)
+            name = strip_namespace(first_child.tag) if first_child is not None else "ctrl"
+            ctrl_type = (
+                first_child.get("type") if first_child is not None else element.get("type") or ""
+            )
+            behavior = render_options.control
+            if behavior == "nested":
+                value = _resolve_control_nested_text(
+                    extractor,
+                    element,
+                    render_options,
+                    preserve_breaks=preserve_breaks,
+                )
+            elif behavior == "placeholder":
+                value = render_options.control_placeholder.format(name=name, type=ctrl_type)
+            else:
+                value = render_options.control_summary.format(name=name, type=ctrl_type)
+            yield AnnotationMatch("control", found, value)
+
     def iter_annotations(
         self,
         *,
@@ -199,94 +288,21 @@ class ObjectFinder:
                 parent_map = build_parent_map(section.element)
 
                 if "highlight" in requested:
-                    for element in section.element.findall(
-                        ".//hp:markpenBegin", namespaces=self.namespaces
-                    ):
-                        path = describe_element_path(element, parent_map)
-                        found = FoundElement(section=section, path=path, element=element)
-                        color = element.get("color") or ""
-                        if render_options.highlight == "markers":
-                            value = render_options.highlight_start.format(color=color)
-                        else:
-                            value = render_options.highlight_summary.format(color=color)
-                        yield AnnotationMatch("highlight", found, value)
-
+                    yield from self._iter_highlight_annotations(section, parent_map, render_options)
                 if "footnote" in requested:
-                    for element in section.element.findall(
-                        ".//hp:footNote", namespaces=self.namespaces
-                    ):
-                        yield self._format_note_annotation(
-                            extractor,
-                            section,
-                            parent_map,
-                            element,
-                            kind="footnote",
-                            options=render_options,
-                            preserve_breaks=preserve_breaks,
-                        )
-
+                    yield from self._iter_note_kind_annotations(
+                        extractor, section, parent_map, "footnote", render_options, preserve_breaks
+                    )
                 if "endnote" in requested:
-                    for element in section.element.findall(
-                        ".//hp:endNote", namespaces=self.namespaces
-                    ):
-                        yield self._format_note_annotation(
-                            extractor,
-                            section,
-                            parent_map,
-                            element,
-                            kind="endnote",
-                            options=render_options,
-                            preserve_breaks=preserve_breaks,
-                        )
-
+                    yield from self._iter_note_kind_annotations(
+                        extractor, section, parent_map, "endnote", render_options, preserve_breaks
+                    )
                 if "hyperlink" in requested:
-                    for element in section.element.findall(
-                        ".//hp:fieldBegin", namespaces=self.namespaces
-                    ):
-                        field_type = (element.get("type") or "").upper()
-                        if field_type != "HYPERLINK":
-                            continue
-                        path = describe_element_path(element, parent_map)
-                        found = FoundElement(section=section, path=path, element=element)
-                        target = _resolve_hyperlink_target(element, self.namespaces) or ""
-                        behavior = render_options.hyperlink
-                        if behavior == "target":
-                            value = render_options.hyperlink_target_format.format(target=target)
-                        elif behavior == "placeholder":
-                            value = render_options.hyperlink_placeholder.format(target=target)
-                        else:
-                            value = render_options.hyperlink_summary.format(target=target)
-                        yield AnnotationMatch("hyperlink", found, value)
-
+                    yield from self._iter_hyperlink_annotations(section, parent_map, render_options)
                 if "control" in requested:
-                    for element in section.element.findall(
-                        ".//hp:ctrl", namespaces=self.namespaces
-                    ):
-                        field_begin = element.find("hp:fieldBegin", namespaces=self.namespaces)
-                        if field_begin is not None and (field_begin.get("type") or "").upper() == "HYPERLINK":
-                            continue
-                        if element.find("hp:fieldEnd", namespaces=self.namespaces) is not None:
-                            continue
-                        path = describe_element_path(element, parent_map)
-                        found = FoundElement(section=section, path=path, element=element)
-                        first_child = next(iter(element), None)
-                        name = strip_namespace(first_child.tag) if first_child is not None else "ctrl"
-                        ctrl_type = (
-                            first_child.get("type") if first_child is not None else element.get("type") or ""
-                        )
-                        behavior = render_options.control
-                        if behavior == "nested":
-                            value = _resolve_control_nested_text(
-                                extractor,
-                                element,
-                                render_options,
-                                preserve_breaks=preserve_breaks,
-                            )
-                        elif behavior == "placeholder":
-                            value = render_options.control_placeholder.format(name=name, type=ctrl_type)
-                        else:
-                            value = render_options.control_summary.format(name=name, type=ctrl_type)
-                        yield AnnotationMatch("control", found, value)
+                    yield from self._iter_control_annotations(
+                        extractor, section, parent_map, render_options, preserve_breaks
+                    )
 
     def _format_note_annotation(
         self,
