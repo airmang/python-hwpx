@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Sequence
 
 _CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮"
@@ -186,7 +187,7 @@ def _norm(text: str) -> str:
     return " ".join(text.split()).strip()
 
 
-def expected_skeleton(content: EvalPlanContent, blank: str | None = None) -> dict[str, int]:
+def expected_skeleton(content: EvalPlanContent, blank: str | Path | None = None) -> dict[str, int]:
     """Content-derived block counts for the quality scorer's C axis.
 
     The 평가계획 target collapses §4가 into a **single** achievement table (the
@@ -210,7 +211,7 @@ def expected_skeleton(content: EvalPlanContent, blank: str | None = None) -> dic
     }
 
 
-def plan_structural_ops(blank: str, content: EvalPlanContent | None = None) -> dict[str, Any]:
+def plan_structural_ops(blank: str | Path, content: EvalPlanContent | None = None) -> dict[str, Any]:
     """Confident, gold-policy structural edits for a 평가계획 blank (no content
     fills): delete the red/optional tables and the 정기시험 columns, keeping the
     original formatting byte-for-byte. Targets are located by *classification*
@@ -1534,7 +1535,7 @@ def fill_ratio(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, 
 
 
 def fill_evalplan(
-    blank: str,
+    blank: str | Path,
     content: EvalPlanContent,
     *,
     output: str | None = None,
@@ -1575,9 +1576,8 @@ def fill_evalplan(
     return payload
 
 
-def parse_review_file(path: str) -> EvalPlanContent:
-    import pathlib
-    return parse_review_md(pathlib.Path(path).read_text(encoding="utf-8"))
+def parse_review_file(path: str | Path) -> EvalPlanContent:
+    return parse_review_md(Path(path).read_text(encoding="utf-8"))
 
 
 __all__ = [
