@@ -11,6 +11,8 @@
   </p>
 </p>
 
+<p align="center">한국어 | <a href="README_EN.md">English</a></p>
+
 ---
 
 ## 🧩 HWPX Stack (3종)
@@ -174,6 +176,7 @@ hwpx-analyze-template 보고서.hwpx
 - **[🚀 빠른 시작](docs/quickstart.md)** · **[📚 사용 가이드](docs/usage.md)** — 첫 파일 열기부터 문단·표·메모·섹션 편집, 텍스트 추출·검증까지
 - **[💡 예제 모음](docs/examples.md)** · [`examples/`](examples/) — `build_release_checklist.py`(메모·스타일 편집 HWPX 생성), `extract_text.py`(CLI 텍스트 추출), `find_objects.py`(OWPML 노드 추적) 등
 - **[📐 스키마 개요](docs/schema-overview.md)** · **[🔧 설치 검증](docs/installation.md)**
+- **[🔬 HWPX 내부 실전 가이드](docs/internals/)** — 실제 한/글 동작에서 확인된 HWPUNIT·조판 캐시·목차 필드·OPC 재패킹·메모·오라클 한계
 - **[📖 전체 문서 (Sphinx)](https://airmang.github.io/python-hwpx/)** — API 레퍼런스·50+ 실전 패턴·FAQ
 - **[📝 CHANGELOG](CHANGELOG.md)** · **[🤝 CONTRIBUTING](CONTRIBUTING.md)** · **[👥 CONTRIBUTORS](CONTRIBUTORS.md)**
 

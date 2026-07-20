@@ -20,6 +20,7 @@ examples
 
 corpus-metrics
 schema-overview
+internals/README
 faq
 changelog
 ```
