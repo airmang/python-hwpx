@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">python-hwpx</h1>
   <p align="center">
-    <strong>한글 없이 HWPX 문서를 Python으로 읽고, 편집하고, 생성하고, 구조를 검증합니다.</strong>
+    <strong>한컴 없이 HWPX를 안전하게 자동화하는 Python 계층 — 최소 범위 편집, 검증된 저작, 모든 쓰기에 영수증.</strong>
   </p>
   <p align="center">
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/v/python-hwpx?color=blue&label=PyPI" alt="PyPI"></a>
@@ -12,6 +12,21 @@
 </p>
 
 <p align="center">한국어 | <a href="README_EN.md">English</a></p>
+
+---
+
+> **python-hwpx는 한컴 없이 HWPX를 안전하게 자동화하는 Python 계층입니다.** 기존
+> 문서는 최소 범위만 수정하고, 새 문서는 실제 한컴 수용이 검증된 형태로 생성하며,
+> 모든 쓰기에 변경·보존·검증 영수증을 남기고, 완전한 해석과 렌더링은 전문 백엔드에
+> 위임할 수 있습니다.
+
+- **최소 범위 편집** — 미수정 part는 저장 시 바이트 그대로 유지됩니다(patch 경로
+  바이트 보존 497/497, 동결 코퍼스 v2 · 2026-07-19).
+- **검증된 저작** — 밑바닥 생성도 실제 한컴이 받아들이는 형태로 냅니다(산출물 한컴
+  오픈 476/476 all-pass, 실저작 품질 게이트 58/58).
+- **모든 쓰기에 영수증** — 대표 저장 경로는 [Safe Write Contract](docs/safe-write-contract.md)의
+  `MutationReport`(`hwpx.mutation-report/v1`)로 실제 쓰기 모드·보존 등급·검증 결과를
+  **측정해** 반환합니다.
 
 ---
 
@@ -37,12 +52,16 @@
 ## 실측으로 말합니다 — Published Corpus
 
 이 스택의 산출물은 주장 대신 **실제 한컴오피스 전수 측정**으로 검증됩니다
-(동결 코퍼스 N=497, 2026-07-19, 상세·주의사항은
+(동결 코퍼스 v2, N=497 산출물, 2026-07-19, 실한컴 12.0.0.3288 COM/GUI 오라클;
+상세·주의사항은
 [실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html)):
 
-- **한컴 오픈 수용률 100%** (476/476 all-pass, 하한 ≥99.4%) · 파싱 96.2%
-- **미수정 영역 바이트 보존 100%** (497/497, patch 경로) · **개인정보 0-leak**
-- 렌더 검증 416건 + 정직 버킷(변경추적 문서의 PDF export는 한컴 자체가 거부 — 실측 한계로 발행)
+- **한컴 오픈 수용률 476/476 all-pass** (동결 코퍼스 v2 · 2026-07-19 · 실한컴 COM
+  `Open()` 판정 · rule-of-three 하한 99.37%) · 파싱 96.2%(458/476)
+- **미수정 영역 바이트 보존 497/497** (patch 경로 한정, zip-part diff · 오라클 불요)
+  · **개인정보 0-leak** (35문서/합성 140값)
+- 렌더 검증 416/476 (실한컴 `SaveAs("PDF")`) + 정직 버킷 43건(변경추적 문서의 PDF
+  export는 한컴 자체가 거부 — 실측 한계로 발행) + 미검증 17건
 - 양식 채움 차등은 wild 공개 양식에서 49.2% — **낮은 숫자도 그대로 발행**하고 잔여 과제로 명기합니다
 
 > 이 숫자들은 *생성물 수용률* 축입니다(우리가 만든 파일을 실제 한컴이 받아들이는가).
@@ -151,6 +170,59 @@ hwpx-analyze-template 보고서.hwpx
 ```
 
 > 전체 기능·클래스·메서드 목록은 [사용 가이드](docs/usage.md)와 [API 레퍼런스](https://airmang.github.io/python-hwpx/api_reference.html)를 참고하세요.
+
+## 안전한 쓰기 계약 (Safe Write Contract)
+
+대표 저장 경로(`save_to_path` · `save_to_stream` · `to_bytes`)는 **요청한 보존 등급을
+쓰기 전에 판정하고, 실제로 무엇을 바꿨는지 측정한 영수증**을 돌려줍니다.
+
+```python
+from hwpx.mutation_report import PreservationDowngradeError
+
+# 영수증과 함께 저장 — 달성 가능한 가장 강한 보존 등급 자동 선택(mode="auto" 기본)
+report = doc.save_to_path("결과.hwpx", return_report=True)
+print(report.actual_mode)                                   # "patch" | "rebuild"
+print(report.preservation.untouched_part_payloads.to_dict())  # {"verified": 17, "changed": 0}
+
+# patch 등급 강제 — 미달이면 아무것도 쓰지 않고 예외(fail-closed)
+try:
+    doc.save_to_path("결과.hwpx", mode="patch", fallback="error")
+except PreservationDowngradeError as exc:
+    print(exc.offending_parts, exc.suggestion)
+```
+
+- `mode="patch" | "rebuild" | "auto"`(기본 `auto`) · `fallback="error" | "rebuild"`(기본 `error`)
+- `mode="patch"` + `fallback="error"`에서 미수정 part의 바이트 동일성을 지킬 수 없으면
+  **아무것도 쓰지 않고** `PreservationDowngradeError`를 던집니다(무음 rebuild 없음).
+- `MutationReport`는 `requestedMode`/`actualMode`/`fallbackUsed`, 변경 part와 좌표 명시
+  범위, 보존 3층(part 페이로드·ZIP 레코드·전체 패키지), 검증 3항목(`passed`/`failed`/`not_performed`)을
+  **측정해** 반환합니다.
+
+> 파라미터 전체와 `MutationReport` 스키마는 [안전한 쓰기 계약 문서](docs/safe-write-contract.md)를 참고하세요.
+
+## 지원 매트릭스
+
+능력 영역별 실제 등급입니다(동결 코퍼스 v2 · 2026-07-19 · 실한컴 12.0.0.3288 오라클).
+등급 어휘: **Parse / Preserve / Edit / Create / Render-verified /
+Unsupported-but-preserved / Unsupported-and-rejected**.
+
+| 능력 영역 | 상태 | 증거 |
+|---|---|---|
+| 문단·표 저작/편집 | Parse·Preserve·Edit·Create·Render-verified | 오픈 476/476 · 실저작 게이트 58/58 · 렌더 416 |
+| 표 구조 변경(행·열·표, 오토핏) | Preserve·Edit | `hwpx.table_patch` · 바이트 보존 497/497 |
+| 양식 채움(byte-splice) | Preserve·Edit | `hwpx.patch`·`table_patch`·`body_patch` · 보존 497/497 (서식 차등 wild 49.2%, 잔여 과제) |
+| 그림 삽입/치환 | Edit·Create | `add_picture`·`replace_picture` (복잡 개체는 한컴 확인 권장) |
+| 차트 | Unsupported-but-preserved | 생성 API 없음 · 기존 차트 part는 patch 보존 |
+| 수식 | Parse·Unsupported-but-preserved | 저작 API 없음 · 기존 수식 파싱·patch 보존 |
+| 변경추적(redline) | Edit·Create | `add_tracked_*` · 실한컴 `IsTrackChange=1` (한컴이 PDF export 거부 → `render_unavailable` 정직 집계) |
+| 메모(코멘트) | Edit·Create·Render-verified | `add_memo*` · 실 Windows 한컴 검증 |
+| 각주/미주 | Edit·Create | `add_footnote`·`add_endnote` (렌더 독립 게이트 미측정) |
+| 네이티브 목차/상호참조 | Create·Render-verified | `add_native_toc`·`toc_verify` · 구조 15/15 · 페이지 정합 5/5 |
+| 암호화 HWPX | Unsupported-and-rejected | 복호화 없음 · 암호화 part는 파싱 단계 예외로 거부 |
+| HWP 5.x 바이너리 | Unsupported-and-rejected | ZIP 아님 → 열기 시 `BadZipFile` (HWPX로 변환 후 사용) |
+| 누름틀(form field) 생성 | Parse·Edit | 기존 필드 조회·서식보존 채움 · **신규 누름틀 생성 도구는 미제공** |
+
+> 각 등급의 판정 근거와 상세 증거 포인터는 [지원 매트릭스 문서](docs/support-matrix.md)를 참고하세요.
 
 ## 대항 라이브러리 비교
 

@@ -19,6 +19,8 @@ examples
 :caption: 심화 주제
 
 corpus-metrics
+support-matrix
+safe-write-contract
 schema-overview
 internals/README
 faq

@@ -18,7 +18,7 @@
 
 | 축 | 결과 | 판정자 | 비고 |
 |---|---|---|---|
-| **오픈 수용률** | **476/476 = 100% all-pass** (하한 ≥99.4%, rule-of-three) | 실한컴 COM `Open()` | product-provenance 분모. 내부 픽스처 21건은 별도 발행(아래) |
+| **오픈 수용률** | **476/476 = 100% all-pass** (rule-of-three 하한 99.37%) | 실한컴 COM `Open()` | product-provenance 분모. 내부 픽스처 21건은 별도 발행(아래) |
 | 파싱(내용 적재) | 458/476 = 96.2% | COM 텍스트 프로브 (redline 문서는 `InitScan/GetText` 42/42) | 비텍스트 문서(그림 전용 등)는 정의상 비파싱 집계 |
 | 렌더 검증 | render_checked 416/476 | COM `SaveAs("PDF")` → 오프라인 fitz | +43 `render_unavailable` (한컴이 변경추적 문서의 PDF export 자체를 거부 — 실측 한계) · +17 unverified |
 | 바이트 보존 | **497/497 = 100%** (미수정 part) | zip-part diff (오라클 불요) | patch 경로 한정 — 풀세이브는 명시적 out-of-claim |
