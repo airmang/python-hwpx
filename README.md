@@ -8,6 +8,8 @@
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/pyversions/python-hwpx" alt="Python"></a>
     <a href="https://github.com/airmang/python-hwpx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
     <a href="https://airmang.github.io/python-hwpx/"><img src="https://img.shields.io/badge/docs-Sphinx-8CA1AF" alt="Docs"></a>
+    <a href="https://github.com/airmang/python-hwpx/actions/workflows/tests.yml"><img src="https://img.shields.io/github/actions/workflow/status/airmang/python-hwpx/tests.yml?branch=main&label=tests" alt="Tests"></a>
+    <a href="https://airmang.github.io/python-hwpx/corpus-metrics.html"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fairmang.github.io%2Fpython-hwpx%2F_static%2Fbadge-hancom-open.json" alt="Hancom open"></a>
   </p>
 </p>
 
@@ -38,9 +40,8 @@
 | 🔌 MCP 서버 | [`hwpx-mcp-server`](https://github.com/airmang/hwpx-mcp-server) | MCP 클라이언트(Claude Desktop, VS Code 등)에서 HWPX 조작 |
 | 🎯 에이전트 스킬 | [`hwpx-plugin`](https://github.com/airmang/hwpx-plugins) | 에이전트가 HWPX를 바로 쓰게 해주는 first-party 플러그인·스킬 번들 |
 
-`python-hwpx`는 HWPX 파싱·편집·생성을 제공하는 코어 라이브러리이며,
-`hwpx-mcp-server`와 `hwpx-plugin`은 같은 프로젝트가 직접 유지보수하는 first-party 연동 구성요소입니다.
-“first-party”는 프로젝트 유지보수 관계를 뜻하며, 한컴 또는 제3자의 공식 인증을 뜻하지 않습니다.
+`hwpx-mcp-server`와 `hwpx-plugin`은 같은 프로젝트가 직접 유지보수하는 first-party 연동
+구성요소입니다(유지보수 관계를 뜻하며, 한컴 등 외부 기관의 인증을 뜻하지 않습니다).
 
 현재 PyPI 공개 릴리스는 `python-hwpx 3.7.0`입니다. 일반
 `pip install python-hwpx`로 이 릴리스를 설치할 수 있습니다.
@@ -63,6 +64,11 @@
 - 렌더 검증 416/476 (실한컴 `SaveAs("PDF")`) + 정직 버킷 43건(변경추적 문서의 PDF
   export는 한컴 자체가 거부 — 실측 한계로 발행) + 미검증 17건
 - wild 공개 양식 채움은 구조결함 픽스 후 **무음 서식파괴 16.7%**(판정 66조합, 못 담는 타깃은 typed 거부 35건·산출분 pass 17/28) — **낮은 숫자도 그대로 발행**하고 잔여(페이지 리플·표 shape)를 명명합니다
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/images/redline-hancom.png" alt="python-hwpx가 남긴 변경추적과 AI 에이전트 메모가 실제 한/글에서 열린 화면" width="720">
+</p>
+<p align="center"><sub>python-hwpx로 작성한 변경추적(취소선·삽입)과 AI 에이전트 메모 — 실제 한/글에서 연 화면입니다.</sub></p>
 
 > 이 숫자들은 *생성물 수용률* 축입니다(우리가 만든 파일을 실제 한컴이 받아들이는가).
 > 문서 *파싱 recall*과는 다른 축이므로 파서 프로젝트 수치와 병치 비교하지 마세요.
@@ -255,6 +261,11 @@ Unsupported-but-preserved / Unsupported-and-rejected**.
 ## 기여하기
 
 버그 리포트, 기능 제안, PR 모두 환영합니다.
+
+- **[help wanted 이슈](https://github.com/airmang/python-hwpx/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)** — 지금 들어오기 좋은 입구입니다. 시작 전에 이슈에 코멘트로 방향을 남겨주세요.
+- **[마일스톤](https://github.com/airmang/python-hwpx/milestones)** — 공개 로드맵입니다. 프로젝트가 어디로 가는지 여기서 보입니다.
+- **[Discussions](https://github.com/airmang/python-hwpx/discussions)** — 질문·아이디어는 이슈 대신 여기로.
+- **[내부 실전 가이드](docs/internals/)** — HWPX 내부 구조가 처음이라면 여기부터. 개발 흐름은 [CONTRIBUTING.md](CONTRIBUTING.md)에 있습니다.
 
 ```bash
 git clone https://github.com/airmang/python-hwpx.git
