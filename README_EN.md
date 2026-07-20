@@ -8,6 +8,8 @@
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/pyversions/python-hwpx" alt="Python"></a>
     <a href="https://github.com/airmang/python-hwpx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
     <a href="https://airmang.github.io/python-hwpx/"><img src="https://img.shields.io/badge/docs-Sphinx-8CA1AF" alt="Docs"></a>
+    <a href="https://github.com/airmang/python-hwpx/actions/workflows/tests.yml"><img src="https://img.shields.io/github/actions/workflow/status/airmang/python-hwpx/tests.yml?branch=main&label=tests" alt="Tests"></a>
+    <a href="https://airmang.github.io/python-hwpx/corpus-metrics.html"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fairmang.github.io%2Fpython-hwpx%2F_static%2Fbadge-hancom-open.json" alt="Hancom open"></a>
   </p>
 </p>
 
@@ -40,13 +42,11 @@
 | 🔌 MCP server | [`hwpx-mcp-server`](https://github.com/airmang/hwpx-mcp-server) | Manipulate HWPX from MCP clients (Claude Desktop, VS Code, etc.) |
 | 🎯 Agent skill | [`hwpx-plugin`](https://github.com/airmang/hwpx-plugins) | First-party plugin / skill bundle that lets agents use HWPX directly |
 
-`python-hwpx` is the core library providing HWPX parsing, editing, and generation,
-while `hwpx-mcp-server` and `hwpx-plugin` are first-party integration components
-maintained directly by the same project.
-"First-party" refers to the project's maintenance relationship; it does not imply
-official certification by Hancom or any third party.
+`hwpx-mcp-server` and `hwpx-plugin` are first-party integration components maintained
+directly by the same project ("first-party" describes the maintenance relationship,
+not certification by Hancom or any third party).
 
-The current public PyPI release is `python-hwpx 3.6.0`. A plain
+The current public PyPI release is `python-hwpx 3.7.0`. A plain
 `pip install python-hwpx` installs this release.
 The current package classifier is `Development Status :: 3 - Alpha`. This classifier
 reflects the maturity of the API and product; it does not stand in for the public
@@ -69,6 +69,11 @@ real Hancom 12.0.0.3288 COM/GUI oracle; details and caveats in the
   export of tracked-change documents is refused by Hancom itself — a measured
   limitation) + 17 unverified
 - Wild-form filling after the structural-defect fix: **silent layout breakage 16.7%** (66 judged combos; impossible targets are 35 typed refusals, produced fills pass 17/28) — **we publish the low numbers as-is** and name the residual (page ripple, table shape)
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/images/redline-hancom.png" alt="Tracked changes and AI-agent memos written by python-hwpx, opened in real Hancom Office" width="720">
+</p>
+<p align="center"><sub>Tracked changes (strikethrough/insertion) and AI-agent margin memos written by python-hwpx — opened in real Hancom Office.</sub></p>
 
 > These numbers are on the *output acceptance* axis (does real Hancom accept the files we produce).
 > This is a different axis from document *parsing recall*, so do not compare it side by side with parser-project figures.
@@ -265,6 +270,11 @@ Unsupported-but-preserved / Unsupported-and-rejected**.
 ## Contributing
 
 Bug reports, feature proposals, and PRs are all welcome.
+
+- **[help-wanted issues](https://github.com/airmang/python-hwpx/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)** — good entry points right now; please leave a comment on the issue before starting.
+- **[Milestones](https://github.com/airmang/python-hwpx/milestones)** — the public roadmap; see where the project is heading.
+- **[Discussions](https://github.com/airmang/python-hwpx/discussions)** — questions and ideas go here instead of the issue tracker.
+- **[Internals field guide](docs/internals/)** — start here if HWPX internals are new to you; the development workflow is in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
 git clone https://github.com/airmang/python-hwpx.git
