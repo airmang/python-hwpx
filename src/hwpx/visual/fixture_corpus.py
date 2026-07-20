@@ -73,86 +73,121 @@ class FixtureCorpus:
         }
 
 
-def load_fixture_manifest(path: str | Path, *, verify_hashes: bool = True) -> FixtureCorpus:
-    manifest_path = Path(path).resolve()
-    root = manifest_path.parent
-    raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+def _validate_fixture_manifest_header(raw: dict[str, Any]) -> None:
     if raw.get("schema") != FIXTURE_MANIFEST_SCHEMA:
         raise ValueError(f"unsupported fixture manifest schema: {raw.get('schema')!r}")
     if raw.get("assurance") != "fixture":
         raise ValueError("fixture manifest assurance must be exactly 'fixture'")
     if raw.get("taxonomyVersion") != TAXONOMY_VERSION:
         raise ValueError(f"unsupported taxonomy version: {raw.get('taxonomyVersion')!r}")
+
+
+def _load_fixture_pages(
+    item: dict[str, Any], case_id: str, root: Path, verify_hashes: bool
+) -> tuple[list[FixturePage], set[int]]:
+    pages: list[FixturePage] = []
+    page_numbers: set[int] = set()
+    for page_raw in item.get("pages", []):
+        page_no = int(page_raw["page"])
+        if page_no in page_numbers:
+            raise ValueError(f"duplicate page {page_no} in {case_id}")
+        page_numbers.add(page_no)
+        page_path = (root / str(page_raw["path"])).resolve()
+        if not page_path.is_relative_to(root) or page_path.suffix.lower() != ".png":
+            raise ValueError("fixture pages must be PNG files inside the corpus root")
+        expected_hash = str(page_raw["sha256"])
+        if verify_hashes and sha256_file(page_path) != expected_hash:
+            raise ValueError(f"fixture page hash mismatch: {page_path.name}")
+        pages.append(FixturePage(page_no, page_path, expected_hash))
+    if not pages:
+        raise ValueError(f"fixture case has no pages: {case_id}")
+    return pages, page_numbers
+
+
+def _load_fixture_annotations(
+    item: dict[str, Any], case_id: str, page_numbers: set[int]
+) -> list[FixtureAnnotation]:
+    annotations: list[FixtureAnnotation] = []
+    for ann in item.get("annotations", []):
+        page_no = int(ann["page"])
+        if page_no not in page_numbers:
+            raise ValueError(f"annotation references missing page {page_no} in {case_id}")
+        bbox = ann["bbox"]
+        labelers = tuple(str(value) for value in ann.get("labelers", []))
+        label_status = str(ann.get("labelStatus", "pending"))
+        if label_status not in {"pending", "disagreement", "adjudicated"}:
+            raise ValueError("unsupported annotation label status")
+        if label_status == "adjudicated" and len(set(labelers)) < 2:
+            raise ValueError("adjudicated ground truth requires two independent labelers")
+        annotations.append(
+            FixtureAnnotation(
+                page_no,
+                DefectCategory(str(ann["category"])),
+                FindingSeverity(str(ann["severity"])),
+                NormalizedBBox(*map(float, bbox)),
+                labelers,
+                label_status,
+            )
+        )
+    return annotations
+
+
+def _validate_fixture_classification_annotations(
+    classification: str, annotations: list[FixtureAnnotation]
+) -> None:
+    if classification == "clean" and annotations:
+        raise ValueError("clean fixture cannot contain defect annotations")
+    if classification != "clean" and not annotations:
+        raise ValueError("defect fixture must contain ground-truth annotations")
+
+
+def _validate_fixture_case_provenance(
+    item: dict[str, Any], root: Path, verify_hashes: bool
+) -> dict[str, Any]:
+    provenance = dict(item.get("provenance", {}))
+    source_document = provenance.get("sourceDocument")
+    source_hash = provenance.get("sourceSha256")
+    if source_document or source_hash:
+        if not isinstance(source_document, str) or not isinstance(source_hash, str):
+            raise ValueError("historical provenance requires sourceDocument and sourceSha256")
+        source_path = (root / source_document).resolve()
+        if verify_hashes and sha256_file(source_path) != source_hash:
+            raise ValueError(f"historical source hash mismatch: {source_path.name}")
+    return provenance
+
+
+def _load_one_fixture_case(
+    item: dict[str, Any], root: Path, seen: set[str], verify_hashes: bool
+) -> FixtureCase:
+    case_id = str(item["id"])
+    if case_id in seen:
+        raise ValueError(f"duplicate fixture case id: {case_id}")
+    seen.add(case_id)
+    classification = str(item["classification"])
+    if classification not in {"clean", "natural", "injected"}:
+        raise ValueError(f"unsupported fixture classification: {classification}")
+    pages, page_numbers = _load_fixture_pages(item, case_id, root, verify_hashes)
+    annotations = _load_fixture_annotations(item, case_id, page_numbers)
+    _validate_fixture_classification_annotations(classification, annotations)
+    provenance = _validate_fixture_case_provenance(item, root, verify_hashes)
+    return FixtureCase(
+        case_id,
+        classification,
+        tuple(sorted(pages, key=lambda page: page.page)),
+        tuple(annotations),
+        provenance,
+    )
+
+
+def load_fixture_manifest(path: str | Path, *, verify_hashes: bool = True) -> FixtureCorpus:
+    manifest_path = Path(path).resolve()
+    root = manifest_path.parent
+    raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+    _validate_fixture_manifest_header(raw)
     cases: list[FixtureCase] = []
     seen: set[str] = set()
     for item in raw.get("cases", []):
-        case_id = str(item["id"])
-        if case_id in seen:
-            raise ValueError(f"duplicate fixture case id: {case_id}")
-        seen.add(case_id)
-        classification = str(item["classification"])
-        if classification not in {"clean", "natural", "injected"}:
-            raise ValueError(f"unsupported fixture classification: {classification}")
-        pages: list[FixturePage] = []
-        page_numbers: set[int] = set()
-        for page_raw in item.get("pages", []):
-            page_no = int(page_raw["page"])
-            if page_no in page_numbers:
-                raise ValueError(f"duplicate page {page_no} in {case_id}")
-            page_numbers.add(page_no)
-            page_path = (root / str(page_raw["path"])).resolve()
-            if not page_path.is_relative_to(root) or page_path.suffix.lower() != ".png":
-                raise ValueError("fixture pages must be PNG files inside the corpus root")
-            expected_hash = str(page_raw["sha256"])
-            if verify_hashes and sha256_file(page_path) != expected_hash:
-                raise ValueError(f"fixture page hash mismatch: {page_path.name}")
-            pages.append(FixturePage(page_no, page_path, expected_hash))
-        if not pages:
-            raise ValueError(f"fixture case has no pages: {case_id}")
-        annotations: list[FixtureAnnotation] = []
-        for ann in item.get("annotations", []):
-            page_no = int(ann["page"])
-            if page_no not in page_numbers:
-                raise ValueError(f"annotation references missing page {page_no} in {case_id}")
-            bbox = ann["bbox"]
-            labelers = tuple(str(value) for value in ann.get("labelers", []))
-            label_status = str(ann.get("labelStatus", "pending"))
-            if label_status not in {"pending", "disagreement", "adjudicated"}:
-                raise ValueError("unsupported annotation label status")
-            if label_status == "adjudicated" and len(set(labelers)) < 2:
-                raise ValueError("adjudicated ground truth requires two independent labelers")
-            annotations.append(
-                FixtureAnnotation(
-                    page_no,
-                    DefectCategory(str(ann["category"])),
-                    FindingSeverity(str(ann["severity"])),
-                    NormalizedBBox(*map(float, bbox)),
-                    labelers,
-                    label_status,
-                )
-            )
-        if classification == "clean" and annotations:
-            raise ValueError("clean fixture cannot contain defect annotations")
-        if classification != "clean" and not annotations:
-            raise ValueError("defect fixture must contain ground-truth annotations")
-        provenance = dict(item.get("provenance", {}))
-        source_document = provenance.get("sourceDocument")
-        source_hash = provenance.get("sourceSha256")
-        if source_document or source_hash:
-            if not isinstance(source_document, str) or not isinstance(source_hash, str):
-                raise ValueError("historical provenance requires sourceDocument and sourceSha256")
-            source_path = (root / source_document).resolve()
-            if verify_hashes and sha256_file(source_path) != source_hash:
-                raise ValueError(f"historical source hash mismatch: {source_path.name}")
-        cases.append(
-            FixtureCase(
-                case_id,
-                classification,
-                tuple(sorted(pages, key=lambda page: page.page)),
-                tuple(annotations),
-                provenance,
-            )
-        )
+        cases.append(_load_one_fixture_case(item, root, seen, verify_hashes))
     if not cases:
         raise ValueError("fixture manifest contains no cases")
     return FixtureCorpus(
