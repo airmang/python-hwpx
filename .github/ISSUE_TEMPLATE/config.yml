@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 질문·아이디어
+    url: https://github.com/airmang/python-hwpx/discussions
+    about: 버그나 기능 제안이 아닌 질문·아이디어는 Discussions에서 나눠주세요.
+  - name: 문서
+    url: https://airmang.github.io/python-hwpx/
+    about: 사용법과 API 레퍼런스는 공식 문서를 확인해주세요.

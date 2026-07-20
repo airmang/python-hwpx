@@ -1,0 +1,74 @@
+name: 버그 신고
+description: 예상과 다르게 동작하는 문제를 신고합니다.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 무슨 문제인가요
+      description: 어떤 문제가 발생했는지 구체적으로 설명해주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 재현 방법
+      description: 문제를 재현할 수 있는 최소 코드를 적어주세요.
+      placeholder: |
+        from hwpx.document import HwpxDocument
+
+        doc = HwpxDocument.new()
+        ...
+    validations:
+      required: true
+  - type: textarea
+    id: sample-file
+    attributes:
+      label: 샘플 .hwpx 파일
+      description: >-
+        개인정보·기밀 정보를 제거한 최소 재현용 .hwpx 파일을 첨부해주세요(이 폼에 드래그 앤 드롭 가능합니다).
+        HWPX는 파일 구조 자체에 문제 원인이 담겨 있는 경우가 많아, 재현 파일이 있으면 진단 속도가 크게 빨라집니다.
+    validations:
+      required: false
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: 기대 동작 / 실제 동작
+      description: 기대했던 동작과 실제로 일어난 동작을 각각 적어주세요.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 버전
+      description: "`pip show python-hwpx` 실행 결과를 붙여넣어 주세요."
+      placeholder: "Version: 3.6.0"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 환경
+      description: OS / Python 버전 / 설치 방법
+      placeholder: "예: macOS 15 / Python 3.12 / pip install python-hwpx"
+  - type: dropdown
+    id: hancom-verified
+    attributes:
+      label: 한컴오피스에서 확인했나요
+      description: >-
+        생성·수정된 .hwpx가 실제 한컴오피스에서 정상적으로 열리는지는 결과물 검증에서 중요한 정보입니다.
+        확인했다면 '추가 정보'란에 한컴오피스 버전도 함께 적어주세요.
+      options:
+        - "확인함('추가 정보'에 버전 기재)"
+        - "확인 안 함"
+        - "해당 없음"
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 추가 정보
+      description: 스크린샷, 로그, 관련 이슈 등 참고할 내용이 있다면 자유롭게 적어주세요.
+    validations:
+      required: false
