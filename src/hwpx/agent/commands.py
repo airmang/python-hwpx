@@ -11,10 +11,8 @@ the normal :class:`~hwpx.quality.SavePipeline` exactly once.
 from __future__ import annotations
 
 import copy
-import hashlib
-import json
 import re
-from collections.abc import Callable, Mapping, MutableMapping
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
@@ -22,10 +20,8 @@ from xml.etree import ElementTree as ET
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
 from hwpx.document import HwpxDocument
-from hwpx.mutation_report import member_diff_bytes
 from hwpx.oxml import HwpxOxmlTable
-from hwpx.quality import QualityPolicy, SavePipeline
-from hwpx.tools.package_validator import validate_editor_open_safety
+from hwpx.quality import SavePipeline
 
 from .catalog import catalog_hash
 from .document import HwpxAgentDocument, NodeRecord
@@ -33,7 +29,6 @@ from .model import (
     NODE_PROPERTY_CATALOG_V1,
     AgentBatchResult,
     AgentContractError,
-    AgentError,
     validate_agent_batch,
 )
 from .path import parse_path
@@ -43,8 +38,31 @@ from .story import (
     HeaderStoryBinding,
     try_parse_header_story_path,
 )
+# Verification/orchestration primitives for apply_document_commands live in
+# _batch_verification (S-088 P3 split, keeps this file under its line-count
+# ratchet). _error_from_exception/_member_diff/_quality_policy/_revision are
+# re-exported here (explicit `as` aliases) because blueprint/replay.py still
+# imports them from this module.
+from ._batch_verification import (
+    DomainVerifier,
+    FaultInjector,
+    IdempotencyStore,
+    _EMPTY_REVISION,
+    _apply_commands_build_candidate_report,
+    _apply_commands_domain_verification,
+    _apply_commands_idempotency_lookup,
+    _apply_commands_run_save_pipeline,
+    _call_fault,
+    _error_from_exception as _error_from_exception,
+    _failure_result,
+    _member_diff as _member_diff,
+    _quality_policy as _quality_policy,
+    _request_hash,
+    _require_candidate_structural_safety,
+    _revision as _revision,
+    _validate_apply_commands_input,
+)
 
-_EMPTY_REVISION = "sha256:" + hashlib.sha256(b"").hexdigest()
 _HWP_UNITS_PER_MM = 7200 / 25.4
 _COLOR_PATTERN = re.compile(r"^#[0-9A-Fa-f]{6}$")
 _PARAGRAPH_ALIGNMENTS = frozenset(
@@ -86,15 +104,6 @@ _MOVE_COPY_PARENTS = {
     "endnote": "paragraph",
 }
 
-IdempotencyStore = MutableMapping[str, Any]
-FaultInjector = Callable[[str, int | None], None]
-DomainVerifier = Callable[[bytes, Mapping[str, Any]], Mapping[str, Any]]
-
-
-def _revision(data: bytes) -> str:
-    return "sha256:" + hashlib.sha256(data).hexdigest()
-
-
 def _local_name(element: Any) -> str:
     return str(getattr(element, "tag", "")).rsplit("}", 1)[-1]
 
@@ -106,63 +115,6 @@ def _tag_like(element: Any, local_name: str) -> str:
 
 def _element(native: Any) -> Any:
     return getattr(native, "element", native)
-
-
-def _error_from_exception(exc: BaseException, *, target: str | None = None) -> AgentError:
-    if isinstance(exc, AgentContractError):
-        code = exc.code
-        message = str(exc)
-        target = exc.target or target
-    elif isinstance(exc, (KeyError, IndexError, TypeError, ValueError)):
-        code = "invariant_violation"
-        message = str(exc) or type(exc).__name__
-    else:
-        code = "verification_failed"
-        message = f"{type(exc).__name__}: {exc}"
-    recoverability = "retryable" if code in {"stale_revision", "idempotency_conflict"} else "terminal"
-    if code in {"ambiguous_target", "volatile_target", "unsupported_content"}:
-        recoverability = "needs-review"
-    suggestions = {
-        "stale_revision": "Read the document again and retry with its current revision.",
-        "ambiguous_target": "Resolve a unique canonical path before mutation.",
-        "volatile_target": "Refresh the positional path from the current document revision.",
-        "unknown_property": "Use the node capability catalog to choose an editable property.",
-        "incompatible_parent": "Choose a compatible semantic parent and position.",
-        "verification_failed": "Inspect verificationReport and do not publish the candidate.",
-    }
-    return AgentError(
-        code=code,
-        message=message[:4096],
-        target=target,
-        recoverability=recoverability,
-        suggestion=suggestions.get(code),
-    )
-
-
-def _failure_result(
-    *,
-    exc: BaseException,
-    batch: Mapping[str, Any] | None,
-    input_revision: str = _EMPTY_REVISION,
-    command_results: list[Mapping[str, Any]] | None = None,
-    verification: Mapping[str, Any] | None = None,
-) -> AgentBatchResult:
-    raw = batch or {}
-    output = raw.get("output") if isinstance(raw, Mapping) else None
-    output_filename = ""
-    if isinstance(output, Mapping):
-        output_filename = str(output.get("filename") or "")
-    return AgentBatchResult(
-        ok=False,
-        rolled_back=True,
-        dry_run=bool(raw.get("dryRun", False)),
-        input_revision=input_revision,
-        document_revision=input_revision,
-        output_filename=output_filename,
-        command_results=tuple(command_results or ()),
-        verification_report=dict(verification or {}),
-        error=_error_from_exception(exc),
-    )
 
 
 def _require_string(value: Any, name: str, *, allow_empty: bool = True) -> str:
@@ -1149,87 +1101,113 @@ def _copy_node(
     return clone, identity_map
 
 
-def _quality_policy(value: str | Mapping[str, Any] | None) -> QualityPolicy:
-    if value is None or value == "transparent":
-        return QualityPolicy.transparent()
-    if value == "strict":
-        return QualityPolicy.strict()
-    if not isinstance(value, Mapping):  # already contract-validated
-        raise AgentContractError("invalid_syntax", "quality is invalid", target="batch.quality")
-    mode = value.get("mode", "transparent")
-    policy = QualityPolicy.strict() if mode == "strict" else QualityPolicy.transparent()
-    mapping = {
-        "renderCheck": "render_check",
-        "xsdMode": "xsd_mode",
-        "overflowPolicy": "overflow_policy",
-        "layoutLint": "layout_lint",
-        "preserveUnmodifiedParts": "preserve_unmodified_parts",
-        "requireReferenceIntegrity": "require_reference_integrity",
-    }
-    changes = {mapping[name]: setting for name, setting in value.items() if name in mapping}
-    return policy.with_(**changes)
+def _dispatch_command_op(
+    document: HwpxDocument,
+    view: HwpxAgentDocument,
+    command: Mapping[str, Any],
+    aliases: dict[str, dict[str, str]],
+    input_revision: str,
+) -> tuple[str | None, str | None, dict[str, Any], list[dict[str, str]], Any, HeaderStoryBinding | None]:
+    """Apply one command's op and return its raw effects.
+
+    Returns (resolved_path, parent_path, changed, generated, target_native, story_before).
+    """
+
+    op = command["op"]
+    resolved_path: str | None = None
+    parent_path: str | None = None
+    changed: dict[str, Any] = {}
+    generated: list[dict[str, str]] = []
+    target_native: Any | None = None
+    story_before: HeaderStoryBinding | None = None
+    if op == "set":
+        resolved_path = _resolve_alias(command["path"], aliases)
+        story_path = try_parse_header_story_path(resolved_path)
+        if story_path is not None:
+            story_before = view._resolve_header_story(story_path, expected_revision=input_revision)
+            changed = _apply_header_story_set(story_before, command["properties"])
+        else:
+            record = view.resolve_record(resolved_path, expected_revision=input_revision)
+            changed = _apply_set(document, record, command["properties"])
+            target_native = record.native
+    elif op == "add":
+        parent_path = _resolve_alias(command["parent"], aliases)
+        parent = view.resolve_record(parent_path, expected_revision=input_revision)
+        position = _resolved_position(command["position"], aliases)
+        target_native = _add(document, view, parent, command["kind"], command["properties"], position)
+        created_view = HwpxAgentDocument.from_document(document, revision=input_revision)
+        created_record = _record_for_native(created_view, target_native)
+        changed = _apply_create_properties(document, created_record, command["properties"])
+    elif op == "remove":
+        resolved_path = _resolve_alias(command["path"], aliases)
+        record = view.resolve_record(resolved_path, expected_revision=input_revision)
+        parent_path = record.parent_path
+        _remove(document, record)
+        target_native = None
+    elif op == "move":
+        resolved_path = _resolve_alias(command["path"], aliases)
+        parent_path = _resolve_alias(command["parent"], aliases)
+        source = view.resolve_record(resolved_path, expected_revision=input_revision)
+        parent = view.resolve_record(parent_path, expected_revision=input_revision)
+        position = _resolved_position(command["position"], aliases)
+        target_native = _move(view, source, parent, position)
+    else:  # copy
+        resolved_path = _resolve_alias(command["path"], aliases)
+        parent_path = _resolve_alias(command["parent"], aliases)
+        source = view.resolve_record(resolved_path, expected_revision=input_revision)
+        parent = view.resolve_record(parent_path, expected_revision=input_revision)
+        position = _resolved_position(command["position"], aliases)
+        target_native, generated = _copy_node(document, view, source, parent, position)
+    return resolved_path, parent_path, changed, generated, target_native, story_before
 
 
-def _member_diff(before: bytes, after: bytes) -> dict[str, Any]:
-    # Shared with the Safe Write Contract's MutationReport spine: one uncompressed
-    # member comparison, one home for the diff shape (mutation_report.py).
-    return member_diff_bytes(before, after)
+def _finalize_command_result(
+    view: HwpxAgentDocument,
+    command: Mapping[str, Any],
+    command_id: str,
+    op: str,
+    resolved_path: str | None,
+    parent_path: str | None,
+    target_native: Any,
+    story_before: HeaderStoryBinding | None,
+    story_expectations: dict[str, Mapping[str, str]],
+) -> tuple[str, str, str | None]:
+    """Return (result_path, result_parent, result_stable_id) for one applied command."""
 
-
-def _verify_header_story_candidates(
-    candidate_data: bytes,
-    candidate_revision: str,
-    expectations: Mapping[str, Mapping[str, str]],
-) -> dict[str, Any]:
-    receipts: list[dict[str, Any]] = []
-    if expectations:
-        with HwpxDocument.open(candidate_data) as reopened:
-            view = HwpxAgentDocument.from_document(
-                reopened, revision=candidate_revision
+    result_stable_id: str | None = None
+    if story_before is not None and resolved_path is not None:
+        target_story = view._resolve_header_story(resolved_path)
+        if target_story.stable_id != story_before.stable_id:
+            raise AgentContractError(
+                "invariant_violation",
+                "header story identity changed during text edit",
+                target=resolved_path,
             )
-            for expectation in expectations.values():
-                path = expectation["path"]
-                binding = view._resolve_header_story(path)
-                if (
-                    binding.stable_id != expectation["stableId"]
-                    or binding.page_type != expectation["pageType"]
-                    or binding.text != expectation["text"]
-                ):
-                    raise AgentContractError(
-                        "verification_failed",
-                        "reopened header story does not match the committed binding",
-                        target=path,
-                    )
-                receipts.append(
-                    {
-                        "commandId": expectation["commandId"],
-                        "path": binding.path,
-                        "stableId": binding.stable_id,
-                        "pageType": binding.page_type,
-                        "textMatched": True,
-                    }
-                )
-    return {
-        "schemaVersion": "hwpx.agent-story-preservation/v1",
-        "ok": True,
-        "storyCount": len(receipts),
-        "stories": receipts,
-    }
-
-
-def _request_hash(batch: Mapping[str, Any]) -> str:
-    payload = json.dumps(
-        batch,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return _revision(payload)
-
-
-def _call_fault(injector: FaultInjector | None, stage: str, index: int | None = None) -> None:
-    if injector is not None:
-        injector(stage, index)
+        result_path = target_story.path
+        result_parent = target_story.parent_path
+        result_stable_id = target_story.stable_id
+        story_expectations[target_story.binding_key] = {
+            "commandId": command_id,
+            "path": target_story.path,
+            "stableId": target_story.stable_id,
+            "pageType": target_story.page_type,
+            "text": command["properties"]["text"],
+        }
+    elif op == "set" and resolved_path is not None:
+        # Some native bindings (notably form fields) are request-local
+        # match dictionaries.  A property edit is non-structural, so
+        # its canonical path is the durable post-edit lookup key.
+        target_record = view.resolve_record(resolved_path)
+        result_path = target_record.path
+        result_parent = target_record.parent_path or "/"
+    elif target_native is not None:
+        target_record = _record_for_native(view, target_native)
+        result_path = target_record.path
+        result_parent = target_record.parent_path or "/"
+    else:
+        result_path = resolved_path or parent_path or "/"
+        result_parent = parent_path or "/"
+    return result_path, result_parent, result_stable_id
 
 
 def apply_document_commands(
@@ -1264,66 +1242,17 @@ def apply_document_commands(
         )
         request_hash = _request_hash(normalized)
         key = normalized["idempotencyKey"]
-        verification["idempotency"] = {
-            "keyProvided": key is not None,
-            "requestHash": request_hash,
-            "replayed": False,
-            "store": "caller-owned" if idempotency_store is not None else "none",
-        }
-        if key is not None and idempotency_store is not None and key in idempotency_store:
-            cached = idempotency_store[key]
-            if not isinstance(cached, Mapping) or cached.get("requestHash") != request_hash:
-                raise AgentContractError(
-                    "idempotency_conflict",
-                    "idempotency key was used for a different request",
-                    target="batch.idempotencyKey",
-                )
-            prior = cached.get("result")
-            if not isinstance(prior, AgentBatchResult):
-                raise AgentContractError(
-                    "invariant_violation", "idempotency store contains an invalid result", target="batch.idempotencyKey"
-                )
-            replay_report = dict(prior.verification_report)
-            replay_idempotency = dict(replay_report.get("idempotency", {}))
-            replay_idempotency["replayed"] = True
-            replay_report["idempotency"] = replay_idempotency
-            return AgentBatchResult(
-                ok=prior.ok,
-                rolled_back=prior.rolled_back,
-                dry_run=prior.dry_run,
-                input_revision=prior.input_revision,
-                document_revision=prior.document_revision,
-                output_filename=prior.output_filename,
-                command_results=prior.command_results,
-                semantic_diff=prior.semantic_diff,
-                verification_report=replay_report,
-                error=prior.error,
-            )
+        cached_result = _apply_commands_idempotency_lookup(
+            verification, idempotency_store, key=key, request_hash=request_hash
+        )
+        if cached_result is not None:
+            return cached_result
+
         input_path = Path(normalized["input"]["filename"])
         output_path = Path(normalized["output"]["filename"])
         input_data = input_path.read_bytes()
         input_revision = _revision(input_data)
-        verification["revision"] = {
-            "expected": normalized["expectedRevision"],
-            "actual": input_revision,
-            "matched": normalized["expectedRevision"] in {None, input_revision},
-        }
-        if normalized["expectedRevision"] not in {None, input_revision}:
-            raise AgentContractError(
-                "stale_revision", "expectedRevision does not match input bytes", target="batch.expectedRevision"
-            )
-        input_safety = validate_editor_open_safety(input_data)
-        verification["inputOpenSafety"] = input_safety.to_dict()
-        if not input_safety.ok:
-            raise AgentContractError(
-                "verification_failed",
-                "input failed package/reopen/openSafety verification",
-                target="batch.input.filename",
-            )
-        if output_path.exists() and not normalized["output"]["overwrite"] and not normalized["dryRun"]:
-            raise AgentContractError(
-                "invariant_violation", "output exists and overwrite is false", target="batch.output.filename"
-            )
+        _validate_apply_commands_input(normalized, verification, input_data, input_revision, output_path)
 
         aliases: dict[str, dict[str, str]] = {}
         identity_changes: list[Mapping[str, str]] = []
@@ -1336,97 +1265,24 @@ def apply_document_commands(
                 _call_fault(fault_injector, "before_command", index)
                 command_id = command["commandId"]
                 op = command["op"]
-                resolved_path: str | None = None
-                parent_path: str | None = None
-                changed: dict[str, Any] = {}
-                generated: list[dict[str, str]] = []
-                target_native: Any | None = None
-                story_before: HeaderStoryBinding | None = None
-                if op == "set":
-                    resolved_path = _resolve_alias(command["path"], aliases)
-                    story_path = try_parse_header_story_path(resolved_path)
-                    if story_path is not None:
-                        story_before = view._resolve_header_story(
-                            story_path, expected_revision=input_revision
-                        )
-                        changed = _apply_header_story_set(
-                            story_before, command["properties"]
-                        )
-                    else:
-                        record = view.resolve_record(
-                            resolved_path, expected_revision=input_revision
-                        )
-                        changed = _apply_set(document, record, command["properties"])
-                        target_native = record.native
-                elif op == "add":
-                    parent_path = _resolve_alias(command["parent"], aliases)
-                    parent = view.resolve_record(parent_path, expected_revision=input_revision)
-                    position = _resolved_position(command["position"], aliases)
-                    target_native = _add(
-                        document, view, parent, command["kind"], command["properties"], position
-                    )
-                    created_view = HwpxAgentDocument.from_document(document, revision=input_revision)
-                    created_record = _record_for_native(created_view, target_native)
-                    changed = _apply_create_properties(document, created_record, command["properties"])
-                elif op == "remove":
-                    resolved_path = _resolve_alias(command["path"], aliases)
-                    record = view.resolve_record(resolved_path, expected_revision=input_revision)
-                    parent_path = record.parent_path
-                    _remove(document, record)
-                    target_native = None
-                elif op == "move":
-                    resolved_path = _resolve_alias(command["path"], aliases)
-                    parent_path = _resolve_alias(command["parent"], aliases)
-                    source = view.resolve_record(resolved_path, expected_revision=input_revision)
-                    parent = view.resolve_record(parent_path, expected_revision=input_revision)
-                    position = _resolved_position(command["position"], aliases)
-                    target_native = _move(view, source, parent, position)
-                else:  # copy
-                    resolved_path = _resolve_alias(command["path"], aliases)
-                    parent_path = _resolve_alias(command["parent"], aliases)
-                    source = view.resolve_record(resolved_path, expected_revision=input_revision)
-                    parent = view.resolve_record(parent_path, expected_revision=input_revision)
-                    position = _resolved_position(command["position"], aliases)
-                    target_native, generated = _copy_node(
-                        document, view, source, parent, position
-                    )
-                    identity_changes.extend(generated)
+                resolved_path, parent_path, changed, generated, target_native, story_before = _dispatch_command_op(
+                    document, view, command, aliases, input_revision
+                )
+                identity_changes.extend(generated)
 
                 _call_fault(fault_injector, "after_command", index)
                 view = HwpxAgentDocument.from_document(document, revision=input_revision)
-                result_stable_id: str | None = None
-                if story_before is not None and resolved_path is not None:
-                    target_story = view._resolve_header_story(resolved_path)
-                    if target_story.stable_id != story_before.stable_id:
-                        raise AgentContractError(
-                            "invariant_violation",
-                            "header story identity changed during text edit",
-                            target=resolved_path,
-                        )
-                    result_path = target_story.path
-                    result_parent = target_story.parent_path
-                    result_stable_id = target_story.stable_id
-                    story_expectations[target_story.binding_key] = {
-                        "commandId": command_id,
-                        "path": target_story.path,
-                        "stableId": target_story.stable_id,
-                        "pageType": target_story.page_type,
-                        "text": command["properties"]["text"],
-                    }
-                elif op == "set" and resolved_path is not None:
-                    # Some native bindings (notably form fields) are request-local
-                    # match dictionaries.  A property edit is non-structural, so
-                    # its canonical path is the durable post-edit lookup key.
-                    target_record = view.resolve_record(resolved_path)
-                    result_path = target_record.path
-                    result_parent = target_record.parent_path or "/"
-                elif target_native is not None:
-                    target_record = _record_for_native(view, target_native)
-                    result_path = target_record.path
-                    result_parent = target_record.parent_path or "/"
-                else:
-                    result_path = resolved_path or parent_path or "/"
-                    result_parent = parent_path or "/"
+                result_path, result_parent, result_stable_id = _finalize_command_result(
+                    view,
+                    command,
+                    command_id,
+                    op,
+                    resolved_path,
+                    parent_path,
+                    target_native,
+                    story_before,
+                    story_expectations,
+                )
                 aliases[command_id] = {"path": result_path, "parentPath": result_parent}
                 result = {
                     "commandId": command_id,
@@ -1458,96 +1314,30 @@ def apply_document_commands(
             candidate_data = document.to_bytes()
             _call_fault(fault_injector, "after_serialize")
 
-            candidate_revision = _revision(candidate_data)
-            if story_expectations:
-                verification["storyPreservation"] = _verify_header_story_candidates(
-                    candidate_data,
-                    candidate_revision,
-                    story_expectations,
-                )
-            semantic_diff = {
-                "schemaVersion": "hwpx.agent-semantic-diff/v1",
-                "inputRevision": input_revision,
-                "candidateRevision": candidate_revision,
-                "changes": semantic_changes,
-                "identityMap": identity_changes,
-            }
-            byte_report = _member_diff(input_data, candidate_data)
-            safety = validate_editor_open_safety(candidate_data)
-            safety_dict = safety.to_dict()
-            verification.update(
-                {
-                    "candidateRevision": candidate_revision,
-                    "package": safety_dict["validatePackage"],
-                    "reopen": safety_dict["reopen"],
-                    "openSafety": safety_dict,
-                    "semanticDiff": {"ok": True, "changeCount": len(semantic_changes)},
-                    "bytePreservation": byte_report,
-                }
+            candidate_revision, semantic_diff, safety, byte_report = _apply_commands_build_candidate_report(
+                input_data,
+                candidate_data,
+                input_revision,
+                semantic_changes,
+                identity_changes,
+                story_expectations,
+                verification,
             )
             requirements = set(normalized["verificationRequirements"])
-            if "domain" in requirements:
-                if domain_verifier is None:
-                    verification["domain"] = {"ok": False, "error": "required verifier unavailable"}
-                    raise AgentContractError(
-                        "verification_failed", "required domain verifier is unavailable", target="domain"
-                    )
-                domain_report = dict(domain_verifier(candidate_data, normalized))
-                try:
-                    json.dumps(domain_report, ensure_ascii=False, sort_keys=True)
-                except (TypeError, ValueError) as exc:
-                    raise AgentContractError(
-                        "verification_failed",
-                        "domain verifier returned a non-JSON report",
-                        target="domain",
-                    ) from exc
-                verification["domain"] = domain_report
-                if not domain_report.get("ok"):
-                    raise AgentContractError("verification_failed", "domain verification failed", target="domain")
-            else:
-                verification["domain"] = {"ok": None, "status": "not-requested"}
+            _apply_commands_domain_verification(candidate_data, normalized, requirements, domain_verifier, verification)
+            _require_candidate_structural_safety(safety, byte_report)
 
-            if not safety.ok or not byte_report.get("ok"):
-                raise AgentContractError(
-                    "verification_failed", "candidate failed package/reopen/openSafety verification"
-                )
             _call_fault(fault_injector, "before_save")
-            pipeline = save_pipeline or SavePipeline()
-            quality_policy = _quality_policy(normalized["quality"])
-            if "realHancom" in requirements:
-                # Make the required oracle part of the atomic gate itself.  A
-                # post-publication provenance check would be too late to roll
-                # back an otherwise structurally valid file.
-                quality_policy = quality_policy.with_(
-                    require_visual_complete=True,
-                    render_check="required",
-                )
-            quality_report = pipeline.run(
+            _apply_commands_run_save_pipeline(
                 candidate_data,
-                output_path=None if normalized["dryRun"] else output_path,
-                quality=quality_policy,
-                before=input_path,
-                reference_document=document,
-                publish="never" if normalized["dryRun"] else "on_pass",
-                source_label="agent.apply_document_commands",
+                input_path,
+                output_path,
+                document,
+                normalized,
+                requirements,
+                save_pipeline,
+                verification,
             )
-            verification["savePipeline"] = quality_report.to_dict()
-            verification["realHancom"] = {
-                "required": "realHancom" in requirements,
-                "ok": quality_report.visual_complete,
-                "status": quality_report.visual_complete_status,
-                "renderChecked": quality_report.render_checked,
-            }
-            if "realHancom" in requirements and not quality_report.visual_complete:
-                raise AgentContractError(
-                    "verification_failed",
-                    "required real-Hancom visual verification is unavailable or failed",
-                    target="realHancom",
-                )
-            if not quality_report.ok:
-                raise AgentContractError(
-                    "verification_failed", "SavePipeline rejected the candidate", target="savePipeline"
-                )
 
         result = AgentBatchResult(
             ok=True,
