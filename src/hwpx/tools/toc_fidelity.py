@@ -295,6 +295,98 @@ def heading_rendered_pages(pdf_path: str, headings: dict[str, str]) -> dict[str,
     return result
 
 
+def _toc_entry_key(entry: TocEntry) -> str | None:
+    """Lookup key for an entry: its anchor id, or (plain regenerated
+    entries carry no target reference) a title-derived key."""
+    if entry.target_id:
+        return entry.target_id
+    stripped = _OUTLINE_PREFIX_RE.sub("", _normalize(entry.title))
+    return f"title::{stripped}" if stripped else None
+
+
+def _toc_verify_headings_map(model: Any) -> dict[str, str]:
+    headings: dict[str, str] = {}
+    for t in {e.target_id for e in model.entries} | {c.target_id for c in model.crossrefs}:
+        if t and t in model.paragraph_texts and model.paragraph_texts[t].strip():
+            headings[t] = model.paragraph_texts[t]
+    for entry in model.entries:
+        key = _toc_entry_key(entry)
+        if key and key.startswith("title::"):
+            # identity by title: the rendered heading line equals the entry
+            # title minus its numbering prefix
+            title = _OUTLINE_PREFIX_RE.sub("", entry.title.strip()).strip()
+            if title:
+                headings[key] = title
+    return headings
+
+
+def _resolve_toc_rendered_pdf(
+    source: str | Path | bytes, oracle: Any | None, pdf_path: str | None
+) -> str | None:
+    rendered_pdf = pdf_path
+    if rendered_pdf is None and oracle is not None:
+        try:
+            if getattr(oracle, "available", lambda: False)():
+                src = source if isinstance(source, (str, Path)) else None
+                if src is None:
+                    import tempfile
+
+                    handle, tmp = tempfile.mkstemp(suffix=".hwpx")
+                    Path(tmp).write_bytes(source)  # type: ignore[arg-type]
+                    src = tmp
+                rendered_pdf = oracle.render_pdf(str(src))
+        except Exception:  # pragma: no cover - defensive: degrade, never crash
+            rendered_pdf = None
+    return rendered_pdf
+
+
+def _score_toc_entries(
+    model: Any, actual: dict[str, int | None]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], float | None]:
+    stale: list[dict[str, Any]] = []
+    scored = 0
+    correct = 0
+    entry_rows: list[dict[str, Any]] = []
+    for entry in model.entries:
+        actual_page = actual.get(_toc_entry_key(entry) or "")
+        row = entry.to_dict() | {"actualPage": actual_page}
+        if entry.cached_page is not None and actual_page is not None:
+            scored += 1
+            if entry.cached_page == actual_page:
+                correct += 1
+            else:
+                stale.append(row)
+        entry_rows.append(row)
+    ratio = (correct / scored) if scored else None
+    return entry_rows, stale, ratio
+
+
+def _score_toc_crossrefs(
+    model: Any, actual: dict[str, int | None]
+) -> tuple[list[dict[str, Any]], float | None]:
+    xr_scored = xr_correct = 0
+    xr_rows: list[dict[str, Any]] = []
+    for ref in model.crossrefs:
+        actual_page = actual.get(ref.target_id or "")
+        row = ref.to_dict() | {"actualPage": actual_page}
+        if ref.cached_page is not None and actual_page is not None:
+            xr_scored += 1
+            if ref.cached_page == actual_page:
+                xr_correct += 1
+        xr_rows.append(row)
+    ratio = (xr_correct / xr_scored) if xr_scored else None
+    return xr_rows, ratio
+
+
+def _toc_verdict(toc_ratio: float | None, crossref_ratio: float | None) -> str:
+    ratios = [r for r in (toc_ratio, crossref_ratio) if r is not None]
+    if not ratios:
+        return "unverified"
+    if all(r == 1.0 for r in ratios):
+        return "verified"
+    return "stale"
+
+
 def toc_verify(
     source: str | Path | bytes,
     *,
@@ -318,42 +410,9 @@ def toc_verify(
     }
 
     model = parse_toc_model(source)
+    headings = _toc_verify_headings_map(model)
 
-    def _entry_key(entry: TocEntry) -> str | None:
-        """Lookup key for an entry: its anchor id, or (plain regenerated
-        entries carry no target reference) a title-derived key."""
-        if entry.target_id:
-            return entry.target_id
-        stripped = _OUTLINE_PREFIX_RE.sub("", _normalize(entry.title))
-        return f"title::{stripped}" if stripped else None
-
-    headings: dict[str, str] = {}
-    for t in {e.target_id for e in model.entries} | {c.target_id for c in model.crossrefs}:
-        if t and t in model.paragraph_texts and model.paragraph_texts[t].strip():
-            headings[t] = model.paragraph_texts[t]
-    for entry in model.entries:
-        key = _entry_key(entry)
-        if key and key.startswith("title::"):
-            # identity by title: the rendered heading line equals the entry
-            # title minus its numbering prefix
-            title = _OUTLINE_PREFIX_RE.sub("", entry.title.strip()).strip()
-            if title:
-                headings[key] = title
-
-    rendered_pdf = pdf_path
-    if rendered_pdf is None and oracle is not None:
-        try:
-            if getattr(oracle, "available", lambda: False)():
-                src = source if isinstance(source, (str, Path)) else None
-                if src is None:
-                    import tempfile
-
-                    handle, tmp = tempfile.mkstemp(suffix=".hwpx")
-                    Path(tmp).write_bytes(source)  # type: ignore[arg-type]
-                    src = tmp
-                rendered_pdf = oracle.render_pdf(str(src))
-        except Exception:  # pragma: no cover - defensive: degrade, never crash
-            rendered_pdf = None
+    rendered_pdf = _resolve_toc_rendered_pdf(source, oracle, pdf_path)
 
     if not rendered_pdf:
         if not structural["internally_consistent"]:
@@ -369,42 +428,14 @@ def toc_verify(
     report["rendered_pdf"] = rendered_pdf
     report["heading_pages"] = actual
 
-    stale: list[dict[str, Any]] = []
-    scored = 0
-    correct = 0
-    entry_rows: list[dict[str, Any]] = []
-    for entry in model.entries:
-        actual_page = actual.get(_entry_key(entry) or "")
-        row = entry.to_dict() | {"actualPage": actual_page}
-        if entry.cached_page is not None and actual_page is not None:
-            scored += 1
-            if entry.cached_page == actual_page:
-                correct += 1
-            else:
-                stale.append(row)
-        entry_rows.append(row)
+    entry_rows, stale, toc_ratio = _score_toc_entries(model, actual)
     report["toc_entries"] = entry_rows
-    report["toc_correctness_ratio"] = (correct / scored) if scored else None
+    report["toc_correctness_ratio"] = toc_ratio
     report["stale_entries"] = stale
 
-    xr_scored = xr_correct = 0
-    xr_rows: list[dict[str, Any]] = []
-    for ref in model.crossrefs:
-        actual_page = actual.get(ref.target_id or "")
-        row = ref.to_dict() | {"actualPage": actual_page}
-        if ref.cached_page is not None and actual_page is not None:
-            xr_scored += 1
-            if ref.cached_page == actual_page:
-                xr_correct += 1
-        xr_rows.append(row)
+    xr_rows, xr_ratio = _score_toc_crossrefs(model, actual)
     report["crossrefs"] = xr_rows
-    report["crossref_correctness_ratio"] = (xr_correct / xr_scored) if xr_scored else None
+    report["crossref_correctness_ratio"] = xr_ratio
 
-    ratios = [r for r in (report["toc_correctness_ratio"], report["crossref_correctness_ratio"]) if r is not None]
-    if not ratios:
-        report["verdict"] = "unverified"
-    elif all(r == 1.0 for r in ratios):
-        report["verdict"] = "verified"
-    else:
-        report["verdict"] = "stale"
+    report["verdict"] = _toc_verdict(toc_ratio, xr_ratio)
     return report
