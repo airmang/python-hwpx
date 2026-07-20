@@ -29,9 +29,21 @@ reimplemented from public references, without copying source code:
   from public model headers only. hwpxlib sample packages were used only as
   structure and roundtrip fixtures.
 
-These form-fill references were used as behavior evidence only. The
+- OpenBapul/hml-equation-parser (Apache-2.0): HULK-style EqEdit <-> LaTeX token
+  mapping, referenced for reader-direction <hp:equation> script rendering. The
+  token maps are a clean-room re-derivation from the public EqEdit grammar; no
+  source code was copied, translated, or vendored.
+
+These form-fill and equation references were used as behavior evidence only. The
 implementation is a clean-room Python implementation; no source code was
 copied, translated, vendored, or linked.
+
+## Optional dependency: latex2mathml
+
+The optional ``preview`` extra depends on roniemartinez/latex2mathml (MIT), used
+to convert LaTeX to MathML for the document preview viewer. It is an unmodified
+third-party dependency installed via pip; its MIT license travels with the
+package.
 
 ## Test fixtures: hwpxlib sample corpus
 
