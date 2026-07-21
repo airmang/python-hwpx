@@ -731,6 +731,54 @@ def test_extract_layout_signature_degrades_when_fitz_absent(monkeypatch):
         wb.extract_layout_signature("/nonexistent.pdf")
 
 
+def test_extract_layout_signature_uses_borders_only_strategy(monkeypatch):
+    """The structural fingerprint must detect tables from drawn borders only.
+
+    S-094 P3: the ``find_tables`` default (``"lines"``) snaps table edges to text
+    positions, so injecting a fill value into an empty cell invents phantom tables
+    and flips the "table-shape" signal even when the drawn grid is unchanged. The
+    fingerprint pins ``strategy="lines_strict"`` so it stays text-independent —
+    this test fails closed if a future edit drops back to the content-sensitive
+    default.
+    """
+
+    import sys
+    import types
+
+    seen: list[str] = []
+
+    class _Tables:
+        tables = ()  # no tables; we only care which strategy was requested
+
+    class _Page:
+        rect = types.SimpleNamespace(width=100.0, height=100.0)
+
+        def find_tables(self, *, strategy="lines"):
+            seen.append(strategy)
+            return _Tables()
+
+    class _Doc:
+        def __iter__(self):
+            return iter([_Page()])
+
+        def __len__(self):
+            return 1
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    stub = types.ModuleType("fitz")
+    stub.open = lambda _path: _Doc()
+    monkeypatch.setitem(sys.modules, "fitz", stub)
+    monkeypatch.setattr(wb, "fitz_available", lambda: True)
+
+    wb.extract_layout_signature("/whatever.pdf")
+    assert seen == ["lines_strict"]
+
+
 def test_verify_layout_stability_degrades_without_baseline():
     # neither blank_hwpx nor blank_signature -> honest unverified before any render
     v = wb.verify_form_layout_stability("filled.hwpx")

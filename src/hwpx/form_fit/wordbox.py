@@ -681,6 +681,14 @@ def extract_cell_clips(pdf_path: str, *, page: int | None = None) -> list[Rect]:
     These are the overflow clips — same coordinate space as the glyph boxes — so
     no HWPX→PDF transform is needed. ``find_tables`` can raise on odd pages; such
     a page contributes no clips rather than crashing.
+
+    Borders-only (``strategy="lines_strict"``): a cell rectangle is defined by its
+    *drawn borders*, not by the text inside it. The ``find_tables`` default snaps
+    edges to glyph positions, so a filled value can appear to *escape* a clip that
+    was mis-sized around the very text it holds — a false overflow. S-094 P3
+    measured this: the only 3 corpus pairs that flagged ``newOverflow`` (the nts
+    forms) all had the fill value escaping a text-snapped clip under the default,
+    and 0 escapes under ``lines_strict``; there were no real escapes to mask.
     """
 
     if not fitz_available():
@@ -695,7 +703,7 @@ def extract_cell_clips(pdf_path: str, *, page: int | None = None) -> list[Rect]:
     with doc:
         for pno in _page_indices(doc, page):
             try:
-                tables = doc[pno].find_tables().tables
+                tables = doc[pno].find_tables(strategy="lines_strict").tables
             except Exception:
                 continue  # layout analysis failed on this page -> no clips, no crash
             for ti, table in enumerate(tables):
@@ -839,8 +847,21 @@ class LayoutSignature:
     lesson that absolute glyph-overlap is unusable on real forms). Page count is
     the dominant, high-confidence signal — a fill that spills onto a new page is
     the canonical layout collapse. Per-table ``(rows, cols)`` is the finer
-    row/column signal; ``find_tables`` is content-sensitive, so it is judged as a
-    multiset *delta* (blank vs filled), not an absolute count.
+    row/column signal, extracted from *drawn table borders only*
+    (``find_tables(strategy="lines_strict")``): a structural fingerprint must be
+    text-independent, so it is judged as a multiset *delta* (blank vs filled),
+    not an absolute count.
+
+    Why ``lines_strict`` and not the ``find_tables`` default (``"lines"``): the
+    default snaps table edges to *text* positions, so injecting a value into a
+    previously-empty cell makes it hallucinate a phantom ``(2,2)``/``(1,2)`` table
+    or wobble a real one by ±1 row/col even when the drawn grid and page count are
+    unchanged. S-094 P3 measured this on the frozen corpus (all 6 "table-shape"
+    differential failures were page-stable phantoms; under ``lines_strict`` blank
+    and filled agree, 0 regressions across 31 pairs; ``sen-24`` has byte-identical
+    drawn rectangles yet the default strategy still invented a ``(1,2)`` table from
+    the 3 added glyphs). Borders-only detection measures the grid the fill did not
+    touch.
     """
 
     page_count: int
@@ -879,7 +900,12 @@ def extract_layout_signature(pdf_path: str) -> LayoutSignature:
         for page in doc:
             sizes.append((float(page.rect.width), float(page.rect.height)))
             try:
-                tables = page.find_tables().tables
+                # Borders-only ("lines_strict"): a *structural* fingerprint must
+                # not react to cell text. The default strategy snaps to glyph
+                # positions and invents phantom tables from a fill's added text
+                # (S-094 P3). Bordered form grids are detected identically either
+                # way; the text-sensitivity is the only difference we drop.
+                tables = page.find_tables(strategy="lines_strict").tables
             except Exception:
                 continue  # layout analysis failed on this page -> no tables, no crash
             for table in tables:
