@@ -2,7 +2,7 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
-## [Unreleased]
+## [4.0.0] - 2026-07-21
 
 ### Removed — deprecation window 준수 정리 (major 경계)
 - **`HwpxDocument.save()` 제거**: v2.6(2026-02-19)부터 5개월간 `DeprecationWarning`을
