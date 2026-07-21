@@ -1,150 +1,55 @@
 <p align="center">
   <h1 align="center">python-hwpx</h1>
   <p align="center">
-    <strong>한컴 없이 HWPX를 안전하게 자동화하는 Python 계층 — 최소 범위 편집, 검증된 저작, 모든 쓰기에 영수증.</strong>
+    <strong>한컴 없이 HWPX를 읽고, 고치고, 만드는 순수 파이썬 라이브러리</strong>
   </p>
   <p align="center">
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/v/python-hwpx?color=blue&label=PyPI" alt="PyPI"></a>
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/pyversions/python-hwpx" alt="Python"></a>
-    <a href="https://github.com/airmang/python-hwpx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
-    <a href="https://airmang.github.io/python-hwpx/"><img src="https://img.shields.io/badge/docs-Sphinx-8CA1AF" alt="Docs"></a>
     <a href="https://github.com/airmang/python-hwpx/actions/workflows/tests.yml"><img src="https://img.shields.io/github/actions/workflow/status/airmang/python-hwpx/tests.yml?branch=main&label=tests" alt="Tests"></a>
     <a href="https://airmang.github.io/python-hwpx/corpus-metrics.html"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fairmang.github.io%2Fpython-hwpx%2F_static%2Fbadge-hancom-open.json" alt="Hancom open"></a>
+    <a href="https://github.com/airmang/python-hwpx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
   </p>
 </p>
 
 <p align="center">한국어 | <a href="README_EN.md">English</a></p>
 
----
+기존 문서는 손댄 곳만 고치고(미수정 영역은 바이트 그대로), 새 문서는 실제
+한컴오피스가 받아들이는 형태로 만듭니다. HWPX는 ZIP+XML(OWPML/OPC) 구조라
+Windows·macOS·Linux·CI 어디서든 순수 파이썬으로 동작합니다.
 
-> **python-hwpx는 한컴 없이 HWPX를 안전하게 자동화하는 Python 계층입니다.** 기존
-> 문서는 최소 범위만 수정하고, 새 문서는 실제 한컴 수용이 검증된 형태로 생성하며,
-> 모든 쓰기에 변경·보존·검증 영수증을 남기고, 완전한 해석과 렌더링은 전문 백엔드에
-> 위임할 수 있습니다.
-
-- **최소 범위 편집** — 미수정 part는 저장 시 바이트 그대로 유지됩니다(patch 경로
-  바이트 보존 497/497, 동결 코퍼스 v2 · 2026-07-19).
-- **검증된 저작** — 밑바닥 생성도 실제 한컴이 받아들이는 형태로 냅니다(산출물 한컴
-  오픈 476/476 all-pass, 실저작 품질 게이트 58/58).
-- **모든 쓰기에 영수증** — 대표 저장 경로는 [Safe Write Contract](docs/safe-write-contract.md)의
-  `MutationReport`(`hwpx.mutation-report/v1`)로 실제 쓰기 모드·보존 등급·검증 결과를
-  **측정해** 반환합니다.
-
----
-
-## 🧩 HWPX Stack (3종)
-
-| 계층 | 레포 | 역할 |
+| | 레포 | 역할 |
 |---|---|---|
-| 📦 라이브러리 | **[`python-hwpx`](https://github.com/airmang/python-hwpx)** | 순수 파이썬 HWPX 파싱·편집·생성 코어 |
-| 🔌 MCP 서버 | [`hwpx-mcp-server`](https://github.com/airmang/hwpx-mcp-server) | MCP 클라이언트(Claude Desktop, VS Code 등)에서 HWPX 조작 |
-| 🎯 에이전트 스킬 | [`hwpx-plugin`](https://github.com/airmang/hwpx-plugins) | 에이전트가 HWPX를 바로 쓰게 해주는 first-party 플러그인·스킬 번들 |
+| 📦 | **`python-hwpx`** | 순수 파이썬 HWPX 코어 (이 레포) |
+| 🔌 | [`hwpx-mcp-server`](https://github.com/airmang/hwpx-mcp-server) | MCP 클라이언트(Claude Desktop 등)에서 HWPX 조작 |
+| 🎯 | [`hwpx-plugin`](https://github.com/airmang/hwpx-plugins) | 에이전트용 플러그인·스킬 번들 |
 
-`hwpx-mcp-server`와 `hwpx-plugin`은 같은 프로젝트가 직접 유지보수하는 first-party 연동
-구성요소입니다(유지보수 관계를 뜻하며, 한컴 등 외부 기관의 인증을 뜻하지 않습니다).
-
-현재 PyPI 공개 릴리스는 `python-hwpx 3.8.0`입니다. 일반
-`pip install python-hwpx`로 이 릴리스를 설치할 수 있습니다.
-현재 패키지 분류는 `Development Status :: 3 - Alpha`입니다. 이 분류는 API와 제품의
-성숙도를 나타내며, 공개 버전이나 플러그인의 최소 호환 버전을 대신하지 않습니다.
-
----
-
-## 실측으로 말합니다 — Published Corpus
-
-이 스택의 산출물은 주장 대신 **실제 한컴오피스 전수 측정**으로 검증됩니다
-(동결 코퍼스 v2, N=497 산출물, 2026-07-19, 실한컴 12.0.0.3288 COM/GUI 오라클;
-상세·주의사항은
-[실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html)):
-
-- **한컴 오픈 수용률 476/476 all-pass** (동결 코퍼스 v2 · 2026-07-19 · 실한컴 COM
-  `Open()` 판정 · rule-of-three 하한 99.37%) · 파싱 96.2%(458/476)
-- **미수정 영역 바이트 보존 497/497** (patch 경로 한정, zip-part diff · 오라클 불요)
-  · **개인정보 0-leak** (35문서/합성 140값)
-- 렌더 검증 416/476 (실한컴 `SaveAs("PDF")`) + 정직 버킷 43건(변경추적 문서의 PDF
-  export는 한컴 자체가 거부 — 실측 한계로 발행) + 미검증 17건
-- wild 공개 양식 채움은 구조결함 픽스 후 **무음 서식파괴 16.7%**(판정 66조합, 못 담는 타깃은 typed 거부 35건·산출분 pass 17/28) — **낮은 숫자도 그대로 발행**하고 잔여(페이지 리플·표 shape)를 명명합니다
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/images/redline-hancom.png" alt="python-hwpx가 남긴 변경추적과 AI 에이전트 메모가 실제 한/글에서 열린 화면" width="720">
-</p>
-<p align="center"><sub>python-hwpx로 작성한 변경추적(취소선·삽입)과 AI 에이전트 메모 — 실제 한/글에서 연 화면입니다.</sub></p>
-
-> 이 숫자들은 *생성물 수용률* 축입니다(우리가 만든 파일을 실제 한컴이 받아들이는가).
-> 문서 *파싱 recall*과는 다른 축이므로 파서 프로젝트 수치와 병치 비교하지 마세요.
-
----
-
-## 왜 python-hwpx인가
-
-- **코어 편집에 한컴오피스 설치 불필요** — HWPX는 ZIP+XML(OWPML/OPC) 구조라, 순수 파이썬으로 Windows·macOS·Linux·CI 어디서나 읽고 씁니다.
-- **읽기부터 생성까지 한 코어** — 텍스트/서식 추출, 문단·표·양식 편집, 새 문서 생성, XSD 스키마 검증을 하나의 API로 처리합니다.
-- **에이전트·자동화 친화** — 같은 프로젝트가 유지보수하는 `hwpx-mcp-server`와 `hwpx-plugin`이 코어에 연결됩니다.
-
-문서 파싱·편집·생성은 순수 Python으로 수행할 수 있습니다. 다만 페이지 나눔, 표 넘침,
-글꼴 대체 등 최종 시각 품질을 확언하려면 필요에 따라 실제 한컴 렌더 오라클을 별도로 사용합니다.
-
-## 빠른 시작
+## 시작하기
 
 ```bash
-pip install python-hwpx      # Python 3.10+ · lxml ≥ 4.9
+pip install python-hwpx      # Python 3.10+
 ```
 
 ```python
 from hwpx import HwpxDocument
 
-# 기존 문서 열기 → 편집 → 저장
 doc = HwpxDocument.open("보고서.hwpx")
 doc.add_paragraph("자동화로 추가한 문단입니다.")
 doc.save_to_path("보고서-수정.hwpx")
-
-# 새 문서 만들기
-new = HwpxDocument.new()
-new.add_paragraph("python-hwpx로 만든 새 문서")
-new.save_to_path("새문서.hwpx")
 ```
-
-> 💡 컨텍스트 매니저도 지원합니다 — `with` 블록을 벗어나면 리소스가 자동 정리됩니다:
-> ```python
-> with HwpxDocument.open("보고서.hwpx") as doc:
->     doc.add_paragraph("자동으로 리소스가 정리됩니다.")
->     doc.save_to_path("결과물.hwpx")
-> ```
-
-`open`/`new` → `edit`/`extract` → `save_to_path` 흐름만 잡으면 나머지는 필요할 때 확장하면 됩니다.
 
 ## 무엇을 하나
 
-### 🔍 읽기 · 추출
-- 텍스트/HTML/Markdown 내보내기 — `export_text()` · `export_html()` · `export_markdown()`
-- **풍부한 Markdown** — `export_rich_markdown()`은 인라인 서식(`**굵게**`·`*기울임*`·`~~취소선~~`), 중첩 표(colspan/rowspan 안전), 도형 텍스트, 이미지, 각주/미주, 하이퍼링크, 제목(`#`/`##`) 자동 감지까지 보존
-- **문서 ingest 게이트웨이** — `hwpx.ingest.DocumentIngestor`가 HWPX를 감지해 rich Markdown과 섹션/표 메타데이터로 정규화
-- `TextExtractor` / `ObjectFinder` — 섹션·문단 순회, 태그·속성·XPath로 객체 탐색 (`hp:tab`은 `\t`로 보존, roundtrip 안전)
+- **읽기·추출** — 텍스트/HTML/rich Markdown 내보내기(서식·중첩 표·각주 보존), XPath 객체 탐색
+- **편집** — 문단·표·이미지·머리글/바닥글·메모·각주, 줄간격·여백·쪽번호 등 서식
+- **양식 채우기** — 라벨·경로 기반 셀 채움, 바이트 보존 구조 편집(행·열·오토핏·shrink-to-fit)
+- **생성** — 조립형 builder, 공문 lint·결재란, 사진대지·명패·조직도, mail merge, 신구대조표
+- **변경추적·목차** — redline 저작, 네이티브 목차·상호참조
+- **검증·안전** — XSD·패키지 검증 CLI, 열림 안전 게이트, 모든 쓰기에 영수증(`MutationReport`)
 
-```python
-doc = HwpxDocument.open("보고서.hwpx")
-md = doc.export_rich_markdown(
-    image_dir="out/images",       # BinData 이미지를 디스크에 추출
-    image_ref_prefix="images/",   # 마크다운 내 ![](images/...) 경로 접두
-    detect_headings=True,         # Ⅰ./1. 패턴 기반 #/## 자동
-)
-```
+자세한 내용: [사용 가이드](docs/usage.md) · [API 레퍼런스](https://airmang.github.io/python-hwpx/) · [예제](docs/examples.md)
 
-### ✏️ 편집
-- 문단 추가/삭제/서식, Run 단위 볼드·이탤릭·밑줄·색상
-- 섹션 추가/삭제(`add_section(after=)`·`remove_section()`, manifest 자동 관리)
-- 표 생성·셀 텍스트·병합/분할·중첩 테이블, 이미지 임베드, 머리글/바닥글, 메모(앵커 기반), 각주/미주, 북마크/하이퍼링크, 다단 편집
-- **기존 문서 서식 편집** — 정렬·줄간격·들여쓰기·문단 간격, 용지·여백·방향, 쪽번호, 불릿/번호
-- **스타일 기반 치환** — 색상·밑줄·`charPrIDRef`로 Run을 필터링해 선택 교체(`replace_text_in_runs`·`find_runs_by_style`)
-
-```python
-# 빨간색 텍스트만 찾아서 치환
-doc.replace_text_in_runs("임시", "확정", text_color="#FF0000")
-```
-
-### 🖊️ 양식 채우기 (byte-preserving)
-- 누름틀(클릭히어) 필드 조회·서식 보존 채움, 라벨 기반 셀 탐색(`find_cell_by_label`)·경로 채우기(`fill_by_path`)
-- **바이트 보존 구조 편집** — 셀 채우기 / 행·열·표 삭제·삽입 / 열 너비 오토핏 / 폰트 shrink-to-fit 을 문서 재조립 없이 수행해 양식 서식을 그대로 보존. 미수정 영역은 `hwpx.patch`가 section XML 바이트를 splice해 손대지 않음
+### 양식 채우기 — 서식은 그대로, 값만
 
 ```python
 doc = HwpxDocument.open("신청서.hwpx")
@@ -153,84 +58,38 @@ result = doc.fill_by_path({
     "소속 > right": "플랫폼팀",
 })
 doc.save_to_path("신청서-작성완료.hwpx")
-print(result["applied_count"], result["failed_count"])
 ```
 
-### 🏗️ 생성 · 공문서 도구
-- `hwpx.builder` — Section/Heading/Table/Image/Header 조립형 생성 + 하드게이트 저장 리포트
-- 공문서 도구 — `official_lint`(항목기호 위계·"끝." 표시·붙임·날짜 lint), 결재란 프리셋
-- `advanced_generators` — 사진대지(image_grid)·회의 명패·표 기반 조직도
-- `mail_merge` — 템플릿+데이터 N부 대량 생성, 표 합계·평균 계산
-- `doc_diff` — 문단 LCS diff·신구대조표·참조 정합 lint
-- `style_profile` — 참조 문서 프로파일 추출·적용, 템플릿 레지스트리
+라벨 기준으로 셀을 찾아 채우고, 손대지 않은 영역은 원본 바이트가 그대로 유지됩니다.
 
-### ✅ 검증 · 안전 · 저수준
-- XSD 스키마 + 패키지 구조 검증 — CLI `hwpx-validate` · `hwpx-validate-package`, `hwpx-analyze-template`
-- `validate_editor_open_safety` — 저장/팩/리페어/빌더 출력 게이트, `openSafety` 증거 반환
-- `hwpx.tools.fuzz`(시드 결정적 시나리오·3중 오라클) · `hwpx.tools.layout_preview`(페이지 박스 근사 HTML/PNG 자기검증) · `opc.security`(XML entity·ZIP 압축 폭탄 가드)
-- `hwpx.oxml` 데이터클래스로 OWPML 스키마 ↔ Python 객체 직접 조작, HWPML 2016→2011 네임스페이스 자동 정규화
-
-```bash
-hwpx-validate-package 보고서.hwpx
-hwpx-analyze-template 보고서.hwpx
-```
-
-> 전체 기능·클래스·메서드 목록은 [사용 가이드](docs/usage.md)와 [API 레퍼런스](https://airmang.github.io/python-hwpx/api_reference.html)를 참고하세요.
-
-## 안전한 쓰기 계약 (Safe Write Contract)
-
-대표 저장 경로(`save_to_path` · `save_to_stream` · `to_bytes`)는 **요청한 보존 등급을
-쓰기 전에 판정하고, 실제로 무엇을 바꿨는지 측정한 영수증**을 돌려줍니다.
+### 저장에는 영수증이 따라옵니다
 
 ```python
-from hwpx.mutation_report import PreservationDowngradeError
-
-# 영수증과 함께 저장 — 달성 가능한 가장 강한 보존 등급 자동 선택(mode="auto" 기본)
 report = doc.save_to_path("결과.hwpx", return_report=True)
-print(report.actual_mode)                                   # "patch" | "rebuild"
-print(report.preservation.untouched_part_payloads.to_dict())  # {"verified": 17, "changed": 0}
-
-# patch 등급 강제 — 미달이면 아무것도 쓰지 않고 예외(fail-closed)
-try:
-    doc.save_to_path("결과.hwpx", mode="patch", fallback="error")
-except PreservationDowngradeError as exc:
-    print(exc.offending_parts, exc.suggestion)
+print(report.actual_mode)        # "patch" — 문서 재조립 없이 저장됨
+print(report.preservation.untouched_part_payloads.to_dict())
+                                 # {"verified": 17, "changed": 0}
 ```
 
-- `mode="patch" | "rebuild" | "auto"`(기본 `auto`) · `fallback="error" | "rebuild"`(기본 `error`)
-- `mode="patch"` + `fallback="error"`에서 미수정 part의 바이트 동일성을 지킬 수 없으면
-  **아무것도 쓰지 않고** `PreservationDowngradeError`를 던집니다(무음 rebuild 없음).
-- `MutationReport`는 `requestedMode`/`actualMode`/`fallbackUsed`, 변경 part와 좌표 명시
-  범위, 보존 3층(part 페이로드·ZIP 레코드·전체 패키지), 검증 3항목(`passed`/`failed`/`not_performed`)을
-  **측정해** 반환합니다.
+요청한 보존 등급을 지킬 수 없으면 아무것도 쓰지 않고 실패합니다(fail-closed).
+전체 규칙은 [안전한 쓰기 계약](docs/safe-write-contract.md)에 있습니다.
 
-> 파라미터 전체와 `MutationReport` 스키마는 [안전한 쓰기 계약 문서](docs/safe-write-contract.md)를 참고하세요.
+## 실측으로 말합니다
 
-## 지원 매트릭스
+산출물 전수를 실제 한컴오피스로 측정해 그대로 공개합니다(동결 코퍼스 N=497):
 
-능력 영역별 실제 등급입니다(동결 코퍼스 v2 · 2026-07-19 · 실한컴 12.0.0.3288 오라클).
-등급 어휘: **Parse / Preserve / Edit / Create / Render-verified /
-Unsupported-but-preserved / Unsupported-and-rejected**.
+- **한컴 오픈 476/476 all-pass** — 우리가 만든 파일을 실한컴이 전부 엽니다
+- **미수정 영역 바이트 보존 497/497** · 개인정보 0-leak
+- **렌더 검증 416/476** + 정직 버킷 43 — 한컴 자체가 PDF export를 거부한 케이스도 숨기지 않고 집계
+- 낮은 숫자도 그대로 발행합니다 — 전체 수치·주의사항: [실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html)
 
-| 능력 영역 | 상태 | 증거 |
-|---|---|---|
-| 문단·표 저작/편집 | Parse·Preserve·Edit·Create·Render-verified | 오픈 476/476 · 실저작 게이트 58/58 · 렌더 416 |
-| 표 구조 변경(행·열·표, 오토핏) | Preserve·Edit | `hwpx.table_patch` · 바이트 보존 497/497 |
-| 양식 채움(byte-splice) | Preserve·Edit | `hwpx.patch`·`table_patch`·`body_patch` · 보존 497/497 (wild 무음 서식파괴 16.7%·typed 거부 35/66, 잔여 명명) |
-| 그림 삽입/치환 | Edit·Create | `add_picture`·`replace_picture` (복잡 개체는 한컴 확인 권장) |
-| 차트 | Unsupported-but-preserved | 생성 API 없음 · 기존 차트 part는 patch 보존 |
-| 수식 | Parse·Unsupported-but-preserved | 저작 API 없음 · 기존 수식 파싱·patch 보존 |
-| 변경추적(redline) | Edit·Create | `add_tracked_*` · 실한컴 `IsTrackChange=1` (한컴이 PDF export 거부 → `render_unavailable` 정직 집계) |
-| 메모(코멘트) | Edit·Create·Render-verified | `add_memo*` · 실 Windows 한컴 검증 |
-| 각주/미주 | Edit·Create | `add_footnote`·`add_endnote` (렌더 독립 게이트 미측정) |
-| 네이티브 목차/상호참조 | Create·Render-verified | `add_native_toc`·`toc_verify` · 구조 15/15 · 페이지 정합 5/5 |
-| 암호화 HWPX | Unsupported-and-rejected | 복호화 없음 · 암호화 part는 파싱 단계 예외로 거부 |
-| HWP 5.x 바이너리 | Unsupported-and-rejected | ZIP 아님 → 열기 시 `BadZipFile` (HWPX로 변환 후 사용) |
-| 누름틀(form field) 생성 | Parse·Edit | 기존 필드 조회·서식보존 채움 · **신규 누름틀 생성 도구는 미제공** |
+기능별로 되는 것과 안 되는 것은 [지원 매트릭스](docs/support-matrix.md)에 등급으로
+명시되어 있습니다. 현재 개발 상태는 Alpha입니다 — API는 바뀔 수 있습니다.
 
-> 각 등급의 판정 근거와 상세 증거 포인터는 [지원 매트릭스 문서](docs/support-matrix.md)를 참고하세요.
+> 위 수치는 *생성물 수용률* 축입니다(만든 파일을 실한컴이 받는가). 문서 *파싱 recall*과는
+> 다른 축이므로 파서 프로젝트 수치와 병치 비교하지 마세요.
 
-## 대항 라이브러리 비교
+## 비교
 
 | | python-hwpx | pyhwpx | pyhwp |
 |---|---|---|---|
@@ -238,41 +97,26 @@ Unsupported-but-preserved / Unsupported-and-rejected**.
 | **한/글 설치** | 불필요 | 필요 (Windows COM) | 불필요 |
 | **크로스 플랫폼** | ✅ Linux / macOS / Windows / CI | ❌ Windows 전용 | ✅ |
 | **편집/생성 API** | ✅ | ✅ (COM) | ❌ 대부분 읽기 |
-| **스키마 검증** | ✅ | ❌ | ❌ |
-| **AI 에이전트 연동 (MCP)** | ✅ `hwpx-mcp-server` | ❌ | ❌ |
+| **AI 에이전트 연동 (MCP)** | ✅ | ❌ | ❌ |
 
-> HWP(v5 바이너리) 파일은 지원하지 않습니다. 한컴오피스에서 HWPX로 변환 후 사용하세요.
+> HWP(v5 바이너리)는 지원하지 않습니다. 한컴오피스에서 HWPX로 변환 후 사용하세요.
 
 ## 알려진 제약
 
-- `add_shape()` / `add_control()`은 한/글이 요구하는 모든 하위 요소를 생성하지 않습니다. 복잡한 개체 추가 시 한/글에서 열어 검증하세요.
-- 이미지 바이너리 임베드는 지원하지만 `<hp:pic>` 요소의 완전 자동 생성은 제공하지 않습니다.
-- 암호화된 HWPX 파일의 암복호화는 지원하지 않습니다.
-
-## 더 보기
-
-- **[🚀 빠른 시작](docs/quickstart.md)** · **[📚 사용 가이드](docs/usage.md)** — 첫 파일 열기부터 문단·표·메모·섹션 편집, 텍스트 추출·검증까지
-- **[💡 예제 모음](docs/examples.md)** · [`examples/`](examples/) — `build_release_checklist.py`(메모·스타일 편집 HWPX 생성), `extract_text.py`(CLI 텍스트 추출), `find_objects.py`(OWPML 노드 추적) 등
-- **[📐 스키마 개요](docs/schema-overview.md)** · **[🔧 설치 검증](docs/installation.md)**
-- **[🔬 HWPX 내부 실전 가이드](docs/internals/)** — 실제 한/글 동작에서 확인된 HWPUNIT·조판 캐시·목차 필드·OPC 재패킹·메모·오라클 한계
-- **[📖 전체 문서 (Sphinx)](https://airmang.github.io/python-hwpx/)** — API 레퍼런스·50+ 실전 패턴·FAQ
-- **[📝 CHANGELOG](CHANGELOG.md)** · **[🤝 CONTRIBUTING](CONTRIBUTING.md)** · **[👥 CONTRIBUTORS](CONTRIBUTORS.md)**
+- `add_shape()` / `add_control()`은 한/글이 요구하는 모든 하위 요소를 생성하지 않습니다.
+- `<hp:pic>` 그림 개체의 완전 자동 생성은 제공하지 않습니다.
+- 암호화된 HWPX는 지원하지 않습니다.
 
 ## 기여하기
 
-버그 리포트, 기능 제안, PR 모두 환영합니다.
+[help wanted](https://github.com/airmang/python-hwpx/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) ·
+[로드맵](https://github.com/airmang/python-hwpx/milestones) ·
+[Discussions](https://github.com/airmang/python-hwpx/discussions) ·
+[내부 실전 가이드](docs/internals/) ·
+[CONTRIBUTING](CONTRIBUTING.md)
 
-- **[help wanted 이슈](https://github.com/airmang/python-hwpx/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)** — 지금 들어오기 좋은 입구입니다. 시작 전에 이슈에 코멘트로 방향을 남겨주세요.
-- **[마일스톤](https://github.com/airmang/python-hwpx/milestones)** — 공개 로드맵입니다. 프로젝트가 어디로 가는지 여기서 보입니다.
-- **[Discussions](https://github.com/airmang/python-hwpx/discussions)** — 질문·아이디어는 이슈 대신 여기로.
-- **[내부 실전 가이드](docs/internals/)** — HWPX 내부 구조가 처음이라면 여기부터. 개발 흐름은 [CONTRIBUTING.md](CONTRIBUTING.md)에 있습니다.
-
-```bash
-git clone https://github.com/airmang/python-hwpx.git
-cd python-hwpx
-pip install -e ".[dev]"
-pytest
-```
+HWPX 내부 구조가 처음이라면 [내부 실전 가이드](docs/internals/)부터 — 실제 한/글
+동작에서 확인된 조판 캐시·목차 필드·OPC 재패킹 같은 실전 지식을 정리해 두었습니다.
 
 ## 감사의 말
 
@@ -283,13 +127,6 @@ pytest
 - **[edwardkim/rhwp](https://github.com/edwardkim/rhwp)** — 멱등성·검증 게이트 설계 영감
 - **범정부오피스** — 공무 문서 편집 워크플로 아이디어
 
-## License
+## License · Maintainer
 
-Apache License 2.0. See LICENSE and NOTICE.
-
-## Maintainer
-
-Primary maintainer/contact: **Kohkyuhyun** ([@airmang](https://github.com/airmang))
-
-- ✉️ [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
-- 🐙 [@airmang](https://github.com/airmang)
+Apache-2.0 ([LICENSE](LICENSE) · [NOTICE](NOTICE)) — **Kohkyuhyun** [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
