@@ -236,7 +236,19 @@ def test_frozen_facade_exports_remain_exact() -> None:
     # PreservationDowngradeError to the package surface.
     # 80 -> 82: S-092 P1 adds the document preview viewer surface
     # (render_document_viewer, DocumentViewer).
-    assert len(hwpx.__all__) == 82
+    # 82 -> 66 stable: S-091 P1 splits the top-level surface into
+    # stable/experimental/deprecated. __all__ keeps stable only (66); the
+    # experimental (12) + deprecated (4) names stay importable via the module
+    # __getattr__ (with DeprecationWarning). The total legacy surface is still
+    # 82 — zero names removed in the 4.0.0 major (see docs/stable-api.md and
+    # tests/test_stable_surface.py for the per-name contract).
+    assert len(hwpx.__all__) == 66
+    total_top_level = (
+        set(hwpx.__all__)
+        | set(hwpx._EXPERIMENTAL_EXPORTS)
+        | set(hwpx._DEPRECATED_EXPORTS)
+    )
+    assert len(total_top_level) == 82
     assert len(oxml.__all__) == 110
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 
