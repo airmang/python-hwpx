@@ -2,6 +2,22 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [4.1.0] - 2026-07-21
+
+### Fixed — form-fill 차등 판정기 교정 (verify 신호 신뢰성)
+- `hwpx.form_fit.wordbox`의 표 구조 지문(`extract_layout_signature`)과 overflow
+  클립(`extract_cell_clips`)이 fitz `find_tables()` 기본 전략(글리프 스냅) 대신
+  **그려진 테두리 전용**(`lines_strict`)을 쓰도록 교정했습니다. 종전에는 빈 셀을
+  채우면 그려진 격자가 그대로인데도 유령 표·허위 overflow가 검출되어
+  `verify_form_fill` 계열 게이트가 허위 실패를 냈습니다. wild 코퍼스 실측:
+  허위 shape 실패 6건·허위 overflow 3건 해소, 회귀 0, 산출분 pass 17/28→23/28.
+  **제품 산출물(채움 바이트)은 변경되지 않았습니다** — 판정만 정확해졌습니다.
+
+### Docs — 정직 실측 갱신
+- [실측 코퍼스 메트릭](docs/corpus-metrics.md)에 「구조결함 2차 실측」 추가:
+  잔존은 페이지 리플 5건(4건 typed 경고 동반·완전 무음 1건)이며, typed 거부
+  35건 전수 감별 결과 과잉거부 0. 지원 매트릭스 양식 채움 행 동기화.
+
 ## [4.0.0] - 2026-07-21
 
 ### Removed — deprecation window 준수 정리 (major 경계)
