@@ -529,11 +529,15 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.cmd == "probe":
         args.out.mkdir(parents=True, exist_ok=True)
+        # The wrapper exists because rhwp exits 0 on failure; do not repeat that
+        # hazard ourselves — any failed verdict makes the probe exit nonzero.
+        any_failed = False
         for f in args.files:
             v = export_pdf_verdict(f.stem, f, args.out)
             caveats = layout_caveats(f)
             _print_json({"verdict": asdict(v), "layoutCaveats": caveats})
-        return 0
+            any_failed = any_failed or not v.rhwpOk
+        return 2 if any_failed else 0
 
     if args.cmd == "validate-p0":
         result = run_validation(args.out)
