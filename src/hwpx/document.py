@@ -1844,28 +1844,3 @@ class HwpxDocument:
             self,
             reset_dirty=reset_dirty,
         )
-
-
-    @overload
-    def save(self, path_or_stream: None = None) -> bytes: ...
-
-    @overload
-    def save(self, path_or_stream: str | PathLike[str]) -> str | PathLike[str]: ...
-
-    @overload
-    def save(self, path_or_stream: BinaryIO) -> BinaryIO: ...
-
-    def save(
-        self,
-        path_or_stream: str | PathLike[str] | BinaryIO | None = None,
-    ) -> str | PathLike[str] | BinaryIO | bytes:
-        """Deprecated compatibility wrapper around save_to_path/save_to_stream/to_bytes.
-
-        Deprecated:
-            ``save()``는 하위 호환을 위해 유지되며 향후 제거될 수 있습니다.
-            - 경로 저장: ``save_to_path(path)``
-            - 스트림 저장: ``save_to_stream(stream)``
-            - 바이트 반환: ``to_bytes()``
-        """
-
-        return _persistence.save(self, path_or_stream=path_or_stream)

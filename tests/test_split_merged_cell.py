@@ -132,7 +132,7 @@ def test_split_then_save_reopen_roundtrip(tmp_path) -> None:
 
     # Save to bytes and reopen
     buf = io.BytesIO()
-    doc.save(buf)
+    doc.save_to_stream(buf)
     buf.seek(0)
 
     reopened = HwpxDocument.open(buf.getvalue())

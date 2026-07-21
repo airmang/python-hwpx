@@ -22,6 +22,8 @@ from io import BytesIO
 from typing import Any, Literal, Mapping, Sequence
 from zipfile import ZipInfo
 
+from .errors import HwpxError
+
 MUTATION_REPORT_SCHEMA = "hwpx.mutation-report/v1"
 COORDINATE_SPACE = "uncompressed-part-bytes"
 
@@ -229,9 +231,19 @@ class MutationReport:
         }
 
 
-class PreservationDowngradeError(Exception):
+class PreservationDowngradeError(HwpxError):
     """Raised when a requested preservation grade is not achieved and
-    ``fallback="error"`` — before any output is written (specs/032 §1)."""
+    ``fallback="error"`` — before any output is written (specs/032 §1).
+
+    Structured on the :class:`~hwpx.errors.HwpxError` base: ``code`` is the stable
+    ``"preservation-downgrade"`` identifier, ``context`` carries the measured
+    modes and offending parts, and ``suggestion`` is the actionable next step.
+    The historical positional attributes (``requested_mode``/``achieved_grade``/
+    ``offending_parts``/``suggestion``) are preserved so existing handlers still
+    read them.
+    """
+
+    default_code = "preservation-downgrade"
 
     def __init__(
         self,
@@ -244,12 +256,18 @@ class PreservationDowngradeError(Exception):
         self.requested_mode = requested_mode
         self.achieved_grade = achieved_grade
         self.offending_parts = offending_parts
-        self.suggestion = suggestion
         parts = ", ".join(offending_parts) if offending_parts else "(none)"
         super().__init__(
             f"requested mode {requested_mode!r} needs patch-grade preservation but "
             f"the save achieved {achieved_grade!r}; offending parts: {parts}. "
-            f"{suggestion}"
+            f"{suggestion}",
+            code=self.default_code,
+            context={
+                "requestedMode": requested_mode,
+                "achievedGrade": achieved_grade,
+                "offendingParts": list(offending_parts),
+            },
+            suggestion=suggestion,
         )
 
 

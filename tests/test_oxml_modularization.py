@@ -239,16 +239,18 @@ def test_frozen_facade_exports_remain_exact() -> None:
     # 82 -> 66 stable: S-091 P1 splits the top-level surface into
     # stable/experimental/deprecated. __all__ keeps stable only (66); the
     # experimental (12) + deprecated (4) names stay importable via the module
-    # __getattr__ (with DeprecationWarning). The total legacy surface is still
-    # 82 — zero names removed in the 4.0.0 major (see docs/stable-api.md and
+    # __getattr__ (with DeprecationWarning). The legacy surface stays 82 — zero
+    # names removed in that split.
+    # 66 -> 67 stable / 82 -> 83 total: S-091 P2 adds the structured-exception
+    # base HwpxError to the stable surface (see docs/stable-api.md 오류 계약 and
     # tests/test_stable_surface.py for the per-name contract).
-    assert len(hwpx.__all__) == 66
+    assert len(hwpx.__all__) == 67
     total_top_level = (
         set(hwpx.__all__)
         | set(hwpx._EXPERIMENTAL_EXPORTS)
         | set(hwpx._DEPRECATED_EXPORTS)
     )
-    assert len(total_top_level) == 82
+    assert len(total_top_level) == 83
     assert len(oxml.__all__) == 110
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 

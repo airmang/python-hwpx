@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+from .errors import HwpxError
 from .mutation_report import MutationReport, project_byte_splice
 from .patch import (
     _apply_edits,
@@ -803,8 +804,16 @@ _S_TR = re.compile(r"<hp:tr\b.*?</hp:tr>", re.DOTALL)
 _S_TC = re.compile(r"<hp:tc\b.*?</hp:tc>", re.DOTALL)
 
 
-class TableStructureError(ValueError):
-    """A structure edit was refused (fail-closed) or is unsupported."""
+class TableStructureError(HwpxError, ValueError):
+    """A structure edit was refused (fail-closed) or is unsupported.
+
+    Structured on :class:`~hwpx.errors.HwpxError` (``code="table-structure"``)
+    while still subclassing :class:`ValueError` for backward compatibility. The
+    many string-only raise sites keep working and gain the ``code``/``context``/
+    ``suggestion`` fields via the base default.
+    """
+
+    default_code = "table-structure"
 
 
 def _si(chunk: str, tag: str, attr: str) -> int | None:
@@ -1645,8 +1654,14 @@ def apply_table_ops(
 
 # --- P3: real-Hancom oracle gate for form-fill (FR-005) -----------------------
 
-class RenderCheckRequired(RuntimeError):
-    """``verify_fill(require=True)`` but no real Hancom oracle rendered."""
+class RenderCheckRequired(HwpxError, RuntimeError):
+    """``verify_fill(require=True)`` but no real Hancom oracle rendered.
+
+    Structured on :class:`~hwpx.errors.HwpxError` (``code="render-check-required"``)
+    while still subclassing :class:`RuntimeError` for backward compatibility.
+    """
+
+    default_code = "render-check-required"
 
 
 def verify_fill(

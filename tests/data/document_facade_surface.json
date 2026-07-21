@@ -271,10 +271,6 @@
   "kind": "method",
   "signature": "(self, search: 'str', replacement: 'str', *, text_color: 'str | None' = None, underline_type: 'str | None' = None, underline_color: 'str | None' = None, char_pr_id_ref: 'str | int | None' = None, limit: 'int | None' = None) -> 'int'"
  },
- "save": {
-  "kind": "method",
-  "signature": "(self, path_or_stream: 'str | PathLike[str] | BinaryIO | None' = None) -> 'str | PathLike[str] | BinaryIO | bytes'"
- },
  "save_report": {
   "kind": "method",
   "signature": "(self, path_or_stream: 'str | PathLike[str] | BinaryIO | None' = None, *, quality: 'QualityPolicy | None' = None, before: 'str | PathLike[str] | None' = None, edit_mask: 'Any | None' = None, ledger: 'Any | None' = None) -> 'VisualCompleteReport'"

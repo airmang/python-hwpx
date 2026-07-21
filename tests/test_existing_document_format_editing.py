@@ -86,7 +86,7 @@ def test_set_paragraph_format_uses_human_units_and_survives_save(tmp_path) -> No
     assert "300" in next_values
 
     target = tmp_path / "paragraph-format.hwpx"
-    document.save(target)
+    document.save_to_path(target)
     assert validate_editor_open_safety(target).ok
     reopened = HwpxDocument.open(target)
     reopened_pr = _para_pr_for_paragraph(reopened, paragraph_index)
@@ -116,7 +116,7 @@ def test_set_page_setup_header_footer_and_page_number_are_open_safe(tmp_path) ->
     assert "/" in footer.text
 
     target = tmp_path / "page-setup.hwpx"
-    document.save(target)
+    document.save_to_path(target)
     assert validate_editor_open_safety(target).ok
     reopened = HwpxDocument.open(target)
     size = reopened.sections[0].properties.page_size

@@ -50,7 +50,6 @@ def test_public_document_save_apis_do_not_expose_open_safety_bypass() -> None:
         HwpxDocument.to_bytes,
         HwpxDocument.save_to_path,
         HwpxDocument.save_to_stream,
-        HwpxDocument.save,
     ):
         parameters = inspect.signature(api).parameters
 
@@ -318,20 +317,3 @@ def test_save_to_stream_rejects_non_seekable_stream_before_writing() -> None:
 
     assert document._package.version_info.dirty
     assert stream.writes == []
-
-
-def test_save_deprecated_wrapper_warns_and_routes_to_new_methods(tmp_path: Path) -> None:
-    document = HwpxDocument.new()
-
-    with pytest.deprecated_call(match="deprecated"):
-        path_result = document.save(tmp_path / "wrapped-path.hwpx")
-    assert path_result == tmp_path / "wrapped-path.hwpx"
-
-    with pytest.deprecated_call(match="deprecated"):
-        bytes_result = document.save()
-    assert isinstance(bytes_result, bytes)
-
-    stream = BytesIO()
-    with pytest.deprecated_call(match="deprecated"):
-        stream_result = document.save(stream)
-    assert stream_result is stream

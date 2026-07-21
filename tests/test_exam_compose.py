@@ -79,7 +79,7 @@ def test_replace_body_region_inserts_into_body_and_preserves_admin_box_and_tail(
         assert etree.tostring(tail_before) in tails
     # the composed 문항 text now lives in the body (round-trips through save/open)
     import io
-    buf = io.BytesIO(); doc.save(buf)
+    buf = io.BytesIO(); doc.save_to_stream(buf)
     text = "".join(p.text or "" for p in HwpxDocument.open(io.BytesIO(buf.getvalue())).paragraphs)
     assert "발문 하나" in text and "발문 둘" in text and "[그림1]" in text
     assert set(anchors) == {"1", "2"}

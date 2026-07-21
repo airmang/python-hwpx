@@ -4,10 +4,45 @@
 
 ## [Unreleased]
 
+### Removed — deprecation window 준수 정리 (major 경계)
+- **`HwpxDocument.save()` 제거**: v2.6(2026-02-19)부터 5개월간 `DeprecationWarning`을
+  달고 있던 호환 래퍼를 제거했습니다. 목적지별 명시 메서드를 쓰세요 —
+  경로 `save_to_path(path)` · 스트림 `save_to_stream(stream)` · 바이트 `to_bytes()`.
+  이 셋은 [안전한 쓰기 계약](docs/safe-write-contract.md)(`mode`/`fallback` 등급 +
+  `return_report`)을 지원하며, 제거된 `save()`에는 없던 기능입니다.
+- `hwpx.package` 모듈(→`hwpx.opc.package`)은 경고 이력이 있지만 stable
+  `HwpxPackage`의 역사적 import 경로라 **유지**합니다(shim, 비용 0). 전체 표·이유는
+  [4.0.0 마이그레이션](docs/migration-4.0.md).
+
+### Added — 구조화 예외 베이스 (오류 계약 통일)
+- `hwpx.errors.HwpxError`(최상위 `hwpx.HwpxError`로도 import) 도입 — fail-closed 공개
+  경로 예외의 베이스. 사람용 `str(exc)`는 그대로 두고 기계가 읽는 `code`(kebab
+  안정 식별자)·`context`(실측 값 dict)·`suggestion`(다음 행동)을 얹으며 `to_dict()`로
+  봉투를 냅니다. **공개 계약 경로부터** 이행: `PreservationDowngradeError`
+  (`preservation-downgrade`), 신규 `SaveError`(대표 저장 경로의 사전검증·open-safety·
+  품질 게이트 실패), `TableStructureError`(`table-structure`),
+  `RenderCheckRequired`(`render-check-required`). 기존 `except`
+  타입(`ValueError`/`RuntimeError`/`Exception`)은 상속으로 그대로 동작합니다.
+  전체 표는 [stable-api.md 오류 계약](docs/stable-api.md).
+- `HwpxError`가 stable 표면에 추가되어 `hwpx.__all__`은 **stable 67개**가 됩니다.
+
+### Changed — 스키마 동결 + mutation 반환형 통일
+- **스키마 동결**: `hwpx.mutation-report/v1`·`hwpx.document_plan.v1`/`v2`·
+  `hwpx.agent-batch/v1`·`hwpx.mixed-form-plan/v1`의 required 필드 집합을 동결하고
+  계약 테스트(`tests/test_schema_freeze.py`)로 고정했습니다. 정책은 additive-only —
+  신규 필드는 Optional, 파괴 변경은 새 major + 새 스키마 버전 문자열
+  ([schema-freeze.md](docs/schema-freeze.md)).
+- **mutation 반환형 통일**: 공개 mutation-write 경로가 전부 `hwpx.mutation-report/v1`로
+  사영 가능함을 계약 테스트(`tests/test_mutation_contract_unification.py`)로 고정
+  했습니다(byte-write 결과모델 4종 + 네이티브 `save_to_path` 영수증). 사영 없는 신규
+  byte-write 모델이 추가되면 구조 가드가 실패합니다.
+- `save_to_path`/`save_to_stream`/`to_bytes` 이름을 **장기 확정**으로 명문화(개명 재론
+  종결, [safe-write-contract.md](docs/safe-write-contract.md)).
+
 ### Changed — 최상위 API 표면 3계층화 (major 경계 준비)
 - `from hwpx import ...` 표면을 **stable / experimental / deprecated** 3계층으로
-  분류했습니다. `hwpx.__all__`에는 **stable 66개만** 남깁니다. 계층·정책 전수 목록은
-  `docs/stable-api.md`.
+  분류했습니다. `hwpx.__all__`에는 **stable 67개만** 남깁니다(P1의 66 + P2 `HwpxError`).
+  계층·정책 전수 목록은 `docs/stable-api.md`.
 - **experimental(12)** — ingestion 프레임워크·레이아웃 프리뷰·문서 프리뷰 뷰어.
   `from hwpx.experimental import ...`로 사용하세요. 최상위 재내보내기는 하위 호환을
   위해 유지하되 접근 시 `DeprecationWarning`이 나며 다음 major에서 최상위 경로가
@@ -16,8 +51,9 @@
   `TEMPLATE_FORMFIT_*_SCHEMA_VERSION` 상수 2개. 대체 = 구조적 form-fill 경로
   (`hwpx.table_patch.fill_cells` 계열 + MCP `analyze_form_fill`/`apply_form_fill`/
   `verify_form_fill`).
-- **제거된 이름 0개**: 기존 최상위 이름 82개는 전부 계속 import 가능합니다(최소
-  deprecation window 준수 — 경고 없는 즉시 제거 금지).
+- **최상위에서 제거된 이름 0개**: 기존 최상위 이름 82개는 전부 계속 import 가능합니다
+  (최소 deprecation window 준수 — 경고 없는 즉시 제거 금지). `HwpxDocument.save()`는
+  최상위 표면 이름이 아니라 메서드로, 위 Removed 절에 따라 제거됐습니다.
 
 ## [3.8.0] - 2026-07-21
 

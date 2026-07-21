@@ -164,6 +164,7 @@ from .tools.style_profile import (
     register_template,
 )
 from .ingest import HwpxMarkdownConverter
+from .errors import HwpxError
 from .mutation_report import (
     MutationReport,
     PreservationDowngradeError,
@@ -217,6 +218,7 @@ __all__ = [
     "ParagraphInfo",
     "PackageValidationReport",
     "BytePreservingPatchResult",
+    "HwpxError",
     "MutationReport",
     "PreservationDowngradeError",
     "PlanValidationReport",

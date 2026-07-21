@@ -3,10 +3,10 @@
 
 from __future__ import annotations
 
-import warnings
 from os import PathLike
 from typing import TYPE_CHECKING, Any, BinaryIO, Literal, Sequence
 
+from ..errors import SaveError
 from ..mutation_report import (
     Fallback,
     Mode,
@@ -84,7 +84,15 @@ def _run_pre_save_validation(doc: "HwpxDocument") -> None:
     report = doc.validate()
     if not report.ok:
         msgs = _summarize_validation_issues(report.issues)
-        raise ValueError(f"Document validation failed: {msgs}")
+        raise SaveError(
+            f"Document validation failed: {msgs}",
+            code="document-validation-failed",
+            context={"issueCount": len(report.issues), "issues": msgs},
+            suggestion=(
+                "Fix the reported schema issues, or disable validate_on_save if "
+                "the validation is a false positive for your document."
+            ),
+        )
 
 
 def _run_open_safety_validation(doc: "HwpxDocument", archive_bytes: bytes) -> None:
@@ -94,9 +102,15 @@ def _run_open_safety_validation(doc: "HwpxDocument", archive_bytes: bytes) -> No
 
     report = validate_editor_open_safety(archive_bytes)
     if not report.ok:
-        raise ValueError(
+        raise SaveError(
             "Generated HWPX package failed open-safety validation: "
-            + report.summary
+            + report.summary,
+            code="open-safety-failed",
+            context={"summary": report.summary},
+            suggestion=(
+                "The serialized package would not reopen in an HWPX editor; "
+                "inspect validate_editor_open_safety(...) for the failing checks."
+            ),
         )
 
 
@@ -126,7 +140,15 @@ def _gate_and_write(
     )
     if not report.ok:
         detail = "; ".join(str(error) for error in report.errors)
-        raise ValueError(f"Document save failed the quality gate: {detail}")
+        raise SaveError(
+            f"Document save failed the quality gate: {detail}",
+            code="quality-gate-failed",
+            context={"errors": [str(error) for error in report.errors]},
+            suggestion=(
+                "The SavePipeline quality gate rejected the archive; inspect the "
+                "returned report's errors before retrying."
+            ),
+        )
     return report
 
 
@@ -420,29 +442,3 @@ def _mark_save_clean(doc: "HwpxDocument") -> None:
     package = doc._package
     package._opened_members = dict(package._files)
     package._opened_zip_infos = dict(package._zip_infos)
-
-
-def save(
-    doc: "HwpxDocument",
-    path_or_stream: str | PathLike[str] | BinaryIO | None = None,
-) -> str | PathLike[str] | BinaryIO | bytes:
-    """Deprecated compatibility wrapper around save_to_path/save_to_stream/to_bytes.
-
-    Deprecated:
-        ``save()``는 하위 호환을 위해 유지되며 향후 제거될 수 있습니다.
-        - 경로 저장: ``save_to_path(path)``
-        - 스트림 저장: ``save_to_stream(stream)``
-        - 바이트 반환: ``to_bytes()``
-    """
-
-    warnings.warn(
-        "HwpxDocument.save()는 deprecated 예정입니다. "
-        "save_to_path()/save_to_stream()/to_bytes() 사용을 권장합니다.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    if path_or_stream is None:
-        return doc.to_bytes()
-    if isinstance(path_or_stream, (str, PathLike)):
-        return doc.save_to_path(path_or_stream)
-    return doc.save_to_stream(path_or_stream)

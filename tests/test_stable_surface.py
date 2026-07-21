@@ -5,7 +5,8 @@
 - experimental: ``hwpx.experimental``로 재내보내짐. 최상위 접근 시 ``DeprecationWarning``.
 - deprecated: 대체 경로 안내 경고. 최상위 접근 시 ``DeprecationWarning``.
 
-4.0.0에서 제거되는 이름은 0개 — 82개 이름 전부 최상위로 계속 import 가능해야 한다.
+4.0.0에서 제거되는 이름은 0개 — 기존 82개 이름 전부 최상위로 계속 import 가능해야
+한다. 4.0.0에서 stable에 ``HwpxError`` 1개가 추가되어 stable 67·전체 83이 된다.
 """
 
 from __future__ import annotations
@@ -30,9 +31,9 @@ ALL_LEGACY_NAMES = STABLE_NAMES | EXPERIMENTAL_NAMES | DEPRECATED_NAMES
 
 
 def test_all_is_exactly_the_stable_set() -> None:
-    """``__all__``은 stable 66개로 고정된다(experimental/deprecated 미포함)."""
+    """``__all__``은 stable 67개로 고정된다(experimental/deprecated 미포함)."""
 
-    assert len(hwpx.__all__) == 66
+    assert len(hwpx.__all__) == 67
     assert STABLE_NAMES.isdisjoint(EXPERIMENTAL_NAMES)
     assert STABLE_NAMES.isdisjoint(DEPRECATED_NAMES)
     # __all__에 중복 없음.
@@ -40,10 +41,19 @@ def test_all_is_exactly_the_stable_set() -> None:
 
 
 def test_layer_counts() -> None:
-    assert len(STABLE_NAMES) == 66
+    assert len(STABLE_NAMES) == 67
     assert len(EXPERIMENTAL_NAMES) == 12
     assert len(DEPRECATED_NAMES) == 4
-    assert len(ALL_LEGACY_NAMES) == 82
+    assert len(ALL_LEGACY_NAMES) == 83
+
+
+def test_hwpx_error_is_stable_and_importable() -> None:
+    """4.0.0 신규 stable: 구조화 예외 베이스는 경고 없이 최상위 import 가능하다."""
+
+    assert "HwpxError" in STABLE_NAMES
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        assert hwpx.HwpxError is importlib.import_module("hwpx.errors").HwpxError
 
 
 @pytest.mark.parametrize("name", sorted(ALL_LEGACY_NAMES))
