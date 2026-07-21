@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+### Changed — 최상위 API 표면 3계층화 (major 경계 준비)
+- `from hwpx import ...` 표면을 **stable / experimental / deprecated** 3계층으로
+  분류했습니다. `hwpx.__all__`에는 **stable 66개만** 남깁니다. 계층·정책 전수 목록은
+  `docs/stable-api.md`.
+- **experimental(12)** — ingestion 프레임워크·레이아웃 프리뷰·문서 프리뷰 뷰어.
+  `from hwpx.experimental import ...`로 사용하세요. 최상위 재내보내기는 하위 호환을
+  위해 유지하되 접근 시 `DeprecationWarning`이 나며 다음 major에서 최상위 경로가
+  제거될 예정입니다(구현 모듈·`hwpx.experimental` 경로는 유지).
+- **deprecated(4)** — `analyze_template_formfit`/`apply_template_formfit`와
+  `TEMPLATE_FORMFIT_*_SCHEMA_VERSION` 상수 2개. 대체 = 구조적 form-fill 경로
+  (`hwpx.table_patch.fill_cells` 계열 + MCP `analyze_form_fill`/`apply_form_fill`/
+  `verify_form_fill`).
+- **제거된 이름 0개**: 기존 최상위 이름 82개는 전부 계속 import 가능합니다(최소
+  deprecation window 준수 — 경고 없는 즉시 제거 금지).
+
 ## [3.8.0] - 2026-07-21
 
 ### Added — 문서 프리뷰 뷰어

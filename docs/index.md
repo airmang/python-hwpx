@@ -20,6 +20,7 @@ examples
 
 corpus-metrics
 support-matrix
+stable-api
 safe-write-contract
 schema-overview
 internals/README
