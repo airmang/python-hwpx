@@ -612,6 +612,190 @@ def test_fill_rubrics_2022_normalizes_and_fills_chaejeom_ladder():
     assert not (b.detail or {}).get("regenerated_tables"), b.detail
 
 
+# A detailed §7 (current 평가계획 MD format): #### ① H4 areas, 세부영역 가/나 tables of
+# 평가요소 | 수행수준(채점 기준) | 배점 with per-element level ladders, 소계 + ［영역 공통］
+# rows. ① multi-subarea, ② single-area with a 평가기준(상/중/하) bullet -- exercises the
+# detailed parse + both fill routes (2학년 flat ladder, 3학년 nested ladder).
+_DETAILED_S7 = """### 7. 수행평가 세부기준
+
+> **채점 철학: 관찰 가능한 근거 채점.**
+
+---
+
+#### ① 영역 가
+
+- **평가 영역명**: 영역 가 ｜ **영역 만점**: 45점 ｜ **학기**: 2학기
+- **세부 영역**: 가. 세부 하나(30점) ／ 나. 세부 둘(15점)
+- **수행과제**: 과제 설명 하나.
+- **성취기준 / 성취수준(A~E)**: [12합성01-01] (성취수준 A~E는 「4. 가」 참조)
+- **평가 방법**: ☑ 실험·실습  ☑ 논술
+- **학생 유의사항**: 유의 사항 하나.
+
+**［세부 영역 가. 세부 하나 (30점)］ 평가요소 ｜ 수행수준(채점 기준) ｜ 배점**
+
+| 평가요소 | 수행수준(채점 기준) | 배점 |
+|---|---|---|
+| 알파 구현하기 | 완비하여 산출함 | 20 |
+| | 부분만 완성함 | 10 |
+| 베타 완성하기 | 완비함 | 10 |
+| | 부분 완성함 | 5 |
+| **가. 소계** | | **30** |
+
+**［세부 영역 나. 세부 둘 (15점)］ 평가요소 ｜ 수행수준(채점 기준) ｜ 배점**
+
+| 평가요소 | 수행수준(채점 기준) | 배점 |
+|---|---|---|
+| 감마 식별하기 | 정확히 식별함 | 15 |
+| | 부분만 식별함 | 8 |
+| **나. 소계** | | **15** |
+
+**［영역 공통］**
+
+| 구분 | 배점 |
+|---|---|
+| 기본점수(백지 활동지 제출자·자발적 미참여자 등) | 18 |
+| 장기 미인정 결석자(기본점수 −1점) | 17 |
+
+---
+
+#### ② 영역 나
+
+- **평가 영역명**: 영역 나 ｜ **영역 만점**: 30점 ｜ **학기**: 2학기
+- **수행과제**: 과제 설명 둘.
+- **성취기준 / 성취수준(A~E)**: [12합성01-02]
+- **평가기준(상/중/하)**: 상=상 수준 설명 ／ 중=중 수준 설명 ／ 하=하 수준 설명
+- **평가 방법**: ☑ 논술
+- **학생 유의사항**: 유의 사항 둘.
+
+**평가요소 ｜ 수행수준(채점 기준) ｜ 배점**
+
+| 평가요소 | 수행수준(채점 기준) | 배점 |
+|---|---|---|
+| 델타 해석하기 | 근거를 들어 해석함 | 15 |
+| | 부분만 해석함 | 8 |
+| 엡실론 판단하기 | 근거를 들어 판단함 | 15 |
+| | 부분만 판단함 | 8 |
+| 기본점수(백지 활동지 제출자·자발적 미참여자 등) | | 10 |
+| 장기 미인정 결석자(기본점수 −1점) | | 9 |
+
+### 8. 정의적 능력 평가"""
+
+
+def _detailed_md() -> str:
+    """SYNTHETIC_2022 with its legacy §7 replaced by the detailed §7 format."""
+    head = SYNTHETIC_2022[: SYNTHETIC_2022.index("### 7. 수행평가 세부기준")]
+    tail = SYNTHETIC_2022[SYNTHETIC_2022.index("### 8. 정의적 능력 평가"):]
+    return head + _DETAILED_S7[: _DETAILED_S7.index("### 8. 정의적 능력 평가")] + tail
+
+
+def _rubric_grid_texts(data, ti):
+    from hwpx.evalplan_fill import _grid_of
+    from hwpx.table_patch import _text_of
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    out = {}
+    for r in range(rep.row_count):
+        for cprime in range(rep.col_count):
+            c = grid.get((r, cprime))
+            if c is not None and (c.row, c.col) == (r, cprime):
+                out[(r, cprime)] = (_text_of(tb[c.start:c.end]).strip(), c.row_span, c.col_span)
+    return out, rep
+
+
+def test_parse_rubrics_detailed_structure():
+    """The current-format §7 (#### ① H4 areas) parses into detailed rubrics with per-
+    sub-area 평가요소 ladders, 소계 rows, and 기본점수 / 장기 미인정 from the ［영역 공통］
+    table and inline rows -- verbatim, nothing invented."""
+    c = parse_review_md(_detailed_md())
+    assert len(c.rubrics) == 2 and all(r.detailed for r in c.rubrics)
+    r0, r1 = c.rubrics
+    assert (r0.title, r0.points, r0.standards) == ("영역 가", 45, "[12합성01-01]")
+    assert (r0.base_score, r0.long_score) == ("18", "17")
+    assert [sa.label for sa in r0.subareas] == ["가. 세부 하나", "나. 세부 둘"]
+    assert [sa.points for sa in r0.subareas] == [30, 15]
+    sa0 = r0.subareas[0]
+    real = [it for it in sa0.items if not it.subtotal]
+    assert [it.name for it in real] == ["알파 구현하기", "베타 완성하기"]
+    assert real[0].levels == [("완비하여 산출함", "20"), ("부분만 완성함", "10")]
+    assert any(it.subtotal for it in sa0.items)            # 소계 kept as boundary marker
+    # ② single anonymous sub-area, inline 기본점수, a 평가기준(상/중/하) bullet
+    assert (r1.title, r1.points) == ("영역 나", 30)
+    assert (r1.base_score, r1.long_score) == ("10", "9")
+    assert len(r1.subareas) == 1 and r1.subareas[0].label == ""
+    assert [it.name for it in r1.subareas[0].items] == ["델타 해석하기", "엡실론 판단하기"]
+    assert "상=상 수준 설명" in r1.criteria
+
+
+def test_fill_detailed_2hak_lands_every_level_and_배점():
+    """The 평가 영역명 (2학년) blank's 평가요소 ladder is grown to the MD element count and
+    every observable criterion + 배점 is spliced verbatim (no summarisation), with no
+    foreign sample code left in the rubric tables."""
+    import re
+    from hwpx.evalplan_fill import fill_evalplan, _rubric_indices
+    c = parse_review_md(_detailed_md())
+    res = fill_evalplan(str(BLANK_2HAK), c, phase="all")
+    data = res["_data"]
+    assert res["content_report"]["rubrics"]["filled"] == 2
+    idxs = _rubric_indices(data)
+    cells0, _rep = _rubric_grid_texts(data, idxs[0])
+    texts0 = {t for (t, _rs, _cs) in cells0.values()}
+    # every 평가요소 leader + every level descriptor + every 배점 landed
+    for needle in ("영역 가", "알파 구현하기", "완비하여 산출함", "부분만 완성함",
+                   "베타 완성하기", "감마 식별하기", "가. 소계", "나. 소계"):
+        assert needle in texts0, needle
+    batjeom0 = {t for (r, cprime), (t, _rs, _cs) in cells0.items() if t.isdigit()}
+    for score in ("20", "10", "5", "30", "15", "8", "18", "17"):
+        assert score in batjeom0, score
+    # ② single-area lands its inline base scores
+    cells1, _ = _rubric_grid_texts(data, idxs[1])
+    texts1 = {t for (t, _rs, _cs) in cells1.values()}
+    assert {"델타 해석하기", "엡실론 판단하기"} <= texts1
+    # no foreign standard code survives inside the filled rubric tables
+    joined = " ".join(texts0 | texts1)
+    foreign = [x for x in set(re.findall(r"\[\d?\d?[가-힣A-Za-z]+\d[\d\-]*\]", joined))
+               if not x.startswith("[12합성")]
+    assert foreign == [], foreign
+
+
+def test_fill_detailed_3hak_nested_ladder_spans():
+    """The 교육과정성취기준 (3학년) blank's 5-column ladder is reshaped to one row per level,
+    with the 영역(만점) merge spanning the area, the 평가항목 merges spanning each 세부영역,
+    and the 평가요소 merges spanning each element (split_cell_vertical)."""
+    from hwpx.evalplan_fill import fill_evalplan, _rubric_indices
+    c = parse_review_md(_detailed_md())
+    res = fill_evalplan(str(BLANK_3HAK), c, phase="all")
+    data = res["_data"]
+    assert res["content_report"]["rubrics"]["filled"] == 2
+    idxs = _rubric_indices(data)
+    cells, rep = _rubric_grid_texts(data, idxs[0])
+    # 평가기준 상/중/하 header filled from the (② here has criteria; ① lacks it, so use ②)
+    cells1, _ = _rubric_grid_texts(data, idxs[1])
+    assert any("상 수준 설명" in t for (t, _rs, _cs) in cells1.values())
+    # locate the ladder header row (col0 == 영역(만점))
+    hdr = next(r for (r, cprime), (t, _rs, _cs) in cells.items() if cprime == 0 and t.replace(" ", "") == "영역(만점)")
+    body0 = hdr + 1
+    area_txt, area_rs, _cs = cells[(body0, 0)]
+    assert area_txt == "영역 가(45점)" and area_rs >= 6           # spans the whole area body
+    sub_txt, sub_rs, _cs = cells[(body0, 1)]
+    assert sub_txt == "가. 세부 하나 (30점)" and sub_rs == 4       # 알파(2) + 베타(2) levels
+    elem_txt, elem_rs, _cs = cells[(body0, 2)]
+    assert elem_txt == "알파 구현하기" and elem_rs == 2            # 2 levels
+    # 채점 기준 + 평가요소 land on area ①'s level rows; ②'s element lands in its table
+    row_texts = {t for (t, _rs, _cs) in cells.values()}
+    assert {"완비하여 산출함", "부분만 완성함", "감마 식별하기"} <= row_texts
+    assert "델타 해석하기" in {t for (t, _rs, _cs) in cells1.values()}
+
+
+def test_fill_detailed_is_byte_preserving():
+    """The detailed §7 fill reshapes + splices only -- no rubric table is regenerated."""
+    from hwpx.evalplan_fill import fill_evalplan
+    from hwpx.formfill_quality import score_format_fidelity
+    c = parse_review_md(_detailed_md())
+    for blank in (BLANK_2HAK, BLANK_3HAK):
+        data = fill_evalplan(str(blank), c, phase="all")["_data"]
+        b = score_format_fidelity(data, str(blank))
+        assert not (b.detail or {}).get("regenerated_tables"), b.detail
+
+
 def test_fill_sections_preserves_numbering_and_drops_no_content():
     """fill_sections keeps each item's 가./나./다. ordinal and, when items exceed
     the fixed placeholder slots, appends the surplus (with ordinals) to the last

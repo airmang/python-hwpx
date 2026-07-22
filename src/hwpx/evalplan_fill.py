@@ -55,15 +55,63 @@ def _md_table_header(block: str) -> list[str]:
 
 
 @dataclass
+class RubricItem:
+    """One 평가요소 (evaluation element) with its observable-criteria 배점 ladder —
+    ``levels`` is ``[(descriptor, 배점), …]`` top score first, verbatim from the MD.
+    ``subtotal`` marks a 소계 row (the sub-area 만점, not a scored element)."""
+    name: str
+    levels: list[tuple[str, str]] = field(default_factory=list)
+    subtotal: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "levels": [list(l) for l in self.levels],
+                "subtotal": self.subtotal}
+
+
+@dataclass
+class RubricSubArea:
+    """A 세부 영역 (가./나. …) or, for a single-table area, one anonymous sub-area
+    (``label==""``). ``points`` is the 소계 (0 if the MD gives none)."""
+    label: str = ""
+    points: int = 0
+    items: list[RubricItem] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"label": self.label, "points": self.points,
+                "items": [it.to_dict() for it in self.items]}
+
+
+@dataclass
 class Rubric:
     title: str                       # "문제해결에 탐색 활용하기"
     points: int                      # 35
     standards: str                   # "[12인기02-04][12인기02-05]"
     rows: list[list[str]] = field(default_factory=list)   # [평가항목, 채점 기준]
+    # --- detailed 배점 rubric (current 평가계획 MD format), empty for the legacy
+    # synthetic format; :attr:`detailed` gates the detailed fill route.
+    subareas: list[RubricSubArea] = field(default_factory=list)
+    base_score: str = ""             # 기본점수 (백지·미참여)
+    long_score: str = ""             # 장기 미인정 결석자 (기본점수 −1)
+    task: str = ""                   # 수행과제
+    method: str = ""                 # 평가 방법
+    student_notes: str = ""          # 학생 유의사항
+    criteria: str = ""               # 평가기준(상/중/하) — 2015-개정 (3학년) only
+
+    @property
+    def detailed(self) -> bool:
+        """True when parsed from the current 평가계획 MD (per-element 배점 ladders)."""
+        return bool(self.subareas)
+
+    @property
+    def items(self) -> list[RubricItem]:
+        """All 평가요소 across sub-areas, in document order (flattened view)."""
+        return [it for sa in self.subareas for it in sa.items]
 
     def to_dict(self) -> dict[str, Any]:
         return {"title": self.title, "points": self.points,
-                "standards": self.standards, "rows": self.rows}
+                "standards": self.standards, "rows": self.rows,
+                "subareas": [sa.to_dict() for sa in self.subareas],
+                "base_score": self.base_score, "long_score": self.long_score}
 
 
 @dataclass
@@ -219,6 +267,20 @@ def _prose(text: str) -> str:
 
 
 def _parse_rubrics(s7: str) -> list[Rubric]:
+    """Parse §7 수행평가 세부기준 into one :class:`Rubric` per 수행영역.
+
+    Dispatches on format: the current 평가계획 MD writes each area as an ``#### ①
+    title`` H4 heading with per-세부영역 ``평가요소 | 수행수준(채점 기준) | 배점`` tables
+    (the *detailed* 배점 rubric) — :func:`_parse_rubrics_detailed`. The older synthetic
+    format bolds the header inline (``**① title (NN점)**``) with a single flat 채점
+    기준(배점) table — :func:`_parse_rubrics_legacy`. Detection is structural (an H4
+    circled heading), never subject-specific."""
+    if re.search(r"(?m)^####\s*[" + _CIRCLED + r"]", s7):
+        return _parse_rubrics_detailed(s7)
+    return _parse_rubrics_legacy(s7)
+
+
+def _parse_rubrics_legacy(s7: str) -> list[Rubric]:
     rubrics: list[Rubric] = []
     # split on the bolded circled headers "**① title (NN점)** ..."
     parts = re.split(r"\*\*([" + _CIRCLED + r"][^*]*?\(\d+점\)[^*]*)\*\*", s7)
@@ -234,6 +296,158 @@ def _parse_rubrics(s7: str) -> list[Rubric]:
         rows = _md_table_rows(body)
         rubrics.append(Rubric(title=title, points=points, standards=standards, rows=rows))
     return rubrics
+
+
+def _strip_inline_md(s: str) -> str:
+    """Drop ``**bold**`` / `` `code` `` emphasis, collapse whitespace — cell text is
+    spliced verbatim otherwise (no summarisation)."""
+    return _norm(re.sub(r"\*\*|`", "", s or ""))
+
+
+def _iter_md_tables(block: str):
+    """Yield ``(preamble, header_cells, data_rows)`` for every GitHub table in *block*
+    in order. ``preamble`` is the non-table text since the previous table — it carries
+    the ``［세부 영역 …］`` marker that names each sub-area."""
+    lines = block.splitlines()
+    i, preamble = 0, []
+    while i < len(lines):
+        if lines[i].strip().startswith("|"):
+            tbl = []
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                tbl.append(lines[i].strip())
+                i += 1
+            rows = []
+            for t in tbl:
+                cells = [c.strip() for c in t.strip("|").split("|")]
+                if all(set(c) <= {"-", ":", " "} and c for c in cells):
+                    continue
+                rows.append(cells)
+            if rows:
+                yield "\n".join(preamble), rows[0], rows[1:]
+            preamble = []
+        else:
+            preamble.append(lines[i])
+            i += 1
+
+
+def _area_bullet(body: str, label: str) -> str:
+    """The value of a ``- **{label}**: …`` meta bullet in an area body ('' if absent)."""
+    m = re.search(rf"[-*]\s*\*\*{label}\*\*\s*[:：]?\s*(.+)", body)
+    return m.group(1).strip() if m else ""
+
+
+def _area_points(body: str, header: str) -> int:
+    """영역 만점 for an area — from the meta bullet / blockquote ('영역 만점: 50점',
+    '> 영역 만점 35점') or a ``(NN점)`` in the heading, else 0."""
+    m = re.search(r"영역\s*만점[은]?\**\s*[:：]?\s*(\d+)\s*점", body)
+    if not m:
+        m = re.search(r"\((\d+)\s*점\)", header)
+    return int(m.group(1)) if m else 0
+
+
+def _area_standards(body: str) -> str:
+    """The 성취기준 codes cited by an area, concatenated ('[12인기02-04][12인기02-05]')."""
+    m = re.search(r"(?:교육과정\s*성취기준|성취기준\s*/\s*성취수준|성취기준)[^\n]*?[:：]\s*(.+)", body)
+    src = m.group(1) if m else body
+    codes = re.findall(r"\[1\d[가-힣A-Za-z]*\d\d-\d\d\](?:\s*~\s*\[1\d[가-힣A-Za-z]*\d\d-\d\d\])?", src)
+    return "".join(codes)
+
+
+def _parse_area_rubric(header: str, title: str, body: str) -> Rubric:
+    """One 수행영역 → a detailed :class:`Rubric`: sub-area ``평가요소 | 수행수준 | 배점``
+    tables become :class:`RubricSubArea` blocks of :class:`RubricItem` ladders, and the
+    ［영역 공통］ / inline 기본점수 rows become ``base_score`` / ``long_score``. Content is
+    read verbatim — no invented 배점, no summarisation."""
+    rub = Rubric(title=title, points=_area_points(body, header),
+                 standards=_area_standards(body),
+                 task=_strip_inline_md(_area_bullet(body, "수행과제")),
+                 method=_strip_inline_md(_area_bullet(body, "평가 방법")),
+                 student_notes=_strip_inline_md(_area_bullet(body, "학생 유의사항")),
+                 criteria=_area_bullet(body, r"평가기준\(상/중/하\)"))
+    for pre, hdr, rows in _iter_md_tables(body):
+        hdr_txt = " ".join(hdr)
+        if "평가요소" in hdr_txt and "배점" in hdr_txt:
+            rub.subareas.append(_parse_subarea(pre, rows, rub))
+        elif "구분" in hdr_txt and "배점" in hdr_txt:
+            _absorb_base_row(rows, rub)          # ［영역 공통］ table
+    _sync_legacy_rows(rub)
+    return rub
+
+
+def _parse_subarea(preamble: str, rows: list[list[str]], rub: Rubric) -> RubricSubArea:
+    """Group a sub-area table's rows into 평가요소 items (new item = non-empty 평가요소
+    cell, continuation rows = extra levels). A named sub-area's 소계 row is kept as a
+    trailing subtotal item (verbatim md — it marks the 가/나 boundary and the sub-area
+    만점); 기본점수 / 장기 미인정 rows (appearing inline in single-table areas) feed
+    ``rub.base_score`` / ``long_score``."""
+    m = re.search(r"［세부 영역\s*([가-힣])\.\s*(.+?)\s*\((\d+)\s*점\)］", preamble or "")
+    sa = RubricSubArea(label=f"{m.group(1)}. {m.group(2)}" if m else "",
+                       points=int(m.group(3)) if m else 0)
+    cur: RubricItem | None = None
+    for row in rows:
+        c0 = _strip_inline_md(row[0]) if len(row) > 0 else ""
+        c1 = _strip_inline_md(row[1]) if len(row) > 1 else ""
+        c2 = _strip_inline_md(row[2]) if len(row) > 2 else ""
+        if "소계" in c0:
+            if c2.isdigit():
+                sa.points = int(c2)
+            if sa.label:                         # keep 소계 as a subtotal row (가/나 marker)
+                sm = re.match(r"(.*?소계)\s*\((.*)\)\s*$", c0)
+                name, note = (sm.group(1), sm.group(2)) if sm else (c0, "")
+                sa.items.append(RubricItem(name=name, levels=[(note, c2)], subtotal=True))
+            cur = None
+            continue
+        if "장기 미인정" in c0 or "장기미인정" in c0:
+            if c2.isdigit():
+                rub.long_score = c2
+            continue
+        if "기본점수" in c0:
+            if c2.isdigit():
+                rub.base_score = c2
+            continue
+        if c0:                                   # a new 평가요소
+            cur = RubricItem(name=c0)
+            sa.items.append(cur)
+        if cur is not None and (c1 or c2):
+            cur.levels.append((c1, c2))
+    return sa
+
+
+def _absorb_base_row(rows: list[list[str]], rub: Rubric) -> None:
+    """Read ［영역 공통］ ``구분 | 배점`` rows into ``base_score`` / ``long_score``. 장기
+    미인정 rows also carry '기본점수' (—1점), so match the more specific label first."""
+    for row in rows:
+        c0 = _strip_inline_md(row[0]) if row else ""
+        cN = _strip_inline_md(row[-1]) if row else ""
+        if not cN.isdigit():
+            continue
+        if "장기 미인정" in c0 or "장기미인정" in c0:
+            rub.long_score = cN
+        elif "기본점수" in c0:
+            rub.base_score = cN
+
+
+def _sync_legacy_rows(rub: Rubric) -> None:
+    """Mirror the detailed model into the legacy ``rows`` shape ([name, 'desc **s** / …']
+    + a trailing 기본점수 summary) so legacy introspection / scorers keep working."""
+    rows: list[list[str]] = []
+    for it in rub.items:
+        ladder = " / ".join(f"{d} **{s}**" if s else d for d, s in it.levels)
+        rows.append([it.name, ladder])
+    if rub.base_score or rub.long_score:
+        rows.append([f"기본점수 **{rub.base_score}** · 장기 미인정 결석 **{rub.long_score}**", ""])
+    rub.rows = rows
+
+
+def _parse_rubrics_detailed(s7: str) -> list[Rubric]:
+    """Parse the current-format §7 (``#### ①`` areas) into detailed rubrics."""
+    heads = list(re.finditer(r"(?m)^####\s*([" + _CIRCLED + r"])\s*(.+?)\s*$", s7))
+    out: list[Rubric] = []
+    for k, m in enumerate(heads):
+        start = m.end()
+        end = heads[k + 1].start() if k + 1 < len(heads) else len(s7)
+        out.append(_parse_area_rubric(m.group(0), m.group(2).strip(), s7[start:end]))
+    return out
 
 
 def _norm(text: str) -> str:
@@ -315,11 +529,17 @@ def plan_structural_ops(blank: str | Path, content: EvalPlanContent | None = Non
     # rubric example (연주/비평 for 3학년, 6 국어 영역 for 2학년); the content needs
     # `exp[kind]` of them. Delete the extras (keep the first) so the structure
     # matches the content-derived skeleton.
+    detailed_rubrics = bool(content and content.rubrics and content.rubrics[0].detailed)
     if exp:
         for kind in ("achievement", "level", "rubric"):
             idxs = by_kind.get(kind, [])
             want = exp.get(kind, 0)
-            for i in idxs[want:]:
+            # For detailed rubrics the blank ships filled donor samples FIRST (인권·인포
+            # 그래픽) and clean empty templates LAST; the leading 인권 sample carries an
+            # extra 세부 항목 column the MD never uses, so keep the trailing clean
+            # templates instead (drop the surplus from the front).
+            surplus = idxs[:len(idxs) - want] if (kind == "rubric" and detailed_rubrics) else idxs[want:]
+            for i in surplus:
                 if i not in del_tables:
                     del_tables.append(i)
                     transcript.append(f"delete_table #{i} (surplus {kind} example) — "
@@ -1215,6 +1435,488 @@ def _fill_rubric_headings(data: bytes, content: EvalPlanContent) -> tuple[bytes,
     return pres.data, skipped
 
 
+# --------------------------------------------------------------------------- #
+# Detailed §7 fill (current 평가계획 MD) -- per-평가요소 배점 ladders. Reshapes the
+# blank rubric's 평가요소 ladder to the MD's element count (grow / shrink the col0
+# vertical-merge blocks) and splices every observable criterion + 배점 verbatim.
+# Every target is located by geometry (label text / grid spans), reusable across the
+# form family, and every edit goes through the byte-preserving table_patch primitives.
+# --------------------------------------------------------------------------- #
+
+def _row_label_value(grid: Any, rep: Any, tb: bytes, matches) -> tuple[int | None, Any, Any]:
+    """(row, label_cell, value_cell) for the first cell whose text satisfies *matches*;
+    value_cell is the grid cell immediately to its right (spanning-aware)."""
+    from .table_patch import _text_of
+    for r in range(rep.row_count):
+        for c in range(rep.col_count):
+            cell = grid.get((r, c))
+            if cell is None or cell.row != r or cell.col != c:
+                continue
+            if matches(_text_of(tb[cell.start:cell.end])):
+                return r, cell, grid.get((r, c + cell.col_span))
+    return None, None, None
+
+
+def _fill_2022_header(data: bytes, ti: int, rub: Rubric) -> tuple[bytes, list[str]]:
+    """Overwrite the header value cells (평가 영역명 / 영역 만점 / 학기 / 수행과제 / 학생
+    유의사항) — located by their label, so it works on both the clean template and the
+    donor samples that survive structural pruning."""
+    from .table_patch import fill_cells
+    _sp, tb, grid, rep = _grid_of(data, ti)
+
+    def _n(t: str) -> str:
+        return t.replace(" ", "").strip()
+
+    specs = [
+        (lambda t: _n(t) == "평가영역명", rub.title, 3),
+        (lambda t: _n(t) == "영역만점", f"{rub.points}점", 1),
+        (lambda t: _n(t) == "학기", "2학기", 1),
+        (lambda t: _n(t) == "수행과제", rub.task, 6),
+        (lambda t: _n(t) == "학생유의사항", rub.student_notes, 6),
+    ]
+    cells: list[dict[str, Any]] = []
+    for pred, val, ml in specs:
+        if not val:
+            continue
+        _r, _lc, vc = _row_label_value(grid, rep, tb, pred)
+        if vc is not None:
+            cells.append({"table_index": ti, "row": vc.row, "col": vc.col, "text": val, "max_lines": ml})
+    # 평가 방법: the donor sample's checkbox grid carries the WRONG subject's ☑ marks.
+    # Overwrite the value cell with the MD's method (its ☑ list) and blank the second
+    # checkbox row so no foreign check survives.
+    if rub.method:
+        mr, _mlc, mvc = _row_label_value(grid, rep, tb, lambda t: _n(t) == "평가방법")
+        if mvc is not None:
+            cells.append({"table_index": ti, "row": mvc.row, "col": mvc.col, "text": rub.method, "max_lines": 2})
+            nxt = grid.get((mvc.row + 1, mvc.col))
+            if nxt is not None and nxt.row == mvc.row + 1:
+                cells.append({"table_index": ti, "row": nxt.row, "col": nxt.col, "text": "", "max_lines": 1})
+    fr = fill_cells(data, cells)
+    return fr.data, [s.reason for s in fr.skipped]
+
+
+def _delete_2022_ae_block(data: bytes, ti: int) -> tuple[bytes, list[str]]:
+    """Delete the 성취기준 + 성취기준별 성취수준 (A~E) block. The current MD gives no
+    per-area A~E descriptors (it refers to §4), so keeping the sample rows would show
+    empty/foreign A~E — dropping them is the honest render. Bounds: the '성취기준' label
+    row through the row before '평가 방법'."""
+    from .table_patch import apply_table_ops, _text_of
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    ae_start = method_row = None
+    for r in range(rep.row_count):
+        c0 = grid.get((r, 0))
+        if c0 is None or c0.row != r:
+            continue
+        t = _text_of(tb[c0.start:c0.end]).replace(" ", "").strip()
+        if ae_start is None and t == "성취기준":
+            ae_start = r
+        if t == "평가방법":
+            method_row = r
+            break
+    if ae_start is None or method_row is None or method_row <= ae_start:
+        return data, [f"rubric ti={ti}: A~E block bounds not found (성취기준={ae_start}, 평가방법={method_row})"]
+    rows = list(range(ae_start, method_row))
+    res = apply_table_ops(data, [{"op": "delete_row", "table_index": ti, "rows": sorted(rows, reverse=True)}])
+    if not res.ok:
+        return data, [f"rubric ti={ti}: delete A~E block: {[s.reason for s in res.skipped]}"]
+    return res.data, []
+
+
+def _grow_ladder_groups(data: bytes, ti: int, n: int) -> tuple[bytes, list[str]]:
+    """Reshape the col0 평가요소 ladder to exactly *n* groups. Clones the shortest clean
+    group block (``insert_block_by_clone`` — copies formatting byte-for-byte) to grow,
+    deletes whole surplus blocks to shrink. Fail-closed."""
+    from .table_patch import apply_table_ops
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    ph, base = _pf_bounds(tb, grid, rep)
+    if ph is None or base is None:
+        return data, [f"rubric ti={ti}: no 평가요소/기본점수 bounds for ladder growth"]
+    groups = _pf_groups(tb, ph, base)
+    g = len(groups)
+    if g == n:
+        return data, []
+    if g < n:
+        r0, h = min(groups, key=lambda gh: gh[1])       # clone the shortest block
+        res = apply_table_ops(data, [{"op": "insert_block_by_clone", "table_index": ti,
+                                      "ref_rows": [r0, r0 + h - 1], "count": n - g}])
+        if not res.ok:
+            return data, [f"rubric ti={ti}: grow ladder to {n} groups: {[s.reason for s in res.skipped]}"]
+        return res.data, []
+    del_rows: list[int] = []
+    for r0, h in groups[n:]:
+        del_rows.extend(range(r0, r0 + h))
+    res = apply_table_ops(data, [{"op": "delete_row", "table_index": ti,
+                                  "rows": sorted(set(del_rows), reverse=True)}])
+    if not res.ok:
+        return data, [f"rubric ti={ti}: shrink ladder to {n} groups: {[s.reason for s in res.skipped]}"]
+    return res.data, []
+
+
+def _fill_2022_ladder_detailed(data: bytes, ti: int, items: list[RubricItem]) -> tuple[bytes, bool, list[str]]:
+    """Normalize each 평가요소 group to its element's level count and splice the
+    descriptor + 배점 of every level (verbatim from the MD's structured levels — never
+    the lossy '/'-joined form). ``_grow_ladder_groups`` must have made the group count
+    equal to ``len(items)`` first. Reuses the byte-preserving group reshape helpers."""
+    from .table_patch import fill_cells
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    ph, base = _pf_bounds(tb, grid, rep)
+    if ph is None or base is None:
+        return data, False, [f"rubric ti={ti}: no ladder bounds"]
+    bat_col = rep.col_count - 1
+    desc_col = _pf_desc_col(tb, ph, base, bat_col)
+    has_sub = desc_col > 1
+    groups = _pf_groups(tb, ph, base)
+    if len(groups) != len(items):
+        return data, False, [f"rubric ti={ti}: {len(groups)} 평가요소 groups != {len(items)} MD elements"]
+
+    d = data
+    for gi in range(len(groups) - 1, -1, -1):
+        m = max(1, len(items[gi].levels))
+        _sp, tb, grid, rep = _grid_of(d, ti)
+        ph2, base2 = _pf_bounds(tb, grid, rep)
+        r0, h = _pf_groups(tb, ph2, base2)[gi]
+        if has_sub:
+            d, _fh, sub_sk = _reduce_to_first_subitem(d, ti, r0, h)
+            if sub_sk:
+                return data, False, [f"rubric ti={ti} group {gi}: {sub_sk[0]}"]
+            _sp, tb, grid, rep = _grid_of(d, ti)
+            ph2, base2 = _pf_bounds(tb, grid, rep)
+            r0, h = _pf_groups(tb, ph2, base2)[gi]
+        d, norm_sk = _normalize_ladder_group(d, ti, r0, h, m, desc_col, bat_col)
+        if norm_sk:
+            return data, False, [f"rubric ti={ti} group {gi}: {norm_sk[0]}"]
+
+    _sp, tb, grid, rep = _grid_of(d, ti)
+    ph2, base2 = _pf_bounds(tb, grid, rep)
+    gg = _pf_groups(tb, ph2, base2)
+    cells: list[dict[str, Any]] = []
+    for gi, (r0, _h) in enumerate(gg):
+        lead = grid.get((r0, 0))
+        if lead is not None:
+            cells.append({"table_index": ti, "row": lead.row, "col": lead.col,
+                          "text": items[gi].name, "max_lines": 4})
+        for k, (desc, score) in enumerate(items[gi].levels):
+            r = r0 + k
+            dc = grid.get((r, desc_col))
+            if dc is not None:
+                cells.append({"table_index": ti, "row": dc.row, "col": dc.col, "text": desc, "max_lines": 6})
+            bc = grid.get((r, bat_col))
+            if bc is not None and score:
+                cells.append({"table_index": ti, "row": bc.row, "col": bc.col, "text": score, "max_lines": 1})
+        if has_sub:
+            sc = grid.get((r0, 1))
+            if sc is not None and sc.col == 1:
+                cells.append({"table_index": ti, "row": sc.row, "col": 1, "text": "", "max_lines": 1})
+    fr = fill_cells(d, cells)
+    return fr.data, True, [s.reason for s in fr.skipped]
+
+
+def _fill_2022_base_scores(data: bytes, ti: int, rub: Rubric) -> tuple[bytes, list[str]]:
+    """Fill the 기본점수 / 장기 미인정 결석자 배점 cells (right-most column). The row
+    labels already carry the form's standard text, so only the 배점 is spliced. 장기
+    미인정 rows also contain '기본점수' (−1점), so match the more specific label first."""
+    from .table_patch import fill_cells, _text_of
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    bat_col = rep.col_count - 1
+    base_row = long_row = None
+    for r in range(rep.row_count):
+        c0 = grid.get((r, 0))
+        if c0 is None or c0.row != r:
+            continue
+        t = _text_of(tb[c0.start:c0.end])
+        if "장기 미인정" in t or "장기미인정" in t:
+            long_row = r
+        elif "기본점수" in t:
+            base_row = r
+    cells: list[dict[str, Any]] = []
+    for row, score in ((base_row, rub.base_score), (long_row, rub.long_score)):
+        if row is None or not score:
+            continue
+        bc = grid.get((row, bat_col))
+        if bc is not None:
+            cells.append({"table_index": ti, "row": bc.row, "col": bc.col, "text": score, "max_lines": 1})
+    fr = fill_cells(data, cells)
+    return fr.data, [s.reason for s in fr.skipped]
+
+
+def _fill_rubric_detailed_2022(data: bytes, ti: int, rub: Rubric) -> tuple[bytes, bool, list[str]]:
+    """Fill ONE 2022-개정 (평가 영역명) rubric with a detailed area's content: header
+    values, drop the A~E block, grow the 평가요소 ladder to the element count, splice
+    every level's criterion + 배점, and the 기본점수 배점. Returns (data, ladder_filled,
+    notes)."""
+    notes: list[str] = []
+    data, n = _fill_2022_header(data, ti, rub); notes += n
+    data, n = _delete_2022_ae_block(data, ti); notes += n
+    items = rub.items
+    data, n = _grow_ladder_groups(data, ti, len(items)); notes += n
+    data, filled, n = _fill_2022_ladder_detailed(data, ti, items); notes += n
+    data, n = _fill_2022_base_scores(data, ti, rub); notes += n
+    data = _prune_header_empty_bullets(data, ti)
+    return data, filled, notes
+
+
+def _split_criteria(criteria: str) -> tuple[str, str, str]:
+    """Split a 평가기준(상/중/하) bullet ('상=… ／ 중=… ／ 하=…') into its three
+    descriptors (verbatim, '' for any absent level)."""
+    out = {}
+    for key in ("상", "중", "하"):
+        m = re.search(rf"{key}\s*=\s*(.+?)(?=\s*[／/]\s*[상중하]\s*=|$)", criteria or "")
+        out[key] = _strip_inline_md(m.group(1)) if m else ""
+    return out["상"], out["중"], out["하"]
+
+
+def _3hak_ladder_bounds(tb: bytes, grid: Any, rep: Any) -> tuple[int | None, int | None]:
+    """(영역(만점) header row, 기본점수 row) of a 2015-개정 rubric ladder."""
+    from .table_patch import _text_of
+    hr = br = None
+    for r in range(rep.row_count):
+        c0 = grid.get((r, 0))
+        if c0 is not None and c0.row == r:
+            t = _text_of(tb[c0.start:c0.end]).replace(" ", "")
+            if "영역" in t and "만점" in t:
+                hr = r
+        c1 = grid.get((r, 1))
+        if c1 is not None and c1.row == r and br is None and "기본점수" in _text_of(tb[c1.start:c1.end]):
+            br = r
+    return hr, br
+
+
+def _fill_3hak_header(data: bytes, ti: int, rub: Rubric) -> tuple[bytes, list[str]]:
+    """Fill the 교육과정성취기준 codes, the 평가기준 상/중/하 descriptors, and 학생 유의
+    사항 — located by label geometry."""
+    from .table_patch import fill_cells
+
+    def _n(t: str) -> str:
+        return t.replace(" ", "").strip()
+
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    sang, jung, ha = _split_criteria(rub.criteria)
+    specs = [
+        (lambda t: _n(t) in ("교육과정성취기준", "성취기준"), rub.standards, 3),
+        (lambda t: _n(t) == "상", sang, 4),
+        (lambda t: _n(t) == "중", jung, 4),
+        (lambda t: _n(t) == "하", ha, 4),
+        (lambda t: _n(t) == "학생유의사항", rub.student_notes, 4),
+    ]
+    cells: list[dict[str, Any]] = []
+    for pred, val, ml in specs:
+        if not val:
+            continue
+        _r, _lc, vc = _row_label_value(grid, rep, tb, pred)
+        if vc is not None:
+            cells.append({"table_index": ti, "row": vc.row, "col": vc.col, "text": val, "max_lines": ml})
+    fr = fill_cells(data, cells)
+    return fr.data, [s.reason for s in fr.skipped]
+
+
+def _fill_3hak_base_scores(data: bytes, ti: int, rub: Rubric) -> tuple[bytes, list[str]]:
+    from .table_patch import fill_cells, _text_of
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    bat_col = rep.col_count - 1
+    base_row = long_row = None
+    for r in range(rep.row_count):
+        c1 = grid.get((r, 1))
+        if c1 is None or c1.row != r:
+            continue
+        t = _text_of(tb[c1.start:c1.end])
+        if "장기 미인정" in t or "장기미인정" in t:
+            long_row = r
+        elif "기본점수" in t:
+            base_row = r
+    cells: list[dict[str, Any]] = []
+    for row, score in ((base_row, rub.base_score), (long_row, rub.long_score)):
+        if row is None or not score:
+            continue
+        bc = grid.get((row, bat_col))
+        if bc is not None:
+            cells.append({"table_index": ti, "row": bc.row, "col": bc.col, "text": score, "max_lines": 1})
+    fr = fill_cells(data, cells)
+    return fr.data, [s.reason for s in fr.skipped]
+
+
+def _build_3hak_ladder(data: bytes, ti: int, rub: Rubric) -> tuple[bytes, bool, list[str]]:
+    """Reshape the 5-column 영역(만점)|평가항목|평가요소|채점 기준|배점 ladder to one physical
+    row per MD level, then subdivide the single 평가요소 merge into per-element blocks and
+    the 평가항목 merge into per-세부영역 blocks (``split_cell_vertical``, byte-preserving).
+    Leaders land on each block's top row; 채점 기준 + 배점 land on every level row."""
+    from .table_patch import apply_table_ops
+
+    subareas = [(sa.label, sa.points, [it for it in sa.items if not it.subtotal])
+                for sa in rub.subareas]
+    subareas = [(lbl, pts, its) for lbl, pts, its in subareas if its]
+    if not subareas:
+        return data, False, [f"rubric ti={ti}: 3학년 rubric has no scored elements"]
+
+    flat: list[tuple[str, str]] = []
+    item_sizes: list[int] = []
+    subarea_sizes: list[int] = []
+    item_leaders: list[tuple[int, str]] = []
+    subarea_leaders: list[tuple[int, str]] = []
+    off = 0
+    for lbl, pts, its in subareas:
+        sa_start, sa_total = off, 0
+        for it in its:
+            levels = it.levels or [("", "")]
+            item_leaders.append((off, it.name))
+            item_sizes.append(len(levels))
+            flat.extend(levels)
+            off += len(levels)
+            sa_total += len(levels)
+        subarea_leaders.append((sa_start, f"{lbl} ({pts}점)" if lbl else ""))
+        subarea_sizes.append(sa_total)
+    n = off
+
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    hr, br = _3hak_ladder_bounds(tb, grid, rep)
+    if hr is None or br is None:
+        return data, False, [f"rubric ti={ti}: no 영역(만점)/기본점수 ladder bounds"]
+    body0 = hr + 1
+    cur = br - body0
+    # Grow / shrink the body to n rows. Clone a COVERED body row (body0+1): its cells are
+    # rowSpan==1 (채점 기준·배점) while col0/1/2 merges span across it and auto-extend.
+    if n > cur:
+        res = apply_table_ops(data, [{"op": "insert_row_by_clone", "table_index": ti,
+                                      "ref_row": body0 + 1, "count": n - cur}])
+        if not res.ok:
+            return data, False, [f"rubric ti={ti}: grow ladder to {n} rows: {[s.reason for s in res.skipped]}"]
+        data = res.data
+    elif n < cur:
+        res = apply_table_ops(data, [{"op": "delete_row", "table_index": ti,
+                                      "rows": list(range(body0 + n, br))}])
+        if not res.ok:
+            return data, False, [f"rubric ti={ti}: shrink ladder to {n} rows: {[s.reason for s in res.skipped]}"]
+        data = res.data
+
+    # Subdivide 평가요소 (col2) per element and 평가항목 (col1) per 세부영역.
+    for col, sizes in ((2, item_sizes), (1, subarea_sizes)):
+        if len(sizes) > 1:
+            res = apply_table_ops(data, [{"op": "split_cell_vertical", "table_index": ti,
+                                          "row": body0, "col": col, "sizes": sizes}])
+            if not res.ok:
+                return data, False, [f"rubric ti={ti}: split col{col} {sizes}: {[s.reason for s in res.skipped]}"]
+            data = res.data
+
+    from .table_patch import fill_cells
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    hr, _br = _3hak_ladder_bounds(tb, grid, rep)
+    body0 = hr + 1
+    bat_col = rep.col_count - 1
+    cells: list[dict[str, Any]] = []
+    c0 = grid.get((body0, 0))
+    if c0 is not None:
+        cells.append({"table_index": ti, "row": c0.row, "col": 0,
+                      "text": f"{rub.title}({rub.points}점)", "max_lines": 4})
+    for roff, lbl in subarea_leaders:
+        c = grid.get((body0 + roff, 1))
+        if c is not None and lbl:
+            cells.append({"table_index": ti, "row": c.row, "col": 1, "text": lbl, "max_lines": 4})
+    for roff, name in item_leaders:
+        c = grid.get((body0 + roff, 2))
+        if c is not None:
+            cells.append({"table_index": ti, "row": c.row, "col": 2, "text": name, "max_lines": 4})
+    for k, (desc, score) in enumerate(flat):
+        c3 = grid.get((body0 + k, 3))
+        if c3 is not None:
+            cells.append({"table_index": ti, "row": c3.row, "col": c3.col, "text": desc, "max_lines": 6})
+        c4 = grid.get((body0 + k, bat_col))
+        if c4 is not None and score:
+            cells.append({"table_index": ti, "row": c4.row, "col": c4.col, "text": score, "max_lines": 1})
+    fr = fill_cells(data, cells)
+    return fr.data, True, [s.reason for s in fr.skipped]
+
+
+def _fill_rubric_detailed_3hak(
+    data: bytes, ti: int, rub: Rubric, content: EvalPlanContent
+) -> tuple[bytes, bool, list[str]]:
+    """Fill ONE 2015-개정 (교육과정성취기준) rubric with a detailed area's content: header
+    (성취기준 / 평가기준 상·중·하 / 학생 유의사항), the nested 배점 ladder, and the 기본점수
+    배점. Returns (data, ladder_filled, notes)."""
+    notes: list[str] = []
+    data, n = _fill_3hak_header(data, ti, rub); notes += n
+    data, ok, n = _build_3hak_ladder(data, ti, rub); notes += n
+    data, n = _fill_3hak_base_scores(data, ti, rub); notes += n
+    data = _prune_header_empty_bullets(data, ti)
+    return data, ok, notes
+
+
+def _empty_trailing_para_spans(cell_xml: bytes) -> list[tuple[int, int]]:
+    """Byte spans of every empty ``<hp:p>`` after the first in a cell — the donor
+    template's leftover list-bullet paragraphs, which render as stray/red bullets once
+    the MD text is spliced into the first paragraph. The first paragraph is always
+    kept (a cell needs one)."""
+    s = cell_xml.decode("utf-8")
+    spans: list[tuple[int, int]] = []
+    for i, m in enumerate(re.finditer(r"<hp:p\b.*?</hp:p>", s, re.S)):
+        if i == 0:
+            continue
+        txt = "".join(re.findall(r"<hp:t\b[^>]*>(.*?)</hp:t>", m.group(0), re.S))
+        if not txt.strip():
+            spans.append((len(s[:m.start()].encode("utf-8")), len(s[:m.end()].encode("utf-8"))))
+    return spans
+
+
+def _prune_header_empty_bullets(data: bytes, ti: int) -> bytes:
+    """Drop the empty trailing bullet paragraphs left in a rubric's 수행과제 / 학생 유의
+    사항 value cells (byte-preserving: removes whole empty ``<hp:p>`` elements, rewrites
+    only the affected section part)."""
+    from .table_patch import _sections, _iter_table_spans, build_grid, _text_of
+    from .patch import _rewrite_zip_entries
+
+    idx = ti
+    for sp, section in sorted(_sections(data).items()):
+        spans = _iter_table_spans(section)
+        if idx >= len(spans):
+            idx -= len(spans)
+            continue
+        ts, te = spans[idx]
+        tb = section[ts:te]
+        grid, rep = build_grid(tb)
+        edits: list[tuple[int, int]] = []
+        for r in range(rep.row_count):
+            for cprime in range(rep.col_count):
+                cell = grid.get((r, cprime))
+                if cell is None or (cell.row, cell.col) != (r, cprime):
+                    continue
+                if _text_of(tb[cell.start:cell.end]).replace(" ", "").strip() not in ("수행과제", "학생유의사항"):
+                    continue
+                vc = grid.get((r, cell.col + cell.col_span))
+                if vc is None:
+                    continue
+                for a, b in _empty_trailing_para_spans(tb[vc.start:vc.end]):
+                    edits.append((ts + vc.start + a, ts + vc.start + b))
+        if not edits:
+            return data
+        new_section = section
+        for a, b in sorted(edits, reverse=True):
+            new_section = new_section[:a] + new_section[b:]
+        return _rewrite_zip_entries(data, {sp: new_section})
+    return data
+
+
+def _fill_rubrics_detailed(
+    data: bytes, content: EvalPlanContent, report: dict[str, Any]
+) -> tuple[bytes, dict[str, Any]]:
+    """Fill every §7 rubric from a detailed area. Routes by blank shape: 평가 영역명
+    tables (2학년) → :func:`_fill_rubric_detailed_2022`; 교육과정성취기준 tables (3학년) →
+    :func:`_fill_rubric_detailed_3hak`."""
+    filled = 0
+    for i, rub in enumerate(content.rubrics):
+        idxs = _rubric_indices(data)
+        if i >= len(idxs):
+            report["skipped"].append(f"rubric {i}: no matching blank table")
+            continue
+        ti = idxs[i]
+        if _rubric_is_2022(data, ti):
+            data, ok, notes = _fill_rubric_detailed_2022(data, ti, rub)
+        else:
+            data, ok, notes = _fill_rubric_detailed_3hak(data, ti, rub, content)
+        report["skipped"].extend(f"rubric {i}: {n}" for n in notes)
+        if ok:
+            filled += 1
+    report["filled"] = filled
+    return data, report
+
+
 def fill_rubrics(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, Any]]:
     """Fill each 수행평가 세부기준 rubric table from the matching review rubric
     (byte-preserving). Replaces the sample 성취기준 codes / 평가항목 labels.
@@ -1227,6 +1929,12 @@ def fill_rubrics(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str
     heading paragraph (가./나./다. + sample project title) to the review 영역명."""
 
     report: dict[str, Any] = {"rubrics": len(content.rubrics), "filled": 0, "skipped": []}
+
+    # Detailed route (current 평가계획 MD): each area carries a per-element 배점 ladder
+    # that the summary routes below can't represent. Grows the blank's 평가요소 ladder to
+    # the MD's element count and splices every observable criterion + 배점 verbatim.
+    if content.rubrics and content.rubrics[0].detailed:
+        return _fill_rubrics_detailed(data, content, report)
 
     # 2022-개정 route: fill each rubric table's label cells + 채점기준 ladder + heading.
     idxs0 = _rubric_indices(data)
