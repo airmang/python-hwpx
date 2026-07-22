@@ -1106,3 +1106,61 @@ def test_real_2hak_content_fill_reaches_target_structure():
     foreign = [x for x in set(re.findall(r"\[\d?\d?[가-힣A-Za-z]+\d[\d\-]*\]", txt))
                if not x.startswith("[12인기")]
     assert foreign == [], f"foreign sample codes survived: {foreign}"
+
+
+# --- finalize_evalplan / phase="clean" (driver-free productized cleanup) -------
+#
+# The scratchpad recipe drivers (build_v2*.py) are gone: their deterministic
+# post-fill cleanup now lives in finalize_evalplan. These tests pin that a
+# driver-FREE fill_evalplan(phase="clean") strips the donor's instruction
+# scaffolding / placeholder / split-score labels and fills title+teacher, all on
+# synthetic public fixtures (no PII, no subject/grade hardcoding in core).
+
+def _clean_text(data: bytes) -> str:
+    import io
+    from hwpx.document import HwpxDocument
+    return HwpxDocument.open(io.BytesIO(data)).export_text()
+
+
+def test_finalize_evalplan_removes_scaffolding_and_fills_header():
+    from hwpx.evalplan_fill import fill_evalplan, finalize_evalplan
+    c = parse_review_md(SYNTHETIC_2022)
+    filled = fill_evalplan(str(BLANK_2HAK), c, phase="all")["_data"]
+    clean, report = finalize_evalplan(filled, c)
+    before, after = _clean_text(filled), _clean_text(clean)
+    # instruction / placeholder / label residue that was present is gone
+    for marker in ("◯◯◯", "삭제", "교과별", "글씨",
+                   "성취수준별 고정분할점수", "추정분할점수", "재구성"):
+        assert before.count(marker) > 0, f"fixture precondition: {marker!r} should exist pre-clean"
+        assert after.count(marker) == 0, f"{marker!r} survived finalize"
+    # header fills landed
+    assert "합성 과목" in after and report["title"]
+    assert c.teacher in after and report["teacher"]
+    assert report["deleted"] > 0
+
+
+def test_fill_evalplan_clean_phase_matches_finalize():
+    """phase='clean' == phase='all' then finalize_evalplan (same bytes)."""
+    from hwpx.evalplan_fill import fill_evalplan, finalize_evalplan
+    c = parse_review_md(SYNTHETIC_2022)
+    all_data = fill_evalplan(str(BLANK_2HAK), c, phase="all")["_data"]
+    expected, _ = finalize_evalplan(all_data, c)
+    res = fill_evalplan(str(BLANK_2HAK), c, phase="clean")
+    assert res["_data"] == expected
+    assert "finalize" in res["content_report"]
+
+
+def test_strip_trailing_table_captions_removes_donor_caption_idempotent():
+    from hwpx.evalplan_fill import fill_evalplan
+    from hwpx.table_patch import strip_trailing_table_captions
+    c = parse_review_md(SYNTHETIC_2022)
+    # the 3학년 donor bakes a "(N) <area>" caption trailing a level table
+    filled = fill_evalplan(str(BLANK_3HAK), c, phase="all")["_data"]
+    r = strip_trailing_table_captions(filled)
+    assert len(r.applied) >= 1, "expected a trailing donor caption to strip"
+    assert all(re.fullmatch(r"\(\d+\)\s*\S{1,8}", a.original_text) for a in r.applied)
+    # second pass is a no-op (byte-identical) — nothing left to strip
+    assert strip_trailing_table_captions(r.data).byte_identical
+    # a form with no such caption round-trips byte-identical
+    filled2 = fill_evalplan(str(BLANK_2HAK), c, phase="all")["_data"]
+    assert strip_trailing_table_captions(filled2).byte_identical

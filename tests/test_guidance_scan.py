@@ -158,3 +158,38 @@ class TestGeneralizationSmoke:
         assert report.legend, "1-2학년 양식에서 범례 미발견"
         assert report.delete_candidates
         assert report.to_markdown()
+
+
+class TestIsFormInstruction:
+    """is_form_instruction — 색 없이 텍스트만으로 지시-문구 문단을 판정하는 렉시콘.
+
+    검정(무색) 안내 문단까지 걸러야 하는 evalplan finalize용. 모호한 마커(※·유의))는
+    정상 유의사항 본문 오삭제를 막으려 일부러 제외한다."""
+
+    def test_instruction_phrases_true(self):
+        from hwpx.guidance_scan import is_form_instruction
+        for s in [
+            "이 부분은 삭제 바랍니다.",
+            "교과별로 수정하세요",
+            "교과별 특성이 드러나게 작성",
+            "재구성하여 작성",
+            "빨간 글씨는 안내입니다",
+            "파란색 글씨를 과목에 맞게",
+            "추정분할점수 표",
+            "궁금하면 문의 주세요",
+            "여기에 작성해 주세요",
+            "해당하는 것만 남기고",
+        ]:
+            assert is_form_instruction(s), s
+
+    def test_legit_content_false(self):
+        from hwpx.guidance_scan import is_form_instruction
+        for s in [
+            "가급적 동점자가 없도록 배점을 설계한다.",
+            "문제해결에 탐색을 활용하기",
+            "성취기준 [12합성01-01]을 평가한다",
+            "※ 재시험은 실시하지 않는다.",   # 모호 마커 — 정상 유의사항, 삭제 금지
+            "(유의) 제출 기한을 지킬 것",       # 모호 마커 — 오삭제 금지
+            "",
+        ]:
+            assert not is_form_instruction(s), s

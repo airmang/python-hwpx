@@ -1760,8 +1760,87 @@ def table_summary(source: str | Path | bytes) -> list[dict[str, Any]]:
     return out
 
 
+# --- trailing table-caption strip --------------------------------------------
+#
+# A donor 평가계획 form can bake a short "(N) <area>" sample caption as TRAILING
+# text of the same paragraph that wraps a table -- it sits between ``</hp:tbl>``
+# and that paragraph's ``<hp:linesegarray>``, so it is NOT a section-direct
+# paragraph that ``delete_paragraph`` can address. This removes only that caption
+# text (a ``(N) word`` group), closes the run cleanly right after the table, and
+# round-trips every other byte identical. Pattern-based, subject/grade agnostic.
+
+_TC_T = re.compile(r"<(?:[A-Za-z_][\w.-]*:)?t\b[^>]*>(.*?)</(?:[A-Za-z_][\w.-]*:)?t>", re.S)
+_TC_AFTER_TBL = re.compile(
+    r"</(?:[A-Za-z_][\w.-]*:)?tbl>(.*?)(?=<(?:[A-Za-z_][\w.-]*:)?linesegarray)", re.S
+)
+_TC_CAPTION = re.compile(r"\(\d+\)\s*\S{1,8}")
+
+
+def strip_trailing_table_captions(
+    source: str | Path | bytes, *, output_path: str | Path | None = None
+) -> CellFillResult:
+    """Strip short ``(N) <word>`` captions baked as trailing text of a table's
+    wrapper paragraph (between ``</hp:tbl>`` and its ``<hp:linesegarray>``).
+
+    Byte-preserving on every untouched part; namespace-prefix tolerant. Returns a
+    :class:`CellFillResult` whose ``applied`` records each stripped caption. Only a
+    parenthesised-ordinal + short word is removed; anything crossing a paragraph or
+    table boundary is left intact (fail-closed)."""
+    import html
+
+    source_bytes = _read_source_bytes(source)
+    import io
+    import zipfile
+
+    with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as archive:
+        section_names = [
+            info.filename for info in archive.infolist()
+            if not info.is_dir() and re.search(r"section\d+\.xml$", info.filename)
+        ]
+        sections = {name: archive.read(name).decode("utf-8") for name in section_names}
+
+    applied: list[CellApplied] = []
+    changed_parts: dict[str, bytes] = {}
+    for name, sec in sections.items():
+        hits: list[str] = []
+
+        def _strip(m: "re.Match[str]") -> str:
+            stuff = m.group(1)
+            # never cross a paragraph or table boundary
+            if "</hp:p>" in stuff or "<hp:p" in stuff or "tbl>" in stuff or "<hp:tbl" in stuff:
+                return m.group(0)
+            txt = html.unescape("".join(_TC_T.findall(stuff))).strip()
+            if re.fullmatch(_TC_CAPTION, txt):
+                hits.append(txt)
+                # drop the caption text + trailing runs; close the table's run cleanly
+                return "</hp:tbl></hp:run>"
+            return m.group(0)
+
+        new = _TC_AFTER_TBL.sub(_strip, sec)
+        if new != sec:
+            changed_parts[name] = new.encode("utf-8")
+            for txt in hits:
+                applied.append(CellApplied(name, -1, -1, -1, txt, ""))
+
+    if not changed_parts:
+        open_safety, _ = _finalize(source_bytes, output_path, source=source)
+        return CellFillResult(source_bytes, (), (), (), True, "none", open_safety)
+    try:
+        output = _patch_zip_entries(source_bytes, changed_parts)
+        zip_method = "partial-local-record-copy"
+    except ValueError:
+        output = _rewrite_zip_entries(source_bytes, changed_parts)
+        zip_method = "zipfile-rewrite-fallback"
+    open_safety, _ = _finalize(output, output_path, source=source)
+    return CellFillResult(
+        output, tuple(applied), (), tuple(changed_parts), output == source_bytes,
+        zip_method, open_safety,
+    )
+
+
 __all__ = [
     "fill_cells", "build_grid", "GridReport", "CellFillResult", "CellApplied", "CellSkipped",
     "ResolvedCellTarget", "resolve_cell_target",
     "apply_table_ops", "TableStructureError", "verify_fill", "RenderCheckRequired", "table_summary",
+    "strip_trailing_table_captions",
 ]

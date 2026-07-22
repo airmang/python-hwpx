@@ -2502,6 +2502,171 @@ def fill_ratio(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, 
     return fr.data, report
 
 
+def finalize_evalplan(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, Any]]:
+    """Deterministic post-fill cleanup: turn a *filled* donor 평가계획 form into a
+    submittable 채움본 without a bespoke driver script.
+
+    Runs the recipe's mechanical steps -- fill the title / teacher / 정의적 cells,
+    prune the donor's instruction scaffolding and orphaned sample headings (bounded
+    by the form's OWN section headings, never by subject or grade), strip the red
+    guidance runs, recolor filled blue slots to body black, and remove trailing
+    table captions. Every decision is structure/pattern based; no subject or grade
+    string appears. Genuine ambiguity (novel instruction phrasing, non-1:1 정의적
+    cell mapping, tie-broken 변형 선택) is intentionally NOT resolved here -- that is
+    the skill's (LLM) judgment.
+
+    ``data`` must already be a :func:`fill_evalplan` (``phase="all"``) output; the
+    deletes are computed while the red guidance runs are still intact so a black
+    ordinal sharing a paragraph with a red instruction is removed as a unit. Returns
+    ``(clean_bytes, report)``."""
+    import html
+    import io
+    import zipfile
+
+    from .body_patch import (
+        apply_body_ops,
+        direct_paragraph_spans,
+        recolor_runs_by_color,
+        strip_runs_by_color,
+    )
+    from .formfill_quality import _tables
+    from .guidance_scan import is_form_instruction
+    from .table_patch import fill_cells, strip_trailing_table_captions
+
+    T = re.compile(r"<hp:t(?:\s[^>]*)?>(.*?)</hp:t>", re.S)
+    RUN = re.compile(r"<hp:run\b[^>]*?>.*?</hp:run>", re.S)
+    ORDINAL = re.compile(r"^[가-하]\.?$|^\(\d+\)$|^\*+$|^[·・\s]*$")
+    # legit 평가계획 notes that sit among instructions -- form-generic, never a
+    # subject/grade token, so keeping them is not hardcoding a subject.
+    KEEP = ("가급적 동점자",)
+
+    report: dict[str, Any] = {
+        "deleted": 0, "skipped": [], "captions": 0,
+        "title": False, "teacher": False, "affective_rows": 0,
+    }
+
+    def _sec_hdr(d: bytes) -> tuple[str, str]:
+        z = zipfile.ZipFile(io.BytesIO(d))
+        sec = z.read("Contents/section0.xml").decode("utf-8")
+        hdr_name = next(n for n in z.namelist() if n.endswith("header.xml"))
+        return sec, z.read(hdr_name).decode("utf-8")
+
+    def _red_ids(hdr: str) -> set[str]:
+        out: set[str] = set()
+        for cm in re.finditer(
+            r"<hh:charPr\b[^>]*\bid=\"(\d+)\"[^>]*textColor=\"([#0-9A-Fa-f]+)\"", hdr
+        ):
+            if cm.group(2).upper() == "#FF0000":
+                out.add(cm.group(1))
+        return out
+
+    def _run_texts(block: str, reds: set[str]) -> tuple[str, str]:
+        black, red = [], []
+        for rm in RUN.finditer(block):
+            run = rm.group(0)
+            txt = html.unescape("".join(T.findall(run)))
+            cid = re.search(r'charPrIDRef="(\d+)"', run)
+            (red if (cid and cid.group(1) in reds) else black).append(txt)
+        return "".join(black), "".join(red)
+
+    # ---- paragraph deletes computed on the FILLED bytes (red still intact) ------
+    sec, hdr = _sec_hdr(data)
+    reds = _red_ids(hdr)
+    spans = direct_paragraph_spans(sec)
+    blocks = [sec[a:b] for (a, b) in spans]
+    texts = [html.unescape("".join(T.findall(bl))).strip() for bl in blocks]
+    has_tbl = ["<hp:tbl" in bl for bl in blocks]
+    del_idx: set[int] = set()
+
+    def first(pred, start: int = 0) -> int | None:
+        return next((i for i in range(start, len(texts)) if pred(i)), None)
+
+    # (2e) 성취수준별 고정분할점수 labels -- red form scaffolding; delete all (the
+    # engine already kept the single subject-matching 성취율 table by band count).
+    del_idx.update(
+        i for i in range(len(texts))
+        if not has_tbl[i] and texts[i].startswith("성취수준별 고정분할점수")
+    )
+
+    # (2a) 최소 성취수준 orphan heading block -- its table was pruned (공통과목 전용);
+    # delete the non-table paragraphs from the heading down to the §5 table.
+    ms = first(lambda i: not has_tbl[i] and texts[i].startswith("다. 최소 성취수준"))
+    sec5 = first(lambda i: has_tbl[i] and "기준 성취율과 성취도" in texts[i])
+    if ms is not None and sec5 is not None:
+        del_idx.update(i for i in range(ms, sec5) if not has_tbl[i])
+
+    # (2f) foreign donor sample headings between the §7 and §8 tables.
+    s7 = first(lambda i: has_tbl[i] and "수행평가 세부기준" in texts[i])
+    s8 = first(lambda i: has_tbl[i] and "정의적 능력 평가" in texts[i],
+               start=(s7 + 1) if s7 is not None else 0)
+    if s7 is not None and s8 is not None:
+        del_idx.update(i for i in range(s7 + 1, s8) if not has_tbl[i] and texts[i])
+
+    # (2b) foreign "(N) area" sub-headers between §4 and §5 (donor sample labels;
+    # the MD's §4 uses 가./나. markers, never "(N) word", so this is safe).
+    s4h = first(lambda i: has_tbl[i] and "성취기준 및 성취수준" in texts[i])
+    s5h = first(lambda i: has_tbl[i] and "기준 성취율과 성취도" in texts[i],
+                start=(s4h + 1) if s4h is not None else 0)
+    if s4h is not None and s5h is not None:
+        del_idx.update(
+            i for i in range(s4h + 1, s5h)
+            if not has_tbl[i] and re.match(r"^\(\d+\)\s*\S", texts[i])
+        )
+
+    # (2c) red-guidance-with-trivial-black + black instruction paragraphs.
+    for i, bl in enumerate(blocks):
+        if has_tbl[i] or i in del_idx or any(k in texts[i] for k in KEEP):
+            continue
+        black_txt, red_txt = _run_texts(bl, reds)
+        if red_txt.strip() and ORDINAL.match(black_txt.strip()):
+            del_idx.add(i)
+        elif is_form_instruction(texts[i]):
+            del_idx.add(i)
+
+    # ---- title + §8 정의적 + teacher fills (paragraph count unchanged) -----------
+    cells: list[dict[str, Any]] = []
+    if content.title:
+        cells.append({"table_index": 0, "row": 0, "col": 0, "text": content.title})
+        report["title"] = True
+    # §8 정의적 능력 평가 표: replace the donor sample with the MD's 측면 rows (1:1).
+    aff = re.findall(
+        r"(\S+적 측면\([^)]*\))\s*[:：]\s*(.+?)(?=\s*-\s*\S+적 측면|$)", content.affective or ""
+    )
+    aff_ti = next((gi for gi, t in enumerate(_tables(data)) if "정의적 능력 평가 요소" in t.text), None)
+    if aff_ti is not None and aff:
+        for r, (label, desc) in enumerate(aff[:3], start=1):
+            cells.append({"table_index": aff_ti, "row": r, "col": 0, "text": label.strip(), "max_lines": 3})
+            cells.append({"table_index": aff_ti, "row": r, "col": 1, "text": desc.strip(), "max_lines": 4})
+        report["affective_rows"] = min(len(aff), 3)
+    if cells:
+        data = fill_cells(data, cells).data
+    if content.teacher:
+        # fill the placeholder, then recolor the filled value to body-black so the
+        # red-strip below does not remove it; robust to the label+placeholder being
+        # in one run (2학년) or split black label + red placeholder (3학년).
+        data = apply_body_ops(data, [
+            {"op": "replace_text", "find": "◯◯◯, ◯◯◯", "replace": content.teacher, "count": 1},
+            {"op": "restyle_text", "find": content.teacher, "textColor": "#000000", "count": 1},
+            {"op": "replace_text", "find": "(**)", "replace": "", "count": 4},
+        ]).data
+        report["teacher"] = True
+
+    # ---- apply deletes (high->low so indices stay valid) ------------------------
+    dr = apply_body_ops(data, [{"op": "delete_paragraph", "index": i}
+                               for i in sorted(del_idx, reverse=True)])
+    data = dr.data
+    report["deleted"] = len(del_idx) - len(dr.skipped)
+    report["skipped"] = [str(s) for s in dr.skipped]
+
+    # ---- strip residual red, recolor filled blue->black, strip captions --------
+    data = strip_runs_by_color(data, ["#FF0000"]).data
+    data = recolor_runs_by_color(data, ["#0000FF"], "#000000").data
+    cap = strip_trailing_table_captions(data)
+    data = cap.data
+    report["captions"] = len(cap.applied)
+    return data, report
+
+
 def fill_evalplan(
     blank: str | Path,
     content: EvalPlanContent,
@@ -2515,8 +2680,12 @@ def fill_evalplan(
     정기시험 column, surplus example tables). ``phase="all"`` additionally runs the
     content fills -- schedule, achievement, levels, rubrics, section prose -- each
     byte-preserving and located by classification/geometry (index-safe against the
-    prior structural deletes). Returns the apply result dict plus the op-plan
-    transcript and, for ``phase="all"``, a ``content_report`` per region."""
+    prior structural deletes). ``phase="clean"`` runs ``"all"`` and then
+    :func:`finalize_evalplan` -- the deterministic post-fill cleanup (title/teacher/
+    정의적 fills, scaffolding + orphan prune, red-strip, blue->black recolor, caption
+    strip) that yields a submittable 채움본 with no bespoke driver. Returns the apply
+    result dict plus the op-plan transcript and, for ``phase`` in ``{"all","clean"}``,
+    a ``content_report`` per region (plus ``content_report["finalize"]`` for clean)."""
     from .table_patch import apply_table_ops
 
     plan = plan_structural_ops(blank, content)
@@ -2525,13 +2694,15 @@ def fill_evalplan(
     payload = result.to_dict()
 
     content_report: dict[str, Any] = {}
-    if phase == "all":
+    if phase in ("all", "clean"):
         data, content_report["schedule"] = fill_schedule(data, content)
         data, content_report["achievement"] = fill_achievement(data, content)
         data, content_report["levels"] = fill_levels(data, content)
         data, content_report["rubrics"] = fill_rubrics(data, content)
         data, content_report["ratio"] = fill_ratio(data, content)
         data, content_report["sections"] = fill_sections(data, content)
+    if phase == "clean":
+        data, content_report["finalize"] = finalize_evalplan(data, content)
 
     if output is not None:
         from pathlib import Path as _P
@@ -2550,7 +2721,7 @@ def parse_review_file(path: str | Path) -> EvalPlanContent:
 
 __all__ = [
     "EvalPlanContent", "Rubric", "parse_review_md", "parse_review_file",
-    "expected_skeleton", "plan_structural_ops", "fill_evalplan",
+    "expected_skeleton", "plan_structural_ops", "fill_evalplan", "finalize_evalplan",
     "fill_schedule", "fill_achievement", "fill_levels", "fill_rubrics", "fill_ratio",
     "fill_sections",
 ]
