@@ -1533,20 +1533,53 @@ def fill_sections(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[st
     return pres.data, report
 
 
+def _flatten_schedule_merges(data: bytes, ti: int) -> tuple[bytes, list[str]]:
+    """Split every vertical merge in the schedule's *data* rows into unit rows.
+
+    The donor ships a subject sample whose 단원명/성취기준 may span two weeks (a
+    ``rowSpan==2`` cell). The review has distinct content per week, so a naive
+    one-row-per-week fill writes the first week into the merged cell and can only
+    *skip* the second (its cell is covered) -- the second week's 단원/성취기준 is
+    absorbed. Splitting each vertical merge into unit cells (byte-preserving, the
+    original formatting cloned onto the new cell) restores the 1:1 mapping so no
+    row is absorbed. Header row (0) is left untouched. Content-agnostic."""
+    from .table_patch import apply_table_ops, _direct_cells
+    notes: list[str] = []
+    while True:
+        _sp, tb, _grid, _rep = _grid_of(data, ti)
+        merge = next(((c.row, c.col, c.row_span)
+                      for c in sorted(_direct_cells(tb), key=lambda c: (c.row, c.col))
+                      if c.row >= 1 and c.row_span > 1), None)
+        if merge is None:
+            break
+        r, col, rs = merge
+        res = apply_table_ops(data, [{"op": "split_cell_vertical", "table_index": ti,
+                                      "row": r, "col": col, "sizes": [1] * rs}])
+        if not res.ok:
+            notes.append(f"split donor merge r{r}c{col} (rowSpan {rs}) refused: "
+                         f"{[s.reason for s in res.skipped]}")
+            break
+        data = res.data
+        notes.append(f"split donor merge r{r}c{col} (rowSpan {rs}) into {rs} unit rows")
+    return data, notes
+
+
 def fill_schedule(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, Any]]:
     """Fill the Ⅰ 교수학습 운영 계획 schedule table from ``content.schedule`` (one
     logical row per review row, 6 columns), shrink-to-fit at 4 lines. Located by
-    the widest multi-row data table under the Ⅰ heading. Merged-cell skips (the
-    month/week span carry-overs) are expected and reported, not errors."""
+    the widest multi-row data table under the Ⅰ heading. Any vertical merge a donor
+    sample left in the data rows is split first so every review row maps to its own
+    form row (no absorption)."""
     from .table_patch import fill_cells
 
-    report: dict[str, Any] = {"rows": len(content.schedule), "filled": 0, "skipped": []}
+    report: dict[str, Any] = {"rows": len(content.schedule), "filled": 0, "skipped": [], "unmerged": []}
     if not content.schedule:
         return data, report
     ti = _schedule_index(data)
     if ti is None:
         report["skipped"].append("no schedule table found")
         return data, report
+    data, report["unmerged"] = _flatten_schedule_merges(data, ti)
     cells = []
     for i, row in enumerate(content.schedule):
         r = i + 1  # row 0 is the header

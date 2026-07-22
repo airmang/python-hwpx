@@ -399,6 +399,35 @@ def test_fill_achievement_per_standard_2022_fills_ae_blocks():
     assert "둘-E 서술" in _text_of(tb[grid[(10, 2)].start:grid[(10, 2)].end])
 
 
+def test_fill_schedule_splits_donor_merge_no_absorption():
+    """The 2022 blank's schedule ships a 단원/성취기준 sample merged across two weeks
+    (rowSpan=2 at r3). fill_schedule must split that merge so each review week lands
+    in its own row -- previously the covered second row was skipped and its 단원/
+    성취기준 absorbed into the merge."""
+    from hwpx.evalplan_fill import EvalPlanContent, fill_schedule, _schedule_index, _grid_of
+    from hwpx.table_patch import _text_of, _direct_cells
+    # six distinct weeks, reaching the donor's merged rows 3-4
+    c = EvalPlanContent()
+    c.schedule = [
+        [str(8 + i // 4), str(i % 4 + 1), f"단원{i}", f"[12합성0{i}-01]", f"수업{i}", f"주안{i}"]
+        for i in range(6)
+    ]
+    data = BLANK_2HAK.read_bytes()
+    # the donor really does merge r3c2/r3c3
+    ti = _schedule_index(data)
+    _sp, tb0, _g0, _r0 = _grid_of(data, ti)
+    assert any(cc.row == 3 and cc.row_span == 2 for cc in _direct_cells(tb0))
+    data, report = fill_schedule(data, c)
+    assert report["unmerged"], "donor merge was not split"
+    assert not report["skipped"], report["skipped"]          # no covered-cell absorption
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    # rows 3 and 4 (0-based) now carry distinct 단원 and 성취기준
+    assert _text_of(tb[grid[(3, 2)].start:grid[(3, 2)].end]).strip() == "단원2"
+    assert _text_of(tb[grid[(4, 2)].start:grid[(4, 2)].end]).strip() == "단원3"
+    assert "[12합성02-01]" in _text_of(tb[grid[(3, 3)].start:grid[(3, 3)].end])
+    assert "[12합성03-01]" in _text_of(tb[grid[(4, 3)].start:grid[(4, 3)].end])
+
+
 def test_fill_rubrics_replaces_sample_codes_and_lands_items():
     """fill_rubrics shrinks each rubric's example item block to the review item
     count, replaces the 한국사 sample 성취기준 codes, and lands the 평가항목 labels."""
