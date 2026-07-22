@@ -313,6 +313,92 @@ def test_fill_achievement_reshapes_and_fills():
     assert score_format_fidelity(data, BLANK_3HAK).detail["carry_rate"] > 0.7
 
 
+# The per-standard §4가 authoring shape: each 성취기준 carries its own `수준 | 성취수준`
+# A~E table (levels as rows), rather than one unified table with levels as columns.
+# This is how real 평가계획 review MDs are written; the parser must normalise it to the
+# same ``[code+진술, A, B, C, D, E]`` rows the unified shape yields.
+_PER_STD_GA = """### 4. 성취기준 및 성취수준
+**가. 성취기준별 성취수준(A~E)**
+
+**(1) 영역 하나**
+
+**[12합성01-01]** 표준 하나의 진술이다.
+
+| 수준 | 성취수준 |
+|---|---|
+| A | 하나-A 서술 |
+| B | 하나-B 서술 |
+| C | 하나-C 서술 |
+| D | 하나-D 서술 |
+| E | 하나-E 서술 |
+
+**[12합성01-02]** 표준 둘의 진술이다.
+
+| 수준 | 성취수준 |
+|---|---|
+| A | 둘-A 서술 |
+| B | 둘-B 서술 |
+| C | 둘-C 서술 |
+| D | 둘-D 서술 |
+| E | 둘-E 서술 |
+
+"""
+# a full 2022-개정 review MD whose §4가 uses the per-standard shape
+_UNIFIED_GA_MARKER = "**가. 성취기준별 성취수준(A~E)**"
+PER_STD_2022 = (
+    SYNTHETIC_2022[: SYNTHETIC_2022.index("### 4.")]
+    + _PER_STD_GA
+    + SYNTHETIC_2022[SYNTHETIC_2022.index("**나. 학기 단위"):]
+)
+
+
+def test_parse_achievement_std_per_standard_shape():
+    """The per-standard §4가 shape (one `수준 | 성취수준` A~E table under each
+    `**[code]** 진술` header) normalises to the same ``[code+진술, A, B, C, D, E]``
+    rows as the unified single-table shape -- codes preserved, level count read from
+    the data (bh=5), no descriptor dropped."""
+    from hwpx.evalplan_fill import _parse_achievement_std
+    ga = _PER_STD_GA
+    rows = _parse_achievement_std(ga)
+    assert len(rows) == 2                                   # two standards, one row each
+    assert all(len(r) == 6 for r in rows)                  # code + A..E (bh=5)
+    assert rows[0][0] == "[12합성01-01] 표준 하나의 진술이다."
+    assert rows[0][1:] == ["하나-A 서술", "하나-B 서술", "하나-C 서술", "하나-D 서술", "하나-E 서술"]
+    assert rows[1][0].startswith("[12합성01-02]")
+    # the unified single-table shape is untouched (regression guard)
+    unified = "**가.**\n\n| 성취기준 | 상 | 중 | 하 |\n|---|---|---|---|\n| [12합성09-01] 표준 | 상x | 중x | 하x |\n"
+    urows = _parse_achievement_std(unified)
+    assert urows == [["[12합성09-01] 표준", "상x", "중x", "하x"]]
+
+
+def test_fill_achievement_per_standard_2022_fills_ae_blocks():
+    """Regression for the real-fill bug: a per-standard §4가 (A~E levels as rows)
+    now yields bh=5, so fill_achievement reshapes the 2022 blank's A~E block to N
+    per-standard blocks and fills every cell -- previously bh collapsed to 1 and the
+    clone raised 'ref_rows out of range', leaving the table unfilled (filled=0)."""
+    from hwpx.evalplan_fill import fill_achievement, _classify_index, _grid_of
+    from hwpx.table_patch import _text_of, apply_table_ops
+    from hwpx.evalplan_fill import plan_structural_ops
+    c = parse_review_md(PER_STD_2022)
+    assert len(c.achievement_std) == 2 and len(c.achievement_std[0]) == 6
+    data = apply_table_ops(str(BLANK_2HAK), plan_structural_ops(str(BLANK_2HAK), c)["ops"]).data
+    data, report = fill_achievement(data, c)
+    assert not report["skipped"], report["skipped"]
+    assert report["filled"] == 2 + 2 * 5                   # 2 leaders + 10 descriptors
+    ti = _classify_index(data, "achievement")
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    assert rep.ok
+    assert rep.row_count == 1 + 5 * 2                       # header + 5 rows/std × 2
+    # codes landed in the two leader cells (rows 1 and 6)
+    assert "[12합성01-01]" in _text_of(tb[grid[(1, 0)].start:grid[(1, 0)].end])
+    assert "[12합성01-02]" in _text_of(tb[grid[(6, 0)].start:grid[(6, 0)].end])
+    # A~E labels carried from the clone, descriptors down the 서술 column
+    assert _text_of(tb[grid[(1, 1)].start:grid[(1, 1)].end]).strip() == "A"
+    assert _text_of(tb[grid[(5, 1)].start:grid[(5, 1)].end]).strip() == "E"
+    assert "하나-A 서술" in _text_of(tb[grid[(1, 2)].start:grid[(1, 2)].end])
+    assert "둘-E 서술" in _text_of(tb[grid[(10, 2)].start:grid[(10, 2)].end])
+
+
 def test_fill_rubrics_replaces_sample_codes_and_lands_items():
     """fill_rubrics shrinks each rubric's example item block to the review item
     count, replaces the 한국사 sample 성취기준 codes, and lands the 평가항목 labels."""

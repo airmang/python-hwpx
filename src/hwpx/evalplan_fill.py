@@ -107,6 +107,59 @@ def _section(md: str, start_pat: str, end_pats: list[str]) -> str:
     return rest[:cut]
 
 
+# a per-standard header: ``**[code]** 진술`` at the start of a line
+_ACH_STD_HEADER = re.compile(r"^\s*\*\*\s*(\[[^\]\n]+\])\s*\*\*\s*(.*?)\s*$")
+
+
+def _parse_achievement_std(block: str) -> list[list[str]]:
+    """Parse §4가 into one row per 성취기준: ``[standard, L1_desc, L2_desc, ...]``.
+
+    Two markdown authoring shapes are accepted; the level count is read from the
+    data, never hard-coded:
+
+    * **unified** -- a single table ``성취기준 | 상 | 중 | 하`` (or ``| A |…| E |``) with
+      one row per standard, level descriptors across the columns. Parsed by
+      :func:`_md_table_rows`.
+    * **per-standard** -- a sequence of ``**[code]** 진술`` headers, each followed by
+      its own ``수준 | 성취수준`` table listing the levels as *rows*. Each is normalised
+      to ``[code+진술, <descriptor per level, in table order>]``, so a standard with an
+      A~E table becomes a 6-field row (bh = 5) matching the unified shape that
+      :func:`fill_achievement` and :func:`_std_level_map` already consume.
+
+    The per-standard shape is tried first; when no ``**[code]**`` header carries a
+    table, the unified single-table parse is returned instead."""
+    lines = block.splitlines()
+    n = len(lines)
+    stds: list[list[str]] = []
+    i = 0
+    while i < n:
+        m = _ACH_STD_HEADER.match(lines[i])
+        if not m:
+            i += 1
+            continue
+        standard = f"{m.group(1)} {m.group(2)}".strip()
+        # advance to this standard's table (blank/prose lines may intervene), but
+        # stop at the next standard header -- a header with no table of its own.
+        j = i + 1
+        while j < n and not lines[j].lstrip().startswith("|"):
+            if _ACH_STD_HEADER.match(lines[j]):
+                break
+            j += 1
+        rows: list[list[str]] = []
+        while j < n and lines[j].lstrip().startswith("|"):
+            cells = [c.strip() for c in lines[j].strip().strip("|").split("|")]
+            if not all(set(c) <= {"-", ":", " "} and c for c in cells):
+                rows.append(cells)
+            j += 1
+        if len(rows) >= 2:                        # header row + >=1 level row
+            descs = [r[-1] for r in rows[1:]]     # right-most column = the descriptor
+            stds.append([standard, *descs])
+            i = j
+        else:
+            i += 1
+    return stds or _md_table_rows(block)
+
+
 def parse_review_md(md_text: str) -> EvalPlanContent:
     """Parse a 평가계획 review markdown into structured content."""
     c = EvalPlanContent()
@@ -134,7 +187,7 @@ def parse_review_md(md_text: str) -> EvalPlanContent:
     s4 = sec(4)
     ga = s4.split("**나.")[0]
     na = ("**나." + s4.split("**나.")[1]) if "**나." in s4 else ""
-    c.achievement_std = _md_table_rows(ga)
+    c.achievement_std = _parse_achievement_std(ga)
     c.levels = _md_table_rows(na)
 
     c.achieve_rate = _md_table_rows(sec(5))
