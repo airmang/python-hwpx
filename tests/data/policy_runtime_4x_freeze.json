@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "python-hwpx.policy-runtime-4x-freeze/v1",
+  "sourceCommit": "ac88d5fb1a015de1217577090d62e92c36cf4d8a",
+  "pythonFileCount": 4,
+  "loc": 1622,
+  "canonicalFileManifestSha256": "d97db5cac702059ce4297f10ca108c6e2a162ba84b93bd5fe1a914a27877ad1f",
+  "qualifiedExportCount": 20,
+  "qualifiedSnapshotSha256": "f3b6869eff7dfcedce93eb2d28861afa4d6afd7e2bf4b68906203e7ac5b9f2a0",
+  "topLevelExportCount": 2,
+  "topLevelSnapshotSha256": "4da48676d0b826cd12f10db98e42b4e5b7e7e5f09cc784bcda3365b76c32d657",
+  "toolsExportCount": 5,
+  "toolsSnapshotSha256": "65ba88e37544ab36a1c91c5db6bf9b7cfab8a6ba1e76d1ce37c19608a967e038",
+  "adoptionDeterministicBehaviorsSha256": "b258e5a6b2cb90291e4863cea9d844907dfcdfcc7f4de8814b240f7ae4ddd94b",
+  "deterministicPayloadsSha256": "df57906f306564542af40228c0ee49f3b267a7b6199ad9e96cd2a9fb2f5652f2",
+  "pageGuardEntryPoint": "hwpx.tools.page_guard:main",
+  "independentConsumers": [],
+  "policy": {
+    "canonicalOwner": "hwpx_mcp_server.office.compliance/quality/utilities",
+    "coreLine": "4.x",
+    "featureWork": "forbidden",
+    "mirrors": "security-or-correctness-only-with-parity-and-receipt",
+    "removalGate": "S-106 observation plus separately approved S-107 core major"
+  }
+}
