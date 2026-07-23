@@ -158,6 +158,30 @@ class RenderBackend:
                 result[src] = None
         return result
 
+    def check(
+        self,
+        before_hwpx: str | None,
+        after_hwpx: str,
+        *,
+        edit_mask: EditMask | None = None,
+        diff_eps: float = 0.005,
+        dpi: int = 150,
+        work_dir: str | None = None,
+        keep_artifacts: bool = False,
+    ) -> VisualReport:
+        """Adapt the legacy render transport to the neutral quality contract."""
+
+        return visual_check(
+            before_hwpx,
+            after_hwpx,
+            oracle=self,
+            edit_mask=edit_mask,
+            diff_eps=diff_eps,
+            dpi=dpi,
+            work_dir=work_dir,
+            keep_artifacts=keep_artifacts,
+        )
+
 
 class WindowsComOracle(RenderBackend):
     """Adapter that renders ``.hwpx`` → PDF through Hancom (한글) COM.

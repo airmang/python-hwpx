@@ -1,0 +1,212 @@
+{
+  "schemaVersion": "python-hwpx.module-ownership/v1",
+  "baseline": {
+    "version": "4.2.0",
+    "commit": "f6b79f010d40a190fa6a8391eb212835022b3851",
+    "sourceRoot": "src/hwpx",
+    "sourceFileCount": 176,
+    "sourceLoc": 67047,
+    "dispositionCounts": {
+      "core": {
+        "files": 95,
+        "loc": 33347
+      },
+      "mcp-migrate": {
+        "files": 59,
+        "loc": 28364
+      },
+      "split": {
+        "files": 14,
+        "loc": 3749
+      },
+      "dev-only": {
+        "files": 8,
+        "loc": 1587
+      },
+      "undecided": {
+        "files": 0,
+        "loc": 0
+      }
+    }
+  },
+  "semantics": {
+    "matching": "first matching rule wins; unmatched Python files are core",
+    "core": "HWPX object model, package/OXML, serialization, generic editing and preservation contracts",
+    "mcp-migrate": "application workflow, genre/profile/policy or agent runtime; future owner hwpx-mcp-server",
+    "split": "contains both reusable format contract and application/runtime implementation; split before removal",
+    "dev-only": "repository verification asset, not a public runtime product surface",
+    "undecided": "temporary exception requiring an owner and removal date"
+  },
+  "rules": [
+    {
+      "glob": "src/hwpx/agent/**",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.agent",
+      "rationale": "agent commands, blueprint replay and CLI are application runtime"
+    },
+    {
+      "glob": "src/hwpx/authoring.py",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.authoring",
+      "rationale": "document-plan workflow and genre quality inspection"
+    },
+    {
+      "glob": "src/hwpx/builder/**",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.authoring",
+      "rationale": "application document-plan builders including approval-box composition"
+    },
+    {
+      "glob": "src/hwpx/design/**",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.authoring",
+      "rationale": "layout-plan workflow and profile composition"
+    },
+    {
+      "glob": "src/hwpx/evalplan_fill.py",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.evalplan",
+      "rationale": "evaluation-plan-specific fill workflow"
+    },
+    {
+      "glob": "src/hwpx/exam/**",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.exam",
+      "rationale": "exam-specific parsing, measurement and composition"
+    },
+    {
+      "glob": "src/hwpx/fill_residue.py",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.form_fill",
+      "rationale": "form workflow cleanup policy"
+    },
+    {
+      "glob": "src/hwpx/form_fill.py",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.form_fill",
+      "rationale": "high-level form workflow"
+    },
+    {
+      "glob": "src/hwpx/form_fit/**",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.form_fill",
+      "rationale": "form-specific fit, seal and word-box policy"
+    },
+    {
+      "glob": "src/hwpx/formfill_quality.py",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.form_fill",
+      "rationale": "form workflow quality policy"
+    },
+    {
+      "glob": "src/hwpx/guidance_scan.py",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.form_fill",
+      "rationale": "form instruction classification"
+    },
+    {
+      "glob": "src/hwpx/presets/**",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.authoring",
+      "rationale": "application document presets"
+    },
+    {
+      "glob": "src/hwpx/template_formfit.py",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.form_fill",
+      "rationale": "template-specific form workflow"
+    },
+    {
+      "glob": "src/hwpx/tools/advanced_generators.py",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.authoring",
+      "rationale": "organization chart, nameplate and image-grid composition"
+    },
+    {
+      "glob": "src/hwpx/tools/official_lint.py",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.compliance",
+      "rationale": "official-document policy"
+    },
+    {
+      "glob": "src/hwpx/tools/page_guard.py",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.quality",
+      "rationale": "application pagination quality gate"
+    },
+    {
+      "glob": "src/hwpx/tools/pii.py",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.compliance",
+      "rationale": "PII detection and masking policy is not HWPX format behavior"
+    },
+    {
+      "glob": "src/hwpx/tools/style_profile.py",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.authoring",
+      "rationale": "template registry and style-profile workflow"
+    },
+    {
+      "glob": "src/hwpx/tools/table_compute.py",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.utilities",
+      "rationale": "pure tabular data calculation with no HWPX semantics"
+    },
+    {
+      "glob": "src/hwpx/tools/template_analyzer.py",
+      "disposition": "mcp-migrate",
+      "futureOwner": "hwpx_mcp_server.office.authoring",
+      "rationale": "template role/profile analysis workflow"
+    },
+    {
+      "glob": "src/hwpx/visual/**",
+      "disposition": "split",
+      "futureOwner": "core contract plus hwpx_mcp_server.office.rendering implementation",
+      "rationale": "neutral report/protocol stays core; Hancom binding and oracle execution move"
+    },
+    {
+      "glob": "src/hwpx/tools/doc_diff.py",
+      "disposition": "split",
+      "futureOwner": "core document diff plus hwpx_mcp_server.office.authoring plan builder",
+      "rationale": "document diff is generic but comparison-table plan encodes application schema"
+    },
+    {
+      "glob": "src/hwpx/tools/mail_merge.py",
+      "disposition": "split",
+      "futureOwner": "core HWPX merge primitive plus injected MCP PII sanitizer",
+      "rationale": "generic HWPX merge currently imports application PII policy"
+    },
+    {
+      "glob": "src/hwpx/tools/redline.py",
+      "disposition": "split",
+      "futureOwner": "core tracked-change contract plus MCP oracle verification",
+      "rationale": "tracked-change format is core; Hancom-bound verification is application/runtime"
+    },
+    {
+      "glob": "src/hwpx/benchmark/**",
+      "disposition": "dev-only",
+      "futureOwner": "python-hwpx repository QA",
+      "rationale": "benchmark campaign is not runtime library behavior"
+    },
+    {
+      "glob": "src/hwpx/conformance/**",
+      "disposition": "dev-only",
+      "futureOwner": "python-hwpx repository QA",
+      "rationale": "corpus and conformance campaign are verification assets"
+    },
+    {
+      "glob": "src/hwpx/**",
+      "disposition": "core",
+      "futureOwner": "python-hwpx",
+      "rationale": "default only after all application, split and dev-only rules"
+    }
+  ],
+  "exceptions": [
+    {
+      "path": "src/hwpx/quality/rendering.py",
+      "disposition": "core",
+      "approvedBy": "S-096/P2",
+      "rationale": "renderer-neutral Protocol, edit mask and report contracts invert the former quality-to-visual runtime dependency"
+    }
+  ]
+}

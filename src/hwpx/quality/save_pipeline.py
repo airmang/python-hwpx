@@ -26,12 +26,14 @@ from pathlib import Path
 from typing import Any, BinaryIO, Literal
 from xml.etree import ElementTree as ET
 
-from hwpx.visual.masks import EditMask
-from hwpx.visual.oracle import RenderBackend, resolve_oracle, visual_check
-from hwpx.visual.report import VisualReport
-
 from .ledger import DirtyLayoutLedger
 from .policy import QualityPolicy
+from .rendering import (
+    EditMask,
+    RenderBackend,
+    VisualReport,
+    unavailable_render_backend,
+)
 from .report import (
     OPEN_SAFETY_FAILED,
     REFERENCE_INTEGRITY_FAILED,
@@ -140,16 +142,17 @@ class SavePipeline:
     """Runs the quality gate over output bytes and performs the atomic write.
 
     A pipeline is cheap to construct; reuse one or make one per save. Pass an
-    explicit ``oracle`` (e.g. a fake or :class:`NullOracle`) to keep tests
-    deterministic; otherwise the best reachable backend is resolved lazily and
-    only when a policy actually renders.
+    explicit ``oracle`` (a renderer-neutral :class:`RenderBackend`) to keep tests
+    deterministic. A standalone core installation has no renderer discovery:
+    companion applications inject a backend factory, while core-only use
+    degrades honestly to ``unverified``.
     """
 
     def __init__(
         self,
         *,
         oracle: RenderBackend | None = None,
-        oracle_factory: Any = resolve_oracle,
+        oracle_factory: Any = unavailable_render_backend,
     ) -> None:
         self._oracle = oracle
         self._oracle_factory = oracle_factory
@@ -469,10 +472,9 @@ class SavePipeline:
         try:
             after_path = work / "after.hwpx"
             after_path.write_bytes(data)
-            report = visual_check(
+            report = oracle.check(
                 str(before) if before is not None else None,
                 str(after_path),
-                oracle=oracle,
                 edit_mask=edit_mask,
                 diff_eps=quality.diff_eps,
                 dpi=quality.dpi,

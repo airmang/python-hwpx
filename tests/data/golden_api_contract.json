@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "python-hwpx.golden-api/v1",
+  "baselineVersion": "4.2.0",
+  "coreImport": "from hwpx import HwpxDocument",
+  "forbiddenImportPrefixes": [
+    "hwpx_mcp_server",
+    "hwpx_skill"
+  ],
+  "scenarios": [
+    "new-document",
+    "open-from-bytes",
+    "context-manager",
+    "add-paragraph",
+    "iterate-runs",
+    "replace-text",
+    "create-run-style",
+    "format-paragraph",
+    "format-list",
+    "add-table",
+    "merge-table-cells",
+    "map-tables",
+    "find-cell-by-label",
+    "add-remove-section",
+    "set-page-setup",
+    "set-header-footer",
+    "set-page-number",
+    "add-bookmark",
+    "add-hyperlink",
+    "export-text",
+    "export-markdown",
+    "validate-document",
+    "save-path-reopen",
+    "save-stream-reopen",
+    "preserve-unmodified-parts"
+  ]
+}

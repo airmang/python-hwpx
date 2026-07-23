@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-from hwpx.visual.report import VisualReport
+from .rendering import VisualReport
 
 # Structured, retry-able error codes (plan Appendix A). Carried as plain strings
 # on :class:`QualityError` so the report stays JSON-serialisable.

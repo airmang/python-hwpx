@@ -20,15 +20,13 @@ from hwpx.quality import (
     SavePipeline,
     VisualCompleteReport,
 )
-from hwpx.quality import save_pipeline as save_pipeline_module
+from hwpx.quality.rendering import VisualReport
 from hwpx.quality.report import (
     OPEN_SAFETY_FAILED,
     REFERENCE_INTEGRITY_FAILED,
     RENDER_ORACLE_UNAVAILABLE,
     VISUAL_COMPLETE_FAILED,
 )
-from hwpx.visual.report import VisualReport
-
 
 @pytest.fixture
 def valid_bytes() -> bytes:
@@ -40,14 +38,25 @@ def valid_bytes() -> bytes:
 class _FakeOracle:
     """An oracle that is reachable; rendering itself is stubbed via visual_check."""
 
-    def __init__(self, *, ready: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        ready: bool = True,
+        report: VisualReport | None = None,
+    ) -> None:
         self._ready = ready
+        self._report = report
 
     def available(self) -> bool:
         return self._ready
 
     def render_many(self, pairs):  # pragma: no cover - visual_check is stubbed
         raise AssertionError("visual_check should be stubbed in these tests")
+
+    def check(self, *_args, **_kwargs) -> VisualReport:
+        if self._report is None:
+            raise AssertionError("available fake requires an explicit report")
+        return self._report
 
 
 # --------------------------------------------------------------------------- #
@@ -213,15 +222,15 @@ def test_render_auto_unavailable_degrades_not_fails(tmp_path, valid_bytes) -> No
     assert out.exists()
 
 
-def test_render_verified_sets_visual_complete(tmp_path, valid_bytes, monkeypatch) -> None:
-    monkeypatch.setattr(
-        save_pipeline_module,
-        "visual_check",
-        lambda *a, **k: VisualReport(ok=True, render_checked=True, max_diff_ratio=0.0),
-    )
+def test_render_verified_sets_visual_complete(tmp_path, valid_bytes) -> None:
     out = tmp_path / "out.hwpx"
     policy = QualityPolicy(render_check="required", require_visual_complete=True)
-    report = SavePipeline(oracle=_FakeOracle(ready=True)).run(
+    report = SavePipeline(
+        oracle=_FakeOracle(
+            ready=True,
+            report=VisualReport(ok=True, render_checked=True, max_diff_ratio=0.0),
+        )
+    ).run(
         valid_bytes, output_path=out, quality=policy
     )
     assert report.ok is True
@@ -231,15 +240,19 @@ def test_render_verified_sets_visual_complete(tmp_path, valid_bytes, monkeypatch
     assert out.exists()
 
 
-def test_render_defect_rolls_back(tmp_path, valid_bytes, monkeypatch) -> None:
-    monkeypatch.setattr(
-        save_pipeline_module,
-        "visual_check",
-        lambda *a, **k: VisualReport(ok=False, render_checked=True, overlap_detected=True),
-    )
+def test_render_defect_rolls_back(tmp_path, valid_bytes) -> None:
     out = tmp_path / "out.hwpx"
     policy = QualityPolicy(render_check="required", require_visual_complete=True)
-    report = SavePipeline(oracle=_FakeOracle(ready=True)).run(
+    report = SavePipeline(
+        oracle=_FakeOracle(
+            ready=True,
+            report=VisualReport(
+                ok=False,
+                render_checked=True,
+                overlap_detected=True,
+            ),
+        )
+    ).run(
         valid_bytes, output_path=out, quality=policy
     )
     assert report.ok is False
@@ -247,6 +260,15 @@ def test_render_defect_rolls_back(tmp_path, valid_bytes, monkeypatch) -> None:
     assert report.visual_complete_status == "failed"
     assert VISUAL_COMPLETE_FAILED in report.error_codes
     assert not out.exists()  # rolled back: the defective doc is never published
+
+
+def test_save_pipeline_has_no_visual_oracle_dependency() -> None:
+    import inspect
+    from hwpx.quality import save_pipeline
+
+    source = inspect.getsource(save_pipeline)
+    assert "hwpx.visual" not in source
+    assert "resolve_oracle" not in source
 
 
 def test_allow_expert_unsafe_waives_visual(tmp_path, valid_bytes) -> None:
