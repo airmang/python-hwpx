@@ -37,6 +37,26 @@
     "dev-only": "repository verification asset, not a public runtime product surface",
     "undecided": "temporary exception requiring an owner and removal date"
   },
+  "canonicalizationProgress": {
+    "canonicalFiles": 35,
+    "canonicalLoc": 17562,
+    "physicalCoreFilesRemoved": 0,
+    "physicalCoreLocRemoved": 0,
+    "completed": [
+      {
+        "owner": "hwpx_mcp_server.office.agent",
+        "files": 19,
+        "loc": 10008,
+        "compatibility": "core 4.x frozen copy retained"
+      },
+      {
+        "owner": "hwpx_mcp_server.office.authoring",
+        "files": 16,
+        "loc": 7554,
+        "compatibility": "core 4.x frozen copy retained"
+      }
+    ]
+  },
   "rules": [
     {
       "glob": "src/hwpx/agent/**",
