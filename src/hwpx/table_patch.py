@@ -1838,9 +1838,34 @@ def strip_trailing_table_captions(
     )
 
 
+def iter_table_spans(section: bytes) -> list[tuple[int, int]]:
+    """Return balanced table byte spans in document order."""
+
+    return _iter_table_spans(section)
+
+
+def table_text(chunk: bytes) -> str:
+    """Return normalized text from one table/XML byte chunk."""
+
+    return _text_of(chunk)
+
+
+def section_parts(data: bytes) -> dict[str, bytes]:
+    """Return HWPX section XML parts keyed by package member name."""
+
+    return _sections(data)
+
+
+def read_source_bytes(source: str | Path | bytes) -> bytes:
+    """Read a path or byte payload through the byte-preserving patch reader."""
+
+    return _read_source_bytes(source)
+
+
 __all__ = [
     "fill_cells", "build_grid", "GridReport", "CellFillResult", "CellApplied", "CellSkipped",
     "ResolvedCellTarget", "resolve_cell_target",
     "apply_table_ops", "TableStructureError", "verify_fill", "RenderCheckRequired", "table_summary",
     "strip_trailing_table_captions",
+    "iter_table_spans", "table_text", "section_parts", "read_source_bytes",
 ]
