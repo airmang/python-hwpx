@@ -38,8 +38,8 @@
     "undecided": "temporary exception requiring an owner and removal date"
   },
   "canonicalizationProgress": {
-    "canonicalFiles": 35,
-    "canonicalLoc": 17562,
+    "canonicalFiles": 59,
+    "canonicalLoc": 28364,
     "physicalCoreFilesRemoved": 0,
     "physicalCoreLocRemoved": 0,
     "completed": [
@@ -53,6 +53,30 @@
         "owner": "hwpx_mcp_server.office.authoring",
         "files": 16,
         "loc": 7554,
+        "compatibility": "core 4.x frozen copy retained"
+      },
+      {
+        "owner": "hwpx_mcp_server.office.compliance / office.quality / office.utilities",
+        "files": 4,
+        "loc": 1622,
+        "compatibility": "core 4.x frozen copies and page-guard CLI retained"
+      },
+      {
+        "owner": "hwpx_mcp_server.office.form_fill",
+        "files": 13,
+        "loc": 5745,
+        "compatibility": "core 4.x frozen copies retained"
+      },
+      {
+        "owner": "hwpx_mcp_server.office.evalplan",
+        "files": 1,
+        "loc": 2727,
+        "compatibility": "core 4.x frozen copy retained"
+      },
+      {
+        "owner": "hwpx_mcp_server.office.exam",
+        "files": 6,
+        "loc": 708,
         "compatibility": "core 4.x frozen copy retained"
       }
     ]
