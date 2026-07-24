@@ -467,6 +467,26 @@ def _rewrite_zip_entries(source: bytes, replacements: Mapping[str, bytes]) -> by
     return buffer.getvalue()
 
 
+def paragraph_chunks(section: bytes) -> list[bytes]:
+    """Return paragraph XML chunks in document order, including nested cells."""
+
+    return [match.group(0) for match in _PARAGRAPH_RE.finditer(section)]
+
+
+def rewrite_package_parts(
+    source: bytes,
+    replacements: Mapping[str, bytes],
+) -> bytes:
+    """Rewrite selected ZIP members while preserving names and ZipInfo metadata.
+
+    This is the explicit whole-package fallback for callers that already own
+    complete replacement member bytes. Prefer higher-level patch APIs when a
+    byte-splice contract is available.
+    """
+
+    return _rewrite_zip_entries(source, replacements)
+
+
 def _find_eocd(source: bytes) -> tuple[int, bytes]:
     start = max(0, len(source) - (65535 + 22))
     offset = source.rfind(b"PK\x05\x06", start)
@@ -736,5 +756,7 @@ __all__ = [
     "ParagraphTextPatch",
     "PatchApplied",
     "PatchSkipped",
+    "paragraph_chunks",
     "paragraph_patch",
+    "rewrite_package_parts",
 ]

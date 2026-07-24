@@ -1862,10 +1862,45 @@ def read_source_bytes(source: str | Path | bytes) -> bytes:
     return _read_source_bytes(source)
 
 
+TableCell = _Cell
+
+
+def direct_table_cells(table: bytes) -> list[TableCell]:
+    """Return direct table cells with byte spans and logical addresses.
+
+    Nested-table cells are excluded. The returned immutable records use offsets
+    relative to ``table`` and carry row/column plus row/column-span metadata.
+    """
+
+    return _direct_cells(table)
+
+
+def cell_paragraph_spans(cell: bytes) -> list[tuple[int, int]]:
+    """Return direct paragraph byte spans inside one table-cell XML chunk."""
+
+    return _all_paragraph_spans(cell)
+
+
 __all__ = [
-    "fill_cells", "build_grid", "GridReport", "CellFillResult", "CellApplied", "CellSkipped",
-    "ResolvedCellTarget", "resolve_cell_target",
-    "apply_table_ops", "TableStructureError", "verify_fill", "RenderCheckRequired", "table_summary",
+    "CellApplied",
+    "CellFillResult",
+    "CellSkipped",
+    "GridReport",
+    "RenderCheckRequired",
+    "ResolvedCellTarget",
+    "TableCell",
+    "TableStructureError",
+    "apply_table_ops",
+    "build_grid",
+    "cell_paragraph_spans",
+    "direct_table_cells",
+    "fill_cells",
+    "iter_table_spans",
+    "read_source_bytes",
+    "resolve_cell_target",
+    "section_parts",
     "strip_trailing_table_captions",
-    "iter_table_spans", "table_text", "section_parts", "read_source_bytes",
+    "table_summary",
+    "table_text",
+    "verify_fill",
 ]
