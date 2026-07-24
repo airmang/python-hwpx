@@ -21,6 +21,7 @@ examples
 corpus-metrics
 support-matrix
 stable-api
+compatibility-observation-4.x
 safe-write-contract
 schema-overview
 internals/README
@@ -69,10 +70,12 @@ new_document.save_to_path("new-document.hwpx")
 - **설치 확인과 개발 환경 점검이 먼저다** → {doc}`installation`
 - **실행 가능한 예제 파일을 보고 싶다** → {doc}`examples`
 - **패키지 구조와 스키마를 이해하고 싶다** → {doc}`schema-overview`
+- **4.x 호환 import·CLI·스키마의 유지/이행 정책을 보고 싶다** → {doc}`compatibility-observation-4.x`
 - **클래스/메서드 시그니처를 바로 찾고 싶다** → {doc}`api_reference`
 
 ```{seealso}
 - {doc}`quickstart` — 설치부터 첫 번째 문서를 열고 저장하기까지 따라 하는 튜토리얼
 - {doc}`usage` — 문단, 표, 메모, 추출, 검증, 패키지 조작까지 포함한 핵심 사용 패턴
+- {doc}`compatibility-observation-4.x` — 4.x 호환 family·CLI·스키마의 관찰, canonical 경로, rollback 정책
 - {doc}`api_reference` — 세부 클래스와 함수 시그니처 모음
 ```

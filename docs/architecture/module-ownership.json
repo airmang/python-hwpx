@@ -121,7 +121,18 @@
         "physicalCoreFilesRemoved": 0,
         "physicalCoreLocRemoved": 0
       }
-    ]
+    ],
+    "compatibilityObservation": {
+      "status": "done",
+      "windowEnd": "2026-10-31",
+      "measuredSurfaceCount": 585,
+      "extendCount": 585,
+      "removeCount": 0,
+      "physicalCoreFilesRemoved": 0,
+      "physicalCoreLocRemoved": 0,
+      "automaticRemovalAtWindowEnd": false,
+      "separateCoreMajorApprovalRequired": true
+    }
   },
   "rules": [
     {

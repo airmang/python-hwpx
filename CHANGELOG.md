@@ -2,6 +2,15 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [Unreleased]
+
+### Documentation
+- 4.x compatibility/deprecation 관찰 정책을 공개했습니다. 8개 runtime family,
+  3개 CLI, 공개 스키마/리포트 projection은 2026-10-31까지 모두 `extend`하며
+  제거는 0건입니다. 신규 코드를 위한 MCP canonical 경로, side-by-side 이행,
+  rollback, 별도 next-major 승인 조건을
+  [4.x 호환 표면 관찰 정책](docs/compatibility-observation-4.x.md)에 기록했습니다.
+
 ## [4.2.0] - 2026-07-22
 
 ### Added — 평가계획(교수학습운영·평가계획) 실채움 엔진 확장
