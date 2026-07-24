@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "python-hwpx.document-ops-runtime-4x-freeze/v1",
+  "sourceHead": "86e26314540a82c5a772a05012be5fb2f14f9ed4",
+  "pythonFileCount": 3,
+  "loc": 1020,
+  "canonicalFileManifestSha256": "630469fdb286eb383262afae1a6e8e28f76d1774b86712b097b62bfd79370649",
+  "files": [
+    {
+      "path": "src/hwpx/tools/doc_diff.py",
+      "loc": 349,
+      "sha256": "62bfccc4ff59d540e6ac1eca74bd81b6cfe7a2e436dff58b4d20f4ca7e8ecaed"
+    },
+    {
+      "path": "src/hwpx/tools/mail_merge.py",
+      "loc": 485,
+      "sha256": "977ba4696f67a1081ad23abfdf159901db678819471cbad21881987abd31156f"
+    },
+    {
+      "path": "src/hwpx/tools/redline.py",
+      "loc": 186,
+      "sha256": "a7a68c54304eae4ab2c25ae5c6a841fb9663084b60ac235af1c61e44c265a6b9"
+    }
+  ],
+  "qualifiedExportCount": 13,
+  "qualifiedSnapshotSha256": "a1b77d246543217e33df910b6ef2c021f93120c8b75975cde279f5fb695f9a0e",
+  "qualifiedExports": [
+    {
+      "module": "hwpx.tools.doc_diff",
+      "name": "DOC_DIFF_REPORT_VERSION",
+      "kind": "str",
+      "origin": null,
+      "signature": null,
+      "value": "doc-diff-v1"
+    },
+    {
+      "module": "hwpx.tools.doc_diff",
+      "name": "REFERENCE_CONSISTENCY_REPORT_VERSION",
+      "kind": "str",
+      "origin": null,
+      "signature": null,
+      "value": "reference-consistency-v1"
+    },
+    {
+      "module": "hwpx.tools.doc_diff",
+      "name": "build_comparison_table_plan",
+      "kind": "function",
+      "origin": "hwpx.tools.doc_diff",
+      "signature": "(old_source: 'Any', new_source: 'Any', *, title: 'str' = '신구대조표', include_equal: 'bool' = True) -> 'dict[str, Any]'",
+      "value": null
+    },
+    {
+      "module": "hwpx.tools.doc_diff",
+      "name": "diff_paragraphs",
+      "kind": "function",
+      "origin": "hwpx.tools.doc_diff",
+      "signature": "(old_paragraphs: 'Sequence[str]', new_paragraphs: 'Sequence[str]') -> 'list[dict[str, Any]]'",
+      "value": null
+    },
+    {
+      "module": "hwpx.tools.doc_diff",
+      "name": "doc_diff",
+      "kind": "function",
+      "origin": "hwpx.tools.doc_diff",
+      "signature": "(old_source: 'Any', new_source: 'Any') -> 'dict[str, Any]'",
+      "value": null
+    },
+    {
+      "module": "hwpx.tools.doc_diff",
+      "name": "inspect_reference_consistency",
+      "kind": "function",
+      "origin": "hwpx.tools.doc_diff",
+      "signature": "(source: 'Any') -> 'dict[str, Any]'",
+      "value": null
+    },
+    {
+      "module": "hwpx.tools.mail_merge",
+      "name": "MAIL_MERGE_REPORT_VERSION",
+      "kind": "str",
+      "origin": null,
+      "signature": null,
+      "value": "mail-merge-v1"
+    },
+    {
+      "module": "hwpx.tools.mail_merge",
+      "name": "inspect_mail_merge_placeholders",
+      "kind": "function",
+      "origin": "hwpx.tools.mail_merge",
+      "signature": "(source: 'str | Path | HwpxDocument') -> 'dict[str, Any]'",
+      "value": null
+    },
+    {
+      "module": "hwpx.tools.mail_merge",
+      "name": "load_mail_merge_rows",
+      "kind": "function",
+      "origin": "hwpx.tools.mail_merge",
+      "signature": "(data: 'str | Path | Sequence[Mapping[str, Any]] | Mapping[str, Any]') -> 'list[dict[str, Any]]'",
+      "value": null
+    },
+    {
+      "module": "hwpx.tools.mail_merge",
+      "name": "mail_merge",
+      "kind": "function",
+      "origin": "hwpx.tools.mail_merge",
+      "signature": "(template: 'str | Path', data: 'str | Path | Sequence[Mapping[str, Any]] | Mapping[str, Any]', *, output_dir: 'str | Path | None' = None, filename_pattern: 'str' = '{index:03d}.hwpx', zip_path: 'str | Path | None' = None, strict: 'bool' = False, split_newlines: 'bool' = True, fit_policy: \"'Any | None'\" = None, max_lines: 'int' = 1, masking_policy: \"'PIIPolicy | None'\" = PIIPolicy(mask_char='*', machine_enabled=True, contextual_enabled=True, prefix_len=1, suffix_len=0)) -> 'dict[str, Any]'",
+      "value": null
+    },
+    {
+      "module": "hwpx.tools.redline",
+      "name": "REDLINE_VERIFY_REPORT_VERSION",
+      "kind": "str",
+      "origin": null,
+      "signature": null,
+      "value": "redline-verify-v1"
+    },
+    {
+      "module": "hwpx.tools.redline",
+      "name": "author_demo_redline",
+      "kind": "function",
+      "origin": "hwpx.tools.redline",
+      "signature": "(doc: 'HwpxDocument') -> 'HwpxDocument'",
+      "value": null
+    },
+    {
+      "module": "hwpx.tools.redline",
+      "name": "verify_redline",
+      "kind": "function",
+      "origin": "hwpx.tools.redline",
+      "signature": "(before_hwpx: 'str | PathLike[str]', after_hwpx: 'str | PathLike[str]', *, oracle: 'RenderBackend | None' = None) -> 'dict[str, Any]'",
+      "value": null
+    }
+  ],
+  "topLevelExportCount": 7,
+  "topLevelSnapshotSha256": "122e649f9b17f7095ee8cefb3f28016ef2ab3e5354392ef0eb3790368c990129",
+  "toolsExportCount": 7,
+  "toolsSnapshotSha256": "ddd5b4d2ac5635fc32b171fe504074094de9cf82b352399c5e7cda3d7d60054a",
+  "deterministicPayloadsSha256": "83615c8ef70b54632e214c3aca58422fba97c987a4d64fed2d450e77e72478dc",
+  "compatibilityRemovalGate": "S-106 observation followed by separately approved S-107 core major"
+}

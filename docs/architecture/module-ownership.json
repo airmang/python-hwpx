@@ -90,6 +90,36 @@
         "compatibility": "core 4.x application members retained; physical removal deferred to S-107",
         "physicalCoreFilesRemoved": 0,
         "physicalCoreLocRemoved": 0
+      },
+      {
+        "key": "doc-diff",
+        "sourceFiles": 1,
+        "sourceLoc": 349,
+        "coreOwner": "hwpx.tools.doc_diff generic diff and reference consistency",
+        "runtimeOwner": "hwpx_mcp_server.office.document_ops.comparison",
+        "compatibility": "core 4.x comparison-plan callable retained; physical removal deferred to S-107",
+        "physicalCoreFilesRemoved": 0,
+        "physicalCoreLocRemoved": 0
+      },
+      {
+        "key": "mail-merge",
+        "sourceFiles": 1,
+        "sourceLoc": 485,
+        "coreOwner": "hwpx.tools.mail_merge generic merge with callable sanitizer seam",
+        "runtimeOwner": "hwpx_mcp_server.office.document_ops.mail_merge",
+        "compatibility": "core 4.x PII-bound wrapper retained; physical removal deferred to S-107",
+        "physicalCoreFilesRemoved": 0,
+        "physicalCoreLocRemoved": 0
+      },
+      {
+        "key": "redline",
+        "sourceFiles": 1,
+        "sourceLoc": 186,
+        "coreOwner": "hwpx.tools.redline tracked-change structural contract",
+        "runtimeOwner": "hwpx_mcp_server.office.document_ops.redline",
+        "compatibility": "core 4.x Hancom-bound verifier retained; physical removal deferred to S-107",
+        "physicalCoreFilesRemoved": 0,
+        "physicalCoreLocRemoved": 0
       }
     ]
   },
@@ -223,20 +253,20 @@
     {
       "glob": "src/hwpx/tools/doc_diff.py",
       "disposition": "split",
-      "futureOwner": "core document diff plus hwpx_mcp_server.office.authoring plan builder",
-      "rationale": "document diff is generic but comparison-table plan encodes application schema"
+      "futureOwner": "core generic diff plus hwpx_mcp_server.office.document_ops.comparison",
+      "rationale": "S-105 completed the member split; the comparison-table plan is MCP canonical while the 4.x core callable remains compatible"
     },
     {
       "glob": "src/hwpx/tools/mail_merge.py",
       "disposition": "split",
-      "futureOwner": "core HWPX merge primitive plus injected MCP PII sanitizer",
-      "rationale": "generic HWPX merge currently imports application PII policy"
+      "futureOwner": "core generic merge seam plus hwpx_mcp_server.office.document_ops.mail_merge",
+      "rationale": "S-105 completed the member split; MCP injects canonical PII and fit policy while the 4.x core wrapper remains compatible"
     },
     {
       "glob": "src/hwpx/tools/redline.py",
       "disposition": "split",
-      "futureOwner": "core tracked-change contract plus MCP oracle verification",
-      "rationale": "tracked-change format is core; Hancom-bound verification is application/runtime"
+      "futureOwner": "core tracked-change structure plus hwpx_mcp_server.office.document_ops.redline",
+      "rationale": "S-105 completed the member split; MCP owns Hancom-bound verification through canonical office.rendering while the 4.x core verifier remains compatible"
     },
     {
       "glob": "src/hwpx/benchmark/**",

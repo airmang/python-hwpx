@@ -5,23 +5,23 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from os import PathLike, fspath
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml.body import TrackChangeMark
-from hwpx.visual.oracle import RenderBackend, resolve_oracle, visual_check
+
+if TYPE_CHECKING:
+    from hwpx.visual.oracle import RenderBackend
 
 REDLINE_VERIFY_REPORT_VERSION = "redline-verify-v1"
+REDLINE_STRUCTURE_REPORT_VERSION = "redline-structure-v1"
 _DEMO_DATE = "2026-06-30T00:00:00Z"
 
 
-def verify_redline(
-    before_hwpx: str | PathLike[str],
+def inspect_redline_structure(
     after_hwpx: str | PathLike[str],
-    *,
-    oracle: RenderBackend | None = None,
 ) -> dict[str, Any]:
-    """Verify authored redline structure and fold in the VisualComplete report."""
+    """Inspect tracked-change format structure without activating a renderer."""
 
     warnings: list[str] = []
     document: HwpxDocument | None = None
@@ -38,30 +38,64 @@ def verify_redline(
     display_enabled = False
 
     if document is not None:
-        changes = document.track_changes
-        changes_by_id = {
-            int(change.id): change
-            for change in changes.values()
-            if change.id is not None
-        }
-        change_count = len(changes_by_id)
-        type_counter = Counter(_normalise_change_type(change.change_type) for change in changes_by_id.values())
-        changes_by_type = dict(sorted(type_counter.items()))
+        try:
+            changes = document.track_changes
+            changes_by_id = {
+                int(change.id): change
+                for change in changes.values()
+                if change.id is not None
+            }
+            change_count = len(changes_by_id)
+            type_counter = Counter(
+                _normalise_change_type(change.change_type)
+                for change in changes_by_id.values()
+            )
+            changes_by_type = dict(sorted(type_counter.items()))
 
-        if not changes_by_id:
-            warnings.append("after document has no header trackChanges entries")
+            if not changes_by_id:
+                warnings.append("after document has no header trackChanges entries")
 
-        body_marks = _collect_track_change_marks(document)
-        marks_linked = _marks_are_linked(body_marks, changes_by_id)
-        if not body_marks:
-            warnings.append("after document has no body insert/delete track-change marks")
-        elif not marks_linked:
-            warnings.append("body track-change marks are not fully linked to header trackChanges by TcId")
+            body_marks = _collect_track_change_marks(document)
+            marks_linked = _marks_are_linked(body_marks, changes_by_id)
+            if not body_marks:
+                warnings.append(
+                    "after document has no body insert/delete track-change marks"
+                )
+            elif not marks_linked:
+                warnings.append(
+                    "body track-change marks are not fully linked to header "
+                    "trackChanges by TcId"
+                )
 
-        display_enabled = _track_change_display_enabled(document)
-        if not display_enabled:
-            warnings.append("trackChangeConfig display flag is not enabled")
+            display_enabled = _track_change_display_enabled(document)
+            if not display_enabled:
+                warnings.append("trackChangeConfig display flag is not enabled")
+        finally:
+            document.close()
 
+    return {
+        "report_version": REDLINE_STRUCTURE_REPORT_VERSION,
+        "changeCount": change_count,
+        "changesByType": changes_by_type,
+        "marksLinked": marks_linked,
+        "displayEnabled": display_enabled,
+        "opensClean": structural_opens_clean,
+        "warnings": warnings,
+    }
+
+
+def verify_redline(
+    before_hwpx: str | PathLike[str],
+    after_hwpx: str | PathLike[str],
+    *,
+    oracle: RenderBackend | None = None,
+) -> dict[str, Any]:
+    """Verify authored redline structure and fold in the VisualComplete report."""
+
+    from hwpx.visual.oracle import resolve_oracle, visual_check
+
+    structural = inspect_redline_structure(after_hwpx)
+    warnings = list(structural["warnings"])
     backend = oracle if oracle is not None else resolve_oracle()
     visual_report = visual_check(
         fspath(before_hwpx),
@@ -83,11 +117,11 @@ def verify_redline(
 
     return {
         "report_version": REDLINE_VERIFY_REPORT_VERSION,
-        "changeCount": change_count,
-        "changesByType": changes_by_type,
-        "marksLinked": marks_linked,
-        "displayEnabled": display_enabled,
-        "opensClean": opens_clean if structural_opens_clean else False,
+        "changeCount": structural["changeCount"],
+        "changesByType": structural["changesByType"],
+        "marksLinked": structural["marksLinked"],
+        "displayEnabled": structural["displayEnabled"],
+        "opensClean": opens_clean if structural["opensClean"] else False,
         "render_checked": render_checked,
         "visual_ok": visual_report.ok if render_checked else None,
         "warnings": warnings,
@@ -180,7 +214,9 @@ def _visual_signal_warnings(report: Any) -> list[str]:
 
 
 __all__ = [
+    "REDLINE_STRUCTURE_REPORT_VERSION",
     "REDLINE_VERIFY_REPORT_VERSION",
     "author_demo_redline",
+    "inspect_redline_structure",
     "verify_redline",
 ]

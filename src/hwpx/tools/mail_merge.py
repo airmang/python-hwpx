@@ -6,7 +6,7 @@ from __future__ import annotations
 import csv
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -24,6 +24,8 @@ _PLACEHOLDER_RE = re.compile(
     r"|(?P<angle><<\s*(?P<angle_key>[A-Za-z_][A-Za-z0-9_.-]*)\s*>>)"
 )
 _SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9가-힣._ -]+")
+
+ValueSanitizer = Callable[[str], str]
 
 
 def load_mail_merge_rows(data: str | Path | Sequence[Mapping[str, Any]] | Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -44,10 +46,10 @@ def load_mail_merge_rows(data: str | Path | Sequence[Mapping[str, Any]] | Mappin
         raise ValueError(f"unsupported mail merge data file: {path}")
 
     if isinstance(data, Mapping):
-        rows = data.get("rows", data.get("data"))
-        if rows is None:
+        payload_rows = data.get("rows", data.get("data"))
+        if payload_rows is None:
             raise ValueError("mail merge data mapping must contain rows or data")
-        return load_mail_merge_rows(rows)  # type: ignore[arg-type]
+        return load_mail_merge_rows(payload_rows)  # type: ignore[arg-type]
 
     rows: list[dict[str, Any]] = []
     for index, row in enumerate(data):
@@ -76,6 +78,8 @@ def _load_xlsx_rows(path: Path) -> list[dict[str, Any]]:
     workbook = load_workbook(path, read_only=True, data_only=True)
     try:
         sheet = workbook.active
+        if sheet is None:
+            raise ValueError(f"mail merge workbook has no active sheet: {path}")
         header: list[str] | None = None
         rows: list[dict[str, Any]] = []
         for raw in sheet.iter_rows(values_only=True):
@@ -183,6 +187,47 @@ def mail_merge(
     max_lines: int = 1,
     masking_policy: "PIIPolicy | None" = DEFAULT_POLICY,
 ) -> dict[str, Any]:
+    """Compatibility wrapper for the released core 4.x mail-merge behavior.
+
+    New application workflows should inject their policy through
+    :func:`merge_template_rows`.  This wrapper deliberately retains the
+    released ``masking_policy`` signature and result contract until the
+    separately approved core-major removal gate.
+    """
+
+    value_sanitizer: ValueSanitizer | None = None
+    if masking_policy is not None:
+        def _sanitize_value(value: str) -> str:
+            return mask_pii(value, masking_policy)
+
+        value_sanitizer = _sanitize_value
+    return merge_template_rows(
+        template,
+        data,
+        output_dir=output_dir,
+        filename_pattern=filename_pattern,
+        zip_path=zip_path,
+        strict=strict,
+        split_newlines=split_newlines,
+        fit_policy=fit_policy,
+        max_lines=max_lines,
+        value_sanitizer=value_sanitizer,
+    )
+
+
+def merge_template_rows(
+    template: str | Path,
+    data: str | Path | Sequence[Mapping[str, Any]] | Mapping[str, Any],
+    *,
+    output_dir: str | Path | None = None,
+    filename_pattern: str = "{index:03d}.hwpx",
+    zip_path: str | Path | None = None,
+    strict: bool = False,
+    split_newlines: bool = True,
+    fit_policy: "Any | None" = None,
+    max_lines: int = 1,
+    value_sanitizer: "ValueSanitizer | None" = None,
+) -> dict[str, Any]:
     """Generate one HWPX per row from a placeholder template.
 
     Supported placeholder forms are ``{{field}}``, ``${field}``, and
@@ -256,11 +301,11 @@ def mail_merge(
                 key = str(placeholder["key"])
                 token = str(placeholder["token"])
                 value = "" if _is_missing(row.get(key)) else str(row.get(key))
-                if masking_policy is not None:
-                    masked_value = mask_pii(value, masking_policy)
-                    if masked_value != value and key not in masked_fields:
+                if value_sanitizer is not None:
+                    sanitized_value = value_sanitizer(value)
+                    if sanitized_value != value and key not in masked_fields:
                         masked_fields.append(key)
-                    value = masked_value
+                    value = sanitized_value
                 if not split_newlines:
                     value = value.replace("\r\n", " ").replace("\n", " ")
                 apply_value = value
@@ -479,7 +524,9 @@ class _FormatValues(dict[str, Any]):
 
 __all__ = [
     "MAIL_MERGE_REPORT_VERSION",
+    "ValueSanitizer",
     "inspect_mail_merge_placeholders",
     "load_mail_merge_rows",
     "mail_merge",
+    "merge_template_rows",
 ]
