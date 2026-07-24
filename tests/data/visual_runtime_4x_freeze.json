@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "python-hwpx.visual-runtime-4x-freeze/v1",
+  "sourceHead": "3720196aa3ad4c4885059573c23bd7a8293302fb",
+  "source": {
+    "pythonFiles": 11,
+    "loc": 2667,
+    "manifestSha256": "1d10fab2feba5b892bc2d6ea7a5af621b11394a6f3a65de0cd2861ce5445c758",
+    "files": [
+      {
+        "path": "src/hwpx/visual/__init__.py",
+        "loc": 115,
+        "sha256": "bdbd98b6197673526edcecf0229adbf460fa32a20c78813612be08ff3da67c69"
+      },
+      {
+        "path": "src/hwpx/visual/detectors.py",
+        "loc": 151,
+        "sha256": "93bb7bf67588052a92b4d35dc0fa219941b6cf0af5d8ccfe246db68c796c19d0"
+      },
+      {
+        "path": "src/hwpx/visual/diff.py",
+        "loc": 153,
+        "sha256": "d17e53f48830459537b5dfbbbe73eb968c28bed1ae77b3ffca6ab42957a194a9"
+      },
+      {
+        "path": "src/hwpx/visual/fixture_corpus.py",
+        "loc": 210,
+        "sha256": "224784403f5e71f2c76a233bc12e782abd1f30ce513ab82f26cf28e1ec6db66b"
+      },
+      {
+        "path": "src/hwpx/visual/hancom_worker.py",
+        "loc": 287,
+        "sha256": "afbd255271d2748178877a65224fd2224a17a73b80089a7514113558c06de487"
+      },
+      {
+        "path": "src/hwpx/visual/masks.py",
+        "loc": 6,
+        "sha256": "be7a23a8b9e3eaeec747e437714e2a50447ff939e9d19e3edd96460dda8071f8"
+      },
+      {
+        "path": "src/hwpx/visual/oracle.py",
+        "loc": 966,
+        "sha256": "2b7b1f3b456813132bba7a9a0df563dbf7f52f86a8c74afd9cf222500a9fe65b"
+      },
+      {
+        "path": "src/hwpx/visual/page_qa.py",
+        "loc": 244,
+        "sha256": "02e242c927cb21d5e33de7a4840737627ac858eb0dd2c237e4f9f3f0167a3eba"
+      },
+      {
+        "path": "src/hwpx/visual/qa_contracts.py",
+        "loc": 293,
+        "sha256": "d5c8e88914c05a08bb36013c48f73a6cac5da147cac7d9f2a2ed66802e3b4f16"
+      },
+      {
+        "path": "src/hwpx/visual/qa_metrics.py",
+        "loc": 236,
+        "sha256": "23b45dc9b37e7f516f72fda3f9c7833e87a4e759ce90cba2d59added3117fc2f"
+      },
+      {
+        "path": "src/hwpx/visual/report.py",
+        "loc": 6,
+        "sha256": "ce60652b49789bc33f9b4fd3909248ae0c57fa33ae8735608e04edec38fef8e6"
+      }
+    ]
+  },
+  "publicSurface": {
+    "orderedAll": [
+      "resolve_oracle",
+      "visual_check",
+      "RenderBackend",
+      "WindowsComOracle",
+      "MacHancomOracle",
+      "NullOracle",
+      "RenderOracle",
+      "VisualReport",
+      "EditMask",
+      "TAXONOMY_VERSION",
+      "DefectCategory",
+      "FindingSeverity",
+      "VerdictStatus",
+      "NormalizedBBox",
+      "Evidence",
+      "Provenance",
+      "DocumentTarget",
+      "VisualFinding",
+      "PageVerdict",
+      "VisualVerdict",
+      "measure_fixture_corpus",
+      "FixturePage",
+      "FixtureCase",
+      "FixtureCorpus",
+      "load_fixture_manifest",
+      "inspect_page_png",
+      "inspect_page_set",
+      "inspect_fixture_case"
+    ],
+    "projectionSha256": "66f3c71e9a03f714de4ab4c6259f362549d4eb0b0d8ab94282c99446cc500481"
+  },
+  "memberOwners": {
+    "src/hwpx/visual/__init__.py": {
+      "owner": "core-contract-facade",
+      "compatibility": "4.x lazy runtime exports retained"
+    },
+    "src/hwpx/visual/detectors.py": {
+      "owner": "core-contract"
+    },
+    "src/hwpx/visual/diff.py": {
+      "owner": "core-contract"
+    },
+    "src/hwpx/visual/fixture_corpus.py": {
+      "owner": "hwpx_mcp_server.office.rendering",
+      "compatibility": "core 4.x source/API frozen"
+    },
+    "src/hwpx/visual/hancom_worker.py": {
+      "owner": "hwpx_mcp_server.office.rendering",
+      "compatibility": "core 4.x source/API frozen"
+    },
+    "src/hwpx/visual/masks.py": {
+      "owner": "core-contract"
+    },
+    "src/hwpx/visual/oracle.py": {
+      "coreContractMembers": [
+        "Block",
+        "BlockSplit",
+        "WordBox",
+        "detect_block_splits"
+      ],
+      "mcpRuntimeMembers": [
+        "MacHancomOracle",
+        "NullOracle",
+        "RenderBackend",
+        "RenderOracle",
+        "WindowsComOracle",
+        "env_budget_seconds",
+        "resolve_oracle",
+        "structural_only",
+        "visual_check"
+      ],
+      "compatibility": "core 4.x source/API frozen"
+    },
+    "src/hwpx/visual/page_qa.py": {
+      "owner": "hwpx_mcp_server.office.rendering",
+      "compatibility": "core 4.x source/API frozen"
+    },
+    "src/hwpx/visual/qa_contracts.py": {
+      "owner": "core-contract"
+    },
+    "src/hwpx/visual/qa_metrics.py": {
+      "owner": "hwpx_mcp_server.office.rendering",
+      "compatibility": "core 4.x source/API frozen"
+    },
+    "src/hwpx/visual/report.py": {
+      "owner": "core-contract"
+    }
+  },
+  "removalGate": "S-106 observation followed by separately approved S-107 core major"
+}

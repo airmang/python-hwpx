@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "python-hwpx.visual-runtime-post-split-freeze/v1",
+  "status": "core-contract-plus-4x-compatibility",
+  "pythonFiles": 12,
+  "loc": 2698,
+  "manifestSha256": "e2f862cdc7e8bbd659060600496e99df2f2777d51775022af736018cdc89e9cf",
+  "neutralFiles": [
+    "src/hwpx/visual/__init__.py",
+    "src/hwpx/visual/block_splits.py",
+    "src/hwpx/visual/detectors.py",
+    "src/hwpx/visual/diff.py",
+    "src/hwpx/visual/masks.py",
+    "src/hwpx/visual/qa_contracts.py",
+    "src/hwpx/visual/report.py"
+  ],
+  "compatibilityFiles": [
+    "src/hwpx/visual/fixture_corpus.py",
+    "src/hwpx/visual/hancom_worker.py",
+    "src/hwpx/visual/oracle.py",
+    "src/hwpx/visual/page_qa.py",
+    "src/hwpx/visual/qa_metrics.py"
+  ],
+  "files": [
+    {
+      "path": "src/hwpx/visual/__init__.py",
+      "loc": 136,
+      "sha256": "01f2d37df3992c880d42c1e06f3231ca9ae4733861a49997dbf5e7bb16ac050c"
+    },
+    {
+      "path": "src/hwpx/visual/block_splits.py",
+      "loc": 76,
+      "sha256": "6bd72a0f74f3e99f3da610cd68eab0defaaff2ed7fd90064e19ce06db5197a5a"
+    },
+    {
+      "path": "src/hwpx/visual/detectors.py",
+      "loc": 151,
+      "sha256": "93bb7bf67588052a92b4d35dc0fa219941b6cf0af5d8ccfe246db68c796c19d0"
+    },
+    {
+      "path": "src/hwpx/visual/diff.py",
+      "loc": 153,
+      "sha256": "d17e53f48830459537b5dfbbbe73eb968c28bed1ae77b3ffca6ab42957a194a9"
+    },
+    {
+      "path": "src/hwpx/visual/masks.py",
+      "loc": 6,
+      "sha256": "be7a23a8b9e3eaeec747e437714e2a50447ff939e9d19e3edd96460dda8071f8"
+    },
+    {
+      "path": "src/hwpx/visual/qa_contracts.py",
+      "loc": 293,
+      "sha256": "d5c8e88914c05a08bb36013c48f73a6cac5da147cac7d9f2a2ed66802e3b4f16"
+    },
+    {
+      "path": "src/hwpx/visual/report.py",
+      "loc": 6,
+      "sha256": "ce60652b49789bc33f9b4fd3909248ae0c57fa33ae8735608e04edec38fef8e6"
+    },
+    {
+      "path": "src/hwpx/visual/fixture_corpus.py",
+      "loc": 210,
+      "sha256": "224784403f5e71f2c76a233bc12e782abd1f30ce513ab82f26cf28e1ec6db66b"
+    },
+    {
+      "path": "src/hwpx/visual/hancom_worker.py",
+      "loc": 287,
+      "sha256": "afbd255271d2748178877a65224fd2224a17a73b80089a7514113558c06de487"
+    },
+    {
+      "path": "src/hwpx/visual/oracle.py",
+      "loc": 900,
+      "sha256": "0b194056529a402a506b4e33fc7fddda7a5f9a2806003942db2308d0f1e11d25"
+    },
+    {
+      "path": "src/hwpx/visual/page_qa.py",
+      "loc": 244,
+      "sha256": "02e242c927cb21d5e33de7a4840737627ac858eb0dd2c237e4f9f3f0167a3eba"
+    },
+    {
+      "path": "src/hwpx/visual/qa_metrics.py",
+      "loc": 236,
+      "sha256": "23b45dc9b37e7f516f72fda3f9c7833e87a4e759ce90cba2d59added3117fc2f"
+    }
+  ],
+  "canonicalRuntimeOwner": "hwpx_mcp_server.office.rendering",
+  "compatibilityPolicy": "correctness-or-security-only with parity test and receipt",
+  "removalGate": "S-106 observation followed by separately approved S-107 core major"
+}

@@ -79,6 +79,18 @@
         "loc": 708,
         "compatibility": "core 4.x frozen copy retained"
       }
+    ],
+    "completedSplitFamilies": [
+      {
+        "key": "visual",
+        "sourceFiles": 11,
+        "sourceLoc": 2667,
+        "coreOwner": "hwpx.quality.rendering plus reusable hwpx.visual contracts and primitives",
+        "runtimeOwner": "hwpx_mcp_server.office.rendering",
+        "compatibility": "core 4.x application members retained; physical removal deferred to S-107",
+        "physicalCoreFilesRemoved": 0,
+        "physicalCoreLocRemoved": 0
+      }
     ]
   },
   "rules": [
@@ -246,6 +258,12 @@
     }
   ],
   "exceptions": [
+    {
+      "path": "src/hwpx/visual/block_splits.py",
+      "disposition": "core",
+      "approvedBy": "S-104/P1",
+      "rationale": "renderer-neutral block-split geometry Protocol extracted from the mixed visual oracle before MCP runtime canonicalization"
+    },
     {
       "path": "src/hwpx/quality/rendering.py",
       "disposition": "core",

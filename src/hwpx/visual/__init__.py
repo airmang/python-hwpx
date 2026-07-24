@@ -24,8 +24,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .masks import EditMask
-from .fixture_corpus import FixtureCase, FixtureCorpus, FixturePage, load_fixture_manifest
-from .page_qa import inspect_fixture_case, inspect_page_png, inspect_page_set
 from .qa_contracts import (
     TAXONOMY_VERSION,
     DefectCategory,
@@ -61,6 +59,21 @@ _ORACLE_EXPORTS = frozenset(
         "RenderOracle",
         "resolve_oracle",
         "visual_check",
+    }
+)
+_FIXTURE_EXPORTS = frozenset(
+    {
+        "FixtureCase",
+        "FixtureCorpus",
+        "FixturePage",
+        "load_fixture_manifest",
+    }
+)
+_PAGE_QA_EXPORTS = frozenset(
+    {
+        "inspect_fixture_case",
+        "inspect_page_png",
+        "inspect_page_set",
     }
 )
 
@@ -108,6 +121,14 @@ def __getattr__(name: str):
         from . import oracle
 
         return getattr(oracle, name)
+    if name in _FIXTURE_EXPORTS:
+        from . import fixture_corpus
+
+        return getattr(fixture_corpus, name)
+    if name in _PAGE_QA_EXPORTS:
+        from . import page_qa
+
+        return getattr(page_qa, name)
     if name == "measure_fixture_corpus":
         from .qa_metrics import measure_fixture_corpus
 
