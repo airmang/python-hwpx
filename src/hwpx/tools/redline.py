@@ -11,7 +11,7 @@ from hwpx.document import HwpxDocument
 from hwpx.oxml.body import TrackChangeMark
 
 if TYPE_CHECKING:
-    from hwpx.visual.oracle import RenderBackend
+    from hwpx.quality.rendering import RenderBackend
 
 REDLINE_VERIFY_REPORT_VERSION = "redline-verify-v1"
 REDLINE_STRUCTURE_REPORT_VERSION = "redline-structure-v1"
@@ -90,18 +90,21 @@ def verify_redline(
     *,
     oracle: RenderBackend | None = None,
 ) -> dict[str, Any]:
-    """Verify authored redline structure and fold in the VisualComplete report."""
+    """Verify authored redline structure and fold in the VisualComplete report.
 
-    from hwpx.visual.oracle import resolve_oracle, visual_check
+    *oracle* is a :class:`~hwpx.quality.rendering.RenderBackend`, injected by the
+    caller. Core does not discover one: locating a Hancom installation is an
+    application concern, so without an injected backend this degrades honestly to
+    ``render_checked=False`` and reports ``opensClean=None`` rather than claiming
+    a visual pass it never performed.
+    """
+
+    from hwpx.quality.rendering import UnavailableRenderBackend
 
     structural = inspect_redline_structure(after_hwpx)
     warnings = list(structural["warnings"])
-    backend = oracle if oracle is not None else resolve_oracle()
-    visual_report = visual_check(
-        fspath(before_hwpx),
-        fspath(after_hwpx),
-        oracle=backend,
-    )
+    backend = oracle if oracle is not None else UnavailableRenderBackend()
+    visual_report = backend.check(fspath(before_hwpx), fspath(after_hwpx))
     warnings.extend(visual_report.warnings)
     warnings.extend(f"visual error: {error}" for error in visual_report.errors)
     warnings.extend(_visual_signal_warnings(visual_report))

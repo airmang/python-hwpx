@@ -1,22 +1,43 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
 
 from hwpx import HwpxDocument
+from hwpx.quality.rendering import RenderBackend, UnavailableRenderBackend, VisualReport
 from hwpx.tools.redline import author_demo_redline, verify_redline
-from hwpx.visual import MacHancomOracle, detectors, diff, resolve_oracle
 
 
 class _UnavailableOracle:
+    """A backend that reports itself unusable and must never be asked to render."""
+
     def available(self) -> bool:
         return False
 
-    def render_many(self, pairs):  # pragma: no cover - must never be called
-        raise AssertionError("render_many must not run when oracle is unavailable")
+    def check(self, before_hwpx, after_hwpx, **_kwargs) -> VisualReport:
+        return VisualReport(
+            ok=True,
+            render_checked=False,
+            warnings=["test backend is unavailable; nothing was rendered"],
+        )
+
+
+class _RenderingOracle:
+    """A backend that reports a successful render, without owning a renderer.
+
+    Core no longer discovers or drives Hancom, so its own suite cannot produce a
+    real render. What core still owns, and what this asserts, is the contract:
+    given a backend that renders, the report says so. The real-Hancom gate lives
+    in the MCP suite, which owns the transport.
+    """
+
+    def available(self) -> bool:
+        return True
+
+    def check(self, before_hwpx, after_hwpx, **_kwargs) -> VisualReport:
+        return VisualReport(ok=True, render_checked=True, before_page_count=1, after_page_count=1)
 
 
 def _write_demo_pair(tmp_path: Path) -> tuple[Path, Path]:
@@ -54,25 +75,32 @@ def test_verify_redline_degrades_honestly_without_oracle(tmp_path: Path) -> None
     assert report["warnings"]
 
 
-def _real_oracle_ready() -> bool:
-    oracle = resolve_oracle()
-    if isinstance(oracle, MacHancomOracle) and not os.environ.get("HWPX_MAC_ORACLE_SMOKE"):
-        return False
-    return oracle.available() and detectors.imaging_available() and diff.pymupdf_available()
+def test_verify_redline_degrades_honestly_with_no_backend_at_all(tmp_path: Path) -> None:
+    """The core-only default: no injected backend means unverified, not passed."""
 
-
-@pytest.mark.skipif(
-    not _real_oracle_ready(),
-    reason="Hancom render oracle + imaging stack required",
-)
-def test_verify_redline_real_render_gate(tmp_path: Path) -> None:
     before, after = _write_demo_pair(tmp_path)
 
-    report = verify_redline(before, after, oracle=resolve_oracle())
+    report = verify_redline(before, after)
+
+    assert report["render_checked"] is False
+    assert report["opensClean"] is None
+    assert report["visual_ok"] is None
+    assert any("RENDER_BACKEND_UNAVAILABLE" in warning for warning in report["warnings"])
+
+
+def test_verify_redline_reports_a_render_when_a_backend_performs_one(tmp_path: Path) -> None:
+    before, after = _write_demo_pair(tmp_path)
+
+    report = verify_redline(before, after, oracle=_RenderingOracle())
 
     assert report["render_checked"] is True
     assert report["opensClean"] is True
     assert report["visual_ok"] in {True, False}
+
+
+def test_core_sentinel_satisfies_the_injected_backend_protocol() -> None:
+    assert isinstance(UnavailableRenderBackend(), RenderBackend)
+    assert isinstance(_RenderingOracle(), RenderBackend)
 
 
 def test_verify_redline_corpus_acceptance_scaffold(tmp_path: Path) -> None:

@@ -1675,27 +1675,28 @@ def verify_fill(
 ):
     """Render *before*/*after* in **real Hancom** and judge the fill.
 
-    Wires the real oracle (:func:`hwpx.visual.oracle.resolve_oracle` /
-    :func:`~hwpx.visual.oracle.visual_check`) into the form-fill verdict so a
-    caller never mistakes structural validity (open-safety) or a lenient HTML
-    preview for Hancom acceptance -- the exact 2026-07-03 overclaim. Returns a
-    ``VisualReport`` carrying ``render_checked`` plus ``overflow_detected`` /
-    ``overlap_detected`` (글자겹침) / ``page_count_changed``.
+    *oracle* is an injected :class:`~hwpx.quality.rendering.RenderBackend`. It
+    carries the form-fill verdict so a caller never mistakes structural validity
+    (open-safety) or a lenient HTML preview for Hancom acceptance -- the exact
+    2026-07-03 overclaim. Returns a ``VisualReport`` carrying ``render_checked``
+    plus ``overflow_detected`` / ``overlap_detected`` (글자겹침) /
+    ``page_count_changed``.
 
-    Honest degrade (Constitution V): with no reachable Hancom / imaging stack the
-    report is ``render_checked=False, ok=True`` and nothing raises -- **unless**
+    Core does not discover a renderer; that belongs to a companion layer. Honest
+    degrade (Constitution V): with no injected backend, or one that cannot render,
+    the report is ``render_checked=False, ok=True`` and nothing raises -- **unless**
     ``require=True``, which fails closed with :class:`RenderCheckRequired`.
     """
     import os
     import shutil
     import tempfile
 
-    from .visual.oracle import resolve_oracle, visual_check
+    from .quality.rendering import UnavailableRenderBackend
 
     after_bytes = _read_source_bytes(after)
     before_bytes = _read_source_bytes(before) if before is not None else None
     if oracle is None:
-        oracle = resolve_oracle()
+        oracle = UnavailableRenderBackend()
 
     tmp = tempfile.mkdtemp(prefix="hwpx-verify-")
     try:
@@ -1705,7 +1706,7 @@ def verify_fill(
         if before_bytes is not None:
             before_path = os.path.join(tmp, "before.hwpx")
             Path(before_path).write_bytes(before_bytes)
-        report = visual_check(before_path, after_path, oracle=oracle, edit_mask=edit_mask, work_dir=work_dir)
+        report = oracle.check(before_path, after_path, edit_mask=edit_mask, work_dir=work_dir)
     finally:
         if work_dir is None:
             shutil.rmtree(tmp, ignore_errors=True)
