@@ -151,3 +151,61 @@ def test_dir_includes_all_three_layers() -> None:
 def test_unknown_attribute_still_raises_attribute_error() -> None:
     with pytest.raises(AttributeError):
         hwpx.this_name_does_not_exist  # noqa: B018
+
+
+def test_documentation_does_not_teach_a_module_this_package_no_longer_has() -> None:
+    """A library whose API reference documents absent modules is not documented.
+
+    5.0 removed the workflow families, and the docs tree kept describing some of
+    them: ``api_reference.md`` had a "Proposal presets" section with a working
+    ``from hwpx.presets import ...`` example, and ``usage.md`` had the same in
+    prose. Both survived every gate — the suites import the package, not the
+    manual.
+
+    The migration guide is exempt: naming a removed module is exactly its job.
+    Historical design notes and the 4.x compatibility record are exempt for the
+    same reason — they describe what was true when written.
+    """
+
+    import re
+    from pathlib import Path
+
+    docs = Path(__file__).resolve().parents[1] / "docs"
+    exempt = {
+        "migration-5.0.md",
+        "migration-4.0.md",
+        "compatibility-observation-4.x.md",
+        "changelog.md",
+        "2026-06-02-hwpx-builder-design.md",
+    }
+    removed = (
+        "agent", "authoring", "builder", "design", "presets", "exam",
+        "evalplan_fill", "form_fill", "formfill_quality", "guidance_scan",
+        "template_formfit", "fill_residue",
+    )
+    removed_tools = (
+        "pii", "official_lint", "table_compute", "style_profile",
+        "advanced_generators", "report_parser",
+    )
+    # A trailing hyphen means a schema identifier (`hwpx.agent-batch/v1`), not
+    # an import path. Those are contract names; where they moved is a different
+    # question, answered in the schema-freeze note itself.
+    pattern = re.compile(
+        r"\bhwpx\.(?:" + "|".join(removed) + r")\b(?!-)"
+        r"|\bhwpx\.tools\.(?:" + "|".join(removed_tools) + r")\b(?!-)"
+    )
+
+    offences: list[str] = []
+    for document in sorted(docs.rglob("*.md")):
+        if document.name in exempt:
+            continue
+        for number, line in enumerate(document.read_text(encoding="utf-8").splitlines(), 1):
+            # A line naming the replacement alongside the removed module is a
+            # migration pointer, which is the opposite of teaching someone to
+            # import it.
+            if "hwpx_mcp_server" in line:
+                continue
+            for match in pattern.finditer(line):
+                offences.append(f"{document.relative_to(docs)}:{number}: {match.group(0)}")
+
+    assert not offences, "documentation references removed modules:\n" + "\n".join(offences)

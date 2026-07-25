@@ -1093,36 +1093,12 @@ with open("result.hwpx", "wb") as fp:
 
 패키지 수준에서 바로 작업하고 싶다면 `HwpxPackage.set_part()`/`save()`를 사용해 XML 조각을 교체할 수도 있습니다. 이 경우에도 최종 출력은 반드시 `HwpxPackage.save()`를 거쳐야 합니다. `_write_archive()`나 `_write_zip_entry()` 같은 raw ZIP writer는 내부 구현 세부사항이며, safety 검증을 건너뛴 산출물을 만들 수 있으므로 직접 호출하지 마세요.
 
-## Agent-first proposal preset
+## 제안서 프리셋 — 5.0에서 이동
 
-`hwpx.presets` provides an additive, public preset surface for generating Korean proposal/planning HWPX documents from structured agent intent. It uses public `HwpxDocument` methods and semantic style tokens instead of direct XML editing.
-
-```python
-from hwpx.presets import create_proposal_document, inspect_proposal_quality
-
-proposal_spec = {
-    "title": "AI 융합형 교육실 구축 제안서",
-    "executive_summary": "AI 융합형 교육실을 구축해 학생 맞춤형 학습 환경을 조성합니다.",
-    "sections": [
-        {"title": "추진 배경 및 문제 정의", "paragraphs": ["현황과 문제를 설명합니다."]},
-        {"title": "제안 내용", "bullets": ["AI 실습 존 구성", "교원 연수 운영"]},
-        {"title": "구축 및 운영 계획", "paragraphs": ["준비-구축-운영-평가 단계로 추진합니다."]},
-    ],
-    "budget_items": [{"item": "기자재", "amount": "5,000,000원", "note": "노트북"}],
-    "expected_outcomes": ["수업 참여도 향상"],
-    "closing": "검토 후 승인 요청드립니다.",
-}
-
-doc = create_proposal_document(proposal_spec)
-doc.save_to_path("proposal.hwpx")
-doc.close()
-
-report = inspect_proposal_quality("proposal.hwpx")
-assert report["report_version"] == "proposal-quality-v2"
-assert report["sample_match"]["pass"] is True
-```
-
-First-pass quality targets are rubric average `>= 4.0`, sample-match average `>= 4.0`, no failing sample-match dimension, no critical validation errors, and package payload under 5MB unless justified. The report is still proxy-based: `visual_review_required=True` means rendered visual parity is not claimed without a separate renderer/human review gate.
+제안서·기획안 생성은 `hwpx_mcp_server.office.authoring`이 소유합니다. 5.0의
+`python-hwpx`는 그 프리셋이 사용하던 재료(문단·표·런 스타일·페이지 설정)를
+제공하고, 장르 판단은 하지 않습니다. 이동 내역은
+[5.0 마이그레이션 가이드](migration-5.0.md)를 보세요.
 
 ## Agent document plan
 

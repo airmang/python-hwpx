@@ -132,6 +132,6 @@ fail-closed 공개 경로가 던지는 예외는 `hwpx.errors.HwpxError`(최상�
 
 ## 스키마 동결 정책
 
-published versioned contract(`hwpx.mutation-report/v1`·`hwpx.document_plan.v1`/`v2`·
-`hwpx.agent-batch/v1`·`hwpx.mixed-form-plan/v1`)는 4.0.0에서 **required 필드 집합이
-동결**됩니다. 정책·계약 테스트는 [스키마 동결](schema-freeze.md)을 보세요.
+core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required 필드
+집합이 **동결**됩니다. document-plan·agent-batch·mixed-form-plan 스키마는 5.0에서
+`hwpx-mcp-server`가 발행 주체가 됐으며 그쪽 계약 정책을 따릅니다. 정책·계약 테스트는 [스키마 동결](schema-freeze.md)을 보세요.
