@@ -15,7 +15,7 @@ import pytest
 # real environment gate, and the reason names exactly what is missing rather than
 # skipping quietly.
 pytest.importorskip(
-    "hwpx_mcp_server",
+    "hwpx_automation",
     reason="fuzz harness needs hwpx-mcp-server; the document builder moved there in 5.0",
 )
 

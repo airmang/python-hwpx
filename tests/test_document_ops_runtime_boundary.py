@@ -154,7 +154,7 @@ def test_generic_merge_uses_only_the_injected_sanitizer(tmp_path: Path) -> None:
 
     source = inspect.getsource(merge_template_rows)
     assert "mask_pii" not in source
-    assert "hwpx_mcp_server" not in source
+    assert "hwpx_automation" not in source
 
 
 def test_redline_structure_is_renderer_neutral(tmp_path: Path) -> None:
@@ -185,8 +185,8 @@ print(json.dumps({
     # The old assertion watched hwpx.visual.oracle, which 5.0 removed — it would
     # now pass by watching nothing. The boundary that still exists is the
     # companion package, so watch that.
-    "visual": any(name.startswith("hwpx_mcp_server.office.rendering") for name in sys.modules),
-    "mcp": any(name.startswith("hwpx_mcp_server") for name in sys.modules),
+    "visual": any(name.startswith("hwpx_automation.office.rendering") for name in sys.modules),
+    "mcp": any(name.startswith("hwpx_automation") for name in sys.modules),
 }))
 """
     process = subprocess.run(

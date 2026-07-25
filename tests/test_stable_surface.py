@@ -203,7 +203,7 @@ def test_documentation_does_not_teach_a_module_this_package_no_longer_has() -> N
             # A line naming the replacement alongside the removed module is a
             # migration pointer, which is the opposite of teaching someone to
             # import it.
-            if "hwpx_mcp_server" in line:
+            if "hwpx_automation" in line:
                 continue
             for match in pattern.finditer(line):
                 offences.append(f"{document.relative_to(docs)}:{number}: {match.group(0)}")

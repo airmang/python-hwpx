@@ -269,7 +269,7 @@ def heading_rendered_pages(
 
     *extract* turns a PDF path into word boxes. Reading a PDF needs an imaging
     stack, which is a companion-layer concern, so core does not pick one: pass
-    ``hwpx_mcp_server.office.form_fill.fit.wordbox.extract_word_boxes`` or any
+    ``hwpx_automation.office.form_fill.fit.wordbox.extract_word_boxes`` or any
     callable returning objects with ``page``/``block``/``line``/``word_no``/
     ``text``. Without it this raises :class:`WordBoxExtractorRequired`, and
     :func:`toc_verify` turns that into an honest ``unverified`` verdict rather

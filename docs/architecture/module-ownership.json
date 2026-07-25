@@ -45,37 +45,37 @@
     "physicalCoreLocRemoved": 0,
     "completed": [
       {
-        "owner": "hwpx_mcp_server.office.agent",
+        "owner": "hwpx_automation.office.agent",
         "files": 19,
         "loc": 10008,
         "compatibility": "core 4.x frozen copy retained"
       },
       {
-        "owner": "hwpx_mcp_server.office.authoring",
+        "owner": "hwpx_automation.office.authoring",
         "files": 16,
         "loc": 7554,
         "compatibility": "core 4.x frozen copy retained"
       },
       {
-        "owner": "hwpx_mcp_server.office.compliance / office.quality / office.utilities",
+        "owner": "hwpx_automation.office.compliance / office.quality / office.utilities",
         "files": 4,
         "loc": 1622,
         "compatibility": "core 4.x frozen copies and page-guard CLI retained"
       },
       {
-        "owner": "hwpx_mcp_server.office.form_fill",
+        "owner": "hwpx_automation.office.form_fill",
         "files": 13,
         "loc": 5745,
         "compatibility": "core 4.x frozen copies retained"
       },
       {
-        "owner": "hwpx_mcp_server.office.evalplan",
+        "owner": "hwpx_automation.office.evalplan",
         "files": 1,
         "loc": 2727,
         "compatibility": "core 4.x frozen copy retained"
       },
       {
-        "owner": "hwpx_mcp_server.office.exam",
+        "owner": "hwpx_automation.office.exam",
         "files": 6,
         "loc": 708,
         "compatibility": "core 4.x frozen copy retained"
@@ -87,7 +87,7 @@
         "sourceFiles": 11,
         "sourceLoc": 2667,
         "coreOwner": "hwpx.quality.rendering plus reusable hwpx.visual contracts and primitives",
-        "runtimeOwner": "hwpx_mcp_server.office.rendering",
+        "runtimeOwner": "hwpx_automation.office.rendering",
         "compatibility": "core 4.x application members retained; physical removal deferred to S-107",
         "physicalCoreFilesRemoved": 0,
         "physicalCoreLocRemoved": 0
@@ -97,7 +97,7 @@
         "sourceFiles": 1,
         "sourceLoc": 349,
         "coreOwner": "hwpx.tools.doc_diff generic diff and reference consistency",
-        "runtimeOwner": "hwpx_mcp_server.office.document_ops.comparison",
+        "runtimeOwner": "hwpx_automation.office.document_ops.comparison",
         "compatibility": "core 4.x comparison-plan callable retained; physical removal deferred to S-107",
         "physicalCoreFilesRemoved": 0,
         "physicalCoreLocRemoved": 0
@@ -107,7 +107,7 @@
         "sourceFiles": 1,
         "sourceLoc": 485,
         "coreOwner": "hwpx.tools.mail_merge generic merge with callable sanitizer seam",
-        "runtimeOwner": "hwpx_mcp_server.office.document_ops.mail_merge",
+        "runtimeOwner": "hwpx_automation.office.document_ops.mail_merge",
         "compatibility": "core 4.x PII-bound wrapper retained; physical removal deferred to S-107",
         "physicalCoreFilesRemoved": 0,
         "physicalCoreLocRemoved": 0
@@ -117,7 +117,7 @@
         "sourceFiles": 1,
         "sourceLoc": 186,
         "coreOwner": "hwpx.tools.redline tracked-change structural contract",
-        "runtimeOwner": "hwpx_mcp_server.office.document_ops.redline",
+        "runtimeOwner": "hwpx_automation.office.document_ops.redline",
         "compatibility": "core 4.x Hancom-bound verifier retained; physical removal deferred to S-107",
         "physicalCoreFilesRemoved": 0,
         "physicalCoreLocRemoved": 0
@@ -139,139 +139,139 @@
     {
       "glob": "src/hwpx/agent/**",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.agent",
+      "futureOwner": "hwpx_automation.office.agent",
       "rationale": "agent commands, blueprint replay and CLI are application runtime"
     },
     {
       "glob": "src/hwpx/authoring.py",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.authoring",
+      "futureOwner": "hwpx_automation.office.authoring",
       "rationale": "document-plan workflow and genre quality inspection"
     },
     {
       "glob": "src/hwpx/builder/**",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.authoring",
+      "futureOwner": "hwpx_automation.office.authoring",
       "rationale": "application document-plan builders including approval-box composition"
     },
     {
       "glob": "src/hwpx/design/**",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.authoring",
+      "futureOwner": "hwpx_automation.office.authoring",
       "rationale": "layout-plan workflow and profile composition"
     },
     {
       "glob": "src/hwpx/evalplan_fill.py",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.evalplan",
+      "futureOwner": "hwpx_automation.office.evalplan",
       "rationale": "evaluation-plan-specific fill workflow"
     },
     {
       "glob": "src/hwpx/fill_residue.py",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.form_fill",
+      "futureOwner": "hwpx_automation.office.form_fill",
       "rationale": "form workflow cleanup policy"
     },
     {
       "glob": "src/hwpx/form_fill.py",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.form_fill",
+      "futureOwner": "hwpx_automation.office.form_fill",
       "rationale": "high-level form workflow"
     },
     {
       "glob": "src/hwpx/form_fit/**",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.form_fill",
+      "futureOwner": "hwpx_automation.office.form_fill",
       "rationale": "form-specific fit, seal and word-box policy"
     },
     {
       "glob": "src/hwpx/formfill_quality.py",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.form_fill",
+      "futureOwner": "hwpx_automation.office.form_fill",
       "rationale": "form workflow quality policy"
     },
     {
       "glob": "src/hwpx/guidance_scan.py",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.form_fill",
+      "futureOwner": "hwpx_automation.office.form_fill",
       "rationale": "form instruction classification"
     },
     {
       "glob": "src/hwpx/presets/**",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.authoring",
+      "futureOwner": "hwpx_automation.office.authoring",
       "rationale": "application document presets"
     },
     {
       "glob": "src/hwpx/template_formfit.py",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.form_fill",
+      "futureOwner": "hwpx_automation.office.form_fill",
       "rationale": "template-specific form workflow"
     },
     {
       "glob": "src/hwpx/tools/advanced_generators.py",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.authoring",
+      "futureOwner": "hwpx_automation.office.authoring",
       "rationale": "organization chart, nameplate and image-grid composition"
     },
     {
       "glob": "src/hwpx/tools/official_lint.py",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.compliance",
+      "futureOwner": "hwpx_automation.office.compliance",
       "rationale": "official-document policy"
     },
     {
       "glob": "src/hwpx/tools/page_guard.py",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.quality",
+      "futureOwner": "hwpx_automation.office.quality",
       "rationale": "application pagination quality gate"
     },
     {
       "glob": "src/hwpx/tools/pii.py",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.compliance",
+      "futureOwner": "hwpx_automation.office.compliance",
       "rationale": "PII detection and masking policy is not HWPX format behavior"
     },
     {
       "glob": "src/hwpx/tools/style_profile.py",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.authoring",
+      "futureOwner": "hwpx_automation.office.authoring",
       "rationale": "template registry and style-profile workflow"
     },
     {
       "glob": "src/hwpx/tools/table_compute.py",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.utilities",
+      "futureOwner": "hwpx_automation.office.utilities",
       "rationale": "pure tabular data calculation with no HWPX semantics"
     },
     {
       "glob": "src/hwpx/tools/template_analyzer.py",
       "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.authoring",
+      "futureOwner": "hwpx_automation.office.authoring",
       "rationale": "template role/profile analysis workflow"
     },
     {
       "glob": "src/hwpx/visual/**",
       "disposition": "split",
-      "futureOwner": "core contract plus hwpx_mcp_server.office.rendering implementation",
+      "futureOwner": "core contract plus hwpx_automation.office.rendering implementation",
       "rationale": "neutral report/protocol stays core; Hancom binding and oracle execution move"
     },
     {
       "glob": "src/hwpx/tools/doc_diff.py",
       "disposition": "split",
-      "futureOwner": "core generic diff plus hwpx_mcp_server.office.document_ops.comparison",
+      "futureOwner": "core generic diff plus hwpx_automation.office.document_ops.comparison",
       "rationale": "S-105 completed the member split; the comparison-table plan is MCP canonical while the 4.x core callable remains compatible"
     },
     {
       "glob": "src/hwpx/tools/mail_merge.py",
       "disposition": "split",
-      "futureOwner": "core generic merge seam plus hwpx_mcp_server.office.document_ops.mail_merge",
+      "futureOwner": "core generic merge seam plus hwpx_automation.office.document_ops.mail_merge",
       "rationale": "S-105 completed the member split; MCP injects canonical PII and fit policy while the 4.x core wrapper remains compatible"
     },
     {
       "glob": "src/hwpx/tools/redline.py",
       "disposition": "split",
-      "futureOwner": "core tracked-change structure plus hwpx_mcp_server.office.document_ops.redline",
+      "futureOwner": "core tracked-change structure plus hwpx_automation.office.document_ops.redline",
       "rationale": "S-105 completed the member split; MCP owns Hancom-bound verification through canonical office.rendering while the 4.x core verifier remains compatible"
     },
     {
@@ -317,7 +317,7 @@
     {
       "glob": "src/hwpx/exam/**",
       "removedIn": "5.0.0",
-      "newOwner": "hwpx_mcp_server.office.exam",
+      "newOwner": "hwpx_automation.office.exam",
       "replacement": [
         "MCP compose_exam / verify_question_splits tools"
       ],

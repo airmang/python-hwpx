@@ -19,7 +19,7 @@ implementation's address moved, and it moved before this release.
 Install the companion package and change the import path:
 
 ```bash
-pip install hwpx-mcp-server
+pip install python-hwpx-automation[mcp]
 ```
 
 The tables below give the exact replacement for each removed surface.
@@ -39,11 +39,11 @@ Question parsing, block measurement, and composition into a form.
 
 | removed | replacement |
 |---|---|
-| `hwpx.exam.compose_exam_into_form` | `hwpx_mcp_server.office.exam.compose.compose_exam_into_form`, or the MCP `compose_exam` tool |
-| `hwpx.exam.measure` | `hwpx_mcp_server.office.exam.measure`, or the MCP `verify_question_splits` tool |
-| `hwpx.exam.parser` | `hwpx_mcp_server.office.exam.parser` |
-| `hwpx.exam.ir` | `hwpx_mcp_server.office.exam.ir` |
-| `hwpx.exam.profile` | `hwpx_mcp_server.office.exam.profile` |
+| `hwpx.exam.compose_exam_into_form` | `hwpx_automation.office.exam.compose.compose_exam_into_form`, or the MCP `compose_exam` tool |
+| `hwpx.exam.measure` | `hwpx_automation.office.exam.measure`, or the MCP `verify_question_splits` tool |
+| `hwpx.exam.parser` | `hwpx_automation.office.exam.parser` |
+| `hwpx.exam.ir` | `hwpx_automation.office.exam.ir` |
+| `hwpx.exam.profile` | `hwpx_automation.office.exam.profile` |
 
 The `examples/compose_exam.py` script is removed with it; the skill's exam
 workflow covers the same ground through the MCP tools.
@@ -57,7 +57,7 @@ why the MCP owner builds on them rather than carrying its own copy.
 
 | removed | replacement |
 |---|---|
-| `hwpx.agent.*` | `hwpx_mcp_server.office.agent` |
+| `hwpx.agent.*` | `hwpx_automation.office.agent` |
 | `hwpx` console command | the same command, declared by `hwpx-mcp-server` |
 
 MCP declares `hwpx` in the train that raises its core floor to 5.0, so no valid
@@ -68,10 +68,10 @@ and the command keeps working with the same subcommands.
 
 | removed | replacement |
 |---|---|
-| `create_document_from_plan`, `validate_document_plan`, `normalize_document_plan` | `hwpx_mcp_server.office.authoring`, or the MCP `validate_document_plan` → `create_document_from_plan` tools |
-| `hwpx.builder.Document`, `Section`, `Paragraph`, `Table`, `Header`, `Footer` | `hwpx_mcp_server.office.authoring.builder` |
-| `hwpx.design`, `hwpx.presets` | `hwpx_mcp_server.office.authoring.design` / `.presets` |
-| `hwpx.tools.report_parser.parse_government_report_text` | `hwpx_mcp_server.office.authoring`, or the MCP tool of the same name |
+| `create_document_from_plan`, `validate_document_plan`, `normalize_document_plan` | `hwpx_automation.office.authoring`, or the MCP `validate_document_plan` → `create_document_from_plan` tools |
+| `hwpx.builder.Document`, `Section`, `Paragraph`, `Table`, `Header`, `Footer` | `hwpx_automation.office.authoring.builder` |
+| `hwpx.design`, `hwpx.presets` | `hwpx_automation.office.authoring.design` / `.presets` |
+| `hwpx.tools.report_parser.parse_government_report_text` | `hwpx_automation.office.authoring`, or the MCP tool of the same name |
 
 *Why:* a document plan is a genre description, and a Korean government report is
 an institutional form. Core still gives you paragraphs, runs, tables, headers and
@@ -81,8 +81,8 @@ page geometry — the builder composes those, it does not extend the format.
 
 | removed | replacement |
 |---|---|
-| `hwpx.form_fill`, `hwpx.formfill_quality`, `hwpx.fill_residue`, `hwpx.guidance_scan`, `hwpx.template_formfit` | `hwpx_mcp_server.office.form_fill`, or `analyze_form_fill` → `apply_form_fill` → `verify_form_fill` |
-| `hwpx.evalplan_fill` | `hwpx_mcp_server.office.evalplan`, or `apply_evalplan_fill` |
+| `hwpx.form_fill`, `hwpx.formfill_quality`, `hwpx.fill_residue`, `hwpx.guidance_scan`, `hwpx.template_formfit` | `hwpx_automation.office.form_fill`, or `analyze_form_fill` → `apply_form_fill` → `verify_form_fill` |
+| `hwpx.evalplan_fill` | `hwpx_automation.office.evalplan`, or `apply_evalplan_fill` |
 
 The measurement contract stayed: `hwpx.form_fit` — policy, measure, engine,
 report, apply — is still core, because core's own table and field APIs call it.
@@ -92,10 +92,10 @@ What left is the seal placement, the PDF extraction, and the institutional rules
 
 | removed | replacement |
 |---|---|
-| `hwpx.tools.official_lint` | `hwpx_mcp_server.office.compliance.official_lint` |
-| `hwpx.tools.pii` | `hwpx_mcp_server.office.compliance.pii` |
-| `hwpx.tools.table_compute` | `hwpx_mcp_server.office.utilities` |
-| `hwpx.tools.style_profile`, `hwpx.tools.advanced_generators` | `hwpx_mcp_server.office.authoring` |
+| `hwpx.tools.official_lint` | `hwpx_automation.office.compliance.official_lint` |
+| `hwpx.tools.pii` | `hwpx_automation.office.compliance.pii` |
+| `hwpx.tools.table_compute` | `hwpx_automation.office.utilities` |
+| `hwpx.tools.style_profile`, `hwpx.tools.advanced_generators` | `hwpx_automation.office.authoring` |
 
 ### Mail merge — a default that changed
 
@@ -117,7 +117,7 @@ opted out. Rather than flip that default to "do nothing" — which would leak
 quietly for anyone who did not read this page — the wrapper is gone, and the
 generic function has always required you to say what sanitizing means.
 
-`hwpx_mcp_server.office.compliance` provides a policy you can pass straight in.
+`hwpx_automation.office.compliance` provides a policy you can pass straight in.
 
 ### Rendering and PDF reading — injected, not discovered
 
@@ -128,7 +128,7 @@ Core no longer looks for a Hancom installation or an imaging stack.
 verify_redline(before, after)
 
 # 5.0 — the companion layer supplies the backend
-from hwpx_mcp_server.office.rendering import resolve_hancom_backend
+from hwpx_automation.office.rendering import resolve_hancom_backend
 verify_redline(before, after, oracle=resolve_hancom_backend())
 ```
 

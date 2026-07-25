@@ -12,7 +12,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-FORBIDDEN_IMPORTS = ("hwpx_mcp_server", "hwpx_skill")
+FORBIDDEN_IMPORTS = ("hwpx_automation", "hwpx_skill")
 DEBT_DISPOSITIONS = ("mcp-migrate", "split")
 
 

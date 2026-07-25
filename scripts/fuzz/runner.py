@@ -17,8 +17,8 @@ from uuid import UUID
 # The document builder is the MCP owner's. This fuzz harness is a repository QA
 # asset excluded from the distributed wheel, so depending on the companion
 # package here costs library users nothing.
-from hwpx_mcp_server.office.authoring.builder import Document as BuilderDocument
-from hwpx_mcp_server.office.authoring.builder import (
+from hwpx_automation.office.authoring.builder import Document as BuilderDocument
+from hwpx_automation.office.authoring.builder import (
     Footer,
     Header,
     Paragraph,

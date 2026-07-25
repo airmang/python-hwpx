@@ -77,6 +77,82 @@ def _deprecated_message(name: str) -> str:
     )
 
 
+# --- 5.0에서 이동한 이름 -------------------------------------------------
+#
+# 응용 워크플로는 companion 패키지가 소유한다. 여기 남는 것은 **표뿐**이다 —
+# 그 패키지를 import하지 않는다. 설치돼 있는지에 따라 core의 동작이 달라지면
+# 의존 방향이 뒤집히고, 그건 5.0이 없애려던 바로 그 결합이다.
+#
+# 표가 하는 일은 오류 메시지 하나다. 기본 Python 오류는 이름이 사라졌다는 것만
+# 알려주고 어디로 갔는지는 말해주지 않는다.
+_MOVED_TO_COMPANION: dict[str, str] = {
+    "AUTHORING_REPORT_VERSION": "hwpx_automation.office.authoring",
+    "DEFAULT_STYLE_PRESET": "hwpx_automation.office.authoring",
+    "DOCUMENT_PLAN_SCHEMA_VERSION": "hwpx_automation.office.authoring",
+    "DocumentBlock": "hwpx_automation.office.authoring",
+    "DocumentPlan": "hwpx_automation.office.authoring",
+    "DocumentStylePreset": "hwpx_automation.office.authoring",
+    "OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION": "hwpx_automation.office.compliance.official_lint",
+    "PlanValidationIssue": "hwpx_automation.office.authoring",
+    "PlanValidationReport": "hwpx_automation.office.authoring",
+    "STYLE_PROFILE_COMPARISON_SCHEMA_VERSION": "hwpx_automation.office.authoring",
+    "STYLE_PROFILE_SCHEMA_VERSION": "hwpx_automation.office.authoring",
+    "TABLE_COMPUTE_REPORT_VERSION": "hwpx_automation.office.utilities",
+    "TEMPLATE_REGISTRY_SCHEMA_VERSION": "hwpx_automation.office.authoring",
+    "agent": "hwpx_automation.office.agent",
+    "apply_style_profile_to_plan": "hwpx_automation.office.authoring",
+    "approval_box": "hwpx_automation.office.authoring.builder",
+    "authoring": "hwpx_automation.office.authoring",
+    "build_comparison_table_plan": "hwpx_automation.office.document_ops",
+    "build_image_grid": "hwpx_automation.office.authoring",
+    "build_meeting_nameplates": "hwpx_automation.office.authoring",
+    "build_organization_chart": "hwpx_automation.office.authoring",
+    "builder": "hwpx_automation.office.authoring.builder",
+    "compare_style_profiles": "hwpx_automation.office.authoring",
+    "create_document_from_plan": "hwpx_automation.office.authoring",
+    "describe_template": "hwpx_automation.office.authoring",
+    "design": "hwpx_automation.office.authoring.design",
+    "evalplan_fill": "hwpx_automation.office.evalplan",
+    "exam": "hwpx_automation.office.exam",
+    "extract_style_profile": "hwpx_automation.office.authoring",
+    "fill_residue": "hwpx_automation.office.form_fill",
+    "form_fill": "hwpx_automation.office.form_fill",
+    "formfill_quality": "hwpx_automation.office.form_fill",
+    "get_document_plan_schema": "hwpx_automation.office.authoring",
+    "guidance_scan": "hwpx_automation.office.form_fill",
+    "inspect_document_authoring_quality": "hwpx_automation.office.authoring",
+    "inspect_official_document_style": "hwpx_automation.office.compliance.official_lint",
+    "inspect_operating_plan_quality": "hwpx_automation.office.authoring",
+    "list_templates": "hwpx_automation.office.authoring",
+    "mail_merge": "hwpx_automation.office.document_ops",
+    "normalize_document_plan": "hwpx_automation.office.authoring",
+    "placeholder_fill_report": "hwpx_automation.office.authoring",
+    "presets": "hwpx_automation.office.authoring.presets",
+    "register_template": "hwpx_automation.office.authoring",
+    "table_compute": "hwpx_automation.office.utilities",
+    "template_formfit": "hwpx_automation.office.form_fill",
+    "validate_document_plan": "hwpx_automation.office.authoring",
+    "visual": "hwpx_automation.office.rendering",
+}
+
+
+class MovedToCompanion(ImportError):
+    """이동한 이름에 접근했다.
+
+    ImportError인 이유. ``from hwpx import X``는 모듈 ``__getattr__``이 던진
+    AttributeError를 잡아 자기만의 밋밋한 ImportError로 바꿔버린다 — 행선지를
+    적어 넣어도 사용자에게 닿지 않는다는 뜻이다. ImportError로 던지면 그대로
+    올라간다. 공개 코드에서 깨지는 형태가 압도적으로 ``from hwpx import X``라
+    그쪽을 택했다.
+
+    대가는 ``hasattr(hwpx, "...")``이다. Python의 hasattr은 AttributeError만
+    잡으므로 False 대신 예외가 나간다. 둘 다 상속해서 해결하려 했지만
+    ImportError와 AttributeError는 C 레벨 레이아웃이 충돌해 불가능하다.
+    예외가 나가더라도 메시지가 이유를 말해주므로 조용히 False가 되는 것보다는
+    낫다고 판단했다.
+    """
+
+
 def __getattr__(name: str) -> object:
     """Resolve dynamic module attributes.
 
@@ -96,6 +172,16 @@ def __getattr__(name: str) -> object:
     if module_name is not None:
         warnings.warn(_deprecated_message(name), DeprecationWarning, stacklevel=2)
         return getattr(importlib.import_module(module_name), name)
+
+    target = _MOVED_TO_COMPANION.get(name)
+    if target is not None:
+        raise MovedToCompanion(
+            f"{name}은(는) python-hwpx 5.0에서 companion 패키지로 이동했습니다.\n"
+            f"    pip install python-hwpx-automation\n"
+            f"    from {target} import {name}\n"
+            f'4.x를 계속 쓰려면: pip install "python-hwpx<5"\n'
+            f"전체 대체표: docs/migration-5.0.md"
+        )
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
@@ -193,3 +279,4 @@ __all__ = [
     "validate_package",
     "paragraph_patch",
 ]
+

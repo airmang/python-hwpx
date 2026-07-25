@@ -56,7 +56,7 @@ def test_core_reverse_dependency_fails_closed(tmp_path) -> None:
     source = tmp_path / "src" / "hwpx"
     source.mkdir(parents=True)
     path = source / "document.py"
-    path.write_text("import hwpx_mcp_server\n", encoding="utf-8")
+    path.write_text("import hwpx_automation\n", encoding="utf-8")
 
     report = boundary.evaluate(
         tmp_path,

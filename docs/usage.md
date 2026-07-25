@@ -1095,7 +1095,7 @@ with open("result.hwpx", "wb") as fp:
 
 ## 제안서 프리셋 — 5.0에서 이동
 
-제안서·기획안 생성은 `hwpx_mcp_server.office.authoring`이 소유합니다. 5.0의
+제안서·기획안 생성은 `hwpx_automation.office.authoring`이 소유합니다. 5.0의
 `python-hwpx`는 그 프리셋이 사용하던 재료(문단·표·런 스타일·페이지 설정)를
 제공하고, 장르 판단은 하지 않습니다. 이동 내역은
 [5.0 마이그레이션 가이드](migration-5.0.md)를 보세요.

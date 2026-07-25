@@ -22,7 +22,7 @@ import pytest
 # surface, and the reason names the missing dependency rather than skipping
 # quietly — a bare skip reads as "environment" when it may mean "gap".
 pytest.importorskip(
-    "hwpx_mcp_server",
+    "hwpx_automation",
     reason="authoring-quality inspectors moved to hwpx-mcp-server in 5.0",
 )
 

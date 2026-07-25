@@ -3,7 +3,7 @@
   "baselineVersion": "4.2.0",
   "coreImport": "from hwpx import HwpxDocument",
   "forbiddenImportPrefixes": [
-    "hwpx_mcp_server",
+    "hwpx_automation",
     "hwpx_skill"
   ],
   "scenarios": [

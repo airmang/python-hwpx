@@ -76,7 +76,7 @@ SHIPPED_ROOTS: list[tuple[str, Path]] = [
 ]
 
 # --- imports (editable python-hwpx; the MCP surface is imported lazily in
-# gen_authored so v2 mode / unit tests do not require hwpx_mcp_server) -----------
+# gen_authored so v2 mode / unit tests do not require hwpx_automation) -----------
 from hwpx.document import HwpxDocument  # noqa: E402
 from hwpx.form_fit import FitPolicy  # noqa: E402
 from hwpx.form_fit.apply import fit_cell_text  # noqa: E402
@@ -264,7 +264,7 @@ def authored_plans() -> list[tuple[str, str, dict[str, Any]]]:
 
 
 def gen_authored(out_dir: Path) -> tuple[list[dict[str, Any]], list[Path]]:
-    from hwpx_mcp_server import server  # lazy: v1-only dependency (installed MCP surface)
+    from hwpx_automation import server  # lazy: v1-only dependency (installed MCP surface)
 
     records: list[dict[str, Any]] = []
     produced_paths: list[Path] = []
@@ -530,10 +530,10 @@ def gen_exam(out_dir: Path) -> tuple[list[dict[str, Any]], list[Path]]:
     sample_md = (EXAM_FIXTURES / "sample_exam.md").read_text(encoding="utf-8")
     # Exam composition and the render transport belong to the MCP owner now, and
     # are imported here rather than at module scope so importing this script —
-    # which the unit tests do — never requires hwpx_mcp_server. Same reason the
+    # which the unit tests do — never requires hwpx_automation. Same reason the
     # authored-generation path already defers its MCP import.
-    from hwpx_mcp_server.office.exam.compose import compose_exam_into_form
-    from hwpx_mcp_server.office.rendering.oracle import NullOracle
+    from hwpx_automation.office.exam.compose import compose_exam_into_form
+    from hwpx_automation.office.rendering.oracle import NullOracle
 
     null_oracle = NullOracle()  # generation only — never render
 

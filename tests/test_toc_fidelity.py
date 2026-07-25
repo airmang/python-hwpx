@@ -238,7 +238,7 @@ def test_toc_verify_degrades_when_no_extractor_is_supplied(tmp_path):
 )
 def test_live_oracle_detects_fresh_vs_stale_toc():
     # The Hancom backend belongs to the companion layer; core takes one injected.
-    from hwpx_mcp_server.office.rendering.oracle import resolve_oracle
+    from hwpx_automation.office.rendering.oracle import resolve_oracle
 
     oracle = resolve_oracle()
     assert oracle.available(), "no Hancom render backend reachable"

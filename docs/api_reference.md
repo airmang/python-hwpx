@@ -670,5 +670,5 @@ OWPML 스키마에서 반복적으로 사용되는 네임스페이스 URI와 Cla
 
 ## Proposal presets — 5.0에서 이동
 
-`hwpx.presets`는 5.0에서 제거됐고 `hwpx_mcp_server.office.authoring.presets`가
+`hwpx.presets`는 5.0에서 제거됐고 `hwpx_automation.office.authoring.presets`가
 소유합니다. 대체표는 [5.0 마이그레이션 가이드](migration-5.0.md)에 있습니다.
