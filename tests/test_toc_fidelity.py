@@ -102,8 +102,26 @@ def test_grow_paragraph_lengthens_target():
 
 # ── oracle leg with synthetic render (deterministic, no Hancom) ──────
 def _fake_boxes(pages: dict[int, list[str]]):
-    """Build word boxes where each string in a page's list is its own LINE."""
-    from hwpx.form_fit.wordbox import WordBox
+    """Build word boxes where each string in a page's list is its own LINE.
+
+    A local stub rather than an imported class. ``toc_verify`` takes *any*
+    callable returning objects with page/block/line/word_no/text — that duck type
+    is the contract, and a stub tests it where a concrete import only tested one
+    implementation of it. Core stopped shipping any such implementation at 5.0.
+    """
+    from dataclasses import dataclass
+
+    @dataclass
+    class WordBox:
+        page: int
+        block: int
+        line: int
+        word_no: int
+        text: str
+        x0: float = 0.0
+        y0: float = 0.0
+        x1: float = 0.0
+        y1: float = 0.0
 
     boxes = []
     for page, lines in pages.items():
@@ -219,7 +237,8 @@ def test_toc_verify_degrades_when_no_extractor_is_supplied(tmp_path):
     reason="set HWPX_MAC_ORACLE_SMOKE=1 on macOS+Hancom to drive the TOC render smoke",
 )
 def test_live_oracle_detects_fresh_vs_stale_toc():
-    from hwpx.visual.oracle import resolve_oracle
+    # The Hancom backend belongs to the companion layer; core takes one injected.
+    from hwpx_mcp_server.office.rendering.oracle import resolve_oracle
 
     oracle = resolve_oracle()
     assert oracle.available(), "no Hancom render backend reachable"

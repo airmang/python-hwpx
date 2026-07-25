@@ -182,7 +182,10 @@ import sys
 from hwpx.tools.redline import inspect_redline_structure
 print(json.dumps({
     "callable": callable(inspect_redline_structure),
-    "visual": "hwpx.visual.oracle" in sys.modules,
+    # The old assertion watched hwpx.visual.oracle, which 5.0 removed — it would
+    # now pass by watching nothing. The boundary that still exists is the
+    # companion package, so watch that.
+    "visual": any(name.startswith("hwpx_mcp_server.office.rendering") for name in sys.modules),
     "mcp": any(name.startswith("hwpx_mcp_server") for name in sys.modules),
 }))
 """

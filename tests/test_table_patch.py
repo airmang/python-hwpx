@@ -337,12 +337,12 @@ def test_ops_then_fill_chains(merged):
 
 import os as _os
 from hwpx.table_patch import verify_fill, RenderCheckRequired
-from hwpx.visual.oracle import NullOracle
+from hwpx.quality.rendering import UnavailableRenderBackend
 
 
 def test_verify_fill_degrades_without_oracle(merged):
     res = fill_cells(merged, [{"table_index": 0, "row": 0, "col": 0, "text": "검증테스트"}])
-    report = verify_fill(merged, res.data, oracle=NullOracle())
+    report = verify_fill(merged, res.data, oracle=UnavailableRenderBackend())
     assert report.render_checked is False
     assert report.ok is True  # honest degrade: unverified, not a failure, never raises
 
@@ -350,7 +350,7 @@ def test_verify_fill_degrades_without_oracle(merged):
 def test_verify_fill_required_fails_closed_without_oracle(merged):
     res = fill_cells(merged, [{"table_index": 0, "row": 0, "col": 0, "text": "검증테스트"}])
     with pytest.raises(RenderCheckRequired):
-        verify_fill(merged, res.data, oracle=NullOracle(), require=True)
+        verify_fill(merged, res.data, oracle=UnavailableRenderBackend(), require=True)
 
 
 @pytest.mark.skipif(_os.environ.get("HWPX_MAC_ORACLE_SMOKE") != "1", reason="opt-in real-Hancom smoke")
