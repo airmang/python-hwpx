@@ -242,7 +242,10 @@ class ConformanceCorpus:
     def bundled(cls) -> "ConformanceCorpus":
         """The packaged public corpus shipped under ``hwpx/conformance/corpus``."""
 
-        corpus_dir = resources.files("hwpx.conformance") / "corpus"
+        # The corpus travels with this harness, which lives outside the shipped
+        # package as of 5.0 — importlib.resources would look in site-packages and
+        # find nothing.
+        corpus_dir = Path(__file__).resolve().parent / "corpus"
         with resources.as_file(corpus_dir / "corpus.json") as manifest:
             return cls.load(manifest)
 

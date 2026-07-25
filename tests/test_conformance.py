@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Unit tests for the Phase-G conformance corpus + badges (``hwpx.conformance``).
+"""Unit tests for the Phase-G conformance corpus + badges (``conformance`` (repository QA, outside the shipped package)).
 
 Deterministic and portable: the structural tiers (Open / Semantic / Form
 measurement) run with no Hancom and no imaging stack, and the VisualComplete
@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from hwpx import HwpxDocument
-from hwpx.conformance import (
+from conformance import (
     CaseResult,
     ConformanceCase,
     ConformanceCorpus,
@@ -24,7 +24,7 @@ from hwpx.conformance import (
     evaluate_badges,
     run_conformance,
 )
-from hwpx.conformance import runner as runner_module
+from conformance import runner as runner_module
 
 GOLDEN = Path(__file__).parent / "conformance" / "golden" / "structural.json"
 

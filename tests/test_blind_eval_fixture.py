@@ -4,7 +4,7 @@ from copy import deepcopy
 
 import pytest
 
-from hwpx.benchmark import (
+from benchmark import (
     BENCHMARK_SCHEMA,
     REQUIRED_FAMILIES,
     build_result_projections,

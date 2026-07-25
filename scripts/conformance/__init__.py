@@ -13,7 +13,7 @@ only the oracle run (a reachable Hancom backend) verifies VisualComplete.
 
 Entry points::
 
-    from hwpx.conformance import ConformanceCorpus, run_conformance
+    from conformance import ConformanceCorpus, run_conformance
     report = run_conformance(ConformanceCorpus.bundled())
     # or: hwpx-conformance run --tier structural
 """

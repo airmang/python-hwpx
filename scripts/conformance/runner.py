@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Conformance runner + ``hwpx-conformance`` CLI (plan §2 Phase G).
 
-``run_conformance`` walks a :class:`~hwpx.conformance.corpus.ConformanceCorpus`,
+``run_conformance`` walks a :class:`~conformance.corpus.ConformanceCorpus`,
 evaluates each case across the four badge tiers, and aggregates a
-:class:`~hwpx.conformance.report.ConformanceReport`. Two run tiers, matching the
+:class:`~conformance.report.ConformanceReport`. Two run tiers, matching the
 §0.0 oracle boundary:
 
 * ``structural`` — Open-Safe / Semantic-Safe / Form-Safe(measurement). No Hancom,

@@ -86,30 +86,32 @@ hwpx-repair = "hwpx.tools.repair:main"
 [tool.setuptools]
 package-dir = { "" = "src" }
 include-package-data = true
+# Namespace-aware discovery. hwpx/opc and hwpx/data carry no __init__.py, so a
+# plain find_packages misses them, and they only ever shipped because
+# include-package-data swept them in as data files of hwpx. That same sweep kept
+# hwpx/benchmark and hwpx/conformance in the wheel after they were excluded from
+# the package list — one mechanism, helping in one place and hurting in the other.
+# Discovering namespaces makes every shipped directory a declared package, so what
+# ships is what is listed, and the QA harnesses now live outside src/ entirely.
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["hwpx*"]
-# Repository QA assets, not library surface. They live under src/ so the suite can
-# import them without path games, and are excluded here so they do not ship: a fuzz
-# harness, a conformance campaign runner, and a blind-evaluation benchmark are
-# things this project runs on itself, not things a library user installs.
-exclude = ["hwpx.benchmark*", "hwpx.conformance*"]
+namespaces = true
 
+# Only packages that ship. A key here for an excluded or deleted package pulls it
+# back into the wheel: hwpx.conformance was excluded from packages.find and still
+# shipped because this table named it, and hwpx.design no longer exists at all.
+
+# Listed explicitly rather than discovered with an exclude pattern. The exclude
+# form silently failed to keep hwpx.benchmark and hwpx.conformance out of the
+# wheel, and a packaging rule that looks right while shipping the opposite is
+# worse than a longer list. Adding a package here is a deliberate act.
 [tool.setuptools.package-data]
 "hwpx" = ["py.typed"]
 "hwpx.tools" = ["_schemas/*.xsd"]
 "hwpx.data" = ["Skeleton.hwpx"]
 "hwpx.visual" = ["_render_hwpx.ps1", "_render_hwpx_mac.applescript", "_refresh_hwpx_mac.applescript", "_hancom_open_rate.ps1"]
-"hwpx.design" = [
-    "profiles/*/profile.json",
-    "profiles/*/template.hwpx",
-    "profiles/*/fragments/*.xml",
-]
-"hwpx.conformance" = [
-    "corpus/corpus.json",
-    "corpus/*.hwpx",
-]
 
 [tool.pytest.ini_options]
 # scripts/ carries repository QA harnesses that are not library surface — the

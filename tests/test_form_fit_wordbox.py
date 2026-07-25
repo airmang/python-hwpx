@@ -183,7 +183,9 @@ def test_future_version_fixture_is_rejected(tmp_path):
 # --- end-to-end verify_form_fill (no Hancom needed) ------------------------
 
 _NOTICE = os.path.join(  # the document the checked-in fixture certifies
-    os.path.dirname(__file__), "..", "src", "hwpx", "conformance", "corpus", "notice.hwpx"
+    # The conformance corpus moved to scripts/ in 5.0: it is repository QA, and
+    # keeping it under src/hwpx was what dragged it into the wheel.
+    os.path.dirname(__file__), "..", "scripts", "conformance", "corpus", "notice.hwpx"
 )
 _NOTICE_FIXTURE = os.path.join(
     os.path.dirname(__file__), "fixtures", "form_fit_wordbox", "notice_clean.json"
