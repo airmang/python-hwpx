@@ -18,7 +18,7 @@ from tempfile import TemporaryDirectory
 
 from hwpx.document import HwpxDocument
 from hwpx.form_fit import FitPolicy
-from hwpx.tools.mail_merge import mail_merge
+from hwpx.tools.mail_merge import merge_template_rows
 
 
 def build_template(path: Path) -> None:
@@ -41,7 +41,7 @@ def main() -> None:
     with TemporaryDirectory() as tmp:
         template = Path(tmp) / "template.hwpx"
         build_template(template)
-        report = mail_merge(
+        report = merge_template_rows(
             template, roster,
             output_dir=Path(tmp) / "out",
             fit_policy=FitPolicy.keep(),   # detect + isolate overflow; never truncate

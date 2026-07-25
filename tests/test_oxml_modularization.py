@@ -129,11 +129,9 @@ OWNER_FILES = frozenset(module.rsplit(".", 1)[-1] for module in OWNER_MODULES.va
 }
 
 SOURCE_ROOT = Path(__file__).parents[1] / "src" / "hwpx"
+# The agent modules left in 5.0; their line-count ratchet went with them.
 RATCHET_SOURCE_FILES = (
     "document.py",
-    "agent/commands.py",
-    "agent/document.py",
-    "agent/story.py",
     "oxml/_document_impl.py",
     "oxml/_document_primitives.py",
     "oxml/document.py",
@@ -160,16 +158,6 @@ C901_LIMITS = {
         "remove_image": 14,
         "set_paragraph_format": 17,
     },
-    "agent/commands.py": {
-        "_add": 16,
-        "_apply_set": 34,
-        "_move": 15,
-        "_preflight": 21,
-        "_refresh_copy_identities": 18,
-        "_remove": 12,
-        "apply_document_commands": 29,
-    },
-    "agent/document.py": {"_project_paragraph": 16},
     "oxml/_document_primitives.py": {
         "_border_fill_is_basic_solid_line": 18,
         "_border_fill_matches": 15,
@@ -241,16 +229,19 @@ def test_frozen_facade_exports_remain_exact() -> None:
     # experimental (12) + deprecated (4) names stay importable via the module
     # __getattr__ (with DeprecationWarning). The legacy surface stays 82 — zero
     # names removed in that split.
-    # 66 -> 67 stable / 82 -> 83 total: S-091 P2 adds the structured-exception
+    # 5.0: the application families left, so the stable surface is 34.
+    # (4.x history: 66 -> 67 when S-091 P2 added the structured-exception
     # base HwpxError to the stable surface (see docs/stable-api.md 오류 계약 and
     # tests/test_stable_surface.py for the per-name contract).
-    assert len(hwpx.__all__) == 67
+    assert len(hwpx.__all__) == 34
     total_top_level = (
         set(hwpx.__all__)
         | set(hwpx._EXPERIMENTAL_EXPORTS)
         | set(hwpx._DEPRECATED_EXPORTS)
     )
-    assert len(total_top_level) == 83
+    # 34 stable + 12 experimental + 0 deprecated. The deprecated layer emptied in
+    # 5.0 because its 4.x notice said it would go in the next major.
+    assert len(total_top_level) == 46
     assert len(oxml.__all__) == 110
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 
@@ -299,14 +290,12 @@ def test_touched_runtime_file_sizes_stay_bounded() -> None:
     def line_count(relative: str) -> int:
         return len((SOURCE_ROOT / relative).read_text(encoding="utf-8").splitlines())
 
-    # Stable facades stay thin, and the three agent seams may not become new
+    # Stable facades stay thin. The three agent seams that used to be bounded here
+    # left in 5.0, so their caps left with them rather than lingering as dead
     # replacement god modules while compatibility remains frozen.
     assert line_count("oxml/_document_impl.py") <= 150
     assert line_count("oxml/document.py") <= 200
     assert line_count("document.py") <= 3_000
-    assert line_count("agent/commands.py") <= 1_600
-    assert line_count("agent/document.py") <= 850
-    assert line_count("agent/story.py") <= 250
 
     owner_lines = {
         name: line_count(f"oxml/{name}.py")

@@ -502,8 +502,12 @@ def build_report(
 # --------------------------------------------------------------------------- #
 
 def _real_inspectors() -> tuple[QualityInspector, GongmunLint]:
-    from hwpx.authoring import inspect_document_authoring_quality
-    from hwpx.tools.official_lint import inspect_official_document_style
+    # Authoring quality and official-document lint are the MCP owner's; this is a
+    # repository QA asset, so depending on the companion package is fine here.
+    from hwpx_mcp_server.office.authoring import inspect_document_authoring_quality
+    from hwpx_mcp_server.office.compliance.official_lint import (
+        inspect_official_document_style,
+    )
 
     def quality(path: str, plan: Mapping[str, Any] | None) -> dict[str, Any]:
         return inspect_document_authoring_quality(path, plan=plan)

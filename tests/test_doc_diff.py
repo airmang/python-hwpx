@@ -1,15 +1,10 @@
 from __future__ import annotations
 
 from hwpx import (
-    build_comparison_table_plan,
-    create_document_from_plan,
     diff_paragraphs,
     doc_diff,
     inspect_reference_consistency,
-    validate_document_plan,
 )
-from hwpx.document import HwpxDocument
-from hwpx.tools.package_validator import validate_editor_open_safety
 
 
 def test_diff_paragraphs_classifies_equal_added_removed_changed() -> None:
@@ -41,32 +36,6 @@ def test_doc_diff_accepts_text_sources() -> None:
         "removed": 0,
         "changed": 1,
     }
-
-
-def test_comparison_table_plan_generates_open_safe_document(tmp_path) -> None:
-    target = tmp_path / "comparison.hwpx"
-    plan = build_comparison_table_plan(
-        ["제1조 목적", "제2조 예산"],
-        ["제1조 목적", "제2조 예산 변경", "제3조 시행"],
-        include_equal=False,
-    )
-
-    assert validate_document_plan(plan).ok is True
-    document = create_document_from_plan(plan)
-    try:
-        document.save_to_path(target)
-    finally:
-        document.close()
-
-    assert validate_editor_open_safety(target).ok is True
-    reopened = HwpxDocument.open(target)
-    try:
-        text = reopened.export_text()
-        assert "신구대조표" in text
-        assert "변경" in text
-        assert "추가" in text
-    finally:
-        reopened.close()
 
 
 def test_reference_consistency_passes_matching_references() -> None:

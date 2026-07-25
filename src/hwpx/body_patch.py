@@ -451,8 +451,8 @@ def strip_runs_by_color(
         sections = {n: z.read(n).decode("utf-8") for n in names if re.search(r"section\d+\.xml$", n)}
 
     # 계열 매칭(잔존 게이트와 정렬): 대상 색의 _color_family에 드는 모든 charPr.
-    from .guidance_scan import _color_family
-    target_families = {_color_family(h) for h in targets}
+    from .oxml.color import color_family
+    target_families = {color_family(h) for h in targets}
     ids = set()
     for cm in re.finditer(r"<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?>", header_xml):
         tag = cm.group(0)
@@ -461,7 +461,7 @@ def strip_runs_by_color(
         if not (idm and colm):
             continue
         col = colm.group(1).upper()
-        if col in targets or _color_family(col) in target_families:
+        if col in targets or color_family(col) in target_families:
             ids.add(idm.group(1))
     transcript: list[dict[str, Any]] = []
     changed: set[str] = set()

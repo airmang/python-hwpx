@@ -14,8 +14,17 @@ from random import Random
 from typing import Any, Iterable, Iterator, Mapping, Sequence
 from uuid import UUID
 
-from hwpx.builder import Document as BuilderDocument
-from hwpx.builder import Footer, Header, Paragraph, Section, Table
+# The document builder is the MCP owner's. This fuzz harness is a repository QA
+# asset excluded from the distributed wheel, so depending on the companion
+# package here costs library users nothing.
+from hwpx_mcp_server.office.authoring.builder import Document as BuilderDocument
+from hwpx_mcp_server.office.authoring.builder import (
+    Footer,
+    Header,
+    Paragraph,
+    Section,
+    Table,
+)
 from hwpx.document import HwpxDocument
 from hwpx.tools.id_integrity import check_id_integrity
 from hwpx.tools.package_validator import validate_editor_open_safety

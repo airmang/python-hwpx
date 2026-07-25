@@ -52,3 +52,93 @@ workflow covers the same ground through the MCP tools.
 genre, not a property of the HWPX format. The primitives it stands on — tables,
 paragraphs, page geometry, package preservation — are all still core, which is
 why the MCP owner builds on them rather than carrying its own copy.
+
+### Agent editing — `hwpx.agent` and the `hwpx` command
+
+| removed | replacement |
+|---|---|
+| `hwpx.agent.*` | `hwpx_mcp_server.office.agent` |
+| `hwpx` console command | the same command, declared by `hwpx-mcp-server` |
+
+MCP declares `hwpx` in the train that raises its core floor to 5.0, so no valid
+install ever has two packages claiming the name. Install the companion package
+and the command keeps working with the same subcommands.
+
+### Authoring — `hwpx.authoring`, `builder`, `design`, `presets`
+
+| removed | replacement |
+|---|---|
+| `create_document_from_plan`, `validate_document_plan`, `normalize_document_plan` | `hwpx_mcp_server.office.authoring`, or the MCP `validate_document_plan` → `create_document_from_plan` tools |
+| `hwpx.builder.Document`, `Section`, `Paragraph`, `Table`, `Header`, `Footer` | `hwpx_mcp_server.office.authoring.builder` |
+| `hwpx.design`, `hwpx.presets` | `hwpx_mcp_server.office.authoring.design` / `.presets` |
+| `hwpx.tools.report_parser.parse_government_report_text` | `hwpx_mcp_server.office.authoring`, or the MCP tool of the same name |
+
+*Why:* a document plan is a genre description, and a Korean government report is
+an institutional form. Core still gives you paragraphs, runs, tables, headers and
+page geometry — the builder composes those, it does not extend the format.
+
+### Form fill and eval plans
+
+| removed | replacement |
+|---|---|
+| `hwpx.form_fill`, `hwpx.formfill_quality`, `hwpx.fill_residue`, `hwpx.guidance_scan`, `hwpx.template_formfit` | `hwpx_mcp_server.office.form_fill`, or `analyze_form_fill` → `apply_form_fill` → `verify_form_fill` |
+| `hwpx.evalplan_fill` | `hwpx_mcp_server.office.evalplan`, or `apply_evalplan_fill` |
+
+The measurement contract stayed: `hwpx.form_fit` — policy, measure, engine,
+report, apply — is still core, because core's own table and field APIs call it.
+What left is the seal placement, the PDF extraction, and the institutional rules.
+
+### Compliance, quality, utilities
+
+| removed | replacement |
+|---|---|
+| `hwpx.tools.official_lint` | `hwpx_mcp_server.office.compliance.official_lint` |
+| `hwpx.tools.pii` | `hwpx_mcp_server.office.compliance.pii` |
+| `hwpx.tools.table_compute` | `hwpx_mcp_server.office.utilities` |
+| `hwpx.tools.style_profile`, `hwpx.tools.advanced_generators` | `hwpx_mcp_server.office.authoring` |
+
+### Mail merge — a default that changed
+
+`hwpx.tools.mail_merge.mail_merge` is gone. Use `merge_template_rows`, which is
+now public.
+
+```python
+# 4.x — masking was on by default, through rules core no longer carries
+mail_merge(template, rows, output_dir=out)
+
+# 5.0 — the caller supplies the sanitizer, and the choice is visible
+from hwpx.tools.mail_merge import merge_template_rows
+merge_template_rows(template, rows, output_dir=out, value_sanitizer=my_masker)
+```
+
+This is the one removal that changes a *default* rather than an address, so it
+is worth being explicit: the old wrapper masked personal information unless you
+opted out. Rather than flip that default to "do nothing" — which would leak
+quietly for anyone who did not read this page — the wrapper is gone, and the
+generic function has always required you to say what sanitizing means.
+
+`hwpx_mcp_server.office.compliance` provides a policy you can pass straight in.
+
+### Rendering and PDF reading — injected, not discovered
+
+Core no longer looks for a Hancom installation or an imaging stack.
+
+```python
+# 4.x — core resolved an oracle behind your back
+verify_redline(before, after)
+
+# 5.0 — the companion layer supplies the backend
+from hwpx_mcp_server.office.rendering import resolve_hancom_backend
+verify_redline(before, after, oracle=resolve_hancom_backend())
+```
+
+Without a backend the report is `render_checked=False` and `opensClean=None`.
+That is deliberate: an unverified result should say so rather than look like a
+pass. The same applies to `verify_fill`, and to
+`toc_fidelity.toc_verify(..., extract=...)`.
+
+### Removed from the wheel
+
+`hwpx.benchmark` and `hwpx.conformance` no longer ship, and the
+`hwpx-conformance` command is gone with them. They are repository QA assets. If
+you were running the conformance campaign, work from a checkout.

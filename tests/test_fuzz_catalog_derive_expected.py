@@ -8,7 +8,18 @@ per-operation handlers can be verified as behavior-preserving.
 
 from __future__ import annotations
 
-from hwpx.tools.fuzz.catalog import derive_expected
+import pytest
+
+# The fuzz harness builds documents through the MCP owner's builder, which moved
+# there in 5.0. It is a repository QA asset excluded from the wheel, so this is a
+# real environment gate, and the reason names exactly what is missing rather than
+# skipping quietly.
+pytest.importorskip(
+    "hwpx_mcp_server",
+    reason="fuzz harness needs hwpx-mcp-server; the document builder moved there in 5.0",
+)
+
+from fuzz.catalog import derive_expected
 
 
 def test_empty_operations():

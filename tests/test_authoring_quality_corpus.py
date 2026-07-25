@@ -15,6 +15,17 @@ inspectors:
 """
 from __future__ import annotations
 
+import pytest
+
+# The authoring-quality inspectors moved to the MCP owner in 5.0, so this corpus
+# script needs the companion package. It is a repository QA asset, not library
+# surface, and the reason names the missing dependency rather than skipping
+# quietly — a bare skip reads as "environment" when it may mean "gap".
+pytest.importorskip(
+    "hwpx_mcp_server",
+    reason="authoring-quality inspectors moved to hwpx-mcp-server in 5.0",
+)
+
 import importlib.util
 import json
 import sys

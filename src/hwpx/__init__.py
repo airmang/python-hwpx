@@ -48,12 +48,11 @@ _EXPERIMENTAL_EXPORTS = {
     "render_document_viewer": "hwpx.tools.document_viewer",
 }
 
-_DEPRECATED_EXPORTS = {
-    "analyze_template_formfit": "hwpx.template_formfit",
-    "apply_template_formfit": "hwpx.template_formfit",
-    "TEMPLATE_FORMFIT_BASELINE_SCHEMA_VERSION": "hwpx.template_formfit",
-    "TEMPLATE_FORMFIT_PLAN_SCHEMA_VERSION": "hwpx.template_formfit",
-}
+# Emptied in 5.0. The 4.x notice on these names said they would go in the next
+# major, and this is it: analyze_template_formfit, apply_template_formfit and the
+# two schema-version constants are gone with hwpx.template_formfit. Use
+# hwpx.table_patch.fill_cells, or the MCP form-fill trio.
+_DEPRECATED_EXPORTS: dict[str, str] = {}
 
 # deprecated formfit 표면의 공통 대체 경로 안내.
 _FORMFIT_REPLACEMENT = (
@@ -118,15 +117,9 @@ from .tools.text_extractor import (
     TextExtractor,
 )
 from .tools.object_finder import FoundElement, ObjectFinder
-from .tools.advanced_generators import (
-    build_image_grid,
-    build_meeting_nameplates,
-    build_organization_chart,
-)
 from .tools.doc_diff import (
     DOC_DIFF_REPORT_VERSION,
     REFERENCE_CONSISTENCY_REPORT_VERSION,
-    build_comparison_table_plan,
     diff_paragraphs,
     doc_diff,
     inspect_reference_consistency,
@@ -135,33 +128,13 @@ from .tools.mail_merge import (
     MAIL_MERGE_REPORT_VERSION,
     inspect_mail_merge_placeholders,
     load_mail_merge_rows,
-    mail_merge,
-)
-from .tools.table_compute import (
-    TABLE_COMPUTE_REPORT_VERSION,
-    table_compute,
-)
-from .tools.official_lint import (
-    OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION,
-    inspect_official_document_style,
+    merge_template_rows,
 )
 from .tools.package_validator import (
     EditorOpenSafetyReport,
     PackageValidationReport,
     validate_editor_open_safety,
     validate_package,
-)
-from .tools.style_profile import (
-    STYLE_PROFILE_COMPARISON_SCHEMA_VERSION,
-    STYLE_PROFILE_SCHEMA_VERSION,
-    TEMPLATE_REGISTRY_SCHEMA_VERSION,
-    apply_style_profile_to_plan,
-    compare_style_profiles,
-    describe_template,
-    extract_style_profile,
-    list_templates,
-    placeholder_fill_report,
-    register_template,
 )
 from .ingest import HwpxMarkdownConverter
 from .errors import HwpxError
@@ -178,23 +151,6 @@ from .patch import (
 )
 from .document import HwpxDocument
 from .package import HwpxPackage
-from .authoring import (
-    AUTHORING_REPORT_VERSION,
-    DEFAULT_STYLE_PRESET,
-    DOCUMENT_PLAN_SCHEMA_VERSION,
-    DocumentBlock,
-    DocumentPlan,
-    DocumentStylePreset,
-    PlanValidationIssue,
-    PlanValidationReport,
-    create_document_from_plan,
-    get_document_plan_schema,
-    inspect_document_authoring_quality,
-    inspect_operating_plan_quality,
-    normalize_document_plan,
-    validate_document_plan,
-)
-from .builder import approval_box
 from .quality import (
     QualityPolicy,
     SavePipeline,
@@ -202,18 +158,20 @@ from .quality import (
 )
 
 __all__ = [
+    "inspect_reference_consistency",
+    "doc_diff",
+    "diff_paragraphs",
+    "REFERENCE_CONSISTENCY_REPORT_VERSION",
+    "DOC_DIFF_REPORT_VERSION",
+    "merge_template_rows",
+    "load_mail_merge_rows",
+    "inspect_mail_merge_placeholders",
+    "MAIL_MERGE_REPORT_VERSION",
     "QualityPolicy",
     "SavePipeline",
     "VisualCompleteReport",
     "__version__",
-    "AUTHORING_REPORT_VERSION",
     "DEFAULT_NAMESPACES",
-    "DEFAULT_STYLE_PRESET",
-    "DOCUMENT_PLAN_SCHEMA_VERSION",
-    "get_document_plan_schema",
-    "DocumentBlock",
-    "DocumentPlan",
-    "DocumentStylePreset",
     "EditorOpenSafetyReport",
     "ParagraphInfo",
     "PackageValidationReport",
@@ -221,7 +179,6 @@ __all__ = [
     "HwpxError",
     "MutationReport",
     "PreservationDowngradeError",
-    "PlanValidationReport",
     "ParagraphTextPatch",
     "PatchApplied",
     "PatchSkipped",
@@ -230,43 +187,9 @@ __all__ = [
     "FoundElement",
     "HwpxMarkdownConverter",
     "ObjectFinder",
-    "OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION",
-    "DOC_DIFF_REPORT_VERSION",
-    "REFERENCE_CONSISTENCY_REPORT_VERSION",
-    "MAIL_MERGE_REPORT_VERSION",
-    "STYLE_PROFILE_COMPARISON_SCHEMA_VERSION",
-    "STYLE_PROFILE_SCHEMA_VERSION",
-    "TEMPLATE_REGISTRY_SCHEMA_VERSION",
-    "TABLE_COMPUTE_REPORT_VERSION",
-    "apply_style_profile_to_plan",
-    "build_comparison_table_plan",
-    "build_image_grid",
-    "build_meeting_nameplates",
-    "build_organization_chart",
-    "diff_paragraphs",
-    "doc_diff",
-    "compare_style_profiles",
-    "PlanValidationIssue",
     "HwpxDocument",
     "HwpxPackage",
-    "create_document_from_plan",
-    "approval_box",
-    "describe_template",
-    "extract_style_profile",
-    "inspect_document_authoring_quality",
-    "inspect_mail_merge_placeholders",
-    "inspect_official_document_style",
-    "inspect_reference_consistency",
-    "inspect_operating_plan_quality",
-    "list_templates",
-    "load_mail_merge_rows",
-    "mail_merge",
-    "normalize_document_plan",
-    "placeholder_fill_report",
-    "validate_document_plan",
     "validate_editor_open_safety",
     "validate_package",
     "paragraph_patch",
-    "register_template",
-    "table_compute",
 ]

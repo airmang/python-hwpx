@@ -20,7 +20,9 @@ import hwpx
 from hwpx import _DEPRECATED_EXPORTS, _EXPERIMENTAL_EXPORTS
 
 
-# 3.8.0 시점 최상위 표면 전수(82). 이 목록에서 이름이 사라지면 = 제거 = 계약 위반.
+# The 5.0 top-level surface. A name leaving this set is a removal and a contract
+# break, which is the whole point of pinning the counts below: the surface should
+# only change when someone means it to.
 STABLE_NAMES = frozenset(hwpx.__all__)
 
 EXPERIMENTAL_NAMES = frozenset(_EXPERIMENTAL_EXPORTS)
@@ -31,9 +33,9 @@ ALL_LEGACY_NAMES = STABLE_NAMES | EXPERIMENTAL_NAMES | DEPRECATED_NAMES
 
 
 def test_all_is_exactly_the_stable_set() -> None:
-    """``__all__``은 stable 67개로 고정된다(experimental/deprecated 미포함)."""
+    """``__all__`` is exactly the 34 stable names — no experimental, no deprecated."""
 
-    assert len(hwpx.__all__) == 67
+    assert len(hwpx.__all__) == 34
     assert STABLE_NAMES.isdisjoint(EXPERIMENTAL_NAMES)
     assert STABLE_NAMES.isdisjoint(DEPRECATED_NAMES)
     # __all__에 중복 없음.
@@ -41,10 +43,11 @@ def test_all_is_exactly_the_stable_set() -> None:
 
 
 def test_layer_counts() -> None:
-    assert len(STABLE_NAMES) == 67
+    assert len(STABLE_NAMES) == 34
     assert len(EXPERIMENTAL_NAMES) == 12
-    assert len(DEPRECATED_NAMES) == 4
-    assert len(ALL_LEGACY_NAMES) == 83
+    # Emptied in 5.0: the 4.x notice promised these names would go in the next major.
+    assert len(DEPRECATED_NAMES) == 0
+    assert len(ALL_LEGACY_NAMES) == 46
 
 
 def test_hwpx_error_is_stable_and_importable() -> None:
@@ -88,24 +91,29 @@ def test_experimental_top_level_access_warns(name: str) -> None:
     assert "hwpx.experimental" in message
 
 
-@pytest.mark.parametrize("name", sorted(DEPRECATED_NAMES))
-def test_deprecated_top_level_access_warns(name: str) -> None:
-    with pytest.warns(DeprecationWarning) as record:
-        getattr(hwpx, name)
-    message = str(record[0].message)
-    assert name in message
-    assert "deprecated" in message
+# The deprecated-access test is gone rather than left parametrized over an empty
+# set. pytest reports that as a skip, which reads as "environment-gated" when it
+# actually means "this asserts nothing" — the same silent-pass shape this work has
+# been removing. 5.0 ships no deprecated top-level names, and their absence is
+# asserted directly below.
 
 
-@pytest.mark.parametrize("name", ["analyze_template_formfit", "apply_template_formfit"])
-def test_formfit_warning_names_replacement_path(name: str) -> None:
-    """formfit 쌍 경고는 대체(구조적 form-fill) 경로를 안내해야 한다."""
+def test_removed_formfit_names_are_gone_not_merely_warned() -> None:
+    """The 4.x notice said these go in the next major, so they must be absent.
 
-    with pytest.warns(DeprecationWarning) as record:
-        getattr(hwpx, name)
-    message = str(record[0].message)
-    assert "hwpx.table_patch" in message
-    assert "form_fill" in message  # analyze_form_fill/apply_form_fill/verify_form_fill
+    A name that still resolves with a warning has not been removed; it has been
+    postponed. Asserting absence is what makes the earlier promise checkable, and
+    the replacement path now lives in the migration guide rather than in a warning
+    nobody sees until they hit it.
+    """
+
+    for name in ("analyze_template_formfit", "apply_template_formfit",
+                 "TEMPLATE_FORMFIT_BASELINE_SCHEMA_VERSION",
+                 "TEMPLATE_FORMFIT_PLAN_SCHEMA_VERSION"):
+        assert name not in hwpx.__all__
+        assert name not in DEPRECATED_NAMES
+        with pytest.raises(AttributeError):
+            getattr(hwpx, name)
 
 
 def test_experimental_module_reexports_all_experimental_names() -> None:

@@ -1,10 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import pytest
+
+# The fuzz harness builds documents through the MCP owner's builder, which moved
+# there in 5.0. It is a repository QA asset excluded from the wheel, so this is a
+# real environment gate, and the reason names exactly what is missing rather than
+# skipping quietly.
+pytest.importorskip(
+    "hwpx_mcp_server",
+    reason="fuzz harness needs hwpx-mcp-server; the document builder moved there in 5.0",
+)
+
 import hashlib
 import json
 
-from hwpx.tools.fuzz import (
+from fuzz import (
     FuzzRunResult,
     SCENARIO_SCHEMA_VERSION,
     canonical_json_bytes,
@@ -14,8 +25,8 @@ from hwpx.tools.fuzz import (
     run_seed_range,
     scenario_digest,
 )
-from hwpx.tools.fuzz.minimize import minimize_scenario
-from hwpx.tools.fuzz.runner import fossilize_failure
+from fuzz.minimize import minimize_scenario
+from fuzz.runner import fossilize_failure
 
 
 def test_seeded_scenario_generation_is_deterministic() -> None:

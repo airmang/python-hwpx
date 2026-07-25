@@ -104,8 +104,8 @@ def rule_of_three_text(failures: int, n: int) -> str:
 
 
 def resolve_output_path(raw: str | None, corpus_root: Path) -> Path | None:
-    """Delegates to corpus_pii_leak_sweep (single definition of v2 re-rooting)."""
-    return _load_sibling("corpus_pii_leak_sweep").resolve_output_path(raw, corpus_root)
+    """Delegates to corpus_paths (single definition of v2 re-rooting)."""
+    return _load_sibling("corpus_paths").resolve_output_path(raw, corpus_root)
 
 
 # ================================================================================

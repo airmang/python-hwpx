@@ -14,7 +14,6 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from ..document import HwpxDocument
 from .exporter import export_text
 from .package_validator import validate_editor_open_safety
-from .pii import DEFAULT_POLICY, PIIPolicy, mask_pii
 
 MAIL_MERGE_REPORT_VERSION = "mail-merge-v1"
 
@@ -172,47 +171,6 @@ def _measure_placeholder_slots(
         if best is not None:
             slots[token] = best
     return slots
-
-
-def mail_merge(
-    template: str | Path,
-    data: str | Path | Sequence[Mapping[str, Any]] | Mapping[str, Any],
-    *,
-    output_dir: str | Path | None = None,
-    filename_pattern: str = "{index:03d}.hwpx",
-    zip_path: str | Path | None = None,
-    strict: bool = False,
-    split_newlines: bool = True,
-    fit_policy: "Any | None" = None,
-    max_lines: int = 1,
-    masking_policy: "PIIPolicy | None" = DEFAULT_POLICY,
-) -> dict[str, Any]:
-    """Compatibility wrapper for the released core 4.x mail-merge behavior.
-
-    New application workflows should inject their policy through
-    :func:`merge_template_rows`.  This wrapper deliberately retains the
-    released ``masking_policy`` signature and result contract until the
-    separately approved core-major removal gate.
-    """
-
-    value_sanitizer: ValueSanitizer | None = None
-    if masking_policy is not None:
-        def _sanitize_value(value: str) -> str:
-            return mask_pii(value, masking_policy)
-
-        value_sanitizer = _sanitize_value
-    return merge_template_rows(
-        template,
-        data,
-        output_dir=output_dir,
-        filename_pattern=filename_pattern,
-        zip_path=zip_path,
-        strict=strict,
-        split_newlines=split_newlines,
-        fit_policy=fit_policy,
-        max_lines=max_lines,
-        value_sanitizer=value_sanitizer,
-    )
 
 
 def merge_template_rows(
@@ -527,6 +485,5 @@ __all__ = [
     "ValueSanitizer",
     "inspect_mail_merge_placeholders",
     "load_mail_merge_rows",
-    "mail_merge",
     "merge_template_rows",
 ]

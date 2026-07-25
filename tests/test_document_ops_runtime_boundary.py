@@ -122,11 +122,11 @@ def test_released_document_ops_4x_surface_is_exact() -> None:
     top_level = _reexported_projection(hwpx)
     tools_level = _reexported_projection(tools)
 
-    assert len(qualified) == FREEZE["qualifiedExportCount"] == 13
+    assert len(qualified) == FREEZE["qualifiedExportCount"] == 11
     assert _sha256(_canonical(qualified)) == FREEZE["qualifiedSnapshotSha256"]
-    assert len(top_level) == FREEZE["topLevelExportCount"] == 7
+    assert len(top_level) == FREEZE["topLevelExportCount"] == 6
     assert _sha256(_canonical(top_level)) == FREEZE["topLevelSnapshotSha256"]
-    assert len(tools_level) == FREEZE["toolsExportCount"] == 7
+    assert len(tools_level) == FREEZE["toolsExportCount"] == 6
     assert _sha256(_canonical(tools_level)) == FREEZE["toolsSnapshotSha256"]
     assert _sha256(_canonical(_deterministic_payloads())) == FREEZE[
         "deterministicPayloadsSha256"

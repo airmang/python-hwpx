@@ -7,6 +7,8 @@ or raw HWPX file bytes and produce a string in the target format.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import io
 import re
 from typing import TYPE_CHECKING
@@ -14,7 +16,9 @@ from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
 from ..opc.security import guard_zip_file, parse_xml_stdlib
-from .pii import PIIPolicy, mask_pii
+#: A caller-supplied redaction step. Declared here rather than imported from
+#: mail_merge, which imports export_text — the two would form a cycle.
+TextSanitizer = Callable[[str], str]
 
 if TYPE_CHECKING:
     from ..document import HwpxDocument
@@ -65,17 +69,26 @@ def _paragraph_text(p: ET.Element, *, tab_token: str = "\t") -> str:
     return "".join(parts)
 
 
-def _mask_text(text: str, masking_policy: "PIIPolicy | None") -> str:
+def _mask_text(text: str, masking_policy: "TextSanitizer | None") -> str:
+    """Apply the caller's sanitizer, if one was supplied.
+
+    Core knows text should pass a redaction step before it leaves the document;
+    what counts as personal information is institutional policy and varies by
+    jurisdiction and organisation, so the rule is the caller's. ``None`` means
+    unmasked, which is what it has always meant here — reading is not writing,
+    and flipping that default silently would be the wrong kind of surprise.
+    """
+
     if masking_policy is None:
         return text
-    return mask_pii(text, masking_policy)
+    return masking_policy(text)
 
 
 def _table_cells_text(
     tbl: ET.Element,
     *,
     tab_token: str = "\t",
-    masking_policy: "PIIPolicy | None" = None,
+    masking_policy: "TextSanitizer | None" = None,
 ) -> list[list[str]]:
     """Return a row-major 2D list of cell texts from a table element."""
     rows: list[list[str]] = []
@@ -103,7 +116,7 @@ def export_text(
     section_separator: str = "\n\n",
     include_tables: bool = True,
     tab_token: str = "\t",
-    masking_policy: "PIIPolicy | None" = None,
+    masking_policy: "TextSanitizer | None" = None,
 ) -> str:
     """Export document content as plain text."""
     sections = _section_xmls(source)
@@ -134,7 +147,7 @@ def export_html(
     full_document: bool = True,
     title: str = "HWPX Document",
     tab_token: str = "\t",
-    masking_policy: "PIIPolicy | None" = None,
+    masking_policy: "TextSanitizer | None" = None,
 ) -> str:
     """Export document content as HTML."""
     sections = _section_xmls(source)
@@ -180,7 +193,7 @@ def export_markdown(
     include_tables: bool = True,
     section_separator: str = "\n---\n\n",
     tab_token: str = "\t",
-    masking_policy: "PIIPolicy | None" = None,
+    masking_policy: "TextSanitizer | None" = None,
 ) -> str:
     """Export document content as Markdown."""
     sections = _section_xmls(source)

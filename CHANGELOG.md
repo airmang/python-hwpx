@@ -4,6 +4,71 @@
 
 ## [Unreleased]
 
+## [5.0.0]
+
+### Removed — BREAKING
+
+`python-hwpx` is now the HWPX object model, OPC/OXML, and the format-native
+primitives built on them. The application workflows that had grown inside the
+library moved to `hwpx-mcp-server`, which has owned their canonical
+implementation since the 4.x line. **Nothing is discontinued** — every removed
+import has a named replacement in
+[the migration guide](docs/migration-5.0.md), and 4.x keeps all of it.
+
+- `hwpx.agent` and the `hwpx` console command → `hwpx_mcp_server.office.agent`.
+  MCP declares the `hwpx` name in the train that raises its core floor to 5.0,
+  so no valid install ever has two declarers of it.
+- `hwpx.authoring`, `hwpx.builder`, `hwpx.design`, `hwpx.presets` →
+  `hwpx_mcp_server.office.authoring`
+- `hwpx.exam` → `hwpx_mcp_server.office.exam`
+- `hwpx.evalplan_fill` → `hwpx_mcp_server.office.evalplan`
+- `hwpx.form_fill`, `hwpx.formfill_quality`, `hwpx.fill_residue`,
+  `hwpx.guidance_scan`, `hwpx.template_formfit` →
+  `hwpx_mcp_server.office.form_fill`
+- `hwpx.tools.official_lint`, `hwpx.tools.pii`, `hwpx.tools.table_compute`,
+  `hwpx.tools.style_profile`, `hwpx.tools.advanced_generators`,
+  `hwpx.tools.report_parser` → `hwpx_mcp_server.office.compliance` /
+  `office.quality` / `office.utilities` / `office.authoring`
+- `hwpx.tools.mail_merge.mail_merge` → `merge_template_rows`, which is now
+  public. The removed wrapper masked by default and core no longer carries the
+  detection rules; the generic function takes a `value_sanitizer` so the caller
+  decides, and the decision is visible at the call site instead of implied by an
+  omitted argument.
+- `hwpx.tools.doc_diff.build_comparison_table_plan` →
+  `hwpx_mcp_server.office.document_ops`. Generic diff and reference-consistency
+  stay here.
+- The four `template_formfit` names that 4.x warned would go "in the next major"
+  are gone. That was this major.
+- `hwpx-conformance` console script: its package is repository QA and no longer
+  ships, and a command that cannot start is worse than no command.
+
+### Changed
+
+- `verify_redline` and `verify_fill` take an injected
+  `hwpx.quality.rendering.RenderBackend`. Core does not look for a Hancom
+  installation any more; without a backend the report is
+  `render_checked=False` rather than a visual verdict it never earned.
+- `toc_fidelity.heading_rendered_pages` takes a word-box extractor, and
+  `heading_pages_from_word_boxes` is public for callers that already have boxes.
+  Reading a PDF needs an imaging stack; matching headings does not.
+- `hwpx.oxml.color.color_family` is public. Both core's run rewriting and the
+  application-side guidance scanner classify colour the same way, so there is
+  one implementation of what counts as red.
+
+### Packaging
+
+- `hwpx.benchmark` and `hwpx.conformance` are excluded from the wheel. They are
+  things this project runs on itself, not things a library user installs.
+- The fuzz harness moved to `scripts/fuzz/`, outside the package, because it
+  builds documents through the MCP owner's builder and core must never import a
+  companion layer.
+
+### Migration
+
+`pip install hwpx-mcp-server` and follow [docs/migration-5.0.md](docs/migration-5.0.md).
+`pip install "python-hwpx<5"` rolls back; the 4.x line is not a dead end.
+
+
 ### Documentation
 - 4.x compatibility/deprecation 관찰 정책을 공개했습니다. 8개 runtime family,
   3개 CLI, 공개 스키마/리포트 projection은 2026-10-31까지 모두 `extend`하며

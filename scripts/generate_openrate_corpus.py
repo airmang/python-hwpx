@@ -81,7 +81,7 @@ from hwpx.document import HwpxDocument  # noqa: E402
 from hwpx.form_fit import FitPolicy  # noqa: E402
 from hwpx.form_fit.apply import fit_cell_text  # noqa: E402
 from hwpx.tools import toc_author  # noqa: E402
-from hwpx.tools.mail_merge import mail_merge  # noqa: E402
+from hwpx.tools.mail_merge import merge_template_rows  # noqa: E402
 from hwpx.tools.package_validator import validate_editor_open_safety  # noqa: E402
 
 
@@ -339,7 +339,7 @@ def synthetic_roster() -> list[dict[str, str]]:
     return rows
 
 
-def gen_mail_merge(out_dir: Path) -> tuple[list[dict[str, Any]], list[Path]]:
+def gen_merge_template_rows(out_dir: Path) -> tuple[list[dict[str, Any]], list[Path]]:
     records: list[dict[str, Any]] = []
     produced_paths: list[Path] = []
     bucket_dir = out_dir / "mail-merge"
@@ -356,7 +356,7 @@ def gen_mail_merge(out_dir: Path) -> tuple[list[dict[str, Any]], list[Path]]:
         tmpl_path = tmpl_dir / f"template_{kind}.hwpx"
         build_merge_template(tmpl_path, kind)
         tmpl_sha = sha256_file(tmpl_path)
-        report = mail_merge(
+        report = merge_template_rows(
             tmpl_path,
             rows,
             output_dir=bucket_dir / kind,
@@ -1061,7 +1061,7 @@ def gen_pii_merge(out_dir: Path, n: int = PII_MERGE_N) -> tuple[list[dict[str, A
     # masking_policy defaults to DEFAULT_POLICY — the SHIPPED default (M5). The
     # merged outputs must contain MASKED values; each record carries the raw
     # probe values so the P3 0-leak sweep can grep for them (expected: 0 hits).
-    report = mail_merge(
+    report = merge_template_rows(
         tmpl_path,
         roster,
         output_dir=bucket_dir / "merged",
@@ -1553,7 +1553,7 @@ def main_v1(*, force: bool = False, dry_run: bool = False) -> int:
     auth_recs, auth_paths = gen_authored(OUT_DIR)
     all_records += auth_recs
 
-    mm_recs, _mm_paths = gen_mail_merge(OUT_DIR)
+    mm_recs, _mm_paths = gen_merge_template_rows(OUT_DIR)
     all_records += mm_recs
 
     ff_recs, _ff_paths = gen_form_fit(OUT_DIR, target_n=20)

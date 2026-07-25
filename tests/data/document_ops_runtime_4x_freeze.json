@@ -21,8 +21,8 @@
       "sha256": "a7a68c54304eae4ab2c25ae5c6a841fb9663084b60ac235af1c61e44c265a6b9"
     }
   ],
-  "qualifiedExportCount": 13,
-  "qualifiedSnapshotSha256": "a1b77d246543217e33df910b6ef2c021f93120c8b75975cde279f5fb695f9a0e",
+  "qualifiedExportCount": 11,
+  "qualifiedSnapshotSha256": "1dbf7b348cdffb99b43133bc2153c4aa93768212cfb18292b2c5f5879257ce16",
   "qualifiedExports": [
     {
       "module": "hwpx.tools.doc_diff",
@@ -39,14 +39,6 @@
       "origin": null,
       "signature": null,
       "value": "reference-consistency-v1"
-    },
-    {
-      "module": "hwpx.tools.doc_diff",
-      "name": "build_comparison_table_plan",
-      "kind": "function",
-      "origin": "hwpx.tools.doc_diff",
-      "signature": "(old_source: 'Any', new_source: 'Any', *, title: 'str' = '신구대조표', include_equal: 'bool' = True) -> 'dict[str, Any]'",
-      "value": null
     },
     {
       "module": "hwpx.tools.doc_diff",
@@ -97,14 +89,6 @@
       "value": null
     },
     {
-      "module": "hwpx.tools.mail_merge",
-      "name": "mail_merge",
-      "kind": "function",
-      "origin": "hwpx.tools.mail_merge",
-      "signature": "(template: 'str | Path', data: 'str | Path | Sequence[Mapping[str, Any]] | Mapping[str, Any]', *, output_dir: 'str | Path | None' = None, filename_pattern: 'str' = '{index:03d}.hwpx', zip_path: 'str | Path | None' = None, strict: 'bool' = False, split_newlines: 'bool' = True, fit_policy: \"'Any | None'\" = None, max_lines: 'int' = 1, masking_policy: \"'PIIPolicy | None'\" = PIIPolicy(mask_char='*', machine_enabled=True, contextual_enabled=True, prefix_len=1, suffix_len=0)) -> 'dict[str, Any]'",
-      "value": null
-    },
-    {
       "module": "hwpx.tools.redline",
       "name": "REDLINE_VERIFY_REPORT_VERSION",
       "kind": "str",
@@ -129,10 +113,10 @@
       "value": null
     }
   ],
-  "topLevelExportCount": 7,
-  "topLevelSnapshotSha256": "122e649f9b17f7095ee8cefb3f28016ef2ab3e5354392ef0eb3790368c990129",
-  "toolsExportCount": 7,
-  "toolsSnapshotSha256": "ddd5b4d2ac5635fc32b171fe504074094de9cf82b352399c5e7cda3d7d60054a",
+  "topLevelExportCount": 6,
+  "topLevelSnapshotSha256": "98e444c99cfd6fe5c9370fea335af5415308a5b7f2ca16ec6d23b5a648731875",
+  "toolsExportCount": 6,
+  "toolsSnapshotSha256": "98e444c99cfd6fe5c9370fea335af5415308a5b7f2ca16ec6d23b5a648731875",
   "deterministicPayloadsSha256": "83615c8ef70b54632e214c3aca58422fba97c987a4d64fed2d450e77e72478dc",
   "compatibilityRemovalGate": "S-106 observation followed by separately approved S-107 core major"
 }

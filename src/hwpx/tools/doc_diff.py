@@ -111,44 +111,6 @@ def doc_diff(old_source: Any, new_source: Any) -> dict[str, Any]:
     }
 
 
-def build_comparison_table_plan(
-    old_source: Any,
-    new_source: Any,
-    *,
-    title: str = "신구대조표",
-    include_equal: bool = True,
-) -> dict[str, Any]:
-    """Return a plan-v2 document containing an old/new comparison table."""
-
-    report = doc_diff(old_source, new_source)
-    rows = [
-        [_change_label(change["tag"]), change.get("old_text") or "", change.get("new_text") or ""]
-        for change in report["changes"]
-        if include_equal or change["tag"] != "equal"
-    ]
-    if not rows:
-        rows = [["동일", "", ""]]
-    return {
-        "schemaVersion": "hwpx.document_plan.v2",
-        "preset": "government_report",
-        "title": title,
-        "sections": [
-            {
-                "blocks": [
-                    {"type": "heading", "level": 1, "text": title},
-                    {
-                        "type": "table",
-                        "header": ["구분", "구", "신"],
-                        "rows": rows,
-                        "columnWidths": [1, 4, 4],
-                        "headerShading": "EAF1FB",
-                    },
-                ]
-            }
-        ],
-    }
-
-
 def inspect_reference_consistency(source: Any) -> dict[str, Any]:
     """Inspect attachment/table/figure semantic references in document text."""
 
@@ -342,7 +304,6 @@ def _violation(
 __all__ = [
     "DOC_DIFF_REPORT_VERSION",
     "REFERENCE_CONSISTENCY_REPORT_VERSION",
-    "build_comparison_table_plan",
     "diff_paragraphs",
     "doc_diff",
     "inspect_reference_consistency",

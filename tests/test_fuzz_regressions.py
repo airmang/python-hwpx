@@ -1,12 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import pytest
+
+# The fuzz harness builds documents through the MCP owner's builder, which moved
+# there in 5.0. It is a repository QA asset excluded from the wheel, so this is a
+# real environment gate, and the reason names exactly what is missing rather than
+# skipping quietly.
+pytest.importorskip(
+    "hwpx_mcp_server",
+    reason="fuzz harness needs hwpx-mcp-server; the document builder moved there in 5.0",
+)
+
 import json
 from pathlib import Path
 
 import pytest
 
-from hwpx.tools.fuzz.runner import run_scenario
+from fuzz.runner import run_scenario
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "fuzz_regressions"
 SCENARIOS = sorted(FIXTURE_DIR.glob("*.scenario.json"))
