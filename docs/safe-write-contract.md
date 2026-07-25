@@ -23,9 +23,9 @@
 세 저장 메서드 모두 같은 시그니처를 공유한다.
 
 ```python
-doc.save_to_path(path, *, mode="auto", fallback="error", return_report=False)
-doc.save_to_stream(stream, *, mode="auto", fallback="error", return_report=False)
-doc.to_bytes(*, mode="auto", fallback="error")   # bytes 반환, return_report 없음
+def save_to_path(path, *, mode="auto", fallback="error", return_report=False): ...
+def save_to_stream(stream, *, mode="auto", fallback="error", return_report=False): ...
+def to_bytes(*, mode="auto", fallback="error"): ...   # bytes 반환, return_report 없음
 ```
 
 ### `mode` — 요청 보존 등급

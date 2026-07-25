@@ -164,7 +164,11 @@ for element in bookmarked:
 ## 5. 선언형 document plan에서 HWPX 생성하기
 
 ```python
-from hwpx import create_document_from_plan, inspect_document_authoring_quality, validate_document_plan
+from hwpx_automation.office.authoring import (
+    create_document_from_plan,
+    inspect_document_authoring_quality,
+    validate_document_plan,
+)
 
 plan = {
     "schemaVersion": "hwpx.document_plan.v1",
@@ -246,7 +250,10 @@ print(operating["score"], operating["gaps"], operating["repair_hints"])
 quickcheck 경로가 필요하면 `hwpx-skill`의 template-formfit 예제를 참고하세요.
 
 ```python
-from hwpx import analyze_template_formfit, apply_template_formfit
+from hwpx_automation.office.form_fill import (
+    analyze_template_formfit,
+    apply_template_formfit,
+)
 
 analysis = analyze_template_formfit(
     "template.hwpx",

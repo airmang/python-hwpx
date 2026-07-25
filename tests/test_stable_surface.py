@@ -190,9 +190,18 @@ def test_documentation_does_not_teach_a_module_this_package_no_longer_has() -> N
     # A trailing hyphen means a schema identifier (`hwpx.agent-batch/v1`), not
     # an import path. Those are contract names; where they moved is a different
     # question, answered in the schema-freeze note itself.
+    # 모듈 경로만 보면 절반만 잡는다. 공개 코드에서 더 흔한 형태는
+    # ``from hwpx import create_document_from_plan`` 처럼 **이름**을 가져오는
+    # 쪽이고(66·56개 파일), 그건 hwpx.<module> 패턴에 걸리지 않는다.
+    # 이동한 이름 표는 패키지가 이미 갖고 있으므로 그것을 쓴다.
+    import hwpx
+
+    moved_names = sorted(getattr(hwpx, "_MOVED_TO_COMPANION", {}))
     pattern = re.compile(
         r"\bhwpx\.(?:" + "|".join(removed) + r")\b(?!-)"
         r"|\bhwpx\.tools\.(?:" + "|".join(removed_tools) + r")\b(?!-)"
+        + (r"|from\s+hwpx\s+import\s+[^\n]*\b(?:" + "|".join(moved_names) + r")\b"
+           if moved_names else "")
     )
 
     offences: list[str] = []
@@ -213,3 +222,33 @@ def test_documentation_does_not_teach_a_module_this_package_no_longer_has() -> N
                 offences.append(f"{document.relative_to(docs)}:{number}: {match.group(0)}")
 
     assert not offences, "documentation references removed modules:\n" + "\n".join(offences)
+
+
+def test_every_python_fence_in_the_docs_parses() -> None:
+    """```python 이라고 적은 블록은 파이썬이어야 한다.
+
+    ``safe-write-contract.md``는 시그니처를 보여주려고 함수 **선언** 표기의
+    ``*``를 호출문에 섞어 적었다. 붙여넣으면 SyntaxError다. 파이썬이라고
+    표시한 것을 파싱조차 못 하면, 그 아래 설명이 아무리 정확해도 독자는
+    첫 줄에서 막힌다.
+
+    본문 조각(``self`` 나 앞 문맥 변수가 필요한 발췌)은 파싱은 되므로 이
+    검사와 충돌하지 않는다 — 실행이 아니라 문법만 본다.
+    """
+
+    import ast
+    import re
+    from pathlib import Path
+
+    docs = Path(__file__).resolve().parents[1] / "docs"
+    broken: list[str] = []
+    for document in sorted(docs.rglob("*.md")):
+        text = document.read_text(encoding="utf-8")
+        for match in re.finditer(r"```python\n(.*?)\n```", text, re.DOTALL):
+            line = text[: match.start()].count("\n") + 1
+            try:
+                ast.parse(match.group(1))
+            except SyntaxError as exc:
+                broken.append(f"{document.relative_to(docs)}:{line}: {exc.msg}")
+
+    assert not broken, "python 블록이 파싱되지 않는다:\n  " + "\n  ".join(broken)

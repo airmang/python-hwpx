@@ -606,7 +606,7 @@ from hwpx import HwpxDocument
 
 document = HwpxDocument.open("my-document.hwpx")
 section = document.sections[0]
-section.properties.set_begin_numbering(page=1, table=1)
+section.properties.set_start_numbering(page=1, table=1)
 ```
 
 ### 예제 54: 헤더 번호 초기값 읽기
@@ -806,7 +806,7 @@ paragraph = document.add_paragraph(
     para_pr_id_ref=3,
     char_pr_id_ref=5,
 )
-paragraph.set_attribute("outlineLevel", "1")
+paragraph.element.set("outlineLevel", "1")
 
 # 표를 추가하고 헤더 행을 병합합니다. border_fill_id_ref를 생략하면 기본 실선 채우기가 자동 생성됩니다.
 table = document.add_table(2, 3, section=section, border_fill_id_ref="2")
@@ -1108,7 +1108,11 @@ groups, tables, and basic validation gates without requiring direct OWPML
 editing.
 
 ```python
-from hwpx import create_document_from_plan, inspect_document_authoring_quality, validate_document_plan
+from hwpx_automation.office.authoring import (
+    create_document_from_plan,
+    inspect_document_authoring_quality,
+    validate_document_plan,
+)
 
 plan = {
     "schemaVersion": "hwpx.document_plan.v1",
@@ -1201,7 +1205,10 @@ Prerequisite: provide a real approved HWPX template and a
 For a local quickcheck path, see the template-formfit examples in `hwpx-skill`.
 
 ```python
-from hwpx import analyze_template_formfit, apply_template_formfit
+from hwpx_automation.office.form_fill import (
+    analyze_template_formfit,
+    apply_template_formfit,
+)
 
 analysis = analyze_template_formfit(
     "template.hwpx",

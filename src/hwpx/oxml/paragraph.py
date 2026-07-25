@@ -602,7 +602,12 @@ class HwpxOxmlParagraph:
             run_attributes,
             char_pr_id_ref=char_pr_id_ref,
         )
-        element = ET.SubElement(run, f"{_HP}ctrl", attrs)
+        # ``ET.SubElement``는 stdlib Element만 받는다. 이 트리는 lxml이라
+        # 그대로 부르면 TypeError로 항상 실패했다 — add_control은 문서에
+        # 예제까지 있으면서 한 번도 동작한 적이 없다. 이 패키지의 다른
+        # 생성 지점처럼 부모에게 만들게 해서 구현체를 맞춘다.
+        element = run.makeelement(f"{_HP}ctrl", attrs)
+        run.append(element)
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(element, self)
 
