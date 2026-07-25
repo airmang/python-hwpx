@@ -98,13 +98,31 @@ def test_no_hancom_execution_asset_is_in_the_source_tree() -> None:
     assert not assets, "한컴 실행 자산이 core 소스에 남아 있다:\n  " + "\n  ".join(assets)
 
 
-@pytest.mark.skipif(
-    not list((ROOT / "dist").glob("*.whl")), reason="빌드된 wheel이 있을 때만 검사"
-)
-def test_no_hancom_execution_asset_ships_in_the_wheel() -> None:
-    """소스에 없어도 wheel에 실리면 사용자에게는 실린 것이다."""
+def test_no_hancom_execution_asset_ships_in_the_wheel(tmp_path: Path) -> None:
+    """소스에 없어도 wheel에 실리면 사용자에게는 실린 것이다.
 
-    wheel = sorted((ROOT / "dist").glob("*.whl"))[-1]
+    예전에는 ``dist/*.whl``이 있을 때만 돌았다. 그러면 깨끗한 체크아웃에서
+    게이트를 돌릴 때 조용히 건너뛰고, 배송물을 지키는 검사가 배송물이 없다는
+    이유로 아무것도 지키지 않는다. 없으면 만든다.
+    """
+    pytest.importorskip("build")
+
+    existing = sorted((ROOT / "dist").glob("*.whl"))
+    if existing:
+        wheel = existing[-1]
+    else:
+        import shutil
+        import subprocess
+        import sys
+
+        shutil.rmtree(ROOT / "build", ignore_errors=True)
+        subprocess.run(
+            [sys.executable, "-m", "build", "--wheel", "--outdir", str(tmp_path)],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+        )
+        wheel = sorted(tmp_path.glob("*.whl"))[-1]
     shipped = [
         name
         for name in zipfile.ZipFile(wheel).namelist()

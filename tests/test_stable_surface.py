@@ -200,10 +200,14 @@ def test_documentation_does_not_teach_a_module_this_package_no_longer_has() -> N
         if document.name in exempt:
             continue
         for number, line in enumerate(document.read_text(encoding="utf-8").splitlines(), 1):
-            # A line naming the replacement alongside the removed module is a
-            # migration pointer, which is the opposite of teaching someone to
-            # import it.
-            if "hwpx_automation" in line:
+            # 대체 경로를 함께 적은 줄은 이주 안내지 import 지침이 아니다.
+            # 다만 "같은 줄에 대체 이름이 있으면 면제"는 너무 헐겁다 — 주석
+            # 한 줄로 실제 import 문이 면제된다. 실행되는 코드는 면제하지
+            # 않고 산문에서만 면제한다.
+            stripped = line.lstrip()
+            if not stripped.startswith(("from ", "import ")) and (
+                "hwpx_automation" in line or "hwpx_mcp_server" in line
+            ):
                 continue
             for match in pattern.finditer(line):
                 offences.append(f"{document.relative_to(docs)}:{number}: {match.group(0)}")
