@@ -25,7 +25,20 @@ def _ledger() -> dict:
 def test_real_tree_satisfies_ownership_ratchet() -> None:
     report = boundary.evaluate(ROOT, _ledger())
     assert report["ok"], report["violations"]
-    assert report["classifiedFiles"] >= 176
+
+    # Every module is classified, rather than at least N are. The old floor was a
+    # literal that had to be edited downward on every removal — a check whose
+    # failure mode is "update the number" is not a check. Coverage is the property
+    # worth holding: an unclassified module already becomes a violation above, and
+    # this states the same invariant in a form that removal cannot erode.
+    source_files = {
+        str(path.relative_to(ROOT))
+        for path in (ROOT / "src" / "hwpx").rglob("*.py")
+        if "__pycache__" not in path.parts
+    }
+    assert report["classifiedFiles"] == len(source_files), (
+        f"{len(source_files) - report['classifiedFiles']} module(s) went unclassified"
+    )
 
 
 def test_new_application_module_fails_closed(tmp_path) -> None:

@@ -78,13 +78,11 @@ SHIPPED_ROOTS: list[tuple[str, Path]] = [
 # --- imports (editable python-hwpx; the MCP surface is imported lazily in
 # gen_authored so v2 mode / unit tests do not require hwpx_mcp_server) -----------
 from hwpx.document import HwpxDocument  # noqa: E402
-from hwpx.exam.compose import compose_exam_into_form  # noqa: E402
 from hwpx.form_fit import FitPolicy  # noqa: E402
 from hwpx.form_fit.apply import fit_cell_text  # noqa: E402
 from hwpx.tools import toc_author  # noqa: E402
 from hwpx.tools.mail_merge import mail_merge  # noqa: E402
 from hwpx.tools.package_validator import validate_editor_open_safety  # noqa: E402
-from hwpx.visual import oracle as visual_oracle  # noqa: E402
 
 
 # ================================================================================
@@ -530,7 +528,14 @@ def gen_exam(out_dir: Path) -> tuple[list[dict[str, Any]], list[Path]]:
 
     a_form = EXAM_FIXTURES / "A_form.hwpx"
     sample_md = (EXAM_FIXTURES / "sample_exam.md").read_text(encoding="utf-8")
-    null_oracle = visual_oracle.NullOracle()  # generation only — never render
+    # Exam composition and the render transport belong to the MCP owner now, and
+    # are imported here rather than at module scope so importing this script —
+    # which the unit tests do — never requires hwpx_mcp_server. Same reason the
+    # authored-generation path already defers its MCP import.
+    from hwpx_mcp_server.office.exam.compose import compose_exam_into_form
+    from hwpx_mcp_server.office.rendering.oracle import NullOracle
+
+    null_oracle = NullOracle()  # generation only — never render
 
     # 5 outputs = {5,10,15} questions, then 5 and 10 again to reach 5 files
     variants = [5, 10, 15, 5, 10]

@@ -35,7 +35,8 @@
     "mcp-migrate": "application workflow, genre/profile/policy or agent runtime; future owner hwpx-mcp-server",
     "split": "contains both reusable format contract and application/runtime implementation; split before removal",
     "dev-only": "repository verification asset, not a public runtime product surface",
-    "undecided": "temporary exception requiring an owner and removal date"
+    "undecided": "temporary exception requiring an owner and removal date",
+    "removed": "physically removed in the recorded major; the rule is retained as a record so a later reader can see where the surface went rather than finding an unexplained gap"
   },
   "canonicalizationProgress": {
     "canonicalFiles": 59,
@@ -164,12 +165,6 @@
       "disposition": "mcp-migrate",
       "futureOwner": "hwpx_mcp_server.office.evalplan",
       "rationale": "evaluation-plan-specific fill workflow"
-    },
-    {
-      "glob": "src/hwpx/exam/**",
-      "disposition": "mcp-migrate",
-      "futureOwner": "hwpx_mcp_server.office.exam",
-      "rationale": "exam-specific parsing, measurement and composition"
     },
     {
       "glob": "src/hwpx/fill_residue.py",
@@ -310,6 +305,17 @@
       "disposition": "core",
       "approvedBy": "S-096/P2",
       "rationale": "renderer-neutral Protocol, edit mask and report contracts invert the former quality-to-visual runtime dependency"
+    }
+  ],
+  "removed": [
+    {
+      "glob": "src/hwpx/exam/**",
+      "removedIn": "5.0.0",
+      "newOwner": "hwpx_mcp_server.office.exam",
+      "replacement": [
+        "MCP compose_exam / verify_question_splits tools"
+      ],
+      "rationale": "exam-specific parsing, measurement and composition are application workflow"
     }
   ]
 }

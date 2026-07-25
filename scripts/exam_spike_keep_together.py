@@ -58,7 +58,10 @@ from hwpx.visual.oracle import (  # noqa: E402
     resolve_oracle,
 )
 import re as _re  # noqa: E402
-from hwpx.exam.measure import group_question_blocks, measure_question_splits  # noqa: E402
+from hwpx_mcp_server.office.exam.measure import (  # noqa: E402
+    group_question_blocks,
+    measure_question_splits,
+)
 
 _QNN_MARKER = _re.compile(r"\[\s*\[\s*Q\s*0*(\d+)\s*\]\s*\]")
 
@@ -185,7 +188,7 @@ def _build_variant(bed_path: str | None, variant: str, out_path: str) -> str:
 # Measurement.
 # ---------------------------------------------------------------------------
 # NOTE: _column_x_bounds, _group_blocks, and _measure_splits are now thin
-# wrappers that delegate to hwpx.exam.measure (DRY).  The spike passes its
+# wrappers that delegate to the MCP owner's exam.measure (DRY).  The spike passes its
 # own [[QNN]] marker so the grouping semantics are identical to before.
 
 def _group_blocks(glyphs) -> list[Block]:
