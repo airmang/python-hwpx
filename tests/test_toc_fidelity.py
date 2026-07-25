@@ -132,29 +132,29 @@ def _synthetic_pages(model, actual_pages: dict[str, int]) -> dict[int, list[str]
     return pages
 
 
-def test_oracle_leg_verified_when_cached_matches_render(monkeypatch):
+def test_oracle_leg_verified_when_cached_matches_render():
     model = tf.parse_toc_model(A)
     actual = {e.target_id: e.cached_page for e in model.entries}
-    monkeypatch.setattr(
-        "hwpx.form_fit.wordbox.extract_word_boxes",
-        lambda pdf, **kw: _fake_boxes(_synthetic_pages(model, actual)),
+    report = tf.toc_verify(
+        A,
+        pdf_path="synthetic.pdf",
+        extract=lambda pdf: _fake_boxes(_synthetic_pages(model, actual)),
     )
-    report = tf.toc_verify(A, pdf_path="synthetic.pdf")
     assert report["render_checked"] is True
     assert report["toc_correctness_ratio"] == 1.0
     assert report["crossref_correctness_ratio"] == 1.0
     assert report["verdict"] == "verified"
 
 
-def test_oracle_leg_detects_stale_after_page_shift(monkeypatch):
+def test_oracle_leg_detects_stale_after_page_shift():
     """B's real layout: 개요2 now renders on page 3 while the TOC still says 2."""
     model = tf.parse_toc_model(B)
     actual = {"56578383": 1, "56578352": 3, "56578353": 3, "56578361": 4}
-    monkeypatch.setattr(
-        "hwpx.form_fit.wordbox.extract_word_boxes",
-        lambda pdf, **kw: _fake_boxes(_synthetic_pages(model, actual)),
+    report = tf.toc_verify(
+        B,
+        pdf_path="synthetic.pdf",
+        extract=lambda pdf: _fake_boxes(_synthetic_pages(model, actual)),
     )
-    report = tf.toc_verify(B, pdf_path="synthetic.pdf")
     assert report["render_checked"] is True
     assert report["verdict"] == "stale"
     assert report["toc_correctness_ratio"] < 1.0
@@ -164,7 +164,7 @@ def test_oracle_leg_detects_stale_after_page_shift(monkeypatch):
     assert report["crossref_correctness_ratio"] == 1.0
 
 
-def test_heading_line_matching_rejects_toc_entries_and_body_echo(monkeypatch):
+def test_heading_line_matching_rejects_toc_entries_and_body_echo():
     """The three real-render false-match modes must stay dead: a TOC entry line
     (trailing leader+digits), a body echo (line continues past the title), and —
     measured against a real render of our own emission — a TOC entry whose page
@@ -180,11 +180,37 @@ def test_heading_line_matching_rejects_toc_entries_and_body_echo(monkeypatch):
         ],
         3: ["1. 개요 첫 번째"],
     }
-    monkeypatch.setattr(
-        "hwpx.form_fit.wordbox.extract_word_boxes", lambda pdf, **kw: _fake_boxes(pages)
+    result = tf.heading_rendered_pages(
+        "synthetic.pdf",
+        {"x": "개요 첫 번째"},
+        extract=lambda pdf: _fake_boxes(pages),
     )
-    result = tf.heading_rendered_pages("synthetic.pdf", {"x": "개요 첫 번째"})
     assert result == {"x": 4}  # the real heading line on fitz page 3 -> page 4
+
+    # the same rules apply to boxes a caller already holds
+    assert tf.heading_pages_from_word_boxes(_fake_boxes(pages), {"x": "개요 첫 번째"}) == {"x": 4}
+
+
+def test_heading_rendered_pages_refuses_to_read_a_pdf_itself():
+    """Core does not own an imaging stack, and says so instead of guessing."""
+
+    with pytest.raises(tf.WordBoxExtractorRequired):
+        tf.heading_rendered_pages("synthetic.pdf", {"x": "개요"})
+
+
+def test_toc_verify_degrades_when_no_extractor_is_supplied(tmp_path):
+    """A missing extractor must read as unverified, never as a pass."""
+
+    class _Oracle:
+        def available(self):
+            return True
+
+        def render_pdf(self, src):
+            return str(tmp_path / "rendered.pdf")
+
+    report = tf.toc_verify(A, oracle=_Oracle())
+    assert report["render_checked"] is False
+    assert report["verdict"] in {"unverified", "stale_detected_structurally"}
 
 
 # ── live Hancom render smoke (opt-in only — never in the default suite) ─

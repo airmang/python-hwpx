@@ -392,7 +392,7 @@ def run_renumber_sample(
             continue
         row["pdf"] = str(pdf)
 
-        verify = tf.toc_verify(str(work), pdf_path=str(pdf))
+        verify = tf.toc_verify(str(work), pdf_path=str(pdf), extract=_word_box_extractor())
         row["renderChecked"] = bool(verify.get("render_checked"))
         row["verdict"] = verify.get("verdict") or "unverified"
         row["tocRatio"] = verify.get("toc_correctness_ratio")
@@ -603,6 +603,23 @@ def _print_summary(report: dict[str, Any], exit_code: int) -> None:
     print("      green. dirty flag recorded verbatim, never gated (M7 semantics).")
     print(f"exit={exit_code}")
     print("=" * 74)
+
+
+
+def _word_box_extractor():
+    """Return a PDF word-box extractor for this repository's QA runs.
+
+    Core matches headings but does not read PDFs, so the caller supplies the
+    imaging step. Prefer the canonical owner and fall back to the core copy that
+    still exists during the 4.x compatibility window, so this script keeps
+    working on either side of the move.
+    """
+
+    try:
+        from hwpx_mcp_server.office.form_fill.fit.wordbox import extract_word_boxes
+    except ImportError:
+        from hwpx.form_fit.wordbox import extract_word_boxes
+    return extract_word_boxes
 
 
 def main(argv: list[str] | None = None) -> int:

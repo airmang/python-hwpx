@@ -22,6 +22,7 @@ structural verdict with ``render_checked=False`` (Constitution V/IX).
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -254,9 +255,27 @@ def _normalize(text: str) -> str:
 _OUTLINE_PREFIX_RE = re.compile(r"^\d+(?:\.\d+)*\.?")
 
 
-def heading_rendered_pages(pdf_path: str, headings: dict[str, str]) -> dict[str, int | None]:
+class WordBoxExtractorRequired(RuntimeError):
+    """``heading_rendered_pages`` was called without a way to read the PDF."""
+
+
+def heading_rendered_pages(
+    pdf_path: str,
+    headings: dict[str, str],
+    *,
+    extract: Callable[[str], Sequence[Any]] | None = None,
+) -> dict[str, int | None]:
     """Locate each heading's rendered page (1-based) via the PDF text layer.
 
+    *extract* turns a PDF path into word boxes. Reading a PDF needs an imaging
+    stack, which is a companion-layer concern, so core does not pick one: pass
+    ``hwpx_mcp_server.office.form_fill.fit.wordbox.extract_word_boxes`` or any
+    callable returning objects with ``page``/``block``/``line``/``word_no``/
+    ``text``. Without it this raises :class:`WordBoxExtractorRequired`, and
+    :func:`toc_verify` turns that into an honest ``unverified`` verdict rather
+    than a silent pass.
+
+    The matching itself stays here because it is format reasoning, not imaging.
     Line-exact matching (measured discipline — a page-substring heuristic
     misfires two ways against a real Hancom render: body echoes of the title
     match later pages, and excluding the TOC's page hides a heading that
@@ -266,9 +285,24 @@ def heading_rendered_pages(pdf_path: str, headings: dict[str, str]) -> dict[str,
     never match (the line continues past the title). Wrapped multi-line
     headings are a known limitation — keep demo headings single-line.
     """
-    from hwpx.form_fit.wordbox import extract_word_boxes
+    if extract is None:
+        raise WordBoxExtractorRequired(
+            "no word-box extractor was supplied; core does not read PDFs. Pass "
+            "extract=... from the layer that owns the imaging stack."
+        )
 
-    boxes = extract_word_boxes(pdf_path)
+    return heading_pages_from_word_boxes(extract(pdf_path), headings)
+
+
+def heading_pages_from_word_boxes(
+    boxes: Sequence[Any], headings: dict[str, str]
+) -> dict[str, int | None]:
+    """Match headings against already-extracted word boxes.
+
+    Pure computation over the neutral box shape, so a caller that already has
+    boxes — or that renders through a different stack — reuses the same
+    matching rules core applies everywhere else.
+    """
     grouped: dict[tuple[int, int, int], list[Any]] = {}
     for box in boxes:
         grouped.setdefault((box.page, box.block, box.line), []).append(box)
@@ -392,12 +426,16 @@ def toc_verify(
     *,
     oracle: Any | None = None,
     pdf_path: str | None = None,
+    extract: Callable[[str], Sequence[Any]] | None = None,
 ) -> dict[str, Any]:
     """Full verdict: structural report + (when a render is available) cached
     page numbers checked against rendered heading pages.
 
     Pass ``pdf_path`` to reuse an existing render; else ``oracle.render_pdf``
-    is used when the oracle reports available. Otherwise degrades honestly.
+    is used when the oracle reports available. *extract* reads word boxes out of
+    that PDF and comes from the layer that owns the imaging stack. Missing any
+    of them degrades honestly to ``render_checked=False`` — the verdict stays
+    ``unverified`` rather than becoming a pass by omission.
     """
     structural = structural_report(source)
     report: dict[str, Any] = {
@@ -420,8 +458,8 @@ def toc_verify(
         return report
 
     try:
-        actual = heading_rendered_pages(rendered_pdf, headings)
-    except Exception:  # pragma: no cover - fitz/pdf failure -> honest degrade
+        actual = heading_rendered_pages(rendered_pdf, headings, extract=extract)
+    except Exception:  # fitz/pdf failure or no extractor -> honest degrade
         return report
 
     report["render_checked"] = True

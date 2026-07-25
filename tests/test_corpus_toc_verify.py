@@ -307,9 +307,17 @@ class _UnavailableOracle:
 
 
 def _patch_boxes(monkeypatch, oracle: FakeOracle, page_of: dict[str, int] | None = None):
+    """Serve synthetic word boxes through the extractor the script injects.
+
+    Patching hwpx.form_fit.wordbox directly would test a module the runtime no
+    longer reaches: core takes the extractor as an argument now, so the double
+    has to be installed where the script resolves it.
+    """
+
     monkeypatch.setattr(
-        "hwpx.form_fit.wordbox.extract_word_boxes",
-        lambda pdf, **kw: _fake_boxes(_pages_for(oracle.pdf_to_hwpx[str(pdf)], page_of)),
+        mod,
+        "_word_box_extractor",
+        lambda: (lambda pdf, **kw: _fake_boxes(_pages_for(oracle.pdf_to_hwpx[str(pdf)], page_of))),
     )
 
 
