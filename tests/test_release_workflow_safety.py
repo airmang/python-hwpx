@@ -57,6 +57,11 @@ def _workflow_safety_failures(workflow: str) -> list[str]:
         if job.get("continue-on-error", False):
             failures.append(f"{job_name} must not continue on error")
         for step in job.get("steps", []):
+            if "if" in step:
+                failures.append(
+                    f"{job_name} step must not have a condition: "
+                    f"{step.get('name', step.get('uses', '<unnamed>'))}"
+                )
             if step.get("continue-on-error", False):
                 failures.append(
                     f"{job_name} step must not continue on error: "
@@ -103,6 +108,15 @@ def test_public_legacy_cap_is_a_required_fail_closed_job() -> None:
             lambda text: text.replace(
                 "      - name: Require public 5.1.1 legacy cap before core 5",
                 "      - name: Require public 5.1.1 legacy cap before core 5\n"
+                "        if: false",
+                1,
+            ),
+            "legacy-cap step must not have a condition",
+        ),
+        (
+            lambda text: text.replace(
+                "      - name: Require public 5.1.1 legacy cap before core 5",
+                "      - name: Require public 5.1.1 legacy cap before core 5\n"
                 "        continue-on-error: true",
                 1,
             ),
@@ -137,6 +151,7 @@ def test_public_legacy_cap_is_a_required_fail_closed_job() -> None:
         "remove-legacy-needs",
         "remove-prepublish-needs",
         "release-always",
+        "conditional-verifier",
         "continue-on-error",
         "ignore-verifier-failure",
         "early-success-exit",
