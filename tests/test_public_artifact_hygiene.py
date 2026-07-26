@@ -49,6 +49,22 @@ def _git(repo: Path, *args: str) -> None:
     )
 
 
+def _wheel_bytes(member: str, payload: bytes) -> bytes:
+    artifact = io.BytesIO()
+    with zipfile.ZipFile(artifact, "w") as archive:
+        archive.writestr(member, payload)
+    return artifact.getvalue()
+
+
+def _sdist_bytes(member: str, payload: bytes) -> bytes:
+    artifact = io.BytesIO()
+    with tarfile.open(fileobj=artifact, mode="w:gz") as archive:
+        info = tarfile.TarInfo(member)
+        info.size = len(payload)
+        archive.addfile(info, io.BytesIO(payload))
+    return artifact.getvalue()
+
+
 @pytest.fixture
 def hygiene_git_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
@@ -330,6 +346,102 @@ def test_hygiene_distinguishes_staged_and_worktree_modifications(
     }
     assert any("tracked.md [index]" in failure for failure in failures)
     assert not any("tracked.md [worktree]" in failure for failure in failures)
+
+
+def test_distribution_hygiene_reads_staged_only_wheel_snapshot(
+    hygiene_git_repo: Path,
+) -> None:
+    dist = hygiene_git_repo / "dist"
+    dist.mkdir()
+    wheel = dist / "index-only.whl"
+    wheel.write_bytes(
+        _wheel_bytes(
+            "hwpx/form_fit/seal.py",
+            (
+                "/" + "Users" + "/private/index-artifact.py\n"
+            ).encode(),
+        )
+    )
+    _git(hygiene_git_repo, "add", "dist/index-only.whl")
+    wheel.unlink()
+
+    files = hygiene._publication_files(hygiene_git_repo)
+    failures = hygiene._distribution_failures(files, "core")
+
+    assert any(
+        "removed core module in public artifact: "
+        "dist/index-only.whl [index]!hwpx/form_fit/seal.py"
+        in failure
+        for failure in failures
+    )
+    assert any(
+        "workstation-shaped path in public artifact: "
+        "dist/index-only.whl [index]!hwpx/form_fit/seal.py"
+        in failure
+        for failure in failures
+    )
+
+
+def test_distribution_hygiene_reads_differing_worktree_sdist_snapshot(
+    hygiene_git_repo: Path,
+) -> None:
+    dist = hygiene_git_repo / "dist"
+    dist.mkdir()
+    sdist = dist / "different.tar.gz"
+    member = "python_hwpx-5.0.0/src/hwpx/safe.py"
+    sdist.write_bytes(_sdist_bytes(member, b"VALUE = 'safe'\n"))
+    _git(hygiene_git_repo, "add", "dist/different.tar.gz")
+    sdist.write_bytes(
+        _sdist_bytes(
+            member,
+            (
+                "/" + "Users" + "/private/worktree-artifact.py\n"
+            ).encode(),
+        )
+    )
+
+    files = hygiene._publication_files(hygiene_git_repo)
+    views = {
+        file.origin
+        for file in files
+        if file.path == "dist/different.tar.gz"
+    }
+    failures = hygiene._distribution_failures(files, "core")
+
+    assert views == {"index", "worktree"}
+    assert any(
+        "dist/different.tar.gz [worktree]!" in failure
+        for failure in failures
+    )
+    assert not any(
+        "dist/different.tar.gz [index]!" in failure
+        for failure in failures
+    )
+
+
+def test_distribution_hygiene_does_not_scan_staged_deletion(
+    hygiene_git_repo: Path,
+) -> None:
+    dist = hygiene_git_repo / "dist"
+    dist.mkdir()
+    wheel = dist / "deleted.whl"
+    wheel.write_bytes(
+        _wheel_bytes(
+            "hwpx/leak.py",
+            (
+                "/" + "Users" + "/private/deleted-artifact.py\n"
+            ).encode(),
+        )
+    )
+    _git(hygiene_git_repo, "add", "dist/deleted.whl")
+    _git(hygiene_git_repo, "commit", "--quiet", "-m", "add artifact")
+    _git(hygiene_git_repo, "rm", "--quiet", "dist/deleted.whl")
+
+    files = hygiene._publication_files(hygiene_git_repo)
+    failures = hygiene._distribution_failures(files, "core")
+
+    assert not any(file.path == "dist/deleted.whl" for file in files)
+    assert not any("dist/deleted.whl" in failure for failure in failures)
 
 
 def test_hygiene_does_not_scan_a_staged_deletion(

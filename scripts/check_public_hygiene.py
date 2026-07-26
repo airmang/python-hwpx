@@ -324,11 +324,19 @@ def _removed_artifact_member_failures(
     return failures
 
 
-def _distribution_failures() -> list[str]:
+def _distribution_artifact(file: _PublicationFile) -> Path:
+    """Return a display-only path that preserves the snapshot origin."""
+    return ROOT / file.display
+
+
+def _distribution_failures(
+    files: list[_PublicationFile],
+    kind: str,
+) -> list[str]:
     failures: list[str] = []
     removed_paths = (
         _removed_source_paths()
-        if _project_kind() == "core"
+        if kind == "core"
         else frozenset()
     )
     rejected = (
@@ -341,34 +349,63 @@ def _distribution_failures() -> list[str]:
         "hwpx/practice.py",
         "hwpx/practice/",
     )
-    for wheel in sorted((ROOT / "dist").glob("*.whl")):
-        with zipfile.ZipFile(wheel) as archive:
-            names = archive.namelist()
-            failures.extend(
-                _removed_artifact_member_failures(wheel, names, removed_paths)
-            )
-            for name in names:
-                if name.startswith(rejected) or any(f"/{part}" in f"/{name}" for part in rejected):
-                    failures.append(f"{wheel.relative_to(ROOT)} contains {name}")
-            for name in names:
-                if not name.endswith(".dist-info/METADATA"):
-                    continue
-                requirements = [
-                    line.casefold()
-                    for line in archive.read(name).decode("utf-8", "replace").splitlines()
-                    if line.startswith("Requires-Dist:")
-                ]
-                if any(line.startswith("requires-dist: modelcontextprotocol") for line in requirements):
-                    failures.append(f"{wheel.relative_to(ROOT)} declares modelcontextprotocol")
-            for name in names:
+    for file in files:
+        artifact_path = Path(file.path)
+        if artifact_path.parent != Path("dist"):
+            continue
+        artifact = _distribution_artifact(file)
+        if file.path.endswith(".whl"):
+            with zipfile.ZipFile(io.BytesIO(file.data)) as archive:
+                names = archive.namelist()
                 failures.extend(
-                    _artifact_text_failure(wheel, name, archive.read(name))
+                    _removed_artifact_member_failures(
+                        artifact,
+                        names,
+                        removed_paths,
+                    )
                 )
-    for sdist in sorted((ROOT / "dist").glob("*.tar.gz")):
-        with tarfile.open(sdist, "r:gz") as archive:
+                for name in names:
+                    if name.startswith(rejected) or any(
+                        f"/{part}" in f"/{name}" for part in rejected
+                    ):
+                        failures.append(
+                            f"{artifact.relative_to(ROOT)} contains {name}"
+                        )
+                for name in names:
+                    if not name.endswith(".dist-info/METADATA"):
+                        continue
+                    requirements = [
+                        line.casefold()
+                        for line in archive.read(name)
+                        .decode("utf-8", "replace")
+                        .splitlines()
+                        if line.startswith("Requires-Dist:")
+                    ]
+                    if any(
+                        line.startswith(
+                            "requires-dist: modelcontextprotocol"
+                        )
+                        for line in requirements
+                    ):
+                        failures.append(
+                            f"{artifact.relative_to(ROOT)} declares "
+                            "modelcontextprotocol"
+                        )
+                for name in names:
+                    failures.extend(
+                        _artifact_text_failure(
+                            artifact,
+                            name,
+                            archive.read(name),
+                        )
+                    )
+            continue
+        if not file.path.endswith(".tar.gz"):
+            continue
+        with tarfile.open(fileobj=io.BytesIO(file.data), mode="r:gz") as archive:
             failures.extend(
                 _removed_artifact_member_failures(
-                    sdist,
+                    artifact,
                     [member.name for member in archive.getmembers()],
                     removed_paths,
                 )
@@ -380,7 +417,11 @@ def _distribution_failures() -> list[str]:
                 if extracted is None:
                     continue
                 failures.extend(
-                    _artifact_text_failure(sdist, member.name, extracted.read())
+                    _artifact_text_failure(
+                        artifact,
+                        member.name,
+                        extracted.read(),
+                    )
                 )
     return failures
 
@@ -507,7 +548,7 @@ def main() -> int:
     failures.extend(_hwpx_member_failures(files, WORKSTATION_PATH, private_markers))
     failures.extend(_action_pin_failures(files))
     failures.extend(_internal_qa_runtime_failures(files, kind))
-    failures.extend(_distribution_failures())
+    failures.extend(_distribution_failures(files, kind))
     if failures:
         for failure in failures:
             print(f"[FAIL] {failure}")
