@@ -2,6 +2,10 @@
 
 이 가이드는 `python-hwpx`를 처음 접하는 분을 위한 초간단 튜토리얼입니다. 처음에는 `new/open -> add/edit -> save_to_path` 흐름만 익히면 충분합니다. 바이트 스트림, 패키지 조작, XML 심화는 뒤로 미뤄도 된다.
 
+> **Python 블록 판정:** [실행 분류 ledger](python-example-ledger.json)가 이
+> current manual의 모든 Python 블록을 동결합니다. **독립 실행 예제** 표시가
+> 없는 블록은 기존 입력 파일이나 앞 문맥이 필요한 조각입니다.
+
 ## 준비물
 
 ```bash
@@ -18,6 +22,9 @@ PDF 이미징 실행이 필요하면 companion인 `python-hwpx-automation[oracle
 ## 1. 새 문서 만들고 저장하기
 
 가장 쉬운 시작은 빈 문서를 만들고 문단 하나를 넣은 뒤 저장하는 것이다.
+
+**독립 실행 예제** — 빈 작업 디렉터리와 core wheel만으로 실행됩니다.
+<!-- standalone-python-example -->
 
 ```python
 from pathlib import Path
@@ -113,6 +120,9 @@ print("바이트 길이:", len(raw))
 ## 5. 파일이 없으면 기본 템플릿 바이트로 열기
 
 파일 경로 없이도 바로 문서를 열 수 있다. 다만 이건 첫 성공 다음 단계로 보면 된다.
+
+**독립 실행 예제** — 내장 템플릿 바이트만 사용합니다.
+<!-- standalone-python-example -->
 
 ```python
 from io import BytesIO

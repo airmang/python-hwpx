@@ -1,5 +1,9 @@
 # 자주 묻는 질문 (FAQ)
 
+> **Python 블록 판정:** [실행 분류 ledger](python-example-ledger.json)가 이
+> current manual의 모든 Python 블록을 동결합니다. **독립 실행 예제** 표시가
+> 없는 블록은 기존 입력 파일이나 앞 문맥이 필요한 조각입니다.
+
 ## `ModuleNotFoundError: No module named 'hwpx'` 오류가 발생합니다.
 
 PyPI에서 설치했다면 가상 환경을 활성화하고 `pip install python-hwpx`만 실행해도 됩니다. 저장소를 직접 클론해 개발 중이라면 루트 `src` 디렉터리를 `PYTHONPATH`에 추가해야 합니다. 다음 명령을 참고하세요.

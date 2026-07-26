@@ -5,6 +5,10 @@
 돌려주는** 계약을 따른다. 이 계약의 이름은 `hwpx.mutation-report/v1`이며,
 영수증 객체는 `hwpx.mutation_report.MutationReport`다.
 
+> **Python 블록 판정:** [실행 분류 ledger](python-example-ledger.json)가 이
+> current manual의 모든 Python 블록을 동결합니다. **독립 실행 예제** 표시가
+> 없는 블록은 API 표기, 기존 입력 파일, 또는 앞 문맥이 필요한 조각입니다.
+
 핵심 원칙은 두 가지다.
 
 - **Fail-Closed** — `mode="patch"` + `fallback="error"`(기본값)로 요청했는데

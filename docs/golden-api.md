@@ -9,6 +9,13 @@ The machine-readable scenario list is
 `tests/data/golden_api_contract.json`; `tests/test_golden_api.py` executes every
 scenario.
 
+Every Python block in the current manuals is classified in the
+[execution ledger](python-example-ledger.json). Blocks without a **Standalone
+example** label require external input or prior walkthrough state.
+
+**Standalone example** — this runs with only the installed core wheel.
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 

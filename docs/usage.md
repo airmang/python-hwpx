@@ -2,6 +2,10 @@
 
 python-hwpx는 HWPX 컨테이너를 검증하고 편집하기 위한 여러 계층의 API를 제공합니다. 이 문서에서는 패키지 수준에서 문서를 여는 방법부터 문단과 주석을 다루는 고수준 도구까지 핵심 사용 패턴을 소개합니다.
 
+> **Python 블록 판정:** [실행 분류 ledger](python-example-ledger.json)가 이
+> current manual의 모든 Python 블록을 동결합니다. **독립 실행 예제** 표시가
+> 없는 블록은 기존 입력 파일이나 앞 문맥이 필요한 조각입니다.
+
 ## CLI 워크플로
 
 라이브러리 API 외에도 템플릿 보존형 작업 흐름을 위한 CLI를 제공합니다.
@@ -45,6 +49,9 @@ print("paragraphs:", len(document.paragraphs))
 ```
 
 ### 예제 2: 빈 템플릿으로 새 문서 생성
+
+**독립 실행 예제** — 빈 작업 디렉터리와 core wheel만으로 실행됩니다.
+<!-- standalone-python-example -->
 
 ```python
 from hwpx import HwpxDocument

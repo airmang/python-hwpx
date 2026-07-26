@@ -2,6 +2,10 @@
 
 `python-hwpx`는 HWPX 문서를 읽고 편집하고 생성하는 파이썬 도구 모음입니다. 가장 빠른 진입로는 `new/open -> add/edit -> save_to_path`입니다. 먼저 {doc}`quickstart`로 첫 성공 경로를 잡고, 그다음 필요에 따라 사용 가이드와 심화 문서를 보면 된다.
 
+> **Python 블록 판정:** [실행 분류 ledger](python-example-ledger.json)가 이 current
+> manual의 모든 Python 블록을 동결합니다. **독립 실행 예제** 표시가 없는
+> 블록은 기존 입력 파일이나 앞 문맥이 필요한 조각입니다.
+
 ```{toctree}
 :maxdepth: 2
 :hidden:

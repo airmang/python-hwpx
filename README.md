@@ -19,14 +19,20 @@
 한컴오피스가 받아들이는 형태로 만듭니다. HWPX는 ZIP+XML(OWPML/OPC) 구조라
 Windows·macOS·Linux·CI 어디서든 순수 파이썬으로 동작합니다.
 
-| | 레포 | 역할 |
+| 계층 | 저장소 | 정본 책임 |
 |---|---|---|
-| 📦 | **`python-hwpx`** | 순수 파이썬 HWPX 코어 (이 레포) |
-| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | 문서 워크플로·MCP 서버·`hwpx` 응용 CLI |
-| 🎯 | [`hwpx-plugin`](https://github.com/airmang/hwpx-plugins) | 에이전트용 플러그인·스킬 번들 |
+| Core | [`python-hwpx`](https://github.com/airmang/python-hwpx) | HWPX package/object model·OPC/OXML·직렬화·재사용 primitive |
+| Automation | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | Python 자동화·워크플로·profile/policy·렌더·선택형 MCP adapter |
+| Judgment | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | 에이전트 intent/genre 판단·ambiguity 처리·plugin/skill 가이드 |
 
-5.0의 모듈 소유권, 삭제 경로 재등장 방지, 의존성 허용 범위는
+이 저장소는 위 표의 Core 정본입니다. 5.0의 모듈 소유권, 삭제 경로 재등장
+방지, 의존성 허용 범위는
 [제품 경계 문서](docs/architecture/product-boundary.md)에 고정돼 있습니다.
+
+> **Python 블록 판정:** 이 current manual의 모든 Python 블록은
+> [실행 분류 ledger](docs/python-example-ledger.json)에 exact source digest와 함께
+> 동결돼 있습니다. **독립 실행 예제** 표시가 없는 블록은 기존 입력 파일이나 앞
+> 문맥을 요구하는 조각이며, 그대로 실행할 수 있는 예제로 간주하지 않습니다.
 
 ## 시작하기
 

@@ -29,6 +29,11 @@ Windows, macOS, Linux, and CI.
 The [product-boundary contract](docs/architecture/product-boundary.md) pins the
 5.0 ownership split, removed-path non-resurrection rule, and import allowlist.
 
+> **Python-block status:** every Python block in this current manual is frozen
+> in the [execution ledger](docs/python-example-ledger.json) with an exact source
+> digest. A block without a **Standalone example** label requires an existing
+> input or prior walkthrough state and is not presented as a copy-paste program.
+
 ## Getting started
 
 ```bash
