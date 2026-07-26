@@ -329,6 +329,59 @@ class TestStylePreservation:
         p2 = doc.add_paragraph("second", inherit_style=False)
         assert p2.para_pr_id_ref == "0"
 
+    def test_table_anchor_does_not_inherit_heading_or_list_style(self):
+        doc = _new_doc()
+        doc.add_paragraph(
+            "numbered heading",
+            para_pr_id_ref="5",
+            style_id_ref="3",
+            char_pr_id_ref="7",
+        )
+
+        table = doc.add_table(1, 1)
+
+        assert table.paragraph.para_pr_id_ref == "0"
+        assert table.paragraph.style_id_ref == "0"
+        assert table.paragraph.char_pr_id_ref == "0"
+
+    def test_table_anchor_keeps_explicit_style_references(self):
+        doc = _new_doc()
+        doc.add_paragraph(
+            "numbered heading",
+            para_pr_id_ref="5",
+            style_id_ref="3",
+            char_pr_id_ref="7",
+        )
+
+        table = doc.add_table(
+            1,
+            1,
+            para_pr_id_ref="8",
+            style_id_ref="4",
+            char_pr_id_ref="9",
+        )
+
+        assert table.paragraph.para_pr_id_ref == "8"
+        assert table.paragraph.style_id_ref == "4"
+        assert table.paragraph.char_pr_id_ref == "9"
+
+    def test_table_anchor_can_explicitly_inherit_style(self):
+        doc = _new_doc()
+        doc.add_paragraph(
+            "numbered heading",
+            para_pr_id_ref="5",
+            style_id_ref="3",
+            char_pr_id_ref="7",
+        )
+
+        table = doc.add_table(1, 1, inherit_style=True)
+
+        assert table.paragraph.para_pr_id_ref == "5"
+        assert table.paragraph.style_id_ref == "3"
+        # Object runs historically default to character style 0 unless the
+        # caller passes char_pr_id_ref explicitly.
+        assert table.paragraph.char_pr_id_ref == "0"
+
     def test_run_text_setter_preserves_char_pr(self):
         doc = _new_doc()
         p = doc.add_paragraph("original", char_pr_id_ref="9")

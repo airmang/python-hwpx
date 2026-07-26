@@ -127,7 +127,7 @@
 - `remove_section(section_or_index)`
   - 섹션을 삭제합니다. 인스턴스 또는 인덱스를 받습니다. 마지막 섹션 삭제 시 `ValueError`가 발생합니다.
 - `add_table(rows, cols, ...) -> HwpxOxmlTable`
-  - 단락을 삽입하고 그 안에 표 인라인 객체를 생성한 후, 표 래퍼를 반환합니다. `border_fill_id_ref`를 생략하면 헤더 참조 목록에 기본 실선 `borderFill`을 생성하고 표와 셀에 자동으로 연결합니다.
+  - 기본적으로 앞 제목·목록 스타일을 상속하지 않는 중립 단락을 삽입하고 그 안에 표 인라인 객체를 생성한 후, 표 래퍼를 반환합니다. 표 앵커가 앞 단락 서식을 의도적으로 이어받아야 하면 `inherit_style=True` 또는 명시적 단락·스타일 참조를 사용합니다. `border_fill_id_ref`를 생략하면 헤더 참조 목록에 기본 실선 `borderFill`을 생성하고 표와 셀에 자동으로 연결합니다.
 - `get_table_map() -> dict`
   - 문서 순서대로 표를 스캔하고 `table_index`, `paragraph_index`, 행·열 수, 추정 헤더 텍스트, 첫 행 미리보기, 빈 표 여부를 반환합니다.
 - `find_cell_by_label(label_text, direction="right") -> dict`

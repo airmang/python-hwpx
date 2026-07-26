@@ -748,9 +748,17 @@ class HwpxDocument:
         style_id_ref: str | int | None = None,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
+        inherit_style: bool = False,
         **extra_attrs: str,
     ) -> HwpxOxmlTable:
-        """Create a table in a new paragraph and return it."""
+        """Create a table in a neutral new paragraph and return it.
+
+        A table anchor must not inherit the preceding paragraph's heading or
+        list style.  Hancom renders that inherited numbering beside the table
+        (for example, a stray ``2.`` after a level-one heading).  Callers that
+        intentionally need a styled anchor can pass explicit paragraph/style
+        references or set *inherit_style* to :data:`True`.
+        """
 
         resolved_border_fill: str | int | None = border_fill_id_ref
         if resolved_border_fill is None:
@@ -764,6 +772,7 @@ class HwpxDocument:
             style_id_ref=style_id_ref,
             char_pr_id_ref=char_pr_id_ref,
             include_run=False,
+            inherit_style=inherit_style,
             **cast(Any, extra_attrs),
         )
         return paragraph.add_table(

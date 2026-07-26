@@ -44,6 +44,10 @@ import has a named replacement in
 
 ### Changed
 
+- `HwpxDocument.add_table()` now creates a neutral table-anchor paragraph by
+  default, so a preceding numbered heading/list no longer renders a stray
+  number beside the table in Hancom. Pass `inherit_style=True` or explicit
+  paragraph/style references when anchor-style inheritance is intentional.
 - `verify_redline` and `verify_fill` take an injected
   `hwpx.quality.rendering.RenderBackend`. Core does not look for a Hancom
   installation any more; without a backend the report is
