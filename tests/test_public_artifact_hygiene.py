@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import os
 import subprocess
 import sys
 import tarfile
@@ -36,6 +37,35 @@ EXPECTED_PACKAGES = {
     "hwpx.tools",
     "hwpx.tools._schemas",
 }
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+@pytest.fixture
+def hygiene_git_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "--quiet")
+    _git(repo, "config", "user.name", "Hygiene Test")
+    _git(repo, "config", "user.email", "hygiene@example.invalid")
+    tracked = repo / "tracked.md"
+    tracked.write_text("safe\n", encoding="utf-8")
+    deleted = repo / "deleted.md"
+    deleted.write_text(
+        "/" + "Users" + "/private/deleted-before-commit\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "tracked.md", "deleted.md")
+    _git(repo, "commit", "--quiet", "-m", "baseline")
+    return repo
 
 
 @pytest.fixture(scope="module")
@@ -244,3 +274,85 @@ def test_setuptools_uses_an_exact_package_allowlist(
         for name in python_members
     }
     assert shipped_packages <= EXPECTED_PACKAGES
+
+
+def test_hygiene_reads_staged_add_from_index_when_worktree_file_is_gone(
+    hygiene_git_repo: Path,
+) -> None:
+    staged = hygiene_git_repo / "staged-only.md"
+    staged.write_text(
+        "/" + "Users" + "/private/index-only\n",
+        encoding="utf-8",
+    )
+    _git(hygiene_git_repo, "add", "staged-only.md")
+    staged.unlink()
+
+    files = hygiene._publication_files(hygiene_git_repo)
+    failures = hygiene._source_text_failures(
+        files,
+        hygiene.WORKSTATION_PATH,
+        [],
+    )
+
+    assert any(
+        "staged-only.md [index]" in failure for failure in failures
+    )
+
+
+def test_hygiene_distinguishes_staged_and_worktree_modifications(
+    hygiene_git_repo: Path,
+) -> None:
+    tracked = hygiene_git_repo / "tracked.md"
+    tracked.write_text(
+        "/" + "Users" + "/private/staged-version\n",
+        encoding="utf-8",
+    )
+    _git(hygiene_git_repo, "add", "tracked.md")
+    tracked.write_text("safe worktree version\n", encoding="utf-8")
+
+    files = hygiene._publication_files(hygiene_git_repo)
+    views = {
+        file.origin: file.data
+        for file in files
+        if file.path == "tracked.md"
+    }
+    failures = hygiene._source_text_failures(
+        files,
+        hygiene.WORKSTATION_PATH,
+        [],
+    )
+
+    assert views == {
+        "index": (
+            "/" + "Users" + "/private/staged-version\n"
+        ).encode(),
+        "worktree": b"safe worktree version\n",
+    }
+    assert any("tracked.md [index]" in failure for failure in failures)
+    assert not any("tracked.md [worktree]" in failure for failure in failures)
+
+
+def test_hygiene_does_not_scan_a_staged_deletion(
+    hygiene_git_repo: Path,
+) -> None:
+    _git(hygiene_git_repo, "rm", "--quiet", "deleted.md")
+
+    files = hygiene._publication_files(hygiene_git_repo)
+
+    assert not any(file.path == "deleted.md" for file in files)
+
+
+def test_hygiene_reads_symlink_target_without_following_it(
+    hygiene_git_repo: Path,
+) -> None:
+    target = hygiene_git_repo / "outside.txt"
+    target.write_text("outside contents\n", encoding="utf-8")
+    link = hygiene_git_repo / "link.txt"
+    os.symlink("outside.txt", link)
+
+    files = hygiene._publication_files(hygiene_git_repo)
+
+    link_view = next(
+        file for file in files if file.path == "link.txt"
+    )
+    assert link_view.data == b"outside.txt"

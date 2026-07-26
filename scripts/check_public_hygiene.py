@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-import io
 import hashlib
+import io
 import json
 import os
 import re
@@ -12,7 +12,7 @@ import subprocess
 import tarfile
 import zipfile
 from pathlib import Path
-
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
 INTERNAL_WORK_CODE = re.compile(
@@ -54,14 +54,126 @@ REMOVED_PATH_SHA256 = (
 )
 
 
-def _git_paths(*args: str) -> list[str]:
+class _PublicationFile(NamedTuple):
+    path: str
+    data: bytes
+    origin: str
+
+    @property
+    def display(self) -> str:
+        if self.origin == "index+worktree":
+            return self.path
+        return f"{self.path} [{self.origin}]"
+
+
+def _git_paths(*args: str, root: Path = ROOT) -> list[str]:
     result = subprocess.run(
         ["git", *args, "-z"],
-        cwd=ROOT,
+        cwd=root,
         check=True,
         capture_output=True,
     )
     return [item for item in result.stdout.decode("utf-8").split("\0") if item]
+
+
+def _git_index_entries(root: Path = ROOT) -> list[tuple[str, str]]:
+    result = subprocess.run(
+        ["git", "ls-files", "--stage", "-z"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    entries: list[tuple[str, str]] = []
+    unmerged: list[str] = []
+    for raw in result.stdout.split(b"\0"):
+        if not raw:
+            continue
+        metadata, raw_path = raw.split(b"\t", 1)
+        mode, object_id, stage = metadata.decode("ascii").split()
+        path = raw_path.decode("utf-8")
+        if stage != "0":
+            unmerged.append(path)
+            continue
+        if mode == "160000":
+            # A gitlink has no repository-local file blob to inspect.
+            continue
+        entries.append((path, object_id))
+    if unmerged:
+        joined = ", ".join(sorted(set(unmerged)))
+        raise ValueError(f"unmerged index entries: {joined}")
+    return entries
+
+
+def _git_blobs(object_ids: list[str], root: Path = ROOT) -> dict[str, bytes]:
+    unique_ids = list(dict.fromkeys(object_ids))
+    if not unique_ids:
+        return {}
+    result = subprocess.run(
+        ["git", "cat-file", "--batch"],
+        cwd=root,
+        check=True,
+        input=("".join(f"{object_id}\n" for object_id in unique_ids)).encode(
+            "ascii"
+        ),
+        capture_output=True,
+    )
+    output = result.stdout
+    offset = 0
+    blobs: dict[str, bytes] = {}
+    for expected_id in unique_ids:
+        header_end = output.index(b"\n", offset)
+        object_id, object_type, raw_size = output[offset:header_end].decode(
+            "ascii"
+        ).split()
+        if object_id != expected_id or object_type != "blob":
+            raise ValueError(
+                f"index object is not a blob: {expected_id} ({object_type})"
+            )
+        size = int(raw_size)
+        data_start = header_end + 1
+        data_end = data_start + size
+        blobs[expected_id] = output[data_start:data_end]
+        if output[data_end : data_end + 1] != b"\n":
+            raise ValueError(f"malformed git cat-file output: {expected_id}")
+        offset = data_end + 1
+    return blobs
+
+
+def _publication_files(root: Path = ROOT) -> list[_PublicationFile]:
+    entries = _git_index_entries(root)
+    object_data = _git_blobs([object_id for _, object_id in entries], root)
+    index_files = {
+        path: object_data[object_id] for path, object_id in entries
+    }
+    worktree_paths = set(
+        _git_paths(
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            root=root,
+        )
+    )
+    worktree_files: dict[str, bytes] = {}
+    for path in worktree_paths:
+        candidate = root / path
+        if candidate.is_symlink():
+            worktree_files[path] = os.readlink(candidate).encode("utf-8")
+        elif candidate.is_file():
+            worktree_files[path] = candidate.read_bytes()
+
+    files: list[_PublicationFile] = []
+    for path in sorted(index_files.keys() | worktree_files.keys()):
+        index_data = index_files.get(path)
+        worktree_data = worktree_files.get(path)
+        if index_data is not None and index_data == worktree_data:
+            files.append(_PublicationFile(path, index_data, "index+worktree"))
+            continue
+        if index_data is not None:
+            files.append(_PublicationFile(path, index_data, "index"))
+        if worktree_data is not None:
+            files.append(_PublicationFile(path, worktree_data, "worktree"))
+    return files
 
 
 def _project_kind() -> str:
@@ -114,8 +226,7 @@ def _forbidden_path(path: str, kind: str) -> bool:
     return False
 
 
-def _text_bytes(path: Path) -> bytes | None:
-    data = path.read_bytes()
+def _text_data(data: bytes) -> bytes | None:
     if b"\0" in data[:8192]:
         return None
     return data
@@ -274,7 +385,10 @@ def _distribution_failures() -> list[str]:
     return failures
 
 
-def _internal_qa_runtime_failures(tracked: list[str], kind: str) -> list[str]:
+def _internal_qa_runtime_failures(
+    files: list[_PublicationFile],
+    kind: str,
+) -> list[str]:
     if kind != "core":
         return []
 
@@ -288,66 +402,92 @@ def _internal_qa_runtime_failures(tracked: list[str], kind: str) -> list[str]:
         ("unavailable campaign sentinel", b"CAMPAIGN_" + b"UNAVAILABLE"),
     )
     failures: list[str] = []
-    for rel in tracked:
-        if not rel.startswith("src/hwpx/") or not rel.endswith(".py"):
+    for file in files:
+        if not file.path.startswith("src/hwpx/") or not file.path.endswith(
+            ".py"
+        ):
             continue
-        data = _text_bytes(ROOT / rel)
+        data = _text_data(file.data)
         if data is None:
             continue
         for label, marker in markers:
             if marker in data:
-                failures.append(f"internal QA runtime marker ({label}): {rel}")
+                failures.append(
+                    f"internal QA runtime marker ({label}): {file.display}"
+                )
     return failures
 
 
-def _action_pin_failures(tracked: list[str]) -> list[str]:
+def _action_pin_failures(files: list[_PublicationFile]) -> list[str]:
     failures: list[str] = []
     action_ref = re.compile(r"^\s*-?\s*uses:\s*([^@\s]+)@([^\s#]+)", re.MULTILINE)
-    for rel in tracked:
-        if not rel.startswith(".github/workflows/") or not rel.endswith((".yml", ".yaml")):
+    for file in files:
+        if not file.path.startswith(
+            ".github/workflows/"
+        ) or not file.path.endswith((".yml", ".yaml")):
             continue
-        text = (ROOT / rel).read_text(encoding="utf-8")
+        text = file.data.decode("utf-8", "replace")
         for action, ref in action_ref.findall(text):
             if action.startswith(("./", "docker://")):
                 continue
             if not re.fullmatch(r"[0-9a-f]{40}", ref):
-                failures.append(f"mutable GitHub Action ref: {rel}: {action}@{ref}")
+                failures.append(
+                    f"mutable GitHub Action ref: {file.display}: {action}@{ref}"
+                )
     return failures
 
 
 def _hwpx_member_failures(
-    tracked: list[str],
+    files: list[_PublicationFile],
     workstation_path: re.Pattern[bytes],
     private_markers: list[bytes],
 ) -> list[str]:
     failures: list[str] = []
-    for rel in tracked:
-        if not rel.casefold().endswith(".hwpx"):
+    for file in files:
+        if not file.path.casefold().endswith(".hwpx"):
             continue
         try:
-            with zipfile.ZipFile(ROOT / rel) as archive:
+            with zipfile.ZipFile(io.BytesIO(file.data)) as archive:
                 for member in archive.namelist():
                     data = archive.read(member)
                     if workstation_path.search(data):
-                        failures.append(f"workstation-shaped path: {rel}!{member}")
+                        failures.append(
+                            f"workstation-shaped path: {file.display}!{member}"
+                        )
                     if any(marker in data for marker in private_markers):
-                        failures.append(f"private-origin marker: {rel}!{member}")
+                        failures.append(
+                            f"private-origin marker: {file.display}!{member}"
+                        )
         except zipfile.BadZipFile:
             # Some corruption fixtures are intentionally invalid packages.
             continue
     return failures
 
 
+def _source_text_failures(
+    files: list[_PublicationFile],
+    workstation_path: re.Pattern[bytes],
+    private_markers: list[bytes],
+) -> list[str]:
+    failures: list[str] = []
+    for file in files:
+        data = _text_data(file.data)
+        if data is None:
+            continue
+        if workstation_path.search(data):
+            failures.append(f"workstation-shaped path: {file.display}")
+        if any(marker in data for marker in private_markers):
+            failures.append(f"private-origin marker: {file.display}")
+    return failures
+
+
 def main() -> int:
     kind = _project_kind()
-    tracked = [
-        path
-        for path in _git_paths("ls-files", "--cached", "--others", "--exclude-standard")
-        if (ROOT / path).is_file()
-    ]
+    files = _publication_files()
+    publication_paths = sorted({file.path for file in files})
     failures = [
         f"forbidden tracked path: {path}"
-        for path in tracked
+        for path in publication_paths
         if _forbidden_path(path, kind)
     ]
 
@@ -361,24 +501,21 @@ def main() -> int:
         if value.strip()
     )
 
-    for rel in tracked:
-        data = _text_bytes(ROOT / rel)
-        if data is None:
-            continue
-        if WORKSTATION_PATH.search(data):
-            failures.append(f"workstation-shaped path: {rel}")
-        if any(marker in data for marker in private_markers):
-            failures.append(f"private-origin marker: {rel}")
-
-    failures.extend(_hwpx_member_failures(tracked, WORKSTATION_PATH, private_markers))
-    failures.extend(_action_pin_failures(tracked))
-    failures.extend(_internal_qa_runtime_failures(tracked, kind))
+    failures.extend(
+        _source_text_failures(files, WORKSTATION_PATH, private_markers)
+    )
+    failures.extend(_hwpx_member_failures(files, WORKSTATION_PATH, private_markers))
+    failures.extend(_action_pin_failures(files))
+    failures.extend(_internal_qa_runtime_failures(files, kind))
     failures.extend(_distribution_failures())
     if failures:
         for failure in failures:
             print(f"[FAIL] {failure}")
         return 1
-    print(f"[OK] public hygiene: {kind}; {len(tracked)} tracked files")
+    print(
+        f"[OK] public hygiene: {kind}; "
+        f"{len(publication_paths)} paths / {len(files)} index-worktree views"
+    )
     return 0
 
 
