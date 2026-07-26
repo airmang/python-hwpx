@@ -117,6 +117,35 @@ def download_github_assets(tag: str, asset_dir: Path) -> None:
     )
 
 
+def verify_github_release_state(tag: str) -> None:
+    """Require the exact tag to be a published, non-prerelease GitHub release."""
+
+    result = subprocess.run(
+        [
+            "gh",
+            "release",
+            "view",
+            tag,
+            "--json",
+            "tagName,isDraft,isPrerelease",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    observed = json.loads(result.stdout)
+    expected = {
+        "tagName": tag,
+        "isDraft": False,
+        "isPrerelease": False,
+    }
+    if observed != expected:
+        raise RuntimeError(
+            f"GitHub release state differs: expected={expected!r}, "
+            f"observed={observed!r}"
+        )
+
+
 def verify_github_assets(
     expected: Mapping[str, str],
     *,
@@ -168,6 +197,7 @@ def verify_github_release(
             )
         )
         try:
+            verify_github_release_state(tag)
             download_github_assets(tag, attempt_dir)
             verify_github_assets(
                 expected,

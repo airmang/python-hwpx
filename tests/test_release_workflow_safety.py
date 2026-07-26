@@ -29,6 +29,7 @@ LEGACY_COMMAND = (
     '--venv "${RUNNER_TEMP}/hwpx-phase0-legacy"'
 )
 BUILD_STEP = "Build distributions (migrated from scripts/build-and-publish.sh)"
+SBOM_STEP = "Generate release SBOM"
 PYPI_ACTION = "pypa/gh-action-pypi-publish@"
 GITHUB_ACTION = "softprops/action-gh-release@"
 REMOTE_HASH_STEP = "Verify PyPI and GitHub release hashes"
@@ -65,6 +66,99 @@ Path("release-artifacts/SHA256SUMS").write_text(
 PY
 python scripts/check_public_hygiene.py
 """
+EXPECTED_SBOM_RUN = """\
+python -m venv .sbom-runtime
+.sbom-runtime/bin/python -m pip install dist/*.whl
+python -m venv .sbom-tool
+.sbom-tool/bin/python -m pip install "cyclonedx-bom==7.3.0"
+mkdir -p release-artifacts
+.sbom-tool/bin/cyclonedx-py environment .sbom-runtime/bin/python \\
+  --pyproject pyproject.toml \\
+  --mc-type library \\
+  --output-reproducible \\
+  --output-format JSON \\
+  --output-file "release-artifacts/python-hwpx-${GITHUB_REF_NAME}.cdx.json"
+"""
+EXPECTED_RELEASE_STEPS = (
+    (
+        "Checkout repository",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        False,
+        None,
+        None,
+        None,
+        None,
+    ),
+    (
+        "Set up Python",
+        "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+        False,
+        {"python-version": "3.12"},
+        None,
+        None,
+        None,
+    ),
+    (
+        "Validate tag/version consistency",
+        None,
+        True,
+        None,
+        None,
+        "bash",
+        None,
+    ),
+    (
+        "Extract latest changelog section for release notes",
+        None,
+        True,
+        None,
+        None,
+        None,
+        None,
+    ),
+    (BUILD_STEP, None, True, None, None, None, None),
+    (SBOM_STEP, None, True, None, None, None, None),
+    (
+        "Publish package to PyPI",
+        "pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247",
+        False,
+        None,
+        None,
+        None,
+        None,
+    ),
+    (
+        "Create GitHub Release",
+        "softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228",
+        False,
+        {
+            "body_path": "release_notes.md",
+            "draft": False,
+            "files": "dist/*\nrelease-artifacts/*\n",
+            "prerelease": False,
+        },
+        None,
+        None,
+        None,
+    ),
+    (
+        REMOTE_HASH_STEP,
+        None,
+        True,
+        None,
+        {"GH_TOKEN": "${{ github.token }}"},
+        None,
+        None,
+    ),
+)
+EXPECTED_PREBUILD_RUN_SHA256 = {
+    "Validate tag/version consistency": (
+        "093ec109015dff5f5d6163a548e810c42bff5ecc2dd9308208cc747ca86f292c"
+    ),
+    "Extract latest changelog section for release notes": (
+        "0e2f1d7765304dc2377a9dbffd8cb29bf69852817f9e393ac5b4044d33a9d18a"
+    ),
+}
 EXPECTED_PREPUBLISH_RUNS = {
     "Install release test dependencies": 'python -m pip install -e ".[test,typecheck]"',
     "Check public repository hygiene": "python scripts/check_public_hygiene.py",
@@ -216,6 +310,30 @@ def _workflow_safety_failures(workflow: str) -> list[str]:
             failures.append("publisher actions must exist only in release")
 
     steps = release.get("steps", [])
+    release_step_identities = tuple(
+        (
+            step.get("name"),
+            step.get("uses"),
+            "run" in step,
+            step.get("with"),
+            step.get("env"),
+            step.get("shell"),
+            step.get("working-directory"),
+        )
+        for step in steps
+    )
+    if release_step_identities != EXPECTED_RELEASE_STEPS:
+        failures.append("release steps must match the exact order and actions")
+    for step_name, expected_digest in EXPECTED_PREBUILD_RUN_SHA256.items():
+        matches = [step for step in steps if step.get("name") == step_name]
+        run = matches[0].get("run") if len(matches) == 1 else None
+        observed_digest = (
+            hashlib.sha256(run.encode()).hexdigest()
+            if isinstance(run, str)
+            else None
+        )
+        if observed_digest != expected_digest:
+            failures.append(f"release run must be frozen: {step_name}")
     build_steps = [step for step in steps if step.get("name") == BUILD_STEP]
     if len(build_steps) != 1:
         failures.append("release must have exactly one distribution build step")
@@ -223,6 +341,9 @@ def _workflow_safety_failures(workflow: str) -> list[str]:
     build = build_steps[0].get("run")
     if build != EXPECTED_BUILD_RUN:
         failures.append("build step must match the frozen single-build procedure")
+    sbom_steps = [step for step in steps if step.get("name") == SBOM_STEP]
+    if len(sbom_steps) != 1 or sbom_steps[0].get("run") != EXPECTED_SBOM_RUN:
+        failures.append("SBOM step must match the frozen post-build procedure")
     build_index = steps.index(build_steps[0])
     pypi = [
         (index, step)
@@ -401,6 +522,59 @@ def test_public_legacy_cap_is_a_required_fail_closed_job() -> None:
             ),
             "publisher actions must exist only in release",
         ),
+        (
+            lambda text: text.replace(
+                "      - name: Generate release SBOM",
+                "      - name: Replace checked artifacts\n"
+                "        run: python scripts/rewrite_dist_and_manifest.py\n\n"
+                "      - name: Generate release SBOM",
+                1,
+            ),
+            "release steps must match the exact order and actions",
+        ),
+        (
+            lambda text: text.replace(
+                '          --output-file "release-artifacts/'
+                'python-hwpx-${GITHUB_REF_NAME}.cdx.json"',
+                '          --output-file "release-artifacts/'
+                'python-hwpx-${GITHUB_REF_NAME}.cdx.json"\n'
+                "          python scripts/rewrite_dist_and_manifest.py",
+                1,
+            ),
+            "SBOM step must match the frozen post-build procedure",
+        ),
+        (
+            lambda text: re.sub(
+                r"\n      - name: Validate tag/version consistency\n.*?"
+                r"(?=\n      - name: Extract latest changelog section)",
+                "",
+                text,
+                count=1,
+                flags=re.DOTALL,
+            ),
+            "release steps must match the exact order and actions",
+        ),
+        (
+            lambda text: re.sub(
+                r"(      - name: Validate tag/version consistency\n"
+                r"        shell: bash\n)"
+                r"        run: \|.*?"
+                r"(?=\n      - name: Extract latest changelog section)",
+                r"\1        run: true\n",
+                text,
+                count=1,
+                flags=re.DOTALL,
+            ),
+            "release run must be frozen: Validate tag/version consistency",
+        ),
+        (
+            lambda text: text.replace(
+                "          draft: false",
+                "          draft: true",
+                1,
+            ),
+            "release steps must match the exact order and actions",
+        ),
     ),
     ids=(
         "remove-legacy-needs",
@@ -418,6 +592,11 @@ def test_public_legacy_cap_is_a_required_fail_closed_job() -> None:
         "remote-step-shell-wrapper",
         "extra-publish-job",
         "prepublish-publisher",
+        "extra-post-build-rewrite",
+        "sbom-appended-rewrite",
+        "remove-tag-gate",
+        "replace-tag-gate",
+        "draft-github-release",
     ),
 )
 def test_release_workflow_mutations_are_rejected(
@@ -772,6 +951,10 @@ def test_github_release_readback_retries_with_fresh_directories(
     manifest.write_bytes(_manifest_bytes(payloads))
     expected = verifier.read_manifest(manifest)
     attempts: list[Path] = []
+    states: list[str] = []
+
+    def verify_state(tag: str) -> None:
+        states.append(tag)
 
     def download(tag: str, directory: Path) -> None:
         assert tag == "v5.0.0"
@@ -782,6 +965,7 @@ def test_github_release_readback_retries_with_fresh_directories(
         for name, data in payloads.items():
             (directory / name).write_bytes(data)
 
+    monkeypatch.setattr(verifier, "verify_github_release_state", verify_state)
     monkeypatch.setattr(verifier, "download_github_assets", download)
     monkeypatch.setattr(verifier.time, "sleep", lambda _seconds: None)
     asset_dir = tmp_path / "assets"
@@ -796,5 +980,36 @@ def test_github_release_readback_retries_with_fresh_directories(
     )
 
     assert len(attempts) == 2
+    assert states == ["v5.0.0", "v5.0.0"]
     assert attempts[0] != attempts[1]
     assert asset_dir.is_dir()
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    (
+        '{"tagName":"v5.0.0","isDraft":true,"isPrerelease":false}',
+        '{"tagName":"v5.0.0","isDraft":false,"isPrerelease":true}',
+        '{"tagName":"wrong","isDraft":false,"isPrerelease":false}',
+    ),
+    ids=("draft", "prerelease", "wrong-tag"),
+)
+def test_github_release_state_rejects_nonfinal_truth(
+    monkeypatch: pytest.MonkeyPatch,
+    stdout: str,
+) -> None:
+    verifier = _release_hash_module()
+
+    def view(command, **kwargs):
+        assert command[-2:] == ["--json", "tagName,isDraft,isPrerelease"]
+        assert kwargs == {
+            "check": True,
+            "capture_output": True,
+            "text": True,
+        }
+        return subprocess.CompletedProcess(command, 0, stdout=stdout)
+
+    monkeypatch.setattr(verifier.subprocess, "run", view)
+
+    with pytest.raises(RuntimeError, match="GitHub release state differs"):
+        verifier.verify_github_release_state("v5.0.0")
