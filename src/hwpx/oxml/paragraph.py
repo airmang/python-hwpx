@@ -199,6 +199,52 @@ class HwpxOxmlParagraph:
             raise ValueError("paragraph contains no text to delete")
         return next_mark_id
 
+    def _add_tracked_replace(
+        self,
+        old: str,
+        new: str,
+        *,
+        delete_change_id: int,
+        insert_change_id: int,
+        first_mark_id: int,
+    ) -> None:
+        """Apply one replacement atomically to a single run model."""
+
+        if old == "":
+            raise ValueError("match must be a non-empty string")
+        sanitized = _sanitize_text(new)
+        if not sanitized:
+            raise ValueError("tracked insert text must be non-empty")
+
+        for run in self.runs:
+            model = run.to_model()
+            for span in model.text_spans:
+                if old not in span.text:
+                    continue
+                if not body.wrap_tracked_delete_in_span(
+                    span,
+                    tc_id=delete_change_id,
+                    mark_id=first_mark_id,
+                    match=old,
+                ):
+                    raise ValueError(
+                        "match crosses inline markup and cannot be wrapped safely"
+                    )
+                if not body.insert_tracked_text_after_delete(
+                    span,
+                    sanitized,
+                    delete_tc_id=delete_change_id,
+                    insert_tc_id=insert_change_id,
+                    mark_id=first_mark_id + 1,
+                ):
+                    raise RuntimeError(
+                        "tracked replacement lost its delete boundary"
+                    )
+                run.apply_model(model)
+                return
+
+        raise ValueError("match text was not found in the paragraph")
+
     @property
     def text(self) -> str:
         """Return the concatenated textual content of this paragraph."""

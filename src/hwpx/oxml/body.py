@@ -352,6 +352,61 @@ def append_tracked_insert_to_run(
     )
 
 
+def insert_tracked_text_after_delete(
+    span: TextSpan,
+    text: str,
+    *,
+    delete_tc_id: int,
+    insert_tc_id: int,
+    mark_id: int,
+) -> bool:
+    """Insert tracked *text* immediately after one tracked deletion.
+
+    A replacement must keep the inserted value at the deleted value's source
+    position.  The text following ``deleteEnd`` belongs after the replacement,
+    so move that suffix to ``insertEnd`` while splicing the insert marks between
+    them.  Existing later marks retain their order.
+    """
+
+    if not text:
+        raise ValueError("tracked insert text must be non-empty")
+
+    for index, markup in enumerate(span.marks):
+        mark = markup.element
+        if not (
+            isinstance(mark, TrackChangeMark)
+            and mark.name == "deleteEnd"
+            and mark.tc_id == delete_tc_id
+        ):
+            continue
+
+        suffix = markup.trailing_text
+        markup.trailing_text = ""
+        begin = TextMarkup(
+            create_track_change_mark(
+                "insert",
+                is_begin=True,
+                tc_id=insert_tc_id,
+                mark_id=mark_id,
+            ),
+            text,
+        )
+        end = TextMarkup(
+            create_track_change_mark(
+                "insert",
+                is_begin=False,
+                tc_id=insert_tc_id,
+                mark_id=mark_id,
+                para_end=False,
+            ),
+            suffix,
+        )
+        span.marks[index + 1 : index + 1] = [begin, end]
+        return True
+
+    return False
+
+
 def wrap_tracked_delete_in_span(
     span: TextSpan,
     *,
@@ -937,6 +992,7 @@ __all__ = [
     "TransformMatrix",
     "append_tracked_insert_to_run",
     "create_track_change_mark",
+    "insert_tracked_text_after_delete",
     "parse_comment_element",
     "parse_control_element",
     "parse_form_combo_box_element",

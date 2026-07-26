@@ -48,6 +48,36 @@ def _paragraph_has_deletable_text(
     return False
 
 
+def _paragraph_has_replaceable_text(
+    paragraph: "HwpxOxmlParagraph",
+    match: str,
+) -> bool:
+    """Return whether *match* can be wrapped inside one inline text segment.
+
+    A match that only exists after concatenating text across inline markup is
+    present but cannot be rewritten safely.  Detect that before allocating
+    tracked-change header IDs so a rejected replacement leaves no orphan
+    metadata behind.
+    """
+
+    crosses_inline_markup = False
+    for run in paragraph.runs:
+        model = run.to_model()
+        run_text = "".join(span.text for span in model.text_spans)
+        if match not in run_text:
+            continue
+        for span in model.text_spans:
+            if match in span.leading_text or any(
+                match in markup.trailing_text for markup in span.marks
+            ):
+                return True
+        crosses_inline_markup = True
+
+    if crosses_inline_markup:
+        raise ValueError("match crosses inline markup and cannot be wrapped safely")
+    return False
+
+
 def add_tracked_insert(
     doc: "HwpxDocument",
     paragraph: "HwpxOxmlParagraph",
@@ -111,16 +141,30 @@ def add_tracked_replace(
 ) -> tuple[int, int]:
     """Represent a replacement as tracked delete of *old* plus tracked insert of *new*."""
 
-    delete_change_id = doc.add_tracked_delete(
-        paragraph,
-        match=old,
-        author=author,
+    if old == "":
+        raise ValueError("match must be a non-empty string")
+    if not _paragraph_has_replaceable_text(paragraph, old):
+        raise ValueError("match text was not found in the paragraph")
+    sanitized = _sanitize_tracked_text(new)
+    if not sanitized:
+        raise ValueError("tracked insert text must be non-empty")
+
+    delete_change_id = doc.add_track_change(
+        "Delete",
+        author_name=author,
         date=date,
     )
-    insert_change_id = doc.add_tracked_insert(
-        paragraph,
-        new,
-        author=author,
+    insert_change_id = doc.add_track_change(
+        "Insert",
+        author_name=author,
         date=date,
+    )
+    first_mark_id = doc._root.next_track_change_mark_id()
+    paragraph._add_tracked_replace(
+        old,
+        sanitized,
+        delete_change_id=delete_change_id,
+        insert_change_id=insert_change_id,
+        first_mark_id=first_mark_id,
     )
     return delete_change_id, insert_change_id

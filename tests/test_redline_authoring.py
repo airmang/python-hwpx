@@ -51,6 +51,28 @@ def _paragraph_track_marks(document: HwpxDocument) -> list[tuple[str | None, Tra
     return marks
 
 
+def _project_tracked_text(document: HwpxDocument, *, accept: bool) -> str:
+    """Project the last paragraph as Hancom accept/reject would."""
+
+    output: list[str] = []
+    delete_depth = 0
+    insert_depth = 0
+    for run in document.paragraphs[-1].runs:
+        for span in run.to_model().text_spans:
+            output.append(span.leading_text)
+            for markup in span.marks:
+                mark = markup.element
+                if isinstance(mark, TrackChangeMark):
+                    if mark.change_type == "delete":
+                        delete_depth += 1 if mark.is_begin else -1
+                    elif mark.change_type == "insert":
+                        insert_depth += 1 if mark.is_begin else -1
+                visible = delete_depth == 0 if accept else insert_depth == 0
+                if visible:
+                    output.append(markup.trailing_text)
+    return "".join(output)
+
+
 def test_tracked_insert_delete_replace_roundtrip_links_header_and_body() -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("alpha beta gamma", char_pr_id_ref="0")
@@ -103,6 +125,110 @@ def test_tracked_insert_delete_replace_roundtrip_links_header_and_body() -> None
         (delete_id, "beta"),
         (replace_delete_id, "gamma"),
     }
+    assert " ".join(_project_tracked_text(reopened, accept=True).split()) == (
+        "alpha delta INSERT"
+    )
+    assert " ".join(_project_tracked_text(reopened, accept=False).split()) == (
+        "alpha beta gamma"
+    )
+
+
+def test_tracked_replace_keeps_new_text_at_the_deleted_position() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("before old after", char_pr_id_ref="0")
+
+    delete_id, insert_id = document.add_tracked_replace(
+        paragraph,
+        "old",
+        "new",
+        date=DATE,
+    )
+    reopened = HwpxDocument.open(document.to_bytes())
+    relevant = [
+        (mark.name, text)
+        for _, mark, text in _paragraph_track_marks(reopened)
+        if mark.tc_id in {delete_id, insert_id}
+    ]
+
+    assert relevant == [
+        ("deleteBegin", "old"),
+        ("deleteEnd", ""),
+        ("insertBegin", "new"),
+        ("insertEnd", " after"),
+    ]
+    assert _project_tracked_text(reopened, accept=True) == "before new after"
+    assert _project_tracked_text(reopened, accept=False) == "before old after"
+
+
+def test_tracked_replace_preserves_target_run_style_and_later_insert_order() -> None:
+    document = HwpxDocument.new()
+    target_style = document.ensure_run_style(bold=True)
+    later_style = document.ensure_run_style(italic=True)
+    paragraph = document.add_paragraph(
+        "before old after",
+        char_pr_id_ref=target_style,
+    )
+    paragraph.add_run(" tail", char_pr_id_ref=later_style)
+    prior_insert_id = document.add_tracked_insert(
+        paragraph,
+        " prior",
+        date=DATE,
+        char_pr_id_ref=later_style,
+    )
+
+    delete_id, replacement_insert_id = document.add_tracked_replace(
+        paragraph,
+        "old",
+        "new",
+        date=DATE,
+    )
+    reopened = HwpxDocument.open(document.to_bytes())
+    reopened_paragraph = reopened.paragraphs[-1]
+
+    assert [run.char_pr_id_ref for run in reopened_paragraph.runs] == [
+        target_style,
+        later_style,
+    ]
+    insert_begins = [
+        (char_pr_id_ref, mark.tc_id, text)
+        for char_pr_id_ref, mark, text in _paragraph_track_marks(reopened)
+        if mark.name == "insertBegin"
+    ]
+    assert insert_begins == [
+        (target_style, replacement_insert_id, "new"),
+        (later_style, prior_insert_id, " prior"),
+    ]
+    assert {
+        mark.tc_id
+        for _, mark, _ in _paragraph_track_marks(reopened)
+        if mark.name == "deleteBegin"
+    } == {delete_id}
+    assert _project_tracked_text(reopened, accept=True) == (
+        "before new after tail prior"
+    )
+    assert _project_tracked_text(reopened, accept=False) == (
+        "before old after tail"
+    )
+
+
+def test_tracked_replace_preflights_cross_inline_match_without_orphan_headers() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("before ", char_pr_id_ref="0")
+    insert_id = document.add_tracked_insert(paragraph, "middle", date=DATE)
+    existing_change_ids = set(document.track_changes)
+
+    with pytest.raises(
+        ValueError,
+        match="match crosses inline markup and cannot be wrapped safely",
+    ):
+        document.add_tracked_replace(
+            paragraph,
+            "before middle",
+            "replacement",
+            date=DATE,
+        )
+
+    assert set(document.track_changes) == existing_change_ids == {str(insert_id)}
 
 
 def test_tracked_insert_only_rewrites_header_and_edited_section(tmp_path: Path) -> None:
