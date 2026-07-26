@@ -3,21 +3,95 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
+from urllib.error import URLError
 
 import pytest
 import yaml
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python 3.10 lane
+    import tomli as tomllib
+
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE = ROOT / ".github" / "workflows" / "release.yml"
 VERIFY_SCRIPT = ROOT / "scripts" / "verify_legacy_release_cap.py"
+RELEASE_HASH_SCRIPT = ROOT / "scripts" / "verify_release_hashes.py"
 LEGACY_STEP = "Require public 5.1.1 legacy cap before core 5"
 LEGACY_COMMAND = (
     'python scripts/verify_legacy_release_cap.py '
     '--venv "${RUNNER_TEMP}/hwpx-phase0-legacy"'
+)
+BUILD_STEP = "Build distributions (migrated from scripts/build-and-publish.sh)"
+PYPI_ACTION = "pypa/gh-action-pypi-publish@"
+GITHUB_ACTION = "softprops/action-gh-release@"
+REMOTE_HASH_STEP = "Verify PyPI and GitHub release hashes"
+REMOTE_HASH_COMMAND = (
+    "python scripts/verify_release_hashes.py "
+    "--manifest release-artifacts/SHA256SUMS "
+    '--asset-dir "${RUNNER_TEMP}/python-hwpx-release-assets" '
+    '--tag "${GITHUB_REF_NAME}"'
+)
+EXPECTED_BUILD_RUN = """\
+set -euo pipefail
+export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+test -n "${SOURCE_DATE_EPOCH}"
+python -m pip install "build==1.5.0" "twine==6.2.0"
+rm -rf dist build
+python -m build
+twine check dist/*
+mkdir -p release-artifacts
+python - <<'PY'
+import hashlib
+from pathlib import Path
+
+artifacts = sorted(path for path in Path("dist").iterdir() if path.is_file())
+if not artifacts:
+    raise SystemExit("dist/ has no release artifacts")
+lines = [
+    f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}"
+    for path in artifacts
+]
+Path("release-artifacts/SHA256SUMS").write_text(
+    "\\n".join(lines) + "\\n",
+    encoding="utf-8",
+)
+PY
+python scripts/check_public_hygiene.py
+"""
+EXPECTED_PREPUBLISH_RUNS = {
+    "Install release test dependencies": 'python -m pip install -e ".[test,typecheck]"',
+    "Check public repository hygiene": "python scripts/check_public_hygiene.py",
+    "Run Ruff gates": """\
+ruff check --select E9,F .
+ruff check --select E4,E7,E9,F \\
+  src/hwpx/document.py \\
+  src/hwpx/oxml/{_document_impl,_document_primitives,document,document_parts,header_part,memo,numbering,objects,paragraph,run,section,section_format,section_story,simple_parts,table}.py \\
+  src/hwpx/tools/package_validator.py \\
+  tests/template_automation/generate_fixtures.py \\
+  tests/{test_oxml_modularization,test_paragraph_section_management,test_section_headers}.py
+""",
+    "Run typing checks": """\
+python scripts/check_typing_generics_scope.py
+mypy
+pyright
+""",
+    "Run tests with coverage ratchet": (
+        "pytest -q --cov=hwpx --cov-report=term-missing --cov-fail-under=80"
+    ),
+}
+FAIL_OPEN_RUN = re.compile(
+    r"(?:^|[;&|])\s*(?:exit|return)\s+0+\b"
+    r"|\|\|\s*(?:true|:)(?:\s|;|$)"
+    r"|(?:^|\s)set\s+\+e(?:\s|;|$)"
+    r"|(?:^|\s)trap\b[^\n]*\bERR\b",
+    re.MULTILINE,
 )
 
 
@@ -32,6 +106,34 @@ def _verifier_module():
     return module
 
 
+def _release_hash_module():
+    spec = importlib.util.spec_from_file_location(
+        "verify_release_hashes",
+        RELEASE_HASH_SCRIPT,
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _require_exact_named_runs(
+    failures: list[str],
+    *,
+    job_name: str,
+    job: dict[str, Any],
+    expected: dict[str, str],
+) -> None:
+    for step_name, expected_run in expected.items():
+        matches = [
+            step
+            for step in job.get("steps", [])
+            if step.get("name") == step_name
+        ]
+        if len(matches) != 1 or matches[0].get("run") != expected_run:
+            failures.append(f"{job_name} step must be exact: {step_name}")
+
+
 def _workflow_safety_failures(workflow: str) -> list[str]:
     failures: list[str] = []
     try:
@@ -43,6 +145,10 @@ def _workflow_safety_failures(workflow: str) -> list[str]:
     except (KeyError, TypeError, yaml.YAMLError) as exc:
         return [f"invalid release job structure: {exc}"]
 
+    if set(jobs) != {"legacy-cap", "prepublish", "release"}:
+        failures.append("release workflow must contain only the three expected jobs")
+    if parsed.get("defaults"):
+        failures.append("release workflow must not override the default run shell")
     if prepublish.get("needs") != "legacy-cap":
         failures.append("prepublish must need legacy-cap")
     if release.get("needs") != "prepublish":
@@ -52,11 +158,19 @@ def _workflow_safety_failures(workflow: str) -> list[str]:
         ("prepublish", prepublish),
         ("release", release),
     ):
+        if job.get("defaults"):
+            failures.append(f"{job_name} must not override the default run shell")
         if "if" in job:
             failures.append(f"{job_name} must not override dependency status")
         if job.get("continue-on-error", False):
             failures.append(f"{job_name} must not continue on error")
         for step in job.get("steps", []):
+            shell = step.get("shell")
+            if shell not in (None, "bash"):
+                failures.append(
+                    f"{job_name} step has an unsafe custom shell: "
+                    f"{step.get('name', step.get('uses', '<unnamed>'))}"
+                )
             if "if" in step:
                 failures.append(
                     f"{job_name} step must not have a condition: "
@@ -66,6 +180,12 @@ def _workflow_safety_failures(workflow: str) -> list[str]:
                 failures.append(
                     f"{job_name} step must not continue on error: "
                     f"{step.get('name', step.get('uses', '<unnamed>'))}"
+                )
+            run = step.get("run")
+            if isinstance(run, str) and FAIL_OPEN_RUN.search(run):
+                failures.append(
+                    f"{job_name} step contains a fail-open shell construct: "
+                    f"{step.get('name', '<unnamed>')}"
                 )
 
     matching_steps = [
@@ -77,6 +197,68 @@ def _workflow_safety_failures(workflow: str) -> list[str]:
         failures.append("legacy-cap must have exactly one named verifier step")
     elif matching_steps[0].get("run") != LEGACY_COMMAND:
         failures.append("legacy-cap verifier command must be exact")
+
+    _require_exact_named_runs(
+        failures,
+        job_name="prepublish",
+        job=prepublish,
+        expected=EXPECTED_PREPUBLISH_RUNS,
+    )
+    for job_name, job in jobs.items():
+        if job_name == "release":
+            continue
+        if any(
+            str(step.get("uses", "")).startswith(
+                (PYPI_ACTION, GITHUB_ACTION)
+            )
+            for step in job.get("steps", [])
+        ):
+            failures.append("publisher actions must exist only in release")
+
+    steps = release.get("steps", [])
+    build_steps = [step for step in steps if step.get("name") == BUILD_STEP]
+    if len(build_steps) != 1:
+        failures.append("release must have exactly one distribution build step")
+        return failures
+    build = build_steps[0].get("run")
+    if build != EXPECTED_BUILD_RUN:
+        failures.append("build step must match the frozen single-build procedure")
+    build_index = steps.index(build_steps[0])
+    pypi = [
+        (index, step)
+        for index, step in enumerate(steps)
+        if str(step.get("uses", "")).startswith(PYPI_ACTION)
+    ]
+    github = [
+        (index, step)
+        for index, step in enumerate(steps)
+        if str(step.get("uses", "")).startswith(GITHUB_ACTION)
+    ]
+    if len(pypi) != 1 or pypi[0][0] <= build_index:
+        failures.append("PyPI publish must consume the one checked build")
+    elif pypi[0][1].get("with", {}).get("packages-dir", "dist/") != "dist/":
+        failures.append("PyPI publish must use dist/")
+    if len(github) != 1 or github[0][0] <= build_index:
+        failures.append("GitHub release must consume the one checked build")
+    elif not {"dist/*", "release-artifacts/*"} <= {
+        line.strip()
+        for line in github[0][1].get("with", {}).get("files", "").splitlines()
+    }:
+        failures.append("GitHub release must upload dist and provenance manifest")
+    remote_steps = [
+        (index, step)
+        for index, step in enumerate(steps)
+        if step.get("name") == REMOTE_HASH_STEP
+    ]
+    if (
+        len(remote_steps) != 1
+        or len(pypi) != 1
+        or len(github) != 1
+        or remote_steps[0][0] <= max(pypi[0][0], github[0][0])
+    ):
+        failures.append("remote hash verification must follow both publications")
+    elif remote_steps[0][1].get("run") != REMOTE_HASH_COMMAND:
+        failures.append("remote hash verifier command must be exact")
     return failures
 
 
@@ -146,6 +328,79 @@ def test_public_legacy_cap_is_a_required_fail_closed_job() -> None:
             ),
             "legacy-cap verifier command must be exact",
         ),
+        (
+            lambda text: text.replace(
+                "jobs:\n",
+                "defaults:\n"
+                "  run:\n"
+                "    shell: bash -c 'bash \"$1\" || true' -- {0}\n"
+                "jobs:\n",
+                1,
+            ),
+            "release workflow must not override the default run shell",
+        ),
+        (
+            lambda text: text.replace(
+                "  legacy-cap:\n    runs-on:",
+                "  legacy-cap:\n"
+                "    defaults:\n"
+                "      run:\n"
+                "        shell: bash -c 'bash \"$1\" || true' -- {0}\n"
+                "    runs-on:",
+                1,
+            ),
+            "legacy-cap must not override the default run shell",
+        ),
+        (
+            lambda text: text.replace(
+                "      - name: Require public 5.1.1 legacy cap before core 5\n",
+                "      - name: Require public 5.1.1 legacy cap before core 5\n"
+                "        shell: bash -c 'bash \"$1\" || true' -- {0}\n",
+                1,
+            ),
+            "legacy-cap step has an unsafe custom shell",
+        ),
+        (
+            lambda text: text.replace(
+                "run: pytest -q --cov=hwpx --cov-report=term-missing "
+                "--cov-fail-under=80",
+                "run: |\n"
+                "          pytest -q --cov=hwpx --cov-report=term-missing "
+                "--cov-fail-under=80 || :",
+                1,
+            ),
+            "prepublish step contains a fail-open shell construct",
+        ),
+        (
+            lambda text: text.replace(
+                "      - name: Verify PyPI and GitHub release hashes\n",
+                "      - name: Verify PyPI and GitHub release hashes\n"
+                "        shell: bash -c 'bash \"$1\" || true' -- {0}\n",
+                1,
+            ),
+            "release step has an unsafe custom shell",
+        ),
+        (
+            lambda text: (
+                text
+                + "\n  rogue-publish:\n"
+                "    runs-on: ubuntu-latest\n"
+                "    steps:\n"
+                "      - uses: pypa/gh-action-pypi-publish@"
+                "ba38be9e461d3875417946c167d0b5f3d385a247\n"
+            ),
+            "release workflow must contain only the three expected jobs",
+        ),
+        (
+            lambda text: text.replace(
+                "      - name: Check public repository hygiene",
+                "      - uses: pypa/gh-action-pypi-publish@"
+                "ba38be9e461d3875417946c167d0b5f3d385a247\n"
+                "      - name: Check public repository hygiene",
+                1,
+            ),
+            "publisher actions must exist only in release",
+        ),
     ),
     ids=(
         "remove-legacy-needs",
@@ -156,6 +411,13 @@ def test_public_legacy_cap_is_a_required_fail_closed_job() -> None:
         "ignore-verifier-failure",
         "early-success-exit",
         "unreachable-verifier",
+        "workflow-default-shell-wrapper",
+        "job-default-shell-wrapper",
+        "legacy-step-shell-wrapper",
+        "prepublish-colon-fallback",
+        "remote-step-shell-wrapper",
+        "extra-publish-job",
+        "prepublish-publisher",
     ),
 )
 def test_release_workflow_mutations_are_rejected(
@@ -313,3 +575,226 @@ def test_legacy_runner_propagates_every_subprocess_failure(
 
     with pytest.raises(subprocess.CalledProcessError):
         verifier.install_and_verify(tmp_path / "legacy-venv")
+
+
+def _manifest_bytes(payloads: dict[str, bytes]) -> bytes:
+    return (
+        "\n".join(
+            f"{hashlib.sha256(data).hexdigest()}  {name}"
+            for name, data in payloads.items()
+        )
+        + "\n"
+    ).encode()
+
+
+def test_core_release_build_inputs_and_remote_provenance_are_frozen() -> None:
+    pyproject = tomllib.loads(
+        (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    )
+    assert pyproject["build-system"]["requires"] == [
+        "setuptools==83.0.0",
+        "wheel==0.47.0",
+    ]
+    assert _workflow_safety_failures(RELEASE.read_text(encoding="utf-8")) == []
+
+
+def test_release_hash_verifier_checks_manifest_and_downloaded_assets(
+    tmp_path: Path,
+) -> None:
+    verifier = _release_hash_module()
+    payloads = {
+        "python_hwpx-5.0.0-py3-none-any.whl": b"wheel",
+        "python_hwpx-5.0.0.tar.gz": b"sdist",
+    }
+    manifest = tmp_path / "SHA256SUMS"
+    manifest.write_bytes(_manifest_bytes(payloads))
+    asset_dir = tmp_path / "assets"
+    asset_dir.mkdir()
+    (asset_dir / "SHA256SUMS").write_bytes(manifest.read_bytes())
+    for name, data in payloads.items():
+        (asset_dir / name).write_bytes(data)
+
+    expected = verifier.read_manifest(manifest)
+    verifier.verify_github_assets(
+        expected,
+        manifest=manifest,
+        asset_dir=asset_dir,
+    )
+
+    (asset_dir / next(iter(payloads))).write_bytes(b"tampered")
+    with pytest.raises(RuntimeError, match="GitHub hash differs"):
+        verifier.verify_github_assets(
+            expected,
+            manifest=manifest,
+            asset_dir=asset_dir,
+        )
+
+
+@pytest.mark.parametrize(
+    "manifest_text",
+    (
+        "not-a-hash  package.whl\n",
+        f"{'0' * 64}  nested/package.whl\n{'1' * 64}  package.tar.gz\n",
+        f"{'0' * 64}  one.whl\n{'1' * 64}  two.whl\n",
+    ),
+    ids=("malformed", "path", "missing-sdist"),
+)
+def test_release_hash_verifier_rejects_ambiguous_manifests(
+    tmp_path: Path,
+    manifest_text: str,
+) -> None:
+    verifier = _release_hash_module()
+    manifest = tmp_path / "SHA256SUMS"
+    manifest.write_text(manifest_text, encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        verifier.read_manifest(manifest)
+
+
+class _PyPIResponse:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args) -> None:
+        return None
+
+
+def test_release_hash_verifier_rejects_pypi_digest_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    verifier = _release_hash_module()
+    expected = {
+        "python_hwpx-5.0.0-py3-none-any.whl": "0" * 64,
+        "python_hwpx-5.0.0.tar.gz": "1" * 64,
+    }
+    payload = {
+        "urls": [
+            {
+                "filename": filename,
+                "digests": {"sha256": "f" * 64},
+            }
+            for filename in expected
+        ]
+    }
+    monkeypatch.setattr(
+        verifier.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: _PyPIResponse(),
+    )
+    monkeypatch.setattr(verifier.json, "load", lambda _response: payload)
+
+    with pytest.raises(RuntimeError, match="PyPI hashes differ"):
+        verifier.verify_pypi(expected, attempts=1, retry_seconds=0)
+
+
+def test_release_hash_verifier_exhausts_pypi_lookup_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    verifier = _release_hash_module()
+    attempts: list[str] = []
+
+    def fail_lookup(*_args, **_kwargs):
+        attempts.append("lookup")
+        raise URLError("offline")
+
+    monkeypatch.setattr(verifier.urllib.request, "urlopen", fail_lookup)
+    monkeypatch.setattr(verifier.time, "sleep", lambda _seconds: None)
+
+    with pytest.raises(RuntimeError, match="PyPI hash lookup failed"):
+        verifier.verify_pypi(
+            {"package.whl": "0" * 64, "package.tar.gz": "1" * 64},
+            attempts=3,
+            retry_seconds=0,
+        )
+    assert attempts == ["lookup", "lookup", "lookup"]
+
+
+def test_release_hash_verifier_main_wires_every_remote_check(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    verifier = _release_hash_module()
+    manifest = tmp_path / "SHA256SUMS"
+    asset_dir = tmp_path / "assets"
+    expected = {"package.whl": "0" * 64, "package.tar.gz": "1" * 64}
+    calls: list[object] = []
+    monkeypatch.setattr(verifier, "read_manifest", lambda path: expected)
+    monkeypatch.setattr(
+        verifier,
+        "verify_pypi",
+        lambda observed: calls.append(("pypi", observed)),
+    )
+    monkeypatch.setattr(
+        verifier,
+        "verify_github_release",
+        lambda observed, **kwargs: calls.append(
+            ("github", observed, kwargs)
+        ),
+    )
+
+    assert (
+        verifier.main(
+            [
+                "--manifest",
+                str(manifest),
+                "--asset-dir",
+                str(asset_dir),
+                "--tag",
+                "v5.0.0",
+            ]
+        )
+        == 0
+    )
+    assert calls == [
+        ("pypi", expected),
+        (
+            "github",
+            expected,
+            {
+                "manifest": manifest,
+                "asset_dir": asset_dir,
+                "tag": "v5.0.0",
+            },
+        ),
+    ]
+
+
+def test_github_release_readback_retries_with_fresh_directories(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    verifier = _release_hash_module()
+    payloads = {
+        "python_hwpx-5.0.0-py3-none-any.whl": b"wheel",
+        "python_hwpx-5.0.0.tar.gz": b"sdist",
+    }
+    manifest = tmp_path / "SHA256SUMS"
+    manifest.write_bytes(_manifest_bytes(payloads))
+    expected = verifier.read_manifest(manifest)
+    attempts: list[Path] = []
+
+    def download(tag: str, directory: Path) -> None:
+        assert tag == "v5.0.0"
+        attempts.append(directory)
+        if len(attempts) == 1:
+            raise verifier.subprocess.CalledProcessError(1, ["gh"])
+        (directory / "SHA256SUMS").write_bytes(manifest.read_bytes())
+        for name, data in payloads.items():
+            (directory / name).write_bytes(data)
+
+    monkeypatch.setattr(verifier, "download_github_assets", download)
+    monkeypatch.setattr(verifier.time, "sleep", lambda _seconds: None)
+    asset_dir = tmp_path / "assets"
+
+    verifier.verify_github_release(
+        expected,
+        manifest=manifest,
+        asset_dir=asset_dir,
+        tag="v5.0.0",
+        attempts=2,
+        retry_seconds=0,
+    )
+
+    assert len(attempts) == 2
+    assert attempts[0] != attempts[1]
+    assert asset_dir.is_dir()
