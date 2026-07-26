@@ -45,6 +45,7 @@ TEXT_ARTIFACT_SUFFIXES = (
     ".yaml",
     ".yml",
 )
+DISTRIBUTION_SUFFIXES = (".whl", ".tar.gz")
 REMOVED_PATH_FIXTURE = (
     ROOT / "docs" / "architecture" / "module-ownership-removed-5.0.json"
 )
@@ -154,6 +155,22 @@ def _publication_files(root: Path = ROOT) -> list[_PublicationFile]:
             root=root,
         )
     )
+    # Release artifacts are intentionally ignored by git, but they are exactly
+    # what this gate must inspect immediately before publication. Restrict this
+    # extra disk lane to direct wheel/sdist children of dist/ so unrelated
+    # ignored caches and environments never enter the scan.
+    dist = root / "dist"
+    if dist.is_symlink():
+        raise ValueError("dist must not be a symlink")
+    if dist.is_dir():
+        worktree_paths.update(
+            candidate.relative_to(root).as_posix()
+            for candidate in dist.iterdir()
+            if (
+                (candidate.is_file() or candidate.is_symlink())
+                and candidate.name.endswith(DISTRIBUTION_SUFFIXES)
+            )
+        )
     worktree_files: dict[str, bytes] = {}
     for path in worktree_paths:
         candidate = root / path

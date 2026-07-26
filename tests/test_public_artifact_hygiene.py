@@ -382,6 +382,84 @@ def test_distribution_hygiene_reads_staged_only_wheel_snapshot(
     )
 
 
+def test_distribution_hygiene_reads_gitignored_release_artifacts(
+    hygiene_git_repo: Path,
+) -> None:
+    gitignore = hygiene_git_repo / ".gitignore"
+    gitignore.write_text("dist/\n", encoding="utf-8")
+    _git(hygiene_git_repo, "add", ".gitignore")
+    _git(hygiene_git_repo, "commit", "--quiet", "-m", "ignore build output")
+    dist = hygiene_git_repo / "dist"
+    dist.mkdir()
+    wheel = dist / "ignored.whl"
+    wheel.write_bytes(
+        _wheel_bytes(
+            "hwpx/form_fit/seal.py",
+            (
+                "/" + "Users" + "/private/ignored-artifact.py\n"
+            ).encode(),
+        )
+    )
+    sdist = dist / "ignored.tar.gz"
+    sdist.write_bytes(
+        _sdist_bytes(
+            "python_hwpx-5.0.0/src/hwpx/tools/report_parser.py",
+            (
+                "/" + "Users" + "/private/ignored-sdist.py\n"
+            ).encode(),
+        )
+    )
+
+    files = hygiene._publication_files(hygiene_git_repo)
+    failures = hygiene._distribution_failures(files, "core")
+
+    assert any(
+        file.path == "dist/ignored.whl" and file.origin == "worktree"
+        for file in files
+    )
+    assert any(
+        file.path == "dist/ignored.tar.gz" and file.origin == "worktree"
+        for file in files
+    )
+    assert any(
+        "removed core module in public artifact: "
+        "dist/ignored.whl [worktree]!hwpx/form_fit/seal.py"
+        in failure
+        for failure in failures
+    )
+    assert any(
+        "removed core module in public artifact: "
+        "dist/ignored.tar.gz [worktree]!"
+        "python_hwpx-5.0.0/src/hwpx/tools/report_parser.py"
+        in failure
+        for failure in failures
+    )
+    assert any(
+        "workstation-shaped path in public artifact: "
+        "dist/ignored.whl [worktree]!hwpx/form_fit/seal.py"
+        in failure
+        for failure in failures
+    )
+    assert any(
+        "workstation-shaped path in public artifact: "
+        "dist/ignored.tar.gz [worktree]!"
+        "python_hwpx-5.0.0/src/hwpx/tools/report_parser.py"
+        in failure
+        for failure in failures
+    )
+
+
+def test_distribution_hygiene_rejects_a_symlinked_dist_directory(
+    hygiene_git_repo: Path,
+) -> None:
+    outside = hygiene_git_repo.parent / "outside-dist"
+    outside.mkdir()
+    os.symlink(outside, hygiene_git_repo / "dist")
+
+    with pytest.raises(ValueError, match="dist must not be a symlink"):
+        hygiene._publication_files(hygiene_git_repo)
+
+
 def test_distribution_hygiene_reads_differing_worktree_sdist_snapshot(
     hygiene_git_repo: Path,
 ) -> None:

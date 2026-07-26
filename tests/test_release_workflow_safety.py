@@ -265,6 +265,33 @@ def test_legacy_runner_executes_every_command_with_check_true(
     assert calls[6][0][-1] == "--help"
 
 
+def test_legacy_runner_main_dispatches_install_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    verifier = _verifier_module()
+    calls: list[Path] = []
+
+    monkeypatch.setattr(
+        verifier,
+        "install_and_verify",
+        lambda venv: calls.append(venv),
+    )
+
+    venv = tmp_path / "legacy-venv"
+    assert verifier.main(["--venv", str(venv)]) == 0
+    assert calls == [venv]
+
+
+def test_legacy_runner_main_propagates_inspection_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    verifier = _verifier_module()
+    monkeypatch.setattr(verifier, "inspect_installed_pair", lambda: 37)
+
+    assert verifier.main(["--inspect-installed"]) == 37
+
+
 @pytest.mark.parametrize("failed_command", range(7))
 def test_legacy_runner_propagates_every_subprocess_failure(
     monkeypatch: pytest.MonkeyPatch,
