@@ -665,6 +665,31 @@ def test_real_lazy_loader_is_exactly_pinned_and_internally_guarded() -> None:
     assert boundary._reverse_imports(path) == []
 
 
+def test_ast_fingerprint_normalizes_only_empty_parser_version_fields() -> None:
+    path = ROOT / boundary.LAZY_IMPORT_FILE
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "__getattr__"
+    )
+    baseline = boundary._stable_ast_dump(function)
+
+    simulated_new_parser = copy.deepcopy(function)
+    if "type_params" not in simulated_new_parser._fields:
+        simulated_new_parser._fields = (
+            *simulated_new_parser._fields,
+            "type_params",
+        )
+    simulated_new_parser.type_params = []
+    assert boundary._stable_ast_dump(simulated_new_parser) == baseline
+
+    simulated_new_parser.type_params = [
+        ast.Name(id="UnsafeGenericParameter", ctx=ast.Load())
+    ]
+    assert boundary._stable_ast_dump(simulated_new_parser) != baseline
+
+
 @pytest.mark.parametrize(
     ("old", "new"),
     (

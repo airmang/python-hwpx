@@ -52,11 +52,12 @@ FORBIDDEN_EXECUTION_IMPORT_ROOTS = ("ctypes", "subprocess")
 LAZY_IMPORT_FILE = "src/hwpx/__init__.py"
 LAZY_IMPORT_CALL_SITES = ((290, 23), (299, 23))
 LAZY_IMPORT_CALL_SHA256 = (
-    "a37e415eadc1ac969a1a45d9287c8ba314441e2103b0ba8fa7928818dfe56d00"
+    "4264dfad61940e53e9b34f46679104730e8aedadd557acf11e595484d7b9a744"
 )
 LAZY_GETATTR_SHA256 = (
-    "ba3768a8b562e4b19868656c6bd17a65fd407c387201d524831fb2023b5ea030"
+    "f40a6478d266d6fabb89fc67504166abd9c195605f068d408eb29cd901dbba73"
 )
+IGNORED_EMPTY_AST_FIELDS = frozenset({"type_params"})
 LAZY_EXPORT_MAP_COUNT = 12
 LAZY_EXPORT_MAP_SHA256 = (
     "4d75d325448df267cd7a5c8e489a811cf8703363362a2a6140e23d1c7cbf57e5"
@@ -278,6 +279,39 @@ def _lazy_import_calls(tree: ast.Module) -> list[ast.Call]:
     ]
 
 
+def _stable_ast_value(value: Any) -> Any:
+    """Return a version-neutral, structure-complete AST representation.
+
+    ``ast.dump`` changed its empty-field rendering in Python 3.13, while
+    Python 3.12 added empty ``type_params`` fields to function/class nodes.
+    Those parser-only differences must not make an identical source tree fail
+    on a supported Python minor.  All real syntax remains represented:
+    ``type_params`` is omitted only when empty and therefore still changes the
+    fingerprint if generic syntax is introduced.
+    """
+
+    if isinstance(value, ast.AST):
+        fields: list[list[Any]] = []
+        for name, child in ast.iter_fields(value):
+            if name in IGNORED_EMPTY_AST_FIELDS and child == []:
+                continue
+            fields.append([name, _stable_ast_value(child)])
+        return [type(value).__name__, fields]
+    if isinstance(value, list):
+        return [_stable_ast_value(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return repr(value)
+
+
+def _stable_ast_dump(node: ast.AST) -> str:
+    return json.dumps(
+        _stable_ast_value(node),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
 def _lazy_call_fingerprint(
     calls: list[ast.Call],
 ) -> tuple[tuple[tuple[int, int], ...], str]:
@@ -285,7 +319,7 @@ def _lazy_call_fingerprint(
         (
             node.lineno,
             node.col_offset,
-            ast.dump(node, annotate_fields=True, include_attributes=False),
+            _stable_ast_dump(node),
         )
         for node in calls
     )
@@ -307,11 +341,7 @@ def _function_fingerprint(tree: ast.Module, name: str) -> str | None:
     ]
     if len(functions) != 1:
         return None
-    payload = ast.dump(
-        functions[0],
-        annotate_fields=True,
-        include_attributes=False,
-    )
+    payload = _stable_ast_dump(functions[0])
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 

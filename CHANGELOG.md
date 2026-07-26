@@ -51,6 +51,9 @@ import has a named replacement in
 - `HwpxDocument.add_tracked_replace()` now writes the inserted replacement at
   the deleted text's source position, preserves that run's character style,
   and leaves later tracked inserts in their original order.
+- The product-boundary lazy-loader fingerprint now canonicalizes parser-only
+  empty AST fields, so the same guarded source passes consistently on Python
+  3.10–3.13 while real syntax changes still fail closed.
 - `verify_redline` and `verify_fill` take an injected
   `hwpx.quality.rendering.RenderBackend`. Core does not look for a Hancom
   installation any more; without a backend the report is
