@@ -36,4 +36,4 @@ with HwpxDocument.new() as document:
 The contract has 25 scenarios. A scenario may change only with a
 reviewed public API decision. Application workflows such as evaluation-plan
 fill, genre authoring, PII policy, or agent blueprint replay belong to
-`hwpx-mcp-server` tests instead.
+`python-hwpx-automation` tests instead.

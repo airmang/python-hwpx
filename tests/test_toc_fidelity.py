@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""M7 / S-062 P1: native TOC / cross-reference fidelity harness.
+"""Native TOC / cross-reference fidelity harness.
 
 Ground truth = owner-authored Hancom gold pair (tests/fixtures/m7_toc_gold/):
 A = fresh TOC (entries 1,2,2,3; CROSSREF cached 2), B = after body growth with
 NO 차례 새로 고침 (CROSSREF auto-recomputed to 3; TOC entries stale).
 No live Hancom render in this suite — the oracle leg is exercised with
-synthetic word boxes (S-060 discipline: live render is HWPX_MAC_ORACLE_SMOKE).
+synthetic word boxes (live render is HWPX_MAC_ORACLE_SMOKE).
 """
 from __future__ import annotations
 

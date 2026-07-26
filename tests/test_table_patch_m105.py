@@ -2,7 +2,7 @@
 """M10.5 (014) primitives on the REAL 평가계획 forms.
 
 FR-001 merged-block clone (성취기준 A~E unit) and FR-003 delete_column on a
-fully-merged table (반영비율) — the two primitives S-064 could not do. Pinned over
+fully-merged table (반영비율) — the original two primitives could not do. Pinned over
 the province's publicly-distributed blank forms (no owner PII)."""
 from __future__ import annotations
 
@@ -144,7 +144,7 @@ def test_banyoung_has_no_uniform_row(form2):
     from hwpx.table_patch import _uniform_col_widths, _grid_col_widths
     tbl = _table(form2, 22).decode("utf-8")
     _p, rows, _s = _parse_table(tbl)
-    assert _uniform_col_widths(rows) is None            # the S-064 blocker
+    assert _uniform_col_widths(rows) is None            # the original blocker
     assert _grid_col_widths(tbl) is not None            # FR-003 path derives them
 
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""S-064 / M10 P1 — byte-preserving cell fill by address.
+"""Byte-preserving cell fill by address.
 
 Fixtures are in-repo, license-cleared corpus forms (no owner PII). The 2026-07-03
 case forms are the owner's professional material and are NOT vendored; their

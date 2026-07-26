@@ -23,7 +23,7 @@ import pytest
 # quietly — a bare skip reads as "environment" when it may mean "gap".
 pytest.importorskip(
     "hwpx_automation",
-    reason="authoring-quality inspectors moved to hwpx-mcp-server in 5.0",
+    reason="authoring-quality inspectors moved to python-hwpx-automation in 5.0",
 )
 
 import importlib.util

@@ -14,21 +14,71 @@ fate 대조는 그걸 못 잡았는데, 잡도록 짜여 있지 않았기 때문
 from __future__ import annotations
 
 import ast
+import copy
+import hashlib
 import json
 import zipfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
-LEDGER = ROOT.parent / ".harness" / "evidence" / "049" / "p2" / "member-adjudication-after.json"
-
-#: 응용 계층으로 판정된 fate. 이 이름들이 core에 정의돼 있으면 경계가 안 끝난 것이다.
-APPLICATION_FATES = {"move-mcp", "dev-only-consumer"}
+LEDGER = ROOT / "tests" / "data" / "application_owned_members.json"
 
 #: 한컴 GUI/COM 자동화 자산. 포맷 라이브러리가 배송할 것이 아니다.
 EXECUTION_ASSET_SUFFIXES = (".ps1", ".applescript", ".vbs", ".scpt")
+EXPECTED_APPLICATION_MODULES = (
+    "hwpx.form_fit.seal",
+    "hwpx.form_fit.wordbox",
+    "hwpx.visual",
+    "hwpx.visual.block_splits",
+    "hwpx.visual.detectors",
+    "hwpx.visual.diff",
+    "hwpx.visual.fixture_corpus",
+    "hwpx.visual.hancom_worker",
+    "hwpx.visual.oracle",
+    "hwpx.visual.page_qa",
+    "hwpx.visual.qa_contracts",
+    "hwpx.visual.qa_metrics",
+)
+EXPECTED_APPLICATION_MEMBER_COUNT = 119
+EXPECTED_APPLICATION_MEMBER_SHA256 = (
+    "ec999a987be9eea0f9f97ff7dbeed245ace00969c830b633a5eda64da961fb72"
+)
+
+
+def _canonical_application_members(ledger: dict[str, Any]) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            f"{row['module']}:{member}"
+            for row in ledger["modules"]
+            for member in row["members"]
+        )
+    )
+
+
+def _assert_complete_application_member_ledger(ledger: dict[str, Any]) -> None:
+    assert ledger["schemaVersion"] == "python-hwpx.application-owned-members/v1"
+    modules = tuple(row["module"] for row in ledger["modules"])
+    assert modules == EXPECTED_APPLICATION_MODULES
+
+    canonical_members = _canonical_application_members(ledger)
+    assert len(canonical_members) == EXPECTED_APPLICATION_MEMBER_COUNT
+    assert len(set(canonical_members)) == EXPECTED_APPLICATION_MEMBER_COUNT
+    digest = hashlib.sha256(
+        ("\n".join(canonical_members) + "\n").encode("utf-8")
+    ).hexdigest()
+    assert digest == EXPECTED_APPLICATION_MEMBER_SHA256
+
+    assert ledger["canonicalization"] == {
+        "format": "sorted '<module>:<member>' lines encoded as UTF-8 with a final LF",
+        "moduleCount": len(EXPECTED_APPLICATION_MODULES),
+        "memberCount": EXPECTED_APPLICATION_MEMBER_COUNT,
+        "moduleList": list(EXPECTED_APPLICATION_MODULES),
+        "memberListSha256": EXPECTED_APPLICATION_MEMBER_SHA256,
+    }
 
 
 def _defined_names() -> dict[str, set[str]]:
@@ -51,22 +101,22 @@ def _defined_names() -> dict[str, set[str]]:
     return defined
 
 
-@pytest.mark.skipif(not LEDGER.exists(), reason="member 판정표는 harness 체크아웃에만 있다")
 def test_no_application_member_survives_in_core() -> None:
     """응용으로 판정된 member가 core에 남아 있으면 안 된다.
 
     모듈이 살아남는 것과 그 안의 응용 member가 살아남는 것은 다른 문제다.
-    121개 전부가 남아 있던 것이 이 게이트를 쓰게 된 이유다.
+    판정 대상 member 전부가 남아 있던 것이 이 게이트를 쓰게 된 이유다.
     """
 
     ledger = json.loads(LEDGER.read_text(encoding="utf-8"))
+    _assert_complete_application_member_ledger(ledger)
     defined = _defined_names()
 
     survivors = [
-        member
-        for member in ledger["members"]
-        if member["proposedFate"] in APPLICATION_FATES
-        and member["name"] in defined.get(member["module"], set())
+        {"module": row["module"], "name": member}
+        for row in ledger["modules"]
+        for member in row["members"]
+        if member in defined.get(row["module"], set())
     ]
 
     if survivors:
@@ -79,6 +129,20 @@ def test_no_application_member_survives_in_core() -> None:
         pytest.fail(
             f"응용으로 판정된 member {len(survivors)}개가 아직 core에 정의돼 있다:\n{detail}"
         )
+
+
+def test_reduced_application_member_fixture_fails_even_if_metadata_is_rewritten() -> None:
+    ledger = json.loads(LEDGER.read_text(encoding="utf-8"))
+    reduced = copy.deepcopy(ledger)
+    reduced["modules"][0]["members"].pop()
+    canonical_members = _canonical_application_members(reduced)
+    reduced["canonicalization"]["memberCount"] = len(canonical_members)
+    reduced["canonicalization"]["memberListSha256"] = hashlib.sha256(
+        ("\n".join(canonical_members) + "\n").encode("utf-8")
+    ).hexdigest()
+
+    with pytest.raises(AssertionError):
+        _assert_complete_application_member_ledger(reduced)
 
 
 def test_no_hancom_execution_asset_is_in_the_source_tree() -> None:

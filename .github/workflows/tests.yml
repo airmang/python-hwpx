@@ -32,11 +32,10 @@ jobs:
           ruff check --select E9,F .
           ruff check --select E4,E7,E9,F \
             src/hwpx/document.py \
-            src/hwpx/agent/{commands,document,story}.py \
             src/hwpx/oxml/{_document_impl,_document_primitives,document,document_parts,header_part,memo,numbering,objects,paragraph,run,section,section_format,section_story,simple_parts,table}.py \
             src/hwpx/tools/package_validator.py \
             tests/template_automation/generate_fixtures.py \
-            tests/{test_agent_story_commands,test_oxml_modularization,test_paragraph_section_management,test_section_headers}.py
+            tests/{test_oxml_modularization,test_paragraph_section_management,test_section_headers}.py
 
       - name: Validate gradual typing migration scope
         run: python scripts/check_typing_generics_scope.py
@@ -53,23 +52,6 @@ jobs:
           COVERAGE_FAIL_UNDER: 80
         run: |
           pytest -v -ra --cov=hwpx --cov-report=term-missing --cov-fail-under=${COVERAGE_FAIL_UNDER} 2>&1 | tee pytest-summary.log
-
-      - name: Conformance — structural badge tiers vs golden (plan §2 Phase G)
-        run: |
-          # No Hancom in CI: the structural tiers (Open / Semantic / Form) gate
-          # here and VisualComplete is reported unverified (§0.0). A dropped pass
-          # rate against the committed golden fails the job — regression as a
-          # number, not a vibe. The oracle tier runs on a Hancom-reachable box.
-          hwpx-conformance run --tier structural \
-            --check tests/conformance/golden/structural.json \
-            --out conformance-report 2>/dev/null
-
-      - name: Upload conformance report
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: conformance-report-${{ matrix.python-version }}
-          path: conformance-report
 
       - name: Upload pytest summary log
         if: always()

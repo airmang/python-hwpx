@@ -9,7 +9,7 @@ import pytest
 # skipping quietly.
 pytest.importorskip(
     "hwpx_automation",
-    reason="fuzz harness needs hwpx-mcp-server; the document builder moved there in 5.0",
+    reason="fuzz harness needs python-hwpx-automation; the builder moved there in 5.0",
 )
 
 import json

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Save/validate/export domain owner behind the HwpxDocument facade (S-084)."""
+"""Save/validate/export domain owner behind the HwpxDocument facade."""
 
 from __future__ import annotations
 

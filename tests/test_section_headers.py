@@ -192,12 +192,12 @@ def test_preserving_header_text_adds_only_missing_target_mirror() -> None:
     )
 
     section.reset_dirty()
-    target.set_simple_text_preserving("S-080 preserved header")
+    target.set_simple_text_preserving("preserved header text")
 
     mirrors = _mirrored_stories(section, "header", target.id)
     assert len(mirrors) == 1
-    assert target.text == "S-080 preserved header"
-    assert "".join(mirrors[0].itertext()) == "S-080 preserved header"
+    assert target.text == "preserved header text"
+    assert "".join(mirrors[0].itertext()) == "preserved header text"
     assert target.element.find(f"{HP}subList/{HP}p") is target_paragraph
     assert target.element.find(f"{HP}subList/{HP}p/{HP}run") is target_run
     assert ET.tostring(unrelated.element) == unrelated_logical_before

@@ -27,7 +27,7 @@ major에서 제거합니다(경고 없는 즉시 제거 금지). 4.0.0에서 제
 **공개 표면이 아닙니다**. 이 경로들은 예고 없이 바뀔 수 있으니 위 계층의 이름만
 사용하세요.
 
-## stable (67)
+## stable (34)
 
 major 경계에서만 깨지는 이름들입니다.
 
@@ -43,37 +43,16 @@ major 경계에서만 깨지는 이름들입니다.
 - `BytePreservingPatchResult`, `ParagraphTextPatch`, `PatchApplied`,
   `PatchSkipped`, `paragraph_patch`
 
-### 문서 생성(plan) · authoring
-- `DocumentPlan`, `DocumentBlock`, `DocumentStylePreset`, `DEFAULT_STYLE_PRESET`
-- `create_document_from_plan`, `normalize_document_plan`, `validate_document_plan`,
-  `get_document_plan_schema`
-- `PlanValidationReport`, `PlanValidationIssue`
-- `inspect_document_authoring_quality`, `inspect_operating_plan_quality`
-- `approval_box`
-- `AUTHORING_REPORT_VERSION`, `DOCUMENT_PLAN_SCHEMA_VERSION`
-
 ### 읽기·추출
 - `TextExtractor`, `ParagraphInfo`, `SectionInfo`, `DEFAULT_NAMESPACES`
 - `ObjectFinder`, `FoundElement`
 - `HwpxMarkdownConverter`
 
-### 스타일 프로필·템플릿
-- `extract_style_profile`, `apply_style_profile_to_plan`, `compare_style_profiles`,
-  `placeholder_fill_report`
-- `describe_template`, `list_templates`, `register_template`
-- `STYLE_PROFILE_SCHEMA_VERSION`, `STYLE_PROFILE_COMPARISON_SCHEMA_VERSION`,
-  `TEMPLATE_REGISTRY_SCHEMA_VERSION`
-
-### 비교·메일머지·표 계산·공문 린트·고급 생성기
-- `doc_diff`, `diff_paragraphs`, `build_comparison_table_plan`,
-  `inspect_reference_consistency`
-- `mail_merge`, `load_mail_merge_rows`, `inspect_mail_merge_placeholders`
-- `table_compute`
-- `inspect_official_document_style`
-- `build_image_grid`, `build_meeting_nameplates`, `build_organization_chart`
+### 비교·메일머지
+- `doc_diff`, `diff_paragraphs`, `inspect_reference_consistency`
+- `merge_template_rows`, `load_mail_merge_rows`, `inspect_mail_merge_placeholders`
 - `DOC_DIFF_REPORT_VERSION`, `REFERENCE_CONSISTENCY_REPORT_VERSION`,
-  `MAIL_MERGE_REPORT_VERSION`, `TABLE_COMPUTE_REPORT_VERSION`,
-  `OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION`
+  `MAIL_MERGE_REPORT_VERSION`
 
 ### 메타
 - `__version__`
@@ -92,7 +71,7 @@ major 경계에서만 깨지는 이름들입니다.
 > `HwpxMarkdownConverter`(HWPX → Markdown 읽기)는 성숙한 경로라 **stable**입니다.
 > 위 ingestion 프레임워크(임의 포맷 → HWPX)만 experimental입니다.
 
-## deprecated (4)
+## 5.0에서 제거된 deprecated 표면 (4)
 
 대체 = **구조적 form-fill 경로**(라이브러리 `hwpx.table_patch.fill_cells` 계열,
 MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
@@ -126,12 +105,11 @@ fail-closed 공개 경로가 던지는 예외는 `hwpx.errors.HwpxError`(최상�
 | `hwpx.table_patch.TableStructureError` | `table-structure` | `HwpxError`, `ValueError` | 표 구조 편집 거부(fail-closed)·미지원 |
 | `hwpx.table_patch.RenderCheckRequired` | `render-check-required` | `HwpxError`, `RuntimeError` | `verify_fill(require=True)`인데 실한컴 오라클 미렌더 |
 
-이번 major에서 **공개 계약 경로부터** 이행했습니다. 도메인 하위 시스템(agent
-`AgentContractError`/`AgentError`는 이미 code·suggestion을 별도로 보유, exam·equation
-등)의 나머지 raise 사이트는 §11(대규모 일괄 개조 금지) 정신에 따라 후속으로 남깁니다.
+응용 계층의 agent·exam 오류 계약은 `python-hwpx-automation`이 소유합니다.
+이 문서는 core에 실제로 남은 공개 예외만 기술합니다.
 
 ## 스키마 동결 정책
 
 core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required 필드
 집합이 **동결**됩니다. document-plan·agent-batch·mixed-form-plan 스키마는 5.0에서
-`hwpx-mcp-server`가 발행 주체가 됐으며 그쪽 계약 정책을 따릅니다. 정책·계약 테스트는 [스키마 동결](schema-freeze.md)을 보세요.
+`python-hwpx-automation`이 발행 주체가 됐으며 그쪽 계약 정책을 따릅니다. 정책·계약 테스트는 [스키마 동결](schema-freeze.md)을 보세요.

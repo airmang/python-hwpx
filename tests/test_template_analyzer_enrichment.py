@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import json
-import subprocess
-import sys
 from pathlib import Path
 
 from hwpx.document import HwpxDocument
 from hwpx.tools.template_analyzer import (
     TEMPLATE_ANALYSIS_SCHEMA_VERSION,
     analyze_template,
-    template_analysis_agent_schema,
 )
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
@@ -93,18 +89,8 @@ def test_template_analyzer_reports_rich_styles_table_geometry_and_body_width(tmp
     )
 
 
-def test_template_analyzer_schema_json_option_is_agent_friendly(tmp_path: Path) -> None:
-    source = tmp_path / "schema-template.hwpx"
-    _build_enriched_template(source)
+def test_template_analyzer_has_no_agent_schema_surface() -> None:
+    import hwpx.tools.template_analyzer as analyzer
 
-    result = subprocess.run(
-        [sys.executable, "-m", "hwpx.tools.template_analyzer", str(source), "--schema-json"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    payload = json.loads(result.stdout)
-
-    assert payload == template_analysis_agent_schema()
-    assert payload["schemaVersion"] == "hwpx.template-analysis.agent-schema.v1"
-    assert "table_summaries[].column_widths.widths" in payload["fieldGuide"]
+    assert not hasattr(analyzer, "TEMPLATE_ANALYSIS_AGENT_SCHEMA_VERSION")
+    assert not hasattr(analyzer, "template_analysis_agent_schema")

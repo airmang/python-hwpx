@@ -1,7 +1,7 @@
 """Characterization tests for hwpx.tools.fuzz.catalog.derive_expected.
 
 derive_expected had zero direct test coverage (only indirect, through the
-fuzz runner pipeline) ahead of a complexity refactor (S-088 P3). These tests
+fuzz runner pipeline) ahead of a complexity refactor. These tests
 pin its behavior for every operation branch so the decomposition into
 per-operation handlers can be verified as behavior-preserving.
 """
@@ -16,7 +16,7 @@ import pytest
 # skipping quietly.
 pytest.importorskip(
     "hwpx_automation",
-    reason="fuzz harness needs hwpx-mcp-server; the document builder moved there in 5.0",
+    reason="fuzz harness needs python-hwpx-automation; the builder moved there in 5.0",
 )
 
 from fuzz.catalog import derive_expected

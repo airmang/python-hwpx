@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""M6 / S-060 P3: corpus-scale run-format round-trip fidelity gate.
+"""Corpus-scale run-format round-trip fidelity gate.
 
 Content-level guard (charPr-resolved run spans survive open->save->reopen) across
 the real-Korean hwpxlib conformance corpus. Structural — no Hancom oracle.

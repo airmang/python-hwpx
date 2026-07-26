@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""M7 / S-062 P2: native TOC / CROSSREF emission per the P0 contract.
+"""Native TOC / CROSSREF emission per the reverse-engineered contract.
 
 Emission is verified with the P1 harness (hwpx.tools.toc_fidelity) — the
 authoring surface and the fidelity harness agree by construction, mirroring

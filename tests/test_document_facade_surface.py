@@ -1,6 +1,6 @@
 """Characterization lock for the ``HwpxDocument`` public facade surface.
 
-S-084 decomposes ``hwpx/document.py`` into domain owner modules behind the
+The facade decomposition moves ``hwpx/document.py`` behavior into domain owners behind the
 facade. This test freezes the public API — names, member kinds, and exact
 signatures — against a checked-in snapshot so the decomposition provably
 changes nothing a caller can see. Private helpers are deliberately excluded:

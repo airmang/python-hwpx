@@ -12,7 +12,9 @@
 from __future__ import annotations
 
 import importlib
+import re
 import warnings
+from pathlib import Path
 
 import pytest
 
@@ -30,6 +32,73 @@ EXPERIMENTAL_NAMES = frozenset(_EXPERIMENTAL_EXPORTS)
 DEPRECATED_NAMES = frozenset(_DEPRECATED_EXPORTS)
 
 ALL_LEGACY_NAMES = STABLE_NAMES | EXPERIMENTAL_NAMES | DEPRECATED_NAMES
+RETIRED_NAMES = frozenset(
+    {
+        "analyze_template_formfit",
+        "apply_template_formfit",
+        "TEMPLATE_FORMFIT_BASELINE_SCHEMA_VERSION",
+        "TEMPLATE_FORMFIT_PLAN_SCHEMA_VERSION",
+    }
+)
+
+REMOVED_MODULES = (
+    "agent",
+    "authoring",
+    "builder",
+    "design",
+    "presets",
+    "exam",
+    "evalplan_fill",
+    "form_fill",
+    "formfill_quality",
+    "guidance_scan",
+    "template_formfit",
+    "fill_residue",
+    "visual",
+)
+REMOVED_TOOL_MODULES = (
+    "pii",
+    "official_lint",
+    "table_compute",
+    "style_profile",
+    "advanced_generators",
+    "report_parser",
+)
+REMOVED_FORM_FIT_SUBMODULES = ("seal", "wordbox")
+MOVED_NAMES = tuple(sorted(getattr(hwpx, "_MOVED_TO_COMPANION", {})))
+
+
+def _joined_pattern(names: tuple[str, ...]) -> str:
+    return "|".join(re.escape(name) for name in names)
+
+
+REMOVED_REFERENCE_PATTERN = re.compile(
+    r"\bhwpx\.(?:"
+    + _joined_pattern(REMOVED_MODULES)
+    + r")(?=\.|\b)(?!-)"
+    + r"|\bhwpx\.tools\.(?:"
+    + _joined_pattern(REMOVED_TOOL_MODULES)
+    + r")(?=\.|\b)(?!-)"
+    + r"|\bhwpx\.form_fit\.(?:"
+    + _joined_pattern(REMOVED_FORM_FIT_SUBMODULES)
+    + r")(?=\.|\b)(?!-)"
+    + r"|\b(?:src/)?hwpx/(?:"
+    + _joined_pattern(REMOVED_MODULES)
+    + r")(?=/|\b)(?!-)"
+    + r"|\b(?:src/)?hwpx/tools/(?:"
+    + _joined_pattern(REMOVED_TOOL_MODULES)
+    + r")(?=/|\b)(?!-)"
+    + r"|\b(?:src/)?hwpx/form_fit/(?:"
+    + _joined_pattern(REMOVED_FORM_FIT_SUBMODULES)
+    + r")(?=/|\b)(?!-)"
+    + (
+        r"|from\s+hwpx\s+import\s+[^\n]*\b(?:"
+        + _joined_pattern(MOVED_NAMES)
+        + r")\b"
+        if MOVED_NAMES
+        else ""
+    )
+)
 
 
 def test_all_is_exactly_the_stable_set() -> None:
@@ -107,12 +176,11 @@ def test_removed_formfit_names_are_gone_not_merely_warned() -> None:
     nobody sees until they hit it.
     """
 
-    for name in ("analyze_template_formfit", "apply_template_formfit",
-                 "TEMPLATE_FORMFIT_BASELINE_SCHEMA_VERSION",
-                 "TEMPLATE_FORMFIT_PLAN_SCHEMA_VERSION"):
+    assert frozenset(hwpx._RETIRED_SURFACES) == RETIRED_NAMES
+    for name in RETIRED_NAMES:
         assert name not in hwpx.__all__
         assert name not in DEPRECATED_NAMES
-        with pytest.raises(AttributeError):
+        with pytest.raises(hwpx.RetiredSurface):
             getattr(hwpx, name)
 
 
@@ -167,9 +235,6 @@ def test_documentation_does_not_teach_a_module_this_package_no_longer_has() -> N
     same reason — they describe what was true when written.
     """
 
-    import re
-    from pathlib import Path
-
     docs = Path(__file__).resolve().parents[1] / "docs"
     exempt = {
         "migration-5.0.md",
@@ -178,15 +243,6 @@ def test_documentation_does_not_teach_a_module_this_package_no_longer_has() -> N
         "changelog.md",
         "2026-06-02-hwpx-builder-design.md",
     }
-    removed = (
-        "agent", "authoring", "builder", "design", "presets", "exam",
-        "evalplan_fill", "form_fill", "formfill_quality", "guidance_scan",
-        "template_formfit", "fill_residue",
-    )
-    removed_tools = (
-        "pii", "official_lint", "table_compute", "style_profile",
-        "advanced_generators", "report_parser",
-    )
     # A trailing hyphen means a schema identifier (`hwpx.agent-batch/v1`), not
     # an import path. Those are contract names; where they moved is a different
     # question, answered in the schema-freeze note itself.
@@ -194,16 +250,6 @@ def test_documentation_does_not_teach_a_module_this_package_no_longer_has() -> N
     # ``from hwpx import create_document_from_plan`` 처럼 **이름**을 가져오는
     # 쪽이고(66·56개 파일), 그건 hwpx.<module> 패턴에 걸리지 않는다.
     # 이동한 이름 표는 패키지가 이미 갖고 있으므로 그것을 쓴다.
-    import hwpx
-
-    moved_names = sorted(getattr(hwpx, "_MOVED_TO_COMPANION", {}))
-    pattern = re.compile(
-        r"\bhwpx\.(?:" + "|".join(removed) + r")\b(?!-)"
-        r"|\bhwpx\.tools\.(?:" + "|".join(removed_tools) + r")\b(?!-)"
-        + (r"|from\s+hwpx\s+import\s+[^\n]*\b(?:" + "|".join(moved_names) + r")\b"
-           if moved_names else "")
-    )
-
     offences: list[str] = []
     for document in sorted(docs.rglob("*.md")):
         if document.name in exempt:
@@ -218,10 +264,64 @@ def test_documentation_does_not_teach_a_module_this_package_no_longer_has() -> N
                 "hwpx_automation" in line or "hwpx_mcp_server" in line
             ):
                 continue
-            for match in pattern.finditer(line):
+            for match in REMOVED_REFERENCE_PATTERN.finditer(line):
                 offences.append(f"{document.relative_to(docs)}:{number}: {match.group(0)}")
 
     assert not offences, "documentation references removed modules:\n" + "\n".join(offences)
+
+
+@pytest.mark.parametrize(
+    "reference",
+    (
+        "hwpx.visual.oracle",
+        "src/hwpx/visual/oracle.py",
+        "hwpx/visual/oracle.py",
+        "hwpx.form_fit.seal",
+        "src/hwpx/form_fit/wordbox.py",
+        "hwpx.tools.style_profile",
+        "src/hwpx/tools/official_lint.py",
+    ),
+)
+def test_removed_reference_gate_catches_dotted_and_slash_forms(
+    reference: str,
+) -> None:
+    assert REMOVED_REFERENCE_PATTERN.search(reference)
+
+
+@pytest.mark.parametrize(
+    "schema",
+    (
+        "hwpx.visual-review.v1",
+        "hwpx.visual-qa-metrics/v2",
+        "hwpx.agent-batch/v1",
+    ),
+)
+def test_removed_reference_gate_preserves_schema_identifiers(schema: str) -> None:
+    assert REMOVED_REFERENCE_PATTERN.search(schema) is None
+
+
+def test_current_scripts_do_not_reference_removed_core_paths() -> None:
+    scripts = Path(__file__).resolve().parents[1] / "scripts"
+    offences: list[str] = []
+    for script in sorted(scripts.rglob("*")):
+        if not script.is_file() or script.suffix.casefold() not in {
+            ".applescript",
+            ".md",
+            ".ps1",
+            ".py",
+        }:
+            continue
+        for number, line in enumerate(
+            script.read_text(encoding="utf-8").splitlines(),
+            1,
+        ):
+            for match in REMOVED_REFERENCE_PATTERN.finditer(line):
+                offences.append(
+                    f"{script.relative_to(scripts)}:{number}: {match.group(0)}"
+                )
+    assert not offences, "current scripts reference removed core paths:\n" + "\n".join(
+        offences
+    )
 
 
 def test_every_python_fence_in_the_docs_parses() -> None:

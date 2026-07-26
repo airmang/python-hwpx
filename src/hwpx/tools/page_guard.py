@@ -12,8 +12,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import BinaryIO, Iterable, Sequence
-
-from lxml import etree  # type: ignore[reportAttributeAccessIssue]
+from xml.etree import ElementTree as ET
 
 from ..opc.package import HwpxPackage
 
@@ -64,7 +63,7 @@ class DocumentMetrics:
     paragraph_text_lengths: list[int]
 
 
-def _text_of_t_node(node: etree._Element) -> str:
+def _text_of_t_node(node: ET.Element) -> str:
     return "".join(node.itertext())
 
 
@@ -74,17 +73,17 @@ def _local_name(tag: str) -> str:
     return tag
 
 
-def _iter_section_roots(source: str | Path | bytes | BinaryIO) -> Iterable[etree._Element]:
+def _iter_section_roots(source: str | Path | bytes | BinaryIO) -> Iterable[ET.Element]:
     package = HwpxPackage.open(source)
     for name in package.section_paths():
-        yield package.get_xml(name)
+        yield ET.fromstring(package.read(name))
 
 
 def collect_metrics(source: str | Path | bytes | BinaryIO) -> DocumentMetrics:
     section_roots = list(_iter_section_roots(source))
 
-    paragraphs: list[etree._Element] = []
-    tables: list[etree._Element] = []
+    paragraphs: list[ET.Element] = []
+    tables: list[ET.Element] = []
     table_shapes: list[tuple[str, str, str, str, str, str]] = []
     shape_types: dict[str, int] = {}
     control_types: dict[str, int] = {}
@@ -95,12 +94,12 @@ def collect_metrics(source: str | Path | bytes | BinaryIO) -> DocumentMetrics:
     column_break_count = 0
 
     for root in section_roots:
-        section_paragraphs = root.xpath(".//hs:sec/hp:p", namespaces=NS)
+        section_paragraphs = root.findall(".//hs:sec/hp:p", NS)
         if not section_paragraphs:
-            section_paragraphs = root.xpath(".//hp:p", namespaces=NS)
+            section_paragraphs = root.findall(".//hp:p", NS)
         paragraphs.extend(section_paragraphs)
 
-        section_tables = root.xpath(".//hp:tbl", namespaces=NS)
+        section_tables = root.findall(".//hp:tbl", NS)
         tables.extend(section_tables)
 
         for element in root.iter():
@@ -117,7 +116,7 @@ def collect_metrics(source: str | Path | bytes | BinaryIO) -> DocumentMetrics:
                     control_types["ctrl"] = control_types.get("ctrl", 0) + 1
 
         for table in section_tables:
-            size = table.find("hp:sz", namespaces=NS)
+            size = table.find("hp:sz", NS)
             table_shapes.append(
                 (
                     table.get("rowCnt", ""),
@@ -135,7 +134,7 @@ def collect_metrics(source: str | Path | bytes | BinaryIO) -> DocumentMetrics:
             if paragraph.get("columnBreak") == "1":
                 column_break_count += 1
             paragraph_length = 0
-            for text_node in paragraph.xpath(".//hp:t", namespaces=NS):
+            for text_node in paragraph.findall(".//hp:t", NS):
                 text = _text_of_t_node(text_node)
                 paragraph_length += len(text)
                 text_char_total += len(text)

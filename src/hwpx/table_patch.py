@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Byte-preserving form-fill: address a table cell and splice only its text.
 
-S-064 / M10 (spec ``specs/011-byte-preserving-formfill``). The 2026-07-03 case
+Byte-preserving form-fill work (spec ``specs/011-byte-preserving-formfill``).
+The 2026-07-03 case
 study failed because the only byte-preserving entry point
 (:func:`hwpx.patch.paragraph_patch`) addresses a flat paragraph index that is
 ambiguous inside tables, so an agent could not say "fill cell (r,c) of table T"

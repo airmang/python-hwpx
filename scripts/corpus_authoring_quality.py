@@ -75,8 +75,9 @@ OPENRATE_REPORT_POINTER = "docs/openrate/report.json (workspace root: hwpx/docs/
 V2_AUTHORED_STRATA = ("authored-toc", "reading-runformat")
 
 # A quality inspector maps (path, plan|None) -> the report dict of
-# hwpx.authoring.inspect_document_authoring_quality. A gongmun lint maps a path
-# -> the report dict of hwpx.tools.official_lint.inspect_official_document_style.
+# hwpx_automation.office.authoring.inspect_document_authoring_quality. A gongmun
+# lint maps a path to the report dict of
+# hwpx_automation.office.compliance.official_lint.inspect_official_document_style.
 QualityInspector = Callable[[str, Mapping[str, Any] | None], dict[str, Any]]
 GongmunLint = Callable[[str], dict[str, Any]]
 

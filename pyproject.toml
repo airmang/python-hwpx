@@ -51,6 +51,7 @@ dev = [
 test = [
     "build>=1.0",
     "numpy>=1.26",
+    "openpyxl>=3.1",
     "pillow>=10.0",
     "pytest>=7.4",
     "pytest-cov>=5.0",
@@ -68,11 +69,11 @@ Documentation = "https://airmang.github.io/python-hwpx/"
 Issues = "https://github.com/airmang/python-hwpx/issues"
 
 [project.scripts]
-# The `hwpx` agent CLI moved to hwpx-mcp-server, which declares the name in the
-# train that raises its core floor to 5.0 — so no valid install ever has two
-# declarers of it. `hwpx-conformance` is gone too: its package is repository QA
-# and no longer ships, and a console script pointing into an excluded package
-# would install as a command that cannot start.
+# The `hwpx` application CLI moved to python-hwpx-automation, which declares the
+# name in the train that raises its core floor to 5.0 — so no valid install ever
+# has two declarers of it. `hwpx-conformance` is gone too: its package is
+# repository QA and no longer ships, and a console script pointing into an
+# excluded package would install as a command that cannot start.
 hwpx-unpack = "hwpx.tools.archive_cli:unpack_main"
 hwpx-pack = "hwpx.tools.archive_cli:pack_main"
 hwpx-validate = "hwpx.tools.validator:main"
@@ -90,13 +91,24 @@ include-package-data = true
 # include-package-data swept them in as data files of hwpx. That same sweep kept
 # hwpx/benchmark and hwpx/conformance in the wheel after they were excluded from
 # the package list — one mechanism, helping in one place and hurting in the other.
-# Discovering namespaces makes every shipped directory a declared package, so what
-# ships is what is listed, and the QA harnesses now live outside src/ entirely.
-
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["hwpx*"]
-namespaces = true
+# The list is deliberately exact. A wildcard made any new directory below
+# ``src/hwpx`` publishable without a packaging review, which is the opposite of
+# the library/application boundary. Namespace packages (``opc`` and ``data``)
+# are valid explicit entries.
+packages = [
+    "hwpx",
+    "hwpx._document",
+    "hwpx.data",
+    "hwpx.equation",
+    "hwpx.form_fit",
+    "hwpx.ingest",
+    "hwpx.layout",
+    "hwpx.opc",
+    "hwpx.oxml",
+    "hwpx.quality",
+    "hwpx.tools",
+    "hwpx.tools._schemas",
+]
 
 # Only packages that ship. A key here for an excluded or deleted package pulls it
 # back into the wheel: hwpx.conformance was excluded from packages.find and still

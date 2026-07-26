@@ -7,7 +7,7 @@
 한/글로 문서를 렌더해 검증하는 방법은 크게 둘입니다.
 
 1. **텍스트 기반**: 한/글이 PDF로 export → PDF에서 단어/좌표를 추출(예: fitz `get_text`/words) → 기대값과 비교. 예컨대 목차 쪽번호 검증(`src/hwpx/tools/toc_fidelity.py`)이 "한/글 render → fitz words"로 캐시된 쪽번호와 실제 렌더 쪽번호를 대조합니다.
-2. **픽셀 기반**: 한/글이 PDF로 export → PDF를 이미지로 래스터화 → 픽셀(잉크) 수준에서 검사. `src/hwpx/visual/`의 렌더 게이트가 이 방식입니다.
+2. **픽셀 기반**: 한/글이 PDF로 export → PDF를 이미지로 래스터화 → 픽셀(잉크) 수준에서 검사. companion의 `hwpx_automation.office.rendering` 렌더 게이트가 이 방식입니다.
 
 두 방식은 잡아내는 것이 다르고, 텍스트 기반에는 다음과 같은 한계가 있습니다.
 
@@ -19,17 +19,17 @@
 
 ## 그래서 픽셀 검증이 필요하다
 
-벡터 커브로 그려졌든 글리프로 그려졌든, **래스터화한 이미지에는 잉크가 남습니다**. 픽셀 기반 검증은 텍스트 추출에 의존하지 않으므로 이 사각지대를 피합니다. `src/hwpx/visual/page_qa.py`가 잉크(픽셀) 수준에서 검사합니다:
+벡터 커브로 그려졌든 글리프로 그려졌든, **래스터화한 이미지에는 잉크가 남습니다**. 픽셀 기반 검증은 텍스트 추출에 의존하지 않으므로 이 사각지대를 피합니다. `hwpx_automation.office.rendering.page_qa`가 잉크(픽셀) 수준에서 검사합니다:
 
 - **빈 페이지 탐지**: 잉크 비율이 너무 낮으면 "의미 있는 렌더 잉크 없음"으로 실패 — 즉 텍스트가 있어야 할 자리에 아무것도 안 그려졌으면 잡습니다.
 - **겹침 탐지**: 비정상적으로 높고 빽빽한 잉크 띠를 "붕괴되거나 겹친 텍스트"로 판정합니다(주석: `Abnormally tall dense ink band suggests collapsed or overlapping text`). 글자 겹침(→ [lineseg.md](lineseg.md) 참고)은 텍스트 추출로는 안 보여도 픽셀로는 드러납니다.
 - **클리핑 탐지**: 잉크가 페이지 가장자리에 닿으면 잘렸을 가능성으로 경고.
 
-`src/hwpx/visual/detectors.py`는 before/after 두 렌더의 잉크 마스크 차이(`diff_ratio`)를 픽셀 단위로 계산해, 마스크 밖에서 잉크가 늘어난 영역을 잡습니다. 전부 텍스트 내용이 아니라 **픽셀의 유무**로 판정하므로 커브 export에 흔들리지 않습니다.
+`hwpx_automation.office.rendering.detectors`는 before/after 두 렌더의 잉크 마스크 차이(`diff_ratio`)를 픽셀 단위로 계산해, 마스크 밖에서 잉크가 늘어난 영역을 잡습니다. 전부 텍스트 내용이 아니라 **픽셀의 유무**로 판정하므로 커브 export에 흔들리지 않습니다.
 
 ## 정직 규율: 검증하지 못한 것을 통과로 세지 않는다
 
-이 프로젝트의 렌더 게이트는 "무엇을 검사했는가"와 "판정이 무엇인가"를 의도적으로 분리합니다. `src/hwpx/visual/report.py`의 `VisualReport`:
+이 프로젝트의 렌더 게이트는 "무엇을 검사했는가"와 "판정이 무엇인가"를 의도적으로 분리합니다. companion의 렌더 실행은 `hwpx_automation.office.rendering.oracle`, 중립 결과 계약 `VisualReport`는 core의 `hwpx.quality.rendering`이 소유합니다:
 
 > `render_checked` is `True` only when a Hancom render diff actually ran. Off-oracle (no Hancom / missing imaging deps) it is `False` and the report is a *structural degrade*, never a silent visual pass.
 >

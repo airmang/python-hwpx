@@ -19,7 +19,7 @@ _HWP_UNITS_PER_PT = 100
 | 1 pt | 100 | 7,200 / 72 (1 inch = 72 pt) |
 | 1 mm | 약 283.46 | 7,200 / 25.4 |
 
-`src/hwpx/form_fit/measure.py`, `src/hwpx/form_fit/seal.py`의 헤더 주석도 같은 관계를 못 박아 둡니다: `1 pt = 100 HWPUNIT, 1 inch = 7200 HWPUNIT`, `1 PDF point = 7200/72 = 100 HWPUNIT`. PDF 좌표(1 pt)와 HWPUNIT이 정확히 100:1로 대응하므로, 한/글이 export한 PDF의 좌표를 HWPUNIT으로 되돌릴 때 실수 오차 없이 정수배로 환산됩니다.
+`src/hwpx/form_fit/measure.py`와 companion의 `hwpx_automation.office.form_fill.fit.seal`도 같은 관계를 못 박아 둡니다: `1 pt = 100 HWPUNIT, 1 inch = 7200 HWPUNIT`, `1 PDF point = 7200/72 = 100 HWPUNIT`. PDF 좌표(1 pt)와 HWPUNIT이 정확히 100:1로 대응하므로, 한/글이 export한 PDF의 좌표를 HWPUNIT으로 되돌릴 때 실수 오차 없이 정수배로 환산됩니다.
 
 ## HWPUNIT이 나타나는 곳
 
@@ -45,8 +45,8 @@ HWPUNIT은 XML 저장 형식으로는 정확하지만, 사람이 직접 다루�
 
 - 문단 서식: `indent_left_mm`, `first_line_indent_mm`, `spacing_before_pt`, `line_spacing_percent` (`src/hwpx/_document/layout.py`)
 - 이미지: `width_mm`, `height_mm` (`src/hwpx/_document/media.py`)
-- 페이지·표: `pageWidthMm`, `heightMm` 등 (`src/hwpx/agent/commands.py`)
+- 페이지·표 응용 명령: `pageWidthMm`, `heightMm` 등 (`hwpx_automation.office.agent.commands`)
 
-변환은 항상 `round()`로 정수화됩니다(HWPUNIT은 정수). 반대로 문서를 분석해 사람에게 보여줄 때는 HWPUNIT → mm로 되돌립니다 — `src/hwpx/tools/style_profile.py`, `src/hwpx/tools/layout_preview.py`가 `value / _HWP_UNITS_PER_MM`으로 역변환해 리포트합니다.
+변환은 항상 `round()`로 정수화됩니다(HWPUNIT은 정수). 반대로 문서를 분석해 사람에게 보여줄 때는 HWPUNIT → mm로 되돌립니다 — companion의 `hwpx_automation.office.authoring.style_profile`과 core의 `src/hwpx/tools/layout_preview.py`가 `value / _HWP_UNITS_PER_MM`으로 역변환해 리포트합니다.
 
 정리하면: **저장 형식은 HWPUNIT, 사용자 표면은 pt/mm/%.** 저수준 `hwpx.oxml` 데이터클래스를 직접 조작할 때는 HWPUNIT 정수를 직접 다루게 되므로, 위 환산표를 곁에 두고 작업하면 됩니다.

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Author Hancom-native TOC and page cross-reference fields (M7 / S-062 P2).
+"""Author Hancom-native TOC and page cross-reference fields.
 
 Emits the exact field contract reverse-engineered from an owner-authored
 Hancom document (``specs/009-native-toc-xrefs/evidence/

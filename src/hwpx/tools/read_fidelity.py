@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Content-level read-fidelity harness for HWPX (M6 / S-060).
+"""Content-level read-fidelity harness for HWPX.
 
 Where :mod:`hwpx.tools.roundtrip_diff` measures *element-count* preservation,
 this module measures *content* fidelity:

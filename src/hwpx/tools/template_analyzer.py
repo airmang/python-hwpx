@@ -18,7 +18,6 @@ _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HP_TAG = f"{{{_HP_NS}}}"
 _NS = {"hh": _HH_NS, "hp": _HP_NS}
 TEMPLATE_ANALYSIS_SCHEMA_VERSION = "hwpx.template-analysis.v2"
-TEMPLATE_ANALYSIS_AGENT_SCHEMA_VERSION = "hwpx.template-analysis.agent-schema.v1"
 
 __all__ = [
     "CellSummary",
@@ -33,7 +32,6 @@ __all__ = [
     "analyze_template",
     "extract_template_parts",
     "main",
-    "template_analysis_agent_schema",
 ]
 
 
@@ -148,27 +146,6 @@ def _summarize_header(element: ET.Element | None) -> HeaderSummary:
         para_pr_count=para_pr_count,
         border_fill_count=border_fill_count,
     )
-
-
-def template_analysis_agent_schema() -> dict[str, Any]:
-    return {
-        "schemaVersion": TEMPLATE_ANALYSIS_AGENT_SCHEMA_VERSION,
-        "analysisSchemaVersion": TEMPLATE_ANALYSIS_SCHEMA_VERSION,
-        "description": "Agent-oriented fields for template form-fit planning.",
-        "fieldGuide": {
-            "section_layouts[].computed_body_width": "Writable body width in HWP units after page margins and gutter.",
-            "table_summaries[].column_widths.widths": "Per-column widths reconstructed only from non-colspan cells.",
-            "table_summaries[].cells[].margin": "Cell margin attributes in HWP units.",
-            "table_summaries[].cells[].vert_align": "Cell subList vertical alignment.",
-            "table_summaries[].cells[].runs[].style": "Run charPrIDRef resolved to decoded style flags and font faces.",
-            "char_properties[].flags": "Decoded bold, italic, underline, and strikeout booleans.",
-        },
-        "recommendedUse": [
-            "Choose target cells by row/col and span before planning replacements.",
-            "Use computed_body_width and column_widths to size generated tables.",
-            "Preserve run charPrIDRef when replacing text in styled cells.",
-        ],
-    }
 
 
 def _int_attr(element: ET.Element | None, name: str, default: int | None = None) -> int | None:
@@ -580,8 +557,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("input", help="Input HWPX path")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON summary")
     parser.add_argument("--output-json", help="Write the JSON summary to a file")
-    parser.add_argument("--schema-json", action="store_true", help="Print the agent-friendly JSON schema")
-    parser.add_argument("--output-schema-json", help="Write the agent-friendly JSON schema to a file")
     parser.add_argument(
         "--extract-dir",
         help=(
@@ -604,18 +579,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         analysis = analyze_template(input_path)
-        schema_only = (
-            args.schema_json
-            and not args.json
-            and not args.output_json
-            and not args.extract_dir
-            and not args.extract_header
-            and not args.extract_section
-            and not args.extract_section_dir
-        )
-        if schema_only:
-            print(json.dumps(template_analysis_agent_schema(), ensure_ascii=False, indent=2))
-            return 0
         written = extract_template_parts(
             input_path,
             extract_dir=args.extract_dir,
@@ -637,15 +600,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_path.write_text(payload, encoding="utf-8")
     else:
         _print_summary(analysis)
-
-    if args.schema_json or args.output_schema_json:
-        schema_payload = json.dumps(template_analysis_agent_schema(), ensure_ascii=False, indent=2)
-        if args.schema_json:
-            print(schema_payload)
-        if args.output_schema_json:
-            schema_path = Path(args.output_schema_json)
-            schema_path.parent.mkdir(parents=True, exist_ok=True)
-            schema_path.write_text(schema_payload, encoding="utf-8")
 
     for path in written:
         print(f"extracted: {path}")

@@ -13,7 +13,9 @@
 
 import importlib
 import warnings
+from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version as _metadata_version
+from typing import Literal
 
 
 def _resolve_version() -> str:
@@ -85,54 +87,165 @@ def _deprecated_message(name: str) -> str:
 #
 # 표가 하는 일은 오류 메시지 하나다. 기본 Python 오류는 이름이 사라졌다는 것만
 # 알려주고 어디로 갔는지는 말해주지 않는다.
-_MOVED_TO_COMPANION: dict[str, str] = {
-    "AUTHORING_REPORT_VERSION": "hwpx_automation.office.authoring",
-    "DEFAULT_STYLE_PRESET": "hwpx_automation.office.authoring",
-    "DOCUMENT_PLAN_SCHEMA_VERSION": "hwpx_automation.office.authoring",
-    "DocumentBlock": "hwpx_automation.office.authoring",
-    "DocumentPlan": "hwpx_automation.office.authoring",
-    "DocumentStylePreset": "hwpx_automation.office.authoring",
-    "OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION": "hwpx_automation.office.compliance.official_lint",
-    "PlanValidationIssue": "hwpx_automation.office.authoring",
-    "PlanValidationReport": "hwpx_automation.office.authoring",
-    "STYLE_PROFILE_COMPARISON_SCHEMA_VERSION": "hwpx_automation.office.authoring",
-    "STYLE_PROFILE_SCHEMA_VERSION": "hwpx_automation.office.authoring",
-    "TABLE_COMPUTE_REPORT_VERSION": "hwpx_automation.office.utilities",
-    "TEMPLATE_REGISTRY_SCHEMA_VERSION": "hwpx_automation.office.authoring",
-    "agent": "hwpx_automation.office.agent",
-    "apply_style_profile_to_plan": "hwpx_automation.office.authoring",
-    "approval_box": "hwpx_automation.office.authoring.builder",
-    "authoring": "hwpx_automation.office.authoring",
-    "build_comparison_table_plan": "hwpx_automation.office.document_ops",
-    "build_image_grid": "hwpx_automation.office.authoring",
-    "build_meeting_nameplates": "hwpx_automation.office.authoring",
-    "build_organization_chart": "hwpx_automation.office.authoring",
-    "builder": "hwpx_automation.office.authoring.builder",
-    "compare_style_profiles": "hwpx_automation.office.authoring",
-    "create_document_from_plan": "hwpx_automation.office.authoring",
-    "describe_template": "hwpx_automation.office.authoring",
-    "design": "hwpx_automation.office.authoring.design",
-    "evalplan_fill": "hwpx_automation.office.evalplan",
-    "exam": "hwpx_automation.office.exam",
-    "extract_style_profile": "hwpx_automation.office.authoring",
-    "fill_residue": "hwpx_automation.office.form_fill",
-    "form_fill": "hwpx_automation.office.form_fill",
-    "formfill_quality": "hwpx_automation.office.form_fill",
-    "get_document_plan_schema": "hwpx_automation.office.authoring",
-    "guidance_scan": "hwpx_automation.office.form_fill",
-    "inspect_document_authoring_quality": "hwpx_automation.office.authoring",
-    "inspect_official_document_style": "hwpx_automation.office.compliance.official_lint",
-    "inspect_operating_plan_quality": "hwpx_automation.office.authoring",
-    "list_templates": "hwpx_automation.office.authoring",
-    "mail_merge": "hwpx_automation.office.document_ops",
-    "normalize_document_plan": "hwpx_automation.office.authoring",
-    "placeholder_fill_report": "hwpx_automation.office.authoring",
-    "presets": "hwpx_automation.office.authoring.presets",
-    "register_template": "hwpx_automation.office.authoring",
-    "table_compute": "hwpx_automation.office.utilities",
-    "template_formfit": "hwpx_automation.office.form_fill",
-    "validate_document_plan": "hwpx_automation.office.authoring",
-    "visual": "hwpx_automation.office.rendering",
+_SurfaceKind = Literal["symbol", "module", "renamed", "retired"]
+
+
+@dataclass(frozen=True, slots=True)
+class _CompanionSurface:
+    """One executable migration hint without importing the companion."""
+
+    kind: _SurfaceKind
+    target_module: str | None = None
+    target_name: str | None = None
+    replacement: str | None = None
+
+    def import_statement(self, legacy_name: str) -> str | None:
+        if self.kind == "retired":
+            return None
+        if self.target_module is None:
+            raise AssertionError(f"{legacy_name}: target_module is required")
+        if self.kind == "module" or (
+            self.kind == "renamed" and self.target_name is None
+        ):
+            return f"import {self.target_module} as {legacy_name}"
+        target_name = self.target_name or legacy_name
+        alias = f" as {legacy_name}" if target_name != legacy_name else ""
+        return f"from {self.target_module} import {target_name}{alias}"
+
+
+def _symbol(target_module: str, target_name: str | None = None) -> _CompanionSurface:
+    return _CompanionSurface("symbol", target_module, target_name)
+
+
+def _module(target_module: str) -> _CompanionSurface:
+    return _CompanionSurface("module", target_module)
+
+
+def _renamed(
+    target_module: str,
+    target_name: str | None = None,
+) -> _CompanionSurface:
+    return _CompanionSurface("renamed", target_module, target_name)
+
+
+_MOVED_TO_COMPANION: dict[str, _CompanionSurface] = {
+    "AUTHORING_REPORT_VERSION": _symbol("hwpx_automation.office.authoring"),
+    "DEFAULT_STYLE_PRESET": _symbol("hwpx_automation.office.authoring"),
+    "DOCUMENT_PLAN_SCHEMA_VERSION": _symbol("hwpx_automation.office.authoring"),
+    "DocumentBlock": _symbol("hwpx_automation.office.authoring"),
+    "DocumentPlan": _symbol("hwpx_automation.office.authoring"),
+    "DocumentStylePreset": _symbol("hwpx_automation.office.authoring"),
+    "OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION": _symbol(
+        "hwpx_automation.office.compliance.official_lint"
+    ),
+    "PlanValidationIssue": _symbol("hwpx_automation.office.authoring"),
+    "PlanValidationReport": _symbol("hwpx_automation.office.authoring"),
+    "STYLE_PROFILE_COMPARISON_SCHEMA_VERSION": _symbol(
+        "hwpx_automation.office.authoring.style_profile"
+    ),
+    "STYLE_PROFILE_SCHEMA_VERSION": _symbol(
+        "hwpx_automation.office.authoring.style_profile"
+    ),
+    "TABLE_COMPUTE_REPORT_VERSION": _symbol("hwpx_automation.office.utilities"),
+    "TEMPLATE_REGISTRY_SCHEMA_VERSION": _symbol(
+        "hwpx_automation.office.authoring.style_profile"
+    ),
+    "agent": _module("hwpx_automation.office.agent"),
+    "apply_style_profile_to_plan": _symbol(
+        "hwpx_automation.office.authoring.style_profile"
+    ),
+    "approval_box": _symbol("hwpx_automation.office.authoring.builder"),
+    "authoring": _module("hwpx_automation.office.authoring"),
+    "build_comparison_table_plan": _symbol(
+        "hwpx_automation.office.document_ops"
+    ),
+    "build_image_grid": _symbol("hwpx_automation.office.authoring"),
+    "build_meeting_nameplates": _symbol(
+        "hwpx_automation.office.authoring.advanced_generators"
+    ),
+    "build_organization_chart": _symbol(
+        "hwpx_automation.office.authoring.advanced_generators"
+    ),
+    "builder": _module("hwpx_automation.office.authoring.builder"),
+    "compare_style_profiles": _symbol(
+        "hwpx_automation.office.authoring.style_profile"
+    ),
+    "create_document_from_plan": _symbol("hwpx_automation.office.authoring"),
+    "describe_template": _symbol(
+        "hwpx_automation.office.authoring.style_profile"
+    ),
+    "design": _module("hwpx_automation.office.authoring.design"),
+    "evalplan_fill": _renamed("hwpx_automation.office.evalplan"),
+    "exam": _module("hwpx_automation.office.exam"),
+    "extract_style_profile": _symbol(
+        "hwpx_automation.office.authoring.style_profile"
+    ),
+    "fill_residue": _module(
+        "hwpx_automation.office.form_fill.fill_residue"
+    ),
+    "form_fill": _module("hwpx_automation.office.form_fill"),
+    "formfill_quality": _renamed(
+        "hwpx_automation.office.form_fill.quality"
+    ),
+    "get_document_plan_schema": _symbol("hwpx_automation.office.authoring"),
+    "guidance_scan": _renamed(
+        "hwpx_automation.office.form_fill.guidance"
+    ),
+    "inspect_document_authoring_quality": _symbol(
+        "hwpx_automation.office.authoring"
+    ),
+    "inspect_official_document_style": _symbol(
+        "hwpx_automation.office.compliance.official_lint"
+    ),
+    "inspect_operating_plan_quality": _symbol(
+        "hwpx_automation.office.authoring"
+    ),
+    "list_templates": _symbol(
+        "hwpx_automation.office.authoring.style_profile"
+    ),
+    "mail_merge": _renamed(
+        "hwpx_automation.office.document_ops",
+        "build_mail_merge",
+    ),
+    "normalize_document_plan": _symbol("hwpx_automation.office.authoring"),
+    "placeholder_fill_report": _symbol(
+        "hwpx_automation.office.authoring.style_profile"
+    ),
+    "presets": _module("hwpx_automation.office.authoring.presets"),
+    "register_template": _symbol(
+        "hwpx_automation.office.authoring.style_profile"
+    ),
+    "table_compute": _symbol("hwpx_automation.office.utilities"),
+    "template_formfit": _module(
+        "hwpx_automation.office.form_fill.template_formfit"
+    ),
+    "validate_document_plan": _symbol("hwpx_automation.office.authoring"),
+    "visual": _renamed("hwpx_automation.office.rendering"),
+}
+
+_RETIRED_SURFACES: dict[str, _CompanionSurface] = {
+    "analyze_template_formfit": _CompanionSurface(
+        "retired",
+        replacement=(
+            "MCP analyze_form_fill → apply_form_fill → verify_form_fill 경로를 "
+            "사용하세요."
+        ),
+    ),
+    "apply_template_formfit": _CompanionSurface(
+        "retired",
+        replacement=(
+            "MCP analyze_form_fill → apply_form_fill → verify_form_fill 경로를 "
+            "사용하세요."
+        ),
+    ),
+    "TEMPLATE_FORMFIT_BASELINE_SCHEMA_VERSION": _CompanionSurface(
+        "retired",
+        replacement="새 form-fill ToolSpec 스키마를 사용하세요.",
+    ),
+    "TEMPLATE_FORMFIT_PLAN_SCHEMA_VERSION": _CompanionSurface(
+        "retired",
+        replacement="새 form-fill ToolSpec 스키마를 사용하세요.",
+    ),
 }
 
 
@@ -153,6 +266,10 @@ class MovedToCompanion(ImportError):
     """
 
 
+class RetiredSurface(ImportError):
+    """A removed compatibility surface whose replacement is not another import."""
+
+
 def __getattr__(name: str) -> object:
     """Resolve dynamic module attributes.
 
@@ -165,20 +282,39 @@ def __getattr__(name: str) -> object:
 
     module_name = _EXPERIMENTAL_EXPORTS.get(name)
     if module_name is not None:
+        if module_name != "hwpx" and not module_name.startswith("hwpx."):
+            raise AttributeError(
+                "hwpx lazy-export targets must remain inside the 'hwpx' package"
+            )
         warnings.warn(_experimental_message(name), DeprecationWarning, stacklevel=2)
         return getattr(importlib.import_module(module_name), name)
 
     module_name = _DEPRECATED_EXPORTS.get(name)
     if module_name is not None:
+        if module_name != "hwpx" and not module_name.startswith("hwpx."):
+            raise AttributeError(
+                "hwpx lazy-export targets must remain inside the 'hwpx' package"
+            )
         warnings.warn(_deprecated_message(name), DeprecationWarning, stacklevel=2)
         return getattr(importlib.import_module(module_name), name)
 
-    target = _MOVED_TO_COMPANION.get(name)
-    if target is not None:
+    moved = _MOVED_TO_COMPANION.get(name)
+    if moved is not None:
+        statement = moved.import_statement(name)
+        assert statement is not None
         raise MovedToCompanion(
             f"{name}은(는) python-hwpx 5.0에서 companion 패키지로 이동했습니다.\n"
             f"    pip install python-hwpx-automation\n"
-            f"    from {target} import {name}\n"
+            f"    {statement}\n"
+            f'4.x를 계속 쓰려면: pip install "python-hwpx<5"\n'
+            f"전체 대체표: docs/migration-5.0.md"
+        )
+
+    retired = _RETIRED_SURFACES.get(name)
+    if retired is not None:
+        raise RetiredSurface(
+            f"{name}은(는) 예고대로 python-hwpx 5.0에서 제거되었습니다. "
+            f"{retired.replacement}\n"
             f'4.x를 계속 쓰려면: pip install "python-hwpx<5"\n'
             f"전체 대체표: docs/migration-5.0.md"
         )
@@ -279,4 +415,3 @@ __all__ = [
     "validate_package",
     "paragraph_patch",
 ]
-

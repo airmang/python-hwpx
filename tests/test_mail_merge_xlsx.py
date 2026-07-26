@@ -2,11 +2,9 @@
 """Excel(.xlsx)/명부 ingestion for batch fill (M2 P4 / FR-004)."""
 from __future__ import annotations
 
-import pytest
+import openpyxl
 
 from hwpx.tools.mail_merge import load_mail_merge_rows
-
-openpyxl = pytest.importorskip("openpyxl")
 
 
 def _write_xlsx(path, header, rows):

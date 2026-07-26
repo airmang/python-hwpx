@@ -1,4 +1,4 @@
-"""Task 1 (S-056 Plan 3): keep-together on HwpxDocument.set_paragraph_format.
+"""Keep-together behavior on HwpxDocument.set_paragraph_format.
 
 The high-level paragraph-format API must forward keep-together to the Plan-1
 engine primitive (ensure_paragraph_format(break_setting=...)), minting a new

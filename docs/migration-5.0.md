@@ -3,7 +3,7 @@
 `python-hwpx` 5.0 is the HWPX object model, OPC/OXML, and the format-native
 primitives built on them. The application workflows that grew inside the library
 — agent editing, document authoring, form-fill, eval-plan, exam typesetting,
-institutional lint, and Hancom rendering — now live in `hwpx-mcp-server`, which
+institutional lint, and Hancom rendering — now live in `python-hwpx-automation`, which
 has owned their canonical implementation since the 4.x line.
 
 Nothing here is discontinued. Every removed import has a named replacement, and
@@ -19,7 +19,7 @@ implementation's address moved, and it moved before this release.
 Install the companion package and change the import path:
 
 ```bash
-pip install python-hwpx-automation[mcp]
+pip install python-hwpx-automation
 ```
 
 The tables below give the exact replacement for each removed surface.
@@ -58,7 +58,7 @@ why the MCP owner builds on them rather than carrying its own copy.
 | removed | replacement |
 |---|---|
 | `hwpx.agent.*` | `hwpx_automation.office.agent` |
-| `hwpx` console command | the same command, declared by `hwpx-mcp-server` |
+| `hwpx` console command | the same command, declared by `python-hwpx-automation` |
 
 MCP declares `hwpx` in the train that raises its core floor to 5.0, so no valid
 install ever has two packages claiming the name. Install the companion package
@@ -142,3 +142,8 @@ pass. The same applies to `verify_fill`, and to
 `hwpx.benchmark` and `hwpx.conformance` no longer ship, and the
 `hwpx-conformance` command is gone with them. They are repository QA assets. If
 you were running the conformance campaign, work from a checkout.
+
+The complete 77-path removal inventory is machine-pinned for both source and
+built distributions. See
+[`architecture/product-boundary.md`](architecture/product-boundary.md) for the
+ownership, dependency, and non-resurrection contract.

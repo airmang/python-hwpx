@@ -45,9 +45,9 @@ _PATCH_TARGETS = [
      lambda: (lambda paragraph: 0)),
     ("hwpx.oxml._document_impl", "_remove_stale_paragraph_layout_cache",
      lambda: (lambda paragraph: False)),
-    ("hwpx.form_fill", "_remove_linesegarray",
+    ("hwpx_automation.office.form_fill.split_run", "_remove_linesegarray",
      lambda: (lambda paragraph: None)),
-    ("hwpx.document", "_clear_form_field_layout_cache",
+    ("hwpx._document.fields", "_clear_form_field_layout_cache",
      lambda: (lambda paragraph: 0)),
 ]
 

@@ -10,24 +10,24 @@
 
 `python-hwpx` is now the HWPX object model, OPC/OXML, and the format-native
 primitives built on them. The application workflows that had grown inside the
-library moved to `hwpx-mcp-server`, which has owned their canonical
+library moved to `python-hwpx-automation`, which has owned their canonical
 implementation since the 4.x line. **Nothing is discontinued** — every removed
 import has a named replacement in
 [the migration guide](docs/migration-5.0.md), and 4.x keeps all of it.
 
-- `hwpx.agent` and the `hwpx` console command → `hwpx_mcp_server.office.agent`.
-  MCP declares the `hwpx` name in the train that raises its core floor to 5.0,
+- `hwpx.agent` and the `hwpx` console command → `hwpx_automation.office.agent`.
+  The automation package declares the `hwpx` name in the train that raises its core floor to 5.0,
   so no valid install ever has two declarers of it.
 - `hwpx.authoring`, `hwpx.builder`, `hwpx.design`, `hwpx.presets` →
-  `hwpx_mcp_server.office.authoring`
-- `hwpx.exam` → `hwpx_mcp_server.office.exam`
-- `hwpx.evalplan_fill` → `hwpx_mcp_server.office.evalplan`
+  `hwpx_automation.office.authoring`
+- `hwpx.exam` → `hwpx_automation.office.exam`
+- `hwpx.evalplan_fill` → `hwpx_automation.office.evalplan`
 - `hwpx.form_fill`, `hwpx.formfill_quality`, `hwpx.fill_residue`,
   `hwpx.guidance_scan`, `hwpx.template_formfit` →
-  `hwpx_mcp_server.office.form_fill`
+  `hwpx_automation.office.form_fill`
 - `hwpx.tools.official_lint`, `hwpx.tools.pii`, `hwpx.tools.table_compute`,
   `hwpx.tools.style_profile`, `hwpx.tools.advanced_generators`,
-  `hwpx.tools.report_parser` → `hwpx_mcp_server.office.compliance` /
+  `hwpx.tools.report_parser` → `hwpx_automation.office.compliance` /
   `office.quality` / `office.utilities` / `office.authoring`
 - `hwpx.tools.mail_merge.mail_merge` → `merge_template_rows`, which is now
   public. The removed wrapper masked by default and core no longer carries the
@@ -35,7 +35,7 @@ import has a named replacement in
   decides, and the decision is visible at the call site instead of implied by an
   omitted argument.
 - `hwpx.tools.doc_diff.build_comparison_table_plan` →
-  `hwpx_mcp_server.office.document_ops`. Generic diff and reference-consistency
+  `hwpx_automation.office.document_ops`. Generic diff and reference-consistency
   stay here.
 - The four `template_formfit` names that 4.x warned would go "in the next major"
   are gone. That was this major.
@@ -65,7 +65,7 @@ import has a named replacement in
 
 ### Migration
 
-`pip install hwpx-mcp-server` and follow [docs/migration-5.0.md](docs/migration-5.0.md).
+`pip install python-hwpx-automation` and follow [docs/migration-5.0.md](docs/migration-5.0.md).
 `pip install "python-hwpx<5"` rolls back; the 4.x line is not a dead end.
 
 

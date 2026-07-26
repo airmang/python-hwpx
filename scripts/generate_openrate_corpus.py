@@ -33,9 +33,9 @@ NOT the Hancom verdict (that comes later, on Windows).
 Determinism: fixed seeds, sorted iteration, stable IDs, no wall-clock in IDs and
 ``generatedAt`` is left ``null`` (root stamps it).
 
-v1 runs from the mcp-server env (installed surface + editable python-hwpx):
+v1 runs from the automation env (installed surface + editable python-hwpx):
 
-    cd hwpx-mcp-server
+    cd python-hwpx-automation
     uv run --with-editable ../python-hwpx python \\
         ../python-hwpx/scripts/generate_openrate_corpus.py
 
@@ -59,7 +59,7 @@ from typing import Any, Sequence
 # --- repo geometry --------------------------------------------------------------
 PYTHON_HWPX = Path(__file__).resolve().parent.parent          # .../python-hwpx
 HWPX_ROOT = PYTHON_HWPX.parent                                 # .../hwpx
-MCP_SERVER = HWPX_ROOT / "hwpx-mcp-server"
+AUTOMATION_REPO = HWPX_ROOT / "python-hwpx-automation"
 OUT_DIR = PYTHON_HWPX / "work" / "openrate-corpus"
 OUT_DIR_V2 = PYTHON_HWPX / "work" / "openrate-corpus-v2"
 SPEC_EVIDENCE = HWPX_ROOT / "specs" / "007-open-rate" / "evidence"
@@ -1115,7 +1115,7 @@ def gen_pii_merge(out_dir: Path, n: int = PII_MERGE_N) -> tuple[list[dict[str, A
 # --------------------------------------------------------------------------------
 def _outline_style_refs_local(doc: HwpxDocument, level: int = 1) -> dict[str, Any]:
     """Style refs for a HWP outline heading level (vendored — the plan-v2 native
-    flag being wired into hwpx.authoring by another workstream is NOT a dependency
+    flag exposed by ``hwpx_automation.office.authoring`` is NOT a dependency
     here; this only scans the shipped default template's styles)."""
     safe_level = min(10, max(1, int(level)))
     for style in doc.styles.values():
@@ -1472,7 +1472,9 @@ def main_v2(*, dry_run: bool) -> int:
         "combined_produced_total": v1_produced + produced_total,
         "tool_versions": {
             "python-hwpx": _pyproject_version(PYTHON_HWPX / "pyproject.toml"),
-            "hwpx-mcp-server": _pyproject_version(MCP_SERVER / "pyproject.toml"),
+            "python-hwpx-automation": _pyproject_version(
+                AUTOMATION_REPO / "pyproject.toml"
+            ),
         },
         "records": all_records,
     }
@@ -1620,7 +1622,9 @@ def main_v1(*, force: bool = False, dry_run: bool = False) -> int:
         "emit_rate": round(produced_total / requested_total, 4) if requested_total else None,
         "tool_versions": {
             "python-hwpx": _pyproject_version(PYTHON_HWPX / "pyproject.toml"),
-            "hwpx-mcp-server": _pyproject_version(MCP_SERVER / "pyproject.toml"),
+            "python-hwpx-automation": _pyproject_version(
+                AUTOMATION_REPO / "pyproject.toml"
+            ),
         },
         "records": all_records,
     }

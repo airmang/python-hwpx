@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Shared HWPUNIT conversion helpers for the HwpxDocument owner modules (S-084)."""
+"""Shared HWPUNIT conversion helpers for the HwpxDocument owner modules."""
 
 from __future__ import annotations
 

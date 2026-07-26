@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tracked-change authoring owner behind the :class:`HwpxDocument` facade (S-084)."""
+"""Tracked-change authoring owner behind the :class:`HwpxDocument` facade."""
 
 from __future__ import annotations
 

@@ -1,0 +1,205 @@
+{
+  "schemaVersion": "python-hwpx.application-owned-members/v1",
+  "sourceDecision": "core 5.0 ownership adjudication",
+  "canonicalization": {
+    "format": "sorted '<module>:<member>' lines encoded as UTF-8 with a final LF",
+    "moduleCount": 12,
+    "memberCount": 119,
+    "moduleList": [
+      "hwpx.form_fit.seal",
+      "hwpx.form_fit.wordbox",
+      "hwpx.visual",
+      "hwpx.visual.block_splits",
+      "hwpx.visual.detectors",
+      "hwpx.visual.diff",
+      "hwpx.visual.fixture_corpus",
+      "hwpx.visual.hancom_worker",
+      "hwpx.visual.oracle",
+      "hwpx.visual.page_qa",
+      "hwpx.visual.qa_contracts",
+      "hwpx.visual.qa_metrics"
+    ],
+    "memberListSha256": "ec999a987be9eea0f9f97ff7dbeed245ace00969c830b633a5eda64da961fb72"
+  },
+  "modules": [
+    {
+      "module": "hwpx.form_fit.seal",
+      "members": [
+        "SealAnchor",
+        "SealPlacement",
+        "SealVerdict",
+        "_center",
+        "_group_lines",
+        "_iter_all_paragraphs",
+        "_norm",
+        "_occlusion_fraction",
+        "check_seal_placement",
+        "find_seal_anchor",
+        "place_seal",
+        "seal_pos_offsets"
+      ]
+    },
+    {
+      "module": "hwpx.form_fit.wordbox",
+      "members": [
+        "FormFillVerdict",
+        "LayoutDiff",
+        "LayoutSignature",
+        "Rect",
+        "WordBoxFixture",
+        "_box_brief",
+        "_overlap_identity",
+        "_overprint_collisions",
+        "_overprint_fraction",
+        "_owning_clip",
+        "detect_overflow",
+        "detect_overlaps",
+        "diff_layout",
+        "diff_overflow",
+        "diff_overlaps",
+        "extract_cell_clips",
+        "extract_glyph_boxes",
+        "extract_image_boxes",
+        "extract_layout_signature",
+        "render_form_geometry",
+        "render_form_layout",
+        "render_glyph_boxes",
+        "sha256_file",
+        "unverified_verdict",
+        "verdict_from_boxes",
+        "verify_form_fill",
+        "verify_form_fill_differential",
+        "verify_form_layout_stability",
+        "verify_form_overflow"
+      ]
+    },
+    {
+      "module": "hwpx.visual",
+      "members": [
+        "__dir__",
+        "__getattr__"
+      ]
+    },
+    {
+      "module": "hwpx.visual.block_splits",
+      "members": [
+        "Block",
+        "BlockSplit",
+        "PositionedGlyph",
+        "_column_index",
+        "detect_block_splits"
+      ]
+    },
+    {
+      "module": "hwpx.visual.detectors",
+      "members": [
+        "_ink_mask",
+        "_match_size",
+        "_zero_rects",
+        "diff_ratio",
+        "diff_ratio_outside_mask",
+        "imaging_available",
+        "make_diff_image",
+        "new_ink_ratio_outside_mask",
+        "overlap_score"
+      ]
+    },
+    {
+      "module": "hwpx.visual.diff",
+      "members": [
+        "_page_overlap",
+        "analyze_single",
+        "compare_renders",
+        "pymupdf_available",
+        "render_pdf_to_images"
+      ]
+    },
+    {
+      "module": "hwpx.visual.fixture_corpus",
+      "members": [
+        "FixtureAnnotation",
+        "FixtureCase",
+        "FixtureCorpus",
+        "FixturePage",
+        "_load_fixture_annotations",
+        "_load_fixture_pages",
+        "_load_one_fixture_case",
+        "_validate_fixture_case_provenance",
+        "_validate_fixture_classification_annotations",
+        "_validate_fixture_manifest_header",
+        "load_fixture_manifest",
+        "sha256_file"
+      ]
+    },
+    {
+      "module": "hwpx.visual.hancom_worker",
+      "members": [
+        "DeterministicFakeSession",
+        "PowerShellHancomSession",
+        "RenderSession",
+        "SerializedHancomWorker",
+        "WorkerArtifact",
+        "WorkerJob",
+        "WorkerResult",
+        "sha256_file"
+      ]
+    },
+    {
+      "module": "hwpx.visual.oracle",
+      "members": [
+        "MacHancomOracle",
+        "NullOracle",
+        "RenderBackend",
+        "WindowsComOracle",
+        "_clamped_timeout",
+        "_deadline_from",
+        "_degraded",
+        "_main",
+        "env_budget_seconds",
+        "resolve_oracle",
+        "structural_only",
+        "visual_check"
+      ]
+    },
+    {
+      "module": "hwpx.visual.page_qa",
+      "members": [
+        "_Signal",
+        "_blank_page",
+        "_dense_overlap_band",
+        "_edge_clipping",
+        "_finding_from_signal",
+        "_implausible_density",
+        "_mask",
+        "_pixel_bbox",
+        "inspect_fixture_case",
+        "inspect_page_png",
+        "inspect_page_set"
+      ]
+    },
+    {
+      "module": "hwpx.visual.qa_contracts",
+      "members": [
+        "DefectCategory",
+        "DocumentTarget",
+        "Evidence",
+        "FindingSeverity",
+        "NormalizedBBox",
+        "PageVerdict",
+        "Provenance",
+        "VerdictStatus",
+        "VisualFinding",
+        "VisualVerdict",
+        "_enum_values"
+      ]
+    },
+    {
+      "module": "hwpx.visual.qa_metrics",
+      "members": [
+        "_required_category_contract",
+        "_wilson",
+        "measure_fixture_corpus"
+      ]
+    }
+  ]
+}

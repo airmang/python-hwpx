@@ -2,9 +2,9 @@
 
 > **5.0 갱신.** `hwpx.document_plan.v1`/`v2`·`hwpx.agent-batch/v1`·
 > `hwpx.mixed-form-plan/v1`은 이 표에서 빠졌습니다. 제거된 게 아니라
-> `hwpx-mcp-server`가 발행 주체가 됐기 때문입니다 — core는 더 이상 그 payload를
+> `python-hwpx-automation`이 발행 주체가 됐기 때문입니다 — core는 더 이상 그 payload를
 > 만들지 않으므로, 여기서 동결을 약속하는 것은 지키지 못할 약속입니다.
-> 세 스키마의 동결은 `hwpx-mcp-server`의 계약 정책이 이어받습니다.
+> 세 스키마의 동결은 `python-hwpx-automation`의 계약 정책이 이어받습니다.
 
 python-hwpx가 발행하는 versioned contract는 4.0.0에서 **required 필드 집합이
 동결**됩니다. 목적은 한 가지 — 이미 나간 payload가 앞으로도 계속 검증을 통과하게

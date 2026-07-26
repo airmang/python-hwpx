@@ -30,7 +30,8 @@
     dominates) but re-creates the session after any COM exception.
 
     Open uses the fixed Hancom 2022 (v12) 3-arg signature Open(path,"","")
-    (auto-detect format), matching src/hwpx/visual/_render_hwpx.ps1.
+    (auto-detect format), matching the companion's packaged
+    hwpx_automation/office/rendering/_render_hwpx.ps1.
 
     *** LIMIT — a HUNG Open() ***
     Open() is a synchronous STA COM call; it CANNOT be interrupted in-process

@@ -86,7 +86,7 @@ def test_fit_records_ledger_entry_on_style_change():
 
 def test_fit_row_height_balloon_refuses_through_real_cell():
     # A real cell with a short authored height: a grossly too-tall value must not be
-    # accepted as a silent 100-line row growth — it fails closed (S-085 P1).
+    # accepted as a silent 100-line row growth — it fails closed.
     doc = HwpxDocument.new()
     table = doc.add_table(1, 1)
     cell = table.cell(0, 0)

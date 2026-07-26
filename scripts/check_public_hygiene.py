@@ -3,14 +3,55 @@
 
 from __future__ import annotations
 
+import io
+import hashlib
+import json
 import os
 import re
 import subprocess
+import tarfile
 import zipfile
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+INTERNAL_WORK_CODE = re.compile(
+    rb"(?<![A-Za-z0-9])(?:S-[0-9]{3}(?![0-9])|STG-[A-Za-z0-9][A-Za-z0-9_-]*)"
+)
+WORKSTATION_PATH = re.compile(
+    ("/" + "Users" + r"/[^/\s]+/").encode()
+    + b"|"
+    + ("/" + "home" + r"/[^/\s]+/").encode()
+    + b"|[A-Za-z]:\\\\[Uu]sers\\\\"
+)
+TEXT_ARTIFACT_SUFFIXES = (
+    ".applescript",
+    ".cfg",
+    ".css",
+    ".csv",
+    ".html",
+    ".js",
+    ".json",
+    ".md",
+    ".ps1",
+    ".py",
+    ".rst",
+    ".sh",
+    ".svg",
+    ".toml",
+    ".txt",
+    ".xml",
+    ".xsd",
+    ".yaml",
+    ".yml",
+)
+REMOVED_PATH_FIXTURE = (
+    ROOT / "docs" / "architecture" / "module-ownership-removed-5.0.json"
+)
+REMOVED_PATH_COUNT = 77
+REMOVED_PATH_SHA256 = (
+    "4b8b4da35b3cf44503eb0dba05e335de1894ca5dd0b2fb668692a69e21ae6172"
+)
 
 
 def _git_paths(*args: str) -> list[str]:
@@ -27,7 +68,11 @@ def _project_kind() -> str:
     if (ROOT / "packaging" / "hosts.json").is_file():
         return "plugin"
     metadata = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    return "mcp" if 'name = "hwpx-mcp-server"' in metadata else "core"
+    automation_names = (
+        'name = "python-hwpx-automation"',
+        'name = "hwpx-mcp-server"',
+    )
+    return "mcp" if any(name in metadata for name in automation_names) else "core"
 
 
 def _forbidden_path(path: str, kind: str) -> bool:
@@ -35,7 +80,10 @@ def _forbidden_path(path: str, kind: str) -> bool:
     if path.startswith(common_prefixes):
         return True
     if kind == "core":
-        return path == "src/hwpx/practice.py" or path.startswith(
+        return path in {
+            "scripts/conformance_corpus_build.py",
+            "src/hwpx/practice.py",
+        } or path.startswith(
             (
                 "shared/hwpx/",
                 "docs/superpowers/",
@@ -73,8 +121,105 @@ def _text_bytes(path: Path) -> bytes | None:
     return data
 
 
-def _wheel_failures() -> list[str]:
+def _artifact_text_failure(
+    artifact: Path,
+    member: str,
+    data: bytes,
+) -> list[str]:
+    if member.casefold().endswith(".hwpx"):
+        failures: list[str] = []
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as package:
+                for nested_member in package.namelist():
+                    failures.extend(
+                        _artifact_text_failure(
+                            artifact,
+                            f"{member}!{nested_member}",
+                            package.read(nested_member),
+                        )
+                    )
+        except zipfile.BadZipFile:
+            pass
+        return failures
+
+    basename = Path(member).name
+    if not (
+        member.casefold().endswith(TEXT_ARTIFACT_SUFFIXES)
+        or basename in {"METADATA", "PKG-INFO"}
+    ):
+        return []
     failures: list[str] = []
+    try:
+        artifact_name = artifact.relative_to(ROOT)
+    except ValueError:
+        artifact_name = artifact
+    display = f"{artifact_name}!{member}"
+    if INTERNAL_WORK_CODE.search(data):
+        failures.append(f"internal work code in public artifact: {display}")
+    if WORKSTATION_PATH.search(data):
+        failures.append(f"workstation-shaped path in public artifact: {display}")
+    return failures
+
+
+def _removed_source_paths() -> frozenset[str]:
+    fixture = json.loads(REMOVED_PATH_FIXTURE.read_text(encoding="utf-8"))
+    paths = fixture.get("paths")
+    if not isinstance(paths, list) or not all(isinstance(path, str) for path in paths):
+        raise ValueError("removed-path fixture paths must be a list of strings")
+    digest = hashlib.sha256(
+        ("\n".join(paths) + "\n").encode("utf-8")
+    ).hexdigest()
+    if (
+        paths != sorted(paths)
+        or len(paths) != len(set(paths))
+        or len(paths) != REMOVED_PATH_COUNT
+        or digest != REMOVED_PATH_SHA256
+    ):
+        raise ValueError("removed-path fixture differs from the public-hygiene pin")
+    return frozenset(paths)
+
+
+def _artifact_source_path(member: str) -> str | None:
+    normalized = member.replace("\\", "/").lstrip("./")
+    if normalized.startswith("hwpx/") and normalized.endswith(".py"):
+        return f"src/{normalized}"
+    marker = "src/hwpx/"
+    index = normalized.find(marker)
+    if index >= 0 and normalized.endswith(".py"):
+        return normalized[index:]
+    return None
+
+
+def _removed_artifact_member_failures(
+    artifact: Path,
+    members: list[str],
+    removed_paths: frozenset[str] | None = None,
+) -> list[str]:
+    removed_paths = (
+        _removed_source_paths() if removed_paths is None else removed_paths
+    )
+    failures: list[str] = []
+    try:
+        artifact_name = artifact.relative_to(ROOT)
+    except ValueError:
+        artifact_name = artifact
+    for member in members:
+        source_path = _artifact_source_path(member)
+        if source_path in removed_paths:
+            failures.append(
+                f"removed core module in public artifact: "
+                f"{artifact_name}!{member} ({source_path})"
+            )
+    return failures
+
+
+def _distribution_failures() -> list[str]:
+    failures: list[str] = []
+    removed_paths = (
+        _removed_source_paths()
+        if _project_kind() == "core"
+        else frozenset()
+    )
     rejected = (
         "tests/",
         "shared/hwpx/",
@@ -88,6 +233,9 @@ def _wheel_failures() -> list[str]:
     for wheel in sorted((ROOT / "dist").glob("*.whl")):
         with zipfile.ZipFile(wheel) as archive:
             names = archive.namelist()
+            failures.extend(
+                _removed_artifact_member_failures(wheel, names, removed_paths)
+            )
             for name in names:
                 if name.startswith(rejected) or any(f"/{part}" in f"/{name}" for part in rejected):
                     failures.append(f"{wheel.relative_to(ROOT)} contains {name}")
@@ -101,6 +249,28 @@ def _wheel_failures() -> list[str]:
                 ]
                 if any(line.startswith("requires-dist: modelcontextprotocol") for line in requirements):
                     failures.append(f"{wheel.relative_to(ROOT)} declares modelcontextprotocol")
+            for name in names:
+                failures.extend(
+                    _artifact_text_failure(wheel, name, archive.read(name))
+                )
+    for sdist in sorted((ROOT / "dist").glob("*.tar.gz")):
+        with tarfile.open(sdist, "r:gz") as archive:
+            failures.extend(
+                _removed_artifact_member_failures(
+                    sdist,
+                    [member.name for member in archive.getmembers()],
+                    removed_paths,
+                )
+            )
+            for member in archive.getmembers():
+                if not member.isfile():
+                    continue
+                extracted = archive.extractfile(member)
+                if extracted is None:
+                    continue
+                failures.extend(
+                    _artifact_text_failure(sdist, member.name, extracted.read())
+                )
     return failures
 
 
@@ -184,12 +354,6 @@ def main() -> int:
     tracked_ignored = _git_paths("ls-files", "-ci", "--exclude-standard")
     failures.extend(f"tracked file is ignored: {path}" for path in tracked_ignored)
 
-    workstation_path = re.compile(
-        ("/" + "Users" + r"/[^/\s]+/").encode()
-        + b"|"
-        + ("/" + "home" + r"/[^/\s]+/").encode()
-        + b"|[A-Za-z]:\\\\[Uu]sers\\\\"
-    )
     private_markers = [b">" + b"ko" + b"kyu" + b"<"]
     private_markers.extend(
         value.strip().encode("utf-8")
@@ -201,15 +365,15 @@ def main() -> int:
         data = _text_bytes(ROOT / rel)
         if data is None:
             continue
-        if workstation_path.search(data):
+        if WORKSTATION_PATH.search(data):
             failures.append(f"workstation-shaped path: {rel}")
         if any(marker in data for marker in private_markers):
             failures.append(f"private-origin marker: {rel}")
 
-    failures.extend(_hwpx_member_failures(tracked, workstation_path, private_markers))
+    failures.extend(_hwpx_member_failures(tracked, WORKSTATION_PATH, private_markers))
     failures.extend(_action_pin_failures(tracked))
     failures.extend(_internal_qa_runtime_failures(tracked, kind))
-    failures.extend(_wheel_failures())
+    failures.extend(_distribution_failures())
     if failures:
         for failure in failures:
             print(f"[FAIL] {failure}")

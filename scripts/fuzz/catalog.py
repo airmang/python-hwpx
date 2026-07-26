@@ -37,7 +37,7 @@ class OperationSpec:
 _OPERATION_CATALOG: tuple[OperationSpec, ...] = (
     OperationSpec(
         name="build_document",
-        surface="hwpx.builder.Document",
+        surface="hwpx_automation.office.authoring.builder.Document",
         description="Create the initial document with builder paragraphs, optional table, header, and footer.",
         parameters={
             "paragraphs": "list[str]",

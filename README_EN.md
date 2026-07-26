@@ -23,14 +23,22 @@ Windows, macOS, Linux, and CI.
 | | Repo | Role |
 |---|---|---|
 | 📦 | **`python-hwpx`** | Pure-Python HWPX core (this repo) |
-| 🔌 | [`hwpx-mcp-server`](https://github.com/airmang/hwpx-mcp-server) | Drive HWPX from MCP clients (Claude Desktop, etc.) |
+| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | Document workflows, MCP server, and the `hwpx` application CLI |
 | 🎯 | [`hwpx-plugin`](https://github.com/airmang/hwpx-plugins) | Plugin / skill bundle for agents |
+
+The [product-boundary contract](docs/architecture/product-boundary.md) pins the
+5.0 ownership split, removed-path non-resurrection rule, and import allowlist.
 
 ## Getting started
 
 ```bash
 pip install python-hwpx      # Python 3.10+
 ```
+
+> **5.x compatibility extra:** `pip install "python-hwpx[visual]"` remains
+> accepted so existing install commands do not fail, but the `visual` extra is
+> empty and installs no PDF or imaging dependencies. Render/PDF imaging runtime
+> belongs to `python-hwpx-automation[oracle]`.
 
 ```python
 from hwpx import HwpxDocument
@@ -45,7 +53,7 @@ doc.save_to_path("report-edited.hwpx")
 - **Read & extract** — text/HTML/rich Markdown export (formatting, nested tables, footnotes preserved), XPath object search
 - **Edit** — paragraphs, tables, images, headers/footers, memos, footnotes; line spacing, margins, page numbers
 - **Form filling** — label/path-based cell filling, byte-preserving structural edits (rows, columns, autofit, shrink-to-fit)
-- **Create** — composable builder, official-document lint and approval blocks, photo sheets, nameplates, org charts, mail merge, comparison tables
+- **Create & batch** — paragraphs, tables, images, TOCs and cross-references; explicit-sanitizer mail merge and text diff
 - **Tracked changes & TOC** — redline authoring, native table of contents and cross-references
 - **Verify & safety** — XSD/package validation CLIs, open-safety gate, a receipt on every write (`MutationReport`)
 
@@ -103,7 +111,7 @@ may change.
 | **Hancom install** | Not required | Required (Windows COM) | Not required |
 | **Cross-platform** | ✅ Linux / macOS / Windows / CI | ❌ Windows only | ✅ |
 | **Edit/create API** | ✅ | ✅ (COM) | ❌ mostly read |
-| **AI agent integration (MCP)** | ✅ | ❌ | ❌ |
+| **AI agent integration (MCP)** | ✅ via companion | ❌ | ❌ |
 
 > HWP (v5 binary) files are not supported. Convert to HWPX in Hancom Office first.
 

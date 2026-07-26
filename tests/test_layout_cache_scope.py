@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Edit-scoped layout-cache invalidation (S-087, specs/031 P0).
+"""Edit-scoped layout-cache invalidation (specs/031 P0).
 
 A single-cell fill must invalidate only the touched paragraphs' layout caches
 (``<hp:linesegarray>``). The old whole-section/blanket stripping forced Hancom

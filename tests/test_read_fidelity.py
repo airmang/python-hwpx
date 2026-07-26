@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Content-level read-fidelity harness tests (M6 / S-060 P1).
+"""Content-level read-fidelity harness tests.
 
 The A1 harness (``roundtrip_diff``) measures *element-count* preservation. This
 harness measures *content* fidelity: that per-run resolved formatting

@@ -8,6 +8,11 @@
 pip install python-hwpx
 ```
 
+5.x에서는 기존 `python-hwpx[visual]` 설치 명령도 호환을 위해 허용하지만
+그 extra는 비어 있어 이미지·PDF 렌더링 패키지를 설치하지 않는다. 렌더와
+PDF 이미징 실행이 필요하면 companion인 `python-hwpx-automation[oracle]`의
+설치·사용 문서를 따른다.
+
 이 문서는 **경로 기반 예제**부터 시작한다. 손에 `.hwpx` 파일이 이미 있다면 바로 열어서 수정하면 되고, 없으면 새 문서를 하나 만들면 된다.
 
 ## 1. 새 문서 만들고 저장하기

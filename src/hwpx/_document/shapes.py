@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Shape/control/note domain owner behind the HwpxDocument facade (S-084)."""
+"""Shape/control/note domain owner behind the HwpxDocument facade."""
 
 from __future__ import annotations
 

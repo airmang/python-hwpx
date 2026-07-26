@@ -294,7 +294,7 @@ class FitEngine:
         also sits inside the cell's *vertical* room, so a filled row does not
         silently grow and shift the page (the dominant M9 form-fill defect).
 
-        Honesty contract (mirrors the width path, grounded in the S-085 P0/P1
+        Honesty contract (mirrors the width path, grounded in differential
         measurement): the authored ``cellSz.height`` is an unreliable proxy in wild
         forms (auto-grow, tiny floors, merges), so a *modest* vertical overflow is
         reported and deferred to the render oracle; only a *gross* balloon shrinks
@@ -314,7 +314,7 @@ class FitEngine:
         if verdict == "fits":
             return result
         if verdict == "modest":
-            # S-085 P1 calibration round 2 (differential-measured): the modest
+            # Differential calibration round 2: the modest
             # band is where pages actually shift, so try to shrink INTO the
             # budget first; only defer to the oracle when no font >= min can
             # land the value fully inside the authored height.

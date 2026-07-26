@@ -170,7 +170,8 @@ Measured over 6 genuine Hancom-saved docs × 3 mutations (17 valid pairs):
 
 **The Windows verdict reproduces on the Mac oracle.** The same harness was run on
 macOS with the new `MacHancomOracle` (`Hancom Office HWP.app` driven via
-computer-use GUI → PDF; see `src/hwpx/visual/_render_hwpx_mac.applescript`)
+computer-use GUI → PDF; see
+`python-hwpx-automation/src/hwpx_automation/office/rendering/_render_hwpx_mac.applescript`)
 substituting for `hancom_render.ps1`. Input: one genuine Hancom-saved `.hwpx`
 (synthetic doc re-saved through Hancom's `다른 이름으로 저장하기` → 6 `linesegarray`
 in section0; `control_valid 3/3`).

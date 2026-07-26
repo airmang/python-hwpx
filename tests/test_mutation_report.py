@@ -1,4 +1,4 @@
-"""Safe Write Contract (S-089 P1) — MutationReport measurement + enforcement.
+"""Safe Write Contract — MutationReport measurement and enforcement.
 
 Covers the ``mode``/``fallback``/``return_report`` additions to the save funnel:
 the default return is unchanged, ``mode="patch"`` publishes when preservation

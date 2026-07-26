@@ -22,14 +22,22 @@ Windows·macOS·Linux·CI 어디서든 순수 파이썬으로 동작합니다.
 | | 레포 | 역할 |
 |---|---|---|
 | 📦 | **`python-hwpx`** | 순수 파이썬 HWPX 코어 (이 레포) |
-| 🔌 | [`hwpx-mcp-server`](https://github.com/airmang/hwpx-mcp-server) | MCP 클라이언트(Claude Desktop 등)에서 HWPX 조작 |
+| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | 문서 워크플로·MCP 서버·`hwpx` 응용 CLI |
 | 🎯 | [`hwpx-plugin`](https://github.com/airmang/hwpx-plugins) | 에이전트용 플러그인·스킬 번들 |
+
+5.0의 모듈 소유권, 삭제 경로 재등장 방지, 의존성 허용 범위는
+[제품 경계 문서](docs/architecture/product-boundary.md)에 고정돼 있습니다.
 
 ## 시작하기
 
 ```bash
 pip install python-hwpx      # Python 3.10+
 ```
+
+> **5.x 호환 extra:** `pip install "python-hwpx[visual]"`은 기존 설치 명령을
+> 깨뜨리지 않기 위해 계속 허용되지만, `visual` extra는 비어 있어 PDF·이미지
+> 렌더링 의존성을 설치하지 않습니다. 렌더·PDF 이미징 실행은
+> `python-hwpx-automation[oracle]`이 소유합니다.
 
 ```python
 from hwpx import HwpxDocument
@@ -44,7 +52,7 @@ doc.save_to_path("보고서-수정.hwpx")
 - **읽기·추출** — 텍스트/HTML/rich Markdown 내보내기(서식·중첩 표·각주 보존), XPath 객체 탐색
 - **편집** — 문단·표·이미지·머리글/바닥글·메모·각주, 줄간격·여백·쪽번호 등 서식
 - **양식 채우기** — 라벨·경로 기반 셀 채움, 바이트 보존 구조 편집(행·열·오토핏·shrink-to-fit)
-- **생성** — 조립형 builder, 공문 lint·결재란, 사진대지·명패·조직도, mail merge, 신구대조표
+- **생성·일괄 처리** — 문단·표·이미지·목차·상호참조 저작, 명시적 sanitizer 기반 mail merge, 텍스트 diff
 - **변경추적·목차** — redline 저작, 네이티브 목차·상호참조
 - **검증·안전** — XSD·패키지 검증 CLI, 열림 안전 게이트, 모든 쓰기에 영수증(`MutationReport`)
 
@@ -98,7 +106,7 @@ print(report.preservation.untouched_part_payloads.to_dict())
 | **한/글 설치** | 불필요 | 필요 (Windows COM) | 불필요 |
 | **크로스 플랫폼** | ✅ Linux / macOS / Windows / CI | ❌ Windows 전용 | ✅ |
 | **편집/생성 API** | ✅ | ✅ (COM) | ❌ 대부분 읽기 |
-| **AI 에이전트 연동 (MCP)** | ✅ | ❌ | ❌ |
+| **AI 에이전트 연동 (MCP)** | ✅ companion 경유 | ❌ | ❌ |
 
 > HWP(v5 바이너리)는 지원하지 않습니다. 한컴오피스에서 HWPX로 변환 후 사용하세요.
 

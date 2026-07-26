@@ -118,5 +118,5 @@
   "toolsExportCount": 6,
   "toolsSnapshotSha256": "98e444c99cfd6fe5c9370fea335af5415308a5b7f2ca16ec6d23b5a648731875",
   "deterministicPayloadsSha256": "83615c8ef70b54632e214c3aca58422fba97c987a4d64fed2d450e77e72478dc",
-  "compatibilityRemovalGate": "S-106 observation followed by separately approved S-107 core major"
+  "compatibilityRemovalGate": "4.x observation followed by the owner-approved 5.0 core boundary"
 }

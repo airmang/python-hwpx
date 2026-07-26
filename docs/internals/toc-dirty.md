@@ -14,7 +14,7 @@
 
 라이브러리가 목차를 삽입할 때(`add_native_toc`), 항목의 쪽번호는 **naive한 추정치**로 채워집니다. 라이브러리는 한/글이 아니므로 실제 페이지네이션을 알 수 없습니다. 대신 필드에 `dirty="1"`을 세팅합니다.
 
-**실제 한/글에서 확인된 동작**: `dirty="1"`인 TABLEOFCONTENTS 필드는 한/글이 **문서를 여는 시점에** 통째로 재생성됩니다 — 항목, 스타일, 쪽번호 전부를 한/글이 직접 계산합니다. `src/hwpx/visual/oracle.py`의 `refresh_document` 주석이 이 트리거를 기록합니다:
+**실제 한/글에서 확인된 동작**: `dirty="1"`인 TABLEOFCONTENTS 필드는 한/글이 **문서를 여는 시점에** 통째로 재생성됩니다 — 항목, 스타일, 쪽번호 전부를 한/글이 직접 계산합니다. companion의 `hwpx_automation.office.rendering.oracle.refresh_document` 주석이 이 트리거를 기록합니다:
 
 > The measured native-TOC re-number trigger: a `dirty="1"` TABLEOFCONTENTS is rebuilt on open — Hancom itself computes entries and page numbers — and CROSSREF caches recompute automatically.
 

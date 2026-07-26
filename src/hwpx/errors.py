@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Structured exception base for python-hwpx (S-091 P2).
+"""Structured exception base for python-hwpx.
 
 Every fail-closed public contract raises a :class:`HwpxError` (or a subclass).
 The base carries three machine-readable fields on top of the human-readable

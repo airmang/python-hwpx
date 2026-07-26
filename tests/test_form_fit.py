@@ -201,7 +201,7 @@ def test_warn_policy_never_fails():
 
 
 # --------------------------------------------------------------------------- #
-# Vertical (row-height) budget — S-085 P1.
+# Vertical (row-height) budget.
 # --------------------------------------------------------------------------- #
 def _vslot(width=6000, font_pt=10.0, height=None, ratio=None, unavailable=False):
     return SlotMetrics(
@@ -311,7 +311,7 @@ def test_to_form_report_folds_results():
 
 
 def test_modest_vertical_overflow_shrinks_into_budget_when_possible():
-    # S-085 P1 round 2 (differential-measured): the modest band is where pages
+    # Differential calibration round 2: the modest band is where pages
     # actually shift, so wrap_then_shrink must land INSIDE the height budget
     # instead of warning and letting the row grow.
     engine = FitEngine()
@@ -340,7 +340,7 @@ def test_modest_vertical_overflow_defers_when_shrink_cannot_reach_budget():
 
 
 def test_inline_control_width_narrows_slot_and_refuses_wrap() -> None:
-    """S-087 defect ①: a checkbox sharing the cell line consumes its declared
+    """A checkbox sharing the cell line consumes its declared
     width; a value that no longer fits must be a typed refusal, not a silent
     "fits" that grows the row and repaginates the form on real Hancom."""
     from hwpx.form_fit.measure import SlotMetrics

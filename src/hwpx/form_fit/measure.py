@@ -225,7 +225,7 @@ class SlotMetrics:
     # (checkboxes, form controls, pictures) that share the target paragraph.
     # Their declared ``hp:sz/@width`` is subtracted from the usable width —
     # ignoring them made the engine call "fits" on a fill that real Hancom
-    # wrapped, growing the row and repaginating a 10-page form (S-087 P0).
+    # wrapped, growing the row and repaginating a 10-page form.
     inline_object_width: float = 0.0
     inline_object_count: int = 0
     # A cell height existed but was unusable (merged row-span fragment, or an

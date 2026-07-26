@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Native TOC / cross-reference fidelity harness (M7 / S-062).
+"""Native TOC / cross-reference fidelity harness.
 
 Parses the Hancom-native field contract captured in
 ``specs/009-native-toc-xrefs/evidence/p0-native-toc-xml-contract.md``:

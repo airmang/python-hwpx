@@ -220,17 +220,17 @@ def _assert_acyclic(edges: dict[str, set[str]]) -> None:
 
 
 def test_frozen_facade_exports_remain_exact() -> None:
-    # 78 -> 80: S-089 P1 adds the Safe Write Contract's public MutationReport and
+    # 78 -> 80: the Safe Write Contract adds public MutationReport and
     # PreservationDowngradeError to the package surface.
-    # 80 -> 82: S-092 P1 adds the document preview viewer surface
+    # 80 -> 82: the document preview viewer surface is added
     # (render_document_viewer, DocumentViewer).
-    # 82 -> 66 stable: S-091 P1 splits the top-level surface into
+    # 82 -> 66 stable: the top-level surface is split into
     # stable/experimental/deprecated. __all__ keeps stable only (66); the
     # experimental (12) + deprecated (4) names stay importable via the module
     # __getattr__ (with DeprecationWarning). The legacy surface stays 82 — zero
     # names removed in that split.
     # 5.0: the application families left, so the stable surface is 34.
-    # (4.x history: 66 -> 67 when S-091 P2 added the structured-exception
+    # (4.x history: 66 -> 67 when the structured-exception
     # base HwpxError to the stable surface (see docs/stable-api.md 오류 계약 and
     # tests/test_stable_surface.py for the per-name contract).
     assert len(hwpx.__all__) == 34
