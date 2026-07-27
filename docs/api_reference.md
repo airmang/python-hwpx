@@ -145,8 +145,9 @@
 - `add_shape(shape_type, ...) -> HwpxOxmlInlineObject`
   - **저수준 탈출구.** 새 단락에 태그 이름으로 인라인 그리기 요소를 삽입하되, 건네받은
     속성만 쓰고 필수 하위 요소는 만들지 않습니다. 호출자가 채우지 않은 채 저장하면
-    한컴이 열지 못하는 문서가 되므로 호출 시 `UserWarning`이 납니다. 표준 도형은 위
-    전용 헬퍼를 쓰세요.
+    한컴이 열지 못하는 문서가 되므로 호출 시 `UserWarning`이 납니다. 이 경고가 유일한
+    신호입니다 — 저장은 실패하지 않고 `validate_package`·`validate_editor_open_safety`도
+    통과합니다. 표준 도형은 위 전용 헬퍼를 쓰세요.
 - `add_control(...) -> HwpxOxmlInlineObject`
   - **저수준 탈출구.** 새 단락에 인라인 컨트롤 객체(예: 양식 컨트롤)를 삽입합니다.
     `add_shape`와 같은 제약과 경고가 적용됩니다.

@@ -24,8 +24,8 @@
 | 문단·표 저작/편집 | Parse·Preserve·Edit·Create·Render-verified | corpus-metrics「오픈 수용률」476/476, 「저작 품질 게이트」실저작 58/58, 「렌더 검증」416건 |
 | 표 구조 변경(행·열·표 삭제/삽입, 열 오토핏) | Preserve·Edit | `hwpx.table_patch`; corpus-metrics「바이트 보존」497/497(patch 경로) |
 | 양식 채움(byte-splice) | Preserve·Edit | `hwpx.patch`·`table_patch`·`body_patch`; corpus-metrics「바이트 보존」497/497. wild 공개 양식의 서식 충실은 2차 실측 후 **산출분 pass 82.1%(23/28)·산출+fail 7.6%(5/66)** — 불가능 타깃은 typed 거부 35건(전수 감별 과잉거부 0). 잔존은 페이지 리플 5건(4건 typed 경고 동반·완전 무음 1건, 「구조결함 2차 실측」절), 표 shape 부류는 측정 인공물로 판명·판정기 교정 |
-| 도형 저작(선·사각형·타원) | Parse·Preserve·Edit·Create | 전용 `add_line`·`add_rectangle`·`add_ellipse`. 5.0.0에서 기하 자식 요소의 네임스페이스를 `hc:`로 수정(gold corpus 대조 테스트로 고정). **Render-verified: 실한컴 재검증 진행 중 — 루트 확정 예정** |
-| 저수준 도형·컨트롤 탈출구 | Edit | `add_shape`·`add_control`은 건네받은 요소와 속성만 쓰고 OWPML 필수 하위 요소(`offset`·`orgSz`·`curSz`·`sz`·`pos`·유형별 기하)는 만들지 않는다. 그대로 저장하면 한컴이 열지 못하므로 생성 시 `UserWarning`이 난다. 도형은 위의 전용 헬퍼를 쓸 것 |
+| 도형 저작(선·사각형·타원) | Parse·Preserve·Edit·Create·Render-verified | 전용 `add_line`·`add_rectangle`·`add_ellipse`. 5.0.0에서 기하 네임스페이스(`hc:`)·선 bounding box·`resize()`의 기하 반영을 수정한 뒤 실한컴 12.30.0(build 6446)에서 **개봉 7/7**(선 수평·대각·수직, 사각형, 타원, resize 후 혼합, 그림). 렌더로 사각형 144×72pt+`#CCE5FF`, 타원 100×60pt+`#FFD9CC`, 대각선이 요청 박스를 실제 span, `resize(14400,7200)` 후 새 크기·DASH 반영까지 확인 |
+| 저수준 도형·컨트롤 탈출구 | Edit | `add_shape`·`add_control`은 건네받은 요소와 속성만 쓰고 OWPML 필수 하위 요소(`offset`·`orgSz`·`curSz`·`sz`·`pos`·유형별 기하)는 만들지 않는다. 그대로 저장한 문서는 실한컴 12.30.0이 **거부**한다(음성 대조로 확인). 신호는 생성 시점의 `UserWarning` **하나뿐**이다 — 저장을 막지 않고 `validate_package`·`validate_editor_open_safety`도 통과시킨다(실측 `ok=True`). 도형은 위의 전용 헬퍼를 쓸 것(전용 헬퍼는 경고하지 않는다) |
 | arc·polygon·curve·connectLine | Parse·Unsupported-but-preserved | 열거·읽기는 되지만 저작 API 없음. 기존 개체는 patch 저장에서 바이트 동일 왕복 |
 | 그림 삽입/치환 | Edit·Create | `add_picture`·`add_image`·`replace_picture`. 단순 그림 개체 자동 생성은 지원하며 실한컴 개봉을 확인했다(실한컴 코퍼스와 자식 요소 단위 대조). 그룹·효과 등 복잡 개체 생성은 미지원 |
 | 차트 | Unsupported-but-preserved | 차트 생성 API 없음(kordoc 흡수 갭). 기존 차트 part는 patch 저장 시 바이트 보존(497/497) |

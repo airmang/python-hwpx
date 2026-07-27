@@ -151,8 +151,9 @@ install.
 ## Known limitations
 
 - `add_shape()` / `add_control()` are low-level escape hatches and do not generate
-  every sub-element Hancom requires (saving one as-is produces a file Hancom
-  cannot open, so calling them warns). For shapes use `add_line()` /
+  every sub-element Hancom requires. Saving one as-is produces a file Hancom
+  cannot open, and the only signal is a warning at call time — neither the save
+  nor package validation blocks it. For shapes use `add_line()` /
   `add_rectangle()` / `add_ellipse()`.
 - Pictures: simple picture objects can be generated; complex ones (groups,
   effects) cannot.
