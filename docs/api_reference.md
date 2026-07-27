@@ -640,7 +640,7 @@
 
 ### 함수
 
-- `load_default_schemas(schema_dir=None)`: 번들로 제공되는 헤더 및 섹션 XSD 파일을 로드하며, 스키마 디렉토리가 없을 때 예외를 발생시킵니다.
+- `load_default_schemas(schema_dir=None)`: 번들로 제공되는 헤더 및 섹션 XSD 파일을 로드하며, 스키마 디렉토리가 없을 때 예외를 발생시킵니다. 두 스키마는 루트 요소만 선언하고 나머지를 `<xs:any processContents="lax"/>`로 받는 느슨한 구조 스키마이므로, 통과했다고 해서 OWPML 전체가 검증된 것도 한컴이 문서를 연다는 뜻도 아닙니다.
 - `_iter_parts(document)`: `HwpxDocument`의 모든 헤더와 섹션에 대해 `(파트 이름, XML 바이트, 헤더 여부)`를 순회하는 내부 헬퍼입니다.
 - `_issues_from_error(part_name, exc)`: `lxml` 유효성 검사 오류를 `ValidationIssue` 인스턴스로 정규화합니다.
 - `validate_document(source, ...)`: 문서를 열고, 제공되지 않은 경우 기본 스키마를 로드하며, 각 헤더 및 섹션 파트를 적절한 파서로 검증하고 이슈를 집계합니다.

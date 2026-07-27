@@ -70,7 +70,7 @@ alongside it. It runs in the same environment without the MCP SDK.
 - **Form filling** — label/path-based cell filling, byte-preserving structural edits (rows, columns, autofit, shrink-to-fit)
 - **Create & batch** — paragraphs, tables, images, TOCs and cross-references; explicit-sanitizer mail merge and text diff
 - **Tracked changes & TOC** — redline authoring, native table of contents and cross-references
-- **Verify & safety** — XSD/package validation CLIs, open-safety gate, a receipt on every write (`MutationReport`)
+- **Verify & safety** — package-structure validation CLI, open-safety gate, a receipt on every write (`MutationReport`) — the bundled XSDs are permissive structural schemas, not full OWPML validation
 
 More: [usage guide](docs/usage.md) · [API reference](https://airmang.github.io/python-hwpx/) · [examples](docs/examples.md)
 

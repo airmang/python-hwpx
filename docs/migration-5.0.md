@@ -137,6 +137,23 @@ That is deliberate: an unverified result should say so rather than look like a
 pass. The same applies to `verify_fill`, and to
 `toc_fidelity.toc_verify(..., extract=...)`.
 
+### `python-hwpx[visual]` is now an empty extra
+
+`pip install "python-hwpx[visual]"` still succeeds — the extra is kept
+deliberately so existing install commands and lockfiles do not break — but in
+5.0 it installs nothing. In 4.2.0 it pulled in pymupdf, pillow and numpy.
+
+pip does not warn about a declared-but-empty extra, so an upgrade takes the
+imaging stack away silently and you find out later at the first `import fitz`.
+If you were relying on it, move to the companion:
+
+| 4.x | 5.0 |
+|---|---|
+| `python-hwpx[visual]` | `python-hwpx-automation[oracle]` (render/PDF) or `python-hwpx-automation[vision]` |
+
+Core owns no imaging runtime in 5.0; that is the same boundary the rendering
+change above describes.
+
 ### Removed from the wheel
 
 `hwpx.benchmark` and `hwpx.conformance` no longer ship, and the

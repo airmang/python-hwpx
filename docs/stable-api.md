@@ -18,8 +18,11 @@
 ### 최소 deprecation window
 
 이름을 제거하려면 **먼저 한 번의 major에서 `DeprecationWarning`을 낸 뒤** 그다음
-major에서 제거합니다(경고 없는 즉시 제거 금지). 4.0.0에서 제거되는 이름은 **0개**
-입니다 — 기존 최상위 이름은 전부 계속 import 가능하며, 비-stable 이름만 경고를 냅니다.
+major에서 제거합니다(경고 없는 즉시 제거 금지). 4.0.0은 이 창을 여는 major였고
+제거된 이름이 **0개**였습니다. 5.0.0은 그 창을 닫는 major로, 4.x에서 경고를 내던
+deprecated 표면 4종을 제거합니다(아래 「5.0에서 제거된 deprecated 표면」).
+응용 계층으로 옮겨 간 이름은 제거가 아니라 **이동**이며, import하면 어디로 갔는지
+알려 주는 오류가 납니다 — [5.0 마이그레이션 가이드](migration-5.0.md) 참조.
 
 ### 지원되지 않는(비공개) 표면
 
@@ -79,11 +82,15 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 - `analyze_template_formfit`, `apply_template_formfit`
 - `TEMPLATE_FORMFIT_BASELINE_SCHEMA_VERSION`, `TEMPLATE_FORMFIT_PLAN_SCHEMA_VERSION`
 
-## 오류 계약 (4.0.0 신규)
+## 오류 계약 (4.0.0 도입)
 
-fail-closed 공개 경로가 던지는 예외는 `hwpx.errors.HwpxError`(최상위 `hwpx.HwpxError`
-로도 import) 베이스를 상속합니다. 사람용 문장(`str(exc)`)은 그대로 두고, 세 가지
-**기계가 읽는** 필드를 얹습니다:
+아래 표에 있는 예외 — 쓰기 보존 계약, 저장 경로 게이트, 표 구조 편집, 이동된 표면
+안내 — 는 `hwpx.errors.HwpxError`(최상위 `hwpx.HwpxError`로도 import) 베이스를
+상속합니다. 모든 호출을 감싸는 포괄 계약은 아닙니다: 없는 파일은
+`FileNotFoundError`, HWPX 패키지가 아닌 입력은 `zipfile.BadZipFile`처럼 파이썬이
+원래 내는 예외가 그대로 올라옵니다([지원 매트릭스](support-matrix.md) 참조).
+구조화된 예외는 사람용 문장(`str(exc)`)을 그대로 두고, 세 가지 **기계가 읽는**
+필드를 얹습니다:
 
 | 속성 | 의미 |
 |---|---|
@@ -95,8 +102,8 @@ fail-closed 공개 경로가 던지는 예외는 `hwpx.errors.HwpxError`(최상�
 
 ### 상속으로 하위 호환 유지
 
-구조화 이전에도 각 예외는 `ValueError`/`RuntimeError`/`Exception`이었고, 4.0.0에서도
-그 관계를 유지합니다 — 기존 `except`가 깨지지 않습니다.
+구조화 이전에도 각 예외는 `ValueError`/`RuntimeError`/`Exception`이었고, 4.0.0과
+5.0.0 모두 그 관계를 유지합니다 — 기존 `except`가 깨지지 않습니다.
 
 | 예외 | `code` | 상속 | 발생 경로 |
 |---|---|---|---|

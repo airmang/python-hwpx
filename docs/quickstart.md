@@ -45,6 +45,8 @@ print("저장 완료: output/hello.hwpx")
 ## 2. 기존 문서 열어 수정하기
 
 이미 있는 파일을 고칠 때는 `open()`으로 열고, 수정한 뒤 다른 이름으로 저장하면 된다.
+아래는 방금 1번에서 만든 `output/hello.hwpx`를 그대로 이어서 고치므로, 준비된 입력
+파일이 따로 없어도 실행된다.
 
 ```python
 from pathlib import Path
@@ -53,11 +55,11 @@ from hwpx import HwpxDocument
 
 Path("output").mkdir(parents=True, exist_ok=True)
 
-with HwpxDocument.open("input/sample.hwpx") as document:
+with HwpxDocument.open("output/hello.hwpx") as document:
     document.add_paragraph("자동화로 추가한 검토 문단")
-    document.save_to_path("output/sample-updated.hwpx")
+    document.save_to_path("output/hello-updated.hwpx")
 
-print("저장 완료: output/sample-updated.hwpx")
+print("저장 완료: output/hello-updated.hwpx")
 ```
 
 `HwpxDocument.open()`은 파일 경로뿐 아니라 바이트, 파일 객체도 받을 수 있다. 하지만 첫 시작은 경로 기반 예제가 가장 덜 헷갈린다. `with`를 쓰면 블록 종료 시점에 내부 자원 정리도 자동으로 끝난다.

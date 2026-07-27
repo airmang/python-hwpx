@@ -69,7 +69,7 @@ doc.save_to_path("보고서-수정.hwpx")
 - **양식 채우기** — 라벨·경로 기반 셀 채움, 바이트 보존 구조 편집(행·열·오토핏·shrink-to-fit)
 - **생성·일괄 처리** — 문단·표·이미지·목차·상호참조 저작, 명시적 sanitizer 기반 mail merge, 텍스트 diff
 - **변경추적·목차** — redline 저작, 네이티브 목차·상호참조
-- **검증·안전** — XSD·패키지 검증 CLI, 열림 안전 게이트, 모든 쓰기에 영수증(`MutationReport`)
+- **검증·안전** — 패키지 구조 검증 CLI, 열림 안전 게이트, 모든 쓰기에 영수증(`MutationReport`) — 번들 XSD는 느슨한 구조 스키마이며 OWPML 전체 검증은 아닙니다
 
 자세한 내용: [사용 가이드](docs/usage.md) · [API 레퍼런스](https://airmang.github.io/python-hwpx/) · [안정 API 표면](docs/stable-api.md) · [예제](docs/examples.md)
 
