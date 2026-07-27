@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+import warnings
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import _HC, _HP, _append_child, _element_local_name, _object_id
@@ -59,6 +60,23 @@ _IDENTITY_MATRIX = {
     "e1": "1", "e2": "0", "e3": "0",
     "e4": "0", "e5": "1", "e6": "0",
 }
+
+# Geometry children carrying a single ``x``/``y`` coordinate, keyed by local
+# name because the namespace differs per shape type in real Hancom output:
+# ``hp:line`` writes ``hc:startPt`` while ``hp:connectLine`` writes
+# ``hp:startPt`` (both observed in the corpus fixtures).
+_SHAPE_POINT_LOCAL_NAMES = frozenset({
+    "pt0", "pt1", "pt2", "pt3",  # rect corners
+    "pt",                        # polygon vertices
+    "startPt", "endPt",          # line / connectLine endpoints
+    "center", "ax1", "ax2",      # ellipse / arc axes
+    "start1", "end1", "start2", "end2",  # ellipse / arc sweep
+})
+
+# ``<hp:seg>`` (curve) carries two coordinate pairs instead of one.
+_SHAPE_SEGMENT_ATTR_PAIRS: tuple[tuple[str, str], ...] = (("x1", "y1"), ("x2", "y2"))
+
+_SHAPE_POINT_ATTR_PAIRS: tuple[tuple[str, str], ...] = (("x", "y"),)
 
 _DEFAULT_LINE_SHAPE_ATTRS: dict[str, str] = {
     "color": "#000000",
@@ -373,6 +391,26 @@ def _create_picture_element(
     return el
 
 
+def _scale_coordinates(
+    element: ET.Element,
+    attr_pairs: tuple[tuple[str, str], ...],
+    x_ratio: float,
+    y_ratio: float,
+) -> None:
+    """Multiply the named coordinate attributes in place."""
+
+    for x_name, y_name in attr_pairs:
+        for name, ratio in ((x_name, x_ratio), (y_name, y_ratio)):
+            raw = element.get(name)
+            if raw is None:
+                continue
+            try:
+                value = int(raw)
+            except ValueError:
+                continue
+            element.set(name, str(round(value * ratio)))
+
+
 class HwpxOxmlShape:
     """Wrapper for a drawing shape element (``<hp:line>``, ``<hp:rect>``, ``<hp:ellipse>``, etc.)."""
 
@@ -412,7 +450,22 @@ class HwpxOxmlShape:
         return 0
 
     def resize(self, width: int, height: int) -> None:
-        """Update all size-related sub-elements and mark dirty."""
+        """Resize the shape, including the geometry Hancom actually draws.
+
+        Hancom renders a drawing object from its type-specific geometry
+        (``pt0``–``pt3`` for a rectangle, ``center``/``ax1``/``ax2`` for an
+        ellipse, ``startPt``/``endPt`` for a line) scaled by ``scaMatrix`` —
+        not from ``sz``.  Updating the size elements alone reports a new size
+        while the document keeps drawing the old one, so the geometry is
+        scaled by the same per-axis ratio and ``scaMatrix`` is reset to
+        identity.
+
+        An axis with no current extent — the height of a perfectly horizontal
+        line — has no geometry to scale.  Its coordinates are left alone and a
+        :class:`UserWarning` is raised, because the drawn shape cannot follow
+        the requested size.
+        """
+        old_width, old_height = self._geometry_size()
         w, h = str(width), str(height)
         for tag in ("sz", "orgSz", "curSz"):
             child = self.element.find(f"{_HP}{tag}")
@@ -423,7 +476,67 @@ class HwpxOxmlShape:
         if rot is not None:
             rot.set("centerX", str(width // 2))
             rot.set("centerY", str(height // 2))
+        self._scale_geometry(old_width, old_height, width, height)
         self.paragraph.section.mark_dirty()
+
+    def _geometry_size(self) -> tuple[int, int]:
+        """Return the size the type-specific geometry is expressed in.
+
+        That is ``orgSz``: in the corpus fixtures a shape's geometry always
+        matches ``orgSz`` even when ``sz`` differs because ``scaMatrix``
+        scales it.
+        """
+        for tag in ("orgSz", "sz"):
+            child = self.element.find(f"{_HP}{tag}")
+            if child is None:
+                continue
+            try:
+                return int(child.get("width", "0")), int(child.get("height", "0"))
+            except ValueError:
+                return 0, 0
+        return 0, 0
+
+    def _scale_geometry(
+        self,
+        old_width: int,
+        old_height: int,
+        width: int,
+        height: int,
+    ) -> None:
+        flat_axes = [
+            name
+            for name, old, new in (
+                ("width", old_width, width), ("height", old_height, height),
+            )
+            if old <= 0 < new
+        ]
+        if flat_axes:
+            warnings.warn(
+                f"{self.shape_type} has no {' or '.join(flat_axes)} to scale; "
+                "its geometry keeps the old coordinates and the shape will "
+                "not be drawn at the requested size",
+                UserWarning,
+                stacklevel=3,
+            )
+
+        x_ratio = width / old_width if old_width > 0 else 1.0
+        y_ratio = height / old_height if old_height > 0 else 1.0
+        for child in self.element:
+            local = _element_local_name(child)
+            if local in _SHAPE_POINT_LOCAL_NAMES:
+                pairs = _SHAPE_POINT_ATTR_PAIRS
+            elif local == "seg":
+                pairs = _SHAPE_SEGMENT_ATTR_PAIRS
+            else:
+                continue
+            _scale_coordinates(child, pairs, x_ratio, y_ratio)
+
+        rendering = self.element.find(f"{_HP}renderingInfo")
+        if rendering is not None:
+            sca = rendering.find(f"{_HC}scaMatrix")
+            if sca is not None:
+                for key, value in _IDENTITY_MATRIX.items():
+                    sca.set(key, value)
 
     # --- line shape access -------------------------------------------------
 
