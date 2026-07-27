@@ -437,25 +437,36 @@ print(table.row_count, table.column_count)
 
 ### 예제 36: 도형 삽입
 
+선·사각형·타원은 전용 헬퍼로 만듭니다. 좌표와 크기는 HWPUNIT(1인치 = 7200)이며,
+한컴이 요구하는 하위 요소를 헬퍼가 모두 채우므로 결과가 그대로 열립니다.
+
 ```python
 from hwpx import HwpxDocument
 
 document = HwpxDocument.open("my-document.hwpx")
 section = document.sections[0]
-shape = document.add_shape("rect", section=section, attributes={"width": "9000", "height": "4500"})
+line = document.add_line(0, 0, 14400, 0, line_color="#333333", section=section)
+rectangle = document.add_rectangle(14400, 7200, fill_color="#FFD9CC", section=section)
+ellipse = document.add_ellipse(9000, 4500, section=section)
 ```
 
-### 예제 37: 도형 속성 수정
+### 예제 37: 도형 크기 변경
 
 ```python
 from hwpx import HwpxDocument
 
 document = HwpxDocument.open("my-document.hwpx")
-shape = document.add_shape("rect", section=document.sections[0])
-shape.set_attribute("width", "12000")
+shape = document.add_rectangle(14400, 7200, section=document.sections[0])
+shape.resize(9000, 4500)
+print(shape.shape_type, shape.width, shape.height)
 ```
 
 ### 예제 38: 컨트롤 객체 추가
+
+`add_control()`은 저수준 탈출구입니다. 건네준 요소와 속성만 쓰고 한컴이 요구하는
+나머지 하위 요소는 만들지 않으므로, 호출자가 채우지 않은 채 저장한 문서는 한컴에서
+열리지 않습니다. 그래서 호출 시 `UserWarning`이 나며, 경고 메시지가 대신 쓸 전용
+헬퍼를 알려 줍니다.
 
 ```python
 from hwpx import HwpxDocument
@@ -465,6 +476,8 @@ control = document.add_control(section=document.sections[0], control_type="LINE"
 ```
 
 ### 예제 39: 컨트롤 속성 변경
+
+앞 예제와 같은 탈출구 경로이므로, 필요한 하위 요소는 호출자가 직접 채워야 합니다.
 
 ```python
 from hwpx import HwpxDocument
@@ -823,12 +836,11 @@ table.set_cell_text(0, 2, "Forecast")
 table.merge_cells(0, 0, 0, 2)
 table.cell(1, 0).text = "Q1"
 
-# 개체와 컨트롤도 문서 또는 문단 수준에서 추가할 수 있습니다.
-shape = document.add_shape(
-    "rect",
-    section=section,
-    attributes={"width": "9000", "height": "4500"},
-)
+# 개체도 문서 또는 문단 수준에서 추가할 수 있습니다.
+rectangle = document.add_rectangle(9000, 4500, fill_color="#FFD9CC", section=section)
+
+# add_control은 저수준 탈출구입니다 — 필수 하위 요소를 만들지 않아 UserWarning이
+# 나고, 호출자가 채우지 않으면 한컴이 열지 못하는 문서가 됩니다.
 control = document.add_control(
     section=section,
     control_type="LINE",

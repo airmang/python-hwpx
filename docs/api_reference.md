@@ -134,10 +134,22 @@
   - 모든 표를 순회하며 라벨 셀을 찾고, `right`/`down` 방향으로 인접한 타깃 셀 정보를 모두 반환합니다. 라벨 매칭은 공백·대소문자·후행 콜론을 정규화합니다.
 - `fill_by_path(mappings) -> dict`
   - `"라벨 > 방향 > 방향"` 형식의 경로를 해석해 셀 값을 일괄 기록합니다. 라벨 미발견, 다중 후보, 범위 초과는 개별 실패 항목으로 보고하고 나머지 매핑은 계속 처리합니다.
+- `add_line(start_x, start_y, end_x, end_y, *, line_color, line_width, ...) -> HwpxOxmlShape`
+  - 새 단락에 선을 삽입합니다. 좌표는 HWPUNIT(1인치 = 7200)입니다.
+- `add_rectangle(width, height, *, ratio, line_color, line_width, fill_color, ...) -> HwpxOxmlShape`
+  - 새 단락에 사각형을 삽입합니다. `ratio`는 모서리 둥글기(0 = 직각, 50 = 반원)입니다.
+- `add_ellipse(width, height, *, line_color, line_width, fill_color, ...) -> HwpxOxmlShape`
+  - 새 단락에 타원을 삽입합니다.
+  - 위 세 헬퍼는 한컴이 요구하는 하위 요소(`offset`·`orgSz`·`curSz`·`sz`·`pos`·유형별
+    기하)를 모두 생성하므로 산출물이 그대로 열립니다. 도형은 이 경로를 쓰세요.
 - `add_shape(shape_type, ...) -> HwpxOxmlInlineObject`
-  - 새 단락에 태그 이름을 사용하여 인라인 그리기 요소를 삽입합니다.
+  - **저수준 탈출구.** 새 단락에 태그 이름으로 인라인 그리기 요소를 삽입하되, 건네받은
+    속성만 쓰고 필수 하위 요소는 만들지 않습니다. 호출자가 채우지 않은 채 저장하면
+    한컴이 열지 못하는 문서가 되므로 호출 시 `UserWarning`이 납니다. 표준 도형은 위
+    전용 헬퍼를 쓰세요.
 - `add_control(...) -> HwpxOxmlInlineObject`
-  - 새 단락에 인라인 컨트롤 객체(예: 양식 컨트롤)를 삽입합니다.
+  - **저수준 탈출구.** 새 단락에 인라인 컨트롤 객체(예: 양식 컨트롤)를 삽입합니다.
+    `add_shape`와 같은 제약과 경고가 적용됩니다.
 
 #### 영속성(Persistence)
 
@@ -439,7 +451,8 @@
 - `add_run(text="", ...)`: 새 런을 추가하고, 선택적으로 소유 문서를 통해 일치하는 글자 스타일을 생성한 후, 래퍼를 반환합니다.
 - `remove()`: 단락을 소유 섹션에서 삭제합니다. 섹션의 마지막 단락이면 `ValueError`가 발생합니다.
 - `tables`: 단락 내에 포함된 `HwpxOxmlTable` 래퍼를 반환하는 프로퍼티입니다.
-- `add_table(...)`, `add_shape(...)`, `add_control(...)`: 적절한 런을 생성하여 인라인 객체(표, 도형, 컨트롤)를 삽입하고 래퍼 객체를 반환합니다.
+- `add_table(...)`, `add_line(...)`, `add_rectangle(...)`, `add_ellipse(...)`: 적절한 런을 생성하여 인라인 객체(표, 도형)를 삽입하고 래퍼 객체를 반환합니다. 도형 헬퍼는 한컴이 요구하는 하위 요소까지 생성합니다.
+- `add_shape(...)`, `add_control(...)`: 같은 자리에 임의의 요소를 넣는 저수준 탈출구입니다. 필수 하위 요소를 만들지 않아 호출 시 `UserWarning`이 나므로, 표준 도형은 위 전용 헬퍼를 쓰세요.
 - `para_pr_id_ref`, `style_id_ref`, `char_pr_id_ref`: 단락 수준의 서식 재정의를 허용하는 setter가 있는 프로퍼티입니다.
 - `_run_elements()`, `_ensure_run()`, `_create_run_for_object()`: 위 작업들을 위해 런 생성 및 접근을 관리하는 내부 헬퍼입니다.
 
