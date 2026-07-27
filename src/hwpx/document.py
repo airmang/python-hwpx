@@ -957,7 +957,19 @@ class HwpxDocument:
         run_attributes: dict[str, str] | None = None,
         **extra_attrs: str,
     ) -> HwpxOxmlInlineObject:
-        """Insert an inline shape into a new paragraph."""
+        """Insert an inline shape into a new paragraph.
+
+        This is a low-level escape hatch: it writes the element and the
+        attributes it is handed and nothing else, so the result is **not a
+        document Hancom can open** until the caller supplies the required
+        OWPML children (``offset``, ``orgSz``, ``curSz``, ``sz``, ``pos`` and
+        the type-specific geometry).  A :class:`UserWarning` is raised while
+        they are missing.
+
+        For LINE / RECT / ELLIPSE shapes, prefer :meth:`add_line`,
+        :meth:`add_rectangle`, and :meth:`add_ellipse`, which build the full
+        child structure.
+        """
 
         return _shapes.add_shape(
             self,
@@ -985,7 +997,18 @@ class HwpxDocument:
         run_attributes: dict[str, str] | None = None,
         **extra_attrs: str,
     ) -> HwpxOxmlInlineObject:
-        """Insert a control inline object into a new paragraph."""
+        """Insert a control inline object into a new paragraph.
+
+        This is a low-level escape hatch: an ``<hp:ctrl>`` carries no meaning
+        of its own — the control it represents is its child element
+        (``colPr``, ``bookmark``, ``fieldBegin``, …).  Until the caller
+        appends one, the element is empty and **Hancom refuses to open the
+        document**, so a :class:`UserWarning` is raised.
+
+        For the controls this package builds, prefer :meth:`set_columns`,
+        :meth:`add_bookmark`, and :meth:`add_hyperlink`, which write the full
+        child structure.
+        """
 
         return _shapes.add_control(
             self,

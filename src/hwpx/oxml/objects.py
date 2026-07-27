@@ -78,6 +78,9 @@ _SHAPE_SEGMENT_ATTR_PAIRS: tuple[tuple[str, str], ...] = (("x1", "y1"), ("x2", "
 
 _SHAPE_POINT_ATTR_PAIRS: tuple[tuple[str, str], ...] = (("x", "y"),)
 
+# Children every drawing shape needs before Hancom will open the document.
+_REQUIRED_SHAPE_CHILD_NAMES = ("offset", "orgSz", "curSz", "sz", "pos")
+
 _DEFAULT_LINE_SHAPE_ATTRS: dict[str, str] = {
     "color": "#000000",
     "width": "283",
@@ -409,6 +412,13 @@ def _scale_coordinates(
             except ValueError:
                 continue
             element.set(name, str(round(value * ratio)))
+
+
+def _missing_shape_children(element: ET.Element) -> list[str]:
+    """Return the OWPML children *element* needs before Hancom will open it."""
+
+    present = {_element_local_name(child) for child in element}
+    return [name for name in _REQUIRED_SHAPE_CHILD_NAMES if name not in present]
 
 
 class HwpxOxmlShape:

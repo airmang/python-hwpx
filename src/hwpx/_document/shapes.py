@@ -29,7 +29,13 @@ def add_shape(
     run_attributes: dict[str, str] | None = None,
     **extra_attrs: str,
 ) -> HwpxOxmlInlineObject:
-    """Insert an inline shape into a new paragraph."""
+    """Insert an inline shape into a new paragraph.
+
+    Low-level escape hatch — writes only the element and attributes it is
+    handed, so the result is not openable by Hancom until the required OWPML
+    children are supplied.  Warns while they are missing.  Prefer
+    :func:`add_line`, :func:`add_rectangle`, and :func:`add_ellipse`.
+    """
 
     paragraph = doc.add_paragraph(
         "",
@@ -62,7 +68,12 @@ def add_control(
     run_attributes: dict[str, str] | None = None,
     **extra_attrs: str,
 ) -> HwpxOxmlInlineObject:
-    """Insert a control inline object into a new paragraph."""
+    """Insert a control inline object into a new paragraph.
+
+    Low-level escape hatch — an ``<hp:ctrl>`` means nothing without the child
+    element that carries the control, and Hancom refuses to open a document
+    containing an empty one, so this warns until a child is appended.
+    """
 
     paragraph = doc.add_paragraph(
         "",

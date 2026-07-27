@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Sequence
+import warnings
 import xml.etree.ElementTree as ET
 
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
@@ -34,6 +35,7 @@ from .objects import (
     _create_line_element,
     _create_picture_element,
     _create_rectangle_element,
+    _missing_shape_children,
 )
 from .run import HwpxOxmlRun
 from .table import HwpxOxmlTable
@@ -451,9 +453,16 @@ class HwpxOxmlParagraph:
     ) -> HwpxOxmlInlineObject:
         """Insert a generic shape element.
 
-        For spec-compliant LINE / RECT / ELLIPSE shapes, prefer the
-        dedicated ``add_line``, ``add_rectangle``, and ``add_ellipse``
-        methods which build the full OWPML child structure.
+        This is a low-level escape hatch: it writes the element and the
+        attributes it is handed and nothing else, so the result is **not a
+        document Hancom can open** until the caller supplies the required
+        OWPML children (``offset``, ``orgSz``, ``curSz``, ``sz``, ``pos`` and
+        the type-specific geometry).  A :class:`UserWarning` is raised while
+        they are missing.
+
+        For LINE / RECT / ELLIPSE shapes, prefer the dedicated ``add_line``,
+        ``add_rectangle``, and ``add_ellipse`` methods, which build the full
+        child structure.
         """
         if not shape_type:
             raise ValueError("shape_type must be a non-empty string")
@@ -462,6 +471,16 @@ class HwpxOxmlParagraph:
             char_pr_id_ref=char_pr_id_ref,
         )
         element = _append_child(run, f"{_HP}{shape_type}", dict(attributes or {}))
+        missing = _missing_shape_children(element)
+        if missing:
+            warnings.warn(
+                f"add_shape({shape_type!r}) produced a shape without "
+                f"{', '.join(missing)}; Hancom refuses to open a document "
+                "containing it. Use add_line/add_rectangle/add_ellipse, or "
+                "append the missing OWPML children yourself.",
+                UserWarning,
+                stacklevel=2,
+            )
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(element, self)
 
@@ -641,6 +660,18 @@ class HwpxOxmlParagraph:
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> HwpxOxmlInlineObject:
+        """Insert a generic ``<hp:ctrl>`` control element.
+
+        This is a low-level escape hatch: an ``<hp:ctrl>`` carries no meaning
+        of its own — the control it represents is its child element (
+        ``colPr``, ``bookmark``, ``fieldBegin``, …).  Until the caller appends
+        one, the element is empty and **Hancom refuses to open the document**,
+        so a :class:`UserWarning` is raised.
+
+        For the controls this package builds, prefer the dedicated
+        ``add_column_definition``, ``add_bookmark``, and ``add_hyperlink``
+        methods, which write the full child structure.
+        """
         attrs = dict(attributes or {})
         if control_type is not None:
             attrs.setdefault("type", control_type)
@@ -654,6 +685,15 @@ class HwpxOxmlParagraph:
         # 생성 지점처럼 부모에게 만들게 해서 구현체를 맞춘다.
         element = run.makeelement(f"{_HP}ctrl", attrs)
         run.append(element)
+        if len(element) == 0:
+            warnings.warn(
+                "add_control() produced an <hp:ctrl> with no control child; "
+                "Hancom refuses to open a document containing it. Use "
+                "add_column_definition/add_bookmark/add_hyperlink, or append "
+                "the control element yourself.",
+                UserWarning,
+                stacklevel=2,
+            )
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(element, self)
 
