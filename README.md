@@ -144,8 +144,10 @@ print(report.preservation.untouched_part_payloads.to_dict())
 
 ## 알려진 제약
 
-- `add_shape()` / `add_control()`은 한/글이 요구하는 모든 하위 요소를 생성하지 않습니다.
-- `<hp:pic>` 그림 개체의 완전 자동 생성은 제공하지 않습니다.
+- `add_shape()` / `add_control()`은 한/글이 요구하는 모든 하위 요소를 생성하지 않는
+  저수준 탈출구입니다(그대로 저장하면 열리지 않으므로 호출 시 경고가 납니다).
+  도형은 `add_line()` / `add_rectangle()` / `add_ellipse()`를 쓰세요.
+- 그림은 단순 개체 생성까지 지원하며, 그룹·효과 같은 복잡 개체 생성은 미지원입니다.
 - 암호화된 HWPX는 지원하지 않습니다.
 
 ## 기여하기

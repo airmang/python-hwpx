@@ -150,8 +150,12 @@ install.
 
 ## Known limitations
 
-- `add_shape()` / `add_control()` do not generate every sub-element Hancom requires.
-- Fully automatic generation of `<hp:pic>` picture objects is not provided.
+- `add_shape()` / `add_control()` are low-level escape hatches and do not generate
+  every sub-element Hancom requires (saving one as-is produces a file Hancom
+  cannot open, so calling them warns). For shapes use `add_line()` /
+  `add_rectangle()` / `add_ellipse()`.
+- Pictures: simple picture objects can be generated; complex ones (groups,
+  effects) cannot.
 - Encrypted HWPX files are not supported.
 
 ## Contributing

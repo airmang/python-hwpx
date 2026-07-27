@@ -24,7 +24,10 @@
 | 문단·표 저작/편집 | Parse·Preserve·Edit·Create·Render-verified | corpus-metrics「오픈 수용률」476/476, 「저작 품질 게이트」실저작 58/58, 「렌더 검증」416건 |
 | 표 구조 변경(행·열·표 삭제/삽입, 열 오토핏) | Preserve·Edit | `hwpx.table_patch`; corpus-metrics「바이트 보존」497/497(patch 경로) |
 | 양식 채움(byte-splice) | Preserve·Edit | `hwpx.patch`·`table_patch`·`body_patch`; corpus-metrics「바이트 보존」497/497. wild 공개 양식의 서식 충실은 2차 실측 후 **산출분 pass 82.1%(23/28)·산출+fail 7.6%(5/66)** — 불가능 타깃은 typed 거부 35건(전수 감별 과잉거부 0). 잔존은 페이지 리플 5건(4건 typed 경고 동반·완전 무음 1건, 「구조결함 2차 실측」절), 표 shape 부류는 측정 인공물로 판명·판정기 교정 |
-| 그림 삽입/치환 | Edit·Create | `add_picture`·`add_image`·`replace_picture`. `<hp:pic>` 완전 자동 생성과 복잡 개체는 미제공이므로 한컴에서 확인 권장(README「알려진 제약」) |
+| 도형 저작(선·사각형·타원) | Parse·Preserve·Edit·Create | 전용 `add_line`·`add_rectangle`·`add_ellipse`. 5.0.0에서 기하 자식 요소의 네임스페이스를 `hc:`로 수정(gold corpus 대조 테스트로 고정). **Render-verified: 실한컴 재검증 진행 중 — 루트 확정 예정** |
+| 저수준 도형·컨트롤 탈출구 | Edit | `add_shape`·`add_control`은 건네받은 요소와 속성만 쓰고 OWPML 필수 하위 요소(`offset`·`orgSz`·`curSz`·`sz`·`pos`·유형별 기하)는 만들지 않는다. 그대로 저장하면 한컴이 열지 못하므로 생성 시 `UserWarning`이 난다. 도형은 위의 전용 헬퍼를 쓸 것 |
+| arc·polygon·curve·connectLine | Parse·Unsupported-but-preserved | 열거·읽기는 되지만 저작 API 없음. 기존 개체는 patch 저장에서 바이트 동일 왕복 |
+| 그림 삽입/치환 | Edit·Create | `add_picture`·`add_image`·`replace_picture`. 단순 그림 개체 자동 생성은 지원하며 실한컴 개봉을 확인했다(실한컴 코퍼스와 자식 요소 단위 대조). 그룹·효과 등 복잡 개체 생성은 미지원 |
 | 차트 | Unsupported-but-preserved | 차트 생성 API 없음(kordoc 흡수 갭). 기존 차트 part는 patch 저장 시 바이트 보존(497/497) |
 | 수식 | Parse·Unsupported-but-preserved | 코어에 수식 저작 API 없음. 기존 수식 개체는 파싱·patch 보존됨(수식 미리보기 렌더는 뷰어/플러그인 계층) |
 | 변경추적(redline) | Edit·Create | `add_tracked_insert`·`add_tracked_delete`·`add_tracked_replace`; 실 Windows 한컴 COM `IsTrackChange=1`·검토 리본 수락/거부 스파이크. **렌더 주의**: 한컴이 변경추적 문서의 PDF export 자체를 거부 → corpus-metrics「렌더 검증」에서 `render_unavailable`로 정직 집계(결함 아님, 한컴 제약) |
@@ -32,7 +35,7 @@
 | 각주/미주 | Edit·Create | `add_footnote`·`add_endnote`; M6 읽기 경로에서 note 노출. 렌더 독립 게이트는 미측정 |
 | 네이티브 목차(TOC)/상호참조 | Create·Render-verified | `hwpx.tools.toc_author.add_native_toc`·`mark_toc_dirty`·`toc_verify`; corpus-metrics「네이티브 목차」구조 15/15, 실한컴 재계산 후 페이지 정합 5/5 |
 | 암호화 HWPX | Unsupported-and-rejected | 복호화 API 없음. 암호화된 content part는 파싱 단계에서 예외(`XMLSyntaxError`)로 거부 — 무음으로 잘못된 문서를 만들지 않음(fail-closed) |
-| HWP 5.x 바이너리 | Unsupported-and-rejected | HWP v5는 ZIP이 아니므로 열기 시 `BadZipFile` 예외. 한컴에서 HWPX로 변환 후 사용(README「대항 라이브러리 비교」주석) |
+| HWP 5.x 바이너리 | Unsupported-and-rejected | HWP v5는 ZIP이 아니므로 열기 시 `BadZipFile` 예외. OLE2/CFBF 시그니처를 확인하면 예외 메시지가 HWPX 변환을 안내한다(예외 타입은 그대로) |
 | 누름틀(form field) 생성 | Parse·Edit | `list_form_fields`·`fill_form_field`로 기존 누름틀 조회·서식 보존 채움. **신규 누름틀 생성 전용 도구는 미제공**(list/fill 한정) |
 
 ## 상태 판정 근거 요약
