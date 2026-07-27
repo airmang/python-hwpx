@@ -847,7 +847,10 @@ def test_header_ensure_char_property_creates_blocks_and_ids() -> None:
 def test_paragraph_add_shape_and_control_updates_attributes() -> None:
     section, paragraph = _build_section_with_paragraph()
 
-    shape = paragraph.add_shape("rect", {"width": "8000"})
+    # 두 진입점 모두 OWPML 필수 자식 없이 만들어진다 — 한컴이 못 여는 산출물이라
+    # 생성 시점에 경고한다.
+    with pytest.warns(UserWarning, match="orgSz"):
+        shape = paragraph.add_shape("rect", {"width": "8000"})
     assert shape.get_attribute("width") == "8000"
     section.reset_dirty()
     shape.set_attribute("width", "9000")
@@ -855,7 +858,8 @@ def test_paragraph_add_shape_and_control_updates_attributes() -> None:
     assert section.dirty is True
 
     section.reset_dirty()
-    control = paragraph.add_control({"id": "ctrl1"}, control_type="LINE")
+    with pytest.warns(UserWarning, match="no control child"):
+        control = paragraph.add_control({"id": "ctrl1"}, control_type="LINE")
     assert control.get_attribute("type") == "LINE"
     section.reset_dirty()
     control.set_attribute("id", "ctrl2")

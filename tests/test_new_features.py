@@ -20,6 +20,10 @@ from hwpx.oxml.document import (
 from hwpx.tools.exporter import export_html, export_markdown, export_text
 
 
+HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
+
+
 # =========================================================================
 # Helpers
 # =========================================================================
@@ -68,6 +72,9 @@ class TestShapeInsertion:
         shape.resize(200, 100)
         assert shape.width == 200
         assert shape.height == 100
+        # Hancom draws the corner points, not sz.
+        assert shape.element.find(f"{HC}pt2").attrib["x"] == "200"
+        assert shape.element.find(f"{HC}pt2").attrib["y"] == "100"
 
     def test_shapes_property_returns_list(self):
         doc = _new_doc()
@@ -99,6 +106,11 @@ class TestShapeInsertion:
         p = doc.add_paragraph("")
         shape = p.add_rectangle(100, 50, fill_color="#FF0000")
         assert shape.shape_type == "rect"
+        # Hancom reads the fill from the core namespace; an hp:fillBrush
+        # parses but renders unfilled.
+        brush = shape.element.find(f"{HC}fillBrush/{HC}winBrush")
+        assert brush is not None
+        assert brush.get("faceColor") == "#FF0000"
 
     def test_ellipse_boolean_uses_zero(self):
         el = _create_ellipse_element(100, 100)
@@ -112,17 +124,21 @@ class TestShapeInsertion:
         assert shape.inst_id is not None
 
     def test_shape_child_order_matches_real_hwpx(self):
-        """Verify ASC → ADO → type-specific → ASO ordering."""
+        """Verify ASC → ADO → type-specific → ASO ordering.
+
+        Compared on **fully qualified** tags: comparing local names let an
+        ``hp:pt0`` pass as ``pt0`` while Hancom refused to open the file.
+        """
         el = _create_rectangle_element(100, 50)
-        children = [c.tag.split("}")[-1] for c in el]
+        children = [c.tag for c in el]
         # ASC first
-        assert children.index("offset") < children.index("orgSz")
-        assert children.index("renderingInfo") < children.index("lineShape")
+        assert children.index(f"{HP}offset") < children.index(f"{HP}orgSz")
+        assert children.index(f"{HP}renderingInfo") < children.index(f"{HP}lineShape")
         # ADO before type-specific
-        assert children.index("lineShape") < children.index("pt0")
+        assert children.index(f"{HP}lineShape") < children.index(f"{HC}pt0")
         # ASO last
-        assert children.index("pt3") < children.index("sz")
-        assert children.index("sz") < children.index("pos")
+        assert children.index(f"{HC}pt3") < children.index(f"{HP}sz")
+        assert children.index(f"{HP}sz") < children.index(f"{HP}pos")
 
     def test_core_namespace_for_matrix(self):
         """transMatrix, scaMatrix, rotMatrix should use hc: namespace."""

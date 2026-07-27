@@ -33,11 +33,13 @@ def test_add_control_creates_an_element_of_the_tree_s_own_kind(control_type: str
     document = HwpxDocument.new()
     try:
         document.add_paragraph("도형이 붙을 문단")
-        obj = document.add_control(
-            section=document.sections[0],
-            control_type=control_type,
-            attributes={"id": f"guide-{control_type}", "type": control_type},
-        )
+        # 자식 없는 <hp:ctrl>은 한컴이 열지 못한다 — 만들어지되 경고한다.
+        with pytest.warns(UserWarning, match="no control child"):
+            obj = document.add_control(
+                section=document.sections[0],
+                control_type=control_type,
+                attributes={"id": f"guide-{control_type}", "type": control_type},
+            )
         assert obj is not None
         # 만들어만 놓고 트리에 안 붙으면 직렬화에서 사라진다. HWPX는 ZIP이라
         # 원시 바이트를 뒤지면 압축 때문에 언제나 못 찾는다 — 열어서 봐야 한다.
@@ -52,11 +54,12 @@ def test_add_control_survives_a_save_and_reopen(tmp_path) -> None:
     document = HwpxDocument.new()
     try:
         document.add_paragraph("본문")
-        document.add_control(
-            section=document.sections[0],
-            control_type="LINE",
-            attributes={"id": "keepme", "type": "LINE"},
-        )
+        with pytest.warns(UserWarning, match="no control child"):
+            document.add_control(
+                section=document.sections[0],
+                control_type="LINE",
+                attributes={"id": "keepme", "type": "LINE"},
+            )
         document.save_to_path(path)
     finally:
         document.close()
