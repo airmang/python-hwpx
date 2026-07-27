@@ -196,8 +196,10 @@ def _build_drawing_object_children(
     _append_child(parent, f"{_HP}lineShape", ls_attrs)
 
     if fill_color is not None:
-        fb = _append_child(parent, f"{_HP}fillBrush", {})
-        _append_child(fb, f"{_HP}winBrush", {
+        # Hancom reads the fill from the core namespace; an ``hp:fillBrush`` is
+        # accepted by the parser but silently rendered unfilled.
+        fb = _append_child(parent, f"{_HC}fillBrush", {})
+        _append_child(fb, f"{_HC}winBrush", {
             "faceColor": fill_color, "hatchColor": "#FFFFFF",
         })
 
@@ -233,8 +235,8 @@ def _create_line_element(
         el, line_color=line_color, line_width=line_width,
     )
     # 3) LineType-specific children
-    _append_child(el, f"{_HP}startPt", {"x": str(start_x), "y": str(start_y)})
-    _append_child(el, f"{_HP}endPt", {"x": str(end_x), "y": str(end_y)})
+    _append_child(el, f"{_HC}startPt", {"x": str(start_x), "y": str(start_y)})
+    _append_child(el, f"{_HC}endPt", {"x": str(end_x), "y": str(end_y)})
     # 4) AbstractShapeObjectType children last (sz, pos, outMargin)
     _build_shape_base_children(el, w, h)
     return el
@@ -257,10 +259,10 @@ def _create_rectangle_element(
         el, line_color=line_color, line_width=line_width,
         fill_color=fill_color,
     )
-    _append_child(el, f"{_HP}pt0", {"x": "0", "y": "0"})
-    _append_child(el, f"{_HP}pt1", {"x": str(width), "y": "0"})
-    _append_child(el, f"{_HP}pt2", {"x": str(width), "y": str(height)})
-    _append_child(el, f"{_HP}pt3", {"x": "0", "y": str(height)})
+    _append_child(el, f"{_HC}pt0", {"x": "0", "y": "0"})
+    _append_child(el, f"{_HC}pt1", {"x": str(width), "y": "0"})
+    _append_child(el, f"{_HC}pt2", {"x": str(width), "y": str(height)})
+    _append_child(el, f"{_HC}pt3", {"x": "0", "y": str(height)})
     _build_shape_base_children(el, width, height)
     return el
 
