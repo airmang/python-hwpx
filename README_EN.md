@@ -18,7 +18,9 @@
 Existing documents are edited in place — untouched regions stay byte-identical.
 New documents are produced in a form real Hancom Office accepts. HWPX is a
 ZIP+XML (OWPML/OPC) format, so everything runs in pure Python on
-Windows, macOS, Linux, and CI.
+Windows, macOS, Linux, and CI. Neither Hancom Office nor Windows is required,
+so **you can create and edit HWPX documents from inside a ChatGPT chat** —
+anywhere Python runs.
 
 | | Repo | Role |
 |---|---|---|
@@ -52,6 +54,14 @@ doc = HwpxDocument.open("report.hwpx")
 doc.add_paragraph("A paragraph added by automation.")
 doc.save_to_path("report-edited.hwpx")
 ```
+
+To build a document from scratch, start from `HwpxDocument.new()` and fill
+paragraphs, tables, and headers through the same API, then `save_to_path()`.
+
+For higher-level workflows — document authoring, form filling, exam
+typesetting — install
+[`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)
+alongside it. It runs in the same environment without the MCP SDK.
 
 ## What it does
 

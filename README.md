@@ -17,7 +17,9 @@
 
 기존 문서는 손댄 곳만 고치고(미수정 영역은 바이트 그대로), 새 문서는 실제
 한컴오피스가 받아들이는 형태로 만듭니다. HWPX는 ZIP+XML(OWPML/OPC) 구조라
-Windows·macOS·Linux·CI 어디서든 순수 파이썬으로 동작합니다.
+Windows·macOS·Linux·CI 어디서든 순수 파이썬으로 동작합니다. 한컴오피스도
+Windows도 필요하지 않으므로 **ChatGPT 채팅 환경에서도 HWPX 문서를 만들고
+고칠 수 있습니다** — 파이썬이 도는 곳이면 됩니다.
 
 | 계층 | 저장소 | 정본 책임 |
 |---|---|---|
@@ -52,6 +54,13 @@ doc = HwpxDocument.open("보고서.hwpx")
 doc.add_paragraph("자동화로 추가한 문단입니다.")
 doc.save_to_path("보고서-수정.hwpx")
 ```
+
+백지에서 새 문서를 만들 때는 `HwpxDocument.new()`로 시작해 같은 API로
+문단·표·머리말을 채우고 `save_to_path()`로 저장합니다.
+
+문서 저작·양식 채움·시험지 조판 같은 상위 워크플로가 필요하면
+[`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)을
+함께 설치하세요. MCP SDK 없이 같은 환경에서 그대로 동작합니다.
 
 ## 무엇을 하나
 
