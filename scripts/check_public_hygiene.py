@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
+PINNED_ROOT = ROOT
 INTERNAL_WORK_CODE = re.compile(
     rb"(?<![A-Za-z0-9])(?:S-[0-9]{3}(?![0-9])|STG-[A-Za-z0-9][A-Za-z0-9_-]*)"
 )
@@ -46,6 +47,10 @@ TEXT_ARTIFACT_SUFFIXES = (
     ".yml",
 )
 DISTRIBUTION_SUFFIXES = (".whl", ".tar.gz")
+INTERNAL_WORK_CODE_COUNT = 75
+INTERNAL_WORK_CODE_SHA256 = (
+    "3e0d4650b1622fe10b28cec875275cad9c2c843bdf46badb9a38120cacffb6ca"
+)
 REMOVED_PATH_FIXTURE = (
     ROOT / "docs" / "architecture" / "module-ownership-removed-5.0.json"
 )
@@ -157,15 +162,15 @@ def _publication_files(root: Path = ROOT) -> list[_PublicationFile]:
     )
     # Release artifacts are intentionally ignored by git, but they are exactly
     # what this gate must inspect immediately before publication. Restrict this
-    # extra disk lane to direct wheel/sdist children of dist/ so unrelated
-    # ignored caches and environments never enter the scan.
+    # extra disk lane to wheel/sdist files anywhere under dist/ so a nested
+    # ignored release artifact cannot bypass the archive checks.
     dist = root / "dist"
     if dist.is_symlink():
         raise ValueError("dist must not be a symlink")
     if dist.is_dir():
         worktree_paths.update(
             candidate.relative_to(root).as_posix()
-            for candidate in dist.iterdir()
+            for candidate in dist.rglob("*")
             if (
                 (candidate.is_file() or candidate.is_symlink())
                 and candidate.name.endswith(DISTRIBUTION_SUFFIXES)
@@ -368,7 +373,7 @@ def _distribution_failures(
     )
     for file in files:
         artifact_path = Path(file.path)
-        if artifact_path.parent != Path("dist"):
+        if artifact_path.parts[:1] != ("dist",):
             continue
         artifact = _distribution_artifact(file)
         if file.path.endswith(".whl"):
@@ -441,6 +446,37 @@ def _distribution_failures(
                     )
                 )
     return failures
+
+
+def _internal_work_code_inventory_failures(
+    files: list[_PublicationFile],
+) -> list[str]:
+    """Reject drift beyond the frozen historical source identifier inventory."""
+
+    if ROOT != PINNED_ROOT:
+        return []
+    records = sorted(
+        {
+            f"{file.path}\0{match.decode('ascii')}"
+            for file in files
+            if (data := _text_data(file.data)) is not None
+            for match in INTERNAL_WORK_CODE.findall(data)
+        }
+    )
+    digest = hashlib.sha256(
+        ("\n".join(records) + "\n").encode("utf-8")
+    ).hexdigest()
+    if (
+        len(records) == INTERNAL_WORK_CODE_COUNT
+        and digest == INTERNAL_WORK_CODE_SHA256
+    ):
+        return []
+    return [
+        (
+            "internal work-code source inventory differs from frozen baseline: "
+            f"count={len(records)} sha256={digest}"
+        )
+    ]
 
 
 def _internal_qa_runtime_failures(
@@ -564,6 +600,7 @@ def main() -> int:
     )
     failures.extend(_hwpx_member_failures(files, WORKSTATION_PATH, private_markers))
     failures.extend(_action_pin_failures(files))
+    failures.extend(_internal_work_code_inventory_failures(files))
     failures.extend(_internal_qa_runtime_failures(files, kind))
     failures.extend(_distribution_failures(files, kind))
     if failures:

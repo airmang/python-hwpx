@@ -32,6 +32,21 @@ BUILD_STEP = "Build distributions (migrated from scripts/build-and-publish.sh)"
 SBOM_STEP = "Generate release SBOM"
 PYPI_ACTION = "pypa/gh-action-pypi-publish@"
 GITHUB_ACTION = "softprops/action-gh-release@"
+CHECKOUT_ACTION = (
+    "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+)
+EXPECTED_TRIGGER = {
+    "push": {
+        "tags": [
+            "v*",
+            "[0-9]*",
+        ],
+    },
+}
+EXPECTED_PREPUBLICATION_CHECKOUTS = {
+    "legacy-cap": ((CHECKOUT_ACTION, None),),
+    "prepublish": ((CHECKOUT_ACTION, None),),
+}
 REMOTE_HASH_STEP = "Verify PyPI and GitHub release hashes"
 REMOTE_HASH_COMMAND = (
     "python scripts/verify_release_hashes.py "
@@ -228,6 +243,12 @@ def _require_exact_named_runs(
             failures.append(f"{job_name} step must be exact: {step_name}")
 
 
+def _trigger(parsed: dict[object, Any]) -> object:
+    """Return the literal ``on`` block despite PyYAML's YAML-1.1 bool key."""
+
+    return parsed["on"] if "on" in parsed else parsed.get(True)
+
+
 def _workflow_safety_failures(workflow: str) -> list[str]:
     failures: list[str] = []
     try:
@@ -241,6 +262,8 @@ def _workflow_safety_failures(workflow: str) -> list[str]:
 
     if set(jobs) != {"legacy-cap", "prepublish", "release"}:
         failures.append("release workflow must contain only the three expected jobs")
+    if _trigger(parsed) != EXPECTED_TRIGGER:
+        failures.append("release trigger must be exactly tag-push-only")
     if parsed.get("defaults"):
         failures.append("release workflow must not override the default run shell")
     if prepublish.get("needs") != "legacy-cap":
@@ -281,6 +304,17 @@ def _workflow_safety_failures(workflow: str) -> list[str]:
                     f"{job_name} step contains a fail-open shell construct: "
                     f"{step.get('name', '<unnamed>')}"
                 )
+
+    for job_name, expected in EXPECTED_PREPUBLICATION_CHECKOUTS.items():
+        observed = tuple(
+            (step.get("uses"), step.get("with"))
+            for step in jobs[job_name].get("steps", [])
+            if str(step.get("uses", "")).startswith("actions/checkout@")
+        )
+        if observed != expected:
+            failures.append(
+                f"{job_name} checkout inputs must match the frozen release source"
+            )
 
     matching_steps = [
         step
@@ -575,6 +609,53 @@ def test_public_legacy_cap_is_a_required_fail_closed_job() -> None:
             ),
             "release steps must match the exact order and actions",
         ),
+        (
+            lambda text: re.sub(
+                r'on:\n  push:\n    tags:\n      - "v\*"\n      - "\[0-9\]\*"\n',
+                'on:\n  push:\n    branches: ["**"]\n',
+                text,
+                count=1,
+            ),
+            "release trigger must be exactly tag-push-only",
+        ),
+        (
+            lambda text: text.replace(
+                "  push:\n    tags:",
+                '  push:\n    branches: ["**"]\n    tags:',
+                1,
+            ),
+            "release trigger must be exactly tag-push-only",
+        ),
+        (
+            lambda text: text.replace(
+                "\npermissions:",
+                "\n  workflow_dispatch:\n\npermissions:",
+                1,
+            ),
+            "release trigger must be exactly tag-push-only",
+        ),
+        (
+            lambda text: text.replace('      - "v*"', '      - "*"', 1),
+            "release trigger must be exactly tag-push-only",
+        ),
+        (
+            lambda text: text.replace(
+                "  prepublish:\n"
+                "    needs: legacy-cap\n"
+                "    runs-on: ubuntu-latest\n"
+                "    steps:\n"
+                f"      - uses: {CHECKOUT_ACTION} # v7.0.0\n",
+                "  prepublish:\n"
+                "    needs: legacy-cap\n"
+                "    runs-on: ubuntu-latest\n"
+                "    steps:\n"
+                f"      - uses: {CHECKOUT_ACTION} # v7.0.0\n"
+                "        with:\n"
+                "          ref: main\n",
+                1,
+            ),
+            "prepublish checkout inputs must match the frozen release source",
+        ),
     ),
     ids=(
         "remove-legacy-needs",
@@ -597,6 +678,11 @@ def test_public_legacy_cap_is_a_required_fail_closed_job() -> None:
         "remove-tag-gate",
         "replace-tag-gate",
         "draft-github-release",
+        "branch-only-trigger",
+        "branch-and-tag-trigger",
+        "workflow-dispatch-trigger",
+        "widen-tag-glob",
+        "prepublish-checkout-main",
     ),
 )
 def test_release_workflow_mutations_are_rejected(
