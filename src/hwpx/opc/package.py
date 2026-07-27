@@ -10,7 +10,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, Iterable, Iterator, Mapping, MutableMapping, Sequence
-from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
+from zipfile import BadZipFile, ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
@@ -354,6 +354,8 @@ class HwpxPackage:
     DEFAULT_MIMETYPE = "application/hwp+zip"
     MANIFEST_PATH = "Contents/content.hpf"
     HEADER_PATH = "Contents/header.xml"
+    #: OLE2/CFBF container signature — the HWP v5 (``.hwp``) binary format.
+    OLE2_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
     def __init__(
         self,
@@ -389,6 +391,23 @@ class HwpxPackage:
         self._archive_write_depth = 0
         self._validate_structure()
 
+    @staticmethod
+    def _leading_bytes(source: str | Path | BinaryIO, count: int) -> bytes:
+        """Peek at the head of *source*, leaving a stream's position where it was."""
+
+        try:
+            if isinstance(source, (str, Path)):
+                with open(source, "rb") as fh:
+                    return fh.read(count)
+            position = source.tell()
+            try:
+                source.seek(0)
+                return source.read(count)
+            finally:
+                source.seek(position)
+        except (OSError, AttributeError):
+            return b""
+
     @classmethod
     def open(cls, pkg_file: str | Path | bytes | bytearray | BinaryIO) -> HwpxPackage:
         if isinstance(pkg_file, (bytes, bytearray)):
@@ -396,12 +415,20 @@ class HwpxPackage:
         else:
             stream = pkg_file
 
-        with ZipFile(stream, "r") as zf:
-            guard_zip_file(zf)
-            infos = [info for info in zf.infolist() if not info.is_dir()]
-            files = {info.filename: zf.read(info.filename) for info in infos}
-            zip_infos = {info.filename: info for info in infos}
-            zip_order = [info.filename for info in infos]
+        try:
+            with ZipFile(stream, "r") as zf:
+                guard_zip_file(zf)
+                infos = [info for info in zf.infolist() if not info.is_dir()]
+                files = {info.filename: zf.read(info.filename) for info in infos}
+                zip_infos = {info.filename: info for info in infos}
+                zip_order = [info.filename for info in infos]
+        except BadZipFile as exc:
+            if cls._leading_bytes(stream, len(cls.OLE2_MAGIC)) == cls.OLE2_MAGIC:
+                raise BadZipFile(
+                    "HWP v5(.hwp) 형식은 지원하지 않습니다. "
+                    "한컴오피스에서 HWPX로 변환한 뒤 사용하세요."
+                ) from exc
+            raise
         logger.debug("HWPX 패키지 파일 목록 %d개를 로드했습니다.", len(files))
         if cls.MIMETYPE_PATH not in files:
             raise HwpxStructureError("HWPX package is missing the mandatory 'mimetype' file.")

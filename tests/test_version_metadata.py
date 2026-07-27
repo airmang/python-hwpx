@@ -20,7 +20,7 @@ def test_resolve_version_returns_fallback_when_metadata_is_missing(monkeypatch: 
     def _raise_not_found(_: str) -> str:
         raise PackageNotFoundError
 
-    monkeypatch.setattr(hwpx, "_metadata_version", _raise_not_found)
+    monkeypatch.setattr("importlib.metadata.version", _raise_not_found)
 
     assert hwpx._resolve_version() == "0+unknown"
 

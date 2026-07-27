@@ -14,14 +14,14 @@
 import importlib
 import warnings
 from dataclasses import dataclass
-from importlib.metadata import PackageNotFoundError, version as _metadata_version
 from typing import Literal
 
 
 def _resolve_version() -> str:
-    """패키지 메타데이터에서 현재 배포 버전을 조회합니다."""
+    """패키지 메타데이터에서 배포 버전을 조회합니다(import는 함수 스코프 유지)."""
+    from importlib.metadata import PackageNotFoundError, version
     try:
-        return _metadata_version("python-hwpx")
+        return version("python-hwpx")
     except PackageNotFoundError:
         return "0+unknown"
 

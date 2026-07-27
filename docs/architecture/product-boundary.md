@@ -70,7 +70,10 @@ also forbidden. The only exceptions are:
 
 - one exact `from importlib import resources` import used by packaged templates;
 - `PackageNotFoundError` and `version` imported directly from
-  `importlib.metadata`;
+  `importlib.metadata`, inside `_resolve_version()` rather than at module
+  scope — a module-level binding leaks `hwpx.PackageNotFoundError` onto the
+  top-level surface even though it is not in `__all__`, so keep the import in
+  the function;
 - the two code-pinned `importlib.import_module(module_name)` calls in
   `src/hwpx/__init__.py`.
 
