@@ -118,6 +118,24 @@ may change.
 > files we produce) — a different axis from document *parsing recall*, so do not
 > compare them side by side with parser-project figures.
 
+## Where you can run it
+
+| Environment | What to do |
+|---|---|
+| A plain ChatGPT conversation | Upload the `.hwpx`, `pip install python-hwpx`, edit it in Python, get the file back |
+| Local or server Python | `pip install python-hwpx` — scripts, batch jobs, CI |
+| Python automation (no MCP) | `pip install python-hwpx-automation` — authoring, form filling, and verification workflows as plain Python |
+| ChatGPT MCP app | Register the MCP adapter from [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) as a connector |
+| Codex marketplace plugin | Install [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) |
+| Claude Code · Hermes · OpenClaw | Register the same MCP server in each client ([`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)) |
+
+Measured: in a plain ChatGPT conversation, uploading an `.hwpx` and asking for
+python-hwpx produced a successful PyPI install, and the edited document came
+back. Python execution and network access vary by plan and settings, so this is
+not a guaranteed path on every account. Where the runtime has no network,
+uploading the wheel alongside the document gives the same journey via an offline
+install.
+
 ## Comparison
 
 | | python-hwpx | pyhwpx | pyhwp |

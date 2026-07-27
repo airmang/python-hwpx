@@ -113,6 +113,23 @@ print(report.preservation.untouched_part_payloads.to_dict())
 > 위 수치는 *생성물 수용률* 축입니다(만든 파일을 실한컴이 받는가). 문서 *파싱 recall*과는
 > 다른 축이므로 파서 프로젝트 수치와 병치 비교하지 마세요.
 
+## 어디서 쓰나
+
+| 환경 | 무엇을 하면 되나 |
+|---|---|
+| 일반 ChatGPT 대화 | `.hwpx`를 올리고 `pip install python-hwpx` 후 파이썬으로 편집해 되받기 |
+| 로컬·서버 파이썬 | `pip install python-hwpx` — 스크립트·배치·CI |
+| 파이썬 자동화 (MCP 없이) | `pip install python-hwpx-automation` — 저작·양식 채움·검증 워크플로를 그냥 파이썬으로 |
+| ChatGPT MCP 앱 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)의 MCP adapter를 커넥터로 등록 |
+| Codex 마켓플레이스 플러그인 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) 설치 |
+| Claude Code · Hermes · OpenClaw | 같은 MCP 서버를 각 클라이언트에 등록 ([`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)) |
+
+실측: 일반 ChatGPT 대화에 `.hwpx`를 올리고 python-hwpx 설치를 요청했을 때 PyPI
+설치가 성공했고, 문서를 편집해 되받았습니다. 다만 파이썬 실행과 네트워크 허용
+범위는 플랜·설정에 따라 다르므로 모든 계정에서 보장되는 경로는 아닙니다.
+네트워크가 막힌 실행 환경에서는 wheel 파일을 함께 업로드하면 오프라인 설치로
+같은 여정이 됩니다.
+
 ## 비교
 
 | | python-hwpx | pyhwpx | pyhwp |
