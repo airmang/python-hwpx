@@ -220,12 +220,13 @@ def _create_line_element(
     treat_as_char: bool = True,
 ) -> ET.Element:
     """Build a complete ``<hp:line>`` element matching real HWPX output."""
-    import math
 
-    dx = abs(end_x - start_x)
-    dy = abs(end_y - start_y)
-    w = int(math.hypot(dx, dy)) if dx or dy else 0
-    h = 0  # lines have zero height in their bounding box
+    # Hancom stores the *bounding box* of the two endpoints, not the segment
+    # length: the corpus SimpleLine has endPt (22478, 8447) with the matching
+    # orgSz 22478x8447.  A diagonal recorded at its hypotenuse (and height 0)
+    # contradicts its own endPt.
+    w = abs(end_x - start_x)
+    h = abs(end_y - start_y)
 
     el = ET.Element(f"{_HP}line", {"isReverseHV": "0"})
     # 1) AbstractShapeComponentType children (offset, orgSz, … renderingInfo)
