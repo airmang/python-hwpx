@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+## [5.0.1]
+
+`v5.0.0` is a preserved failed tag: its release run stopped in prepublish
+(the installed-wheel docs gate requires `uv`, which the workflow never
+installed) and nothing was published to PyPI or GitHub. 5.0.1 is the same
+train content plus the workflow fixes — `uv` is now bootstrapped in both
+the test and release jobs, and the test job's `tee` pipe no longer masks
+pytest's exit code. Never delete, move, or reuse `v5.0.0`.
+
 ## [5.0.0]
 
 ### Removed — BREAKING

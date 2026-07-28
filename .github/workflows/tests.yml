@@ -23,6 +23,10 @@ jobs:
 
       - name: Install dependencies
         run: pip install -e .[test,typecheck]
+      # The executable-docs gate builds a throwaway venv with uv and fails
+      # closed when the binary is absent; runners do not ship it.
+      - name: Install uv for the installed-wheel docs gate
+        run: python -m pip install "uv>=0.7"
 
       - name: Check public repository hygiene
         run: python scripts/check_public_hygiene.py
@@ -51,6 +55,11 @@ jobs:
           # 2026-07 실측 86%에서 출발하는 회귀 방지 래칫.
           COVERAGE_FAIL_UNDER: 80
         run: |
+          # Actions applies pipefail only when `shell: bash` is explicit; without
+          # it the tee pipe swallowed pytest's exit code and this gate reported
+          # green over real failures (caught 2026-07-28 when the release job's
+          # unpiped run failed on a test this one had "passed").
+          set -o pipefail
           pytest -v -ra --cov=hwpx --cov-report=term-missing --cov-fail-under=${COVERAGE_FAIL_UNDER} 2>&1 | tee pytest-summary.log
 
       - name: Upload pytest summary log
