@@ -54,11 +54,11 @@ CLASSIFICATIONS = frozenset(
     }
 )
 CANONICAL_STACK_TABLE = """\
-| 계층 | 저장소 | 정본 책임 |
+| | 저장소 | 역할 |
 |---|---|---|
-| Core | [`python-hwpx`](https://github.com/airmang/python-hwpx) | HWPX package/object model·OPC/OXML·직렬화·재사용 primitive |
-| Automation | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | Python 자동화·워크플로·profile/policy·렌더·선택형 MCP adapter |
-| Judgment | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | 에이전트 intent/genre 판단·ambiguity 처리·plugin/skill 가이드 |\
+| 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | HWPX 문서를 읽고·고치고·만드는 순수 파이썬 엔진 |
+| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | 저작·양식 채움 워크플로, `hwpx` CLI, 선택형 MCP 서버 |
+| 🎯 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | 에이전트가 알맞은 도구를 고르도록 돕는 플러그인/스킬 번들 |\
 """
 
 

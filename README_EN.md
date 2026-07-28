@@ -15,37 +15,23 @@
 
 <p align="center"><a href="README.md">한국어</a> | English</p>
 
-Existing documents are edited in place — untouched regions stay byte-identical.
-New documents are produced in a form real Hancom Office accepts. HWPX is a
-ZIP+XML (OWPML/OPC) format, so everything runs in pure Python on
-Windows, macOS, Linux, and CI. Neither Hancom Office nor Windows is required,
-so **you can create and edit HWPX documents from inside a ChatGPT chat** —
-anywhere Python runs.
+You don't need Hancom Office. HWPX is a ZIP+XML (OWPML) format, so pure Python
+is enough to read, edit, and create documents — on Windows, macOS, Linux, CI,
+and **inside a ChatGPT chat wherever Python runs**. Existing documents are
+edited in place (untouched regions stay byte-identical), and new documents come
+out in a form real Hancom Office opens.
 
 | | Repo | Role |
 |---|---|---|
-| 📦 | **`python-hwpx`** | Pure-Python HWPX core (this repo) |
-| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | Document workflows, MCP server, and the `hwpx` application CLI |
-| 🎯 | [`hwpx-plugin`](https://github.com/airmang/hwpx-plugins) | Plugin / skill bundle for agents |
-
-The [product-boundary contract](docs/architecture/product-boundary.md) pins the
-5.0 ownership split, removed-path non-resurrection rule, and import allowlist.
-
-> **Python-block status:** every Python block in this current manual is frozen
-> in the [execution ledger](docs/python-example-ledger.json) with an exact source
-> digest. A block without a **Standalone example** label requires an existing
-> input or prior walkthrough state and is not presented as a copy-paste program.
+| 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | Pure-Python engine that reads, edits, and creates HWPX documents |
+| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | Authoring & form-filling workflows, the `hwpx` CLI, optional MCP server |
+| 🎯 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | Plugin/skill bundle that helps agents pick the right tool |
 
 ## Getting started
 
 ```bash
 pip install python-hwpx      # Python 3.10+
 ```
-
-> **5.x compatibility extra:** `pip install "python-hwpx[visual]"` remains
-> accepted so existing install commands do not fail, but the `visual` extra is
-> empty and installs no PDF or imaging dependencies. Render/PDF imaging runtime
-> belongs to `python-hwpx-automation[oracle]`.
 
 ```python
 from hwpx import HwpxDocument
@@ -56,21 +42,23 @@ doc.save_to_path("report-edited.hwpx")
 ```
 
 To build a document from scratch, start from `HwpxDocument.new()` and fill
-paragraphs, tables, and headers through the same API, then `save_to_path()`.
-
-For higher-level workflows — document authoring, form filling, exam
-typesetting — install
+paragraphs, tables, and headers through the same API. For higher-level
+workflows — document authoring, form filling, exam typesetting — install
 [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)
-alongside it. It runs in the same environment without the MCP SDK.
+alongside it.
+
+> For compatibility with existing install commands,
+> `pip install "python-hwpx[visual]"` still works — but the `visual` extra is
+> empty and installs no render/PDF dependencies. That runtime belongs to
+> `python-hwpx-automation[oracle]`.
 
 ## What it does
 
-- **Read & extract** — text/HTML/rich Markdown export (formatting, nested tables, footnotes preserved), XPath object search
+- **Read & extract** — text/HTML/Markdown export (formatting, nested tables, footnotes preserved)
 - **Edit** — paragraphs, tables, images, headers/footers, memos, footnotes; line spacing, margins, page numbers
-- **Form filling** — label/path-based cell filling, byte-preserving structural edits (rows, columns, autofit, shrink-to-fit)
-- **Create & batch** — paragraphs, tables, images, TOCs and cross-references; explicit-sanitizer mail merge and text diff
-- **Tracked changes & TOC** — redline authoring, native table of contents and cross-references
-- **Verify & safety** — package-structure validation CLI, open-safety gate, a receipt on every write (`MutationReport`) — the bundled XSDs are permissive structural schemas, not full OWPML validation
+- **Form filling** — find cells by label and change values only; structural edits (rows, columns) stay byte-preserving
+- **Create & batch** — new-document authoring, TOCs and cross-references, mail merge, text diff, tracked changes (redline)
+- **Verify & safety** — package-structure validation CLI, open-safety gate, a receipt on every save (`MutationReport`)
 
 More: [usage guide](docs/usage.md) · [API reference](https://airmang.github.io/python-hwpx/) · [examples](docs/examples.md)
 
@@ -100,19 +88,21 @@ print(report.preservation.untouched_part_payloads.to_dict())
 If the requested preservation grade can't be honored, nothing is written
 (fail-closed). Full rules: [Safe Write Contract](docs/safe-write-contract.md).
 
+*Blocks without a **Standalone example** label take your existing document as
+input. The per-example Python-block status is frozen in the
+[execution ledger](docs/python-example-ledger.json).*
+
 ## Measured, not claimed
 
-Every output is measured against real Hancom Office and published as-is
-(frozen corpus, N=497):
+Whether the files we produce open in real Hancom Office is measured over a
+frozen corpus (N=497) and published as-is:
 
-- **Hancom opens 476/476 all-pass** — real Hancom opens every file we produce
+- **Hancom opens 476/476** — real Hancom opens every file we produce
 - **Byte preservation of untouched regions 497/497** · personal-info 0-leak
-- **Render-verified 416/476** + honesty bucket of 43 — cases where Hancom itself refuses PDF export are counted, not hidden
-- Low numbers are published as-is — full figures and caveats: [measured corpus metrics](https://airmang.github.io/python-hwpx/corpus-metrics.html)
+- **Render-verified 416/476** — the 43 cases where Hancom itself refuses PDF export are counted, not hidden
+- Full figures and caveats: [measured corpus metrics](https://airmang.github.io/python-hwpx/corpus-metrics.html) · per-capability grades: [support matrix](docs/support-matrix.md)
 
-What works and what doesn't is graded per capability in the
-[support matrix](docs/support-matrix.md). Development status is Alpha — the API
-may change.
+Development status is Alpha — the API may change.
 
 > These numbers are on the *output acceptance* axis (does real Hancom accept the
 > files we produce) — a different axis from document *parsing recall*, so do not
@@ -129,12 +119,11 @@ may change.
 | Codex marketplace plugin | Install [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) |
 | Claude Code · Hermes · OpenClaw | Register the same MCP server in each client ([`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)) |
 
-Measured: in a plain ChatGPT conversation, uploading an `.hwpx` and asking for
+In practice: uploading an `.hwpx` to a plain ChatGPT conversation and asking for
 python-hwpx produced a successful PyPI install, and the edited document came
-back. Python execution and network access vary by plan and settings, so this is
-not a guaranteed path on every account. Where the runtime has no network,
-uploading the wheel alongside the document gives the same journey via an offline
-install.
+back. Python execution and network access vary by plan and settings; where the
+runtime has no network, uploading the wheel alongside the document gives the
+same journey via an offline install.
 
 ## Comparison
 
@@ -150,11 +139,9 @@ install.
 
 ## Known limitations
 
-- `add_shape()` / `add_control()` are low-level escape hatches and do not generate
-  every sub-element Hancom requires. Saving one as-is produces a file Hancom
-  cannot open, and the only signal is a warning at call time — neither the save
-  nor package validation blocks it. For shapes use `add_line()` /
-  `add_rectangle()` / `add_ellipse()`.
+- `add_shape()` / `add_control()` are low-level escape hatches — a document
+  saved as-is will not open in Hancom, and the only signal is a warning at call
+  time. For shapes use `add_line()` / `add_rectangle()` / `add_ellipse()`.
 - Pictures: simple picture objects can be generated; complex ones (groups,
   effects) cannot.
 - Encrypted HWPX files are not supported.
@@ -164,12 +151,13 @@ install.
 [help wanted](https://github.com/airmang/python-hwpx/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) ·
 [roadmap](https://github.com/airmang/python-hwpx/milestones) ·
 [Discussions](https://github.com/airmang/python-hwpx/discussions) ·
-[internals field guide](docs/internals/) ·
 [CONTRIBUTING](CONTRIBUTING.md)
 
 New to HWPX internals? Start with the [internals field guide](docs/internals/) —
 layout caches, TOC fields, OPC repacking and other behaviors verified against
-real Hancom.
+real Hancom. The stable public surface is listed in
+[stable API](docs/stable-api.md), and layer ownership in the
+[product-boundary contract](docs/architecture/product-boundary.md).
 
 ## Acknowledgements
 
