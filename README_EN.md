@@ -26,6 +26,16 @@ out in a form real Hancom Office opens.
 </p>
 <p align="center"><sub>A plain ChatGPT conversation — upload a form <code>.hwpx</code>, ask in natural language, and get the filled document back with its formatting intact.</sub></p>
 
+**Try it in ChatGPT** — upload your document along with a request like this:
+
+```text
+Open this .hwpx file with the python-hwpx library
+(install it with: pip install python-hwpx).
+Keep the form and formatting as-is, change only ○○, and return a new file.
+```
+
+Install to result file, all inside the conversation — no Python on your machine needed.
+
 | | Repo | Role |
 |---|---|---|
 | 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | Pure-Python engine that reads, edits, and creates HWPX documents |

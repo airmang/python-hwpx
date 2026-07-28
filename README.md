@@ -26,6 +26,16 @@
 </p>
 <p align="center"><sub>일반 ChatGPT 대화 — 양식 <code>.hwpx</code>를 올리고 말로 부탁하면, 서식을 유지한 채 채워진 문서가 돌아옵니다.</sub></p>
 
+**ChatGPT에서 그대로 따라 하기** — 문서를 올리면서 이렇게 부탁하면 됩니다:
+
+```text
+이 .hwpx 파일을 python-hwpx 라이브러리로 열어서 작업해줘.
+(pip install python-hwpx 로 설치하면 돼)
+양식과 서식은 그대로 두고, ○○만 바꿔서 새 파일로 돌려줘.
+```
+
+설치부터 결과 파일까지 대화 안에서 끝납니다 — 내 컴퓨터에 파이썬이 없어도 됩니다.
+
 | | 저장소 | 역할 |
 |---|---|---|
 | 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | HWPX 문서를 읽고·고치고·만드는 순수 파이썬 엔진 |

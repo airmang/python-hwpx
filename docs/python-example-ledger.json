@@ -14,8 +14,8 @@
   "fenceCount": 109,
   "sourceSha256": "13d436adb89ea489e9e02deb3929ac60b64492e48c237b62037f638edeb55ef8",
   "manualSha256": {
-    "README.md": "908df59a8486d7daa166234abfe9e235ab2fa9999c10dd43a6d61e29457730f3",
-    "README_EN.md": "39c0282b576f7b1821584cbd091cb701ce2e852f5b490dc6b897a1b34446399c",
+    "README.md": "f5d7d5ffd25c803e474bc05896cd68e194d4eae9d7a8384c30dc03cb66f70d6b",
+    "README_EN.md": "e5a0d14d1289b7b4c1d5128b90de6a967a3545656f17f046b89792f92d7109a6",
     "docs/quickstart.md": "1b4a60515c8bebededd2ca72e5094e5b65ffdcb5e641ed4542254cd1fc87d4ef",
     "docs/usage.md": "ba576bd87ca579ee082e577273062c41a31f91c4eabe68ea944e448847629b3b",
     "docs/examples.md": "662dc489a364e6319c57d2221fa4d4b1484e79b27a17235b0f99953ab5501a30",
