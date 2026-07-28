@@ -21,6 +21,11 @@
 곳만 바뀌고 나머지는 바이트 그대로 유지되며, 새 문서는 실제 한컴오피스가 여는
 형태로 만들어집니다.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/chatgpt-formfill.png" width="760" alt="일반 ChatGPT 대화에 hwpx 양식을 올려 지도안 작성을 부탁하고, 양식이 유지된 채 채워진 문서를 돌려받는 화면">
+</p>
+<p align="center"><sub>일반 ChatGPT 대화 — 양식 <code>.hwpx</code>를 올리고 말로 부탁하면, 서식을 유지한 채 채워진 문서가 돌아옵니다.</sub></p>
+
 | | 저장소 | 역할 |
 |---|---|---|
 | 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | HWPX 문서를 읽고·고치고·만드는 순수 파이썬 엔진 |
@@ -98,6 +103,11 @@ print(report.preservation.untouched_part_payloads.to_dict())
 - **미수정 영역 바이트 보존 497/497** · 개인정보 유출 0
 - **렌더 검증 416/476** — 한컴 자체가 PDF 내보내기를 거부한 43건도 숨기지 않고 집계
 - 전체 수치와 주의사항: [실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html) · 기능별 등급: [지원 매트릭스](docs/support-matrix.md)
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-open-generated.png" width="760" alt="ChatGPT 실행 환경에서 python-hwpx로 생성한 HWPX 문서를 실제 한컴오피스에서 연 모습">
+</p>
+<p align="center"><sub>ChatGPT 실행 환경에서 생성한 문서를 실제 한컴오피스로 연 모습.</sub></p>
 
 현재 개발 상태는 Alpha입니다 — API는 바뀔 수 있습니다.
 

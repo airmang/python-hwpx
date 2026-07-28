@@ -21,6 +21,11 @@ and **inside a ChatGPT chat wherever Python runs**. Existing documents are
 edited in place (untouched regions stay byte-identical), and new documents come
 out in a form real Hancom Office opens.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/chatgpt-formfill.png" width="760" alt="Uploading an .hwpx form to a plain ChatGPT conversation and getting back a filled document with the original formatting preserved">
+</p>
+<p align="center"><sub>A plain ChatGPT conversation — upload a form <code>.hwpx</code>, ask in natural language, and get the filled document back with its formatting intact.</sub></p>
+
 | | Repo | Role |
 |---|---|---|
 | 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | Pure-Python engine that reads, edits, and creates HWPX documents |
@@ -101,6 +106,11 @@ frozen corpus (N=497) and published as-is:
 - **Byte preservation of untouched regions 497/497** · personal-info 0-leak
 - **Render-verified 416/476** — the 43 cases where Hancom itself refuses PDF export are counted, not hidden
 - Full figures and caveats: [measured corpus metrics](https://airmang.github.io/python-hwpx/corpus-metrics.html) · per-capability grades: [support matrix](docs/support-matrix.md)
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-open-generated.png" width="760" alt="An HWPX document generated with python-hwpx inside ChatGPT, opened in real Hancom Office">
+</p>
+<p align="center"><sub>A document generated inside a ChatGPT runtime, opened in real Hancom Office.</sub></p>
 
 Development status is Alpha — the API may change.
 
