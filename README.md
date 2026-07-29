@@ -26,19 +26,15 @@
 </p>
 <p align="center"><sub>일반 ChatGPT 대화 — 양식 <code>.hwpx</code>를 올리고 말로 부탁하면, 서식을 유지한 채 채워진 문서가 돌아옵니다.</sub></p>
 
-**ChatGPT에서 그대로 따라 하기** — ChatGPT 실행 환경은 외부 네트워크가 막혀
-있는 경우가 많아, **wheel 파일을 문서와 함께 올리는 방법이 가장 확실합니다.**
-
-1. [최신 릴리스](https://github.com/airmang/python-hwpx/releases/latest)에서 `python_hwpx-….whl` 파일을 받습니다.
-2. `.hwpx` 문서와 `.whl` 파일을 함께 올리고 이렇게 부탁합니다:
+**ChatGPT에서 그대로 따라 하기** — 문서를 올리면서 이렇게 부탁하면 됩니다:
 
 ```text
-함께 올린 wheel 파일로 python-hwpx를 설치해서, 이 .hwpx 파일을 열어 작업해줘.
+이 .hwpx 파일을 python-hwpx 라이브러리로 열어서 작업해줘.
+(pip install python-hwpx 로 설치하면 돼)
 양식과 서식은 그대로 두고, ○○만 바꿔서 새 파일로 돌려줘.
 ```
 
-내 컴퓨터에 파이썬이 없어도 됩니다. 환경이 온라인이라면 wheel 없이
-`pip install python-hwpx`라고만 해도 됩니다.
+설치부터 결과 파일까지 대화 안에서 끝납니다 — 내 컴퓨터에 파이썬이 없어도 됩니다.
 
 | | 저장소 | 역할 |
 |---|---|---|
@@ -132,17 +128,17 @@ print(report.preservation.untouched_part_payloads.to_dict())
 
 | 환경 | 무엇을 하면 되나 |
 |---|---|
-| 일반 ChatGPT 대화 | `.hwpx`와 [wheel 파일](https://github.com/airmang/python-hwpx/releases/latest)을 올려 편집해 되받기 (온라인 환경은 `pip install python-hwpx`) |
+| 일반 ChatGPT 대화 | `.hwpx`를 올리고 `pip install python-hwpx` 후 파이썬으로 편집해 되받기 |
 | 로컬·서버 파이썬 | `pip install python-hwpx` — 스크립트·배치·CI |
 | 파이썬 자동화 (MCP 없이) | `pip install python-hwpx-automation` — 저작·양식 채움·검증 워크플로를 그냥 파이썬으로 |
 | ChatGPT MCP 앱 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)의 MCP adapter를 커넥터로 등록 |
 | Codex 마켓플레이스 플러그인 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) 설치 |
 | Claude Code · Hermes · OpenClaw | 같은 MCP 서버를 각 클라이언트에 등록 ([`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)) |
 
-실측: 일반 ChatGPT 대화에서 문서를 올려 편집해 되받는 여정을 확인했습니다.
-다만 설치는 세션마다 달랐습니다 — 내부 미러로 `pip install`이 되던 환경도,
-같은 계정인데 미러에 패키지가 없어 막힌 환경도 있었습니다. 그래서 네트워크와
-무관하게 성립하는 wheel 동반 업로드를 기본 경로로 안내합니다.
+실제로 일반 ChatGPT 대화에 `.hwpx`를 올리고 설치를 부탁했을 때 PyPI 설치와
+편집·되받기까지 동작하는 것을 확인했습니다. 파이썬 실행과 네트워크 허용 범위는
+플랜·설정에 따라 다르며, 네트워크가 막힌 환경에서는 wheel 파일을 함께 올리면
+오프라인 설치로 같은 여정이 됩니다.
 
 ## 비교
 
