@@ -26,15 +26,19 @@ out in a form real Hancom Office opens.
 </p>
 <p align="center"><sub>A plain ChatGPT conversation — upload a form <code>.hwpx</code>, ask in natural language, and get the filled document back with its formatting intact.</sub></p>
 
-**Try it in ChatGPT** — upload your document along with a request like this:
+**Try it in ChatGPT** — the ChatGPT runtime often has no external network, so
+**uploading the wheel file alongside your document is the most reliable path.**
+
+1. Download `python_hwpx-….whl` from the [latest release](https://github.com/airmang/python-hwpx/releases/latest).
+2. Upload your `.hwpx` document together with the `.whl` and ask:
 
 ```text
-Open this .hwpx file with the python-hwpx library
-(install it with: pip install python-hwpx).
+Install python-hwpx from the wheel file I uploaded, then open this .hwpx file.
 Keep the form and formatting as-is, change only ○○, and return a new file.
 ```
 
-Install to result file, all inside the conversation — no Python on your machine needed.
+No Python on your machine needed. If the runtime happens to be online,
+`pip install python-hwpx` alone also works.
 
 | | Repo | Role |
 |---|---|---|
@@ -132,18 +136,18 @@ Development status is Alpha — the API may change.
 
 | Environment | What to do |
 |---|---|
-| A plain ChatGPT conversation | Upload the `.hwpx`, `pip install python-hwpx`, edit it in Python, get the file back |
+| A plain ChatGPT conversation | Upload the `.hwpx` with the [wheel file](https://github.com/airmang/python-hwpx/releases/latest), edit, get the file back (`pip install python-hwpx` where the runtime is online) |
 | Local or server Python | `pip install python-hwpx` — scripts, batch jobs, CI |
 | Python automation (no MCP) | `pip install python-hwpx-automation` — authoring, form filling, and verification workflows as plain Python |
 | ChatGPT MCP app | Register the MCP adapter from [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) as a connector |
 | Codex marketplace plugin | Install [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) |
 | Claude Code · Hermes · OpenClaw | Register the same MCP server in each client ([`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)) |
 
-In practice: uploading an `.hwpx` to a plain ChatGPT conversation and asking for
-python-hwpx produced a successful PyPI install, and the edited document came
-back. Python execution and network access vary by plan and settings; where the
-runtime has no network, uploading the wheel alongside the document gives the
-same journey via an offline install.
+Measured: in plain ChatGPT conversations the edit-and-return journey worked,
+but the install path varied by session — some runtimes installed via an
+internal pip mirror, others (same account) were blocked because the mirror
+lacked the package. That is why the wheel-alongside-the-document upload, which
+does not depend on network access, is the recommended path.
 
 ## Comparison
 
