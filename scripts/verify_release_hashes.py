@@ -15,9 +15,24 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 
 PROJECT = "python-hwpx"
-VERSION = "5.0.0"
-PYPI_URL = f"https://pypi.org/pypi/{PROJECT}/{VERSION}/json"
 HASH_LINE = re.compile(r"^(?P<digest>[0-9a-f]{64})  (?P<filename>[^/\\\\]+)$")
+RELEASE_VERSION = re.compile(r"[0-9]+(\.[0-9]+)*")
+
+
+def version_from_tag(tag: str) -> str:
+    """Derive the released version from the tag instead of a frozen constant.
+
+    The v5.0.1 release proved why: a hardcoded version made the PyPI check
+    poll a JSON document that could never exist, so the verify step stayed
+    red no matter how long it retried.
+    """
+
+    if not tag.startswith("v"):
+        raise ValueError(f"release tag must look like v<version>: {tag!r}")
+    version = tag[1:]
+    if RELEASE_VERSION.fullmatch(version) is None:
+        raise ValueError(f"release tag carries a non-final version: {tag!r}")
+    return version
 
 
 def read_manifest(path: Path) -> dict[str, str]:
@@ -63,16 +78,22 @@ def pypi_hashes(payload: Mapping[str, object]) -> dict[str, str]:
 def verify_pypi(
     expected: Mapping[str, str],
     *,
-    attempts: int = 12,
-    retry_seconds: float = 5,
+    version: str,
+    attempts: int = 30,
+    retry_seconds: float = 10,
 ) -> None:
-    """Wait for PyPI propagation and require exact published digests."""
+    """Wait for PyPI propagation and require exact published digests.
 
+    Index propagation can lag the upload by minutes, so the budget is
+    ``attempts * retry_seconds`` (five minutes by default) before failing.
+    """
+
+    pypi_url = f"https://pypi.org/pypi/{PROJECT}/{version}/json"
     observed: dict[str, str] = {}
     last_error: Exception | None = None
     for attempt in range(attempts):
         try:
-            with urllib.request.urlopen(PYPI_URL, timeout=20) as response:
+            with urllib.request.urlopen(pypi_url, timeout=20) as response:
                 payload = json.load(response)
             if not isinstance(payload, dict):
                 raise TypeError("PyPI response is not an object")
@@ -229,8 +250,15 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    version = version_from_tag(args.tag)
     expected = read_manifest(args.manifest)
-    verify_pypi(expected)
+    for filename in expected:
+        if version not in filename:
+            raise ValueError(
+                f"manifest filename {filename!r} does not carry the tagged "
+                f"version {version!r}"
+            )
+    verify_pypi(expected, version=version)
     verify_github_release(
         expected,
         manifest=args.manifest,

@@ -949,7 +949,9 @@ def test_release_hash_verifier_rejects_pypi_digest_mismatch(
     monkeypatch.setattr(verifier.json, "load", lambda _response: payload)
 
     with pytest.raises(RuntimeError, match="PyPI hashes differ"):
-        verifier.verify_pypi(expected, attempts=1, retry_seconds=0)
+        verifier.verify_pypi(
+            expected, version="5.0.0", attempts=1, retry_seconds=0
+        )
 
 
 def test_release_hash_verifier_exhausts_pypi_lookup_failures(
@@ -968,10 +970,68 @@ def test_release_hash_verifier_exhausts_pypi_lookup_failures(
     with pytest.raises(RuntimeError, match="PyPI hash lookup failed"):
         verifier.verify_pypi(
             {"package.whl": "0" * 64, "package.tar.gz": "1" * 64},
+            version="5.0.0",
             attempts=3,
             retry_seconds=0,
         )
     assert attempts == ["lookup", "lookup", "lookup"]
+
+
+def test_release_hash_verifier_polls_the_tag_derived_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The v5.0.1 regression: a frozen version constant polled a JSON URL
+    that could never exist, so the verify step stayed red forever."""
+
+    verifier = _release_hash_module()
+    polled: list[str] = []
+
+    def capture_lookup(url, **_kwargs):
+        polled.append(str(url))
+        raise URLError("offline")
+
+    monkeypatch.setattr(verifier.urllib.request, "urlopen", capture_lookup)
+
+    with pytest.raises(RuntimeError, match="PyPI hash lookup failed"):
+        verifier.verify_pypi(
+            {"package.whl": "0" * 64, "package.tar.gz": "1" * 64},
+            version="9.9.9",
+            attempts=1,
+            retry_seconds=0,
+        )
+    assert polled == ["https://pypi.org/pypi/python-hwpx/9.9.9/json"]
+
+
+def test_release_tag_version_derivation_fails_closed() -> None:
+    verifier = _release_hash_module()
+    assert verifier.version_from_tag("v5.0.1") == "5.0.1"
+    for bad_tag in ("5.0.1", "v5.0.1rc1", "v", "release-5.0.1", "v5.0.1 "):
+        with pytest.raises(ValueError):
+            verifier.version_from_tag(bad_tag)
+
+
+def test_release_hash_verifier_main_rejects_foreign_manifest_version(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    verifier = _release_hash_module()
+    expected = {
+        "python_hwpx-4.2.0-py3-none-any.whl": "0" * 64,
+        "python_hwpx-4.2.0.tar.gz": "1" * 64,
+    }
+    monkeypatch.setattr(verifier, "read_manifest", lambda path: expected)
+
+    with pytest.raises(ValueError, match="does not carry the tagged version"):
+        verifier.main(
+            [
+                "--manifest",
+                str(tmp_path / "SHA256SUMS"),
+                "--asset-dir",
+                str(tmp_path / "assets"),
+                "--tag",
+                "v5.0.1",
+            ]
+        )
 
 
 def test_release_hash_verifier_main_wires_every_remote_check(
@@ -981,13 +1041,16 @@ def test_release_hash_verifier_main_wires_every_remote_check(
     verifier = _release_hash_module()
     manifest = tmp_path / "SHA256SUMS"
     asset_dir = tmp_path / "assets"
-    expected = {"package.whl": "0" * 64, "package.tar.gz": "1" * 64}
+    expected = {
+        "python_hwpx-5.0.0-py3-none-any.whl": "0" * 64,
+        "python_hwpx-5.0.0.tar.gz": "1" * 64,
+    }
     calls: list[object] = []
     monkeypatch.setattr(verifier, "read_manifest", lambda path: expected)
     monkeypatch.setattr(
         verifier,
         "verify_pypi",
-        lambda observed: calls.append(("pypi", observed)),
+        lambda observed, **kwargs: calls.append(("pypi", observed, kwargs)),
     )
     monkeypatch.setattr(
         verifier,
@@ -1011,7 +1074,7 @@ def test_release_hash_verifier_main_wires_every_remote_check(
         == 0
     )
     assert calls == [
-        ("pypi", expected),
+        ("pypi", expected, {"version": "5.0.0"}),
         (
             "github",
             expected,
