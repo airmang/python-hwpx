@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "python-hwpx.adoption-metrics/v1",
+  "package": "python-hwpx",
+  "repository": "airmang/python-hwpx",
+  "snapshots": [
+    {
+      "asOf": "2026-07-30",
+      "pypiDownloads": {
+        "lastMonth": 94786,
+        "lastWeek": 24849,
+        "source": "pypistats.org/api/packages/{package}/recent",
+        "caveat": "CI/미러 트래픽 포함 — 순 사용자 수가 아니다"
+      },
+      "github": {
+        "stars": 101,
+        "forks": 33,
+        "openIssues": 6,
+        "caveat": "관심 신호이지 사용량이 아니다"
+      },
+      "externalContributors": {
+        "count": 6,
+        "source": "GitHub commit contributors, owner 제외"
+      },
+      "issueFirstResponse": {
+        "externalIssuesTotal": 4,
+        "respondedCount": 4,
+        "unansweredOpenCount": 0,
+        "medianHours": 47.8,
+        "worstHours": 195.8,
+        "note": "소유자 첫 코멘트(없이 닫힌 경우 닫힌 시각) 기준"
+      }
+    }
+  ]
+}

@@ -25,6 +25,10 @@
   API를 배우도록 `https://airmang.github.io/python-hwpx/llms.txt`(+ 매뉴얼
   병합본 `llms-full.txt`, 빌드 시 자동 생성)를 사이트 루트에 제공합니다.
   내용 계약은 테스트로 고정(버전 문자열 금지 포함).
+- **채택·응답 지표 공개**: [채택 지표 페이지](docs/adoption-metrics.md)와
+  기계 판독 이력(`adoption-metrics-history.json`, 사이트 루트)을 추가했습니다.
+  수집은 `scripts/snapshot_adoption_metrics.py`(멱등 — 같은 날 재실행은
+  교체)이며, 각 지표에 "이 숫자가 말해주지 않는 것" 캐비앗을 함께 둡니다.
 - **Python 3.13·3.14 공식 지원**: CI 매트릭스와 trove classifier에 3.13/3.14를
   추가했습니다(전체 스위트 1376 passed를 양 버전에서 확인한 뒤 반영).
   지원 정책은 [설치 가이드](docs/installation.md)에 명문화했습니다.

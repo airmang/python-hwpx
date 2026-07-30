@@ -25,6 +25,7 @@ examples
 :caption: 심화 주제
 
 corpus-metrics
+adoption-metrics
 support-matrix
 stable-api
 compatibility-observation-4.x
