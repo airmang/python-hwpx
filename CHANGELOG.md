@@ -4,6 +4,27 @@
 
 ## [Unreleased]
 
+## [5.1.0]
+
+### 추가
+- **누름틀 필드 저작 `HwpxDocument.add_form_field`** (experimental 계약):
+  실한컴이 만드는 CLICKHERE 형상 그대로(필드 속성·`Prop`/`Command`/
+  `Direction`/`HelpState` 파라미터·화면 전용 안내문 런·`fieldEnd` 쌍) 필드를
+  생성합니다. 안내문 길이 직렬화는 문자 수 기준이며, 만든 필드는 기존
+  `list_form_fields`/`fill_form_field`가 특수분기 없이 그대로 소비하고 실제
+  한컴오피스가 열거·채움을 수행합니다(실한컴 gold pair 리버스 계약). 표 셀
+  내부(중첩 포함) 삽입을 지원합니다.
+- **필드 페이로드 확장**: `list_form_fields` 결과에 `memo`(HelpState)·
+  `dirty`·`is_placeholder`가 추가되고, 실한컴 파라미터 이름
+  `Direction`/`HelpState`가 `prompt`/`memo`로 매핑됩니다. `dirty != "1"`인
+  동안 보이는 값은 사용자 값이 아니라 안내문입니다.
+
+### 수정
+- **채움이 한컴과 같은 흔적을 남깁니다**: `fill_form_field`가 값 기록 시
+  `dirty="1"`을 설정하고, 안내문(placeholder) 상태의 필드를 채울 때 안내문
+  전용 스타일(빨강·이탤릭)을 주변 스타일로 교체합니다. 종전에는 값이 안내문
+  스타일을 그대로 물려받아 빨간 이탤릭으로 남는 무음 시각 결함이 있었습니다.
+
 ## [5.0.2]
 
 ### 수정
