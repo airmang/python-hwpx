@@ -664,13 +664,18 @@ class HwpxPackage:
                 ).master_page_paths
             )
             if not paths:
-                logger.warning("manifest에서 masterPage를 찾지 못해 파일명 탐색 fallback을 사용합니다.")
                 paths = [
                     name
                     for name in self._files.keys()
                     if "master" in PurePosixPath(name).name.lower()
                     and "page" in PurePosixPath(name).name.lower()
                 ]
+                # masterPage가 아예 없는 문서가 정상이므로, manifest가 실재
+                # 파일을 놓친 경우에만 경고한다.
+                if paths:
+                    logger.warning(
+                        "manifest에서 masterPage를 찾지 못해 파일명 탐색 fallback을 사용합니다."
+                    )
             self._master_page_paths_cache = paths
         return list(self._master_page_paths_cache)
 
@@ -684,12 +689,17 @@ class HwpxPackage:
                 ).history_paths
             )
             if not paths:
-                logger.warning("manifest에서 history를 찾지 못해 파일명 탐색 fallback을 사용합니다.")
                 paths = [
                     name
                     for name in self._files.keys()
                     if "history" in PurePosixPath(name).name.lower()
                 ]
+                # history가 없는 문서가 정상이므로, manifest가 실재 파일을
+                # 놓친 경우에만 경고한다.
+                if paths:
+                    logger.warning(
+                        "manifest에서 history를 찾지 못해 파일명 탐색 fallback을 사용합니다."
+                    )
             self._history_paths_cache = paths
         return list(self._history_paths_cache)
 
@@ -701,8 +711,11 @@ class HwpxPackage:
                 known_parts=self._files.keys(),
             ).version_path
             if path is None and self.has_part(self.VERSION_PATH):
-                logger.warning(
-                    "manifest에서 version 파트를 찾지 못해 기본 경로 fallback을 사용합니다: %s",
+                # 실제 한컴 산출물은 version.xml을 manifest에 선언하지 않고
+                # 고정 경로로 둔다(gold fixtures 실측). 정상 경로이므로 경고
+                # 대신 debug로 남긴다.
+                logger.debug(
+                    "manifest에 version 항목이 없어 고정 경로를 사용합니다: %s",
                     self.VERSION_PATH,
                 )
                 path = self.VERSION_PATH

@@ -621,3 +621,42 @@ def test_save_preserves_existing_archive_order_and_entry_metadata() -> None:
         ]
 
     assert roundtrip_metadata == original_metadata
+
+
+def test_first_run_on_builtin_template_emits_no_warnings(caplog, tmp_path) -> None:
+    """새 사용자의 첫 프로그램(new→add→save→open)이 경고 없이 조용해야 한다.
+
+    빈 문서에 masterPage/history가 없는 것, version.xml이 manifest에 선언되지
+    않고 고정 경로에 있는 것은 실제 한컴 산출물과 동일한 정상 상태다.
+    """
+    import logging
+
+    caplog.set_level(logging.WARNING)
+
+    document = HwpxDocument.new()
+    document.add_paragraph("첫 문단")
+    target = tmp_path / "first.hwpx"
+    document.save_to_path(target)
+
+    reopened = HwpxDocument.open(target)
+    package = reopened.package
+    assert package.master_page_paths() == []
+    assert package.history_paths() == []
+    assert package.version_path() == "version.xml"
+
+    assert [record for record in caplog.records if record.name.startswith("hwpx")] == []
+
+
+def test_manifest_missing_master_page_with_real_file_still_warns(caplog) -> None:
+    """manifest가 실재 masterPage 파일을 놓친 경우는 여전히 경고한다."""
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    package = HwpxPackage.open(
+        _build_package(
+            overrides={"MasterPages/MasterPage0.xml": b"<m/>"},
+        )
+    )
+    paths = package.master_page_paths()
+    assert paths == ["MasterPages/MasterPage0.xml"]
+    assert "masterPage" in caplog.text

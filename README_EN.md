@@ -75,7 +75,7 @@ alongside it.
 - **Create & batch** — new-document authoring, TOCs and cross-references, mail merge, text diff, tracked changes (redline)
 - **Verify & safety** — package-structure validation CLI, open-safety gate, a receipt on every save (`MutationReport`)
 
-More: [usage guide](docs/usage.md) · [API reference](https://airmang.github.io/python-hwpx/) · [examples](docs/examples.md)
+More: [five-minute quickstart](docs/quickstart.md) · [usage guide](docs/usage.md) · [API reference](https://airmang.github.io/python-hwpx/) · [examples](docs/examples.md)
 
 ### Form filling — values change, formatting doesn't
 

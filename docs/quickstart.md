@@ -64,26 +64,37 @@ print("저장 완료: output/hello-updated.hwpx")
 
 `HwpxDocument.open()`은 파일 경로뿐 아니라 바이트, 파일 객체도 받을 수 있다. 하지만 첫 시작은 경로 기반 예제가 가장 덜 헷갈린다. `with`를 쓰면 블록 종료 시점에 내부 자원 정리도 자동으로 끝난다.
 
-## 3. 첫 성공 다음에 자주 하는 편집
+## 3. 문서 읽기 — 텍스트 추출
 
-문서를 한 번 저장해봤다면, 그다음은 보통 문단, 표, 메모 순서로 간다.
-
-### 3-1. 문단 추가와 삭제
+고치기 전에 무엇이 들어 있는지부터 보고 싶을 때가 많다. 방금 만든 파일의
+텍스트를 그대로 꺼내 보자.
 
 ```python
-paragraph = document.add_paragraph("추가한 문단")
+from hwpx import TextExtractor
+
+extractor = TextExtractor("output/hello-updated.hwpx")
+print(extractor.extract_text())
+```
+
+서식·중첩 표·각주까지 함께 다루는 순회 방법은 {doc}`usage`와 API 레퍼런스에서
+이어진다.
+
+## 4. 첫 성공 다음에 자주 하는 편집
+
+문서를 한 번 저장해봤다면, 그다음은 보통 문단, 표, 메모 순서로 간다. 아래는
+2번의 결과 파일을 이어받아 그대로 실행되는 한 덩어리 스크립트다.
+
+```python
+from hwpx import HwpxDocument
+
+document = HwpxDocument.open("output/hello-updated.hwpx")
+
+# 문단 추가와 삭제
+paragraph = document.add_paragraph("잠시 있다 사라질 문단")
 print("추가된 문단:", paragraph.text)
-
 document.remove_paragraph(paragraph)
-```
 
-```{note}
-섹션에는 최소 하나의 단락이 필요합니다. 마지막 단락을 삭제하면 `ValueError`가 발생합니다.
-```
-
-### 3-2. 표와 메모 추가
-
-```python
+# 표와 메모 추가
 section = document.sections[0]
 paragraph = document.add_paragraph("검토용 문단", section=section)
 
@@ -98,14 +109,40 @@ memo, _, field_id = document.add_memo_with_anchor(
     paragraph=paragraph,
     memo_shape_id_ref="0",
 )
-
 print("메모 ID:", memo.id)
 print("필드 ID:", field_id)
+
+document.save_to_path("output/hello-final.hwpx")
+print("저장 완료: output/hello-final.hwpx")
+```
+
+```{note}
+섹션에는 최소 하나의 단락이 필요합니다. 마지막 단락을 삭제하면 `ValueError`가 발생합니다.
 ```
 
 기본 템플릿에는 적어도 하나의 메모 모양이 포함되어 있으므로 `memo_shape_id_ref="0"`부터 시작하면 된다. 더 복잡한 표 편집, 병합 셀, 섹션 추가/삭제는 {doc}`usage`에서 이어서 보면 된다.
 
-## 4. 저장 방식 더 보기
+## 5. 저장에는 영수증이 따라온다
+
+`save_to_path(..., return_report=True)`는 이번 저장이 실제로 무엇을 했는지
+기계 판독 가능한 `MutationReport`로 돌려준다 — 어떤 모드로 저장됐는지, 손대지
+않은 영역이 바이트 그대로인지까지.
+
+```python
+from hwpx import HwpxDocument
+
+document = HwpxDocument.open("output/hello-final.hwpx")
+document.add_paragraph("영수증 확인용 문단")
+
+report = document.save_to_path("output/hello-receipt.hwpx", return_report=True)
+print("저장 모드:", report.actual_mode)
+print("미수정 파트 검증:", report.preservation.untouched_part_payloads.to_dict())
+```
+
+요청한 보존 등급을 지킬 수 없으면 아무것도 쓰지 않고 실패한다(fail-closed).
+전체 규칙은 {doc}`safe-write-contract` 참고.
+
+## 6. 저장 방식 더 보기
 
 기본은 `save_to_path()`다. 메모리 안에서 계속 다뤄야 하면 스트림이나 바이트 직렬화도 쓸 수 있다.
 
@@ -119,7 +156,7 @@ raw = document.to_bytes()
 print("바이트 길이:", len(raw))
 ```
 
-## 5. 파일이 없으면 기본 템플릿 바이트로 열기
+## 7. 파일이 없으면 기본 템플릿 바이트로 열기
 
 파일 경로 없이도 바로 문서를 열 수 있다. 다만 이건 첫 성공 다음 단계로 보면 된다.
 
@@ -141,5 +178,7 @@ print("총 섹션 수:", len(document.sections))
 
 - {doc}`usage`에서 문단, 표, 메모, 섹션, 추출, 검증, 패키지 조작까지 이어서 보기
 - {doc}`examples`에 있는 실행 가능한 예제 스크립트로 전체 흐름 익히기
+- 기능별 지원 등급이 궁금하면 [지원 매트릭스](support-matrix.md) 참고
+- 4.x에서 올라오는 중이라면 [5.0 마이그레이션 가이드](migration-5.0.md) 참고
 - XML 구조와 매니페스트가 궁금하면 {doc}`schema-overview` 참고
 - 설치 검증이나 개발 환경 점검은 {doc}`installation` 참고

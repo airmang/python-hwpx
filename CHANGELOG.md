@@ -4,7 +4,19 @@
 
 ## [Unreleased]
 
+### 수정
+- **첫 실행이 조용해졌습니다**: 기본 템플릿으로 `new()`→`save_to_path()`만
+  해도 `manifest에서 masterPage/history/version …` 경고가 15줄 출력되던 문제를
+  고쳤습니다. 빈 문서에 masterPage/history가 없는 것과 version.xml이
+  manifest 선언 없이 고정 경로에 있는 것은 실제 한컴 산출물과 동일한 정상
+  상태입니다(실한컴 gold fixture 6종 대조로 확인). 이제 manifest가 실재
+  파일을 놓친 경우에만 경고하며, 반환값은 변하지 않습니다.
+
 ### 추가
+- **5분 퀵스타트 개편**: 읽기(텍스트 추출)와 저장 영수증(`MutationReport`)
+  단계를 추가하고, 편집 예제를 복붙만으로 이어지는 완결 스크립트로
+  재구성했습니다. 문서 예제 ledger 재생성 스크립트
+  (`scripts/regenerate_example_ledger.py`)도 함께 추가했습니다.
 - **Python 3.13·3.14 공식 지원**: CI 매트릭스와 trove classifier에 3.13/3.14를
   추가했습니다(전체 스위트 1376 passed를 양 버전에서 확인한 뒤 반영).
   지원 정책은 [설치 가이드](docs/installation.md)에 명문화했습니다.

@@ -73,7 +73,7 @@ doc.save_to_path("보고서-수정.hwpx")
 - **생성·일괄 처리** — 새 문서 저작, 목차·상호참조, mail merge, 텍스트 diff, 변경추적(redline)
 - **검증·안전** — 패키지 구조 검증 CLI, 열림 안전 게이트, 모든 저장에 영수증(`MutationReport`)
 
-자세한 내용: [사용 가이드](docs/usage.md) · [API 레퍼런스](https://airmang.github.io/python-hwpx/) · [예제](docs/examples.md)
+자세한 내용: [5분 퀵스타트](docs/quickstart.md) · [사용 가이드](docs/usage.md) · [API 레퍼런스](https://airmang.github.io/python-hwpx/) · [예제](docs/examples.md)
 
 ### 양식 채우기 — 서식은 그대로, 값만
 

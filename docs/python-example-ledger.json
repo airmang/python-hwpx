@@ -11,41 +11,38 @@
     "docs/safe-write-contract.md",
     "docs/golden-api.md"
   ],
-  "fenceCount": 109,
-  "sourceSha256": "13d436adb89ea489e9e02deb3929ac60b64492e48c237b62037f638edeb55ef8",
+  "fenceCount": 110,
+  "sourceSha256": "41bde73b5b94cec42ab5800df12a6b9bafbfe1bbdd3d8079fe6bed22421dc887",
   "manualSha256": {
-    "README.md": "f5d7d5ffd25c803e474bc05896cd68e194d4eae9d7a8384c30dc03cb66f70d6b",
-    "README_EN.md": "e5a0d14d1289b7b4c1d5128b90de6a967a3545656f17f046b89792f92d7109a6",
-    "docs/quickstart.md": "1b4a60515c8bebededd2ca72e5094e5b65ffdcb5e641ed4542254cd1fc87d4ef",
+    "README.md": "021d115e0bb6ffba774b7176c164fbd3bfdfee79cc9f6cbb466ee9c16b0ee60d",
+    "README_EN.md": "27673b293e18140d0b75ca66aa50e0578fae5012d0ac33e9d24f35bba04857bd",
+    "docs/quickstart.md": "17fdc9b75b85187ddebeef3ab03d2fcdd7c99e521c3d0063bb449972f7633f8f",
     "docs/usage.md": "ba576bd87ca579ee082e577273062c41a31f91c4eabe68ea944e448847629b3b",
     "docs/examples.md": "662dc489a364e6319c57d2221fa4d4b1484e79b27a17235b0f99953ab5501a30",
     "docs/faq.md": "cd82e2f1e740cff3f50e620c060ed8ae0aa130271fa373eca3a07a70fb9ca604",
-    "docs/index.md": "b14a6ace4dc055961cf5e68c4f32518dfdbad571fc514cec996cb9f130a332b7",
+    "docs/index.md": "4dce7d12469a61fcbe401e47dad660ed60ceb61a916d6368bbc10490ad268d6f",
     "docs/safe-write-contract.md": "25acbfab16bd4fbd5b46e112f2e11a7c62e915d325efd7fa3b469d51c334aabb",
     "docs/golden-api.md": "1897c9ec4aa8355e7697770b943c264496475c8aeb5df032a9ac3a5cf32d6f5b"
   },
   "classifications": {
     "standalone": {
-      "reason": "The block creates every object and input it reads; it can run as-is in an empty working directory.",
-      "requiredContext": [],
       "ids": [
         "docs/quickstart.md#1",
-        "docs/quickstart.md#6",
+        "docs/quickstart.md#7",
         "docs/usage.md#2",
         "docs/examples.md#1",
         "docs/golden-api.md#1"
-      ]
+      ],
+      "requiredContext": []
     },
     "context-fragment/external-input": {
-      "reason": "The block reads a caller-owned HWPX file. The literal/read expression and the surrounding section jointly define the required document shape.",
-      "requiredContext": [
-        "Every path or stream read by the block must contain a valid HWPX document.",
-        "That document must provide any table, section, style, field, annotation, or package structure used by the block."
-      ],
       "ids": [
         "README.md#1",
         "README_EN.md#1",
         "docs/quickstart.md#2",
+        "docs/quickstart.md#3",
+        "docs/quickstart.md#4",
+        "docs/quickstart.md#5",
         "docs/usage.md#1",
         "docs/usage.md#3",
         "docs/usage.md#4",
@@ -123,47 +120,19 @@
         "docs/faq.md#3",
         "docs/index.md#1",
         "docs/safe-write-contract.md#2"
+      ],
+      "requiredContext": [
+        "Every path or stream read by the block must contain a valid HWPX document.",
+        "That document must provide any table, section, style, field, annotation, or package structure used by the block."
       ]
     },
     "context-fragment/prior-state": {
-      "reason": "The block intentionally continues the immediately preceding walkthrough and references names that it does not define.",
-      "requiredContext": [
-        "The listed symbols must already exist with the type and document state described by the surrounding section.",
-        "Any path or stream subsequently read by the block must contain a valid caller-owned HWPX document."
-      ],
-      "requiredSymbols": {
-        "README.md#2": ["HwpxDocument"],
-        "README.md#3": ["doc"],
-        "README_EN.md#2": ["HwpxDocument"],
-        "README_EN.md#3": ["doc"],
-        "docs/quickstart.md#3": ["document"],
-        "docs/quickstart.md#4": ["document"],
-        "docs/quickstart.md#5": ["document"],
-        "docs/usage.md#34": ["table"],
-        "docs/usage.md#69": ["package"],
-        "docs/usage.md#71": ["document", "section"],
-        "docs/usage.md#72": ["document"],
-        "docs/usage.md#73": ["document"],
-        "docs/usage.md#74": ["document", "section"],
-        "docs/usage.md#75": ["document", "section"],
-        "docs/usage.md#76": ["document"],
-        "docs/usage.md#77": ["section"],
-        "docs/usage.md#78": ["document"],
-        "docs/usage.md#79": ["document"],
-        "docs/usage.md#82": ["finder"],
-        "docs/usage.md#83": ["document"],
-        "docs/faq.md#2": ["document"],
-        "docs/faq.md#4": ["document"],
-        "docs/faq.md#5": ["document"]
-      },
       "ids": [
         "README.md#2",
         "README.md#3",
         "README_EN.md#2",
         "README_EN.md#3",
-        "docs/quickstart.md#3",
-        "docs/quickstart.md#4",
-        "docs/quickstart.md#5",
+        "docs/quickstart.md#6",
         "docs/usage.md#34",
         "docs/usage.md#69",
         "docs/usage.md#71",
@@ -180,15 +149,86 @@
         "docs/faq.md#2",
         "docs/faq.md#4",
         "docs/faq.md#5"
-      ]
+      ],
+      "requiredContext": [
+        "The listed symbols must already exist with the type and document state described by the surrounding section.",
+        "Any path or stream subsequently read by the block must contain a valid caller-owned HWPX document."
+      ],
+      "requiredSymbols": {
+        "README.md#2": [
+          "HwpxDocument"
+        ],
+        "README.md#3": [
+          "doc"
+        ],
+        "README_EN.md#2": [
+          "HwpxDocument"
+        ],
+        "README_EN.md#3": [
+          "doc"
+        ],
+        "docs/quickstart.md#6": [
+          "document"
+        ],
+        "docs/usage.md#34": [
+          "table"
+        ],
+        "docs/usage.md#69": [
+          "package"
+        ],
+        "docs/usage.md#71": [
+          "document",
+          "section"
+        ],
+        "docs/usage.md#72": [
+          "document"
+        ],
+        "docs/usage.md#73": [
+          "document"
+        ],
+        "docs/usage.md#74": [
+          "document",
+          "section"
+        ],
+        "docs/usage.md#75": [
+          "document",
+          "section"
+        ],
+        "docs/usage.md#76": [
+          "document"
+        ],
+        "docs/usage.md#77": [
+          "section"
+        ],
+        "docs/usage.md#78": [
+          "document"
+        ],
+        "docs/usage.md#79": [
+          "document"
+        ],
+        "docs/usage.md#82": [
+          "finder"
+        ],
+        "docs/usage.md#83": [
+          "document"
+        ],
+        "docs/faq.md#2": [
+          "document"
+        ],
+        "docs/faq.md#4": [
+          "document"
+        ],
+        "docs/faq.md#5": [
+          "document"
+        ]
+      }
     },
     "context-fragment/illustrative-signature": {
-      "reason": "The block is API notation: ellipses deliberately omit method bodies and the declarations are not a runnable task.",
-      "requiredContext": [
-        "Read the declarations as HwpxDocument method signatures, not as an implementation or standalone program."
-      ],
       "ids": [
         "docs/safe-write-contract.md#1"
+      ],
+      "requiredContext": [
+        "Read the declarations as HwpxDocument method signatures, not as an implementation or standalone program."
       ]
     }
   }
