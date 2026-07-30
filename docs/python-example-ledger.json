@@ -4,6 +4,8 @@
     "README.md",
     "README_EN.md",
     "docs/quickstart.md",
+    "docs/recipes-traversal.md",
+    "docs/mutation-semantics.md",
     "docs/usage.md",
     "docs/examples.md",
     "docs/faq.md",
@@ -11,16 +13,18 @@
     "docs/safe-write-contract.md",
     "docs/golden-api.md"
   ],
-  "fenceCount": 110,
-  "sourceSha256": "41bde73b5b94cec42ab5800df12a6b9bafbfe1bbdd3d8079fe6bed22421dc887",
+  "fenceCount": 117,
+  "sourceSha256": "49d6642730e5bc48138eaca281d2a98d00be08dd2176c73eedcdd7af941389ac",
   "manualSha256": {
     "README.md": "021d115e0bb6ffba774b7176c164fbd3bfdfee79cc9f6cbb466ee9c16b0ee60d",
     "README_EN.md": "27673b293e18140d0b75ca66aa50e0578fae5012d0ac33e9d24f35bba04857bd",
     "docs/quickstart.md": "17fdc9b75b85187ddebeef3ab03d2fcdd7c99e521c3d0063bb449972f7633f8f",
+    "docs/recipes-traversal.md": "97ab74acc7668fd83c4577f0ec9b289e664407fe35b60f4eeeda155d6f78256f",
+    "docs/mutation-semantics.md": "700ed2625ee711939050023682a5d636a52c31e1deecfcade4c8e5eb7edeb355",
     "docs/usage.md": "ba576bd87ca579ee082e577273062c41a31f91c4eabe68ea944e448847629b3b",
     "docs/examples.md": "662dc489a364e6319c57d2221fa4d4b1484e79b27a17235b0f99953ab5501a30",
     "docs/faq.md": "cd82e2f1e740cff3f50e620c060ed8ae0aa130271fa373eca3a07a70fb9ca604",
-    "docs/index.md": "4dce7d12469a61fcbe401e47dad660ed60ceb61a916d6368bbc10490ad268d6f",
+    "docs/index.md": "3cfb114819f563772b2a00be78a83e4be6f907029fd8b3df7246794f998e74d5",
     "docs/safe-write-contract.md": "25acbfab16bd4fbd5b46e112f2e11a7c62e915d325efd7fa3b469d51c334aabb",
     "docs/golden-api.md": "1897c9ec4aa8355e7697770b943c264496475c8aeb5df032a9ac3a5cf32d6f5b"
   },
@@ -43,6 +47,12 @@
         "docs/quickstart.md#3",
         "docs/quickstart.md#4",
         "docs/quickstart.md#5",
+        "docs/recipes-traversal.md#1",
+        "docs/recipes-traversal.md#2",
+        "docs/recipes-traversal.md#3",
+        "docs/recipes-traversal.md#4",
+        "docs/recipes-traversal.md#5",
+        "docs/recipes-traversal.md#6",
         "docs/usage.md#1",
         "docs/usage.md#3",
         "docs/usage.md#4",
@@ -133,6 +143,7 @@
         "README_EN.md#2",
         "README_EN.md#3",
         "docs/quickstart.md#6",
+        "docs/mutation-semantics.md#1",
         "docs/usage.md#34",
         "docs/usage.md#69",
         "docs/usage.md#71",
@@ -168,6 +179,9 @@
           "doc"
         ],
         "docs/quickstart.md#6": [
+          "document"
+        ],
+        "docs/mutation-semantics.md#1": [
           "document"
         ],
         "docs/usage.md#34": [

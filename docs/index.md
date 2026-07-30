@@ -13,6 +13,8 @@
 
 quickstart
 installation
+recipes-traversal
+mutation-semantics
 usage
 examples
 ```
@@ -69,6 +71,8 @@ new_document.save_to_path("new-document.hwpx")
 원하는 작업 단위로 바로 들어가면 된다.
 
 - **첫 파일을 열고 저장하는 최소 경로** → {doc}`quickstart`
+- **문단·표·각주에서 원하는 것을 꺼내고 싶다** → {doc}`recipes-traversal`
+- **편집 호출이 무엇을 돌려주고 어떻게 실패하는지 알고 싶다** → {doc}`mutation-semantics`
 - **저장이 무엇을 보존했는지 영수증으로 확인하고 싶다** → {doc}`safe-write-contract`
 - **문단, 표, 메모, 섹션 편집을 넓게 보고 싶다** → {doc}`usage`
 - **텍스트 추출, 구조 조회, 패키지 검증을 하고 싶다** → {doc}`usage`

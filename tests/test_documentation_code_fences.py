@@ -27,6 +27,8 @@ CURRENT_CORE_MANUALS = (
     Path("README.md"),
     Path("README_EN.md"),
     Path("docs/quickstart.md"),
+    Path("docs/recipes-traversal.md"),
+    Path("docs/mutation-semantics.md"),
     Path("docs/usage.md"),
     Path("docs/examples.md"),
     Path("docs/faq.md"),
@@ -38,9 +40,9 @@ PYTHON_FENCE = re.compile(
     r"^```(?:python|py)(?:[ \t]+[^\n]*)?\n(.*?)^```[ \t]*$",
     re.MULTILINE | re.DOTALL,
 )
-EXPECTED_FENCE_COUNT = 110
+EXPECTED_FENCE_COUNT = 117
 EXPECTED_FENCE_SHA256 = (
-    "41bde73b5b94cec42ab5800df12a6b9bafbfe1bbdd3d8079fe6bed22421dc887"
+    "49d6642730e5bc48138eaca281d2a98d00be08dd2176c73eedcdd7af941389ac"
 )
 ALLOWED_IMPORT_ROOTS = frozenset(sys.stdlib_module_names) | {"hwpx"}
 LEDGER = Path("docs/python-example-ledger.json")
