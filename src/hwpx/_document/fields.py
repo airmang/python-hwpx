@@ -211,10 +211,16 @@ def _form_field_payload(
         name = _field_parameter_value(parameters, "fieldName", "fieldname", "field_name", "name", "title")
     prompt = _first_attr(field_begin, _FORM_FIELD_PROMPT_ATTRS)
     if not prompt:
-        prompt = _field_parameter_value(parameters, *_FORM_FIELD_PARAM_NAMES)
+        # "Direction" is the real-Hancom 안내문 parameter (P0 gold contract).
+        prompt = _field_parameter_value(parameters, "Direction", *_FORM_FIELD_PARAM_NAMES)
     instruction = _field_parameter_value(parameters, "instruction", "guide", "help", "description", "desc")
     if not instruction:
         instruction = prompt
+    memo = _field_parameter_value(parameters, "HelpState", "memo")
+    dirty = (field_begin.get("dirty") or "").strip()
+    # Contract: while dirty != "1" the content between begin/end is the prompt
+    # placeholder (screen-only, not printed), not a user value.
+    is_placeholder = dirty != "1" and bool(prompt) and current_value == prompt
     return {
         "index": index,
         "field_id": _field_identifier(field_begin),
@@ -223,9 +229,13 @@ def _form_field_payload(
         "name": name,
         "prompt": prompt,
         "instruction": instruction,
+        "memo": memo,
+        "dirty": dirty,
+        "is_placeholder": is_placeholder,
         "current_value": current_value,
         "field_type": field_begin.get("type", ""),
         "control_type": ctrl.get("type", ""),
+        "_field_begin": field_begin,
         "section_index": section_index,
         "paragraph_index": paragraph_index,
         "paragraph_index_in_section": paragraph_index_in_section,
@@ -318,6 +328,62 @@ def list_form_fields(doc: "HwpxDocument") -> list[dict[str, Any]]:
         {key: value for key, value in match.items() if not key.startswith("_")}
         for match in _iter_form_field_matches(doc)
     ]
+
+
+_PROMPT_TEXT_COLOR = "#FF0000"
+
+
+def add_form_field(
+    doc: "HwpxDocument",
+    name: str,
+    *,
+    prompt: str = "",
+    memo: str = "",
+    editable: bool = True,
+    paragraph: Any | None = None,
+    section: Any | None = None,
+    section_index: int | None = None,
+) -> dict[str, Any]:
+    """Create a click-here (누름틀) form field and return its field payload.
+
+    The emitted XML follows the real-Hancom CLICKHERE contract
+    (reverse-engineered from Hancom Office 12.0.0.3288 gold documents). The
+    prompt (안내문) is materialized as a screen-only red-italic run, exactly as
+    Hancom authors it. The created field is immediately re-read through the
+    standard ``list_form_fields`` matcher — creation fails loudly if the
+    standard consumer would not recognize it (no special-casing by design).
+    """
+
+    if not str(name).strip():
+        raise ValueError("form field name must be a non-empty string")
+    if paragraph is None:
+        paragraph = doc.add_paragraph(
+            "", section=section, section_index=section_index, include_run=False,
+        )
+
+    prompt_char_pr: str | None = None
+    if _sanitize_field_text(prompt):
+        prompt_char_pr = doc.ensure_run_style(italic=True, color=_PROMPT_TEXT_COLOR)
+
+    control = paragraph.add_form_field(
+        name,
+        prompt=prompt,
+        memo=memo,
+        editable=editable,
+        prompt_char_pr_id_ref=prompt_char_pr,
+    )
+    _clear_form_field_layout_cache(paragraph.element)
+
+    field_begin = control.element.find(f"{_HP}fieldBegin")
+    created_id = field_begin.get("id", "") if field_begin is not None else ""
+    for match in _iter_form_field_matches(doc):
+        if match.get("id") == created_id:
+            return {
+                key: value for key, value in match.items() if not key.startswith("_")
+            }
+    raise RuntimeError(
+        "created form field was not recognized by the standard form-field matcher"
+    )
 
 
 def _select_form_field(
@@ -447,8 +513,22 @@ def fill_form_field(
             node.text = ""
             for child in list(node):
                 child.tail = ""
+        if match.get("is_placeholder"):
+            # Contract (P0 gold): Hancom swaps the screen-only prompt style for
+            # the surrounding style when a value replaces the placeholder.
+            begin_run = runs[int(match["_begin_run_index"])]
+            begin_ref = begin_run.get("charPrIDRef")
+            primary_run = primary.getparent()
+            if begin_ref is not None and primary_run is not None:
+                primary_run.set("charPrIDRef", begin_ref)
     else:
         _insert_form_field_text_run(doc, match, sanitized)
+
+    # Contract (P0 gold): a field that went through fill machinery carries
+    # dirty="1"; while dirty != "1" readers treat the content as the prompt.
+    field_begin = match.get("_field_begin")
+    if field_begin is not None:
+        field_begin.set("dirty", "1")
 
     if fit_result is not None:
         _apply_form_field_fit_style(doc, match, fit_result)

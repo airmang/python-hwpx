@@ -27,7 +27,7 @@ from ._document_primitives import (
     _sanitize_text,
 )
 from .memo import HwpxOxmlNote
-from .namespaces import tag_local_name
+from .namespaces import XML_NS, tag_local_name
 from .objects import (
     HwpxOxmlInlineObject,
     HwpxOxmlShape,
@@ -830,6 +830,105 @@ class HwpxOxmlParagraph:
         run3 = self._create_run_for_object(char_pr_id_ref=char_pr_id_ref)
         ctrl3 = _append_child(run3, f"{_HP}ctrl", {})
         _append_child(ctrl3, f"{_HP}fieldEnd", {"beginIDRef": field_id})
+
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(ctrl1, self)
+
+    def add_form_field(
+        self,
+        name: str,
+        *,
+        prompt: str = "",
+        memo: str = "",
+        editable: bool = True,
+        prompt_char_pr_id_ref: str | int | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert a click-here (누름틀) form field at the end of this paragraph.
+
+        Emits the real-Hancom CLICKHERE shape (reverse-engineered from Hancom
+        Office 12.0.0.3288 gold documents):
+        a ``fieldBegin`` ctrl run carrying the ``Prop``/``Command``/``Direction``/
+        ``HelpState`` parameters, an optional prompt run showing *prompt* (the
+        안내문, screen-only — Hancom does not print it), and a ``fieldEnd`` ctrl
+        run. ``Command`` lengths count UTF-16 characters, so values may contain
+        spaces. ``id``/``fieldid`` values are semantically free — Hancom reissues
+        its own on save.
+
+        Args:
+            name: Field name used by ``list_form_fields``/``fill_form_field``.
+            prompt: 안내문 text shown while the field is empty (``Direction``).
+            memo: Help text (``HelpState``).
+            prompt_char_pr_id_ref: charPr for the prompt run (callers normally
+                pass a red-italic style; Hancom uses one).
+
+        Returns:
+            The ``<hp:ctrl>`` element wrapping the ``<hp:fieldBegin>``.
+        """
+        field_id = _object_id()
+        field_instance_id = _object_id()
+        direction = _sanitize_text(prompt)
+        help_state = _sanitize_text(memo)
+
+        # Run 1: fieldBegin with the CLICKHERE parameter block
+        run1 = self._create_run_for_object(char_pr_id_ref=char_pr_id_ref)
+        ctrl1 = _append_child(run1, f"{_HP}ctrl", {})
+        field_begin = _append_child(ctrl1, f"{_HP}fieldBegin", {
+            "id": field_id,
+            "type": "CLICK_HERE",
+            "name": _sanitize_text(name),
+            "editable": "1" if editable else "0",
+            "dirty": "0",
+            "zorder": "-1",
+            "fieldid": field_instance_id,
+            "metaTag": "",
+        })
+        payload = (
+            f"Direction:wstring:{len(direction)}:{direction} "
+            f"HelpState:wstring:{len(help_state)}:{help_state} "
+        )
+        param_count = 2 + (1 if direction else 0) + (1 if help_state else 0)
+        parameters = _append_child(
+            field_begin, f"{_HP}parameters", {"cnt": str(param_count), "name": ""}
+        )
+        prop = _append_child(parameters, f"{_HP}integerParam", {"name": "Prop"})
+        prop.text = "9"
+        command = _append_child(parameters, f"{_HP}stringParam", {
+            "name": "Command",
+            f"{{{XML_NS}}}space": "preserve",
+        })
+        command.text = f"Clickhere:set:{len(payload)}:{payload} "
+        if direction:
+            direction_param = _append_child(
+                parameters, f"{_HP}stringParam", {"name": "Direction"}
+            )
+            direction_param.text = direction
+        if help_state:
+            help_param = _append_child(
+                parameters, f"{_HP}stringParam", {"name": "HelpState"}
+            )
+            help_param.text = help_state
+
+        # Run 2: the prompt placeholder (only while a prompt exists)
+        if direction:
+            run2 = self._create_run_for_object(
+                char_pr_id_ref=(
+                    prompt_char_pr_id_ref
+                    if prompt_char_pr_id_ref is not None
+                    else char_pr_id_ref
+                ),
+            )
+            prompt_text = _append_child(run2, f"{_HP}t", {})
+            prompt_text.text = direction
+
+        # Run 3: fieldEnd + trailing empty text node (gold shape)
+        run3 = self._create_run_for_object(char_pr_id_ref=char_pr_id_ref)
+        ctrl3 = _append_child(run3, f"{_HP}ctrl", {})
+        _append_child(ctrl3, f"{_HP}fieldEnd", {
+            "beginIDRef": field_id,
+            "fieldid": field_instance_id,
+        })
+        _append_child(run3, f"{_HP}t", {})
 
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl1, self)

@@ -1388,6 +1388,48 @@ class HwpxDocument:
             section_index=section_index,
         )
 
+    def add_form_field(
+        self,
+        name: str,
+        *,
+        prompt: str = "",
+        memo: str = "",
+        editable: bool = True,
+        paragraph: HwpxOxmlParagraph | None = None,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> dict[str, Any]:
+        """Create a click-here (누름틀) form field. **Experimental contract.**
+
+        Emits the real-Hancom CLICKHERE shape (안내문 placeholder run included)
+        so the created field is indistinguishable from a Hancom-authored one:
+        ``list_form_fields``/``fill_form_field`` recognize it with no
+        special-casing, and real Hancom Office enumerates and fills it.
+
+        Args:
+            name: Field name (non-empty).
+            prompt: 안내문 shown while the field is empty. Screen-only —
+                Hancom does not print it.
+            memo: Help text (``HelpState``).
+            paragraph: Target paragraph (e.g. inside a table cell). When
+                omitted a new paragraph is appended to *section*.
+
+        Returns:
+            The created field's payload, same shape as a ``list_form_fields``
+            entry.
+        """
+
+        return _fields.add_form_field(
+            self,
+            name,
+            prompt=prompt,
+            memo=memo,
+            editable=editable,
+            paragraph=paragraph,
+            section=section,
+            section_index=section_index,
+        )
+
 
     def set_page_size(
         self,
