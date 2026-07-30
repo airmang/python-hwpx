@@ -1,0 +1,84 @@
+# python-hwpx
+
+> Pure-Python library for reading, editing, and creating HWPX documents (the
+> Korean word-processor format used by Hancom Office / 한컴오피스 한글). HWPX is
+> ZIP + OWPML XML, so no Hancom installation is needed — works on
+> Windows/macOS/Linux/CI and inside Python-enabled chat sandboxes. Untouched
+> regions of an edited file are preserved byte-for-byte; generated files are
+> continuously verified to open in real Hancom Office (published corpus
+> metrics). Install: `pip install python-hwpx` (Python 3.10–3.14, only
+> dependency is lxml). License: Apache-2.0.
+
+python-hwpx is NOT in most models' training data. Do not guess APIs from
+python-docx habits — the real surface is below and in the linked docs.
+
+## Core API (memorize these exact names)
+
+- `from hwpx import HwpxDocument` — the document facade.
+- Open: `HwpxDocument.open("file.hwpx")` (path, bytes, or file object; usable
+  as a context manager). New: `HwpxDocument.new()`.
+- Save: `document.save_to_path("out.hwpx")`. There is **no** `document.save()`
+  method. `save_to_path(..., return_report=True)` returns a `MutationReport`
+  receipt (`report.actual_mode`, byte-preservation verification). Saving is
+  atomic and fail-closed: if the requested preservation grade cannot be kept,
+  it raises `PreservationDowngradeError` and writes nothing.
+- Edit: `document.add_paragraph(text)`, `document.remove_paragraph(p)` (last
+  paragraph in a section raises `ValueError`), `document.add_table(rows, cols)`
+  then `table.set_cell_text(row, col, text)`,
+  `document.add_footnote(text, paragraph=p)`,
+  `document.add_memo_with_anchor(text, paragraph=p, memo_shape_id_ref="0")`,
+  `document.replace_text_in_runs(search, replacement)` (returns count; empty
+  search raises `ValueError`).
+- Read: `document.paragraphs`, `paragraph.text`, `document.sections`,
+  `document.iter_runs()`, `document.memos`, `document.list_form_fields()`.
+- Extract: `from hwpx import TextExtractor` →
+  `TextExtractor("file.hwpx").extract_text()`;
+  `iter_document_paragraphs(include_nested=True)` yields `ParagraphInfo` with
+  `.path` (structural location) and `.is_nested`. Footnotes/endnotes:
+  `extract_text(include_nested=False, annotations=AnnotationOptions(footnote="inline"))`
+  with `from hwpx.tools.text_extractor import AnnotationOptions`.
+- Structural search: `from hwpx import ObjectFinder` →
+  `ObjectFinder("file.hwpx").find_all(tag="tbl")`; results have `.path`,
+  `.section`, `.text` (attribute; `None` on container elements).
+- Validate: `from hwpx import validate_package, validate_editor_open_safety`.
+
+## Common mistakes to avoid
+
+- Wrong: `Document()` / `doc.save("x.hwpx")` / `doc.add_heading(...)` — those
+  are python-docx idioms. Use `HwpxDocument.new()` / `save_to_path` /
+  `add_paragraph`.
+- `.hwp` (HWP 5.x binary) is a different format: opening raises `BadZipFile`
+  with guidance. Encrypted HWPX is rejected fail-closed.
+- All `add_*` calls append (not idempotent); check existence first by
+  traversal when you need "add once".
+- Higher-level workflows (form filling by label, exam papers, mail merge
+  policy, `hwpx` CLI, MCP server, Hancom render verification) live in the
+  companion package `python-hwpx-automation` (import `hwpx_automation`), not
+  in the core library.
+
+## Docs
+
+- [Five-minute quickstart](https://airmang.github.io/python-hwpx/quickstart.html):
+  install → open → read → edit → table → save with receipt.
+- [Traversal recipes](https://airmang.github.io/python-hwpx/recipes-traversal.html):
+  paragraphs, nested tables with paths, footnote extraction, runs, memos.
+- [Mutation semantics](https://airmang.github.io/python-hwpx/mutation-semantics.html):
+  return types, failure modes, re-run behavior, save guarantees.
+- [Support matrix](https://airmang.github.io/python-hwpx/support-matrix.html):
+  honest per-capability grades (what is render-verified vs unsupported —
+  e.g., chart creation is not supported; existing charts are byte-preserved).
+- [Safe write contract](https://airmang.github.io/python-hwpx/safe-write-contract.html):
+  preservation grades and the `MutationReport` schema.
+- [Migration from 4.x](https://airmang.github.io/python-hwpx/migration-5.0.html):
+  every import removed at 5.0 has a named replacement.
+- [Corpus metrics](https://airmang.github.io/python-hwpx/corpus-metrics.html):
+  measured open/render rates on real Hancom Office.
+- [API reference](https://airmang.github.io/python-hwpx/api_reference.html)
+- [GitHub](https://github.com/airmang/python-hwpx) ·
+  [PyPI](https://pypi.org/project/python-hwpx/)
+
+## Optional
+
+- [llms-full.txt](https://airmang.github.io/python-hwpx/llms-full.txt):
+  this file plus the full quickstart, recipes, mutation semantics, and
+  support matrix inlined for larger context windows.

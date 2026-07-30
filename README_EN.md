@@ -35,6 +35,7 @@ Keep the form and formatting as-is, change only ○○, and return a new file.
 ```
 
 Install to result file, all inside the conversation — no Python on your machine needed.
+An [llms.txt](https://airmang.github.io/python-hwpx/llms.txt) is published so AI tools learn the real API.
 
 | | Repo | Role |
 |---|---|---|

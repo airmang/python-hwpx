@@ -17,6 +17,14 @@
   단계를 추가하고, 편집 예제를 복붙만으로 이어지는 완결 스크립트로
   재구성했습니다. 문서 예제 ledger 재생성 스크립트
   (`scripts/regenerate_example_ledger.py`)도 함께 추가했습니다.
+- **과업 축 매뉴얼 2종**: [순회 레시피](docs/recipes-traversal.md)(문단·중첩
+  표·각주·런·메모/누름틀)와 [편집 의미론](docs/mutation-semantics.md)(반환형·
+  실패 모드·재실행 성질·저장 보증 — 전부 실측 확인) — 실행 ledger 게이트에
+  편입.
+- **llms.txt 발행**: 훈련 데이터에 이 라이브러리가 없는 AI 도구가 정확한
+  API를 배우도록 `https://airmang.github.io/python-hwpx/llms.txt`(+ 매뉴얼
+  병합본 `llms-full.txt`, 빌드 시 자동 생성)를 사이트 루트에 제공합니다.
+  내용 계약은 테스트로 고정(버전 문자열 금지 포함).
 - **Python 3.13·3.14 공식 지원**: CI 매트릭스와 trove classifier에 3.13/3.14를
   추가했습니다(전체 스위트 1376 passed를 양 버전에서 확인한 뒤 반영).
   지원 정책은 [설치 가이드](docs/installation.md)에 명문화했습니다.

@@ -35,6 +35,7 @@
 ```
 
 설치부터 결과 파일까지 대화 안에서 끝납니다 — 내 컴퓨터에 파이썬이 없어도 됩니다.
+AI 도구가 정확한 API를 배우도록 [llms.txt](https://airmang.github.io/python-hwpx/llms.txt)도 제공합니다.
 
 | | 저장소 | 역할 |
 |---|---|---|

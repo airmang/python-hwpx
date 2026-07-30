@@ -57,6 +57,8 @@ language = "ko"
 
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
+# llms.txt(llmstxt.org 관례)는 사이트 루트에 verbatim으로 놓인다.
+html_extra_path = ["_extra"]
 html_theme_options = {
     "collapse_navigation": False,
     "navigation_depth": 2,
@@ -78,3 +80,33 @@ myst_enable_extensions = [
 myst_heading_anchors = 3
 
 nitpicky = False
+
+
+def _write_llms_full(app, exception):
+    """빌드 산출물 루트에 llms-full.txt를 생성한다.
+
+    llms.txt와 ledger-게이트 매뉴얼(퀵스타트·레시피·의미론·지원 매트릭스)을
+    이어붙인다 — 저장소에 사본을 두지 않으므로 드리프트가 없다.
+    """
+    if exception is not None or app.builder.name != "html":
+        return
+    from pathlib import Path
+
+    docs = Path(__file__).parent
+    sources = [
+        docs / "_extra" / "llms.txt",
+        docs / "quickstart.md",
+        docs / "recipes-traversal.md",
+        docs / "mutation-semantics.md",
+        docs / "support-matrix.md",
+    ]
+    parts = []
+    for source in sources:
+        parts.append(f"\n\n<!-- ===== {source.name} ===== -->\n\n")
+        parts.append(source.read_text(encoding="utf-8"))
+    out = Path(app.outdir) / "llms-full.txt"
+    out.write_text("".join(parts).lstrip(), encoding="utf-8")
+
+
+def setup(app):
+    app.connect("build-finished", _write_llms_full)
