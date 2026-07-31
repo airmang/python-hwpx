@@ -239,9 +239,10 @@ def test_frozen_facade_exports_remain_exact() -> None:
         | set(hwpx._EXPERIMENTAL_EXPORTS)
         | set(hwpx._DEPRECATED_EXPORTS)
     )
-    # 34 stable + 12 experimental + 0 deprecated. The deprecated layer emptied in
-    # 5.0 because its 4.x notice said it would go in the next major.
-    assert len(total_top_level) == 46
+    # 34 stable + 15 experimental + 0 deprecated. The deprecated layer emptied in
+    # 5.0 because its 4.x notice said it would go in the next major; 5.2 adds the
+    # three equation-authoring names to the experimental layer.
+    assert len(total_top_level) == 49
     assert len(oxml.__all__) == 110
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 

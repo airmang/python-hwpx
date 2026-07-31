@@ -30,9 +30,15 @@ reimplemented from public references, without copying source code:
   structure and roundtrip fixtures.
 
 - OpenBapul/hml-equation-parser (Apache-2.0): HULK-style EqEdit <-> LaTeX token
-  mapping, referenced for reader-direction <hp:equation> script rendering. The
-  token maps are a clean-room re-derivation from the public EqEdit grammar; no
-  source code was copied, translated, or vendored.
+  mapping, referenced for reader-direction <hp:equation> script rendering and
+  for the authoring-direction LaTeX -> EqEdit conversion. The token maps are a
+  clean-room re-derivation from the public EqEdit grammar; no source code was
+  copied, translated, or vendored.
+- chrisryugj/kordoc (MIT): the authoring-direction approach for native
+  <hp:equation> generation — the XML shell contract, reserved-word quoting,
+  and untrusted-input guards (source-size and recursion-depth caps) were
+  referenced as behavior evidence. Clean-room Python implementation; no source
+  code was copied, translated, or vendored.
 
 These form-fill and equation references were used as behavior evidence only. The
 implementation is a clean-room Python implementation; no source code was

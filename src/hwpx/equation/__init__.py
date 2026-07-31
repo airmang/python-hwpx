@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Reader-direction equation support: EqEdit → LaTeX → MathML.
+"""Equation support: EqEdit → LaTeX → MathML (reader) and LaTeX → EqEdit (authoring).
 
 Clean-room re-derivation of the HULK-style EqEdit vocabulary; see NOTICE for the
 referenced projects.  ``latex2mathml`` is an optional dependency
@@ -9,6 +9,11 @@ block rather than dropping the equation.
 
 from __future__ import annotations
 
+from .authoring import (
+    UnsupportedLatexError,
+    estimate_equation_size,
+    latex_to_eqedit,
+)
 from .eqedit import (
     MAX_GROUP_DEPTH,
     MAX_SOURCE_LENGTH,
@@ -39,8 +44,11 @@ __all__ = [
     "EquationConversionError",
     "EquationRender",
     "MathMLUnavailableError",
+    "UnsupportedLatexError",
     "eqedit_to_latex",
+    "estimate_equation_size",
     "latex2mathml_available",
+    "latex_to_eqedit",
     "latex_to_mathml",
     "render_equation",
 ]

@@ -248,7 +248,7 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr or result.stdout
     report = json.loads(result.stdout)
     assert report["ok"]
-    assert report["classifiedFiles"] == 101
+    assert report["classifiedFiles"] == 102
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

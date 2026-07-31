@@ -48,6 +48,10 @@ _EXPERIMENTAL_EXPORTS = {
     # 문서 프리뷰 뷰어(3.8.0 신규). 계약 유동.
     "DocumentViewer": "hwpx.tools.document_viewer",
     "render_document_viewer": "hwpx.tools.document_viewer",
+    # 수식 저작(5.2.0 신규, LaTeX -> EqEdit). 계약 유동.
+    "UnsupportedLatexError": "hwpx.equation.authoring",
+    "estimate_equation_size": "hwpx.equation.authoring",
+    "latex_to_eqedit": "hwpx.equation.authoring",
 }
 
 # Emptied in 5.0. The 4.x notice on these names said they would go in the next

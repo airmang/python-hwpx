@@ -834,6 +834,92 @@ class HwpxOxmlParagraph:
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl1, self)
 
+    def add_equation(
+        self,
+        script: str,
+        *,
+        base_unit: int = 1100,
+        size: tuple[int, int] | None = None,
+        char_pr_id_ref: str | int | None = None,
+        run_attributes: dict[str, str] | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert an inline ``<hp:equation>`` carrying an EqEdit *script*.
+
+        Emits the real-Hancom equation shape (contract reverse-engineered in
+        specs/054-equation-authoring/evidence/p0/equation-contract.md): the
+        EqEdit source lives in the ``<hp:script>`` child, no lineseg cache is
+        written (Hancom re-lays-out on open), and the shape is inline
+        (``treatAsChar="1"``) so it renders in the page flow.
+
+        Args:
+            script: EqEdit script stored verbatim (e.g. ``{a} over {b}``).
+            base_unit: Equation base font size in 1/100 pt (gold: 1100/1200).
+            size: Optional explicit ``(width, height)`` HWPUNIT pair for
+                ``<hp:sz>``; when omitted a proportional placeholder is
+                written — Hancom re-measures on open (P0 evidence).
+        """
+        text = script.strip()
+        if not text:
+            raise ValueError("equation script must be a non-empty string")
+        if base_unit <= 0:
+            raise ValueError("base_unit must be positive")
+        if size is None:
+            visible = len(text.replace("{", "").replace("}", "").replace(" ", ""))
+            width = int(base_unit * 0.45 * max(6, visible))
+            height = int(base_unit * 2.5)
+        else:
+            width, height = size
+        run = self._create_run_for_object(
+            run_attributes, char_pr_id_ref=char_pr_id_ref
+        )
+        equation = _append_child(run, f"{_HP}equation", {
+            "id": _object_id(),
+            "zOrder": "0",
+            "numberingType": "EQUATION",
+            "textWrap": "TOP_AND_BOTTOM",
+            "textFlow": "BOTH_SIDES",
+            "lock": "0",
+            "dropcapstyle": "None",
+            "version": "Equation Version 60",
+            "baseLine": str(max(1, round(base_unit * 69 / 1200))),
+            "textColor": "#000000",
+            "baseUnit": str(base_unit),
+            "lineMode": "CHAR",
+            "font": "HYhwpEQ",
+        })
+        _append_child(equation, f"{_HP}sz", {
+            "width": str(width),
+            "widthRelTo": "ABSOLUTE",
+            "height": str(height),
+            "heightRelTo": "ABSOLUTE",
+            "protect": "0",
+        })
+        _append_child(equation, f"{_HP}pos", {
+            "treatAsChar": "1",
+            "affectLSpacing": "0",
+            "flowWithText": "1",
+            "allowOverlap": "0",
+            "holdAnchorAndSO": "0",
+            "vertRelTo": "PARA",
+            "horzRelTo": "PARA",
+            "vertAlign": "TOP",
+            "horzAlign": "LEFT",
+            "vertOffset": "0",
+            "horzOffset": "0",
+        })
+        _append_child(equation, f"{_HP}outMargin", {
+            "left": "56",
+            "right": "56",
+            "top": "0",
+            "bottom": "0",
+        })
+        comment = _append_child(equation, f"{_HP}shapeComment", {})
+        comment.text = "수식입니다."
+        script_element = _append_child(equation, f"{_HP}script", {})
+        script_element.text = text
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(equation, self)
+
     def add_form_field(
         self,
         name: str,

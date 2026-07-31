@@ -1431,6 +1431,53 @@ class HwpxDocument:
         )
 
 
+    def add_equation(
+        self,
+        script: str,
+        *,
+        paragraph: HwpxOxmlParagraph | None = None,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        base_unit: int = 1100,
+        size: tuple[int, int] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert an inline equation from an EqEdit script. **Experimental contract.**
+
+        Emits the real-Hancom ``<hp:equation>`` shape (contract:
+        ``specs/054-equation-authoring/evidence/p0/equation-contract.md``): the
+        EqEdit source is stored verbatim in ``<hp:script>``, no layout cache is
+        written (Hancom re-lays-out on open), and the shape is inline so it
+        renders in the page flow. The created element is immediately re-read
+        through the standard section scan — creation fails loudly if the
+        standard consumer would not see it (no special-casing by design).
+
+        To author from LaTeX, convert first (typed refusal outside the
+        verified token set)::
+
+            from hwpx.equation import latex_to_eqedit
+            doc.add_equation(latex_to_eqedit(r"\\frac{a}{b}"))
+
+        Args:
+            script: EqEdit script stored as-is (e.g. ``{a} over {b}``).
+            paragraph: Target paragraph (e.g. inside a table cell). When
+                omitted a new paragraph is appended to *section*.
+            base_unit: Equation base font size in 1/100 pt.
+            size: Optional explicit ``(width, height)`` HWPUNIT pair;
+                defaults to a proportional estimate (Hancom re-measures).
+        """
+
+        return _shapes.add_equation(
+            self,
+            script,
+            paragraph=paragraph,
+            section=section,
+            section_index=section_index,
+            base_unit=base_unit,
+            size=size,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+
     def set_page_size(
         self,
         *,

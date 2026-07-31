@@ -31,6 +31,10 @@
   "kind": "method",
   "signature": "(self, text: 'str', paragraph: 'HwpxOxmlParagraph | None' = None, *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, char_pr_id_ref: 'str | int | None' = None) -> 'HwpxOxmlNote'"
  },
+ "add_equation": {
+  "kind": "method",
+  "signature": "(self, script: 'str', *, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, base_unit: 'int' = 1100, size: 'tuple[int, int] | None' = None, char_pr_id_ref: 'str | int | None' = None) -> 'HwpxOxmlInlineObject'"
+ },
  "add_footnote": {
   "kind": "method",
   "signature": "(self, text: 'str', paragraph: 'HwpxOxmlParagraph | None' = None, *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, char_pr_id_ref: 'str | int | None' = None) -> 'HwpxOxmlNote'"

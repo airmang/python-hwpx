@@ -227,3 +227,58 @@ def add_ellipse(
         line_color=line_color, line_width=line_width,
         fill_color=fill_color, treat_as_char=treat_as_char,
     )
+
+
+def add_equation(
+    doc: "HwpxDocument",
+    script: str,
+    *,
+    paragraph: HwpxOxmlParagraph | None = None,
+    section: HwpxOxmlSection | None = None,
+    section_index: int | None = None,
+    base_unit: int = 1100,
+    size: tuple[int, int] | None = None,
+    char_pr_id_ref: str | int | None = None,
+) -> HwpxOxmlInlineObject:
+    """Insert an inline equation and prove the standard reader recognizes it.
+
+    The emitted XML follows the real-Hancom ``<hp:equation>`` contract
+    (specs/054-equation-authoring/evidence/p0/equation-contract.md). After
+    insertion the equation is re-read through the standard section scan —
+    creation fails loudly if the script did not land verbatim (no
+    special-casing by design).
+    """
+    from ..equation.authoring import estimate_equation_size
+    from ..equation.eqedit import MAX_SOURCE_LENGTH
+    from ..oxml.namespaces import HP
+
+    text = (script or "").strip()
+    if not text:
+        raise ValueError("equation script must be a non-empty string")
+    if len(text) > MAX_SOURCE_LENGTH:
+        raise ValueError("equation script exceeds size limit")
+    if paragraph is None:
+        paragraph = doc.add_paragraph(
+            "", section=section, section_index=section_index,
+            include_run=False,
+        )
+    if size is None:
+        size = estimate_equation_size(text, base_unit=base_unit)
+    inline_object = paragraph.add_equation(
+        text, base_unit=base_unit, size=size, char_pr_id_ref=char_pr_id_ref,
+    )
+
+    created_id = inline_object.element.get("id", "")
+    for owning_section in doc.sections:
+        for candidate in owning_section.element.iter(f"{HP}equation"):
+            if candidate.get("id") != created_id:
+                continue
+            script_element = candidate.find(f"{HP}script")
+            if script_element is None or (script_element.text or "") != text:
+                raise RuntimeError(
+                    "created equation did not store its script verbatim"
+                )
+            return inline_object
+    raise RuntimeError(
+        "created equation was not recognized by the standard section scan"
+    )

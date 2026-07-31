@@ -13,6 +13,11 @@
 
 from __future__ import annotations
 
+from .equation.authoring import (
+    UnsupportedLatexError,
+    estimate_equation_size,
+    latex_to_eqedit,
+)
 from .ingest import (
     ConversionAttempt,
     DocumentConverter,
@@ -45,4 +50,7 @@ __all__ = [
     "render_layout_preview",
     "DocumentViewer",
     "render_document_viewer",
+    "UnsupportedLatexError",
+    "estimate_equation_size",
+    "latex_to_eqedit",
 ]

@@ -248,6 +248,12 @@
       "disposition": "core",
       "approvedBy": "S-049/P3",
       "rationale": "colour-family classification over HWPX textColor; body_patch matches charPr entries by family and the application-side guidance scanner classifies the same way, so one implementation lives here"
+    },
+    {
+      "approvedBy": "054-equation-authoring/P1",
+      "disposition": "core",
+      "path": "src/hwpx/equation/authoring.py",
+      "rationale": "authoring direction of the equation vocabulary: LaTeX -> EqEdit conversion and the hp:equation size heuristic live beside the reader (eqedit.py) as reusable HWPX format behavior; refuses outside the verified token set instead of approximating"
     }
   ],
   "removed": [

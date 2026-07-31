@@ -4,6 +4,23 @@
 
 ## [Unreleased]
 
+### 추가
+- **수식 저작 `HwpxDocument.add_equation`** (experimental 계약): 실한컴이
+  만드는 `<hp:equation>` 형상 그대로(EqEdit script는 `<hp:script>` 자식,
+  `treatAsChar="1"` 인라인, lineseg 캐시 없이 — 한컴이 열 때 재조판) 수식을
+  삽입합니다. 표 셀 내부 삽입을 지원하고, 생성 직후 표준 섹션 스캔으로
+  재인식되지 않으면 즉시 실패합니다(특수분기 0). 계약은 실한컴 gold
+  리버스(수식 계약 문서) 기준입니다.
+- **LaTeX → EqEdit 변환기 `hwpx.equation.latex_to_eqedit`** (experimental):
+  리더 방향(EqEdit → LaTeX)과 같은 토큰맵의 역방향입니다. 분수·근호/n제곱근·
+  첨자·그리스·관계/이항연산·합/적분/극한 상하한·행렬(`pmatrix` 계열·`cases`)·
+  `\left`/`\right`·accent·`\text` 리터럴·예약어 따옴표 보호(`T_{int}` →
+  `T _{"int"}`)를 지원하며, **검증된 토큰셋 밖의 LaTeX는
+  `UnsupportedLatexError`로 typed 거부**합니다(무음 근사 없음). 왕복
+  property 테스트가 저작 EqEdit를 기존 리더로 복원해 고정점을 증명합니다.
+  `estimate_equation_size` 휴리스틱이 `<hp:sz>` 자리표시 크기를 계산합니다
+  (한컴이 열 때 실측 재계산).
+
 ## [5.1.1]
 
 `v5.1.0`은 보존된 실패 태그입니다 — 아무것도 게시되지 않았습니다. 태그

@@ -113,10 +113,10 @@ def test_all_is_exactly_the_stable_set() -> None:
 
 def test_layer_counts() -> None:
     assert len(STABLE_NAMES) == 34
-    assert len(EXPERIMENTAL_NAMES) == 12
+    assert len(EXPERIMENTAL_NAMES) == 15
     # Emptied in 5.0: the 4.x notice promised these names would go in the next major.
     assert len(DEPRECATED_NAMES) == 0
-    assert len(ALL_LEGACY_NAMES) == 46
+    assert len(ALL_LEGACY_NAMES) == 49
 
 
 def test_hwpx_error_is_stable_and_importable() -> None:
