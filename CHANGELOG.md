@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [5.3.0] - 2026-07-31
+
 ### 추가
 - **차트 저작 `HwpxDocument.add_chart`** (experimental 계약): ECMA-376
   chartML(`c:chartSpace`)을 `Chart/chartN.xml` 파트로 저장하고 실한컴
