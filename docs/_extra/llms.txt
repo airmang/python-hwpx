@@ -31,6 +31,14 @@ python-docx habits — the real surface is below and in the linked docs.
   search raises `ValueError`).
 - Read: `document.paragraphs`, `paragraph.text`, `document.sections`,
   `document.iter_runs()`, `document.memos`, `document.list_form_fields()`.
+- Forms (5.1+): `document.add_form_field(name, prompt=...)` creates a native
+  click-here field (real-Hancom CLICKHERE contract; experimental tier);
+  `document.fill_form_field(value, name=...)` fills it style-preservingly.
+- Equations (5.2+): `document.add_equation(script)` inserts a native
+  `<hp:equation>` from a Hancom EqEdit script (experimental tier);
+  `from hwpx.equation import latex_to_eqedit` converts LaTeX to EqEdit over a
+  render-verified token set and raises `UnsupportedLatexError` outside it —
+  no silent approximation.
 - Extract: `from hwpx import TextExtractor` →
   `TextExtractor("file.hwpx").extract_text()`;
   `iter_document_paragraphs(include_nested=True)` yields `ParagraphInfo` with
@@ -66,7 +74,8 @@ python-docx habits — the real surface is below and in the linked docs.
   return types, failure modes, re-run behavior, save guarantees.
 - [Support matrix](https://airmang.github.io/python-hwpx/support-matrix.html):
   honest per-capability grades (what is render-verified vs unsupported —
-  e.g., chart creation is not supported; existing charts are byte-preserved).
+  e.g., form-field and equation creation are experimental-tier supported;
+  chart creation is not supported, existing charts are byte-preserved).
 - [Safe write contract](https://airmang.github.io/python-hwpx/safe-write-contract.html):
   preservation grades and the `MutationReport` schema.
 - [Migration from 4.x](https://airmang.github.io/python-hwpx/migration-5.0.html):

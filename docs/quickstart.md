@@ -178,6 +178,9 @@ print("총 섹션 수:", len(document.sections))
 
 - {doc}`usage`에서 문단, 표, 메모, 섹션, 추출, 검증, 패키지 조작까지 이어서 보기
 - {doc}`examples`에 있는 실행 가능한 예제 스크립트로 전체 흐름 익히기
+- 양식을 만들거나 채우려면 `add_form_field`/`fill_form_field`, 수식을 넣으려면
+  `add_equation`+`hwpx.equation.latex_to_eqedit` (둘 다 experimental 티어,
+  [지원 매트릭스](support-matrix.md)에 등급·근거)
 - 기능별 지원 등급이 궁금하면 [지원 매트릭스](support-matrix.md) 참고
 - 4.x에서 올라오는 중이라면 [5.0 마이그레이션 가이드](migration-5.0.md) 참고
 - XML 구조와 매니페스트가 궁금하면 {doc}`schema-overview` 참고

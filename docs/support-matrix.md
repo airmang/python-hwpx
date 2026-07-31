@@ -29,14 +29,14 @@
 | arc·polygon·curve·connectLine | Parse·Unsupported-but-preserved | 열거·읽기는 되지만 저작 API 없음. 기존 개체는 patch 저장에서 바이트 동일 왕복 |
 | 그림 삽입/치환 | Edit·Create | `add_picture`·`add_image`·`replace_picture`. 단순 그림 개체 자동 생성은 지원하며 실한컴 개봉을 확인했다(실한컴 코퍼스와 자식 요소 단위 대조). 그룹·효과 등 복잡 개체 생성은 미지원 |
 | 차트 | Unsupported-but-preserved | 차트 생성 API 없음(kordoc 흡수 갭). 기존 차트 part는 patch 저장 시 바이트 보존(497/497) |
-| 수식 | Parse·Unsupported-but-preserved | 코어에 수식 저작 API 없음. 기존 수식 개체는 파싱·patch 보존됨(수식 미리보기 렌더는 뷰어/플러그인 계층) |
+| 수식 | Parse·Create(experimental)·Render-verified | `add_equation`(EqEdit script 삽입, 5.2.0+)과 `hwpx.equation.latex_to_eqedit`(렌더 검증 토큰셋만 변환, 밖은 `UnsupportedLatexError`로 typed 거부). 저작 어휘 전 토큰을 실한컴 렌더 오라클 픽셀 실측(60수식 배터리)으로 확정했고, 기존 수식 개체는 파싱·patch 보존됨(미리보기 MathML 렌더는 뷰어/플러그인 계층) |
 | 변경추적(redline) | Edit·Create | `add_tracked_insert`·`add_tracked_delete`·`add_tracked_replace`; 실 Windows 한컴 COM `IsTrackChange=1`·검토 리본 수락/거부 스파이크. **렌더 주의**: 한컴이 변경추적 문서의 PDF export 자체를 거부 → corpus-metrics「렌더 검증」에서 `render_unavailable`로 정직 집계(결함 아님, 한컴 제약) |
 | 메모(코멘트) | Edit·Create·Render-verified | `add_memo`·`add_memo_with_anchor`; subList 코멘트 텍스트 + `MemoShapeIDRef` 버그 수정을 실 Windows 한컴에서 검증(CHANGELOG) |
 | 각주/미주 | Edit·Create | `add_footnote`·`add_endnote`; M6 읽기 경로에서 note 노출. 렌더 독립 게이트는 미측정 |
 | 네이티브 목차(TOC)/상호참조 | Create·Render-verified | `hwpx.tools.toc_author.add_native_toc`·`mark_toc_dirty`·`toc_verify`; corpus-metrics「네이티브 목차」구조 15/15, 실한컴 재계산 후 페이지 정합 5/5 |
 | 암호화 HWPX | Unsupported-and-rejected | 복호화 API 없음. 암호화된 content part는 파싱 단계에서 예외(`XMLSyntaxError`)로 거부 — 무음으로 잘못된 문서를 만들지 않음(fail-closed) |
 | HWP 5.x 바이너리 | Unsupported-and-rejected | HWP v5는 ZIP이 아니므로 열기 시 `BadZipFile` 예외. OLE2/CFBF 시그니처를 확인하면 예외 메시지가 HWPX 변환을 안내한다(예외 타입은 그대로) |
-| 누름틀(form field) 생성 | Parse·Edit | `list_form_fields`·`fill_form_field`로 기존 누름틀 조회·서식 보존 채움. **신규 누름틀 생성 전용 도구는 미제공**(list/fill 한정) |
+| 누름틀(form field) 생성 | Parse·Edit·Create(experimental) | `list_form_fields`·`fill_form_field`로 조회·서식 보존 채움에 더해, `add_form_field`(5.1.0+)가 실한컴 CLICKHERE 계약 그대로 신규 누름틀을 생성한다(표 셀 배치 포함). 만든 필드는 기존 list/fill과 실제 한컴이 특수분기 없이 소비 |
 
 ## 상태 판정 근거 요약
 
@@ -51,7 +51,7 @@
   경로에만 붙인다(암호화 content, HWP 5.x 바이너리). 두 경로 모두 실제 예외를 관찰해
   판정했다.
 - **Unsupported-but-preserved**는 생성/편집 API가 없지만 기존 요소가 patch 저장에서
-  보존됨을 뜻한다(차트·수식). 새로 만들거나 편집하는 기능은 제공하지 않는다.
+  보존됨을 뜻한다(차트). 새로 만들거나 편집하는 기능은 제공하지 않는다.
 
 ## 관련 문서
 
