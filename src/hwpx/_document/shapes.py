@@ -282,3 +282,78 @@ def add_equation(
     raise RuntimeError(
         "created equation was not recognized by the standard section scan"
     )
+
+
+def add_chart(
+    doc: "HwpxDocument",
+    chart_xml: bytes | str,
+    *,
+    paragraph: HwpxOxmlParagraph | None = None,
+    section: HwpxOxmlSection | None = None,
+    section_index: int | None = None,
+    size: tuple[int, int] | None = None,
+    treat_as_char: bool = False,
+    char_pr_id_ref: str | int | None = None,
+) -> HwpxOxmlInlineObject:
+    """Add a chartML part and its ``<hp:chart>`` anchor, then prove recognition.
+
+    The part is stored under ``Chart/chartN.xml`` and addressed directly by
+    the anchor's ``chartIDRef`` — real Hancom registers chart parts in no
+    manifest and draws the chart from the ECMA-376 chartML alone
+    (specs/055-chart-authoring/evidence/p0/chart-contract.md). The chartML is
+    validated to parse and to carry the ``c:chartSpace`` root before any part
+    is written; after insertion the anchor is re-read through the standard
+    section scan — creation fails loudly if it did not land (no
+    special-casing by design).
+    """
+    from lxml import etree as _etree  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
+
+    from ..oxml.namespaces import HP
+
+    _CHART_SPACE = "{http://schemas.openxmlformats.org/drawingml/2006/chart}chartSpace"
+
+    data = chart_xml.encode("utf-8") if isinstance(chart_xml, str) else bytes(chart_xml)
+    if not data.strip():
+        raise ValueError("chart_xml must be non-empty chartML")
+    try:
+        root = _etree.fromstring(data)
+    except _etree.XMLSyntaxError as exc:
+        raise ValueError(f"chart_xml is not well-formed XML: {exc}") from exc
+    if root.tag != _CHART_SPACE:
+        raise ValueError(
+            "chart_xml root must be the ECMA-376 c:chartSpace element, "
+            f"got {root.tag!r}"
+        )
+
+    existing = {name for name in doc._package.part_names() if name.startswith("Chart/")}
+    n = 1
+    while f"Chart/chart{n}.xml" in existing:
+        n += 1
+    part_path = f"Chart/chart{n}.xml"
+
+    if paragraph is None:
+        paragraph = doc.add_paragraph(
+            "", section=section, section_index=section_index,
+            include_run=False,
+        )
+    doc._package.write(part_path, data)
+    inline_object = paragraph.add_chart(
+        part_path,
+        size=size,
+        treat_as_char=treat_as_char,
+        char_pr_id_ref=char_pr_id_ref,
+    )
+
+    created_id = inline_object.element.get("id", "")
+    for owning_section in doc.sections:
+        for candidate in owning_section.element.iter(f"{HP}chart"):
+            if candidate.get("id") != created_id:
+                continue
+            if candidate.get("chartIDRef") != part_path:
+                raise RuntimeError(
+                    "created chart anchor does not reference its part"
+                )
+            return inline_object
+    raise RuntimeError(
+        "created chart was not recognized by the standard section scan"
+    )

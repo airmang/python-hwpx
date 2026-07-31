@@ -1431,6 +1431,48 @@ class HwpxDocument:
         )
 
 
+    def add_chart(
+        self,
+        chart_xml: bytes | str,
+        *,
+        paragraph: HwpxOxmlParagraph | None = None,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+        size: tuple[int, int] | None = None,
+        treat_as_char: bool = False,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert a native chart from ECMA-376 chartML. **Experimental contract.**
+
+        Stores *chart_xml* as a ``Chart/chartN.xml`` package part and emits the
+        real-Hancom ``<hp:chart>`` anchor referencing it via ``chartIDRef``
+        (contract: ``specs/055-chart-authoring/evidence/p0/chart-contract.md``).
+        Hancom draws the chart from the chartML alone — no OLE fallback or
+        pre-rendered image is written. The chartML must parse and carry the
+        ``c:chartSpace`` root (typed rejection otherwise), and the created
+        anchor is re-read through the standard section scan — creation fails
+        loudly if the standard consumer would not see it.
+
+        Args:
+            chart_xml: ECMA-376 chartML document (``c:chartSpace``).
+            paragraph: Target paragraph (e.g. inside a table cell). When
+                omitted a new paragraph is appended to *section*.
+            size: Optional ``(width, height)`` HWPUNIT pair for the anchor.
+            treat_as_char: ``True`` places the chart inline in the text flow;
+                default mirrors the render-verified gold float placement.
+        """
+
+        return _shapes.add_chart(
+            self,
+            chart_xml,
+            paragraph=paragraph,
+            section=section,
+            section_index=section_index,
+            size=size,
+            treat_as_char=treat_as_char,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+
     def add_equation(
         self,
         script: str,

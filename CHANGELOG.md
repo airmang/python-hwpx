@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+### 추가
+- **차트 저작 `HwpxDocument.add_chart`** (experimental 계약): ECMA-376
+  chartML(`c:chartSpace`)을 `Chart/chartN.xml` 파트로 저장하고 실한컴
+  `<hp:chart chartIDRef=…>` 앵커를 방출합니다 — 실한컴 계약 그대로 파트는
+  어느 manifest에도 등록하지 않으며(실측), 한컴은 chartML만으로 차트를
+  그립니다(OLE 폴백·사전렌더 이미지 불요, 실한컴 렌더 픽셀 실측: 막대·
+  꺾은선·원). chartML은 파싱·루트 검증 후에만 기록(typed 거부), 표 셀
+  배치·인라인 배치 지원, 생성 직후 표준 섹션 스캔 재인식 실패 시 즉시
+  실패합니다. 기존 차트 파트와의 경로 충돌 없이 순차 할당하며 무관 파트는
+  바이트 보존됩니다.
+
 ## [5.2.0] - 2026-07-31
 
 ### 추가

@@ -834,6 +834,78 @@ class HwpxOxmlParagraph:
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl1, self)
 
+    def add_chart(
+        self,
+        chart_id_ref: str,
+        *,
+        size: tuple[int, int] | None = None,
+        treat_as_char: bool = False,
+        char_pr_id_ref: str | int | None = None,
+        run_attributes: dict[str, str] | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert a native ``<hp:chart>`` anchor referencing a chartML part.
+
+        Emits the real-Hancom chart anchor (contract reverse-engineered in
+        specs/055-chart-authoring/evidence/p0/chart-contract.md): the chart
+        content lives in an ECMA-376 chartML part addressed directly by
+        ``chartIDRef`` (real Hancom registers the part in no manifest), and
+        Hancom lays the chart out from the chartML alone — no OLE fallback or
+        pre-rendered image is required.
+
+        Args:
+            chart_id_ref: Package path of the chartML part
+                (e.g. ``Chart/chart1.xml``).
+            size: Optional ``(width, height)`` HWPUNIT pair for ``<hp:sz>``;
+                defaults to the gold document's 32250x18750.
+            treat_as_char: ``True`` places the chart inline in the text flow;
+                the default mirrors the gold float placement.
+        """
+        reference = chart_id_ref.strip()
+        if not reference:
+            raise ValueError("chart_id_ref must be a non-empty package path")
+        width, height = size if size is not None else (32250, 18750)
+        run = self._create_run_for_object(
+            run_attributes, char_pr_id_ref=char_pr_id_ref
+        )
+        chart = _append_child(run, f"{_HP}chart", {
+            "id": _object_id(),
+            "zOrder": "0",
+            "numberingType": "PICTURE",
+            "textWrap": "TOP_AND_BOTTOM" if treat_as_char else "SQUARE",
+            "textFlow": "BOTH_SIDES",
+            "lock": "0",
+            "dropcapstyle": "None",
+            "chartIDRef": reference,
+        })
+        _append_child(chart, f"{_HP}sz", {
+            "width": str(width),
+            "widthRelTo": "ABSOLUTE",
+            "height": str(height),
+            "heightRelTo": "ABSOLUTE",
+            "protect": "0",
+        })
+        _append_child(chart, f"{_HP}pos", {
+            "treatAsChar": "1" if treat_as_char else "0",
+            "affectLSpacing": "0",
+            "flowWithText": "1",
+            "allowOverlap": "0",
+            "holdAnchorAndSO": "0",
+            "vertRelTo": "PARA",
+            "horzRelTo": "PARA" if treat_as_char else "COLUMN",
+            "vertAlign": "TOP",
+            "horzAlign": "LEFT",
+            "vertOffset": "0",
+            "horzOffset": "0",
+        })
+        _append_child(chart, f"{_HP}outMargin", {
+            "left": "0",
+            "right": "0",
+            "top": "0",
+            "bottom": "0",
+        })
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(chart, self)
+
     def add_equation(
         self,
         script: str,
