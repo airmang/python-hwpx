@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [5.2.0] - 2026-07-31
+
 ### 추가
 - **수식 저작 `HwpxDocument.add_equation`** (experimental 계약): 실한컴이
   만드는 `<hp:equation>` 형상 그대로(EqEdit script는 `<hp:script>` 자식,
