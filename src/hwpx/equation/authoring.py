@@ -48,17 +48,36 @@ def _invert(*maps: dict[str, str]) -> dict[str, str]:
     return inverse
 
 
-# Word-token maps first so lowercase word forms win (``times`` over ``TIMES``);
-# symbolic preferences below override where the render-verified gold used the
-# symbolic spelling.
-_LATEX_TO_EQEDIT: dict[str, str] = _invert(
-    GREEK, OPERATORS, FUNCTIONS, BIG_OPERATORS
+# Commands whose only EqEdit spellings render as literal text (or wrong glyphs)
+# on the real Hancom build — render-verified 2026-07-31, specs/054 P2 token
+# battery. Emitting them would silently corrupt output, so they are excluded
+# from the inverse maps and refuse with UnsupportedLatexError instead.
+_RENDER_REJECTED = frozenset(
+    {"\\limsup", "\\liminf", "\\widehat", "\\widetilde"}
 )
+
+# Word-token maps first so lowercase word forms win (``times`` over ``TIMES``);
+# explicit preferences below override where the render oracle verified a
+# different spelling than the reader's first-seen entry.
+_LATEX_TO_EQEDIT: dict[str, str] = {
+    latex: eqedit
+    for latex, eqedit in _invert(GREEK, OPERATORS, FUNCTIONS, BIG_OPERATORS).items()
+    if latex not in _RENDER_REJECTED
+}
 _LATEX_TO_EQEDIT.update(
     {
         # Gold scripts spell these symbolically (equation-contract.md §4).
         "\\pm": "+-",
         "\\mp": "-+",
+        # Render-verified spellings (P2 token battery): the word ``to`` kills
+        # the rest of the equation, ``leftrightarrow`` draws a plain arrow,
+        # lowercase ``forall`` and ``iint``/``iiint`` come out as literal text.
+        "\\to": "->",
+        "\\rightarrow": "->",
+        "\\leftrightarrow": "<->",
+        "\\forall": "FORALL",
+        "\\iint": "dint",
+        "\\iiint": "tint",
         # Common LaTeX aliases sharing a verified target.
         "\\le": "leq",
         "\\ge": "geq",
@@ -66,7 +85,11 @@ _LATEX_TO_EQEDIT.update(
         "\\dots": "cdots",
     }
 )
-_LATEX_ACCENTS: dict[str, str] = _invert(ACCENTS)
+_LATEX_ACCENTS: dict[str, str] = {
+    latex: eqedit
+    for latex, eqedit in _invert(ACCENTS).items()
+    if latex not in _RENDER_REJECTED
+}
 # LaTeX delimiter commands usable after \left / \right.
 _LATEX_DELIMITERS: dict[str, str] = {
     latex: eqedit
@@ -76,7 +99,16 @@ _LATEX_DELIMITERS: dict[str, str] = {
     and eqedit not in {"LBRACE", "RBRACE", "LANGLE", "RANGLE"}
 }
 _TEXT_COMMANDS = frozenset({"\\text", "\\mathrm", "\\textrm", "\\mbox"})
-_MATRIX_ENVS = frozenset(MATRIX_ENVIRONMENTS)
+# LaTeX environment name → render-verified EqEdit builder word. ``Bmatrix`` /
+# ``Vmatrix`` have no verified spelling on the real build (P2 battery R10/R11)
+# and refuse; the determinant matrix is EqEdit ``dmatrix`` (R12).
+_ENV_TO_EQEDIT: dict[str, str] = {
+    "matrix": "matrix",
+    "pmatrix": "pmatrix",
+    "bmatrix": "bmatrix",
+    "vmatrix": "dmatrix",
+    "cases": "cases",
+}
 
 # Bare identifier runs that would collide with EqEdit vocabulary must be quoted
 # so Hancom keeps them literal (reserved-word protection).
@@ -302,7 +334,8 @@ class _LatexParser:
         if name == "}":
             raise UnsupportedLatexError("empty \\begin{} environment name")
         self._expect("}")
-        if name not in _MATRIX_ENVS:
+        builder = _ENV_TO_EQEDIT.get(name or "")
+        if builder is None:
             raise UnsupportedLatexError(f"unsupported LaTeX environment: {name}")
         rows: list[list[str]] = [[]]
         current: list[str] = []
@@ -344,7 +377,7 @@ class _LatexParser:
         body = " # ".join(
             " & ".join(cell for cell in row) for row in rows if any(row)
         )
-        return f"{name} {{{body}}}"
+        return f"{builder} {{{body}}}"
 
     def _left_right(self, depth: int) -> str:
         open_token = self._next()

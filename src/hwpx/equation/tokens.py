@@ -102,6 +102,9 @@ OPERATORS: dict[str, str] = {
     "cap": r"\cap",
     "emptyset": r"\emptyset",
     "forall": r"\forall",
+    # Real-Hancom EqEdit spells ∀ in ALLCAPS; lowercase renders as literal text
+    # (render-verified 2026-07-31, specs/054 P2 token battery R05).
+    "FORALL": r"\forall",
     "exists": r"\exists",
     "neg": r"\neg",
     "land": r"\land",
@@ -176,6 +179,11 @@ BIG_OPERATORS: dict[str, str] = {
     "int": r"\int",
     "iint": r"\iint",
     "iiint": r"\iiint",
+    # Real-Hancom EqEdit spellings for ∬/∭ (render-verified 2026-07-31,
+    # specs/054 P2 token battery R06/R07; ``iint``/``iiint`` render as
+    # literal text on the real build).
+    "dint": r"\iint",
+    "tint": r"\iiint",
     "oint": r"\oint",
     "sum": r"\sum",
     "prod": r"\prod",
@@ -213,6 +221,10 @@ MATRIX_ENVIRONMENTS: dict[str, str] = {
     "Bmatrix": "Bmatrix",
     "vmatrix": "vmatrix",
     "Vmatrix": "Vmatrix",
+    # Real-Hancom EqEdit determinant matrix |...| (render-verified 2026-07-31,
+    # specs/054 P2 token battery R12; ``vmatrix``/``Vmatrix`` render as
+    # literal text on the real build).
+    "dmatrix": "vmatrix",
     "cases": "cases",
 }
 
