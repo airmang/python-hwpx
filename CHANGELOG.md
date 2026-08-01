@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [5.4.0] - 2026-08-01
+
 ### 추가
 - **`ensure_border_fill(border_type=…)`**: OWPML 선 종류 어휘(SOLID·DASH·
   DOT·DASH_DOT 등)를 검증해 테두리 모양을 지정합니다. 어휘 밖 값은 typed
