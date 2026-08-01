@@ -138,7 +138,7 @@
  },
  "ensure_border_fill": {
   "kind": "method",
-  "signature": "(self, *, border_color: 'str' = '#BFBFBF', border_width: 'str' = '0.12 mm', fill_color: 'str | None' = None, active_borders: 'Sequence[str] | None' = None) -> 'str'"
+  "signature": "(self, *, border_color: 'str' = '#BFBFBF', border_width: 'str' = '0.12 mm', fill_color: 'str | None' = None, active_borders: 'Sequence[str] | None' = None, border_type: 'str' = 'SOLID') -> 'str'"
  },
  "ensure_numbering": {
   "kind": "method",
@@ -146,7 +146,7 @@
  },
  "ensure_run_style": {
   "kind": "method",
-  "signature": "(self, *, bold: 'bool' = False, italic: 'bool' = False, underline: 'bool' = False, color: 'str | None' = None, font: 'str | None' = None, size: 'int | float | None' = None, highlight: 'str | None' = None, strike: 'bool | None' = None, base_char_pr_id: 'str | int | None' = None) -> 'str'"
+  "signature": "(self, *, bold: 'bool' = False, italic: 'bool' = False, underline: 'bool' = False, color: 'str | None' = None, font: 'str | None' = None, size: 'int | float | None' = None, highlight: 'str | None' = None, strike: 'bool | None' = None, underline_shape: 'str | None' = None, underline_color: 'str | None' = None, strike_shape: 'str | None' = None, ratio: 'int | None' = None, letter_spacing: 'int | None' = None, shadow: 'str | None' = None, script: 'str | None' = None, base_char_pr_id: 'str | int | None' = None) -> 'str'"
  },
  "export_html": {
   "kind": "method",

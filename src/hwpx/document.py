@@ -264,14 +264,21 @@ class HwpxDocument:
         border_width: str = "0.12 mm",
         fill_color: str | None = None,
         active_borders: Sequence[str] | None = None,
+        border_type: str = "SOLID",
     ) -> str:
-        """Return a borderFill id matching the requested border/fill attributes."""
+        """Return a borderFill id matching the requested border/fill attributes.
+
+        ``border_type`` selects the OWPML line style (``SOLID``, ``DASH``,
+        ``DOT``, ``DOUBLE_SLIM``, ``WAVE``, …); values outside the OWPML
+        vocabulary are rejected.
+        """
 
         return self._root.ensure_border_fill(
             border_color=border_color,
             border_width=border_width,
             fill_color=fill_color,
             active_borders=active_borders,
+            border_type=border_type,
         )
 
     @property
@@ -594,9 +601,22 @@ class HwpxDocument:
         size: int | float | None = None,
         highlight: str | None = None,
         strike: bool | None = None,
+        underline_shape: str | None = None,
+        underline_color: str | None = None,
+        strike_shape: str | None = None,
+        ratio: int | None = None,
+        letter_spacing: int | None = None,
+        shadow: str | None = None,
+        script: str | None = None,
         base_char_pr_id: str | int | None = None,
     ) -> str:
-        """Return a ``charPr`` identifier matching the requested flags."""
+        """Return a ``charPr`` identifier matching the requested flags.
+
+        5.4.0 additions (render-verified vocabulary; invalid values are
+        rejected): ``underline_shape``/``underline_color``, ``strike_shape``,
+        ``ratio`` (장평 %), ``letter_spacing`` (자간 %), ``shadow`` (drop
+        shadow colour), ``script`` (``"sup"``/``"sub"``).
+        """
 
         return self._root.ensure_run_style(
             bold=bold,
@@ -607,6 +627,13 @@ class HwpxDocument:
             size=size,
             highlight=highlight,
             strike=strike,
+            underline_shape=underline_shape,
+            underline_color=underline_color,
+            strike_shape=strike_shape,
+            ratio=ratio,
+            letter_spacing=letter_spacing,
+            shadow=shadow,
+            script=script,
             base_char_pr_id=base_char_pr_id,
         )
 

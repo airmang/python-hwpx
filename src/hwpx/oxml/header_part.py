@@ -898,6 +898,13 @@ class HwpxOxmlHeader:
         self.mark_dirty()
         return new_id
 
+    _BORDER_LINE_TYPES = frozenset({
+        "SOLID", "DASH", "DOT", "DASH_DOT", "DASH_DOT_DOT", "LONG_DASH",
+        "CIRCLE", "DOUBLE_SLIM", "SLIM_THICK", "THICK_SLIM", "SLIM_THICK_SLIM",
+        "WAVE", "DOUBLEWAVE", "THICK_3D", "THICK_3D_REVERSE_LIGHTING",
+        "SLIM_3D", "SLIM_3D_REVERSE_LIGHTING",
+    })
+
     def ensure_border_fill(
         self,
         *,
@@ -905,11 +912,18 @@ class HwpxOxmlHeader:
         border_width: str = "0.12 mm",
         fill_color: str | None = None,
         active_borders: Iterable[str] | None = None,
+        border_type: str = "SOLID",
     ) -> str:
         element = self._border_fills_element(create=True)
         if element is None:  # pragma: no cover - defensive branch
             raise RuntimeError("failed to create <borderFills> element")
 
+        normalized_border_type = str(border_type or "SOLID").upper()
+        if normalized_border_type not in self._BORDER_LINE_TYPES:
+            raise ValueError(
+                f"unsupported border_type {border_type!r}; expected one of "
+                + ", ".join(sorted(self._BORDER_LINE_TYPES))
+            )
         normalized_border_color = _normalize_color(border_color) or "#BFBFBF"
         normalized_border_width = str(border_width or "0.12 mm")
         normalized_active_borders = _normalize_border_side_names(active_borders)
@@ -922,6 +936,7 @@ class HwpxOxmlHeader:
                 border_width=normalized_border_width,
                 fill_color=normalized_fill_color,
                 active_borders=normalized_active_borders,
+                border_type=normalized_border_type,
             ):
                 border_id = border_fill.get("id")
                 if border_id:
@@ -934,6 +949,7 @@ class HwpxOxmlHeader:
             border_width=normalized_border_width,
             fill_color=normalized_fill_color,
             active_borders=normalized_active_borders,
+            border_type=normalized_border_type,
         )
         if isinstance(element, LET._Element):
             new_border_fill = LET.fromstring(ET.tostring(new_border_fill, encoding="utf-8"))

@@ -25,6 +25,7 @@ from ._document_primitives import (
 from .memo import HwpxOxmlMemo, HwpxOxmlMemoGroup
 from .paragraph import HwpxOxmlParagraph
 from .section_format import HwpxOxmlSectionProperties
+from .namespaces import tag_local_name
 from .section_story import HwpxOxmlSectionHeaderFooter
 
 if TYPE_CHECKING:
@@ -176,6 +177,55 @@ class HwpxOxmlSection:
             paragraph = paras[paragraph]
         paragraph.remove()
 
+    def _inherited_paragraph_refs(
+        self,
+    ) -> tuple[str | None, str | None, str | None]:
+        """Style refs the next appended paragraph inherits from the last one.
+
+        A list paragraph (bullet/numbered paraPr) must not leak into the next
+        paragraph — in Hancom, Enter continues the list but programmatic
+        appends of ordinary text are body text. The fidelity audit reproduced
+        every following paragraph turning into a list item without this guard.
+        """
+
+        existing = self.paragraphs
+        if not existing:
+            return None, None, None
+        last = existing[-1]
+        prev_para_ref = last.para_pr_id_ref
+        prev_style_ref = last.style_id_ref
+        prev_char_ref = last.char_pr_id_ref
+        if prev_para_ref is not None and self._para_pr_is_list(prev_para_ref):
+            prev_para_ref = None
+            prev_style_ref = None
+        return prev_para_ref, prev_style_ref, prev_char_ref
+
+    def _para_pr_is_list(self, para_pr_id_ref: str | int) -> bool:
+        """True when the paraPr carries a bullet/numbered heading."""
+
+        document = self.document
+        if document is None:
+            return False
+        wanted = str(para_pr_id_ref)
+        for header in getattr(document, "_headers", []):
+            para_properties = getattr(header, "_para_properties_element", None)
+            if para_properties is None:
+                continue
+            container = para_properties()
+            if container is None:
+                continue
+            for para_pr in container:
+                if para_pr.get("id") != wanted:
+                    continue
+                for child in para_pr:
+                    if tag_local_name(child.tag) == "heading":
+                        return str(child.get("type", "")).upper() in {
+                            "BULLET",
+                            "NUMBER",
+                        }
+                return False
+        return False
+
     def add_paragraph(
         self,
         text: str = "",
@@ -202,16 +252,9 @@ class HwpxOxmlSection:
         """
 
         # Collect style refs from the last paragraph for inheritance.
-        prev_para_ref: str | None = None
-        prev_style_ref: str | None = None
-        prev_char_ref: str | None = None
-        if inherit_style:
-            existing = self.paragraphs
-            if existing:
-                last = existing[-1]
-                prev_para_ref = last.para_pr_id_ref
-                prev_style_ref = last.style_id_ref
-                prev_char_ref = last.char_pr_id_ref
+        prev_para_ref, prev_style_ref, prev_char_ref = (
+            self._inherited_paragraph_refs() if inherit_style else (None, None, None)
+        )
 
         attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
         attrs.update(extra_attrs)

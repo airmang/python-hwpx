@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 from ._document_primitives import (
     _DEFAULT_CELL_HEIGHT,
     _DEFAULT_CELL_WIDTH,
+    _default_cell_inner_margin_attributes,
     _DEFAULT_PARAGRAPH_ATTRS,
     _HP,
     _append_child,
@@ -459,7 +460,7 @@ class HwpxOxmlTable:
             },
         )
         ET.SubElement(table, f"{_HP}outMargin", _default_cell_margin_attributes())
-        ET.SubElement(table, f"{_HP}inMargin", _default_cell_margin_attributes())
+        ET.SubElement(table, f"{_HP}inMargin", _default_cell_inner_margin_attributes())
 
         column_widths = _distribute_size(max(table_width, 0), cols)
         row_heights = _distribute_size(max(table_height, 0), rows)
@@ -486,7 +487,7 @@ class HwpxOxmlTable:
                         "height": str(row_heights[row_index] if row_heights else 0),
                     },
                 )
-                ET.SubElement(cell, f"{_HP}cellMargin", _default_cell_margin_attributes())
+                ET.SubElement(cell, f"{_HP}cellMargin", _default_cell_inner_margin_attributes())
         return table
 
     def mark_dirty(self) -> None:
@@ -646,6 +647,18 @@ class HwpxOxmlTable:
     def cell(self, row_index: int, col_index: int) -> HwpxOxmlTableCell:
         entry = self._grid_entry(row_index, col_index)
         return entry.cell
+
+    def set_cell_border_fill(
+        self, row_index: int, col_index: int, border_fill_id_ref: str | int
+    ) -> None:
+        """Point one cell at a header ``borderFill`` definition.
+
+        Pairs with :meth:`set_cell_shading`; obtain ids from
+        ``document.ensure_border_fill`` (line style/width/color/fill).
+        """
+        cell = self.cell(row_index, col_index)
+        cell.element.set("borderFillIDRef", str(border_fill_id_ref))
+        self.mark_dirty()
 
     def set_cell_shading(self, row_index: int, col_index: int, color: str) -> None:
         cell = self.cell(row_index, col_index)

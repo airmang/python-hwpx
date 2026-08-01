@@ -59,6 +59,13 @@ class _RunStyleSpec:
     height: str | None
     strike: bool | None
     font_ref: dict[str, str] | None
+    underline_shape: str | None = None
+    underline_color: str | None = None
+    strike_shape: str | None = None
+    ratio: int | None = None
+    letter_spacing: int | None = None
+    shadow_color: str | None = None
+    script: str | None = None
 
 
 def _run_style_element_flags(element: ET.Element) -> tuple[bool, bool, bool]:
@@ -78,6 +85,80 @@ def _run_style_element_strike(element: ET.Element) -> bool:
     return strike_element.get("shape", "").upper() != "NONE"
 
 
+def _validated_line_shape(
+    value: str | None, vocabulary: frozenset[str], label: str
+) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).upper()
+    if normalized not in vocabulary:
+        raise ValueError(f"unsupported {label} {value!r}")
+    return normalized
+
+
+def _run_style_underline_matches(element: ET.Element, spec: _RunStyleSpec) -> bool:
+    if spec.underline_shape is None and spec.underline_color is None:
+        return True
+    underline = element.find(f"{_HH}underline")
+    if underline is None:
+        return False
+    if spec.underline_shape is not None and (
+        underline.get("shape", "").upper() != spec.underline_shape
+    ):
+        return False
+    if spec.underline_color is not None and (
+        (underline.get("color") or "").upper() != spec.underline_color.upper()
+    ):
+        return False
+    return True
+
+
+def _run_style_lang_value_matches(
+    element: ET.Element, tag: str, value: int | None
+) -> bool:
+    if value is None:
+        return True
+    node = element.find(f"{_HH}{tag}")
+    return node is not None and node.get("hangul") == str(value)
+
+
+def _run_style_extensions_match(element: ET.Element, spec: _RunStyleSpec) -> bool:
+    if not _run_style_underline_matches(element, spec):
+        return False
+    if spec.strike_shape is not None:
+        strike_el = element.find(f"{_HH}strikeout")
+        if strike_el is None or strike_el.get("shape", "").upper() != spec.strike_shape:
+            return False
+    if not _run_style_lang_value_matches(element, "ratio", spec.ratio):
+        return False
+    if not _run_style_lang_value_matches(element, "spacing", spec.letter_spacing):
+        return False
+    if not _run_style_shadow_matches(element, spec.shadow_color):
+        return False
+    if not _run_style_script_matches(element, spec.script):
+        return False
+    return True
+
+
+def _run_style_shadow_matches(element: ET.Element, shadow_color: str | None) -> bool:
+    if shadow_color is None:
+        return True
+    shadow_el = element.find(f"{_HH}shadow")
+    if shadow_el is None or shadow_el.get("type", "").upper() == "NONE":
+        return False
+    return (shadow_el.get("color") or "").upper() == shadow_color.upper()
+
+
+def _run_style_script_matches(element: ET.Element, script: str | None) -> bool:
+    if script is None:
+        return True
+    if not _run_style_lang_value_matches(element, "relSz", 67):
+        return False
+    off_el = element.find(f"{_HH}offset")
+    wanted_offset = "30" if script == "sup" else "-30"
+    return off_el is not None and off_el.get("hangul") == wanted_offset
+
+
 def _run_style_predicate(element: ET.Element, spec: _RunStyleSpec) -> bool:
     if _run_style_element_flags(element) != spec.flags:
         return False
@@ -91,6 +172,8 @@ def _run_style_predicate(element: ET.Element, spec: _RunStyleSpec) -> bool:
     if spec.height is not None and element.get("height") != spec.height:
         return False
     if spec.strike is not None and _run_style_element_strike(element) != bool(spec.strike):
+        return False
+    if not _run_style_extensions_match(element, spec):
         return False
     if spec.font_ref is not None:
         font_ref = element.find(f"{_HH}fontRef")
@@ -159,6 +242,56 @@ def _run_style_apply_strikeout(
         _append_child(element, f"{_HH}strikeout", strike_attrs)
 
 
+def _run_style_set_lang_values(element: ET.Element, tag: str, value: int) -> None:
+    node = element.find(f"{_HH}{tag}")
+    if node is None:
+        node = _append_child(element, f"{_HH}{tag}")
+    for lang in ("hangul", "latin", "hanja", "japanese", "other", "symbol", "user"):
+        node.set(lang, str(value))
+
+
+def _run_style_apply_underline_extension(
+    element: ET.Element, spec: _RunStyleSpec
+) -> None:
+    if spec.underline_shape is None and spec.underline_color is None:
+        return
+    underline = element.find(f"{_HH}underline")
+    if underline is None:
+        return
+    if underline.get("type", "").upper() == "NONE":
+        underline.set("type", "BOTTOM")
+    if spec.underline_shape is not None:
+        underline.set("shape", spec.underline_shape)
+    if spec.underline_color is not None:
+        underline.set("color", spec.underline_color)
+
+
+def _run_style_apply_extensions(element: ET.Element, spec: _RunStyleSpec) -> None:
+    _run_style_apply_underline_extension(element, spec)
+    if spec.strike_shape is not None:
+        strike_el = element.find(f"{_HH}strikeout")
+        if strike_el is None:
+            strike_el = _append_child(element, f"{_HH}strikeout")
+        strike_el.set("shape", spec.strike_shape)
+        if not strike_el.get("color"):
+            strike_el.set("color", "#000000")
+    if spec.ratio is not None:
+        _run_style_set_lang_values(element, "ratio", spec.ratio)
+    if spec.letter_spacing is not None:
+        _run_style_set_lang_values(element, "spacing", spec.letter_spacing)
+    if spec.shadow_color is not None:
+        shadow_el = element.find(f"{_HH}shadow")
+        if shadow_el is None:
+            shadow_el = _append_child(element, f"{_HH}shadow")
+        shadow_el.set("type", "DROP")
+        shadow_el.set("color", spec.shadow_color)
+        shadow_el.set("offsetX", "12")
+        shadow_el.set("offsetY", "12")
+    if spec.script is not None:
+        _run_style_set_lang_values(element, "relSz", 67)
+        _run_style_set_lang_values(element, "offset", 30 if spec.script == "sup" else -30)
+
+
 def _run_style_modifier(element: ET.Element, spec: _RunStyleSpec) -> None:
     underline_nodes = list(element.findall(f"{_HH}underline"))
     base_underline_attrs = (
@@ -185,6 +318,8 @@ def _run_style_modifier(element: ET.Element, spec: _RunStyleSpec) -> None:
 
     _run_style_apply_underline(element, base_underline_attrs, spec.flags[2])
     _run_style_apply_strikeout(element, base_strike_attrs, spec.strike)
+
+    _run_style_apply_extensions(element, spec)
 
 
 class HwpxOxmlDocument:
@@ -357,6 +492,12 @@ class HwpxOxmlDocument:
             return None
         return cache.get(normalized)
 
+    _UNDERLINE_SHAPES = frozenset({
+        "SOLID", "DASH", "DOT", "DASH_DOT", "DASH_DOT_DOT", "LONG_DASH",
+        "CIRCLE", "DOUBLE_SLIM", "SLIM_THICK", "THICK_SLIM",
+        "SLIM_THICK_SLIM", "WAVE", "DOUBLEWAVE",
+    })
+
     def ensure_run_style(
         self,
         *,
@@ -368,12 +509,44 @@ class HwpxOxmlDocument:
         size: int | float | None = None,
         highlight: str | None = None,
         strike: bool | None = None,
+        underline_shape: str | None = None,
+        underline_color: str | None = None,
+        strike_shape: str | None = None,
+        ratio: int | None = None,
+        letter_spacing: int | None = None,
+        shadow: str | None = None,
+        script: str | None = None,
         base_char_pr_id: str | int | None = None,
     ) -> str:
-        """Return a char property identifier matching the requested flags."""
+        """Return a char property identifier matching the requested flags.
+
+        The 5.4.0 additions mirror what the fidelity audit render-verified on
+        real Hancom: ``underline_shape``/``underline_color`` (implies an
+        underline), ``strike_shape`` (implies a strikeout), ``ratio`` (장평 %),
+        ``letter_spacing`` (자간 %), ``shadow`` (drop-shadow colour), and
+        ``script`` (``"sup"``/``"sub"``). Values outside the OWPML vocabulary
+        are rejected — no silent approximation.
+        """
 
         if not self._headers:
             raise ValueError("document does not contain any headers")
+
+        normalized_underline_shape = _validated_line_shape(
+            underline_shape, self._UNDERLINE_SHAPES, "underline_shape"
+        )
+        if normalized_underline_shape is not None or underline_color is not None:
+            underline = True
+        normalized_strike_shape = _validated_line_shape(
+            strike_shape, self._UNDERLINE_SHAPES, "strike_shape"
+        )
+        if normalized_strike_shape is not None:
+            strike = True
+        if ratio is not None and not 10 <= int(ratio) <= 400:
+            raise ValueError("ratio must be a percentage between 10 and 400")
+        if letter_spacing is not None and not -50 <= int(letter_spacing) <= 100:
+            raise ValueError("letter_spacing must be between -50 and 100")
+        if script is not None and script not in ("sup", "sub"):
+            raise ValueError('script must be "sup" or "sub"')
 
         header = self._headers[0]
         spec = _RunStyleSpec(
@@ -383,6 +556,13 @@ class HwpxOxmlDocument:
             height=_char_height_from_points(size),
             strike=strike,
             font_ref=header.font_ref_for_face(font) if font is not None else None,
+            underline_shape=normalized_underline_shape,
+            underline_color=_normalize_color(underline_color),
+            strike_shape=normalized_strike_shape,
+            ratio=int(ratio) if ratio is not None else None,
+            letter_spacing=int(letter_spacing) if letter_spacing is not None else None,
+            shadow_color=_normalize_color(shadow),
+            script=script,
         )
         element = header.ensure_char_property(
             predicate=lambda el: _run_style_predicate(el, spec),
@@ -425,6 +605,7 @@ class HwpxOxmlDocument:
         border_width: str = "0.12 mm",
         fill_color: str | None = None,
         active_borders: Iterable[str] | None = None,
+        border_type: str = "SOLID",
     ) -> str:
         if not self._headers:
             return "0"
@@ -433,6 +614,7 @@ class HwpxOxmlDocument:
             border_width=border_width,
             fill_color=fill_color,
             active_borders=active_borders,
+            border_type=border_type,
         )
 
     def ensure_shading_border_fill(

@@ -422,9 +422,10 @@ def _border_fill_child_attrs(
     active: bool,
     color: str,
     width: str,
+    border_type: str = "SOLID",
 ) -> dict[str, str]:
     return {
-        "type": "SOLID" if active else "NONE",
+        "type": border_type if active else "NONE",
         "width": width,
         "color": color,
     }
@@ -465,6 +466,7 @@ def _border_fill_matches(
     border_width: str,
     fill_color: str | None,
     active_borders: set[str],
+    border_type: str = "SOLID",
 ) -> bool:
     if _element_local_name(element) != "borderFill":
         return False
@@ -484,7 +486,7 @@ def _border_fill_matches(
         child = element.find(f"{_HH}{child_name}")
         if child is None:
             return False
-        expected_type = "SOLID" if side in active_borders else "NONE"
+        expected_type = border_type if side in active_borders else "NONE"
         if (child.get("type") or "").upper() != expected_type:
             return False
         if _normalize_length(child.get("width")) != _normalize_length(border_width):
@@ -509,6 +511,7 @@ def _create_border_fill_element(
     border_width: str,
     fill_color: str | None,
     active_borders: set[str],
+    border_type: str = "SOLID",
 ) -> ET.Element:
     element = ET.Element(f"{_HH}borderFill", {"id": border_id, **_BASIC_BORDER_FILL_ATTRIBUTES})
     ET.SubElement(element, f"{_HH}slash", {"type": "NONE", "Crooked": "0", "isCounter": "0"})
@@ -521,6 +524,7 @@ def _create_border_fill_element(
                 active=side in active_borders,
                 color=border_color,
                 width=border_width,
+                border_type=border_type,
             ),
         )
     ET.SubElement(
@@ -577,6 +581,17 @@ def _default_cell_paragraph_attributes() -> dict[str, str]:
 
 def _default_cell_margin_attributes() -> dict[str, str]:
     return {"left": "0", "right": "0", "top": "0", "bottom": "0"}
+
+
+def _default_cell_inner_margin_attributes() -> dict[str, str]:
+    """Hancom's new-table cell padding: 1.8 mm left/right, 0.5 mm top/bottom.
+
+    Measured from real Hancom-authored gold documents
+    (specs/056-authoring-fidelity-audit — the audit found our former 0
+    padding makes text hug the borders, visibly unlike a Hancom table).
+    """
+
+    return {"left": "510", "right": "510", "top": "141", "bottom": "141"}
 
 
 def _get_int_attr(element: ET.Element, name: str, default: int = 0) -> int:

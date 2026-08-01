@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Sequence, cast
 import warnings
 import xml.etree.ElementTree as ET
 
@@ -405,6 +405,59 @@ class HwpxOxmlParagraph:
                     tables.append(HwpxOxmlTable(child, self))
         return tables
 
+    def _context_table_width(self) -> int | None:
+        """Hancom-like default table width for this paragraph's context.
+
+        Inside a table cell the parent cell's usable width bounds the new
+        (nested) table — the fidelity audit reproduced silent content loss
+        when the fixed per-cell default exceeded it. At body level Hancom
+        fits a new table to the text width (page width minus margins).
+        Returns ``None`` when neither context is measurable.
+        """
+
+        # stdlib ET has no getparent; lxml-backed elements do. Guarded getattr
+        # keeps both backends working (19 suite failures without the guard).
+        get_parent = getattr(self.element, "getparent", None)
+        ancestor = cast(
+            "ET.Element | None", get_parent() if callable(get_parent) else None
+        )
+        while ancestor is not None:
+            if tag_local_name(ancestor.tag) == "tc":
+                cell_sz = ancestor.find(f"{_HP}cellSz")
+                margin = ancestor.find(f"{_HP}cellMargin")
+                if cell_sz is not None:
+                    try:
+                        width = int(cell_sz.get("width", "0"))
+                    except ValueError:
+                        return None
+                    pad = 0
+                    if margin is not None:
+                        try:
+                            pad = int(margin.get("left", "0")) + int(
+                                margin.get("right", "0")
+                            )
+                        except ValueError:
+                            pad = 0
+                    usable = width - pad
+                    return usable if usable > 0 else None
+                return None
+            next_parent = getattr(ancestor, "getparent", None)
+            ancestor = cast(
+                "ET.Element | None",
+                next_parent() if callable(next_parent) else None,
+            )
+
+        try:
+            properties = self.section.properties
+            page = properties.page_size
+            margins = properties.page_margins
+        except Exception:
+            return None
+        if page.width <= 0:
+            return None
+        usable = page.width - margins.left - margins.right - margins.gutter
+        return usable if usable > 0 else None
+
     def add_table(
         self,
         rows: int,
@@ -416,6 +469,8 @@ class HwpxOxmlParagraph:
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> HwpxOxmlTable:
+        if width is None:
+            width = self._context_table_width()
         if border_fill_id_ref is None:
             document = self.section.document
             if document is not None:

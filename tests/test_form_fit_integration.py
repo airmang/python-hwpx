@@ -23,6 +23,14 @@ def _doc_with_cell(width: int):
     table = doc.add_table(1, 1)
     cell = table.cell(0, 0)
     cell.set_size(width=width)
+    # These fixtures pin a bare slot: zero out the 5.4.0 Hancom-default cell
+    # padding so *width* is the usable measure the assertions reason about.
+    margin = cell.element.find(
+        "{http://www.hancom.co.kr/hwpml/2011/paragraph}cellMargin"
+    )
+    if margin is not None:
+        for side in ("left", "right", "top", "bottom"):
+            margin.set(side, "0")
     return doc, table, cell
 
 

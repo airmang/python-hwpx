@@ -4,6 +4,30 @@
 
 ## [Unreleased]
 
+### 추가
+- **`ensure_border_fill(border_type=…)`**: OWPML 선 종류 어휘(SOLID·DASH·
+  DOT·DASH_DOT 등)를 검증해 테두리 모양을 지정합니다. 어휘 밖 값은 typed
+  거부(ValueError).
+- **`HwpxOxmlTable.set_cell_border_fill(row, col, border_fill_id_ref)`**:
+  개별 셀의 테두리/배경 참조를 교체하는 표면(저작 충실도 감사에서 확인된
+  B 표면갭 수리).
+- **`ensure_run_style` 확장 7종**: `underline_shape`/`underline_color`(물결
+  등 밑줄 모양·색), `strike_shape`(취소선 모양), `ratio`(장평 10–400),
+  `letter_spacing`(자간 −50–100), `shadow`(그림자 색), `script`(`sup`/`sub`
+  위·아래 첨자 — 실한컴 계약 relSz 67·offset ±30). 전부 감사에서 실한컴
+  렌더로 검증된 charPr 자식 어휘이며, 범위·어휘 밖 값은 typed 거부.
+
+### 변경
+- **`add_table` 기본값이 실한컴 계약과 일치**: 셀 안여백 기본
+  510/510/141/141(기존 0 — 한컴에서 만든 표와 여백이 달랐음), 기본 표
+  폭은 본문 폭(용지 − 여백)으로, 셀 안에 만드는 중첩 표는 부모 셀 사용
+  폭에 맞춤(기존 고정 7200/셀 기본값이 부모 셀보다 넓어 내용이 소리 없이
+  잘려 보이던 감사 실결함 수리). 명시 `width=` 지정 시 동작 불변.
+- **목록 문단 비상속**: 글머리표/번호 문단 뒤에 `add_paragraph`로 추가하는
+  일반 문단이 목록 paraPr를 상속하지 않습니다(실한컴에서 프로그램적 추가
+  문단은 본문 — 감사에서 모든 후속 문단이 목록화되던 실결함 수리). 명시
+  `para_pr_id_ref` 지정 시 목록 계속 사용 가능.
+
 ## [5.3.0] - 2026-07-31
 
 ### 추가
