@@ -425,17 +425,28 @@ def add_hyperlink(
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
     section_index: int | None = None,
+    char_pr_id_ref: str | int | None = None,
 ) -> HwpxOxmlInlineObject:
     """Insert a hyperlink (fieldBegin + text + fieldEnd).
 
+    The display text follows the Hancom convention (blue ``#0000FF`` text
+    with a blue bottom underline — dominant styling across real-corpus
+    hyperlinks) unless ``char_pr_id_ref`` overrides it.
+
     Returns the ``<hp:ctrl>`` wrapper containing the ``<hp:fieldBegin>``.
     """
+    if char_pr_id_ref is None:
+        char_pr_id_ref = doc.ensure_run_style(
+            underline=True,
+            color="#0000FF",
+            underline_color="#0000FF",
+        )
     if paragraph is None:
         paragraph = doc.add_paragraph(
             "", section=section, section_index=section_index,
             include_run=False,
         )
-    return paragraph.add_hyperlink(url, display_text)
+    return paragraph.add_hyperlink(url, display_text, char_pr_id_ref=char_pr_id_ref)
 
 
 def _resolve_section(

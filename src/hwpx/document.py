@@ -1400,8 +1400,12 @@ class HwpxDocument:
         paragraph: HwpxOxmlParagraph | None = None,
         section: HwpxOxmlSection | None = None,
         section_index: int | None = None,
+        char_pr_id_ref: str | int | None = None,
     ) -> HwpxOxmlInlineObject:
         """Insert a hyperlink (fieldBegin + text + fieldEnd).
+
+        The display text follows the Hancom convention (blue underlined)
+        unless ``char_pr_id_ref`` overrides it.
 
         Returns the ``<hp:ctrl>`` wrapper containing the ``<hp:fieldBegin>``.
         """
@@ -1413,6 +1417,7 @@ class HwpxDocument:
             paragraph=paragraph,
             section=section,
             section_index=section_index,
+            char_pr_id_ref=char_pr_id_ref,
         )
 
     def add_form_field(

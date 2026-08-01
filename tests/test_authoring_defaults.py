@@ -119,6 +119,50 @@ class TestBorderSurface:
         assert cells[0].get("borderFillIDRef") != dashed
 
 
+class TestHyperlinkConvention:
+    """Real-corpus dominant styling: blue #0000FF text + blue BOTTOM underline."""
+
+    def test_display_run_gets_blue_underline_by_default(self) -> None:
+        doc = HwpxDocument.new()
+        doc.add_hyperlink("https://example.com", "링크")
+        reopened = _roundtrip(doc)
+        HPNS = HP
+        HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
+        link_run = None
+        for section in reopened.sections:
+            for p in section.paragraphs:
+                runs = p._run_elements()
+                for i, run in enumerate(runs):
+                    if run.find(f"{HPNS}ctrl/{HPNS}fieldBegin") is not None:
+                        link_run = runs[i + 1]
+        assert link_run is not None
+        char_id = link_run.get("charPrIDRef")
+        char_props = {
+            el.get("id"): el
+            for header in reopened.headers
+            for el in header._char_properties_element()
+        }
+        cp = char_props[char_id]
+        assert cp.get("textColor") == "#0000FF"
+        underline = cp.find(f"{HH}underline")
+        assert underline.get("type") == "BOTTOM"
+        assert underline.get("color") == "#0000FF"
+
+    def test_explicit_char_pr_overrides_convention(self) -> None:
+        doc = HwpxDocument.new()
+        doc.add_hyperlink("https://example.com", "링크", char_pr_id_ref="0")
+        HPNS = HP
+        found = None
+        for section in doc.sections:
+            for p in section.paragraphs:
+                runs = p._run_elements()
+                for i, run in enumerate(runs):
+                    if run.find(f"{HPNS}ctrl/{HPNS}fieldBegin") is not None:
+                        found = runs[i + 1]
+        assert found is not None
+        assert found.get("charPrIDRef") == "0"
+
+
 class TestRunStyleExtensions:
     """5.4.0 additions — every parameter was render-verified on real Hancom
     in the fidelity audit before gaining an API surface."""
@@ -147,7 +191,7 @@ class TestRunStyleExtensions:
         assert char_props[spacing].find(f"{HH}spacing").get("hangul") == "30"
         assert char_props[shadow].find(f"{HH}shadow").get("type") == "DROP"
         assert char_props[sup].find(f"{HH}relSz").get("hangul") == "67"
-        assert char_props[sup].find(f"{HH}offset").get("hangul") == "30"
+        assert char_props[sup].find(f"{HH}offset").get("hangul") == "-30"
         assert char_props[double_strike].find(f"{HH}strikeout").get("shape") == "DOUBLE_SLIM"
 
     def test_extended_styles_are_idempotent(self) -> None:
@@ -172,6 +216,8 @@ class TestRunStyleExtensions:
             doc.ensure_run_style(**kwargs)
 
     def test_sub_script_offsets_downward(self) -> None:
+        # 실한컴 렌더 실측(600dpi): offset 양수=아래, 음수=위. 감사 battery1의
+        # "+30=위첨자 픽셀 정확" 판정은 오독이었다(픽셀 재검증으로 정정).
         doc = HwpxDocument.new()
         sub = doc.ensure_run_style(script="sub")
         HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -180,4 +226,4 @@ class TestRunStyleExtensions:
             for header in doc.headers
             for el in header._char_properties_element()
         }
-        assert char_props[sub].find(f"{HH}offset").get("hangul") == "-30"
+        assert char_props[sub].find(f"{HH}offset").get("hangul") == "30"

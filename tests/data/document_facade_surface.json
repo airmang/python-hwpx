@@ -49,7 +49,7 @@
  },
  "add_hyperlink": {
   "kind": "method",
-  "signature": "(self, url: 'str', display_text: 'str', *, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None) -> 'HwpxOxmlInlineObject'"
+  "signature": "(self, url: 'str', display_text: 'str', *, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, char_pr_id_ref: 'str | int | None' = None) -> 'HwpxOxmlInlineObject'"
  },
  "add_image": {
   "kind": "method",

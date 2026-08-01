@@ -155,7 +155,8 @@ def _run_style_script_matches(element: ET.Element, script: str | None) -> bool:
     if not _run_style_lang_value_matches(element, "relSz", 67):
         return False
     off_el = element.find(f"{_HH}offset")
-    wanted_offset = "30" if script == "sup" else "-30"
+    # 실한컴 렌더 실측: offset 음수=위로(위첨자), 양수=아래로(아래첨자).
+    wanted_offset = "-30" if script == "sup" else "30"
     return off_el is not None and off_el.get("hangul") == wanted_offset
 
 
@@ -210,9 +211,10 @@ def _run_style_apply_underline(
 ) -> None:
     underline_attrs = dict(base_underline_attrs)
     if want_underline:
-        underline_attrs.setdefault("type", "SOLID")
-        if underline_attrs.get("type", "").upper() == "NONE":
-            underline_attrs["type"] = "SOLID"
+        # 실한컴 gold 관례: hh:underline type은 위치 어휘(BOTTOM/CENTER/TOP).
+        underline_attrs.setdefault("type", "BOTTOM")
+        if underline_attrs.get("type", "").upper() in ("NONE", "SOLID"):
+            underline_attrs["type"] = "BOTTOM"
         underline_attrs.setdefault(
             "shape", base_underline_attrs.get("shape", "SOLID")
         )
@@ -289,7 +291,7 @@ def _run_style_apply_extensions(element: ET.Element, spec: _RunStyleSpec) -> Non
         shadow_el.set("offsetY", "12")
     if spec.script is not None:
         _run_style_set_lang_values(element, "relSz", 67)
-        _run_style_set_lang_values(element, "offset", 30 if spec.script == "sup" else -30)
+        _run_style_set_lang_values(element, "offset", -30 if spec.script == "sup" else 30)
 
 
 def _run_style_modifier(element: ET.Element, spec: _RunStyleSpec) -> None:

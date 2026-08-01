@@ -864,8 +864,10 @@ class HwpxOxmlParagraph:
         """
         field_id = _object_id()
 
-        # Run 1: fieldBegin
-        run1 = self._create_run_for_object(char_pr_id_ref=char_pr_id_ref)
+        # 실한컴 gold 관례: 링크 서식(charPr)은 표시 텍스트 런에만 싣고
+        # fieldBegin/fieldEnd 런은 주변 서식을 유지한다 — 뒤에 추가되는
+        # 문단이 링크 서식을 상속(파랑 전염)하지 않게 하는 조건이기도 하다.
+        run1 = self._create_run_for_object()
         ctrl1 = _append_child(run1, f"{_HP}ctrl", {})
         fb_attrs: dict[str, str] = {
             "id": field_id,
@@ -882,7 +884,7 @@ class HwpxOxmlParagraph:
         t.text = _sanitize_text(display_text)
 
         # Run 3: fieldEnd
-        run3 = self._create_run_for_object(char_pr_id_ref=char_pr_id_ref)
+        run3 = self._create_run_for_object()
         ctrl3 = _append_child(run3, f"{_HP}ctrl", {})
         _append_child(ctrl3, f"{_HP}fieldEnd", {"beginIDRef": field_id})
 
