@@ -483,6 +483,20 @@ class TextExtractor:
         annotations: Optional[AnnotationOptions],
         preserve_breaks: bool,
     ) -> None:
+        # 실한컴 계약: 각주/미주는 <hp:ctrl> 래핑으로 나타난다 — annotations
+        # 유무와 무관하게 노트 분기로 위임한다(구식 run 직속도 별도 분기 유지).
+        for note_tag in ("footNote", "endNote"):
+            note = _first_child_by_local(element, note_tag)
+            if note is not None:
+                self._handle_note(
+                    note,
+                    fragments,
+                    note_tag,
+                    annotations=annotations,
+                    preserve_breaks=preserve_breaks,
+                )
+                return
+
         if annotations is None:
             return
 

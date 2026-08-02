@@ -228,7 +228,7 @@ def _md_push_text(state: _MdParagraphState, cpr, text) -> None:
         state.items.append((cpr, text))
 
 
-def _md_handle_ctrl_child(child, state: _MdParagraphState, base_cp, chars) -> None:
+def _md_handle_ctrl_child(child, state: _MdParagraphState, base_cp, chars, doc=None, notes_out=None) -> None:
     for gc in child:
         gctag = _local_name(gc)
         if gctag == "fieldBegin" and gc.get("type") == "HYPERLINK":
@@ -236,6 +236,9 @@ def _md_handle_ctrl_child(child, state: _MdParagraphState, base_cp, chars) -> No
             state.link_url = gc.get("name", "")
         elif gctag == "fieldEnd":
             _md_flush_link(state, base_cp, chars)
+        elif gctag in ("footNote", "endNote"):
+            # 실한컴 계약: 각주/미주는 run 안 <hp:ctrl>에 래핑되어 있다.
+            _md_handle_note_child(gc, gctag, state, base_cp, chars, doc, notes_out)
 
 
 def _md_handle_note_child(
@@ -271,8 +274,9 @@ def _p_element_to_md(p_el, doc, notes_out: list | None = None) -> str:
                 if child.text:
                     _md_push_text(state, cpr, child.text)
             elif tag == "ctrl":
-                _md_handle_ctrl_child(child, state, base_cp, chars)
+                _md_handle_ctrl_child(child, state, base_cp, chars, doc, notes_out)
             elif tag in ("footNote", "endNote"):
+                # 구식(5.4 이전 자사 방출) 호환: run 직속 각주도 계속 읽는다.
                 _md_handle_note_child(child, tag, state, base_cp, chars, doc, notes_out)
 
     _md_flush_items(state, base_cp, chars)

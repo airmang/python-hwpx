@@ -14,7 +14,6 @@ from ._document_primitives import (
     _default_sublist_attributes,
     _element_local_name,
     _memo_id,
-    _paragraph_id,
     _sanitize_text,
 )
 
@@ -213,14 +212,35 @@ class HwpxOxmlNote:
 
     @text.setter
     def text(self, value: str) -> None:
-        """Replace the note body text."""
+        """Replace the note body text.
+
+        The gold-shaped body (각주/미주 style paragraph with the leading
+        ``<hp:autoNum>`` control real Hancom requires to render the note) is
+        preserved: only text content is replaced.
+        """
         sublist = self.element.find(f"{_HP}subList")
         if sublist is None:
-            sublist = _append_child(self.element, f"{_HP}subList", _default_sublist_attributes())
-        for p in sublist.findall(f"{_HP}p"):
+            attrs = _default_sublist_attributes()
+            attrs["vertAlign"] = "TOP"
+            sublist = _append_child(self.element, f"{_HP}subList", attrs)
+        paragraphs = sublist.findall(f"{_HP}p")
+        template = paragraphs[0] if paragraphs else None
+        p_attrs = (
+            dict(template.attrib)
+            if template is not None
+            else {"id": "0", **_DEFAULT_PARAGRAPH_ATTRS}
+        )
+        first_run = template.find(f"{_HP}run") if template is not None else None
+        run_attrs = dict(first_run.attrib) if first_run is not None else {"charPrIDRef": "0"}
+        auto_num = (
+            first_run.find(f"{_HP}ctrl") if first_run is not None else None
+        )
+        for p in paragraphs:
             sublist.remove(p)
-        paragraph = _append_child(sublist, f"{_HP}p", {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS})
-        run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
+        paragraph = _append_child(sublist, f"{_HP}p", p_attrs)
+        run = _append_child(paragraph, f"{_HP}run", run_attrs)
+        if auto_num is not None:
+            run.append(auto_num)
         t = _append_child(run, f"{_HP}t", {})
         t.text = _sanitize_text(value)
         self.paragraph.section.mark_dirty()
