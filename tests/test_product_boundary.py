@@ -248,7 +248,8 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr or result.stdout
     report = json.loads(result.stdout)
     assert report["ok"]
-    assert report["classifiedFiles"] == 102
+    # 5.6: +6 — hwpx.plan 패키지 5 + hwpx.capabilities (ownership exceptions 등재).
+    assert report["classifiedFiles"] == 108
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

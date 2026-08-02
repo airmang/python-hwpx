@@ -33,6 +33,7 @@ EXPECTED_PACKAGES = {
     "hwpx.layout",
     "hwpx.opc",
     "hwpx.oxml",
+    "hwpx.plan",
     "hwpx.quality",
     "hwpx.tools",
     "hwpx.tools._schemas",

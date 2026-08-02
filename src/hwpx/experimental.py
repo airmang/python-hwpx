@@ -13,10 +13,22 @@
 
 from __future__ import annotations
 
+from .capabilities import (
+    contract_document,
+    contract_json_schema,
+    describe_capabilities,
+)
 from .equation.authoring import (
     UnsupportedLatexError,
     estimate_equation_size,
     latex_to_eqedit,
+)
+from .plan import (
+    EditPlan,
+    PlanReport,
+    PlanValidationError,
+    apply_edit_plan,
+    validate_edit_plan,
 )
 from .ingest import (
     ConversionAttempt,
@@ -53,4 +65,12 @@ __all__ = [
     "UnsupportedLatexError",
     "estimate_equation_size",
     "latex_to_eqedit",
+    "EditPlan",
+    "PlanReport",
+    "PlanValidationError",
+    "apply_edit_plan",
+    "validate_edit_plan",
+    "describe_capabilities",
+    "contract_document",
+    "contract_json_schema",
 ]

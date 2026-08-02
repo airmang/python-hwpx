@@ -60,7 +60,7 @@ major 경계에서만 깨지는 이름들입니다.
 ### 메타
 - `__version__`
 
-## experimental (12)
+## experimental (23)
 
 `from hwpx.experimental import ...`로 사용하세요. 계약이 유동적입니다.
 
@@ -70,6 +70,15 @@ major 경계에서만 깨지는 이름들입니다.
 - **레이아웃 프리뷰**(한컴 없는 정직 근사): `render_layout_preview`,
   `LayoutPreview`, `PreviewPage`
 - **문서 프리뷰 뷰어**(3.8.0 신규): `render_document_viewer`, `DocumentViewer`
+- **수식 저작**(5.2.0 신규, LaTeX → EqEdit): `latex_to_eqedit`,
+  `estimate_equation_size`, `UnsupportedLatexError`
+  — 이 세 이름은 5.2.0부터 experimental이었으나 이 문서가 누락하고 있었다
+  (자기서술 드리프트 — `describe_capabilities()`의 라이브 census가 이제 이런
+  누락을 구조적으로 막는다)
+- **편집 계획 실행기**(5.6.0 신규, `hwpx.plan`): `apply_edit_plan`,
+  `validate_edit_plan`, `EditPlan`, `PlanReport`, `PlanValidationError`
+- **기계가독 자기서술**(5.6.0 신규, `hwpx.capabilities`):
+  `describe_capabilities`, `contract_document`, `contract_json_schema`
 
 > `HwpxMarkdownConverter`(HWPX → Markdown 읽기)는 성숙한 경로라 **stable**입니다.
 > 위 ingestion 프레임워크(임의 포맷 → HWPX)만 experimental입니다.

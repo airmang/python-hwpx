@@ -109,6 +109,7 @@ packages = [
     "hwpx.layout",
     "hwpx.opc",
     "hwpx.oxml",
+    "hwpx.plan",
     "hwpx.quality",
     "hwpx.tools",
     "hwpx.tools._schemas",
@@ -125,7 +126,7 @@ packages = [
 [tool.setuptools.package-data]
 "hwpx" = ["py.typed"]
 "hwpx.tools" = ["_schemas/*.xsd"]
-"hwpx.data" = ["Skeleton.hwpx"]
+"hwpx.data" = ["Skeleton.hwpx", "contract_docs/*.md"]
 
 [tool.pytest.ini_options]
 # scripts/ carries repository QA harnesses that are not library surface — the
@@ -145,6 +146,12 @@ files = [
     "src/hwpx/document.py",
     "src/hwpx/errors.py",
     "src/hwpx/mutation_report.py",
+    "src/hwpx/capabilities.py",
+    "src/hwpx/plan/__init__.py",
+    "src/hwpx/plan/_model.py",
+    "src/hwpx/plan/_validate.py",
+    "src/hwpx/plan/_execute.py",
+    "src/hwpx/plan/_schema.py",
     "src/hwpx/equation/__init__.py",
     "src/hwpx/equation/tokens.py",
     "src/hwpx/equation/eqedit.py",
@@ -200,6 +207,12 @@ include = [
     "src/hwpx/document.py",
     "src/hwpx/errors.py",
     "src/hwpx/mutation_report.py",
+    "src/hwpx/capabilities.py",
+    "src/hwpx/plan/__init__.py",
+    "src/hwpx/plan/_model.py",
+    "src/hwpx/plan/_validate.py",
+    "src/hwpx/plan/_execute.py",
+    "src/hwpx/plan/_schema.py",
     "src/hwpx/equation/__init__.py",
     "src/hwpx/equation/tokens.py",
     "src/hwpx/equation/eqedit.py",

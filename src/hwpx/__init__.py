@@ -52,6 +52,18 @@ _EXPERIMENTAL_EXPORTS = {
     "UnsupportedLatexError": "hwpx.equation.authoring",
     "estimate_equation_size": "hwpx.equation.authoring",
     "latex_to_eqedit": "hwpx.equation.authoring",
+    # 편집 계획 실행기(5.6.0 신규, 선언적 다단 편집 -> 원자 실행). 계약 유동.
+    "EditPlan": "hwpx.plan",
+    "PlanReport": "hwpx.plan",
+    "PlanValidationError": "hwpx.plan",
+    "apply_edit_plan": "hwpx.plan",
+    "validate_edit_plan": "hwpx.plan",
+    # 기계가독 자기서술(5.6.0 신규, 드리프트 가드 포함). 계약 유동.
+    # 함수명은 describe_capabilities — 모듈 hwpx.capabilities와 이름이 같으면
+    # 서브모듈 바인딩이 lazy 알리아스를 그림자로 가려 경고 계약이 깨진다.
+    "describe_capabilities": "hwpx.capabilities",
+    "contract_document": "hwpx.capabilities",
+    "contract_json_schema": "hwpx.capabilities",
 }
 
 # Emptied in 5.0. The 4.x notice on these names said they would go in the next

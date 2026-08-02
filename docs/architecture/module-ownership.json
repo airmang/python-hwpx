@@ -254,6 +254,42 @@
       "disposition": "core",
       "path": "src/hwpx/equation/authoring.py",
       "rationale": "authoring direction of the equation vocabulary: LaTeX -> EqEdit conversion and the hp:equation size heuristic live beside the reader (eqedit.py) as reusable HWPX format behavior; refuses outside the verified token set instead of approximating"
+    },
+    {
+      "path": "src/hwpx/plan/__init__.py",
+      "disposition": "core",
+      "approvedBy": "059-agent-contract-surface/P1",
+      "rationale": "declarative composition of the existing byte-splice edit vocabulary with static validation, in-memory chaining and one atomic write; reusable format behavior over core primitives, no workflow/profile/policy"
+    },
+    {
+      "path": "src/hwpx/plan/_model.py",
+      "disposition": "core",
+      "approvedBy": "059-agent-contract-surface/P1",
+      "rationale": "edit-plan/v1 and plan-report/v1 dataclasses beside mutation_report.py, same frozen/to_dict house contract"
+    },
+    {
+      "path": "src/hwpx/plan/_validate.py",
+      "disposition": "core",
+      "approvedBy": "059-agent-contract-surface/P1",
+      "rationale": "static plan validation and the PLAN_OPS single source of truth for the op vocabulary"
+    },
+    {
+      "path": "src/hwpx/plan/_execute.py",
+      "disposition": "core",
+      "approvedBy": "059-agent-contract-surface/P1",
+      "rationale": "all-or-nothing executor: chains existing ops on bytes, owns the single atomic write because the splice family publishes even on gate failure"
+    },
+    {
+      "path": "src/hwpx/plan/_schema.py",
+      "disposition": "core",
+      "approvedBy": "059-agent-contract-surface/P1",
+      "rationale": "live-built JSON Schemas for the plan contracts, op enum sourced from PLAN_OPS so vocabulary drift is structurally impossible"
+    },
+    {
+      "path": "src/hwpx/capabilities.py",
+      "disposition": "core",
+      "approvedBy": "059-agent-contract-surface/P1",
+      "rationale": "machine-readable self-description of the installed core (extras probe via find_spec, live surface census, contract documents and schemas); no env reads, no oracle claims — those stay application-side"
     }
   ],
   "removed": [

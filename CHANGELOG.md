@@ -4,6 +4,36 @@
 
 ## [Unreleased]
 
+### 추가
+- **`hwpx.plan` 편집 계획 실행기** (experimental): 바이트-스플라이스 편집 op
+  7종(`paragraph_patch`·`fill_cells`·`apply_table_ops`·`apply_body_ops`·
+  `recolor_runs_by_color`·`strip_runs_by_color`·`strip_trailing_table_captions`)
+  을 선언적 계획 1파일(`hwpx.edit-plan/v1`)로 합성해 *정적 선검증 → 전 체인
+  인메모리 실행 → 최종 open-safety 검증 → 단 1회 원자 쓰기*로 실행합니다.
+  중간 step이 실패하면 output·source가 바이트 불변임이 테스트로 증명되는
+  all-or-nothing 계약이며, 결과는 step별 + 원본→최종 실측
+  `hwpx.mutation-report/v1` 사영을 실은 `hwpx.plan-report/v1`입니다.
+  dryRun은 동일 체인을 전부 실행하되 쓰기만 생략하고, `journalPath` 지정 시
+  JSONL 저널(진단용, resume 계약 아님)을 남깁니다.
+- **`hwpx.capabilities` 기계가독 자기서술** (experimental):
+  `describe_capabilities()`가 설치 버전·extras 실측 프로브·라이브 표면
+  census(stable/experimental)·편집 계획 op 어휘·능력 영역 레지스트리를
+  보고합니다. `contract_document()`는 패키지 동봉 계약 문서 4종
+  (support-matrix·recipes-traversal·mutation-semantics·known-traps 신규 저작)
+  을, `contract_json_schema()`는 계약 JSON Schema 4종(edit-plan·plan-report·
+  mutation-report·capabilities)을 서빙합니다. 드리프트 가드 테스트가
+  레지스트리 진입점 해석·op 어휘 3자 일치·support-matrix 행 대조를
+  강제합니다(core는 렌더 오라클 가용성을 주장하지 않습니다 — 그 보고는
+  automation 계층 소유).
+
+### 수정
+- **support-matrix 각주/미주 행의 낡은 서술 정정**: 5.5.0이 각주 방출 계약을
+  수리하고도 매트릭스 행은 `Render-unverified·honest-defer`(2026-08-01 문구)
+  로 남아 출하됐습니다. 행을 실상태(Render-verified, 5.5.0 수리 근거)로
+  갱신했고, 같은 부류의 드리프트를 `hwpx.capabilities` 가드 테스트가 이제
+  구조적으로 막습니다. `docs/stable-api.md`의 experimental 목록도 5.2.0 수식
+  3종 누락을 함께 정정(12→23).
+
 ## [5.5.0] - 2026-08-02
 
 ### 수정

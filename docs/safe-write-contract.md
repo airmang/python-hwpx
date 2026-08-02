@@ -160,6 +160,26 @@ except PreservationDowngradeError as exc:
 - `suggestion` — byte-preserving 프리미티브(`hwpx.patch` · `hwpx.table_patch` ·
   `hwpx.body_patch`)로 우회하거나 `fallback="rebuild"`를 쓰라는 안내 문자열
 
+## 편집 계획 실행기와의 관계 (`hwpx.plan`, 5.6.0+)
+
+다단 편집을 안전-쓰기 계약 위에서 합성하려면 `hwpx.plan.apply_edit_plan`을
+사용한다. 계획의 각 step은 기존 바이트-스플라이스 op를 이름 그대로 지시하고,
+실행기는:
+
+1. **정적 선검증** — 파일을 열지 않고 스키마·op 어휘·인자 형상을 fail-closed로
+   검증한다(미지 필드 즉시 거부).
+2. **인메모리 체이닝** — 각 op를 `output_path` 없이 바이트→바이트로 연결한다.
+   개별 op가 게이트 실패에도 파일을 쓰는 동작(`publish="always"`)을 실행기가
+   쓰기 소유로 차단한다.
+3. **원자 쓰기** — 전 step 성공 + 최종 open-safety 검증 통과 후 단 한 번의
+   `os.replace`로만 output을 쓴다. **그 전 어떤 실패에서도 output과 source는
+   바이트 불변이다**(테스트가 바이트 비교로 증명).
+
+결과 `hwpx.plan-report/v1`은 step별 `hwpx.mutation-report/v1` 사영(입력 바이트
+스레딩 = 실측 등급)과 원본→최종 집계 사영을 싣는다 — step 합성 밖의 변경은
+집계에서 `unexpected`로 드러난다. 보존 등급 플로어는 v1 어휘(전부 스플라이스)
+에서 항상 `patch`다.
+
 ## 관련 문서
 
 - [실측 코퍼스 메트릭](corpus-metrics.md) — 바이트 보존 497/497(patch 경로) 실측

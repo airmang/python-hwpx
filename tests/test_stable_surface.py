@@ -113,10 +113,11 @@ def test_all_is_exactly_the_stable_set() -> None:
 
 def test_layer_counts() -> None:
     assert len(STABLE_NAMES) == 34
-    assert len(EXPERIMENTAL_NAMES) == 15
+    # 5.6: +8 — 편집 계획 실행기 5명(hwpx.plan) + 자기서술 3명(hwpx.capabilities).
+    assert len(EXPERIMENTAL_NAMES) == 23
     # Emptied in 5.0: the 4.x notice promised these names would go in the next major.
     assert len(DEPRECATED_NAMES) == 0
-    assert len(ALL_LEGACY_NAMES) == 49
+    assert len(ALL_LEGACY_NAMES) == 57
 
 
 def test_hwpx_error_is_stable_and_importable() -> None:
