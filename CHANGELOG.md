@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [5.6.0] - 2026-08-03
+
 ### 추가
 - **`hwpx.plan` 편집 계획 실행기** (experimental): 바이트-스플라이스 편집 op
   7종(`paragraph_patch`·`fill_cells`·`apply_table_ops`·`apply_body_ops`·
