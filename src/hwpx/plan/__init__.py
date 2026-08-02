@@ -10,7 +10,7 @@
 
 중간 어느 step이 실패해도 output·source는 바이트 불변이다(all-or-nothing).
 결과는 ``hwpx.plan-report/v1`` — step별 ``hwpx.mutation-report/v1`` 사영과
-원본→최종 실측 집계를 싣는다. 상세 계약: specs/059(워크스페이스)·
+원본→최종 실측 집계를 싣는다. 상세 계약:
 ``docs/safe-write-contract.md``.
 """
 

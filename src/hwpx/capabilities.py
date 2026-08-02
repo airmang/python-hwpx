@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """``hwpx.capabilities`` — 기계가독 자기서술 (experimental, 5.6.0 신규).
 
-동기(specs/059 §1 실물): 사람 손으로 갱신하는 자기서술 문서는 릴리스 트레인
+동기(실측 드리프트 사례): 사람 손으로 갱신하는 자기서술 문서는 릴리스 트레인
 하루 만에도 실표면과 드리프트한다. 이 모듈이 단일 진실 원천이고, 드리프트
 가드 테스트가 다음 세 방향을 강제한다:
 
@@ -139,7 +139,7 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
     },
 )
 
-#: 패키지에 동봉되는 계약 문서 이름 → 파일. specs/059 §7 resources의 원천.
+#: 패키지에 동봉되는 계약 문서 이름 → 파일. MCP resources 표면의 원천.
 _CONTRACT_DOCS: dict[str, str] = {
     "support-matrix": "support-matrix.md",
     "recipes-traversal": "recipes-traversal.md",

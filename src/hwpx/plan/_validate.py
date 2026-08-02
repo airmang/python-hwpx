@@ -34,7 +34,7 @@ class OpSpec:
         return self.required | self.optional
 
 
-#: v1 op 어휘 — 이름은 core 함수명 그대로(새 동사 없음). specs/059 §3.
+#: v1 op 어휘 — 이름은 core 함수명 그대로(새 동사 없음). 계약 v1.
 PLAN_OPS: dict[str, OpSpec] = {
     "paragraph_patch": OpSpec(frozenset({"patches"}), frozenset()),
     "fill_cells": OpSpec(

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """계획 실행기 — 인메모리 체이닝, 실패 시 무접촉, 성공 시 단 1회 원자 쓰기.
 
-원자성 계약(specs/059 §4): output은 전 step 성공 + 최종 open-safety 검증 통과
+원자성 계약: output은 전 step 성공 + 최종 open-safety 검증 통과
 후 단 한 번의 ``os.replace``로만 쓰인다. 그 전 어떤 실패에서도 output과 source는
 바이트 불변이다(지정된 journalPath 제외 — 저널은 실패 시에도 진단용으로 남는
 유일한 쓰기 표면이며, 문서 파일이 아니다).
