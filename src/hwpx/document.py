@@ -53,6 +53,7 @@ from ._document.ns import (
     TextNamespace,
     TrackingNamespace,
 )
+from .errors import HwpxValueError
 from ._document.memos import _append_element  # noqa: F401  # test_coverage_targets imports this name
 
 register_owpml_namespaces(ET.register_namespace)
@@ -344,6 +345,7 @@ class HwpxDocument(_LegacyFacade):
         section: HwpxOxmlSection | None = None,
         section_index: int | None = None,
         para_pr_id_ref: str | int | None = None,
+        style: int | str | Style | None = None,
         style_id_ref: str | int | None = None,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
@@ -362,7 +364,14 @@ class HwpxDocument(_LegacyFacade):
         Formatting references may be overridden via ``para_pr_id_ref``,
         ``style_id_ref`` and ``char_pr_id_ref``. Any additional keyword
         arguments are added as raw paragraph attributes.
+
+        ``style`` 은 스타일을 **이름으로** 지정한다(``style="개요 1"``). 이름은
+        **호출 시점에** 해석되고, 못 찾으면 가용 목록과 가장 가까운 이름을 담은
+        ``HwpxLookupError`` 가 그 자리에서 난다. 5.x 는 이름을 serialize 시점에만
+        해석했고 오타는 저장까지 조용히 통과했다 — 한컴에서 스타일이 안 먹은
+        문서가 나오는 경로였다. 숫자 id 를 쓰던 ``style_id_ref`` 는 그대로 동작한다.
         """
+        style_id_ref = self._resolve_style_ref(style, style_id_ref, caller="add_paragraph")
         section = _resolve.resolve_section(
             self, section, section_index, caller="add_paragraph"
         )
@@ -378,6 +387,31 @@ class HwpxDocument(_LegacyFacade):
             inherit_style=inherit_style,
             **cast(Any, extra_attrs),
         )
+
+    def _resolve_style_ref(
+        self,
+        style: int | str | Style | None,
+        style_id_ref: str | int | None,
+        *,
+        caller: str,
+    ) -> str | int | None:
+        """``style=`` 을 호출 시점에 해석해 ``styleIDRef`` 로 쓸 값을 돌려준다.
+
+        둘 다 주면 실패한다 — 하나는 이름, 하나는 id 인데 서로 다른 스타일을
+        가리킬 수 있고, 어느 쪽을 이겼는지 조용히 정하는 것이 5.x 가 저지른
+        종류의 실수다.
+        """
+
+        if style is None:
+            return style_id_ref
+        if style_id_ref is not None:
+            raise HwpxValueError(
+                "style 과 style_id_ref 를 동시에 지정할 수 없습니다.",
+                code="style-argument-conflict",
+                context={"caller": caller, "style": repr(style), "styleIdRef": style_id_ref},
+                suggestion="style= 하나만 쓰세요. 이름과 숫자 id 를 모두 받습니다.",
+            )
+        return self.styles.resolve(style).id
 
     def add_heading(
         self,
@@ -444,6 +478,7 @@ class HwpxDocument(_LegacyFacade):
         height: int | None = None,
         border_fill_id_ref: str | int | None = None,
         para_pr_id_ref: str | int | None = None,
+        style: int | str | Style | None = None,
         style_id_ref: str | int | None = None,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
@@ -459,6 +494,7 @@ class HwpxDocument(_LegacyFacade):
         references or set *inherit_style* to :data:`True`.
         """
 
+        style_id_ref = self._resolve_style_ref(style, style_id_ref, caller="add_table")
         section = _resolve.resolve_section(
             self, section, section_index, caller="add_table"
         )
@@ -501,6 +537,7 @@ class HwpxDocument(_LegacyFacade):
         height_mm: float | None = None,
         align: str | None = None,
         para_pr_id_ref: str | int | None = None,
+        style: int | str | Style | None = None,
         style_id_ref: str | int | None = None,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
@@ -508,6 +545,7 @@ class HwpxDocument(_LegacyFacade):
     ) -> HwpxOxmlInlineObject:
         """Embed image data and place a picture object in a new paragraph."""
 
+        style_id_ref = self._resolve_style_ref(style, style_id_ref, caller="add_picture")
         section = _resolve.resolve_section(
             self, section, section_index, caller="add_picture"
         )

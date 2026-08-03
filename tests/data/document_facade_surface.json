@@ -21,11 +21,11 @@
  },
  "add_paragraph": {
   "kind": "method",
-  "signature": "(self, text: 'str' = '', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, para_pr_id_ref: 'str | int | None' = None, style_id_ref: 'str | int | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, include_run: 'bool' = True, inherit_style: 'bool' = True, **extra_attrs: 'str') -> 'HwpxOxmlParagraph'"
+  "signature": "(self, text: 'str' = '', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, para_pr_id_ref: 'str | int | None' = None, style: 'int | str | Style | None' = None, style_id_ref: 'str | int | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, include_run: 'bool' = True, inherit_style: 'bool' = True, **extra_attrs: 'str') -> 'HwpxOxmlParagraph'"
  },
  "add_picture": {
   "kind": "method",
-  "signature": "(self, image_data: 'bytes', image_format: 'str', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, width: 'int | None' = None, height: 'int | None' = None, width_mm: 'float | None' = None, height_mm: 'float | None' = None, align: 'str | None' = None, para_pr_id_ref: 'str | int | None' = None, style_id_ref: 'str | int | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, **extra_attrs: 'str') -> 'HwpxOxmlInlineObject'"
+  "signature": "(self, image_data: 'bytes', image_format: 'str', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, width: 'int | None' = None, height: 'int | None' = None, width_mm: 'float | None' = None, height_mm: 'float | None' = None, align: 'str | None' = None, para_pr_id_ref: 'str | int | None' = None, style: 'int | str | Style | None' = None, style_id_ref: 'str | int | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, **extra_attrs: 'str') -> 'HwpxOxmlInlineObject'"
  },
  "add_section": {
   "kind": "method",
@@ -33,7 +33,7 @@
  },
  "add_table": {
   "kind": "method",
-  "signature": "(self, rows: 'int', cols: 'int', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, width: 'int | None' = None, height: 'int | None' = None, border_fill_id_ref: 'str | int | None' = None, para_pr_id_ref: 'str | int | None' = None, style_id_ref: 'str | int | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, inherit_style: 'bool' = False, **extra_attrs: 'str') -> 'HwpxOxmlTable'"
+  "signature": "(self, rows: 'int', cols: 'int', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, width: 'int | None' = None, height: 'int | None' = None, border_fill_id_ref: 'str | int | None' = None, para_pr_id_ref: 'str | int | None' = None, style: 'int | str | Style | None' = None, style_id_ref: 'str | int | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, inherit_style: 'bool' = False, **extra_attrs: 'str') -> 'HwpxOxmlTable'"
  },
  "close": {
   "kind": "method",
