@@ -70,7 +70,18 @@ def test_document_facade_public_surface_is_frozen() -> None:
 
 
 def test_document_facade_snapshot_is_not_empty() -> None:
+    """락이 조용히 좁아지지 않았는지 확인한다.
+
+    6.0 전에는 루트 락 하나뿐이라 하한이 ``>= 90``이었다. 6.0은 루트를 34로
+    **의도적으로** 줄이고 나머지 79를 shim 락으로 옮겼다. 그래서 하한은 두
+    락의 합에 건다 — 5.x가 공개했던 이름의 총수는 줄지 않았고(이동은 제거가
+    아니다), 줄어든다면 그것이 이 검사가 잡아야 할 사건이다.
+    """
+
     expected = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
-    # 124 defs total in the pre-decomposition module; the public subset must
-    # stay a substantial lock, not a silently narrowed one.
-    assert len(expected) >= 90
+    shims = json.loads(
+        (SNAPSHOT.parent / "document_legacy_shims.json").read_text(encoding="utf-8")
+    )
+    assert len(expected) + len(shims) >= 90
+    # 루트 자체는 6.0 예산 안에 있어야 한다(설계서 §1.4).
+    assert len(expected) <= 35

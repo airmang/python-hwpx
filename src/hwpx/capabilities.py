@@ -68,7 +68,7 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "area": "paragraph-table-authoring",
         "matrix_row": "문단·표 저작/편집",
         "entry_points": ("hwpx.document:HwpxDocument",),
-        "authoring_methods": ("add_paragraph", "add_section"),
+        "authoring_methods": ("add_heading", "add_paragraph", "add_section"),
     },
     {
         "area": "table-structure",
