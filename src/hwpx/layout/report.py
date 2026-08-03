@@ -104,10 +104,19 @@ class LayoutLintReport:
 
         from hwpx.quality.report import LayoutReport
 
+        warnings = [str(f) for f in self.warnings]
+        errors = [str(f) for f in self.errors]
+        if errors:
+            status = "failed"
+        elif warnings:
+            status = "warned"
+        else:
+            status = "passed"
         return LayoutReport(
             ok=self.ok,
-            warnings=[str(f) for f in self.warnings],
-            errors=[str(f) for f in self.errors],
+            warnings=warnings,
+            errors=errors,
+            status=status,
         )
 
     def to_dict(self) -> dict[str, Any]:

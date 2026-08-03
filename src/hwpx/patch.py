@@ -95,6 +95,21 @@ class BytePreservingPatchResult:
     byte_identical: bool
     zip_method: str
     open_safety: dict[str, Any]
+    #: Edits that matched but were thrown away because another patch skipped.
+    #:
+    #: This family is all-or-nothing: one skip discards the whole set. Those
+    #: edits used to be reported in ``applied``, which said the operation had
+    #: done something it had not. They are reported here instead, so the
+    #: diagnostic value survives without the receipt claiming work.
+    discarded: tuple[PatchApplied, ...] = ()
+    #: True when ``output_path`` received the unmodified source bytes.
+    #:
+    #: The byte-splice family writes ``output_path`` even when everything was
+    #: skipped, so the file exists and opens and is simply not edited. That is
+    #: documented behaviour, kept for consistency across the op family; this
+    #: flag makes it impossible to mistake the written file for an edited one
+    #: without reading prose.
+    output_is_source_copy: bool = False
     # The uniform Phase-B report from the single SavePipeline this byte-path write
     # funnelled through (plan §2 Phase B). Additive and defaulted so existing
     # keyword construction is unaffected.
@@ -116,6 +131,8 @@ class BytePreservingPatchResult:
             "visualComplete": (
                 None if self.visual_complete is None else self.visual_complete.to_dict()
             ),
+            "discarded": [item.to_dict() for item in self.discarded],
+            "outputIsSourceCopy": self.output_is_source_copy,
         }
 
     def as_mutation_report(self, *, source: bytes | str | Path | None = None) -> MutationReport:
@@ -223,16 +240,20 @@ def paragraph_patch(
             changed_parts[section_path] = updated_xml
 
     if skipped:
+        # All-or-nothing: one skip discards the whole set. Report the matched
+        # edits as discarded rather than applied — nothing was applied.
         open_safety, visual_complete = _finalize(source_bytes, output_path, source=source)
         return BytePreservingPatchResult(
             data=source_bytes,
-            applied=tuple(applied),
+            applied=(),
             skipped=tuple(skipped),
             changed_parts=(),
             byte_identical=True,
             zip_method="skipped",
             open_safety=open_safety,
             visual_complete=visual_complete,
+            discarded=tuple(applied),
+            output_is_source_copy=output_path is not None,
         )
 
     if not changed_parts:

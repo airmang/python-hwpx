@@ -126,17 +126,49 @@ class FormReport:
         return asdict(self)
 
 
+LayoutStatus = Literal["passed", "warned", "failed", "unverified"]
+
+
 @dataclass
 class LayoutReport:
-    """Renderer-less layout lint verdict (LayoutLint lands in Phase D)."""
+    """Renderer-less layout lint verdict (LayoutLint lands in Phase D).
+
+    ``status`` is the explicit tri-state-plus-skip, mirroring
+    ``visual_complete_status`` above. It exists because ``ok`` alone cannot say
+    *why* a report is passing:
+
+    * ``"passed"``     — the lint ran and found nothing.
+    * ``"warned"``     — the lint ran and found non-blocking findings.
+    * ``"failed"``     — the lint ran and found a blocking defect.
+    * ``"unverified"`` — the lint did **not** run (policy disabled it, or it
+      raised). Not a defect, and not evidence of one either.
+
+    Before ``status`` existed, a disabled gate, a gate that raised, and a real
+    pass were all ``LayoutReport.passed()`` and therefore indistinguishable in
+    the receipt. A caller who asked for ``layout_lint="strict"`` could receive a
+    passing receipt because the linter had thrown. That is the same class of
+    error this project names elsewhere as "a score is not a submission": the
+    receipt has to say what actually happened.
+
+    ``ok`` keeps its meaning (does this block the save) so behaviour does not
+    change; ``unverified`` is non-blocking, exactly as an absent render is.
+    """
 
     ok: bool = True
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    status: LayoutStatus = "passed"
+    unverified_reason: str | None = None
 
     @classmethod
     def passed(cls) -> "LayoutReport":
-        return cls(ok=True)
+        return cls(ok=True, status="passed")
+
+    @classmethod
+    def unverified(cls, reason: str) -> "LayoutReport":
+        """The lint did not run. Say so instead of reporting a pass."""
+
+        return cls(ok=True, status="unverified", unverified_reason=reason)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

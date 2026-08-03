@@ -352,7 +352,20 @@ class SavePipeline:
                     )
                 )
         except Exception as exc:  # pragma: no cover - defensive: never crash the gate
-            warnings.append(f"id-integrity check skipped: {type(exc).__name__}: {exc}")
+            # Never crash the gate, but never launder "could not check" into
+            # "checked and fine" either. When the caller explicitly required
+            # reference integrity, an unverified check is not a satisfied one.
+            reason = f"{type(exc).__name__}: {exc}"
+            warnings.append(f"id-integrity check unverified: {reason}")
+            if quality.require_reference_integrity:
+                ok = False
+                errors.append(
+                    QualityError(
+                        REFERENCE_INTEGRITY_FAILED,
+                        "ID/reference integrity was required but could not be "
+                        f"verified: {reason}",
+                    )
+                )
         return ok
 
     def _check_open_safety(
@@ -390,7 +403,7 @@ class SavePipeline:
         """
 
         if quality.layout_lint == "off":
-            return LayoutReport.passed()
+            return LayoutReport.unverified("layout_lint policy is 'off'")
 
         from hwpx.layout.lint import (
             STALE_LINESEG_DETECTED,
@@ -408,8 +421,12 @@ class SavePipeline:
                 required_fields=required_fields,
             )
         except Exception as exc:  # pragma: no cover - defensive: never crash the gate
-            warnings.append(f"layout lint skipped: {type(exc).__name__}: {exc}")
-            return LayoutReport.passed()
+            # Do not crash the gate, but do not report a pass either. A caller
+            # who asked for strict linting and received "passed" because the
+            # linter threw has been told something untrue.
+            reason = f"layout lint raised {type(exc).__name__}: {exc}"
+            warnings.append(f"layout lint unverified: {reason}")
+            return LayoutReport.unverified(reason)
 
         if quality.layout_lint == "warn":
             lint = lint.demote_errors()
