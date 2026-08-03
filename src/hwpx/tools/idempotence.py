@@ -12,11 +12,13 @@ The comparison is at the *part-content* level — the bytes of each ZIP entry �
 deliberately ignoring ZIP container metadata (entry mtimes, compression method),
 which are not byte-stable across saves and carry no document meaning.
 
-Following the rhwp roundtrip doctrine: the *first* serializer output may
-legitimately differ from the original input (we strip stale linesegarray,
-normalize, etc.), but once through the serializer the representation must reach
-a fixed point — so we compare round-1 output against round-2 output, not against
-the original source.
+The *first* serializer output may legitimately differ from the original input
+(we strip stale linesegarray, normalize, etc.), but once through the serializer
+the representation must reach a fixed point — so we compare round-1 output
+against round-2 output, not against the original source. Comparing against the
+source instead would fail every legitimate normalization and prove nothing about
+repeat-save stability, which is the property that actually protects a document
+edited many times.
 """
 
 from __future__ import annotations
