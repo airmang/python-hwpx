@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [5.7.0] - 2026-08-03
+
 ### 추가
 - **체크박스 양식개체 저작**(experimental): `add_check_box(caption, checked=…)`
   ·`list_check_boxes()`·`set_check_box(checked, index=|name=)`. 방출 형상은
