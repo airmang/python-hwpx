@@ -111,7 +111,10 @@ input. The per-example Python-block status is frozen in the
 ## Measured, not claimed
 
 Whether the files we produce open in real Hancom Office is measured over a
-frozen corpus (N=497) and published as-is:
+frozen corpus (N=497) and published as-is. The measurement stack for the
+figures below is **python-hwpx 3.4.1 · real Hancom 12.0.0.3288 · 2026-07-19**
+— authoring surfaces added by later releases are not in this corpus yet, so do
+not read these as figures for the latest release (updated on re-measurement):
 
 - **Hancom opens 476/476** — real Hancom opens every file we produce
 - **Byte preservation of untouched regions 497/497** · personal-info 0-leak

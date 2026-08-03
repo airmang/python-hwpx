@@ -4,9 +4,10 @@
 > Korean word-processor format used by Hancom Office / 한컴오피스 한글). HWPX is
 > ZIP + OWPML XML, so no Hancom installation is needed — works on
 > Windows/macOS/Linux/CI and inside Python-enabled chat sandboxes. Untouched
-> regions of an edited file are preserved byte-for-byte; generated files are
-> continuously verified to open in real Hancom Office (published corpus
-> metrics). Install: `pip install python-hwpx` (Python 3.10–3.14, only
+> regions of an edited file are preserved byte-for-byte; generated files were
+> verified to open in real Hancom Office over a frozen corpus (measured
+> 2026-07-19 — the published corpus metrics page carries the exact
+> measurement stack and date). Install: `pip install python-hwpx` (Python 3.10–3.14, only
 > dependency is lxml). License: Apache-2.0.
 
 python-hwpx is NOT in most models' training data. Do not guess APIs from
@@ -74,8 +75,9 @@ python-docx habits — the real surface is below and in the linked docs.
   return types, failure modes, re-run behavior, save guarantees.
 - [Support matrix](https://airmang.github.io/python-hwpx/support-matrix.html):
   honest per-capability grades (what is render-verified vs unsupported —
-  e.g., form-field and equation creation are experimental-tier supported;
-  chart creation is not supported, existing charts are byte-preserved).
+  e.g., form-field, equation, chart, and check-box creation are
+  experimental-tier supported; radio buttons and command buttons are
+  read/preserve only).
 - [Safe write contract](https://airmang.github.io/python-hwpx/safe-write-contract.html):
   preservation grades and the `MutationReport` schema.
 - [Migration from 4.x](https://airmang.github.io/python-hwpx/migration-5.0.html):
