@@ -98,7 +98,7 @@ from typing import Any, Callable, Iterator
 
 PYTHON_HWPX = Path(__file__).resolve().parent.parent
 HWPX_ROOT = PYTHON_HWPX.parent
-AUTOMATION_REPO = HWPX_ROOT / "hwpx-mcp-server-s120c"
+AUTOMATION_REPO = HWPX_ROOT / "hwpx-mcp-server-s120"
 sys.path.insert(0, str(PYTHON_HWPX / "scripts"))
 sys.path.insert(0, str(AUTOMATION_REPO / "src"))
 
