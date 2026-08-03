@@ -11,12 +11,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from ._base import _Namespace
 
 if TYPE_CHECKING:
-    pass
+    from ...objects import BinaryItem, PictureRef, PictureReplacement
 
 __all__ = ["MediaNamespace"]
 
@@ -29,12 +29,11 @@ class MediaNamespace(_Namespace):
 
     def add_image(
         self, image_data: bytes, image_format: str, *, item_id: str | None = None
-    ) -> str:
-        """이미지를 패키지에 넣고 매니페스트 항목 id 를 돌려준다.
+    ) -> "BinaryItem":
+        """이미지를 패키지에 넣고 그 이진 항목을 돌려준다.
 
-        Note:
-            반환 타입은 WP-C 착지 후 ``BinaryItem`` 객체가 된다
-            (``str(item)`` 이 계속 id 라 f-string·경로 조립은 그대로 동작한다).
+        5.x 는 매니페스트 id 문자열을 돌려줬다. ``str(item)`` 이 여전히 그
+        id 라 f-string·경로 조립은 그대로 동작한다(이주 완충).
         """
 
         from .. import media as _media
@@ -47,12 +46,8 @@ class MediaNamespace(_Namespace):
         )
 
     @property
-    def images(self) -> list[dict[str, str]]:
-        """패키지가 품은 이진 이미지 항목 목록.
-
-        Note:
-            원소 타입은 WP-C 착지 후 ``BinaryItem`` 이 된다.
-        """
+    def images(self) -> "tuple[BinaryItem, ...]":
+        """패키지가 품은 이진 이미지 항목 목록."""
 
         from .. import media as _media
 
@@ -65,12 +60,8 @@ class MediaNamespace(_Namespace):
 
         return _media.remove_image(self._doc, item_id=item_id)
 
-    def picture_references(self) -> list[dict[str, Any]]:
-        """본문의 그림 개체가 어떤 이진 항목을 가리키는지의 역참조 표.
-
-        Note:
-            원소 타입은 WP-C 착지 후 ``PictureRef`` 가 된다.
-        """
+    def picture_references(self) -> "tuple[PictureRef, ...]":
+        """본문의 그림 개체가 어떤 이진 항목을 가리키는지의 역참조 표."""
 
         from .. import media as _media
 
@@ -85,12 +76,8 @@ class MediaNamespace(_Namespace):
         binary_item_id_ref: str | None = None,
         remove_orphaned: bool = True,
         item_id: str | None = None,
-    ) -> dict[str, Any]:
-        """그림 개체가 가리키는 이진 항목을 새 이미지로 바꾼다.
-
-        Note:
-            반환 타입은 WP-C 착지 후 ``PictureReplacement`` 가 된다.
-        """
+    ) -> "PictureReplacement":
+        """그림 개체가 가리키는 이진 항목을 새 이미지로 바꾼다."""
 
         from .. import media as _media
 

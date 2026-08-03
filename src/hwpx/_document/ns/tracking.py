@@ -11,12 +11,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...model import Paragraph
+    from ...objects import TrackedChange, TrackedReplacement
     from ...oxml import TrackChange, TrackChangeAuthor
 
 __all__ = ["TrackingNamespace"]
@@ -38,12 +39,8 @@ class TrackingNamespace(_Namespace):
         author: str = "AI Agent",
         date: str | None = None,
         char_pr_id_ref: str | int | None = None,
-    ) -> Any:
-        """삽입으로 표시된 텍스트를 문단 끝에 넣는다.
-
-        Note:
-            반환은 WP-C 착지 후 ``TrackedChange`` 객체가 된다(현재는 변경 id).
-        """
+    ) -> "TrackedChange":
+        """삽입으로 표시된 텍스트를 문단 끝에 넣는다."""
 
         from .. import tracked as _tracked
         from .._resolve import resolve_paragraph
@@ -66,12 +63,8 @@ class TrackingNamespace(_Namespace):
         match: str | None = None,
         author: str = "AI Agent",
         date: str | None = None,
-    ) -> Any:
-        """문단(또는 그 안의 *match*)을 삭제로 표시한다.
-
-        Note:
-            반환은 WP-C 착지 후 ``TrackedChange`` 객체가 된다.
-        """
+    ) -> "TrackedChange":
+        """문단(또는 그 안의 *match*)을 삭제로 표시한다."""
 
         from .. import tracked as _tracked
         from .._resolve import resolve_paragraph
@@ -94,13 +87,11 @@ class TrackingNamespace(_Namespace):
         *,
         author: str = "AI Agent",
         date: str | None = None,
-    ) -> Any:
+    ) -> "TrackedReplacement":
         """*old* 를 삭제로, *new* 를 삽입으로 표시한다.
 
-        Note:
-            반환은 WP-C 착지 후 ``TrackedReplacement`` (``.insert`` / ``.delete``)
-            가 된다. 5.x 의 ``tuple[int, int]`` 는 어느 쪽이 먼저인지 타입이
-            말해주지 않았다.
+        5.x 는 ``tuple[int, int]`` 를 돌려줘서 어느 쪽이 삽입인지 타입이
+        말해주지 않았다. 이제 ``.insert`` / ``.delete`` 로 읽는다.
         """
 
         from .. import tracked as _tracked
@@ -123,11 +114,10 @@ class TrackingNamespace(_Namespace):
         *,
         author_name: str = "AI Agent",
         date: str | None = None,
-    ) -> Any:
+    ) -> "TrackedChange":
         """변경 항목만 등록한다(저수준 — 본문은 건드리지 않는다).
 
-        Note:
-            반환은 WP-C 착지 후 ``TrackedChange`` 객체가 된다.
+        본문을 건드리지 않으므로 결과의 ``paragraph`` 는 ``None`` 이다.
         """
 
         from .. import tracked as _tracked

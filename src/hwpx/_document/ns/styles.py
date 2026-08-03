@@ -30,12 +30,13 @@
 from __future__ import annotations
 
 import difflib
-from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence
+from typing import TYPE_CHECKING, Iterator, Mapping, Sequence
 
 from ...errors import HwpxLookupError
 from ._base import _Namespace
 
 if TYPE_CHECKING:
+    from ...objects import ListFormatResult, ParagraphFormatResult
     from ...oxml import (
         Bullet,
         GenericElement,
@@ -312,7 +313,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         bottom_border: bool = False,
         border_color: str = "#BFBFBF",
         border_width: str = "0.12 mm",
-    ) -> dict[str, Any]:
+    ) -> "ParagraphFormatResult":
         """문단 서식을 사람 단위(mm·pt·%)로 적용한다."""
 
         from .. import layout as _layout
@@ -347,7 +348,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         bullet_char: str | None = None,
         number_format: str | None = None,
         start: int | None = None,
-    ) -> dict[str, Any]:
+    ) -> "ListFormatResult":
         """글머리표/번호 문단 서식을 적용한다."""
 
         from .. import layout as _layout

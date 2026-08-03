@@ -29,12 +29,14 @@ def _section_xml(document: HwpxDocument) -> str:
 
 def test_insert_registers_a_tracked_change() -> None:
     document = _document()
-    change_id = document.tracking.insert(1, "삽입된 글")
-    assert str(change_id) in document.tracking.changes
+    change = document.tracking.insert(1, "삽입된 글")
+    assert str(change.change_id) in document.tracking.changes
+    assert change.kind == "INSERT"
+    assert change.paragraph is document.paragraphs[1] or change.paragraph is not None
 
     xml = _section_xml(document)
     assert "삽입된 글" in xml
-    assert f'<hp:insertBegin Id="{change_id}"' in xml
+    assert f'<hp:insertBegin Id="{change.change_id}"' in xml
 
 
 def test_tracked_insert_text_is_not_reachable_through_text_extraction() -> None:
@@ -57,18 +59,20 @@ def test_tracked_insert_text_is_not_reachable_through_text_extraction() -> None:
 
 def test_delete_marks_the_matched_text() -> None:
     document = _document()
-    change_id = document.tracking.delete(1, match="본문")
-    assert str(change_id) in document.tracking.changes
+    change = document.tracking.delete(1, match="본문")
+    assert str(change.change_id) in document.tracking.changes
+    assert change.kind == "DELETE"
 
 
 def test_replace_reports_both_halves() -> None:
     document = _document()
     result = document.tracking.replace(1, "가나다", "라마바")
-    # WP-C 조인 전: 5.x 와 같은 2-튜플. 착지 후 .insert / .delete 속성이 된다.
-    insert_id, delete_id = result
-    assert insert_id != delete_id
-    assert str(insert_id) in document.tracking.changes
-    assert str(delete_id) in document.tracking.changes
+    # 5.x 의 ``tuple[int, int]`` 는 어느 쪽이 삽입인지 타입이 말하지 않았다.
+    assert result.insert.kind == "INSERT"
+    assert result.delete.kind == "DELETE"
+    assert result.insert.change_id != result.delete.change_id
+    assert str(result.insert.change_id) in document.tracking.changes
+    assert str(result.delete.change_id) in document.tracking.changes
 
 
 def test_add_change_is_the_low_level_primitive() -> None:
@@ -76,8 +80,9 @@ def test_add_change_is_the_low_level_primitive() -> None:
 
     document = _document()
     before = document.text.plain()
-    change_id = document.tracking.add_change("INSERT")
-    assert str(change_id) in document.tracking.changes
+    change = document.tracking.add_change("INSERT")
+    assert str(change.change_id) in document.tracking.changes
+    assert change.paragraph is None, "본문을 건드리지 않으므로 문단이 없다"
     assert document.text.plain() == before
 
 
@@ -116,10 +121,22 @@ def test_the_moved_root_names_still_answer() -> None:
         assert isinstance(document.track_changes, dict)
 
 
-def test_return_shapes_are_still_the_5_x_ones_pending_wp_c() -> None:
-    """WP-C 조인 지점. ``TrackedChange`` 가 착지하면 여기가 먼저 붉어진다."""
+def test_the_return_contract_is_domain_objects() -> None:
+    """WP-C 조인 완료 — 5.x 의 int/tuple 이 도메인 객체가 됐다."""
+
+    from hwpx.objects import TrackedChange, TrackedReplacement
 
     document = _document()
-    assert isinstance(document.tracking.insert(1, "A"), int)
-    assert isinstance(document.tracking.add_change("INSERT"), int)
-    assert isinstance(document.tracking.replace(1, "가나다", "라마바"), tuple)
+    assert isinstance(document.tracking.insert(1, "A"), TrackedChange)
+    assert isinstance(document.tracking.add_change("INSERT"), TrackedChange)
+    assert isinstance(document.tracking.replace(1, "가나다", "라마바"), TrackedReplacement)
+
+
+def test_a_tracked_change_does_not_silently_become_an_int() -> None:
+    """암묵 변환은 다음 버그의 씨앗이다 — 5.x 처럼 산술에 쓰이면 안 된다."""
+
+    document = _document()
+    change = document.tracking.insert(1, "A")
+    assert not hasattr(change, "__int__")
+    with pytest.raises(TypeError):
+        int(change)  # type: ignore[call-overload]

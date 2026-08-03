@@ -43,20 +43,21 @@ def test_add_memo_without_an_anchor_returns_the_memo(document: HwpxDocument) -> 
 
 
 def test_add_memo_with_an_anchor_folds_the_5_x_second_verb(document: HwpxDocument) -> None:
-    """5.x ``add_memo_with_anchor`` 가 ``anchor=`` 파라미터가 됐다."""
+    """5.x ``add_memo_with_anchor`` 가 ``anchor=`` 파라미터가 됐다.
 
-    result = document.notes.add_memo("앵커 메모", anchor=1, section=0)
-    # WP-C 조인 전: 5.x 와 같은 3-튜플. 착지 후 Memo 하나가 된다.
-    memo, paragraph, field_id = result
+    그리고 3-튜플이 사라졌다 — 문단과 필드 id 는 메모 자신의 속성이다.
+    """
+
+    memo = document.notes.add_memo("앵커 메모", anchor=1, section=0)
     assert isinstance(memo, model.Memo)
-    assert isinstance(paragraph, model.Paragraph)
-    assert isinstance(field_id, str) and field_id
+    assert isinstance(memo.paragraph, model.Paragraph)
+    assert isinstance(memo.field_id, str) and memo.field_id
 
 
 def test_anchor_accepts_an_index_or_an_object(document: HwpxDocument) -> None:
     by_index = document.notes.add_memo("A", anchor=1, section=0)
     by_object = document.notes.add_memo("B", anchor=document.paragraphs[1], section=0)
-    assert by_index[1].element is by_object[1].element
+    assert by_index.paragraph.element is by_object.paragraph.element
 
 
 def test_an_out_of_range_anchor_is_a_typed_error(document: HwpxDocument) -> None:
@@ -77,8 +78,13 @@ def test_attach_binds_an_existing_memo_and_remove_undoes_it(
     document: HwpxDocument,
 ) -> None:
     memo = document.notes.add_memo("메모", section=0)
-    field_id = document.notes.attach(1, memo)
-    assert isinstance(field_id, str) and field_id
+    assert memo.field_id is None, "앵커 없는 메모는 필드가 없다"
+
+    anchored = document.notes.attach(1, memo)
+    assert anchored is memo, "같은 메모가 앵커를 얻어 돌아온다"
+    assert isinstance(memo.field_id, str) and memo.field_id
+    assert memo.paragraph is not None
+
     document.notes.remove_memo(memo)
     assert document.notes.memos == []
 

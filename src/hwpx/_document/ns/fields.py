@@ -5,27 +5,30 @@
 5.x 는 여섯 이름(`add_form_field`·`list_form_fields`·`fill_form_field`·
 `add_check_box`·`list_check_boxes`·`set_check_box`)을 루트에 흩어 두었다.
 
-## 반환 타입은 WP-C 조인 대기
+## 반환은 도메인 객체다
 
-이 네임스페이스의 반환은 아직 5.x 의 dict/list[dict] 그대로다. 설계서 §2가
-정한 `FormField`·`CheckBox`·`FieldFillResult` 도메인 객체는 WP-C 가
-`hwpx.objects` 에 만들고 있고, 착지하면 여기 시그니처만 바꾸면 된다 —
-위임 대상(`_document/fields.py`)은 그대로다.
+5.x 는 여기서 dict 를 돌려줬다. `add_form_field` 의 dict 는 **20키**였고 그중
+`field_id`/`id`/`fieldid` 셋이 같은 값의 별칭, `prompt`/`instruction` 과
+`field_type`/`control_type` 이 각각 중복, 위치가 5키로 흩어져 있었다.
 
-특히 `set_check_box` 는 6.0 계획상 **메서드가 아니라 속성**이 된다
-(`doc.fields.check_box(name=...).checked = False`). 그 형태는 라이브 객체가
-있어야 성립하므로 지금은 5.x 와 같은 메서드로 둔다.
+6.0 은 `FormField`·`CheckBox` 라이브 뷰와 `FieldFillResult` 를 돌려준다.
+id 별칭은 `field_id` 하나로, 위치 5키는 `location` 하나로 접혔다.
+
+`CheckBox.checked` 가 쓰기 가능한 속성이므로 `set_check_box` 는 사실상
+`doc.fields.check_box(...).checked = False` 로 대체된다. 5.x 이름은 shim 으로
+살아 있고, 이 네임스페이스에도 같은 이름을 남겨 이주 중 양쪽이 겹치게 했다.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from .._resolve import resolve_section
 from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...form_fit.policy import FitPolicy
+    from ...objects import CheckBox, FieldFillResult, FormField
     from ...oxml import HwpxOxmlParagraph, HwpxOxmlSection
 
 __all__ = ["FieldsNamespace"]
@@ -49,12 +52,8 @@ class FieldsNamespace(_Namespace):
         paragraph: "HwpxOxmlParagraph | None" = None,
         section: "int | HwpxOxmlSection | None" = None,
         section_index: int | None = None,
-    ) -> dict[str, Any]:
-        """누름틀(form field)을 만들고 그 서술을 돌려준다.
-
-        Note:
-            반환 타입은 WP-C 착지 후 ``FormField`` 객체가 된다.
-        """
+    ) -> "FormField":
+        """누름틀(form field)을 만들고 그 라이브 뷰를 돌려준다."""
 
         from .. import fields as _fields
 
@@ -71,12 +70,8 @@ class FieldsNamespace(_Namespace):
         )
 
     @property
-    def all(self) -> list[dict[str, Any]]:
-        """문서의 모든 누름틀을 문서 순서로.
-
-        Note:
-            원소 타입은 WP-C 착지 후 ``FormField`` 가 된다.
-        """
+    def all(self) -> "tuple[FormField, ...]":
+        """문서의 모든 누름틀을 문서 순서로."""
 
         from .. import fields as _fields
 
@@ -92,11 +87,11 @@ class FieldsNamespace(_Namespace):
         fit_policy: "FitPolicy | None" = None,
         box_width: int | None = None,
         font_pt: float | None = None,
-    ) -> dict[str, Any]:
+    ) -> "FieldFillResult":
         """누름틀 하나를 채우고 채움 결과를 돌려준다.
 
-        Note:
-            반환 타입은 WP-C 착지 후 ``FieldFillResult`` 가 된다.
+        실패는 결과의 불리언 필드가 아니라 typed error 로 나간다 — 5.x 의
+        ``ok`` 키는 없다(설계서 §2.4, 헌법 VI fail-closed).
         """
 
         from .. import fields as _fields
@@ -123,12 +118,8 @@ class FieldsNamespace(_Namespace):
         paragraph: "HwpxOxmlParagraph | None" = None,
         section: "int | HwpxOxmlSection | None" = None,
         section_index: int | None = None,
-    ) -> dict[str, Any]:
-        """체크박스 양식개체를 만든다.
-
-        Note:
-            반환 타입은 WP-C 착지 후 ``CheckBox`` 객체가 된다.
-        """
+    ) -> "CheckBox":
+        """체크박스 양식개체를 만들고 그 라이브 뷰를 돌려준다."""
 
         from .. import fields as _fields
 
@@ -144,12 +135,8 @@ class FieldsNamespace(_Namespace):
         )
 
     @property
-    def check_boxes(self) -> list[dict[str, Any]]:
-        """문서의 모든 체크박스를 문서 순서로.
-
-        Note:
-            원소 타입은 WP-C 착지 후 ``CheckBox`` 가 된다.
-        """
+    def check_boxes(self) -> "tuple[CheckBox, ...]":
+        """문서의 모든 체크박스를 문서 순서로."""
 
         from .. import fields as _fields
 
@@ -161,13 +148,11 @@ class FieldsNamespace(_Namespace):
         *,
         index: int | None = None,
         name: str | None = None,
-    ) -> dict[str, Any]:
-        """체크박스 상태를 바꾼다.
+    ) -> "CheckBox":
+        """체크박스 상태를 바꾸고 그 라이브 뷰를 돌려준다.
 
-        Note:
-            WP-C 착지 후에는 ``doc.fields.check_box(name=...).checked = False``
-            형태가 정본이 된다. 라이브 객체가 있어야 성립하는 형태라 지금은
-            5.x 와 같은 메서드로 둔다.
+        ``doc.fields.check_boxes[i].checked = False`` 와 같은 일을 한다 —
+        선택자로 찾아야 할 때 쓴다.
         """
 
         from .. import fields as _fields

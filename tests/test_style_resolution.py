@@ -239,9 +239,13 @@ def test_ensure_verbs_mint_ids(document: HwpxDocument) -> None:
 def test_apply_verbs_reach_the_layout_owner(document: HwpxDocument) -> None:
     document.add_paragraph("본문")
     result = document.styles.apply_paragraph_format(paragraph_index=0, alignment="CENTER")
-    assert result["formatted"] == 1
+    assert result.formatted == 1
+    assert result.paragraphs == (0,)
     listed = document.styles.apply_list_format(paragraph_index=0, kind="bullet")
-    assert listed["formatted"] == 1
+    assert listed.formatted == 1
+    assert listed.kind == "bullet"
+    # 5.x 의 ``paraPrIDRef`` 카멜 키가 snake_case 속성이 됐다.
+    assert listed.para_pr_id_ref
 
 
 def test_the_moved_root_names_still_answer_with_a_warning(document: HwpxDocument) -> None:

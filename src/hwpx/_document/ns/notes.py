@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from ...errors import HwpxValueError
 from .._resolve import resolve_section
@@ -115,17 +115,16 @@ class NotesNamespace(_Namespace):
         created: "datetime | str | None" = None,
         number: int = 1,
         anchor_char_pr_id_ref: str | int | None = None,
-    ) -> Any:
+    ) -> "Memo":
         """메모를 만든다. ``anchor`` 를 주면 그 문단에 앵커까지 건다.
 
         Args:
             anchor: 앵커를 걸 문단(객체 또는 인덱스). ``None`` 이면 앵커 없는
                 메모만 만든다. 5.x 의 ``add_memo_with_anchor`` 가 이 인자다.
 
-        Note:
-            앵커를 걸면 5.x 와 같은 ``(Memo, Paragraph, field_id)`` 3-튜플을
-            돌려준다. WP-C 착지 후 ``Memo`` 하나로 접히고 문단·필드 id 는
-            ``memo.paragraph`` / ``memo.field_id`` 속성이 된다.
+        5.x 의 앵커 변형은 ``(Memo, Paragraph, field_id)`` 3-튜플을 돌려줬다.
+        이제 메모 하나이고, 문단과 필드 id 는 ``memo.paragraph`` /
+        ``memo.field_id`` 로 읽는다.
         """
 
         from .. import memos as _memos
@@ -180,11 +179,11 @@ class NotesNamespace(_Namespace):
         created: "datetime | str | None" = None,
         number: int = 1,
         char_pr_id_ref: str | int | None = None,
-    ) -> str:
-        """이미 있는 메모를 문단에 앵커로 건다.
+    ) -> "Memo":
+        """이미 있는 메모를 문단에 앵커로 걸고 그 메모를 돌려준다.
 
-        Note:
-            반환은 WP-C 착지 후 앵커가 걸린 ``Memo`` 가 된다(현재는 필드 id).
+        5.x 는 필드 id 문자열만 돌려줘서, 어느 메모가 걸렸는지 호출자가 따로
+        들고 있어야 했다. 이제 메모 자신이 ``paragraph``·``field_id`` 를 안다.
         """
 
         from .. import memos as _memos

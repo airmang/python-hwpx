@@ -29,19 +29,23 @@ def document() -> HwpxDocument:
 
 
 def test_add_registers_a_field_that_the_listing_finds(document: HwpxDocument) -> None:
-    document.fields.add("이름", prompt="입력하세요", section=0)
+    created = document.fields.add("이름", prompt="입력하세요", section=0)
     listed = document.fields.all
     assert len(listed) == 1
-    assert listed[0]["name"] == "이름"
-    assert listed[0]["prompt"] == "입력하세요"
+    assert listed[0].name == "이름"
+    assert listed[0].prompt == "입력하세요"
+    # 5.x 의 20키 dict 는 id 별칭을 셋(field_id/id/fieldid) 들고 있었다.
+    assert created.field_id == listed[0].field_id
 
 
 def test_fill_writes_the_value_into_the_named_field(document: HwpxDocument) -> None:
     document.fields.add("이름", section=0)
     result = document.fields.fill("홍길동", name="이름")
-    assert result["ok"] is True
-    assert result["after_value"] == "홍길동"
-    assert document.fields.all[0]["current_value"] == "홍길동"
+    # ``ok`` 키는 사라졌다 — 실패는 fail-closed 로 던진다(설계서 §2.4).
+    assert not hasattr(result, "ok")
+    assert result.after == "홍길동"
+    assert result.field.name == "이름"
+    assert document.fields.all[0].value == "홍길동"
 
 
 def test_filling_an_unknown_field_fails_closed(document: HwpxDocument) -> None:
@@ -56,12 +60,13 @@ def test_filling_an_unknown_field_fails_closed(document: HwpxDocument) -> None:
 
 def test_add_check_box_and_toggle_it(document: HwpxDocument) -> None:
     created = document.fields.add_check_box("동의", checked=True, name="agree", section=0)
-    assert created["checked"] is True
+    assert created.checked is True
+    assert created.caption == "동의"
     assert len(document.fields.check_boxes) == 1
 
     toggled = document.fields.set_check_box(False, name="agree")
-    assert toggled["checked"] is False
-    assert document.fields.check_boxes[0]["checked"] is False
+    assert toggled.checked is False
+    assert document.fields.check_boxes[0].checked is False
 
 
 # --------------------------------------------------------------------------
@@ -101,11 +106,13 @@ def test_every_moved_root_name_still_answers(document: HwpxDocument) -> None:
     with pytest.warns(DeprecationWarning):
         document.add_form_field("이름", section_index=0)
     with pytest.warns(DeprecationWarning):
-        assert document.list_form_fields() == document.fields.all
+        legacy = document.list_form_fields()
+    assert [f.field_id for f in legacy] == [f.field_id for f in document.fields.all]
     with pytest.warns(DeprecationWarning):
         document.add_check_box("동의", name="agree", section_index=0)
     with pytest.warns(DeprecationWarning):
-        assert document.list_check_boxes() == document.fields.check_boxes
+        legacy_boxes = document.list_check_boxes()
+    assert [b.name for b in legacy_boxes] == [b.name for b in document.fields.check_boxes]
     with pytest.warns(DeprecationWarning):
         document.set_check_box(True, name="agree")
     with pytest.warns(DeprecationWarning):
@@ -116,15 +123,35 @@ def test_every_moved_root_name_still_answers(document: HwpxDocument) -> None:
 # WP-C 조인 지점 — 지금 무엇을 돌려주는지 명시적으로 고정해 둔다
 
 
-def test_return_shapes_are_still_the_5_x_dicts_pending_wp_c(document: HwpxDocument) -> None:
-    """WP-C 가 도메인 객체를 착지시키면 이 테스트가 **먼저** 붉어져야 한다.
+def test_the_return_contract_is_domain_objects(document: HwpxDocument) -> None:
+    """WP-C 조인 완료 — 5.x 의 dict/list[dict] 가 도메인 객체가 됐다."""
 
-    조인 지점을 잊고 지나가지 않도록, 현재 계약을 명시적으로 못박는다.
-    """
+    from hwpx.objects import CheckBox, FieldFillResult, FormField
 
     created = document.fields.add("이름", section=0)
-    assert isinstance(created, dict)
-    assert isinstance(document.fields.all, list)
-    assert isinstance(document.fields.fill("홍길동", name="이름"), dict)
-    assert isinstance(document.fields.add_check_box("동의", section=0), dict)
-    assert isinstance(document.fields.check_boxes, list)
+    assert isinstance(created, FormField)
+    assert isinstance(document.fields.all, tuple)
+    assert all(isinstance(entry, FormField) for entry in document.fields.all)
+    assert isinstance(document.fields.fill("홍길동", name="이름"), FieldFillResult)
+    assert isinstance(document.fields.add_check_box("동의", section=0), CheckBox)
+    assert isinstance(document.fields.check_boxes, tuple)
+
+
+def test_the_form_field_id_aliases_collapsed_to_one(document: HwpxDocument) -> None:
+    """5.x dict 는 같은 값을 ``field_id``/``id``/``fieldid`` 셋으로 들고 있었다."""
+
+    field = document.fields.add("이름", section=0)
+    assert field.field_id
+    assert not hasattr(field, "id")
+    assert not hasattr(field, "fieldid")
+    # 인덱스 5키도 하나의 위치 객체로 접혔다.
+    assert field.location.section_index == 0
+    assert field.location.paragraph_index >= 0
+
+
+def test_a_check_box_is_a_living_view(document: HwpxDocument) -> None:
+    """``checked`` 가 속성이므로 5.x ``set_check_box`` 가 필요 없어진다."""
+
+    box = document.fields.add_check_box("동의", checked=False, name="agree", section=0)
+    box.checked = True
+    assert document.fields.check_boxes[0].checked is True

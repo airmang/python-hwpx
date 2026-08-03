@@ -39,6 +39,7 @@ if TYPE_CHECKING:
         SectionGrid,
         SectionVisibility,
     )
+    from ...objects import PageSetup
     from ...oxml.section_story import HwpxOxmlSectionHeaderFooter
 
 __all__ = ["PageNamespace"]
@@ -81,8 +82,8 @@ class PageNamespace(_Namespace):
         column_gap_mm: float | None = None,
         section: "int | HwpxOxmlSection | None" = None,
         section_index: int | None = None,
-    ) -> dict[str, Any]:
-        """용지·여백·단을 **mm 단위**로 한 번에 설정한다."""
+    ) -> "PageSetup":
+        """용지·여백·단을 **mm 단위**로 한 번에 설정하고 결과를 돌려준다."""
 
         from .. import layout as _layout
 
