@@ -12,9 +12,9 @@
 | 스키마 선언 | 307 | 89.0% |
 | 코퍼스에만 있음(스키마 미대응) | 38 | 11.0% |
 | 실코퍼스에서 관측(빈도>0) | 228 | 66.1% |
-| 코드 읽기 | 186 | 53.9% |
-| 코드 쓰기(api) | 125 | 36.2% |
-| 쓰기 frozen-template | 37 | 10.7% |
+| 코드 읽기 | 192 | 55.7% |
+| 코드 쓰기(api) | 134 | 38.8% |
+| 쓰기 frozen-template | 28 | 8.1% |
 | 쓰기 none | 183 | 53.0% |
 | 능력 영역 매핑됨 | 70 | 20.3% |
 | Render-verified(매핑 근거) | 47 | 13.6% |
@@ -47,18 +47,9 @@
 | `hh:ratio` | 1.0000 | 166 | False | frozen-template | — |
 | `hh:relSz` | 1.0000 | 166 | False | frozen-template | — |
 | `hh:spacing` | 1.0000 | 166 | False | frozen-template | — |
-| `hh:style` | 1.0000 | 166 | True | frozen-template | — |
-| `hh:styles` | 1.0000 | 166 | True | frozen-template | — |
 | `hh:tabPr` | 1.0000 | 166 | True | frozen-template | — |
 | `hh:tabProperties` | 1.0000 | 166 | True | frozen-template | — |
 | `hh:typeInfo` | 1.0000 | 166 | True | frozen-template | — |
-| `hp:endNotePr` | 1.0000 | 166 | False | frozen-template | 각주/미주 |
-| `hp:footNotePr` | 1.0000 | 166 | False | frozen-template | 각주/미주 |
-| `hp:noteLine` | 1.0000 | 166 | False | frozen-template | 각주/미주 |
-| `hp:noteSpacing` | 1.0000 | 166 | False | frozen-template | 각주/미주 |
-| `hp:numbering` | 1.0000 | 166 | True | frozen-template | — |
-| `hp:pageBorderFill` | 1.0000 | 166 | False | frozen-template | — |
-| `hp:placement` | 1.0000 | 166 | False | frozen-template | — |
 | `hp:case` | 0.9880 | 164 | True | frozen-template | — |
 | `hp:default` | 0.9880 | 164 | False | frozen-template | — |
 | `hp:switch` | 0.9880 | 164 | True | frozen-template | — |
@@ -67,18 +58,27 @@
 | `hh:tabItem` | 0.2349 | 39 | False | none | — |
 | `hh:substFont` | 0.1627 | 27 | True | none | — |
 | `hp:fwSpace` | 0.1627 | 27 | False | none | — |
+| `hp:drawText` | 0.0964 | 16 | False | none | — |
+| `hp:textMargin` | 0.0964 | 16 | False | none | — |
+| `hh:memoPr` | 0.0783 | 13 | True | none | 메모(코멘트) |
+| `hh:memoProperties` | 0.0783 | 13 | True | none | 메모(코멘트) |
+| `hh:supscript` | 0.0723 | 12 | False | none | — |
+| `hp:newNum` | 0.0723 | 12 | False | none | — |
+| `hp:nbSpace` | 0.0602 | 10 | False | none | 문단·표 저작/편집 |
+| `hp:pageHiding` | 0.0602 | 10 | False | none | — |
+| `hc:imgBrush` | 0.0482 | 8 | False | none | 그림 삽입/치환 |
 
-(총 107건 중 상위 40건만 표시 — 전체는 coverage-ledger.json의 `elements` 참조.)
+(총 98건 중 상위 40건만 표시 — 전체는 coverage-ledger.json의 `elements` 참조.)
 
 ## 네임스페이스별 표
 
 | 네임스페이스 | 요소 수 | 스키마 선언 | 코퍼스 관측 | 읽기 | 쓰기 api | frozen-template | 쓰기 none |
 |---|---|---|---|---|---|---|---|
 | `hc` | 31 | 7 | 29 | 26 | 19 | 5 | 7 |
-| `hh` | 128 | 125 | 66 | 66 | 35 | 22 | 71 |
+| `hh` | 128 | 125 | 66 | 66 | 37 | 20 | 71 |
 | `hhs` | 10 | 10 | 0 | 0 | 0 | 0 | 10 |
 | `hm` | 2 | 2 | 0 | 0 | 0 | 0 | 2 |
-| `hp` | 172 | 161 | 133 | 93 | 70 | 10 | 92 |
+| `hp` | 172 | 161 | 133 | 99 | 77 | 3 | 92 |
 | `hs` | 1 | 1 | 0 | 1 | 1 | 0 | 0 |
 | `hv` | 1 | 1 | 0 | 0 | 0 | 0 | 1 |
 

@@ -17,11 +17,14 @@ from ._document_primitives import (
     _HC_NS,
     _HH,
     _append_child,
+    _apply_optional_attrs,
+    _bool_str,
     _border_fill_is_basic_solid_line,
     _border_fill_matches,
     _create_basic_border_fill_element,
     _create_border_fill_element,
     _element_local_name,
+    _get_bool_attr,
     _get_int_attr,
     _normalize_border_side_names,
     _normalize_color,
@@ -130,6 +133,27 @@ class HwpxOxmlHeader:
     def _update_border_fills_item_count(self, element: ET.Element) -> None:
         count = len(list(element.findall(f"{_HH}borderFill")))
         element.set("itemCnt", str(count))
+
+    def _update_styles_item_count(self, element: ET.Element) -> None:
+        count = len(list(element.findall(f"{_HH}style")))
+        element.set("itemCnt", str(count))
+
+    def _allocate_style_id(self, element: ET.Element) -> str:
+        existing: set[str] = {child.get("id") or "" for child in element.findall(f"{_HH}style")}
+        existing.discard("")
+
+        numeric_ids: list[int] = []
+        for value in existing:
+            try:
+                numeric_ids.append(int(value))
+            except ValueError:
+                continue
+        next_id = 0 if not numeric_ids else max(numeric_ids) + 1
+        candidate = str(next_id)
+        while candidate in existing:
+            next_id += 1
+            candidate = str(next_id)
+        return candidate
 
     def font_ref_for_face(self, face: str) -> dict[str, str] | None:
         """Return ``hh:fontRef`` attributes for *face* when the header defines it."""
@@ -753,11 +777,16 @@ class HwpxOxmlHeader:
             ]
         raise ValueError("kind must be 'bullet' or 'number'")
 
-    def _styles_element(self) -> ET.Element | None:
-        ref_list = self._ref_list_element()
+    def _styles_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
         if ref_list is None:
             return None
-        return ref_list.find(f"{_HH}styles")
+        element = ref_list.find(f"{_HH}styles")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}styles", {"itemCnt": "0"})
+            ref_list.append(element)
+            self.mark_dirty()
+        return element
 
     def _track_changes_element(self, create: bool = False) -> ET.Element | None:
         ref_list = self._ref_list_element(create=create)
@@ -957,6 +986,80 @@ class HwpxOxmlHeader:
         self._update_border_fills_item_count(element)
         self.mark_dirty()
         return new_id
+
+    def ensure_style(
+        self,
+        name: str,
+        *,
+        style_type: str | None = None,
+        eng_name: str | None = None,
+        para_pr_id_ref: str | int | None = None,
+        char_pr_id_ref: str | int | None = None,
+        next_style_id_ref: str | int | None = None,
+        lang_id: int | None = None,
+        lock_form: bool | None = None,
+    ) -> str:
+        """Return a style id for *name*, creating or partially updating a ``<hh:style>``.
+
+        *name* is the dedupe key(Hancom style identity is name-based) — a
+        repeat call with a *name* that already exists reuses that style's id
+        instead of creating a duplicate(``hh:name`` must stay unique for
+        :meth:`HwpxOxmlDocument._style_name_id_map` to resolve it
+        unambiguously). Any other keyword left as ``None`` leaves that
+        attribute untouched on an existing style; on a brand-new style,
+        ``style_type`` defaults to ``"PARA"`` (the schema has no default —
+        every style must declare a type) and the rest stay unset like real
+        Hancom output.
+        """
+
+        styles = self._styles_element(create=True)
+        if styles is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <styles> element")
+
+        normalized_name = str(name)
+        element: ET.Element | None = None
+        for candidate in styles.findall(f"{_HH}style"):
+            if candidate.get("name") == normalized_name:
+                element = candidate
+                break
+
+        changed = False
+        if element is None:
+            new_id = self._allocate_style_id(styles)
+            new_style = ET.Element(
+                f"{_HH}style",
+                {"id": new_id, "type": style_type or "PARA", "name": normalized_name},
+            )
+            if isinstance(styles, LET._Element):
+                new_style = LET.fromstring(ET.tostring(new_style, encoding="utf-8"))
+            styles.append(new_style)
+            element = new_style
+            changed = True
+        elif style_type is not None and element.get("type") != style_type:
+            element.set("type", style_type)
+            changed = True
+
+        if _apply_optional_attrs(
+            element,
+            (
+                ("engName", eng_name),
+                ("paraPrIDRef", None if para_pr_id_ref is None else str(para_pr_id_ref)),
+                ("charPrIDRef", None if char_pr_id_ref is None else str(char_pr_id_ref)),
+                ("nextStyleIDRef", None if next_style_id_ref is None else str(next_style_id_ref)),
+                ("langID", None if lang_id is None else str(lang_id)),
+            ),
+        ):
+            changed = True
+        if lock_form is not None and _get_bool_attr(element, "lockForm", False) != lock_form:
+            element.set("lockForm", _bool_str(lock_form))
+            changed = True
+
+        if changed:
+            self._update_styles_item_count(styles)
+            self.mark_dirty()
+        style_id = element.get("id")
+        assert style_id is not None  # allocated above or already present
+        return style_id
 
     def ensure_shading_border_fill(
         self,
