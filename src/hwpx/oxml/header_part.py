@@ -1014,7 +1014,15 @@ class HwpxOxmlHeader:
 
         styles = self._styles_element(create=True)
         if styles is None:  # pragma: no cover - defensive branch
-            raise RuntimeError("failed to create <styles> element")
+            # The four sibling ensure_* guards above predate the typed-error
+            # vocabulary and are grandfathered in the census; new raises are
+            # not — the ratchet caught this one on merge, as designed.
+            from ..errors import HwpxStateError
+
+            raise HwpxStateError(
+                "failed to create <styles> element",
+                code="style-container-create-failed",
+            )
 
         normalized_name = str(name)
         element: ET.Element | None = None
