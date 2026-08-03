@@ -5,6 +5,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
+from ..objects.results import (
+    ColumnLayout,
+    ListFormatResult,
+    PageMargins,
+    PageSetup,
+    PageSize,
+    ParagraphFormatResult,
+    Units,
+)
 from ..oxml.namespaces import HH
 from ._units import _mm_to_hwp_units, _pt_to_hwp_units
 
@@ -95,7 +104,7 @@ def set_paragraph_format(
     bottom_border: bool = False,
     border_color: str = "#BFBFBF",
     border_width: str = "0.12 mm",
-) -> dict[str, Any]:
+) -> ParagraphFormatResult:
     """Apply paragraph-level formatting using human units.
 
     Millimetre inputs are converted to HWP units; paragraph spacing uses
@@ -172,7 +181,7 @@ def set_paragraph_format(
         paragraph_index=paragraph_index,
         paragraph_indexes=paragraph_indexes,
     )
-    formatted: list[dict[str, Any]] = []
+    formatted: list[int] = []
     for index, paragraph in targets:
         para_pr_id = header.ensure_paragraph_format(
             base_para_pr_id=paragraph.para_pr_id_ref,
@@ -184,17 +193,13 @@ def set_paragraph_format(
             break_setting=break_setting or None,
         )
         paragraph.para_pr_id_ref = para_pr_id
-        formatted.append({"paragraph_index": index, "paraPrIDRef": para_pr_id})
+        formatted.append(index)
 
-    return {
-        "formatted": len(formatted),
-        "paragraphs": formatted,
-        "units": {
-            "indent": "mm",
-            "paragraphSpacing": "pt",
-            "lineSpacing": "%",
-        },
-    }
+    return ParagraphFormatResult(
+        formatted=len(formatted),
+        paragraphs=tuple(formatted),
+        units=Units(indent="mm", paragraph_spacing="pt", line_spacing="%"),
+    )
 
 
 def set_list_format(
@@ -207,7 +212,7 @@ def set_list_format(
     bullet_char: str | None = None,
     number_format: str | None = None,
     start: int | None = None,
-) -> dict[str, Any]:
+) -> ListFormatResult:
     """Apply bullet or numbered-list paragraph properties to paragraphs."""
 
     if level < 1:
@@ -240,22 +245,25 @@ def set_list_format(
         paragraph_indexes=paragraph_indexes,
     )
 
-    formatted: list[dict[str, Any]] = []
+    formatted: list[int] = []
+    first_para_pr_id: str | None = None
     for index, paragraph in targets:
         para_pr_id = header.ensure_paragraph_format(
             base_para_pr_id=paragraph.para_pr_id_ref,
             heading=heading,
         )
         paragraph.para_pr_id_ref = para_pr_id
-        formatted.append({"paragraph_index": index, "paraPrIDRef": para_pr_id})
+        formatted.append(index)
+        if first_para_pr_id is None:
+            first_para_pr_id = para_pr_id
 
-    return {
-        "formatted": len(formatted),
-        "paragraphs": formatted,
-        "kind": kind,
-        "level": level,
-        "paraPrIDRef": formatted[0]["paraPrIDRef"] if formatted else list_para_pr_id,
-    }
+    return ListFormatResult(
+        formatted=len(formatted),
+        paragraphs=tuple(formatted),
+        kind=kind,
+        level=level,
+        para_pr_id_ref=first_para_pr_id if first_para_pr_id is not None else list_para_pr_id,
+    )
 
 
 def set_page_setup(
@@ -277,7 +285,7 @@ def set_page_setup(
     column_gap_mm: float | None = None,
     section: HwpxOxmlSection | None = None,
     section_index: int | None = None,
-) -> dict[str, Any]:
+) -> PageSetup:
     """Set page size, margins, orientation, and optional columns in human units."""
 
     normalized_orientation = _normalize_page_orientation(orientation)
@@ -300,7 +308,14 @@ def set_page_setup(
     width = _mm_to_hwp_units(float(target_width_mm)) if target_width_mm is not None else None
     height = _mm_to_hwp_units(float(target_height_mm)) if target_height_mm is not None else None
     if width is not None or height is not None or normalized_orientation is not None:
-        doc.set_page_size(
+        # Call the local primitives directly rather than `doc.set_page_size`/
+        # `doc.set_page_margins`/`doc.set_columns` below — all three names
+        # moved in 6.0 (design table rows 88/91/82 respectively), and going
+        # through the facade would fire a DeprecationWarning on every
+        # `set_page_setup` call even when reached via the new
+        # `doc.page.setup` namespace path.
+        set_page_size(
+            doc,
             width=width,
             height=height,
             orientation=normalized_orientation,
@@ -324,32 +339,39 @@ def set_page_setup(
         if value is not None
     }
     if hwp_margins:
-        doc.set_page_margins(
+        set_page_margins(
+            doc,
             section=section,
             section_index=section_index,
             **hwp_margins,
         )
 
-    column_result: dict[str, Any] | None = None
+    column_layout: ColumnLayout | None = None
     if columns is not None:
         col_count = int(columns)
         if col_count < 1:
             raise ValueError("columns must be 1 or greater")
-        gap = _mm_to_hwp_units(float(column_gap_mm or 0))
-        doc.set_columns(
+        gap_mm = float(column_gap_mm or 0)
+        gap = _mm_to_hwp_units(gap_mm)
+        set_columns(
+            doc,
             col_count=col_count,
             same_gap=gap,
             section=section,
             section_index=section_index,
         )
-        column_result = {"count": col_count, "gap": gap}
+        column_layout = ColumnLayout(count=col_count, gap_mm=gap_mm)
 
-    return {
-        "pageSize": {"width": width, "height": height, "orientation": normalized_orientation},
-        "margins": hwp_margins,
-        "columns": column_result,
-        "units": {"page": "mm", "margins": "mm", "columnsGap": "mm"},
-    }
+    return PageSetup(
+        page_size=PageSize(
+            width_mm=target_width_mm,
+            height_mm=target_height_mm,
+            orientation=normalized_orientation,
+        ),
+        margins=PageMargins(**margin_values),
+        columns=column_layout,
+        units=Units(page="mm", margins="mm", columns_gap="mm"),
+    )
 
 
 def set_columns(
@@ -436,7 +458,12 @@ def add_hyperlink(
     Returns the ``<hp:ctrl>`` wrapper containing the ``<hp:fieldBegin>``.
     """
     if char_pr_id_ref is None:
-        char_pr_id_ref = doc.ensure_run_style(
+        # `doc._root.ensure_run_style` rather than `doc.ensure_run_style` —
+        # that facade name moved in 6.0 (design table row 52) and is a pure
+        # passthrough to `_root`, so this is byte-identical minus the
+        # DeprecationWarning it would otherwise fire on every hyperlink even
+        # when reached via the new `doc.refs.add_hyperlink` namespace path.
+        char_pr_id_ref = doc._root.ensure_run_style(
             underline=True,
             color="#0000FF",
             underline_color="#0000FF",
@@ -585,15 +612,22 @@ def set_header_footer(
         raise ValueError("kind must be 'header' or 'footer'")
     if content is not None and text is not None:
         raise ValueError("use either text or content, not both")
+    # Call the local primitives directly rather than `doc.set_header_content`/
+    # `doc.set_footer_content`/`doc.set_header_text`/`doc.set_footer_text` —
+    # all four names moved in 6.0 (design table rows 83-86), and going
+    # through the facade would fire a DeprecationWarning on every call even
+    # when reached via the new `doc.page.set_header`/`set_footer` paths.
     if content is not None:
         if normalized == "header":
-            return doc.set_header_content(
+            return set_header_content(
+                doc,
                 content,
                 section=section,
                 section_index=section_index,
                 page_type=page_type,
             )
-        return doc.set_footer_content(
+        return set_footer_content(
+            doc,
             content,
             section=section,
             section_index=section_index,
@@ -602,13 +636,15 @@ def set_header_footer(
 
     value = "" if text is None else text
     if normalized == "header":
-        return doc.set_header_text(
+        return set_header_text(
+            doc,
             value,
             section=section,
             section_index=section_index,
             page_type=page_type,
         )
-    return doc.set_footer_text(
+    return set_footer_text(
+        doc,
         value,
         section=section,
         section_index=section_index,
@@ -646,7 +682,12 @@ def set_page_number(
     if suffix:
         children.append({"type": "run", "text": suffix})
 
-    return doc.set_header_footer(
+    # `set_header_footer` (local) rather than `doc.set_header_footer` — that
+    # facade name is demoted (not just moved) in 6.0 (design table row 102),
+    # so the shim warns too; calling the primitive directly avoids that on
+    # every `set_page_number` call even via `doc.page.set_page_number`.
+    return set_header_footer(
+        doc,
         kind=target,
         content=[{"align": align, "children": children}],
         section=section,

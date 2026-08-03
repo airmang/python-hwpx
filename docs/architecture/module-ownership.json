@@ -358,6 +358,36 @@
       "rationale": "add_* 가 반환하는 도메인 객체와 결과 dataclass 의 자리. 6.0 반환 규약(생성 객체 1종)의 소유 패키지"
     },
     {
+      "path": "src/hwpx/objects/binary_item.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-C",
+      "rationale": "BinaryItem — add_image/list_images 가 반환하는 BinData 항목의 라이브 뷰. str(item)==item_id 이주 완충으로 5.x str 반환을 대체한다"
+    },
+    {
+      "path": "src/hwpx/objects/checkbox.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-C",
+      "rationale": "CheckBox — add_check_box/set_check_box/list_check_boxes 가 반환하는 hp:checkBtn 라이브 뷰. checked 속성이 settable이라 set_check_box 별도 동사가 소멸한다"
+    },
+    {
+      "path": "src/hwpx/objects/form_field.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-C",
+      "rationale": "FormField(+FieldLocation·FieldParameter) — add_form_field/fill_form_field/list_form_fields 가 반환하는 누름틀 라이브 뷰. id/prompt/type 3쌍 별칭과 5개 인덱스 키를 각 1개로 수렴한다"
+    },
+    {
+      "path": "src/hwpx/objects/results.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-C",
+      "rationale": "순수 결과 dataclass 8종(FieldFillResult·PictureReplacement·ListFormatResult·ParagraphFormatResult·PageSetup 외) — frozen=True + to_dict() 하우스 컨벤션(mutation_report.py)을 따르는 fields/media/layout 반환 규약의 소유 모듈"
+    },
+    {
+      "path": "src/hwpx/objects/tracked.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-C",
+      "rationale": "TrackedChange·TrackedReplacement — add_track_change/add_tracked_insert/delete/replace 가 반환하던 int/tuple[int,int] 를 대체한다. __int__ 미보유로 암묵 변환을 금지한다"
+    },
+    {
       "path": "src/hwpx/oxml/color.py",
       "disposition": "core",
       "approvedBy": "S-049/P3",

@@ -114,30 +114,29 @@ class TestRoundTrip:
     def test_create_save_reopen_list(self) -> None:
         doc = HwpxDocument.new()
         created = doc.add_form_field("부서", prompt="부서 입력", memo="조직명")
-        assert created["name"] == "부서"
-        assert created["prompt"] == "부서 입력"
-        assert created["memo"] == "조직명"
-        assert created["is_placeholder"] is True
-        assert created["has_end"] is True
+        assert created.name == "부서"
+        assert created.prompt == "부서 입력"
+        assert created.memo == "조직명"
+        assert created.is_placeholder is True
+        assert created.has_end is True
 
         reopened = _roundtrip(doc)
         fields = reopened.list_form_fields()
-        assert [f["name"] for f in fields] == ["부서"]
+        assert [f.name for f in fields] == ["부서"]
         field = fields[0]
-        assert field["dirty"] == "0"
-        assert field["is_placeholder"] is True
-        assert field["current_value"] == "부서 입력"
+        assert field.element.get("dirty") == "0"
+        assert field.is_placeholder is True
+        assert field.value == "부서 입력"
 
     def test_fill_swaps_placeholder_style_and_sets_dirty(self) -> None:
         doc = HwpxDocument.new()
         doc.add_form_field("성명", prompt="이름 입력")
         reopened = _roundtrip(doc)
         response = reopened.fill_form_field("홍길동", name="성명")
-        assert response["ok"] is True
-        field = response["field"]
-        assert field["current_value"] == "홍길동"
-        assert field["dirty"] == "1"
-        assert field["is_placeholder"] is False
+        field = response.field
+        assert field.value == "홍길동"
+        assert field.element.get("dirty") == "1"
+        assert field.is_placeholder is False
 
         fb = _field_begin(reopened, "성명")
         paragraph = fb.getparent().getparent().getparent()
@@ -153,7 +152,7 @@ class TestRoundTrip:
         )
 
         final = _roundtrip(reopened)
-        assert final.list_form_fields()[0]["current_value"] == "홍길동"
+        assert final.list_form_fields()[0].value == "홍길동"
 
     def test_field_in_table_cell(self) -> None:
         doc = HwpxDocument.new()
@@ -162,9 +161,9 @@ class TestRoundTrip:
         doc.add_form_field("셀필드", prompt="셀 입력", paragraph=cell_paragraph)
         reopened = _roundtrip(doc)
         fields = reopened.list_form_fields()
-        assert [f["name"] for f in fields] == ["셀필드"]
+        assert [f.name for f in fields] == ["셀필드"]
         reopened.fill_form_field("값123", name="셀필드")
-        assert reopened.list_form_fields()[0]["current_value"] == "값123"
+        assert reopened.list_form_fields()[0].value == "값123"
 
     def test_multiple_fields_pair_independently(self) -> None:
         doc = HwpxDocument.new()
@@ -173,9 +172,9 @@ class TestRoundTrip:
         doc.add_form_field("c", prompt="다", memo="m")
         reopened = _roundtrip(doc)
         fields = reopened.list_form_fields()
-        assert [f["name"] for f in fields] == ["a", "b", "c"]
-        assert all(f["has_end"] for f in fields)
-        begin_ids = {f["id"] for f in fields}
+        assert [f.name for f in fields] == ["a", "b", "c"]
+        assert all(f.has_end for f in fields)
+        begin_ids = {f.field_id for f in fields}
         assert len(begin_ids) == 3
 
     def test_open_safety(self) -> None:
@@ -196,7 +195,7 @@ class TestValidation:
     def test_illegal_control_chars_sanitized(self) -> None:
         doc = HwpxDocument.new()
         created = doc.add_form_field("ok", prompt="안내\x00문")
-        assert created["prompt"] == "안내문"
+        assert created.prompt == "안내문"
 
 
 class TestHancomGoldFixtures:
@@ -206,17 +205,17 @@ class TestHancomGoldFixtures:
     def test_gold_empty_reads_prompt_memo_placeholder(self) -> None:
         doc = HwpxDocument.open(DATA / "clickhere_gold_empty.hwpx")
         (field,) = doc.list_form_fields()
-        assert field["name"] == "NAMETEXT_THREE"
-        assert field["field_type"] == "CLICK_HERE"
-        assert field["prompt"] == "DIRTEXT_ONE"
-        assert field["memo"] == "MEMOTEXT_TWO"
-        assert field["dirty"] == "0"
-        assert field["is_placeholder"] is True
-        assert field["current_value"] == "DIRTEXT_ONE"
+        assert field.name == "NAMETEXT_THREE"
+        assert field.field_type == "CLICK_HERE"
+        assert field.prompt == "DIRTEXT_ONE"
+        assert field.memo == "MEMOTEXT_TWO"
+        assert field.element.get("dirty") == "0"
+        assert field.is_placeholder is True
+        assert field.value == "DIRTEXT_ONE"
 
     def test_gold_filled_reads_value_not_placeholder(self) -> None:
         doc = HwpxDocument.open(DATA / "clickhere_gold_filled.hwpx")
         (field,) = doc.list_form_fields()
-        assert field["current_value"] == "FILLED_VALUE_X"
-        assert field["dirty"] == "1"
-        assert field["is_placeholder"] is False
+        assert field.value == "FILLED_VALUE_X"
+        assert field.element.get("dirty") == "1"
+        assert field.is_placeholder is False

@@ -54,7 +54,7 @@ def test_set_paragraph_format_uses_human_units_and_survives_save(tmp_path) -> No
         spacing_after_pt=3,
     )
 
-    assert result["formatted"] == 1
+    assert result.formatted == 1
     para_pr = _para_pr_for_paragraph(document, paragraph_index)
     align = para_pr.find(f"{HH}align")
     assert align is not None
@@ -105,9 +105,12 @@ def test_set_page_setup_header_footer_and_page_number_are_open_safe(tmp_path) ->
         margin_top_mm=12,
         margin_bottom_mm=12,
     )
-    assert page["pageSize"]["width"] == _mm(297)
-    assert page["pageSize"]["height"] == _mm(210)
-    assert page["margins"]["left"] == _mm(20)
+    # page.page_size/margins report actual millimetres (6.0 return contract,
+    # design §2.4) — 5.x's dict claimed "mm" while actually holding the
+    # HWPUNIT values `_mm(...)` computes; that mislabeling is gone.
+    assert page.page_size.width_mm == 297.0
+    assert page.page_size.height_mm == 210.0
+    assert page.margins.left == 20
 
     header = document.set_header_footer(kind="header", text="Confidential")
     footer = document.set_page_number(target="footer", format="page/total", prefix="Page ")
@@ -146,8 +149,8 @@ def test_set_list_format_applies_bullet_and_numbered_properties() -> None:
         start=3,
     )
 
-    assert bullet_result["formatted"] == 1
-    assert number_result["formatted"] == 1
+    assert bullet_result.formatted == 1
+    assert number_result.formatted == 1
     bullet_pr = _para_pr_for_paragraph(document, bullet_index)
     number_pr = _para_pr_for_paragraph(document, number_index)
     bullet_heading = bullet_pr.find(f"{HH}heading")

@@ -10,7 +10,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from hwpx import HwpxDocument
+from hwpx.errors import HwpxValueError
 from hwpx.form_fit import FitPolicy
 from hwpx.quality.ledger import DirtyLayoutLedger
 from hwpx.tools.package_validator import validate_editor_open_safety
@@ -155,26 +158,29 @@ def test_fill_form_field_without_box_width_is_low_confidence_never_fails():
     result = doc.fill_form_field(
         "가" * 50, name="주소", fit_policy=FitPolicy(overflow="fail")
     )
-    assert result["ok"] is True  # honest: no geometry → never a hard fail
-    assert result["fit"]["confidence"] == "low"
+    # honest: no geometry -> never a hard fail (no ok=False, no raise either)
+    assert result.fit is not None and result.fit.confidence == "low"
 
 
 def test_fill_form_field_box_width_gross_overflow_fails():
     doc = HwpxDocument.new()
     _add_click_here_field(doc)
-    result = doc.fill_form_field(
-        "가" * 50, name="주소",
-        fit_policy=FitPolicy(mode="fail_on_overflow", overflow="fail", max_lines=1),
-        box_width=4000,
-    )
-    assert result["ok"] is False
-    assert result["fit"]["overflowDetected"] is True
-    assert result["suggestedRetry"]["code"] == "FIELD_OVERFLOW"
+    # 6.0: a hard overflow raises instead of returning ok=False (design §2.4,
+    # constitution VI fail-closed) — the field is left untouched.
+    with pytest.raises(HwpxValueError) as excinfo:
+        doc.fill_form_field(
+            "가" * 50, name="주소",
+            fit_policy=FitPolicy(mode="fail_on_overflow", overflow="fail", max_lines=1),
+            box_width=4000,
+        )
+    assert excinfo.value.code == "field-fit-failed"
+    assert excinfo.value.context["fit"]["overflowDetected"] is True
+    assert excinfo.value.context["suggestedRetry"]["code"] == "FIELD_OVERFLOW"
 
 
 def test_fill_form_field_no_fit_policy_unchanged(tmp_path: Path):
     doc = HwpxDocument.new()
     _add_click_here_field(doc)
     result = doc.fill_form_field("서울시", name="주소")
-    assert result["ok"] is True and "fit" not in result
-    assert result["after_value"] == "서울시"
+    assert result.fit is None
+    assert result.after == "서울시"

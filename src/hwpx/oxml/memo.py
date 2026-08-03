@@ -32,6 +32,31 @@ def _wrap_paragraph(
 
     return HwpxOxmlParagraph(element, section)
 
+
+def _paragraph_containing(root: ET.Element, target: ET.Element) -> ET.Element | None:
+    """Return the innermost ``<hp:p>`` ancestor of *target* within *root*.
+
+    Walks down from *root* rather than up from *target* via ``getparent()``:
+    live documents are lxml, which supports that, but several test suites
+    (e.g. ``tests/test_memo_and_style_editing.py``) hand-build fixtures with
+    the standard-library ``xml.etree.ElementTree``, which does not.
+    ``for child in node`` and identity comparison work the same on both.
+    """
+
+    def _walk(node: ET.Element, nearest: ET.Element | None) -> ET.Element | None:
+        if _element_local_name(node) == "p":
+            nearest = node
+        if node is target:
+            return nearest
+        for child in node:
+            found = _walk(child, nearest)
+            if found is not None:
+                return found
+        return None
+
+    return _walk(root, None)
+
+
 class HwpxOxmlMemoGroup:
     """Wrapper providing access to ``<hp:memogroup>`` containers."""
 
@@ -135,6 +160,59 @@ class HwpxOxmlMemo:
                 if run.char_pr_id_ref:
                     return run.char_pr_id_ref
         return None
+
+    def _anchor_field(self) -> ET.Element | None:
+        """Return the ``<hp:fieldBegin type="MEMO">`` anchoring this memo, if any.
+
+        A memo is only visible in Hancom once a MEMO field control in the body
+        references this memo's ``id`` through its ``ID`` string parameter (see
+        ``hwpx._document.memos.attach_memo_field``). This searches the memo's
+        own section for that anchor — a memo created by
+        :meth:`HwpxOxmlMemoGroup.add_memo` alone has none yet, so both
+        :attr:`paragraph` and :attr:`field_id` are ``None`` until a field
+        attaches it.
+        """
+
+        memo_id = self.id
+        if not memo_id:
+            return None
+        section_element = self.group.section.element
+        for field_begin in section_element.iter(f"{_HP}fieldBegin"):
+            if field_begin.get("type") != "MEMO":
+                continue
+            for string_param in field_begin.iter(f"{_HP}stringParam"):
+                if string_param.get("name") == "ID" and (string_param.text or "") == memo_id:
+                    return field_begin
+        return None
+
+    @property
+    def field_id(self) -> str | None:
+        """The id of the MEMO field anchoring this memo, once attached.
+
+        ``None`` until a field control created by
+        ``hwpx._document.memos.attach_memo_field``/``add_memo_with_anchor``
+        references this memo — replaces the ``str`` those two functions used
+        to return directly (6.0 return contract, design §2.3/§2.6).
+        """
+
+        field = self._anchor_field()
+        return field.get("id") if field is not None else None
+
+    @property
+    def paragraph(self) -> "HwpxOxmlParagraph | None":
+        """The paragraph hosting this memo's anchor field, once attached.
+
+        ``None`` until the memo is anchored (see :attr:`field_id`) — replaces
+        the second element of the ``add_memo_with_anchor`` 3-tuple.
+        """
+
+        field = self._anchor_field()
+        if field is None:
+            return None
+        node = _paragraph_containing(self.group.section.element, field)
+        if node is None:
+            return None
+        return _wrap_paragraph(node, self.group.section)
 
     @property
     def paragraphs(self) -> list["HwpxOxmlParagraph"]:

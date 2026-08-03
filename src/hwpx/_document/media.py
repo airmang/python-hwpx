@@ -6,15 +6,59 @@ from __future__ import annotations
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, Iterator, cast
 
+from ..objects.binary_item import BinaryItem, PictureRef
+from ..objects.results import PictureReplacement
+from ..oxml import HwpxOxmlInlineObject, HwpxOxmlParagraph
 from ..oxml.namespaces import HC, HP
 from ._units import _mm_to_hwp_units
 
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
-    from ..oxml import HwpxOxmlInlineObject, HwpxOxmlSection
+    from ..oxml import HwpxOxmlSection
 
 _HP = HP
 _HC = HC
+
+
+def _local_name(node_or_tag: Any) -> str:
+    tag = getattr(node_or_tag, "tag", node_or_tag)
+    if not isinstance(tag, str):
+        return ""
+    if "}" in tag:
+        return tag.rsplit("}", 1)[1]
+    return tag
+
+
+def _owning_paragraph(element: Any, section: "HwpxOxmlSection") -> "HwpxOxmlParagraph | None":
+    """Return the innermost ``<hp:p>`` ancestor of *element* within *section*.
+
+    Needed because ``_iter_picture_images`` finds ``<hp:pic>`` elements with a
+    section-wide XPath search, not by iterating paragraphs, so no paragraph
+    reference is available for free the way ``_iter_form_field_matches``
+    (fields.py) tracks one while it walks paragraph-by-paragraph.
+
+    Walks down from *section* rather than up from *element* via
+    ``getparent()`` — mirrors ``oxml.memo._paragraph_containing`` (see there
+    for why: lxml supports ``getparent()``, hand-built
+    ``xml.etree.ElementTree`` test fixtures do not, and ``for child in node``
+    works on both).
+    """
+
+    def _walk(node: Any, nearest: Any) -> Any:
+        if _local_name(node) == "p":
+            nearest = node
+        if node is element:
+            return nearest
+        for child in node:
+            found = _walk(child, nearest)
+            if found is not None:
+                return found
+        return None
+
+    node = _walk(section.element, None)
+    if node is None:
+        return None
+    return HwpxOxmlParagraph(node, section)
 
 
 def _png_dimensions(image_data: bytes) -> tuple[int, int] | None:
@@ -57,7 +101,11 @@ def add_picture(
 ) -> HwpxOxmlInlineObject:
     """Embed image data and place a picture object in a new paragraph."""
 
-    binary_item_id_ref = doc.add_image(image_data, image_format)
+    # Call the local primitive directly rather than `doc.add_image` — that
+    # facade name moved in 6.0 (design table row 33), and going through it
+    # would fire a DeprecationWarning on every `add_picture` call even though
+    # `add_picture` itself is a kept (unmoved) root method.
+    binary_item_id_ref = str(add_image(doc, image_data, image_format))
 
     resolved_width = width
     if resolved_width is None:
@@ -105,22 +153,31 @@ def _iter_picture_images(
                 yield section_index, section, picture, image
 
 
-def picture_references(doc: "HwpxDocument") -> list[dict[str, Any]]:
+def _parse_hwpunit(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError:  # pragma: no cover - defensive: non-numeric sz attrs
+        return None
+
+
+def picture_references(doc: "HwpxDocument") -> tuple[PictureRef, ...]:
     """Return body picture references in document order."""
 
-    refs: list[dict[str, Any]] = []
+    refs: list[PictureRef] = []
     for picture_index, (section_index, _section, picture, image) in enumerate(_iter_picture_images(doc)):
         size = picture.find(f"{_HP}sz")
         refs.append(
-            {
-                "picture_index": picture_index,
-                "section_index": section_index,
-                "binaryItemIDRef": image.get("binaryItemIDRef"),
-                "width": size.get("width") if size is not None else None,
-                "height": size.get("height") if size is not None else None,
-            }
+            PictureRef(
+                picture_index=picture_index,
+                section_index=section_index,
+                binary_item_id_ref=image.get("binaryItemIDRef"),
+                width=_parse_hwpunit(size.get("width") if size is not None else None),
+                height=_parse_hwpunit(size.get("height") if size is not None else None),
+            )
         )
-    return refs
+    return tuple(refs)
 
 
 def replace_picture(
@@ -132,7 +189,7 @@ def replace_picture(
     binary_item_id_ref: str | None = None,
     remove_orphaned: bool = True,
     item_id: str | None = None,
-) -> dict[str, Any]:
+) -> PictureReplacement:
     """Replace a body picture's image asset while preserving its geometry.
 
     The existing ``<hp:pic>`` element is left in place.  Only the child
@@ -163,9 +220,13 @@ def replace_picture(
             f"{binary_item_id_ref!r} is out of range"
         )
 
-    section_index, section, _picture_element, image = selected
+    section_index, section, picture_element, image = selected
     old_ref = (image.get("binaryItemIDRef") or "").strip()
-    new_ref = doc.add_image(image_data, image_format, item_id=item_id)
+    # Call the local primitives directly rather than `doc.add_image`/
+    # `doc.remove_image` — both names moved in 6.0 (design table rows 33/77),
+    # and going through the facade would fire a DeprecationWarning on every
+    # replace even when reached via the new `doc.media.replace_picture` path.
+    new_ref = str(add_image(doc, image_data, image_format, item_id=item_id))
     image.set("binaryItemIDRef", new_ref)
     section.mark_dirty()
 
@@ -175,16 +236,18 @@ def replace_picture(
             (other_image.get("binaryItemIDRef") or "").strip() == old_ref
             for _other_section_index, _other_section, _other_picture, other_image in _iter_picture_images(doc)
         ):
-            removed_old_image = doc.remove_image(old_ref)
+            removed_old_image = remove_image(doc, old_ref)
 
-    return {
-        "picture_index": matched_index,
-        "section_index": section_index,
-        "old_binaryItemIDRef": old_ref,
-        "new_binaryItemIDRef": new_ref,
-        "removedOldImage": removed_old_image,
-        "geometryPreserved": True,
-    }
+    paragraph = _owning_paragraph(picture_element, section)
+    if paragraph is None:  # pragma: no cover - defensive: <hp:pic> is always inside a <hp:p>
+        raise RuntimeError("replaced picture element has no owning paragraph")
+
+    return PictureReplacement(
+        picture=HwpxOxmlInlineObject(picture_element, paragraph),
+        item_id=new_ref,
+        previous_item_id=old_ref or None,
+        removed_orphans=(old_ref,) if removed_old_image else (),
+    )
 
 
 def add_image(
@@ -193,8 +256,8 @@ def add_image(
     image_format: str,
     *,
     item_id: str | None = None,
-) -> str:
-    """Embed an image file and return the manifest item id.
+) -> BinaryItem:
+    """Embed an image file and return it as a :class:`BinaryItem`.
 
     Args:
         image_data: Raw image bytes.
@@ -203,8 +266,9 @@ def add_image(
                  auto-generated ``BIN####`` id is used.
 
     Returns:
-        The manifest item id that can be passed to
-        ``binaryItemIDRef`` when constructing a ``<hp:pic>`` element.
+        The created item. ``str(item)`` is the manifest item id that can be
+        passed to ``binaryItemIDRef`` when constructing a ``<hp:pic>``
+        element — the same string 5.x returned directly (design §2.6).
     """
 
     fmt = image_format.lower().lstrip(".")
@@ -245,7 +309,7 @@ def add_image(
             format=fmt,
         )
 
-    return item_id
+    return BinaryItem(item_id=item_id, format=fmt, href=bin_data_path, size=len(image_data))
 
 
 def _existing_image_item_ids(doc: "HwpxDocument") -> set[str]:
@@ -279,17 +343,25 @@ def _existing_image_item_ids(doc: "HwpxDocument") -> set[str]:
     return existing_ids
 
 
-def list_images(doc: "HwpxDocument") -> list[dict[str, str]]:
-    """Return metadata dicts for all embedded binary data items.
-
-    Each dict contains the ``<hh:binItem>`` attributes (``id``, ``Type``,
-    ``BinData``, ``Format``, …).
-    """
+def list_images(doc: "HwpxDocument") -> tuple[BinaryItem, ...]:
+    """Return every embedded binary data item as a :class:`BinaryItem`."""
 
     header = doc._root.headers[0] if doc._root.headers else None
     if header is None:
-        return []
-    return header.list_bin_items()
+        return ()
+
+    items: list[BinaryItem] = []
+    for entry in header.list_bin_items():
+        bin_data = entry.get("BinData", "")
+        item_id = _bin_data_stem(bin_data) or entry.get("id", "")
+        href = f"BinData/{bin_data}" if bin_data else ""
+        size = 0
+        if href and doc._package.has_part(href):
+            size = len(doc._package.read(href))
+        items.append(
+            BinaryItem(item_id=item_id, format=entry.get("Format", ""), href=href, size=size)
+        )
+    return tuple(items)
 
 
 def remove_image(doc: "HwpxDocument", item_id: str) -> bool:

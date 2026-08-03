@@ -180,6 +180,13 @@ files = [
     # 약속)이 깨진다. 7.0에서 파일째 삭제되므로 편입하지 않는다.
     "src/hwpx/model.py",
     "src/hwpx/objects/__init__.py",
+    # 6.0 (062-engine-surface WP-C): 반환 규약 소유 모듈 5종 — 같은 이유로
+    # 게이트 안에서 태어난다(위 WP-A 주석 참조).
+    "src/hwpx/objects/binary_item.py",
+    "src/hwpx/objects/checkbox.py",
+    "src/hwpx/objects/form_field.py",
+    "src/hwpx/objects/results.py",
+    "src/hwpx/objects/tracked.py",
     "src/hwpx/_document/_resolve.py",
     "src/hwpx/_document/headings.py",
     "src/hwpx/_document/ns",
@@ -256,6 +263,13 @@ include = [
     # 약속)이 깨진다. 7.0에서 파일째 삭제되므로 편입하지 않는다.
     "src/hwpx/model.py",
     "src/hwpx/objects/__init__.py",
+    # 6.0 (062-engine-surface WP-C): 반환 규약 소유 모듈 5종 — 같은 이유로
+    # 게이트 안에서 태어난다(위 WP-A 주석 참조).
+    "src/hwpx/objects/binary_item.py",
+    "src/hwpx/objects/checkbox.py",
+    "src/hwpx/objects/form_field.py",
+    "src/hwpx/objects/results.py",
+    "src/hwpx/objects/tracked.py",
     "src/hwpx/_document/_resolve.py",
     "src/hwpx/_document/headings.py",
     "src/hwpx/_document/ns",

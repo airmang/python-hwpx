@@ -77,8 +77,8 @@ def test_unchecked_is_the_default_and_round_trips(tmp_path) -> None:
     assert 'value="UNCHECKED"' in _section_xml(path)
     reopened = HwpxDocument.open(path)
     boxes = reopened.list_check_boxes()
-    assert [b["caption"] for b in boxes] == ["기본 상태"]
-    assert boxes[0]["checked"] is False
+    assert [b.caption for b in boxes] == ["기본 상태"]
+    assert boxes[0].checked is False
     reopened.close()
 
 
@@ -88,20 +88,20 @@ def test_list_and_set_by_index_and_name(tmp_path) -> None:
     doc.add_check_box("둘째", checked=True, name="Second")
 
     listed = doc.list_check_boxes()
-    assert [(b["index"], b["name"], b["checked"]) for b in listed] == [
+    assert [(b.index, b.name, b.checked) for b in listed] == [
         (0, "First", False),
         (1, "Second", True),
     ]
 
-    assert doc.set_check_box(True, index=0)["checked"] is True
-    assert doc.set_check_box(False, name="Second")["value"] == "UNCHECKED"
-    assert [b["checked"] for b in doc.list_check_boxes()] == [True, False]
+    assert doc.set_check_box(True, index=0).checked is True
+    assert doc.set_check_box(False, name="Second").value == "UNCHECKED"
+    assert [b.checked for b in doc.list_check_boxes()] == [True, False]
 
     path = tmp_path / "toggled.hwpx"
     doc.save_to_path(path)
     doc.close()
     reopened = HwpxDocument.open(path)
-    assert [b["checked"] for b in reopened.list_check_boxes()] == [True, False]
+    assert [b.checked for b in reopened.list_check_boxes()] == [True, False]
     reopened.close()
 
 
@@ -137,7 +137,7 @@ def test_check_box_inside_a_table_cell(tmp_path) -> None:
 
     reopened = HwpxDocument.open(path)
     boxes = reopened.list_check_boxes()
-    assert [(b["caption"], b["checked"]) for b in boxes] == [("셀 안", True)]
+    assert [(b.caption, b.checked) for b in boxes] == [("셀 안", True)]
     reopened.close()
 
 

@@ -56,14 +56,14 @@ def test_list_form_fields_reports_name_prompt_and_current_value() -> None:
     fields = doc.list_form_fields()
 
     assert len(fields) == 1
-    assert fields[0]["field_id"] == "field-date"
-    assert fields[0]["name"] == "일시"
-    assert fields[0]["prompt"] == "회의 일시"
-    assert fields[0]["instruction"] == "회의 일시"
-    assert fields[0]["current_value"] == "입력하세요"
-    assert fields[0]["control_type"] == "FORM"
-    assert fields[0]["field_type"] == "ClickHere"
-    assert fields[0]["has_end"] is True
+    assert fields[0].field_id == "field-date"
+    assert fields[0].name == "일시"
+    # instruction/control_type were 5.x aliases absorbed into prompt/field_type
+    # (design §2.3) — the check below covers the same underlying value.
+    assert fields[0].prompt == "회의 일시"
+    assert fields[0].value == "입력하세요"
+    assert fields[0].field_type == "ClickHere"
+    assert fields[0].has_end is True
 
 
 def test_fill_form_field_preserves_run_formatting_and_open_safety(tmp_path: Path) -> None:
@@ -74,16 +74,17 @@ def test_fill_form_field_preserves_run_formatting_and_open_safety(tmp_path: Path
     result = doc.fill_form_field("2026-06-11 10:00", name="일시")
     doc.save_to_path(path)
 
-    assert result["ok"] is True
-    assert result["before_value"] == "입력하세요"
-    assert result["after_value"] == "2026-06-11 10:00"
-    assert result["style_preserved"] is True
+    # No `ok` key: reaching a FieldFillResult at all means the fill succeeded
+    # (fail-closed raise on a hard fit failure instead, design §2.4).
+    assert result.before == "입력하세요"
+    assert result.after == "2026-06-11 10:00"
+    assert result.style_preserved is True
     assert validate_editor_open_safety(path.read_bytes()).ok is True
 
     reopened = HwpxDocument.open(path)
     fields = reopened.list_form_fields()
-    assert fields[0]["current_value"] == "2026-06-11 10:00"
-    paragraph = reopened.paragraphs[fields[0]["paragraph_index"]]
+    assert fields[0].value == "2026-06-11 10:00"
+    paragraph = reopened.paragraphs[fields[0].location.paragraph_index]
     assert paragraph.element.find(f"{HP}lineSegArray") is None
 
 
@@ -97,4 +98,4 @@ def test_fill_form_field_rejects_memo_and_hyperlink_fields() -> None:
         _append(ctrl, f"{HP}fieldBegin", {"id": field_type.lower(), "type": field_type})
     paragraph.section.mark_dirty()
 
-    assert doc.list_form_fields() == []
+    assert doc.list_form_fields() == ()  # list_form_fields now returns a tuple (design §2.5)
