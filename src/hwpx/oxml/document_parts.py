@@ -697,11 +697,17 @@ class HwpxOxmlDocument:
     def style(self, style_id_ref: int | str | None) -> Style | None:
         return HwpxOxmlHeader._lookup_by_id(self.styles, style_id_ref)
 
-    def _style_name_id_map(self) -> dict[str, str]:
-        """Return unique style name/engName aliases that resolve to numeric ids."""
+    def style_name_aliases(self) -> dict[str, tuple[str, ...]]:
+        """Map every style ``name``/``engName`` to the numeric ids that carry it.
 
-        aliases: dict[str, str] = {}
-        conflicts: set[str] = set()
+        Ambiguity is **kept**, not dropped: a name shared by two styles maps to
+        both ids. Call-time resolution (``doc.styles.resolve``) needs to say
+        "this name is ambiguous, here are the candidates" rather than silently
+        pick one or silently give up, which is what the serialize-time
+        normaliser below does with :meth:`_style_name_id_map`.
+        """
+
+        aliases: dict[str, list[str]] = {}
         for header in self._headers:
             for style in header.element.iter():
                 if _element_local_name(style) != "style":
@@ -714,15 +720,25 @@ class HwpxOxmlDocument:
                     alias = (style.get(attr_name) or "").strip()
                     if not alias:
                         continue
-                    existing = aliases.get(alias)
-                    if existing is not None and existing != resolved_id:
-                        conflicts.add(alias)
-                        continue
-                    aliases[alias] = resolved_id
+                    bucket = aliases.setdefault(alias, [])
+                    if resolved_id not in bucket:
+                        bucket.append(resolved_id)
+        return {alias: tuple(ids) for alias, ids in aliases.items()}
 
-        for alias in conflicts:
-            aliases.pop(alias, None)
-        return aliases
+    def _style_name_id_map(self) -> dict[str, str]:
+        """Return unique style name/engName aliases that resolve to numeric ids.
+
+        Serialize-time backstop: an alias claimed by two styles is dropped, so
+        a document written through ``doc.oxml`` never silently gets the wrong
+        one. Resolution at call time is the first line of defence and reports
+        the ambiguity instead — see :meth:`style_name_aliases`.
+        """
+
+        return {
+            alias: ids[0]
+            for alias, ids in self.style_name_aliases().items()
+            if len(ids) == 1
+        }
 
     def _normalize_named_style_references(self) -> int:
         """Convert paragraph ``styleIDRef`` names to ids when headers define them."""

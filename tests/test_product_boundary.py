@@ -249,7 +249,10 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     report = json.loads(result.stdout)
     assert report["ok"]
     # 5.6: +6 — hwpx.plan 패키지 5 + hwpx.capabilities (ownership exceptions 등재).
-    assert report["classifiedFiles"] == 108
+    # 6.0: +18 — 062-engine-surface WP-A. model.py 1 + objects 1 + _document
+    # 3(_legacy·_resolve·headings) + _document/ns 13(__init__·_base·11 네임스페이스).
+    # 전부 module-ownership.json 에 개별 rationale 과 함께 등재돼 있다.
+    assert report["classifiedFiles"] == 126
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

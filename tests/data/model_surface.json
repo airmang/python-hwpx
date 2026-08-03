@@ -1,0 +1,283 @@
+{
+ "classes": {
+  "Document": {
+   "implementation": "hwpx.oxml.document_parts.HwpxOxmlDocument",
+   "internalCount": 12,
+   "stable": [
+    "add_paragraph",
+    "add_section",
+    "border_fill",
+    "border_fills",
+    "bullet",
+    "bullets",
+    "char_properties",
+    "char_property",
+    "copy_paragraph_range",
+    "headers",
+    "histories",
+    "insert_paragraphs",
+    "master_pages",
+    "memo_shape",
+    "memo_shapes",
+    "paragraph_properties",
+    "paragraph_property",
+    "paragraphs",
+    "remove_paragraph",
+    "remove_section",
+    "sections",
+    "style",
+    "styles",
+    "track_change",
+    "track_change_author",
+    "track_change_authors",
+    "track_changes",
+    "version"
+   ]
+  },
+  "HeaderFooter": {
+   "implementation": "hwpx.oxml.section_story.HwpxOxmlSectionHeaderFooter",
+   "internalCount": 1,
+   "stable": [
+    "add_page_number_field",
+    "add_paragraph",
+    "add_run",
+    "apply_page_type",
+    "clear_content",
+    "id",
+    "set_content",
+    "set_simple_text_preserving",
+    "text"
+   ]
+  },
+  "HeaderPart": {
+   "implementation": "hwpx.oxml.header_part.HwpxOxmlHeader",
+   "internalCount": 24,
+   "stable": [
+    "border_fill",
+    "border_fills",
+    "bullet",
+    "bullets",
+    "memo_shape",
+    "memo_shapes",
+    "paragraph_properties",
+    "paragraph_property",
+    "style",
+    "styles",
+    "track_change",
+    "track_change_author",
+    "track_change_authors",
+    "track_changes"
+   ]
+  },
+  "History": {
+   "implementation": "hwpx.oxml.simple_parts.HwpxOxmlHistory",
+   "internalCount": 8,
+   "stable": []
+  },
+  "InlineObject": {
+   "implementation": "hwpx.oxml.objects.HwpxOxmlInlineObject",
+   "internalCount": 0,
+   "stable": [
+    "attributes",
+    "get_attribute",
+    "set_attribute",
+    "tag"
+   ]
+  },
+  "MasterPage": {
+   "implementation": "hwpx.oxml.simple_parts.HwpxOxmlMasterPage",
+   "internalCount": 8,
+   "stable": []
+  },
+  "Memo": {
+   "implementation": "hwpx.oxml.memo.HwpxOxmlMemo",
+   "internalCount": 0,
+   "stable": [
+    "attributes",
+    "id",
+    "memo_shape_id_ref",
+    "paragraphs",
+    "remove",
+    "set_attribute",
+    "set_text",
+    "text"
+   ]
+  },
+  "MemoGroup": {
+   "implementation": "hwpx.oxml.memo.HwpxOxmlMemoGroup",
+   "internalCount": 0,
+   "stable": [
+    "add_memo",
+    "memos"
+   ]
+  },
+  "Note": {
+   "implementation": "hwpx.oxml.memo.HwpxOxmlNote",
+   "internalCount": 0,
+   "stable": [
+    "add_hyperlink",
+    "add_run",
+    "body_paragraph",
+    "inst_id",
+    "kind",
+    "text"
+   ]
+  },
+  "Paragraph": {
+   "implementation": "hwpx.oxml.paragraph.HwpxOxmlParagraph",
+   "internalCount": 4,
+   "stable": [
+    "add_bookmark",
+    "add_chart",
+    "add_check_box",
+    "add_control",
+    "add_ellipse",
+    "add_endnote",
+    "add_equation",
+    "add_footnote",
+    "add_form_field",
+    "add_hyperlink",
+    "add_line",
+    "add_picture",
+    "add_rectangle",
+    "add_run",
+    "add_shape",
+    "add_table",
+    "add_tracked_delete",
+    "add_tracked_insert",
+    "bookmarks",
+    "char_pr_id_ref",
+    "clear_text",
+    "endnotes",
+    "footnotes",
+    "hyperlinks",
+    "para_pr_id_ref",
+    "remove",
+    "runs",
+    "shapes",
+    "style_id_ref",
+    "tables",
+    "text"
+   ]
+  },
+  "Run": {
+   "implementation": "hwpx.oxml.run.HwpxOxmlRun",
+   "internalCount": 3,
+   "stable": [
+    "bold",
+    "char_pr_id_ref",
+    "italic",
+    "remove",
+    "replace_text",
+    "style",
+    "text",
+    "underline"
+   ]
+  },
+  "Section": {
+   "implementation": "hwpx.oxml.section.HwpxOxmlSection",
+   "internalCount": 9,
+   "stable": [
+    "add_memo",
+    "add_paragraph",
+    "copy_paragraph_range",
+    "insert_paragraphs",
+    "memo_group",
+    "memos",
+    "paragraphs",
+    "properties",
+    "remove_paragraph"
+   ]
+  },
+  "SectionProperties": {
+   "implementation": "hwpx.oxml.section_format.HwpxOxmlSectionProperties",
+   "internalCount": 0,
+   "stable": [
+    "footers",
+    "get_footer",
+    "get_header",
+    "headers",
+    "page_margins",
+    "page_size",
+    "remove_footer",
+    "remove_header",
+    "set_footer_content",
+    "set_footer_text",
+    "set_header_content",
+    "set_header_text",
+    "set_page_margins",
+    "set_page_size",
+    "set_start_numbering",
+    "start_numbering"
+   ]
+  },
+  "Shape": {
+   "implementation": "hwpx.oxml.objects.HwpxOxmlShape",
+   "internalCount": 0,
+   "stable": [
+    "attributes",
+    "get_attribute",
+    "height",
+    "inst_id",
+    "line_color",
+    "line_style",
+    "resize",
+    "set_attribute",
+    "shape_type",
+    "width"
+   ]
+  },
+  "Table": {
+   "implementation": "hwpx.oxml.table.HwpxOxmlTable",
+   "internalCount": 2,
+   "stable": [
+    "cell",
+    "column_count",
+    "get_cell_map",
+    "iter_grid",
+    "merge_cells",
+    "row_count",
+    "rows",
+    "set_cell_border_fill",
+    "set_cell_shading",
+    "set_cell_text",
+    "set_column_widths",
+    "split_merged_cell"
+   ]
+  },
+  "TableCell": {
+   "implementation": "hwpx.oxml.table.HwpxOxmlTableCell",
+   "internalCount": 0,
+   "stable": [
+    "add_paragraph",
+    "add_table",
+    "address",
+    "height",
+    "paragraphs",
+    "remove",
+    "set_size",
+    "set_span",
+    "set_text",
+    "span",
+    "tables",
+    "text",
+    "width"
+   ]
+  },
+  "TableRow": {
+   "implementation": "hwpx.oxml.table.HwpxOxmlTableRow",
+   "internalCount": 0,
+   "stable": [
+    "cells"
+   ]
+  },
+  "Version": {
+   "implementation": "hwpx.oxml.simple_parts.HwpxOxmlVersion",
+   "internalCount": 8,
+   "stable": []
+  }
+ },
+ "note": "hwpx.model 은 hwpx.oxml 클래스의 별칭이다(래퍼가 아님). 계약은 클래스 전체가 아니라 아래 stable 멤버 목록이다 — 그 안은 major 경계에서만 바뀌고, 그 밖(내부 상태·직렬화·캐시)은 minor 에서 바뀔 수 있다. 이 분리가 '오xml 은 비공개인데 stable 이 반환한다'는 5.x 자기모순을 해소한다.",
+ "schemaVersion": "python-hwpx.model-surface/v1",
+ "since": "6.0.0"
+}

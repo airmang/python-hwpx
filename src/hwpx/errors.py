@@ -74,4 +74,83 @@ class SaveError(HwpxError, ValueError):
     default_code = "save-failed"
 
 
-__all__ = ["HwpxError", "SaveError"]
+class HwpxValueError(HwpxError, ValueError):
+    """An argument's *value* is not usable for the requested operation.
+
+    Dual inheritance follows the :class:`SaveError` precedent: a 5.x caller
+    that wrote ``except ValueError`` around a facade call keeps working, and
+    gains ``code`` / ``context`` / ``suggestion`` for free.
+    """
+
+    default_code = "hwpx-value-error"
+
+
+class HwpxTypeError(HwpxError, TypeError):
+    """An argument's *type* is not one the operation accepts."""
+
+    default_code = "hwpx-type-error"
+
+
+class HwpxLookupError(HwpxError, KeyError):
+    """A named or indexed thing (style, section, paragraph, field…) is absent.
+
+    ``KeyError.__str__`` would wrap the message in the repr quotes it uses for
+    missing keys, which contradicts the base contract stated above — ``str(exc)``
+    stays the human sentence. :meth:`__str__` restores it.
+    """
+
+    default_code = "hwpx-lookup-error"
+
+    def __str__(self) -> str:
+        return self.message
+
+
+class HwpxStateError(HwpxError, RuntimeError):
+    """The document is not in a state where the operation is meaningful."""
+
+    default_code = "hwpx-state-error"
+
+
+#: The kebab-case ``HwpxError.code`` vocabulary. Codes are ``<domain>-<condition>``
+#: where the domain names a surface area (the 6.0 namespaces plus the package-level
+#: concerns). This is deliberately **not** unified with the SCREAMING_SNAKE codes in
+#: :mod:`hwpx.quality.report`: those are values in a released receipt schema
+#: (``hwpx.mutation-report/v1``, ``VisualCompleteReport``), and renaming them would
+#: break receipt consumers. The two vocabularies meet in exactly one place —
+#: :mod:`hwpx._document.persistence` wraps a quality failure as ``quality-gate-failed``.
+ERROR_CODE_DOMAINS = frozenset(
+    {
+        "capability",
+        "document",
+        "field",
+        "heading",
+        "hwpx",
+        "media",
+        "note",
+        "open",
+        "package",
+        "page",
+        "paragraph",
+        "plan",
+        "quality",
+        "ref",
+        "save",
+        "section",
+        "shape",
+        "style",
+        "table",
+        "text",
+        "track",
+    }
+)
+
+
+__all__ = [
+    "ERROR_CODE_DOMAINS",
+    "HwpxError",
+    "HwpxLookupError",
+    "HwpxStateError",
+    "HwpxTypeError",
+    "HwpxValueError",
+    "SaveError",
+]

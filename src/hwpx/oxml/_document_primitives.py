@@ -604,6 +604,45 @@ def _get_int_attr(element: ET.Element, name: str, default: int = 0) -> int:
         return int(value)
     except ValueError:
         return default
+
+
+def _optional_int_attr(element: ET.Element, name: str) -> int | None:
+    """Return *name* as an int, or ``None`` if absent/unparseable.
+
+    Unlike :func:`_get_int_attr`, this distinguishes "attribute omitted"
+    (schema-legal for e.g. ``lineNumberShape``'s attributes, all optional
+    with no declared default) from "present and zero".
+    """
+
+    value = element.get(name)
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def _get_bool_attr(element: ET.Element, name: str, default: bool = False) -> bool:
+    """Return *name* attribute of *element* as a boolean.
+
+    OWPML xs:boolean allows both "0"/"1" and "true"/"false" lexical forms,
+    and this schema mixes them (``wonggojiFormat`` defaults "0",
+    ``hideFirstHeader`` defaults "false") — both are accepted here.
+    """
+
+    value = element.get(name)
+    if value is None:
+        return default
+    return value not in ("0", "false", "False", "FALSE")
+
+
+def _bool_str(value: bool) -> str:
+    """Serialize a boolean as the OWPML ``"true"``/``"false"`` literal."""
+
+    return "true" if value else "false"
+
+
 def _default_sublist_attributes() -> dict[str, str]:
     """Return standard attributes for a ``<hp:subList>`` element.
 

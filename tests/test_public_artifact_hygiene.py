@@ -26,6 +26,11 @@ SPEC.loader.exec_module(hygiene)
 EXPECTED_PACKAGES = {
     "hwpx",
     "hwpx._document",
+    # 6.0: 루트 표면 34 뒤의 11개 도메인 네임스페이스와, add_* 가 반환하는
+    # 도메인 객체 패키지. 둘 다 pyproject 의 정확 목록에 등재돼 있어야
+    # 휠에 들어간다.
+    "hwpx._document.ns",
+    "hwpx.objects",
     "hwpx.data",
     "hwpx.equation",
     "hwpx.form_fit",

@@ -102,11 +102,17 @@ include-package-data = true
 packages = [
     "hwpx",
     "hwpx._document",
+    # 6.0: 루트 표면 34 뒤의 11개 도메인 네임스페이스. 이 줄이 없으면 휠이
+    # `hwpx._document.ns` 없이 나가고 `import hwpx` 자체가 깨진다 — 소스
+    # 트리에서만 통과하는 종류의 결함이라 doc-fence 휠 실행 게이트가 잡았다.
+    "hwpx._document.ns",
     "hwpx.data",
     "hwpx.equation",
     "hwpx.form_fit",
     "hwpx.ingest",
     "hwpx.layout",
+    # 6.0: add_* 가 반환하는 도메인 객체·결과 dataclass (WP-C가 채운다).
+    "hwpx.objects",
     "hwpx.opc",
     "hwpx.oxml",
     "hwpx.plan",
@@ -162,6 +168,21 @@ files = [
     "src/hwpx/tools/mail_merge.py",
     "src/hwpx/tools/redline.py",
     "src/hwpx/_document/_units.py",
+    # 6.0 (062-engine-surface WP-A): 새 모듈은 게이트 안에서 태어난다. 이
+    # 목록이 옛 모듈을 점진 편입하는 것이라고 해서, 새로 만드는 것까지 밖에
+    # 둘 이유는 없다.
+    #
+    # 예외 하나: `_document/_legacy.py`. 본문이 5.8.0 `document.py`의 것을
+    # **그대로** 옮긴 것이고(그 자리에서는 타입 청결했다), 믹스인으로 분리된
+    # 탓에 `self`가 `HwpxDocument`가 아니라 `Self@_LegacyFacade`로 좁혀져
+    # 위임 호출 52건이 전부 같은 한 가지 이유로 붉어진다. `self` 주석을 달면
+    # `inspect.signature`가 바뀌어 shim 락의 시그니처 동일성(이주 창의 핵심
+    # 약속)이 깨진다. 7.0에서 파일째 삭제되므로 편입하지 않는다.
+    "src/hwpx/model.py",
+    "src/hwpx/objects/__init__.py",
+    "src/hwpx/_document/_resolve.py",
+    "src/hwpx/_document/headings.py",
+    "src/hwpx/_document/ns",
     "src/hwpx/_document/fields.py",
     "src/hwpx/_document/layout.py",
     "src/hwpx/_document/media.py",
@@ -223,6 +244,21 @@ include = [
     "src/hwpx/tools/mail_merge.py",
     "src/hwpx/tools/redline.py",
     "src/hwpx/_document/_units.py",
+    # 6.0 (062-engine-surface WP-A): 새 모듈은 게이트 안에서 태어난다. 이
+    # 목록이 옛 모듈을 점진 편입하는 것이라고 해서, 새로 만드는 것까지 밖에
+    # 둘 이유는 없다.
+    #
+    # 예외 하나: `_document/_legacy.py`. 본문이 5.8.0 `document.py`의 것을
+    # **그대로** 옮긴 것이고(그 자리에서는 타입 청결했다), 믹스인으로 분리된
+    # 탓에 `self`가 `HwpxDocument`가 아니라 `Self@_LegacyFacade`로 좁혀져
+    # 위임 호출 52건이 전부 같은 한 가지 이유로 붉어진다. `self` 주석을 달면
+    # `inspect.signature`가 바뀌어 shim 락의 시그니처 동일성(이주 창의 핵심
+    # 약속)이 깨진다. 7.0에서 파일째 삭제되므로 편입하지 않는다.
+    "src/hwpx/model.py",
+    "src/hwpx/objects/__init__.py",
+    "src/hwpx/_document/_resolve.py",
+    "src/hwpx/_document/headings.py",
+    "src/hwpx/_document/ns",
     "src/hwpx/_document/fields.py",
     "src/hwpx/_document/layout.py",
     "src/hwpx/_document/media.py",

@@ -12,8 +12,11 @@ from ._document_primitives import (
     _DEFAULT_PARAGRAPH_ATTRS,
     _HP,
     _append_child,
+    _bool_str,
+    _get_bool_attr,
     _get_int_attr,
     _object_id,
+    _optional_int_attr,
     _paragraph_id,
 )
 from .numbering import SectionStartNumbering
@@ -44,6 +47,41 @@ class PageMargins:
     header: int
     footer: int
     gutter: int
+
+
+@dataclass(slots=True)
+class SectionGrid:
+    """Represents ``<hp:grid>`` — line/character grid alignment."""
+
+    line_grid: int
+    char_grid: int
+    wonggoji_format: bool
+
+
+@dataclass(slots=True)
+class SectionVisibility:
+    """Represents ``<hp:visibility>`` — first-page show/hide flags."""
+
+    hide_first_header: bool
+    hide_first_footer: bool
+    hide_first_master_page: bool
+    hide_first_page_num: bool
+    hide_first_empty_line: bool
+    show_line_number: bool
+    border: str | None
+    fill: str | None
+
+
+@dataclass(slots=True)
+class LineNumberShape:
+    """Represents ``<hp:lineNumberShape>`` — line-numbering display."""
+
+    restart_type: int | None
+    count_by: int | None
+    distance: int | None
+    start_number: int | None
+
+
 class HwpxOxmlSectionProperties:
     """Provides convenient access to ``<hp:secPr>`` configuration."""
 
@@ -240,6 +278,175 @@ class HwpxOxmlSectionProperties:
                 start_num.set(name, safe_value)
                 changed = True
 
+        if changed:
+            self.section.mark_dirty()
+
+    # -- grid / visibility / line numbering ----------------------------------
+    # ``<hp:grid>``, ``<hp:visibility>``, ``<hp:lineNumberShape>`` are direct
+    # ``<hp:secPr>`` children (schema: ``SectionDefinitionType``) that ship on
+    # every generated document (166/166 real-corpus files per the coverage
+    # ledger) but previously had no edit API — only whatever the Skeleton
+    # template happened to carry forward untouched.
+
+    @property
+    def grid(self) -> SectionGrid:
+        element = self.element.find(f"{_HP}grid")
+        if element is None:
+            return SectionGrid(line_grid=0, char_grid=0, wonggoji_format=False)
+        return SectionGrid(
+            line_grid=_get_int_attr(element, "lineGrid", 0),
+            char_grid=_get_int_attr(element, "charGrid", 0),
+            wonggoji_format=_get_bool_attr(element, "wonggojiFormat", False),
+        )
+
+    def set_grid(
+        self,
+        *,
+        line_grid: int | None = None,
+        char_grid: int | None = None,
+        wonggoji_format: bool | None = None,
+    ) -> None:
+        element = self.element.find(f"{_HP}grid")
+        if element is None:
+            element = ET.SubElement(
+                self.element,
+                f"{_HP}grid",
+                {"lineGrid": "0", "charGrid": "0", "wonggojiFormat": "0"},
+            )
+            self.section.mark_dirty()
+
+        changed = False
+        for name, value in (("lineGrid", line_grid), ("charGrid", char_grid)):
+            if value is None:
+                continue
+            safe_value = str(max(value, 0))
+            if element.get(name) != safe_value:
+                element.set(name, safe_value)
+                changed = True
+        if wonggoji_format is not None:
+            value = _bool_str(wonggoji_format)
+            if _get_bool_attr(element, "wonggojiFormat", False) != wonggoji_format:
+                element.set("wonggojiFormat", value)
+                changed = True
+        if changed:
+            self.section.mark_dirty()
+
+    @property
+    def visibility(self) -> SectionVisibility:
+        element = self.element.find(f"{_HP}visibility")
+        if element is None:
+            return SectionVisibility(
+                hide_first_header=False,
+                hide_first_footer=False,
+                hide_first_master_page=False,
+                hide_first_page_num=False,
+                hide_first_empty_line=False,
+                show_line_number=False,
+                border=None,
+                fill=None,
+            )
+        return SectionVisibility(
+            hide_first_header=_get_bool_attr(element, "hideFirstHeader", False),
+            hide_first_footer=_get_bool_attr(element, "hideFirstFooter", False),
+            hide_first_master_page=_get_bool_attr(element, "hideFirstMasterPage", False),
+            hide_first_page_num=_get_bool_attr(element, "hideFirstPageNum", False),
+            hide_first_empty_line=_get_bool_attr(element, "hideFirstEmptyLine", False),
+            show_line_number=_get_bool_attr(element, "showLineNumber", False),
+            border=element.get("border"),
+            fill=element.get("fill"),
+        )
+
+    def set_visibility(
+        self,
+        *,
+        hide_first_header: bool | None = None,
+        hide_first_footer: bool | None = None,
+        hide_first_master_page: bool | None = None,
+        hide_first_page_num: bool | None = None,
+        hide_first_empty_line: bool | None = None,
+        show_line_number: bool | None = None,
+        border: str | None = None,
+        fill: str | None = None,
+    ) -> None:
+        element = self.element.find(f"{_HP}visibility")
+        if element is None:
+            element = ET.SubElement(
+                self.element,
+                f"{_HP}visibility",
+                {
+                    "hideFirstHeader": "false",
+                    "hideFirstFooter": "false",
+                    "hideFirstMasterPage": "false",
+                    "hideFirstPageNum": "false",
+                    "hideFirstEmptyLine": "false",
+                    "showLineNumber": "false",
+                },
+            )
+            self.section.mark_dirty()
+
+        changed = False
+        for name, value in (
+            ("hideFirstHeader", hide_first_header),
+            ("hideFirstFooter", hide_first_footer),
+            ("hideFirstMasterPage", hide_first_master_page),
+            ("hideFirstPageNum", hide_first_page_num),
+            ("hideFirstEmptyLine", hide_first_empty_line),
+            ("showLineNumber", show_line_number),
+        ):
+            if value is None:
+                continue
+            if _get_bool_attr(element, name, False) != value:
+                element.set(name, _bool_str(value))
+                changed = True
+        for name, value in (("border", border), ("fill", fill)):
+            if value is None:
+                continue
+            if element.get(name) != value:
+                element.set(name, value)
+                changed = True
+        if changed:
+            self.section.mark_dirty()
+
+    @property
+    def line_number_shape(self) -> LineNumberShape:
+        element = self.element.find(f"{_HP}lineNumberShape")
+        if element is None:
+            return LineNumberShape(
+                restart_type=None, count_by=None, distance=None, start_number=None
+            )
+        return LineNumberShape(
+            restart_type=_optional_int_attr(element, "restartType"),
+            count_by=_optional_int_attr(element, "countBy"),
+            distance=_optional_int_attr(element, "distance"),
+            start_number=_optional_int_attr(element, "startNumber"),
+        )
+
+    def set_line_number_shape(
+        self,
+        *,
+        restart_type: int | None = None,
+        count_by: int | None = None,
+        distance: int | None = None,
+        start_number: int | None = None,
+    ) -> None:
+        element = self.element.find(f"{_HP}lineNumberShape")
+        if element is None:
+            element = ET.SubElement(self.element, f"{_HP}lineNumberShape", {})
+            self.section.mark_dirty()
+
+        changed = False
+        for name, value in (
+            ("restartType", restart_type),
+            ("countBy", count_by),
+            ("distance", distance),
+            ("startNumber", start_number),
+        ):
+            if value is None:
+                continue
+            safe_value = str(max(value, 0))
+            if element.get(name) != safe_value:
+                element.set(name, safe_value)
+                changed = True
         if changed:
             self.section.mark_dirty()
 

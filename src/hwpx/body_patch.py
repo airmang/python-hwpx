@@ -54,6 +54,8 @@ _P_EDGE_RE = re.compile(r"<hp:p[ >]|</hp:p>")
 _T_CONTENT_RE = re.compile(r"<hp:t(?:\s[^>]*)?>(.*?)</hp:t>", re.S)
 _PARA_ID_RE = re.compile(r'(<hp:p\b[^>]*\bid=")(\d+)(")')
 _TBL_RE = re.compile(r"<hp:tbl\b")
+_SUBLIST_EDGE_RE = re.compile(r"<hp:subList\b[^>]*>|</hp:subList>")
+_SQUEEZE_VALUE_RE = re.compile(r'\blineWrap="(?P<value>SQUEEZE)"')
 
 
 def direct_paragraph_spans(section_xml: str) -> list[tuple[int, int]]:
@@ -84,6 +86,53 @@ def _all_paragraph_spans(section_xml: str) -> list[tuple[int, int]]:
         else:
             stack.append(m.start())
     return spans
+
+
+def _all_sublist_spans(section_xml: str) -> list[tuple[int, int]]:
+    """모든 깊이의 ``<hp:subList>`` 블록 span(표 셀 하나 = subList 하나, 중첩
+    표 포함) — SQUEEZE 보호 대상(문단이 속한 셀) 탐색용."""
+    spans: list[tuple[int, int]] = []
+    stack: list[int] = []
+    for m in _SUBLIST_EDGE_RE.finditer(section_xml):
+        if m.group().startswith("</"):
+            if stack:
+                spans.append((stack.pop(), m.end()))
+        else:
+            stack.append(m.start())
+    return spans
+
+
+def _innermost_span(pos: int, spans: Sequence[tuple[int, int]]) -> tuple[int, int] | None:
+    """*pos*를 담는 가장 좁은(innermost) span — 중첩 표에서도 직속 셀/문단만 고른다."""
+
+    best: tuple[int, int] | None = None
+    for a, b in spans:
+        if a <= pos < b and (best is None or (a >= best[0] and b <= best[1])):
+            best = (a, b)
+    return best
+
+
+def _squeeze_wrap_edit_for_sublist(section_xml: str, sublist_span: tuple[int, int]) -> tuple[int, int, str] | None:
+    """*sublist_span*(그 subList 자신의 여는 태그 ~ 닫는 태그)이
+    ``lineWrap="SQUEEZE"``면 값 부분만 ``"BREAK"``로 바꾸는 최소 편집을 낸다.
+
+    ``table_patch._squeeze_wrap_edit``의 body_patch 판(문자열 기반) — 표 밖
+    ``replace_text``는 원래 대상이 아니었지만, ``<hp:t>`` 검색은 구조적으로
+    셀 내부까지 닿는다(``_all_paragraph_spans``가 깊이 무관인 이유와 동일).
+    긴 채움값이 SQUEEZE로 자간 압축되어 글자가 겹치는 것을 막는다(실측:
+    2026-07-07 AI중점학교 신청서 — 같은 세션에서 lineseg 캐시 문제도 발견됨,
+    위 ``_op_replace_text``의 캐시 제거 로직 참조).
+    """
+
+    start, _end = sublist_span
+    open_tag_end = section_xml.find(">", start)
+    if open_tag_end == -1:
+        return None
+    open_tag = section_xml[start : open_tag_end + 1]
+    match = _SQUEEZE_VALUE_RE.search(open_tag)
+    if match is None:
+        return None
+    return start + match.start("value"), start + match.end("value"), "BREAK"
 
 
 def _preview(text: str, limit: int = 60) -> str:
@@ -156,24 +205,41 @@ def _op_replace_text(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[str, An
     # 클론 문단은 정상). 문단 단위로 묶어 뒤에서부터: 치환 → 캐시 제거 → 재조립.
     para_spans = _all_paragraph_spans(xml)
 
-    def _innermost(pos: int) -> tuple[int, int]:
-        best = None
-        for a, b in para_spans:
-            if a <= pos < b and (best is None or (a >= best[0] and b <= best[1])):
-                best = (a, b)
-        if best is None:
-            raise ValueError("replace_text: match outside any <hp:p> paragraph")
-        return best
-
     by_para: dict[tuple[int, int], list[tuple[int, int]]] = {}
     for hit in hits:
-        by_para.setdefault(_innermost(hit[0]), []).append(hit)
-    for (pa, pb), phits in sorted(by_para.items(), reverse=True):
+        span = _innermost_span(hit[0], para_spans)
+        if span is None:
+            raise ValueError("replace_text: match outside any <hp:p> paragraph")
+        by_para.setdefault(span, []).append(hit)
+
+    edits: list[tuple[int, int, str]] = []
+    for (pa, pb), phits in by_para.items():
         block = xml[pa:pb]
         for a, b in sorted(phits, reverse=True):
             block = block[: a - pa] + esc_replace + block[b - pa:]
         block = _strip_paragraph_layout_cache(block.encode("utf-8")).decode("utf-8")
-        xml = xml[:pa] + block + xml[pb:]
+        edits.append((pa, pb, block))
+
+    # 모듈 취지는 표-밖 본문이지만(위 docstring), <hp:t> 검색은 구조적으로
+    # 표 셀 내부까지 닿는다 — 편집된 문단이 셀(subList) 안이면 그 셀의
+    # lineWrap=SQUEEZE도 함께 BREAK로 바꾼다. 안 바꾸면 실측대로 압축 자간이
+    # 새(더 긴) 텍스트를 겹쳐 그린다 — table_patch.fill_cells의 셀 채움
+    # 경로가 이미 하는 보호(_squeeze_wrap_edit)와 동형이며, 여기서는
+    # replace_text가 우연히 셀까지 닿을 때를 위한 안전망이다. 같은 셀에
+    # 문단이 여럿이어도 셀 편집은 한 번만.
+    sublist_spans = _all_sublist_spans(xml)
+    fixed_sublists: set[tuple[int, int]] = set()
+    for pa, _pb in by_para:
+        sublist_span = _innermost_span(pa, sublist_spans)
+        if sublist_span is None or sublist_span in fixed_sublists:
+            continue
+        fixed_sublists.add(sublist_span)
+        wrap_edit = _squeeze_wrap_edit_for_sublist(xml, sublist_span)
+        if wrap_edit is not None:
+            edits.append(wrap_edit)
+
+    for a, b, replacement in sorted(edits, key=lambda e: e[0], reverse=True):
+        xml = xml[:a] + replacement + xml[b:]
     return xml, {"find": _preview(find), "replace": _preview(replace), "hits": expected}
 
 

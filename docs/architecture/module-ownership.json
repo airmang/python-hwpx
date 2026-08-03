@@ -238,16 +238,106 @@
   ],
   "exceptions": [
     {
-      "path": "src/hwpx/quality/rendering.py",
+      "path": "src/hwpx/_document/_legacy.py",
       "disposition": "core",
-      "approvedBy": "S-096/P2",
-      "rationale": "renderer-neutral Protocol, edit mask and report contracts invert the former quality-to-visual runtime dependency"
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "6.0 이주 창을 여는 위임 shim 79종. 본문은 5.8.0 document.py 의 것을 그대로 옮겼고 소유 모듈도 그대로다. 7.0에서 파일째 삭제된다"
     },
     {
-      "path": "src/hwpx/oxml/color.py",
+      "path": "src/hwpx/_document/_resolve.py",
       "disposition": "core",
-      "approvedBy": "S-049/P3",
-      "rationale": "colour-family classification over HWPX textColor; body_patch matches charPr entries by family and the application-side guidance scanner classifies the same way, so one implementation lives here"
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "section=/paragraph= 인자의 단일 해석 지점. 파사드 경계에서 한 번 해석해 소유 모듈이 항상 객체만 받게 한다"
+    },
+    {
+      "path": "src/hwpx/_document/headings.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "add_heading 의 개요 스타일 해석과 hh:heading 결합. 스타일과 개요 수준이 분리돼 있던 5.x 결함을 닫는다"
+    },
+    {
+      "path": "src/hwpx/_document/ns/__init__.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "11개 도메인 네임스페이스 레지스트리. 경계는 capabilities._CAPABILITY_AREAS 에서 유도했다"
+    },
+    {
+      "path": "src/hwpx/_document/ns/_base.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "네임스페이스 공통 베이스 — 문서 하나를 붙들고 소유 모듈로 위임하는 무상태 표면"
+    },
+    {
+      "path": "src/hwpx/_document/ns/fields.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "doc.fields 도메인 네임스페이스 — 5.x 루트 표면의 해당 축을 위임으로 재노출"
+    },
+    {
+      "path": "src/hwpx/_document/ns/media.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "doc.media 도메인 네임스페이스 — 5.x 루트 표면의 해당 축을 위임으로 재노출"
+    },
+    {
+      "path": "src/hwpx/_document/ns/notes.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "doc.notes 도메인 네임스페이스 — 5.x 루트 표면의 해당 축을 위임으로 재노출"
+    },
+    {
+      "path": "src/hwpx/_document/ns/page.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "doc.page 도메인 네임스페이스 — 5.x 루트 표면의 해당 축을 위임으로 재노출"
+    },
+    {
+      "path": "src/hwpx/_document/ns/parts.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "doc.parts 도메인 네임스페이스 — 5.x 루트 표면의 해당 축을 위임으로 재노출"
+    },
+    {
+      "path": "src/hwpx/_document/ns/refs.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "doc.refs 도메인 네임스페이스 — 5.x 루트 표면의 해당 축을 위임으로 재노출"
+    },
+    {
+      "path": "src/hwpx/_document/ns/shapes.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "doc.shapes 도메인 네임스페이스 — 5.x 루트 표면의 해당 축을 위임으로 재노출"
+    },
+    {
+      "path": "src/hwpx/_document/ns/styles.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "doc.styles 도메인 네임스페이스 — 5.x 루트 표면의 해당 축을 위임으로 재노출"
+    },
+    {
+      "path": "src/hwpx/_document/ns/tables.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "doc.tables 도메인 네임스페이스 — 5.x 루트 표면의 해당 축을 위임으로 재노출"
+    },
+    {
+      "path": "src/hwpx/_document/ns/text.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "doc.text 도메인 네임스페이스 — 5.x 루트 표면의 해당 축을 위임으로 재노출"
+    },
+    {
+      "path": "src/hwpx/_document/ns/tracking.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "doc.tracking 도메인 네임스페이스 — 5.x 루트 표면의 해당 축을 위임으로 재노출"
+    },
+    {
+      "path": "src/hwpx/capabilities.py",
+      "disposition": "core",
+      "approvedBy": "059-agent-contract-surface/P1",
+      "rationale": "machine-readable self-description of the installed core (extras probe via find_spec, live surface census, contract documents and schemas); no env reads, no oracle claims — those stay application-side"
     },
     {
       "approvedBy": "054-equation-authoring/P1",
@@ -256,22 +346,28 @@
       "rationale": "authoring direction of the equation vocabulary: LaTeX -> EqEdit conversion and the hp:equation size heuristic live beside the reader (eqedit.py) as reusable HWPX format behavior; refuses outside the verified token set instead of approximating"
     },
     {
+      "path": "src/hwpx/model.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "stable 메서드가 반환하는 oxml 클래스의 계약 이름(별칭 재수출). 래퍼가 아니라 같은 객체이며, 계약은 tests/data/model_surface.json 의 멤버 allowlist다 — 'oxml은 비공개인데 stable이 반환한다'는 5.x 자기모순의 해소"
+    },
+    {
+      "path": "src/hwpx/objects/__init__.py",
+      "disposition": "core",
+      "approvedBy": "062-engine-surface/WP-A",
+      "rationale": "add_* 가 반환하는 도메인 객체와 결과 dataclass 의 자리. 6.0 반환 규약(생성 객체 1종)의 소유 패키지"
+    },
+    {
+      "path": "src/hwpx/oxml/color.py",
+      "disposition": "core",
+      "approvedBy": "S-049/P3",
+      "rationale": "colour-family classification over HWPX textColor; body_patch matches charPr entries by family and the application-side guidance scanner classifies the same way, so one implementation lives here"
+    },
+    {
       "path": "src/hwpx/plan/__init__.py",
       "disposition": "core",
       "approvedBy": "059-agent-contract-surface/P1",
       "rationale": "declarative composition of the existing byte-splice edit vocabulary with static validation, in-memory chaining and one atomic write; reusable format behavior over core primitives, no workflow/profile/policy"
-    },
-    {
-      "path": "src/hwpx/plan/_model.py",
-      "disposition": "core",
-      "approvedBy": "059-agent-contract-surface/P1",
-      "rationale": "edit-plan/v1 and plan-report/v1 dataclasses beside mutation_report.py, same frozen/to_dict house contract"
-    },
-    {
-      "path": "src/hwpx/plan/_validate.py",
-      "disposition": "core",
-      "approvedBy": "059-agent-contract-surface/P1",
-      "rationale": "static plan validation and the PLAN_OPS single source of truth for the op vocabulary"
     },
     {
       "path": "src/hwpx/plan/_execute.py",
@@ -280,16 +376,28 @@
       "rationale": "all-or-nothing executor: chains existing ops on bytes, owns the single atomic write because the splice family publishes even on gate failure"
     },
     {
+      "path": "src/hwpx/plan/_model.py",
+      "disposition": "core",
+      "approvedBy": "059-agent-contract-surface/P1",
+      "rationale": "edit-plan/v1 and plan-report/v1 dataclasses beside mutation_report.py, same frozen/to_dict house contract"
+    },
+    {
       "path": "src/hwpx/plan/_schema.py",
       "disposition": "core",
       "approvedBy": "059-agent-contract-surface/P1",
       "rationale": "live-built JSON Schemas for the plan contracts, op enum sourced from PLAN_OPS so vocabulary drift is structurally impossible"
     },
     {
-      "path": "src/hwpx/capabilities.py",
+      "path": "src/hwpx/plan/_validate.py",
       "disposition": "core",
       "approvedBy": "059-agent-contract-surface/P1",
-      "rationale": "machine-readable self-description of the installed core (extras probe via find_spec, live surface census, contract documents and schemas); no env reads, no oracle claims — those stay application-side"
+      "rationale": "static plan validation and the PLAN_OPS single source of truth for the op vocabulary"
+    },
+    {
+      "path": "src/hwpx/quality/rendering.py",
+      "disposition": "core",
+      "approvedBy": "S-096/P2",
+      "rationale": "renderer-neutral Protocol, edit mask and report contracts invert the former quality-to-visual runtime dependency"
     }
   ],
   "removed": [
