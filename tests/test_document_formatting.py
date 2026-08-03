@@ -14,6 +14,7 @@ from hwpx.oxml.document import (
     HwpxOxmlSection,
 )
 from hwpx.opc.package import HwpxPackage
+from hwpx.oxml.section_format import SectionGrid
 from hwpx.tools.package_validator import validate_package
 
 
@@ -745,6 +746,81 @@ def test_section_properties_updates_page_settings() -> None:
     assert start_num.get("tbl") == "5"
     assert start_num.get("equation") == "6"
     assert section.dirty is True
+
+
+def test_section_properties_reports_grid_visibility_line_numbering_defaults() -> None:
+    """secPr에 grid/visibility/lineNumberShape가 전혀 없을 때(문서화된
+    스키마 기본값과 같은) 읽기 API가 정직한 기본 dataclass를 돌려준다."""
+
+    section, _ = _build_section_with_properties()
+    properties = section.properties
+
+    grid = properties.grid
+    assert grid.line_grid == 0
+    assert grid.char_grid == 0
+    assert grid.wonggoji_format is False
+
+    visibility = properties.visibility
+    assert visibility.hide_first_header is False
+    assert visibility.border is None
+    assert visibility.fill is None
+
+    shape = properties.line_number_shape
+    assert shape.restart_type is None
+    assert shape.count_by is None
+    assert shape.distance is None
+    assert shape.start_number is None
+
+
+def test_section_properties_updates_grid_visibility_line_numbering() -> None:
+    section, sec_pr = _build_section_with_properties()
+    properties = section.properties
+
+    section.reset_dirty()
+    properties.set_grid(line_grid=283, char_grid=567, wonggoji_format=True)
+    grid_el = sec_pr.find(f"{HP}grid")
+    assert grid_el is not None
+    assert grid_el.get("lineGrid") == "283"
+    assert grid_el.get("charGrid") == "567"
+    assert grid_el.get("wonggojiFormat") == "true"
+    assert section.dirty is True
+    assert properties.grid == SectionGrid(line_grid=283, char_grid=567, wonggoji_format=True)
+
+    section.reset_dirty()
+    properties.set_visibility(
+        hide_first_header=True,
+        hide_first_footer=True,
+        show_line_number=True,
+        border="HIDE_ALL",
+        fill="HIDE_ALL",
+    )
+    visibility_el = sec_pr.find(f"{HP}visibility")
+    assert visibility_el is not None
+    assert visibility_el.get("hideFirstHeader") == "true"
+    assert visibility_el.get("hideFirstFooter") == "true"
+    assert visibility_el.get("showLineNumber") == "true"
+    assert visibility_el.get("border") == "HIDE_ALL"
+    assert visibility_el.get("fill") == "HIDE_ALL"
+    # 손대지 않은 플래그는 기본값(false)에서 그대로다.
+    assert visibility_el.get("hideFirstMasterPage") == "false"
+    assert section.dirty is True
+
+    section.reset_dirty()
+    properties.set_line_number_shape(restart_type=1, count_by=5, distance=850, start_number=1)
+    shape_el = sec_pr.find(f"{HP}lineNumberShape")
+    assert shape_el is not None
+    assert shape_el.get("restartType") == "1"
+    assert shape_el.get("countBy") == "5"
+    assert shape_el.get("distance") == "850"
+    assert shape_el.get("startNumber") == "1"
+    assert section.dirty is True
+
+    # 값을 안 준 두 번째 호출은 기존 값을 보존하고 dirty를 다시 세우지 않는다.
+    section.reset_dirty()
+    properties.set_grid()
+    properties.set_visibility()
+    properties.set_line_number_shape()
+    assert section.dirty is False
 
 
 def test_section_properties_header_footer_helpers() -> None:
