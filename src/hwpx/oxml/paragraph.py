@@ -1147,6 +1147,91 @@ class HwpxOxmlParagraph:
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl1, self)
 
+    def add_check_box(
+        self,
+        caption: str,
+        *,
+        checked: bool = False,
+        name: str | None = None,
+        width: int = 9921,
+        height: int = 1984,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert a check-box form object (체크박스) at the end of this paragraph.
+
+        Emits the real-Hancom ``<hp:checkBtn>`` shape. Unlike the click-here
+        field this is **not** wrapped in ``<hp:ctrl>`` — it is a direct child of
+        the run, beside the ``<hp:t>`` node.
+
+        Hancom refuses to open a document whose ``checkBtn`` lacks
+        ``<hp:formCharPr>`` (measured: the same file with the element present
+        opens, without it Hancom reports a read error and produces nothing), so
+        the child block is always emitted. ``caption`` is drawn next to the box
+        and appears in the rendered text layer; ``checked`` selects the
+        ``CHECKED``/``UNCHECKED`` value that draws ☑ or □.
+
+        Args:
+            caption: Label drawn beside the box.
+            checked: Initial state.
+            name: Object name. Defaults to a generated ``CheckBox<N>``.
+            width: Box + caption width in HWPUNIT.
+            height: Box height in HWPUNIT.
+        """
+
+        run = self._create_run_for_object(char_pr_id_ref=char_pr_id_ref)
+        check = _append_child(run, f"{_HP}checkBtn", {
+            "caption": _sanitize_text(caption),
+            "value": "CHECKED" if checked else "UNCHECKED",
+            "radioGroupName": "",
+            "triState": "0",
+            "backStyle": "OPAQUE",
+            "name": _sanitize_text(name) if name else f"CheckBox{_object_id()}",
+            "foreColor": "#000000",
+            "backColor": "#FFFFFF",
+            "groupName": "",
+            "tabStop": "1",
+            "editable": "1",
+            "tabOrder": "0",
+            "enabled": "1",
+            "borderTypeIDRef": "0",
+            "drawFrame": "1",
+            "printable": "1",
+            "command": "",
+        })
+        _append_child(check, f"{_HP}formCharPr", {
+            "charPrIDRef": str(char_pr_id_ref if char_pr_id_ref is not None else 0),
+            "followContext": "0",
+            "autoSz": "0",
+            "wordWrap": "0",
+        })
+        _append_child(check, f"{_HP}sz", {
+            "width": str(int(width)),
+            "widthRelTo": "ABSOLUTE",
+            "height": str(int(height)),
+            "heightRelTo": "ABSOLUTE",
+            "protect": "0",
+        })
+        _append_child(check, f"{_HP}pos", {
+            "treatAsChar": "1",
+            "affectLSpacing": "0",
+            "flowWithText": "1",
+            "allowOverlap": "1",
+            "holdAnchorAndSO": "0",
+            "vertRelTo": "PARA",
+            "horzRelTo": "COLUMN",
+            "vertAlign": "TOP",
+            "horzAlign": "LEFT",
+            "vertOffset": "0",
+            "horzOffset": "0",
+        })
+        _append_child(check, f"{_HP}outMargin", {
+            "left": "0", "right": "0", "top": "0", "bottom": "0",
+        })
+        _append_child(run, f"{_HP}t", {})
+
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(check, self)
+
     @property
     def bookmarks(self) -> list[str]:
         """Return the names of all bookmarks in this paragraph."""

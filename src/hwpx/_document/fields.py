@@ -386,6 +386,121 @@ def add_form_field(
     )
 
 
+_CHECK_BOX_TAG = f"{_HP}checkBtn"
+
+
+def _iter_check_boxes(doc: "HwpxDocument") -> list[dict[str, Any]]:
+    """Every ``<hp:checkBtn>`` in document order, with its owning element."""
+
+    found: list[dict[str, Any]] = []
+    index = 0
+    for section_index, section in enumerate(doc.sections):
+        for element in section.element.iter(_CHECK_BOX_TAG):
+            found.append(
+                {
+                    "index": index,
+                    "sectionIndex": section_index,
+                    "name": element.get("name", ""),
+                    "caption": element.get("caption", ""),
+                    "checked": element.get("value", "").upper() == "CHECKED",
+                    "value": element.get("value", ""),
+                    "_element": element,
+                    "_section": section,
+                }
+            )
+            index += 1
+    return found
+
+
+def list_check_boxes(doc: "HwpxDocument") -> list[dict[str, Any]]:
+    """Return check-box form objects in document order."""
+
+    return [
+        {key: value for key, value in match.items() if not key.startswith("_")}
+        for match in _iter_check_boxes(doc)
+    ]
+
+
+def add_check_box(
+    doc: "HwpxDocument",
+    caption: str,
+    *,
+    checked: bool = False,
+    name: str | None = None,
+    paragraph: Any | None = None,
+    section: Any | None = None,
+    section_index: int | None = None,
+) -> dict[str, Any]:
+    """Create a check-box form object and return its payload.
+
+    The emitted XML follows the check-box contract measured against real
+    Hancom (specs/060): ``value`` selects ☑/□ and the ``<hp:formCharPr>`` child
+    is mandatory — without it Hancom refuses the document. The created object is
+    re-read through the standard :func:`list_check_boxes` reader, so creation
+    fails loudly if the ordinary consumer would not see it.
+    """
+
+    if not str(caption).strip():
+        raise ValueError("check box caption must be a non-empty string")
+    if paragraph is None:
+        paragraph = doc.add_paragraph(
+            "", section=section, section_index=section_index, include_run=False,
+        )
+
+    control = paragraph.add_check_box(caption, checked=checked, name=name)
+    _clear_form_field_layout_cache(paragraph.element)
+
+    created_name = control.element.get("name", "")
+    for match in _iter_check_boxes(doc):
+        if match["_element"] is control.element:
+            return {
+                key: value for key, value in match.items() if not key.startswith("_")
+            }
+    raise RuntimeError(
+        f"created check box {created_name!r} was not recognized by the standard reader"
+    )
+
+
+def set_check_box(
+    doc: "HwpxDocument",
+    checked: bool,
+    *,
+    index: int | None = None,
+    name: str | None = None,
+) -> dict[str, Any]:
+    """Set a check box's state, selecting it by ``index`` or ``name``.
+
+    Exactly one selector is required — an ambiguous or missing selector is a
+    typed refusal, never a guess.
+    """
+
+    if (index is None) == (name is None):
+        raise ValueError("provide exactly one of index or name")
+    matches = _iter_check_boxes(doc)
+    if index is not None:
+        chosen = [m for m in matches if m["index"] == index]
+        if not chosen:
+            raise ValueError(f"check box index not found: {index}")
+    else:
+        wanted = str(name).strip()
+        chosen = [m for m in matches if m["name"] == wanted]
+        if not chosen:
+            raise ValueError(f"check box name not found: {wanted}")
+        if len(chosen) > 1:
+            raise ValueError(
+                f"check box name is ambiguous ({len(chosen)} matches): {wanted}"
+            )
+    match = chosen[0]
+    match["_element"].set("value", "CHECKED" if checked else "UNCHECKED")
+    match["_section"].mark_dirty()
+    return {
+        key: value
+        for key, value in {**match, "checked": bool(checked),
+                           "value": "CHECKED" if checked else "UNCHECKED"}.items()
+        if not key.startswith("_")
+    }
+
+
 def _select_form_field(
     doc: "HwpxDocument",
     matches: Sequence[dict[str, Any]],

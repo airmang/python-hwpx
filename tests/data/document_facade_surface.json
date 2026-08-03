@@ -23,6 +23,10 @@
   "kind": "method",
   "signature": "(self, chart_xml: 'bytes | str', *, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, size: 'tuple[int, int] | None' = None, treat_as_char: 'bool' = False, char_pr_id_ref: 'str | int | None' = None) -> 'HwpxOxmlInlineObject'"
  },
+ "add_check_box": {
+  "kind": "method",
+  "signature": "(self, caption: 'str', *, checked: 'bool' = False, name: 'str | None' = None, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None) -> 'dict[str, Any]'"
+ },
  "add_control": {
   "kind": "method",
   "signature": "(self, *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, attributes: 'dict[str, str] | None' = None, control_type: 'str | None' = None, para_pr_id_ref: 'str | int | None' = None, style_id_ref: 'str | int | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, **extra_attrs: 'str') -> 'HwpxOxmlInlineObject'"
@@ -198,6 +202,10 @@
   "kind": "method",
   "signature": "(self) -> 'Iterator[HwpxOxmlRun]'"
  },
+ "list_check_boxes": {
+  "kind": "method",
+  "signature": "(self) -> 'list[dict[str, Any]]'"
+ },
  "list_form_fields": {
   "kind": "method",
   "signature": "(self) -> 'list[dict[str, Any]]'"
@@ -297,6 +305,10 @@
  },
  "sections": {
   "kind": "property"
+ },
+ "set_check_box": {
+  "kind": "method",
+  "signature": "(self, checked: 'bool', *, index: 'int | None' = None, name: 'str | None' = None) -> 'dict[str, Any]'"
  },
  "set_columns": {
   "kind": "method",

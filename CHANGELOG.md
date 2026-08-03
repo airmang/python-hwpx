@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+### 추가
+- **체크박스 양식개체 저작**(experimental): `add_check_box(caption, checked=…)`
+  ·`list_check_boxes()`·`set_check_box(checked, index=|name=)`. 방출 형상은
+  실한컴 실측 계약을 따릅니다 — `value="CHECKED"`가 ☑, `UNCHECKED`가 □로
+  그려지고 caption은 렌더 텍스트 레이어에 나옵니다. **`<hp:formCharPr>`는
+  필수 자식**이며(없으면 한컴이 문서를 거부합니다 — 단일 변인 프로브로 확정)
+  `<hp:checkBtn>`은 누름틀과 달리 `<hp:ctrl>` 래핑 없이 run 직속입니다.
+  표 셀 안 배치도 지원하며, 선택자 없는/모호한 `set_check_box`와 빈 caption은
+  typed 거부입니다.
+
+  참고: 한국 정부 공문서 서식은 이 양식개체가 아니라 텍스트 `[ ]`+√ 관례를
+  규정합니다(시행규칙 별표 4 제10호). 이 프리미티브는 실제로 한컴 체크박스를
+  쓰는 서식용입니다.
+
 ## [5.6.0] - 2026-08-03
 
 ### 추가

@@ -1462,6 +1462,68 @@ class HwpxDocument:
             section_index=section_index,
         )
 
+    def list_check_boxes(self) -> list[dict[str, Any]]:
+        """Return check-box form objects (체크박스) in document order.
+
+        Each entry carries ``index``/``name``/``caption``/``checked``.
+        """
+
+        return _fields.list_check_boxes(self)
+
+    def add_check_box(
+        self,
+        caption: str,
+        *,
+        checked: bool = False,
+        name: str | None = None,
+        paragraph: HwpxOxmlParagraph | None = None,
+        section: HwpxOxmlSection | None = None,
+        section_index: int | None = None,
+    ) -> dict[str, Any]:
+        """Create a check-box form object (체크박스). **Experimental contract.**
+
+        Real Hancom draws ☑ when *checked* and □ otherwise, with *caption* beside
+        the box and present in the rendered text layer. The created object is
+        read back through :meth:`list_check_boxes` with no special-casing.
+
+        Note:
+            Korean government forms specify a text ``[ ]`` + √ convention rather
+            than this form object (시행규칙 별표 4 제10호), so this primitive is
+            for forms that genuinely use Hancom check boxes — not for 공문서.
+
+        Args:
+            caption: Label drawn beside the box (non-empty).
+            checked: Initial state.
+            name: Object name; generated when omitted.
+            paragraph: Target paragraph (e.g. a table cell). A new paragraph is
+                appended to *section* when omitted.
+        """
+
+        return _fields.add_check_box(
+            self,
+            caption,
+            checked=checked,
+            name=name,
+            paragraph=paragraph,
+            section=section,
+            section_index=section_index,
+        )
+
+    def set_check_box(
+        self,
+        checked: bool,
+        *,
+        index: int | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Set a check box's state, selecting it by ``index`` or ``name``.
+
+        Exactly one selector is required; an ambiguous name is refused rather
+        than guessed.
+        """
+
+        return _fields.set_check_box(self, checked, index=index, name=name)
+
 
     def add_chart(
         self,
