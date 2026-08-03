@@ -823,6 +823,119 @@ def test_section_properties_updates_grid_visibility_line_numbering() -> None:
     assert section.dirty is False
 
 
+def test_section_properties_reports_page_border_fill_defaults() -> None:
+    section, _ = _build_section_with_properties()
+    assert section.properties.page_border_fill() is None
+    assert section.properties.page_border_fill("EVEN") is None
+
+
+def test_section_properties_updates_page_border_fill() -> None:
+    section, sec_pr = _build_section_with_properties()
+    properties = section.properties
+
+    section.reset_dirty()
+    properties.set_page_border_fill(
+        border_fill_id_ref=3,
+        text_border="PAPER",
+        header_inside=True,
+        fill_area="PAGE",
+        offset_left=500,
+    )
+    both = sec_pr.find(f"{HP}pageBorderFill")
+    assert both is not None
+    assert both.get("type") == "BOTH"
+    assert both.get("borderFillIDRef") == "3"
+    assert both.get("textBorder") == "PAPER"
+    assert both.get("headerInside") == "true"
+    assert both.get("footerInside") is None  # 안 건드린 속성은 안 생김
+    assert both.get("fillArea") == "PAGE"
+    offset = both.find(f"{HP}offset")
+    assert offset is not None
+    assert offset.get("left") == "500"
+    assert offset.get("right") == "1417"  # 기본값 유지
+    assert section.dirty is True
+
+    # page_type이 다르면 별도 엔트리 — BOTH는 안 건드려진다.
+    section.reset_dirty()
+    properties.set_page_border_fill(page_type="EVEN", border_fill_id_ref=7)
+    entries = sec_pr.findall(f"{HP}pageBorderFill")
+    assert len(entries) == 2
+    assert {e.get("type") for e in entries} == {"BOTH", "EVEN"}
+    assert both.get("borderFillIDRef") == "3"  # BOTH 엔트리 무변경
+
+    read_back = properties.page_border_fill("EVEN")
+    assert read_back is not None
+    assert read_back.border_fill_id_ref == "7"
+
+    # no-op 재호출은 dirty를 다시 세우지 않는다.
+    section.reset_dirty()
+    properties.set_page_border_fill(border_fill_id_ref=3)
+    assert section.dirty is False
+
+
+def test_section_properties_footnote_and_endnote_shape_defaults() -> None:
+    section, _ = _build_section_with_properties()
+    assert section.properties.footnote_shape is None
+    assert section.properties.endnote_shape is None
+
+
+def test_section_properties_footnote_partial_updates_do_not_touch_other_blocks() -> None:
+    """부분 갱신 계약의 핵심 게이트: noteLine만 바꿔도 autoNumFormat·noteSpacing·
+    numbering·placement는 (생성 시 기본값에서) 전혀 안 움직여야 한다 — 실문서
+    왕복에서 이 4개 블록의 기존 값을 깨지 않는다는 걸 구조로 증명한다."""
+
+    section, sec_pr = _build_section_with_properties()
+    properties = section.properties
+
+    section.reset_dirty()
+    properties.set_footnote_note_line(color="#FF0000", width="0.2 mm")
+    footnote_el = sec_pr.find(f"{HP}footNotePr")
+    assert footnote_el is not None
+    assert section.dirty is True
+
+    shape = properties.footnote_shape
+    assert shape is not None
+    assert shape.note_line.color == "#FF0000"
+    assert shape.note_line.width == "0.2 mm"
+    # 생성 시 함께 만들어진 나머지 4블록은 스키마 기본값 그대로.
+    assert shape.auto_num_format.type == "DIGIT"
+    assert shape.auto_num_format.suffix_char == ")"
+    assert shape.note_spacing.between_notes == 850
+    assert shape.numbering.type == "CONTINUOUS"
+    assert shape.placement.place == "EACH_COLUMN"  # 각주 기본값(미주와 다름)
+
+    # 다른 블록 하나를 갱신해도 noteLine은 그대로.
+    section.reset_dirty()
+    properties.set_footnote_numbering(type="ON_SECTION", new_num=3)
+    shape2 = properties.footnote_shape
+    assert shape2.numbering.type == "ON_SECTION"
+    assert shape2.numbering.new_num == 3
+    assert shape2.note_line.color == "#FF0000"  # 이전 갱신 보존
+    assert section.dirty is True
+
+    # no-op 재호출(인자 없음)은 dirty를 다시 세우지 않는다.
+    section.reset_dirty()
+    properties.set_footnote_auto_num_format()
+    properties.set_footnote_note_line()
+    properties.set_footnote_note_spacing()
+    properties.set_footnote_numbering()
+    properties.set_footnote_placement()
+    assert section.dirty is False
+
+
+def test_section_properties_endnote_placement_default_differs_from_footnote() -> None:
+    section, _ = _build_section_with_properties()
+    properties = section.properties
+
+    properties.set_endnote_placement(beneath_text=True)
+    shape = properties.endnote_shape
+    assert shape is not None
+    assert shape.placement.place == "END_OF_DOCUMENT"  # 미주 기본값(각주와 다름)
+    assert shape.placement.beneath_text is True
+    # footnote_shape는 여전히 None — endnote 갱신이 footnote를 안 건드림.
+    assert properties.footnote_shape is None
+
+
 def test_section_properties_header_footer_helpers() -> None:
     section, sec_pr = _build_section_with_properties()
     properties = section.properties
@@ -918,6 +1031,58 @@ def test_header_ensure_char_property_creates_blocks_and_ids() -> None:
     second = header.ensure_char_property(modifier=italic_modifier)
     assert second.get("id") == "1"
     assert char_props.get("itemCnt") == "2"
+
+
+def test_header_ensure_style_creates_dedupes_by_name_and_partial_updates() -> None:
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    style_id = header.ensure_style(
+        "내설명", eng_name="MyDesc", para_pr_id_ref=0, char_pr_id_ref=0
+    )
+    styles_el = head_element.find(f"{HH}refList/{HH}styles")
+    assert styles_el is not None
+    assert styles_el.get("itemCnt") == "1"
+    created = styles_el.find(f"{HH}style")
+    assert created is not None
+    assert created.get("id") == style_id
+    assert created.get("type") == "PARA"  # 미지정 시 기본값(스키마 필수, 기본 없음)
+    assert created.get("name") == "내설명"
+    assert created.get("engName") == "MyDesc"
+    assert created.get("paraPrIDRef") == "0"
+    assert created.get("charPrIDRef") == "0"
+
+    # 동명 재호출은 새 항목을 안 만들고 같은 id를 재사용 + 준 값만 갱신한다.
+    reused_id = header.ensure_style("내설명", next_style_id_ref=style_id)
+    assert reused_id == style_id
+    assert styles_el.get("itemCnt") == "1"  # 개수 안 늘어남
+    assert created.get("nextStyleIDRef") == style_id
+    assert created.get("engName") == "MyDesc"  # 안 건드린 값 보존
+
+    # 다른 이름은 다른 id.
+    other_id = header.ensure_style("다른스타일", style_type="CHAR")
+    assert other_id != style_id
+    assert styles_el.get("itemCnt") == "2"
+    other = next(s for s in styles_el.findall(f"{HH}style") if s.get("name") == "다른스타일")
+    assert other.get("type") == "CHAR"
+
+
+def test_header_ensure_style_resolves_by_name_immediately_on_a_real_document() -> None:
+    """``_style_name_id_map``/``style_name_aliases``는 HwpxOxmlDocument 계층
+    책임이라 실제 문서로 검증한다(위 테스트는 헤더 단위 생성/중복제거만)."""
+
+    from hwpx.document import HwpxDocument
+
+    doc = HwpxDocument.new()
+    header = doc.oxml.headers[0]
+
+    style_id = header.ensure_style("내설명", eng_name="MyDesc")
+
+    aliases = doc.oxml.style_name_aliases()
+    assert aliases["내설명"] == (style_id,)
+    assert aliases["MyDesc"] == (style_id,)
+    assert doc.oxml._style_name_id_map()["내설명"] == style_id
+    doc.close()
 
 
 def test_paragraph_add_shape_and_control_updates_attributes() -> None:

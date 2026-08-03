@@ -12,6 +12,8 @@ from ._document_primitives import (
     _DEFAULT_PARAGRAPH_ATTRS,
     _HP,
     _append_child,
+    _apply_optional_attrs,
+    _apply_optional_bool_attrs,
     _bool_str,
     _get_bool_attr,
     _get_int_attr,
@@ -80,6 +82,79 @@ class LineNumberShape:
     count_by: int | None
     distance: int | None
     start_number: int | None
+
+
+@dataclass(slots=True)
+class PageBorderFill:
+    """Represents one ``<hp:pageBorderFill>`` entry (keyed by ``page_type``)."""
+
+    page_type: str
+    border_fill_id_ref: str | None
+    text_border: str | None
+    header_inside: bool
+    footer_inside: bool
+    fill_area: str | None
+    offset_left: int
+    offset_right: int
+    offset_top: int
+    offset_bottom: int
+
+
+@dataclass(slots=True)
+class NoteAutoNumFormat:
+    """Represents a note's ``<hp:autoNumFormat>`` — shared by foot/endnotes."""
+
+    type: str
+    user_char: str | None
+    prefix_char: str | None
+    suffix_char: str
+    supscript: bool
+
+
+@dataclass(slots=True)
+class NoteLine:
+    """Represents a note's ``<hp:noteLine>`` separator — shared by foot/endnotes."""
+
+    length: int
+    type: str
+    width: str
+    color: str
+
+
+@dataclass(slots=True)
+class NoteSpacing:
+    """Represents a note's ``<hp:noteSpacing>`` — shared by foot/endnotes."""
+
+    between_notes: int
+    below_line: int
+    above_line: int
+
+
+@dataclass(slots=True)
+class NoteNumbering:
+    """Represents a note's ``<hp:numbering>`` — CONTINUOUS/ON_SECTION(/ON_PAGE)."""
+
+    type: str
+    new_num: int
+
+
+@dataclass(slots=True)
+class NotePlacement:
+    """Represents a note's ``<hp:placement>`` — footnote/endnote vocab differs."""
+
+    place: str
+    beneath_text: bool
+
+
+@dataclass(slots=True)
+class NoteShape:
+    """Aggregate read view of a ``<hp:footNotePr>``/``<hp:endNotePr>``."""
+
+    auto_num_format: NoteAutoNumFormat
+    note_line: NoteLine
+    note_spacing: NoteSpacing
+    numbering: NoteNumbering
+    placement: NotePlacement
 
 
 class HwpxOxmlSectionProperties:
@@ -449,6 +524,389 @@ class HwpxOxmlSectionProperties:
                 changed = True
         if changed:
             self.section.mark_dirty()
+
+    # -- page border/fill -----------------------------------------------
+    # ``<hp:pageBorderFill>`` can repeat up to 3 times (schema
+    # ``maxOccurs="3"``), keyed by its own ``type`` attribute
+    # (BOTH/EVEN/ODD) — same shape as header/footer page-type variants.
+
+    def _page_border_fill_element(
+        self, page_type: str = "BOTH", *, create: bool = False
+    ) -> ET.Element | None:
+        for element in self.element.findall(f"{_HP}pageBorderFill"):
+            if element.get("type", "BOTH") == page_type:
+                return element
+        if not create:
+            return None
+        element = ET.SubElement(self.element, f"{_HP}pageBorderFill", {"type": page_type})
+        ET.SubElement(
+            element,
+            f"{_HP}offset",
+            {"left": "1417", "right": "1417", "top": "1417", "bottom": "1417"},
+        )
+        self.section.mark_dirty()
+        return element
+
+    def page_border_fill(self, page_type: str = "BOTH") -> PageBorderFill | None:
+        element = self._page_border_fill_element(page_type)
+        if element is None:
+            return None
+        offset = element.find(f"{_HP}offset")
+        return PageBorderFill(
+            page_type=element.get("type", "BOTH"),
+            border_fill_id_ref=element.get("borderFillIDRef"),
+            text_border=element.get("textBorder"),
+            header_inside=_get_bool_attr(element, "headerInside", False),
+            footer_inside=_get_bool_attr(element, "footerInside", False),
+            fill_area=element.get("fillArea"),
+            offset_left=_get_int_attr(offset, "left", 1417) if offset is not None else 1417,
+            offset_right=_get_int_attr(offset, "right", 1417) if offset is not None else 1417,
+            offset_top=_get_int_attr(offset, "top", 1417) if offset is not None else 1417,
+            offset_bottom=_get_int_attr(offset, "bottom", 1417) if offset is not None else 1417,
+        )
+
+    def set_page_border_fill(
+        self,
+        *,
+        page_type: str = "BOTH",
+        border_fill_id_ref: str | int | None = None,
+        text_border: str | None = None,
+        header_inside: bool | None = None,
+        footer_inside: bool | None = None,
+        fill_area: str | None = None,
+        offset_left: int | None = None,
+        offset_right: int | None = None,
+        offset_top: int | None = None,
+        offset_bottom: int | None = None,
+    ) -> None:
+        """Create or update the ``page_type`` (BOTH/EVEN/ODD) page border/fill.
+
+        *page_type* selects which of up to 3 entries to touch — it is not a
+        "leave unchanged" field like the rest. Everything else follows the
+        established convention: omitted (``None``) keyword args leave the
+        existing value alone.
+        """
+
+        element = self._page_border_fill_element(page_type, create=True)
+        if element is None:  # pragma: no cover - defensive branch
+            return
+
+        changed = _apply_optional_attrs(
+            element,
+            (
+                ("borderFillIDRef", None if border_fill_id_ref is None else str(border_fill_id_ref)),
+                ("textBorder", text_border),
+                ("fillArea", fill_area),
+            ),
+        )
+        changed = (
+            _apply_optional_bool_attrs(
+                element,
+                (("headerInside", header_inside), ("footerInside", footer_inside)),
+            )
+            or changed
+        )
+        changed = (
+            self._apply_page_border_fill_offset(
+                element, offset_left, offset_right, offset_top, offset_bottom
+            )
+            or changed
+        )
+
+        if changed:
+            self.section.mark_dirty()
+
+    def _apply_page_border_fill_offset(
+        self,
+        element: ET.Element,
+        left: int | None,
+        right: int | None,
+        top: int | None,
+        bottom: int | None,
+    ) -> bool:
+        offset_values = (("left", left), ("right", right), ("top", top), ("bottom", bottom))
+        if not any(value is not None for _name, value in offset_values):
+            return False
+
+        offset = element.find(f"{_HP}offset")
+        created = offset is None
+        if offset is None:
+            offset = ET.SubElement(
+                element,
+                f"{_HP}offset",
+                {"left": "1417", "right": "1417", "top": "1417", "bottom": "1417"},
+            )
+        safe_pairs = tuple(
+            (name, None if value is None else str(max(value, 0))) for name, value in offset_values
+        )
+        return _apply_optional_attrs(offset, safe_pairs) or created
+
+    # -- footnote / endnote shape --------------------------------------
+    # ``<hp:footNotePr>``/``<hp:endNotePr>`` share ``NoteShapeType``'s three
+    # mandatory children (autoNumFormat/noteLine/noteSpacing) and each adds
+    # its own numbering/placement vocabulary. Every setter here updates
+    # exactly one nested block — the other four are never touched, so a
+    # caller that only wants to change e.g. the separator line never
+    # perturbs autoNumFormat/numbering/etc. on a real document (required for
+    # safe round-tripping of Hancom-authored notes).
+
+    _NOTE_DEFAULTS: dict[str, dict[str, dict[str, str]]] = {
+        "footNotePr": {
+            "numbering": {"type": "CONTINUOUS", "newNum": "1"},
+            "placement": {"place": "EACH_COLUMN", "beneathText": "false"},
+        },
+        "endNotePr": {
+            "numbering": {"type": "CONTINUOUS", "newNum": "1"},
+            "placement": {"place": "END_OF_DOCUMENT", "beneathText": "false"},
+        },
+    }
+
+    def _note_pr_element(self, tag: str, *, create: bool = False) -> ET.Element | None:
+        element = self.element.find(f"{_HP}{tag}")
+        if element is not None or not create:
+            return element
+        # NoteShapeType의 5개 자식 전부 minOccurs 생략(=1, 필수) — 하나라도
+        # 빠지면 스키마 위반이라 생성 시 다섯 개를 한 번에 원자적으로 만든다.
+        element = ET.SubElement(self.element, f"{_HP}{tag}", {})
+        ET.SubElement(
+            element, f"{_HP}autoNumFormat", {"type": "DIGIT", "suffixChar": ")", "supscript": "false"}
+        )
+        ET.SubElement(
+            element,
+            f"{_HP}noteLine",
+            {"length": "0", "type": "SOLID", "width": "0.12 mm", "color": "#000000"},
+        )
+        ET.SubElement(
+            element,
+            f"{_HP}noteSpacing",
+            {"betweenNotes": "850", "belowLine": "567", "aboveLine": "567"},
+        )
+        ET.SubElement(element, f"{_HP}numbering", dict(self._NOTE_DEFAULTS[tag]["numbering"]))
+        ET.SubElement(element, f"{_HP}placement", dict(self._NOTE_DEFAULTS[tag]["placement"]))
+        self.section.mark_dirty()
+        return element
+
+    def _note_shape(self, tag: str) -> NoteShape | None:
+        parent = self._note_pr_element(tag)
+        if parent is None:
+            return None
+        auto_num = parent.find(f"{_HP}autoNumFormat")
+        note_line = parent.find(f"{_HP}noteLine")
+        note_spacing = parent.find(f"{_HP}noteSpacing")
+        numbering = parent.find(f"{_HP}numbering")
+        placement = parent.find(f"{_HP}placement")
+        return NoteShape(
+            auto_num_format=NoteAutoNumFormat(
+                type=(auto_num.get("type", "DIGIT") if auto_num is not None else "DIGIT"),
+                user_char=(auto_num.get("userChar") if auto_num is not None else None),
+                prefix_char=(auto_num.get("prefixChar") if auto_num is not None else None),
+                suffix_char=(auto_num.get("suffixChar", ")") if auto_num is not None else ")"),
+                supscript=(
+                    _get_bool_attr(auto_num, "supscript", False) if auto_num is not None else False
+                ),
+            ),
+            note_line=NoteLine(
+                length=(_get_int_attr(note_line, "length", 0) if note_line is not None else 0),
+                type=(note_line.get("type", "SOLID") if note_line is not None else "SOLID"),
+                width=(note_line.get("width", "0.12 mm") if note_line is not None else "0.12 mm"),
+                color=(note_line.get("color", "#000000") if note_line is not None else "#000000"),
+            ),
+            note_spacing=NoteSpacing(
+                between_notes=(
+                    _get_int_attr(note_spacing, "betweenNotes", 850) if note_spacing is not None else 850
+                ),
+                below_line=(
+                    _get_int_attr(note_spacing, "belowLine", 567) if note_spacing is not None else 567
+                ),
+                above_line=(
+                    _get_int_attr(note_spacing, "aboveLine", 567) if note_spacing is not None else 567
+                ),
+            ),
+            numbering=NoteNumbering(
+                type=(numbering.get("type", "CONTINUOUS") if numbering is not None else "CONTINUOUS"),
+                new_num=(_get_int_attr(numbering, "newNum", 1) if numbering is not None else 1),
+            ),
+            placement=NotePlacement(
+                place=(
+                    placement.get("place", self._NOTE_DEFAULTS[tag]["placement"]["place"])
+                    if placement is not None
+                    else self._NOTE_DEFAULTS[tag]["placement"]["place"]
+                ),
+                beneath_text=(
+                    _get_bool_attr(placement, "beneathText", False) if placement is not None else False
+                ),
+            ),
+        )
+
+    def _set_note_auto_num_format(
+        self,
+        tag: str,
+        *,
+        type: str | None = None,
+        user_char: str | None = None,
+        prefix_char: str | None = None,
+        suffix_char: str | None = None,
+        supscript: bool | None = None,
+    ) -> None:
+        parent = self._note_pr_element(tag, create=True)
+        element = parent.find(f"{_HP}autoNumFormat") if parent is not None else None
+        if element is None:  # pragma: no cover - defensive branch, schema-mandatory
+            return
+        changed = False
+        for name, value in (
+            ("type", type),
+            ("userChar", user_char),
+            ("prefixChar", prefix_char),
+            ("suffixChar", suffix_char),
+        ):
+            if value is not None and element.get(name) != value:
+                element.set(name, value)
+                changed = True
+        if supscript is not None and _get_bool_attr(element, "supscript", False) != supscript:
+            element.set("supscript", _bool_str(supscript))
+            changed = True
+        if changed:
+            self.section.mark_dirty()
+
+    def _set_note_line(
+        self,
+        tag: str,
+        *,
+        length: int | None = None,
+        type: str | None = None,
+        width: str | None = None,
+        color: str | None = None,
+    ) -> None:
+        parent = self._note_pr_element(tag, create=True)
+        element = parent.find(f"{_HP}noteLine") if parent is not None else None
+        if element is None:  # pragma: no cover - defensive branch, schema-mandatory
+            return
+        changed = False
+        if length is not None:
+            value = str(length)
+            if element.get("length") != value:
+                element.set("length", value)
+                changed = True
+        if type is not None and element.get("type") != type:
+            element.set("type", type)
+            changed = True
+        if width is not None and element.get("width") != width:
+            element.set("width", width)
+            changed = True
+        if color is not None and element.get("color") != color:
+            element.set("color", color)
+            changed = True
+        if changed:
+            self.section.mark_dirty()
+
+    def _set_note_spacing(
+        self,
+        tag: str,
+        *,
+        between_notes: int | None = None,
+        below_line: int | None = None,
+        above_line: int | None = None,
+    ) -> None:
+        parent = self._note_pr_element(tag, create=True)
+        element = parent.find(f"{_HP}noteSpacing") if parent is not None else None
+        if element is None:  # pragma: no cover - defensive branch, schema-mandatory
+            return
+        changed = False
+        for name, value in (
+            ("betweenNotes", between_notes),
+            ("belowLine", below_line),
+            ("aboveLine", above_line),
+        ):
+            if value is None:
+                continue
+            safe_value = str(max(value, 0))
+            if element.get(name) != safe_value:
+                element.set(name, safe_value)
+                changed = True
+        if changed:
+            self.section.mark_dirty()
+
+    def _set_note_numbering(
+        self,
+        tag: str,
+        *,
+        type: str | None = None,
+        new_num: int | None = None,
+    ) -> None:
+        parent = self._note_pr_element(tag, create=True)
+        element = parent.find(f"{_HP}numbering") if parent is not None else None
+        if element is None:  # pragma: no cover - defensive branch, schema-mandatory
+            return
+        changed = False
+        if type is not None and element.get("type") != type:
+            element.set("type", type)
+            changed = True
+        if new_num is not None:
+            value = str(max(new_num, 1))
+            if element.get("newNum") != value:
+                element.set("newNum", value)
+                changed = True
+        if changed:
+            self.section.mark_dirty()
+
+    def _set_note_placement(
+        self,
+        tag: str,
+        *,
+        place: str | None = None,
+        beneath_text: bool | None = None,
+    ) -> None:
+        parent = self._note_pr_element(tag, create=True)
+        element = parent.find(f"{_HP}placement") if parent is not None else None
+        if element is None:  # pragma: no cover - defensive branch, schema-mandatory
+            return
+        changed = False
+        if place is not None and element.get("place") != place:
+            element.set("place", place)
+            changed = True
+        if beneath_text is not None and _get_bool_attr(element, "beneathText", False) != beneath_text:
+            element.set("beneathText", _bool_str(beneath_text))
+            changed = True
+        if changed:
+            self.section.mark_dirty()
+
+    @property
+    def footnote_shape(self) -> NoteShape | None:
+        return self._note_shape("footNotePr")
+
+    def set_footnote_auto_num_format(self, **kwargs: Any) -> None:
+        self._set_note_auto_num_format("footNotePr", **kwargs)
+
+    def set_footnote_note_line(self, **kwargs: Any) -> None:
+        self._set_note_line("footNotePr", **kwargs)
+
+    def set_footnote_note_spacing(self, **kwargs: Any) -> None:
+        self._set_note_spacing("footNotePr", **kwargs)
+
+    def set_footnote_numbering(self, **kwargs: Any) -> None:
+        self._set_note_numbering("footNotePr", **kwargs)
+
+    def set_footnote_placement(self, **kwargs: Any) -> None:
+        self._set_note_placement("footNotePr", **kwargs)
+
+    @property
+    def endnote_shape(self) -> NoteShape | None:
+        return self._note_shape("endNotePr")
+
+    def set_endnote_auto_num_format(self, **kwargs: Any) -> None:
+        self._set_note_auto_num_format("endNotePr", **kwargs)
+
+    def set_endnote_note_line(self, **kwargs: Any) -> None:
+        self._set_note_line("endNotePr", **kwargs)
+
+    def set_endnote_note_spacing(self, **kwargs: Any) -> None:
+        self._set_note_spacing("endNotePr", **kwargs)
+
+    def set_endnote_numbering(self, **kwargs: Any) -> None:
+        self._set_note_numbering("endNotePr", **kwargs)
+
+    def set_endnote_placement(self, **kwargs: Any) -> None:
+        self._set_note_placement("endNotePr", **kwargs)
 
     # -- header/footer helpers ---------------------------------------------
     def _apply_id_attributes(self, tag: str) -> tuple[str, ...]:
