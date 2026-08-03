@@ -300,7 +300,8 @@ def set_page_setup(
     width = _mm_to_hwp_units(float(target_width_mm)) if target_width_mm is not None else None
     height = _mm_to_hwp_units(float(target_height_mm)) if target_height_mm is not None else None
     if width is not None or height is not None or normalized_orientation is not None:
-        doc.set_page_size(
+        set_page_size(
+            doc,
             width=width,
             height=height,
             orientation=normalized_orientation,
@@ -324,7 +325,8 @@ def set_page_setup(
         if value is not None
     }
     if hwp_margins:
-        doc.set_page_margins(
+        set_page_margins(
+            doc,
             section=section,
             section_index=section_index,
             **hwp_margins,
@@ -336,7 +338,8 @@ def set_page_setup(
         if col_count < 1:
             raise ValueError("columns must be 1 or greater")
         gap = _mm_to_hwp_units(float(column_gap_mm or 0))
-        doc.set_columns(
+        set_columns(
+            doc,
             col_count=col_count,
             same_gap=gap,
             section=section,
@@ -436,7 +439,10 @@ def add_hyperlink(
     Returns the ``<hp:ctrl>`` wrapper containing the ``<hp:fieldBegin>``.
     """
     if char_pr_id_ref is None:
-        char_pr_id_ref = doc.ensure_run_style(
+        # 소유 트리에 직접 요청한다. `doc.ensure_run_style` 은 6.0에서 shim 이라
+        # 이 경로를 쓰면 하이퍼링크를 넣은 사용자가 부른 적 없는 이름의
+        # DeprecationWarning 을 받는다.
+        char_pr_id_ref = doc.oxml.ensure_run_style(
             underline=True,
             color="#0000FF",
             underline_color="#0000FF",
@@ -587,13 +593,15 @@ def set_header_footer(
         raise ValueError("use either text or content, not both")
     if content is not None:
         if normalized == "header":
-            return doc.set_header_content(
+            return set_header_content(
+                doc,
                 content,
                 section=section,
                 section_index=section_index,
                 page_type=page_type,
             )
-        return doc.set_footer_content(
+        return set_footer_content(
+            doc,
             content,
             section=section,
             section_index=section_index,
@@ -602,13 +610,15 @@ def set_header_footer(
 
     value = "" if text is None else text
     if normalized == "header":
-        return doc.set_header_text(
+        return set_header_text(
+            doc,
             value,
             section=section,
             section_index=section_index,
             page_type=page_type,
         )
-    return doc.set_footer_text(
+    return set_footer_text(
+        doc,
         value,
         section=section,
         section_index=section_index,
@@ -646,7 +656,8 @@ def set_page_number(
     if suffix:
         children.append({"type": "run", "text": suffix})
 
-    return doc.set_header_footer(
+    return set_header_footer(
+        doc,
         kind=target,
         content=[{"align": align, "children": children}],
         section=section,
