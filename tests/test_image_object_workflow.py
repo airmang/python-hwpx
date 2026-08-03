@@ -55,7 +55,7 @@ def test_add_picture_updates_section_manifest_and_bindata_then_validates(tmp_pat
     binary_ref = _first_picture_image(document).get("binaryItemIDRef")
     assert binary_ref == "BIN0001"
     assert document.package.has_part(f"BinData/{binary_ref}.png")
-    assert any(item.get("BinData") == f"{binary_ref}.png" for item in document.list_images())
+    assert any(item.href == f"BinData/{binary_ref}.png" for item in document.list_images())
     assert any(
         item.get("id") == binary_ref
         and item.get("href") == f"BinData/{binary_ref}.png"
@@ -94,9 +94,9 @@ def test_replace_picture_preserves_geometry_and_replaces_only_asset_graph(tmp_pa
 
     new_picture = _first_picture(document)
     new_ref = _first_picture_image(document).get("binaryItemIDRef")
-    assert result["old_binaryItemIDRef"] == old_ref
-    assert result["new_binaryItemIDRef"] == new_ref
-    assert result["removedOldImage"] is True
+    assert result.previous_item_id == old_ref
+    assert result.item_id == new_ref
+    assert result.removed_orphans == (old_ref,)
     assert new_ref != old_ref
     assert _geometry_snapshot(new_picture) == before_geometry
     assert not document.package.has_part(f"BinData/{old_ref}.png")

@@ -179,7 +179,7 @@ def test_attach_memo_field_inserts_control_runs() -> None:
 
     memo = document.add_memo("Follow-up", memo_shape_id_ref="5", memo_id="release-1", char_pr_id_ref="10")
 
-    field_id = document.attach_memo_field(
+    returned = document.attach_memo_field(
         paragraph,
         memo,
         field_id="field-01",
@@ -189,7 +189,11 @@ def test_attach_memo_field_inserts_control_runs() -> None:
         char_pr_id_ref="10",
     )
 
-    assert field_id == "field-01"
+    # attach_memo_field returns the memo itself (6.0 return contract, design
+    # §2.6) — .field_id resolves live by searching for the anchor field
+    # (oxml/memo.py), replacing the str it returned directly in 5.x.
+    assert returned is memo
+    assert memo.field_id == "field-01"
     runs = paragraph.element.findall(f"{HP}run")
     assert len(runs) >= 2
 
@@ -219,7 +223,10 @@ def test_attach_memo_field_inserts_control_runs() -> None:
 def test_add_memo_with_anchor_creates_paragraph_when_missing() -> None:
     document, section, _ = _build_document()
 
-    memo, paragraph, field_id = document.add_memo_with_anchor(
+    # add_memo_with_anchor returns the single anchored Memo (6.0 return
+    # contract, design §2.6) — .paragraph/.field_id (oxml/memo.py) replace
+    # the second/third elements of the 3-tuple 5.x returned.
+    memo = document.add_memo_with_anchor(
         "Anchored memo",
         section=section,
         memo_shape_id_ref="5",
@@ -231,8 +238,10 @@ def test_add_memo_with_anchor_creates_paragraph_when_missing() -> None:
     )
 
     assert memo.text == "Anchored memo"
+    paragraph = memo.paragraph
+    assert paragraph is not None
     assert paragraph.text.endswith("Anchor target")
-    assert field_id == "field-02"
+    assert memo.field_id == "field-02"
 
     runs = paragraph.element.findall(f"{HP}run")
     assert runs
@@ -249,15 +258,18 @@ def test_add_memo_with_anchor_roundtrips_on_real_document() -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("Quick start anchor")
 
-    memo, anchored, field_id = document.add_memo_with_anchor(
+    memo = document.add_memo_with_anchor(
         "Quick start memo",
         paragraph=paragraph,
         memo_shape_id_ref="0",
     )
 
-    assert anchored is paragraph
+    # Paragraph wrappers are rebuilt on every access, so identity comparison
+    # is on the underlying element (test_engine_surface_6_0.py convention).
+    assert memo.paragraph is not None
+    assert memo.paragraph.element is paragraph.element
     assert memo.text == "Quick start memo"
-    assert field_id
+    assert memo.field_id
 
     reopened = HwpxDocument.open(document.to_bytes())
     assert any(item.text == "Quick start memo" for item in reopened.memos)

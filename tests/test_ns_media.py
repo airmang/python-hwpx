@@ -22,13 +22,14 @@ def document() -> HwpxDocument:
 
 
 def test_add_image_registers_a_manifest_item(document: HwpxDocument) -> None:
-    item_id = document.media.add_image(PNG, "png")
+    item = document.media.add_image(PNG, "png")
+    item_id = str(item)  # 6.0: BinaryItem, str()이 매니페스트 id (이주 완충)
     assert item_id.startswith("BIN")
     # 목록의 ``id`` 는 매니페스트 순번이고, 항목 파일명이 BinData 다.
     listed = document.media.images
     assert len(listed) == 1
-    assert listed[0]["BinData"] == f"{item_id}.png"
-    assert listed[0]["Format"] == "png"
+    assert listed[0].href.endswith(f"{item_id}.png")
+    assert listed[0].format == "png"
 
 
 def test_remove_image_reports_whether_it_removed_anything(document: HwpxDocument) -> None:

@@ -85,7 +85,7 @@ def _format_paragraph(_: Path) -> None:
             line_spacing_percent=160,
             spacing_after_pt=6,
         )
-        assert result["formatted"] == 1
+        assert result.formatted == 1
 
 
 def _format_list(_: Path) -> None:
@@ -97,7 +97,7 @@ def _format_list(_: Path) -> None:
             kind="bullet",
             bullet_char="•",
         )
-        assert result["formatted"] == 1
+        assert result.formatted == 1
 
 
 def _add_table(_: Path) -> None:
@@ -151,8 +151,8 @@ def _set_page_setup(_: Path) -> None:
             margin_left_mm=20,
             margin_right_mm=20,
         )
-        assert result["pageSize"]["width"] > result["pageSize"]["height"]
-        assert result["margins"]["left"] == result["margins"]["right"]
+        assert result.page_size.width_mm > result.page_size.height_mm
+        assert result.margins.left == result.margins.right
 
 
 def _set_header_footer(_: Path) -> None:

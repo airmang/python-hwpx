@@ -33,7 +33,7 @@ def test_set_paragraph_format_applies_keep_together():
         keep_with_next=True,
         keep_lines=True,
     )
-    assert result["formatted"] == 1
+    assert result.formatted == 1
 
     para = document.sections[0].paragraphs[0]
     new_id = para.para_pr_id_ref

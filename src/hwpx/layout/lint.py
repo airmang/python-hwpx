@@ -146,11 +146,16 @@ def _lint_required_fields(
         return
     wanted = {str(f) for f in required_fields}
     for field in fields:
-        ids = {str(field.get("field_id") or ""), str(field.get("name") or "")}
+        # 6.0: list_form_fields returns FormField objects, not dicts. The old
+        # .get() calls raised AttributeError here, and the defensive except in
+        # lint_layout swallowed it into a silent "skipped" verdict - exactly
+        # the launder-a-crash-into-a-pass shape the save-pipeline repair
+        # removed. Attribute access fails loudly if the shape drifts again.
+        ids = {str(field.field_id or ""), str(field.name or "")}
         if not (ids & wanted):
             continue
-        if not str(field.get("current_value") or "").strip():
-            label = field.get("name") or field.get("field_id")
+        if not str(field.value or "").strip():
+            label = field.name or field.field_id
             report.add(
                 LayoutFinding(
                     code=REQUIRED_FIELD_MISSING,

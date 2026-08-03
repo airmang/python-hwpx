@@ -77,14 +77,18 @@ def test_tracked_insert_delete_replace_roundtrip_links_header_and_body() -> None
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("alpha beta gamma", char_pr_id_ref="0")
 
-    insert_id = document.add_tracked_insert(paragraph, " INSERT", date=DATE)
-    delete_id = document.add_tracked_delete(paragraph, match="beta", date=DATE)
-    replace_delete_id, replace_insert_id = document.add_tracked_replace(
+    # .change_id unwraps the 6.0 TrackedChange/TrackedReplacement objects
+    # (design §2.6) right at the call site, so the rest of this test's
+    # int-keyed logic is unchanged.
+    insert_id = document.add_tracked_insert(paragraph, " INSERT", date=DATE).change_id
+    delete_id = document.add_tracked_delete(paragraph, match="beta", date=DATE).change_id
+    replacement = document.add_tracked_replace(
         paragraph,
         "gamma",
         " delta",
         date=DATE,
     )
+    replace_delete_id, replace_insert_id = replacement.delete.change_id, replacement.insert.change_id
 
     reopened = HwpxDocument.open(document.to_bytes())
 
@@ -137,12 +141,13 @@ def test_tracked_replace_keeps_new_text_at_the_deleted_position() -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("before old after", char_pr_id_ref="0")
 
-    delete_id, insert_id = document.add_tracked_replace(
+    replacement = document.add_tracked_replace(
         paragraph,
         "old",
         "new",
         date=DATE,
     )
+    delete_id, insert_id = replacement.delete.change_id, replacement.insert.change_id
     reopened = HwpxDocument.open(document.to_bytes())
     relevant = [
         (mark.name, text)
@@ -174,14 +179,15 @@ def test_tracked_replace_preserves_target_run_style_and_later_insert_order() -> 
         " prior",
         date=DATE,
         char_pr_id_ref=later_style,
-    )
+    ).change_id
 
-    delete_id, replacement_insert_id = document.add_tracked_replace(
+    replacement = document.add_tracked_replace(
         paragraph,
         "old",
         "new",
         date=DATE,
     )
+    delete_id, replacement_insert_id = replacement.delete.change_id, replacement.insert.change_id
     reopened = HwpxDocument.open(document.to_bytes())
     reopened_paragraph = reopened.paragraphs[-1]
 
@@ -214,7 +220,7 @@ def test_tracked_replace_preserves_target_run_style_and_later_insert_order() -> 
 def test_tracked_replace_preflights_cross_inline_match_without_orphan_headers() -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("before ", char_pr_id_ref="0")
-    insert_id = document.add_tracked_insert(paragraph, "middle", date=DATE)
+    insert_id = document.add_tracked_insert(paragraph, "middle", date=DATE).change_id
     existing_change_ids = set(document.track_changes)
 
     with pytest.raises(
