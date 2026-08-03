@@ -189,4 +189,10 @@ def test_capabilities_validates_against_own_schema_structure() -> None:
     assert caps["package"]["name"] == props["package"]["properties"]["name"]["const"]
     assert caps["schemaVersion"] == props["schemaVersion"]["const"]
     for feature in caps["features"]:
-        assert set(feature) == {"area", "matrixRow", "entryPoints"}
+        # 6.0: namespace 추가 — 능력 영역이 사는 6.0 표면 자리.
+        assert set(feature) == {"area", "matrixRow", "namespace", "entryPoints"}
+
+    # 6.0: 표면 모양 자기서술. 이동을 제거로 보이지 않게 shim 을 따로 센다.
+    shape = caps["surfaceShape"]
+    assert set(shape) == set(props["surfaceShape"]["required"])
+    assert shape["root"] > 0 and shape["legacyShimCount"] >= 0

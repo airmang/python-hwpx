@@ -41,6 +41,37 @@
 | 누름틀(form field) 생성 | Parse·Edit·Create(experimental) | `list_form_fields`·`fill_form_field`로 조회·서식 보존 채움에 더해, `add_form_field`(5.1.0+)가 실한컴 CLICKHERE 계약 그대로 신규 누름틀을 생성한다(표 셀 배치 포함). 만든 필드는 기존 list/fill과 실제 한컴이 특수분기 없이 소비 |
 | 체크박스 양식개체 | Create·Render-verified | `add_check_box`·`list_check_boxes`·`set_check_box`(5.7.0+). 실한컴 실측 계약: `value` CHECKED=☑ / UNCHECKED=□, `<hp:formCharPr>`는 **필수 자식**(없으면 한컴이 문서를 거부하는데 우리 open-safety·ID 무결성은 통과한다 — 실한컴이 유일한 판정자다). 라디오(`hp:radioBtn`)·명령단추(`hp:btn`)는 읽기·보존만 하고 저작 API 없음 |
 
+## 6.0 표면 위치
+
+능력 영역이 `HwpxDocument` 의 어느 자리에 사는지. 이 표는 능력 레지스트리
+(`hwpx.capabilities._CAPABILITY_AREAS`)의 `namespace` 필드에서 생성되며,
+`python -m hwpx.capabilities --verify` 가 그 자리가 실재하는지 검사한다.
+
+| 능력 영역 | 6.0 위치 |
+|---|---|
+| 문단·표 저작/편집 | 루트 — `doc.add_paragraph` · `doc.add_heading` · `doc.add_section` |
+| 표 구조 변경(행·열·표 삭제/삽입, 열 오토핏) | `doc.tables` |
+| 표 생성(병합·중첩 포함) | 루트 — `doc.add_table` |
+| 양식 채움(byte-splice) | `doc.tables` |
+| 편집 계획 실행(edit plan) | 모듈 — `hwpx.plan` |
+| 도형 저작(선·사각형·타원) | `doc.shapes` |
+| 저수준 도형·컨트롤 탈출구 | `doc.shapes` |
+| arc·polygon·curve·connectLine | `doc.shapes` |
+| 그림 삽입/치환 | 루트 `doc.add_picture` + `doc.media` (이진 항목) |
+| 차트 | `doc.shapes` |
+| 수식 | `doc.shapes` |
+| 변경추적(redline) | `doc.tracking` |
+| 메모(코멘트) | `doc.notes` |
+| 각주/미주 | `doc.notes` |
+| 네이티브 목차(TOC)/상호참조 | `doc.refs` |
+| 암호화 HWPX | 미지원 |
+| HWP 5.x 바이너리 | 미지원 |
+| 누름틀(form field) 생성 | `doc.fields` |
+| 체크박스 양식개체 | `doc.fields` |
+
+5.x 의 옛 이름은 6.x 동안 계속 답하되 `DeprecationWarning` 을 내고 7.0 에서
+사라진다 — 대응표는 `docs/migration-6.0.md`.
+
 ## 상태 판정 근거 요약
 
 - **Render-verified**는 실제 한컴 렌더 오라클(Windows COM `SaveAs("PDF")` 또는 Mac GUI

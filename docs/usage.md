@@ -6,6 +6,11 @@ python-hwpx는 HWPX 컨테이너를 검증하고 편집하기 위한 여러 계�
 > current manual의 모든 Python 블록을 동결합니다. **독립 실행 예제** 표시가
 > 없는 블록은 기존 입력 파일이나 앞 문맥이 필요한 조각입니다.
 
+> **예제 관례** — 아래 예제는 대부분 `HwpxDocument.new()` 로 시작한다. 붙여넣어
+> 그대로 실행되게 하기 위해서다(문서 예제는 CI 가 설치된 휠에서 실행한다).
+> 자기 파일에 쓰려면 그 줄을 `HwpxDocument.open("your-document.hwpx")` 로 바꾸면
+> 된다 — 나머지는 같다.
+
 ## CLI 워크플로
 
 라이브러리 API 외에도 템플릿 보존형 작업 흐름을 위한 CLI를 제공합니다.
@@ -41,10 +46,12 @@ hwpx-page-guard --reference sample.hwpx --output edited.hwpx
 
 ### 예제 1: 문단 수 세기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 print("paragraphs:", len(document.paragraphs))
 ```
 
@@ -63,42 +70,50 @@ document.save_to_path("new-document.hwpx")
 
 ### 예제 3: 특정 단어 일괄 교체
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 document.replace_text_in_runs("TODO", "DONE", text_color="#FF0000")
 document.save_to_path("my-document-updated.hwpx")
 ```
 
 ### 예제 4: 문서 전체 메모 확인
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 for memo in document.memos:
     print(memo.id, memo.text)
 ```
 
 ### 예제 5: 매니페스트에서 섹션 경로 추출
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 print(document.package.section_paths())
 ```
 
 
 ### 예제 6: 메모리 버퍼로 저장하기
 
+<!-- standalone-python-example -->
+
 ```python
 from io import BytesIO
 
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 buffer = BytesIO()
 document.save_to_stream(buffer)
 raw_bytes = buffer.getvalue()
@@ -107,10 +122,16 @@ print("bytes:", len(raw_bytes))
 
 ### 예제 7: 다른 파일명으로 저장하기
 
+<!-- standalone-python-example -->
+
 ```python
+from pathlib import Path
+
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+Path("output").mkdir(parents=True, exist_ok=True)
+
+document = HwpxDocument.new()
 document.save_to_path("output/copy.hwpx")
 ```
 
@@ -128,10 +149,12 @@ document = HwpxDocument.open(BytesIO(raw))
 
 ### 예제 9: 페이지 크기 확인
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 size = section.properties.page_size
 print(size.width, size.height, size.orientation)
@@ -139,30 +162,36 @@ print(size.width, size.height, size.orientation)
 
 ### 예제 10: 가로 방향 페이지로 전환
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 section.properties.set_page_size(width=297000, height=210000, orientation="LANDSCAPE")
 ```
 
 ### 예제 11: 여백 조정하기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 section.properties.set_page_margins(left=1800, right=1800, top=2000, bottom=2000)
 ```
 
 ### 예제 12: 번호 매기기 시작값 읽기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 start = section.properties.start_numbering
 print(start.page_starts_on, start.page)
@@ -170,20 +199,24 @@ print(start.page_starts_on, start.page)
 
 ### 예제 13: 번호 매기기 시작값 변경
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 section.properties.set_start_numbering(page=3, table=1)
 ```
 
 ### 예제 14: 머리말 텍스트 설정
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 header = section.properties.set_header_text("Confidential", page_type="BOTH")
 print(header.apply_page_type)
@@ -193,10 +226,12 @@ print(header.apply_page_type)
 
 ### 예제 15: 머리말 제거
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 section.properties.remove_header()
 ```
@@ -205,10 +240,12 @@ section.properties.remove_header()
 
 ### 예제 16: 홀수 페이지 꼬리말 넣기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 section.properties.set_footer_text("© Company", page_type="ODD")
 ```
@@ -217,28 +254,34 @@ section.properties.set_footer_text("© Company", page_type="ODD")
 
 ### 예제 17: 헤더 파트 이름 나열
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 print([header.part_name for header in document.headers])
 ```
 
 ### 예제 18: 메모 모양 ID 확인
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 print(sorted(document.memo_shapes.keys()))
 ```
 
 ### 예제 19: 특정 메모 모양 살펴보기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 shape = document.memo_shape("0")
 if shape:
     print(shape.memo_type, shape.line_color)
@@ -246,40 +289,45 @@ if shape:
 
 ### 예제 20: 두 번째 섹션에 메모 추가
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 memo = document.add_memo("검토 메모", section_index=0, memo_shape_id_ref="0")
 print(memo.text)
 ```
 
 ### 예제 21: 메모를 필드와 함께 앵커링
 
+<!-- standalone-python-example -->
+
 ```python
 from datetime import datetime
 
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
-section = document.sections[0]
-paragraph = document.add_paragraph("앵커 단락", section=section)
-memo, _, field_id = document.add_memo_with_anchor(
+document = HwpxDocument.new()
+paragraph = document.add_paragraph("앵커 단락", section=0)
+memo = document.notes.add_memo(
     "승인 필요",
-    paragraph=paragraph,
+    anchor=paragraph,
     memo_shape_id_ref="0",
     author="PM",
     created=datetime.now(),
 )
-print(field_id)
+print(memo.field_id)
 ```
 
 ### 예제 22: 조건에 맞는 메모 삭제
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 for memo in list(document.memos):
     if memo.text.startswith("임시"):
         document.remove_memo(memo)
@@ -287,20 +335,24 @@ for memo in list(document.memos):
 
 ### 예제 23: 새 문자 서식 확보
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 style_id = document.ensure_run_style(bold=True, underline=True)
 print("style id:", style_id)
 ```
 
 ### 예제 24: 굵고 밑줄 친 런 추가
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 paragraph = document.add_paragraph("기본 문단", section=section)
 paragraph.add_run("강조 텍스트", bold=True, underline=True)
@@ -308,10 +360,12 @@ paragraph.add_run("강조 텍스트", bold=True, underline=True)
 
 ### 예제 25: 기존 런을 기울임 처리
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 paragraph = document.paragraphs[0]
 if paragraph.runs:
     paragraph.runs[0].italic = True
@@ -319,10 +373,12 @@ if paragraph.runs:
 
 ### 예제 26: 특정 서식 ID로 런 찾기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 style_id = document.ensure_run_style(bold=True)
 matches = document.find_runs_by_style(char_pr_id_ref=style_id)
 print("bold runs:", len(matches))
@@ -330,60 +386,72 @@ print("bold runs:", len(matches))
 
 ### 예제 27: TODO 한 건만 치환하기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 changed = document.replace_text_in_runs("TODO", "DONE", limit=1)
 print("replaced:", changed)
 ```
 
 ### 예제 28: 모든 런 텍스트 이어 붙이기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 all_text = "".join(run.text for run in document.iter_runs())
 print(all_text[:80])
 ```
 
 ### 예제 29: 첫 문단 텍스트 교체
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 if document.paragraphs:
     document.paragraphs[0].text = "새로운 첫 문단"
 ```
 
 ### 예제 30: 첫 런의 텍스트 읽기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 if document.paragraphs and document.paragraphs[0].runs:
     print(document.paragraphs[0].runs[0].text)
 ```
 
 ### 예제 31: 첫 런 삭제
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 if document.paragraphs and document.paragraphs[0].runs:
     document.paragraphs[0].runs[0].remove()
 ```
 
 ### 예제 32: 고정 폭 표 만들기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 table = document.add_table(rows=3, cols=3, section=section, width=54000)
 ```
@@ -392,10 +460,12 @@ table = document.add_table(rows=3, cols=3, section=section, width=54000)
 
 ### 예제 33: 표 헤더 병합
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 table = document.add_table(rows=2, cols=3, section=section)
 table.merge_cells(0, 0, 0, 2)
@@ -414,10 +484,12 @@ table.set_cell_text(0, 2, "예상", logical=True, split_merged=True)
 
 ### 예제 34: 셀 너비 조정
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 table = document.add_table(rows=2, cols=2, section=section)
 cell = table.cell(1, 0)
@@ -426,10 +498,12 @@ cell.set_size(width=7200)
 
 ### 예제 35: 표 행·열 수 확인
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 table = document.add_table(rows=4, cols=2, section=section)
 print(table.row_count, table.column_count)
@@ -440,10 +514,12 @@ print(table.row_count, table.column_count)
 선·사각형·타원은 전용 헬퍼로 만듭니다. 좌표와 크기는 HWPUNIT(1인치 = 7200)이며,
 한컴이 요구하는 하위 요소를 헬퍼가 모두 채우므로 결과가 그대로 열립니다.
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 line = document.add_line(0, 0, 14400, 0, line_color="#333333", section=section)
 rectangle = document.add_rectangle(14400, 7200, fill_color="#FFD9CC", section=section)
@@ -452,10 +528,12 @@ ellipse = document.add_ellipse(9000, 4500, section=section)
 
 ### 예제 37: 도형 크기 변경
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 shape = document.add_rectangle(14400, 7200, section=document.sections[0])
 shape.resize(9000, 4500)
 print(shape.shape_type, shape.width, shape.height)
@@ -468,10 +546,12 @@ print(shape.shape_type, shape.width, shape.height)
 열리지 않습니다. 그래서 호출 시 `UserWarning`이 나며, 경고 메시지가 대신 쓸 전용
 헬퍼를 알려 줍니다.
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 control = document.add_control(section=document.sections[0], control_type="LINE", attributes={"id": "line1"})
 ```
 
@@ -479,56 +559,68 @@ control = document.add_control(section=document.sections[0], control_type="LINE"
 
 앞 예제와 같은 탈출구 경로이므로, 필요한 하위 요소는 호출자가 직접 채워야 합니다.
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 control = document.add_control(section=document.sections[0], control_type="LINE")
 control.set_attribute("dirty", "false")
 ```
 
 ### 예제 40: 섹션 파트 이름 확인
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 print([section.part_name for section in document.sections])
 ```
 
 ### 예제 41: 헤더 경로 목록 확인
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 print(document.package.header_paths())
 ```
 
 ### 예제 42: 섹션 경로 목록 확인
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 print(document.package.section_paths())
 ```
 
 ### 예제 43: 패키지 파트 이름 나열
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 print(document.package.part_names())
 ```
 
 ### 예제 44: 헤더 파트 바이트 길이 확인
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 header_paths = document.package.header_paths()
 if header_paths:
     data = document.package.get_part(header_paths[0])
@@ -537,20 +629,24 @@ if header_paths:
 
 ### 예제 45: version.xml 텍스트 읽기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 version_text = document.package.get_text("version.xml")
 print(version_text.splitlines()[0])
 ```
 
 ### 예제 46: version.xml 속성 수정
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 version_xml = document.package.get_xml("version.xml")
 version_xml.set("writer", "python-hwpx")
 document.package.set_xml("version.xml", version_xml)
@@ -558,29 +654,35 @@ document.package.set_xml("version.xml", version_xml)
 
 ### 예제 47: 새 파트 추가하기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 document.package.set_part("META-INF/notes.txt", "Generated with python-hwpx")
 ```
 
 ### 예제 48: 문자 서식 ID 나열
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 for style_id in sorted(document.char_properties.keys()):
     print("style:", style_id)
 ```
 
 ### 예제 49: 문자 서식 세부 정보 조회
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 style_id = document.ensure_run_style(bold=True)
 style = document.char_property(style_id)
 if style:
@@ -589,10 +691,12 @@ if style:
 
 ### 예제 50: TODO 문단 찾아 출력
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 for paragraph in document.paragraphs:
     if "TODO" in paragraph.text:
         print(paragraph.text)
@@ -600,20 +704,24 @@ for paragraph in document.paragraphs:
 
 ### 예제 51: 섹션별 문단 수 계산
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 counts = [len(section.paragraphs) for section in document.sections]
 print(counts)
 ```
 
 ### 예제 52: 현재 여백 값 읽기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 margins = section.properties.page_margins
 print(margins.left, margins.right)
@@ -621,20 +729,24 @@ print(margins.left, margins.right)
 
 ### 예제 53: 전체 번호 초기값 설정
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 section.properties.set_start_numbering(page=1, table=1)
 ```
 
 ### 예제 54: 헤더 번호 초기값 읽기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 if document.headers:
     begin = document.headers[0].begin_numbering
     print(begin.page, begin.table)
@@ -642,30 +754,36 @@ if document.headers:
 
 ### 예제 55: 헤더 번호 초기값 조정
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 if document.headers:
     document.headers[0].set_begin_numbering(page=1, table=1)
 ```
 
 ### 예제 56: 헤더 글머리표 정의 나열
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 for bullet_id, bullet in sorted(document.bullets.items()):
     print(bullet_id, bullet.char, bullet.para_head.align)
 ```
 
 ### 예제 57: 문단/스타일 참조 살펴보기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 para_pr = document.paragraph_property("1")
 style = document.style("0")
 if para_pr and style:
@@ -674,10 +792,12 @@ if para_pr and style:
 
 ### 예제 58: 변경 추적과 작성자 정보 확인
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 change = document.track_change("1")
 if change:
     author = document.track_change_author(change.author_id)
@@ -687,12 +807,14 @@ if change:
 
 ### 예제 59: 바탕쪽 이름 수정하기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
 HM = "{http://www.hancom.co.kr/hwpml/2011/master-page}"
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 if document.master_pages:
     master = document.master_pages[0]
     item = master.element.find(f"{HM}masterPageItem")
@@ -704,12 +826,14 @@ document.save_to_path("my-document.hwpx")
 
 ### 예제 60: 문서 이력 주석 갱신
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
 HHS = "{http://www.hancom.co.kr/hwpml/2011/history}"
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 for history in document.histories:
     comment = history.element.find(f"{HHS}historyEntry/{HHS}comment")
     if comment is not None:
@@ -720,10 +844,12 @@ document.save_to_path("my-document.hwpx")
 
 ### 예제 61: 버전 메타데이터 업데이트
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 if document.version:
     document.version.element.set("appVersion", "15.0.0.100 WIN32")
     document.version.mark_dirty()
@@ -732,10 +858,12 @@ if document.version:
 
 ### 예제 62: 단락 삭제하기
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 # 마지막 단락 삭제
 if len(document.sections[0].paragraphs) > 1:
     document.remove_paragraph(document.paragraphs[-1])
@@ -744,10 +872,12 @@ document.save_to_path("my-document.hwpx")
 
 ### 예제 63: 섹션 내 인덱스로 단락 삭제
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 section = document.sections[0]
 if len(section.paragraphs) > 1:
     section.remove_paragraph(0)
@@ -755,10 +885,12 @@ if len(section.paragraphs) > 1:
 
 ### 예제 64: 새 섹션 추가
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 new_section = document.add_section()
 new_section.add_paragraph("새 섹션의 내용")
 document.save_to_path("my-document.hwpx")
@@ -766,10 +898,12 @@ document.save_to_path("my-document.hwpx")
 
 ### 예제 65: 특정 위치에 섹션 삽입
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 mid = document.add_section(after=0)
 mid.add_paragraph("중간에 삽입")
 print("섹션 수:", len(document.sections))
@@ -777,10 +911,12 @@ print("섹션 수:", len(document.sections))
 
 ### 예제 66: 섹션 삭제
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-document = HwpxDocument.open("my-document.hwpx")
+document = HwpxDocument.new()
 if len(document.sections) > 1:
     document.remove_section(len(document.sections) - 1)
 ```

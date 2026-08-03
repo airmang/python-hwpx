@@ -49,16 +49,21 @@ AI 도구가 정확한 API를 배우도록 [llms.txt](https://airmang.github.io/
 pip install python-hwpx      # Python 3.10+
 ```
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-doc = HwpxDocument.open("보고서.hwpx")
-doc.add_paragraph("자동화로 추가한 문단입니다.")
-doc.save_to_path("보고서-수정.hwpx")
+doc = HwpxDocument.new()
+doc.add_heading("2026 운영계획", level=1)
+doc.add_paragraph("가. 추진 배경", style="개요 2")
+doc.save_to_path("계획.hwpx")
 ```
 
-백지에서 시작할 때는 `HwpxDocument.new()`로 만들어 같은 API로 문단·표·머리말을
-채우면 됩니다. 문서 저작·양식 채움·시험지 조판 같은 상위 워크플로가 필요하면
+스타일은 이름으로 지정하고, 오타는 저장이 아니라 **그 줄에서** 잡힌다.
+기존 문서를 고치려면 `HwpxDocument.open("보고서.hwpx")`로 시작하면 된다.
+
+문서 저작·양식 채움·시험지 조판 같은 상위 워크플로가 필요하면
 [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)을
 함께 설치하세요.
 

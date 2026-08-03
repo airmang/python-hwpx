@@ -14,14 +14,14 @@
     "docs/golden-api.md"
   ],
   "fenceCount": 117,
-  "sourceSha256": "49d6642730e5bc48138eaca281d2a98d00be08dd2176c73eedcdd7af941389ac",
+  "sourceSha256": "334b65d84888b64fb104bfdc3a38793eedfdacf8df2496bd2e3c1b06b12a577c",
   "manualSha256": {
-    "README.md": "ac2dd1e2ae7fb1ee2807048e5072fbdd7efaacca7879d303abd12014a921c353",
-    "README_EN.md": "c9126cd5a7f205037575b965214c9f520f27639352488c1685fdf34e9621661c",
+    "README.md": "ae88caafd99fa57990eacd3ebc2f527007e9ca7c5ee354fe315e0b84665522a9",
+    "README_EN.md": "3596848ab6076fd162ed0eacd949a54cf3e760c9a237e40d9b710080d9addfe4",
     "docs/quickstart.md": "6454c0946f4be4b7fefae926a099853f766f52b7517c14bbb63e37a99f2bd559",
     "docs/recipes-traversal.md": "97ab74acc7668fd83c4577f0ec9b289e664407fe35b60f4eeeda155d6f78256f",
     "docs/mutation-semantics.md": "700ed2625ee711939050023682a5d636a52c31e1deecfcade4c8e5eb7edeb355",
-    "docs/usage.md": "ba576bd87ca579ee082e577273062c41a31f91c4eabe68ea944e448847629b3b",
+    "docs/usage.md": "b26cc4eb721b909d71fd85d8224c949a380ffea48c934b46120b5218e432e3bf",
     "docs/examples.md": "662dc489a364e6319c57d2221fa4d4b1484e79b27a17235b0f99953ab5501a30",
     "docs/faq.md": "cd82e2f1e740cff3f50e620c060ed8ae0aa130271fa373eca3a07a70fb9ca604",
     "docs/index.md": "e6fba2c51566bff05a5aefc5dec9048744f800fa11058a7d2250fd30972be2a0",
@@ -31,35 +31,17 @@
   "classifications": {
     "standalone": {
       "ids": [
-        "docs/quickstart.md#1",
-        "docs/quickstart.md#7",
-        "docs/usage.md#2",
-        "docs/examples.md#1",
-        "docs/golden-api.md#1"
-      ],
-      "requiredContext": []
-    },
-    "context-fragment/external-input": {
-      "ids": [
         "README.md#1",
         "README_EN.md#1",
-        "docs/quickstart.md#2",
-        "docs/quickstart.md#3",
-        "docs/quickstart.md#4",
-        "docs/quickstart.md#5",
-        "docs/recipes-traversal.md#1",
-        "docs/recipes-traversal.md#2",
-        "docs/recipes-traversal.md#3",
-        "docs/recipes-traversal.md#4",
-        "docs/recipes-traversal.md#5",
-        "docs/recipes-traversal.md#6",
+        "docs/quickstart.md#1",
+        "docs/quickstart.md#7",
         "docs/usage.md#1",
+        "docs/usage.md#2",
         "docs/usage.md#3",
         "docs/usage.md#4",
         "docs/usage.md#5",
         "docs/usage.md#6",
         "docs/usage.md#7",
-        "docs/usage.md#8",
         "docs/usage.md#9",
         "docs/usage.md#10",
         "docs/usage.md#11",
@@ -118,6 +100,24 @@
         "docs/usage.md#65",
         "docs/usage.md#66",
         "docs/usage.md#67",
+        "docs/examples.md#1",
+        "docs/golden-api.md#1"
+      ],
+      "requiredContext": []
+    },
+    "context-fragment/external-input": {
+      "ids": [
+        "docs/quickstart.md#2",
+        "docs/quickstart.md#3",
+        "docs/quickstart.md#4",
+        "docs/quickstart.md#5",
+        "docs/recipes-traversal.md#1",
+        "docs/recipes-traversal.md#2",
+        "docs/recipes-traversal.md#3",
+        "docs/recipes-traversal.md#4",
+        "docs/recipes-traversal.md#5",
+        "docs/recipes-traversal.md#6",
+        "docs/usage.md#8",
         "docs/usage.md#68",
         "docs/usage.md#70",
         "docs/usage.md#80",

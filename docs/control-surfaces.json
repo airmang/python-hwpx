@@ -1,0 +1,124 @@
+{
+ "controls": {
+  "openpyxl": {
+   "methods": [
+    "__init__",
+    "add_named_style",
+    "close",
+    "copy_worksheet",
+    "create_chartsheet",
+    "create_named_range",
+    "create_sheet",
+    "get_index",
+    "get_sheet_by_name",
+    "get_sheet_names",
+    "index",
+    "move_sheet",
+    "remove",
+    "remove_sheet",
+    "save"
+   ],
+   "other": [
+    "path",
+    "template"
+   ],
+   "properties": [
+    "active",
+    "chartsheets",
+    "data_only",
+    "epoch",
+    "excel_base_date",
+    "mime_type",
+    "named_styles",
+    "read_only",
+    "sheetnames",
+    "style_names",
+    "worksheets",
+    "write_only"
+   ],
+   "qualname": "openpyxl.workbook.workbook.Workbook",
+   "role": "통합문서 객체",
+   "total": 29,
+   "version": "3.1.5"
+  },
+  "python-docx": {
+   "methods": [
+    "__init__",
+    "add_comment",
+    "add_heading",
+    "add_page_break",
+    "add_paragraph",
+    "add_picture",
+    "add_section",
+    "add_table",
+    "iter_inner_content",
+    "save"
+   ],
+   "other": [],
+   "properties": [
+    "comments",
+    "core_properties",
+    "inline_shapes",
+    "paragraphs",
+    "part",
+    "sections",
+    "settings",
+    "styles",
+    "tables"
+   ],
+   "qualname": "docx.document.Document",
+   "role": "문서 객체",
+   "total": 19,
+   "version": "1.2.0"
+  }
+ },
+ "method": "vars(cls) 의 공개 멤버를 센다(상속 제외). 우리 락과 같은 규칙이라야 비교가 성립한다. 지원 dunder 4종(__init__/__repr__/__enter__/__exit__)은 양쪽 모두 포함한다.",
+ "ours": {
+  "legacyShims": 79,
+  "methods": [
+   "__enter__",
+   "__exit__",
+   "__init__",
+   "__repr__",
+   "add_heading",
+   "add_paragraph",
+   "add_picture",
+   "add_section",
+   "add_table",
+   "close",
+   "from_package",
+   "new",
+   "open",
+   "remove_section",
+   "save_report",
+   "save_to_path",
+   "save_to_stream",
+   "to_bytes",
+   "validate"
+  ],
+  "other": [],
+  "properties": [
+   "fields",
+   "media",
+   "notes",
+   "oxml",
+   "package",
+   "page",
+   "paragraphs",
+   "parts",
+   "refs",
+   "sections",
+   "shapes",
+   "styles",
+   "tables",
+   "text",
+   "tracking"
+  ],
+  "qualname": "hwpx.document.HwpxDocument",
+  "role": "문서 객체",
+  "surfaceBefore6_0": 113,
+  "total": 34,
+  "version": "5.8.0"
+ },
+ "schemaVersion": "python-hwpx.control-surfaces/v1"
+}

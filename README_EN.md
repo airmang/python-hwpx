@@ -49,13 +49,19 @@ An [llms.txt](https://airmang.github.io/python-hwpx/llms.txt) is published so AI
 pip install python-hwpx      # Python 3.10+
 ```
 
+<!-- standalone-python-example -->
+
 ```python
 from hwpx import HwpxDocument
 
-doc = HwpxDocument.open("report.hwpx")
-doc.add_paragraph("A paragraph added by automation.")
-doc.save_to_path("report-edited.hwpx")
+doc = HwpxDocument.new()
+doc.add_heading("2026 Operating Plan", level=1)
+doc.add_paragraph("A. Background", style="개요 2")
+doc.save_to_path("plan.hwpx")
 ```
+
+Styles are addressed by name, and a typo is reported at the call, not at save.
+To edit an existing file, start from `HwpxDocument.open("report.hwpx")`.
 
 To build a document from scratch, start from `HwpxDocument.new()` and fill
 paragraphs, tables, and headers through the same API. For higher-level

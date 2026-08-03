@@ -24,11 +24,64 @@ deprecated 표면 4종을 제거합니다(아래 「5.0에서 제거된 deprecat
 응용 계층으로 옮겨 간 이름은 제거가 아니라 **이동**이며, import하면 어디로 갔는지
 알려 주는 오류가 납니다 — [5.0 마이그레이션 가이드](migration-5.0.md) 참조.
 
+### 반환되는 객체 — `hwpx.model` 이 계약이다 (6.0)
+
+5.x 의 이 절은 자기모순이었다. `hwpx.oxml.*` 을 "공개 표면이 아니다"라고
+선언하면서, stable 로 선언한 `HwpxDocument` 의 메서드들이 `HwpxOxmlParagraph`·
+`HwpxOxmlTable`·`HwpxOxmlSection` 등 **18종을 반환**했다. 사용자는
+"비공개"라고 적힌 타입을 손에 쥐고 그것으로 일할 수밖에 없었다.
+
+6.0 은 이렇게 정리한다.
+
+**`hwpx.model` 이 계약이고, `hwpx.oxml` 은 그것이 사는 곳이다.**
+
+```python
+from hwpx import model
+from hwpx.oxml.paragraph import HwpxOxmlParagraph
+
+assert model.Paragraph is HwpxOxmlParagraph   # 래퍼가 아니라 별칭이다
+```
+
+래퍼를 만들지 않은 이유: 객체 모델이 두 벌이 되고, 래퍼는 결국 `.oxml` 을
+노출해야 하므로 같은 누출에 코드만 두 배가 된다. 반대로 `hwpx.oxml` 전체를
+stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 있게 되어, 바로 그
+클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
+
+**계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
+클래스별로 stable 멤버를 정확히 나열한다 — 현재 **18개 클래스 / 171개
+멤버**.
+
+- 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
+- 목록 **밖**의 멤버(79개 — `apply_model`·`mark_dirty`·`remove_stale_layout_caches`
+  등) → 구현 세부. minor 에서 바뀔 수 있다.
+
+`hwpx.oxml.*` import 경로는 그대로 살아 있다. 옮기지도, deprecate 하지도 않는다.
+
 ### 지원되지 않는(비공개) 표면
 
-`hwpx.oxml.*`, `hwpx._document.*` 등 내부 XML/구현 모듈을 직접 import하는 것은
-**공개 표면이 아닙니다**. 이 경로들은 예고 없이 바뀔 수 있으니 위 계층의 이름만
-사용하세요.
+`hwpx._document.*` 등 구현 모듈을 직접 import 하는 것은 공개 표면이 아니다.
+`hwpx.oxml.*` 은 위 규칙을 따른다 — 경로는 열려 있고, 계약은 `hwpx.model` 의
+멤버 목록이 정한다.
+
+### 6.0 파사드 표면
+
+`HwpxDocument` 의 공개 멤버는 **34개**다(5.x 는 102개). 나머지 79개는 도메인
+네임스페이스로 이동했고, 옛 이름은 `DeprecationWarning` 과 함께 계속 답한다 —
+7.0 에서 제거된다. 대응표는 [6.0 이주 가이드](migration-6.0.md).
+
+이동은 제거가 아니므로 따로 센다:
+
+| | 수 | 락 |
+|---|---:|---|
+| 루트 공개 멤버 | 34 | `tests/data/document_facade_surface.json` |
+| 위임 shim (7.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
+| 반환 객체 계약 | 171 | `tests/data/model_surface.json` |
+
+설치본에 직접 물어볼 수도 있다:
+
+```bash
+python -m hwpx.capabilities --verify
+```
 
 ## stable (34)
 
