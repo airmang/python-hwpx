@@ -11,7 +11,34 @@
 축이므로, 파서 프로젝트의 수치와 병치 비교하면 안 된다.
 ```
 
-## 최신 측정 (2026-07-19 · corpus v2 · N=497 produced + 9 negative controls)
+## 최신 측정 (2026-08-03 · corpus v3 · N=120 produced + 3 negative controls)
+
+측정 스택: **python-hwpx 5.7.0 · python-hwpx-automation 6.7.1** · 실한컴
+**12.0.0.3288**(`hancom_build`를 박스 런이 COM 서버 실바이너리에서 직접 기록 —
+open 채널과 render 채널의 기록이 일치해야 발행) · Windows COM 무인 scheduled task.
+
+**축소 범위 명시**: v3는 497 전수 재측정이 아니다. 비교 기준용 baseline 1개
+스트라텀 + **4.x/5.x가 추가한 저작 표면 6종**(각주·누름틀·수식·차트·체크박스·
+편집 계획) 각 1개 스트라텀 = 120건이며, v1/v2 수치(아래, 3.4.1 측정)를 대체하지
+않고 병기한다. 측정을 부풀리는 것보다 줄이고 정직한 쪽을 택했다.
+
+| 스트라텀 | 오픈 | 파싱 | 렌더 검증 | 비고 |
+|---|---|---|---|---|
+| baseline-regen (30) | 30/30 | 30/30 | 30/30 | v1 authored 형상을 현행 코어로 재방출 |
+| authored-footnote (15) | 15/15 | 15/15 | 15/15 | 5.5 각주/미주 렌더 계약 수리분 |
+| authored-formfield (15) | 15/15 | 15/15 | 15/15 | CLICKHERE 생성 + 스타일 보존 채움 |
+| authored-equation (15) | 15/15 | 15/15 | 15/15 | `latex_to_eqedit` 검증 토큰셋 |
+| authored-chart (15) | 15/15 | 15/15 | 15/15 | office.charting ChartML → `add_chart` |
+| authored-checkbox (15) | 15/15 | 15/15 | 15/15 | 5.7 `add_check_box`/`set_check_box` |
+| edit-plan (15) | 15/15 | 15/15 | 15/15 | `hwpx.plan` 원자 실행 산출물 |
+| **합계 (120)** | **120/120** (rule-of-three 하한 **97.5%**) | 120/120 | 120/120 (COM SaveAs+fitz 양쪽) | 네거티브 컨트롤 3/3 정상 거부(harness valid) |
+
+원시 영수증: [`report-v3.json`](openrate/report-v3.json) ·
+[`verdicts_v3.jsonl`](openrate/verdicts_v3.jsonl) — **행마다 `bucket` 필드가
+있어 위 분모 분해 전체를 `jq` 한 줄로 재현할 수 있다**(v2 영수증의 재현성
+갭을 이번 발행부터 수리).
+
+## 이전 전수 측정 (2026-07-19 · corpus v2 · N=497 produced + 9 negative controls)
 
 측정 스택: python-hwpx 3.4.1 후보(코퍼스 측정 시점 소스; v3.4.0은 게이트 실패로 미발행 보존 태그) · 실한컴 12.0.0.3288
 (Windows COM, 무인 scheduled task) · Mac 한컴 12.30 GUI(샘플 오라클).

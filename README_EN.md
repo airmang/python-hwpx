@@ -110,13 +110,16 @@ input. The per-example Python-block status is frozen in the
 
 ## Measured, not claimed
 
-Whether the files we produce open in real Hancom Office is measured over a
-frozen corpus (N=497) and published as-is. The measurement stack for the
-figures below is **python-hwpx 3.4.1 · real Hancom 12.0.0.3288 · 2026-07-19**
-— authoring surfaces added by later releases are not in this corpus yet, so do
-not read these as figures for the latest release (updated on re-measurement):
+Whether the files we produce open in real Hancom Office is measured and
+published as-is, with the measurement stack and date next to every figure:
 
-- **Hancom opens 476/476** — real Hancom opens every file we produce
+- **Hancom opens 120/120 · render-verified 120/120** — the current stack
+  (5.7.0 · real Hancom 12.0.0.3288 · 2026-08-03), reduced scope: a baseline
+  stratum plus the six authoring surfaces added in 4.x/5.x (footnotes, form
+  fields, equations, charts, check boxes, edit plans). Receipts carry a
+  per-row bucket, so every split reproduces with one line of `jq`
+- **Hancom opens 476/476** — the full frozen corpus (N=497), measured on
+  3.4.1 · real Hancom 12.0.0.3288 · 2026-07-19
 - **Byte preservation of untouched regions 497/497** · personal-info 0-leak
 - **Render-verified 416/476** — the 43 cases where Hancom itself refuses PDF export are counted, not hidden
 - Full figures and caveats: [measured corpus metrics](https://airmang.github.io/python-hwpx/corpus-metrics.html) · per-capability grades: [support matrix](docs/support-matrix.md)

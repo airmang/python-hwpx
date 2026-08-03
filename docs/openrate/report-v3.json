@@ -1,0 +1,121 @@
+{
+ "box_os": "Microsoft Windows NT 10.0.26200.0",
+ "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v3",
+ "hancom_build": "12.0.0.3288",
+ "hancom_exe_path": "D:\\hancom\\Office 2022\\HOffice120\\Bin\\Hwp.exe",
+ "harness_valid": true,
+ "measured_at": "2026-08-03T22:27:22.8814745+09:00",
+ "negative_controls": {
+  "expected": [
+   "corrupt_header.hwpx",
+   "corrupt_section.hwpx",
+   "missing_section.hwpx"
+  ],
+  "judged": 3,
+  "wrongly_opened": []
+ },
+ "schemaVersion": "hwpx.openrate.report/v3",
+ "scopeNote": "v3 is a REDUCED-SCOPE additive measurement: one baseline stratum plus one stratum per authoring surface added in 4.x/5.x. It does not replace the v1/v2 figures, which remain published with their own measurement stack and date.",
+ "strata": {
+  "authored-chart": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "authored-checkbox": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "authored-equation": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "authored-footnote": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "authored-formfield": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "baseline-regen": {
+   "judged": 30,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.9,
+   "opened": 30,
+   "parsed": 30,
+   "produced": 30,
+   "render_checked": 30,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 30
+  },
+  "edit-plan": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  }
+ },
+ "tool_versions": {
+  "python-hwpx": "5.7.0",
+  "python-hwpx-automation": "6.7.1"
+ },
+ "totals": {
+  "judged": 120,
+  "open_rate": 1.0,
+  "open_rate_lower_bound": 0.975,
+  "opened": 120,
+  "parsed": 120,
+  "produced": 120,
+  "render_checked": 120,
+  "render_failed": 0,
+  "requested": 120
+ },
+ "unknown_rows": []
+}
