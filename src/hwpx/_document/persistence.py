@@ -6,7 +6,7 @@ from __future__ import annotations
 from os import PathLike
 from typing import TYPE_CHECKING, Any, BinaryIO, Literal, Sequence
 
-from ..errors import SaveError
+from ..errors import HwpxTypeError, SaveError
 from ..mutation_report import (
     Fallback,
     Mode,
@@ -181,7 +181,11 @@ def _build_measured(
             package.set_part(part_name, payload)
     result = package._save_to_bytes(verify_open_safety=True, mark_clean=False)
     if not isinstance(result, bytes):
-        raise TypeError("package.save(None) must return bytes")
+        raise HwpxTypeError(
+            "package.save(None) must return bytes",
+            code="save-package-contract-violated",
+            suggestion="Check that the custom package implementation honours this contract.",
+        )
     doc._run_open_safety_validation(result)
     if reset_dirty:
         _mark_save_clean(doc)
@@ -421,7 +425,11 @@ def _to_bytes_raw(
         if reset_dirty:
             _mark_save_clean(doc)
         return result
-    raise TypeError("package.save(None) must return bytes")
+    raise HwpxTypeError(
+            "package.save(None) must return bytes",
+            code="save-package-contract-violated",
+            suggestion="Check that the custom package implementation honours this contract.",
+        )
 
 
 def _to_bytes_for_validation(doc: "HwpxDocument") -> bytes:

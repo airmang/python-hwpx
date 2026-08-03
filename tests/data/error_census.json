@@ -1,0 +1,257 @@
+{
+ "codes": {
+  "contract-document-missing": [
+   "capabilities.py:296"
+  ],
+  "document-header-missing": [
+   "_document/layout.py:126",
+   "_document/layout.py:256"
+  ],
+  "document-validation-failed": [
+   "_document/persistence.py:87"
+  ],
+  "field-ambiguous": [
+   "_document/fields.py:590"
+  ],
+  "field-checkbox-ambiguous": [
+   "_document/fields.py:518"
+  ],
+  "field-checkbox-caption-empty": [
+   "_document/fields.py:451"
+  ],
+  "field-checkbox-not-created": [
+   "_document/fields.py:470"
+  ],
+  "field-checkbox-not-found": [
+   "_document/fields.py:501",
+   "_document/fields.py:511"
+  ],
+  "field-name-empty": [
+   "_document/fields.py:359"
+  ],
+  "field-not-created": [
+   "_document/fields.py:389"
+  ],
+  "field-not-found": [
+   "_document/fields.py:554",
+   "_document/fields.py:582"
+  ],
+  "field-selector-conflict": [
+   "_document/fields.py:492",
+   "_document/fields.py:545"
+  ],
+  "heading-level-invalid": [
+   "_document/headings.py:51"
+  ],
+  "heading-level-out-of-range": [
+   "_document/headings.py:58"
+  ],
+  "heading-style-missing": [
+   "_document/headings.py:141"
+  ],
+  "media-item-id-taken": [
+   "_document/media.py:226"
+  ],
+  "note-anchor-detached": [
+   "_document/memos.py:85"
+  ],
+  "note-argument-conflict": [
+   "_document/ns/notes.py:136"
+  ],
+  "note-memo-detached": [
+   "_document/memos.py:218",
+   "_document/memos.py:91"
+  ],
+  "open-safety-failed": [
+   "_document/persistence.py:105"
+  ],
+  "page-argument-conflict": [
+   "_document/layout.py:660",
+   "_document/ns/page.py:251"
+  ],
+  "page-argument-missing": [
+   "_document/ns/page.py:260"
+  ],
+  "page-columns-invalid": [
+   "_document/layout.py:392"
+  ],
+  "page-kind-invalid": [
+   "_document/layout.py:653"
+  ],
+  "page-orientation-unsupported": [
+   "_document/layout.py:49"
+  ],
+  "page-paper-size-unsupported": [
+   "_document/layout.py:337"
+  ],
+  "paragraph-argument-conflict": [
+   "_document/layout.py:72"
+  ],
+  "paragraph-format-empty": [
+   "_document/layout.py:183"
+  ],
+  "paragraph-indexes-empty": [
+   "_document/layout.py:83"
+  ],
+  "paragraph-invalid-type": [
+   "_document/_resolve.py:168"
+  ],
+  "paragraph-line-spacing-invalid": [
+   "_document/layout.py:134"
+  ],
+  "paragraph-missing": [
+   "_document/_resolve.py:149",
+   "_document/layout.py:66"
+  ],
+  "paragraph-not-found": [
+   "_document/_resolve.py:161",
+   "_document/headings.py:182"
+  ],
+  "paragraph-outline-level-out-of-range": [
+   "_document/layout.py:160"
+  ],
+  "quality-gate-failed": [
+   "_document/persistence.py:143"
+  ],
+  "save-package-contract-violated": [
+   "_document/persistence.py:184",
+   "_document/persistence.py:428"
+  ],
+  "section-argument-conflict": [
+   "_document/_resolve.py:75"
+  ],
+  "section-invalid-type": [
+   "_document/_resolve.py:111"
+  ],
+  "section-missing": [
+   "_document/_resolve.py:84",
+   "_document/layout.py:526",
+   "_document/memos.py:50"
+  ],
+  "section-not-found": [
+   "_document/_resolve.py:104"
+  ],
+  "shape-chart-anchor-detached": [
+   "_document/shapes.py:378"
+  ],
+  "shape-chart-not-created": [
+   "_document/shapes.py:384"
+  ],
+  "shape-chart-root-invalid": [
+   "_document/shapes.py:346"
+  ],
+  "shape-chart-xml-empty": [
+   "_document/shapes.py:332"
+  ],
+  "shape-chart-xml-malformed": [
+   "_document/shapes.py:340"
+  ],
+  "shape-equation-not-created": [
+   "_document/shapes.py:295"
+  ],
+  "shape-equation-not-verbatim": [
+   "_document/shapes.py:289"
+  ],
+  "shape-equation-script-empty": [
+   "_document/shapes.py:259"
+  ],
+  "shape-equation-script-too-large": [
+   "_document/shapes.py:265"
+  ],
+  "style-ambiguous": [
+   "_document/ns/styles.py:144"
+  ],
+  "style-argument-conflict": [
+   "document.py:408"
+  ],
+  "style-list-level-invalid": [
+   "_document/layout.py:249"
+  ],
+  "style-list-property-failed": [
+   "_document/layout.py:276"
+  ],
+  "text-search-empty": [
+   "_document/_legacy.py:1311",
+   "_document/ns/text.py:117"
+  ],
+  "track-match-crosses-markup": [
+   "_document/tracked.py:79"
+  ],
+  "track-match-empty": [
+   "_document/tracked.py:127",
+   "_document/tracked.py:168"
+  ],
+  "track-match-not-found": [
+   "_document/tracked.py:139",
+   "_document/tracked.py:174"
+  ],
+  "track-paragraph-empty": [
+   "_document/tracked.py:134"
+  ],
+  "track-text-empty": [
+   "_document/tracked.py:100",
+   "_document/tracked.py:182"
+  ],
+  "unknown-contract-document": [
+   "capabilities.py:287"
+  ],
+  "unknown-contract-schema": [
+   "capabilities.py:501"
+  ]
+ },
+ "malformedCodes": [],
+ "observed": {
+  "other": 139,
+  "typed": 103,
+  "untyped": 193,
+  "untypedByFile": {
+   "body_patch.py": 20,
+   "equation/mathml.py": 1,
+   "form_fit/policy.py": 3,
+   "ingest/base.py": 1,
+   "opc/package.py": 1,
+   "opc/security.py": 1,
+   "oxml/_document_primitives.py": 1,
+   "oxml/body.py": 4,
+   "oxml/document_parts.py": 23,
+   "oxml/header.py": 6,
+   "oxml/header_part.py": 17,
+   "oxml/memo.py": 1,
+   "oxml/paragraph.py": 17,
+   "oxml/parser.py": 2,
+   "oxml/run.py": 2,
+   "oxml/section.py": 1,
+   "oxml/section_story.py": 18,
+   "oxml/table.py": 13,
+   "oxml/utils.py": 3,
+   "patch.py": 14,
+   "table_patch.py": 11,
+   "tools/archive_cli.py": 4,
+   "tools/doc_diff.py": 2,
+   "tools/layout_preview.py": 2,
+   "tools/mail_merge.py": 5,
+   "tools/object_finder.py": 1,
+   "tools/repair.py": 6,
+   "tools/report_utils.py": 6,
+   "tools/table_navigation.py": 2,
+   "tools/text_extractor.py": 2,
+   "tools/toc_author.py": 2,
+   "tools/validator.py": 1
+  }
+ },
+ "public": {
+  "total": 74,
+  "typed": 74,
+  "typedRatio": 1.0,
+  "untyped": 0,
+  "untypedSites": []
+ },
+ "schemaVersion": "python-hwpx.error-census/v1",
+ "scope": {
+  "note": "공개 경로 = 사용자가 HwpxDocument 에서 출발해 닿는 표면. oxml/·patch·table_patch 등 내부는 6.x 에서 점진 전환하며 observed 로만 기록한다.",
+  "public": [
+   "document.py",
+   "_document"
+  ]
+ }
+}

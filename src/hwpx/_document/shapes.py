@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
+from ..errors import HwpxStateError, HwpxValueError
+
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
     from ..oxml import (
@@ -254,9 +256,18 @@ def add_equation(
 
     text = (script or "").strip()
     if not text:
-        raise ValueError("equation script must be a non-empty string")
+        raise HwpxValueError(
+            "equation script must be a non-empty string",
+            code="shape-equation-script-empty",
+            suggestion="Pass an EqEdit script (convert LaTeX with hwpx.equation).",
+        )
     if len(text) > MAX_SOURCE_LENGTH:
-        raise ValueError("equation script exceeds size limit")
+        raise HwpxValueError(
+            "equation script exceeds size limit",
+            code="shape-equation-script-too-large",
+            context={"length": len(text), "limit": MAX_SOURCE_LENGTH},
+            suggestion="Split the equation.",
+        )
     if paragraph is None:
         paragraph = doc.add_paragraph(
             "", section=section, section_index=section_index,
@@ -275,12 +286,16 @@ def add_equation(
                 continue
             script_element = candidate.find(f"{HP}script")
             if script_element is None or (script_element.text or "") != text:
-                raise RuntimeError(
-                    "created equation did not store its script verbatim"
+                raise HwpxStateError(
+                    "created equation did not store its script verbatim",
+                    code="shape-equation-not-verbatim",
+                    suggestion="Check the script for characters XML cannot represent.",
                 )
             return inline_object
-    raise RuntimeError(
-        "created equation was not recognized by the standard section scan"
+    raise HwpxStateError(
+        "created equation was not recognized by the standard section scan",
+        code="shape-equation-not-created",
+        suggestion="Check that this document has a standard section structure.",
     )
 
 
@@ -314,15 +329,25 @@ def add_chart(
 
     data = chart_xml.encode("utf-8") if isinstance(chart_xml, str) else bytes(chart_xml)
     if not data.strip():
-        raise ValueError("chart_xml must be non-empty chartML")
+        raise HwpxValueError(
+            "chart_xml must be non-empty chartML",
+            code="shape-chart-xml-empty",
+            suggestion="Pass an ECMA-376 c:chartSpace document.",
+        )
     try:
         root = _etree.fromstring(data)
     except _etree.XMLSyntaxError as exc:
-        raise ValueError(f"chart_xml is not well-formed XML: {exc}") from exc
+        raise HwpxValueError(
+            f"chart_xml is not well-formed XML: {exc}",
+            code="shape-chart-xml-malformed",
+            suggestion="Check that it parses as XML first.",
+        ) from exc
     if root.tag != _CHART_SPACE:
-        raise ValueError(
-            "chart_xml root must be the ECMA-376 c:chartSpace element, "
-            f"got {root.tag!r}"
+        raise HwpxValueError(
+            f"chart_xml root must be the ECMA-376 c:chartSpace element, got {root.tag!r}",
+            code="shape-chart-root-invalid",
+            context={"root": str(root.tag)},
+            suggestion="Pass the c:chartSpace document, not the whole chart part.",
         )
 
     existing = {name for name in doc._package.part_names() if name.startswith("Chart/")}
@@ -350,10 +375,14 @@ def add_chart(
             if candidate.get("id") != created_id:
                 continue
             if candidate.get("chartIDRef") != part_path:
-                raise RuntimeError(
-                    "created chart anchor does not reference its part"
+                raise HwpxStateError(
+                    "created chart anchor does not reference its part",
+                    code="shape-chart-anchor-detached",
+                    suggestion="Reopen the document and check the manifest.",
                 )
             return inline_object
-    raise RuntimeError(
-        "created chart was not recognized by the standard section scan"
+    raise HwpxStateError(
+        "created chart was not recognized by the standard section scan",
+        code="shape-chart-not-created",
+        suggestion="Check that this document has a standard section structure.",
     )

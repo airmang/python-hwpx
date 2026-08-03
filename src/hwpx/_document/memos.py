@@ -7,6 +7,8 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from ..errors import HwpxValueError
+
 from ..oxml.namespaces import HP
 
 if TYPE_CHECKING:
@@ -45,7 +47,11 @@ def add_memo(
         section = doc._root.sections[section_index]
     if section is None:
         if not doc._root.sections:
-            raise ValueError("document does not contain any sections")
+            raise HwpxValueError(
+            "document does not contain any sections",
+            code="section-missing",
+            suggestion="Call doc.add_section() first.",
+        )
         section = doc._root.sections[-1]
     return section.add_memo(
         text,
@@ -76,9 +82,17 @@ def attach_memo_field(
     """Attach a MEMO field control to *paragraph* so Hangul shows *memo*."""
 
     if paragraph.section is None:
-        raise ValueError("paragraph must belong to a section before anchoring a memo")
+        raise HwpxValueError(
+            "paragraph must belong to a section before anchoring a memo",
+            code="note-anchor-detached",
+            suggestion="Pass a paragraph obtained from doc.paragraphs.",
+        )
     if memo.group.section is None:
-        raise ValueError("memo is not attached to a section")
+        raise HwpxValueError(
+            "memo is not attached to a section",
+            code="note-memo-detached",
+            suggestion="Pass a memo created by doc.notes.add_memo().",
+        )
 
     field_value = field_id or uuid.uuid4().hex
     author_value = author or memo.attributes.get("author") or ""
@@ -201,7 +215,11 @@ def add_memo_with_anchor(
     if target_paragraph is None:
         memo_section = memo.group.section
         if memo_section is None:
-            raise ValueError("memo must belong to a section")
+            raise HwpxValueError(
+            "memo is not attached to a section",
+            code="note-memo-detached",
+            suggestion="Pass a memo created by doc.notes.add_memo().",
+        )
         paragraph_value = "" if paragraph_text is None else paragraph_text
         anchor_char = anchor_char_pr_id_ref or char_pr_id_ref
         target_paragraph = doc.add_paragraph(

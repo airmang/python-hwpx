@@ -6,6 +6,8 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from ..errors import HwpxValueError
+
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
     from ..oxml import HwpxOxmlParagraph
@@ -74,7 +76,11 @@ def _paragraph_has_replaceable_text(
         crosses_inline_markup = True
 
     if crosses_inline_markup:
-        raise ValueError("match crosses inline markup and cannot be wrapped safely")
+        raise HwpxValueError(
+            "match crosses inline markup and cannot be wrapped safely",
+            code="track-match-crosses-markup",
+            suggestion="Target a substring that lives inside a single run.",
+        )
     return False
 
 
@@ -91,7 +97,11 @@ def add_tracked_insert(
 
     sanitized = _sanitize_tracked_text(text)
     if not sanitized:
-        raise ValueError("tracked insert text must be non-empty")
+        raise HwpxValueError(
+            "tracked insert text must be non-empty",
+            code="track-text-empty",
+            suggestion="Pass the text to insert.",
+        )
     change_id = doc.add_track_change("Insert", author_name=author, date=date)
     mark_id = doc._root.next_track_change_mark_id()
     paragraph.add_tracked_insert(
@@ -114,11 +124,24 @@ def add_tracked_delete(
     """Wrap paragraph text or the first matching substring in delete marks."""
 
     if match == "":
-        raise ValueError("match must be a non-empty string")
+        raise HwpxValueError(
+            "match must be a non-empty string",
+            code="track-match-empty",
+            suggestion="Pass the substring to delete.",
+        )
     if not _paragraph_has_deletable_text(paragraph, match):
         if match is None:
-            raise ValueError("paragraph contains no text to delete")
-        raise ValueError("match text was not found in the paragraph")
+            raise HwpxValueError(
+                "paragraph contains no text to delete",
+                code="track-paragraph-empty",
+                suggestion="Target a paragraph that has text.",
+            )
+        raise HwpxValueError(
+            "match text was not found in the paragraph",
+            code="track-match-not-found",
+            context={"match": match, "paragraphText": paragraph.text},
+            suggestion="Inspect paragraph.text for the actual string.",
+        )
 
     change_id = doc.add_track_change("Delete", author_name=author, date=date)
     mark_id = doc._root.next_track_change_mark_id()
@@ -142,12 +165,25 @@ def add_tracked_replace(
     """Represent a replacement as tracked delete of *old* plus tracked insert of *new*."""
 
     if old == "":
-        raise ValueError("match must be a non-empty string")
+        raise HwpxValueError(
+            "match must be a non-empty string",
+            code="track-match-empty",
+            suggestion="Pass the substring to delete.",
+        )
     if not _paragraph_has_replaceable_text(paragraph, old):
-        raise ValueError("match text was not found in the paragraph")
+        raise HwpxValueError(
+            "match text was not found in the paragraph",
+            code="track-match-not-found",
+            context={"match": old, "paragraphText": paragraph.text},
+            suggestion="Inspect paragraph.text for the actual string.",
+        )
     sanitized = _sanitize_tracked_text(new)
     if not sanitized:
-        raise ValueError("tracked insert text must be non-empty")
+        raise HwpxValueError(
+            "tracked insert text must be non-empty",
+            code="track-text-empty",
+            suggestion="Pass the text to insert.",
+        )
 
     delete_change_id = doc.add_track_change(
         "Delete",

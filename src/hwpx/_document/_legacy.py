@@ -57,6 +57,7 @@ from ..oxml import (
     TrackChange,
     TrackChangeAuthor,
 )
+from ..errors import HwpxValueError
 from . import _resolve
 from . import fields as _fields
 from . import layout as _layout
@@ -1307,7 +1308,12 @@ class _LegacyFacade:
         """Replace occurrences of *search* in runs matching the provided style filters."""
 
         if not search:
-            raise ValueError("search must be a non-empty string")
+            raise HwpxValueError(
+            "search must be a non-empty string",
+            code="text-search-empty",
+            context={"search": search},
+            suggestion="Pass the substring to replace.",
+        )
 
         replacements = 0
         runs = self.find_runs_by_style(

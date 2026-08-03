@@ -6,6 +6,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
 
+from ..errors import HwpxStateError, HwpxValueError
 from ..oxml import HwpxOxmlParagraph
 from ..oxml.namespaces import HP
 
@@ -355,7 +356,11 @@ def add_form_field(
     """
 
     if not str(name).strip():
-        raise ValueError("form field name must be a non-empty string")
+        raise HwpxValueError(
+            "누름틀 이름은 비어 있을 수 없습니다.",
+            code="field-name-empty",
+            suggestion="양식에서 이 칸을 가리킬 이름을 지정하세요.",
+        )
     if paragraph is None:
         paragraph = doc.add_paragraph(
             "", section=section, section_index=section_index, include_run=False,
@@ -381,8 +386,10 @@ def add_form_field(
             return {
                 key: value for key, value in match.items() if not key.startswith("_")
             }
-    raise RuntimeError(
-        "created form field was not recognized by the standard form-field matcher"
+    raise HwpxStateError(
+        "created form field was not recognized by the standard form-field matcher",
+        code="field-not-created",
+        suggestion="Check that this document has a standard form-field structure.",
     )
 
 
@@ -441,7 +448,11 @@ def add_check_box(
     """
 
     if not str(caption).strip():
-        raise ValueError("check box caption must be a non-empty string")
+        raise HwpxValueError(
+            "check box caption must be a non-empty string",
+            code="field-checkbox-caption-empty",
+            suggestion="Pass the caption printed next to the box.",
+        )
     if paragraph is None:
         paragraph = doc.add_paragraph(
             "", section=section, section_index=section_index, include_run=False,
@@ -456,8 +467,11 @@ def add_check_box(
             return {
                 key: value for key, value in match.items() if not key.startswith("_")
             }
-    raise RuntimeError(
-        f"created check box {created_name!r} was not recognized by the standard reader"
+    raise HwpxStateError(
+        f"created check box {created_name!r} was not recognized by the standard reader",
+        code="field-checkbox-not-created",
+        context={"name": created_name},
+        suggestion="Check that this document has a standard check-box structure.",
     )
 
 
@@ -475,20 +489,37 @@ def set_check_box(
     """
 
     if (index is None) == (name is None):
-        raise ValueError("provide exactly one of index or name")
+        raise HwpxValueError(
+            "provide exactly one of index or name",
+            code="field-selector-conflict",
+            suggestion="List doc.fields.check_boxes to see the candidates.",
+        )
     matches = _iter_check_boxes(doc)
     if index is not None:
         chosen = [m for m in matches if m["index"] == index]
         if not chosen:
-            raise ValueError(f"check box index not found: {index}")
+            raise HwpxValueError(
+                f"check box index not found: {index}",
+                code="field-checkbox-not-found",
+                context={"requested": index, "count": len(matches)},
+                suggestion="List doc.fields.check_boxes to see the candidates.",
+            )
     else:
         wanted = str(name).strip()
         chosen = [m for m in matches if m["name"] == wanted]
         if not chosen:
-            raise ValueError(f"check box name not found: {wanted}")
+            raise HwpxValueError(
+                f"check box name not found: {wanted}",
+                code="field-checkbox-not-found",
+                context={"requested": wanted, "count": len(matches)},
+                suggestion="List doc.fields.check_boxes to see the candidates.",
+            )
         if len(chosen) > 1:
-            raise ValueError(
-                f"check box name is ambiguous ({len(chosen)} matches): {wanted}"
+            raise HwpxValueError(
+                f"check box name is ambiguous ({len(chosen)} matches): {wanted}",
+                code="field-checkbox-ambiguous",
+                context={"requested": wanted, "matches": len(chosen)},
+                suggestion="Pass index= to pick one.",
             )
     match = chosen[0]
     match["_element"].set("value", "CHECKED" if checked else "UNCHECKED")
@@ -511,12 +542,21 @@ def _select_form_field(
 ) -> dict[str, Any]:
     selectors = [field_index is not None, bool(field_id), bool(name)]
     if selectors.count(True) != 1:
-        raise ValueError("provide exactly one of field_index, field_id, or name")
+        raise HwpxValueError(
+            "provide exactly one of field_index, field_id, or name",
+            code="field-selector-conflict",
+            suggestion="List doc.fields.all to see the candidates.",
+        )
     if field_index is not None:
         for match in matches:
             if match["index"] == field_index:
                 return match
-        raise ValueError(f"form field index not found: {field_index}")
+        raise HwpxValueError(
+            f"form field index not found: {field_index}",
+            code="field-not-found",
+            context={"requested": field_index},
+            suggestion="List doc.fields.all to see the candidates.",
+        )
     if field_id:
         wanted = field_id.strip()
         candidates = [
@@ -539,10 +579,20 @@ def _select_form_field(
         ]
     if not candidates:
         selector = f"field_id={field_id!r}" if field_id else f"name={name!r}"
-        raise ValueError(f"form field not found for {selector}")
+        raise HwpxValueError(
+            f"form field index not found: {field_index}",
+            code="field-not-found",
+            context={"selector": str(selector)},
+            suggestion="List doc.fields.all to see the candidates.",
+        )
     if len(candidates) > 1:
         labels = [candidate.get("name") or candidate.get("field_id") for candidate in candidates]
-        raise ValueError(f"form field selector is ambiguous: {labels}")
+        raise HwpxValueError(
+            f"form field selector is ambiguous: {labels}",
+            code="field-ambiguous",
+            context={"candidates": list(labels) if isinstance(labels, (list, tuple)) else str(labels)},
+            suggestion="Pass field_index= to pick one.",
+        )
     return candidates[0]
 
 

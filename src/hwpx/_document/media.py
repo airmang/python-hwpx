@@ -6,6 +6,8 @@ from __future__ import annotations
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, Iterator, cast
 
+from ..errors import HwpxValueError
+
 from ..oxml.namespaces import HC, HP
 from ._units import _mm_to_hwp_units
 
@@ -221,7 +223,12 @@ def add_image(
                 break
             n += 1
     elif item_id in existing_ids:
-        raise ValueError(f"image item_id {item_id!r} already exists")
+        raise HwpxValueError(
+            f"image item_id {item_id!r} already exists",
+            code="media-item-id-taken",
+            context={"itemId": item_id},
+            suggestion="Omit item_id to get an auto-assigned BIN#### id.",
+        )
 
     # File path inside the ZIP
     bin_data_name = f"{item_id}.{fmt}"
