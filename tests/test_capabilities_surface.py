@@ -92,6 +92,61 @@ def test_registry_matches_support_matrix_rows() -> None:
     )
 
 
+#: ``add_*``이지만 능력 영역이 아닌 것 — 각각 이유를 적는다.
+#:
+#: 지금은 비어 있다. 항목을 넣으려면 "왜 이 저작 메서드가 사용자에게 알릴
+#: 능력이 아닌지"를 적어야 한다. 사유 없는 면제는 곧 드리프트다.
+_NON_CAPABILITY_AUTHORING_METHODS: dict[str, str] = {}
+
+
+def test_registry_covers_every_authoring_method_on_the_facade() -> None:
+    """레지스트리를 **코드에** 대조한다 — 이 방향이라야 잡힌다.
+
+    위 테스트는 레지스트리 행 제목과 문서 행 제목을 대조한다. 문서 둘이 서로
+    맞는다는 사실은 코드에 대해 아무것도 말해주지 않으므로 **양쪽에 다 없는**
+    능력은 통과한다. `add_check_box`가 정확히 그렇게 5.7.0으로 출하됐다 —
+    실한컴 수용 게이트까지 통과했는데 레지스트리에도 매트릭스에도 없었고,
+    이 부류를 "구조적으로 막는다"고 선언한 다음 릴리스에서 벌어졌다.
+
+    그래서 이 테스트는 라이브 클래스를 진실 원천으로 삼는다. 새 `add_*`가
+    등재 없이 출하되면 여기서 붉어진다.
+    """
+
+    from hwpx.document import HwpxDocument
+
+    live = {name for name in dir(HwpxDocument) if name.startswith("add_")}
+    registered: dict[str, str] = {}
+    duplicates: list[str] = []
+    for row in _CAPABILITY_AREAS:
+        for method in row.get("authoring_methods", ()):
+            if method in registered:
+                duplicates.append(f"{method} ({registered[method]} / {row['area']})")
+            registered[method] = row["area"]
+
+    assert not duplicates, (
+        f"한 저작 메서드가 여러 능력 영역에 등재됐습니다: {sorted(duplicates)}"
+    )
+
+    unregistered = sorted(live - set(registered) - set(_NON_CAPABILITY_AUTHORING_METHODS))
+    assert not unregistered, (
+        "HwpxDocument에 있는데 능력 레지스트리에 없는 저작 메서드입니다 — "
+        "출하하면 자기서술이 거짓이 되고, 우리 문서를 읽는 에이전트가 이 "
+        f"기능을 회피합니다: {unregistered}. _CAPABILITY_AREAS에 등재하거나 "
+        "_NON_CAPABILITY_AUTHORING_METHODS에 사유와 함께 넣으십시오."
+    )
+
+    phantom = sorted(set(registered) - live)
+    assert not phantom, (
+        "레지스트리가 존재하지 않는 저작 메서드를 주장합니다 — 자기서술이 "
+        f"실표면을 앞질렀습니다: {phantom}"
+    )
+
+    stale_exemptions = sorted(set(_NON_CAPABILITY_AUTHORING_METHODS) - live)
+    assert not stale_exemptions, (
+        f"면제 목록이 사라진 메서드를 가리킵니다: {stale_exemptions}"
+    )
+
+
 def test_surfaces_census_is_live() -> None:
     caps = describe_capabilities()
     assert caps["surfaces"]["stable"] == sorted(hwpx.__all__)

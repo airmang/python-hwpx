@@ -8,8 +8,17 @@
 1. 여기 등재된 진입점은 전부 실제로 import 가능해야 한다.
 2. ``editPlanOps``는 :data:`hwpx.plan.PLAN_OPS`·실행 디스패치·edit-plan JSON
    Schema enum과 일치해야 한다.
-3. :data:`_CAPABILITY_AREAS`의 매트릭스 행 제목은 ``docs/support-matrix.md``
-   표의 행 제목과 집합 일치해야 한다.
+3. :data:`_CAPABILITY_AREAS`의 ``authoring_methods``는 라이브
+   ``HwpxDocument``의 ``add_*`` 전수와 정확히 일치해야 한다 — **레지스트리를
+   코드에 대조하는 방향**이다.
+4. 매트릭스 행 제목은 ``docs/support-matrix.md`` 표의 행 제목과 집합 일치해야
+   한다.
+
+3번이 있는 이유: 4번만으로는 부족하다. 문서 둘이 서로 맞는다는 사실은 코드에
+대해 아무것도 말해주지 않으므로, **양쪽에 다 없는** 능력은 통과한다. 실제로
+``add_check_box``가 5.7.0에서 실한컴 수용 게이트까지 통과해 출하됐는데
+레지스트리에도 매트릭스에도 없었다 — 이 부류의 드리프트를 "구조적으로
+막는다"고 선언한 바로 다음 릴리스에서다. 코드에 대조해야 잡힌다.
 
 **core는 환경 변수를 읽지 않는다** — 렌더 오라클 가용성은 여기 없다(자기서술은
 ``renderOracle.bundled="none"``으로 그 사실 자체를 말한다). 오라클 탐지·실행은
@@ -39,21 +48,39 @@ _EXTRA_MODULES: dict[str, tuple[str, ...]] = {
 #: 능력 영역 레지스트리. ``matrix_row``는 ``docs/support-matrix.md`` 표 1열
 #: 제목과 **정확히** 일치해야 한다(가드 테스트가 집합 대조). ``entry_points``는
 #: ``"모듈:이름"`` — 전부 import 가능해야 한다(가드 테스트가 해석).
+#: Every ``HwpxDocument.add_*`` method must be claimed by exactly one area.
+#:
+#: ``entry_points`` names modules, which is too coarse to notice a new
+#: authoring method: ten areas all point at ``hwpx.document:HwpxDocument``. So
+#: ``authoring_methods`` names the methods, and the guard in
+#: ``tests/test_capabilities_surface.py`` compares this registry against the
+#: live class.
+#:
+#: Why the guard runs in that direction: the previous guard compared the
+#: registry's row titles against the row titles in ``docs/support-matrix.md``.
+#: Two documents agreeing with each other says nothing about the code, so a
+#: capability missing from *both* passed. ``add_check_box`` shipped in 5.7.0
+#: with a real-Hancom acceptance gate and appeared in neither, one release
+#: after the changelog announced that this class of drift was now structurally
+#: blocked. Comparing against the class is the direction that can catch it.
 _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
     {
         "area": "paragraph-table-authoring",
         "matrix_row": "문단·표 저작/편집",
         "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": ("add_paragraph", "add_section"),
     },
     {
         "area": "table-structure",
         "matrix_row": "표 구조 변경(행·열·표 삭제/삽입, 열 오토핏)",
         "entry_points": ("hwpx.table_patch:apply_table_ops",),
+        "authoring_methods": (),
     },
     {
         "area": "table-create",
         "matrix_row": "표 생성(병합·중첩 포함)",
         "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": ("add_table",),
     },
     {
         "area": "form-fill",
@@ -63,6 +90,7 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
             "hwpx.table_patch:fill_cells",
             "hwpx.body_patch:apply_body_ops",
         ),
+        "authoring_methods": (),
     },
     {
         "area": "edit-plan",
@@ -71,71 +99,91 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
             "hwpx.plan:apply_edit_plan",
             "hwpx.plan:validate_edit_plan",
         ),
+        "authoring_methods": (),
     },
     {
         "area": "shape-authoring",
         "matrix_row": "도형 저작(선·사각형·타원)",
         "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": ("add_line", "add_rectangle", "add_ellipse"),
     },
     {
         "area": "shape-escape-hatch",
         "matrix_row": "저수준 도형·컨트롤 탈출구",
         "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": ("add_shape", "add_control"),
     },
     {
         "area": "curve-objects",
         "matrix_row": "arc·polygon·curve·connectLine",
         "entry_points": (),
+        "authoring_methods": (),
     },
     {
         "area": "picture",
         "matrix_row": "그림 삽입/치환",
         "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": ("add_picture", "add_image"),
     },
     {
         "area": "chart",
         "matrix_row": "차트",
         "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": ("add_chart",),
     },
     {
         "area": "equation",
         "matrix_row": "수식",
         "entry_points": ("hwpx.equation.authoring:latex_to_eqedit",),
+        "authoring_methods": ("add_equation",),
     },
     {
         "area": "redline",
         "matrix_row": "변경추적(redline)",
         "entry_points": ("hwpx.tools.redline:verify_redline",),
+        "authoring_methods": ("add_track_change", "add_tracked_insert", "add_tracked_delete", "add_tracked_replace"),
     },
     {
         "area": "memo",
         "matrix_row": "메모(코멘트)",
         "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": ("add_memo", "add_memo_with_anchor"),
     },
     {
         "area": "footnote-endnote",
         "matrix_row": "각주/미주",
         "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": ("add_footnote", "add_endnote"),
     },
     {
         "area": "toc-crossref",
         "matrix_row": "네이티브 목차(TOC)/상호참조",
         "entry_points": ("hwpx.tools.toc_author:add_native_toc",),
+        "authoring_methods": ("add_bookmark", "add_hyperlink"),
     },
     {
         "area": "encrypted-hwpx",
         "matrix_row": "암호화 HWPX",
         "entry_points": (),
+        "authoring_methods": (),
     },
     {
         "area": "hwp5-binary",
         "matrix_row": "HWP 5.x 바이너리",
         "entry_points": (),
+        "authoring_methods": (),
     },
     {
         "area": "form-field-create",
         "matrix_row": "누름틀(form field) 생성",
         "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": ("add_form_field",),
+    },
+    {
+        "area": "check-box",
+        "matrix_row": "체크박스 양식개체",
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": ("add_check_box",),
     },
 )
 
@@ -458,9 +506,110 @@ def contract_json_schema(name: str) -> dict[str, Any]:
     return builder()
 
 
+def verify_self_description() -> list[str]:
+    """설치된 휠에서 자기서술이 실표면과 맞는지 직접 검사한다.
+
+    왜 라이브러리 안에 있나: 5.6.0의 CHANGELOG는 이 부류의 드리프트를 "이제
+    구조적으로 막습니다"라고 **선언**했고, 바로 다음 릴리스에서 같은 드리프트를
+    냈다. 두 번째 선언은 신뢰받을 이유가 없다. 그래서 선언 대신 **누구나 자기
+    설치본에서 돌려 볼 수 있는 검사**를 동봉한다 —
+    ``python -m hwpx.capabilities --verify``.
+
+    저장소의 테스트가 아니라 설치된 패키지에서 도는 것이 요점이다. 사용자가
+    받은 휠이 실제로 무엇을 할 수 있는지 그 휠 자신에게 물어볼 수 있다.
+
+    Returns:
+        위반 목록. 빈 리스트면 자기서술이 실표면과 일치한다.
+    """
+
+    from .document import HwpxDocument
+
+    problems: list[str] = []
+
+    live = {name for name in dir(HwpxDocument) if name.startswith("add_")}
+    registered: dict[str, str] = {}
+    for row in _CAPABILITY_AREAS:
+        for method in row.get("authoring_methods", ()):
+            if method in registered:
+                problems.append(
+                    f"authoring method {method!r} is claimed by both "
+                    f"{registered[method]!r} and {row['area']!r}"
+                )
+            registered[method] = row["area"]
+
+    for method in sorted(live - set(registered)):
+        problems.append(
+            f"HwpxDocument.{method} exists but no capability area claims it; "
+            "the self-description understates what this install can do"
+        )
+    for method in sorted(set(registered) - live):
+        problems.append(
+            f"capability registry claims HwpxDocument.{method}, which this "
+            "install does not have; the self-description overstates it"
+        )
+
+    matrix_rows = {row["matrix_row"] for row in _CAPABILITY_AREAS}
+    try:
+        text = contract_document("support-matrix")
+    except HwpxError as exc:  # pragma: no cover - only when the doc is absent
+        problems.append(f"bundled support matrix is unreadable: {exc}")
+    else:
+        documented = {
+            line.split("|")[1].strip()
+            for line in text.splitlines()
+            if line.startswith("|")
+        }
+        for row in sorted(matrix_rows - documented):
+            problems.append(f"capability area {row!r} has no support-matrix row")
+
+    return problems
+
+
+def _verify_main(argv: list[str] | None = None) -> int:
+    import argparse
+    import json as _json
+    import sys
+
+    parser = argparse.ArgumentParser(
+        prog="python -m hwpx.capabilities",
+        description="Report or verify this install's machine-readable self-description.",
+    )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="check the self-description against the installed surface",
+    )
+    args = parser.parse_args(argv)
+
+    if not args.verify:
+        print(_json.dumps(describe_capabilities(), ensure_ascii=False, indent=2))
+        return 0
+
+    problems = verify_self_description()
+    for problem in problems:
+        print(f"self-description error: {problem}", file=sys.stderr)
+    if problems:
+        print(
+            f"{len(problems)} self-description problem(s) found in "
+            f"python-hwpx {_package_version()}",
+            file=sys.stderr,
+        )
+        return 1
+    print(
+        f"python-hwpx {_package_version()}: self-description matches the "
+        f"installed surface ({len(_CAPABILITY_AREAS)} capability areas)"
+    )
+    return 0
+
+
 __all__ = [
     "CAPABILITIES_SCHEMA",
     "describe_capabilities",
     "contract_document",
     "contract_json_schema",
+    "verify_self_description",
 ]
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(_verify_main())

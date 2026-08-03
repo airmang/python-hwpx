@@ -13,7 +13,7 @@ cell addressing on top of the same byte machinery:
 * resolve a logical ``(row, col)`` -- merge aware -- to the covering ``<hp:tc>``,
 * splice **only** that cell's first paragraph text (reusing
   :func:`hwpx.patch._text_edit_for_paragraph`, which handles empty / self-closing
-  ``<hp:run/>`` / ``<hp:t/>`` cells -- the kordoc #4/#30 edge the P0 spike hit),
+  ``<hp:run/>`` / ``<hp:t/>`` cells -- the edge case an early spike hit),
 * strip that paragraph's stale ``<hp:linesegarray>`` so Hancom relayouts,
 * rewrite only the changed section parts through the ZIP partial-patch writer, so
   every untouched byte of the document round-trips identical (Constitution VII).

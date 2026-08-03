@@ -23,14 +23,14 @@
 |---|---|---|
 | 문단·표 저작/편집 | Parse·Preserve·Edit·Create·Render-verified | corpus-metrics「오픈 수용률」476/476, 「저작 품질 게이트」실저작 58/58, 「렌더 검증」416건 |
 | 표 구조 변경(행·열·표 삭제/삽입, 열 오토핏) | Preserve·Edit | `hwpx.table_patch`; corpus-metrics「바이트 보존」497/497(patch 경로) |
-| 표 생성(병합·중첩 포함) | Create·Render-verified | `add_table`·`merge_cells`(피복 셀 제거+cellSpan — 실한컴 병합 의미론과 동형, 3종 병합 렌더 픽셀 확인)·셀 문단 `add_table`(중첩). **알려진 기본값 갭**: 셀 여백 0(한컴 510/141)·기본 폭 고정·중첩 기본 폭이 부모 셀 초과 시 렌더 소실 가능(폭 명시 권장)·선 종류는 raw 전용 — 수리 예정 |
+| 표 생성(병합·중첩 포함) | Create·Render-verified | `add_table`·`merge_cells`(피복 셀 제거+cellSpan — 실한컴 병합 의미론과 동형, 3종 병합 렌더 픽셀 확인)·셀 문단 `add_table`(중첩). 기본값은 5.4.0에서 실한컴에 맞췄다: 셀 안여백 510/510/141/141, 기본 표 폭은 본문 폭, 중첩 표는 부모 셀 사용 폭. **남은 갭**: 선 종류는 raw 전용 |
 | 양식 채움(byte-splice) | Preserve·Edit | `hwpx.patch`·`table_patch`·`body_patch`; corpus-metrics「바이트 보존」497/497. wild 공개 양식의 서식 충실은 2차 실측 후 **산출분 pass 82.1%(23/28)·산출+fail 7.6%(5/66)** — 불가능 타깃은 typed 거부 35건(전수 감별 과잉거부 0). 잔존은 페이지 리플 5건(4건 typed 경고 동반·완전 무음 1건, 「구조결함 2차 실측」절), 표 shape 부류는 측정 인공물로 판명·판정기 교정 |
 | 편집 계획 실행(edit plan) | Preserve·Edit | `hwpx.plan.apply_edit_plan`(experimental, 5.6.0+): 바이트-스플라이스 op 7종을 계획 1파일로 합성 — 정적 선검증→전 체인 인메모리 실행→최종 open-safety 검증→단 1회 원자 쓰기. 중간 실패 시 output·source 바이트 불변(테스트가 바이트 비교로 증명), step별+원본→최종 `hwpx.mutation-report/v1` 실측 사영 |
 | 도형 저작(선·사각형·타원) | Parse·Preserve·Edit·Create·Render-verified | 전용 `add_line`·`add_rectangle`·`add_ellipse`. 5.0.0에서 기하 네임스페이스(`hc:`)·선 bounding box·`resize()`의 기하 반영을 수정한 뒤 실한컴 12.30.0(build 6446)에서 **개봉 7/7**(선 수평·대각·수직, 사각형, 타원, resize 후 혼합, 그림). 렌더로 사각형 144×72pt+`#CCE5FF`, 타원 100×60pt+`#FFD9CC`, 대각선이 요청 박스를 실제 span, `resize(14400,7200)` 후 새 크기·DASH 반영까지 확인 |
 | 저수준 도형·컨트롤 탈출구 | Edit | `add_shape`·`add_control`은 건네받은 요소와 속성만 쓰고 OWPML 필수 하위 요소(`offset`·`orgSz`·`curSz`·`sz`·`pos`·유형별 기하)는 만들지 않는다. 그대로 저장한 문서는 실한컴 12.30.0이 **거부**한다(음성 대조로 확인). 신호는 생성 시점의 `UserWarning` **하나뿐**이다 — 저장을 막지 않고 `validate_package`·`validate_editor_open_safety`도 통과시킨다(실측 `ok=True`). 도형은 위의 전용 헬퍼를 쓸 것(전용 헬퍼는 경고하지 않는다) |
 | arc·polygon·curve·connectLine | Parse·Unsupported-but-preserved | 열거·읽기는 되지만 저작 API 없음. 기존 개체는 patch 저장에서 바이트 동일 왕복 |
 | 그림 삽입/치환 | Edit·Create | `add_picture`·`add_image`·`replace_picture`. 단순 그림 개체 자동 생성은 지원하며 실한컴 개봉을 확인했다(실한컴 코퍼스와 자식 요소 단위 대조). 그룹·효과 등 복잡 개체 생성은 미지원 |
-| 차트 | Unsupported-but-preserved | 차트 생성 API 없음(kordoc 흡수 갭). 기존 차트 part는 patch 저장 시 바이트 보존(497/497) |
+| 차트 | Create(experimental)·Preserve | `add_chart`(5.3.0+): 데이터·계열·축 레이블에서 차트 개체를 생성한다. 기존 차트 part는 patch 저장 시 바이트 보존(497/497). 생성 어휘 밖의 차트 종류·서식은 미지원이며 기존 개체 보존으로만 다룬다 |
 | 수식 | Parse·Create(experimental)·Render-verified | `add_equation`(EqEdit script 삽입, 5.2.0+)과 `hwpx.equation.latex_to_eqedit`(렌더 검증 토큰셋만 변환, 밖은 `UnsupportedLatexError`로 typed 거부). 저작 어휘 전 토큰을 실한컴 렌더 오라클 픽셀 실측(60수식 배터리)으로 확정했고, 기존 수식 개체는 파싱·patch 보존됨(미리보기 MathML 렌더는 뷰어/플러그인 계층) |
 | 변경추적(redline) | Edit·Create | `add_tracked_insert`·`add_tracked_delete`·`add_tracked_replace`; 실 Windows 한컴 COM `IsTrackChange=1`·검토 리본 수락/거부 스파이크. **렌더 주의**: 한컴이 변경추적 문서의 PDF export 자체를 거부 → corpus-metrics「렌더 검증」에서 `render_unavailable`로 정직 집계(결함 아님, 한컴 제약) |
 | 메모(코멘트) | Edit·Create·Render-verified | `add_memo`·`add_memo_with_anchor`; subList 코멘트 텍스트 + `MemoShapeIDRef` 버그 수정을 실 Windows 한컴에서 검증(CHANGELOG) |
@@ -39,6 +39,7 @@
 | 암호화 HWPX | Unsupported-and-rejected | 복호화 API 없음. 암호화된 content part는 파싱 단계에서 예외(`XMLSyntaxError`)로 거부 — 무음으로 잘못된 문서를 만들지 않음(fail-closed) |
 | HWP 5.x 바이너리 | Unsupported-and-rejected | HWP v5는 ZIP이 아니므로 열기 시 `BadZipFile` 예외. OLE2/CFBF 시그니처를 확인하면 예외 메시지가 HWPX 변환을 안내한다(예외 타입은 그대로) |
 | 누름틀(form field) 생성 | Parse·Edit·Create(experimental) | `list_form_fields`·`fill_form_field`로 조회·서식 보존 채움에 더해, `add_form_field`(5.1.0+)가 실한컴 CLICKHERE 계약 그대로 신규 누름틀을 생성한다(표 셀 배치 포함). 만든 필드는 기존 list/fill과 실제 한컴이 특수분기 없이 소비 |
+| 체크박스 양식개체 | Create·Render-verified | `add_check_box`·`list_check_boxes`·`set_check_box`(5.7.0+). 실한컴 실측 계약: `value` CHECKED=☑ / UNCHECKED=□, `<hp:formCharPr>`는 **필수 자식**(없으면 한컴이 문서를 거부하는데 우리 open-safety·ID 무결성은 통과한다 — 실한컴이 유일한 판정자다). 라디오(`hp:radioBtn`)·명령단추(`hp:btn`)는 읽기·보존만 하고 저작 API 없음 |
 
 ## 상태 판정 근거 요약
 
