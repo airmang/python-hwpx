@@ -675,6 +675,176 @@ def _apply_optional_bool_attrs(element: ET.Element, pairs: Iterable[tuple[str, b
     return changed
 
 
+#: ``hh:font/@type``·``hh:substFont/@type`` 어휘(OWPML ``FontType``). 실코퍼스
+#: 176파일 6741건 전수는 TTF/HFT 둘뿐이지만(REP 관측 0), 스키마가 REP를
+#: 정의하므로 거부하지 않는다 — 편차 레지스트리 원칙(실문서가 이기되, 스키마가
+#: 허용하는 값을 미리 막지는 않는다).
+_FONT_TYPES = frozenset({"REP", "TTF", "HFT"})
+
+
+def _font_bool_str(value: bool) -> str:
+    # 실코퍼스 176파일/6741건 전수가 "0"/"1"만 쓴다("true"/"false" 0건) — 다른
+    # OWPML 불리언 속성의 관행(``_bool_str``)과 다른, 이 속성 고유의 실측 관행.
+    return "1" if value else "0"
+
+
+def _normalize_font_langs(lang: "str | Iterable[str] | None") -> tuple[str, ...]:
+    """``ensure_font`` 의 *lang* 인자를 검증·정규화한다.
+
+    생략(``None``)이면 실코퍼스 다수 관행대로 7개 lang 전부
+    (:data:`~.canonical_defaults.FONTFACE_LANGS`)를 돌려준다.
+    """
+
+    from ..errors import HwpxValueError
+    from .canonical_defaults import FONTFACE_LANGS
+
+    if lang is None:
+        return FONTFACE_LANGS
+    candidates: tuple[object, ...] = (lang,) if isinstance(lang, str) else tuple(lang)
+    normalized: list[str] = []
+    for value in candidates:
+        upper = str(value).strip().upper()
+        if upper not in FONTFACE_LANGS:
+            raise HwpxValueError(
+                f"unsupported font lang {value!r}",
+                code="style-font-lang-invalid",
+                context={"requested": value, "available": list(FONTFACE_LANGS)},
+                suggestion=f"lang 은 {', '.join(FONTFACE_LANGS)} 중 하나(또는 그 조합)여야 합니다.",
+            )
+        if upper not in normalized:
+            normalized.append(upper)
+    if not normalized:
+        raise HwpxValueError(
+            "lang must not be empty",
+            code="style-font-lang-invalid",
+            suggestion=f"lang 은 {', '.join(FONTFACE_LANGS)} 중 하나(또는 그 조합)여야 합니다.",
+        )
+    return tuple(normalized)
+
+
+def _validate_font_type(value: str | None, *, param_name: str) -> str:
+    normalized = str(value or "TTF").strip().upper()
+    if normalized not in _FONT_TYPES:
+        from ..errors import HwpxValueError
+
+        raise HwpxValueError(
+            f"unsupported {param_name} {value!r}",
+            code="style-font-type-invalid",
+            context={"requested": value, "available": sorted(_FONT_TYPES)},
+            suggestion=f"{param_name} 은 {sorted(_FONT_TYPES)} 중 하나여야 합니다.",
+        )
+    return normalized
+
+
+def _fontface_insert_index(fontfaces: ET.Element, lang: str) -> int:
+    """정규 순서(:data:`FONTFACE_LANGS`)를 지키는 새 ``hh:fontface`` 삽입 위치."""
+
+    from .canonical_defaults import FONTFACE_LANGS
+
+    target_rank = FONTFACE_LANGS.index(lang)
+    insert_at = 0
+    for index, child in enumerate(list(fontfaces)):
+        child_lang = child.get("lang")
+        if child_lang in FONTFACE_LANGS and FONTFACE_LANGS.index(child_lang) <= target_rank:
+            insert_at = index + 1
+    return insert_at
+
+
+def _find_font_id(fontface: ET.Element, face: str) -> str | None:
+    for font in fontface.findall(f"{_HH}font"):
+        if font.get("face") == face:
+            font_id = font.get("id")
+            if font_id:
+                return font_id
+    return None
+
+
+def _allocate_font_id(fontface: ET.Element) -> str:
+    existing: set[str] = {child.get("id") or "" for child in fontface.findall(f"{_HH}font")}
+    existing.discard("")
+    numeric_ids: list[int] = []
+    for value in existing:
+        try:
+            numeric_ids.append(int(value))
+        except ValueError:
+            continue
+    next_id = 0 if not numeric_ids else max(numeric_ids) + 1
+    candidate = str(next_id)
+    while candidate in existing:
+        next_id += 1
+        candidate = str(next_id)
+    return candidate
+
+
+def _resolve_font_substitute(
+    subst_face: str | None, subst_type: str | None
+) -> tuple[str | None, str | None]:
+    """Validate ``ensure_font``'s *subst_face*/*subst_type* pair.
+
+    ``subst_type`` alone is incomplete (schema requires ``substFont/@face``);
+    ``subst_face`` alone is enough (``subst_type`` defaults to ``"TTF"``).
+    """
+
+    from ..errors import HwpxValueError
+
+    if subst_face is None:
+        if subst_type is not None:
+            raise HwpxValueError(
+                "subst_type requires subst_face",
+                code="style-font-substitute-incomplete",
+                suggestion="대체 글꼴을 지정하려면 subst_face 도 함께 주세요.",
+            )
+        return None, None
+
+    normalized_face = subst_face.strip()
+    if not normalized_face:
+        raise HwpxValueError(
+            "subst_face must not be empty when a substitute font is given",
+            code="style-font-substitute-incomplete",
+        )
+    return normalized_face, _validate_font_type(subst_type, param_name="subst_type")
+
+
+def _build_font_element(
+    *,
+    font_id: str,
+    face: str,
+    font_type: str,
+    is_embedded: bool,
+    binary_item_id_ref: str | None,
+    subst_face: str | None,
+    subst_type: str | None,
+    subst_is_embedded: bool,
+    subst_binary_item_id_ref: str | None,
+) -> ET.Element:
+    attrs = {
+        "id": font_id,
+        "face": face,
+        "type": font_type,
+        "isEmbedded": _font_bool_str(is_embedded),
+    }
+    # 실코퍼스 관행: 비-임베드 폰트는 binaryItemIDRef 속성 자체가 없다(1682/1682)
+    # — substFont 쪽과 달리 빈 문자열로도 안 남는다.
+    if binary_item_id_ref:
+        attrs["binaryItemIDRef"] = binary_item_id_ref
+    element = ET.Element(f"{_HH}font", attrs)
+    if subst_face is not None:
+        # 스키마 시퀀스: substFont 는 typeInfo 보다 앞선다(font 자식 중 첫째).
+        ET.SubElement(
+            element,
+            f"{_HH}substFont",
+            {
+                "face": subst_face,
+                "type": subst_type or "TTF",
+                "isEmbedded": _font_bool_str(subst_is_embedded),
+                # 실코퍼스 관행: substFont 는 binaryItemIDRef 를 항상 갖되 값이
+                # 없으면 빈 문자열로 남긴다(284/284) — font 와 반대다.
+                "binaryItemIDRef": subst_binary_item_id_ref or "",
+            },
+        )
+    return element
+
+
 def _default_sublist_attributes() -> dict[str, str]:
     """Return standard attributes for a ``<hp:subList>`` element.
 

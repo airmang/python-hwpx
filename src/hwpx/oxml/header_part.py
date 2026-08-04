@@ -16,19 +16,26 @@ from ._document_primitives import (
     _HC,
     _HC_NS,
     _HH,
+    _allocate_font_id,
     _append_child,
     _apply_optional_attrs,
     _bool_str,
     _border_fill_is_basic_solid_line,
     _border_fill_matches,
+    _build_font_element,
     _create_basic_border_fill_element,
     _create_border_fill_element,
     _element_local_name,
+    _find_font_id,
+    _fontface_insert_index,
     _get_bool_attr,
     _get_int_attr,
     _normalize_border_side_names,
     _normalize_color,
+    _normalize_font_langs,
+    _resolve_font_substitute,
     _serialize_xml,
+    _validate_font_type,
 )
 from .common import GenericElement
 from .header import (
@@ -123,6 +130,18 @@ class HwpxOxmlHeader:
         if element is None and create:
             element = ref_list.makeelement(f"{_HH}charProperties", {"itemCnt": "0"})
             ref_list.append(element)
+            self.mark_dirty()
+        return element
+
+    def _fontfaces_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        element = ref_list.find(f"{_HH}fontfaces")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}fontfaces", {"itemCnt": "0"})
+            # 스키마 순서: MappingTableType 시퀀스에서 fontfaces 가 첫 자식이다.
+            ref_list.insert(0, element)
             self.mark_dirty()
         return element
 
@@ -1068,6 +1087,104 @@ class HwpxOxmlHeader:
         style_id = element.get("id")
         assert style_id is not None  # allocated above or already present
         return style_id
+
+    def _fontface_element(
+        self, fontfaces: ET.Element, lang: str, *, create: bool = False
+    ) -> ET.Element | None:
+        for child in fontfaces.findall(f"{_HH}fontface"):
+            if child.get("lang") == lang:
+                return child
+        if not create:
+            return None
+
+        element = fontfaces.makeelement(f"{_HH}fontface", {"lang": lang, "fontCnt": "0"})
+        fontfaces.insert(_fontface_insert_index(fontfaces, lang), element)
+        fontfaces.set("itemCnt", str(len(fontfaces.findall(f"{_HH}fontface"))))
+        self.mark_dirty()
+        return element
+
+    def ensure_font(
+        self,
+        face: str,
+        *,
+        lang: "str | Iterable[str] | None" = None,
+        font_type: str = "TTF",
+        is_embedded: bool = False,
+        binary_item_id_ref: str | None = None,
+        subst_face: str | None = None,
+        subst_type: str | None = None,
+        subst_is_embedded: bool = False,
+        subst_binary_item_id_ref: str | None = None,
+    ) -> str:
+        """Ensure *face* is declared in ``hh:fontfaces`` and return its id.
+
+        Hancom 관행(실코퍼스 176파일 전수): 글꼴 하나는 보통 7개 lang 블록
+        전부에 선언된다 — *lang* 생략 시 그 관행대로 전부(``FONTFACE_LANGS``)
+        에 등록해, 등록 뒤 ``ensure_run(font=face)`` 의 ``fontRef`` 7개 속성이
+        전부 유효한 해당-블록 id 를 가리키게 한다(블록마다 id 채번이 독립이라
+        다른 블록 id 를 빌려 쓰면 잘못된 글꼴을 가리킬 수 있다).
+
+        *face* 가 이미 그 lang 블록에 있으면(``ensure_style`` 의 이름 dedupe와
+        같은 관용구) 기존 id 를 재사용한다. 여러 블록에 걸쳐 등록할 때
+        블록마다 id 가 갈릴 수 있으므로, 반환값은 *정규 순서상 첫* lang
+        블록의 id 다. ``subst_face``/``subst_type`` 을 주면 ``hh:substFont``
+        대체 글꼴도 함께 방출한다(dedupe 로 기존 ``hh:font`` 를 재사용하는
+        경우는 대체 글꼴을 새로 끼워 넣지 않는다 — 기존 선언을 조용히
+        바꾸지 않는다는 6.0 원칙).
+        """
+
+        from ..errors import HwpxStateError, HwpxValueError
+
+        normalized_face = (face or "").strip()
+        if not normalized_face:
+            raise HwpxValueError("face must not be empty", code="style-font-face-empty")
+
+        normalized_type = _validate_font_type(font_type, param_name="font_type")
+        normalized_subst_face, normalized_subst_type = _resolve_font_substitute(
+            subst_face, subst_type
+        )
+        langs = _normalize_font_langs(lang)
+
+        fontfaces = self._fontfaces_element(create=True)
+        if fontfaces is None:  # pragma: no cover - defensive branch
+            raise HwpxStateError(
+                "failed to create <fontfaces> element",
+                code="style-font-container-create-failed",
+            )
+
+        primary_id: str | None = None
+        for lang_name in langs:
+            fontface = self._fontface_element(fontfaces, lang_name, create=True)
+            if fontface is None:  # pragma: no cover - defensive branch
+                raise HwpxStateError(
+                    "failed to create <fontface> element",
+                    code="style-font-container-create-failed",
+                    context={"lang": lang_name},
+                )
+            font_id = _find_font_id(fontface, normalized_face)
+            if font_id is None:
+                font_id = _allocate_font_id(fontface)
+                font_element = _build_font_element(
+                    font_id=font_id,
+                    face=normalized_face,
+                    font_type=normalized_type,
+                    is_embedded=is_embedded,
+                    binary_item_id_ref=binary_item_id_ref,
+                    subst_face=normalized_subst_face,
+                    subst_type=normalized_subst_type,
+                    subst_is_embedded=subst_is_embedded,
+                    subst_binary_item_id_ref=subst_binary_item_id_ref,
+                )
+                if isinstance(fontface, LET._Element):
+                    font_element = LET.fromstring(ET.tostring(font_element, encoding="utf-8"))
+                fontface.append(font_element)
+                fontface.set("fontCnt", str(len(fontface.findall(f"{_HH}font"))))
+                self.mark_dirty()
+            if primary_id is None:
+                primary_id = font_id
+
+        assert primary_id is not None  # langs is non-empty (validated by _normalize_font_langs)
+        return primary_id
 
     def ensure_shading_border_fill(
         self,

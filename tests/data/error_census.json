@@ -1,44 +1,48 @@
 {
  "codes": {
   "contract-document-missing": [
-   "capabilities.py:296"
+   "capabilities.py:358"
   ],
   "document-header-missing": [
-   "_document/layout.py:126",
-   "_document/layout.py:256"
+   "_document/layout.py:135",
+   "_document/layout.py:261",
+   "oxml/document_parts.py:638"
   ],
   "document-validation-failed": [
    "_document/persistence.py:87"
   ],
   "field-ambiguous": [
-   "_document/fields.py:590"
+   "_document/fields.py:667"
   ],
   "field-checkbox-ambiguous": [
-   "_document/fields.py:518"
+   "_document/fields.py:600"
   ],
   "field-checkbox-caption-empty": [
-   "_document/fields.py:451"
+   "_document/fields.py:535"
   ],
   "field-checkbox-not-created": [
-   "_document/fields.py:470"
+   "_document/fields.py:552"
   ],
   "field-checkbox-not-found": [
-   "_document/fields.py:501",
-   "_document/fields.py:511"
+   "_document/fields.py:583",
+   "_document/fields.py:593"
+  ],
+  "field-fit-failed": [
+   "_document/fields.py:755"
   ],
   "field-name-empty": [
-   "_document/fields.py:359"
+   "_document/fields.py:431"
   ],
   "field-not-created": [
-   "_document/fields.py:389"
+   "_document/fields.py:464"
   ],
   "field-not-found": [
-   "_document/fields.py:554",
-   "_document/fields.py:582"
+   "_document/fields.py:631",
+   "_document/fields.py:659"
   ],
   "field-selector-conflict": [
-   "_document/fields.py:492",
-   "_document/fields.py:545"
+   "_document/fields.py:574",
+   "_document/fields.py:622"
   ],
   "heading-level-invalid": [
    "_document/headings.py:51"
@@ -50,65 +54,68 @@
    "_document/headings.py:141"
   ],
   "media-item-id-taken": [
-   "_document/media.py:226"
+   "_document/media.py:292"
+  ],
+  "media-owner-paragraph-missing": [
+   "_document/media.py:244"
   ],
   "note-anchor-detached": [
-   "_document/memos.py:85"
+   "_document/memos.py:91"
   ],
   "note-argument-conflict": [
-   "_document/ns/notes.py:136"
+   "_document/ns/notes.py:135"
   ],
   "note-memo-detached": [
-   "_document/memos.py:218",
-   "_document/memos.py:91"
+   "_document/memos.py:235",
+   "_document/memos.py:97"
   ],
   "open-safety-failed": [
    "_document/persistence.py:105"
   ],
   "page-argument-conflict": [
-   "_document/layout.py:660",
-   "_document/ns/page.py:251"
+   "_document/layout.py:681",
+   "_document/ns/page.py:252"
   ],
   "page-argument-missing": [
-   "_document/ns/page.py:260"
+   "_document/ns/page.py:261"
   ],
   "page-columns-invalid": [
-   "_document/layout.py:392"
+   "_document/layout.py:406"
   ],
   "page-kind-invalid": [
-   "_document/layout.py:653"
+   "_document/layout.py:674"
   ],
   "page-orientation-unsupported": [
-   "_document/layout.py:49"
+   "_document/layout.py:58"
   ],
   "page-paper-size-unsupported": [
-   "_document/layout.py:337"
+   "_document/layout.py:345"
   ],
   "paragraph-argument-conflict": [
-   "_document/layout.py:72"
+   "_document/layout.py:81"
   ],
   "paragraph-format-empty": [
-   "_document/layout.py:183"
+   "_document/layout.py:192"
   ],
   "paragraph-indexes-empty": [
-   "_document/layout.py:83"
+   "_document/layout.py:92"
   ],
   "paragraph-invalid-type": [
    "_document/_resolve.py:168"
   ],
   "paragraph-line-spacing-invalid": [
-   "_document/layout.py:134"
+   "_document/layout.py:143"
   ],
   "paragraph-missing": [
    "_document/_resolve.py:149",
-   "_document/layout.py:66"
+   "_document/layout.py:75"
   ],
   "paragraph-not-found": [
    "_document/_resolve.py:161",
    "_document/headings.py:182"
   ],
   "paragraph-outline-level-out-of-range": [
-   "_document/layout.py:160"
+   "_document/layout.py:169"
   ],
   "quality-gate-failed": [
    "_document/persistence.py:143"
@@ -125,7 +132,7 @@
   ],
   "section-missing": [
    "_document/_resolve.py:84",
-   "_document/layout.py:526",
+   "_document/layout.py:547",
    "_document/memos.py:50"
   ],
   "section-not-found": [
@@ -159,50 +166,71 @@
    "_document/shapes.py:265"
   ],
   "style-ambiguous": [
-   "_document/ns/styles.py:144"
+   "_document/ns/styles.py:145"
   ],
   "style-argument-conflict": [
    "document.py:408"
   ],
+  "style-container-create-failed": [
+   "oxml/header_part.py:1041"
+  ],
+  "style-font-container-create-failed": [
+   "oxml/header_part.py:1150",
+   "oxml/header_part.py:1159"
+  ],
+  "style-font-face-empty": [
+   "oxml/header_part.py:1140"
+  ],
+  "style-font-lang-invalid": [
+   "oxml/_document_primitives.py:708",
+   "oxml/_document_primitives.py:717"
+  ],
+  "style-font-substitute-incomplete": [
+   "oxml/_document_primitives.py:792",
+   "oxml/_document_primitives.py:801"
+  ],
+  "style-font-type-invalid": [
+   "oxml/_document_primitives.py:730"
+  ],
   "style-list-level-invalid": [
-   "_document/layout.py:249"
+   "_document/layout.py:254"
   ],
   "style-list-property-failed": [
-   "_document/layout.py:276"
+   "_document/layout.py:281"
   ],
   "text-search-empty": [
    "_document/_legacy.py:1311",
    "_document/ns/text.py:117"
   ],
   "track-match-crosses-markup": [
-   "_document/tracked.py:79"
+   "_document/tracked.py:92"
   ],
   "track-match-empty": [
-   "_document/tracked.py:127",
-   "_document/tracked.py:168"
+   "_document/tracked.py:150",
+   "_document/tracked.py:197"
   ],
   "track-match-not-found": [
-   "_document/tracked.py:139",
-   "_document/tracked.py:174"
+   "_document/tracked.py:162",
+   "_document/tracked.py:203"
   ],
   "track-paragraph-empty": [
-   "_document/tracked.py:134"
+   "_document/tracked.py:157"
   ],
   "track-text-empty": [
-   "_document/tracked.py:100",
-   "_document/tracked.py:182"
+   "_document/tracked.py:113",
+   "_document/tracked.py:211"
   ],
   "unknown-contract-document": [
-   "capabilities.py:287"
+   "capabilities.py:349"
   ],
   "unknown-contract-schema": [
-   "capabilities.py:501"
+   "capabilities.py:579"
   ]
  },
  "malformedCodes": [],
  "observed": {
   "other": 139,
-  "typed": 103,
+  "typed": 115,
   "untyped": 193,
   "untypedByFile": {
    "body_patch.py": 20,
@@ -240,8 +268,8 @@
   }
  },
  "public": {
-  "total": 74,
-  "typed": 74,
+  "total": 76,
+  "typed": 76,
   "typedRatio": 1.0,
   "untyped": 0,
   "untypedSites": []

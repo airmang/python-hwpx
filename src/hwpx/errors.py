@@ -202,6 +202,12 @@ ERROR_CODES: dict[str, str] = {
     "style-argument-conflict": "style 과 style_id_ref 를 동시에 지정했다.",
     "style-list-level-invalid": "글머리표/번호 수준은 1 이상이어야 한다.",
     "style-list-property-failed": "번호 문단모양을 만들지 못했다.",
+    "style-font-face-empty": "face 값이 비어 있다.",
+    "style-font-lang-invalid": "lang 값이 OWPML 어휘(HANGUL/LATIN/HANJA/JAPANESE/OTHER/SYMBOL/USER) 밖이다.",
+    "style-font-type-invalid": "font_type/subst_type 값이 OWPML 어휘(REP/TTF/HFT) 밖이다.",
+    "style-font-substitute-incomplete": "대체 글꼴 인자가 일부만 주어졌다(subst_face 가 필요하다).",
+    "style-font-container-create-failed": "fontfaces/fontface 컨테이너를 만들지 못했다.",
+    "style-container-create-failed": "styles 컨테이너를 만들지 못했다(방어적 분기).",
     "heading-level-invalid": "개요 수준이 정수가 아니다.",
     "heading-level-out-of-range": "개요 수준이 1~10 밖이다.",
     "heading-style-missing": "이 문서에 해당 수준의 개요 스타일이 없다.",
@@ -222,6 +228,7 @@ ERROR_CODES: dict[str, str] = {
     "field-checkbox-not-found": "그 선택자로 체크박스를 찾지 못했다.",
     "field-checkbox-ambiguous": "선택자가 체크박스 여럿에 걸린다.",
     "field-checkbox-not-created": "만든 체크박스를 표준 리더가 다시 찾지 못했다.",
+    "field-fit-failed": "값이 FitPolicy 하에서 필드 상자에 들어가지 않는다(측정치·재시도 제안 동봉).",
     # -- 인라인 개체 -----------------------------------------------------
     "shape-equation-script-empty": "수식 스크립트가 비어 있다.",
     "shape-equation-script-too-large": "수식 스크립트가 크기 한도를 넘었다.",
@@ -234,6 +241,7 @@ ERROR_CODES: dict[str, str] = {
     "shape-chart-not-created": "만든 차트를 표준 스캔이 다시 찾지 못했다.",
     # -- 미디어 ----------------------------------------------------------
     "media-item-id-taken": "그 이진 항목 id 가 이미 쓰이고 있다.",
+    "media-owner-paragraph-missing": "교체한 그림 요소가 소속 문단을 찾지 못했다(방어적 분기).",
     # -- 주석 ------------------------------------------------------------
     "note-anchor-detached": "앵커를 걸 문단이 섹션에 속해 있지 않다.",
     "note-memo-detached": "메모가 섹션에 속해 있지 않다.",

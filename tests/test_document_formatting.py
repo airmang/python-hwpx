@@ -1085,6 +1085,183 @@ def test_header_ensure_style_resolves_by_name_immediately_on_a_real_document() -
     doc.close()
 
 
+# -- 6.1 글꼴 선언·대체 (StylesNamespace.ensure_font) -----------------------
+
+
+def test_header_ensure_font_registers_all_lang_blocks_by_default() -> None:
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    font_id = header.ensure_font("우리새글꼴")
+
+    fontfaces = head_element.find(f"{HH}refList/{HH}fontfaces")
+    assert fontfaces is not None
+    assert fontfaces.get("itemCnt") == "7"
+    langs = [ff.get("lang") for ff in fontfaces.findall(f"{HH}fontface")]
+    assert langs == [
+        "HANGUL", "LATIN", "HANJA", "JAPANESE", "OTHER", "SYMBOL", "USER",
+    ]
+    for fontface in fontfaces.findall(f"{HH}fontface"):
+        assert fontface.get("fontCnt") == "1"
+        font = fontface.find(f"{HH}font")
+        assert font is not None
+        assert font.get("id") == font_id
+        assert font.get("face") == "우리새글꼴"
+        assert font.get("type") == "TTF"
+        assert font.get("isEmbedded") == "0"  # 실코퍼스 관행: "0"/"1"(true/false 아님)
+        assert "binaryItemIDRef" not in font.attrib  # 실코퍼스: 비-임베드는 속성 자체가 없다
+
+
+def test_header_ensure_font_single_lang_scopes_registration() -> None:
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    header.ensure_font("한글전용체", lang="HANGUL")
+
+    fontfaces = head_element.find(f"{HH}refList/{HH}fontfaces")
+    assert fontfaces is not None
+    assert [ff.get("lang") for ff in fontfaces.findall(f"{HH}fontface")] == ["HANGUL"]
+    fontface = fontfaces.find(f"{HH}fontface")
+    assert fontface.get("fontCnt") == "1"
+
+
+def test_header_ensure_font_dedupes_by_face_within_a_lang_block() -> None:
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    first_id = header.ensure_font("중복체", lang="HANGUL", font_type="TTF")
+    second_id = header.ensure_font("중복체", lang="HANGUL", font_type="TTF")
+
+    assert first_id == second_id
+    fontface = head_element.find(f"{HH}refList/{HH}fontfaces/{HH}fontface")
+    assert fontface.get("fontCnt") == "1"  # 안 늘어남
+    assert len(fontface.findall(f"{HH}font")) == 1
+
+    # 다른 face는 새 id.
+    other_id = header.ensure_font("다른체", lang="HANGUL")
+    assert other_id != first_id
+    assert fontface.get("fontCnt") == "2"
+
+
+def test_header_ensure_font_allocates_ids_independently_per_lang_block() -> None:
+    """실코퍼스 실측: fontface 블록마다 id 채번이 독립이다(공유 카운터가
+    아니다) — 한 블록에 미리 항목이 많으면 그 블록의 다음 id 만 밀린다."""
+
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    # HANGUL 블록만 먼저 채워서 다음 id를 밀어 둔다.
+    header.ensure_font("먼저등록체1", lang="HANGUL")
+    header.ensure_font("먼저등록체2", lang="HANGUL")
+
+    shared_id = header.ensure_font("공용체", lang=("HANGUL", "LATIN"))
+
+    fontfaces = head_element.find(f"{HH}refList/{HH}fontfaces")
+    hangul = next(ff for ff in fontfaces.findall(f"{HH}fontface") if ff.get("lang") == "HANGUL")
+    latin = next(ff for ff in fontfaces.findall(f"{HH}fontface") if ff.get("lang") == "LATIN")
+    hangul_entry = next(f for f in hangul.findall(f"{HH}font") if f.get("face") == "공용체")
+    latin_entry = next(f for f in latin.findall(f"{HH}font") if f.get("face") == "공용체")
+
+    assert hangul_entry.get("id") == "2"  # 앞선 두 등록 뒤라 다음 id
+    assert latin_entry.get("id") == "0"  # LATIN 블록은 비어 있었으므로 0부터
+    assert shared_id == hangul_entry.get("id")  # 반환값 = 정규 순서상 첫 lang(HANGUL) 블록의 id
+
+
+def test_header_ensure_font_rejects_empty_face() -> None:
+    from hwpx.errors import HwpxValueError
+
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    with pytest.raises(HwpxValueError) as excinfo:
+        header.ensure_font("   ")
+    assert excinfo.value.code == "style-font-face-empty"
+
+
+def test_header_ensure_font_rejects_invalid_lang() -> None:
+    from hwpx.errors import HwpxValueError
+
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    with pytest.raises(HwpxValueError) as excinfo:
+        header.ensure_font("아무체", lang="KLINGON")
+    assert excinfo.value.code == "style-font-lang-invalid"
+    assert "HANGUL" in excinfo.value.context["available"]
+
+
+def test_header_ensure_font_rejects_invalid_font_type() -> None:
+    from hwpx.errors import HwpxValueError
+
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    with pytest.raises(HwpxValueError) as excinfo:
+        header.ensure_font("아무체", lang="HANGUL", font_type="OTF")
+    assert excinfo.value.code == "style-font-type-invalid"
+
+
+def test_header_ensure_font_rejects_incomplete_substitute() -> None:
+    from hwpx.errors import HwpxValueError
+
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    with pytest.raises(HwpxValueError) as excinfo:
+        header.ensure_font("아무체", lang="HANGUL", subst_type="TTF")  # subst_face 없음
+    assert excinfo.value.code == "style-font-substitute-incomplete"
+
+
+def test_header_ensure_font_emits_subst_font_matching_real_corpus_shape() -> None:
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    font_id = header.ensure_font(
+        "없는글꼴",
+        lang="HANGUL",
+        subst_face="함초롬바탕",
+        subst_type="TTF",
+    )
+
+    font = head_element.find(f"{HH}refList/{HH}fontfaces/{HH}fontface/{HH}font")
+    assert font.get("id") == font_id
+    subst = font.find(f"{HH}substFont")
+    assert subst is not None
+    assert subst.get("face") == "함초롬바탕"
+    assert subst.get("type") == "TTF"
+    assert subst.get("isEmbedded") == "0"
+    # 실코퍼스 관행: substFont는 binaryItemIDRef를 항상 갖되(font와 반대)
+    # 값이 없으면 빈 문자열로 남는다.
+    assert subst.get("binaryItemIDRef") == ""
+
+    # dedupe 재호출은 이미 있는 hh:font를 재사용하고, 대체 글꼴을 새로
+    # 끼워 넣지 않는다(기존 선언을 조용히 바꾸지 않는다).
+    reused_id = header.ensure_font("없는글꼴", lang="HANGUL")
+    assert reused_id == font_id
+    fontface = head_element.find(f"{HH}refList/{HH}fontfaces/{HH}fontface")
+    assert fontface.get("fontCnt") == "1"
+
+
+def test_document_ensure_font_then_ensure_run_wires_a_real_font_ref() -> None:
+    """등록(ensure_font) → 사용(ensure_run(font=...)) 왕복이 한 호출 체인에서
+    가능해야 한다는 6.1 게이트 ②의 핵심 계약."""
+
+    from hwpx.document import HwpxDocument
+
+    doc = HwpxDocument.new()
+    face = "체인등록체"
+    font_id = doc.styles.ensure_font(face, lang="HANGUL")
+    run_id = doc.styles.ensure_run(font=face, bold=True)
+
+    char_pr = doc.oxml.char_property(run_id)
+    assert char_pr is not None
+    # RunStyle 모델은 자식 요소를 child_attributes[로컬이름] 로 노출한다.
+    font_ref = char_pr.child_attributes.get("fontRef")
+    assert font_ref is not None
+    assert font_ref.get("hangul") == font_id
+    doc.close()
+
+
 def test_paragraph_add_shape_and_control_updates_attributes() -> None:
     section, paragraph = _build_section_with_paragraph()
 

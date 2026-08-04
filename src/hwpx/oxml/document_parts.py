@@ -619,6 +619,38 @@ class HwpxOxmlDocument:
             border_type=border_type,
         )
 
+    def ensure_font(
+        self,
+        face: str,
+        *,
+        lang: Iterable[str] | str | None = None,
+        font_type: str = "TTF",
+        is_embedded: bool = False,
+        binary_item_id_ref: str | None = None,
+        subst_face: str | None = None,
+        subst_type: str | None = None,
+        subst_is_embedded: bool = False,
+        subst_binary_item_id_ref: str | None = None,
+    ) -> str:
+        if not self._headers:
+            from ..errors import HwpxStateError
+
+            raise HwpxStateError(
+                "document does not contain any headers",
+                code="document-header-missing",
+            )
+        return self._headers[0].ensure_font(
+            face,
+            lang=lang,
+            font_type=font_type,
+            is_embedded=is_embedded,
+            binary_item_id_ref=binary_item_id_ref,
+            subst_face=subst_face,
+            subst_type=subst_type,
+            subst_is_embedded=subst_is_embedded,
+            subst_binary_item_id_ref=subst_binary_item_id_ref,
+        )
+
     def ensure_shading_border_fill(
         self,
         color: str,

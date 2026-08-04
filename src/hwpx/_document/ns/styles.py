@@ -285,6 +285,40 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             border_type=border_type,
         )
 
+    def ensure_font(
+        self,
+        face: str,
+        *,
+        lang: "Sequence[str] | str | None" = None,
+        font_type: str = "TTF",
+        is_embedded: bool = False,
+        binary_item_id_ref: str | None = None,
+        subst_face: str | None = None,
+        subst_type: str | None = None,
+        subst_is_embedded: bool = False,
+        subst_binary_item_id_ref: str | None = None,
+    ) -> str:
+        """`hh:fontfaces` 에 *face* 를 선언하고(dedupe) 그 `hh:font` id 를 돌려준다.
+
+        *lang* 을 생략하면 실문서 다수 관행대로 7개 lang 블록
+        (HANGUL/LATIN/HANJA/JAPANESE/OTHER/SYMBOL/USER) 전부에 등록한다 —
+        등록 뒤 ``ensure_run(font=face)`` 로 참조하면 ``fontRef`` 의 모든
+        속성이 유효한 글꼴을 가리킨다. *subst_face*/*subst_type* 을 주면
+        `hh:substFont` 대체 글꼴도 함께 선언한다.
+        """
+
+        return self._doc.oxml.ensure_font(
+            face,
+            lang=lang,
+            font_type=font_type,
+            is_embedded=is_embedded,
+            binary_item_id_ref=binary_item_id_ref,
+            subst_face=subst_face,
+            subst_type=subst_type,
+            subst_is_embedded=subst_is_embedded,
+            subst_binary_item_id_ref=subst_binary_item_id_ref,
+        )
+
     def ensure_numbering(
         self, *, kind: str, levels: Sequence[dict[str, str]] | None = None
     ) -> list[str]:

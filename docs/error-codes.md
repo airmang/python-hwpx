@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 70 | 11 |
+| 개수 | 78 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -79,6 +79,7 @@ except HwpxError as exc:
 | `field-checkbox-caption-empty` | 체크박스 캡션이 비어 있다. |
 | `field-checkbox-not-created` | 만든 체크박스를 표준 리더가 다시 찾지 못했다. |
 | `field-checkbox-not-found` | 그 선택자로 체크박스를 찾지 못했다. |
+| `field-fit-failed` | 값이 FitPolicy 하에서 필드 상자에 들어가지 않는다(측정치·재시도 제안 동봉). |
 | `field-name-empty` | 누름틀 이름이 비어 있다. |
 | `field-not-created` | 만든 누름틀을 표준 매처가 다시 찾지 못했다. |
 | `field-not-found` | 그 선택자로 누름틀을 찾지 못했다. |
@@ -107,6 +108,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `media-item-id-taken` | 그 이진 항목 id 가 이미 쓰이고 있다. |
+| `media-owner-paragraph-missing` | 교체한 그림 요소가 소속 문단을 찾지 못했다(방어적 분기). |
 
 ### `note-*`
 
@@ -200,6 +202,12 @@ except HwpxError as exc:
 |---|---|
 | `style-ambiguous` | 같은 이름을 쓰는 스타일이 둘 이상이다(후보 동봉). |
 | `style-argument-conflict` | style 과 style_id_ref 를 동시에 지정했다. |
+| `style-container-create-failed` | styles 컨테이너를 만들지 못했다(방어적 분기). |
+| `style-font-container-create-failed` | fontfaces/fontface 컨테이너를 만들지 못했다. |
+| `style-font-face-empty` | face 값이 비어 있다. |
+| `style-font-lang-invalid` | lang 값이 OWPML 어휘(HANGUL/LATIN/HANJA/JAPANESE/OTHER/SYMBOL/USER) 밖이다. |
+| `style-font-substitute-incomplete` | 대체 글꼴 인자가 일부만 주어졌다(subst_face 가 필요하다). |
+| `style-font-type-invalid` | font_type/subst_type 값이 OWPML 어휘(REP/TTF/HFT) 밖이다. |
 | `style-list-level-invalid` | 글머리표/번호 수준은 1 이상이어야 한다. |
 | `style-list-property-failed` | 번호 문단모양을 만들지 못했다. |
 | `style-not-found` | 그 id·이름의 스타일이 없다(가용 목록·가장 가까운 이름 동봉). |
