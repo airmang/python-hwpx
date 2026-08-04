@@ -26,6 +26,12 @@ from hwpx.tools import validator as validator_module
 
 _MIMETYPE = b"application/hwp+zip"
 _VERSION_XML = b"<?xml version='1.0' encoding='UTF-8'?><version/>"
+_SETTINGS_XML = (
+    b"<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"
+    b"<ha:HWPApplicationSetting xmlns:ha='http://www.hancom.co.kr/hwpml/2011/app'>"
+    b"<ha:CaretPosition listIDRef='0' paraIDRef='0' pos='0'/>"
+    b"</ha:HWPApplicationSetting>"
+)
 _CONTAINER_XML = (
     b"<?xml version='1.0' encoding='UTF-8'?>"
     b"<container><rootfiles><rootfile full-path='Contents/content.hpf' "
@@ -645,6 +651,49 @@ def test_first_run_on_builtin_template_emits_no_warnings(caplog, tmp_path) -> No
     assert package.version_path() == "version.xml"
 
     assert [record for record in caplog.records if record.name.startswith("hwpx")] == []
+
+
+def test_settings_path_resolves_via_fixed_path_fallback_like_version(caplog) -> None:
+    """실코퍼스 177파일 전수: settings.xml은 manifest item(id="settings")으로
+    선언되지만, version.xml과 같은 이유로 고정 경로 fallback도 지원한다
+    (manifest가 settings 항목을 생략해도 열 수 있어야 한다)."""
+
+    import logging
+
+    caplog.set_level(logging.DEBUG)
+    package = HwpxPackage.open(
+        _build_package(overrides={"settings.xml": _SETTINGS_XML})
+    )
+    assert package.settings_path() == "settings.xml"
+    assert package.get_xml("settings.xml") is not None
+
+
+def test_settings_path_resolves_via_manifest_item() -> None:
+    manifest_with_settings = (
+        b"<?xml version='1.0' encoding='UTF-8'?>"
+        b"<opf:package xmlns:opf='http://www.idpf.org/2007/opf/'>"
+        b"<opf:manifest>"
+        b"<opf:item id='header' href='Contents/header.xml'/>"
+        b"<opf:item id='section0' href='Contents/section0.xml'/>"
+        b"<opf:item id='settings' href='settings.xml'/>"
+        b"</opf:manifest>"
+        b"<opf:spine><opf:itemref idref='section0'/></opf:spine>"
+        b"</opf:package>"
+    )
+    package = HwpxPackage.open(
+        _build_package(
+            overrides={
+                "Contents/content.hpf": manifest_with_settings,
+                "settings.xml": _SETTINGS_XML,
+            }
+        )
+    )
+    assert package.settings_path() == "settings.xml"
+
+
+def test_settings_path_is_none_when_package_lacks_the_part() -> None:
+    package = HwpxPackage.open(_build_package())
+    assert package.settings_path() is None
 
 
 def test_manifest_missing_master_page_with_real_file_still_warns(caplog) -> None:

@@ -160,6 +160,14 @@ HC = f"{{{HC_NS}}}"
 HS_NS = namespace_uri("section")
 HS = f"{{{HS_NS}}}"
 
+HA_NS = namespace_uri("app")
+HA = f"{{{HA_NS}}}"
+
+# ODF's config schema — settings.xml reuses it verbatim for config-item-set/
+# config-item (실측: 다른 벤더의 자체 어휘가 아니라 OASIS ODF 1.0 재사용).
+CONFIG_NS = "urn:oasis:names:tc:opendocument:xmlns:config:1.0"
+CONFIG = f"{{{CONFIG_NS}}}"
+
 # HWPML 2016 (for namespace registration only)
 HP10_NS = namespace_uri("paragraph", "2016")
 HS10_NS = namespace_uri("section", "2016")

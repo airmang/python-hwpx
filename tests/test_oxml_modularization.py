@@ -248,7 +248,13 @@ def test_frozen_facade_exports_remain_exact() -> None:
     # TabDefinitionList) fills the audit's gap #2 — hh:tabPr/tabItem were
     # frozen-template/unread; this is the "additive model extension" path
     # the completeness audit's route ①/③ anticipated for that gap.
-    assert len(oxml.__all__) == 113
+    # 113 -> 120: the document-options/compatibility read models fill gap #13
+    # and its R1 "genuinely code-blind" element — LayoutCompatibility,
+    # CompatibleDocument (hh:layoutCompatibility/compatibleDocument) plus the
+    # settings.xml first-ever read surface (ApplicationSettings, CaretPosition,
+    # ConfigItem, ConfigItemSet, HwpxOxmlSettings) — settings.xml has no
+    # vendored OWPML schema at all, reverse-engineered from the real corpus.
+    assert len(oxml.__all__) == 120
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 
 

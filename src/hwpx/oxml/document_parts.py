@@ -6,7 +6,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 import logging
-from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Iterable, Mapping, Sequence, TypeVar
 import xml.etree.ElementTree as ET
 
 from hwpx.opc.relationships import resolve_part_name
@@ -41,7 +41,13 @@ from .namespaces import tag_local_name
 from .paragraph import HwpxOxmlParagraph
 from .run import RunStyle, _char_properties_from_header
 from .section import HwpxOxmlSection
-from .simple_parts import HwpxOxmlHistory, HwpxOxmlMasterPage, HwpxOxmlVersion
+from .simple_parts import (
+    HwpxOxmlHistory,
+    HwpxOxmlMasterPage,
+    HwpxOxmlSettings,
+    HwpxOxmlVersion,
+    _HwpxOxmlSimplePart,
+)
 
 if TYPE_CHECKING:
     from hwpx.opc.package import HwpxPackage
@@ -325,6 +331,9 @@ def _run_style_modifier(element: ET.Element, spec: _RunStyleSpec) -> None:
     _run_style_apply_extensions(element, spec)
 
 
+_SimplePartT = TypeVar("_SimplePartT", bound=_HwpxOxmlSimplePart)
+
+
 class HwpxOxmlDocument:
     """Aggregates the XML parts that make up an HWPX document."""
 
@@ -337,6 +346,7 @@ class HwpxOxmlDocument:
         master_pages: Sequence[HwpxOxmlMasterPage] | None = None,
         histories: Sequence[HwpxOxmlHistory] | None = None,
         version: HwpxOxmlVersion | None = None,
+        settings: HwpxOxmlSettings | None = None,
         manifest_path: str = "Contents/content.hpf",
     ):
         self._manifest_path = manifest_path
@@ -346,6 +356,7 @@ class HwpxOxmlDocument:
         self._master_pages = list(master_pages or [])
         self._histories = list(histories or [])
         self._version = version
+        self._settings = settings
         self._char_property_cache: dict[str, RunStyle] | None = None
         self._manifest_dirty = False
 
@@ -359,6 +370,32 @@ class HwpxOxmlDocument:
             history.attach_document(self)
         if self._version is not None:
             self._version.attach_document(self)
+        if self._settings is not None:
+            self._settings.attach_document(self)
+
+    @staticmethod
+    def _load_optional_simple_part(
+        package: "HwpxPackage",
+        path: str | None,
+        part_cls: type[_SimplePartT],
+        *,
+        label: str,
+    ) -> _SimplePartT | None:
+        """Load a singular, optional part (``version.xml``/``settings.xml``
+        — at most one per package, absence is normal)."""
+
+        if not path:
+            return None
+        if not package.has_part(path):
+            logger.warning(
+                "manifest가 가리키는 %s 파트가 누락되었습니다: part_path=%s", label, path
+            )
+            return None
+        try:
+            return part_cls(path, package.get_xml(path))
+        except Exception:
+            logger.exception("%s 파싱 실패: part_path=%s", label, path)
+            raise
 
     @classmethod
     def from_package(cls, package: "HwpxPackage") -> "HwpxOxmlDocument":
@@ -375,6 +412,7 @@ class HwpxOxmlDocument:
         master_page_paths = package.master_page_paths()
         history_paths = package.history_paths()
         version_path = package.version_path()
+        settings_path = package.settings_path()
 
         sections: list[HwpxOxmlSection] = []
         for section_index, path in enumerate(section_paths):
@@ -418,18 +456,12 @@ class HwpxOxmlDocument:
                 logger.exception("history 파싱 실패: part_path=%s", path)
                 raise
 
-        version = None
-        if version_path and package.has_part(version_path):
-            try:
-                version = HwpxOxmlVersion(version_path, package.get_xml(version_path))
-            except Exception:
-                logger.exception("version 파싱 실패: part_path=%s", version_path)
-                raise
-        elif version_path:
-            logger.warning(
-                "manifest가 가리키는 version 파트가 누락되었습니다: part_path=%s",
-                version_path,
-            )
+        version = cls._load_optional_simple_part(
+            package, version_path, HwpxOxmlVersion, label="version"
+        )
+        settings = cls._load_optional_simple_part(
+            package, settings_path, HwpxOxmlSettings, label="settings"
+        )
         return cls(
             manifest,
             sections,
@@ -437,6 +469,7 @@ class HwpxOxmlDocument:
             master_pages=master_pages,
             histories=histories,
             version=version,
+            settings=settings,
             manifest_path=package.main_content.full_path,
         )
 
@@ -463,6 +496,10 @@ class HwpxOxmlDocument:
     @property
     def version(self) -> HwpxOxmlVersion | None:
         return self._version
+
+    @property
+    def settings(self) -> HwpxOxmlSettings | None:
+        return self._settings
 
     def _ensure_char_property_cache(self) -> dict[str, RunStyle]:
         if self._char_property_cache is None:

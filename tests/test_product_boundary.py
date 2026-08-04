@@ -253,8 +253,10 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # 3(_legacy·_resolve·headings) + _document/ns 13(__init__·_base·11 네임스페이스).
     # 6.0: +5 — 062-engine-surface WP-C. objects/ 반환 규약 소유 모듈
     # 5종(checkbox·form_field·tracked·binary_item·results).
+    # 6.1: +1 — settings.xml(ha:HWPApplicationSetting) read model, a brand new
+    # module (oxml/settings.py) alongside header.py/simple_parts.py.
     # 전부 module-ownership.json 에 개별 rationale 과 함께 등재돼 있다.
-    assert report["classifiedFiles"] == 131
+    assert report["classifiedFiles"] == 132
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

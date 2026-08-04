@@ -394,6 +394,12 @@
       "rationale": "colour-family classification over HWPX textColor; body_patch matches charPr entries by family and the application-side guidance scanner classifies the same way, so one implementation lives here"
     },
     {
+      "path": "src/hwpx/oxml/settings.py",
+      "disposition": "core",
+      "approvedBy": "cycle-6.1/document-options-and-compatibility",
+      "rationale": "settings.xml (ha:HWPApplicationSetting) read model — package/OXML part parsing alongside header.py/simple_parts.py, no application workflow or policy"
+    },
+    {
       "path": "src/hwpx/plan/__init__.py",
       "disposition": "core",
       "approvedBy": "059-agent-contract-surface/P1",

@@ -27,7 +27,13 @@ from .objects import HwpxOxmlInlineObject, HwpxOxmlShape
 from .paragraph import HwpxOxmlParagraph
 from .run import HwpxOxmlRun, RunStyle
 from .section import HwpxOxmlSection, HwpxOxmlSectionHeaderFooter, HwpxOxmlSectionProperties
-from .simple_parts import HwpxOxmlHistory, HwpxOxmlMasterPage, HwpxOxmlVersion
+from .settings import ApplicationSettings, CaretPosition, ConfigItem, ConfigItemSet
+from .simple_parts import (
+    HwpxOxmlHistory,
+    HwpxOxmlMasterPage,
+    HwpxOxmlSettings,
+    HwpxOxmlVersion,
+)
 from .table import HwpxOxmlTable, HwpxOxmlTableCell, HwpxOxmlTableRow, HwpxTableGridPosition
 
 from .document import (
@@ -44,6 +50,7 @@ from .header import (
     BulletParaHead,
     CharProperty,
     CharPropertyList,
+    CompatibleDocument,
     DocOption,
     Font,
     FontFace,
@@ -54,6 +61,7 @@ from .header import (
     Header,
     KeyDerivation,
     KeyEncryption,
+    LayoutCompatibility,
     LinkInfo,
     LicenseMark,
     MemoProperties,
@@ -119,8 +127,13 @@ __all__ = [
     "Bullet",
     "BulletList",
     "BulletParaHead",
+    "ApplicationSettings",
+    "CaretPosition",
     "CharProperty",
     "CharPropertyList",
+    "CompatibleDocument",
+    "ConfigItem",
+    "ConfigItemSet",
     "DocOption",
     "Font",
     "FontFace",
@@ -144,6 +157,7 @@ __all__ = [
     "HwpxOxmlSection",
     "HwpxOxmlSectionHeaderFooter",
     "HwpxOxmlSectionProperties",
+    "HwpxOxmlSettings",
     "HwpxOxmlShape",
     "HwpxOxmlTable",
     "HwpxOxmlTableCell",
@@ -152,6 +166,7 @@ __all__ = [
     "HwpxOxmlVersion",
     "KeyDerivation",
     "KeyEncryption",
+    "LayoutCompatibility",
     "LinkInfo",
     "LicenseMark",
     "MemoProperties",

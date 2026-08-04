@@ -6,8 +6,11 @@
   "document-header-missing": [
    "_document/layout.py:146",
    "_document/layout.py:300",
-   "oxml/document_parts.py:639",
-   "oxml/document_parts.py:733"
+   "oxml/document_parts.py:676",
+   "oxml/document_parts.py:770"
+  ],
+  "document-settings-root-invalid": [
+   "oxml/settings.py:135"
   ],
   "document-validation-failed": [
    "_document/persistence.py:87"
@@ -246,7 +249,7 @@
  "malformedCodes": [],
  "observed": {
   "other": 139,
-  "typed": 123,
+  "typed": 124,
   "untyped": 193,
   "untypedByFile": {
    "body_patch.py": 20,

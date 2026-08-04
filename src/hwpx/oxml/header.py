@@ -45,6 +45,33 @@ class DocOption:
 
 
 @dataclass(slots=True)
+class LayoutCompatibility:
+    """``hh:layoutCompatibility`` — 존재 자체가 값인 마커 자식 요소 집합.
+
+    스키마(Header XML schema.xml)는 48개 플래그 이름을 전부 나열하지만
+    (``applyFontWeightToBold``·``useInnerUnderline``…), 실코퍼스 176파일
+    전수는 **전부 비어 있었다**(플래그 0개, 감사 §4-R1이 "코드가 단어조차
+    모르는" 요소로 지목한 자리). 실물에 등장한 적 없는 어휘를 하드코딩
+    열거하지 않고, 실제로 있는 자식 요소 이름 집합만 보존한다 — 문서마다
+    다른 조합이 등장해도 무손실이다.
+    """
+
+    flags: frozenset[str] = field(default_factory=frozenset)
+
+    def has(self, flag: str) -> bool:
+        return flag in self.flags
+
+
+@dataclass(slots=True)
+class CompatibleDocument:
+    """``hh:compatibleDocument`` — 문서 호환성 대상 프로그램 + 레이아웃
+    호환 플래그. 실코퍼스 176파일 전수 ``targetProgram="HWP201X"``."""
+
+    target_program: Optional[str] = None
+    layout_compatibility: Optional[LayoutCompatibility] = None
+
+
+@dataclass(slots=True)
 class KeyDerivation:
     algorithm: Optional[str]
     size: Optional[int]
@@ -712,7 +739,7 @@ class Header:
     begin_num: Optional[BeginNum] = None
     ref_list: Optional[RefList] = None
     forbidden_word_list: Optional[ForbiddenWordList] = None
-    compatible_document: Optional[GenericElement] = None
+    compatible_document: Optional[CompatibleDocument] = None
     doc_option: Optional[DocOption] = None
     meta_tag: Optional[str] = None
     track_change_config: Optional[TrackChangeConfig] = None
@@ -899,6 +926,22 @@ def parse_license_mark(node: etree._Element) -> LicenseMark:
         type=parse_int(node.get("type"), allow_none=False),
         flag=parse_int(node.get("flag"), allow_none=False),
         lang=parse_int(node.get("lang")),
+    )
+
+
+def parse_layout_compatibility(node: etree._Element) -> LayoutCompatibility:
+    return LayoutCompatibility(flags=frozenset(local_name(child) for child in node))
+
+
+def parse_compatible_document(node: etree._Element) -> CompatibleDocument:
+    layout_compatibility: Optional[LayoutCompatibility] = None
+    for child in node:
+        if local_name(child) == "layoutCompatibility":
+            layout_compatibility = parse_layout_compatibility(child)
+            break
+    return CompatibleDocument(
+        target_program=node.get("targetProgram"),
+        layout_compatibility=layout_compatibility,
     )
 
 
@@ -1504,7 +1547,7 @@ def parse_header_element(node: etree._Element) -> Header:
         elif name == "forbiddenWordList":
             header.forbidden_word_list = parse_forbidden_word_list(child)
         elif name == "compatibleDocument":
-            header.compatible_document = parse_generic_element(child)
+            header.compatible_document = parse_compatible_document(child)
         elif name == "docOption":
             header.doc_option = parse_doc_option(child)
         elif name == "metaTag":
@@ -1593,6 +1636,7 @@ __all__ = [
     "BulletParaHead",
     "CharProperty",
     "CharPropertyList",
+    "CompatibleDocument",
     "DocOption",
     "Font",
     "FontFace",
@@ -1603,6 +1647,7 @@ __all__ = [
     "Header",
     "KeyDerivation",
     "KeyEncryption",
+    "LayoutCompatibility",
     "LinkInfo",
     "LicenseMark",
     "MemoProperties",
@@ -1638,9 +1683,11 @@ __all__ = [
     "parse_bullets",
     "parse_char_property",
     "parse_char_properties",
+    "parse_compatible_document",
     "parse_doc_option",
     "parse_forbidden_word_list",
     "parse_header_element",
+    "parse_layout_compatibility",
     "parse_memo_properties",
     "parse_memo_shape",
     "parse_numberings",
@@ -1655,7 +1702,10 @@ __all__ = [
     "parse_ref_list",
     "parse_style",
     "parse_styles",
+    "parse_tab_definition",
+    "parse_tab_definitions",
     "parse_tab_properties",
+    "parse_tab_stop",
     "parse_track_change",
     "parse_track_change_author",
     "parse_track_change_authors",

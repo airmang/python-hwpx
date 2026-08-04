@@ -350,6 +350,7 @@ class HwpxPackage:
 
     CONTAINER_PATH = "META-INF/container.xml"
     VERSION_PATH = "version.xml"
+    SETTINGS_PATH = "settings.xml"
     MIMETYPE_PATH = "mimetype"
     DEFAULT_MIMETYPE = "application/hwp+zip"
     MANIFEST_PATH = "Contents/content.hpf"
@@ -388,6 +389,8 @@ class HwpxPackage:
         self._history_paths_cache: list[str] | None = None
         self._version_path_cache: str | None = None
         self._version_path_cache_resolved = False
+        self._settings_path_cache: str | None = None
+        self._settings_path_cache_resolved = False
         self._archive_write_depth = 0
         self._validate_structure()
 
@@ -723,6 +726,26 @@ class HwpxPackage:
             self._version_path_cache_resolved = True
         return self._version_path_cache
 
+    def settings_path(self) -> str | None:
+        if not self._settings_path_cache_resolved:
+            path = parse_manifest_relationships(
+                self.manifest_tree(),
+                self.main_content.full_path,
+                known_parts=self._files.keys(),
+            ).settings_path
+            if path is None and self.has_part(self.SETTINGS_PATH):
+                # 실코퍼스 177파일 전수: settings.xml은 manifest item(id=
+                # "settings")으로 정상 선언되지만, version.xml과 같은 이유로
+                # 고정 경로 fallback도 둔다.
+                logger.debug(
+                    "manifest에 settings 항목이 없어 고정 경로를 사용합니다: %s",
+                    self.SETTINGS_PATH,
+                )
+                path = self.SETTINGS_PATH
+            self._settings_path_cache = path
+            self._settings_path_cache_resolved = True
+        return self._settings_path_cache
+
     # ------------------------------------------------------------------
     # Manifest item helpers (for BinData / images)
     # ------------------------------------------------------------------
@@ -790,6 +813,8 @@ class HwpxPackage:
         self._history_paths_cache = None
         self._version_path_cache = None
         self._version_path_cache_resolved = False
+        self._settings_path_cache = None
+        self._settings_path_cache_resolved = False
 
     def _iter_header_part_paths_for_safety_normalization(self) -> list[str]:
         paths: list[str] = []

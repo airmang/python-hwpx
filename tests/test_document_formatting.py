@@ -1433,6 +1433,147 @@ def test_document_apply_paragraph_format_tab_stops_reject_missing_pos_mm() -> No
     doc.close()
 
 
+# -- 6.1 문서 옵션·호환성 읽기(hh:layoutCompatibility·compatibleDocument·-----
+# -- settings.xml ha:HWPApplicationSetting) ----------------------------------
+
+
+def test_header_compatible_document_reports_target_program_and_empty_flags_on_skeleton() -> None:
+    """실코퍼스 176파일 전수: targetProgram="HWP201X"·layoutCompatibility
+    플래그 0개(감사 §4-R1이 "코드가 단어조차 모르는" 요소로 지목한 자리)."""
+
+    from hwpx.document import HwpxDocument
+
+    doc = HwpxDocument.new()
+    model = doc.oxml.headers[0].to_model()
+    compatible = model.compatible_document
+    assert compatible is not None
+    assert compatible.target_program == "HWP201X"
+    assert compatible.layout_compatibility is not None
+    assert compatible.layout_compatibility.flags == frozenset()
+    doc.close()
+
+
+def test_header_layout_compatibility_preserves_unknown_flags_without_hardcoded_enum() -> None:
+    """실문서에 등장한 적 없는 조합이라도(로컬 코퍼스 176파일 전수 0개) 무손실
+    보존해야 한다 — 이름→존재 집합 모델이지 하드코딩 열거가 아니라는 계약."""
+
+    from hwpx.oxml.header import parse_compatible_document
+
+    node = ET.Element(f"{HH}compatibleDocument", {"targetProgram": "MS_WORD"})
+    layout = ET.SubElement(node, f"{HH}layoutCompatibility")
+    ET.SubElement(layout, f"{HH}applyFontWeightToBold")
+    ET.SubElement(layout, f"{HH}doNotApplyImageEffect")
+    ET.SubElement(layout, f"{HH}notInTheSchema42")  # 스키마 밖 미래 플래그도 무손실
+    compatible = parse_compatible_document(node)
+    assert compatible.target_program == "MS_WORD"
+    assert compatible.layout_compatibility.flags == {
+        "applyFontWeightToBold",
+        "doNotApplyImageEffect",
+        "notInTheSchema42",
+    }
+    assert compatible.layout_compatibility.has("applyFontWeightToBold")
+    assert not compatible.layout_compatibility.has("useInnerUnderline")
+
+
+def test_header_compatible_document_matches_real_hancom_documents() -> None:
+    """게이트 ①: 실한컴 저장본 3표본에서 targetProgram이 원 XML과 정합."""
+
+    from hwpx.document import HwpxDocument
+
+    fixtures = [
+        "tests/fixtures/hwpxlib_corpus/error__20250808__2015년_12월_재난안전종합상황_분석_및_전망.hwpx",
+        "tests/fixtures/hwpxlib_corpus/error__20251107__test_re.hwpx",
+        "tests/fixtures/hwpxlib_corpus/error__20230728__test.hwpx",
+    ]
+    ns = {"hh": "http://www.hancom.co.kr/hwpml/2011/head"}
+    for path in fixtures:
+        import zipfile
+        from lxml import etree as LET2
+
+        raw = zipfile.ZipFile(path).read("Contents/header.xml")
+        raw_root = LET2.fromstring(raw)
+        raw_compatible = raw_root.find(".//hh:compatibleDocument", ns)
+        expected_target = raw_compatible.get("targetProgram")
+        raw_layout = raw_compatible.find("hh:layoutCompatibility", ns)
+        expected_flags = frozenset(LET2.QName(c.tag).localname for c in raw_layout)
+
+        doc = HwpxDocument.open(path)
+        compatible = doc.oxml.headers[0].to_model().compatible_document
+        assert compatible.target_program == expected_target, path
+        assert compatible.layout_compatibility.flags == expected_flags, path
+        doc.close()
+
+
+def test_settings_parse_application_settings_from_bare_xml() -> None:
+    from hwpx.oxml.settings import parse_application_settings
+
+    xml = (
+        "<ha:HWPApplicationSetting xmlns:ha='http://www.hancom.co.kr/hwpml/2011/app' "
+        "xmlns:config='urn:oasis:names:tc:opendocument:xmlns:config:1.0'>"
+        "<ha:CaretPosition listIDRef='0' paraIDRef='72' pos='16'/>"
+        "<config:config-item-set name='PrintInfo'>"
+        "<config:config-item name='PrintAutoFootNote' type='boolean'>false</config:config-item>"
+        "<config:config-item name='ZoomX' type='short'>100</config:config-item>"
+        "</config:config-item-set>"
+        "</ha:HWPApplicationSetting>"
+    )
+    settings = parse_application_settings(ET.fromstring(xml))
+    assert settings.caret_position.list_id_ref == 0
+    assert settings.caret_position.para_id_ref == 72
+    assert settings.caret_position.pos == 16
+    print_info = settings.config_item_sets["PrintInfo"]
+    assert print_info.items["PrintAutoFootNote"].value is False
+    assert print_info.items["ZoomX"].value == 100
+    assert isinstance(print_info.items["ZoomX"].value, int)
+
+
+def test_settings_parse_application_settings_rejects_wrong_root() -> None:
+    from hwpx.errors import HwpxValueError
+    from hwpx.oxml.settings import parse_application_settings
+
+    with pytest.raises(HwpxValueError) as excinfo:
+        parse_application_settings(ET.fromstring("<ha:NotSettings xmlns:ha='urn:x'/>"))
+    assert excinfo.value.code == "document-settings-root-invalid"
+
+
+def test_document_parts_settings_available_on_a_new_skeleton_document() -> None:
+    from hwpx.document import HwpxDocument
+
+    doc = HwpxDocument.new()
+    settings_part = doc.parts.settings
+    assert settings_part is not None
+    model = settings_part.to_model()
+    assert model.caret_position is not None
+    doc.close()
+
+
+def test_document_parts_settings_matches_real_hancom_documents() -> None:
+    """게이트 ①: 실한컴 저장본 3표본에서 CaretPosition·config-item 값이
+    원 settings.xml과 정합. 게이트 ②: 읽기 전용 open→save가 settings.xml
+    바이트를 무손상 보존(쓰기 경로를 열지 않았으므로 당연히 불변)."""
+
+    import zipfile
+
+    from hwpx.document import HwpxDocument
+
+    fixtures = [
+        "tests/fixtures/hwpxlib_corpus/error__20250808__2015년_12월_재난안전종합상황_분석_및_전망.hwpx",
+        "tests/fixtures/hwpxlib_corpus/error__20251107__test_re.hwpx",
+        "tests/fixtures/hwpxlib_corpus/error__20230728__test.hwpx",
+    ]
+    for path in fixtures:
+        original_settings_bytes = zipfile.ZipFile(path).read("settings.xml")
+
+        doc = HwpxDocument.open(path)
+        model = doc.parts.settings.to_model()
+        assert model.caret_position is not None
+        out_bytes = doc.to_bytes()
+        doc.close()
+
+        reopened_settings_bytes = zipfile.ZipFile(io.BytesIO(out_bytes)).read("settings.xml")
+        assert reopened_settings_bytes == original_settings_bytes, path
+
+
 def test_paragraph_add_shape_and_control_updates_attributes() -> None:
     section, paragraph = _build_section_with_paragraph()
 

@@ -183,6 +183,7 @@ ERROR_CODES: dict[str, str] = {
     "unknown-contract-schema": "그런 이름의 계약 스키마가 없다.",
     # -- 문서·섹션·문단 --------------------------------------------------
     "document-header-missing": "문서에 header.xml 파트가 없다.",
+    "document-settings-root-invalid": "settings.xml 루트가 ha:HWPApplicationSetting이 아니다.",
     "document-validation-failed": "저장 전 문서 검증이 실패했다.",
     "section-missing": "문서에 섹션이 하나도 없다.",
     "section-not-found": "섹션 인덱스가 범위를 벗어났다.",

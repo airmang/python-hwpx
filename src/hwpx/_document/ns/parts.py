@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         HwpxOxmlHeader,
         HwpxOxmlHistory,
         HwpxOxmlMasterPage,
+        HwpxOxmlSettings,
         HwpxOxmlVersion,
     )
 
@@ -66,3 +67,12 @@ class PartsNamespace(_Namespace):
         """패키지의 `version.xml` 파트. 라이브러리 버전이 아니다."""
 
         return self._doc.oxml.version
+
+    @property
+    def settings(self) -> "HwpxOxmlSettings | None":
+        """패키지의 `settings.xml` 파트(`ha:HWPApplicationSetting` — 커서
+        위치·인쇄 설정 등). 읽기 전용: `.to_model()`로 `ApplicationSettings`
+        를 얻는다. 스키마 미선언 파트라 실코퍼스 역설계 기반이다
+        (`hwpx.oxml.settings` 모듈 독스트링 참조)."""
+
+        return self._doc.oxml.settings

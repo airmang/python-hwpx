@@ -10,6 +10,7 @@ from ._document_primitives import _serialize_xml
 
 if TYPE_CHECKING:
     from .document_parts import HwpxOxmlDocument
+    from .settings import ApplicationSettings
 
 
 class _HwpxOxmlSimplePart:
@@ -66,4 +67,24 @@ class HwpxOxmlHistory(_HwpxOxmlSimplePart):
 class HwpxOxmlVersion(_HwpxOxmlSimplePart):
     """Represents the ``version.xml`` part."""
 
-__all__ = ["HwpxOxmlHistory", "HwpxOxmlMasterPage", "HwpxOxmlVersion"]
+
+class HwpxOxmlSettings(_HwpxOxmlSimplePart):
+    """Represents the ``settings.xml`` part (``ha:HWPApplicationSetting``).
+
+    실코퍼스 177파일 전수 실측 기반 역설계(스키마 미선언 — :mod:`.settings`
+    독스트링 참조). 읽기 전용: 이 트레인은 원장 read=none 해소가 목표라
+    쓰기 경로는 열지 않는다.
+    """
+
+    def to_model(self) -> "ApplicationSettings":
+        from .settings import parse_application_settings
+
+        return parse_application_settings(self._element)
+
+
+__all__ = [
+    "HwpxOxmlHistory",
+    "HwpxOxmlMasterPage",
+    "HwpxOxmlSettings",
+    "HwpxOxmlVersion",
+]

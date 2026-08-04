@@ -55,6 +55,7 @@ class ManifestRelationships:
     master_page_paths: tuple[str, ...]
     history_paths: tuple[str, ...]
     version_path: str | None
+    settings_path: str | None
 
 
 def normalize_part_name(path: str) -> str:
@@ -215,6 +216,10 @@ def parse_manifest_relationships(
         (item.resolved_path for item in items if _manifest_matches(item, "version")),
         None,
     )
+    settings_path = next(
+        (item.resolved_path for item in items if _manifest_matches(item, "settings")),
+        None,
+    )
 
     return ManifestRelationships(
         manifest_path=normalize_part_name(manifest_path),
@@ -225,4 +230,5 @@ def parse_manifest_relationships(
         master_page_paths=master_page_paths,
         history_paths=history_paths,
         version_path=version_path,
+        settings_path=settings_path,
     )
