@@ -399,9 +399,9 @@ class HwpxOxmlSectionProperties:
                 element.set(name, safe_value)
                 changed = True
         if wonggoji_format is not None:
-            value = _bool_str(wonggoji_format)
+            wonggoji_value = _bool_str(wonggoji_format)
             if _get_bool_attr(element, "wonggojiFormat", False) != wonggoji_format:
-                element.set("wonggojiFormat", value)
+                element.set("wonggojiFormat", wonggoji_value)
                 changed = True
         if changed:
             self.section.mark_dirty()
@@ -473,11 +473,11 @@ class HwpxOxmlSectionProperties:
             if _get_bool_attr(element, name, False) != value:
                 element.set(name, _bool_str(value))
                 changed = True
-        for name, value in (("border", border), ("fill", fill)):
-            if value is None:
+        for name, text_value in (("border", border), ("fill", fill)):
+            if text_value is None:
                 continue
-            if element.get(name) != value:
-                element.set(name, value)
+            if element.get(name) != text_value:
+                element.set(name, text_value)
                 changed = True
         if changed:
             self.section.mark_dirty()
