@@ -1,0 +1,169 @@
+{
+ "box_os": null,
+ "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v4",
+ "hancom_build": "12.0.0.3288",
+ "hancom_exe_path": null,
+ "harness_valid": true,
+ "measured_at": "2026-08-04T14:03:50.9570174+09:00",
+ "negative_controls": {
+  "expected": [
+   "corrupt_header.hwpx",
+   "corrupt_section.hwpx",
+   "missing_section.hwpx"
+  ],
+  "judged": 3,
+  "wrongly_opened": []
+ },
+ "schemaVersion": "hwpx.openrate.report/v4",
+ "scopeNote": "v4 is ADDITIVE over v3: the same 7 strata, rewritten to the 6.0 namespaced call surface (doc.notes/doc.fields/doc.shapes/doc.styles) with any DeprecationWarning treated as a generation failure, plus 4 new strata exercising the OWPML elements Q3b opened (pageBorderFill, footnote/endnote shape blocks, named hh:style creation) and the add_heading convenience API. It does not replace v1/v2/v3, which remain published with their own measurement stack and date.",
+ "strata": {
+  "authored-chart": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "authored-checkbox": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "authored-equation": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "authored-footnote": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "authored-formfield": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "authored-heading": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "authored-named-style": {
+   "judged": 10,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.7,
+   "opened": 10,
+   "parsed": 10,
+   "produced": 10,
+   "render_checked": 10,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 10
+  },
+  "authored-note-shape": {
+   "judged": 10,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.7,
+   "opened": 10,
+   "parsed": 10,
+   "produced": 10,
+   "render_checked": 10,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 10
+  },
+  "authored-page-structure": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "baseline-regen": {
+   "judged": 30,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.9,
+   "opened": 30,
+   "parsed": 30,
+   "produced": 30,
+   "render_checked": 30,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 30
+  },
+  "edit-plan": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  }
+ },
+ "tool_versions": {
+  "python-hwpx": "6.0.0",
+  "python-hwpx-automation": "7.0.0"
+ },
+ "totals": {
+  "judged": 170,
+  "open_rate": 1.0,
+  "open_rate_lower_bound": 0.9824,
+  "opened": 170,
+  "parsed": 170,
+  "produced": 170,
+  "render_checked": 170,
+  "render_failed": 0,
+  "requested": 170
+ },
+ "unknown_rows": []
+}

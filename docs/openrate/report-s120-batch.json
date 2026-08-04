@@ -1,0 +1,73 @@
+{
+ "hancom_build": "12.0.0.3288",
+ "measured_at": "2026-08-04T13:57:13.0227973+09:00",
+ "schemaVersion": "hwpx.s120-batch.report/v1",
+ "scopeNote": "Two-purpose real-Hancom batch for the s120 train: (a) the 64-file roundtrip corpus (real Hancom-saved sources resaved by python-hwpx 6.0.0) must reopen in Hancom; (b) 22 demo/DEV fixtures backing the Q2 surface demos and the OWPML deviation-registry probes must open and render. Harness validity for this session is carried by the v4 run's negative controls (same box, same task chain, same Hancom build, minutes apart).",
+ "strata": {
+  "demos": {
+   "judged": 22,
+   "opened": 22,
+   "parsed": 14
+  },
+  "roundtrip/equation_preview": {
+   "judged": 1,
+   "opened": 1,
+   "parsed": 1
+  },
+  "roundtrip/exam": {
+   "judged": 2,
+   "opened": 2,
+   "parsed": 2
+  },
+  "roundtrip/fuzz_regressions": {
+   "judged": 1,
+   "opened": 1,
+   "parsed": 1
+  },
+  "roundtrip/glyph_overlap": {
+   "judged": 2,
+   "opened": 2,
+   "parsed": 2
+  },
+  "roundtrip/hwpxlib_corpus": {
+   "judged": 46,
+   "opened": 46,
+   "parsed": 26
+  },
+  "roundtrip/m105_evalplan": {
+   "judged": 2,
+   "opened": 2,
+   "parsed": 2
+  },
+  "roundtrip/m2_corpus": {
+   "judged": 3,
+   "opened": 3,
+   "parsed": 3
+  },
+  "roundtrip/m3_gongmun_gold": {
+   "judged": 3,
+   "opened": 3,
+   "parsed": 3
+  },
+  "roundtrip/m7_toc_gold": {
+   "judged": 2,
+   "opened": 2,
+   "parsed": 2
+  },
+  "roundtrip/markdown_export": {
+   "judged": 2,
+   "opened": 2,
+   "parsed": 2
+  }
+ },
+ "tool_versions": {
+  "python-hwpx": "6.0.0",
+  "python-hwpx-automation": "7.0.0"
+ },
+ "totals": {
+  "judged": 86,
+  "opened": 86,
+  "render_checked": 22,
+  "render_jobs": 22
+ }
+}

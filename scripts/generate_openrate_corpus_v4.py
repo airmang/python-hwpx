@@ -128,7 +128,6 @@ warnings.simplefilter("error", DeprecationWarning)
 
 OUT_DIR_V4 = PYTHON_HWPX / "work" / "openrate-corpus-v4"
 MANIFEST_SCHEMA = "hwpx.openrate.frozen-manifest.v4"
-RENDER_JOBS_SCHEMA = "hwpx.openrate.render-jobs.v4"
 BOX_ROOT = "C:\\openrate\\v4"
 BOX_ROOT_PDF = "C:\\openrate\\v4-pdf"
 
@@ -827,20 +826,21 @@ def main() -> int:
     lines += list(BOX_NEGATIVE_CONTROLS)
     filelist_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    render_jobs = {
-        "schemaVersion": RENDER_JOBS_SCHEMA,
-        "boxRootPdf": BOX_ROOT_PDF,
-        "jobs": [
-            {
-                "id": entry["id"],
-                "bucket": entry["bucket"],
-                "input": f"{BOX_ROOT}\\{entry['bucket']}\\{entry['id']}.hwpx",
-                "output": f"{BOX_ROOT_PDF}\\{entry['bucket']}\\{entry['id']}.pdf",
-            }
-            for entry in all_records
-            if entry["produced"]
-        ],
-    }
+    # Field names are the render pipeline's contract
+    # (hancom_render_batch.ps1 reads $Job.sourceId/.stratum/.src/.pdf and it
+    # expects a BARE ARRAY, not a wrapper object). The first v4 box run failed
+    # on exactly this: {id,bucket,input,output} inside {"jobs": [...]} bound an
+    # empty string into the renderer's Path parameters.
+    render_jobs = [
+        {
+            "sourceId": entry["id"],
+            "stratum": entry["bucket"],
+            "src": f"{BOX_ROOT}\\{entry['bucket']}\\{entry['id']}.hwpx",
+            "pdf": f"{BOX_ROOT_PDF}\\{entry['bucket']}\\{entry['id']}.pdf",
+        }
+        for entry in all_records
+        if entry["produced"]
+    ]
     render_jobs_path = OUT_DIR_V4 / "render_jobs_v4.json"
     render_jobs_path.write_text(
         json.dumps(render_jobs, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
