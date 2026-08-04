@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re as _re
 from copy import deepcopy
-from typing import Iterable, Optional, TypeVar
+from typing import Iterable, Mapping, Optional, TypeVar
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
@@ -682,9 +682,10 @@ def _apply_optional_bool_attrs(element: ET.Element, pairs: Iterable[tuple[str, b
 _FONT_TYPES = frozenset({"REP", "TTF", "HFT"})
 
 
-def _font_bool_str(value: bool) -> str:
-    # 실코퍼스 176파일/6741건 전수가 "0"/"1"만 쓴다("true"/"false" 0건) — 다른
-    # OWPML 불리언 속성의 관행(``_bool_str``)과 다른, 이 속성 고유의 실측 관행.
+def _zero_one_bool_str(value: bool) -> str:
+    # 일부 OWPML 불리언 속성은 "true"/"false"(``_bool_str``)가 아니라 "0"/"1"을
+    # 쓴다 — 실측 확인된 자리: hh:font/hh:substFont의 isEmbedded(6741건 전수
+    # "0"/"1"만) 및 hh:tabPr의 autoTabLeft/autoTabRight(142건 전수 동일).
     return "1" if value else "0"
 
 
@@ -821,7 +822,7 @@ def _build_font_element(
         "id": font_id,
         "face": face,
         "type": font_type,
-        "isEmbedded": _font_bool_str(is_embedded),
+        "isEmbedded": _zero_one_bool_str(is_embedded),
     }
     # 실코퍼스 관행: 비-임베드 폰트는 binaryItemIDRef 속성 자체가 없다(1682/1682)
     # — substFont 쪽과 달리 빈 문자열로도 안 남는다.
@@ -836,13 +837,194 @@ def _build_font_element(
             {
                 "face": subst_face,
                 "type": subst_type or "TTF",
-                "isEmbedded": _font_bool_str(subst_is_embedded),
+                "isEmbedded": _zero_one_bool_str(subst_is_embedded),
                 # 실코퍼스 관행: substFont 는 binaryItemIDRef 를 항상 갖되 값이
                 # 없으면 빈 문자열로 남긴다(284/284) — font 와 반대다.
                 "binaryItemIDRef": subst_binary_item_id_ref or "",
             },
         )
     return element
+
+
+#: ``hh:tabItem/@type`` 어휘(OWPML ``TabPosType``). 실코퍼스 246건 전수는 LEFT만
+#: 관측했지만(다중-tabItem 문서 4건), 스키마가 4종을 선언하므로 나머지도 받는다.
+_TAB_STOP_TYPES = frozenset({"LEFT", "RIGHT", "CENTER", "DECIMAL"})
+
+#: ``hh:tabItem/@leader`` 어휘(``hc:LineType2`` — border 계열과 다른, 3D/WAVE가
+#: 없는 12값 도메인). 실코퍼스는 NONE만 관측했다.
+_TAB_LEADER_TYPES = frozenset({
+    "NONE", "SOLID", "DOT", "DASH", "DASH_DOT", "DASH_DOT_DOT", "LONG_DASH",
+    "CIRCLE", "DOUBLE_SLIM", "SLIM_THICK", "THICK_SLIM", "SLIM_THICK_SLIM",
+})
+
+
+def _normalize_tab_stops(
+    tab_stops: "Iterable[Mapping[str, object]] | None",
+) -> tuple[tuple[int, str, str], ...]:
+    """Validate/normalize ``ensure_tab_definition``'s *tab_stops* into
+    ``(pos, type, leader)`` triples, in call order.
+
+    Order is meaningful: real multi-stop documents list ``hh:tabItem``
+    position-ascending, and dedupe (:func:`_tab_definition_matches`) treats
+    the sequence as ordered.
+    """
+
+    if tab_stops is None:
+        return ()
+
+    from ..errors import HwpxValueError
+
+    normalized: list[tuple[int, str, str]] = []
+    for index, spec in enumerate(tab_stops):
+        if "pos" not in spec or spec["pos"] is None:
+            raise HwpxValueError(
+                f"tab_stops[{index}] is missing 'pos'",
+                code="paragraph-tab-pos-invalid",
+                context={"index": index},
+                suggestion="각 tab stop은 'pos'(HWPUNIT, 0 이상)가 필요합니다.",
+            )
+        try:
+            pos = int(spec["pos"])  # type: ignore[call-overload]
+        except (TypeError, ValueError):
+            raise HwpxValueError(
+                f"tab_stops[{index}]['pos'] must be an integer",
+                code="paragraph-tab-pos-invalid",
+                context={"index": index, "requested": spec["pos"]},
+            ) from None
+        if pos < 0:
+            raise HwpxValueError(
+                f"tab_stops[{index}]['pos'] must not be negative",
+                code="paragraph-tab-pos-invalid",
+                context={"index": index, "requested": pos},
+            )
+        tab_type = str(spec.get("type") or "LEFT").strip().upper()
+        if tab_type not in _TAB_STOP_TYPES:
+            raise HwpxValueError(
+                f"unsupported tab stop type {spec.get('type')!r}",
+                code="paragraph-tab-type-invalid",
+                context={
+                    "index": index,
+                    "requested": spec.get("type"),
+                    "available": sorted(_TAB_STOP_TYPES),
+                },
+                suggestion=f"type 은 {sorted(_TAB_STOP_TYPES)} 중 하나여야 합니다.",
+            )
+        leader = str(spec.get("leader") or "NONE").strip().upper()
+        if leader not in _TAB_LEADER_TYPES:
+            raise HwpxValueError(
+                f"unsupported tab leader {spec.get('leader')!r}",
+                code="paragraph-tab-leader-invalid",
+                context={
+                    "index": index,
+                    "requested": spec.get("leader"),
+                    "available": sorted(_TAB_LEADER_TYPES),
+                },
+                suggestion=f"leader 는 {sorted(_TAB_LEADER_TYPES)} 중 하나여야 합니다.",
+            )
+        normalized.append((pos, tab_type, leader))
+    return tuple(normalized)
+
+
+def _tab_definition_matches(
+    element: ET.Element,
+    *,
+    auto_tab_left: bool,
+    auto_tab_right: bool,
+    tab_stops: tuple[tuple[int, str, str], ...],
+) -> bool:
+    if _get_bool_attr(element, "autoTabLeft", False) != auto_tab_left:
+        return False
+    if _get_bool_attr(element, "autoTabRight", False) != auto_tab_right:
+        return False
+    existing = tuple(
+        (
+            int(child.get("pos") or 0),
+            child.get("type") or "LEFT",
+            child.get("leader") or "NONE",
+        )
+        for child in element.findall(f"{_HH}tabItem")
+    )
+    return existing == tab_stops
+
+
+def _allocate_tab_id(element: ET.Element) -> str:
+    existing: set[str] = {child.get("id") or "" for child in element.findall(f"{_HH}tabPr")}
+    existing.discard("")
+    numeric_ids: list[int] = []
+    for value in existing:
+        try:
+            numeric_ids.append(int(value))
+        except ValueError:
+            continue
+    next_id = 0 if not numeric_ids else max(numeric_ids) + 1
+    candidate = str(next_id)
+    while candidate in existing:
+        next_id += 1
+        candidate = str(next_id)
+    return candidate
+
+
+def _build_tab_definition_element(
+    tab_id: str,
+    *,
+    auto_tab_left: bool,
+    auto_tab_right: bool,
+    tab_stops: tuple[tuple[int, str, str], ...],
+) -> ET.Element:
+    element = ET.Element(
+        f"{_HH}tabPr",
+        {
+            "id": tab_id,
+            # 실코퍼스 142건 전수: autoTabLeft/autoTabRight는 "0"/"1"만 쓴다.
+            "autoTabLeft": _zero_one_bool_str(auto_tab_left),
+            "autoTabRight": _zero_one_bool_str(auto_tab_right),
+        },
+    )
+    for pos, tab_type, leader in tab_stops:
+        ET.SubElement(
+            element,
+            f"{_HH}tabItem",
+            {"pos": str(pos), "type": tab_type, "leader": leader},
+        )
+    return element
+
+
+def _ensure_tab_definition_element(
+    container: ET.Element,
+    *,
+    tab_stops: "Iterable[Mapping[str, object]] | None",
+    auto_tab_left: bool,
+    auto_tab_right: bool,
+) -> tuple[str, bool]:
+    """Find-or-create the ``hh:tabPr`` matching this spec inside *container*
+    (the ``hh:tabProperties`` element). Returns ``(tab_id, created)`` so the
+    caller only marks the header dirty when something actually changed.
+    """
+
+    normalized_stops = _normalize_tab_stops(tab_stops)
+    for tab_pr in container.findall(f"{_HH}tabPr"):
+        if _tab_definition_matches(
+            tab_pr,
+            auto_tab_left=auto_tab_left,
+            auto_tab_right=auto_tab_right,
+            tab_stops=normalized_stops,
+        ):
+            tab_id = tab_pr.get("id")
+            if tab_id:
+                return tab_id, False
+
+    new_id = _allocate_tab_id(container)
+    new_tab_pr = _build_tab_definition_element(
+        new_id,
+        auto_tab_left=auto_tab_left,
+        auto_tab_right=auto_tab_right,
+        tab_stops=normalized_stops,
+    )
+    if isinstance(container, LET._Element):
+        new_tab_pr = LET.fromstring(ET.tostring(new_tab_pr, encoding="utf-8"))
+    container.append(new_tab_pr)
+    container.set("itemCnt", str(len(container.findall(f"{_HH}tabPr"))))
+    return new_id, True
 
 
 def _default_sublist_attributes() -> dict[str, str]:

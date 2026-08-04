@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 78 | 11 |
+| 개수 | 82 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -147,6 +147,9 @@ except HwpxError as exc:
 | `paragraph-missing` | 문서(또는 지정 범위)에 문단이 하나도 없다. |
 | `paragraph-not-found` | 문단 인덱스가 범위를 벗어났다. |
 | `paragraph-outline-level-out-of-range` | 문단 개요 수준이 0~10 밖이다. |
+| `paragraph-tab-leader-invalid` | 탭 정지 leader 값이 OWPML 어휘(hc:LineType2) 밖이다. |
+| `paragraph-tab-pos-invalid` | 탭 정지 위치(pos_mm/pos)가 없거나 음수다. |
+| `paragraph-tab-type-invalid` | 탭 정지 type 값이 OWPML 어휘(LEFT/RIGHT/CENTER/DECIMAL) 밖이다. |
 
 ### `plan-*`
 
@@ -211,6 +214,7 @@ except HwpxError as exc:
 | `style-list-level-invalid` | 글머리표/번호 수준은 1 이상이어야 한다. |
 | `style-list-property-failed` | 번호 문단모양을 만들지 못했다. |
 | `style-not-found` | 그 id·이름의 스타일이 없다(가용 목록·가장 가까운 이름 동봉). |
+| `style-tab-container-create-failed` | tabProperties 컨테이너를 만들지 못했다. |
 
 ### `text-*`
 

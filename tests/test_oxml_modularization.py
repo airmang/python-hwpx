@@ -244,7 +244,11 @@ def test_frozen_facade_exports_remain_exact() -> None:
     # three equation-authoring names, 5.6 adds the edit-plan five and the
     # capabilities three to the experimental layer.
     assert len(total_top_level) == 57
-    assert len(oxml.__all__) == 110
+    # 110 -> 113: the paragraph tab-stop read model (TabStop, TabDefinition,
+    # TabDefinitionList) fills the audit's gap #2 — hh:tabPr/tabItem were
+    # frozen-template/unread; this is the "additive model extension" path
+    # the completeness audit's route ①/③ anticipated for that gap.
+    assert len(oxml.__all__) == 113
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 
 

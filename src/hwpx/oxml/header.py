@@ -116,6 +116,56 @@ class TabProperties:
 
 
 @dataclass(slots=True)
+class TabStop:
+    """A single ``hh:tabItem`` — one custom tab-stop position within a
+    ``hh:tabPr`` definition. ``pos`` is HWPUNIT (실측 6.1: 실코퍼스가
+    이 자리에 ``unit`` 속성을 쓰는 문서를 드물게 관측했으나 원인 미확인이라
+    ``attributes`` 캐치올로만 보존한다 — 저작 쪽에서 재현하지 않는다)."""
+
+    pos: int
+    type: str
+    leader: str
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class TabDefinition:
+    """A single ``hh:tabPr`` — a document-level tab-stop set a paragraph
+    property references via ``paraPr/@tabPrIDRef``."""
+
+    id: Optional[int]
+    raw_id: Optional[str]
+    auto_tab_left: bool
+    auto_tab_right: bool
+    tab_stops: List[TabStop] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class TabDefinitionList:
+    item_cnt: Optional[int]
+    definitions: List[TabDefinition]
+
+    def as_dict(self) -> Dict[str, TabDefinition]:
+        mapping: Dict[str, TabDefinition] = {}
+        for definition in self.definitions:
+            keys: List[str] = []
+            if definition.raw_id:
+                keys.append(definition.raw_id)
+                try:
+                    normalized = str(int(definition.raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            elif definition.id is not None:
+                keys.append(str(definition.id))
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = definition
+        return mapping
+
+
+@dataclass(slots=True)
 class NumberingList:
     item_cnt: Optional[int]
     numberings: List[GenericElement]
@@ -1017,6 +1067,40 @@ def parse_tab_properties(node: etree._Element) -> TabProperties:
     return TabProperties(item_cnt=parse_int(node.get("itemCnt")), tabs=tabs)
 
 
+_TAB_STOP_KNOWN_ATTRS = {"pos", "type", "leader"}
+
+
+def parse_tab_stop(node: etree._Element) -> TabStop:
+    return TabStop(
+        pos=parse_int(node.get("pos")) or 0,
+        type=node.get("type", "LEFT"),
+        leader=node.get("leader", "NONE"),
+        attributes={
+            key: value
+            for key, value in node.attrib.items()
+            if key not in _TAB_STOP_KNOWN_ATTRS
+        },
+    )
+
+
+def parse_tab_definition(node: etree._Element) -> TabDefinition:
+    raw_id = node.get("id")
+    return TabDefinition(
+        id=parse_int(raw_id),
+        raw_id=raw_id,
+        auto_tab_left=parse_bool(node.get("autoTabLeft"), default=False) or False,
+        auto_tab_right=parse_bool(node.get("autoTabRight"), default=False) or False,
+        tab_stops=[parse_tab_stop(child) for child in node if local_name(child) == "tabItem"],
+    )
+
+
+def parse_tab_definitions(node: etree._Element) -> TabDefinitionList:
+    definitions = [
+        parse_tab_definition(child) for child in node if local_name(child) == "tabPr"
+    ]
+    return TabDefinitionList(item_cnt=parse_int(node.get("itemCnt")), definitions=definitions)
+
+
 def parse_numberings(node: etree._Element) -> NumberingList:
     numberings = [
         parse_generic_element(child) for child in node if local_name(child) == "numbering"
@@ -1536,7 +1620,10 @@ __all__ = [
     "RefList",
     "Style",
     "StyleList",
+    "TabDefinition",
+    "TabDefinitionList",
     "TabProperties",
+    "TabStop",
     "TrackChange",
     "TrackChangeAuthor",
     "TrackChangeAuthorList",

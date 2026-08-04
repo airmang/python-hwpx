@@ -1262,6 +1262,177 @@ def test_document_ensure_font_then_ensure_run_wires_a_real_font_ref() -> None:
     doc.close()
 
 
+# -- 6.1 문단 탭 정의 (StylesNamespace.apply_paragraph_format(tab_stops=...)) --
+
+
+def test_header_ensure_tab_definition_creates_and_dedupes() -> None:
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    tab_id = header.ensure_tab_definition(
+        tab_stops=[{"pos": 3543, "type": "LEFT", "leader": "NONE"}],
+    )
+
+    tabprops = head_element.find(f"{HH}refList/{HH}tabProperties")
+    assert tabprops is not None
+    assert tabprops.get("itemCnt") == "1"
+    tabpr = tabprops.find(f"{HH}tabPr")
+    assert tabpr is not None
+    assert tabpr.get("id") == tab_id
+    assert tabpr.get("autoTabLeft") == "0"  # 실코퍼스 관행: "0"/"1"(true/false 아님)
+    assert tabpr.get("autoTabRight") == "0"
+    items = tabpr.findall(f"{HH}tabItem")
+    assert len(items) == 1
+    assert items[0].get("pos") == "3543"
+    assert items[0].get("type") == "LEFT"
+    assert items[0].get("leader") == "NONE"
+
+    # 동일 스펙 재호출은 새 항목을 안 만들고 같은 id를 재사용한다(ensure_style 선례).
+    reused_id = header.ensure_tab_definition(
+        tab_stops=[{"pos": 3543, "type": "LEFT", "leader": "NONE"}],
+    )
+    assert reused_id == tab_id
+    assert tabprops.get("itemCnt") == "1"
+
+
+def test_header_ensure_tab_definition_order_is_part_of_the_dedupe_key() -> None:
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    forward_id = header.ensure_tab_definition(
+        tab_stops=[{"pos": 1000, "type": "LEFT"}, {"pos": 2000, "type": "LEFT"}],
+    )
+    reversed_id = header.ensure_tab_definition(
+        tab_stops=[{"pos": 2000, "type": "LEFT"}, {"pos": 1000, "type": "LEFT"}],
+    )
+
+    assert forward_id != reversed_id
+    tabprops = head_element.find(f"{HH}refList/{HH}tabProperties")
+    assert tabprops.get("itemCnt") == "2"
+
+
+def test_header_ensure_tab_definition_auto_flags_are_part_of_the_dedupe_key() -> None:
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    plain_id = header.ensure_tab_definition()
+    left_id = header.ensure_tab_definition(auto_tab_left=True)
+    right_id = header.ensure_tab_definition(auto_tab_right=True)
+
+    assert len({plain_id, left_id, right_id}) == 3
+    tabprops = head_element.find(f"{HH}refList/{HH}tabProperties")
+    assert tabprops.get("itemCnt") == "3"
+    # 재호출은 dedupe.
+    assert header.ensure_tab_definition(auto_tab_left=True) == left_id
+    assert tabprops.get("itemCnt") == "3"
+
+
+def test_header_ensure_tab_definition_rejects_missing_pos() -> None:
+    from hwpx.errors import HwpxValueError
+
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    with pytest.raises(HwpxValueError) as excinfo:
+        header.ensure_tab_definition(tab_stops=[{"type": "LEFT"}])
+    assert excinfo.value.code == "paragraph-tab-pos-invalid"
+
+
+def test_header_ensure_tab_definition_rejects_negative_pos() -> None:
+    from hwpx.errors import HwpxValueError
+
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    with pytest.raises(HwpxValueError) as excinfo:
+        header.ensure_tab_definition(tab_stops=[{"pos": -1}])
+    assert excinfo.value.code == "paragraph-tab-pos-invalid"
+
+
+def test_header_ensure_tab_definition_rejects_invalid_type() -> None:
+    from hwpx.errors import HwpxValueError
+
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    with pytest.raises(HwpxValueError) as excinfo:
+        header.ensure_tab_definition(tab_stops=[{"pos": 100, "type": "MIDDLE"}])
+    assert excinfo.value.code == "paragraph-tab-type-invalid"
+
+
+def test_header_ensure_tab_definition_rejects_invalid_leader() -> None:
+    from hwpx.errors import HwpxValueError
+
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    with pytest.raises(HwpxValueError) as excinfo:
+        header.ensure_tab_definition(tab_stops=[{"pos": 100, "leader": "SPARKLE"}])
+    assert excinfo.value.code == "paragraph-tab-leader-invalid"
+
+
+def test_header_tab_properties_read_exposes_stops_and_resolves_by_id() -> None:
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+
+    tab_id = header.ensure_tab_definition(
+        tab_stops=[{"pos": 2000, "type": "RIGHT", "leader": "DOT"}],
+        auto_tab_left=True,
+    )
+
+    definitions = header.tab_properties
+    assert tab_id in definitions
+    definition = definitions[tab_id]
+    assert definition.auto_tab_left is True
+    assert definition.auto_tab_right is False
+    assert len(definition.tab_stops) == 1
+    stop = definition.tab_stops[0]
+    assert stop.pos == 2000
+    assert stop.type == "RIGHT"
+    assert stop.leader == "DOT"
+
+    assert header.tab_property(tab_id) == definition
+    assert header.tab_property(int(tab_id)) == definition
+
+
+def test_document_apply_paragraph_format_wires_tab_pr_id_ref_to_a_resolvable_definition() -> None:
+    """등록(tab_stops=...) → 해석(doc.styles.tab_property) 왕복이 한 호출
+    체인에서 가능해야 한다는 6.1 게이트 ②의 핵심 계약(ensure_font 선례와 동형)."""
+
+    from hwpx.document import HwpxDocument
+
+    doc = HwpxDocument.new()
+    doc.add_paragraph("탭 정의 문단입니다.")
+    index = len(doc.paragraphs) - 1
+
+    doc.styles.apply_paragraph_format(
+        paragraph_index=index,
+        tab_stops=[{"pos_mm": 10}, {"pos_mm": 30, "type": "CENTER"}],
+    )
+
+    para = doc.paragraphs[index]
+    para_prop = doc.styles.paragraph_property(para.para_pr_id_ref)
+    assert para_prop is not None
+    assert para_prop.tab_pr_id_ref is not None
+
+    tab_def = doc.styles.tab_property(para_prop.tab_pr_id_ref)
+    assert tab_def is not None
+    assert [(s.pos, s.type) for s in tab_def.tab_stops] == [(2835, "LEFT"), (8504, "CENTER")]
+    doc.close()
+
+
+def test_document_apply_paragraph_format_tab_stops_reject_missing_pos_mm() -> None:
+    from hwpx.document import HwpxDocument
+    from hwpx.errors import HwpxValueError
+
+    doc = HwpxDocument.new()
+    doc.add_paragraph("문단")
+    with pytest.raises(HwpxValueError) as excinfo:
+        doc.styles.apply_paragraph_format(paragraph_index=1, tab_stops=[{"type": "LEFT"}])
+    assert excinfo.value.code == "paragraph-tab-pos-invalid"
+    doc.close()
+
+
 def test_paragraph_add_shape_and_control_updates_attributes() -> None:
     section, paragraph = _build_section_with_paragraph()
 

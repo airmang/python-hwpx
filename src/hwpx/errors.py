@@ -196,6 +196,9 @@ ERROR_CODES: dict[str, str] = {
     "paragraph-format-empty": "적용할 문단 서식 항목이 하나도 없다.",
     "paragraph-line-spacing-invalid": "줄 간격은 양수여야 한다.",
     "paragraph-outline-level-out-of-range": "문단 개요 수준이 0~10 밖이다.",
+    "paragraph-tab-pos-invalid": "탭 정지 위치(pos_mm/pos)가 없거나 음수다.",
+    "paragraph-tab-type-invalid": "탭 정지 type 값이 OWPML 어휘(LEFT/RIGHT/CENTER/DECIMAL) 밖이다.",
+    "paragraph-tab-leader-invalid": "탭 정지 leader 값이 OWPML 어휘(hc:LineType2) 밖이다.",
     # -- 스타일·제목 -----------------------------------------------------
     "style-not-found": "그 id·이름의 스타일이 없다(가용 목록·가장 가까운 이름 동봉).",
     "style-ambiguous": "같은 이름을 쓰는 스타일이 둘 이상이다(후보 동봉).",
@@ -207,6 +210,7 @@ ERROR_CODES: dict[str, str] = {
     "style-font-type-invalid": "font_type/subst_type 값이 OWPML 어휘(REP/TTF/HFT) 밖이다.",
     "style-font-substitute-incomplete": "대체 글꼴 인자가 일부만 주어졌다(subst_face 가 필요하다).",
     "style-font-container-create-failed": "fontfaces/fontface 컨테이너를 만들지 못했다.",
+    "style-tab-container-create-failed": "tabProperties 컨테이너를 만들지 못했다.",
     "style-container-create-failed": "styles 컨테이너를 만들지 못했다(방어적 분기).",
     "heading-level-invalid": "개요 수준이 정수가 아니다.",
     "heading-level-out-of-range": "개요 수준이 1~10 밖이다.",

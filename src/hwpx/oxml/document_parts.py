@@ -6,7 +6,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 import logging
-from typing import TYPE_CHECKING, Iterable, Sequence
+from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
 import xml.etree.ElementTree as ET
 
 from hwpx.opc.relationships import resolve_part_name
@@ -32,6 +32,7 @@ from .header import (
     MemoShape,
     ParagraphProperty,
     Style,
+    TabDefinition,
     TrackChange,
     TrackChangeAuthor,
 )
@@ -708,6 +709,36 @@ class HwpxOxmlDocument:
         self, para_pr_id_ref: int | str | None
     ) -> ParagraphProperty | None:
         return HwpxOxmlHeader._lookup_by_id(self.paragraph_properties, para_pr_id_ref)
+
+    @property
+    def tab_properties(self) -> dict[str, TabDefinition]:
+        mapping: dict[str, TabDefinition] = {}
+        for header in self._headers:
+            mapping.update(header.tab_properties)
+        return mapping
+
+    def tab_property(self, tab_pr_id_ref: int | str | None) -> TabDefinition | None:
+        return HwpxOxmlHeader._lookup_by_id(self.tab_properties, tab_pr_id_ref)
+
+    def ensure_tab_definition(
+        self,
+        *,
+        tab_stops: Iterable[Mapping[str, object]] | None = None,
+        auto_tab_left: bool = False,
+        auto_tab_right: bool = False,
+    ) -> str:
+        if not self._headers:
+            from ..errors import HwpxStateError
+
+            raise HwpxStateError(
+                "document does not contain any headers",
+                code="document-header-missing",
+            )
+        return self._headers[0].ensure_tab_definition(
+            tab_stops=tab_stops,
+            auto_tab_left=auto_tab_left,
+            auto_tab_right=auto_tab_right,
+        )
 
     def ensure_numbering(
         self,

@@ -26,6 +26,7 @@ from ._document_primitives import (
     _create_basic_border_fill_element,
     _create_border_fill_element,
     _element_local_name,
+    _ensure_tab_definition_element,
     _find_font_id,
     _fontface_insert_index,
     _get_bool_attr,
@@ -45,6 +46,7 @@ from .header import (
     MemoShape,
     ParagraphProperty,
     Style,
+    TabDefinition,
     TrackChange,
     TrackChangeAuthor,
     memo_shape_from_attributes,
@@ -53,6 +55,7 @@ from .header import (
     parse_header_element,
     parse_paragraph_properties,
     parse_styles,
+    parse_tab_definitions,
     parse_track_change_authors,
     parse_track_change_config,
     parse_track_changes,
@@ -111,27 +114,29 @@ class HwpxOxmlHeader:
             self.mark_dirty()
         return element
 
-    def _border_fills_element(self, create: bool = False) -> ET.Element | None:
+    def _ref_list_default_child(self, tag: str, *, create: bool = False) -> ET.Element | None:
+        """Find-or-create a direct ``refList`` child defaulting to an empty
+        ``itemCnt="0"`` collection. Shared body for the sibling accessors
+        below — ``fontfaces`` is the one exception needing first-child
+        positioning (schema requires it precede the others), so it keeps
+        its own method.
+        """
+
         ref_list = self._ref_list_element(create=create)
         if ref_list is None:
             return None
-        element = ref_list.find(f"{_HH}borderFills")
+        element = ref_list.find(f"{_HH}{tag}")
         if element is None and create:
-            element = ref_list.makeelement(f"{_HH}borderFills", {"itemCnt": "0"})
+            element = ref_list.makeelement(f"{_HH}{tag}", {"itemCnt": "0"})
             ref_list.append(element)
             self.mark_dirty()
         return element
 
+    def _border_fills_element(self, create: bool = False) -> ET.Element | None:
+        return self._ref_list_default_child("borderFills", create=create)
+
     def _char_properties_element(self, create: bool = False) -> ET.Element | None:
-        ref_list = self._ref_list_element(create=create)
-        if ref_list is None:
-            return None
-        element = ref_list.find(f"{_HH}charProperties")
-        if element is None and create:
-            element = ref_list.makeelement(f"{_HH}charProperties", {"itemCnt": "0"})
-            ref_list.append(element)
-            self.mark_dirty()
-        return element
+        return self._ref_list_default_child("charProperties", create=create)
 
     def _fontfaces_element(self, create: bool = False) -> ET.Element | None:
         ref_list = self._ref_list_element(create=create)
@@ -306,37 +311,16 @@ class HwpxOxmlHeader:
         return ref_list.find(f"{_HH}memoProperties")
 
     def _bullets_element(self, create: bool = False) -> ET.Element | None:
-        ref_list = self._ref_list_element(create=create)
-        if ref_list is None:
-            return None
-        element = ref_list.find(f"{_HH}bullets")
-        if element is None and create:
-            element = ref_list.makeelement(f"{_HH}bullets", {"itemCnt": "0"})
-            ref_list.append(element)
-            self.mark_dirty()
-        return element
+        return self._ref_list_default_child("bullets", create=create)
 
     def _numberings_element(self, create: bool = False) -> ET.Element | None:
-        ref_list = self._ref_list_element(create=create)
-        if ref_list is None:
-            return None
-        element = ref_list.find(f"{_HH}numberings")
-        if element is None and create:
-            element = ref_list.makeelement(f"{_HH}numberings", {"itemCnt": "0"})
-            ref_list.append(element)
-            self.mark_dirty()
-        return element
+        return self._ref_list_default_child("numberings", create=create)
 
     def _para_properties_element(self, create: bool = False) -> ET.Element | None:
-        ref_list = self._ref_list_element(create=create)
-        if ref_list is None:
-            return None
-        element = ref_list.find(f"{_HH}paraProperties")
-        if element is None and create:
-            element = ref_list.makeelement(f"{_HH}paraProperties", {"itemCnt": "0"})
-            ref_list.append(element)
-            self.mark_dirty()
-        return element
+        return self._ref_list_default_child("paraProperties", create=create)
+
+    def _tab_properties_element(self, create: bool = False) -> ET.Element | None:
+        return self._ref_list_default_child("tabProperties", create=create)
 
     @staticmethod
     def _allocate_ref_id(parent: ET.Element, child_tag: str) -> str:
@@ -708,6 +692,7 @@ class HwpxOxmlHeader:
         heading: Mapping[str, str | int] | None = None,
         border: Mapping[str, str | int] | None = None,
         break_setting: Mapping[str, bool] | None = None,
+        tab_pr_id_ref: str | None = None,
     ) -> str:
         """Return a new paragraph property id with requested formatting changes."""
 
@@ -752,6 +737,8 @@ class HwpxOxmlHeader:
             self._apply_paragraph_break_setting(para_pr, break_setting)
         if border is not None:
             self._apply_paragraph_border(para_pr, border)
+        if tab_pr_id_ref is not None:
+            para_pr.set("tabPrIDRef", str(tab_pr_id_ref))
 
         para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
         para_pr.set("id", para_pr_id)
@@ -759,6 +746,36 @@ class HwpxOxmlHeader:
         self._update_item_count(para_properties, f"{_HH}paraPr")
         self.mark_dirty()
         return para_pr_id
+
+    def ensure_tab_definition(
+        self,
+        *,
+        tab_stops: "Iterable[Mapping[str, object]] | None" = None,
+        auto_tab_left: bool = False,
+        auto_tab_right: bool = False,
+    ) -> str:
+        """Return a ``hh:tabPr`` id matching *tab_stops* (dedupe — ``ensure_style``
+        선례). Order is part of the dedupe key — see :func:`_normalize_tab_stops`.
+        """
+
+        element = self._tab_properties_element(create=True)
+        if element is None:  # pragma: no cover - defensive branch
+            from ..errors import HwpxStateError
+
+            raise HwpxStateError(
+                "failed to create <tabProperties> element",
+                code="style-tab-container-create-failed",
+            )
+
+        tab_id, created = _ensure_tab_definition_element(
+            element,
+            tab_stops=tab_stops,
+            auto_tab_left=auto_tab_left,
+            auto_tab_right=auto_tab_right,
+        )
+        if created:
+            self.mark_dirty()
+        return tab_id
 
     def ensure_numbering(
         self,
@@ -1417,6 +1434,16 @@ class HwpxOxmlHeader:
         self, para_pr_id_ref: int | str | None
     ) -> ParagraphProperty | None:
         return self._lookup_by_id(self.paragraph_properties, para_pr_id_ref)
+
+    @property
+    def tab_properties(self) -> dict[str, TabDefinition]:
+        element = self._tab_properties_element()
+        if element is None:
+            return {}
+        return parse_tab_definitions(self._convert_to_lxml(element)).as_dict()
+
+    def tab_property(self, tab_pr_id_ref: int | str | None) -> TabDefinition | None:
+        return self._lookup_by_id(self.tab_properties, tab_pr_id_ref)
 
     @property
     def styles(self) -> dict[str, Style]:

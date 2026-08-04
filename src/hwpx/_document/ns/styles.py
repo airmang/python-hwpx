@@ -44,6 +44,7 @@ if TYPE_CHECKING:
         ParagraphProperty,
         RunStyle,
         Style,
+        TabDefinition,
     )
 
 __all__ = ["StylesNamespace"]
@@ -201,6 +202,19 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         return self._doc.oxml.paragraph_property(para_pr_id_ref)
 
     @property
+    def tab_properties(self) -> dict[str, "TabDefinition"]:
+        """`hh:tabPr` 정의 전체(id → `TabDefinition`, `tab_stops`에 각
+        `hh:tabItem`을 담는다). 문단의 탭 정의는
+        `doc.styles.paragraph_property(p.para_pr_id_ref).tab_pr_id_ref`로
+        참조 id를 얻은 뒤 이 매핑(또는 `tab_property()`)으로 해석한다 —
+        `border_fill_id_ref`가 `border_fill()`로 해석되는 것과 같은 관용구."""
+
+        return self._doc.oxml.tab_properties
+
+    def tab_property(self, tab_pr_id_ref: "int | str | None") -> "TabDefinition | None":
+        return self._doc.oxml.tab_property(tab_pr_id_ref)
+
+    @property
     def border_fills(self) -> dict[str, "GenericElement"]:
         return self._doc.oxml.border_fills
 
@@ -347,8 +361,17 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         bottom_border: bool = False,
         border_color: str = "#BFBFBF",
         border_width: str = "0.12 mm",
+        tab_stops: Sequence[Mapping[str, object]] | None = None,
+        auto_tab_left: bool | None = None,
+        auto_tab_right: bool | None = None,
     ) -> "ParagraphFormatResult":
-        """문단 서식을 사람 단위(mm·pt·%)로 적용한다."""
+        """문단 서식을 사람 단위(mm·pt·%)로 적용한다.
+
+        `tab_stops`는 `{"pos_mm": ..., "type": "LEFT"|"RIGHT"|"CENTER"|
+        "DECIMAL", "leader": "NONE"|...}` 매핑의 순서 있는 시퀀스다(`type`·
+        `leader` 생략 시 실코퍼스 다수 관행인 "LEFT"·"NONE"). 지정하면
+        `hh:tabPr`를 보장(dedupe)하고 문단의 `tabPrIDRef`를 배선한다.
+        """
 
         from .. import layout as _layout
 
@@ -370,6 +393,9 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             bottom_border=bottom_border,
             border_color=border_color,
             border_width=border_width,
+            tab_stops=tab_stops,
+            auto_tab_left=auto_tab_left,
+            auto_tab_right=auto_tab_right,
         )
 
     def apply_list_format(

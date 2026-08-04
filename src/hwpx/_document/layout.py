@@ -122,6 +122,9 @@ def set_paragraph_format(
     bottom_border: bool = False,
     border_color: str = "#BFBFBF",
     border_width: str = "0.12 mm",
+    tab_stops: Sequence[Mapping[str, Any]] | None = None,
+    auto_tab_left: bool | None = None,
+    auto_tab_right: bool | None = None,
 ) -> ParagraphFormatResult:
     """Apply paragraph-level formatting using human units.
 
@@ -129,6 +132,14 @@ def set_paragraph_format(
     points; line spacing is stored as a percent value. ``keep_with_next`` /
     ``keep_lines`` / ``page_break_before`` set the paragraph's keep-together
     (``<hh:breakSetting>``) flags via a freshly minted paraPr.
+
+    ``tab_stops`` is a sequence of ``{"pos_mm": ..., "type": "LEFT"|"RIGHT"|
+    "CENTER"|"DECIMAL", "leader": "NONE"|...}`` mappings (``type``/``leader``
+    default to the real-corpus-majority ``"LEFT"``/``"NONE"``) — order is
+    meaningful, matching how real multi-stop documents list them
+    position-ascending. Passing ``tab_stops``/``auto_tab_left``/
+    ``auto_tab_right`` mints (or reuses — dedupe) a ``hh:tabPr`` and wires
+    the paragraph's ``tabPrIDRef`` to it.
     """
 
     if not doc._root.headers:
@@ -181,6 +192,10 @@ def set_paragraph_format(
     if page_break_before is not None:
         break_setting["page_break_before"] = bool(page_break_before)
 
+    wants_tab_definition = (
+        tab_stops is not None or auto_tab_left is not None or auto_tab_right is not None
+    )
+
     if (
         alignment is None
         and line_spacing_percent is None
@@ -188,11 +203,34 @@ def set_paragraph_format(
         and heading is None
         and not bottom_border
         and not break_setting
+        and not wants_tab_definition
     ):
         raise HwpxValueError(
             "at least one paragraph formatting option is required",
             code="paragraph-format-empty",
             suggestion="Pass alignment, line_spacing_percent, or another option to change.",
+        )
+
+    tab_pr_id: str | None = None
+    if wants_tab_definition:
+        converted_stops: list[dict[str, object]] = []
+        for index, stop in enumerate(tab_stops or ()):
+            if "pos_mm" not in stop or stop["pos_mm"] is None:
+                raise HwpxValueError(
+                    f"tab_stops[{index}] is missing 'pos_mm'",
+                    code="paragraph-tab-pos-invalid",
+                    context={"index": index},
+                    suggestion="각 tab stop은 'pos_mm'(mm, 0 이상)가 필요합니다.",
+                )
+            converted_stops.append({
+                "pos": _mm_to_hwp_units(float(stop["pos_mm"])),
+                "type": stop.get("type"),
+                "leader": stop.get("leader"),
+            })
+        tab_pr_id = header.ensure_tab_definition(
+            tab_stops=converted_stops,
+            auto_tab_left=bool(auto_tab_left),
+            auto_tab_right=bool(auto_tab_right),
         )
 
     border: dict[str, str] | None = None
@@ -226,6 +264,7 @@ def set_paragraph_format(
             heading=heading,
             border=border,
             break_setting=break_setting or None,
+            tab_pr_id_ref=tab_pr_id,
         )
         paragraph.para_pr_id_ref = para_pr_id
         formatted.append(index)
