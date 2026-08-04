@@ -254,7 +254,10 @@ def test_frozen_facade_exports_remain_exact() -> None:
     # settings.xml first-ever read surface (ApplicationSettings, CaretPosition,
     # ConfigItem, ConfigItemSet, HwpxOxmlSettings) — settings.xml has no
     # vendored OWPML schema at all, reverse-engineered from the real corpus.
-    assert len(oxml.__all__) == 120
+    # 120 -> 122: Caption/DrawText fill gap #3/#4 (hp:drawText/textMargin,
+    # hp:caption) — shared live views reused by HwpxOxmlShape,
+    # HwpxOxmlInlineObject, and HwpxOxmlTable rather than duplicated per host.
+    assert len(oxml.__all__) == 122
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 
 

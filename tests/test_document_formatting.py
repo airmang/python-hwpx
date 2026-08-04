@@ -1574,6 +1574,228 @@ def test_document_parts_settings_matches_real_hancom_documents() -> None:
         assert reopened_settings_bytes == original_settings_bytes, path
 
 
+# -- 6.1 도형 안 텍스트(hp:drawText) + 개체 캡션(hp:caption) ------------------
+
+
+def test_shape_draw_text_and_caption_match_real_hancom_document() -> None:
+    """게이트 ①: 실한컴 저장본에서 drawText/caption 읽기 값이 원 XML과 정합."""
+
+    from hwpx.document import HwpxDocument
+
+    doc = HwpxDocument.open("tests/fixtures/hwpxlib_corpus/reader_writer__SimpleRectangle.hwpx")
+    shape = doc.sections[0].paragraphs[0].shapes[0]
+
+    draw_text = shape.draw_text
+    assert draw_text is not None
+    assert draw_text.text == "ABC"
+    assert draw_text.editable is False
+    assert draw_text.text_margin == {"left": 283, "right": 283, "top": 283, "bottom": 283}
+
+    caption = shape.caption
+    assert caption is not None
+    assert caption.side == "BOTTOM"
+    assert caption.full_sz is False
+    assert caption.width == 8504
+    assert caption.gap == 850
+    assert "그림" in caption.text
+    doc.close()
+
+
+def test_table_caption_matches_real_hancom_document() -> None:
+    from hwpx.document import HwpxDocument
+
+    doc = HwpxDocument.open(
+        "tests/fixtures/hwpxlib_corpus/"
+        "error__20250808__2015년_12월_재난안전종합상황_분석_및_전망.hwpx"
+    )
+    captions = []
+    for section in doc.sections:
+        for para in section.paragraphs:
+            for tbl in para.tables:
+                if tbl.caption is not None:
+                    captions.append(tbl.caption)
+    doc.close()
+
+    assert len(captions) == 10
+    assert all(c.side == "TOP" for c in captions)
+    assert all(c.full_sz is False for c in captions)
+    assert any("기상특보" in c.text for c in captions)
+
+
+def test_shape_set_draw_text_creates_and_round_trips() -> None:
+    from hwpx.document import HwpxDocument
+
+    doc = HwpxDocument.new()
+    p = doc.sections[0].add_paragraph()
+    rect = p.add_rectangle(20000, 10000, treat_as_char=True)
+    assert rect.draw_text is None
+
+    rect.set_draw_text("제목 텍스트", name="사각형1")
+    assert rect.draw_text.text == "제목 텍스트"
+    assert rect.draw_text.name == "사각형1"
+    assert rect.draw_text.text_margin == {"left": 283, "right": 283, "top": 283, "bottom": 283}
+
+    out = doc.to_bytes()
+    doc.close()
+
+    reopened = HwpxDocument.open(io.BytesIO(out))
+    shape2 = reopened.sections[0].paragraphs[1].shapes[0]
+    assert shape2.draw_text.text == "제목 텍스트"
+    reopened.close()
+
+
+def test_shape_set_caption_rejects_invalid_side() -> None:
+    from hwpx.document import HwpxDocument
+    from hwpx.errors import HwpxValueError
+
+    doc = HwpxDocument.new()
+    p = doc.sections[0].add_paragraph()
+    rect = p.add_rectangle(20000, 10000, treat_as_char=True)
+    with pytest.raises(HwpxValueError) as excinfo:
+        rect.set_caption("캡션", side="MIDDLE")
+    assert excinfo.value.code == "shape-caption-side-invalid"
+    doc.close()
+
+
+def test_shape_remove_caption_and_draw_text() -> None:
+    from hwpx.document import HwpxDocument
+
+    doc = HwpxDocument.new()
+    p = doc.sections[0].add_paragraph()
+    rect = p.add_rectangle(20000, 10000, treat_as_char=True)
+    rect.set_caption("캡션")
+    rect.set_draw_text("텍스트")
+
+    assert rect.remove_caption() is True
+    assert rect.remove_draw_text() is True
+    assert rect.caption is None
+    assert rect.draw_text is None
+    # 이미 없는 것을 다시 지우면 False.
+    assert rect.remove_caption() is False
+    assert rect.remove_draw_text() is False
+    doc.close()
+
+
+def test_table_set_caption_creates_and_round_trips_at_real_document_position() -> None:
+    """게이트 ①: 신규 저작 캡션의 자식 순서가 실코퍼스 실측(outMargin,
+    caption, inMargin, tr)과 일치해야 한다."""
+
+    from hwpx.document import HwpxDocument
+    from hwpx.oxml.namespaces import tag_local_name
+
+    doc = HwpxDocument.new()
+    p = doc.sections[0].add_paragraph()
+    tbl = p.add_table(2, 2)
+    assert tbl.caption is None
+
+    tbl.set_caption("표 1 요약", side="TOP")
+    children = [tag_local_name(c.tag) for c in tbl.element]
+    assert children.index("caption") == children.index("outMargin") + 1
+    assert children.index("caption") == children.index("inMargin") - 1
+
+    out = doc.to_bytes()
+    doc.close()
+
+    reopened = HwpxDocument.open(io.BytesIO(out))
+    tbl2 = reopened.sections[0].paragraphs[1].tables[0]
+    assert tbl2.caption.text == "표 1 요약"
+    assert tbl2.caption.side == "TOP"
+    reopened.close()
+
+
+def test_inline_object_set_caption_on_picture() -> None:
+    from hwpx.document import HwpxDocument
+    from hwpx.oxml.namespaces import tag_local_name
+
+    doc = HwpxDocument.new()
+    p = doc.sections[0].add_paragraph()
+    media = doc.media.add_image(b"\x89PNG\r\n\x1a\n" + b"0" * 40, "png")
+    pic = p.add_picture(media.item_id, width=10000, height=8000)
+    assert pic.caption is None
+
+    pic.set_caption("그림 1. 테스트", side="BOTTOM")
+    assert pic.caption.text == "그림 1. 테스트"
+    # outMargin 다음(표/도형과 같은 관행) — 이 자리는 실코퍼스 표본이 없어
+    # unverified 명시: 표/도형에서 검증된 규칙을 그대로 적용했을 뿐이다.
+    children = [tag_local_name(c.tag) for c in pic.element]
+    assert children.index("caption") == children.index("outMargin") + 1
+
+    out = doc.to_bytes()
+    doc.close()
+
+    reopened = HwpxDocument.open(io.BytesIO(out))
+    from hwpx.oxml.objects import HwpxOxmlInlineObject
+
+    reopened_paragraph = reopened.sections[0].paragraphs[1]
+    pic_element = next(
+        e for e in reopened_paragraph.element.iter() if tag_local_name(e.tag) == "pic"
+    )
+    pic2 = HwpxOxmlInlineObject(pic_element, reopened_paragraph)
+    assert pic2.caption.text == "그림 1. 테스트"
+    assert pic2.caption.side == "BOTTOM"
+    reopened.close()
+
+
+def test_markdown_export_includes_table_caption() -> None:
+    from hwpx.document import HwpxDocument
+    from hwpx.tools.markdown_export import export_markdown
+
+    doc = HwpxDocument.new()
+    p = doc.sections[0].add_paragraph()
+    tbl = p.add_table(1, 1)
+    tbl.set_caption("표 1 매출 현황")
+    md = export_markdown(doc)
+    doc.close()
+    assert "표 1 매출 현황" in md
+
+
+def test_markdown_export_includes_picture_caption(tmp_path) -> None:
+    from hwpx.document import HwpxDocument
+    from hwpx.tools.markdown_export import export_markdown
+
+    doc = HwpxDocument.new()
+    p = doc.sections[0].add_paragraph()
+    media = doc.media.add_image(b"\x89PNG\r\n\x1a\n" + b"0" * 40, "png")
+    pic = p.add_picture(media.item_id, width=10000, height=8000)
+    pic.set_caption("그림 1. 매출 그래프")
+    md = export_markdown(doc, image_dir=str(tmp_path))
+    doc.close()
+    assert "![image]" in md
+    assert "*그림 1. 매출 그래프*" in md
+
+
+def test_shape_text_and_caption_stay_undistorted_after_real_document_round_trip() -> None:
+    """게이트 ②: 왕복 무손상 — drawText/caption 서브트리가 수정 없이
+    open→save 를 거쳐도 바이트 수준으로 그대로다."""
+
+    import zipfile
+
+    from lxml import etree
+
+    from hwpx.document import HwpxDocument
+
+    path = "tests/fixtures/hwpxlib_corpus/reader_writer__SimpleRectangle.hwpx"
+    with zipfile.ZipFile(path) as zf:
+        original = zf.read("Contents/section0.xml")
+
+    doc = HwpxDocument.open(path)
+    out = doc.to_bytes()
+    doc.close()
+
+    with zipfile.ZipFile(io.BytesIO(out)) as zf:
+        reopened = zf.read("Contents/section0.xml")
+
+    ns = {"hp": "http://www.hancom.co.kr/hwpml/2011/paragraph"}
+    orig_root = etree.fromstring(original)
+    new_root = etree.fromstring(reopened)
+    orig_dt = [etree.tostring(e) for e in orig_root.findall(".//hp:drawText", ns)]
+    new_dt = [etree.tostring(e) for e in new_root.findall(".//hp:drawText", ns)]
+    orig_cap = [etree.tostring(e) for e in orig_root.findall(".//hp:caption", ns)]
+    new_cap = [etree.tostring(e) for e in new_root.findall(".//hp:caption", ns)]
+    assert orig_dt == new_dt
+    assert orig_cap == new_cap
+
+
 def test_paragraph_add_shape_and_control_updates_attributes() -> None:
     section, paragraph = _build_section_with_paragraph()
 

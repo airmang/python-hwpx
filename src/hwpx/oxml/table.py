@@ -29,6 +29,8 @@ from ._document_primitives import (
     _sanitize_text,
 )
 
+from .objects import Caption, _read_caption, _remove_caption, _write_caption
+
 if TYPE_CHECKING:
     from hwpx.form_fit.policy import FitPolicy
     from hwpx.form_fit.report import FitResult
@@ -393,6 +395,42 @@ class HwpxOxmlTable:
             f"physical_rows={len(self.rows)}"
             ")"
         )
+
+    # --- caption (hp:caption) -----------------------------------------
+
+    @property
+    def caption(self) -> "Caption | None":
+        """This table's ``hp:caption``, or ``None`` if it doesn't have one."""
+
+        return _read_caption(self.element, self.paragraph.section)
+
+    def set_caption(
+        self,
+        text: str,
+        *,
+        side: str = "TOP",
+        full_sz: bool = False,
+        width: int | None = None,
+        gap: int = 850,
+        char_pr_id_ref: str | int | None = None,
+    ) -> "Caption":
+        """Create (or replace the text of) this table's ``hp:caption``.
+
+        실코퍼스 15건 전수 관행(93%가 표 캡션): ``side="TOP"``·``fullSz=False``
+        가 사실상 유일한 조합, ``gap`` 은 850(다수) 또는 566. See
+        ``hwpx.oxml.objects`` 모듈 상단 주석의 실측 근거.
+        """
+
+        return _write_caption(
+            self.element, text, section=self.paragraph.section,
+            side=side, full_sz=full_sz, width=width, gap=gap,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+
+    def remove_caption(self) -> bool:
+        """Remove this table's ``hp:caption`` if present. Returns whether one was removed."""
+
+        return _remove_caption(self.element, self.paragraph.section)
 
     @classmethod
     def create(

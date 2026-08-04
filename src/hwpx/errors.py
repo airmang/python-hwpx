@@ -244,6 +244,7 @@ ERROR_CODES: dict[str, str] = {
     "shape-chart-root-invalid": "차트 XML 루트가 c:chartSpace 가 아니다.",
     "shape-chart-anchor-detached": "만든 차트 앵커가 자기 파트를 가리키지 않는다.",
     "shape-chart-not-created": "만든 차트를 표준 스캔이 다시 찾지 못했다.",
+    "shape-caption-side-invalid": "캡션 side 값이 OWPML 어휘(LEFT/RIGHT/TOP/BOTTOM) 밖이다.",
     # -- 미디어 ----------------------------------------------------------
     "media-item-id-taken": "그 이진 항목 id 가 이미 쓰이고 있다.",
     "media-owner-paragraph-missing": "교체한 그림 요소가 소속 문단을 찾지 못했다(방어적 분기).",

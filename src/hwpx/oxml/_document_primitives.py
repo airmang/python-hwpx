@@ -338,6 +338,74 @@ def _append_child(
     return child
 
 
+def _reposition_child_before_any(
+    parent: ET.Element,
+    child: ET.Element,
+    before_local_names: "Iterable[str]",
+) -> None:
+    """Move *child* (assumed just appended, i.e. currently ``parent``'s last
+    child) to just before the first *other* sibling whose local name is in
+    *before_local_names* — or leave it at the end if none is present.
+
+    Shared by object-caption/shape-drawText authoring: both need to land a
+    freshly created element at a schema-anchored position without depending
+    on any one optional sibling being present (실코퍼스 실측 — Hancom's own
+    child order sometimes disagrees with the XSD's declared sequence, so
+    this anchors on whatever real neighbour is actually there instead of
+    assuming one). Callers create the element via :func:`_append_child`
+    first — element construction and repositioning are kept as two calls so
+    the tag literal stays directly next to ``_append_child`` (원장 write
+    분류기가 태그 리터럴을 그 인접 관용구로만 인식한다).
+    """
+
+    before = set(before_local_names)
+    target_index: int | None = None
+    for index, existing in enumerate(parent):
+        if existing is child:
+            continue
+        if tag_local_name(existing.tag) in before:
+            target_index = index
+            break
+    if target_index is None:
+        return
+    parent.remove(child)
+    parent.insert(target_index, child)
+
+
+def _reposition_child_after_any(
+    parent: ET.Element,
+    child: ET.Element,
+    after_local_names: "Iterable[str]",
+) -> None:
+    """Move *child* (assumed just appended) to just after the *last* existing
+    sibling whose local name is in *after_local_names* — or leave it at the
+    end if none is present (which, since ``child`` was just appended, is
+    already where it is).
+
+    ``hp:caption`` uses this anchored on ``outMargin``: 실코퍼스 실측(표·
+    도형 둘 다) — 캡션은 항상 outMargin 바로 다음에 온다, 반면 그 뒤에
+    무엇이 오는지(표는 inMargin, 도형은 shapeComment, 그림은 아예 없음)는
+    호스트 종류마다 다르다. "이름 X 앞"이 아니라 "이름 X 뒤"로 고정하면
+    호스트 종류에 기대지 않는다.
+    """
+
+    after = set(after_local_names)
+    target_index: int | None = None
+    for index, existing in enumerate(parent):
+        if existing is child:
+            continue
+        if tag_local_name(existing.tag) in after:
+            target_index = index
+    if target_index is None:
+        return
+    parent.remove(child)
+    insert_at = target_index + 1
+    # child 제거로 target_index 이후 원소가 한 칸씩 당겨졌을 수 있는데,
+    # target_index 자체는 child보다 앞이었으므로(방금 찾은 마지막 일치가
+    # child가 아니었다) 영향받지 않는다.
+    parent.insert(insert_at, child)
+
+
 def _is_tab_control_element(node: ET.Element) -> bool:
     return tag_local_name(node.tag) == "ctrl" and (node.get("id") or "").lower() == "tab"
 

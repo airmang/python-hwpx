@@ -7,10 +7,23 @@ from typing import TYPE_CHECKING
 import warnings
 import xml.etree.ElementTree as ET
 
-from ._document_primitives import _HC, _HP, _append_child, _element_local_name, _object_id
+from ._document_primitives import (
+    _DEFAULT_PARAGRAPH_ATTRS,
+    _HC,
+    _HP,
+    _append_child,
+    _append_text_with_tabs,
+    _default_sublist_attributes,
+    _element_local_name,
+    _object_id,
+    _reposition_child_after_any,
+    _reposition_child_before_any,
+    _paragraph_id,
+)
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
+    from .section import HwpxOxmlSection
 
 
 class HwpxOxmlInlineObject:
@@ -50,6 +63,43 @@ class HwpxOxmlInlineObject:
         if self.element.get(name) != new_value:
             self.element.set(name, new_value)
             self.paragraph.section.mark_dirty()
+
+    # --- caption (hp:caption — table/picture/OLE/equation may carry one) ---
+
+    @property
+    def caption(self) -> "Caption | None":
+        """This object's ``hp:caption``, or ``None`` if it doesn't have one."""
+
+        return _read_caption(self.element, self.paragraph.section)
+
+    def set_caption(
+        self,
+        text: str,
+        *,
+        side: str = "TOP",
+        full_sz: bool = False,
+        width: int | None = None,
+        gap: int = 850,
+        char_pr_id_ref: str | int | None = None,
+    ) -> "Caption":
+        """Create (or replace the text of) this object's ``hp:caption``.
+
+        *side*/*full_sz*/*gap* default to the real-corpus majority
+        convention (15-sample: side=TOP 14/15, fullSz=false 15/15,
+        gap=850 11/15) — the schema's own default (``side="LEFT"``) is
+        essentially unobserved in practice.
+        """
+
+        return _write_caption(
+            self.element, text, section=self.paragraph.section,
+            side=side, full_sz=full_sz, width=width, gap=gap,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+
+    def remove_caption(self) -> bool:
+        """Remove this object's ``hp:caption`` if present. Returns whether one was removed."""
+
+        return _remove_caption(self.element, self.paragraph.section)
 
 
 # ------------------------------------------------------------------
@@ -421,6 +471,308 @@ def _missing_shape_children(element: ET.Element) -> list[str]:
     return [name for name in _REQUIRED_SHAPE_CHILD_NAMES if name not in present]
 
 
+# ------------------------------------------------------------------
+# Caption (hp:caption) and shape text (hp:drawText) — shared content
+# ------------------------------------------------------------------
+#
+# Both live on any ``AbstractShapeObjectType``/``AbstractDrawingObjectType``
+# host (table/picture/OLE/equation/line/rect/ellipse/…, per ``ParaList XML
+# schema.xml``) as an ``hp:subList`` of real paragraphs — the same construct
+# table cells already use. ``Caption``/``DrawText`` below are thin live views
+# reused by ``HwpxOxmlTable`` (table.py), ``HwpxOxmlShape``, and
+# ``HwpxOxmlInlineObject`` (this module) rather than duplicated per host.
+
+#: ``hp:caption/@side`` 어휘(스키마 기본값은 LEFT). 실코퍼스 15건 전수는
+#: TOP 14 · BOTTOM 1 — LEFT/RIGHT 관측 0(테두리 옆 캡션은 실무에서 안 쓴다).
+_CAPTION_SIDES = frozenset({"LEFT", "RIGHT", "TOP", "BOTTOM"})
+
+#: 실코퍼스 15건 전수: fullSz="0"(전부) · width="8504"(전부, 호스트 크기와
+#: 무관한 고정값) · gap="850"(11) 또는 "566"(4, 스키마 기본은 850).
+_CAPTION_DEFAULT_WIDTH = "8504"
+_CAPTION_DEFAULT_GAP = "850"
+
+#: 캡션은 outMargin 바로 다음에 온다(실코퍼스 실측 — 표: outMargin, caption,
+#: inMargin, tr; 도형: outMargin, caption, shapeComment). 그 뒤에 무엇이
+#: 오는지는 호스트 종류마다 다르므로(표/도형/그림이 서로 다른 이름을 쓴다),
+#: "X 앞"이 아니라 "outMargin 뒤"로 고정해야 호스트 종류에 기대지 않는다.
+_CAPTION_AFTER_NAMES = ("outMargin",)
+
+#: 실코퍼스 90건 전수: drawText/hp:textMargin left/right/top/bottom은
+#: 283(≈0.1cm, Hancom UI 기본값)이 다수(각 축 60~66%), 다음은 0.
+_DRAW_TEXT_DEFAULT_MARGIN = {"left": "283", "right": "283", "top": "283", "bottom": "283"}
+
+#: drawText는 AbstractDrawingObjectType 자신의 시퀀스(lineShape/fillBrush/
+#: shadow) 다음, 도형별 지오메트리(pt0류) 앞에 온다 — 실코퍼스: 스키마가
+#: 선언한 lineShape/fillBrush/drawText/shadow 순서와 실제로 다르다(shadow가
+#: drawText보다 먼저 나온다). 지오메트리 이름 중 가장 먼저 나오는 것(없으면
+#: sz) 앞에 꽂으면 도형 종류와 무관하게 정확한 위치가 된다.
+_DRAW_TEXT_BEFORE_NAMES = ("pt0", "pt", "startPt", "center", "seg", "sz")
+
+
+def _wrap_paragraph(element: ET.Element, section: "HwpxOxmlSection") -> "HwpxOxmlParagraph":
+    from .paragraph import HwpxOxmlParagraph
+
+    return HwpxOxmlParagraph(element, section)
+
+
+def _sublist_paragraphs(
+    container: ET.Element, section: "HwpxOxmlSection"
+) -> list["HwpxOxmlParagraph"]:
+    sublist = container.find(f"{_HP}subList")
+    if sublist is None:
+        return []
+    return [_wrap_paragraph(p, section) for p in sublist.findall(f"{_HP}p")]
+
+
+def _ensure_sublist(
+    container: ET.Element, *, vert_align: str = "CENTER"
+) -> ET.Element:
+    sublist = container.find(f"{_HP}subList")
+    if sublist is None:
+        attrs = _default_sublist_attributes()
+        attrs["vertAlign"] = vert_align
+        sublist = _append_child(container, f"{_HP}subList", attrs)
+    return sublist
+
+
+def _add_sublist_paragraph(
+    container: ET.Element,
+    text: str,
+    *,
+    section: "HwpxOxmlSection",
+    vert_align: str,
+    char_pr_id_ref: str | int | None,
+) -> "HwpxOxmlParagraph":
+    sublist = _ensure_sublist(container, vert_align=vert_align)
+    attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
+    paragraph = _append_child(sublist, f"{_HP}p", attrs)
+    run_attrs = {"charPrIDRef": str(char_pr_id_ref) if char_pr_id_ref is not None else "0"}
+    run = _append_child(paragraph, f"{_HP}run", run_attrs)
+    _append_text_with_tabs(run, text)
+    return _wrap_paragraph(paragraph, section)
+
+
+def _replace_sublist_text(
+    container: ET.Element,
+    text: str,
+    *,
+    section: "HwpxOxmlSection",
+    vert_align: str,
+    char_pr_id_ref: str | int | None,
+) -> "HwpxOxmlParagraph":
+    """Clear any existing paragraphs and author a single fresh one."""
+
+    sublist = container.find(f"{_HP}subList")
+    if sublist is not None:
+        for existing in list(sublist.findall(f"{_HP}p")):
+            sublist.remove(existing)
+    return _add_sublist_paragraph(
+        container, text, section=section, vert_align=vert_align, char_pr_id_ref=char_pr_id_ref
+    )
+
+
+class Caption:
+    """Live view of an object's ``hp:caption`` — table/figure caption text."""
+
+    def __init__(self, element: ET.Element, section: "HwpxOxmlSection"):
+        self.element = element
+        self.section = section
+
+    @property
+    def side(self) -> str:
+        return self.element.get("side", "LEFT")
+
+    @property
+    def full_sz(self) -> bool:
+        return self.element.get("fullSz", "0") not in ("0", "false", "False")
+
+    @property
+    def width(self) -> int | None:
+        value = self.element.get("width")
+        return int(value) if value is not None else None
+
+    @property
+    def gap(self) -> int:
+        return int(self.element.get("gap", _CAPTION_DEFAULT_GAP))
+
+    @property
+    def paragraphs(self) -> list["HwpxOxmlParagraph"]:
+        return _sublist_paragraphs(self.element, self.section)
+
+    @property
+    def text(self) -> str:
+        return "\n".join(paragraph.text or "" for paragraph in self.paragraphs)
+
+    def add_paragraph(
+        self, text: str = "", *, char_pr_id_ref: str | int | None = None
+    ) -> "HwpxOxmlParagraph":
+        paragraph = _add_sublist_paragraph(
+            self.element, text, section=self.section, vert_align="TOP",
+            char_pr_id_ref=char_pr_id_ref,
+        )
+        self.section.mark_dirty()
+        return paragraph
+
+    def __repr__(self) -> str:
+        return f"<Caption side={self.side!r} text={self.text!r}>"
+
+
+class DrawText:
+    """Live view of a shape's ``hp:drawText`` — text drawn inside the shape."""
+
+    def __init__(self, element: ET.Element, section: "HwpxOxmlSection"):
+        self.element = element
+        self.section = section
+
+    @property
+    def name(self) -> str:
+        """Hancom's auto-generated shape-tree object name (not a caption)."""
+
+        return self.element.get("name", "")
+
+    @property
+    def editable(self) -> bool:
+        return self.element.get("editable", "0") not in ("0", "false", "False")
+
+    @property
+    def text_margin(self) -> dict[str, int] | None:
+        margin = self.element.find(f"{_HP}textMargin")
+        if margin is None:
+            return None
+        return {side: int(margin.get(side, "0")) for side in ("left", "right", "top", "bottom")}
+
+    @property
+    def paragraphs(self) -> list["HwpxOxmlParagraph"]:
+        return _sublist_paragraphs(self.element, self.section)
+
+    @property
+    def text(self) -> str:
+        return "\n".join(paragraph.text or "" for paragraph in self.paragraphs)
+
+    def add_paragraph(
+        self, text: str = "", *, char_pr_id_ref: str | int | None = None
+    ) -> "HwpxOxmlParagraph":
+        paragraph = _add_sublist_paragraph(
+            self.element, text, section=self.section, vert_align="CENTER",
+            char_pr_id_ref=char_pr_id_ref,
+        )
+        self.section.mark_dirty()
+        return paragraph
+
+    def __repr__(self) -> str:
+        return f"<DrawText name={self.name!r} text={self.text!r}>"
+
+
+def _read_caption(host: ET.Element, section: "HwpxOxmlSection") -> Caption | None:
+    element = host.find(f"{_HP}caption")
+    if element is None:
+        return None
+    return Caption(element, section)
+
+
+def _write_caption(
+    host: ET.Element,
+    text: str,
+    *,
+    section: "HwpxOxmlSection",
+    side: str,
+    full_sz: bool,
+    width: int | None,
+    gap: int,
+    char_pr_id_ref: str | int | None,
+) -> Caption:
+    normalized_side = side.strip().upper()
+    if normalized_side not in _CAPTION_SIDES:
+        from ..errors import HwpxValueError
+
+        raise HwpxValueError(
+            f"unsupported caption side {side!r}",
+            code="shape-caption-side-invalid",
+            context={"requested": side, "available": sorted(_CAPTION_SIDES)},
+            suggestion=f"side 는 {sorted(_CAPTION_SIDES)} 중 하나여야 합니다.",
+        )
+
+    element = host.find(f"{_HP}caption")
+    if element is None:
+        element = _append_child(host, f"{_HP}caption", {})
+        _reposition_child_after_any(host, element, _CAPTION_AFTER_NAMES)
+
+    element.set("side", normalized_side)
+    element.set("fullSz", "1" if full_sz else "0")
+    element.set("width", str(width) if width is not None else _CAPTION_DEFAULT_WIDTH)
+    element.set("gap", str(gap))
+    sz = host.find(f"{_HP}sz")
+    if sz is not None and sz.get("width"):
+        element.set("lastWidth", sz.get("width", ""))
+
+    _replace_sublist_text(
+        element, text, section=section, vert_align="TOP", char_pr_id_ref=char_pr_id_ref
+    )
+    section.mark_dirty()
+    return Caption(element, section)
+
+
+def _remove_caption(host: ET.Element, section: "HwpxOxmlSection") -> bool:
+    element = host.find(f"{_HP}caption")
+    if element is None:
+        return False
+    host.remove(element)
+    section.mark_dirty()
+    return True
+
+
+def _read_draw_text(host: ET.Element, section: "HwpxOxmlSection") -> DrawText | None:
+    element = host.find(f"{_HP}drawText")
+    if element is None:
+        return None
+    return DrawText(element, section)
+
+
+def _write_draw_text(
+    host: ET.Element,
+    text: str,
+    *,
+    section: "HwpxOxmlSection",
+    name: str,
+    editable: bool,
+    margin: dict[str, int] | None,
+    char_pr_id_ref: str | int | None,
+) -> DrawText:
+    element = host.find(f"{_HP}drawText")
+    if element is None:
+        element = _append_child(host, f"{_HP}drawText", {})
+        _reposition_child_before_any(host, element, _DRAW_TEXT_BEFORE_NAMES)
+
+    element.set("name", name)
+    element.set("editable", "1" if editable else "0")
+    sz = host.find(f"{_HP}sz")
+    if sz is not None and sz.get("width"):
+        element.set("lastWidth", sz.get("width", ""))
+
+    _replace_sublist_text(
+        element, text, section=section, vert_align="CENTER", char_pr_id_ref=char_pr_id_ref
+    )
+
+    margin_element = element.find(f"{_HP}textMargin")
+    resolved_margin = margin or _DRAW_TEXT_DEFAULT_MARGIN
+    if margin_element is None:
+        margin_element = _append_child(element, f"{_HP}textMargin", {})
+    for side in ("left", "right", "top", "bottom"):
+        margin_element.set(side, str(resolved_margin.get(side, _DRAW_TEXT_DEFAULT_MARGIN[side])))
+
+    section.mark_dirty()
+    return DrawText(element, section)
+
+
+def _remove_draw_text(host: ET.Element, section: "HwpxOxmlSection") -> bool:
+    element = host.find(f"{_HP}drawText")
+    if element is None:
+        return False
+    host.remove(element)
+    section.mark_dirty()
+    return True
+
+
 class HwpxOxmlShape:
     """Wrapper for a drawing shape element (``<hp:line>``, ``<hp:rect>``, ``<hp:ellipse>``, etc.)."""
 
@@ -590,7 +942,79 @@ class HwpxOxmlShape:
             self.element.set(name, new_value)
             self.paragraph.section.mark_dirty()
 
+    # --- caption (hp:caption — every shape kind may carry one) -------------
+
+    @property
+    def caption(self) -> "Caption | None":
+        """This shape's ``hp:caption``, or ``None`` if it doesn't have one."""
+
+        return _read_caption(self.element, self.paragraph.section)
+
+    def set_caption(
+        self,
+        text: str,
+        *,
+        side: str = "TOP",
+        full_sz: bool = False,
+        width: int | None = None,
+        gap: int = 850,
+        char_pr_id_ref: str | int | None = None,
+    ) -> "Caption":
+        """Create (or replace the text of) this shape's ``hp:caption``.
+
+        See :meth:`HwpxOxmlInlineObject.set_caption` for the real-corpus
+        default rationale (*side*/*full_sz*/*gap*).
+        """
+
+        return _write_caption(
+            self.element, text, section=self.paragraph.section,
+            side=side, full_sz=full_sz, width=width, gap=gap,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+
+    def remove_caption(self) -> bool:
+        """Remove this shape's ``hp:caption`` if present. Returns whether one was removed."""
+
+        return _remove_caption(self.element, self.paragraph.section)
+
+    # --- shape text (hp:drawText — only drawing shapes, never pic/tbl/ole) -
+
+    @property
+    def draw_text(self) -> "DrawText | None":
+        """Text drawn inside this shape (a text box), or ``None`` if none."""
+
+        return _read_draw_text(self.element, self.paragraph.section)
+
+    def set_draw_text(
+        self,
+        text: str,
+        *,
+        name: str = "",
+        editable: bool = False,
+        margin: dict[str, int] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> "DrawText":
+        """Create (or replace the text of) this shape's ``hp:drawText``.
+
+        *margin* overrides ``hp:textMargin`` (``left``/``right``/``top``/
+        ``bottom``, HWPUNIT); defaults to the real-corpus majority value
+        (0.1cm/283 all four sides, 90-sample). *name* is Hancom's
+        auto-generated shape-tree object label, not a caption — leave it
+        empty unless reproducing a specific gold file.
+        """
+
+        return _write_draw_text(
+            self.element, text, section=self.paragraph.section,
+            name=name, editable=editable, margin=margin,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+
+    def remove_draw_text(self) -> bool:
+        """Remove this shape's ``hp:drawText`` if present. Returns whether one was removed."""
+
+        return _remove_draw_text(self.element, self.paragraph.section)
+
     def __repr__(self) -> str:
         return f"<HwpxOxmlShape type={self.shape_type!r} id={self.inst_id!r}>"
 
-__all__ = ["HwpxOxmlInlineObject", "HwpxOxmlShape"]
+__all__ = ["Caption", "DrawText", "HwpxOxmlInlineObject", "HwpxOxmlShape"]

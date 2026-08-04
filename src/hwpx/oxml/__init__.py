@@ -23,7 +23,7 @@ from .common import GenericElement, parse_generic_element
 from .header_part import HwpxOxmlHeader
 from .memo import HwpxOxmlMemo, HwpxOxmlMemoGroup, HwpxOxmlNote
 from .numbering import DocumentNumbering, SectionStartNumbering
-from .objects import HwpxOxmlInlineObject, HwpxOxmlShape
+from .objects import Caption, DrawText, HwpxOxmlInlineObject, HwpxOxmlShape
 from .paragraph import HwpxOxmlParagraph
 from .run import HwpxOxmlRun, RunStyle
 from .section import HwpxOxmlSection, HwpxOxmlSectionHeaderFooter, HwpxOxmlSectionProperties
@@ -129,12 +129,14 @@ __all__ = [
     "BulletParaHead",
     "ApplicationSettings",
     "CaretPosition",
+    "Caption",
     "CharProperty",
     "CharPropertyList",
     "CompatibleDocument",
     "ConfigItem",
     "ConfigItemSet",
     "DocOption",
+    "DrawText",
     "Font",
     "FontFace",
     "FontFaceList",

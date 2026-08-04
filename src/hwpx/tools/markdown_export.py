@@ -173,8 +173,22 @@ def _build_image_map(
     return mapping
 
 
+def _element_caption_text(el) -> str | None:
+    """이 개체(hp:pic/hp:tbl/도형)의 hp:caption 텍스트, 없으면 None.
+
+    markdown_export는 raw ElementTree를 순회하므로 ``hwpx.oxml.objects``의
+    ``Caption`` 라이브 객체(section 참조가 필요) 대신 이 모듈 자체의
+    ``_descendants``/``_direct_children`` 관용구로 직접 읽는다."""
+
+    captions = _direct_children(el, "caption")
+    if not captions:
+        return None
+    text = "".join(t.text or "" for t in _descendants(captions[0], "t")).strip()
+    return text or None
+
+
 def _paragraph_images(p_el, mapping: dict[str, str]) -> list[str]:
-    """paragraph element 안 모든 <hp:pic> → markdown 이미지 라인."""
+    """paragraph element 안 모든 <hp:pic> → markdown 이미지(+캡션) 라인."""
     out = []
     for pic in _descendants(p_el, "pic"):
         img = _first_descendant(pic, "img")
@@ -185,6 +199,9 @@ def _paragraph_images(p_el, mapping: dict[str, str]) -> list[str]:
             continue
         rel = mapping.get(ref, f"BinData/{ref}")
         out.append(f"![image]({rel})")
+        caption_text = _element_caption_text(pic)
+        if caption_text:
+            out.append(f"*{caption_text}*")
     return out
 
 
@@ -322,10 +339,13 @@ def _table_to_md(tbl, doc, mapping, depth: int = 0, notes_out: list | None = Non
     grid = tbl.get_cell_map()
     rows, cols = tbl.row_count, tbl.column_count
     has_merge = any(not pos.is_anchor for row in grid for pos in row)
+    caption_text = _element_caption_text(tbl.element)
 
     if has_merge or depth > 0:
         # 병합 셀 또는 중첩 — HTML
         out = ["<table>"]
+        if caption_text:
+            out.append(f"<caption>{html_escape(caption_text)}</caption>")
         for r in range(rows):
             out.append("<tr>")
             for c in range(cols):
@@ -361,8 +381,11 @@ def _table_to_md(tbl, doc, mapping, depth: int = 0, notes_out: list | None = Non
         out.append("</table>")
         return "\n".join(out)
 
-    # 단순 — GFM
+    # 단순 — GFM (표 캡션 관례: GFM에 캡션 문법이 없어 굵은 줄로 앞에 둔다)
     lines = []
+    if caption_text:
+        lines.append(f"**{caption_text}**")
+        lines.append("")
     for r in range(rows):
         cells = [
             _cell_to_md(grid[r][c].cell, doc, mapping, depth + 1, notes_out)

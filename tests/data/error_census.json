@@ -122,16 +122,16 @@
    "_document/layout.py:180"
   ],
   "paragraph-tab-leader-invalid": [
-   "oxml/_document_primitives.py:914"
+   "oxml/_document_primitives.py:982"
   ],
   "paragraph-tab-pos-invalid": [
    "_document/layout.py:219",
-   "oxml/_document_primitives.py:880",
-   "oxml/_document_primitives.py:889",
-   "oxml/_document_primitives.py:895"
+   "oxml/_document_primitives.py:948",
+   "oxml/_document_primitives.py:957",
+   "oxml/_document_primitives.py:963"
   ],
   "paragraph-tab-type-invalid": [
-   "oxml/_document_primitives.py:902"
+   "oxml/_document_primitives.py:970"
   ],
   "quality-gate-failed": [
    "_document/persistence.py:143"
@@ -153,6 +153,9 @@
   ],
   "section-not-found": [
    "_document/_resolve.py:104"
+  ],
+  "shape-caption-side-invalid": [
+   "oxml/objects.py:688"
   ],
   "shape-chart-anchor-detached": [
    "_document/shapes.py:378"
@@ -198,15 +201,15 @@
    "oxml/header_part.py:1157"
   ],
   "style-font-lang-invalid": [
-   "oxml/_document_primitives.py:709",
-   "oxml/_document_primitives.py:718"
+   "oxml/_document_primitives.py:777",
+   "oxml/_document_primitives.py:786"
   ],
   "style-font-substitute-incomplete": [
-   "oxml/_document_primitives.py:793",
-   "oxml/_document_primitives.py:802"
+   "oxml/_document_primitives.py:861",
+   "oxml/_document_primitives.py:870"
   ],
   "style-font-type-invalid": [
-   "oxml/_document_primitives.py:731"
+   "oxml/_document_primitives.py:799"
   ],
   "style-list-level-invalid": [
    "_document/layout.py:293"
@@ -249,7 +252,7 @@
  "malformedCodes": [],
  "observed": {
   "other": 139,
-  "typed": 124,
+  "typed": 125,
   "untyped": 193,
   "untypedByFile": {
    "body_patch.py": 20,
