@@ -46,7 +46,7 @@ Inherited from v3, rewritten to the 6.0 surface:
 * ``edit-plan``               15  hwpx.plan.apply_edit_plan (unchanged —
                                     never touched HwpxDocument root methods)
 
-New in v4, exercising surface opened by S-120c Q3b/6.0:
+New in v4, exercising surface opened by the Q3b/6.0 depth work:
 
 * ``authored-heading``        15  add_heading level 1..10 rotation, plus an
                                     in-generator round trip: resolving
@@ -158,7 +158,7 @@ def _tool_versions() -> dict[str, str | None]:
     # checkout's pyproject.toml is the truth about the code that actually ran.
     # Asking importlib.metadata first labelled the run with whatever stale
     # version the venv happened to carry (observed: 6.7.1 while executing
-    # 6.8.1 sources), which is exactly the coordinate lie S-119 exists to kill.
+    # 6.8.1 sources), which is exactly the coordinate lie the truth-restoration train killed.
     versions["python-hwpx-automation"] = _read_pyproject_version(
         AUTOMATION_REPO / "pyproject.toml"
     )
@@ -488,7 +488,7 @@ def gen_edit_plan(bucket_dir: Path) -> list[dict[str, Any]]:
 
 
 # ================================================================================
-# new strata (6.0-only surface — Q3b/S-120c)
+# new strata (6.0-only surface — Q3b)
 # ================================================================================
 def gen_authored_heading(bucket_dir: Path) -> list[dict[str, Any]]:
     """``add_heading`` level 1..10 rotation, plus a style-name round trip.

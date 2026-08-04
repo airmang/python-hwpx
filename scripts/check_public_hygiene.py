@@ -47,9 +47,9 @@ TEXT_ARTIFACT_SUFFIXES = (
     ".yml",
 )
 DISTRIBUTION_SUFFIXES = (".whl", ".tar.gz")
-INTERNAL_WORK_CODE_COUNT = 75
+INTERNAL_WORK_CODE_COUNT = 74
 INTERNAL_WORK_CODE_SHA256 = (
-    "3e0d4650b1622fe10b28cec875275cad9c2c843bdf46badb9a38120cacffb6ca"
+    "8e0e026db81acd7287aa3d3651caa71527bd5f4472dd80b76986e8c3d1461476"
 )
 REMOVED_PATH_FIXTURE = (
     ROOT / "docs" / "architecture" / "module-ownership-removed-5.0.json"

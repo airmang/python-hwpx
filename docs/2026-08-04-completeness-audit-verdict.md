@@ -121,10 +121,10 @@
 | 1 | **글꼴 선언·대체** | `hh:fontfaces`/`fontface`/`font`(166 frozen)·`substFont`(27) | Skeleton 고정 글꼴만. 새 글꼴 등록 API 없음 | ② `styles.ensure_font` | 중 | 미착수. `font=` kwarg가 fontRef만 만지고 선언부는 박제 |
 | 2 | **문단 탭 정의** | `hh:tabItem`(39)·`tabPr`(166 frozen) | 없음(단어조차 무지 — grep 0) | ③ + `ParagraphProperty` 확장 | 중 | 미착수 |
 | 3 | **도형 안 텍스트** | `hp:drawText`(16)·`textMargin`(16)·`hp:text`(2) | 없음. `markdown_export`는 명시적으로 건너뜀(주석) | ① Shape 컨테이너 | 중~상 | 미착수 |
-| 4 | **개체 캡션** | `hp:caption`(6)·`label`(4) | 삭제 휴리스틱만(`table_patch.py:1781`) | ① 관계 속성 | 중 | 미착수(S-114 axis 24 B/F 후보 그대로) |
-| 5 | **형광펜 저작** | `markpenBegin/End`(5) | 읽기만(`object_finder`·`text_extractor`) | ② run 마크 저작 | 중 | 미착수(S-114 axis 23) |
+| 4 | **개체 캡션** | `hp:caption`(6)·`label`(4) | 삭제 휴리스틱만(`table_patch.py:1781`) | ① 관계 속성 | 중 | 미착수(2026-08-01 저작 충실도 감사 axis 24 B/F 후보 그대로) |
+| 5 | **형광펜 저작** | `markpenBegin/End`(5) | 읽기만(`object_finder`·`text_extractor`) | ② run 마크 저작 | 중 | 미착수(저작 충실도 감사 axis 23) |
 | 6 | **채우기 심부** | `hc:imgBrush`(8)·`gradation`(3)·`color`(3)·`alpha`(1) | 단색 fill만(`ensure_border_fill(fill_color=)`) | ③ | 중 | 미착수 |
-| 7 | **곡선·다각형·연결선 저작** | `polygon`(7)·`hc:pt`(7)·`curve`(1)·`connectLine`(2)·`arc`(1)·`startPt/endPt`(2)·`controlPoints`(1) | 읽기 일부(polygon·curve·arc·connectLine read=True) + `add_raw` 탈출구 | ② `shapes.add_polygon` 등 | 상 | **의도적 보류 재검증 통과** — S-114 axis 8 "F 정직 표기", 문서화된 미지원. 단 빈도 합산(폴리곤군 ≈7~10%)은 라디오(2/166 컷) 대비 유의미 — 보류 근거를 빈도 컷으로 쓰려면 재계산 필요 |
+| 7 | **곡선·다각형·연결선 저작** | `polygon`(7)·`hc:pt`(7)·`curve`(1)·`connectLine`(2)·`arc`(1)·`startPt/endPt`(2)·`controlPoints`(1) | 읽기 일부(polygon·curve·arc·connectLine read=True) + `add_raw` 탈출구 | ② `shapes.add_polygon` 등 | 상 | **의도적 보류 재검증 통과** — 저작 충실도 감사 axis 8 "F 정직 표기", 문서화된 미지원. 단 빈도 합산(폴리곤군 ≈7~10%)은 라디오(2/166 컷) 대비 유의미 — 보류 근거를 빈도 컷으로 쓰려면 재계산 필요 |
 | 8 | **문자 서식 의미 요소 잔여** | `hh:supscript`(12)/`subscript`·`emboss`/`engrave`(재센서스 1)·`outline`(값 설정 불가) | **부분 허위 갭**: ratio(장평)·spacing(자간)은 이미 저작됨(§3-C3). script="sup"은 offset(-30)+relSz로 **시각 등가**만 방출, `hh:supscript` 요소는 미방출(직접 덤프 확인) | ③ ensure_run 확장 | 하 | 부분 미착수. "첨자 지원"의 실체는 offset 근사 — 실한컴 gold와 요소 수준 대조 필요 |
 | 9 | **메모 모양 정의** | `hh:memoPr`(13) | 조회만(`styles.memo_shapes`) — mint 없음 | ② `styles.ensure_memo_shape` | 하 | 미착수 |
 | 10 | **쪽번호 제어 심부** | `newNum`(12)·`pageHiding`(10)·`titleMark`(1) | `set_page_number`만(autoNum류) | ② page ns | 중 | 미착수 |
@@ -157,7 +157,7 @@
 
 ### C1. 모집단(census)이 부분적이다 — "실코퍼스 등장 요소 전수 = 228"은 거짓
 
-- census(`docs/_extra/element-census.json`)는 S-114 저작 충실도 감사용으로
+- census(`docs/_extra/element-census.json`)는 2026-08-01 저작 충실도 감사용으로
   **hp:/hh:/hc: 요소만** 센서스했다(spec 056 방법절에 명시). 원장이 이를
   "실코퍼스 전집"으로 승격하면서 다음이 모집단·빈도축 밖으로 빠졌다:
   - **재센서스 실증**(실파일 116, zip 파싱 가능 87): `hs:sec` **87/87
