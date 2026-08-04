@@ -3,72 +3,143 @@
   "generatedFrom": {
     "schemaDir": "DevDoc/OWPML SCHEMA",
     "corpusCensus": "docs/_extra/element-census.json",
-    "corpusCensusUpstream": "specs/056-authoring-fidelity-audit/evidence/p0/element-census.json (harness 상위 레포; 이 레포 CI에서는 보이지 않아 스냅샷을 vendoring)",
+    "corpusCensusGenerator": "scripts/build_element_census.py",
+    "corpusPopulationNote": "real = every *.hwpx under the committed roots this generator was invoked with, deduplicated by content hash. This repo's committed snapshot was produced with the vendored tests/fixtures/hwpxlib_corpus (47 files, reproducible by anyone) plus the maintainer's private real-world Hancom-authored documents (school administrative and review paperwork -- not this pipeline's output) as a second --corpus root. That second root is not committed and its path is not recorded here (privacy); only the aggregate counts are. The legacy 166/84 split this census previously reported traced to a population that was never committed anywhere reachable from this workspace -- it could not be reproduced or extended, so this generator does not carry it forward. See docs/2026-08-04-completeness-audit-verdict.md §3-C1 and docs/coverage-ledger.md's repair notes.",
     "supportMatrix": "src/hwpx/data/contract_docs/support-matrix.md",
+    "openrateV4": "docs/openrate/report-v4.json",
     "skeleton": "src/hwpx/data/Skeleton.hwpx",
     "sourceScanned": "src/hwpx/**/*.py"
   },
-  "corpusTotalFiles": 166,
+  "corpusTotalFiles": 237,
+  "corpusUnknownFiles": {
+    "count": 0,
+    "reasons": {}
+  },
+  "corpusForeignNamespaces": {
+    "http://schemas.haansoft.com/office/8.0": 1,
+    "http://schemas.microsoft.com/office/drawing/2007/8/2/chart": 1,
+    "http://schemas.openxmlformats.org/drawingml/2006/chart": 1,
+    "http://schemas.openxmlformats.org/drawingml/2006/main": 1,
+    "http://schemas.openxmlformats.org/markup-compatibility/2006": 1,
+    "http://schemas.openxmlformats.org/officeDocument/2006/bibliography": 1,
+    "http://www.hancom.co.kr/hwpml/2016/meta/pkg#": 199,
+    "http://www.hancom.co.kr/hwpml/2021/extended": 1,
+    "http://www.idpf.org/2007/opf/": 237,
+    "http://www.w3.org/1999/02/22-rdf-syntax-ns#": 199,
+    "urn:oasis:names:tc:opendocument:xmlns:config:1.0": 132,
+    "urn:oasis:names:tc:opendocument:xmlns:container": 237,
+    "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0": 236
+  },
+  "corpusUnnamespacedElements": {
+    "masterPage": 1
+  },
   "summary": {
     "totalElements": 345,
     "schemaDeclared": 307,
     "corpusOnly": 38,
-    "corpusObserved": 228,
-    "codeRead": 192,
-    "codeWriteApi": 134,
-    "codeWriteFrozenTemplate": 28,
-    "codeWriteNone": 183,
+    "corpusObserved": 229,
+    "codeRead": 195,
+    "codeWriteApi": 140,
+    "codeWriteFrozenTemplate": 25,
+    "codeWriteNone": 180,
     "capabilityMapped": 70,
-    "renderVerified": 47
+    "renderVerified": 48,
+    "renderVerifiedByV4Corpus": 13,
+    "attributesObserved": 193
   },
   "elements": [
+    {
+      "namespace": "ha",
+      "element": "CaretPosition",
+      "schemaSource": null,
+      "corpusFrequency": 1.0,
+      "corpusFileCount": 237,
+      "codeRead": false,
+      "codeWrite": "frozen-template",
+      "capabilityArea": null,
+      "capabilityStatus": null,
+      "verificationBasis": null,
+      "observedAttributes": [
+        "listIDRef",
+        "paraIDRef",
+        "pos"
+      ]
+    },
+    {
+      "namespace": "ha",
+      "element": "HWPApplicationSetting",
+      "schemaSource": null,
+      "corpusFrequency": 1.0,
+      "corpusFileCount": 237,
+      "codeRead": false,
+      "codeWrite": "frozen-template",
+      "capabilityArea": null,
+      "capabilityStatus": null,
+      "verificationBasis": null,
+      "observedAttributes": []
+    },
     {
       "namespace": "hc",
       "element": "ax1",
       "schemaSource": null,
-      "corpusFrequency": 0.0602,
-      "corpusFileCount": 10,
+      "corpusFrequency": 0.0253,
+      "corpusFileCount": 6,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "ax2",
       "schemaSource": null,
-      "corpusFrequency": 0.0602,
-      "corpusFileCount": 10,
+      "corpusFrequency": 0.0253,
+      "corpusFileCount": 6,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "center",
       "schemaSource": null,
-      "corpusFrequency": 0.0602,
-      "corpusFileCount": 10,
+      "corpusFrequency": 0.0253,
+      "corpusFileCount": 6,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "color",
       "schemaSource": "Core XML schema.xml",
-      "corpusFrequency": 0.0181,
-      "corpusFileCount": 3,
+      "corpusFrequency": 0.0084,
+      "corpusFileCount": 2,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "value"
+      ]
     },
     {
       "namespace": "hc",
@@ -80,79 +151,107 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hc",
       "element": "end1",
       "schemaSource": null,
-      "corpusFrequency": 0.0542,
-      "corpusFileCount": 9,
+      "corpusFrequency": 0.0211,
+      "corpusFileCount": 5,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "end2",
       "schemaSource": null,
-      "corpusFrequency": 0.0542,
-      "corpusFileCount": 9,
+      "corpusFrequency": 0.0211,
+      "corpusFileCount": 5,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "endPt",
       "schemaSource": null,
-      "corpusFrequency": 0.0241,
-      "corpusFileCount": 4,
+      "corpusFrequency": 0.0084,
+      "corpusFileCount": 2,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "extent",
       "schemaSource": null,
-      "corpusFrequency": 0.0241,
-      "corpusFileCount": 4,
+      "corpusFrequency": 0.0084,
+      "corpusFileCount": 2,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "fillBrush",
       "schemaSource": null,
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hc",
       "element": "gradation",
       "schemaSource": "Core XML schema.xml",
-      "corpusFrequency": 0.0181,
-      "corpusFileCount": 3,
+      "corpusFrequency": 0.0084,
+      "corpusFileCount": 2,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "alpha",
+        "angle",
+        "centerX",
+        "centerY",
+        "colorNum",
+        "step",
+        "stepCenter",
+        "type"
+      ]
     },
     {
       "namespace": "hc",
@@ -164,235 +263,327 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hc",
       "element": "img",
       "schemaSource": "Core XML schema.xml",
-      "corpusFrequency": 0.1627,
-      "corpusFileCount": 27,
+      "corpusFrequency": 0.5274,
+      "corpusFileCount": 125,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "그림 삽입/치환",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "alpha",
+        "binaryItemIDRef",
+        "bright",
+        "contrast",
+        "effect"
+      ]
     },
     {
       "namespace": "hc",
       "element": "imgBrush",
       "schemaSource": "Core XML schema.xml",
-      "corpusFrequency": 0.0482,
-      "corpusFileCount": 8,
+      "corpusFrequency": 0.4219,
+      "corpusFileCount": 100,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": "그림 삽입/치환",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "mode"
+      ]
     },
     {
       "namespace": "hc",
       "element": "intent",
       "schemaSource": null,
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "unit",
+        "value"
+      ]
     },
     {
       "namespace": "hc",
       "element": "left",
       "schemaSource": null,
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "unit",
+        "value"
+      ]
     },
     {
       "namespace": "hc",
       "element": "next",
       "schemaSource": null,
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "unit",
+        "value"
+      ]
     },
     {
       "namespace": "hc",
       "element": "prev",
       "schemaSource": null,
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "unit",
+        "value"
+      ]
     },
     {
       "namespace": "hc",
       "element": "pt",
       "schemaSource": null,
-      "corpusFrequency": 0.0422,
-      "corpusFileCount": 7,
+      "corpusFrequency": 0.0084,
+      "corpusFileCount": 2,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "pt0",
       "schemaSource": null,
-      "corpusFrequency": 0.2229,
-      "corpusFileCount": 37,
+      "corpusFrequency": 0.5443,
+      "corpusFileCount": 129,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "pt1",
       "schemaSource": null,
-      "corpusFrequency": 0.2229,
-      "corpusFileCount": 37,
+      "corpusFrequency": 0.5443,
+      "corpusFileCount": 129,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "pt2",
       "schemaSource": null,
-      "corpusFrequency": 0.2229,
-      "corpusFileCount": 37,
+      "corpusFrequency": 0.5443,
+      "corpusFileCount": 129,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "pt3",
       "schemaSource": null,
-      "corpusFrequency": 0.2229,
-      "corpusFileCount": 37,
+      "corpusFrequency": 0.5443,
+      "corpusFileCount": 129,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "right",
       "schemaSource": null,
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "unit",
+        "value"
+      ]
     },
     {
       "namespace": "hc",
       "element": "rotMatrix",
       "schemaSource": null,
-      "corpusFrequency": 0.3012,
-      "corpusFileCount": 50,
+      "corpusFrequency": 0.5781,
+      "corpusFileCount": 137,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+      ]
     },
     {
       "namespace": "hc",
       "element": "scaMatrix",
       "schemaSource": null,
-      "corpusFrequency": 0.3012,
-      "corpusFileCount": 50,
+      "corpusFrequency": 0.5781,
+      "corpusFileCount": 137,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+      ]
     },
     {
       "namespace": "hc",
       "element": "start1",
       "schemaSource": null,
-      "corpusFrequency": 0.0542,
-      "corpusFileCount": 9,
+      "corpusFrequency": 0.0211,
+      "corpusFileCount": 5,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "start2",
       "schemaSource": null,
-      "corpusFrequency": 0.0542,
-      "corpusFileCount": 9,
+      "corpusFrequency": 0.0211,
+      "corpusFileCount": 5,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "startPt",
       "schemaSource": null,
-      "corpusFrequency": 0.0241,
-      "corpusFileCount": 4,
+      "corpusFrequency": 0.0084,
+      "corpusFileCount": 2,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hc",
       "element": "transMatrix",
       "schemaSource": null,
-      "corpusFrequency": 0.3012,
-      "corpusFileCount": 50,
+      "corpusFrequency": 0.5781,
+      "corpusFileCount": 137,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+      ]
     },
     {
       "namespace": "hc",
       "element": "winBrush",
       "schemaSource": "Core XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "alpha",
+        "faceColor",
+        "hatchColor"
+      ]
     },
     {
       "namespace": "hh",
@@ -404,7 +595,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -416,7 +608,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -428,7 +621,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -440,7 +634,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -452,7 +647,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -464,19 +660,24 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "align",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "horizontal",
+        "vertical"
+      ]
     },
     {
       "namespace": "hh",
@@ -488,7 +689,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -500,7 +702,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -512,7 +715,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -524,7 +728,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -536,7 +741,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -548,7 +754,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -560,7 +767,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -572,7 +780,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -584,7 +793,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -596,31 +806,41 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "autoSpacing",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "eAsianEng",
+        "eAsianNum"
+      ]
     },
     {
       "namespace": "hh",
       "element": "backSlash",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "Crooked",
+        "isCounter",
+        "type"
+      ]
     },
     {
       "namespace": "hh",
@@ -632,7 +852,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -644,7 +865,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -656,115 +878,134 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "beginNum",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
-    },
-    {
-      "namespace": "hh",
-      "element": "binDataList",
-      "schemaSource": null,
-      "corpusFrequency": 0.006,
-      "corpusFileCount": 1,
-      "codeRead": true,
-      "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null
-    },
-    {
-      "namespace": "hh",
-      "element": "binItem",
-      "schemaSource": null,
-      "corpusFrequency": 0.006,
-      "corpusFileCount": 1,
-      "codeRead": true,
-      "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "endnote",
+        "equation",
+        "footnote",
+        "page",
+        "pic",
+        "tbl"
+      ]
     },
     {
       "namespace": "hh",
       "element": "bold",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.4036,
-      "corpusFileCount": 67,
+      "corpusFrequency": 0.8481,
+      "corpusFileCount": 201,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "border",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "borderFillIDRef",
+        "connect",
+        "ignoreMargin",
+        "offsetBottom",
+        "offsetLeft",
+        "offsetRight",
+        "offsetTop"
+      ]
     },
     {
       "namespace": "hh",
       "element": "borderFill",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "breakCellSeparateLine",
+        "centerLine",
+        "id",
+        "shadow",
+        "threeD"
+      ]
     },
     {
       "namespace": "hh",
       "element": "borderFills",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "itemCnt"
+      ]
     },
     {
       "namespace": "hh",
       "element": "bottomBorder",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "color",
+        "type",
+        "width"
+      ]
     },
     {
       "namespace": "hh",
       "element": "breakSetting",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "breakLatinWord",
+        "breakNonLatinWord",
+        "keepLines",
+        "keepWithNext",
+        "lineWrap",
+        "pageBreakBefore",
+        "widowOrphan"
+      ]
     },
     {
       "namespace": "hh",
@@ -776,67 +1017,92 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "bullet",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.0602,
-      "corpusFileCount": 10,
+      "corpusFrequency": 0.616,
+      "corpusFileCount": 146,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "char",
+        "id",
+        "useImage"
+      ]
     },
     {
       "namespace": "hh",
       "element": "bullets",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.0602,
-      "corpusFileCount": 10,
+      "corpusFrequency": 0.616,
+      "corpusFileCount": 146,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "itemCnt"
+      ]
     },
     {
       "namespace": "hh",
       "element": "charPr",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "borderFillIDRef",
+        "height",
+        "id",
+        "shadeColor",
+        "symMark",
+        "textColor",
+        "useFontSpace",
+        "useKerning"
+      ]
     },
     {
       "namespace": "hh",
       "element": "charProperties",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "itemCnt"
+      ]
     },
     {
       "namespace": "hh",
       "element": "compatibleDocument",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "targetProgram"
+      ]
     },
     {
       "namespace": "hh",
@@ -848,19 +1114,25 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "diagonal",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "color",
+        "type",
+        "width"
+      ]
     },
     {
       "namespace": "hh",
@@ -872,7 +1144,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -884,7 +1157,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -896,7 +1170,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -908,7 +1183,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -920,7 +1196,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -932,7 +1209,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -944,7 +1222,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -956,7 +1235,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -968,7 +1248,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -980,7 +1261,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -992,7 +1274,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1004,7 +1287,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1016,7 +1300,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1028,7 +1313,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1040,7 +1326,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1052,7 +1339,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1064,7 +1352,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1076,7 +1365,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1088,7 +1378,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1100,19 +1391,21 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "docOption",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1124,7 +1417,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1136,7 +1430,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1148,7 +1443,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1160,7 +1456,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1172,7 +1469,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1184,7 +1482,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1196,103 +1495,139 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "font",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "face",
+        "id",
+        "isEmbedded",
+        "type"
+      ]
     },
     {
       "namespace": "hh",
       "element": "fontRef",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "hangul",
+        "hanja",
+        "japanese",
+        "latin",
+        "other",
+        "symbol",
+        "user"
+      ]
     },
     {
       "namespace": "hh",
       "element": "fontface",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "fontCnt",
+        "lang"
+      ]
     },
     {
       "namespace": "hh",
       "element": "fontfaces",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "itemCnt"
+      ]
     },
     {
       "namespace": "hh",
       "element": "forbiddenWord",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.0181,
+      "corpusFrequency": 0.0127,
       "corpusFileCount": 3,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "forbiddenWordList",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.0181,
+      "corpusFrequency": 0.0127,
       "corpusFileCount": 3,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "itemCnt"
+      ]
     },
     {
       "namespace": "hh",
       "element": "head",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "secCnt",
+        "version"
+      ]
     },
     {
       "namespace": "hh",
       "element": "heading",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "idRef",
+        "level",
+        "type"
+      ]
     },
     {
       "namespace": "hh",
@@ -1304,7 +1639,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1316,31 +1652,34 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "italic",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.2651,
-      "corpusFileCount": 44,
+      "corpusFrequency": 0.5696,
+      "corpusFileCount": 135,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "layoutCompatibility",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": false,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1352,19 +1691,25 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "leftBorder",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "color",
+        "type",
+        "width"
+      ]
     },
     {
       "namespace": "hh",
@@ -1376,79 +1721,105 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "lineSpacing",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
-      "codeWrite": "frozen-template",
+      "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "type",
+        "unit",
+        "value"
+      ]
     },
     {
       "namespace": "hh",
       "element": "linkinfo",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "footnoteInherit",
+        "pageInherit",
+        "path"
+      ]
     },
     {
       "namespace": "hh",
       "element": "margin",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
-      "codeWrite": "frozen-template",
+      "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "memoPr",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.0783,
-      "corpusFileCount": 13,
+      "corpusFrequency": 0.2489,
+      "corpusFileCount": 59,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": "메모(코멘트)",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "activeColor",
+        "fillColor",
+        "id",
+        "lineColor",
+        "lineType",
+        "lineWidth",
+        "memoType",
+        "width"
+      ]
     },
     {
       "namespace": "hh",
       "element": "memoProperties",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.0783,
-      "corpusFileCount": 13,
+      "corpusFrequency": 0.2489,
+      "corpusFileCount": 59,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": "메모(코멘트)",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "itemCnt"
+      ]
     },
     {
       "namespace": "hh",
       "element": "metaTag",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.4096,
-      "corpusFileCount": 68,
+      "corpusFrequency": 0.0422,
+      "corpusFileCount": 10,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1460,55 +1831,75 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "numbering",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.9759,
-      "corpusFileCount": 162,
+      "corpusFrequency": 0.9873,
+      "corpusFileCount": 234,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "id",
+        "start"
+      ]
     },
     {
       "namespace": "hh",
       "element": "numberings",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.9759,
-      "corpusFileCount": 162,
+      "corpusFrequency": 0.9873,
+      "corpusFileCount": 234,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "itemCnt"
+      ]
     },
     {
       "namespace": "hh",
       "element": "offset",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
-      "codeWrite": "frozen-template",
+      "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "hangul",
+        "hanja",
+        "japanese",
+        "latin",
+        "other",
+        "symbol",
+        "user"
+      ]
     },
     {
       "namespace": "hh",
       "element": "outline",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.9759,
-      "corpusFileCount": 162,
+      "corpusFrequency": 0.9367,
+      "corpusFileCount": 222,
       "codeRead": false,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "type"
+      ]
     },
     {
       "namespace": "hh",
@@ -1520,43 +1911,70 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "paraHead",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.9759,
-      "corpusFileCount": 162,
+      "corpusFrequency": 0.9873,
+      "corpusFileCount": 234,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "align",
+        "autoIndent",
+        "charPrIDRef",
+        "checkable",
+        "level",
+        "numFormat",
+        "start",
+        "textOffset",
+        "textOffsetType",
+        "useInstWidth",
+        "widthAdjust"
+      ]
     },
     {
       "namespace": "hh",
       "element": "paraPr",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "checked",
+        "condense",
+        "fontLineHeight",
+        "id",
+        "snapToGrid",
+        "suppressLineNumbers",
+        "tabPrIDRef",
+        "textDir"
+      ]
     },
     {
       "namespace": "hh",
       "element": "paraProperties",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "itemCnt"
+      ]
     },
     {
       "namespace": "hh",
@@ -1568,43 +1986,63 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "ratio",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
-      "codeRead": false,
-      "codeWrite": "frozen-template",
+      "corpusFileCount": 237,
+      "codeRead": true,
+      "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "hangul",
+        "hanja",
+        "japanese",
+        "latin",
+        "other",
+        "symbol",
+        "user"
+      ]
     },
     {
       "namespace": "hh",
       "element": "refList",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "relSz",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
-      "codeRead": false,
-      "codeWrite": "frozen-template",
+      "corpusFileCount": 237,
+      "codeRead": true,
+      "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "hangul",
+        "hanja",
+        "japanese",
+        "latin",
+        "other",
+        "symbol",
+        "user"
+      ]
     },
     {
       "namespace": "hh",
@@ -1616,91 +2054,135 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "rightBorder",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "color",
+        "type",
+        "width"
+      ]
     },
     {
       "namespace": "hh",
       "element": "shadow",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.9759,
-      "corpusFileCount": 162,
+      "corpusFrequency": 0.9367,
+      "corpusFileCount": 222,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "color",
+        "offsetX",
+        "offsetY",
+        "type"
+      ]
     },
     {
       "namespace": "hh",
       "element": "slash",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "Crooked",
+        "isCounter",
+        "type"
+      ]
     },
     {
       "namespace": "hh",
       "element": "spacing",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
-      "codeRead": false,
-      "codeWrite": "frozen-template",
+      "corpusFileCount": 237,
+      "codeRead": true,
+      "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "hangul",
+        "hanja",
+        "japanese",
+        "latin",
+        "other",
+        "symbol",
+        "user"
+      ]
     },
     {
       "namespace": "hh",
       "element": "strikeout",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.988,
-      "corpusFileCount": 164,
+      "corpusFrequency": 0.9451,
+      "corpusFileCount": 224,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "color",
+        "shape"
+      ]
     },
     {
       "namespace": "hh",
       "element": "style",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "charPrIDRef",
+        "engName",
+        "id",
+        "langID",
+        "lockForm",
+        "name",
+        "nextStyleIDRef",
+        "paraPrIDRef",
+        "type"
+      ]
     },
     {
       "namespace": "hh",
       "element": "styles",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "itemCnt"
+      ]
     },
     {
       "namespace": "hh",
@@ -1712,115 +2194,157 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "substFont",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.1627,
-      "corpusFileCount": 27,
+      "corpusFrequency": 0.7468,
+      "corpusFileCount": 177,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "binaryItemIDRef",
+        "face",
+        "isEmbedded",
+        "type"
+      ]
     },
     {
       "namespace": "hh",
       "element": "supscript",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.0723,
-      "corpusFileCount": 12,
+      "corpusFrequency": 0.0422,
+      "corpusFileCount": 10,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "tabItem",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.2349,
-      "corpusFileCount": 39,
+      "corpusFrequency": 0.7679,
+      "corpusFileCount": 182,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "leader",
+        "pos",
+        "type",
+        "unit"
+      ]
     },
     {
       "namespace": "hh",
       "element": "tabPr",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "autoTabLeft",
+        "autoTabRight",
+        "id"
+      ]
     },
     {
       "namespace": "hh",
       "element": "tabProperties",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "itemCnt"
+      ]
     },
     {
       "namespace": "hh",
       "element": "topBorder",
       "schemaSource": "Header XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "color",
+        "type",
+        "width"
+      ]
     },
     {
       "namespace": "hh",
       "element": "trackChange",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.012,
-      "corpusFileCount": 2,
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": "변경추적(redline)",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "authorID",
+        "date",
+        "hide",
+        "id",
+        "type"
+      ]
     },
     {
       "namespace": "hh",
       "element": "trackChangeAuthor",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.012,
-      "corpusFileCount": 2,
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": "변경추적(redline)",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "id",
+        "mark",
+        "name"
+      ]
     },
     {
       "namespace": "hh",
       "element": "trackChangeAuthors",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.012,
-      "corpusFileCount": 2,
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "itemCnt"
+      ]
     },
     {
       "namespace": "hh",
@@ -1832,31 +2356,38 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "trackChanges",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.012,
-      "corpusFileCount": 2,
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "itemCnt"
+      ]
     },
     {
       "namespace": "hh",
       "element": "trackchageConfig",
       "schemaSource": null,
-      "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFrequency": 0.9958,
+      "corpusFileCount": 236,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "flags"
+      ]
     },
     {
       "namespace": "hh",
@@ -1868,7 +2399,8 @@
       "codeWrite": "none",
       "capabilityArea": "변경추적(redline)",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1880,31 +2412,48 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
       "element": "typeInfo",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFrequency": 0.9747,
+      "corpusFileCount": 231,
       "codeRead": true,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "armStyle",
+        "contrast",
+        "familyType",
+        "letterform",
+        "midline",
+        "proportion",
+        "strokeVariation",
+        "weight",
+        "xHeight"
+      ]
     },
     {
       "namespace": "hh",
       "element": "underline",
       "schemaSource": "Header XML schema.xml",
-      "corpusFrequency": 0.9819,
-      "corpusFileCount": 163,
+      "corpusFrequency": 0.9451,
+      "corpusFileCount": 224,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "color",
+        "shape",
+        "type"
+      ]
     },
     {
       "namespace": "hh",
@@ -1916,7 +2465,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hh",
@@ -1928,7 +2478,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hhs",
@@ -1940,7 +2491,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hhs",
@@ -1952,7 +2504,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hhs",
@@ -1964,7 +2517,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hhs",
@@ -1976,7 +2530,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hhs",
@@ -1988,7 +2543,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hhs",
@@ -2000,7 +2556,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hhs",
@@ -2012,7 +2569,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hhs",
@@ -2024,7 +2582,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hhs",
@@ -2036,7 +2595,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hhs",
@@ -2048,7 +2608,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hm",
@@ -2060,7 +2621,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hm",
@@ -2072,7 +2634,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -2084,7 +2647,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -2096,7 +2660,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -2108,7 +2673,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -2120,55 +2686,84 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "alpha",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "end",
+        "start"
+      ]
     },
     {
       "namespace": "hp",
       "element": "arc",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": "arc·polygon·curve·connectLine",
       "capabilityStatus": "Parse·Unsupported-but-preserved",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "dropcapstyle",
+        "groupLevel",
+        "href",
+        "id",
+        "instid",
+        "lock",
+        "numberingType",
+        "textFlow",
+        "textWrap",
+        "type",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
       "element": "autoNum",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0843,
-      "corpusFileCount": 14,
+      "corpusFrequency": 0.0211,
+      "corpusFileCount": 5,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "num",
+        "numType"
+      ]
     },
     {
       "namespace": "hp",
       "element": "autoNumFormat",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "prefixChar",
+        "suffixChar",
+        "supscript",
+        "type",
+        "userChar"
+      ]
     },
     {
       "namespace": "hp",
@@ -2180,7 +2775,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -2192,11 +2788,27 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "bookmark",
+      "schemaSource": "ParaList XML schema.xml",
+      "corpusFrequency": 0.0633,
+      "corpusFileCount": 15,
+      "codeRead": true,
+      "codeWrite": "api",
+      "capabilityArea": null,
+      "capabilityStatus": null,
+      "verificationBasis": null,
+      "observedAttributes": [
+        "name"
+      ]
+    },
+    {
+      "namespace": "hp",
+      "element": "booleanParam",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 0.0,
       "corpusFileCount": 0,
@@ -2204,127 +2816,164 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
-    },
-    {
-      "namespace": "hp",
-      "element": "booleanParam",
-      "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0241,
-      "corpusFileCount": 4,
-      "codeRead": false,
-      "codeWrite": "none",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "btn",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": "체크박스 양식개체",
       "capabilityStatus": "Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area+v4-corpus",
+      "observedAttributes": [
+        "backColor",
+        "borderTypeIDRef",
+        "caption",
+        "command",
+        "drawFrame",
+        "editable",
+        "enabled",
+        "foreColor",
+        "groupName",
+        "name",
+        "printable",
+        "radioGroupName",
+        "tabOrder",
+        "tabStop",
+        "triState",
+        "value"
+      ]
     },
     {
       "namespace": "hp",
       "element": "caption",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0361,
-      "corpusFileCount": 6,
+      "corpusFrequency": 0.1139,
+      "corpusFileCount": 27,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "fullSz",
+        "gap",
+        "lastWidth",
+        "side",
+        "width"
+      ]
     },
     {
       "namespace": "hp",
       "element": "case",
       "schemaSource": null,
-      "corpusFrequency": 0.988,
-      "corpusFileCount": 164,
-      "codeRead": true,
+      "corpusFrequency": 0.9958,
+      "corpusFileCount": 236,
+      "codeRead": false,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "required-namespace"
+      ]
     },
     {
       "namespace": "hp",
       "element": "cellAddr",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.6928,
-      "corpusFileCount": 115,
+      "corpusFrequency": 0.8439,
+      "corpusFileCount": 200,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "colAddr",
+        "rowAddr"
+      ]
     },
     {
       "namespace": "hp",
       "element": "cellMargin",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.6928,
-      "corpusFileCount": 115,
+      "corpusFrequency": 0.8439,
+      "corpusFileCount": 200,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "bottom",
+        "left",
+        "right",
+        "top"
+      ]
     },
     {
       "namespace": "hp",
       "element": "cellSpan",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.6928,
-      "corpusFileCount": 115,
+      "corpusFrequency": 0.8439,
+      "corpusFileCount": 200,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "colSpan",
+        "rowSpan"
+      ]
     },
     {
       "namespace": "hp",
       "element": "cellSz",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.6928,
-      "corpusFileCount": 115,
+      "corpusFrequency": 0.8439,
+      "corpusFileCount": 200,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "height",
+        "width"
+      ]
     },
     {
       "namespace": "hp",
       "element": "cellzone",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0301,
-      "corpusFileCount": 5,
+      "corpusFrequency": 0.0,
+      "corpusFileCount": 0,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "cellzoneList",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0301,
-      "corpusFileCount": 5,
+      "corpusFrequency": 0.0,
+      "corpusFileCount": 0,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -2336,43 +2985,76 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "charPr",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0361,
-      "corpusFileCount": 6,
+      "corpusFrequency": 0.0127,
+      "corpusFileCount": 3,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "prIDRef"
+      ]
     },
     {
       "namespace": "hp",
       "element": "chart",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0482,
-      "corpusFileCount": 8,
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "차트",
       "capabilityStatus": "Create(experimental)·Preserve",
-      "verificationBasis": null
+      "verificationBasis": "by-v4-corpus",
+      "observedAttributes": [
+        "chartIDRef",
+        "dropcapstyle",
+        "id",
+        "lock",
+        "numberingType",
+        "textFlow",
+        "textWrap",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
       "element": "checkBtn",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0482,
-      "corpusFileCount": 8,
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "체크박스 양식개체",
       "capabilityStatus": "Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area+v4-corpus",
+      "observedAttributes": [
+        "backColor",
+        "backStyle",
+        "borderTypeIDRef",
+        "caption",
+        "command",
+        "drawFrame",
+        "editable",
+        "enabled",
+        "foreColor",
+        "groupName",
+        "name",
+        "printable",
+        "radioGroupName",
+        "tabOrder",
+        "tabStop",
+        "triState",
+        "value"
+      ]
     },
     {
       "namespace": "hp",
@@ -2384,259 +3066,415 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "colLine",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0602,
-      "corpusFileCount": 10,
+      "corpusFrequency": 0.0084,
+      "corpusFileCount": 2,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "color",
+        "type",
+        "width"
+      ]
     },
     {
       "namespace": "hp",
       "element": "colPr",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "colCount",
+        "id",
+        "layout",
+        "sameGap",
+        "sameSz",
+        "type"
+      ]
     },
     {
       "namespace": "hp",
       "element": "colSz",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "gap",
+        "width"
+      ]
     },
     {
       "namespace": "hp",
       "element": "comboBox",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "backColor",
+        "borderTypeIDRef",
+        "command",
+        "drawFrame",
+        "editEnable",
+        "editable",
+        "enabled",
+        "foreColor",
+        "groupName",
+        "listBoxRows",
+        "listBoxWidth",
+        "name",
+        "printable",
+        "selectedValue",
+        "tabOrder",
+        "tabStop"
+      ]
     },
     {
       "namespace": "hp",
       "element": "compose",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0361,
-      "corpusFileCount": 6,
+      "corpusFrequency": 0.0127,
+      "corpusFileCount": 3,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "charPrCnt",
+        "charSz",
+        "circleType",
+        "composeText",
+        "composeType"
+      ]
     },
     {
       "namespace": "hp",
       "element": "connectLine",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.012,
+      "corpusFrequency": 0.0084,
       "corpusFileCount": 2,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": "arc·polygon·curve·connectLine",
       "capabilityStatus": "Parse·Unsupported-but-preserved",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "dropcapstyle",
+        "groupLevel",
+        "href",
+        "id",
+        "instid",
+        "lock",
+        "numberingType",
+        "textFlow",
+        "textWrap",
+        "type",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
       "element": "container",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0482,
-      "corpusFileCount": 8,
+      "corpusFrequency": 0.2827,
+      "corpusFileCount": 67,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "dropcapstyle",
+        "groupLevel",
+        "href",
+        "id",
+        "instid",
+        "lock",
+        "numberingType",
+        "textFlow",
+        "textWrap",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
       "element": "controlPoints",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "ctrl",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "curSz",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.3012,
-      "corpusFileCount": 50,
+      "corpusFrequency": 0.5781,
+      "corpusFileCount": 137,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "도형 저작(선·사각형·타원)",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "height",
+        "width"
+      ]
     },
     {
       "namespace": "hp",
       "element": "curve",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": "arc·polygon·curve·connectLine",
       "capabilityStatus": "Parse·Unsupported-but-preserved",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "dropcapstyle",
+        "groupLevel",
+        "href",
+        "id",
+        "instid",
+        "lock",
+        "numberingType",
+        "textFlow",
+        "textWrap",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
       "element": "default",
       "schemaSource": null,
-      "corpusFrequency": 0.988,
-      "corpusFileCount": 164,
+      "corpusFrequency": 0.9958,
+      "corpusFileCount": 236,
       "codeRead": false,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "deleteBegin",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
-      "codeRead": false,
-      "codeWrite": "none",
+      "codeRead": true,
+      "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "Id",
+        "TcId"
+      ]
     },
     {
       "namespace": "hp",
       "element": "deleteEnd",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
-      "codeRead": false,
-      "codeWrite": "none",
+      "codeRead": true,
+      "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "Id",
+        "TcId",
+        "paraend"
+      ]
     },
     {
       "namespace": "hp",
       "element": "drawText",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0964,
-      "corpusFileCount": 16,
+      "corpusFrequency": 0.1772,
+      "corpusFileCount": 42,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "editable",
+        "lastWidth",
+        "name"
+      ]
     },
     {
       "namespace": "hp",
       "element": "dutmal",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "align",
+        "option",
+        "posType",
+        "styleIDRef",
+        "szRatio"
+      ]
     },
     {
       "namespace": "hp",
       "element": "edit",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.012,
-      "corpusFileCount": 2,
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "alignText",
+        "backColor",
+        "borderTypeIDRef",
+        "command",
+        "drawFrame",
+        "editable",
+        "enabled",
+        "foreColor",
+        "groupName",
+        "maxLength",
+        "multiLine",
+        "name",
+        "numOnly",
+        "passwordChar",
+        "printable",
+        "readOnly",
+        "scrollBars",
+        "tabKeyBehavior",
+        "tabOrder",
+        "tabStop"
+      ]
     },
     {
       "namespace": "hp",
       "element": "effect",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "type",
+        "value"
+      ]
     },
     {
       "namespace": "hp",
       "element": "effects",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.1325,
-      "corpusFileCount": 22,
+      "corpusFrequency": 0.2574,
+      "corpusFileCount": 61,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "그림 삽입/치환",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "effectsColor",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "presetIdx",
+        "schemeIdx",
+        "systemIdx",
+        "type"
+      ]
     },
     {
       "namespace": "hp",
       "element": "ellipse",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0542,
-      "corpusFileCount": 9,
+      "corpusFrequency": 0.0211,
+      "corpusFileCount": 5,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "도형 저작(선·사각형·타원)",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "arcType",
+        "dropcapstyle",
+        "groupLevel",
+        "hasArcPr",
+        "href",
+        "id",
+        "instid",
+        "intervalDirty",
+        "lock",
+        "numberingType",
+        "textFlow",
+        "textWrap",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
@@ -2648,7 +3486,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -2660,7 +3499,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -2672,43 +3512,66 @@
       "codeWrite": "api",
       "capabilityArea": "각주/미주",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area+v4-corpus",
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "endNotePr",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "각주/미주",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area+v4-corpus",
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "endPt",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.012,
+      "corpusFrequency": 0.0084,
       "corpusFileCount": 2,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "subjectIDRef",
+        "subjectIdx",
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hp",
       "element": "equation",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0241,
-      "corpusFileCount": 4,
+      "corpusFrequency": 0.0295,
+      "corpusFileCount": 7,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "수식",
       "capabilityStatus": "Parse·Create(experimental)·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area+v4-corpus",
+      "observedAttributes": [
+        "baseLine",
+        "baseUnit",
+        "dropcapstyle",
+        "font",
+        "id",
+        "lineMode",
+        "lock",
+        "numberingType",
+        "textColor",
+        "textFlow",
+        "textWrap",
+        "version",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
@@ -2720,31 +3583,46 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "fieldBegin",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.2711,
-      "corpusFileCount": 45,
+      "corpusFrequency": 0.4684,
+      "corpusFileCount": 111,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "dirty",
+        "editable",
+        "fieldid",
+        "id",
+        "metaTag",
+        "name",
+        "type",
+        "zorder"
+      ]
     },
     {
       "namespace": "hp",
       "element": "fieldEnd",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.2711,
-      "corpusFileCount": 45,
+      "corpusFrequency": 0.4684,
+      "corpusFileCount": 111,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "beginIDRef",
+        "fieldid"
+      ]
     },
     {
       "namespace": "hp",
@@ -2756,7 +3634,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -2768,19 +3647,24 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "flip",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.3012,
-      "corpusFileCount": 50,
+      "corpusFrequency": 0.5781,
+      "corpusFileCount": 137,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "horizontal",
+        "vertical"
+      ]
     },
     {
       "namespace": "hp",
@@ -2792,7 +3676,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -2804,127 +3689,130 @@
       "codeWrite": "api",
       "capabilityArea": "각주/미주",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area+v4-corpus",
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "footNotePr",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "각주/미주",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area+v4-corpus",
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "footer",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0904,
-      "corpusFileCount": 15,
+      "corpusFrequency": 0.1772,
+      "corpusFileCount": 42,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
-    },
-    {
-      "namespace": "hp",
-      "element": "footerApply",
-      "schemaSource": null,
-      "corpusFrequency": 0.012,
-      "corpusFileCount": 2,
-      "codeRead": true,
-      "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "applyPageType",
+        "id"
+      ]
     },
     {
       "namespace": "hp",
       "element": "formCharPr",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0602,
-      "corpusFileCount": 10,
+      "corpusFrequency": 0.0127,
+      "corpusFileCount": 3,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "체크박스 양식개체",
       "capabilityStatus": "Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area+v4-corpus",
+      "observedAttributes": [
+        "autoSz",
+        "charPrIDRef",
+        "followContext",
+        "wordWrap"
+      ]
     },
     {
       "namespace": "hp",
       "element": "fwSpace",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.1627,
-      "corpusFileCount": 27,
+      "corpusFrequency": 0.1899,
+      "corpusFileCount": 45,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "glow",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "alpha",
+        "radius"
+      ]
     },
     {
       "namespace": "hp",
       "element": "grid",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "charGrid",
+        "lineGrid",
+        "wonggojiFormat"
+      ]
     },
     {
       "namespace": "hp",
       "element": "header",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.1386,
-      "corpusFileCount": 23,
+      "corpusFrequency": 0.1392,
+      "corpusFileCount": 33,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
-    },
-    {
-      "namespace": "hp",
-      "element": "headerApply",
-      "schemaSource": null,
-      "corpusFrequency": 0.012,
-      "corpusFileCount": 2,
-      "codeRead": true,
-      "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "applyPageType",
+        "id"
+      ]
     },
     {
       "namespace": "hp",
       "element": "hiddenComment",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0,
-      "corpusFileCount": 0,
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -2936,7 +3824,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -2948,55 +3837,73 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "imgClip",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.1325,
-      "corpusFileCount": 22,
+      "corpusFrequency": 0.2574,
+      "corpusFileCount": 61,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "그림 삽입/치환",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "bottom",
+        "left",
+        "right",
+        "top"
+      ]
     },
     {
       "namespace": "hp",
       "element": "imgDim",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.1325,
-      "corpusFileCount": 22,
+      "corpusFrequency": 0.2574,
+      "corpusFileCount": 61,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "그림 삽입/치환",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "dimheight",
+        "dimwidth"
+      ]
     },
     {
       "namespace": "hp",
       "element": "imgRect",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.1325,
-      "corpusFileCount": 22,
+      "corpusFrequency": 0.2574,
+      "corpusFileCount": 61,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "그림 삽입/치환",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "inMargin",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.7048,
-      "corpusFileCount": 117,
+      "corpusFrequency": 0.8523,
+      "corpusFileCount": 202,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "bottom",
+        "left",
+        "right",
+        "top"
+      ]
     },
     {
       "namespace": "hp",
@@ -3008,127 +3915,199 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "insertBegin",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.012,
-      "corpusFileCount": 2,
-      "codeRead": false,
-      "codeWrite": "none",
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
+      "codeRead": true,
+      "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "Id",
+        "TcId"
+      ]
     },
     {
       "namespace": "hp",
       "element": "insertEnd",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.012,
-      "corpusFileCount": 2,
-      "codeRead": false,
-      "codeWrite": "none",
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
+      "codeRead": true,
+      "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "Id",
+        "TcId",
+        "paraend"
+      ]
     },
     {
       "namespace": "hp",
       "element": "integerParam",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.2711,
-      "corpusFileCount": 45,
+      "corpusFrequency": 0.4684,
+      "corpusFileCount": 111,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "name"
+      ]
     },
     {
       "namespace": "hp",
       "element": "label",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0241,
-      "corpusFileCount": 4,
+      "corpusFrequency": 0.27,
+      "corpusFileCount": 64,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "boxlength",
+        "boxmarginhor",
+        "boxmarginver",
+        "boxwidth",
+        "labelcols",
+        "labelrows",
+        "landscape",
+        "leftmargin",
+        "pageheight",
+        "pagewidth",
+        "topmargin"
+      ]
     },
     {
       "namespace": "hp",
       "element": "line",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0241,
-      "corpusFileCount": 4,
+      "corpusFrequency": 0.0084,
+      "corpusFileCount": 2,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "도형 저작(선·사각형·타원)",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "dropcapstyle",
+        "groupLevel",
+        "href",
+        "id",
+        "instid",
+        "isReverseHV",
+        "lock",
+        "numberingType",
+        "textFlow",
+        "textWrap",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
       "element": "lineBreak",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0361,
-      "corpusFileCount": 6,
+      "corpusFrequency": 0.135,
+      "corpusFileCount": 32,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "lineNumberShape",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "countBy",
+        "distance",
+        "restartType",
+        "startNumber"
+      ]
     },
     {
       "namespace": "hp",
       "element": "lineShape",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.253,
-      "corpusFileCount": 42,
+      "corpusFrequency": 0.481,
+      "corpusFileCount": 114,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "도형 저작(선·사각형·타원)",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "alpha",
+        "color",
+        "endCap",
+        "headStyle",
+        "headSz",
+        "headfill",
+        "outlineStyle",
+        "style",
+        "tailStyle",
+        "tailSz",
+        "tailfill",
+        "width"
+      ]
     },
     {
       "namespace": "hp",
       "element": "lineseg",
       "schemaSource": null,
-      "corpusFrequency": 0.6386,
-      "corpusFileCount": 106,
+      "corpusFrequency": 0.8987,
+      "corpusFileCount": 213,
       "codeRead": true,
-      "codeWrite": "api",
+      "codeWrite": "frozen-template",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "baseline",
+        "flags",
+        "horzpos",
+        "horzsize",
+        "spacing",
+        "textheight",
+        "textpos",
+        "vertpos",
+        "vertsize"
+      ]
     },
     {
       "namespace": "hp",
       "element": "linesegarray",
       "schemaSource": null,
-      "corpusFrequency": 0.6386,
-      "corpusFileCount": 106,
+      "corpusFrequency": 0.8987,
+      "corpusFileCount": 213,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -3140,235 +4119,324 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "listItem",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "displayText",
+        "value"
+      ]
     },
     {
       "namespace": "hp",
       "element": "listParam",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0241,
-      "corpusFileCount": 4,
-      "codeRead": false,
-      "codeWrite": "none",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null
-    },
-    {
-      "namespace": "hp",
-      "element": "mainText",
-      "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "cnt",
+        "name"
+      ]
+    },
+    {
+      "namespace": "hp",
+      "element": "mainText",
+      "schemaSource": "ParaList XML schema.xml",
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
+      "codeRead": false,
+      "codeWrite": "none",
+      "capabilityArea": null,
+      "capabilityStatus": null,
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "margin",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "bottom",
+        "footer",
+        "gutter",
+        "header",
+        "left",
+        "right",
+        "top"
+      ]
     },
     {
       "namespace": "hp",
       "element": "markpenBegin",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0301,
-      "corpusFileCount": 5,
+      "corpusFrequency": 0.097,
+      "corpusFileCount": 23,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "color"
+      ]
     },
     {
       "namespace": "hp",
       "element": "markpenEnd",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0301,
-      "corpusFileCount": 5,
+      "corpusFrequency": 0.097,
+      "corpusFileCount": 23,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "masterPage",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "idRef"
+      ]
     },
     {
       "namespace": "hp",
       "element": "memo",
       "schemaSource": null,
-      "corpusFrequency": 0.006,
-      "corpusFileCount": 1,
+      "corpusFrequency": 0.1013,
+      "corpusFileCount": 24,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "메모(코멘트)",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "author",
+        "createDateTime",
+        "id",
+        "memoShapeIDRef"
+      ]
     },
     {
       "namespace": "hp",
       "element": "memogroup",
       "schemaSource": null,
-      "corpusFrequency": 0.006,
-      "corpusFileCount": 1,
+      "corpusFrequency": 0.1013,
+      "corpusFileCount": 24,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "메모(코멘트)",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "metaTag",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0,
-      "corpusFileCount": 0,
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "nbSpace",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0602,
-      "corpusFileCount": 10,
+      "corpusFrequency": 0.0886,
+      "corpusFileCount": 21,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "newNum",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0723,
-      "corpusFileCount": 12,
+      "corpusFrequency": 0.0549,
+      "corpusFileCount": 13,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "num",
+        "numType"
+      ]
     },
     {
       "namespace": "hp",
       "element": "noteLine",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "각주/미주",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area+v4-corpus",
+      "observedAttributes": [
+        "color",
+        "length",
+        "type",
+        "width"
+      ]
     },
     {
       "namespace": "hp",
       "element": "noteSpacing",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "각주/미주",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area+v4-corpus",
+      "observedAttributes": [
+        "aboveLine",
+        "belowLine",
+        "betweenNotes"
+      ]
     },
     {
       "namespace": "hp",
       "element": "numbering",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "newNum",
+        "type"
+      ]
     },
     {
       "namespace": "hp",
       "element": "offset",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "도형 저작(선·사각형·타원)",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "bottom",
+        "left",
+        "right",
+        "top",
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hp",
       "element": "ole",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0241,
-      "corpusFileCount": 4,
+      "corpusFrequency": 0.0084,
+      "corpusFileCount": 2,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "binaryItemIDRef",
+        "drawAspect",
+        "dropcapstyle",
+        "eqBaseLine",
+        "groupLevel",
+        "hasMoniker",
+        "href",
+        "id",
+        "instid",
+        "lock",
+        "numberingType",
+        "objectType",
+        "textFlow",
+        "textWrap",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
       "element": "orgSz",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.3012,
-      "corpusFileCount": 50,
+      "corpusFrequency": 0.5781,
+      "corpusFileCount": 137,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "도형 저작(선·사각형·타원)",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "height",
+        "width"
+      ]
     },
     {
       "namespace": "hp",
       "element": "outMargin",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.8373,
-      "corpusFileCount": 139,
+      "corpusFrequency": 0.9325,
+      "corpusFileCount": 221,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "bottom",
+        "left",
+        "right",
+        "top"
+      ]
     },
     {
       "namespace": "hp",
@@ -3380,55 +4448,85 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "p",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "columnBreak",
+        "id",
+        "merged",
+        "pageBreak",
+        "paraPrIDRef",
+        "styleIDRef"
+      ]
     },
     {
       "namespace": "hp",
       "element": "pageBorderFill",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "borderFillIDRef",
+        "fillArea",
+        "footerInside",
+        "headerInside",
+        "textBorder",
+        "type"
+      ]
     },
     {
       "namespace": "hp",
       "element": "pageHiding",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0602,
-      "corpusFileCount": 10,
+      "corpusFrequency": 0.0127,
+      "corpusFileCount": 3,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "hideBorder",
+        "hideFill",
+        "hideFooter",
+        "hideHeader",
+        "hideMasterPage",
+        "hidePageNum"
+      ]
     },
     {
       "namespace": "hp",
       "element": "pageNum",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.1506,
-      "corpusFileCount": 25,
+      "corpusFrequency": 0.2152,
+      "corpusFileCount": 51,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "formatType",
+        "pos",
+        "sideChar"
+      ]
     },
     {
       "namespace": "hp",
@@ -3440,127 +4538,201 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "pagePr",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "gutterType",
+        "height",
+        "landscape",
+        "width"
+      ]
     },
     {
       "namespace": "hp",
       "element": "paraList",
       "schemaSource": null,
-      "corpusFrequency": 0.006,
-      "corpusFileCount": 1,
+      "corpusFrequency": 0.1013,
+      "corpusFileCount": 24,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "parameters",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.2711,
-      "corpusFileCount": 45,
+      "corpusFrequency": 0.4684,
+      "corpusFileCount": 111,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "cnt",
+        "count",
+        "name"
+      ]
     },
     {
       "namespace": "hp",
       "element": "parameterset",
       "schemaSource": null,
-      "corpusFrequency": 0.0241,
-      "corpusFileCount": 4,
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "cnt",
+        "name"
+      ]
     },
     {
       "namespace": "hp",
       "element": "pic",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.1325,
-      "corpusFileCount": 22,
+      "corpusFrequency": 0.2574,
+      "corpusFileCount": 61,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "그림 삽입/치환",
       "capabilityStatus": "Edit·Create",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "dropcapstyle",
+        "groupLevel",
+        "href",
+        "id",
+        "instid",
+        "lock",
+        "numberingType",
+        "reverse",
+        "textFlow",
+        "textWrap",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
       "element": "placement",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "beneathText",
+        "place"
+      ]
     },
     {
       "namespace": "hp",
       "element": "point",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "type",
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hp",
       "element": "polygon",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0422,
-      "corpusFileCount": 7,
+      "corpusFrequency": 0.0084,
+      "corpusFileCount": 2,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": "arc·polygon·curve·connectLine",
       "capabilityStatus": "Parse·Unsupported-but-preserved",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "dropcapstyle",
+        "groupLevel",
+        "href",
+        "id",
+        "instid",
+        "lock",
+        "numberingType",
+        "textFlow",
+        "textWrap",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
       "element": "pos",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.8373,
-      "corpusFileCount": 139,
+      "corpusFrequency": 0.9325,
+      "corpusFileCount": 221,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "도형 저작(선·사각형·타원)",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "affectLSpacing",
+        "allowOverlap",
+        "end",
+        "flowWithText",
+        "holdAnchorAndSO",
+        "horzAlign",
+        "horzOffset",
+        "horzRelTo",
+        "start",
+        "treatAsChar",
+        "vertAlign",
+        "vertOffset",
+        "vertRelTo"
+      ]
     },
     {
       "namespace": "hp",
       "element": "presentation",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "applyto",
+        "autoshow",
+        "effect",
+        "invertText",
+        "showtime",
+        "soundIDRef"
+      ]
     },
     {
       "namespace": "hp",
@@ -3572,7 +4744,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -3584,7 +4757,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -3596,7 +4770,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -3608,7 +4783,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -3620,67 +4796,114 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "radioBtn",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.012,
-      "corpusFileCount": 2,
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": "체크박스 양식개체",
       "capabilityStatus": "Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area+v4-corpus",
+      "observedAttributes": [
+        "backColor",
+        "backStyle",
+        "borderTypeIDRef",
+        "caption",
+        "command",
+        "drawFrame",
+        "editable",
+        "enabled",
+        "foreColor",
+        "groupName",
+        "name",
+        "printable",
+        "radioGroupName",
+        "tabOrder",
+        "tabStop",
+        "triState",
+        "value"
+      ]
     },
     {
       "namespace": "hp",
       "element": "rect",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.1325,
-      "corpusFileCount": 22,
+      "corpusFrequency": 0.4388,
+      "corpusFileCount": 104,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "도형 저작(선·사각형·타원)",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "dropcapstyle",
+        "groupLevel",
+        "href",
+        "id",
+        "instid",
+        "lock",
+        "numberingType",
+        "ratio",
+        "textFlow",
+        "textWrap",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
       "element": "reflection",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "alignStyle",
+        "direction",
+        "distance",
+        "fadeDirection",
+        "radius",
+        "rotationStyle"
+      ]
     },
     {
       "namespace": "hp",
       "element": "renderingInfo",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.3012,
-      "corpusFileCount": 50,
+      "corpusFrequency": 0.5781,
+      "corpusFileCount": 137,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "rgb",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "b",
+        "g",
+        "r"
+      ]
     },
     {
       "namespace": "hp",
@@ -3692,31 +4915,41 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "rotationInfo",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.3012,
-      "corpusFileCount": 50,
+      "corpusFrequency": 0.5781,
+      "corpusFileCount": 137,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "angle",
+        "centerX",
+        "centerY",
+        "rotateimage"
+      ]
     },
     {
       "namespace": "hp",
       "element": "run",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "charPrIDRef"
+      ]
     },
     {
       "namespace": "hp",
@@ -3728,19 +4961,24 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "scale",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hp",
@@ -3752,19 +4990,21 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "script",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0241,
-      "corpusFileCount": 4,
+      "corpusFrequency": 0.0295,
+      "corpusFileCount": 7,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "수식",
       "capabilityStatus": "Parse·Create(experimental)·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area+v4-corpus",
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -3776,19 +5016,32 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "secPr",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "id",
+        "masterPageCnt",
+        "memoShapeIDRef",
+        "outlineShapeIDRef",
+        "spaceColumns",
+        "tabStop",
+        "tabStopUnit",
+        "tabStopVal",
+        "textDirection",
+        "textVerticalWidthHead"
+      ]
     },
     {
       "namespace": "hp",
@@ -3800,67 +5053,96 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "seg",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": true,
-      "codeWrite": "api",
+      "codeWrite": "none",
       "capabilityArea": "arc·polygon·curve·connectLine",
       "capabilityStatus": "Parse·Unsupported-but-preserved",
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "type",
+        "x1",
+        "x2",
+        "y1",
+        "y2"
+      ]
     },
     {
       "namespace": "hp",
       "element": "shadow",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.2289,
-      "corpusFileCount": 38,
+      "corpusFrequency": 0.4768,
+      "corpusFileCount": 113,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "alignStyle",
+        "alpha",
+        "color",
+        "direction",
+        "distance",
+        "offsetX",
+        "offsetY",
+        "radius",
+        "rotationStyle",
+        "style",
+        "type"
+      ]
     },
     {
       "namespace": "hp",
       "element": "shapeComment",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.2952,
-      "corpusFileCount": 49,
+      "corpusFrequency": 0.5781,
+      "corpusFileCount": 137,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "skew",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hp",
       "element": "softEdge",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "radius"
+      ]
     },
     {
       "namespace": "hp",
@@ -3872,7 +5154,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -3884,79 +5167,112 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "startNum",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "equation",
+        "page",
+        "pageStartsOn",
+        "pic",
+        "tbl"
+      ]
     },
     {
       "namespace": "hp",
       "element": "startPt",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.012,
+      "corpusFrequency": 0.0084,
       "corpusFileCount": 2,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "subjectIDRef",
+        "subjectIdx",
+        "x",
+        "y"
+      ]
     },
     {
       "namespace": "hp",
       "element": "stringParam",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.2952,
-      "corpusFileCount": 49,
+      "corpusFrequency": 0.4684,
+      "corpusFileCount": 111,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "name",
+        "space"
+      ]
     },
     {
       "namespace": "hp",
       "element": "subList",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.7289,
-      "corpusFileCount": 121,
+      "corpusFrequency": 0.8776,
+      "corpusFileCount": 208,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "hasNumRef",
+        "hasTextRef",
+        "id",
+        "lineWrap",
+        "linkListIDRef",
+        "linkListNextIDRef",
+        "metatag",
+        "textDirection",
+        "textHeight",
+        "textWidth",
+        "vertAlign"
+      ]
     },
     {
       "namespace": "hp",
       "element": "subText",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "switch",
       "schemaSource": null,
-      "corpusFrequency": 0.988,
-      "corpusFileCount": 164,
-      "codeRead": true,
+      "corpusFrequency": 0.9958,
+      "corpusFileCount": 236,
+      "codeRead": false,
       "codeWrite": "frozen-template",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -3968,139 +5284,213 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "sz",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.8373,
-      "corpusFileCount": 139,
+      "corpusFrequency": 0.9325,
+      "corpusFileCount": 221,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "도형 저작(선·사각형·타원)",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "height",
+        "heightRelTo",
+        "protect",
+        "width",
+        "widthRelTo"
+      ]
     },
     {
       "namespace": "hp",
       "element": "t",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "charStyleIDRef"
+      ]
     },
     {
       "namespace": "hp",
       "element": "tab",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.1024,
-      "corpusFileCount": 17,
+      "corpusFrequency": 0.3249,
+      "corpusFileCount": 77,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "leader",
+        "type",
+        "width"
+      ]
     },
     {
       "namespace": "hp",
       "element": "tbl",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.6928,
-      "corpusFileCount": 115,
+      "corpusFrequency": 0.8439,
+      "corpusFileCount": 200,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "borderFillIDRef",
+        "cellSpacing",
+        "colCnt",
+        "dropcapstyle",
+        "id",
+        "lock",
+        "noAdjust",
+        "numberingType",
+        "pageBreak",
+        "repeatHeader",
+        "rowCnt",
+        "textFlow",
+        "textWrap",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
       "element": "tc",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.6928,
-      "corpusFileCount": 115,
+      "corpusFrequency": 0.8439,
+      "corpusFileCount": 200,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": [
+        "borderFillIDRef",
+        "dirty",
+        "editable",
+        "hasMargin",
+        "header",
+        "name",
+        "protect"
+      ]
     },
     {
       "namespace": "hp",
       "element": "text",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.012,
-      "corpusFileCount": 2,
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
       "element": "textMargin",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.0964,
-      "corpusFileCount": 16,
+      "corpusFrequency": 0.1772,
+      "corpusFileCount": 42,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "bottom",
+        "left",
+        "right",
+        "top"
+      ]
     },
     {
       "namespace": "hp",
       "element": "textart",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "dropcapstyle",
+        "groupLevel",
+        "href",
+        "id",
+        "instid",
+        "lock",
+        "numberingType",
+        "text",
+        "textFlow",
+        "textWrap",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
       "element": "textartPr",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "align",
+        "charSpacing",
+        "fontName",
+        "fontStyle",
+        "fontType",
+        "lineSpacing",
+        "textShape"
+      ]
     },
     {
       "namespace": "hp",
       "element": "titleMark",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": false,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "ignore"
+      ]
     },
     {
       "namespace": "hp",
       "element": "tr",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.6928,
-      "corpusFileCount": 115,
+      "corpusFrequency": 0.8439,
+      "corpusFileCount": 200,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area"
+      "verificationBasis": "by-capability-area",
+      "observedAttributes": []
     },
     {
       "namespace": "hp",
@@ -4112,43 +5502,109 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
+    },
+    {
+      "namespace": "hp",
+      "element": "unsignedintegerParam",
+      "schemaSource": null,
+      "corpusFrequency": 0.0042,
+      "corpusFileCount": 1,
+      "codeRead": false,
+      "codeWrite": "none",
+      "capabilityArea": null,
+      "capabilityStatus": null,
+      "verificationBasis": null,
+      "observedAttributes": [
+        "name"
+      ]
     },
     {
       "namespace": "hp",
       "element": "video",
       "schemaSource": "ParaList XML schema.xml",
-      "corpusFrequency": 0.006,
+      "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "dropcapstyle",
+        "fileIDRef",
+        "groupLevel",
+        "href",
+        "id",
+        "imageIDRef",
+        "instid",
+        "lock",
+        "numberingType",
+        "tag",
+        "textFlow",
+        "textWrap",
+        "videotype",
+        "zOrder"
+      ]
     },
     {
       "namespace": "hp",
       "element": "visibility",
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 1.0,
-      "corpusFileCount": 166,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": [
+        "border",
+        "fill",
+        "hideFirstEmptyLine",
+        "hideFirstFooter",
+        "hideFirstHeader",
+        "hideFirstMasterPage",
+        "hideFirstPageNum",
+        "showLineNumber"
+      ]
     },
     {
       "namespace": "hs",
       "element": "sec",
       "schemaSource": "Body XML schema.xml",
-      "corpusFrequency": 0.0,
-      "corpusFileCount": 0,
+      "corpusFrequency": 1.0,
+      "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
+    },
+    {
+      "namespace": "hv",
+      "element": "HCFVersion",
+      "schemaSource": null,
+      "corpusFrequency": 1.0,
+      "corpusFileCount": 237,
+      "codeRead": true,
+      "codeWrite": "api",
+      "capabilityArea": null,
+      "capabilityStatus": null,
+      "verificationBasis": null,
+      "observedAttributes": [
+        "appVersion",
+        "application",
+        "buildNumber",
+        "major",
+        "micro",
+        "minor",
+        "os",
+        "tagetApplication",
+        "xmlVersion"
+      ]
     },
     {
       "namespace": "hv",
@@ -4160,7 +5616,8 @@
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null
+      "verificationBasis": null,
+      "observedAttributes": []
     }
   ]
 }

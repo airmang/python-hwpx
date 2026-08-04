@@ -2,7 +2,7 @@
 """OWPML 요소 커버리지 원장 생성기.
 
 "우리가 OWPML의 무엇을 읽고/쓰고/실한컴 검증했는가"를 손으로 쓴 지원 주장이
-아니라 4개 입력에서 결정론적으로 재산출한다:
+아니라 5개 입력에서 결정론적으로 재산출한다:
 
 1. **스키마 전집** — ``DevDoc/OWPML SCHEMA/*.xml`` (OWPML 2024 XSD 7종)에서
    ``xs:element name="..."`` 선언을 전부 걷어 네임스페이스 접두(hp/hh/hc/hs/
@@ -10,27 +10,34 @@
    ``HWPML_COMPAT_ROOT_NAMESPACES``/``namespace_family()``에서 파생한다 —
    즉 이 스크립트가 별도로 접두 규약을 하드코딩하지 않고, 라이브러리가 실제
    문서를 읽고 쓸 때 쓰는 바로 그 접두를 그대로 쓴다.
-2. **실코퍼스 빈도** — ``docs/_extra/element-census.json``(166개 실문서
-   census의 동봉 스냅샷; 원본은 harness 상위 레포
-   ``specs/056-authoring-fidelity-audit/evidence/p0/element-census.json``에
-   있고, 이 레포 CI는 그 레포를 보지 못하므로 스냅샷을 vendoring했다 —
-   ``--census``로 다른 경로를 줄 수 있다). census에 없는 요소는 조작·추정
+2. **실코퍼스 빈도** — ``docs/_extra/element-census.json``. 생성기는
+   ``scripts/build_element_census.py``로 커밋돼 있다(2026-08-04 감사 §3-C1이
+   지적한 "생성기 미보존" 결함의 수리) — 전 파트·전 네임스페이스를 스캔하고
+   ``--census``로 다른 경로를 줄 수 있다. census에 없는 요소는 조작·추정
    없이 빈도 0으로 정직하게 기록한다.
 3. **코드 참조** — ``src/hwpx/`` 전체에서 요소별 태그 리터럴·QName 조립
-   패턴, 접두 없는 ``local_name()`` 계열 비교 디스패치, 그리고 루프 변수로
-   태그가 조립되는 자리(``ast``로 그 루프가 도는 테이블을 정적 평가)까지
-   세 경로를 합쳐 찾는다. ``makeelement``/``SubElement``/``_append_child``/
-   여는 태그 리터럴(``<hp:xxx``) 근방이면 쓰기(``api``), 그 밖의 참조는
-   읽기로 잡는다. 코드에 없지만 ``Skeleton.hwpx``에 상수로 박혀 있으면
+   패턴, 접두 없는 ``local_name()`` 계열 비교 디스패치, 루프 변수로 태그가
+   조립되는 자리, 그리고 함수 파라미터로 태그가 전달되는 자리(고정점
+   전파 + 리터럴 호출부 해석)까지 네 경로를 합쳐 찾는다. 스캔 전에
+   주석·독스트링은 블랭크 처리한다(``tokenize``+``ast``) —  비코드 텍스트가
+   커버리지로 잘못 집계되는 것을 막는다(2026-08-04 감사 §3-C2 수리).
+   ``makeelement``/``SubElement``/``_append_child``/``etree.Element(``/여는
+   태그 리터럴(``<hp:xxx``) 근방이면 쓰기(``api``), 그 밖의 참조는 읽기로
+   잡는다. 코드에 없지만 ``Skeleton.hwpx``에 상수로 박혀 있으면
    ``frozen-template``(구조는 통과하되 절대 못 바꾸는 영역)로 분류한다 —
-   이게 이 원장의 핵심 정직 포인트다. 태그가 함수 인자로 넘어오는 자리는
-   호출부까지 추적하지 않는 알려진 한계다.
-4. **실한컴 검증 여부** — ``src/hwpx/data/contract_docs/support-matrix.md``의
-   행별 등급을 요소로 근사 매핑한다. 매핑은 매트릭스 산문에 실제로 언급된
-   태그·헬퍼로만 근거를 두며(예: "hp:formCharPr", "add_line"), 근거 없는
-   승격은 하지 않는다 — 대응 행이 불분명한 요소는 ``capabilityArea: null``로
-   남는다. 매핑된 요소라도 그 행의 등급 문자열에 "Render-verified"가 없으면
-   ``verificationBasis``는 null이다(무근거 승격 금지).
+   이게 이 원장의 핵심 정직 포인트다. 완전히 동적으로 조립되는 태그는
+   근거-필수 명시 화이트리스트(``_MANUAL_CODE_USAGE_OVERRIDES``)로 다룬다.
+4. **실한컴 검증 여부(지원 매트릭스)** — ``src/hwpx/data/contract_docs/
+   support-matrix.md``의 행별 등급을 요소로 근사 매핑한다. 매핑은 매트릭스
+   산문에 실제로 언급된 태그·헬퍼로만 근거를 두며(예: "hp:formCharPr",
+   "add_line"), 근거 없는 승격은 하지 않는다 — 대응 행이 불분명한 요소는
+   ``capabilityArea: null``로 남는다. 매핑된 요소라도 그 행의 등급 문자열에
+   "Render-verified"가 없으면 이 출처로는 ``verificationBasis``가 null이다.
+5. **실한컴 검증 여부(v4 openrate 코퍼스)** — ``docs/openrate/report-v4.json``의
+   스트라타별 실제 Hancom 수용 receipt를, 대응이 명확한 capabilityArea에
+   한해 ``verificationBasis``로 환류한다(2026-08-04 감사 R4 수리 — "두
+   산출물이 서로를 모른다"). 매핑은 이 스크립트 안의
+   ``_V4_STRATUM_TO_CAPABILITY_AREA``에서 도출한다.
 
 이 스크립트는 지원 매트릭스·capabilities 레지스트리·census 원본을 전혀
 쓰지 않는다(읽기 전용 입력). 산출은 ``docs/coverage-ledger.json``(기계 판독)과
@@ -44,11 +51,14 @@ from __future__ import annotations
 
 import argparse
 import ast
+import io
 import json
 import re
 import sys
+import tokenize
 import zipfile
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from lxml import etree
@@ -59,11 +69,22 @@ DEFAULT_CENSUS_PATH = ROOT / "docs" / "_extra" / "element-census.json"
 SUPPORT_MATRIX_PATH = ROOT / "src" / "hwpx" / "data" / "contract_docs" / "support-matrix.md"
 SKELETON_PATH = ROOT / "src" / "hwpx" / "data" / "Skeleton.hwpx"
 SRC_DIR = ROOT / "src" / "hwpx"
+OPENRATE_V4_PATH = ROOT / "docs" / "openrate" / "report-v4.json"
 LEDGER_JSON = ROOT / "docs" / "coverage-ledger.json"
 LEDGER_MD = ROOT / "docs" / "coverage-ledger.md"
 
 SCHEMA_VERSION = "python-hwpx.coverage-ledger/v1"
 XS_NS = "http://www.w3.org/2001/XMLSchema"
+
+#: 2026-08-04 완전성 감사(§0 요약표)가 인용한 사전-수리 하한 — 실코퍼스 관측
+#: 228건 중 write=none 70 · read=none 56 · frozen-template 28. 이 원장의
+#: 재생성 시점 population과는 다르므로(census 재구축) 정확한 재현이 아니라
+#: "수리 기록" 절의 방향성 참고용 상수다. 값 자체를 바꾸지 말 것 — 감사
+#: 문서에 박제된 역사적 사실이다.
+_AUDIT_BASELINE_OBSERVED = 228
+_AUDIT_BASELINE_WRITE_NONE = 70
+_AUDIT_BASELINE_READ_NONE = 56
+_AUDIT_BASELINE_FROZEN = 28
 
 #: "version" 패밀리는 ``hwpx.oxml.namespaces.NAMESPACE_URIS``에 아예 없다
 #: (버전 레지스트리 자체의 실결함 — ``version.xml``은 ``opc/package.py``의
@@ -143,15 +164,32 @@ def parse_schema_elements() -> dict[str, dict[str, str]]:
 # ---------------------------------------------------------------------------
 
 
-def load_corpus(census_path: Path) -> tuple[dict[tuple[str, str], int], int]:
-    """실코퍼스 census에서 (접두, 요소)→파일수와 전체 실문서 수를 읽는다."""
+@dataclass
+class CorpusCensus:
+    frequencies: dict[tuple[str, str], int]
+    total_real_files: int
+    attribute_names: dict[tuple[str, str], list[str]]
+    foreign_namespaces: dict[str, int]
+    unnamespaced_elements: dict[str, int]
+    unknown_files: dict[str, object]
+    population_note: str | None
+
+
+def load_corpus(census_path: Path) -> CorpusCensus:
+    """실코퍼스 census를 읽는다.
+
+    ``build_element_census.py``(v2 스키마)로 재생성된 census는 요소 빈도
+    외에 속성 축(``real_attribute_names_by_element``)·외부 네임스페이스
+    가시화(``foreignNamespaces``)·비네임스페이스 요소(``unnamespacedElements``)·
+    unknown 파일 처분(``unknownFiles``)을 함께 싣는다. 구 스키마(v1, 요소
+    빈도만)로 넘어온 census도 그대로 읽힌다 — 새 필드는 전부 ``.get``으로
+    선택적이다."""
 
     if not census_path.is_file():
         raise FileNotFoundError(
             f"corpus census not found: {census_path}\n"
             "vendored snapshot이 없으면 --census로 원본 census 경로를 넘기거나 "
-            "harness 상위 레포의 specs/056-authoring-fidelity-audit/evidence/p0/"
-            "element-census.json을 docs/_extra/element-census.json으로 복사할 것."
+            "scripts/build_element_census.py로 새로 생성할 것."
         )
     document = json.loads(census_path.read_text(encoding="utf-8"))
     total_real_files = int(document["files"]["real"])
@@ -159,7 +197,21 @@ def load_corpus(census_path: Path) -> tuple[dict[tuple[str, str], int], int]:
     for key, count in document["real_element_filecounts"].items():
         prefix, _, name = key.partition(":")
         frequencies[(prefix, name)] = int(count)
-    return frequencies, total_real_files
+
+    attribute_names: dict[tuple[str, str], list[str]] = {}
+    for key, names in document.get("real_attribute_names_by_element", {}).items():
+        prefix, _, name = key.partition(":")
+        attribute_names[(prefix, name)] = list(names)
+
+    return CorpusCensus(
+        frequencies=frequencies,
+        total_real_files=total_real_files,
+        attribute_names=attribute_names,
+        foreign_namespaces=dict(document.get("foreignNamespaces", {})),
+        unnamespaced_elements=dict(document.get("unnamespacedElements", {})),
+        unknown_files=dict(document.get("unknownFiles", {"count": document["files"].get("unknown", 0), "reasons": {}})),
+        population_note=document.get("populationNote"),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -167,11 +219,17 @@ def load_corpus(census_path: Path) -> tuple[dict[tuple[str, str], int], int]:
 # ---------------------------------------------------------------------------
 
 #: makeelement/append 근방이면 "새 요소를 만든다"는 강한 신호.
+#:
+#: ``etree.Element(`` (bare, unaliased ``from lxml import etree``)는
+#: 2026-08-04 감사가 실증한 위음성이었다: ``oxml/body.py``의 변경추적 마크
+#: 방출(``_track_change_mark_to_xml``)을 포함해 14곳이 이 형태로 쓰는데
+#: ``ET.Element(``/``LET.Element(`` 별칭만 있어 전부 안 보였다.
 _WRITE_MARKERS = (
     "makeelement",
     "SubElement",
     "ET.Element(",
     "LET.Element(",
+    "etree.Element(",
     "_append_child",
     "_build_",
 )
@@ -190,10 +248,77 @@ def _read_source_files() -> list[tuple[Path, str]]:
     return [(path, path.read_text(encoding="utf-8")) for path in paths]
 
 
-def _read_source_corpus(files: list[tuple[Path, str]]) -> str:
-    """파일 목록을 하나의 탐색용 텍스트로 합친다."""
+def _build_line_offsets(text: str) -> list[int]:
+    offsets = [0]
+    for line in text.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    return offsets
 
-    return "\n\n".join(text for _path, text in files)
+
+def _strip_non_code_text(text: str) -> str:
+    """주석과 "베어 문자열" 문(독스트링 포함)을 공백으로 지운다(레이아웃·줄
+    번호는 보존) — 아래 평문 마커/디스패치 스캐너가 설명 산문을 실제 태그
+    참조로 오인하지 못하게 한다.
+
+    이 모듈의 ``ast`` 기반 리졸버(``_resolve_loop_tag_tables``,
+    ``_resolve_argument_tag_literals``)는 이 함수와 무관하게 원본 텍스트를
+    그대로 읽는다 — 문자열 리터럴 안에서는 파이썬 문법상 진짜
+    ``ast.For``/``ast.Call`` 노드가 나올 수 없으므로 애초에 이 위양성에
+    노출되지 않는다. 노출됐던 건 평문 부분열 매칭 스캐너뿐이다(2026-08-04
+    감사 실증: 스트립 후 재계산하면 13개 요소 판정이 뒤집힌다 —
+    codeWriteApi 134→123, codeRead 192→186)."""
+
+    line_offsets = _build_line_offsets(text)
+
+    def to_offset(line: int, col: int) -> int:
+        return line_offsets[line - 1] + col
+
+    spans: list[tuple[int, int]] = []
+
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+            if tok.type == tokenize.COMMENT:
+                spans.append((to_offset(*tok.start), to_offset(*tok.end)))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        pass
+
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        tree = None
+    if tree is not None:
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Expr)
+                and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)
+            ):
+                continue
+            value = node.value
+            if value.end_lineno is None or value.end_col_offset is None:
+                continue
+            spans.append(
+                (
+                    to_offset(value.lineno, value.col_offset),
+                    to_offset(value.end_lineno, value.end_col_offset),
+                )
+            )
+
+    if not spans:
+        return text
+
+    chars = list(text)
+    for start, end in spans:
+        for i in range(start, end):
+            if chars[i] != "\n":
+                chars[i] = " "
+    return "".join(chars)
+
+
+def _read_source_corpus(files: list[tuple[Path, str]]) -> str:
+    """파일 목록을 주석·독스트링을 지운 뒤 하나의 탐색용 텍스트로 합친다."""
+
+    return "\n\n".join(_strip_non_code_text(text) for _path, text in files)
 
 
 #: 이 코드베이스 전역에 반복되는 관용구: ``name = local_name(child)`` 로 접두
@@ -377,6 +502,317 @@ def _resolve_loop_tag_tables(files: list[tuple[Path, str]]) -> dict[tuple[str, s
     return resolved
 
 
+# ---------------------------------------------------------------------------
+# 3c) 태그가 함수 인자로 전달되는 관용구 (예: ``self._note_shape("footNotePr")``
+#     → ``_note_pr_element(self, tag): ET.SubElement(self.element,
+#     f"{_HP}{tag}", {})`` — 리터럴과 실제 쓰기가 서로 다른 함수에 있다)
+# ---------------------------------------------------------------------------
+#
+# 2026-08-04 감사 실증(§3-C2): ``hh:ratio``/``hh:spacing``이 frozen으로
+# 잘못 집계된 근본 원인이자, ``hp:footNotePr``/``endNotePr``의 write=api
+# 판정이 "우연히 독스트링이 태그를 언급한 덕"이었던(맞는 값, 틀린 근거)
+# 자리 — 코멘트를 지운 뒤에는 이 두 요소가 실제로는 뒤집힌다. 콜그래프
+# 전체를 해석하는 대신, 이 코드베이스에 실제로 나타나는 두 가지 얕은
+# 관용구만 좇는다: (a) 함수 파라미터가 자기 본문에서 ``f"{_HP}{param}"``
+# 형태로 태그 조립에 직접 쓰이는 자리, (b) 그 파라미터가 리터럴 문자열
+# 없이 다른 함수(주로 ``self.<메서드>``)에 그대로 전달되는 자리 — 이
+# 전달은 유한 라운드(≤6)로 고정점까지 전파한 뒤, 마지막에 실제 리터럴
+# 인자가 있는 모든 호출부에서 해석한다. 태그가 완전히 동적으로 조립되는
+# 자리(``oxml/body.py``의 변경추적 마크 — dict 값 문자열을 런타임에
+# 이어붙임)는 이 메커니즘으로 못 잡는다 — 그런 자리는 아래
+# ``_MANUAL_CODE_USAGE_OVERRIDES``의 근거-필수 화이트리스트로 다룬다.
+
+_ARG_TAG_RE = re.compile(r"_?(HP|HH|HC|HS|HHS|HM|HV)(?:10)?\}\{(\w+)\}([A-Za-z]*)")
+_SAFE_ELEMENT_NAME_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*")
+_ARG_TAG_PROPAGATION_ROUNDS = 6
+
+
+@dataclass
+class _ArgTagFunc:
+    qualname: str
+    class_name: str | None
+    node: ast.AST
+    params: list[str]
+
+
+def _collect_arg_tag_functions(tree: ast.AST) -> dict[str, _ArgTagFunc]:
+    """모듈 안의 함수/메서드를 ``Class.method`` 정규명으로 인덱싱한다.
+
+    중첩 함수(클로저)는 재귀하지 않는다 — 이 관용구가 실제로 나타나는
+    세 파일(document_parts.py/paragraph.py/section_format.py)에는 없고,
+    없는 것을 일반화하면 오탐 표면만 넓어진다."""
+
+    functions: dict[str, _ArgTagFunc] = {}
+
+    def visit(node: ast.AST, class_stack: list[str]) -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.ClassDef):
+                visit(child, class_stack + [child.name])
+                continue
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                class_name = class_stack[-1] if class_stack else None
+                qualname = f"{class_name}.{child.name}" if class_name else child.name
+                params = [a.arg for a in child.args.args if a.arg not in ("self", "cls")]
+                params += [a.arg for a in child.args.kwonlyargs]
+                functions[qualname] = _ArgTagFunc(qualname, class_name, child, params)
+                continue
+            visit(child, class_stack)
+
+    visit(tree, [])
+    return functions
+
+
+def _direct_arg_tag_specs(
+    func: _ArgTagFunc, module_text: str
+) -> dict[str, set[tuple[str, str, bool]]]:
+    """함수 자기 본문에서 ``f"{_HP}{param}<suffix>"`` 형태로 파라미터가
+    태그 조립에 쓰이는 자리를 찾아 (접두, 접미사, is_write) 집합을
+    파라미터별로 모은다."""
+
+    body_text = ast.get_source_segment(module_text, func.node) or ""
+    specs: dict[str, set[tuple[str, str, bool]]] = {}
+    for match in _ARG_TAG_RE.finditer(body_text):
+        const, var, suffix = match.group(1), match.group(2), match.group(3)
+        if var not in func.params:
+            continue
+        prefix = _CONST_TO_PREFIX[const]
+        window = body_text[max(0, match.start() - _WINDOW_BACK) : match.end() + _WINDOW_FORWARD]
+        is_write = any(marker in window for marker in _WRITE_MARKERS)
+        specs.setdefault(var, set()).add((prefix, suffix, is_write))
+    return specs
+
+
+def _call_callee_name(call: ast.Call) -> str | None:
+    if isinstance(call.func, ast.Attribute):
+        return call.func.attr
+    if isinstance(call.func, ast.Name):
+        return call.func.id
+    return None
+
+
+def _resolve_callee_qualname(
+    callee_name: str, current_class: str | None, functions: dict[str, _ArgTagFunc]
+) -> str | None:
+    if current_class is not None:
+        scoped = f"{current_class}.{callee_name}"
+        if scoped in functions:
+            return scoped
+    if callee_name in functions:
+        return callee_name
+    return None
+
+
+def _build_arg_tag_forwarding_edges(
+    functions: dict[str, _ArgTagFunc],
+) -> list[tuple[str, str, str, str]]:
+    """``def f(self, tag): ... self.g(tag) ...``처럼 자기 파라미터를 리터럴
+    없이 다른(이미 알려진) 함수에 그대로 넘기는 자리를 엣지로 모은다."""
+
+    edges: list[tuple[str, str, str, str]] = []
+    for qualname, func in functions.items():
+        for node in ast.walk(func.node):
+            if not isinstance(node, ast.Call):
+                continue
+            callee_name = _call_callee_name(node)
+            if callee_name is None:
+                continue
+            target_qualname = _resolve_callee_qualname(callee_name, func.class_name, functions)
+            if target_qualname is None or target_qualname == qualname:
+                continue
+            target_params = functions[target_qualname].params
+            for index, arg in enumerate(node.args):
+                if index >= len(target_params):
+                    break
+                if isinstance(arg, ast.Name) and arg.id in func.params:
+                    edges.append((qualname, arg.id, target_qualname, target_params[index]))
+            for kw in node.keywords:
+                if (
+                    kw.arg is not None
+                    and kw.arg in target_params
+                    and isinstance(kw.value, ast.Name)
+                    and kw.value.id in func.params
+                ):
+                    edges.append((qualname, kw.value.id, target_qualname, kw.arg))
+    return edges
+
+
+def _propagate_arg_tag_specs(
+    functions: dict[str, _ArgTagFunc], module_text: str
+) -> dict[str, dict[str, set[tuple[str, str, bool]]]]:
+    specs: dict[str, dict[str, set[tuple[str, str, bool]]]] = {
+        qualname: _direct_arg_tag_specs(func, module_text) for qualname, func in functions.items()
+    }
+    edges = _build_arg_tag_forwarding_edges(functions)
+    for _round in range(_ARG_TAG_PROPAGATION_ROUNDS):
+        changed = False
+        for src_q, src_param, dst_q, dst_param in edges:
+            dst_specs = specs.get(dst_q, {}).get(dst_param)
+            if not dst_specs:
+                continue
+            bucket = specs.setdefault(src_q, {}).setdefault(src_param, set())
+            before = len(bucket)
+            bucket |= dst_specs
+            if len(bucket) != before:
+                changed = True
+        if not changed:
+            break
+    return specs
+
+
+def _apply_arg_tag_literal(
+    spec_set: set[tuple[str, str, bool]] | None,
+    arg_node: ast.expr,
+    resolved: dict[tuple[str, str], tuple[bool, bool]],
+) -> None:
+    if not spec_set:
+        return
+    if not (isinstance(arg_node, ast.Constant) and isinstance(arg_node.value, str)):
+        return
+    literal = arg_node.value
+    if not _SAFE_ELEMENT_NAME_RE.fullmatch(literal):
+        return
+    for prefix, suffix, is_write in spec_set:
+        name = literal + suffix
+        if not _SAFE_ELEMENT_NAME_RE.fullmatch(name):
+            continue
+        prior_read, prior_write = resolved.get((prefix, name), (False, False))
+        resolved[(prefix, name)] = (True, prior_write or is_write)
+
+
+def _resolve_argument_tag_literals(
+    files: list[tuple[Path, str]],
+) -> dict[tuple[str, str], tuple[bool, bool]]:
+    """전 소스를 훑어 "태그를 함수 인자로 전달"하는 자리를 (접두, 이름)→
+    (read, write)로 해석한다. 단일 파일 안에서만 동작한다(모듈 간 호출은
+    쫓지 않는다 — 대상 세 파일 모두 자기 클래스 안에서만 전달한다)."""
+
+    resolved: dict[tuple[str, str], tuple[bool, bool]] = {}
+    for _path, text in files:
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        functions = _collect_arg_tag_functions(tree)
+        if not functions:
+            continue
+        specs = _propagate_arg_tag_specs(functions, text)
+
+        def visit(node: ast.AST, class_stack: list[str]) -> None:
+            for child in ast.iter_child_nodes(node):
+                if isinstance(child, ast.ClassDef):
+                    visit(child, class_stack + [child.name])
+                    continue
+                if isinstance(child, ast.Call):
+                    callee_name = _call_callee_name(child)
+                    if callee_name is not None:
+                        current_class = class_stack[-1] if class_stack else None
+                        qualname = _resolve_callee_qualname(callee_name, current_class, functions)
+                        if qualname is not None:
+                            params = functions[qualname].params
+                            callee_specs = specs.get(qualname, {})
+                            for index, arg in enumerate(child.args):
+                                if index >= len(params):
+                                    break
+                                _apply_arg_tag_literal(callee_specs.get(params[index]), arg, resolved)
+                            for kw in child.keywords:
+                                if kw.arg is not None and kw.arg in params:
+                                    _apply_arg_tag_literal(callee_specs.get(kw.arg), kw.value, resolved)
+                visit(child, class_stack)
+
+        visit(tree, [])
+
+    return resolved
+
+
+# ---------------------------------------------------------------------------
+# 3d) 명시 화이트리스트 — 콜그래프로도 못 쫓는, 완전히 동적으로 조립되는
+#     태그(runtime dict 값 문자열 연결 등). 근거 없는 항목은 생성기가 거부.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ManualCodeUsageOverride:
+    prefix: str
+    name: str
+    code_read: bool
+    code_write: bool
+    evidence: str
+
+
+_EVIDENCE_LOCATION_RE = re.compile(r"\.py:\d")
+
+
+def _validate_manual_overrides(overrides: tuple[ManualCodeUsageOverride, ...]) -> None:
+    for override in overrides:
+        if not override.evidence.strip():
+            raise ValueError(
+                f"manual override for {override.prefix}:{override.name} has empty evidence"
+            )
+        if not _EVIDENCE_LOCATION_RE.search(override.evidence):
+            raise ValueError(
+                f"manual override for {override.prefix}:{override.name} evidence must cite a "
+                f"file:line — got {override.evidence!r}"
+            )
+
+
+_MANUAL_CODE_USAGE_OVERRIDES: tuple[ManualCodeUsageOverride, ...] = (
+    ManualCodeUsageOverride(
+        "hp",
+        "insertBegin",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "src/hwpx/oxml/body.py:46-49 _TRACK_CHANGE_TYPES + body.py:291-312 "
+            "create_track_change_mark assembles the tag as "
+            "f'{normalized}{\"Begin\" if is_begin else \"End\"}' — a runtime "
+            "dict-value string concatenation with no literal substring anywhere "
+            "in source, so no static scanner can find it. body.py:871-881 "
+            "_track_change_mark_to_xml emits it via "
+            "etree.Element(_qualified_tag(mark.tag, mark.name)). Shipped and "
+            "Hancom-COM-verified via add_tracked_insert/delete/replace "
+            "(2026-06-30, S-058/S-059 M4 redline)."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hp",
+        "insertEnd",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "Same mechanism as hp:insertBegin — src/hwpx/oxml/body.py:46-49, "
+            "291-312, 871-881."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hp",
+        "deleteBegin",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "Same mechanism as hp:insertBegin — src/hwpx/oxml/body.py:46-49, "
+            "291-312, 871-881."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hp",
+        "deleteEnd",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "Same mechanism as hp:insertBegin — src/hwpx/oxml/body.py:46-49, "
+            "291-312, 871-881. body.py:366-378 additionally reads mark.name == "
+            "'deleteEnd' by attribute comparison, not tag literal, in "
+            "_reorder_replace_marks."
+        ),
+    ),
+)
+
+_validate_manual_overrides(_MANUAL_CODE_USAGE_OVERRIDES)
+MANUAL_CODE_USAGE_OVERRIDES_BY_KEY: dict[tuple[str, str], ManualCodeUsageOverride] = {
+    (override.prefix, override.name): override for override in _MANUAL_CODE_USAGE_OVERRIDES
+}
+
+
 def _build_element_patterns(prefix: str, name: str, family: str) -> list[re.Pattern[str]]:
     const = re.escape(prefix.upper())
     esc_name = re.escape(name)
@@ -405,9 +841,15 @@ def classify_code_usage(
     family: str,
     source_text: str,
     dispatch_windows: list[str],
-    loop_resolved: dict[tuple[str, str], tuple[bool, bool]],
+    indirect_resolved: dict[tuple[str, str], tuple[bool, bool]],
 ) -> tuple[bool, bool]:
-    """(codeRead, codeWriteApi)를 돌려준다."""
+    """(codeRead, codeWriteApi)를 돌려준다.
+
+    ``indirect_resolved``는 평문 패턴 매칭으로 못 잡는 두 부류를 병합한
+    (읽기, 쓰기) 사실 테이블이다 — 루프 변수 태그 조립
+    (``_resolve_loop_tag_tables``)과 함수-인자 태그 전달
+    (``_resolve_argument_tag_literals``). 둘 다 ``ast`` 기반이라 스트립되지
+    않은 원본 텍스트에서 계산된다."""
 
     code_read = False
     code_write = False
@@ -428,9 +870,13 @@ def classify_code_usage(
         # `name = local_name(child); if name == "docOption":`) — 네임스페이스
         # 마커가 근방에 없어 위 한정 패턴으로는 못 잡히지만 엄연한 읽기다.
         code_read = True
-    loop_read, loop_write = loop_resolved.get((prefix, name), (False, False))
-    code_read = code_read or loop_read
-    code_write = code_write or loop_write
+    indirect_read, indirect_write = indirect_resolved.get((prefix, name), (False, False))
+    code_read = code_read or indirect_read
+    code_write = code_write or indirect_write
+    override = MANUAL_CODE_USAGE_OVERRIDES_BY_KEY.get((prefix, name))
+    if override is not None:
+        code_read = code_read or override.code_read
+        code_write = code_write or override.code_write
     # 쓰기 신호는 코드가 요소를 "알고 있다"는 것도 함께 증명한다.
     if code_write:
         code_read = True
@@ -541,21 +987,100 @@ def classify_capability(
 
 
 # ---------------------------------------------------------------------------
+# 4b) v4 실한컴 openrate 코퍼스 환류 — support-matrix 산문과 별개인 두 번째
+#     실측 근거. 감사 R4: "v4 스트라타의 요소별 실한컴 수용이 원장의
+#     verificationBasis로 환류되지 않아 두 산출물이 서로를 모른다."
+# ---------------------------------------------------------------------------
+
+#: v4 스트라타 → capabilityArea. CAPABILITY_KEYWORDS와 같은 원칙(무근거
+#: 승격 금지)으로, 기존에 이미 등록된 능력 영역과 스트라타가 1:1로 명확히
+#: 대응하는 경우만 싣는다. authored-formfield/heading/named-style/
+#: page-structure·baseline-regen·edit-plan은 대응하는 단일
+#: capabilityArea가 없어(예: formfield는 fieldBegin류처럼 여러 영역이
+#: 공유) 의도적으로 뺐다 — CAPABILITY_KEYWORDS가 fieldBegin을 일부러
+#: 안 매핑한 것과 같은 이유다.
+_V4_STRATUM_TO_CAPABILITY_AREA: dict[str, str] = {
+    "authored-chart": "차트",
+    "authored-checkbox": "체크박스 양식개체",
+    "authored-equation": "수식",
+    "authored-footnote": "각주/미주",
+    "authored-note-shape": "각주/미주",
+}
+
+
+def _load_v4_capability_receipts(path: Path) -> dict[str, bool]:
+    """스트라타별 실한컴 수용 결과를 capabilityArea → 수용 여부로 접는다.
+
+    ``harness_valid`` 가 False(음성 대조군이 열려버린 오염 런)면 전부
+    거부한다 — 오염된 런의 headline 수치는 openrate 파이프라인 자신도
+    withhold하는 것과 같은 원칙."""
+
+    if not path.is_file():
+        return {}
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if not document.get("harness_valid", False):
+        return {}
+    strata = document.get("strata", {})
+    receipts: dict[str, bool] = {}
+    for stratum_name, area in _V4_STRATUM_TO_CAPABILITY_AREA.items():
+        row = strata.get(stratum_name)
+        if not row:
+            continue
+        accepted = (
+            int(row.get("render_checked", 0)) > 0
+            and int(row.get("render_failed", 0)) == 0
+            and int(row.get("opened", 0)) == int(row.get("requested", 0)) > 0
+        )
+        receipts[area] = receipts.get(area, False) or accepted
+    return receipts
+
+
+def _combine_verification_basis(
+    support_matrix_basis: str | None, v4_accepted: bool
+) -> str | None:
+    if support_matrix_basis == "by-capability-area" and v4_accepted:
+        return "by-capability-area+v4-corpus"
+    if support_matrix_basis is not None:
+        return support_matrix_basis
+    return "by-v4-corpus" if v4_accepted else None
+
+
+# ---------------------------------------------------------------------------
 # 원장 조립
 # ---------------------------------------------------------------------------
 
 
-def build_ledger(census_path: Path) -> dict[str, object]:
+def _merge_indirect_resolved(
+    *tables: dict[tuple[str, str], tuple[bool, bool]],
+) -> dict[tuple[str, str], tuple[bool, bool]]:
+    merged: dict[tuple[str, str], tuple[bool, bool]] = {}
+    for table in tables:
+        for key, (read, write) in table.items():
+            prior_read, prior_write = merged.get(key, (False, False))
+            merged[key] = (prior_read or read, prior_write or write)
+    return merged
+
+
+def build_ledger(census_path: Path, openrate_v4_path: Path = OPENRATE_V4_PATH) -> dict[str, object]:
     schema_elements = parse_schema_elements()
-    corpus_counts, total_real_files = load_corpus(census_path)
+    census = load_corpus(census_path)
+    corpus_counts = census.frequencies
+    total_real_files = census.total_real_files
     source_files = _read_source_files()
+    # 평문 마커/디스패치 스캔은 주석·독스트링을 지운 텍스트에서 돈다(§3-C2
+    # 위양성 수리). ast 기반 리졸버(루프 태그·인자 태그)는 원본 텍스트를
+    # 그대로 쓴다 — 문자열 리터럴 안에서는 진짜 ast 노드가 나올 수 없어
+    # 애초에 이 위양성에 노출되지 않는다.
     source_text = _read_source_corpus(source_files)
     dispatch_windows = _build_dispatch_windows(source_text)
     loop_resolved = _resolve_loop_tag_tables(source_files)
+    arg_tag_resolved = _resolve_argument_tag_literals(source_files)
+    indirect_resolved = _merge_indirect_resolved(loop_resolved, arg_tag_resolved)
     skeleton_text = _read_skeleton_text()
     status_by_area = _parse_support_matrix_status(
         SUPPORT_MATRIX_PATH.read_text(encoding="utf-8")
     )
+    v4_receipts = _load_v4_capability_receipts(openrate_v4_path)
     family_to_prefix = _family_to_prefix()
     prefix_to_family = {prefix: family for family, prefix in family_to_prefix.items()}
 
@@ -571,7 +1096,7 @@ def build_ledger(census_path: Path) -> dict[str, object]:
         file_count = corpus_counts.get((prefix, name), 0)
         frequency = round(file_count / total_real_files, 4) if total_real_files else 0.0
         code_read, code_write_api = classify_code_usage(
-            prefix, name, family, source_text, dispatch_windows, loop_resolved
+            prefix, name, family, source_text, dispatch_windows, indirect_resolved
         )
         if code_write_api:
             write_mode = "api"
@@ -580,6 +1105,9 @@ def build_ledger(census_path: Path) -> dict[str, object]:
         else:
             write_mode = "none"
         area, status, basis = classify_capability(prefix, name, status_by_area)
+        v4_accepted = area is not None and v4_receipts.get(area, False)
+        basis = _combine_verification_basis(basis, v4_accepted)
+        observed_attributes = census.attribute_names.get((prefix, name), [])
 
         elements.append(
             {
@@ -593,6 +1121,7 @@ def build_ledger(census_path: Path) -> dict[str, object]:
                 "capabilityArea": area,
                 "capabilityStatus": status,
                 "verificationBasis": basis,
+                "observedAttributes": observed_attributes,
             }
         )
 
@@ -607,6 +1136,10 @@ def build_ledger(census_path: Path) -> dict[str, object]:
         "codeWriteNone": sum(1 for e in elements if e["codeWrite"] == "none"),
         "capabilityMapped": sum(1 for e in elements if e["capabilityArea"] is not None),
         "renderVerified": sum(1 for e in elements if e["verificationBasis"] is not None),
+        "renderVerifiedByV4Corpus": sum(
+            1 for e in elements if e["verificationBasis"] in ("by-v4-corpus", "by-capability-area+v4-corpus")
+        ),
+        "attributesObserved": sum(1 for e in elements if e["observedAttributes"]),
     }
 
     return {
@@ -616,15 +1149,19 @@ def build_ledger(census_path: Path) -> dict[str, object]:
             "corpusCensus": str(census_path.relative_to(ROOT))
             if census_path.is_relative_to(ROOT)
             else str(census_path),
-            "corpusCensusUpstream": (
-                "specs/056-authoring-fidelity-audit/evidence/p0/element-census.json "
-                "(harness 상위 레포; 이 레포 CI에서는 보이지 않아 스냅샷을 vendoring)"
-            ),
+            "corpusCensusGenerator": "scripts/build_element_census.py",
+            "corpusPopulationNote": census.population_note,
             "supportMatrix": "src/hwpx/data/contract_docs/support-matrix.md",
+            "openrateV4": str(openrate_v4_path.relative_to(ROOT))
+            if openrate_v4_path.is_relative_to(ROOT) and openrate_v4_path.is_file()
+            else None,
             "skeleton": "src/hwpx/data/Skeleton.hwpx",
             "sourceScanned": "src/hwpx/**/*.py",
         },
         "corpusTotalFiles": total_real_files,
+        "corpusUnknownFiles": census.unknown_files,
+        "corpusForeignNamespaces": census.foreign_namespaces,
+        "corpusUnnamespacedElements": census.unnamespaced_elements,
         "summary": summary,
         "elements": elements,
     }
@@ -651,7 +1188,8 @@ def render_markdown(ledger: dict[str, object]) -> str:
     lines.append("")
     lines.append(
         "`scripts/coverage_ledger.py`가 OWPML 2024 스키마(`DevDoc/OWPML SCHEMA/`) · "
-        "실코퍼스 census · `src/hwpx/` 코드 참조 · 지원 매트릭스에서 결정론적으로 "
+        "실코퍼스 census(`scripts/build_element_census.py`) · `src/hwpx/` 코드 "
+        "참조 · 지원 매트릭스 · v4 openrate 실한컴 코퍼스에서 결정론적으로 "
         "재산출하는 원장이다. 손으로 쓴 지원 주장이 아니라 기계 판독 "
         "[coverage-ledger.json](coverage-ledger.json)의 사람용 요약이며, "
         "`python scripts/coverage_ledger.py --check`가 드리프트를 게이트한다."
@@ -664,37 +1202,110 @@ def render_markdown(ledger: dict[str, object]) -> str:
         "요소(fieldBegin·autoNum·좌표류)가 대표적이다."
     )
     lines.append("")
-    lines.append("## ⚠ 알려진 측정 오차 (2026-08-04 독립 감사 실증 — 수리 전 필독)")
+    lines.append("## 수리 기록 (2026-08-04 독립 감사 §3 실증 → 같은 사이클 내 수리)")
     lines.append("")
     lines.append(
-        "이 원장의 **결정론은 재현되지만 정확도는 불합격 판정**을 받았다"
-        "([감사 판정문 §3](2026-08-04-completeness-audit-verdict.md)). 아래 "
-        "수치를 인용할 때는 양방향 오차를 함께 인용해야 한다:"
+        "이 원장은 2026-08-04 독립 감사에서 \"결정론은 재현되지만 정확도는 "
+        "불합격\" 판정을 받았다([감사 판정문 §3]"
+        "(2026-08-04-completeness-audit-verdict.md)). 아래는 그 §3 결론 4항목을 "
+        "그대로 수리한 기록이다 — 무엇이 어떻게 고쳐졌고, 되돌리면 감사가 인용한 "
+        "오판이 그대로 재현됨을 확인했다(양방향 실행 로그는 커밋 메시지·리뷰 "
+        "기록 참조)."
     )
     lines.append("")
     lines.append(
-        "- **위양성**: 주석·독스트링 텍스트가 커버리지로 집계된다 — 비코드 "
-        "텍스트를 제거하고 재계산하면 13개 요소의 판정이 뒤집힌다"
-        "(codeWriteApi 134→123, codeRead 192→186)."
+        "**1) 분류기 — 위양성(주석/독스트링) 수리.** 스캔 전에 `tokenize`로 "
+        "주석을, `ast`로 베어 문자열 문(독스트링 포함)을 블랭크 처리한다"
+        "(`_strip_non_code_text`). 감사가 실측한 13개 요소 판정 뒤집힘"
+        "(codeWriteApi 134→123, codeRead 192→186)이 이 텍스트에서 재현됨을 "
+        "확인했다 — 예: `hp:case`/`hp:switch`는 `table_patch.py`의 독스트링이 "
+        "태그를 언급한 덕에 read=True로 잘못 집계돼 있었고, `hp:lineseg`/"
+        "`hp:seg`는 `patch.py`/`objects.py` 주석의 예시 태그 표기"
+        "(`<hp:lineseg>`, `<hp:seg>`)가 여는 태그 리터럴로 오인됐다."
     )
     lines.append(
-        "- **위음성**: `etree.Element(` alias와 함수-인자 태그 전달을 스캐너가 "
-        "못 본다 — 실제 출하·실한컴 검증된 변경추적 마크(`hp:insertBegin` 4종)가 "
-        "write=none으로, 실저작 가능한 `hh:ratio`(장평)·`hh:spacing`(자간)이 "
-        "frozen으로 잘못 집계돼 있다."
+        "**2) 분류기 — 위음성(`etree.Element(` 별칭) 수리.** `_WRITE_MARKERS`에 "
+        "`etree.Element(`를 추가했다(`ET.Element(`/`LET.Element(`만 있었다) — "
+        "`oxml/body.py`·`header.py`가 이 별칭으로 방출하는 자리를 넓게 잡는다."
     )
     lines.append(
-        "- **모집단 부분성**: census가 hp:/hh:/hc: 요소만 센다 — "
-        "`ha:*`(settings, 실파일 100%)·`hv:HCFVersion`(100%)·`hs:sec`(100%)·"
-        "임베드 외부 XML이 모집단 밖이고, census 생성 스크립트는 레포에 보존돼 "
-        "있지 않으며, 분모 166 밖의 unknown 84파일 처분이 미기록이다."
+        "**3) 분류기 — 함수-인자 태그 전달 수리(신규 리졸버 + 명시 화이트리스트).** "
+        "두 갈래로 다뤘다:"
     )
-    lines.append("- **속성 축 부재**: 요소만 세고 속성은 측정하지 않는다.")
+    lines.append(
+        "   - **일반 리졸버**(`_resolve_argument_tag_literals`, 3c절): 함수 "
+        "파라미터가 자기 본문에서 `f\"{_HP}{param}\"` 형태로 태그 조립에 쓰이는 "
+        "자리를 찾고, 그 파라미터가 리터럴 없이 다른 함수에 그대로 전달되는 "
+        "자리(예: `_note_shape(tag) → _note_pr_element(tag)`)를 고정점까지 "
+        "전파한 뒤, 실제 리터럴 인자가 있는 호출부에서 해석한다. 감사가 "
+        "지목한 `hh:ratio`/`hh:spacing`(장평/자간, `document_parts.py`) 외에 "
+        "같은 관용구로 저평가돼 있던 `hh:relSz`/`hh:offset`(첨자), "
+        "`hh:margin`/`hh:lineSpacing`(`header_part.py`의 문단 서식 setter), "
+        "`hp:footNotePr`/`endNotePr`(`section_format.py`, 2단계 전달), "
+        "`hp:header`/`footer`/`footNote`/`endNote`, `hp:booleanParam`"
+        "(`toc_author.py`)까지 같은 결함 계열로 실측·수리됐다 — 감사는 앞의 "
+        "둘만 스팟체크했지만 결함 자체는 훨씬 넓었다."
+    )
+    lines.append(
+        "   - **명시 화이트리스트**(`_MANUAL_CODE_USAGE_OVERRIDES`, 3d절): "
+        "`hp:insertBegin`/`insertEnd`/`deleteBegin`/`deleteEnd`(변경추적 마크)는 "
+        "태그가 런타임 dict 값 문자열 연결로 조립돼(`body.py`의 "
+        "`create_track_change_mark`) 어떤 정적 분석으로도 못 잡는다 — 근거 "
+        "파일:라인을 필수로 요구하는 화이트리스트로 처리했고, 생성기가 시작 "
+        "시점에 근거 문자열의 존재·형식을 검증한다(근거 없는 항목은 "
+        "`ValueError`)."
+    )
+    lines.append(
+        "**4) census 재구축.** 생성 스크립트를 `scripts/build_element_census.py`로 "
+        "신설·커밋했다(기존 census는 생성기 미보존이 결함이었다). 전 파트·전 "
+        "네임스페이스를 스캔한다 — `ha:*`(settings.xml)·`hv:HCFVersion`"
+        "(version.xml)이 이제 1급 요소 행이고, `hs:sec`도 실제 관측 빈도로 "
+        "잡힌다. 모집단은 **명시적으로 재정의**했다: 레거시 166파일(그 중 "
+        "hwpxlib 47은 지금도 이 레포에 남아 있고 검증 가능하다 — 나머지 119는 "
+        "이 워크트리 어디에도 원본이나 목록이 보존돼 있지 않아 정체를 확인할 "
+        "수 없다)은 재현·확장이 불가능했다 — 조용히 계승하는 대신 접근 가능한 "
+        "새 모집단으로 바꿨다. 상세는 `generatedFrom.corpusPopulationNote`."
+    )
+    if ledger.get("corpusUnknownFiles"):
+        unknown = ledger["corpusUnknownFiles"]
+        lines.append(
+            f"   unknown 파일: {unknown.get('count', 0)}건"
+            + (f" — 사유: {unknown.get('reasons')}" if unknown.get("reasons") else " (전량 유효한 zip으로 열림)")
+            + "."
+        )
+    lines.append(
+        "**5) 속성 축.** 요소별 관측 속성 **이름** 집합을 census가 함께 "
+        "기록한다(`observedAttributes` 컬럼, 값 빈도까지는 이번 사이클 범위 "
+        "밖 — 생성기 독스트링에 명시)."
+    )
+    lines.append(
+        "**6) v4 openrate 코퍼스 환류.** `docs/openrate/report-v4.json`의 "
+        "스트라타별 실한컴 수용(`render_checked>0`·`render_failed==0`)을, "
+        "이미 지원 매트릭스에 등록된 capabilityArea와 1:1로 대응하는 5개 "
+        "스트라타(차트·체크박스·수식·각주 2종)에 한해 `verificationBasis`로 "
+        "환류했다(`by-v4-corpus`/`by-capability-area+v4-corpus`) — 매핑은 "
+        "생성기 코드(`_V4_STRATUM_TO_CAPABILITY_AREA`)에서 도출하며, 대응이 "
+        "불분명한 스트라타(formfield/heading/named-style/page-structure 등)는 "
+        "`fieldBegin`을 일부러 안 매핑한 것과 같은 원칙으로 뺐다."
+    )
     lines.append("")
+    observed = [e for e in elements if e["corpusFileCount"] > 0]
+    new_write_none_observed = sum(1 for e in observed if e["codeWrite"] == "none")
+    new_read_none_observed = sum(1 for e in observed if not e["codeRead"])
+    new_frozen_observed = sum(1 for e in observed if e["codeWrite"] == "frozen-template")
     lines.append(
-        "수리 계획은 감사 판정문 §3 결론의 4항목이며 다음 사이클의 1순위다. "
-        "수리 전까지 이 원장은 \"작업 방향을 잡는 지도\"로만 유효하고 \"지원 "
-        "여부의 판정 근거\"로는 인용 불가다."
+        f"**전 vs 후 (감사가 하한을 인용한 것과 같은 슬라이스 — corpusFileCount>0인 "
+        f"요소만)**: 감사 인용 하한은 관측 {_AUDIT_BASELINE_OBSERVED}건 중 "
+        f"write=none **{_AUDIT_BASELINE_WRITE_NONE}** · read=none "
+        f"**{_AUDIT_BASELINE_READ_NONE}** · frozen-template "
+        f"**{_AUDIT_BASELINE_FROZEN}**([감사 판정문](2026-08-04-completeness-audit-verdict.md) "
+        f"요약표). 이 원장 재생성 기준으로는 관측 {len(observed)}건 중 "
+        f"write=none **{new_write_none_observed}** · read=none "
+        f"**{new_read_none_observed}** · frozen-template **{new_frozen_observed}**. "
+        f"**주의**: 두 population이 다르다(모집단을 재정의했다 — 위 4항목) — "
+        f"이 비교는 \"같은 잣대로 다시 잰 정확한 델타\"가 아니라 분류기 수리가 "
+        f"방향대로 움직였는지의 참고 신호다. 분류기 수리 자체의 정확도 증거는 "
+        f"위 1~3항의 요소별 재현 로그가 1차 근거다."
     )
     lines.append("")
 
@@ -730,8 +1341,46 @@ def render_markdown(ledger: dict[str, object]) -> str:
         f"| Render-verified(매핑 근거) | {summary['renderVerified']} | "
         f"{_fmt_pct(summary['renderVerified'], total)} |"
     )
+    lines.append(
+        f"| ..중 v4 openrate 코퍼스 환류분 | {summary['renderVerifiedByV4Corpus']} | "
+        f"{_fmt_pct(summary['renderVerifiedByV4Corpus'], total)} |"
+    )
+    lines.append(
+        f"| 속성 이름 축 관측됨 | {summary['attributesObserved']} | "
+        f"{_fmt_pct(summary['attributesObserved'], total)} |"
+    )
     lines.append("")
-    lines.append(f"실코퍼스 표본: 실문서 {ledger['corpusTotalFiles']}개 (저작 충실도 감사 census).")
+    population_note = ledger["generatedFrom"].get("corpusPopulationNote")
+    lines.append(f"실코퍼스 표본: 실문서 {ledger['corpusTotalFiles']}개.")
+    if population_note:
+        lines.append("")
+        lines.append(f"> {population_note}")
+    unknown = ledger.get("corpusUnknownFiles") or {}
+    if unknown.get("count"):
+        lines.append("")
+        lines.append(
+            f"unknown(zip으로 못 열렸거나 XML 파트가 전부 파싱 실패한 파일): "
+            f"{unknown['count']}건 — 사유별: {unknown.get('reasons', {})}."
+        )
+    foreign = ledger.get("corpusForeignNamespaces") or {}
+    if foreign:
+        lines.append("")
+        lines.append(
+            "임베드/외부 네임스페이스(OWPML 요소 스키마 밖 — per-element 행이 "
+            "아니라 여기 파일수로만 가시화): "
+            + ", ".join(f"`{uri}` {count}건" for uri, count in sorted(foreign.items()))
+            + "."
+        )
+    unnamespaced = ledger.get("corpusUnnamespacedElements") or {}
+    if unnamespaced:
+        lines.append("")
+        lines.append(
+            "네임스페이스 접두 없이 방출된 요소(스키마는 네임스페이스를 "
+            "선언하나 실문서 어휘가 접두를 안 씀 — `hc:pt0` vs `hp:pt0`류와 "
+            "같은 편차): "
+            + ", ".join(f"`{tag}` {count}건" for tag, count in sorted(unnamespaced.items()))
+            + " — `docs/owpml-deviations.md` 후보."
+        )
     lines.append("")
 
     lines.append("## 실코퍼스 빈도 상위인데 frozen-template 또는 none인 요소")
@@ -802,20 +1451,42 @@ def render_markdown(ledger: dict[str, object]) -> str:
         "`docs/owpml-deviations.md`(Q4 편차 레지스트리)의 입력 후보다."
     )
     lines.append(
-        "- **codeRead/codeWrite는 정적 패턴 매칭**이다 — 한정 태그 리터럴/QName "
+        "- **codeRead/codeWrite는 정적 패턴 매칭 + 두 단계 ast 리졸버**다. "
+        "1단계(평문, 스캔 전 주석·독스트링 블랭크): 한정 태그 리터럴/QName "
         "조립, 접두 없는 `local_name()` 계열 비교 디스패치, `for name in TABLE:` "
-        "형태로 루프 변수가 태그가 되는 자리(`ast`로 `TABLE`을 정적 평가) 세 "
-        "경로를 합친다. `makeelement`/`SubElement`/`_append_child`/여는 태그 "
-        "리터럴 근방이면 쓰기, 그 밖은 읽기로 분류한다. **알려진 한계**: 태그가 "
-        "함수 인자로 넘어오는 자리(예: `section_format.py`의 header/footer "
-        "`tag` 매개변수)는 호출부 인자까지 추적하지 않아 못 잡는다 — 이런 "
-        "요소는 실제로는 코드가 다루는데도 `codeRead/codeWrite`가 과소 집계될 "
-        "수 있다."
+        "형태로 루프 변수가 태그가 되는 자리(`ast`로 `TABLE`을 정적 평가). "
+        "2단계(원본 텍스트, `_resolve_argument_tag_literals`): 태그가 함수 "
+        "파라미터로 전달되는 자리 — 파라미터가 자기 본문에서 태그 조립에 "
+        "쓰이는 함수를 찾고, 그 파라미터를 리터럴 없이 그대로 전달하는 호출 "
+        "체인을 고정점까지 추적한 뒤, 실제 리터럴이 있는 호출부에서 해석한다 "
+        "(2026-08-04 감사 §3-C2 수리 — 전엔 이 부류가 통째로 과소 집계됐다). "
+        "**남은 한계**: 이 2단계 리졸버는 단일 파일 안에서만 동작한다(모듈 "
+        "간 호출은 안 쫓는다) — 다른 파일의 함수로 전달되는 태그가 있다면 "
+        "여전히 놓칠 수 있다. 완전히 동적으로 조립되는 태그(런타임 문자열 "
+        "연결 등)는 `_MANUAL_CODE_USAGE_OVERRIDES`의 근거-필수 화이트리스트로 "
+        "다룬다."
     )
     lines.append(
         "- **capabilityArea**는 지원 매트릭스 산문에 명시적으로 나온 요소만 "
         "매핑했다. 여러 능력 영역이 공유하는 저수준 요소(예: `fieldBegin`은 "
-        "누름틀·TOC·하이퍼링크가 다 쓴다)는 일부러 매핑하지 않았다."
+        "누름틀·TOC·하이퍼링크가 다 쓴다)는 일부러 매핑하지 않았다. "
+        "`verificationBasis`는 두 독립 출처를 결합한다 — 지원 매트릭스 산문의 "
+        "\"Render-verified\" 표기(`by-capability-area`)와 `docs/openrate/"
+        "report-v4.json` 실한컴 openrate 코퍼스의 스트라타별 수용 receipt"
+        "(`by-v4-corpus`) — 매핑이 명확한 5개 스트라타에 한해서만."
+    )
+    lines.append(
+        "- **census 생성기**(`scripts/build_element_census.py`)는 전 파트·전 "
+        "네임스페이스를 스캔하고, unknown 파일은 사유와 함께 기록하며, "
+        "OWPML 요소 스키마 밖의 임베드/외부 네임스페이스와 비네임스페이스 "
+        "요소는 별도 버킷(`foreignNamespaces`/`unnamespacedElements`)으로 "
+        "가시화한다(삼키지 않는다). 두 번 실행하면 바이트까지 같은 출력을 "
+        "낸다(결정론) — 단, 이 레포가 vendoring한 census 스냅샷은 소유자의 "
+        "비공개 실문서 코퍼스를 포함해 생성됐으므로, 그 서브셋은 소유자만 "
+        "재현 가능하다(`generatedFrom.corpusPopulationNote` 참조) — 이는 "
+        "감사가 지적한 \"생성기 자체가 없다\"는 결함과는 다른 종류다: 생성기는 "
+        "있고 커밋돼 있고 결정론적이다, 다만 입력 중 하나가 공개 레포 밖에 "
+        "있을 뿐이다."
     )
     lines.append("")
 

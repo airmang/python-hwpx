@@ -36,14 +36,29 @@ _ELEMENT_KEYS = {
     "capabilityArea",
     "capabilityStatus",
     "verificationBasis",
+    "observedAttributes",
 }
-_KNOWN_PREFIXES = {"hp", "hh", "hc", "hs", "hm", "hhs", "hv"}
+#: "ha"(app/settings.xml)는 2026-08-04 감사 §3-C1이 지목한 모집단 맹점
+#: 수리로 census에 편입됐다 — `hwpx.oxml.namespaces.HWPML_COMPAT_ROOT_NAMESPACES`
+#: 에는 원래부터 등록돼 있었으나(family "app"), OWPML XSD 7종에는 대응
+#: 스키마 파일이 없어 이전에는 원장에 한 번도 나타나지 않았다.
+_KNOWN_PREFIXES = {"hp", "hh", "hc", "hs", "hm", "hhs", "hv", "ha"}
+_VALID_VERIFICATION_BASES = {
+    "by-capability-area",
+    "by-v4-corpus",
+    "by-capability-area+v4-corpus",
+}
 
 
 def _module():
     spec = importlib.util.spec_from_file_location("coverage_ledger", SCRIPT)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    # Register before exec: the module defines ``@dataclass`` classes, and
+    # dataclass's ``from __future__ import annotations`` string-annotation
+    # resolution looks the module up via ``sys.modules`` -- without this it
+    # raises AttributeError on Python 3.12+.
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -113,6 +128,9 @@ def test_ledger_schema_is_valid() -> None:
         "schemaVersion",
         "generatedFrom",
         "corpusTotalFiles",
+        "corpusUnknownFiles",
+        "corpusForeignNamespaces",
+        "corpusUnnamespacedElements",
         "summary",
         "elements",
     }
@@ -130,6 +148,8 @@ def test_ledger_schema_is_valid() -> None:
         "codeWriteNone",
         "capabilityMapped",
         "renderVerified",
+        "renderVerifiedByV4Corpus",
+        "attributesObserved",
     }
     assert summary["totalElements"] == len(ledger["elements"]) > 0
     assert summary["schemaDeclared"] + summary["corpusOnly"] == summary["totalElements"]
@@ -138,6 +158,7 @@ def test_ledger_schema_is_valid() -> None:
         == summary["totalElements"]
     )
     assert summary["capabilityMapped"] >= summary["renderVerified"]
+    assert summary["renderVerified"] >= summary["renderVerifiedByV4Corpus"] >= 0
 
     seen: set[tuple[str, str]] = set()
     for entry in ledger["elements"]:
@@ -155,14 +176,18 @@ def test_ledger_schema_is_valid() -> None:
         assert entry["corpusFrequency"] == expected_freq
         assert isinstance(entry["codeRead"], bool)
         assert entry["codeWrite"] in {"api", "frozen-template", "none"}
+        assert isinstance(entry["observedAttributes"], list)
+        assert all(isinstance(a, str) for a in entry["observedAttributes"])
+        assert entry["observedAttributes"] == sorted(entry["observedAttributes"])
 
         if entry["capabilityArea"] is None:
             assert entry["capabilityStatus"] is None
             assert entry["verificationBasis"] is None
         if entry["verificationBasis"] is not None:
-            assert entry["verificationBasis"] == "by-capability-area"
+            assert entry["verificationBasis"] in _VALID_VERIFICATION_BASES
             assert entry["capabilityArea"] is not None
-            assert "Render-verified" in entry["capabilityStatus"]
+            if "capability-area" in entry["verificationBasis"]:
+                assert "Render-verified" in entry["capabilityStatus"]
 
     # 재현성: (namespace, element) 오름차순 결정론적 정렬.
     pairs = [(e["namespace"], e["element"]) for e in ledger["elements"]]
@@ -233,12 +258,20 @@ def test_frozen_template_elements_have_no_write_api_evidence() -> None:
 
 
 def test_schema_parser_finds_known_elements_across_all_seven_families() -> None:
-    """실제 DevDoc XSD 7종을 파싱해 각 패밀리에서 알려진 요소가 나오는지."""
+    """실제 DevDoc XSD 7종을 파싱해 각 패밀리에서 알려진 요소가 나오는지.
+
+    ``DevDoc/OWPML SCHEMA/``에는 7개 파일(hp/hh/hc/hs/hm/hhs/hv 패밀리)만
+    있다 — "ha"(app/settings.xml)는 대응 XSD가 없는 실결함이라 여기 절대
+    안 나온다(census가 실코퍼스 관측으로만 채우는 이유이기도 하다). 이
+    스크립트가 실제로 만들어 낼 수 있는 원장 네임스페이스 전체 집합은
+    ``_KNOWN_PREFIXES``(스키마 7 + census-only "ha")다."""
 
     module = _module()
     by_prefix = module.parse_schema_elements()
 
-    assert set(by_prefix) == _KNOWN_PREFIXES
+    schema_only_prefixes = {"hp", "hh", "hc", "hs", "hm", "hhs", "hv"}
+    assert set(by_prefix) == schema_only_prefixes
+    assert schema_only_prefixes < _KNOWN_PREFIXES
     assert by_prefix["hp"]["tbl"] == "ParaList XML schema.xml"
     assert by_prefix["hc"]["color"] == "Core XML schema.xml"
     assert by_prefix["hh"]["styles"] == "Header XML schema.xml"
@@ -363,6 +396,147 @@ def test_resolve_loop_tag_tables_skips_function_parameter_iterables() -> None:
     assert resolved == {}
 
 
+# ---------------------------------------------------------------------------
+# 2026-08-04 감사 §3 수리 회귀
+# ---------------------------------------------------------------------------
+
+
+def test_comment_only_source_is_not_counted_as_coverage() -> None:
+    """감사 실증: 주석·독스트링에 태그를 언급하는 것만으로는 커버리지로
+    잡히면 안 된다 — 코드가 없으면 아무것도 안 잡혀야 한다."""
+
+    module = _module()
+    fake_source = (
+        '"""Module docstring mentions <hp:tbl and ET.Element("hp:sneakyWrite").'
+        '"""\n'
+        "# comment also mentions <hp:commentOnly and SubElement(\n"
+        "\"bare string statement mentions hh:bareStatement SubElement\"\n"
+        "import os\n"
+    )
+    stripped = module._strip_non_code_text(fake_source)
+    assert "hp:tbl" not in stripped
+    assert "hp:sneakyWrite" not in stripped
+    assert "hp:commentOnly" not in stripped
+    assert "hh:bareStatement" not in stripped
+    assert "import os" in stripped
+
+
+def test_strip_non_code_text_preserves_real_code() -> None:
+    """진짜 코드(할당·호출·리터럴 인자)는 하나도 안 지워야 한다 — 스트립이
+    과하면 진짜 커버리지까지 날아간다."""
+
+    module = _module()
+    source = (
+        "_HP = '{http://example/paragraph}'\n"
+        "\n"
+        "def f(el):\n"
+        "    # not a real write\n"
+        "    node = ET.SubElement(el, f'{_HP}tbl', {})\n"
+        "    return node\n"
+    )
+    stripped = module._strip_non_code_text(source)
+    assert "ET.SubElement(el, f'{_HP}tbl', {})" in stripped
+    assert "def f(el):" in stripped
+    assert "not a real write" not in stripped
+
+
+def test_etree_element_alias_counts_as_write_marker() -> None:
+    """감사 실증: `etree.Element(` 별칭이 `_WRITE_MARKERS`에 없어서
+    `oxml/body.py`의 변경추적 마크 방출 등 14곳이 안 보였다."""
+
+    module = _module()
+    assert "etree.Element(" in module._WRITE_MARKERS
+
+    source = "node = etree.Element(f'{_HP}deliberateWrite', {})\n"
+    read, write = module.classify_code_usage(
+        "hp", "deliberateWrite", "paragraph", source, [], {}
+    )
+    assert (read, write) == (True, True)
+
+
+def test_argument_tag_resolver_single_hop() -> None:
+    """함수 파라미터가 자기 본문에서 직접 태그 조립에 쓰이고, 그 함수가
+    리터럴로 호출되는 자리 — 감사가 실증한 hh:ratio/hh:spacing 결함의
+    최소 재현."""
+
+    module = _module()
+    source = (
+        "_HH = '{http://example/head}'\n"
+        "\n"
+        "def _set_lang_values(element, tag, value):\n"
+        "    node = element.find(f'{_HH}{tag}')\n"
+        "    if node is None:\n"
+        "        node = _append_child(element, f'{_HH}{tag}')\n"
+        "    node.set('hangul', str(value))\n"
+        "\n"
+        "def _apply(element, spec):\n"
+        "    _set_lang_values(element, 'ratio', spec.ratio)\n"
+        "    _set_lang_values(element, 'spacing', spec.letter_spacing)\n"
+    )
+    resolved = module._resolve_argument_tag_literals([(Path("synthetic.py"), source)])
+    assert resolved[("hh", "ratio")] == (True, True)
+    assert resolved[("hh", "spacing")] == (True, True)
+
+
+def test_argument_tag_resolver_propagates_through_forwarding_call() -> None:
+    """파라미터가 리터럴 없이 다른 함수로 그대로 넘어간 뒤, 그 함수가 태그
+    조립을 하는 2단계 전달 — 감사가 실증한 hp:footNotePr 결함의 최소
+    재현(section_format.py의 _note_shape → _note_pr_element 패턴)."""
+
+    module = _module()
+    source = (
+        "_HP = '{http://example/paragraph}'\n"
+        "\n"
+        "class SectionFormat:\n"
+        "    def _note_pr_element(self, tag, create=False):\n"
+        "        element = self.element.find(f'{_HP}{tag}')\n"
+        "        if element is not None or not create:\n"
+        "            return element\n"
+        "        return ET.SubElement(self.element, f'{_HP}{tag}', {})\n"
+        "\n"
+        "    def _note_shape(self, tag):\n"
+        "        return self._note_pr_element(tag)\n"
+        "\n"
+        "    @property\n"
+        "    def footnote_shape(self):\n"
+        "        return self._note_shape('footNotePr')\n"
+    )
+    resolved = module._resolve_argument_tag_literals([(Path("synthetic.py"), source)])
+    assert resolved[("hp", "footNotePr")] == (True, True)
+
+
+def test_manual_code_usage_overrides_require_evidence() -> None:
+    """근거 없는 화이트리스트 항목은 생성기가 거부한다."""
+
+    module = _module()
+    with pytest.raises(ValueError, match="evidence"):
+        module._validate_manual_overrides(
+            (module.ManualCodeUsageOverride("hp", "fake", True, True, evidence=""),)
+        )
+    with pytest.raises(ValueError, match="file:line"):
+        module._validate_manual_overrides(
+            (
+                module.ManualCodeUsageOverride(
+                    "hp", "fake", True, True, evidence="trust me, it's real"
+                ),
+            )
+        )
+    # 실제 등재된 화이트리스트는 자기 검증을 통과해야 한다(임포트 시점에
+    # 이미 통과했지만, 회귀를 위해 다시 실행).
+    module._validate_manual_overrides(module._MANUAL_CODE_USAGE_OVERRIDES)
+
+
+def test_manual_override_reproduces_insert_begin_family_write() -> None:
+    """감사 인용 오판(`hp:insertBegin` write=none)의 반증: 화이트리스트를
+    끄면 오판이 재현되고, 켜면 고쳐진다."""
+
+    module = _module()
+    for name in ("insertBegin", "insertEnd", "deleteBegin", "deleteEnd"):
+        assert ("hp", name) in module.MANUAL_CODE_USAGE_OVERRIDES_BY_KEY
+        read, write = module.classify_code_usage("hp", name, "paragraph", "", [], {})
+        assert (read, write) == (True, True), f"hp:{name} should resolve via the manual whitelist"
+
+
 def test_support_matrix_status_parser_isolates_matrix_section() -> None:
     module = _module()
     text = (
@@ -412,3 +586,80 @@ def test_capability_keywords_all_resolve_against_real_support_matrix() -> None:
     referenced_areas = set(module.CAPABILITY_KEYWORDS.values())
     missing = referenced_areas - set(status_by_area)
     assert not missing, f"CAPABILITY_KEYWORDS가 매트릭스에 없는 행을 가리킵니다: {missing}"
+
+
+# ---------------------------------------------------------------------------
+# v4 openrate 코퍼스 환류 (D항)
+# ---------------------------------------------------------------------------
+
+
+def test_v4_stratum_mapping_resolves_against_real_capability_keywords() -> None:
+    """_V4_STRATUM_TO_CAPABILITY_AREA가 가리키는 영역은 전부
+    CAPABILITY_KEYWORDS에도 실재해야 한다(무근거 매핑 방지)."""
+
+    module = _module()
+    registered_areas = set(module.CAPABILITY_KEYWORDS.values())
+    for area in module._V4_STRATUM_TO_CAPABILITY_AREA.values():
+        assert area in registered_areas, f"{area!r} is not a real capability area"
+
+
+def test_load_v4_capability_receipts_rejects_invalid_harness(tmp_path: Path) -> None:
+    module = _module()
+    path = tmp_path / "report-v4.json"
+    path.write_text(
+        json.dumps(
+            {
+                "harness_valid": False,
+                "strata": {
+                    "authored-chart": {
+                        "render_checked": 15,
+                        "render_failed": 0,
+                        "opened": 15,
+                        "requested": 15,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert module._load_v4_capability_receipts(path) == {}
+
+
+def test_load_v4_capability_receipts_accepts_clean_stratum(tmp_path: Path) -> None:
+    module = _module()
+    path = tmp_path / "report-v4.json"
+    path.write_text(
+        json.dumps(
+            {
+                "harness_valid": True,
+                "strata": {
+                    "authored-chart": {
+                        "render_checked": 15,
+                        "render_failed": 0,
+                        "opened": 15,
+                        "requested": 15,
+                    },
+                    "authored-formfield": {
+                        "render_checked": 15,
+                        "render_failed": 0,
+                        "opened": 15,
+                        "requested": 15,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    receipts = module._load_v4_capability_receipts(path)
+    assert receipts == {"차트": True}, "unmapped strata (authored-formfield) must not leak in"
+
+
+def test_combine_verification_basis() -> None:
+    module = _module()
+    assert module._combine_verification_basis(None, False) is None
+    assert module._combine_verification_basis(None, True) == "by-v4-corpus"
+    assert module._combine_verification_basis("by-capability-area", False) == "by-capability-area"
+    assert (
+        module._combine_verification_basis("by-capability-area", True)
+        == "by-capability-area+v4-corpus"
+    )

@@ -1,325 +1,1709 @@
 {
- "files": {
-  "real": 166,
-  "unknown": 84,
-  "ours": 1
- },
- "real_element_filecounts": {
-  "hh:styles": 166,
-  "hh:tabPr": 166,
-  "hh:margin": 166,
-  "hh:ratio": 166,
-  "hp:startNum": 166,
-  "hh:style": 166,
-  "hc:fillBrush": 166,
-  "hh:relSz": 166,
-  "hp:numbering": 166,
-  "hp:visibility": 166,
-  "hp:noteLine": 166,
-  "hc:intent": 166,
-  "hp:footNotePr": 166,
-  "hh:beginNum": 166,
-  "hp:endNotePr": 166,
-  "hp:noteSpacing": 166,
-  "hh:fontfaces": 166,
-  "hh:layoutCompatibility": 166,
-  "hh:tabProperties": 166,
-  "hh:compatibleDocument": 166,
-  "hh:offset": 166,
-  "hc:right": 166,
-  "hh:diagonal": 166,
-  "hp:pagePr": 166,
-  "hh:charProperties": 166,
-  "hp:p": 166,
-  "hh:border": 166,
-  "hh:typeInfo": 166,
-  "hh:lineSpacing": 166,
-  "hp:lineNumberShape": 166,
-  "hh:autoSpacing": 166,
-  "hh:borderFills": 166,
-  "hh:paraPr": 166,
-  "hh:font": 166,
-  "hh:bottomBorder": 166,
-  "hh:refList": 166,
-  "hh:backSlash": 166,
-  "hp:secPr": 166,
-  "hp:placement": 166,
-  "hp:margin": 166,
-  "hp:colPr": 166,
-  "hc:winBrush": 166,
-  "hh:paraProperties": 166,
-  "hp:t": 166,
-  "hp:run": 166,
-  "hh:charPr": 166,
-  "hh:rightBorder": 166,
-  "hh:borderFill": 166,
-  "hc:prev": 166,
-  "hh:fontface": 166,
-  "hh:trackchageConfig": 166,
-  "hh:align": 166,
-  "hp:autoNumFormat": 166,
-  "hh:heading": 166,
-  "hp:grid": 166,
-  "hp:pageBorderFill": 166,
-  "hh:leftBorder": 166,
-  "hh:docOption": 166,
-  "hp:offset": 166,
-  "hh:head": 166,
-  "hh:spacing": 166,
-  "hh:slash": 166,
-  "hc:next": 166,
-  "hc:left": 166,
-  "hh:breakSetting": 166,
-  "hp:ctrl": 166,
-  "hh:linkinfo": 166,
-  "hh:topBorder": 166,
-  "hh:fontRef": 166,
-  "hp:default": 164,
-  "hp:case": 164,
-  "hp:switch": 164,
-  "hh:strikeout": 164,
-  "hh:underline": 163,
-  "hh:paraHead": 162,
-  "hh:numberings": 162,
-  "hh:shadow": 162,
-  "hh:outline": 162,
-  "hh:numbering": 162,
-  "hp:sz": 139,
-  "hp:pos": 139,
-  "hp:outMargin": 139,
-  "hp:subList": 121,
-  "hp:inMargin": 117,
-  "hp:cellSz": 115,
-  "hp:tc": 115,
-  "hp:cellSpan": 115,
-  "hp:tr": 115,
-  "hp:cellAddr": 115,
-  "hp:tbl": 115,
-  "hp:cellMargin": 115,
-  "hp:linesegarray": 106,
-  "hp:lineseg": 106,
-  "hh:metaTag": 68,
-  "hh:bold": 67,
-  "hp:curSz": 50,
-  "hp:orgSz": 50,
-  "hp:flip": 50,
-  "hc:transMatrix": 50,
-  "hp:renderingInfo": 50,
-  "hc:rotMatrix": 50,
-  "hp:rotationInfo": 50,
-  "hc:scaMatrix": 50,
-  "hp:stringParam": 49,
-  "hp:shapeComment": 49,
-  "hp:fieldEnd": 45,
-  "hp:fieldBegin": 45,
-  "hp:integerParam": 45,
-  "hp:parameters": 45,
-  "hh:italic": 44,
-  "hp:lineShape": 42,
-  "hh:tabItem": 39,
-  "hp:shadow": 38,
-  "hc:pt1": 37,
-  "hc:pt0": 37,
-  "hc:pt3": 37,
-  "hc:pt2": 37,
-  "hh:substFont": 27,
-  "hp:fwSpace": 27,
-  "hc:img": 27,
-  "hp:pageNum": 25,
-  "hp:header": 23,
-  "hp:rect": 22,
-  "hp:imgRect": 22,
-  "hp:pic": 22,
-  "hp:imgDim": 22,
-  "hp:effects": 22,
-  "hp:imgClip": 22,
-  "hp:tab": 17,
-  "hp:drawText": 16,
-  "hp:textMargin": 16,
-  "hp:footer": 15,
-  "hp:autoNum": 14,
-  "hh:memoProperties": 13,
-  "hh:memoPr": 13,
-  "hp:newNum": 12,
-  "hh:supscript": 12,
-  "hp:pageHiding": 10,
-  "hc:center": 10,
-  "hc:ax2": 10,
-  "hc:ax1": 10,
-  "hh:bullet": 10,
-  "hh:bullets": 10,
-  "hp:nbSpace": 10,
-  "hp:formCharPr": 10,
-  "hp:colLine": 10,
-  "hc:start2": 9,
-  "hc:end2": 9,
-  "hc:end1": 9,
-  "hp:ellipse": 9,
-  "hc:start1": 9,
-  "hc:imgBrush": 8,
-  "hp:checkBtn": 8,
-  "hp:container": 8,
-  "hp:chart": 8,
-  "hc:pt": 7,
-  "hp:polygon": 7,
-  "hp:lineBreak": 6,
-  "hp:charPr": 6,
-  "hp:compose": 6,
-  "hp:caption": 6,
-  "hp:cellzone": 5,
-  "hp:cellzoneList": 5,
-  "hp:markpenEnd": 5,
-  "hp:markpenBegin": 5,
-  "hp:label": 4,
-  "hc:endPt": 4,
-  "hp:line": 4,
-  "hc:startPt": 4,
-  "hc:extent": 4,
-  "hp:ole": 4,
-  "hp:script": 4,
-  "hp:equation": 4,
-  "hp:booleanParam": 4,
-  "hp:listParam": 4,
-  "hp:parameterset": 4,
-  "hh:forbiddenWord": 3,
-  "hh:forbiddenWordList": 3,
-  "hc:gradation": 3,
-  "hc:color": 3,
-  "hp:edit": 2,
-  "hp:text": 2,
-  "hp:insertEnd": 2,
-  "hh:trackChangeAuthors": 2,
-  "hh:trackChange": 2,
-  "hh:trackChanges": 2,
-  "hh:trackChangeAuthor": 2,
-  "hp:insertBegin": 2,
-  "hp:radioBtn": 2,
-  "hp:connectLine": 2,
-  "hp:startPt": 2,
-  "hp:endPt": 2,
-  "hp:footerApply": 2,
-  "hp:headerApply": 2,
-  "hp:deleteEnd": 1,
-  "hp:deleteBegin": 1,
-  "hp:presentation": 1,
-  "hp:btn": 1,
-  "hp:video": 1,
-  "hp:arc": 1,
-  "hp:softEdge": 1,
-  "hp:rgb": 1,
-  "hp:skew": 1,
-  "hp:alpha": 1,
-  "hp:glow": 1,
-  "hp:effectsColor": 1,
-  "hp:effect": 1,
-  "hp:scale": 1,
-  "hp:reflection": 1,
-  "hp:colSz": 1,
-  "hp:masterPage": 1,
-  "hp:titleMark": 1,
-  "hp:controlPoints": 1,
-  "hp:point": 1,
-  "hp:textartPr": 1,
-  "hp:textart": 1,
-  "hp:comboBox": 1,
-  "hp:listItem": 1,
-  "hp:seg": 1,
-  "hp:curve": 1,
-  "hp:dutmal": 1,
-  "hp:mainText": 1,
-  "hp:subText": 1,
-  "hp:paraList": 1,
-  "hp:memogroup": 1,
-  "hp:memo": 1,
-  "hh:binItem": 1,
-  "hh:binDataList": 1
- },
- "ours_element_filecounts": {
-  "hp:default": 1,
-  "hh:styles": 1,
-  "hh:tabPr": 1,
-  "hh:margin": 1,
-  "hh:ratio": 1,
-  "hp:startNum": 1,
-  "hh:style": 1,
-  "hc:fillBrush": 1,
-  "hp:shapeComment": 1,
-  "hh:relSz": 1,
-  "hp:numbering": 1,
-  "hp:visibility": 1,
-  "hp:noteLine": 1,
-  "hc:intent": 1,
-  "hp:footNotePr": 1,
-  "hp:sz": 1,
-  "hh:beginNum": 1,
-  "hp:endNotePr": 1,
-  "hp:noteSpacing": 1,
-  "hh:fontfaces": 1,
-  "hp:case": 1,
-  "hh:layoutCompatibility": 1,
-  "hh:tabProperties": 1,
-  "hh:compatibleDocument": 1,
-  "hh:metaTag": 1,
-  "hh:offset": 1,
-  "hc:right": 1,
-  "hh:diagonal": 1,
-  "hp:pagePr": 1,
-  "hh:charProperties": 1,
-  "hp:p": 1,
-  "hh:border": 1,
-  "hh:paraHead": 1,
-  "hh:typeInfo": 1,
-  "hh:lineSpacing": 1,
-  "hp:lineNumberShape": 1,
-  "hh:autoSpacing": 1,
-  "hp:pos": 1,
-  "hh:borderFills": 1,
-  "hh:paraPr": 1,
-  "hh:font": 1,
-  "hh:bottomBorder": 1,
-  "hp:script": 1,
-  "hh:refList": 1,
-  "hh:backSlash": 1,
-  "hh:underline": 1,
-  "hp:equation": 1,
-  "hp:secPr": 1,
-  "hp:placement": 1,
-  "hp:margin": 1,
-  "hp:colPr": 1,
-  "hh:numberings": 1,
-  "hc:winBrush": 1,
-  "hh:shadow": 1,
-  "hh:paraProperties": 1,
-  "hp:t": 1,
-  "hp:run": 1,
-  "hp:switch": 1,
-  "hh:charPr": 1,
-  "hh:rightBorder": 1,
-  "hh:borderFill": 1,
-  "hc:prev": 1,
-  "hh:fontface": 1,
-  "hh:trackchageConfig": 1,
-  "hp:outMargin": 1,
-  "hh:align": 1,
-  "hh:outline": 1,
-  "hp:autoNumFormat": 1,
-  "hh:heading": 1,
-  "hp:grid": 1,
-  "hh:strikeout": 1,
-  "hp:pageBorderFill": 1,
-  "hh:leftBorder": 1,
-  "hh:docOption": 1,
-  "hp:offset": 1,
-  "hh:head": 1,
-  "hh:numbering": 1,
-  "hh:spacing": 1,
-  "hh:slash": 1,
-  "hc:next": 1,
-  "hc:left": 1,
-  "hh:breakSetting": 1,
-  "hp:ctrl": 1,
-  "hh:linkinfo": 1,
-  "hh:topBorder": 1,
-  "hh:fontRef": 1
- }
+  "schemaVersion": "python-hwpx.element-census/v2",
+  "generator": "scripts/build_element_census.py",
+  "populationNote": "real = every *.hwpx under the committed roots this generator was invoked with, deduplicated by content hash. This repo's committed snapshot was produced with the vendored tests/fixtures/hwpxlib_corpus (47 files, reproducible by anyone) plus the maintainer's private real-world Hancom-authored documents (school administrative and review paperwork -- not this pipeline's output) as a second --corpus root. That second root is not committed and its path is not recorded here (privacy); only the aggregate counts are. The legacy 166/84 split this census previously reported traced to a population that was never committed anywhere reachable from this workspace -- it could not be reproduced or extended, so this generator does not carry it forward. See docs/2026-08-04-completeness-audit-verdict.md §3-C1 and docs/coverage-ledger.md's repair notes.",
+  "files": {
+    "real": 237,
+    "unknown": 0,
+    "ours": 4
+  },
+  "unknownFiles": {
+    "count": 0,
+    "reasons": {}
+  },
+  "duplicatesDropped": {
+    "real": 75
+  },
+  "real_element_filecounts": {
+    "ha:CaretPosition": 237,
+    "ha:HWPApplicationSetting": 237,
+    "hc:ax1": 6,
+    "hc:ax2": 6,
+    "hc:center": 6,
+    "hc:color": 2,
+    "hc:end1": 5,
+    "hc:end2": 5,
+    "hc:endPt": 2,
+    "hc:extent": 2,
+    "hc:fillBrush": 237,
+    "hc:gradation": 2,
+    "hc:img": 125,
+    "hc:imgBrush": 100,
+    "hc:intent": 237,
+    "hc:left": 237,
+    "hc:next": 237,
+    "hc:prev": 237,
+    "hc:pt": 2,
+    "hc:pt0": 129,
+    "hc:pt1": 129,
+    "hc:pt2": 129,
+    "hc:pt3": 129,
+    "hc:right": 237,
+    "hc:rotMatrix": 137,
+    "hc:scaMatrix": 137,
+    "hc:start1": 5,
+    "hc:start2": 5,
+    "hc:startPt": 2,
+    "hc:transMatrix": 137,
+    "hc:winBrush": 237,
+    "hh:align": 237,
+    "hh:autoSpacing": 237,
+    "hh:backSlash": 237,
+    "hh:beginNum": 237,
+    "hh:bold": 201,
+    "hh:border": 237,
+    "hh:borderFill": 237,
+    "hh:borderFills": 237,
+    "hh:bottomBorder": 237,
+    "hh:breakSetting": 237,
+    "hh:bullet": 146,
+    "hh:bullets": 146,
+    "hh:charPr": 237,
+    "hh:charProperties": 237,
+    "hh:compatibleDocument": 237,
+    "hh:diagonal": 237,
+    "hh:docOption": 237,
+    "hh:font": 237,
+    "hh:fontRef": 237,
+    "hh:fontface": 237,
+    "hh:fontfaces": 237,
+    "hh:forbiddenWord": 3,
+    "hh:forbiddenWordList": 3,
+    "hh:head": 237,
+    "hh:heading": 237,
+    "hh:italic": 135,
+    "hh:layoutCompatibility": 237,
+    "hh:leftBorder": 237,
+    "hh:lineSpacing": 237,
+    "hh:linkinfo": 237,
+    "hh:margin": 237,
+    "hh:memoPr": 59,
+    "hh:memoProperties": 59,
+    "hh:metaTag": 10,
+    "hh:numbering": 234,
+    "hh:numberings": 234,
+    "hh:offset": 237,
+    "hh:outline": 222,
+    "hh:paraHead": 234,
+    "hh:paraPr": 237,
+    "hh:paraProperties": 237,
+    "hh:ratio": 237,
+    "hh:refList": 237,
+    "hh:relSz": 237,
+    "hh:rightBorder": 237,
+    "hh:shadow": 222,
+    "hh:slash": 237,
+    "hh:spacing": 237,
+    "hh:strikeout": 224,
+    "hh:style": 237,
+    "hh:styles": 237,
+    "hh:substFont": 177,
+    "hh:supscript": 10,
+    "hh:tabItem": 182,
+    "hh:tabPr": 237,
+    "hh:tabProperties": 237,
+    "hh:topBorder": 237,
+    "hh:trackChange": 1,
+    "hh:trackChangeAuthor": 1,
+    "hh:trackChangeAuthors": 1,
+    "hh:trackChanges": 1,
+    "hh:trackchageConfig": 236,
+    "hh:typeInfo": 231,
+    "hh:underline": 224,
+    "hp:alpha": 1,
+    "hp:arc": 1,
+    "hp:autoNum": 5,
+    "hp:autoNumFormat": 237,
+    "hp:bookmark": 15,
+    "hp:btn": 1,
+    "hp:caption": 27,
+    "hp:case": 236,
+    "hp:cellAddr": 200,
+    "hp:cellMargin": 200,
+    "hp:cellSpan": 200,
+    "hp:cellSz": 200,
+    "hp:charPr": 3,
+    "hp:chart": 1,
+    "hp:checkBtn": 1,
+    "hp:colLine": 2,
+    "hp:colPr": 237,
+    "hp:colSz": 1,
+    "hp:comboBox": 1,
+    "hp:compose": 3,
+    "hp:connectLine": 2,
+    "hp:container": 67,
+    "hp:controlPoints": 1,
+    "hp:ctrl": 237,
+    "hp:curSz": 137,
+    "hp:curve": 1,
+    "hp:default": 236,
+    "hp:deleteBegin": 1,
+    "hp:deleteEnd": 1,
+    "hp:drawText": 42,
+    "hp:dutmal": 1,
+    "hp:edit": 1,
+    "hp:effect": 1,
+    "hp:effects": 61,
+    "hp:effectsColor": 1,
+    "hp:ellipse": 5,
+    "hp:endNotePr": 237,
+    "hp:endPt": 2,
+    "hp:equation": 7,
+    "hp:fieldBegin": 111,
+    "hp:fieldEnd": 111,
+    "hp:flip": 137,
+    "hp:footNotePr": 237,
+    "hp:footer": 42,
+    "hp:formCharPr": 3,
+    "hp:fwSpace": 45,
+    "hp:glow": 1,
+    "hp:grid": 237,
+    "hp:header": 33,
+    "hp:hiddenComment": 1,
+    "hp:imgClip": 61,
+    "hp:imgDim": 61,
+    "hp:imgRect": 61,
+    "hp:inMargin": 202,
+    "hp:insertBegin": 1,
+    "hp:insertEnd": 1,
+    "hp:integerParam": 111,
+    "hp:label": 64,
+    "hp:line": 2,
+    "hp:lineBreak": 32,
+    "hp:lineNumberShape": 237,
+    "hp:lineShape": 114,
+    "hp:lineseg": 213,
+    "hp:linesegarray": 213,
+    "hp:listItem": 1,
+    "hp:listParam": 1,
+    "hp:mainText": 1,
+    "hp:margin": 237,
+    "hp:markpenBegin": 23,
+    "hp:markpenEnd": 23,
+    "hp:masterPage": 1,
+    "hp:memo": 24,
+    "hp:memogroup": 24,
+    "hp:metaTag": 1,
+    "hp:nbSpace": 21,
+    "hp:newNum": 13,
+    "hp:noteLine": 237,
+    "hp:noteSpacing": 237,
+    "hp:numbering": 237,
+    "hp:offset": 237,
+    "hp:ole": 2,
+    "hp:orgSz": 137,
+    "hp:outMargin": 221,
+    "hp:p": 237,
+    "hp:pageBorderFill": 237,
+    "hp:pageHiding": 3,
+    "hp:pageNum": 51,
+    "hp:pagePr": 237,
+    "hp:paraList": 24,
+    "hp:parameters": 111,
+    "hp:parameterset": 1,
+    "hp:pic": 61,
+    "hp:placement": 237,
+    "hp:point": 1,
+    "hp:polygon": 2,
+    "hp:pos": 221,
+    "hp:presentation": 1,
+    "hp:radioBtn": 1,
+    "hp:rect": 104,
+    "hp:reflection": 1,
+    "hp:renderingInfo": 137,
+    "hp:rgb": 1,
+    "hp:rotationInfo": 137,
+    "hp:run": 237,
+    "hp:scale": 1,
+    "hp:script": 7,
+    "hp:secPr": 237,
+    "hp:seg": 1,
+    "hp:shadow": 113,
+    "hp:shapeComment": 137,
+    "hp:skew": 1,
+    "hp:softEdge": 1,
+    "hp:startNum": 237,
+    "hp:startPt": 2,
+    "hp:stringParam": 111,
+    "hp:subList": 208,
+    "hp:subText": 1,
+    "hp:switch": 236,
+    "hp:sz": 221,
+    "hp:t": 237,
+    "hp:tab": 77,
+    "hp:tbl": 200,
+    "hp:tc": 200,
+    "hp:text": 1,
+    "hp:textMargin": 42,
+    "hp:textart": 1,
+    "hp:textartPr": 1,
+    "hp:titleMark": 1,
+    "hp:tr": 200,
+    "hp:unsignedintegerParam": 1,
+    "hp:video": 1,
+    "hp:visibility": 237,
+    "hs:sec": 237,
+    "hv:HCFVersion": 237
+  },
+  "ours_element_filecounts": {
+    "ha:CaretPosition": 4,
+    "ha:HWPApplicationSetting": 4,
+    "hc:ax1": 1,
+    "hc:ax2": 1,
+    "hc:center": 1,
+    "hc:end1": 1,
+    "hc:end2": 1,
+    "hc:fillBrush": 4,
+    "hc:intent": 4,
+    "hc:left": 4,
+    "hc:next": 4,
+    "hc:prev": 4,
+    "hc:right": 4,
+    "hc:rotMatrix": 1,
+    "hc:scaMatrix": 1,
+    "hc:start1": 1,
+    "hc:start2": 1,
+    "hc:transMatrix": 1,
+    "hc:winBrush": 4,
+    "hh:align": 4,
+    "hh:autoSpacing": 4,
+    "hh:backSlash": 4,
+    "hh:beginNum": 4,
+    "hh:bold": 3,
+    "hh:border": 4,
+    "hh:borderFill": 4,
+    "hh:borderFills": 4,
+    "hh:bottomBorder": 4,
+    "hh:breakSetting": 4,
+    "hh:charPr": 4,
+    "hh:charProperties": 4,
+    "hh:compatibleDocument": 4,
+    "hh:diagonal": 4,
+    "hh:docOption": 4,
+    "hh:font": 4,
+    "hh:fontRef": 4,
+    "hh:fontface": 4,
+    "hh:fontfaces": 4,
+    "hh:head": 4,
+    "hh:heading": 4,
+    "hh:italic": 2,
+    "hh:layoutCompatibility": 4,
+    "hh:leftBorder": 4,
+    "hh:lineSpacing": 4,
+    "hh:linkinfo": 4,
+    "hh:margin": 4,
+    "hh:metaTag": 2,
+    "hh:numbering": 4,
+    "hh:numberings": 4,
+    "hh:offset": 4,
+    "hh:outline": 4,
+    "hh:paraHead": 4,
+    "hh:paraPr": 4,
+    "hh:paraProperties": 4,
+    "hh:ratio": 4,
+    "hh:refList": 4,
+    "hh:relSz": 4,
+    "hh:rightBorder": 4,
+    "hh:shadow": 4,
+    "hh:slash": 4,
+    "hh:spacing": 4,
+    "hh:strikeout": 4,
+    "hh:style": 4,
+    "hh:styles": 4,
+    "hh:tabPr": 4,
+    "hh:tabProperties": 4,
+    "hh:topBorder": 4,
+    "hh:trackchageConfig": 4,
+    "hh:typeInfo": 4,
+    "hh:underline": 4,
+    "hp:autoNumFormat": 4,
+    "hp:case": 4,
+    "hp:cellAddr": 3,
+    "hp:cellMargin": 3,
+    "hp:cellSpan": 3,
+    "hp:cellSz": 3,
+    "hp:colPr": 4,
+    "hp:ctrl": 4,
+    "hp:curSz": 1,
+    "hp:default": 4,
+    "hp:ellipse": 1,
+    "hp:endNotePr": 4,
+    "hp:fieldBegin": 1,
+    "hp:fieldEnd": 1,
+    "hp:flip": 1,
+    "hp:footNotePr": 4,
+    "hp:grid": 4,
+    "hp:inMargin": 3,
+    "hp:integerParam": 1,
+    "hp:lineNumberShape": 4,
+    "hp:lineShape": 1,
+    "hp:lineseg": 4,
+    "hp:linesegarray": 4,
+    "hp:margin": 4,
+    "hp:noteLine": 4,
+    "hp:noteSpacing": 4,
+    "hp:numbering": 4,
+    "hp:offset": 4,
+    "hp:orgSz": 1,
+    "hp:outMargin": 3,
+    "hp:p": 4,
+    "hp:pageBorderFill": 4,
+    "hp:pagePr": 4,
+    "hp:parameters": 1,
+    "hp:placement": 4,
+    "hp:pos": 3,
+    "hp:renderingInfo": 1,
+    "hp:rotationInfo": 1,
+    "hp:run": 4,
+    "hp:secPr": 4,
+    "hp:shadow": 1,
+    "hp:shapeComment": 1,
+    "hp:startNum": 4,
+    "hp:stringParam": 1,
+    "hp:subList": 3,
+    "hp:switch": 4,
+    "hp:sz": 3,
+    "hp:t": 4,
+    "hp:tbl": 3,
+    "hp:tc": 3,
+    "hp:tr": 3,
+    "hp:visibility": 4,
+    "hs:sec": 4,
+    "hv:HCFVersion": 4
+  },
+  "real_attribute_names_by_element": {
+    "ha:CaretPosition": [
+      "listIDRef",
+      "paraIDRef",
+      "pos"
+    ],
+    "ha:HWPApplicationSetting": [],
+    "hc:ax1": [
+      "x",
+      "y"
+    ],
+    "hc:ax2": [
+      "x",
+      "y"
+    ],
+    "hc:center": [
+      "x",
+      "y"
+    ],
+    "hc:color": [
+      "value"
+    ],
+    "hc:end1": [
+      "x",
+      "y"
+    ],
+    "hc:end2": [
+      "x",
+      "y"
+    ],
+    "hc:endPt": [
+      "x",
+      "y"
+    ],
+    "hc:extent": [
+      "x",
+      "y"
+    ],
+    "hc:fillBrush": [],
+    "hc:gradation": [
+      "alpha",
+      "angle",
+      "centerX",
+      "centerY",
+      "colorNum",
+      "step",
+      "stepCenter",
+      "type"
+    ],
+    "hc:img": [
+      "alpha",
+      "binaryItemIDRef",
+      "bright",
+      "contrast",
+      "effect"
+    ],
+    "hc:imgBrush": [
+      "mode"
+    ],
+    "hc:intent": [
+      "unit",
+      "value"
+    ],
+    "hc:left": [
+      "unit",
+      "value"
+    ],
+    "hc:next": [
+      "unit",
+      "value"
+    ],
+    "hc:prev": [
+      "unit",
+      "value"
+    ],
+    "hc:pt": [
+      "x",
+      "y"
+    ],
+    "hc:pt0": [
+      "x",
+      "y"
+    ],
+    "hc:pt1": [
+      "x",
+      "y"
+    ],
+    "hc:pt2": [
+      "x",
+      "y"
+    ],
+    "hc:pt3": [
+      "x",
+      "y"
+    ],
+    "hc:right": [
+      "unit",
+      "value"
+    ],
+    "hc:rotMatrix": [
+      "e1",
+      "e2",
+      "e3",
+      "e4",
+      "e5",
+      "e6"
+    ],
+    "hc:scaMatrix": [
+      "e1",
+      "e2",
+      "e3",
+      "e4",
+      "e5",
+      "e6"
+    ],
+    "hc:start1": [
+      "x",
+      "y"
+    ],
+    "hc:start2": [
+      "x",
+      "y"
+    ],
+    "hc:startPt": [
+      "x",
+      "y"
+    ],
+    "hc:transMatrix": [
+      "e1",
+      "e2",
+      "e3",
+      "e4",
+      "e5",
+      "e6"
+    ],
+    "hc:winBrush": [
+      "alpha",
+      "faceColor",
+      "hatchColor"
+    ],
+    "hh:align": [
+      "horizontal",
+      "vertical"
+    ],
+    "hh:autoSpacing": [
+      "eAsianEng",
+      "eAsianNum"
+    ],
+    "hh:backSlash": [
+      "Crooked",
+      "isCounter",
+      "type"
+    ],
+    "hh:beginNum": [
+      "endnote",
+      "equation",
+      "footnote",
+      "page",
+      "pic",
+      "tbl"
+    ],
+    "hh:bold": [],
+    "hh:border": [
+      "borderFillIDRef",
+      "connect",
+      "ignoreMargin",
+      "offsetBottom",
+      "offsetLeft",
+      "offsetRight",
+      "offsetTop"
+    ],
+    "hh:borderFill": [
+      "breakCellSeparateLine",
+      "centerLine",
+      "id",
+      "shadow",
+      "threeD"
+    ],
+    "hh:borderFills": [
+      "itemCnt"
+    ],
+    "hh:bottomBorder": [
+      "color",
+      "type",
+      "width"
+    ],
+    "hh:breakSetting": [
+      "breakLatinWord",
+      "breakNonLatinWord",
+      "keepLines",
+      "keepWithNext",
+      "lineWrap",
+      "pageBreakBefore",
+      "widowOrphan"
+    ],
+    "hh:bullet": [
+      "char",
+      "id",
+      "useImage"
+    ],
+    "hh:bullets": [
+      "itemCnt"
+    ],
+    "hh:charPr": [
+      "borderFillIDRef",
+      "height",
+      "id",
+      "shadeColor",
+      "symMark",
+      "textColor",
+      "useFontSpace",
+      "useKerning"
+    ],
+    "hh:charProperties": [
+      "itemCnt"
+    ],
+    "hh:compatibleDocument": [
+      "targetProgram"
+    ],
+    "hh:diagonal": [
+      "color",
+      "type",
+      "width"
+    ],
+    "hh:docOption": [],
+    "hh:font": [
+      "face",
+      "id",
+      "isEmbedded",
+      "type"
+    ],
+    "hh:fontRef": [
+      "hangul",
+      "hanja",
+      "japanese",
+      "latin",
+      "other",
+      "symbol",
+      "user"
+    ],
+    "hh:fontface": [
+      "fontCnt",
+      "lang"
+    ],
+    "hh:fontfaces": [
+      "itemCnt"
+    ],
+    "hh:forbiddenWord": [],
+    "hh:forbiddenWordList": [
+      "itemCnt"
+    ],
+    "hh:head": [
+      "secCnt",
+      "version"
+    ],
+    "hh:heading": [
+      "idRef",
+      "level",
+      "type"
+    ],
+    "hh:italic": [],
+    "hh:layoutCompatibility": [],
+    "hh:leftBorder": [
+      "color",
+      "type",
+      "width"
+    ],
+    "hh:lineSpacing": [
+      "type",
+      "unit",
+      "value"
+    ],
+    "hh:linkinfo": [
+      "footnoteInherit",
+      "pageInherit",
+      "path"
+    ],
+    "hh:margin": [],
+    "hh:memoPr": [
+      "activeColor",
+      "fillColor",
+      "id",
+      "lineColor",
+      "lineType",
+      "lineWidth",
+      "memoType",
+      "width"
+    ],
+    "hh:memoProperties": [
+      "itemCnt"
+    ],
+    "hh:metaTag": [],
+    "hh:numbering": [
+      "id",
+      "start"
+    ],
+    "hh:numberings": [
+      "itemCnt"
+    ],
+    "hh:offset": [
+      "hangul",
+      "hanja",
+      "japanese",
+      "latin",
+      "other",
+      "symbol",
+      "user"
+    ],
+    "hh:outline": [
+      "type"
+    ],
+    "hh:paraHead": [
+      "align",
+      "autoIndent",
+      "charPrIDRef",
+      "checkable",
+      "level",
+      "numFormat",
+      "start",
+      "textOffset",
+      "textOffsetType",
+      "useInstWidth",
+      "widthAdjust"
+    ],
+    "hh:paraPr": [
+      "checked",
+      "condense",
+      "fontLineHeight",
+      "id",
+      "snapToGrid",
+      "suppressLineNumbers",
+      "tabPrIDRef",
+      "textDir"
+    ],
+    "hh:paraProperties": [
+      "itemCnt"
+    ],
+    "hh:ratio": [
+      "hangul",
+      "hanja",
+      "japanese",
+      "latin",
+      "other",
+      "symbol",
+      "user"
+    ],
+    "hh:refList": [],
+    "hh:relSz": [
+      "hangul",
+      "hanja",
+      "japanese",
+      "latin",
+      "other",
+      "symbol",
+      "user"
+    ],
+    "hh:rightBorder": [
+      "color",
+      "type",
+      "width"
+    ],
+    "hh:shadow": [
+      "color",
+      "offsetX",
+      "offsetY",
+      "type"
+    ],
+    "hh:slash": [
+      "Crooked",
+      "isCounter",
+      "type"
+    ],
+    "hh:spacing": [
+      "hangul",
+      "hanja",
+      "japanese",
+      "latin",
+      "other",
+      "symbol",
+      "user"
+    ],
+    "hh:strikeout": [
+      "color",
+      "shape"
+    ],
+    "hh:style": [
+      "charPrIDRef",
+      "engName",
+      "id",
+      "langID",
+      "lockForm",
+      "name",
+      "nextStyleIDRef",
+      "paraPrIDRef",
+      "type"
+    ],
+    "hh:styles": [
+      "itemCnt"
+    ],
+    "hh:substFont": [
+      "binaryItemIDRef",
+      "face",
+      "isEmbedded",
+      "type"
+    ],
+    "hh:supscript": [],
+    "hh:tabItem": [
+      "leader",
+      "pos",
+      "type",
+      "unit"
+    ],
+    "hh:tabPr": [
+      "autoTabLeft",
+      "autoTabRight",
+      "id"
+    ],
+    "hh:tabProperties": [
+      "itemCnt"
+    ],
+    "hh:topBorder": [
+      "color",
+      "type",
+      "width"
+    ],
+    "hh:trackChange": [
+      "authorID",
+      "date",
+      "hide",
+      "id",
+      "type"
+    ],
+    "hh:trackChangeAuthor": [
+      "id",
+      "mark",
+      "name"
+    ],
+    "hh:trackChangeAuthors": [
+      "itemCnt"
+    ],
+    "hh:trackChanges": [
+      "itemCnt"
+    ],
+    "hh:trackchageConfig": [
+      "flags"
+    ],
+    "hh:typeInfo": [
+      "armStyle",
+      "contrast",
+      "familyType",
+      "letterform",
+      "midline",
+      "proportion",
+      "strokeVariation",
+      "weight",
+      "xHeight"
+    ],
+    "hh:underline": [
+      "color",
+      "shape",
+      "type"
+    ],
+    "hp:alpha": [
+      "end",
+      "start"
+    ],
+    "hp:arc": [
+      "dropcapstyle",
+      "groupLevel",
+      "href",
+      "id",
+      "instid",
+      "lock",
+      "numberingType",
+      "textFlow",
+      "textWrap",
+      "type",
+      "zOrder"
+    ],
+    "hp:autoNum": [
+      "num",
+      "numType"
+    ],
+    "hp:autoNumFormat": [
+      "prefixChar",
+      "suffixChar",
+      "supscript",
+      "type",
+      "userChar"
+    ],
+    "hp:bookmark": [
+      "name"
+    ],
+    "hp:btn": [
+      "backColor",
+      "borderTypeIDRef",
+      "caption",
+      "command",
+      "drawFrame",
+      "editable",
+      "enabled",
+      "foreColor",
+      "groupName",
+      "name",
+      "printable",
+      "radioGroupName",
+      "tabOrder",
+      "tabStop",
+      "triState",
+      "value"
+    ],
+    "hp:caption": [
+      "fullSz",
+      "gap",
+      "lastWidth",
+      "side",
+      "width"
+    ],
+    "hp:case": [
+      "required-namespace"
+    ],
+    "hp:cellAddr": [
+      "colAddr",
+      "rowAddr"
+    ],
+    "hp:cellMargin": [
+      "bottom",
+      "left",
+      "right",
+      "top"
+    ],
+    "hp:cellSpan": [
+      "colSpan",
+      "rowSpan"
+    ],
+    "hp:cellSz": [
+      "height",
+      "width"
+    ],
+    "hp:charPr": [
+      "prIDRef"
+    ],
+    "hp:chart": [
+      "chartIDRef",
+      "dropcapstyle",
+      "id",
+      "lock",
+      "numberingType",
+      "textFlow",
+      "textWrap",
+      "zOrder"
+    ],
+    "hp:checkBtn": [
+      "backColor",
+      "backStyle",
+      "borderTypeIDRef",
+      "caption",
+      "command",
+      "drawFrame",
+      "editable",
+      "enabled",
+      "foreColor",
+      "groupName",
+      "name",
+      "printable",
+      "radioGroupName",
+      "tabOrder",
+      "tabStop",
+      "triState",
+      "value"
+    ],
+    "hp:colLine": [
+      "color",
+      "type",
+      "width"
+    ],
+    "hp:colPr": [
+      "colCount",
+      "id",
+      "layout",
+      "sameGap",
+      "sameSz",
+      "type"
+    ],
+    "hp:colSz": [
+      "gap",
+      "width"
+    ],
+    "hp:comboBox": [
+      "backColor",
+      "borderTypeIDRef",
+      "command",
+      "drawFrame",
+      "editEnable",
+      "editable",
+      "enabled",
+      "foreColor",
+      "groupName",
+      "listBoxRows",
+      "listBoxWidth",
+      "name",
+      "printable",
+      "selectedValue",
+      "tabOrder",
+      "tabStop"
+    ],
+    "hp:compose": [
+      "charPrCnt",
+      "charSz",
+      "circleType",
+      "composeText",
+      "composeType"
+    ],
+    "hp:connectLine": [
+      "dropcapstyle",
+      "groupLevel",
+      "href",
+      "id",
+      "instid",
+      "lock",
+      "numberingType",
+      "textFlow",
+      "textWrap",
+      "type",
+      "zOrder"
+    ],
+    "hp:container": [
+      "dropcapstyle",
+      "groupLevel",
+      "href",
+      "id",
+      "instid",
+      "lock",
+      "numberingType",
+      "textFlow",
+      "textWrap",
+      "zOrder"
+    ],
+    "hp:controlPoints": [],
+    "hp:ctrl": [],
+    "hp:curSz": [
+      "height",
+      "width"
+    ],
+    "hp:curve": [
+      "dropcapstyle",
+      "groupLevel",
+      "href",
+      "id",
+      "instid",
+      "lock",
+      "numberingType",
+      "textFlow",
+      "textWrap",
+      "zOrder"
+    ],
+    "hp:default": [],
+    "hp:deleteBegin": [
+      "Id",
+      "TcId"
+    ],
+    "hp:deleteEnd": [
+      "Id",
+      "TcId",
+      "paraend"
+    ],
+    "hp:drawText": [
+      "editable",
+      "lastWidth",
+      "name"
+    ],
+    "hp:dutmal": [
+      "align",
+      "option",
+      "posType",
+      "styleIDRef",
+      "szRatio"
+    ],
+    "hp:edit": [
+      "alignText",
+      "backColor",
+      "borderTypeIDRef",
+      "command",
+      "drawFrame",
+      "editable",
+      "enabled",
+      "foreColor",
+      "groupName",
+      "maxLength",
+      "multiLine",
+      "name",
+      "numOnly",
+      "passwordChar",
+      "printable",
+      "readOnly",
+      "scrollBars",
+      "tabKeyBehavior",
+      "tabOrder",
+      "tabStop"
+    ],
+    "hp:effect": [
+      "type",
+      "value"
+    ],
+    "hp:effects": [],
+    "hp:effectsColor": [
+      "presetIdx",
+      "schemeIdx",
+      "systemIdx",
+      "type"
+    ],
+    "hp:ellipse": [
+      "arcType",
+      "dropcapstyle",
+      "groupLevel",
+      "hasArcPr",
+      "href",
+      "id",
+      "instid",
+      "intervalDirty",
+      "lock",
+      "numberingType",
+      "textFlow",
+      "textWrap",
+      "zOrder"
+    ],
+    "hp:endNotePr": [],
+    "hp:endPt": [
+      "subjectIDRef",
+      "subjectIdx",
+      "x",
+      "y"
+    ],
+    "hp:equation": [
+      "baseLine",
+      "baseUnit",
+      "dropcapstyle",
+      "font",
+      "id",
+      "lineMode",
+      "lock",
+      "numberingType",
+      "textColor",
+      "textFlow",
+      "textWrap",
+      "version",
+      "zOrder"
+    ],
+    "hp:fieldBegin": [
+      "dirty",
+      "editable",
+      "fieldid",
+      "id",
+      "metaTag",
+      "name",
+      "type",
+      "zorder"
+    ],
+    "hp:fieldEnd": [
+      "beginIDRef",
+      "fieldid"
+    ],
+    "hp:flip": [
+      "horizontal",
+      "vertical"
+    ],
+    "hp:footNotePr": [],
+    "hp:footer": [
+      "applyPageType",
+      "id"
+    ],
+    "hp:formCharPr": [
+      "autoSz",
+      "charPrIDRef",
+      "followContext",
+      "wordWrap"
+    ],
+    "hp:fwSpace": [],
+    "hp:glow": [
+      "alpha",
+      "radius"
+    ],
+    "hp:grid": [
+      "charGrid",
+      "lineGrid",
+      "wonggojiFormat"
+    ],
+    "hp:header": [
+      "applyPageType",
+      "id"
+    ],
+    "hp:hiddenComment": [],
+    "hp:imgClip": [
+      "bottom",
+      "left",
+      "right",
+      "top"
+    ],
+    "hp:imgDim": [
+      "dimheight",
+      "dimwidth"
+    ],
+    "hp:imgRect": [],
+    "hp:inMargin": [
+      "bottom",
+      "left",
+      "right",
+      "top"
+    ],
+    "hp:insertBegin": [
+      "Id",
+      "TcId"
+    ],
+    "hp:insertEnd": [
+      "Id",
+      "TcId",
+      "paraend"
+    ],
+    "hp:integerParam": [
+      "name"
+    ],
+    "hp:label": [
+      "boxlength",
+      "boxmarginhor",
+      "boxmarginver",
+      "boxwidth",
+      "labelcols",
+      "labelrows",
+      "landscape",
+      "leftmargin",
+      "pageheight",
+      "pagewidth",
+      "topmargin"
+    ],
+    "hp:line": [
+      "dropcapstyle",
+      "groupLevel",
+      "href",
+      "id",
+      "instid",
+      "isReverseHV",
+      "lock",
+      "numberingType",
+      "textFlow",
+      "textWrap",
+      "zOrder"
+    ],
+    "hp:lineBreak": [],
+    "hp:lineNumberShape": [
+      "countBy",
+      "distance",
+      "restartType",
+      "startNumber"
+    ],
+    "hp:lineShape": [
+      "alpha",
+      "color",
+      "endCap",
+      "headStyle",
+      "headSz",
+      "headfill",
+      "outlineStyle",
+      "style",
+      "tailStyle",
+      "tailSz",
+      "tailfill",
+      "width"
+    ],
+    "hp:lineseg": [
+      "baseline",
+      "flags",
+      "horzpos",
+      "horzsize",
+      "spacing",
+      "textheight",
+      "textpos",
+      "vertpos",
+      "vertsize"
+    ],
+    "hp:linesegarray": [],
+    "hp:listItem": [
+      "displayText",
+      "value"
+    ],
+    "hp:listParam": [
+      "cnt",
+      "name"
+    ],
+    "hp:mainText": [],
+    "hp:margin": [
+      "bottom",
+      "footer",
+      "gutter",
+      "header",
+      "left",
+      "right",
+      "top"
+    ],
+    "hp:markpenBegin": [
+      "color"
+    ],
+    "hp:markpenEnd": [],
+    "hp:masterPage": [
+      "idRef"
+    ],
+    "hp:memo": [
+      "author",
+      "createDateTime",
+      "id",
+      "memoShapeIDRef"
+    ],
+    "hp:memogroup": [],
+    "hp:metaTag": [],
+    "hp:nbSpace": [],
+    "hp:newNum": [
+      "num",
+      "numType"
+    ],
+    "hp:noteLine": [
+      "color",
+      "length",
+      "type",
+      "width"
+    ],
+    "hp:noteSpacing": [
+      "aboveLine",
+      "belowLine",
+      "betweenNotes"
+    ],
+    "hp:numbering": [
+      "newNum",
+      "type"
+    ],
+    "hp:offset": [
+      "bottom",
+      "left",
+      "right",
+      "top",
+      "x",
+      "y"
+    ],
+    "hp:ole": [
+      "binaryItemIDRef",
+      "drawAspect",
+      "dropcapstyle",
+      "eqBaseLine",
+      "groupLevel",
+      "hasMoniker",
+      "href",
+      "id",
+      "instid",
+      "lock",
+      "numberingType",
+      "objectType",
+      "textFlow",
+      "textWrap",
+      "zOrder"
+    ],
+    "hp:orgSz": [
+      "height",
+      "width"
+    ],
+    "hp:outMargin": [
+      "bottom",
+      "left",
+      "right",
+      "top"
+    ],
+    "hp:p": [
+      "columnBreak",
+      "id",
+      "merged",
+      "pageBreak",
+      "paraPrIDRef",
+      "styleIDRef"
+    ],
+    "hp:pageBorderFill": [
+      "borderFillIDRef",
+      "fillArea",
+      "footerInside",
+      "headerInside",
+      "textBorder",
+      "type"
+    ],
+    "hp:pageHiding": [
+      "hideBorder",
+      "hideFill",
+      "hideFooter",
+      "hideHeader",
+      "hideMasterPage",
+      "hidePageNum"
+    ],
+    "hp:pageNum": [
+      "formatType",
+      "pos",
+      "sideChar"
+    ],
+    "hp:pagePr": [
+      "gutterType",
+      "height",
+      "landscape",
+      "width"
+    ],
+    "hp:paraList": [],
+    "hp:parameters": [
+      "cnt",
+      "count",
+      "name"
+    ],
+    "hp:parameterset": [
+      "cnt",
+      "name"
+    ],
+    "hp:pic": [
+      "dropcapstyle",
+      "groupLevel",
+      "href",
+      "id",
+      "instid",
+      "lock",
+      "numberingType",
+      "reverse",
+      "textFlow",
+      "textWrap",
+      "zOrder"
+    ],
+    "hp:placement": [
+      "beneathText",
+      "place"
+    ],
+    "hp:point": [
+      "type",
+      "x",
+      "y"
+    ],
+    "hp:polygon": [
+      "dropcapstyle",
+      "groupLevel",
+      "href",
+      "id",
+      "instid",
+      "lock",
+      "numberingType",
+      "textFlow",
+      "textWrap",
+      "zOrder"
+    ],
+    "hp:pos": [
+      "affectLSpacing",
+      "allowOverlap",
+      "end",
+      "flowWithText",
+      "holdAnchorAndSO",
+      "horzAlign",
+      "horzOffset",
+      "horzRelTo",
+      "start",
+      "treatAsChar",
+      "vertAlign",
+      "vertOffset",
+      "vertRelTo"
+    ],
+    "hp:presentation": [
+      "applyto",
+      "autoshow",
+      "effect",
+      "invertText",
+      "showtime",
+      "soundIDRef"
+    ],
+    "hp:radioBtn": [
+      "backColor",
+      "backStyle",
+      "borderTypeIDRef",
+      "caption",
+      "command",
+      "drawFrame",
+      "editable",
+      "enabled",
+      "foreColor",
+      "groupName",
+      "name",
+      "printable",
+      "radioGroupName",
+      "tabOrder",
+      "tabStop",
+      "triState",
+      "value"
+    ],
+    "hp:rect": [
+      "dropcapstyle",
+      "groupLevel",
+      "href",
+      "id",
+      "instid",
+      "lock",
+      "numberingType",
+      "ratio",
+      "textFlow",
+      "textWrap",
+      "zOrder"
+    ],
+    "hp:reflection": [
+      "alignStyle",
+      "direction",
+      "distance",
+      "fadeDirection",
+      "radius",
+      "rotationStyle"
+    ],
+    "hp:renderingInfo": [],
+    "hp:rgb": [
+      "b",
+      "g",
+      "r"
+    ],
+    "hp:rotationInfo": [
+      "angle",
+      "centerX",
+      "centerY",
+      "rotateimage"
+    ],
+    "hp:run": [
+      "charPrIDRef"
+    ],
+    "hp:scale": [
+      "x",
+      "y"
+    ],
+    "hp:script": [],
+    "hp:secPr": [
+      "id",
+      "masterPageCnt",
+      "memoShapeIDRef",
+      "outlineShapeIDRef",
+      "spaceColumns",
+      "tabStop",
+      "tabStopUnit",
+      "tabStopVal",
+      "textDirection",
+      "textVerticalWidthHead"
+    ],
+    "hp:seg": [
+      "type",
+      "x1",
+      "x2",
+      "y1",
+      "y2"
+    ],
+    "hp:shadow": [
+      "alignStyle",
+      "alpha",
+      "color",
+      "direction",
+      "distance",
+      "offsetX",
+      "offsetY",
+      "radius",
+      "rotationStyle",
+      "style",
+      "type"
+    ],
+    "hp:shapeComment": [],
+    "hp:skew": [
+      "x",
+      "y"
+    ],
+    "hp:softEdge": [
+      "radius"
+    ],
+    "hp:startNum": [
+      "equation",
+      "page",
+      "pageStartsOn",
+      "pic",
+      "tbl"
+    ],
+    "hp:startPt": [
+      "subjectIDRef",
+      "subjectIdx",
+      "x",
+      "y"
+    ],
+    "hp:stringParam": [
+      "name",
+      "space"
+    ],
+    "hp:subList": [
+      "hasNumRef",
+      "hasTextRef",
+      "id",
+      "lineWrap",
+      "linkListIDRef",
+      "linkListNextIDRef",
+      "metatag",
+      "textDirection",
+      "textHeight",
+      "textWidth",
+      "vertAlign"
+    ],
+    "hp:subText": [],
+    "hp:switch": [],
+    "hp:sz": [
+      "height",
+      "heightRelTo",
+      "protect",
+      "width",
+      "widthRelTo"
+    ],
+    "hp:t": [
+      "charStyleIDRef"
+    ],
+    "hp:tab": [
+      "leader",
+      "type",
+      "width"
+    ],
+    "hp:tbl": [
+      "borderFillIDRef",
+      "cellSpacing",
+      "colCnt",
+      "dropcapstyle",
+      "id",
+      "lock",
+      "noAdjust",
+      "numberingType",
+      "pageBreak",
+      "repeatHeader",
+      "rowCnt",
+      "textFlow",
+      "textWrap",
+      "zOrder"
+    ],
+    "hp:tc": [
+      "borderFillIDRef",
+      "dirty",
+      "editable",
+      "hasMargin",
+      "header",
+      "name",
+      "protect"
+    ],
+    "hp:text": [],
+    "hp:textMargin": [
+      "bottom",
+      "left",
+      "right",
+      "top"
+    ],
+    "hp:textart": [
+      "dropcapstyle",
+      "groupLevel",
+      "href",
+      "id",
+      "instid",
+      "lock",
+      "numberingType",
+      "text",
+      "textFlow",
+      "textWrap",
+      "zOrder"
+    ],
+    "hp:textartPr": [
+      "align",
+      "charSpacing",
+      "fontName",
+      "fontStyle",
+      "fontType",
+      "lineSpacing",
+      "textShape"
+    ],
+    "hp:titleMark": [
+      "ignore"
+    ],
+    "hp:tr": [],
+    "hp:unsignedintegerParam": [
+      "name"
+    ],
+    "hp:video": [
+      "dropcapstyle",
+      "fileIDRef",
+      "groupLevel",
+      "href",
+      "id",
+      "imageIDRef",
+      "instid",
+      "lock",
+      "numberingType",
+      "tag",
+      "textFlow",
+      "textWrap",
+      "videotype",
+      "zOrder"
+    ],
+    "hp:visibility": [
+      "border",
+      "fill",
+      "hideFirstEmptyLine",
+      "hideFirstFooter",
+      "hideFirstHeader",
+      "hideFirstMasterPage",
+      "hideFirstPageNum",
+      "showLineNumber"
+    ],
+    "hs:sec": [],
+    "hv:HCFVersion": [
+      "appVersion",
+      "application",
+      "buildNumber",
+      "major",
+      "micro",
+      "minor",
+      "os",
+      "tagetApplication",
+      "xmlVersion"
+    ]
+  },
+  "foreignNamespaces": {
+    "http://schemas.haansoft.com/office/8.0": 1,
+    "http://schemas.microsoft.com/office/drawing/2007/8/2/chart": 1,
+    "http://schemas.openxmlformats.org/drawingml/2006/chart": 1,
+    "http://schemas.openxmlformats.org/drawingml/2006/main": 1,
+    "http://schemas.openxmlformats.org/markup-compatibility/2006": 1,
+    "http://schemas.openxmlformats.org/officeDocument/2006/bibliography": 1,
+    "http://www.hancom.co.kr/hwpml/2016/meta/pkg#": 199,
+    "http://www.hancom.co.kr/hwpml/2021/extended": 1,
+    "http://www.idpf.org/2007/opf/": 237,
+    "http://www.w3.org/1999/02/22-rdf-syntax-ns#": 199,
+    "urn:oasis:names:tc:opendocument:xmlns:config:1.0": 132,
+    "urn:oasis:names:tc:opendocument:xmlns:container": 237,
+    "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0": 236
+  },
+  "unnamespacedElements": {
+    "masterPage": 1
+  }
 }
