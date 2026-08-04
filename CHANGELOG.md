@@ -4,6 +4,50 @@
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-08-04
+
+엔진 완전성 트레인의 major 경계입니다 — 표면을 도메인 네임스페이스로 재편하고,
+완전성을 측정할 구조물(커버리지 원장·편차 레지스트리·왕복 하니스·코퍼스 v4)을
+세웁니다. 독립 감사 판정: "완전성에 도달한 버전"이 아니라 "완전성을 측정하고
+채워 나갈 구조물"이 정확한 서사입니다(`docs/2026-08-04-completeness-audit-verdict.md`).
+
+### 바뀜 (파괴적 — major 근거)
+
+- **루트 표면 102 → 34.** 이동한 79개 이름은 도메인 네임스페이스로:
+  `doc.notes`(각주·미주·메모) · `doc.fields`(누름틀·체크박스·하이퍼링크) ·
+  `doc.shapes`(도형·그림·수식·차트) · `doc.styles`(문자·문단 서식, 스타일) ·
+  `doc.page`(용지·구역) · `doc.tracking`(변경추적) · `doc.text`(검색·치환) ·
+  `doc.toc` · `doc.plan` · `doc.media` · `doc.parts`. 5.x 루트 이름 전부가
+  행선지를 안내하는 `DeprecationWarning` shim으로 7.0까지 동작합니다.
+- **반환 규약 단일화**: 저작 메서드는 라이브 도메인 객체를, 결과 페이로드는
+  `frozen dataclass`(+`to_dict()`)를 반환합니다 — dict/tuple/스칼라 반환 0.
+- **typed error**: 공개 경로 100%가 kebab `code`를 가진
+  `HwpxValueError/TypeError/LookupError/StateError`로 던집니다(기존 builtin
+  except 절과 이중상속 호환). 스타일 이름 오타는 호출 시점에
+  `style-not-found`(+근접 제안)로, 없는 숫자 id도 저장 전에 거부됩니다.
+
+### 추가됨
+
+- `add_paragraph(style="개요 1")` 스타일 **이름** 해석과 `add_heading(level=)`
+  (styleIDRef + `hh:heading` OUTLINE 이중 방출).
+- Q3b 요소 개방: `pageBorderFill`(BOTH/EVEN/ODD 질의·저작),
+  footnote/endnote 모양 5블록 부분 갱신, `ensure_style`(이름 기반 신규 스타일),
+  `set_visibility`/`set_line_numbers`/`set_grid`.
+- **커버리지 원장**(`docs/coverage-ledger.md`, 345 요소 기계 재산출 —
+  ⚠알려진 측정 오차 절 필독) · **OWPML 편차 레지스트리** 17항목
+  (`specs/063-owpml-deviations/`) · 왕복 충실도 하니스 · 코퍼스 v4
+  (실한컴 12.0.0.3288에서 170/170 개봉·170/170 렌더 검증,
+  `docs/openrate/report-v4.json`).
+- 실측 비교표 `docs/comparison-python-docx.md`(대조군 리플렉션 실측,
+  지는 칸 5행 포함) · 이주 가이드 `docs/migration-6.0.md` ·
+  문서 예제 자립 실행 71/117.
+
+### 제거 예고
+
+- legacy shim 79종과 `section_index=` 파라미터는 **7.0.0에서 제거**됩니다.
+  `python -m hwpx.capabilities`의 `surfaceShape`가 shim 수와 제거 시점을
+  기계 판독 가능하게 노출합니다.
+
 ## [5.8.0] - 2026-08-03
 
 정직성 트레인입니다 — 새 저작 표면 없이, 라이브러리가 하는 말을 전부 참으로
