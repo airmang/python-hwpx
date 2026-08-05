@@ -4,8 +4,8 @@
    "capabilities.py:372"
   ],
   "document-header-missing": [
-   "_document/layout.py:146",
-   "_document/layout.py:300",
+   "_document/layout.py:147",
+   "_document/layout.py:301",
    "oxml/document_parts.py:680",
    "oxml/document_parts.py:801"
   ],
@@ -77,61 +77,64 @@
    "_document/persistence.py:105"
   ],
   "page-argument-conflict": [
-   "_document/layout.py:720",
+   "_document/layout.py:721",
    "_document/ns/page.py:252"
   ],
   "page-argument-missing": [
    "_document/ns/page.py:261"
   ],
   "page-columns-invalid": [
-   "_document/layout.py:445"
+   "_document/layout.py:446"
   ],
   "page-kind-invalid": [
-   "_document/layout.py:713"
+   "_document/layout.py:714"
+  ],
+  "page-new-num-kind-invalid": [
+   "_document/layout.py:829"
   ],
   "page-orientation-unsupported": [
-   "_document/layout.py:58"
+   "_document/layout.py:59"
   ],
   "page-paper-size-unsupported": [
-   "_document/layout.py:384"
+   "_document/layout.py:385"
   ],
   "paragraph-argument-conflict": [
-   "_document/layout.py:81"
+   "_document/layout.py:82"
   ],
   "paragraph-format-empty": [
-   "_document/layout.py:208"
+   "_document/layout.py:209"
   ],
   "paragraph-indexes-empty": [
-   "_document/layout.py:92"
+   "_document/layout.py:93"
   ],
   "paragraph-invalid-type": [
    "_document/_resolve.py:168"
   ],
   "paragraph-line-spacing-invalid": [
-   "_document/layout.py:154"
+   "_document/layout.py:155"
   ],
   "paragraph-missing": [
    "_document/_resolve.py:149",
-   "_document/layout.py:75"
+   "_document/layout.py:76"
   ],
   "paragraph-not-found": [
    "_document/_resolve.py:161",
    "_document/headings.py:182"
   ],
   "paragraph-outline-level-out-of-range": [
-   "_document/layout.py:180"
+   "_document/layout.py:181"
   ],
   "paragraph-tab-leader-invalid": [
-   "oxml/_document_primitives.py:1286"
+   "oxml/_document_primitives.py:1293"
   ],
   "paragraph-tab-pos-invalid": [
-   "_document/layout.py:219",
-   "oxml/_document_primitives.py:1252",
-   "oxml/_document_primitives.py:1261",
-   "oxml/_document_primitives.py:1267"
+   "_document/layout.py:220",
+   "oxml/_document_primitives.py:1259",
+   "oxml/_document_primitives.py:1268",
+   "oxml/_document_primitives.py:1274"
   ],
   "paragraph-tab-type-invalid": [
-   "oxml/_document_primitives.py:1274"
+   "oxml/_document_primitives.py:1281"
   ],
   "quality-gate-failed": [
    "_document/persistence.py:143"
@@ -148,7 +151,7 @@
   ],
   "section-missing": [
    "_document/_resolve.py:84",
-   "_document/layout.py:586",
+   "_document/layout.py:587",
    "_document/memos.py:50"
   ],
   "section-not-found": [
@@ -231,10 +234,10 @@
    "oxml/_document_primitives.py:1096"
   ],
   "style-list-level-invalid": [
-   "_document/layout.py:293"
+   "_document/layout.py:294"
   ],
   "style-list-property-failed": [
-   "_document/layout.py:320"
+   "_document/layout.py:321"
   ],
   "style-tab-container-create-failed": [
    "oxml/header_part.py:756"
@@ -252,7 +255,7 @@
    "_document/highlight.py:101"
   ],
   "text-search-empty": [
-   "_document/_legacy.py:1359",
+   "_document/_legacy.py:1326",
    "_document/ns/text.py:118"
   ],
   "track-match-crosses-markup": [
@@ -283,7 +286,7 @@
  "malformedCodes": [],
  "observed": {
   "other": 139,
-  "typed": 137,
+  "typed": 138,
   "untyped": 204,
   "untypedByFile": {
    "body_patch.py": 20,
@@ -321,8 +324,8 @@
   }
  },
  "public": {
-  "total": 89,
-  "typed": 89,
+  "total": 90,
+  "typed": 90,
   "typedRatio": 1.0,
   "untyped": 0,
   "untypedSites": []

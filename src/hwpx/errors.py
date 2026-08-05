@@ -231,6 +231,7 @@ ERROR_CODES: dict[str, str] = {
     "page-columns-invalid": "단 수는 1 이상이어야 한다.",
     "page-orientation-unsupported": "지원하지 않는 용지 방향이다.",
     "page-paper-size-unsupported": "지원하지 않는 용지 규격이다.",
+    "page-new-num-kind-invalid": "쪽번호 재시작 kind 값이 OWPML 어휘(hp:AutoNumNewNumType/@numType) 밖이다.",
     # -- 양식개체 --------------------------------------------------------
     "field-name-empty": "누름틀 이름이 비어 있다.",
     "field-not-found": "그 선택자로 누름틀을 찾지 못했다.",

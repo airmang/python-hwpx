@@ -1229,6 +1229,13 @@ _TAB_LEADER_TYPES = LINE_TYPE2_VALUES
 #: 3종(USER_INSERT/DELETE/UPDATE)은 미관측이나 스키마가 선언하므로 받는다.
 MEMO_TYPE_VALUES = frozenset({"NOMAL", "USER_INSERT", "USER_DELETE", "USER_UPDATE"})
 
+#: ``hp:AutoNumNewNumType/@numType`` 어휘(ParaList XML schema.xml:2746-2757) —
+#: ``hp:autoNum``과 ``hp:newNum``이 공유하는 타입. 실코퍼스(hwpxlib_corpus,
+#: newNum 7+파일)는 ``PAGE``만 관측했다.
+NEW_NUM_KINDS = frozenset({
+    "PAGE", "FOOTNOTE", "ENDNOTE", "PICTURE", "TABLE", "EQUATION", "TOTAL_PAGE",
+})
+
 
 def _normalize_tab_stops(
     tab_stops: "Iterable[Mapping[str, object]] | None",

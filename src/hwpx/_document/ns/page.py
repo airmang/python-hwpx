@@ -27,7 +27,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
 from ...errors import HwpxValueError
-from .._resolve import resolve_section
+from .._resolve import resolve_paragraph, resolve_section
 from ._base import _Namespace
 
 if TYPE_CHECKING:
@@ -337,6 +337,54 @@ class PageNamespace(_Namespace):
             suffix=suffix,
             format_type=format_type,
             section=self._section(section, section_index, "set_page_number"),
+        )
+
+    def restart_page_number(
+        self,
+        paragraph: "HwpxOxmlParagraph | int",
+        *,
+        number: int = 1,
+        kind: str = "PAGE",
+    ) -> "HwpxOxmlInlineObject":
+        """*paragraph* 부터 *kind* 의 진행 번호를 *number* 로 재시작한다.
+
+        `set_page_number` 가 머리말/꼬리말의 *표시* 필드를 다루는 것과 달리,
+        이건 구역 중간의 재시작 지점(`hp:newNum`)을 문단에 심는다.
+        """
+
+        from .. import layout as _layout
+
+        return _layout.restart_page_number(
+            self._doc,
+            resolve_paragraph(self._doc, paragraph, caller="doc.page.restart_page_number"),
+            number=number,
+            kind=kind,
+        )
+
+    def hide_page_elements(
+        self,
+        paragraph: "HwpxOxmlParagraph | int",
+        *,
+        header: bool = False,
+        footer: bool = False,
+        master_page: bool = False,
+        border: bool = False,
+        fill: bool = False,
+        page_num: bool = False,
+    ) -> "HwpxOxmlInlineObject":
+        """*paragraph* 가 속한 쪽부터 지정한 요소를 숨긴다(`hp:pageHiding`)."""
+
+        from .. import layout as _layout
+
+        return _layout.hide_page_elements(
+            self._doc,
+            resolve_paragraph(self._doc, paragraph, caller="doc.page.hide_page_elements"),
+            header=header,
+            footer=footer,
+            master_page=master_page,
+            border=border,
+            fill=fill,
+            page_num=page_num,
         )
 
     # -- 읽기: 현재 지면 상태 ----------------------------------------------

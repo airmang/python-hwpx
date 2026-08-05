@@ -15,6 +15,7 @@ from ..objects.results import (
     ParagraphFormatResult,
     Units,
 )
+from ..oxml._document_primitives import NEW_NUM_KINDS
 from ..oxml.namespaces import HH
 from ._units import _mm_to_hwp_units, _pt_to_hwp_units
 
@@ -803,6 +804,61 @@ def set_page_number(
         section=section,
         section_index=section_index,
         page_type=page_type,
+    )
+
+
+def restart_page_number(
+    doc: "HwpxDocument",
+    paragraph: "HwpxOxmlParagraph",
+    *,
+    number: int = 1,
+    kind: str = "PAGE",
+) -> "HwpxOxmlInlineObject":
+    """Restart *kind*'s running count at *number* from *paragraph* onward.
+
+    Inserts ``<hp:ctrl><hp:newNum num="{number}" numType="{kind}"/></hp:ctrl>``
+    — a section-mid restart point, distinct from ``set_page_number`` (which
+    places the *display* field in a header/footer). ``kind`` defaults to
+    ``"PAGE"``, the only value real corpus (hwpxlib_corpus) observes; the
+    other six (``FOOTNOTE``/``ENDNOTE``/``PICTURE``/``TABLE``/``EQUATION``/
+    ``TOTAL_PAGE``) are schema-legal but unattested.
+    """
+
+    normalized_kind = str(kind or "PAGE").upper()
+    if normalized_kind not in NEW_NUM_KINDS:
+        raise HwpxValueError(
+            f"unsupported kind {kind!r}",
+            code="page-new-num-kind-invalid",
+            context={"kind": normalized_kind, "allowed": sorted(NEW_NUM_KINDS)},
+            suggestion="Use one of: " + ", ".join(sorted(NEW_NUM_KINDS)),
+        )
+    return paragraph.add_new_num(number=number, kind=normalized_kind)
+
+
+def hide_page_elements(
+    doc: "HwpxDocument",
+    paragraph: "HwpxOxmlParagraph",
+    *,
+    header: bool = False,
+    footer: bool = False,
+    master_page: bool = False,
+    border: bool = False,
+    fill: bool = False,
+    page_num: bool = False,
+) -> "HwpxOxmlInlineObject":
+    """Hide the named page elements from *paragraph*'s page onward.
+
+    Inserts ``<hp:ctrl><hp:pageHiding .../></hp:ctrl>`` (``ParaList XML
+    schema.xml:148-163`` — six independent booleans, all default unhidden).
+    """
+
+    return paragraph.add_page_hiding(
+        header=header,
+        footer=footer,
+        master_page=master_page,
+        border=border,
+        fill=fill,
+        page_num=page_num,
     )
 
 

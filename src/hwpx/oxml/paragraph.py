@@ -22,8 +22,10 @@ from ._document_primitives import (
     _clear_paragraph_layout_cache,
     _default_sublist_attributes,
     _is_tab_control_element,
+    _normalize_enum_attr,
     _object_id,
     _sanitize_text,
+    NEW_NUM_KINDS,
 )
 from .memo import HwpxOxmlNote
 from .namespaces import XML_NS, tag_local_name
@@ -917,6 +919,72 @@ class HwpxOxmlParagraph:
 
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl1, self)
+
+    def add_new_num(
+        self,
+        *,
+        number: int = 1,
+        kind: str = "PAGE",
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert ``<hp:ctrl><hp:newNum num="..." numType="..."/></hp:ctrl>``.
+
+        Restarts the running count *kind* (``PAGE`` by default) at *number*
+        from this paragraph onward — real corpus (hwpxlib_corpus, 7+ files)
+        always self-closes ``hp:newNum`` with only ``num``/``numType``, even
+        though the schema (``ParaList XML schema.xml:2741-2759``) declares a
+        required ``autoNumFormat`` child; matching real Hancom output takes
+        priority over the schema here.
+        """
+
+        normalized_kind = _normalize_enum_attr(kind or "PAGE", NEW_NUM_KINDS, label="kind")
+        run = self._create_run_for_object(run_attributes, char_pr_id_ref=char_pr_id_ref)
+        ctrl = _append_child(run, f"{_HP}ctrl", {})
+        _append_child(
+            ctrl, f"{_HP}newNum", {"num": str(int(number)), "numType": normalized_kind},
+        )
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(ctrl, self)
+
+    def add_page_hiding(
+        self,
+        *,
+        header: bool = False,
+        footer: bool = False,
+        master_page: bool = False,
+        border: bool = False,
+        fill: bool = False,
+        page_num: bool = False,
+        run_attributes: dict[str, str] | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert ``<hp:ctrl><hp:pageHiding .../></hp:ctrl>``.
+
+        Hides the named page elements from this paragraph's page onward
+        (``ParaList XML schema.xml:148-163`` — six independent booleans, all
+        default ``false``/unhidden). Matches real corpus (hwpxlib_corpus, 4
+        files) sibling placement: its own dedicated ``hp:ctrl``, typically
+        alongside a ``newNum``/``pageNum`` control in the section-opening
+        paragraph's first run.
+        """
+
+        run = self._create_run_for_object(run_attributes, char_pr_id_ref=char_pr_id_ref)
+        ctrl = _append_child(run, f"{_HP}ctrl", {})
+        _append_child(
+            ctrl,
+            f"{_HP}pageHiding",
+            {
+                "hideHeader": "1" if header else "0",
+                "hideFooter": "1" if footer else "0",
+                "hideMasterPage": "1" if master_page else "0",
+                "hideBorder": "1" if border else "0",
+                "hideFill": "1" if fill else "0",
+                "hidePageNum": "1" if page_num else "0",
+            },
+        )
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(ctrl, self)
 
     def add_chart(
         self,
