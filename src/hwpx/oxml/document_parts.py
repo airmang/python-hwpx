@@ -733,6 +733,29 @@ class HwpxOxmlDocument:
             return None
         return shapes.get(normalized)
 
+    def ensure_memo_shape(
+        self,
+        *,
+        width: int = 15591,
+        line_width: int | str = 1,
+        line_type: str = "SOLID",
+        line_color: str = "#000000",
+        fill_color: str = "#CCFF99",
+        active_color: str = "#FFFF99",
+        memo_type: str = "NOMAL",
+    ) -> str:
+        if not self._headers:
+            return "0"
+        return self._headers[0].ensure_memo_shape(
+            width=width,
+            line_width=line_width,
+            line_type=line_type,
+            line_color=line_color,
+            fill_color=fill_color,
+            active_color=active_color,
+            memo_type=memo_type,
+        )
+
     @property
     def bullets(self) -> dict[str, Bullet]:
         mapping: dict[str, Bullet] = {}

@@ -18,6 +18,7 @@ from ._document_primitives import (
     _allocate_font_id,
     _append_child,
     _append_fill_brush,
+    _attach_new_child,
     _apply_optional_attrs,
     _bool_str,
     _border_fill_is_basic_solid_line,
@@ -26,6 +27,7 @@ from ._document_primitives import (
     _create_basic_border_fill_element,
     _create_border_fill_element,
     _element_local_name,
+    _ensure_memo_shape,
     _ensure_tab_definition_element,
     _find_font_id,
     _find_shading_border_fill_id,
@@ -36,8 +38,10 @@ from ._document_primitives import (
     _normalize_border_type,
     _normalize_color,
     _normalize_font_langs,
+    _normalize_memo_shape_spec,
     _resolve_font_substitute,
     _serialize_xml,
+    _update_item_count,
     _validate_font_type,
 )
 from .common import GenericElement
@@ -151,18 +155,6 @@ class HwpxOxmlHeader:
             ref_list.insert(0, element)
             self.mark_dirty()
         return element
-
-    def _update_char_properties_item_count(self, element: ET.Element) -> None:
-        count = len(list(element.findall(f"{_HH}charPr")))
-        element.set("itemCnt", str(count))
-
-    def _update_border_fills_item_count(self, element: ET.Element) -> None:
-        count = len(list(element.findall(f"{_HH}borderFill")))
-        element.set("itemCnt", str(count))
-
-    def _update_styles_item_count(self, element: ET.Element) -> None:
-        count = len(list(element.findall(f"{_HH}style")))
-        element.set("itemCnt", str(count))
 
     def _allocate_style_id(self, element: ET.Element) -> str:
         existing: set[str] = {child.get("id") or "" for child in element.findall(f"{_HH}style")}
@@ -299,18 +291,15 @@ class HwpxOxmlHeader:
         char_id = self._allocate_char_property_id(char_props, preferred_id=preferred_id)
         new_char_pr.set("id", char_id)
         char_props.append(new_char_pr)
-        self._update_char_properties_item_count(char_props)
+        _update_item_count(char_props, "charPr")
         self.mark_dirty()
         document = self.document
         if document is not None:
             document.invalidate_char_property_cache()
         return new_char_pr
 
-    def _memo_properties_element(self) -> ET.Element | None:
-        ref_list = self._element.find(f"{_HH}refList")
-        if ref_list is None:
-            return None
-        return ref_list.find(f"{_HH}memoProperties")
+    def _memo_properties_element(self, create: bool = False) -> ET.Element | None:
+        return self._ref_list_default_child("memoProperties", create=create)
 
     def _bullets_element(self, create: bool = False) -> ET.Element | None:
         return self._ref_list_default_child("bullets", create=create)
@@ -958,10 +947,8 @@ class HwpxOxmlHeader:
 
         new_id = self._allocate_border_fill_id(element)
         new_border_fill = _create_basic_border_fill_element(new_id)
-        if isinstance(element, LET._Element):
-            new_border_fill = LET.fromstring(ET.tostring(new_border_fill, encoding="utf-8"))
-        element.append(new_border_fill)
-        self._update_border_fills_item_count(element)
+        _attach_new_child(element, new_border_fill)
+        _update_item_count(element, "borderFill")
         self.mark_dirty()
         return new_id
 
@@ -1017,10 +1004,8 @@ class HwpxOxmlHeader:
             active_borders=normalized_active_borders,
             border_type=normalized_border_type,
         )
-        if isinstance(element, LET._Element):
-            new_border_fill = LET.fromstring(ET.tostring(new_border_fill, encoding="utf-8"))
-        element.append(new_border_fill)
-        self._update_border_fills_item_count(element)
+        _attach_new_child(element, new_border_fill)
+        _update_item_count(element, "borderFill")
         self.mark_dirty()
         return new_id
 
@@ -1100,7 +1085,7 @@ class HwpxOxmlHeader:
             changed = True
 
         if changed:
-            self._update_styles_item_count(styles)
+            _update_item_count(styles, "style")
             self.mark_dirty()
         style_id = element.get("id")
         assert style_id is not None  # allocated above or already present
@@ -1244,10 +1229,8 @@ class HwpxOxmlHeader:
         _append_fill_brush(
             new_border_fill, fill_color=face_color, fill_image=fill_image, fill_gradient=fill_gradient,
         )
-        if isinstance(element, LET._Element) and not isinstance(new_border_fill, LET._Element):
-            new_border_fill = LET.fromstring(ET.tostring(new_border_fill, encoding="utf-8"))
-        element.append(new_border_fill)
-        self._update_border_fills_item_count(element)
+        _attach_new_child(element, new_border_fill)
+        _update_item_count(element, "borderFill")
         self.mark_dirty()
         return new_id
 
@@ -1396,6 +1379,32 @@ class HwpxOxmlHeader:
         except (TypeError, ValueError):
             return None
         return shapes.get(normalized)
+
+    def ensure_memo_shape(
+        self,
+        *,
+        width: int = 15591,
+        line_width: int | str = 1,
+        line_type: str = "SOLID",
+        line_color: str = "#000000",
+        fill_color: str = "#CCFF99",
+        active_color: str = "#FFFF99",
+        memo_type: str = "NOMAL",
+    ) -> str:
+        element = self._memo_properties_element(create=True)
+        if element is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <memoProperties> element")
+        spec = _normalize_memo_shape_spec(
+            width=width, line_width=line_width, line_type=line_type, line_color=line_color,
+            fill_color=fill_color, active_color=active_color, memo_type=memo_type,
+        )
+        shape_id, new_memo_pr = _ensure_memo_shape(element, spec)
+        if new_memo_pr is None:
+            return shape_id
+        _attach_new_child(element, new_memo_pr)
+        _update_item_count(element, "memoPr")
+        self.mark_dirty()
+        return shape_id
 
     @property
     def bullets(self) -> dict[str, Bullet]:

@@ -33,7 +33,7 @@
 | 차트 | Create(experimental)·Preserve | `add_chart`(5.3.0+): 데이터·계열·축 레이블에서 차트 개체를 생성한다. 기존 차트 part는 patch 저장 시 바이트 보존(497/497). 생성 어휘 밖의 차트 종류·서식은 미지원이며 기존 개체 보존으로만 다룬다 |
 | 수식 | Parse·Create(experimental)·Render-verified | `add_equation`(EqEdit script 삽입, 5.2.0+)과 `hwpx.equation.latex_to_eqedit`(렌더 검증 토큰셋만 변환, 밖은 `UnsupportedLatexError`로 typed 거부). 저작 어휘 전 토큰을 실한컴 렌더 오라클 픽셀 실측(60수식 배터리)으로 확정했고, 기존 수식 개체는 파싱·patch 보존됨(미리보기 MathML 렌더는 뷰어/플러그인 계층) |
 | 변경추적(redline) | Edit·Create | `add_tracked_insert`·`add_tracked_delete`·`add_tracked_replace`; 실 Windows 한컴 COM `IsTrackChange=1`·검토 리본 수락/거부 스파이크. **렌더 주의**: 한컴이 변경추적 문서의 PDF export 자체를 거부 → corpus-metrics「렌더 검증」에서 `render_unavailable`로 정직 집계(결함 아님, 한컴 제약) |
-| 메모(코멘트) | Edit·Create·Render-verified | `add_memo`·`add_memo_with_anchor`; subList 코멘트 텍스트 + `MemoShapeIDRef` 버그 수정을 실 Windows 한컴에서 검증(CHANGELOG) |
+| 메모(코멘트) | Edit·Create·Render-verified | `add_memo`·`add_memo_with_anchor`; subList 코멘트 텍스트 + `MemoShapeIDRef` 버그 수정을 실 Windows 한컴에서 검증(CHANGELOG). `doc.styles.ensure_memo_shape`(6.2+)로 `hh:memoPr` 모양 정의(선 두께·색·채움색·활성색)를 새로 만들어 `add_memo(memo_shape_id_ref=)`로 바로 연결 — 이전엔 기존 문서의 memoPr에만 의존했다. 기본값은 실코퍼스(hwpxlib_corpus, 6파일) 최빈 프로파일 |
 | 각주/미주 | Edit·Create·Render-verified | `add_footnote`·`add_endnote`; M6 읽기 경로에서 note 노출. 5.5.0에서 실한컴 gold 계약으로 방출 수리(본문 run 내 `hp:ctrl` 래핑·`number`/`suffixChar`·각주 본문 `autoNum`+스타일 15/16) — 옛 방출이 각주를 그리지 않던 실결함 종결, 리더는 실한컴산·구식 양형상 모두 수용(CHANGELOG [5.5.0]) |
 | 네이티브 목차(TOC)/상호참조 | Create·Render-verified | `hwpx.tools.toc_author.add_native_toc`·`mark_toc_dirty`·`toc_verify`; corpus-metrics「네이티브 목차」구조 15/15, 실한컴 재계산 후 페이지 정합 5/5 |
 | 암호화 HWPX | Unsupported-and-rejected | 복호화 API 없음. 암호화된 content part는 파싱 단계에서 예외(`XMLSyntaxError`)로 거부 — 무음으로 잘못된 문서를 만들지 않음(fail-closed) |

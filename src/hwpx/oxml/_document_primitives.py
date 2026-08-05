@@ -454,14 +454,17 @@ FILL_IMAGE_EFFECTS = frozenset({"REAL_PIC", "GRAY_SCALE", "BLACK_WHITE"})
 FILL_GRADIENT_TYPES = frozenset({"LINEAR", "RADIAL", "CONICAL", "SQUARE"})
 
 
-def _normalize_border_type(border_type: str, allowed: frozenset[str]) -> str:
-    normalized = str(border_type or "SOLID").upper()
+def _normalize_enum_attr(value: str, allowed: frozenset[str], *, label: str) -> str:
+    normalized = str(value or "").upper()
     if normalized not in allowed:
         raise ValueError(
-            f"unsupported border_type {border_type!r}; expected one of "
-            + ", ".join(sorted(allowed))
+            f"unsupported {label} {value!r}; expected one of " + ", ".join(sorted(allowed))
         )
     return normalized
+
+
+def _normalize_border_type(border_type: str, allowed: frozenset[str]) -> str:
+    return _normalize_enum_attr(border_type or "SOLID", allowed, label="border_type")
 
 
 def _border_fill_image_gradient(
@@ -677,6 +680,22 @@ def _border_fill_matches(
     return True
 
 
+def _attach_new_child(parent: ET.Element, new_child: ET.Element) -> None:
+    """Append *new_child* (built via plain ``ET.Element``) to *parent*,
+    converting it to lxml first when *parent* is an lxml tree. The
+    ``isinstance``+``fromstring`` dance every ``ensure_*`` creator in
+    header_part.py repeats — one shared copy instead of one per call site.
+    """
+
+    if isinstance(parent, LET._Element) and not isinstance(new_child, LET._Element):
+        new_child = LET.fromstring(ET.tostring(new_child, encoding="utf-8"))
+    parent.append(new_child)
+
+
+def _update_item_count(element: ET.Element, child_local_name: str) -> None:
+    element.set("itemCnt", str(len(element.findall(f"{_HH}{child_local_name}"))))
+
+
 def _append_fill_brush(
     parent: ET.Element,
     *,
@@ -795,6 +814,98 @@ def _create_border_fill_element(
     )
     _append_fill_brush(element, fill_color=fill_color, fill_image=fill_image, fill_gradient=fill_gradient)
     return element
+
+
+#: ``hh:memoPr`` attribute keys compared/emitted verbatim by
+#: :func:`_memo_shape_matches`/:func:`_create_memo_shape_element` — every
+#: schema attribute except ``id`` (Header XML schema.xml:1705-1753).
+_MEMO_SHAPE_ATTRS = (
+    "width", "lineWidth", "lineType", "lineColor", "fillColor", "activeColor", "memoType",
+)
+
+
+def _allocate_memo_shape_id(element: ET.Element) -> str:
+    """Return the next ``hh:memoPr/@id`` — real corpus (6 files) starts at
+    ``1``, never ``0`` (unlike ``hh:borderFill``), so this mirrors
+    ``HwpxOxmlHeader._allocate_border_fill_id`` with that one difference.
+    """
+
+    existing: set[str] = {
+        child.get("id") or "" for child in element.findall(f"{_HH}memoPr")
+    }
+    existing.discard("")
+    numeric_ids: list[int] = []
+    for value in existing:
+        try:
+            numeric_ids.append(int(value))
+        except ValueError:
+            continue
+    next_id = 1 if not numeric_ids else max(numeric_ids) + 1
+    candidate = str(next_id)
+    while candidate in existing:
+        next_id += 1
+        candidate = str(next_id)
+    return candidate
+
+
+def _memo_shape_matches(element: ET.Element, spec: "Mapping[str, str]") -> bool:
+    if _element_local_name(element) != "memoPr":
+        return False
+    return all(element.get(attr) == spec[attr] for attr in _MEMO_SHAPE_ATTRS)
+
+
+def _create_memo_shape_element(shape_id: str, spec: "Mapping[str, str]") -> ET.Element:
+    attrs = {"id": shape_id, **{attr: spec[attr] for attr in _MEMO_SHAPE_ATTRS}}
+    return ET.Element(f"{_HH}memoPr", attrs)
+
+
+def _normalize_memo_shape_spec(
+    *,
+    width: int,
+    line_width: "int | str",
+    line_type: str,
+    line_color: str,
+    fill_color: str,
+    active_color: str,
+    memo_type: str,
+) -> dict[str, str]:
+    """Validate/normalize ``ensure_memo_shape(...)`` into the plain attribute
+    dict ``hh:memoPr`` needs (Header XML schema.xml:1705-1753). Defaults
+    mirror the modal real-corpus profile (hwpxlib_corpus, 6 files: width
+    15591, lineWidth 1, lineType SOLID, memoType NOMAL — the schema's own
+    spelling, not a typo here) rather than the schema (which requires
+    lineType/lineColor/fillColor/activeColor with no defaults at all).
+    """
+
+    return {
+        "width": str(int(width)),
+        "lineWidth": str(line_width),
+        "lineType": _normalize_enum_attr(line_type, LINE_TYPE2_VALUES, label="line_type"),
+        "lineColor": _normalize_color(line_color) or "#000000",
+        "fillColor": _normalize_color(fill_color) or "#CCFF99",
+        "activeColor": _normalize_color(active_color) or "#FFFF99",
+        "memoType": _normalize_enum_attr(memo_type, MEMO_TYPE_VALUES, label="memo_type"),
+    }
+
+
+def _ensure_memo_shape(
+    element: ET.Element, spec: "Mapping[str, str]"
+) -> "tuple[str, ET.Element | None]":
+    """Find-or-prepare one ``hh:memoPr`` matching *spec* inside *element*
+    (``hh:memoProperties``). Returns ``(id, None)`` if an existing shape
+    already matches, else ``(new_id, new_unattached_element)`` — the caller
+    (``HwpxOxmlHeader.ensure_memo_shape``) owns attaching it via
+    :func:`_attach_new_child` plus ``itemCnt``/``mark_dirty`` bookkeeping,
+    the same split :func:`_find_shading_border_fill_id` uses.
+    """
+
+    for memo_pr in element.findall(f"{_HH}memoPr"):
+        if _memo_shape_matches(memo_pr, spec):
+            existing_id = memo_pr.get("id")
+            if existing_id:
+                return existing_id, None
+    new_id = _allocate_memo_shape_id(element)
+    return new_id, _create_memo_shape_element(new_id, spec)
 
 
 def _distribute_size(total: int, parts: int) -> list[int]:
@@ -1104,12 +1215,19 @@ def _build_font_element(
 #: 관측했지만(다중-tabItem 문서 4건), 스키마가 4종을 선언하므로 나머지도 받는다.
 _TAB_STOP_TYPES = frozenset({"LEFT", "RIGHT", "CENTER", "DECIMAL"})
 
-#: ``hh:tabItem/@leader`` 어휘(``hc:LineType2`` — border 계열과 다른, 3D/WAVE가
-#: 없는 12값 도메인). 실코퍼스는 NONE만 관측했다.
-_TAB_LEADER_TYPES = frozenset({
+#: ``hc:LineType2`` 도메인(border 계열과 다른, 3D/WAVE가 없는 12값) — 스키마상
+#: ``hh:tabItem/@leader``와 ``hh:memoPr/@lineType`` 둘 다 이 타입을 쓴다.
+#: ``hh:tabItem`` 실코퍼스는 NONE만, ``hh:memoPr`` 실코퍼스(6파일)는 SOLID만 관측했다.
+LINE_TYPE2_VALUES = frozenset({
     "NONE", "SOLID", "DOT", "DASH", "DASH_DOT", "DASH_DOT_DOT", "LONG_DASH",
     "CIRCLE", "DOUBLE_SLIM", "SLIM_THICK", "THICK_SLIM", "SLIM_THICK_SLIM",
 })
+_TAB_LEADER_TYPES = LINE_TYPE2_VALUES
+
+#: ``hh:memoPr/@memoType`` 어휘(Header XML schema.xml:1740-1752). 실코퍼스
+#: 6파일 전량 ``NOMAL``("NORMAL"의 스키마 원본 오타, 그대로 보존) — 추적 상태
+#: 3종(USER_INSERT/DELETE/UPDATE)은 미관측이나 스키마가 선언하므로 받는다.
+MEMO_TYPE_VALUES = frozenset({"NOMAL", "USER_INSERT", "USER_DELETE", "USER_UPDATE"})
 
 
 def _normalize_tab_stops(

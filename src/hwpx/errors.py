@@ -219,6 +219,8 @@ ERROR_CODES: dict[str, str] = {
     "style-border-fill-image-effect-invalid": "fill_image 의 effect 값이 OWPML 어휘(REAL_PIC/GRAY_SCALE/BLACK_WHITE) 밖이다.",
     "style-border-fill-gradient-type-invalid": "fill_gradient 의 type 값이 OWPML 어휘(LINEAR/RADIAL/CONICAL/SQUARE) 밖이다.",
     "style-border-fill-gradient-colors-invalid": "fill_gradient 의 colors 가 2개 미만이다.",
+    "style-memo-shape-line-type-invalid": "메모 모양의 line_type 값이 OWPML 어휘(hc:LineType2) 밖이다.",
+    "style-memo-shape-memo-type-invalid": "메모 모양의 memo_type 값이 OWPML 어휘(NOMAL/USER_INSERT/USER_DELETE/USER_UPDATE) 밖이다.",
     "heading-level-invalid": "개요 수준이 정수가 아니다.",
     "heading-level-out-of-range": "개요 수준이 1~10 밖이다.",
     "heading-style-missing": "이 문서에 해당 수준의 개요 스타일이 없다.",

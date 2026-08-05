@@ -37,6 +37,8 @@ from ...oxml._document_primitives import (
     FILL_GRADIENT_TYPES,
     FILL_IMAGE_EFFECTS,
     FILL_IMAGE_MODES,
+    LINE_TYPE2_VALUES,
+    MEMO_TYPE_VALUES,
 )
 from ._base import _Namespace
 
@@ -167,6 +169,18 @@ def _resolve_fill_gradient(value: "Mapping[str, object] | None") -> dict[str, ob
         "alpha": str(value.get("alpha", "0")),
         "colors": colors,
     }
+
+
+def _validate_memo_enum(value: str, allowed: frozenset[str], *, arg: str, code: str) -> str:
+    normalized = str(value).upper()
+    if normalized not in allowed:
+        raise HwpxValueError(
+            f"unsupported {arg} {value!r}",
+            code=code,
+            context={arg: normalized, "allowed": sorted(allowed)},
+            suggestion="Use one of: " + ", ".join(sorted(allowed)),
+        )
+    return normalized
 
 
 class StylesNamespace(_Namespace, Mapping[str, "Style"]):
@@ -433,6 +447,42 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             fill_gradient=resolved_gradient,
             active_borders=active_borders,
             border_type=border_type,
+        )
+
+    def ensure_memo_shape(
+        self,
+        *,
+        width: int = 15591,
+        line_width: int | str = 1,
+        line_type: str = "SOLID",
+        line_color: str = "#000000",
+        fill_color: str = "#CCFF99",
+        active_color: str = "#FFFF99",
+        memo_type: str = "NOMAL",
+    ) -> str:
+        """요청한 메모 모양의 `memoPr` id 를 보장하고 돌려준다.
+
+        기본값은 실코퍼스(hwpxlib_corpus, 6파일) 최빈 프로파일이다 —
+        width=15591·lineWidth=1·lineType=SOLID·memoType=NOMAL(스키마 원문
+        철자, 오타 아님)은 6파일 전량, 색 3종은 그 중 lineWidth=1인 절반이
+        공유하는 조합. 만든 id 는 `doc.notes.add_memo(memo_shape_id_ref=...)`
+        에 바로 넘길 수 있다.
+        """
+
+        return self._doc.oxml.ensure_memo_shape(
+            width=width,
+            line_width=line_width,
+            line_type=_validate_memo_enum(
+                line_type, LINE_TYPE2_VALUES, arg="line_type",
+                code="style-memo-shape-line-type-invalid",
+            ),
+            line_color=line_color,
+            fill_color=fill_color,
+            active_color=active_color,
+            memo_type=_validate_memo_enum(
+                memo_type, MEMO_TYPE_VALUES, arg="memo_type",
+                code="style-memo-shape-memo-type-invalid",
+            ),
         )
 
     def ensure_font(
