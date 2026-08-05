@@ -1,0 +1,53 @@
+{
+ "cycle_demos": {
+  "judged": 11,
+  "render_checked": 11,
+  "render_failed": 0
+ },
+ "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v6",
+ "harness_valid": true,
+ "measured_at": "2026-08-06T01:41:30.081817+09:00",
+ "negative_controls": {
+  "expected": [
+   "corrupt_header.hwpx",
+   "corrupt_section.hwpx",
+   "missing_section.hwpx"
+  ],
+  "judged": 3,
+  "wrongly_rendered": []
+ },
+ "oracle": "mac-gui",
+ "oracle_app": "Hancom Office HWP.app (macOS)",
+ "schemaVersion": "hwpx.openrate.report/v6",
+ "scopeNote": "v6 measures only the 6.2 cycle's new authoring surfaces (highlight, image/gradient fills, memo shapes, page-number control), additive over v1-v5 which remain published with their own stacks and dates. Open+render are judged in ONE gate here: the observer is the macOS Hancom Office HWP.app GUI oracle (same Hancom render engine, menu-automation transport), not the Windows COM box used for v1-v5 - a successful PDF export requires the document to open, so opened is implied by render_checked. The Windows box can re-measure as a second observer when available.",
+ "strata": {
+  "authored-fill": {
+   "judged": 15,
+   "render_checked": 15,
+   "render_failed": 0
+  },
+  "authored-highlight": {
+   "judged": 15,
+   "render_checked": 15,
+   "render_failed": 0
+  },
+  "authored-memoshape": {
+   "judged": 15,
+   "render_checked": 15,
+   "render_failed": 0
+  },
+  "authored-pagecontrol": {
+   "judged": 15,
+   "render_checked": 15,
+   "render_failed": 0
+  }
+ },
+ "tool_versions": {
+  "python-hwpx": "6.0.2"
+ },
+ "totals": {
+  "judged": 60,
+  "render_checked": 60,
+  "render_failed": 0
+ }
+}
