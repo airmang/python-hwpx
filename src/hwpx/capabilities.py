@@ -169,6 +169,13 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "authoring_methods": (),
     },
     {
+        "area": "border-fill-image-gradient",
+        "namespace": "doc.styles",
+        "matrix_row": "테두리 채우기(이미지·그라데이션)",
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
+    {
         "area": "memo",
         "namespace": "doc.notes",
         "matrix_row": "메모(코멘트)",

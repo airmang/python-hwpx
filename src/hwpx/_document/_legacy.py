@@ -69,6 +69,7 @@ from . import tracked as _tracked
 
 if TYPE_CHECKING:
     from ..form_fit.policy import FitPolicy
+    from ..objects.binary_item import BinaryItem
     from ..oxml import (
         HwpxOxmlDocument,
         HwpxOxmlHeader,
@@ -862,6 +863,8 @@ class _LegacyFacade:
         border_color: str = "#BFBFBF",
         border_width: str = "0.12 mm",
         fill_color: str | None = None,
+        fill_image: "str | BinaryItem | Mapping[str, object] | None" = None,
+        fill_gradient: Mapping[str, object] | None = None,
         active_borders: Sequence[str] | None = None,
         border_type: str = "SOLID",
     ) -> str:
@@ -869,13 +872,25 @@ class _LegacyFacade:
 
         ``border_type`` selects the OWPML line style (``SOLID``, ``DASH``,
         ``DOT``, ``DOUBLE_SLIM``, ``WAVE``, …); values outside the OWPML
-        vocabulary are rejected.
+        vocabulary are rejected. ``fill_color``/``fill_image``/``fill_gradient``
+        are mutually exclusive (OWPML ``hc:fillBrush`` choice).
         """
 
+        from .ns.styles import _resolve_fill_gradient, _resolve_fill_image
+
+        given = sum(1 for v in (fill_color, fill_image, fill_gradient) if v is not None)
+        if given > 1:
+            raise HwpxValueError(
+                "fill_color/fill_image/fill_gradient are mutually exclusive",
+                code="style-border-fill-conflict",
+                suggestion="Pass exactly one of fill_color, fill_image, fill_gradient.",
+            )
         return self._root.ensure_border_fill(
             border_color=border_color,
             border_width=border_width,
             fill_color=fill_color,
+            fill_image=_resolve_fill_image(fill_image),
+            fill_gradient=_resolve_fill_gradient(fill_gradient),
             active_borders=active_borders,
             border_type=border_type,
         )

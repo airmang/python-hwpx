@@ -1,13 +1,13 @@
 {
  "codes": {
   "contract-document-missing": [
-   "capabilities.py:358"
+   "capabilities.py:365"
   ],
   "document-header-missing": [
    "_document/layout.py:146",
    "_document/layout.py:300",
-   "oxml/document_parts.py:676",
-   "oxml/document_parts.py:770"
+   "oxml/document_parts.py:680",
+   "oxml/document_parts.py:778"
   ],
   "document-settings-root-invalid": [
    "oxml/settings.py:135"
@@ -122,16 +122,16 @@
    "_document/layout.py:180"
   ],
   "paragraph-tab-leader-invalid": [
-   "oxml/_document_primitives.py:982"
+   "oxml/_document_primitives.py:1147"
   ],
   "paragraph-tab-pos-invalid": [
    "_document/layout.py:219",
-   "oxml/_document_primitives.py:948",
-   "oxml/_document_primitives.py:957",
-   "oxml/_document_primitives.py:963"
+   "oxml/_document_primitives.py:1113",
+   "oxml/_document_primitives.py:1122",
+   "oxml/_document_primitives.py:1128"
   ],
   "paragraph-tab-type-invalid": [
-   "oxml/_document_primitives.py:970"
+   "oxml/_document_primitives.py:1135"
   ],
   "quality-gate-failed": [
    "_document/persistence.py:143"
@@ -185,31 +185,50 @@
    "_document/shapes.py:265"
   ],
   "style-ambiguous": [
-   "_document/ns/styles.py:146"
+   "_document/ns/styles.py:245"
   ],
   "style-argument-conflict": [
    "document.py:408"
   ],
+  "style-border-fill-conflict": [
+   "_document/_legacy.py:883",
+   "_document/ns/styles.py:403"
+  ],
+  "style-border-fill-gradient-colors-invalid": [
+   "_document/ns/styles.py:128"
+  ],
+  "style-border-fill-gradient-type-invalid": [
+   "_document/ns/styles.py:136"
+  ],
+  "style-border-fill-image-effect-invalid": [
+   "_document/ns/styles.py:99"
+  ],
+  "style-border-fill-image-missing": [
+   "_document/ns/styles.py:84"
+  ],
+  "style-border-fill-image-mode-invalid": [
+   "_document/ns/styles.py:91"
+  ],
   "style-container-create-failed": [
-   "oxml/header_part.py:1058"
+   "oxml/header_part.py:1060"
   ],
   "style-font-container-create-failed": [
-   "oxml/header_part.py:1167",
-   "oxml/header_part.py:1176"
+   "oxml/header_part.py:1169",
+   "oxml/header_part.py:1178"
   ],
   "style-font-face-empty": [
-   "oxml/header_part.py:1157"
+   "oxml/header_part.py:1159"
   ],
   "style-font-lang-invalid": [
-   "oxml/_document_primitives.py:777",
-   "oxml/_document_primitives.py:786"
+   "oxml/_document_primitives.py:942",
+   "oxml/_document_primitives.py:951"
   ],
   "style-font-substitute-incomplete": [
-   "oxml/_document_primitives.py:861",
-   "oxml/_document_primitives.py:870"
+   "oxml/_document_primitives.py:1026",
+   "oxml/_document_primitives.py:1035"
   ],
   "style-font-type-invalid": [
-   "oxml/_document_primitives.py:799"
+   "oxml/_document_primitives.py:964"
   ],
   "style-list-level-invalid": [
    "_document/layout.py:293"
@@ -218,7 +237,7 @@
    "_document/layout.py:320"
   ],
   "style-tab-container-create-failed": [
-   "oxml/header_part.py:765"
+   "oxml/header_part.py:768"
   ],
   "text-highlight-color-invalid": [
    "_document/highlight.py:42"
@@ -233,7 +252,7 @@
    "_document/highlight.py:101"
   ],
   "text-search-empty": [
-   "_document/_legacy.py:1311",
+   "_document/_legacy.py:1326",
    "_document/ns/text.py:118"
   ],
   "track-match-crosses-markup": [
@@ -255,17 +274,17 @@
    "_document/tracked.py:211"
   ],
   "unknown-contract-document": [
-   "capabilities.py:349"
+   "capabilities.py:356"
   ],
   "unknown-contract-schema": [
-   "capabilities.py:579"
+   "capabilities.py:586"
   ]
  },
  "malformedCodes": [],
  "observed": {
   "other": 139,
-  "typed": 129,
-  "untyped": 197,
+  "typed": 136,
+  "untyped": 203,
   "untypedByFile": {
    "body_patch.py": 20,
    "equation/mathml.py": 1,
@@ -273,18 +292,18 @@
    "ingest/base.py": 1,
    "opc/package.py": 1,
    "opc/security.py": 1,
-   "oxml/_document_primitives.py": 1,
+   "oxml/_document_primitives.py": 2,
    "oxml/body.py": 5,
    "oxml/document_parts.py": 23,
    "oxml/header.py": 6,
-   "oxml/header_part.py": 17,
+   "oxml/header_part.py": 16,
    "oxml/memo.py": 1,
    "oxml/paragraph.py": 20,
    "oxml/parser.py": 2,
    "oxml/run.py": 2,
    "oxml/section.py": 1,
    "oxml/section_story.py": 18,
-   "oxml/table.py": 13,
+   "oxml/table.py": 19,
    "oxml/utils.py": 3,
    "patch.py": 14,
    "table_patch.py": 11,
@@ -302,8 +321,8 @@
   }
  },
  "public": {
-  "total": 81,
-  "typed": 81,
+  "total": 88,
+  "typed": 88,
   "typedRatio": 1.0,
   "untyped": 0,
   "untypedSites": []

@@ -127,6 +127,7 @@ AREA_NAMESPACES = {
     "equation": "shapes",
     "redline": "tracking",
     "highlight": "text",
+    "border-fill-image-gradient": "styles",
     "memo": "notes",
     "footnote-endnote": "notes",
     "toc-crossref": "refs",

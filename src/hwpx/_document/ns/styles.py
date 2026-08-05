@@ -32,11 +32,17 @@ from __future__ import annotations
 import difflib
 from typing import TYPE_CHECKING, Iterator, Mapping, Sequence
 
-from ...errors import HwpxLookupError
+from ...errors import HwpxLookupError, HwpxValueError
+from ...oxml._document_primitives import (
+    FILL_GRADIENT_TYPES,
+    FILL_IMAGE_EFFECTS,
+    FILL_IMAGE_MODES,
+)
 from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...objects import ListFormatResult, ParagraphFormatResult
+    from ...objects.binary_item import BinaryItem
     from ...oxml import (
         Bullet,
         GenericElement,
@@ -51,6 +57,116 @@ __all__ = ["StylesNamespace"]
 
 #: 제안에 나열할 최대 후보 수. 23개를 한 줄에 늘어놓으면 읽히지 않는다.
 _MAX_SUGGESTIONS = 3
+
+
+def _as_int(value: object, default: int) -> int:
+    """Narrow an untyped mapping value before ``int()`` — mypy cannot see
+    into a ``Mapping[str, object]`` value, so this is the one place that
+    does."""
+
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float, str)):
+        return int(value)
+    return default
+
+
+def _resolve_fill_image(
+    value: "str | BinaryItem | Mapping[str, object] | None",
+) -> dict[str, str] | None:
+    """Normalize ``ensure_border_fill(fill_image=...)`` into the plain-string
+    attribute dict ``hc:imgBrush``/``hc:img`` need (Core XML schema.xml:805-889).
+
+    *value* is either a bare ``doc.media.add_image(...)`` result (or its
+    ``item_id`` string) — real-corpus files (hwpxlib_corpus, 5 files) show
+    ``mode="TOTAL"`` exclusively, so that is the default — or a mapping for
+    the rarer cases (``mode``/``bright``/``contrast``/``effect``/``alpha``).
+    """
+
+    if value is None:
+        return None
+    if isinstance(value, Mapping):
+        options: Mapping[str, object] = value
+        item = value.get("item", value.get("binary_item_id"))
+    else:
+        options = {}
+        item = value
+    item_id = str(item) if item else ""
+    if not item_id:
+        raise HwpxValueError(
+            "fill_image must reference a doc.media binary item",
+            code="style-border-fill-image-missing",
+            suggestion="Register the image with doc.media.add_image(...) first and pass its id.",
+        )
+    mode = str(options.get("mode", "TOTAL")).upper()
+    if mode not in FILL_IMAGE_MODES:
+        raise HwpxValueError(
+            f"unsupported fill_image mode {mode!r}",
+            code="style-border-fill-image-mode-invalid",
+            context={"mode": mode, "allowed": sorted(FILL_IMAGE_MODES)},
+            suggestion="Use one of: " + ", ".join(sorted(FILL_IMAGE_MODES)),
+        )
+    effect = str(options.get("effect", "REAL_PIC")).upper()
+    if effect not in FILL_IMAGE_EFFECTS:
+        raise HwpxValueError(
+            f"unsupported fill_image effect {effect!r}",
+            code="style-border-fill-image-effect-invalid",
+            context={"effect": effect, "allowed": sorted(FILL_IMAGE_EFFECTS)},
+            suggestion="Use one of: " + ", ".join(sorted(FILL_IMAGE_EFFECTS)),
+        )
+    return {
+        "binaryItemIDRef": item_id,
+        "mode": mode,
+        "bright": str(_as_int(options.get("bright"), 0)),
+        "contrast": str(_as_int(options.get("contrast"), 0)),
+        "effect": effect,
+        "alpha": str(options.get("alpha", "0")),
+    }
+
+
+def _resolve_fill_gradient(value: "Mapping[str, object] | None") -> dict[str, object] | None:
+    """Normalize ``ensure_border_fill(fill_gradient=...)`` into the plain
+    attribute dict ``hc:gradation`` needs (Core XML schema.xml:710-803).
+
+    Defaults mirror the schema except *type* — real corpus (hwpxlib_corpus, 2
+    files) observes only ``LINEAR``, so that stays the ergonomic default even
+    though the schema itself defaults nothing (``type`` has no XSD default).
+    """
+
+    if value is None:
+        return None
+    raw_colors = value.get("colors")
+    colors = (
+        [str(color) for color in raw_colors]
+        if isinstance(raw_colors, Sequence) and not isinstance(raw_colors, str)
+        else []
+    )
+    if len(colors) < 2:
+        raise HwpxValueError(
+            "fill_gradient needs at least two colors",
+            code="style-border-fill-gradient-colors-invalid",
+            context={"colors": colors},
+            suggestion="Pass colors=['#RRGGBB', '#RRGGBB', ...] with two or more entries.",
+        )
+    gradient_type = str(value.get("type", "LINEAR")).upper()
+    if gradient_type not in FILL_GRADIENT_TYPES:
+        raise HwpxValueError(
+            f"unsupported fill_gradient type {gradient_type!r}",
+            code="style-border-fill-gradient-type-invalid",
+            context={"type": gradient_type, "allowed": sorted(FILL_GRADIENT_TYPES)},
+            suggestion="Use one of: " + ", ".join(sorted(FILL_GRADIENT_TYPES)),
+        )
+    return {
+        "type": gradient_type,
+        "angle": str(_as_int(value.get("angle"), 90)),
+        "centerX": str(_as_int(value.get("center_x"), 0)),
+        "centerY": str(_as_int(value.get("center_y"), 0)),
+        "step": str(_as_int(value.get("step"), 255)),
+        "colorNum": str(len(colors)),
+        "stepCenter": str(_as_int(value.get("step_center"), 50)),
+        "alpha": str(value.get("alpha", "0")),
+        "colors": colors,
+    }
 
 
 class StylesNamespace(_Namespace, Mapping[str, "Style"]):
@@ -286,15 +402,35 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         border_color: str = "#BFBFBF",
         border_width: str = "0.12 mm",
         fill_color: str | None = None,
+        fill_image: "str | BinaryItem | Mapping[str, object] | None" = None,
+        fill_gradient: "Mapping[str, object] | None" = None,
         active_borders: Sequence[str] | None = None,
         border_type: str = "SOLID",
     ) -> str:
-        """요청한 테두리/채우기의 `borderFill` id 를 보장하고 돌려준다."""
+        """요청한 테두리/채우기의 `borderFill` id 를 보장하고 돌려준다.
+
+        `fill_color`/`fill_image`/`fill_gradient` 는 OWPML `hc:fillBrush` 의
+        선택지(Core XML schema.xml:650) 그대로 상호 배타적이다 — 둘 이상
+        주면 typed 거부한다. `fill_image` 는 `doc.media.add_image(...)` 가
+        돌려준 `BinaryItem`(또는 그 id 문자열)을 그대로 받는다.
+        """
+
+        given = sum(1 for v in (fill_color, fill_image, fill_gradient) if v is not None)
+        if given > 1:
+            raise HwpxValueError(
+                "fill_color/fill_image/fill_gradient are mutually exclusive",
+                code="style-border-fill-conflict",
+                suggestion="Pass exactly one of fill_color, fill_image, fill_gradient.",
+            )
+        resolved_image = _resolve_fill_image(fill_image)
+        resolved_gradient = _resolve_fill_gradient(fill_gradient)
 
         return self._doc.oxml.ensure_border_fill(
             border_color=border_color,
             border_width=border_width,
             fill_color=fill_color,
+            fill_image=resolved_image,
+            fill_gradient=resolved_gradient,
             active_borders=active_borders,
             border_type=border_type,
         )

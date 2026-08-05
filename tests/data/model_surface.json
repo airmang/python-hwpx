@@ -239,6 +239,8 @@
     "row_count",
     "rows",
     "set_cell_border_fill",
+    "set_cell_fill_gradient",
+    "set_cell_fill_image",
     "set_cell_shading",
     "set_cell_text",
     "set_column_widths",

@@ -27,12 +27,15 @@ from ._document_primitives import (
     _object_id,
     _paragraph_id,
     _sanitize_text,
+    FILL_GRADIENT_TYPES,
+    FILL_IMAGE_MODES,
 )
 
 from .objects import Caption, _read_caption, _remove_caption, _write_caption
 
 if TYPE_CHECKING:
     from hwpx.form_fit.policy import FitPolicy
+    from ..objects.binary_item import BinaryItem
     from hwpx.form_fit.report import FitResult
     from .paragraph import HwpxOxmlParagraph
     from .section import HwpxOxmlSection
@@ -705,6 +708,95 @@ class HwpxOxmlTable:
             raise ValueError("table is not attached to a document")
         border_fill_id = document.ensure_shading_border_fill(
             color,
+            base_border_fill_id=cell.element.get("borderFillIDRef") or self.element.get("borderFillIDRef"),
+        )
+        cell.element.set("borderFillIDRef", border_fill_id)
+        self.mark_dirty()
+
+    def set_cell_fill_image(
+        self,
+        row_index: int,
+        col_index: int,
+        image: "str | BinaryItem",
+        *,
+        mode: str = "TOTAL",
+    ) -> None:
+        """Fill one cell's background with a ``doc.media.add_image(...)`` item.
+
+        *image* is a :class:`~hwpx.objects.binary_item.BinaryItem` (or its
+        ``item_id`` string) already registered via ``doc.media``. *mode*
+        selects the ``hc:imgBrush`` fit mode (Core XML schema.xml:813-889);
+        real corpus (hwpxlib_corpus, 5 files) observes only ``"TOTAL"``
+        (scale-to-fit), the default here.
+        """
+
+        cell = self.cell(row_index, col_index)
+        document = self.paragraph.section.document
+        if document is None:
+            raise ValueError("table is not attached to a document")
+        item_id = str(image)
+        if not item_id:
+            raise ValueError("image must be a non-empty doc.media binary item id")
+        normalized_mode = str(mode).upper()
+        if normalized_mode not in FILL_IMAGE_MODES:
+            raise ValueError(
+                f"unsupported mode {mode!r}; expected one of "
+                + ", ".join(sorted(FILL_IMAGE_MODES))
+            )
+        border_fill_id = document.ensure_shading_border_fill(
+            fill_image={
+                "binaryItemIDRef": item_id,
+                "mode": normalized_mode,
+                "bright": "0",
+                "contrast": "0",
+                "effect": "REAL_PIC",
+                "alpha": "0",
+            },
+            base_border_fill_id=cell.element.get("borderFillIDRef") or self.element.get("borderFillIDRef"),
+        )
+        cell.element.set("borderFillIDRef", border_fill_id)
+        self.mark_dirty()
+
+    def set_cell_fill_gradient(
+        self,
+        row_index: int,
+        col_index: int,
+        colors: Sequence[str],
+        *,
+        gradient_type: str = "LINEAR",
+        angle: int = 90,
+    ) -> None:
+        """Fill one cell's background with an ``hc:gradation`` (Core XML
+        schema.xml:710-803). *colors* needs at least two ``#RRGGBB`` values;
+        real corpus (hwpxlib_corpus, 2 files) observes only
+        ``gradient_type="LINEAR"``, the default here.
+        """
+
+        cell = self.cell(row_index, col_index)
+        document = self.paragraph.section.document
+        if document is None:
+            raise ValueError("table is not attached to a document")
+        color_list = [str(color) for color in colors]
+        if len(color_list) < 2:
+            raise ValueError("colors needs at least two entries")
+        normalized_type = str(gradient_type).upper()
+        if normalized_type not in FILL_GRADIENT_TYPES:
+            raise ValueError(
+                f"unsupported gradient_type {gradient_type!r}; expected one of "
+                + ", ".join(sorted(FILL_GRADIENT_TYPES))
+            )
+        border_fill_id = document.ensure_shading_border_fill(
+            fill_gradient={
+                "type": normalized_type,
+                "angle": str(int(angle)),
+                "centerX": "0",
+                "centerY": "0",
+                "step": "255",
+                "colorNum": str(len(color_list)),
+                "stepCenter": "50",
+                "alpha": "0",
+                "colors": color_list,
+            },
             base_border_fill_id=cell.element.get("borderFillIDRef") or self.element.get("borderFillIDRef"),
         )
         cell.element.set("borderFillIDRef", border_fill_id)

@@ -968,7 +968,8 @@ _register("arc·polygon·curve·connectLine", "hp", "arc", "polygon", "curve", "
 _register(
     "그림 삽입/치환", "hp", "pic", "imgRect", "imgDim", "imgClip", "effects",
 )
-_register("그림 삽입/치환", "hc", "img", "imgBrush")
+_register("그림 삽입/치환", "hc", "img")
+_register("테두리 채우기(이미지·그라데이션)", "hc", "imgBrush", "gradation", "color")
 _register("차트", "hp", "chart")
 _register("수식", "hp", "equation", "script")
 _register(

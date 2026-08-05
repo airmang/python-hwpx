@@ -13,11 +13,11 @@ from ._document_primitives import (
     T,
     _FONT_FACE_LANG_TO_REF,
     _FONT_REF_ATTRIBUTES,
-    _HC,
     _HC_NS,
     _HH,
     _allocate_font_id,
     _append_child,
+    _append_fill_brush,
     _apply_optional_attrs,
     _bool_str,
     _border_fill_is_basic_solid_line,
@@ -28,10 +28,12 @@ from ._document_primitives import (
     _element_local_name,
     _ensure_tab_definition_element,
     _find_font_id,
+    _find_shading_border_fill_id,
     _fontface_insert_index,
     _get_bool_attr,
     _get_int_attr,
     _normalize_border_side_names,
+    _normalize_border_type,
     _normalize_color,
     _normalize_font_langs,
     _resolve_font_substitute,
@@ -976,6 +978,8 @@ class HwpxOxmlHeader:
         border_color: str = "#BFBFBF",
         border_width: str = "0.12 mm",
         fill_color: str | None = None,
+        fill_image: Mapping[str, str] | None = None,
+        fill_gradient: Mapping[str, object] | None = None,
         active_borders: Iterable[str] | None = None,
         border_type: str = "SOLID",
     ) -> str:
@@ -983,12 +987,7 @@ class HwpxOxmlHeader:
         if element is None:  # pragma: no cover - defensive branch
             raise RuntimeError("failed to create <borderFills> element")
 
-        normalized_border_type = str(border_type or "SOLID").upper()
-        if normalized_border_type not in self._BORDER_LINE_TYPES:
-            raise ValueError(
-                f"unsupported border_type {border_type!r}; expected one of "
-                + ", ".join(sorted(self._BORDER_LINE_TYPES))
-            )
+        normalized_border_type = _normalize_border_type(border_type, self._BORDER_LINE_TYPES)
         normalized_border_color = _normalize_color(border_color) or "#BFBFBF"
         normalized_border_width = str(border_width or "0.12 mm")
         normalized_active_borders = _normalize_border_side_names(active_borders)
@@ -1000,6 +999,7 @@ class HwpxOxmlHeader:
                 border_color=normalized_border_color,
                 border_width=normalized_border_width,
                 fill_color=normalized_fill_color,
+                fill_image=fill_image, fill_gradient=fill_gradient,
                 active_borders=normalized_active_borders,
                 border_type=normalized_border_type,
             ):
@@ -1013,6 +1013,7 @@ class HwpxOxmlHeader:
             border_color=normalized_border_color,
             border_width=normalized_border_width,
             fill_color=normalized_fill_color,
+            fill_image=fill_image, fill_gradient=fill_gradient,
             active_borders=normalized_active_borders,
             border_type=normalized_border_type,
         )
@@ -1205,30 +1206,23 @@ class HwpxOxmlHeader:
 
     def ensure_shading_border_fill(
         self,
-        color: str,
+        color: str | None = None,
         *,
+        fill_image: Mapping[str, str] | None = None,
+        fill_gradient: Mapping[str, object] | None = None,
         base_border_fill_id: str | int | None = None,
     ) -> str:
         element = self._border_fills_element(create=True)
         if element is None:  # pragma: no cover - defensive branch
             raise RuntimeError("failed to create <borderFills> element")
-        face_color = _normalize_color(color) or "none"
+        has_alt_fill = fill_image is not None or fill_gradient is not None
+        face_color = "none" if has_alt_fill else (_normalize_color(color) or "none")
 
-        for border_fill in element.findall(f"{_HH}borderFill"):
-            fill_brush = next(
-                (child for child in border_fill if _element_local_name(child) == "fillBrush"),
-                None,
-            )
-            if fill_brush is None:
-                continue
-            win_brush = next(
-                (child for child in fill_brush if _element_local_name(child) == "winBrush"),
-                None,
-            )
-            if win_brush is not None and win_brush.get("faceColor") == face_color:
-                border_id = border_fill.get("id")
-                if border_id:
-                    return border_id
+        matched = _find_shading_border_fill_id(
+            element, face_color=face_color, fill_image=fill_image, fill_gradient=fill_gradient,
+        )
+        if matched:
+            return matched
 
         base_element: ET.Element | None = None
         if base_border_fill_id is not None:
@@ -1247,13 +1241,9 @@ class HwpxOxmlHeader:
                 if _element_local_name(child) == "fillBrush":
                     new_border_fill.remove(child)
 
-        fill_brush = new_border_fill.makeelement(f"{_HC}fillBrush", {})
-        _append_child(
-            fill_brush,
-            f"{_HC}winBrush",
-            {"faceColor": face_color, "hatchColor": "#FF000000", "alpha": "0"},
+        _append_fill_brush(
+            new_border_fill, fill_color=face_color, fill_image=fill_image, fill_gradient=fill_gradient,
         )
-        new_border_fill.append(fill_brush)
         if isinstance(element, LET._Element) and not isinstance(new_border_fill, LET._Element):
             new_border_fill = LET.fromstring(ET.tostring(new_border_fill, encoding="utf-8"))
         element.append(new_border_fill)

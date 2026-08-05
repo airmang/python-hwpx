@@ -644,6 +644,8 @@ class HwpxOxmlDocument:
         border_color: str = "#BFBFBF",
         border_width: str = "0.12 mm",
         fill_color: str | None = None,
+        fill_image: Mapping[str, str] | None = None,
+        fill_gradient: Mapping[str, object] | None = None,
         active_borders: Iterable[str] | None = None,
         border_type: str = "SOLID",
     ) -> str:
@@ -653,6 +655,8 @@ class HwpxOxmlDocument:
             border_color=border_color,
             border_width=border_width,
             fill_color=fill_color,
+            fill_image=fill_image,
+            fill_gradient=fill_gradient,
             active_borders=active_borders,
             border_type=border_type,
         )
@@ -691,14 +695,18 @@ class HwpxOxmlDocument:
 
     def ensure_shading_border_fill(
         self,
-        color: str,
+        color: str | None = None,
         *,
+        fill_image: Mapping[str, str] | None = None,
+        fill_gradient: Mapping[str, object] | None = None,
         base_border_fill_id: str | int | None = None,
     ) -> str:
         if not self._headers:
             return "0"
         return self._headers[0].ensure_shading_border_fill(
             color,
+            fill_image=fill_image,
+            fill_gradient=fill_gradient,
             base_border_fill_id=base_border_fill_id,
         )
 

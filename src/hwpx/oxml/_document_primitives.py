@@ -438,6 +438,84 @@ def _is_integer_literal(value: str | None) -> bool:
     return True
 
 
+#: ``hc:imgBrush/@mode`` vocabulary (Core XML schema.xml:813-884). Real corpus
+#: (hwpxlib_corpus, 5 files) observes only ``TOTAL``; the rest are schema-legal
+#: but unattested.
+FILL_IMAGE_MODES = frozenset({
+    "TILE", "TILE_HORZ_TOP", "TILE_HORZ_BOTTOM", "TILE_VERT_LEFT", "TILE_VERT_RIGHT",
+    "TOTAL", "CENTER", "CENTER_TOP", "CENTER_BOTTOM", "LEFT_CENTER", "RIGHT_BOTTOM", "ZOOM",
+})
+
+#: ``hc:img/@effect`` vocabulary (Core XML schema.xml:602-624).
+FILL_IMAGE_EFFECTS = frozenset({"REAL_PIC", "GRAY_SCALE", "BLACK_WHITE"})
+
+#: ``hc:gradation/@type`` vocabulary (Core XML schema.xml:726-753). Real
+#: corpus (hwpxlib_corpus, 2 files) observes only ``LINEAR``.
+FILL_GRADIENT_TYPES = frozenset({"LINEAR", "RADIAL", "CONICAL", "SQUARE"})
+
+
+def _normalize_border_type(border_type: str, allowed: frozenset[str]) -> str:
+    normalized = str(border_type or "SOLID").upper()
+    if normalized not in allowed:
+        raise ValueError(
+            f"unsupported border_type {border_type!r}; expected one of "
+            + ", ".join(sorted(allowed))
+        )
+    return normalized
+
+
+def _border_fill_image_gradient(
+    element: ET.Element,
+) -> "tuple[dict[str, str] | None, dict[str, object] | None]":
+    """Return ``(image, gradient)`` observed in *element*'s ``fillBrush``.
+
+    At most one is non-``None`` — the schema's ``fillBrush`` choice (Core XML
+    schema.xml:650) allows exactly one of winBrush/gradation/imgBrush. Real
+    corpus never violates this for ``hh:borderFill`` specifically (the shape
+    ``fillBrush`` in ``reader_writer__SimplePolygon.hwpx`` does carry both a
+    winBrush and an imgBrush sibling, but that is a *different* fillBrush use
+    site — see ``objects.py``'s shape authoring, out of this function's
+    scope). Defensively, a ``hh:borderFill`` that did carry more than one
+    sibling would report whichever is found first in document order rather
+    than fabricating a merge.
+    """
+
+    fill_brush = next(
+        (child for child in element if _element_local_name(child) == "fillBrush"),
+        None,
+    )
+    if fill_brush is None:
+        return None, None
+    for child in fill_brush:
+        name = _element_local_name(child)
+        if name == "imgBrush":
+            img = next((c for c in child if _element_local_name(c) == "img"), None)
+            if img is None:
+                continue
+            return {
+                "binaryItemIDRef": img.get("binaryItemIDRef") or "",
+                "mode": child.get("mode") or "TILE",
+                "bright": img.get("bright") or "0",
+                "contrast": img.get("contrast") or "0",
+                "effect": img.get("effect") or "REAL_PIC",
+                "alpha": img.get("alpha") or "0",
+            }, None
+        if name == "gradation":
+            colors = [c.get("value") for c in child if _element_local_name(c) == "color"]
+            return None, {
+                "type": child.get("type") or "LINEAR",
+                "angle": child.get("angle") or "90",
+                "centerX": child.get("centerX") or "0",
+                "centerY": child.get("centerY") or "0",
+                "step": child.get("step") or "255",
+                "colorNum": child.get("colorNum") or str(len(colors)),
+                "stepCenter": child.get("stepCenter") or "50",
+                "alpha": child.get("alpha") or "0",
+                "colors": colors,
+            }
+    return None, None
+
+
 def _border_fill_is_basic_solid_line(element: ET.Element) -> bool:
     if _element_local_name(element) != "borderFill":
         return False
@@ -527,12 +605,38 @@ def _border_fill_fill_color(element: ET.Element) -> str | None:
     return win_brush.get("faceColor")
 
 
+def _border_fill_matches_fill(
+    element: ET.Element,
+    *,
+    fill_color: str | None,
+    fill_image: "Mapping[str, str] | None",
+    fill_gradient: "Mapping[str, object] | None",
+) -> bool:
+    """The fill-only half of :func:`_border_fill_matches` — split out to keep
+    that function's own branch count inside the C901 ratchet."""
+
+    if fill_image is not None or fill_gradient is not None:
+        existing_image, existing_gradient = _border_fill_image_gradient(element)
+        if existing_image != (dict(fill_image) if fill_image is not None else None):
+            return False
+        if existing_gradient != (dict(fill_gradient) if fill_gradient is not None else None):
+            return False
+        return True
+
+    expected_fill = _normalize_color(fill_color)
+    if _border_fill_fill_color(element) != expected_fill:
+        return False
+    return not any(_border_fill_image_gradient(element))
+
+
 def _border_fill_matches(
     element: ET.Element,
     *,
     border_color: str,
     border_width: str,
     fill_color: str | None,
+    fill_image: "Mapping[str, str] | None" = None,
+    fill_gradient: "Mapping[str, object] | None" = None,
     active_borders: set[str],
     border_type: str = "SOLID",
 ) -> bool:
@@ -546,8 +650,9 @@ def _border_fill_matches(
         elif actual != expected:
             return False
 
-    expected_fill = _normalize_color(fill_color)
-    if _border_fill_fill_color(element) != expected_fill:
+    if not _border_fill_matches_fill(
+        element, fill_color=fill_color, fill_image=fill_image, fill_gradient=fill_gradient,
+    ):
         return False
 
     for side, child_name in _BORDER_SIDE_ELEMENTS.items():
@@ -572,12 +677,100 @@ def _border_fill_matches(
     return True
 
 
+def _append_fill_brush(
+    parent: ET.Element,
+    *,
+    fill_color: str | None,
+    fill_image: "Mapping[str, str] | None" = None,
+    fill_gradient: "Mapping[str, object] | None" = None,
+) -> None:
+    """Append ``hc:fillBrush`` (winBrush/imgBrush/gradation) to *parent* if any
+    fill was requested — the schema's fillBrush choice (Core XML
+    schema.xml:650), so at most one branch fires. Shared by
+    :func:`_create_border_fill_element` and
+    ``HwpxOxmlHeader.ensure_shading_border_fill``.
+    """
+
+    if fill_image is not None:
+        fill_brush = _append_child(parent, f"{_HC}fillBrush")
+        img_brush = _append_child(fill_brush, f"{_HC}imgBrush", {"mode": fill_image["mode"]})
+        _append_child(
+            img_brush,
+            f"{_HC}img",
+            {
+                "binaryItemIDRef": fill_image["binaryItemIDRef"],
+                "bright": fill_image["bright"],
+                "contrast": fill_image["contrast"],
+                "effect": fill_image["effect"],
+                "alpha": fill_image["alpha"],
+            },
+        )
+    elif fill_gradient is not None:
+        fill_brush = _append_child(parent, f"{_HC}fillBrush")
+        gradation = _append_child(
+            fill_brush,
+            f"{_HC}gradation",
+            {
+                "type": str(fill_gradient["type"]),
+                "angle": str(fill_gradient["angle"]),
+                "centerX": str(fill_gradient["centerX"]),
+                "centerY": str(fill_gradient["centerY"]),
+                "step": str(fill_gradient["step"]),
+                "colorNum": str(fill_gradient["colorNum"]),
+                "stepCenter": str(fill_gradient["stepCenter"]),
+                "alpha": str(fill_gradient["alpha"]),
+            },
+        )
+        colors = fill_gradient["colors"]
+        assert isinstance(colors, Iterable)
+        for color in colors:
+            _append_child(gradation, f"{_HC}color", {"value": str(color)})
+    else:
+        normalized_fill = _normalize_color(fill_color)
+        if normalized_fill is not None:
+            fill_brush = _append_child(parent, f"{_HC}fillBrush")
+            _append_child(
+                fill_brush,
+                f"{_HC}winBrush",
+                {"faceColor": normalized_fill, "hatchColor": "#FF000000", "alpha": "0"},
+            )
+
+
+def _find_shading_border_fill_id(
+    element: ET.Element,
+    *,
+    face_color: str | None,
+    fill_image: "Mapping[str, str] | None" = None,
+    fill_gradient: "Mapping[str, object] | None" = None,
+) -> str | None:
+    """Return the id of an existing ``hh:borderFill`` whose fill already
+    matches — the dedupe half of ``HwpxOxmlHeader.ensure_shading_border_fill``,
+    extracted so that caller stays inside header_part.py's line-count ratchet.
+    """
+
+    for border_fill in element.findall(f"{_HH}borderFill"):
+        if fill_image is not None or fill_gradient is not None:
+            image, gradient = _border_fill_image_gradient(border_fill)
+            if image != (dict(fill_image) if fill_image is not None else None):
+                continue
+            if gradient != (dict(fill_gradient) if fill_gradient is not None else None):
+                continue
+        elif _border_fill_fill_color(border_fill) != face_color:
+            continue
+        border_id = border_fill.get("id")
+        if border_id:
+            return border_id
+    return None
+
+
 def _create_border_fill_element(
     border_id: str,
     *,
     border_color: str,
     border_width: str,
     fill_color: str | None,
+    fill_image: "Mapping[str, str] | None" = None,
+    fill_gradient: "Mapping[str, object] | None" = None,
     active_borders: set[str],
     border_type: str = "SOLID",
 ) -> ET.Element:
@@ -600,14 +793,7 @@ def _create_border_fill_element(
         f"{_HH}diagonal",
         _border_fill_child_attrs(active=False, color=border_color, width=border_width),
     )
-    normalized_fill = _normalize_color(fill_color)
-    if normalized_fill is not None:
-        fill_brush = ET.SubElement(element, f"{_HC}fillBrush")
-        ET.SubElement(
-            fill_brush,
-            f"{_HC}winBrush",
-            {"faceColor": normalized_fill, "hatchColor": "#FF000000", "alpha": "0"},
-        )
+    _append_fill_brush(element, fill_color=fill_color, fill_image=fill_image, fill_gradient=fill_gradient)
     return element
 
 
