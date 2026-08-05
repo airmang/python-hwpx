@@ -28,6 +28,19 @@ CYCLE_6_1_PROBES = (
     "dev007_masterpage_unnamespaced_root.py",
 )
 
+# 6.2 사이클에서 새로 등재한 항목 — 각각 실행 가능한 프로브를 동반해야 한다.
+CYCLE_6_2_DEVIATIONS = (
+    "DEV-008",
+    "DEV-009",
+    "DEV-010",
+)
+
+CYCLE_6_2_PROBES = (
+    "dev008_newnum_autonumformat_omitted.py",
+    "dev009_memopr_id_and_spelling_conventions.py",
+    "dev010_markpen_malformed_placement_and_resave_loss.py",
+)
+
 
 def test_registry_exists_with_required_sections():
     text = DOC.read_text(encoding="utf-8")
@@ -61,6 +74,33 @@ def test_cycle_6_1_probe_file_exists_and_is_referenced(probe_name: str) -> None:
 
 @pytest.mark.parametrize("probe_name", CYCLE_6_1_PROBES)
 def test_cycle_6_1_probe_runs_clean(probe_name: str) -> None:
+    """각 프로브는 단독 실행 가능해야 한다(근거 파일이 없으면 SKIP=exit 0)."""
+
+    result = subprocess.run(
+        [sys.executable, str(PROBES_DIR / probe_name)],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("dev_id", CYCLE_6_2_DEVIATIONS)
+def test_cycle_6_2_deviation_is_registered(dev_id: str) -> None:
+    text = DOC.read_text(encoding="utf-8")
+    assert dev_id in text
+
+
+@pytest.mark.parametrize("probe_name", CYCLE_6_2_PROBES)
+def test_cycle_6_2_probe_file_exists_and_is_referenced(probe_name: str) -> None:
+    probe_path = PROBES_DIR / probe_name
+    assert probe_path.exists(), f"probe script missing: {probe_path}"
+    text = DOC.read_text(encoding="utf-8")
+    assert probe_name in text, f"{probe_name} not referenced from the registry table"
+
+
+@pytest.mark.parametrize("probe_name", CYCLE_6_2_PROBES)
+def test_cycle_6_2_probe_runs_clean(probe_name: str) -> None:
     """각 프로브는 단독 실행 가능해야 한다(근거 파일이 없으면 SKIP=exit 0)."""
 
     result = subprocess.run(
