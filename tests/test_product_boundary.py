@@ -255,8 +255,10 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # 5종(checkbox·form_field·tracked·binary_item·results).
     # 6.1: +1 — settings.xml(ha:HWPApplicationSetting) read model, a brand new
     # module (oxml/settings.py) alongside header.py/simple_parts.py.
+    # 6.2: +2 — highlight authoring (markpenBegin/markpenEnd). Owner module
+    # (_document/highlight.py) + return-contract payload (objects/highlight.py).
     # 전부 module-ownership.json 에 개별 rationale 과 함께 등재돼 있다.
-    assert report["classifiedFiles"] == 132
+    assert report["classifiedFiles"] == 134
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

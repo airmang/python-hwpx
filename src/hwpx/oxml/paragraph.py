@@ -246,6 +246,34 @@ class HwpxOxmlParagraph:
 
         raise ValueError("match text was not found in the paragraph")
 
+    def add_highlight(
+        self,
+        *,
+        color: str,
+        match: str,
+    ) -> None:
+        """Wrap the first occurrence of *match* in ``hp:markpenBegin``/``markpenEnd``.
+
+        Mirrors :meth:`add_tracked_delete`'s substring branch: the first run
+        whose spans concatenate to contain *match* is targeted, then the
+        specific span holding it (contiguously) is wrapped.
+        """
+
+        if not match:
+            raise ValueError("match must be a non-empty string")
+
+        for run in self.runs:
+            model = run.to_model()
+            if match not in "".join(span.text for span in model.text_spans):
+                continue
+            for span in model.text_spans:
+                if body.wrap_highlight_in_span(span, color=color, match=match):
+                    run.apply_model(model)
+                    return
+            raise ValueError("match crosses inline markup and cannot be wrapped safely")
+
+        raise ValueError("match text was not found in the paragraph")
+
     @property
     def text(self) -> str:
         """Return the concatenated textual content of this paragraph."""

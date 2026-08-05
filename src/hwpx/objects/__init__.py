@@ -23,6 +23,7 @@ from __future__ import annotations
 from .binary_item import BinaryItem, PictureRef
 from .checkbox import CheckBox
 from .form_field import FieldLocation, FieldParameter, FormField
+from .highlight import Highlight
 from .results import (
     ColumnLayout,
     FieldFillResult,
@@ -44,6 +45,7 @@ __all__ = [
     "FieldLocation",
     "FieldParameter",
     "FormField",
+    "Highlight",
     "ListFormatResult",
     "PageMargins",
     "PageSetup",

@@ -40,6 +40,7 @@
 | HWP 5.x 바이너리 | Unsupported-and-rejected | HWP v5는 ZIP이 아니므로 열기 시 `BadZipFile` 예외. OLE2/CFBF 시그니처를 확인하면 예외 메시지가 HWPX 변환을 안내한다(예외 타입은 그대로) |
 | 누름틀(form field) 생성 | Parse·Edit·Create(experimental) | `list_form_fields`·`fill_form_field`로 조회·서식 보존 채움에 더해, `add_form_field`(5.1.0+)가 실한컴 CLICKHERE 계약 그대로 신규 누름틀을 생성한다(표 셀 배치 포함). 만든 필드는 기존 list/fill과 실제 한컴이 특수분기 없이 소비 |
 | 체크박스 양식개체 | Create·Render-verified | `add_check_box`·`list_check_boxes`·`set_check_box`(5.7.0+). 실한컴 실측 계약: `value` CHECKED=☑ / UNCHECKED=□, `<hp:formCharPr>`는 **필수 자식**(없으면 한컴이 문서를 거부하는데 우리 open-safety·ID 무결성은 통과한다 — 실한컴이 유일한 판정자다). 라디오(`hp:radioBtn`)·명령단추(`hp:btn`)는 읽기·보존만 하고 저작 API 없음 |
+| 형광펜(하이라이트) | Parse·Create(experimental) | `doc.text.highlight`·`doc.text.highlights`(6.2+). 실코퍼스(`hwpxlib_corpus/error__20251107__test*.hwpx`)와 OWPML 스키마(`ParaList XML schema.xml`) 리버스: `markpenBegin`/`markpenEnd`는 단일 `hp:t` 안에서 위치로 짝짓는다(id 없음) — `add_tracked_delete`와 같은 단일-run 매치 제약을 그대로 따른다. 색은 `#RRGGBB` 6자리 16진만 허용(typed 거부). 실한컴 렌더 검증은 사이클 말 배치로 미뤘다 |
 
 ## 6.0 표면 위치
 
@@ -68,6 +69,7 @@
 | HWP 5.x 바이너리 | 미지원 |
 | 누름틀(form field) 생성 | `doc.fields` |
 | 체크박스 양식개체 | `doc.fields` |
+| 형광펜(하이라이트) | `doc.text` |
 
 5.x 의 옛 이름은 6.x 동안 계속 답하되 `DeprecationWarning` 을 내고 7.0 에서
 사라진다 — 대응표는 `docs/migration-6.0.md`.

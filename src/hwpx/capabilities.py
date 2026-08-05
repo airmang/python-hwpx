@@ -162,6 +162,13 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "authoring_methods": ("add_track_change", "add_tracked_insert", "add_tracked_delete", "add_tracked_replace"),
     },
     {
+        "area": "highlight",
+        "namespace": "doc.text",
+        "matrix_row": "형광펜(하이라이트)",
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
+    {
         "area": "memo",
         "namespace": "doc.notes",
         "matrix_row": "메모(코멘트)",

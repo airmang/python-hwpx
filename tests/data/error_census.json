@@ -220,9 +220,21 @@
   "style-tab-container-create-failed": [
    "oxml/header_part.py:765"
   ],
+  "text-highlight-color-invalid": [
+   "_document/highlight.py:42"
+  ],
+  "text-highlight-match-crosses-markup": [
+   "_document/highlight.py:74"
+  ],
+  "text-highlight-match-empty": [
+   "_document/highlight.py:93"
+  ],
+  "text-highlight-match-not-found": [
+   "_document/highlight.py:101"
+  ],
   "text-search-empty": [
    "_document/_legacy.py:1311",
-   "_document/ns/text.py:117"
+   "_document/ns/text.py:118"
   ],
   "track-match-crosses-markup": [
    "_document/tracked.py:92"
@@ -252,8 +264,8 @@
  "malformedCodes": [],
  "observed": {
   "other": 139,
-  "typed": 125,
-  "untyped": 193,
+  "typed": 129,
+  "untyped": 197,
   "untypedByFile": {
    "body_patch.py": 20,
    "equation/mathml.py": 1,
@@ -262,12 +274,12 @@
    "opc/package.py": 1,
    "opc/security.py": 1,
    "oxml/_document_primitives.py": 1,
-   "oxml/body.py": 4,
+   "oxml/body.py": 5,
    "oxml/document_parts.py": 23,
    "oxml/header.py": 6,
    "oxml/header_part.py": 17,
    "oxml/memo.py": 1,
-   "oxml/paragraph.py": 17,
+   "oxml/paragraph.py": 20,
    "oxml/parser.py": 2,
    "oxml/run.py": 2,
    "oxml/section.py": 1,
@@ -290,8 +302,8 @@
   }
  },
  "public": {
-  "total": 77,
-  "typed": 77,
+  "total": 81,
+  "typed": 81,
   "typedRatio": 1.0,
   "untyped": 0,
   "untypedSites": []

@@ -467,6 +467,71 @@ def wrap_tracked_delete_in_span(
     return False
 
 
+def create_highlight_mark(*, is_begin: bool, color: str | None = None) -> GenericElement:
+    """Create a ``markpenBegin``/``markpenEnd`` boundary element.
+
+    Unlike :func:`create_track_change_mark`, there is no ``tc_id``/``mark_id``
+    to allocate — the schema (``ParaList XML schema.xml``) gives
+    ``markpenEnd`` no attributes at all, so begin/end pair positionally
+    (first unmatched end closes the innermost open begin), the same rule
+    :func:`hwpx.tools.text_extractor` already applies when it renders a
+    ``hp:t`` for reading.
+    """
+
+    name = "markpenBegin" if is_begin else "markpenEnd"
+    attributes: Dict[str, str] = {}
+    if is_begin and color:
+        attributes["color"] = color
+    return GenericElement(name=name, tag=_qualified_tag(None, name), attributes=attributes)
+
+
+def wrap_highlight_in_span(
+    span: TextSpan,
+    *,
+    color: str,
+    match: str,
+) -> bool:
+    """Wrap the first occurrence of *match* in *span* in markpen marks.
+
+    Mirrors :func:`wrap_tracked_delete_in_span`'s substring branch exactly —
+    a match must live entirely inside *span*'s ``leading_text`` or one
+    existing mark's ``trailing_text``; a match that only appears once the
+    span's pieces are concatenated straddles existing inline markup and is
+    rejected by returning ``False`` (the caller distinguishes "not found" from
+    "found but unsafe" the same way tracked-delete does).
+    """
+
+    if not match:
+        raise ValueError("match must be a non-empty string")
+
+    begin = TextMarkup(create_highlight_mark(is_begin=True, color=color))
+    end = TextMarkup(create_highlight_mark(is_begin=False))
+
+    index = span.leading_text.find(match)
+    if index >= 0:
+        before = span.leading_text[:index]
+        after = span.leading_text[index + len(match) :]
+        span.leading_text = before
+        begin.trailing_text = match
+        end.trailing_text = after
+        span.marks[0:0] = [begin, end]
+        return True
+
+    for mark_index, markup in enumerate(span.marks):
+        index = markup.trailing_text.find(match)
+        if index < 0:
+            continue
+        before = markup.trailing_text[:index]
+        after = markup.trailing_text[index + len(match) :]
+        markup.trailing_text = before
+        begin.trailing_text = match
+        end.trailing_text = after
+        span.marks[mark_index + 1 : mark_index + 1] = [begin, end]
+        return True
+
+    return False
+
+
 def parse_track_change_mark(node: etree._Element) -> TrackChangeMark:
     attrs = {key: value for key, value in node.attrib.items()}
     para_end = parse_bool(attrs.pop("paraend", None))

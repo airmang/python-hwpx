@@ -256,6 +256,12 @@
       "rationale": "add_heading 의 개요 스타일 해석과 hh:heading 결합. 스타일과 개요 수준이 분리돼 있던 5.x 결함을 닫는다"
     },
     {
+      "path": "src/hwpx/_document/highlight.py",
+      "disposition": "core",
+      "approvedBy": "cycle-6.2/highlight-authoring",
+      "rationale": "doc.text.highlight/highlights 의 소유 모듈. markpenBegin/markpenEnd 저작(단일-run 매치, tracked._paragraph_has_replaceable_text 와 같은 형태의 사전검사)과 읽기(hp:t 당 LIFO 스택, text_extractor 의 highlight_stack 을 공개 모델로 재노출)를 둘 다 가진다"
+    },
+    {
       "path": "src/hwpx/_document/ns/__init__.py",
       "disposition": "core",
       "approvedBy": "062-engine-surface/WP-A",
@@ -374,6 +380,12 @@
       "disposition": "core",
       "approvedBy": "062-engine-surface/WP-C",
       "rationale": "FormField(+FieldLocation·FieldParameter) — add_form_field/fill_form_field/list_form_fields 가 반환하는 누름틀 라이브 뷰. id/prompt/type 3쌍 별칭과 5개 인덱스 키를 각 1개로 수렴한다"
+    },
+    {
+      "path": "src/hwpx/objects/highlight.py",
+      "disposition": "core",
+      "approvedBy": "cycle-6.2/highlight-authoring",
+      "rationale": "Highlight — doc.text.highlight/highlights 가 반환하는 markpenBegin/markpenEnd 구간의 순수 결과 페이로드. TrackedChange 와 같은 frozen dataclass + to_dict() 하우스 컨벤션"
     },
     {
       "path": "src/hwpx/objects/results.py",

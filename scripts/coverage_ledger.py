@@ -805,6 +805,41 @@ _MANUAL_CODE_USAGE_OVERRIDES: tuple[ManualCodeUsageOverride, ...] = (
             "_reorder_replace_marks."
         ),
     ),
+    ManualCodeUsageOverride(
+        "hp",
+        "markpenBegin",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "src/hwpx/oxml/body.py:481 create_highlight_mark assembles the tag "
+            "as name = 'markpenBegin' if is_begin else 'markpenEnd' — a literal "
+            "substring, but with no hp:/{_HP} namespace marker adjacent in "
+            "source, so the prefix-anchored patterns cannot find it (same blind "
+            "spot as hp:insertBegin above, different cause: there it is dynamic "
+            "concatenation, here it is a namespace-free literal). body.py:485 "
+            "returns GenericElement(name=name, tag=_qualified_tag(None, name), "
+            "...); body.py:818-826 _generic_element_to_xml emits it via "
+            "etree.Element(_qualified_tag(element.tag, element.name)) — again a "
+            "generic parameter, not a literal 'markpenBegin' token. "
+            "wrap_highlight_in_span (body.py:488-532) splices the begin/end "
+            "pair into TextSpan.marks; oxml/paragraph.py:249-274 add_highlight "
+            "is the paragraph-level call site reached from doc.text.highlight. "
+            "Shipped and real-corpus-verified via "
+            "tests/test_highlight_authoring.py "
+            "test_real_corpus_new_highlight_coexists_with_the_original_malformed_pair "
+            "(2026-08 cycle-6.2 highlight authoring)."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hp",
+        "markpenEnd",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "Same mechanism as hp:markpenBegin — src/hwpx/oxml/body.py:470-532, "
+            "818-826, oxml/paragraph.py:249-274."
+        ),
+    ),
 )
 
 _validate_manual_overrides(_MANUAL_CODE_USAGE_OVERRIDES)
@@ -953,6 +988,7 @@ _register(
     "각주/미주", "hp", "footNote", "endNote", "footNotePr", "endNotePr", "noteLine", "noteSpacing",
 )
 _register("체크박스 양식개체", "hp", "checkBtn", "formCharPr", "radioBtn", "btn")
+_register("형광펜(하이라이트)", "hp", "markpenBegin", "markpenEnd")
 
 
 def _parse_support_matrix_status(text: str) -> dict[str, str]:

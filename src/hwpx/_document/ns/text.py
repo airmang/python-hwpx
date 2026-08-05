@@ -18,7 +18,8 @@ from ...errors import HwpxValueError
 from ._base import _Namespace
 
 if TYPE_CHECKING:
-    from ...oxml import HwpxOxmlRun
+    from ...objects.highlight import Highlight
+    from ...oxml import HwpxOxmlParagraph, HwpxOxmlRun
 
 __all__ = ["TextNamespace"]
 
@@ -144,3 +145,31 @@ class TextNamespace(_Namespace):
             if limit is not None and replacements >= limit:
                 break
         return replacements
+
+    # -- 형광펜 ------------------------------------------------------------
+
+    def highlight(
+        self,
+        paragraph: "HwpxOxmlParagraph | int",
+        match: str,
+        *,
+        color: str = "#FFFF00",
+    ) -> "Highlight":
+        """*match* 의 첫 등장을 형광펜(``markpenBegin``/``markpenEnd``)으로 감싼다."""
+
+        from .. import highlight as _highlight
+        from .._resolve import resolve_paragraph
+
+        return _highlight.add_highlight(
+            self._doc,
+            resolve_paragraph(self._doc, paragraph, caller="doc.text.highlight"),
+            match,
+            color=color,
+        )
+
+    def highlights(self) -> tuple["Highlight", ...]:
+        """문서의 모든 형광펜 구간을 문서 순서로 돌려준다."""
+
+        from .. import highlight as _highlight
+
+        return _highlight.list_highlights(self._doc)
