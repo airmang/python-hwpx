@@ -770,7 +770,7 @@ _MANUAL_CODE_USAGE_OVERRIDES: tuple[ManualCodeUsageOverride, ...] = (
             "_track_change_mark_to_xml emits it via "
             "etree.Element(_qualified_tag(mark.tag, mark.name)). Shipped and "
             "Hancom-COM-verified via add_tracked_insert/delete/replace "
-            "(2026-06-30, S-058/S-059 M4 redline)."
+            "(2026-06-30, the tracked-change/redline train)."
         ),
     ),
     ManualCodeUsageOverride(
