@@ -1,0 +1,91 @@
+{
+ "box_os": null,
+ "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v5",
+ "hancom_build": "12.0.0.3288",
+ "hancom_exe_path": null,
+ "harness_valid": true,
+ "measured_at": "2026-08-05T21:23:59.9208286+09:00",
+ "negative_controls": {
+  "expected": [
+   "corrupt_header.hwpx",
+   "corrupt_section.hwpx",
+   "missing_section.hwpx"
+  ],
+  "judged": 3,
+  "wrongly_opened": []
+ },
+ "schemaVersion": "hwpx.openrate.report/v5",
+ "scopeNote": "v5 is ADDITIVE over v4: 4 new strata exercising ONLY the 6.1 read-write gaps closed this cycle — font declaration/substitution authoring (doc.styles.ensure_font), paragraph tab-stop authoring (doc.styles.apply_paragraph_format(tab_stops=...)), shape-internal text (shape.set_draw_text) and table/shape/picture captions (*.set_caption). It is not a v4 re-run and does not re-touch v4's 11 strata; it does not replace v1/v2/v3/v4, which remain published with their own measurement stack and date.",
+ "strata": {
+  "authored-caption": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "authored-drawtext": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "authored-fontface": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  },
+  "authored-tabstops": {
+   "judged": 15,
+   "open_rate": 1.0,
+   "open_rate_lower_bound": 0.8,
+   "opened": 15,
+   "parsed": 15,
+   "produced": 15,
+   "render_checked": 15,
+   "render_failed": 0,
+   "render_unavailable": 0,
+   "requested": 15
+  }
+ },
+ "tool_versions": {
+  "python-hwpx": "6.0.2"
+ },
+ "totals": {
+  "judged": 60,
+  "open_rate": 1.0,
+  "open_rate_lower_bound": 0.95,
+  "opened": 60,
+  "parsed": 60,
+  "produced": 60,
+  "render_checked": 60,
+  "render_failed": 0,
+  "requested": 60
+ },
+ "unknown_rows": [
+  "gate1-roundtrip-existing-caption.hwpx",
+  "gate1-roundtrip-existing-fontfaces.hwpx",
+  "gate1-roundtrip-existing-tabstops.hwpx",
+  "gate2-new-authoring-fontfaces.hwpx",
+  "gate2-new-authoring-shapetext-caption.hwpx",
+  "gate2-new-authoring-tabstops.hwpx"
+ ]
+}
