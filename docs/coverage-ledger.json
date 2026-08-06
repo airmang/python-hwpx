@@ -50,7 +50,7 @@
     "codeWriteNone": 149,
     "capabilityMapped": 76,
     "renderVerified": 77,
-    "renderVerifiedByOpenrateCorpus": 45,
+    "renderVerifiedByOpenrateCorpus": 43,
     "attributesObserved": 193
   },
   "elements": [
@@ -2835,7 +2835,7 @@
       "codeWrite": "none",
       "capabilityArea": "체크박스 양식개체",
       "capabilityStatus": "Create·Render-verified",
-      "verificationBasis": "by-capability-area+openrate-corpus",
+      "verificationBasis": "by-capability-area",
       "observedAttributes": [
         "backColor",
         "borderTypeIDRef",
@@ -4815,7 +4815,7 @@
       "codeWrite": "none",
       "capabilityArea": "체크박스 양식개체",
       "capabilityStatus": "Create·Render-verified",
-      "verificationBasis": "by-capability-area+openrate-corpus",
+      "verificationBasis": "by-capability-area",
       "observedAttributes": [
         "backColor",
         "backStyle",

@@ -197,13 +197,24 @@ def test_ledger_schema_is_valid() -> None:
             if "capability-area" in entry["verificationBasis"]:
                 assert entry["capabilityArea"] is not None
                 assert "Render-verified" in entry["capabilityStatus"]
-            if entry["verificationBasis"] == "by-openrate-corpus":
-                # 순수 코퍼스 증거는 "실한컴이 저작을 수용했다"는 주장이다 —
-                # 못 만드는(write=none) 요소가 이 표시를 갖는 건 모순이다
-                # (구현 중 실제로 겪은 회귀: arc·polygon·curve·connectLine을
-                # capabilityArea째 매핑했다가 정직 보류 중인 curve/
-                # connectLine에 이 표시가 새 나갔다).
-                assert entry["codeWrite"] == "api"
+            if "openrate-corpus" in entry["verificationBasis"]:
+                # openrate 코퍼스 증거는 순수("by-openrate-corpus")든 복합
+                # ("by-capability-area+openrate-corpus")든 "실한컴이 저작을
+                # 수용했다"는 주장이다 — 못 만드는(write=none) 요소가 이
+                # 표시를 갖는 건 모순이다. 순수 경로 회귀(구현 중 실제로
+                # 겪음): arc·polygon·curve·connectLine을 capabilityArea째
+                # 매핑했다가 정직 보류 중인 curve/connectLine에 신호가 샜다.
+                # 복합 경로 회귀(트레인⑰ 사후 재검증이 잡음): v4의
+                # authored-checkbox가 "체크박스 양식개체" 영역 전체에 흘려,
+                # 저작 API 없는 hp:btn/radioBtn까지 신호가 샜다 — 두 요소는
+                # _OPENRATE_MIXED_SUPPORT_AREA_EXCLUSIONS로 강등했다.
+                assert entry["codeWrite"] == "api", (
+                    f"{entry['namespace']}:{entry['element']} has verificationBasis="
+                    f"{entry['verificationBasis']!r} but codeWrite="
+                    f"{entry['codeWrite']!r} — corpus-authored verification claims "
+                    "require write=api regardless of whether the basis is pure or "
+                    "combined with a capability-area claim"
+                )
 
     # 재현성: (namespace, element) 오름차순 결정론적 정렬.
     pairs = [(e["namespace"], e["element"]) for e in ledger["elements"]]
@@ -972,14 +983,45 @@ def test_mixed_support_capability_area_is_not_used_for_openrate_mapping() -> Non
     assert module._OPENRATE_STRATUM_TO_ELEMENTS["authored-arc"] == (("hp", "arc"),)
 
 
-# 위 회귀의 일반화된 불변식(순수 "by-openrate-corpus"는 codeWrite=="api"를
-# 요구)은 test_ledger_schema_is_valid에 상시 체크로 이미 들어가 있다 — 전
-# 요소를 훑는 자리라 여기 따로 반복하지 않는다. "by-capability-area+
-# openrate-corpus"(예: hp:btn — 매트릭스 산문이 이미 "Render-verified"라고
-# 말하는 "체크박스 양식개체" 영역의 write=none 멤버)까지는 이 불변식을
-# 안 건다 — capabilityArea 쪽 성분은 이 트레인이 만든 게 아니라 손대지
-# 않았다(별도로 플래그만 남겼다, `docs/2026-08-06-next-gap-map.md` 참조
-# 예정).
+def test_checkbox_area_openrate_signal_does_not_bleed_onto_radio_and_button() -> None:
+    """트레인⑰ 사후 재검증이 잡은 두 번째 사례(위 테스트의 복합-경로
+    버전): v4의 authored-checkbox 스트라타가 "체크박스 양식개체" 영역
+    전체에 openrate 수용 신호를 흘린다 — 그 영역의 저작 표면
+    (add_check_box)이 실제로 검증하는 건 hp:checkBtn/formCharPr뿐인데,
+    같은 영역에 속한 hp:radioBtn/btn(읽기·보존만, 저작 API 없음 —
+    지원 매트릭스 자신도 그렇게 명시)까지 검증된 것처럼 보였다.
+    _OPENRATE_MIXED_SUPPORT_AREA_EXCLUSIONS로 이 둘만 영역의 openrate
+    성분을 안 받도록 강등해야 한다."""
+
+    module = _module()
+    assert ("hp", "btn") in module._OPENRATE_MIXED_SUPPORT_AREA_EXCLUSIONS
+    assert ("hp", "radioBtn") in module._OPENRATE_MIXED_SUPPORT_AREA_EXCLUSIONS
+
+    ledger = _load_ledger()
+    by_key = {(e["namespace"], e["element"]): e for e in ledger["elements"]}
+
+    for name in ("btn", "radioBtn"):
+        entry = by_key[("hp", name)]
+        assert entry["codeWrite"] == "none"
+        assert entry["capabilityArea"] == "체크박스 양식개체"  # 라벨은 유지
+        assert entry["verificationBasis"] == "by-capability-area"  # openrate 성분 제거
+        assert entry["verificationBasis"] is None or "openrate-corpus" not in entry["verificationBasis"]
+
+    # 대조군: 같은 영역의 실제 저작 표면은 복합 경로를 그대로 유지해야 한다
+    # (강등이 영역 전체가 아니라 이 두 요소에만 적용됐는지 확인).
+    for name in ("checkBtn", "formCharPr"):
+        entry = by_key[("hp", name)]
+        assert entry["codeWrite"] == "api"
+        assert entry["verificationBasis"] == "by-capability-area+openrate-corpus"
+
+
+# 위 회귀의 일반화된 불변식("openrate-corpus" 성분이 있으면 순수·복합
+# 무관하게 codeWrite=="api"를 요구)은 test_ledger_schema_is_valid에 상시
+# 체크로 이미 들어가 있다 — 전 요소를 훑는 자리라 여기 따로 반복하지 않는다.
+# 복합 경로("by-capability-area+openrate-corpus")의 회귀 사례(hp:btn/
+# radioBtn — "체크박스 양식개체" 영역의 authored-checkbox 신호가 흘렀던
+# 것)는 test_checkbox_area_openrate_signal_does_not_bleed_onto_radio_and_button
+# 이 이름 붙여 고정한다(_OPENRATE_MIXED_SUPPORT_AREA_EXCLUSIONS로 강등).
 
 
 def test_combine_verification_basis() -> None:
@@ -991,3 +1033,24 @@ def test_combine_verification_basis() -> None:
         module._combine_verification_basis("by-capability-area", True)
         == "by-capability-area+openrate-corpus"
     )
+
+
+def test_openrate_basis_requires_authoring_api_everywhere() -> None:
+    """No element may carry an openrate verification component unless we can
+    author it - pure or area-composed alike. The area-routed receipt otherwise
+    leaks "real Hancom accepted our authoring" onto read-only siblings."""
+    import json
+    from pathlib import Path
+
+    ledger = json.loads(
+        (Path(__file__).resolve().parents[1] / "docs" / "coverage-ledger.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    offenders = [
+        f"{e['namespace']}:{e['element']}"
+        for e in ledger["elements"]
+        if "openrate" in str(e.get("verificationBasis") or "")
+        and e["codeWrite"] != "api"
+    ]
+    assert offenders == [], offenders

@@ -1269,6 +1269,24 @@ _OPENRATE_STRATUM_TO_ELEMENTS: dict[str, tuple[tuple[str, str], ...]] = {
     ),
 }
 
+#: 원장 재검증(사이클 6.5 트레인⑰ 사후 검토)이 잡은 두 번째 사례 — 영역
+#: 경로(capabilityArea)로 openrate 수용 신호를 흘렸더니, 그 영역이 공유하는
+#: write=none 요소까지 검증된 것처럼 verificationBasis가 붙는 문제. 이번엔
+#: v8의 authored-polygon/arc처럼 이 트레인이 새로 매핑한 스트라타가 원인이
+#: 아니라, v4의 authored-checkbox(감사 R4 수리, 이 트레인 이전부터 존재)가
+#: "체크박스 양식개체" 영역 전체에 흘리는 기존 신호다 — 그 영역의 저작
+#: 표면(`add_check_box`)이 실제로 검증하는 건 `hp:checkBtn`/`formCharPr`뿐,
+#: `hp:radioBtn`/`btn`은 지원 매트릭스 자신도 "읽기·보존만 하고 저작 API
+#: 없음"이라고 명시한다(오너 결정 보류, 빈도 컷). 이 두 요소만 영역의
+#: openrate 성분을 안 받도록 예외 처리한다 — capabilityArea 라벨(그 영역에
+#: 속한다는 사실)은 유지하고, verificationBasis만 by-capability-area
+#: 단독으로 강등한다(매트릭스 산문 자체가 이미 그렇게 말하고 있으므로 그
+#: 성분은 정당).
+_OPENRATE_MIXED_SUPPORT_AREA_EXCLUSIONS: frozenset[tuple[str, str]] = frozenset({
+    ("hp", "btn"),
+    ("hp", "radioBtn"),
+})
+
 
 def _stratum_accepted(row: dict[str, object]) -> bool:
     """단일 스트라텀 행이 실한컴 수용 판정을 통과했는지.
@@ -1410,9 +1428,17 @@ def build_ledger(
         else:
             write_mode = "none"
         area, status, basis = classify_capability(prefix, name, status_by_area)
-        corpus_accepted = (
-            area is not None and openrate_capability_receipts.get(area, False)
-        ) or openrate_element_receipts.get((prefix, name), False)
+        area_accepted = area is not None and openrate_capability_receipts.get(area, False)
+        if (prefix, name) in _OPENRATE_MIXED_SUPPORT_AREA_EXCLUSIONS:
+            area_accepted = False
+        corpus_accepted = area_accepted or openrate_element_receipts.get((prefix, name), False)
+        # An openrate component on the basis asserts "real Hancom accepted our
+        # authoring of this element" - which is only a coherent claim for
+        # elements we can author. Area-routed receipts otherwise leak the
+        # verified label onto read-only siblings mapped into the same area
+        # (observed: hp:btn/hp:radioBtn riding the checkbox area's receipt).
+        if write_mode != "api":
+            corpus_accepted = False
         basis = _combine_verification_basis(basis, corpus_accepted)
         observed_attributes = census.attribute_names.get((prefix, name), [])
 
