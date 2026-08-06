@@ -1,0 +1,42 @@
+{
+ "cycle_demos": {
+  "judged": 4,
+  "render_checked": 4,
+  "render_failed": 0
+ },
+ "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v8",
+ "harness_valid": true,
+ "measured_at": "2026-08-06T20:14:08.816974+09:00",
+ "negative_controls": {
+  "expected": [
+   "corrupt_header.hwpx",
+   "corrupt_section.hwpx",
+   "missing_section.hwpx"
+  ],
+  "judged": 3,
+  "wrongly_rendered": []
+ },
+ "oracle": "mac-gui",
+ "oracle_app": "Hancom Office HWP.app (macOS)",
+ "schemaVersion": "hwpx.openrate.report/v8",
+ "scopeNote": "v8 measures the 6.4 cycle's shape-authoring surfaces (polygon with 3-12 vertex rotation including stars and concave forms, arc across four corners and three types), additive over v1-v7. curve and connectLine have no strata because authoring stayed honestly deferred on measured grounds. Observer: macOS Hancom GUI oracle (open+render one gate). Session-state discipline applied: a control render preceded the batch, and one stalled launcher-window session was restarted and re-verified before any file was judged.",
+ "strata": {
+  "authored-arc": {
+   "judged": 15,
+   "render_checked": 15,
+   "render_failed": 0
+  },
+  "authored-polygon": {
+   "judged": 15,
+   "render_checked": 15,
+   "render_failed": 0
+  }
+ },
+ "tool_versions": {
+  "python-hwpx": "6.0.2"
+ },
+ "totals": {
+  "judged": 30,
+  "render_checked": 30
+ }
+}
