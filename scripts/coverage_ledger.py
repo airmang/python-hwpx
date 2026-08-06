@@ -840,6 +840,96 @@ _MANUAL_CODE_USAGE_OVERRIDES: tuple[ManualCodeUsageOverride, ...] = (
             "818-826, oxml/paragraph.py:249-274."
         ),
     ),
+    ManualCodeUsageOverride(
+        "hhs",
+        "insert",
+        code_read=True,
+        code_write=False,
+        evidence=(
+            "src/hwpx/oxml/history_part.py:103-112 _parse_diff_op is a generic "
+            "recursive descent: name = local_name(node) (line 104) is stored "
+            "directly as DiffNode.op with no '==' / 'in' comparison anywhere in "
+            "the function, so neither the prefix-anchored literal patterns nor "
+            "the bare-name dispatch-window detector can find it — there is no "
+            "comparison site to anchor on, and no fixed set of literal tag "
+            "strings. _parse_diff_entry (history_part.py:92-100) feeds this "
+            "function whatever the first child of a packageDiff/headDiff/"
+            "bodyDiff/tailDiff element is, and _parse_diff_op recurses into its "
+            "own children (line 108) the same way, so it genuinely parses "
+            "'insert' when that is the tag it is handed — not a hypothetical. "
+            "Wired to the reader: simple_parts.py:85-87 "
+            "HwpxOxmlHistory.to_model -> parse_history, reached from "
+            "doc.parts.histories. Exercised end-to-end (not just theoretically "
+            "reachable) by "
+            "tests/test_part_hierarchy_read_models.py:179 "
+            "test_parse_history_handles_a_schema_shaped_synthetic_fixture, "
+            "which asserts DiffNode(op='insert', ...) on parsed output. No "
+            "writer exists anywhere in src/hwpx for hhs:insert "
+            "(grep-confirmed), so code_write stays False."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hhs",
+        "update",
+        code_read=True,
+        code_write=False,
+        evidence="Same mechanism as hhs:insert — src/hwpx/oxml/history_part.py:103-112.",
+    ),
+    ManualCodeUsageOverride(
+        "hhs",
+        "delete",
+        code_read=True,
+        code_write=False,
+        evidence="Same mechanism as hhs:insert — src/hwpx/oxml/history_part.py:103-112.",
+    ),
+    ManualCodeUsageOverride(
+        "hhs",
+        "position",
+        code_read=True,
+        code_write=False,
+        evidence="Same mechanism as hhs:insert — src/hwpx/oxml/history_part.py:103-112.",
+    ),
+    ManualCodeUsageOverride(
+        "hh",
+        "trackChange",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "src/hwpx/oxml/header.py:1599-1610 track_change_to_xml emits "
+            "etree.Element(\"{http://www.hancom.co.kr/hwpml/2011/head}"
+            "trackChange\", attributes) — a full Clark-notation namespace URI "
+            "spelled out as a literal string, not the codebase's usual "
+            "{_HH}trackChange f-string alias, so pattern 3 "
+            "(_?HH(?:10)?\\}name) never matches: the characters immediately "
+            "before '}' are 'head', not 'HH'. (codeRead was already correctly "
+            "True via the direct-getter dispatch window — header.py:1469 "
+            "`if local_name(child) == \"trackChange\"` matches "
+            "_DIRECT_GETTER_RE; only codeWrite was the false negative.) "
+            "Genuinely wired end to end, not dead code: header_part.py:870-893 "
+            "HwpxOxmlHeader.add_track_change calls track_change_to_xml and "
+            "appends the result; reached from "
+            "src/hwpx/_document/ns/tracking.py:114-127 "
+            "TrackingNamespace.add_change (doc.tracked.add_change), the "
+            "primitive behind add_tracked_insert/delete/replace — shipped and "
+            "Hancom-COM-verified 2026-06-30 (commit 2026-06-30 "
+            "'feat(m4-p1): redline authoring primitives (insert/delete/"
+            "replace) — S-058', predates this cycle)."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hh",
+        "trackChangeAuthor",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "Same mechanism as hh:trackChange — "
+            "src/hwpx/oxml/header.py:1613-1629 track_change_author_to_xml "
+            "emits the same full-URI Clark-notation literal for "
+            "trackChangeAuthor. Wired via header_part.py:894-914 (the same "
+            "add_track_change call registers the author entry the first time "
+            "that author id appears)."
+        ),
+    ),
 )
 
 _validate_manual_overrides(_MANUAL_CODE_USAGE_OVERRIDES)

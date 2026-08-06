@@ -537,6 +537,90 @@ def test_manual_override_reproduces_insert_begin_family_write() -> None:
         assert (read, write) == (True, True), f"hp:{name} should resolve via the manual whitelist"
 
 
+def test_manual_override_reproduces_track_change_family_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """이번 사이클(6.5) 원장 재스캔이 새로 찾은 위음성의 반증:
+    `hh:trackChange`/`trackChangeAuthor`는 `header.py`의
+    `track_change_to_xml`/`track_change_author_to_xml`이 실제로 쓴다 —
+    `etree.Element("{http://www.hancom.co.kr/hwpml/2011/head}trackChange", ...)`
+    처럼 전체 네임스페이스 URI를 문자열 리터럴로 그대로 박아 넣는 관용구라,
+    코드베이스가 보통 쓰는 `{_HH}trackChange` 별칭 패턴(패턴 3)이 못 잡는다
+    — `}` 바로 앞 글자가 `HH`가 아니라 `head`이기 때문이다. 실제 소스로
+    재현한다: 화이트리스트를 지우면(수리 OFF) 실 `header.py` 텍스트만으로는
+    write=none이 재현되고, 실제 등재된 화이트리스트(수리 ON)를 쓰면 고쳐진다.
+    (read는 원래도 정확했다 — `local_name(child) == "trackChange"` 직접
+    비교가 디스패치 윈도로 이미 잡혔다.)"""
+
+    module = _module()
+    header_py = ROOT / "src" / "hwpx" / "oxml" / "header.py"
+    raw_text = header_py.read_text(encoding="utf-8")
+    stripped = module._strip_non_code_text(raw_text)
+    dispatch_windows = module._build_dispatch_windows(stripped)
+
+    names = ("trackChange", "trackChangeAuthor")
+    for name in names:
+        assert ("hh", name) in module.MANUAL_CODE_USAGE_OVERRIDES_BY_KEY
+
+    monkeypatch.setattr(module, "MANUAL_CODE_USAGE_OVERRIDES_BY_KEY", {})
+    for name in names:
+        broken = module.classify_code_usage(
+            "hh", name, "head", stripped, dispatch_windows, {}
+        )
+        assert broken == (True, False), (
+            f"hh:{name} should read=True (dispatch window still finds it) but "
+            "write=False (whitelist removed) without the whitelist"
+        )
+
+    monkeypatch.undo()
+    for name in names:
+        fixed = module.classify_code_usage(
+            "hh", name, "head", stripped, dispatch_windows, {}
+        )
+        assert fixed == (True, True), f"hh:{name} should resolve to (read, write) via the manual whitelist"
+
+
+def test_manual_override_reproduces_hhs_diff_op_family_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """감사 이후(cycle 6.4 train 15)에 새로 생긴 위음성의 반증:
+    `hhs:insert/update/delete/position`은 `history_part.py`의 범용 재귀
+    파서(`_parse_diff_op`)가 실제로 읽는다 — `name = local_name(node)`를
+    비교 없이 그대로 `DiffNode.op`에 담기 때문에(태그 리터럴도 `==`/`in`
+    비교 디스패치도 없음), 한정 태그 패턴도 접두-없는 디스패치 탐지기도
+    못 잡는다. 실제 소스로 재현한다: 화이트리스트를 지우면(수리 OFF)
+    실 `history_part.py` 텍스트만으로는 여전히 위음성이 재현되고, 실제
+    등재된 화이트리스트(수리 ON)를 쓰면 고쳐진다."""
+
+    module = _module()
+    history_part = ROOT / "src" / "hwpx" / "oxml" / "history_part.py"
+    raw_text = history_part.read_text(encoding="utf-8")
+    stripped = module._strip_non_code_text(raw_text)
+    dispatch_windows = module._build_dispatch_windows(stripped)
+
+    names = ("insert", "update", "delete", "position")
+    for name in names:
+        assert ("hhs", name) in module.MANUAL_CODE_USAGE_OVERRIDES_BY_KEY
+
+    # 수리 OFF: 화이트리스트를 빈 테이블로 바꾸면, 진짜 소스 텍스트를 스캔해도
+    # 위음성이 재현된다 — 이 결함이 화이트리스트 없이는 실제로 못 잡히는
+    # 부류임을 실코드로 증명한다.
+    monkeypatch.setattr(module, "MANUAL_CODE_USAGE_OVERRIDES_BY_KEY", {})
+    for name in names:
+        broken = module.classify_code_usage(
+            "hhs", name, "history", stripped, dispatch_windows, {}
+        )
+        assert broken == (False, False), f"hhs:{name} should be a false negative without the whitelist"
+
+    # 수리 ON: 실제 등재된 화이트리스트를 복원하면 고쳐진다.
+    monkeypatch.undo()
+    for name in names:
+        fixed = module.classify_code_usage(
+            "hhs", name, "history", stripped, dispatch_windows, {}
+        )
+        assert fixed == (True, False), f"hhs:{name} should resolve via the manual whitelist (read-only)"
+
+
 def test_support_matrix_status_parser_isolates_matrix_section() -> None:
     module = _module()
     text = (
