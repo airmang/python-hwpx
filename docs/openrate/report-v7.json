@@ -1,0 +1,42 @@
+{
+ "cycle_demos": {
+  "judged": 2,
+  "render_checked": 2,
+  "render_failed": 0
+ },
+ "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v7",
+ "harness_valid": true,
+ "measured_at": "2026-08-06T16:10:35.687490+09:00",
+ "negative_controls": {
+  "expected": [
+   "corrupt_header.hwpx",
+   "corrupt_section.hwpx",
+   "missing_section.hwpx"
+  ],
+  "judged": 3,
+  "wrongly_rendered": []
+ },
+ "oracle": "mac-gui",
+ "oracle_app": "Hancom Office HWP.app (macOS)",
+ "schemaVersion": "hwpx.openrate.report/v7",
+ "scopeNote": "v7 measures the 6.3 cycle's authorable surfaces (character-format flag elements with the coexisting offset contract, and general field parameter lists), additive over v1-v6. Observer: macOS Hancom GUI oracle (open+render one gate; PDF export implies open). Operational note recorded honestly: three files initially failed on an oracle session gone stale after repeated renders and succeeded immediately after an app restart with a passing-control check - the retriedAfterAppRestart rows mark them; a Windows-box cross-check remains available.",
+ "strata": {
+  "authored-charformat": {
+   "judged": 15,
+   "render_checked": 15,
+   "render_failed": 0
+  },
+  "authored-fieldparams": {
+   "judged": 15,
+   "render_checked": 15,
+   "render_failed": 0
+  }
+ },
+ "tool_versions": {
+  "python-hwpx": "6.0.2"
+ },
+ "totals": {
+  "judged": 30,
+  "render_checked": 30
+ }
+}

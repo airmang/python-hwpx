@@ -1,0 +1,36 @@
+{"_meta": "mac-render-batch-v1", "app": "Hancom Office HWP.app", "jobCount": 35, "oracle": "mac-gui"}
+{"error": null, "pdfBytes": 17892, "renderMs": 31874, "retriedAfterAppRestart": true, "saved": true, "sourceId": "v7-charformat-000", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 16915, "renderMs": 31970, "retriedAfterAppRestart": true, "saved": true, "sourceId": "v7-charformat-001", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 16296, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-charformat-002", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 17183, "renderMs": 32107, "retriedAfterAppRestart": true, "saved": true, "sourceId": "v7-charformat-003", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 17264, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-charformat-004", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 17797, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-charformat-005", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 17271, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-charformat-006", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 16444, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-charformat-007", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 16842, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-charformat-008", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 17178, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-charformat-009", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 17426, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-charformat-010", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 17122, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-charformat-011", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 16970, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-charformat-012", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 17237, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-charformat-013", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 16670, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-charformat-014", "stratum": "authored-charformat"}
+{"error": null, "pdfBytes": 17558, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-000", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 16873, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-001", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 16476, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-002", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 16776, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-003", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 16888, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-004", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 17232, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-005", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 16680, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-006", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 16231, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-007", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 16562, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-008", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 17195, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-009", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 17154, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-010", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 16958, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-011", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 16389, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-012", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 16515, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-013", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 16607, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "v7-fieldparams-014", "stratum": "authored-fieldparams"}
+{"error": null, "pdfBytes": 15097, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "character-format-residual-authoring", "stratum": "cycle63-demos"}
+{"error": null, "pdfBytes": 10304, "renderMs": 0, "resumed": true, "saved": true, "sourceId": "character-format-residual-roundtrip", "stratum": "cycle63-demos"}
+{"error": null, "pdfBytes": 0, "renderMs": 93167, "saved": false, "sourceId": "corrupt_section", "stratum": "negative-control"}
+{"error": null, "pdfBytes": 0, "renderMs": 92973, "saved": false, "sourceId": "corrupt_header", "stratum": "negative-control"}
+{"error": null, "pdfBytes": 0, "renderMs": 93236, "saved": false, "sourceId": "missing_section", "stratum": "negative-control"}
