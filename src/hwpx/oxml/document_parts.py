@@ -73,6 +73,9 @@ class _RunStyleSpec:
     letter_spacing: int | None = None
     shadow_color: str | None = None
     script: str | None = None
+    outline: str | None = None
+    emboss: bool | None = None
+    engrave: bool | None = None
 
 
 def _run_style_element_flags(element: ET.Element) -> tuple[bool, bool, bool]:
@@ -144,7 +147,41 @@ def _run_style_extensions_match(element: ET.Element, spec: _RunStyleSpec) -> boo
         return False
     if not _run_style_script_matches(element, spec.script):
         return False
+    return _run_style_residual_matches(element, spec)
+
+
+def _run_style_residual_matches(element: ET.Element, spec: _RunStyleSpec) -> bool:
+    """cycle-6.3 문자 서식 잔여(outline/emboss/engrave) 매칭.
+
+    ``_run_style_extensions_match`` 에서 분리한 별도 함수 — 한 함수에 다
+    몰아넣으면 C901 한도(10)를 넘는다."""
+    if not _run_style_outline_matches(element, spec.outline):
+        return False
+    if not _run_style_emboss_matches(element, spec.emboss):
+        return False
+    if not _run_style_engrave_matches(element, spec.engrave):
+        return False
     return True
+
+
+def _run_style_outline_matches(element: ET.Element, outline: str | None) -> bool:
+    if outline is None:
+        return True
+    outline_el = element.find(f"{_HH}outline")
+    have = (outline_el.get("type", "NONE").upper() if outline_el is not None else "NONE")
+    return have == outline
+
+
+def _run_style_emboss_matches(element: ET.Element, emboss: bool | None) -> bool:
+    if emboss is None:
+        return True
+    return (element.find(f"{_HH}emboss") is not None) == bool(emboss)
+
+
+def _run_style_engrave_matches(element: ET.Element, engrave: bool | None) -> bool:
+    if engrave is None:
+        return True
+    return (element.find(f"{_HH}engrave") is not None) == bool(engrave)
 
 
 def _run_style_shadow_matches(element: ET.Element, shadow_color: str | None) -> bool:
@@ -164,7 +201,16 @@ def _run_style_script_matches(element: ET.Element, script: str | None) -> bool:
     off_el = element.find(f"{_HH}offset")
     # 실한컴 렌더 실측: offset 음수=위로(위첨자), 양수=아래로(아래첨자).
     wanted_offset = "-30" if script == "sup" else "30"
-    return off_el is not None and off_el.get("hangul") == wanted_offset
+    if off_el is None or off_el.get("hangul") != wanted_offset:
+        return False
+    # hwpxlib 실코퍼스 실측(error__20250808 문서 charPr id=513): 실한컴이
+    # 위첨자 토글로 쓴 charPr은 offset/relSz 근사와 별개로 <hh:supscript/>
+    # 실요소를 갖고 있었다(그 문서 자체는 relSz=100/offset=0 그대로였다 —
+    # 즉 한컴 렌더러는 이 요소만으로 판단하고 수치는 건드리지 않는다).
+    # 우리는 기존 offset 계약(파괴 금지)을 지키며 요소를 병행 방출한다.
+    if script == "sup":
+        return element.find(f"{_HH}supscript") is not None
+    return element.find(f"{_HH}subscript") is not None
 
 
 def _run_style_predicate(element: ET.Element, spec: _RunStyleSpec) -> bool:
@@ -296,9 +342,69 @@ def _run_style_apply_extensions(element: ET.Element, spec: _RunStyleSpec) -> Non
         shadow_el.set("color", spec.shadow_color)
         shadow_el.set("offsetX", "12")
         shadow_el.set("offsetY", "12")
-    if spec.script is not None:
-        _run_style_set_lang_values(element, "relSz", 67)
-        _run_style_set_lang_values(element, "offset", -30 if spec.script == "sup" else 30)
+    _run_style_apply_script_extension(element, spec.script)
+    _run_style_apply_outline(element, spec.outline)
+    _run_style_apply_emboss(element, spec.emboss)
+    _run_style_apply_engrave(element, spec.engrave)
+
+
+def _run_style_apply_script_extension(element: ET.Element, script: str | None) -> None:
+    """`script` kwarg 적용 — 기존 relSz/offset 근사(파괴 금지 계약)에 더해
+    실코퍼스 실측(hwpxlib error__20250808 문서, charPr id=513)이 보인 실제
+    ``hh:supscript``/``hh:subscript`` 요소를 병행 방출한다. 그 문서는
+    relSz=100·offset=0 기본값 그대로였다 — 한컴 렌더러는 이 요소만으로
+    위·아래첨자를 판정하고, 수치 근사는 별개 목적이라는 뜻이다.
+    ``_run_style_apply_extensions``에서 분리한 이유는 C901(10) 초과 방지."""
+
+    if script is None:
+        return
+    _run_style_set_lang_values(element, "relSz", 67)
+    _run_style_set_lang_values(element, "offset", -30 if script == "sup" else 30)
+    if script == "sup":
+        stale = element.find(f"{_HH}subscript")
+        if stale is not None:
+            element.remove(stale)
+        if element.find(f"{_HH}supscript") is None:
+            _append_child(element, f"{_HH}supscript")
+    else:
+        stale = element.find(f"{_HH}supscript")
+        if stale is not None:
+            element.remove(stale)
+        if element.find(f"{_HH}subscript") is None:
+            _append_child(element, f"{_HH}subscript")
+
+
+def _run_style_apply_outline(element: ET.Element, outline: str | None) -> None:
+    """cycle-6.3 문자 서식 잔여 — 분리 이유는 위 함수와 같다(C901 한도)."""
+
+    if outline is None:
+        return
+    outline_el = element.find(f"{_HH}outline")
+    if outline_el is None:
+        outline_el = _append_child(element, f"{_HH}outline")
+    outline_el.set("type", outline)
+
+
+def _run_style_apply_emboss(element: ET.Element, emboss: bool | None) -> None:
+    if emboss is None:
+        return
+    existing = element.find(f"{_HH}emboss")
+    if emboss:
+        if existing is None:
+            _append_child(element, f"{_HH}emboss")
+    elif existing is not None:
+        element.remove(existing)
+
+
+def _run_style_apply_engrave(element: ET.Element, engrave: bool | None) -> None:
+    if engrave is None:
+        return
+    existing = element.find(f"{_HH}engrave")
+    if engrave:
+        if existing is None:
+            _append_child(element, f"{_HH}engrave")
+    elif existing is not None:
+        element.remove(existing)
 
 
 def _run_style_modifier(element: ET.Element, spec: _RunStyleSpec) -> None:
@@ -538,6 +644,12 @@ class HwpxOxmlDocument:
         "SLIM_THICK_SLIM", "WAVE", "DOUBLEWAVE",
     })
 
+    #: OWPML ``hc:LineType1`` — ``hh:outline`` 의 ``type`` 어휘(Header XML
+    #: schema.xml:906). underline/strikeout 의 ``LineType2`` 보다 좁다.
+    _OUTLINE_TYPES = frozenset({
+        "NONE", "SOLID", "DOT", "THICK", "DASH", "DASH_DOT", "DASH_DOT_DOT",
+    })
+
     def ensure_run_style(
         self,
         *,
@@ -556,6 +668,9 @@ class HwpxOxmlDocument:
         letter_spacing: int | None = None,
         shadow: str | None = None,
         script: str | None = None,
+        outline: str | None = None,
+        emboss: bool | None = None,
+        engrave: bool | None = None,
         base_char_pr_id: str | int | None = None,
     ) -> str:
         """Return a char property identifier matching the requested flags.
@@ -566,6 +681,11 @@ class HwpxOxmlDocument:
         ``letter_spacing`` (자간 %), ``shadow`` (drop-shadow colour), and
         ``script`` (``"sup"``/``"sub"``). Values outside the OWPML vocabulary
         are rejected — no silent approximation.
+
+        6.3 additions: ``outline`` (외곽선, ``hc:LineType1`` 어휘),
+        ``emboss``/``engrave`` (양각/음각), and ``script`` now also pairs the
+        real ``hh:supscript``/``hh:subscript`` element with its existing
+        ``relSz``/``offset`` approximation (see ``_run_style_apply_script_extension``).
         """
 
         if not self._headers:
@@ -587,6 +707,18 @@ class HwpxOxmlDocument:
             raise ValueError("letter_spacing must be between -50 and 100")
         if script is not None and script not in ("sup", "sub"):
             raise ValueError('script must be "sup" or "sub"')
+        normalized_outline: str | None = None
+        if outline is not None:
+            candidate = str(outline).upper()
+            if candidate not in self._OUTLINE_TYPES:
+                from ..errors import HwpxValueError
+                suggestion = "outline must be one of " + ", ".join(sorted(self._OUTLINE_TYPES))
+                raise HwpxValueError(
+                    f"unsupported outline {outline!r}",
+                    code="style-run-outline-type-invalid",
+                    suggestion=suggestion,
+                )
+            normalized_outline = candidate
 
         header = self._headers[0]
         spec = _RunStyleSpec(
@@ -603,6 +735,9 @@ class HwpxOxmlDocument:
             letter_spacing=int(letter_spacing) if letter_spacing is not None else None,
             shadow_color=_normalize_color(shadow),
             script=script,
+            outline=normalized_outline,
+            emboss=None if emboss is None else bool(emboss),
+            engrave=None if engrave is None else bool(engrave),
         )
         element = header.ensure_char_property(
             predicate=lambda el: _run_style_predicate(el, spec),

@@ -387,9 +387,18 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         letter_spacing: int | None = None,
         shadow: str | None = None,
         script: str | None = None,
+        outline: str | None = None,
+        emboss: bool | None = None,
+        engrave: bool | None = None,
         base_char_pr_id: str | int | None = None,
     ) -> str:
-        """요청한 글자 서식의 `charPr` id 를 보장하고 그 id 를 돌려준다."""
+        """요청한 글자 서식의 `charPr` id 를 보장하고 그 id 를 돌려준다.
+
+        `outline` (외곽선, OWPML `hc:LineType1` 어휘: NONE/SOLID/DOT/THICK/
+        DASH/DASH_DOT/DASH_DOT_DOT), `emboss`/`engrave` (양각/음각)는 6.3
+        추가분이다. `script="sup"/"sub"`는 기존 `relSz`/`offset` 수치 근사에
+        더해 실제 `hh:supscript`/`hh:subscript` 요소를 함께 방출한다.
+        """
 
         return self._doc.oxml.ensure_run_style(
             bold=bold,
@@ -407,6 +416,9 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             letter_spacing=letter_spacing,
             shadow=shadow,
             script=script,
+            outline=outline,
+            emboss=emboss,
+            engrave=engrave,
             base_char_pr_id=base_char_pr_id,
         )
 

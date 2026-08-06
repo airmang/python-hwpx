@@ -227,3 +227,104 @@ class TestRunStyleExtensions:
             for el in header._char_properties_element()
         }
         assert char_props[sub].find(f"{HH}offset").get("hangul") == "30"
+
+
+class TestCharacterFormatResidual:
+    """cycle-6.3 트레인 ⑩ — 감사 갭 #8(문자 서식 의미 요소 잔여).
+
+    `outline`/`emboss`/`engrave`는 스키마 어휘로 검증했다(Header XML
+    schema.xml:901-978). `script`의 실요소 병행은 hwpxlib 실코퍼스
+    (error__20250808 문서, charPr id=513)에서 실한컴이 위첨자 토글로 쓴
+    charPr에 `<hh:supscript/>`가 있음을 직접 관찰해 반영했다 — 이 트레인은
+    실한컴 렌더 왕복까지는 하지 못했다(데모 파일로 별도 기록).
+    """
+
+    HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
+
+    def test_outline_emits_type(self) -> None:
+        doc = HwpxDocument.new()
+        outlined = doc.styles.ensure_run(outline="SOLID")
+        cp = doc.oxml.headers[0]._char_properties_element().find(
+            f"{self.HH}charPr[@id='{outlined}']"
+        )
+        assert cp.find(f"{self.HH}outline").get("type") == "SOLID"
+
+    def test_outline_out_of_vocabulary_rejected(self) -> None:
+        doc = HwpxDocument.new()
+        with pytest.raises(ValueError):
+            doc.styles.ensure_run(outline="ZIGZAG")
+
+    def test_outline_none_is_settable_explicitly(self) -> None:
+        doc = HwpxDocument.new()
+        cleared = doc.styles.ensure_run(outline="NONE")
+        cp = doc.oxml.headers[0]._char_properties_element().find(
+            f"{self.HH}charPr[@id='{cleared}']"
+        )
+        assert cp.find(f"{self.HH}outline").get("type") == "NONE"
+
+    def test_emboss_and_engrave_emit_flag_elements(self) -> None:
+        doc = HwpxDocument.new()
+        embossed = doc.styles.ensure_run(emboss=True)
+        engraved = doc.styles.ensure_run(engrave=True)
+        assert embossed != engraved
+        headers = doc.oxml.headers
+        char_props_el = headers[0]._char_properties_element()
+        emboss_cp = char_props_el.find(f"{self.HH}charPr[@id='{embossed}']")
+        engrave_cp = char_props_el.find(f"{self.HH}charPr[@id='{engraved}']")
+        assert emboss_cp.find(f"{self.HH}emboss") is not None
+        assert emboss_cp.find(f"{self.HH}engrave") is None
+        assert engrave_cp.find(f"{self.HH}engrave") is not None
+        assert engrave_cp.find(f"{self.HH}emboss") is None
+
+    def test_script_pairs_real_flag_element_with_existing_offset_approximation(
+        self,
+    ) -> None:
+        doc = HwpxDocument.new()
+        sup = doc.styles.ensure_run(script="sup")
+        sub = doc.styles.ensure_run(script="sub")
+        char_props_el = doc.oxml.headers[0]._char_properties_element()
+        sup_cp = char_props_el.find(f"{self.HH}charPr[@id='{sup}']")
+        sub_cp = char_props_el.find(f"{self.HH}charPr[@id='{sub}']")
+        # 기존 계약(파괴 금지): relSz=67, offset 부호는 그대로.
+        assert sup_cp.find(f"{self.HH}relSz").get("hangul") == "67"
+        assert sup_cp.find(f"{self.HH}offset").get("hangul") == "-30"
+        assert sub_cp.find(f"{self.HH}offset").get("hangul") == "30"
+        # 신규: 실요소가 병행 방출된다.
+        assert sup_cp.find(f"{self.HH}supscript") is not None
+        assert sup_cp.find(f"{self.HH}subscript") is None
+        assert sub_cp.find(f"{self.HH}subscript") is not None
+        assert sub_cp.find(f"{self.HH}supscript") is None
+
+    def test_residual_extensions_are_idempotent(self) -> None:
+        doc = HwpxDocument.new()
+        first = doc.styles.ensure_run(outline="DASH", emboss=True)
+        again = doc.styles.ensure_run(outline="DASH", emboss=True)
+        assert first == again
+        sup_first = doc.styles.ensure_run(script="sup")
+        sup_again = doc.styles.ensure_run(script="sup")
+        assert sup_first == sup_again
+
+    def test_read_side_exposes_residual_flags(self) -> None:
+        doc = HwpxDocument.new()
+        sup = doc.styles.ensure_run(script="sup")
+        outlined = doc.styles.ensure_run(outline="THICK")
+        embossed = doc.styles.ensure_run(emboss=True)
+        engraved = doc.styles.ensure_run(engrave=True)
+        assert doc.styles.char_property(sup).is_superscript() is True
+        assert doc.styles.char_property(sup).is_subscript() is False
+        assert doc.styles.char_property(outlined).outline_type() == "THICK"
+        assert doc.styles.char_property(embossed).is_emboss() is True
+        assert doc.styles.char_property(engraved).is_engrave() is True
+
+    def test_residual_flags_survive_roundtrip(self) -> None:
+        doc = HwpxDocument.new()
+        sub = doc.styles.ensure_run(script="sub")
+        outlined = doc.styles.ensure_run(outline="DOT")
+        embossed = doc.styles.ensure_run(emboss=True)
+        doc.add_paragraph("아래첨자", char_pr_id_ref=sub)
+        doc.add_paragraph("외곽선", char_pr_id_ref=outlined)
+        doc.add_paragraph("양각", char_pr_id_ref=embossed)
+        reopened = _roundtrip(doc)
+        assert reopened.styles.char_property(sub).is_subscript() is True
+        assert reopened.styles.char_property(outlined).outline_type() == "DOT"
+        assert reopened.styles.char_property(embossed).is_emboss() is True

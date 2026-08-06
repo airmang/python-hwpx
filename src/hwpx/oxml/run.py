@@ -45,6 +45,24 @@ class RunStyle:
             return None
         return underline.get("color")
 
+    def outline_type(self) -> str | None:
+        outline = self.child_attributes.get("outline")
+        if outline is None:
+            return None
+        return outline.get("type")
+
+    def is_superscript(self) -> bool:
+        return "supscript" in self.child_attributes
+
+    def is_subscript(self) -> bool:
+        return "subscript" in self.child_attributes
+
+    def is_emboss(self) -> bool:
+        return "emboss" in self.child_attributes
+
+    def is_engrave(self) -> bool:
+        return "engrave" in self.child_attributes
+
     def matches(
         self,
         *,

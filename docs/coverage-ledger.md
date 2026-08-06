@@ -18,7 +18,7 @@
 **5) 속성 축.** 요소별 관측 속성 **이름** 집합을 census가 함께 기록한다(`observedAttributes` 컬럼, 값 빈도까지는 이번 사이클 범위 밖 — 생성기 독스트링에 명시).
 **6) v4 openrate 코퍼스 환류.** `docs/openrate/report-v4.json`의 스트라타별 실한컴 수용(`render_checked>0`·`render_failed==0`)을, 이미 지원 매트릭스에 등록된 capabilityArea와 1:1로 대응하는 5개 스트라타(차트·체크박스·수식·각주 2종)에 한해 `verificationBasis`로 환류했다(`by-v4-corpus`/`by-capability-area+v4-corpus`) — 매핑은 생성기 코드(`_V4_STRATUM_TO_CAPABILITY_AREA`)에서 도출하며, 대응이 불분명한 스트라타(formfield/heading/named-style/page-structure 등)는 `fieldBegin`을 일부러 안 매핑한 것과 같은 원칙으로 뺐다.
 
-**전 vs 후 (감사가 하한을 인용한 것과 같은 슬라이스 — corpusFileCount>0인 요소만)**: 감사 인용 하한은 관측 228건 중 write=none **70** · read=none **56** · frozen-template **28**([감사 판정문](2026-08-04-completeness-audit-verdict.md) 요약표). 이 원장 재생성 기준으로는 관측 229건 중 write=none **53** · read=none **39** · frozen-template **20**. **주의**: 두 population이 다르다(모집단을 재정의했다 — 위 4항목) — 이 비교는 "같은 잣대로 다시 잰 정확한 델타"가 아니라 분류기 수리가 방향대로 움직였는지의 참고 신호다. 분류기 수리 자체의 정확도 증거는 위 1~3항의 요소별 재현 로그가 1차 근거다.
+**전 vs 후 (감사가 하한을 인용한 것과 같은 슬라이스 — corpusFileCount>0인 요소만)**: 감사 인용 하한은 관측 228건 중 write=none **70** · read=none **56** · frozen-template **28**([감사 판정문](2026-08-04-completeness-audit-verdict.md) 요약표). 이 원장 재생성 기준으로는 관측 229건 중 write=none **52** · read=none **37** · frozen-template **19**. **주의**: 두 population이 다르다(모집단을 재정의했다 — 위 4항목) — 이 비교는 "같은 잣대로 다시 잰 정확한 델타"가 아니라 분류기 수리가 방향대로 움직였는지의 참고 신호다. 분류기 수리 자체의 정확도 증거는 위 1~3항의 요소별 재현 로그가 1차 근거다.
 
 ## 전체 통계
 
@@ -28,10 +28,10 @@
 | 스키마 선언 | 307 | 89.0% |
 | 코퍼스에만 있음(스키마 미대응) | 38 | 11.0% |
 | 실코퍼스에서 관측(빈도>0) | 229 | 66.4% |
-| 코드 읽기 | 208 | 60.3% |
-| 코드 쓰기(api) | 159 | 46.1% |
-| 쓰기 frozen-template | 20 | 5.8% |
-| 쓰기 none | 166 | 48.1% |
+| 코드 읽기 | 213 | 61.7% |
+| 코드 쓰기(api) | 164 | 47.5% |
+| 쓰기 frozen-template | 19 | 5.5% |
+| 쓰기 none | 162 | 47.0% |
 | 능력 영역 매핑됨 | 74 | 21.4% |
 | Render-verified(매핑 근거) | 48 | 13.9% |
 | ..중 v4 openrate 코퍼스 환류분 | 13 | 3.8% |
@@ -68,7 +68,6 @@
 | `hp:default` | 0.9958 | 236 | False | frozen-template | — |
 | `hp:switch` | 0.9958 | 236 | False | frozen-template | — |
 | `hh:typeInfo` | 0.9747 | 231 | True | frozen-template | — |
-| `hh:outline` | 0.9367 | 222 | False | frozen-template | — |
 | `hp:lineseg` | 0.8987 | 213 | True | frozen-template | 문단·표 저작/편집 |
 | `hp:container` | 0.2827 | 67 | True | none | — |
 | `hp:label` | 0.2700 | 64 | False | none | — |
@@ -76,7 +75,6 @@
 | `hp:lineBreak` | 0.1350 | 32 | True | none | 문단·표 저작/편집 |
 | `hp:nbSpace` | 0.0886 | 21 | False | none | 문단·표 저작/편집 |
 | `hh:metaTag` | 0.0422 | 10 | True | frozen-template | — |
-| `hh:supscript` | 0.0422 | 10 | False | none | — |
 | `hh:forbiddenWord` | 0.0127 | 3 | True | none | — |
 | `hh:forbiddenWordList` | 0.0127 | 3 | True | none | — |
 | `hp:charPr` | 0.0127 | 3 | True | none | — |
@@ -91,8 +89,10 @@
 | `hh:trackChange` | 0.0042 | 1 | True | none | 변경추적(redline) |
 | `hh:trackChangeAuthor` | 0.0042 | 1 | True | none | 변경추적(redline) |
 | `hp:alpha` | 0.0042 | 1 | False | none | — |
+| `hp:arc` | 0.0042 | 1 | True | none | arc·polygon·curve·connectLine |
+| `hp:btn` | 0.0042 | 1 | False | none | 체크박스 양식개체 |
 
-(총 73건 중 상위 40건만 표시 — 전체는 coverage-ledger.json의 `elements` 참조.)
+(총 71건 중 상위 40건만 표시 — 전체는 coverage-ledger.json의 `elements` 참조.)
 
 ## 네임스페이스별 표
 
@@ -100,7 +100,7 @@
 |---|---|---|---|---|---|---|---|
 | `ha` | 2 | 0 | 2 | 2 | 0 | 2 | 0 |
 | `hc` | 31 | 7 | 29 | 29 | 22 | 5 | 4 |
-| `hh` | 126 | 125 | 64 | 69 | 50 | 9 | 67 |
+| `hh` | 126 | 125 | 64 | 74 | 55 | 8 | 63 |
 | `hhs` | 10 | 10 | 0 | 0 | 0 | 0 | 10 |
 | `hm` | 2 | 2 | 0 | 0 | 0 | 0 | 2 |
 | `hp` | 171 | 161 | 132 | 106 | 85 | 4 | 82 |
