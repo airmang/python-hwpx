@@ -10,7 +10,10 @@ from ._document_primitives import _serialize_xml
 
 if TYPE_CHECKING:
     from .document_parts import HwpxOxmlDocument
+    from .history_part import History
+    from .master_page import MasterPage
     from .settings import ApplicationSettings
+    from .version_part import HcfVersion
 
 
 class _HwpxOxmlSimplePart:
@@ -57,15 +60,45 @@ class _HwpxOxmlSimplePart:
 
 
 class HwpxOxmlMasterPage(_HwpxOxmlSimplePart):
-    """Represents a master page part in the package."""
+    """Represents a master page part in the package.
+
+    실코퍼스 1파일 실측 기반 역설계(스키마 미선언 루트 네임스페이스 —
+    :mod:`.master_page` 독스트링 참조). 읽기 전용: 이 트레인은 원장 read=none
+    해소가 목표라 쓰기 경로는 열지 않는다.
+    """
+
+    def to_model(self) -> "MasterPage":
+        from .master_page import parse_master_page
+
+        return parse_master_page(self._element)
 
 
 class HwpxOxmlHistory(_HwpxOxmlSimplePart):
-    """Represents a document history part."""
+    """Represents a document history part.
+
+    스키마 전용 역설계, 실코퍼스 0건(``.history_part`` 독스트링 참조) — 실
+    문서 하나 확보 전까지 잠정으로 표기한다. 읽기 전용: 이 트레인은 원장
+    read=none 해소가 목표라 쓰기 경로는 열지 않는다.
+    """
+
+    def to_model(self) -> "History":
+        from .history_part import parse_history
+
+        return parse_history(self._element)
 
 
 class HwpxOxmlVersion(_HwpxOxmlSimplePart):
-    """Represents the ``version.xml`` part."""
+    """Represents the ``version.xml`` part.
+
+    실코퍼스 47/47 전수 실측 기반 역설계(스키마 미선언 루트 네임스페이스 —
+    :mod:`.version_part` 독스트링 참조). 읽기 전용: 이 트레인은 원장 read=none
+    해소가 목표라 쓰기 경로는 열지 않는다.
+    """
+
+    def to_model(self) -> "HcfVersion":
+        from .version_part import parse_hcf_version
+
+        return parse_hcf_version(self._element)
 
 
 class HwpxOxmlSettings(_HwpxOxmlSimplePart):

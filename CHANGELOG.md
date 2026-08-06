@@ -32,6 +32,20 @@
   행렬이라 그 관계식을 재현할 근거가 없다(다른 예시는 파일명이 스스로 결함
   사례임을 밝히고 `scaMatrix`가 퇴화 행렬이라 정본으로 못 쓴다).
 
+- **파트 계층 읽기 모델** — `version.xml`(`HcfVersion`)·`masterpage.xml`
+  (`MasterPage`)·`history.xml`(`History`) 읽기 승격(감사 갭 #15, 6.4 트레인
+  15). `settings.xml`(`ApplicationSettings`) 관용구 그대로: `doc.parts.*`가
+  돌려주는 `HwpxOxml{Version,MasterPage,History}`에 `.to_model()` 추가. 실
+  산출물 47/47(version)·다수(masterpage, 서로 다른 두 문서 계열 110건)
+  전수가 `DevDoc/OWPML SCHEMA`의 2024 초안 스키마와 루트 이름·네임스페이스가
+  다르다는 걸 재확인(스키마가 아니라 실코퍼스가 진실 원천 — `version.xml`
+  루트는 `hv:HCFVersion`이고 오탈자 `tagetApplication`을 그대로 쓴다,
+  `masterpage.xml` 루트 `masterPage`는 네임스페이스가 없다). `history.xml`은
+  실 예시가 하나도 없어(코퍼스+접근 가능한 개인 실문서 6,262건 전수) 스키마
+  전용으로 표기 — `historyEntry`의 평평한 메타데이터만 타입 있는 필드로
+  옮기고, 재귀 중첩되는 diff 본문(`insert`/`update`/`delete`/`position`)은
+  `DiffNode`로 원문 구조 그대로 보존한다(전용 데이터클래스로 못박지 않음).
+
 ## [6.0.2] - 2026-08-04
 
 `v6.0.1`도 보존된 실패 태그입니다 — 아무것도 게시되지 않았습니다. prepublish의

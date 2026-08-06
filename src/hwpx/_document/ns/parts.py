@@ -52,19 +52,27 @@ class PartsNamespace(_Namespace):
 
     @property
     def master_pages(self) -> list["HwpxOxmlMasterPage"]:
-        """매니페스트가 선언한 바탕쪽 파트들."""
+        """매니페스트가 선언한 바탕쪽 파트들. `.to_model()`로 `MasterPage`를
+        얻는다. 실코퍼스 1파일 역설계 기반(`hwpx.oxml.master_page` 모듈
+        독스트링 참조) — 스키마 문서의 루트 네임스페이스는 실 산출물과
+        다르다."""
 
         return self._doc.oxml.master_pages
 
     @property
     def histories(self) -> list["HwpxOxmlHistory"]:
-        """매니페스트가 참조하는 문서 이력 파트들."""
+        """매니페스트가 참조하는 문서 이력 파트들. `.to_model()`로
+        `History`를 얻는다. **스키마 전용**: 실코퍼스 0건이라
+        (`hwpx.oxml.history_part` 모듈 독스트링 참조) 상세 필드는 실 문서로
+        검증되지 않았다."""
 
         return self._doc.oxml.histories
 
     @property
     def version(self) -> "HwpxOxmlVersion | None":
-        """패키지의 `version.xml` 파트. 라이브러리 버전이 아니다."""
+        """패키지의 `version.xml` 파트. 라이브러리 버전이 아니다.
+        `.to_model()`로 `HcfVersion`을 얻는다. 실코퍼스 47/47 전수 역설계
+        기반(`hwpx.oxml.version_part` 모듈 독스트링 참조)."""
 
         return self._doc.oxml.version
 

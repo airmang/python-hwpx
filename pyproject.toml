@@ -227,6 +227,11 @@ files = [
     "src/hwpx/tools/text_extractor.py",
     "tests/template_automation/helpers.py",
     "tests/template_automation/generate_fixtures.py",
+    # 6.4: part-hierarchy read models (gap #15) — born in the gate, per the
+    # WP-A rule above.
+    "src/hwpx/oxml/version_part.py",
+    "src/hwpx/oxml/master_page.py",
+    "src/hwpx/oxml/history_part.py",
 ]
 ignore_missing_imports = true
 
@@ -312,6 +317,11 @@ include = [
     "src/hwpx/tools/text_extractor.py",
     "tests/template_automation/helpers.py",
     "tests/template_automation/generate_fixtures.py",
+    # 6.4: part-hierarchy read models (gap #15) — born in the gate, per the
+    # WP-A rule above.
+    "src/hwpx/oxml/version_part.py",
+    "src/hwpx/oxml/master_page.py",
+    "src/hwpx/oxml/history_part.py",
 ]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"

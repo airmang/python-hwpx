@@ -412,6 +412,24 @@
       "rationale": "settings.xml (ha:HWPApplicationSetting) read model — package/OXML part parsing alongside header.py/simple_parts.py, no application workflow or policy"
     },
     {
+      "path": "src/hwpx/oxml/version_part.py",
+      "disposition": "core",
+      "approvedBy": "cycle-6.4/part-hierarchy-read-models",
+      "rationale": "version.xml (hv:HCFVersion) read model — same settings.py-idiom package/OXML part parsing, no application workflow or policy. Reverse-engineered from the full vendored corpus (47/47); the vendored 2024-draft OWPML schema's root name/namespace do not match real output"
+    },
+    {
+      "path": "src/hwpx/oxml/master_page.py",
+      "disposition": "core",
+      "approvedBy": "cycle-6.4/part-hierarchy-read-models",
+      "rationale": "masterpage.xml (unnamespaced masterPage root) read model — same settings.py-idiom package/OXML part parsing, no application workflow or policy. Reverse-engineered from the one real corpus example; the vendored 2024-draft OWPML schema's namespace does not match real output"
+    },
+    {
+      "path": "src/hwpx/oxml/history_part.py",
+      "disposition": "core",
+      "approvedBy": "cycle-6.4/part-hierarchy-read-models",
+      "rationale": "history.xml (hhs:*) read model — same settings.py-idiom package/OXML part parsing, no application workflow or policy. Schema-only (zero real corpus examples found across the vendored corpus and ~250 accessible personal Hancom documents); labeled unverified in the module docstring"
+    },
+    {
       "path": "src/hwpx/plan/__init__.py",
       "disposition": "core",
       "approvedBy": "059-agent-contract-surface/P1",

@@ -257,7 +257,16 @@ def test_frozen_facade_exports_remain_exact() -> None:
     # 120 -> 122: Caption/DrawText fill gap #3/#4 (hp:drawText/textMargin,
     # hp:caption) — shared live views reused by HwpxOxmlShape,
     # HwpxOxmlInlineObject, and HwpxOxmlTable rather than duplicated per host.
-    assert len(oxml.__all__) == 122
+    # 122 -> 127: gap #15's part-hierarchy read models — version.xml
+    # (HcfVersion), masterpage.xml (MasterPage), and history.xml (History,
+    # HistoryEntry, DiffNode). version.xml/masterpage.xml are reverse-engineered
+    # from the real corpus like settings.xml before them (and, like it, their
+    # real roots/namespaces drifted from the vendored 2024-draft OWPML schema —
+    # see version_part.py/master_page.py). history.xml has zero real examples
+    # anywhere reachable (vendored corpus + ~250 accessible personal Hancom
+    # documents), so History/HistoryEntry/DiffNode are schema-only and labeled
+    # as such in history_part.py's module docstring.
+    assert len(oxml.__all__) == 127
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 
 

@@ -21,6 +21,8 @@ from .body import (
 from .common import GenericElement, parse_generic_element
 
 from .header_part import HwpxOxmlHeader
+from .history_part import DiffNode, History, HistoryEntry
+from .master_page import MasterPage
 from .memo import HwpxOxmlMemo, HwpxOxmlMemoGroup, HwpxOxmlNote
 from .numbering import DocumentNumbering, SectionStartNumbering
 from .objects import Caption, DrawText, HwpxOxmlInlineObject, HwpxOxmlShape
@@ -34,6 +36,7 @@ from .simple_parts import (
     HwpxOxmlSettings,
     HwpxOxmlVersion,
 )
+from .version_part import HcfVersion
 from .table import HwpxOxmlTable, HwpxOxmlTableCell, HwpxOxmlTableRow, HwpxTableGridPosition
 
 from .document import (
@@ -135,6 +138,7 @@ __all__ = [
     "CompatibleDocument",
     "ConfigItem",
     "ConfigItemSet",
+    "DiffNode",
     "DocOption",
     "DrawText",
     "Font",
@@ -144,7 +148,10 @@ __all__ = [
     "FontTypeInfo",
     "ForbiddenWordList",
     "GenericElement",
+    "HcfVersion",
     "Header",
+    "History",
+    "HistoryEntry",
     "DocumentNumbering",
     "HwpxOxmlDocument",
     "HwpxOxmlHeader",
@@ -171,6 +178,7 @@ __all__ = [
     "LayoutCompatibility",
     "LinkInfo",
     "LicenseMark",
+    "MasterPage",
     "MemoProperties",
     "MemoShape",
     "NumberingList",
