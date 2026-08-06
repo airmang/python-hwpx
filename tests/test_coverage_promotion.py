@@ -17,8 +17,13 @@ from hwpx.oxml.body import (
     InlineObject,
     LineSeg,
     LineSegArray,
+    ListItem,
+    Parameter,
+    ParameterList,
     Table,
     TransformMatrix,
+    parameter_list_to_xml,
+    parse_parameter_list_element,
 )
 from hwpx.tools import generic_inventory
 from hwpx.tools.roundtrip_diff import roundtrip_report
@@ -32,6 +37,9 @@ SAMPLES = [
 SIMPLE_LINE = CORPUS / "reader_writer__SimpleLine.hwpx"
 SIMPLE_EDIT = CORPUS / "reader_writer__SimpleEdit.hwpx"
 SIMPLE_COMBO_BOX = CORPUS / "reader_writer__SimpleComboBox.hwpx"
+#: 실코퍼스에서 유일하게 hp:parameterset(+중첩 hp:listParam)을 담은 파일 —
+#: hp:rect 도형의 확장 속성 블록으로 쓰인다(직접 스캔 확인, 필드용 아님).
+PARAMETERSET_SAMPLE = CORPUS / "error__20230809__test.hwpx"
 
 
 def _section_xml(sample: Path, entry: str = "Contents/section0.xml") -> bytes:
@@ -402,3 +410,109 @@ def test_combo_box_control_sample_roundtrip_has_no_a1_loss() -> None:
 
     assert rep["reopened"] is True
     assert rep["lost_elements"] == {}
+
+
+def test_combo_box_list_items_are_typed_not_generic() -> None:
+    section = parse_section_xml(_section_xml(SIMPLE_COMBO_BOX))
+    combo = next(node for node in _walk(section) if isinstance(node, FormComboBoxControl))
+
+    assert combo.list_items
+    assert all(isinstance(item, ListItem) for item in combo.list_items)
+    assert combo.list_items[0].display_text == ""
+    assert combo.list_items[0].value == ""
+
+
+def test_combo_box_list_items_are_editable_via_children_and_roundtrip() -> None:
+    section_element = ET.fromstring(_section_xml(SIMPLE_COMBO_BOX))
+    section = HwpxOxmlSection("section0.xml", section_element)
+    paragraph = section.paragraphs[0]
+
+    model = paragraph.to_model()
+    combo = next(node for node in _walk(model) if isinstance(node, FormComboBoxControl))
+    new_item = ListItem(tag=None, name="listItem", display_text="가", value="A")
+    combo.children.append(new_item)
+
+    paragraph.apply_model(model)
+    updated = paragraph.to_model()
+    updated_combo = next(node for node in _walk(updated) if isinstance(node, FormComboBoxControl))
+
+    assert any(item.value == "A" and item.display_text == "가" for item in updated_combo.list_items)
+    paragraph_xml = ET.tostring(paragraph.element, encoding="utf-8")
+    assert _local_count(paragraph_xml, "listItem") == 2
+
+
+def test_parameter_list_promoted_from_hwpxlib_sample_shape() -> None:
+    """hp:rect의 hp:parameterset(+중첩 hp:listParam)을 실코퍼스에서 직접
+    파싱 — cnt="1" name="539"/listParam cnt="1" name="12291"/
+    unsignedintegerParam name="28673" 값 2 (직접 스캔 확인)."""
+
+    xml = _section_xml(PARAMETERSET_SAMPLE)
+    root = etree.fromstring(xml)
+    (node,) = root.iter("{http://www.hancom.co.kr/hwpml/2011/paragraph}parameterset")
+
+    model = parse_parameter_list_element(node)
+
+    assert model.name == "539"
+    assert len(model.params) == 1
+    outer = model.params[0]
+    assert outer.kind == "list"
+    assert outer.name == "12291"
+    assert len(outer.items) == 1
+    leaf = outer.items[0]
+    assert leaf.kind == "unsignedinteger"
+    assert leaf.name == "28673"
+    assert leaf.value == 2
+
+
+def test_parameter_list_roundtrips_structurally() -> None:
+    xml = _section_xml(PARAMETERSET_SAMPLE)
+    root = etree.fromstring(xml)
+    (node,) = root.iter("{http://www.hancom.co.kr/hwpml/2011/paragraph}parameterset")
+
+    model = parse_parameter_list_element(node)
+    rebuilt = parameter_list_to_xml(model)
+
+    def struct_eq(a, b) -> bool:
+        if etree.QName(a).localname != etree.QName(b).localname:
+            return False
+        if dict(a.attrib) != dict(b.attrib):
+            return False
+        if (a.text or "") != (b.text or ""):
+            return False
+        a_children, b_children = list(a), list(b)
+        return len(a_children) == len(b_children) and all(
+            struct_eq(x, y) for x, y in zip(a_children, b_children)
+        )
+
+    assert struct_eq(node, rebuilt)
+
+
+def test_parameter_list_authors_field_click_action_parameters() -> None:
+    """toc_author.py의 실증된 hp:parameters 패턴(HYPERLINK 필드 클릭
+    액션)을 범용 ParameterList로도 만들 수 있는지 확인 — booleanParam 포함."""
+
+    model = ParameterList(
+        tag="{http://www.hancom.co.kr/hwpml/2011/paragraph}parameters",
+        name="",
+        params=[
+            Parameter(name="Prop", kind="integer", value=0),
+            Parameter(name="Command", kind="string", value="?#123;0;1;0;"),
+            Parameter(name="Fiexde", kind="boolean", value=True),
+        ],
+    )
+
+    node = parameter_list_to_xml(model)
+
+    assert node.get("cnt") == "3"
+    assert node.get("name") == ""
+    children = list(node)
+    assert [etree.QName(c).localname for c in children] == [
+        "integerParam",
+        "stringParam",
+        "booleanParam",
+    ]
+    assert children[0].text == "0"
+    assert children[2].text == "1"
+
+    reparsed = parse_parameter_list_element(node)
+    assert reparsed.params[2].value is True
