@@ -26,15 +26,20 @@ v7 already established for compose/container and comboBox.
 Two strata (all deterministic — fixed seeds, bank rotation, no wall clock)
 =============================================================================
 
-* ``authored-polygon``  15  ``doc.shapes.add_polygon`` — rotates through 4
-                              vertex-count shapes (triangle/pentagon/
-                              hexagon/5-point star, via the same regular-
-                              polygon and star point-generation used in
-                              ``tests/test_polygon_authoring.py``) and a
-                              5-color fill bank. Every record's points are
-                              generated fresh from ``idx``, not copy-pasted
-                              literals, so vertex count and geometry genuinely
-                              differ record to record.
+* ``authored-polygon``  15  ``doc.shapes.add_polygon`` — vertex count cycles
+                              3..12 then wraps (3,4,...,12,3,4,...,7), one
+                              record per count, dispatched across 3 distinct
+                              geometric families: regular convex polygons
+                              (3/4/5/9/11 vertices), stars (even counts >= 6
+                              — an N-point star has 2N vertices, so 6/8/10/12
+                              become 3/4/5/6-point stars, concave at every
+                              inner vertex), and a hand-built 7-vertex
+                              concave arrow/chevron (concave but not a star —
+                              a third family, not just a bigger/smaller
+                              star). Independent 5-color fill and 5-color
+                              line-color banks rotate on top of that. Every
+                              record's points are generated fresh from
+                              ``idx``, not copy-pasted literals.
 * ``authored-arc``       15  ``doc.shapes.add_arc`` — rotates through all
                               12 ``corner`` x ``arc_type`` combinations
                               (4 corners x NORMAL/PIE/CHORD) plus a
@@ -119,10 +124,25 @@ BOX_ROOT_PDF = "C:\\openrate\\v8-pdf"
 # ================================================================================
 # new-stratum banks (rotation only — no wall clock, no randomness)
 # ================================================================================
-#: sides for the regular-polygon bank (triangle/pentagon/hexagon); the 4th
-#: slot is a 5-point star (handled separately, not a regular polygon).
-POLYGON_SIDES_BANK = (3, 5, 6, None)  # None => star
+#: vertex count per record, 15 records cycling 3..12 then wrapping back to
+#: 3..7 — the full range team-lead asked for (not just 3 shape families).
+POLYGON_VERTEX_COUNT_BANK = tuple(3 + (i % 10) for i in range(15))  # 3,4,...,12,3,4,...,7
+
+#: which vertex counts become which *kind* of shape (see _polygon_points_mm):
+#: even counts >= 6 are stars (an N-point star has 2N vertices, so 6/8/10/12
+#: -> 3/4/5/6-point stars — genuinely concave at every inner vertex); 7 is a
+#: hand-built concave arrow/chevron (concave but NOT a star, a distinct
+#: shape family from the stars); everything else (3,4,5,9,11) is a regular
+#: convex polygon. This covers "정점 수 3~12·별형/오목 포함" with 3 distinct
+#: geometric families, not just size variation on the same shape.
+_STAR_VERTEX_COUNTS = frozenset({6, 8, 10, 12})
+_CONCAVE_ARROW_VERTEX_COUNT = 7
+
 POLYGON_FILL_BANK = ("#A0BEE0", "#F1CB7E", "#86AFDC", "#CCE5FF", "#FFD9CC")
+#: rotates independently of fill — real Hancom line-color authoring is
+#: already render-verified via add_rectangle/add_ellipse's own line_color;
+#: this just exercises it through add_polygon across a range of values.
+POLYGON_LINE_BANK = ("#000000", "#4472C4", "#ED7D31", "#70AD47", "#7030A0")
 
 ARC_CORNER_BANK = ("TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT")
 ARC_TYPE_BANK = ("NORMAL", "PIE", "CHORD")
@@ -157,6 +177,54 @@ def _star_points_mm(
     return vertices
 
 
+def _concave_arrow_points_mm(
+    *, length_mm: float, body_width_mm: float, head_width_mm: float,
+    center_mm: tuple[float, float] = (40.0, 40.0),
+) -> list[tuple[float, float]]:
+    """A 7-vertex right-pointing arrow — concave (reflex angles where the
+    triangular head meets the rectangular body's shoulders), but not a star:
+    a distinct concave-polygon family from ``_star_points_mm``."""
+
+    cx, cy = center_mm
+    half_body = body_width_mm / 2
+    half_head = head_width_mm / 2
+    body_len = length_mm * 0.6
+    left = cx - length_mm / 2
+    return [
+        (left, cy - half_body),
+        (left + body_len, cy - half_body),
+        (left + body_len, cy - half_head),
+        (cx + length_mm / 2, cy),
+        (left + body_len, cy + half_head),
+        (left + body_len, cy + half_body),
+        (left, cy + half_body),
+    ]
+
+
+def _polygon_points_and_name_mm(idx: int, vertex_count: int) -> tuple[list[tuple[float, float]], str]:
+    """Dispatch a vertex count to one of the 3 shape families (see the bank
+    comment above): star / concave-arrow / regular-convex."""
+
+    radius = 20.0 + (idx % 3) * 5.0  # 20/25/30mm — rotates the size too
+    if vertex_count in _STAR_VERTEX_COUNTS:
+        points = vertex_count // 2
+        return (
+            _star_points_mm(points=points, outer_mm=radius, inner_mm=radius * 0.4),
+            f"별형({points}각)",
+        )
+    if vertex_count == _CONCAVE_ARROW_VERTEX_COUNT:
+        return (
+            _concave_arrow_points_mm(
+                length_mm=radius * 2, body_width_mm=radius, head_width_mm=radius * 1.6,
+            ),
+            "오목(화살표)",
+        )
+    return (
+        _regular_polygon_points_mm(sides=vertex_count, radius_mm=radius),
+        f"정{vertex_count}각형",
+    )
+
+
 def _tool_versions() -> dict[str, str | None]:
     """python-hwpx's own version, pyproject-first (see module docstring)."""
 
@@ -179,17 +247,16 @@ def gen_polygon(bucket_dir: Path) -> list[dict[str, Any]]:
         out_path = bucket_dir / f"{rec_id}.hwpx"
         try:
             document = _base_document(idx, "다각형 저작 표본")
-            sides = POLYGON_SIDES_BANK[idx % len(POLYGON_SIDES_BANK)]
+            vertex_count = POLYGON_VERTEX_COUNT_BANK[idx]
+            points_mm, shape_name = _polygon_points_and_name_mm(idx, vertex_count)
             fill = POLYGON_FILL_BANK[idx % len(POLYGON_FILL_BANK)]
-            radius = 20.0 + (idx % 3) * 5.0  # 20/25/30mm — rotates the size too
-            if sides is None:
-                points_mm = _star_points_mm(points=5, outer_mm=radius, inner_mm=radius * 0.4)
-                shape_name = "별형"
-            else:
-                points_mm = _regular_polygon_points_mm(sides=sides, radius_mm=radius)
-                shape_name = {3: "삼각형", 5: "오각형", 6: "육각형"}[sides]
-            document.add_paragraph(f"다각형 표본 {idx} ({shape_name}): {cycle(SUBJECT_BANK, idx)}")
-            document.shapes.add_polygon(points_mm, fill_color=fill, section=0)
+            line_color = POLYGON_LINE_BANK[idx % len(POLYGON_LINE_BANK)]
+            document.add_paragraph(
+                f"다각형 표본 {idx} ({shape_name}, {vertex_count}점): {cycle(SUBJECT_BANK, idx)}"
+            )
+            document.shapes.add_polygon(
+                points_mm, fill_color=fill, line_color=line_color, section=0,
+            )
             document.save_to_path(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-polygon", seed=str(idx),

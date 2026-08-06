@@ -48,23 +48,35 @@
 
 ### 정리 (사이클 6.4 마무리)
 
-- **편차 등재 DEV-012~014** — `docs/owpml-deviations.md` + 재실행 가능한
-  프로브(`probes/dev012_*.py`~`dev014_*.py`): (012) `hp:line`의
-  `startPt`/`endPt`는 `hc:` 네임스페이스, `hp:connectLine`의 동명 필드는
-  `hp:` 네임스페이스 — 스키마 자체가 두 타입(`LineType`/`ConnectLineType`)을
-  다르게 선언한다는 사실을 실코퍼스로 재확인. (013) connectLine의
-  "스마트 커넥터" 관계식을 코드로 고정 — `subjectIDRef`가 대상 도형의 `id`가
-  아니라 `instid`로 해석된다는 추가 발견 포함. (014) `hp:arc`의 3점-무각도
-  계약(`ArcType`에 각도 필드가 아예 없음, `EllipseType`과 대비)을 스키마+실측
-  양쪽으로 고정. 감사 갭 #12(`effects` 계열: glow/reflection/softEdge 등,
-  census 각 1파일)는 재평가 후 보류 유지로 판정 — 코퍼스 빈도 최하 컷이고
-  같은 컷의 다른 항목도 이번 사이클 보류였다는 근거, 별도 리버스는 안 함.
+- **편차 등재 DEV-012~015 + DEV-007 승격** — `docs/owpml-deviations.md` +
+  재실행 가능한 프로브(`probes/dev007_*.py`(갱신)·`dev012_*.py`~
+  `dev015_*.py`): (012) `hp:line`의 `startPt`/`endPt`는 `hc:` 네임스페이스,
+  `hp:connectLine`의 동명 필드는 `hp:` 네임스페이스 — 스키마 자체가 두
+  타입(`LineType`/`ConnectLineType`)을 다르게 선언한다는 사실을 실코퍼스로
+  재확인. (013) connectLine의 "스마트 커넥터" 관계식을 코드로 고정 —
+  `subjectIDRef`가 대상 도형의 `id`가 아니라 `instid`로 해석된다는 추가
+  발견, `renderingInfo`에 `scaMatrix`가 두 개 들어있는(그룹 레벨 변환이
+  얹힌) 사례도 포함. (014) `hp:arc`의 3점-무각도 계약(`ArcType`에 각도
+  필드가 아예 없음, `EllipseType`과 대비)을 스키마+실측 양쪽으로 고정.
+  (015) `version.xml` 루트가 스키마의 `version`이 아니라 실제로는
+  `hv:HCFVersion`(다른 네임스페이스)이고 필수 속성이 47/47 오탈자 그대로
+  `tagetApplication`이라는 걸 등재. (007 승격) masterpage.xml 무네임스페이스
+  루트 — 110건 교차검증(서로 다른 실문서 계열)과 이번 사이클 신설 구조화
+  읽기 모델(`master_page.py`)을 반영해 "observed(대응 불필요)"에서
+  "implemented"로 상태 갱신. 감사 갭 #12(`effects` 계열: glow/reflection/
+  softEdge 등, census 각 1파일)는 재평가 후 보류 유지로 판정 — 코퍼스 빈도
+  최하 컷이고 같은 컷의 다른 항목도 이번 사이클 보류였다는 근거, 별도
+  리버스는 안 함.
 - **openrate 코퍼스 v8** — `scripts/generate_openrate_corpus_v8.py`, v7에
-  가산(additive): 이번 사이클이 연 두 저작 표면(`authored-polygon`·
-  `authored-arc`, 15+15=30건)만 다룬다 — curve·connectLine은 저작하지
-  않았으므로 스트라텀 없음(v7이 compose/container·comboBox에 적용한 것과
-  같은 원칙). 정적 `validate_editor_open_safety` 사전필터 30/30 통과;
-  실한컴 GUI 오라클 배치는 별도 단계.
+  가산(additive): 이번 사이클이 연 두 저작 표면만 다룬다(15+15=30건) —
+  curve·connectLine은 저작하지 않았으므로 스트라텀 없음(v7이 compose/
+  container·comboBox에 적용한 것과 같은 원칙). `authored-polygon`은 정점
+  수 3~12를 한 바퀴 돌며(3,4,…,12,3,4,…,7) 정다각형(3/4/5/9/11)·별형(짝수
+  6/8/10/12 → 3~6각 별)·오목 화살표(7, 별형이 아닌 별개의 오목 계열) 3
+  기하 계열을 전부 다루고 채움색·선색을 독립 회전한다. `authored-arc`는
+  corner 4종×arc_type 3종 회전. 정적 `validate_editor_open_safety`
+  사전필터 30/30 통과, 결정론 2회 재생성 바이트 동일 확인; 실한컴 GUI
+  오라클 배치는 별도 단계(루트가 실행).
 
 ## [6.0.2] - 2026-08-04
 

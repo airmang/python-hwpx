@@ -55,12 +55,14 @@ CYCLE_6_4_DEVIATIONS = (
     "DEV-012",
     "DEV-013",
     "DEV-014",
+    "DEV-015",
 )
 
 CYCLE_6_4_PROBES = (
     "dev012_startpt_endpt_namespace_duality.py",
     "dev013_connectline_smart_connector_relationship.py",
     "dev014_arc_three_point_no_angle_contract.py",
+    "dev015_version_xml_root_and_spelling.py",
 )
 
 

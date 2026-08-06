@@ -15,12 +15,20 @@ children (``hp:subList``/``hp:p``/…) correctly carry the ``hp:`` prefix.
 Confirmed against the *vendored* corpus (this is not a private-corpus-only
 finding), independently corroborating the completeness audit's census
 note that ``corpusUnnamespacedElements`` records exactly this element.
+Cycle 6.4 train 15 cross-validated this against 110 additional real
+masterpage parts from a second, independent real-world document collection
+(a separate research-paper document family, not this repo's own fixtures)
+— every one of them also has the bare, unprefixed ``masterPage`` root.
 
-Our handling: ``hwpx.oxml.simple_parts.HwpxOxmlMasterPage`` is a bare
-element wrapper with no namespace-sensitive traversal of its own — any
-consumer that walks the part's *children* (which do carry their proper
-prefixes) is unaffected. This is recorded as an observed, tolerated
-quirk, not a bug we've had to route around.
+Our handling: promoted from a bare element wrapper (train 15, cycle 6.4,
+commit 1e9c0c8) to a real structured read model —
+``hwpx.oxml.master_page.parse_master_page``/``MasterPage`` — reachable via
+``HwpxOxmlMasterPage.to_model()``. The parser validates the root by local
+name only (``local_name(node) == "masterPage"``, namespace-agnostic by
+construction), so this quirk needed no special-casing once the parser was
+namespace-indifferent to begin with; the DEV-007 status moves from
+"observed, no code" to "implemented, and the observation is exactly why the
+parser is written the way it is."
 
 Run: ``python probes/dev007_masterpage_unnamespaced_root.py``
 """
@@ -63,6 +71,14 @@ def main() -> int:
     master_pages = doc.parts.master_pages
     assert master_pages, "expected our library to still discover the master page part"
     print(f"our library discovers {len(master_pages)} master page part(s) despite the bare root")
+
+    model = master_pages[0].to_model()
+    from hwpx.oxml.master_page import MasterPage
+
+    assert isinstance(model, MasterPage)
+    assert model.id == "masterpage0"
+    assert model.type == "OPTIONAL_PAGE"
+    print(f"to_model() reads it structurally despite the bare root: {model!r}")
     doc.close()
     print("PASS: DEV-007 reproduced (vendored evidence) and our handling verified")
     return 0
