@@ -57,6 +57,7 @@ PreservedElement = Union[
     "FormEditControl",
     "FormComboBoxControl",
     "ListItem",
+    "ComposedCharacter",
 ]
 InlineMark = Union[PreservedElement, "TrackChangeMark"]
 RunChild = Union[PreservedElement, "Control", "Table", "InlineObject", "TextSpan", "Tab"]
@@ -259,6 +260,29 @@ class ParameterList:
     tag: str
     name: Optional[str]
     params: List[Parameter] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class ComposedCharacterSlot:
+    """``hp:compose`` 안의 ``hp:charPr`` 하나 — 겹쳐 쓸 글자 한 슬롯의 서식
+    참조(ParaList XML schema.xml:538-543, ``prIDRef`` 뿐)."""
+
+    pr_id_ref: Optional[int]
+
+
+@dataclass(slots=True)
+class ComposedCharacter:
+    """``hp:compose`` — 글자 겹치기(원문자·합자, ParaList XML
+    schema.xml:535-588). ``hp:t``의 자식이 아니라 ``hp:run`` 직속(실코퍼스
+    SimpleCompose.hwpx 확인 — ``hp:ctrl`` 다음, ``hp:t`` 형제)."""
+
+    tag: str
+    circle_type: Optional[str]
+    char_sz: Optional[int]
+    compose_type: Optional[str]
+    char_pr_cnt: Optional[int]
+    compose_text: Optional[str]
+    slots: List[ComposedCharacterSlot] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -694,6 +718,24 @@ def parse_list_item_element(node: etree._Element) -> ListItem:
     )
 
 
+def parse_composed_character_element(node: etree._Element) -> ComposedCharacter:
+    attrs = {key: value for key, value in node.attrib.items()}
+    slots = [
+        ComposedCharacterSlot(pr_id_ref=parse_int(child.get("prIDRef")))
+        for child in node
+        if isinstance(child.tag, str) and local_name(child) == "charPr"
+    ]
+    return ComposedCharacter(
+        tag=node.tag,
+        circle_type=attrs.pop("circleType", None),
+        char_sz=_parse_int_attribute(attrs, "charSz"),
+        compose_type=attrs.pop("composeType", None),
+        char_pr_cnt=_parse_int_attribute(attrs, "charPrCnt"),
+        compose_text=attrs.pop("composeText", None),
+        slots=slots,
+    )
+
+
 def parse_form_combo_box_element(node: etree._Element) -> FormComboBoxControl:
     attrs = {key: value for key, value in node.attrib.items()}
     return FormComboBoxControl(
@@ -790,6 +832,15 @@ def parse_preserved_element(node: etree._Element) -> PreservedElement:
         return parse_form_combo_box_element(node)
     if name == "listItem":
         return parse_list_item_element(node)
+    if name == "compose":
+        return parse_composed_character_element(node)
+    if name in INLINE_OBJECT_NAMES:
+        # 실코퍼스 실측(cycle-6.3 트레인⑫): hp:container(등)가 최상위
+        # run 자식일 땐 InlineObject로 뜨지만, 그 컨테이너 *안에* 중첩된
+        # 개체(pic/line/rect 등, reader_writer__SimpleContainer.hwpx)는
+        # 이 함수로 재귀해 GenericElement로 강등돼 있었다 — 중첩 깊이와
+        # 무관하게 같은 타입으로 뜨도록 통일한다.
+        return parse_inline_object_element(node)
     return GenericElement(
         name=name,
         tag=node.tag,
@@ -883,6 +934,10 @@ def parse_run_element(node: etree._Element) -> Run:
             obj = parse_inline_object_element(child)
             run.inline_objects.append(obj)
             run.content.append(obj)
+        elif name == "compose":
+            composed = parse_composed_character_element(child)
+            run.other_children.append(composed)
+            run.content.append(composed)
         else:
             element = parse_preserved_element(child)
             run.other_children.append(element)
@@ -1034,6 +1089,25 @@ def _list_item_to_xml(item: ListItem) -> etree._Element:
     return etree.Element(_qualified_tag(item.tag, item.name), attrs)
 
 
+def _composed_character_slot_to_xml(slot: ComposedCharacterSlot) -> etree._Element:
+    attrs: Dict[str, str] = {}
+    _set_int_attr(attrs, "prIDRef", slot.pr_id_ref)
+    return etree.Element(f"{HP}charPr", attrs)
+
+
+def _composed_character_to_xml(composed: ComposedCharacter) -> etree._Element:
+    attrs: Dict[str, str] = {}
+    _set_str_attr(attrs, "circleType", composed.circle_type)
+    _set_int_attr(attrs, "charSz", composed.char_sz)
+    _set_str_attr(attrs, "composeType", composed.compose_type)
+    _set_int_attr(attrs, "charPrCnt", composed.char_pr_cnt)
+    _set_str_attr(attrs, "composeText", composed.compose_text)
+    node = etree.Element(_qualified_tag(composed.tag, "compose"), attrs)
+    for slot in composed.slots:
+        node.append(_composed_character_slot_to_xml(slot))
+    return node
+
+
 def _parameter_value_text(kind: str, value: Union[bool, int, float, str]) -> str:
     if kind == "boolean":
         return "1" if value else "0"
@@ -1100,6 +1174,10 @@ def _preserved_element_to_xml(element: PreservedElement) -> etree._Element:
         return _form_combo_box_to_xml(element)
     if isinstance(element, ListItem):
         return _list_item_to_xml(element)
+    if isinstance(element, ComposedCharacter):
+        return _composed_character_to_xml(element)
+    if isinstance(element, InlineObject):
+        return _inline_object_to_xml(element)
     return _generic_element_to_xml(element)
 
 
@@ -1208,6 +1286,8 @@ def serialize_paragraph(paragraph: Paragraph) -> etree._Element:
 
 __all__ = [
     "CommentElement",
+    "ComposedCharacter",
+    "ComposedCharacterSlot",
     "Control",
     "FormComboBoxControl",
     "FormEditControl",
@@ -1233,6 +1313,7 @@ __all__ = [
     "parameter_list_to_xml",
     "parameter_to_xml",
     "parse_comment_element",
+    "parse_composed_character_element",
     "parse_control_element",
     "parse_form_combo_box_element",
     "parse_form_edit_element",
