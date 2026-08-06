@@ -1,0 +1,34 @@
+{"_meta": "mac-render-batch-v1", "app": "Hancom Office HWP.app", "jobCount": 33, "oracle": "mac-gui"}
+{"sourceId": "v9-container-000", "stratum": "authored-container", "saved": true, "pdfBytes": 22568, "error": null}
+{"sourceId": "v9-container-001", "stratum": "authored-container", "saved": true, "pdfBytes": 27306, "error": null}
+{"sourceId": "v9-container-002", "stratum": "authored-container", "saved": true, "pdfBytes": 31749, "error": null}
+{"sourceId": "v9-container-003", "stratum": "authored-container", "saved": true, "pdfBytes": 21712, "error": null}
+{"sourceId": "v9-container-004", "stratum": "authored-container", "saved": true, "pdfBytes": 27493, "error": null}
+{"sourceId": "v9-container-005", "stratum": "authored-container", "saved": true, "pdfBytes": 32580, "error": null}
+{"sourceId": "v9-container-006", "stratum": "authored-container", "saved": true, "pdfBytes": 21702, "error": null}
+{"sourceId": "v9-container-007", "stratum": "authored-container", "saved": true, "pdfBytes": 26858, "error": null}
+{"sourceId": "v9-container-008", "stratum": "authored-container", "saved": true, "pdfBytes": 31792, "error": null}
+{"sourceId": "v9-container-009", "stratum": "authored-container", "saved": true, "pdfBytes": 22153, "error": null}
+{"sourceId": "v9-container-010", "stratum": "authored-container", "saved": true, "pdfBytes": 27805, "error": null}
+{"sourceId": "v9-container-011", "stratum": "authored-container", "saved": true, "pdfBytes": 32267, "error": null}
+{"sourceId": "v9-container-012", "stratum": "authored-container", "saved": true, "pdfBytes": 21400, "error": null}
+{"sourceId": "v9-container-013", "stratum": "authored-container", "saved": true, "pdfBytes": 26889, "error": null}
+{"sourceId": "v9-container-014", "stratum": "authored-container", "saved": true, "pdfBytes": 31664, "error": null}
+{"sourceId": "v9-inlineatoms-000", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 17800, "error": null}
+{"sourceId": "v9-inlineatoms-001", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 17774, "error": null}
+{"sourceId": "v9-inlineatoms-002", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 16639, "error": null}
+{"sourceId": "v9-inlineatoms-003", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 19033, "error": null}
+{"sourceId": "v9-inlineatoms-004", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 19304, "error": null}
+{"sourceId": "v9-inlineatoms-005", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 18933, "error": null}
+{"sourceId": "v9-inlineatoms-006", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 18720, "error": null}
+{"sourceId": "v9-inlineatoms-007", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 18152, "error": null}
+{"sourceId": "v9-inlineatoms-008", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 18536, "error": null}
+{"sourceId": "v9-inlineatoms-009", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 20913, "error": null}
+{"sourceId": "v9-inlineatoms-010", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 19481, "error": null}
+{"sourceId": "v9-inlineatoms-011", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 20115, "error": null}
+{"sourceId": "v9-inlineatoms-012", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 19778, "error": null}
+{"sourceId": "v9-inlineatoms-013", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 19923, "error": null}
+{"sourceId": "v9-inlineatoms-014", "stratum": "authored-inlineatoms", "saved": true, "pdfBytes": 20422, "error": null}
+{"sourceId": "corrupt_section", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
+{"sourceId": "corrupt_header", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
+{"sourceId": "missing_section", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
