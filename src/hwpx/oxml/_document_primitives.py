@@ -422,6 +422,63 @@ def _append_text_with_tabs(run: ET.Element, value: str) -> None:
             run.append(run.makeelement(tab_tag, {}))
 
 
+#: "\n" -> hp:lineBreak, " " (NO-BREAK SPACE) -> hp:nbSpace, "　"
+#: (IDEOGRAPHIC SPACE) -> hp:fwSpace. Real corpus (error__20230818__test.hwpx,
+#: error__20251107__test.hwpx, error__20250808__...hwpx) confirms all three
+#: sit nested inside a single hp:t via mixed content
+#: (<hp:t>before<hp:lineBreak/>after</hp:t>) -- unlike hp:tab, which
+#: _append_text_with_tabs above represents as a sibling of hp:t within
+#: hp:run instead (also schema-legal -- RunType's own choice group lists
+#: tab/lineBreak/nbSpace/fwSpace identically -- but not the shape any real
+#: sample of these three uses). Tab is intentionally not handled here: it
+#: already has an established, presumably Hancom-verified representation
+#: via _append_text_with_tabs, and retrofitting it risks behavior no
+#: existing caller asked to change.
+_RUN_CHOICE_ATOM_MARKERS: dict[str, str] = {
+    "\n": "lineBreak",
+    " ": "nbSpace",
+    "　": "fwSpace",
+}
+_RUN_CHOICE_ATOM_SPLIT_RE = _re.compile(
+    "([" + "".join(_RUN_CHOICE_ATOM_MARKERS) + "])"
+)
+
+
+def _append_text_with_run_choice_atoms(run: ET.Element, value: str) -> None:
+    """Insert *value* as a single ``hp:t``, expanding embedded markers to
+    the real-corpus ``hp:lineBreak``/``hp:nbSpace``/``hp:fwSpace`` element
+    form (see :data:`_RUN_CHOICE_ATOM_MARKERS`) instead of leaving them as
+    literal characters in the text node."""
+
+    text_tag = _child_tag_like(run, "t", _HP_NS)
+    text_element = run.makeelement(text_tag, {})
+    run.append(text_element)
+
+    parts = _RUN_CHOICE_ATOM_SPLIT_RE.split(_sanitize_text(value))
+    last_element: ET.Element | None = None
+    pending: list[str] = []
+
+    def _flush() -> None:
+        joined = "".join(pending) or None
+        if last_element is None:
+            text_element.text = joined
+        else:
+            last_element.tail = joined
+        pending.clear()
+
+    for part in parts:
+        marker_name = _RUN_CHOICE_ATOM_MARKERS.get(part)
+        if marker_name is None:
+            pending.append(part)
+            continue
+        _flush()
+        marker_tag = _child_tag_like(run, marker_name, _HP_NS)
+        marker_element = text_element.makeelement(marker_tag, {})
+        text_element.append(marker_element)
+        last_element = marker_element
+    _flush()
+
+
 def _normalize_length(value: str | None) -> str:
     if value is None:
         return ""

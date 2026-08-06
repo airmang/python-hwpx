@@ -16,6 +16,7 @@ from ._document_primitives import (
     _HP,
     _HP_NS,
     _append_child,
+    _append_text_with_run_choice_atoms,
     _append_text_with_tabs,
     _child_tag_like,
     _children_by_local,
@@ -394,8 +395,25 @@ class HwpxOxmlParagraph:
         highlight: str | None = None,
         strike: bool | None = None,
         attributes: dict[str, str] | None = None,
+        expand_special_characters: bool = False,
     ) -> HwpxOxmlRun:
-        """Append a new run to the paragraph and return its wrapper."""
+        """Append a new run to the paragraph and return its wrapper.
+
+        *expand_special_characters* (default ``False`` — opt-in, no change
+        to any existing caller's output) converts three characters embedded
+        in *text* to their real-corpus OWPML element form instead of
+        leaving them as literal bytes inside ``hp:t``: ``"\\n"`` ->
+        ``hp:lineBreak``, ``"\\u00a0"`` (no-break space) -> ``hp:nbSpace``,
+        ``"\\u3000"`` (CJK full-width space) -> ``hp:fwSpace``. Real corpus
+        (``error__20230818__test.hwpx``, ``error__20251107__test.hwpx``,
+        ``error__20250808__...hwpx``) confirms Hancom always emits these as
+        elements nested inside a single ``hp:t`` — never as literal
+        characters, and never (for these three specifically) as a sibling
+        of ``hp:t`` the way ``hp:tab`` is. Off by default because the plain
+        ``text=`` path here never processed these characters before, and
+        other call sites in this codebase (table cell multiline splitting,
+        for one) already give ``"\\n"`` a different meaning of their own.
+        """
 
         run_attrs = dict(attributes or {})
 
@@ -422,8 +440,11 @@ class HwpxOxmlParagraph:
                         run_attrs["charPrIDRef"] = str(default_char)
 
         run_element = _append_child(self.element, f"{_HP}run", run_attrs)
-        text_element = _append_child(run_element, f"{_HP}t", {})
-        text_element.text = text
+        if expand_special_characters:
+            _append_text_with_run_choice_atoms(run_element, text)
+        else:
+            text_element = _append_child(run_element, f"{_HP}t", {})
+            text_element.text = text
         self.section.mark_dirty()
         return HwpxOxmlRun(run_element, self)
 

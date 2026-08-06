@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 import zipfile
@@ -315,6 +316,70 @@ def test_dispatch_window_catches_bare_local_name_comparison() -> None:
     assert not module._bare_name_dispatched("neverMentioned", windows)
 
 
+def test_strip_namespace_is_a_registered_local_name_getter() -> None:
+    """사이클 6.5 트레인⑲ 수리: `tools/text_extractor.py`의 `strip_namespace`는
+    oxml 쪽 `local_name`과 이름만 다를 뿐 같은 관용구
+    (`tag = strip_namespace(child.tag); if tag == "xxx":`)로 쓰인다 —
+    등록 전에는 원장이 이 파일 안에서만 디스패치되는 요소(hp:nbSpace/
+    fwSpace)를 read=False로 오판했다."""
+
+    module = _module()
+    assert "strip_namespace" in module._LOCAL_NAME_GETTERS
+    source = (
+        "def paragraph_text(self, paragraph):\n"
+        "    for child in run:\n"
+        "        tag = strip_namespace(child.tag)\n"
+        "        if tag == 'nbSpace':\n"
+        "            pass\n"
+        "        elif tag == 'fwSpace':\n"
+        "            pass\n"
+    )
+    windows = module._build_dispatch_windows(source)
+    assert module._bare_name_dispatched("nbSpace", windows)
+    assert module._bare_name_dispatched("fwSpace", windows)
+
+
+def test_strip_namespace_getter_reproduces_nbspace_fwspace_false_negative_on_real_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """결함-부활: 실제 `text_extractor.py` 소스에서, `strip_namespace`를
+    게터 목록에서 빼면(수리 OFF) `hp:nbSpace`/`hp:fwSpace`가 다시
+    read=False로 재현되고, 실제 등록된 목록(수리 ON)을 쓰면 고쳐진다."""
+
+    module = _module()
+    text_extractor_py = ROOT / "src" / "hwpx" / "tools" / "text_extractor.py"
+    raw_text = text_extractor_py.read_text(encoding="utf-8")
+    stripped = module._strip_non_code_text(raw_text)
+
+    monkeypatch.setattr(
+        module,
+        "_LOCAL_NAME_GETTERS",
+        ("local_name", "tag_local_name", "_element_local_name", "_local_name"),
+    )
+    monkeypatch.setattr(
+        module,
+        "_ASSIGN_GETTER_RE",
+        re.compile(r"(\w+)\s*=\s*(?:" + "|".join(module._LOCAL_NAME_GETTERS) + r")\("),
+    )
+    monkeypatch.setattr(
+        module,
+        "_DIRECT_GETTER_RE",
+        re.compile(r"(?:" + "|".join(module._LOCAL_NAME_GETTERS) + r")\([^()]*\)"),
+    )
+    broken_windows = module._build_dispatch_windows(stripped)
+    for name in ("nbSpace", "fwSpace"):
+        assert not module._bare_name_dispatched(name, broken_windows), (
+            f"hp:{name} should be a false negative without strip_namespace registered"
+        )
+
+    monkeypatch.undo()
+    fixed_windows = module._build_dispatch_windows(stripped)
+    for name in ("nbSpace", "fwSpace"):
+        assert module._bare_name_dispatched(name, fixed_windows), (
+            f"hp:{name} should resolve once strip_namespace is registered"
+        )
+
+
 def test_dispatch_window_rejects_unrelated_same_scope_string() -> None:
     """`version = root.get("version")`처럼 getter와 무관한 동명 변수는
     디스패치로 오인하면 안 된다(실제로 겪은 오탐 회귀 테스트: 이 정확한
@@ -593,6 +658,47 @@ def test_manual_override_reproduces_track_change_family_write(
             "hh", name, "head", stripped, dispatch_windows, {}
         )
         assert fixed == (True, True), f"hh:{name} should resolve to (read, write) via the manual whitelist"
+
+
+def test_manual_override_reproduces_run_choice_atom_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """사이클 6.5 트레인⑲(특수 인라인 텍스트 원자 저작)이 새로 낸 위음성의
+    반증: `_document_primitives.py`의 `_RUN_CHOICE_ATOM_MARKERS`는
+    `"\\n": "lineBreak"`처럼 요소 이름을 **딕셔너리 값**으로만 담고, 실제
+    태그는 `_child_tag_like(run, marker_name, _HP_NS)`처럼 그 값을 담은
+    변수로 조립한다 — 리터럴 옆에 `hp:`/`{_HP}` 네임스페이스 마커가 없어
+    한정 패턴이 못 잡는다(hp:markpenBegin과 같은 결함 계열). 실제 소스로
+    재현한다: 화이트리스트를 지우면(수리 OFF) 이 파일 안에서는 세 이름
+    다 read=False·write=False가 재현되고, 실제 등재된 화이트리스트(수리
+    ON)를 쓰면 고쳐진다."""
+
+    module = _module()
+    primitives_py = ROOT / "src" / "hwpx" / "oxml" / "_document_primitives.py"
+    raw_text = primitives_py.read_text(encoding="utf-8")
+    stripped = module._strip_non_code_text(raw_text)
+    dispatch_windows = module._build_dispatch_windows(stripped)
+
+    names = ("lineBreak", "nbSpace", "fwSpace")
+    for name in names:
+        assert ("hp", name) in module.MANUAL_CODE_USAGE_OVERRIDES_BY_KEY
+
+    monkeypatch.setattr(module, "MANUAL_CODE_USAGE_OVERRIDES_BY_KEY", {})
+    for name in names:
+        broken = module.classify_code_usage(
+            "hp", name, "paragraph", stripped, dispatch_windows, {}
+        )
+        assert broken == (False, False), (
+            f"hp:{name} should be a false negative in _document_primitives.py "
+            "alone without the whitelist"
+        )
+
+    monkeypatch.undo()
+    for name in names:
+        fixed = module.classify_code_usage(
+            "hp", name, "paragraph", stripped, dispatch_windows, {}
+        )
+        assert fixed == (True, True), f"hp:{name} should resolve via the manual whitelist"
 
 
 def test_manual_override_reproduces_hhs_diff_op_family_read(

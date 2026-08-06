@@ -280,7 +280,9 @@ class TextExtractor:
             for child in run:
                 tag = strip_namespace(child.tag)
                 if tag == "t":
-                    self._render_text_element(child, fragments, annotations)
+                    self._render_text_element(
+                        child, fragments, annotations, preserve_breaks=preserve_breaks,
+                    )
                 elif tag == "lineBreak":
                     if preserve_breaks:
                         fragments.append("\n")
@@ -403,6 +405,8 @@ class TextExtractor:
         element: ET.Element,
         fragments: list[str],
         annotations: Optional[AnnotationOptions],
+        *,
+        preserve_breaks: bool = True,
     ) -> None:
         if element.text:
             fragments.append(element.text)
@@ -425,8 +429,33 @@ class TextExtractor:
                     fragments.append(
                         annotations.highlight_end.format(color=end_color or "")
                     )
+            elif tag == "lineBreak":
+                # Schema-correct position (ParaList XML schema.xml's TextType
+                # choice — real corpus confirms hp:t nests these, not hp:run
+                # directly): without this branch the marker silently vanished
+                # with no substitute, splicing the text on either side
+                # together with no separator at all.
+                if preserve_breaks:
+                    fragments.append("\n")
+            elif tag == "nbSpace":
+                # U+00A0 NO-BREAK SPACE -- flattens to a plain space when the
+                # caller wants formatting-free text (preserve_breaks=False),
+                # the same rule "tab" follows below.
+                fragments.append(" " if preserve_breaks else " ")
+            elif tag == "fwSpace":
+                # U+3000 IDEOGRAPHIC SPACE (CJK full-width space).
+                fragments.append("　" if preserve_breaks else " ")
+            elif tag == "hyphen":
+                # U+00AD SOFT HYPHEN -- an optional word-break point,
+                # invisible except where a line actually breaks there;
+                # dropped entirely (not flattened to "-") when formatting is
+                # not wanted.
+                if preserve_breaks:
+                    fragments.append("­")
             else:
-                self._render_text_element(child, fragments, annotations)
+                self._render_text_element(
+                    child, fragments, annotations, preserve_breaks=preserve_breaks,
+                )
 
             if child.tail:
                 fragments.append(child.tail)

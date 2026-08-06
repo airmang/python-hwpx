@@ -352,7 +352,18 @@ def _read_source_corpus(files: list[tuple[Path, str]]) -> str:
 #: ``==``/``!=``/``in``으로 비교되는 자리, (b) getter 호출 결과를 변수 없이
 #: 바로 ``== "xxx"``/``in {...}``로 비교하는 자리 — 이 두 경우에만, 비교
 #: 연산자 바로 뒤 짧은 구간에서 따옴표 문자열을 찾는다.
-_LOCAL_NAME_GETTERS = ("local_name", "tag_local_name", "_element_local_name", "_local_name")
+#: ``strip_namespace``(사이클 6.5 트레인⑲ 추가): text_extractor.py/
+#: object_finder.py 전용 로컬-네임 게터 — oxml 계열의 ``local_name``과
+#: 이름만 다를 뿐 동일한 관용구(``tag = strip_namespace(child.tag); if tag
+#: == "xxx":``)를 쓴다. 실측: 이 이름을 추가하기 전에는 `text_extractor.py`
+#: 안에서 이 관용구로만 디스패치되는 요소(hh:nbSpace/fwSpace)가 read=False로
+#: 잡혔다 — 재현·수리 테스트는
+#: `test_local_name_getters_recognizes_strip_namespace_dispatch`
+#: (tests/test_coverage_ledger.py) 참조.
+_LOCAL_NAME_GETTERS = (
+    "local_name", "tag_local_name", "_element_local_name", "_local_name",
+    "strip_namespace",
+)
 _ASSIGN_GETTER_RE = re.compile(
     r"(\w+)\s*=\s*(?:" + "|".join(_LOCAL_NAME_GETTERS) + r")\("
 )
@@ -948,6 +959,59 @@ _MANUAL_CODE_USAGE_OVERRIDES: tuple[ManualCodeUsageOverride, ...] = (
             "that author id appears)."
         ),
     ),
+    ManualCodeUsageOverride(
+        "hp",
+        "lineBreak",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "src/hwpx/oxml/_document_primitives.py:425-478 "
+            "_RUN_CHOICE_ATOM_MARKERS/_append_text_with_run_choice_atoms "
+            "(cycle 6.5 train 19) maps '\\n' -> the bare string literal "
+            "'lineBreak' as a dict VALUE, then builds the tag via "
+            "_child_tag_like(run, marker_name, _HP_NS) where marker_name is "
+            "the variable holding that value — no hp:/{_HP} namespace marker "
+            "sits adjacent to the literal itself, so none of the six "
+            "prefix-anchored patterns can find it (same blind spot family as "
+            "hp:markpenBegin above: the write marker 'makeelement' is near "
+            "the call site, not near the literal). Genuinely wired: "
+            "paragraph.py's add_run(expand_special_characters=True) calls "
+            "it. codeRead was already True independently, via a different "
+            "and unrelated site: tools/exporter.py:67 and "
+            "tools/layout_preview.py:228 both compare "
+            "`child.tag == f\"{_HP}lineBreak\"` (real f-string literal "
+            "adjacency, correctly matched by pattern 3) — those predate this "
+            "train and read hp:lineBreak for their own export/preview "
+            "purposes, unrelated to _append_text_with_run_choice_atoms."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hp",
+        "nbSpace",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "Write: same mechanism as hp:lineBreak above — "
+            "_document_primitives.py:425-478, marker_name='nbSpace' as a "
+            "dict value with no adjacent namespace marker. Read: already "
+            "fixed generically by registering 'strip_namespace' in "
+            "_LOCAL_NAME_GETTERS (this file, cycle 6.5 train 19) — no "
+            "override needed for the read half, kept here only because "
+            "ManualCodeUsageOverride sets both flags together and the write "
+            "half must be True."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hp",
+        "fwSpace",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "Same mechanism as hp:nbSpace directly above (write: "
+            "_document_primitives.py:425-478 dict-value tag; read: fixed "
+            "generically via the strip_namespace getter registration)."
+        ),
+    ),
 )
 
 _validate_manual_overrides(_MANUAL_CODE_USAGE_OVERRIDES)
@@ -1062,7 +1126,7 @@ def _register(area: str, prefix: str, *names: str) -> None:
 _register(
     "문단·표 저작/편집",
     "hp",
-    "p", "run", "t", "lineBreak", "tab", "nbSpace", "secPr",
+    "p", "run", "t", "lineBreak", "tab", "nbSpace", "fwSpace", "secPr",
     "tbl", "tr", "tc", "cellAddr", "cellSpan", "cellSz", "cellMargin",
     "cellzone", "cellzoneList", "lineseg", "linesegarray",
 )

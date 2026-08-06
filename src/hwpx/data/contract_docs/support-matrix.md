@@ -21,7 +21,7 @@
 
 | 능력 영역 | 상태 | 증거 |
 |---|---|---|
-| 문단·표 저작/편집 | Parse·Preserve·Edit·Create·Render-verified | corpus-metrics「오픈 수용률」476/476, 「저작 품질 게이트」실저작 58/58, 「렌더 검증」416건 |
+| 문단·표 저작/편집 | Parse·Preserve·Edit·Create·Render-verified | corpus-metrics「오픈 수용률」476/476, 「저작 품질 게이트」실저작 58/58, 「렌더 검증」416건. **6.5+**: `paragraph.add_run(text, expand_special_characters=True)`가 `hp:lineBreak`(줄바꿈)·`hp:nbSpace`(비분리공백)·`hp:fwSpace`(전각공백)를 저작한다 — 실코퍼스 3파일(`error__20230818__test.hwpx`/`error__20251107__test.hwpx`/`error__20250808__...hwpx`) 리버스로 셋 다 **단일 hp:t 안의 mixed content**임을 확인(`hp:tab`이 쓰는 "hp:run 형제" 형태와 다름 — 스키마는 둘 다 허용하나 실 산출물은 이 셋에 대해 전자만 씀). 같은 리버스 과정에서 텍스트 추출기(`TextExtractor`)가 이 세 원자(+`hp:hyphen`)를 `hp:t` 중첩 위치에서 못 읽던 결함도 함께 수리 — 수리 전엔 원자가 조용히 사라지며 앞뒤 텍스트가 구분자 없이 붙어 읽혔다(줄바꿈이 있었다는 사실 자체가 유실). 실한컴 렌더 검증은 배치(v9)로 미룸 |
 | 표 구조 변경(행·열·표 삭제/삽입, 열 오토핏) | Preserve·Edit | `hwpx.table_patch`; corpus-metrics「바이트 보존」497/497(patch 경로) |
 | 표 생성(병합·중첩 포함) | Create·Render-verified | `add_table`·`merge_cells`(피복 셀 제거+cellSpan — 실한컴 병합 의미론과 동형, 3종 병합 렌더 픽셀 확인)·셀 문단 `add_table`(중첩). 기본값은 5.4.0에서 실한컴에 맞췄다: 셀 안여백 510/510/141/141, 기본 표 폭은 본문 폭, 중첩 표는 부모 셀 사용 폭. **남은 갭**: 선 종류는 raw 전용 |
 | 양식 채움(byte-splice) | Preserve·Edit | `hwpx.patch`·`table_patch`·`body_patch`; corpus-metrics「바이트 보존」497/497. wild 공개 양식의 서식 충실은 2차 실측 후 **산출분 pass 82.1%(23/28)·산출+fail 7.6%(5/66)** — 불가능 타깃은 typed 거부 35건(전수 감별 과잉거부 0). 잔존은 페이지 리플 5건(4건 typed 경고 동반·완전 무음 1건, 「구조결함 2차 실측」절), 표 shape 부류는 측정 인공물로 판명·판정기 교정 |
