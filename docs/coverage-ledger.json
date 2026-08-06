@@ -6,7 +6,13 @@
     "corpusCensusGenerator": "scripts/build_element_census.py",
     "corpusPopulationNote": "real = every *.hwpx under the committed roots this generator was invoked with, deduplicated by content hash. This repo's committed snapshot was produced with the vendored tests/fixtures/hwpxlib_corpus (47 files, reproducible by anyone) plus the maintainer's private real-world Hancom-authored documents (school administrative and review paperwork -- not this pipeline's output) as a second --corpus root. That second root is not committed and its path is not recorded here (privacy); only the aggregate counts are. The legacy 166/84 split this census previously reported traced to a population that was never committed anywhere reachable from this workspace -- it could not be reproduced or extended, so this generator does not carry it forward. See docs/2026-08-04-completeness-audit-verdict.md §3-C1 and docs/coverage-ledger.md's repair notes.",
     "supportMatrix": "src/hwpx/data/contract_docs/support-matrix.md",
-    "openrateV4": "docs/openrate/report-v4.json",
+    "openrateReports": [
+      "docs/openrate/report-v4.json",
+      "docs/openrate/report-v5.json",
+      "docs/openrate/report-v6.json",
+      "docs/openrate/report-v7.json",
+      "docs/openrate/report-v8.json"
+    ],
     "skeleton": "src/hwpx/data/Skeleton.hwpx",
     "sourceScanned": "src/hwpx/**/*.py"
   },
@@ -43,8 +49,8 @@
     "codeWriteFrozenTemplate": 19,
     "codeWriteNone": 153,
     "capabilityMapped": 74,
-    "renderVerified": 48,
-    "renderVerifiedByV4Corpus": 13,
+    "renderVerified": 76,
+    "renderVerifiedByOpenrateCorpus": 45,
     "attributesObserved": 193
   },
   "elements": [
@@ -135,8 +141,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "테두리 채우기(이미지·그라데이션)",
-      "capabilityStatus": "Parse·Create(experimental)",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Create(experimental)·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "value"
       ]
@@ -240,8 +246,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "테두리 채우기(이미지·그라데이션)",
-      "capabilityStatus": "Parse·Create(experimental)",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Create(experimental)·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "alpha",
         "angle",
@@ -294,8 +300,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "테두리 채우기(이미지·그라데이션)",
-      "capabilityStatus": "Parse·Create(experimental)",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Create(experimental)·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "mode"
       ]
@@ -1417,7 +1423,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -1430,7 +1436,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -1508,7 +1514,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "face",
         "id",
@@ -1547,7 +1553,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "fontCnt",
         "lang"
@@ -1563,7 +1569,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "itemCnt"
       ]
@@ -1781,7 +1787,7 @@
       "codeWrite": "api",
       "capabilityArea": "메모(코멘트)",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "activeColor",
         "fillColor",
@@ -1803,7 +1809,7 @@
       "codeWrite": "api",
       "capabilityArea": "메모(코멘트)",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "itemCnt"
       ]
@@ -1896,7 +1902,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "type"
       ]
@@ -2194,7 +2200,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -2207,7 +2213,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "binaryItemIDRef",
         "face",
@@ -2225,7 +2231,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -2238,7 +2244,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "leader",
         "pos",
@@ -2256,7 +2262,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "autoTabLeft",
         "autoTabRight",
@@ -2273,7 +2279,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "itemCnt"
       ]
@@ -2715,7 +2721,7 @@
       "codeWrite": "api",
       "capabilityArea": "arc·polygon·curve·connectLine",
       "capabilityStatus": "Parse·Preserve·Create(arc·polygon, experimental)·Unsupported-but-preserved(curve·connectLine)",
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "dropcapstyle",
         "groupLevel",
@@ -2816,7 +2822,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -2829,7 +2835,7 @@
       "codeWrite": "none",
       "capabilityArea": "체크박스 양식개체",
       "capabilityStatus": "Create·Render-verified",
-      "verificationBasis": "by-capability-area+v4-corpus",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "backColor",
         "borderTypeIDRef",
@@ -2859,7 +2865,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "fullSz",
         "gap",
@@ -3013,7 +3019,7 @@
       "codeWrite": "api",
       "capabilityArea": "차트",
       "capabilityStatus": "Create(experimental)·Preserve",
-      "verificationBasis": "by-v4-corpus",
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "chartIDRef",
         "dropcapstyle",
@@ -3035,7 +3041,7 @@
       "codeWrite": "api",
       "capabilityArea": "체크박스 양식개체",
       "capabilityStatus": "Create·Render-verified",
-      "verificationBasis": "by-capability-area+v4-corpus",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "backColor",
         "backStyle",
@@ -3342,7 +3348,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "editable",
         "lastWidth",
@@ -3512,7 +3518,7 @@
       "codeWrite": "api",
       "capabilityArea": "각주/미주",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area+v4-corpus",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -3525,7 +3531,7 @@
       "codeWrite": "api",
       "capabilityArea": "각주/미주",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area+v4-corpus",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -3556,7 +3562,7 @@
       "codeWrite": "api",
       "capabilityArea": "수식",
       "capabilityStatus": "Parse·Create(experimental)·Render-verified",
-      "verificationBasis": "by-capability-area+v4-corpus",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "baseLine",
         "baseUnit",
@@ -3689,7 +3695,7 @@
       "codeWrite": "api",
       "capabilityArea": "각주/미주",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area+v4-corpus",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -3702,7 +3708,7 @@
       "codeWrite": "api",
       "capabilityArea": "각주/미주",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area+v4-corpus",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -3731,7 +3737,7 @@
       "codeWrite": "api",
       "capabilityArea": "체크박스 양식개체",
       "capabilityStatus": "Create·Render-verified",
-      "verificationBasis": "by-capability-area+v4-corpus",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "autoSz",
         "charPrIDRef",
@@ -3961,7 +3967,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "name"
       ]
@@ -4148,7 +4154,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "cnt",
         "name"
@@ -4197,8 +4203,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "형광펜(하이라이트)",
-      "capabilityStatus": "Parse·Create(experimental)",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Create(experimental)·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "color"
       ]
@@ -4212,8 +4218,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "형광펜(하이라이트)",
-      "capabilityStatus": "Parse·Create(experimental)",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Create(experimental)·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -4241,7 +4247,7 @@
       "codeWrite": "api",
       "capabilityArea": "메모(코멘트)",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "author",
         "createDateTime",
@@ -4259,7 +4265,7 @@
       "codeWrite": "api",
       "capabilityArea": "메모(코멘트)",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -4298,7 +4304,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "num",
         "numType"
@@ -4314,7 +4320,7 @@
       "codeWrite": "api",
       "capabilityArea": "각주/미주",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area+v4-corpus",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "color",
         "length",
@@ -4332,7 +4338,7 @@
       "codeWrite": "api",
       "capabilityArea": "각주/미주",
       "capabilityStatus": "Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area+v4-corpus",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "aboveLine",
         "belowLine",
@@ -4501,7 +4507,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "hideBorder",
         "hideFill",
@@ -4582,7 +4588,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "cnt",
         "count",
@@ -4673,7 +4679,7 @@
       "codeWrite": "api",
       "capabilityArea": "arc·polygon·curve·connectLine",
       "capabilityStatus": "Parse·Preserve·Create(arc·polygon, experimental)·Unsupported-but-preserved(curve·connectLine)",
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "dropcapstyle",
         "groupLevel",
@@ -4809,7 +4815,7 @@
       "codeWrite": "none",
       "capabilityArea": "체크박스 양식개체",
       "capabilityStatus": "Create·Render-verified",
-      "verificationBasis": "by-capability-area+v4-corpus",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "backColor",
         "backStyle",
@@ -5003,7 +5009,7 @@
       "codeWrite": "api",
       "capabilityArea": "수식",
       "capabilityStatus": "Parse·Create(experimental)·Render-verified",
-      "verificationBasis": "by-capability-area+v4-corpus",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -5217,7 +5223,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "name",
         "space"

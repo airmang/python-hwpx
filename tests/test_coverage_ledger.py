@@ -45,8 +45,8 @@ _ELEMENT_KEYS = {
 _KNOWN_PREFIXES = {"hp", "hh", "hc", "hs", "hm", "hhs", "hv", "ha"}
 _VALID_VERIFICATION_BASES = {
     "by-capability-area",
-    "by-v4-corpus",
-    "by-capability-area+v4-corpus",
+    "by-openrate-corpus",
+    "by-capability-area+openrate-corpus",
 }
 
 
@@ -148,7 +148,7 @@ def test_ledger_schema_is_valid() -> None:
         "codeWriteNone",
         "capabilityMapped",
         "renderVerified",
-        "renderVerifiedByV4Corpus",
+        "renderVerifiedByOpenrateCorpus",
         "attributesObserved",
     }
     assert summary["totalElements"] == len(ledger["elements"]) > 0
@@ -157,8 +157,11 @@ def test_ledger_schema_is_valid() -> None:
         summary["codeWriteApi"] + summary["codeWriteFrozenTemplate"] + summary["codeWriteNone"]
         == summary["totalElements"]
     )
-    assert summary["capabilityMapped"] >= summary["renderVerified"]
-    assert summary["renderVerified"] >= summary["renderVerifiedByV4Corpus"] >= 0
+    # capabilityMapped와 renderVerified는 더 이상 부분집합 관계가 아니다 —
+    # openrate 코퍼스가 capabilityArea 없는 요소를 직접 검증할 수 있다(D항
+    # _OPENRATE_STRATUM_TO_ELEMENTS 경로). renderVerified 자체는 여전히
+    # renderVerifiedByOpenrateCorpus의 상위집합이어야 한다.
+    assert summary["renderVerified"] >= summary["renderVerifiedByOpenrateCorpus"] >= 0
 
     seen: set[tuple[str, str]] = set()
     for entry in ledger["elements"]:
@@ -182,12 +185,24 @@ def test_ledger_schema_is_valid() -> None:
 
         if entry["capabilityArea"] is None:
             assert entry["capabilityStatus"] is None
-            assert entry["verificationBasis"] is None
+            # verificationBasis는 여기서도 non-None일 수 있다— 요소 직접
+            # 경로(_OPENRATE_STRATUM_TO_ELEMENTS)가 capabilityArea 없는
+            # 요소도 검증한다(D항). 순수 "by-openrate-corpus"(capabilityArea
+            # 경로 성분이 전혀 없는 경우)만 아래에서 마저 검사한다.
+            if entry["verificationBasis"] is not None:
+                assert entry["verificationBasis"] == "by-openrate-corpus"
         if entry["verificationBasis"] is not None:
             assert entry["verificationBasis"] in _VALID_VERIFICATION_BASES
-            assert entry["capabilityArea"] is not None
             if "capability-area" in entry["verificationBasis"]:
+                assert entry["capabilityArea"] is not None
                 assert "Render-verified" in entry["capabilityStatus"]
+            if entry["verificationBasis"] == "by-openrate-corpus":
+                # 순수 코퍼스 증거는 "실한컴이 저작을 수용했다"는 주장이다 —
+                # 못 만드는(write=none) 요소가 이 표시를 갖는 건 모순이다
+                # (구현 중 실제로 겪은 회귀: arc·polygon·curve·connectLine을
+                # capabilityArea째 매핑했다가 정직 보류 중인 curve/
+                # connectLine에 이 표시가 새 나갔다).
+                assert entry["codeWrite"] == "api"
 
     # 재현성: (namespace, element) 오름차순 결정론적 정렬.
     pairs = [(e["namespace"], e["element"]) for e in ledger["elements"]]
@@ -673,21 +688,66 @@ def test_capability_keywords_all_resolve_against_real_support_matrix() -> None:
 
 
 # ---------------------------------------------------------------------------
-# v4 openrate 코퍼스 환류 (D항)
+# openrate 코퍼스 환류 v4~v8 (D항 + 2026-08 사이클 6.5 트레인⑰ 확장)
 # ---------------------------------------------------------------------------
 
 
-def test_v4_stratum_mapping_resolves_against_real_capability_keywords() -> None:
-    """_V4_STRATUM_TO_CAPABILITY_AREA가 가리키는 영역은 전부
+def test_openrate_stratum_mapping_resolves_against_real_capability_keywords() -> None:
+    """_OPENRATE_STRATUM_TO_CAPABILITY_AREA가 가리키는 영역은 전부
     CAPABILITY_KEYWORDS에도 실재해야 한다(무근거 매핑 방지)."""
 
     module = _module()
     registered_areas = set(module.CAPABILITY_KEYWORDS.values())
-    for area in module._V4_STRATUM_TO_CAPABILITY_AREA.values():
+    for area in module._OPENRATE_STRATUM_TO_CAPABILITY_AREA.values():
         assert area in registered_areas, f"{area!r} is not a real capability area"
 
 
-def test_load_v4_capability_receipts_rejects_invalid_harness(tmp_path: Path) -> None:
+def test_openrate_stratum_to_elements_resolves_against_real_elements() -> None:
+    """_OPENRATE_STRATUM_TO_ELEMENTS가 지목하는 (prefix, name)은 전부
+    스키마 또는 코퍼스에 실재하는 요소여야 한다(무근거 지목 방지) — census나
+    스키마 어느 쪽에도 없는 오타 키를 조용히 통과시키지 않는다."""
+
+    module = _module()
+    schema_elements = module.parse_schema_elements()
+    known_keys = {
+        (prefix, name) for prefix, names in schema_elements.items() for name in names
+    }
+    for stratum, keys in module._OPENRATE_STRATUM_TO_ELEMENTS.items():
+        for key in keys:
+            assert key in known_keys, f"{stratum!r} names unknown element {key!r}"
+
+
+def test_openrate_stratum_maps_are_disjoint() -> None:
+    """같은 스트라텀이 capabilityArea 경로와 요소-직접 경로 둘 다에 등록되면
+    안 된다 — 하나의 스트라텀은 하나의 매핑 방식만 쓴다(§4b 독스트링이
+    설명하는 이유 그대로: capabilityArea가 있으면 그 경로, 없으면 요소
+    직접)."""
+
+    module = _module()
+    area_strata = set(module._OPENRATE_STRATUM_TO_CAPABILITY_AREA)
+    element_strata = set(module._OPENRATE_STRATUM_TO_ELEMENTS)
+    assert area_strata.isdisjoint(element_strata)
+
+
+def test_stratum_accepted_handles_both_schema_generations() -> None:
+    """v1~v5(Windows COM, opened/requested 필드 있음)와 v6+(macOS GUI,
+    그 필드가 아예 없음 — PDF export 성공이 열기를 함의) 둘 다 받는다."""
+
+    module = _module()
+    # 구세대: opened/requested까지 맞아야 수용.
+    assert module._stratum_accepted(
+        {"render_checked": 15, "render_failed": 0, "opened": 15, "requested": 15}
+    )
+    assert not module._stratum_accepted(
+        {"render_checked": 15, "render_failed": 0, "opened": 14, "requested": 15}
+    )
+    # 신세대: 그 필드가 없으면 render_checked/render_failed만으로 판단.
+    assert module._stratum_accepted({"render_checked": 15, "render_failed": 0})
+    assert not module._stratum_accepted({"render_checked": 0, "render_failed": 0})
+    assert not module._stratum_accepted({"render_checked": 15, "render_failed": 1})
+
+
+def test_load_openrate_capability_receipts_rejects_invalid_harness(tmp_path: Path) -> None:
     module = _module()
     path = tmp_path / "report-v4.json"
     path.write_text(
@@ -706,10 +766,10 @@ def test_load_v4_capability_receipts_rejects_invalid_harness(tmp_path: Path) -> 
         ),
         encoding="utf-8",
     )
-    assert module._load_v4_capability_receipts(path) == {}
+    assert module._load_openrate_capability_receipts([path]) == {}
 
 
-def test_load_v4_capability_receipts_accepts_clean_stratum(tmp_path: Path) -> None:
+def test_load_openrate_capability_receipts_accepts_clean_stratum(tmp_path: Path) -> None:
     module = _module()
     path = tmp_path / "report-v4.json"
     path.write_text(
@@ -734,16 +794,94 @@ def test_load_v4_capability_receipts_accepts_clean_stratum(tmp_path: Path) -> No
         ),
         encoding="utf-8",
     )
-    receipts = module._load_v4_capability_receipts(path)
+    receipts = module._load_openrate_capability_receipts([path])
     assert receipts == {"차트": True}, "unmapped strata (authored-formfield) must not leak in"
+
+
+def test_load_openrate_capability_receipts_merges_across_multiple_reports(
+    tmp_path: Path,
+) -> None:
+    """여러 report 파일에 걸친 스트라타를 하나의 receipts 테이블로 OR-병합
+    한다 — 서로 다른 스트라타가 같은 capabilityArea를 가리키는 실제 사례
+    (v4의 authored-footnote/authored-note-shape → 둘 다 "각주/미주")를
+    두 개의 서로 다른 report 파일에 걸쳐 재현한다."""
+
+    module = _module()
+    v4a = tmp_path / "report-v4.json"
+    v4b = tmp_path / "report-v4b.json"
+    v4a.write_text(
+        json.dumps({"harness_valid": True, "strata": {"authored-chart": {
+            "render_checked": 15, "render_failed": 0, "opened": 15, "requested": 15,
+        }, "authored-footnote": {
+            "render_checked": 15, "render_failed": 0, "opened": 15, "requested": 15,
+        }}}),
+        encoding="utf-8",
+    )
+    v4b.write_text(
+        json.dumps({"harness_valid": True, "strata": {
+            "authored-note-shape": {
+                "render_checked": 10, "render_failed": 0, "opened": 10, "requested": 10,
+            },
+        }}),
+        encoding="utf-8",
+    )
+    receipts = module._load_openrate_capability_receipts([v4a, v4b])
+    assert receipts == {"차트": True, "각주/미주": True}
+
+
+def test_load_openrate_element_receipts_accepts_clean_stratum(tmp_path: Path) -> None:
+    module = _module()
+    path = tmp_path / "report-v5.json"
+    path.write_text(
+        json.dumps(
+            {
+                "harness_valid": True,
+                "strata": {
+                    "authored-caption": {
+                        "render_checked": 15,
+                        "render_failed": 0,
+                        "opened": 15,
+                        "requested": 15,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    receipts = module._load_openrate_element_receipts([path])
+    assert receipts == {("hp", "caption"): True}
+
+
+def test_mixed_support_capability_area_is_not_used_for_openrate_mapping() -> None:
+    """구현 중 실제로 겪은 회귀의 재현 가드: authored-polygon/authored-arc를
+    "arc·polygon·curve·connectLine" capabilityArea에 매핑했더니, 그 영역이
+    공유하는 curve/connectLine/seg(정직 보류 중 — write=none)까지 검증된
+    것처럼 verificationBasis가 붙었다. 이 스트라타는 capabilityArea 경로가
+    아니라 요소 직접 경로여야 한다."""
+
+    module = _module()
+    assert "authored-polygon" not in module._OPENRATE_STRATUM_TO_CAPABILITY_AREA
+    assert "authored-arc" not in module._OPENRATE_STRATUM_TO_CAPABILITY_AREA
+    assert module._OPENRATE_STRATUM_TO_ELEMENTS["authored-polygon"] == (("hp", "polygon"),)
+    assert module._OPENRATE_STRATUM_TO_ELEMENTS["authored-arc"] == (("hp", "arc"),)
+
+
+# 위 회귀의 일반화된 불변식(순수 "by-openrate-corpus"는 codeWrite=="api"를
+# 요구)은 test_ledger_schema_is_valid에 상시 체크로 이미 들어가 있다 — 전
+# 요소를 훑는 자리라 여기 따로 반복하지 않는다. "by-capability-area+
+# openrate-corpus"(예: hp:btn — 매트릭스 산문이 이미 "Render-verified"라고
+# 말하는 "체크박스 양식개체" 영역의 write=none 멤버)까지는 이 불변식을
+# 안 건다 — capabilityArea 쪽 성분은 이 트레인이 만든 게 아니라 손대지
+# 않았다(별도로 플래그만 남겼다, `docs/2026-08-06-next-gap-map.md` 참조
+# 예정).
 
 
 def test_combine_verification_basis() -> None:
     module = _module()
     assert module._combine_verification_basis(None, False) is None
-    assert module._combine_verification_basis(None, True) == "by-v4-corpus"
+    assert module._combine_verification_basis(None, True) == "by-openrate-corpus"
     assert module._combine_verification_basis("by-capability-area", False) == "by-capability-area"
     assert (
         module._combine_verification_basis("by-capability-area", True)
-        == "by-capability-area+v4-corpus"
+        == "by-capability-area+openrate-corpus"
     )

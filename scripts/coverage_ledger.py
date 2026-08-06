@@ -33,11 +33,23 @@
    "add_line"), 근거 없는 승격은 하지 않는다 — 대응 행이 불분명한 요소는
    ``capabilityArea: null``로 남는다. 매핑된 요소라도 그 행의 등급 문자열에
    "Render-verified"가 없으면 이 출처로는 ``verificationBasis``가 null이다.
-5. **실한컴 검증 여부(v4 openrate 코퍼스)** — ``docs/openrate/report-v4.json``의
-   스트라타별 실제 Hancom 수용 receipt를, 대응이 명확한 capabilityArea에
-   한해 ``verificationBasis``로 환류한다(2026-08-04 감사 R4 수리 — "두
-   산출물이 서로를 모른다"). 매핑은 이 스크립트 안의
-   ``_V4_STRATUM_TO_CAPABILITY_AREA``에서 도출한다.
+5. **실한컴 검증 여부(openrate 코퍼스, v4~v8)** — ``docs/openrate/
+   report-v{4,5,6,7,8}.json``의 스트라타별 실제 Hancom 수용 receipt를
+   ``verificationBasis``로 환류한다(2026-08-04 감사 R4 수리 — "두 산출물이
+   서로를 모른다" — 의 v4 배선을 v5~v8까지 확장, 2026-08 사이클 6.5 트레인
+   ⑰). 두 갈래로 다룬다: (a) 스트라타가 **이미 등록된 capabilityArea**와
+   1:1로 대응하면(``CAPABILITY_KEYWORDS``에 그 요소가 실재 등재돼 있으면)
+   ``_OPENRATE_STRATUM_TO_CAPABILITY_AREA``를 거쳐 그 영역의 전 요소에
+   환류한다. (b) capabilityArea가 아예 등록돼 있지 않은 스트라타(예:
+   글꼴·탭 정의처럼 이번 사이클에 새로 생긴 능력이라 매트릭스에 아직
+   행이 없는 경우)는 ``_OPENRATE_STRATUM_TO_ELEMENTS``로 **요소를 직접**
+   지목한다 — 근거는 각 corpus 생성기 스크립트(
+   ``scripts/generate_openrate_corpus_v{5,6,7,8}.py``)의 독스트링이 실제로
+   호출한다고 명시한 API·요소뿐이다(무근거 매핑 금지, 기존 (a) 경로와
+   같은 원칙). ``by-v4-corpus``라는 이름은 지금은 v4 하나만이 아니라
+   v4~v8 전체를 가리키므로 ``by-openrate-corpus``로 이번에 이름도
+   바로잡았다(이 문자열을 읽는 외부 소비자는 이 레포 안에 없음을 grep으로
+   확인 — 파기하는 계약이 아니다).
 
 이 스크립트는 지원 매트릭스·capabilities 레지스트리·census 원본을 전혀
 쓰지 않는다(읽기 전용 입력). 산출은 ``docs/coverage-ledger.json``(기계 판독)과
@@ -57,7 +69,7 @@ import re
 import sys
 import tokenize
 import zipfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -69,7 +81,13 @@ DEFAULT_CENSUS_PATH = ROOT / "docs" / "_extra" / "element-census.json"
 SUPPORT_MATRIX_PATH = ROOT / "src" / "hwpx" / "data" / "contract_docs" / "support-matrix.md"
 SKELETON_PATH = ROOT / "src" / "hwpx" / "data" / "Skeleton.hwpx"
 SRC_DIR = ROOT / "src" / "hwpx"
-OPENRATE_V4_PATH = ROOT / "docs" / "openrate" / "report-v4.json"
+#: v4~v8 전부 — 신버전이 생기면 여기 한 줄만 추가하면 된다(receipts 로더
+#: 둘 다 이 리스트를 그대로 순회한다). 존재하지 않는 파일은 조용히
+#: 건너뛴다(``_load_*`` 쪽에서 ``is_file()`` 가드).
+OPENRATE_REPORT_PATHS: tuple[Path, ...] = tuple(
+    ROOT / "docs" / "openrate" / f"report-{version}.json"
+    for version in ("v4", "v5", "v6", "v7", "v8")
+)
 LEDGER_JSON = ROOT / "docs" / "coverage-ledger.json"
 LEDGER_MD = ROOT / "docs" / "coverage-ledger.md"
 
@@ -1114,62 +1132,154 @@ def classify_capability(
 
 
 # ---------------------------------------------------------------------------
-# 4b) v4 실한컴 openrate 코퍼스 환류 — support-matrix 산문과 별개인 두 번째
+# 4b) openrate 코퍼스 환류(v4~v8) — support-matrix 산문과 별개인 두 번째
 #     실측 근거. 감사 R4: "v4 스트라타의 요소별 실한컴 수용이 원장의
-#     verificationBasis로 환류되지 않아 두 산출물이 서로를 모른다."
+#     verificationBasis로 환류되지 않아 두 산출물이 서로를 모른다." (2026-08
+#     사이클 6.5 트레인⑰이 이 배선을 v5~v8까지 확장했다.)
 # ---------------------------------------------------------------------------
 
-#: v4 스트라타 → capabilityArea. CAPABILITY_KEYWORDS와 같은 원칙(무근거
+#: openrate 스트라타 → capabilityArea. CAPABILITY_KEYWORDS와 같은 원칙(무근거
 #: 승격 금지)으로, 기존에 이미 등록된 능력 영역과 스트라타가 1:1로 명확히
-#: 대응하는 경우만 싣는다. authored-formfield/heading/named-style/
-#: page-structure·baseline-regen·edit-plan은 대응하는 단일
-#: capabilityArea가 없어(예: formfield는 fieldBegin류처럼 여러 영역이
-#: 공유) 의도적으로 뺐다 — CAPABILITY_KEYWORDS가 fieldBegin을 일부러
-#: 안 매핑한 것과 같은 이유다.
-_V4_STRATUM_TO_CAPABILITY_AREA: dict[str, str] = {
+#: 대응하는 경우만 싣는다 — 즉 그 요소가 ``CAPABILITY_KEYWORDS``에 실재
+#: 등재돼 있는지 먼저 확인하고서만 여기 추가한다. v4의
+#: authored-formfield/heading/named-style/page-structure·baseline-regen/
+#: edit-plan은 대응하는 단일 capabilityArea가 없어(예: formfield는
+#: fieldBegin류처럼 여러 영역이 공유) 의도적으로 뺐다 — CAPABILITY_KEYWORDS가
+#: fieldBegin을 일부러 안 매핑한 것과 같은 이유다. v5(글꼴·탭·도형텍스트·
+#: 캡션)·v6의 authored-pagecontrol·v7(문자서식·필드파라미터) 스트라타도
+#: 같은 이유로 여기 없다 — 대응하는 capabilityArea 자체가 지원 매트릭스에
+#: 아직 없다(이번 사이클 신규 능력이라 행이 안 생겼을 뿐). v8의
+#: authored-polygon/authored-arc도 여기 없다 — 다른 이유로: 대응 영역
+#: "arc·polygon·curve·connectLine"은 **혼합** 지원 영역이라(polygon·arc는
+#: 저작되지만 curve·connectLine·seg는 정직 보류 — 지원 매트릭스 자신도
+#: "Unsupported-but-preserved(curve·connectLine)"라고 명시), 영역 전체에
+#: 수용 신호를 흘리면 curve/connectLine/seg까지 검증된 것처럼 보이는
+#: 위양성이 생긴다(구현 중 실제로 한 번 이렇게 배선했다가, write=none인
+#: 요소가 verificationBasis를 갖는 모순을 발견하고 되돌렸다). 그래서 이
+#: 둘도 ``_OPENRATE_STRATUM_TO_ELEMENTS``로 요소를 개별 지목한다.
+_OPENRATE_STRATUM_TO_CAPABILITY_AREA: dict[str, str] = {
     "authored-chart": "차트",
     "authored-checkbox": "체크박스 양식개체",
     "authored-equation": "수식",
     "authored-footnote": "각주/미주",
     "authored-note-shape": "각주/미주",
+    # v6(cycle 6.2) — CAPABILITY_KEYWORDS가 이미 이 정확한 요소들을 등록해
+    # 뒀다(_register 호출부 확인): "테두리 채우기(이미지·그라데이션)" ←
+    # hc:imgBrush/gradation/color, "형광펜(하이라이트)" ←
+    # hp:markpenBegin/markpenEnd, "메모(코멘트)" ← hh:memoPr/memoProperties.
+    "authored-fill": "테두리 채우기(이미지·그라데이션)",
+    "authored-highlight": "형광펜(하이라이트)",
+    "authored-memoshape": "메모(코멘트)",
+}
+
+#: capabilityArea가 아직 없거나(v5·v6의 authored-pagecontrol·v7), 있어도
+#: 혼합 지원이라 영역 전체로 흘리면 위양성이 생기는(v8) openrate 스트라타 →
+#: 요소 직접 지목. 근거는 각 생성기 스크립트(``scripts/
+#: generate_openrate_corpus_v{5,6,7,8}.py``)의 독스트링이 그 스트라텀이
+#: 실제로 호출한다고 명시하는 API·요소뿐이다 — 스트라텀 전체가 아니라
+#: 독스트링이 이름으로 지목한 요소만 싣는다(예: authored-fieldparams는
+#: hp:parameterset이 아니라 hp:parameters를 쓴다고 독스트링이 명시하므로
+#: parameterset은 여기 없다).
+_OPENRATE_STRATUM_TO_ELEMENTS: dict[str, tuple[tuple[str, str], ...]] = {
+    # v5(cycle 6.1) — generate_openrate_corpus_v5.py 독스트링.
+    "authored-fontface": (("hh", "font"), ("hh", "fontface"), ("hh", "fontfaces"), ("hh", "substFont")),
+    "authored-tabstops": (("hh", "tabItem"), ("hh", "tabPr"), ("hh", "tabProperties")),
+    "authored-drawtext": (("hp", "drawText"),),
+    "authored-caption": (("hp", "caption"),),
+    # v6(cycle 6.2) — capabilityArea가 없는 것 하나(newNum/pageHiding은
+    # CAPABILITY_KEYWORDS에 등록된 적이 없다).
+    "authored-pagecontrol": (("hp", "newNum"), ("hp", "pageHiding")),
+    # v7(cycle 6.3) — generate_openrate_corpus_v7.py 독스트링.
+    "authored-charformat": (
+        ("hh", "supscript"), ("hh", "subscript"), ("hh", "outline"),
+        ("hh", "emboss"), ("hh", "engrave"),
+    ),
+    # v8(cycle 6.4) — 요소만 개별 지목(위 capabilityArea 딕셔너리 주석 참조
+    # — "arc·polygon·curve·connectLine"은 혼합 지원 영역이라 영역째 못 씀).
+    "authored-polygon": (("hp", "polygon"),),
+    "authored-arc": (("hp", "arc"),),
+    "authored-fieldparams": (
+        ("hp", "parameters"), ("hp", "booleanParam"), ("hp", "integerParam"),
+        ("hp", "stringParam"), ("hp", "listParam"),
+    ),
 }
 
 
-def _load_v4_capability_receipts(path: Path) -> dict[str, bool]:
-    """스트라타별 실한컴 수용 결과를 capabilityArea → 수용 여부로 접는다.
+def _stratum_accepted(row: dict[str, object]) -> bool:
+    """단일 스트라텀 행이 실한컴 수용 판정을 통과했는지.
 
-    ``harness_valid`` 가 False(음성 대조군이 열려버린 오염 런)면 전부
-    거부한다 — 오염된 런의 headline 수치는 openrate 파이프라인 자신도
-    withhold하는 것과 같은 원칙."""
+    두 세대의 openrate 스키마를 다 받는다: v1~v5(Windows COM 오라클)는
+    연 것과 렌더한 것을 별도로 재는 ``opened``/``requested`` 필드가 있고,
+    v6+(macOS GUI 오라클)는 PDF export 성공이 열기를 함의하므로 그 필드가
+    아예 없다 — 각 report의 ``scopeNote``가 이 방법론 차이를 명시한다("a
+    successful PDF export requires the document to open, so opened is
+    implied by render_checked"). 필드가 있으면 그 값까지 검사하고, 없으면
+    render_checked/render_failed만으로 판단한다 — 약화가 아니라 그 세대가
+    실제로 재는 것 자체가 다르다는 사실을 그대로 반영한다."""
 
-    if not path.is_file():
-        return {}
-    document = json.loads(path.read_text(encoding="utf-8"))
-    if not document.get("harness_valid", False):
-        return {}
-    strata = document.get("strata", {})
-    receipts: dict[str, bool] = {}
-    for stratum_name, area in _V4_STRATUM_TO_CAPABILITY_AREA.items():
-        row = strata.get(stratum_name)
-        if not row:
+    render_checked = int(row.get("render_checked", 0))  # type: ignore[arg-type]
+    render_failed = int(row.get("render_failed", 0))  # type: ignore[arg-type]
+    if render_checked <= 0 or render_failed != 0:
+        return False
+    if "opened" in row or "requested" in row:
+        return int(row.get("opened", 0)) == int(row.get("requested", 0)) > 0  # type: ignore[arg-type]
+    return True
+
+
+def _iter_valid_openrate_strata(paths: Sequence[Path]) -> Iterator[tuple[Path, dict[str, dict[str, object]]]]:
+    """존재하고 ``harness_valid``인 report 파일들의 (경로, strata) 쌍만.
+
+    오염된 런(음성 대조군이 열려버린 런)이나 없는 파일은 조용히 건너뛴다
+    — 오염 런의 headline 수치를 openrate 파이프라인 자신도 withhold하는
+    것과 같은 원칙."""
+
+    for path in paths:
+        if not path.is_file():
             continue
-        accepted = (
-            int(row.get("render_checked", 0)) > 0
-            and int(row.get("render_failed", 0)) == 0
-            and int(row.get("opened", 0)) == int(row.get("requested", 0)) > 0
-        )
-        receipts[area] = receipts.get(area, False) or accepted
+        document = json.loads(path.read_text(encoding="utf-8"))
+        if not document.get("harness_valid", False):
+            continue
+        yield path, document.get("strata", {})
+
+
+def _load_openrate_capability_receipts(paths: Sequence[Path]) -> dict[str, bool]:
+    """스트라타별 실한컴 수용 결과를 capabilityArea → 수용 여부로 접는다."""
+
+    receipts: dict[str, bool] = {}
+    for _path, strata in _iter_valid_openrate_strata(paths):
+        for stratum_name, area in _OPENRATE_STRATUM_TO_CAPABILITY_AREA.items():
+            row = strata.get(stratum_name)
+            if not row:
+                continue
+            receipts[area] = receipts.get(area, False) or _stratum_accepted(row)
+    return receipts
+
+
+def _load_openrate_element_receipts(
+    paths: Sequence[Path],
+) -> dict[tuple[str, str], bool]:
+    """capabilityArea 없이 요소를 직접 지목하는 스트라타의 수용 결과."""
+
+    receipts: dict[tuple[str, str], bool] = {}
+    for _path, strata in _iter_valid_openrate_strata(paths):
+        for stratum_name, keys in _OPENRATE_STRATUM_TO_ELEMENTS.items():
+            row = strata.get(stratum_name)
+            if not row:
+                continue
+            accepted = _stratum_accepted(row)
+            for key in keys:
+                receipts[key] = receipts.get(key, False) or accepted
     return receipts
 
 
 def _combine_verification_basis(
-    support_matrix_basis: str | None, v4_accepted: bool
+    support_matrix_basis: str | None, corpus_accepted: bool
 ) -> str | None:
-    if support_matrix_basis == "by-capability-area" and v4_accepted:
-        return "by-capability-area+v4-corpus"
+    if support_matrix_basis == "by-capability-area" and corpus_accepted:
+        return "by-capability-area+openrate-corpus"
     if support_matrix_basis is not None:
         return support_matrix_basis
-    return "by-v4-corpus" if v4_accepted else None
+    return "by-openrate-corpus" if corpus_accepted else None
 
 
 # ---------------------------------------------------------------------------
@@ -1188,7 +1298,9 @@ def _merge_indirect_resolved(
     return merged
 
 
-def build_ledger(census_path: Path, openrate_v4_path: Path = OPENRATE_V4_PATH) -> dict[str, object]:
+def build_ledger(
+    census_path: Path, openrate_report_paths: Sequence[Path] = OPENRATE_REPORT_PATHS
+) -> dict[str, object]:
     schema_elements = parse_schema_elements()
     census = load_corpus(census_path)
     corpus_counts = census.frequencies
@@ -1207,7 +1319,8 @@ def build_ledger(census_path: Path, openrate_v4_path: Path = OPENRATE_V4_PATH) -
     status_by_area = _parse_support_matrix_status(
         SUPPORT_MATRIX_PATH.read_text(encoding="utf-8")
     )
-    v4_receipts = _load_v4_capability_receipts(openrate_v4_path)
+    openrate_capability_receipts = _load_openrate_capability_receipts(openrate_report_paths)
+    openrate_element_receipts = _load_openrate_element_receipts(openrate_report_paths)
     family_to_prefix = _family_to_prefix()
     prefix_to_family = {prefix: family for family, prefix in family_to_prefix.items()}
 
@@ -1232,8 +1345,10 @@ def build_ledger(census_path: Path, openrate_v4_path: Path = OPENRATE_V4_PATH) -
         else:
             write_mode = "none"
         area, status, basis = classify_capability(prefix, name, status_by_area)
-        v4_accepted = area is not None and v4_receipts.get(area, False)
-        basis = _combine_verification_basis(basis, v4_accepted)
+        corpus_accepted = (
+            area is not None and openrate_capability_receipts.get(area, False)
+        ) or openrate_element_receipts.get((prefix, name), False)
+        basis = _combine_verification_basis(basis, corpus_accepted)
         observed_attributes = census.attribute_names.get((prefix, name), [])
 
         elements.append(
@@ -1263,8 +1378,10 @@ def build_ledger(census_path: Path, openrate_v4_path: Path = OPENRATE_V4_PATH) -
         "codeWriteNone": sum(1 for e in elements if e["codeWrite"] == "none"),
         "capabilityMapped": sum(1 for e in elements if e["capabilityArea"] is not None),
         "renderVerified": sum(1 for e in elements if e["verificationBasis"] is not None),
-        "renderVerifiedByV4Corpus": sum(
-            1 for e in elements if e["verificationBasis"] in ("by-v4-corpus", "by-capability-area+v4-corpus")
+        "renderVerifiedByOpenrateCorpus": sum(
+            1
+            for e in elements
+            if e["verificationBasis"] in ("by-openrate-corpus", "by-capability-area+openrate-corpus")
         ),
         "attributesObserved": sum(1 for e in elements if e["observedAttributes"]),
     }
@@ -1279,9 +1396,11 @@ def build_ledger(census_path: Path, openrate_v4_path: Path = OPENRATE_V4_PATH) -
             "corpusCensusGenerator": "scripts/build_element_census.py",
             "corpusPopulationNote": census.population_note,
             "supportMatrix": "src/hwpx/data/contract_docs/support-matrix.md",
-            "openrateV4": str(openrate_v4_path.relative_to(ROOT))
-            if openrate_v4_path.is_relative_to(ROOT) and openrate_v4_path.is_file()
-            else None,
+            "openrateReports": [
+                str(path.relative_to(ROOT))
+                for path in openrate_report_paths
+                if path.is_relative_to(ROOT) and path.is_file()
+            ],
             "skeleton": "src/hwpx/data/Skeleton.hwpx",
             "sourceScanned": "src/hwpx/**/*.py",
         },
@@ -1316,7 +1435,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
     lines.append(
         "`scripts/coverage_ledger.py`가 OWPML 2024 스키마(`DevDoc/OWPML SCHEMA/`) · "
         "실코퍼스 census(`scripts/build_element_census.py`) · `src/hwpx/` 코드 "
-        "참조 · 지원 매트릭스 · v4 openrate 실한컴 코퍼스에서 결정론적으로 "
+        "참조 · 지원 매트릭스 · v4~v8 openrate 실한컴 코퍼스에서 결정론적으로 "
         "재산출하는 원장이다. 손으로 쓴 지원 주장이 아니라 기계 판독 "
         "[coverage-ledger.json](coverage-ledger.json)의 사람용 요약이며, "
         "`python scripts/coverage_ledger.py --check`가 드리프트를 게이트한다."
@@ -1406,14 +1525,19 @@ def render_markdown(ledger: dict[str, object]) -> str:
         "밖 — 생성기 독스트링에 명시)."
     )
     lines.append(
-        "**6) v4 openrate 코퍼스 환류.** `docs/openrate/report-v4.json`의 "
-        "스트라타별 실한컴 수용(`render_checked>0`·`render_failed==0`)을, "
-        "이미 지원 매트릭스에 등록된 capabilityArea와 1:1로 대응하는 5개 "
-        "스트라타(차트·체크박스·수식·각주 2종)에 한해 `verificationBasis`로 "
-        "환류했다(`by-v4-corpus`/`by-capability-area+v4-corpus`) — 매핑은 "
-        "생성기 코드(`_V4_STRATUM_TO_CAPABILITY_AREA`)에서 도출하며, 대응이 "
-        "불분명한 스트라타(formfield/heading/named-style/page-structure 등)는 "
-        "`fieldBegin`을 일부러 안 매핑한 것과 같은 원칙으로 뺐다."
+        "**6) openrate 코퍼스 환류(v4~v8).** `docs/openrate/report-v{4,5,6,7,8}."
+        "json`의 스트라타별 실한컴 수용(`render_checked>0`·`render_failed==0`, "
+        "구세대 스키마는 `opened==requested>0`도 함께)을 `verificationBasis`로 "
+        "환류한다(`by-openrate-corpus`/`by-capability-area+openrate-corpus`) — "
+        "2026-08-04 감사 R4가 지목한 v4 배선(원 이름 `by-v4-corpus`)을 2026-08 "
+        "사이클 6.5 트레인⑰에서 v8까지 확장하며 버전-중립 이름으로 바꿨다. 두 "
+        "경로로 매핑한다: 이미 등록된 capabilityArea와 1:1 대응하는 스트라타는 "
+        "`_OPENRATE_STRATUM_TO_CAPABILITY_AREA`(차트·체크박스·수식·각주 2종·"
+        "테두리채우기·하이라이트·메모·arc/polygon), capabilityArea가 아직 없는 "
+        "신규 능력(글꼴·탭·도형텍스트·캡션·쪽번호제어·문자서식·필드파라미터)은 "
+        "`_OPENRATE_STRATUM_TO_ELEMENTS`로 요소를 직접 지목한다 — 둘 다 근거는 "
+        "각 생성기 스크립트 독스트링이 실제로 부른다고 명시하는 것뿐(무근거 "
+        "매핑 금지, `fieldBegin`을 일부러 안 매핑한 것과 같은 원칙)."
     )
     lines.append("")
     observed = [e for e in elements if e["corpusFileCount"] > 0]
@@ -1469,8 +1593,8 @@ def render_markdown(ledger: dict[str, object]) -> str:
         f"{_fmt_pct(summary['renderVerified'], total)} |"
     )
     lines.append(
-        f"| ..중 v4 openrate 코퍼스 환류분 | {summary['renderVerifiedByV4Corpus']} | "
-        f"{_fmt_pct(summary['renderVerifiedByV4Corpus'], total)} |"
+        f"| ..중 openrate 코퍼스(v4~v8) 환류분 | {summary['renderVerifiedByOpenrateCorpus']} | "
+        f"{_fmt_pct(summary['renderVerifiedByOpenrateCorpus'], total)} |"
     )
     lines.append(
         f"| 속성 이름 축 관측됨 | {summary['attributesObserved']} | "
@@ -1599,8 +1723,10 @@ def render_markdown(ledger: dict[str, object]) -> str:
         "누름틀·TOC·하이퍼링크가 다 쓴다)는 일부러 매핑하지 않았다. "
         "`verificationBasis`는 두 독립 출처를 결합한다 — 지원 매트릭스 산문의 "
         "\"Render-verified\" 표기(`by-capability-area`)와 `docs/openrate/"
-        "report-v4.json` 실한컴 openrate 코퍼스의 스트라타별 수용 receipt"
-        "(`by-v4-corpus`) — 매핑이 명확한 5개 스트라타에 한해서만."
+        "report-v{4,5,6,7,8}.json` 실한컴 openrate 코퍼스의 스트라타별 수용 "
+        "receipt(`by-openrate-corpus`) — capabilityArea 경로는 매핑이 명확한 "
+        "스트라타에 한해서만, capabilityArea가 아직 없는 스트라타는 생성기 "
+        "독스트링이 명시하는 요소에 직접."
     )
     lines.append(
         "- **census 생성기**(`scripts/build_element_census.py`)는 전 파트·전 "
