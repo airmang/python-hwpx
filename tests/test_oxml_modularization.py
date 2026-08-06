@@ -266,7 +266,11 @@ def test_frozen_facade_exports_remain_exact() -> None:
     # anywhere reachable (vendored corpus + ~250 accessible personal Hancom
     # documents), so History/HistoryEntry/DiffNode are schema-only and labeled
     # as such in history_part.py's module docstring.
-    assert len(oxml.__all__) == 127
+    # 127 -> 128: ContainerMember (cycle 6.5 train 18) — doc.shapes.add_container
+    # groups already-built rect/ellipse/polygon members (hp:container) into one
+    # shape; the input-side constructor type callers use to place each member
+    # at its own local (x, y) before the group's bounding box is derived.
+    assert len(oxml.__all__) == 128
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 
 

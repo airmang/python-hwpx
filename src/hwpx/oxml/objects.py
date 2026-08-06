@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Sequence
 import warnings
 import xml.etree.ElementTree as ET
@@ -484,6 +485,181 @@ def _create_polygon_element(
     return el
 
 
+@dataclass(frozen=True)
+class ContainerMember:
+    """One shape inside a group (``<hp:container>``), placed at (*x*, *y*)
+    in the group's own top-left-anchored local coordinate space (HWPUNIT —
+    the same convention :func:`_create_polygon_element` uses for its own
+    vertices). Construct via :meth:`rect`, :meth:`ellipse`, or
+    :meth:`polygon` — not the bare constructor, which expects an
+    already-built element.
+
+    Real corpus (``reader_writer__SimpleContainer.hwpx``, 3 members, plus
+    71 more containers across two other real documents): a group member is
+    a complete, standalone shape element — the exact same
+    ``offset``/``orgSz``/``curSz``/``flip``/``rotationInfo``/
+    ``renderingInfo`` envelope plus type geometry a freestanding shape
+    would have — except it drops the ``AbstractShapeObjectType`` tail
+    (``sz``/``pos``/``outMargin``/``shapeComment``; the *group* carries
+    that, not the member) and its ``groupLevel`` is ``"1"`` instead of
+    ``"0"``. :func:`_create_container_element` applies both adjustments
+    when it assembles the members passed here into the group.
+    """
+
+    element: ET.Element
+    x: int
+    y: int
+
+    @classmethod
+    def rect(
+        cls,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        *,
+        ratio: int = 0,
+        line_color: str = "#000000",
+        line_width: str = "283",
+        fill_color: str | None = None,
+    ) -> "ContainerMember":
+        """A rectangle member — see :func:`_create_rectangle_element`."""
+
+        element = _create_rectangle_element(
+            width, height, ratio=ratio, line_color=line_color,
+            line_width=line_width, fill_color=fill_color,
+        )
+        return cls(element, x, y)
+
+    @classmethod
+    def ellipse(
+        cls,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        *,
+        line_color: str = "#000000",
+        line_width: str = "283",
+        fill_color: str | None = None,
+    ) -> "ContainerMember":
+        """An ellipse member — see :func:`_create_ellipse_element`."""
+
+        element = _create_ellipse_element(
+            width, height, line_color=line_color, line_width=line_width,
+            fill_color=fill_color,
+        )
+        return cls(element, x, y)
+
+    @classmethod
+    def polygon(
+        cls,
+        x: int,
+        y: int,
+        points: Sequence[tuple[int, int]],
+        *,
+        line_color: str = "#000000",
+        line_width: str = "283",
+        fill_color: str | None = None,
+    ) -> "ContainerMember":
+        """A polygon member — see :func:`_create_polygon_element`."""
+
+        element = _create_polygon_element(
+            points, line_color=line_color, line_width=line_width,
+            fill_color=fill_color,
+        )
+        return cls(element, x, y)
+
+
+def _member_size(member: "ContainerMember") -> tuple[int, int]:
+    org_sz = member.element.find(f"{_HP}orgSz")
+    if org_sz is None:  # pragma: no cover - defensive, every builder sets this
+        return 0, 0
+    return int(org_sz.get("width", "0")), int(org_sz.get("height", "0"))
+
+
+def _create_container_element(
+    members: Sequence["ContainerMember"],
+    *,
+    treat_as_char: bool = True,
+) -> ET.Element:
+    """Build a complete ``<hp:container>`` grouping *members*.
+
+    Real corpus (74 containers total across 3 vendored files —
+    ``reader_writer__SimpleContainer.hwpx`` plus two "error__" regression
+    fixtures): the container itself is structured exactly like any other
+    drawing object — ``numberingType="PICTURE"`` uniformly observed, own
+    ``offset``/``orgSz``/``curSz``/``flip``/``rotationInfo``/
+    ``renderingInfo`` + ``sz``/``pos``/``outMargin``/``shapeComment`` tail —
+    except its payload is complete member shapes instead of geometry.
+    ``orgSz`` is the union bounding box of every member's own (*x*, *y*,
+    ``orgSz``) in the group's local space, so members never need to be
+    pre-translated by the caller.
+    """
+    if not members:
+        from ..errors import HwpxValueError
+
+        raise HwpxValueError(
+            "add_container requires at least one member",
+            code="shape-container-no-members",
+            context={},
+            suggestion="Pass one or more ContainerMember instances "
+            "(ContainerMember.rect/.ellipse/.polygon).",
+        )
+
+    min_x = min(m.x for m in members)
+    min_y = min(m.y for m in members)
+    max_x = max(m.x + _member_size(m)[0] for m in members)
+    max_y = max(m.y + _member_size(m)[1] for m in members)
+    width = max_x - min_x
+    height = max_y - min_y
+
+    el = ET.Element(f"{_HP}container")
+    _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
+    el.set("numberingType", "PICTURE")
+
+    for member in members:
+        member_el = member.element
+        local_x = member.x - min_x
+        local_y = member.y - min_y
+
+        offset = member_el.find(f"{_HP}offset")
+        if offset is not None:
+            offset.set("x", str(local_x))
+            offset.set("y", str(local_y))
+        rendering_info = member_el.find(f"{_HP}renderingInfo")
+        if rendering_info is not None:
+            trans = rendering_info.find(f"{_HC}transMatrix")
+            if trans is not None:
+                # Real corpus (SimpleContainer.hwpx): a member's transMatrix
+                # translation component mirrors its own offset exactly.
+                trans.set("e3", str(local_x))
+                trans.set("e6", str(local_y))
+
+        # Real corpus: group members share a small, non-unique id — "0" in
+        # 71 of 74 observed instances (SimpleContainer.hwpx's 3 members all
+        # share "2" instead, so the value itself carries no meaning). The
+        # unique identifier is instid, kept as-is from the member's own
+        # creation.
+        member_el.set("id", "0")
+        member_el.set("groupLevel", "1")
+
+        # AbstractShapeObjectType tail (sz/pos/outMargin/shapeComment) is
+        # container-level only — every observed member carries none of it.
+        for tail_name in ("sz", "pos", "outMargin", "shapeComment"):
+            tail_el = member_el.find(f"{_HP}{tail_name}")
+            if tail_el is not None:
+                member_el.remove(tail_el)
+
+        el.append(member_el)
+
+    _build_shape_base_children(el, width, height)
+    # Real corpus: the container itself (not its members) closes with an
+    # empty shapeComment — the same tail hp:pic already appends.
+    _append_child(el, f"{_HP}shapeComment", {})
+    return el
+
+
 def _create_picture_element(
     binary_item_id_ref: str,
     width: int,
@@ -767,11 +943,32 @@ def _paragraph_add_arc(
     )
 
 
+def _paragraph_add_container(
+    self: "HwpxOxmlParagraph",
+    members: Sequence["ContainerMember"],
+    *,
+    treat_as_char: bool = True,
+    run_attributes: dict[str, str] | None = None,
+    char_pr_id_ref: str | int | None = None,
+) -> "HwpxOxmlShape":
+    """Insert a spec-compliant ``<hp:container>`` grouping *members*.
+
+    Each member keeps the local (x, y) position given to its
+    :class:`ContainerMember` constructor — see
+    :func:`_create_container_element` for the real-corpus contract
+    (member envelope, ``groupLevel``, shared ``id`` convention).
+    """
+    el = _create_container_element(members, treat_as_char=treat_as_char)
+    return self._insert_shape_element(
+        el, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
+    )
+
+
 def _paragraph_shapes(self: "HwpxOxmlParagraph") -> list["HwpxOxmlShape"]:
     """Return all drawing shapes embedded in this paragraph."""
     shape_tags = {f"{_HP}line", f"{_HP}rect", f"{_HP}ellipse",
                   f"{_HP}arc", f"{_HP}polygon", f"{_HP}curve",
-                  f"{_HP}connectLine"}
+                  f"{_HP}connectLine", f"{_HP}container"}
     result: list[HwpxOxmlShape] = []
     for run in self._run_elements():
         for child in run:
@@ -1326,4 +1523,4 @@ class HwpxOxmlShape:
     def __repr__(self) -> str:
         return f"<HwpxOxmlShape type={self.shape_type!r} id={self.inst_id!r}>"
 
-__all__ = ["Caption", "DrawText", "HwpxOxmlInlineObject", "HwpxOxmlShape"]
+__all__ = ["Caption", "ContainerMember", "DrawText", "HwpxOxmlInlineObject", "HwpxOxmlShape"]

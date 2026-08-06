@@ -19,6 +19,7 @@ from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...model import InlineObject, Paragraph, Section, Shape
+    from ...oxml import ContainerMember
 
 __all__ = ["ShapesNamespace"]
 
@@ -185,6 +186,28 @@ class ShapesNamespace(_Namespace):
             treat_as_char=treat_as_char,
             paragraph=paragraph,
             section=self._section(section, section_index, "add_polygon"),
+        )
+
+    def add_container(
+        self,
+        members: "Sequence[ContainerMember]",
+        *,
+        treat_as_char: bool = True,
+        paragraph: "Paragraph | None" = None,
+        section: "int | Section | None" = None,
+        section_index: int | None = None,
+    ) -> "Shape":
+        """도형을 그룹으로 묶는다(`ContainerMember.rect`/`.ellipse`/`.polygon`으로
+        각 부재를 그룹 로컬 좌표로 만들어 넘긴다)."""
+
+        from .. import shapes as _shapes
+
+        return _shapes.add_container(
+            self._doc,
+            members,
+            treat_as_char=treat_as_char,
+            paragraph=paragraph,
+            section=self._section(section, section_index, "add_container"),
         )
 
     # -- 차트·수식 ---------------------------------------------------------

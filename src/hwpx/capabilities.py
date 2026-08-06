@@ -143,6 +143,17 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "authoring_methods": (),
     },
     {
+        "area": "container-authoring",
+        "namespace": "doc.shapes",
+        "matrix_row": "그룹 개체(컨테이너)",
+        # 6.5: add_container() ships as doc.shapes-only, same reasoning as
+        # add_polygon()/add_arc() above — no root _legacy shim for a
+        # post-6.0 capability, so it never appears in dir(HwpxDocument) and
+        # cannot go in authoring_methods (see curve-objects' comment).
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
+    {
         "area": "picture",
         "namespace": None,
         "matrix_row": "그림 삽입/치환",

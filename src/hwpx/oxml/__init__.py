@@ -25,7 +25,7 @@ from .history_part import DiffNode, History, HistoryEntry
 from .master_page import MasterPage
 from .memo import HwpxOxmlMemo, HwpxOxmlMemoGroup, HwpxOxmlNote
 from .numbering import DocumentNumbering, SectionStartNumbering
-from .objects import Caption, DrawText, HwpxOxmlInlineObject, HwpxOxmlShape
+from .objects import Caption, ContainerMember, DrawText, HwpxOxmlInlineObject, HwpxOxmlShape
 from .paragraph import HwpxOxmlParagraph
 from .run import HwpxOxmlRun, RunStyle
 from .section import HwpxOxmlSection, HwpxOxmlSectionHeaderFooter, HwpxOxmlSectionProperties
@@ -133,6 +133,7 @@ __all__ = [
     "ApplicationSettings",
     "CaretPosition",
     "Caption",
+    "ContainerMember",
     "CharProperty",
     "CharPropertyList",
     "CompatibleDocument",

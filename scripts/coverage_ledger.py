@@ -1073,6 +1073,7 @@ _register(
     "line", "rect", "ellipse", "lineShape", "offset", "orgSz", "curSz", "sz", "pos",
 )
 _register("arc·polygon·curve·connectLine", "hp", "arc", "polygon", "curve", "connectLine", "seg")
+_register("그룹 개체(컨테이너)", "hp", "container")
 _register(
     "그림 삽입/치환", "hp", "pic", "imgRect", "imgDim", "imgClip", "effects",
 )

@@ -123,6 +123,7 @@ AREA_NAMESPACES = {
     "shape-authoring": "shapes",
     "shape-escape-hatch": "shapes",
     "curve-objects": "shapes",
+    "container-authoring": "shapes",
     "chart": "shapes",
     "equation": "shapes",
     "redline": "tracking",

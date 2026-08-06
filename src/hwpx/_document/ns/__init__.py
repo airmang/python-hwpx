@@ -9,7 +9,7 @@
 
 | 능력 영역 | 네임스페이스 |
 |---|---|
-| `shape-authoring`·`shape-escape-hatch`·`curve-objects`·`chart`·`equation` | `doc.shapes` |
+| `shape-authoring`·`shape-escape-hatch`·`curve-objects`·`container-authoring`·`chart`·`equation` | `doc.shapes` |
 | `picture`(BinData 절반) | `doc.media` |
 | `redline` | `doc.tracking` |
 | `memo`·`footnote-endnote` | `doc.notes` |

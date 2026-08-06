@@ -11,6 +11,7 @@ from ..errors import HwpxStateError, HwpxValueError
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
     from ..oxml import (
+        ContainerMember,
         HwpxOxmlInlineObject,
         HwpxOxmlNote,
         HwpxOxmlParagraph,
@@ -308,6 +309,42 @@ def add_polygon(
         line_color=line_color, line_width=line_width,
         fill_color=fill_color, treat_as_char=treat_as_char,
     )
+
+
+def add_container(
+    doc: "HwpxDocument",
+    members: Sequence["ContainerMember"],
+    *,
+    treat_as_char: bool = True,
+    paragraph: HwpxOxmlParagraph | None = None,
+    section: HwpxOxmlSection | None = None,
+    section_index: int | None = None,
+) -> HwpxOxmlShape:
+    """Insert a group (``<hp:container>``) wrapping *members*.
+
+    Each member is built with :class:`hwpx.oxml.ContainerMember`'s
+    ``rect``/``ellipse``/``polygon`` classmethods, which take the member's
+    position in the group's own local coordinate space (HWPUNIT, top-left
+    anchored) alongside its usual shape parameters::
+
+        doc.shapes.add_container([
+            ContainerMember.rect(0, 0, 5000, 3000, fill_color="#FFCC00"),
+            ContainerMember.ellipse(6000, 0, 4000, 4000),
+        ])
+
+    The group's own size is the union bounding box of its members — see
+    :func:`hwpx.oxml.objects._create_container_element` for the real-corpus
+    contract (member envelope, ``groupLevel``, shared ``id`` convention).
+    Grouping already-placed shapes together (rather than building the
+    group from scratch) is not supported by this entry point — build the
+    members through ``ContainerMember`` instead.
+    """
+    if paragraph is None:
+        paragraph = doc.add_paragraph(
+            "", section=section, section_index=section_index,
+            include_run=False,
+        )
+    return paragraph.add_container(members, treat_as_char=treat_as_char)
 
 
 def add_equation(
