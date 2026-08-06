@@ -16,6 +16,7 @@ MEMBERS = {
     "add_line": ((), model.Shape),
     "add_rectangle": ((), model.Shape),
     "add_ellipse": ((), model.Shape),
+    "add_polygon": (([(0.0, 0.0), (10.0, 0.0), (5.0, 10.0)],), model.Shape),
     "add_chart": ((CHART,), model.InlineObject),
     "add_equation": (("x=1",), model.InlineObject),
     "add_raw": (("rect",), model.InlineObject),

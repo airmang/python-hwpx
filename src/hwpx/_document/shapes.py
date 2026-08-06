@@ -3,8 +3,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Sequence, cast
 
+from ._units import _mm_to_hwp_units
 from ..errors import HwpxStateError, HwpxValueError
 
 if TYPE_CHECKING:
@@ -226,6 +227,48 @@ def add_ellipse(
         )
     return paragraph.add_ellipse(
         width, height,
+        line_color=line_color, line_width=line_width,
+        fill_color=fill_color, treat_as_char=treat_as_char,
+    )
+
+
+def add_polygon(
+    doc: "HwpxDocument",
+    points_mm: Sequence[tuple[float, float]],
+    *,
+    line_color: str = "#000000",
+    line_width: str = "283",
+    fill_color: str | None = None,
+    treat_as_char: bool = True,
+    paragraph: HwpxOxmlParagraph | None = None,
+    section: HwpxOxmlSection | None = None,
+    section_index: int | None = None,
+) -> HwpxOxmlShape:
+    """Insert a polygon drawing shape.
+
+    *points_mm* are millimetre vertex coordinates (3 or more). Hancom stores
+    a polygon's vertices in its own top-left-anchored local coordinate space
+    (real-corpus contract — see ``_create_polygon_element``), so the points
+    are translated to that local space here: passing page-space coordinates
+    does not itself position the shape on the page, only paragraph placement
+    does that.
+    """
+    points = list(points_mm)
+    if len(points) < 3:
+        raise HwpxValueError(
+            "add_polygon requires at least 3 points",
+            code="shape-polygon-too-few-points",
+            context={"count": len(points)},
+            suggestion="Pass 3 or more (x, y) millimetre vertices.",
+        )
+    if paragraph is None:
+        paragraph = doc.add_paragraph(
+            "", section=section, section_index=section_index,
+            include_run=False,
+        )
+    hwp_points = [(_mm_to_hwp_units(x), _mm_to_hwp_units(y)) for x, y in points]
+    return paragraph.add_polygon(
+        hwp_points,
         line_color=line_color, line_width=line_width,
         fill_color=fill_color, treat_as_char=treat_as_char,
     )

@@ -31,12 +31,14 @@ from .memo import HwpxOxmlNote
 from .namespaces import XML_NS, tag_local_name
 from .objects import (
     HwpxOxmlInlineObject,
-    HwpxOxmlShape,
-    _create_ellipse_element,
-    _create_line_element,
     _create_picture_element,
-    _create_rectangle_element,
     _missing_shape_children,
+    _paragraph_add_ellipse,
+    _paragraph_add_line,
+    _paragraph_add_polygon,
+    _paragraph_add_rectangle,
+    _paragraph_insert_shape_element,
+    _paragraph_shapes,
 )
 from .run import HwpxOxmlRun
 from .table import HwpxOxmlTable
@@ -619,122 +621,18 @@ class HwpxOxmlParagraph:
     # ------------------------------------------------------------------
     # Spec-compliant drawing shape helpers
     # ------------------------------------------------------------------
+    #
+    # Implementations live in ``oxml/objects.py`` (this owner module sits at
+    # the modularization line cap) and are attached here as plain class
+    # attributes — a function assigned this way is a method like any other,
+    # so ``paragraph.add_rectangle(...)`` etc. keep working unchanged.
 
-    def _insert_shape_element(
-        self,
-        element: ET.Element,
-        *,
-        run_attributes: dict[str, str] | None = None,
-        char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlShape:
-        """Attach a pre-built shape element into a new run and return a wrapper."""
-        run = self._create_run_for_object(
-            run_attributes,
-            char_pr_id_ref=char_pr_id_ref,
-        )
-        # Ensure element type matches the run type (lxml vs stdlib ET)
-        if type(element) is not type(run):
-            element = LET.fromstring(ET.tostring(element, encoding="utf-8"))
-        run.append(element)
-        self.section.mark_dirty()
-        return HwpxOxmlShape(element, self)
-
-    def add_line(
-        self,
-        start_x: int = 0,
-        start_y: int = 0,
-        end_x: int = 14400,
-        end_y: int = 0,
-        *,
-        line_color: str = "#000000",
-        line_width: str = "283",
-        treat_as_char: bool = True,
-        run_attributes: dict[str, str] | None = None,
-        char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlShape:
-        """Insert a spec-compliant ``<hp:line>`` drawing shape.
-
-        Coordinates are in HWPUNIT (7200 per inch).
-        """
-        el = _create_line_element(
-            start_x, start_y, end_x, end_y,
-            line_color=line_color,
-            line_width=line_width,
-            treat_as_char=treat_as_char,
-        )
-        return self._insert_shape_element(
-            el, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
-        )
-
-    def add_rectangle(
-        self,
-        width: int = 14400,
-        height: int = 7200,
-        *,
-        ratio: int = 0,
-        line_color: str = "#000000",
-        line_width: str = "283",
-        fill_color: str | None = None,
-        treat_as_char: bool = True,
-        run_attributes: dict[str, str] | None = None,
-        char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlShape:
-        """Insert a spec-compliant ``<hp:rect>`` drawing shape.
-
-        Dimensions are in HWPUNIT.  *ratio* controls corner roundness
-        (0 = sharp, 50 = semicircle).
-        """
-        el = _create_rectangle_element(
-            width, height,
-            ratio=ratio,
-            line_color=line_color,
-            line_width=line_width,
-            fill_color=fill_color,
-            treat_as_char=treat_as_char,
-        )
-        return self._insert_shape_element(
-            el, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
-        )
-
-    def add_ellipse(
-        self,
-        width: int = 14400,
-        height: int = 7200,
-        *,
-        line_color: str = "#000000",
-        line_width: str = "283",
-        fill_color: str | None = None,
-        treat_as_char: bool = True,
-        run_attributes: dict[str, str] | None = None,
-        char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlShape:
-        """Insert a spec-compliant ``<hp:ellipse>`` drawing shape.
-
-        Dimensions are in HWPUNIT.
-        """
-        el = _create_ellipse_element(
-            width, height,
-            line_color=line_color,
-            line_width=line_width,
-            fill_color=fill_color,
-            treat_as_char=treat_as_char,
-        )
-        return self._insert_shape_element(
-            el, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
-        )
-
-    @property
-    def shapes(self) -> list[HwpxOxmlShape]:
-        """Return all drawing shapes embedded in this paragraph."""
-        shape_tags = {f"{_HP}line", f"{_HP}rect", f"{_HP}ellipse",
-                      f"{_HP}arc", f"{_HP}polygon", f"{_HP}curve",
-                      f"{_HP}connectLine"}
-        result: list[HwpxOxmlShape] = []
-        for run in self._run_elements():
-            for child in run:
-                if child.tag in shape_tags:
-                    result.append(HwpxOxmlShape(child, self))
-        return result
+    _insert_shape_element = _paragraph_insert_shape_element
+    add_line = _paragraph_add_line
+    add_rectangle = _paragraph_add_rectangle
+    add_ellipse = _paragraph_add_ellipse
+    add_polygon = _paragraph_add_polygon
+    shapes = property(_paragraph_shapes)
 
     def add_control(
         self,

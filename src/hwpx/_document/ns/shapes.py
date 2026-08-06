@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
 from .._resolve import resolve_section
 from ._base import _Namespace
@@ -125,6 +125,33 @@ class ShapesNamespace(_Namespace):
             treat_as_char=treat_as_char,
             paragraph=paragraph,
             section=self._section(section, section_index, "add_ellipse"),
+        )
+
+    def add_polygon(
+        self,
+        points_mm: Sequence[tuple[float, float]],
+        *,
+        line_color: str = "#000000",
+        line_width: str = "283",
+        fill_color: str | None = None,
+        treat_as_char: bool = True,
+        paragraph: "Paragraph | None" = None,
+        section: "int | Section | None" = None,
+        section_index: int | None = None,
+    ) -> "Shape":
+        """다각형을 넣는다(꼭짓점은 mm, 자기 bbox 좌상단 원점 로컬 좌표계로 배치)."""
+
+        from .. import shapes as _shapes
+
+        return _shapes.add_polygon(
+            self._doc,
+            points_mm=points_mm,
+            line_color=line_color,
+            line_width=line_width,
+            fill_color=fill_color,
+            treat_as_char=treat_as_char,
+            paragraph=paragraph,
+            section=self._section(section, section_index, "add_polygon"),
         )
 
     # -- 차트·수식 ---------------------------------------------------------

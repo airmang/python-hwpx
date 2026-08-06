@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 import warnings
 import xml.etree.ElementTree as ET
+
+from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
 from ._document_primitives import (
     _DEFAULT_PARAGRAPH_ATTRS,
@@ -372,6 +374,43 @@ def _create_ellipse_element(
     return el
 
 
+def _create_polygon_element(
+    points: Sequence[tuple[int, int]],
+    *,
+    line_color: str = "#000000",
+    line_width: str = "283",
+    fill_color: str | None = None,
+    treat_as_char: bool = True,
+) -> ET.Element:
+    """Build a complete ``<hp:polygon>`` element matching real HWPX output.
+
+    Hancom stores a polygon's vertices as ``hc:pt`` children in the shape's
+    own top-left-anchored local coordinate space — the corpus
+    ``SimplePolygon`` fixture's 8 vertices span exactly (0, 0)-(17925, 13425),
+    matching its own ``orgSz`` to the unit. That is the same convention
+    ``hp:rect``'s four corners use (``pt0``-``pt3`` always run 0..width,
+    0..height), so *points* are translated here to put the polygon's own
+    bounding box at that local origin — *offset*/*pos* (added by
+    ``_build_shape_base_children``) place the shape on the page, not the
+    vertex coordinates themselves.
+    """
+    xs = [x for x, _y in points]
+    ys = [y for _x, y in points]
+    min_x, min_y = min(xs), min(ys)
+    width = max(xs) - min_x
+    height = max(ys) - min_y
+
+    el = ET.Element(f"{_HP}polygon")
+    _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
+    _build_drawing_object_children(
+        el, line_color=line_color, line_width=line_width, fill_color=fill_color,
+    )
+    for x, y in points:
+        _append_child(el, f"{_HC}pt", {"x": str(x - min_x), "y": str(y - min_y)})
+    _build_shape_base_children(el, width, height)
+    return el
+
+
 def _create_picture_element(
     binary_item_id_ref: str,
     width: int,
@@ -469,6 +508,170 @@ def _missing_shape_children(element: ET.Element) -> list[str]:
 
     present = {_element_local_name(child) for child in element}
     return [name for name in _REQUIRED_SHAPE_CHILD_NAMES if name not in present]
+
+
+# ------------------------------------------------------------------
+# HwpxOxmlParagraph shape-authoring methods
+# ------------------------------------------------------------------
+#
+# Defined here — not in ``oxml/paragraph.py`` — and attached onto
+# ``HwpxOxmlParagraph`` below as plain class-attribute assignments (a
+# function assigned as a class attribute is a method like any other).  That
+# owner module sits at the modularization line cap
+# (``tests/test_oxml_modularization.py``), and this shape-authoring surface
+# is naturally cohesive with the ``_create_*_element`` builders already in
+# this file, so it lives here instead of growing ``paragraph.py`` past the
+# cap.  ``paragraph.add_rectangle(...)`` etc. keep working exactly as before
+# — only where the code lives changed.
+
+
+def _paragraph_insert_shape_element(
+    self: "HwpxOxmlParagraph",
+    element: ET.Element,
+    *,
+    run_attributes: dict[str, str] | None = None,
+    char_pr_id_ref: str | int | None = None,
+) -> "HwpxOxmlShape":
+    """Attach a pre-built shape element into a new run and return a wrapper."""
+    run = self._create_run_for_object(
+        run_attributes,
+        char_pr_id_ref=char_pr_id_ref,
+    )
+    # Ensure element type matches the run type (lxml vs stdlib ET)
+    if type(element) is not type(run):
+        element = LET.fromstring(ET.tostring(element, encoding="utf-8"))
+    run.append(element)
+    self.section.mark_dirty()
+    return HwpxOxmlShape(element, self)
+
+
+def _paragraph_add_line(
+    self: "HwpxOxmlParagraph",
+    start_x: int = 0,
+    start_y: int = 0,
+    end_x: int = 14400,
+    end_y: int = 0,
+    *,
+    line_color: str = "#000000",
+    line_width: str = "283",
+    treat_as_char: bool = True,
+    run_attributes: dict[str, str] | None = None,
+    char_pr_id_ref: str | int | None = None,
+) -> "HwpxOxmlShape":
+    """Insert a spec-compliant ``<hp:line>`` drawing shape.
+
+    Coordinates are in HWPUNIT (7200 per inch).
+    """
+    el = _create_line_element(
+        start_x, start_y, end_x, end_y,
+        line_color=line_color,
+        line_width=line_width,
+        treat_as_char=treat_as_char,
+    )
+    return self._insert_shape_element(
+        el, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
+    )
+
+
+def _paragraph_add_rectangle(
+    self: "HwpxOxmlParagraph",
+    width: int = 14400,
+    height: int = 7200,
+    *,
+    ratio: int = 0,
+    line_color: str = "#000000",
+    line_width: str = "283",
+    fill_color: str | None = None,
+    treat_as_char: bool = True,
+    run_attributes: dict[str, str] | None = None,
+    char_pr_id_ref: str | int | None = None,
+) -> "HwpxOxmlShape":
+    """Insert a spec-compliant ``<hp:rect>`` drawing shape.
+
+    Dimensions are in HWPUNIT.  *ratio* controls corner roundness
+    (0 = sharp, 50 = semicircle).
+    """
+    el = _create_rectangle_element(
+        width, height,
+        ratio=ratio,
+        line_color=line_color,
+        line_width=line_width,
+        fill_color=fill_color,
+        treat_as_char=treat_as_char,
+    )
+    return self._insert_shape_element(
+        el, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
+    )
+
+
+def _paragraph_add_ellipse(
+    self: "HwpxOxmlParagraph",
+    width: int = 14400,
+    height: int = 7200,
+    *,
+    line_color: str = "#000000",
+    line_width: str = "283",
+    fill_color: str | None = None,
+    treat_as_char: bool = True,
+    run_attributes: dict[str, str] | None = None,
+    char_pr_id_ref: str | int | None = None,
+) -> "HwpxOxmlShape":
+    """Insert a spec-compliant ``<hp:ellipse>`` drawing shape.
+
+    Dimensions are in HWPUNIT.
+    """
+    el = _create_ellipse_element(
+        width, height,
+        line_color=line_color,
+        line_width=line_width,
+        fill_color=fill_color,
+        treat_as_char=treat_as_char,
+    )
+    return self._insert_shape_element(
+        el, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
+    )
+
+
+def _paragraph_add_polygon(
+    self: "HwpxOxmlParagraph",
+    points: Sequence[tuple[int, int]],
+    *,
+    line_color: str = "#000000",
+    line_width: str = "283",
+    fill_color: str | None = None,
+    treat_as_char: bool = True,
+    run_attributes: dict[str, str] | None = None,
+    char_pr_id_ref: str | int | None = None,
+) -> "HwpxOxmlShape":
+    """Insert a spec-compliant ``<hp:polygon>`` drawing shape.
+
+    *points* are HWPUNIT vertex coordinates (3 or more) — see
+    :func:`_create_polygon_element` for the local-coordinate-space
+    convention Hancom's own output uses.
+    """
+    el = _create_polygon_element(
+        points,
+        line_color=line_color,
+        line_width=line_width,
+        fill_color=fill_color,
+        treat_as_char=treat_as_char,
+    )
+    return self._insert_shape_element(
+        el, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
+    )
+
+
+def _paragraph_shapes(self: "HwpxOxmlParagraph") -> list["HwpxOxmlShape"]:
+    """Return all drawing shapes embedded in this paragraph."""
+    shape_tags = {f"{_HP}line", f"{_HP}rect", f"{_HP}ellipse",
+                  f"{_HP}arc", f"{_HP}polygon", f"{_HP}curve",
+                  f"{_HP}connectLine"}
+    result: list[HwpxOxmlShape] = []
+    for run in self._run_elements():
+        for child in run:
+            if child.tag in shape_tags:
+                result.append(HwpxOxmlShape(child, self))
+    return result
 
 
 # ------------------------------------------------------------------

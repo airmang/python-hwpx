@@ -130,7 +130,16 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "area": "curve-objects",
         "namespace": "doc.shapes",
         "matrix_row": "arc·polygon·curve·connectLine",
-        "entry_points": (),
+        # 6.4: add_polygon() ships as doc.shapes-only by design (no root
+        # _legacy shim — that surface only grandfathers pre-6.0 names, see
+        # docs/support-matrix.md). It therefore never appears in
+        # dir(HwpxDocument), so it cannot go in authoring_methods (the guard
+        # in test_capabilities_surface.py compares this list against that
+        # dir() and would flag it as phantom). entry_points still updates
+        # because the field it drives (the public JSON's entryPoints) is
+        # about where the capability starts, and doc.shapes hangs off
+        # HwpxDocument regardless of the legacy-shim question.
+        "entry_points": ("hwpx.document:HwpxDocument",),
         "authoring_methods": (),
     },
     {
