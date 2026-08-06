@@ -33,6 +33,7 @@ from .objects import (
     HwpxOxmlInlineObject,
     _create_picture_element,
     _missing_shape_children,
+    _paragraph_add_arc,
     _paragraph_add_ellipse,
     _paragraph_add_line,
     _paragraph_add_polygon,
@@ -632,6 +633,7 @@ class HwpxOxmlParagraph:
     add_rectangle = _paragraph_add_rectangle
     add_ellipse = _paragraph_add_ellipse
     add_polygon = _paragraph_add_polygon
+    add_arc = _paragraph_add_arc
     shapes = property(_paragraph_shapes)
 
     def add_control(

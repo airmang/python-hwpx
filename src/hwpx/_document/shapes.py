@@ -232,6 +232,42 @@ def add_ellipse(
     )
 
 
+def add_arc(
+    doc: "HwpxDocument",
+    width: int = 14400,
+    height: int = 14400,
+    *,
+    corner: str = "TOP_LEFT",
+    arc_type: str = "NORMAL",
+    line_color: str = "#000000",
+    line_width: str = "283",
+    fill_color: str | None = None,
+    treat_as_char: bool = True,
+    paragraph: HwpxOxmlParagraph | None = None,
+    section: HwpxOxmlSection | None = None,
+    section_index: int | None = None,
+) -> HwpxOxmlShape:
+    """Insert a quarter-ellipse arc drawing shape.
+
+    Dimensions are in HWPUNIT. Only ``corner="TOP_LEFT"`` is corpus-verified
+    point-for-point (real-corpus contract — see ``_create_arc_element``); the
+    other three corners mirror that pattern via ``hp:flip``, the same
+    mechanism every other shape here already uses. *arc_type* is the
+    schema's own ``NORMAL``/``PIE``/``CHORD`` passthrough.
+    """
+    if paragraph is None:
+        paragraph = doc.add_paragraph(
+            "", section=section, section_index=section_index,
+            include_run=False,
+        )
+    return paragraph.add_arc(
+        width, height,
+        corner=corner, arc_type=arc_type,
+        line_color=line_color, line_width=line_width,
+        fill_color=fill_color, treat_as_char=treat_as_char,
+    )
+
+
 def add_polygon(
     doc: "HwpxDocument",
     points_mm: Sequence[tuple[float, float]],

@@ -156,6 +156,8 @@ def _build_shape_common_children(
     *,
     treat_as_char: bool = True,
     inst_id: str | None = None,
+    flip_horizontal: bool = False,
+    flip_vertical: bool = False,
 ) -> None:
     """Append the common AbstractShapeComponent + AbstractShapeObject children.
 
@@ -189,7 +191,8 @@ def _build_shape_common_children(
     _append_child(parent, f"{_HP}orgSz", {"width": w, "height": h})
     _append_child(parent, f"{_HP}curSz", {"width": w, "height": h})
     _append_child(parent, f"{_HP}flip", {
-        "horizontal": "0", "vertical": "0",
+        "horizontal": "1" if flip_horizontal else "0",
+        "vertical": "1" if flip_vertical else "0",
     })
     cx = str(width // 2)
     cy = str(height // 2)
@@ -370,6 +373,76 @@ def _create_ellipse_element(
     _append_child(el, f"{_HC}end1", {"x": str(width), "y": cy})
     _append_child(el, f"{_HC}start2", {"x": str(width), "y": cy})
     _append_child(el, f"{_HC}end2", {"x": str(width), "y": cy})
+    _build_shape_base_children(el, width, height)
+    return el
+
+
+#: Schema enum for ``hp:arc/@type`` (ParaList XML schema.xml ``ArcType``).
+_ARC_TYPES = frozenset({"NORMAL", "PIE", "CHORD"})
+
+#: The four canonical quadrant placements :func:`_create_arc_element` draws,
+#: reusing Hancom's own ``hp:flip`` mirroring instead of re-deriving new
+#: point math — only ``TOP_LEFT`` is corpus-verified point-for-point
+#: (``SimpleArc.hwpx``: center sits at the bbox corner, ``ax1`` straight
+#: down from it, ``ax2`` straight right from it — the schema gives an arc
+#: only those 3 points and no angle fields at all, so that pairing *is* the
+#: whole geometry). The other three corners flip that same verified
+#: pattern — the identical mechanism line/rect/ellipse/polygon already use
+#: to mirror geometry here — rather than inventing new arc-specific point
+#: math for angles this package has never seen Hancom actually produce.
+_ARC_CORNER_FLIPS: dict[str, tuple[bool, bool]] = {
+    "TOP_LEFT": (False, False),
+    "TOP_RIGHT": (True, False),
+    "BOTTOM_LEFT": (False, True),
+    "BOTTOM_RIGHT": (True, True),
+}
+
+
+def _create_arc_element(
+    width: int,
+    height: int,
+    *,
+    corner: str = "TOP_LEFT",
+    arc_type: str = "NORMAL",
+    line_color: str = "#000000",
+    line_width: str = "283",
+    fill_color: str | None = None,
+    treat_as_char: bool = True,
+) -> ET.Element:
+    """Build a complete ``<hp:arc>`` element matching real HWPX output.
+
+    Only a quarter-ellipse is corpus-verified (see ``_ARC_CORNER_FLIPS``) —
+    *corner* picks which of the bounding box's four corners the pivot sits
+    at, and *arc_type* is the schema's own ``NORMAL``/``PIE``/``CHORD``
+    passthrough (open arc / pie wedge / chord-closed segment).
+    """
+    if corner not in _ARC_CORNER_FLIPS or arc_type not in _ARC_TYPES:
+        from ..errors import HwpxValueError
+
+        if corner not in _ARC_CORNER_FLIPS:
+            raise HwpxValueError(
+                f"corner must be one of {sorted(_ARC_CORNER_FLIPS)}, got {corner!r}",
+                code="shape-arc-corner-invalid",
+                context={"corner": corner, "allowed": sorted(_ARC_CORNER_FLIPS)},
+            )
+        raise HwpxValueError(
+            f"arc_type must be one of {sorted(_ARC_TYPES)}, got {arc_type!r}",
+            code="shape-arc-type-invalid",
+            context={"arc_type": arc_type, "allowed": sorted(_ARC_TYPES)},
+        )
+    flip_horizontal, flip_vertical = _ARC_CORNER_FLIPS[corner]
+
+    el = ET.Element(f"{_HP}arc", {"type": arc_type})
+    _build_shape_common_children(
+        el, width, height, treat_as_char=treat_as_char,
+        flip_horizontal=flip_horizontal, flip_vertical=flip_vertical,
+    )
+    _build_drawing_object_children(
+        el, line_color=line_color, line_width=line_width, fill_color=fill_color,
+    )
+    _append_child(el, f"{_HC}center", {"x": "0", "y": "0"})
+    _append_child(el, f"{_HC}ax1", {"x": "0", "y": str(height)})
+    _append_child(el, f"{_HC}ax2", {"x": str(width), "y": "0"})
     _build_shape_base_children(el, width, height)
     return el
 
@@ -651,6 +724,39 @@ def _paragraph_add_polygon(
     """
     el = _create_polygon_element(
         points,
+        line_color=line_color,
+        line_width=line_width,
+        fill_color=fill_color,
+        treat_as_char=treat_as_char,
+    )
+    return self._insert_shape_element(
+        el, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
+    )
+
+
+def _paragraph_add_arc(
+    self: "HwpxOxmlParagraph",
+    width: int = 14400,
+    height: int = 14400,
+    *,
+    corner: str = "TOP_LEFT",
+    arc_type: str = "NORMAL",
+    line_color: str = "#000000",
+    line_width: str = "283",
+    fill_color: str | None = None,
+    treat_as_char: bool = True,
+    run_attributes: dict[str, str] | None = None,
+    char_pr_id_ref: str | int | None = None,
+) -> "HwpxOxmlShape":
+    """Insert a spec-compliant ``<hp:arc>`` drawing shape (quarter-ellipse).
+
+    Dimensions are in HWPUNIT. See :func:`_create_arc_element` for the
+    *corner*/*arc_type* contract.
+    """
+    el = _create_arc_element(
+        width, height,
+        corner=corner,
+        arc_type=arc_type,
         line_color=line_color,
         line_width=line_width,
         fill_color=fill_color,

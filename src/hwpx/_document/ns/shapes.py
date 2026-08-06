@@ -127,6 +127,39 @@ class ShapesNamespace(_Namespace):
             section=self._section(section, section_index, "add_ellipse"),
         )
 
+    def add_arc(
+        self,
+        width: int = 14400,
+        height: int = 14400,
+        *,
+        corner: str = "TOP_LEFT",
+        arc_type: str = "NORMAL",
+        line_color: str = "#000000",
+        line_width: str = "283",
+        fill_color: str | None = None,
+        treat_as_char: bool = True,
+        paragraph: "Paragraph | None" = None,
+        section: "int | Section | None" = None,
+        section_index: int | None = None,
+    ) -> "Shape":
+        """사분원(호)을 넣는다(`corner`로 꼭짓점 위치, `arc_type`으로 NORMAL/PIE/CHORD)."""
+
+        from .. import shapes as _shapes
+
+        return _shapes.add_arc(
+            self._doc,
+            width=width,
+            height=height,
+            corner=corner,
+            arc_type=arc_type,
+            line_color=line_color,
+            line_width=line_width,
+            fill_color=fill_color,
+            treat_as_char=treat_as_char,
+            paragraph=paragraph,
+            section=self._section(section, section_index, "add_arc"),
+        )
+
     def add_polygon(
         self,
         points_mm: Sequence[tuple[float, float]],

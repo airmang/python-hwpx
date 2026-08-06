@@ -18,6 +18,20 @@
   적합 알고리즘 근거 없이 bbox를 추정하면 침묵 오류가 되므로 다음 사이클로
   미룬다. arc·connectLine도 이번 트레인 범위 밖(다음 트레인).
 
+- **`doc.shapes.add_arc`** — 사분원(호) 저작(6.4 트레인 14). 실코퍼스
+  (`hwpxlib_corpus/reader_writer__SimpleArc.hwpx`) 리버스: 스키마상
+  `hp:arc`는 좌표 3점(`center`/`ax1`/`ax2`)뿐 각도 필드가 없다. 유일한 실
+  예시는 `center`가 자기 bbox 모서리에 앉고 `ax1`이 바로 아래, `ax2`가 바로
+  오른쪽인 사분원 하나뿐이라 그 배치만 점 단위로 검증됐고, 나머지 세
+  모서리는 다른 도형이 이미 쓰는 `hp:flip` 미러링으로 얻는다(`corner` 인자
+  — `TOP_LEFT`만 실측, 나머지 3개는 유도). `arc_type`(NORMAL/PIE/CHORD)은
+  스키마 열거값 그대로 통과한다. connectLine은 이번 트레인도 정직 보류:
+  유일한 정본 예시(`SimpleConnectLine.hwpx`)는 자유선이 아니라
+  `subjectIDRef`로 다른 두 도형(rect·ellipse)을 잇는 "스마트 연결선"이고,
+  `offset`이 음수·`curSz`≠`orgSz`·`scaMatrix`가 평행이동까지 얹은 비항등
+  행렬이라 그 관계식을 재현할 근거가 없다(다른 예시는 파일명이 스스로 결함
+  사례임을 밝히고 `scaMatrix`가 퇴화 행렬이라 정본으로 못 쓴다).
+
 ## [6.0.2] - 2026-08-04
 
 `v6.0.1`도 보존된 실패 태그입니다 — 아무것도 게시되지 않았습니다. prepublish의
