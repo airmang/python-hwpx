@@ -46,6 +46,26 @@
   옮기고, 재귀 중첩되는 diff 본문(`insert`/`update`/`delete`/`position`)은
   `DiffNode`로 원문 구조 그대로 보존한다(전용 데이터클래스로 못박지 않음).
 
+### 정리 (사이클 6.4 마무리)
+
+- **편차 등재 DEV-012~014** — `docs/owpml-deviations.md` + 재실행 가능한
+  프로브(`probes/dev012_*.py`~`dev014_*.py`): (012) `hp:line`의
+  `startPt`/`endPt`는 `hc:` 네임스페이스, `hp:connectLine`의 동명 필드는
+  `hp:` 네임스페이스 — 스키마 자체가 두 타입(`LineType`/`ConnectLineType`)을
+  다르게 선언한다는 사실을 실코퍼스로 재확인. (013) connectLine의
+  "스마트 커넥터" 관계식을 코드로 고정 — `subjectIDRef`가 대상 도형의 `id`가
+  아니라 `instid`로 해석된다는 추가 발견 포함. (014) `hp:arc`의 3점-무각도
+  계약(`ArcType`에 각도 필드가 아예 없음, `EllipseType`과 대비)을 스키마+실측
+  양쪽으로 고정. 감사 갭 #12(`effects` 계열: glow/reflection/softEdge 등,
+  census 각 1파일)는 재평가 후 보류 유지로 판정 — 코퍼스 빈도 최하 컷이고
+  같은 컷의 다른 항목도 이번 사이클 보류였다는 근거, 별도 리버스는 안 함.
+- **openrate 코퍼스 v8** — `scripts/generate_openrate_corpus_v8.py`, v7에
+  가산(additive): 이번 사이클이 연 두 저작 표면(`authored-polygon`·
+  `authored-arc`, 15+15=30건)만 다룬다 — curve·connectLine은 저작하지
+  않았으므로 스트라텀 없음(v7이 compose/container·comboBox에 적용한 것과
+  같은 원칙). 정적 `validate_editor_open_safety` 사전필터 30/30 통과;
+  실한컴 GUI 오라클 배치는 별도 단계.
+
 ## [6.0.2] - 2026-08-04
 
 `v6.0.1`도 보존된 실패 태그입니다 — 아무것도 게시되지 않았습니다. prepublish의
