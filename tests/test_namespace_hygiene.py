@@ -148,6 +148,8 @@ AREA_NAMESPACES = {
     "table-navigation-fill": "tables",
     "find-replace": "text",
     "hyperlink-bookmark": "refs",
+    # 6.8 트레인㉛ — 트레인㉚이 찾은 mail_merge 측정 갭 등재.
+    "mail-merge": None,  # 루트도 아니고 doc.* 네임스페이스도 아님(모듈 함수)
 }
 
 

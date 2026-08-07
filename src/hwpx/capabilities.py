@@ -319,6 +319,17 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "entry_points": ("hwpx.document:HwpxDocument",),
         "authoring_methods": ("add_bookmark", "add_hyperlink"),
     },
+    {
+        "area": "mail-merge",
+        "namespace": None,
+        "matrix_row": "메일머지(placeholder 템플릿 배치 생성)",
+        # 6.8 트레인㉚가 찾은 신규 측정 갭, 트레인㉛에서 등재. HwpxDocument
+        # 어느 네임스페이스에도 없다(순수 hwpx.tools 모듈 함수 — 이미 연
+        # 문서가 아니라 템플릿 파일 경로를 받아 여러 문서를 배치 생성) —
+        # edit-plan과 같은 이유로 namespace=None, 모듈 진입점만 갖는다.
+        "entry_points": ("hwpx.tools.mail_merge:merge_template_rows",),
+        "authoring_methods": (),
+    },
 )
 
 #: 패키지에 동봉되는 계약 문서 이름 → 파일. MCP resources 표면의 원천.

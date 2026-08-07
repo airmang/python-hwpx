@@ -100,6 +100,8 @@ CATEGORY_MAP: dict[str, str] = {
     "table-navigation-fill": "표",
     "find-replace": "서식",
     "hyperlink-bookmark": "참조",
+    # 6.8 트레인㉛ — 트레인㉚이 찾은 mail_merge 측정 갭 등재.
+    "mail-merge": "자동화",
 }
 
 CATEGORY_ORDER: tuple[str, ...] = (

@@ -51,6 +51,7 @@
 | 표 탐색 기반 채움(라벨 매칭 네비게이션) | Edit | `doc.tables.fill_by_path`/`.find_cell_by_label`/`.map`(6.8 트레인㉚ 등재, 코드는 이전 사이클부터 존재). "양식 채움(byte-splice)" 영역과는 다른 메커니즘(byte-splice가 아니라 라벨 매칭 기반 구조적 셀 채움) — 혼동 주의. 실한컴 증거 없음 |
 | 찾아바꾸기 | Edit | `doc.text.replace`/`.find_runs`(6.8 트레인㉚ 등재, 코드는 이전 사이클부터 존재). 실한컴 증거 없음(기존 텍스트를 갈아 끼우는 구조 편집이라 "표 구조 변경" 행과 성격이 비슷하다 — 렌더 검증 우선순위 판단은 다음 트레인으로 보류) |
 | 하이퍼링크·책갈피 | Create | `doc.refs.add_hyperlink`/`.add_bookmark`(6.8 트레인㉚에서 "네이티브 목차(TOC)/상호참조" 영역에서 분리 — 그 영역의 Render-verified 근거는 TOC 구조·페이지 정합뿐이라 하이퍼링크·책갈피를 한 번도 독립적으로 커버한 적이 없었다, 편집기 표면 인벤토리 트레인㉙ 발견). **정직하게 미실측으로 등재** — 다음 v12 배치가 이 영역의 첫 실한컴 판정이 된다(hp:label/v11의 전례와 같은 사슬) |
+| 메일머지(placeholder 템플릿 배치 생성) | Edit | `hwpx.tools.mail_merge.merge_template_rows`(6.8 트레인㉛ 등재, 코드는 이전 사이클부터 존재 — 편집기 표면 인벤토리 트레인㉙·계층 판정 트레인㉚이 찾을 때까지 캐파빌리티·매트릭스 어디에도 등재가 없었다). `{{field}}`/`${field}`/`<<field>>` 세 플레이스홀더 문법을 지원하는 템플릿 1개 + 행 데이터(csv/json/시퀀스)로 문서 N개를 배치 생성 — 기존 `hp:t` 텍스트를 치환하는 것이라 새 요소를 만들지 않는다(Create가 아니라 Edit). `strict`/`fit_policy`/`value_sanitizer` 등 운영 옵션 다수. 실한컴 증거 없음(openrate 코퍼스 어디에도 이 경로를 겨냥한 스트라텀이 없다) — 다음 v13+ 배치 후보 |
 
 ## 6.0 표면 위치
 
@@ -90,6 +91,7 @@
 | 표 탐색 기반 채움(라벨 매칭 네비게이션) | `doc.tables` |
 | 찾아바꾸기 | `doc.text` |
 | 하이퍼링크·책갈피 | `doc.refs` |
+| 메일머지(placeholder 템플릿 배치 생성) | 모듈 — `hwpx.tools.mail_merge` |
 
 5.x 의 옛 이름은 6.x 동안 계속 답하되 `DeprecationWarning` 을 내고 7.0 에서
 사라진다 — 대응표는 `docs/migration-6.0.md`.

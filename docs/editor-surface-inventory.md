@@ -38,7 +38,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 <!-- AUTO-GENERATED:BEGIN (scripts/editor_surface_inventory.py) -->
 
-자동 생성 시점 교차 확인: 원장(요소 축) 87건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 30개 등록됨.
+자동 생성 시점 교차 확인: 원장(요소 축) 87건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 31개 등록됨.
 
 ### 서식
 
@@ -113,6 +113,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
 |---|---|---|---|
+| 메일머지(placeholder 템플릿 배치 생성) | 저작 api | 지원 매트릭스 「메일머지(placeholder 템플릿 배치 생성)」(`Edit`) · capabilities 영역 `mail-merge` · 위치 모듈 — `hwpx.tools.mail_merge` | 미실측 |
 | 편집 계획 실행(edit plan) | 저작 api | 지원 매트릭스 「편집 계획 실행(edit plan)」(`Preserve·Edit`) · capabilities 영역 `edit-plan` · 위치 모듈 — `hwpx.plan` | 미실측 |
 
 <!-- AUTO-GENERATED:END -->
@@ -155,13 +156,15 @@ LEFT/RIGHT/CENTER/DECIMAL × NONE/DOT/DASH/SOLID/DASH_DOT/LONG_DASH 전
 과 겹치는 것도 이 판단을 뒷받침). 측정 갭이 아니라 **스코프 밖**으로
 분류하고 이 인벤토리의 추적 대상에서 제외한다.
 
-**메일머지 core/MCP 계층 판정**(아래 확인 필요 표의 후속): `grep`으로
-직접 확인 — `src/hwpx/tools/mail_merge.py`(`merge_template_rows`·
+**메일머지 core/MCP 계층 판정 + 등재 완료(트레인㉛)**: `grep`으로 직접
+확인 — `src/hwpx/tools/mail_merge.py`(`merge_template_rows`·
 `inspect_mail_merge_placeholders`·`load_mail_merge_rows`)가 **core에
-실재한다**. capabilities.py에 언급은 있으나(lazy-import 패턴 설명 문맥)
-정식 캐파빌리티 영역으로 등재된 적은 없다 — 이건 **신규로 확인된
-측정 갭**이며, 이번 트레인의 명시적 6+1건 목록 밖이라(과설계 금지)
-등재는 다음 트레인으로 넘긴다.
+실재한다**. capabilities.py에 언급은 있었으나(lazy-import 패턴 설명
+문맥) 정식 캐파빌리티 영역으로 등재된 적은 없었다 — 트레인㉚이 찾은
+신규 측정 갭을 트레인㉛에서 `mail-merge` 영역으로 등재했다(위 AUTO
+섹션에 흡수됨, `자동화` 카테고리). `{{field}}`/`${field}`/`<<field>>`
+플레이스홀더 치환이라 기존 요소를 갈아 끼울 뿐 새 요소를 안 만든다 —
+등급은 `Edit`(Create 아님). 실한컴 증거 없음, 다음 v13+ 배치 후보.
 
 ## 확인 필요 — 우리 세 자산 어디에도 근거가 없는 표준 워드프로세서 기능 (실한컴 확인 목록)
 
@@ -177,7 +180,7 @@ LEFT/RIGHT/CENTER/DECIMAL × NONE/DOT/DASH/SOLID/DASH_DOT/LONG_DASH 전
 | 맞춤법 검사 | 없음 | 해당없음 | 미실측 | 한컴 UI에 실재할 것이 거의 확실하나(언어 도구), 문서 구조 조작이 아니라 언어 분석이라 이 라이브러리의 스코프 밖일 가능성이 높다 — 스코프 판단 자체가 확인 필요 |
 | 유의어 사전·한자 변환 | 없음 | 해당없음 | 미실측 | 상동(언어 도구, 스코프 밖 가능성) |
 | 매크로/스크립트 자동화 | 없음 | 해당없음 | 미실측 | 한컴 자체 매크로 언어 — 이 라이브러리와는 다른 층위, 스코프 밖 확실도 높음 |
-| 메일머지(사용자 UI 경로) | **저작 api(core에 실재, 미등재)** | `src/hwpx/tools/mail_merge.py` | 미실측 | **트레인㉚에서 계층 판정 완료** — core 레벨 기능이다(위 "메일머지 core/MCP 계층 판정" 참조). 캐파빌리티 영역 등재는 다음 트레인 후보. 한컴 UI 자체에 "메일머지" 메뉴가 있는지는 여전히 확인 필요 |
+| 메일머지(한컴 UI에서의 대응 메뉴 존재 여부) | 저작 api(core, `mail-merge` 영역으로 등재 완료 — 위 AUTO 섹션 참조) | `hwpx.tools.mail_merge` | 미실측 | **엔진·등재 쪽은 트레인㉚·㉛에서 전부 해결**(core 실재 확인 + 정식 영역 등재). 남은 건 이거 하나뿐 — 한컴 UI 자체에 "메일머지"라는 이름의 메뉴가 실재하는지, 있다면 우리 placeholder 문법(`{{}}`/`${}`/`<<>>`)과 대응하는 개념인지는 여전히 [미확인] |
 | 인쇄 설정(매수·범위·양면 등 다이얼로그 옵션) | 없음 | 해당없음 | 미실측 | PDF export 자체는 automation 컴패니언 계층 소관(core는 문서 조작만) — 인쇄 다이얼로그 옵션이 OWPML에 저장되는 상태인지조차 미확인 |
 | 디지털 서명·배포용 문서 | 없음 | 해당없음 | 미실측 | "암호화 HWPX"(fail-closed 거부)와는 다른 기능일 가능성 — 배포용 문서는 편집 제한이지 암호화가 아닐 수 있다(한컴 UI 확인 필요) |
 | 문자표(특수문자 삽입 다이얼로그) | 미확인 | 해당없음 | 미실측 | UI 다이얼로그일 뿐 별도 OWPML 표현이 없을 가능성 — 있다면 이미 `add_run`의 텍스트 삽입으로 커버될 것 |
