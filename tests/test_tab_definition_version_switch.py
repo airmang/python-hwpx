@@ -38,7 +38,6 @@ from lxml import etree
 from hwpx.oxml.header import (
     TabDefinitionVersionBranch,
     TabDefinitionVersionSwitch,
-    parse_header_element,
     parse_tab_definition,
 )
 from hwpx.tools.roundtrip_diff import roundtrip_report

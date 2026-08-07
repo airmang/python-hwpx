@@ -146,6 +146,18 @@ CYCLE_6_7_TRAIN_27_PROBES = (
     "dev039_crossref_vs_toc_recompute_asymmetry.py",
 )
 
+# 6.7 정리 트레인 — 갭 지도 v2 §D가 다음 라운드 후보로 남긴 두 항목을 확인:
+# hp:switch의 4번째 부모-태그 맥락(전수 스캔, 결과=없음, 등재 대상 아님)과
+# hh:typeInfo/hh:metaTag(전수 미조사분). typeInfo는 이미 정확히 분류돼
+# 있었다(신규 등재 없음); metaTag는 진짜 신규 발견(JSON mixed-content 규약).
+CYCLE_6_7_CLEANUP_DEVIATIONS = (
+    "DEV-040",
+)
+
+CYCLE_6_7_CLEANUP_PROBES = (
+    "dev040_metatag_json_mixed_content.py",
+)
+
 
 def test_registry_exists_with_required_sections():
     text = DOC.read_text(encoding="utf-8")
@@ -368,6 +380,33 @@ def test_cycle_6_7_train_27_probe_file_exists_and_is_referenced(probe_name: str)
 
 @pytest.mark.parametrize("probe_name", CYCLE_6_7_TRAIN_27_PROBES)
 def test_cycle_6_7_train_27_probe_runs_clean(probe_name: str) -> None:
+    """각 프로브는 단독 실행 가능해야 한다(근거 파일이 없으면 SKIP=exit 0)."""
+
+    result = subprocess.run(
+        [sys.executable, str(PROBES_DIR / probe_name)],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("dev_id", CYCLE_6_7_CLEANUP_DEVIATIONS)
+def test_cycle_6_7_cleanup_deviation_is_registered(dev_id: str) -> None:
+    text = DOC.read_text(encoding="utf-8")
+    assert dev_id in text
+
+
+@pytest.mark.parametrize("probe_name", CYCLE_6_7_CLEANUP_PROBES)
+def test_cycle_6_7_cleanup_probe_file_exists_and_is_referenced(probe_name: str) -> None:
+    probe_path = PROBES_DIR / probe_name
+    assert probe_path.exists(), f"probe script missing: {probe_path}"
+    text = DOC.read_text(encoding="utf-8")
+    assert probe_name in text, f"{probe_name} not referenced from the registry table"
+
+
+@pytest.mark.parametrize("probe_name", CYCLE_6_7_CLEANUP_PROBES)
+def test_cycle_6_7_cleanup_probe_runs_clean(probe_name: str) -> None:
     """각 프로브는 단독 실행 가능해야 한다(근거 파일이 없으면 SKIP=exit 0)."""
 
     result = subprocess.run(

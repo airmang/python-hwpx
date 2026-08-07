@@ -73,8 +73,8 @@ def main() -> int:
     assert 'dirty="1"' in match.group(0), (
         f"expected dirty=\"1\" on a freshly-authored TOC field, got: {match.group(0)}"
     )
-    print(f"confirmed add_native_toc(dirty=True) sets dirty=\"1\" on the TABLEOFCONTENTS "
-          f"fieldBegin -- the caller-owned trigger for Hancom's next-open recompute")
+    print("confirmed add_native_toc(dirty=True) sets dirty=\"1\" on the TABLEOFCONTENTS "
+          "fieldBegin -- the caller-owned trigger for Hancom's next-open recompute")
 
     reopened = HwpxDocument.open(io.BytesIO(data))
     changed = mark_toc_dirty(reopened)
