@@ -1,0 +1,32 @@
+{
+  "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v11",
+  "harness_valid": true,
+  "measured_at": "2026-08-07T16:35:37.713977+09:00",
+  "negative_controls": {
+    "expected": [
+      "corrupt_section",
+      "corrupt_header",
+      "missing_section"
+    ],
+    "judged": 3,
+    "wrongly_rendered": []
+  },
+  "oracle": "mac-gui",
+  "oracle_app": "Hancom Office HWP.app (macOS)",
+  "schemaVersion": "hwpx.openrate.report/v11",
+  "scopeNote": "v11 measures the 6.7 cycle's hp:label authoring surface (label-sheet print layout on tables), additive over v1-v10 -- the first real-Hancom verdict for hp:label, whose ledger entry was deliberately left without a verification basis until this measurement. The stratum covers the two observed real-corpus clusters (2x9 small label sheet, 1x2 large square nameplate) plus combinations outside the observed distribution (3x6 grid, landscape NARROWLY, partial attribute sets): real Hancom accepted all 15/15, so the acceptance boundary is wider than the observed distribution on every probed axis. Observer: macOS Hancom GUI oracle (open+render one gate). Session-state discipline applied: a control render preceded the batch and the app was fully restarted before launch.",
+  "strata": {
+    "authored-label": {
+      "judged": 15,
+      "render_checked": 15,
+      "render_failed": 0
+    }
+  },
+  "tool_versions": {
+    "python-hwpx": "6.0.2"
+  },
+  "totals": {
+    "judged": 15,
+    "render_checked": 15
+  }
+}

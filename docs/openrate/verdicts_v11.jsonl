@@ -1,0 +1,19 @@
+{"_meta": "mac-render-batch-v1", "app": "Hancom Office HWP.app", "jobCount": 18, "oracle": "mac-gui"}
+{"sourceId": "v11-label-000", "stratum": "authored-label", "saved": true, "pdfBytes": 24434, "error": null}
+{"sourceId": "v11-label-001", "stratum": "authored-label", "saved": true, "pdfBytes": 23301, "error": null}
+{"sourceId": "v11-label-002", "stratum": "authored-label", "saved": true, "pdfBytes": 22885, "error": null}
+{"sourceId": "v11-label-003", "stratum": "authored-label", "saved": true, "pdfBytes": 21050, "error": null}
+{"sourceId": "v11-label-004", "stratum": "authored-label", "saved": true, "pdfBytes": 21191, "error": null}
+{"sourceId": "v11-label-005", "stratum": "authored-label", "saved": true, "pdfBytes": 23547, "error": null}
+{"sourceId": "v11-label-006", "stratum": "authored-label", "saved": true, "pdfBytes": 23318, "error": null}
+{"sourceId": "v11-label-007", "stratum": "authored-label", "saved": true, "pdfBytes": 22662, "error": null}
+{"sourceId": "v11-label-008", "stratum": "authored-label", "saved": true, "pdfBytes": 23163, "error": null}
+{"sourceId": "v11-label-009", "stratum": "authored-label", "saved": true, "pdfBytes": 21535, "error": null}
+{"sourceId": "v11-label-010", "stratum": "authored-label", "saved": true, "pdfBytes": 21052, "error": null}
+{"sourceId": "v11-label-011", "stratum": "authored-label", "saved": true, "pdfBytes": 23286, "error": null}
+{"sourceId": "v11-label-012", "stratum": "authored-label", "saved": true, "pdfBytes": 22854, "error": null}
+{"sourceId": "v11-label-013", "stratum": "authored-label", "saved": true, "pdfBytes": 22961, "error": null}
+{"sourceId": "v11-label-014", "stratum": "authored-label", "saved": true, "pdfBytes": 23345, "error": null}
+{"sourceId": "corrupt_section", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
+{"sourceId": "corrupt_header", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
+{"sourceId": "missing_section", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
