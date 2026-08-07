@@ -157,6 +157,33 @@ class TabStop:
 
 
 @dataclass(slots=True)
+class TabDefinitionVersionBranch:
+    """``hp:case``/``hp:default`` 한쪽 분기의 ``hh:tabItem`` 목록(DEV-022).
+
+    ``ParagraphPropertyVersionBranch``와 달리 두 분기 값이 **다르다** —
+    ``hp:case``는 실측 449/449 전부 ``unit="HWPUNIT"`` 속성을 명시하고
+    ``pos``가 ``hp:default``의 **정확히 절반**이다(34/34 쌍, 실코퍼스
+    전수 검증). ``TabDefinition.tab_stops``는 실측으로 확인된 표준
+    스케일(``hp:default`` — 스위치가 없는 실 문서의 직속 ``hh:tabItem``과
+    ``pos`` 값이 정확히 일치)을 대표값으로 쓴다; ``hp:case``의 값은 여기
+    보존만 한다(용도 미상, `unit="HWPUNIT"`가 명시적으로 붙어 있음에도
+    실측 스케일이 다르다는 사실 자체가 이례적)."""
+
+    tab_stops: List[TabStop] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class TabDefinitionVersionSwitch:
+    """``hh:tabPr``를 감싸는 ``hp:switch``(DEV-022, ``hh:paraPr``의
+    DEV-018과 같은 wrapper이지만 다른 계약). ``required_namespace``는
+    ``hp:case``의 유일한 속성."""
+
+    required_namespace: Optional[str]
+    case: Optional[TabDefinitionVersionBranch] = None
+    default: Optional[TabDefinitionVersionBranch] = None
+
+
+@dataclass(slots=True)
 class TabDefinition:
     """A single ``hh:tabPr`` — a document-level tab-stop set a paragraph
     property references via ``paraPr/@tabPrIDRef``."""
@@ -166,6 +193,7 @@ class TabDefinition:
     auto_tab_left: bool
     auto_tab_right: bool
     tab_stops: List[TabStop] = field(default_factory=list)
+    version_switch: Optional[TabDefinitionVersionSwitch] = None
 
 
 @dataclass(slots=True)
@@ -1165,14 +1193,61 @@ def parse_tab_stop(node: etree._Element) -> TabStop:
     )
 
 
+def parse_tab_definition_version_branch(node: etree._Element) -> TabDefinitionVersionBranch:
+    return TabDefinitionVersionBranch(
+        tab_stops=[parse_tab_stop(child) for child in node if local_name(child) == "tabItem"],
+    )
+
+
+def parse_tab_definition_version_switch(node: etree._Element) -> TabDefinitionVersionSwitch:
+    """``hp:switch`` 전체(DEV-022) — ``hp:case``의 ``hp:required-namespace``
+    속성은 DEV-018과 같은 Clark 표기 조회가 필요(bare가 아니다)."""
+
+    case_branch: Optional[TabDefinitionVersionBranch] = None
+    default_branch: Optional[TabDefinitionVersionBranch] = None
+    required_namespace: Optional[str] = None
+
+    for child in node:
+        name = local_name(child)
+        if name == "case":
+            case_branch = parse_tab_definition_version_branch(child)
+            required_namespace = child.get(f"{HP}required-namespace")
+        elif name == "default":
+            default_branch = parse_tab_definition_version_branch(child)
+
+    return TabDefinitionVersionSwitch(
+        required_namespace=required_namespace, case=case_branch, default=default_branch
+    )
+
+
 def parse_tab_definition(node: etree._Element) -> TabDefinition:
     raw_id = node.get("id")
+    tab_stops = [parse_tab_stop(child) for child in node if local_name(child) == "tabItem"]
+    version_switch: Optional[TabDefinitionVersionSwitch] = None
+    switch_element = next((child for child in node if local_name(child) == "switch"), None)
+    if switch_element is not None:
+        version_switch = parse_tab_definition_version_switch(switch_element)
+
+    # 실코퍼스 449/449 hp:switch 감싼 hh:tabPr은 직속 hh:tabItem이 없다
+    # (DEV-022) -- 그럴 때만 스위치 분기에서 채운다. hp:default를 쓴다
+    # (hp:case가 아니다): hp:case는 34/34 쌍에서 pos가 hp:default의 정확히
+    # 절반이고 unit="HWPUNIT"을 명시하지만, switch 없는 실 문서의 직속
+    # hh:tabItem 값과 정확히 일치하는 쪽은 hp:default다(실측 확인,
+    # error__20240626__no_manifest.hwpx) -- ParagraphPropertyVersionSwitch
+    # (DEV-018, case 우선)과 반대 선택이다. 같은 값 두 벌이 아니라 다른
+    # 스케일 두 벌이므로 "먼저 오는 쪽"이 아니라 실측으로 검증된 쪽을 쓴다.
+    if not tab_stops and version_switch is not None:
+        preferred = version_switch.default or version_switch.case
+        if preferred is not None:
+            tab_stops = preferred.tab_stops
+
     return TabDefinition(
         id=parse_int(raw_id),
         raw_id=raw_id,
         auto_tab_left=parse_bool(node.get("autoTabLeft"), default=False) or False,
         auto_tab_right=parse_bool(node.get("autoTabRight"), default=False) or False,
-        tab_stops=[parse_tab_stop(child) for child in node if local_name(child) == "tabItem"],
+        tab_stops=tab_stops,
+        version_switch=version_switch,
     )
 
 
@@ -1777,6 +1852,8 @@ __all__ = [
     "StyleList",
     "TabDefinition",
     "TabDefinitionList",
+    "TabDefinitionVersionBranch",
+    "TabDefinitionVersionSwitch",
     "TabProperties",
     "TabStop",
     "TrackChange",
@@ -1816,6 +1893,8 @@ __all__ = [
     "parse_styles",
     "parse_tab_definition",
     "parse_tab_definitions",
+    "parse_tab_definition_version_branch",
+    "parse_tab_definition_version_switch",
     "parse_tab_properties",
     "parse_tab_stop",
     "parse_track_change",

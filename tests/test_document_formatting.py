@@ -1327,6 +1327,38 @@ def test_header_ensure_tab_definition_auto_flags_are_part_of_the_dedupe_key() ->
     assert tabprops.get("itemCnt") == "3"
 
 
+def test_header_ensure_tab_definition_dedupes_against_a_switch_wrapped_existing_entry() -> None:
+    """DEV-022: 실코퍼스 449/449 hp:switch로 감싼 hh:tabPr은 직속 hh:tabItem이
+    없다 — 그 경우 dedupe 비교가 hp:default 분기를 보지 않으면 동등한
+    스펙을 "불일치"로 오판해 중복 tabPr을 만든다(결함-부활으로 확인됨)."""
+
+    head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
+    header = HwpxOxmlHeader("header.xml", head_element)
+    ref_list = ET.SubElement(head_element, f"{HH}refList")
+    tabprops = ET.SubElement(ref_list, f"{HH}tabProperties", {"itemCnt": "1"})
+    tab_pr = ET.SubElement(
+        tabprops, f"{HH}tabPr", {"id": "0", "autoTabLeft": "0", "autoTabRight": "0"}
+    )
+    switch = ET.SubElement(tab_pr, f"{HP}switch")
+    case = ET.SubElement(
+        switch,
+        f"{HP}case",
+        {f"{HP}required-namespace": "http://www.hancom.co.kr/hwpml/2016/HwpUnitChar"},
+    )
+    ET.SubElement(case, f"{HH}tabItem", {"pos": "4032", "type": "LEFT", "leader": "NONE", "unit": "HWPUNIT"})
+    default = ET.SubElement(switch, f"{HP}default")
+    ET.SubElement(default, f"{HH}tabItem", {"pos": "8064", "type": "LEFT", "leader": "NONE"})
+
+    # hp:default's value (8064) is the real-corpus-verified standard scale --
+    # matching it should reuse id="0", not create a duplicate.
+    matched_id = header.ensure_tab_definition(
+        tab_stops=[{"pos": 8064, "type": "LEFT", "leader": "NONE"}],
+    )
+
+    assert matched_id == "0"
+    assert len(tabprops.findall(f"{HH}tabPr")) == 1
+
+
 def test_header_ensure_tab_definition_rejects_missing_pos() -> None:
     from hwpx.errors import HwpxValueError
 

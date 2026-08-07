@@ -277,7 +277,17 @@ def test_frozen_facade_exports_remain_exact() -> None:
     # than ParagraphProperty's direct-children loop was looking. Read-only by
     # design: the editing path already walked both branches correctly (DEV-018
     # confirmed by reading the code), so this closes a read-model gap only.
-    assert len(oxml.__all__) == 132
+    # 132 -> 134: TabDefinitionVersionBranch/TabDefinitionVersionSwitch (cycle
+    # 6.7 train 25, DEV-022) — the same hp:switch-blindness shape found in
+    # hh:tabPr, but a different contract from DEV-018: hp:case's tabItem/@pos
+    # is exactly half of hp:default's (34/34 pairs) and only hp:case declares
+    # unit="HWPUNIT" -- an unwrapped real document settled which branch is the
+    # real scale (hp:default matches it, hp:case does not), so tab_stops
+    # prefers default, the opposite of DEV-018's case-preferred choice. Also
+    # fixed the dedupe comparison in ensure_tab_definition (a real duplicate-
+    # creation bug, not just a read gap) since it shared the same
+    # direct-children-only blind spot.
+    assert len(oxml.__all__) == 134
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 
 

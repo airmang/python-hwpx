@@ -1361,6 +1361,17 @@ def _normalize_tab_stops(
     return tuple(normalized)
 
 
+def _tab_stop_tuple_from(container: ET.Element) -> tuple[tuple[int, str, str], ...]:
+    return tuple(
+        (
+            int(child.get("pos") or 0),
+            child.get("type") or "LEFT",
+            child.get("leader") or "NONE",
+        )
+        for child in container.findall(f"{_HH}tabItem")
+    )
+
+
 def _tab_definition_matches(
     element: ET.Element,
     *,
@@ -1372,14 +1383,23 @@ def _tab_definition_matches(
         return False
     if _get_bool_attr(element, "autoTabRight", False) != auto_tab_right:
         return False
-    existing = tuple(
-        (
-            int(child.get("pos") or 0),
-            child.get("type") or "LEFT",
-            child.get("leader") or "NONE",
+    existing = _tab_stop_tuple_from(element)
+    if not existing:
+        # 실코퍼스 449/449 hp:switch로 감싼 hh:tabPr은 직속 hh:tabItem이
+        # 없다(DEV-022) -- 그럴 때만 hp:default 분기를 본다(hp:case가
+        # 아니다: hp:case의 pos는 hp:default의 정확히 절반, 실측 확인 —
+        # header.py의 parse_tab_definition과 같은 선택). 이 폴백이 없으면
+        # 이미 존재하는 switch-감싼 tabPr과 동등한 사양이 "불일치"로 오판돼
+        # ensure_tab_definition이 중복 tabPr을 만든다.
+        switch = next(
+            (child for child in element if _element_local_name(child) == "switch"), None
         )
-        for child in element.findall(f"{_HH}tabItem")
-    )
+        if switch is not None:
+            default_branch = next(
+                (child for child in switch if _element_local_name(child) == "default"), None
+            )
+            if default_branch is not None:
+                existing = _tab_stop_tuple_from(default_branch)
     return existing == tab_stops
 
 
