@@ -1,0 +1,34 @@
+{"_meta": "mac-render-batch-v1", "app": "Hancom Office HWP.app", "jobCount": 33, "oracle": "mac-gui"}
+{"sourceId": "v13-docmerge-000", "stratum": "authored-docmerge", "saved": true, "pdfBytes": 17432, "error": null}
+{"sourceId": "v13-docmerge-001", "stratum": "authored-docmerge", "saved": true, "pdfBytes": 25776, "error": null}
+{"sourceId": "v13-docmerge-002", "stratum": "authored-docmerge", "saved": true, "pdfBytes": 17543, "error": null}
+{"sourceId": "v13-docmerge-003", "stratum": "authored-docmerge", "saved": true, "pdfBytes": 17419, "error": null}
+{"sourceId": "v13-docmerge-004", "stratum": "authored-docmerge", "saved": true, "pdfBytes": 22331, "error": null}
+{"sourceId": "v13-docmerge-005", "stratum": "authored-docmerge", "saved": true, "pdfBytes": 17624, "error": null}
+{"sourceId": "v13-docmerge-006", "stratum": "authored-docmerge", "saved": true, "pdfBytes": 25933, "error": null}
+{"sourceId": "v13-docmerge-007", "stratum": "authored-docmerge", "saved": true, "pdfBytes": 17406, "error": null}
+{"sourceId": "v13-docmerge-008", "stratum": "authored-docmerge", "saved": true, "pdfBytes": 16725, "error": null}
+{"sourceId": "v13-docmerge-009", "stratum": "authored-docmerge", "saved": true, "pdfBytes": 22972, "error": null}
+{"sourceId": "v13-dutmalcompose-000", "stratum": "authored-dutmal-compose", "saved": true, "pdfBytes": 18473, "error": null}
+{"sourceId": "v13-dutmalcompose-001", "stratum": "authored-dutmal-compose", "saved": true, "pdfBytes": 17778, "error": null}
+{"sourceId": "v13-dutmalcompose-002", "stratum": "authored-dutmal-compose", "saved": true, "pdfBytes": 17458, "error": null}
+{"sourceId": "v13-dutmalcompose-003", "stratum": "authored-dutmal-compose", "saved": true, "pdfBytes": 18130, "error": null}
+{"sourceId": "v13-dutmalcompose-004", "stratum": "authored-dutmal-compose", "saved": true, "pdfBytes": 18189, "error": null}
+{"sourceId": "v13-dutmalcompose-005", "stratum": "authored-dutmal-compose", "saved": true, "pdfBytes": 17822, "error": null}
+{"sourceId": "v13-dutmalcompose-006", "stratum": "authored-dutmal-compose", "saved": true, "pdfBytes": 17636, "error": null}
+{"sourceId": "v13-dutmalcompose-007", "stratum": "authored-dutmal-compose", "saved": true, "pdfBytes": 17332, "error": null}
+{"sourceId": "v13-dutmalcompose-008", "stratum": "authored-dutmal-compose", "saved": true, "pdfBytes": 17787, "error": null}
+{"sourceId": "v13-dutmalcompose-009", "stratum": "authored-dutmal-compose", "saved": true, "pdfBytes": 18451, "error": null}
+{"sourceId": "v13-mailmerge-000", "stratum": "authored-mailmerge", "saved": true, "pdfBytes": 13374, "error": null}
+{"sourceId": "v13-mailmerge-001", "stratum": "authored-mailmerge", "saved": true, "pdfBytes": 12916, "error": null}
+{"sourceId": "v13-mailmerge-002", "stratum": "authored-mailmerge", "saved": true, "pdfBytes": 12419, "error": null}
+{"sourceId": "v13-mailmerge-003", "stratum": "authored-mailmerge", "saved": true, "pdfBytes": 13172, "error": null}
+{"sourceId": "v13-mailmerge-004", "stratum": "authored-mailmerge", "saved": true, "pdfBytes": 13152, "error": null}
+{"sourceId": "v13-mailmerge-005", "stratum": "authored-mailmerge", "saved": true, "pdfBytes": 13756, "error": null}
+{"sourceId": "v13-mailmerge-006", "stratum": "authored-mailmerge", "saved": true, "pdfBytes": 12742, "error": null}
+{"sourceId": "v13-mailmerge-007", "stratum": "authored-mailmerge", "saved": true, "pdfBytes": 12535, "error": null}
+{"sourceId": "v13-mailmerge-008", "stratum": "authored-mailmerge", "saved": true, "pdfBytes": 12936, "error": null}
+{"sourceId": "v13-mailmerge-009", "stratum": "authored-mailmerge", "saved": true, "pdfBytes": 13414, "error": null}
+{"sourceId": "corrupt_section", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
+{"sourceId": "corrupt_header", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
+{"sourceId": "missing_section", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}

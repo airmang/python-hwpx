@@ -1,0 +1,42 @@
+{
+  "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v13",
+  "harness_valid": true,
+  "measured_at": "2026-08-08T02:00:50.384895+09:00",
+  "negative_controls": {
+    "expected": [
+      "corrupt_section",
+      "corrupt_header",
+      "missing_section"
+    ],
+    "judged": 3,
+    "wrongly_rendered": []
+  },
+  "oracle": "mac-gui",
+  "oracle_app": "Hancom Office HWP.app (macOS)",
+  "schemaVersion": "hwpx.openrate.report/v13",
+  "scopeNote": "v13 measures the 6.9 cycle's three new surfaces, additive over v1-v12: authored-docmerge is the first real-Hancom verdict for the document-merge engine (append/insert, 4 of 10 records carry tables -- the exact shape where all three silent-corruption bugs this cycle found and fixed had lived), authored-dutmal-compose is the first verdict for dutmal/composed-character authoring (dutmal defaults kept at the corpus-measured values that refuted the schema's own claims, DEV-041), and authored-mailmerge is the mail-merge area's first real-Hancom evidence. Real Hancom accepted all 30/30. Observer: macOS Hancom GUI oracle (open+render one gate). Session-state discipline applied: a control render preceded the batch and the app was fully restarted before launch.",
+  "strata": {
+    "authored-docmerge": {
+      "judged": 10,
+      "render_checked": 10,
+      "render_failed": 0
+    },
+    "authored-dutmal-compose": {
+      "judged": 10,
+      "render_checked": 10,
+      "render_failed": 0
+    },
+    "authored-mailmerge": {
+      "judged": 10,
+      "render_checked": 10,
+      "render_failed": 0
+    }
+  },
+  "tool_versions": {
+    "python-hwpx": "6.0.2"
+  },
+  "totals": {
+    "judged": 30,
+    "render_checked": 30
+  }
+}
