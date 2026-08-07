@@ -244,6 +244,18 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "entry_points": ("hwpx.document:HwpxDocument",),
         "authoring_methods": ("add_check_box",),
     },
+    {
+        "area": "document-options-compatibility",
+        "namespace": "doc.parts",
+        "matrix_row": "문서 옵션·호환성",
+        # 6.6: set_compatible_document_target_program()/set_layout_
+        # compatibility_flags()/set_doc_option_link_info()/
+        # set_paragraph_auto_spacing() ship as doc.parts-only, same
+        # no-root-shim reasoning as container-authoring/curve-objects above
+        # — post-6.0 capability, so it never appears in dir(HwpxDocument).
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
 )
 
 #: 패키지에 동봉되는 계약 문서 이름 → 파일. MCP resources 표면의 원천.

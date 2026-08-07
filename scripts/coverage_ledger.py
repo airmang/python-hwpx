@@ -1163,6 +1163,10 @@ _register(
 )
 _register("체크박스 양식개체", "hp", "checkBtn", "formCharPr", "radioBtn", "btn")
 _register("형광펜(하이라이트)", "hp", "markpenBegin", "markpenEnd")
+_register(
+    "문서 옵션·호환성", "hh",
+    "compatibleDocument", "layoutCompatibility", "docOption", "linkinfo", "autoSpacing",
+)
 
 
 def _parse_support_matrix_status(text: str) -> dict[str, str]:

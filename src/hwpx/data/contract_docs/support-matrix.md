@@ -43,6 +43,7 @@
 | 체크박스 양식개체 | Create·Render-verified | `add_check_box`·`list_check_boxes`·`set_check_box`(5.7.0+). 실한컴 실측 계약: `value` CHECKED=☑ / UNCHECKED=□, `<hp:formCharPr>`는 **필수 자식**(없으면 한컴이 문서를 거부하는데 우리 open-safety·ID 무결성은 통과한다 — 실한컴이 유일한 판정자다). 라디오(`hp:radioBtn`)·명령단추(`hp:btn`)는 읽기·보존만 하고 저작 API 없음 |
 | 형광펜(하이라이트) | Parse·Create(experimental)·Render-verified | `doc.text.highlight`·`doc.text.highlights`(6.2+). 실코퍼스(`hwpxlib_corpus/error__20251107__test*.hwpx`)와 OWPML 스키마(`ParaList XML schema.xml`) 리버스: `markpenBegin`/`markpenEnd`는 단일 `hp:t` 안에서 위치로 짝짓는다(id 없음) — `add_tracked_delete`와 같은 단일-run 매치 제약을 그대로 따른다. 색은 `#RRGGBB` 6자리 16진만 허용(typed 거부). 실한컴 렌더 검증: `docs/openrate/report-v6.json` authored-highlight 스트라텀, macOS Hancom GUI 오라클 15/15 render_checked·0 render_failed(2026-08-06 측정) |
 | 테두리 채우기(이미지·그라데이션) | Parse·Create(experimental)·Render-verified | `doc.styles.ensure_border_fill(fill_image=/fill_gradient=)`·`HwpxOxmlTable.set_cell_fill_image`/`set_cell_fill_gradient`(6.2+). 실코퍼스(`hwpxlib_corpus`, imgBrush 5파일·gradation 2파일) 리버스: `hc:fillBrush`는 `winBrush`/`imgBrush`/`gradation` 중 하나만 허용하는 선택형(Core XML schema.xml:650) — 상호 배타 typed 거부. `fill_image`는 `doc.media.add_image`가 등록한 이진 항목을 `mode`(관측 전량 `TOTAL`)로 참조하고, `fill_gradient`는 색 목록(≥2)·`type`(관측 전량 `LINEAR`)·`angle` 등을 받는다. 실한컴 렌더 검증: `docs/openrate/report-v6.json` authored-fill 스트라텀, macOS Hancom GUI 오라클 15/15 render_checked·0 render_failed(2026-08-06 측정) |
+| 문서 옵션·호환성 | Parse·Preserve·Edit | `doc.parts.set_compatible_document_target_program`·`set_layout_compatibility_flags`·`set_doc_option_link_info`·`set_paragraph_auto_spacing`(6.6+). 읽기는 5.x부터(`hh:compatibleDocument`/`docOption`, cycle 6.1 `settings.py`/`header.py`) — 이번 사이클이 쓰기 쪽. 실코퍼스 47/47 리버스로 계약 확정: `compatibleDocument@targetProgram`은 `"HWP201X"`만 관측·`layoutCompatibility`는 플래그 0개(스키마 48종 선언 대비)·`docOption/linkinfo`는 `path` 항상 빈 문자열·`footnoteInherit` 항상 `"0"`·`pageInherit`만 실제로 갈림(8/47 `"1"`). `hh:paraPr/hh:autoSpacing`은 `_apply_paragraph_margins`/`_apply_paragraph_line_spacing`이 이미 쓰는 자손-순회 관용구를 재사용하지만, 그 둘과 달리 실 autoSpacing은 `hp:switch`로 안 감싸인다(1832/1832 직속 자식, DEV-018과 대조 확인). 불리언은 전부 `"0"`/`"1"`(DEV-006과 같은 관례, `"true"`/`"false"` 0건). `HwpxOxmlHeader`의 owner 파일(`header_part.py`)이 1600줄 캡에 헤드룸이 없어(1599/1600) 새 모듈(`oxml/header_compat.py`)의 자유함수로 산다. 미착수 잔여: 실한컴 렌더 검증(v10 코퍼스 후보) |
 
 ## 6.0 표면 위치
 
@@ -74,6 +75,7 @@
 | 체크박스 양식개체 | `doc.fields` |
 | 형광펜(하이라이트) | `doc.text` |
 | 테두리 채우기(이미지·그라데이션) | `doc.styles` |
+| 문서 옵션·호환성 | `doc.parts` |
 
 5.x 의 옛 이름은 6.x 동안 계속 답하되 `DeprecationWarning` 을 내고 7.0 에서
 사라진다 — 대응표는 `docs/migration-6.0.md`.

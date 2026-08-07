@@ -139,6 +139,7 @@ AREA_NAMESPACES = {
     "edit-plan": None,
     "encrypted-hwpx": None,
     "hwp5-binary": None,
+    "document-options-compatibility": "parts",
 }
 
 

@@ -259,8 +259,12 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # (_document/highlight.py) + return-contract payload (objects/highlight.py).
     # 6.4: +3 — part-hierarchy read models (gap #15), same settings.py idiom:
     # oxml/version_part.py + oxml/master_page.py + oxml/history_part.py.
+    # 6.6: +1 — document options/compatibility authoring (train 23), a brand
+    # new module (oxml/header_compat.py) — the write counterpart to 6.1's
+    # settings.py, living outside header_part.py because that owner file
+    # sits at its 1600-line modularization cap.
     # 전부 module-ownership.json 에 개별 rationale 과 함께 등재돼 있다.
-    assert report["classifiedFiles"] == 137
+    assert report["classifiedFiles"] == 138
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

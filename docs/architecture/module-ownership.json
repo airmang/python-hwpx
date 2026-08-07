@@ -412,6 +412,12 @@
       "rationale": "settings.xml (ha:HWPApplicationSetting) read model — package/OXML part parsing alongside header.py/simple_parts.py, no application workflow or policy"
     },
     {
+      "path": "src/hwpx/oxml/header_compat.py",
+      "disposition": "core",
+      "approvedBy": "cycle-6.6/train-23-document-options-authoring",
+      "rationale": "hh:compatibleDocument/layoutCompatibility/docOption/paraPr-autoSpacing write surface — the authoring counterpart to cycle 6.1's read-only settings.py/header.py models, package/OXML part parsing plus paraPr editing, no application workflow or policy. Free functions rather than HwpxOxmlHeader methods because header_part.py's owner file sits at its 1600-line modularization cap (1599/1600 measured before this module existed) — same pattern as objects.py hosting HwpxOxmlParagraph's shape-authoring methods when paragraph.py was similarly capped"
+    },
+    {
       "path": "src/hwpx/oxml/version_part.py",
       "disposition": "core",
       "approvedBy": "cycle-6.4/part-hierarchy-read-models",

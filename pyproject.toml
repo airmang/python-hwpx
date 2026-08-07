@@ -232,6 +232,9 @@ files = [
     "src/hwpx/oxml/version_part.py",
     "src/hwpx/oxml/master_page.py",
     "src/hwpx/oxml/history_part.py",
+    # 6.6 (train 23): document options/compatibility authoring — born in the
+    # gate, per the WP-A rule above.
+    "src/hwpx/oxml/header_compat.py",
 ]
 ignore_missing_imports = true
 
@@ -322,6 +325,9 @@ include = [
     "src/hwpx/oxml/version_part.py",
     "src/hwpx/oxml/master_page.py",
     "src/hwpx/oxml/history_part.py",
+    # 6.6 (train 23): document options/compatibility authoring — born in the
+    # gate, per the WP-A rule above.
+    "src/hwpx/oxml/header_compat.py",
 ]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"
