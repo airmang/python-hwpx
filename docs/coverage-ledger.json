@@ -12,7 +12,8 @@
       "docs/openrate/report-v6.json",
       "docs/openrate/report-v7.json",
       "docs/openrate/report-v8.json",
-      "docs/openrate/report-v9.json"
+      "docs/openrate/report-v9.json",
+      "docs/openrate/report-v10.json"
     ],
     "skeleton": "src/hwpx/data/Skeleton.hwpx",
     "sourceScanned": "src/hwpx/**/*.py"
@@ -50,8 +51,8 @@
     "codeWriteFrozenTemplate": 14,
     "codeWriteNone": 149,
     "capabilityMapped": 81,
-    "renderVerified": 78,
-    "renderVerifiedByOpenrateCorpus": 47,
+    "renderVerified": 83,
+    "renderVerifiedByOpenrateCorpus": 52,
     "attributesObserved": 193
   },
   "elements": [
@@ -825,8 +826,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문서 옵션·호환성",
-      "capabilityStatus": "Parse·Preserve·Edit",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Preserve·Edit·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "eAsianEng",
         "eAsianNum"
@@ -1105,8 +1106,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문서 옵션·호환성",
-      "capabilityStatus": "Parse·Preserve·Edit",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Preserve·Edit·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "targetProgram"
       ]
@@ -1410,8 +1411,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문서 옵션·호환성",
-      "capabilityStatus": "Parse·Preserve·Edit",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Preserve·Edit·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -1684,8 +1685,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문서 옵션·호환성",
-      "capabilityStatus": "Parse·Preserve·Edit",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Preserve·Edit·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -1757,8 +1758,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "문서 옵션·호환성",
-      "capabilityStatus": "Parse·Preserve·Edit",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Preserve·Edit·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "footnoteInherit",
         "pageInherit",

@@ -33,21 +33,22 @@
    "add_line"), 근거 없는 승격은 하지 않는다 — 대응 행이 불분명한 요소는
    ``capabilityArea: null``로 남는다. 매핑된 요소라도 그 행의 등급 문자열에
    "Render-verified"가 없으면 이 출처로는 ``verificationBasis``가 null이다.
-5. **실한컴 검증 여부(openrate 코퍼스, v4~v9)** — ``docs/openrate/
-   report-v{4,5,6,7,8,9}.json``의 스트라타별 실제 Hancom 수용 receipt를
+5. **실한컴 검증 여부(openrate 코퍼스, v4~v10)** — ``docs/openrate/
+   report-v{4,5,6,7,8,9,10}.json``의 스트라타별 실제 Hancom 수용 receipt를
    ``verificationBasis``로 환류한다(2026-08-04 감사 R4 수리 — "두 산출물이
    서로를 모른다" — 의 v4 배선을 v5~v8까지 확장(2026-08 사이클 6.5 트레인
-   ⑰), v9까지 확장(2026-08 사이클 6.6 트레인⑳)). 두 갈래로 다룬다: (a)
+   ⑰), v9까지 확장(2026-08 사이클 6.6 트레인⑳), v10까지 확장(2026-08
+   사이클 6.7 트레인㉔)). 두 갈래로 다룬다: (a)
    스트라타가 **이미 등록된 capabilityArea**와 1:1로 대응하면
    (``CAPABILITY_KEYWORDS``에 그 요소가 실재 등재돼 있으면)
    ``_OPENRATE_STRATUM_TO_CAPABILITY_AREA``를 거쳐 그 영역의 전 요소에
    환류한다. (b) capabilityArea가 아예 등록돼 있지 않거나, 있어도 그
    요소만 지목한 것이 아닌 혼합 지원 영역이면 ``_OPENRATE_STRATUM_TO_ELEMENTS``로
    **요소를 직접** 지목한다 — 근거는 각 corpus 생성기 스크립트(
-   ``scripts/generate_openrate_corpus_v{5,6,7,8,9}.py``)의 독스트링이 실제로
+   ``scripts/generate_openrate_corpus_v{5,6,7,8,9,10}.py``)의 독스트링이 실제로
    호출한다고 명시한 API·요소뿐이다(무근거 매핑 금지, 기존 (a) 경로와
    같은 원칙). ``by-v4-corpus``라는 이름은 지금은 v4 하나만이 아니라
-   v4~v9 전체를 가리키므로 ``by-openrate-corpus``로 이번에 이름도
+   v4~v10 전체를 가리키므로 ``by-openrate-corpus``로 이번에 이름도
    바로잡았다(이 문자열을 읽는 외부 소비자는 이 레포 안에 없음을 grep으로
    확인 — 파기하는 계약이 아니다).
 
@@ -81,12 +82,12 @@ DEFAULT_CENSUS_PATH = ROOT / "docs" / "_extra" / "element-census.json"
 SUPPORT_MATRIX_PATH = ROOT / "src" / "hwpx" / "data" / "contract_docs" / "support-matrix.md"
 SKELETON_PATH = ROOT / "src" / "hwpx" / "data" / "Skeleton.hwpx"
 SRC_DIR = ROOT / "src" / "hwpx"
-#: v4~v9 전부 — 신버전이 생기면 여기 한 줄만 추가하면 된다(receipts 로더
+#: v4~v10 전부 — 신버전이 생기면 여기 한 줄만 추가하면 된다(receipts 로더
 #: 둘 다 이 리스트를 그대로 순회한다). 존재하지 않는 파일은 조용히
 #: 건너뛴다(``_load_*`` 쪽에서 ``is_file()`` 가드).
 OPENRATE_REPORT_PATHS: tuple[Path, ...] = tuple(
     ROOT / "docs" / "openrate" / f"report-{version}.json"
-    for version in ("v4", "v5", "v6", "v7", "v8", "v9")
+    for version in ("v4", "v5", "v6", "v7", "v8", "v9", "v10")
 )
 LEDGER_JSON = ROOT / "docs" / "coverage-ledger.json"
 LEDGER_MD = ROOT / "docs" / "coverage-ledger.md"
@@ -1201,11 +1202,11 @@ def classify_capability(
 
 
 # ---------------------------------------------------------------------------
-# 4b) openrate 코퍼스 환류(v4~v9) — support-matrix 산문과 별개인 두 번째
+# 4b) openrate 코퍼스 환류(v4~v10) — support-matrix 산문과 별개인 두 번째
 #     실측 근거. 감사 R4: "v4 스트라타의 요소별 실한컴 수용이 원장의
 #     verificationBasis로 환류되지 않아 두 산출물이 서로를 모른다." (2026-08
 #     사이클 6.5 트레인⑰이 이 배선을 v5~v8까지 확장, 사이클 6.6 트레인⑳이
-#     v9까지 확장했다.)
+#     v9까지, 사이클 6.7 트레인㉔이 v10까지 확장했다.)
 # ---------------------------------------------------------------------------
 
 #: openrate 스트라타 → capabilityArea. CAPABILITY_KEYWORDS와 같은 원칙(무근거
@@ -1245,6 +1246,13 @@ _OPENRATE_STRATUM_TO_CAPABILITY_AREA: dict[str, str] = {
     # 위험이 없다) — authored-container 스트라텀이 add_container로 저작한
     # 것이 정확히 이 요소이므로 영역째 흘려도 안전하다.
     "authored-container": "그룹 개체(컨테이너)",
+    # v10(cycle 6.7, 트레인㉔) — "문서 옵션·호환성"은 hh:compatibleDocument/
+    # layoutCompatibility/docOption/linkinfo/autoSpacing 5종만 등록된 1:1
+    # 영역이다(_register 호출부 확인 — 이 5종 중 어느 것도 다른 영역이
+    # 공유하지 않는다, 위 v8 주석의 혼합-영역 위험이 없다). authored-compat
+    # 스트라텀이 트레인㉓의 doc.parts.set_* 4종으로 저작한 것이 정확히 이
+    # 5종이므로 영역째 흘려도 안전하다.
+    "authored-compat": "문서 옵션·호환성",
 }
 
 #: capabilityArea가 아직 없거나(v5·v6의 authored-pagecontrol·v7), 있어도
@@ -1546,7 +1554,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
     lines.append(
         "`scripts/coverage_ledger.py`가 OWPML 2024 스키마(`DevDoc/OWPML SCHEMA/`) · "
         "실코퍼스 census(`scripts/build_element_census.py`) · `src/hwpx/` 코드 "
-        "참조 · 지원 매트릭스 · v4~v9 openrate 실한컴 코퍼스에서 결정론적으로 "
+        "참조 · 지원 매트릭스 · v4~v10 openrate 실한컴 코퍼스에서 결정론적으로 "
         "재산출하는 원장이다. 손으로 쓴 지원 주장이 아니라 기계 판독 "
         "[coverage-ledger.json](coverage-ledger.json)의 사람용 요약이며, "
         "`python scripts/coverage_ledger.py --check`가 드리프트를 게이트한다."
@@ -1636,16 +1644,17 @@ def render_markdown(ledger: dict[str, object]) -> str:
         "밖 — 생성기 독스트링에 명시)."
     )
     lines.append(
-        "**6) openrate 코퍼스 환류(v4~v9).** `docs/openrate/report-v{4,5,6,7,8,9}."
+        "**6) openrate 코퍼스 환류(v4~v10).** `docs/openrate/report-v{4,5,6,7,8,9,10}."
         "json`의 스트라타별 실한컴 수용(`render_checked>0`·`render_failed==0`, "
         "구세대 스키마는 `opened==requested>0`도 함께)을 `verificationBasis`로 "
         "환류한다(`by-openrate-corpus`/`by-capability-area+openrate-corpus`) — "
         "2026-08-04 감사 R4가 지목한 v4 배선(원 이름 `by-v4-corpus`)을 2026-08 "
-        "사이클 6.5 트레인⑰에서 v8까지, 사이클 6.6 트레인⑳에서 v9까지 확장하며 "
+        "사이클 6.5 트레인⑰에서 v8까지, 사이클 6.6 트레인⑳에서 v9까지, "
+        "사이클 6.7 트레인㉔에서 v10까지 확장하며 "
         "버전-중립 이름으로 바꿨다. 두 경로로 매핑한다: 이미 등록된 "
         "capabilityArea와 1:1 대응하는 스트라타는 "
         "`_OPENRATE_STRATUM_TO_CAPABILITY_AREA`(차트·체크박스·수식·각주 2종·"
-        "테두리채우기·하이라이트·메모·그룹컨테이너), capabilityArea가 아직 "
+        "테두리채우기·하이라이트·메모·그룹컨테이너·문서옵션호환성), capabilityArea가 아직 "
         "없거나 있어도 혼합 지원 영역이라 요소만 지목해야 하는 신규 능력"
         "(글꼴·탭·도형텍스트·캡션·쪽번호제어·문자서식·필드파라미터·arc/polygon·"
         "인라인 원자 3종)은 `_OPENRATE_STRATUM_TO_ELEMENTS`로 요소를 직접 "
@@ -1707,7 +1716,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
         f"{_fmt_pct(summary['renderVerified'], total)} |"
     )
     lines.append(
-        f"| ..중 openrate 코퍼스(v4~v9) 환류분 | {summary['renderVerifiedByOpenrateCorpus']} | "
+        f"| ..중 openrate 코퍼스(v4~v10) 환류분 | {summary['renderVerifiedByOpenrateCorpus']} | "
         f"{_fmt_pct(summary['renderVerifiedByOpenrateCorpus'], total)} |"
     )
     lines.append(
@@ -1837,7 +1846,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
         "누름틀·TOC·하이퍼링크가 다 쓴다)는 일부러 매핑하지 않았다. "
         "`verificationBasis`는 두 독립 출처를 결합한다 — 지원 매트릭스 산문의 "
         "\"Render-verified\" 표기(`by-capability-area`)와 `docs/openrate/"
-        "report-v{4,5,6,7,8,9}.json` 실한컴 openrate 코퍼스의 스트라타별 수용 "
+        "report-v{4,5,6,7,8,9,10}.json` 실한컴 openrate 코퍼스의 스트라타별 수용 "
         "receipt(`by-openrate-corpus`) — capabilityArea 경로는 매핑이 명확한 "
         "스트라타에 한해서만, capabilityArea가 아직 없는 스트라타는 생성기 "
         "독스트링이 명시하는 요소에 직접."
