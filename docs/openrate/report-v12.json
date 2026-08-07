@@ -1,0 +1,37 @@
+{
+  "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v12",
+  "harness_valid": true,
+  "measured_at": "2026-08-07T22:19:30.746630+09:00",
+  "negative_controls": {
+    "expected": [
+      "corrupt_section",
+      "corrupt_header",
+      "missing_section"
+    ],
+    "judged": 3,
+    "wrongly_rendered": []
+  },
+  "oracle": "mac-gui",
+  "oracle_app": "Hancom Office HWP.app (macOS)",
+  "schemaVersion": "hwpx.openrate.report/v12",
+  "scopeNote": "v12 measures the 6.8 cycle's two verification chains, additive over v1-v11: authored-pagelayout exercises the doc.page surface beyond the 5 methods v4/v6 already covered (paper size, margins, header/footer text, columns, page-number restart, element hiding, header removal) to widen the page-layout area's honest 'partial' grade, and authored-hyperlink-bookmark is the first independent real-Hancom verdict for the hyperlink-bookmark area, which train 30 split from toc-crossref precisely because it had never been verified on its own. Real Hancom accepted all 30/30. Observer: macOS Hancom GUI oracle (open+render one gate). Session-state discipline applied: a control render preceded the batch and the app was fully restarted before launch.",
+  "strata": {
+    "authored-hyperlink-bookmark": {
+      "judged": 15,
+      "render_checked": 15,
+      "render_failed": 0
+    },
+    "authored-pagelayout": {
+      "judged": 15,
+      "render_checked": 15,
+      "render_failed": 0
+    }
+  },
+  "tool_versions": {
+    "python-hwpx": "6.0.2"
+  },
+  "totals": {
+    "judged": 30,
+    "render_checked": 30
+  }
+}

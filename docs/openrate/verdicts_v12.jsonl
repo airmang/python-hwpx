@@ -1,0 +1,34 @@
+{"_meta": "mac-render-batch-v1", "app": "Hancom Office HWP.app", "jobCount": 33, "oracle": "mac-gui"}
+{"sourceId": "v12-pagelayout-000", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 22970, "error": null}
+{"sourceId": "v12-pagelayout-001", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 22124, "error": null}
+{"sourceId": "v12-pagelayout-002", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 22336, "error": null}
+{"sourceId": "v12-pagelayout-003", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 22756, "error": null}
+{"sourceId": "v12-pagelayout-004", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 22156, "error": null}
+{"sourceId": "v12-pagelayout-005", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 22141, "error": null}
+{"sourceId": "v12-pagelayout-006", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 22137, "error": null}
+{"sourceId": "v12-pagelayout-007", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 22419, "error": null}
+{"sourceId": "v12-pagelayout-008", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 21776, "error": null}
+{"sourceId": "v12-pagelayout-009", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 22003, "error": null}
+{"sourceId": "v12-pagelayout-010", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 22277, "error": null}
+{"sourceId": "v12-pagelayout-011", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 23033, "error": null}
+{"sourceId": "v12-pagelayout-012", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 21833, "error": null}
+{"sourceId": "v12-pagelayout-013", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 21517, "error": null}
+{"sourceId": "v12-pagelayout-014", "stratum": "authored-pagelayout", "saved": true, "pdfBytes": 22162, "error": null}
+{"sourceId": "v12-linkbookmark-000", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 18626, "error": null}
+{"sourceId": "v12-linkbookmark-001", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 17956, "error": null}
+{"sourceId": "v12-linkbookmark-002", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 17524, "error": null}
+{"sourceId": "v12-linkbookmark-003", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 17862, "error": null}
+{"sourceId": "v12-linkbookmark-004", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 18022, "error": null}
+{"sourceId": "v12-linkbookmark-005", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 18215, "error": null}
+{"sourceId": "v12-linkbookmark-006", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 17893, "error": null}
+{"sourceId": "v12-linkbookmark-007", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 17135, "error": null}
+{"sourceId": "v12-linkbookmark-008", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 17767, "error": null}
+{"sourceId": "v12-linkbookmark-009", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 18161, "error": null}
+{"sourceId": "v12-linkbookmark-010", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 18230, "error": null}
+{"sourceId": "v12-linkbookmark-011", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 18016, "error": null}
+{"sourceId": "v12-linkbookmark-012", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 17499, "error": null}
+{"sourceId": "v12-linkbookmark-013", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 17632, "error": null}
+{"sourceId": "v12-linkbookmark-014", "stratum": "authored-hyperlink-bookmark", "saved": true, "pdfBytes": 17773, "error": null}
+{"sourceId": "corrupt_section", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
+{"sourceId": "corrupt_header", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
+{"sourceId": "missing_section", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
