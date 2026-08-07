@@ -59,6 +59,7 @@ PreservedElement = Union[
     "ListItem",
     "ComposedCharacter",
     "ParameterList",
+    "Label",
 ]
 InlineMark = Union[PreservedElement, "TrackChangeMark"]
 RunChild = Union[PreservedElement, "Control", "Table", "InlineObject", "TextSpan", "Tab"]
@@ -94,6 +95,12 @@ class TextMarkup:
             # seen 304/306 times in the real corpus) -- so it cannot be
             # proxied through like the others without breaking that
             # contract. Derive the local tag name directly instead.
+            return self.element.tag.rsplit("}", 1)[-1]
+        if isinstance(self.element, Label):
+            # Label has no .name field at all (DEV-023's attributes are all
+            # typed individually, unlike GenericElement's catch-all shape) --
+            # same derivation as ParameterList above, for the same reason
+            # (nothing to proxy through).
             return self.element.tag.rsplit("}", 1)[-1]
         return self.element.name
 
@@ -143,6 +150,34 @@ class Table:
     tag: str
     attributes: Dict[str, str] = field(default_factory=dict)
     children: List[PreservedElement] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class Label:
+    """``hp:label`` -- Avery-style label-sheet/nameplate print layout,
+    always the *last* child of ``hp:tbl`` (real corpus: always after every
+    ``hp:tr`` row, matching ``ParaList XML schema.xml``'s own sequence
+    order -- DEV-023, ``docs/owpml-deviations.md``). Unlike most elements
+    this registry has reverse-engineered, the schema and 75 real private
+    documents agree completely: all 11 attributes here, no more, no fewer,
+    ``landscape`` the only non-integer one (schema enum ``WIDELY``/
+    ``NARROWLY``, only ``WIDELY`` observed in the reverse-engineering
+    sample -- ``NARROWLY`` is schema-legal but unconfirmed against real
+    output)."""
+
+    tag: str
+    topmargin: Optional[int] = None
+    leftmargin: Optional[int] = None
+    boxwidth: Optional[int] = None
+    boxlength: Optional[int] = None
+    boxmarginhor: Optional[int] = None
+    boxmarginver: Optional[int] = None
+    labelcols: Optional[int] = None
+    labelrows: Optional[int] = None
+    landscape: Optional[str] = None
+    pagewidth: Optional[int] = None
+    pageheight: Optional[int] = None
+    attributes: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -846,6 +881,8 @@ def parse_preserved_element(node: etree._Element) -> PreservedElement:
         return parse_composed_character_element(node)
     if name in {"parameters", "parameterset"}:
         return parse_parameter_list_element(node)
+    if name == "label":
+        return parse_label_element(node)
     if name in INLINE_OBJECT_NAMES:
         # 실코퍼스 실측(cycle-6.3 트레인⑫): hp:container(등)가 최상위
         # run 자식일 땐 InlineObject로 뜨지만, 그 컨테이너 *안에* 중첩된
@@ -908,6 +945,19 @@ def parse_table_element(node: etree._Element) -> Table:
         attributes={key: value for key, value in node.attrib.items()},
         children=[parse_preserved_element(child) for child in node],
     )
+
+
+_LABEL_INT_ATTRS = (
+    "topmargin", "leftmargin", "boxwidth", "boxlength", "boxmarginhor",
+    "boxmarginver", "labelcols", "labelrows", "pagewidth", "pageheight",
+)
+
+
+def parse_label_element(node: etree._Element) -> Label:
+    attrs = {key: value for key, value in node.attrib.items()}
+    values = {name: parse_int(attrs.pop(name, None)) for name in _LABEL_INT_ATTRS}
+    landscape = attrs.pop("landscape", None)
+    return Label(tag=node.tag, landscape=landscape, attributes=attrs, **values)
 
 
 def parse_tab_element(node: etree._Element) -> Tab:
@@ -1190,6 +1240,8 @@ def _preserved_element_to_xml(element: PreservedElement) -> etree._Element:
         return _composed_character_to_xml(element)
     if isinstance(element, ParameterList):
         return parameter_list_to_xml(element)
+    if isinstance(element, Label):
+        return _label_to_xml(element)
     if isinstance(element, InlineObject):
         return _inline_object_to_xml(element)
     return _generic_element_to_xml(element)
@@ -1244,6 +1296,27 @@ def _table_to_xml(table: Table) -> etree._Element:
     for child in table.children:
         node.append(_preserved_element_to_xml(child))
     return node
+
+
+def _label_to_xml(label: Label) -> etree._Element:
+    # Attribute order matches ParaList XML schema.xml's declared sequence,
+    # which every real occurrence (436/436, private reverse-engineering
+    # sample) also follows -- see DEV-023.
+    attrs: Dict[str, str] = {}
+    _set_int_attr(attrs, "topmargin", label.topmargin)
+    _set_int_attr(attrs, "leftmargin", label.leftmargin)
+    _set_int_attr(attrs, "boxwidth", label.boxwidth)
+    _set_int_attr(attrs, "boxlength", label.boxlength)
+    _set_int_attr(attrs, "boxmarginhor", label.boxmarginhor)
+    _set_int_attr(attrs, "boxmarginver", label.boxmarginver)
+    _set_int_attr(attrs, "labelcols", label.labelcols)
+    _set_int_attr(attrs, "labelrows", label.labelrows)
+    if label.landscape is not None:
+        attrs["landscape"] = label.landscape
+    _set_int_attr(attrs, "pagewidth", label.pagewidth)
+    _set_int_attr(attrs, "pageheight", label.pageheight)
+    attrs.update(label.attributes)
+    return etree.Element(_qualified_tag(label.tag, "label"), attrs)
 
 
 def _inline_object_to_xml(obj: InlineObject) -> etree._Element:
@@ -1308,6 +1381,7 @@ __all__ = [
     "InlineObject",
     "INLINE_OBJECT_NAMES",
     "LineSeg",
+    "Label",
     "LineSegArray",
     "ListItem",
     "Paragraph",
@@ -1332,6 +1406,7 @@ __all__ = [
     "parse_form_combo_box_element",
     "parse_form_edit_element",
     "parse_inline_object_element",
+    "parse_label_element",
     "parse_line_seg_array_element",
     "parse_line_seg_element",
     "parse_list_item_element",

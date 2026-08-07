@@ -94,10 +94,12 @@ CYCLE_6_6_PROBES = (
 # 6.7 사이클에서 새로 등재한 항목 — 각각 실행 가능한 프로브를 동반해야 한다.
 CYCLE_6_7_DEVIATIONS = (
     "DEV-022",
+    "DEV-023",
 )
 
 CYCLE_6_7_PROBES = (
     "dev022_tabpr_switch_case_default_scale_mismatch.py",
+    "dev023_label_avery_layout_schema_match.py",
 )
 
 

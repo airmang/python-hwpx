@@ -17,6 +17,7 @@ from hwpx.oxml.body import (
     FormComboBoxControl,
     FormEditControl,
     InlineObject,
+    Label,
     LineSeg,
     LineSegArray,
     ListItem,
@@ -579,6 +580,20 @@ def test_text_markup_name_reads_parameterlist_tag_not_its_name_attribute() -> No
     )
 
     assert markup.name == "parameters"
+
+
+def test_text_markup_name_reads_label_tag_since_it_has_no_name_field() -> None:
+    """`Label` joining `PreservedElement` (트레인㉖, DEV-023) made it the
+    same theoretically-reachable `TextMarkup.element` case as `ParameterList`
+    -- `Label` has no `.name` field at all (its 11 attributes are all typed
+    individually), so proxying through would fail with `AttributeError`,
+    not just return the wrong value."""
+
+    markup = TextMarkup(
+        element=Label(tag="{http://www.hancom.co.kr/hwpml/2011/paragraph}label")
+    )
+
+    assert markup.name == "label"
 
 
 def test_composed_character_promoted_from_hwpxlib_sample() -> None:

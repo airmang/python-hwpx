@@ -31,6 +31,7 @@ from ._document_primitives import (
     FILL_IMAGE_MODES,
 )
 
+from .body import Label, parse_label_element
 from .objects import Caption, _read_caption, _remove_caption, _write_caption
 
 if TYPE_CHECKING:
@@ -434,6 +435,88 @@ class HwpxOxmlTable:
         """Remove this table's ``hp:caption`` if present. Returns whether one was removed."""
 
         return _remove_caption(self.element, self.paragraph.section)
+
+    # --- label (hp:label) -----------------------------------------
+
+    @property
+    def label(self) -> "Label | None":
+        """This table's ``hp:label`` (Avery-style label-sheet/nameplate
+        print layout), or ``None`` if it doesn't have one. Table-exclusive
+        (DEV-023, ``docs/owpml-deviations.md`` — reverse-engineered from
+        75 real private documents, structure matches the vendored schema
+        exactly, no deviation to register beyond the element's existence)."""
+
+        element = self.element.find(f"{_HP}label")
+        if element is None:
+            return None
+        return parse_label_element(element)
+
+    def set_label(
+        self,
+        *,
+        topmargin: int | None = None,
+        leftmargin: int | None = None,
+        boxwidth: int | None = None,
+        boxlength: int | None = None,
+        boxmarginhor: int | None = None,
+        boxmarginver: int | None = None,
+        labelcols: int | None = None,
+        labelrows: int | None = None,
+        landscape: str | None = None,
+        pagewidth: int | None = None,
+        pageheight: int | None = None,
+    ) -> "Label":
+        """Create (or replace) this table's ``hp:label``.
+
+        Always placed as the table's *last* child -- every real occurrence
+        (436/436, DEV-023) sits after all ``hp:tr`` rows, matching
+        ``ParaList XML schema.xml``'s own sequence order. Values are not
+        restricted to the two combinations the reverse-engineering sample
+        observed (a 2x9 small-label sheet and a 1x2 large-square nameplate
+        layout) -- there is no real-corpus evidence for what other
+        combinations Hancom accepts or rejects, so this does not guess at
+        a validation rule beyond the schema's own (``labelcols``/
+        ``labelrows``/etc. are ``xs:nonNegativeInteger``, ``landscape`` is
+        ``WIDELY``/``NARROWLY``).
+        """
+
+        existing = self.element.find(f"{_HP}label")
+        if existing is not None:
+            self.element.remove(existing)
+
+        attrs: dict[str, str] = {}
+        for name, value in (
+            ("topmargin", topmargin),
+            ("leftmargin", leftmargin),
+            ("boxwidth", boxwidth),
+            ("boxlength", boxlength),
+            ("boxmarginhor", boxmarginhor),
+            ("boxmarginver", boxmarginver),
+            ("labelcols", labelcols),
+            ("labelrows", labelrows),
+        ):
+            if value is not None:
+                attrs[name] = str(int(value))
+        if landscape is not None:
+            attrs["landscape"] = landscape
+        for name, value in (("pagewidth", pagewidth), ("pageheight", pageheight)):
+            if value is not None:
+                attrs[name] = str(int(value))
+
+        element = self.element.makeelement(f"{_HP}label", attrs)
+        self.element.append(element)
+        self.paragraph.section.mark_dirty()
+        return parse_label_element(element)
+
+    def remove_label(self) -> bool:
+        """Remove this table's ``hp:label`` if present. Returns whether one was removed."""
+
+        element = self.element.find(f"{_HP}label")
+        if element is None:
+            return False
+        self.element.remove(element)
+        self.paragraph.section.mark_dirty()
+        return True
 
     @classmethod
     def create(
