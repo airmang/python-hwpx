@@ -235,6 +235,9 @@ files = [
     # 6.6 (train 23): document options/compatibility authoring — born in the
     # gate, per the WP-A rule above.
     "src/hwpx/oxml/header_compat.py",
+    # 6.9 (train 33): document insertion/merge — born in the gate, per the
+    # WP-A rule above.
+    "src/hwpx/tools/document_merge.py",
 ]
 ignore_missing_imports = true
 
@@ -328,6 +331,9 @@ include = [
     # 6.6 (train 23): document options/compatibility authoring — born in the
     # gate, per the WP-A rule above.
     "src/hwpx/oxml/header_compat.py",
+    # 6.9 (train 33): document insertion/merge — born in the gate, per the
+    # WP-A rule above.
+    "src/hwpx/tools/document_merge.py",
 ]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"

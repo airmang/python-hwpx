@@ -150,6 +150,8 @@ AREA_NAMESPACES = {
     "hyperlink-bookmark": "refs",
     # 6.8 트레인㉛ — 트레인㉚이 찾은 mail_merge 측정 갭 등재.
     "mail-merge": None,  # 루트도 아니고 doc.* 네임스페이스도 아님(모듈 함수)
+    # 6.9 트레인㉝ — 편집기 표면 인벤토리(트레인㉙)가 찾은 "문서 끼워 넣기" 갭.
+    "document-merge": None,  # mail-merge와 같은 이유, 순수 hwpx.tools 모듈 함수
 }
 
 

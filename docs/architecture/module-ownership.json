@@ -470,6 +470,12 @@
       "disposition": "core",
       "approvedBy": "S-096/P2",
       "rationale": "renderer-neutral Protocol, edit mask and report contracts invert the former quality-to-visual runtime dependency"
+    },
+    {
+      "path": "src/hwpx/tools/document_merge.py",
+      "disposition": "core",
+      "approvedBy": "cycle-6.9/train-33-document-merge",
+      "rationale": "header-owned shared-resource id remapping (charPr/paraPr/style/borderFill/tabPr/numbering/bullet/memoPr/fontfaces) and structural id refresh for copying another HWPX document's body into an open document -- same shape as mail_merge.py/doc_diff.py: format-level structural behavior only, no application batch/workflow policy"
     }
   ],
   "removed": [

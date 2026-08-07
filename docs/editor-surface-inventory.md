@@ -38,7 +38,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 <!-- AUTO-GENERATED:BEGIN (scripts/editor_surface_inventory.py) -->
 
-자동 생성 시점 교차 확인: 원장(요소 축) 94건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 31개 등록됨.
+자동 생성 시점 교차 확인: 원장(요소 축) 94건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 32개 등록됨.
 
 ### 서식
 
@@ -114,6 +114,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
 |---|---|---|---|
 | 메일머지(placeholder 템플릿 배치 생성) | 저작 api | 지원 매트릭스 「메일머지(placeholder 템플릿 배치 생성)」(`Edit`) · capabilities 영역 `mail-merge` · 위치 모듈 — `hwpx.tools.mail_merge` | 미실측 |
+| 문서 끼워 넣기(문서 병합) | 저작 api | 지원 매트릭스 「문서 끼워 넣기(문서 병합)」(`Create(experimental)`) · capabilities 영역 `document-merge` · 위치 모듈 — `hwpx.tools.document_merge` | 미실측 |
 | 편집 계획 실행(edit plan) | 저작 api | 지원 매트릭스 「편집 계획 실행(edit plan)」(`Preserve·Edit`) · capabilities 영역 `edit-plan` · 위치 모듈 — `hwpx.plan` | 미실측 |
 
 <!-- AUTO-GENERATED:END -->

@@ -330,6 +330,23 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "entry_points": ("hwpx.tools.mail_merge:merge_template_rows",),
         "authoring_methods": (),
     },
+    {
+        "area": "document-merge",
+        "namespace": None,
+        "matrix_row": "문서 끼워 넣기(문서 병합)",
+        # 6.9 트레인㉝ — 편집기 표면 인벤토리(트레인㉙)의 macOS 메뉴 전수
+        # 스캔이 찾은 신규 갭("입력→문서 끼워 넣기…"). mail-merge와 같은
+        # 이유로 namespace=None, 순수 hwpx.tools 모듈 함수(연 문서에 다른
+        # 문서의 본문을 헤더 참조 재매핑과 함께 끼워 넣는다 — 새 요소를
+        # 만드는 게 아니라 기존 요소를 헤더 공유 자원 재매핑과 함께
+        # 복사하는 구조라 coverage_ledger 요소 등록은 없다, mail-merge·
+        # table-navigation-fill·find-replace와 같은 원칙).
+        "entry_points": (
+            "hwpx.tools.document_merge:append_document",
+            "hwpx.tools.document_merge:insert_document",
+        ),
+        "authoring_methods": (),
+    },
 )
 
 #: 패키지에 동봉되는 계약 문서 이름 → 파일. MCP resources 표면의 원천.

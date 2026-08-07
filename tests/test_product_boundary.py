@@ -263,8 +263,11 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # new module (oxml/header_compat.py) — the write counterpart to 6.1's
     # settings.py, living outside header_part.py because that owner file
     # sits at its 1600-line modularization cap.
+    # 6.9: +1 — document insertion/merge (train 33), a brand new module
+    # (tools/document_merge.py) — header-owned shared-resource id remapping
+    # for copying another HWPX document's body into an open document.
     # 전부 module-ownership.json 에 개별 rationale 과 함께 등재돼 있다.
-    assert report["classifiedFiles"] == 138
+    assert report["classifiedFiles"] == 139
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(
