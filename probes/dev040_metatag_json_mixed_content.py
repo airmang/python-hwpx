@@ -36,11 +36,42 @@ DEV-013's connectLine deferral). Not a bug: read=True (opaque, lossless),
 write=none (element form) is the correct classification for what's
 currently understood.
 
+Sibling verdict -- ``hh:typeInfo`` (cycle 6.8 train 28)
+=========================================================
+
+Gap-map v2 Part D grouped ``hh:typeInfo``/``hh:metaTag`` as one pair of
+next-round candidates (both schema-declared, high-frequency,
+frozen-template). ``hh:typeInfo`` (``Header XML schema.xml``, a font's
+PANOSE-style classification: ``familyType``/``weight``/``proportion``/
+``contrast``/``letterform``/``midline``/``xHeight``/``armStyle``/
+``strokeVariation``) is a DIFFERENT case from ``metaTag`` -- there is no
+schema/reality gap to register here, so this probe records the verdict
+directly rather than a new DEV entry: ``frozen-template`` is the correct
+classification, and the "no authoring surface" stance is justified.
+``ensure_font`` (the only real font-authoring entry point,
+``header_part.py``) never accepts or constructs a ``typeInfo`` value --
+confirmed by reading ``_build_font_element`` (``_document_primitives.py``),
+which only ever builds ``hh:font``/``hh:substFont``, never ``hh:typeInfo``.
+The blank-document skeleton's own two default fonts (함초롬돋움/함초롬바탕,
+a real Hancom-sourced template) already carry real ``typeInfo`` values --
+which is why the classification is ``frozen-template`` (present via
+inheritance) rather than ``none`` (never touched). This creates a
+documented, honest asymmetry worth recording even though it needs no fix:
+a font added via ``ensure_font`` after document creation gets no
+``typeInfo`` at all, while the two skeleton-inherited fonts keep theirs.
+Not exposing ``typeInfo`` as an authoring parameter is a principled
+choice, not an oversight -- these are PANOSE-style descriptors of a font
+FILE's own visual properties; a caller typing arbitrary values with no way
+to validate them against the actual font would be worse than omitting the
+field, and no real-corpus evidence establishes what Hancom itself would
+assign for an arbitrary added font.
+
 Run: ``python probes/dev040_metatag_json_mixed_content.py``
 """
 
 from __future__ import annotations
 
+import io
 import json
 import re
 import sys
@@ -129,8 +160,55 @@ def main() -> int:
     else:
         print("SKIP: error__20241104__mot.hwpx not present in this checkout")
 
+    # --- sibling verdict: hh:typeInfo (see module docstring) --------------------
+    import inspect
+
+    from hwpx.oxml._document_primitives import _build_font_element
+
+    source = inspect.getsource(_build_font_element)
+    # The comment above substFont's construction mentions "typeInfo" by name (schema
+    # sequence ordering note) -- that's expected and fine. What must NOT appear is an
+    # actual element construction targeting that tag.
+    assert "typeInfo" not in source.replace(
+        "substFont 는 typeInfo 보다 앞선다", ""
+    ), (
+        "expected _build_font_element to never construct a typeInfo child -- if this "
+        "fails, ensure_font may have grown typeInfo authoring and the frozen-template "
+        "classification should be re-examined"
+    )
+    print("confirmed _build_font_element (ensure_font's own element builder) never "
+          "constructs an hh:typeInfo child -- no authoring surface exists for it "
+          "(the sole 'typeInfo' text in its source is a schema-ordering comment)")
+
+    from hwpx.document import HwpxDocument
+
+    doc = HwpxDocument.new()
+    doc.styles.ensure_font("맑은 고딕")
+    data = doc.to_bytes()
+    doc.close()
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        header_xml = archive.read("Contents/header.xml").decode("utf-8")
+
+    inherited_type_info = header_xml.count("<hh:typeInfo")
+    added_font_blocks = re.findall(r'<hh:font id="\d+" face="맑은 고딕"[^/]*?/>', header_xml)
+    assert inherited_type_info > 0, (
+        "expected the skeleton's inherited default fonts to still carry real typeInfo"
+    )
+    assert added_font_blocks, "expected the newly ensure_font()-added face to appear"
+    for block in added_font_blocks:
+        assert "typeInfo" not in block, (
+            f"expected the newly-added font to have no typeInfo child, found it in: {block}"
+        )
+    print(f"confirmed the asymmetry live: the skeleton's 2 inherited default fonts still "
+          f"carry {inherited_type_info} real typeInfo children (7 lang blocks each), while "
+          f"a font added via ensure_font() afterward ({len(added_font_blocks)} lang blocks) "
+          f"has none -- frozen-template (present via inheritance, not authored) is the "
+          f"correct classification")
+
     print("PASS: DEV-040 reproduced (schema opacity + live JSON-content + attribute-vs-"
-          "element distinction + skeleton provenance + lossless round-trip)")
+          "element distinction + skeleton provenance + lossless round-trip); typeInfo "
+          "sibling verdict confirmed (frozen-template correct, no-authoring-surface "
+          "justified, asymmetry documented)")
     return 0
 
 

@@ -13,7 +13,8 @@
       "docs/openrate/report-v7.json",
       "docs/openrate/report-v8.json",
       "docs/openrate/report-v9.json",
-      "docs/openrate/report-v10.json"
+      "docs/openrate/report-v10.json",
+      "docs/openrate/report-v11.json"
     ],
     "skeleton": "src/hwpx/data/Skeleton.hwpx",
     "sourceScanned": "src/hwpx/**/*.py"
@@ -51,8 +52,8 @@
     "codeWriteFrozenTemplate": 14,
     "codeWriteNone": 148,
     "capabilityMapped": 81,
-    "renderVerified": 83,
-    "renderVerifiedByOpenrateCorpus": 52,
+    "renderVerified": 84,
+    "renderVerifiedByOpenrateCorpus": 53,
     "attributesObserved": 193
   },
   "elements": [
@@ -3984,7 +3985,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "boxlength",
         "boxmarginhor",
