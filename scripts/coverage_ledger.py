@@ -33,12 +33,13 @@
    "add_line"), 근거 없는 승격은 하지 않는다 — 대응 행이 불분명한 요소는
    ``capabilityArea: null``로 남는다. 매핑된 요소라도 그 행의 등급 문자열에
    "Render-verified"가 없으면 이 출처로는 ``verificationBasis``가 null이다.
-5. **실한컴 검증 여부(openrate 코퍼스, v4~v11)** — ``docs/openrate/
-   report-v{4,5,6,7,8,9,10,11}.json``의 스트라타별 실제 Hancom 수용 receipt를
+5. **실한컴 검증 여부(openrate 코퍼스, v4~v12)** — ``docs/openrate/
+   report-v{4,5,6,7,8,9,10,11,12}.json``의 스트라타별 실제 Hancom 수용 receipt를
    ``verificationBasis``로 환류한다(2026-08-04 감사 R4 수리 — "두 산출물이
    서로를 모른다" — 의 v4 배선을 v5~v8까지 확장(2026-08 사이클 6.5 트레인
    ⑰), v9까지 확장(2026-08 사이클 6.6 트레인⑳), v10까지 확장(2026-08
-   사이클 6.7 트레인㉔), v11까지 확장(2026-08 사이클 6.8 트레인㉘)). 두 갈래로
+   사이클 6.7 트레인㉔), v11까지 확장(2026-08 사이클 6.8 트레인㉘), v12까지
+   확장(2026-08 사이클 6.9 트레인㉜)). 두 갈래로
    다룬다: (a)
    스트라타가 **이미 등록된 capabilityArea**와 1:1로 대응하면
    (``CAPABILITY_KEYWORDS``에 그 요소가 실재 등재돼 있으면)
@@ -46,10 +47,10 @@
    환류한다. (b) capabilityArea가 아예 등록돼 있지 않거나, 있어도 그
    요소만 지목한 것이 아닌 혼합 지원 영역이면 ``_OPENRATE_STRATUM_TO_ELEMENTS``로
    **요소를 직접** 지목한다 — 근거는 각 corpus 생성기 스크립트(
-   ``scripts/generate_openrate_corpus_v{5,6,7,8,9,10,11}.py``)의 독스트링이 실제로
+   ``scripts/generate_openrate_corpus_v{5,6,7,8,9,10,11,12}.py``)의 독스트링이 실제로
    호출한다고 명시한 API·요소뿐이다(무근거 매핑 금지, 기존 (a) 경로와
    같은 원칙). ``by-v4-corpus``라는 이름은 지금은 v4 하나만이 아니라
-   v4~v11 전체를 가리키므로 ``by-openrate-corpus``로 이번에 이름도
+   v4~v12 전체를 가리키므로 ``by-openrate-corpus``로 이번에 이름도
    바로잡았다(이 문자열을 읽는 외부 소비자는 이 레포 안에 없음을 grep으로
    확인 — 파기하는 계약이 아니다).
 
@@ -83,12 +84,12 @@ DEFAULT_CENSUS_PATH = ROOT / "docs" / "_extra" / "element-census.json"
 SUPPORT_MATRIX_PATH = ROOT / "src" / "hwpx" / "data" / "contract_docs" / "support-matrix.md"
 SKELETON_PATH = ROOT / "src" / "hwpx" / "data" / "Skeleton.hwpx"
 SRC_DIR = ROOT / "src" / "hwpx"
-#: v4~v11 전부 — 신버전이 생기면 여기 한 줄만 추가하면 된다(receipts 로더
+#: v4~v12 전부 — 신버전이 생기면 여기 한 줄만 추가하면 된다(receipts 로더
 #: 둘 다 이 리스트를 그대로 순회한다). 존재하지 않는 파일은 조용히
 #: 건너뛴다(``_load_*`` 쪽에서 ``is_file()`` 가드).
 OPENRATE_REPORT_PATHS: tuple[Path, ...] = tuple(
     ROOT / "docs" / "openrate" / f"report-{version}.json"
-    for version in ("v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11")
+    for version in ("v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12")
 )
 LEDGER_JSON = ROOT / "docs" / "coverage-ledger.json"
 LEDGER_MD = ROOT / "docs" / "coverage-ledger.md"
@@ -1178,11 +1179,29 @@ _register(
 # "Render-verified"가 있어도 CAPABILITY_KEYWORDS에 없는 요소는 이 등록의
 # 영향을 안 받는다).
 _register("페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)", "hp", "visibility", "lineNumberShape", "grid", "newNum", "pageHiding")
+# 6.9 트레인㉜ — v12(authored-pagelayout)가 이전엔 미실측이던 doc.page의
+# 나머지 표면을 실측했다. 여기 추가하는 6종은 각각 하나의 setter와 1:1로
+# 대응하고(set_size→pagePr, set_margins→margin, set_header/footer→header/
+# footer, set_columns→colPr, set_page_number→pageNum) 다른 어떤 능력
+# 영역도 이 이름들을 안 쓴다(직접 확인) — hp:autoNum은 의도적으로 뺐다:
+# paragraph.py의 add_new_num(각주/목록류 자동번호)도 같은 이름을 쓰는
+# 공유 요소라 fieldBegin류와 같은 무근거 승격 위험이 있다(실제 표시
+# 요소인 hp:pageNum은 이미 커버하므로 사용자 가시 결과는 검증됨).
+_register(
+    "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)", "hp",
+    "pagePr", "margin", "header", "footer", "colPr", "pageNum",
+)
 # "글꼴 등록"은 authored-fontface(v5)가 정확히 겨냥하는 4개 요소와 1:1이라
 # 무근거 승격 위험이 없다 — 이전엔 대응 capabilityArea가 없어서
 # _OPENRATE_STRATUM_TO_ELEMENTS로 요소 직접 지목했으나(v5 주석 참조), 이제
 # 정식 영역이 생겨 _OPENRATE_STRATUM_TO_CAPABILITY_AREA로 옮긴다(아래).
 _register("글꼴 등록", "hh", "font", "fontface", "fontfaces", "substFont")
+# 6.9 트레인㉜ — hp:bookmark는 hyperlink-bookmark 영역과 1:1이다(다른
+# 어떤 코드 경로도 이 이름을 안 쓴다, 직접 확인). hp:fieldBegin(하이퍼링크
+# 자신이 쓰는 컨트롤)은 CLICKHERE/TOC/CROSSREF/하이퍼링크가 공유하는
+# 저수준 요소라 여기서도 여전히 등록하지 않는다 — 위 CAPABILITY_KEYWORDS
+# 상단 주석의 fieldBegin 원칙과 동일.
+_register("하이퍼링크·책갈피", "hp", "bookmark")
 
 
 def _parse_support_matrix_status(text: str) -> dict[str, str]:
@@ -1217,7 +1236,7 @@ def classify_capability(
 
 
 # ---------------------------------------------------------------------------
-# 4b) openrate 코퍼스 환류(v4~v11) — support-matrix 산문과 별개인 두 번째
+# 4b) openrate 코퍼스 환류(v4~v12) — support-matrix 산문과 별개인 두 번째
 #     실측 근거. 감사 R4: "v4 스트라타의 요소별 실한컴 수용이 원장의
 #     verificationBasis로 환류되지 않아 두 산출물이 서로를 모른다." (2026-08
 #     사이클 6.5 트레인⑰이 이 배선을 v5~v8까지 확장, 사이클 6.6 트레인⑳이
@@ -1279,6 +1298,13 @@ _OPENRATE_STRATUM_TO_CAPABILITY_AREA: dict[str, str] = {
     "authored-pagecontrol": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
     # "글꼴 등록"은 authored-fontface가 겨냥하는 4개 요소와 정확히 1:1이다.
     "authored-fontface": "글꼴 등록",
+    # 6.9 트레인㉜ — v12. authored-pagelayout이 위에서 새로 등록한 6종
+    # (pagePr/margin/header/footer/colPr/pageNum)을 정확히 겨냥한다 —
+    # doc.page의 남은 setter 전부(autoNum만 공유-요소라 의도적 제외).
+    # authored-hyperlink-bookmark는 hp:bookmark 하나만 겨냥한다(hp:
+    # fieldBegin은 위 CAPABILITY_KEYWORDS 주석대로 여전히 미등록 공유 요소).
+    "authored-pagelayout": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
+    "authored-hyperlink-bookmark": "하이퍼링크·책갈피",
 }
 
 #: capabilityArea가 아직 없거나(v7), 있어도 혼합 지원이라 영역 전체로
@@ -1588,7 +1614,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
     lines.append(
         "`scripts/coverage_ledger.py`가 OWPML 2024 스키마(`DevDoc/OWPML SCHEMA/`) · "
         "실코퍼스 census(`scripts/build_element_census.py`) · `src/hwpx/` 코드 "
-        "참조 · 지원 매트릭스 · v4~v11 openrate 실한컴 코퍼스에서 결정론적으로 "
+        "참조 · 지원 매트릭스 · v4~v12 openrate 실한컴 코퍼스에서 결정론적으로 "
         "재산출하는 원장이다. 손으로 쓴 지원 주장이 아니라 기계 판독 "
         "[coverage-ledger.json](coverage-ledger.json)의 사람용 요약이며, "
         "`python scripts/coverage_ledger.py --check`가 드리프트를 게이트한다."
@@ -1678,7 +1704,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
         "밖 — 생성기 독스트링에 명시)."
     )
     lines.append(
-        "**6) openrate 코퍼스 환류(v4~v11).** `docs/openrate/report-v{4,5,6,7,8,9,10,11}."
+        "**6) openrate 코퍼스 환류(v4~v12).** `docs/openrate/report-v{4,5,6,7,8,9,10,11,12}."
         "json`의 스트라타별 실한컴 수용(`render_checked>0`·`render_failed==0`, "
         "구세대 스키마는 `opened==requested>0`도 함께)을 `verificationBasis`로 "
         "환류한다(`by-openrate-corpus`/`by-capability-area+openrate-corpus`) — "
@@ -1750,7 +1776,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
         f"{_fmt_pct(summary['renderVerified'], total)} |"
     )
     lines.append(
-        f"| ..중 openrate 코퍼스(v4~v11) 환류분 | {summary['renderVerifiedByOpenrateCorpus']} | "
+        f"| ..중 openrate 코퍼스(v4~v12) 환류분 | {summary['renderVerifiedByOpenrateCorpus']} | "
         f"{_fmt_pct(summary['renderVerifiedByOpenrateCorpus'], total)} |"
     )
     lines.append(
@@ -1880,7 +1906,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
         "누름틀·TOC·하이퍼링크가 다 쓴다)는 일부러 매핑하지 않았다. "
         "`verificationBasis`는 두 독립 출처를 결합한다 — 지원 매트릭스 산문의 "
         "\"Render-verified\" 표기(`by-capability-area`)와 `docs/openrate/"
-        "report-v{4,5,6,7,8,9,10,11}.json` 실한컴 openrate 코퍼스의 스트라타별 수용 "
+        "report-v{4,5,6,7,8,9,10,11,12}.json` 실한컴 openrate 코퍼스의 스트라타별 수용 "
         "receipt(`by-openrate-corpus`) — capabilityArea 경로는 매핑이 명확한 "
         "스트라타에 한해서만, capabilityArea가 아직 없는 스트라타는 생성기 "
         "독스트링이 명시하는 요소에 직접."

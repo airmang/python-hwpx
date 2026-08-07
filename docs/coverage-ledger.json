@@ -14,7 +14,8 @@
       "docs/openrate/report-v8.json",
       "docs/openrate/report-v9.json",
       "docs/openrate/report-v10.json",
-      "docs/openrate/report-v11.json"
+      "docs/openrate/report-v11.json",
+      "docs/openrate/report-v12.json"
     ],
     "skeleton": "src/hwpx/data/Skeleton.hwpx",
     "sourceScanned": "src/hwpx/**/*.py"
@@ -51,9 +52,9 @@
     "codeWriteApi": 183,
     "codeWriteFrozenTemplate": 14,
     "codeWriteNone": 148,
-    "capabilityMapped": 90,
-    "renderVerified": 87,
-    "renderVerifiedByOpenrateCorpus": 56,
+    "capabilityMapped": 97,
+    "renderVerified": 94,
+    "renderVerifiedByOpenrateCorpus": 63,
     "attributesObserved": 193
   },
   "elements": [
@@ -2808,9 +2809,9 @@
       "corpusFileCount": 15,
       "codeRead": true,
       "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "capabilityArea": "하이퍼링크·책갈피",
+      "capabilityStatus": "Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "name"
       ]
@@ -3103,9 +3104,9 @@
       "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "capabilityArea": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "colCount",
         "id",
@@ -3722,9 +3723,9 @@
       "corpusFileCount": 42,
       "codeRead": true,
       "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "capabilityArea": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "applyPageType",
         "id"
@@ -3786,7 +3787,7 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
-      "capabilityStatus": "Edit·Create·Render-verified(부분)",
+      "capabilityStatus": "Edit·Create·Render-verified",
       "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "charGrid",
@@ -3802,9 +3803,9 @@
       "corpusFileCount": 33,
       "codeRead": true,
       "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "capabilityArea": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "applyPageType",
         "id"
@@ -4047,7 +4048,7 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
-      "capabilityStatus": "Edit·Create·Render-verified(부분)",
+      "capabilityStatus": "Edit·Create·Render-verified",
       "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "countBy",
@@ -4184,9 +4185,9 @@
       "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "capabilityArea": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "bottom",
         "footer",
@@ -4306,7 +4307,7 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
-      "capabilityStatus": "Edit·Create·Render-verified(부분)",
+      "capabilityStatus": "Edit·Create·Render-verified",
       "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "num",
@@ -4509,7 +4510,7 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
-      "capabilityStatus": "Edit·Create·Render-verified(부분)",
+      "capabilityStatus": "Edit·Create·Render-verified",
       "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "hideBorder",
@@ -4528,9 +4529,9 @@
       "corpusFileCount": 51,
       "codeRead": true,
       "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "capabilityArea": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "formatType",
         "pos",
@@ -4558,9 +4559,9 @@
       "corpusFileCount": 237,
       "codeRead": true,
       "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "capabilityArea": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "gutterType",
         "height",
@@ -5566,7 +5567,7 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
-      "capabilityStatus": "Edit·Create·Render-verified(부분)",
+      "capabilityStatus": "Edit·Create·Render-verified",
       "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "border",

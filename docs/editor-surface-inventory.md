@@ -38,7 +38,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 <!-- AUTO-GENERATED:BEGIN (scripts/editor_surface_inventory.py) -->
 
-자동 생성 시점 교차 확인: 원장(요소 축) 87건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 31개 등록됨.
+자동 생성 시점 교차 확인: 원장(요소 축) 94건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 31개 등록됨.
 
 ### 서식
 
@@ -86,7 +86,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 |---|---|---|---|
 | 각주/미주 | 저작 api | 지원 매트릭스 「각주/미주」(`Edit·Create·Render-verified`) · capabilities 영역 `footnote-endnote` · 위치 `doc.notes` | Render-verified |
 | 네이티브 목차(TOC)/상호참조 | 저작 api | 지원 매트릭스 「네이티브 목차(TOC)/상호참조」(`Create·Render-verified`) · capabilities 영역 `toc-crossref` · 위치 `doc.refs` | Render-verified |
-| 하이퍼링크·책갈피 | 저작 api | 지원 매트릭스 「하이퍼링크·책갈피」(`Create`) · capabilities 영역 `hyperlink-bookmark` · 위치 `doc.refs` | 미실측 |
+| 하이퍼링크·책갈피 | 저작 api | 지원 매트릭스 「하이퍼링크·책갈피」(`Create·Render-verified`) · capabilities 영역 `hyperlink-bookmark` · 위치 `doc.refs` | Render-verified |
 
 ### 검토
 
@@ -107,7 +107,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
 |---|---|---|---|
-| 페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김) | 저작 api | 지원 매트릭스 「페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)」(`Edit·Create·Render-verified(부분)`) · capabilities 영역 `page-layout` · 위치 `doc.page` | Render-verified(부분만 -- 근거 칸의 등급 문자열 참조) |
+| 페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김) | 저작 api | 지원 매트릭스 「페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)」(`Edit·Create·Render-verified`) · capabilities 영역 `page-layout` · 위치 `doc.page` | Render-verified |
 
 ### 자동화
 
