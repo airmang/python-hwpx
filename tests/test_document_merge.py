@@ -214,6 +214,66 @@ def test_merge_never_aliases_onto_targets_preexisting_char_and_para_ids() -> Non
     assert after.ok, after.dangling
 
 
+def test_merge_allocates_new_ids_in_a_deterministic_order() -> None:
+    """Regression: found live while building the v13 openrate generator
+    (cycle 6.9 cleanup train) -- every remap function iterated
+    ``_used_ids()``'s return value (a plain ``set[str]``) directly when
+    calling a sequential ("max existing + 1") allocator. Set iteration
+    order for string keys depends on hash randomization, which is fixed
+    per-process but varies *across* separate process runs -- so the same
+    merge, re-run in a fresh process, could assign a *different* new id to
+    the *same* old id, producing byte-different (though still internally
+    self-consistent and referentially sound) output. Confirmed concretely:
+    the v13 generator's own determinism check (comparing sha256 across two
+    independent runs) failed on 8/10 authored-docmerge records before this
+    fix, 0/10 after. Fix: iterate ``sorted(used)`` everywhere an allocator
+    is called. This test locks in the *mechanism* directly (ascending
+    lexicographic old-id order -> ascending new-id order) rather than
+    relying on hash-seed luck to reproduce the original symptom."""
+
+    source = HwpxDocument.new()
+    old_ids: list[str] = []
+    for i in range(6):
+        # each size is distinct so ensure_run's own dedup never reuses an
+        # id -- six new entries, on top of whatever the skeleton already
+        # has, necessarily crosses a single-digit -> double-digit id
+        # boundary, where lexicographic order diverges from numeric order
+        # ("10" < "9" as strings, 9 < 10 as numbers) regardless of exactly
+        # where the skeleton's own count happens to start.
+        old_ids.append(source.styles.ensure_run(bold=True, size=8 + i))
+    assert len({int(value) for value in old_ids}) == len(old_ids), old_ids  # all distinct
+    assert len({len(value) for value in old_ids}) > 1, (
+        f"old ids {old_ids} do not span a digit-length boundary -- this "
+        "test needs lexicographic and numeric order to actually diverge"
+    )
+
+    for old_id in old_ids:
+        source.add_paragraph(f"uses {old_id}", char_pr_id_ref=old_id)
+
+    target = HwpxDocument.new()
+    report = append_document(target, source)
+    # >= not == -- source's own default (empty) first paragraph carries its
+    # own charPrIDRef="0", also remapped, but it is not one of old_ids and
+    # sits before them in merge order (see the tail slice below).
+    assert report["remapped"]["charPr"] >= len(old_ids)
+
+    merged_paragraphs = target.sections[0].paragraphs[-len(old_ids):]
+    new_id_for: dict[str, int] = {}
+    for p, old_id in zip(merged_paragraphs, old_ids, strict=True):
+        run = p.element.find(f"{_HP}run")
+        new_id_for[old_id] = int(run.get("charPrIDRef"))
+
+    # sorted(used) processes old ids in ascending *lexicographic* order --
+    # that order must land on ascending new-id order (the allocator is a
+    # plain "max existing + 1" sequence, called in that order).
+    lexicographic_order = sorted(old_ids)
+    new_ids_in_lexicographic_order = [new_id_for[old] for old in lexicographic_order]
+    assert new_ids_in_lexicographic_order == sorted(new_ids_in_lexicographic_order), new_id_for
+
+    after = check_id_integrity(target)
+    assert after.ok, after.dangling
+
+
 # ============================================================================
 # heading (numbering/bullet's polymorphic idRef, lives inside paraPr)
 # ============================================================================

@@ -157,6 +157,58 @@ def test_generic_merge_uses_only_the_injected_sanitizer(tmp_path: Path) -> None:
     assert "hwpx_automation" not in source
 
 
+def test_merge_template_rows_does_not_use_a_deprecated_internal_api(
+    tmp_path: Path,
+) -> None:
+    """Regression: found live while building the v13 openrate generator
+    (cycle 6.9 cleanup train) -- ``_replace_token`` called the deprecated
+    5.x ``HwpxDocument.replace_text_in_runs`` shim internally instead of
+    the current ``doc.text.replace``. Functionally harmless (the shim still
+    delegates correctly) but a genuine 6.x-migration defect the openrate
+    generator family's own warnings-as-errors discipline exists to catch
+    (every ``generate_openrate_corpus_v*.py`` escalates DeprecationWarning
+    to an error) -- this test locks the same property in at the unit level
+    rather than only when a generator script happens to exercise it. Also
+    exercises the table-cell replacement path (``_replace_token``'s own
+    docstring: body-only ``doc.text.replace`` does not descend into
+    ``hp:tbl`` cells, so that path is handled separately and must not
+    regress either)."""
+
+    template = HwpxDocument.new()
+    try:
+        template.add_paragraph("body: {{org}}")
+        table = template.add_table(rows=1, cols=1)
+        table.cell(0, 0).text = "cell: {{dept}}"
+        template_path = tmp_path / "template.hwpx"
+        template.save_to_path(template_path)
+    finally:
+        template.close()
+
+    import warnings
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        report = merge_template_rows(
+            template_path,
+            [{"org": "테스트조직", "dept": "테스트부서"}],
+            output_dir=tmp_path / "out",
+        )
+
+    deprecation_warnings = [
+        w for w in caught if issubclass(w.category, DeprecationWarning)
+    ]
+    assert not deprecation_warnings, [str(w.message) for w in deprecation_warnings]
+
+    assert report["ok"] is True
+    merged = HwpxDocument.open(report["rows"][0]["filename"])
+    try:
+        text = merged.text.plain()
+        assert "테스트조직" in text
+        assert "테스트부서" in text
+    finally:
+        merged.close()
+
+
 def test_redline_structure_is_renderer_neutral(tmp_path: Path) -> None:
     after = tmp_path / "after.hwpx"
     document = HwpxDocument.new()

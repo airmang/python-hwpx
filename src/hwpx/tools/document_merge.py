@@ -242,7 +242,7 @@ def _remap_char_properties(
         return {}, []
     remap: dict[str, str] = {}
     clones: list[Any] = []
-    for old_id in used:
+    for old_id in sorted(used):
         item = next(
             (c for c in source_container.findall(f"{_HH}charPr") if c.get("id") == old_id), None
         )
@@ -283,7 +283,7 @@ def _remap_para_properties(
         return {}, []
     remap: dict[str, str] = {}
     clones: list[Any] = []
-    for old_id in used:
+    for old_id in sorted(used):
         item = next(
             (c for c in source_container.findall(f"{_HH}paraPr") if c.get("id") == old_id), None
         )
@@ -308,7 +308,7 @@ def _remap_border_fills(source_header: Any, target_header: Any, paragraphs: list
     if source_container is None:
         return {}
     remap: dict[str, str] = {}
-    for old_id in used:
+    for old_id in sorted(used):
         item = next(
             (c for c in source_container.findall(f"{_HH}borderFill") if c.get("id") == old_id), None
         )
@@ -332,7 +332,7 @@ def _remap_tab_properties(source_header: Any, target_header: Any, paragraphs: li
     if source_container is None:
         return {}
     remap: dict[str, str] = {}
-    for old_id in used:
+    for old_id in sorted(used):
         item = next(
             (c for c in source_container.findall(f"{_HH}tabPr") if c.get("id") == old_id), None
         )
@@ -356,7 +356,7 @@ def _remap_memo_properties(source_header: Any, target_header: Any, paragraphs: l
     if source_container is None:
         return {}
     remap: dict[str, str] = {}
-    for old_id in used:
+    for old_id in sorted(used):
         item = next(
             (c for c in source_container.findall(f"{_HH}memoPr") if c.get("id") == old_id), None
         )
@@ -407,7 +407,7 @@ def _remap_headings(
         target_container = getattr(target_header, getter)(create=True)
         if source_container is None:
             continue
-        for old_id in used:
+        for old_id in sorted(used):
             item = next(
                 (c for c in source_container.findall(f"{_HH}{space}") if c.get("id") == old_id), None
             )
@@ -468,7 +468,7 @@ def _remap_fonts(
         if source_fontface is None:
             continue
         target_fontface = target_header._fontface_element(target_fontfaces, face_lang, create=True)
-        for old_id in used:
+        for old_id in sorted(used):
             item = next(
                 (c for c in source_fontface.findall(f"{_HH}font") if c.get("id") == old_id), None
             )
@@ -523,7 +523,7 @@ def _remap_binary_items(
     if source_container is None:
         return {}
     remap: dict[str, str] = {}
-    for old_stem in used:
+    for old_stem in sorted(used):
         item = next(
             (
                 c for c in source_container.findall(f"{_HH}binItem")
@@ -883,7 +883,7 @@ def _remap_styles(
         return {}, []
     remap: dict[str, str] = {}
     clones: list[Any] = []
-    for old_id in used:
+    for old_id in sorted(used):
         item = next(
             (c for c in source_container.findall(f"{_HH}style") if c.get("id") == old_id), None
         )

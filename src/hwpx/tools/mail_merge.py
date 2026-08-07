@@ -422,13 +422,13 @@ def _open_safety_summary(row_reports: Sequence[Mapping[str, Any]], *, created_co
 def _replace_token(document: HwpxDocument, token: str, value: str, cells: Sequence[Any]) -> int:
     """Replace *token* in body runs **and** table-cell runs.
 
-    ``replace_text_in_runs`` only reaches body runs (``find_runs_by_style`` does not
+    ``doc.text.replace`` only reaches body runs (``find_runs`` does not
     descend into ``<hp:tbl>`` cells), so a placeholder living in a 발신·결재/안내 표
     cell would silently survive as an unresolved token. Cells are handled per-run here
     (same per-run semantics as the body path).
     """
 
-    count = document.replace_text_in_runs(token, value)
+    count = document.text.replace(token, value)
     for cell in cells:
         for cell_para in getattr(cell, "paragraphs", None) or []:
             for run in cell_para.runs:
