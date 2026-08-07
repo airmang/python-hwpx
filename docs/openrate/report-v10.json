@@ -1,0 +1,32 @@
+{
+  "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v10",
+  "harness_valid": true,
+  "measured_at": "2026-08-07T13:41:36.726584+09:00",
+  "negative_controls": {
+    "expected": [
+      "corrupt_section",
+      "corrupt_header",
+      "missing_section"
+    ],
+    "judged": 3,
+    "wrongly_rendered": []
+  },
+  "oracle": "mac-gui",
+  "oracle_app": "Hancom Office HWP.app (macOS)",
+  "schemaVersion": "hwpx.openrate.report/v10",
+  "scopeNote": "v10 measures the 6.6 cycle's document options/compatibility authoring surface (compatibleDocument targetProgram, layoutCompatibility flags, docOption/linkinfo, paragraph autoSpacing), additive over v1-v9. The stratum deliberately includes combinations outside the observed corpus distribution (targetProgram HWP2018, real layoutCompatibility flags, footnoteInherit=1, non-empty linkinfo path) to measure the acceptance boundary: real Hancom accepted all 15/15, so the boundary is wider than the observed distribution on every probed axis. Observer: macOS Hancom GUI oracle (open+render one gate). Session-state discipline applied: a control render preceded the batch and the app was fully restarted before launch.",
+  "strata": {
+    "authored-compat": {
+      "judged": 15,
+      "render_checked": 15,
+      "render_failed": 0
+    }
+  },
+  "tool_versions": {
+    "python-hwpx": "6.0.2"
+  },
+  "totals": {
+    "judged": 15,
+    "render_checked": 15
+  }
+}
