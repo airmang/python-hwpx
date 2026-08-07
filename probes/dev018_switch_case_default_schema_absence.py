@@ -40,6 +40,18 @@ confirmed by reading that code, not asserted here. What is missing is a
 typed read model for the wrapper itself (round-trip preservation already
 works because nothing touches the untouched subtree).
 
+Read-model fix (2026-08 cycle 6.6 train 21): a *separate* code path -- the
+typed snapshot model in ``header.py`` (``ParagraphProperty``, consumed by
+``doc.styles.paragraph_property``/``form_fit.measure``, distinct from the
+live-tree editing path above) -- had the same "direct children only" blind
+spot: ``parse_paragraph_property`` never looked inside ``hp:switch``, so
+``.margin``/``.line_spacing`` came back ``None`` for virtually every real
+paraPr (16/16 in the fixture this probe uses). Fixed with a read-only
+``ParagraphPropertyVersionSwitch``/``ParagraphPropertyVersionBranch`` model
+plus a fallback (prefer ``hp:case``, else ``hp:default``) when no direct
+child is present -- no authoring API, matching the authoring path's
+already-safe status above.
+
 Run: ``python probes/dev018_switch_case_default_schema_absence.py``
 """
 
@@ -154,8 +166,32 @@ def main() -> int:
     else:
         print("(first paraPr in this fixture has no hp:switch -- skipped the live-update check)")
 
-    print("PASS: DEV-018 reproduced (vendored evidence) and existing margin/lineSpacing "
-          "setters confirmed to already handle both branches")
+    # Read-model fix (cycle 6.6 train 21): the separate typed snapshot model
+    # (header.py's ParagraphProperty) had its own, independent blind spot --
+    # confirm it is closed now, not just the live-tree editing path above.
+    from hwpx.oxml.header import parse_header_element
+
+    header_model = parse_header_element(root)
+    assert header_model.ref_list is not None and header_model.ref_list.para_properties is not None
+    properties = header_model.ref_list.para_properties.properties
+    assert properties, "expected at least one parsed ParagraphProperty"
+    none_margin = [p for p in properties if p.margin is None]
+    none_line_spacing = [p for p in properties if p.line_spacing is None]
+    assert not none_margin, f"typed read model still None for margin: {len(none_margin)} paraPr entries"
+    assert not none_line_spacing, (
+        f"typed read model still None for line_spacing: {len(none_line_spacing)} paraPr entries"
+    )
+    with_switch = [p for p in properties if p.version_switch is not None]
+    assert with_switch, "expected at least one ParagraphProperty.version_switch to be populated"
+    assert with_switch[0].version_switch.required_namespace == (
+        "http://www.hancom.co.kr/hwpml/2016/HwpUnitChar"
+    )
+    print(f"confirmed the typed read model (ParagraphProperty) now populates margin/"
+          f"line_spacing for all {len(properties)} paraPr entries via hp:switch's case/"
+          "default fallback, and exposes hp:required-namespace directly")
+
+    print("PASS: DEV-018 reproduced (vendored evidence) and both the live-tree editing "
+          "path and the typed read model confirmed to handle hp:switch/case/default")
     return 0
 
 

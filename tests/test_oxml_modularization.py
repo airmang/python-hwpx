@@ -270,7 +270,14 @@ def test_frozen_facade_exports_remain_exact() -> None:
     # groups already-built rect/ellipse/polygon members (hp:container) into one
     # shape; the input-side constructor type callers use to place each member
     # at its own local (x, y) before the group's bounding box is derived.
-    assert len(oxml.__all__) == 128
+    # 128 -> 132: ParagraphPropertyVersionBranch/ParagraphPropertyVersionSwitch +
+    # their parse_* functions (cycle 6.6 train 21) — a typed read model for
+    # hp:switch/case/default (DEV-018), the version-compat wrapper 236/237 real
+    # files (99.6%) use to hold hh:paraPr's margin/lineSpacing one level deeper
+    # than ParagraphProperty's direct-children loop was looking. Read-only by
+    # design: the editing path already walked both branches correctly (DEV-018
+    # confirmed by reading the code), so this closes a read-model gap only.
+    assert len(oxml.__all__) == 132
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 
 

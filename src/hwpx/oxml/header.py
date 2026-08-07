@@ -11,6 +11,7 @@ from typing import Dict, List, Mapping, Optional
 from lxml import etree
 
 from .common import GenericElement, parse_generic_element
+from .namespaces import HP
 from .utils import local_name, parse_bool, parse_int, text_or_none
 
 
@@ -436,6 +437,43 @@ class ParagraphAutoSpacing:
 
 
 @dataclass(slots=True)
+class ParagraphPropertyVersionBranch:
+    """``hp:switch``의 한 분기(``hp:case`` 또는 ``hp:default``) 내용 — 실코퍼스
+    관측(DEV-018)은 margin/lineSpacing뿐이지만, 스키마는 ``hh:paraPr``의 다른
+    자식도 이 안에 둘 수 있게 허용하므로 나머지는 ``other_children``으로
+    보존한다(``ParagraphProperty.other_children``과 같은 관용구)."""
+
+    margin: Optional[ParagraphMargin] = None
+    line_spacing: Optional[ParagraphLineSpacing] = None
+    other_children: Dict[str, List[GenericElement]] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphPropertyVersionSwitch:
+    """``hp:switch`` — OWPML의 버전호환 분기 wrapper(DEV-018,
+    ``docs/owpml-deviations.md``). 어떤 벤더 스키마 파일에도 선언돼 있지
+    않지만 실코퍼스 ``hh:paraPr`` 236/237(99.6%)이 margin/lineSpacing을
+    직접 자식이 아니라 이 안(``hp:case`` 또는 ``hp:default``)에 둔다 — 최신
+    클라이언트는 자신이 인식하는 네임스페이스면 ``hp:case``를, 아니면
+    ``hp:default``(2011/레거시 값)를 읽는 것으로 보인다.
+    ``required_namespace``는 ``hp:case``의 유일한 속성이자 이 스키마
+    계열에서 속성 자체가 ``hp:`` 접두를 갖는 드문 경우다(``hp:required-
+    namespace``, 다른 속성은 거의 전부 접두 없음).
+
+    읽기 전용 모델이다 — 저작 경로는 이미 안전하다고 확인됐다(DEV-018 프로브:
+    ``_apply_paragraph_margins``/``_apply_paragraph_line_spacing``이 이미
+    ``hh:paraPr``의 모든 ``hh:margin``/``hh:lineSpacing`` 자손을 순회해
+    양쪽 분기를 함께 갱신한다). 그래서 이 타입에 대응하는 ``*_to_xml``
+    직렬화기가 없다 — ``ParagraphProperty``를 XML로 되쓰는 일반 경로 자체가
+    없다(순수 스냅샷 읽기 모델), 실제 편집은 살아있는 oxml 트리를 직접
+    건드리는 ``header_part.py`` 쪽이 담당한다."""
+
+    required_namespace: Optional[str]
+    case: Optional[ParagraphPropertyVersionBranch] = None
+    default: Optional[ParagraphPropertyVersionBranch] = None
+
+
+@dataclass(slots=True)
 class ParagraphProperty:
     id: Optional[int]
     raw_id: Optional[str]
@@ -452,6 +490,7 @@ class ParagraphProperty:
     line_spacing: Optional[ParagraphLineSpacing] = None
     border: Optional[ParagraphBorder] = None
     auto_spacing: Optional[ParagraphAutoSpacing] = None
+    version_switch: Optional[ParagraphPropertyVersionSwitch] = None
     attributes: Dict[str, str] = field(default_factory=dict)
     other_children: Dict[str, List[GenericElement]] = field(default_factory=dict)
 
@@ -1328,6 +1367,54 @@ def parse_paragraph_auto_spacing(node: etree._Element) -> ParagraphAutoSpacing:
     )
 
 
+def parse_paragraph_property_version_branch(
+    node: etree._Element,
+) -> ParagraphPropertyVersionBranch:
+    """``hp:case``/``hp:default`` 한쪽 분기 — ``ParagraphProperty`` 최상위
+    루프와 같은 관용구지만 이 두 종류(margin/lineSpacing)만 실측된다."""
+
+    margin: Optional[ParagraphMargin] = None
+    line_spacing: Optional[ParagraphLineSpacing] = None
+    other_children: Dict[str, List[GenericElement]] = {}
+
+    for child in node:
+        name = local_name(child)
+        if name == "margin":
+            margin = parse_paragraph_margin(child)
+        elif name == "lineSpacing":
+            line_spacing = parse_paragraph_line_spacing(child)
+        else:
+            other_children.setdefault(name, []).append(parse_generic_element(child))
+
+    return ParagraphPropertyVersionBranch(
+        margin=margin, line_spacing=line_spacing, other_children=other_children
+    )
+
+
+def parse_paragraph_property_version_switch(
+    node: etree._Element,
+) -> ParagraphPropertyVersionSwitch:
+    """``hp:switch`` 전체(DEV-018) — ``hp:case``의 ``hp:required-namespace``
+    속성은 이 스키마 계열에서 드물게 접두를 갖는다(``f"{HP}required-
+    namespace"``로 Clark 표기 조회가 필요, 다른 속성처럼 bare가 아니다)."""
+
+    case_branch: Optional[ParagraphPropertyVersionBranch] = None
+    default_branch: Optional[ParagraphPropertyVersionBranch] = None
+    required_namespace: Optional[str] = None
+
+    for child in node:
+        name = local_name(child)
+        if name == "case":
+            case_branch = parse_paragraph_property_version_branch(child)
+            required_namespace = child.get(f"{HP}required-namespace")
+        elif name == "default":
+            default_branch = parse_paragraph_property_version_branch(child)
+
+    return ParagraphPropertyVersionSwitch(
+        required_namespace=required_namespace, case=case_branch, default=default_branch
+    )
+
+
 def parse_paragraph_property(node: etree._Element) -> ParagraphProperty:
     align: Optional[ParagraphAlignment] = None
     heading: Optional[ParagraphHeading] = None
@@ -1336,6 +1423,7 @@ def parse_paragraph_property(node: etree._Element) -> ParagraphProperty:
     line_spacing: Optional[ParagraphLineSpacing] = None
     border: Optional[ParagraphBorder] = None
     auto_spacing: Optional[ParagraphAutoSpacing] = None
+    version_switch: Optional[ParagraphPropertyVersionSwitch] = None
     other_children: Dict[str, List[GenericElement]] = {}
 
     for child in node:
@@ -1354,8 +1442,27 @@ def parse_paragraph_property(node: etree._Element) -> ParagraphProperty:
             border = parse_paragraph_border(child)
         elif name == "autoSpacing":
             auto_spacing = parse_paragraph_auto_spacing(child)
+        elif name == "switch":
+            version_switch = parse_paragraph_property_version_switch(child)
         else:
             other_children.setdefault(name, []).append(parse_generic_element(child))
+
+    # 실코퍼스 236/237(99.6%)은 margin/lineSpacing을 직접 자식이 아니라
+    # hp:switch 안(hp:case 또는 hp:default)에 둔다(DEV-018) -- 직접 자식이
+    # 없었을 때만 스위치 분기에서 채운다(직접 자식이 있으면 그게 우선,
+    # 관측상 둘이 동시에 있는 경우는 없지만 방어적으로). hp:case가
+    # required_namespace로 최신 클라이언트를 가리는 설계이므로 case를
+    # 먼저, 없으면 default로 폴백 -- 헤더 편집 경로
+    # (_apply_paragraph_margins/_apply_paragraph_line_spacing, DEV-018
+    # 프로브가 확인)가 이미 양쪽을 함께 갱신하므로 두 분기 값이 갈라져
+    # 있는 실제 사례는 없다.
+    if version_switch is not None:
+        preferred = version_switch.case or version_switch.default
+        if preferred is not None:
+            if margin is None:
+                margin = preferred.margin
+            if line_spacing is None:
+                line_spacing = preferred.line_spacing
 
     known_attrs = {
         "id",
@@ -1387,6 +1494,7 @@ def parse_paragraph_property(node: etree._Element) -> ParagraphProperty:
         line_spacing=line_spacing,
         border=border,
         auto_spacing=auto_spacing,
+        version_switch=version_switch,
         attributes=attributes,
         other_children=other_children,
     )
@@ -1662,6 +1770,8 @@ __all__ = [
     "ParagraphMargin",
     "ParagraphProperty",
     "ParagraphPropertyList",
+    "ParagraphPropertyVersionBranch",
+    "ParagraphPropertyVersionSwitch",
     "RefList",
     "Style",
     "StyleList",
@@ -1699,6 +1809,8 @@ __all__ = [
     "parse_paragraph_margin",
     "parse_paragraph_property",
     "parse_paragraph_properties",
+    "parse_paragraph_property_version_branch",
+    "parse_paragraph_property_version_switch",
     "parse_ref_list",
     "parse_style",
     "parse_styles",
