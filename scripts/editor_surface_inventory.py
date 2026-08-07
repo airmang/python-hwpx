@@ -92,6 +92,14 @@ CATEGORY_MAP: dict[str, str] = {
     "form-field-create": "필드",
     "check-box": "필드",
     "document-options-compatibility": "보안/호환성",
+    # 6.8 트레인㉚ — 트레인㉙이 찾은 측정 갭 등재.
+    "page-layout": "레이아웃",
+    "character-formatting": "서식",
+    "list-formatting": "서식",
+    "font-registration": "서식",
+    "table-navigation-fill": "표",
+    "find-replace": "서식",
+    "hyperlink-bookmark": "참조",
 }
 
 CATEGORY_ORDER: tuple[str, ...] = (
@@ -148,6 +156,13 @@ def _engine_status_from_grade(status: str) -> str:
 
 
 def _verification_status(status: str) -> str:
+    if "Render-verified(부분)" in status:
+        # A partial-coverage receipt (e.g. only 5 of doc.page's 19 methods, or
+        # only a handful of ensure_run's 17 kwargs) -- collapsing this to a
+        # bare "Render-verified" would misrepresent an unverified majority as
+        # covered. Keep the qualifier; the full grade string is still cited
+        # verbatim in the evidence cell for readers who want the specifics.
+        return "Render-verified(부분만 -- 근거 칸의 등급 문자열 참조)"
     if "Render-verified" in status:
         experimental = "(experimental 저작 포함)" if "experimental" in status else ""
         return f"Render-verified{experimental}"

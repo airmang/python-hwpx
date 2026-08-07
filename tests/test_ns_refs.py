@@ -49,13 +49,22 @@ def test_bad_sections_are_typed_errors(name, args, kwargs, code, document) -> No
 
 
 def test_this_is_where_toc_and_cross_reference_will_live() -> None:
-    """경계 근거: 능력 레지스트리가 이미 이 셋을 한 영역으로 묶어 두었다."""
+    """경계 근거: 능력 레지스트리가 TOC/상호참조와 하이퍼링크/책갈피를 같은
+    네임스페이스(doc.refs) 밑에 두되, 서로 다른 캐파빌리티 영역으로 분리해
+    등록해 뒀다 (6.8 트레인㉚ -- 하이퍼링크/책갈피는 toc-crossref 영역에
+    같이 있었으나, 그 영역의 실한컴 검증 근거는 TOC 얘기뿐이라 독립 영역
+    hyperlink-bookmark로 분리했다. 네임스페이스 경계 자체는 안 바뀐다)."""
 
     from hwpx.capabilities import _CAPABILITY_AREAS
 
-    area = next(row for row in _CAPABILITY_AREAS if row["area"] == "toc-crossref")
-    assert set(area["authoring_methods"]) == {"add_bookmark", "add_hyperlink"}
-    assert area["entry_points"] == ("hwpx.tools.toc_author:add_native_toc",)
+    toc_area = next(row for row in _CAPABILITY_AREAS if row["area"] == "toc-crossref")
+    assert toc_area["authoring_methods"] == ()
+    assert toc_area["entry_points"] == ("hwpx.tools.toc_author:add_native_toc",)
+    assert toc_area["namespace"] == "doc.refs"
+
+    link_area = next(row for row in _CAPABILITY_AREAS if row["area"] == "hyperlink-bookmark")
+    assert set(link_area["authoring_methods"]) == {"add_bookmark", "add_hyperlink"}
+    assert link_area["namespace"] == "doc.refs"
 
 
 def test_the_moved_root_names_still_answer(document: HwpxDocument) -> None:

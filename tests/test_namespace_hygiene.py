@@ -140,6 +140,14 @@ AREA_NAMESPACES = {
     "encrypted-hwpx": None,
     "hwp5-binary": None,
     "document-options-compatibility": "parts",
+    # 6.8 트레인㉚ — 편집기 표면 인벤토리(트레인㉙)가 찾은 측정 갭 등재.
+    "page-layout": "page",
+    "character-formatting": "styles",
+    "list-formatting": "styles",
+    "font-registration": "styles",
+    "table-navigation-fill": "tables",
+    "find-replace": "text",
+    "hyperlink-bookmark": "refs",
 }
 
 

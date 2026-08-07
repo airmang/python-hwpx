@@ -38,13 +38,17 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 <!-- AUTO-GENERATED:BEGIN (scripts/editor_surface_inventory.py) -->
 
-자동 생성 시점 교차 확인: 원장(요소 축) 84건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 23개 등록됨.
+자동 생성 시점 교차 확인: 원장(요소 축) 87건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 30개 등록됨.
 
 ### 서식
 
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
 |---|---|---|---|
+| 글꼴 등록 | 저작 api | 지원 매트릭스 「글꼴 등록」(`Create·Render-verified`) · capabilities 영역 `font-registration` · 위치 `doc.styles` | Render-verified |
+| 목록 서식(글머리표·번호매기기) | 저작 api | 지원 매트릭스 「목록 서식(글머리표·번호매기기)」(`Create·Edit`) · capabilities 영역 `list-formatting` · 위치 `doc.styles` | 미실측 |
 | 문단·표 저작/편집 | 저작 api | 지원 매트릭스 「문단·표 저작/편집」(`Parse·Preserve·Edit·Create·Render-verified`) · capabilities 영역 `paragraph-table-authoring` · 위치 루트 — `doc.add_paragraph` · `doc.add_heading` · `doc.add_section` | Render-verified |
+| 문자 서식(굵게·기울임·밑줄·글꼴·크기·색 등) | 저작 api | 지원 매트릭스 「문자 서식(굵게·기울임·밑줄·글꼴·크기·색 등)」(`Edit·Create·Render-verified(부분)`) · capabilities 영역 `character-formatting` · 위치 `doc.styles` | Render-verified(부분만 -- 근거 칸의 등급 문자열 참조) |
+| 찾아바꾸기 | 저작 api | 지원 매트릭스 「찾아바꾸기」(`Edit`) · capabilities 영역 `find-replace` · 위치 `doc.text` | 미실측 |
 | 테두리 채우기(이미지·그라데이션) | 저작 api | 지원 매트릭스 「테두리 채우기(이미지·그라데이션)」(`Parse·Create(experimental)·Render-verified`) · capabilities 영역 `border-fill-image-gradient` · 위치 `doc.styles` | Render-verified(experimental 저작 포함) |
 | 형광펜(하이라이트) | 저작 api | 지원 매트릭스 「형광펜(하이라이트)」(`Parse·Create(experimental)·Render-verified`) · capabilities 영역 `highlight` · 위치 `doc.text` | Render-verified(experimental 저작 포함) |
 
@@ -54,6 +58,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 |---|---|---|---|
 | 표 구조 변경(행·열·표 삭제/삽입, 열 오토핏) | 저작 api | 지원 매트릭스 「표 구조 변경(행·열·표 삭제/삽입, 열 오토핏)」(`Preserve·Edit`) · capabilities 영역 `table-structure` · 위치 `doc.tables` | 미실측 |
 | 표 생성(병합·중첩 포함) | 저작 api | 지원 매트릭스 「표 생성(병합·중첩 포함)」(`Create·Render-verified`) · capabilities 영역 `table-create` · 위치 루트 — `doc.add_table` | Render-verified |
+| 표 탐색 기반 채움(라벨 매칭 네비게이션) | 저작 api | 지원 매트릭스 「표 탐색 기반 채움(라벨 매칭 네비게이션)」(`Edit`) · capabilities 영역 `table-navigation-fill` · 위치 `doc.tables` | 미실측 |
 
 ### 개체
 
@@ -81,6 +86,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 |---|---|---|---|
 | 각주/미주 | 저작 api | 지원 매트릭스 「각주/미주」(`Edit·Create·Render-verified`) · capabilities 영역 `footnote-endnote` · 위치 `doc.notes` | Render-verified |
 | 네이티브 목차(TOC)/상호참조 | 저작 api | 지원 매트릭스 「네이티브 목차(TOC)/상호참조」(`Create·Render-verified`) · capabilities 영역 `toc-crossref` · 위치 `doc.refs` | Render-verified |
+| 하이퍼링크·책갈피 | 저작 api | 지원 매트릭스 「하이퍼링크·책갈피」(`Create`) · capabilities 영역 `hyperlink-bookmark` · 위치 `doc.refs` | 미실측 |
 
 ### 검토
 
@@ -97,6 +103,12 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 | 문서 옵션·호환성 | 저작 api | 지원 매트릭스 「문서 옵션·호환성」(`Parse·Preserve·Edit·Render-verified`) · capabilities 영역 `document-options-compatibility` · 위치 `doc.parts` | Render-verified |
 | 암호화 HWPX | 없음(거부) | 지원 매트릭스 「암호화 HWPX」(`Unsupported-and-rejected`) · capabilities 영역 `encrypted-hwpx` · 위치 미지원 | 해당없음(의도적 거부, 실측으로 확인) |
 
+### 레이아웃
+
+| 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
+|---|---|---|---|
+| 페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김) | 저작 api | 지원 매트릭스 「페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)」(`Edit·Create·Render-verified(부분)`) · capabilities 영역 `page-layout` · 위치 `doc.page` | Render-verified(부분만 -- 근거 칸의 등급 문자열 참조) |
+
 ### 자동화
 
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
@@ -105,27 +117,51 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 <!-- AUTO-GENERATED:END -->
 
-## 새로 드러난 갭 — 실제로 동작하지만 캐파빌리티 추적이 전혀 없는 기능 (트레인㉙ 신규 발견)
+## 트레인㉚ — 측정 갭 등재 완료
 
-23개 등록 영역을 전수 대조하는 과정에서, `HwpxDocument`의 네임스페이스별
-공개 메서드를 전수 스캔(`doc.page`/`doc.styles`/`doc.refs`/`doc.text`/
-`doc.tables`의 `dir()`)해 캐파빌리티 레지스트리·지원 매트릭스 어느
-쪽에도 이름이 없는 실제 동작 기능을 찾았다. 이건 엔진 갭이 아니라
-**측정 갭**이다 — 코드는 있고 동작하는데(대부분 이 사이클의 프로브들이
-이미 라이브로 exercised) 우리 자신의 두 자산 어디에도 등재가 없어서,
-원장의 요소 축조차 이 기능들이 "완료됐다"는 신호를 낼 방법이 없다.
+트레인㉙이 찾은 측정 갭 8건 + 오귀속 1건은 전부 처리됐다:
 
-| 기능 | 근거 코드 | [엔진 상태] | [실한컴 검증] | 비고 |
-|---|---|---|---|---|
-| 페이지 레이아웃(용지 크기·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김) | `doc.page`(19개 메서드: `set_size`/`set_margins`/`set_header`/`set_footer`/`set_page_number`/`set_columns`/`set_line_numbers`/`set_grid`/`set_visibility`/`hide_page_elements`/`restart_page_number` 등) | 저작 api(코드 존재·동작 확인됨 — DEV-033 프로브가 `set_header(page_type=)`를 라이브 exercise) | 미실측(캐파빌리티·매트릭스 등재 자체가 없어 openrate 스트라텀도 없다) | **가장 큰 단일 갭** — 19개 메서드짜리 표면 전체가 통째로 미등재. 다음 사이클 최우선 후보 |
-| 문자 서식(굵게·기울임·밑줄·글꼴·크기·색·취소선·외곽선·양각/음각·그림자·장평·자간·위/아래첨자) | `doc.styles.ensure_run`(`_document/ns/styles.py`, 17개 키워드 인자) | 저작 api(코드 존재·동작 확인됨 — DEV-028 프로브가 `ensure_run(script=)`를 라이브 exercise, 이 세션 전체가 이 함수에 크게 의존) | 미실측(캐파빌리티·매트릭스 등재 없음 — "문단·표 저작/편집" 영역의 `entry_points`가 `add_heading`/`add_paragraph`/`add_section`만 지목, `ensure_run` 자체는 어느 영역에도 안 걸림) | 편집기의 가장 기초적인 기능인데 이름을 가진 자리가 없다 |
-| 목록 서식(글머리표·번호매기기) | `doc.styles.bullet`/`.bullets`/`.apply_list_format`/`.ensure_numbering` | 저작 api(코드 존재) | 미실측 | |
-| 탭 설정 편집 | `doc.styles.tab_properties`/`.tab_property` | 읽기만(DEV-002·DEV-022가 읽기 모델은 깊이 조사·수리했으나, 편집 API 자체의 캐파빌리티 등재는 없음) | 미실측 | |
-| 글꼴 등록 | `doc.styles.ensure_font` | 저작 api(코드 존재 — 2026-08-04 감사 §2 갭#1이었으나 이후 사이클에서 구현된 것으로 보임, 등재만 안 됨) | 미실측 | |
-| 표 탐색 기반 채움(라벨 매칭 네비게이션) | `doc.tables.fill_by_path`/`.find_cell_by_label`/`.map` | 저작 api(코드 존재) | 미실측 | "양식 채움(byte-splice)" 영역과 다른 메커니즘(byte-splice가 아니라 구조적 셀 채움) — 혼동 주의, 별도 등재 필요 |
-| 찾아바꾸기 | `doc.text.replace`/`.find_runs` | 저작 api(코드 존재) | 미실측 | |
-| 하이퍼링크·책갈피의 **독립** 실한컴 검증 | `doc.refs.add_hyperlink`/`.add_bookmark` | 저작 api(코드는 있음 — DEV-030 프로브가 `add_hyperlink`를 라이브 exercise) | **오귀속 위험**: capabilities.py가 이 둘을 "toc-crossref"(네이티브 목차/상호참조) 영역의 `authoring_methods`에 같이 등재해뒀지만, 그 영역의 지원 매트릭스 39행 근거 문구("네이티브 목차 구조 15/15, 페이지 정합 5/5")는 **TOC 얘기뿐 — 하이퍼링크·책갈피는 한 번도 독립적으로 실한컴 검증된 적이 없다** | 이 세션 초반부에 element-axis 원장에서 계속 잡아냈던 "혼합 지원 영역이 이웃까지 오염" 패턴과 동형 문제가 capability-area 축에도 있었다 |
-| 문서 텍스트 변환/추출(html/markdown/plain) | `doc.text.html`/`.markdown`/`.plain` | 저작 api(추출 방향이라 "저작"은 부정확한 라벨일 수 있음 — 편집기 기능이라기보다 읽기·변환 유틸리티에 가까움, 판단 보류) | 해당없음 | 엄밀히 "편집기 기능"인지는 애매(MCP 계층의 `hwpx_to_html`/`hwpx_to_markdown`과 겹침) — 카테고리 배정은 다음 트레인에서 |
+- **7건은 정식 캐파빌리티 영역으로 등재**되어 위 AUTO 섹션에 흡수됐다 —
+  페이지 레이아웃(`page-layout`)·문자 서식(`character-formatting`)·
+  목록 서식(`list-formatting`)·글꼴 등록(`font-registration`)·
+  표 탐색 기반 채움(`table-navigation-fill`)·찾아바꾸기(`find-replace`).
+  등급은 실제 증거 기준으로만 매겼다 — 코드 존재는 Create/Edit,
+  실한컴 증거가 있는 것만 Render-verified. 특히 페이지 레이아웃(19개
+  메서드 중 5개만 증거 있음)과 문자 서식(17개 인자 중 8개만 증거 있음)은
+  전체를 Render-verified로 뭉뚱그리지 않고 `Render-verified(부분)`으로
+  정직하게 스코프를 좁혔다(등급 문자열 전체는 지원 매트릭스·AUTO 섹션의
+  근거 칸에 그대로 인용돼 있다).
+- **오귀속 1건 수리**: `add_hyperlink`/`add_bookmark`를 "toc-crossref"
+  영역에서 분리해 독립 영역(`hyperlink-bookmark`)으로 등재 — 그 영역의
+  실한컴 증거는 TOC 얘기뿐이었으므로 정직하게 미실측(`Create`만)으로
+  등재했다. 다음 v12 openrate 배치(`authored-hyperlink-bookmark`)가 이
+  영역의 첫 실한컴 판정이 된다(hp:label/v11의 전례와 같은 사슬).
+
+**탭 설정 정정**: 애초 이 문서 초판이 "탭 설정 편집"을 읽기만으로
+잘못 적었다 — 실제로는 `apply_paragraph_format(tab_stops=)`/
+`ensure_tab_definition`이 실재하는 저작 경로이고, `docs/openrate/
+report-v5.json`의 `authored-tabstops` 스트라텀(15/15 render_checked,
+LEFT/RIGHT/CENTER/DECIMAL × NONE/DOT/DASH/SOLID/DASH_DOT/LONG_DASH 전
+어휘 회전)이 이미 `hh:tabItem`/`hh:tabPr`/`hh:tabProperties` 세 요소를
+`by-openrate-corpus`로 검증해 뒀다(원장에 트레인㉚ 이전부터 이미
+반영돼 있었다 — 이번에 새로 배선한 게 아니라 이 문서의 서술 오류를
+고쳤을 뿐). 독립 캐파빌리티 영역은 아직 없다(다음 트레인 후보 — 지금은
+"문단·표 저작/편집"의 일부로 암묵적으로만 커버된다).
+
+**문서 텍스트 변환/추출(html/markdown/plain) 스코프 확정**: 이 인벤토리의
+전제("사용자가 한컴 리본/메뉴에서 실제로 클릭하는" 편집기 기능)에
+안 맞는다고 확정했다 — `doc.text.html`/`.markdown`/`.plain`은 저작이
+아니라 읽기·변환 유틸리티다(MCP 계층의 `hwpx_to_html`/`hwpx_to_markdown`
+과 겹치는 것도 이 판단을 뒷받침). 측정 갭이 아니라 **스코프 밖**으로
+분류하고 이 인벤토리의 추적 대상에서 제외한다.
+
+**메일머지 core/MCP 계층 판정**(아래 확인 필요 표의 후속): `grep`으로
+직접 확인 — `src/hwpx/tools/mail_merge.py`(`merge_template_rows`·
+`inspect_mail_merge_placeholders`·`load_mail_merge_rows`)가 **core에
+실재한다**. capabilities.py에 언급은 있으나(lazy-import 패턴 설명 문맥)
+정식 캐파빌리티 영역으로 등재된 적은 없다 — 이건 **신규로 확인된
+측정 갭**이며, 이번 트레인의 명시적 6+1건 목록 밖이라(과설계 금지)
+등재는 다음 트레인으로 넘긴다.
 
 ## 확인 필요 — 우리 세 자산 어디에도 근거가 없는 표준 워드프로세서 기능 (실한컴 확인 목록)
 
@@ -133,18 +169,19 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 세 자산(원장·capabilities·지원 매트릭스) 어디에도 이름조차 없다.
 **추측이다 — 한컴 실물 UI로 존재 여부·정확한 명칭을 확인해야
 [미확인]에서 벗어난다.** 이 표 자체가 오너의 다음 실한컴 확인 체크리스트
-역할을 한다.
+역할을 한다(오너 본인이 사이클 말에 Mac 실한컴 메뉴 표면을 직접
+스캔하기로 함).
 
 | 기능(추정) | [엔진 상태] | [근거] | [실한컴 검증] | 확인 필요 사항 |
 |---|---|---|---|---|
 | 맞춤법 검사 | 없음 | 해당없음 | 미실측 | 한컴 UI에 실재할 것이 거의 확실하나(언어 도구), 문서 구조 조작이 아니라 언어 분석이라 이 라이브러리의 스코프 밖일 가능성이 높다 — 스코프 판단 자체가 확인 필요 |
 | 유의어 사전·한자 변환 | 없음 | 해당없음 | 미실측 | 상동(언어 도구, 스코프 밖 가능성) |
 | 매크로/스크립트 자동화 | 없음 | 해당없음 | 미실측 | 한컴 자체 매크로 언어 — 이 라이브러리와는 다른 층위, 스코프 밖 확실도 높음 |
-| 메일머지(사용자 UI 경로) | 미확인 | 해당없음(core에는 없음) | 미실측 | **주의**: `mail_merge`라는 이름의 기능이 MCP 서버 계층에 존재한다고 알려져 있으나, 그게 core의 캐파빌리티인지 MCP 전용 조합 로직인지 이 조사에서 확인 못 함 — 다음 트레인에서 계층 구분 필요 |
+| 메일머지(사용자 UI 경로) | **저작 api(core에 실재, 미등재)** | `src/hwpx/tools/mail_merge.py` | 미실측 | **트레인㉚에서 계층 판정 완료** — core 레벨 기능이다(위 "메일머지 core/MCP 계층 판정" 참조). 캐파빌리티 영역 등재는 다음 트레인 후보. 한컴 UI 자체에 "메일머지" 메뉴가 있는지는 여전히 확인 필요 |
 | 인쇄 설정(매수·범위·양면 등 다이얼로그 옵션) | 없음 | 해당없음 | 미실측 | PDF export 자체는 automation 컴패니언 계층 소관(core는 문서 조작만) — 인쇄 다이얼로그 옵션이 OWPML에 저장되는 상태인지조차 미확인 |
 | 디지털 서명·배포용 문서 | 없음 | 해당없음 | 미실측 | "암호화 HWPX"(fail-closed 거부)와는 다른 기능일 가능성 — 배포용 문서는 편집 제한이지 암호화가 아닐 수 있다(한컴 UI 확인 필요) |
 | 문자표(특수문자 삽입 다이얼로그) | 미확인 | 해당없음 | 미실측 | UI 다이얼로그일 뿐 별도 OWPML 표현이 없을 가능성 — 있다면 이미 `add_run`의 텍스트 삽입으로 커버될 것 |
-| 개인정보 보호(찾기·마스킹) | 미확인 | 해당없음(core에는 없음) | 미실측 | MCP 계층에 `scan_personal_info` 도구가 존재 — core 레벨 존재 여부 미확인, 위 메일머지와 같은 계층 구분 문제 |
+| 개인정보 보호(찾기·마스킹) | **없음(core에 없음, 확인 완료)** | 해당없음 | 해당없음 | **트레인㉚에서 계층 판정 완료** — `grep`으로 `src/hwpx/` 전체를 확인한 결과 `personal_info`/`pii`/`scan_pii`/`mask_pii` 어떤 이름으로도 core에 존재하지 않는다. MCP 계층(`scan_personal_info` 도구)에만 있다 — core의 측정 갭이 아니다 |
 
 ## 관련 문서
 

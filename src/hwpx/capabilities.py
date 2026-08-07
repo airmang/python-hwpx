@@ -214,7 +214,13 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "namespace": "doc.refs",
         "matrix_row": "네이티브 목차(TOC)/상호참조",
         "entry_points": ("hwpx.tools.toc_author:add_native_toc",),
-        "authoring_methods": ("add_bookmark", "add_hyperlink"),
+        # 6.8 트레인㉚: add_bookmark/add_hyperlink는 여기 있었으나(오귀속),
+        # 이 영역의 지원 매트릭스 근거는 TOC 얘기뿐(구조 15/15·페이지 정합
+        # 5/5) -- 하이퍼링크·책갈피는 독립 실한컴 검증 이력이 없다. 편집기
+        # 표면 인벤토리(트레인㉙)가 찾아낸, 요소 축이 아니라 캐파빌리티
+        # 영역 축에서 일어난 "혼합 지원 영역 오염"과 동형인 문제라 별도
+        # 영역("hyperlink-bookmark")으로 분리했다.
+        "authoring_methods": (),
     },
     {
         "area": "encrypted-hwpx",
@@ -255,6 +261,63 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         # — post-6.0 capability, so it never appears in dir(HwpxDocument).
         "entry_points": ("hwpx.document:HwpxDocument",),
         "authoring_methods": (),
+    },
+    # 6.8 트레인㉚ 이하 7개 -- 편집기 표면 인벤토리(트레인㉙)가 찾은, 실제로
+    # 동작하는데 캐파빌리티 추적이 전혀 없던 기능들을 등재한다. authoring_
+    # methods를 전부 ()로 비운 것은 의도적이다: test_capabilities_surface.py
+    # ::test_registry_covers_every_authoring_method_on_the_facade가 add_*
+    # 이름만 대조하는데(코드 확인됨), 이 7개 영역의 실제 진입점(set_*/
+    # ensure_*/bullet/replace/fill_by_path 등)은 전부 add_*가 아니라서
+    # 여기 넣으면 "존재하지 않는 메서드를 주장"하는 phantom으로 잡힌다 —
+    # add_hyperlink/add_bookmark를 옮겨받은 hyperlink-bookmark만 예외.
+    {
+        "area": "page-layout",
+        "namespace": "doc.page",
+        "matrix_row": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
+    {
+        "area": "character-formatting",
+        "namespace": "doc.styles",
+        "matrix_row": "문자 서식(굵게·기울임·밑줄·글꼴·크기·색 등)",
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
+    {
+        "area": "list-formatting",
+        "namespace": "doc.styles",
+        "matrix_row": "목록 서식(글머리표·번호매기기)",
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
+    {
+        "area": "font-registration",
+        "namespace": "doc.styles",
+        "matrix_row": "글꼴 등록",
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
+    {
+        "area": "table-navigation-fill",
+        "namespace": "doc.tables",
+        "matrix_row": "표 탐색 기반 채움(라벨 매칭 네비게이션)",
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
+    {
+        "area": "find-replace",
+        "namespace": "doc.text",
+        "matrix_row": "찾아바꾸기",
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
+    {
+        "area": "hyperlink-bookmark",
+        "namespace": "doc.refs",
+        "matrix_row": "하이퍼링크·책갈피",
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": ("add_bookmark", "add_hyperlink"),
     },
 )
 

@@ -1169,6 +1169,20 @@ _register(
     "문서 옵션·호환성", "hh",
     "compatibleDocument", "layoutCompatibility", "docOption", "linkinfo", "autoSpacing",
 )
+# 6.8 트레인㉚ — 편집기 표면 인벤토리(트레인㉙)가 등재. "페이지 레이아웃"은
+# doc.page의 19개 메서드를 아우르는 넓은 매트릭스 행이지만, 여기 등록하는
+# 건 실한컴 증거가 실제로 있는 5개 요소뿐이다(v4 authored-page-structure·
+# v6 authored-pagecontrol) — 나머지(여백·용지크기·머리말/꼬리말·쪽번호
+# 서식·단)의 요소는 일부러 등록하지 않는다(무근거 승격 금지, 위 v8
+# polygon/arc 주석과 같은 원칙 — 매트릭스 행의 상태 문자열 자체에
+# "Render-verified"가 있어도 CAPABILITY_KEYWORDS에 없는 요소는 이 등록의
+# 영향을 안 받는다).
+_register("페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)", "hp", "visibility", "lineNumberShape", "grid", "newNum", "pageHiding")
+# "글꼴 등록"은 authored-fontface(v5)가 정확히 겨냥하는 4개 요소와 1:1이라
+# 무근거 승격 위험이 없다 — 이전엔 대응 capabilityArea가 없어서
+# _OPENRATE_STRATUM_TO_ELEMENTS로 요소 직접 지목했으나(v5 주석 참조), 이제
+# 정식 영역이 생겨 _OPENRATE_STRATUM_TO_CAPABILITY_AREA로 옮긴다(아래).
+_register("글꼴 등록", "hh", "font", "fontface", "fontfaces", "substFont")
 
 
 def _parse_support_matrix_status(text: str) -> dict[str, str]:
@@ -1254,30 +1268,40 @@ _OPENRATE_STRATUM_TO_CAPABILITY_AREA: dict[str, str] = {
     # 스트라텀이 트레인㉓의 doc.parts.set_* 4종으로 저작한 것이 정확히 이
     # 5종이므로 영역째 흘려도 안전하다.
     "authored-compat": "문서 옵션·호환성",
+    # 6.8 트레인㉚ — "페이지 레이아웃"/"글꼴 등록" 영역이 새로 생기면서
+    # v4/v5/v6이 예전부터 갖고 있던 관련 receipt를 이제 영역 경로로 옮긴다
+    # (이전엔 대응 영역이 없어 요소 직접 지목이었다 — 위 옛 주석·아래
+    # _OPENRATE_STRATUM_TO_ELEMENTS의 이력 주석 참조). "페이지 레이아웃"은
+    # CAPABILITY_KEYWORDS에 이 두 스트라텀이 겨냥하는 5개 요소만 등록돼
+    # 있어(위 _register 호출부) 영역째 흘려도 안전하다 — 나머지 요소(여백·
+    # 용지크기 등)는 애초에 이 영역에 등록돼 있지 않으므로 오염 경로가 없다.
+    "authored-page-structure": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
+    "authored-pagecontrol": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
+    # "글꼴 등록"은 authored-fontface가 겨냥하는 4개 요소와 정확히 1:1이다.
+    "authored-fontface": "글꼴 등록",
 }
 
-#: capabilityArea가 아직 없거나(v5·v6의 authored-pagecontrol·v7), 있어도
-#: 혼합 지원이라 영역 전체로 흘리면 위양성이 생기는(v8, v9의
-#: authored-inlineatoms) openrate 스트라타 → 요소 직접 지목. 근거는 각
-#: 생성기 스크립트(``scripts/generate_openrate_corpus_v{5,6,7,8,9}.py``)의
-#: 독스트링이 그 스트라텀이 실제로 호출한다고 명시하는 API·요소뿐이다 —
-#: 스트라텀 전체가 아니라 독스트링이 이름으로 지목한 요소만 싣는다(예:
-#: authored-fieldparams는 hp:parameterset이 아니라 hp:parameters를 쓴다고
-#: 독스트링이 명시하므로 parameterset은 여기 없다). authored-inlineatoms가
-#: 영역 경로 대신 여기 있는 이유: hp:lineBreak/nbSpace/fwSpace는
-#: "문단·표 저작/편집"에 등록돼 있지만 그 영역은 p/run/t/tab/tbl/tr/tc/
-#: paraPr/charPr 등을 함께 묶은 대형 혼합 영역이다 — 영역째 흘리면 이
-#: 스트라텀이 실제로 검증한 적 없는 이웃 요소들까지 openrate 근거를 얻는
-#: v8 polygon/arc와 같은 위양성이 재발한다.
+#: capabilityArea가 아직 없거나(v7), 있어도 혼합 지원이라 영역 전체로
+#: 흘리면 위양성이 생기는(v8, v9의 authored-inlineatoms) openrate 스트라타
+#: → 요소 직접 지목. 근거는 각 생성기 스크립트(``scripts/generate_openrate_
+#: corpus_v{5,6,7,8,9}.py``)의 독스트링이 그 스트라텀이 실제로 호출한다고
+#: 명시하는 API·요소뿐이다 — 스트라텀 전체가 아니라 독스트링이 이름으로
+#: 지목한 요소만 싣는다(예: authored-fieldparams는 hp:parameterset이 아니라
+#: hp:parameters를 쓴다고 독스트링이 명시하므로 parameterset은 여기 없다).
+#: authored-inlineatoms가 영역 경로 대신 여기 있는 이유: hp:lineBreak/
+#: nbSpace/fwSpace는 "문단·표 저작/편집"에 등록돼 있지만 그 영역은 p/run/
+#: t/tab/tbl/tr/tc/paraPr/charPr 등을 함께 묶은 대형 혼합 영역이다 —
+#: 영역째 흘리면 이 스트라텀이 실제로 검증한 적 없는 이웃 요소들까지
+#: openrate 근거를 얻는 v8 polygon/arc와 같은 위양성이 재발한다.
+#: (6.8 트레인㉚: authored-fontface·authored-pagecontrol은 예전엔 대응
+#: capabilityArea가 없어 여기 있었으나, "글꼴 등록"/"페이지 레이아웃"
+#: 영역이 새로 생기면서 위 _OPENRATE_STRATUM_TO_CAPABILITY_AREA로 옮겼다
+#: — 옮긴 이유가 이력으로 남도록 여기 적어 둔다.)
 _OPENRATE_STRATUM_TO_ELEMENTS: dict[str, tuple[tuple[str, str], ...]] = {
     # v5(cycle 6.1) — generate_openrate_corpus_v5.py 독스트링.
-    "authored-fontface": (("hh", "font"), ("hh", "fontface"), ("hh", "fontfaces"), ("hh", "substFont")),
     "authored-tabstops": (("hh", "tabItem"), ("hh", "tabPr"), ("hh", "tabProperties")),
     "authored-drawtext": (("hp", "drawText"),),
     "authored-caption": (("hp", "caption"),),
-    # v6(cycle 6.2) — capabilityArea가 없는 것 하나(newNum/pageHiding은
-    # CAPABILITY_KEYWORDS에 등록된 적이 없다).
-    "authored-pagecontrol": (("hp", "newNum"), ("hp", "pageHiding")),
     # v7(cycle 6.3) — generate_openrate_corpus_v7.py 독스트링.
     "authored-charformat": (
         ("hh", "supscript"), ("hh", "subscript"), ("hh", "outline"),
