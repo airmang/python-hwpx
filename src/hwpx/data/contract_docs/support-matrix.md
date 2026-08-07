@@ -53,6 +53,7 @@
 | 하이퍼링크·책갈피 | Create·Render-verified | `doc.refs.add_hyperlink`/`.add_bookmark`(6.8 트레인㉚에서 "네이티브 목차(TOC)/상호참조" 영역에서 분리 — 그 영역의 Render-verified 근거는 TOC 구조·페이지 정합뿐이라 하이퍼링크·책갈피를 한 번도 독립적으로 커버한 적이 없었다, 편집기 표면 인벤토리 트레인㉙ 발견). **6.9 트레인㉜**: `docs/openrate/report-v12.json` authored-hyperlink-bookmark 스트라텀(북마크 생성 후 외부 URL/문서 내 `#앵커` 하이퍼링크 교대), macOS Hancom GUI 오라클 15/15 render_checked·0 render_failed(2026-08-07 측정) — 이 영역의 첫 독립 실한컴 판정. `hp:bookmark`는 요소 직접 등록(`by-openrate-corpus`), `hp:fieldBegin`(하이퍼링크 자신의 컨트롤)은 CLICKHERE/TOC/CROSSREF와 공유하는 저수준 요소라 여전히 요소 등록 없음 — 영역 등급만 실측으로 갱신, 원장 오염 경로는 그대로 차단 |
 | 메일머지(placeholder 템플릿 배치 생성) | Edit | `hwpx.tools.mail_merge.merge_template_rows`(6.8 트레인㉛ 등재, 코드는 이전 사이클부터 존재 — 편집기 표면 인벤토리 트레인㉙·계층 판정 트레인㉚이 찾을 때까지 캐파빌리티·매트릭스 어디에도 등재가 없었다). `{{field}}`/`${field}`/`<<field>>` 세 플레이스홀더 문법을 지원하는 템플릿 1개 + 행 데이터(csv/json/시퀀스)로 문서 N개를 배치 생성 — 기존 `hp:t` 텍스트를 치환하는 것이라 새 요소를 만들지 않는다(Create가 아니라 Edit). `strict`/`fit_policy`/`value_sanitizer` 등 운영 옵션 다수. 실한컴 증거 없음(openrate 코퍼스 어디에도 이 경로를 겨냥한 스트라텀이 없다) — 다음 v13+ 배치 후보 |
 | 문서 끼워 넣기(문서 병합) | Create(experimental) | `hwpx.tools.document_merge.append_document`/`.insert_document`(6.9 트레인㉝ — 편집기 표면 인벤토리 트레인㉙의 macOS 메뉴 전수 스캔이 찾은 신규 갭, "입력→문서 끼워 넣기…"). 다른 HWPX 문서의 본문을 연 문서에 끼워 넣는다 — 핵심은 헤더가 소유한 8개 공유 자원(charPr/paraPr/style/borderFill/tabPr/numbering·bullet/memoPr/fontfaces)을 원본에서 새 id로 복제해 재매핑하는 것이지 단순 복사가 아니다(그대로 복사하면 대상 문서의 기존 id를 조용히 가로챈다). 실측으로 찾은 결함 2건을 수정: 스타일 자신의 기본 charPr/paraPr(본문이 직접 안 쓰고 스타일 경유로만 상속하는 경우 스캔에서 누락되던 결함), `HwpxOxmlDocument.char_properties` 캐시 미무효화(이 라이브러리에서 유일하게 지연 캐시되는 헤더 테이블이라 헤더 트리를 직접 조작하는 이 모듈은 명시적으로 무효화해야 했다). `hp:memogroup`(메모 본문, 문단이 아니라 절 레벨 형제)·`hp:connectLine`(스마트 연결선)·`linkListIDRef`·`chartIDRef`가 있으면 fail-closed 거부. 참조 무결성은 재발명하지 않고 기존 `hwpx.tools.id_integrity.check_id_integrity`로 검증(설계 문서: `docs/2026-08-08-document-merge-contract.md`). 실한컴 증거 없음(오라클 배치 없이 계약·왕복·구조적 무결성만 로컬 검증) — 다음 v13 배치 후보(`authored-docmerge`) |
+| 덧말·글자 겹치기 | Parse·Create(experimental) | `doc.shapes.add_dutmal`/`.add_composed_character`(6.9 트레인㉞). `hp:compose`(글자 겹치기/원문자·합자)는 읽기 모델이 이전 사이클(commit `6f88e2e`)부터 있었으나 저작 API·캐파빌리티 등재가 없었다 — 이번에 `add_composed_character`로 채우고 같은 `body.ComposedCharacter`/`_composed_character_to_xml` 경로를 저작에도 재사용(파싱·저작 한 코드 경로). `hp:dutmal`(덧말)은 이번에 처음 리버스엔지니어링 — 실코퍼스 표본 정확히 1건(`reader_writer__SimpleDutmal.hwpx`, hwpxlib 왕복 픽스처), macOS 편집기 메뉴 전수 스캔(트레인㉙)이 1급 메뉴 항목임은 확인했으나 그 이상의 빈도 근거는 없다 — 정직 고지. 그 1건이 스키마의 두 주장을 직접 반증한다(`option`은 스키마상 `fixed="4"`인데 실측 `"0"`, `szRatio`는 `xs:positiveInteger`인데 실측 `"0"` — DEV-041). 저작 API는 이 실측값을 기본값으로 채택하고 스키마 주장을 검증 규칙으로 강제하지 않는다. 둘 다 `hp:t`의 자식이 아니라 `hp:run` 직속(스키마 문서 순서와 실제 위치가 다름, 실코퍼스로 확인). 실한컴 증거 없음(오라클 배치 없이 왕복·구조 검증만) — 다음 v13 배치 후보(`authored-dutmal-compose`) |
 
 ## 6.0 표면 위치
 
@@ -94,6 +95,7 @@
 | 하이퍼링크·책갈피 | `doc.refs` |
 | 메일머지(placeholder 템플릿 배치 생성) | 모듈 — `hwpx.tools.mail_merge` |
 | 문서 끼워 넣기(문서 병합) | 모듈 — `hwpx.tools.document_merge` |
+| 덧말·글자 겹치기 | `doc.shapes` |
 
 5.x 의 옛 이름은 6.x 동안 계속 답하되 `DeprecationWarning` 을 내고 7.0 에서
 사라진다 — 대응표는 `docs/migration-6.0.md`.

@@ -1202,6 +1202,12 @@ _register("글꼴 등록", "hh", "font", "fontface", "fontfaces", "substFont")
 # 저수준 요소라 여기서도 여전히 등록하지 않는다 — 위 CAPABILITY_KEYWORDS
 # 상단 주석의 fieldBegin 원칙과 동일.
 _register("하이퍼링크·책갈피", "hp", "bookmark")
+# 6.9 트레인㉞ — hp:compose/hp:dutmal은 이 영역과 1:1이다(다른 어떤 코드
+# 경로도 이 이름들을 안 쓴다, 직접 확인). hp:dutmal의 mainText/subText는
+# dutmal 전용 자식이라 같이 등록하지만, hp:compose 안의 hp:charPr(슬롯
+# 서식 참조)는 "문단·표 저작/편집" 영역이 이미 소유한 공유 요소라 여기서
+# 등록하지 않는다(fieldBegin류와 같은 무근거 승격 회피 원칙).
+_register("덧말·글자 겹치기", "hp", "compose", "dutmal", "mainText", "subText")
 
 
 def _parse_support_matrix_status(text: str) -> dict[str, str]:

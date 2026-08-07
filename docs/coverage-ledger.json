@@ -52,7 +52,7 @@
     "codeWriteApi": 183,
     "codeWriteFrozenTemplate": 14,
     "codeWriteNone": 148,
-    "capabilityMapped": 97,
+    "capabilityMapped": 101,
     "renderVerified": 94,
     "renderVerifiedByOpenrateCorpus": 63,
     "attributesObserved": 193
@@ -3170,8 +3170,8 @@
       "corpusFileCount": 3,
       "codeRead": true,
       "codeWrite": "none",
-      "capabilityArea": null,
-      "capabilityStatus": null,
+      "capabilityArea": "덧말·글자 겹치기",
+      "capabilityStatus": "Parse·Create(experimental)",
       "verificationBasis": null,
       "observedAttributes": [
         "charPrCnt",
@@ -3367,8 +3367,8 @@
       "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "none",
-      "capabilityArea": null,
-      "capabilityStatus": null,
+      "capabilityArea": "덧말·글자 겹치기",
+      "capabilityStatus": "Parse·Create(experimental)",
       "verificationBasis": null,
       "observedAttributes": [
         "align",
@@ -4172,8 +4172,8 @@
       "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "none",
-      "capabilityArea": null,
-      "capabilityStatus": null,
+      "capabilityArea": "덧말·글자 겹치기",
+      "capabilityStatus": "Parse·Create(experimental)",
       "verificationBasis": null,
       "observedAttributes": []
     },
@@ -5266,8 +5266,8 @@
       "corpusFileCount": 1,
       "codeRead": true,
       "codeWrite": "none",
-      "capabilityArea": null,
-      "capabilityStatus": null,
+      "capabilityArea": "덧말·글자 겹치기",
+      "capabilityStatus": "Parse·Create(experimental)",
       "verificationBasis": null,
       "observedAttributes": []
     },

@@ -347,6 +347,18 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         ),
         "authoring_methods": (),
     },
+    {
+        "area": "dutmal-compose",
+        "namespace": "doc.shapes",
+        "matrix_row": "덧말·글자 겹치기",
+        # 6.9 트레인㉞ — add_dutmal()/add_composed_character() ship as
+        # doc.shapes-only, same reasoning as add_polygon()/add_arc()/
+        # add_container() above — no root _legacy shim for a post-6.0
+        # capability, so neither appears in dir(HwpxDocument) and cannot go
+        # in authoring_methods (see curve-objects' comment).
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
 )
 
 #: 패키지에 동봉되는 계약 문서 이름 → 파일. MCP resources 표면의 원천.

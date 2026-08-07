@@ -238,6 +238,9 @@ files = [
     # 6.9 (train 33): document insertion/merge — born in the gate, per the
     # WP-A rule above.
     "src/hwpx/tools/document_merge.py",
+    # 6.9 (train 34): dutmal/compose authoring — born in the gate, per the
+    # WP-A rule above.
+    "src/hwpx/oxml/dutmal_compose.py",
 ]
 ignore_missing_imports = true
 
@@ -334,6 +337,9 @@ include = [
     # 6.9 (train 33): document insertion/merge — born in the gate, per the
     # WP-A rule above.
     "src/hwpx/tools/document_merge.py",
+    # 6.9 (train 34): dutmal/compose authoring — born in the gate, per the
+    # WP-A rule above.
+    "src/hwpx/oxml/dutmal_compose.py",
 ]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"

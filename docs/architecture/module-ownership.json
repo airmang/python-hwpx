@@ -476,6 +476,12 @@
       "disposition": "core",
       "approvedBy": "cycle-6.9/train-33-document-merge",
       "rationale": "header-owned shared-resource id remapping (charPr/paraPr/style/borderFill/tabPr/numbering/bullet/memoPr/fontfaces) and structural id refresh for copying another HWPX document's body into an open document -- same shape as mail_merge.py/doc_diff.py: format-level structural behavior only, no application batch/workflow policy"
+    },
+    {
+      "path": "src/hwpx/oxml/dutmal_compose.py",
+      "disposition": "core",
+      "approvedBy": "cycle-6.9/train-34-dutmal-compose",
+      "rationale": "hp:dutmal/hp:compose authoring (add_dutmal/add_composed_character) -- format-level HwpxOxmlParagraph shape-authoring overflow module, same reasoning as objects.py's own shape-authoring split (paragraph.py's owner file at its 1600-line modularization cap, and objects.py itself has no headroom left either)"
     }
   ],
   "removed": [

@@ -32,7 +32,7 @@
 | 코드 쓰기(api) | 183 | 53.0% |
 | 쓰기 frozen-template | 14 | 4.1% |
 | 쓰기 none | 148 | 42.9% |
-| 능력 영역 매핑됨 | 97 | 28.1% |
+| 능력 영역 매핑됨 | 101 | 29.3% |
 | Render-verified(매핑 근거) | 94 | 27.2% |
 | ..중 openrate 코퍼스(v4~v12) 환류분 | 63 | 18.3% |
 | 속성 이름 축 관측됨 | 193 | 55.9% |
@@ -67,7 +67,7 @@
 | `hh:metaTag` | 0.0422 | 10 | True | frozen-template | — |
 | `hh:forbiddenWord` | 0.0127 | 3 | True | none | — |
 | `hh:forbiddenWordList` | 0.0127 | 3 | True | none | — |
-| `hp:compose` | 0.0127 | 3 | True | none | — |
+| `hp:compose` | 0.0127 | 3 | True | none | 덧말·글자 겹치기 |
 | `hc:extent` | 0.0084 | 2 | False | none | — |
 | `hp:connectLine` | 0.0084 | 2 | True | none | arc·polygon·curve·connectLine |
 | `hp:endPt` | 0.0084 | 2 | False | none | — |
@@ -78,14 +78,14 @@
 | `hp:comboBox` | 0.0042 | 1 | True | none | — |
 | `hp:controlPoints` | 0.0042 | 1 | False | none | — |
 | `hp:curve` | 0.0042 | 1 | True | none | arc·polygon·curve·connectLine |
-| `hp:dutmal` | 0.0042 | 1 | True | none | — |
+| `hp:dutmal` | 0.0042 | 1 | True | none | 덧말·글자 겹치기 |
 | `hp:edit` | 0.0042 | 1 | True | none | — |
 | `hp:effect` | 0.0042 | 1 | False | none | — |
 | `hp:effectsColor` | 0.0042 | 1 | False | none | — |
 | `hp:glow` | 0.0042 | 1 | False | none | — |
 | `hp:hiddenComment` | 0.0042 | 1 | False | none | — |
 | `hp:listItem` | 0.0042 | 1 | True | none | — |
-| `hp:mainText` | 0.0042 | 1 | True | none | — |
+| `hp:mainText` | 0.0042 | 1 | True | none | 덧말·글자 겹치기 |
 | `hp:masterPage` | 0.0042 | 1 | True | none | — |
 | `hp:metaTag` | 0.0042 | 1 | True | none | — |
 | `hp:parameterset` | 0.0042 | 1 | True | none | — |

@@ -104,6 +104,8 @@ CATEGORY_MAP: dict[str, str] = {
     "mail-merge": "자동화",
     # 6.9 트레인㉝ — 트레인㉙의 macOS 메뉴 전수 스캔이 찾은 문서 병합 갭 등재.
     "document-merge": "자동화",
+    # 6.9 트레인㉞ — 덧말·글자 겹치기 저작.
+    "dutmal-compose": "개체",
 }
 
 CATEGORY_ORDER: tuple[str, ...] = (
