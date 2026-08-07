@@ -7,12 +7,14 @@ import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from collections.abc import Iterator
 from typing import Any, BinaryIO, Literal, Sequence
 from zipfile import ZIP_STORED, BadZipFile, ZipFile, ZipInfo
 
 from lxml import etree as LET  # type: ignore[reportMissingImports]
 
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
+from ..oxml.objects import _REQUIRED_SHAPE_CHILD_NAMES
 from ..opc.relationships import (
     MAIN_ROOTFILE_MEDIA_TYPE,
     ManifestRelationships,
@@ -429,6 +431,86 @@ def _check_table_editor_acceptance(
                     )
 
 
+#: 실코퍼스 실측(cycle 6.6 트레인㉒): 도형 계열(offset/orgSz/curSz/sz/pos
+#: 5종을 다 갖춰야 실한컴이 여는) 요소 집합. hp:container의 부재(member)는
+#: 의도적으로 이 5종이 없다(DEV-016 — AbstractShapeObjectType 꼬리는
+#: 그룹 자신만 갖는다) -- 422개 최상위 도형 전량 0건 결여, 179개
+#: 컨테이너-내부 부재 179건 "결여"(정상, 결여가 계약)로 실측 확인했다.
+#: pic/equation/ole/chart/video/audio/textart는 이 5종 계약을 공유하지
+#: 않거나(별도 필수요소 계약) 전용 저작 경로가 이미 완전한 구조를 쓰므로
+#: 범위 밖이다.
+_SHAPE_OPEN_SAFETY_TAGS = frozenset(
+    {"line", "rect", "ellipse", "arc", "polygon", "curve", "connectLine", "container"}
+)
+
+
+def _iter_shape_open_safety_risks(
+    element: ET.Element, *, inside_container: bool = False
+) -> Iterator[tuple[ET.Element, list[str]]]:
+    """Yield ``(shape_element, missing_child_names)`` for every shape-family
+    element this codebase's own escape hatches (``add_shape``) can produce
+    incomplete, skipping anything nested inside a ``hp:container`` -- group
+    members legitimately omit the required children by design (see the
+    module comment above ``_SHAPE_OPEN_SAFETY_TAGS``)."""
+
+    local = _local_name(element)
+    if local in _SHAPE_OPEN_SAFETY_TAGS and not inside_container:
+        present = {_local_name(child) for child in element}
+        missing = [name for name in _REQUIRED_SHAPE_CHILD_NAMES if name not in present]
+        if missing:
+            yield element, missing
+
+    next_inside_container = inside_container or local == "container"
+    for child in list(element):
+        yield from _iter_shape_open_safety_risks(child, inside_container=next_inside_container)
+
+
+def _check_shape_open_safety_risks(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    root: ET.Element,
+) -> None:
+    """Flag shapes/controls the low-level escape hatches (``add_shape``,
+    ``add_control``) can produce that real Hancom (12.30.0, confirmed by
+    negative control) refuses to open -- ``add_shape``/``add_control``
+    already raise a ``UserWarning`` at creation time, but that warning is
+    ephemeral (tied to the call stack, not persisted in the saved file), so
+    a document built this way and later opened, validated, or handed off
+    separately from that call site showed no trace of the risk here before
+    this check existed (``validate_package``/``validate_editor_open_safety``
+    both reported ``ok=True``). This is an honest signal, not a gate: a
+    ``warning``, not an ``error`` -- it does not flip ``PackageValidationReport
+    .ok``/``EditorOpenSafetyReport.ok`` to ``False`` for an otherwise-valid
+    document, matching how the creation-time UserWarning itself does not
+    block the call that raises it. Verified zero false positives against
+    every shape in the vendored real corpus (422/422 top-level shapes
+    complete, table_patch/dedicated shape helpers unaffected) plus the full
+    test suite.
+    """
+
+    if not is_section_part_name(part_name):
+        return
+
+    for shape, missing in _iter_shape_open_safety_risks(root):
+        _warning(
+            issues,
+            part_name,
+            f"hp:{_local_name(shape)} missing {', '.join(missing)}; Hancom refuses to "
+            "open a document containing it (produced by the add_shape escape hatch, "
+            "or hand-authored without the required OWPML children)",
+        )
+
+    for ctrl in (element for element in root.iter() if _local_name(element) == "ctrl"):
+        if len(ctrl) == 0:
+            _warning(
+                issues,
+                part_name,
+                "hp:ctrl has no control child; Hancom refuses to open a document "
+                "containing it (produced by the add_control escape hatch before a "
+                "control element was appended)",
+            )
+
+
 def _check_section_properties_location(
     issues: list[PackageValidationIssue],
     part_name: str,
@@ -648,6 +730,7 @@ def _parse_all_xml(
             _check_hwpml_compat_root(issues, name, payload, root)
             _check_line_seg_text_positions(issues, name, root)
             _check_table_editor_acceptance(issues, name, root)
+            _check_shape_open_safety_risks(issues, name, root)
             _check_section_properties_location(issues, name, root)
             _check_header_editor_acceptance(issues, name, root)
             _check_bold_fontref_axis(issues, name, root)
