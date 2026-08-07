@@ -78,6 +78,19 @@ CYCLE_6_5_PROBES = (
     "dev018_switch_case_default_schema_absence.py",
 )
 
+# 6.6 사이클에서 새로 등재한 항목 — 각각 실행 가능한 프로브를 동반해야 한다.
+CYCLE_6_6_DEVIATIONS = (
+    "DEV-019",
+    "DEV-020",
+    "DEV-021",
+)
+
+CYCLE_6_6_PROBES = (
+    "dev019_autospacing_switch_non_nesting.py",
+    "dev020_document_options_schema_wide_real_narrow.py",
+    "dev021_switch_as_inline_object_alternate.py",
+)
+
 
 def test_registry_exists_with_required_sections():
     text = DOC.read_text(encoding="utf-8")
@@ -219,6 +232,33 @@ def test_cycle_6_5_probe_file_exists_and_is_referenced(probe_name: str) -> None:
 
 @pytest.mark.parametrize("probe_name", CYCLE_6_5_PROBES)
 def test_cycle_6_5_probe_runs_clean(probe_name: str) -> None:
+    """각 프로브는 단독 실행 가능해야 한다(근거 파일이 없으면 SKIP=exit 0)."""
+
+    result = subprocess.run(
+        [sys.executable, str(PROBES_DIR / probe_name)],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("dev_id", CYCLE_6_6_DEVIATIONS)
+def test_cycle_6_6_deviation_is_registered(dev_id: str) -> None:
+    text = DOC.read_text(encoding="utf-8")
+    assert dev_id in text
+
+
+@pytest.mark.parametrize("probe_name", CYCLE_6_6_PROBES)
+def test_cycle_6_6_probe_file_exists_and_is_referenced(probe_name: str) -> None:
+    probe_path = PROBES_DIR / probe_name
+    assert probe_path.exists(), f"probe script missing: {probe_path}"
+    text = DOC.read_text(encoding="utf-8")
+    assert probe_name in text, f"{probe_name} not referenced from the registry table"
+
+
+@pytest.mark.parametrize("probe_name", CYCLE_6_6_PROBES)
+def test_cycle_6_6_probe_runs_clean(probe_name: str) -> None:
     """각 프로브는 단독 실행 가능해야 한다(근거 파일이 없으면 SKIP=exit 0)."""
 
     result = subprocess.run(

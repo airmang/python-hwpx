@@ -239,6 +239,77 @@ hwpml/2011/head}trackChange", ...)`처럼 **전체 네임스페이스 URI를 문
 
 ---
 
+## Part D. 사이클 6.6 발견 추기 (2026-08-07)
+
+트레인⑳~㉓ 진행 중 발견했으나 이 사이클 범위 밖이라 손 안 댄 것 — 다음
+측정 트레인 입력.
+
+### D.1 `hh:tabPr`도 `hp:switch`로 감싸이는데, **실제로 쓰이는 접근자에서도**
+탭 스톱이 조용히 사라진다 — 확인된 실결함(수리 안 함, 이 사이클 범위 밖)
+
+트레인㉑이 `hh:paraPr`의 `hp:switch` 중첩(DEV-018)을 읽기 모델에서 수리하며
+같은 패턴이 다른 곳에도 있는지 확인하던 중 발견 — `hp:switch`는 `hh:paraPr`
+뿐 아니라 `hh:tabPr`도 감싼다:
+
+```
+{'tabPr': 449, 'paraPr': 1803, 'run': 1}  # hp:switch의 부모 태그별 실측(47파일)
+```
+
+`hh:tabPr`가 449건, `hh:paraPr`가 1803건, `hp:run`이 1건(구조가 전혀 다른
+경우 — DEV-021로 등재, `hp:chart`/`hp:ole` 대안 선택). `hp:run` 1건은
+DEV-021로 정리됐지만, **`hh:tabPr` 449건은 손 안 댔다**.
+
+처음엔 "`TabDefinition`/`parse_tab_definitions`가 애초에 안 쓰인다"는
+DEV-011류 미배선 가설을 세웠으나, **grep으로 확인하니 실제로는 쓰이고
+있었다** — 정정한다:
+
+- `Header.to_model()`의 전체 스냅샷 경로(`parse_header_element` →
+  `parse_ref_list`)는 확실히 미배선이다: `RefList.tab_properties` 필드는
+  `TabProperties.tabs: List[GenericElement]`(불투명)를 쓰고,
+  `TabDefinitionList`/`parse_tab_definitions`는 `header.py`에 정의·
+  `__all__` export만 될 뿐 `parse_ref_list` 어디에서도 호출되지 않는다.
+- 하지만 **별도의, 실제로 쓰이는 접근자**가 있다:
+  `HwpxOxmlHeader.tab_properties`(프로퍼티, `header_part.py:1438`)가
+  `parse_tab_definitions`를 직접 호출해 `TabDefinition`을 만들고,
+  `doc.styles.tab_properties`/`tab_property()`(`_document/ns/styles.py`)로
+  공개 노출돼 있다(자체 문서화: "문단의 탭 정의는
+  `doc.styles.paragraph_property(...).tab_pr_id_ref`로 참조 id를 얻은 뒤
+  이 매핑으로 해석"). **실 소비 경로가 있다.**
+
+그런데 **이 실제로 쓰이는 접근자도 switch 중첩 앞에서 조용히 진다** —
+실측 확인(`error__20230413__test.hwpx`, id=1~4 tabPr 전부 `hp:switch`의
+`hp:case`/`hp:default` 양쪽에 `hh:tabItem`을 가짐):
+
+```python
+doc = HwpxDocument.open("error__20230413__test.hwpx")
+tab_props = doc.styles.tab_properties
+# {'0': TabDefinition(tab_stops=[]), '1': TabDefinition(tab_stops=[]), ...}
+# 전부 tab_stops=0 -- 실제로는 각 분기에 hh:tabItem이 있는데도
+```
+
+원인은 `parse_tab_definition`(`header.py`)의 `tab_stops` 계산이 **직속
+자식만** 훑기 때문(`[parse_tab_stop(child) for child in node if
+local_name(child) == "tabItem"]`) — DEV-018 수리 전 `parse_paragraph_
+property`의 margin/lineSpacing과 **정확히 같은 모양**의 결함이지만, 이번엔
+**애초에 값이 아예 사라진다**(margin/lineSpacing은 `None`이 됐을 뿐 다른
+값으로 잘못 읽히진 않았는데, `tab_stops=[]`는 "탭 스톱이 없다"는 것과
+"switch 안에 있어서 못 찾았다"를 구분 못 해 더 나쁘다 — 호출자는 이
+tabPr가 커스텀 탭 스톱이 전혀 없다고 잘못 믿게 된다).
+
+**다음 트레인 후보(측정 정밀화 축, 우선순위 순)**:
+1. `parse_tab_definition`이 DEV-018 수리와 같은 자손-순회(또는 switch
+   case/default 인지)로 tabItem을 찾도록 배선 — 실 소비 경로
+   (`doc.styles.tab_properties`)가 있으므로 이건 진짜 버그 수리이지 완전성
+   상징 작업이 아니다. DEV-018/train21류 결함-부활 테스트로 증명
+   (`error__20230413__test.hwpx` 재사용 가능).
+2. `Header.to_model()`의 `RefList.tab_properties` 필드도 마저 배선(전체
+   스냅샷 일관성) — 우선순위는 1보다 낮음(실 소비자 없음, `grep -rn
+   "ref_list.tab_properties\|\.ref_list\b.*tab"` 재확인 권장).
+3. 배선 후 DEV-018/DEV-019 계열로 정식 등재(직속 vs 중첩 비율, 양쪽 분기
+   값이 갈리는 실사례 유무까지).
+
+---
+
 ## 부록 — 게이트 증거
 
 - **① 결함-부활**: `tests/test_coverage_ledger.py::test_manual_override_reproduces_hhs_diff_op_family_read`,
