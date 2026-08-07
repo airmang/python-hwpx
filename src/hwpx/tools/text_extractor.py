@@ -16,7 +16,7 @@ from ..opc.relationships import (
     parse_manifest_relationships,
     select_main_rootfile,
 )
-from ..opc.security import guard_zip_file, parse_xml_stdlib
+from ..opc.security import guard_zip_file, parse_xml_stdlib, read_member
 from ..oxml.namespaces import DEFAULT_NAMESPACES as OWPML_DEFAULT_NAMESPACES
 
 __all__ = [
@@ -213,7 +213,7 @@ class TextExtractor:
         archive = self.open()
         section_files = list(self._iter_section_files(archive))
         for index, name in enumerate(section_files):
-            data = archive.read(name)
+            data = read_member(archive, name)
             element = parse_xml_stdlib(data, part_name=name)
             yield SectionInfo(index=index, name=name, element=element)
 
@@ -584,7 +584,7 @@ class TextExtractor:
         manifest_path: str | None = None
         try:
             container_root = parse_xml_stdlib(
-                archive.read("META-INF/container.xml"),
+                read_member(archive, "META-INF/container.xml"),
                 part_name="META-INF/container.xml",
             )
         except (ValueError, KeyError):
@@ -598,7 +598,7 @@ class TextExtractor:
 
         if manifest_path is not None:
             try:
-                manifest_root = parse_xml_stdlib(archive.read(manifest_path), part_name=manifest_path)
+                manifest_root = parse_xml_stdlib(read_member(archive, manifest_path), part_name=manifest_path)
             except (ValueError, KeyError):
                 manifest_root = None
             if manifest_root is not None:

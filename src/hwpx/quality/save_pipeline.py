@@ -48,6 +48,7 @@ from .report import (
     VisualCompleteReport,
     VisualCompleteStatus,
 )
+from ..opc.security import read_member
 
 PublishMode = Literal["on_pass", "always", "never"]
 
@@ -282,7 +283,7 @@ class SavePipeline:
                     base = os.path.basename(name)
                     if name.endswith(_XML_SUFFIXES) or base in _XML_NAMES:
                         try:
-                            ET.fromstring(archive.read(name))
+                            ET.fromstring(read_member(archive, name))
                         except ET.ParseError as exc:
                             errors.append(
                                 QualityError(

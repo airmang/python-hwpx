@@ -17,6 +17,7 @@ from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 from ..opc.relationships import is_header_part_name, is_section_part_name
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from .package_validator import validate_editor_open_safety, validate_package
+from ..opc.security import guard_zip_file, read_member
 
 _XML_SUFFIXES = (".xml", ".hpf")
 _PACK_METADATA_NAME = ".hwpx-pack-metadata.json"
@@ -225,9 +226,10 @@ def unpack_hwpx(
     _prepare_output_dir(destination, overwrite=overwrite)
 
     with ZipFile(source_path, "r") as archive:
+        guard_zip_file(archive)
         entries = _iter_file_entries(archive)
         for entry in entries:
-            data = archive.read(entry.path)
+            data = read_member(archive, entry.path)
             if pretty_xml and entry.path.endswith(_XML_SUFFIXES):
                 data = _format_xml_bytes(data)
             target = destination / entry.path

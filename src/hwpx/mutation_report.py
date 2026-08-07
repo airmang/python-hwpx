@@ -19,6 +19,7 @@ import zipfile
 from pathlib import Path
 from dataclasses import dataclass, field
 from io import BytesIO
+from .opc.security import guard_zip_file, read_member
 from typing import Any, Literal, Mapping, Sequence
 from zipfile import ZipInfo
 
@@ -58,8 +59,9 @@ def read_archive_members(data: bytes) -> dict[str, bytes]:
     """Return the uncompressed content of every non-directory member of *data*."""
 
     with zipfile.ZipFile(BytesIO(data)) as archive:
+        guard_zip_file(archive)
         return {
-            info.filename: archive.read(info.filename)
+            info.filename: read_member(archive, info)
             for info in archive.infolist()
             if not info.is_dir()
         }

@@ -35,6 +35,7 @@ from hwpx.tools.package_validator import (
 )
 
 from .report import LayoutFinding, LayoutLintReport
+from ..opc.security import guard_zip_file, read_member
 
 if TYPE_CHECKING:
     from hwpx.quality.ledger import DirtyLayoutLedger
@@ -173,11 +174,12 @@ def _section_roots(data: bytes) -> list[tuple[str, ET.Element]]:
     roots: list[tuple[str, ET.Element]] = []
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            guard_zip_file(archive)
             for info in archive.infolist():
                 if info.is_dir() or not is_section_part_name(info.filename):
                     continue
                 try:
-                    roots.append((info.filename, ET.fromstring(archive.read(info.filename))))
+                    roots.append((info.filename, ET.fromstring(read_member(archive, info))))
                 except ET.ParseError:
                     # Malformed XML is the pipeline's well-formedness floor, not ours.
                     continue

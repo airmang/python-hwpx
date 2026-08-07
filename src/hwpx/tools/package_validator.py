@@ -13,6 +13,7 @@ from zipfile import ZIP_STORED, BadZipFile, ZipFile, ZipInfo
 from lxml import etree as LET  # type: ignore[reportMissingImports]
 
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
+from ..opc.security import read_member
 from ..opc.relationships import (
     MAIN_ROOTFILE_MEDIA_TYPE,
     ManifestRelationships,
@@ -545,7 +546,7 @@ def _warning(
 
 def _safe_read(zf: ZipFile, part_name: str) -> bytes | None:
     try:
-        return zf.read(part_name)
+        return read_member(zf, part_name)
     except (BadZipFile, KeyError, OSError):
         return None
 

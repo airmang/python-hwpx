@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import binascii
 import inspect
 import io
+import tracemalloc
 from typing import Mapping
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 import pytest
 from lxml import etree
 
+import hwpx
 from hwpx.document import HwpxDocument
 from hwpx.opc.package import (
     HwpxPackage,
@@ -15,7 +18,12 @@ from hwpx.opc.package import (
     HwpxStructureError,
     _UNCHECKED_SAVE_TOKEN,
 )
-from hwpx.opc.security import HwpxSecurityError
+from hwpx.opc.security import (
+    MAX_ZIP_MEMBER_BYTES,
+    HwpxSecurityError,
+    guard_zip_file,
+    read_member,
+)
 from hwpx.oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from hwpx.tools.package_validator import (
     is_editor_open_blocking_issue,
@@ -660,3 +668,78 @@ def test_manifest_missing_master_page_with_real_file_still_warns(caplog) -> None
     paths = package.master_page_paths()
     assert paths == ["MasterPages/MasterPage0.xml"]
     assert "masterPage" in caplog.text
+
+
+MB = 1024 * 1024
+
+
+def _bomb(stored: int, declared: int | None = None) -> bytes:
+    """A valid package with one oversized unreferenced member.
+
+    ``declared`` rewrites the central directory's uncompressed size for that
+    member, leaving the compressed bytes alone.
+    """
+
+    buffer = io.BytesIO()
+    HwpxDocument.new().save_to_stream(buffer)
+    with ZipFile(buffer, "a", ZIP_DEFLATED, compresslevel=9) as archive:
+        archive.writestr("BinData/x.bin", b"\0" * stored)
+    raw = bytearray(buffer.getvalue())
+    if declared is None:
+        return bytes(raw)
+    at = raw.rindex(b"PK\x01\x02")
+    raw[at + 16 : at + 20] = binascii.crc32(b"\0" * declared).to_bytes(4, "little")
+    raw[at + 24 : at + 28] = declared.to_bytes(4, "little")
+    return bytes(raw)
+
+
+def test_forged_member_size_is_rejected() -> None:
+    """A member may not declare less data than it stores."""
+
+    with pytest.raises(HwpxSecurityError, match="declares less data"):
+        HwpxPackage.open(_bomb(200 * MB, declared=16))
+
+
+def test_forged_member_size_zero_is_rejected() -> None:
+    """Declaring zero must not skip the remaining metadata checks."""
+
+    with pytest.raises(HwpxSecurityError, match="declares less data"):
+        HwpxPackage.open(_bomb(200 * MB, declared=0))
+
+
+def test_paragraph_patch_rejects_compression_bomb(tmp_path) -> None:
+    """The byte-splice patch path reaches guard_zip_file like the reader does."""
+
+    source = tmp_path / "bomb.hwpx"
+    source.write_bytes(_bomb(200 * MB))
+    patches = [{"section_path": "Contents/section0.xml", "paragraph_index": 0, "text": "x"}]
+
+    with pytest.raises(HwpxSecurityError):
+        hwpx.paragraph_patch(str(source), patches)
+
+
+def test_declaration_within_limits_cannot_over_allocate() -> None:
+    """A declared size inside every limit must still bound what is decompressed.
+
+    10 MB declared is under the per-member limit and the ratio is under the
+    ceiling, so no metadata check can reject this package. Only counting the
+    bytes that actually arrive keeps the read proportional to the declaration
+    rather than to the 100 MB the member really stores.
+    """
+
+    package = _bomb(100 * MB, declared=10 * MB)
+
+    with ZipFile(io.BytesIO(package)) as archive:
+        guard_zip_file(archive)  # nothing to reject: the declaration is legal
+        info = next(i for i in archive.infolist() if i.filename == "BinData/x.bin")
+        tracemalloc.start()
+        try:
+            payload = read_member(archive, info)
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+
+    assert len(payload) == 10 * MB
+    assert len(payload) <= MAX_ZIP_MEMBER_BYTES
+    # An unbounded read inflates all 100 MB before truncating; ~210 MB peak.
+    assert peak < 64 * MB, f"read was not bounded: peak {peak / MB:.1f} MB"

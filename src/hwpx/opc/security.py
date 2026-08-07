@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Iterable
 from xml.etree import ElementTree as ET
-from zipfile import ZipFile, ZipInfo
+from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
 MAX_XML_BYTES = 64 * 1024 * 1024
 MAX_XML_DEPTH = 256
@@ -15,6 +15,13 @@ MAX_ZIP_ENTRIES = 4096
 MAX_ZIP_MEMBER_BYTES = 128 * 1024 * 1024
 MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES = 512 * 1024 * 1024
 MAX_ZIP_COMPRESSION_RATIO = 1000.0
+MAX_ZIP_READ_CHUNK = 64 * 1024
+
+# Methods whose stored size can be compared against the declared size. Deflate
+# framing grows incompressible input by roughly 320 bytes per MiB, so the
+# allowance has to scale with the member instead of being a constant. bzip2 and
+# lzma expand well past that, so they are excluded rather than widened.
+_SIZE_COMPARABLE_METHODS = (ZIP_STORED, ZIP_DEFLATED)
 
 
 class HwpxSecurityError(ValueError):
@@ -69,6 +76,15 @@ def guard_zip_file(
                 "ZIP archive exceeds total uncompressed size limit: "
                 f"{total} > {active_limits.max_total_uncompressed_bytes}"
             )
+        # Must run before the ``file_size <= 0`` skip below: a member declaring 0
+        # would otherwise bypass every remaining check.
+        if info.compress_type in _SIZE_COMPARABLE_METHODS and (
+            info.compress_size > info.file_size + info.file_size // 1000 + 64
+        ):
+            raise HwpxSecurityError(
+                "ZIP member declares less data than it stores: "
+                f"{info.filename}={info.file_size} < {info.compress_size}"
+            )
         if info.file_size <= 0:
             continue
         if info.compress_size <= 0:
@@ -79,6 +95,69 @@ def guard_zip_file(
                 "ZIP member compression ratio exceeds limit: "
                 f"{info.filename}={ratio:.1f} > {active_limits.max_compression_ratio:.1f}"
             )
+
+
+def read_member(
+    zf: ZipFile,
+    member: str | ZipInfo,
+    *,
+    limit: int = MAX_ZIP_MEMBER_BYTES,
+) -> bytes:
+    """Read one ZIP member without trusting the size it declares.
+
+    ``ZipFile.read()`` calls ``ZipExtFile.read()`` with no argument, which hands
+    zlib a 2 GiB ``max_length`` and inflates the whole stream before truncating
+    the result to the declared size. Reading in fixed chunks and counting what
+    actually arrives keeps the allocation bounded no matter what the central
+    directory claims.
+    """
+
+    name = member.filename if isinstance(member, ZipInfo) else member
+    chunks: list[bytes] = []
+    total = 0
+    with zf.open(member) as handle:
+        while True:
+            block = handle.read(MAX_ZIP_READ_CHUNK)
+            if not block:
+                break
+            total += len(block)
+            if total > limit:
+                raise HwpxSecurityError(
+                    "ZIP member exceeds uncompressed size limit: "
+                    f"{name} > {limit}"
+                )
+            chunks.append(block)
+    return b"".join(chunks)
+
+
+def read_zip_members(
+    zf: ZipFile,
+    *,
+    limits: ZipGuardLimits | None = None,
+    names: Iterable[str] | None = None,
+) -> dict[str, bytes]:
+    """Read members with per-member and cumulative bounds on what is produced.
+
+    ``names`` restricts the read to those members; the cumulative budget still
+    applies across everything read.
+    """
+
+    active_limits = limits or ZipGuardLimits()
+    wanted = None if names is None else set(names)
+    payloads: dict[str, bytes] = {}
+    total = 0
+    for info in _iter_file_infos(zf):
+        if wanted is not None and info.filename not in wanted:
+            continue
+        data = read_member(zf, info, limit=active_limits.max_member_bytes)
+        total += len(data)
+        if total > active_limits.max_total_uncompressed_bytes:
+            raise HwpxSecurityError(
+                "ZIP archive exceeds total uncompressed size limit: "
+                f"{total} > {active_limits.max_total_uncompressed_bytes}"
+            )
+        payloads[info.filename] = data
+    return payloads
 
 
 def guard_xml_bytes(

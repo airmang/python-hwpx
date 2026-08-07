@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
+from .opc.security import guard_zip_file, read_member, read_zip_members
 from .mutation_report import MutationReport, project_byte_splice, visual_value_from_status
 from .quality import QualityPolicy, SavePipeline
 from .quality.report import VisualCompleteReport
@@ -212,7 +213,8 @@ def paragraph_patch(
         )
 
     with ZipFile(io.BytesIO(source_bytes), "r") as archive:
-        parts = {info.filename: archive.read(info.filename) for info in archive.infolist() if not info.is_dir()}
+        guard_zip_file(archive)
+        parts = read_zip_members(archive)
 
     changed_parts: dict[str, bytes] = {}
     applied: list[PatchApplied] = []
@@ -483,7 +485,7 @@ def _rewrite_zip_entries(source: bytes, replacements: Mapping[str, bytes]) -> by
     with ZipFile(io.BytesIO(source), "r") as src:
         with ZipFile(buffer, "w") as dst:
             for info in src.infolist():
-                payload = replacements.get(info.filename, src.read(info.filename))
+                payload = replacements.get(info.filename, read_member(src, info))
                 dst.writestr(info, payload)
     return buffer.getvalue()
 

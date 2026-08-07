@@ -24,7 +24,7 @@ from .relationships import (
     parse_container_rootfiles,
     parse_manifest_relationships,
 )
-from .security import guard_zip_file
+from .security import guard_zip_file, read_zip_members
 from .xml_utils import (
     extract_xml_declaration,
     iter_declared_namespaces,
@@ -419,7 +419,7 @@ class HwpxPackage:
             with ZipFile(stream, "r") as zf:
                 guard_zip_file(zf)
                 infos = [info for info in zf.infolist() if not info.is_dir()]
-                files = {info.filename: zf.read(info.filename) for info in infos}
+                files = read_zip_members(zf)
                 zip_infos = {info.filename: info for info in infos}
                 zip_order = [info.filename for info in infos]
         except BadZipFile as exc:

@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from .errors import HwpxError
+from .opc.security import guard_zip_file, read_member, read_zip_members
 from .mutation_report import MutationReport, project_byte_splice
 from .patch import (
     _apply_edits,
@@ -585,8 +586,9 @@ def resolve_cell_target(
     import zipfile
 
     with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as archive:
+        guard_zip_file(archive)
         parts = {
-            info.filename: archive.read(info.filename)
+            info.filename: read_member(archive, info)
             for info in archive.infolist()
             if not info.is_dir()
         }
@@ -661,7 +663,8 @@ def fill_cells(
     import io
     import zipfile
     with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as zf:
-        parts = {i.filename: zf.read(i.filename) for i in zf.infolist() if not i.is_dir()}
+        guard_zip_file(zf)
+        parts = read_zip_members(zf)
 
     # FR-002: resolve table/cell anchors to concrete (table_index,row,col) first.
     resolved_cells, anchor_skips = _resolve_anchor_cells(parts, cells)
@@ -1376,7 +1379,8 @@ def _apply_cell_line_spacing(
     import io
     import zipfile
     with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as zf:
-        parts = {i.filename: zf.read(i.filename) for i in zf.infolist() if not i.is_dir()}
+        guard_zip_file(zf)
+        parts = read_zip_members(zf)
     header_name = _header_part_name(parts)
     header = parts.get(header_name)
     transcript: list[dict[str, Any]] = []
@@ -1482,7 +1486,8 @@ def _sections(data: bytes) -> dict[str, bytes]:
     import io
     import zipfile
     with zipfile.ZipFile(io.BytesIO(data)) as z:
-        return {n: z.read(n) for n in z.namelist() if re.search(r"section\d+\.xml$", n)}
+        guard_zip_file(z)
+        return {n: read_member(z, n) for n in z.namelist() if re.search(r"section\d+\.xml$", n)}
 
 
 def _table_dims(table: str | bytes) -> str:
@@ -1795,11 +1800,12 @@ def strip_trailing_table_captions(
     import zipfile
 
     with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as archive:
+        guard_zip_file(archive)
         section_names = [
             info.filename for info in archive.infolist()
             if not info.is_dir() and re.search(r"section\d+\.xml$", info.filename)
         ]
-        sections = {name: archive.read(name).decode("utf-8") for name in section_names}
+        sections = {name: read_member(archive, name).decode("utf-8") for name in section_names}
 
     applied: list[CellApplied] = []
     changed_parts: dict[str, bytes] = {}
