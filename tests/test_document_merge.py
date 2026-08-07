@@ -11,6 +11,7 @@ for why an earlier local version was discarded in favor of it).
 from __future__ import annotations
 
 import base64
+from pathlib import Path
 
 import pytest
 
@@ -312,6 +313,70 @@ def test_merge_copies_binary_image_bytes_and_remaps_binary_item_id_ref() -> None
 
 
 # ============================================================================
+# linkListIDRef/linkListNextIDRef sentinel passthrough (team-lead's
+# independent-verification finding: these are 5,891/5,891 == "0" in the
+# vendored corpus -- a boilerplate default every hp:subList carries,
+# including our own add_table's own output -- never a real linked-textbox
+# chain. Rejecting on mere presence made every table-bearing document
+# unmergeable, including documents this library's own add_table produces.)
+# ============================================================================
+
+
+def test_merge_accepts_a_document_containing_a_table_from_add_table() -> None:
+    source = HwpxDocument.new()
+    source.add_table(rows=2, cols=2)
+
+    target = HwpxDocument.new()
+    report = append_document(target, source)  # must not raise
+
+    section = target.sections[0]
+    tables = section.element.findall(f".//{_HP}tbl")
+    assert len(tables) == 1
+
+    after = check_id_integrity(target)
+    assert after.ok, after.dangling
+
+    # the save-path dirty-tracking bug (found while fixing this) would let
+    # this pass in-memory but corrupt the saved file -- always check via a
+    # real round-trip here, not just the in-memory object.
+    data = target.to_bytes()
+    reopened = HwpxDocument.open(data)
+    reopened_tables = reopened.sections[0].element.findall(f".//{_HP}tbl")
+    assert len(reopened_tables) == 1
+    after_rt = check_id_integrity(reopened)
+    assert after_rt.ok, after_rt.dangling
+    assert report["remapped"]["borderFill"] >= 1
+
+
+def test_merge_accepts_a_real_corpus_document_containing_a_table() -> None:
+    fixture = (
+        Path(__file__).parent
+        / "fixtures"
+        / "hwpxlib_corpus"
+        / "reader_writer__SimpleTable.hwpx"
+    )
+    source = HwpxDocument.open(fixture)
+    # sanity: this fixture is the real evidence the linkListIDRef sentinel
+    # claim is built on -- confirm it actually carries the "0" boilerplate
+    # before relying on it to exercise the fix.
+    sub_lists = source.sections[0].element.findall(f".//{_HP}subList")
+    assert sub_lists, "fixture has no hp:subList -- not exercising the fix"
+    assert all(sl.get("linkListIDRef") == "0" for sl in sub_lists)
+
+    target = HwpxDocument.new()
+    append_document(target, source)  # must not raise
+    source.close()
+
+    after = check_id_integrity(target)
+    assert after.ok, after.dangling
+    data = target.to_bytes()
+    reopened = HwpxDocument.open(data)
+    after_rt = check_id_integrity(reopened)
+    assert after_rt.ok, after_rt.dangling
+    assert reopened.sections[0].element.findall(f".//{_HP}tbl")
+
+
+# ============================================================================
 # fail-closed rejections (v1's explicit "보류" scope)
 # ============================================================================
 
@@ -430,6 +495,43 @@ def test_merge_result_round_trips_through_save_and_reopen() -> None:
     assert "roundtrip para 1" in texts
     assert "roundtrip para 2" in texts
     assert "existing target para" in texts
+
+    after = check_id_integrity(reopened)
+    assert after.ok, after.dangling
+
+
+def test_merge_round_trips_when_no_picture_is_involved() -> None:
+    """Regression for a real bug found while fixing the linkListIDRef
+    over-rejection: every remap function mutates target's header element
+    tree directly, but none of them called target_header.mark_dirty() --
+    the save path only re-serializes a header from its live tree when
+    header.dirty is True, otherwise it silently reuses the part's
+    original/cached bytes. A merge that adds new charPr/paraPr/style items
+    passed check_id_integrity cleanly *in memory* but produced a
+    genuinely corrupted file (the newly-added header items never actually
+    written) -- invisible until the file was reopened and checked fresh.
+    This slipped past the original test suite because the one test that
+    did check a real round-trip
+    (test_merge_result_round_trips_through_save_and_reopen) also happened
+    to copy a picture, and add_image's own mark_dirty() call masked the
+    bug as a side effect. This test deliberately excludes any picture."""
+
+    source = HwpxDocument.new()
+    source.styles.ensure_font("맑은 고딕", lang="HANGUL")
+    cid = source.styles.ensure_run(font="맑은 고딕", bold=True)
+    source.add_paragraph("no picture here", char_pr_id_ref=cid)
+
+    target = HwpxDocument.new()
+    target.add_paragraph("existing target para")
+
+    insert_document(target, source, after_paragraph_index=0)
+
+    header = target.parts.headers[0]
+    assert header.dirty, "target_header.mark_dirty() was not called"
+
+    data = target.to_bytes()
+    reopened = HwpxDocument.open(data)
+    assert "no picture here" in _texts(reopened)
 
     after = check_id_integrity(reopened)
     assert after.ok, after.dangling

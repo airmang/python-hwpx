@@ -70,6 +70,22 @@ _FONT_REF_TO_FACE_LANG = {attr: lang for lang, attr in _FONT_FACE_LANG_TO_REF.it
 #: any mutation happens (fail before touching anything, not partway through).
 _REJECTED_LOCAL_TAGS = (f"{_HP}connectLine",)
 _REJECTED_ATTRS = ("linkListIDRef", "linkListNextIDRef", "chartIDRef")
+#: Sentinel values for a rejected attribute that mean "not actually used,"
+#: safe to pass through rather than reject. Found by team-lead's
+#: independent verification (not assumed in advance): a census of the
+#: vendored corpus shows linkListIDRef/linkListNextIDRef are 5,891/5,891
+#: == "0" -- a boilerplate default every hp:subList carries (including our
+#: own add_table's own output), never once a real linked-textbox chain
+#: value. Rejecting on mere presence (as chartIDRef correctly still is --
+#: the corpus's one real chartIDRef occurrence is a genuine path, never
+#: "0") made every table-bearing document, including our own generator's
+#: own output, unmergeable. chartIDRef has no such sentinel in this census
+#: and is deliberately absent from this dict -- its presence alone stays
+#: real usage.
+_REJECTED_ATTR_SENTINELS: dict[str, frozenset[str]] = {
+    "linkListIDRef": frozenset({"0", ""}),
+    "linkListNextIDRef": frozenset({"0", ""}),
+}
 #: hp:fieldBegin type values this v1 refuses to carry across documents.
 #: MEMO was added after live testing (not assumed in advance) surfaced that
 #: a memo's actual text lives in <hp:memogroup>, a *sibling* of the
@@ -118,16 +134,21 @@ def _reject_unsupported_references(paragraphs: list[Any]) -> None:
                     ),
                 )
             for attr in _REJECTED_ATTRS:
-                if node.get(attr) is not None:
-                    raise HwpxValueError(
-                        f"document insert does not support {attr!r} yet",
-                        code="document-merge-unsupported-reference",
-                        context={"attribute": attr, "tag": _local_name(node.tag)},
-                        suggestion=(
-                            "See docs/2026-08-08-document-merge-contract.md's "
-                            "보류 section."
-                        ),
-                    )
+                value = node.get(attr)
+                if value is None:
+                    continue
+                sentinels = _REJECTED_ATTR_SENTINELS.get(attr)
+                if sentinels is not None and value in sentinels:
+                    continue
+                raise HwpxValueError(
+                    f"document insert does not support {attr!r} yet",
+                    code="document-merge-unsupported-reference",
+                    context={"attribute": attr, "tag": _local_name(node.tag)},
+                    suggestion=(
+                        "See docs/2026-08-08-document-merge-contract.md's "
+                        "보류 section."
+                    ),
+                )
 
 
 # ================================================================================
@@ -653,36 +674,61 @@ def _apply_remaps(
 
 
 def _strip_embedded_section_properties(paragraphs: list[Any]) -> int:
-    """Remove any embedded section-setup run from the copied paragraphs.
+    """Remove any embedded ``hp:secPr``/column-layout ``hp:ctrl`` from the
+    copied paragraphs, surgically -- element by element, not by discarding
+    the whole run that happens to carry them.
 
     Discovered by live-testing a real merge (not assumed in advance): a
-    section's *first* paragraph carries a dedicated, text-less ``hp:run``
-    holding ``hp:secPr`` (the section's page setup -- margins, footnote/
-    endnote policy, page border, etc) plus ``hp:ctrl/hp:colPr`` (column
-    layout) as siblings; every other paragraph's runs carry only ``hp:t``.
+    section's *first* paragraph carries ``hp:secPr`` (the section's page
+    setup -- margins, footnote/endnote policy, page border, etc) plus
+    ``hp:ctrl/hp:colPr`` (column layout). On a *freshly-created* document
+    these sit alone in their own text-less run, sibling to nothing --
+    which was the only shape this function was originally tested against,
+    and led to a real bug: it removed the *entire run* on sight of
+    ``hp:secPr``. A real corpus fixture
+    (``reader_writer__SimpleTable.hwpx``) exposed the gap -- that
+    document's first paragraph packs ``secPr``/``ctrl``/``tbl``/``t`` all
+    into *one* run, and the blunt whole-run removal silently deleted the
+    table and text along with the section setup, passing every gate this
+    module has (referential integrity has nothing to say about content
+    that was never dangling because it no longer exists). Now each
+    ``hp:secPr`` and each ``hp:ctrl`` that wraps ``hp:colPr`` specifically
+    (never any other control type sharing the same run) is removed
+    individually, and the run itself is only dropped if that leaves it
+    completely empty -- preserving the original single-element-run
+    behavior exactly while no longer touching unrelated siblings.
+
     v1's merge always inserts into an *already-existing* target section (it
     never creates a new one), so a copied source paragraph is never the
-    destination section's first paragraph -- carrying its section-setup run
-    across would leave two ``hp:secPr`` in one ``hs:sec`` (a section should
-    have exactly one) or, if inserted at index 0, silently replace the
-    target's own page setup with the source's. ``hp:secPr`` also carries its
-    own id-references (``outlineShapeIDRef`` -> numberings,
-    ``memoShapeIDRef`` -> memoProperties, nested ``pageBorderFill/
-    @borderFillIDRef`` -> borderFills) that no remap function in this module
-    touches -- carrying it across unremapped would silently produce
-    dangling/wrong references on top of the structural problem. v1's answer:
-    the target's own secPr stays sole authority for its section's page
-    setup, unconditionally -- source's is dropped, not merged or chosen
-    between. Returns the number of section-setup runs removed (surfaced in
-    the report so callers can see it happened, not just infer it).
+    destination section's first paragraph -- carrying its section-setup
+    elements across would leave two ``hp:secPr`` in one ``hs:sec`` (a
+    section should have exactly one) or, if inserted at index 0, silently
+    replace the target's own page setup with the source's. ``hp:secPr``
+    also carries its own id-references (``outlineShapeIDRef`` ->
+    numberings, ``memoShapeIDRef`` -> memoProperties, nested
+    ``pageBorderFill/@borderFillIDRef`` -> borderFills) that no remap
+    function in this module touches -- carrying it across unremapped would
+    silently produce dangling/wrong references on top of the structural
+    problem. v1's answer: the target's own secPr stays sole authority for
+    its section's page setup, unconditionally -- source's is dropped, not
+    merged or chosen between. Returns the number of ``hp:secPr`` elements
+    removed (surfaced in the report so callers can see it happened, not
+    just infer it).
     """
 
     removed = 0
     for paragraph in paragraphs:
         for run in list(paragraph.findall(f"{_HP}run")):
-            if run.find(f"{_HP}secPr") is not None:
+            secpr = run.find(f"{_HP}secPr")
+            if secpr is None:
+                continue
+            run.remove(secpr)
+            removed += 1
+            for ctrl in list(run.findall(f"{_HP}ctrl")):
+                if ctrl.find(f"{_HP}colPr") is not None:
+                    run.remove(ctrl)
+            if len(run) == 0:
                 paragraph.remove(run)
-                removed += 1
     return removed
 
 
@@ -714,6 +760,24 @@ def _merge_paragraphs(
 
     source_header = source.parts.headers[0]
     target_header = target.parts.headers[0]
+    # CRITICAL: every remap function below mutates target_header's element
+    # tree directly (target_container.append(clone), etc) rather than going
+    # through a facade method that already calls mark_dirty() itself (e.g.
+    # HwpxOxmlHeader.ensure_char_property does). The OPC writer's save path
+    # (HwpxOxmlDocument.to_bytes) only re-serializes a header from its live
+    # tree when header.dirty is True -- otherwise it reuses the part's
+    # original/cached bytes, silently dropping every element this module
+    # just added. Found by live testing (not assumed in advance): a merge
+    # that adds new charPr/paraPr/style items round-tripped CLEANLY whenever
+    # the source also had a picture to copy (because _remap_binary_items's
+    # add_image call happens to mark_dirty() the header as its own side
+    # effect, masking the bug) but silently corrupted the saved document
+    # (dangling *IDRef, invisible until reopened and checked) whenever it
+    # did not. This single call is the fix -- do it unconditionally, up
+    # front, since v1's own no-dedup policy means essentially every
+    # non-empty merge touches the header (even a bare styleIDRef="0"
+    # reference copies that default style under a fresh id).
+    target_header.mark_dirty()
 
     # A style's own base paraPr/charPr may not be independently referenced
     # by any body paragraph (a paragraph can point only at the style and
