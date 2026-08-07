@@ -102,6 +102,50 @@ CYCLE_6_7_PROBES = (
     "dev023_label_avery_layout_schema_match.py",
 )
 
+# 6.7 트레인㉗ — 별도 편차 조사(17항목)에서 이 공개 레지스트리에 아직 없던
+# 항목을 이식. 조사 원문 자신의 번호(DEV-002~018)는 이 공개 레지스트리가
+# 이미 다른 주제로 선점하고 있어(numbering collision) DEV-024부터 재번호.
+# 조사 원문의 한 항목(hp:run 안 switch/case/default 차트/OLE 폴백)은 기존
+# DEV-021과 같은 픽스처·같은 결론이라 중복 등재하지 않고 DEV-021에 상호
+# 참조만 추가했다(신규 항목 아님).
+CYCLE_6_7_TRAIN_27_DEVIATIONS = (
+    "DEV-024",
+    "DEV-025",
+    "DEV-026",
+    "DEV-027",
+    "DEV-028",
+    "DEV-029",
+    "DEV-030",
+    "DEV-031",
+    "DEV-032",
+    "DEV-033",
+    "DEV-034",
+    "DEV-035",
+    "DEV-036",
+    "DEV-037",
+    "DEV-038",
+    "DEV-039",
+)
+
+CYCLE_6_7_TRAIN_27_PROBES = (
+    "dev024_shape_point_family_core_namespace.py",
+    "dev025_fillbrush_core_namespace.py",
+    "dev026_trackchageconfig_typo.py",
+    "dev027_lineseg_cache_undeclared.py",
+    "dev028_subscript_offset_sign_convention.py",
+    "dev029_resize_geometry_over_sz.py",
+    "dev030_hyperlink_charpr_scope.py",
+    "dev031_toc_dirty_next_open_trigger.py",
+    "dev032_toc_contentsstyles_collection_command.py",
+    "dev033_header_footer_apply_undeclared.py",
+    "dev034_memo_subsystem_undeclared.py",
+    "dev035_bindata_manifest_undeclared.py",
+    "dev036_version_xml_manifest_omission.py",
+    "dev037_clickhere_command_length_prefix_format.py",
+    "dev038_toc_fiexde_typo_replication.py",
+    "dev039_crossref_vs_toc_recompute_asymmetry.py",
+)
+
 
 def test_registry_exists_with_required_sections():
     text = DOC.read_text(encoding="utf-8")
@@ -297,6 +341,33 @@ def test_cycle_6_7_probe_file_exists_and_is_referenced(probe_name: str) -> None:
 
 @pytest.mark.parametrize("probe_name", CYCLE_6_7_PROBES)
 def test_cycle_6_7_probe_runs_clean(probe_name: str) -> None:
+    """각 프로브는 단독 실행 가능해야 한다(근거 파일이 없으면 SKIP=exit 0)."""
+
+    result = subprocess.run(
+        [sys.executable, str(PROBES_DIR / probe_name)],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("dev_id", CYCLE_6_7_TRAIN_27_DEVIATIONS)
+def test_cycle_6_7_train_27_deviation_is_registered(dev_id: str) -> None:
+    text = DOC.read_text(encoding="utf-8")
+    assert dev_id in text
+
+
+@pytest.mark.parametrize("probe_name", CYCLE_6_7_TRAIN_27_PROBES)
+def test_cycle_6_7_train_27_probe_file_exists_and_is_referenced(probe_name: str) -> None:
+    probe_path = PROBES_DIR / probe_name
+    assert probe_path.exists(), f"probe script missing: {probe_path}"
+    text = DOC.read_text(encoding="utf-8")
+    assert probe_name in text, f"{probe_name} not referenced from the registry table"
+
+
+@pytest.mark.parametrize("probe_name", CYCLE_6_7_TRAIN_27_PROBES)
+def test_cycle_6_7_train_27_probe_runs_clean(probe_name: str) -> None:
     """각 프로브는 단독 실행 가능해야 한다(근거 파일이 없으면 SKIP=exit 0)."""
 
     result = subprocess.run(
