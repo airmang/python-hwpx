@@ -8,8 +8,8 @@ Schema claim: ``ParaList XML schema.xml`` declares ``<xs:attribute
 name="dirty" type="xs:boolean" default="false"/>`` -- a generic boolean,
 no statement of when or by whom it is consumed.
 
-Real-document measurement: ``oracle: previously-verified`` -- owner
-memory ``s062-m7-progress.md`` (M7/S-062 P3) records that the Hancom
+Real-document measurement: ``oracle: previously-verified`` -- the M7
+native-TOC train's P3 measurements (2026-07-02) record that the Hancom
 oracle automation deliberately separates ``refresh_document`` (which
 triggers the recompute) from render/export into two distinct sessions to
 avoid a same-session crash after setting ``dirty``. Not re-observable

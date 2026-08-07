@@ -3,7 +3,7 @@
 replicates Hancom's own spelling verbatim -- the same typo-replication
 class as DEV-004/DEV-009/DEV-026 but in a third subsystem (page
 cross-reference field parameters, discovered via a different path --
-M7/S-062's gold-corpus reverse engineering rather than a general census
+the M7 native-TOC train's gold-corpus reverse engineering rather than a general census
 sweep). Despite the module-level docstring's phrasing ("TOC field
 parameter spelling"), the parameter itself is emitted by
 ``add_page_crossref`` (CROSSREF), not ``add_native_toc``.

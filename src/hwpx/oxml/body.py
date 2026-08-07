@@ -58,6 +58,7 @@ PreservedElement = Union[
     "FormComboBoxControl",
     "ListItem",
     "ComposedCharacter",
+    "Dutmal",
     "ParameterList",
     "Label",
 ]
@@ -328,6 +329,33 @@ class ComposedCharacter:
     char_pr_cnt: Optional[int]
     compose_text: Optional[str]
     slots: List[ComposedCharacterSlot] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class Dutmal:
+    """``hp:dutmal`` — 덧말(본말 위/아래에 붙는 작은 주석 텍스트, 루비와
+    같은 부류, ParaList XML schema.xml:585-621). ``hp:compose``와 같은 위치
+    관례(``hp:t``의 자식이 아니라 ``hp:run`` 직속 -- 실코퍼스
+    ``reader_writer__SimpleDutmal.hwpx`` 확인: 그 문서의 유일한 표본에서
+    ``hp:secPr``·``hp:ctrl`` 다음, ``hp:t`` 형제였다).
+
+    두 스키마 편차를 실측 그대로 왕복 보존한다(강제하지 않는다): 스키마는
+    ``option``을 ``fixed="4"``로 선언하지만 실측 값은 ``"0"``이었고,
+    ``szRatio``는 ``xs:positiveInteger``(1 이상)로 선언되지만 실측 값도
+    ``"0"``이었다. 표본이 1건뿐이라(빈도 낮음, macOS 편집기 메뉴 스캔이
+    1급 메뉴 항목으로 확인했을 뿐) 이 두 값이 그 문서만의 우연인지 실제
+    관행인지는 모른다 -- 정직하게 실측값을 기본값으로 채택하고, 스키마의
+    주장(4 고정·1 이상)을 검증 규칙으로 강제하지 않는다.
+    """
+
+    tag: str
+    pos_type: Optional[str]
+    sz_ratio: Optional[int]
+    option: Optional[int]
+    style_id_ref: Optional[int]
+    align: Optional[str]
+    main_text: Optional[str]
+    sub_text: Optional[str]
 
 
 @dataclass(slots=True)
@@ -781,6 +809,30 @@ def parse_composed_character_element(node: etree._Element) -> ComposedCharacter:
     )
 
 
+def parse_dutmal_element(node: etree._Element) -> Dutmal:
+    attrs = {key: value for key, value in node.attrib.items()}
+    main_text: Optional[str] = None
+    sub_text: Optional[str] = None
+    for child in node:
+        if not isinstance(child.tag, str):
+            continue
+        name = local_name(child)
+        if name == "mainText":
+            main_text = child.text
+        elif name == "subText":
+            sub_text = child.text
+    return Dutmal(
+        tag=node.tag,
+        pos_type=attrs.pop("posType", None),
+        sz_ratio=_parse_int_attribute(attrs, "szRatio"),
+        option=_parse_int_attribute(attrs, "option"),
+        style_id_ref=_parse_int_attribute(attrs, "styleIDRef"),
+        align=attrs.pop("align", None),
+        main_text=main_text,
+        sub_text=sub_text,
+    )
+
+
 def parse_form_combo_box_element(node: etree._Element) -> FormComboBoxControl:
     attrs = {key: value for key, value in node.attrib.items()}
     return FormComboBoxControl(
@@ -879,6 +931,8 @@ def parse_preserved_element(node: etree._Element) -> PreservedElement:
         return parse_list_item_element(node)
     if name == "compose":
         return parse_composed_character_element(node)
+    if name == "dutmal":
+        return parse_dutmal_element(node)
     if name in {"parameters", "parameterset"}:
         return parse_parameter_list_element(node)
     if name == "label":
@@ -1000,6 +1054,10 @@ def parse_run_element(node: etree._Element) -> Run:
             composed = parse_composed_character_element(child)
             run.other_children.append(composed)
             run.content.append(composed)
+        elif name == "dutmal":
+            dutmal = parse_dutmal_element(child)
+            run.other_children.append(dutmal)
+            run.content.append(dutmal)
         else:
             element = parse_preserved_element(child)
             run.other_children.append(element)
@@ -1170,6 +1228,21 @@ def _composed_character_to_xml(composed: ComposedCharacter) -> etree._Element:
     return node
 
 
+def _dutmal_to_xml(dutmal: Dutmal) -> etree._Element:
+    attrs: Dict[str, str] = {}
+    _set_str_attr(attrs, "posType", dutmal.pos_type)
+    _set_int_attr(attrs, "szRatio", dutmal.sz_ratio)
+    _set_int_attr(attrs, "option", dutmal.option)
+    _set_int_attr(attrs, "styleIDRef", dutmal.style_id_ref)
+    _set_str_attr(attrs, "align", dutmal.align)
+    node = etree.Element(_qualified_tag(dutmal.tag, "dutmal"), attrs)
+    main = etree.SubElement(node, f"{_DEFAULT_HP}mainText")
+    main.text = dutmal.main_text
+    sub = etree.SubElement(node, f"{_DEFAULT_HP}subText")
+    sub.text = dutmal.sub_text
+    return node
+
+
 def _parameter_value_text(kind: str, value: Union[bool, int, float, str]) -> str:
     if kind == "boolean":
         return "1" if value else "0"
@@ -1238,6 +1311,8 @@ def _preserved_element_to_xml(element: PreservedElement) -> etree._Element:
         return _list_item_to_xml(element)
     if isinstance(element, ComposedCharacter):
         return _composed_character_to_xml(element)
+    if isinstance(element, Dutmal):
+        return _dutmal_to_xml(element)
     if isinstance(element, ParameterList):
         return parameter_list_to_xml(element)
     if isinstance(element, Label):
@@ -1376,6 +1451,7 @@ __all__ = [
     "ComposedCharacter",
     "ComposedCharacterSlot",
     "Control",
+    "Dutmal",
     "FormComboBoxControl",
     "FormEditControl",
     "InlineObject",

@@ -10,8 +10,8 @@ integer attributes ranging -100..100 and a documentation string of
 "언어별 오프셋. 단위는 %." (per-language offset, unit is %) -- no mention
 of which sign means "up" and which means "down".
 
-Real-document measurement: ``oracle: previously-verified`` -- owner memory
-(S-115, 2026-08-01 authoring-fidelity repair) records that an earlier
+Real-document measurement: ``oracle: previously-verified`` -- the 2026-08-01
+authoring-fidelity repair train records that an earlier
 audit read the sign backwards and a real-Hancom render remeasurement
 corrected it to negative=up(superscript)/positive=down(subscript). This
 probe cannot re-run that render measurement (no Hancom oracle in this

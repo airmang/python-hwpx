@@ -173,6 +173,76 @@ def add_line(
     )
 
 
+def add_composed_character(
+    doc: "HwpxDocument",
+    compose_text: str,
+    char_pr_id_refs: Sequence[str | int] | None = None,
+    *,
+    circle_type: str | None = None,
+    char_sz: int | None = None,
+    compose_type: str | None = None,
+    paragraph: HwpxOxmlParagraph | None = None,
+    section: HwpxOxmlSection | None = None,
+    section_index: int | None = None,
+    char_pr_id_ref: str | int | None = None,
+) -> HwpxOxmlInlineObject:
+    """Insert ``hp:compose`` (글자 겹치기/원문자) inline, in *paragraph* if
+    given, else a freshly-appended one -- matching :func:`add_line`'s own
+    "attach here, or make a home" contract (compose/dutmal are typically
+    inline within a sentence, not their own standalone paragraph like a
+    drawing shape usually is).
+    """
+    if paragraph is None:
+        paragraph = doc.add_paragraph(
+            "", section=section, section_index=section_index,
+            include_run=False,
+        )
+    return paragraph.add_composed_character(
+        compose_text,
+        char_pr_id_refs,
+        circle_type=circle_type,
+        char_sz=char_sz,
+        compose_type=compose_type,
+        char_pr_id_ref=char_pr_id_ref,
+    )
+
+
+def add_dutmal(
+    doc: "HwpxDocument",
+    main_text: str,
+    sub_text: str,
+    *,
+    pos_type: str = "TOP",
+    align: str = "CENTER",
+    sz_ratio: int | None = 0,
+    option: int | None = 0,
+    style_id_ref: str | int | None = None,
+    paragraph: HwpxOxmlParagraph | None = None,
+    section: HwpxOxmlSection | None = None,
+    section_index: int | None = None,
+    char_pr_id_ref: str | int | None = None,
+) -> HwpxOxmlInlineObject:
+    """Insert ``hp:dutmal`` (덧말) inline, in *paragraph* if given, else a
+    freshly-appended one. See ``HwpxOxmlParagraph.add_dutmal``'s docstring
+    for the low-confidence-axis disclosure (single real-corpus sample).
+    """
+    if paragraph is None:
+        paragraph = doc.add_paragraph(
+            "", section=section, section_index=section_index,
+            include_run=False,
+        )
+    return paragraph.add_dutmal(
+        main_text,
+        sub_text,
+        pos_type=pos_type,
+        align=align,
+        sz_ratio=sz_ratio,
+        option=option,
+        style_id_ref=style_id_ref,
+        char_pr_id_ref=char_pr_id_ref,
+    )
+
+
 def add_rectangle(
     doc: "HwpxDocument",
     width: int = 14400,

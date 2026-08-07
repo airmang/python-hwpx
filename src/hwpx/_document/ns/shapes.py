@@ -68,6 +68,75 @@ class ShapesNamespace(_Namespace):
             section=self._section(section, section_index, "add_line"),
         )
 
+    # -- 덧말·글자 겹치기 ---------------------------------------------------
+
+    def add_composed_character(
+        self,
+        compose_text: str,
+        char_pr_id_refs: Sequence[str | int] | None = None,
+        *,
+        circle_type: str | None = None,
+        char_sz: int | None = None,
+        compose_type: str | None = None,
+        paragraph: "Paragraph | None" = None,
+        section: "int | Section | None" = None,
+        section_index: int | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> "InlineObject":
+        """글자 겹치기(원문자·합자)를 넣는다."""
+
+        from .. import shapes as _shapes
+
+        return _shapes.add_composed_character(
+            self._doc,
+            compose_text,
+            char_pr_id_refs,
+            circle_type=circle_type,
+            char_sz=char_sz,
+            compose_type=compose_type,
+            paragraph=paragraph,
+            section=self._section(section, section_index, "add_composed_character"),
+            char_pr_id_ref=char_pr_id_ref,
+        )
+
+    def add_dutmal(
+        self,
+        main_text: str,
+        sub_text: str,
+        *,
+        pos_type: str = "TOP",
+        align: str = "CENTER",
+        sz_ratio: int | None = 0,
+        option: int | None = 0,
+        style_id_ref: str | int | None = None,
+        paragraph: "Paragraph | None" = None,
+        section: "int | Section | None" = None,
+        section_index: int | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> "InlineObject":
+        """덧말(루비형 주석 텍스트)을 넣는다.
+
+        낮은 확신 축(정직 고지): 실코퍼스 표본 1건에서 리버스엔지니어링했다
+        (macOS 편집기 메뉴 스캔이 1급 메뉴 항목으로는 확인했다). 자세한
+        근거는 ``hwpx.oxml.body.Dutmal``의 문서화 참조.
+        """
+
+        from .. import shapes as _shapes
+
+        return _shapes.add_dutmal(
+            self._doc,
+            main_text,
+            sub_text,
+            pos_type=pos_type,
+            align=align,
+            sz_ratio=sz_ratio,
+            option=option,
+            style_id_ref=style_id_ref,
+            paragraph=paragraph,
+            section=self._section(section, section_index, "add_dutmal"),
+            char_pr_id_ref=char_pr_id_ref,
+        )
+
     def add_rectangle(
         self,
         width: int = 14400,

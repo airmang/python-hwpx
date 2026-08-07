@@ -945,7 +945,7 @@ _MANUAL_CODE_USAGE_OVERRIDES: tuple[ManualCodeUsageOverride, ...] = (
             "primitive behind add_tracked_insert/delete/replace — shipped and "
             "Hancom-COM-verified 2026-06-30 (commit 2026-06-30 "
             "'feat(m4-p1): redline authoring primitives (insert/delete/"
-            "replace) — S-058', predates this cycle)."
+            "replace)', predates this cycle)."
         ),
     ),
     ManualCodeUsageOverride(

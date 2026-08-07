@@ -13,7 +13,8 @@ end control), nor which of those runs should carry the link's own
 Real-document measurement: ``oracle: not-applicable`` for the structural
 rule itself (it is an authoring convention, not a render fact) --
 supported by ``oracle: previously-verified`` real-Hancom gold-corpus
-comparison (S-115, "파랑 전염"/blue-contagion regression history) that
+comparison (the 2026-08-01 repair train's "파랑 전염"/blue-contagion
+regression history) that
 originally surfaced why the wrapper runs must NOT inherit the link
 charPr: a later paragraph appended after the link would otherwise inherit
 link-blue styling from the fieldEnd wrapper run.
@@ -69,7 +70,7 @@ def main() -> int:
         assert cp == ambient_char_pr, (
             f"expected fieldBegin/fieldEnd wrapper runs to keep the ambient charPrIDRef "
             f"({ambient_char_pr!r}), not the link's own ({cp!r}) -- a wrapper run inheriting "
-            f"the link style is exactly the 'blue contagion' regression S-115 fixed"
+            f"the link style is exactly the 'blue contagion' regression the 2026-08-01 repair fixed"
         )
 
     print(f"confirmed {len(ctrl_runs)} fieldBegin/fieldEnd wrapper run(s) kept the ambient "

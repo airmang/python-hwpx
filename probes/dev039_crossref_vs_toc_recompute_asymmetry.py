@@ -14,8 +14,8 @@ from TABLEOFCONTENTS's.
 Real-document measurement: ``oracle: previously-verified`` -- the
 ``toc_author.py`` module docstring (lines 12-20) states directly, with a
 "P0 measured" citation: CROSSREF's cached result run "Hancom recomputes
-... automatically on edit/save" -- established by the M7/S-062 P0 real-
-Hancom measurement stage. Not re-observable here (no Hancom oracle); this
+... automatically on edit/save" -- established by the M7 P0 real-
+Hancom measurement stage (2026-07-02). Not re-observable here (no Hancom oracle); this
 probe reproduces the structural asymmetry our own authoring API already
 encodes as a direct consequence of that measurement.
 
