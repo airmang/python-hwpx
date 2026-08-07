@@ -23,6 +23,7 @@ from hwpx.oxml.body import (
     Parameter,
     ParameterList,
     Table,
+    TextMarkup,
     TransformMatrix,
     parameter_list_to_xml,
     parse_parameter_list_element,
@@ -520,6 +521,64 @@ def test_parameter_list_authors_field_click_action_parameters() -> None:
 
     reparsed = parse_parameter_list_element(node)
     assert reparsed.params[2].value is True
+
+
+def test_parameter_list_promoted_from_hwpxlib_sample_via_real_dispatch() -> None:
+    """위 `_promoted_from_hwpxlib_sample_shape`은 `parse_parameter_list_element`를
+    직접 불러 클래스 자체의 정확성만 증명한다 — 실 문서를 여는 진짜 경로
+    (`parse_section_xml` → ... → `parse_preserved_element`)가 이 요소를
+    실제로 이 클래스로 뜨는지는 별개 질문이다(DEV-011 2026-08 트레인⑰
+    재검증이 지목한 갭: 그때는 디스패치에 분기가 없어 `GenericElement`로
+    강등됐다 — 트레인⑳에서 배선). 다른 모든 프리저브드 타입(linesegarray·
+    edit·comboBox·composedCharacter)의 `_promoted_from_hwpxlib_sample`
+    자매 테스트와 같은 패턴 — `parse_section_xml`이 진짜 디스패치다."""
+
+    section = parse_section_xml(_section_xml(PARAMETERSET_SAMPLE))
+    promoted = [node for node in _walk(section) if isinstance(node, ParameterList)]
+    generic_leftovers = [
+        node
+        for node in _walk(section)
+        if isinstance(node, GenericElement) and node.name in {"parameters", "parameterset"}
+    ]
+
+    assert promoted, "hp:parameterset never reached ParameterList through the real dispatch chain"
+    assert generic_leftovers == [], (
+        "hp:parameterset/parameters still falling through to GenericElement via "
+        f"parse_preserved_element: {generic_leftovers}"
+    )
+    param_list = promoted[0]
+    assert param_list.name == "539"
+    assert param_list.params[0].kind == "list"
+    assert param_list.params[0].items[0].value == 2
+
+
+def test_parameter_list_sample_roundtrip_has_no_a1_loss() -> None:
+    rep = roundtrip_report(PARAMETERSET_SAMPLE)
+
+    assert rep["reopened"] is True
+    assert rep["lost_elements"] == {}
+
+
+def test_text_markup_name_reads_parameterlist_tag_not_its_name_attribute() -> None:
+    """`ParameterList` joining `PreservedElement` (트레인⑳ 배선) made it a
+    theoretically reachable `TextMarkup.element` too (`_parse_text_markup`
+    falls through to the same `parse_preserved_element` dispatcher used
+    everywhere else) — even though no real corpus sample places `parameters`/
+    `parameterset` directly under `hp:t` today. Every sibling type's
+    `TextMarkup.name` is its tag's local name; naively proxying through would
+    have returned `ParameterList.name` instead, which means something
+    unrelated (the `name=` XML attribute, nullable) and broke the `-> str`
+    contract for the common empty-name case (304/306 real occurrences)."""
+
+    markup = TextMarkup(
+        element=ParameterList(
+            tag="{http://www.hancom.co.kr/hwpml/2011/paragraph}parameters",
+            name="",
+            params=[],
+        )
+    )
+
+    assert markup.name == "parameters"
 
 
 def test_composed_character_promoted_from_hwpxlib_sample() -> None:

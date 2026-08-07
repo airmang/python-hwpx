@@ -31,7 +31,17 @@ shape structurally (not the field-only ``hp:parameters`` alias) and
 *either* root tag verbatim (``model.tag`` preserves which one was read) —
 ``unsignedintegerParam`` is included in ``_PARAM_LEAF_KINDS`` alongside the
 schema's 4 declared leaf kinds, keyed to observation rather than the local
-schema copy (cycle-6.3 train 11).
+schema copy (cycle-6.3 train 11). **Wiring correction (2026-08 cycle 6.6
+train 20)**: cycle 6.5 train 17's re-verification found this class was
+unit-tested but never reached through the real document-open dispatch
+(``parse_preserved_element``, ``body.py``) -- opening a real document with
+this shape produced ``GenericElement`` (byte-preserved but opaque), not
+``ParameterList``. Both the read dispatch (``parse_preserved_element``) and
+the write dispatch (``_preserved_element_to_xml``) now have a branch for
+``parameterset``/``parameters`` -- verified against all 306 real
+occurrences of parameterset/parameters/listParam in the vendored corpus
+(0 attribute loss, 0 cnt/child-count mismatches) before wiring, so this is
+not a blind flip.
 
 Run: ``python probes/dev011_parameterset_schema_absence.py``
 """
@@ -107,6 +117,41 @@ def main() -> int:
     assert etree.QName(rebuilt_leaf).localname == "unsignedintegerParam"
     assert rebuilt_leaf.get("name") == "28673" and rebuilt_leaf.text == "2"
     print("our model round-trips the schema-absent element + leaf type structurally")
+
+    # Real dispatch, not the direct function call above -- proves the 2026-08
+    # cycle 6.6 train 20 wiring fix (opening the actual document now yields
+    # ParameterList, not GenericElement passthrough).
+    from hwpx.oxml import GenericElement, parse_section_xml
+
+    with zipfile.ZipFile(CORPUS / "error__20230809__test.hwpx") as archive:
+        section_xml = archive.read("Contents/section0.xml")
+    section_model = parse_section_xml(section_xml)
+
+    def _walk(value):
+        if isinstance(value, (str, bytes, bytearray, dict)) or value is None:
+            return
+        if isinstance(value, (list, tuple)):
+            for item in value:
+                yield from _walk(item)
+            return
+        yield value
+        for f in getattr(value, "__dataclass_fields__", {}):
+            yield from _walk(getattr(value, f))
+
+    from hwpx.oxml.body import ParameterList
+
+    dispatched = [n for n in _walk(section_model) if isinstance(n, ParameterList)]
+    leftover_generic = [
+        n
+        for n in _walk(section_model)
+        if isinstance(n, GenericElement) and n.name in {"parameters", "parameterset"}
+    ]
+    assert dispatched, "real dispatch (parse_section_xml) never produced a ParameterList"
+    assert leftover_generic == [], (
+        f"parameterset/parameters still falling through to GenericElement: {leftover_generic}"
+    )
+    print("confirmed real dispatch (parse_section_xml -> parse_preserved_element) now "
+          "reaches ParameterList, not GenericElement passthrough")
 
     schema_files = sorted(SCHEMA_DIR.glob("*.xml"))
     if not schema_files:

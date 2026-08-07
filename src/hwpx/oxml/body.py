@@ -58,6 +58,7 @@ PreservedElement = Union[
     "FormComboBoxControl",
     "ListItem",
     "ComposedCharacter",
+    "ParameterList",
 ]
 InlineMark = Union[PreservedElement, "TrackChangeMark"]
 RunChild = Union[PreservedElement, "Control", "Table", "InlineObject", "TextSpan", "Tab"]
@@ -85,6 +86,15 @@ class TextMarkup:
     def name(self) -> str:
         if isinstance(self.element, TrackChangeMark):
             return self.element.name
+        if isinstance(self.element, ParameterList):
+            # Every sibling PreservedElement type's ``.name`` is its tag's
+            # local name (always a plain ``str``). ``ParameterList.name`` is
+            # a different thing entirely -- the OWPML ``name=`` attribute
+            # value (nullable, e.g. the empty-string field-parameter case
+            # seen 304/306 times in the real corpus) -- so it cannot be
+            # proxied through like the others without breaking that
+            # contract. Derive the local tag name directly instead.
+            return self.element.tag.rsplit("}", 1)[-1]
         return self.element.name
 
 
@@ -834,6 +844,8 @@ def parse_preserved_element(node: etree._Element) -> PreservedElement:
         return parse_list_item_element(node)
     if name == "compose":
         return parse_composed_character_element(node)
+    if name in {"parameters", "parameterset"}:
+        return parse_parameter_list_element(node)
     if name in INLINE_OBJECT_NAMES:
         # 실코퍼스 실측(cycle-6.3 트레인⑫): hp:container(등)가 최상위
         # run 자식일 땐 InlineObject로 뜨지만, 그 컨테이너 *안에* 중첩된
@@ -1176,6 +1188,8 @@ def _preserved_element_to_xml(element: PreservedElement) -> etree._Element:
         return _list_item_to_xml(element)
     if isinstance(element, ComposedCharacter):
         return _composed_character_to_xml(element)
+    if isinstance(element, ParameterList):
+        return parameter_list_to_xml(element)
     if isinstance(element, InlineObject):
         return _inline_object_to_xml(element)
     return _generic_element_to_xml(element)

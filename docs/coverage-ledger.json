@@ -11,7 +11,8 @@
       "docs/openrate/report-v5.json",
       "docs/openrate/report-v6.json",
       "docs/openrate/report-v7.json",
-      "docs/openrate/report-v8.json"
+      "docs/openrate/report-v8.json",
+      "docs/openrate/report-v9.json"
     ],
     "skeleton": "src/hwpx/data/Skeleton.hwpx",
     "sourceScanned": "src/hwpx/**/*.py"
@@ -44,13 +45,13 @@
     "schemaDeclared": 307,
     "corpusOnly": 38,
     "corpusObserved": 229,
-    "codeRead": 235,
+    "codeRead": 236,
     "codeWriteApi": 177,
     "codeWriteFrozenTemplate": 19,
     "codeWriteNone": 149,
     "capabilityMapped": 76,
-    "renderVerified": 77,
-    "renderVerifiedByOpenrateCorpus": 43,
+    "renderVerified": 78,
+    "renderVerifiedByOpenrateCorpus": 47,
     "attributesObserved": 193
   },
   "elements": [
@@ -3211,8 +3212,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "그룹 개체(컨테이너)",
-      "capabilityStatus": "Parse·Create(experimental)",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Create(experimental)·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "dropcapstyle",
         "groupLevel",
@@ -3755,7 +3756,7 @@
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -4032,7 +4033,7 @@
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -4291,7 +4292,7 @@
       "codeWrite": "api",
       "capabilityArea": "문단·표 저작/편집",
       "capabilityStatus": "Parse·Preserve·Edit·Create·Render-verified",
-      "verificationBasis": "by-capability-area",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -4601,7 +4602,7 @@
       "schemaSource": null,
       "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
-      "codeRead": false,
+      "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": null,
       "capabilityStatus": null,
