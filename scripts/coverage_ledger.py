@@ -33,13 +33,14 @@
    "add_line"), 근거 없는 승격은 하지 않는다 — 대응 행이 불분명한 요소는
    ``capabilityArea: null``로 남는다. 매핑된 요소라도 그 행의 등급 문자열에
    "Render-verified"가 없으면 이 출처로는 ``verificationBasis``가 null이다.
-5. **실한컴 검증 여부(openrate 코퍼스, v4~v12)** — ``docs/openrate/
-   report-v{4,5,6,7,8,9,10,11,12}.json``의 스트라타별 실제 Hancom 수용 receipt를
+5. **실한컴 검증 여부(openrate 코퍼스, v4~v13)** — ``docs/openrate/
+   report-v{4,5,6,7,8,9,10,11,12,13}.json``의 스트라타별 실제 Hancom 수용 receipt를
    ``verificationBasis``로 환류한다(2026-08-04 감사 R4 수리 — "두 산출물이
    서로를 모른다" — 의 v4 배선을 v5~v8까지 확장(2026-08 사이클 6.5 트레인
    ⑰), v9까지 확장(2026-08 사이클 6.6 트레인⑳), v10까지 확장(2026-08
    사이클 6.7 트레인㉔), v11까지 확장(2026-08 사이클 6.8 트레인㉘), v12까지
-   확장(2026-08 사이클 6.9 트레인㉜)). 두 갈래로
+   확장(2026-08 사이클 6.9 트레인㉜), v13까지 확장(2026-08 사이클 6.10
+   트레인㉟)). 두 갈래로
    다룬다: (a)
    스트라타가 **이미 등록된 capabilityArea**와 1:1로 대응하면
    (``CAPABILITY_KEYWORDS``에 그 요소가 실재 등재돼 있으면)
@@ -47,10 +48,10 @@
    환류한다. (b) capabilityArea가 아예 등록돼 있지 않거나, 있어도 그
    요소만 지목한 것이 아닌 혼합 지원 영역이면 ``_OPENRATE_STRATUM_TO_ELEMENTS``로
    **요소를 직접** 지목한다 — 근거는 각 corpus 생성기 스크립트(
-   ``scripts/generate_openrate_corpus_v{5,6,7,8,9,10,11,12}.py``)의 독스트링이 실제로
+   ``scripts/generate_openrate_corpus_v{5,6,7,8,9,10,11,12,13}.py``)의 독스트링이 실제로
    호출한다고 명시한 API·요소뿐이다(무근거 매핑 금지, 기존 (a) 경로와
    같은 원칙). ``by-v4-corpus``라는 이름은 지금은 v4 하나만이 아니라
-   v4~v12 전체를 가리키므로 ``by-openrate-corpus``로 이번에 이름도
+   v4~v13 전체를 가리키므로 ``by-openrate-corpus``로 이번에 이름도
    바로잡았다(이 문자열을 읽는 외부 소비자는 이 레포 안에 없음을 grep으로
    확인 — 파기하는 계약이 아니다).
 
@@ -84,12 +85,12 @@ DEFAULT_CENSUS_PATH = ROOT / "docs" / "_extra" / "element-census.json"
 SUPPORT_MATRIX_PATH = ROOT / "src" / "hwpx" / "data" / "contract_docs" / "support-matrix.md"
 SKELETON_PATH = ROOT / "src" / "hwpx" / "data" / "Skeleton.hwpx"
 SRC_DIR = ROOT / "src" / "hwpx"
-#: v4~v12 전부 — 신버전이 생기면 여기 한 줄만 추가하면 된다(receipts 로더
+#: v4~v13 전부 — 신버전이 생기면 여기 한 줄만 추가하면 된다(receipts 로더
 #: 둘 다 이 리스트를 그대로 순회한다). 존재하지 않는 파일은 조용히
 #: 건너뛴다(``_load_*`` 쪽에서 ``is_file()`` 가드).
 OPENRATE_REPORT_PATHS: tuple[Path, ...] = tuple(
     ROOT / "docs" / "openrate" / f"report-{version}.json"
-    for version in ("v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12")
+    for version in ("v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13")
 )
 LEDGER_JSON = ROOT / "docs" / "coverage-ledger.json"
 LEDGER_MD = ROOT / "docs" / "coverage-ledger.md"
@@ -1015,6 +1016,77 @@ _MANUAL_CODE_USAGE_OVERRIDES: tuple[ManualCodeUsageOverride, ...] = (
             "generically via the strip_namespace getter registration)."
         ),
     ),
+    # 6.10 트레인㉟ — v13 환류 도중 발견: dutmal/compose 저작(cycle 6.9
+    # 트레인㉞)이 write=api로 안 잡혀 authored-dutmal-compose의 실한컴
+    # 수용 영수증(report-v13.json, 30/30)이 요소 축에 반영될 길이 없었다
+    # (write_mode != "api"면 corpus_accepted를 강제로 False로 되돌리는
+    # 방어 로직, 이 파일 위쪽 주석 참조). 원인: body.py의
+    # _composed_character_to_xml/_dutmal_to_xml가 `_qualified_tag(tag,
+    # "compose")` 처럼 이름 없는 문자열 리터럴을 헬퍼 함수에 넘기는
+    # 관용구를 쓴다 — 태그가 호출부에 인접한 리터럴이 아니라 헬퍼가
+    # 내부적으로 네임스페이스를 붙이므로 6개 정규식 어느 것도 안 걸린다.
+    # mainText/subText는 `f"{_DEFAULT_HP}mainText"`(body.py 자신의
+    # `_DEFAULT_HP` 별칭 — 패턴3이 찾는 `_HP`/`HP`와 이름이 달라 경계
+    # 매칭이 실패)로 또 다른 이유로 안 걸린다. read는 이미 별도 경로로
+    # True(`_bare_name_dispatched`가 parse_preserved_element의
+    # `if name == "compose":` 식 맨이름 디스패치를 잡는다).
+    ManualCodeUsageOverride(
+        "hp",
+        "compose",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "Write: src/hwpx/oxml/body.py:1225 "
+            "_qualified_tag(composed.tag, \"compose\") -- a helper call, "
+            "not a literal adjacent to the call site. Genuinely wired: "
+            "paragraph.py's add_composed_character (via "
+            "oxml/dutmal_compose.py) calls it. Real-Hancom accepted "
+            "(docs/openrate/report-v13.json, authored-dutmal-compose "
+            "10/10)."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hp",
+        "dutmal",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "Write: src/hwpx/oxml/body.py:1238 "
+            "_qualified_tag(dutmal.tag, \"dutmal\") -- same helper-call "
+            "shape as hp:compose above. Genuinely wired: paragraph.py's "
+            "add_dutmal (via oxml/dutmal_compose.py) calls it. "
+            "Real-Hancom accepted (docs/openrate/report-v13.json, "
+            "authored-dutmal-compose 10/10)."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hp",
+        "mainText",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "Write: src/hwpx/oxml/body.py:1239 "
+            "etree.SubElement(node, f\"{_DEFAULT_HP}mainText\") -- "
+            "body.py's own _DEFAULT_HP alias, not the _HP/HP name pattern 3 "
+            "looks for, so no adjacency match. Genuinely wired: "
+            "add_dutmal's only mainText writer. Real-Hancom accepted "
+            "(docs/openrate/report-v13.json, authored-dutmal-compose "
+            "10/10)."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hp",
+        "subText",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "Write: src/hwpx/oxml/body.py:1241 "
+            "etree.SubElement(node, f\"{_DEFAULT_HP}subText\") -- same "
+            "_DEFAULT_HP-alias gap as hp:mainText above. Real-Hancom "
+            "accepted (docs/openrate/report-v13.json, "
+            "authored-dutmal-compose 10/10)."
+        ),
+    ),
 )
 
 _validate_manual_overrides(_MANUAL_CODE_USAGE_OVERRIDES)
@@ -1242,11 +1314,12 @@ def classify_capability(
 
 
 # ---------------------------------------------------------------------------
-# 4b) openrate 코퍼스 환류(v4~v12) — support-matrix 산문과 별개인 두 번째
+# 4b) openrate 코퍼스 환류(v4~v13) — support-matrix 산문과 별개인 두 번째
 #     실측 근거. 감사 R4: "v4 스트라타의 요소별 실한컴 수용이 원장의
 #     verificationBasis로 환류되지 않아 두 산출물이 서로를 모른다." (2026-08
 #     사이클 6.5 트레인⑰이 이 배선을 v5~v8까지 확장, 사이클 6.6 트레인⑳이
-#     v9까지, 사이클 6.7 트레인㉔이 v10까지 확장했다.)
+#     v9까지, 사이클 6.7 트레인㉔이 v10까지, 사이클 6.8 트레인㉘이 v11까지,
+#     사이클 6.9 트레인㉜이 v12까지, 사이클 6.10 트레인㉟이 v13까지 확장했다.)
 # ---------------------------------------------------------------------------
 
 #: openrate 스트라타 → capabilityArea. CAPABILITY_KEYWORDS와 같은 원칙(무근거
@@ -1311,6 +1384,18 @@ _OPENRATE_STRATUM_TO_CAPABILITY_AREA: dict[str, str] = {
     # fieldBegin은 위 CAPABILITY_KEYWORDS 주석대로 여전히 미등록 공유 요소).
     "authored-pagelayout": "페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)",
     "authored-hyperlink-bookmark": "하이퍼링크·책갈피",
+    # 6.10 트레인㉟ — v13. authored-dutmal-compose는 "덧말·글자 겹치기"가
+    # 겨냥하는 4개 요소(hp:compose/hp:dutmal/hp:mainText/hp:subText)와
+    # 정확히 1:1이다(위 _register 호출부 확인) — 영역째 흘려도 안전하다.
+    # authored-docmerge/authored-mailmerge는 **일부러 여기 없다**: "문서
+    # 끼워 넣기(문서 병합)"·"메일머지"는 mail-merge·table-navigation-fill·
+    # find-replace와 같은 이유로 CAPABILITY_KEYWORDS에 등록된 요소가
+    # 0개다(신규 요소를 만드는 게 아니라 기존 요소를 재매핑/치환하는
+    # 구조라서) — 여기 추가해도 원장(요소 축)에 붙일 대상이 없어
+    # 완전히 무동작이다. 이 두 영역의 등급 갱신은 support-matrix.md
+    # 산문에서만 이뤄지고, 근거는 docs/openrate/report-v13.json을 직접
+    # 인용한다.
+    "authored-dutmal-compose": "덧말·글자 겹치기",
 }
 
 #: capabilityArea가 아직 없거나(v7), 있어도 혼합 지원이라 영역 전체로
@@ -1620,7 +1705,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
     lines.append(
         "`scripts/coverage_ledger.py`가 OWPML 2024 스키마(`DevDoc/OWPML SCHEMA/`) · "
         "실코퍼스 census(`scripts/build_element_census.py`) · `src/hwpx/` 코드 "
-        "참조 · 지원 매트릭스 · v4~v12 openrate 실한컴 코퍼스에서 결정론적으로 "
+        "참조 · 지원 매트릭스 · v4~v13 openrate 실한컴 코퍼스에서 결정론적으로 "
         "재산출하는 원장이다. 손으로 쓴 지원 주장이 아니라 기계 판독 "
         "[coverage-ledger.json](coverage-ledger.json)의 사람용 요약이며, "
         "`python scripts/coverage_ledger.py --check`가 드리프트를 게이트한다."
@@ -1710,7 +1795,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
         "밖 — 생성기 독스트링에 명시)."
     )
     lines.append(
-        "**6) openrate 코퍼스 환류(v4~v12).** `docs/openrate/report-v{4,5,6,7,8,9,10,11,12}."
+        "**6) openrate 코퍼스 환류(v4~v13).** `docs/openrate/report-v{4,5,6,7,8,9,10,11,12,13}."
         "json`의 스트라타별 실한컴 수용(`render_checked>0`·`render_failed==0`, "
         "구세대 스키마는 `opened==requested>0`도 함께)을 `verificationBasis`로 "
         "환류한다(`by-openrate-corpus`/`by-capability-area+openrate-corpus`) — "
@@ -1782,7 +1867,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
         f"{_fmt_pct(summary['renderVerified'], total)} |"
     )
     lines.append(
-        f"| ..중 openrate 코퍼스(v4~v12) 환류분 | {summary['renderVerifiedByOpenrateCorpus']} | "
+        f"| ..중 openrate 코퍼스(v4~v13) 환류분 | {summary['renderVerifiedByOpenrateCorpus']} | "
         f"{_fmt_pct(summary['renderVerifiedByOpenrateCorpus'], total)} |"
     )
     lines.append(
@@ -1912,7 +1997,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
         "누름틀·TOC·하이퍼링크가 다 쓴다)는 일부러 매핑하지 않았다. "
         "`verificationBasis`는 두 독립 출처를 결합한다 — 지원 매트릭스 산문의 "
         "\"Render-verified\" 표기(`by-capability-area`)와 `docs/openrate/"
-        "report-v{4,5,6,7,8,9,10,11,12}.json` 실한컴 openrate 코퍼스의 스트라타별 수용 "
+        "report-v{4,5,6,7,8,9,10,11,12,13}.json` 실한컴 openrate 코퍼스의 스트라타별 수용 "
         "receipt(`by-openrate-corpus`) — capabilityArea 경로는 매핑이 명확한 "
         "스트라타에 한해서만, capabilityArea가 아직 없는 스트라타는 생성기 "
         "독스트링이 명시하는 요소에 직접."

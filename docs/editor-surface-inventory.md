@@ -38,7 +38,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 <!-- AUTO-GENERATED:BEGIN (scripts/editor_surface_inventory.py) -->
 
-자동 생성 시점 교차 확인: 원장(요소 축) 94건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 33개 등록됨.
+자동 생성 시점 교차 확인: 원장(요소 축) 98건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 33개 등록됨.
 
 ### 서식
 
@@ -67,7 +67,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 | arc·polygon·curve·connectLine | 저작 api | 지원 매트릭스 「arc·polygon·curve·connectLine」(`Parse·Preserve·Create(arc·polygon, experimental)·Unsupported-but-preserved(curve·connectLine)`) · capabilities 영역 `curve-objects` · 위치 `doc.shapes` | 미실측 |
 | 그룹 개체(컨테이너) | 저작 api | 지원 매트릭스 「그룹 개체(컨테이너)」(`Parse·Create(experimental)·Render-verified`) · capabilities 영역 `container-authoring` · 위치 `doc.shapes` | Render-verified(experimental 저작 포함) |
 | 그림 삽입/치환 | 저작 api | 지원 매트릭스 「그림 삽입/치환」(`Edit·Create`) · capabilities 영역 `picture` · 위치 루트 `doc.add_picture` + `doc.media` (이진 항목) | 미실측 |
-| 덧말·글자 겹치기 | 저작 api | 지원 매트릭스 「덧말·글자 겹치기」(`Parse·Create(experimental)`) · capabilities 영역 `dutmal-compose` · 위치 `doc.shapes` | 미실측 |
+| 덧말·글자 겹치기 | 저작 api | 지원 매트릭스 「덧말·글자 겹치기」(`Parse·Create·Render-verified`) · capabilities 영역 `dutmal-compose` · 위치 `doc.shapes` | Render-verified |
 | 도형 저작(선·사각형·타원) | 저작 api | 지원 매트릭스 「도형 저작(선·사각형·타원)」(`Parse·Preserve·Edit·Create·Render-verified`) · capabilities 영역 `shape-authoring` · 위치 `doc.shapes` | Render-verified |
 | 수식 | 저작 api | 지원 매트릭스 「수식」(`Parse·Create(experimental)·Render-verified`) · capabilities 영역 `equation` · 위치 `doc.shapes` | Render-verified(experimental 저작 포함) |
 | 저수준 도형·컨트롤 탈출구 | 저작 api | 지원 매트릭스 「저수준 도형·컨트롤 탈출구」(`Edit`) · capabilities 영역 `shape-escape-hatch` · 위치 `doc.shapes` | 미실측 |
@@ -114,8 +114,8 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
 |---|---|---|---|
-| 메일머지(placeholder 템플릿 배치 생성) | 저작 api | 지원 매트릭스 「메일머지(placeholder 템플릿 배치 생성)」(`Edit`) · capabilities 영역 `mail-merge` · 위치 모듈 — `hwpx.tools.mail_merge` | 미실측 |
-| 문서 끼워 넣기(문서 병합) | 저작 api | 지원 매트릭스 「문서 끼워 넣기(문서 병합)」(`Create(experimental)`) · capabilities 영역 `document-merge` · 위치 모듈 — `hwpx.tools.document_merge` | 미실측 |
+| 메일머지(placeholder 템플릿 배치 생성) | 저작 api | 지원 매트릭스 「메일머지(placeholder 템플릿 배치 생성)」(`Edit·Render-verified`) · capabilities 영역 `mail-merge` · 위치 모듈 — `hwpx.tools.mail_merge` | Render-verified |
+| 문서 끼워 넣기(문서 병합) | 저작 api | 지원 매트릭스 「문서 끼워 넣기(문서 병합)」(`Create·Render-verified`) · capabilities 영역 `document-merge` · 위치 모듈 — `hwpx.tools.document_merge` | Render-verified |
 | 편집 계획 실행(edit plan) | 저작 api | 지원 매트릭스 「편집 계획 실행(edit plan)」(`Preserve·Edit`) · capabilities 영역 `edit-plan` · 위치 모듈 — `hwpx.plan` | 미실측 |
 
 <!-- AUTO-GENERATED:END -->

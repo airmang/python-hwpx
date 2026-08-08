@@ -15,7 +15,8 @@
       "docs/openrate/report-v9.json",
       "docs/openrate/report-v10.json",
       "docs/openrate/report-v11.json",
-      "docs/openrate/report-v12.json"
+      "docs/openrate/report-v12.json",
+      "docs/openrate/report-v13.json"
     ],
     "skeleton": "src/hwpx/data/Skeleton.hwpx",
     "sourceScanned": "src/hwpx/**/*.py"
@@ -49,12 +50,12 @@
     "corpusOnly": 38,
     "corpusObserved": 229,
     "codeRead": 243,
-    "codeWriteApi": 183,
+    "codeWriteApi": 187,
     "codeWriteFrozenTemplate": 14,
-    "codeWriteNone": 148,
+    "codeWriteNone": 144,
     "capabilityMapped": 101,
-    "renderVerified": 94,
-    "renderVerifiedByOpenrateCorpus": 63,
+    "renderVerified": 98,
+    "renderVerifiedByOpenrateCorpus": 67,
     "attributesObserved": 193
   },
   "elements": [
@@ -3169,10 +3170,10 @@
       "corpusFrequency": 0.0127,
       "corpusFileCount": 3,
       "codeRead": true,
-      "codeWrite": "none",
+      "codeWrite": "api",
       "capabilityArea": "덧말·글자 겹치기",
-      "capabilityStatus": "Parse·Create(experimental)",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "charPrCnt",
         "charSz",
@@ -3366,10 +3367,10 @@
       "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": true,
-      "codeWrite": "none",
+      "codeWrite": "api",
       "capabilityArea": "덧말·글자 겹치기",
-      "capabilityStatus": "Parse·Create(experimental)",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "align",
         "option",
@@ -4171,10 +4172,10 @@
       "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": true,
-      "codeWrite": "none",
+      "codeWrite": "api",
       "capabilityArea": "덧말·글자 겹치기",
-      "capabilityStatus": "Parse·Create(experimental)",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -5265,10 +5266,10 @@
       "corpusFrequency": 0.0042,
       "corpusFileCount": 1,
       "codeRead": true,
-      "codeWrite": "none",
+      "codeWrite": "api",
       "capabilityArea": "덧말·글자 겹치기",
-      "capabilityStatus": "Parse·Create(experimental)",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {

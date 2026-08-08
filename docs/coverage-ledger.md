@@ -1,6 +1,6 @@
 # OWPML 커버리지 원장
 
-`scripts/coverage_ledger.py`가 OWPML 2024 스키마(`DevDoc/OWPML SCHEMA/`) · 실코퍼스 census(`scripts/build_element_census.py`) · `src/hwpx/` 코드 참조 · 지원 매트릭스 · v4~v12 openrate 실한컴 코퍼스에서 결정론적으로 재산출하는 원장이다. 손으로 쓴 지원 주장이 아니라 기계 판독 [coverage-ledger.json](coverage-ledger.json)의 사람용 요약이며, `python scripts/coverage_ledger.py --check`가 드리프트를 게이트한다.
+`scripts/coverage_ledger.py`가 OWPML 2024 스키마(`DevDoc/OWPML SCHEMA/`) · 실코퍼스 census(`scripts/build_element_census.py`) · `src/hwpx/` 코드 참조 · 지원 매트릭스 · v4~v13 openrate 실한컴 코퍼스에서 결정론적으로 재산출하는 원장이다. 손으로 쓴 지원 주장이 아니라 기계 판독 [coverage-ledger.json](coverage-ledger.json)의 사람용 요약이며, `python scripts/coverage_ledger.py --check`가 드리프트를 게이트한다.
 
 **주의**: `capabilityArea`는 지원 매트릭스 산문에 명시적으로 언급된 요소만 근사 매핑했다(무근거 승격 금지). `null`은 "미지원"이 아니라 "매트릭스 행과 요소가 1:1로 대응되지 않음"을 뜻한다 — 저수준 공용 요소(fieldBegin·autoNum·좌표류)가 대표적이다.
 
@@ -16,9 +16,9 @@
 **4) census 재구축.** 생성 스크립트를 `scripts/build_element_census.py`로 신설·커밋했다(기존 census는 생성기 미보존이 결함이었다). 전 파트·전 네임스페이스를 스캔한다 — `ha:*`(settings.xml)·`hv:HCFVersion`(version.xml)이 이제 1급 요소 행이고, `hs:sec`도 실제 관측 빈도로 잡힌다. 모집단은 **명시적으로 재정의**했다: 레거시 166파일(그 중 hwpxlib 47은 지금도 이 레포에 남아 있고 검증 가능하다 — 나머지 119는 이 워크트리 어디에도 원본이나 목록이 보존돼 있지 않아 정체를 확인할 수 없다)은 재현·확장이 불가능했다 — 조용히 계승하는 대신 접근 가능한 새 모집단으로 바꿨다. 상세는 `generatedFrom.corpusPopulationNote`.
    unknown 파일: 0건 (전량 유효한 zip으로 열림).
 **5) 속성 축.** 요소별 관측 속성 **이름** 집합을 census가 함께 기록한다(`observedAttributes` 컬럼, 값 빈도까지는 이번 사이클 범위 밖 — 생성기 독스트링에 명시).
-**6) openrate 코퍼스 환류(v4~v12).** `docs/openrate/report-v{4,5,6,7,8,9,10,11,12}.json`의 스트라타별 실한컴 수용(`render_checked>0`·`render_failed==0`, 구세대 스키마는 `opened==requested>0`도 함께)을 `verificationBasis`로 환류한다(`by-openrate-corpus`/`by-capability-area+openrate-corpus`) — 2026-08-04 감사 R4가 지목한 v4 배선(원 이름 `by-v4-corpus`)을 2026-08 사이클 6.5 트레인⑰에서 v8까지, 사이클 6.6 트레인⑳에서 v9까지, 사이클 6.7 트레인㉔에서 v10까지 확장하며 버전-중립 이름으로 바꿨다. 두 경로로 매핑한다: 이미 등록된 capabilityArea와 1:1 대응하는 스트라타는 `_OPENRATE_STRATUM_TO_CAPABILITY_AREA`(차트·체크박스·수식·각주 2종·테두리채우기·하이라이트·메모·그룹컨테이너·문서옵션호환성), capabilityArea가 아직 없거나 있어도 혼합 지원 영역이라 요소만 지목해야 하는 신규 능력(글꼴·탭·도형텍스트·캡션·쪽번호제어·문자서식·필드파라미터·arc/polygon·인라인 원자 3종)은 `_OPENRATE_STRATUM_TO_ELEMENTS`로 요소를 직접 지목한다 — 둘 다 근거는 각 생성기 스크립트 독스트링이 실제로 부른다고 명시하는 것뿐(무근거 매핑 금지, `fieldBegin`을 일부러 안 매핑한 것과 같은 원칙).
+**6) openrate 코퍼스 환류(v4~v13).** `docs/openrate/report-v{4,5,6,7,8,9,10,11,12,13}.json`의 스트라타별 실한컴 수용(`render_checked>0`·`render_failed==0`, 구세대 스키마는 `opened==requested>0`도 함께)을 `verificationBasis`로 환류한다(`by-openrate-corpus`/`by-capability-area+openrate-corpus`) — 2026-08-04 감사 R4가 지목한 v4 배선(원 이름 `by-v4-corpus`)을 2026-08 사이클 6.5 트레인⑰에서 v8까지, 사이클 6.6 트레인⑳에서 v9까지, 사이클 6.7 트레인㉔에서 v10까지 확장하며 버전-중립 이름으로 바꿨다. 두 경로로 매핑한다: 이미 등록된 capabilityArea와 1:1 대응하는 스트라타는 `_OPENRATE_STRATUM_TO_CAPABILITY_AREA`(차트·체크박스·수식·각주 2종·테두리채우기·하이라이트·메모·그룹컨테이너·문서옵션호환성), capabilityArea가 아직 없거나 있어도 혼합 지원 영역이라 요소만 지목해야 하는 신규 능력(글꼴·탭·도형텍스트·캡션·쪽번호제어·문자서식·필드파라미터·arc/polygon·인라인 원자 3종)은 `_OPENRATE_STRATUM_TO_ELEMENTS`로 요소를 직접 지목한다 — 둘 다 근거는 각 생성기 스크립트 독스트링이 실제로 부른다고 명시하는 것뿐(무근거 매핑 금지, `fieldBegin`을 일부러 안 매핑한 것과 같은 원칙).
 
-**전 vs 후 (감사가 하한을 인용한 것과 같은 슬라이스 — corpusFileCount>0인 요소만)**: 감사 인용 하한은 관측 228건 중 write=none **70** · read=none **56** · frozen-template **28**([감사 판정문](2026-08-04-completeness-audit-verdict.md) 요약표). 이 원장 재생성 기준으로는 관측 229건 중 write=none **39** · read=none **21** · frozen-template **14**. **주의**: 두 population이 다르다(모집단을 재정의했다 — 위 4항목) — 이 비교는 "같은 잣대로 다시 잰 정확한 델타"가 아니라 분류기 수리가 방향대로 움직였는지의 참고 신호다. 분류기 수리 자체의 정확도 증거는 위 1~3항의 요소별 재현 로그가 1차 근거다.
+**전 vs 후 (감사가 하한을 인용한 것과 같은 슬라이스 — corpusFileCount>0인 요소만)**: 감사 인용 하한은 관측 228건 중 write=none **70** · read=none **56** · frozen-template **28**([감사 판정문](2026-08-04-completeness-audit-verdict.md) 요약표). 이 원장 재생성 기준으로는 관측 229건 중 write=none **35** · read=none **21** · frozen-template **14**. **주의**: 두 population이 다르다(모집단을 재정의했다 — 위 4항목) — 이 비교는 "같은 잣대로 다시 잰 정확한 델타"가 아니라 분류기 수리가 방향대로 움직였는지의 참고 신호다. 분류기 수리 자체의 정확도 증거는 위 1~3항의 요소별 재현 로그가 1차 근거다.
 
 ## 전체 통계
 
@@ -29,12 +29,12 @@
 | 코퍼스에만 있음(스키마 미대응) | 38 | 11.0% |
 | 실코퍼스에서 관측(빈도>0) | 229 | 66.4% |
 | 코드 읽기 | 243 | 70.4% |
-| 코드 쓰기(api) | 183 | 53.0% |
+| 코드 쓰기(api) | 187 | 54.2% |
 | 쓰기 frozen-template | 14 | 4.1% |
-| 쓰기 none | 148 | 42.9% |
+| 쓰기 none | 144 | 41.7% |
 | 능력 영역 매핑됨 | 101 | 29.3% |
-| Render-verified(매핑 근거) | 94 | 27.2% |
-| ..중 openrate 코퍼스(v4~v12) 환류분 | 63 | 18.3% |
+| Render-verified(매핑 근거) | 98 | 28.4% |
+| ..중 openrate 코퍼스(v4~v13) 환류분 | 67 | 19.4% |
 | 속성 이름 축 관측됨 | 193 | 55.9% |
 
 실코퍼스 표본: 실문서 237개.
@@ -67,7 +67,6 @@
 | `hh:metaTag` | 0.0422 | 10 | True | frozen-template | — |
 | `hh:forbiddenWord` | 0.0127 | 3 | True | none | — |
 | `hh:forbiddenWordList` | 0.0127 | 3 | True | none | — |
-| `hp:compose` | 0.0127 | 3 | True | none | 덧말·글자 겹치기 |
 | `hc:extent` | 0.0084 | 2 | False | none | — |
 | `hp:connectLine` | 0.0084 | 2 | True | none | arc·polygon·curve·connectLine |
 | `hp:endPt` | 0.0084 | 2 | False | none | — |
@@ -78,21 +77,22 @@
 | `hp:comboBox` | 0.0042 | 1 | True | none | — |
 | `hp:controlPoints` | 0.0042 | 1 | False | none | — |
 | `hp:curve` | 0.0042 | 1 | True | none | arc·polygon·curve·connectLine |
-| `hp:dutmal` | 0.0042 | 1 | True | none | 덧말·글자 겹치기 |
 | `hp:edit` | 0.0042 | 1 | True | none | — |
 | `hp:effect` | 0.0042 | 1 | False | none | — |
 | `hp:effectsColor` | 0.0042 | 1 | False | none | — |
 | `hp:glow` | 0.0042 | 1 | False | none | — |
 | `hp:hiddenComment` | 0.0042 | 1 | False | none | — |
 | `hp:listItem` | 0.0042 | 1 | True | none | — |
-| `hp:mainText` | 0.0042 | 1 | True | none | 덧말·글자 겹치기 |
 | `hp:masterPage` | 0.0042 | 1 | True | none | — |
 | `hp:metaTag` | 0.0042 | 1 | True | none | — |
 | `hp:parameterset` | 0.0042 | 1 | True | none | — |
 | `hp:point` | 0.0042 | 1 | False | none | — |
 | `hp:presentation` | 0.0042 | 1 | False | none | — |
+| `hp:radioBtn` | 0.0042 | 1 | False | none | 체크박스 양식개체 |
+| `hp:reflection` | 0.0042 | 1 | False | none | — |
+| `hp:rgb` | 0.0042 | 1 | False | none | — |
 
-(총 53건 중 상위 40건만 표시 — 전체는 coverage-ledger.json의 `elements` 참조.)
+(총 49건 중 상위 40건만 표시 — 전체는 coverage-ledger.json의 `elements` 참조.)
 
 ## 네임스페이스별 표
 
@@ -103,7 +103,7 @@
 | `hh` | 126 | 125 | 64 | 74 | 62 | 3 | 61 |
 | `hhs` | 10 | 10 | 0 | 10 | 0 | 0 | 10 |
 | `hm` | 2 | 2 | 0 | 2 | 0 | 0 | 2 |
-| `hp` | 171 | 161 | 132 | 122 | 96 | 4 | 71 |
+| `hp` | 171 | 161 | 132 | 122 | 100 | 4 | 67 |
 | `hs` | 1 | 1 | 1 | 1 | 1 | 0 | 0 |
 | `hv` | 2 | 1 | 1 | 2 | 1 | 0 | 1 |
 
@@ -112,6 +112,6 @@
 - **접두 규약**: `hwpx.oxml.namespaces.HWPML_COMPAT_ROOT_NAMESPACES`에서 파생(hp=paragraph, hh=head, hc=core, hs=section, hm=master-page, hhs=history). `hv`(version)만 예외 — 그 레지스트리 자체에 `version` 패밀리가 없어(실결함) 코드 리터럴에서 확인한 값을 하드코딩했다.
 - **스키마 vs 코퍼스 접두 불일치는 의도적으로 병합하지 않았다**: 예를 들어 `ParaList XML schema.xml`은 `pt0`을 자신의 타깃 네임스페이스(hp)에 선언하지만 실문서는 `hc:pt0`을 쓴다(`hp:line`은 `hc:startPt`를, `hp:connectLine`은 `hp:startPt`를 쓰는 것과 같은 종류의 드리프트 — `src/hwpx/opc/package.py`의 `_SHAPE_POINT_LOCAL_NAMES` 주석 참조). 두 항목 다 원장에 남아 있으며, 이런 드리프트 자체가 `docs/owpml-deviations.md`(Q4 편차 레지스트리)의 입력 후보다.
 - **codeRead/codeWrite는 정적 패턴 매칭 + 두 단계 ast 리졸버**다. 1단계(평문, 스캔 전 주석·독스트링 블랭크): 한정 태그 리터럴/QName 조립, 접두 없는 `local_name()` 계열 비교 디스패치, `for name in TABLE:` 형태로 루프 변수가 태그가 되는 자리(`ast`로 `TABLE`을 정적 평가). 2단계(원본 텍스트, `_resolve_argument_tag_literals`): 태그가 함수 파라미터로 전달되는 자리 — 파라미터가 자기 본문에서 태그 조립에 쓰이는 함수를 찾고, 그 파라미터를 리터럴 없이 그대로 전달하는 호출 체인을 고정점까지 추적한 뒤, 실제 리터럴이 있는 호출부에서 해석한다 (2026-08-04 감사 §3-C2 수리 — 전엔 이 부류가 통째로 과소 집계됐다). **남은 한계**: 이 2단계 리졸버는 단일 파일 안에서만 동작한다(모듈 간 호출은 안 쫓는다) — 다른 파일의 함수로 전달되는 태그가 있다면 여전히 놓칠 수 있다. 완전히 동적으로 조립되는 태그(런타임 문자열 연결 등)는 `_MANUAL_CODE_USAGE_OVERRIDES`의 근거-필수 화이트리스트로 다룬다.
-- **capabilityArea**는 지원 매트릭스 산문에 명시적으로 나온 요소만 매핑했다. 여러 능력 영역이 공유하는 저수준 요소(예: `fieldBegin`은 누름틀·TOC·하이퍼링크가 다 쓴다)는 일부러 매핑하지 않았다. `verificationBasis`는 두 독립 출처를 결합한다 — 지원 매트릭스 산문의 "Render-verified" 표기(`by-capability-area`)와 `docs/openrate/report-v{4,5,6,7,8,9,10,11,12}.json` 실한컴 openrate 코퍼스의 스트라타별 수용 receipt(`by-openrate-corpus`) — capabilityArea 경로는 매핑이 명확한 스트라타에 한해서만, capabilityArea가 아직 없는 스트라타는 생성기 독스트링이 명시하는 요소에 직접.
+- **capabilityArea**는 지원 매트릭스 산문에 명시적으로 나온 요소만 매핑했다. 여러 능력 영역이 공유하는 저수준 요소(예: `fieldBegin`은 누름틀·TOC·하이퍼링크가 다 쓴다)는 일부러 매핑하지 않았다. `verificationBasis`는 두 독립 출처를 결합한다 — 지원 매트릭스 산문의 "Render-verified" 표기(`by-capability-area`)와 `docs/openrate/report-v{4,5,6,7,8,9,10,11,12,13}.json` 실한컴 openrate 코퍼스의 스트라타별 수용 receipt(`by-openrate-corpus`) — capabilityArea 경로는 매핑이 명확한 스트라타에 한해서만, capabilityArea가 아직 없는 스트라타는 생성기 독스트링이 명시하는 요소에 직접.
 - **census 생성기**(`scripts/build_element_census.py`)는 전 파트·전 네임스페이스를 스캔하고, unknown 파일은 사유와 함께 기록하며, OWPML 요소 스키마 밖의 임베드/외부 네임스페이스와 비네임스페이스 요소는 별도 버킷(`foreignNamespaces`/`unnamespacedElements`)으로 가시화한다(삼키지 않는다). 두 번 실행하면 바이트까지 같은 출력을 낸다(결정론) — 단, 이 레포가 vendoring한 census 스냅샷은 소유자의 비공개 실문서 코퍼스를 포함해 생성됐으므로, 그 서브셋은 소유자만 재현 가능하다(`generatedFrom.corpusPopulationNote` 참조) — 이는 감사가 지적한 "생성기 자체가 없다"는 결함과는 다른 종류다: 생성기는 있고 커밋돼 있고 결정론적이다, 다만 입력 중 하나가 공개 레포 밖에 있을 뿐이다.
 
