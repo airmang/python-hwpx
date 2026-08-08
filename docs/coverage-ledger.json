@@ -16,7 +16,8 @@
       "docs/openrate/report-v10.json",
       "docs/openrate/report-v11.json",
       "docs/openrate/report-v12.json",
-      "docs/openrate/report-v13.json"
+      "docs/openrate/report-v13.json",
+      "docs/openrate/report-v14.json"
     ],
     "skeleton": "src/hwpx/data/Skeleton.hwpx",
     "sourceScanned": "src/hwpx/**/*.py"
@@ -53,9 +54,9 @@
     "codeWriteApi": 187,
     "codeWriteFrozenTemplate": 14,
     "codeWriteNone": 144,
-    "capabilityMapped": 101,
-    "renderVerified": 98,
-    "renderVerifiedByOpenrateCorpus": 67,
+    "capabilityMapped": 106,
+    "renderVerified": 127,
+    "renderVerifiedByOpenrateCorpus": 92,
     "attributesObserved": 193
   },
   "elements": [
@@ -286,8 +287,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "그림 삽입/치환",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "alpha",
         "binaryItemIDRef",
@@ -1039,9 +1040,9 @@
       "corpusFileCount": 146,
       "codeRead": true,
       "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "capabilityArea": "목록 서식(글머리표·번호매기기)",
+      "capabilityStatus": "Create·Edit·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "char",
         "id",
@@ -1056,9 +1057,9 @@
       "corpusFileCount": 146,
       "codeRead": true,
       "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "capabilityArea": "목록 서식(글머리표·번호매기기)",
+      "capabilityStatus": "Create·Edit·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "itemCnt"
       ]
@@ -1853,9 +1854,9 @@
       "corpusFileCount": 234,
       "codeRead": true,
       "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "capabilityArea": "목록 서식(글머리표·번호매기기)",
+      "capabilityStatus": "Create·Edit·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "id",
         "start"
@@ -1869,9 +1870,9 @@
       "corpusFileCount": 234,
       "codeRead": true,
       "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "capabilityArea": "목록 서식(글머리표·번호매기기)",
+      "capabilityStatus": "Create·Edit·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "itemCnt"
       ]
@@ -1933,9 +1934,9 @@
       "corpusFileCount": 234,
       "codeRead": true,
       "codeWrite": "api",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "capabilityArea": "목록 서식(글머리표·번호매기기)",
+      "capabilityStatus": "Create·Edit·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "align",
         "autoIndent",
@@ -2010,7 +2011,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "hangul",
         "hanja",
@@ -2095,7 +2096,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "color",
         "offsetX",
@@ -2130,7 +2131,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "hangul",
         "hanja",
@@ -2151,7 +2152,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "color",
         "shape"
@@ -2315,8 +2316,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "authorID",
         "date",
@@ -2334,8 +2335,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "id",
         "mark",
@@ -2351,8 +2352,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "itemCnt"
       ]
@@ -2379,8 +2380,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "itemCnt"
       ]
@@ -2394,8 +2395,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "flags"
       ]
@@ -2409,8 +2410,8 @@
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": "변경추적(redline)",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area",
       "observedAttributes": []
     },
     {
@@ -2459,7 +2460,7 @@
       "codeWrite": "api",
       "capabilityArea": null,
       "capabilityStatus": null,
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": [
         "color",
         "shape",
@@ -2725,8 +2726,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "arc·polygon·curve·connectLine",
-      "capabilityStatus": "Parse·Preserve·Create(arc·polygon, experimental)·Unsupported-but-preserved(curve·connectLine)",
-      "verificationBasis": "by-openrate-corpus",
+      "capabilityStatus": "Parse·Preserve·Create(arc·polygon, experimental)·Render-verified(arc·polygon만)·Unsupported-but-preserved(curve·connectLine)",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "dropcapstyle",
         "groupLevel",
@@ -3023,8 +3024,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "차트",
-      "capabilityStatus": "Create(experimental)·Preserve",
-      "verificationBasis": "by-openrate-corpus",
+      "capabilityStatus": "Create(experimental)·Preserve·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "chartIDRef",
         "dropcapstyle",
@@ -3191,8 +3192,8 @@
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": "arc·polygon·curve·connectLine",
-      "capabilityStatus": "Parse·Preserve·Create(arc·polygon, experimental)·Unsupported-but-preserved(curve·connectLine)",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Preserve·Create(arc·polygon, experimental)·Render-verified(arc·polygon만)·Unsupported-but-preserved(curve·connectLine)",
+      "verificationBasis": "by-capability-area",
       "observedAttributes": [
         "dropcapstyle",
         "groupLevel",
@@ -3282,8 +3283,8 @@
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": "arc·polygon·curve·connectLine",
-      "capabilityStatus": "Parse·Preserve·Create(arc·polygon, experimental)·Unsupported-but-preserved(curve·connectLine)",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Preserve·Create(arc·polygon, experimental)·Render-verified(arc·polygon만)·Unsupported-but-preserved(curve·connectLine)",
+      "verificationBasis": "by-capability-area",
       "observedAttributes": [
         "dropcapstyle",
         "groupLevel",
@@ -3319,8 +3320,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "Id",
         "TcId"
@@ -3335,8 +3336,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "Id",
         "TcId",
@@ -3438,8 +3439,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "그림 삽입/치환",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -3860,8 +3861,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "그림 삽입/치환",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "bottom",
         "left",
@@ -3878,8 +3879,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "그림 삽입/치환",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "dimheight",
         "dimwidth"
@@ -3894,8 +3895,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "그림 삽입/치환",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -3938,8 +3939,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "Id",
         "TcId"
@@ -3954,8 +3955,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "변경추적(redline)",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "Id",
         "TcId",
@@ -4625,8 +4626,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "그림 삽입/치환",
-      "capabilityStatus": "Edit·Create",
-      "verificationBasis": null,
+      "capabilityStatus": "Edit·Create·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "dropcapstyle",
         "groupLevel",
@@ -4683,8 +4684,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "arc·polygon·curve·connectLine",
-      "capabilityStatus": "Parse·Preserve·Create(arc·polygon, experimental)·Unsupported-but-preserved(curve·connectLine)",
-      "verificationBasis": "by-openrate-corpus",
+      "capabilityStatus": "Parse·Preserve·Create(arc·polygon, experimental)·Render-verified(arc·polygon만)·Unsupported-but-preserved(curve·connectLine)",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "dropcapstyle",
         "groupLevel",
@@ -5076,8 +5077,8 @@
       "codeRead": true,
       "codeWrite": "none",
       "capabilityArea": "arc·polygon·curve·connectLine",
-      "capabilityStatus": "Parse·Preserve·Create(arc·polygon, experimental)·Unsupported-but-preserved(curve·connectLine)",
-      "verificationBasis": null,
+      "capabilityStatus": "Parse·Preserve·Create(arc·polygon, experimental)·Render-verified(arc·polygon만)·Unsupported-but-preserved(curve·connectLine)",
+      "verificationBasis": "by-capability-area",
       "observedAttributes": [
         "type",
         "x1",
