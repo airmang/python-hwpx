@@ -1,0 +1,42 @@
+{
+  "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v15",
+  "harness_valid": true,
+  "measured_at": "2026-08-08T21:28:33.806224+09:00",
+  "negative_controls": {
+    "expected": [
+      "corrupt_section",
+      "corrupt_header",
+      "missing_section"
+    ],
+    "judged": 3,
+    "wrongly_rendered": []
+  },
+  "oracle": "mac-gui",
+  "oracle_app": "Hancom Office HWP.app (macOS)",
+  "schemaVersion": "hwpx.openrate.report/v15",
+  "scopeNote": "v15 closes the last three verification-debt items train 38's exhaustive judgment table identified, additive over v1-v14: authored-formfield is the first real-Hancom verdict for form-field creation (including one field placed inside a table cell), authored-formfill the first for byte-splice form filling, and authored-charformat-italic covers the one ensure_run parameter v14's own charformat2 bank accidentally omitted. Real Hancom accepted all 15/15. With this batch every authoring surface the editor-surface inventory tracks is either render-verified or held back by a documented, evidence-based deferral. Observer: macOS Hancom GUI oracle (open+render one gate). Session-state discipline applied: a control render preceded the batch and the app was fully restarted before launch.",
+  "strata": {
+    "authored-charformat-italic": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-formfield": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-formfill": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    }
+  },
+  "tool_versions": {
+    "python-hwpx": "6.0.2"
+  },
+  "totals": {
+    "judged": 15,
+    "render_checked": 15
+  }
+}

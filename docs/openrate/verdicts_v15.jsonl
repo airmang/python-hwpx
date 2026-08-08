@@ -1,0 +1,19 @@
+{"_meta": "mac-render-batch-v1", "app": "Hancom Office HWP.app", "jobCount": 18, "oracle": "mac-gui"}
+{"sourceId": "v15-charformat-italic-000", "stratum": "authored-charformat-italic", "saved": true, "pdfBytes": 15638, "error": null}
+{"sourceId": "v15-charformat-italic-001", "stratum": "authored-charformat-italic", "saved": true, "pdfBytes": 14934, "error": null}
+{"sourceId": "v15-charformat-italic-002", "stratum": "authored-charformat-italic", "saved": true, "pdfBytes": 19434, "error": null}
+{"sourceId": "v15-charformat-italic-003", "stratum": "authored-charformat-italic", "saved": true, "pdfBytes": 14922, "error": null}
+{"sourceId": "v15-charformat-italic-004", "stratum": "authored-charformat-italic", "saved": true, "pdfBytes": 15114, "error": null}
+{"sourceId": "v15-formfield-000", "stratum": "authored-formfield", "saved": true, "pdfBytes": 16077, "error": null}
+{"sourceId": "v15-formfield-001", "stratum": "authored-formfield", "saved": true, "pdfBytes": 15207, "error": null}
+{"sourceId": "v15-formfield-002", "stratum": "authored-formfield", "saved": true, "pdfBytes": 14789, "error": null}
+{"sourceId": "v15-formfield-003", "stratum": "authored-formfield", "saved": true, "pdfBytes": 15082, "error": null}
+{"sourceId": "v15-formfield-004", "stratum": "authored-formfield", "saved": true, "pdfBytes": 16020, "error": null}
+{"sourceId": "v15-formfill-000", "stratum": "authored-formfill", "saved": true, "pdfBytes": 18099, "error": null}
+{"sourceId": "v15-formfill-001", "stratum": "authored-formfill", "saved": true, "pdfBytes": 18186, "error": null}
+{"sourceId": "v15-formfill-002", "stratum": "authored-formfill", "saved": true, "pdfBytes": 17871, "error": null}
+{"sourceId": "v15-formfill-003", "stratum": "authored-formfill", "saved": true, "pdfBytes": 18119, "error": null}
+{"sourceId": "v15-formfill-004", "stratum": "authored-formfill", "saved": true, "pdfBytes": 17479, "error": null}
+{"sourceId": "corrupt_section", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
+{"sourceId": "corrupt_header", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
+{"sourceId": "missing_section", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
