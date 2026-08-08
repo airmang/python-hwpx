@@ -1,0 +1,77 @@
+{
+  "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v14",
+  "harness_valid": true,
+  "measured_at": "2026-08-08T14:35:46.540517+09:00",
+  "negative_controls": {
+    "expected": [
+      "corrupt_section",
+      "corrupt_header",
+      "missing_section"
+    ],
+    "judged": 3,
+    "wrongly_rendered": []
+  },
+  "oracle": "mac-gui",
+  "oracle_app": "Hancom Office HWP.app (macOS)",
+  "schemaVersion": "hwpx.openrate.report/v14",
+  "scopeNote": "v14 is the 6.10 cycle's verification-debt sweep, additive over v1-v13: one stratum for every authoring surface the editor-surface inventory still listed as code-present but never real-Hancom-verified -- list formatting, table structure ops, table navigation fill, find/replace, picture insertion, chart (the first render verdict since chart authoring shipped), tracked-change redline, edit-plan execution, the nine ensure_run parameters v7 did not cover, and the document-merge v2 surface (4-axis policy pass-through and MEMO merge). Real Hancom accepted all 50/50. Honest notes carried from the generator: the chart stratum uses hand-written minimal ChartML (core cannot import the automation companion), and tablenavfill/findreplace/editplan route no capabilityArea (they create no new elements) so their evidence lives in this report and the support matrix prose only. Observer: macOS Hancom GUI oracle (open+render one gate). Session-state discipline applied: a control render preceded the batch and the app was fully restarted before launch.",
+  "strata": {
+    "authored-charformat2": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-chart": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-docmerge2": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-editplan": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-findreplace": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-listformat": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-picture": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-redline": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-tablenavfill": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-tablestructure": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    }
+  },
+  "tool_versions": {
+    "python-hwpx": "6.0.2"
+  },
+  "totals": {
+    "judged": 50,
+    "render_checked": 50
+  }
+}
