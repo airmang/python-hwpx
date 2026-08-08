@@ -47,6 +47,21 @@ _FONTFACE_LANG_TO_ATTR = {
 _ALLOWED_SENTINELS = {
     # 0xFFFFFFFF (UINT -1): the OWPML "unset charPrIDRef" sentinel, not a dangling id.
     "charPrIDRef": {str(CHAR_PR_ID_REF_UNSET)},
+    # Every fresh HwpxOxmlDocument's own hp:secPr carries memoShapeIDRef="0"
+    # in its skeleton -- Hancom's own "no memo shape override" default, not
+    # a reference to a real hh:memoPr id="0" entry (this codebase's own
+    # ensure_memo_shape allocator starts ids at 1, never 0, matching real
+    # corpus evidence). _EMPTY_TABLE_IS_ALLOWED already treated this as
+    # harmless *while the memo_shapes table happens to be empty* -- but the
+    # moment any document-wide feature (ensure_memo_shape directly, or
+    # document_merge copying a memo shape) populates that table for an
+    # unrelated reason, this same unconditional skeleton default started
+    # being flagged as dangling, on every document, unconditionally. Found
+    # via document_merge's own MEMO-merge round-trip test (train
+    # 38/cycle 6.10) -- reproduces with nothing but
+    # ``HwpxDocument.new(); doc.styles.ensure_memo_shape()``, no merge
+    # involved at all, confirming this is pre-existing and orthogonal.
+    "memoShapeIDRef": {"0"},
 }
 
 _EMPTY_TABLE_IS_ALLOWED = {"memoShapeIDRef"}

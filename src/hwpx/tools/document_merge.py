@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Document insertion/merge (문서 끼워 넣기, cycle 6.9 train 33).
+"""Document insertion/merge (문서 끼워 넣기, cycle 6.9 train 33, v2 cycle 6.10
+train 38: merge-policy axes + MEMO support).
 
 Copies another HWPX document's body content into an already-open
 ``HwpxDocument``, remapping every header-owned shared-resource reference
@@ -8,14 +9,20 @@ Copies another HWPX document's body content into an already-open
 ``idRef``) so the copied content keeps pointing at the *same values* it did
 in the source document -- just via freshly-minted ids in the target's own
 header, never colliding with (or silently aliasing onto) whatever the
-target document already had at those id numbers. See
+target document already had at those id numbers. As of v2, this also
+covers a paragraph's referenced ``hp:memo`` content (copied from the
+source's ``hp:memogroup`` and re-anchored, see ``_copy_referenced_memos``)
+and exposes Hancom's own real-measured merge-policy axes (글자 모양 유지/
+스타일 유지/쪽 모양 유지/문단 모양 유지, see ``_validate_merge_policy_axes``)
+as named parameters -- though only the shipped default direction of each
+axis has an implementation; the opposite ("흡수") is honestly deferred. See
 ``docs/2026-08-08-document-merge-contract.md`` for the full id-reference
 catalog this module was designed against, the v1 scope decision (no style
 deduplication -- every referenced item is copied under a fresh id, even if
 it looks identical to something the target already has), and the specific
-references this v1 deliberately refuses to handle (``hp:connectLine``'s
-``subjectIDRef``, linked-textbox chains, chart binary references) rather
-than risk a silent, wrong remap.
+references this module still deliberately refuses to handle
+(``hp:connectLine``'s ``subjectIDRef``, linked-textbox chains, chart binary
+references) rather than risk a silent, wrong remap.
 
 Two entry points, matching the contract's v1 scope:
 
@@ -54,6 +61,7 @@ from ..oxml._document_primitives import (
     _allocate_font_id,
     _allocate_memo_shape_id,
     _allocate_tab_id,
+    _memo_id,
     _object_id,
     _refresh_copied_paragraph_subtree_ids,
 )
@@ -86,19 +94,82 @@ _REJECTED_ATTR_SENTINELS: dict[str, frozenset[str]] = {
     "linkListIDRef": frozenset({"0", ""}),
     "linkListNextIDRef": frozenset({"0", ""}),
 }
-#: hp:fieldBegin type values this v1 refuses to carry across documents.
-#: MEMO was added after live testing (not assumed in advance) surfaced that
-#: a memo's actual text lives in <hp:memogroup>, a *sibling* of the
-#: paragraphs at the section level -- not nested inside the anchoring
-#: paragraph at all (the paragraph only carries a fieldBegin/fieldEnd pair
-#: whose "ID" stringParam matches hp:memogroup/hp:memo/@id). Copying only
-#: the paragraphs this module operates on would silently drop the memo's
-#: actual content while leaving a dangling-looking field marker behind --
-#: exactly the silent-corruption shape this module exists to prevent.
-#: Full memo support (copying the referenced memogroup entries, remapping
-#: both the field's ID param and the memo's own id consistently) is real
-#: but out of v1's explicit scope -- reported as a v13+ candidate.
-_REJECTED_FIELD_TYPES = ("MEMO",)
+#: The 4 merge-policy axes Hancom's own "문서 끼워 넣기" dialog exposes as
+#: checkboxes (글자 모양 유지/스타일 유지/쪽 모양 유지/문단 모양 유지), per
+#: team-lead's real-GUI measurement (2026-08-07) -- see the contract doc's
+#: 정책 4축 section for the exact dialog wording each axis name is drawn
+#: from (never invented here). Hancom's own default is all 4 OFF (=="흡수":
+#: copied content takes on the target's existing formatting rather than
+#: keeping its own) -- the *opposite* of what this module's v1 already
+#: shipped and had real-Hancom-verified (v13 batch): v1 always keeps every
+#: axis's source formatting, unconditionally, with no parameter to turn it
+#: off. These defaults preserve that exact shipped behavior for backward
+#: compatibility -- only an explicit non-default value is rejected
+#: (honest-defer, not guessed), since "흡수" requires mapping copied
+#: content onto the target's *existing* formatting, and how Hancom
+#: actually performs that mapping has no measured basis yet.
+_MERGE_POLICY_AXIS_DEFAULTS: dict[str, bool] = {
+    "keep_character_shape": True,
+    "keep_style": True,
+    "keep_paragraph_shape": True,
+    "keep_page_shape": False,
+}
+#: Korean axis names exactly as measured from the real dialog.
+_MERGE_POLICY_AXIS_KOREAN_NAMES: dict[str, str] = {
+    "keep_character_shape": "글자 모양 유지",
+    "keep_style": "스타일 유지",
+    "keep_paragraph_shape": "문단 모양 유지",
+    "keep_page_shape": "쪽 모양 유지",
+}
+
+
+def _validate_merge_policy_axes(
+    *,
+    keep_character_shape: bool,
+    keep_style: bool,
+    keep_paragraph_shape: bool,
+    keep_page_shape: bool,
+) -> None:
+    """Reject any merge-policy axis value other than v1's shipped default.
+
+    v2 exposes the 4 axes as named parameters (matching the real Hancom
+    dialog's own checkbox names) so callers can *see* the policy this
+    module has always applied -- but only the shipped, real-Hancom-verified
+    direction of each axis actually has an implementation. Flipping an
+    axis to its opposite ("흡수"/absorb, or -- for 쪽 모양 유지 -- replacing
+    the target's page setup with the source's) needs target-formatting
+    mapping semantics this module has no measured basis for yet; guessing
+    risks exactly the silent-corruption failure mode this whole module
+    exists to prevent. Called first, before any side effect, so a rejected
+    request never opens/mutates anything.
+    """
+
+    requested = {
+        "keep_character_shape": keep_character_shape,
+        "keep_style": keep_style,
+        "keep_paragraph_shape": keep_paragraph_shape,
+        "keep_page_shape": keep_page_shape,
+    }
+    for axis, value in requested.items():
+        default = _MERGE_POLICY_AXIS_DEFAULTS[axis]
+        if value != default:
+            raise HwpxValueError(
+                f"{axis}={value!r} is not implemented yet -- only the "
+                f"shipped default ({default!r}) is supported",
+                code="document-merge-unsupported-policy-axis",
+                context={
+                    "axis": axis,
+                    "koreanName": _MERGE_POLICY_AXIS_KOREAN_NAMES[axis],
+                    "requested": value,
+                    "supported": default,
+                },
+                suggestion=(
+                    "See docs/2026-08-08-document-merge-contract.md's 정책 "
+                    "4축 section -- the opposite direction of this axis "
+                    "needs target-formatting mapping semantics this module "
+                    "has no measured basis for yet."
+                ),
+            )
 
 
 def _local_name(tag: str) -> str:
@@ -118,19 +189,6 @@ def _reject_unsupported_references(paragraphs: list[Any]) -> None:
                         "section -- this reference's remap semantics are not "
                         "established with enough confidence to carry across "
                         "documents silently."
-                    ),
-                )
-            if _local_name(node.tag) == "fieldBegin" and node.get("type") in _REJECTED_FIELD_TYPES:
-                raise HwpxValueError(
-                    f"document insert does not support fieldBegin type={node.get('type')!r} yet",
-                    code="document-merge-unsupported-reference",
-                    context={"fieldType": node.get("type")},
-                    suggestion=(
-                        "See docs/2026-08-08-document-merge-contract.md's 보류 "
-                        "section -- this field type's actual content lives "
-                        "outside the paragraphs this module copies (e.g. memo "
-                        "text lives in a sibling hp:memogroup), so copying the "
-                        "paragraph alone would silently drop it."
                     ),
                 )
             for attr in _REJECTED_ATTRS:
@@ -567,11 +625,15 @@ def _deep_copy_element(element: Any) -> Any:
 def _refresh_field_and_bookmark_ids(paragraphs: list[Any], existing_bookmark_names: set[str]) -> None:
     """Refresh document-local ids that ``_refresh_copied_paragraph_subtree_ids``
     deliberately leaves alone (see its own docstring): field begin/end
-    pairing and bookmark names. Does NOT handle ``hp:memo`` -- real memo
-    content never nests inside a paragraph at all (it lives in a sibling
-    ``hp:memogroup``, see ``_REJECTED_FIELD_TYPES``'s docstring), so
-    ``fieldBegin type="MEMO"`` is rejected upstream in
-    :func:`_reject_unsupported_references` before this function ever runs.
+    pairing and bookmark names. Applies uniformly to every fieldBegin type,
+    including ``MEMO`` -- this function only ever touches the field
+    control's *own* ``id``/``fieldid`` attributes, never its nested
+    ``hp:parameters``, so it needs no special-casing for memo fields. The
+    memo's own id (and the field's ``ID``/``MemoShapeIDRef``
+    ``hp:stringParam`` text values that reference it) are handled
+    separately by :func:`_copy_referenced_memos`/
+    :func:`_apply_memo_field_param_remaps` -- real memo content lives in a
+    sibling ``hp:memogroup``, not nested in this paragraph subtree at all.
     """
 
     for paragraph in paragraphs:
@@ -732,13 +794,154 @@ def _strip_embedded_section_properties(paragraphs: list[Any]) -> int:
     return removed
 
 
+# ================================================================================
+# MEMO merge (hp:memogroup content) -- a memo's actual text lives in
+# hp:memogroup, a *section-level sibling* of hp:p (DEV-042), never nested
+# inside the anchoring paragraph. The anchoring paragraph only carries a
+# fieldBegin/fieldEnd pair whose hp:parameters/hp:stringParam[name=ID]
+# matches the memo's own @id -- so copying paragraphs alone (as every
+# other reference space in this module operates on) would silently drop
+# the memo's actual content while leaving a dangling-looking field marker
+# behind. These functions find, clone, and re-anchor the referenced
+# hp:memo elements; the clones are then folded into the SAME axis-1 remap
+# scanning as the body paragraph copies (see _merge_paragraphs) so a
+# memo's own charPr/paraPr/style/memoShapeIDRef usage gets remapped by the
+# existing machinery, for free -- no separate remap pass needed for memo
+# content itself.
+# ================================================================================
+
+
+def _find_memo_field_ids(paragraphs: list[Any]) -> set[str]:
+    """Scan *paragraphs* for fieldBegin type=MEMO controls, returning the
+    set of memo ids they reference (the "ID" stringParam value -- matches
+    hp:memogroup/hp:memo/@id, per fieldBegin's own anchoring convention)."""
+
+    memo_ids: set[str] = set()
+    for paragraph in paragraphs:
+        for node in paragraph.iter():
+            if _local_name(node.tag) != "fieldBegin" or node.get("type") != "MEMO":
+                continue
+            params = node.find(f"{_HP}parameters")
+            if params is None:
+                continue
+            for string_param in params.findall(f"{_HP}stringParam"):
+                if string_param.get("name") == "ID" and string_param.text:
+                    memo_ids.add(string_param.text)
+    return memo_ids
+
+
+def _copy_referenced_memos(
+    source: HwpxDocument, source_paragraphs: list[Any]
+) -> tuple[dict[str, str], list[Any]]:
+    """Find every hp:memo the MEMO fields in *source_paragraphs* reference,
+    clone them, and give each clone a fresh memo id plus fresh ids for its
+    own nested paraList paragraph subtree.
+
+    Searches across *all* of *source*'s sections (not just the ones the
+    caller is copying paragraphs from) since hp:memogroup is a
+    section-level sibling -- nothing in the schema guarantees a memo lives
+    in the same section as every paragraph that could reference it, and
+    this module would rather search a little wider than silently miss one.
+
+    Returns (old_memo_id -> new_memo_id, the memo clones). Does NOT remap
+    the clones' own charPrIDRef/paraPrIDRef/styleIDRef/memoShapeIDRef --
+    the caller folds these clones into the same axis-1 scanning/
+    application passes used for the body paragraph copies, so a memo's own
+    formatting goes through the exact same remap machinery as everything
+    else, rather than a separate reimplementation.
+    """
+
+    needed_ids = _find_memo_field_ids(source_paragraphs)
+    if not needed_ids:
+        return {}, []
+
+    source_memos: dict[str, Any] = {}
+    for section in source.sections:
+        for memogroup in section.element.findall(f"{_HP}memogroup"):
+            for memo in memogroup.findall(f"{_HP}memo"):
+                memo_id = memo.get("id")
+                if memo_id:
+                    source_memos[memo_id] = memo
+
+    memo_id_map: dict[str, str] = {}
+    clones: list[Any] = []
+    for old_id in sorted(needed_ids):
+        memo = source_memos.get(old_id)
+        if memo is None:
+            continue
+        clone = _deep_copy_element(memo)
+        new_id = _memo_id()
+        clone.set("id", new_id)
+        memo_id_map[old_id] = new_id
+        _refresh_copied_paragraph_subtree_ids(clone)
+        clones.append(clone)
+    return memo_id_map, clones
+
+
+def _apply_memo_field_param_remaps(
+    paragraphs: list[Any], *, memo_id: dict[str, str], memo_shape: dict[str, str]
+) -> None:
+    """Update fieldBegin type=MEMO's own hp:parameters/hp:stringParam text
+    values ("ID" cross-references the memogroup entry; "MemoShapeIDRef"
+    mirrors the memo's own memoShapeIDRef attribute for inline-render
+    purposes) to match the id remaps applied elsewhere.
+
+    These are element *text*, not attributes -- :func:`_apply_remaps` only
+    ever substitutes attribute values, so this needs its own pass. Left
+    untouched when a value isn't in the remap dict: "ID" always is (every
+    surviving MEMO field references a memo that was found and cloned by
+    :func:`_copy_referenced_memos`), but "MemoShapeIDRef" commonly stays at
+    its "65535" sentinel (no shape override) -- which is never a
+    remap-dict key, since a sentinel value never comes from a real
+    memoShapeIDRef attribute on some hh:memoPr item in the first place.
+    """
+
+    for paragraph in paragraphs:
+        for node in paragraph.iter():
+            if _local_name(node.tag) != "fieldBegin" or node.get("type") != "MEMO":
+                continue
+            params = node.find(f"{_HP}parameters")
+            if params is None:
+                continue
+            for string_param in params.findall(f"{_HP}stringParam"):
+                name = string_param.get("name")
+                if name == "ID" and string_param.text in memo_id:
+                    string_param.text = memo_id[string_param.text]
+                elif name == "MemoShapeIDRef" and string_param.text in memo_shape:
+                    string_param.text = memo_shape[string_param.text]
+
+
+def _insert_memos_into_target_section(target_section: Any, memo_clones: list[Any]) -> None:
+    """Append *memo_clones* into *target_section*'s hp:memogroup, creating
+    one if it doesn't already have one -- reusing the section's own
+    find-or-create accessor (matching ``add_memo``'s own path, not a
+    reimplementation) so a fresh memogroup lands wherever add_memo would
+    put one.
+
+    Explicitly marks the section dirty regardless of which branch ran: the
+    accessor only does so itself when it *creates* a new memogroup -- the
+    "already has one, just append more memo children" case would
+    otherwise never reserialize on save, exactly the mark_dirty() omission
+    class of bug this module already hit once for the header (see
+    _merge_paragraphs's own docstring comment on that).
+    """
+
+    if not memo_clones:
+        return
+    memogroup = target_section._memo_group_element(create=True)
+    for clone in memo_clones:
+        memogroup.append(clone)
+    target_section.mark_dirty()
+
+
 def _merge_paragraphs(
     target: HwpxDocument,
     source: HwpxDocument,
     *,
     source_section_index: int | None,
-) -> tuple[list[Any], dict[str, Any]]:
-    """Deep-copy source paragraphs, remap every reference, return (elements, report)."""
+) -> tuple[list[Any], list[Any], dict[str, Any]]:
+    """Deep-copy source paragraphs, remap every reference, return
+    (paragraph elements, memo clones, report)."""
 
     source_sections = (
         [source.sections[source_section_index]] if source_section_index is not None
@@ -746,9 +949,16 @@ def _merge_paragraphs(
     )
     source_paragraphs = [p.element for section in source_sections for p in section.paragraphs]
     if not source_paragraphs:
-        return [], {"paragraphsInserted": 0}
+        return [], [], {"paragraphsInserted": 0}
 
     _reject_unsupported_references(source_paragraphs)
+
+    # Found (via _find_memo_field_ids) and cloned from the ORIGINAL,
+    # uncopied paragraphs -- fieldBegin's own "ID" stringParam values are
+    # identical either way (deep-copying hasn't happened yet at this
+    # point), and _copy_referenced_memos needs *source* itself (not just
+    # source_paragraphs) to search its sections' hp:memogroup elements.
+    memo_id_map, memo_clones = _copy_referenced_memos(source, source_paragraphs)
 
     copies = [_deep_copy_element(p) for p in source_paragraphs]
     # A copied paragraph is never the destination section's first paragraph
@@ -779,25 +989,34 @@ def _merge_paragraphs(
     # reference copies that default style under a fresh id).
     target_header.mark_dirty()
 
+    # memo_clones fold into the SAME axis-1 scanning/application passes as
+    # the body paragraph copies -- a memo's own paraList/hp:p carries
+    # charPrIDRef/paraPrIDRef/styleIDRef exactly like body content, and
+    # hp:memo's own memoShapeIDRef attribute is scanned identically too
+    # (_used_ids's .iter() includes the top-level element itself, so a
+    # bare hp:memo clone's own attribute is caught same as any nested
+    # node's). No separate remap pass needed for memo content.
+    remap_scope = copies + memo_clones
+
     # A style's own base paraPr/charPr may not be independently referenced
     # by any body paragraph (a paragraph can point only at the style and
     # inherit its formatting implicitly) -- computed *before* the char/para
     # remap calls so their `used` sets can fold these ids in. See
     # _extra_ids_from_style_bases's docstring for the live-tested evidence.
-    style_ids_used = _used_ids(copies, "styleIDRef")
+    style_ids_used = _used_ids(remap_scope, "styleIDRef")
     extra_char_ids, extra_para_ids = _extra_ids_from_style_bases(source_header, style_ids_used)
 
     char_pr, char_pr_clones = _remap_char_properties(
-        source_header, target_header, copies, extra_ids=extra_char_ids
+        source_header, target_header, remap_scope, extra_ids=extra_char_ids
     )
     para_pr, para_pr_clones = _remap_para_properties(
-        source_header, target_header, copies, extra_ids=extra_para_ids
+        source_header, target_header, remap_scope, extra_ids=extra_para_ids
     )
-    style, style_clones = _remap_styles(source_header, target_header, copies)
-    border_fill = _remap_border_fills(source_header, target_header, copies)
-    tab_pr = _remap_tab_properties(source_header, target_header, copies)
-    memo_shape = _remap_memo_properties(source_header, target_header, copies)
-    binary_item = _remap_binary_items(source, target, source_header, target_header, copies)
+    style, style_clones = _remap_styles(source_header, target_header, remap_scope)
+    border_fill = _remap_border_fills(source_header, target_header, remap_scope)
+    tab_pr = _remap_tab_properties(source_header, target_header, remap_scope)
+    memo_shape = _remap_memo_properties(source_header, target_header, remap_scope)
+    binary_item = _remap_binary_items(source, target, source_header, target_header, remap_scope)
     # hh:heading (numbering/bullet's own polymorphic idRef) lives inside the
     # just-copied paraPr items, not the body paragraphs -- scan those.
     headings = _remap_headings(source_header, target_header, para_pr_clones)
@@ -809,13 +1028,16 @@ def _merge_paragraphs(
         "char_pr": char_pr, "para_pr": para_pr, "style": style, "border_fill": border_fill,
         "tab_pr": tab_pr, "memo_shape": memo_shape, "binary_item": binary_item, "headings": headings,
     }
-    # Applied to the body paragraph copies (the normal case) AND to the
-    # header item clones themselves -- a copied hh:paraPr can carry its own
+    # Applied to the body paragraph copies (the normal case), the memo
+    # clones (their own paraList content and hp:memo/@memoShapeIDRef, see
+    # this function's memo_clones comment above), AND the header item
+    # clones themselves -- a copied hh:paraPr can carry its own
     # tabPrIDRef/heading-idRef, and a copied hh:style can carry its own
     # paraPrIDRef/charPrIDRef/nextStyleIDRef/charStyleIDRef. Idempotent
-    # dict-membership checks, so running it three times over disjoint
+    # dict-membership checks, so running it four times over disjoint
     # element sets is safe.
     _apply_remaps(copies, **remap_kwargs)
+    _apply_remaps(memo_clones, **remap_kwargs)
     _apply_remaps(para_pr_clones, **remap_kwargs)
     _apply_remaps(style_clones, **remap_kwargs)
     # Font remap is shaped differently (per-lang dicts, not one flat dict)
@@ -840,12 +1062,22 @@ def _merge_paragraphs(
 
     for copy in copies:
         _refresh_copied_paragraph_subtree_ids(copy)
+    # memo_clones already had _refresh_copied_paragraph_subtree_ids applied
+    # to each individually inside _copy_referenced_memos (needed there, to
+    # give each clone a fresh memo id + fresh nested paraList paragraph ids
+    # before axis-1 scanning reads them) -- not repeated here.
     bookmark_names = _existing_bookmark_names(target)
     _refresh_field_and_bookmark_ids(copies, bookmark_names)
+    # The field's OWN "ID"/"MemoShapeIDRef" hp:stringParam text values --
+    # not attributes, so _apply_remaps never touches them -- get their own
+    # pass, using the id map _copy_referenced_memos already built plus the
+    # memoShapeIDRef remap dict computed above.
+    _apply_memo_field_param_remaps(copies, memo_id=memo_id_map, memo_shape=memo_shape)
 
     report = {
         "paragraphsInserted": len(copies),
         "sectionPropertiesStripped": stripped_section_properties,
+        "memosCopied": len(memo_clones),
         "remapped": {
             "charPr": len(char_pr),
             "paraPr": len(para_pr),
@@ -859,7 +1091,7 @@ def _merge_paragraphs(
             "font": sum(len(m) for m in fonts.values()),
         },
     }
-    return copies, report
+    return copies, memo_clones, report
 
 
 def _remap_styles(
@@ -910,6 +1142,10 @@ def append_document(
     *,
     target_section_index: int = -1,
     source_section_index: int | None = None,
+    keep_character_shape: bool = True,
+    keep_style: bool = True,
+    keep_paragraph_shape: bool = True,
+    keep_page_shape: bool = False,
 ) -> dict[str, Any]:
     """Append *source*'s paragraphs to the end of *target*'s section.
 
@@ -917,8 +1153,23 @@ def append_document(
     this function -- caller's document, caller's lifecycle) or a path (opened
     and closed internally). *source_section_index* limits the copy to one
     source section; ``None`` (default) copies all of them, in order.
+
+    *keep_character_shape*/*keep_style*/*keep_paragraph_shape*/
+    *keep_page_shape* name the same 4 axes Hancom's own "문서 끼워 넣기"
+    dialog exposes -- their defaults match this module's shipped, real-
+    Hancom-verified behavior. Passing a non-default value raises
+    ``HwpxValueError`` (code ``document-merge-unsupported-policy-axis``):
+    see ``docs/2026-08-08-document-merge-contract.md``'s 정책 4축 section
+    for why the opposite direction of each axis is honestly deferred
+    rather than guessed.
     """
 
+    _validate_merge_policy_axes(
+        keep_character_shape=keep_character_shape,
+        keep_style=keep_style,
+        keep_paragraph_shape=keep_paragraph_shape,
+        keep_page_shape=keep_page_shape,
+    )
     if isinstance(source, HwpxDocument):
         opened_here = False
         source_doc = source
@@ -926,13 +1177,14 @@ def append_document(
         opened_here = True
         source_doc = HwpxDocument.open(source)
     try:
-        copies, report = _merge_paragraphs(
+        copies, memo_clones, report = _merge_paragraphs(
             target, source_doc, source_section_index=source_section_index,
         )
         target_section = target.sections[target_section_index]
         if copies:
             index = len(target_section.paragraphs)
             target_section.insert_paragraphs(index, copies)
+        _insert_memos_into_target_section(target_section, memo_clones)
         report["position"] = "end"
         report["targetSectionIndex"] = target_section_index
         return report
@@ -948,15 +1200,26 @@ def insert_document(
     after_paragraph_index: int,
     target_section_index: int = 0,
     source_section_index: int | None = None,
+    keep_character_shape: bool = True,
+    keep_style: bool = True,
+    keep_paragraph_shape: bool = True,
+    keep_page_shape: bool = False,
 ) -> dict[str, Any]:
     """Insert *source*'s paragraphs into *target* after a given paragraph.
 
     ``after_paragraph_index`` is the index (within ``target.sections[
     target_section_index]``) of the paragraph the copied content is
     inserted after -- ``-1`` inserts before the first paragraph. See
-    :func:`append_document` for *source*/*source_section_index*.
+    :func:`append_document` for *source*/*source_section_index*/the 4
+    merge-policy axis parameters.
     """
 
+    _validate_merge_policy_axes(
+        keep_character_shape=keep_character_shape,
+        keep_style=keep_style,
+        keep_paragraph_shape=keep_paragraph_shape,
+        keep_page_shape=keep_page_shape,
+    )
     if isinstance(source, HwpxDocument):
         opened_here = False
         source_doc = source
@@ -964,7 +1227,7 @@ def insert_document(
         opened_here = True
         source_doc = HwpxDocument.open(source)
     try:
-        copies, report = _merge_paragraphs(
+        copies, memo_clones, report = _merge_paragraphs(
             target, source_doc, source_section_index=source_section_index,
         )
         target_section = target.sections[target_section_index]
@@ -979,6 +1242,7 @@ def insert_document(
             )
         if copies:
             target_section.insert_paragraphs(after_paragraph_index + 1, copies)
+        _insert_memos_into_target_section(target_section, memo_clones)
         report["position"] = "after_paragraph"
         report["afterParagraphIndex"] = after_paragraph_index
         report["targetSectionIndex"] = target_section_index

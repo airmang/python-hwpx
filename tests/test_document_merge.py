@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Document insertion/merge (cycle 6.9 train 33) -- id-remap correctness.
+"""Document insertion/merge (cycle 6.9 train 33, v2 cycle 6.10 train 38) --
+id-remap correctness, MEMO merge support, and merge-policy axis validation.
 
 See ``docs/2026-08-08-document-merge-contract.md`` for the id-reference
 catalog this module was designed against. Referential integrity is checked
@@ -477,23 +478,111 @@ def test_merge_rejects_chart_id_ref() -> None:
     assert excinfo.value.code == "document-merge-unsupported-reference"
 
 
-def test_merge_rejects_documents_containing_memos() -> None:
+def _memo_field_string_param(paragraph_element, name: str) -> str | None:
+    for node in paragraph_element.iter():
+        if node.tag == f"{_HP}fieldBegin" and node.get("type") == "MEMO":
+            params = node.find(f"{_HP}parameters")
+            if params is None:
+                continue
+            for string_param in params.findall(f"{_HP}stringParam"):
+                if string_param.get("name") == name:
+                    return string_param.text
+    return None
+
+
+def _memogroup_memo_ids(doc: HwpxDocument, section_index: int = 0) -> list[str]:
+    section = doc.sections[section_index]
+    ids: list[str] = []
+    for memogroup in section.element.findall(f"{_HP}memogroup"):
+        for memo in memogroup.findall(f"{_HP}memo"):
+            ids.append(memo.get("id"))
+    return ids
+
+
+# ============================================================================
+# MEMO merge (hp:memogroup content, section-level sibling per DEV-042) --
+# "결함-부활": these were fail-closed rejection tests (v1's explicit 보류
+# scope) until train 38/cycle 6.10 added real memo support; they are now
+# converted to positive support tests rather than deleted, per the same
+# defect-resurrection discipline this module's other bug fixes followed.
+# ============================================================================
+
+
+def test_merge_copies_referenced_memo_content() -> None:
     source = HwpxDocument.new()
+    shape_id = source.styles.ensure_memo_shape(fill_color="#F0FFE9")
     p = source.add_paragraph("annotated text")
-    source.notes.add_memo("a comment", anchor=p)
+    source.notes.add_memo("a comment", anchor=p, memo_shape_id_ref=shape_id)
+
+    # target already owns a memo shape at the SAME id (both allocators
+    # start at "1" on a fresh document) -- an adversarial, not
+    # coincidentally-matching setup, so a coincidental id match can't mask
+    # a remap that silently never ran (see this codebase's own
+    # _extra_ids_from_style_bases precedent for why coincidental defaults
+    # are treated as untrustworthy test setups).
+    target = HwpxDocument.new()
+    target.styles.ensure_memo_shape(fill_color="#FFFFFF")
+    assert shape_id == "1"
+
+    report = append_document(target, source)
+    assert report["memosCopied"] == 1
+
+    merged = target.sections[0].paragraphs[-1]
+    field_id = _memo_field_string_param(merged.element, "ID")
+    field_shape_ref = _memo_field_string_param(merged.element, "MemoShapeIDRef")
+    assert field_id is not None
+
+    memo_ids = _memogroup_memo_ids(target)
+    assert memo_ids == [field_id]
+
+    memo_element = next(
+        m
+        for mg in target.sections[0].element.findall(f"{_HP}memogroup")
+        for m in mg.findall(f"{_HP}memo")
+    )
+    assert memo_element.get("id") == field_id
+    assert memo_element.get("memoShapeIDRef") == field_shape_ref
+    # A remapped memoShapeIDRef must differ from the source's raw id -- an
+    # unchanged value here would mean the remap silently no-op'd (a
+    # dangling/aliased reference), not a genuine "no override" sentinel.
+    assert field_shape_ref != shape_id
+    memo_text = "".join(t.text or "" for t in memo_element.iter(f"{_HP}t"))
+    assert "a comment" in memo_text
+
+    after = check_id_integrity(target)
+    assert after.ok, after.dangling
+
+
+def test_merge_memo_default_shape_ref_stays_the_65535_sentinel() -> None:
+    """No memo_shape_id_ref passed -- Hancom's own "no shape override"
+    sentinel ("65535") on both the field's own stringParam and (its
+    absence on) hp:memo's own attribute, unchanged by the merge."""
+
+    source = HwpxDocument.new()
+    p = source.add_paragraph("plain comment")
+    source.notes.add_memo("no shape override", anchor=p)
 
     target = HwpxDocument.new()
-    with pytest.raises(HwpxValueError) as excinfo:
-        append_document(target, source)
-    assert excinfo.value.code == "document-merge-unsupported-reference"
-    assert excinfo.value.context.get("fieldType") == "MEMO"
+    append_document(target, source)
+
+    merged = target.sections[0].paragraphs[-1]
+    assert _memo_field_string_param(merged.element, "MemoShapeIDRef") == "65535"
+    memo_element = next(
+        m
+        for mg in target.sections[0].element.findall(f"{_HP}memogroup")
+        for m in mg.findall(f"{_HP}memo")
+    )
+    assert memo_element.get("memoShapeIDRef") is None
+
+    after = check_id_integrity(target)
+    assert after.ok, after.dangling
 
 
-def test_merge_still_rejects_memo_when_source_section_index_narrows_scope() -> None:
-    """The reject-scan runs on whatever content is actually being copied --
-    confirms a memo in an *excluded* section does not block the merge
-    (narrowing scope is a real way to route around unsupported content, not
-    a bypass of the check on content that *is* copied)."""
+def test_merge_with_narrowed_source_section_still_copies_referenced_memo() -> None:
+    """Narrowing source_section_index to the very section the memo's field
+    lives in must still resolve and copy the memo -- narrowing the scan
+    scope must never accidentally also narrow away content that *is*
+    being copied."""
 
     source = HwpxDocument.new()
     p0 = source.sections[0].paragraphs[0]
@@ -501,8 +590,97 @@ def test_merge_still_rejects_memo_when_source_section_index_narrows_scope() -> N
     source.add_paragraph("plain text, still section 0")
 
     target = HwpxDocument.new()
-    with pytest.raises(HwpxValueError):
-        append_document(target, source, source_section_index=0)
+    report = append_document(target, source, source_section_index=0)
+    assert report["memosCopied"] == 1
+    assert len(_memogroup_memo_ids(target)) == 1
+
+
+def test_merge_excludes_memo_anchored_in_a_source_section_not_being_copied() -> None:
+    """A memo anchored in a source section that source_section_index
+    excludes must not be copied -- _find_memo_field_ids only sees the
+    fieldBegin controls actually present in the paragraphs being copied,
+    so a memo nobody references in-scope is correctly left behind.
+
+    Section 1 is added *before* the memo is anchored -- anchoring a memo
+    onto a section's very first paragraph inserts a new leading run
+    ahead of the hp:secPr/hp:ctrl(colPr) run add_section()'s own layout
+    inheritance expects to find there (a real, separate fragility in
+    add_section() unrelated to document_merge; routed around here rather
+    than fixed, out of this train's scope)."""
+
+    source = HwpxDocument.new()
+    source.add_section()
+    p0 = source.sections[0].paragraphs[0]
+    source.notes.add_memo("only in section 0", anchor=p0)
+    source.sections[1].add_paragraph("section 1, no memo reference")
+
+    target = HwpxDocument.new()
+    report = append_document(target, source, source_section_index=1)
+    assert report["memosCopied"] == 0
+    assert _memogroup_memo_ids(target) == []
+
+    after = check_id_integrity(target)
+    assert after.ok, after.dangling
+
+
+def test_merge_appends_into_an_existing_target_memogroup_not_a_duplicate() -> None:
+    """Target already has its own memo (its own memogroup) -- merging a
+    second, source-provided memo must land in the SAME memogroup, not a
+    second sibling one."""
+
+    target = HwpxDocument.new()
+    target_p = target.add_paragraph("target's own annotated text")
+    target.notes.add_memo("target's own comment", anchor=target_p)
+    assert len(target.sections[0].element.findall(f"{_HP}memogroup")) == 1
+
+    source = HwpxDocument.new()
+    source_p = source.add_paragraph("source's annotated text")
+    source.notes.add_memo("source's comment", anchor=source_p)
+
+    report = append_document(target, source)
+    assert report["memosCopied"] == 1
+    assert len(target.sections[0].element.findall(f"{_HP}memogroup")) == 1
+    assert len(_memogroup_memo_ids(target)) == 2
+
+    after = check_id_integrity(target)
+    assert after.ok, after.dangling
+
+
+def test_merge_memo_survives_real_save_and_reopen() -> None:
+    """Save-path dirty-tracking regression for memogroup mutation -- the
+    same failure shape train 33's header fix caught (in-memory checks pass
+    cleanly but the saved bytes silently omit the mutation because nothing
+    marked the owning part dirty). Appending hp:memo directly into
+    hp:memogroup mutates the SECTION's element tree, not the header's --
+    this needs target_section.mark_dirty(), a fully independent code path
+    from the header fix, so it gets its own dedicated round-trip test
+    rather than relying on other tests' incidental save/reopen coverage."""
+
+    source = HwpxDocument.new()
+    shape_id = source.styles.ensure_memo_shape(fill_color="#FFE9CC")
+    p = source.add_paragraph("annotated text")
+    source.notes.add_memo("survives a real save", anchor=p, memo_shape_id_ref=shape_id)
+
+    target = HwpxDocument.new()
+    append_document(target, source)
+
+    data = target.to_bytes()
+    reopened = HwpxDocument.open(data)
+
+    memo_ids = _memogroup_memo_ids(reopened)
+    assert len(memo_ids) == 1
+    merged = reopened.sections[0].paragraphs[-1]
+    assert _memo_field_string_param(merged.element, "ID") == memo_ids[0]
+    memo_element = next(
+        m
+        for mg in reopened.sections[0].element.findall(f"{_HP}memogroup")
+        for m in mg.findall(f"{_HP}memo")
+    )
+    memo_text = "".join(t.text or "" for t in memo_element.iter(f"{_HP}t"))
+    assert "survives a real save" in memo_text
+
+    after = check_id_integrity(reopened)
+    assert after.ok, after.dangling
 
 
 # ============================================================================
@@ -628,3 +806,107 @@ def test_fresh_document_passes_the_referential_integrity_gate() -> None:
     doc = HwpxDocument.new()
     report = check_id_integrity(doc)
     assert report.ok, report.dangling
+
+
+# ============================================================================
+# merge-policy axes (정책 4축) -- Hancom's own real-measured "문서 끼워 넣기"
+# dialog checkboxes (글자 모양 유지/스타일 유지/쪽 모양 유지/문단 모양 유지).
+# Only the shipped default direction of each axis has an implementation;
+# the opposite ("흡수") is honestly deferred with a typed error rather than
+# guessed -- see docs/2026-08-08-document-merge-contract.md's 정책 4축
+# section.
+# ============================================================================
+
+_MERGE_POLICY_AXES = (
+    "keep_character_shape",
+    "keep_style",
+    "keep_paragraph_shape",
+    "keep_page_shape",
+)
+
+
+def test_append_document_default_policy_axes_are_accepted() -> None:
+    source = HwpxDocument.new()
+    source.add_paragraph("default axes")
+    target = HwpxDocument.new()
+
+    report = append_document(
+        target,
+        source,
+        keep_character_shape=True,
+        keep_style=True,
+        keep_paragraph_shape=True,
+        keep_page_shape=False,
+    )
+    assert "default axes" in _texts(target)
+    after = check_id_integrity(target)
+    assert after.ok, after.dangling
+    # HwpxDocument.new() ships with its own default empty-text paragraph --
+    # source_section_index=None (the default) copies every source
+    # paragraph, including that pre-existing empty one, not just the one
+    # explicitly added above.
+    assert report["paragraphsInserted"] == 2
+
+
+def test_insert_document_default_policy_axes_are_accepted() -> None:
+    source = HwpxDocument.new()
+    source.add_paragraph("default axes")
+    target = HwpxDocument.new()
+    target.add_paragraph("existing")
+
+    report = insert_document(
+        target,
+        source,
+        after_paragraph_index=0,
+        keep_character_shape=True,
+        keep_style=True,
+        keep_paragraph_shape=True,
+        keep_page_shape=False,
+    )
+    assert "default axes" in _texts(target)
+    assert report["paragraphsInserted"] == 2
+
+
+_MERGE_POLICY_DEFAULTS = {
+    "keep_character_shape": True,
+    "keep_style": True,
+    "keep_paragraph_shape": True,
+    "keep_page_shape": False,
+}
+
+
+def test_append_document_rejects_every_non_default_policy_axis() -> None:
+    source = HwpxDocument.new()
+    source.add_paragraph("text")
+    target = HwpxDocument.new()
+
+    for axis in _MERGE_POLICY_AXES:
+        kwargs = dict(_MERGE_POLICY_DEFAULTS)
+        kwargs[axis] = not kwargs[axis]
+
+        with pytest.raises(HwpxValueError) as excinfo:
+            append_document(target, source, **kwargs)
+        assert excinfo.value.code == "document-merge-unsupported-policy-axis"
+        assert excinfo.value.context.get("axis") == axis
+        assert excinfo.value.context.get("koreanName")
+        # rejected before any side effect -- target must stay untouched
+        # (a fresh HwpxDocument.new() ships with one default empty paragraph)
+        assert _texts(target) == [""]
+
+
+def test_insert_document_rejects_every_non_default_policy_axis() -> None:
+    source = HwpxDocument.new()
+    source.add_paragraph("text")
+    target = HwpxDocument.new()
+    target.add_paragraph("existing")
+
+    for axis in _MERGE_POLICY_AXES:
+        kwargs = dict(_MERGE_POLICY_DEFAULTS)
+        kwargs[axis] = not kwargs[axis]
+
+        with pytest.raises(HwpxValueError) as excinfo:
+            insert_document(target, source, after_paragraph_index=0, **kwargs)
+        assert excinfo.value.code == "document-merge-unsupported-policy-axis"
+        assert excinfo.value.context.get("axis") == axis
+        # rejected before any side effect -- target must stay untouched
+        assert _texts(target) == ["", "existing"]

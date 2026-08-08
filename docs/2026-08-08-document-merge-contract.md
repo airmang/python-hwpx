@@ -1,10 +1,13 @@
 # 문서 끼워 넣기(문서 병합) — 계약 문서
 
-**사이클 6.9 트레인㉝**. 편집기 표면 인벤토리(트레인㉙)의 macOS 메뉴 전수
-스캔(2026-08-07)이 찾은 신규 갭 — 한컴 편집기 1급 메뉴 "입력→문서 끼워
-넣기…"인데 우리 세 자산(원장·capabilities·지원 매트릭스) 어디에도 대응
-표면이 없었다. 이 문서는 구현 전 계약이다 — id 참조 체계를 실코퍼스·
-스키마에서 전수 파악하고, v1 스코프와 정책 선택지를 여기 확정한다.
+**사이클 6.9 트레인㉝(v1) + 사이클 6.10 트레인㊱(v2)**. 편집기 표면
+인벤토리(트레인㉙)의 macOS 메뉴 전수 스캔(2026-08-07)이 찾은 신규 갭 —
+한컴 편집기 1급 메뉴 "입력→문서 끼워 넣기…"인데 우리 세 자산(원장·
+capabilities·지원 매트릭스) 어디에도 대응 표면이 없었다. 이 문서는
+구현 전 계약이다 — id 참조 체계를 실코퍼스·스키마에서 전수 파악하고,
+v1 스코프와 정책 선택지를 여기 확정한다. v2(트레인㊱)는 v1이 "보류"로
+남긴 두 항목 — 정책 4축의 함수 매개변수 노출과 MEMO 병합 지원 — 을
+채운다(아래 각 절에 v2 변경 표시).
 
 ## 왜 어려운가
 
@@ -131,27 +134,91 @@ run 자체를 정리한다.
 | 쪽 모양 유지 | `hp:secPr`(축4) | **항상 버림**(대상의 기존 절 설정이 유일한 권위) | **예** — 한컴 기본(흡수/버림, 0)과 일치 |
 | 문단 모양 유지 | paraPr 재매핑(축1) | **항상 새 id로 별도 보존**("유지" 쪽 고정) | 아니오 — 상동 |
 
-**핵심 정직 고지**: v1은 이 4축을 **사용자가 선택할 수 있는 옵션으로
-전혀 노출하지 않는다** — 축마다 하나의 고정 정책만 구현했다(글자/
-스타일/문단 모양은 "유지 항상 ON", 쪽 모양은 "유지 항상 OFF"). 한컴처럼
-4개를 독립적으로 토글하는 표면은 v1 범위 밖이다 — v1 스코프 절의
-"dedupe 없음" 결정(글자/스타일/문단 모양 3축)과 축4의 "대상 secPr이
-유일한 권위" 결정(쪽 모양 1축)이 왜 그 값으로 고정됐는지의 실측 근거가
-바로 이 표다. v2 후보: 4축을 함수 매개변수로 노출(예:
-`keep_character_shape=False`/`keep_style=False`/`keep_page_shape=False`/
-`keep_paragraph_shape=False`, 한컴 기본값과 동일하게 전부 기본 False로).
+**v1은 이 4축을 사용자가 선택할 수 있는 옵션으로 전혀 노출하지
+않았다** — 축마다 하나의 고정 정책만 구현했다(글자/스타일/문단 모양은
+"유지 항상 ON", 쪽 모양은 "유지 항상 OFF"). v1 스코프 절의 "dedupe
+없음" 결정(글자/스타일/문단 모양 3축)과 축4의 "대상 secPr이 유일한
+권위" 결정(쪽 모양 1축)이 왜 그 값으로 고정됐는지의 실측 근거가 바로
+이 표다.
 
-## 보류(v1 범위 밖, fail-closed로 거부)
+**v2(트레인㊱)**: `append_document`/`insert_document`가 이제 이 4축을
+한컴 UI와 정확히 같은 이름의 매개변수로 받는다 —
+`keep_character_shape`/`keep_style`/`keep_paragraph_shape`/
+`keep_page_shape`. 하지만 **각 축의 반대 방향("흡수")은 구현하지
+않는다** — 매개변수 기본값은 v1이 이미 출하하고 실한컴으로 검증한
+값(글자/스타일/문단 모양=`True`, 쪽 모양=`False`)과 정확히 같고, 이
+기본값이 아닌 값을 넘기면 `document-merge-unsupported-policy-axis`
+코드의 typed 오류로 **즉시, 부수효과 없이** 거부한다(문서를 열기
+전에 검증). 근거: "흡수"는 복사되는 서식을 **대상 문서가 이미 갖고
+있는 서식으로 매핑**해야 하는데(예: 복사된 문단의 글자 모양을 버리고
+대상 문단이 있던 자리의 글자 모양을 입힌다), 그 매핑 규칙이 어떻게
+결정되는지(대상의 어느 서식을 "그 자리의 서식"으로 보는지 등) 실측된
+바가 전혀 없다. 추측으로 구현하면 이 모듈 전체가 막으려는 바로 그
+실패 양상("무음 서식 오염")을 만들 위험이 있다 — 그래서 정직 보류를
+선택했다(오너 지침: "실측 불가한 axis 동작은 정직 보류 가능... 과설계
+금지, 축별 실증 가능한 것만"). 매개변수를 노출한 이유는 순전히
+가시성이다 — 호출자가 이 모듈의 고정 정책을 "숨은 동작"이 아니라
+"이름 붙은, 지금은 한 방향만 지원되는 매개변수"로 볼 수 있게.
 
-- **`hp:memogroup`(메모 내용)** — 실측(라이브 병합 스모크)에서 발견:
-  메모의 실제 텍스트는 문단 안에 있지 않다. 앵커 문단은
-  `hp:fieldBegin type="MEMO"`(그 `hp:parameters/hp:stringParam name="ID"`가
-  `hp:memogroup/hp:memo/@id`와 일치)만 갖고, `hp:memogroup` 자신은 절
-  레벨에서 `hp:p`들과 **형제**다(문단 안에 중첩되지 않음). 이 모듈이
-  다루는 단위는 문단이라, 순진하게 문단만 복사하면 메모 내용이 무음으로
-  누락된다 — 정확히 이 모듈이 막으려는 무음 손상 모양. v1은
-  `fieldBegin type="MEMO"`가 있으면 **fail-closed 거부**한다(memogroup
-  자체를 찾아 같이 복사하는 완전 지원은 실재하지만 스코프 밖 — v13+ 후보).
+## 지원 — MEMO 병합(v2, 트레인㊱)
+
+**구조(DEV-042)**: 메모의 실제 텍스트는 문단 안에 있지 않다. 앵커
+문단은 `hp:fieldBegin type="MEMO"`(그 `hp:parameters/hp:stringParam
+name="ID"`가 `hp:memogroup/hp:memo/@id`와 일치)만 갖고, `hp:memogroup`
+자신은 절 레벨에서 `hp:p`들과 **형제**다(문단 안에 중첩되지 않음). 하나의
+`hp:memogroup`이 그 절의 메모를 **여럿** 담을 수 있다(메모마다 그룹을
+새로 만들지 않음 — 라이브 2-메모 테스트로 확인). v1은 이 구조를 몰라
+`fieldBegin type="MEMO"`가 있으면 fail-closed 거부했다(순진하게
+문단만 복사하면 메모 내용이 무음으로 누락되는, 이 모듈이 막으려는
+바로 그 실패 양상이었기 때문). v2는 다음과 같이 지원한다:
+
+- **탐색**: 복사 대상 문단들의 `fieldBegin type="MEMO"`가 참조하는
+  메모 id를 모두 모으고(`_find_memo_field_ids`), 원본 문서의 **모든**
+  절의 `hp:memogroup`을 뒤져 그 id를 가진 `hp:memo`를 찾는다
+  (`_copy_referenced_memos`) — 복사 범위(`source_section_index`)가
+  좁혀도 그 범위 밖 절의 메모까지 뒤지는 이유는, 스키마상 메모가 항상
+  자신을 참조하는 필드와 같은 절에 있다는 보장이 없기 때문이다(더 넓게
+  찾고 못 찾으면 자연히 스킵하는 쪽이, 좁게 찾다 실재하는 메모를
+  놓치는 쪽보다 안전하다).
+- **채번**: 찾은 `hp:memo`를 복제하고, 새 메모 id를 `_memo_id()`로
+  할당(축3 — 문서-로컬, 충돌 회피만 필요), 그 안의 `hp:paraList/hp:p`
+  서브트리는 기존 `_refresh_copied_paragraph_subtree_ids`로 새 id를
+  받는다(이 헬퍼는 최상위 태그를 안 가려서 `hp:memo`에 그대로 써도
+  된다 — 라이브 테스트로 확인, hp:p 전용이 아니라 제네릭).
+- **축1 재매핑은 "그냥 딸려온다"**: 메모 복제본을 body 문단 복제본과
+  **같은 리스트**(`copies + memo_clones`)로 묶어 기존
+  `_remap_char_properties`/`_remap_para_properties`/`_remap_styles`/
+  `_remap_border_fills`/`_remap_tab_properties`/`_remap_memo_properties`/
+  `_apply_remaps` 호출에 그대로 넘긴다 — 이 함수들은 전부 `.iter()`로
+  전수 순회하므로 최상위 요소가 `hp:p`든 `hp:memo`든 상관없다. 메모
+  자신의 charPr/paraPr/style 참조(그 안 `hp:paraList/hp:p`가 갖는
+  것)와 `hp:memo/@memoShapeIDRef`(메모 요소 자신의 속성) 둘 다 이
+  경로로 "공짜로" 재매핑된다 — 메모 전용 재매핑 패스를 새로 만들지
+  않았다.
+- **필드 자신의 참조는 별도 처리**: `fieldBegin`의
+  `hp:parameters/hp:stringParam`은 요소 **텍스트**지 속성이 아니라
+  `_apply_remaps`가 못 건드린다. `ID`(새 메모 id로)와
+  `MemoShapeIDRef`(위에서 계산된 재매핑 값으로, 매핑에 없으면
+  그대로 — "65535" 관용값이 바로 이 경우) 둘을 별도 헬퍼
+  (`_apply_memo_field_param_remaps`)로 갱신한다.
+- **삽입**: `append_document`/`insert_document`가 대상 절의
+  `hp:memogroup`을 찾거나(없으면 만들고) 복제본을 자식으로 붙인다
+  (`_insert_memos_into_target_section`, 절 자신의
+  `_memo_group_element(create=True)` 접근자를 재사용 — `add_memo`가
+  쓰는 것과 같은 경로). **대상이 이미 자기 메모(자기 memogroup)를
+  갖고 있으면 그 안에 추가한다** — 둘째 memogroup을 새로 만들지 않는다.
+- **저장 경로 dirty-tracking(train 33의 헤더 교훈과 같은 부류, 독립
+  경로)**: `hp:memogroup`에 직접 자식을 붙이는 mutation은 **절**의
+  엘리먼트 트리를 건드리지, 헤더를 건드리지 않는다 —
+  `HwpxOxmlSection.mark_dirty()`를 명시로 불러야 한다(찾은 사실: 절
+  파트의 직렬화도 헤더와 똑같이 `section.dirty`가 참일 때만 라이브
+  트리에서 다시 쓰고, 아니면 원본 바이트를 재사용한다). 이미 있던
+  memogroup에 그냥 append만 하는 경로는 접근자 자신도 dirty를 안
+  부르므로(새로 만들 때만 부른다), `_insert_memos_into_target_section`이
+  두 경우 모두 커버하도록 무조건 호출.
+
+## 보류(v1/v2 범위 밖, fail-closed로 거부)
+
 - **`subjectIDRef`(connectLine의 스마트 연결선)** — DEV-013이 이미 저작
   API를 보류한 이유와 같은 근거(관계식 불확실) + 참조 자체가
   `instId`를 가리키는 특수 케이스라 재매핑이 한 겹 더 필요. 끼워 넣을
@@ -218,7 +285,7 @@ run 자체를 정리한다.
    찾아냈다 — 아래 "실측으로 찾은 결함" 참조). v1은 이 도구를
    `target`에 병합 전/후로 돌려 비교하는 것으로 게이트를 만족한다.
 
-**실측으로 찾은 결함 6건(설계서 작성 이후, 구현 중 발견)**:
+**실측으로 찾은 결함 7건(설계서 작성 이후, 구현 중 발견)**:
 
 - **스타일 자신의 기본 charPr/paraPr 누락**: `hh:style`은 `styleIDRef`로
   본문이 가리키는 것과 별개로 자기 자신의 `charPrIDRef`/`paraPrIDRef`(그
@@ -280,6 +347,20 @@ run 자체를 정리한다.
   sha256 대조)로 실증: authored-docmerge 10건 중 8건이 수정 전엔
   달랐고, 수정 후엔 0건. 수정: 채번기를 호출하는 모든 자리에서
   `sorted(used)`로 순회.
+- **`check_id_integrity` 자신의 `memoShapeIDRef="0"` 오탐(v2/트레인㊱,
+  MEMO 병합 게이트 작성 중 발견, `hwpx.tools.id_integrity`의 결함이지
+  이 모듈의 결함은 아님)**: 모든 fresh `HwpxOxmlDocument`의 스켈레톤
+  `hp:secPr`은 `memoShapeIDRef="0"`을 갖고 있다(한컴 자신의 "메모 모양
+  오버라이드 없음" 기본값 — 이 라이브러리의 `ensure_memo_shape` 채번기는
+  1부터 시작해 절대 "0"을 배정하지 않는다). 기존 `_EMPTY_TABLE_IS_ALLOWED`가
+  이 "0"을 memo_shapes 테이블이 **비어 있을 때만** 눈감아줬는데, MEMO
+  병합이 대상 헤더의 memo_shapes 테이블을 채우는 순간(축1 재매핑이
+  정상적으로 하는 일) 이 관용값이 갑자기 댕글링으로 잡혔다 — 병합과
+  무관하게, `HwpxDocument.new(); doc.styles.ensure_memo_shape()`만 해도
+  재현된다(순수 사전 존재 결함, 라이브 재현으로 확인). 수정:
+  `charPrIDRef`의 unset sentinel과 같은 방식으로 `memoShapeIDRef`도
+  `_ALLOWED_SENTINELS`에 `"0"`을 무조건 등록(테이블이 비었든 아니든).
+  회귀 테스트: `tests/test_id_integrity.py`.
 2. **왕복 보존**: 병합 결과를 저장 후 재오픈해도 무손실(`roundtrip_report`).
 3. **기존 문서 바이트 불변**: 안 건드린 파트(끼워 넣지 않은 절, 무관한
    헤더 항목)는 patch 계열과 같은 원칙으로 그대로 — 다만 이 기능은
@@ -287,13 +368,17 @@ run 자체를 정리한다.
    "untouched part = 압축 페이로드 그대로"와는 다른 증거 축이다.
    대신 "건드리지 않은 헤더 항목의 id·내용이 병합 전후 동일"을
    구조적으로 확인.
-4. **실한컴 수용** — 이번 트레인은 생성만(오라클 없음). v13 스트라텀
-   후보로 보고, 실측은 루트가 다음 배치에서 수행.
+4. **실한컴 수용** — v1(트레인㉝)의 문서 병합 출력은 v13 배치로 실측
+   완료(render-verified, 트레인㉟에서 원장 환류). v2(트레인㊱)의 MEMO
+   병합·4축 매개변수 자체는 이번 트레인도 생성만(오라클 없음) — v14
+   스트라텀(`authored-docmerge2`) 후보로 보고, 실측은 루트가 다음
+   배치에서 수행.
 
 ## 관련 문서
 
 - [OWPML 편차 레지스트리](owpml-deviations.md) — DEV-013(subjectIDRef/
-  instId), DEV-011(hp:parameterset)
+  instId), DEV-011(hp:parameterset), DEV-042(memogroup 절-레벨 형제
+  구조)
 - [편집기 표면 인벤토리](editor-surface-inventory.md) — 이 갭을 찾은
   메뉴 스캔
 - [알려진 함정](known-traps.md)
