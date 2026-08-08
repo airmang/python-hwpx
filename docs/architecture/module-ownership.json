@@ -482,6 +482,12 @@
       "disposition": "core",
       "approvedBy": "cycle-6.9/train-34-dutmal-compose",
       "rationale": "hp:dutmal/hp:compose authoring (add_dutmal/add_composed_character) -- format-level HwpxOxmlParagraph shape-authoring overflow module, same reasoning as objects.py's own shape-authoring split (paragraph.py's owner file at its 1600-line modularization cap, and objects.py itself has no headroom left either)"
+    },
+    {
+      "path": "src/hwpx/oxml/section_layout.py",
+      "disposition": "core",
+      "approvedBy": "cycle-6.11/train-44-add-section-first-run-fix",
+      "rationale": "add_section()'s renderable-layout carrier lookup (has_positive_page_geometry/renderable_section_carriers/copy_renderable_section_layout) -- moved out of document_parts.py verbatim (format-level structural helper, no behavior change beyond the first-run-assumption fix itself) because document_parts.py had only 2 lines of headroom left under the 1600-line owner-file cap; same overflow-module pattern as header_compat.py/dutmal_compose.py"
     }
   ],
   "removed": [

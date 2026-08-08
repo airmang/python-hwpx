@@ -262,6 +262,35 @@ class TestSectionManagement:
         assert second.properties.get_header("BOTH").text == "second header"
         assert second.properties.get_footer("BOTH").text == "second footer"
 
+    def test_add_section_succeeds_when_first_paragraph_has_an_anchored_memo(self):
+        """결함-부활 (cycle 6.11 train 44, found in train 38/㊱'s document-merge
+        work): anchoring a memo onto a section's first paragraph used to
+        break add_section() entirely. attach_memo_field prepends a new run
+        (fieldBegin-only) ahead of the hp:secPr/hp:ctrl(colPr) run --
+        _renderable_section_carriers assumed that run was always the
+        paragraph's *literal* first child, so it silently stopped finding a
+        real, present secPr the moment anything got prepended, and
+        add_section() raised "no existing section has positive page
+        geometry..." on a document that plainly had one. This forced
+        tests/test_document_merge.py's own suite to route around it by
+        reordering operations (add_section() before anchoring the memo)
+        rather than fix it, out of that train's scope. Fixed here by
+        scanning every run of the first paragraph for the one carrying
+        hp:secPr instead of assuming it's positionally first."""
+
+        doc = _new()
+        p0 = doc.sections[0].paragraphs[0]
+        doc.notes.add_memo("anchored on the very first paragraph", anchor=p0)
+
+        second = doc.add_section()
+
+        assert second is not None
+        assert len(doc.sections) == 2
+        # the new section's own layout came from a real, valid secPr --
+        # not a stale/empty fallback.
+        second_layout = self._layout(second)
+        assert second_layout[1].get("id") is not None
+
     def test_add_section_fails_closed_without_renderable_layout(self):
         doc = _new()
         first_run, section_properties, _, _, _ = self._layout(doc.sections[0])

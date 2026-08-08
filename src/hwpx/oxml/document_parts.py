@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import dataclass
 import logging
 from typing import TYPE_CHECKING, Iterable, Mapping, Sequence, TypeVar
@@ -22,7 +21,6 @@ from ._document_primitives import (
     _element_local_name,
     _is_integer_literal,
     _normalize_color,
-    _object_id,
     _paragraph_id,
     _serialize_xml,
 )
@@ -41,6 +39,7 @@ from .namespaces import tag_local_name
 from .paragraph import HwpxOxmlParagraph
 from .run import RunStyle, _char_properties_from_header
 from .section import HwpxOxmlSection
+from . import section_layout as _section_layout
 from .simple_parts import (
     HwpxOxmlHistory,
     HwpxOxmlMasterPage,
@@ -1192,95 +1191,16 @@ class HwpxOxmlDocument:
     # Section management
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _has_positive_page_geometry(section_properties: ET.Element) -> bool:
-        page_properties = section_properties.find(f"{_HP}pagePr")
-        if page_properties is None or page_properties.find(f"{_HP}margin") is None:
-            return False
-        try:
-            page_width = int(page_properties.get("width", "0"))
-            page_height = int(page_properties.get("height", "0"))
-        except (TypeError, ValueError):
-            return False
-        return page_width > 0 and page_height > 0
-
-    @classmethod
-    def _renderable_section_carriers(
-        cls,
-        section: HwpxOxmlSection,
-    ) -> tuple[ET.Element, ET.Element, ET.Element] | None:
-        """Locate a valid ``secPr`` and its ``colPr`` carrier."""
-        first_paragraph = section.element.find(f"{_HP}p")
-        if first_paragraph is None:
-            return None
-        first_run = first_paragraph.find(f"{_HP}run")
-        if first_run is None:
-            return None
-
-        section_properties = first_run.find(f"{_HP}secPr")
-        if section_properties is None:
-            return None
-        if not cls._has_positive_page_geometry(section_properties):
-            return None
-
-        for control in first_run.findall(f"{_HP}ctrl"):
-            column_properties = control.find(f"{_HP}colPr")
-            if column_properties is not None:
-                return section_properties, control, column_properties
-        return None
-
-    @classmethod
-    def _copy_renderable_section_layout(
-        cls,
-        section: HwpxOxmlSection,
-    ) -> tuple[ET.Element, ET.Element] | None:
-        """Return story-free ``secPr`` and ``colPr`` carriers from *section*.
-
-        Hancom requires every section part to carry positive page geometry and
-        a column definition in its first paragraph's first run.  Header/footer
-        stories are deliberately excluded because their object identifiers and
-        content belong to the source section.
-        """
-        carriers = cls._renderable_section_carriers(section)
-        if carriers is None:
-            return None
-        section_properties, column_control, column_properties = carriers
-
-        copied_properties = deepcopy(section_properties)
-        story_children = {
-            "header",
-            "footer",
-            "headerApply",
-            "footerApply",
-            "masterPage",
-            "presentation",
-        }
-        for child in list(copied_properties):
-            if _element_local_name(child) in story_children:
-                copied_properties.remove(child)
-        copied_properties.set("masterPageCnt", "0")
-        if copied_properties.get("id") is None:
-            copied_properties.set("id", "")
-
-        copied_column_control = column_control.makeelement(
-            column_control.tag,
-            dict(column_control.attrib),
-        )
-        copied_column_properties = deepcopy(column_properties)
-        column_id = copied_column_properties.get("id")
-        if column_id:
-            copied_column_properties.set("id", _object_id())
-        elif column_id is None:
-            copied_column_properties.set("id", "")
-        copied_column_control.append(copied_column_properties)
-        return copied_properties, copied_column_control
-
     def _section_layout_for_insertion(
         self,
         *,
         after: int | None,
     ) -> tuple[ET.Element, ET.Element]:
-        """Select the nearest renderable layout for a newly inserted section."""
+        """Select the nearest renderable layout for a newly inserted section.
+
+        The actual carrier lookup lives in ``section_layout.py`` (overflow
+        module, cycle 6.11 train 44 -- see that module's own docstring).
+        """
         if not self._sections:
             raise ValueError(
                 "cannot add a renderable section: the document has no source section"
@@ -1292,7 +1212,7 @@ class HwpxOxmlDocument:
             key=lambda index: (abs(index - anchor), index),
         )
         for index in candidate_indices:
-            layout = self._copy_renderable_section_layout(self._sections[index])
+            layout = _section_layout.copy_renderable_section_layout(self._sections[index])
             if layout is not None:
                 return layout
 

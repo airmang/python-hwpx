@@ -601,12 +601,16 @@ def test_merge_excludes_memo_anchored_in_a_source_section_not_being_copied() -> 
     fieldBegin controls actually present in the paragraphs being copied,
     so a memo nobody references in-scope is correctly left behind.
 
-    Section 1 is added *before* the memo is anchored -- anchoring a memo
-    onto a section's very first paragraph inserts a new leading run
-    ahead of the hp:secPr/hp:ctrl(colPr) run add_section()'s own layout
-    inheritance expects to find there (a real, separate fragility in
-    add_section() unrelated to document_merge; routed around here rather
-    than fixed, out of this train's scope)."""
+    Section 1 is added *before* the memo is anchored, though it no longer
+    strictly needs to be: anchoring a memo onto a section's very first
+    paragraph used to break add_section() entirely (a real, separate
+    fragility in add_section() unrelated to document_merge, routed around
+    here rather than fixed when this test was written, out of that
+    train's scope). Fixed in cycle 6.11 train 44 --
+    tests/test_paragraph_section_management.py::TestSectionManagement::
+    test_add_section_succeeds_when_first_paragraph_has_an_anchored_memo
+    is the dedicated regression test; this test's own ordering is kept as
+    written since reordering it isn't this test's job."""
 
     source = HwpxDocument.new()
     source.add_section()

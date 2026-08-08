@@ -241,6 +241,10 @@ files = [
     # 6.9 (train 34): dutmal/compose authoring — born in the gate, per the
     # WP-A rule above.
     "src/hwpx/oxml/dutmal_compose.py",
+    # 6.11 (train 44): add_section() layout-carrier lookup, extracted from
+    # document_parts.py (1600-line cap) — born in the gate, per the WP-A
+    # rule above.
+    "src/hwpx/oxml/section_layout.py",
 ]
 ignore_missing_imports = true
 
@@ -340,6 +344,10 @@ include = [
     # 6.9 (train 34): dutmal/compose authoring — born in the gate, per the
     # WP-A rule above.
     "src/hwpx/oxml/dutmal_compose.py",
+    # 6.11 (train 44): add_section() layout-carrier lookup, extracted from
+    # document_parts.py (1600-line cap) — born in the gate, per the WP-A
+    # rule above.
+    "src/hwpx/oxml/section_layout.py",
 ]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"
