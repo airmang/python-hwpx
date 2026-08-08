@@ -683,6 +683,48 @@ def test_merge_memo_survives_real_save_and_reopen() -> None:
     assert after.ok, after.dangling
 
 
+def test_merge_refreshes_field_end_fieldid_to_match_its_paired_field_begin() -> None:
+    """Found via the v14 openrate generator's own cross-run determinism
+    check (not assumed in advance): hp:fieldBegin and hp:fieldEnd both get
+    their fieldid attribute set to the SAME field_value at creation
+    (attach_memo_field, _document/memos.py:136,181). The merge refresh
+    always regenerates fieldBegin's own id/fieldid, and fieldEnd's
+    beginIDRef follows fieldBegin's new id -- but fieldEnd's OWN fieldid
+    was left completely untouched, keeping the SOURCE document's raw
+    uuid4().hex value on copied content. That value comes from
+    uuid.uuid4() directly (memos.py's own creation call), not through
+    _document_primitives' patchable uuid4 binding -- so it isn't just
+    non-deterministic across generator runs, it's a genuinely stale,
+    unrefreshed value on copied content: this module's own "silent
+    corruption" failure shape, on an attribute nothing currently gates on
+    (check_id_integrity doesn't track fieldid at all -- this needs a
+    dedicated assertion, not a byproduct of the referential-integrity
+    gate)."""
+
+    source = HwpxDocument.new()
+    p = source.add_paragraph("annotated text")
+    source.notes.add_memo("field pairing test", anchor=p)
+
+    target = HwpxDocument.new()
+    append_document(target, source)
+
+    merged = target.sections[0].paragraphs[-1]
+    field_begin = next(
+        node for node in merged.element.iter() if node.tag == f"{_HP}fieldBegin"
+    )
+    field_end = next(
+        node for node in merged.element.iter() if node.tag == f"{_HP}fieldEnd"
+    )
+    assert field_end.get("beginIDRef") == field_begin.get("id")
+    assert field_end.get("fieldid") == field_begin.get("fieldid")
+    # Neither should retain the source document's original 32-hex-char
+    # uuid4().hex value (attach_memo_field's own format) -- both fieldBegin
+    # and fieldEnd's fieldid must be the merge's own freshly-allocated
+    # value, not a leftover.
+    assert len(field_begin.get("fieldid")) != 32
+    assert len(field_end.get("fieldid")) != 32
+
+
 # ============================================================================
 # nested style references (nextStyleIDRef / charStyleIDRef)
 # ============================================================================

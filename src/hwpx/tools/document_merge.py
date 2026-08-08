@@ -638,9 +638,24 @@ def _refresh_field_and_bookmark_ids(paragraphs: list[Any], existing_bookmark_nam
 
     for paragraph in paragraphs:
         # hp:fieldBegin/fieldEnd -- id/fieldid must both get fresh values,
-        # and fieldEnd's beginIDRef must follow its OWN fieldBegin's new id
-        # (pair integrity), not an independent fresh value.
+        # and fieldEnd's beginIDRef/fieldid must follow its OWN fieldBegin's
+        # new id/fieldid (pair integrity), not an independent fresh value.
+        # fieldEnd's OWN fieldid starts out equal to its paired fieldBegin's
+        # (both set to the same field_value at creation --
+        # attach_memo_field, _document/memos.py:136,181) -- begin_fieldid_map
+        # is keyed by that shared OLD value so the fieldEnd loop below can
+        # look its new counterpart up the same way begin_id_map already does
+        # for beginIDRef. Found live (not assumed in advance) via v14
+        # openrate generator's own cross-run determinism check: leaving
+        # fieldEnd's fieldid untouched meant it kept the SOURCE document's
+        # raw uuid4().hex value (memos.py's own creation call, which does
+        # NOT go through _document_primitives' patchable uuid4 binding and
+        # so is not just non-deterministic across generator runs but also a
+        # genuinely stale, unrefreshed value on copied content -- exactly
+        # this module's own "silent corruption" failure shape, just on an
+        # attribute nothing currently gates on).
         begin_id_map: dict[str, str] = {}
+        begin_fieldid_map: dict[str, str] = {}
         for node in paragraph.iter():
             if _local_name(node.tag) == "fieldBegin":
                 old_id = node.get("id")
@@ -648,13 +663,19 @@ def _refresh_field_and_bookmark_ids(paragraphs: list[Any], existing_bookmark_nam
                 if old_id:
                     begin_id_map[old_id] = new_id
                 node.set("id", new_id)
-                if node.get("fieldid"):
-                    node.set("fieldid", _object_id())
+                old_fieldid = node.get("fieldid")
+                if old_fieldid:
+                    new_fieldid = _object_id()
+                    begin_fieldid_map[old_fieldid] = new_fieldid
+                    node.set("fieldid", new_fieldid)
         for node in paragraph.iter():
             if _local_name(node.tag) == "fieldEnd":
                 old_begin = node.get("beginIDRef")
                 if old_begin and old_begin in begin_id_map:
                     node.set("beginIDRef", begin_id_map[old_begin])
+                old_end_fieldid = node.get("fieldid")
+                if old_end_fieldid and old_end_fieldid in begin_fieldid_map:
+                    node.set("fieldid", begin_fieldid_map[old_end_fieldid])
 
         # hp:bookmark name -- not an id, a user-chosen string. Target
         # collision is avoided with a numeric suffix (v1 policy -- the

@@ -285,7 +285,7 @@ name="ID"`가 `hp:memogroup/hp:memo/@id`와 일치)만 갖고, `hp:memogroup`
    찾아냈다 — 아래 "실측으로 찾은 결함" 참조). v1은 이 도구를
    `target`에 병합 전/후로 돌려 비교하는 것으로 게이트를 만족한다.
 
-**실측으로 찾은 결함 7건(설계서 작성 이후, 구현 중 발견)**:
+**실측으로 찾은 결함 8건(설계서 작성 이후, 구현 중 발견)**:
 
 - **스타일 자신의 기본 charPr/paraPr 누락**: `hh:style`은 `styleIDRef`로
   본문이 가리키는 것과 별개로 자기 자신의 `charPrIDRef`/`paraPrIDRef`(그
@@ -361,6 +361,25 @@ name="ID"`가 `hp:memogroup/hp:memo/@id`와 일치)만 갖고, `hp:memogroup`
   `charPrIDRef`의 unset sentinel과 같은 방식으로 `memoShapeIDRef`도
   `_ALLOWED_SENTINELS`에 `"0"`을 무조건 등록(테이블이 비었든 아니든).
   회귀 테스트: `tests/test_id_integrity.py`.
+- **`hp:fieldEnd`의 `fieldid`가 재생성 안 됨(v2/트레인㊱, 정리 트레인의
+  v14 생성기 자체 결정성 검사 중 발견)**: `hp:fieldBegin`과
+  `hp:fieldEnd`는 생성 시점에 같은 `field_value`를 `fieldid`로 공유한다
+  (`attach_memo_field`, `_document/memos.py:136,181`). 병합 리프레시는
+  `fieldBegin`의 `id`/`fieldid`는 항상 새로 채번하고 `fieldEnd`의
+  `beginIDRef`도 그 새 `id`를 따라가게 고쳤지만, `fieldEnd` 자신의
+  `fieldid`는 손대지 않고 있었다 — 원본 문서의 raw `uuid4().hex` 값이
+  그대로 남는다. 이 값은 `_document_primitives`의 패치 가능한 `uuid4`
+  바인딩을 안 거치는 `uuid.uuid4()` 직접 호출(`memos.py:103`)이라
+  `_deterministic_object_ids()`로도 안 잡혀서, v14 생성기의 교차-실행
+  sha256 대조에서 비결정성으로 먼저 드러났다 — 실제로는 생성기
+  결정성 문제이기 전에, 복사된 내용에 원본의 낡은 값이 그대로 남는
+  실질 결함(이 모듈이 막으려는 "무음 오염" 모양, 다만
+  `check_id_integrity`가 `fieldid`를 아예 추적 안 해서 기존 게이트로는
+  못 잡음). 수정: `fieldBegin` 루프에서 old→new `fieldid` 맵을 하나 더
+  쌓고(`begin_fieldid_map`, `begin_id_map`과 같은 패턴), `fieldEnd` 루프에서
+  자신의 `fieldid`를 그 맵으로 조회해 갱신. 회귀 테스트:
+  `test_merge_refreshes_field_end_fieldid_to_match_its_paired_field_begin`
+  (되돌려서 정확히 이 결함 모양으로 재현 확인 후 복원).
 2. **왕복 보존**: 병합 결과를 저장 후 재오픈해도 무손실(`roundtrip_report`).
 3. **기존 문서 바이트 불변**: 안 건드린 파트(끼워 넣지 않은 절, 무관한
    헤더 항목)는 patch 계열과 같은 원칙으로 그대로 — 다만 이 기능은
