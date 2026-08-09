@@ -1,6 +1,6 @@
 # OWPML 커버리지 원장
 
-`scripts/coverage_ledger.py`가 OWPML 2024 스키마(`DevDoc/OWPML SCHEMA/`) · 실코퍼스 census(`scripts/build_element_census.py`) · `src/hwpx/` 코드 참조 · 지원 매트릭스 · v4~v14 openrate 실한컴 코퍼스에서 결정론적으로 재산출하는 원장이다. 손으로 쓴 지원 주장이 아니라 기계 판독 [coverage-ledger.json](coverage-ledger.json)의 사람용 요약이며, `python scripts/coverage_ledger.py --check`가 드리프트를 게이트한다.
+`scripts/coverage_ledger.py`가 OWPML 2024 스키마(`DevDoc/OWPML SCHEMA/`) · 실코퍼스 census(`scripts/build_element_census.py`) · `src/hwpx/` 코드 참조 · 지원 매트릭스 · v4~v15 openrate 실한컴 코퍼스에서 결정론적으로 재산출하는 원장이다. 손으로 쓴 지원 주장이 아니라 기계 판독 [coverage-ledger.json](coverage-ledger.json)의 사람용 요약이며, `python scripts/coverage_ledger.py --check`가 드리프트를 게이트한다.
 
 **주의**: `capabilityArea`는 지원 매트릭스 산문에 명시적으로 언급된 요소만 근사 매핑했다(무근거 승격 금지). `null`은 "미지원"이 아니라 "매트릭스 행과 요소가 1:1로 대응되지 않음"을 뜻한다 — 저수준 공용 요소(fieldBegin·autoNum·좌표류)가 대표적이다.
 
@@ -16,7 +16,7 @@
 **4) census 재구축.** 생성 스크립트를 `scripts/build_element_census.py`로 신설·커밋했다(기존 census는 생성기 미보존이 결함이었다). 전 파트·전 네임스페이스를 스캔한다 — `ha:*`(settings.xml)·`hv:HCFVersion`(version.xml)이 이제 1급 요소 행이고, `hs:sec`도 실제 관측 빈도로 잡힌다. 모집단은 **명시적으로 재정의**했다: 레거시 166파일(그 중 hwpxlib 47은 지금도 이 레포에 남아 있고 검증 가능하다 — 나머지 119는 이 워크트리 어디에도 원본이나 목록이 보존돼 있지 않아 정체를 확인할 수 없다)은 재현·확장이 불가능했다 — 조용히 계승하는 대신 접근 가능한 새 모집단으로 바꿨다. 상세는 `generatedFrom.corpusPopulationNote`.
    unknown 파일: 0건 (전량 유효한 zip으로 열림).
 **5) 속성 축.** 요소별 관측 속성 **이름** 집합을 census가 함께 기록한다(`observedAttributes` 컬럼, 값 빈도까지는 이번 사이클 범위 밖 — 생성기 독스트링에 명시).
-**6) openrate 코퍼스 환류(v4~v14).** `docs/openrate/report-v{4,5,6,7,8,9,10,11,12,13,14}.json`의 스트라타별 실한컴 수용(`render_checked>0`·`render_failed==0`, 구세대 스키마는 `opened==requested>0`도 함께)을 `verificationBasis`로 환류한다(`by-openrate-corpus`/`by-capability-area+openrate-corpus`) — 2026-08-04 감사 R4가 지목한 v4 배선(원 이름 `by-v4-corpus`)을 2026-08 사이클 6.5 트레인⑰에서 v8까지, 사이클 6.6 트레인⑳에서 v9까지, 사이클 6.7 트레인㉔에서 v10까지 확장하며 버전-중립 이름으로 바꿨다. 두 경로로 매핑한다: 이미 등록된 capabilityArea와 1:1 대응하는 스트라타는 `_OPENRATE_STRATUM_TO_CAPABILITY_AREA`(차트·체크박스·수식·각주 2종·테두리채우기·하이라이트·메모·그룹컨테이너·문서옵션호환성), capabilityArea가 아직 없거나 있어도 혼합 지원 영역이라 요소만 지목해야 하는 신규 능력(글꼴·탭·도형텍스트·캡션·쪽번호제어·문자서식·필드파라미터·arc/polygon·인라인 원자 3종)은 `_OPENRATE_STRATUM_TO_ELEMENTS`로 요소를 직접 지목한다 — 둘 다 근거는 각 생성기 스크립트 독스트링이 실제로 부른다고 명시하는 것뿐(무근거 매핑 금지, `fieldBegin`을 일부러 안 매핑한 것과 같은 원칙).
+**6) openrate 코퍼스 환류(v4~v15).** `docs/openrate/report-v{4,5,6,7,8,9,10,11,12,13,14,15}.json`의 스트라타별 실한컴 수용(`render_checked>0`·`render_failed==0`, 구세대 스키마는 `opened==requested>0`도 함께)을 `verificationBasis`로 환류한다(`by-openrate-corpus`/`by-capability-area+openrate-corpus`) — 2026-08-04 감사 R4가 지목한 v4 배선(원 이름 `by-v4-corpus`)을 2026-08 사이클 6.5 트레인⑰에서 v8까지, 사이클 6.6 트레인⑳에서 v9까지, 사이클 6.7 트레인㉔에서 v10까지 확장하며 버전-중립 이름으로 바꿨다. 두 경로로 매핑한다: 이미 등록된 capabilityArea와 1:1 대응하는 스트라타는 `_OPENRATE_STRATUM_TO_CAPABILITY_AREA`(차트·체크박스·수식·각주 2종·테두리채우기·하이라이트·메모·그룹컨테이너·문서옵션호환성), capabilityArea가 아직 없거나 있어도 혼합 지원 영역이라 요소만 지목해야 하는 신규 능력(글꼴·탭·도형텍스트·캡션·쪽번호제어·문자서식·필드파라미터·arc/polygon·인라인 원자 3종)은 `_OPENRATE_STRATUM_TO_ELEMENTS`로 요소를 직접 지목한다 — 둘 다 근거는 각 생성기 스크립트 독스트링이 실제로 부른다고 명시하는 것뿐(무근거 매핑 금지, `fieldBegin`을 일부러 안 매핑한 것과 같은 원칙).
 
 **전 vs 후 (감사가 하한을 인용한 것과 같은 슬라이스 — corpusFileCount>0인 요소만)**: 감사 인용 하한은 관측 228건 중 write=none **70** · read=none **56** · frozen-template **28**([감사 판정문](2026-08-04-completeness-audit-verdict.md) 요약표). 이 원장 재생성 기준으로는 관측 229건 중 write=none **35** · read=none **21** · frozen-template **14**. **주의**: 두 population이 다르다(모집단을 재정의했다 — 위 4항목) — 이 비교는 "같은 잣대로 다시 잰 정확한 델타"가 아니라 분류기 수리가 방향대로 움직였는지의 참고 신호다. 분류기 수리 자체의 정확도 증거는 위 1~3항의 요소별 재현 로그가 1차 근거다.
 
@@ -34,7 +34,7 @@
 | 쓰기 none | 144 | 41.7% |
 | 능력 영역 매핑됨 | 106 | 30.7% |
 | Render-verified(매핑 근거) | 127 | 36.8% |
-| ..중 openrate 코퍼스(v4~v14) 환류분 | 92 | 26.7% |
+| ..중 openrate 코퍼스(v4~v15) 환류분 | 92 | 26.7% |
 | 속성 이름 축 관측됨 | 193 | 55.9% |
 
 실코퍼스 표본: 실문서 237개.

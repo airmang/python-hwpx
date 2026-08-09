@@ -47,7 +47,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 | 글꼴 등록 | 저작 api | 지원 매트릭스 「글꼴 등록」(`Create·Render-verified`) · capabilities 영역 `font-registration` · 위치 `doc.styles` | Render-verified |
 | 목록 서식(글머리표·번호매기기) | 저작 api | 지원 매트릭스 「목록 서식(글머리표·번호매기기)」(`Create·Edit·Render-verified`) · capabilities 영역 `list-formatting` · 위치 `doc.styles` | Render-verified |
 | 문단·표 저작/편집 | 저작 api | 지원 매트릭스 「문단·표 저작/편집」(`Parse·Preserve·Edit·Create·Render-verified`) · capabilities 영역 `paragraph-table-authoring` · 위치 루트 — `doc.add_paragraph` · `doc.add_heading` · `doc.add_section` | Render-verified |
-| 문자 서식(굵게·기울임·밑줄·글꼴·크기·색 등) | 저작 api | 지원 매트릭스 「문자 서식(굵게·기울임·밑줄·글꼴·크기·색 등)」(`Edit·Create·Render-verified(부분)`) · capabilities 영역 `character-formatting` · 위치 `doc.styles` | Render-verified(부분만 -- 근거 칸의 등급 문자열 참조) |
+| 문자 서식(굵게·기울임·밑줄·글꼴·크기·색 등) | 저작 api | 지원 매트릭스 「문자 서식(굵게·기울임·밑줄·글꼴·크기·색 등)」(`Edit·Create·Render-verified`) · capabilities 영역 `character-formatting` · 위치 `doc.styles` | Render-verified |
 | 찾아바꾸기 | 저작 api | 지원 매트릭스 「찾아바꾸기」(`Edit·Render-verified`) · capabilities 영역 `find-replace` · 위치 `doc.text` | Render-verified |
 | 테두리 채우기(이미지·그라데이션) | 저작 api | 지원 매트릭스 「테두리 채우기(이미지·그라데이션)」(`Parse·Create(experimental)·Render-verified`) · capabilities 영역 `border-fill-image-gradient` · 위치 `doc.styles` | Render-verified(experimental 저작 포함) |
 | 형광펜(하이라이트) | 저작 api | 지원 매트릭스 「형광펜(하이라이트)」(`Parse·Create(experimental)·Render-verified`) · capabilities 영역 `highlight` · 위치 `doc.text` | Render-verified(experimental 저작 포함) |
@@ -77,8 +77,8 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
 |---|---|---|---|
-| 누름틀(form field) 생성 | 저작 api | 지원 매트릭스 「누름틀(form field) 생성」(`Parse·Edit·Create(experimental)`) · capabilities 영역 `form-field-create` · 위치 `doc.fields` | 미실측 |
-| 양식 채움(byte-splice) | 저작 api | 지원 매트릭스 「양식 채움(byte-splice)」(`Preserve·Edit`) · capabilities 영역 `form-fill` · 위치 `doc.tables` | 미실측 |
+| 누름틀(form field) 생성 | 저작 api | 지원 매트릭스 「누름틀(form field) 생성」(`Parse·Edit·Create(experimental)·Render-verified`) · capabilities 영역 `form-field-create` · 위치 `doc.fields` | Render-verified(experimental 저작 포함) |
+| 양식 채움(byte-splice) | 저작 api | 지원 매트릭스 「양식 채움(byte-splice)」(`Preserve·Edit·Render-verified`) · capabilities 영역 `form-fill` · 위치 `doc.tables` | Render-verified |
 | 체크박스 양식개체 | 저작 api | 지원 매트릭스 「체크박스 양식개체」(`Create·Render-verified`) · capabilities 영역 `check-box` · 위치 `doc.fields` | Render-verified |
 
 ### 참조
