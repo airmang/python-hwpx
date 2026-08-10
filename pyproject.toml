@@ -277,6 +277,17 @@ files = [
 # 0 errors, 파일 전체는 기존 50 errors임을 확인했다(fix 안 함, 스코프
 # 밖). 게이트 편입은 이 파일 전체의 기존 오류를 정리하는 별도
 # 부채상환 트레인의 몫.
+#
+# 다음 사이클 칩 후보 2(6.13 트레인㊼, titleMark 재프로브 부산물로
+# team-lead가 지목): `HwpxDocument.add_heading`(document.py) →
+# `_headings.bind_outline_level` → `_document/layout.py`의
+# `set_paragraph_format(outline_level=)`이 호출될 때마다 **동일한
+# paraPr이 이미 있어도 새 id로 다시 만든다**(기존 요소 재사용/dedup
+# 조회 없음) — 실한컴은 저장 시점에 중복 paraPr을 자기가 병합한다
+# (titleMark 재프로브에서 paraPrIDRef가 21→20으로 "되돌아간" 현상의
+# 원인, 버그 아님·관측된 실동작으로 문서화됨). 우리 쪽에서 paraPr
+# 재사용 lookup을 추가하면 왕복 시 이 되돌아감이 사라지고 저장 파일도
+# 더 작아진다 — fix 안 함, 스코프 밖.
 ignore_missing_imports = true
 
 [tool.pyright]
