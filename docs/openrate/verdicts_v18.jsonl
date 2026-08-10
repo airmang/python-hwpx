@@ -1,0 +1,14 @@
+{"_meta": "mac-render-batch-v1", "app": "Hancom Office HWP.app", "jobCount": 13, "oracle": "mac-gui"}
+{"sourceId": "v18-date-field-000", "stratum": "authored-date-field", "saved": true, "pdfBytes": 17525, "error": null}
+{"sourceId": "v18-date-field-001", "stratum": "authored-date-field", "saved": true, "pdfBytes": 18027, "error": null}
+{"sourceId": "v18-date-field-002", "stratum": "authored-date-field", "saved": true, "pdfBytes": 16529, "error": null}
+{"sourceId": "v18-date-field-003", "stratum": "authored-date-field", "saved": true, "pdfBytes": 20495, "error": null}
+{"sourceId": "v18-date-field-004", "stratum": "authored-date-field", "saved": true, "pdfBytes": 17166, "error": null}
+{"sourceId": "v18-proofreading-marks-000", "stratum": "authored-proofreading-marks", "saved": true, "pdfBytes": 15714, "error": null}
+{"sourceId": "v18-proofreading-marks-001", "stratum": "authored-proofreading-marks", "saved": true, "pdfBytes": 16530, "error": null}
+{"sourceId": "v18-proofreading-marks-002", "stratum": "authored-proofreading-marks", "saved": true, "pdfBytes": 16107, "error": null}
+{"sourceId": "v18-proofreading-marks-003", "stratum": "authored-proofreading-marks", "saved": true, "pdfBytes": 15015, "error": null}
+{"sourceId": "v18-proofreading-marks-004", "stratum": "authored-proofreading-marks", "saved": true, "pdfBytes": 16473, "error": null}
+{"sourceId": "corrupt_section", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
+{"sourceId": "corrupt_header", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
+{"sourceId": "missing_section", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
