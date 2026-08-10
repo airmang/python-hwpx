@@ -421,6 +421,33 @@ class PageNamespace(_Namespace):
     # 저수준 API 는 ``HwpxOxmlSectionProperties`` 가 소유하고(Q3b), 여기서는 쪽
     # 기하 축의 나머지와 같은 자리에 노출하기만 한다.
 
+    def master_page_refs(
+        self,
+        *,
+        section: "int | HwpxOxmlSection | None" = None,
+        section_index: int | None = None,
+    ) -> tuple[str, ...]:
+        """이 절이 참조하는 바탕쪽 id(``hp:masterPage/@idRef``) 목록."""
+
+        return self._section(
+            section, section_index, "master_page_refs"
+        ).properties.master_page_refs
+
+    def set_master_page(
+        self,
+        master_page_id: str,
+        *,
+        section: "int | HwpxOxmlSection | None" = None,
+        section_index: int | None = None,
+    ) -> None:
+        """이 절이 바탕쪽(``doc.parts.add_master_page``가 만든 id)을
+        참조하도록 등록한다(6.13 트레인㊻). 이미 참조 중이면 아무 일도
+        안 한다(멱등)."""
+
+        self._section(
+            section, section_index, "set_master_page"
+        ).properties.add_master_page_reference(master_page_id)
+
     def grid(
         self,
         *,

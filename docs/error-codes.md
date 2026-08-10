@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 98 | 11 |
+| 개수 | 119 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -45,7 +45,7 @@ except HwpxError as exc:
 `<도메인>-<조건>`, 전부 소문자 kebab-case. 도메인은 6.0 네임스페이스와
 패키지 수준 관심사에서 온다:
 
-`capability`, `contract`, `document`, `field`, `heading`, `hwpx`, `media`, `note`, `open`, `package`, `page`, `paragraph`, `plan`, `preservation`, `quality`, `ref`, `save`, `section`, `shape`, `style`, `table`, `text`, `track`
+`capability`, `contract`, `document`, `field`, `header`, `heading`, `hwpx`, `master`, `media`, `note`, `open`, `package`, `page`, `paragraph`, `parts`, `plan`, `preservation`, `quality`, `ref`, `save`, `section`, `shape`, `style`, `table`, `text`, `track`
 
 유예 2건 — `unknown-contract-document`, `unknown-contract-schema` —
 은 5.6.0 에 이미 나간 이름이라 문법에 맞지 않아도 바꾸지 않는다(7.0 정리).
@@ -68,8 +68,14 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `document-header-missing` | 문서에 header.xml 파트가 없다. |
+| `document-history-root-invalid` | history.xml 루트가 history 가 아니다. |
+| `document-master-page-root-invalid` | 바탕쪽 파트 루트가 masterPage 가 아니다. |
+| `document-merge-index-out-of-range` | after_paragraph_index 가 대상 섹션의 문단 개수 범위를 벗어났다. |
+| `document-merge-unsupported-policy-axis` | 그 정책 축의 값이 아직 지원 기본값 밖이다(신규 값 미구현). |
+| `document-merge-unsupported-reference` | 가져올 문단이 아직 지원 안 하는 참조 요소를 담고 있다(예: 메모 필드). |
 | `document-settings-root-invalid` | settings.xml 루트가 ha:HWPApplicationSetting이 아니다. |
 | `document-validation-failed` | 저장 전 문서 검증이 실패했다. |
+| `document-version-root-invalid` | version.xml 루트가 HCFVersion 이 아니다. |
 
 ### `field-*`
 
@@ -85,6 +91,13 @@ except HwpxError as exc:
 | `field-not-created` | 만든 누름틀을 표준 매처가 다시 찾지 못했다. |
 | `field-not-found` | 그 선택자로 누름틀을 찾지 못했다. |
 | `field-selector-conflict` | 선택자를 둘 이상 동시에 지정했다. |
+
+### `header-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `header-compat-empty-flag-name` | layout compatibility 플래그 이름이 비어 있다. |
+| `header-compat-empty-target-program` | target_program 값이 비어 있다. |
 
 ### `heading-*`
 
@@ -103,6 +116,13 @@ except HwpxError as exc:
 | `hwpx-state-error` | 문서 상태가 이 연산을 할 수 있는 상태가 아니다(분류되지 않음). |
 | `hwpx-type-error` | 인자 타입이 이 연산이 받는 것이 아니다(분류되지 않음). |
 | `hwpx-value-error` | 인자 값이 이 연산에 쓸 수 없다(분류되지 않음). |
+
+### `master-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `master-page-manifest-missing` | content.hpf 매니페스트에 opf:manifest 요소가 없다. |
+| `master-page-type-unsupported` | 바탕쪽 type 값이 OWPML 어휘(BOTH/EVEN/ODD/LAST_PAGE/OPTIONAL_PAGE) 밖이다. |
 
 ### `media-*`
 
@@ -136,6 +156,7 @@ except HwpxError as exc:
 | `page-new-num-kind-invalid` | 쪽번호 재시작 kind 값이 OWPML 어휘(hp:AutoNumNewNumType/@numType) 밖이다. |
 | `page-orientation-unsupported` | 지원하지 않는 용지 방향이다. |
 | `page-paper-size-unsupported` | 지원하지 않는 용지 규격이다. |
+| `page-text-direction-unsupported` | 글자 방향 값이 OWPML 어휘(hp:secPr/@textDirection: HORIZONTAL/VERTICAL/VERTICALALL) 밖이다. |
 
 ### `paragraph-*`
 
@@ -152,6 +173,13 @@ except HwpxError as exc:
 | `paragraph-tab-leader-invalid` | 탭 정지 leader 값이 OWPML 어휘(hc:LineType2) 밖이다. |
 | `paragraph-tab-pos-invalid` | 탭 정지 위치(pos_mm/pos)가 없거나 음수다. |
 | `paragraph-tab-type-invalid` | 탭 정지 type 값이 OWPML 어휘(LEFT/RIGHT/CENTER/DECIMAL) 밖이다. |
+
+### `parts-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `parts-auto-spacing-unknown-para-pr` | 그 id 의 hh:paraPr 를 문서에서 찾지 못했다. |
+| `parts-no-header-part` | 문서에 header.xml 파트가 없다(doc.parts 경로). |
 
 ### `plan-*`
 
@@ -191,16 +219,24 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `shape-arc-corner-invalid` | add_arc 의 corner 인자가 지원하는 모서리(TOP_LEFT 등) 밖이다. |
+| `shape-arc-type-invalid` | add_arc 의 arc_type 인자가 OWPML 어휘(NORMAL/PIE/CHORD) 밖이다. |
 | `shape-caption-side-invalid` | 캡션 side 값이 OWPML 어휘(LEFT/RIGHT/TOP/BOTTOM) 밖이다. |
 | `shape-chart-anchor-detached` | 만든 차트 앵커가 자기 파트를 가리키지 않는다. |
 | `shape-chart-not-created` | 만든 차트를 표준 스캔이 다시 찾지 못했다. |
 | `shape-chart-root-invalid` | 차트 XML 루트가 c:chartSpace 가 아니다. |
 | `shape-chart-xml-empty` | 차트 XML 이 비어 있다. |
 | `shape-chart-xml-malformed` | 차트 XML 이 올바른 XML 이 아니다. |
+| `shape-container-no-members` | add_container 에 부재를 하나도 안 줬다. |
+| `shape-drop-cap-anchor-detached` | 만든 드롭캡이 요청한 dropcapstyle 을 안 갖고 있다(방어적 분기). |
+| `shape-drop-cap-character-empty` | 드롭캡으로 키울 문자가 비어 있다. |
+| `shape-drop-cap-not-created` | 만든 드롭캡을 표준 섹션 스캔이 다시 찾지 못했다. |
+| `shape-drop-cap-style-unsupported` | 드롭캡 dropcapstyle 값이 실증된 어휘(TripleLine) 밖이다. |
 | `shape-equation-not-created` | 만든 수식을 표준 스캔이 다시 찾지 못했다. |
 | `shape-equation-not-verbatim` | 만든 수식이 스크립트를 그대로 담지 않았다. |
 | `shape-equation-script-empty` | 수식 스크립트가 비어 있다. |
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
+| `shape-polygon-too-few-points` | add_polygon 에 꼭짓점을 3개 미만으로 줬다. |
 
 ### `style-*`
 

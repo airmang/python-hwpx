@@ -101,6 +101,10 @@ CATEGORY_MAP: dict[str, str] = {
     "document-metadata": "보안/호환성",
     # 6.8 트레인㉚ — 트레인㉙이 찾은 측정 갭 등재.
     "page-layout": "레이아웃",
+    # 6.13 트레인㊻ — 메뉴 표면 역매핑(트레인㊷)이 찾은 부분 대응(읽기만)
+    # 갭 해소 등재. 바탕쪽은 쪽 배경/레터헤드 개념이라 page-layout과 같은
+    # 카테고리.
+    "master-page": "레이아웃",
     "character-formatting": "서식",
     "list-formatting": "서식",
     "font-registration": "서식",

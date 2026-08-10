@@ -157,6 +157,7 @@ AREA_NAMESPACES = {
     "dutmal-compose": "shapes",
     # 6.12 트레인㊸ — 편집기 메뉴 표면 역매핑(트레인㊷)이 찾은 "문서 정보" 갭.
     "document-metadata": "parts",
+    "master-page": "parts",
 }
 
 

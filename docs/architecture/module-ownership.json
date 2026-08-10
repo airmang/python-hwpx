@@ -506,6 +506,12 @@
       "disposition": "core",
       "approvedBy": "cycle-6.13/train-48-outline-numbering",
       "rationale": "HwpxOxmlHeader.ensure_numbering's full body (bullet/number/outline kinds) -- moved out verbatim (same pattern as section_layout.py's 'moved out, no behavior change beyond the addition itself' precedent) because header_part.py had no headroom left under the 1600-line owner-file cap once the new 'outline' kind (train 48, gap ㊻ #3-5: 개요 번호 모양·적용/해제·수준 증감) was added. The number/outline branches are deduplicated into one shared helper (_numbering_refs_for_kind) since they differ only in the hh:heading type they reference -- outline reuses the exact hh:numbering/hh:paraHead mechanism v14's authored-listformat batch already render-verified for number/bullet, just under a different heading_type, so no new structural guess was made"
+    },
+    {
+      "path": "src/hwpx/oxml/master_page_authoring.py",
+      "disposition": "core",
+      "approvedBy": "cycle-6.13/train-48-master-page-write",
+      "rationale": "add_master_page (Contents/masterpageN.xml part creation + opf:item manifest registration, no spine itemref needed since master pages aren't reading-order parts) -- opens the write side HwpxOxmlMasterPage's own docstring explicitly deferred (read-only, cycle 6.4 train 15's read=none resolution scope). New module from the start rather than added inline to document_parts.py (only ~82 lines of headroom there, this needed more to build safely without repeating header_part.py's mid-train overflow). Reverse-engineered from the single real master-page sample (error__20250808__...hwpx): the part filename, manifest opf:item id, masterPage root's own id, and a section's hp:masterPage/@idRef all share one string (\"masterpageN\"); textWidth/textHeight on the inner hp:subList stay at the honest \"0\" default (same as every other subList builder) since a single sample gives no basis to reverse the page-geometry formula the real value came from. Section-side reference wiring (hp:masterPage/@idRef append + masterPageCnt sync) lives in section_format.py instead (SectionProperties.add_master_page_reference), not here, since it needs no new module of its own"
     }
   ],
   "removed": [

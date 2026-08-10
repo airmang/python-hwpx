@@ -257,6 +257,11 @@ files = [
     # once the new "outline" kind was added) — born in the gate, per the
     # WP-A rule above.
     "src/hwpx/oxml/numbering_kinds.py",
+    # 6.13 (train 48): master page (바탕쪽) part creation + manifest
+    # registration — new module from the start (document_parts.py had
+    # modest headroom but this needed more than fit safely), per the WP-A
+    # rule above.
+    "src/hwpx/oxml/master_page_authoring.py",
 ]
 # 다음 사이클 칩 후보 (6.12 트레인㊸ 갭⑤ 정리 시 team-lead가 지목,
 # f7e4e67 리뷰): `src/hwpx/table_patch.py`(2073줄, `src/hwpx/` 최상위라
@@ -380,6 +385,11 @@ include = [
     # once the new "outline" kind was added) — born in the gate, per the
     # WP-A rule above.
     "src/hwpx/oxml/numbering_kinds.py",
+    # 6.13 (train 48): master page (바탕쪽) part creation + manifest
+    # registration — new module from the start (document_parts.py had
+    # modest headroom but this needed more than fit safely), per the WP-A
+    # rule above.
+    "src/hwpx/oxml/master_page_authoring.py",
 ]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"

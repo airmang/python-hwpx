@@ -382,6 +382,18 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "entry_points": ("hwpx.document:HwpxDocument",),
         "authoring_methods": (),
     },
+    {
+        "area": "master-page",
+        "namespace": "doc.parts",
+        "matrix_row": "바탕쪽",
+        # 6.13 트레인㊻ — 편집기 메뉴 표면 역매핑(트레인㊷)이 [부분 대응]
+        # (읽기만, 쓰기 없음)으로 지목한 갭. doc.parts.add_master_page는
+        # add_*로 이름 붙었지만 doc.parts-only(HwpxDocument 루트에는 없음,
+        # dir()로 직접 확인) — drop-cap과 같은 이유로
+        # authoring_methods=()(루트 add_* 대조 가드가 phantom으로 잡음).
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
 )
 
 #: 패키지에 동봉되는 계약 문서 이름 → 파일. MCP resources 표면의 원천.

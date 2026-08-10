@@ -68,6 +68,38 @@ class PartsNamespace(_Namespace):
 
         return self._doc.oxml.master_pages
 
+    def add_master_page(
+        self,
+        *,
+        text: str | None = None,
+        paragraphs: Iterable[str] | None = None,
+        page_type: str = "OPTIONAL_PAGE",
+        page_number: int = 1,
+        page_duplicate: bool = False,
+        page_front: bool = False,
+    ) -> str:
+        """새 바탕쪽 파트를 만들고, 그 id(``"masterpageN"``)를 돌려준다.
+
+        6.13 트레인㊻ — 편집기 메뉴 표면 역매핑이 [부분 대응](읽기만,
+        쓰기 없음)으로 지목한 갭. 이 메서드는 파트만 만든다 — 어느
+        절에서도 참조하지 않는다. 실제로 쓰려면
+        ``section.properties.add_master_page_reference(id)``를 호출할
+        것(``doc.oxml.sections[i].properties``).
+
+        실측(유일한 실 예시): 절의 `hp:secPr` 자식 시퀀스에서
+        `hp:masterPage`는 맨 끝에 오고, `masterPageCnt`가 그 개수와
+        일치한다. 실한컴 렌더 검증은 v17 배치 대기(Create(experimental)).
+        """
+
+        return self._doc.oxml.add_master_page(
+            text=text,
+            paragraphs=list(paragraphs) if paragraphs is not None else None,
+            page_type=page_type,
+            page_number=page_number,
+            page_duplicate=page_duplicate,
+            page_front=page_front,
+        )
+
     @property
     def histories(self) -> list["HwpxOxmlHistory"]:
         """매니페스트가 참조하는 문서 이력 파트들. `.to_model()`로

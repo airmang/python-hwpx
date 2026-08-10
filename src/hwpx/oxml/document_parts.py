@@ -594,6 +594,35 @@ class HwpxOxmlDocument:
     def master_pages(self) -> list[HwpxOxmlMasterPage]:
         return list(self._master_pages)
 
+    def add_master_page(
+        self,
+        *,
+        text: str | None = None,
+        paragraphs: "Sequence[str] | None" = None,
+        page_type: str = "OPTIONAL_PAGE",
+        page_number: int = 1,
+        page_duplicate: bool = False,
+        page_front: bool = False,
+    ) -> str:
+        """새 바탕쪽 파트를 만들어 매니페스트에 등록하고, 그 id를 돌려준다.
+
+        구현 본체는 `master_page_authoring.py`에 산다(6.13 트레인㊻ --
+        신규 모듈, born in the gate). 절에서 실제로 참조하려면
+        ``section.properties.add_master_page_reference(id)``를 별도로
+        호출할 것 -- 이 메서드는 파트만 만든다.
+        """
+        from .master_page_authoring import add_master_page as _add_master_page
+
+        return _add_master_page(
+            self,
+            text=text,
+            paragraphs=paragraphs,
+            page_type=page_type,
+            page_number=page_number,
+            page_duplicate=page_duplicate,
+            page_front=page_front,
+        )
+
     @property
     def histories(self) -> list[HwpxOxmlHistory]:
         return list(self._histories)

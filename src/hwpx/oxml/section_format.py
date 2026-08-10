@@ -460,6 +460,32 @@ class HwpxOxmlSectionProperties:
             self.section.mark_dirty()
 
     @property
+    def master_page_refs(self) -> tuple[str, ...]:
+        """이 절이 참조하는 바탕쪽(``hp:masterPage/@idRef``) 목록.
+
+        6.13 트레인㊻ -- 실제 예시(`error__20250808__...hwpx`)에서 이
+        요소는 `hp:secPr`의 자식 시퀀스 맨 끝(pageBorderFill들 뒤)에
+        온다 -- ``add_master_page_reference``가 그냥 append하는 이유.
+        """
+        return tuple(
+            child.get("idRef", "")
+            for child in self.element.findall(f"{_HP}masterPage")
+        )
+
+    def add_master_page_reference(self, id_ref: str) -> None:
+        """바탕쪽 파트(``masterPageN``)를 이 절에서 참조하도록 등록한다.
+
+        중복 idRef는 다시 추가하지 않는다(멱등). ``masterPageCnt``를
+        실제 자식 개수로 동기화한다 -- 실 예시 1건에서 `masterPageCnt="1"`
+        이 `hp:masterPage` 자식 1개와 정확히 일치함을 확인했다.
+        """
+        if id_ref in self.master_page_refs:
+            return
+        _append_child(self.element, f"{_HP}masterPage", {"idRef": id_ref})
+        self.element.set("masterPageCnt", str(len(self.master_page_refs)))
+        self.section.mark_dirty()
+
+    @property
     def visibility(self) -> SectionVisibility:
         element = self.element.find(f"{_HP}visibility")
         if element is None:
