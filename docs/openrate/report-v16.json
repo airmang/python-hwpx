@@ -1,0 +1,52 @@
+{
+  "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v16",
+  "harness_valid": true,
+  "measured_at": "2026-08-10T15:20:04.886058+09:00",
+  "negative_controls": {
+    "expected": [
+      "corrupt_section",
+      "corrupt_header",
+      "missing_section"
+    ],
+    "judged": 3,
+    "wrongly_rendered": []
+  },
+  "oracle": "mac-gui",
+  "oracle_app": "Hancom Office HWP.app (macOS)",
+  "schemaVersion": "hwpx.openrate.report/v16",
+  "scopeNote": "v16 measures the five authoring surfaces the 6.12 menu reverse map found missing entirely, additive over v1-v15: document properties (opf:metadata), drop cap (the single TripleLine shape the real corpus actually uses), text direction (VERTICAL/VERTICALALL -- values the vendored corpus never exercises, so this is their first real-Hancom evidence anywhere), column break, and table split/merge. Real Hancom accepted all 25/25. Observer: macOS Hancom GUI oracle (open+render one gate). Session-state discipline applied: a control render preceded the batch and the app was fully restarted before launch.",
+  "strata": {
+    "authored-column-break": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-document-metadata": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-drop-cap": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-table-split-merge": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    },
+    "authored-text-direction": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    }
+  },
+  "tool_versions": {
+    "python-hwpx": "6.0.2"
+  },
+  "totals": {
+    "judged": 25,
+    "render_checked": 25
+  }
+}
