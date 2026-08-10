@@ -33,15 +33,18 @@
    "add_line"), 근거 없는 승격은 하지 않는다 — 대응 행이 불분명한 요소는
    ``capabilityArea: null``로 남는다. 매핑된 요소라도 그 행의 등급 문자열에
    "Render-verified"가 없으면 이 출처로는 ``verificationBasis``가 null이다.
-5. **실한컴 검증 여부(openrate 코퍼스, v4~v15)** — ``docs/openrate/
-   report-v{4,5,6,7,8,9,10,11,12,13,14,15}.json``의 스트라타별 실제 Hancom 수용 receipt를
+5. **실한컴 검증 여부(openrate 코퍼스, v4~v16)** — ``docs/openrate/
+   report-v{4,5,6,7,8,9,10,11,12,13,14,15,16}.json``의 스트라타별 실제 Hancom 수용 receipt를
    ``verificationBasis``로 환류한다(2026-08-04 감사 R4 수리 — "두 산출물이
    서로를 모른다" — 의 v4 배선을 v5~v8까지 확장(2026-08 사이클 6.5 트레인
    ⑰), v9까지 확장(2026-08 사이클 6.6 트레인⑳), v10까지 확장(2026-08
    사이클 6.7 트레인㉔), v11까지 확장(2026-08 사이클 6.8 트레인㉘), v12까지
    확장(2026-08 사이클 6.9 트레인㉜), v13까지 확장(2026-08 사이클 6.10
    트레인㉟), v14까지 확장(2026-08 사이클 6.11 트레인㊳), v15까지 확장
-   (2026-08 사이클 6.12 트레인㊶)). 두 갈래로
+   (2026-08 사이클 6.12 트레인㊶), v16까지 확장(2026-08 사이클 6.13
+   트레인㊹ — 5개 신규 스트라타 전부 (b) 갈래에도 안 얹힌다: 요소가
+   이미 다른 영역 소유라 재등록하면 그 영역 카운트를 덮어쓰므로,
+   지원 매트릭스 산문 인용만으로 등급을 올린다)). 두 갈래로
    다룬다: (a)
    스트라타가 **이미 등록된 capabilityArea**와 1:1로 대응하면
    (``CAPABILITY_KEYWORDS``에 그 요소가 실재 등재돼 있으면)
@@ -52,7 +55,7 @@
    ``scripts/generate_openrate_corpus_v{5,6,7,8,9,10,11,12,13,14,15}.py``)의 독스트링이 실제로
    호출한다고 명시한 API·요소뿐이다(무근거 매핑 금지, 기존 (a) 경로와
    같은 원칙). ``by-v4-corpus``라는 이름은 지금은 v4 하나만이 아니라
-   v4~v15 전체를 가리키므로 ``by-openrate-corpus``로 이번에 이름도
+   v4~v16 전체를 가리키므로 ``by-openrate-corpus``로 이번에 이름도
    바로잡았다(이 문자열을 읽는 외부 소비자는 이 레포 안에 없음을 grep으로
    확인 — 파기하는 계약이 아니다).
 
@@ -86,12 +89,12 @@ DEFAULT_CENSUS_PATH = ROOT / "docs" / "_extra" / "element-census.json"
 SUPPORT_MATRIX_PATH = ROOT / "src" / "hwpx" / "data" / "contract_docs" / "support-matrix.md"
 SKELETON_PATH = ROOT / "src" / "hwpx" / "data" / "Skeleton.hwpx"
 SRC_DIR = ROOT / "src" / "hwpx"
-#: v4~v15 전부 — 신버전이 생기면 여기 한 줄만 추가하면 된다(receipts 로더
+#: v4~v16 전부 — 신버전이 생기면 여기 한 줄만 추가하면 된다(receipts 로더
 #: 둘 다 이 리스트를 그대로 순회한다). 존재하지 않는 파일은 조용히
 #: 건너뛴다(``_load_*`` 쪽에서 ``is_file()`` 가드).
 OPENRATE_REPORT_PATHS: tuple[Path, ...] = tuple(
     ROOT / "docs" / "openrate" / f"report-{version}.json"
-    for version in ("v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15")
+    for version in ("v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16")
 )
 LEDGER_JSON = ROOT / "docs" / "coverage-ledger.json"
 LEDGER_MD = ROOT / "docs" / "coverage-ledger.md"
@@ -1344,7 +1347,7 @@ def classify_capability(
 
 
 # ---------------------------------------------------------------------------
-# 4b) openrate 코퍼스 환류(v4~v15) — support-matrix 산문과 별개인 두 번째
+# 4b) openrate 코퍼스 환류(v4~v16) — support-matrix 산문과 별개인 두 번째
 #     실측 근거. 감사 R4: "v4 스트라타의 요소별 실한컴 수용이 원장의
 #     verificationBasis로 환류되지 않아 두 산출물이 서로를 모른다." (2026-08
 #     사이클 6.5 트레인⑰이 이 배선을 v5~v8까지 확장, 사이클 6.6 트레인⑳이
@@ -1773,7 +1776,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
     lines.append(
         "`scripts/coverage_ledger.py`가 OWPML 2024 스키마(`DevDoc/OWPML SCHEMA/`) · "
         "실코퍼스 census(`scripts/build_element_census.py`) · `src/hwpx/` 코드 "
-        "참조 · 지원 매트릭스 · v4~v15 openrate 실한컴 코퍼스에서 결정론적으로 "
+        "참조 · 지원 매트릭스 · v4~v16 openrate 실한컴 코퍼스에서 결정론적으로 "
         "재산출하는 원장이다. 손으로 쓴 지원 주장이 아니라 기계 판독 "
         "[coverage-ledger.json](coverage-ledger.json)의 사람용 요약이며, "
         "`python scripts/coverage_ledger.py --check`가 드리프트를 게이트한다."
@@ -1863,7 +1866,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
         "밖 — 생성기 독스트링에 명시)."
     )
     lines.append(
-        "**6) openrate 코퍼스 환류(v4~v15).** `docs/openrate/report-v{4,5,6,7,8,9,10,11,12,13,14,15}."
+        "**6) openrate 코퍼스 환류(v4~v16).** `docs/openrate/report-v{4,5,6,7,8,9,10,11,12,13,14,15,16}."
         "json`의 스트라타별 실한컴 수용(`render_checked>0`·`render_failed==0`, "
         "구세대 스키마는 `opened==requested>0`도 함께)을 `verificationBasis`로 "
         "환류한다(`by-openrate-corpus`/`by-capability-area+openrate-corpus`) — "
@@ -1935,7 +1938,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
         f"{_fmt_pct(summary['renderVerified'], total)} |"
     )
     lines.append(
-        f"| ..중 openrate 코퍼스(v4~v15) 환류분 | {summary['renderVerifiedByOpenrateCorpus']} | "
+        f"| ..중 openrate 코퍼스(v4~v16) 환류분 | {summary['renderVerifiedByOpenrateCorpus']} | "
         f"{_fmt_pct(summary['renderVerifiedByOpenrateCorpus'], total)} |"
     )
     lines.append(
@@ -2065,7 +2068,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
         "누름틀·TOC·하이퍼링크가 다 쓴다)는 일부러 매핑하지 않았다. "
         "`verificationBasis`는 두 독립 출처를 결합한다 — 지원 매트릭스 산문의 "
         "\"Render-verified\" 표기(`by-capability-area`)와 `docs/openrate/"
-        "report-v{4,5,6,7,8,9,10,11,12,13}.json` 실한컴 openrate 코퍼스의 스트라타별 수용 "
+        "report-v{4,5,6,7,8,9,10,11,12,13,14,15,16}.json` 실한컴 openrate 코퍼스의 스트라타별 수용 "
         "receipt(`by-openrate-corpus`) — capabilityArea 경로는 매핑이 명확한 "
         "스트라타에 한해서만, capabilityArea가 아직 없는 스트라타는 생성기 "
         "독스트링이 명시하는 요소에 직접."
