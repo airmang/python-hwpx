@@ -37,12 +37,17 @@ if TYPE_CHECKING:
         PageMargins,
         PageSize,
         SectionGrid,
+        SectionTextDirection,
         SectionVisibility,
     )
     from ...objects import PageSetup
     from ...oxml.section_story import HwpxOxmlSectionHeaderFooter
 
 __all__ = ["PageNamespace"]
+
+#: 6.12 트레인㊸ 갭③ — 스키마 선언 열거값(다른 어떤 값도 실코퍼스에 없음,
+#: 실측 근거는 SectionTextDirection 독스트링 참조).
+_TEXT_DIRECTIONS = frozenset({"HORIZONTAL", "VERTICAL", "VERTICALALL"})
 
 
 class PageNamespace(_Namespace):
@@ -441,6 +446,50 @@ class PageNamespace(_Namespace):
             line_grid=line_grid,
             char_grid=char_grid,
             wonggoji_format=wonggoji_format,
+        )
+
+    def text_direction(
+        self,
+        *,
+        section: "int | HwpxOxmlSection | None" = None,
+        section_index: int | None = None,
+    ) -> "SectionTextDirection":
+        """글자 방향(가로쓰기/세로쓰기)과 머리말/꼬리말 세로쓰기 여부."""
+
+        return self._section(
+            section, section_index, "text_direction"
+        ).properties.text_direction
+
+    def set_text_direction(
+        self,
+        direction: str | None = None,
+        *,
+        vertical_header_footer: bool | None = None,
+        section: "int | HwpxOxmlSection | None" = None,
+        section_index: int | None = None,
+    ) -> None:
+        """글자 방향(세로쓰기 포함)을 설정한다.
+
+        실코퍼스 67파일 전수에 `VERTICAL`/`VERTICALALL` 실사용 예가 없다
+        (74/74 `HORIZONTAL`) — 스키마 열거값 자체는 명확해 저작을 막지
+        않지만, 실한컴 렌더 검증 전까지는 "Create(experimental)"로만
+        표기한다(``docs/support-matrix.md`` 참조).
+        """
+
+        if direction is not None and direction not in _TEXT_DIRECTIONS:
+            raise HwpxValueError(
+                f"unsupported text direction: {direction}",
+                code="page-text-direction-unsupported",
+                context={
+                    "requested": direction,
+                    "supported": sorted(_TEXT_DIRECTIONS),
+                },
+                suggestion=f"Supported: {', '.join(sorted(_TEXT_DIRECTIONS))}",
+            )
+        self._section(
+            section, section_index, "set_text_direction"
+        ).properties.set_text_direction(
+            direction, vertical_header_footer=vertical_header_footer
         )
 
     def visibility(

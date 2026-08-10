@@ -1301,6 +1301,15 @@ _register(
 # "rect"를 다시 등록하면 fieldBegin류의 "공유 요소" 문제가 아니라 아예
 # 기존 등록을 덮어써 도형 저작 카운트를 조용히 망가뜨린다. 드롭캡 실증은
 # support-matrix.md 산문으로만 남긴다(무근거 승격 회피 원칙).
+#
+# 6.12 트레인㊸ 갭③ — "페이지 레이아웃" 행에 추가한 text_direction/
+# set_text_direction(hp:secPr의 textDirection/textVerticalWidthHead)도
+# 같은 이유로 요소 등록이 없다. 이 둘은 hp:secPr 자신의 *속성*이고,
+# hp:secPr 자체는 이 파일이 이미 등록한 11개 자식 요소(pagePr/margin/
+# header/footer/colPr/pageNum/visibility/lineNumberShape/grid/newNum/
+# pageHiding)를 담는 컨테이너 — 세로쓰기를 한 번도 안 쓴 문서를 포함해
+# **모든** 문서가 hp:secPr을 가지므로, secPr 자체를 등록하면 전량 위양성이
+# 된다(위 6.8 트레인㉚ 주석의 "부분만 등록" 원칙보다 더 명백한 사례).
 
 
 def _parse_support_matrix_status(text: str) -> dict[str, str]:

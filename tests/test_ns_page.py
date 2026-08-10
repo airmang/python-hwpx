@@ -23,6 +23,7 @@ PAGE_SECTION_MEMBERS = [
     "setup", "set_size", "set_margins", "set_columns", "set_header", "set_footer",
     "set_page_number", "remove_header", "remove_footer", "size", "margins",
     "grid", "set_grid", "visibility", "set_visibility", "line_numbers", "set_line_numbers",
+    "text_direction", "set_text_direction",
 ]
 _ARGS: dict[str, dict] = {
     "set_header": {"text": "머리말"},
@@ -207,6 +208,52 @@ def test_grid_visibility_and_line_numbers_round_trip(document: HwpxDocument) -> 
     visibility = document.page.visibility(section=0)
     assert visibility.hide_first_header is True
     assert visibility.show_line_number is True
+
+
+# --------------------------------------------------------------------------
+# 6.12 트레인㊸ 갭③ — text_direction(hp:secPr 세로쓰기)
+
+
+def test_text_direction_defaults_to_horizontal(document: HwpxDocument) -> None:
+    direction = document.page.text_direction(section=0)
+    assert direction.direction == "HORIZONTAL"
+    assert direction.vertical_header_footer is False
+
+
+def test_set_text_direction_round_trips_through_save_and_reopen(document: HwpxDocument) -> None:
+    document.page.set_text_direction(
+        "VERTICAL", vertical_header_footer=True, section=0,
+    )
+    direction = document.page.text_direction(section=0)
+    assert direction.direction == "VERTICAL"
+    assert direction.vertical_header_footer is True
+
+    reopened = HwpxDocument.open(document.to_bytes())
+    reopened_direction = reopened.page.text_direction(section=0)
+    assert reopened_direction.direction == "VERTICAL"
+    assert reopened_direction.vertical_header_footer is True
+
+
+def test_set_text_direction_accepts_verticalall(document: HwpxDocument) -> None:
+    document.page.set_text_direction("VERTICALALL", section=0)
+    assert document.page.text_direction(section=0).direction == "VERTICALALL"
+
+
+def test_set_text_direction_rejects_unsupported_values(document: HwpxDocument) -> None:
+    with pytest.raises(HwpxValueError) as excinfo:
+        document.page.set_text_direction("SIDEWAYS", section=0)
+    assert excinfo.value.code == "page-text-direction-unsupported"
+    assert excinfo.value.context["requested"] == "SIDEWAYS"
+
+
+def test_set_text_direction_leaves_direction_untouched_when_only_header_footer_given(
+    document: HwpxDocument,
+) -> None:
+    document.page.set_text_direction("VERTICAL", section=0)
+    document.page.set_text_direction(vertical_header_footer=True, section=0)
+    direction = document.page.text_direction(section=0)
+    assert direction.direction == "VERTICAL"
+    assert direction.vertical_header_footer is True
 
     document.page.set_line_numbers(count_by=5, start_number=3, section=0)
     shape = document.page.line_numbers(section=0)

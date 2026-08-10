@@ -61,6 +61,28 @@ class SectionGrid:
 
 
 @dataclass(slots=True)
+class SectionTextDirection:
+    """Represents ``hp:secPr``'s own ``textDirection``/``textVerticalWidthHead``.
+
+    Unlike every other property in this class, these two live directly on
+    the ``hp:secPr`` element itself (no nested child to find/create) —
+    ``self.element`` *is* the target.
+
+    6.12 트레인㊸ 갭③. 실코퍼스(67파일, 모든 fixture 하위 디렉터리 전수)
+    측정: `hp:secPr` 74건 전부 `textDirection="HORIZONTAL"`·
+    `textVerticalWidthHead="0"` — `VERTICAL`/`VERTICALALL` 실사용 0건. 그래도
+    도형(dropcapstyle)과 달리 이 값은 새 구조를 추측하는 게 아니라 이미
+    실코퍼스 전량에서 정상 파싱·직렬화되는 기존 요소의 스키마 선언 열거값을
+    그대로 쓰는 것뿐이라(어휘 자체는 스키마가 명확히 선언) 구조적 추측
+    위험이 없다 — 미확인인 건 오직 "실한컴이 이 값으로 세로쓰기를 실제로
+    그리는가"라는 렌더링 질문뿐이고, 그건 v16 배치가 답한다.
+    """
+
+    direction: str
+    vertical_header_footer: bool
+
+
+@dataclass(slots=True)
 class SectionVisibility:
     """Represents ``<hp:visibility>`` — first-page show/hide flags."""
 
@@ -402,6 +424,37 @@ class HwpxOxmlSectionProperties:
             wonggoji_value = _bool_str(wonggoji_format)
             if _get_bool_attr(element, "wonggojiFormat", False) != wonggoji_format:
                 element.set("wonggojiFormat", wonggoji_value)
+                changed = True
+        if changed:
+            self.section.mark_dirty()
+
+    @property
+    def text_direction(self) -> SectionTextDirection:
+        return SectionTextDirection(
+            direction=self.element.get("textDirection", "HORIZONTAL"),
+            vertical_header_footer=_get_bool_attr(
+                self.element, "textVerticalWidthHead", False
+            ),
+        )
+
+    def set_text_direction(
+        self,
+        direction: str | None = None,
+        *,
+        vertical_header_footer: bool | None = None,
+    ) -> None:
+        # Raw pass-through, no enum validation -- matches set_page_size's
+        # orientation/gutter_type (validation for direction lives at the
+        # doc.page.set_text_direction call site, same split as
+        # _normalize_page_orientation does for orientation).
+        changed = False
+        if direction is not None and self.element.get("textDirection", "HORIZONTAL") != direction:
+            self.element.set("textDirection", direction)
+            changed = True
+        if vertical_header_footer is not None:
+            current = _get_bool_attr(self.element, "textVerticalWidthHead", False)
+            if current != vertical_header_footer:
+                self.element.set("textVerticalWidthHead", _bool_str(vertical_header_footer))
                 changed = True
         if changed:
             self.section.mark_dirty()
