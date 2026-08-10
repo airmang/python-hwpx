@@ -253,6 +253,14 @@ files = [
     # in the gate, per the WP-A rule above.
     "src/hwpx/oxml/drop_cap.py",
 ]
+# 다음 사이클 칩 후보 (6.12 트레인㊸ 갭⑤ 정리 시 team-lead가 지목,
+# f7e4e67 리뷰): `src/hwpx/table_patch.py`(2073줄, `src/hwpx/` 최상위라
+# WP-A owner-file 1600줄 캡 대상은 아니지만 이 mypy 게이트에도 없다)는
+# 6.12 이전부터의 기존 부채다 — 갭⑤(split_table/merge_table)는 여기
+# ADD만 했고 ad-hoc 실측(mypy --follow-imports=skip)으로 신규 함수는
+# 0 errors, 파일 전체는 기존 50 errors임을 확인했다(fix 안 함, 스코프
+# 밖). 게이트 편입은 이 파일 전체의 기존 오류를 정리하는 별도
+# 부채상환 트레인의 몫.
 ignore_missing_imports = true
 
 [tool.pyright]
