@@ -1047,6 +1047,18 @@ def _refresh_ids(row: str, bump: int) -> str:
     return _PARA_ID_RE.sub(lambda m: m.group(1) + str((int(m.group(2)) + bump) & 0x7FFFFFFF) + m.group(3), row)
 
 
+def _bump_table_id(table: str, bump: int) -> str:
+    """Bump ``<hp:tbl>``'s own ``id``/``instid`` (if present) -- used by
+    split_table so its new second table doesn't share the original's id
+    (real-corpus confirmed: table ids are unique across a section when
+    present at all, 434/438 sampled tables carry one)."""
+    for attr in ("id", "instid"):
+        current = _si(table, "tbl", attr)
+        if current is not None:
+            table = _ss(table, "tbl", attr, (current + bump) & 0x7FFFFFFF)
+    return table
+
+
 def _blank_cell_text(tc: str) -> str:
     """Empty every ``<hp:t>`` in a cell + drop stale linesegarray (keep formatting).
 
@@ -1200,6 +1212,86 @@ def _insert_block_by_clone(table: str, r0: int, r1: int, count: int = 1) -> str:
             clones.append(clone)
     new_rows = shifted[: r1 + 1] + clones + shifted[r1 + 1:]
     return _rebuild(prefix, new_rows, suffix, rowcnt=len(new_rows))
+
+
+def _split_table_rows(table: str, split_row: int) -> tuple[str, str]:
+    """Split *table* into two independent tables at physical row *split_row*
+    (6.12 트레인㊸ 갭⑤ -- 표 나누기).
+
+    Rows ``[0, split_row)`` stay in the top table; rows ``[split_row, rowCnt)``
+    become the bottom table with ``rowAddr`` renumbered from 0. ``colCnt`` is
+    unchanged in both halves (splitting rows never touches columns). Neither
+    half's paragraph/cell ids are refreshed here -- nothing is duplicated,
+    every row keeps its own pre-existing (already-unique) ids; only the
+    caller-side wrapper paragraph and the new table's own ``id``/``instid``
+    need fresh values (real-corpus confirmed: 434/438 sampled tables carry a
+    non-``None`` ``id``, and it is unique across every table in a section --
+    zero duplicates observed anywhere in the 67-fixture corpus).
+
+    Fail-closed (같은 원칙, ``_insert_block_by_clone``의 straddle 거부와
+    동일한 이유): a merged cell whose ``rowSpan`` crosses ``split_row`` has no
+    well-defined home in either half (does it get duplicated? truncated?
+    which half keeps its content?) -- there is no real-corpus evidence for
+    what Hancom's own "표 나누기" does here, so this refuses rather than
+    guess an answer that could silently duplicate or drop cell content.
+    """
+    _guard_flat(table)
+    prefix, rows, suffix = _parse_table(table)
+    row_cnt = len(rows)
+    if not 0 < split_row < row_cnt:
+        raise TableStructureError(
+            f"split_table: split_row {split_row} out of range (1..{row_cnt - 1})"
+        )
+    for r in range(split_row):
+        for tc in _S_TC.findall(rows[r]):
+            ra = _si(tc, "cellAddr", "rowAddr")
+            rs = _si(tc, "cellSpan", "rowSpan") or 1
+            if ra is not None and ra + rs > split_row:
+                raise TableStructureError(
+                    f"split_table: a merged cell (rowAddr={ra}, rowSpan={rs}) "
+                    f"crosses split_row={split_row} -- refusing (ambiguous ownership)"
+                )
+
+    top_rows = rows[:split_row]
+    bottom_rows = [
+        _map_cells(r, lambda tc: _ss(tc, "cellAddr", "rowAddr", _si(tc, "cellAddr", "rowAddr") - split_row))
+        for r in rows[split_row:]
+    ]
+    top_table = _rebuild(prefix, top_rows, suffix, rowcnt=len(top_rows))
+    bottom_table = _rebuild(prefix, bottom_rows, suffix, rowcnt=len(bottom_rows))
+    return top_table, bottom_table
+
+
+def _merge_table_rows(top: str, bottom: str) -> str:
+    """Merge *bottom*'s rows onto the end of *top*, forming one table
+    (6.12 트레인㊸ 갭⑤ -- 표 붙이기, the reverse of split).
+
+    ``bottom``'s ``rowAddr`` values are shifted by ``top``'s current
+    ``rowCnt`` so the combined table's addressing stays contiguous from 0.
+    ``top``'s own opening tag (``id``/``borderFillIDRef``/``cellzoneList``/
+    etc.) is kept -- the caller decides which table's wrapper paragraph
+    (and which one gets discarded) at the section-splicing layer.
+    """
+    _guard_flat(top)
+    _guard_flat(bottom)
+    top_prefix, top_rows, top_suffix = _parse_table(top)
+    _, bottom_rows, _ = _parse_table(bottom)
+
+    top_col_cnt = _si(top, "tbl", "colCnt")
+    bottom_col_cnt = _si(bottom, "tbl", "colCnt")
+    if top_col_cnt != bottom_col_cnt:
+        raise TableStructureError(
+            f"merge_table: colCnt mismatch ({top_col_cnt} vs {bottom_col_cnt}) -- "
+            "refusing (the two tables don't share a column layout)"
+        )
+
+    offset = len(top_rows)
+    shifted_bottom = [
+        _map_cells(r, lambda tc: _ss(tc, "cellAddr", "rowAddr", _si(tc, "cellAddr", "rowAddr") + offset))
+        for r in bottom_rows
+    ]
+    combined_rows = top_rows + shifted_bottom
+    return _rebuild(top_prefix, combined_rows, top_suffix, rowcnt=len(combined_rows))
 
 
 def _set_column_widths(table: str, new_widths: dict[int, int]) -> str:
@@ -1478,6 +1570,19 @@ def _p_wrapper_span(section: bytes, table_start: int) -> tuple[int, int]:
     raise TableStructureError("unbalanced wrapping paragraph")
 
 
+_TEXT_SPAN_RE = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?t\b[^>]*>(.*?)</(?:[A-Za-z_][\w.-]*:)?t>", re.DOTALL)
+
+
+def _blank_region(section: bytes, start: int, end: int) -> bool:
+    """True if ``section[start:end]`` carries no non-whitespace ``hp:t`` text
+    -- used by merge_table to refuse silently eating real content that sits
+    between the two tables being joined."""
+    for m in _TEXT_SPAN_RE.finditer(section[start:end]):
+        if m.group(1).strip():
+            return False
+    return True
+
+
 def _sections(data: bytes) -> dict[str, bytes]:
     import io
     import zipfile
@@ -1507,10 +1612,25 @@ def apply_table_ops(
     each changed table back so untouched bytes stay identical.
 
     Op dicts: ``{op: 'delete_column'|'delete_row'|'delete_table'|
-    'insert_row_by_clone'|'insert_block_by_clone'|'fill_cell', section_path?,
-    table_index, ...}``. ``insert_block_by_clone`` takes ``ref_rows: [r0, r1]``
-    (a vertical-merge block) + ``count``; ``delete_column`` derives widths from the
-    merged grid when no uniform ``colSpan==1`` row exists (FR-003).
+    'insert_row_by_clone'|'insert_block_by_clone'|'split_table'|'merge_table'|
+    'fill_cell', section_path?, table_index, ...}``. ``insert_block_by_clone``
+    takes ``ref_rows: [r0, r1]`` (a vertical-merge block) + ``count``;
+    ``delete_column`` derives widths from the merged grid when no uniform
+    ``colSpan==1`` row exists (FR-003).
+
+    ``split_table`` (6.12 트레인㊸ 갭⑤ -- 표 나누기) takes ``split_row``
+    (physical row index; rows ``[0, split_row)`` stay in place, rows
+    ``[split_row, rowCnt)`` become a new table directly below, with its own
+    wrapper paragraph and a freshly bumped table id) and refuses if any
+    merged cell's ``rowSpan`` crosses the boundary. ``merge_table`` (표
+    붙이기, the reverse) merges the table at ``table_index`` with the one
+    immediately after it, refusing on a ``colCnt`` mismatch or if real
+    (non-empty) text sits between them. Table flip ("표 뒤집기") was
+    evaluated and deliberately deferred -- reversing row/column order has no
+    well-defined behavior for merged cells or nested tables and there is no
+    real-corpus example to anchor a contract against (documented in
+    ``docs/support-matrix.md``'s table-structure row).
+
     Structure ops run first, in order; ``delete_table`` shifts later table indices,
     so sequence table deletes in reverse index order (as the recipe does). Every
     structure edit is grid-validated and refuses on an invalid result
@@ -1596,6 +1716,55 @@ def apply_table_ops(
                 )
                 new_section = section[:pe] + clones.encode("utf-8") + section[pe:]
                 dims_after = f"cloned x{count}"
+            elif name == "split_table":
+                split_row_raw = op.get("split_row")
+                if split_row_raw is None:
+                    raise TableStructureError("split_table: 'split_row' is required")
+                try:
+                    split_row = int(split_row_raw)
+                except (TypeError, ValueError):
+                    raise TableStructureError(
+                        f"split_table: 'split_row' must be an integer, got {split_row_raw!r}"
+                    )
+                ps, pe = _p_wrapper_span(section, ts)
+                top_table, bottom_table = _split_table_rows(
+                    section[ts:te].decode("utf-8"), split_row
+                )
+                _validate_or_raise(top_table)
+                _validate_or_raise(bottom_table)
+                # top half replaces the table in place -- same wrapper
+                # paragraph, same table id (least surprise: it's "the same
+                # table", just shorter).
+                new_first = section[ps:ts] + top_table.encode("utf-8") + section[te:pe]
+                # bottom half gets a full duplicate wrapper (own hp:p id +
+                # own hp:tbl id/instid, bumped so nothing collides -- see
+                # _bump_table_id's real-corpus note).
+                second_str = (section[ps:ts] + bottom_table.encode("utf-8") + section[te:pe]).decode("utf-8")
+                second_str = _PARA_ID_RE.sub(
+                    lambda m: m.group(1) + str((int(m.group(2)) + 960000) & 0x7FFFFFFF) + m.group(3),
+                    second_str,
+                )
+                second_str = _bump_table_id(second_str, 960000)
+                new_section = section[:ps] + new_first + second_str.encode("utf-8") + section[pe:]
+                dims_after = f"{_table_dims(top_table)} + {_table_dims(bottom_table)}"
+            elif name == "merge_table":
+                if ti + 1 >= len(spans):
+                    raise TableStructureError("merge_table: no next table to merge with")
+                ts2, te2 = spans[ti + 1]
+                ps1, pe1 = _p_wrapper_span(section, ts)
+                ps2, pe2 = _p_wrapper_span(section, ts2)
+                if not _blank_region(section, pe1, ps2):
+                    raise TableStructureError(
+                        "merge_table: real content (non-empty text) sits between the "
+                        "two tables -- refusing (would silently discard it)"
+                    )
+                merged_table = _merge_table_rows(
+                    section[ts:te].decode("utf-8"), section[ts2:te2].decode("utf-8")
+                )
+                _validate_or_raise(merged_table)
+                new_first = section[ps1:ts] + merged_table.encode("utf-8") + section[te:pe1]
+                new_section = section[:ps1] + new_first + section[pe2:]
+                dims_after = _table_dims(merged_table)
             elif name in _STRUCT_OPS:
                 new_table = _STRUCT_OPS[name](section[ts:te].decode("utf-8"), op)
                 _validate_or_raise(new_table)
