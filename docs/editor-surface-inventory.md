@@ -242,6 +242,9 @@ LEFT/RIGHT/CENTER/DECIMAL × NONE/DOT/DASH/SOLID/DASH_DOT/LONG_DASH 전
 
 ## 관련 문서
 
+- [편집기 메뉴 표면 역매핑](editor-menu-reverse-map.md) — 이 문서의 반대
+  방향(영역→검증이 아니라 **메뉴 항목→우리 대응**), 사이클 6.12 트레인㊷.
+  9개 메뉴 전수 판정, "대응 없음" 목록이 다음 사이클들의 로드맵 후보
 - [지원 매트릭스](support-matrix.md) — 영역별 등급·증거
 - [원장(요소 축)](coverage-ledger.md) · [coverage-ledger.json](coverage-ledger.json)
 - [OWPML 편차 레지스트리](owpml-deviations.md) — 스키마/실물 편차 40건
