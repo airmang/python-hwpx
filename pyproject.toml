@@ -288,6 +288,17 @@ files = [
 # 원인, 버그 아님·관측된 실동작으로 문서화됨). 우리 쪽에서 paraPr
 # 재사용 lookup을 추가하면 왕복 시 이 되돌아감이 사라지고 저장 파일도
 # 더 작아진다 — fix 안 함, 스코프 밖.
+#
+# 다음 사이클 칩 후보 3(6.13 트레인㊼): `src/hwpx/oxml/paragraph.py`가
+# `add_date_field`/`add_proofreading_mark` 두 delegator를 추가하며
+# 정확히 1600줄(WP-A owner-file 캡)을 채웠다 — 헤드룸 0. 다음에 이
+# 파일에 뭔가 더 추가해야 하면(신규 필드류 저작 등) 곧바로 게이트가
+# 막는다 — 실제 추출/재구조화 패스가 필요하다(어디를 오버플로 모듈로
+# 뺄지는 이번 트레인에서 정하지 않음, 다음 트레인의 몫).
+#
+# 위 세 칩(table_patch 게이트 미편입·add_heading paraPr 비-dedup·
+# paragraph.py 헤드룸 0)은 다음 사이클 초입 부채상환 트레인 후보로
+# 함께 묶어 처리할 것 — team-lead 지시(6.13 트레인㊼ 정리 커밋).
 ignore_missing_imports = true
 
 [tool.pyright]
