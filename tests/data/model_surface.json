@@ -236,6 +236,8 @@
    "stable": [
     "cell",
     "column_count",
+    "equalize_column_widths",
+    "equalize_row_heights",
     "get_cell_map",
     "iter_grid",
     "merge_cells",

@@ -921,6 +921,46 @@ class HwpxOxmlTable:
             width = sum(column_widths[start_col:start_col + span_col])
             entry.cell.set_size(width=width)
 
+    def equalize_column_widths(self) -> None:
+        """모든 열 너비를 같게 만든다(6.13 트레인㊻, 갭"셀 너비를 같게").
+
+        ``set_column_widths([1] * column_count)``와 정확히 동치다 — 균등
+        가중치를 넘기면 이미 그렇게 나뉜다. 이 메서드는 그 조합을
+        전용 이름으로 노출할 뿐, 신규 계산 로직은 없다(호출자가 매번
+        "가중치를 다 1로 넣으면 되나?"를 스스로 알아내야 했던 게 실제
+        갭이었다 — 편집기 메뉴 표면 역매핑 트레인㊷·㊺가 찾은 부분 대응).
+        """
+        self.set_column_widths([1] * self.column_count)
+
+    def equalize_row_heights(self) -> None:
+        """모든 행 높이를 같게 만든다(6.13 트레인㊻, 갭"셀 높이를 같게").
+
+        ``set_column_widths``의 행 대응 — 병합 셀은 자신이 덮는 행들의
+        새 높이 합을 받는다(같은 ``iter_grid``/rowSpan 로직, 축만 다름).
+        전체 높이는 표 자신의 ``hp:sz`` height를 우선하고, 없으면(방어적)
+        0열 셀들의 높이 합으로 대체한다 — ``set_column_widths``의
+        ``total_width`` 유도와 동형.
+        """
+        sz = self.element.find(f"{_HP}sz")
+        if sz is not None and sz.get("height", "").isdigit():
+            total_height = int(sz.get("height", "0"))
+        else:
+            total_height = sum(self.cell(row, 0).height for row in range(self.row_count))
+        row_heights = _distribute_size(max(total_height, 0), self.row_count)
+
+        updated_cells: set[int] = set()
+        for entry in self.iter_grid():
+            marker = id(entry.cell.element)
+            if marker in updated_cells:
+                continue
+            updated_cells.add(marker)
+            start_row, start_col = entry.cell.address
+            span_row, span_col = entry.cell.span
+            if span_row <= 0 or span_col <= 0:
+                continue
+            height = sum(row_heights[start_row:start_row + span_row])
+            entry.cell.set_size(height=height)
+
     def set_cell_text(
         self,
         row_index: int,
