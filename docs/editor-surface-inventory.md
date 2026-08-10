@@ -38,7 +38,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 <!-- AUTO-GENERATED:BEGIN (scripts/editor_surface_inventory.py) -->
 
-자동 생성 시점 교차 확인: 원장(요소 축) 127건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 33개 등록됨.
+자동 생성 시점 교차 확인: 원장(요소 축) 127건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 35개 등록됨.
 
 ### 서식
 
@@ -69,6 +69,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 | 그림 삽입/치환 | 저작 api | 지원 매트릭스 「그림 삽입/치환」(`Edit·Create·Render-verified`) · capabilities 영역 `picture` · 위치 루트 `doc.add_picture` + `doc.media` (이진 항목) | Render-verified |
 | 덧말·글자 겹치기 | 저작 api | 지원 매트릭스 「덧말·글자 겹치기」(`Parse·Create·Render-verified`) · capabilities 영역 `dutmal-compose` · 위치 `doc.shapes` | Render-verified |
 | 도형 저작(선·사각형·타원) | 저작 api | 지원 매트릭스 「도형 저작(선·사각형·타원)」(`Parse·Preserve·Edit·Create·Render-verified`) · capabilities 영역 `shape-authoring` · 위치 `doc.shapes` | Render-verified |
+| 문단 첫 글자 장식(드롭캡) | 저작 api | 지원 매트릭스 「문단 첫 글자 장식(드롭캡)」(`Create(experimental)`) · capabilities 영역 `drop-cap` · 위치 `doc.shapes` | 미실측 |
 | 수식 | 저작 api | 지원 매트릭스 「수식」(`Parse·Create(experimental)·Render-verified`) · capabilities 영역 `equation` · 위치 `doc.shapes` | Render-verified(experimental 저작 포함) |
 | 저수준 도형·컨트롤 탈출구 | 저작 api | 지원 매트릭스 「저수준 도형·컨트롤 탈출구」(`Edit`) · capabilities 영역 `shape-escape-hatch` · 위치 `doc.shapes` | 미실측 |
 | 차트 | 저작 api | 지원 매트릭스 「차트」(`Create(experimental)·Preserve·Render-verified`) · capabilities 영역 `chart` · 위치 `doc.shapes` | Render-verified(experimental 저작 포함) |
@@ -102,6 +103,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 |---|---|---|---|
 | HWP 5.x 바이너리 | 없음(거부) | 지원 매트릭스 「HWP 5.x 바이너리」(`Unsupported-and-rejected`) · capabilities 영역 `hwp5-binary` · 위치 미지원 | 해당없음(의도적 거부, 실측으로 확인) |
 | 문서 옵션·호환성 | 저작 api | 지원 매트릭스 「문서 옵션·호환성」(`Parse·Preserve·Edit·Render-verified`) · capabilities 영역 `document-options-compatibility` · 위치 `doc.parts` | Render-verified |
+| 문서 정보(메타데이터) | 저작 api | 지원 매트릭스 「문서 정보(메타데이터)」(`Parse·Edit`) · capabilities 영역 `document-metadata` · 위치 `doc.parts` | 미실측 |
 | 암호화 HWPX | 없음(거부) | 지원 매트릭스 「암호화 HWPX」(`Unsupported-and-rejected`) · capabilities 영역 `encrypted-hwpx` · 위치 미지원 | 해당없음(의도적 거부, 실측으로 확인) |
 
 ### 레이아웃

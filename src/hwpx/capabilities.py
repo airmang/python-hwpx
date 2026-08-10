@@ -175,6 +175,17 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "authoring_methods": ("add_equation",),
     },
     {
+        "area": "drop-cap",
+        "namespace": "doc.shapes",
+        "matrix_row": "문단 첫 글자 장식(드롭캡)",
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        # 6.0 이후 신규 메서드(add_chart/add_equation과 달리 5.x 표면에
+        # 없었다)는 루트 레거시 shim을 받지 않고 doc.shapes에만 산다 --
+        # dir(HwpxDocument)에 add_drop_cap이 없으므로(document-metadata의
+        # doc.parts-only 선례와 같은 이유로) authoring_methods=().
+        "authoring_methods": (),
+    },
+    {
         "area": "redline",
         "namespace": "doc.tracking",
         "matrix_row": "변경추적(redline)",
@@ -356,6 +367,18 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         # add_container() above — no root _legacy shim for a post-6.0
         # capability, so neither appears in dir(HwpxDocument) and cannot go
         # in authoring_methods (see curve-objects' comment).
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
+    {
+        "area": "document-metadata",
+        "namespace": "doc.parts",
+        "matrix_row": "문서 정보(메타데이터)",
+        # 6.12 트레인㊸ — 편집기 메뉴 표면 역매핑(트레인㊷)이 찾은 신규 갭
+        # ("파일→문서 정보…"). doc.parts.metadata(읽기)/.set_document_
+        # metadata(쓰기)는 doc.parts-only, document-options-compatibility와
+        # 같은 이유로 authoring_methods=()(set_* 이름이라 add_* 대조
+        # 가드가 phantom으로 잡음).
         "entry_points": ("hwpx.document:HwpxDocument",),
         "authoring_methods": (),
     },

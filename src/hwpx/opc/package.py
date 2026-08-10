@@ -9,12 +9,15 @@ import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import BinaryIO, Iterable, Iterator, Mapping, MutableMapping, Sequence
+from typing import TYPE_CHECKING, BinaryIO, Iterable, Iterator, Mapping, MutableMapping, Sequence
 from zipfile import BadZipFile, ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
+
+if TYPE_CHECKING:
+    from ..oxml.document_metadata import DocumentMetadata
 from .relationships import (
     MAIN_ROOTFILE_MEDIA_TYPE,
     OPF_NS,
@@ -754,6 +757,100 @@ class HwpxPackage:
         """Return the ``<opf:manifest>`` element."""
         manifest = self.manifest_tree()
         return manifest.find("opf:manifest", OPF_NS)
+
+    # ------------------------------------------------------------------
+    # Document metadata (opf:metadata) -- cycle 6.12 트레인㊸.
+    # Deliberately built on the SAME manifest_tree()/_persist_manifest()
+    # machinery add_manifest_item/remove_manifest_item already use, not a
+    # second independent representation of content.hpf -- HwpxOxmlDocument
+    # holds the exact same tree object (assigned from this same
+    # manifest_tree() call in HwpxOxmlDocument.from_package), so writing
+    # here is visible there too and there's no risk of one path's edit
+    # silently clobbering the other's at save time.
+    # ------------------------------------------------------------------
+
+    def _metadata_element(self, *, create: bool = False) -> etree._Element | None:
+        """Return the ``<opf:metadata>`` element (sibling of ``opf:manifest``)."""
+        manifest = self.manifest_tree()
+        metadata_el = manifest.find("opf:metadata", OPF_NS)
+        if metadata_el is None and create:
+            metadata_el = manifest.makeelement(f"{{{OPF_NS['opf']}}}metadata", {})
+            manifest.insert(0, metadata_el)
+        return metadata_el
+
+    def document_metadata(self) -> "DocumentMetadata | None":
+        """Parse ``opf:metadata`` into a :class:`~hwpx.oxml.document_metadata.
+        DocumentMetadata` snapshot. ``None`` if the part has no metadata
+        block at all (real corpus: 65/67 fixtures have one)."""
+        from ..oxml.document_metadata import parse_document_metadata
+
+        metadata_el = self._metadata_element(create=False)
+        if metadata_el is None:
+            return None
+        return parse_document_metadata(metadata_el)
+
+    def set_document_metadata(
+        self,
+        *,
+        title: str | None = None,
+        creator: str | None = None,
+        subject: str | None = None,
+        keyword: str | None = None,
+        created_date: str | None = None,
+        modified_date: str | None = None,
+    ) -> None:
+        """Set the given ``opf:metadata`` fields; omitted (``None``) fields
+        are left untouched. Scoped to exactly the 6 fields with real
+        corpus evidence worth authoring (title/creator/subject/keyword/
+        CreatedDate/ModifiedDate) -- ``date``/``description``/
+        ``lastsaveby``/``language`` stay read-only (``date`` especially:
+        see ``oxml.document_metadata``'s own docstring for why its
+        multi-format reality rules out safe authoring).
+
+        ``created_date``/``modified_date`` are raw strings here, not
+        ``datetime`` objects -- pass an already-formatted ISO 8601 string
+        (``"%Y-%m-%dT%H:%M:%SZ"``, matching the real corpus's own 100%
+        -consistent format) if setting these; this function does not
+        format or validate the value, matching this module's own
+        preserve-what-you-give-it convention for every other field.
+        """
+
+        metadata_el = self._metadata_element(create=True)
+        # create=True always returns an element -- an internal invariant, not
+        # a user-facing error condition, so this narrows the type for mypy
+        # without adding to the untyped-error census (error_code_census.py
+        # only walks ast.Raise, not ast.Assert).
+        assert metadata_el is not None
+
+        if title is not None:
+            title_el = metadata_el.find(f"{{{OPF_NS['opf']}}}title")
+            if title_el is None:
+                title_el = metadata_el.makeelement(f"{{{OPF_NS['opf']}}}title", {})
+                metadata_el.insert(0, title_el)
+            title_el.text = title or None
+
+        for field_name, value in (
+            ("creator", creator),
+            ("subject", subject),
+            ("keyword", keyword),
+            ("CreatedDate", created_date),
+            ("ModifiedDate", modified_date),
+        ):
+            if value is None:
+                continue
+            meta_el = None
+            for candidate in metadata_el.findall(f"{{{OPF_NS['opf']}}}meta"):
+                if candidate.get("name") == field_name:
+                    meta_el = candidate
+                    break
+            if meta_el is None:
+                meta_el = metadata_el.makeelement(
+                    f"{{{OPF_NS['opf']}}}meta", {"name": field_name, "content": "text"}
+                )
+                metadata_el.append(meta_el)
+            meta_el.text = value or None
+
+        self._persist_manifest()
 
     def add_manifest_item(
         self,

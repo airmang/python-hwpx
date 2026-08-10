@@ -989,6 +989,40 @@ class HwpxOxmlParagraph:
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(chart, self)
 
+    def add_drop_cap(
+        self,
+        character: str,
+        *,
+        width: int,
+        height: int,
+        style: str = "TripleLine",
+        char_pr_id_ref: str | int | None = None,
+        para_pr_id_ref: str | int | None = None,
+        run_attributes: dict[str, str] | None = None,
+    ) -> HwpxOxmlInlineObject:
+        """Insert a real-Hancom-shaped drop cap (문단 첫 글자 장식).
+
+        Element construction lives in :mod:`.drop_cap` (real-corpus reverse
+        engineering, ``TripleLine``-only v1 scope -- see that module's own
+        docstring). This method only wires the built element into this
+        paragraph's run, matching :meth:`add_chart`'s own thin-wiring shape.
+        """
+
+        from .drop_cap import create_drop_cap_element
+
+        run = self._create_run_for_object(run_attributes, char_pr_id_ref=char_pr_id_ref)
+        drop_cap = create_drop_cap_element(
+            width, height, character,
+            style=style, char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref,
+        )
+        # Ensure element type matches the run type (lxml vs stdlib ET) --
+        # same bridge _paragraph_insert_shape_element uses.
+        if type(drop_cap) is not type(run):
+            drop_cap = LET.fromstring(ET.tostring(drop_cap, encoding="utf-8"))
+        run.append(drop_cap)
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(drop_cap, self)
+
     def add_equation(
         self,
         script: str,

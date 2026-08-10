@@ -572,3 +572,60 @@ def add_chart(
         code="shape-chart-not-created",
         suggestion="Check that this document has a standard section structure.",
     )
+
+
+def add_drop_cap(
+    doc: "HwpxDocument",
+    character: str,
+    *,
+    width: int,
+    height: int,
+    style: str = "TripleLine",
+    paragraph: HwpxOxmlParagraph | None = None,
+    section: HwpxOxmlSection | None = None,
+    section_index: int | None = None,
+    char_pr_id_ref: str | int | None = None,
+    para_pr_id_ref: str | int | None = None,
+) -> HwpxOxmlInlineObject:
+    """Insert a drop cap (문단 첫 글자 장식), reverse-engineered from the one
+    real-corpus example that carries a non-default ``dropcapstyle``
+    (``error__20230809__test.hwpx`` -- see ``oxml.drop_cap``'s own
+    docstring for the full structural reverse engineering and why v1
+    supports only ``style="TripleLine"``).
+
+    Element construction (element-building validation included) happens in
+    :func:`hwpx.oxml.drop_cap.create_drop_cap_element`; after insertion the
+    anchor is re-read through the standard section scan, matching
+    :func:`add_chart`'s own "creation fails loudly if it did not land"
+    self-check.
+    """
+
+    from ..oxml.namespaces import HP
+
+    if paragraph is None:
+        paragraph = doc.add_paragraph(
+            "", section=section, section_index=section_index, include_run=False,
+        )
+    inline_object = paragraph.add_drop_cap(
+        character,
+        width=width, height=height, style=style,
+        char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref,
+    )
+
+    created_id = inline_object.element.get("id", "")
+    for owning_section in doc.sections:
+        for candidate in owning_section.element.iter(f"{HP}rect"):
+            if candidate.get("id") != created_id:
+                continue
+            if candidate.get("dropcapstyle") != style:
+                raise HwpxStateError(
+                    "created drop cap does not carry the requested dropcapstyle",
+                    code="shape-drop-cap-anchor-detached",
+                    suggestion="Reopen the document and check the section structure.",
+                )
+            return inline_object
+    raise HwpxStateError(
+        "created drop cap was not recognized by the standard section scan",
+        code="shape-drop-cap-not-created",
+        suggestion="Check that this document has a standard section structure.",
+    )

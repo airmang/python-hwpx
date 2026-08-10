@@ -306,6 +306,35 @@ class ShapesNamespace(_Namespace):
             char_pr_id_ref=char_pr_id_ref,
         )
 
+    def add_drop_cap(
+        self,
+        character: str,
+        *,
+        width: int,
+        height: int,
+        style: str = "TripleLine",
+        paragraph: "Paragraph | None" = None,
+        section: "int | Section | None" = None,
+        section_index: int | None = None,
+        char_pr_id_ref: str | int | None = None,
+        para_pr_id_ref: str | int | None = None,
+    ) -> "InlineObject":
+        """문단 첫 글자 장식(drop cap) — 실코퍼스 실측 기반, `style="TripleLine"`만
+        지원(`hwpx.oxml.drop_cap` 독스트링 참조). *width*/*height*는 HWPUNIT,
+        자동 계산 안 함(실측된 공식이 없음)."""
+
+        from .. import shapes as _shapes
+
+        return _shapes.add_drop_cap(
+            self._doc,
+            character,
+            width=width, height=height, style=style,
+            paragraph=paragraph,
+            section=self._section(section, section_index, "add_drop_cap"),
+            char_pr_id_ref=char_pr_id_ref,
+            para_pr_id_ref=para_pr_id_ref,
+        )
+
     def add_equation(
         self,
         script: str,

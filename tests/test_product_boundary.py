@@ -274,8 +274,16 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # 44), a brand new module (oxml/section_layout.py) — extracted from
     # document_parts.py (2 lines of headroom left under the 1600-line cap)
     # while fixing the first-run assumption bug found in train 38/㊱.
+    # 6.12: +1 — opf:metadata (content.hpf document properties) read model
+    # (train 48), a brand new module (oxml/document_metadata.py) — same
+    # schema-undeclared-part idiom as settings.py/version_part.py.
+    # 6.12: +1 — drop cap (hp:rect dropcapstyle) shape authoring (train 48,
+    # gap #2), a brand new module (oxml/drop_cap.py) — paragraph.py's
+    # existing shape-authoring overflow destinations (objects.py,
+    # dutmal_compose.py) have no headroom left, so this is a third overflow
+    # module for the same 1600-line cap.
     # 전부 module-ownership.json 에 개별 rationale 과 함께 등재돼 있다.
-    assert report["classifiedFiles"] == 141
+    assert report["classifiedFiles"] == 143
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

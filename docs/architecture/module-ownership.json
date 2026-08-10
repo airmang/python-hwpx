@@ -488,6 +488,18 @@
       "disposition": "core",
       "approvedBy": "cycle-6.11/train-44-add-section-first-run-fix",
       "rationale": "add_section()'s renderable-layout carrier lookup (has_positive_page_geometry/renderable_section_carriers/copy_renderable_section_layout) -- moved out of document_parts.py verbatim (format-level structural helper, no behavior change beyond the first-run-assumption fix itself) because document_parts.py had only 2 lines of headroom left under the 1600-line owner-file cap; same overflow-module pattern as header_compat.py/dutmal_compose.py"
+    },
+    {
+      "path": "src/hwpx/oxml/document_metadata.py",
+      "disposition": "core",
+      "approvedBy": "cycle-6.12/train-48-document-metadata",
+      "rationale": "Contents/content.hpf's opf:metadata (title/creator/subject/description/keyword/lastsaveby/CreatedDate/ModifiedDate/date) read model -- same schema-undeclared-part idiom as settings.py/version_part.py (67-fixture real-corpus reverse engineering is the truth source, not the OWPML schema, since opf:/dc: metadata isn't HWPML at all). The write side lives on HwpxPackage itself (opc/package.py), not here, since it must share the exact manifest_tree()/_persist_manifest() object add_manifest_item/remove_manifest_item already use"
+    },
+    {
+      "path": "src/hwpx/oxml/drop_cap.py",
+      "disposition": "core",
+      "approvedBy": "cycle-6.12/train-48-drop-cap",
+      "rationale": "hp:rect dropcapstyle=TripleLine authoring (add_drop_cap) -- format-level HwpxOxmlParagraph shape-authoring overflow module, same reasoning as dutmal_compose.py (paragraph.py's owner file has no headroom left for a bespoke ~140-line shape builder). dropcapstyle lives on AbstractShapeObjectType (shared by every embeddable shape), not hh:paraPr, and the real-corpus structure (transparent rect + nested drawText/subList carrying the enlarged character) differs enough from the generic non-treat-as-char shape builder's defaults (horzRelTo/flowWithText/curSz) that reuse of objects.py's rectangle builder was not viable -- a dedicated module, same as the schema-vs-code cross-reference this whole family of overflow modules already follows"
     }
   ],
   "removed": [

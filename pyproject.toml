@@ -245,6 +245,13 @@ files = [
     # document_parts.py (1600-line cap) — born in the gate, per the WP-A
     # rule above.
     "src/hwpx/oxml/section_layout.py",
+    # 6.12 (train 48): opf:metadata (content.hpf document properties) read
+    # model — born in the gate, per the WP-A rule above.
+    "src/hwpx/oxml/document_metadata.py",
+    # 6.12 (train 48): drop cap (hp:rect dropcapstyle) shape-authoring
+    # overflow module, extracted from paragraph.py (1600-line cap) — born
+    # in the gate, per the WP-A rule above.
+    "src/hwpx/oxml/drop_cap.py",
 ]
 ignore_missing_imports = true
 
@@ -348,6 +355,13 @@ include = [
     # document_parts.py (1600-line cap) — born in the gate, per the WP-A
     # rule above.
     "src/hwpx/oxml/section_layout.py",
+    # 6.12 (train 48): opf:metadata (content.hpf document properties) read
+    # model — born in the gate, per the WP-A rule above.
+    "src/hwpx/oxml/document_metadata.py",
+    # 6.12 (train 48): drop cap (hp:rect dropcapstyle) shape-authoring
+    # overflow module, extracted from paragraph.py (1600-line cap) — born
+    # in the gate, per the WP-A rule above.
+    "src/hwpx/oxml/drop_cap.py",
 ]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"

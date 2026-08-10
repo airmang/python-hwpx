@@ -39,6 +39,7 @@ if TYPE_CHECKING:
         HwpxOxmlSettings,
         HwpxOxmlVersion,
     )
+    from ...oxml.document_metadata import DocumentMetadata
 
 __all__ = ["PartsNamespace"]
 
@@ -92,6 +93,44 @@ class PartsNamespace(_Namespace):
         (`hwpx.oxml.settings` 모듈 독스트링 참조)."""
 
         return self._doc.oxml.settings
+
+    @property
+    def metadata(self) -> "DocumentMetadata | None":
+        """``Contents/content.hpf``의 ``opf:metadata`` 스냅샷(제목·작성자·
+        주제·키워드·작성일·수정일 등). 실코퍼스 67파일 전수 역설계 기반
+        (`hwpx.oxml.document_metadata` 모듈 독스트링 참조). `None`이면
+        이 파트에 metadata 블록 자체가 없다(실측상 65/67은 있음)."""
+
+        return self._doc.package.document_metadata()
+
+    def set_document_metadata(
+        self,
+        *,
+        title: str | None = None,
+        creator: str | None = None,
+        subject: str | None = None,
+        keyword: str | None = None,
+        created_date: str | None = None,
+        modified_date: str | None = None,
+    ) -> None:
+        """``opf:metadata``의 제목/작성자/주제/키워드/작성일/수정일을
+        설정한다(6.12 트레인㊸) — 생략(`None`)한 필드는 그대로 둔다.
+        `date`(사람이 읽는 자유형식 날짜)·`description`·`lastsaveby`·
+        `language`는 저작 대상 밖이다(`date`는 특히 실코퍼스가 최소
+        5가지 서로 다른 포맷을 씀 — 단일 정본이 없어 저작하면 무근거
+        포맷 추정이 된다, `hwpx.oxml.document_metadata` 참조).
+        `created_date`/`modified_date`는 이미 포맷된 ISO 8601 문자열을
+        받는다(`"%Y-%m-%dT%H:%M:%SZ"`, 실코퍼스 100% 일관 관측) — 이
+        함수가 포맷을 강제하지 않는다."""
+
+        self._doc.package.set_document_metadata(
+            title=title,
+            creator=creator,
+            subject=subject,
+            keyword=keyword,
+            created_date=created_date,
+            modified_date=modified_date,
+        )
 
     def _primary_header(self) -> "HwpxOxmlHeader":
         headers = self._doc.oxml.headers

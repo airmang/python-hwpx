@@ -1294,6 +1294,13 @@ _register(
     "목록 서식(글머리표·번호매기기)", "hh",
     "bullet", "bullets", "numbering", "numberings", "paraHead",
 )
+# 6.12 트레인㊸ — "문단 첫 글자 장식(드롭캡)"은 의도적으로 요소 등록이
+# 없다. dropcapstyle은 hp:rect의 속성일 뿐 새 요소 이름이 아니고, hp:rect
+# 자체는 이미 위에서 "도형 저작(선·사각형·타원)"에 등록돼 있다 —
+# _register는 (prefix, name) 키 하나에 영역 하나만 담으므로, 여기서
+# "rect"를 다시 등록하면 fieldBegin류의 "공유 요소" 문제가 아니라 아예
+# 기존 등록을 덮어써 도형 저작 카운트를 조용히 망가뜨린다. 드롭캡 실증은
+# support-matrix.md 산문으로만 남긴다(무근거 승격 회피 원칙).
 
 
 def _parse_support_matrix_status(text: str) -> dict[str, str]:

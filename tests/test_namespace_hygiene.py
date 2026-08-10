@@ -126,6 +126,7 @@ AREA_NAMESPACES = {
     "container-authoring": "shapes",
     "chart": "shapes",
     "equation": "shapes",
+    "drop-cap": "shapes",
     "redline": "tracking",
     "highlight": "text",
     "border-fill-image-gradient": "styles",
@@ -154,6 +155,8 @@ AREA_NAMESPACES = {
     "document-merge": None,  # mail-merge와 같은 이유, 순수 hwpx.tools 모듈 함수
     # 6.9 트레인㉞ — 덧말·글자 겹치기 저작.
     "dutmal-compose": "shapes",
+    # 6.12 트레인㊸ — 편집기 메뉴 표면 역매핑(트레인㊷)이 찾은 "문서 정보" 갭.
+    "document-metadata": "parts",
 }
 
 

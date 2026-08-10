@@ -81,6 +81,9 @@ CATEGORY_MAP: dict[str, str] = {
     "picture": "개체",
     "chart": "개체",
     "equation": "개체",
+    # 6.12 트레인㊸ — 메뉴 표면 역매핑(트레인㊷)이 찾은 신규 갭 등재.
+    # doc.shapes 도형 저작이라 chart/equation과 같은 카테고리.
+    "drop-cap": "개체",
     "redline": "검토",
     "highlight": "서식",
     "border-fill-image-gradient": "서식",
@@ -92,6 +95,10 @@ CATEGORY_MAP: dict[str, str] = {
     "form-field-create": "필드",
     "check-box": "필드",
     "document-options-compatibility": "보안/호환성",
+    # 6.12 트레인㊸ — 메뉴 표면 역매핑(트레인㊷)이 찾은 신규 갭 등재.
+    # document-options-compatibility와 같은 이유(문서 수준 비시각 구조
+    # 속성)로 같은 카테고리.
+    "document-metadata": "보안/호환성",
     # 6.8 트레인㉚ — 트레인㉙이 찾은 측정 갭 등재.
     "page-layout": "레이아웃",
     "character-formatting": "서식",
