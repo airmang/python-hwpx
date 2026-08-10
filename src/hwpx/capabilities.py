@@ -394,6 +394,21 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "entry_points": ("hwpx.document:HwpxDocument",),
         "authoring_methods": (),
     },
+    {
+        "area": "date-time-proofreading-mark-fields",
+        "namespace": "doc.fields",
+        "matrix_row": "날짜/시간·교정 부호 필드",
+        # 6.13 트레인㊻ — 팀장 실한컴 macOS GUI 프로브①③(2026-08-11)의
+        # gold를 직접 역설계. add_date_field/add_proofreading_mark는
+        # HwpxOxmlParagraph에만 있다(HwpxDocument 루트에는 없음, dir()로
+        # 직접 확인) — master-page/dutmal-compose와 같은 이유로
+        # authoring_methods=()(루트 add_* 대조 가드가 phantom으로 잡음).
+        # hp:fieldBegin 계열이라 form-field-create/check-box와 같은
+        # doc.fields 네임스페이스를 공유(같은 XML 메커니즘, 다른
+        # FieldType 값).
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
 )
 
 #: 패키지에 동봉되는 계약 문서 이름 → 파일. MCP resources 표면의 원천.

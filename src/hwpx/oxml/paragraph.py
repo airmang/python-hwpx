@@ -851,6 +851,20 @@ class HwpxOxmlParagraph:
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl1, self)
 
+    def add_date_field(
+        self, cached_text: str, *, date_format: str = "YYYY년 M월 D일",
+        date_nation: str = "KOR", char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        from .field_marks import add_date_field as _f
+        return _f(self, cached_text, date_format=date_format,
+                  date_nation=date_nation, char_pr_id_ref=char_pr_id_ref)
+
+    def add_proofreading_mark(
+        self, mark: str = "space", *, char_pr_id_ref: str | int | None = None,
+    ) -> HwpxOxmlInlineObject:
+        from .field_marks import add_proofreading_mark as _f
+        return _f(self, mark, char_pr_id_ref=char_pr_id_ref)
+
     def add_new_num(
         self,
         *,

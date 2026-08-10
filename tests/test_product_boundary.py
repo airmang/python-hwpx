@@ -290,8 +290,11 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # (train 48/㊻ gap #8: 바탕쪽 쓰기), a brand new module
     # (oxml/master_page_authoring.py) — opens the write side the read-only
     # HwpxOxmlMasterPage explicitly deferred (cycle 6.4 train 15).
+    # 6.13: +1 — date field + proofreading mark field authoring (train 48,
+    # GUI probe 1/3 gold), a brand new module (oxml/field_marks.py) —
+    # paragraph.py hit exactly 1600 lines with just the two delegators.
     # 전부 module-ownership.json 에 개별 rationale 과 함께 등재돼 있다.
-    assert report["classifiedFiles"] == 145
+    assert report["classifiedFiles"] == 146
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

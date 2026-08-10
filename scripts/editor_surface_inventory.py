@@ -117,6 +117,10 @@ CATEGORY_MAP: dict[str, str] = {
     "document-merge": "자동화",
     # 6.9 트레인㉞ — 덧말·글자 겹치기 저작.
     "dutmal-compose": "개체",
+    # 6.13 트레인㊻ — 팀장 실한컴 GUI 프로브①③ gold 기반 날짜/시간·교정
+    # 부호 필드 저작 등재. hp:fieldBegin 계열이라 form-field-create/
+    # check-box와 같은 카테고리.
+    "date-time-proofreading-mark-fields": "필드",
 }
 
 CATEGORY_ORDER: tuple[str, ...] = (

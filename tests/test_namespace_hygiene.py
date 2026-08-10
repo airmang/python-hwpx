@@ -158,6 +158,10 @@ AREA_NAMESPACES = {
     # 6.12 트레인㊸ — 편집기 메뉴 표면 역매핑(트레인㊷)이 찾은 "문서 정보" 갭.
     "document-metadata": "parts",
     "master-page": "parts",
+    # 6.13 트레인㊻ — 팀장 실한컴 GUI 프로브①③ gold 기반 날짜/시간·교정
+    # 부호 필드 저작. hp:fieldBegin 계열이라 form-field-create/check-box와
+    # 같은 fields 네임스페이스.
+    "date-time-proofreading-mark-fields": "fields",
 }
 
 

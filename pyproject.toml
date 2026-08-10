@@ -262,6 +262,12 @@ files = [
     # modest headroom but this needed more than fit safely), per the WP-A
     # rule above.
     "src/hwpx/oxml/master_page_authoring.py",
+    # 6.13 (train 48): date field (hp:fieldBegin type=DATE) + proofreading
+    # mark field (type=PROOFREADING_MARKS_SIGN) authoring — new module
+    # from the start; paragraph.py hit exactly 1600 lines with just the
+    # two delegator methods (zero headroom left, next-cycle chip: this
+    # owner file needs a real extraction pass), per the WP-A rule above.
+    "src/hwpx/oxml/field_marks.py",
 ]
 # 다음 사이클 칩 후보 (6.12 트레인㊸ 갭⑤ 정리 시 team-lead가 지목,
 # f7e4e67 리뷰): `src/hwpx/table_patch.py`(2073줄, `src/hwpx/` 최상위라
@@ -390,6 +396,12 @@ include = [
     # modest headroom but this needed more than fit safely), per the WP-A
     # rule above.
     "src/hwpx/oxml/master_page_authoring.py",
+    # 6.13 (train 48): date field (hp:fieldBegin type=DATE) + proofreading
+    # mark field (type=PROOFREADING_MARKS_SIGN) authoring — new module
+    # from the start; paragraph.py hit exactly 1600 lines with just the
+    # two delegator methods (zero headroom left, next-cycle chip: this
+    # owner file needs a real extraction pass), per the WP-A rule above.
+    "src/hwpx/oxml/field_marks.py",
 ]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"
