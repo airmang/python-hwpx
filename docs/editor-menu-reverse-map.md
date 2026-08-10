@@ -111,9 +111,9 @@ Windows 한컴 전용 표면은 이 스캔으로 부재를 단정할 수 없다.
 | 문단 번호 모양… | [대응 영역] | 목록 서식(글머리표·번호매기기) — number kind |
 | 문단 번호 적용/해제 | [대응 영역] | 상동 |
 | 글머리표 적용/해제 | [대응 영역] | 목록 서식 — bullet kind |
-| 개요 번호 모양… | [부분 대응] | `hh:heading type="OUTLINE"`이 목록 서식과 **같은** `hh:numbering` id-space를 쓴다(`bind_outline_level`, `_document/headings.py` 확인) — 그러나 v14의 `authored-listformat` 배치는 `kind="bullet"`/`"number"`만 회전시켰고 `"outline"` 자체는 독립적으로 실증 안 됨 |
-| 개요 적용/해제 | [부분 대응] | 상동(`bind_outline_level` 존재, render-verified 독립 실증 없음) |
-| 한 수준 증가/감소 | [부분 대응] | 상동(`set_paragraph_format(outline_level=)` 존재) |
+| 개요 번호 모양… | ✅ [대응 영역] | ~~부분 대응~~ **트레인㊻에서 해소**: `ensure_numbering`/`apply_list_format`이 `kind="outline"`을 받는다 — 목록 서식과 같은 `hh:numbering`/`hh:paraHead` id-space를 재사용해 신규 오케스트레이션 코드 없이 커스텀 개요 번호 모양(numFormat/start)을 만든다. 실코퍼스 451건 전부 `idRef="0"`뿐이라 커스텀 조합은 미실측(Create(experimental), v17 배치 대기) — 구조 자체는 v14 render-verified 재사용이라 추측 위험 없음 |
+| 개요 적용/해제 | ✅ [대응 영역] | ~~부분 대응~~ **트레인㊻에서 재확인**: `apply_paragraph_format(outline_level=N)`(N=0은 해제)이 이미 완비돼 있었다 — 신규 코드 없음, 개요 번호 모양과 id-space를 공유한다는 사실만 이번에 확정 |
+| 한 수준 증가/감소 | ✅ [대응 영역] | ~~부분 대응~~ **트레인㊻에서 재확인**: `apply_paragraph_format(outline_level=)`을 level±1로 재호출하는 것과 동치 — 신규 코드 없음 |
 | 스타일… | [대응 영역] | 문단·표 저작/편집(`hh:style`, `header_part.ensure_style`) — 독립 캐파빌리티 영역 아니고 큰 혼합 영역의 일부(document_merge.py의 style 재매핑 축1에서도 이미 다룸) |
 
 ## 쪽
@@ -225,12 +225,16 @@ macOS 앱 표준 "보기" 메뉴 항목 전부가 렌더링/화면 표시 옵션
 10. 파일 이름(`hp:fieldBegin type="PATH"`) — **실 코퍼스 근거 이미 확보**(`tests/fixtures/markdown_export/99_all_in_one_stress.hwpx`, `Command="$F"`/`Format="$F"`), GUI 프로브 불필요, 바로 저작 가능한 최우선 후보
 
 **부분 대응(메커니즘은 있으나 이 메뉴가 요구하는 범위를 못 채움)** —
-방향성 후보, 우선순위는 위보다 낮게 볼 것: 개체(범용 삽입), 개요 3종(번호
-모양·적용/해제·수준 증감 — 목록서식과 같은 id-space지만 독립 실증 없음),
-바탕쪽(읽기만, 쓰기 없음), 차트 만들기(표→차트 변환 편의), 제목 차례
-표시, 문서 암호 설정/변경(읽기 거부만, 저작 없음), **정렬…**(트레인㊺
-신규 편입 — 행 재배열 프리미티브 부재, `table_patch.py` 다른 구조 op와
-같은 방식으로 구축 가능).
+방향성 후보, 우선순위는 위보다 낮게 볼 것: 개체(범용 삽입), 바탕쪽(읽기만,
+쓰기 없음), 차트 만들기(표→차트 변환 편의), 제목 차례 표시, 문서 암호
+설정/변경(읽기 거부만, 저작 없음), **정렬…**(트레인㊺ 신규 편입 — 행
+재배열 프리미티브 부재, `table_patch.py` 다른 구조 op와 같은 방식으로
+구축 가능).
+
+~~개요 3종(번호 모양·적용/해제·수준 증감)~~ ✅ **트레인㊻에서 해소** —
+`ensure_numbering`/`apply_list_format(kind="outline")`이 번호 모양을,
+기존 `apply_paragraph_format(outline_level=)`이 적용/해제·수준 증감을
+담당(후자 둘은 신규 코드 없이 재확인만).
 
 ~~셀 높이/너비 균등화 2종(수동 계산은 가능)~~ ✅ **트레인㊻에서 해소** —
 `HwpxOxmlTable.equalize_row_heights()`/`.equalize_column_widths()`(`oxml/

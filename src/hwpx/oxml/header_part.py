@@ -774,35 +774,14 @@ class HwpxOxmlHeader:
         kind: str,
         levels: Sequence[dict[str, str]] | None = None,
     ) -> list[str]:
-        resolved_levels = list(levels or [{}])
-        if not resolved_levels:
-            resolved_levels = [{}]
-        normalized_kind = kind.lower()
-        if normalized_kind == "bullet":
-            refs: list[str] = []
-            default_chars = ["-", "○", "□", "•"]
-            for index, level in enumerate(resolved_levels):
-                bullet_char = str(level.get("char") or default_chars[index % len(default_chars)])
-                bullet_id = self._ensure_bullet_definition(bullet_char)
-                refs.append(
-                    self._ensure_para_property_heading(
-                        heading_type="BULLET",
-                        id_ref=bullet_id,
-                        level=index,
-                    )
-                )
-            return refs
-        if normalized_kind in {"number", "numbered", "numbering"}:
-            numbering_id = self._create_numbering_definition(resolved_levels)
-            return [
-                self._ensure_para_property_heading(
-                    heading_type="NUMBER",
-                    id_ref=numbering_id,
-                    level=index,
-                )
-                for index in range(len(resolved_levels))
-            ]
-        raise ValueError("kind must be 'bullet' or 'number'")
+        """글머리표/번호/개요 정의를 보장하고 각 레벨의 paraPr id를 돌려준다.
+
+        구현 본체는 `numbering_kinds.py`에 산다(owner-file 1600줄 캡에
+        헤드룸이 없어, 6.13 트레인㊻가 `outline` kind를 추가하며 이동).
+        """
+        from .numbering_kinds import ensure_numbering_refs
+
+        return ensure_numbering_refs(self, kind=kind, levels=levels)
 
     def _styles_element(self, create: bool = False) -> ET.Element | None:
         ref_list = self._ref_list_element(create=create)

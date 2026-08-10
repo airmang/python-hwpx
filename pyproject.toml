@@ -252,6 +252,11 @@ files = [
     # overflow module, extracted from paragraph.py (1600-line cap) — born
     # in the gate, per the WP-A rule above.
     "src/hwpx/oxml/drop_cap.py",
+    # 6.13 (train 48): ensure_numbering's full body (bullet/number/outline
+    # kinds), moved out of header_part.py (1600-line cap, no headroom left
+    # once the new "outline" kind was added) — born in the gate, per the
+    # WP-A rule above.
+    "src/hwpx/oxml/numbering_kinds.py",
 ]
 # 다음 사이클 칩 후보 (6.12 트레인㊸ 갭⑤ 정리 시 team-lead가 지목,
 # f7e4e67 리뷰): `src/hwpx/table_patch.py`(2073줄, `src/hwpx/` 최상위라
@@ -370,6 +375,11 @@ include = [
     # overflow module, extracted from paragraph.py (1600-line cap) — born
     # in the gate, per the WP-A rule above.
     "src/hwpx/oxml/drop_cap.py",
+    # 6.13 (train 48): ensure_numbering's full body (bullet/number/outline
+    # kinds), moved out of header_part.py (1600-line cap, no headroom left
+    # once the new "outline" kind was added) — born in the gate, per the
+    # WP-A rule above.
+    "src/hwpx/oxml/numbering_kinds.py",
 ]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"

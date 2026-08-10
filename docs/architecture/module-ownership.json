@@ -500,6 +500,12 @@
       "disposition": "core",
       "approvedBy": "cycle-6.12/train-48-drop-cap",
       "rationale": "hp:rect dropcapstyle=TripleLine authoring (add_drop_cap) -- format-level HwpxOxmlParagraph shape-authoring overflow module, same reasoning as dutmal_compose.py (paragraph.py's owner file has no headroom left for a bespoke ~140-line shape builder). dropcapstyle lives on AbstractShapeObjectType (shared by every embeddable shape), not hh:paraPr, and the real-corpus structure (transparent rect + nested drawText/subList carrying the enlarged character) differs enough from the generic non-treat-as-char shape builder's defaults (horzRelTo/flowWithText/curSz) that reuse of objects.py's rectangle builder was not viable -- a dedicated module, same as the schema-vs-code cross-reference this whole family of overflow modules already follows"
+    },
+    {
+      "path": "src/hwpx/oxml/numbering_kinds.py",
+      "disposition": "core",
+      "approvedBy": "cycle-6.13/train-48-outline-numbering",
+      "rationale": "HwpxOxmlHeader.ensure_numbering's full body (bullet/number/outline kinds) -- moved out verbatim (same pattern as section_layout.py's 'moved out, no behavior change beyond the addition itself' precedent) because header_part.py had no headroom left under the 1600-line owner-file cap once the new 'outline' kind (train 48, gap ㊻ #3-5: 개요 번호 모양·적용/해제·수준 증감) was added. The number/outline branches are deduplicated into one shared helper (_numbering_refs_for_kind) since they differ only in the hh:heading type they reference -- outline reuses the exact hh:numbering/hh:paraHead mechanism v14's authored-listformat batch already render-verified for number/bullet, just under a different heading_type, so no new structural guess was made"
     }
   ],
   "removed": [

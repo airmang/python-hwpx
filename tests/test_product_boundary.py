@@ -282,8 +282,12 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # existing shape-authoring overflow destinations (objects.py,
     # dutmal_compose.py) have no headroom left, so this is a third overflow
     # module for the same 1600-line cap.
+    # 6.13: +1 — ensure_numbering's full body (bullet/number/outline kinds,
+    # train 48/㊻ gap #3-5: 개요 번호 모양·적용/해제·수준 증감), moved out
+    # of header_part.py (oxml/numbering_kinds.py) — no headroom left once
+    # the new "outline" kind pushed the owner file over 1600 lines.
     # 전부 module-ownership.json 에 개별 rationale 과 함께 등재돼 있다.
-    assert report["classifiedFiles"] == 143
+    assert report["classifiedFiles"] == 144
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(
