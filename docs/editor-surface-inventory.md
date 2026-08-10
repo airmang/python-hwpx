@@ -111,7 +111,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
 |---|---|---|---|
-| 바탕쪽 | 저작 api | 지원 매트릭스 「바탕쪽」(`Parse·Create(experimental)`) · capabilities 영역 `master-page` · 위치 `doc.parts`/`doc.page` | 미실측 |
+| 바탕쪽 | 저작 api | 지원 매트릭스 「바탕쪽」(`Parse·Create(experimental)·Render-verified`) · capabilities 영역 `master-page` · 위치 `doc.parts`/`doc.page` | Render-verified(experimental 저작 포함) |
 | 페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김) | 저작 api | 지원 매트릭스 「페이지 레이아웃(용지·여백·머리말/꼬리말·쪽번호·단·줄번호·격자·요소 숨김)」(`Edit·Create·Render-verified`) · capabilities 영역 `page-layout` · 위치 `doc.page` | Render-verified |
 
 ### 자동화
