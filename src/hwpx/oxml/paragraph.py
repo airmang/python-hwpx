@@ -1517,6 +1517,28 @@ class HwpxOxmlParagraph:
             self.section.mark_dirty()
 
     @property
+    def column_break(self) -> bool:
+        """Whether this paragraph forces a column break before it starts.
+
+        This is ``hp:p``'s own ``columnBreak`` attribute -- a per-paragraph
+        instance flag (default ``"0"``, always present on every parsed
+        paragraph already), distinct from ``hh:breakSetting``'s
+        ``pageBreakBefore`` (a shared paraPr *style* property that
+        ``set_paragraph_format``'s ``page_break_before`` controls). The
+        sibling ``pageBreak`` attribute uses the same "0"/"1" lexical form
+        (real-corpus confirmed: 73/14266 paragraphs carry ``pageBreak="1"``,
+        never ``"true"``/``"false"`` — 6.12 트레인㊸ 갭④).
+        """
+        return self.element.get("columnBreak") == "1"
+
+    @column_break.setter
+    def column_break(self, value: bool) -> None:
+        new_value = "1" if value else "0"
+        if self.element.get("columnBreak") != new_value:
+            self.element.set("columnBreak", new_value)
+            self.section.mark_dirty()
+
+    @property
     def char_pr_id_ref(self) -> str | None:
         """Return the shared character property reference across runs.
 

@@ -556,6 +556,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         keep_with_next: bool | None = None,
         keep_lines: bool | None = None,
         page_break_before: bool | None = None,
+        column_break: bool | None = None,
         bottom_border: bool = False,
         border_color: str = "#BFBFBF",
         border_width: str = "0.12 mm",
@@ -569,6 +570,11 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         "DECIMAL", "leader": "NONE"|...}` 매핑의 순서 있는 시퀀스다(`type`·
         `leader` 생략 시 실코퍼스 다수 관행인 "LEFT"·"NONE"). 지정하면
         `hh:tabPr`를 보장(dedupe)하고 문단의 `tabPrIDRef`를 배선한다.
+
+        `column_break`(6.12 트레인㊸ 갭④)은 `page_break_before`와 다른
+        메커니즘이다 — 공유 paraPr 스타일 속성이 아니라 `hp:p` 자신의
+        `columnBreak` 속성(문단 인스턴스별 강제 단 나눔)이라, 대상 문단에
+        직접 적용된다.
         """
 
         from .. import layout as _layout
@@ -588,6 +594,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             keep_with_next=keep_with_next,
             keep_lines=keep_lines,
             page_break_before=page_break_before,
+            column_break=column_break,
             bottom_border=bottom_border,
             border_color=border_color,
             border_width=border_width,

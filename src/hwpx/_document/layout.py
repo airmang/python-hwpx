@@ -120,6 +120,7 @@ def set_paragraph_format(
     keep_with_next: bool | None = None,
     keep_lines: bool | None = None,
     page_break_before: bool | None = None,
+    column_break: bool | None = None,
     bottom_border: bool = False,
     border_color: str = "#BFBFBF",
     border_width: str = "0.12 mm",
@@ -132,7 +133,10 @@ def set_paragraph_format(
     Millimetre inputs are converted to HWP units; paragraph spacing uses
     points; line spacing is stored as a percent value. ``keep_with_next`` /
     ``keep_lines`` / ``page_break_before`` set the paragraph's keep-together
-    (``<hh:breakSetting>``) flags via a freshly minted paraPr.
+    (``<hh:breakSetting>``) flags via a freshly minted paraPr. ``column_break``
+    is a different mechanism -- ``hp:p``'s own ``columnBreak`` attribute, a
+    per-paragraph-instance forced break (not a shared paraPr style property
+    like ``page_break_before``) -- applied directly to each target paragraph.
 
     ``tab_stops`` is a sequence of ``{"pos_mm": ..., "type": "LEFT"|"RIGHT"|
     "CENTER"|"DECIMAL", "leader": "NONE"|...}`` mappings (``type``/``leader``
@@ -205,6 +209,7 @@ def set_paragraph_format(
         and not bottom_border
         and not break_setting
         and not wants_tab_definition
+        and column_break is None
     ):
         raise HwpxValueError(
             "at least one paragraph formatting option is required",
@@ -251,23 +256,40 @@ def set_paragraph_format(
             "ignoreMargin": "0",
         }
 
+    # column_break bypasses paraPr entirely (it's hp:p's own attribute, not
+    # a shared style) -- only mint a new paraPr when one of the *other*
+    # options actually needs it, so a column_break-only call doesn't churn
+    # a needless duplicate paraPr id.
+    wants_para_pr_change = (
+        alignment is not None
+        or line_spacing_percent is not None
+        or bool(margins)
+        or heading is not None
+        or bottom_border
+        or bool(break_setting)
+        or wants_tab_definition
+    )
+
     targets = _resolve_paragraph_targets(doc,
         paragraph_index=paragraph_index,
         paragraph_indexes=paragraph_indexes,
     )
     formatted: list[int] = []
     for index, paragraph in targets:
-        para_pr_id = header.ensure_paragraph_format(
-            base_para_pr_id=paragraph.para_pr_id_ref,
-            alignment=alignment,
-            line_spacing_percent=line_spacing_percent,
-            margins=margins,
-            heading=heading,
-            border=border,
-            break_setting=break_setting or None,
-            tab_pr_id_ref=tab_pr_id,
-        )
-        paragraph.para_pr_id_ref = para_pr_id
+        if wants_para_pr_change:
+            para_pr_id = header.ensure_paragraph_format(
+                base_para_pr_id=paragraph.para_pr_id_ref,
+                alignment=alignment,
+                line_spacing_percent=line_spacing_percent,
+                margins=margins,
+                heading=heading,
+                border=border,
+                break_setting=break_setting or None,
+                tab_pr_id_ref=tab_pr_id,
+            )
+            paragraph.para_pr_id_ref = para_pr_id
+        if column_break is not None:
+            paragraph.column_break = column_break
         formatted.append(index)
 
     return ParagraphFormatResult(
