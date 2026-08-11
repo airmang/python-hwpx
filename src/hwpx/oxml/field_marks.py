@@ -43,6 +43,23 @@ hyperlink식으로 3-run 분리하지 않는다.
 제공하나 인덱스가 확인된 건 "띄움표"(N=1) 하나뿐이다 -- 나머지 20종은
 인덱스-기호 대응표 자체가 없어 추측하면 엉뚱한 기호를 저작하게 된다.
 ``mark="space"``(N=1) 하나만 지원하고 나머지는 typed 거부.
+
+## 파일 이름 필드(``type="PATH"``, 6.14 트레인㊽b)
+
+트레인㊺가 이미 실 코퍼스에서 확보한 계약(`tests/fixtures/markdown_export/
+99_all_in_one_stress.hwpx`, 페이지 머리말 안 `hp:header/hp:subList/hp:p`) --
+GUI 프로브 불필요했다. 구조는 DATE와 동형(단일 run, 캐시 텍스트 있음)이고
+``Prop=8``도 DATE와 같다(둘 다 "자동 삽입 캐시 필드"류 공유값으로 보인다
+-- 교정 부호의 ``Prop=0``과 대조). ``hp:parameters``(``cnt="3"``):
+``Command="$F"``·``Format="$F"`` 둘 다 리터럴 고정(관측 1건, 다른 값이
+있는지 알 근거 없음). 캐시 텍스트는 관측 예시에서 파일명 그대로
+(``"99_all_in_one_stress.hwpx"``) -- 우리가 문서의 "현재 저장 경로"를
+추측해 채우지 않는다(DATE의 "오늘 날짜"와 같은 이유 -- 파일명만인지
+전체 경로인지조차 이 표본 하나로는 확정 못 한다, 호출자가 계산해서 준다).
+
+**v1 스코프**: ``Command``/``Format`` 둘 다 이 관측값("$F") 하나만
+지원(typed 거부) -- 포맷 코드 문법을 역산할 근거가 없는 건 DATE의
+``Command`` 미리보기 문자열과 같은 사정이다.
 """
 
 from __future__ import annotations
@@ -61,10 +78,10 @@ if TYPE_CHECKING:
 __all__ = [
     "DATE_FORMATS",
     "PROOFREADING_MARKS",
+    "PATH_FORMATS",
     "create_date_field",
     "create_proofreading_mark_field",
-    "add_date_field",
-    "add_proofreading_mark",
+    "create_path_field",
 ]
 
 #: 실측된 유일한 (date_format -> command 미리보기 문자열) 매핑. 다른
@@ -79,14 +96,25 @@ PROOFREADING_MARKS: dict[str, int] = {
     "space": 1,  # 띄움표
 }
 
+#: 실측된 유일한 (사람이 읽는 이름 -> Command/Format 리터럴) 매핑.
+#: Command와 Format이 항상 같은 값을 쓰는지, 아니면 우연히 이 표본에서만
+#: 같았는지 역산할 근거가 없어 하나로 묶어 둔다(둘 다 이 값만 지원).
+PATH_FORMATS: dict[str, str] = {
+    "filename": "$F",
+}
 
-def _field_begin(field_type: str) -> tuple[ET.Element, ET.Element, str]:
+
+def _field_begin(field_type: str) -> tuple[ET.Element, ET.Element, str, str]:
     """``hp:ctrl > hp:fieldBegin`` -- 관측된 고정 속성 그대로.
 
-    Returns ``(ctrl, fieldBegin, field_id)`` -- *field_id*는
-    ``fieldEnd``의 ``beginIDRef``에 그대로 쓴다.
+    Returns ``(ctrl, fieldBegin, field_id, field_ref_id)`` -- *field_id*는
+    ``fieldEnd``의 ``beginIDRef``에, *field_ref_id*(fieldBegin 자신의
+    ``fieldid``, ``id``와는 독립 난수)는 ``fieldEnd``의 ``fieldid``에
+    그대로 쓴다(둘 다 실측 gold에 있는 속성 -- 값이 다른데도 fieldEnd가
+    양쪽을 다 반복해서 갖는다).
     """
     field_id = _object_id()
+    field_ref_id = _object_id()
     ctrl = ET.Element(f"{_HP}ctrl")
     begin = _append_child(ctrl, f"{_HP}fieldBegin", {
         "id": field_id,
@@ -95,15 +123,15 @@ def _field_begin(field_type: str) -> tuple[ET.Element, ET.Element, str]:
         "editable": "0",
         "dirty": "0",
         "zorder": "-1",
-        "fieldid": _object_id(),
+        "fieldid": field_ref_id,
         "metaTag": "",
     })
-    return ctrl, begin, field_id
+    return ctrl, begin, field_id, field_ref_id
 
 
-def _field_end(field_id: str) -> ET.Element:
+def _field_end(field_id: str, field_ref_id: str) -> ET.Element:
     ctrl = ET.Element(f"{_HP}ctrl")
-    _append_child(ctrl, f"{_HP}fieldEnd", {"beginIDRef": field_id})
+    _append_child(ctrl, f"{_HP}fieldEnd", {"beginIDRef": field_id, "fieldid": field_ref_id})
     return ctrl
 
 
@@ -129,7 +157,7 @@ def create_date_field(
             suggestion=f"Supported: {', '.join(sorted(DATE_FORMATS))}",
         )
 
-    ctrl_begin, begin, field_id = _field_begin("DATE")
+    ctrl_begin, begin, field_id, field_ref_id = _field_begin("DATE")
     params = _append_child(begin, f"{_HP}parameters", {"cnt": "4", "name": ""})
     prop = _append_child(params, f"{_HP}integerParam", {"name": "Prop"})
     prop.text = "8"
@@ -143,7 +171,7 @@ def create_date_field(
     text_el = ET.Element(f"{_HP}t")
     text_el.text = _sanitize_text(cached_text)
 
-    ctrl_end = _field_end(field_id)
+    ctrl_end = _field_end(field_id, field_ref_id)
     return [ctrl_begin, text_el, ctrl_end]
 
 
@@ -165,15 +193,53 @@ def create_proofreading_mark_field(mark: str = "space") -> list[ET.Element]:
             ),
         )
 
-    ctrl_begin, begin, field_id = _field_begin("PROOFREADING_MARKS_SIGN")
+    ctrl_begin, begin, field_id, field_ref_id = _field_begin("PROOFREADING_MARKS_SIGN")
     params = _append_child(begin, f"{_HP}parameters", {"cnt": "2", "name": ""})
     prop = _append_child(params, f"{_HP}integerParam", {"name": "Prop"})
     prop.text = "0"
     command = _append_child(params, f"{_HP}stringParam", {"name": "Command"})
     command.text = f"$RevisionSign;{PROOFREADING_MARKS[mark]};"
 
-    ctrl_end = _field_end(field_id)
+    ctrl_end = _field_end(field_id, field_ref_id)
     return [ctrl_begin, ctrl_end]
+
+
+def create_path_field(
+    cached_text: str,
+    *,
+    path_format: str = "filename",
+) -> list[ET.Element]:
+    """파일 이름 필드(``type="PATH"``) 요소열을 만든다.
+
+    *cached_text*는 지금 이 순간 표시할 값(호출자가 계산) -- 파일명만인지
+    전체 경로인지도 호출자 책임(관측 1건은 파일명만). 반환값은 DATE와
+    동형(``[ctrl(begin), t, ctrl(end)]``).
+    """
+    if path_format not in PATH_FORMATS:
+        from ..errors import HwpxValueError
+
+        raise HwpxValueError(
+            f"unsupported path field format: {path_format!r}",
+            code="field-path-format-unsupported",
+            context={"requested": path_format, "supported": sorted(PATH_FORMATS)},
+            suggestion=f"Supported: {', '.join(sorted(PATH_FORMATS))}",
+        )
+
+    literal = PATH_FORMATS[path_format]
+    ctrl_begin, begin, field_id, field_ref_id = _field_begin("PATH")
+    params = _append_child(begin, f"{_HP}parameters", {"cnt": "3", "name": ""})
+    prop = _append_child(params, f"{_HP}integerParam", {"name": "Prop"})
+    prop.text = "8"
+    command = _append_child(params, f"{_HP}stringParam", {"name": "Command"})
+    command.text = literal
+    fmt = _append_child(params, f"{_HP}stringParam", {"name": "Format"})
+    fmt.text = literal
+
+    text_el = ET.Element(f"{_HP}t")
+    text_el.text = _sanitize_text(cached_text)
+
+    ctrl_end = _field_end(field_id, field_ref_id)
+    return [ctrl_begin, text_el, ctrl_end]
 
 
 def _append_field_elements(
@@ -201,26 +267,44 @@ def _append_field_elements(
     return HwpxOxmlInlineObject(first, paragraph)
 
 
-def add_date_field(
-    paragraph: "HwpxOxmlParagraph",
+def _paragraph_add_date_field(
+    self: "HwpxOxmlParagraph",
     cached_text: str,
     *,
     date_format: str = "YYYY년 M월 D일",
     date_nation: str = "KOR",
     char_pr_id_ref: str | int | None = None,
 ) -> "HwpxOxmlInlineObject":
-    """날짜/시간 필드를 *paragraph*에 삽입한다. 돌려주는 객체의
-    ``.element``는 ``hp:fieldBegin``을 감싼 ``hp:ctrl``이다."""
+    """날짜/시간 필드를 이 문단에 삽입한다. 돌려주는 객체의 ``.element``는
+    ``hp:fieldBegin``을 감싼 ``hp:ctrl``이다.
+
+    ``paragraph.py``가 owner-file 1600줄 캡에 헤드룸이 없어(``dutmal_
+    compose.py``/``objects.py``와 같은 이유) 클래스 속성 대입으로만
+    붙는다(``paragraph.py``의 ``add_date_field = _paragraph_add_date_field``
+    참조) -- ``paragraph``가 아니라 ``self``인 것도 그 관행 그대로.
+    """
     elements = create_date_field(cached_text, date_format=date_format, date_nation=date_nation)
-    return _append_field_elements(paragraph, elements, char_pr_id_ref=char_pr_id_ref)
+    return _append_field_elements(self, elements, char_pr_id_ref=char_pr_id_ref)
 
 
-def add_proofreading_mark(
-    paragraph: "HwpxOxmlParagraph",
+def _paragraph_add_proofreading_mark(
+    self: "HwpxOxmlParagraph",
     mark: str = "space",
     *,
     char_pr_id_ref: str | int | None = None,
 ) -> "HwpxOxmlInlineObject":
-    """교정 부호 표시 필드를 *paragraph*에 삽입한다."""
+    """교정 부호 표시 필드를 이 문단에 삽입한다."""
     elements = create_proofreading_mark_field(mark)
-    return _append_field_elements(paragraph, elements, char_pr_id_ref=char_pr_id_ref)
+    return _append_field_elements(self, elements, char_pr_id_ref=char_pr_id_ref)
+
+
+def _paragraph_add_path_field(
+    self: "HwpxOxmlParagraph",
+    cached_text: str,
+    *,
+    path_format: str = "filename",
+    char_pr_id_ref: str | int | None = None,
+) -> "HwpxOxmlInlineObject":
+    """파일 이름 필드를 이 문단에 삽입한다."""
+    elements = create_path_field(cached_text, path_format=path_format)
+    return _append_field_elements(self, elements, char_pr_id_ref=char_pr_id_ref)

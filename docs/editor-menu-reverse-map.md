@@ -90,7 +90,7 @@ Windows 한컴 전용 표면은 이 스캔으로 부재를 단정할 수 없다.
 | 글자 겹치기… | [대응 영역] | 덧말·글자 겹치기(`add_composed_character`) |
 | 주석 | [대응 영역] | **트레인㊺ 판정**: 스키마 전수에 "주석"/"annotation"/"comment"에 대응하는 별개 요소 없음(무관한 XSD `xs:annotation` 문서화 래퍼만 매치). `docs/support-matrix.md`·`docs/editor-surface-inventory.md`가 이미 구현된 기능을 **"메모(코멘트)"**로 표기 중 — "주석"은 그 한글 동의어일 가능성이 매우 높다(메뉴 라벨 충돌, 별개 갭 아님). 대화상자 대조까지는 못 했으나(실측 필요 남음) 구조적 근거상 별도 요소가 존재할 가능성은 낮음 |
 | 날짜/시간/파일 이름 | 분리 판정 — 아래 | **트레인㊺ 판정**: `hp:FieldType` 열거값(`ParaList XML schema.xml:2701`)에 `DATE`·`DOC_DATE`·`PATH` 셋 다 실재 확인. 파일 이름(`PATH`)과 날짜/시간(`DATE`/`DOC_DATE`)은 실증 상태가 갈려 두 행으로 분리한다 |
-| — 파일 이름 (`PATH`) | **[대응 없음=신규 갭]** | 실 코퍼스 예시 확보: `tests/fixtures/markdown_export/99_all_in_one_stress.hwpx`의 `hp:fieldBegin type="PATH"`가 `hp:parameters`(`integerParam name="Prop"=8`·`stringParam name="Command"="$F"`·`stringParam name="Format"="$F"`)를 갖고 캐시 텍스트가 파일명 그대로임을 확인 — `toc_author.py`가 이미 다루는 Command-string 패턴과 동형. `fields.py`는 `HYPERLINK`/`MEMO`만 특수 처리하고 `PATH`는 불투명 왕복만 한다(선택적 파싱 없음). **실측 근거가 이미 손에 있어 GUI 프로브 불필요** — 저작 API는 다음 트레인 후보 |
+| — 파일 이름 (`PATH`) | ✅ [대응 영역] | ~~신규 갭~~ **트레인㊽b에서 해소**: 실 코퍼스 예시(`tests/fixtures/markdown_export/99_all_in_one_stress.hwpx`)의 `hp:fieldBegin type="PATH"` 계약(`hp:parameters` `Prop=8`·`Command`=`Format`=`"$F"`, 캐시 텍스트=파일명 그대로) 그대로 `HwpxOxmlParagraph.add_path_field`(`oxml/field_marks.py`)가 저작한다 — DATE/교정 부호와 같은 필드 계열이라 자연스럽게 합류(단일 run에 `ctrl(begin)`/`t`/`ctrl(end)`). `path_format="filename"`(관측값) 하나만 typed 지원. **부수 발견**: 세 필드를 gold와 바이트 단위로 재대조하다 `hp:fieldEnd`가 `beginIDRef` 말고도 `fieldid`(fieldBegin 자신의 것과 같은 값)를 반복해서 갖는다는 사실을 확인 — 날짜/교정 부호의 기존 구현엔 이게 빠져 있어(v18 실한컴은 이미 수용했지만) 세 필드 전부 소급 수정. 실한컴 렌더 검증은 v19 배치 대기 |
 | — 날짜/시간 (`DATE`/`DOC_DATE`) | ✅ [대응 영역] | ~~신규 갭~~ **팀장 GUI 프로브①(2026-08-11) → 트레인㊻에서 해소**: `type="DATE"`(`DOC_DATE`는 미관측, typed 거부 유지) 실측 gold(`tests/fixtures/gui_probes/date_and_proofreading_mark.hwpx`) 확보 — `id`/`fieldid` 독립 난수·`dirty="0"`(TOC와 달리 재계산 트리거 아님)·`hp:parameters`(`Prop=8`·`Command`=포맷 미리보기 문자열·`DateNation`="KOR"·`DateFormat`="YYYY년 M월 D일"). `hwpx.oxml.field_marks.add_date_field`가 이 관측값 1건만 지원(v1 스코프 축소, curve·connectLine과 같은 원칙) — 캐시 텍스트는 호출자 계산 |
 | 덧말 넣기… | [대응 영역] | 덧말·글자 겹치기(`add_dutmal`) |
 | 문서 끼워 넣기… | [대응 영역] | 문서 끼워 넣기(문서 병합) |
@@ -220,9 +220,9 @@ macOS 앱 표준 "보기" 메뉴 항목 전부가 렌더링/화면 표시 옵션
 8. 표 뒤집기… — 트레인㊸에서 **근거 명시 보류**(병합 셀·중첩표 정의 불명, 실코퍼스 예시 0건, curve·connectLine과 같은 원칙)
 9. 배포용 문서 암호 변경/해제… — **미착수**(암호화와 별개 기능으로 실측됨, 실물 표본 확보 시 fail-closed 거부 대상 여부 판정 필요)
 
-**신규 갭 추가분(트레인㊺이 12건 미확인 판정 중 새로 확정, 저작은 미착수)**:
+**신규 갭 추가분(트레인㊺이 12건 미확인 판정 중 새로 확정)**:
 
-10. 파일 이름(`hp:fieldBegin type="PATH"`) — **실 코퍼스 근거 이미 확보**(`tests/fixtures/markdown_export/99_all_in_one_stress.hwpx`, `Command="$F"`/`Format="$F"`), GUI 프로브 불필요, 바로 저작 가능한 최우선 후보
+10. ~~파일 이름(`hp:fieldBegin type="PATH"`)~~ ✅ **트레인㊽b에서 해소**(`HwpxOxmlParagraph.add_path_field`, 실 코퍼스 계약 그대로, v19 배치 대기)
 
 **부분 대응(메커니즘은 있으나 이 메뉴가 요구하는 범위를 못 채움)** —
 방향성 후보, 우선순위는 위보다 낮게 볼 것: 바탕쪽(읽기만, 쓰기 없음),
@@ -258,7 +258,7 @@ table.py`), 신규 XML 어휘 없음(기존 `set_column_widths`/`cellSz` 재사�
 - [스코프 밖] 블록 저장…, 조판 부호 지우기… (문서 형식 밖의 워크플로/뷰
   상태 — OWPML에 흔적 없음, 스키마·코퍼스·코드 전수 확인)
 - [부분 대응] 정렬… (위 목록에 편입)
-- [대응 없음=신규 갭] 파일 이름(`PATH`) (위 "신규 갭 추가분"에 편입)
+- [대응 영역] ~~파일 이름(`PATH`)~~ ✅ 트레인㊽b에서 해소(위 "신규 갭 추가분"에 편입)
 
 **팀장 GUI 프로브 4건 + 후속 재프로브 전부 종결(2026-08-11)**: 날짜/시간
 (`DATE`) ✅ 트레인㊼ 해소, 교정 부호(`PROOFREADING_MARKS_SIGN`, DEV-043)

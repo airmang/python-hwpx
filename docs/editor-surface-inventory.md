@@ -78,7 +78,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
 |---|---|---|---|
-| 날짜/시간·교정 부호 필드 | 저작 api | 지원 매트릭스 「날짜/시간·교정 부호 필드」(`Create(experimental)·Render-verified`) · capabilities 영역 `date-time-proofreading-mark-fields` · 위치 `doc.fields` | Render-verified(experimental 저작 포함) |
+| 날짜/시간·교정 부호·파일 이름 필드 | 저작 api | 지원 매트릭스 「날짜/시간·교정 부호·파일 이름 필드」(`Create(experimental)·Render-verified(날짜/시간·교정 부호만, 파일 이름은 v19 배치 대기)`) · capabilities 영역 `date-time-proofreading-mark-fields` · 위치 `doc.fields` | Render-verified(experimental 저작 포함) |
 | 누름틀(form field) 생성 | 저작 api | 지원 매트릭스 「누름틀(form field) 생성」(`Parse·Edit·Create(experimental)·Render-verified`) · capabilities 영역 `form-field-create` · 위치 `doc.fields` | Render-verified(experimental 저작 포함) |
 | 양식 채움(byte-splice) | 저작 api | 지원 매트릭스 「양식 채움(byte-splice)」(`Preserve·Edit·Render-verified`) · capabilities 영역 `form-fill` · 위치 `doc.tables` | Render-verified |
 | 체크박스 양식개체 | 저작 api | 지원 매트릭스 「체크박스 양식개체」(`Create·Render-verified`) · capabilities 영역 `check-box` · 위치 `doc.fields` | Render-verified |

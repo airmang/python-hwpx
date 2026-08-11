@@ -31,6 +31,11 @@ from ._document_primitives import (
 from .memo import HwpxOxmlNote
 from .namespaces import XML_NS, tag_local_name
 from .dutmal_compose import _paragraph_add_composed_character, _paragraph_add_dutmal
+from .field_marks import (
+    _paragraph_add_date_field,
+    _paragraph_add_path_field,
+    _paragraph_add_proofreading_mark,
+)
 from .objects import (
     HwpxOxmlInlineObject,
     _create_picture_element,
@@ -851,19 +856,9 @@ class HwpxOxmlParagraph:
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl1, self)
 
-    def add_date_field(
-        self, cached_text: str, *, date_format: str = "YYYY년 M월 D일",
-        date_nation: str = "KOR", char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlInlineObject:
-        from .field_marks import add_date_field as _f
-        return _f(self, cached_text, date_format=date_format,
-                  date_nation=date_nation, char_pr_id_ref=char_pr_id_ref)
-
-    def add_proofreading_mark(
-        self, mark: str = "space", *, char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlInlineObject:
-        from .field_marks import add_proofreading_mark as _f
-        return _f(self, mark, char_pr_id_ref=char_pr_id_ref)
+    add_date_field = _paragraph_add_date_field
+    add_proofreading_mark = _paragraph_add_proofreading_mark
+    add_path_field = _paragraph_add_path_field
 
     def add_new_num(
         self,

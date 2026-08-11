@@ -1,7 +1,7 @@
 {
  "codes": {
   "contract-document-missing": [
-   "capabilities.py:530"
+   "capabilities.py:561"
   ],
   "document-header-missing": [
    "_document/layout.py:151",
@@ -50,6 +50,9 @@
    "_document/fields.py:583",
    "_document/fields.py:593"
   ],
+  "field-date-format-unsupported": [
+   "oxml/field_marks.py:153"
+  ],
   "field-fit-failed": [
    "_document/fields.py:755"
   ],
@@ -62,6 +65,12 @@
   "field-not-found": [
    "_document/fields.py:631",
    "_document/fields.py:659"
+  ],
+  "field-path-format-unsupported": [
+   "oxml/field_marks.py:221"
+  ],
+  "field-proofreading-mark-unsupported": [
+   "oxml/field_marks.py:185"
   ],
   "field-selector-conflict": [
    "_document/fields.py:574",
@@ -344,16 +353,16 @@
    "_document/tracked.py:211"
   ],
   "unknown-contract-document": [
-   "capabilities.py:521"
+   "capabilities.py:552"
   ],
   "unknown-contract-schema": [
-   "capabilities.py:751"
+   "capabilities.py:782"
   ]
  },
  "malformedCodes": [],
  "observed": {
   "other": 146,
-  "typed": 161,
+  "typed": 164,
   "untyped": 204,
   "untypedByFile": {
    "body_patch.py": 20,

@@ -397,7 +397,7 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
     {
         "area": "date-time-proofreading-mark-fields",
         "namespace": "doc.fields",
-        "matrix_row": "날짜/시간·교정 부호 필드",
+        "matrix_row": "날짜/시간·교정 부호·파일 이름 필드",
         # 6.13 트레인㊻ — 팀장 실한컴 macOS GUI 프로브①③(2026-08-11)의
         # gold를 직접 역설계. add_date_field/add_proofreading_mark는
         # HwpxOxmlParagraph에만 있다(HwpxDocument 루트에는 없음, dir()로
@@ -405,7 +405,11 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         # authoring_methods=()(루트 add_* 대조 가드가 phantom으로 잡음).
         # hp:fieldBegin 계열이라 form-field-create/check-box와 같은
         # doc.fields 네임스페이스를 공유(같은 XML 메커니즘, 다른
-        # FieldType 값).
+        # FieldType 값). 6.14 트레인㊽b — add_path_field(type=PATH)도
+        # 같은 field_marks.py·같은 hp:fieldBegin 계열이라 별도 영역을
+        # 안 만들고 이 영역에 합류(행 제목도 갱신) — 실 코퍼스(트레인㊺가
+        # 이미 확보, markdown_export/99_all_in_one_stress.hwpx)만으로
+        # 계약이 나와 GUI 프로브 불필요했다.
         "entry_points": ("hwpx.document:HwpxDocument",),
         "authoring_methods": (),
     },
