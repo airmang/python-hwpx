@@ -237,6 +237,68 @@ def test_tracked_replace_preflights_cross_inline_match_without_orphan_headers() 
     assert set(document.track_changes) == existing_change_ids == {str(insert_id)}
 
 
+_HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
+
+
+def _attach_line_layout_cache(paragraph) -> None:
+    """Simulate a Hancom-saved paragraph: attach a cached ``<hp:linesegarray>``."""
+
+    element = paragraph.element
+    array = element.makeelement(f"{{{_HP_NS}}}linesegarray", {})
+    seg = element.makeelement(
+        f"{{{_HP_NS}}}lineseg",
+        {"textpos": "0", "vertpos": "1000", "textheight": "1000"},
+    )
+    array.append(seg)
+    element.append(array)
+
+
+def _line_layout_cache_count(paragraph) -> int:
+    return sum(
+        1
+        for child in paragraph.element
+        if etree.QName(child).localname.lower() == "linesegarray"
+    )
+
+
+def test_tracked_edits_clear_stale_line_layout_cache() -> None:
+    """줄겹침 회귀: 변경추적 편집은 편집 문단의 lineseg 캐시를 제거해야 한다.
+
+    실한컴은 문단의 linesegarray를 그대로 신뢰해 줄배치를 재사용하므로,
+    변경추적으로 텍스트가 자란 문단에 옛 캐시가 남으면 글자가 겹쳐 렌더된다.
+    트랙마크가 있는 문단은 저장 시 stale 판정이 불가능해(byte-boundary sweep
+    통과) 편집 시점에 반드시 지워야 한다.
+    """
+
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("alpha beta gamma", char_pr_id_ref="0")
+
+    _attach_line_layout_cache(paragraph)
+    document.tracking.insert(paragraph, " INSERT", date=DATE)
+    assert _line_layout_cache_count(paragraph) == 0
+
+    _attach_line_layout_cache(paragraph)
+    document.tracking.delete(paragraph, match="beta", date=DATE)
+    assert _line_layout_cache_count(paragraph) == 0
+
+    _attach_line_layout_cache(paragraph)
+    document.tracking.replace(paragraph, "gamma", "delta", date=DATE)
+    assert _line_layout_cache_count(paragraph) == 0
+
+
+def test_tracked_insert_cache_stays_cleared_at_byte_boundary() -> None:
+    """저장 스윕은 트랙마크 문단을 판정 못 하므로 편집 시점 제거가 바이트에 남아야 한다."""
+
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("alpha beta gamma", char_pr_id_ref="0")
+    _attach_line_layout_cache(paragraph)
+    document.tracking.insert(paragraph, " 추가된 내용", date=DATE)
+
+    reopened = HwpxDocument.open(document.to_bytes())
+    edited = next(p for p in reopened.paragraphs if "alpha" in (p.text or ""))
+    assert _line_layout_cache_count(edited) == 0
+
+
 def test_tracked_insert_only_rewrites_header_and_edited_section(tmp_path: Path) -> None:
     source = _p0_before_fixture()
     original_payloads = _zip_payloads(source)

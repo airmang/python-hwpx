@@ -283,6 +283,11 @@ class HwpxOxmlRun:
         parent.remove(self.element)
         parent.insert(index, replacement)
         self.element = replacement
+        # Replacing the run rewrites its text/markup, so the cached line layout
+        # of the containing paragraph no longer holds. Tracked-change marks also
+        # make the paragraph unjudgeable for the save-time stale sweep, so this
+        # is the only point that can invalidate it.
+        _clear_paragraph_layout_cache(parent)
         self.paragraph.section.mark_dirty()
 
     def _current_format_flags(self) -> tuple[bool, bool, bool] | None:
