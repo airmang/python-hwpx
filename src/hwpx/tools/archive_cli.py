@@ -17,7 +17,7 @@ from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 from ..opc.relationships import is_header_part_name, is_section_part_name
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from .package_validator import validate_editor_open_safety, validate_package
-from ..opc.security import guard_zip_file, read_member
+from ..opc.security import HwpxSecurityError, guard_xml_bytes, guard_xml_depth, guard_zip_file, read_member
 
 _XML_SUFFIXES = (".xml", ".hpf")
 _PACK_METADATA_NAME = ".hwpx-pack-metadata.json"
@@ -82,18 +82,43 @@ def _prepare_output_path(output_path: Path, *, overwrite: bool) -> None:
         raise FileExistsError(f"output file already exists: {output_path}")
 
 
+_MAX_INDENT_GROWTH = 8
+_MIN_INDENT_BUDGET = 64 * 1024
+
+
 def _format_xml_bytes(payload: bytes) -> bytes:
+    """Re-indent an XML part, falling back to the original bytes.
+
+    Indentation is an amplifier: at the depth libxml2 accepts, every leaf gains
+    two spaces per level, so a 4-byte element can grow past 500 bytes. The
+    payload is guarded first, and a result that grew beyond the per-member
+    allowance is discarded in favour of the input.
+    """
+
+    try:
+        guard_xml_bytes(payload, part_name="XML part")
+    except HwpxSecurityError:
+        return payload
     try:
         element = etree.fromstring(payload)
     except etree.XMLSyntaxError:
         return payload
+    try:
+        guard_xml_depth(element, part_name="XML part")
+    except HwpxSecurityError:
+        return payload
     etree.indent(element, space="  ")
-    return etree.tostring(
+    formatted = etree.tostring(
         element,
         pretty_print=True,
         xml_declaration=True,
         encoding="UTF-8",
     )
+    # Real parts grow at most ~1.7x when indented (measured across the repo's
+    # packages); anything past this is the indentation acting as an amplifier.
+    if len(formatted) > max(_MAX_INDENT_GROWTH * len(payload), _MIN_INDENT_BUDGET):
+        return payload
+    return formatted
 
 
 def _normalize_hwpml_compat_root(rel_path: str, payload: bytes) -> bytes:

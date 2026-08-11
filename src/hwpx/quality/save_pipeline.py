@@ -48,7 +48,7 @@ from .report import (
     VisualCompleteReport,
     VisualCompleteStatus,
 )
-from ..opc.security import read_member
+from ..opc.security import guard_zip_file, parse_xml_stdlib, read_member
 
 PublishMode = Literal["on_pass", "always", "never"]
 
@@ -278,12 +278,13 @@ class SavePipeline:
 
         try:
             with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                guard_zip_file(archive)
                 names = [info.filename for info in archive.infolist() if not info.is_dir()]
                 for name in names:
                     base = os.path.basename(name)
                     if name.endswith(_XML_SUFFIXES) or base in _XML_NAMES:
                         try:
-                            ET.fromstring(read_member(archive, name))
+                            parse_xml_stdlib(read_member(archive, name), part_name=name)
                         except ET.ParseError as exc:
                             errors.append(
                                 QualityError(

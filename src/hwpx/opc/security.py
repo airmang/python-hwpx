@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import Iterable
 from xml.etree import ElementTree as ET
-from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
+from zipfile import ZIP_DEFLATED as _ZIP_DEFLATED
+from zipfile import ZIP_STORED as _ZIP_STORED
+from zipfile import ZipFile, ZipInfo
 
 MAX_XML_BYTES = 64 * 1024 * 1024
 MAX_XML_DEPTH = 256
@@ -16,12 +18,19 @@ MAX_ZIP_MEMBER_BYTES = 128 * 1024 * 1024
 MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES = 512 * 1024 * 1024
 MAX_ZIP_COMPRESSION_RATIO = 1000.0
 MAX_ZIP_READ_CHUNK = 64 * 1024
+# `mimetype` is a short fixed string in every real package; reading it during
+# format sniffing must not be able to cost the full per-member allowance.
+MAX_ZIP_MIMETYPE_BYTES = 4 * 1024
+# Container/manifest/preview parts are small by construction; reading them
+# during discovery should not cost the generic per-member allowance either.
+MAX_ZIP_SMALL_PART_BYTES = 4 * 1024 * 1024
 
-# Methods whose stored size can be compared against the declared size. Deflate
-# framing grows incompressible input by roughly 320 bytes per MiB, so the
-# allowance has to scale with the member instead of being a constant. bzip2 and
-# lzma expand well past that, so they are excluded rather than widened.
-_SIZE_COMPARABLE_METHODS = (ZIP_STORED, ZIP_DEFLATED)
+# The only methods HWPX uses, and the only ones CPython decompresses under a
+# bound: ``ZipExtFile._read1`` passes ``max_length`` to zlib for ZIP_DEFLATED but
+# calls ``decompress(data)`` with no limit for every other method, so a bzip2 or
+# lzma member inflates in full before the declared size truncates the result.
+# Chunked reading cannot bound those, so they are refused outright.
+_ALLOWED_METHODS = (_ZIP_STORED, _ZIP_DEFLATED)
 
 
 class HwpxSecurityError(ValueError):
@@ -42,8 +51,12 @@ def _iter_file_infos(zf: ZipFile) -> list[ZipInfo]:
 
 def _guard_zip_name(name: str) -> None:
     normalized = name.replace("\\", "/")
-    path = PurePosixPath(normalized)
-    if path.is_absolute() or ".." in path.parts:
+    if PurePosixPath(normalized).is_absolute() or ".." in PurePosixPath(normalized).parts:
+        raise HwpxSecurityError(f"unsafe ZIP member path: {name!r}")
+    # ``PurePosixPath`` reads ``C:/x`` as a relative path, but joining it onto an
+    # output directory on Windows discards that directory entirely.
+    windows = PureWindowsPath(normalized)
+    if windows.drive or windows.is_absolute():
         raise HwpxSecurityError(f"unsafe ZIP member path: {name!r}")
 
 
@@ -62,9 +75,20 @@ def guard_zip_file(
             f"{len(infos)} > {active_limits.max_entries}"
         )
 
+    # ``is_dir()`` only tests for a trailing slash in the name, so a member can
+    # opt out of the size accounting below just by calling itself a directory
+    # while still holding a payload that ``ZipFile.open()`` will read. Check the
+    # name of every entry, and require the ones excluded here to be empty.
+    for info in zf.infolist():
+        _guard_zip_name(info.filename)
+        if info.is_dir() and (info.file_size or info.compress_size):
+            raise HwpxSecurityError(
+                "ZIP directory entry carries data: "
+                f"{info.filename}={info.file_size}/{info.compress_size}"
+            )
+
     total = 0
     for info in infos:
-        _guard_zip_name(info.filename)
         if info.file_size > active_limits.max_member_bytes:
             raise HwpxSecurityError(
                 "ZIP member exceeds uncompressed size limit: "
@@ -76,11 +100,14 @@ def guard_zip_file(
                 "ZIP archive exceeds total uncompressed size limit: "
                 f"{total} > {active_limits.max_total_uncompressed_bytes}"
             )
+        if info.compress_type not in _ALLOWED_METHODS:
+            raise HwpxSecurityError(
+                "ZIP member uses an unsupported compression method: "
+                f"{info.filename}={info.compress_type}"
+            )
         # Must run before the ``file_size <= 0`` skip below: a member declaring 0
         # would otherwise bypass every remaining check.
-        if info.compress_type in _SIZE_COMPARABLE_METHODS and (
-            info.compress_size > info.file_size + info.file_size // 1000 + 64
-        ):
+        if info.compress_size > info.file_size + info.file_size // 1000 + 64:
             raise HwpxSecurityError(
                 "ZIP member declares less data than it stores: "
                 f"{info.filename}={info.file_size} < {info.compress_size}"

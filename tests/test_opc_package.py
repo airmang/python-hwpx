@@ -3,6 +3,7 @@ from __future__ import annotations
 import binascii
 import inspect
 import io
+import os
 import tracemalloc
 from typing import Mapping
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
@@ -11,6 +12,7 @@ import pytest
 from lxml import etree
 
 import hwpx
+import hwpx.patch
 from hwpx.document import HwpxDocument
 from hwpx.opc.package import (
     HwpxPackage,
@@ -19,6 +21,7 @@ from hwpx.opc.package import (
     _UNCHECKED_SAVE_TOKEN,
 )
 from hwpx.opc.security import (
+    MAX_ZIP_ENTRIES,
     MAX_ZIP_MEMBER_BYTES,
     HwpxSecurityError,
     guard_zip_file,
@@ -743,3 +746,175 @@ def test_declaration_within_limits_cannot_over_allocate() -> None:
     assert len(payload) <= MAX_ZIP_MEMBER_BYTES
     # An unbounded read inflates all 100 MB before truncating; ~210 MB peak.
     assert peak < 64 * MB, f"read was not bounded: peak {peak / MB:.1f} MB"
+
+
+def test_format_sniffing_does_not_read_an_oversized_mimetype() -> None:
+    """`accepts()` must reject a hostile archive without expanding `mimetype`.
+
+    A 4 MiB `mimetype` deflates to about 4 KB, so the archive is small enough to
+    look harmless while the member itself trips the compression-ratio limit.
+    """
+
+    from hwpx.ingest.base import DocumentSourceInfo
+    from hwpx.ingest.hwpx_converter import HwpxMarkdownConverter
+
+    buffer = io.BytesIO()
+    with ZipFile(buffer, "w", ZIP_DEFLATED, compresslevel=9) as archive:
+        archive.writestr("mimetype", b"\0" * (4 * MB))
+        archive.writestr("Contents/section0.xml", b"<x/>")
+    package = buffer.getvalue()
+    source = DocumentSourceInfo(extension=".bin", mimetype=None, filename="x.bin")
+
+    tracemalloc.start()
+    try:
+        accepted = HwpxMarkdownConverter().accepts(io.BytesIO(package), source)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+    assert accepted is False
+    assert peak < 1 * MB, f"mimetype was expanded: peak {peak / MB:.1f} MB"
+
+
+def test_rewrite_package_parts_rejects_excess_members() -> None:
+    """The public rewrite entry point applies the archive-wide limits too."""
+
+    buffer = io.BytesIO()
+    with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:
+        for index in range(MAX_ZIP_ENTRIES + 1):
+            archive.writestr(f"p{index}.xml", b"<x/>")
+    package = buffer.getvalue()
+
+    with pytest.raises(HwpxSecurityError, match="too many entries"):
+        hwpx.patch.rewrite_package_parts(package, {})
+
+
+def _archive(entries: dict[str, bytes]) -> bytes:
+    buffer = io.BytesIO()
+    with ZipFile(buffer, "w", ZIP_DEFLATED, compresslevel=9) as archive:
+        for name, payload in entries.items():
+            archive.writestr(name, payload)
+    return buffer.getvalue()
+
+
+def test_directory_named_member_cannot_carry_data() -> None:
+    """`is_dir()` is only a trailing-slash test, so such entries must be empty.
+
+    Otherwise a member opts out of every archive-wide limit just by naming
+    itself a directory, while `ZipFile.open()` still reads its payload.
+    """
+
+    package = _archive({f"d{index}/": b"\0" * (8 * MB) for index in range(4)})
+
+    with pytest.raises(HwpxSecurityError, match="directory entry carries data"):
+        with ZipFile(io.BytesIO(package)) as archive:
+            guard_zip_file(archive)
+
+
+def test_directory_named_entries_count_towards_nothing_but_are_checked() -> None:
+    """Directory-named entries must not be a way past the entry-count limit."""
+
+    package = _archive({f"d{index}/": b"x" for index in range(MAX_ZIP_ENTRIES + 1)})
+
+    with pytest.raises(HwpxSecurityError):
+        with ZipFile(io.BytesIO(package)) as archive:
+            guard_zip_file(archive)
+
+
+def test_save_pipeline_guards_untrusted_bytes() -> None:
+    """`SavePipeline` is a public entry point and takes bytes from the caller."""
+
+    from hwpx.quality import SavePipeline
+
+    package = _archive({"Contents/section0.xml": b"<r>" + b"<a/>" * (2 * MB) + b"</r>"})
+
+    with pytest.raises(HwpxSecurityError):
+        SavePipeline().run(package)
+
+
+def test_empty_patch_list_still_guards_the_source(tmp_path) -> None:
+    """The early return hands the source to the save pipeline, so it must guard."""
+
+    source = tmp_path / "bomb.hwpx"
+    source.write_bytes(_archive({"Contents/section0.xml": b"<r>" + b"<a/>" * (2 * MB) + b"</r>"}))
+
+    with pytest.raises(HwpxSecurityError):
+        hwpx.paragraph_patch(str(source), [])
+
+
+def test_known_small_parts_are_read_under_a_tight_limit() -> None:
+    """`mimetype` and friends must not cost the generic per-member allowance."""
+
+    from hwpx.tools.package_validator import validate_package
+
+    # Incompressible, so the archive-wide ratio limit has nothing to catch and
+    # the read limit is the only thing between the caller and 16 MiB.
+    package = _archive(
+        {"mimetype": os.urandom(16 * MB), "Contents/section0.xml": b"<x/>"}
+    )
+
+    tracemalloc.start()
+    try:
+        validate_package(package)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+    assert peak < 8 * MB, f"mimetype was expanded: peak {peak / MB:.1f} MB"
+
+
+@pytest.mark.parametrize("method", [12, 14], ids=["bzip2", "lzma"])
+def test_unsupported_compression_methods_are_refused(method: int) -> None:
+    """CPython only bounds ZIP_DEFLATED.
+
+    ``ZipExtFile._read1`` passes ``max_length`` to zlib for deflate but calls
+    ``decompress(data)`` with no limit for every other method, so a chunked read
+    cannot bound bzip2 or lzma: the member inflates in full and is only then
+    truncated to the declared size. HWPX uses stored and deflate only.
+    """
+
+    buffer = io.BytesIO()
+    with ZipFile(buffer, "w") as archive:
+        archive.writestr("BinData/x.bin", b"\0" * (8 * MB), compress_type=method)
+
+    with pytest.raises(HwpxSecurityError, match="unsupported compression method"):
+        with ZipFile(io.BytesIO(buffer.getvalue())) as archive:
+            guard_zip_file(archive)
+
+
+@pytest.mark.parametrize(
+    "name", ["C:/Windows/pwned.txt", "D:\\pwned.txt", "//server/share/pwned.txt"]
+)
+def test_drive_relative_member_names_are_refused(name: str) -> None:
+    """A drive-qualified name escapes the output directory when joined on Windows."""
+
+    buffer = io.BytesIO()
+    with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:
+        archive.writestr(name, b"x")
+
+    with pytest.raises(HwpxSecurityError, match="unsafe ZIP member path"):
+        with ZipFile(io.BytesIO(buffer.getvalue())) as archive:
+            guard_zip_file(archive)
+
+
+def test_pretty_unpack_does_not_amplify_through_indentation(tmp_path) -> None:
+    """Indenting deeply nested XML must not be allowed to inflate the output."""
+
+    from hwpx.tools.archive_cli import unpack_hwpx
+
+    depth = 250
+    payload = (
+        b"<?xml version='1.0'?>"
+        + b"".join(b"<n%d>" % index for index in range(depth))
+        + b"<c/>" * 20000
+        + b"".join(b"</n%d>" % index for index in reversed(range(depth)))
+    )
+    source = tmp_path / "deep.hwpx"
+    source.write_bytes(
+        _archive({"mimetype": b"application/hwp+zip", "Contents/section0.xml": payload})
+    )
+
+    unpack_hwpx(source, tmp_path / "out", pretty_xml=True)
+
+    written = sum(f.stat().st_size for f in (tmp_path / "out").rglob("*") if f.is_file())
+    assert written < 4 * len(payload), f"indentation amplified to {written} bytes"
