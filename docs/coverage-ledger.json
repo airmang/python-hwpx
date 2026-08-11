@@ -20,7 +20,8 @@
       "docs/openrate/report-v14.json",
       "docs/openrate/report-v15.json",
       "docs/openrate/report-v16.json",
-      "docs/openrate/report-v17.json"
+      "docs/openrate/report-v17.json",
+      "docs/openrate/report-v18.json"
     ],
     "skeleton": "src/hwpx/data/Skeleton.hwpx",
     "sourceScanned": "src/hwpx/**/*.py"
