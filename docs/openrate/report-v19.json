@@ -1,0 +1,32 @@
+{
+  "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v19",
+  "harness_valid": true,
+  "measured_at": "2026-08-11T16:50:22.280524+09:00",
+  "negative_controls": {
+    "expected": [
+      "corrupt_section",
+      "corrupt_header",
+      "missing_section"
+    ],
+    "judged": 3,
+    "wrongly_rendered": []
+  },
+  "oracle": "mac-gui",
+  "oracle_app": "Hancom Office HWP.app (macOS)",
+  "schemaVersion": "hwpx.openrate.report/v19",
+  "scopeNote": "v19 measures the PATH (file name) field surface, additive over v1-v18 -- the last of the field trio this cycle group reverse-engineered, and the first batch whose records carry the fieldEnd fieldid retrofit (a gold byte-comparison find: real Hancom accepted v18's output without it, so acceptance alone could never have caught it). Real Hancom accepted all 5/5. Observer: macOS Hancom GUI oracle (open+render one gate). Session-state discipline applied: a control render preceded the batch and the app was fully restarted before launch.",
+  "strata": {
+    "authored-path-field": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    }
+  },
+  "tool_versions": {
+    "python-hwpx": "6.0.2"
+  },
+  "totals": {
+    "judged": 5,
+    "render_checked": 5
+  }
+}
