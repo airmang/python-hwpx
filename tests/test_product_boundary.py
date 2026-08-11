@@ -293,8 +293,12 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # 6.13: +1 — date field + proofreading mark field authoring (train 48,
     # GUI probe 1/3 gold), a brand new module (oxml/field_marks.py) —
     # paragraph.py hit exactly 1600 lines with just the two delegators.
+    # 6.14: +1 — footnote/endnote authoring moved out of paragraph.py
+    # verbatim (train 48/debt3), a brand new module
+    # (oxml/note_authoring.py) — restores real headroom (1452/1600)
+    # instead of the 5 lines left after train 48/㊽b's PATH delegator.
     # 전부 module-ownership.json 에 개별 rationale 과 함께 등재돼 있다.
-    assert report["classifiedFiles"] == 146
+    assert report["classifiedFiles"] == 147
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

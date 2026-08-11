@@ -274,9 +274,14 @@ files = [
     # 6.13 (train 48): date field (hp:fieldBegin type=DATE) + proofreading
     # mark field (type=PROOFREADING_MARKS_SIGN) authoring — new module
     # from the start; paragraph.py hit exactly 1600 lines with just the
-    # two delegator methods (zero headroom left, next-cycle chip: this
-    # owner file needs a real extraction pass), per the WP-A rule above.
+    # two delegator methods (zero headroom left, resolved by the
+    # extraction below), per the WP-A rule above.
     "src/hwpx/oxml/field_marks.py",
+    # 6.14 (train 48/debt3): footnote/endnote (각주/미주) authoring moved
+    # out of paragraph.py verbatim (no behavior change) to restore real
+    # headroom -- same escape valve as dutmal_compose.py/objects.py/
+    # field_marks.py above, per the WP-A rule.
+    "src/hwpx/oxml/note_authoring.py",
 ]
 # 칩 후보 1 ✅ 6.14 트레인㊾-1에서 해소: `src/hwpx/table_patch.py`(2073줄,
 # 6.12 트레인㊸ 갭⑤ 정리 시 team-lead가 지목, f7e4e67 리뷰) — 위 files
@@ -435,9 +440,14 @@ include = [
     # 6.13 (train 48): date field (hp:fieldBegin type=DATE) + proofreading
     # mark field (type=PROOFREADING_MARKS_SIGN) authoring — new module
     # from the start; paragraph.py hit exactly 1600 lines with just the
-    # two delegator methods (zero headroom left, next-cycle chip: this
-    # owner file needs a real extraction pass), per the WP-A rule above.
+    # two delegator methods (zero headroom left, resolved by the
+    # extraction below), per the WP-A rule above.
     "src/hwpx/oxml/field_marks.py",
+    # 6.14 (train 48/debt3): footnote/endnote (각주/미주) authoring moved
+    # out of paragraph.py verbatim (no behavior change) to restore real
+    # headroom -- same escape valve as dutmal_compose.py/objects.py/
+    # field_marks.py above, per the WP-A rule.
+    "src/hwpx/oxml/note_authoring.py",
 ]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"

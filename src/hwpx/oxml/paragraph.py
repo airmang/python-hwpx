@@ -36,6 +36,12 @@ from .field_marks import (
     _paragraph_add_path_field,
     _paragraph_add_proofreading_mark,
 )
+from .note_authoring import (
+    _paragraph_add_endnote,
+    _paragraph_add_footnote,
+    _paragraph_endnotes,
+    _paragraph_footnotes,
+)
 from .objects import (
     HwpxOxmlInlineObject,
     _create_picture_element,
@@ -1333,161 +1339,12 @@ class HwpxOxmlParagraph:
                         })
         return result
 
-    # ------------------------------------------------------------------
-    # Footnote / Endnote helpers
-    # ------------------------------------------------------------------
-
-    _NOTE_STYLE_NAMES = {"footNote": ("각주", "Footnote"), "endNote": ("미주", "Endnote")}
-    _NOTE_STYLE_FALLBACK = {"footNote": ("15", "10", "3"), "endNote": ("16", "10", "3")}
-
-    def _note_style_refs(self, tag: str) -> tuple[str, str, str]:
-        """(styleIDRef, paraPrIDRef, charPrIDRef) for the note body paragraph.
-
-        Real Hancom puts note bodies on the 각주/미주 paragraph styles. Resolve
-        by style name from the header so documents with re-numbered styles stay
-        correct; fall back to the fixed template coordinates.
-        """
-
-        korean, english = self._NOTE_STYLE_NAMES[tag]
-        document = self.section.document
-        headers = cast(
-            "Sequence[object]",
-            getattr(document, "_headers", []) if document is not None else [],
-        )
-        for header in headers:
-            styles = getattr(header, "_styles_element", None)
-            container = cast(
-                "ET.Element | None", styles() if callable(styles) else None
-            )
-            if container is None:
-                continue
-            for style in container:
-                if style.get("name") == korean or style.get("engName") == english:
-                    return (
-                        style.get("id") or self._NOTE_STYLE_FALLBACK[tag][0],
-                        style.get("paraPrIDRef") or self._NOTE_STYLE_FALLBACK[tag][1],
-                        style.get("charPrIDRef") or self._NOTE_STYLE_FALLBACK[tag][2],
-                    )
-        return self._NOTE_STYLE_FALLBACK[tag]
-
-    def _note_suffix_char(self, tag: str) -> str:
-        """The note suffix character from secPr, defaulting to ")"."""
-
-        properties = self.section._section_properties_element()
-        if properties is not None:
-            pr = properties.find(f"{_HP}{tag}Pr")
-            if pr is not None:
-                fmt = pr.find(f"{_HP}autoNumFormat")
-                if fmt is not None and fmt.get("suffixChar"):
-                    return fmt.get("suffixChar", ")")
-        return ")"
-
-    def _next_note_number(self, tag: str) -> int:
-        """Document-continuous note number, counted per note type."""
-
-        document = self.section.document
-        sections = document.sections if document is not None else [self.section]
-        count = 0
-        for section in sections:
-            count += sum(1 for _ in section.element.iter(f"{_HP}{tag}"))
-        return count + 1
-
-    def _add_note(
-        self,
-        tag: str,
-        text: str,
-        *,
-        run_attributes: dict[str, str] | None = None,
-        char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlNote:
-        """Insert a ``<hp:footNote>`` or ``<hp:endNote>`` element.
-
-        Emits the real-Hancom shape (gold-reversed): the note element is
-        wrapped in ``<hp:ctrl>`` inside a body run, carries ``number`` and
-        ``suffixChar``, and its body paragraph uses the 각주/미주 style with a
-        leading ``<hp:autoNum>`` control — without these real Hancom does not
-        render the note at all.
-        """
-
-        number = self._next_note_number(tag)
-        suffix = self._note_suffix_char(tag)
-        style_ref, para_pr_ref, note_char_ref = self._note_style_refs(tag)
-        if char_pr_id_ref is not None:
-            note_char_ref = str(char_pr_id_ref)
-
-        runs = self._run_elements()
-        if run_attributes is None and runs:
-            run = runs[-1]
-        else:
-            run = self._create_run_for_object(run_attributes, char_pr_id_ref=char_pr_id_ref)
-        ctrl = _append_child(run, f"{_HP}ctrl", {})
-        note_element = _append_child(
-            ctrl,
-            f"{_HP}{tag}",
-            {
-                "number": str(number),
-                "suffixChar": str(ord(suffix[0])) if suffix else "41",
-                "instId": _object_id(),
-            },
-        )
-        sublist_attrs = _default_sublist_attributes()
-        sublist_attrs["vertAlign"] = "TOP"
-        sublist = _append_child(note_element, f"{_HP}subList", sublist_attrs)
-        p_attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
-        p_attrs.update({"id": "0", "paraPrIDRef": para_pr_ref, "styleIDRef": style_ref})
-        paragraph = _append_child(sublist, f"{_HP}p", p_attrs)
-        note_run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": note_char_ref})
-        num_ctrl = _append_child(note_run, f"{_HP}ctrl", {})
-        auto_num = _append_child(
-            num_ctrl,
-            f"{_HP}autoNum",
-            {"num": str(number), "numType": "FOOTNOTE" if tag == "footNote" else "ENDNOTE"},
-        )
-        _append_child(
-            auto_num,
-            f"{_HP}autoNumFormat",
-            {"type": "DIGIT", "userChar": "", "prefixChar": "", "suffixChar": suffix, "supscript": "0"},
-        )
-        t = _append_child(note_run, f"{_HP}t", {})
-        t.text = _sanitize_text(text)
-        self.section.mark_dirty()
-        return HwpxOxmlNote(note_element, self)
-
-    def add_footnote(
-        self,
-        text: str,
-        *,
-        run_attributes: dict[str, str] | None = None,
-        char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlNote:
-        """Insert a footnote at the end of this paragraph."""
-        return self._add_note("footNote", text, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref)
-
-    def add_endnote(
-        self,
-        text: str,
-        *,
-        run_attributes: dict[str, str] | None = None,
-        char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlNote:
-        """Insert an endnote at the end of this paragraph."""
-        return self._add_note("endNote", text, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref)
-
-    @property
-    def footnotes(self) -> list[HwpxOxmlNote]:
-        """Return all footnotes in this paragraph."""
-        return [
-            HwpxOxmlNote(el, self)
-            for el in self.element.findall(f".//{_HP}footNote")
-        ]
-
-    @property
-    def endnotes(self) -> list[HwpxOxmlNote]:
-        """Return all endnotes in this paragraph."""
-        return [
-            HwpxOxmlNote(el, self)
-            for el in self.element.findall(f".//{_HP}endNote")
-        ]
+    # Footnote/endnote authoring lives in note_authoring.py (owner-file
+    # headroom, see class-attribute assignments near the top of this class).
+    add_footnote = _paragraph_add_footnote
+    add_endnote = _paragraph_add_endnote
+    footnotes = property(_paragraph_footnotes)
+    endnotes = property(_paragraph_endnotes)
 
     @property
     def para_pr_id_ref(self) -> str | None:

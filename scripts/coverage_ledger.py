@@ -805,6 +805,39 @@ def _validate_manual_overrides(overrides: tuple[ManualCodeUsageOverride, ...]) -
 _MANUAL_CODE_USAGE_OVERRIDES: tuple[ManualCodeUsageOverride, ...] = (
     ManualCodeUsageOverride(
         "hp",
+        "footNote",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "src/hwpx/oxml/note_authoring.py:158-166 _paragraph_add_footnote "
+            "calls _paragraph_add_note(self, \"footNote\", ...) with a literal "
+            "tag, and _paragraph_add_note (line 96, tag assembled as "
+            "f'{_HP}{tag}' at line 127) builds the element from that "
+            "parameter — the argument-tag-literal resolver (§3c) only "
+            "traces calls inside a class body (class_stack), and this "
+            "module (6.14 train 48/debt3, moved out of paragraph.py's "
+            "HwpxOxmlParagraph class verbatim) is deliberately class-free "
+            "module-level functions, matching dutmal_compose.py/field_marks.py's "
+            "own class-attribute-assignment pattern -- so the resolver's "
+            "class-scoped call-graph walk can't reach it even though both "
+            "functions live in the same file. Shipped and render-verified "
+            "since 6.0 (footNote/endNote predate this move; only the "
+            "source location changed, not the emitted XML)."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hp",
+        "endNote",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "Same mechanism as hp:footNote -- src/hwpx/oxml/note_authoring.py:"
+            "169-177 _paragraph_add_endnote calls _paragraph_add_note(self, "
+            "\"endNote\", ...)."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hp",
         "insertBegin",
         code_read=True,
         code_write=True,
