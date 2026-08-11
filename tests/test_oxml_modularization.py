@@ -171,6 +171,7 @@ C901_LIMITS = {
     },
     "oxml/header_part.py": {
         "ensure_char_property": 12,
+        "ensure_paragraph_format": 11,
         "ensure_shading_border_fill": 13,
     },
     "oxml/paragraph.py": {"add_tracked_delete": 12},

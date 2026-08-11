@@ -29,6 +29,7 @@ from ._document_primitives import (
     _element_local_name,
     _ensure_memo_shape,
     _ensure_tab_definition_element,
+    _find_matching_para_pr,
     _find_font_id,
     _find_shading_border_fill_id,
     _fontface_insert_index,
@@ -730,6 +731,20 @@ class HwpxOxmlHeader:
             self._apply_paragraph_border(para_pr, border)
         if tab_pr_id_ref is not None:
             para_pr.set("tabPrIDRef", str(tab_pr_id_ref))
+
+        # Dedupe (ensure_tab_definition/ensure_style precedent): if the
+        # paraPr we just built is structurally identical to one that
+        # already exists, reuse its id instead of minting a duplicate.
+        # Without this, every add_heading()/set_paragraph_format() call
+        # mints a fresh paraPr even when an earlier call already produced
+        # the exact same one -- real Hancom merges these duplicates back
+        # down on its own next save (observed: a paraPrIDRef that
+        # round-tripped through real Hancom came back renumbered, not a
+        # bug -- see docs/owpml-deviations.md and the titleMark re-probe
+        # notes), so this closes the gap rather than fixing a rejection.
+        reusable_id = _find_matching_para_pr(para_properties, para_pr)
+        if reusable_id is not None:
+            return reusable_id
 
         para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
         para_pr.set("id", para_pr_id)

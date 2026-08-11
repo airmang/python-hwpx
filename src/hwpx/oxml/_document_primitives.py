@@ -1445,6 +1445,55 @@ def _build_tab_definition_element(
     return element
 
 
+def _elements_structurally_equal(
+    a: ET.Element, b: ET.Element, *, ignore_attrs: frozenset[str] = frozenset()
+) -> bool:
+    """Recursive tag/attrib/children equality, ignoring *ignore_attrs* at
+    every level (typically ``{"id"}`` -- an allocated identity, not a
+    structural property). Element text/tail are not compared -- every
+    caller of this helper (``ensure_paragraph_format``'s dedupe) deals
+    with attribute-only leaf families (paraPr/align/heading/margin/
+    lineSpacing/breakSetting/border), never mixed text content, matching
+    ``_tab_definition_matches``'s own attribute-based comparison one level
+    up (a general recursive form of the same idea, needed here because
+    paraPr's shape is too varied for a hand-enumerated field list).
+    """
+
+    a_tag = a.tag if isinstance(a.tag, str) else None
+    b_tag = b.tag if isinstance(b.tag, str) else None
+    if a_tag != b_tag:
+        return False
+    a_attrib = {k: v for k, v in a.attrib.items() if k not in ignore_attrs}
+    b_attrib = {k: v for k, v in b.attrib.items() if k not in ignore_attrs}
+    if a_attrib != b_attrib:
+        return False
+    a_children = list(a)
+    b_children = list(b)
+    if len(a_children) != len(b_children):
+        return False
+    return all(
+        _elements_structurally_equal(ac, bc, ignore_attrs=ignore_attrs)
+        for ac, bc in zip(a_children, b_children)
+    )
+
+
+def _find_matching_para_pr(para_properties: ET.Element, built: ET.Element) -> str | None:
+    """Return an existing ``hh:paraPr`` id whose content matches *built*
+    (ignoring ``id``), or ``None`` if none does. Split out of
+    ``ensure_paragraph_format`` (kept as a separate function rather than
+    inlined) purely to keep that function's own cyclomatic complexity
+    under the C901 ratchet -- the loop itself has nothing paraPr-specific
+    beyond calling :func:`_elements_structurally_equal`.
+    """
+
+    for candidate in para_properties.findall(f"{_HH}paraPr"):
+        if _elements_structurally_equal(candidate, built, ignore_attrs=frozenset({"id"})):
+            existing_id = candidate.get("id")
+            if existing_id:
+                return existing_id
+    return None
+
+
 def _ensure_tab_definition_element(
     container: ET.Element,
     *,
