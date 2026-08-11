@@ -956,3 +956,194 @@ def test_insert_document_rejects_every_non_default_policy_axis() -> None:
         assert excinfo.value.context.get("axis") == axis
         # rejected before any side effect -- target must stay untouched
         assert _texts(target) == ["", "existing"]
+
+
+# ============================================================================
+# property-clone nested refs into shared id-spaces (borderFill / tabPr)
+#
+# A copied hh:paraPr carries its own border/@borderFillIDRef and
+# @tabPrIDRef, and a copied hh:charPr its own 글자-테두리 @borderFillIDRef.
+# Those live inside the just-copied header items, not the body paragraphs
+# the import scans -- exactly like hh:heading/hh:fontRef, which already get
+# the clone-scan treatment. Missing them does not dangle (check_id_integrity
+# stays green): the raw source id silently aliases onto whatever the target
+# header means by that id. Live-observed: mfds admin notice의 무테두리 표지
+# 문단들이 서울시 시행문에 병합되자 타깃 borderFill[3](표 SOLID 테두리)을
+# 물려받아 전부 박스로 렌더됐다.
+# ============================================================================
+
+_GOLD = Path(__file__).parent / "fixtures" / "m3_gongmun_gold"
+
+
+def _border_edges_for_paragraph(doc: HwpxDocument, snippet: str) -> dict[str, str]:
+    """Resolve paragraph -> paraPr -> border/@borderFillIDRef -> edge types."""
+
+    paragraph = next(
+        p for section in doc.sections for p in section.paragraphs if snippet in (p.text or "")
+    )
+    para_ref = paragraph.element.get("paraPrIDRef")
+    header = doc.parts.headers[0]
+    para_pr = next(
+        c for c in header._para_properties_element() if c.get("id") == para_ref
+    )
+    border_ref = None
+    for node in para_pr.iter():
+        if node.tag == f"{_HH}border":
+            border_ref = node.get("borderFillIDRef")
+    assert border_ref is not None, "paraPr has no border reference"
+    border_fill = next(
+        c for c in header._border_fills_element() if c.get("id") == border_ref
+    )
+    edges = {}
+    for child in border_fill:
+        name = child.tag.rsplit("}", 1)[-1]
+        if name in {"leftBorder", "rightBorder", "topBorder", "bottomBorder"}:
+            edges[name] = child.get("type")
+    return edges
+
+
+def test_merge_imports_parapr_border_fill_instead_of_aliasing_real_corpus() -> None:
+    target = HwpxDocument.open(_GOLD / "seoul_sihaengmun.hwpx")
+    report = append_document(target, _GOLD / "mfds_admin_notice.hwpx")
+    assert report["paragraphsInserted"] > 0
+
+    # 소스에서 이 표지 문단의 borderFill은 4변 전부 NONE — 병합 후에도
+    # 같은 의미로 해석돼야 한다 (타깃 borderFill[3]=SOLID로 앨리어싱 금지).
+    edges = _border_edges_for_paragraph(target, "생산·수입 중단")
+    assert set(edges.values()) == {"NONE"}, edges
+
+    after = check_id_integrity(target)
+    assert after.ok, after.dangling
+
+
+def test_merge_imports_parapr_tab_definition_instead_of_aliasing() -> None:
+    source = HwpxDocument.new()
+    source.add_paragraph("tabbed line")
+    # HwpxDocument.new()는 기본 빈 문단 1개를 갖고 시작 — "tabbed line"은 index 1.
+    source.styles.apply_paragraph_format(paragraph_index=1, tab_stops=[{"pos_mm": 30.0}])
+
+    target = HwpxDocument.new()
+    # 소스의 raw tabPr id가 타깃에서 "다른 정의"를 가리키도록 선점.
+    target.parts.headers[0].ensure_tab_definition(
+        tab_stops=[{"pos": 999}], auto_tab_left=True, auto_tab_right=False
+    )
+    target.parts.headers[0].ensure_tab_definition(
+        tab_stops=[{"pos": 555}], auto_tab_left=False, auto_tab_right=True
+    )
+
+    def _tab_positions(doc: HwpxDocument, snippet: str) -> list[str]:
+        paragraph = next(
+            p for section in doc.sections for p in section.paragraphs if snippet in (p.text or "")
+        )
+        para_ref = paragraph.element.get("paraPrIDRef")
+        header = doc.parts.headers[0]
+        para_pr = next(
+            c for c in header._para_properties_element() if c.get("id") == para_ref
+        )
+        tab_ref = para_pr.get("tabPrIDRef")
+        assert tab_ref is not None, "paraPr has no tabPrIDRef"
+        tab_pr = next(
+            c for c in header._tab_properties_element() if c.get("id") == tab_ref
+        )
+        return sorted(
+            item.get("pos") for item in tab_pr if item.tag.rsplit("}", 1)[-1] == "tabItem"
+        )
+
+    expected = _tab_positions(source, "tabbed line")
+    append_document(target, source)
+    assert _tab_positions(target, "tabbed line") == expected
+
+    after = check_id_integrity(target)
+    assert after.ok, after.dangling
+
+
+def test_merge_imports_charpr_character_border_instead_of_aliasing() -> None:
+    source = HwpxDocument.new()
+    char_id = source.styles.ensure_run(bold=True)
+    dash_fill = source.parts.headers[0].ensure_border_fill(
+        active_borders=("left",), border_type="DASH"
+    )
+    source_char_pr = next(
+        c
+        for c in source.parts.headers[0]._char_properties_element()
+        if c.get("id") == str(char_id)
+    )
+    source_char_pr.set("borderFillIDRef", dash_fill)
+    source.add_paragraph("char border", char_pr_id_ref=char_id)
+
+    target = HwpxDocument.new()
+    # 소스 raw id가 4변 SOLID 정의로 앨리어싱되도록 타깃 공간 선점
+    # (색상을 다르게 해 dedupe가 패딩을 접지 않게 한다).
+    for color in ("#000000", "#111111", "#222222", "#333333"):
+        target.parts.headers[0].ensure_border_fill(
+            active_borders=("left", "right", "top", "bottom"),
+            border_type="SOLID",
+            border_color=color,
+        )
+
+    append_document(target, source)
+
+    paragraph = next(
+        p
+        for section in target.sections
+        for p in section.paragraphs
+        if "char border" in (p.text or "")
+    )
+    run_ref = paragraph.element.find(f"{_HP}run").get("charPrIDRef")
+    header = target.parts.headers[0]
+    char_pr = next(
+        c for c in header._char_properties_element() if c.get("id") == run_ref
+    )
+    border_ref = char_pr.get("borderFillIDRef")
+    assert border_ref is not None
+    border_fill = next(
+        c for c in header._border_fills_element() if c.get("id") == border_ref
+    )
+    edges = {
+        child.tag.rsplit("}", 1)[-1]: child.get("type")
+        for child in border_fill
+        if child.tag.rsplit("}", 1)[-1]
+        in {"leftBorder", "rightBorder", "topBorder", "bottomBorder"}
+    }
+    assert edges["leftBorder"] == "DASH", edges
+    assert edges["rightBorder"] == "NONE", edges
+
+    after = check_id_integrity(target)
+    assert after.ok, after.dangling
+
+
+# ============================================================================
+# clone layout-cache hygiene -- a copied paragraph is always new content at a
+# new position, so the source's absolute hp:linesegarray never holds for it.
+# ============================================================================
+
+
+def _lineseg_count(paragraph) -> int:
+    return sum(
+        1
+        for node in paragraph.element.iter()
+        if node.tag.rsplit("}", 1)[-1].lower() == "linesegarray"
+    )
+
+
+def test_inserted_paragraph_clones_drop_source_layout_cache() -> None:
+    doc = HwpxDocument.open(_GOLD / "seoul_sihaengmun.hwpx")
+    section = doc.sections[0]
+    cached_body = section.paragraphs[2]
+    assert _lineseg_count(cached_body) > 0, "fixture paragraph should carry a cache"
+
+    inserted = section.insert_paragraphs(3, [cached_body, cached_body])
+
+    for clone in inserted:
+        assert _lineseg_count(clone) == 0
+    # 원본 문단(무편집)의 캐시는 그대로 보존 — 터치 범위 한정 원칙.
+    assert _lineseg_count(cached_body) > 0
+
+
+def test_merged_copies_carry_no_source_layout_cache() -> None:
+    target = HwpxDocument.open(_GOLD / "seoul_sihaengmun.hwpx")
+    existing = len(target.sections[0].paragraphs)
+    append_document(target, _GOLD / "mfds_admin_notice.hwpx")
+
+    for paragraph in target.sections[0].paragraphs[existing:]:
+        assert _lineseg_count(paragraph) == 0

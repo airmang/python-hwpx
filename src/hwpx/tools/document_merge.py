@@ -357,8 +357,16 @@ def _remap_para_properties(
     return remap, clones
 
 
-def _remap_border_fills(source_header: Any, target_header: Any, paragraphs: list[Any]) -> dict[str, str]:
-    used = _used_ids(paragraphs, "borderFillIDRef")
+def _remap_border_fills(
+    source_header: Any, target_header: Any, paragraphs: list[Any], *, extra_ids: set[str] | None = None
+) -> dict[str, str]:
+    """*extra_ids* folds in refs living inside just-copied header items --
+    ``hh:paraPr``'s own ``border/@borderFillIDRef`` and ``hh:charPr``'s
+    글자-테두리 ``@borderFillIDRef`` -- that body content alone would miss
+    (same shape as heading/fontRef; live-observed as borderless source
+    paragraphs acquiring the target's SOLID table borders)."""
+
+    used = _used_ids(paragraphs, "borderFillIDRef") | (extra_ids or set())
     if not used:
         return {}
     source_container = source_header._border_fills_element()
@@ -381,8 +389,14 @@ def _remap_border_fills(source_header: Any, target_header: Any, paragraphs: list
     return remap
 
 
-def _remap_tab_properties(source_header: Any, target_header: Any, paragraphs: list[Any]) -> dict[str, str]:
-    used = _used_ids(paragraphs, "tabPrIDRef")
+def _remap_tab_properties(
+    source_header: Any, target_header: Any, paragraphs: list[Any], *, extra_ids: set[str] | None = None
+) -> dict[str, str]:
+    """*extra_ids* folds in ``hh:paraPr``'s own ``@tabPrIDRef`` -- body
+    content never carries it, so without the clone-scan a copied paraPr's
+    tab definition silently aliases onto the target's same-numbered tabPr."""
+
+    used = _used_ids(paragraphs, "tabPrIDRef") | (extra_ids or set())
     if not used:
         return {}
     source_container = source_header._tab_properties_element()
@@ -1034,8 +1048,23 @@ def _merge_paragraphs(
         source_header, target_header, remap_scope, extra_ids=extra_para_ids
     )
     style, style_clones = _remap_styles(source_header, target_header, remap_scope)
-    border_fill = _remap_border_fills(source_header, target_header, remap_scope)
-    tab_pr = _remap_tab_properties(source_header, target_header, remap_scope)
+    # hh:paraPr's own border/@borderFillIDRef + @tabPrIDRef and hh:charPr's
+    # 글자-테두리 @borderFillIDRef live inside the just-copied property items,
+    # not the body paragraphs -- fold them into the import sets exactly like
+    # heading/fontRef below. Missing them never dangles (the raw source id
+    # aliases onto whatever the target header means by that number), which is
+    # why gate #1 (check_id_integrity) stayed green while merged borderless
+    # cover paragraphs rendered with the target's SOLID table borders.
+    extra_border_ids = _used_ids(para_pr_clones, "borderFillIDRef") | _used_ids(
+        char_pr_clones, "borderFillIDRef"
+    )
+    extra_tab_ids = _used_ids(para_pr_clones, "tabPrIDRef")
+    border_fill = _remap_border_fills(
+        source_header, target_header, remap_scope, extra_ids=extra_border_ids
+    )
+    tab_pr = _remap_tab_properties(
+        source_header, target_header, remap_scope, extra_ids=extra_tab_ids
+    )
     memo_shape = _remap_memo_properties(source_header, target_header, remap_scope)
     binary_item = _remap_binary_items(source, target, source_header, target_header, remap_scope)
     # hh:heading (numbering/bullet's own polymorphic idRef) lives inside the
@@ -1060,6 +1089,10 @@ def _merge_paragraphs(
     _apply_remaps(copies, **remap_kwargs)
     _apply_remaps(memo_clones, **remap_kwargs)
     _apply_remaps(para_pr_clones, **remap_kwargs)
+    # charPr clones carry their own 글자-테두리 borderFillIDRef attribute --
+    # without this pass the imported definition exists but the ref still
+    # points at the target's raw id.
+    _apply_remaps(char_pr_clones, **remap_kwargs)
     _apply_remaps(style_clones, **remap_kwargs)
     # Font remap is shaped differently (per-lang dicts, not one flat dict)
     # and only ever touches a charPr's own fontRef child -- applied

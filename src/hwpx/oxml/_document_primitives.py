@@ -205,10 +205,22 @@ def _refresh_copied_paragraph_subtree_ids(paragraph: ET.Element) -> None:
 
 
 def _clone_paragraph_element(paragraph: ET.Element) -> ET.Element:
-    """Return a deep-copied paragraph element with refreshed local ids."""
+    """Return a deep-copied paragraph element with refreshed local ids.
+
+    Cached line layout (``hp:linesegarray``) is dropped from the clone and
+    every nested paragraph (table cells, drawing text): a clone is always
+    new content at a new position, so the source's absolute layout never
+    holds for it. Hancom re-lays-out cache-less paragraphs cleanly
+    (render-verified), while a carried cache is a latent glyph-overlap
+    hazard the save-time stale sweep cannot judge once the text and cache
+    disagree through a non-clearing edit path.
+    """
 
     cloned = deepcopy(paragraph)
     _refresh_copied_paragraph_subtree_ids(cloned)
+    for node in cloned.iter():
+        if _element_local_name(node) == "p":
+            _clear_paragraph_layout_cache(node)
     return cloned
 
 
