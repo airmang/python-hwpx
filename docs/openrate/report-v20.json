@@ -1,0 +1,32 @@
+{
+  "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v20",
+  "harness_valid": true,
+  "measured_at": "2026-08-12T16:48:41+09:00",
+  "negative_controls": {
+    "expected": [
+      "corrupt_section",
+      "corrupt_header",
+      "missing_section"
+    ],
+    "judged": 3,
+    "wrongly_rendered": []
+  },
+  "oracle": "mac-gui",
+  "oracle_app": "Hancom Office HWP.app (macOS)",
+  "schemaVersion": "hwpx.openrate.report/v20",
+  "scopeNote": "v20 measures cross-real-document merge (document_merge append/insert between real-Hancom-saved sources: the m3_gongmun_gold trio, the clickhere gold form, the date/proofreading GUI probe), additive over v1-v19. Motivated by the clone-path audit: v13's merge stratum merged generated files whose sparse headers could never make the property-clone nested-reference aliasing class (paraPr border/tabPr, charPr character-border refs -- non-dangling, check_id_integrity green) visible; real-source merges rendered it as style corruption (mfds' borderless cover acquiring seoul's SOLID table borders), fixed at b81713e together with clone lineseg hygiene. Real Hancom accepted all 12/12 (fitz double-check green, incl. the chained double-import and both field-bearing sources). Observer: macOS Hancom GUI oracle (open+render one gate). Session-state discipline applied: a control render preceded the batch, the app was fully restarted before launch, and the negative-control damage dialogs were dismissed after judging (the leftover-modal contamination class this audit itself hit).",
+  "strata": {
+    "cross-real-merge": {
+      "judged": 12,
+      "render_checked": 12,
+      "render_failed": 0
+    }
+  },
+  "tool_versions": {
+    "python-hwpx": "6.0.2"
+  },
+  "totals": {
+    "judged": 12,
+    "render_checked": 12
+  }
+}

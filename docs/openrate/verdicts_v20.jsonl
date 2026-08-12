@@ -1,0 +1,16 @@
+{"_meta": "mac-render-batch-v1", "app": "Hancom Office HWP.app", "jobCount": 15, "oracle": "mac-gui"}
+{"sourceId": "v20-cross-real-merge-append-mfds-mpm", "stratum": "cross-real-merge", "saved": true, "pdfBytes": 494731, "error": null}
+{"sourceId": "v20-cross-real-merge-append-mfds-seoul", "stratum": "cross-real-merge", "saved": true, "pdfBytes": 432137, "error": null}
+{"sourceId": "v20-cross-real-merge-append-mpm-mfds", "stratum": "cross-real-merge", "saved": true, "pdfBytes": 494397, "error": null}
+{"sourceId": "v20-cross-real-merge-append-mpm-seoul", "stratum": "cross-real-merge", "saved": true, "pdfBytes": 123063, "error": null}
+{"sourceId": "v20-cross-real-merge-append-seoul-clickhere", "stratum": "cross-real-merge", "saved": true, "pdfBytes": 58499, "error": null}
+{"sourceId": "v20-cross-real-merge-append-seoul-dateprobe", "stratum": "cross-real-merge", "saved": true, "pdfBytes": 60983, "error": null}
+{"sourceId": "v20-cross-real-merge-append-seoul-mfds", "stratum": "cross-real-merge", "saved": true, "pdfBytes": 454236, "error": null}
+{"sourceId": "v20-cross-real-merge-append-seoul-mpm", "stratum": "cross-real-merge", "saved": true, "pdfBytes": 146609, "error": null}
+{"sourceId": "v20-cross-real-merge-chain-seoul-mfds-mpm", "stratum": "cross-real-merge", "saved": true, "pdfBytes": 544929, "error": null}
+{"sourceId": "v20-cross-real-merge-insert-mfds-seoul", "stratum": "cross-real-merge", "saved": true, "pdfBytes": 432159, "error": null}
+{"sourceId": "v20-cross-real-merge-insert-mpm-mfds", "stratum": "cross-real-merge", "saved": true, "pdfBytes": 495755, "error": null}
+{"sourceId": "v20-cross-real-merge-insert-seoul-mfds", "stratum": "cross-real-merge", "saved": true, "pdfBytes": 454661, "error": null}
+{"sourceId": "corrupt_section", "stratum": "_negative-control", "saved": false, "pdfBytes": 0, "error": "refused (expected)"}
+{"sourceId": "corrupt_header", "stratum": "_negative-control", "saved": false, "pdfBytes": 0, "error": "refused (expected)"}
+{"sourceId": "missing_section", "stratum": "_negative-control", "saved": false, "pdfBytes": 0, "error": "refused (expected)"}
