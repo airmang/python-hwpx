@@ -133,6 +133,8 @@ AREA_NAMESPACES = {
     "memo": "notes",
     "footnote-endnote": "notes",
     "toc-crossref": "refs",
+    # 6.15 트레인 — DEV-044 titleMark 저작 보류 해제.
+    "title-mark": "refs",
     "form-field-create": "fields",
     "check-box": "fields",
     "table-structure": "tables",

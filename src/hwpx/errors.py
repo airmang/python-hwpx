@@ -206,6 +206,7 @@ ERROR_CODES: dict[str, str] = {
     "paragraph-tab-pos-invalid": "탭 정지 위치(pos_mm/pos)가 없거나 음수다.",
     "paragraph-tab-type-invalid": "탭 정지 type 값이 OWPML 어휘(LEFT/RIGHT/CENTER/DECIMAL) 밖이다.",
     "paragraph-tab-leader-invalid": "탭 정지 leader 값이 OWPML 어휘(hc:LineType2) 밖이다.",
+    "paragraph-title-mark-no-text-run": "문단에 hp:t를 가진 run이 없어 titleMark를 넣을 자리가 없다.",
     # -- 문서 파트(doc.parts) ----------------------------------------------
     "parts-no-header-part": "문서에 header.xml 파트가 없다(doc.parts 경로).",
     "parts-auto-spacing-unknown-para-pr": "그 id 의 hh:paraPr 를 문서에서 찾지 못했다.",

@@ -1327,6 +1327,9 @@ _register("하이퍼링크·책갈피", "hp", "bookmark")
 # 서식 참조)는 "문단·표 저작/편집" 영역이 이미 소유한 공유 요소라 여기서
 # 등록하지 않는다(fieldBegin류와 같은 무근거 승격 회피 원칙).
 _register("덧말·글자 겹치기", "hp", "compose", "dutmal", "mainText", "subText")
+# 6.15 트레인 — hp:titleMark는 이 영역만 쓰는 전용 요소다(다른 어느
+# 능력 영역도 공유하지 않음, 직접 확인).
+_register("차례 숨기기·제목 차례 표시", "hp", "titleMark")
 # 6.11 트레인㊳ — v14. "목록 서식(글머리표·번호매기기)"은 새로 등록하는
 # 영역이다(이전엔 대응 capabilityArea 자체가 없어 인벤토리 행이 계속
 # 미실측으로 남아 있었다). hh:bullet/numbering(과 그 컨테이너·자식)은

@@ -38,6 +38,7 @@
 | 메모(코멘트) | Edit·Create·Render-verified | `add_memo`·`add_memo_with_anchor`; subList 코멘트 텍스트 + `MemoShapeIDRef` 버그 수정을 실 Windows 한컴에서 검증(CHANGELOG). `doc.styles.ensure_memo_shape`(6.2+)로 `hh:memoPr` 모양 정의(선 두께·색·채움색·활성색)를 새로 만들어 `add_memo(memo_shape_id_ref=)`로 바로 연결 — 이전엔 기존 문서의 memoPr에만 의존했다. 기본값은 실코퍼스(hwpxlib_corpus, 6파일) 최빈 프로파일 |
 | 각주/미주 | Edit·Create·Render-verified | `add_footnote`·`add_endnote`; M6 읽기 경로에서 note 노출. 5.5.0에서 실한컴 gold 계약으로 방출 수리(본문 run 내 `hp:ctrl` 래핑·`number`/`suffixChar`·각주 본문 `autoNum`+스타일 15/16) — 옛 방출이 각주를 그리지 않던 실결함 종결, 리더는 실한컴산·구식 양형상 모두 수용(CHANGELOG [5.5.0]) |
 | 네이티브 목차(TOC)/상호참조 | Create·Render-verified | `hwpx.tools.toc_author.add_native_toc`·`mark_toc_dirty`·`toc_verify`; corpus-metrics「네이티브 목차」구조 15/15, 실한컴 재계산 후 페이지 정합 5/5 |
+| 차례 숨기기·제목 차례 표시 | Create(experimental) | `HwpxOxmlParagraph.add_title_mark(in_toc=)`(6.15 트레인, DEV-044). 스키마는 `hp:titleMark`를 `hp:t`의 선택군 자식으로 실제 선언하되(`ignore: xs:boolean, default="false"`) `xs:documentation`이 전혀 없어 의미는 미문서화 — 실코퍼스 14건(전부 `ignore="1"`, 차례 페이지 항목 문단의 헤딩 텍스트 미러 run 바로 앞)으로 구조는 6.13에 이미 확정됐으나, 캐럿이 있는 문단에 정확히 들어간다는 타겟팅 계약은 이 환경의 자동화 한계(캔버스 클릭·키 입력 모두 문서에 미도달)로 실측이 안 돼 저작을 보류하고 있었다. **6.15**: 팀장의 Windows 박스 COM `SetPos`+`MarkTitle`/`HideTitle` 3변형(`SetPos(0,2,0)`+`MarkTitle`→p2에만 `ignore="1"`, `SetPos(0,2,0)`+`HideTitle`→p2에만 `ignore="0"`, `SetPos(0,1,0)`+`MarkTitle`→p1에만 `ignore="1"`)이 타겟팅을 확정 — 마크는 항상 캐럿이 있는 문단의 첫 run 첫 `hp:t` 맨 앞, 그 문단 자신의 텍스트 바로 앞에 들어간다(이전 Mac 프로브의 절 정의 문단 착지는 캐럿 이동 불가에 따른 퇴화 현상이었음이 확인됨). 폴라리티는 이름의 직관과 반대(`in_toc=True`="제목 차례 표시"→`ignore="1"`, `in_toc=False`="차례 숨기기"→`ignore="0"`) — Mac GUI A/B와 Windows COM 양쪽에서 독립 재확인. 호출자가 대상 문단을 직접 지정하는 API 형태가 실 편집기의 "캐럿 문단" 타겟팅과 정확히 대응한다. 실한컴 렌더 검증은 v21 배치 대기 |
 | 암호화 HWPX | Unsupported-and-rejected | 복호화 API 없음. 암호화된 content part는 파싱 단계에서 예외(`XMLSyntaxError`)로 거부 — 무음으로 잘못된 문서를 만들지 않음(fail-closed) |
 | HWP 5.x 바이너리 | Unsupported-and-rejected | HWP v5는 ZIP이 아니므로 열기 시 `BadZipFile` 예외. OLE2/CFBF 시그니처를 확인하면 예외 메시지가 HWPX 변환을 안내한다(예외 타입은 그대로) |
 | 누름틀(form field) 생성 | Parse·Edit·Create(experimental)·Render-verified | `list_form_fields`·`fill_form_field`로 조회·서식 보존 채움에 더해, `doc.fields.add`(구 `add_form_field`, 5.1.0+)가 실한컴 CLICKHERE 계약 그대로 신규 누름틀을 생성한다(표 셀 배치 포함). 만든 필드는 기존 list/fill과 실제 한컴이 특수분기 없이 소비. 실한컴 렌더 검증: `docs/openrate/report-v15.json` authored-formfield 스트라텀(prompt/memo/editable 로테이션 + 표 셀 배치 1건, 5건), macOS Hancom GUI 오라클 5/5 render_checked·0 render_failed(2026-08-08 측정) — 이 영역의 첫 독립 실한컴 판정. **원장 라우팅은 없음** — `hp:fieldBegin`은 CLICKHERE/TOC/CROSSREF/하이퍼링크/메모가 공유하는 저수준 요소라 여전히 미등록(무근거 승격 회피 원칙) — 등급 갱신은 이 산문과 report-v15.json 직접 인용으로만 |
@@ -84,6 +85,7 @@
 | 메모(코멘트) | `doc.notes` |
 | 각주/미주 | `doc.notes` |
 | 네이티브 목차(TOC)/상호참조 | `doc.refs` |
+| 차례 숨기기·제목 차례 표시 | `doc.refs` |
 | 암호화 HWPX | 미지원 |
 | HWP 5.x 바이너리 | 미지원 |
 | 누름틀(form field) 생성 | `doc.fields` |

@@ -38,7 +38,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 <!-- AUTO-GENERATED:BEGIN (scripts/editor_surface_inventory.py) -->
 
-자동 생성 시점 교차 확인: 원장(요소 축) 127건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 37개 등록됨.
+자동 생성 시점 교차 확인: 원장(요소 축) 127건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 38개 등록됨.
 
 ### 서식
 
@@ -89,6 +89,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 |---|---|---|---|
 | 각주/미주 | 저작 api | 지원 매트릭스 「각주/미주」(`Edit·Create·Render-verified`) · capabilities 영역 `footnote-endnote` · 위치 `doc.notes` | Render-verified |
 | 네이티브 목차(TOC)/상호참조 | 저작 api | 지원 매트릭스 「네이티브 목차(TOC)/상호참조」(`Create·Render-verified`) · capabilities 영역 `toc-crossref` · 위치 `doc.refs` | Render-verified |
+| 차례 숨기기·제목 차례 표시 | 저작 api | 지원 매트릭스 「차례 숨기기·제목 차례 표시」(`Create(experimental)`) · capabilities 영역 `title-mark` · 위치 `doc.refs` | 미실측 |
 | 하이퍼링크·책갈피 | 저작 api | 지원 매트릭스 「하이퍼링크·책갈피」(`Create·Render-verified`) · capabilities 영역 `hyperlink-bookmark` · 위치 `doc.refs` | Render-verified |
 
 ### 검토

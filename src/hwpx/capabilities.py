@@ -234,6 +234,25 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "authoring_methods": (),
     },
     {
+        "area": "title-mark",
+        "namespace": "doc.refs",
+        "matrix_row": "차례 숨기기·제목 차례 표시",
+        # 6.15 트레인 — DEV-044(hp:titleMark, 스키마는 구조 선언·의미는
+        # 미문서화). 6.13/6.14는 캐럿 문단 타겟팅을 실측할 수단이 없어
+        # 저작 보류였으나(자동화가 캔버스 클릭·키 입력 둘 다 못 닿음),
+        # 6.15 박스 COM `SetPos`+`MarkTitle`/`HideTitle` 3변형이 타겟팅을
+        # 확정했다 — 마크는 항상 캐럿 문단에 들어간다. add_title_mark는
+        # HwpxOxmlParagraph에만 있다(HwpxDocument 루트에는 없음, dir()로
+        # 직접 확인) — master-page/field_marks와 같은 이유로
+        # authoring_methods=()(루트 add_* 대조 가드가 phantom으로 잡음).
+        # toc-crossref와 네임스페이스는 같으나(둘 다 차례 관련) entry_points가
+        # 다른 진입 경로(hwpx.tools.toc_author 모듈 함수 vs 문단 메서드)라
+        # 별도 영역으로 분리 — toc-crossref의 "혼합 지원 영역 오염" 방지
+        # 원칙과 같은 이유.
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
+    {
         "area": "encrypted-hwpx",
         "namespace": None,
         "matrix_row": "암호화 HWPX",

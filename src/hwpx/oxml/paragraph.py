@@ -866,6 +866,44 @@ class HwpxOxmlParagraph:
     add_proofreading_mark = _paragraph_add_proofreading_mark
     add_path_field = _paragraph_add_path_field
 
+    def add_title_mark(self, *, in_toc: bool) -> HwpxOxmlInlineObject:
+        """이 문단의 첫 run 첫 ``hp:t`` 맨 앞에 ``<hp:titleMark
+        ignore="0|1"/>``를 끼워 넣는다 -- "차례 숨기기"/"제목 차례 표시"의
+        실측 계약(DEV-044, 6.15 박스 COM `SetPos`+`MarkTitle`/`HideTitle`
+        3변형이 캐럿 문단 타겟팅을 확정: 마크는 항상 캐럿이 있는 문단에
+        들어간다, 이전 Mac 프로브의 p0 착지는 캐럿 이동 불가에 따른
+        퇴화 현상이었다).
+
+        *in_toc*: ``True``(제목 차례 표시)면 ``ignore="1"``,
+        ``False``(차례 숨기기)면 ``ignore="0"`` -- 이름의 직관과 반대인
+        폴라리티가 실측 그대로다(Mac GUI A/B·Windows COM 독립 재확인
+        일치). 호출자가 대상 문단을 직접 지정하는 이 API 형태가 실
+        편집기의 "캐럿이 있는 문단" 타겟팅과 정확히 대응한다.
+        """
+        target_run: ET.Element | None = None
+        text_element: ET.Element | None = None
+        for run in self._run_elements():
+            candidates = _children_by_local(run, "t")
+            if candidates:
+                target_run, text_element = run, candidates[0]
+                break
+        if text_element is None or target_run is None:
+            from ..errors import HwpxStateError
+
+            raise HwpxStateError(
+                "문단에 hp:t를 가진 run이 없어 titleMark를 넣을 자리가 없습니다.",
+                code="paragraph-title-mark-no-text-run",
+            )
+        mark = text_element.makeelement(
+            _child_tag_like(text_element, "titleMark", _HP_NS),
+            {"ignore": "1" if in_toc else "0"},
+        )
+        mark.tail = text_element.text
+        text_element.text = None
+        text_element.insert(0, mark)
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(mark, self)
+
     def add_new_num(
         self,
         *,

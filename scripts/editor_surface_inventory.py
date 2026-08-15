@@ -90,6 +90,10 @@ CATEGORY_MAP: dict[str, str] = {
     "memo": "검토",
     "footnote-endnote": "참조",
     "toc-crossref": "참조",
+    # 6.15 트레인 — DEV-044, 캐럿 문단 타겟팅 실측 확정(박스 COM SetPos)
+    # 후 저작 보류 해제. toc-crossref와 같은 네임스페이스(doc.refs)라 같은
+    # 카테고리.
+    "title-mark": "참조",
     "encrypted-hwpx": "보안/호환성",
     "hwp5-binary": "보안/호환성",
     "form-field-create": "필드",

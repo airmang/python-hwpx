@@ -1,7 +1,7 @@
 {
  "codes": {
   "contract-document-missing": [
-   "capabilities.py:561"
+   "capabilities.py:580"
   ],
   "document-header-missing": [
    "_document/layout.py:151",
@@ -16,7 +16,7 @@
    "oxml/master_page.py:84"
   ],
   "document-merge-index-out-of-range": [
-   "tools/document_merge.py:1257"
+   "tools/document_merge.py:1290"
   ],
   "document-merge-unsupported-policy-axis": [
    "tools/document_merge.py:156"
@@ -168,16 +168,19 @@
    "_document/layout.py:185"
   ],
   "paragraph-tab-leader-invalid": [
-   "oxml/_document_primitives.py:1350"
+   "oxml/_document_primitives.py:1362"
   ],
   "paragraph-tab-pos-invalid": [
    "_document/layout.py:225",
-   "oxml/_document_primitives.py:1316",
-   "oxml/_document_primitives.py:1325",
-   "oxml/_document_primitives.py:1331"
+   "oxml/_document_primitives.py:1328",
+   "oxml/_document_primitives.py:1337",
+   "oxml/_document_primitives.py:1343"
   ],
   "paragraph-tab-type-invalid": [
-   "oxml/_document_primitives.py:1338"
+   "oxml/_document_primitives.py:1350"
+  ],
+  "paragraph-title-mark-no-text-run": [
+   "oxml/paragraph.py:893"
   ],
   "parts-auto-spacing-unknown-para-pr": [
    "_document/ns/parts.py:241"
@@ -286,25 +289,25 @@
    "_document/ns/styles.py:105"
   ],
   "style-container-create-failed": [
-   "oxml/header_part.py:1023"
+   "oxml/header_part.py:1038"
   ],
   "style-font-container-create-failed": [
-   "oxml/header_part.py:1132",
-   "oxml/header_part.py:1141"
+   "oxml/header_part.py:1147",
+   "oxml/header_part.py:1156"
   ],
   "style-font-face-empty": [
-   "oxml/header_part.py:1122"
+   "oxml/header_part.py:1137"
   ],
   "style-font-lang-invalid": [
-   "oxml/_document_primitives.py:1131",
-   "oxml/_document_primitives.py:1140"
+   "oxml/_document_primitives.py:1143",
+   "oxml/_document_primitives.py:1152"
   ],
   "style-font-substitute-incomplete": [
-   "oxml/_document_primitives.py:1215",
-   "oxml/_document_primitives.py:1224"
+   "oxml/_document_primitives.py:1227",
+   "oxml/_document_primitives.py:1236"
   ],
   "style-font-type-invalid": [
-   "oxml/_document_primitives.py:1153"
+   "oxml/_document_primitives.py:1165"
   ],
   "style-list-level-invalid": [
    "_document/layout.py:316"
@@ -316,7 +319,7 @@
    "oxml/document_parts.py:744"
   ],
   "style-tab-container-create-failed": [
-   "oxml/header_part.py:756"
+   "oxml/header_part.py:771"
   ],
   "text-highlight-color-invalid": [
    "_document/highlight.py:42"
@@ -353,16 +356,16 @@
    "_document/tracked.py:211"
   ],
   "unknown-contract-document": [
-   "capabilities.py:552"
+   "capabilities.py:571"
   ],
   "unknown-contract-schema": [
-   "capabilities.py:782"
+   "capabilities.py:801"
   ]
  },
  "malformedCodes": [],
  "observed": {
   "other": 146,
-  "typed": 164,
+  "typed": 165,
   "untyped": 204,
   "untypedByFile": {
    "body_patch.py": 20,

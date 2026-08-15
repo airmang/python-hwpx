@@ -30,14 +30,18 @@ ignore="1") -- see docs/owpml-deviations.md's DEV-044 entry and
 docs/editor-menu-reverse-map.md's "차례 숨기기 / 제목 차례 표시" row for
 the full narrative.
 
-Our handling: no read model, no authoring API. Generic ``GenericElement``
-opaque preservation already round-trips this element losslessly (locked by
-``tests/test_page_number_control.py::
-test_titlemark_is_read_preserved_but_not_authored``). Authoring is
-deliberately deferred -- not because the sample count is too small (DEV-021's
-reason) but because this environment has no way to place the caret inside
-the paragraph that real usage actually targets (no canvas click, no
-keystroke reaches the document).
+Our handling: no dedicated read model, generic ``GenericElement`` opaque
+preservation round-trips this element losslessly (unchanged since 6.13).
+Authoring stayed deferred through 6.13/6.14 -- not because the sample count
+was too small (DEV-021's reason) but because macOS GUI automation has no
+way to place the caret inside the paragraph that real usage targets (no
+canvas click, no keystroke reaches the document). 6.15 resolved this:
+team-lead's Windows box COM pipeline can place the caret via
+``SetPos(section, paragraph, pos)``, and three variants confirmed the mark
+always lands exactly in the caret's own paragraph (never always p0 -- the
+earlier macOS finding was the degenerate case of a caret that couldn't
+move). ``HwpxOxmlParagraph.add_title_mark(*, in_toc: bool)`` now exists --
+see ``tests/test_title_mark.py`` for the authoring contract.
 """
 from __future__ import annotations
 
@@ -152,8 +156,10 @@ def main() -> None:
         "sibling run, 1 as mixed content in the same hp:t)"
     )
 
-    # Confirm our handling: no read/authoring API exists for this element
-    # (opaque preservation only).
+    # Confirm our handling: read stays opaque preservation (no dedicated
+    # read model); authoring now exists on the paragraph itself (6.15 --
+    # caret-paragraph targeting confirmed via Windows box COM SetPos,
+    # see docs/owpml-deviations.md DEV-044's updated status).
     import sys
 
     sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -162,10 +168,17 @@ def main() -> None:
     doc = HwpxDocument.new()
     assert not hasattr(doc.page, "add_title_mark")
     assert not hasattr(doc.page, "set_title_mark")
-    for paragraph_attr in ("add_title_mark", "set_title_mark"):
-        p = doc.add_paragraph("")
-        assert not hasattr(p, paragraph_attr)
-    print("confirmed: no read/authoring API exists for hp:titleMark (deferred)")
+    paragraph = doc.add_paragraph("제목")
+    assert hasattr(paragraph, "add_title_mark")
+    result = paragraph.add_title_mark(in_toc=True)
+    mark_tag = f"{_HP}titleMark"
+    assert result.element.tag == mark_tag
+    assert result.element.get("ignore") == "1"
+    print(
+        "confirmed: read stays opaque preservation (doc.page has no "
+        "titleMark verb), authoring now lives on the paragraph itself "
+        "(add_title_mark, 6.15)"
+    )
 
 
 if __name__ == "__main__":

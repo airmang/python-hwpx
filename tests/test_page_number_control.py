@@ -277,13 +277,18 @@ def test_real_corpus_new_controls_coexist_with_existing_ones_after_roundtrip(
         reopened.close()
 
 
-def test_titlemark_is_read_preserved_but_not_authored() -> None:
-    """감사 갭 titleMark(실코퍼스 1파일) — 근거가 얇아 저작은 미룬다.
-
-    이 테스트는 그 결정을 고정한다: 일반 GenericElement 보존 경로로 왕복은
-    되지만(신규 read/write API 없음), doc.page 에 관련 동사가 없다.
+def test_titlemark_authoring_lives_on_the_paragraph_not_doc_page() -> None:
+    """감사 갭 titleMark(DEV-044) — 6.15 트레인에서 캐럿 문단 타겟팅이
+    실측 확정돼 저작 보류가 풀렸다(``tests/test_title_mark.py``가 계약을
+    고정). 이 테스트는 남은 결정 하나만 고정한다: 저작 동사가
+    ``doc.page``가 아니라 문단 자신(``HwpxOxmlParagraph.add_title_mark``)
+    에 있다는 것 — 캐럿이 있던 "그 문단"을 호출자가 직접 지정하는 API
+    형태가 실 편집기의 캐럿 타겟팅과 대응하므로, 페이지 레벨 동사로는
+    표현이 안 된다.
     """
 
     doc = HwpxDocument.new()
     assert not hasattr(doc.page, "add_title_mark")
     assert not hasattr(doc.page, "set_title_mark")
+    paragraph = doc.add_paragraph("제목")
+    assert hasattr(paragraph, "add_title_mark")
