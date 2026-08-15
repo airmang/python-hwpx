@@ -38,7 +38,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 <!-- AUTO-GENERATED:BEGIN (scripts/editor_surface_inventory.py) -->
 
-자동 생성 시점 교차 확인: 원장(요소 축) 127건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 38개 등록됨.
+자동 생성 시점 교차 확인: 원장(요소 축) 128건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 38개 등록됨.
 
 ### 서식
 
@@ -78,7 +78,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
 |---|---|---|---|
-| 날짜/시간·교정 부호·파일 이름 필드 | 저작 api | 지원 매트릭스 「날짜/시간·교정 부호·파일 이름 필드」(`Create(experimental)·Render-verified(날짜/시간·교정 부호만, 파일 이름은 v19 배치 대기)`) · capabilities 영역 `date-time-proofreading-mark-fields` · 위치 `doc.fields` | Render-verified(experimental 저작 포함) |
+| 날짜/시간·교정 부호·파일 이름 필드 | 저작 api | 지원 매트릭스 「날짜/시간·교정 부호·파일 이름 필드」(`Create(experimental)·Render-verified`) · capabilities 영역 `date-time-proofreading-mark-fields` · 위치 `doc.fields` | Render-verified(experimental 저작 포함) |
 | 누름틀(form field) 생성 | 저작 api | 지원 매트릭스 「누름틀(form field) 생성」(`Parse·Edit·Create(experimental)·Render-verified`) · capabilities 영역 `form-field-create` · 위치 `doc.fields` | Render-verified(experimental 저작 포함) |
 | 양식 채움(byte-splice) | 저작 api | 지원 매트릭스 「양식 채움(byte-splice)」(`Preserve·Edit·Render-verified`) · capabilities 영역 `form-fill` · 위치 `doc.tables` | Render-verified |
 | 체크박스 양식개체 | 저작 api | 지원 매트릭스 「체크박스 양식개체」(`Create·Render-verified`) · capabilities 영역 `check-box` · 위치 `doc.fields` | Render-verified |
@@ -89,7 +89,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 |---|---|---|---|
 | 각주/미주 | 저작 api | 지원 매트릭스 「각주/미주」(`Edit·Create·Render-verified`) · capabilities 영역 `footnote-endnote` · 위치 `doc.notes` | Render-verified |
 | 네이티브 목차(TOC)/상호참조 | 저작 api | 지원 매트릭스 「네이티브 목차(TOC)/상호참조」(`Create·Render-verified`) · capabilities 영역 `toc-crossref` · 위치 `doc.refs` | Render-verified |
-| 차례 숨기기·제목 차례 표시 | 저작 api | 지원 매트릭스 「차례 숨기기·제목 차례 표시」(`Create(experimental)`) · capabilities 영역 `title-mark` · 위치 `doc.refs` | 미실측 |
+| 차례 숨기기·제목 차례 표시 | 저작 api | 지원 매트릭스 「차례 숨기기·제목 차례 표시」(`Create(experimental)·Render-verified`) · capabilities 영역 `title-mark` · 위치 `doc.refs` | Render-verified(experimental 저작 포함) |
 | 하이퍼링크·책갈피 | 저작 api | 지원 매트릭스 「하이퍼링크·책갈피」(`Create·Render-verified`) · capabilities 영역 `hyperlink-bookmark` · 위치 `doc.refs` | Render-verified |
 
 ### 검토

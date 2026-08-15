@@ -143,9 +143,7 @@ def main() -> int:
     assert direct_positions, "expected at least one direct (non-switch) hh:tabItem in the control fixture"
 
     default_scale_positions = {dp for _cp, dp in ratio_pairs}
-    case_scale_positions = {cp for cp, _dp in ratio_pairs}
     overlap_default = direct_positions & default_scale_positions
-    overlap_case = direct_positions & case_scale_positions
     assert overlap_default, (
         f"expected the control fixture's direct positions {direct_positions} to overlap "
         f"hp:default's scale {default_scale_positions}"

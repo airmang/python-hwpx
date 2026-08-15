@@ -21,7 +21,10 @@
       "docs/openrate/report-v15.json",
       "docs/openrate/report-v16.json",
       "docs/openrate/report-v17.json",
-      "docs/openrate/report-v18.json"
+      "docs/openrate/report-v18.json",
+      "docs/openrate/report-v19.json",
+      "docs/openrate/report-v20.json",
+      "docs/openrate/report-v21.json"
     ],
     "skeleton": "src/hwpx/data/Skeleton.hwpx",
     "sourceScanned": "src/hwpx/**/*.py"
@@ -59,8 +62,8 @@
     "codeWriteFrozenTemplate": 14,
     "codeWriteNone": 141,
     "capabilityMapped": 107,
-    "renderVerified": 127,
-    "renderVerifiedByOpenrateCorpus": 92,
+    "renderVerified": 128,
+    "renderVerifiedByOpenrateCorpus": 93,
     "attributesObserved": 193
   },
   "elements": [
@@ -5489,8 +5492,8 @@
       "codeRead": true,
       "codeWrite": "api",
       "capabilityArea": "차례 숨기기·제목 차례 표시",
-      "capabilityStatus": "Create(experimental)",
-      "verificationBasis": null,
+      "capabilityStatus": "Create(experimental)·Render-verified",
+      "verificationBasis": "by-capability-area+openrate-corpus",
       "observedAttributes": [
         "ignore"
       ]

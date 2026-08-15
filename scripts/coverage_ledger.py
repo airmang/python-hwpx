@@ -33,8 +33,8 @@
    "add_line"), 근거 없는 승격은 하지 않는다 — 대응 행이 불분명한 요소는
    ``capabilityArea: null``로 남는다. 매핑된 요소라도 그 행의 등급 문자열에
    "Render-verified"가 없으면 이 출처로는 ``verificationBasis``가 null이다.
-5. **실한컴 검증 여부(openrate 코퍼스, v4~v18)** — ``docs/openrate/
-   report-v{4,5,6,7,8,9,10,11,12,13,14,15,16,17,18}.json``의 스트라타별 실제 Hancom 수용 receipt를
+5. **실한컴 검증 여부(openrate 코퍼스, v4~v21)** — ``docs/openrate/
+   report-v{4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21}.json``의 스트라타별 실제 Hancom 수용 receipt를
    ``verificationBasis``로 환류한다(2026-08-04 감사 R4 수리 — "두 산출물이
    서로를 모른다" — 의 v4 배선을 v5~v8까지 확장(2026-08 사이클 6.5 트레인
    ⑰), v9까지 확장(2026-08 사이클 6.6 트레인⑳), v10까지 확장(2026-08
@@ -54,7 +54,15 @@
    같은 이유로 (b)에 안 얹힌다: 두 스트라텀이 겨냥하는 hp:fieldBegin/
    hp:parameters는 하이퍼링크·누름틀·TOC가 공유하는 저수준 요소라 이미
    CAPABILITY_KEYWORDS에 의도적으로 미등록(위 fieldBegin 관련 주석
-   참조) — 등급 갱신은 지원 매트릭스 산문 인용만으로)). 두 갈래로
+   참조) — 등급 갱신은 지원 매트릭스 산문 인용만으로)), v21까지 확장
+   (2026-08 사이클 6.15 릴리스 준비 — v19의 authored-path-field는
+   PATH 필드도 같은 hp:fieldBegin/hp:parameters를 쓰므로 v18과 동일한
+   이유로 (b)에 안 얹힌다(산문 인용만). v20의 cross-real-merge는
+   document_merge 자신을 다른 소스(실한컴 산출물)로 재측정한 것뿐이라
+   v13/v14와 동일하게 capabilityArea 0개(산문 인용만). v21의
+   authored-title-mark는 새로 생긴 1:1 영역("차례 숨기기·제목 차례
+   표시", hp:titleMark 전용 소유, 위 _register 호출부 확인)이라 (a)
+   경로로 라우팅한다 — 아래 참조). 두 갈래로
    다룬다: (a)
    스트라타가 **이미 등록된 capabilityArea**와 1:1로 대응하면
    (``CAPABILITY_KEYWORDS``에 그 요소가 실재 등재돼 있으면)
@@ -99,12 +107,12 @@ DEFAULT_CENSUS_PATH = ROOT / "docs" / "_extra" / "element-census.json"
 SUPPORT_MATRIX_PATH = ROOT / "src" / "hwpx" / "data" / "contract_docs" / "support-matrix.md"
 SKELETON_PATH = ROOT / "src" / "hwpx" / "data" / "Skeleton.hwpx"
 SRC_DIR = ROOT / "src" / "hwpx"
-#: v4~v18 전부 — 신버전이 생기면 여기 한 줄만 추가하면 된다(receipts 로더
+#: v4~v21 전부 — 신버전이 생기면 여기 한 줄만 추가하면 된다(receipts 로더
 #: 둘 다 이 리스트를 그대로 순회한다). 존재하지 않는 파일은 조용히
 #: 건너뛴다(``_load_*`` 쪽에서 ``is_file()`` 가드).
 OPENRATE_REPORT_PATHS: tuple[Path, ...] = tuple(
     ROOT / "docs" / "openrate" / f"report-{version}.json"
-    for version in ("v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18")
+    for version in ("v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21")
 )
 LEDGER_JSON = ROOT / "docs" / "coverage-ledger.json"
 LEDGER_MD = ROOT / "docs" / "coverage-ledger.md"
@@ -1393,7 +1401,7 @@ def classify_capability(
 
 
 # ---------------------------------------------------------------------------
-# 4b) openrate 코퍼스 환류(v4~v18) — support-matrix 산문과 별개인 두 번째
+# 4b) openrate 코퍼스 환류(v4~v21) — support-matrix 산문과 별개인 두 번째
 #     실측 근거. 감사 R4: "v4 스트라타의 요소별 실한컴 수용이 원장의
 #     verificationBasis로 환류되지 않아 두 산출물이 서로를 모른다." (2026-08
 #     사이클 6.5 트레인⑰이 이 배선을 v5~v8까지 확장, 사이클 6.6 트레인⑳이
@@ -1501,6 +1509,12 @@ _OPENRATE_STRATUM_TO_CAPABILITY_AREA: dict[str, str] = {
     "authored-redline": "변경추적(redline)",
     "authored-picture": "그림 삽입/치환",
     "authored-listformat": "목록 서식(글머리표·번호매기기)",
+    # 6.15 릴리스 준비 — v21. "차례 숨기기·제목 차례 표시"는 hp:titleMark
+    # 하나만 등록된 새 1:1 영역이다(위 _register 호출부 확인 — 다른 어느
+    # 영역도 이 요소를 공유하지 않는다). authored-title-mark 스트라텀이
+    # add_title_mark로 저작한 것이 정확히 이 요소이므로 영역째 흘려도
+    # 안전하다.
+    "authored-title-mark": "차례 숨기기·제목 차례 표시",
 }
 
 #: capabilityArea가 아직 없거나(v7), 있어도 혼합 지원이라 영역 전체로
@@ -1822,7 +1836,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
     lines.append(
         "`scripts/coverage_ledger.py`가 OWPML 2024 스키마(`DevDoc/OWPML SCHEMA/`) · "
         "실코퍼스 census(`scripts/build_element_census.py`) · `src/hwpx/` 코드 "
-        "참조 · 지원 매트릭스 · v4~v18 openrate 실한컴 코퍼스에서 결정론적으로 "
+        "참조 · 지원 매트릭스 · v4~v21 openrate 실한컴 코퍼스에서 결정론적으로 "
         "재산출하는 원장이다. 손으로 쓴 지원 주장이 아니라 기계 판독 "
         "[coverage-ledger.json](coverage-ledger.json)의 사람용 요약이며, "
         "`python scripts/coverage_ledger.py --check`가 드리프트를 게이트한다."
@@ -1912,7 +1926,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
         "밖 — 생성기 독스트링에 명시)."
     )
     lines.append(
-        "**6) openrate 코퍼스 환류(v4~v18).** `docs/openrate/report-v{4,5,6,7,8,9,10,11,12,13,14,15,16,17,18}."
+        "**6) openrate 코퍼스 환류(v4~v21).** `docs/openrate/report-v{4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21}."
         "json`의 스트라타별 실한컴 수용(`render_checked>0`·`render_failed==0`, "
         "구세대 스키마는 `opened==requested>0`도 함께)을 `verificationBasis`로 "
         "환류한다(`by-openrate-corpus`/`by-capability-area+openrate-corpus`) — "
@@ -1984,7 +1998,7 @@ def render_markdown(ledger: dict[str, object]) -> str:
         f"{_fmt_pct(summary['renderVerified'], total)} |"
     )
     lines.append(
-        f"| ..중 openrate 코퍼스(v4~v18) 환류분 | {summary['renderVerifiedByOpenrateCorpus']} | "
+        f"| ..중 openrate 코퍼스(v4~v21) 환류분 | {summary['renderVerifiedByOpenrateCorpus']} | "
         f"{_fmt_pct(summary['renderVerifiedByOpenrateCorpus'], total)} |"
     )
     lines.append(

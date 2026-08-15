@@ -24,7 +24,6 @@ from hwpx.table_patch import (
     _blank_region,
     _iter_table_spans,
     _merge_table_rows,
-    _parse_table,
     _split_table_rows,
     apply_table_ops,
     build_grid,

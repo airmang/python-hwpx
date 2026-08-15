@@ -97,7 +97,6 @@ from generate_openrate_corpus_v14 import OUT_DIR_V14  # noqa: E402
 from generate_openrate_corpus_v15 import OUT_DIR_V15  # noqa: E402
 from generate_openrate_corpus_v16 import OUT_DIR_V16  # noqa: E402
 
-from hwpx.document import HwpxDocument  # noqa: E402
 
 # Same discipline v4-v16 established: a moved/deprecated 5.x name firing its
 # shim is a genuine 6.x-migration defect, not something to route around

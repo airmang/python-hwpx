@@ -79,7 +79,7 @@ def main() -> int:
 
     from lxml import etree
 
-    from hwpx.oxml.body import Label, parse_label_element, parse_preserved_element
+    from hwpx.oxml.body import Label, parse_preserved_element
 
     HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
     # Synthetic values -- not copied from any real document.

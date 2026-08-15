@@ -4,79 +4,317 @@
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-08-15
+
+15개 작업 사이클(6.1~6.15)을 하나의 트레인으로 묶어 발행한다. 완전성 감사
+(2026-08-04)가 지목한 갭을 순서대로 닫아나가면서, 그 과정에서 두 개의 새
+계측기(편집기 표면 인벤토리·편집기 메뉴 역방향 지도)를 만들어 남은 갭을
+스스로 찾아내는 체제로 전환했다. 저작 표면 하나하나는 실코퍼스 리버스가
+먼저이고, 실한컴 오라클(Windows COM 또는 macOS GUI) 렌더 검증이 뒤따르는
+원칙을 전 트레인에서 유지했다 — 아래 각 항목은 그 순서를 따라 서술한다.
+
 ### 더함
 
-- **`doc.shapes.add_polygon`** — 다각형 저작(6.4 트레인 13). 실코퍼스
-  (`hwpxlib_corpus/reader_writer__SimplePolygon.hwpx`) 리버스: 꼭짓점은
-  `hc:pt`(core 네임스페이스, rect/ellipse와 같은 기하 네임스페이스 계약)이고
-  자기 bbox 좌상단 원점 로컬 좌표계에 산다(정점 목록이 그 자기 `orgSz`와
-  정확히 일치, 실측) — `points_mm`로 받은 페이지-스페이스 좌표를 그 로컬
-  좌표계로 평행이동한다. 기존 `resize()`는 이미 범용(`pt` 로컬명 스캔)이라
-  변경 없이 다각형에도 적용된다. curve(`hp:curve`/`hp:seg`)는 이번 트레인
-  정직 보류: 유일한 실 예시에서 곡선의 `orgSz`가 앵커점 bbox보다 뚜렷이
-  크다(스플라인이 앵커점 밖으로 부풀어 오르는 실측) — 한컴의 정확한 곡선
-  적합 알고리즘 근거 없이 bbox를 추정하면 침묵 오류가 되므로 다음 사이클로
-  미룬다. arc·connectLine도 이번 트레인 범위 밖(다음 트레인).
-
-- **`doc.shapes.add_arc`** — 사분원(호) 저작(6.4 트레인 14). 실코퍼스
-  (`hwpxlib_corpus/reader_writer__SimpleArc.hwpx`) 리버스: 스키마상
-  `hp:arc`는 좌표 3점(`center`/`ax1`/`ax2`)뿐 각도 필드가 없다. 유일한 실
-  예시는 `center`가 자기 bbox 모서리에 앉고 `ax1`이 바로 아래, `ax2`가 바로
-  오른쪽인 사분원 하나뿐이라 그 배치만 점 단위로 검증됐고, 나머지 세
-  모서리는 다른 도형이 이미 쓰는 `hp:flip` 미러링으로 얻는다(`corner` 인자
-  — `TOP_LEFT`만 실측, 나머지 3개는 유도). `arc_type`(NORMAL/PIE/CHORD)은
-  스키마 열거값 그대로 통과한다. connectLine은 이번 트레인도 정직 보류:
-  유일한 정본 예시(`SimpleConnectLine.hwpx`)는 자유선이 아니라
-  `subjectIDRef`로 다른 두 도형(rect·ellipse)을 잇는 "스마트 연결선"이고,
-  `offset`이 음수·`curSz`≠`orgSz`·`scaMatrix`가 평행이동까지 얹은 비항등
-  행렬이라 그 관계식을 재현할 근거가 없다(다른 예시는 파일명이 스스로 결함
-  사례임을 밝히고 `scaMatrix`가 퇴화 행렬이라 정본으로 못 쓴다).
-
+- **`doc.styles.ensure_font`** — 폰트 선언·치환 저작. 완전성 감사가 지목한
+  최대 갭(#1): 모든 실문서가 `hh:fontfaces`를 갖는데도 이제까지 그 블록은
+  frozen 스켈레톤 출력이었다. 언어 블록 7종을 기본 등록하고 `ensure_style`과
+  같은 dedupe 관용구를 따르며, `substFont`는 실코퍼스 그대로 — 임베딩이
+  아니면 `binaryItemIDRef` 속성 자체를 쓰지 않고(1682/1682 관측)
+  `substFont` 값은 항상 빈 문자열(284/284), `isEmbedded`는 "0"/"1" 스펠링
+  (6741 관측). `fontface` id 번호가 언어 블록마다 독립적으로 매겨진다는
+  실측도 고정했다.
+- **탭 정지 저작·읽기** — `apply_paragraph_format(tab_stops=...)`. 감사 갭
+  #2. 스키마는 `tabPr`당 `tabItem` 최대 1개를 암시하지만 실 정부 문서는
+  위치정렬 최대 4개를 한 `tabPr`에 담는다 — 코퍼스가 스키마를 이겼고
+  저작은 문서를 따른다. auto-tab 불리언도 같은 "0"/"1" 스펠링.
+- **`layoutCompatibility`·`compatibleDocument`·`settings.xml` 읽기 표면** —
+  감사의 R1 반박(모든 실문서에 있는데도 코드가 전혀 못 읽던 `hh:
+  layoutCompatibility`)을 닫는다. `settings.xml`은 벤더드 스키마 어디에도
+  선언이 없어 177개 실문서로 구조를 역설계했고(`config:config-item` 어휘는
+  OASIS ODF 1.0을 그대로 재사용), `layoutCompatibility`는 스키마가 48개
+  플래그를 선언하지만 실문서 전부 비어 있어 관찰된 자식 이름 집합만
+  보존한다. 의도적으로 읽기 전용 — 쓰기 API가 없으므로 OPC 계층의 무손실
+  바이트 보존이 그대로 적용된다(3개 실픽스처로 확인).
+- **도형 텍스트(draw-text)·개체 캡션** — 감사 갭 #3·#4. `.draw_text`/
+  `.set_draw_text`(rect·ellipse 호스트, 스키마가 도형 개체로만 제한)와
+  표·그림·도형이 공유하는 `.caption`/`.set_caption`/`.remove_caption`.
+  실코퍼스는 스키마와 반대로 `shadow`가 `drawText`보다 먼저 오고, 캡션
+  배치는 호스트에 관계없이 "outMargin 다음"으로 일관됐다.
+- **하이라이트(형광펜)** — `doc.text.highlight`/`.highlights`.
+  `markpenBegin`/`End`를 LIFO로 페어링해 `hp:t` 내부에 삽입한다. 벤더드
+  코퍼스의 유일한 실 예시가 스키마상 잘못된 위치(hwpxlib 오류-회귀
+  사례)이므로 그 기형 원본은 "읽기-비어있음"으로 그대로 두고 신규 저작
+  경로만 정상 계약으로 검증했다.
+- **이미지·그라디언트 채우기** — `ensure_border_fill`이 스키마의 `fillBrush`
+  선택지(`winBrush`/`gradation`/`imgBrush`) 전부를 커버하게 됐다.
+  `fill_image=`(`doc.media` 경유, 실측 전량 `TOTAL` 모드)·`fill_gradient=`
+  (`LINEAR` 기본, alpha "0" 관측)가 `fill_color=`와 상호배타 옵션으로
+  합류했고, 표 셀 배경 `set_cell_fill_image`/`set_cell_fill_gradient`까지
+  실제 소비 경로가 이어진다.
+- **메모 도형 저작** — `ensure_memo_shape`. `hh:memoPr`을 find-or-create
+  dedupe로 등록한다. 실코퍼스 다수 기본값(폭 15591·SOLID·공유 3색
+  프로필)을 따르고, id는 1부터 시작(`borderFill`의 0과 다름), `memoType`은
+  "NOMAL" 스펠링을 스키마·실문서 그대로 유지한다.
+- **페이지 번호 재시작·페이지별 요소 숨기기** — `restart_page_number`
+  (`hp:newNum`)·`hide_page_elements`(`hp:pageHiding`). `newNum`은 스키마가
+  요구하는 `autoNumFormat` 자식 없이 자기닫힘으로 실코퍼스 그대로
+  방출한다(편차 등재).
+- **위·아래 첨자 실요소, 양각·음각, 외곽선** — `ensure_run` 확장. hwpxlib
+  실코퍼스(오류 문서 charPr id=513)에서 실한컴이 위첨자를 `relSz`/`offset`
+  수치가 아니라 `hh:supscript` 플래그 요소만으로 판정함을 확인해, 기존
+  offset 부호 계약(실한컴 렌더 검증으로 이미 확정됨)은 그대로 두고 실요소를
+  병행 방출한다. emboss·engrave·outline은 스키마 근거로 추가.
+- **필드 매개변수 일반 모델(`ParameterList`)·타입 있는 콤보박스
+  `listItem`** — `hp:parameters`(필드 클릭 액션)와 `hp:parameterset`(도형
+  확장 속성)가 스키마상 같은 재사용 타입임을 실코퍼스로 확인하고 범용
+  파서·직렬화기로 승격했다(불리언·정수·실수·문자열·리스트 매개변수 재귀
+  포함). 처음엔 읽기 모델만 있고 실제 문서 dispatch에 연결이 안 돼 있던
+  진짜 갭이었음이 이후 사이클에서 드러나 바로 이어붙였다(아래 고침 참조).
+- **`hp:compose`(글자 겹치기·원문자)·재귀 `InlineObject` 승격** —
+  `ComposedCharacter`가 `GenericElement` 대신 타입 있는 필드로 노출된다.
+  실코퍼스로 위치가 스키마와 다름을 확정했고(`hp:t` 자식이 아니라 `hp:run`
+  직속), 컨테이너 등 내부에 중첩된 도형도 재귀 깊이와 무관하게
+  `InlineObject`로 인식되도록 확장했다.
+- **`doc.shapes.add_polygon`** — 다각형 저작. 실코퍼스(`hwpxlib_corpus/
+  reader_writer__SimplePolygon.hwpx`) 리버스: 꼭짓점은 `hc:pt`(core
+  네임스페이스, rect·ellipse와 같은 기하 네임스페이스 계약)이고 자기 bbox
+  좌상단 원점 로컬 좌표계에 산다(정점 목록이 그 자기 `orgSz`와 정확히
+  일치, 실측) — `points_mm`로 받은 페이지-스페이스 좌표를 그 로컬 좌표계로
+  평행이동한다. 기존 `resize()`는 이미 범용(`pt` 로컬명 스캔)이라 변경
+  없이 다각형에도 적용된다. curve(`hp:curve`/`hp:seg`)는 정직 보류: 유일한
+  실 예시에서 곡선의 `orgSz`가 앵커점 bbox보다 뚜렷이 크다(스플라인이
+  앵커점 밖으로 부풀어 오르는 실측) — 한컴의 정확한 곡선 적합 알고리즘
+  근거 없이 bbox를 추정하면 침묵 오류가 되므로 미룬다.
+- **`doc.shapes.add_arc`** — 사분원(호) 저작. 실코퍼스(`hwpxlib_corpus/
+  reader_writer__SimpleArc.hwpx`) 리버스: 스키마상 `hp:arc`는 좌표 3점
+  (`center`/`ax1`/`ax2`)뿐 각도 필드가 없다. 유일한 실 예시는 `center`가
+  자기 bbox 모서리에 앉고 `ax1`이 바로 아래, `ax2`가 바로 오른쪽인 사분원
+  하나뿐이라 그 배치만 점 단위로 검증됐고, 나머지 세 모서리는 다른 도형이
+  이미 쓰는 `hp:flip` 미러링으로 얻는다(`corner` 인자 — `TOP_LEFT`만 실측,
+  나머지 3개는 유도). `arc_type`(NORMAL/PIE/CHORD)은 스키마 열거값 그대로
+  통과한다. connectLine은 정직 보류: 유일한 정본 예시(`SimpleConnectLine.
+  hwpx`)는 자유선이 아니라 `subjectIDRef`로 다른 두 도형을 잇는 "스마트
+  연결선"이고, `offset`이 음수·`curSz`≠`orgSz`·`scaMatrix`가 평행이동까지
+  얹은 비항등 행렬이라 관계식을 재현할 근거가 없다.
 - **파트 계층 읽기 모델** — `version.xml`(`HcfVersion`)·`masterpage.xml`
-  (`MasterPage`)·`history.xml`(`History`) 읽기 승격(감사 갭 #15, 6.4 트레인
-  15). `settings.xml`(`ApplicationSettings`) 관용구 그대로: `doc.parts.*`가
-  돌려주는 `HwpxOxml{Version,MasterPage,History}`에 `.to_model()` 추가. 실
-  산출물 47/47(version)·다수(masterpage, 서로 다른 두 문서 계열 110건)
-  전수가 `DevDoc/OWPML SCHEMA`의 2024 초안 스키마와 루트 이름·네임스페이스가
-  다르다는 걸 재확인(스키마가 아니라 실코퍼스가 진실 원천 — `version.xml`
-  루트는 `hv:HCFVersion`이고 오탈자 `tagetApplication`을 그대로 쓴다,
+  (`MasterPage`)·`history.xml`(`History`) 읽기 승격(감사 갭 #15).
+  `settings.xml` 관용구 그대로: `doc.parts.*`가 돌려주는 `HwpxOxml
+  {Version,MasterPage,History}`에 `.to_model()` 추가. 실 산출물
+  47/47(version)·다수(masterpage, 서로 다른 두 문서 계열 110건) 전수가
+  벤더드 2024 초안 스키마와 루트 이름·네임스페이스가 다르다는 걸
+  재확인했다(스키마가 아니라 실코퍼스가 진실 원천 — `version.xml` 루트는
+  `hv:HCFVersion`이고 오탈자 `tagetApplication`을 그대로 쓴다,
   `masterpage.xml` 루트 `masterPage`는 네임스페이스가 없다). `history.xml`은
-  실 예시가 하나도 없어(코퍼스+접근 가능한 개인 실문서 6,262건 전수) 스키마
-  전용으로 표기 — `historyEntry`의 평평한 메타데이터만 타입 있는 필드로
-  옮기고, 재귀 중첩되는 diff 본문(`insert`/`update`/`delete`/`position`)은
-  `DiffNode`로 원문 구조 그대로 보존한다(전용 데이터클래스로 못박지 않음).
+  실 예시가 하나도 없어(코퍼스+개인 실문서 6,262건 전수) 스키마 전용으로
+  표기 — 평평한 리비전 메타데이터만 타입 있는 필드로 옮기고, 재귀
+  중첩되는 diff 본문은 `DiffNode`로 원문 구조 그대로 보존한다.
+- **그룹 개체(컨테이너) 저작** — `doc.shapes.add_container`. 실코퍼스 74개
+  컨테이너(벤더드 3개 + 오류-회귀 픽스처 71개) 리버스: 멤버는 독립 도형과
+  동일한 offset/orgSz/curSz/flip/renderingInfo 계약을 갖되
+  `AbstractShapeObjectType` 꼬리(sz/pos/outMargin/shapeComment)를 그룹이
+  대신 갖고 `groupLevel="1"`이 된다. 컨테이너 자신의 `orgSz`는 멤버들의
+  합집합 bbox. 알려진 한계도 그대로 문서화했다: `resize()`가 컨테이너
+  자신의 크기만 갱신하고 멤버 좌표는 안 건드린다.
+- **특수 인라인 텍스트 원자(줄바꿈·전각공백·고정폭공백)** —
+  `add_run(expand_special_characters=True)`. 세 마커 모두 `hp:t` 내부
+  혼합 콘텐츠로 중첩되는 실코퍼스 관용구를 그대로 재현한다(스키마가
+  허용하는 `hp:run` 형제 배치는 실사용 0건). 저작과 별개로 읽기 쪽 실버그도
+  같은 트레인에서 발견·수리했다(아래 고침 참조).
+- **`hp:switch`/`case`/`default` 읽기 모델** — 스키마 선언이 전혀 없는데도
+  실코퍼스 236/237이 쓰는 버전-호환 래퍼. `paraPr`의 `margin`/`lineSpacing`이
+  이 래퍼 안에 있으면 `None`으로 읽히던 실버그를 `hp:case`-우선/`hp:default`-
+  폴백 읽기로 수리했다(아래 고침 참조). `tabPr` 쪽은 두 분기가 서로 다른
+  값(정확히 2배 관계)을 가져 정반대로 `hp:default`를 우선해야 한다는 것도
+  별도로 확정했다.
+- **저수준 도형·컨트롤 이스케이프 해치의 정직한 검증 신호** —
+  `add_shape`/`add_control`로 필수 자식이 빠진 도형이나 빈 `hp:ctrl`을
+  만들면 실한컴이 열지 못하는데도 `validate_package`/
+  `validate_editor_open_safety` 둘 다 통과시키던 갭. 경고 레벨 신호를
+  추가했다(오류로 만들지 않음 — 여러 호출에 걸친 점진적 조립이라는 이
+  이스케이프 해치의 문서화된 사용법을 깨지 않기 위해서다). 컨테이너
+  멤버는 이 5개 자식이 없는 게 정상이라 스캔에서 제외한다.
+- **문서 옵션·호환성 설정 저작** — `hh:compatibleDocument/@targetProgram`
+  (실측 47/47 "HWP201X" 고정)·`layoutCompatibility` 플래그·`hh:docOption/
+  linkinfo`·`hh:paraPr/autoSpacing`까지 쓰기 경로를 열었다. 모든 불리언은
+  "0"/"1" 관용구(다른 OWPML 불리언 계열과 동일).
+- **`hp:label`(양식 라벨·명패) 읽기+쓰기** — 개인 실문서(학교 행정서식) 75건
+  리버스: 항상 `hp:tbl`의 마지막 자식, 스키마 11개 속성 전부 사용, 실측은
+  정확히 2가지 조합(2×9 소형 라벨시트 325건/1×2 대형 명패 111건)으로
+  수렴하지만 저작은 그 두 조합에 값을 제한하지 않는다(실증 없는 값을
+  기계적으로 금지하지 않는다는 원칙).
+- **문서 삽입·병합(`append_document`/`insert_document`)** — 다른 HWPX
+  문서의 본문을 열린 문서에 복사하면서 헤더 소유 공유 자원(charPr/paraPr/
+  style/borderFill/tabPr/numbering/bullet/memoPr/fontfaces)마다 새 대상
+  id로 재매핑해, 대상이 이미 그 번호에 갖고 있던 값에 조용히 앨리어싱되지
+  않도록 한다. v2에서 실측된 한컴 자신의 "문서 끼워 넣기" 4축 정책(글자
+  모양·스타일·문단 모양·쪽 모양 유지)을 named parameter로 노출한다
+  (기본값=v1의 이미 실한컴 검증된 동작, 비기본값은 타입 오류로 거부) —
+  KeepStyle 축이 동일-이름 스타일 충돌 해소 규칙임을, KeepSection 축이
+  별도 섹션 파트 생성 여부임을 실 골드 2라운드로 확정했다. MEMO 병합
+  지원도 추가됐다(`hp:memogroup`이 문단이 아니라 섹션의 형제임을 확인
+  후). 이 저작 표면을 만드는 과정에서 여러 실결함을 발견해 고쳤다(아래
+  고침 참조).
+- **덧말·글자 겹치기(`add_dutmal`/`add_composed_character`) 정식 완결** —
+  구현 자체는 앞서 들어와 있었고, 이번에 capability 영역 등록·편차 등재·
+  정식 테스트로 마무리했다.
+- **문서정보(document metadata)** — `doc.parts.set_document_metadata`/
+  `document_metadata()`. 실문서 67픽스처 전수 조사: title/creator/subject/
+  keyword/lastsaveby는 요소는 있지만 대개 비어 있고, `CreatedDate`/
+  `ModifiedDate`는 65/65 단일 ISO-8601 포맷(저작 대상)인 반면 자유형식
+  `date` 필드는 한컴 버전·로캘에 따라 5가지 이상 서로 다른 포맷이 관측돼
+  정직하게 저작을 보류한다(불투명 문자열 보존만, curve·connectLine과 같은
+  원칙).
+- **드롭캡** — `doc.shapes.add_drop_cap`. `dropcapstyle`이 `hh:paraPr`이
+  아니라 `AbstractShapeObjectType`(모든 임베드 가능 도형의 공유 속성)에
+  있다는 걸 스키마 대조로 발견했다. 67개 픽스처 중 유일한 실사용 예시
+  (TripleLine)를 구조까지 리버스했고(투명 `hp:rect`가 확대 글자를 감싼
+  `drawText`/`subList`, `horzRelTo=PARA`/`flowWithText=1`, `curSz`가 항상
+  0/0인 센티널), DoubleLine·Margin은 표본이 없어 타입 오류로 거부한다.
+- **글자 방향(세로쓰기)** — `doc.page.text_direction`/`set_text_direction`.
+  `hp:secPr`의 `textDirection`(HORIZONTAL/VERTICAL/VERTICALALL)·
+  `textVerticalWidthHead`를 노출한다. 67픽스처 74개 `secPr` 전부
+  HORIZONTAL이라 VERTICAL 계열은 실사용 전례가 없지만, 이 프로젝트
+  최초로 VERTICAL/VERTICALALL을 실제로 실한컴 렌더 검증까지 통과시켰다.
+- **단 나누기** — `apply_paragraph_format(column_break=...)`. `hp:p` 자신의
+  `columnBreak` 속성으로, 기존 `page_break_before`(`hh:breakSetting`이라는
+  공유 스타일 속성)와는 메커니즘이 다른 별개의 문단-인스턴스 속성임을
+  확인한 뒤 저작했다(실 73건 `pageBreak="1"` 계열로 동일 어휘 계약 확인).
+- **표 나누기·붙이기** — `apply_table_ops`의 `split_table`·`merge_table`.
+  전용 OWPML 어휘가 없어 `hp:tr`/`hp:tc`/`cellAddr`/`cellSpan` 순수 구조
+  편집으로 구현했고, 병합 셀이 분할 경계를 가로지르면 실패 폐쇄로
+  거부한다. 표 뒤집기는 정의가 불가능하다는 판단으로(병합 셀이 있을 때
+  어느 쪽이 내용을 갖는지 정할 근거가 스키마·코퍼스 어디에도 없음) 정직
+  보류한다.
+- **셀 균등화(행 높이·열 너비)** — `equalize_column_widths()`/
+  `equalize_row_heights()`. 이미 있던 `set_column_widths`/셀별 `set_size`를
+  "균등화"라는 이름 있는 연산으로 노출했다. 병합 셀은 자신이 걸친
+  행·열의 합을 받는다.
+- **개요 번호매기기** — `ensure_numbering`/`apply_list_format`의 세 번째
+  kind, `"outline"`. `hh:heading type="OUTLINE"`이 리스트 서식과 같은
+  `hh:numbering`/`hh:paraHead` id-공간을 공유한다는 사실을 활용해 커스텀
+  번호 형식·시작값을 지정할 수 있게 했다.
+- **바탕쪽(master page) 쓰기 경로** — `doc.parts.add_master_page` +
+  `doc.page.set_master_page`/`.master_page_refs`. 유일한 실 샘플에서 파트
+  파일명·매니페스트 `opf:item` id·`masterPage` 루트 자신의 id·섹션의
+  `hp:masterPage/@idRef`가 모두 같은 문자열("masterpageN")을 공유함을
+  직접 확인해 재현했다. 마스터 페이지는 `opf:item`은 받지만 spine
+  `itemref`는 받지 않는다(읽기-순서 파트가 아니므로).
+- **날짜·교정 부호 필드** — `add_date_field(type="DATE")`·
+  `add_proofreading_mark(type="PROOFREADING_MARKS_SIGN")`(DEV-043). 실한컴
+  macOS GUI 프로브 골드(`date_and_proofreading_mark.hwpx`) 리버스. 스키마는
+  `PROOFREADING_MARKS`를 선언하지만 실측은 열거형에 아예 없는 값
+  `PROOFREADING_MARKS_SIGN`이다.
+- **PATH 필드** — `add_path_field(type="PATH")`. GUI 프로브 없이 기존
+  실코퍼스 샘플(파일 이름 필드, `Command=Format="$F"`)만으로 계약을
+  확보했다. 이 저작을 붙이며 `fieldEnd`의 `@fieldid` 갱신 누락이라는
+  실결함을 함께 발견해 DATE·교정 부호·PATH 세 필드 전부 소급 수리했다
+  (아래 고침 참조).
+- **titleMark(차례 숨기기·제목 차례 표시)** — `add_title_mark(*, in_toc:
+  bool)`(DEV-044). macOS GUI 자동화로는 캐럿을 임의 문단에 놓을 수 없어
+  한 사이클 넘게 저작이 보류돼 있었는데, Windows 박스 COM `SetPos` 3-
+  variant 프로브로 캐럿-문단 타겟팅 규칙이 확정되며 열렸다. `in_toc=True`
+  → `ignore="1"`, `False` → `ignore="0"`(이름의 직관과 반대인 극성을
+  macOS GUI·Windows COM 양쪽에서 독립적으로 확인). 필드 래퍼가 전혀 없는
+  유일한 마커 계열이라(DATE/교정 부호/PATH의 `ctrl`/`fieldBegin` 메커니즘과
+  다름) 새 run을 만들지 않고 기존 run의 첫 `hp:t` 안에 바로 삽입한다.
 
-### 정리 (사이클 6.4 마무리)
+### 고침
 
-- **편차 등재 DEV-012~015 + DEV-007 승격** — `docs/owpml-deviations.md` +
-  재실행 가능한 프로브(`probes/dev007_*.py`(갱신)·`dev012_*.py`~
-  `dev015_*.py`): (012) `hp:line`의 `startPt`/`endPt`는 `hc:` 네임스페이스,
-  `hp:connectLine`의 동명 필드는 `hp:` 네임스페이스 — 스키마 자체가 두
-  타입(`LineType`/`ConnectLineType`)을 다르게 선언한다는 사실을 실코퍼스로
-  재확인. (013) connectLine의 "스마트 커넥터" 관계식을 코드로 고정 —
-  `subjectIDRef`가 대상 도형의 `id`가 아니라 `instid`로 해석된다는 추가
-  발견, `renderingInfo`에 `scaMatrix`가 두 개 들어있는(그룹 레벨 변환이
-  얹힌) 사례도 포함. (014) `hp:arc`의 3점-무각도 계약(`ArcType`에 각도
-  필드가 아예 없음, `EllipseType`과 대비)을 스키마+실측 양쪽으로 고정.
-  (015) `version.xml` 루트가 스키마의 `version`이 아니라 실제로는
-  `hv:HCFVersion`(다른 네임스페이스)이고 필수 속성이 47/47 오탈자 그대로
-  `tagetApplication`이라는 걸 등재. (007 승격) masterpage.xml 무네임스페이스
-  루트 — 110건 교차검증(서로 다른 실문서 계열)과 이번 사이클 신설 구조화
-  읽기 모델(`master_page.py`)을 반영해 "observed(대응 불필요)"에서
-  "implemented"로 상태 갱신. 감사 갭 #12(`effects` 계열: glow/reflection/
-  softEdge 등, census 각 1파일)는 재평가 후 보류 유지로 판정 — 코퍼스 빈도
-  최하 컷이고 같은 컷의 다른 항목도 이번 사이클 보류였다는 근거, 별도
-  리버스는 안 함.
-- **openrate 코퍼스 v8** — `scripts/generate_openrate_corpus_v8.py`, v7에
-  가산(additive): 이번 사이클이 연 두 저작 표면만 다룬다(15+15=30건) —
-  curve·connectLine은 저작하지 않았으므로 스트라텀 없음(v7이 compose/
-  container·comboBox에 적용한 것과 같은 원칙). `authored-polygon`은 정점
-  수 3~12를 한 바퀴 돌며(3,4,…,12,3,4,…,7) 정다각형(3/4/5/9/11)·별형(짝수
-  6/8/10/12 → 3~6각 별)·오목 화살표(7, 별형이 아닌 별개의 오목 계열) 3
-  기하 계열을 전부 다루고 채움색·선색을 독립 회전한다. `authored-arc`는
-  corner 4종×arc_type 3종 회전. 정적 `validate_editor_open_safety`
-  사전필터 30/30 통과, 결정론 2회 재생성 바이트 동일 확인; 실한컴 GUI
-  오라클 배치는 별도 단계(루트가 실행).
+- **문서 병합의 `linkListIDRef` 과잉 거부 + 저장 경로 무결성 훼손** —
+  `hp:subList`가 관용적으로 갖는 센티널 값("0", 벤더드 코퍼스 5,891/5,891)
+  을 실제 연결된 텍스트박스 체인으로 오판해, 표를 가진 모든 문서(이
+  라이브러리 자신이 생성한 문서 포함)를 병합 불가로 만들던 결함. 더
+  심각한 두 번째 결함이 같은 트레인에서 함께 드러났다: 병합이 대상
+  헤더 트리를 직접 변형하면서도 `target_header.mark_dirty()`를 호출하지
+  않아, 그림이 껴 있지 않은 모든 병합이 메모리상 참조 무결성 검사는
+  통과하면서 실제로는 손상된 파일을 저장하고 있었다(재오픈 전까지 안
+  보임). 세 번째: `hp:secPr` 제거 로직이 같은 run에 얹혀 있던 표·텍스트
+  까지 통째로 삭제하던 결함(빈 문서 스켈레톤으로만 테스트돼 있었다).
+- **문서 병합의 `fieldEnd`/`@fieldid` 미갱신** — `hp:fieldBegin`·
+  `hp:fieldEnd` 둘 다 생성 시 같은 `fieldid`를 갖지만, 병합 리프레시가
+  `fieldBegin` 쪽 id/fieldid와 `fieldEnd`의 `beginIDRef`만 재발급하고
+  `fieldEnd` 자신의 `fieldid`는 건드리지 않아 원본 `uuid4` 값이 복사된
+  콘텐츠에 그대로 남아있던 결함. DATE·교정 부호·PATH 필드 저작에도 같은
+  결함이 있어 함께 소급 수리했다.
+- **문서 병합의 속성-클론 중첩 참조 앨리어싱** — `hh:paraPr` 내부 테두리의
+  `borderFillIDRef`/`tabPrIDRef`, `hh:charPr`의 글자-테두리
+  `borderFillIDRef`가 본문이 아니라 방금 복사된 헤더 항목 안에 살아있어
+  임포트 스캔에 안 잡히던 결함(참조가 매달린 상태가 아니라서 참조
+  무결성 검사도 통과했다). 무테두리 문서를 표 스타일(SOLID) 대상에
+  병합하면 표지 전체가 박스로 렌더되는 것으로 실증(실한컴 A/B 대조)한
+  뒤 수리했다.
+- **변경추적(추적된 삽입·삭제·교체) 줄 겹침 렌더** — run 교체 경로
+  (`apply_model`)가 문단의 lineseg 캐시를 지우지 않아 한컴이 옛
+  줄배치를 재사용, 추가된 텍스트가 기존 줄 위에 겹쳐 렌더되던 실사용
+  제보를 재현·수리했다. 실한컴 오라클로 수리 전후 렌더를 직접
+  대조했다. 후속 감사로 문단 복제 경로 7종을 전수 지도화해 무방비
+  2종(document-merge·공개 `insert_paragraphs`/`copy_paragraph_range`)의
+  lineseg 캐시도 클론 시점에 제거하도록 정리했다(항상 새 위치의 새
+  내용이므로 원본 절대좌표를 들고 있을 이유가 없다).
+- **`hh:tabPr` 탭 정지가 `hp:switch`로 감싸이면 통째로 안 읽히던 결함
+  (DEV-022)** — `parse_tab_definition`이 직계 자식만 스캔해 `hp:switch`
+  안의 `hh:tabItem`(실코퍼스 449건)을 전부 놓치던 결함. `hp:case`/
+  `hp:default` 두 분기가 실제로는 다른 값(정확히 2배 관계)을 갖는다는 걸
+  확인해 `hp:default`를 우선하는 읽기 모델을 세웠다(같은 값을 공유하는
+  `paraPr`의 case-우선 규칙과는 정반대). 저작 쪽의 자매 결함(`ensure_
+  tab_definition`의 dedupe 비교가 같은 맹점으로 중복 `tabPr`을 만들던
+  문제)도 같은 커밋에서 함께 수리했다.
+- **`add_section()`이 메모가 앵커된 첫 문단에서 깨지던 결함** — `hp:secPr`
+  이 항상 첫 문단의 물리적으로 첫 run에 있다고 가정하던 코드가, 메모(나
+  다른 필드)가 앞에 붙으면 실제로 존재하는 `secPr`을 못 찾고 "양수 페이지
+  크기를 가진 섹션이 없다"는 오류를 내던 결함.
+- **`paraPr` 비중복화** — `ensure_paragraph_format`이 호출마다 동일 내용의
+  `paraPr`을 새 id로 계속 발급하던 결함(실한컴은 저장 시점에 중복을 자체
+  병합하지만 이 라이브러리는 하지 않고 있었다). 구조 비교 기반
+  find-or-existing으로 수리했다.
+- **특수 인라인 텍스트 원자 읽기 버그** — `TextExtractor`가 `lineBreak`/
+  `nbSpace`/`fwSpace`를 재귀 순회에서 건너뛰기만 하고 대체 문자를 넣지
+  않아, 줄바꿈이 조용히 사라지고 앞뒤 텍스트가 그대로 붙어버리던 결함.
+  각 마커를 유니코드 대응(줄바꿈은 개행, 전각·고정폭 공백은 각각의
+  전용 공백 문자, 하이픈은 소프트 하이픈)으로 치환하도록 고쳤다.
+- **커버리지 원장(coverage ledger) 계측기 자체의 오분류 4종** — 독립
+  완전성 감사(2026-08-04)가 판정한 오분류(주석·문서화 문자열을 코드로
+  오인, 함수 인자로 전달된 태그를 못 따라감, 런타임 조립 마크에 근거
+  없는 화이트리스트 등)를 tokenize+ast 기반 스캐너·고정점 인자 추적기·
+  근거-필수 화이트리스트로 수리했다. 감사가 제시한 4개 오분류 사례 전부
+  수리 전/후 재현으로 확인했다.
+
+### 정리 (측정 인프라)
+
+- **census 모집단 재구성** — 커버리지 원장의 census를 재현 불가능한
+  옛 166파일 모집단에서 물러나, 벤더드 hwpxlib 코퍼스(47, 누구나 재현
+  가능) + 관리자 개인 실문서 집계(190, 경로·이름·내용 없이 개수만) =
+  237건으로 재구성했다. 두 모집단의 비대칭성을 census 문서 자체에
+  명시한다.
+- **편집기 표면 인벤토리(신규 계측기)** — coverage ledger가 재는 "요소
+  축"과 별개로 "기능 축"(사용자가 실제로 에디터에서 클릭하는 모든
+  기능)을 재는 새 문서(`docs/editor-surface-inventory.md`). capabilities
+  등록 영역과 support-matrix 근거를 자동 교차해 `[엔진 상태]×[증거]×
+  [실한컴 검증]`을 도출한다. 이 인벤토리 자체가 자기 스캔으로 8개
+  실동작·미등록 기능(`doc.page`의 19개 메서드 전체 등)을 찾아냈고, 사이클
+  진행에 따라 미실측 행을 하나씩 닫아 이번 릴리스 시점에는 구조적으로
+  검증 불가능한 `shape-escape-hatch` 한 줄만 남았다(실한컴이 설계상 그
+  입력을 거부하므로 "렌더 검증"이라는 개념 자체가 성립하지 않는다).
+- **편집기 메뉴 역방향 지도(신규 계측기)** — "한컴 메뉴 항목 → 우리 엔진
+  대응"이라는 반대 방향 질문에 답하는 새 문서(`docs/editor-menu-reverse-
+  map.md`). macOS 9개 메뉴 128개 항목을 전수 판정했다([대응 영역]/
+  [부분 대응]/[대응 없음=신규 갭]/[스코프 밖]/[미확인]). 여기서 나온
+  "대응 없음" 목록이 이번 릴리스의 신규 저작 표면(문서정보·드롭캡·
+  글자방향·단나누기·표나누기/붙이기·개요·바탕쪽·날짜/교정/PATH 필드·
+  titleMark 등) 대다수의 최초 입력이 됐다.
+- **openrate 코퍼스 v5~v21** — 사이클마다 새로 연 저작 표면을 실한컴
+  오라클로(초기엔 Windows COM, v6부터는 macOS GUI) 배치 측정하는 시리즈를
+  17회 더 이어갔다. 매 배치마다 결정론(독립 재생성 2회 바이트 동일)·
+  정적 오픈-세이프티 사전필터·부정 대조군 거부를 확인했고, 6.11 사이클
+  종료 시점에 인벤토리의 미실측 행을 한 차례 0으로 닫았다(이후 신규
+  저작마다 다시 쌓이고 다시 닫히는 순환이 이어졌다).
+- **편차 등재 DEV-002~044** — 스키마-대-실측 괴리를 재실행 가능한
+  프로브와 함께 43건 추가 기록했다(예: `tabItem` 카디널리티, connectLine의
+  `subjectIDRef`가 `id`가 아닌 `instid`로 해석되는 점, `hp:label`의 실측
+  2-클러스터 수렴, `hp:switch`/`case`/`default`의 스키마 완전 부재,
+  titleMark가 스키마에는 선언돼 있으나 문서화가 전무한 점). 별도로,
+  이전 조사 회차에서 미병합 상태로 남아 있던 편차 16건도 재검증을 거쳐
+  정식 등재했다.
 
 ## [6.0.2] - 2026-08-04
 

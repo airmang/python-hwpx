@@ -12,7 +12,6 @@ from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxm
 
 from . import body
 from ._document_primitives import (
-    _DEFAULT_PARAGRAPH_ATTRS,
     _HP,
     _HP_NS,
     _append_child,
@@ -21,14 +20,12 @@ from ._document_primitives import (
     _child_tag_like,
     _children_by_local,
     _clear_paragraph_layout_cache,
-    _default_sublist_attributes,
     _is_tab_control_element,
     _normalize_enum_attr,
     _object_id,
     _sanitize_text,
     NEW_NUM_KINDS,
 )
-from .memo import HwpxOxmlNote
 from .namespaces import XML_NS, tag_local_name
 from .dutmal_compose import _paragraph_add_composed_character, _paragraph_add_dutmal
 from .field_marks import (
