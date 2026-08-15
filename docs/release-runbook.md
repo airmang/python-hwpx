@@ -12,14 +12,26 @@ silently lost a published security fix — a worse regression than either
 version alone. `git fetch` at the very start of release prep would have
 caught it a day earlier, with a small merge instead of a near-miss.
 
-## 0. Before anything else: check origin
+**The same pattern repeated within hours, in the companion repo.** While
+promoting `python-hwpx-automation`'s `currentPublic` coordinate to follow
+core's 6.1.0, the push itself was rejected non-fast-forward: `origin/main`
+had gained an unrelated CI commit since the local checkout was last synced.
+This is not a core-specific risk — it recurs independently in every repo in
+this three-repo ecosystem (core, automation, skill), and it recurs *within* a
+single task, not only across sessions. §0 below applies to **all three
+repos**, and at **two points**, not one.
+
+## 0. Before anything else — and again right before push: check origin
 
 **The first action of any release-prep task, and of any long-lived branch's
 work session, is `git fetch origin` followed by a diff against the branch's
 own base** — not the last step, not something the branch owner remembers to
 do "eventually." A branch that forks and then lives for many commits (a
 multi-cycle train, in this project's own vocabulary) is exactly the shape
-that lets a fork-point drift unnoticed.
+that lets a fork-point drift unnoticed. **Do this in whichever of the three
+repos (`python-hwpx`, `python-hwpx-automation`/`hwpx-mcp-server`,
+`hwpx-skill`/`hwpx-plugins`) the task touches — each has its own independent
+`origin/main` and drifts independently.**
 
 ```
 git fetch origin
@@ -40,6 +52,13 @@ If that list is non-empty:
   version coordinate for the branch's own release must still order correctly
   above it (semver comparison, not date) and the CHANGELOG must fold the
   upstream release's own entry in, not overwrite or omit it.
+
+**Run the same check again immediately before pushing**, not only at task
+start — the automation-repo incident above landed between those two points
+within a single work session. A rejected non-fast-forward push is the
+git-level guardrail when this second check is skipped, but relying on that
+guardrail means discovering the drift only after preparing a push that then
+has to be redone; checking first is strictly cheaper.
 
 This applies at **cycle start**, not only at release-prep time — the earlier
 a divergence is caught, the smaller the merge.
@@ -105,3 +124,12 @@ code*, not by the field names:
 
 Whichever way the judgment lands, state the reasoning and the file:line
 evidence in the commit message, not just the conclusion.
+
+**Each repo's test suite needs its own environment, not core's.** Running
+automation's suite without `HWPX_ORACLE_STRUCTURAL_ONLY=1` wakes a live
+Hancom-oracle code path that fails outside a properly permissioned macOS GUI
+session — a run without it produced 12 unrelated-looking failures that
+vanished under the correct environment (1481/1485 passed, 0 failed). Confirm
+a suspicious failure is real by reproducing it with the repo's own documented
+local-test invocation before reporting it as a regression, not by assuming a
+bare `pytest -q` is equivalent everywhere.
