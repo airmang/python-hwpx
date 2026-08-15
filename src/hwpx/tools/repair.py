@@ -15,6 +15,7 @@ from ..opc.relationships import is_header_part_name, is_section_part_name
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from .package_validator import MIMETYPE_PATH, validate_editor_open_safety, validate_package
 from .recover import recover_entries
+from ..opc.security import guard_zip_file, read_member
 
 __all__ = [
     "RepairResult",
@@ -66,6 +67,9 @@ def _read_entries(
     entries: list[_BufferedEntry] = []
     total_size = 0
     with ZipFile(source_path, "r") as archive:
+        # The per-entry/total limits below sum declared sizes, so the archive
+        # still needs the ratio, entry-count and member-name checks.
+        guard_zip_file(archive)
         for info in archive.infolist():
             if info.is_dir():
                 continue
@@ -74,7 +78,12 @@ def _read_entries(
             total_size += info.file_size
             if total_size > max_total_size:
                 raise ValueError(f"archive exceeds max_total_size={max_total_size}")
-            entries.append(_BufferedEntry(info=info, payload=archive.read(info)))
+            entries.append(
+                _BufferedEntry(
+                    info=info,
+                    payload=read_member(archive, info, limit=max_entry_size),
+                )
+            )
     return tuple(entries)
 
 

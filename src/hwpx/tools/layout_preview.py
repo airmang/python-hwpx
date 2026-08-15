@@ -17,7 +17,7 @@ from xml.etree import ElementTree as ET
 from zipfile import BadZipFile, ZipFile
 
 from ..equation import render_equation
-from ..opc.security import guard_zip_file, parse_xml_stdlib
+from ..opc.security import guard_zip_file, parse_xml_stdlib, read_member
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
@@ -191,7 +191,7 @@ def _read_package_parts(source: str | Path | bytes) -> tuple[dict[str, bytes], l
             archive = Path(source)
         with ZipFile(archive) as zf:
             guard_zip_file(zf)
-            return {name: zf.read(name) for name in zf.namelist()}, warnings
+            return {name: read_member(zf, name) for name in zf.namelist()}, warnings
     except (BadZipFile, FileNotFoundError, OSError) as exc:
         raise ValueError(f"unable to read HWPX package: {exc}") from exc
 

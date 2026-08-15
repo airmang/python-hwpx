@@ -10,6 +10,12 @@ from zipfile import BadZipFile, ZipFile
 from hwpx.document import HwpxDocument
 
 from .base import DocumentIngestResult, DocumentSourceInfo
+from ..opc.security import (
+    MAX_ZIP_MIMETYPE_BYTES as _MAX_MIMETYPE_BYTES,
+    HwpxSecurityError,
+    guard_zip_file,
+    read_member,
+)
 
 
 class HwpxMarkdownConverter:
@@ -70,16 +76,21 @@ def _looks_like_hwpx_package(file_stream: BinaryIO) -> bool:
     cur_pos = file_stream.tell()
     try:
         with ZipFile(file_stream) as archive:
+            guard_zip_file(archive)
             names = set(archive.namelist())
             if "mimetype" in names:
                 try:
-                    mimetype = archive.read("mimetype").decode("utf-8", "replace").strip()
+                    mimetype = (
+                        read_member(archive, "mimetype", limit=_MAX_MIMETYPE_BYTES)
+                        .decode("utf-8", "replace")
+                        .strip()
+                    )
                     if "hwp" in mimetype.lower() or "hwpx" in mimetype.lower():
                         return True
                 except Exception:
                     pass
             return any(name.startswith("Contents/section") and name.endswith(".xml") for name in names)
-    except (BadZipFile, OSError):
+    except (BadZipFile, OSError, HwpxSecurityError):
         return False
     finally:
         file_stream.seek(cur_pos)

@@ -28,6 +28,7 @@ import zipfile
 from dataclasses import dataclass
 
 from hwpx.document import HwpxDocument
+from ..opc.security import guard_zip_file, read_member
 
 __all__ = [
     "IdempotenceReport",
@@ -78,11 +79,12 @@ def _part_contents(data: bytes) -> tuple[dict[str, bytes], list[str]]:
     contents: dict[str, bytes] = {}
     duplicates: list[str] = []
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        guard_zip_file(archive)
         for info in archive.infolist():
             name = info.filename
             if name in contents:
                 duplicates.append(name)
-            contents[name] = archive.read(info)
+            contents[name] = read_member(archive, info)
     return contents, duplicates
 
 

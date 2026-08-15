@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
-from ..opc.security import guard_zip_file, parse_xml_stdlib
+from ..opc.security import guard_zip_file, parse_xml_stdlib, read_member
 #: A caller-supplied redaction step. Declared here rather than imported from
 #: mail_merge, which imports export_text — the two would form a cycle.
 TextSanitizer = Callable[[str], str]
@@ -41,7 +41,7 @@ def _section_xmls(source: HwpxDocument | bytes) -> list[ET.Element]:
         with ZipFile(io.BytesIO(source)) as zf:
             guard_zip_file(zf)
             names = sorted(n for n in zf.namelist() if _SECTION_RE.match(n))
-            return [parse_xml_stdlib(zf.read(n), part_name=n) for n in names]
+            return [parse_xml_stdlib(read_member(zf, n), part_name=n) for n in names]
     return [sec.element for sec in source._root.sections]
 
 

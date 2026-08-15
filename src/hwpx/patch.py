@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
+from .opc.security import guard_zip_file, read_member, read_zip_members
 from .mutation_report import MutationReport, project_byte_splice, visual_value_from_status
 from .quality import QualityPolicy, SavePipeline
 from .quality.report import VisualCompleteReport
@@ -199,6 +200,10 @@ def paragraph_patch(
     source_bytes = _read_source_bytes(source)
     normalized_patches = tuple(_normalize_patch(item) for item in patches)
     if not normalized_patches:
+        # The early return still hands the source to the save pipeline, so it has
+        # to clear the same limits as the patching path below.
+        with ZipFile(io.BytesIO(source_bytes), "r") as archive:
+            guard_zip_file(archive)
         open_safety, visual_complete = _finalize(source_bytes, output_path, source=source)
         return BytePreservingPatchResult(
             data=source_bytes,
@@ -212,7 +217,8 @@ def paragraph_patch(
         )
 
     with ZipFile(io.BytesIO(source_bytes), "r") as archive:
-        parts = {info.filename: archive.read(info.filename) for info in archive.infolist() if not info.is_dir()}
+        guard_zip_file(archive)
+        parts = read_zip_members(archive)
 
     changed_parts: dict[str, bytes] = {}
     applied: list[PatchApplied] = []
@@ -481,9 +487,12 @@ def _apply_edits(payload: bytes, edits: Sequence[tuple[int, int, bytes]]) -> byt
 def _rewrite_zip_entries(source: bytes, replacements: Mapping[str, bytes]) -> bytes:
     buffer = io.BytesIO()
     with ZipFile(io.BytesIO(source), "r") as src:
+        # Also reached directly by the public rewrite_package_parts(), so the
+        # entry-count, total-size and ratio limits have to be applied here too.
+        guard_zip_file(src)
         with ZipFile(buffer, "w") as dst:
             for info in src.infolist():
-                payload = replacements.get(info.filename, src.read(info.filename))
+                payload = replacements.get(info.filename, read_member(src, info))
                 dst.writestr(info, payload)
     return buffer.getvalue()
 

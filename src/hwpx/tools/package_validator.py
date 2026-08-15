@@ -15,6 +15,7 @@ from lxml import etree as LET  # type: ignore[reportMissingImports]
 
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from ..oxml.objects import _REQUIRED_SHAPE_CHILD_NAMES
+from ..opc.security import HwpxSecurityError, MAX_ZIP_MEMBER_BYTES, MAX_ZIP_MIMETYPE_BYTES, MAX_ZIP_SMALL_PART_BYTES, read_member
 from ..opc.relationships import (
     MAIN_ROOTFILE_MEDIA_TYPE,
     ManifestRelationships,
@@ -26,7 +27,6 @@ from ..opc.relationships import (
     select_main_rootfile,
 )
 from ..opc.security import (
-    HwpxSecurityError,
     guard_xml_bytes,
     guard_xml_depth,
     guard_zip_file,
@@ -625,10 +625,12 @@ def _warning(
     issues.append(PackageValidationIssue(part_name, message, "warning"))
 
 
-def _safe_read(zf: ZipFile, part_name: str) -> bytes | None:
+def _safe_read(
+    zf: ZipFile, part_name: str, *, limit: int = MAX_ZIP_MEMBER_BYTES
+) -> bytes | None:
     try:
-        return zf.read(part_name)
-    except (BadZipFile, KeyError, OSError):
+        return read_member(zf, part_name, limit=limit)
+    except (BadZipFile, KeyError, OSError, HwpxSecurityError):
         return None
 
 
@@ -655,7 +657,7 @@ def _check_mimetype(
     if MIMETYPE_PATH not in name_set:
         _error(issues, MIMETYPE_PATH, "missing required file")
         return
-    mimetype_bytes = _safe_read(zf, MIMETYPE_PATH)
+    mimetype_bytes = _safe_read(zf, MIMETYPE_PATH, limit=MAX_ZIP_MIMETYPE_BYTES)
     if mimetype_bytes is None:
         _error(
             issues,
@@ -702,7 +704,7 @@ def _check_preview_text(
             "missing Preview/PrvText.txt; macOS Hancom compatibility may require it",
         )
         return
-    preview_bytes = _safe_read(zf, PREVIEW_TEXT_PATH)
+    preview_bytes = _safe_read(zf, PREVIEW_TEXT_PATH, limit=MAX_ZIP_SMALL_PART_BYTES)
     if preview_bytes is None:
         _error(issues, PREVIEW_TEXT_PATH, "unable to read preview text entry")
     elif len(preview_bytes) > 1024 * 1024:

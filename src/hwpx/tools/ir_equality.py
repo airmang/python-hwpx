@@ -20,6 +20,7 @@ import re
 import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass
+from ..opc.security import guard_zip_file, read_member
 
 __all__ = [
     "IrEqualityReport",
@@ -91,12 +92,13 @@ def project_document(data: bytes) -> list:
     """Project a whole HWPX byte blob: paragraphs across all sections in order."""
     projection: list = []
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        guard_zip_file(archive)
         names = sorted(
             (n for n in archive.namelist() if _SECTION_RE.match(n)),
             key=lambda n: int(_SECTION_RE.match(n).group(1)),
         )
         for name in names:
-            projection.extend(project_section_xml(archive.read(name)))
+            projection.extend(project_section_xml(read_member(archive, name)))
     return projection
 
 

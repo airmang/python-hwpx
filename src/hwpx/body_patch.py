@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from .opc.security import guard_zip_file, read_member
 from .mutation_report import MutationReport, project_byte_splice
 from .patch import (
     _finalize,
@@ -440,10 +441,11 @@ def recolor_runs_by_color(
     import io, zipfile
 
     with zipfile.ZipFile(io.BytesIO(source_bytes)) as z:
+        guard_zip_file(z)
         names = z.namelist()
         header_name = next((n for n in names if n.endswith("header.xml")), None)
-        header_xml = z.read(header_name).decode("utf-8") if header_name else ""
-        sections = {n: z.read(n).decode("utf-8") for n in names if re.search(r"section\d+\.xml$", n)}
+        header_xml = read_member(z, header_name).decode("utf-8") if header_name else ""
+        sections = {n: read_member(z, n).decode("utf-8") for n in names if re.search(r"section\d+\.xml$", n)}
 
     ids = set()
     for cm in re.finditer(r"<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?>", header_xml):
@@ -511,10 +513,11 @@ def strip_runs_by_color(
 
     targets = {h.upper() for h in hex_colors}
     with zipfile.ZipFile(io.BytesIO(source_bytes)) as z:
+        guard_zip_file(z)
         names = z.namelist()
         header_name = next((n for n in names if n.endswith("header.xml")), None)
-        header_xml = z.read(header_name).decode("utf-8") if header_name else ""
-        sections = {n: z.read(n).decode("utf-8") for n in names if re.search(r"section\d+\.xml$", n)}
+        header_xml = read_member(z, header_name).decode("utf-8") if header_name else ""
+        sections = {n: read_member(z, n).decode("utf-8") for n in names if re.search(r"section\d+\.xml$", n)}
 
     # 계열 매칭(잔존 게이트와 정렬): 대상 색의 _color_family에 드는 모든 charPr.
     from .oxml.color import color_family
@@ -589,13 +592,14 @@ def apply_body_ops(
 
     header_part: str | None = None
     with zipfile.ZipFile(io.BytesIO(source_bytes)) as z:
+        guard_zip_file(z)
         sections = {
-            n: z.read(n).decode("utf-8")
+            n: read_member(z, n).decode("utf-8")
             for n in z.namelist()
             if re.search(r"section\d+\.xml$", n)
         }
         header_part = next((n for n in z.namelist() if n.endswith("header.xml")), None)
-        header_xml = z.read(header_part).decode("utf-8") if header_part else ""
+        header_xml = read_member(z, header_part).decode("utf-8") if header_part else ""
 
     ctx: dict[str, Any] = {"header": header_xml, "header_changed": False, "charpr_cache": {}}
     skipped: list[dict[str, Any]] = []
