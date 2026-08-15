@@ -1,0 +1,9 @@
+{"_meta": "mac-render-batch-v1", "app": "Hancom Office HWP.app", "jobCount": 8, "oracle": "mac-gui"}
+{"sourceId": "v21-title-mark-000", "stratum": "authored-title-mark", "saved": true, "pdfBytes": 15872, "error": null}
+{"sourceId": "v21-title-mark-001", "stratum": "authored-title-mark", "saved": true, "pdfBytes": 15098, "error": null}
+{"sourceId": "v21-title-mark-002", "stratum": "authored-title-mark", "saved": true, "pdfBytes": 14980, "error": null}
+{"sourceId": "v21-title-mark-003", "stratum": "authored-title-mark", "saved": true, "pdfBytes": 15309, "error": null}
+{"sourceId": "v21-title-mark-004", "stratum": "authored-title-mark", "saved": true, "pdfBytes": 19600, "error": null}
+{"sourceId": "corrupt_section", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
+{"sourceId": "corrupt_header", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}
+{"sourceId": "missing_section", "stratum": "negative-control", "saved": false, "pdfBytes": 0, "error": "no-output", "expectFail": true}

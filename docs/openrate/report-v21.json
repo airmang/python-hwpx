@@ -1,0 +1,32 @@
+{
+  "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v21",
+  "harness_valid": true,
+  "measured_at": "2026-08-15T11:03:43.391077+09:00",
+  "negative_controls": {
+    "expected": [
+      "corrupt_section",
+      "corrupt_header",
+      "missing_section"
+    ],
+    "judged": 3,
+    "wrongly_rendered": []
+  },
+  "oracle": "mac-gui",
+  "oracle_app": "Hancom Office HWP.app (macOS)",
+  "schemaVersion": "hwpx.openrate.report/v21",
+  "scopeNote": "v21 measures titleMark authoring (차례 숨기기/제목 차례 표시), additive over v1-v20. This surface spent a full cycle deferred: the macOS oracle cannot move the caret, so which paragraph the editor targets could not be measured there, and authoring stayed honestly on hold (DEV-044). Windows COM SetPos settled it - the mark lands in the caret's own paragraph, and the polarity measured on macOS (show=1, hide=0, inverted from the attribute's name) reproduced independently on that path. Real Hancom accepted all 5/5. Observer: macOS Hancom GUI oracle (open+render one gate). Session-state discipline applied: a control render preceded the batch and the app was fully restarted before launch.",
+  "strata": {
+    "authored-title-mark": {
+      "judged": 5,
+      "render_checked": 5,
+      "render_failed": 0
+    }
+  },
+  "tool_versions": {
+    "python-hwpx": "6.0.2"
+  },
+  "totals": {
+    "judged": 5,
+    "render_checked": 5
+  }
+}
