@@ -18,6 +18,14 @@
 자체 메뉴, 문서 형식과 무관)이라 스캔에서 제외됐다. **macOS 앱 기준** —
 Windows 한컴 전용 표면은 이 스캔으로 부재를 단정할 수 없다.
 
+그 유보는 6.16 트레인이 해소했다 —
+[Windows 역매핑](editor-menu-reverse-map-windows.md)이 한글 2024 실빌드의
+메뉴 전수·도움말 트리·오토메이션 액션 테이블 3축으로 정의역을 넓혀
+"판정 없는 항목 0"을 다시 달성했고, 이 문서의 판정 91행을 그대로
+재인용한다. **Windows 실측이 아래 표에서 뒤집은 행은 둘이다** —
+"CCL 넣기…"([대응 영역] → [부분 대응], 실물 반증)와 "바탕쪽…"(6.13에
+해소됐는데 갱신이 안 돼 스테일이던 행).
+
 각 항목은 4갈래로 판정한다:
 
 - **[대응 영역]** — `docs/editor-surface-inventory.md`의 기존 캐파빌리티
@@ -51,7 +59,7 @@ Windows 한컴 전용 표면은 이 스캔으로 부재를 단정할 수 없다.
 | 편집 용지… | [대응 영역] | 페이지 레이아웃(`doc.page.set_size`/`.set_margins`) |
 | 인쇄… | [스코프 밖] | (기존 판정 재인용) 편집 용지는 페이지 레이아웃이 대응·인쇄 다이얼로그 옵션 자체는 문서 상태가 아니라 스코프 밖 |
 | 문서 정보… | ✅ [대응 영역] | ~~신규 갭~~ **트레인㊸ 갭①에서 해소**(`fac1a03`) — `doc.parts.set_document_metadata`가 `opf:metadata`(제목·작성자·주제·키워드·작성일·수정일)를 저작한다, v16 render-verified. `date`(자유형식) 필드는 다중 포맷 근거 부족으로 정직 보류 유지 |
-| CCL 넣기… | [대응 영역] | **트레인㊺ 판정**: 스키마 전수에서 CCL 전용 요소는 없음 — 근접 후보 `hp:licensemark`(`Header XML schema.xml`, 속성 `type`/`flag`/`lang`)는 발견했으나 공유마당류 "저작권 표시 번호" 플래그라 CC 배지와 다른 개념. 코퍼스 67파일 전수(`공공누리`/`creativecommons`/`출처표시`/`이용허락`/`CCL`/`licensemark` 전부) 0건 — 실사용 근거는 없지만 실제 배지 예시가 없다는 것 자체가 "전용 요소가 있다"는 가설을 지지하지 않는다. CCL 삽입은 그림(`hp:pic`)+하이퍼링크(`hp:fieldBegin`)+텍스트의 **조합**일 뿐이라고 보는 게 더 근거 있다 — 셋 다 이미 대응(그림 삽입/치환·하이퍼링크·책갈피). 신규 요소 근거가 나오면 재조사 |
+| CCL 넣기… | ✅ **[부분 대응]** | ~~[대응 영역]~~ **6.16 트레인에서 실측으로 재판정.** ~~트레인㊺ 판정: 근접 후보 `hp:licensemark`는 공유마당류 "저작권 표시 번호" 플래그라 CC 배지와 **다른 개념**이고, CCL 삽입은 그림+하이퍼링크+텍스트의 **조합**일 뿐이다~~ — 그 배제는 **틀렸다**. 당시 근거는 코퍼스 0건(67파일에서 `licensemark`·`CCL`·`공공누리` 전부 0)이었는데, 실사용 예시의 부재는 요소의 부재가 아니었다. Windows 표면 조사가 벤더 도움말에서 반증을 찾았고(`file/document_properties/document_license.htm`: "[문서 정보]의 [저작권] 탭은 **[CCL 넣기]와 [공공누리 넣기]로 마크를 삽입한 경우에만** 나타납니다" — 본문 그림/글자만이라면 [문서 정보]가 그 값을 알 길이 없다), 실한컴 gold가 확정했다: 마크 삽입은 **2원 구조**다. ①**문서 수준 레코드** `hh:docOption > hh:licensemark type="CCL" flag="0" lang="6"`(네임스페이스도 `hp:`가 아니라 `hh:`(head) — 트레인㊺ 표기 오기 함께 정정) ②**본문 배지** `hp:pic` + `BinData/image1.png`(한컴 자체 생성) + `href="http://creativecommons.org/licenses/by/4.0/deed.ko;1;0;1"`(URL 뒤 `;영리;변경;` 파라미터 접미, 같은 문자열이 `hp:parameterset name="539"`에도 복제) + 안내 문장을 감싸는 별도 `hp:fieldBegin type="HYPERLINK"`. **즉 "조합일 뿐"은 배지 절반만 맞았고 문서 레코드를 통째로 놓쳤다.** 배지 쪽은 기존 저작 조합으로 여전히 가능하고(그림 삽입 + href + 하이퍼링크), 문서 레코드 쪽은 이번 트레인에서 저작을 열었다 — `header_compat.set_license_mark`/`remove_license_mark`(`doc.parts.set_license_mark`로 노출). 저작 경로가 열렸어도 배지 합성까지 묶어 주는 단일 진입점은 없으므로 행 자체는 [부분 대응]이다. gold `tests/fixtures/gui_probes/license_mark_ccl.hwpx`, 상세는 [Windows 역매핑](editor-menu-reverse-map-windows.md)의 "실측으로 확정된 계약" ② |
 | 최근 사용 문서 | [스코프 밖] | 애플리케이션 UI 상태(최근 파일 목록) — 문서 자체 속성 아님 |
 | 문서 닫기 | [스코프 밖] | 생명주기 |
 
@@ -122,7 +130,7 @@ Windows 한컴 전용 표면은 이 스캔으로 부재를 단정할 수 없다.
 |---|---|---|
 | 편집 용지 | [대응 영역] | 페이지 레이아웃(파일 메뉴와 동일 기능, 다른 진입 경로) |
 | 글자 방향 설정… | ✅ [대응 영역] | ~~신규 갭~~ **트레인㊸ 갭③에서 해소**(`c5c6968`) — `doc.page.set_text_direction`이 `hp:secPr/@textDirection`(HORIZONTAL/VERTICAL/VERTICALALL)을 저작한다, v16 render-verified — VERTICAL/VERTICALALL은 이 프로젝트 최초로 실한컴을 통과한 문서 |
-| 바탕쪽… | [부분 대응] | `hp:masterPage` **읽기 모델만** 존재(`oxml/master_page.py`의 `class MasterPage` — `set_`/`add_`/`ensure_` 메서드 전무 확인). 저작(쓰기) API 없음 |
+| 바탕쪽… | ✅ [대응 영역] | ~~[부분 대응] — `hp:masterPage` **읽기 모델만** 존재(`oxml/master_page.py`의 `class MasterPage` — `set_`/`add_`/`ensure_` 메서드 전무 확인), 저작(쓰기) API 없음~~ **트레인㊻(6.13)에서 해소됐는데 이 행이 갱신되지 않아 스테일이었다 — 6.16 트레인에서 정정.** `doc.parts.add_master_page`(구현 `oxml/master_page_authoring.py:75`)가 파트를 새로 만들고, `SectionProperties.add_master_page_reference`(`oxml/section_format.py:475`)가 절의 `hp:masterPage/@idRef`를 배선하며 `masterPageCnt`를 동기화한다(멱등, 중복 idRef 무시). `docs/support-matrix.md`의 "바탕쪽" 행이 정본 — Parse·Create(experimental)·**Render-verified**(`docs/openrate/report-v17.json` authored-master-page 스트라텀 5건 + macOS 실한컴 GUI 오라클 5/5 render_checked·0 render_failed). **패키지에 새 파트를 싣는 쓰기 경로가 실한컴을 통과한 첫 확인**이기도 하다. 남은 정직한 여백은 갭이 아니라 스코프 축소다 — `masterPage`의 `hp:subList` `textWidth`/`textHeight` 공식은 실 예시 1건으로 역산할 근거가 없어 기본값 `"0"`을 유지하고, 여러 절 사이의 공유/독립 관행도 근거가 없어 "파트 하나 생성 + 호출자가 지정한 절마다 명시적 배선"이라는 최소 계약만 제공한다(curve와 같은 원칙) |
 | 머리말/꼬리말… | [대응 영역] | 페이지 레이아웃(`set_header`/`set_footer`) |
 | 쪽 번호 매기기… | [대응 영역] | 페이지 레이아웃(`set_page_number`) |
 | 새 번호로 시작… | [대응 영역] | 페이지 레이아웃(`restart_page_number`, `hp:newNum`) |
@@ -224,10 +232,14 @@ macOS 앱 표준 "보기" 메뉴 항목 전부가 렌더링/화면 표시 옵션
 10. ~~파일 이름(`hp:fieldBegin type="PATH"`)~~ ✅ **트레인㊽b에서 해소**(`HwpxOxmlParagraph.add_path_field`, 실 코퍼스 계약 그대로, v19 배치 대기)
 
 **부분 대응(메커니즘은 있으나 이 메뉴가 요구하는 범위를 못 채움)** —
-방향성 후보, 우선순위는 위보다 낮게 볼 것: 바탕쪽(읽기만, 쓰기 없음),
+방향성 후보, 우선순위는 위보다 낮게 볼 것: ~~바탕쪽(읽기만, 쓰기 없음)~~
+✅ **트레인㊻에서 해소**(`add_master_page`, v17 render-verified — 위 표
+행 참조, 이 목록의 항목은 6.16 트레인에서 제거),
 차트 만들기(표→차트 변환 편의), 문서 암호 설정/변경(읽기 거부만, 저작
 없음), **정렬…**(트레인㊺ 신규 편입 — 행 재배열 프리미티브 부재,
-`table_patch.py` 다른 구조 op와 같은 방식으로 구축 가능).
+`table_patch.py` 다른 구조 op와 같은 방식으로 구축 가능),
+**CCL 넣기…**(6.16 트레인 신규 편입 — [대응 영역]에서 강등, 문서 레코드
+저작은 열렸으나 배지까지 묶는 단일 진입점 없음).
 
 **근거 명시 보류(트레인㊻에서 정식 재검토, 착수 안 함)**: **개체**(범용
 삽입) — DEV-021이 이미 확립한 "1건 표본으로는 타입 모델을 일반화 안
@@ -253,7 +265,9 @@ table.py`), 신규 XML 어휘 없음(기존 `set_column_widths`/`cellSz` 재사�
 
 **트레인㊺ 판정 완료(더 이상 미확인 아님)** — 12건 중 8건:
 
-- [대응 영역] CCL 넣기…, 모양 복사…, 주석, 다단 설정 나누기 (기존
+- [대응 영역] ~~CCL 넣기…~~(⚠️ **6.16 트레인에서 [부분 대응]으로 재판정** —
+  실한컴 gold가 `hh:licensemark` 문서 레코드를 드러내 "기존 조합일 뿐"
+  판정을 뒤집었다, 위 표 행 참조), 모양 복사…, 주석, 다단 설정 나누기 (기존
   기능의 다른 진입 경로/naming collision — 신규 저작 불필요)
 - [스코프 밖] 블록 저장…, 조판 부호 지우기… (문서 형식 밖의 워크플로/뷰
   상태 — OWPML에 흔적 없음, 스키마·코퍼스·코드 전수 확인)
@@ -407,6 +421,10 @@ Windows COM 양쪽에서 독립 일치. **저작 보류 해제** —
 
 ## 관련 문서
 
+- [편집기 메뉴 표면 역매핑 (Windows)](editor-menu-reverse-map-windows.md) —
+  같은 역방향 질문을 Windows 한글 2024 표면 전체로 넓힌 3차 지평.
+  이 문서의 판정 91행을 재인용하고, 이 문서가 못 본 표면(검토 메뉴 전체·
+  멀티미디어·색인·참고 문헌·프레젠테이션 등)을 새로 판정한다
 - [편집기 표면 인벤토리](editor-surface-inventory.md) — 순방향(영역→검증)
 - [지원 매트릭스](support-matrix.md) — 영역별 등급·증거
 - [OWPML 편차 레지스트리](owpml-deviations.md)

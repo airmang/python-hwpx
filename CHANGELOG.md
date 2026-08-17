@@ -4,6 +4,35 @@
 
 ## [Unreleased]
 
+### 더함
+
+- **`HwpxOxmlParagraph.add_index_mark(first, second=)`** — 색인 표시
+  (`hp:indexmark`) 저작. 실한컴 GUI 프로브 gold 2건 역설계. `add_title_mark`와
+  타겟팅 계약은 같으나(호출자가 대상 문단을 직접 지정 = 편집기의 캐럿 문단)
+  배치가 다르다 — titleMark는 `hp:t` **안**, indexmark는 같은 run 안의
+  `hp:ctrl` 형제로 텍스트 **앞**. 스키마는 `firstKey`/`secondKey`를 둘 다
+  필수 시퀀스로 선언하지만 실물은 1단계 색인에서 `secondKey`를 생략하므로
+  실측을 따랐다(`add_new_num`의 `autoNumFormat` 생략과 같은 부류).
+- **`HwpxOxmlParagraph.add_mail_merge_field(name, cached_text=)`** — 메일머지
+  표시 필드(`hp:fieldBegin type="MAILMERGE"`) 저작. 기존
+  `hwpx.tools.mail_merge.merge_template_rows`가 **기존 텍스트를 치환**하는
+  Edit인 것과 달리 필드 컨트롤 자체를 만드는 Create다. 파라미터 이름
+  `Fiexde`는 실물·한컴 공식 문서 공통의 오타 철자라 그대로 쓴다. 캐시 텍스트
+  기본값 `{{이름}}`은 그 배치 생성기가 인식하는 플레이스홀더 문법이라 이
+  필드로 저작한 템플릿이 곧바로 물린다.
+- **`doc.parts.set_license_mark(...)`/`.remove_license_mark()`** — 문서 수준
+  라이선스 레코드(`hh:licensemark`) 저작. "입력 > CCL 넣기…"가 남기는 그
+  레코드이며, 눈에 보이는 배지는 별개(라이선스 증서 URL을 `href`로 단 그림).
+
+### 고침
+
+- **`LicenseMark.type`이 `int` → `str`** — 스키마(`Header XML schema.xml`의
+  `DocOptionType`)가 `xs:unsignedInt use="required"`로 선언해 그대로 믿었으나
+  실한컴이 실제로 쓰는 값은 문자열 `"CCL"`이다. 그래서 실한컴이 만든 CCL
+  문서를 `to_model()`로 읽으면 `ValueError: Invalid integer value: 'CCL'`로
+  터졌다 — 위 저작 표면을 열면서 실측으로 드러났다. `flag`/`lang`은 관측값이
+  정수라 그대로다.
+
 ## [6.1.0] - 2026-08-15
 
 15개 작업 사이클(6.1~6.15)을 하나의 트레인으로 묶어 발행한다. 완전성 감사

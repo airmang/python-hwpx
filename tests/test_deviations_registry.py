@@ -416,3 +416,39 @@ def test_cycle_6_7_cleanup_probe_runs_clean(probe_name: str) -> None:
         cwd=ROOT,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+# 위 블록들은 사이클마다 명단을 손으로 늘려 왔는데 6.11~6.15 등재분
+# (DEV-041~044)에서 그 갱신이 끊겼다 — 프로브는 있는데 게이트가 안 걸린
+# 상태였다. 6.16 트레인에서 명단 대신 **디렉터리 전수**로 바꿔 그 드리프트를
+# 영구히 닫는다. 위의 사이클별 블록은 역사 기록으로 그대로 둔다.
+ALL_PROBES = tuple(sorted(path.name for path in PROBES_DIR.glob("dev[0-9][0-9][0-9]_*.py")))
+
+
+def test_probe_directory_is_not_empty() -> None:
+    assert ALL_PROBES, "probes/dev*.py가 하나도 없다 — 레지스트리 게이트가 무력화된다"
+
+
+@pytest.mark.parametrize("probe_name", ALL_PROBES)
+def test_every_probe_is_referenced_from_the_registry(probe_name: str) -> None:
+    text = DOC.read_text(encoding="utf-8")
+    assert probe_name in text, f"{probe_name} not referenced from the registry table"
+
+
+@pytest.mark.parametrize("probe_name", ALL_PROBES)
+def test_every_probe_runs_clean(probe_name: str) -> None:
+    """모든 프로브는 단독 실행 가능해야 한다(근거 파일이 없으면 SKIP=exit 0)."""
+
+    result = subprocess.run(
+        [sys.executable, str(PROBES_DIR / probe_name)],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("dev_id", ("DEV-045", "DEV-046", "DEV-047", "DEV-048"))
+def test_cycle_6_16_deviation_is_registered(dev_id: str) -> None:
+    text = DOC.read_text(encoding="utf-8")
+    assert dev_id in text

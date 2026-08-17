@@ -125,6 +125,14 @@ CATEGORY_MAP: dict[str, str] = {
     # 부호 필드 저작 등재. hp:fieldBegin 계열이라 form-field-create/
     # check-box와 같은 카테고리.
     "date-time-proofreading-mark-fields": "필드",
+    # P4 — 팀장 실한컴 GUI 프로브 gold 3종 저작 편입. 색인 표시는
+    # title-mark와 같은 doc.refs라 같은 카테고리, 메일머지 표시 필드는
+    # hp:fieldBegin 계열이라 date-time-proofreading-mark-fields와 같은
+    # 카테고리, 라이선스 표시는 문서 수준 비시각 레코드라 document-
+    # options-compatibility·document-metadata와 같은 카테고리.
+    "index-mark": "참조",
+    "mail-merge-field": "필드",
+    "license-mark": "보안/호환성",
 }
 
 CATEGORY_ORDER: tuple[str, ...] = (

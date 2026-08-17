@@ -164,6 +164,13 @@ AREA_NAMESPACES = {
     # 부호 필드 저작. hp:fieldBegin 계열이라 form-field-create/check-box와
     # 같은 fields 네임스페이스.
     "date-time-proofreading-mark-fields": "fields",
+    # P4 — 팀장 실한컴 GUI 프로브 gold 3종 저작 편입. 색인 표시는
+    # title-mark와 같은 refs, 메일머지 표시 필드는 hp:fieldBegin 계열이라
+    # date-time-proofreading-mark-fields와 같은 fields, 라이선스 표시는
+    # 문서 수준 레코드라 document-options-compatibility와 같은 parts.
+    "index-mark": "refs",
+    "mail-merge-field": "fields",
+    "license-mark": "parts",
 }
 
 

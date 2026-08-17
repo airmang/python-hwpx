@@ -30,6 +30,7 @@ from .namespaces import XML_NS, tag_local_name
 from .dutmal_compose import _paragraph_add_composed_character, _paragraph_add_dutmal
 from .field_marks import (
     _paragraph_add_date_field,
+    _paragraph_add_mail_merge_field,
     _paragraph_add_path_field,
     _paragraph_add_proofreading_mark,
 )
@@ -862,6 +863,7 @@ class HwpxOxmlParagraph:
     add_date_field = _paragraph_add_date_field
     add_proofreading_mark = _paragraph_add_proofreading_mark
     add_path_field = _paragraph_add_path_field
+    add_mail_merge_field = _paragraph_add_mail_merge_field
 
     def add_title_mark(self, *, in_toc: bool) -> HwpxOxmlInlineObject:
         """이 문단의 첫 run 첫 ``hp:t`` 맨 앞에 ``<hp:titleMark
@@ -900,6 +902,64 @@ class HwpxOxmlParagraph:
         text_element.insert(0, mark)
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(mark, self)
+
+    def add_index_mark(self, first: str, *, second: str | None = None) -> HwpxOxmlInlineObject:
+        """이 문단의 첫 텍스트 run 안, 그 ``hp:t`` **바로 앞**에
+        ``<hp:ctrl><hp:indexmark>…</hp:indexmark></hp:ctrl>``를 끼워
+        넣는다 -- "색인 표시"의 실측 계약.
+
+        타겟팅은 ``add_title_mark``와 같다(호출자가 대상 문단을 직접
+        지정 = 실 편집기의 "캐럿이 있는 문단"). 배치는 다르다: titleMark는
+        ``hp:t`` **안**에 들어가지만 indexmark는 같은 run 안의
+        ``hp:ctrl`` 형제로, 텍스트 앞에 선다(실측 gold
+        ``tests/fixtures/gui_probes/index_mark_first_only.hwpx``).
+
+        *first*는 색인 1단계 키, *second*는 2단계(하위) 키다. **second가
+        ``None``이면 ``hp:secondKey`` 자체를 방출하지 않는다** -- 스키마
+        (``ParaList XML schema.xml:209-216``)는 ``firstKey``/``secondKey``를
+        둘 다 필수 시퀀스로 선언하지만 실한컴은 1단계만 넣은 색인에서
+        ``secondKey``를 생략한다(gold 실측). 실측 우선 원칙(``add_new_num``
+        의 ``autoNumFormat`` 생략, DEV-043의 열거값 불일치와 같은 부류)에
+        따라 스키마가 아니라 실물을 따른다.
+        """
+        target_run: ET.Element | None = None
+        text_element: ET.Element | None = None
+        for run in self._run_elements():
+            candidates = _children_by_local(run, "t")
+            if candidates:
+                target_run, text_element = run, candidates[0]
+                break
+        if text_element is None or target_run is None:
+            from ..errors import HwpxStateError
+
+            raise HwpxStateError(
+                "문단에 hp:t를 가진 run이 없어 indexmark를 넣을 자리가 없습니다.",
+                code="paragraph-index-mark-no-text-run",
+            )
+        for label, value in (("first", first), ("second", second)):
+            if value is not None and not value:
+                from ..errors import HwpxValueError
+
+                raise HwpxValueError(
+                    f"index mark {label} key must be a non-empty string",
+                    code="paragraph-index-mark-empty-key",
+                    context={"key": label},
+                    suggestion=(
+                        "빈 키를 넣지 마세요 -- 2단계 키가 없으면 second를 생략하면 됩니다"
+                        "(생략과 빈 문자열은 방출되는 XML이 다릅니다)."
+                    ),
+                )
+
+        ctrl = target_run.makeelement(_child_tag_like(target_run, "ctrl", _HP_NS), {})
+        mark = _append_child(ctrl, _child_tag_like(target_run, "indexmark", _HP_NS), {})
+        first_key = _append_child(mark, _child_tag_like(target_run, "firstKey", _HP_NS), {})
+        first_key.text = _sanitize_text(first)
+        if second is not None:
+            second_key = _append_child(mark, _child_tag_like(target_run, "secondKey", _HP_NS), {})
+            second_key.text = _sanitize_text(second)
+        target_run.insert(list(target_run).index(text_element), ctrl)
+        self.section.mark_dirty()
+        return HwpxOxmlInlineObject(ctrl, self)
 
     def add_new_num(
         self,

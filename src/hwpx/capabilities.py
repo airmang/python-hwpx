@@ -432,6 +432,55 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "entry_points": ("hwpx.document:HwpxDocument",),
         "authoring_methods": (),
     },
+    {
+        "area": "index-mark",
+        "namespace": "doc.refs",
+        "matrix_row": "색인 표시",
+        # P4 — 팀장 실한컴 GUI 프로브 gold 2건(1키/2키) 역설계.
+        # HwpxOxmlParagraph.add_index_mark만 있다(HwpxDocument 루트에는
+        # 없음) — title-mark와 같은 이유로 authoring_methods=(). title-mark
+        # 와 같은 doc.refs 네임스페이스(둘 다 "본문 문단에 다는 색인/차례
+        # 계열 마크")지만 별도 영역이다: 겨냥하는 요소도(hp:indexmark vs
+        # hp:titleMark) 편집기 메뉴도 다르고, 한 영역에 묶으면 매트릭스
+        # 등급 하나로 두 기능의 검증 상태를 뭉개게 된다(toc-crossref의
+        # "혼합 지원 영역 오염" 방지 원칙).
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
+    {
+        "area": "mail-merge-field",
+        "namespace": "doc.fields",
+        "matrix_row": "메일머지 표시 필드",
+        # P4 — 팀장 실한컴 GUI 프로브 gold 역설계. 기존 "mail-merge"
+        # 영역에 합치지 않고 새로 만든 이유: 그 영역은 namespace=None ·
+        # 진입점이 순수 모듈 함수(hwpx.tools.mail_merge:merge_template_rows) ·
+        # 등급이 Edit(기존 hp:t 텍스트 치환, 새 요소를 안 만든다)인 반면
+        # 이쪽은 doc.fields 문단 메서드 · Create(hp:fieldBegin
+        # type="MAILMERGE"를 새로 만든다)다 — 합치면 한 영역이 두 진입
+        # 경로·두 등급을 갖는 "혼합 지원 영역 오염"이 된다(toc-crossref에서
+        # 하이퍼링크·책갈피를 떼어낸 것과 같은 판단). 행 제목도 기존 행이
+        # "placeholder 템플릿 배치 생성"으로 스코프를 명시하고 있어 이
+        # 기능을 담을 수 없다. date-time-proofreading-mark-fields와 같은
+        # field_marks.py·같은 hp:fieldBegin 계열이지만 그쪽에 합류시키지
+        # 않은 것도 같은 이유다 — 그 행은 "입력 > 필드" 계열 3종이고
+        # 메일머지 표시는 "도구 > 메일 머지" 메뉴다.
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
+    {
+        "area": "license-mark",
+        "namespace": "doc.parts",
+        "matrix_row": "라이선스 표시(CCL)",
+        # P4 — 팀장 실한컴 GUI 프로브 gold 역설계. doc.parts.set_license_
+        # mark/remove_license_mark는 set_* 이름이라 document-options-
+        # compatibility·document-metadata와 같은 이유로
+        # authoring_methods=(). 트레인㊺가 "CCL 전용 요소는 없다, 그림+
+        # 하이퍼링크 조합일 뿐"이라고 판정했던 자리를 실측이 뒤집었다 —
+        # hh:licensemark는 실제로 이 메뉴가 쓰는 전용 문서 수준 레코드다
+        # (배지 그림은 그 판정대로 별개의 hp:pic+href).
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
 )
 
 #: 패키지에 동봉되는 계약 문서 이름 → 파일. MCP resources 표면의 원천.

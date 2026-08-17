@@ -34,7 +34,20 @@ class LinkInfo:
 
 @dataclass(slots=True)
 class LicenseMark:
-    type: int
+    """``hh:docOption/hh:licensemark`` — 문서 수준 라이선스 레코드.
+
+    ``type``이 ``str``인 건 실측이다: 스키마(``Header XML schema.xml``의
+    ``DocOptionType``)는 ``xs:unsignedInt use="required"``라고 선언하지만
+    실한컴(HWP 13.0.0.3901)이 실제로 쓰는 값은 ``"CCL"``이라는 문자열이다
+    (gold ``tests/fixtures/gui_probes/license_mark_ccl.hwpx``). 이전
+    ``int`` 선언은 스키마만 보고 정한 것이라, 실한컴이 만든 CCL 문서를
+    ``to_model()``로 읽으면 ``ValueError: Invalid integer value: 'CCL'``로
+    터졌다 — 저작 쪽(``header_compat.set_license_mark``)을 열면서 실측으로
+    드러났다. 실측 우선 원칙(DEV-043과 같은 부류)에 따라 값은 그대로
+    보존한다. ``flag``/``lang``은 관측값이 ``"0"``/``"6"``이라 정수 그대로.
+    """
+
+    type: str
     flag: int
     lang: Optional[int]
 
@@ -989,8 +1002,12 @@ def parse_link_info(node: etree._Element) -> LinkInfo:
 
 
 def parse_license_mark(node: etree._Element) -> LicenseMark:
+    # 빠진 ``type``은 같은 ``DocOptionType`` 안에서 ``parse_link_info``가
+    # 스키마-required인 ``path``를 다루는 방식 그대로 빈 문자열로 둔다
+    # (문자열 속성은 이 모듈에서 raise 대상이 아니다 -- 정수 변환이
+    # 필요한 ``flag``/``lang``만 ``parse_int``가 검사한다).
     return LicenseMark(
-        type=parse_int(node.get("type"), allow_none=False),
+        type=node.get("type", ""),
         flag=parse_int(node.get("flag"), allow_none=False),
         lang=parse_int(node.get("lang")),
     )

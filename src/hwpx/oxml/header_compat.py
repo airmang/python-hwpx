@@ -66,9 +66,11 @@ if TYPE_CHECKING:
 
 __all__ = [
     "apply_paragraph_auto_spacing",
+    "remove_license_mark",
     "set_compatible_document_target_program",
     "set_doc_option_link_info",
     "set_layout_compatibility_flags",
+    "set_license_mark",
 ]
 
 
@@ -146,6 +148,32 @@ def set_layout_compatibility_flags(header: HwpxOxmlHeader, flags: Iterable[str])
     header.mark_dirty()
 
 
+def _doc_option_element(header: HwpxOxmlHeader) -> ET.Element:
+    """``hh:docOption``(+스키마 필수인 ``hh:linkinfo`` 첫 자식)을 보장하고
+    돌려준다. ``linkinfo``는 ``minOccurs`` 기본값이라 필수인데, 코퍼스
+    47/47이 ``path=""``/``pageInherit="0"``/``footnoteInherit="0"``이므로
+    새로 만들 때 그 값으로 채운다."""
+
+    root = header.element
+    doc_option = HwpxOxmlHeader._direct_child_by_local(root, "docOption")
+    if doc_option is None:
+        doc_option = root.makeelement(f"{_HH}docOption", {})
+        HwpxOxmlHeader._insert_child_after(
+            root,
+            doc_option,
+            {"beginNum", "refList", "forbiddenWordList", "compatibleDocument"},
+        )
+    if HwpxOxmlHeader._direct_child_by_local(doc_option, "linkinfo") is None:
+        doc_option.insert(
+            0,
+            doc_option.makeelement(
+                f"{_HH}linkinfo",
+                {"path": "", "pageInherit": "0", "footnoteInherit": "0"},
+            ),
+        )
+    return doc_option
+
+
 def set_doc_option_link_info(
     header: HwpxOxmlHeader,
     *,
@@ -157,22 +185,9 @@ def set_doc_option_link_info(
     ``footnoteInherit`` attributes. ``None`` leaves an attribute unchanged
     (or defaults it to the corpus-majority value on first creation)."""
 
-    root = header.element
-    doc_option = HwpxOxmlHeader._direct_child_by_local(root, "docOption")
-    if doc_option is None:
-        doc_option = root.makeelement(f"{_HH}docOption", {})
-        HwpxOxmlHeader._insert_child_after(
-            root,
-            doc_option,
-            {"beginNum", "refList", "forbiddenWordList", "compatibleDocument"},
-        )
+    doc_option = _doc_option_element(header)
     link_info = HwpxOxmlHeader._direct_child_by_local(doc_option, "linkinfo")
-    if link_info is None:
-        link_info = doc_option.makeelement(
-            f"{_HH}linkinfo",
-            {"path": "", "pageInherit": "0", "footnoteInherit": "0"},
-        )
-        doc_option.append(link_info)
+    assert link_info is not None  # _doc_option_element guarantees it
     if path is not None:
         link_info.set("path", path)
     if page_inherit is not None:
@@ -180,6 +195,80 @@ def set_doc_option_link_info(
     if footnote_inherit is not None:
         link_info.set("footnoteInherit", _zero_one_bool_str(footnote_inherit))
     header.mark_dirty()
+
+
+def set_license_mark(
+    header: HwpxOxmlHeader,
+    *,
+    mark_type: str,
+    flag: int,
+    lang: int | None = None,
+) -> None:
+    """Set ``hh:docOption/hh:licensemark`` -- the document-level licence
+    record "입력 > CCL 넣기…" writes.
+
+    Real-Hancom contract (gold ``tests/fixtures/gui_probes/
+    license_mark_ccl.hwpx``, HWP 13.0.0.3901): the element is a
+    ``hh:linkinfo`` sibling, second child of ``hh:docOption``, and reads
+    ``<hh:licensemark type="CCL" flag="0" lang="6"/>``.
+
+    **``type`` is a string, not a number.** The schema (``Header XML
+    schema.xml``'s ``DocOptionType``) declares ``type`` as
+    ``xs:unsignedInt use="required"`` -- real Hancom emits ``"CCL"``. Same
+    measurement-over-schema precedent as ``field_marks``'s
+    ``PROOFREADING_MARKS_SIGN`` (DEV-043), so *mark_type* is typed ``str``
+    and passed through verbatim.
+
+    *flag*/*lang* are ints (``xs:byte`` in the schema, observed ``0``/``6``
+    -- 6 is the language code for this document's UI locale). No value
+    range is enforced beyond that: one observation is not an enumeration,
+    and ``set_compatible_document_target_program`` already established that
+    this module does not invent restrictions it has no evidence for.
+    Omitting *lang* omits the attribute (the schema marks it optional; the
+    other two are required and always written).
+
+    This setter writes the **document-level record only**. The visible CC
+    badge in the gold is an ordinary picture with a licence-deed URL
+    (``hp:pic`` + ``href``) -- author it with ``add_picture`` plus that
+    ``href``, exactly as for any other linked image.
+    """
+
+    if not mark_type:
+        raise HwpxValueError(
+            "mark_type must be a non-empty string",
+            code="header-compat-empty-license-mark-type",
+            context={"mark_type": mark_type},
+            suggestion='Pass the observed real-Hancom value, e.g. "CCL".',
+        )
+
+    doc_option = _doc_option_element(header)
+    license_mark = HwpxOxmlHeader._direct_child_by_local(doc_option, "licensemark")
+    if license_mark is None:
+        license_mark = doc_option.makeelement(f"{_HH}licensemark", {})
+        doc_option.append(license_mark)
+    license_mark.set("type", mark_type)
+    license_mark.set("flag", str(int(flag)))
+    if lang is None:
+        license_mark.attrib.pop("lang", None)
+    else:
+        license_mark.set("lang", str(int(lang)))
+    header.mark_dirty()
+
+
+def remove_license_mark(header: HwpxOxmlHeader) -> bool:
+    """Drop ``hh:docOption/hh:licensemark`` if present; returns whether one
+    was removed. ``hh:docOption`` itself stays (its ``hh:linkinfo`` child is
+    schema-required and unrelated to the licence record)."""
+
+    doc_option = HwpxOxmlHeader._direct_child_by_local(header.element, "docOption")
+    if doc_option is None:
+        return False
+    license_mark = HwpxOxmlHeader._direct_child_by_local(doc_option, "licensemark")
+    if license_mark is None:
+        return False
+    doc_option.remove(license_mark)
+    header.mark_dirty()
+    return True
 
 
 def apply_paragraph_auto_spacing(
