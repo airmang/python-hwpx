@@ -112,7 +112,7 @@ SRC_DIR = ROOT / "src" / "hwpx"
 #: 건너뛴다(``_load_*`` 쪽에서 ``is_file()`` 가드).
 OPENRATE_REPORT_PATHS: tuple[Path, ...] = tuple(
     ROOT / "docs" / "openrate" / f"report-{version}.json"
-    for version in ("v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21")
+    for version in ("v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22")
 )
 LEDGER_JSON = ROOT / "docs" / "coverage-ledger.json"
 LEDGER_MD = ROOT / "docs" / "coverage-ledger.md"
@@ -1524,6 +1524,14 @@ _OPENRATE_STRATUM_TO_CAPABILITY_AREA: dict[str, str] = {
     # add_title_mark로 저작한 것이 정확히 이 요소이므로 영역째 흘려도
     # 안전하다.
     "authored-title-mark": "차례 숨기기·제목 차례 표시",
+    # v22(Windows-표면 트레인) — "색인 표시"는 hp:indexmark/firstKey/secondKey
+    # 3종만 등록된 1:1 영역(_register 호출부), "라이선스 표시(CCL)"는
+    # hh:licensemark 단독 1:1 영역 — 둘 다 다른 영역과 공유 요소가 없어
+    # 영역째 흘려도 안전하다. authored-mailmerge-field는 의도적으로 여기
+    # 없음: hp:fieldBegin은 CLICKHERE/TOC/하이퍼링크/MAILMERGE가 공유하는
+    # 저수준 요소라(누름틀 v15 전례) 등급 갱신은 매트릭스 산문으로만.
+    "authored-index-mark": "색인 표시",
+    "authored-license-mark": "라이선스 표시(CCL)",
 }
 
 #: capabilityArea가 아직 없거나(v7), 있어도 혼합 지원이라 영역 전체로

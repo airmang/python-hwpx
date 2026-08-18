@@ -24,7 +24,8 @@
       "docs/openrate/report-v18.json",
       "docs/openrate/report-v19.json",
       "docs/openrate/report-v20.json",
-      "docs/openrate/report-v21.json"
+      "docs/openrate/report-v21.json",
+      "docs/openrate/report-v22.json"
     ],
     "skeleton": "src/hwpx/data/Skeleton.hwpx",
     "sourceScanned": "src/hwpx/**/*.py"
@@ -62,8 +63,8 @@
     "codeWriteFrozenTemplate": 14,
     "codeWriteNone": 137,
     "capabilityMapped": 111,
-    "renderVerified": 128,
-    "renderVerifiedByOpenrateCorpus": 93,
+    "renderVerified": 132,
+    "renderVerifiedByOpenrateCorpus": 97,
     "attributesObserved": 193
   },
   "elements": [
@@ -1740,7 +1741,7 @@
       "codeWrite": "api",
       "capabilityArea": "라이선스 표시(CCL)",
       "capabilityStatus": "Parse·Create",
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -3666,7 +3667,7 @@
       "codeWrite": "api",
       "capabilityArea": "색인 표시",
       "capabilityStatus": "Create(experimental)",
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -3934,7 +3935,7 @@
       "codeWrite": "api",
       "capabilityArea": "색인 표시",
       "capabilityStatus": "Create(experimental)",
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -5072,7 +5073,7 @@
       "codeWrite": "api",
       "capabilityArea": "색인 표시",
       "capabilityStatus": "Create(experimental)",
-      "verificationBasis": null,
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": []
     },
     {

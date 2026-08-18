@@ -38,7 +38,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 <!-- AUTO-GENERATED:BEGIN (scripts/editor_surface_inventory.py) -->
 
-자동 생성 시점 교차 확인: 원장(요소 축) 128건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 41개 등록됨.
+자동 생성 시점 교차 확인: 원장(요소 축) 132건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 41개 등록됨.
 
 ### 서식
 

@@ -23,6 +23,15 @@
 - **`doc.parts.set_license_mark(...)`/`.remove_license_mark()`** — 문서 수준
   라이선스 레코드(`hh:licensemark`) 저작. "입력 > CCL 넣기…"가 남기는 그
   레코드이며, 눈에 보이는 배지는 별개(라이선스 증서 URL을 `href`로 단 그림).
+- **openrate v22** (`docs/openrate/report-v22.json`) — 위 세 표면의 실한컴
+  렌더 배치: 3 스트라텀 × 5건, macOS Hancom GUI 오라클 **15/15
+  render_checked·0 failed**, 음성 대조 3/3 정상 거부. 각 스트라텀에 관측 밖
+  경계 프로브 1건씩(한 문단 색인 표식 2개·한글 필드명·미관측 라이선스 type
+  문자열 `"KOGL"`)을 일부러 실었고 전부 수용됐다 — 실한컴의 수용 경계가
+  관측 분포보다 넓다는 기존 v10/v11 관찰의 재확인. 원장은 `hp:indexmark`/
+  `hp:firstKey`/`hp:secondKey`/`hh:licensemark`를 `by-openrate-corpus`로
+  승격했고, `hp:fieldBegin`은 공유 저수준 요소 원칙(누름틀 v15 전례)대로
+  매트릭스 산문 근거만 갱신했다.
 
 ### 고침
 
