@@ -2,6 +2,41 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [6.3.0] - 2026-08-19
+
+### 더함
+
+- **왕복 충실도 공개 지표** (`docs/corpus-metrics.md` 신규 절 + `docs/roundtrip/`
+  영수증) — 실한컴 저장본 76건(provenance 심사, 정직 제외 3건) 무편집
+  재직렬화에서 **실질 구조 변화 0**(byte-identical 22 · zip-container-only 54),
+  실한컴(Mac 12.30.0 build 6446) 재개봉 판정 가능 73/73 무손상, 음성 대조 2/2
+  정상 거부. 분모 루트를 `tests/data` gold pair·패키지 동봉 Skeleton까지 확장
+  (`scripts/roundtrip_fidelity.py`). 상주 회귀
+  `tests/test_roundtrip_fidelity_corpus.py`가 "substantive 0"을 매 스위트
+  게이트로 강제한다.
+- **stale lineseg 꼬리 커버리지 판정** — 기존 범위 검사(textpos>len)가 못 보던
+  방향(편집으로 문단이 캐시 줄 수 너머로 자란 경우 = 변경추적 겹침 렌더의 실물
+  방향)을 layout lint/패키지 검증기가 검출한다. 꼬리 폭을 overflow lint와 같은
+  보수 추정으로 재고 줄 폭 2배 초과만 error(실한컴 저장본 76건 캘리브레이션
+  오검출 0). 실한컴 렌더 겹침 재검은 opt-in 스모크
+  `tests/test_tracked_overlap_render_smoke.py`(`HWPX_MAC_ORACLE_SMOKE=1`).
+- **`reorder_rows` 표 구조 op** (`apply_table_ops`) — 물리 행 재배열(완전 순열
+  + rowAddr 재기입). 편집기 [표>정렬…] 역매핑 갭의 엔진 프리미티브. 수직
+  병합(rowSpan>1) 표는 typed refuse(바이트 무변경). 정렬 키 비교는 호출자 몫.
+
+### 고침
+
+- **instid 속성명 카멜케이스 불일치** (#88) — 스키마·실한컴 산출물의 정본은
+  소문자 `instid`(픽스처 전수 744 vs 0)인데 코드 6곳이 `instId`를 읽거나 썼다.
+  문단 복제 시 인스턴스 ID 재발급 분기가 영원히 안 타던 사문 수리(중복 instid
+  복제 해소), 각주/미주 저작이 스키마에 없는 속성명을 방출하던 것을 정본으로
+  교정, 리더 4곳은 `instid` 우선 + 과거 자사 산출물(`instId`) 폴백. JSON 투영
+  키(`instId`)는 출력 계약이라 불변.
+- **`hp:audio` 인라인 분류 정리** (#89) — 실한컴(Windows 한글 2024)의 소리
+  삽입 실물은 `hp:ole`(EMBEDDED/ICON)이고 `hp:audio`는 생성되지 않으며 실코퍼스
+  표본 0건. 빈도 0 요소는 읽기측 불투명 보존만 한다는 원칙에 따라
+  `INLINE_OBJECT_NAMES`에서 제외(GenericElement 보존, 무손실 불변).
+
 ## [6.2.1] - 2026-08-19
 
 ### 고침

@@ -38,6 +38,34 @@ open 채널과 render 채널의 기록이 일치해야 발행) · Windows COM �
 있어 위 분모 분해 전체를 `jq` 한 줄로 재현할 수 있다**(v2 영수증의 재현성
 갭을 이번 발행부터 수리).
 
+## 왕복 충실도 (2026-08-19 · roundtrip v1 · N=76 실한컴 저장본)
+
+위 지표들과 **반대 방향**의 축이다 — 우리가 만든 문서를 한컴이 여는가가 아니라,
+**실한컴이 저장한 문서를 우리가 읽고 무편집 재직렬화(`open()`→`to_bytes()`)했을
+때 무엇이 변하는가, 그 산출물을 실한컴이 다시 여는가**. 분모는 공개 체크아웃에서
+provenance를 증명할 수 있는 실한컴 저장본 전수다(`version.xml`의
+`application="Hancom Office Hangul"` 직접 확인 — 우리가 만들지 않은 입력).
+
+| 축 | 결과 | 판정자 | 비고 |
+|---|---|---|---|
+| 분모 자격 심사 | 76 편입 / 3 정직 제외 | version.xml provenance | 제외: hwpxlib 산출물 1 + 실한컴이 손상 거부하는 의도적 비표준 픽스처 2 |
+| 바이트 분류 | **byte-identical 22 · zip-container-only 54 · cosmetic 0 · substantive 0** | 멤버 단위 XML 구조 diff | **실질 구조 변화 0** — zip-container-only는 압축 프레이밍 차이뿐(전 멤버 내용 동일) |
+| 실한컴 재개봉 | **판정 가능 73/73 무손상 개봉** | Mac 한컴 12.30.0 build 6446 GUI(open→PDF→close) | 원본 자체가 이 오라클에서 안 열리는 3건은 분리 버킷(아래) — 왕복 원인 실패 **0** |
+| 판정 채널 유효성 | 음성 대조 2/2 정상 거부 | 실한컴 손상-거부 픽스처 | 하나라도 "성공"하면 전체 무효(fail-closed) — 조용한 auto-repair 오독 방지 |
+
+**정직 버킷 — `original-unopenable-on-this-oracle` 3건**: fuzz 회귀 베이스라인 1 ·
+문서 이력(DocHistory HML 임베드) 표본 1 · hwpxlib 코퍼스의 에러 아카이브 1.
+셋 다 **원본부터 이 Mac 오라클에서 열리지 않음**을 원본/왕복 차등 재실행으로
+확인했다(왕복 산출물만 실패한 사례 = 0). 이 버킷은 pass로도 fail로도 집계하지
+않는다 — [오라클 한계 규율](internals/oracle-limits.md)과 동일한 원칙이다.
+
+재현: 바이트 분류는 `python scripts/roundtrip_fidelity.py`(결정론 매니페스트,
+연속 실행 바이트 동일), 상주 회귀는 `tests/test_roundtrip_fidelity_corpus.py`가
+매 스위트에서 "substantive 0"을 게이트로 강제한다. 재개봉 배치는
+python-hwpx-automation `scripts/roundtrip_reopen_mac.py`. 원시 영수증:
+[`manifest-v1.json`](roundtrip/manifest-v1.json) ·
+[`reopen-receipt-v1.json`](roundtrip/reopen-receipt-v1.json).
+
 ## 이전 전수 측정 (2026-07-19 · corpus v2 · N=497 produced + 9 negative controls)
 
 측정 스택: python-hwpx 3.4.1 후보(코퍼스 측정 시점 소스; v3.4.0은 게이트 실패로 미발행 보존 태그) · 실한컴 12.0.0.3288

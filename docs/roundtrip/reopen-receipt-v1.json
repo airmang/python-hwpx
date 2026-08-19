@@ -1,0 +1,663 @@
+{
+  "hancomBuild": "12.30.0 build 6446",
+  "harnessValid": true,
+  "isolation": {
+    "fuzz_regressions/seed-000000-baseline.hwpx": {
+      "original": false,
+      "roundtrip-retry": false
+    },
+    "gui_probes/version_history.hwpx": {
+      "original": false,
+      "roundtrip-retry": false
+    },
+    "hwpxlib_corpus/error__20230413__test.hwpx": {
+      "original": false,
+      "roundtrip-retry": false
+    }
+  },
+  "negatives": [
+    {
+      "file": "irb_form_blank.hwpx",
+      "pdfBytes": 0,
+      "reopened": false,
+      "sha256": "3416a152923de7f1e82583907d9a6ac9f7a79371eeacb9efdf16df8339f43ba0"
+    },
+    {
+      "file": "irb_form_filled.hwpx",
+      "pdfBytes": 0,
+      "reopened": false,
+      "sha256": "3a40a748e30baecc05432ccf2677aa55ff9e34cfdab893ddc56fdcecc1a41bda"
+    }
+  ],
+  "oracle": "MacHancomOracle",
+  "results": [
+    {
+      "file": "equation_preview/equation_p0.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 21459,
+      "reopened": true,
+      "resavedSha256": "02a3a6defefb73df29081f1415e96cdf14dab20b6f20c2ab5dd881a601bdc757"
+    },
+    {
+      "file": "exam/A_form.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 617578,
+      "reopened": true,
+      "resavedSha256": "c11c90b48eb8b709cdeb91f5a2c7ecae1b89d0d1390dfc1db32865b902d0dd0f"
+    },
+    {
+      "file": "exam/B_submitted.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 1406619,
+      "reopened": true,
+      "resavedSha256": "50f8ce52978b51c83736c84854cc860f98b6bee18d82bba99c6afa20e667e9ad"
+    },
+    {
+      "file": "fuzz_regressions/seed-000000-baseline.hwpx",
+      "hancomReopen": "original-unopenable-on-this-oracle",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 0,
+      "reopened": false,
+      "resavedSha256": "3bc62da84db3a61f15fcfa18f06750ea3914ca0bfffa05f9d850022d3e8cc80f"
+    },
+    {
+      "file": "glyph_overlap/slot_clean.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 14219,
+      "reopened": true,
+      "resavedSha256": "88d687d02e4c72d3da50a63982e2388ad2f04c2135cd2edf1d68d247f870443a"
+    },
+    {
+      "file": "glyph_overlap/slot_overprint.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 14303,
+      "reopened": true,
+      "resavedSha256": "063b5e3c134a9f9c0759413ae286ea1e690a2756afa5747d59bba81e191a8c32"
+    },
+    {
+      "file": "gui_probes/date_and_proofreading_mark.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 11037,
+      "reopened": true,
+      "resavedSha256": "0acd90c564f6b7295a8b1e56a3388de8d594266c158ed9c455d4cd72b9f7cc04"
+    },
+    {
+      "file": "gui_probes/index_mark_first_only.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 7156,
+      "reopened": true,
+      "resavedSha256": "45db278d772382a753ba4ae260a41fb49dc589eac40bae297993ee0a27071f5e"
+    },
+    {
+      "file": "gui_probes/index_mark_two_keys.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 7297,
+      "reopened": true,
+      "resavedSha256": "2d341cf9bf665d61cf4b3ee3afacb51c3e70aec8878ea126ff2d43a4f1126bb6"
+    },
+    {
+      "file": "gui_probes/license_mark_ccl.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 33145,
+      "reopened": true,
+      "resavedSha256": "05d3de92998b2b484d6818c6e199f383f275bcc5f527893f1399de23feaf68aa"
+    },
+    {
+      "file": "gui_probes/mailmerge_display_fields.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 7543,
+      "reopened": true,
+      "resavedSha256": "d89b7f1c39170e75a3e98b11c5f89ef2475ade5dc47392632fc37453f972c6ed"
+    },
+    {
+      "file": "gui_probes/title_mark_caret_p1_mark.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 18859,
+      "reopened": true,
+      "resavedSha256": "84b6a055fb1f7235fb73bc4448a0e238d9f52386471fd22679b5723fdc3e7bb2"
+    },
+    {
+      "file": "gui_probes/title_mark_caret_p2_hide.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 18859,
+      "reopened": true,
+      "resavedSha256": "cddccacd597a6b69586260ff3dfdc6c0b7ff73306a2308b8fb0993d457c0563e"
+    },
+    {
+      "file": "gui_probes/title_mark_caret_p2_mark.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 18859,
+      "reopened": true,
+      "resavedSha256": "697a8f9d97aa3cfba6d168aab96c236a3b677bdd7094ba4c1d033cb9184af1b0"
+    },
+    {
+      "file": "gui_probes/version_history.hwpx",
+      "hancomReopen": "original-unopenable-on-this-oracle",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 0,
+      "reopened": false,
+      "resavedSha256": "f0024876db55fd98aefbe066a41a6a84ffa240c49919b7af108cbeaacb568b14"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20230413__test.hwpx",
+      "hancomReopen": "original-unopenable-on-this-oracle",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 0,
+      "reopened": false,
+      "resavedSha256": "a3b3db674c90eef07bdc4c55e7de129c70b8b9fc576b90a58a4a9e7c6563adde"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20230426__HwpxTest1.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 207553,
+      "reopened": true,
+      "resavedSha256": "234689aae72456039e389075f61c09c7aa7f3434a9e1e42c73c1b54bf65c8667"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20230728__test.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 4710147,
+      "reopened": true,
+      "resavedSha256": "5ca8461bbd006d6942803aa462a3cb524716c470bea64f4c74f3134789a09458"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20230809__test.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 21064,
+      "reopened": true,
+      "resavedSha256": "cd208fd318e26db38558c7cbb8cd7ca9cf13805d87cfae78b43a44280ec61a26"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20230818__test.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 183141,
+      "reopened": true,
+      "resavedSha256": "ec6828eb6f5d99fd0c9cc2773fdc7b325e7c5ee11faa93eec8f69204f3db5436"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20231219__test1.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 9049,
+      "reopened": true,
+      "resavedSha256": "a6719d345d128e3fe586b26343eb5d69f7d2396ddb318a5315270cb7125128e6"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20240305__2022.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 4127,
+      "reopened": true,
+      "resavedSha256": "a5365736b89e74832fb7dc5d23e08f9119771bf1303085ba64585e0c84719a7b"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20240416__presentation오류.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 4022,
+      "reopened": true,
+      "resavedSha256": "345b1f4996b5948b17bdd63c42ff3d752151ae1e47877756f1aac0a50672ff0a"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20240626__no_manifest.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 258155,
+      "reopened": true,
+      "resavedSha256": "ed8af7c46fc78dd25c93db5a91110f46073abb329245fc5c1a00dc43e7bffe0c"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20240919__테스트문서.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 17070,
+      "reopened": true,
+      "resavedSha256": "ccd5f1af0a5f6607b9247e093378f475f91af41a9610712eb2ac5b2c5385ded8"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20241104__mot.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 406013,
+      "reopened": true,
+      "resavedSha256": "5e529fb0460e722f301f88edf92ca24038860702d5d43051b4538bc70e3c58d8"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20250523__프로젝트 계획서.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 219155,
+      "reopened": true,
+      "resavedSha256": "86b9330af98ddc2d7c9c44e97fb0723d9cea343677daee43831cd71f6a29df6e"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20250808__2015년_12월_재난안전종합상황_분석_및_전망.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 32951200,
+      "reopened": true,
+      "resavedSha256": "620dc2a7aeb2fc5a1699bfb01a2a060dc7f188f6ae126ac8fbd9a1e0e32df531"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20251107__test.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 736902,
+      "reopened": true,
+      "resavedSha256": "85b14fe39f177ed54ec3ba738ee7a90520f16cb9e7e609dcce799e422608df69"
+    },
+    {
+      "file": "hwpxlib_corpus/error__20251107__test_re.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 736902,
+      "reopened": true,
+      "resavedSha256": "3a7152f33f566e1a3e132ef7e351c41176edafaa6fce4c65eef5fb36423a54a0"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__ChangeTrack.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 8872,
+      "reopened": true,
+      "resavedSha256": "43c2270d5119f5ee05d3d5f762180207b11c3b0e930e7f7e1e18beb2302b4165"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__HeaderFooter.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 9075,
+      "reopened": true,
+      "resavedSha256": "635bc06a09378e0fd2e9f3bc3bd3095c8afd24f76c0a4ba26ac91d9b8b6e9ebb"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__MultiColumn.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 8683,
+      "reopened": true,
+      "resavedSha256": "fbd238c446cffb261fdffe9edc314271789e8ecf0a1bfe0a89fd0e6e6b5a4429"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__PageFunctions.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 10975,
+      "reopened": true,
+      "resavedSha256": "c78d9e43e7977f985096d0ce65a91544095f9fd71ba4da694889af85414ec4c0"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__PageSize_Margin.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 992,
+      "reopened": true,
+      "resavedSha256": "98134691824516f1d2b995a4c837d66a6cb7c85d24ec93353a23b16473c1d732"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleArc.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 26530,
+      "reopened": true,
+      "resavedSha256": "5bb3804c41afe3b3ba0df81b59e37b6e2c26d4d0d5df6bd87c545f54a06a9f8d"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleButtons.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 10455,
+      "reopened": true,
+      "resavedSha256": "7ab88eb54e9c0ac2af3964f230f3306b1cd560befc2391d02f3345407ac51b47"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleComboBox.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 5125,
+      "reopened": true,
+      "resavedSha256": "4465c1e705a5f26b9fab265afcb697320638ee0137be70a24526479fad20543a"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleCompose.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 7560,
+      "reopened": true,
+      "resavedSha256": "195af373b25b6ca78428e3589e01ce3403ae0b5d51c1008023fed711833ca382"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleConnectLine.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 10048,
+      "reopened": true,
+      "resavedSha256": "47961f4f34a8735beaa1c423c890cbd86ca18fb3b336519104c44eba00710e68"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleContainer.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 80862,
+      "reopened": true,
+      "resavedSha256": "1d36d9fa645d3d01e34fead6f377e874e9082f457b8d3c9da19c25846b2aab83"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleCurve.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 67588,
+      "reopened": true,
+      "resavedSha256": "9ff9aca8e76f1fbec7b9837b63f50e00a118b3c89ccfc0824b05cbbef7597cee"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleDutmal.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 8666,
+      "reopened": true,
+      "resavedSha256": "772ae1a8b5bd615b661d47e5ec942ec0bd1f32a1415bb881ea889c30e7defb06"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleEdit.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 5935,
+      "reopened": true,
+      "resavedSha256": "5266b435941a8e8c5b5a3295352c0afd43a6173ffa2a27d15c2bafa66b8249da"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleEllipse.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 25546,
+      "reopened": true,
+      "resavedSha256": "ef28acc9e417d0b2acfcfcc02b397d2824bb2139258b54a3cff7fa52b5d8fac4"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleEquation.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 6828,
+      "reopened": true,
+      "resavedSha256": "fb406c35d0201d9950fb05a93274a03629683941cbe64f3766ec07de74153a9c"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleLine.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 4039,
+      "reopened": true,
+      "resavedSha256": "66ccb1191c9a11d23251e3a047c251e9d424a02ad0aa4ec0a609070feba0686c"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleOLE.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 10433,
+      "reopened": true,
+      "resavedSha256": "0f9c8503a88d5848e4e25dbe6074f52dc98be36ccefd07be8c84eb4ee04dcbc4"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimplePicture.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 2490044,
+      "reopened": true,
+      "resavedSha256": "68b57f498d6063975b66bc7f1381137aa7e8853dd46f11ce7225a02fd995c524"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimplePolygon.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 92831,
+      "reopened": true,
+      "resavedSha256": "e18f0446a4346283affdd3c11771e5145a5309bc051ba2649ba7f672a735f95e"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleRectangle.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 8256,
+      "reopened": true,
+      "resavedSha256": "47d44db6c90b26f09581763128057c18030d460559ff025c942816df1f3fbecb"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleTable.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 6378,
+      "reopened": true,
+      "resavedSha256": "5d451be292b0c5e2f77f8586db8f7f11312e6f65d488ff29ffd3a5101d5dff1b"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleTextArt.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 90703,
+      "reopened": true,
+      "resavedSha256": "975397c1ac202765289eb971a6233d98b199a3d9666b7ccc4e260c29586042cf"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__SimpleVideo.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 61401,
+      "reopened": true,
+      "resavedSha256": "beabead7d20f1317ca1d51ae4bb51d3cbffedf2af4025683056fa2d626e01860"
+    },
+    {
+      "file": "hwpxlib_corpus/reader_writer__sample1.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 14808,
+      "reopened": true,
+      "resavedSha256": "d70401e8112969c24e4958377d30d6b3cb2db30bf71aa9effab5d7c47b6e2e08"
+    },
+    {
+      "file": "hwpxlib_corpus/tool__finder__TestFinder.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 12960,
+      "reopened": true,
+      "resavedSha256": "fc35691c3a705f468c6399586ca978a17399c91d4e3ed0bd7e929579c7c88be0"
+    },
+    {
+      "file": "hwpxlib_corpus/tool__textextractor__ParaHead.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 12153,
+      "reopened": true,
+      "resavedSha256": "1824370e250960d92059a7eab682dbc34bdba717e59952e2c1f5c13349c5f9a8"
+    },
+    {
+      "file": "hwpxlib_corpus/tool__textextractor__RectInPara.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 14536,
+      "reopened": true,
+      "resavedSha256": "92878a84b7942d3cffbbc247776997b8454a2e94bf53cc268fe8eb90a9b54b88"
+    },
+    {
+      "file": "hwpxlib_corpus/tool__textextractor__RectInRect.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 10365,
+      "reopened": true,
+      "resavedSha256": "1fb7d7596c00ac99c1bc42529c1e87259ed4c84eeafd07c485eeeb1352f4c06f"
+    },
+    {
+      "file": "hwpxlib_corpus/tool__textextractor__Table.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 15651,
+      "reopened": true,
+      "resavedSha256": "a081282ec78b11f14530d07d544521b7abc373b47d58696e5ddf393688bfe0af"
+    },
+    {
+      "file": "hwpxlib_corpus/tool__textextractor__multipara.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 51046,
+      "reopened": true,
+      "resavedSha256": "13d374f8d2e9ef0a7f18aacd910e08ddfd594e2991d2e14fe34c291783281143"
+    },
+    {
+      "file": "m105_evalplan/blank_form_1-2hak.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 455293,
+      "reopened": true,
+      "resavedSha256": "3f922baf34afb65a040896993da43b18f52862dd8fd3f07c2c5d50c70c282184"
+    },
+    {
+      "file": "m105_evalplan/blank_form_3hak.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 333462,
+      "reopened": true,
+      "resavedSha256": "43432a0222afd6cccb77b4d0d15f4da1689abeb1db7f32b0a981cb79710c7c4b"
+    },
+    {
+      "file": "m2_corpus/form_002.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 559210,
+      "reopened": true,
+      "resavedSha256": "0b5d162572fc558b7c588057e652f2b5651e8acee084e9ce66dc5e94ed0affd3"
+    },
+    {
+      "file": "m2_corpus/gov_donation_report_form.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 3656306,
+      "reopened": true,
+      "resavedSha256": "2b08a9810e727c81afdb16137b307fe132ec0eeb4155f7184d0b711de6b5d093"
+    },
+    {
+      "file": "m2_corpus/public_official_table.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 468433,
+      "reopened": true,
+      "resavedSha256": "e0b06daf2c605c127971a85c79520b187812c6fa8c5380c5b1750cb73c24b879"
+    },
+    {
+      "file": "m3_gongmun_gold/mfds_admin_notice.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 404315,
+      "reopened": true,
+      "resavedSha256": "ae776c03eb7f91d4b5e5a133412e792ae347a605c80450a9a024d599239ed0ef"
+    },
+    {
+      "file": "m3_gongmun_gold/mpm_recruitment_notice.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 96018,
+      "reopened": true,
+      "resavedSha256": "ce16863dbf56b2e88514a523c2e210a71cc3214af32628468a532bdbaacb73c4"
+    },
+    {
+      "file": "m3_gongmun_gold/seoul_sihaengmun.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "zip-container-only",
+      "pdfBytes": 54081,
+      "reopened": true,
+      "resavedSha256": "0d8aa2c3b43a2ae10824408cfbeab7572418bc4ba40378627dc41420c25f5fbd"
+    },
+    {
+      "file": "m7_toc_gold/hancom-native-toc-A.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 39940,
+      "reopened": true,
+      "resavedSha256": "fd8bfb6ffe9e7a7f00e71b00e47f168fc0b7e0a031d2a1d227b6ed2ec5ed443d"
+    },
+    {
+      "file": "m7_toc_gold/hancom-native-toc-B.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 45333,
+      "reopened": true,
+      "resavedSha256": "f9287ed36f62983387787c30d44947bd5ede359960df34f5f7bf40434b74a4e5"
+    },
+    {
+      "file": "markdown_export/30_table_merge_min.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 7340,
+      "reopened": true,
+      "resavedSha256": "6187a70ec1e897bddbd4ef96e1f16cd43122ec14cb9daf0e949bf8e8ae16f4bc"
+    },
+    {
+      "file": "markdown_export/99_all_in_one_stress.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 17423,
+      "reopened": true,
+      "resavedSha256": "cc0bc82c321b387d594aa666031d57d405a31bf9e4f7975b7f5cfe4c0bd3c125"
+    },
+    {
+      "file": "tests-data/clickhere_gold_empty.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 7367,
+      "reopened": true,
+      "resavedSha256": "a0cbc2f820a4f30b55a195f70074e9385431537727f83a937483a8fb02192f1d"
+    },
+    {
+      "file": "tests-data/clickhere_gold_filled.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 8340,
+      "reopened": true,
+      "resavedSha256": "63e88315c76b93329cd41993abdfbaf18afd70bd63d2b7c51eed1edd63f2a140"
+    },
+    {
+      "file": "package-data/Skeleton.hwpx",
+      "hancomReopen": "pass",
+      "overallCategory": "byte-identical",
+      "pdfBytes": 991,
+      "reopened": true,
+      "resavedSha256": "c91fb77a9933a3e5645a25778e2d2b99e98137ed99572a5d1dd29ef0c0fd4c98"
+    }
+  ],
+  "roundtripManifestSummary": {
+    "categoryDistribution": {
+      "byte-identical": 22,
+      "zip-container-only": 54
+    },
+    "totalExcluded": 3,
+    "totalIncluded": 76
+  },
+  "schemaVersion": "python-hwpx.roundtrip-reopen/v1",
+  "summary": {
+    "buckets": {
+      "original-unopenable-on-this-oracle": 3,
+      "pass": 73
+    },
+    "failed": 3,
+    "judgeable": 73,
+    "judgeablePass": 73,
+    "reopened": 73,
+    "total": 76
+  }
+}
