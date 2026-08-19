@@ -26,14 +26,10 @@
 """
 from __future__ import annotations
 
-import io
 import os
-import zipfile
-from copy import deepcopy
 from pathlib import Path
 
 import pytest
-from lxml import etree
 
 from hwpx import HwpxDocument
 
