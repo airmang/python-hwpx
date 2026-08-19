@@ -483,7 +483,7 @@ class TextExtractor:
             return
 
         kind_name = "footnote" if kind == "footNote" else "endnote"
-        inst_id = element.get("instId") or ""
+        inst_id = element.get("instid") or element.get("instId") or ""
 
         if option == "placeholder":
             fragments.append(

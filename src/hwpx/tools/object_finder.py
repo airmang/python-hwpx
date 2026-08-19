@@ -317,7 +317,7 @@ class ObjectFinder:
     ) -> AnnotationMatch:
         path = describe_element_path(element, parent_map)
         found = FoundElement(section=section, path=path, element=element)
-        inst_id = element.get("instId") or ""
+        inst_id = element.get("instid") or element.get("instId") or ""
         behavior = options.footnote if kind == "footnote" else options.endnote
         if behavior == "inline":
             text = _resolve_note_text(
