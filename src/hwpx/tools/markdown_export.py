@@ -261,7 +261,7 @@ def _md_handle_ctrl_child(child, state: _MdParagraphState, base_cp, chars, doc=N
 def _md_handle_note_child(
     child, tag: str, state: _MdParagraphState, base_cp, chars, doc, notes_out: list | None
 ) -> None:
-    inst_id = child.get("instId", "")
+    inst_id = child.get("instid") or child.get("instId", "")
     kind = "fn" if tag == "footNote" else "en"
     marker = f"[^{kind}{inst_id}]"
     if state.link_url is not None:

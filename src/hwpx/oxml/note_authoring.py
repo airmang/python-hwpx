@@ -128,7 +128,7 @@ def _paragraph_add_note(
         {
             "number": str(number),
             "suffixChar": str(ord(suffix[0])) if suffix else "41",
-            "instId": _object_id(),
+            "instid": _object_id(),
         },
     )
     sublist_attrs = _default_sublist_attributes()
