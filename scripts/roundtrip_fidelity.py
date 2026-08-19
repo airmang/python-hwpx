@@ -9,7 +9,9 @@
 
 ## 코퍼스 선별 — "실한컴 저장본만 자격이 있다"
 
-``tests/fixtures/**/*.hwpx``를 전수 훑되, 각 파일의 ``version.xml``에서
+``tests/fixtures/**/*.hwpx`` + ``tests/data/**/*.hwpx``(실한컴 gold pair) +
+``src/hwpx/data/**/*.hwpx``(패키지 동봉 Skeleton)를 전수 훑되 — 셋 모두 공개
+체크아웃에서 재산출 가능한 루트다 — 각 파일의 ``version.xml``에서
 ``application``/``appVersion``을 직접 읽어 실한컴 산출물임을 증명한다
 (``application="Hancom Office Hangul"`` — 실 Skeleton.hwpx·이 저장소의
 모든 gold 픽스처가 공유하는 리터럴). 증명 못 하는 파일은 **정직하게
@@ -65,6 +67,14 @@ from lxml import etree
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES_DIR = ROOT / "tests" / "fixtures"
+#: 분모 루트 — (매니페스트 rel 접두, 디렉터리). fixtures는 기존 rel을 보존하기
+#: 위해 무접두. 추가 루트는 공개 체크아웃에서 재산출 가능한 실한컴 저장본만:
+#: tests/data(실한컴 gold pair)·src/hwpx/data(패키지 동봉 Skeleton).
+CORPUS_ROOTS: list[tuple[str, Path]] = [
+    ("", FIXTURES_DIR),
+    ("tests-data/", ROOT / "tests" / "data"),
+    ("package-data/", ROOT / "src" / "hwpx" / "data"),
+]
 OUTPUT_DIR = ROOT / "work" / "roundtrip-v1"
 MANIFEST_PATH = OUTPUT_DIR / "manifest.json"
 
@@ -132,18 +142,19 @@ def discover_corpus() -> tuple[list[CorpusEntry], list[ExclusionEntry]]:
     included: list[CorpusEntry] = []
     excluded: list[ExclusionEntry] = []
 
-    for path in sorted(FIXTURES_DIR.rglob("*.hwpx")):
-        rel = path.relative_to(FIXTURES_DIR).as_posix()
-        if rel in KNOWN_NON_ORACLE_EXCLUSIONS:
-            excluded.append(ExclusionEntry(rel, KNOWN_NON_ORACLE_EXCLUSIONS[rel]))
-            continue
-        provenance = _hancom_provenance(path)
-        if provenance is None:
-            excluded.append(
-                ExclusionEntry(rel, "version.xml에 실한컴 application 마커가 없거나 확인 불가")
-            )
-            continue
-        included.append(CorpusEntry(rel, path, provenance))
+    for prefix, base in CORPUS_ROOTS:
+        for path in sorted(base.rglob("*.hwpx")):
+            rel = prefix + path.relative_to(base).as_posix()
+            if rel in KNOWN_NON_ORACLE_EXCLUSIONS:
+                excluded.append(ExclusionEntry(rel, KNOWN_NON_ORACLE_EXCLUSIONS[rel]))
+                continue
+            provenance = _hancom_provenance(path)
+            if provenance is None:
+                excluded.append(
+                    ExclusionEntry(rel, "version.xml에 실한컴 application 마커가 없거나 확인 불가")
+                )
+                continue
+            included.append(CorpusEntry(rel, path, provenance))
 
     return included, excluded
 
