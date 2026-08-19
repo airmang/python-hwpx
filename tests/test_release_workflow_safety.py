@@ -857,8 +857,8 @@ def test_core_release_build_inputs_and_remote_provenance_are_frozen() -> None:
         (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     )
     assert pyproject["build-system"]["requires"] == [
-        "setuptools==83.0.0",
-        "wheel==0.47.0",
+        "setuptools==84.0.0",
+        "wheel==0.48.0",
     ]
     assert _workflow_safety_failures(RELEASE.read_text(encoding="utf-8")) == []
 
