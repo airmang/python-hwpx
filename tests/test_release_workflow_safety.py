@@ -33,7 +33,7 @@ SBOM_STEP = "Generate release SBOM"
 PYPI_ACTION = "pypa/gh-action-pypi-publish@"
 GITHUB_ACTION = "softprops/action-gh-release@"
 CHECKOUT_ACTION = (
-    "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
 )
 EXPECTED_TRIGGER = {
     "push": {
@@ -97,7 +97,7 @@ mkdir -p release-artifacts
 EXPECTED_RELEASE_STEPS = (
     (
         "Checkout repository",
-        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
         False,
         None,
         None,
@@ -106,7 +106,7 @@ EXPECTED_RELEASE_STEPS = (
     ),
     (
         "Set up Python",
-        "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+        "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
         False,
         {"python-version": "3.12"},
         None,
@@ -135,7 +135,7 @@ EXPECTED_RELEASE_STEPS = (
     (SBOM_STEP, None, True, None, None, None, None),
     (
         "Publish package to PyPI",
-        "pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247",
+        "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33",
         False,
         None,
         None,
@@ -644,12 +644,12 @@ def test_public_legacy_cap_is_a_required_fail_closed_job() -> None:
                 "    needs: legacy-cap\n"
                 "    runs-on: ubuntu-latest\n"
                 "    steps:\n"
-                f"      - uses: {CHECKOUT_ACTION} # v7.0.0\n",
+                f"      - uses: {CHECKOUT_ACTION} # v7.0.1\n",
                 "  prepublish:\n"
                 "    needs: legacy-cap\n"
                 "    runs-on: ubuntu-latest\n"
                 "    steps:\n"
-                f"      - uses: {CHECKOUT_ACTION} # v7.0.0\n"
+                f"      - uses: {CHECKOUT_ACTION} # v7.0.1\n"
                 "        with:\n"
                 "          ref: main\n",
                 1,
@@ -857,8 +857,8 @@ def test_core_release_build_inputs_and_remote_provenance_are_frozen() -> None:
         (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     )
     assert pyproject["build-system"]["requires"] == [
-        "setuptools==83.0.0",
-        "wheel==0.47.0",
+        "setuptools==84.0.0",
+        "wheel==0.48.0",
     ]
     assert _workflow_safety_failures(RELEASE.read_text(encoding="utf-8")) == []
 
