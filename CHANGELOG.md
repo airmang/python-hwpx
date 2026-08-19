@@ -2,7 +2,21 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
-## [6.2.0] - 2026-08-19
+## [6.2.1] - 2026-08-19
+
+### 고침
+
+- **v6.2.0은 보존된 실패 태그입니다** — 워크스페이스 편의용 `work` 심볼릭
+  링크(정본 체크아웃의 `work/`를 가리키는 상대 링크)가 릴리스 트레인에
+  추적돼 들어갔고, CI 러너의 경로 구조에서는 그 상대 경로가 자기 자신을
+  가리키는 순환 링크가 되어 `test_emit_loss_inventory`가
+  `OSError: Too many levels of symbolic links`로 실패했다(1 failed/3107 —
+  prepublish 게이트가 발행을 정상 차단). `.gitignore`의 `work/` 패턴은
+  디렉터리만 매칭해 링크 **파일**을 못 막던 것이 근본 원인 — 링크를
+  언트랙하고 패턴에 `work`(슬래시 없음)를 보강했다. 태그는 불변 원칙대로
+  보존한다(v2.29.0 전례). 6.2.1은 그 외 6.2.0과 동일하다.
+
+## [6.2.0] - 2026-08-19 (보존된 실패 태그 — PyPI 미발행)
 
 ### 더함
 

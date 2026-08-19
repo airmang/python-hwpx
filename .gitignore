@@ -55,4 +55,5 @@ Thumbs.db
 
 # local scratch / measurement artifacts (oracle PDFs, PNGs, calibration)
 work/
+work
 differential-fiton-*.json
