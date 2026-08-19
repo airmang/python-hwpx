@@ -1053,6 +1053,34 @@ def _delete_rows(table: str, del_rows: Iterable[int]) -> str:
     return _rebuild(prefix, rows, suffix, rowcnt=len(rows))
 
 
+def _reorder_rows(table: str, order: Sequence[int]) -> str:
+    """물리 행 재배열 — 편집기 [표>정렬…] 대응의 엔진 프리미티브.
+
+    *order*는 현재 물리 행 인덱스의 완전 순열: 새 ``i``번째 행 = 기존
+    ``order[i]``. 행 문자열을 통째로 옮기고 각 셀의 ``rowAddr``만 목적지
+    인덱스로 재기입한다(행 높이·서식·문단은 행과 함께 이동). 수직 병합
+    (rowSpan>1)이 하나라도 있으면 refuse — 병합 블록을 가로지르는 재배열은
+    의미가 정의되지 않는다. 정렬 키 비교(어떤 순서로 놓을지)는 호출자 몫이다.
+    """
+    _guard_flat(table)
+    prefix, rows, suffix = _parse_table(table)
+    if sorted(order) != list(range(len(rows))):
+        raise TableStructureError(
+            f"reorder_rows: order must be a permutation of 0..{len(rows) - 1}, got {list(order)}"
+        )
+    for row in rows:
+        for tc in _S_TC.findall(row):
+            if (_si(tc, "cellSpan", "rowSpan") or 1) > 1:
+                raise TableStructureError(
+                    "reorder_rows: vertical merge (rowSpan>1) present — refuse"
+                )
+    new_rows = [
+        _map_cells(rows[src], lambda tc, dest=dest: _ss(tc, "cellAddr", "rowAddr", dest))
+        for dest, src in enumerate(order)
+    ]
+    return _rebuild(prefix, new_rows, suffix)
+
+
 _PARA_ID_RE = re.compile(r'(<hp:p\b[^>]*\bid=")(\d+)(")')
 
 
@@ -1389,6 +1417,7 @@ def _widths_arg(o: Mapping[str, Any]) -> dict[int, int]:
 _STRUCT_OPS = {
     "delete_column": lambda t, o: _collapse_empty_rows(_delete_columns(t, o["cols"] if "cols" in o else [o["col"]])),
     "delete_row": lambda t, o: _delete_rows(t, o["rows"] if "rows" in o else [o["row"]]),
+    "reorder_rows": lambda t, o: _reorder_rows(t, [int(x) for x in o["order"]]),
     "insert_row_by_clone": lambda t, o: _insert_row_by_clone(t, o["ref_row"], int(o.get("count", 1))),
     "insert_block_by_clone": lambda t, o: _insert_block_by_clone(t, int(o["ref_rows"][0]), int(o["ref_rows"][1]), int(o.get("count", 1))),
     "set_column_widths": lambda t, o: _set_column_widths(t, _widths_arg(o)),
