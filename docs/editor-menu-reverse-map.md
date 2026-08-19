@@ -80,7 +80,7 @@ Windows 한컴 전용 표면은 이 스캔으로 부재를 단정할 수 없다.
 | 모두 선택 | [스코프 밖] | 선택 동작 — UI 상태 |
 | 글자 바꾸기 | [대응 영역] | 찾아바꾸기(`doc.text.replace`) |
 | 찾기 | [대응 영역] | 찾아바꾸기(`doc.text.find_runs`) |
-| 정렬… | [부분 대응] | **트레인㊺ 판정**: 스키마에 "정렬" 관련 어휘는 없음(예상대로 — 데이터 재배치는 새 요소가 아니라 기존 `hp:tr`/`hp:p`의 순서 문제). `table_patch.py`에 행 단위 clone/delete/split/merge/height 프리미티브(`_insert_row_by_clone`/`_insert_block_by_clone`/`_delete_rows`/`_split_table_rows`/`_merge_table_rows`/`_set_row_heights`)는 있으나 **행 재배열(move/swap/reorder) 프리미티브가 없다**(전수 grep 무결과) — 요소 모델은 이미 완전히 이해됐으니 XML 리버스는 불필요하고, `_parse_table`/`_rebuild` 위에 정렬 로직만 얹으면 되는 순수 엔지니어링 갭. 활성화 조건(표뿐인지 문단 목록도인지)은 여전히 실측 필요하나 core 저작 API 부재라는 결론에는 영향 없음 |
+| 정렬… | [부분 대응] | **트레인㊺ 판정**: 스키마에 "정렬" 관련 어휘는 없음(예상대로 — 데이터 재배치는 새 요소가 아니라 기존 `hp:tr`/`hp:p`의 순서 문제). `table_patch.py`에 행 단위 clone/delete/split/merge/height 프리미티브(`_insert_row_by_clone`/`_insert_block_by_clone`/`_delete_rows`/`_split_table_rows`/`_merge_table_rows`/`_set_row_heights`)는 있으나 **행 재배열(move/swap/reorder) 프리미티브가 없다**(전수 grep 무결과) — 요소 모델은 이미 완전히 이해됐으니 XML 리버스는 불필요하고, `_parse_table`/`_rebuild` 위에 정렬 로직만 얹으면 되는 순수 엔지니어링 갭. 활성화 조건(표뿐인지 문단 목록도인지)은 여전히 실측 필요하나 core 저작 API 부재라는 결론에는 영향 없음. **현행화(왕복 충실도 사이클): `_reorder_rows`/`reorder_rows` op가 `table_patch.py`에 실재** — 완전 순열 재배열 + rowAddr 재기입, 수직 병합은 typed refuse. 남은 것은 정렬 키 비교 로직(호출자 몫)과 응용 계층 노출 |
 | 자동 완성 | [스코프 밖] | 대화형 입력 보조(타이핑 중 자동완성 제안) — 문서 형식 자체 아님 |
 | 받아쓰기 시작 | [스코프 밖] | 음성 인식(dictation) — 언어 도구 스코프 밖 기존 원칙(맞춤법 검사·한자 변환과 동일 분류) |
 

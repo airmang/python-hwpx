@@ -517,3 +517,70 @@ def test_fill_with_max_lines_shrinks_when_warranted(merged):
                 assert len(re.findall(rb'<hh:charPr\b', _header(res.data)[1])) > len(re.findall(rb'<hh:charPr\b', header))
                 return
     pytest.skip("no cell in fixture produced a confident font shrink")
+
+
+# --- reorder_rows (편집기 [표>정렬…] 대응 프리미티브) --------------------------
+
+
+def _row_texts(tbl: bytes) -> list[str]:
+    _p, rows, _s = _parse_table(tbl.decode("utf-8"))
+    return [
+        "".join(re.findall(r"<hp:t>(.*?)</hp:t>", r, re.DOTALL)) for r in rows
+    ]
+
+
+def _row_addrs(tbl: bytes) -> list[list[int]]:
+    _p, rows, _s = _parse_table(tbl.decode("utf-8"))
+    return [
+        [int(m) for m in re.findall(r'rowAddr="(\d+)"', r)] for r in rows
+    ]
+
+
+def test_reorder_rows_permutes_rows_and_renumbers_addrs(merged):
+    def flat(tbl: bytes) -> bool:
+        _p, rows, _s = _parse_table(tbl.decode("utf-8"))
+        return len(rows) >= 2 and all(
+            int(m) == 1 for m in re.findall(r'rowSpan="(\d+)"', tbl.decode("utf-8"))
+        )
+
+    ti = _find_table(merged, flat)
+    assert ti is not None, "flat table fixture not found"
+    sec0, spans0 = _tables(merged)
+    before = _row_texts(sec0[spans0[ti][0]:spans0[ti][1]])
+    n = len(before)
+    order = list(reversed(range(n)))
+
+    res = apply_table_ops(merged, [{"op": "reorder_rows", "table_index": ti, "order": order}])
+    assert res.ok, res.skipped
+    sec1, spans1 = _tables(res.data)
+    tbl1 = sec1[spans1[ti][0]:spans1[ti][1]]
+    assert _row_texts(tbl1) == list(reversed(before)), "행 내용이 순열대로 재배열되어야 한다"
+    for dest, addrs in enumerate(_row_addrs(tbl1)):
+        assert all(a == dest for a in addrs), f"행 {dest}의 rowAddr가 재기입되지 않았다: {addrs}"
+    _grid, rep = build_grid(tbl1)
+    assert rep.ok and rep.row_count == n
+
+
+def test_reorder_rows_refuses_vertical_merge(merged):
+    def has_vmerge(tbl: bytes) -> bool:
+        return any(int(m) > 1 for m in re.findall(r'rowSpan="(\d+)"', tbl.decode("utf-8")))
+
+    ti = _find_table(merged, has_vmerge)
+    assert ti is not None
+    sec0, spans0 = _tables(merged)
+    n = len(_row_texts(sec0[spans0[ti][0]:spans0[ti][1]]))
+    res = apply_table_ops(merged, [{"op": "reorder_rows", "table_index": ti, "order": list(reversed(range(n)))}])
+    assert any("rowSpan" in s.reason for s in res.skipped), res.skipped
+    assert res.data == merged, "거절 시 바이트 무변경이어야 한다"
+
+
+def test_reorder_rows_refuses_non_permutation(simple):
+    def flat(tbl: bytes) -> bool:
+        _p, rows, _s = _parse_table(tbl.decode("utf-8"))
+        return len(rows) >= 2
+
+    ti = _find_table(simple, flat)
+    assert ti is not None
+    res = apply_table_ops(simple, [{"op": "reorder_rows", "table_index": ti, "order": [0, 0]}])
+    assert any("permutation" in s.reason for s in res.skipped), res.skipped
+    assert res.data == simple
