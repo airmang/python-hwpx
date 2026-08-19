@@ -112,7 +112,7 @@ SRC_DIR = ROOT / "src" / "hwpx"
 #: 건너뛴다(``_load_*`` 쪽에서 ``is_file()`` 가드).
 OPENRATE_REPORT_PATHS: tuple[Path, ...] = tuple(
     ROOT / "docs" / "openrate" / f"report-{version}.json"
-    for version in ("v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21")
+    for version in ("v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22")
 )
 LEDGER_JSON = ROOT / "docs" / "coverage-ledger.json"
 LEDGER_MD = ROOT / "docs" / "coverage-ledger.md"
@@ -1338,6 +1338,15 @@ _register("덧말·글자 겹치기", "hp", "compose", "dutmal", "mainText", "su
 # 6.15 트레인 — hp:titleMark는 이 영역만 쓰는 전용 요소다(다른 어느
 # 능력 영역도 공유하지 않음, 직접 확인).
 _register("차례 숨기기·제목 차례 표시", "hp", "titleMark")
+# P4 — hp:indexmark와 그 두 키 자식은 "색인 표시" 전용이다(다른 어느
+# 코드 경로도 이 이름들을 안 쓴다, 직접 확인). 같은 트레인이 저작을 연
+# "메일머지 표시 필드"는 반대로 등록이 **없다** — 그쪽이 만드는 건
+# hp:fieldBegin/parameters/stringParam처럼 여러 필드 종류가 공유하는
+# 저수준 요소뿐이라, 여기 등록하면 위 CAPABILITY_KEYWORDS 상단 주석의
+# fieldBegin 원칙(무근거 승격 회피)을 정면으로 어긴다.
+_register("색인 표시", "hp", "indexmark", "firstKey", "secondKey")
+# P4 — hh:licensemark도 "라이선스 표시(CCL)" 전용 요소다(직접 확인).
+_register("라이선스 표시(CCL)", "hh", "licensemark")
 # 6.11 트레인㊳ — v14. "목록 서식(글머리표·번호매기기)"은 새로 등록하는
 # 영역이다(이전엔 대응 capabilityArea 자체가 없어 인벤토리 행이 계속
 # 미실측으로 남아 있었다). hh:bullet/numbering(과 그 컨테이너·자식)은
@@ -1515,6 +1524,14 @@ _OPENRATE_STRATUM_TO_CAPABILITY_AREA: dict[str, str] = {
     # add_title_mark로 저작한 것이 정확히 이 요소이므로 영역째 흘려도
     # 안전하다.
     "authored-title-mark": "차례 숨기기·제목 차례 표시",
+    # v22(Windows-표면 트레인) — "색인 표시"는 hp:indexmark/firstKey/secondKey
+    # 3종만 등록된 1:1 영역(_register 호출부), "라이선스 표시(CCL)"는
+    # hh:licensemark 단독 1:1 영역 — 둘 다 다른 영역과 공유 요소가 없어
+    # 영역째 흘려도 안전하다. authored-mailmerge-field는 의도적으로 여기
+    # 없음: hp:fieldBegin은 CLICKHERE/TOC/하이퍼링크/MAILMERGE가 공유하는
+    # 저수준 요소라(누름틀 v15 전례) 등급 갱신은 매트릭스 산문으로만.
+    "authored-index-mark": "색인 표시",
+    "authored-license-mark": "라이선스 표시(CCL)",
 }
 
 #: capabilityArea가 아직 없거나(v7), 있어도 혼합 지원이라 영역 전체로

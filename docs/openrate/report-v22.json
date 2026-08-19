@@ -1,0 +1,42 @@
+{
+ "generator_manifest_schema": "hwpx.openrate.frozen-manifest.v22",
+ "harness_valid": true,
+ "measured_at": "2026-08-18T21:37:53.546859+09:00",
+ "negative_controls": {
+  "expected": [
+   "corrupt_section",
+   "corrupt_header",
+   "missing_section"
+  ],
+  "judged": 3,
+  "wrongly_rendered": []
+ },
+ "oracle": "mac-gui",
+ "oracle_app": "Hancom Office HWP.app (macOS)",
+ "schemaVersion": "hwpx.openrate.report/v22",
+ "scopeNote": "v22 measures the Windows-surface train's three measured-contract authoring surfaces, additive over v1-v21: index marks (add_index_mark, DEV-045 secondKey omission), mail-merge display fields (add_mail_merge_field, DEV-046 Fiexde parameter replication, {{name}} cache), and the document-level licence record (set_license_mark, DEV-048). Contracts were reversed from box GUI golds captured on HWP 13.0.0.3901 (Windows, Office 2024); this batch's observer is the macOS Hancom GUI oracle (open+render one gate). Each stratum carries one deliberate beyond-observed acceptance probe (two marks in one paragraph / hangul field name / unobserved licence type string) - all accepted. Session-state discipline applied: a control render (v21-title-mark-000) preceded the batch and the app was fully restarted before launch. Negative controls re-run this batch: 3/3 refused, 0 wrongly rendered.",
+ "strata": {
+  "authored-index-mark": {
+   "judged": 5,
+   "render_checked": 5,
+   "render_failed": 0
+  },
+  "authored-license-mark": {
+   "judged": 5,
+   "render_checked": 5,
+   "render_failed": 0
+  },
+  "authored-mailmerge-field": {
+   "judged": 5,
+   "render_checked": 5,
+   "render_failed": 0
+  }
+ },
+ "tool_versions": {
+  "python-hwpx": "6.1.0"
+ },
+ "totals": {
+  "judged": 15,
+  "render_checked": 15
+ }
+}

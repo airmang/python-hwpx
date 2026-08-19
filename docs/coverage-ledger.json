@@ -24,7 +24,8 @@
       "docs/openrate/report-v18.json",
       "docs/openrate/report-v19.json",
       "docs/openrate/report-v20.json",
-      "docs/openrate/report-v21.json"
+      "docs/openrate/report-v21.json",
+      "docs/openrate/report-v22.json"
     ],
     "skeleton": "src/hwpx/data/Skeleton.hwpx",
     "sourceScanned": "src/hwpx/**/*.py"
@@ -57,13 +58,13 @@
     "schemaDeclared": 307,
     "corpusOnly": 38,
     "corpusObserved": 229,
-    "codeRead": 244,
-    "codeWriteApi": 190,
+    "codeRead": 247,
+    "codeWriteApi": 194,
     "codeWriteFrozenTemplate": 14,
-    "codeWriteNone": 141,
-    "capabilityMapped": 107,
-    "renderVerified": 128,
-    "renderVerifiedByOpenrateCorpus": 93,
+    "codeWriteNone": 137,
+    "capabilityMapped": 111,
+    "renderVerified": 132,
+    "renderVerifiedByOpenrateCorpus": 97,
     "attributesObserved": 193
   },
   "elements": [
@@ -1737,10 +1738,10 @@
       "corpusFrequency": 0.0,
       "corpusFileCount": 0,
       "codeRead": true,
-      "codeWrite": "none",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "codeWrite": "api",
+      "capabilityArea": "라이선스 표시(CCL)",
+      "capabilityStatus": "Parse·Create",
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -3662,11 +3663,11 @@
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 0.0,
       "corpusFileCount": 0,
-      "codeRead": false,
-      "codeWrite": "none",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "codeRead": true,
+      "codeWrite": "api",
+      "capabilityArea": "색인 표시",
+      "capabilityStatus": "Create(experimental)",
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -3930,11 +3931,11 @@
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 0.0,
       "corpusFileCount": 0,
-      "codeRead": false,
-      "codeWrite": "none",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "codeRead": true,
+      "codeWrite": "api",
+      "capabilityArea": "색인 표시",
+      "capabilityStatus": "Create(experimental)",
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": []
     },
     {
@@ -5068,11 +5069,11 @@
       "schemaSource": "ParaList XML schema.xml",
       "corpusFrequency": 0.0,
       "corpusFileCount": 0,
-      "codeRead": false,
-      "codeWrite": "none",
-      "capabilityArea": null,
-      "capabilityStatus": null,
-      "verificationBasis": null,
+      "codeRead": true,
+      "codeWrite": "api",
+      "capabilityArea": "색인 표시",
+      "capabilityStatus": "Create(experimental)",
+      "verificationBasis": "by-openrate-corpus",
       "observedAttributes": []
     },
     {

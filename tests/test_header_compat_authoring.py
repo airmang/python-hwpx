@@ -11,14 +11,23 @@ claim c38bf07 made still holds for documents these setters never touch.
 """
 from __future__ import annotations
 
+import io
+import zipfile
 from pathlib import Path
 
 import pytest
 
 from hwpx.document import HwpxDocument
 from hwpx.errors import HwpxValueError
+from hwpx.oxml.header import LicenseMark
 
 CORPUS = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
+GUI_PROBES = Path(__file__).parent / "fixtures" / "gui_probes"
+
+
+def _header_xml(document: HwpxDocument) -> str:
+    with zipfile.ZipFile(io.BytesIO(document.to_bytes())) as archive:
+        return archive.read("Contents/header.xml").decode("utf-8")
 
 
 def test_set_compatible_document_target_program_round_trips() -> None:
@@ -100,6 +109,91 @@ def test_set_doc_option_link_info_partial_update_leaves_others_unchanged() -> No
     assert link_info.page_inherit is False
     assert link_info.path == ""
     assert link_info.footnote_inherit is False
+
+
+def test_set_license_mark_matches_the_real_gold_contract() -> None:
+    """실측 gold(``tests/fixtures/gui_probes/license_mark_ccl.hwpx``, "입력 >
+    CCL 넣기…"): ``hh:linkinfo`` 바로 뒤 형제로
+    ``<hh:licensemark type="CCL" flag="0" lang="6"/>``."""
+
+    document = HwpxDocument.new()
+
+    document.parts.set_license_mark(mark_type="CCL", flag=0, lang=6)
+
+    header_xml = _header_xml(document)
+    assert (
+        '<hh:linkinfo path="" pageInherit="0" footnoteInherit="0"/>'
+        '<hh:licensemark type="CCL" flag="0" lang="6"/>'
+    ) in header_xml
+    assert header_xml.count("<hh:licensemark") == 1
+
+
+def test_set_license_mark_type_is_a_string_because_real_hancom_writes_one() -> None:
+    """스키마(``Header XML schema.xml``의 ``DocOptionType``)는 ``type``을
+    ``xs:unsignedInt use="required"``로 선언하지만 실물은 ``"CCL"``이다.
+    ``int``로 선언돼 있던 읽기 모델은 실한컴 CCL 문서를 ``to_model()``로
+    읽는 순간 ``ValueError``로 터졌다 -- 그 회귀를 이 테스트가 막는다."""
+
+    gold = HwpxDocument.open(GUI_PROBES / "license_mark_ccl.hwpx")
+    try:
+        license_mark = gold.oxml.headers[0].to_model().doc_option.license_mark
+    finally:
+        gold.close()
+
+    assert license_mark == LicenseMark(type="CCL", flag=0, lang=6)
+
+
+def test_set_license_mark_round_trips_through_save_and_reopen() -> None:
+    document = HwpxDocument.new()
+
+    document.parts.set_license_mark(mark_type="CCL", flag=0, lang=6)
+    reopened = HwpxDocument.open(document.to_bytes())
+
+    license_mark = reopened.oxml.headers[0].to_model().doc_option.license_mark
+    assert license_mark == LicenseMark(type="CCL", flag=0, lang=6)
+
+
+def test_set_license_mark_omits_lang_when_not_given() -> None:
+    """``lang``만 스키마상 optional -- 안 주면 속성을 안 단다(``type``/
+    ``flag``는 required라 항상 쓴다)."""
+
+    document = HwpxDocument.new()
+
+    document.parts.set_license_mark(mark_type="CCL", flag=0)
+
+    assert '<hh:licensemark type="CCL" flag="0"/>' in _header_xml(document)
+
+
+def test_set_license_mark_twice_updates_in_place() -> None:
+    document = HwpxDocument.new()
+    document.parts.set_license_mark(mark_type="CCL", flag=0, lang=6)
+
+    document.parts.set_license_mark(mark_type="CCL", flag=1, lang=1)
+
+    header_xml = _header_xml(document)
+    assert header_xml.count("<hh:licensemark") == 1
+    assert '<hh:licensemark type="CCL" flag="1" lang="1"/>' in header_xml
+
+
+def test_set_license_mark_rejects_an_empty_type() -> None:
+    document = HwpxDocument.new()
+
+    with pytest.raises(HwpxValueError) as excinfo:
+        document.parts.set_license_mark(mark_type="", flag=0)
+    assert excinfo.value.code == "header-compat-empty-license-mark-type"
+
+
+def test_remove_license_mark_reports_whether_it_removed_one() -> None:
+    document = HwpxDocument.new()
+    assert document.parts.remove_license_mark() is False
+
+    document.parts.set_license_mark(mark_type="CCL", flag=0, lang=6)
+    assert document.parts.remove_license_mark() is True
+
+    header_xml = _header_xml(document)
+    assert "licensemark" not in header_xml
+    # linkinfo는 스키마 필수라 docOption과 함께 남는다.
+    assert "<hh:linkinfo" in header_xml
 
 
 def test_set_paragraph_auto_spacing_round_trips() -> None:

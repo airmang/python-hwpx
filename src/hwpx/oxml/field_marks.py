@@ -60,6 +60,35 @@ GUI 프로브 불필요했다. 구조는 DATE와 동형(단일 run, 캐시 텍�
 **v1 스코프**: ``Command``/``Format`` 둘 다 이 관측값("$F") 하나만
 지원(typed 거부) -- 포맷 코드 문법을 역산할 근거가 없는 건 DATE의
 ``Command`` 미리보기 문자열과 같은 사정이다.
+
+## 메일머지 표시 필드(``type="MAILMERGE"``)
+
+실측 gold(``tests/fixtures/gui_probes/mailmerge_display_fields.hwpx``,
+"도구 > 메일 머지 > 메일 머지 표시 달기"로 필드 2개를 삽입)가 위 세
+필드와 다른 점 셋:
+
+* ``hp:fieldBegin``에 ``metaTag`` 속성이 **없다**(DATE/교정 부호/PATH
+  gold는 셋 다 ``metaTag=""``를 달고 있다) -- ``_field_begin``의
+  *meta_tag* 인자가 그 차이만 담당한다.
+* ``hp:parameters``(``cnt="5"``)의 첫 파라미터가 ``hp:booleanParam``이고
+  이름이 ``"Fiexde"``다 -- **오타 철자가 실물·한컴 공식 문서 공통의
+  정본**이라 고쳐 쓰면 안 된다(``trackchageConfig``·memo의 ``NOMAL``과
+  같은 부류). 나머지는 ``Prop=8``(DATE/PATH와 같은 "캐시 필드"류 공유
+  값) · ``Command``/``FieldValue``가 둘 다 필드 이름 그대로 ·
+  ``FieldType="USER_DEFINE"``.
+* ``ctrl(end)`` 뒤에 **빈 ``hp:t``가 하나 더** 붙는다(gold 2/2 필드 모두).
+  용도를 역산할 근거는 없으나 실측이 일관되므로 그대로 재현한다 --
+  캐시 텍스트를 넣는 ``hp:t``와 달리 내용이 없다.
+
+캐시 텍스트 기본값은 ``"{{이름}}"``(gold 실측 관행, ``hwpx.tools.
+mail_merge``가 치환 대상으로 인식하는 세 문법 중 하나) -- DATE/PATH와
+달리 여기선 우리가 계산할 수 있는 값이라(필드 이름만으로 결정된다)
+호출자에게 떠넘기지 않는다.
+
+``fieldid``: gold의 두 필드는 ``id``가 서로 다른데 ``fieldid``는 같은
+값을 공유한다(``627928423``). 표본이 문서 하나뿐이라 이게 "필드 종류당
+1개"인지 "문서당 1개"인지 역산할 근거가 없어, DATE/PATH와 같은
+독립 난수 채번을 그대로 쓴다(실한컴도 ``id``≠``fieldid``인 건 같다).
 """
 
 from __future__ import annotations
@@ -80,6 +109,7 @@ __all__ = [
     "PROOFREADING_MARKS",
     "PATH_FORMATS",
     "create_date_field",
+    "create_mail_merge_field",
     "create_proofreading_mark_field",
     "create_path_field",
 ]
@@ -104,7 +134,9 @@ PATH_FORMATS: dict[str, str] = {
 }
 
 
-def _field_begin(field_type: str) -> tuple[ET.Element, ET.Element, str, str]:
+def _field_begin(
+    field_type: str, *, meta_tag: bool = True
+) -> tuple[ET.Element, ET.Element, str, str]:
     """``hp:ctrl > hp:fieldBegin`` -- 관측된 고정 속성 그대로.
 
     Returns ``(ctrl, fieldBegin, field_id, field_ref_id)`` -- *field_id*는
@@ -112,11 +144,15 @@ def _field_begin(field_type: str) -> tuple[ET.Element, ET.Element, str, str]:
     ``fieldid``, ``id``와는 독립 난수)는 ``fieldEnd``의 ``fieldid``에
     그대로 쓴다(둘 다 실측 gold에 있는 속성 -- 값이 다른데도 fieldEnd가
     양쪽을 다 반복해서 갖는다).
+
+    *meta_tag*: ``metaTag=""``를 다는지. DATE/교정 부호/PATH gold는 셋 다
+    달고 있고 MAILMERGE gold는 없다 -- 필드 종류마다 실측이 갈리는
+    유일한 속성이라 여기서만 분기한다(모듈 독스트링 참조).
     """
     field_id = _object_id()
     field_ref_id = _object_id()
     ctrl = ET.Element(f"{_HP}ctrl")
-    begin = _append_child(ctrl, f"{_HP}fieldBegin", {
+    attributes = {
         "id": field_id,
         "type": field_type,
         "name": "",
@@ -124,8 +160,10 @@ def _field_begin(field_type: str) -> tuple[ET.Element, ET.Element, str, str]:
         "dirty": "0",
         "zorder": "-1",
         "fieldid": field_ref_id,
-        "metaTag": "",
-    })
+    }
+    if meta_tag:
+        attributes["metaTag"] = ""
+    begin = _append_child(ctrl, f"{_HP}fieldBegin", attributes)
     return ctrl, begin, field_id, field_ref_id
 
 
@@ -242,6 +280,55 @@ def create_path_field(
     return [ctrl_begin, text_el, ctrl_end]
 
 
+def create_mail_merge_field(
+    name: str,
+    *,
+    cached_text: str | None = None,
+) -> list[ET.Element]:
+    """메일머지 표시 필드(``type="MAILMERGE"``) 요소열을 만든다.
+
+    *name*은 데이터 열 이름("도구 > 메일 머지 > 메일 머지 표시 달기"
+    대화상자의 필드 이름)이고, ``Command``/``FieldValue`` 두 파라미터에
+    그대로 실린다. *cached_text*를 생략하면 ``"{{name}}"`` --
+    ``hwpx.tools.mail_merge.merge_template_rows``가 치환 대상으로 인식하는
+    플레이스홀더 문법이라, 이 필드로 저작한 템플릿이 그 배치 생성기에
+    그대로 물린다.
+
+    반환값은 한 run에 순서대로 append할 요소 리스트
+    (``[ctrl(begin), t, ctrl(end), t(빈 것)]``) -- 마지막 빈 ``hp:t``까지
+    실측 gold 그대로다(모듈 독스트링 참조).
+    """
+    if not name:
+        from ..errors import HwpxValueError
+
+        raise HwpxValueError(
+            "mail merge field name must be a non-empty string",
+            code="field-mail-merge-empty-name",
+            context={"name": name},
+            suggestion='데이터 열 이름을 주세요 -- 예: add_mail_merge_field("name").',
+        )
+
+    ctrl_begin, begin, field_id, field_ref_id = _field_begin("MAILMERGE", meta_tag=False)
+    params = _append_child(begin, f"{_HP}parameters", {"cnt": "5", "name": ""})
+    # "Fiexde"는 실물·한컴 공식 문서 공통의 오타 철자다 -- 고치지 않는다.
+    fixed = _append_child(params, f"{_HP}booleanParam", {"name": "Fiexde"})
+    fixed.text = "1"
+    prop = _append_child(params, f"{_HP}integerParam", {"name": "Prop"})
+    prop.text = "8"
+    command = _append_child(params, f"{_HP}stringParam", {"name": "Command"})
+    command.text = _sanitize_text(name)
+    field_type = _append_child(params, f"{_HP}stringParam", {"name": "FieldType"})
+    field_type.text = "USER_DEFINE"
+    field_value = _append_child(params, f"{_HP}stringParam", {"name": "FieldValue"})
+    field_value.text = _sanitize_text(name)
+
+    text_el = ET.Element(f"{_HP}t")
+    text_el.text = _sanitize_text(cached_text if cached_text is not None else f"{{{{{name}}}}}")
+
+    ctrl_end = _field_end(field_id, field_ref_id)
+    return [ctrl_begin, text_el, ctrl_end, ET.Element(f"{_HP}t")]
+
+
 def _append_field_elements(
     paragraph: "HwpxOxmlParagraph",
     elements: list[ET.Element],
@@ -307,4 +394,16 @@ def _paragraph_add_path_field(
 ) -> "HwpxOxmlInlineObject":
     """파일 이름 필드를 이 문단에 삽입한다."""
     elements = create_path_field(cached_text, path_format=path_format)
+    return _append_field_elements(self, elements, char_pr_id_ref=char_pr_id_ref)
+
+
+def _paragraph_add_mail_merge_field(
+    self: "HwpxOxmlParagraph",
+    name: str,
+    *,
+    cached_text: str | None = None,
+    char_pr_id_ref: str | int | None = None,
+) -> "HwpxOxmlInlineObject":
+    """메일머지 표시 필드를 이 문단에 삽입한다."""
+    elements = create_mail_merge_field(name, cached_text=cached_text)
     return _append_field_elements(self, elements, char_pr_id_ref=char_pr_id_ref)

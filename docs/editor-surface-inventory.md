@@ -38,7 +38,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 <!-- AUTO-GENERATED:BEGIN (scripts/editor_surface_inventory.py) -->
 
-자동 생성 시점 교차 확인: 원장(요소 축) 128건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 38개 등록됨.
+자동 생성 시점 교차 확인: 원장(요소 축) 132건 render-verified(요소 345개 중) · 캐파빌리티 영역(기능 축) 41개 등록됨.
 
 ### 서식
 
@@ -80,6 +80,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 |---|---|---|---|
 | 날짜/시간·교정 부호·파일 이름 필드 | 저작 api | 지원 매트릭스 「날짜/시간·교정 부호·파일 이름 필드」(`Create(experimental)·Render-verified`) · capabilities 영역 `date-time-proofreading-mark-fields` · 위치 `doc.fields` | Render-verified(experimental 저작 포함) |
 | 누름틀(form field) 생성 | 저작 api | 지원 매트릭스 「누름틀(form field) 생성」(`Parse·Edit·Create(experimental)·Render-verified`) · capabilities 영역 `form-field-create` · 위치 `doc.fields` | Render-verified(experimental 저작 포함) |
+| 메일머지 표시 필드 | 저작 api | 지원 매트릭스 「메일머지 표시 필드」(`Create(experimental)`) · capabilities 영역 `mail-merge-field` · 위치 `doc.fields` | 미실측 |
 | 양식 채움(byte-splice) | 저작 api | 지원 매트릭스 「양식 채움(byte-splice)」(`Preserve·Edit·Render-verified`) · capabilities 영역 `form-fill` · 위치 `doc.tables` | Render-verified |
 | 체크박스 양식개체 | 저작 api | 지원 매트릭스 「체크박스 양식개체」(`Create·Render-verified`) · capabilities 영역 `check-box` · 위치 `doc.fields` | Render-verified |
 
@@ -89,6 +90,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 |---|---|---|---|
 | 각주/미주 | 저작 api | 지원 매트릭스 「각주/미주」(`Edit·Create·Render-verified`) · capabilities 영역 `footnote-endnote` · 위치 `doc.notes` | Render-verified |
 | 네이티브 목차(TOC)/상호참조 | 저작 api | 지원 매트릭스 「네이티브 목차(TOC)/상호참조」(`Create·Render-verified`) · capabilities 영역 `toc-crossref` · 위치 `doc.refs` | Render-verified |
+| 색인 표시 | 저작 api | 지원 매트릭스 「색인 표시」(`Create(experimental)`) · capabilities 영역 `index-mark` · 위치 `doc.refs` | 미실측 |
 | 차례 숨기기·제목 차례 표시 | 저작 api | 지원 매트릭스 「차례 숨기기·제목 차례 표시」(`Create(experimental)·Render-verified`) · capabilities 영역 `title-mark` · 위치 `doc.refs` | Render-verified(experimental 저작 포함) |
 | 하이퍼링크·책갈피 | 저작 api | 지원 매트릭스 「하이퍼링크·책갈피」(`Create·Render-verified`) · capabilities 영역 `hyperlink-bookmark` · 위치 `doc.refs` | Render-verified |
 
@@ -104,6 +106,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
 |---|---|---|---|
 | HWP 5.x 바이너리 | 없음(거부) | 지원 매트릭스 「HWP 5.x 바이너리」(`Unsupported-and-rejected`) · capabilities 영역 `hwp5-binary` · 위치 미지원 | 해당없음(의도적 거부, 실측으로 확인) |
+| 라이선스 표시(CCL) | 저작 api | 지원 매트릭스 「라이선스 표시(CCL)」(`Parse·Create`) · capabilities 영역 `license-mark` · 위치 `doc.parts` | 미실측 |
 | 문서 옵션·호환성 | 저작 api | 지원 매트릭스 「문서 옵션·호환성」(`Parse·Preserve·Edit·Render-verified`) · capabilities 영역 `document-options-compatibility` · 위치 `doc.parts` | Render-verified |
 | 문서 정보(메타데이터) | 저작 api | 지원 매트릭스 「문서 정보(메타데이터)」(`Parse·Edit·Render-verified`) · capabilities 영역 `document-metadata` · 위치 `doc.parts` | Render-verified |
 | 암호화 HWPX | 없음(거부) | 지원 매트릭스 「암호화 HWPX」(`Unsupported-and-rejected`) · capabilities 영역 `encrypted-hwpx` · 위치 미지원 | 해당없음(의도적 거부, 실측으로 확인) |

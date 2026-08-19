@@ -25,9 +25,11 @@ from ...errors import HwpxValueError
 from ...oxml._document_primitives import _HH
 from ...oxml.header_compat import (
     apply_paragraph_auto_spacing as _apply_paragraph_auto_spacing,
+    remove_license_mark as _remove_license_mark,
     set_compatible_document_target_program as _set_compatible_document_target_program,
     set_doc_option_link_info as _set_doc_option_link_info,
     set_layout_compatibility_flags as _set_layout_compatibility_flags,
+    set_license_mark as _set_license_mark,
 )
 from ._base import _Namespace
 
@@ -214,6 +216,29 @@ class PartsNamespace(_Namespace):
             page_inherit=page_inherit,
             footnote_inherit=footnote_inherit,
         )
+
+    def set_license_mark(
+        self,
+        *,
+        mark_type: str,
+        flag: int,
+        lang: int | None = None,
+    ) -> None:
+        """`hh:docOption/hh:licensemark` 설정("입력 > CCL 넣기…"가 남기는
+        문서 수준 라이선스 레코드). 실측 gold는
+        `type="CCL" flag="0" lang="6"` — 스키마가 `type`을 `xs:unsignedInt`
+        로 선언하는데도 실물은 문자열이라 `mark_type`이 `str`이다.
+
+        눈에 보이는 CC 배지는 별개다 — 라이선스 증서 URL을 `href`로 단
+        평범한 그림(`add_picture`)이고, 이 setter는 문서 수준 레코드만
+        건드린다."""
+
+        _set_license_mark(self._primary_header(), mark_type=mark_type, flag=flag, lang=lang)
+
+    def remove_license_mark(self) -> bool:
+        """`hh:docOption/hh:licensemark`를 지운다. 실제로 지웠으면 True."""
+
+        return _remove_license_mark(self._primary_header())
 
     def set_paragraph_auto_spacing(
         self,
