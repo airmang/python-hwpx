@@ -32,7 +32,10 @@ INLINE_OBJECT_NAMES = {
     "ole",
     "chart",
     "video",
-    "audio",
+    # "audio"는 제외 — 실한컴(Windows 한글 2024 실측)은 소리 삽입을
+    # hp:ole(EMBEDDED/ICON)로 방출하고 hp:audio를 생성하지 않으며, 보유
+    # 실코퍼스 표본도 0건이다. 실물 미검증 요소를 인라인 읽기 지원으로
+    # 분류하지 않는다(빈도 0 = 읽기측 불투명 보존만). python-hwpx#89.
     "textart",
 }
 
