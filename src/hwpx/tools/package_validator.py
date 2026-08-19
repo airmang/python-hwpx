@@ -331,14 +331,17 @@ def _first_child_by_local(element: ET.Element, name: str) -> ET.Element | None:
     return None
 
 
-def _simple_paragraph_text_length(paragraph: ET.Element) -> int | None:
-    """Return visible text length for plain text-only paragraphs.
+def _simple_paragraph_text(paragraph: ET.Element) -> str | None:
+    """Return visible text for plain text-only paragraphs (``None`` = 판정 불가).
 
     Paragraphs containing fields, shapes, tables, or other embedded controls are
     skipped to avoid guessing how a specific editor counts their layout units.
+    Single-position control characters (tab/linebreak/hyphen/nbspace) are
+    represented as one space — a deliberate width underestimate so downstream
+    width judgments stay conservative.
     """
 
-    total = 0
+    pieces: list[str] = []
     for child in paragraph:
         child_name = _local_name(child).lower()
         if child_name == "linesegarray":
@@ -348,12 +351,73 @@ def _simple_paragraph_text_length(paragraph: ET.Element) -> int | None:
         for run_child in child:
             run_child_name = _local_name(run_child).lower()
             if run_child_name == "t":
-                total += len("".join(run_child.itertext()))
+                pieces.append("".join(run_child.itertext()))
             elif run_child_name in {"tab", "linebreak", "hyphen", "nbspace"}:
-                total += 1
+                pieces.append(" ")
             else:
                 return None
-    return total
+    return "".join(pieces)
+
+
+def _simple_paragraph_text_length(paragraph: ET.Element) -> int | None:
+    text = _simple_paragraph_text(paragraph)
+    return None if text is None else len(text)
+
+
+#: 꼬리 폭 판정 마진 — 추정 폭이 줄 폭의 이 배수를 넘을 때만 증명으로 취급.
+_STALE_TAIL_WIDTH_FACTOR = 2.0
+_STALE_TAIL_MIN_CHARS = 8
+
+
+def _check_line_seg_tail_coverage(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    paragraph_index: int,
+    text: str,
+    line_segs: list[ET.Element],
+) -> None:
+    """Catch caches that lack lines for text grown past the last cached line.
+
+    The stale-cache direction the textpos range check cannot see: an edit made
+    the paragraph *longer* but an old ``<hp:linesegarray>`` survived, so every
+    cached ``textpos`` is still in range — yet the cache has too few lines and
+    Hancom renders the tail overlapped (the tracked-change overlap defect).
+    Provable-with-margin: the tail after the last cached line start must not
+    measure wider than that line's extent × ``_STALE_TAIL_WIDTH_FACTOR``,
+    with width estimated by the same conservative metrics the overflow lint
+    uses.
+    """
+
+    last: tuple[int, int, int] | None = None
+    for seg in line_segs:
+        try:
+            textpos = int(seg.get("textpos") or "")
+            horzsize = int(seg.get("horzsize") or "")
+            textheight = int(seg.get("textheight") or "")
+        except ValueError:
+            return
+        if last is None or textpos > last[0]:
+            last = (textpos, horzsize, textheight)
+    if last is None:
+        return
+    last_pos, horzsize, textheight = last
+    if horzsize <= 0 or textheight <= 0 or not 0 <= last_pos <= len(text):
+        return
+    tail = text[last_pos:]
+    if len(tail) < _STALE_TAIL_MIN_CHARS:
+        return
+    from hwpx.form_fit.measure import estimate_text_width
+
+    tail_width = estimate_text_width(tail, textheight / 100.0)
+    if tail_width > horzsize * _STALE_TAIL_WIDTH_FACTOR:
+        _error(
+            issues,
+            part_name,
+            f"paragraph {paragraph_index} lineseg cache lacks lines for its tail: "
+            f"{len(tail)} chars after the last cached line start (textpos={last_pos}) "
+            f"measure ~{tail_width / horzsize:.1f}x the cached line extent {horzsize} "
+            "— stale layout cache; Hancom reuses it and renders the tail overlapped",
+        )
 
 
 def _check_line_seg_text_positions(
@@ -367,15 +431,18 @@ def _check_line_seg_text_positions(
     for paragraph_index, paragraph in enumerate(
         element for element in root.iter() if _local_name(element) == "p"
     ):
-        text_length = _simple_paragraph_text_length(paragraph)
-        if text_length is None:
+        text = _simple_paragraph_text(paragraph)
+        if text is None:
             continue
+        text_length = len(text)
         for child in paragraph:
             if _local_name(child).lower() != "linesegarray":
                 continue
+            line_segs: list[ET.Element] = []
             for line_seg in child:
                 if _local_name(line_seg).lower() != "lineseg":
                     continue
+                line_segs.append(line_seg)
                 textpos_raw = line_seg.get("textpos")
                 if textpos_raw is None:
                     continue
@@ -396,6 +463,9 @@ def _check_line_seg_text_positions(
                         f"{paragraph_index} has stale lineseg textpos={textpos} "
                         f"beyond text length {text_length}",
                     )
+            _check_line_seg_tail_coverage(
+                issues, part_name, paragraph_index, text, line_segs
+            )
 
 
 def _check_table_editor_acceptance(

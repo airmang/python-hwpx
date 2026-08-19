@@ -125,6 +125,88 @@ def test_seeded_stale_lineseg_is_caught():
     assert any(f.code == STALE_LINESEG_DETECTED for f in report.errors)
 
 
+def _add_measured_lineseg(root, text: str, seg_attrs: list[dict[str, str]]) -> None:
+    """Attach a full-attribute cache (textpos/horzsize/textheight) to *text*'s paragraph."""
+
+    para = _text_paragraph(root, text)
+    ns = para.tag.rsplit("}", 1)[0].lstrip("{")
+    lsa = etree.SubElement(para, f"{{{ns}}}lineSegArray")
+    for attrs in seg_attrs:
+        etree.SubElement(lsa, f"{{{ns}}}lineSeg", attrs)
+
+
+_A4_LINE = {"horzsize": "42520", "textheight": "1000"}  # 10pt · 표준 본문 줄 폭
+
+
+def test_grown_text_with_stale_single_line_cache_is_caught():
+    """#85 방향: 텍스트가 캐시 줄 수 너머로 자랐는데 textpos는 전부 유효한 경우.
+
+    범위 검사(textpos > len)는 이 방향을 못 본다 — 꼬리 폭 판정이 잡아야 한다.
+    120 한글자 문단에 1줄짜리 캐시: 꼬리 폭 ~120em ≫ 줄 폭 42520×2.
+    """
+
+    text = "가" * 120
+    doc = HwpxDocument.new()
+    doc.add_paragraph(text)
+    data = _inject_section0(
+        _bytes(doc),
+        lambda root: _add_measured_lineseg(root, text, [{"textpos": "0", **_A4_LINE}]),
+    )
+    report = lint_layout(data)
+    assert not report.ok
+    assert any(
+        f.code == STALE_LINESEG_DETECTED and "lacks lines" in f.message
+        for f in report.errors
+    )
+
+
+def test_valid_multiline_cache_tail_passes():
+    """정상 다줄 캐시(한컴 저장 형태): 마지막 줄 이후 꼬리가 한 줄 안 → 침묵."""
+
+    text = "가" * 120
+    doc = HwpxDocument.new()
+    doc.add_paragraph(text)
+    segs = [
+        {"textpos": "0", **_A4_LINE},
+        {"textpos": "42", **_A4_LINE},
+        {"textpos": "84", **_A4_LINE},
+    ]
+    data = _inject_section0(
+        _bytes(doc), lambda root: _add_measured_lineseg(root, text, segs)
+    )
+    assert lint_layout(data).ok
+
+
+def test_tracked_insert_prefix_artifact_replay():
+    """#85 실물 재현 쌍: 수리 전 산출물은 FAIL, 현행(수리 후) 산출물은 PASS.
+
+    현행 코드로 변경추적 삽입을 하면 편집 문단의 캐시가 제거된다(a22342c) —
+    그 산출물이 PASS 쪽. FAIL 쪽은 같은 편집에 수리 전처럼 옛 1줄 캐시를
+    바이트에 되붙여 재구성한다.
+    """
+
+    base = "시행문 본문 첫 문단"
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph(base, char_pr_id_ref="0")
+    doc.tracking.insert(paragraph, " 추가로 붙는 안내 문구가 길게 이어진다 " + "안내" * 50, date="2026-08-19")
+
+    fixed = doc.to_bytes()  # 수리 후: 캐시 없음
+    assert lint_layout(fixed).ok
+
+    edited_text = paragraph.text
+
+    def reattach(root):  # 수리 전 재구성: 옛 1줄 캐시가 그대로 남았던 상태
+        _add_measured_lineseg(root, edited_text, [{"textpos": "0", **_A4_LINE}])
+
+    broken = _inject_section0(fixed, reattach)
+    report = lint_layout(broken)
+    assert not report.ok
+    assert any(
+        f.code == STALE_LINESEG_DETECTED and "lacks lines" in f.message
+        for f in report.errors
+    )
+
+
 # --------------------------------------------------------------------------- #
 # 2: dirty ↔ lineseg leak (ledger-gated).
 # --------------------------------------------------------------------------- #
