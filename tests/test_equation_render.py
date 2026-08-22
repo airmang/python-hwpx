@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from xml.etree import ElementTree
+
 import pytest
 
 from hwpx.equation import (
@@ -23,6 +25,23 @@ def test_success_path_renders_inline_mathml() -> None:
     assert result.label == LABEL_MATHML
     assert "<math" in result.html
     assert result.latex == r"\frac{\alpha}{\beta} + \pi"
+
+
+@pytest.mark.parametrize("token", ["triangle", "TRIANGLE"])
+def test_triangle_renders_as_mathml_operator_without_changing_latex(token: str) -> None:
+    pytest.importorskip("latex2mathml")
+    result = render_equation(f"{token} P_1 P_2 Q")
+    assert result.mode == "mathml"
+    assert result.latex == r"\triangle P_1 P_2 Q"
+    root = ElementTree.fromstring(result.html)
+    namespace = "{http://www.w3.org/1998/Math/MathML}"
+    triangle_operators = [
+        operator
+        for operator in root.iter(f"{namespace}mo")
+        if "△" in "".join(operator.itertext())
+    ]
+    assert len(triangle_operators) == 1
+    assert "triangle" not in "".join(root.itertext()).lower()
 
 
 def test_eqedit_failure_falls_back_to_original_script_block() -> None:

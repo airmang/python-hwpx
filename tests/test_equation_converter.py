@@ -112,6 +112,31 @@ def test_times_and_relations() -> None:
     assert eqedit_to_latex("a >= b") == r"a \geq b"
 
 
+@pytest.mark.parametrize("token", ["triangle", "TRIANGLE"])
+def test_triangle_symbol_uses_exact_evidence_backed_tokens(token: str) -> None:
+    assert eqedit_to_latex(f"{token} P_1 P_2 Q") == r"\triangle P_1 P_2 Q"
+
+
+@pytest.mark.parametrize(
+    "script",
+    [
+        "Triangle PQR",
+        "triAngle PQR",
+        "triangles PQR",
+        "mytriangle PQR",
+        "triangleidentifier PQR",
+        "rmtriangle PQR",
+        "rm text",
+    ],
+)
+def test_triangle_support_does_not_split_identifiers_or_rm_text(script: str) -> None:
+    assert eqedit_to_latex(script) == script
+
+
+def test_existing_angle_symbol_remains_distinct_from_triangle() -> None:
+    assert eqedit_to_latex("angle ABC") == r"\angle ABC"
+
+
 def test_parentheses_and_braces_passthrough() -> None:
     assert eqedit_to_latex("( a + b )") == "( a + b )"
     assert eqedit_to_latex("LEFT ( x RIGHT )") == r"\left( x \right)"
