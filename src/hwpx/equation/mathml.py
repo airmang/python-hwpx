@@ -9,11 +9,15 @@ code block rather than dropping the equation.
 
 from __future__ import annotations
 
+import re
 from typing import Callable
+
+from .tokens import EQEDIT_MATHML_OPERATOR_COMMANDS
 
 # ``False`` marks a resolved-but-unavailable converter; ``None`` means "not yet
 # probed" so the import is attempted lazily on first use.
 _converter: Callable[[str], str] | bool | None = None
+_LATEX_WORD_COMMAND_RE = re.compile(r"\\[A-Za-z]+")
 
 
 class MathMLUnavailableError(RuntimeError):
@@ -62,8 +66,27 @@ def latex_to_mathml(latex: str) -> str:
         raise ValueError(f"latex2mathml could not render fragment: {exc}") from exc
 
 
+def eqedit_latex_to_mathml(latex: str) -> str:
+    """Convert EqEdit-derived LaTeX while preserving known token roles.
+
+    ``latex2mathml`` classifies plain ``\\triangle`` as an identifier. EqEdit's
+    token map identifies it as a mathematical symbol, so the MathML-only input
+    receives an operator wrapper before conversion. The returned/public LaTeX
+    is not rewritten, and serialized MathML is never patched afterward.
+    """
+
+    def annotate_role(match: re.Match[str]) -> str:
+        command = match.group(0)
+        if command in EQEDIT_MATHML_OPERATOR_COMMANDS:
+            return rf"\mathop{{{command}}}"
+        return command
+
+    return latex_to_mathml(_LATEX_WORD_COMMAND_RE.sub(annotate_role, latex))
+
+
 __all__ = [
     "MathMLUnavailableError",
+    "eqedit_latex_to_mathml",
     "latex2mathml_available",
     "latex_to_mathml",
 ]

@@ -222,6 +222,7 @@ class TestLatexToEqedit:
             (r"$x + 1$", "x + 1"),
             (r"\le \ge \ne", "leq geq neq"),
             (r"a \times b \cdot c \div d", "a times b cdot c div d"),
+            (r"\triangle P_1 P_2 Q", "triangle P _{1} P _{2} Q"),
             (r"\lim_{x \to 0} \frac{1}{x}", "lim _{x -> 0} {1} over {x}"),
             (r"a \to b", "a -> b"),
             (r"x \rightarrow y , u \leftarrow v", "x -> y , u leftarrow v"),
@@ -274,6 +275,7 @@ class TestRoundtripStability:
         r"\begin{vmatrix} a & b \\ c & d \end{vmatrix}",
         r"\log_{2} x + \ln y",
         r"a \times b \pm c \mp d",
+        r"\triangle P_1 P_2 Q",
         r"\infty + \partial + \nabla",
     ]
 
