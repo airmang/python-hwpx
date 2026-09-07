@@ -17,9 +17,8 @@
 
 한컴오피스가 없어도 됩니다. HWPX는 ZIP+XML(OWPML) 포맷이라 순수 파이썬만으로
 읽고, 고치고, 새로 만들 수 있습니다 — Windows·macOS·Linux·CI, 그리고
-**파이썬이 도는 ChatGPT 채팅 안에서도** 그대로 동작합니다. 기존 문서는 손댄
-곳만 바뀌고 나머지는 바이트 그대로 유지되며, 새 문서는 실제 한컴오피스가 여는
-형태로 만들어집니다.
+**파이썬이 도는 ChatGPT 채팅 안에서도** 그대로 동작합니다. 기존 문서의 저장은 요청한 보존 등급과 실제 검증 결과를 영수증으로 남깁니다.
+새 문서의 한컴 호환성은 아래에 날짜·버전을 명시한 코퍼스로 측정합니다.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/chatgpt-formfill.png" width="760" alt="일반 ChatGPT 대화에 hwpx 양식을 올려 지도안 작성을 부탁하고, 양식이 유지된 채 채워진 문서를 돌려받는 화면">
@@ -85,25 +84,32 @@ doc.save_to_path("계획.hwpx")
 
 ```python
 doc = HwpxDocument.open("신청서.hwpx")
-result = doc.fill_by_path({
+values = {
     "성명 > right": "홍길동",
     "소속 > right": "플랫폼팀",
-})
-doc.save_to_path("신청서-작성완료.hwpx")
+}
+result = doc.tables.fill_by_path(values)
+if result["failed_count"] or result["applied_count"] != len(values):
+    raise ValueError(result["failed"])
+report = doc.save_to_path("신청서-작성완료.hwpx", mode="patch", fallback="error", return_report=True)
 ```
 
-라벨 기준으로 셀을 찾아 채우고, 손대지 않은 영역은 원본 바이트가 그대로 유지됩니다.
+중복·누락 라벨은 실패로 확인하고 저장을 중단합니다. patch는 미수정 ZIP 파트의
+바이트 보존을 요구합니다. 수정 파트 내부의 보존과 시각적 배치는 별도 확인이
+필요합니다. 출력 재개봉과 내용 확인까지 포함한 경로는 [안전한 쓰기 계약](docs/safe-write-contract.md)을 따르세요.
 
 ### 저장에는 영수증이 따라옵니다
 
 ```python
 report = doc.save_to_path("결과.hwpx", return_report=True)
-print(report.actual_mode)        # "patch" — 문서 재조립 없이 저장됨
+print(report.actual_mode)        # "patch" 또는 "rebuild" — 실제 저장 등급
 print(report.preservation.untouched_part_payloads.to_dict())
                                  # {"verified": 17, "changed": 0}
 ```
 
-요청한 보존 등급을 지킬 수 없으면 아무것도 쓰지 않고 실패합니다(fail-closed).
+`mode="patch", fallback="error"`는 보존 등급 미달 시 출력하지 않습니다.
+기본 `auto`는 달성 가능한 등급을 선택합니다. `report.ok`는 요청 반영이나 시각
+검증 완료를 뜻하지 않습니다.
 전체 규칙: [안전한 쓰기 계약](docs/safe-write-contract.md).
 
 *예제 중 **독립 실행 예제** 표시가 없는 블록은 여러분의 기존 문서를 입력으로

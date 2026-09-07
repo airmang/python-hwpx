@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
-from typing import TYPE_CHECKING, Literal, Mapping, TypedDict
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 from ..oxml import HwpxOxmlParagraph, HwpxOxmlTable
 
@@ -13,8 +14,8 @@ if TYPE_CHECKING:
     from ..document import HwpxDocument
 
 __all__ = [
-    "SearchDirection",
     "PathDirection",
+    "SearchDirection",
     "TableCellReference",
     "TableFillApplied",
     "TableFillFailed",
@@ -339,14 +340,19 @@ def _move(
     col_index: int,
     direction: PathDirection,
 ) -> tuple[int, int] | None:
+    # A direction crosses the current physical cell's edge. Moving one grid
+    # slot could otherwise stay inside a merged label and overwrite the label.
+    grid = table.get_cell_map()
+    current = grid[row_index][col_index]
+    anchor_row, anchor_col = current.anchor
     row_delta, col_delta = _direction_delta(direction)
-    target_row = row_index + row_delta
-    target_col = col_index + col_delta
+    target_row = anchor_row + (current.row_span if row_delta > 0 else row_delta)
+    target_col = anchor_col + (current.col_span if col_delta > 0 else col_delta)
     if target_row < 0 or target_col < 0:
         return None
     if target_row >= table.row_count or target_col >= table.column_count:
         return None
-    return (target_row, target_col)
+    return grid[target_row][target_col].anchor
 
 
 def _find_label_candidates(
@@ -359,20 +365,24 @@ def _find_label_candidates(
 
     candidates: list[_LabelCandidate] = []
     for table_ref in tables:
-        for row_index in range(table_ref.table.row_count):
-            for col_index in range(table_ref.table.column_count):
-                cell_text = _cell_text(table_ref.table, row_index, col_index)
-                if _normalize_label_text(cell_text) != normalized_label:
-                    continue
-                candidates.append(
-                    _LabelCandidate(
-                        table_index=table_ref.table_index,
-                        table=table_ref.table,
-                        row=row_index,
-                        col=col_index,
-                        text=cell_text,
-                    )
+        # Count physical cells, not every logical slot occupied by a merge.
+        # Distinct cells with the same label remain ambiguous.
+        for position in table_ref.table.iter_grid():
+            if not position.is_anchor:
+                continue
+            row_index, col_index = position.anchor
+            cell_text = _cell_text(table_ref.table, row_index, col_index)
+            if _normalize_label_text(cell_text) != normalized_label:
+                continue
+            candidates.append(
+                _LabelCandidate(
+                    table_index=table_ref.table_index,
+                    table=table_ref.table,
+                    row=row_index,
+                    col=col_index,
+                    text=cell_text,
                 )
+            )
     return candidates
 
 

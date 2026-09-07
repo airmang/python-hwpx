@@ -17,9 +17,8 @@
 
 You don't need Hancom Office. HWPX is a ZIP+XML (OWPML) format, so pure Python
 is enough to read, edit, and create documents — on Windows, macOS, Linux, CI,
-and **inside a ChatGPT chat wherever Python runs**. Existing documents are
-edited in place (untouched regions stay byte-identical), and new documents come
-out in a form real Hancom Office opens.
+and **inside a ChatGPT chat wherever Python runs**. Saves record the requested preservation grade and measured checks in a receipt.
+Generated-document compatibility is measured on the dated, versioned corpus below.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/chatgpt-formfill.png" width="760" alt="Uploading an .hwpx form to a plain ChatGPT conversation and getting back a filled document with the original formatting preserved">
@@ -88,27 +87,33 @@ More: [five-minute quickstart](docs/quickstart.md) · [usage guide](docs/usage.m
 
 ```python
 doc = HwpxDocument.open("application.hwpx")
-result = doc.fill_by_path({
+values = {
     "성명 > right": "홍길동",
     "소속 > right": "플랫폼팀",
-})
-doc.save_to_path("application-filled.hwpx")
+}
+result = doc.tables.fill_by_path(values)
+if result["failed_count"] or result["applied_count"] != len(values):
+    raise ValueError(result["failed"])
+report = doc.save_to_path("application-filled.hwpx", mode="patch", fallback="error", return_report=True)
 ```
 
-Cells are located by their labels; everything you didn't touch keeps its
-original bytes.
+Missing or ambiguous labels stop this example before saving. Patch requires
+untouched ZIP parts to retain their bytes. Preservation inside an edited part
+and visual layout need separate checks. See the [safe write contract](docs/safe-write-contract.md)
+for reopening the output and verifying content.
 
 ### Every save comes with a receipt
 
 ```python
 report = doc.save_to_path("out.hwpx", return_report=True)
-print(report.actual_mode)        # "patch" — saved without rebuilding the document
+print(report.actual_mode)        # "patch" or "rebuild" — the measured save grade
 print(report.preservation.untouched_part_payloads.to_dict())
                                  # {"verified": 17, "changed": 0}
 ```
 
-If the requested preservation grade can't be honored, nothing is written
-(fail-closed). Full rules: [Safe Write Contract](docs/safe-write-contract.md).
+`mode="patch", fallback="error"` refuses an unavailable preservation grade.
+Default `auto` selects the achievable grade. `report.ok` alone does not verify
+the requested content or visual appearance. Full rules: [Safe Write Contract](docs/safe-write-contract.md).
 
 *Blocks without a **Standalone example** label take your existing document as
 input. The per-example Python-block status is frozen in the

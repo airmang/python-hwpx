@@ -14,12 +14,12 @@ stable 편집 표면의 계약을 한 곳에 모았다. 아래 표의 실패 모
 | 호출 | 반환 | 대표 실패 모드 | 다시 실행하면 |
 |---|---|---|---|
 | `add_paragraph(text)` | `HwpxOxmlParagraph` | 사실상 없음 | 문단이 하나 더 추가된다(append, 비멱등) |
-| `remove_paragraph(p)` | `None` | 섹션의 마지막 단락 삭제 시 `ValueError` | 이미 제거된 문단이면 조용히 무시된다(무해) |
+| `paragraph.remove()` | `None` | 섹션의 마지막 단락 삭제 시 `ValueError` | 이미 제거된 문단이면 조용히 무시된다(무해) |
 | `add_table(rows, cols)` | `HwpxOxmlTable` | 사실상 없음 | 표가 하나 더 추가된다(비멱등) |
 | `table.set_cell_text(r, c, text)` | `FitResult \| None` | 범위 밖 좌표는 `IndexError` (`exceed table bounds`) | 같은 값이면 결과 동일(수렴) |
-| `replace_text_in_runs(search, repl)` | `int` (치환 수) | 빈 `search`는 `ValueError` | 치환할 것이 없으면 `0` — 1회차 후 수렴 |
-| `add_memo_with_anchor(...)` | `(memo, paragraph, field_id)` 튜플 | 아래 캐비앗 참고 | 메모가 하나 더 붙는다(비멱등) |
-| `add_footnote(text, paragraph)` | `HwpxOxmlNote` | 사실상 없음 | 각주가 하나 더 붙는다(비멱등) |
+| `document.text.replace(search, repl)` | `int` (치환 수) | 빈 `search`는 `ValueError` | 치환할 것이 없으면 `0` — 1회차 후 수렴 |
+| `document.notes.add_memo(..., anchor=p)` | `Memo` (`paragraph`, `field_id` 속성) | 아래 캐비앗 참고 | 메모가 하나 더 붙는다(비멱등) |
+| `document.notes.add_footnote(text, paragraph)` | `HwpxOxmlNote` | 사실상 없음 | 각주가 하나 더 붙는다(비멱등) |
 
 "사실상 없음"은 정상 인자에서 실패 경로가 없다는 뜻이다 — 타입이 어긋난
 인자는 여느 파이썬 API처럼 `TypeError` 계열로 즉시 드러난다.
@@ -35,19 +35,25 @@ print(report.actual_mode)
   안전 검증을 통과한 결과만 대상 경로를 교체한다.
 - 요청한 보존 등급(`mode="patch"` 등)을 지킬 수 없으면
   `PreservationDowngradeError`로 실패하고 **아무것도 쓰지 않는다**
-  (fail-closed). 자동 다운그레이드는 없다.
+  (`mode="patch", fallback="error"`). 기본 `auto`는 달성 가능한 등급을 선택하며,
+  명시한 `fallback="rebuild"`는 강등을 허용한다.
 - `return_report=True`는 `MutationReport`를 돌려준다 — 실제 저장 모드,
   손대지 않은 파트의 바이트 보존 검증 결과까지. 스키마와 전체 규칙은
   [안전한 쓰기 계약](safe-write-contract.md).
+- `report.ok`는 요청 내용 반영을 검사하지 않는다. 요청 건수와 출력 값을 별도로
+  확인하고 `verification.visual="not_performed"`를 시각 통과로 읽지 않는다.
 - **직렬화는 결정론적이다**: 같은 문서 상태에서 `to_bytes()`를 두 번 부르면
   바이트가 동일하다(실측). diff·해시 기반 파이프라인에 안전하다.
 
 ## 알아둘 캐비앗 (정직 고지)
 
-- `add_memo_with_anchor(memo_shape_id_ref=...)`는 참조가 실재하는 메모
+- `document.notes.add_memo(memo_shape_id_ref=...)`는 참조가 실재하는 메모
   모양인지 **검증하지 않고 조용히 수용한다**. 존재하지 않는 ID를 넣으면
-  저장은 되지만 편집기 표시가 어긋날 수 있다. `document.memo_shapes`로
+  저장은 되지만 편집기 표시가 어긋날 수 있다. `document.styles.memo_shapes`로
   실재 ID를 확인하고 쓰는 것을 권장한다.
+- `document.text.replace`는 본문 문단의 개별 런 안에서 치환한다. 여러 런에
+  걸친 검색어와 중첩 셀 문단은 이 경로의 대상이 아니다. `0`을 반환하면 저장
+  성공 여부와 관계없이 요청이 반영되지 않은 것이다.
 - `add_*` 계열은 전부 append 의미론이다. "없으면 추가"가 필요하면 먼저
   {doc}`recipes-traversal`의 순회로 존재 여부를 확인하라.
 - 편집은 저장 전까지 메모리에만 있다. 저장 경로가 곧 커밋이다.
