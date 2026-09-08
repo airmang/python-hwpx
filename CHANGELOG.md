@@ -1,5 +1,12 @@
 # 변경 로그
 
+### 6.4.0 후보: 기존 편집 보존
+
+- `Shape.set_position`과 `Table.set_cell_borders`를 안정 API에 추가했다. 기존 개체 속성·셀 배경·테두리 굵기를 보존하며 모호한 구조를 거부한다.
+- 네이티브 머리글/바닥글과 빈 필드, 복제 행 문단 ID, XML 네임스페이스 정규화, 상속 셀 여백을 수정했다.
+- 구조 검증은 한컴 화면의 잘림·겹침·페이지 수 보존을 뜻하지 않는다.
+
+
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
 ## [Unreleased]
