@@ -110,3 +110,7 @@ Use the API paths below rather than inferring names from python-docx.
 - [llms-full.txt](https://airmang.github.io/python-hwpx/llms-full.txt):
   this file plus the full quickstart, recipes, mutation semantics, and
   support matrix inlined for larger context windows.
+
+Existing floating shapes: `shape.set_position(horizontal_offset=..., vertical_offset=...)` edits HWPUNIT offsets only; inline/missing-position shapes refuse before mutation. Existing native header/footer controls: locate via section.properties.headers/footers and use set_simple_text_preserving; rich or ambiguous stories refuse. See docs/stable-api.md.
+
+To edit only cell border colors/types, use table.set_cell_borders(row, col, color="#0055AA", line_type="SOLID"); it preserves widths, fills and other style fields. set_cell_border_fill replaces the whole style reference.
