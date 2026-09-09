@@ -1,0 +1,51 @@
+name: Wheel artifact
+
+# Keeps the latest released wheel available as a GitHub Actions artifact under
+# a stable name, for sandboxed AI runtimes (e.g. a ChatGPT chat) whose GitHub
+# connector can fetch workflow artifacts but cannot download Release assets or
+# reach PyPI. Artifacts expire after 90 days, so this re-publishes the same
+# bytes on a schedule and after every release. The Release asset and PyPI
+# remain the canonical distributions; this job never builds anything — it
+# downloads the published wheel and verifies it against the Release's
+# SHA256SUMS before uploading.
+
+on:
+  release:
+    types: [published]
+  schedule:
+    - cron: "23 4 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  republish-latest-wheel:
+    name: Re-publish the latest Release wheel as an artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the latest Release wheel and checksum manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="$(gh release view --repo "${GITHUB_REPOSITORY}" --json tagName -q .tagName)"
+          echo "latest release: ${tag}"
+          mkdir -p wheel
+          gh release download "${tag}" --repo "${GITHUB_REPOSITORY}" \
+            --pattern 'python_hwpx-*-py3-none-any.whl' --pattern 'SHA256SUMS' -D wheel
+          cd wheel
+          grep -E ' python_hwpx-.*-py3-none-any\.whl$' SHA256SUMS | sha256sum --check --strict
+          echo "${tag}" > RELEASE_TAG
+          ls -l
+
+      - name: Upload as the stable artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python-hwpx-wheel
+          path: |
+            wheel/python_hwpx-*-py3-none-any.whl
+            wheel/SHA256SUMS
+            wheel/RELEASE_TAG
+          retention-days: 90
+          if-no-files-found: error

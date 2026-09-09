@@ -86,10 +86,10 @@ print("셀 수:", len(cells))
 from hwpx import HwpxDocument
 
 document = HwpxDocument.open("input.hwpx")
-for run in document.iter_runs():
+for run in document.text.runs():
     print(repr(run.text), "charPr:", run.char_pr_id_ref)
 
-red_runs = document.find_runs_by_style(text_color="#FF0000")
+red_runs = document.text.find_runs(text_color="#FF0000")
 print("빨간 런:", len(red_runs))
 ```
 
@@ -99,10 +99,10 @@ print("빨간 런:", len(red_runs))
 from hwpx import HwpxDocument
 
 document = HwpxDocument.open("input.hwpx")
-for memo in document.memos:
+for memo in document.notes.memos:
     print("메모:", memo.id)
 
-for field in document.list_form_fields():
+for field in document.fields.all:
     print("누름틀:", field)
 ```
 

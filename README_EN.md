@@ -26,16 +26,22 @@ out in a form real Hancom Office opens.
 </p>
 <p align="center"><sub>A plain ChatGPT conversation — upload a form <code>.hwpx</code>, ask in natural language, and get the filled document back with its formatting intact.</sub></p>
 
-**Try it in ChatGPT** — upload your document along with a request like this:
+**Try it in ChatGPT** — the Python runtime in a ChatGPT chat has no PyPI
+access, so grab the `python_hwpx-*.whl` from the
+[latest Release](https://github.com/airmang/python-hwpx/releases/latest),
+upload it **together with** your document, and ask:
 
 ```text
-Open this .hwpx file with the python-hwpx library
-(install it with: pip install python-hwpx).
+Install the attached python_hwpx-*.whl with pip
+(pip install /mnt/data/python_hwpx-*.whl), then open this .hwpx file
+with the python-hwpx library.
 Keep the form and formatting as-is, change only ○○, and return a new file.
 ```
 
 Install to result file, all inside the conversation — no Python on your machine needed.
-An [llms.txt](https://airmang.github.io/python-hwpx/llms.txt) is published so AI tools learn the real API.
+The full procedure and an instruction block for AI assistants are in
+[Using python-hwpx in AI chat sandboxes](docs/ai-assistants.md); an
+[llms.txt](https://airmang.github.io/python-hwpx/llms.txt) is published so AI tools learn the real API.
 
 | | Repo | Role |
 |---|---|---|
@@ -145,18 +151,21 @@ Development status is Alpha — the API may change.
 
 | Environment | What to do |
 |---|---|
-| A plain ChatGPT conversation | Upload the `.hwpx`, `pip install python-hwpx`, edit it in Python, get the file back |
+| A plain ChatGPT conversation | Upload the `.hwpx` together with the [Release wheel](https://github.com/airmang/python-hwpx/releases/latest), install offline, edit in Python, get the file back — [guide](docs/ai-assistants.md) |
 | Local or server Python | `pip install python-hwpx` — scripts, batch jobs, CI |
 | Python automation (no MCP) | `pip install python-hwpx-automation` — authoring, form filling, and verification workflows as plain Python |
 | ChatGPT MCP app | Register the MCP adapter from [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) as a connector |
 | Codex marketplace plugin | Install [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) |
 | Claude Code · Hermes · OpenClaw | Register the same MCP server in each client ([`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)) |
 
-In practice: uploading an `.hwpx` to a plain ChatGPT conversation and asking for
-python-hwpx produced a successful PyPI install, and the edited document came
-back. Python execution and network access vary by plan and settings; where the
-runtime has no network, uploading the wheel alongside the document gives the
-same journey via an offline install.
+The Python runtime in a ChatGPT chat currently has no PyPI access. Every
+release attaches a `py3-none-any` wheel to its GitHub Release; upload it with
+the document and the same journey works via an offline install. The wheel's
+only dependency is `lxml` — if the runtime lacks it, upload an lxml wheel too.
+The same wheel is also kept as the GitHub Actions artifact `python-hwpx-wheel`,
+so an agent that can fetch artifacts can install without any upload
+(experimental, see the [guide](docs/ai-assistants.md)). Whether Python runs
+at all, and where uploads land, varies by plan and settings.
 
 ## Comparison
 
