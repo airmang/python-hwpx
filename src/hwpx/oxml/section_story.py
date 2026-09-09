@@ -53,7 +53,7 @@ def _simple_story_text_target(
     paragraph_children = list(paragraph)
     runs = _direct_children(paragraph, f"{_HP}run")
     if len(runs) != 1 or any(
-        child.tag not in {f"{_HP}run", f"{_HP}lineSegArray"}
+        child.tag not in {f"{_HP}run", f"{_HP}lineSegArray", f"{_HP}linesegarray"}
         for child in paragraph_children
     ):
         raise ValueError("header story has rich or control-bearing paragraph content")
@@ -163,6 +163,81 @@ def _find_target_mirror(
     if len(targets) > 1:
         raise ValueError("header story mirror binding is ambiguous")
     return targets[0] if targets else None
+
+
+def _section_story_elements(properties: Any, kind: str) -> list[ET.Element]:
+    """Expose native control-only stories as well as legacy logical stories."""
+    logical = properties.element.findall(f"{_HP}{kind}")
+    identities = {(s.get("id"), s.get("applyPageType", "BOTH")) for s in logical}
+    return logical + [
+        story for _, story in _iter_control_stories(properties.section.element, kind)
+        if (story.get("id"), story.get("applyPageType", "BOTH")) not in identities
+    ]
+
+
+def _set_control_story_text(element: ET.Element, properties: Any, value: str) -> None:
+    """Edit a unique native control in place, without synthesizing a secPr copy."""
+    from ..errors import HwpxValueError
+
+    kind = _story_kind(element)
+    native_id, page_type = element.get("id"), element.get("applyPageType")
+    conflicts = [
+        s for s in _section_story_elements(properties, kind)
+        if s.get("id") == native_id or s.get("applyPageType", "BOTH") == page_type
+    ]
+    if (not native_id or page_type not in {"BOTH", "EVEN", "ODD"}
+            or len(conflicts) != 1 or conflicts[0] is not element):
+        raise HwpxValueError(
+            "native story identity is missing or ambiguous", code="story-ambiguous",
+            suggestion="Inspect story IDs and page types before selecting one control.",
+        )
+    mirror = _find_target_mirror(properties.section.element, kind, native_id, page_type)
+    if mirror is not element or properties._apply_elements(kind):
+        raise HwpxValueError(
+            "native story linkage is inconsistent", code="story-linkage",
+            suggestion="Inspect the existing control and section apply metadata.",
+        )
+    paragraph, text = _native_story_text_target(element)
+    changed = text.text != value
+    text.text = value
+    changed = bool(_clear_paragraph_layout_cache(paragraph)) or changed
+    if changed:
+        properties.section.mark_dirty()
+
+
+def _native_story_text_target(element: ET.Element) -> tuple[ET.Element, ET.Element]:
+    """Find one visible simple text leaf while retaining empty native paragraphs."""
+    from ..errors import HwpxValueError
+
+    invalid = HwpxValueError(
+        "native story must have one visible text leaf without rich controls",
+        code="story-rich-content",
+        suggestion="Select individual runs for rich content instead of replacing the story.",
+    )
+    sublists = _direct_children(element, f"{_HP}subList")
+    if len(sublists) != 1 or list(element) != sublists:
+        raise invalid
+    targets: list[tuple[ET.Element, ET.Element]] = []
+    for paragraph in sublists[0]:
+        if paragraph.tag != f"{_HP}p":
+            raise invalid
+        targets.extend((paragraph, text) for text in _native_paragraph_texts(paragraph, invalid))
+    if len(targets) != 1:
+        raise invalid
+    return targets[0]
+
+
+def _native_paragraph_texts(paragraph: ET.Element, invalid: ValueError) -> Iterator[ET.Element]:
+    for run in paragraph:
+        if run.tag in {f"{_HP}lineSegArray", f"{_HP}linesegarray"}:
+            continue
+        if run.tag != f"{_HP}run":
+            raise invalid
+        for text in run:
+            if text.tag != f"{_HP}t" or list(text):
+                raise invalid
+            if text.text:
+                yield text
 
 
 def _story_structure_signature(
@@ -381,6 +456,9 @@ class HwpxOxmlSectionHeaderFooter:
 
         _validate_simple_story_value(value)
         kind = _story_kind(self.element)
+        if not any(self.element is s for s in self._properties.element.findall(f"{_HP}{kind}")):
+            _set_control_story_text(self.element, self._properties, value)
+            return
         native_id, page_type = _validate_logical_story_identity(
             self.element, self._properties, kind
         )

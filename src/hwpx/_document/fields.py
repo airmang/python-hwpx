@@ -689,20 +689,15 @@ def _insert_form_field_text_run(
     match: dict[str, Any],
     value: str,
 ) -> None:
-    paragraph = match["_paragraph"]
+    # A field may begin and end within one run. A run index is not a
+    # paragraph-child insertion point, and inserting before the end run can
+    # put the value before fieldBegin. Insert the text immediately after the
+    # actual begin control, retaining its surrounding run and character style.
     runs: list[Any] = match["_runs"]
-    begin_run_index = int(match["_begin_run_index"])
-    end_run_index = match.get("_end_run_index")
-    begin_run = runs[begin_run_index]
-    char_ref = begin_run.get("charPrIDRef") or paragraph.char_pr_id_ref or "0"
-    run = paragraph.element.makeelement(f"{_HP}run", {"charPrIDRef": str(char_ref)})
-    text_node = run.makeelement(f"{_HP}t", {})
+    begin_run = runs[int(match["_begin_run_index"])]
+    text_node = begin_run.makeelement(f"{_HP}t", {})
     text_node.text = _sanitize_field_text(value)
-    run.append(text_node)
-    if end_run_index is None:
-        paragraph.element.insert(begin_run_index + 1, run)
-    else:
-        paragraph.element.insert(int(end_run_index), run)
+    begin_run.insert(int(match["_begin_child_index"]) + 1, text_node)
 
 
 def fill_form_field(

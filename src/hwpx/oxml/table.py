@@ -6,7 +6,7 @@ from __future__ import annotations
 import re as _re
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Iterator, Sequence, cast
+from typing import TYPE_CHECKING, Any, Iterator, NoReturn, Sequence, cast
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
@@ -40,6 +40,70 @@ if TYPE_CHECKING:
     from hwpx.form_fit.report import FitResult
     from .paragraph import HwpxOxmlParagraph
     from .section import HwpxOxmlSection
+
+
+def _set_cell_borders_preserving(table: Any, cell: Any, color: str, line_type: str) -> None:
+    from ..errors import HwpxValueError
+    from ._document_primitives import _normalize_border_type
+    from .namespaces import HH
+
+    def refuse(message: str) -> NoReturn:
+        raise HwpxValueError(
+            message, code="cell-border-edit-unsupported",
+            suggestion="Select a cell with one existing complete border style and a #RRGGBB color.",
+        )
+
+    if not isinstance(color, str) or _re.fullmatch(r"#[0-9A-Fa-f]{6}", color) is None:
+        refuse("border color must be #RRGGBB")
+    document = table.paragraph.section.document
+    if document is None or not document.headers:
+        refuse("cell border edit requires an attached document header")
+    header = document.headers[0]
+    try:
+        line_type = _normalize_border_type(line_type, header._BORDER_LINE_TYPES)
+    except (ValueError, TypeError, AttributeError):
+        refuse("border line type is unsupported")
+    container = header._border_fills_element()
+    if container is None:
+        refuse("existing border style container is missing")
+    reference = cell.element.get("borderFillIDRef") or table.element.get("borderFillIDRef")
+    matches = [n for n in container if n.tag == HH + "borderFill" and n.get("id") == reference]
+    if len(matches) != 1:
+        refuse("existing cell border style is missing or ambiguous")
+    candidate = deepcopy(matches[0])
+    _color_existing_borders(candidate, color, line_type)
+    key = _border_edit_signature(candidate, root=True)
+    for existing in container:
+        if existing.tag == HH + "borderFill" and _border_edit_signature(existing, root=True) == key:
+            table.set_cell_border_fill(cell.address[0], cell.address[1], existing.get("id"))
+            return
+    candidate.set("id", header._allocate_border_fill_id(container))
+    container.append(candidate)
+    container.set("itemCnt", str(len(container.findall(HH + "borderFill"))))
+    header.mark_dirty()
+    cell.element.set("borderFillIDRef", candidate.get("id"))
+    table.mark_dirty()
+
+
+def _color_existing_borders(candidate: Any, color: str, line_type: str) -> None:
+    from ..errors import HwpxValueError
+    from .namespaces import HH
+
+    for name in ("leftBorder", "rightBorder", "topBorder", "bottomBorder"):
+        sides = candidate.findall(HH + name)
+        if len(sides) != 1:
+            raise HwpxValueError(
+                "existing cell border style requires exactly four sides",
+                code="cell-border-edit-unsupported",
+                suggestion="Select a cell with one existing complete border style.",
+            )
+        sides[0].set("color", color.upper())
+        sides[0].set("type", line_type)
+
+
+def _border_edit_signature(node: Any, *, root: bool = False) -> tuple[Any, ...]:
+    attributes = tuple(sorted((k, v) for k, v in node.attrib.items() if not (root and k == "id")))
+    return node.tag, attributes, node.text, node.tail, tuple(_border_edit_signature(c) for c in node)
 
 
 def _wrap_paragraph(
@@ -783,6 +847,17 @@ class HwpxOxmlTable:
         cell = self.cell(row_index, col_index)
         cell.element.set("borderFillIDRef", str(border_fill_id_ref))
         self.mark_dirty()
+
+    def set_cell_borders(
+        self, row_index: int, col_index: int, *, color: str, line_type: str = "SOLID"
+    ) -> None:
+        """Change four existing border colors/types, preserving fill and widths.
+
+        Copies and deduplicates the complete existing style; other cells that
+        share it remain unchanged. Missing or ambiguous style definitions refuse.
+        """
+        cell = self.cell(row_index, col_index)
+        _set_cell_borders_preserving(self, cell, color, line_type)
 
     def set_cell_shading(self, row_index: int, col_index: int, color: str) -> None:
         cell = self.cell(row_index, col_index)

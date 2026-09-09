@@ -38,7 +38,7 @@ def to_bytes(*, mode="auto", fallback="error"): ...   # bytes 반환, return_rep
 |---|---|
 | `"patch"` | 지원되는 국소 mutation만 허용한다. 미수정 part는 전부 바이트 동일하게 유지돼야 한다. |
 | `"rebuild"` | 변경된 part의 재직렬화를 명시적으로 허용한다. |
-| `"auto"` (기본값) | 사전 측정에서 **달성 가능한 가장 강한 등급**을 자동 선택한다. 절대 예외를 던지지 않는다. |
+| `"auto"` (기본값) | 사전 측정에서 **달성 가능한 가장 강한 등급**을 자동 선택한다. 보존 등급 미달 자체를 오류로 처리하지 않는다. |
 
 ### `fallback` — 보존 등급 미달 시 동작 (`mode="patch"`에서만 의미 있음)
 
@@ -47,8 +47,9 @@ def to_bytes(*, mode="auto", fallback="error"): ...   # bytes 반환, return_rep
 | `"error"` (기본값) | 요청한 patch 등급을 만족하지 못하면 **출력하지 않고** `PreservationDowngradeError`를 던진다. |
 | `"rebuild"` | 명시적으로 허용한 경우에만 rebuild로 강등하고, 그 사실을 영수증의 `fallbackUsed=true`로 남긴다. |
 
-> `mode="auto"`는 달성 가능한 등급을 그대로 채택하므로 `fallback`과 무관하게 예외를
-> 던지지 않는다. fail-closed 강제가 필요하면 `mode="patch"`를 명시하라.
+> `mode="auto"`는 달성 가능한 등급을 채택하므로 등급 미달에 따른
+> `PreservationDowngradeError`를 발생시키지 않는다. I/O 오류나 패키지·안전 검증
+> 실패는 여전히 발생할 수 있다. patch 등급을 강제하려면 `mode="patch"`를 명시하라.
 
 ### `return_report` — 영수증 반환
 
@@ -62,7 +63,9 @@ from hwpx import HwpxDocument
 from hwpx.mutation_report import PreservationDowngradeError
 
 doc = HwpxDocument.open("신청서.hwpx")
-doc.fill_by_path({"성명 > right": "홍길동"})
+result = doc.tables.fill_by_path({"성명 > right": "홍길동"})
+if result["failed_count"] or result["applied_count"] != 1:
+    raise ValueError(result["failed"])
 
 # 1) 영수증과 함께 저장 (달성 가능한 최강 등급 자동 선택)
 report = doc.save_to_path("신청서-완료.hwpx", return_report=True)
@@ -79,6 +82,32 @@ except PreservationDowngradeError as exc:
 ```
 
 ## `MutationReport`
+
+### 기존 양식의 요청값까지 확인하고 발행하기
+
+저장 성공만으로 과업 완료를 판단하지 않는다. 실행 가능한
+[편집 예제](https://github.com/airmang/python-hwpx/blob/main/examples/edit_existing_form.py)의
+`fill_existing_form(source, output, values)`는 **유일한 라벨의 오른쪽 셀**을
+채우는 경로다. `values`는 `{"성명": "홍길동"}`처럼 라벨과 문자열 값을 받는다.
+
+1. 원본과 출력이 다른 파일인지 확인한다(심볼릭 링크·하드 링크 포함).
+2. 요청한 모든 라벨이 유일한 대상 셀로 해석되는지 먼저 확인한다.
+   `expected_values={"성명": "기존 이름"}`을 주면 수정 전 값도 전건 대조한다.
+3. 채움 결과의 실패·적용 건수를 확인하고 `patch/error`로 임시 사본을 저장한다.
+4. 임시 사본을 다시 열어 대상 위치와 값 전건을 확인한다.
+5. 원본 변경 여부를 확인한 뒤 검증된 사본을 최종 출력으로 원자적으로 옮긴다.
+
+실패 시 기존 출력은 교체되지 않는다. 이는 단일 작업용 예제이며, 동시 편집의
+revision·session 제어는 automation workflow를 사용한다. 응답은 요청 반영,
+저장 영수증, 수정 part 내부 보존 미검증, 시각 미검증을 분리한다.
+긴 값으로 인한 줄바꿈·쪽수 변화는 한컴 재조판 확인이 필요하다. `patch`만으로
+수정한 part 내부의 미수정 영역이나 페이지 배치까지 동일하다고 판단하지 않는다.
+
+실제 기관 양식에는 라벨과 입력칸 사이에 좁은 빈 셀이 있을 수 있다.
+`right`는 바로 다음 셀을 뜻하며 "사람이 의도한 입력칸"을 추측하지 않는다.
+예상 기존 값이 어긋나면 지도를 다시 확인하고 `doc.tables.fill_by_path`의
+명시적 경로(예: `작성일자 > right > right`)를 선택한다. 이 예제는 그런 경우
+다른 셀을 자동으로 선택하지 않는다.
 
 `report.to_dict()`는 `hwpx.mutation-report/v1` JSON을 그대로 반환한다.
 
@@ -137,7 +166,7 @@ except PreservationDowngradeError as exc:
 - `wholePackageIdentical` — 전체 패키지 바이트 동일성. **no-op(변경 없음)일 때만**
   참이 될 수 있다. deflate·producer 차이 때문에 편집이 있으면 절대 보장하지 않는다.
 
-### 검증 3항목 (`verification`)
+### 검증 4항목 (`verification`)
 
 각 항목은 `"passed"` / `"failed"` / `"not_performed"` 세 값만 가진다.
 **렌더를 돌리지 않았으면 `not_performed`이지 무음 pass가 아니다**(No Silent True).

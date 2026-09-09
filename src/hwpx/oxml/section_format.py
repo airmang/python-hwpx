@@ -22,7 +22,7 @@ from ._document_primitives import (
     _paragraph_id,
 )
 from .numbering import SectionStartNumbering
-from .section_story import HwpxOxmlSectionHeaderFooter
+from .section_story import HwpxOxmlSectionHeaderFooter, _section_story_elements
 
 if TYPE_CHECKING:
     from .section import HwpxOxmlSection
@@ -1163,7 +1163,7 @@ class HwpxOxmlSectionProperties:
     @property
     def headers(self) -> list[HwpxOxmlSectionHeaderFooter]:
         wrappers: list[HwpxOxmlSectionHeaderFooter] = []
-        for element in self.element.findall(f"{_HP}header"):
+        for element in _section_story_elements(self, "header"):
             apply = self._match_apply_for_element("header", element)
             wrappers.append(HwpxOxmlSectionHeaderFooter(element, self, apply))
         return wrappers
@@ -1171,24 +1171,31 @@ class HwpxOxmlSectionProperties:
     @property
     def footers(self) -> list[HwpxOxmlSectionHeaderFooter]:
         wrappers: list[HwpxOxmlSectionHeaderFooter] = []
-        for element in self.element.findall(f"{_HP}footer"):
+        for element in _section_story_elements(self, "footer"):
             apply = self._match_apply_for_element("footer", element)
             wrappers.append(HwpxOxmlSectionHeaderFooter(element, self, apply))
         return wrappers
 
     def get_header(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
-        element = self._find_header_footer("header", page_type)
-        if element is None:
-            return None
-        apply = self._match_apply_for_element("header", element)
-        return HwpxOxmlSectionHeaderFooter(element, self, apply)
+        return self._get_story("header", page_type)
 
     def get_footer(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
-        element = self._find_header_footer("footer", page_type)
-        if element is None:
+        return self._get_story("footer", page_type)
+
+    def _get_story(self, kind: str, page_type: str) -> Optional[HwpxOxmlSectionHeaderFooter]:
+        from ..errors import HwpxValueError
+
+        matches = [s for s in _section_story_elements(self, kind)
+                   if s.get("applyPageType", "BOTH") == page_type]
+        if len(matches) > 1:
+            raise HwpxValueError(
+                "multiple stories match the page type", code="story-ambiguous",
+                suggestion="Inspect the complete story list and select one native ID.",
+            )
+        if not matches:
             return None
-        apply = self._match_apply_for_element("footer", element)
-        return HwpxOxmlSectionHeaderFooter(element, self, apply)
+        element = matches[0]
+        return HwpxOxmlSectionHeaderFooter(element, self, self._match_apply_for_element(kind, element))
 
     def set_header_text(self, text: str, page_type: str = "BOTH") -> HwpxOxmlSectionHeaderFooter:
         element = self._ensure_header_footer("header", page_type)

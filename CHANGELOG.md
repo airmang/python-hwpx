@@ -2,7 +2,21 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
-## [Unreleased]
+## [6.4.0] - 2026-09-09
+
+기존 문서 편집 보존 트레인. 구조 검증은 한컴 화면의 잘림·겹침·페이지 수
+보존을 뜻하지 않는다.
+
+### 고침
+
+- 네이티브 머리글/바닥글과 빈 필드, 복제 행 문단 ID, XML 네임스페이스
+  정규화, 상속 셀 여백을 보존하도록 수정했다.
+
+- 표 라벨 탐색에서 병합 셀을 물리 셀 하나로 계산하고, 방향 이동이 병합
+  영역을 건너뛰도록 수정했다. 실제로 다른 셀에 반복된 라벨은 계속 모호한
+  대상으로 처리한다.
+- 주요 사용 문서와 AI 참조 문서를 현재 네임스페이스 API에 맞췄다.
+  저장 성공, 요청한 내용의 반영, 화면 검증의 의미를 구분한다.
 
 ### 바꿈
 
@@ -26,6 +40,12 @@
   동봉 계약 문서(`src/hwpx/data/contract_docs/`)도 같이 재동기화했다.
 
 ### 더함
+
+- `Shape.set_position`과 `Table.set_cell_borders`를 안정 API에 추가했다.
+  기존 개체 속성·셀 배경·테두리 굵기를 보존하며 모호한 구조를 거부한다.
+- 기존 양식을 임시 파일에 편집한 뒤 재개봉·내용 확인 후 출력하는
+  `examples/edit_existing_form.py`와 외부 문서 편집 회귀 검증. 기존 값
+  사전조건으로 잘못된 대상이나 변경된 양식을 거부할 수 있다.
 
 - **wheel을 GitHub Actions artifact로도 유지** — ChatGPT의 GitHub 커넥터가
   Release 자산 바이너리는 못 받고 Actions artifact는 받을 수 있는 것으로

@@ -1303,6 +1303,33 @@ class HwpxOxmlShape:
 
     # --- size access -------------------------------------------------------
 
+    def set_position(self, *, horizontal_offset: int, vertical_offset: int) -> None:
+        """Set an existing floating shape's offsets, in HWP units.
+
+        The existing reference frames, alignment, anchor, geometry and size
+        are preserved. Inline shapes and missing positioning metadata refuse
+        before mutation: changing their offsets would not move the drawing.
+        """
+        from ..errors import HwpxValueError
+
+        for value in (horizontal_offset, vertical_offset):
+            if isinstance(value, bool) or not isinstance(value, int) or not -(2**31) <= value < 2**31:
+                raise HwpxValueError(
+                    "shape offsets must be signed 32-bit integer HWP units",
+                    code="shape-position-value",
+                    suggestion="Pass integer offsets in the shape's existing reference frame.",
+                )
+        position = self.element.find(f"{_HP}pos")
+        if position is None or position.get("treatAsChar") not in {"0", "false", "False"}:
+            raise HwpxValueError(
+                "position editing requires an existing floating shape",
+                code="shape-position-unsupported",
+                suggestion="Inspect the anchor; inline placement is controlled by paragraph flow.",
+            )
+        position.set("horzOffset", str(horizontal_offset))
+        position.set("vertOffset", str(vertical_offset))
+        self.paragraph.section.mark_dirty()
+
     @property
     def width(self) -> int:
         sz = self.element.find(f"{_HP}sz")

@@ -4,7 +4,7 @@
 > Korean word-processor format used by Hancom Office / 한컴오피스 한글). HWPX is
 > ZIP + OWPML XML, so no Hancom installation is needed — works on
 > Windows/macOS/Linux/CI and inside Python-enabled chat sandboxes. Untouched
-> regions of an edited file are preserved byte-for-byte; generated files were
+> ZIP parts are preserved according to the requested save grade; generated files were
 > verified to open in real Hancom Office over a frozen corpus (measured
 > 2026-07-19 — the published corpus metrics page carries the exact
 > measurement stack and date). Install: `pip install python-hwpx` (Python 3.10–3.14, only
@@ -16,41 +16,54 @@
 > `python-hwpx-wheel` on airmang/python-hwpx (workflow "Wheel artifact") holds
 > the latest released wheel plus SHA256SUMS. License: Apache-2.0.
 
-python-hwpx is NOT in most models' training data. Do not guess APIs from
-python-docx habits — the real surface is below and in the linked docs.
+Use the API paths below rather than inferring names from python-docx.
 
 ## Core API (memorize these exact names)
 
 - `from hwpx import HwpxDocument` — the document facade.
 - Open: `HwpxDocument.open("file.hwpx")` (path, bytes, or file object; usable
   as a context manager). New: `HwpxDocument.new()`.
-- Save: `document.save_to_path("out.hwpx")`. There is **no** `document.save()`
-  method. `save_to_path(..., return_report=True)` returns a `MutationReport`
-  receipt (`report.actual_mode`, byte-preservation verification). Saving is
-  atomic and fail-closed: if the requested preservation grade cannot be kept,
-  it raises `PreservationDowngradeError` and writes nothing.
-- Edit: `document.add_paragraph(text)`, `document.add_heading(text, level=1)`,
-  `paragraph.remove()` (the last paragraph in a section raises `ValueError`),
-  `document.add_table(rows, cols)` then `table.set_cell_text(row, col, text)`,
+- Save a new document: `document.save_to_path("out.hwpx")` (default mode: auto).
+  For strict preservation of an existing document, use a distinct output path:
+  `document.save_to_path("out.hwpx", mode="patch", fallback="error", return_report=True)`.
+  An unavailable patch grade raises `PreservationDowngradeError` before writing.
+  Auto selects the achievable grade; it does not promise patch preservation.
+  `MutationReport` records the actual save and checks performed. Its `ok` does
+  not prove the requested edit was applied or that visual verification ran.
+- Edit: `document.add_heading(text, level=1)`, `document.add_paragraph(text)`,
+  `paragraph.remove()` (last paragraph in a section raises `ValueError`),
+  `document.add_table(rows, cols)`
+  then `table.set_cell_text(row, col, text)`,
+  `document.notes.add_footnote(text, paragraph=p)`,
+  `document.notes.add_memo(text, anchor=p, memo_shape_id_ref="0")` (returns a
+  Memo with `paragraph` and `field_id` attributes, not a tuple),
   `document.text.replace(search, replacement)` (returns count; empty search
-  raises `ValueError`).
-- Notes: `document.notes.add_footnote(text, paragraph=p)`,
-  `document.notes.add_memo(text, anchor=p)`, `document.notes.memos`.
+  raises `ValueError`). Replacement is within individual body runs, not across
+  run boundaries or nested table paragraphs. Check the expected replacement
+  count before saving; zero replacements are not task completion.
 - Read: `document.paragraphs`, `paragraph.text`, `document.sections`,
-  `document.text.runs()`, `document.text.plain`.
-- Forms: `document.fields.add(name, prompt=...)` creates a native click-here
-  field (real-Hancom CLICKHERE contract; experimental tier);
-  `document.fields.fill(value, name=...)` fills it style-preservingly;
-  `document.fields.all` lists fields.
+  `document.text.runs()`, `document.text.plain`, `document.notes.memos`,
+  `document.fields.all` (a property, not a call).
+- Tables: `document.tables.find_cell_by_label(label)` returns all matches;
+  a merged cell counts once, and a direction crosses its full span. Separate
+  physical cells with the same label remain ambiguous.
+  `document.tables.fill_by_path({"성명 > right": "홍길동"})` returns `applied`
+  and `failed` lists and their counts. Check every requested entry before
+  saving: ambiguous labels are failures, and other entries may have changed
+  in memory. Reopen the output and check the intended values.
+- Forms: `document.fields.add(name, prompt=...)` creates a native
+  click-here field (real-Hancom CLICKHERE contract; experimental tier);
+  `document.fields.fill(value, name=...)` returns a FieldFillResult with
+  `before` and `after` attributes; failure raises an exception.
 - Equations: `document.shapes.add_equation(script)` inserts a native
   `<hp:equation>` from a Hancom EqEdit script (experimental tier);
   `from hwpx.equation import latex_to_eqedit` converts LaTeX to EqEdit over a
   render-verified token set and raises `UnsupportedLatexError` outside it —
   no silent approximation.
-- The flat 5.x names (`document.add_footnote`, `document.replace_text_in_runs`,
-  `document.iter_runs`, `document.add_form_field`, `document.add_equation`,
-  `document.remove_paragraph`, ...) still work but emit `DeprecationWarning`
-  and are removed in 7.0 — use the namespaced forms above.
+- Flat 5.x method names without a namespace (`add_footnote`,
+  `replace_text_in_runs`, `iter_runs`, `add_form_field`, `add_equation`,
+  `remove_paragraph`, ...) still work but emit `DeprecationWarning` and are
+  removed in 7.0 — use the namespaced forms above.
 - Extract: `from hwpx import TextExtractor` →
   `TextExtractor("file.hwpx").extract_text()`;
   `iter_document_paragraphs(include_nested=True)` yields `ParagraphInfo` with
@@ -62,16 +75,23 @@ python-docx habits — the real surface is below and in the linked docs.
   `.section`, `.text` (attribute; `None` on container elements).
 - Validate: `from hwpx import validate_package, validate_editor_open_safety`.
 
-## Common mistakes to avoid
+## Unavailable document APIs
 
-- Wrong: `Document()` / `doc.save("x.hwpx")` / `doc.paragraphs[0].runs` —
-  those are python-docx idioms. Use `HwpxDocument.new()` / `save_to_path` /
-  `document.text.runs()`. (`add_paragraph` and `add_heading` do exist.)
+- `document.save()` does not exist. Use `save_to_path` or `save_to_stream`.
+
+## Common mistakes to avoid
+- Wrong: `Document()` / `doc.paragraphs[0].runs` — those are python-docx
+  idioms. Use `HwpxDocument.new()` / `document.text.runs()`. (`add_paragraph`
+  and `add_heading` do exist.)
 - `.hwp` (HWP 5.x binary) is a different format: opening raises `BadZipFile`
   with guidance. Encrypted HWPX is rejected fail-closed.
 - All `add_*` calls append (not idempotent); check existence first by
   traversal when you need "add once".
-- Higher-level workflows (form filling by label, exam papers, mail merge
+- Report content verification, untouched-part preservation, package/open-safety
+  checks, reopen and visual verification separately. `visual="not_performed"`
+  must remain unverified; it is not a visual pass. Untouched ZIP parts alone
+  do not establish preservation inside a modified part or unchanged layout.
+- Higher-level workflows (institution-specific form filling, exam papers, mail merge
   policy, `hwpx` CLI, MCP server, Hancom render verification) live in the
   companion package `python-hwpx-automation` (import `hwpx_automation`), not
   in the core library.
@@ -94,8 +114,8 @@ python-docx habits — the real surface is below and in the linked docs.
   read/preserve only).
 - [Safe write contract](https://airmang.github.io/python-hwpx/safe-write-contract.html):
   preservation grades and the `MutationReport` schema.
-- [Migration from 4.x](https://airmang.github.io/python-hwpx/migration-5.0.html):
-  every import removed at 5.0 has a named replacement.
+- [API migration](https://airmang.github.io/python-hwpx/migration-6.0.html):
+  current namespaces, return objects and deprecated facade replacements.
 - [Corpus metrics](https://airmang.github.io/python-hwpx/corpus-metrics.html):
   measured open/render rates on real Hancom Office.
 - [API reference](https://airmang.github.io/python-hwpx/api_reference.html)
@@ -107,3 +127,7 @@ python-docx habits — the real surface is below and in the linked docs.
 - [llms-full.txt](https://airmang.github.io/python-hwpx/llms-full.txt):
   this file plus the full quickstart, recipes, mutation semantics, and
   support matrix inlined for larger context windows.
+
+Existing floating shapes: `shape.set_position(horizontal_offset=..., vertical_offset=...)` edits HWPUNIT offsets only; inline/missing-position shapes refuse before mutation. Existing native header/footer controls: locate via section.properties.headers/footers and use set_simple_text_preserving; rich or ambiguous stories refuse. See docs/stable-api.md.
+
+To edit only cell border colors/types, use table.set_cell_borders(row, col, color="#0055AA", line_type="SOLID"); it preserves widths, fills and other style fields. set_cell_border_fill replaces the whole style reference.
