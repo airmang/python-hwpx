@@ -92,7 +92,7 @@ document = HwpxDocument.open("output/hello-updated.hwpx")
 # 문단 추가와 삭제
 paragraph = document.add_paragraph("잠시 있다 사라질 문단")
 print("추가된 문단:", paragraph.text)
-document.remove_paragraph(paragraph)
+paragraph.remove()
 
 # 표와 메모 추가
 section = document.sections[0]
@@ -104,13 +104,13 @@ table.set_cell_text(0, 1, "값")
 table.set_cell_text(1, 0, "상태")
 table.set_cell_text(1, 1, "검토 중")
 
-memo, _, field_id = document.add_memo_with_anchor(
+memo = document.notes.add_memo(
     "이 문단을 다시 확인하세요.",
-    paragraph=paragraph,
+    anchor=paragraph,
     memo_shape_id_ref="0",
 )
 print("메모 ID:", memo.id)
-print("필드 ID:", field_id)
+print("필드 ID:", memo.field_id)
 
 document.save_to_path("output/hello-final.hwpx")
 print("저장 완료: output/hello-final.hwpx")

@@ -26,23 +26,28 @@ python-docx habits — the real surface is below and in the linked docs.
   receipt (`report.actual_mode`, byte-preservation verification). Saving is
   atomic and fail-closed: if the requested preservation grade cannot be kept,
   it raises `PreservationDowngradeError` and writes nothing.
-- Edit: `document.add_paragraph(text)`, `document.remove_paragraph(p)` (last
-  paragraph in a section raises `ValueError`), `document.add_table(rows, cols)`
-  then `table.set_cell_text(row, col, text)`,
-  `document.add_footnote(text, paragraph=p)`,
-  `document.add_memo_with_anchor(text, paragraph=p, memo_shape_id_ref="0")`,
-  `document.replace_text_in_runs(search, replacement)` (returns count; empty
-  search raises `ValueError`).
+- Edit: `document.add_paragraph(text)`, `document.add_heading(text, level=1)`,
+  `paragraph.remove()` (the last paragraph in a section raises `ValueError`),
+  `document.add_table(rows, cols)` then `table.set_cell_text(row, col, text)`,
+  `document.text.replace(search, replacement)` (returns count; empty search
+  raises `ValueError`).
+- Notes: `document.notes.add_footnote(text, paragraph=p)`,
+  `document.notes.add_memo(text, anchor=p)`, `document.notes.memos`.
 - Read: `document.paragraphs`, `paragraph.text`, `document.sections`,
-  `document.iter_runs()`, `document.memos`, `document.list_form_fields()`.
-- Forms (5.1+): `document.add_form_field(name, prompt=...)` creates a native
-  click-here field (real-Hancom CLICKHERE contract; experimental tier);
-  `document.fill_form_field(value, name=...)` fills it style-preservingly.
-- Equations (5.2+): `document.add_equation(script)` inserts a native
+  `document.text.runs()`, `document.text.plain`.
+- Forms: `document.fields.add(name, prompt=...)` creates a native click-here
+  field (real-Hancom CLICKHERE contract; experimental tier);
+  `document.fields.fill(value, name=...)` fills it style-preservingly;
+  `document.fields.all` lists fields.
+- Equations: `document.shapes.add_equation(script)` inserts a native
   `<hp:equation>` from a Hancom EqEdit script (experimental tier);
   `from hwpx.equation import latex_to_eqedit` converts LaTeX to EqEdit over a
   render-verified token set and raises `UnsupportedLatexError` outside it —
   no silent approximation.
+- The flat 5.x names (`document.add_footnote`, `document.replace_text_in_runs`,
+  `document.iter_runs`, `document.add_form_field`, `document.add_equation`,
+  `document.remove_paragraph`, ...) still work but emit `DeprecationWarning`
+  and are removed in 7.0 — use the namespaced forms above.
 - Extract: `from hwpx import TextExtractor` →
   `TextExtractor("file.hwpx").extract_text()`;
   `iter_document_paragraphs(include_nested=True)` yields `ParagraphInfo` with
@@ -56,9 +61,9 @@ python-docx habits — the real surface is below and in the linked docs.
 
 ## Common mistakes to avoid
 
-- Wrong: `Document()` / `doc.save("x.hwpx")` / `doc.add_heading(...)` — those
-  are python-docx idioms. Use `HwpxDocument.new()` / `save_to_path` /
-  `add_paragraph`.
+- Wrong: `Document()` / `doc.save("x.hwpx")` / `doc.paragraphs[0].runs` —
+  those are python-docx idioms. Use `HwpxDocument.new()` / `save_to_path` /
+  `document.text.runs()`. (`add_paragraph` and `add_heading` do exist.)
 - `.hwp` (HWP 5.x binary) is a different format: opening raises `BadZipFile`
   with guidance. Encrypted HWPX is rejected fail-closed.
 - All `add_*` calls append (not idempotent); check existence first by

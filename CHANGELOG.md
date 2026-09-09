@@ -14,6 +14,15 @@
   의존성·최소 예제)를 신설했다. `docs/installation.md`에 wheel 설치 절을,
   `llms.txt`에 PyPI 없는 샌드박스의 설치 문장을 추가했다. Release 자산 첨부는
   기존 `release.yml`이 이미 수행하므로 CI 변경은 없다.
+- **에이전트 학습 표면을 6.0 API로 현행화** — `llms.txt`와 llms-full 원천
+  (`quickstart`·`recipes-traversal`·`mutation-semantics`)이 6.0에서 이동돼
+  `DeprecationWarning`을 내고 7.0에서 제거되는 5.x 평면 이름
+  (`replace_text_in_runs`·`iter_runs`·`add_memo_with_anchor`·`add_footnote`·
+  `remove_paragraph`·`list_form_fields`·`add_form_field`·`fill_form_field`·
+  `add_equation`·`find_runs_by_style`·`memos`·`memo_shapes`)을 안내하고 있었다.
+  `doc.text`/`doc.notes`/`doc.fields`/`doc.shapes` 네임스페이스와
+  `paragraph.remove()`로 바꾸고, `add_heading`을 python-docx 습관으로 오기한
+  문장을 정정했다. 문서 예제 원장과 게이트 해시를 갱신했다(블록 수 117 불변).
 
 ## [6.3.0] - 2026-08-19
 
