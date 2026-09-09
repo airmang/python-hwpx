@@ -11,7 +11,10 @@
 > dependency is lxml). In a sandbox without PyPI access (e.g. a ChatGPT chat),
 > install the wheel the user uploaded from GitHub Releases instead:
 > `pip install /mnt/data/python_hwpx-*.whl` (adjust the upload path to the
-> runtime; if `import lxml` fails, ask for an lxml wheel too). License: Apache-2.0.
+> runtime; if `import lxml` fails, ask for an lxml wheel too). If nothing was
+> uploaded but you can fetch GitHub Actions artifacts, the artifact
+> `python-hwpx-wheel` on airmang/python-hwpx (workflow "Wheel artifact") holds
+> the latest released wheel plus SHA256SUMS. License: Apache-2.0.
 
 python-hwpx is NOT in most models' training data. Do not guess APIs from
 python-docx habits — the real surface is below and in the linked docs.

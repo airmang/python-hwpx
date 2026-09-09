@@ -37,6 +37,25 @@ wheel의 유일한 의존성은 `lxml`입니다. 실행 환경에 lxml이 이미
 pip install /mnt/data/lxml-*.whl /mnt/data/python_hwpx-*.whl
 ```
 
+## 첨부 없이 가져오기 — GitHub Actions artifact (실험)
+
+ChatGPT의 GitHub 커넥터는 Release 자산의 바이너리는 내려받지 못하지만 GitHub
+Actions **artifact**(ZIP)는 가져올 수 있는 것으로 확인됐습니다. 그래서 같은
+wheel을 두 곳에 더 둡니다.
+
+- 릴리스 워크플로가 wheel과 `SHA256SUMS`를 artifact `python-hwpx-wheel`로도 올립니다.
+- [`wheel-artifact.yml`](https://github.com/airmang/python-hwpx/actions/workflows/wheel-artifact.yml)이
+  매달, 그리고 릴리스마다 최신 Release의 wheel을 해시 검증 후 같은 이름으로 다시
+  올립니다. artifact는 90일 뒤 만료되므로 이 갱신이 없으면 끊깁니다.
+
+에이전트는 이 워크플로의 최신 성공 run에서 artifact `python-hwpx-wheel`을 받아
+ZIP을 풀고 안의 `.whl`을 설치하면 됩니다. ZIP에는 `SHA256SUMS`와 `RELEASE_TAG`가
+같이 들어 있어 어느 릴리스의 어떤 bytes인지 대조할 수 있습니다.
+
+이 경로는 커넥터의 artifact 다운로드 기능이 확인된 단계이며, 채팅 런타임까지
+wheel이 실제로 도달해 설치되는 전 과정은 아직 실측하지 않았습니다. 확실한
+경로는 위의 사용자 첨부입니다.
+
 ## AI 어시스턴트를 위한 지시문
 
 아래 블록은 에이전트가 그대로 따르도록 쓴 것입니다. 사용자가 이 페이지 링크를
@@ -47,7 +66,11 @@ Instructions for AI assistants running python-hwpx in a sandboxed Python
 environment where PyPI is unavailable:
 
 1. Look for an uploaded file matching python_hwpx-*.whl (ChatGPT places
-   uploads under /mnt/data). Do not try to reach PyPI.
+   uploads under /mnt/data). Do not try to reach PyPI. If nothing was
+   uploaded and you can fetch GitHub Actions artifacts, take the artifact
+   named python-hwpx-wheel from the latest successful run of the
+   "Wheel artifact" workflow in airmang/python-hwpx, unzip it, and use the
+   .whl inside (SHA256SUMS in the same zip lets you verify it).
 2. Check the only dependency first: `python -c "import lxml"`. If it fails,
    look for an uploaded lxml-*.whl; if there is none, ask the user to upload
    an lxml wheel for this platform and Python version before continuing.

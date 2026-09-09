@@ -14,12 +14,12 @@ stable 편집 표면의 계약을 한 곳에 모았다. 아래 표의 실패 모
 | 호출 | 반환 | 대표 실패 모드 | 다시 실행하면 |
 |---|---|---|---|
 | `add_paragraph(text)` | `HwpxOxmlParagraph` | 사실상 없음 | 문단이 하나 더 추가된다(append, 비멱등) |
-| `remove_paragraph(p)` | `None` | 섹션의 마지막 단락 삭제 시 `ValueError` | 이미 제거된 문단이면 조용히 무시된다(무해) |
+| `paragraph.remove()` | `None` | 섹션의 마지막 단락 삭제 시 `ValueError` | 이미 제거된 문단이면 조용히 무시된다(무해) |
 | `add_table(rows, cols)` | `HwpxOxmlTable` | 사실상 없음 | 표가 하나 더 추가된다(비멱등) |
 | `table.set_cell_text(r, c, text)` | `FitResult \| None` | 범위 밖 좌표는 `IndexError` (`exceed table bounds`) | 같은 값이면 결과 동일(수렴) |
-| `replace_text_in_runs(search, repl)` | `int` (치환 수) | 빈 `search`는 `ValueError` | 치환할 것이 없으면 `0` — 1회차 후 수렴 |
-| `add_memo_with_anchor(...)` | `(memo, paragraph, field_id)` 튜플 | 아래 캐비앗 참고 | 메모가 하나 더 붙는다(비멱등) |
-| `add_footnote(text, paragraph)` | `HwpxOxmlNote` | 사실상 없음 | 각주가 하나 더 붙는다(비멱등) |
+| `text.replace(search, repl)` | `int` (치환 수) | 빈 `search`는 `ValueError` | 치환할 것이 없으면 `0` — 1회차 후 수렴 |
+| `notes.add_memo(text, anchor=p)` | `HwpxOxmlMemo` (`.id`·`.field_id`·`.paragraph`) | 아래 캐비앗 참고 | 메모가 하나 더 붙는다(비멱등) |
+| `notes.add_footnote(text, paragraph)` | `HwpxOxmlNote` | 사실상 없음 | 각주가 하나 더 붙는다(비멱등) |
 
 "사실상 없음"은 정상 인자에서 실패 경로가 없다는 뜻이다 — 타입이 어긋난
 인자는 여느 파이썬 API처럼 `TypeError` 계열로 즉시 드러난다.
@@ -44,9 +44,9 @@ print(report.actual_mode)
 
 ## 알아둘 캐비앗 (정직 고지)
 
-- `add_memo_with_anchor(memo_shape_id_ref=...)`는 참조가 실재하는 메모
+- `notes.add_memo(memo_shape_id_ref=...)`는 참조가 실재하는 메모
   모양인지 **검증하지 않고 조용히 수용한다**. 존재하지 않는 ID를 넣으면
-  저장은 되지만 편집기 표시가 어긋날 수 있다. `document.memo_shapes`로
+  저장은 되지만 편집기 표시가 어긋날 수 있다. `document.styles.memo_shapes`로
   실재 ID를 확인하고 쓰는 것을 권장한다.
 - `add_*` 계열은 전부 append 의미론이다. "없으면 추가"가 필요하면 먼저
   {doc}`recipes-traversal`의 순회로 존재 여부를 확인하라.

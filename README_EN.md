@@ -162,7 +162,10 @@ The Python runtime in a ChatGPT chat currently has no PyPI access. Every
 release attaches a `py3-none-any` wheel to its GitHub Release; upload it with
 the document and the same journey works via an offline install. The wheel's
 only dependency is `lxml` — if the runtime lacks it, upload an lxml wheel too.
-Whether Python runs at all, and where uploads land, varies by plan and settings.
+The same wheel is also kept as the GitHub Actions artifact `python-hwpx-wheel`,
+so an agent that can fetch artifacts can install without any upload
+(experimental, see the [guide](docs/ai-assistants.md)). Whether Python runs
+at all, and where uploads land, varies by plan and settings.
 
 ## Comparison
 

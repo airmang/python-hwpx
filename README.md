@@ -152,8 +152,10 @@ print(report.preservation.untouched_part_payloads.to_dict())
 ChatGPT 채팅의 파이썬 환경은 현재 PyPI 접근이 막혀 있습니다. 매 릴리스의
 GitHub Release에 첨부되는 `py3-none-any` wheel을 문서와 함께 올리면 오프라인
 설치로 같은 여정이 됩니다. wheel의 유일한 의존성은 `lxml`이며, 실행 환경에
-없으면 lxml wheel도 함께 올립니다. 파이썬 실행 가능 여부와 업로드 경로는
-플랜·설정에 따라 다릅니다.
+없으면 lxml wheel도 함께 올립니다. 같은 wheel을 GitHub Actions artifact
+`python-hwpx-wheel`로도 유지하므로, artifact를 가져올 수 있는 에이전트는 첨부
+없이 설치할 수 있습니다(실험 경로, [안내](docs/ai-assistants.md)). 파이썬 실행
+가능 여부와 업로드 경로는 플랜·설정에 따라 다릅니다.
 
 ## 비교
 

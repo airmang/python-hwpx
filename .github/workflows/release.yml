@@ -186,6 +186,20 @@ jobs:
             --output-format JSON \
             --output-file "release-artifacts/python-hwpx-${GITHUB_REF_NAME}.cdx.json"
 
+      # Same bytes as the Release asset, exposed as a workflow artifact for
+      # sandboxed AI runtimes whose GitHub connector cannot download Release
+      # assets. wheel-artifact.yml re-publishes it under the same name on a
+      # schedule so the 90-day artifact expiry does not strand users.
+      - name: Upload wheel as a workflow artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python-hwpx-wheel
+          path: |
+            dist/*.whl
+            release-artifacts/SHA256SUMS
+          retention-days: 90
+          if-no-files-found: error
+
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
 

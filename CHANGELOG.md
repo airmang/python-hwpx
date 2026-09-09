@@ -23,6 +23,17 @@
   `doc.text`/`doc.notes`/`doc.fields`/`doc.shapes` 네임스페이스와
   `paragraph.remove()`로 바꾸고, `add_heading`을 python-docx 습관으로 오기한
   문장을 정정했다. 문서 예제 원장과 게이트 해시를 갱신했다(블록 수 117 불변).
+  동봉 계약 문서(`src/hwpx/data/contract_docs/`)도 같이 재동기화했다.
+
+### 더함
+
+- **wheel을 GitHub Actions artifact로도 유지** — ChatGPT의 GitHub 커넥터가
+  Release 자산 바이너리는 못 받고 Actions artifact는 받을 수 있는 것으로
+  확인되어, 릴리스 워크플로가 wheel과 `SHA256SUMS`를 artifact
+  `python-hwpx-wheel`로 올리고, 신설 `wheel-artifact.yml`이 매달·릴리스마다
+  최신 Release의 wheel을 해시 검증 후 같은 이름으로 다시 올린다(artifact 90일
+  만료 대응). 빌드하지 않고 발행된 bytes만 재게시하며, 채팅 런타임까지의
+  전 과정 실측은 아직이라 안내에 실험 경로로 표시했다.
 
 ## [6.3.0] - 2026-08-19
 
