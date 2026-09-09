@@ -10,8 +10,12 @@ name: Wheel artifact
 # SHA256SUMS before uploading.
 
 on:
-  release:
-    types: [published]
+  # `release: published` does not fire here: the Release is created by
+  # release.yml with GITHUB_TOKEN, and GitHub never triggers workflows from
+  # events an Actions token produced. Listen for the Release workflow itself.
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
   schedule:
     - cron: "23 4 1 * *"
   workflow_dispatch:
@@ -23,6 +27,9 @@ jobs:
   republish-latest-wheel:
     name: Re-publish the latest Release wheel as an artifact
     runs-on: ubuntu-latest
+    # After a Release workflow, only re-publish when that release succeeded;
+    # schedule and manual dispatch always run.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Download the latest Release wheel and checksum manifest
         env:
