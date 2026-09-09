@@ -19,11 +19,40 @@
 - 주요 사용 문서와 AI 참조 문서를 현재 네임스페이스 API에 맞췄다.
   저장 성공, 요청한 내용의 반영, 화면 검증의 의미를 구분한다.
 
+### 바꿈
+
+- **ChatGPT 안내를 wheel 업로드 경로로 교체** — ChatGPT 채팅의 파이썬 환경은
+  PyPI 접근이 막혀 `pip install python-hwpx` 프롬프트가 더 이상 동작하지
+  않는다. README(한/영)의 따라 하기 프롬프트와 "어디서 쓰나" 표를 GitHub
+  Release에 첨부된 `py3-none-any` wheel을 문서와 함께 올려 오프라인 설치하는
+  경로로 바꾸고, `docs/ai-assistants.md`(사람용 3단계·에이전트용 지시문·lxml
+  의존성·최소 예제)를 신설했다. `docs/installation.md`에 wheel 설치 절을,
+  `llms.txt`에 PyPI 없는 샌드박스의 설치 문장을 추가했다. Release 자산 첨부는
+  기존 `release.yml`이 이미 수행하므로 CI 변경은 없다.
+- **에이전트 학습 표면을 6.0 API로 현행화** — `llms.txt`와 llms-full 원천
+  (`quickstart`·`recipes-traversal`·`mutation-semantics`)이 6.0에서 이동돼
+  `DeprecationWarning`을 내고 7.0에서 제거되는 5.x 평면 이름
+  (`replace_text_in_runs`·`iter_runs`·`add_memo_with_anchor`·`add_footnote`·
+  `remove_paragraph`·`list_form_fields`·`add_form_field`·`fill_form_field`·
+  `add_equation`·`find_runs_by_style`·`memos`·`memo_shapes`)을 안내하고 있었다.
+  `doc.text`/`doc.notes`/`doc.fields`/`doc.shapes` 네임스페이스와
+  `paragraph.remove()`로 바꾸고, `add_heading`을 python-docx 습관으로 오기한
+  문장을 정정했다. 문서 예제 원장과 게이트 해시를 갱신했다(블록 수 117 불변).
+  동봉 계약 문서(`src/hwpx/data/contract_docs/`)도 같이 재동기화했다.
+
 ### 더함
 
 - 기존 양식을 임시 파일에 편집한 뒤 재개봉·내용 확인 후 출력하는
   `examples/edit_existing_form.py`와 외부 문서 편집 회귀 검증. 기존 값
   사전조건으로 잘못된 대상이나 변경된 양식을 거부할 수 있다.
+
+- **wheel을 GitHub Actions artifact로도 유지** — ChatGPT의 GitHub 커넥터가
+  Release 자산 바이너리는 못 받고 Actions artifact는 받을 수 있는 것으로
+  확인되어, 릴리스 워크플로가 wheel과 `SHA256SUMS`를 artifact
+  `python-hwpx-wheel`로 올리고, 신설 `wheel-artifact.yml`이 매달·릴리스마다
+  최신 Release의 wheel을 해시 검증 후 같은 이름으로 다시 올린다(artifact 90일
+  만료 대응). 빌드하지 않고 발행된 bytes만 재게시하며, 채팅 런타임까지의
+  전 과정 실측은 아직이라 안내에 실험 경로로 표시했다.
 
 ## [6.3.0] - 2026-08-19
 

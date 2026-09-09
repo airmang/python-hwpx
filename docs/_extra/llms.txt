@@ -8,7 +8,13 @@
 > verified to open in real Hancom Office over a frozen corpus (measured
 > 2026-07-19 — the published corpus metrics page carries the exact
 > measurement stack and date). Install: `pip install python-hwpx` (Python 3.10–3.14, only
-> dependency is lxml). License: Apache-2.0.
+> dependency is lxml). In a sandbox without PyPI access (e.g. a ChatGPT chat),
+> install the wheel the user uploaded from GitHub Releases instead:
+> `pip install /mnt/data/python_hwpx-*.whl` (adjust the upload path to the
+> runtime; if `import lxml` fails, ask for an lxml wheel too). If nothing was
+> uploaded but you can fetch GitHub Actions artifacts, the artifact
+> `python-hwpx-wheel` on airmang/python-hwpx (workflow "Wheel artifact") holds
+> the latest released wheel plus SHA256SUMS. License: Apache-2.0.
 
 Use the API paths below rather than inferring names from python-docx.
 
@@ -36,7 +42,8 @@ Use the API paths below rather than inferring names from python-docx.
   run boundaries or nested table paragraphs. Check the expected replacement
   count before saving; zero replacements are not task completion.
 - Read: `document.paragraphs`, `paragraph.text`, `document.sections`,
-  `document.text.runs()`, `document.notes.memos`, `document.fields.all()`.
+  `document.text.runs()`, `document.text.plain`, `document.notes.memos`,
+  `document.fields.all` (a property, not a call).
 - Tables: `document.tables.find_cell_by_label(label)` returns all matches;
   a merged cell counts once, and a direction crosses its full span. Separate
   physical cells with the same label remain ambiguous.
@@ -53,6 +60,10 @@ Use the API paths below rather than inferring names from python-docx.
   `from hwpx.equation import latex_to_eqedit` converts LaTeX to EqEdit over a
   render-verified token set and raises `UnsupportedLatexError` outside it —
   no silent approximation.
+- Flat 5.x method names without a namespace (`add_footnote`,
+  `replace_text_in_runs`, `iter_runs`, `add_form_field`, `add_equation`,
+  `remove_paragraph`, ...) still work but emit `DeprecationWarning` and are
+  removed in 7.0 — use the namespaced forms above.
 - Extract: `from hwpx import TextExtractor` →
   `TextExtractor("file.hwpx").extract_text()`;
   `iter_document_paragraphs(include_nested=True)` yields `ParagraphInfo` with
@@ -69,6 +80,9 @@ Use the API paths below rather than inferring names from python-docx.
 - `document.save()` does not exist. Use `save_to_path` or `save_to_stream`.
 
 ## Common mistakes to avoid
+- Wrong: `Document()` / `doc.paragraphs[0].runs` — those are python-docx
+  idioms. Use `HwpxDocument.new()` / `document.text.runs()`. (`add_paragraph`
+  and `add_heading` do exist.)
 - `.hwp` (HWP 5.x binary) is a different format: opening raises `BadZipFile`
   with guidance. Encrypted HWPX is rejected fail-closed.
 - All `add_*` calls append (not idempotent); check existence first by
@@ -86,6 +100,9 @@ Use the API paths below rather than inferring names from python-docx.
 
 - [Five-minute quickstart](https://airmang.github.io/python-hwpx/quickstart.html):
   install → open → read → edit → table → save with receipt.
+- [AI chat sandboxes](https://airmang.github.io/python-hwpx/ai-assistants.html):
+  offline wheel install when PyPI is blocked, where to save outputs, how to
+  hand the `.hwpx` back to the user.
 - [Traversal recipes](https://airmang.github.io/python-hwpx/recipes-traversal.html):
   paragraphs, nested tables with paths, footnote extraction, runs, memos.
 - [Mutation semantics](https://airmang.github.io/python-hwpx/mutation-semantics.html):

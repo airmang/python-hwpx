@@ -134,6 +134,24 @@ EXPECTED_RELEASE_STEPS = (
     (BUILD_STEP, None, True, None, None, None, None),
     (SBOM_STEP, None, True, None, None, None, None),
     (
+        # The same wheel bytes as the Release asset, exposed as a workflow
+        # artifact for AI runtimes whose GitHub connector cannot download
+        # Release assets (see wheel-artifact.yml). Upload-only: it reads
+        # dist/ and the checksum manifest and mutates nothing.
+        "Upload wheel as a workflow artifact",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        False,
+        {
+            "name": "python-hwpx-wheel",
+            "path": "dist/*.whl\nrelease-artifacts/SHA256SUMS\n",
+            "retention-days": 90,
+            "if-no-files-found": "error",
+        },
+        None,
+        None,
+        None,
+    ),
+    (
         "Publish package to PyPI",
         "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33",
         False,

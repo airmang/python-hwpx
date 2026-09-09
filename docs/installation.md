@@ -39,6 +39,20 @@ print("sections:", len(doc.sections))
 PY
 ```
 
+## PyPI 없이 wheel 파일로 설치
+
+ChatGPT 채팅처럼 PyPI 접근이 막힌 파이썬 환경에서는 GitHub Release에 첨부된
+`python_hwpx-*.whl`을 업로드한 뒤 로컬 경로로 설치합니다.
+
+```bash
+python -m pip install /path/to/python_hwpx-*.whl
+```
+
+wheel은 순수 파이썬(`py3-none-any`)이며 유일한 의존성은 `lxml`입니다. 실행
+환경에 lxml이 없으면 PyPI의 lxml wheel(해당 플랫폼·파이썬 버전용)도 함께
+올려 같은 명령으로 설치합니다. 채팅 환경별 절차와 에이전트용 지시문은
+[AI 채팅 환경에서 쓰기](ai-assistants.md)를 참고하세요.
+
 ## 소스 코드에서 개발용 설치
 
 1. 저장소를 클론합니다.

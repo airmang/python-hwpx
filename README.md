@@ -25,15 +25,18 @@
 </p>
 <p align="center"><sub>일반 ChatGPT 대화 — 양식 <code>.hwpx</code>를 올리고 말로 부탁하면, 서식을 유지한 채 채워진 문서가 돌아옵니다.</sub></p>
 
-**ChatGPT에서 그대로 따라 하기** — 문서를 올리면서 이렇게 부탁하면 됩니다:
+**ChatGPT에서 그대로 따라 하기** — ChatGPT 채팅의 파이썬 환경은 PyPI 접근이
+막혀 있으므로 [최신 Release](https://github.com/airmang/python-hwpx/releases/latest)에서
+`python_hwpx-*.whl` 하나를 받아 문서와 **함께 올리고** 이렇게 부탁합니다:
 
 ```text
+첨부한 python_hwpx-*.whl 을 pip 로 설치한 다음(pip install /mnt/data/python_hwpx-*.whl),
 이 .hwpx 파일을 python-hwpx 라이브러리로 열어서 작업해줘.
-(pip install python-hwpx 로 설치하면 돼)
 양식과 서식은 그대로 두고, ○○만 바꿔서 새 파일로 돌려줘.
 ```
 
 설치부터 결과 파일까지 대화 안에서 끝납니다 — 내 컴퓨터에 파이썬이 없어도 됩니다.
+자세한 절차와 에이전트용 지시문은 [AI 채팅 환경에서 쓰기](docs/ai-assistants.md)에,
 AI 도구가 정확한 API를 배우도록 [llms.txt](https://airmang.github.io/python-hwpx/llms.txt)도 제공합니다.
 
 | | 저장소 | 역할 |
@@ -145,17 +148,20 @@ print(report.preservation.untouched_part_payloads.to_dict())
 
 | 환경 | 무엇을 하면 되나 |
 |---|---|
-| 일반 ChatGPT 대화 | `.hwpx`를 올리고 `pip install python-hwpx` 후 파이썬으로 편집해 되받기 |
+| 일반 ChatGPT 대화 | `.hwpx`와 [Release wheel](https://github.com/airmang/python-hwpx/releases/latest)을 함께 올리고 오프라인 설치 후 편집해 되받기 — [안내](docs/ai-assistants.md) |
 | 로컬·서버 파이썬 | `pip install python-hwpx` — 스크립트·배치·CI |
 | 파이썬 자동화 (MCP 없이) | `pip install python-hwpx-automation` — 저작·양식 채움·검증 워크플로를 그냥 파이썬으로 |
 | ChatGPT MCP 앱 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)의 MCP adapter를 커넥터로 등록 |
 | Codex 마켓플레이스 플러그인 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) 설치 |
 | Claude Code · Hermes · OpenClaw | 같은 MCP 서버를 각 클라이언트에 등록 ([`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)) |
 
-실제로 일반 ChatGPT 대화에 `.hwpx`를 올리고 설치를 부탁했을 때 PyPI 설치와
-편집·되받기까지 동작하는 것을 확인했습니다. 파이썬 실행과 네트워크 허용 범위는
-플랜·설정에 따라 다르며, 네트워크가 막힌 환경에서는 wheel 파일을 함께 올리면
-오프라인 설치로 같은 여정이 됩니다.
+ChatGPT 채팅의 파이썬 환경은 현재 PyPI 접근이 막혀 있습니다. 매 릴리스의
+GitHub Release에 첨부되는 `py3-none-any` wheel을 문서와 함께 올리면 오프라인
+설치로 같은 여정이 됩니다. wheel의 유일한 의존성은 `lxml`이며, 실행 환경에
+없으면 lxml wheel도 함께 올립니다. 같은 wheel을 GitHub Actions artifact
+`python-hwpx-wheel`로도 유지하므로, artifact를 가져올 수 있는 에이전트는 첨부
+없이 설치할 수 있습니다(실험 경로, [안내](docs/ai-assistants.md)). 파이썬 실행
+가능 여부와 업로드 경로는 플랜·설정에 따라 다릅니다.
 
 ## 비교
 

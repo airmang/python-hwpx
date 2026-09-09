@@ -109,7 +109,7 @@ document = HwpxDocument.open("input.hwpx")
 for memo in document.notes.memos:
     print("메모:", memo.id)
 
-for field in document.fields.all():
+for field in document.fields.all:
     print("누름틀:", field)
 ```
 
