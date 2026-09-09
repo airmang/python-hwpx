@@ -8,7 +8,10 @@
 > verified to open in real Hancom Office over a frozen corpus (measured
 > 2026-07-19 — the published corpus metrics page carries the exact
 > measurement stack and date). Install: `pip install python-hwpx` (Python 3.10–3.14, only
-> dependency is lxml). License: Apache-2.0.
+> dependency is lxml). In a sandbox without PyPI access (e.g. a ChatGPT chat),
+> install the wheel the user uploaded from GitHub Releases instead:
+> `pip install /mnt/data/python_hwpx-*.whl` (adjust the upload path to the
+> runtime; if `import lxml` fails, ask for an lxml wheel too). License: Apache-2.0.
 
 python-hwpx is NOT in most models' training data. Do not guess APIs from
 python-docx habits — the real surface is below and in the linked docs.
@@ -69,6 +72,9 @@ python-docx habits — the real surface is below and in the linked docs.
 
 - [Five-minute quickstart](https://airmang.github.io/python-hwpx/quickstart.html):
   install → open → read → edit → table → save with receipt.
+- [AI chat sandboxes](https://airmang.github.io/python-hwpx/ai-assistants.html):
+  offline wheel install when PyPI is blocked, where to save outputs, how to
+  hand the `.hwpx` back to the user.
 - [Traversal recipes](https://airmang.github.io/python-hwpx/recipes-traversal.html):
   paragraphs, nested tables with paths, footnote extraction, runs, memos.
 - [Mutation semantics](https://airmang.github.io/python-hwpx/mutation-semantics.html):

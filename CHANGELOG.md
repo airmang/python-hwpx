@@ -2,6 +2,19 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [Unreleased]
+
+### 바꿈
+
+- **ChatGPT 안내를 wheel 업로드 경로로 교체** — ChatGPT 채팅의 파이썬 환경은
+  PyPI 접근이 막혀 `pip install python-hwpx` 프롬프트가 더 이상 동작하지
+  않는다. README(한/영)의 따라 하기 프롬프트와 "어디서 쓰나" 표를 GitHub
+  Release에 첨부된 `py3-none-any` wheel을 문서와 함께 올려 오프라인 설치하는
+  경로로 바꾸고, `docs/ai-assistants.md`(사람용 3단계·에이전트용 지시문·lxml
+  의존성·최소 예제)를 신설했다. `docs/installation.md`에 wheel 설치 절을,
+  `llms.txt`에 PyPI 없는 샌드박스의 설치 문장을 추가했다. Release 자산 첨부는
+  기존 `release.yml`이 이미 수행하므로 CI 변경은 없다.
+
 ## [6.3.0] - 2026-08-19
 
 ### 더함
