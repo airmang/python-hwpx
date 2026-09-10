@@ -13,6 +13,7 @@
 
 quickstart
 installation
+ai-assistants
 recipes-traversal
 mutation-semantics
 usage

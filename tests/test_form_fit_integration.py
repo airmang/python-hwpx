@@ -28,6 +28,7 @@ def _doc_with_cell(width: int):
     cell.set_size(width=width)
     # These fixtures pin a bare slot: zero out the 5.4.0 Hancom-default cell
     # padding so *width* is the usable measure the assertions reason about.
+    cell.element.set("hasMargin", "1")  # activate the explicit zero-margin override
     margin = cell.element.find(
         "{http://www.hancom.co.kr/hwpml/2011/paragraph}cellMargin"
     )

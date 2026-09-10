@@ -12,7 +12,7 @@
 pip install python-hwpx
 ```
 
-5.x에서는 기존 `python-hwpx[visual]` 설치 명령도 호환을 위해 허용하지만
+기존 `python-hwpx[visual]` 설치 명령도 호환을 위해 허용하지만
 그 extra는 비어 있어 이미지·PDF 렌더링 패키지를 설치하지 않는다. 렌더와
 PDF 이미징 실행이 필요하면 companion인 `python-hwpx-automation[oracle]`의
 설치·사용 문서를 따른다.
@@ -92,7 +92,7 @@ document = HwpxDocument.open("output/hello-updated.hwpx")
 # 문단 추가와 삭제
 paragraph = document.add_paragraph("잠시 있다 사라질 문단")
 print("추가된 문단:", paragraph.text)
-document.remove_paragraph(paragraph)
+paragraph.remove()
 
 # 표와 메모 추가
 section = document.sections[0]
@@ -104,13 +104,13 @@ table.set_cell_text(0, 1, "값")
 table.set_cell_text(1, 0, "상태")
 table.set_cell_text(1, 1, "검토 중")
 
-memo, _, field_id = document.add_memo_with_anchor(
+memo = document.notes.add_memo(
     "이 문단을 다시 확인하세요.",
-    paragraph=paragraph,
+    anchor=paragraph,
     memo_shape_id_ref="0",
 )
 print("메모 ID:", memo.id)
-print("필드 ID:", field_id)
+print("필드 ID:", memo.field_id)
 
 document.save_to_path("output/hello-final.hwpx")
 print("저장 완료: output/hello-final.hwpx")
@@ -139,7 +139,8 @@ print("저장 모드:", report.actual_mode)
 print("미수정 파트 검증:", report.preservation.untouched_part_payloads.to_dict())
 ```
 
-요청한 보존 등급을 지킬 수 없으면 아무것도 쓰지 않고 실패한다(fail-closed).
+`mode="patch", fallback="error"`를 명시하면 보존 등급 미달 시 출력하지 않는다.
+기본 `auto`는 달성 가능한 등급을 고른다. `report.ok`와 시각 검증 여부는 별개다.
 전체 규칙은 {doc}`safe-write-contract` 참고.
 
 ## 6. 저장 방식 더 보기
@@ -178,10 +179,10 @@ print("총 섹션 수:", len(document.sections))
 
 - {doc}`usage`에서 문단, 표, 메모, 섹션, 추출, 검증, 패키지 조작까지 이어서 보기
 - {doc}`examples`에 있는 실행 가능한 예제 스크립트로 전체 흐름 익히기
-- 양식을 만들거나 채우려면 `add_form_field`/`fill_form_field`, 수식을 넣으려면
-  `add_equation`+`hwpx.equation.latex_to_eqedit` (둘 다 experimental 티어,
+- 양식을 만들거나 채우려면 `document.fields.add`/`document.fields.fill`, 수식을 넣으려면
+  `document.shapes.add_equation`+`hwpx.equation.latex_to_eqedit` (둘 다 experimental 티어,
   [지원 매트릭스](support-matrix.md)에 등급·근거)
 - 기능별 지원 등급이 궁금하면 [지원 매트릭스](support-matrix.md) 참고
-- 4.x에서 올라오는 중이라면 [5.0 마이그레이션 가이드](migration-5.0.md) 참고
+- 이전 API 경로를 쓰고 있다면 [6.0 마이그레이션 가이드](migration-6.0.md) 참고
 - XML 구조와 매니페스트가 궁금하면 {doc}`schema-overview` 참고
 - 설치 검증이나 개발 환경 점검은 {doc}`installation` 참고

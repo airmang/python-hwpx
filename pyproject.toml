@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx"
-version = "6.3.0"
+version = "6.4.0"
 description = "한글 없이 HWPX 문서를 열고, 편집하고, 생성하고, 검증하는 Python 문서 라이브러리"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "Apache-2.0"
@@ -217,6 +217,7 @@ files = [
     "src/hwpx/oxml/numbering.py",
     "src/hwpx/oxml/objects.py",
     "src/hwpx/opc/package.py",
+    "src/hwpx/opc/xml_utils.py",
     "src/hwpx/opc/relationships.py",
     "src/hwpx/oxml/paragraph.py",
     "src/hwpx/oxml/run.py",
@@ -383,6 +384,7 @@ include = [
     "src/hwpx/oxml/numbering.py",
     "src/hwpx/oxml/objects.py",
     "src/hwpx/opc/package.py",
+    "src/hwpx/opc/xml_utils.py",
     "src/hwpx/opc/relationships.py",
     "src/hwpx/oxml/paragraph.py",
     "src/hwpx/oxml/run.py",

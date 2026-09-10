@@ -226,6 +226,7 @@
     "line_style",
     "resize",
     "set_attribute",
+    "set_position",
     "shape_type",
     "width"
    ]
@@ -244,6 +245,7 @@
     "row_count",
     "rows",
     "set_cell_border_fill",
+    "set_cell_borders",
     "set_cell_fill_gradient",
     "set_cell_fill_image",
     "set_cell_shading",

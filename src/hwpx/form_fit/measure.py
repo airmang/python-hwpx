@@ -386,6 +386,27 @@ def _cell_margin_vertical(cell_element: object) -> tuple[int, int]:
     return (0, 0)
 
 
+def _effective_cell_margins(cell: object) -> tuple[int, int, int, int]:
+    """Respect explicit table-margin inheritance instead of inactive cell zeros."""
+    element = getattr(cell, "element", None)
+    if element is None:
+        return (0, 0, 0, 0)
+    if element.get("hasMargin") in {"0", "false", "False"}:
+        table_element = getattr(getattr(cell, "table", None), "element", None)
+        if table_element is not None:
+            for child in table_element:
+                if _local_name(child.tag) == "inMargin":
+                    return (
+                        int(child.get("left", "0") or 0),
+                        int(child.get("right", "0") or 0),
+                        int(child.get("top", "0") or 0),
+                        int(child.get("bottom", "0") or 0),
+                    )
+    left, right = _cell_margin(element)
+    top, bottom = _cell_margin_vertical(element)
+    return left, right, top, bottom
+
+
 def _first_para_line_spacing_ratio(cell: object, document: object) -> float | None:
     """Per-line em multiple from the cell's first paragraph line spacing (PERCENT).
 
@@ -478,7 +499,7 @@ def resolve_slot_metrics(
 
     raw_width = float(getattr(cell, "width", 0) or 0)
     element = getattr(cell, "element", None)
-    left, right = _cell_margin(element) if element is not None else (0, 0)
+    left, right, top, bottom = _effective_cell_margins(cell)
     inner = max(raw_width - left - right, 0.0) * safety
     inline_width, inline_count = (
         _inline_object_width(element) if element is not None else (0.0, 0)
@@ -495,7 +516,6 @@ def resolve_slot_metrics(
         row_span = int(getattr(cell, "span", (1, 1))[0])
     except Exception:  # pragma: no cover - defensive
         row_span = 1
-    top, bottom = _cell_margin_vertical(element) if element is not None else (0, 0)
     inner_h = max(raw_height - top - bottom, 0.0) * safety if raw_height > 0 else 0.0
     # A cell authored shorter than one line at the tightest pitch is an auto-grow
     # floor, not a ceiling (Hancom grows the row past it); a merged row-span's

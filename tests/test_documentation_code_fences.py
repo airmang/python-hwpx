@@ -42,11 +42,16 @@ PYTHON_FENCE = re.compile(
 )
 EXPECTED_FENCE_COUNT = 117
 EXPECTED_FENCE_SHA256 = (
-    "334b65d84888b64fb104bfdc3a38793eedfdacf8df2496bd2e3c1b06b12a577c"
+    "e737d6a88722a2c01a085259c5bbe16bdb81e7cc037de69f1681de4a7a6537d4"
 )
 ALLOWED_IMPORT_ROOTS = frozenset(sys.stdlib_module_names) | {"hwpx"}
 LEDGER = Path("docs/python-example-ledger.json")
 STANDALONE_MARKER = "<!-- standalone-python-example -->"
+RECOMMENDED_MANUALS = {
+    "README.md", "README_EN.md", "docs/quickstart.md",
+    "docs/recipes-traversal.md", "docs/mutation-semantics.md",
+    "docs/safe-write-contract.md",
+}
 CLASSIFICATIONS = frozenset(
     {
         "standalone",
@@ -328,6 +333,22 @@ def test_current_core_manual_imports_are_core_only() -> None:
     )
 
 
+def test_recommended_manuals_do_not_teach_legacy_document_paths() -> None:
+    from hwpx._document._legacy import _LegacyFacade
+
+    offenders = []
+    for document, ordinal, tree in _parsed_fences():
+        if document not in RECOMMENDED_MANUALS:
+            continue
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Attribute)
+                    and isinstance(node.value, ast.Name)
+                    and node.value.id in {"doc", "document"}
+                    and node.attr in vars(_LegacyFacade)):
+                offenders.append(f"{document}#{ordinal}: {node.attr}")
+    assert not offenders, "deprecated recommendations: " + ", ".join(offenders)
+
+
 def test_every_standalone_current_manual_example_executes_from_installed_wheel(
     tmp_path: Path,
 ) -> None:
@@ -425,7 +446,8 @@ def test_every_standalone_current_manual_example_executes_from_installed_wheel(
             )
         )
         subprocess.run(
-            [sys.executable, "-c", probe],
+            [sys.executable, *(["-W", "error::DeprecationWarning"]
+                if document in RECOMMENDED_MANUALS else []), "-c", probe],
             cwd=case_root,
             env=environment,
             check=True,
@@ -434,6 +456,30 @@ def test_every_standalone_current_manual_example_executes_from_installed_wheel(
         )
         executed.add(example_id)
     assert executed == standalone
+
+    # Execute the complete editing example against an input from another author,
+    # with the same wheel-only import origin as the standalone manual examples.
+    case_root = tmp_path / "external-form"
+    case_root.mkdir()
+    fixture = ROOT / "tests/fixtures/hwpxlib_corpus/tool__textextractor__Table.hwpx"
+    example_code = (ROOT / "examples/edit_existing_form.py").read_text(encoding="utf-8")
+    probe = "\n".join((
+        "from pathlib import Path",
+        "import hwpx",
+        f"assert Path(hwpx.__file__).resolve().is_relative_to(Path({str(installed)!r}))",
+        f"_source = Path({str(fixture)!r})",
+        "_before = _source.read_bytes()",
+        "_ns = {'__name__': 'verified_example'}",
+        f"exec(compile({example_code!r}, 'edit_existing_form.py', 'exec'), _ns)",
+        "_result = _ns['fill_existing_form'](_source, Path('out.hwpx'), {'개똥이': '90'})",
+        "assert _source.read_bytes() == _before",
+        "assert _result['content'] == {'requested': 1, 'verified': 1}",
+        "assert _result['visual'] == 'not_performed'",
+    ))
+    subprocess.run(
+        [sys.executable, "-W", "error::DeprecationWarning", "-c", probe],
+        cwd=case_root, env=environment, check=True, capture_output=True, text=True,
+    )
 
 
 def test_readme_uses_the_canonical_three_stack_table() -> None:

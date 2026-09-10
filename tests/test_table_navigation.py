@@ -1,6 +1,39 @@
 from __future__ import annotations
 
+import pytest
+
 from hwpx import HwpxDocument
+
+
+@pytest.mark.parametrize("direction,merge,label_at,target", [
+    ("right", "A1:B1", (0, 0), (0, 2)),
+    ("left", "B1:C1", (0, 1), (0, 0)),
+    ("down", "A1:A2", (0, 0), (2, 0)),
+    ("up", "A2:A3", (1, 0), (0, 0)),
+])
+def test_merged_label_is_unique_and_navigation_leaves_its_span(direction, merge, label_at, target):
+    with HwpxDocument.new() as document:
+        table = document.add_table(3, 3)
+        document.tables.merge_cells(table, merge)
+        table.cell(*label_at).text = "라벨"
+        result = document.tables.fill_by_path({f"라벨 > {direction}": "값"})
+        assert result["failed"] == []
+        assert result["applied_count"] == 1
+        assert (result["applied"][0]["row"], result["applied"][0]["col"]) == target
+        assert table.cell(*target).text == "값"
+        assert table.cell(*label_at).text == "라벨"
+
+
+def test_two_distinct_merged_labels_are_still_ambiguous():
+    with HwpxDocument.new() as document:
+        table = document.add_table(2, 3)
+        for row, region in [(0, "A1:B1"), (1, "A2:B2")]:
+            document.tables.merge_cells(table, region)
+            table.cell(row, 0).text = "라벨"
+        assert document.tables.find_cell_by_label("라벨")["count"] == 2
+        result = document.tables.fill_by_path({"라벨 > right": "값"})
+        assert result["applied_count"] == 0
+        assert result["failed"][0]["reason"] == "ambiguous label"
 
 
 def _paragraph_index(document: HwpxDocument, target) -> int:

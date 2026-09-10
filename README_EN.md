@@ -17,25 +17,30 @@
 
 You don't need Hancom Office. HWPX is a ZIP+XML (OWPML) format, so pure Python
 is enough to read, edit, and create documents — on Windows, macOS, Linux, CI,
-and **inside a ChatGPT chat wherever Python runs**. Existing documents are
-edited in place (untouched regions stay byte-identical), and new documents come
-out in a form real Hancom Office opens.
+and **inside a ChatGPT chat wherever Python runs**. Saves record the requested preservation grade and measured checks in a receipt.
+Generated-document compatibility is measured on the dated, versioned corpus below.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/chatgpt-formfill.png" width="760" alt="Uploading an .hwpx form to a plain ChatGPT conversation and getting back a filled document with the original formatting preserved">
 </p>
 <p align="center"><sub>A plain ChatGPT conversation — upload a form <code>.hwpx</code>, ask in natural language, and get the filled document back with its formatting intact.</sub></p>
 
-**Try it in ChatGPT** — upload your document along with a request like this:
+**Try it in ChatGPT** — the Python runtime in a ChatGPT chat has no PyPI
+access, so grab the `python_hwpx-*.whl` from the
+[latest Release](https://github.com/airmang/python-hwpx/releases/latest),
+upload it **together with** your document, and ask:
 
 ```text
-Open this .hwpx file with the python-hwpx library
-(install it with: pip install python-hwpx).
+Install the attached python_hwpx-*.whl with pip
+(pip install /mnt/data/python_hwpx-*.whl), then open this .hwpx file
+with the python-hwpx library.
 Keep the form and formatting as-is, change only ○○, and return a new file.
 ```
 
 Install to result file, all inside the conversation — no Python on your machine needed.
-An [llms.txt](https://airmang.github.io/python-hwpx/llms.txt) is published so AI tools learn the real API.
+The full procedure and an instruction block for AI assistants are in
+[Using python-hwpx in AI chat sandboxes](docs/ai-assistants.md); an
+[llms.txt](https://airmang.github.io/python-hwpx/llms.txt) is published so AI tools learn the real API.
 
 | | Repo | Role |
 |---|---|---|
@@ -88,27 +93,33 @@ More: [five-minute quickstart](docs/quickstart.md) · [usage guide](docs/usage.m
 
 ```python
 doc = HwpxDocument.open("application.hwpx")
-result = doc.fill_by_path({
+values = {
     "성명 > right": "홍길동",
     "소속 > right": "플랫폼팀",
-})
-doc.save_to_path("application-filled.hwpx")
+}
+result = doc.tables.fill_by_path(values)
+if result["failed_count"] or result["applied_count"] != len(values):
+    raise ValueError(result["failed"])
+report = doc.save_to_path("application-filled.hwpx", mode="patch", fallback="error", return_report=True)
 ```
 
-Cells are located by their labels; everything you didn't touch keeps its
-original bytes.
+Missing or ambiguous labels stop this example before saving. Patch requires
+untouched ZIP parts to retain their bytes. Preservation inside an edited part
+and visual layout need separate checks. See the [safe write contract](docs/safe-write-contract.md)
+for reopening the output and verifying content.
 
 ### Every save comes with a receipt
 
 ```python
 report = doc.save_to_path("out.hwpx", return_report=True)
-print(report.actual_mode)        # "patch" — saved without rebuilding the document
+print(report.actual_mode)        # "patch" or "rebuild" — the measured save grade
 print(report.preservation.untouched_part_payloads.to_dict())
                                  # {"verified": 17, "changed": 0}
 ```
 
-If the requested preservation grade can't be honored, nothing is written
-(fail-closed). Full rules: [Safe Write Contract](docs/safe-write-contract.md).
+`mode="patch", fallback="error"` refuses an unavailable preservation grade.
+Default `auto` selects the achievable grade. `report.ok` alone does not verify
+the requested content or visual appearance. Full rules: [Safe Write Contract](docs/safe-write-contract.md).
 
 *Blocks without a **Standalone example** label take your existing document as
 input. The per-example Python-block status is frozen in the
@@ -145,18 +156,21 @@ Development status is Alpha — the API may change.
 
 | Environment | What to do |
 |---|---|
-| A plain ChatGPT conversation | Upload the `.hwpx`, `pip install python-hwpx`, edit it in Python, get the file back |
+| A plain ChatGPT conversation | Upload the `.hwpx` together with the [Release wheel](https://github.com/airmang/python-hwpx/releases/latest), install offline, edit in Python, get the file back — [guide](docs/ai-assistants.md) |
 | Local or server Python | `pip install python-hwpx` — scripts, batch jobs, CI |
 | Python automation (no MCP) | `pip install python-hwpx-automation` — authoring, form filling, and verification workflows as plain Python |
 | ChatGPT MCP app | Register the MCP adapter from [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) as a connector |
 | Codex marketplace plugin | Install [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) |
 | Claude Code · Hermes · OpenClaw | Register the same MCP server in each client ([`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)) |
 
-In practice: uploading an `.hwpx` to a plain ChatGPT conversation and asking for
-python-hwpx produced a successful PyPI install, and the edited document came
-back. Python execution and network access vary by plan and settings; where the
-runtime has no network, uploading the wheel alongside the document gives the
-same journey via an offline install.
+The Python runtime in a ChatGPT chat currently has no PyPI access. Every
+release attaches a `py3-none-any` wheel to its GitHub Release; upload it with
+the document and the same journey works via an offline install. The wheel's
+only dependency is `lxml` — if the runtime lacks it, upload an lxml wheel too.
+The same wheel is also kept as the GitHub Actions artifact `python-hwpx-wheel`,
+so an agent that can fetch artifacts can install without any upload
+(experimental, see the [guide](docs/ai-assistants.md)). Whether Python runs
+at all, and where uploads land, varies by plan and settings.
 
 ## Comparison
 

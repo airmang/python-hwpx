@@ -1165,7 +1165,9 @@ def _split_cell_vertical(table: str, row: int, col: int, sizes: Sequence[int]) -
     return out
 
 
-def _insert_row_by_clone(table: str, ref_row: int, count: int = 1) -> str:
+def _insert_row_by_clone(
+    table: str, ref_row: int, count: int = 1, *, used_ids: set[int] | None = None
+) -> str:
     """Insert *count* rows after physical row *ref_row* by cloning it (formatting
     preserved, paragraph ids refreshed). Rows below shift; cells spanning across
     the insertion grow their rowSpan."""
@@ -1173,7 +1175,7 @@ def _insert_row_by_clone(table: str, ref_row: int, count: int = 1) -> str:
     if count < 1:
         return table
     prefix, rows, suffix = _parse_table(table)
-    if ref_row >= len(rows):
+    if not 0 <= ref_row < len(rows):
         raise TableStructureError(f"ref row {ref_row} out of range")
 
     def shift(tc: str):
@@ -1192,10 +1194,20 @@ def _insert_row_by_clone(table: str, ref_row: int, count: int = 1) -> str:
     ref = rows[ref_row]
     if any((_si(tc, "cellSpan", "rowSpan") or 1) != 1 for tc in _S_TC.findall(ref)):
         raise TableStructureError("clone source row must have rowSpan==1 cells")
+    occupied = set(used_ids or ()) | {int(m.group(2)) for m in _PARA_ID_RE.finditer(table)}
+    next_id = 1
+
+    def fresh_id(match: re.Match[str]) -> str:
+        nonlocal next_id
+        while next_id in occupied:
+            next_id += 1
+        occupied.add(next_id)
+        return match.group(1) + str(next_id) + match.group(3)
+
     clones = []
     for k in range(1, count + 1):
         clone = _map_cells(ref, lambda tc: _ss(tc, "cellAddr", "rowAddr", ref_row + k))
-        clone = _refresh_ids(clone, 1000 + k)
+        clone = _PARA_ID_RE.sub(fresh_id, clone)
         clones.append(clone)
     new_rows = shifted[: ref_row + 1] + clones + shifted[ref_row + 1:]
     return _rebuild(prefix, new_rows, suffix, rowcnt=len(new_rows))
@@ -1830,7 +1842,15 @@ def apply_table_ops(
                 new_section = section[:ps1] + new_first + section[pe2:]
                 dims_after = _table_dims(merged_table)
             elif name in _STRUCT_OPS:
-                new_table = _STRUCT_OPS[name](section[ts:te].decode("utf-8"), op)
+                if name == "insert_row_by_clone":
+                    used_ids = {int(m.group(2)) for data in sections.values()
+                                for m in _PARA_ID_RE.finditer(data.decode("utf-8"))}
+                    new_table = _insert_row_by_clone(
+                        section[ts:te].decode("utf-8"), op["ref_row"],
+                        int(op.get("count", 1)), used_ids=used_ids,
+                    )
+                else:
+                    new_table = _STRUCT_OPS[name](section[ts:te].decode("utf-8"), op)
                 _validate_or_raise(new_table)
                 new_section = section[:ts] + new_table.encode("utf-8") + section[te:]
                 dims_after = _table_dims(new_table)

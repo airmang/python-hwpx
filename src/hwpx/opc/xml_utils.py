@@ -4,9 +4,10 @@
 from __future__ import annotations
 
 from io import BytesIO
+import re
 from typing import Mapping
 
-from lxml import etree
+import lxml.etree as etree
 
 from .security import guard_xml_bytes, guard_xml_depth
 
@@ -25,19 +26,36 @@ _HWPML_2016_TO_2011: tuple[tuple[bytes, bytes], ...] = (
 )
 
 
-def normalize_hwpml_namespaces(data: bytes) -> bytes:
-    """Replace 2016 HWPML namespace URIs with their 2011 equivalents.
+_XML_MARKUP = re.compile(
+    rb"<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\?.*?\?>|<[^!?](?:[^>\"']|\"[^\"]*\"|'[^']*')*>",
+    re.S,
+)
+_XML_ATTRIBUTE = re.compile(rb"([\w:.-]+)(\s*=\s*)([\"'])(.*?)\3", re.S)
 
-    This is a byte-level transformation applied **before** XML parsing so that
-    all downstream code can rely on a single, consistent set of namespace
-    constants (the 2011 family).  The replacement is harmless for documents
-    that already use 2011 namespaces because the 2016 byte sequences simply
-    won't appear.
+
+def normalize_hwpml_namespaces(data: bytes) -> bytes:
+    """Normalize namespace declarations, preserving ordinary URI-valued data.
+
+    In particular, hp:case/@hp:required-namespace is a feature-selection value,
+    not a namespace declaration. Rewriting it can select the wrong switch case.
+    Comments, CDATA, processing instructions and quoted non-xmlns values stay
+    byte-identical. The parser still uses the canonical 2011 namespace family.
     """
-    for old, new in _HWPML_2016_TO_2011:
-        if old in data:
-            data = data.replace(old, new)
-    return data
+    mapping = dict(_HWPML_2016_TO_2011)
+
+    def attribute(match: re.Match[bytes]) -> bytes:
+        name, equals, quote, value = match.groups()
+        if name == b"xmlns" or name.startswith(b"xmlns:"):
+            value = mapping.get(value, value)
+        return name + equals + quote + value + quote
+
+    def markup(match: re.Match[bytes]) -> bytes:
+        tag = match.group()
+        if tag.startswith((b"<!", b"<?")):
+            return tag
+        return _XML_ATTRIBUTE.sub(attribute, tag)
+
+    return _XML_MARKUP.sub(markup, data)
 
 
 def parse_xml(data: bytes) -> etree._Element:

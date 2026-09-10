@@ -74,7 +74,7 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "area": "paragraph-table-authoring",
         "namespace": None,
         "matrix_row": "문단·표 저작/편집",
-        "entry_points": ("hwpx.document:HwpxDocument",),
+        "entry_points": ("hwpx.document:HwpxDocument", "hwpx.model:Table"),
         "authoring_methods": ("add_heading", "add_paragraph", "add_section"),
     },
     {
@@ -116,7 +116,7 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "area": "shape-authoring",
         "namespace": "doc.shapes",
         "matrix_row": "도형 저작(선·사각형·타원)",
-        "entry_points": ("hwpx.document:HwpxDocument",),
+        "entry_points": ("hwpx.document:HwpxDocument", "hwpx.model:Shape"),
         "authoring_methods": ("add_line", "add_rectangle", "add_ellipse"),
     },
     {

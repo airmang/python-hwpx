@@ -48,7 +48,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
 **계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **18개 클래스 / 171개
+클래스별로 stable 멤버를 정확히 나열한다 — 현재 **18개 클래스 / 173개
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
@@ -75,7 +75,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 |---|---:|---|
 | 루트 공개 멤버 | 34 | `tests/data/document_facade_surface.json` |
 | 위임 shim (7.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
-| 반환 객체 계약 | 171 | `tests/data/model_surface.json` |
+| 반환 객체 계약 | 173 | `tests/data/model_surface.json` |
 
 설치본에 직접 물어볼 수도 있다:
 
@@ -182,3 +182,23 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required 필드
 집합이 **동결**됩니다. document-plan·agent-batch·mixed-form-plan 스키마는 5.0에서
 `python-hwpx-automation`이 발행 주체가 됐으며 그쪽 계약 정책을 따릅니다. 정책·계약 테스트는 [스키마 동결](schema-freeze.md)을 보세요.
+
+## 기존 도형과 페이지 story 편집
+
+`Shape.set_position(horizontal_offset=..., vertical_offset=...)`는 기존 떠 있는
+도형의 `hp:pos` 오프셋만 바꿉니다(단위 HWPUNIT, signed 32-bit 정수).
+기준 프레임·정렬·앵커·기하 정보는 보존합니다. 글자처럼 배치된 개체, 위치 요소가
+없는 개체는 `shape-position-unsupported`, 잘못된 값은 `shape-position-value`로
+변경 전에 거부합니다. 이동 후 실제 배치는 한컴으로 확인해야 합니다.
+
+`SectionProperties.headers`/`footers`와 `get_header`/`get_footer`는 본문 컨트롤에
+있는 기존 머리말·꼬리말도 찾습니다. `set_simple_text_preserving`은 빈 문단·빈 run을
+유지하면서 단일 표시 텍스트를 수정합니다. 복수 표시 텍스트, 중첩 제어, 중복
+identity/적용 범위 충돌은 거부합니다. 새로 만드는 `set_header_text` 등의 경로와
+기존 story 보존 편집의 지원 범위를 혼동하지 마세요.
+
+`Table.set_cell_borders(row, col, color="#0055AA", line_type="SOLID")`는 선택한
+셀의 네 변 색과 선 종류만 수정합니다. 기존 선 두께·배경·대각선·기타 속성을
+복제해 보존하고 동일한 스타일이 있으면 재사용합니다. 공유 원본 스타일은
+수정하지 않습니다. 스타일이 없거나 중복되었으면 변경 전에 거부합니다.
+전체 스타일을 바꾸려면 기존 `set_cell_border_fill`을 사용하세요.
