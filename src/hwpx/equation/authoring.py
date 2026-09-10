@@ -78,6 +78,11 @@ _LATEX_TO_EQEDIT.update(
         "\\forall": "FORALL",
         "\\iint": "dint",
         "\\iiint": "tint",
+        # ``triangle`` is accepted when reading (observed in real documents) but
+        # only the documented uppercase spelling is emitted when authoring: the
+        # lowercase form has not been render-verified, and lowercase ``forall``
+        # already turned out to render as literal text.
+        "\\triangle": "TRIANGLE",
         # Common LaTeX aliases sharing a verified target.
         "\\le": "leq",
         "\\ge": "geq",

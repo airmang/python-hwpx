@@ -2,6 +2,17 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [Unreleased]
+
+### 고침
+
+- EqEdit의 공식 `TRIANGLE` 토큰과 실문서에서 관측된 소문자 `triangle` 토큰을
+  `\triangle`로 변환한다. 미리보기 MathML에서도 삼각형을 식별자 문자열이 아닌
+  수학 연산자 기호로 보존하며, 혼합 대소문자나 더 긴 식별자는 해석하지 않는다.
+  따옴표 리터럴(`\text{...}`) 안의 `\triangle`은 그대로 문자로 남기고, 저작
+  방향(`latex_to_eqedit`)은 실한컴 검증 전까지 문서화된 대문자 `TRIANGLE`만
+  낸다. (@kilomanyo, #93)
+
 ## [6.4.0] - 2026-09-09
 
 기존 문서 편집 보존 트레인. 구조 검증은 한컴 화면의 잘림·겹침·페이지 수

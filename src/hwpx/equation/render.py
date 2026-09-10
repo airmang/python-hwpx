@@ -18,7 +18,7 @@ from dataclasses import dataclass
 import html
 
 from .eqedit import EquationConversionError, eqedit_to_latex
-from .mathml import MathMLUnavailableError, latex_to_mathml
+from .mathml import MathMLUnavailableError, eqedit_latex_to_mathml
 
 # Fidelity labels surfaced in the preview (Constitution IX, honest reporting).
 LABEL_MATHML = "수식 MathML 렌더"
@@ -63,7 +63,7 @@ def render_equation(script: str) -> EquationRender:
         return _fallback_block("script", LABEL_SCRIPT, script, latex=None)
 
     try:
-        mathml = latex_to_mathml(latex)
+        mathml = eqedit_latex_to_mathml(latex)
     except MathMLUnavailableError:
         return _fallback_block("latex", LABEL_LATEX_NO_LIB, latex, latex=latex)
     except ValueError:

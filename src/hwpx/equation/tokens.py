@@ -116,6 +116,11 @@ OPERATORS: dict[str, str] = {
     "partial": r"\partial",
     "nabla": r"\nabla",
     "angle": r"\angle",
+    # Hancom's symbol guide spells this token in uppercase, while legacy
+    # documents also contain the exact lowercase form. Mixed-case variants are
+    # intentionally not accepted because the reader uses exact token lookup.
+    "triangle": r"\triangle",
+    "TRIANGLE": r"\triangle",
     "cdots": r"\cdots",
     "ldots": r"\ldots",
     "vdots": r"\vdots",
@@ -254,11 +259,17 @@ DELIMITERS: dict[str, str] = {
 # Structural keywords handled directly by the parser (not simple substitution).
 STRUCTURAL = frozenset({"over", "atop", "sqrt", "root", "of", "LEFT", "RIGHT", "left", "right"})
 
+# LaTeX commands emitted from EqEdit operator tokens that latex2mathml otherwise
+# classifies as identifiers. The render boundary uses this metadata only while
+# producing MathML; the public LaTeX remains the canonical command above.
+EQEDIT_MATHML_OPERATOR_COMMANDS = frozenset({OPERATORS["triangle"]})
+
 
 __all__ = [
     "ACCENTS",
     "BIG_OPERATORS",
     "DELIMITERS",
+    "EQEDIT_MATHML_OPERATOR_COMMANDS",
     "FUNCTIONS",
     "GREEK",
     "MATRIX_ENVIRONMENTS",
