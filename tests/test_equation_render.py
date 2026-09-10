@@ -7,6 +7,7 @@ from xml.etree import ElementTree
 
 import pytest
 
+from hwpx.equation.mathml import _split_text_literals
 from hwpx.equation import (
     LABEL_LATEX_ERROR,
     LABEL_LATEX_NO_LIB,
@@ -42,6 +43,20 @@ def test_triangle_renders_as_mathml_operator_without_changing_latex(token: str) 
     ]
     assert len(triangle_operators) == 1
     assert "triangle" not in "".join(root.itertext()).lower()
+
+
+def test_quoted_triangle_literal_stays_text_and_is_not_annotated() -> None:
+    pytest.importorskip("latex2mathml")
+    # A quoted EqEdit literal becomes \text{...}; its content is prose and must
+    # not receive the operator wrapper (review on #93).
+    result = render_equation(r'"\triangle" + x')
+    assert result.mode == "mathml"
+    root = ElementTree.fromstring(result.html)
+    namespace = "{http://www.w3.org/1998/Math/MathML}"
+    texts = ["".join(node.itertext()) for node in root.iter(f"{namespace}mtext")]
+    assert texts == [r"\triangle"]
+    assert "mathop" not in result.html
+    assert "△" not in result.html
 
 
 def test_eqedit_failure_falls_back_to_original_script_block() -> None:
@@ -86,3 +101,16 @@ def test_no_mode_ever_returns_empty_html() -> None:
 def test_latex2mathml_available_reflects_installation() -> None:
     # In the test extra latex2mathml is installed, so this is True.
     assert latex2mathml_available() is True
+
+
+@pytest.mark.parametrize(
+    ("latex", "expected"),
+    [
+        (r"\triangle + x", [(r"\triangle + x", False)]),
+        (r"\text{\triangle} + x", [(r"\text{\triangle}", True), (" + x", False)]),
+        (r"a \text{b {c} d} \triangle", [("a ", False), (r"\text{b {c} d}", True), (r" \triangle", False)]),
+        (r"\text{open", [(r"\text{open", False)]),
+    ],
+)
+def test_split_text_literals_keeps_quoted_content_opaque(latex: str, expected: list[tuple[str, bool]]) -> None:
+    assert _split_text_literals(latex) == expected

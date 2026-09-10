@@ -6,6 +6,7 @@
 
 ## Unreleased
 
+- Homer ([@kilomanyo](https://github.com/kilomanyo)) — EqEdit `triangle`/`TRIANGLE` 토큰 인식과 미리보기 MathML의 연산자 역할 보존, 식별자 분리 음성 테스트 (#93).
 - rolee74 ([@rolee74](https://github.com/rolee74)) — lxml 상한을 `<7`로 완화하여 lxml 6.x 지원 (#46).
 
 ## 2.10.2
