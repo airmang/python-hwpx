@@ -336,6 +336,51 @@ class HwpxOxmlParagraph:
         _clear_paragraph_layout_cache(self.element)
         self.section.mark_dirty()
 
+    def set_text_preserving_runs(self, value: str) -> None:
+        """Replace one unambiguous text span without changing run boundaries.
+
+        The edit must fit inside one plain ``hp:t`` node. This covers a
+        correction within a styled run while retaining every other run and
+        control; cross-style replacements require an explicit run target.
+        """
+        nodes = []
+        for run in self._run_elements():
+            for child in run:
+                if tag_local_name(child.tag) == "t":
+                    if len(child):
+                        raise ValueError("mixed text markup cannot be edited safely")
+                    nodes.append(child)
+                elif tag_local_name(child.tag) == "tab" or _is_tab_control_element(child):
+                    raise ValueError("tab controls require an explicit run target")
+        old = "".join(node.text or "" for node in nodes)
+        if old == value:
+            return
+        if not nodes:
+            raise ValueError("paragraph has no plain text node")
+        prefix = 0
+        while prefix < min(len(old), len(value)) and old[prefix] == value[prefix]:
+            prefix += 1
+        suffix = 0
+        while (suffix < len(old) - prefix and suffix < len(value) - prefix
+               and old[len(old) - suffix - 1] == value[len(value) - suffix - 1]):
+            suffix += 1
+        end = len(old) - suffix
+        replacement = value[prefix:len(value) - suffix if suffix else len(value)]
+        offset = 0
+        candidates = []
+        for node in nodes:
+            length = len(node.text or "")
+            if offset <= prefix and end <= offset + length:
+                candidates.append((node, offset))
+            offset += length
+        if len(candidates) != 1:
+            raise ValueError("text edit crosses run boundaries or has ambiguous insertion style")
+        node, offset = candidates[0]
+        current = node.text or ""
+        node.text = _sanitize_text(current[:prefix - offset] + replacement + current[end - offset:])
+        _clear_paragraph_layout_cache(self.element)
+        self.section.mark_dirty()
+
     def clear_text(self) -> None:
         """Remove all text content while preserving styles and non-text elements.
 
