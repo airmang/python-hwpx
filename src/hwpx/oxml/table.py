@@ -464,6 +464,30 @@ class HwpxOxmlTable:
             ")"
         )
 
+    @property
+    def height(self) -> int:
+        """Declared table height in HWP units."""
+        size = self.element.find(f"{_HP}sz")
+        return int(size.get("height", "0")) if size is not None else 0
+
+    @property
+    def treat_as_char(self) -> bool:
+        """Whether Hancom lays out this table as one inline character."""
+        position = self.element.find(f"{_HP}pos")
+        return position is not None and position.get("treatAsChar", "1") == "1"
+
+    def set_treat_as_char(self, value: bool) -> None:
+        """Choose inline layout or flowing table layout across pages."""
+        position = self.element.find(f"{_HP}pos")
+        if position is None:
+            from ..errors import HwpxValueError
+
+            raise HwpxValueError("table has no hp:pos", code="table-position-missing")
+        desired = "1" if value else "0"
+        if position.get("treatAsChar") != desired:
+            position.set("treatAsChar", desired)
+            self.mark_dirty()
+
     # --- caption (hp:caption) -----------------------------------------
 
     @property

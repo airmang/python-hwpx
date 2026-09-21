@@ -9,6 +9,7 @@ belong in this suite.
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from collections.abc import Callable
 from io import BytesIO
@@ -18,7 +19,6 @@ from zipfile import ZipFile
 import pytest
 
 from hwpx import HwpxDocument
-
 
 CONTRACT_PATH = Path(__file__).parent / "data" / "golden_api_contract.json"
 Scenario = Callable[[Path], None]
@@ -278,9 +278,28 @@ def test_golden_api_contract_is_complete() -> None:
 
 @pytest.mark.parametrize("scenario_id", CONTRACT["scenarios"])
 def test_core_only_golden_scenario(scenario_id: str, tmp_path: Path) -> None:
-    SCENARIOS[scenario_id](tmp_path)
-    assert not any(
-        module_name == prefix or module_name.startswith(f"{prefix}.")
-        for prefix in CONTRACT["forbiddenImportPrefixes"]
-        for module_name in sys.modules
+    # A fresh interpreter tests core-only imports even when another collected
+    # test imported automation into the pytest process.
+    code = """
+import importlib.util
+import json
+import sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location('golden_api_scenarios', sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+module.SCENARIOS[sys.argv[2]](Path(sys.argv[3]))
+assert not any(
+    name == prefix or name.startswith(prefix + '.')
+    for prefix in module.CONTRACT['forbiddenImportPrefixes']
+    for name in sys.modules
+)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(Path(__file__).resolve()), scenario_id, str(tmp_path)],
+        capture_output=True,
+        text=True,
+        check=False,
     )
+    assert result.returncode == 0, result.stdout + result.stderr

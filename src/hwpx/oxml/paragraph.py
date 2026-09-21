@@ -40,6 +40,7 @@ from .note_authoring import (
     _paragraph_endnotes,
     _paragraph_footnotes,
 )
+from ._paragraph_text_edit import edit_node_candidates, plain_text_nodes_for_edit
 from .objects import (
     HwpxOxmlInlineObject,
     _create_picture_element,
@@ -333,6 +334,42 @@ class HwpxOxmlParagraph:
 
         # Write the new text into the first run, preserving tabs as <hp:tab/>.
         _append_text_with_tabs(first_run, value)
+        _clear_paragraph_layout_cache(self.element)
+        self.section.mark_dirty()
+
+    def set_text_preserving_runs(self, value: str) -> None:
+        """Replace one unambiguous text span without changing run boundaries.
+
+        The edit must fit inside one plain ``hp:t`` node. This covers a
+        correction within a styled run while retaining every other run and
+        control; cross-style replacements require an explicit run target.
+        """
+        from ..errors import HwpxValueError
+
+        nodes = plain_text_nodes_for_edit(self._run_elements())
+        old = "".join(node.text or "" for node in nodes)
+        if old == value:
+            return
+        if not nodes:
+            raise HwpxValueError("paragraph has no plain text node", code="paragraph-text-missing")
+        prefix = 0
+        while prefix < min(len(old), len(value)) and old[prefix] == value[prefix]:
+            prefix += 1
+        suffix = 0
+        while (suffix < len(old) - prefix and suffix < len(value) - prefix
+               and old[len(old) - suffix - 1] == value[len(value) - suffix - 1]):
+            suffix += 1
+        end = len(old) - suffix
+        replacement = value[prefix:len(value) - suffix if suffix else len(value)]
+        candidates = edit_node_candidates(nodes, prefix, end)
+        if len(candidates) != 1:
+            raise HwpxValueError(
+                "text edit crosses run boundaries or has ambiguous insertion style",
+                code="paragraph-text-style-ambiguous",
+            )
+        node, offset = candidates[0]
+        current = node.text or ""
+        node.text = _sanitize_text(current[:prefix - offset] + replacement + current[end - offset:])
         _clear_paragraph_layout_cache(self.element)
         self.section.mark_dirty()
 
