@@ -298,7 +298,8 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # (oxml/note_authoring.py) — restores real headroom (1452/1600)
     # instead of the 5 lines left after train 48/㊽b's PATH delegator.
     # 전부 module-ownership.json 에 개별 rationale 과 함께 등재돼 있다.
-    assert report["classifiedFiles"] == 147
+    # +1: format-level plain-text edit helpers extracted from paragraph.py.
+    assert report["classifiedFiles"] == 148
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(
