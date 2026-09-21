@@ -2,7 +2,11 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
-## [6.5.0] - Unreleased candidate
+## [6.5.0] - 2026-09-21
+
+기존 문서 편집과 저작 표의 보존 범위를 넓힌 릴리스입니다. 저장 성공만으로
+시각 품질을 보증하지 않으며, 과거 셀 채움 페이지 흐름 사례 두 건의 글자 가림은
+이번 버전에도 남아 있습니다.
 
 ### 추가
 
