@@ -480,7 +480,9 @@ class HwpxOxmlTable:
         """Choose inline layout or flowing table layout across pages."""
         position = self.element.find(f"{_HP}pos")
         if position is None:
-            raise ValueError("table has no hp:pos")
+            from ..errors import HwpxValueError
+
+            raise HwpxValueError("table has no hp:pos", code="table-position-missing")
         desired = "1" if value else "0"
         if position.get("treatAsChar") != desired:
             position.set("treatAsChar", desired)

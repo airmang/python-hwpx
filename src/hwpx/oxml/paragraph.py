@@ -40,6 +40,7 @@ from .note_authoring import (
     _paragraph_endnotes,
     _paragraph_footnotes,
 )
+from ._paragraph_text_edit import edit_node_candidates, plain_text_nodes_for_edit
 from .objects import (
     HwpxOxmlInlineObject,
     _create_picture_element,
@@ -343,20 +344,14 @@ class HwpxOxmlParagraph:
         correction within a styled run while retaining every other run and
         control; cross-style replacements require an explicit run target.
         """
-        nodes = []
-        for run in self._run_elements():
-            for child in run:
-                if tag_local_name(child.tag) == "t":
-                    if len(child):
-                        raise ValueError("mixed text markup cannot be edited safely")
-                    nodes.append(child)
-                elif tag_local_name(child.tag) == "tab" or _is_tab_control_element(child):
-                    raise ValueError("tab controls require an explicit run target")
+        from ..errors import HwpxValueError
+
+        nodes = plain_text_nodes_for_edit(self._run_elements())
         old = "".join(node.text or "" for node in nodes)
         if old == value:
             return
         if not nodes:
-            raise ValueError("paragraph has no plain text node")
+            raise HwpxValueError("paragraph has no plain text node", code="paragraph-text-missing")
         prefix = 0
         while prefix < min(len(old), len(value)) and old[prefix] == value[prefix]:
             prefix += 1
@@ -366,15 +361,12 @@ class HwpxOxmlParagraph:
             suffix += 1
         end = len(old) - suffix
         replacement = value[prefix:len(value) - suffix if suffix else len(value)]
-        offset = 0
-        candidates = []
-        for node in nodes:
-            length = len(node.text or "")
-            if offset <= prefix and end <= offset + length:
-                candidates.append((node, offset))
-            offset += length
+        candidates = edit_node_candidates(nodes, prefix, end)
         if len(candidates) != 1:
-            raise ValueError("text edit crosses run boundaries or has ambiguous insertion style")
+            raise HwpxValueError(
+                "text edit crosses run boundaries or has ambiguous insertion style",
+                code="paragraph-text-style-ambiguous",
+            )
         node, offset = candidates[0]
         current = node.text or ""
         node.text = _sanitize_text(current[:prefix - offset] + replacement + current[end - offset:])

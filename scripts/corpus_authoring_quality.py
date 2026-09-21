@@ -96,13 +96,19 @@ def _load_sibling(name: str):
 
 
 def rule_of_three_lower_bound(failures: int, n: int) -> float | None:
-    """Delegates to corpus_open_rate (single definition of the published bound)."""
-
-    return _load_sibling("corpus_open_rate").rule_of_three_lower_bound(failures, n)
+    """Conservative 95% lower bound, shared with the frozen corpus reports."""
+    if n <= 0:
+        return None
+    if failures <= 0:
+        return max(0.0, 1.0 - 3.0 / n)
+    return max(0.0, (n - failures) / n - 3.0 / n)
 
 
 def rule_of_three_text(failures: int, n: int) -> str:
-    return _load_sibling("corpus_open_rate").rule_of_three_text(failures, n)
+    bound = rule_of_three_lower_bound(failures, n)
+    if bound is None:
+        return f"{failures}/{n} -> N/A (no trials)"
+    return f"{failures}/{n} -> >= {bound * 100:.1f}% (95% CI, rule of three: 1 - 3/N)"
 
 
 def sha256_file(path: Path) -> str:
