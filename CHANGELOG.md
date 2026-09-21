@@ -2,7 +2,12 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
-## [Unreleased]
+## [6.5.0] - Unreleased candidate
+
+### 추가
+
+- 표 높이와 텍스트 흐름 설정을 공개해 긴 저작 표가 다음 페이지로 이어지도록 한다.
+- 혼합 run·필드·여러 story의 요청 범위를 보존하면서 편집한다.
 
 ### 고침
 
