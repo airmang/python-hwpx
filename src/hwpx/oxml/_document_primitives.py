@@ -340,6 +340,32 @@ def _element_local_name(node: ET.Element) -> str:
     return tag_local_name(node.tag)
 
 
+#: Characters the inline atoms of ``hp:t`` mixed content stand for -- the
+#: reading ``hwpx.tools.text_extractor`` gives with ``preserve_breaks``.
+_TEXT_INLINE_ATOMS: dict[str, str] = {
+    "tab": "\t", "lineBreak": "\n", "nbSpace": "\u00a0", "fwSpace": "\u3000", "hyphen": "\u00ad",
+}
+
+
+def _text_element_content(element: ET.Element, *, tab: str = "\t") -> str:
+    """Return the text of an ``hp:t``, including what follows its inline children.
+
+    Hancom writes tabs, line breaks and special spaces *inside* ``hp:t``
+    (``<hp:t>성<hp:fwSpace/>명<hp:tab/>홍길동</hp:t>``). Other element children
+    keep their own text; empty marks (highlight, tracked change) add nothing.
+    """
+
+    parts = [element.text or ""]
+    for child in element:
+        name = _element_local_name(child)
+        if name in _TEXT_INLINE_ATOMS:
+            parts.append(tab if name == "tab" else _TEXT_INLINE_ATOMS[name])
+        elif name:
+            parts.append("".join(child.itertext()))
+        parts.append(child.tail or "")
+    return "".join(parts)
+
+
 def _append_child(
     parent: ET.Element,
     tag: str,

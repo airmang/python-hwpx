@@ -39,22 +39,19 @@ def test_insert_registers_a_tracked_change() -> None:
     assert f'<hp:insertBegin Id="{change.change_id}"' in xml
 
 
-def test_tracked_insert_text_is_not_reachable_through_text_extraction() -> None:
-    """알려진 읽기 갭 — 5.x 부터 그대로이고 B3 가 만든 것이 아니다.
+def test_tracked_insert_text_is_reachable_through_text_extraction() -> None:
+    """삽입된 글은 ``<hp:t>`` 안에서 ``<hp:insertBegin/>`` 의 **tail** 로 놓인다.
 
-    삽입된 글은 ``<hp:t>`` 안에서 ``<hp:insertBegin/>`` 의 **tail** 로 놓인다.
-    텍스트 추출기는 ``hp:t`` 의 ``.text`` 만 읽으므로 이 글자를 보지 못한다.
-    저작(위 테스트)은 정상이고, 읽기 쪽이 못 따라온다.
-
-    이 테스트는 갭을 **고정**한다 — 누군가 읽기를 고치면 여기가 붉어지고,
-    그때 이 테스트를 지우면 된다.
+    예전에는 텍스트 추출이 ``hp:t`` 의 ``.text`` 만 읽어 이 글자를 보지 못했다
+    (5.x 부터의 읽기 갭). 이제 인라인 요소 뒤 글자까지 읽으므로 평문과 문단
+    텍스트에 나온다.
     """
 
     document = _document()
     document.tracking.insert(1, "삽입된 글")
     assert "삽입된 글" in _section_xml(document)
-    assert "삽입된 글" not in document.text.plain()
-    assert "삽입된 글" not in document.paragraphs[1].text
+    assert "삽입된 글" in document.text.plain()
+    assert "삽입된 글" in document.paragraphs[1].text
 
 
 def test_delete_marks_the_matched_text() -> None:

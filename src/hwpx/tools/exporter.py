@@ -16,6 +16,7 @@ from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
 from ..opc.security import guard_zip_file, parse_xml_stdlib, read_member
+from ..oxml._document_primitives import _text_element_content
 #: A caller-supplied redaction step. Declared here rather than imported from
 #: mail_merge, which imports export_text — the two would form a cycle.
 TextSanitizer = Callable[[str], str]
@@ -60,8 +61,7 @@ def _paragraph_text(p: ET.Element, *, tab_token: str = "\t") -> str:
     for run in p.findall(f"{_HP}run"):
         for child in run:
             if child.tag == f"{_HP}t":
-                if child.text:
-                    parts.append(child.text)
+                parts.append(_text_element_content(child, tab=tab_token))
             elif child.tag == f"{_HP}tab" or _is_tab_control(child):
                 parts.append(tab_token)
             elif child.tag == f"{_HP}lineBreak":

@@ -102,7 +102,7 @@ def _text_paragraph(root, text: str):
 
     for para in (el for el in root.iter() if _ln(el.tag) == "p"):
         ts = [t for t in para.iter() if _ln(t.tag) == "t"]
-        if ts and "".join(t.text or "" for t in ts) == text:
+        if ts and "".join("".join(t.itertext()) for t in ts) == text:
             # Must contain only runs of plain text for the textpos check to run.
             if all(_ln(c.tag) in ("run", "lineSegArray", "linesegarray") for c in para):
                 return para

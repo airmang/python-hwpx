@@ -11,6 +11,21 @@
   `offset -30/+30`도 썼는데, 한컴은 요소만으로 글자를 줄이고 올리거나 내린다.
   이제 한컴 자신의 첨자처럼 요소만 쓴다(`relSz 100`·`offset 0`). 예전 모양의
   글자 모양은 다시 쓰지 않고, 기준 글자 모양으로 받으면 기본값으로 되돌린다.
+- 한컴이 `hp:t` 안에 넣는 탭·줄 바꿈·특수 공백(`<hp:t>성<hp:fwSpace/>명<hp:tab/>홍길동</hp:t>`)
+  뒤의 글자를 `paragraph.text`·`run.text`·`doc.text.plain()`·Markdown 내보내기·
+  표 이름표 찾기가 버리던 것을 고친다. 이들은 `hp:t`의 첫 글자 묶음만 읽어 위
+  예에서 "성"만 돌려줬다. 이제 모두 `hwpx.tools.text_extractor`와 같은
+  규칙으로 읽는다: 탭 `\t`, 줄 바꿈 `\n`, 줄 안 공백 U+00A0, 전각 공백 U+3000,
+  하이픈 U+00AD, 그 밖의 자식 요소는 제 글자와 뒤 글자(형광펜·변경 추적 표시는
+  빈 요소라 뒤 글자만). 텍스트 추출기도 `hp:t` 안의
+  탭을 버리던 것을 고친다(목차 항목의 점선 탭 뒤 쪽 번호가 붙어 나왔다). 변경 추적으로
+  삽입한 글(`hp:insertBegin` 뒤 글자)도 이제 `paragraph.text`와 평문에 나온다.
+- `doc.styles.ensure_run()`이 만든 글자 모양(`hh:charPr`)의 자식 순서가 OWPML
+  스키마(`CharShapeType`)를 어기던 것을 고친다. `bold`·`italic`·`underline`·
+  `strikeout`을 `outline`·`shadow` 뒤에 덧붙였고, `bold`를 `italic`보다 먼저 썼다.
+  이제 서식을 적용한 뒤 자식을 스키마 순서(`fontRef, ratio, spacing, relSz, offset,
+  italic, bold, underline, strikeout, outline, shadow, emboss, engrave, supscript,
+  subscript`)로 맞춘다. 한컴이 쓰는 순서와 같다.
 - `doc.refs.add_hyperlink()`로 만든 링크가 한컴에서 **아무 데도 가지 않던** 것을
   고친다. 대상 주소를 `fieldBegin@name`에만 썼는데, 한컴은 링크 대상을 필드
   매개변수에서 읽는다. 한컴에서 다시 저장하면 링크는 남지만
