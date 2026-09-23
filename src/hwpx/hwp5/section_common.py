@@ -134,14 +134,15 @@ def list_attrs(props: int) -> list[tuple[str, object]]:
     ]
 
 
-def lists(owner: rec.Record) -> list[tuple[rec.Record, list[rec.Record]]]:
+def lists(owner: rec.Record, *marks: int) -> list[tuple[rec.Record, list[rec.Record]]]:
     """The paragraph lists inside a control: each ``LIST_HEADER`` and the
     ``PARA_HEADER`` records that follow it at the same level (a cell, a header
-    or footer body, a note body)."""
+    or footer body, a note body). Records tagged one of *marks* come out in
+    their place too, with no paragraphs."""
 
     out: list[tuple[rec.Record, list[rec.Record]]] = []
     for record in owner.children:
-        if record.tag == rec.LIST_HEADER:
+        if record.tag == rec.LIST_HEADER or record.tag in marks:
             out.append((record, []))
         elif record.tag == rec.PARA_HEADER and out:
             out[-1][1].append(record)

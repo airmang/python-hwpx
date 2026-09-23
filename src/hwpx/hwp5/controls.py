@@ -36,7 +36,9 @@ class SectionDef:
     table_start: int = 0
     equation_start: int = 0
     language: int = 0
-    master_pages: int = 0
+    # Master pages kept on the section's last paragraph (last page, optional
+    # pages); those for both, even and odd pages are marked by props bits 29-31.
+    last_paragraph_pages: int = 0
     reserved: int = 0
     memo_shape: int = 0
     text_direction: int = 0
@@ -63,7 +65,7 @@ class SectionDef:
         b = Builder().u32(bt.ctrl_word("secd")).u32(self.props)
         b.u16(self.space_columns).u16(self.line_grid).u16(self.char_grid).u32(self.tab_stop)
         b.u16(self.outline_numbering).u16(self.page_start).u16(self.picture_start)
-        b.u16(self.table_start).u16(self.equation_start).u16(self.language).u16(self.master_pages)
+        b.u16(self.table_start).u16(self.equation_start).u16(self.language).u16(self.last_paragraph_pages)
         b.u16(self.reserved).u16(self.memo_shape).u16(self.text_direction)
         b.u8(self.line_number_restart).u16(self.line_number_count_by)
         b.u32(self.line_number_distance).u16(self.line_number_start)

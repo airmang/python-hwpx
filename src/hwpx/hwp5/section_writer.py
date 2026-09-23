@@ -13,6 +13,7 @@ import struct
 import zlib
 from collections import Counter
 from datetime import datetime, timedelta
+from typing import Callable
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
@@ -49,6 +50,8 @@ from .section_xml import (
     FOOTNOTE_PLACE,
     GUTTER,
     LABEL_LANDSCAPE,
+    MASTER_PAGE_BITS,
+    MASTER_PAGE_LAST,
     NOTE_NUMBERING,
     NUMBER_TYPE,
     PAGE_BORDER_TYPES,
@@ -295,19 +298,42 @@ class _Highlights:
 class SectionRecords:
     """Builds the records of one section; ``unsupported`` counts what it could not write."""
 
-    def __init__(self, bin_ids: dict[str, int] | None = None) -> None:
+    def __init__(
+        self,
+        bin_ids: dict[str, int] | None = None,
+        master_page: Callable[[str], etree._Element | None] | None = None,
+    ) -> None:
         self.unsupported: Counter[str] = Counter()
         # Memo bodies (their hp:subList) in the order of their memo fields; the
         # document keeps them all on the last paragraph of its last section.
         self.memo_bodies: list[tuple[int, etree._Element | None]] = []
         # BinData id of each binary item id, for pictures.
         self.bin_ids = bin_ids or {}
+        # The master page part (its root) a manifest item id names.
+        self.master_page = master_page or (lambda item_id: None)
+        # The section's last-page and optional-page master pages, which hang
+        # on its last paragraph.
+        self.last_paragraph_pages: list[etree._Element] = []
         # Fields begun and not yet ended: the begin id and the field-end
         # characters to write (None when the begin itself was refused).
         self.open_fields: list[tuple[str, bytes | None]] = []
 
     def section(self, root: etree._Element) -> list[rec.Record]:
-        return self.paragraph_list([p for p in root if _local(p) == "p"], 0)
+        paragraphs: list[etree._Element] = []
+        for child in root:
+            if not isinstance(child.tag, str):
+                continue
+            name = _local(child)
+            if name == "p":
+                paragraphs.append(child)
+            elif name != "memogroup":
+                self.unsupported[f"sec/{name}"] += 1
+        # hp:memogroup repeats the bodies of the MEMO fields, whose own copies
+        # Hancom keeps (even where the two differ); it has no records of its own.
+        records = self.paragraph_list(paragraphs, 0)
+        for page in self.last_paragraph_pages:
+            records.extend(self.master_page_list(page, 1))
+        return records
 
     def memo_records(self, bodies: list[tuple[int, etree._Element | None]]) -> list[rec.Record]:
         """The memo bodies of a document, to hang on its last paragraph: each
@@ -528,11 +554,11 @@ class SectionRecords:
         direction = element.get("textDirection", "HORIZONTAL")
         direction_word = _SECTION_DIRECTION.get(direction, 0) | _flag(element, "textVerticalWidthHead") << 4
         tab_raw = _int(element, "tabStopVal", 4000) * 2 + (1 if element.get("tabStopUnit") == "CHAR" else 0)
-        # Master pages are not written yet; a count without the pages makes the
-        # file unreadable, so the section refuses instead.
-        master_pages = max(_int(element, "masterPageCnt"), len(element.findall(f"{{{_HP}}}masterPage")))
-        if master_pages:
-            self.unsupported["masterPage"] += master_pages
+        # Master pages for both, even and odd pages hang on the section
+        # definition, each marked by a property bit; the others on the section's
+        # last paragraph, which the definition counts.
+        pages = self.section_master_pages(element)
+        props |= sum(1 << bit for bit, page_type in MASTER_PAGE_BITS if page_type in pages)
         sd = ct.SectionDef(
             props,
             _int(element, "spaceColumns", 1134),
@@ -545,7 +571,7 @@ class SectionRecords:
             _int(start, "tbl"),
             _int(start, "equation"),
             0,
-            0,
+            len(self.last_paragraph_pages),
             0,
             _int(element, "memoShapeIDRef"),
             direction_word,
@@ -586,7 +612,56 @@ class SectionRecords:
                 _int(item, "borderFillIDRef", 1),
             )
             out.append(rec.Record(rec.PAGE_BORDER_FILL, level + 1, value.encode()))
+        for _bit, page_type in MASTER_PAGE_BITS:
+            if page_type in pages:
+                out.extend(self.master_page_list(pages[page_type], level + 1))
         return out
+
+    def section_master_pages(self, element: etree._Element) -> dict[str, etree._Element]:
+        """The section's master pages for both, even and odd pages by type;
+        its last-page and optional pages go to ``last_paragraph_pages``. A
+        missing part, an unknown type or a second page for the same pages is
+        unsupported."""
+
+        pages: dict[str, etree._Element] = {}
+        self.last_paragraph_pages = []
+        applies: set[tuple[str | None, int]] = set()
+        for ref in element.findall(f"{{{_HP}}}masterPage"):
+            page = self.master_page(ref.get("idRef", ""))
+            page_type = page.get("type") if page is not None else None
+            number = _int(page, "pageNumber") if page_type == "OPTIONAL_PAGE" else 0
+            if page is None or page_type in pages or (page_type, number) in applies:
+                self.unsupported["masterPage"] += 1
+            elif page_type == "LAST_PAGE" or (page_type == "OPTIONAL_PAGE" and number > 0):
+                applies.add((page_type, number))
+                self.last_paragraph_pages.append(page)
+            elif page_type in PAGE_BORDER_TYPES:
+                pages[page_type] = page
+            else:
+                self.unsupported[f"masterPage/{page_type}"] += 1
+        return pages
+
+    def master_page_list(self, page: etree._Element, level: int) -> list[rec.Record]:
+        """A master page's list header and paragraphs. Offset 18 of the header
+        says where the page applies (0 under the section definition, 3 on the
+        last page, 3 plus its number on an optional page), offset 22 holds its
+        duplicate and front flags."""
+
+        sub_list = _find(page, "subList")
+        paragraphs = [p for p in sub_list if _local(p) == "p"] if sub_list is not None else []
+        if not paragraphs:
+            paragraphs = [etree.Element(f"{{{_HP}}}p")]
+        kind = 0
+        if page.get("type") == "LAST_PAGE":
+            kind = MASTER_PAGE_LAST
+        elif page.get("type") == "OPTIONAL_PAGE":
+            kind = MASTER_PAGE_LAST + _int(page, "pageNumber")
+        flags = _flag(page, "pageDuplicate") | _flag(page, "pageFront") << 1
+        width = _int(sub_list, "textWidth") & 0xFFFFFFFF
+        height = _int(sub_list, "textHeight") & 0xFFFFFFFF
+        extra = struct.pack("<HIIHHHH", 0, width, height, 0, kind & 0xFFFF, 0, flags) + bytes(10)
+        header = ct.ListHeader(len(paragraphs), _list_props(sub_list), extra)
+        return [rec.Record(rec.LIST_HEADER, level, header.encode()), *self.paragraph_list(paragraphs, level)]
 
     def note_shape(self, element: etree._Element | None, places: tuple[str, ...]) -> ct.NoteShape:
         if element is None:

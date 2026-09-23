@@ -260,11 +260,32 @@ def _picture() -> list[rec.Record]:
     )
 
 
-def _master_page() -> list[rec.Record]:
-    """A master page: a paragraph list hung on the section's last paragraph."""
+def _master_list(level: int, text: str, *, kind: int = 0, flags: int = 0) -> list[rec.Record]:
+    """A master page's paragraph list. Its header holds the text size, where
+    the page applies (offset 18: 0 under the section definition, 3 plus the
+    page number for an optional page) and its flags (offset 22)."""
 
-    header = struct.pack("<HIH", 1, 0, 0) + struct.pack("<II", 42520, 70868) + bytes(22)
-    return [rec.Record(rec.LIST_HEADER, 1, header), *_paragraph(1, "바탕쪽".encode("utf-16-le") + _u16(13), [(0, 0)], [])]
+    header = struct.pack("<HIHIIHHHH", 1, 0, 0, 42520, 65762, 0, kind, 0, flags) + bytes(10)
+    return [rec.Record(rec.LIST_HEADER, level, header), *_paragraph(level, text.encode("utf-16-le") + _u16(13), [(0, 0)], [])]
+
+
+def _with_master_pages(section: list[rec.Record]) -> list[rec.Record]:
+    """Master pages for even and odd pages under the section definition (its
+    property bits 30 and 31) and one for page 2 on the section's last
+    paragraph, ahead of any memo bodies there, which the definition counts at
+    offset 30."""
+
+    out = list(section)
+    index = next(i for i, r in enumerate(out) if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "secd")
+    secd = bytearray(out[index].payload)
+    struct.pack_into("<I", secd, 4, struct.unpack_from("<I", secd, 4)[0] | 1 << 30 | 1 << 31)
+    struct.pack_into("<H", secd, 30, 1)
+    out[index] = rec.Record(rec.CTRL_HEADER, 1, bytes(secd))
+    last_fill = max(i for i, r in enumerate(out) if r.tag == rec.PAGE_BORDER_FILL)
+    out[last_fill + 1 : last_fill + 1] = _master_list(2, "짝수 쪽") + _master_list(2, "홀수 쪽", flags=0x2)
+    memos = next((i for i, r in enumerate(out) if r.tag == rec.MEMO_LIST), len(out))
+    out[memos:memos] = _master_list(1, "둘째 쪽", kind=3 + 2, flags=0x1)
+    return out
 
 
 def make_hwp(
@@ -303,7 +324,7 @@ def make_hwp(
     if memo:
         section += _memo()
     if master_page:
-        section += _master_page()
+        section = _with_master_pages(section)
     return _compound(section, flags=flags)
 
 
@@ -513,26 +534,47 @@ def test_a_picture_opens_with_its_caption_comment_and_parameter_set() -> None:
     assert value is not None and (value.get("name"), value.text) == ("28673", "2")
 
 
-def test_a_memo_opens_with_its_body_and_a_master_page_is_reported() -> None:
-    with pytest.warns(Hwp5ConversionWarning, match="master-page x1"):
+def test_a_memo_opens_with_its_body_beside_a_master_page() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         document = HwpxDocument.open(make_hwp(memo=True, master_page=True))
-    assert document._hwp5_report.unconverted == {"master-page": 1}
     [memo] = [b for b in document.sections[0].element.iter(f"{HP}fieldBegin") if b.get("type") == "MEMO"]
     params = {p.get("name"): p.text or "" for p in memo.find(f"{HP}parameters")}
     assert (params["ID"], params["Number"], params["MemoShapeIDRef"]) == ("memo1", "1", "65535")
     assert "".join(memo.find(f"{HP}subList").itertext()) == "메모 내용"
+    assert [page.to_model().paragraph_texts for page in document.oxml.master_pages][-1] == ("둘째 쪽",)
 
 
-def test_master_pages_under_the_section_definition_are_reported() -> None:
-    section = _section()
-    # The master page list follows the section definition's page border fills.
-    index = max(i for i, r in enumerate(section) if r.tag == rec.PAGE_BORDER_FILL)
-    section[index + 1 : index + 1] = [
-        rec.Record(rec.LIST_HEADER, 2, _master_page()[0].payload),
-        *_paragraph(2, "바탕쪽".encode("utf-16-le") + _u16(13), [(0, 0)], []),
+def test_master_pages_open_as_parts_the_section_refers_to() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(master_page=True))
+    [sec_pr] = list(document.sections[0].element.iter(f"{HP}secPr"))
+    assert sec_pr.get("masterPageCnt") == "3"
+    assert [ref.get("idRef") for ref in sec_pr.findall(f"{HP}masterPage")] == ["masterpage0", "masterpage1", "masterpage2"]
+    pages = [page.to_model() for page in document.oxml.master_pages]
+    assert [(p.id, p.type, p.page_number, p.page_duplicate, p.page_front) for p in pages] == [
+        ("masterpage0", "EVEN", 0, False, False),
+        ("masterpage1", "ODD", 0, False, True),
+        ("masterpage2", "OPTIONAL_PAGE", 2, True, False),
     ]
-    with pytest.warns(Hwp5ConversionWarning, match="master-page x1"):
-        HwpxDocument.open(_compound(section))
+    assert [p.paragraph_texts for p in pages] == [("짝수 쪽",), ("홀수 쪽",), ("둘째 쪽",)]
+    sub_list = document.oxml.master_pages[0].element.find(f"{HP}subList")
+    assert (sub_list.get("textWidth"), sub_list.get("textHeight")) == ("42520", "65762")
+
+
+def test_master_pages_that_do_not_match_the_section_definition_are_reported() -> None:
+    section = _with_master_pages(_section())
+    # Only the odd-page bit set for the two lists under the definition, and a
+    # list on the last paragraph whose kind names no page.
+    index = next(i for i, r in enumerate(section) if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "secd")
+    secd = bytearray(section[index].payload)
+    struct.pack_into("<I", secd, 4, 1 << 31)
+    section[index] = rec.Record(rec.CTRL_HEADER, 1, bytes(secd))
+    section += _master_list(1, "알 수 없음", kind=1)
+    with pytest.warns(Hwp5ConversionWarning, match="master-page x3"):
+        document = HwpxDocument.open(_compound(section))
+    assert [page.to_model().type for page in document.oxml.master_pages] == ["OPTIONAL_PAGE"]
 
 
 def test_password_protected_hwp_is_refused_with_its_code() -> None:

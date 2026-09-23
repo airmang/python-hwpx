@@ -2,16 +2,17 @@
 """HWPX package parts -> an HWP 5.0 (``.hwp``) file.
 
 :func:`write_hwp5` reads the manifest for the header, the sections in spine
-order and the embedded binary items, builds DocInfo and BodyText records,
-compresses them and writes the compound file. Content the writer cannot
-express makes it raise :class:`~hwpx.hwp5.errors.Hwp5Error` with the code
+order, the master pages they refer to and the embedded binary items, builds
+DocInfo and BodyText records, compresses them and writes the compound
+file. Content the writer cannot express makes it raise
+:class:`~hwpx.hwp5.errors.Hwp5Error` with the code
 ``hwp5-write-unsupported`` before anything is written.
 """
 
 from __future__ import annotations
 
 from collections import Counter
-from typing import Mapping
+from typing import Callable, Mapping
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
@@ -62,6 +63,26 @@ def _manifest(files: Mapping[str, bytes]) -> tuple[str, list[str], list[tuple[st
     return header, sections, binaries
 
 
+def _master_pages(files: Mapping[str, bytes]) -> Callable[[str], etree._Element | None]:
+    """The root of the part a manifest item id names (a section's master
+    page), parsed when first asked for; None when there is no such part."""
+
+    root = etree.fromstring(files["Contents/content.hpf"])
+    paths: dict[str, str] = {}
+    for item in root.iter(f"{{{_OPF}}}item"):
+        href = item.get("href", "")
+        paths[item.get("id") or ""] = href if href.startswith("Contents/") or "/" in href else "Contents/" + href
+    parsed: dict[str, etree._Element | None] = {}
+
+    def find(item_id: str) -> etree._Element | None:
+        if item_id not in parsed:
+            path = paths.get(item_id)
+            parsed[item_id] = etree.fromstring(files[path]) if path is not None and path in files else None
+        return parsed[item_id]
+
+    return find
+
+
 def _bin_id(item_id: str, used: set[int]) -> int:
     digits = "".join(ch for ch in item_id if ch.isdigit())
     number = int(digits) if digits else 0
@@ -106,10 +127,11 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
             unsupported[f"header/{name}"] += found
     used: set[int] = set()
     bin_ids = {item_id: _bin_id(item_id, used) for item_id, _ in binaries}
+    master_page = _master_pages(files)
     sections: list[list[rec.Record]] = []
     writers: list[SectionRecords] = []
     for path in section_paths:
-        writer = SectionRecords(bin_ids)
+        writer = SectionRecords(bin_ids, master_page)
         sections.append(writer.section(etree.fromstring(files[path])))
         writers.append(writer)
     # Memo bodies of every section hang on the last paragraph of the last one.

@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import base64
+import struct
 import warnings
 from pathlib import Path
 
 import pytest
 
 from hwpx import HwpxDocument
+from hwpx.hwp5 import bodytext as bt
 from hwpx.hwp5 import cfb
 from hwpx.hwp5 import records as rec
 from hwpx.hwp5.errors import Hwp5Error
@@ -54,7 +56,18 @@ def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "extras",
-    [{}, {"fields": True}, {"highlights": True}, {"label": True}, {"markers": True}, {"text_box": True}, {"picture": True}, {"memo": True}],
+    [
+        {},
+        {"fields": True},
+        {"highlights": True},
+        {"label": True},
+        {"markers": True},
+        {"text_box": True},
+        {"picture": True},
+        {"memo": True},
+        {"master_page": True},
+        {"memo": True, "master_page": True},
+    ],
 )
 def test_hwp_to_hwpx_to_hwp_keeps_the_section_records(extras: dict[str, bool]) -> None:
     original = make_hwp(**extras)
@@ -98,11 +111,33 @@ def test_content_the_writer_cannot_express_is_refused_before_writing(tmp_path: P
     assert not target.exists()
 
 
-def test_master_pages_are_refused_until_they_can_be_written(tmp_path: Path) -> None:
-    document = HwpxDocument.open(make_hwp(memo=True))
-    [sec_pr] = list(document.sections[0].element.iter(f"{HP}secPr"))
-    sec_pr.set("masterPageCnt", "1")
-    document.sections[0].mark_dirty()
+def test_master_pages_save_as_hwp_under_the_section_and_on_its_last_paragraph(tmp_path: Path) -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("본문")
+    both = document.oxml.add_master_page(text="모든 쪽", page_type="BOTH")
+    third = document.oxml.add_master_page(text="셋째 쪽", page_type="OPTIONAL_PAGE", page_number=3, page_duplicate=True)
+    for page_id in (both, third):
+        document.sections[0].properties.add_master_page_reference(page_id)
+    target = tmp_path / "바탕쪽.hwp"
+    document.save_to_path(target)
+
+    [section] = read_hwp5(target.read_bytes()).sections
+    secd = next(r for r in section.records if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "secd")
+    props, last_paragraph_pages = struct.unpack_from("<I", secd.payload, 4)[0], struct.unpack_from("<H", secd.payload, 30)[0]
+    assert (props >> 29, last_paragraph_pages) == (1, 1)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        reopened = HwpxDocument.open(target)
+    pages = [page.to_model() for page in reopened.oxml.master_pages]
+    assert [(p.type, p.page_number, p.page_duplicate, p.paragraph_texts) for p in pages] == [
+        ("BOTH", 0, False, ("모든 쪽",)),
+        ("OPTIONAL_PAGE", 3, True, ("셋째 쪽",)),
+    ]
+
+
+def test_a_master_page_without_its_part_is_refused(tmp_path: Path) -> None:
+    document = HwpxDocument.open(make_hwp())
+    document.sections[0].properties.add_master_page_reference("masterpage9")
     target = tmp_path / "바탕쪽.hwp"
     with pytest.raises(Hwp5Error) as info:
         document.save_to_path(target)
@@ -145,3 +180,32 @@ def test_a_container_holding_a_shape_the_writer_cannot_write_is_refused() -> Non
     )
     _, unsupported = build_section_records(section)
     assert unsupported == {"connectLine": 1}
+
+
+def test_an_unknown_element_directly_in_a_section_is_refused() -> None:
+    from lxml import etree
+
+    from hwpx.hwp5.section_writer import build_section_records
+
+    section = etree.fromstring(
+        '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"'
+        ' xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">'
+        "<hp:p/><hp:memogroup/><hp:unknownPart/></hs:sec>"
+    )
+    _, unsupported = build_section_records(section)
+    assert unsupported == {"sec/unknownPart": 1}
+
+
+def test_a_memo_made_with_the_api_saves_as_hwp_with_its_body(tmp_path: Path) -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("메모가 달린 문단")
+    document.notes.add_memo("검토 의견", anchor=paragraph, author="검토자")
+    target = tmp_path / "메모.hwp"
+    document.save_to_path(target)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        reopened = HwpxDocument.open(target)
+    [memo] = [b for s in reopened.sections for b in s.element.iter(f"{HP}fieldBegin") if b.get("type") == "MEMO"]
+    params = {p.get("name"): p.text or "" for p in memo.find(f"{HP}parameters")}
+    assert params["Author"] == "검토자"
+    assert "".join(memo.find(f"{HP}subList").itertext()) == "검토 의견"

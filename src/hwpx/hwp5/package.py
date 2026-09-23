@@ -2,8 +2,9 @@
 """An HWP 5.0 document as the parts of an HWPX package.
 
 :func:`convert` reads the compound file, turns DocInfo into
-``Contents/header.xml`` and every BodyText section into
-``Contents/section<N>.xml``, copies embedded binary data to ``BinData/``,
+``Contents/header.xml``, every BodyText section into
+``Contents/section<N>.xml`` and its master pages into
+``Contents/masterpage<N>.xml``, copies embedded binary data to ``BinData/``,
 and writes the package files (``mimetype``, ``version.xml``, the
 ``META-INF`` container, ``Contents/content.hpf``, ``settings.xml`` and the
 text preview) around them. :func:`to_hwpx_bytes` zips the parts so the
@@ -113,7 +114,13 @@ def _bin_items(doc: Hwp5File, info: di.DocInfo) -> list[tuple[str, str, bytes, s
     return items
 
 
-def _content_hpf(summary: dict[int, object], sections: int, bins: list[tuple[str, str, bytes, str, bool]]) -> bytes:
+def _content_hpf(
+    summary: dict[int, object], master_pages: list[int], bins: list[tuple[str, str, bytes, str, bool]]
+) -> bytes:
+    """The package manifest and spine; *master_pages* holds the number of
+    master pages of each section, whose items go just before the section's."""
+
+    sections = len(master_pages)
     package = root("opf:package")
     package.set("version", "")
     package.set("unique-identifier", "")
@@ -145,7 +152,15 @@ def _content_hpf(summary: dict[int, object], sections: int, bins: list[tuple[str
         attrs.append(("isEmbeded", 1 if embedded else 0))
         sub(manifest, "opf:item", attrs)
     sub(manifest, "opf:item", (("id", "header"), ("href", "Contents/header.xml"), ("media-type", "application/xml")))
-    for index in range(sections):
+    first = 0
+    for index, count in enumerate(master_pages):
+        for number in range(first, first + count):
+            sub(
+                manifest,
+                "opf:item",
+                (("id", f"masterpage{number}"), ("href", f"Contents/masterpage{number}.xml"), ("media-type", "application/xml")),
+            )
+        first += count
         sub(
             manifest,
             "opf:item",
@@ -194,17 +209,29 @@ def convert(data: bytes) -> Converted:
         info, len(doc.sections), link_doc=link_doc, license_mark=license_mark
     )
     memos = memo_bodies(doc.sections)
-    for index, section in enumerate(doc.sections):
-        files[f"Contents/section{index}.xml"] = build_section(section, report, memos)
+    master_pages: list[bytes] = []
+    counts: list[int] = []
+    parts: list[bytes] = []
+    for section in doc.sections:
+        before = len(master_pages)
+        parts.append(build_section(section, report, memos, master_pages))
+        counts.append(len(master_pages) - before)
     for _ in memos:
         report.skip("memo-body")
+    # Each section's master pages come just before it, as Hancom stores them.
+    first = 0
+    for index, (part, count) in enumerate(zip(parts, counts)):
+        for number in range(first, first + count):
+            files[f"Contents/masterpage{number}.xml"] = master_pages[number]
+        first += count
+        files[f"Contents/section{index}.xml"] = part
     files["Preview/PrvText.txt"] = _preview_text(doc)
     files["settings.xml"] = _settings(info)
     files["META-INF/container.rdf"] = _container_rdf(len(doc.sections))
     summary = read_summary(doc.compound.read("\x05HwpSummaryInformation")) if doc.compound.has_stream(
         "\x05HwpSummaryInformation"
     ) else {}
-    files["Contents/content.hpf"] = _content_hpf(summary, len(doc.sections), bins)
+    files["Contents/content.hpf"] = _content_hpf(summary, counts, bins)
     files["META-INF/container.xml"] = CONTAINER_XML
     files["META-INF/manifest.xml"] = MANIFEST_XML
     for item in info.bin_data:

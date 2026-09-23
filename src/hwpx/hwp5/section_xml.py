@@ -31,9 +31,11 @@ from .shape_xml import ShapeReader
 from .owpml import (
     BORDER_LINE,
     BORDER_WIDTH,
+    NS,
     NUMBER_FORMAT,
     color,
     flag,
+    q,
     root,
     serialize,
     sub,
@@ -59,6 +61,12 @@ COL_TYPE = ("NEWSPAPER", "BALANCED_NEWSPAPER", "PARALLEL")
 COL_LAYOUT = ("LEFT", "RIGHT", "MIRROR")
 #: Low nibble of the section direction word; bit 4 is textVerticalWidthHead.
 SECTION_TEXT_DIRECTION = {0: "HORIZONTAL", 2: "VERTICAL", 4: "VERTICALALL"}
+#: Master pages kept under the section definition: the property bit that marks
+#: each type, in the order their paragraph lists follow.
+MASTER_PAGE_BITS = ((29, "BOTH"), (30, "EVEN"), (31, "ODD"))
+#: The kind word (offset 18) of a master page list on a section's last
+#: paragraph: this for the last page, plus the page number for an optional page.
+MASTER_PAGE_LAST = 3
 
 
 def _note_pr(parent: etree._Element, name: str, record: rec.Record | None, *, endnote: bool) -> None:
@@ -112,7 +120,8 @@ def section_properties(parent: etree._Element, ctrl: rec.Record) -> etree._Eleme
             ("outlineShapeIDRef", sd.outline_numbering),
             ("memoShapeIDRef", sd.memo_shape),
             ("textVerticalWidthHead", flag(sd.text_direction & 0x10)),
-            ("masterPageCnt", sd.master_pages),
+            # Raised as the section's master pages are added (SectionWriter.master_page).
+            ("masterPageCnt", 0),
         ),
     )
     sub(element, "hp:grid", (("lineGrid", sd.line_grid), ("charGrid", sd.char_grid), ("wonggojiFormat", flag(props & (1 << 22)))))
@@ -474,6 +483,11 @@ class SectionWriter(ShapeReader):
         # Memo bodies of the section (see collect_memos), taken in order by
         # its memo fields.
         self.memo_bodies: list[tuple[int, rec.Record, list[rec.Record]]] = []
+        # The document's master pages so far, each the bytes of its
+        # ``Contents/masterpage<N>.xml`` part (None: report them instead), and
+        # the section properties that refer to them.
+        self.master_pages: list[bytes] | None = None
+        self.section_pr: etree._Element | None = None
 
     # paragraphs ----------------------------------------------------------------------
 
@@ -496,18 +510,24 @@ class SectionWriter(ShapeReader):
                 ("merged", flag(para.merge_flag)),
             ),
         )
-        # Lists hung on the paragraph itself: memo bodies after MEMO_LIST (the
-        # memo fields take them, see collect_memos), or (on a section's last
-        # paragraph) a master page, which is not converted yet.
-        memo = False
-        for child in record.children:
-            if child.tag == rec.MEMO_LIST:
-                memo = True
-            elif child.tag == rec.LIST_HEADER:
-                if not memo:
-                    self.report.skip("master-page")
-                memo = False
         self.runs(element, para, self.marks(record))
+        # Lists hung on the paragraph itself: memo bodies after MEMO_LIST (the
+        # memo fields take them, see memo_bodies), or (on a section's last
+        # paragraph) its last-page and optional-page master pages.
+        memo = False
+        for header, paragraphs in lists(record, rec.MEMO_LIST):
+            if header.tag == rec.MEMO_LIST:
+                memo = True
+                continue
+            if not memo:
+                kind = struct.unpack_from("<H", header.payload.ljust(20, b"\0"), 18)[0]
+                if kind == MASTER_PAGE_LAST:
+                    self.master_page("LAST_PAGE", 0, header, paragraphs)
+                elif kind > MASTER_PAGE_LAST:
+                    self.master_page("OPTIONAL_PAGE", kind - MASTER_PAGE_LAST, header, paragraphs)
+                else:
+                    self.report.skip("master-page")
+            memo = False
         segs = next((r for r in record.children if r.tag == rec.PARA_LINE_SEG), None)
         if segs is not None and len(segs.payload) >= 36:
             array = sub(element, "hp:linesegarray")
@@ -669,14 +689,23 @@ class SectionWriter(ShapeReader):
         if kind.startswith("%"):
             return self.field_begin(run, ctrl, text_id or kind)
         if kind == "secd":
-            # Master pages may hang on the section definition as paragraph
-            # lists; its parameter set holds the presentation settings.
+            # The section definition's parameter set holds the presentation
+            # settings; its paragraph lists are the section's master pages for
+            # both, even and odd pages, one per property bit set.
             for child in ctrl.children:
-                if child.tag == rec.LIST_HEADER:
-                    self.report.skip("master-page")
-                elif child.tag == rec.CTRL_DATA:
+                if child.tag == rec.CTRL_DATA:
                     self.report.skip("presentation")
-            return section_properties(run, ctrl)
+            element = section_properties(run, ctrl)
+            self.section_pr = element
+            props = ct.SectionDef.decode(ctrl.payload).props
+            types = [page_type for bit, page_type in MASTER_PAGE_BITS if props >> bit & 1]
+            pages = lists(ctrl)
+            for index, (header, paragraphs) in enumerate(pages):
+                if len(pages) == len(types):
+                    self.master_page(types[index], 0, header, paragraphs)
+                else:
+                    self.report.skip("master-page")
+            return element
         if kind == "cold":
             return column_properties(run, ctrl)
         if kind == "tbl ":
@@ -845,13 +874,41 @@ class SectionWriter(ShapeReader):
         """The single paragraph list of a header, footer or note."""
 
         for header, paragraphs in lists(ctrl)[:1]:
-            list_header = ct.ListHeader.decode(header.payload)
-            attrs = list_attrs(list_header.props)
-            width, height = list_header.text_size
-            attrs[6] = ("textWidth", width)
-            attrs[7] = ("textHeight", height)
-            element = sub(parent, "hp:subList", attrs)
-            self.paragraphs(element, paragraphs)
+            self.sized_list(parent, header, paragraphs)
+
+    def sized_list(self, parent: etree._Element, header: rec.Record, paragraphs: list[rec.Record]) -> None:
+        """``hp:subList`` with the text size its list header holds."""
+
+        list_header = ct.ListHeader.decode(header.payload)
+        attrs = list_attrs(list_header.props)
+        width, height = list_header.text_size
+        attrs[6] = ("textWidth", width)
+        attrs[7] = ("textHeight", height)
+        self.paragraphs(sub(parent, "hp:subList", attrs), paragraphs)
+
+    def master_page(self, page_type: str, number: int, header: rec.Record, paragraphs: list[rec.Record]) -> None:
+        """A master page as its own part (``masterPage``, whose root has no
+        namespace), referred to from the section properties. Offset 22 of its
+        list header holds the duplicate (bit 0) and front (bit 1) flags."""
+
+        if self.master_pages is None or self.section_pr is None:
+            self.report.skip("master-page")
+            return
+        flags = struct.unpack_from("<H", header.payload.ljust(24, b"\0"), 22)[0]
+        part_id = f"masterpage{len(self.master_pages)}"
+        page = etree.Element("masterPage", nsmap=dict(NS))
+        for key, value in (
+            ("id", part_id),
+            ("type", page_type),
+            ("pageNumber", str(number)),
+            ("pageDuplicate", flag(flags & 0x1)),
+            ("pageFront", flag(flags & 0x2)),
+        ):
+            page.set(key, value)
+        self.sized_list(page, header, paragraphs)
+        self.master_pages.append(serialize(page))
+        sub(self.section_pr, "hp:masterPage", (("idRef", part_id),))
+        self.section_pr.set("masterPageCnt", str(len(self.section_pr.findall(q("hp:masterPage")))))
 
     def header_footer(self, run: etree._Element, ctrl: rec.Record, kind: str) -> etree._Element:
         hf = ct.HeaderFooterCtrl.decode(ctrl.payload)
@@ -1045,18 +1102,28 @@ def memo_bodies(streams: list[rec.RecordStream]) -> list[MemoBody]:
     return bodies
 
 
-def build_section(stream: rec.RecordStream, report: ConversionReport, memos: list[MemoBody] | None = None) -> bytes:
+def build_section(
+    stream: rec.RecordStream,
+    report: ConversionReport,
+    memos: list[MemoBody] | None = None,
+    master_pages: list[bytes] | None = None,
+) -> bytes:
     """``Contents/section<N>.xml`` for one BodyText section.
 
     ``memos`` is the document's list of memo bodies (see :func:`memo_bodies`),
     shared by its sections; the memo fields of this section take theirs from
     its front. Without it the section's own bodies are used and any left over
     are reported.
+
+    ``master_pages`` gathers the document's master pages: the section appends
+    the part of each of its own, ``Contents/masterpage<N>.xml`` where N is the
+    part's place in the list. Without it they are reported.
     """
 
     section = root("hs:sec")
     writer = SectionWriter(report)
     writer.memo_bodies = memos if memos is not None else memo_bodies([stream])
+    writer.master_pages = master_pages
     writer.paragraphs(section, stream.roots)
     if memos is None:
         for _ in writer.memo_bodies:
