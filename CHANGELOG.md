@@ -28,6 +28,12 @@
   `hp:t`에 넣었다. 한컴은 탭을 `hp:t` 안의 `hp:tab` 요소로만 읽고, 탭 문자가 있으면
   문단 배치를 끝내지 못한다. 이제 모든 쓰기 경로가 탭을 `hp:tab` 요소로 쓴다.
   메모리의 문서 트리는 그대로이고, 저장하는 XML만 바뀐다.
+- 라이브러리 안의 코드가 6.0에서 옮긴 `HwpxDocument` 이름을 불러, 지금 API만 쓰는
+  사용자에게도 `DeprecationWarning`이 나던 것을 고친다. 셀 맞춤(`set_cell_text(fit=...)`,
+  메일 머지)의 글자·문단 모양 읽기와 글자 줄이기, `lint_layout(required_fields=...)`,
+  변경 추적 점검(`inspect_redline_structure`), HWPX→Markdown 수집기가 이제 새 이름
+  (`doc.fields.all`, `doc.tracking.*`, `doc.parts.headers`, `doc.text.markdown(rich=True)`)이나
+  문서 루트를 부른다.
 - `shapes.add_chart()`가 계열 축이 없는 3D 차트(세 번째 `c:axId`가 `0`)를 축이
   없다고 거부하던 것을 고친다. `0`은 축이 없다는 표시라, 이제 나머지 두 축 id만
   정의돼 있으면 받아들인다. 한컴은 이런 차트를 축 id 두 개짜리와 같게 그린다.
