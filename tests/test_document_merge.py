@@ -137,10 +137,9 @@ def test_insert_before_first_paragraph_preserves_targets_own_section_properties(
         p for p in section.paragraphs if p.element.find(f"{_HP}run/{_HP}secPr") is not None
     ]
     assert len(secpr_bearing) == 1
-    # Hancom oracle (SDK 13.60): a secPr outside the section's first paragraph
-    # starts a new section -- the inserted paragraphs got default page setup
-    # and a page break. The target's own setup must move to the new first
-    # paragraph.
+    # In Hancom a secPr outside the section's first paragraph starts a new
+    # section -- the inserted paragraphs got default page setup and a page
+    # break. The target's own setup must move to the new first paragraph.
     assert secpr_bearing[0].element is section.paragraphs[0].element
     assert section.paragraphs[0].element.find(f"{_HP}run/{_HP}secPr") is target_secpr
     first_run = section.paragraphs[0].element.find(f"{_HP}run")
@@ -793,7 +792,7 @@ def test_merge_keeps_a_field_pair_that_spans_paragraphs() -> None:
     """Hancom forms carry click-here fields whose fieldEnd sits paragraphs
     after the fieldBegin. The per-paragraph id maps renamed the begin and
     left the end on the source's old id; Hancom drops such an unpaired
-    fieldEnd when it saves (SDK 13.60 oracle, v20 cross-real-merge corpus)."""
+    fieldEnd when it saves."""
 
     source = HwpxDocument.new()
     opening = source.add_paragraph("click here")

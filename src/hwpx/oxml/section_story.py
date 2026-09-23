@@ -616,11 +616,11 @@ class HwpxOxmlSectionHeaderFooter:
     def _add_total_page_counter(self, paragraph: ET.Element) -> None:
         """Append the total-page counter of a "page/total" field.
 
-        Hancom's own page/total headers and footers (42 in the SDK gold corpus)
-        put ``hp:autoNum numType="TOTAL_PAGE"`` after the "/"; a second PAGE
-        counter drew "1/1, 2/2, 3/3" on a three-page document (Hancom SDK
-        13.60). The position control (``hp:pageNum``) belongs to the page
-        counter only, so none is added here.
+        Hancom's own page/total headers and footers put
+        ``hp:autoNum numType="TOTAL_PAGE"`` after the "/"; a second PAGE
+        counter drew "1/1, 2/2, 3/3" on a three-page document. The position
+        control (``hp:pageNum``) belongs to the page counter only, so none is
+        added here.
         """
 
         run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
