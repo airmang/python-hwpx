@@ -117,6 +117,44 @@ def test_emitted_document_is_editor_open_safe():
     assert ok is True, report
 
 
+def _section_setup_paragraphs(doc: HwpxDocument) -> list[int]:
+    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    return [
+        index
+        for index, paragraph in enumerate(doc.sections[0].paragraphs)
+        if paragraph.element.find(f"{hp}run/{hp}secPr") is not None
+    ]
+
+
+def test_toc_at_the_start_keeps_the_section_setup_in_the_first_paragraph():
+    # Hancom reads a secPr outside a section's first paragraph as a new
+    # section: with the TOC in front of it, the SDK 13.60 re-save had 2.
+    doc, headings = _doc_with_headings(3)
+    doc.page.set_header(text="머리말")
+    doc.page.set_footer(text="꼬리말")
+    ta.add_native_toc(doc, headings=headings)
+    assert _section_setup_paragraphs(doc) == [0]
+    first = doc.sections[0].paragraphs[0].element
+    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    # the TOC still opens the document, after the moved setup run
+    assert first.find(f"{hp}run/{hp}ctrl/{hp}fieldBegin[@type='TABLEOFCONTENTS']") is not None
+    assert first.find(f"{hp}run/{hp}ctrl/{hp}colPr") is not None
+    # header/footer keep applying from the first page
+    assert first.find(f"{hp}run/{hp}ctrl/{hp}header") is not None
+    assert first.find(f"{hp}run/{hp}ctrl/{hp}footer") is not None
+    report = validate_editor_open_safety(doc.to_bytes())
+    ok = getattr(report, "ok", None)
+    if ok is None and isinstance(report, dict):
+        ok = report.get("ok")
+    assert ok is True, report
+
+
+def test_toc_after_the_first_paragraph_leaves_the_section_setup_alone():
+    doc, headings = _doc_with_headings(2)
+    ta.add_native_toc(doc, at_index=1, headings=headings)
+    assert _section_setup_paragraphs(doc) == [0]
+
+
 def test_emitted_fields_survive_structural_roundtrip():
     doc, headings = _doc_with_headings(3)
     ta.add_native_toc(doc, headings=headings)

@@ -485,6 +485,40 @@ def add_equation(
     )
 
 
+_CHART_NS = "{http://schemas.openxmlformats.org/drawingml/2006/chart}"
+_CHART_AXES = tuple(f"{_CHART_NS}{name}" for name in ("catAx", "valAx", "dateAx", "serAx"))
+
+
+def _check_line_chart_axes(root: Any) -> None:
+    """Reject a ``c:lineChart`` whose two axes are missing.
+
+    ECMA-376 gives a line chart two ``c:axId`` children, each naming an axis
+    defined in ``c:plotArea``. Hancom's engine crashes on a line chart without
+    them: the Hancom SDK 13.60 hit an access violation rendering such a page
+    and in every save (HWPX, HWP, HWPML2X), and the same chart rendered once
+    ``c:catAx``/``c:valAx`` were added. Bar charts without axes render, so
+    only line charts are checked.
+    """
+
+    defined = {
+        ax_id.get("val")
+        for axis in root.iter(*_CHART_AXES)
+        for ax_id in axis.findall(f"{_CHART_NS}axId")
+    }
+    for line_chart in root.iter(f"{_CHART_NS}lineChart"):
+        ax_ids = [ax_id.get("val") for ax_id in line_chart.findall(f"{_CHART_NS}axId")]
+        if len(ax_ids) < 2 or any(value not in defined for value in ax_ids):
+            raise HwpxValueError(
+                "chart_xml has a c:lineChart without its two axes; Hancom crashes rendering or saving it",
+                code="shape-chart-line-axes-missing",
+                context={"axIds": ax_ids, "definedAxes": sorted(value for value in defined if value)},
+                suggestion=(
+                    "Give c:lineChart two <c:axId val=...> children and define a c:catAx and a c:valAx "
+                    "with those ids (each naming the other in c:crossAx) in c:plotArea."
+                ),
+            )
+
+
 def add_chart(
     doc: "HwpxDocument",
     chart_xml: bytes | str,
@@ -535,6 +569,7 @@ def add_chart(
             context={"root": str(root.tag)},
             suggestion="Pass the c:chartSpace document, not the whole chart part.",
         )
+    _check_line_chart_axes(root)
 
     existing = {name for name in doc._package.part_names() if name.startswith("Chart/")}
     n = 1
