@@ -21,6 +21,7 @@ from hwpx.hwp5 import cfb
 from hwpx.hwp5 import controls as ct
 from hwpx.hwp5 import docinfo as di
 from hwpx.hwp5 import records as rec
+from hwpx.hwp5 import shapes as sh
 from hwpx.hwp5.errors import Hwp5ConversionWarning, Hwp5Error
 from hwpx.hwp5.fileheader import FileHeader
 
@@ -190,6 +191,36 @@ def _markers() -> list[rec.Record]:
     return _paragraph(0, text, [(0, 0)], controls)
 
 
+_IDENTITY = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+
+
+def _text_box() -> list[rec.Record]:
+    """A rectangle text box: the object header, its shape component with the
+    line, fill and shadow, a named paragraph list and the corners."""
+
+    common = ct.ObjectCommon("gso ", 0x000A2211, 0, 0, 20000, 10000, 0, (0, 0, 0, 0), 185, 0, "", b"\0\0")
+    fill = di.Fill(di.FILL_SOLID, 0x00FFE5CC, 0x00FFFFFF, -1, additional=b"", alphas=b"\0")
+    style = sh.DrawingStyle(0, 283, 0xC0000041, 0, fill, 0, 0xB2B2B2, 0, 0, 185)
+    component = sh.ShapeComponent(
+        "$rec", True, 0, 0, 0, 1, 20000, 10000, 20000, 10000, 1 << 19, 0, 10000, 5000,
+        [_IDENTITY, _IDENTITY, _IDENTITY], style.encode(),
+    )
+    box = sh.TextBox(1, 0x00200000, 0, (283, 283, 283, 283), 20000, bytes(8), 0, "상자")
+    corners = sh.Rectangle(0, [(0, 0), (20000, 0), (20000, 10000), (0, 10000)])
+    return _paragraph(
+        0,
+        _extended(11, "gso ") + _u16(13),
+        [(0, 0)],
+        [
+            rec.Record(rec.CTRL_HEADER, 1, common.encode()),
+            rec.Record(rec.SHAPE_COMPONENT, 2, component.encode()),
+            rec.Record(rec.LIST_HEADER, 3, box.encode()),
+            *_paragraph(3, "글상자 안".encode("utf-16-le") + _u16(13), [(0, 0)], []),
+            rec.Record(rec.SHAPE_COMPONENT_RECTANGLE, 3, corners.encode()),
+        ],
+    )
+
+
 def _memo() -> list[rec.Record]:
     """A memo field; its body hangs on the paragraph after a ``MEMO_LIST`` record."""
 
@@ -219,8 +250,11 @@ def make_hwp(
     master_page: bool = False,
     label: bool = False,
     markers: bool = False,
+    text_box: bool = False,
 ) -> bytes:
     section = _section()
+    if text_box:
+        section += _text_box()
     if markers:
         section += _markers()
     if label:
@@ -409,6 +443,24 @@ def test_a_table_name_is_counted_and_presentation_settings_are_reported() -> Non
     # The table name has no OWPML form: counted, not warned about.
     assert document._hwp5_report.dropped == {"table-name": 1}
     assert document._hwp5_report.unconverted == {"presentation": 1}
+
+
+def test_a_text_box_opens_as_a_rectangle_with_its_paragraphs() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(text_box=True))
+    [rect] = list(document.sections[0].element.iter(f"{HP}rect"))
+    assert (rect.get("instid"), rect.get("ratio")) == ("185", "0")
+    assert rect.find(f"{HP}rotationInfo").get("rotateimage") == "1"
+    assert rect.find(f"{HP}lineShape").get("width") == "283"
+    face = rect.find("{http://www.hancom.co.kr/hwpml/2011/core}fillBrush/{http://www.hancom.co.kr/hwpml/2011/core}winBrush")
+    assert face is not None and face.get("faceColor") == "#CCE5FF"
+    draw_text = rect.find(f"{HP}drawText")
+    assert draw_text.get("name") == "상자"
+    assert "".join(draw_text.find(f"{HP}subList").itertext()) == "글상자 안"
+    corners = [(p.get("x"), p.get("y")) for p in rect if etree.QName(p).localname.startswith("pt")]
+    assert corners == [("0", "0"), ("20000", "0"), ("20000", "10000"), ("0", "10000")]
+    assert rect.find(f"{HP}sz").get("width") == "20000"
 
 
 def test_memo_bodies_and_master_pages_are_reported() -> None:

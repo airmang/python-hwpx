@@ -640,6 +640,12 @@
       "rationale": "Contents/section<N>.xml to HWP 5.0 BodyText records (the inverse of section_xml): paragraphs, text and inline controls, char shape runs, line segments, section and column definitions, tables with captions and cells, headers, footers and notes; elements it cannot write are counted so the save can refuse them."
     },
     {
+      "path": "src/hwpx/hwp5/shapes.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Field codecs of HWP 5.0 drawing objects: the shape component (kind, group placement, sizes, flip, rotation, matrices), the line, fill and shadow of a drawn shape, container children, rectangle, ellipse, arc, polygon and line geometry and the text box list header; each re-encodes its payload byte for byte."
+    },
+    {
       "path": "src/hwpx/hwp5/writer.py",
       "disposition": "core",
       "approvedBy": "owner-hwp5-core-2026-09-23",

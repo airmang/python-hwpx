@@ -110,6 +110,15 @@ def test_memos_and_master_pages_are_refused_until_they_can_be_written(tmp_path: 
     assert not target.exists()
 
 
+def test_drawing_objects_are_refused_until_they_can_be_written(tmp_path: Path) -> None:
+    document = HwpxDocument.open(make_hwp(text_box=True))
+    target = tmp_path / "글상자.hwp"
+    with pytest.raises(Hwp5Error) as info:
+        document.save_to_path(target)
+    assert info.value.context["unsupported"] == {"rect": 1}
+    assert not target.exists()
+
+
 def test_hwpx_targets_are_unchanged(tmp_path: Path) -> None:
     document = HwpxDocument.new()
     document.add_paragraph("HWPX로 저장")
