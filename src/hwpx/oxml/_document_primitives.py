@@ -453,29 +453,31 @@ def _is_tab_control_element(node: ET.Element) -> bool:
 
 
 def _append_text_with_tabs(run: ET.Element, value: str) -> None:
-    segments = value.split("\t")
+    """Insert *value* as one ``hp:t`` with each tab as an ``hp:tab`` inside it.
+
+    That is how Hancom writes a tab (``<hp:t>이름<hp:tab/>홍길동</hp:t>``). An
+    ``hp:tab`` beside ``hp:t`` in the run is dropped when Hancom opens the
+    document, so the tab and the tab stops it would use are lost.
+    """
+
     text_tag = _child_tag_like(run, "t", _HP_NS)
     tab_tag = _child_tag_like(run, "tab", _HP_NS)
-    for index, segment in enumerate(segments):
-        text_element = run.makeelement(text_tag, {})
-        text_element.text = _sanitize_text(segment)
-        run.append(text_element)
-        if index < len(segments) - 1:
-            run.append(run.makeelement(tab_tag, {}))
+    segments = value.split("\t")
+    text_element = run.makeelement(text_tag, {})
+    text_element.text = _sanitize_text(segments[0])
+    run.append(text_element)
+    for segment in segments[1:]:
+        tab_element = text_element.makeelement(tab_tag, {})
+        tab_element.tail = _sanitize_text(segment)
+        text_element.append(tab_element)
 
 
 #: "\n" -> hp:lineBreak, " " (NO-BREAK SPACE) -> hp:nbSpace, "　"
 #: (IDEOGRAPHIC SPACE) -> hp:fwSpace. Real corpus (error__20230818__test.hwpx,
 #: error__20251107__test.hwpx, error__20250808__...hwpx) confirms all three
 #: sit nested inside a single hp:t via mixed content
-#: (<hp:t>before<hp:lineBreak/>after</hp:t>) -- unlike hp:tab, which
-#: _append_text_with_tabs above represents as a sibling of hp:t within
-#: hp:run instead (also schema-legal -- RunType's own choice group lists
-#: tab/lineBreak/nbSpace/fwSpace identically -- but not the shape any real
-#: sample of these three uses). Tab is intentionally not handled here: it
-#: already has an established, presumably Hancom-verified representation
-#: via _append_text_with_tabs, and retrofitting it risks behavior no
-#: existing caller asked to change.
+#: (<hp:t>before<hp:lineBreak/>after</hp:t>), the same shape
+#: _append_text_with_tabs above gives hp:tab.
 _RUN_CHOICE_ATOM_MARKERS: dict[str, str] = {
     "\n": "lineBreak",
     " ": "nbSpace",
