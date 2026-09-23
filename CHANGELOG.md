@@ -2,6 +2,18 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [Unreleased]
+
+### 고침
+
+- 암호가 걸린 HWPX를 열면 `Start tag expected, '<' not found` 같은 파일 손상처럼
+  보이는 lxml 오류만 나오던 것을 고친다. `META-INF/manifest.xml`이 파트를
+  `encryption-data`로 암호화 선언한 경우 예외 타입(`XMLSyntaxError`)은 그대로
+  두고 메시지가 문서 암호 해제 후 재저장을 안내하며, 원래 lxml 오류는
+  `__cause__`로 남는다(HWP v5 안내와 같은 방식). 계기: HWPX 1,395건(실업무 문서·
+  공개 픽스처·저작 산출) 열기 기준선에서 유일하게 열리지 않던 파일이 한컴오피스
+  한글 13.0.0.711이 저장한 암호 문서였다.
+
 ## [6.5.0] - 2026-09-21
 
 기존 문서 편집과 저작 표의 보존 범위를 넓힌 릴리스입니다. 저장 성공만으로
