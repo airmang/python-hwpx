@@ -534,8 +534,9 @@ LABEL_ITEMS = (
 LABEL_SET_PREFIX = bytes.fromhex("1b0201000000420200804202")
 
 
-def label_values(payload: bytes) -> dict[str, int] | None:
-    """The label sheet layout in a table's ``CTRL_DATA``; None when it holds something else."""
+def label_items(payload: bytes) -> dict[int, int] | None:
+    """The integer items of a label sheet layout in a table's ``CTRL_DATA``, by
+    item id; None when the record holds something else."""
 
     if not payload.startswith(LABEL_SET_PREFIX):
         return None
@@ -544,15 +545,25 @@ def label_values(payload: bytes) -> dict[str, int] | None:
         return None
     count = c.i16()
     c.u16()
-    values: dict[str, int] = {}
+    items: dict[int, int] = {}
     for _ in range(count):
         if c.left < 8:
             return None
         item, kind = c.u16(), c.u16()
-        if kind != 4 or not 0x4000 <= item < 0x4000 + len(LABEL_ITEMS):
+        if not 2 <= kind <= 9:  # an integer item; each takes four bytes here
             return None
-        values[LABEL_ITEMS[item - 0x4000]] = c.i32()
-    return values if c.left == 0 else None
+        items[item] = c.i32()
+    return items if c.left == 0 else None
+
+
+def label_values(payload: bytes) -> dict[str, int] | None:
+    """The label sheet layout by ``hp:label`` attribute; None when the record
+    holds something else. Items with no attribute are left out."""
+
+    items = label_items(payload)
+    if items is None:
+        return None
+    return {name: items[0x4000 + index] for index, name in enumerate(LABEL_ITEMS) if 0x4000 + index in items}
 
 
 def label_parameter_set(values: dict[str, int]) -> bytes:
@@ -562,3 +573,137 @@ def label_parameter_set(values: dict[str, int]) -> bytes:
     for index in reversed(range(len(LABEL_ITEMS))):
         b.u16(0x4000 + index).u16(4).i32(values.get(LABEL_ITEMS[index], 0))
     return b.bytes()
+
+
+@dataclass
+class PageNumberPosition:
+    """``pgnp``: number format (bits 0-7) and position (bits 8-11), then the
+    user, prefix, suffix and side characters."""
+
+    props: int = 0
+    user_char: int = 0
+    prefix_char: int = 0
+    suffix_char: int = 0
+    side_char: int = 0
+    extra: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "PageNumberPosition":
+        c = Cursor(_padded(payload, 16), "pgnp")
+        c.u32()
+        value = cls(c.u32(), c.u16(), c.u16(), c.u16(), c.u16())
+        value.extra = c.rest()
+        return value
+
+    def encode(self) -> bytes:
+        b = Builder().u32(bt.ctrl_word("pgnp")).u32(self.props).u16(self.user_char).u16(self.prefix_char)
+        return b.u16(self.suffix_char).u16(self.side_char).raw(self.extra).bytes()
+
+
+@dataclass
+class PageHiding:
+    """``pghd``: bits 0-5 hide the header, footer, master page, border, fill and page number."""
+
+    props: int = 0
+    extra: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "PageHiding":
+        c = Cursor(_padded(payload, 8), "pghd")
+        c.u32()
+        return cls(c.u32(), c.rest())
+
+    def encode(self) -> bytes:
+        return Builder().u32(bt.ctrl_word("pghd")).u32(self.props).raw(self.extra).bytes()
+
+
+@dataclass
+class NewNumber:
+    """``nwno``: the kind of number (bits 0-3) and the number to start from."""
+
+    props: int = 0
+    number: int = 0
+    extra: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "NewNumber":
+        c = Cursor(_padded(payload, 10), "nwno")
+        c.u32()
+        return cls(c.u32(), c.u16(), c.rest())
+
+    def encode(self) -> bytes:
+        return Builder().u32(bt.ctrl_word("nwno")).u32(self.props).u16(self.number).raw(self.extra).bytes()
+
+
+@dataclass
+class AutoNumber:
+    """``atno``: kind (bits 0-3), number format (bits 4-11) and superscript
+    (bit 12); then the number and the user, prefix and suffix characters."""
+
+    props: int = 0
+    number: int = 0
+    user_char: int = 0
+    prefix_char: int = 0
+    suffix_char: int = 0
+    extra: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "AutoNumber":
+        c = Cursor(_padded(payload, 16), "atno")
+        c.u32()
+        value = cls(c.u32(), c.u16(), c.u16(), c.u16(), c.u16())
+        value.extra = c.rest()
+        return value
+
+    def encode(self) -> bytes:
+        b = Builder().u32(bt.ctrl_word("atno")).u32(self.props).u16(self.number).u16(self.user_char)
+        return b.u16(self.prefix_char).u16(self.suffix_char).raw(self.extra).bytes()
+
+
+@dataclass
+class IndexMark:
+    """``idxm``: the first and second keys, then four reserved bytes."""
+
+    first: str = ""
+    second: str = ""
+    extra: bytes = bytes(4)
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "IndexMark":
+        c = Cursor(_padded(payload, 8), "idxm")
+        c.u32()
+        first = c.wstr()
+        second = c.wstr() if c.left >= 2 else ""
+        return cls(first, second, c.rest())
+
+    def encode(self) -> bytes:
+        return Builder().u32(bt.ctrl_word("idxm")).wstr(self.first).wstr(self.second).raw(self.extra).bytes()
+
+
+@dataclass
+class Dutmal:
+    """``tdut``: the main and the sub text, then position, size ratio, option,
+    style id and alignment."""
+
+    main_text: str = ""
+    sub_text: str = ""
+    position: int = 0
+    size_ratio: int = 0
+    option: int = 0
+    style_id: int = 0
+    align: int = 0
+    extra: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "Dutmal":
+        c = Cursor(_padded(payload, 8), "tdut")
+        c.u32()
+        main_text, sub_text = c.wstr(), c.wstr() if c.left >= 2 else ""
+        t = Cursor(_padded(c.rest(), 20), "tdut")
+        value = cls(main_text, sub_text, t.u32(), t.u32(), t.u32(), t.u32(), t.u32())
+        value.extra = t.rest()
+        return value
+
+    def encode(self) -> bytes:
+        b = Builder().u32(bt.ctrl_word("tdut")).wstr(self.main_text).wstr(self.sub_text).u32(self.position)
+        return b.u32(self.size_ratio).u32(self.option).u32(self.style_id).u32(self.align).raw(self.extra).bytes()

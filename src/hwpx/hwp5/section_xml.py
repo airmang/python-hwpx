@@ -458,6 +458,38 @@ CHAR_ELEMENTS = {10: "hp:lineBreak", 24: "hp:hyphen", 30: "hp:nbSpace", 31: "hp:
 RANGE_MARKPEN = 2
 #: ``hp:label`` orientation by the label set's ``landscape`` value.
 LABEL_LANDSCAPE = ("WIDELY", "NARROWLY")
+PAGE_NUM_POS = (
+    "NONE",
+    "TOP_LEFT",
+    "TOP_CENTER",
+    "TOP_RIGHT",
+    "BOTTOM_LEFT",
+    "BOTTOM_CENTER",
+    "BOTTOM_RIGHT",
+    "OUTSIDE_TOP",
+    "OUTSIDE_BOTTOM",
+    "INSIDE_TOP",
+    "INSIDE_BOTTOM",
+)
+NUMBER_TYPE = ("PAGE", "FOOTNOTE", "ENDNOTE", "PICTURE", "TABLE", "EQUATION", "TOTAL_PAGE")
+PAGE_HIDING = ("hideHeader", "hideFooter", "hideMasterPage", "hideBorder", "hideFill", "hidePageNum")
+DUTMAL_POS = ("TOP", "BOTTOM", "CENTER")
+DUTMAL_ALIGN = ("JUSTIFY", "LEFT", "RIGHT", "CENTER", "DISTRIBUTE", "DISTRIBUTE_SPACE")
+#: Controls written as one element inside ``hp:ctrl``.
+MARKERS = {
+    "pgnp": "pageNum",
+    "pghd": "pageHiding",
+    "nwno": "newNum",
+    "atno": "autoNum",
+    "bokm": "bookmark",
+    "idxm": "indexmark",
+}
+
+
+def _char(value: int) -> str:
+    """A character code as text; nothing for 0 or a value that is not a character."""
+
+    return chr(value) if 0 < value < 0xD800 or 0xE000 <= value < 0x110000 else ""
 
 
 def _is_open(run: etree._Element, text: etree._Element | None) -> bool:
@@ -691,10 +723,13 @@ class SectionWriter:
         if kind.startswith("%"):
             return self.field_begin(run, ctrl, text_id or kind)
         if kind == "secd":
-            # Master pages may hang on the section definition as paragraph lists.
+            # Master pages may hang on the section definition as paragraph
+            # lists; its parameter set holds the presentation settings.
             for child in ctrl.children:
                 if child.tag == rec.LIST_HEADER:
                     self.report.skip("master-page")
+                elif child.tag == rec.CTRL_DATA:
+                    self.report.skip("presentation")
             return section_properties(run, ctrl)
         if kind == "cold":
             return column_properties(run, ctrl)
@@ -704,8 +739,78 @@ class SectionWriter:
             return self.header_footer(run, ctrl, kind)
         if kind in ("fn  ", "en  "):
             return self.note(run, ctrl, kind)
+        if kind in MARKERS:
+            return self.marker(run, ctrl, kind)
+        if kind == "tdut":
+            return self.dutmal(run, ctrl)
         self.report.skip(f"control-{kind.strip() or kind}")
         return None
+
+    def marker(self, run: etree._Element, ctrl: rec.Record, kind: str) -> etree._Element:
+        """Page number place, page hiding, numbering, bookmark and index mark
+        controls: one element in an ``hp:ctrl``."""
+
+        wrapper = sub(run, "hp:ctrl")
+        if kind == "pgnp":
+            pn = ct.PageNumberPosition.decode(ctrl.payload)
+            sub(
+                wrapper,
+                "hp:pageNum",
+                (
+                    ("pos", token(PAGE_NUM_POS, _bits(pn.props, 8, 4))),
+                    ("formatType", token(NUMBER_FORMAT, _bits(pn.props, 0, 8), "DIGIT")),
+                    ("sideChar", _char(pn.side_char)),
+                ),
+            )
+        elif kind == "pghd":
+            hiding = ct.PageHiding.decode(ctrl.payload).props
+            sub(wrapper, "hp:pageHiding", [(name, flag(hiding & (1 << bit))) for bit, name in enumerate(PAGE_HIDING)])
+        elif kind == "nwno":
+            nn = ct.NewNumber.decode(ctrl.payload)
+            sub(wrapper, "hp:newNum", (("num", nn.number), ("numType", token(NUMBER_TYPE, _bits(nn.props, 0, 4)))))
+        elif kind == "atno":
+            an = ct.AutoNumber.decode(ctrl.payload)
+            element = sub(wrapper, "hp:autoNum", (("num", an.number), ("numType", token(NUMBER_TYPE, _bits(an.props, 0, 4)))))
+            sub(
+                element,
+                "hp:autoNumFormat",
+                (
+                    ("type", token(NUMBER_FORMAT, _bits(an.props, 4, 8), "DIGIT")),
+                    ("userChar", _char(an.user_char)),
+                    ("prefixChar", _char(an.prefix_char)),
+                    ("suffixChar", _char(an.suffix_char)),
+                    ("supscript", flag(an.props & (1 << 12))),
+                ),
+            )
+        elif kind == "bokm":
+            name = next((ct.parameter_set_name(c.payload) for c in ctrl.children if c.tag == rec.CTRL_DATA), "")
+            sub(wrapper, "hp:bookmark", (("name", name),))
+        else:
+            mark = ct.IndexMark.decode(ctrl.payload)
+            element = sub(wrapper, "hp:indexmark")
+            sub(element, "hp:firstKey").text = xml_text(mark.first)
+            if mark.second:
+                sub(element, "hp:secondKey").text = xml_text(mark.second)
+        return wrapper
+
+    def dutmal(self, run: etree._Element, ctrl: rec.Record) -> etree._Element:
+        """``hp:dutmal``: text with a smaller text set above or below it."""
+
+        d = ct.Dutmal.decode(ctrl.payload)
+        element = sub(
+            run,
+            "hp:dutmal",
+            (
+                ("posType", token(DUTMAL_POS, d.position)),
+                ("szRatio", d.size_ratio),
+                ("option", d.option),
+                ("styleIDRef", d.style_id),
+                ("align", token(DUTMAL_ALIGN, d.align)),
+            ),
+        )
+        sub(element, "hp:mainText").text = xml_text(d.main_text)
+        sub(element, "hp:subText").text = xml_text(d.sub_text)
+        return element
 
     # fields --------------------------------------------------------------------------
 
@@ -826,10 +931,17 @@ class SectionWriter:
                 self.cell(tr, header, paragraphs)
             position += row_size
         for data in (r for r in ctrl.children if r.tag == rec.CTRL_DATA):
+            if data.payload.startswith(ct.NAME_SET_PREFIX):
+                # A table's name has no OWPML attribute; Hancom's HWPX leaves it out too.
+                self.report.drop("table-name")
+                continue
+            items = ct.label_items(data.payload)
             values = ct.label_values(data.payload)
-            if values is None:
+            if items is None or values is None:
                 self.report.skip("table-data")
                 continue
+            for _ in range(len(items) - len(values)):
+                self.report.drop("label-item")
             label: list[tuple[str, object]] = [(name, values.get(name, 0)) for name in ct.LABEL_ITEMS]
             label[8] = ("landscape", token(LABEL_LANDSCAPE, values.get("landscape", 0)))
             sub(table, "hp:label", label)

@@ -171,6 +171,25 @@ def _highlights(*, unmapped: bool = False) -> list[rec.Record]:
     return records
 
 
+def _markers() -> list[rec.Record]:
+    """Page number place, page hiding, a new number, an auto number, a
+    bookmark, an index mark and a dutmal in one paragraph."""
+
+    text = _extended(21, "pgnp") + _extended(21, "pghd") + _extended(21, "nwno") + _extended(18, "atno")
+    text += "쪽".encode("utf-16-le") + _extended(22, "bokm") + _extended(22, "idxm") + _extended(23, "tdut") + _u16(13)
+    controls = [
+        rec.Record(rec.CTRL_HEADER, 1, ct.PageNumberPosition(0x600, side_char=ord("-")).encode()),
+        rec.Record(rec.CTRL_HEADER, 1, ct.PageHiding(0x18).encode()),
+        rec.Record(rec.CTRL_HEADER, 1, ct.NewNumber(4, 12).encode()),
+        rec.Record(rec.CTRL_HEADER, 1, ct.AutoNumber(1, 1, suffix_char=ord(")")).encode()),
+        rec.Record(rec.CTRL_HEADER, 1, struct.pack("<I", bt.ctrl_word("bokm"))),
+        rec.Record(rec.CTRL_DATA, 2, ct.name_parameter_set("처음")),
+        rec.Record(rec.CTRL_HEADER, 1, ct.IndexMark("가나", "다라").encode()),
+        rec.Record(rec.CTRL_HEADER, 1, ct.Dutmal("협동조합", "coop", 1, 0, 0, 0, 1).encode()),
+    ]
+    return _paragraph(0, text, [(0, 0)], controls)
+
+
 def _memo() -> list[rec.Record]:
     """A memo field; its body hangs on the paragraph after a ``MEMO_LIST`` record."""
 
@@ -199,8 +218,11 @@ def make_hwp(
     memo: bool = False,
     master_page: bool = False,
     label: bool = False,
+    markers: bool = False,
 ) -> bytes:
     section = _section()
+    if markers:
+        section += _markers()
     if label:
         # A label sheet: the table carries the sheet layout as a parameter set.
         layout = dict(zip(ct.LABEL_ITEMS, (5670, 5670, 28346, 28346, 850, 850, 1, 2, 0, 59528, 84188)))
@@ -349,6 +371,44 @@ def test_a_label_sheet_table_keeps_its_layout() -> None:
         "pageheight": "84188",
     }
     assert not document._hwp5_report.unconverted
+
+
+def test_numbering_bookmark_index_and_dutmal_controls_open() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(markers=True))
+    section = document.sections[0].element
+
+    def one(name: str) -> etree._Element:
+        [element] = list(section.iter(f"{HP}{name}"))
+        return element
+
+    assert dict(one("pageNum").attrib) == {"pos": "BOTTOM_RIGHT", "formatType": "DIGIT", "sideChar": "-"}
+    hiding = one("pageHiding")
+    assert [hiding.get(name) for name in ("hideHeader", "hideBorder", "hideFill")] == ["0", "1", "1"]
+    assert dict(one("newNum").attrib) == {"num": "12", "numType": "TABLE"}
+    auto = one("autoNum")
+    assert (auto.get("num"), auto.get("numType")) == ("1", "FOOTNOTE")
+    assert auto.find(f"{HP}autoNumFormat").get("suffixChar") == ")"
+    assert one("bookmark").get("name") == "처음"
+    assert [key.text for key in one("indexmark")] == ["가나", "다라"]
+    dutmal = one("dutmal")
+    assert (dutmal.get("posType"), dutmal.get("align")) == ("BOTTOM", "LEFT")
+    assert [dutmal.find(f"{HP}mainText").text, dutmal.find(f"{HP}subText").text] == ["협동조합", "coop"]
+
+
+def test_a_table_name_is_counted_and_presentation_settings_are_reported() -> None:
+    section = _section()
+    table = next(i for i, r in enumerate(section) if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "tbl ")
+    section.insert(table + 1, rec.Record(rec.CTRL_DATA, 2, ct.name_parameter_set("표 이름")))
+    secd = next(i for i, r in enumerate(section) if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "secd")
+    # A presentation parameter set: set 0x021B holding the set 0x0219.
+    section.insert(secd + 1, rec.Record(rec.CTRL_DATA, 2, bytes.fromhex("1b020100000019020080190200000000")))
+    with pytest.warns(Hwp5ConversionWarning, match="presentation x1"):
+        document = HwpxDocument.open(_compound(section))
+    # The table name has no OWPML form: counted, not warned about.
+    assert document._hwp5_report.dropped == {"table-name": 1}
+    assert document._hwp5_report.unconverted == {"presentation": 1}
 
 
 def test_memo_bodies_and_master_pages_are_reported() -> None:

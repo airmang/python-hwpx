@@ -22,6 +22,8 @@ from .owpml import BORDER_LINE, BORDER_WIDTH, NS, NUMBER_FORMAT, colorref, index
 from .section_xml import (
     CAPTION_SIDE,
     COL_LAYOUT,
+    DUTMAL_ALIGN,
+    DUTMAL_POS,
     COL_TYPE,
     ENDNOTE_PLACE,
     FIELD_TYPES,
@@ -35,7 +37,10 @@ from .section_xml import (
     LINE_WRAP,
     LIST_VERT_ALIGN,
     NOTE_NUMBERING,
+    NUMBER_TYPE,
     NUMBERING_TYPE,
+    PAGE_HIDING,
+    PAGE_NUM_POS,
     PAGE_BORDER_TYPES,
     PAGE_STARTS_ON,
     RANGE_MARKPEN,
@@ -58,6 +63,15 @@ _FIELD_TEXT_ID = {kind: text_id for text_id, kind in FIELD_TYPES.items() if kind
 _FIELD_HEAD_UNKNOWN = frozenset({"MEMO", "PROOFREADING_MARKS_DELETE", "PROOFREADING_MARKS_SIGN"})
 #: Field types written with property bit 1 set.
 _FIELD_PROPS_BIT1 = frozenset({"MAILMERGE", "CROSSREF"})
+#: ``hp:ctrl`` children written as one control: the control character code and id.
+_MARKERS = {
+    "pageNum": (21, "pgnp"),
+    "pageHiding": (21, "pghd"),
+    "newNum": (21, "nwno"),
+    "autoNum": (18, "atno"),
+    "bookmark": (22, "bokm"),
+    "indexmark": (22, "idxm"),
+}
 
 
 def _local(element: etree._Element) -> str:
@@ -100,6 +114,16 @@ def _flag(element: etree._Element | None, name: str) -> int:
 
 def _find(element: etree._Element, name: str) -> etree._Element | None:
     return element.find(f"{{{_HP}}}{name}")
+
+
+def _char(element: etree._Element | None, name: str) -> int:
+    value = element.get(name) if element is not None else None
+    return ord(value[0]) if value else 0
+
+
+def _child_text(element: etree._Element, name: str) -> str:
+    child = _find(element, name)
+    return "".join(child.itertext()) if child is not None else ""
 
 
 def _extended(code: int, ctrl: str) -> bytes:
@@ -250,12 +274,21 @@ class SectionRecords:
                             if end is not None:
                                 units += end
                                 codes.add(4)
+                        elif kind in _MARKERS:
+                            code, ctrl_id = _MARKERS[kind]
+                            units += _extended(code, ctrl_id)
+                            codes.add(code)
+                            controls.append(self.marker(item, kind, level + 1))
                         else:
                             self.unsupported[f"ctrl/{kind}"] += 1
                 elif name == "tbl":
                     units += _extended(11, "tbl ")
                     codes.add(11)
                     controls.append(self.table(child, level + 1))
+                elif name == "dutmal":
+                    units += _extended(23, "tdut")
+                    codes.add(23)
+                    controls.append(self.dutmal(child, level + 1))
                 else:
                     self.unsupported[name] += 1
         if not shapes:
@@ -479,6 +512,53 @@ class SectionRecords:
             index_of(BORDER_LINE, line.get("type") if line is not None else None, 0),
             index_of(BORDER_WIDTH, line.get("width") if line is not None else None, 0),
             colorref(line.get("color") if line is not None else "#000000") if line is not None else 0,
+        )
+        return [rec.Record(rec.CTRL_HEADER, level, value.encode())]
+
+    def marker(self, element: etree._Element, kind: str, level: int) -> list[rec.Record]:
+        """The control record of a page number place, page hiding, numbering,
+        bookmark or index mark."""
+
+        if kind == "pageNum":
+            props = index_of(NUMBER_FORMAT, element.get("formatType"), 0) & 0xFF
+            props |= index_of(PAGE_NUM_POS, element.get("pos"), 0) << 8
+            payload = ct.PageNumberPosition(props, side_char=_char(element, "sideChar")).encode()
+        elif kind == "pageHiding":
+            props = 0
+            for bit, name in enumerate(PAGE_HIDING):
+                props |= _flag(element, name) << bit
+            payload = ct.PageHiding(props).encode()
+        elif kind == "newNum":
+            props = index_of(NUMBER_TYPE, element.get("numType"), 0)
+            payload = ct.NewNumber(props, _int(element, "num", 1) & 0xFFFF).encode()
+        elif kind == "autoNum":
+            fmt = _find(element, "autoNumFormat")
+            props = index_of(NUMBER_TYPE, element.get("numType"), 0)
+            props |= (index_of(NUMBER_FORMAT, fmt.get("type") if fmt is not None else None, 0) & 0xFF) << 4
+            props |= _flag(fmt, "supscript") << 12
+            payload = ct.AutoNumber(
+                props,
+                _int(element, "num", 1) & 0xFFFF,
+                _char(fmt, "userChar"),
+                _char(fmt, "prefixChar"),
+                _char(fmt, "suffixChar"),
+            ).encode()
+        elif kind == "bookmark":
+            header = rec.Record(rec.CTRL_HEADER, level, struct.pack("<I", bt.ctrl_word("bokm")))
+            return [header, rec.Record(rec.CTRL_DATA, level + 1, ct.name_parameter_set(element.get("name", "")))]
+        else:
+            payload = ct.IndexMark(_child_text(element, "firstKey"), _child_text(element, "secondKey")).encode()
+        return [rec.Record(rec.CTRL_HEADER, level, payload)]
+
+    def dutmal(self, element: etree._Element, level: int) -> list[rec.Record]:
+        value = ct.Dutmal(
+            _child_text(element, "mainText"),
+            _child_text(element, "subText"),
+            index_of(DUTMAL_POS, element.get("posType"), 0),
+            _int(element, "szRatio"),
+            _int(element, "option"),
+            _int(element, "styleIDRef"),
+            index_of(DUTMAL_ALIGN, element.get("align"), 0),
         )
         return [rec.Record(rec.CTRL_HEADER, level, value.encode())]
 

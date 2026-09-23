@@ -52,7 +52,9 @@ def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
     assert cells == ["왼쪽 위", "", "", "오른쪽 아래"]
 
 
-@pytest.mark.parametrize("extras", [{}, {"fields": True}, {"highlights": True}, {"label": True}])
+@pytest.mark.parametrize(
+    "extras", [{}, {"fields": True}, {"highlights": True}, {"label": True}, {"markers": True}]
+)
 def test_hwp_to_hwpx_to_hwp_keeps_the_section_records(extras: dict[str, bool]) -> None:
     original = make_hwp(**extras)
     written = write_hwp5(convert(original).files)
