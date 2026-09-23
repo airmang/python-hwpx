@@ -23,7 +23,7 @@ from . import records as rec
 from .header_xml import build_header
 from .owpml import NS, XML_DECLARATION, root, serialize, sub, xml_text
 from .reader import Hwp5File, read_hwp5
-from .section_xml import ConversionReport, build_section
+from .section_xml import ConversionReport, build_section, memo_bodies
 from .summary import (
     AUTHOR,
     COMMENTS,
@@ -193,8 +193,11 @@ def convert(data: bytes) -> Converted:
     files["Contents/header.xml"] = build_header(
         info, len(doc.sections), link_doc=link_doc, license_mark=license_mark
     )
+    memos = memo_bodies(doc.sections)
     for index, section in enumerate(doc.sections):
-        files[f"Contents/section{index}.xml"] = build_section(section, report)
+        files[f"Contents/section{index}.xml"] = build_section(section, report, memos)
+    for _ in memos:
+        report.skip("memo-body")
     files["Preview/PrvText.txt"] = _preview_text(doc)
     files["settings.xml"] = _settings(info)
     files["META-INF/container.rdf"] = _container_rdf(len(doc.sections))

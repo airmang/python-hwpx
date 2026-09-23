@@ -513,11 +513,14 @@ def test_a_picture_opens_with_its_caption_comment_and_parameter_set() -> None:
     assert value is not None and (value.get("name"), value.text) == ("28673", "2")
 
 
-def test_memo_bodies_and_master_pages_are_reported() -> None:
-    with pytest.warns(Hwp5ConversionWarning) as caught:
+def test_a_memo_opens_with_its_body_and_a_master_page_is_reported() -> None:
+    with pytest.warns(Hwp5ConversionWarning, match="master-page x1"):
         document = HwpxDocument.open(make_hwp(memo=True, master_page=True))
-    assert document._hwp5_report.unconverted == {"memo-body": 1, "master-page": 1}
-    assert "memo-body x1" in str(caught[0].message)
+    assert document._hwp5_report.unconverted == {"master-page": 1}
+    [memo] = [b for b in document.sections[0].element.iter(f"{HP}fieldBegin") if b.get("type") == "MEMO"]
+    params = {p.get("name"): p.text or "" for p in memo.find(f"{HP}parameters")}
+    assert (params["ID"], params["Number"], params["MemoShapeIDRef"]) == ("memo1", "1", "1")
+    assert "".join(memo.find(f"{HP}subList").itertext()) == "메모 내용"
 
 
 def test_master_pages_under_the_section_definition_are_reported() -> None:

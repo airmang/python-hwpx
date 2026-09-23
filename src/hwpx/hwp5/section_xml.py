@@ -13,6 +13,7 @@ from __future__ import annotations
 import struct
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
@@ -427,7 +428,38 @@ def _hyperlink_parameters(command: str) -> list[tuple[str, str, str]]:
     return params
 
 
-def field_parameters(text_id: str, field: ct.FieldCtrl) -> list[tuple[str, str, str]]:
+#: Hancom prints a memo's creation time in Korean time (UTC+9), marked ``Z``.
+MEMO_TIME_OFFSET = timedelta(hours=9)
+
+
+def _memo_parameters(field: ct.FieldCtrl, shape: int | None) -> list[tuple[str, str, str]]:
+    """``ID``, ``Number``, ``Author``, ``MemoShapeIDRef`` and ``CreateDateTime``
+    of a memo: the number is the field's z-order, and the command
+    ``MEMO/<n>/<n>/<time low>/<time high>/<author>/...`` holds the rest."""
+
+    parts = field.command.split("/")
+
+    def part(index: int) -> str:
+        return parts[index] if len(parts) > index else ""
+
+    created = ""
+    if part(3).isdigit() and part(4).isdigit():
+        ticks = int(part(4)) << 32 | int(part(3))
+        try:
+            when = datetime(1601, 1, 1) + timedelta(microseconds=ticks // 10) + MEMO_TIME_OFFSET
+            created = when.strftime("%Y-%m-%dT%H:%M:%SZ")
+        except OverflowError:
+            created = ""
+    return [
+        ("stringParam", "ID", f"memo{field.z_order}"),
+        ("integerParam", "Number", str(field.z_order)),
+        ("stringParam", "Author", part(5)),
+        ("stringParam", "MemoShapeIDRef", str(shape) if shape is not None else ""),
+        ("stringParam", "CreateDateTime", created),
+    ]
+
+
+def field_parameters(text_id: str, field: ct.FieldCtrl, memo_shape: int | None = None) -> list[tuple[str, str, str]]:
     """``hp:parameters`` items for a field: ``Prop`` and ``Command``, then what
     Hancom spells out of the command for the kinds that have it."""
 
@@ -442,6 +474,8 @@ def field_parameters(text_id: str, field: ct.FieldCtrl) -> list[tuple[str, str, 
             params.append(("stringParam", "HelpState", values["HelpState"]))
     elif text_id == "%hlk":
         params += _hyperlink_parameters(field.command)
+    elif text_id == "%%me":
+        params += _memo_parameters(field, memo_shape)
     elif text_id == "%pat":
         params.append(("stringParam", "Format", field.command))
     elif text_id == "%fmu" and "??" in field.command:
@@ -656,6 +690,9 @@ class SectionWriter:
         self.report = report
         # Fields opened by a field-start control and not yet closed: (id, fieldid).
         self.open_fields: list[tuple[int, int]] = []
+        # Memo bodies of the section (see collect_memos), taken in order by
+        # its memo fields.
+        self.memo_bodies: list[tuple[int, rec.Record, list[rec.Record]]] = []
 
     # paragraphs ----------------------------------------------------------------------
 
@@ -678,16 +715,18 @@ class SectionWriter:
                 ("merged", flag(para.merge_flag)),
             ),
         )
-        self.runs(element, para, self.marks(record))
-        # Lists hung on the paragraph itself: a memo body after MEMO_LIST, or
-        # (on a section's last paragraph) a master page. Not converted yet.
+        # Lists hung on the paragraph itself: memo bodies after MEMO_LIST (the
+        # memo fields take them, see collect_memos), or (on a section's last
+        # paragraph) a master page, which is not converted yet.
         memo = False
         for child in record.children:
             if child.tag == rec.MEMO_LIST:
                 memo = True
             elif child.tag == rec.LIST_HEADER:
-                self.report.skip("memo-body" if memo else "master-page")
+                if not memo:
+                    self.report.skip("master-page")
                 memo = False
+        self.runs(element, para, self.marks(record))
         segs = next((r for r in record.children if r.tag == rec.PARA_LINE_SEG), None)
         if segs is not None and len(segs.payload) >= 36:
             array = sub(element, "hp:linesegarray")
@@ -1216,13 +1255,18 @@ class SectionWriter:
                 ("fieldid", field_id),
             ),
         )
-        params = field_parameters(text_id, field_ctrl)
+        body = self.memo_bodies.pop(0) if text_id == "%%me" and self.memo_bodies else None
+        params = field_parameters(text_id, field_ctrl, body[0] if body is not None else None)
         container = sub(begin, "hp:parameters", (("cnt", len(params)), ("name", "")))
         for kind, key, value in params:
             item = sub(container, f"hp:{kind}", (("name", key),))
             item.text = xml_text(value)
             if value != value.strip():
                 item.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+        if body is not None:
+            _, header, paragraphs = body
+            sub_list = sub(begin, "hp:subList", list_attrs(ct.ListHeader.decode(header.payload).props))
+            self.paragraphs(sub_list, paragraphs)
         self.open_fields.append((field_ctrl.instance_id, field_id))
         return wrapper
 
@@ -1417,9 +1461,53 @@ def _split_text(chunk: bt.Chunk, units: int) -> tuple[bt.Chunk, bt.Chunk]:
     return bt.Chunk("text", chunk.position, head), bt.Chunk("text", chunk.position + units, tail)
 
 
-def build_section(stream: rec.RecordStream, report: ConversionReport) -> bytes:
-    """``Contents/section<N>.xml`` for one BodyText section."""
+MemoBody = tuple[int, rec.Record, list[rec.Record]]
+
+
+def memo_bodies(streams: list[rec.RecordStream]) -> list[MemoBody]:
+    """The memo bodies of a document in record order: each ``MEMO_LIST``
+    value, the list header after it and that list's paragraphs.
+
+    They hang on one paragraph, often in the last section and away from their
+    memo fields, which take them in the same order.
+    """
+
+    bodies: list[MemoBody] = []
+    for stream in streams:
+        for top in stream.roots:
+            for record in top.walk():
+                if record.tag != rec.PARA_HEADER:
+                    continue
+                value: int | None = None
+                current: list[rec.Record] | None = None
+                for child in record.children:
+                    if child.tag == rec.MEMO_LIST:
+                        value = struct.unpack_from("<I", child.payload + bytes(4))[0]
+                    elif child.tag == rec.LIST_HEADER:
+                        current = None
+                        if value is not None:
+                            current = []
+                            bodies.append((value, child, current))
+                            value = None
+                    elif child.tag == rec.PARA_HEADER and current is not None:
+                        current.append(child)
+    return bodies
+
+
+def build_section(stream: rec.RecordStream, report: ConversionReport, memos: list[MemoBody] | None = None) -> bytes:
+    """``Contents/section<N>.xml`` for one BodyText section.
+
+    ``memos`` is the document's list of memo bodies (see :func:`memo_bodies`),
+    shared by its sections; the memo fields of this section take theirs from
+    its front. Without it the section's own bodies are used and any left over
+    are reported.
+    """
 
     section = root("hs:sec")
-    SectionWriter(report).paragraphs(section, stream.roots)
+    writer = SectionWriter(report)
+    writer.memo_bodies = memos if memos is not None else memo_bodies([stream])
+    writer.paragraphs(section, stream.roots)
+    if memos is None:
+        for _ in writer.memo_bodies:
+            report.skip("memo-body")
     return serialize(section)
