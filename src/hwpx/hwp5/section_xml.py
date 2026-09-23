@@ -35,12 +35,21 @@ from .owpml import (
 
 @dataclass
 class ConversionReport:
-    """What a conversion could not express, by kind and count."""
+    """What a conversion could not express, by kind and count.
+
+    ``unconverted`` is content OWPML can hold but the conversion does not write
+    yet. ``dropped`` is data OWPML has no element for (Hancom's own HWPX leaves
+    it out too), such as range tags other than highlighter and change marks.
+    """
 
     unconverted: Counter[str] = field(default_factory=Counter)
+    dropped: Counter[str] = field(default_factory=Counter)
 
     def skip(self, kind: str) -> None:
         self.unconverted[kind] += 1
+
+    def drop(self, kind: str) -> None:
+        self.dropped[kind] += 1
 
 
 def _bits(value: int, lo: int, width: int) -> int:
@@ -106,7 +115,7 @@ def object_layout(element: etree._Element, common: ct.ObjectCommon) -> None:
             ("affectLSpacing", flag(p & 0x4)),
             ("flowWithText", flag(p & (1 << 13))),
             ("allowOverlap", flag(p & (1 << 14))),
-            ("holdAnchorAndSO", flag(p & (1 << 29))),
+            ("holdAnchorAndSO", flag(common.prevent_page_break)),
             ("vertRelTo", token(VERT_REL, _bits(p, 3, 2))),
             ("horzRelTo", token(HORZ_REL, _bits(p, 8, 2))),
             ("vertAlign", token(VERT_ALIGN, _bits(p, 5, 3))),
@@ -215,7 +224,7 @@ def section_properties(parent: etree._Element, ctrl: rec.Record) -> etree._Eleme
             ("fill", "SHOW_FIRST" if props & (1 << 9) else ("HIDE_FIRST" if props & 0x10 else "SHOW_ALL")),
             ("hideFirstPageNum", flag(props & 0x20)),
             ("hideFirstEmptyLine", flag(props & (1 << 19))),
-            ("showLineNumber", 0),
+            ("showLineNumber", flag(props & (1 << 24))),
         ),
     )
     sub(
@@ -317,8 +326,157 @@ TEXT_DIRECTION = ("HORIZONTAL", "VERTICAL", "VERTICALALL")
 LINE_WRAP = ("BREAK", "SQUEEZE", "KEEP")
 LIST_VERT_ALIGN = ("TOP", "CENTER", "BOTTOM")
 TABLE_PAGE_BREAK = ("NONE", "TABLE", "CELL")
+
+#: Field kinds by the control id the paragraph text carries.
+FIELD_TYPES = {
+    "%clk": "CLICK_HERE",
+    "%hlk": "HYPERLINK",
+    "%fmu": "FORMULA",
+    "%bmk": "BOOKMARK",
+    "%dte": "DATE",
+    "%ddt": "DOC_DATE",
+    "%pat": "PATH",
+    "%toc": "TABLEOFCONTENTS",
+    "%mmg": "MAILMERGE",
+    "%xrf": "CROSSREF",
+    "%sum": "SUMMARY",
+    "%usr": "USER_INFO",
+    "%%me": "MEMO",
+    "%%*d": "PROOFREADING_MARKS_DELETE",
+    "%sig": "PROOFREADING_MARKS_SIGN",
+    "%unk": "UNKNOWN",
+}
+
+
+def _command_values(command: str) -> dict[str, str]:
+    """``Name:type:length:value`` entries of a ``Kind:set:<n>:`` command string."""
+
+    parts = command.split(":", 3)
+    if len(parts) < 4 or parts[1] != "set":
+        return {}
+    rest = parts[3]
+    values: dict[str, str] = {}
+    while rest:
+        fields = rest.split(":", 2)
+        if len(fields) < 3:
+            break
+        key, kind, tail = fields
+        if kind == "wstring":
+            length_text, _, tail = tail.partition(":")
+            if not length_text.isdigit():
+                break
+            length = int(length_text)
+            values[key.strip()] = tail[:length]
+            rest = tail[length:].lstrip(" ")
+        else:
+            value, _, rest = tail.partition(" ")
+            values[key.strip()] = value
+    return values
+
+
+_HYPERLINK_KIND = ("HWPHYPERLINK_TYPE_HWP", "HWPHYPERLINK_TYPE_URL", "HWPHYPERLINK_TYPE_EMAIL")
+
+
+def _split_escaped(command: str) -> list[str]:
+    """Split on ``;`` that is not backslash-escaped, and unescape each part."""
+
+    parts: list[str] = []
+    current: list[str] = []
+    escaped = False
+    for char in command:
+        if escaped:
+            current.append(char)
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == ";":
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    parts.append("".join(current))
+    return parts
+
+
+def _hyperlink_parameters(command: str) -> list[tuple[str, str, str]]:
+    """``Path``, ``Category``, ``TargetType`` and ``DocOpenType`` of a hyperlink
+    command ``target;kind;outline;new-tab;``."""
+
+    parts = _split_escaped(command) if command else [""]
+    fields = parts[1:] + ["", "", ""]
+    kind = int(fields[0]) if fields[0].isdigit() else 0
+    params: list[tuple[str, str, str]] = []
+    if kind in (1, 2):
+        params.append(("stringParam", "Path", parts[0]))
+    params += [
+        ("stringParam", "Category", _HYPERLINK_KIND[kind] if kind < len(_HYPERLINK_KIND) else _HYPERLINK_KIND[0]),
+        (
+            "stringParam",
+            "TargetType",
+            "HWPHYPERLINK_TARGET_OUTLINE" if fields[1] == "1" else "HWPHYPERLINK_TARGET_BOOKMARK",
+        ),
+        (
+            "stringParam",
+            "DocOpenType",
+            "HWPHYPERLINK_JUMP_NEWTAB" if fields[2] == "1" else "HWPHYPERLINK_JUMP_CURRENTTAB",
+        ),
+    ]
+    return params
+
+
+def field_parameters(text_id: str, field: ct.FieldCtrl) -> list[tuple[str, str, str]]:
+    """``hp:parameters`` items for a field: ``Prop`` and ``Command``, then what
+    Hancom spells out of the command for the kinds that have it."""
+
+    params = [("integerParam", "Prop", str(field.extra))]
+    if field.command:
+        params.append(("stringParam", "Command", field.command))
+    if text_id == "%clk":
+        values = _command_values(field.command)
+        if "Direction" in values:
+            params.append(("stringParam", "Direction", values["Direction"]))
+        if values.get("HelpState"):
+            params.append(("stringParam", "HelpState", values["HelpState"]))
+    elif text_id == "%hlk":
+        params += _hyperlink_parameters(field.command)
+    elif text_id == "%pat":
+        params.append(("stringParam", "Format", field.command))
+    elif text_id == "%fmu" and "??" in field.command:
+        formula, _, rest = field.command.partition("??")
+        result_format, _, last = rest.partition(";;")
+        params += [
+            ("stringParam", "Formula", formula),
+            ("stringParam", "ResultFormat", result_format),
+            ("stringParam", "LastResult", last),
+        ]
+    return params
+
+
 CAPTION_SIDE = ("LEFT", "RIGHT", "TOP", "BOTTOM")
 CHAR_ELEMENTS = {10: "hp:lineBreak", 24: "hp:hyphen", 30: "hp:nbSpace", 31: "hp:fwSpace"}
+#: The range tag kind of a highlighter (markpen) range; its low 24 bits are the color.
+RANGE_MARKPEN = 2
+#: ``hp:label`` orientation by the label set's ``landscape`` value.
+LABEL_LANDSCAPE = ("WIDELY", "NARROWLY")
+
+
+def _is_open(run: etree._Element, text: etree._Element | None) -> bool:
+    """Whether *text* is the run's last child, so more text can go into it."""
+
+    return text is not None and len(run) > 0 and run[-1] is text
+
+
+def _place_marks(parent: etree._Element, marks: list[tuple[int, int, str]], pending: int, position: int) -> int:
+    """Append the marks due at *position* to *parent*; return the next pending mark."""
+
+    while pending < len(marks) and marks[pending][0] <= position:
+        colour = marks[pending][2]
+        if colour:
+            sub(parent, "hp:markpenBegin", (("color", colour),))
+        else:
+            sub(parent, "hp:markpenEnd")
+        pending += 1
+    return pending
 
 
 def list_attrs(props: int) -> list[tuple[str, object]]:
@@ -343,6 +501,8 @@ class SectionWriter:
 
     def __init__(self, report: ConversionReport) -> None:
         self.report = report
+        # Fields opened by a field-start control and not yet closed: (id, fieldid).
+        self.open_fields: list[tuple[int, int]] = []
 
     # paragraphs ----------------------------------------------------------------------
 
@@ -365,7 +525,16 @@ class SectionWriter:
                 ("merged", flag(para.merge_flag)),
             ),
         )
-        self.runs(element, para)
+        self.runs(element, para, self.marks(record))
+        # Lists hung on the paragraph itself: a memo body after MEMO_LIST, or
+        # (on a section's last paragraph) a master page. Not converted yet.
+        memo = False
+        for child in record.children:
+            if child.tag == rec.MEMO_LIST:
+                memo = True
+            elif child.tag == rec.LIST_HEADER:
+                self.report.skip("memo-body" if memo else "master-page")
+                memo = False
         segs = next((r for r in record.children if r.tag == rec.PARA_LINE_SEG), None)
         if segs is not None and len(segs.payload) >= 36:
             array = sub(element, "hp:linesegarray")
@@ -387,21 +556,59 @@ class SectionWriter:
                     ),
                 )
 
-    def runs(self, element: etree._Element, para: bt.Paragraph) -> None:
+    def marks(self, record: rec.Record) -> list[tuple[int, int, str]]:
+        """Highlighter starts and ends from the paragraph's range tags, in text
+        order: (position, order, color), where an end has no color."""
+
+        events: list[tuple[int, int, str]] = []
+        for child in record.children:
+            if child.tag != rec.PARA_RANGE_TAG:
+                continue
+            for offset in range(0, len(child.payload) - 11, 12):
+                start, end, tag = struct.unpack_from("<III", child.payload, offset)
+                kind = tag >> 24
+                if kind == RANGE_MARKPEN:
+                    events.append((start, 1, color(tag & 0xFFFFFF)))
+                    events.append((end, 2 if end == start else 0, ""))
+                elif kind in (0, 1):
+                    self.report.drop(f"range-tag-{kind}")
+                else:
+                    self.report.skip(f"range-tag-{kind}")
+        events.sort(key=lambda event: (event[0], event[1]))
+        return events
+
+    def runs(self, element: etree._Element, para: bt.Paragraph, marks: list[tuple[int, int, str]]) -> None:
         shapes = para.char_shapes or [(0, 0)]
         bounds = [start for start, _ in shapes[1:]] + [1 << 31]
         controls = iter(para.controls)
         chunks = list(para.chunks)
         index = 0
+        pending = 0  # the next highlighter mark to place
         last: etree._Element | None = None
+        run: etree._Element | None = None
+        text: etree._Element | None = None
         for (_start, shape_id), end in zip(shapes, bounds):
             run = sub(element, "hp:run", (("charPrIDRef", shape_id),))
-            text: etree._Element | None = None
+            text = None
             last = None
             while index < len(chunks) and chunks[index].position < end:
                 chunk = chunks[index]
+                if pending < len(marks) and marks[pending][0] <= chunk.position:
+                    # A mark goes into the open text node, into a new one when
+                    # text follows, or straight into the run before a control.
+                    if not _is_open(run, text) and (
+                        chunk.kind in ("text", "char") or (chunk.kind == "inline" and chunk.code == bt.TAB)
+                    ):
+                        text = self._text(run, text, "")
+                    target = text if text is not None and _is_open(run, text) else run
+                    pending = _place_marks(target, marks, pending, chunk.position)
+                    if target is text:
+                        last = text
                 if chunk.kind == "text":
-                    split = end - chunk.position
+                    limit = end
+                    if pending < len(marks) and chunk.position < marks[pending][0] < limit:
+                        limit = marks[pending][0]
+                    split = limit - chunk.position
                     if chunk.width > split:
                         head, tail = _split_text(chunk, split)
                         chunks[index] = tail
@@ -426,7 +633,8 @@ class SectionWriter:
                         sub(text, "hp:tab", (("width", width), ("leader", leader), ("type", kind)))
                         last = text
                     elif chunk.code == 4:
-                        self.report.skip("field-end")
+                        text = None
+                        last = self.field_end(run)
                     else:
                         self.report.skip(f"inline-{chunk.code}")
                 else:
@@ -435,7 +643,7 @@ class SectionWriter:
                     if ctrl is None:
                         self.report.skip("control-without-record")
                         continue
-                    last = self.control(run, ctrl)
+                    last = self.control(run, ctrl, chunk.control_id)
                     # Section and column definitions keep a run of their own.
                     if chunk.control_id in ("secd", "cold"):
                         following = chunks[index] if index < len(chunks) else None
@@ -446,6 +654,13 @@ class SectionWriter:
                         ):
                             run = sub(element, "hp:run", (("charPrIDRef", shape_id),))
                             last = run
+            # A mark where the run ends stays in the run while its text node is open.
+            if text is not None and _is_open(run, text):
+                pending = _place_marks(text, marks, pending, end)
+        if run is not None and pending < len(marks):
+            text = self._text(run, text, "")
+            _place_marks(text, marks, pending, 1 << 31)
+            last = text
         # Hancom closes a paragraph that ends on a control with an empty text node.
         if last is not None and etree.QName(last).localname == "run":
             sub(last, "hp:t")
@@ -471,9 +686,15 @@ class SectionWriter:
 
     # controls ------------------------------------------------------------------------
 
-    def control(self, run: etree._Element, ctrl: rec.Record) -> etree._Element | None:
+    def control(self, run: etree._Element, ctrl: rec.Record, text_id: str | None = None) -> etree._Element | None:
         kind = bt.record_ctrl_id(ctrl) or "?"
+        if kind.startswith("%"):
+            return self.field_begin(run, ctrl, text_id or kind)
         if kind == "secd":
+            # Master pages may hang on the section definition as paragraph lists.
+            for child in ctrl.children:
+                if child.tag == rec.LIST_HEADER:
+                    self.report.skip("master-page")
             return section_properties(run, ctrl)
         if kind == "cold":
             return column_properties(run, ctrl)
@@ -485,6 +706,48 @@ class SectionWriter:
             return self.note(run, ctrl, kind)
         self.report.skip(f"control-{kind.strip() or kind}")
         return None
+
+    # fields --------------------------------------------------------------------------
+
+    def field_begin(self, run: etree._Element, ctrl: rec.Record, text_id: str) -> etree._Element:
+        """``hp:fieldBegin`` from a field control; the kind comes from the text,
+        which keeps it even where the control header says ``%unk``."""
+
+        field_ctrl = ct.FieldCtrl.decode(ctrl.payload)
+        name = ""
+        for child in ctrl.children:
+            if child.tag == rec.CTRL_DATA:
+                name = ct.parameter_set_name(child.payload)
+        field_id = bt.ctrl_word(text_id) if len(text_id) == 4 else bt.ctrl_word(field_ctrl.ctrl)
+        wrapper = sub(run, "hp:ctrl")
+        begin = sub(
+            wrapper,
+            "hp:fieldBegin",
+            (
+                ("id", field_ctrl.instance_id),
+                ("type", FIELD_TYPES.get(text_id, "UNKNOWN")),
+                ("name", name),
+                ("editable", flag(field_ctrl.props & 0x1)),
+                ("dirty", flag(field_ctrl.props & 0x8000)),
+                ("zorder", field_ctrl.z_order if field_ctrl.z_order else -1),
+                ("fieldid", field_id),
+            ),
+        )
+        params = field_parameters(text_id, field_ctrl)
+        container = sub(begin, "hp:parameters", (("cnt", len(params)), ("name", "")))
+        for kind, key, value in params:
+            item = sub(container, f"hp:{kind}", (("name", key),))
+            item.text = xml_text(value)
+            if value != value.strip():
+                item.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+        self.open_fields.append((field_ctrl.instance_id, field_id))
+        return wrapper
+
+    def field_end(self, run: etree._Element) -> etree._Element:
+        begin_id, field_id = self.open_fields.pop() if self.open_fields else (0, 0)
+        wrapper = sub(run, "hp:ctrl")
+        sub(wrapper, "hp:fieldEnd", (("beginIDRef", begin_id), ("fieldid", field_id)))
+        return wrapper
 
     def body(self, parent: etree._Element, ctrl: rec.Record) -> None:
         """The single paragraph list of a header, footer or note."""
@@ -562,6 +825,14 @@ class SectionWriter:
             for header, paragraphs in cells[position : position + row_size]:
                 self.cell(tr, header, paragraphs)
             position += row_size
+        for data in (r for r in ctrl.children if r.tag == rec.CTRL_DATA):
+            values = ct.label_values(data.payload)
+            if values is None:
+                self.report.skip("table-data")
+                continue
+            label: list[tuple[str, object]] = [(name, values.get(name, 0)) for name in ct.LABEL_ITEMS]
+            label[8] = ("landscape", token(LABEL_LANDSCAPE, values.get("landscape", 0)))
+            sub(table, "hp:label", label)
         return table
 
     def caption(self, parent: etree._Element, header: rec.Record, paragraphs: list[rec.Record]) -> None:

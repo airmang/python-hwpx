@@ -10,6 +10,7 @@ caller can refuse the save instead of dropping content silently.
 from __future__ import annotations
 
 import struct
+import zlib
 from collections import Counter
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
@@ -23,18 +24,21 @@ from .section_xml import (
     COL_LAYOUT,
     COL_TYPE,
     ENDNOTE_PLACE,
+    FIELD_TYPES,
     FILL_AREA,
     FOOTNOTE_PLACE,
     GUTTER,
     HEIGHT_REL,
     HORZ_ALIGN,
     HORZ_REL,
+    LABEL_LANDSCAPE,
     LINE_WRAP,
     LIST_VERT_ALIGN,
     NOTE_NUMBERING,
     NUMBERING_TYPE,
     PAGE_BORDER_TYPES,
     PAGE_STARTS_ON,
+    RANGE_MARKPEN,
     TABLE_PAGE_BREAK,
     TEXT_DIRECTION,
     TEXT_FLOW,
@@ -48,22 +52,34 @@ _HP = NS["hp"]
 _CHAR_CODES = {"lineBreak": 10, "hyphen": 24, "nbSpace": 30, "fwSpace": 31}
 _TAB_PADDING = b"\x20\x00" * 3
 _SECTION_DIRECTION = {"HORIZONTAL": 0, "VERTICAL": 2, "VERTICALALL": 4}
+#: The control id a field's text carries, by field type.
+_FIELD_TEXT_ID = {kind: text_id for text_id, kind in FIELD_TYPES.items() if kind != "UNKNOWN"}
+#: Field types whose control record is headed ``%unk`` while the text keeps the real id.
+_FIELD_HEAD_UNKNOWN = frozenset({"MEMO", "PROOFREADING_MARKS_DELETE", "PROOFREADING_MARKS_SIGN"})
+#: Field types written with property bit 1 set.
+_FIELD_PROPS_BIT1 = frozenset({"MAILMERGE", "CROSSREF"})
 
 
 def _local(element: etree._Element) -> str:
     return etree.QName(element).localname
 
 
-def _int(element: etree._Element | None, name: str, default: int = 0) -> int:
-    if element is None:
-        return default
-    value = element.get(name)
+def _number(value: str | None, default: int = 0) -> int:
     if value is None or value == "":
         return default
     try:
         return int(value)
     except ValueError:
-        return int(float(value))
+        try:
+            return int(float(value))
+        except ValueError:
+            return default
+
+
+def _int(element: etree._Element | None, name: str, default: int = 0) -> int:
+    if element is None:
+        return default
+    return _number(element.get(name), default)
 
 
 def _i16(value: int) -> int:
@@ -115,7 +131,6 @@ def _object_common(ctrl: str, element: etree._Element) -> ct.ObjectCommon:
     props |= index_of(TEXT_WRAP, element.get("textWrap"), 1) << 21
     props |= index_of(TEXT_FLOW, element.get("textFlow"), 0) << 24
     props |= index_of(NUMBERING_TYPE, element.get("numberingType"), 0) << 26
-    props |= _flag(pos, "holdAnchorAndSO") << 29
     props |= _flag(element, "lock") << 30
     return ct.ObjectCommon(
         ctrl,
@@ -127,10 +142,35 @@ def _object_common(ctrl: str, element: etree._Element) -> ct.ObjectCommon:
         _int(element, "zOrder"),
         tuple(_i16(_int(margin, side)) for side in ("left", "right", "top", "bottom")),  # type: ignore[arg-type]
         _int(element, "id") & 0xFFFFFFFF,
-        0,
+        _flag(pos, "holdAnchorAndSO"),
         "",
         b"\0\0",
     )
+
+
+class _Highlights:
+    """Highlighter (markpen) ranges of a paragraph list, written as range tags."""
+
+    def __init__(self) -> None:
+        self.open: list[tuple[int, int]] = []  # (start, tag), in the order they began
+        self.ranges: list[tuple[int, int, int]] = []
+
+    def mark(self, element: etree._Element, position: int) -> None:
+        if _local(element) == "markpenBegin":
+            value = colorref(element.get("color")) & 0xFFFFFF
+            self.open.append((position, RANGE_MARKPEN << 24 | value))
+        elif self.open:
+            start, tag = self.open.pop(0)
+            self.ranges.append((start, position, tag))
+
+    def take(self, end: int) -> list[tuple[int, int, int]]:
+        """The ranges of the paragraph ending at *end*; a range still open ends
+        there and goes on from the start of the next paragraph."""
+
+        ranges = sorted(self.ranges + [(start, end, tag) for start, tag in self.open], key=lambda r: r[0])
+        self.ranges = []
+        self.open = [(0, tag) for _, tag in self.open]
+        return ranges
 
 
 class SectionRecords:
@@ -138,19 +178,26 @@ class SectionRecords:
 
     def __init__(self) -> None:
         self.unsupported: Counter[str] = Counter()
+        # Fields begun and not yet ended: the begin id and the field-end
+        # characters to write (None when the begin itself was refused).
+        self.open_fields: list[tuple[str, bytes | None]] = []
 
     def section(self, root: etree._Element) -> list[rec.Record]:
         return self.paragraph_list([p for p in root if _local(p) == "p"], 0)
 
     def paragraph_list(self, paragraphs: list[etree._Element], level: int) -> list[rec.Record]:
         out: list[rec.Record] = []
+        highlights = _Highlights()
         for index, paragraph in enumerate(paragraphs):
-            out.extend(self.paragraph(paragraph, level, last=index == len(paragraphs) - 1))
+            out.extend(self.paragraph(paragraph, level, highlights, last=index == len(paragraphs) - 1))
         return out
 
     # paragraphs ------------------------------------------------------------------------
 
-    def paragraph(self, element: etree._Element, level: int, *, last: bool) -> list[rec.Record]:
+    def paragraph(
+        self, element: etree._Element, level: int, highlights: _Highlights | None = None, *, last: bool
+    ) -> list[rec.Record]:
+        highlights = highlights if highlights is not None else _Highlights()
         units = bytearray()
         shapes: list[tuple[int, int]] = []
         controls: list[list[rec.Record]] = []
@@ -168,7 +215,9 @@ class SectionRecords:
             for child in run:
                 name = _local(child)
                 if name == "t":
-                    self.text(child, units, codes)
+                    self.text(child, units, codes, highlights)
+                elif name in ("markpenBegin", "markpenEnd"):
+                    highlights.mark(child, len(units) // 2)
                 elif name == "secPr":
                     units += _extended(2, "secd")
                     codes.add(2)
@@ -190,6 +239,17 @@ class SectionRecords:
                             units += _extended(17, "fn  " if kind == "footNote" else "en  ")
                             codes.add(17)
                             controls.append(self.note(item, kind, level + 1))
+                        elif kind == "fieldBegin":
+                            field = self.field_begin(item, level + 1)
+                            if field is not None:
+                                units += _extended(3, field[0])
+                                codes.add(3)
+                                controls.append(field[1])
+                        elif kind == "fieldEnd":
+                            end = self.field_end(item)
+                            if end is not None:
+                                units += end
+                                codes.add(4)
                         else:
                             self.unsupported[f"ctrl/{kind}"] += 1
                 elif name == "tbl":
@@ -212,6 +272,7 @@ class SectionRecords:
             s for s in (element.find(f"{{{_HP}}}linesegarray") if element.find(f"{{{_HP}}}linesegarray") is not None else [])
             if _local(s) == "lineseg"
         ]
+        ranges = highlights.take(count - 1)
         header = struct.pack(
             "<IIHBBHHHIH",
             count | (0x80000000 if last else 0),
@@ -220,7 +281,7 @@ class SectionRecords:
             _int(element, "styleIDRef") & 0xFF,
             break_type,
             len(shapes),
-            0,
+            len(ranges),
             len(segs),
             _int(element, "id") & 0xFFFFFFFF,
             _int(element, "merged"),
@@ -246,15 +307,20 @@ class SectionRecords:
                 for s in segs
             )
             out.append(rec.Record(rec.PARA_LINE_SEG, level + 1, payload))
+        if ranges:
+            payload = b"".join(struct.pack("<III", start, end, tag) for start, end, tag in ranges)
+            out.append(rec.Record(rec.PARA_RANGE_TAG, level + 1, payload))
         for control in controls:
             out.extend(control)
         return out
 
-    def text(self, element: etree._Element, units: bytearray, codes: set[int]) -> None:
+    def text(self, element: etree._Element, units: bytearray, codes: set[int], highlights: _Highlights) -> None:
         self._chars(element.text or "", units, codes)
         for child in element:
             name = _local(child)
-            if name == "tab":
+            if name in ("markpenBegin", "markpenEnd"):
+                highlights.mark(child, len(units) // 2)
+            elif name == "tab":
                 units += struct.pack(
                     "<HIBB", bt.TAB, _int(child, "width"), _int(child, "leader") & 0xFF, _int(child, "type") & 0xFF
                 )
@@ -295,11 +361,17 @@ class SectionRecords:
         props |= (1 << 4 if fill == "HIDE_FIRST" else 0) | (1 << 9 if fill == "SHOW_FIRST" else 0)
         props |= _flag(visibility, "hideFirstPageNum") << 5
         props |= _flag(visibility, "hideFirstEmptyLine") << 19
+        props |= _flag(visibility, "showLineNumber") << 24
         props |= index_of(PAGE_STARTS_ON, start.get("pageStartsOn") if start is not None else None, 0) << 20
         props |= _flag(grid, "wonggojiFormat") << 22
         direction = element.get("textDirection", "HORIZONTAL")
         direction_word = _SECTION_DIRECTION.get(direction, 0) | _flag(element, "textVerticalWidthHead") << 4
         tab_raw = _int(element, "tabStopVal", 4000) * 2 + (1 if element.get("tabStopUnit") == "CHAR" else 0)
+        # Master pages are not written yet; a count without the pages makes the
+        # file unreadable, so the section refuses instead.
+        master_pages = max(_int(element, "masterPageCnt"), len(element.findall(f"{{{_HP}}}masterPage")))
+        if master_pages:
+            self.unsupported["masterPage"] += master_pages
         sd = ct.SectionDef(
             props,
             _int(element, "spaceColumns", 1134),
@@ -312,7 +384,7 @@ class SectionRecords:
             _int(start, "tbl"),
             _int(start, "equation"),
             0,
-            _int(element, "masterPageCnt"),
+            0,
             0,
             _int(element, "memoShapeIDRef"),
             direction_word,
@@ -410,6 +482,62 @@ class SectionRecords:
         )
         return [rec.Record(rec.CTRL_HEADER, level, value.encode())]
 
+    # fields --------------------------------------------------------------------------
+
+    def field_begin(self, element: etree._Element, level: int) -> tuple[str, list[rec.Record]] | None:
+        """The text id and records of a field start; None when the field is refused."""
+
+        kind = element.get("type", "")
+        begin_id = element.get("id", "")
+        text_id = _FIELD_TEXT_ID.get(kind)
+        # Memo bodies and fields of unknown kinds are not written yet.
+        if text_id is None or kind == "MEMO" or _find(element, "subList") is not None:
+            self.unsupported[f"field/{kind or '?'}"] += 1
+            self.open_fields.append((begin_id, None))
+            return None
+        params: dict[str, str] = {}
+        container = _find(element, "parameters")
+        for item in container if container is not None else ():
+            params.setdefault(item.get("name", ""), item.text or "")
+        extra = _number(params.get("Prop")) & 0xFF
+        props = _flag(element, "editable") | _flag(element, "dirty") << 15
+        props |= 2 if kind in _FIELD_PROPS_BIT1 else 0
+        try:
+            instance_id = int(begin_id) & 0xFFFFFFFF
+        except ValueError:
+            instance_id = zlib.crc32(begin_id.encode("utf-8"))
+        value = ct.FieldCtrl(
+            "%unk" if kind in _FIELD_HEAD_UNKNOWN else text_id,
+            props,
+            extra,
+            params.get("Command", ""),
+            instance_id,
+            max(_int(element, "zorder", -1), 0),
+        )
+        records = [rec.Record(rec.CTRL_HEADER, level, value.encode())]
+        name = element.get("name", "")
+        if name or kind == "CLICK_HERE":
+            records.append(rec.Record(rec.CTRL_DATA, level + 1, ct.name_parameter_set(name)))
+        # The field end repeats the field's text id with the property byte, and
+        # whether the field is editable.
+        end_id = (bt.ctrl_word(text_id) & 0xFFFFFF) | extra << 24
+        self.open_fields.append((begin_id, struct.pack("<HIIIH", 4, end_id, props & 1, 0, 4)))
+        return text_id, records
+
+    def field_end(self, element: etree._Element) -> bytes | None:
+        """The field-end characters for the field the end closes."""
+
+        begin_id = element.get("beginIDRef", "")
+        index = len(self.open_fields) - 1
+        while index >= 0 and self.open_fields[index][0] != begin_id:
+            index -= 1
+        if index < 0:
+            index = len(self.open_fields) - 1
+        if index < 0:
+            self.unsupported["fieldEnd-without-begin"] += 1
+            return None
+        return self.open_fields.pop(index)[1]
+
     def _body(self, element: etree._Element, level: int, *, sized: bool) -> list[rec.Record]:
         sub_list = _find(element, "subList")
         paragraphs = [p for p in sub_list if _local(p) == "p"] if sub_list is not None else []
@@ -444,6 +572,11 @@ class SectionRecords:
     def table(self, element: etree._Element, level: int) -> list[rec.Record]:
         common = _object_common("tbl ", element)
         out = [rec.Record(rec.CTRL_HEADER, level, common.encode())]
+        label = _find(element, "label")
+        if label is not None:
+            values = {name: _int(label, name) for name in ct.LABEL_ITEMS}
+            values["landscape"] = index_of(LABEL_LANDSCAPE, label.get("landscape"), 0)
+            out.append(rec.Record(rec.CTRL_DATA, level + 1, ct.label_parameter_set(values)))
         caption = _find(element, "caption")
         if caption is not None:
             out.extend(self.caption(caption, level + 1))

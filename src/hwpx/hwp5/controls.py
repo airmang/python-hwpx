@@ -464,3 +464,101 @@ class NoteCtrl:
     def encode(self) -> bytes:
         b = Builder().u32(bt.ctrl_word(self.ctrl)).u32(self.number).u16(self.prefix_char)
         return b.u16(self.suffix_char).u32(self.reserved).u32(self.instance_id).raw(self.extra).bytes()
+
+
+@dataclass
+class FieldCtrl:
+    """A field control (``%hlk``, ``%clk``, ``%fmu``, ...).
+
+    Properties (bit 0 editable in form mode, bit 15 dirty), one more property
+    byte, the command string, the field's id and a word that carries a memo's
+    z-order.
+    """
+
+    ctrl: str = "%unk"
+    props: int = 0
+    extra: int = 0
+    command: str = ""
+    instance_id: int = 0
+    z_order: int = 0
+    tail: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "FieldCtrl":
+        c = Cursor(_padded(payload, 11), "field")
+        value = cls(bt.ctrl_id(c.u32()), c.u32(), c.u8(), c.wstr())
+        value.instance_id = c.u32() if c.left >= 4 else 0
+        value.z_order = c.i32() if c.left >= 4 else 0
+        value.tail = c.rest()
+        return value
+
+    def encode(self) -> bytes:
+        b = Builder().u32(bt.ctrl_word(self.ctrl)).u32(self.props).u8(self.extra).wstr(self.command)
+        return b.u32(self.instance_id).i32(self.z_order).raw(self.tail).bytes()
+
+
+#: A one-item parameter set naming a cell or a field.
+NAME_SET_PREFIX = bytes.fromhex("1b020100000000400100")
+
+
+def parameter_set_name(payload: bytes) -> str:
+    """The name stored in a ``CTRL_DATA`` parameter set (empty when it holds none)."""
+
+    if payload.startswith(NAME_SET_PREFIX) and len(payload) >= len(NAME_SET_PREFIX) + 2:
+        return Cursor(payload[len(NAME_SET_PREFIX) :], "CTRL_DATA").wstr()
+    return ""
+
+
+def name_parameter_set(name: str) -> bytes:
+    """The ``CTRL_DATA`` payload that names a field."""
+
+    return Builder().raw(NAME_SET_PREFIX).wstr(name).bytes()
+
+
+#: Attributes of ``hp:label`` (a label sheet's layout), by parameter item id
+#: from 0x4000 up.
+LABEL_ITEMS = (
+    "topmargin",
+    "leftmargin",
+    "boxwidth",
+    "boxlength",
+    "boxmarginhor",
+    "boxmarginver",
+    "labelcols",
+    "labelrows",
+    "landscape",
+    "pagewidth",
+    "pageheight",
+)
+#: A one-item parameter set holding the label set, up to the label set's item count.
+LABEL_SET_PREFIX = bytes.fromhex("1b0201000000420200804202")
+
+
+def label_values(payload: bytes) -> dict[str, int] | None:
+    """The label sheet layout in a table's ``CTRL_DATA``; None when it holds something else."""
+
+    if not payload.startswith(LABEL_SET_PREFIX):
+        return None
+    c = Cursor(payload[len(LABEL_SET_PREFIX) :], "label")
+    if c.left < 4:
+        return None
+    count = c.i16()
+    c.u16()
+    values: dict[str, int] = {}
+    for _ in range(count):
+        if c.left < 8:
+            return None
+        item, kind = c.u16(), c.u16()
+        if kind != 4 or not 0x4000 <= item < 0x4000 + len(LABEL_ITEMS):
+            return None
+        values[LABEL_ITEMS[item - 0x4000]] = c.i32()
+    return values if c.left == 0 else None
+
+
+def label_parameter_set(values: dict[str, int]) -> bytes:
+    """The ``CTRL_DATA`` payload of a label sheet layout; items go from the last id down."""
+
+    b = Builder().raw(LABEL_SET_PREFIX).i16(len(LABEL_ITEMS)).u16(0)
+    for index in reversed(range(len(LABEL_ITEMS))):
+        b.u16(0x4000 + index).u16(4).i32(values.get(LABEL_ITEMS[index], 0))
+    return b.bytes()

@@ -12,7 +12,7 @@ import pytest
 from hwpx import HwpxDocument
 from hwpx.hwp5 import cfb
 from hwpx.hwp5 import records as rec
-from hwpx.hwp5.errors import Hwp5Error
+from hwpx.hwp5.errors import Hwp5ConversionWarning, Hwp5Error
 from hwpx.hwp5.fileheader import parse_file_header
 from hwpx.hwp5.package import convert
 from hwpx.hwp5.reader import read_hwp5
@@ -52,8 +52,9 @@ def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
     assert cells == ["왼쪽 위", "", "", "오른쪽 아래"]
 
 
-def test_hwp_to_hwpx_to_hwp_keeps_the_section_records() -> None:
-    original = make_hwp()
+@pytest.mark.parametrize("extras", [{}, {"fields": True}, {"highlights": True}, {"label": True}])
+def test_hwp_to_hwpx_to_hwp_keeps_the_section_records(extras: dict[str, bool]) -> None:
+    original = make_hwp(**extras)
     written = write_hwp5(convert(original).files)
 
     before = read_hwp5(original).sections[0].records
@@ -91,6 +92,19 @@ def test_content_the_writer_cannot_express_is_refused_before_writing(tmp_path: P
         document.save_to_path(target)
     assert info.value.code == "hwp5-write-unsupported"
     assert info.value.context["unsupported"].get("pic") == 1
+    assert not target.exists()
+
+
+def test_memos_and_master_pages_are_refused_until_they_can_be_written(tmp_path: Path) -> None:
+    with pytest.warns(Hwp5ConversionWarning):
+        document = HwpxDocument.open(make_hwp(memo=True))
+    [sec_pr] = list(document.sections[0].element.iter(f"{HP}secPr"))
+    sec_pr.set("masterPageCnt", "1")
+    document.sections[0].mark_dirty()
+    target = tmp_path / "메모.hwp"
+    with pytest.raises(Hwp5Error) as info:
+        document.save_to_path(target)
+    assert info.value.context["unsupported"] == {"field/MEMO": 1, "masterPage": 1}
     assert not target.exists()
 
 

@@ -97,10 +97,16 @@ def colorref(text: str | None) -> int:
     digits = text[1:]
     alpha = 0
     if len(digits) == 8:
-        alpha, digits = int(digits[:2], 16), digits[2:]
+        try:
+            alpha, digits = int(digits[:2], 16), digits[2:]
+        except ValueError:
+            return NO_COLOR
     if len(digits) != 6:
         return NO_COLOR
-    rgb = int(digits, 16)
+    try:
+        rgb = int(digits, 16)
+    except ValueError:
+        return NO_COLOR
     return (alpha << 24) | ((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb >> 16) & 0xFF)
 
 

@@ -130,11 +130,97 @@ def _section() -> list[rec.Record]:
     return first + second + third
 
 
-def make_hwp(*, flags: int = 1, extra_controls: list[rec.Record] | None = None) -> bytes:
+def _field_end(ctrl: str, prop: int, editable: int, number: int = 0) -> bytes:
+    params = struct.pack("<III", (bt.ctrl_word(ctrl) & 0xFFFFFF) | prop << 24, editable, number)
+    return _u16(4) + params + _u16(4)
+
+
+def _fields() -> list[rec.Record]:
+    """A click-here field with a name and a hyperlink, each around some text."""
+
+    text = _extended(3, "%clk") + "이름".encode("utf-16-le") + _field_end("%clk", 9, 1)
+    text += " 링크 ".encode("utf-16-le") + _extended(3, "%hlk") + "누리집".encode("utf-16-le")
+    text += _field_end("%hlk", 0, 0) + _u16(13)
+    click = ct.FieldCtrl("%clk", 1, 9, "Clickhere:set:66:Direction:wstring:9:이름을 입력하세요 HelpState:wstring:0: ", 1234)
+    link = ct.FieldCtrl("%hlk", 0, 0, "https\\://example.com/a;1;0;0;", 1235)
+    return _paragraph(
+        0,
+        text,
+        [(0, 0)],
+        [
+            rec.Record(rec.CTRL_HEADER, 1, click.encode()),
+            rec.Record(rec.CTRL_DATA, 2, ct.name_parameter_set("성명")),
+            rec.Record(rec.CTRL_HEADER, 1, link.encode()),
+        ],
+    )
+
+
+def _highlights(*, unmapped: bool = False) -> list[rec.Record]:
+    """Two highlighter ranges in a paragraph of two runs; the first ends where
+    the second run starts. *unmapped* adds a range tag kind OWPML has no form for."""
+
+    text = "형광펜 칠한 글".encode("utf-16-le") + _u16(13)
+    tags = [(0, 3, 2 << 24 | 0x00FFFF), (4, 7, 2 << 24 | 0xFFCCE5)]
+    if unmapped:
+        tags.insert(0, (0, 8, 0))
+    records = _paragraph(0, text, [(0, 0), (3, 1)], [])
+    header = bytearray(records[0].payload)
+    struct.pack_into("<H", header, 14, len(tags))  # the range tag count
+    records[0] = rec.Record(rec.PARA_HEADER, 0, bytes(header))
+    records.append(rec.Record(rec.PARA_RANGE_TAG, 1, b"".join(struct.pack("<III", *tag) for tag in tags)))
+    return records
+
+
+def _memo() -> list[rec.Record]:
+    """A memo field; its body hangs on the paragraph after a ``MEMO_LIST`` record."""
+
+    text = _extended(3, "%%me") + "검토".encode("utf-16-le") + _field_end("%%me", 0, 1, 1) + _u16(13)
+    memo = ct.FieldCtrl("%unk", 1, 0, "", 4321, 1)
+    records = _paragraph(0, text, [(0, 0)], [rec.Record(rec.CTRL_HEADER, 1, memo.encode())])
+    body = ct.ListHeader(1, 0, bytes(10)).encode()
+    records += [rec.Record(rec.MEMO_LIST, 1, struct.pack("<I", 1)), rec.Record(rec.LIST_HEADER, 1, body)]
+    return records + _paragraph(1, "메모 내용".encode("utf-16-le") + _u16(13), [(0, 0)], [])
+
+
+def _master_page() -> list[rec.Record]:
+    """A master page: a paragraph list hung on the section's last paragraph."""
+
+    header = struct.pack("<HIH", 1, 0, 0) + struct.pack("<II", 42520, 70868) + bytes(22)
+    return [rec.Record(rec.LIST_HEADER, 1, header), *_paragraph(1, "바탕쪽".encode("utf-16-le") + _u16(13), [(0, 0)], [])]
+
+
+def make_hwp(
+    *,
+    flags: int = 1,
+    extra_controls: list[rec.Record] | None = None,
+    fields: bool = False,
+    highlights: bool = False,
+    unmapped_range: bool = False,
+    memo: bool = False,
+    master_page: bool = False,
+    label: bool = False,
+) -> bytes:
     section = _section()
+    if label:
+        # A label sheet: the table carries the sheet layout as a parameter set.
+        layout = dict(zip(ct.LABEL_ITEMS, (5670, 5670, 28346, 28346, 850, 850, 1, 2, 0, 59528, 84188)))
+        index = next(i for i, r in enumerate(section) if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "tbl ")
+        section.insert(index + 1, rec.Record(rec.CTRL_DATA, 2, ct.label_parameter_set(layout)))
     if extra_controls:
         text = _extended(11, "gso ") + _u16(13)
         section += _paragraph(0, text, [(0, 0)], extra_controls)
+    if fields:
+        section += _fields()
+    if highlights:
+        section += _highlights(unmapped=unmapped_range)
+    if memo:
+        section += _memo()
+    if master_page:
+        section += _master_page()
+    return _compound(section, flags=flags)
+
+
+def _compound(section: list[rec.Record], *, flags: int = 1) -> bytes:
     compressed = bool(flags & 1)
 
     def pack(records: list[rec.Record]) -> bytes:
@@ -203,6 +289,85 @@ def test_unconverted_controls_are_reported_not_dropped_silently() -> None:
     with pytest.warns(Hwp5ConversionWarning, match="control-gso x1"):
         document = HwpxDocument.open(make_hwp(extra_controls=[shape]))
     assert document._hwp5_report.unconverted["control-gso"] == 1
+
+
+def test_fields_open_as_field_begin_and_end() -> None:
+    document = HwpxDocument.open(make_hwp(fields=True))
+    section = document.sections[0].element
+    begins = list(section.iter(f"{HP}fieldBegin"))
+    assert [(b.get("type"), b.get("name"), b.get("editable")) for b in begins] == [
+        ("CLICK_HERE", "성명", "1"),
+        ("HYPERLINK", "", "0"),
+    ]
+    params = [{p.get("name"): p.text for p in b.find(f"{HP}parameters")} for b in begins]
+    assert params[0]["Prop"] == "9" and params[0]["Direction"] == "이름을 입력하세요"
+    assert params[1]["Path"] == "https://example.com/a"
+    assert params[1]["Category"] == "HWPHYPERLINK_TYPE_URL"
+    ends = [e.get("beginIDRef") for e in section.iter(f"{HP}fieldEnd")]
+    assert ends == ["1234", "1235"]
+    assert "이름 링크 누리집" in [paragraph.text for paragraph in document.paragraphs]
+    assert not document._hwp5_report.unconverted
+
+
+def test_highlights_open_as_markpen_marks_inside_the_text() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(highlights=True, unmapped_range=True))
+    section = document.sections[0].element
+    paragraph = [p for p in section.iter(f"{HP}p") if "형광펜" in "".join(p.itertext())][0]
+    layout = []
+    for run in paragraph.iter(f"{HP}run"):
+        for t in run.iter(f"{HP}t"):
+            parts = [t.text or ""]
+            for child in t:
+                parts += [etree.QName(child).localname + ":" + (child.get("color") or ""), child.tail or ""]
+            layout.append((run.get("charPrIDRef"), [part for part in parts if part]))
+    # The first range ends where the second run starts, so its end stays in the first run.
+    assert layout == [
+        ("0", ["markpenBegin:#FFFF00", "형광펜", "markpenEnd:"]),
+        ("1", [" ", "markpenBegin:#E5CCFF", "칠한 ", "markpenEnd:", "글"]),
+    ]
+    # A range tag kind OWPML has no element for is counted, without a warning.
+    assert document._hwp5_report.dropped == {"range-tag-0": 1}
+
+
+def test_a_label_sheet_table_keeps_its_layout() -> None:
+    document = HwpxDocument.open(make_hwp(label=True))
+    [label] = list(document.sections[0].element.iter(f"{HP}label"))
+    assert label.getparent().tag == f"{HP}tbl" and label.getparent()[-1] is label
+    assert dict(label.attrib) == {
+        "topmargin": "5670",
+        "leftmargin": "5670",
+        "boxwidth": "28346",
+        "boxlength": "28346",
+        "boxmarginhor": "850",
+        "boxmarginver": "850",
+        "labelcols": "1",
+        "labelrows": "2",
+        "landscape": "WIDELY",
+        "pagewidth": "59528",
+        "pageheight": "84188",
+    }
+    assert not document._hwp5_report.unconverted
+
+
+def test_memo_bodies_and_master_pages_are_reported() -> None:
+    with pytest.warns(Hwp5ConversionWarning) as caught:
+        document = HwpxDocument.open(make_hwp(memo=True, master_page=True))
+    assert document._hwp5_report.unconverted == {"memo-body": 1, "master-page": 1}
+    assert "memo-body x1" in str(caught[0].message)
+
+
+def test_master_pages_under_the_section_definition_are_reported() -> None:
+    section = _section()
+    # The master page list follows the section definition's page border fills.
+    index = max(i for i, r in enumerate(section) if r.tag == rec.PAGE_BORDER_FILL)
+    section[index + 1 : index + 1] = [
+        rec.Record(rec.LIST_HEADER, 2, _master_page()[0].payload),
+        *_paragraph(2, "바탕쪽".encode("utf-16-le") + _u16(13), [(0, 0)], []),
+    ]
+    with pytest.warns(Hwp5ConversionWarning, match="master-page x1"):
+        HwpxDocument.open(_compound(section))
 
 
 def test_password_protected_hwp_is_refused_with_its_code() -> None:
