@@ -128,7 +128,7 @@ def _section_setup_paragraphs(doc: HwpxDocument) -> list[int]:
 
 def test_toc_at_the_start_keeps_the_section_setup_in_the_first_paragraph():
     # Hancom reads a secPr outside a section's first paragraph as a new
-    # section: with the TOC in front of it, the SDK 13.60 re-save had 2.
+    # section: with the TOC in front of it, the document had two.
     doc, headings = _doc_with_headings(3)
     doc.page.set_header(text="머리말")
     doc.page.set_footer(text="꼬리말")

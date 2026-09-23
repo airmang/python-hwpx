@@ -100,9 +100,8 @@ def _has_cache(paragraph) -> bool:
 
 
 def test_paragraph_format_clears_only_the_formatted_paragraph_cache() -> None:
-    # Hancom (SDK 13.60) takes line heights from the cached layout: with the
-    # cache kept, a paragraph moved to 130% line spacing still drew its old
-    # 160% line height (20pt line pitch where Hancom's own 130% shape gives 17pt).
+    # Hancom takes line heights from the cached layout: with the cache kept, a
+    # paragraph moved to 130% line spacing still drew its old 160% line height.
     doc = HwpxDocument.open(FORM_002)
     try:
         cached = [i for i, p in enumerate(doc.paragraphs) if _has_cache(p)]

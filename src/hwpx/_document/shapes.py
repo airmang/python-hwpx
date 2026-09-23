@@ -494,10 +494,9 @@ def _check_line_chart_axes(root: Any) -> None:
 
     ECMA-376 gives a line chart two ``c:axId`` children, each naming an axis
     defined in ``c:plotArea``. Hancom's engine crashes on a line chart without
-    them: the Hancom SDK 13.60 hit an access violation rendering such a page
-    and in every save (HWPX, HWP, HWPML2X), and the same chart rendered once
-    ``c:catAx``/``c:valAx`` were added. Bar charts without axes render, so
-    only line charts are checked.
+    them, rendering the page or saving the document, and the same chart
+    renders once ``c:catAx``/``c:valAx`` are added. Bar charts without axes
+    render, so only line charts are checked.
     """
 
     defined = {

@@ -196,8 +196,8 @@ class TestValidation:
         with pytest.raises(ValueError, match="chartSpace"):
             doc.add_chart("<not-a-chart/>")
 
-    # Hancom SDK 13.60 oracle: an axis-less line chart crashes the engine's
-    # page render and every save; the same chart with c:catAx/c:valAx renders.
+    # An axis-less line chart crashes Hancom's page render and every save;
+    # the same chart with c:catAx/c:valAx renders.
     def test_line_chart_without_axes_rejected_before_any_write(self) -> None:
         doc = HwpxDocument.new()
         with pytest.raises(HwpxValueError) as caught:
