@@ -143,8 +143,11 @@ def test_paragraph_text_setter_serializes_tabs_as_elements() -> None:
 
     run = paragraph.element.find(f"{HP}run")
     assert run is not None
-    children = list(run)
-    assert [child.tag for child in children] == [f"{HP}t", f"{HP}tab", f"{HP}t"]
+    # A tab sits inside hp:t, as Hancom writes it; one beside hp:t is dropped.
+    assert [child.tag for child in run] == [f"{HP}t"]
+    text = run.find(f"{HP}t")
+    assert text is not None
+    assert [child.tag for child in text] == [f"{HP}tab"]
     assert paragraph.text == "left	right"
 
 
