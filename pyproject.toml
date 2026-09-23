@@ -283,6 +283,9 @@ files = [
     # headroom -- same escape valve as dutmal_compose.py/objects.py/
     # field_marks.py above, per the WP-A rule.
     "src/hwpx/oxml/note_authoring.py",
+    # Hyperlink field target form (Hancom's Command/Path parameters,
+    # written and read in one place) -- born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/hyperlink_form.py",
 ]
 # 칩 후보 1 ✅ 6.14 트레인㊾-1에서 해소: `src/hwpx/table_patch.py`(2073줄,
 # 6.12 트레인㊸ 갭⑤ 정리 시 team-lead가 지목, f7e4e67 리뷰) — 위 files
@@ -450,6 +453,9 @@ include = [
     # headroom -- same escape valve as dutmal_compose.py/objects.py/
     # field_marks.py above, per the WP-A rule.
     "src/hwpx/oxml/note_authoring.py",
+    # Hyperlink field target form (Hancom's Command/Path parameters,
+    # written and read in one place) -- born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/hyperlink_form.py",
 ]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"

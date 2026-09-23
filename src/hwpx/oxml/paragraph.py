@@ -28,6 +28,7 @@ from ._document_primitives import (
 )
 from .namespaces import XML_NS, tag_local_name
 from .dutmal_compose import _paragraph_add_composed_character, _paragraph_add_dutmal
+from .hyperlink_form import HYPERLINK_FIELD_ID, hyperlink_parameters, hyperlink_target
 from .field_marks import (
     _paragraph_add_date_field,
     _paragraph_add_mail_merge_field,
@@ -862,7 +863,10 @@ class HwpxOxmlParagraph:
         """Insert a hyperlink spanning three runs: fieldBegin, text, fieldEnd.
 
         Args:
-            url: The target URL or bookmark reference.
+            url: The target URL, a ``mailto:`` address, or ``#name`` for the
+                bookmark ``name``. It is written where Hancom reads it, the
+                field's ``Command``/``Path`` parameters (``hyperlink_form``),
+                and kept in ``@name`` for older readers.
             display_text: The visible text for the hyperlink.
 
         Returns:
@@ -879,10 +883,16 @@ class HwpxOxmlParagraph:
             "id": field_id,
             "type": "HYPERLINK",
             "name": url,
-            "editable": "false",
-            "dirty": "false",
+            "editable": "0",
+            "dirty": "0",
+            "zorder": "-1",
+            "fieldid": HYPERLINK_FIELD_ID,
         }
-        _append_child(ctrl1, f"{_HP}fieldBegin", fb_attrs)
+        begin = _append_child(ctrl1, f"{_HP}fieldBegin", fb_attrs)
+        params = hyperlink_parameters(url)
+        holder = _append_child(begin, f"{_HP}parameters", {"cnt": str(len(params)), "name": ""})
+        for kind, name, text in params:
+            _append_child(holder, f"{_HP}{kind}", {"name": name}).text = text
 
         # Run 2: visible text content
         run2 = self._create_run_for_object(char_pr_id_ref=char_pr_id_ref)
@@ -892,7 +902,7 @@ class HwpxOxmlParagraph:
         # Run 3: fieldEnd
         run3 = self._create_run_for_object()
         ctrl3 = _append_child(run3, f"{_HP}ctrl", {})
-        _append_child(ctrl3, f"{_HP}fieldEnd", {"beginIDRef": field_id})
+        _append_child(ctrl3, f"{_HP}fieldEnd", {"beginIDRef": field_id, "fieldid": HYPERLINK_FIELD_ID})
 
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl1, self)
@@ -1456,8 +1466,8 @@ class HwpxOxmlParagraph:
     def hyperlinks(self) -> list[dict[str, str]]:
         """Return metadata for all hyperlinks in this paragraph.
 
-        Each dict has ``id``, ``url`` (from the ``name`` attribute),
-        and ``type`` keys.
+        Each dict has ``id``, ``url`` (the target: ``Path``, else ``Command``,
+        else ``@name`` -- see ``hyperlink_form.hyperlink_target``) and ``type``.
         """
         result: list[dict[str, str]] = []
         for run in self._run_elements():
@@ -1466,7 +1476,7 @@ class HwpxOxmlParagraph:
                     if fb.get("type") == "HYPERLINK":
                         result.append({
                             "id": fb.get("id", ""),
-                            "url": fb.get("name", ""),
+                            "url": hyperlink_target(fb),
                             "type": fb.get("type", ""),
                         })
         return result

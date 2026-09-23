@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Union
 
 from ..document import HwpxDocument
+from ..oxml.hyperlink_form import hyperlink_target
 from ..oxml.namespaces import tag_local_name
 
 # 도형은 rect/ellipse/polygon만 순회. drawText/container는 이들의 자식이라
@@ -250,7 +251,7 @@ def _md_handle_ctrl_child(child, state: _MdParagraphState, base_cp, chars, doc=N
         gctag = _local_name(gc)
         if gctag == "fieldBegin" and gc.get("type") == "HYPERLINK":
             _md_flush_items(state, base_cp, chars)
-            state.link_url = gc.get("name", "")
+            state.link_url = hyperlink_target(gc)
         elif gctag == "fieldEnd":
             _md_flush_link(state, base_cp, chars)
         elif gctag in ("footNote", "endNote"):

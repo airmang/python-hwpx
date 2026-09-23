@@ -17,6 +17,7 @@ from ..opc.relationships import (
     select_main_rootfile,
 )
 from ..opc.security import MAX_ZIP_SMALL_PART_BYTES, guard_zip_file, parse_xml_stdlib, read_member
+from ..oxml.hyperlink_form import hyperlink_target
 from ..oxml.namespaces import DEFAULT_NAMESPACES as OWPML_DEFAULT_NAMESPACES
 
 __all__ = [
@@ -713,17 +714,9 @@ def _resolve_hyperlink_target(
     field_begin: ET.Element,
     namespaces: Dict[str, str],
 ) -> Optional[str]:
-    params = _first_child_by_local(field_begin, "parameters")
-    if params is None:
-        return None
-
-    for string_param in _children_by_local(params, "stringParam"):
-        if string_param.get("name") == "Command":
-            value = string_param.text or ""
-            if "|" in value:
-                return value.split("|", 1)[0]
-            return value
-    return None
+    # Path, else the unescaped Command without its ";1;0;0;" kind tail, else
+    # @name -- one reading for every consumer (hwpx.oxml.hyperlink_form).
+    return hyperlink_target(field_begin) or None
 
 
 def strip_namespace(tag: str) -> str:
