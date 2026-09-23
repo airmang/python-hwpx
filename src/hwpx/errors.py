@@ -126,6 +126,7 @@ ERROR_CODE_DOMAINS = frozenset(
         "field",
         "header",
         "heading",
+        "hwp5",
         "hwpx",
         "master",
         "media",
@@ -312,6 +313,15 @@ ERROR_CODES: dict[str, str] = {
     "open-safety-failed": "산출 패키지가 편집기 열기 안전성 검사를 통과하지 못했다.",
     "quality-gate-failed": "품질 게이트가 저장을 막았다(quality 코드는 context 에).",
     "preservation-downgrade": "요청한 보존 등급을 저장이 달성하지 못했다.",
+    # -- HWP 5.0 (.hwp) ------------------------------------------------
+    "hwp5-damaged": "HWP 5.0 문서의 컨테이너나 레코드가 깨졌다(잘림·범위 밖 섹터·순환·레코드 길이·압축).",
+    "hwp5-password": "암호가 걸린 HWP 5.0 문서다.",
+    "hwp5-distribution": "배포용 HWP 5.0 문서라 본문이 암호화돼 있다.",
+    "hwp5-drm": "DRM·인증서로 암호화된 HWP 5.0 문서다.",
+    "hwp5-not-hwp5": "복합 파일이지만 HWP 5.0 FileHeader가 없다.",
+    "hwp5-version-unsupported": "FileHeader의 주 버전이 5가 아니다.",
+    "hwp5-limit-exceeded": "HWP 5.0 입력이 파싱 상한(스트림 크기·레코드 수·디렉터리 수)을 넘는다.",
+    "hwp5-write-unsupported": "HWP 5.0 작성기가 표현할 수 없는 내용이다.",
     # -- 계획 실행기 -----------------------------------------------------
     "plan-invalid": "편집 계획이 v1 계약을 위반한다.",
 }

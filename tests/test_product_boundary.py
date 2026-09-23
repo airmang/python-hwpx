@@ -301,7 +301,8 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # +1: format-level plain-text edit helpers extracted from paragraph.py.
     # +1: hyperlink field target form (oxml/hyperlink_form.py) -- Hancom's
     # Command/Path parameters, written and read in one place.
-    assert report["classifiedFiles"] == 149
+    # +8: the HWP 5.0 (.hwp) container and record layer (src/hwpx/hwp5/).
+    assert report["classifiedFiles"] == 157
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

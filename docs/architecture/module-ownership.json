@@ -536,6 +536,54 @@
       "disposition": "core",
       "approvedBy": "hancom-hyperlink-target-parameters",
       "rationale": "Hancom's storage of a hyperlink field target: hyperlink_parameters() writes the hp:parameters Hancom reads (Command with : ? ; # backslash-escaped and a ;kind;0;0 tail, Path, Category, TargetType, DocOpenType -- the form Hancom writes for web, mail and bookmark links) and hyperlink_target() reads a target back (Path, else the unescaped Command head, else @name). A new module rather than more paragraph.py lines (1,584/1,600 owner-file cap); paragraph.add_hyperlink, paragraph.hyperlinks, Markdown export and the text extractor all call it, so the three readers that disagreed now read one way. Format-level only: no renderer, application workflow or agent policy."
+    },
+    {
+      "path": "src/hwpx/hwp5/__init__.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "HWP 5.0 (.hwp) subpackage: converts between the HWP 5.0 compound file and the OWPML parts of an HWPX package so HwpxDocument opens and saves .hwp with the same document model and API. Format-level only: no renderer, application workflow or agent policy."
+    },
+    {
+      "path": "src/hwpx/hwp5/bodytext.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "HWP 5.0 BodyText paragraphs: PARA_HEADER fields, the paragraph text split into plain text and char/inline/extended control characters, char shape runs and the CTRL_HEADER records a paragraph owns. Format-level decoding only."
+    },
+    {
+      "path": "src/hwpx/hwp5/cfb.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Compound File Binary reader and writer for the HWP 5.0 container, written from the public [MS-CFB] specification with the standard library only: bounded sector-chain reading that refuses truncated, looping or out-of-file chains, and version 3 writing with a red-black directory tree per storage."
+    },
+    {
+      "path": "src/hwpx/hwp5/docinfo.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "HWP 5.0 DocInfo id-mapping table (bin data, fonts per language, border fills, char and para shapes, tab definitions, numbering, bullets, styles, memo shapes) and the check that each count matches the records present."
+    },
+    {
+      "path": "src/hwpx/hwp5/errors.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Hwp5Error, the typed error with hwp5-* codes for HWP 5.0 input that is protected (password, distribution, DRM), damaged, not HWP 5.0 or beyond a parsing limit, and for content the HWP 5.0 writer cannot express."
+    },
+    {
+      "path": "src/hwpx/hwp5/fileheader.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "The 256-byte HWP 5.0 FileHeader stream: signature, version and the property flags (compression, password, distribution, DRM, certificate encryption and the rest)."
+    },
+    {
+      "path": "src/hwpx/hwp5/reader.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Opens an HWP 5.0 file into its FileHeader, DocInfo and section record trees, and refuses protected, damaged and non-HWP 5.0 files with stable error codes before any record is interpreted."
+    },
+    {
+      "path": "src/hwpx/hwp5/records.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "HWP 5.0 record layer: tag/level/size headers including the extended size word, the level tree, bounded raw-deflate stream decompression, and record serialization for writing."
     }
   ],
   "removed": [
