@@ -19,6 +19,10 @@
 - `shapes.add_chart()`가 계열 축이 없는 3D 차트(세 번째 `c:axId`가 `0`)를 축이
   없다고 거부하던 것을 고친다. `0`은 축이 없다는 표시라, 이제 나머지 두 축 id만
   정의돼 있으면 받아들인다. 한컴은 이런 차트를 축 id 두 개짜리와 같게 그린다.
+- `shapes.add_polygon()`과 그룹 멤버 `ContainerMember.polygon()`이 만든 다각형이 한컴에서
+  마지막 변 없이 열린 선으로 그려지던 것을 고친다. 한컴은 첫 꼭짓점을 끝에 한 번 더
+  써서 다각형을 닫는다. 이제 두 API도 그렇게 쓴다. 열린 선이 필요하면 `closed=False`를
+  넘긴다.
 - `hwpx.tools.read_fidelity.resolve_run_spans()`(와 이를 쓰는 판독 표면)가 위·아래
   첨자를 `offset` 부호만 보고 판정하던 것을 고친다. 부호가 거꾸로여서(음수가
   위로 올린다, DEV-028) 예전 python-hwpx 위첨자를 아래첨자로 보고했고,
