@@ -712,6 +712,49 @@ class MemoShape:
 
 
 @dataclass
+class TrackChange:
+    """``TRACK_CHANGE``: one tracked change: its kind (16 insertion, 17
+    deletion, 19 paragraph shape), the local time it was made (year, month,
+    day, hour, minute), its author (1 first), then five words. The fourth is
+    whether an insertion or deletion is hidden, or the paragraph shape a
+    paragraph shape change made."""
+
+    kind: int = 16
+    time: tuple[int, int, int, int, int] = (1970, 1, 1, 0, 0)
+    author: int = 1
+    words: tuple[int, int, int, int, int] = (0, 0, 0, 0, 0)
+    extra: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "TrackChange":
+        c = Cursor(payload, "TRACK_CHANGE")
+        value = cls(c.u32())
+        value.time = (c.u16(), c.u16(), c.u16(), c.u16(), c.u16())
+        value.author = c.u16()
+        value.words = (c.u16(), c.u16(), c.u16(), c.u16(), c.u16())
+        value.extra = c.rest()
+        return value
+
+
+@dataclass
+class TrackChangeAuthor:
+    """``TRACK_CHANGE_AUTHOR``: the author's name, whether the author's
+    changes are marked, then a word OWPML has no place for."""
+
+    name: str = ""
+    mark: int = 1
+    extra: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "TrackChangeAuthor":
+        c = Cursor(payload, "TRACK_CHANGE_AUTHOR")
+        name = c.raw(2 * c.u32()).decode("utf-16-le", errors="replace")
+        value = cls(name, c.u32())
+        value.extra = c.rest()
+        return value
+
+
+@dataclass
 class DocInfo:
     """Every DocInfo record kind, decoded, in id order."""
 

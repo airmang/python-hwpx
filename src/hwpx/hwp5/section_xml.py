@@ -442,6 +442,13 @@ CAPTION_SIDE = ("LEFT", "RIGHT", "TOP", "BOTTOM")
 CHAR_ELEMENTS = {10: "hp:lineBreak", 24: "hp:hyphen", 30: "hp:nbSpace", 31: "hp:fwSpace"}
 #: The range tag kind of a highlighter (markpen) range; its low 24 bits are the color.
 RANGE_MARKPEN = 2
+#: Range tag kinds of tracked changes: an insertion or deletion becomes a pair
+#: of marks in the text; a paragraph shape change has none (its change in the
+#: header says what it made). The low 24 bits are the change's id.
+TRACK_MARKS = {16: "insert", 17: "delete"}
+TRACK_PARA_SHAPE = 19
+#: A mark in the text: position, order at that position, element, attributes.
+Mark = tuple[int, int, str, tuple[tuple[str, object], ...]]
 #: The inline control of a title mark, and its words: ``Mtit`` is written
 #: ``ignore="1"`` by Hancom and ``Mign`` ``ignore="0"``.
 TITLE_MARK_CODE = 8
@@ -649,15 +656,12 @@ def _is_open(run: etree._Element, text: etree._Element | None) -> bool:
     return text is not None and len(run) > 0 and run[-1] is text
 
 
-def _place_marks(parent: etree._Element, marks: list[tuple[int, int, str]], pending: int, position: int) -> int:
+def _place_marks(parent: etree._Element, marks: list[Mark], pending: int, position: int) -> int:
     """Append the marks due at *position* to *parent*; return the next pending mark."""
 
     while pending < len(marks) and marks[pending][0] <= position:
-        colour = marks[pending][2]
-        if colour:
-            sub(parent, "hp:markpenBegin", (("color", colour),))
-        else:
-            sub(parent, "hp:markpenEnd")
+        _position, _order, name, attrs = marks[pending]
+        sub(parent, name, attrs)
         pending += 1
     return pending
 
@@ -679,6 +683,9 @@ class SectionWriter(ShapeReader):
         self.section_pr: etree._Element | None = None
         # The chart part of each OLE item that holds a chart.
         self.charts: dict[str, str] = {}
+        # The change marks of the document so far (one count, shared by its
+        # sections): a mark's id counts every change range tag before it.
+        self.track_ids: list[int] = [0]
 
     # paragraphs ----------------------------------------------------------------------
 
@@ -740,20 +747,31 @@ class SectionWriter(ShapeReader):
                     ),
                 )
 
-    def marks(self, record: rec.Record) -> list[tuple[int, int, str]]:
-        """Highlighter starts and ends from the paragraph's range tags, in text
-        order: (position, order, color), where an end has no color."""
+    def marks(self, record: rec.Record) -> list[Mark]:
+        """Highlighter and change marks from the paragraph's range tags, in
+        text order; at one position an end goes before a start. A change
+        ending at the paragraph's end says so (``paraend``)."""
 
-        events: list[tuple[int, int, str]] = []
+        chars = struct.unpack_from("<I", record.payload.ljust(4, b"\0"), 0)[0] & 0x7FFFFFFF
+        events: list[Mark] = []
         for child in record.children:
             if child.tag != rec.PARA_RANGE_TAG:
                 continue
             for offset in range(0, len(child.payload) - 11, 12):
                 start, end, tag = struct.unpack_from("<III", child.payload, offset)
                 kind = tag >> 24
+                closing = 2 if end == start else 0
                 if kind == RANGE_MARKPEN:
-                    events.append((start, 1, color(tag & 0xFFFFFF)))
-                    events.append((end, 2 if end == start else 0, ""))
+                    events.append((start, 1, "hp:markpenBegin", (("color", color(tag & 0xFFFFFF)),)))
+                    events.append((end, closing, "hp:markpenEnd", ()))
+                elif kind in TRACK_MARKS:
+                    self.track_ids[0] += 1
+                    name, ids = TRACK_MARKS[kind], (("Id", self.track_ids[0]), ("TcId", tag & 0xFFFFFF))
+                    events.append((start, 1, f"hp:{name}Begin", ids))
+                    events.append((end, closing, f"hp:{name}End", (*ids, ("paraend", flag(end >= chars)))))
+                elif kind == TRACK_PARA_SHAPE:
+                    self.track_ids[0] += 1
+                    self.report.drop(f"range-tag-{kind}")
                 elif kind in (0, 1):
                     self.report.drop(f"range-tag-{kind}")
                 else:
@@ -761,7 +779,7 @@ class SectionWriter(ShapeReader):
         events.sort(key=lambda event: (event[0], event[1]))
         return events
 
-    def runs(self, element: etree._Element, para: bt.Paragraph, marks: list[tuple[int, int, str]]) -> None:
+    def runs(self, element: etree._Element, para: bt.Paragraph, marks: list[Mark]) -> None:
         shapes = para.char_shapes or [(0, 0)]
         bounds = [start for start, _ in shapes[1:]] + [1 << 31]
         controls = iter(para.controls)
@@ -1381,6 +1399,7 @@ def build_section(
     memos: list[MemoBody] | None = None,
     master_pages: list[bytes] | None = None,
     charts: dict[str, str] | None = None,
+    track_ids: list[int] | None = None,
 ) -> bytes:
     """``Contents/section<N>.xml`` for one BodyText section.
 
@@ -1395,6 +1414,9 @@ def build_section(
 
     ``charts`` maps each OLE item that holds a chart to the chart's part;
     such an object becomes the chart with the OLE object as its fallback.
+
+    ``track_ids`` is the document's count of change marks so far (one item,
+    shared by its sections); without it the section counts its own.
     """
 
     section = root("hs:sec")
@@ -1402,6 +1424,8 @@ def build_section(
     writer.memo_bodies = memos if memos is not None else memo_bodies([stream])
     writer.master_pages = master_pages
     writer.charts = charts or {}
+    if track_ids is not None:
+        writer.track_ids = track_ids
     writer.paragraphs(section, stream.roots)
     if memos is None:
         for _ in writer.memo_bodies:

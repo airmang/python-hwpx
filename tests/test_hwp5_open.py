@@ -532,15 +532,30 @@ def test_unconverted_controls_are_reported_not_dropped_silently() -> None:
     assert document._hwp5_report.unconverted["control-gso"] == 1
 
 
-def test_a_document_that_tracks_changes_opens_with_the_body_it_shows() -> None:
+def test_a_document_that_tracks_changes_opens_with_its_body_and_change_marks() -> None:
     # Hancom keeps the body of a document that tracks changes, with its change
     # marks, in ViewText, and a stand-in without the text in BodyText.
     shown = _paragraph(0, "고친 본문".encode("utf-16-le") + _u16(13), [(0, 0)], [])
     header = bytearray(shown[0].payload)
-    struct.pack_into("<H", header, 14, 1)  # one range tag: an insertion over two characters
+    struct.pack_into("<H", header, 14, 2)  # two range tags
     shown[0] = rec.Record(rec.PARA_HEADER, 0, bytes(header))
-    shown.append(rec.Record(rec.PARA_RANGE_TAG, 1, struct.pack("<III", 0, 2, 16 << 24 | 1)))
-    docinfo = _docinfo() + [rec.Record(rec.TRACK_CHANGE, 0, bytes(12))]
+    # A paragraph shape change (kind 19), then an insertion (16) of change 1
+    # over the first two characters; mark ids count both.
+    tags = struct.pack("<III", 0, 6, 19 << 24 | 2) + struct.pack("<III", 0, 2, 16 << 24 | 1)
+    shown.append(rec.Record(rec.PARA_RANGE_TAG, 1, tags))
+    # The change was made at 19:21 on 2023-02-07, Korean time, by author 1.
+    insertion = struct.pack("<I5HH5H", 16, 2023, 2, 7, 19, 21, 1, 0, 0, 0, 0, 0)
+    shape = struct.pack("<I5HH5H", 19, 2023, 2, 7, 19, 22, 1, 0, 4, 0, 32, 0) + bytes(4)
+    author = struct.pack("<I", 3) + "편집자".encode("utf-16-le") + struct.pack("<II", 1, 0)
+    docinfo = _docinfo()
+    counts = list(struct.unpack("<18i", docinfo[1].payload))
+    counts[16], counts[17] = 2, 1
+    docinfo[1] = rec.Record(rec.ID_MAPPINGS, 0, struct.pack("<18i", *counts))
+    docinfo += [
+        rec.Record(rec.TRACK_CHANGE, 1, insertion),
+        rec.Record(rec.TRACK_CHANGE, 1, shape),
+        rec.Record(rec.TRACK_CHANGE_AUTHOR, 1, author),
+    ]
     data = cfb.build_compound_file(
         [
             ("FileHeader", FileHeader((5, 1, 1, 0), 1 | 1 << 14).to_bytes()),
@@ -549,13 +564,24 @@ def test_a_document_that_tracks_changes_opens_with_the_body_it_shows() -> None:
             ("ViewText/Section0", rec.deflate(rec.serialize_records(_section() + shown))),
         ]
     )
-    with pytest.warns(Hwp5ConversionWarning):
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         document = HwpxDocument.open(data)
-    texts = ["".join(p.itertext()) for s in document.sections for p in s.element.iter(f"{HP}p")]
-    assert "고친 본문" in texts
-    # The change marks and the list of changes are reported until they are converted.
-    assert document._hwp5_report.unconverted == {"range-tag-16": 1, "track-changes": 1}
+    [paragraph] = [p for s in document.sections for p in s.element.iter(f"{HP}p") if "".join(p.itertext()) == "고친 본문"]
+    marks = [(etree.QName(e).localname, dict(e.attrib)) for e in paragraph.iter(f"{HP}insertBegin", f"{HP}insertEnd")]
+    assert marks == [("insertBegin", {"Id": "2", "TcId": "1"}), ("insertEnd", {"Id": "2", "TcId": "1", "paraend": "0"})]
+    # The paragraph shape change has no mark in the text: counted, not warned about.
+    assert document._hwp5_report.dropped == {"range-tag-19": 1}
 
+    from hwpx.hwp5.package import convert
+
+    head = etree.fromstring(convert(data).files["Contents/header.xml"])
+    changes = [dict(e.attrib) for e in head.iter(f"{HH}trackChange")]
+    assert changes == [
+        {"type": "Insert", "date": "2023-02-07T10:21:00Z", "authorID": "1", "hide": "0", "id": "1"},
+        {"type": "ParaShape", "date": "2023-02-07T10:22:00Z", "authorID": "1", "hide": "0", "id": "2", "parashapeID": "32"},
+    ]
+    assert [dict(e.attrib) for e in head.iter(f"{HH}trackChangeAuthor")] == [{"name": "편집자", "mark": "1", "id": "1"}]
 
 def test_fields_open_as_field_begin_and_end() -> None:
     document = HwpxDocument.open(make_hwp(fields=True))

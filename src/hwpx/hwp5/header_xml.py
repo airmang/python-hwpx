@@ -10,11 +10,13 @@ and a font id is its index within its language list.
 from __future__ import annotations
 
 import struct
+from datetime import datetime, timedelta
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
 from . import docinfo as di
 from . import records as rec
+from .errors import Hwp5Error
 from .owpml import (
     ALIGN_H,
     ALIGN_V,
@@ -521,6 +523,51 @@ def _record(info: di.DocInfo, tag: int) -> rec.Record | None:
     return None
 
 
+#: The OWPML type of each kind of tracked change.
+TRACK_CHANGE_TYPE = {16: "Insert", 17: "Delete", 19: "ParaShape"}
+#: A tracked change keeps local (Korean) time; OWPML writes it in UTC.
+TRACK_TIME_OFFSET = timedelta(hours=9)
+
+
+def track_changes(info: di.DocInfo) -> tuple[list[di.TrackChange], list[di.TrackChangeAuthor]] | None:
+    """The document's tracked changes and their authors; None when a record
+    cannot be read, a change is of a kind with no OWPML type or its time is
+    no date."""
+
+    try:
+        changes = [di.TrackChange.decode(r.payload) for r in info.other if r.tag == rec.TRACK_CHANGE]
+        authors = [di.TrackChangeAuthor.decode(r.payload) for r in info.other if r.tag == rec.TRACK_CHANGE_AUTHOR]
+        for change in changes:
+            datetime(*change.time)
+    except (Hwp5Error, ValueError):
+        return None
+    if any(change.kind not in TRACK_CHANGE_TYPE for change in changes):
+        return None
+    return changes, authors
+
+
+def _track_changes(refs: etree._Element, changes: list[di.TrackChange], authors: list[di.TrackChangeAuthor]) -> None:
+    if changes:
+        items = sub(refs, "hh:trackChanges", (("itemCnt", len(changes)),))
+        for index, change in enumerate(changes, 1):
+            when = datetime(*change.time) - TRACK_TIME_OFFSET
+            paragraph_shape = change.kind == 19
+            attrs: list[tuple[str, object]] = [
+                ("type", TRACK_CHANGE_TYPE[change.kind]),
+                ("date", when.strftime("%Y-%m-%dT%H:%M:%SZ")),
+                ("authorID", change.author),
+                ("hide", 0 if paragraph_shape else flag(change.words[3])),
+                ("id", index),
+            ]
+            if paragraph_shape:
+                attrs.append(("parashapeID", change.words[3]))
+            sub(items, "hh:trackChange", attrs)
+    if authors:
+        items = sub(refs, "hh:trackChangeAuthors", (("itemCnt", len(authors)),))
+        for index, author in enumerate(authors, 1):
+            sub(items, "hh:trackChangeAuthor", (("name", author.name), ("mark", flag(author.mark)), ("id", index)))
+
+
 def build_header(
     info: di.DocInfo,
     section_count: int,
@@ -575,6 +622,9 @@ def build_header(
         memos = sub(refs, "hh:memoProperties", (("itemCnt", len(info.memo_shapes)),))
         for index, memo in enumerate(info.memo_shapes):
             _memo_pr(memos, index, memo)
+    tracked = track_changes(info)
+    if tracked is not None:
+        _track_changes(refs, *tracked)
     target = info.compatible_target or 0
     compatible = sub(head, "hh:compatibleDocument", (("targetProgram", token(TARGET_PROGRAM, target)),))
     sub(compatible, "hh:layoutCompatibility")

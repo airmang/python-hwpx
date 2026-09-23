@@ -23,7 +23,7 @@ from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 from . import docinfo as di
 from . import records as rec
 from . import shapes as sh
-from .header_xml import build_header
+from .header_xml import build_header, track_changes
 from .owpml import NS, XML_DECLARATION, root, serialize, sub, xml_text
 from .reader import Hwp5File, read_hwp5
 from .section_xml import ConversionReport, build_section, memo_bodies
@@ -226,9 +226,10 @@ def convert(data: bytes) -> Converted:
     master_pages: list[bytes] = []
     counts: list[int] = []
     parts: list[bytes] = []
+    track_ids = [0]
     for section in doc.sections:
         before = len(master_pages)
-        parts.append(build_section(section, report, memos, master_pages, charts))
+        parts.append(build_section(section, report, memos, master_pages, charts, track_ids))
         counts.append(len(master_pages) - before)
     for _ in memos:
         report.skip("memo-body")
@@ -251,8 +252,8 @@ def convert(data: bytes) -> Converted:
     for item in info.bin_data:
         if item.kind == di.BIN_LINK:
             report.skip("bindata-link")
-    # The list of tracked changes and their authors is not converted yet.
-    if any(r.tag in (rec.TRACK_CHANGE, rec.TRACK_CHANGE_AUTHOR) for r in doc.docinfo.records):
+    # The header leaves out tracked changes it cannot express.
+    if track_changes(info) is None:
         report.skip("track-changes")
     return Converted(files, report, doc)
 
