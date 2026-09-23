@@ -192,24 +192,24 @@ def _run_style_shadow_matches(element: ET.Element, shadow_color: str | None) -> 
     return (shadow_el.get("color") or "").upper() == shadow_color.upper()
 
 
+def _run_style_is_legacy_script_approximation(element: ET.Element) -> bool:
+    """relSz 67 + offset -30/+30: what python-hwpx wrote next to the script
+    element in earlier versions. Hancom shrinks and shifts a script by the element
+    alone, so these values made it shrink twice."""
+
+    off_el = element.find(f"{_HH}offset")
+    return _run_style_lang_value_matches(element, "relSz", 67) and (
+        off_el is not None and off_el.get("hangul") in ("-30", "30")
+    )
+
+
 def _run_style_script_matches(element: ET.Element, script: str | None) -> bool:
     if script is None:
         return True
-    if not _run_style_lang_value_matches(element, "relSz", 67):
+    if _run_style_is_legacy_script_approximation(element):
         return False
-    off_el = element.find(f"{_HH}offset")
-    # 실한컴 렌더 실측: offset 음수=위로(위첨자), 양수=아래로(아래첨자).
-    wanted_offset = "-30" if script == "sup" else "30"
-    if off_el is None or off_el.get("hangul") != wanted_offset:
-        return False
-    # hwpxlib 실코퍼스 실측(error__20250808 문서 charPr id=513): 실한컴이
-    # 위첨자 토글로 쓴 charPr은 offset/relSz 근사와 별개로 <hh:supscript/>
-    # 실요소를 갖고 있었다(그 문서 자체는 relSz=100/offset=0 그대로였다 —
-    # 즉 한컴 렌더러는 이 요소만으로 판단하고 수치는 건드리지 않는다).
-    # 우리는 기존 offset 계약(파괴 금지)을 지키며 요소를 병행 방출한다.
-    if script == "sup":
-        return element.find(f"{_HH}supscript") is not None
-    return element.find(f"{_HH}subscript") is not None
+    wanted, other = ("supscript", "subscript") if script == "sup" else ("subscript", "supscript")
+    return element.find(f"{_HH}{wanted}") is not None and element.find(f"{_HH}{other}") is None
 
 
 def _run_style_predicate(element: ET.Element, spec: _RunStyleSpec) -> bool:
@@ -348,17 +348,18 @@ def _run_style_apply_extensions(element: ET.Element, spec: _RunStyleSpec) -> Non
 
 
 def _run_style_apply_script_extension(element: ET.Element, script: str | None) -> None:
-    """`script` kwarg 적용 — 기존 relSz/offset 근사(파괴 금지 계약)에 더해
-    실코퍼스 실측(hwpxlib error__20250808 문서, charPr id=513)이 보인 실제
-    ``hh:supscript``/``hh:subscript`` 요소를 병행 방출한다. 그 문서는
-    relSz=100·offset=0 기본값 그대로였다 — 한컴 렌더러는 이 요소만으로
-    위·아래첨자를 판정하고, 수치 근사는 별개 목적이라는 뜻이다.
-    ``_run_style_apply_extensions``에서 분리한 이유는 C901(10) 초과 방지."""
+    """`script` kwarg 적용 — ``hh:supscript``/``hh:subscript`` 요소만 쓴다.
+
+    한컴은 이 요소만으로 글자를 줄이고 올리거나 내린다(한컴 자신의 첨자는
+    relSz 100·offset 0). 예전처럼 relSz/offset도 줄이면 두 번 줄어든다. 기준
+    글자 모양이 예전 근사값(relSz 67·offset -30/+30)을 가졌으면 기본값으로
+    되돌린다. ``_run_style_apply_extensions``에서 분리한 이유는 C901(10) 초과 방지."""
 
     if script is None:
         return
-    _run_style_set_lang_values(element, "relSz", 67)
-    _run_style_set_lang_values(element, "offset", -30 if script == "sup" else 30)
+    if _run_style_is_legacy_script_approximation(element):
+        _run_style_set_lang_values(element, "relSz", 100)
+        _run_style_set_lang_values(element, "offset", 0)
     if script == "sup":
         stale = element.find(f"{_HH}subscript")
         if stale is not None:
@@ -735,9 +736,10 @@ class HwpxOxmlDocument:
         are rejected — no silent approximation.
 
         6.3 additions: ``outline`` (외곽선, ``hc:LineType1`` 어휘),
-        ``emboss``/``engrave`` (양각/음각), and ``script`` now also pairs the
-        real ``hh:supscript``/``hh:subscript`` element with its existing
-        ``relSz``/``offset`` approximation (see ``_run_style_apply_script_extension``).
+        ``emboss``/``engrave`` (양각/음각), and ``script`` writes the real
+        ``hh:supscript``/``hh:subscript`` element alone, as Hancom does -- the
+        element already shrinks and shifts the glyphs (see
+        ``_run_style_apply_script_extension``).
         """
 
         if not self._headers:

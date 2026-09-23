@@ -6,6 +6,11 @@
 
 ### 고침
 
+- `styles.ensure_run(script="sup"/"sub")`가 만든 위·아래 첨자가 한컴에서 두 번
+  줄어들던 것을 고친다. `hh:supscript`/`hh:subscript` 요소와 함께 `relSz 67`·
+  `offset -30/+30`도 썼는데, 한컴은 요소만으로 글자를 줄이고 올리거나 내린다.
+  이제 한컴 자신의 첨자처럼 요소만 쓴다(`relSz 100`·`offset 0`). 예전 모양의
+  글자 모양은 다시 쓰지 않고, 기준 글자 모양으로 받으면 기본값으로 되돌린다.
 - 한컴이 `hp:t` 안에 넣는 탭·줄 바꿈·특수 공백(`<hp:t>성<hp:fwSpace/>명<hp:tab/>홍길동</hp:t>`)
   뒤의 글자를 `paragraph.text`·`run.text`·`doc.text.plain()`·Markdown 내보내기·
   표 이름표 찾기가 버리던 것을 고친다. 이들은 `hp:t`의 첫 글자 묶음만 읽어 위
