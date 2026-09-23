@@ -75,6 +75,54 @@ def test_underline_normalised_off_is_none():
     assert all(s.underline != "NONE" for s in spans)
 
 
+_HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
+
+
+def _span_for(doc: HwpxDocument, text: str) -> RunSpan:
+    return next(s for s in resolve_run_spans(doc) if s.text == text)
+
+
+def _set_char_pr_offset(doc: HwpxDocument, char_pr_id: str, value: str) -> None:
+    char_props = doc.oxml.headers[0]._char_properties_element()
+    offset = char_props.find(f"{_HH}charPr[@id='{char_pr_id}']/{_HH}offset")
+    for lang in list(offset.attrib):
+        offset.set(lang, value)
+
+
+def test_script_read_from_its_element():
+    """Hancom marks a script by ``hh:supscript``/``hh:subscript`` alone
+    (offset 0), and so does ``ensure_run(script=...)``."""
+    doc = HwpxDocument.new()
+    doc.add_paragraph("보통")  # first: a later add_paragraph inherits the previous run's charPr
+    doc.add_paragraph("위", char_pr_id_ref=doc.styles.ensure_run(script="sup"))
+    doc.add_paragraph("아래", char_pr_id_ref=doc.styles.ensure_run(script="sub"))
+    assert (_span_for(doc, "위").superscript, _span_for(doc, "위").subscript) == (True, False)
+    assert (_span_for(doc, "아래").superscript, _span_for(doc, "아래").subscript) == (False, True)
+    assert (_span_for(doc, "보통").superscript, _span_for(doc, "보통").subscript) == (False, False)
+
+
+def test_script_with_legacy_offset_keeps_its_direction():
+    """Earlier python-hwpx wrote offset -30 next to a superscript (a negative
+    offset raises the glyphs, DEV-028). The element decides, not the sign."""
+    doc = HwpxDocument.new()
+    sup = doc.styles.ensure_run(script="sup")
+    _set_char_pr_offset(doc, sup, "-30")
+    doc.add_paragraph("위", char_pr_id_ref=sup)
+    span = _span_for(doc, "위")
+    assert (span.superscript, span.subscript) == (True, False)
+
+
+def test_offset_alone_is_not_a_script():
+    """A raised or lowered glyph without the element is Hancom's character
+    offset, not a superscript or subscript."""
+    doc = HwpxDocument.new()
+    raised = doc.styles.ensure_run(bold=True)
+    _set_char_pr_offset(doc, raised, "-30")
+    doc.add_paragraph("올림", char_pr_id_ref=raised)
+    span = _span_for(doc, "올림")
+    assert (span.superscript, span.subscript) == (False, False)
+
+
 # ── notes ────────────────────────────────────────────────────────────
 def test_collect_notes_footnote_and_endnote():
     notes = collect_notes(_authored_note_doc())
