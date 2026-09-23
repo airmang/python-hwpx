@@ -800,11 +800,11 @@ class HwpxOxmlParagraph:
         )
         ctrl = _append_child(run, f"{_HP}ctrl", {})
         col_pr_attrs: dict[str, str] = {
-            "id": _object_id(),
+            "id": "",
             "type": col_type,
             "layout": layout,
             "colCount": str(col_count),
-            "sameSz": str(same_size).lower(),
+            "sameSz": "1" if same_size else "0",
             "sameGap": str(same_gap) if same_size else "0",
         }
         col_pr = _append_child(ctrl, f"{_HP}colPr", col_pr_attrs)
