@@ -237,8 +237,8 @@ def _create_time(field_begin: ET.Element) -> str | None:
 
 
 def test_memo_fields_get_distinct_positive_zorder() -> None:
-    # Hancom oracle (SDK 13.60): a MEMO fieldBegin without zorder, or with -1,
-    # loses its fieldEnd when Hancom saves the file; a positive zorder keeps it.
+    # A MEMO fieldBegin without zorder, or with -1, loses its fieldEnd when
+    # Hancom saves the file; a positive zorder keeps it.
     document, section, _ = _build_document()
     first = document.add_memo("First", memo_shape_id_ref="5", memo_id="z-1", char_pr_id_ref="10")
     second = document.add_memo("Second", memo_shape_id_ref="5", memo_id="z-2", char_pr_id_ref="10")
@@ -261,8 +261,8 @@ def test_memo_fields_get_distinct_positive_zorder() -> None:
     ],
 )
 def test_memo_create_time_is_written_as_utc_iso(created: object, expected: str) -> None:
-    # Hancom oracle (SDK 13.60): "2024-12-02 09:00:00" is unreadable -- the
-    # engine turns it into a 1601 FILETIME -- while "…T…Z" survives a save.
+    # Hancom cannot read "2024-12-02 09:00:00" -- it turns it into a 1601
+    # FILETIME -- while "…T…Z" survives a save.
     document, section, _ = _build_document()
     memo = document.add_memo("Dated", memo_shape_id_ref="5", memo_id="t-1", char_pr_id_ref="10")
 

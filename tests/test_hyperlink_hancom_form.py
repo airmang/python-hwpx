@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hyperlinks carry the target where Hancom reads it: the field's parameters.
 
-A link written with only ``fieldBegin@name`` survived a Hancom SDK 13.60 save
-but pointed nowhere (Hancom added ``Category=HWPHYPERLINK_TYPE_HWP`` and no
-``Command``). The expected forms below are Hancom's own, from the SDK gold
-corpus (1,267 web and mail links, 434 bookmark links).
+A link written with only ``fieldBegin@name`` survived a Hancom save but
+pointed nowhere (Hancom added ``Category=HWPHYPERLINK_TYPE_HWP`` and no
+``Command``). The expected forms below are the ones Hancom writes.
 """
 from __future__ import annotations
 

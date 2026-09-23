@@ -60,8 +60,8 @@ def _keep_section_setup_first(section: Any) -> bool:
     Paragraphs inserted in front of the one that carries ``hp:secPr`` leave the
     setup in the middle of the section, and Hancom reads a ``hp:secPr`` that is
     not in a section's first paragraph as the start of a new section: a TOC
-    put at index 0 became a section of its own, followed by a page break
-    (Hancom SDK 13.60 re-save: 2 sections). ``hp:secPr`` and the controls that
+    put at index 0 became a section of its own, followed by a page break.
+    ``hp:secPr`` and the controls that
     apply from the section start (columns, header, footer, page numbering) move,
     in order, into a new leading run of the first paragraph -- where Hancom
     keeps them when it inserts a TOC at the start of a document itself.

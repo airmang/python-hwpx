@@ -283,9 +283,9 @@ def _story_counters(story) -> list[str]:
 
 
 def test_page_total_format_counts_the_total_pages() -> None:
-    # Hancom SDK 13.60 drew "1/1, 2/2, 3/3" on a three-page document when the
-    # second counter was another PAGE; Hancom's own page/total footers (42 in
-    # the gold corpus) use TOTAL_PAGE there and draw "1/3, 2/3, 3/3".
+    # A second PAGE counter drew "1/1, 2/2, 3/3" on a three-page document;
+    # Hancom's own page/total footers use TOTAL_PAGE there and draw
+    # "1/3, 2/3, 3/3".
     document = HwpxDocument.new()
     footer = document.page.set_page_number(format="page/total")
     assert _story_counters(footer) == ["PAGE", "TOTAL_PAGE"]

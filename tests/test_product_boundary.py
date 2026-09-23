@@ -300,7 +300,7 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # 전부 module-ownership.json 에 개별 rationale 과 함께 등재돼 있다.
     # +1: format-level plain-text edit helpers extracted from paragraph.py.
     # +1: hyperlink field target form (oxml/hyperlink_form.py) -- Hancom's
-    # Command/Path parameters, written and read in one place (Hancom SDK 13.60).
+    # Command/Path parameters, written and read in one place.
     assert report["classifiedFiles"] == 149
 
 

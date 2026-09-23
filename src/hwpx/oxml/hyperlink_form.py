@@ -2,11 +2,10 @@
 """Hancom's storage of a hyperlink field (``hp:fieldBegin type="HYPERLINK"``).
 
 Hancom keeps a link's target in the field's ``hp:parameters``, not in
-``@name`` (which its own links leave empty). Measured on the Hancom SDK
-13.60 gold corpus -- 1,267 web and mail links, 434 bookmark links:
+``@name`` (which its own links leave empty):
 
 * ``Command`` holds the target, with ``:``, ``?``, ``;`` and ``#`` escaped by
-  a backslash (1,198 / 169 / 38 / 3 escapes), followed by a tail that names
+  a backslash, followed by a tail that names
   the kind: ``;1;0;0;`` for a web address, ``;2;0;0`` for ``mailto:``,
   ``;0;0;0;`` for a bookmark written ``?<bookmark name>``. A ``|`` separates
   an optional tool tip before the tail.

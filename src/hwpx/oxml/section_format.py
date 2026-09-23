@@ -1148,7 +1148,7 @@ class HwpxOxmlSectionProperties:
 
         Hancom takes header/footer stories from ``hp:ctrl`` alone and drops the
         ``hp:secPr`` copies when it saves, and on each page it draws the *last*
-        applicable control in document order (Hancom SDK 13.60). So clearing
+        applicable control in document order. So clearing
         every control of the tag erased the other page types (an ODD footer
         followed by a BOTH page-number footer lost the ODD text in Hancom), and
         a BOTH control placed after an ODD one hid it on every odd page. The

@@ -654,7 +654,7 @@ def _refresh_field_and_bookmark_ids(paragraphs: list[Any], existing_bookmark_nam
     # click-here fields whose fieldEnd sits paragraphs after its fieldBegin
     # (a real public form: begin in paragraph 14, end in 18). Per-paragraph
     # maps renamed the begin but left the end pointing at the old id, and
-    # Hancom drops such an unpaired fieldEnd when it saves (SDK 13.60 oracle).
+    # Hancom drops such an unpaired fieldEnd when it saves.
     # A fieldEnd takes its new fieldid from the fieldBegin its beginIDRef
     # names: Hancom's own files give every field of a type the same fieldid
     # (CLICK_HERE 627272811, MEMO 623209829), so a map keyed by the old
@@ -852,8 +852,7 @@ def _move_section_setup_to_first_paragraph(section: Any) -> bool:
     ``hp:secPr`` that is not in a section's first paragraph as the start of a
     new section: the inserted paragraphs become a section of their own with
     default page setup, and a page break appears before the old first
-    paragraph (Hancom SDK 13.60 oracle: 2 pages and 2 sections on save, 1 and
-    1 once the setup is moved). So the ``hp:secPr`` and the ``hp:ctrl`` that
+    paragraph. So the ``hp:secPr`` and the ``hp:ctrl`` that
     wraps ``hp:colPr`` move, element by element as in
     :func:`_strip_embedded_section_properties`, into a new leading run of the
     first paragraph. Returns whether anything moved.

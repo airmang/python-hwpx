@@ -476,9 +476,9 @@ _CHART_XML_HEAD = (
 )
 _CHART_XML_TAIL = "</c:plotArea></c:chart></c:chartSpace>"
 _CHART_TYPE_BANK: tuple[str, ...] = ("pie", "bar", "line", "pie", "bar")
-#: A line chart needs its two axes: without them the Hancom SDK 13.60 crashed
-#: rendering and saving v14-chart-002, and ``add_chart`` now rejects it
-#: (``shape-chart-line-axes-missing``). Same axes as the SDK-checked variant.
+#: A line chart needs its two axes: without them Hancom crashed rendering and
+#: saving v14-chart-002, and ``add_chart`` now rejects it
+#: (``shape-chart-line-axes-missing``).
 _LINE_CHART_AXES = (
     '<c:catAx><c:axId val="111"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
     '<c:delete val="0"/><c:axPos val="b"/><c:crossAx val="222"/></c:catAx>'

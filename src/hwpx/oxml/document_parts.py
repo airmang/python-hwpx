@@ -406,6 +406,29 @@ def _run_style_apply_engrave(element: ET.Element, engrave: bool | None) -> None:
         element.remove(existing)
 
 
+#: Child order of ``hh:charPr`` in the OWPML schema (``CharShapeType``), which is
+#: also the order Hancom writes. The style helpers above append what they add.
+_CHAR_PR_CHILD_ORDER = {
+    name: index
+    for index, name in enumerate((
+        "fontRef", "ratio", "spacing", "relSz", "offset", "italic", "bold", "underline",
+        "strikeout", "outline", "shadow", "emboss", "engrave", "supscript", "subscript",
+    ))
+}
+
+
+def _order_char_pr_children(element: ET.Element) -> None:
+    """Put the children of a ``hh:charPr`` back in schema order (unknown ones last)."""
+
+    children = list(element)
+    last = len(_CHAR_PR_CHILD_ORDER)
+    ordered = sorted(children, key=lambda child: _CHAR_PR_CHILD_ORDER.get(_element_local_name(child), last))
+    if ordered != children:
+        for child in children:
+            element.remove(child)
+        element.extend(ordered)
+
+
 def _run_style_modifier(element: ET.Element, spec: _RunStyleSpec) -> None:
     underline_nodes = list(element.findall(f"{_HH}underline"))
     base_underline_attrs = (
@@ -434,6 +457,7 @@ def _run_style_modifier(element: ET.Element, spec: _RunStyleSpec) -> None:
     _run_style_apply_strikeout(element, base_strike_attrs, spec.strike)
 
     _run_style_apply_extensions(element, spec)
+    _order_char_pr_children(element)
 
 
 _SimplePartT = TypeVar("_SimplePartT", bound=_HwpxOxmlSimplePart)

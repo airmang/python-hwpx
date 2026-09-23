@@ -15,12 +15,17 @@
   빈 요소라 뒤 글자만). 텍스트 추출기도 `hp:t` 안의
   탭을 버리던 것을 고친다(목차 항목의 점선 탭 뒤 쪽 번호가 붙어 나왔다). 변경 추적으로
   삽입한 글(`hp:insertBegin` 뒤 글자)도 이제 `paragraph.text`와 평문에 나온다.
+- `doc.styles.ensure_run()`이 만든 글자 모양(`hh:charPr`)의 자식 순서가 OWPML
+  스키마(`CharShapeType`)를 어기던 것을 고친다. `bold`·`italic`·`underline`·
+  `strikeout`을 `outline`·`shadow` 뒤에 덧붙였고, `bold`를 `italic`보다 먼저 썼다.
+  이제 서식을 적용한 뒤 자식을 스키마 순서(`fontRef, ratio, spacing, relSz, offset,
+  italic, bold, underline, strikeout, outline, shadow, emboss, engrave, supscript,
+  subscript`)로 맞춘다. 한컴이 쓰는 순서와 같다.
 - `doc.refs.add_hyperlink()`로 만든 링크가 한컴에서 **아무 데도 가지 않던** 것을
   고친다. 대상 주소를 `fieldBegin@name`에만 썼는데, 한컴은 링크 대상을 필드
-  매개변수에서 읽는다. 한컴 SDK 13.60으로 다시 저장하면 링크는 남지만
+  매개변수에서 읽는다. 한컴에서 다시 저장하면 링크는 남지만
   `Category=HWPHYPERLINK_TYPE_HWP`만 붙고 `Command`가 없는(대상 없는) 문서 안
-  링크가 됐다. 이제 한컴 코퍼스(웹·메일 링크 1,267개, 책갈피 링크 434개)와 같은
-  모양으로 `Command`(`: ? ; #` 백슬래시 이스케이프 + `;1;0;0;`, 메일 `;2;0;0`,
+  링크가 됐다. 이제 한컴이 쓰는 모양 그대로 `Command`(`: ? ; #` 백슬래시 이스케이프 + `;1;0;0;`, 메일 `;2;0;0`,
   책갈피 `?이름;0;0;0;`)·`Path`·`Category`·`TargetType`·`DocOpenType`을 쓰고,
   `fieldid`는 한컴 하이퍼링크 컨트롤 id(627600491)로 둔다. `#이름`을 주면 그
   책갈피로 가는 링크가 된다. 옛 판독기를 위해 `@name`에도 주소를 그대로 둔다.
@@ -31,25 +36,22 @@
   `@name` 순으로 같은 값을 돌려준다.
 - `doc.page.set_page_number(format="page/total")`이 "쪽/전체 쪽수" 대신
   "쪽/쪽"을 그리던 것을 고친다. 두 번째 번호도 현재 쪽(`numType="PAGE"`)으로
-  써서, 한컴 SDK 13.60 렌더에서 3쪽 문서가 1/1, 2/2, 3/3으로 나왔다. 이제 한컴
-  자신의 쪽/전체 머리말·꼬리말(골드 코퍼스 42건)처럼 `/` 뒤에
-  `hp:autoNum numType="TOTAL_PAGE"`를 쓰고(렌더 1/3, 2/3, 3/3), 쪽 번호 위치
-  컨트롤(`hp:pageNum`)은 한 번만 넣는다.
+  써서, 3쪽 문서가 1/1, 2/2, 3/3으로 나왔다. 이제 한컴 문서의 쪽/전체
+  머리말·꼬리말처럼 `/` 뒤에 `hp:autoNum numType="TOTAL_PAGE"`를 쓰고(1/3, 2/3,
+  3/3), 쪽 번호 위치 컨트롤(`hp:pageNum`)은 한 번만 넣는다.
 - `hwpx.tools.toc_author.add_native_toc()`를 기본값(`at_index=0`)으로 부르면 목차가
   구역 설정(`hp:secPr`)을 가진 첫 문단 앞에 들어가, 한컴이 목차를 별도 구역으로
-  읽던 것을 고친다(한컴 SDK 13.60 재저장: 구역 2개, 목차 뒤 쪽 나눔). 이제
+  읽던 것을 고친다(목차 뒤에 쪽 나눔이 생겼다). 이제
   `hp:secPr`와 구역 처음부터 적용되는 조판 부호(단·머리말·꼬리말·쪽 번호)는 새
   첫 문단의 맨 앞 run으로 옮겨 가고, 목차는 그대로 문서 맨 앞에 선다.
 - `doc.styles.apply_paragraph_format()`·`apply_list_format()`처럼 문단 모양
   (`paraPrIDRef`)을 바꾸는 편집이 그 문단의 줄배치 캐시(`hp:linesegarray`)를 남기던
   것을 고친다. 한컴은 줄 높이를 이 캐시에서 가져오므로, 행간을 130%로 바꿔도
-  예전 160% 줄 높이로 그려졌다(한컴 SDK 13.60 렌더: 1→2 줄 간격 20pt, 한컴이 직접
-  만든 130% 문서는 17pt). 이제 문단 모양이 바뀐 문단의 캐시만 지우고, 글자 모양을
-  바꿀 때처럼 다른 문단의 캐시는 그대로 둔다. 캐시를 지운 문서는 한컴 정답 문서와
-  렌더가 픽셀까지 같았다.
+  예전 160% 줄 높이로 그려졌다. 이제 문단 모양이 바뀐 문단의 캐시만 지우고, 글자
+  모양을 바꿀 때처럼 다른 문단의 캐시는 그대로 둔다.
 - `add_chart`가 축(`c:axId`·`c:catAx`·`c:valAx`) 없는 꺾은선 차트를
   `HwpxValueError`(`shape-chart-line-axes-missing`)로 거부하고 축을 넣는 방법을
-  안내한다. 한컴 SDK 13.60은 이런 문서를 렌더하거나 HWPX·HWP로 저장하다
+  안내한다. 한컴은 이런 문서를 렌더하거나 저장하다
   멈췄고, 같은 차트에 축만 넣으면 정상이었다. 축 없는 막대·원형 차트는 한컴이
   렌더하므로 전처럼 받는다.
 - 암호가 걸린 HWPX를 열면 `Start tag expected, '<' not found` 같은 파일 손상처럼
@@ -64,14 +66,14 @@
   바꾸도록 했다. 예전에는 그 태그의 사본을 모두 지웠다. 그래서 홀수 쪽 꼬리말
   뒤에 `set_page_number`(양쪽 꼬리말)를 부르면 홀수 쪽 글자가 한컴에서
   사라졌다. python-hwpx만 읽는 `hp:secPr` 사본에는 글자가 남아 있었다. 또
-  `BOTH` 사본을 `ODD`·`EVEN`보다 앞에 둔다. 한컴 SDK 13.60 실측에서 한컴은
-  쪽마다 문서 순서상 마지막으로 해당하는 컨트롤을 그렸고, 양쪽 꼬리말이 뒤에
+  `BOTH` 사본을 `ODD`·`EVEN`보다 앞에 둔다. 한컴은
+  쪽마다 문서 순서상 마지막으로 해당하는 컨트롤을 그려서, 양쪽 꼬리말이 뒤에
   있으면 홀수 쪽 꼬리말은 한 번도 그려지지 않았다. `remove_header`·`remove_footer`도
   이제 지정한 쪽 종류의 사본만 지운다.
 - 메모 필드가 한컴에서 저장된 뒤 범위 끝과 작성 시각을 잃던 문제를 고친다.
   `attach_memo_field`는 MEMO `fieldBegin`에 메모마다 양의 `zorder`를 주고,
   `CreateDateTime`을 한컴과 같은 UTC ISO 8601(`2024-12-02T09:00:00Z`)로 쓴다.
-  시간대 없는 값은 로컬 시각으로 보고 UTC로 바꾼다. 한컴 SDK 13.60 실측에서
+  시간대 없는 값은 로컬 시각으로 보고 UTC로 바꾼다. 한컴에서는
   `zorder`가 없거나 `-1`이면 저장 때 `fieldEnd`가 빠졌고,
   `2024-12-02 09:00:00` 형식은 열 때 1601년 값으로 바뀌었다. 매개변수 개수
   속성도 다른 필드처럼 한컴 표기 `cnt`로 쓴다(한컴은 저장하며 `count`를
@@ -82,7 +84,7 @@
   `hp:ctrl/hp:colPr`)을 새 첫 문단으로 옮기고, 병합 보고서에
   `sectionPropertiesRelocated`를 남긴다.
 - 문서 병합은 여러 문단에 걸친 필드(한컴 양식의 누름틀 등)의 `fieldEnd`를 옛
-  id에 남겨 짝을 끊었다. 이런 병합 결과는 한컴이 열지 못하거나(`0x800040FF`)
+  id에 남겨 짝을 끊었다. 이런 병합 결과는 한컴이 열지 못하거나
   저장할 때 `fieldEnd`를 버렸다. 이제 id 대응을 복사한 문단 전체에서 맞추고,
   `fieldEnd`의 `fieldid`는 자기 `fieldBegin`을 따른다.
 

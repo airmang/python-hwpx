@@ -71,9 +71,9 @@ def _control_text(section: HwpxOxmlSection, kind: str, page_type: str) -> str:
 
 
 def test_footers_of_different_page_types_each_keep_a_hancom_control() -> None:
-    # Hancom SDK 13.60 oracle (v12-pagelayout corpus): Hancom reads stories from
-    # hp:ctrl only and drops the hp:secPr copies on save. Syncing the BOTH footer
-    # used to delete the ODD footer's control, so the ODD text vanished in Hancom.
+    # Hancom reads stories from hp:ctrl only and drops the hp:secPr copies on
+    # save. Syncing the BOTH footer used to delete the ODD footer's control, so
+    # the ODD text vanished in Hancom.
     section, _ = _build_section_with_sec_pr()
     properties = section.properties
 
@@ -93,9 +93,9 @@ def _control_order(section: HwpxOxmlSection, kind: str) -> list[str]:
 
 @pytest.mark.parametrize("first", ["BOTH", "ODD"])
 def test_page_specific_story_follows_the_both_story_whatever_the_call_order(first: str) -> None:
-    # Hancom SDK 13.60 oracle: on each page Hancom draws the last applicable
-    # control in document order -- with BOTH after ODD the ODD footer never
-    # showed. BOTH must come first so ODD/EVEN override it on their pages.
+    # On each page Hancom draws the last applicable control in document order
+    # -- with BOTH after ODD the ODD footer never showed. BOTH must come first
+    # so ODD/EVEN override it on their pages.
     section, _ = _build_section_with_sec_pr()
     properties = section.properties
     second = "ODD" if first == "BOTH" else "BOTH"
