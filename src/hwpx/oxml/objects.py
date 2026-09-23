@@ -487,6 +487,19 @@ def _create_polygon_element(
     return el
 
 
+def _closed_points(points: Sequence[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Repeat the first vertex at the end unless it is already there.
+
+    That is how Hancom closes a polygon; without it Hancom draws the vertices
+    as an open line and leaves the last side out.
+    """
+
+    closed = [(x, y) for x, y in points]
+    if closed and closed[0] != closed[-1]:
+        closed.append(closed[0])
+    return closed
+
+
 @dataclass(frozen=True)
 class ContainerMember:
     """One shape inside a group (``<hp:container>``), placed at (*x*, *y*)
@@ -563,12 +576,15 @@ class ContainerMember:
         line_color: str = "#000000",
         line_width: str = "283",
         fill_color: str | None = None,
+        closed: bool = True,
     ) -> "ContainerMember":
-        """A polygon member — see :func:`_create_polygon_element`."""
+        """A polygon member — see :func:`_create_polygon_element`. It is
+        closed (the first vertex repeated at the end) unless *closed* is
+        false."""
 
         element = _create_polygon_element(
-            points, line_color=line_color, line_width=line_width,
-            fill_color=fill_color,
+            _closed_points(points) if closed else points,
+            line_color=line_color, line_width=line_width, fill_color=fill_color,
         )
         return cls(element, x, y)
 
