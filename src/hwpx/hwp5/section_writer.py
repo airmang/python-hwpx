@@ -18,9 +18,24 @@ from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 from . import bodytext as bt
 from . import controls as ct
 from . import records as rec
+from . import shapes as sh
+from .docinfo_writer import fill as fill_from_brush
+from .header_xml import IMAGE_EFFECT
 from .owpml import BORDER_LINE, BORDER_WIDTH, NS, NUMBER_FORMAT, colorref, index_of
 from .section_xml import (
+    ARC_TYPE,
+    ARROW,
+    ARROW_SIZE,
     CAPTION_SIDE,
+    DROPCAP,
+    DROPCAP_PATH,
+    ELLIPSE_POINTS,
+    END_CAP,
+    HYPERLINK_PATH,
+    LINE_STYLE,
+    OUTLINE_STYLE,
+    ROTATE_IMAGE,
+    SHADOW,
     COL_LAYOUT,
     DUTMAL_ALIGN,
     DUTMAL_POS,
@@ -57,6 +72,7 @@ from .section_xml import (
 )
 
 _HP = NS["hp"]
+_HC = NS["hc"]
 _CHAR_CODES = {"lineBreak": 10, "hyphen": 24, "nbSpace": 30, "fwSpace": 31}
 _TAB_PADDING = b"\x20\x00" * 3
 _SECTION_DIRECTION = {"HORIZONTAL": 0, "VERTICAL": 2, "VERTICALALL": 4}
@@ -77,8 +93,43 @@ _MARKERS = {
 }
 
 
+#: The shape kind of each drawing object element.
+_SHAPE_KINDS = {name: kind for kind, name in sh.SHAPE_ELEMENTS.items()}
+#: Shape component flags with no OWPML attribute of their own: a text box, a
+#: picture, a container, and a shape inside a container. Hancom sets them so.
+_FLAG_TEXT_BOX = 1 << 24
+_FLAG_PICTURE = (1 << 26) | (1 << 29)
+_FLAG_GROUP = 1 << 16
+_FLAG_GROUP_MEMBER = 1 << 17
+_IDENTITY: sh.Matrix = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+
+
 def _local(element: etree._Element) -> str:
     return etree.QName(element).localname
+
+
+def _matrix_value(text: str | None) -> float:
+    if not text:
+        return 0.0
+    try:
+        return float(text)
+    except ValueError:  # Hancom's "-nan(ind)": the negative quiet NaN
+        return float(struct.unpack("<d", struct.pack("<Q", 0xFFF8000000000000))[0])
+
+
+def _parameter_items(element: etree._Element) -> list[ct.ParameterItem]:
+    items: list[ct.ParameterItem] = []
+    for child in element:
+        name, item_id = _local(child), _int(child, "name") & 0xFFFF
+        if name == "listParam":
+            items.append(ct.ParameterItem(item_id, ct.PIT_SET, ct.ParameterSet(item_id, _parameter_items(child))))
+        elif name == "stringParam":
+            items.append(ct.ParameterItem(item_id, ct.PIT_BSTR, child.text or ""))
+        elif name == "unsignedintegerParam":
+            items.append(ct.ParameterItem(item_id, 9, _number(child.text) & 0xFFFFFFFF))
+        elif name == "integerParam":
+            items.append(ct.ParameterItem(item_id, 4, _i32(_number(child.text))))
+    return items
 
 
 def _number(value: str | None, default: int = 0) -> int:
@@ -214,8 +265,10 @@ class _Highlights:
 class SectionRecords:
     """Builds the records of one section; ``unsupported`` counts what it could not write."""
 
-    def __init__(self) -> None:
+    def __init__(self, bin_ids: dict[str, int] | None = None) -> None:
         self.unsupported: Counter[str] = Counter()
+        # BinData id of each binary item id, for pictures.
+        self.bin_ids = bin_ids or {}
         # Fields begun and not yet ended: the begin id and the field-end
         # characters to write (None when the begin itself was refused).
         self.open_fields: list[tuple[str, bytes | None]] = []
@@ -303,6 +356,10 @@ class SectionRecords:
                     units += _extended(23, "tdut")
                     codes.add(23)
                     controls.append(self.dutmal(child, level + 1))
+                elif name in _SHAPE_KINDS:
+                    units += _extended(11, "gso ")
+                    codes.add(11)
+                    controls.append(self.drawing(child, level + 1))
                 else:
                     self.unsupported[name] += 1
         if not shapes:
@@ -581,6 +638,187 @@ class SectionRecords:
         )
         return [rec.Record(rec.CTRL_HEADER, level, value.encode())]
 
+    # drawing objects -----------------------------------------------------------------
+
+    def drawing(self, element: etree._Element, level: int) -> list[rec.Record]:
+        """A drawing object: the object header, its parameter sets and caption,
+        then the shape component and what hangs under it."""
+
+        common = _object_common("gso ", element)
+        comment = _find(element, "shapeComment")
+        common.description = "".join(comment.itertext()) if comment is not None else ""
+        out = [rec.Record(rec.CTRL_HEADER, level, common.encode())]
+        sets = [ct.ParameterSet(_int(p, "name") & 0xFFFF, _parameter_items(p)) for p in element.findall(f"{{{_HP}}}parameterset")]
+        dropcap = index_of(DROPCAP, element.get("dropcapstyle"), 0)
+        if dropcap and not any(isinstance(ps.find(*DROPCAP_PATH), int) for ps in sets):
+            value = ct.ParameterSet(DROPCAP_PATH[0], [ct.ParameterItem(DROPCAP_PATH[1], 9, dropcap)])
+            sets.append(ct.ParameterSet(0x021B, [ct.ParameterItem(DROPCAP_PATH[0], ct.PIT_SET, value)]))
+        out += [rec.Record(rec.CTRL_DATA, level + 1, ps.encode()) for ps in sets]
+        caption = _find(element, "caption")
+        if caption is not None:
+            out.extend(self.caption(caption, level + 1))
+        out.extend(self.shape_records(element, level + 1, top=True))
+        return out
+
+    def shape_records(self, element: etree._Element, level: int, *, top: bool) -> list[rec.Record]:
+        kind = _SHAPE_KINDS[_local(element)]
+        offset, org, cur = _find(element, "offset"), _find(element, "orgSz"), _find(element, "curSz")
+        flip, rotation, info = _find(element, "flip"), _find(element, "rotationInfo"), _find(element, "renderingInfo")
+        draw_text = _find(element, "drawText")
+        org_width, org_height = _int(org, "width"), _int(org, "height")
+        flags = _flag(flip, "horizontal") | _flag(flip, "vertical") << 1
+        flags |= ROTATE_IMAGE if _flag(rotation, "rotateimage") else 0
+        flags |= _FLAG_TEXT_BOX if draw_text is not None else 0
+        flags |= _FLAG_PICTURE if kind == "$pic" else 0
+        flags |= _FLAG_GROUP if kind == "$con" or not top else 0
+        flags |= _FLAG_GROUP_MEMBER if not top and kind != "$con" else 0
+        matrices: list[sh.Matrix] = []
+        for matrix in info if info is not None else ():
+            values = [_matrix_value(matrix.get(f"e{i}")) for i in range(1, 7)]
+            matrices.append((values[0], values[1], values[2], values[3], values[4], values[5]))
+        if not matrices or len(matrices) % 2 == 0:
+            matrices = [_IDENTITY, _IDENTITY, _IDENTITY]
+        children: list[rec.Record] = []
+        href = element.get("href", "")
+        if href:
+            # The component keeps the link with its colons escaped.
+            link = ct.ParameterSet(HYPERLINK_PATH[0], [ct.ParameterItem(HYPERLINK_PATH[1], ct.PIT_BSTR, href.replace(":", chr(92) + ":"))])
+            ps = ct.ParameterSet(0x021B, [ct.ParameterItem(HYPERLINK_PATH[0], ct.PIT_SET, link)])
+            children.append(rec.Record(rec.CTRL_DATA, level + 1, ps.encode()))
+        if kind == "$con":
+            shapes = [child for child in element if _local(child) in _SHAPE_KINDS]
+            kinds = [_SHAPE_KINDS[_local(child)] for child in shapes]
+            rest = sh.ContainerChildren(kinds, _int(element, "instid") & 0xFFFFFFFF).encode()
+            for child in shapes:
+                children.extend(self.shape_records(child, level + 1, top=False))
+        elif kind == "$pic":
+            rest = b""
+            children.append(rec.Record(rec.SHAPE_COMPONENT_PICTURE, level + 1, self.picture(element)))
+        else:
+            rest = self.drawing_style(element).encode()
+            if draw_text is not None:
+                children.extend(self.text_box(draw_text, level + 1))
+            children.append(rec.Record(sh.GEOMETRY_TAGS[kind], level + 1, self.geometry(kind, element)))
+        component = sh.ShapeComponent(
+            kind,
+            top,
+            _i32(_int(offset, "x")),
+            _i32(_int(offset, "y")),
+            _int(element, "groupLevel") & 0xFFFF,
+            1,
+            org_width,
+            org_height,
+            _int(cur, "width") or org_width,
+            _int(cur, "height") or org_height,
+            flags,
+            _i16(_int(rotation, "angle")),
+            _i32(_int(rotation, "centerX")),
+            _i32(_int(rotation, "centerY")),
+            matrices,
+            rest,
+        )
+        return [rec.Record(rec.SHAPE_COMPONENT, level, component.encode()), *children]
+
+    @staticmethod
+    def _line_props(line: etree._Element | None) -> int:
+        if line is None:
+            return 0
+        props = index_of(LINE_STYLE, line.get("style"), 0)
+        props |= index_of(END_CAP, line.get("endCap"), 0) << 6
+        props |= index_of(ARROW, line.get("headStyle"), 0) << 10
+        props |= index_of(ARROW, line.get("tailStyle"), 0) << 16
+        props |= index_of(ARROW_SIZE, line.get("headSz"), 0) << 22
+        props |= index_of(ARROW_SIZE, line.get("tailSz"), 0) << 26
+        return props | _flag(line, "headfill") << 30 | _flag(line, "tailfill") << 31
+
+    def drawing_style(self, element: etree._Element) -> sh.DrawingStyle:
+        line, shadow = _find(element, "lineShape"), _find(element, "shadow")
+        return sh.DrawingStyle(
+            colorref(line.get("color")) if line is not None else 0,
+            _i32(_int(line, "width")),
+            self._line_props(line),
+            index_of(OUTLINE_STYLE, line.get("outlineStyle") if line is not None else None, 0),
+            fill_from_brush(element.find(f"{{{_HC}}}fillBrush")),
+            index_of(SHADOW, shadow.get("type") if shadow is not None else None, 0),
+            colorref(shadow.get("color")) if shadow is not None else 0xB2B2B2,
+            _i32(_int(shadow, "offsetX")),
+            _i32(_int(shadow, "offsetY")),
+            _int(element, "instid") & 0xFFFFFFFF,
+            _int(line, "alpha") & 0xFF,
+            _int(shadow, "alpha") & 0xFF,
+        )
+
+    def text_box(self, draw_text: etree._Element, level: int) -> list[rec.Record]:
+        sub_list = _find(draw_text, "subList")
+        paragraphs = [p for p in sub_list if _local(p) == "p"] if sub_list is not None else []
+        if not paragraphs:
+            paragraphs = [etree.Element(f"{{{_HP}}}p")]
+        margin = _find(draw_text, "textMargin")
+        name = draw_text.get("name", "")
+        box = sh.TextBox(
+            len(paragraphs),
+            _list_props(sub_list),
+            0,
+            (_int(margin, "left", 283), _int(margin, "right", 283), _int(margin, "top", 283), _int(margin, "bottom", 283)),
+            _int(draw_text, "lastWidth"),
+            bytes(8),
+            _flag(draw_text, "editable"),
+            name or None,
+            b"" if name else bytes(1),
+        )
+        return [rec.Record(rec.LIST_HEADER, level, box.encode()), *self.paragraph_list(paragraphs, level)]
+
+    @staticmethod
+    def _point(element: etree._Element, name: str) -> sh.Point:
+        point = element.find(f"{{{_HC}}}{name}")
+        return _i32(_int(point, "x")), _i32(_int(point, "y"))
+
+    def geometry(self, kind: str, element: etree._Element) -> bytes:
+        if kind == "$rec":
+            corners = [self._point(element, f"pt{i}") for i in range(4)]
+            return sh.Rectangle(_int(element, "ratio") & 0xFF, corners).encode()
+        if kind == "$ell":
+            props = _flag(element, "intervalDirty") | _flag(element, "hasArcPr") << 1
+            props |= index_of(ARC_TYPE, element.get("arcType"), 0) << 2
+            return sh.Ellipse(props, [self._point(element, name) for name in ELLIPSE_POINTS]).encode()
+        if kind == "$arc":
+            points = [self._point(element, name) for name in ELLIPSE_POINTS[:3]]
+            return sh.Arc(index_of(ARC_TYPE, element.get("type"), 0), points).encode()
+        if kind == "$pol":
+            points = [(_i32(_int(p, "x")), _i32(_int(p, "y"))) for p in element.findall(f"{{{_HC}}}pt")]
+            return sh.Polygon(points, bytes(4)).encode()
+        start, end = self._point(element, "startPt"), self._point(element, "endPt")
+        return sh.Line(start, end, _flag(element, "isReverseHV")).encode()
+
+    def picture(self, element: etree._Element) -> bytes:
+        image, line = element.find(f"{{{_HC}}}img"), _find(element, "lineShape")
+        corners_parent = _find(element, "imgRect")
+        clip, margin, dim = _find(element, "imgClip"), _find(element, "inMargin"), _find(element, "imgDim")
+        effects = _find(element, "effects")
+        if effects is not None and len(effects):
+            self.unsupported["pic/effects"] += 1
+        ref = image.get("binaryItemIDRef", "") if image is not None else ""
+        if ref and ref not in self.bin_ids:
+            self.unsupported["pic/missing-image"] += 1
+        corners = [self._point(corners_parent, f"pt{i}") if corners_parent is not None else (0, 0) for i in range(4)]
+        return sh.Picture(
+            colorref(line.get("color")) if line is not None else 0,
+            _i32(_int(line, "width")),
+            self._line_props(line),
+            corners,
+            (_int(clip, "left"), _int(clip, "top"), _int(clip, "right"), _int(clip, "bottom")),
+            (_int(margin, "left"), _int(margin, "right"), _int(margin, "top"), _int(margin, "bottom")),
+            max(-128, min(127, _int(image, "bright"))),
+            max(-128, min(127, _int(image, "contrast"))),
+            index_of(IMAGE_EFFECT, image.get("effect") if image is not None else None, 0),
+            self.bin_ids.get(ref, 0),
+            _int(image, "alpha") & 0xFF,
+            _int(element, "instid") & 0xFFFFFFFF,
+            0,
+            (_int(dim, "dimwidth"), _int(dim, "dimheight")),
+            bytes(1),
+        ).encode()
+
     # fields --------------------------------------------------------------------------
 
     def field_begin(self, element: etree._Element, level: int) -> tuple[str, list[rec.Record]] | None:
@@ -762,8 +1000,11 @@ class SectionRecords:
         return [rec.Record(rec.LIST_HEADER, level, cell.encode()), *self.paragraph_list(paragraphs, level)]
 
 
-def build_section_records(root: etree._Element) -> tuple[list[rec.Record], Counter[str]]:
-    """Records of one ``hs:sec`` and the counts of elements that could not be written."""
+def build_section_records(
+    root: etree._Element, bin_ids: dict[str, int] | None = None
+) -> tuple[list[rec.Record], Counter[str]]:
+    """Records of one ``hs:sec`` and the counts of elements that could not be
+    written; ``bin_ids`` maps binary item ids to their BinData ids."""
 
-    writer = SectionRecords()
+    writer = SectionRecords(bin_ids)
     return writer.section(root), writer.unsupported

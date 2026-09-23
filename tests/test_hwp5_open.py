@@ -204,7 +204,7 @@ def _text_box() -> list[rec.Record]:
     fill = di.Fill(di.FILL_SOLID, 0x00FFE5CC, 0x00FFFFFF, -1, additional=b"", alphas=b"\0")
     style = sh.DrawingStyle(0, 283, 0xC0000041, 0, fill, 0, 0xB2B2B2, 0, 0, 185)
     component = sh.ShapeComponent(
-        "$rec", True, 0, 0, 0, 1, 20000, 10000, 20000, 10000, 1 << 19, 0, 10000, 5000,
+        "$rec", True, 0, 0, 0, 1, 20000, 10000, 20000, 10000, 1 << 19 | 1 << 24, 0, 10000, 5000,
         [_IDENTITY, _IDENTITY, _IDENTITY], style.encode(),
     )
     box = sh.TextBox(1, 0x00200000, 0, (283, 283, 283, 283), 20000, bytes(8), 0, "상자")
@@ -237,7 +237,7 @@ def _memo() -> list[rec.Record]:
 def _picture() -> list[rec.Record]:
     """A captioned picture with a first-letter decoration parameter set."""
 
-    common = ct.ObjectCommon("gso ", 0x240A2211, 0, 0, 10000, 8000, 0, (0, 0, 0, 0), 297, 0, "그림입니다.", bytes(2))
+    common = ct.ObjectCommon("gso ", 0x040A2211, 0, 0, 10000, 8000, 0, (0, 0, 0, 0), 297, 0, "그림입니다.", bytes(2))
     component = sh.ShapeComponent(
         "$pic", True, 0, 0, 0, 1, 10000, 8000, 10000, 8000, 0x24080000, 0, 5000, 4000, [_IDENTITY, _IDENTITY, _IDENTITY]
     )

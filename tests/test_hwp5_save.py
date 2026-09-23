@@ -53,7 +53,8 @@ def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "extras", [{}, {"fields": True}, {"highlights": True}, {"label": True}, {"markers": True}]
+    "extras",
+    [{}, {"fields": True}, {"highlights": True}, {"label": True}, {"markers": True}, {"text_box": True}, {"picture": True}],
 )
 def test_hwp_to_hwpx_to_hwp_keeps_the_section_records(extras: dict[str, bool]) -> None:
     original = make_hwp(**extras)
@@ -87,13 +88,13 @@ def test_saving_as_hwp_keeps_text_formatting_and_tables(tmp_path: Path) -> None:
 
 def test_content_the_writer_cannot_express_is_refused_before_writing(tmp_path: Path) -> None:
     document = HwpxDocument.new()
-    document.add_paragraph("그림이 있는 문서")
-    document.add_picture(_PNG, "png")
-    target = tmp_path / "그림.hwp"
+    document.add_paragraph("양식 개체가 있는 문서")
+    document.fields.add_check_box("동의")
+    target = tmp_path / "양식.hwp"
     with pytest.raises(Hwp5Error) as info:
         document.save_to_path(target)
     assert info.value.code == "hwp5-write-unsupported"
-    assert info.value.context["unsupported"].get("pic") == 1
+    assert info.value.context["unsupported"].get("checkBtn") == 1
     assert not target.exists()
 
 
@@ -109,13 +110,18 @@ def test_memos_and_master_pages_are_refused_until_they_can_be_written(tmp_path: 
     assert not target.exists()
 
 
-def test_drawing_objects_are_refused_until_they_can_be_written(tmp_path: Path) -> None:
-    document = HwpxDocument.open(make_hwp(text_box=True))
-    target = tmp_path / "글상자.hwp"
-    with pytest.raises(Hwp5Error) as info:
-        document.save_to_path(target)
-    assert info.value.context["unsupported"] == {"rect": 1}
-    assert not target.exists()
+def test_a_picture_saves_as_hwp_with_its_image(tmp_path: Path) -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("그림이 있는 문서")
+    document.add_picture(_PNG, "png")
+    target = tmp_path / "그림.hwp"
+    document.save_to_path(target)
+    compound = cfb.CompoundFile(target.read_bytes())
+    assert any(path.startswith("BinData/") for path in compound.stream_paths())
+    reopened = HwpxDocument.open(target)
+    [pic] = [p for s in reopened.sections for p in s.element.iter(f"{HP}pic")]
+    image = pic.find("{http://www.hancom.co.kr/hwpml/2011/core}img")
+    assert image is not None and image.get("binaryItemIDRef", "").startswith("image")
 
 
 def test_hwpx_targets_are_unchanged(tmp_path: Path) -> None:

@@ -104,9 +104,11 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
         found = len(head.findall(f".//{{{NS[prefix]}}}{name}"))
         if found:
             unsupported[f"header/{name}"] += found
+    used: set[int] = set()
+    bin_ids = {item_id: _bin_id(item_id, used) for item_id, _ in binaries}
     sections = []
     for path in section_paths:
-        records, missing = build_section_records(etree.fromstring(files[path]))
+        records, missing = build_section_records(etree.fromstring(files[path]), bin_ids)
         sections.append(records)
         unsupported.update(missing)
     if unsupported:
@@ -118,11 +120,10 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
             suggestion="Save the document as .hwpx instead, or remove the listed content first.",
         )
     docinfo = build_docinfo(head, section_count=len(sections), caret=_caret(files))
-    used: set[int] = set()
     items: list[di.BinDataItem] = []
     streams: list[tuple[str, bytes]] = []
     for item_id, href in binaries:
-        number = _bin_id(item_id, used)
+        number = bin_ids[item_id]
         extension = href.rsplit(".", 1)[-1] if "." in href.rsplit("/", 1)[-1] else ""
         storage = extension.lower() == "ole"
         item = di.BinDataItem(di.BIN_STORAGE if storage else di.BIN_EMBEDDING, bin_id=number, extension=extension)
