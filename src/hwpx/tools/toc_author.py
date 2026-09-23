@@ -304,17 +304,21 @@ def add_native_toc(
     level: int = 2,
     leader: int = 3,
     hyperlink: bool = True,
-    dirty: bool = True,
+    dirty: bool | None = None,
     headings: Sequence[Any] | None = None,
 ) -> dict[str, Any]:
     """Insert a Hancom-native TABLEOFCONTENTS field region at ``at_index``.
 
     Entries are generated from ``headings`` (paragraph wrappers) or, when
     omitted, auto-detected 개요/Outline-styled paragraphs. Emitted entry page
-    numbers are naive estimates; with ``dirty=True`` (default, measured
-    semantics) Hancom regenerates the whole region — correct entries, styles,
-    and page numbers — on its next open, so the first thing a user sees is a
-    TOC Hancom itself computed. Returns a summary dict.
+    numbers are naive estimates; with ``dirty=True`` Hancom regenerates the
+    whole region — correct entries, styles, and page numbers — on its next
+    open, so the first thing a user sees is a TOC Hancom itself computed.
+    Hancom regenerates it from the paragraphs it collects (see below), so a
+    TOC built from explicit ``headings`` that are not outline paragraphs would
+    lose its entries and links. ``dirty`` therefore defaults to ``True`` for
+    auto-detected headings and to ``False`` when ``headings`` is given; pass
+    it explicitly to choose. Returns a summary dict.
 
     Collection note (measured): Hancom collects outline-styled paragraphs and
     — via the ``ContentsStyles:wstring:0:`` command — style-0 (바탕글)
@@ -327,6 +331,8 @@ def add_native_toc(
         detected = [(p, 1, (p.text or "").strip()) for p in headings]
     if not detected:
         raise ValueError("no outline headings found to build a TOC from")
+    if dirty is None:
+        dirty = headings is None
 
     anchors: list[tuple[str, int, str]] = []
     for paragraph, lvl, text in detected:

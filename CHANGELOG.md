@@ -13,6 +13,10 @@
   지금 `ensure_run(script=...)`이 만드는 첨자는 아예 첨자로 보지 않았다. 이제
   `CharProperty.is_superscript()`/`is_subscript()`처럼 요소로 판정한다. 요소 없이
   `offset`만 있는 글자는 한컴의 글자 위치(올림·내림) 설정이라 첨자로 보지 않는다.
+- `hwpx.tools.toc_author.add_native_toc(headings=...)`로 제목을 직접 준 목차가
+  한컴에서 열 때 항목과 링크를 잃던 것을 고친다. `dirty` 기본값이 늘 `True`라,
+  한컴이 목차를 다시 만들면서 개요 문단만 모았다. 이제 `dirty`의 기본값은 제목을
+  자동으로 찾을 때 `True`, `headings`를 직접 줄 때 `False`다. 직접 넘기면 그 값을 쓴다.
 - `styles.ensure_run(script="sup"/"sub")`가 만든 위·아래 첨자가 한컴에서 두 번
   줄어들던 것을 고친다. `hh:supscript`/`hh:subscript` 요소와 함께 `relSz 67`·
   `offset -30/+30`도 썼는데, 한컴은 요소만으로 글자를 줄이고 올리거나 내린다.

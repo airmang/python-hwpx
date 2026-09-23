@@ -21,9 +21,10 @@ encodes as a direct consequence of that measurement.
 
 Our handling: ``add_page_crossref`` has no ``dirty`` parameter at all --
 it always emits ``dirty="0"`` (nothing for the caller to set, because
-Hancom keeps CROSSREF fresh on its own). ``add_native_toc`` accepts and
-defaults to ``dirty=True`` and ``mark_toc_dirty()`` exists as a standalone
-follow-up call -- because TOC does *not* self-refresh. A caller who does
+Hancom keeps CROSSREF fresh on its own). ``add_native_toc`` accepts
+``dirty`` (``True`` by default for auto-detected headings) and
+``mark_toc_dirty()`` exists as a standalone follow-up call -- because TOC
+does *not* self-refresh. A caller who does
 not know this asymmetry could reasonably assume CROSSREF also needs an
 explicit dirty flag (it does not) or that TOC dirty-marking is optional
 (it is not) -- which is exactly why ``known-traps.md`` documents it.
@@ -65,11 +66,11 @@ def main() -> int:
         "expected add_page_crossref to have no dirty parameter -- CROSSREF self-refreshes"
     )
     toc_params = inspect.signature(add_native_toc).parameters
-    assert "dirty" in toc_params and toc_params["dirty"].default is True, (
-        "expected add_native_toc to accept dirty, defaulting True -- TOC does not self-refresh"
+    assert "dirty" in toc_params, (
+        "expected add_native_toc to accept dirty -- TOC does not self-refresh"
     )
     print("confirmed the asymmetry at the API surface: add_page_crossref has no dirty "
-          "parameter (nothing to set), add_native_toc defaults dirty=True (caller-owned)")
+          "parameter (nothing to set), add_native_toc takes dirty (caller-owned)")
 
     from hwpx.document import HwpxDocument
 
