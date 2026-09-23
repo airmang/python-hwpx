@@ -554,6 +554,29 @@ def test_overlapped_characters_open_as_compose_between_the_text() -> None:
     assert [(etree.QName(c).localname, c.text) for c in run] == [("t", "앞"), ("compose", None), ("t", "뒤")]
 
 
+@pytest.mark.parametrize("keep", ["line", "fill"])
+def test_an_older_drawing_style_that_stops_early_still_opens(keep: str) -> None:
+    fill = di.Fill(di.FILL_SOLID, 0x00FFE5CC, 0x00FFFFFF, -1, additional=b"", alphas=b"")
+    full = sh.DrawingStyle(0x00112233, 283, 0x1, 0, fill, 1, 0xB2B2B2, 283, 283, 185).encode()
+    short = full[:13] if keep == "line" else full[: 13 + 16]
+    style = sh.DrawingStyle.decode(short)
+    assert style.encode() == short
+    assert (style.line_color, style.line_width, style.shadow_type) == (0x00112233, 283, 0)
+    assert (style.fill.kind == di.FILL_SOLID) == (keep == "fill")
+    section = _section()
+    records = _text_box()
+    component = next(i for i, r in enumerate(records) if r.tag == rec.SHAPE_COMPONENT)
+    shape = sh.ShapeComponent.decode(records[component].payload, top=True)
+    shape.rest = short
+    records[component] = rec.Record(rec.SHAPE_COMPONENT, 2, shape.encode())
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(_compound(section + records))
+    [rect] = list(document.sections[0].element.iter(f"{HP}rect"))
+    assert rect.find(f"{HP}lineShape").get("color") == "#332211"
+    assert rect.find(f"{HP}shadow").get("type") == "NONE"
+
+
 def test_curves_and_connectors_open_with_their_segments_and_ends() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")

@@ -123,7 +123,9 @@ class ShapeComponent:
 class DrawingStyle:
     """What a drawn shape's component holds after its matrices: the line
     (colour, width, properties, outline style), the fill, the shadow (kind,
-    colour, offsets), the instance id and the line and shadow alphas."""
+    colour, offsets), the instance id and the line and shadow alphas. Older
+    records stop after the line or after the fill; the rest then keeps its
+    defaults and ``raw_size`` the record's own length."""
 
     line_color: int = 0
     line_width: int = 0
@@ -138,12 +140,17 @@ class DrawingStyle:
     line_alpha: int = 0
     shadow_alpha: int = 0
     extra: bytes = b""
+    raw_size: int | None = None
 
     @classmethod
     def decode(cls, data: bytes) -> "DrawingStyle":
         c = Cursor(data, "SHAPE_COMPONENT")
         value = cls(c.u32(), c.i32(), c.u32(), c.u8())
-        value.fill = di.Fill.read(c)
+        if c.left:
+            value.fill = di.Fill.read(c)
+        if not c.left:
+            value.raw_size = len(data)
+            return value
         value.shadow_type, value.shadow_color = c.u32(), c.u32()
         value.shadow_x, value.shadow_y = c.i32(), c.i32()
         value.instance_id = c.u32()
@@ -156,7 +163,8 @@ class DrawingStyle:
         b = Builder().u32(self.line_color).i32(self.line_width).u32(self.line_props).u8(self.outline)
         self.fill.write(b)
         b.u32(self.shadow_type).u32(self.shadow_color).i32(self.shadow_x).i32(self.shadow_y)
-        return b.u32(self.instance_id).u8(self.line_alpha).u8(self.shadow_alpha).raw(self.extra).bytes()
+        out = b.u32(self.instance_id).u8(self.line_alpha).u8(self.shadow_alpha).raw(self.extra).bytes()
+        return out[: self.raw_size] if self.raw_size is not None else out
 
 
 @dataclass
