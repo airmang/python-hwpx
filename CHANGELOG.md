@@ -6,6 +6,11 @@
 
 ### 고침
 
+- `add_chart`가 축(`c:axId`·`c:catAx`·`c:valAx`) 없는 꺾은선 차트를
+  `HwpxValueError`(`shape-chart-line-axes-missing`)로 거부하고 축을 넣는 방법을
+  안내한다. 한컴 SDK 13.60은 이런 문서를 렌더하거나 HWPX·HWP로 저장하다
+  멈췄고, 같은 차트에 축만 넣으면 정상이었다. 축 없는 막대·원형 차트는 한컴이
+  렌더하므로 전처럼 받는다.
 - 암호가 걸린 HWPX를 열면 `Start tag expected, '<' not found` 같은 파일 손상처럼
   보이는 lxml 오류만 나오던 것을 고친다. `META-INF/manifest.xml`이 파트를
   `encryption-data`로 암호화 선언한 경우 예외 타입(`XMLSyntaxError`)은 그대로
