@@ -150,7 +150,7 @@ def _lint_required_fields(
     """Flag declared-required native form fields that are empty (plan §2 D)."""
 
     try:
-        fields = doc.list_form_fields()
+        fields = doc.fields.all
     except Exception:  # pragma: no cover - defensive
         return
     wanted = {str(f) for f in required_fields}
