@@ -393,7 +393,7 @@ class HwpxOxmlSectionHeaderFooter:
         attrs["vertAlign"] = "TOP" if self.element.tag.endswith("header") else "BOTTOM"
         size = self._properties.page_size
         margins = self._properties.page_margins
-        text_width = max(size.width - margins.left - margins.right, 0)
+        text_width = max(size.drawn_width - margins.left - margins.right, 0)
         text_height = margins.header if self.element.tag.endswith("header") else margins.footer
         if text_width:
             attrs["textWidth"] = str(text_width)

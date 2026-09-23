@@ -10,6 +10,7 @@ from xml.etree import ElementTree as ET
 
 from ..opc.package import HwpxPackage
 from ..opc.relationships import parse_manifest_relationships
+from ..oxml.section_format import _drawn_page_size
 from .archive_cli import unpack_hwpx
 from .page_guard import DocumentMetrics, collect_metrics
 
@@ -309,6 +310,9 @@ def _extract_section_layout(section_path: str, section_xml: ET.Element) -> Secti
     margin = page_pr.find(f"{_HP_TAG}margin") if page_pr is not None else None
     margins = _margin_summary(margin)
     page_width = _int_attr(page_pr, "width")
+    page_height = _int_attr(page_pr, "height")
+    if page_pr is not None and page_width is not None and page_height is not None:
+        page_width, page_height = _drawn_page_size(page_width, page_height, page_pr.get("landscape"))
     body_width = None
     if page_width is not None:
         body_width = max(
@@ -321,7 +325,7 @@ def _extract_section_layout(section_path: str, section_xml: ET.Element) -> Secti
     return SectionLayoutSummary(
         section_path=section_path,
         page_width=page_width,
-        page_height=_int_attr(page_pr, "height"),
+        page_height=page_height,
         margins=margins,
         computed_body_width=body_width,
     )

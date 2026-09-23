@@ -557,7 +557,7 @@ class HwpxOxmlParagraph:
             return None
         if page.width <= 0:
             return None
-        usable = page.width - margins.left - margins.right - margins.gutter
+        usable = page.drawn_width - margins.left - margins.right - margins.gutter
         return usable if usable > 0 else None
 
     def add_table(

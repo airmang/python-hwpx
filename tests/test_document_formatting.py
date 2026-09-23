@@ -709,8 +709,9 @@ def test_section_properties_updates_page_settings() -> None:
     properties.set_page_size(width=72000, height=36000, orientation="NARROWLY", gutter_type="TOP_BOTTOM")
     page_pr = sec_pr.find(f"{HP}pagePr")
     assert page_pr is not None
-    assert page_pr.get("width") == "72000"
-    assert page_pr.get("height") == "36000"
+    # NARROWLY (landscape) keeps the portrait size: the shorter side is the width.
+    assert page_pr.get("width") == "36000"
+    assert page_pr.get("height") == "72000"
     assert page_pr.get("landscape") == "NARROWLY"
     assert page_pr.get("gutterType") == "TOP_BOTTOM"
     assert section.dirty is True

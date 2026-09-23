@@ -20,6 +20,20 @@
   한컴에서 열 때 항목과 링크를 잃던 것을 고친다. `dirty` 기본값이 늘 `True`라,
   한컴이 목차를 다시 만들면서 개요 문단만 모았다. 이제 `dirty`의 기본값은 제목을
   자동으로 찾을 때 `True`, `headings`를 직접 줄 때 `False`다. 직접 넘기면 그 값을 쓴다.
+- 용지 방향을 한컴 표기로 쓴다. `page.setup(orientation="PORTRAIT")`는 스키마 밖 값
+  `landscape="PORTRAIT"`를 써서 한컴이 가로로 그렸고, `set_page_size(orientation=
+  "LANDSCAPE")`에 가로 치수를 주면 세로로 그려졌다. 이제 세로는 `WIDELY`, 가로는
+  `NARROWLY`이고, 치수는 두 방향 모두 용지의 세로 치수(너비 ≤ 높이)로 저장한다
+  (`NARROWLY`는 한컴이 돌려서 그린다). `page.setup`, `page.set_size`,
+  `section.properties.set_page_size`가 모두 같다.
+  - `WIDELY`/`NARROWLY`를 직접 넘기면 한컴 뜻 그대로(`WIDELY`가 세로) 읽는다.
+    예전에는 `WIDELY`를 가로로 읽었다.
+  - `page.set_size`는 모르는 방향 값을 `page-orientation-unsupported`로 거부한다.
+  - `landscape`가 없으면 `page_size.orientation`은 스키마 기본값 `NARROWLY`를
+    돌려준다. 한컴도 그렇게 읽는다.
+  - 새 `PageSize.drawn_width`/`drawn_height`는 한컴이 그리는 쪽 크기다. 표 기본 폭,
+    머리말·꼬리말 폭, `template_analyzer`의 쪽·본문 폭, `layout_preview`의 쪽 상자가
+    이 크기를 쓴다. 그래서 `NARROWLY`와 세로 치수로 된 가로 문서도 가로 폭으로 계산한다.
 - `styles.ensure_run(script="sup"/"sub")`가 만든 위·아래 첨자가 한컴에서 두 번
   줄어들던 것을 고친다. `hh:supscript`/`hh:subscript` 요소와 함께 `relSz 67`·
   `offset -30/+30`도 썼는데, 한컴은 요소만으로 글자를 줄이고 올리거나 내린다.
