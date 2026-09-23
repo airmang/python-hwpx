@@ -4,7 +4,8 @@
 :func:`convert` reads the compound file, turns DocInfo into
 ``Contents/header.xml``, every BodyText section into
 ``Contents/section<N>.xml`` and its master pages into
-``Contents/masterpage<N>.xml``, copies embedded binary data to ``BinData/``,
+``Contents/masterpage<N>.xml``, copies embedded binary data to ``BinData/``
+(and the chart part a Hancom chart keeps in its storage to ``Chart/``),
 and writes the package files (``mimetype``, ``version.xml``, the
 ``META-INF`` container, ``Contents/content.hpf``, ``settings.xml`` and the
 text preview) around them. :func:`to_hwpx_bytes` zips the parts so the
@@ -21,6 +22,7 @@ from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
 from . import docinfo as di
 from . import records as rec
+from . import shapes as sh
 from .header_xml import build_header
 from .owpml import NS, XML_DECLARATION, root, serialize, sub, xml_text
 from .reader import Hwp5File, read_hwp5
@@ -208,7 +210,14 @@ def convert(data: bytes) -> Converted:
     link_doc = doc.compound.read("DocOptions/_LinkDoc") if doc.compound.has_stream("DocOptions/_LinkDoc") else None
     files: dict[str, bytes] = {"mimetype": MIMETYPE, "version.xml": VERSION_XML}
     bins = _bin_items(doc, info)
-    for _id, href, payload, _media, _embedded in bins:
+    # A Hancom chart keeps its chart part in its OLE storage; the part goes
+    # just before the storage, numbered in BinData order, in no manifest.
+    charts: dict[str, str] = {}
+    for item_id, href, payload, _media, _embedded in bins:
+        chart = sh.chart_xml(payload) if item_id.startswith("ole") else None
+        if chart is not None:
+            charts[item_id] = f"Chart/chart{len(charts) + 1}.xml"
+            files[charts[item_id]] = chart
         files[href] = payload
     files["Contents/header.xml"] = build_header(
         info, len(doc.sections), link_doc=link_doc, license_mark=license_mark
@@ -219,7 +228,7 @@ def convert(data: bytes) -> Converted:
     parts: list[bytes] = []
     for section in doc.sections:
         before = len(master_pages)
-        parts.append(build_section(section, report, memos, master_pages))
+        parts.append(build_section(section, report, memos, master_pages, charts))
         counts.append(len(master_pages) - before)
     for _ in memos:
         report.skip("memo-body")

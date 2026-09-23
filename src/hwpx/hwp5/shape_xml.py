@@ -2,14 +2,16 @@
 """Drawing objects of an HWP 5.0 section as OWPML shape elements.
 
 The reading half of :mod:`hwpx.hwp5.shapes`: rectangles, ellipses, arcs,
-polygons, lines, curves, connectors, containers and pictures with their
-placement, matrices, line, fill and shadow, text boxes, captions and
-parameter sets. Kinds this module does not convert are reported, never
-dropped.
+polygons, lines, curves, connectors, containers, pictures and OLE objects
+with their placement, matrices, line, fill and shadow, text boxes, captions
+and parameter sets. A Hancom chart, an OLE object whose storage holds the
+chart part, becomes the chart with the OLE object as its fallback. Kinds
+this module does not convert are reported, never dropped.
 """
 
 from __future__ import annotations
 
+import copy
 import struct
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
@@ -20,7 +22,7 @@ from . import records as rec
 from . import shapes as sh
 from .errors import Hwp5Error, damaged
 from .header_xml import IMAGE_EFFECT, fill_brush
-from .owpml import color, flag, sub, token, xml_text
+from .owpml import NS, color, flag, q, sub, token, xml_text
 from .section_common import ConversionReport, _bits, _u32, list_attrs, lists, object_attrs, object_layout
 
 LINE_STYLE = (
@@ -93,6 +95,13 @@ CONNECT_TYPE = (
     "ARC_ONEWAY",
     "ARC_BOTH",
 )
+#: OLE objects: the object type (bits 16-21 of the properties) and the draw
+#: aspect (bits 0-7) by code; Hancom calls every chart UNKNOWN.
+OLE_TYPE = ("UNKNOWN", "EMBEDDED", "LINK", "STATIC", "EQUATION")
+DRAW_ASPECT = {1: "CONTENT"}
+#: What a chart shares with the OLE object it falls back to.
+CHART_ATTRS = ("id", "zOrder", "numberingType", "textWrap", "textFlow", "lock", "dropcapstyle")
+CHART_PARTS = ("sz", "pos", "outMargin")
 DROPCAP = ("None", "DoubleLine", "TripleLine", "Margin")
 #: Item paths in a shape's parameter sets: the first-letter decoration kind
 #: (object header) and the hyperlink (shape component).
@@ -237,11 +246,28 @@ def _effect_color(parent: etree._Element, color: sh.EffectColor) -> None:
         sub(element, "hp:effect", (("type", COLOR_EFFECTS[code]), ("value", matrix_number(amount))))
 
 
+def chart_switch(ole: etree._Element, path: str) -> etree._Element:
+    """A chart as Hancom writes it: the chart (its part at *path*) for an
+    application that reads charts, else the OLE object *ole*."""
+
+    switch = etree.Element(q("hp:switch"))
+    case = sub(switch, "hp:case", (("hp:required-namespace", NS["ooxmlchart"]),))
+    chart = sub(case, "hp:chart", [(name, ole.get(name, "")) for name in CHART_ATTRS] + [("chartIDRef", path)])
+    for name in CHART_PARTS:
+        part = ole.find(q(f"hp:{name}"))
+        if part is not None:
+            chart.append(copy.deepcopy(part))
+    sub(switch, "hp:default").append(ole)
+    return switch
+
+
 class ShapeReader:
     """Converts drawing objects; mixed into the section writer, which supplies
-    the report, paragraph lists and captions."""
+    the report, paragraph lists and captions, and the chart part of each OLE
+    item that holds a chart."""
 
     report: ConversionReport
+    charts: dict[str, str]
 
     def paragraphs(self, parent: etree._Element, records: list[rec.Record]) -> None:
         raise NotImplementedError
@@ -284,6 +310,9 @@ class ShapeReader:
         except Hwp5Error:
             self.report.skip(f"shape-{kind.strip('$')}-damaged")
             return None
+        chart = self.charts.get(element.get("binaryItemIDRef", "")) if kind == "$ole" else None
+        if chart is not None:
+            element = chart_switch(element, chart)
         run.append(element)
         return element
 
@@ -320,20 +349,29 @@ class ShapeReader:
                     self.report.skip("shape-data")
         style: sh.DrawingStyle | None = None
         picture: sh.Picture | None = None
+        ole: sh.OleObject | None = None
         if sc.kind == "$con":
             instance_id = sh.ContainerChildren.decode(sc.rest).instance_id
         elif sc.kind == "$pic":
             picture = sh.Picture.decode(geometry.payload) if geometry is not None else sh.Picture()
             instance_id = picture.instance_id or 0
+        elif sc.kind == "$ole":
+            if geometry is None:
+                raise damaged("OLE object without its record")
+            ole = sh.OleObject.decode(geometry.payload)
+            instance_id = ole.instance_id or 0
         else:
             style = sh.DrawingStyle.decode(sc.rest)
             instance_id = style.instance_id
         attrs += [("href", href), ("groupLevel", sc.group_level), ("instid", instance_id)]
-        attrs += self.shape_attrs(sc.kind, geometry)
+        attrs += self.shape_attrs(sc.kind, geometry) if ole is None else self.ole_attrs(ole)
         element = sub(parent, f"hp:{name}", attrs)
         self.shape_placement(element, sc)
         if picture is not None:
             self.picture(element, picture)
+        if ole is not None:
+            sub(element, "hc:extent", (("x", ole.extent[0]), ("y", ole.extent[1])))
+            self.line_shape(element, ole.line_color, ole.line_width, ole.line_props, 0, 0)
         if sc.kind == "$con":
             for child in record.children:
                 if child.tag != rec.SHAPE_COMPONENT or len(child.payload) < 4:
@@ -376,6 +414,21 @@ class ShapeReader:
         if kind == "$pic":
             return [("reverse", 0)]
         return []
+
+    def ole_attrs(self, ole: sh.OleObject) -> list[tuple[str, object]]:
+        item = f"ole{ole.bin_id}"
+        kind, aspect = _bits(ole.props, 16, 6), DRAW_ASPECT.get(_bits(ole.props, 0, 8))
+        if kind >= len(OLE_TYPE):
+            self.report.skip("ole-object-type")
+        if aspect is None:
+            self.report.skip("ole-draw-aspect")
+        return [
+            ("objectType", "UNKNOWN" if item in self.charts else token(OLE_TYPE, kind)),
+            ("binaryItemIDRef", item),
+            ("hasMoniker", flag(ole.props & 0x100)),
+            ("drawAspect", aspect or "CONTENT"),
+            ("eqBaseLine", _bits(ole.props, 9, 7)),
+        ]
 
     @staticmethod
     def shape_placement(element: etree._Element, sc: sh.ShapeComponent) -> None:

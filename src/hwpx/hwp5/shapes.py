@@ -16,6 +16,7 @@ import struct
 from dataclasses import dataclass, field
 
 from . import bodytext as bt
+from . import cfb
 from . import docinfo as di
 from . import records as rec
 from .binary import Builder, Cursor
@@ -35,6 +36,7 @@ SHAPE_ELEMENTS = {
     "$col": "connectLine",
     "$con": "container",
     "$pic": "pic",
+    "$ole": "ole",
 }
 #: The geometry record of each shape kind.
 GEOMETRY_TAGS = {
@@ -46,6 +48,7 @@ GEOMETRY_TAGS = {
     "$cur": rec.SHAPE_COMPONENT_CURVE,
     "$col": rec.SHAPE_COMPONENT_LINE,
     "$pic": rec.SHAPE_COMPONENT_PICTURE,
+    "$ole": rec.SHAPE_COMPONENT_OLE,
 }
 
 
@@ -593,6 +596,61 @@ class Picture:
         if self.dim is not None:
             b.u32(self.dim[0]).u32(self.dim[1])
         return b.raw(self.extra).bytes()
+
+
+@dataclass
+class OleObject:
+    """``SHAPE_COMPONENT_OLE``: the properties (draw aspect in bits 0-7, a
+    moniker in bit 8, the baseline in bits 9-15, the object type in bits
+    16-21), the object's own extent, the binary item id, the border line
+    (colour, width, properties), then the instance id. Records of older
+    versions end before the instance id."""
+
+    props: int = 0
+    extent: Point = (0, 0)
+    bin_id: int = 0
+    line_color: int = 0
+    line_width: int = 0
+    line_props: int = 0
+    instance_id: int | None = 0
+    extra: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "OleObject":
+        c = Cursor(payload, "SHAPE_COMPONENT_OLE")
+        value = cls(c.u32(), _point(c), c.u16(), c.u32(), c.i32(), c.u32())
+        value.instance_id = c.u32() if c.left >= 4 else None
+        value.extra = c.rest()
+        return value
+
+    def encode(self) -> bytes:
+        b = Builder().u32(self.props)
+        _points(b, [self.extent])
+        b.u16(self.bin_id).u32(self.line_color).i32(self.line_width).u32(self.line_props)
+        if self.instance_id is not None:
+            b.u32(self.instance_id)
+        return b.raw(self.extra).bytes()
+
+
+#: The class of a Hancom chart's OLE storage, {4C3DA137-DC90-47B9-9BED-59DAE352A280}.
+HANCOM_CHART = bytes.fromhex("37a13d4c90dcb9479bed59dae352a280")
+#: The stream of a Hancom chart's storage that holds the chart as chartML.
+CHART_STREAM = "OOXMLChartContents"
+
+
+def chart_xml(storage: bytes) -> bytes | None:
+    """The chartML part of a Hancom chart, from its OLE storage (a length
+    word, then the compound file); None for any other storage."""
+
+    if storage[4:12] != cfb.SIGNATURE:
+        return None
+    try:
+        compound = cfb.CompoundFile(storage[4:])
+        if compound.root.clsid != HANCOM_CHART or not compound.has_stream(CHART_STREAM):
+            return None
+        return compound.read(CHART_STREAM)
+    except Hwp5Error:
+        return None
 
 
 #: A one-item parameter set naming something (the same set cells and fields use).

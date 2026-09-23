@@ -648,6 +648,8 @@ class SectionWriter(ShapeReader):
         # the section properties that refer to them.
         self.master_pages: list[bytes] | None = None
         self.section_pr: etree._Element | None = None
+        # The chart part of each OLE item that holds a chart.
+        self.charts: dict[str, str] = {}
 
     # paragraphs ----------------------------------------------------------------------
 
@@ -1346,6 +1348,7 @@ def build_section(
     report: ConversionReport,
     memos: list[MemoBody] | None = None,
     master_pages: list[bytes] | None = None,
+    charts: dict[str, str] | None = None,
 ) -> bytes:
     """``Contents/section<N>.xml`` for one BodyText section.
 
@@ -1357,12 +1360,16 @@ def build_section(
     ``master_pages`` gathers the document's master pages: the section appends
     the part of each of its own, ``Contents/masterpage<N>.xml`` where N is the
     part's place in the list. Without it they are reported.
+
+    ``charts`` maps each OLE item that holds a chart to the chart's part;
+    such an object becomes the chart with the OLE object as its fallback.
     """
 
     section = root("hs:sec")
     writer = SectionWriter(report)
     writer.memo_bodies = memos if memos is not None else memo_bodies([stream])
     writer.master_pages = master_pages
+    writer.charts = charts or {}
     writer.paragraphs(section, stream.roots)
     if memos is None:
         for _ in writer.memo_bodies:

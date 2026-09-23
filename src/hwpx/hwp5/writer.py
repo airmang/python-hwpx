@@ -4,7 +4,8 @@
 :func:`write_hwp5` reads the manifest for the header, the sections in spine
 order, the master pages they refer to and the embedded binary items, builds
 DocInfo and BodyText records, compresses them and writes the compound
-file. Content the writer cannot express makes it raise
+file. A chart goes in as the OLE object it falls back to, whose storage
+holds the chart part. Content the writer cannot express makes it raise
 :class:`~hwpx.hwp5.errors.Hwp5Error` with the code
 ``hwp5-write-unsupported`` before anything is written.
 """
@@ -18,6 +19,7 @@ from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
 from . import docinfo as di
 from . import records as rec
+from . import shapes as sh
 from .cfb import build_compound_file
 from .docinfo_writer import build_docinfo, set_bin_count
 from .errors import Hwp5Error
@@ -83,6 +85,19 @@ def _master_pages(files: Mapping[str, bytes]) -> Callable[[str], etree._Element 
     return find
 
 
+def _chart_kept(files: Mapping[str, bytes], binaries: list[tuple[str, str]]) -> Callable[[str, str], bool]:
+    """Whether an OLE item (its id) holds a chart part (its path) as it is,
+    byte for byte: HWP keeps a chart only in its OLE storage."""
+
+    hrefs = dict(binaries)
+
+    def kept(item_id: str, path: str) -> bool:
+        href, part = hrefs.get(item_id), files.get(path)
+        return href is not None and part is not None and sh.chart_xml(files[href]) == part
+
+    return kept
+
+
 def _caret(files: Mapping[str, bytes]) -> tuple[int, int, int]:
     data = files.get("settings.xml")
     if not data:
@@ -120,10 +135,11 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
     # BinData record (1 first), so the binary items are numbered by place.
     bin_ids = {item_id: number for number, (item_id, _) in enumerate(binaries, 1)}
     master_page = _master_pages(files)
+    chart_kept = _chart_kept(files, binaries)
     sections: list[list[rec.Record]] = []
     writers: list[SectionRecords] = []
     for path in section_paths:
-        writer = SectionRecords(bin_ids, master_page)
+        writer = SectionRecords(bin_ids, master_page, chart_kept)
         sections.append(writer.section(etree.fromstring(files[path])))
         writers.append(writer)
     # Memo bodies of every section hang on the last paragraph of the last one.
@@ -147,7 +163,10 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
         number = bin_ids[item_id]
         extension = href.rsplit(".", 1)[-1] if "." in href.rsplit("/", 1)[-1] else ""
         storage = extension.lower() == "ole"
-        item = di.BinDataItem(di.BIN_STORAGE if storage else di.BIN_EMBEDDING, bin_id=number, extension=extension)
+        # Hancom names an OLE storage's stream with the extension in capitals.
+        item = di.BinDataItem(
+            di.BIN_STORAGE if storage else di.BIN_EMBEDDING, bin_id=number, extension="OLE" if storage else extension
+        )
         items.append(item)
         streams.append((f"BinData/{item.stream_name}", rec.deflate(files[href])))
     set_bin_count(docinfo, items)

@@ -80,9 +80,12 @@ from .shape_xml import (
     ARC_TYPE,
     ARROW,
     ARROW_SIZE,
+    CHART_ATTRS,
+    CHART_PARTS,
     COLOR_EFFECTS,
     CONNECT_TYPE,
     CURVE_SEGMENT,
+    DRAW_ASPECT,
     DROPCAP,
     DROPCAP_PATH,
     EFFECT_ALIGN,
@@ -91,6 +94,7 @@ from .shape_xml import (
     END_CAP,
     HYPERLINK_PATH,
     LINE_STYLE,
+    OLE_TYPE,
     OUTLINE_STYLE,
     ROTATE_IMAGE,
     SHADOW,
@@ -124,11 +128,17 @@ _FORM_KINDS = {name: kind for kind, name in FORM_ELEMENTS.items()}
 #: The shape kind of each drawing object element.
 _SHAPE_KINDS = {name: kind for kind, name in sh.SHAPE_ELEMENTS.items()}
 #: Shape component flags with no OWPML attribute of their own: a text box, a
-#: picture, a container, and a shape inside a container. Hancom sets them so.
+#: picture, an OLE object, a container, and a shape inside a container.
+#: Hancom sets them so.
 _FLAG_TEXT_BOX = 1 << 24
 _FLAG_PICTURE = (1 << 26) | (1 << 29)
+_FLAG_OLE = (1 << 16) | (1 << 17)
 _FLAG_GROUP = 1 << 16
 _FLAG_GROUP_MEMBER = 1 << 17
+#: Object header bit with no OWPML attribute that Hancom sets on a chart.
+_CHART_OBJECT = 1 << 28
+#: The code of each OLE draw aspect.
+_DRAW_ASPECT_CODES = {name: code for code, name in DRAW_ASPECT.items()}
 _IDENTITY: sh.Matrix = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
 #: Children of a container that are not shapes.
 _CONTAINER_PARTS = frozenset({"offset", "orgSz", "curSz", "flip", "rotationInfo", "renderingInfo", "sz", "pos", "outMargin", "shapeComment", "caption", "parameterset"})
@@ -225,6 +235,10 @@ def _flag(element: etree._Element | None, name: str) -> int:
 
 def _find(element: etree._Element, name: str) -> etree._Element | None:
     return element.find(f"{{{_HP}}}{name}")
+
+
+def _attrs(element: etree._Element | None) -> dict[str, str] | None:
+    return None if element is None else dict(element.attrib)
 
 
 def _char(element: etree._Element | None, name: str) -> int:
@@ -382,6 +396,7 @@ class SectionRecords:
         self,
         bin_ids: dict[str, int] | None = None,
         master_page: Callable[[str], etree._Element | None] | None = None,
+        chart_kept: Callable[[str, str], bool] | None = None,
     ) -> None:
         self.unsupported: Counter[str] = Counter()
         # Memo bodies (their hp:subList) in the order of their memo fields; the
@@ -391,6 +406,8 @@ class SectionRecords:
         self.bin_ids = bin_ids or {}
         # The master page part (its root) a manifest item id names.
         self.master_page = master_page or (lambda item_id: None)
+        # Whether the OLE item (an item id) holds the chart part (a path) as it is.
+        self.chart_kept = chart_kept or (lambda item_id, path: False)
         # The section's last-page and optional-page master pages, which hang
         # on its last paragraph.
         self.last_paragraph_pages: list[etree._Element] = []
@@ -528,6 +545,12 @@ class SectionRecords:
                     units += _extended(11, "gso ")
                     codes.add(11)
                     controls.append(self.drawing(child, level + 1))
+                elif name == "switch":
+                    ole = self.chart_fallback(child)
+                    if ole is not None:
+                        units += _extended(11, "gso ")
+                        codes.add(11)
+                        controls.append(self.drawing(ole, level + 1, chart=True))
                 elif name == "equation":
                     units += _extended(11, "eqed")
                     codes.add(11)
@@ -928,11 +951,13 @@ class SectionRecords:
 
     # drawing objects -----------------------------------------------------------------
 
-    def drawing(self, element: etree._Element, level: int) -> list[rec.Record]:
+    def drawing(self, element: etree._Element, level: int, *, chart: bool = False) -> list[rec.Record]:
         """A drawing object: the object header, its parameter sets and caption,
-        then the shape component and what hangs under it."""
+        then the shape component and what hangs under it. *chart* marks the
+        OLE object of a chart."""
 
         common = _object_common("gso ", element)
+        common.props |= _CHART_OBJECT if chart else 0
         comment = _find(element, "shapeComment")
         common.description = "".join(comment.itertext()) if comment is not None else ""
         out = [rec.Record(rec.CTRL_HEADER, level, common.encode())]
@@ -958,6 +983,7 @@ class SectionRecords:
         flags |= ROTATE_IMAGE if _flag(rotation, "rotateimage") else 0
         flags |= _FLAG_TEXT_BOX if draw_text is not None else 0
         flags |= _FLAG_PICTURE if kind == "$pic" else 0
+        flags |= _FLAG_OLE if kind == "$ole" else 0
         flags |= _FLAG_GROUP if kind == "$con" or not top else 0
         flags |= _FLAG_GROUP_MEMBER if not top and kind != "$con" else 0
         matrices: list[sh.Matrix] = []
@@ -988,6 +1014,9 @@ class SectionRecords:
         elif kind == "$pic":
             rest = b""
             children.append(rec.Record(rec.SHAPE_COMPONENT_PICTURE, level + 1, self.picture(element)))
+        elif kind == "$ole":
+            rest = b""
+            children.append(rec.Record(rec.SHAPE_COMPONENT_OLE, level + 1, self.ole(element)))
         else:
             rest = self.drawing_style(element).encode()
             if draw_text is not None:
@@ -1146,6 +1175,48 @@ class SectionRecords:
             bytes(1),
             effects,
         ).encode()
+
+    def ole(self, element: etree._Element) -> bytes:
+        """An OLE object: its type and draw aspect, its own extent, its
+        storage and its border; a type or aspect with no code is unsupported."""
+
+        extent, line = element.find(f"{{{_HC}}}extent"), _find(element, "lineShape")
+        ref = element.get("binaryItemIDRef", "")
+        if ref not in self.bin_ids:
+            self.unsupported["ole/missing-object"] += 1
+        kind = index_of(OLE_TYPE, element.get("objectType", "UNKNOWN"), -1)
+        aspect = _DRAW_ASPECT_CODES.get(element.get("drawAspect", "CONTENT"), -1)
+        if kind < 0 or aspect < 0:
+            self.unsupported["ole/objectType" if kind < 0 else "ole/drawAspect"] += 1
+        props = max(aspect, 0) | _flag(element, "hasMoniker") << 8 | (_int(element, "eqBaseLine") & 0x7F) << 9 | max(kind, 0) << 16
+        return sh.OleObject(
+            props,
+            (_i32(_int(extent, "x")), _i32(_int(extent, "y"))),
+            self.bin_ids.get(ref, 0),
+            colorref(line.get("color")) if line is not None else 0,
+            _i32(_int(line, "width")),
+            self._line_props(line),
+            _int(element, "instid") & 0xFFFFFFFF,
+        ).encode()
+
+    def chart_fallback(self, switch: etree._Element) -> etree._Element | None:
+        """The OLE object a chart falls back to, which is what HWP keeps: its
+        storage holds the chart part. Any other switch, and a chart whose part
+        or placement is no longer the one its OLE object holds, is unsupported."""
+
+        case, default = _find(switch, "case"), _find(switch, "default")
+        chart = _find(case, "chart") if case is not None and len(case) == 1 else None
+        ole = _find(default, "ole") if default is not None and len(default) == 1 else None
+        if chart is None or ole is None:
+            self.unsupported["switch"] += 1
+            return None
+        same = self.chart_kept(ole.get("binaryItemIDRef", ""), chart.get("chartIDRef", ""))
+        same = same and all(chart.get(name) == ole.get(name) for name in CHART_ATTRS)
+        same = same and all(_attrs(_find(chart, name)) == _attrs(_find(ole, name)) for name in CHART_PARTS)
+        if not same:
+            self.unsupported["chart/changed"] += 1
+            return None
+        return ole
 
     def picture_effects(self, element: etree._Element | None) -> sh.PictureEffects | None:
         """A picture's effects; an effect, colour type or colour effect the

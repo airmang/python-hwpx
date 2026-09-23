@@ -25,7 +25,7 @@ from hwpx.hwp5.fileheader import FileHeader, parse_file_header
 from hwpx.hwp5.package import convert
 from hwpx.hwp5.reader import read_hwp5
 from hwpx.hwp5.writer import write_hwp5
-from tests.test_hwp5_open import HP, _docinfo, _picture, _section, make_hwp
+from tests.test_hwp5_open import HP, _IDENTITY, _docinfo, _extended, _paragraph, _picture, _section, _u16, make_hwp
 
 _PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
@@ -391,3 +391,126 @@ def test_picture_effects_the_record_cannot_hold_are_refused() -> None:
     )
     _, unsupported = build_section_records(section)
     assert unsupported == {"pic/effects/CMYK": 1, "pic/effects/ALPHA": 1}
+
+
+#: The class of a Paintbrush picture's storage (an OLE object that is no chart).
+_PAINT_CLSID = bytes.fromhex("0a00030000000000c000000000000046")
+_CHART_XML = (
+    b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    b'<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"/>'
+)
+
+
+def _storage(clsid: bytes, streams: list[tuple[str, bytes]]) -> bytes:
+    """An OLE object's storage as HWP keeps it: a length word, then a compound
+    file whose root entry has *clsid* (at offset 80 of the entry)."""
+
+    data = bytearray(cfb.build_compound_file(streams))
+    root = (struct.unpack_from("<I", data, 48)[0] + 1) * 512
+    data[root + 80 : root + 96] = clsid
+    return struct.pack("<I", len(data)) + bytes(data)
+
+
+def _chart_storage() -> bytes:
+    return _storage(sh.HANCOM_CHART, [("Contents", b"chart"), ("OOXMLChartContents", _CHART_XML)])
+
+
+def _ole_hwp(storage: bytes, *, kind: int = 0) -> bytes:
+    """One OLE object of type *kind* whose storage is the only BinData item."""
+
+    records = _docinfo()
+    counts = struct.unpack("<18i", records[1].payload)
+    records[1] = rec.Record(rec.ID_MAPPINGS, 0, struct.pack("<18i", 1, *counts[1:]))
+    records.insert(2, rec.Record(rec.BIN_DATA, 1, di.BinDataItem(di.BIN_STORAGE, bin_id=1, extension="OLE").encode()))
+    common = ct.ObjectCommon("gso ", 0x040A2210, 0, 0, 60000, 40000, 0, (0, 0, 0, 0), 0, 0, "", bytes(2))
+    component = sh.ShapeComponent("$ole", True, 0, 0, 0, 1, 7200, 7200, 7200, 7200, 0xB0000, 0, 0, 0, [_IDENTITY] * 3)
+    ole = sh.OleObject(1 | kind << 16, (7200, 7200), 1, 0, 0, 0, 0)
+    controls = [
+        rec.Record(rec.CTRL_HEADER, 1, common.encode()),
+        rec.Record(rec.SHAPE_COMPONENT, 2, component.encode()),
+        rec.Record(rec.SHAPE_COMPONENT_OLE, 3, ole.encode()),
+    ]
+    section = _section() + _paragraph(0, _extended(11, "gso ") + _u16(13), [(0, 0)], controls)
+    return cfb.build_compound_file(
+        [
+            ("FileHeader", FileHeader((5, 1, 1, 0), 1).to_bytes()),
+            ("DocInfo", rec.deflate(rec.serialize_records(records))),
+            ("BodyText/Section0", rec.deflate(rec.serialize_records(section))),
+            ("BinData/BIN0001.OLE", rec.deflate(storage)),
+        ]
+    )
+
+
+def _ole_elements(files: dict[str, bytes]) -> list[etree._Element]:
+    return [e for name, part in files.items() if name.startswith("Contents/section") for e in etree.fromstring(part).iter(f"{HP}ole")]
+
+
+def test_a_hancom_chart_opens_as_the_chart_with_its_ole_object_to_fall_back_to() -> None:
+    storage = _chart_storage()
+    files = convert(_ole_hwp(storage, kind=3)).files
+
+    assert files["Chart/chart1.xml"] == _CHART_XML
+    assert files["BinData/ole1.ole"] == storage
+    [ole] = _ole_elements(files)
+    default = ole.getparent()
+    switch = default.getparent()
+    assert (default.tag, switch.tag, switch.getparent().tag) == (f"{HP}default", f"{HP}switch", f"{HP}run")
+    [case, _] = switch
+    assert case.get(f"{HP}required-namespace") == "http://www.hancom.co.kr/hwpml/2016/ooxmlchart"
+    [chart] = case
+    assert chart.get("chartIDRef") == "Chart/chart1.xml"
+    assert [etree.QName(child).localname for child in chart] == ["sz", "pos", "outMargin"]
+    # Hancom calls every chart UNKNOWN, whatever type its record keeps.
+    assert (ole.get("objectType"), ole.get("binaryItemIDRef"), ole.get("drawAspect")) == ("UNKNOWN", "ole1", "CONTENT")
+    extent = ole.find("{http://www.hancom.co.kr/hwpml/2011/core}extent")
+    assert (extent.get("x"), extent.get("y")) == ("7200", "7200")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        HwpxDocument.open(_ole_hwp(storage))
+
+
+def test_an_ole_object_that_is_no_chart_opens_as_itself() -> None:
+    files = convert(_ole_hwp(_storage(_PAINT_CLSID, [("Contents", b"picture")]), kind=1)).files
+
+    assert not any(name.startswith("Chart/") for name in files)
+    [ole] = _ole_elements(files)
+    assert ole.getparent().tag == f"{HP}run"
+    assert ole.get("objectType") == "EMBEDDED"
+
+
+@pytest.mark.parametrize("storage, kind", [(_chart_storage(), 0), (_storage(_PAINT_CLSID, [("Contents", b"picture")]), 1)])
+def test_an_ole_object_saves_back_to_its_record_and_storage(tmp_path: Path, storage: bytes, kind: int) -> None:
+    target = tmp_path / "ole.hwp"
+    HwpxDocument.open(_ole_hwp(storage, kind=kind)).save_to_path(target)
+
+    written = read_hwp5(target.read_bytes())
+    [item] = di.decode_docinfo(written.docinfo).bin_data
+    assert (item.kind, item.extension) == (di.BIN_STORAGE, "OLE")
+    raw = written.compound.read("BinData/BIN0001.OLE")
+    assert (rec.inflate(raw, "BinData/BIN0001.OLE") if written.header.compressed else raw) == storage
+    [ole] = [r for s in written.sections for r in s.records if r.tag == rec.SHAPE_COMPONENT_OLE]
+    assert ole.payload == sh.OleObject(1 | kind << 16, (7200, 7200), 1, 0, 0, 0, 0).encode()
+    [header] = [r for s in written.sections for r in s.records if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "gso "]
+    # Hancom marks the object of a chart with bit 28 of its header.
+    assert bool(ct.ObjectCommon.decode(header.payload).props & 1 << 28) == (kind == 0)
+
+
+def test_a_chart_whose_part_no_longer_matches_its_ole_object_is_refused() -> None:
+    files = convert(_ole_hwp(_chart_storage())).files
+    files["Chart/chart1.xml"] = _CHART_XML.replace(b"/>", b"><c:roundedCorners val=\"1\"/></c:chartSpace>")
+
+    with pytest.raises(Hwp5Error) as refused:
+        write_hwp5(files)
+    assert refused.value.context["unsupported"] == {"chart/changed": 1}
+
+
+def test_a_chart_without_an_ole_object_is_refused() -> None:
+    from hwpx.hwp5.section_writer import build_section_records
+
+    section = etree.fromstring(
+        '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"'
+        ' xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"><hp:p><hp:run>'
+        '<hp:chart id="1" chartIDRef="Chart/chart1.xml"/></hp:run></hp:p></hs:sec>'
+    )
+    _, unsupported = build_section_records(section)
+    assert unsupported == {"chart": 1}
