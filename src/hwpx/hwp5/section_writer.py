@@ -9,6 +9,7 @@ caller can refuse the save instead of dropping content silently.
 
 from __future__ import annotations
 
+import copy
 import struct
 import zlib
 from collections import Counter
@@ -140,6 +141,8 @@ _FLAG_GROUP = 1 << 16
 _FLAG_GROUP_MEMBER = 1 << 17
 #: Object header bit with no OWPML attribute that Hancom sets on a chart.
 _CHART_OBJECT = 1 << 28
+#: The size and extent Hancom gives the OLE object it makes for a chart.
+_CHART_OLE_SIZE = "7200"
 #: The code of each OLE draw aspect.
 _DRAW_ASPECT_CODES = {name: code for code, name in DRAW_ASPECT.items()}
 #: The codes of the presentation effects and targets.
@@ -407,6 +410,7 @@ class SectionRecords:
         bin_ids: dict[str, int] | None = None,
         master_page: Callable[[str], etree._Element | None] | None = None,
         chart_kept: Callable[[str, str], bool] | None = None,
+        chart_items: dict[str, str] | None = None,
     ) -> None:
         self.unsupported: Counter[str] = Counter()
         # Memo bodies (their hp:subList) in the order of their memo fields; the
@@ -418,6 +422,8 @@ class SectionRecords:
         self.master_page = master_page or (lambda item_id: None)
         # Whether the OLE item (an item id) holds the chart part (a path) as it is.
         self.chart_kept = chart_kept or (lambda item_id, path: False)
+        # The OLE item made for each chart part of a chart with no OLE object.
+        self.chart_items = chart_items or {}
         # The section's last-page and optional-page master pages, which hang
         # on its last paragraph.
         self.last_paragraph_pages: list[etree._Element] = []
@@ -555,6 +561,12 @@ class SectionRecords:
                     units += _extended(11, "gso ")
                     codes.add(11)
                     controls.append(self.drawing(child, level + 1))
+                elif name == "chart":
+                    ole = self.chart_object(child)
+                    if ole is not None:
+                        units += _extended(11, "gso ")
+                        codes.add(11)
+                        controls.append(self.drawing(ole, level + 1, chart=True))
                 elif name == "switch":
                     ole = self.chart_fallback(child)
                     if ole is not None:
@@ -1238,6 +1250,30 @@ class SectionRecords:
             self._line_props(line),
             _int(element, "instid") & 0xFFFFFFFF,
         ).encode()
+
+    def chart_object(self, chart: etree._Element) -> etree._Element | None:
+        """The OLE object Hancom makes for a chart that has none: the chart's
+        placement, a 7200-unit square and the storage made for its part (see
+        :func:`~hwpx.hwp5.writer.write_hwp5`). A chart whose part the package
+        does not hold is unsupported."""
+
+        item_id = self.chart_items.get(chart.get("chartIDRef", ""))
+        if item_id is None:
+            self.unsupported["chart"] += 1
+            return None
+        ole = etree.Element(f"{{{_HP}}}ole")
+        for name in CHART_ATTRS:
+            ole.set(name, chart.get(name, ""))
+        for name, value in (("objectType", "UNKNOWN"), ("binaryItemIDRef", item_id), ("drawAspect", "CONTENT")):
+            ole.set(name, value)
+        etree.SubElement(ole, f"{{{_HP}}}orgSz", width=_CHART_OLE_SIZE, height=_CHART_OLE_SIZE)
+        etree.SubElement(ole, f"{{{_HP}}}rotationInfo", rotateimage="1")
+        etree.SubElement(ole, f"{{{_HC}}}extent", x=_CHART_OLE_SIZE, y=_CHART_OLE_SIZE)
+        for name in CHART_PARTS:
+            part = _find(chart, name)
+            if part is not None:
+                ole.append(copy.deepcopy(part))
+        return ole
 
     def chart_fallback(self, switch: etree._Element) -> etree._Element | None:
         """The OLE object a chart falls back to, which is what HWP keeps: its

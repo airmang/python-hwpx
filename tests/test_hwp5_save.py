@@ -504,7 +504,35 @@ def test_a_chart_whose_part_no_longer_matches_its_ole_object_is_refused() -> Non
     assert refused.value.context["unsupported"] == {"chart/changed": 1}
 
 
-def test_a_chart_without_an_ole_object_is_refused() -> None:
+def test_a_chart_made_by_python_hwpx_saves_as_an_ole_object_holding_its_part(tmp_path: Path) -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("차트")
+    document.shapes.add_chart(_CHART_XML, size=(30000, 20000))
+    target = tmp_path / "chart.hwp"
+    document.save_to_path(target)
+
+    written = read_hwp5(target.read_bytes())
+    [item] = di.decode_docinfo(written.docinfo).bin_data
+    raw = written.compound.read(f"BinData/{item.stream_name}")
+    stored = rec.inflate(raw, "BinData") if written.header.compressed else raw
+    # A storage of the chart class holding only the chart part; Hancom draws
+    # the chart from it and makes the other streams itself.
+    assert cfb.CompoundFile(stored[4:]).root.clsid == sh.HANCOM_CHART
+    assert cfb.CompoundFile(stored[4:]).stream_paths() == [sh.CHART_STREAM]
+    assert sh.chart_xml(stored) == _CHART_XML
+    [ole] = [r for s in written.sections for r in s.records if r.tag == rec.SHAPE_COMPONENT_OLE]
+    assert ole.payload == sh.OleObject(1, (7200, 7200), 1, 0, 0, 0, 0).encode()
+    [header] = [r for s in written.sections for r in s.records if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "gso "]
+    common = ct.ObjectCommon.decode(header.payload)
+    assert (common.width, common.height, bool(common.props & 1 << 28)) == (30000, 20000, True)
+
+    reopened = HwpxDocument.open(target)
+    [chart] = [c for s in reopened.sections for c in s.element.iter(f"{HP}chart")]
+    assert etree.QName(chart.getparent().getparent()).localname == "switch"
+    assert reopened._package.read(chart.get("chartIDRef")) == _CHART_XML
+
+
+def test_a_chart_whose_part_is_missing_is_refused() -> None:
     from hwpx.hwp5.section_writer import build_section_records
 
     section = etree.fromstring(

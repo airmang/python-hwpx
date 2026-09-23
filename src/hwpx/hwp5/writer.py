@@ -5,7 +5,8 @@
 order, the master pages they refer to and the embedded binary items, builds
 DocInfo and BodyText records, compresses them and writes the compound
 file. A chart goes in as the OLE object it falls back to, whose storage
-holds the chart part. Content the writer cannot express makes it raise
+holds the chart part; a chart with no OLE object gets one whose storage
+holds only the chart part, which Hancom draws the chart from. Content the writer cannot express makes it raise
 :class:`~hwpx.hwp5.errors.Hwp5Error` with the code
 ``hwp5-write-unsupported`` before anything is written.
 """
@@ -98,6 +99,25 @@ def _chart_kept(files: Mapping[str, bytes], binaries: list[tuple[str, str]]) -> 
     return kept
 
 
+def _fresh_id(taken: set[str]) -> str:
+    n = 1
+    while f"ole{n}" in taken:
+        n += 1
+    return f"ole{n}"
+
+
+def _bare_charts(roots: list[etree._Element]) -> list[str]:
+    """The chart parts of the charts with no OLE object (a chart straight in
+    a run, not the chart case of a switch), in document order."""
+
+    return [
+        chart.get("chartIDRef", "")
+        for root in roots
+        for chart in root.iter(f"{{{NS['hp']}}}chart")
+        if chart.getparent() is not None and etree.QName(chart.getparent()).localname == "run"
+    ]
+
+
 def _caret(files: Mapping[str, bytes]) -> tuple[int, int, int]:
     data = files.get("settings.xml")
     if not data:
@@ -131,6 +151,18 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
         found = len(head.findall(f".//{{{NS[prefix]}}}{name}"))
         if found:
             unsupported[f"header/{name}"] += found
+    roots = [etree.fromstring(files[path]) for path in section_paths]
+    # A chart with no OLE object gets a storage of its own, after the others.
+    storages: dict[str, bytes] = {}
+    chart_items: dict[str, str] = {}
+    taken = {item_id for item_id, _ in binaries}
+    for path in _bare_charts(roots):
+        if path in files and path not in chart_items:
+            item_id = _fresh_id(taken)
+            taken.add(item_id)
+            chart_items[path] = item_id
+            storages[item_id] = sh.chart_storage(files[path])
+            binaries.append((item_id, f"BinData/{item_id}.ole"))
     # Hancom finds a picture's, fill's or bullet's image by the place of its
     # BinData record (1 first), so the binary items are numbered by place.
     bin_ids = {item_id: number for number, (item_id, _) in enumerate(binaries, 1)}
@@ -138,9 +170,9 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
     chart_kept = _chart_kept(files, binaries)
     sections: list[list[rec.Record]] = []
     writers: list[SectionRecords] = []
-    for path in section_paths:
-        writer = SectionRecords(bin_ids, master_page, chart_kept)
-        sections.append(writer.section(etree.fromstring(files[path])))
+    for root in roots:
+        writer = SectionRecords(bin_ids, master_page, chart_kept, chart_items)
+        sections.append(writer.section(root))
         writers.append(writer)
     # Memo bodies of every section hang on the last paragraph of the last one.
     memos = [body for writer in writers for body in writer.memo_bodies]
@@ -168,7 +200,7 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
             di.BIN_STORAGE if storage else di.BIN_EMBEDDING, bin_id=number, extension="OLE" if storage else extension
         )
         items.append(item)
-        streams.append((f"BinData/{item.stream_name}", rec.deflate(files[href])))
+        streams.append((f"BinData/{item.stream_name}", rec.deflate(storages.get(item_id) or files[href])))
     set_bin_count(docinfo, items)
     header = _file_header(head)
     out: list[tuple[str, bytes]] = [

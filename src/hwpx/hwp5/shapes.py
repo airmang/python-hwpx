@@ -638,6 +638,15 @@ HANCOM_CHART = bytes.fromhex("37a13d4c90dcb9479bed59dae352a280")
 CHART_STREAM = "OOXMLChartContents"
 
 
+def chart_storage(chart: bytes) -> bytes:
+    """The OLE storage of a chart that has only its chart part: a length
+    word, then a compound file of the chart class holding the part. Hancom
+    draws the chart from the part and makes the storage's other streams."""
+
+    data = cfb.build_compound_file([(CHART_STREAM, chart)], root_clsid=HANCOM_CHART)
+    return struct.pack("<I", len(data)) + data
+
+
 def chart_xml(storage: bytes) -> bytes | None:
     """The chartML part of a Hancom chart, from its OLE storage (a length
     word, then the compound file); None for any other storage."""

@@ -354,6 +354,7 @@ class _Node:
     start: int = 0
     created: int = 0
     modified: int = 0
+    clsid: bytes = b"\0" * 16
 
 
 def _cfb_key(name: str) -> tuple[int, str]:
@@ -404,15 +405,18 @@ def build_compound_file(
     *,
     storage_times: Mapping[str, tuple[int, int]] | None = None,
     root_modified: int = 0,
+    root_clsid: bytes = b"\0" * 16,
 ) -> bytes:
     """Write *streams* (``(path, bytes)`` pairs) as a version 3 compound file.
 
     Storages are created from the path prefixes. ``storage_times`` optionally
-    gives ``(created, modified)`` FILETIME values per storage path.
+    gives ``(created, modified)`` FILETIME values per storage path;
+    ``root_clsid`` is the class of the root storage (an OLE object's kind).
     """
 
     root = _Node("Root Entry", TYPE_ROOT, children={})
     root.modified = root_modified
+    root.clsid = bytes(root_clsid)
     order: list[_Node] = [root]
     times = dict(storage_times or {})
     for path, data in streams:
@@ -509,7 +513,7 @@ def build_compound_file(
                 node.left,
                 node.right,
                 node.child,
-                b"\0" * 16,
+                node.clsid,
                 0,
                 node.created,
                 node.modified,
