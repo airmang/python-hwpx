@@ -95,6 +95,40 @@ def test_single_cell_fill_invalidates_only_that_cell(blank_section: bytes) -> No
     assert "김민준".encode("utf-8") in filled
 
 
+def _has_cache(paragraph) -> bool:
+    return any(node.tag.endswith("}linesegarray") for node in paragraph.element)
+
+
+def test_paragraph_format_clears_only_the_formatted_paragraph_cache() -> None:
+    # Hancom (SDK 13.60) takes line heights from the cached layout: with the
+    # cache kept, a paragraph moved to 130% line spacing still drew its old
+    # 160% line height (20pt line pitch where Hancom's own 130% shape gives 17pt).
+    doc = HwpxDocument.open(FORM_002)
+    try:
+        cached = [i for i, p in enumerate(doc.paragraphs) if _has_cache(p)]
+        assert len(cached) >= 2
+        target, untouched = cached[0], cached[1]
+        doc.styles.apply_paragraph_format(paragraph_index=target, line_spacing_percent=130)
+        assert not _has_cache(doc.paragraphs[target])
+        assert _has_cache(doc.paragraphs[untouched])
+        saved = doc.to_bytes()
+    finally:
+        doc.close()
+
+    blank = _section_bytes(FORM_002.read_bytes())
+    assert _cache_count(_section_bytes(saved)) == _cache_count(blank) - 1
+
+
+def test_parapr_swap_keeps_the_cache_when_the_shape_is_unchanged() -> None:
+    doc = HwpxDocument.open(FORM_002)
+    try:
+        paragraph = next(p for p in doc.paragraphs if _has_cache(p))
+        paragraph.para_pr_id_ref = paragraph.para_pr_id_ref
+        assert _has_cache(paragraph)
+    finally:
+        doc.close()
+
+
 def test_charpr_swap_clears_only_containing_paragraph_cache() -> None:
     doc = HwpxDocument.open(FORM_002)
     try:
