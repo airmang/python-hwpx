@@ -13,6 +13,7 @@ from .errors import Hwp5Error, damaged
 from .fileheader import FileHeader, parse_file_header
 
 _SECTION = re.compile(r"^BodyText/Section(\d+)$")
+_VIEW_SECTION = re.compile(r"^ViewText/Section(\d+)$")
 
 _REFUSED_FLAGS: tuple[tuple[str, str, str], ...] = (
     (
@@ -126,6 +127,17 @@ def read_hwp5(data: bytes) -> Hwp5File:
         raise damaged("The HWP document's section streams are not numbered 0..n-1.", sections=numbers)
     if declared is not None and declared != len(present):
         notes["section_count_mismatch"] = 1
+    # A document that tracks changes keeps its body, with the change marks, in
+    # ViewText; BodyText holds a stand-in without them.
+    if header.has("track_changes"):
+        views = sorted(
+            (int(m.group(1)), path)
+            for path in compound.stream_paths()
+            if (m := _VIEW_SECTION.match(path)) is not None
+        )
+        if [n for n, _ in views] == numbers:
+            present = views
+            notes["view_text"] = 1
     sections: list[rec.RecordStream] = []
     for _, path in present:
         raw = compound.read(path)

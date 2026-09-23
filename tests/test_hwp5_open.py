@@ -532,6 +532,31 @@ def test_unconverted_controls_are_reported_not_dropped_silently() -> None:
     assert document._hwp5_report.unconverted["control-gso"] == 1
 
 
+def test_a_document_that_tracks_changes_opens_with_the_body_it_shows() -> None:
+    # Hancom keeps the body of a document that tracks changes, with its change
+    # marks, in ViewText, and a stand-in without the text in BodyText.
+    shown = _paragraph(0, "고친 본문".encode("utf-16-le") + _u16(13), [(0, 0)], [])
+    header = bytearray(shown[0].payload)
+    struct.pack_into("<H", header, 14, 1)  # one range tag: an insertion over two characters
+    shown[0] = rec.Record(rec.PARA_HEADER, 0, bytes(header))
+    shown.append(rec.Record(rec.PARA_RANGE_TAG, 1, struct.pack("<III", 0, 2, 16 << 24 | 1)))
+    docinfo = _docinfo() + [rec.Record(rec.TRACK_CHANGE, 0, bytes(12))]
+    data = cfb.build_compound_file(
+        [
+            ("FileHeader", FileHeader((5, 1, 1, 0), 1 | 1 << 14).to_bytes()),
+            ("DocInfo", rec.deflate(rec.serialize_records(docinfo))),
+            ("BodyText/Section0", rec.deflate(rec.serialize_records(_section()))),
+            ("ViewText/Section0", rec.deflate(rec.serialize_records(_section() + shown))),
+        ]
+    )
+    with pytest.warns(Hwp5ConversionWarning):
+        document = HwpxDocument.open(data)
+    texts = ["".join(p.itertext()) for s in document.sections for p in s.element.iter(f"{HP}p")]
+    assert "고친 본문" in texts
+    # The change marks and the list of changes are reported until they are converted.
+    assert document._hwp5_report.unconverted == {"range-tag-16": 1, "track-changes": 1}
+
+
 def test_fields_open_as_field_begin_and_end() -> None:
     document = HwpxDocument.open(make_hwp(fields=True))
     section = document.sections[0].element

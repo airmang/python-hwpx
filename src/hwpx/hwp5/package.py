@@ -251,6 +251,9 @@ def convert(data: bytes) -> Converted:
     for item in info.bin_data:
         if item.kind == di.BIN_LINK:
             report.skip("bindata-link")
+    # The list of tracked changes and their authors is not converted yet.
+    if any(r.tag in (rec.TRACK_CHANGE, rec.TRACK_CHANGE_AUTHOR) for r in doc.docinfo.records):
+        report.skip("track-changes")
     return Converted(files, report, doc)
 
 
