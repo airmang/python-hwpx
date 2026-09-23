@@ -17,6 +17,7 @@ from ..objects.results import (
 )
 from ..oxml._document_primitives import NEW_NUM_KINDS
 from ..oxml.namespaces import HH
+from ..oxml.section_format import _PAGE_LANDSCAPE, _PAGE_PORTRAIT, _page_orientation_value
 from ._units import _mm_to_hwp_units, _pt_to_hwp_units
 
 if TYPE_CHECKING:
@@ -45,16 +46,9 @@ _PAPER_SIZES_MM: dict[str, tuple[float, float]] = {
 def _normalize_page_orientation(value: str | None) -> str | None:
     if value is None:
         return None
-    normalized = value.strip().upper()
-    aliases = {
-        "PORTRAIT": "PORTRAIT",
-        "NARROW": "PORTRAIT",
-        "NARROWLY": "PORTRAIT",
-        "LANDSCAPE": "WIDELY",
-        "WIDE": "WIDELY",
-        "WIDELY": "WIDELY",
-    }
-    orientation = aliases.get(normalized)
+    # PORTRAIT/NARROW -> WIDELY and LANDSCAPE/WIDE -> NARROWLY; the stored
+    # values themselves keep Hancom's meaning (WIDELY is portrait).
+    orientation = _page_orientation_value(value)
     if orientation is None:
         raise HwpxValueError(
             f"unsupported page orientation: {value}",
@@ -396,7 +390,12 @@ def set_page_setup(
     section: HwpxOxmlSection | None = None,
     section_index: int | None = None,
 ) -> PageSetup:
-    """Set page size, margins, orientation, and optional columns in human units."""
+    """Set page size, margins, orientation, and optional columns in human units.
+
+    The page is written as Hancom writes it: ``WIDELY`` for portrait and
+    ``NARROWLY`` for landscape, both with the paper's portrait size. The
+    returned ``page_size`` reports the page as drawn (landscape is wider).
+    """
 
     normalized_orientation = _normalize_page_orientation(orientation)
     target_width_mm = width_mm
@@ -415,10 +414,11 @@ def set_page_setup(
         target_height_mm = paper_height if target_height_mm is None else target_height_mm
 
     if target_width_mm is not None and target_height_mm is not None:
-        if normalized_orientation == "WIDELY" and target_width_mm < target_height_mm:
-            target_width_mm, target_height_mm = target_height_mm, target_width_mm
-        elif normalized_orientation == "PORTRAIT" and target_width_mm > target_height_mm:
-            target_width_mm, target_height_mm = target_height_mm, target_width_mm
+        short_side, long_side = sorted((target_width_mm, target_height_mm))
+        if normalized_orientation == _PAGE_LANDSCAPE:
+            target_width_mm, target_height_mm = long_side, short_side
+        elif normalized_orientation == _PAGE_PORTRAIT:
+            target_width_mm, target_height_mm = short_side, long_side
 
     width = _mm_to_hwp_units(float(target_width_mm)) if target_width_mm is not None else None
     height = _mm_to_hwp_units(float(target_height_mm)) if target_height_mm is not None else None
@@ -631,7 +631,7 @@ def set_page_size(
     target_section.properties.set_page_size(
         width=width,
         height=height,
-        orientation=orientation,
+        orientation=_normalize_page_orientation(orientation),
         gutter_type=gutter_type,
     )
 
