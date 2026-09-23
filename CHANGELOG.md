@@ -6,6 +6,11 @@
 
 ### 고침
 
+- `add_chart`가 축(`c:axId`·`c:catAx`·`c:valAx`) 없는 꺾은선 차트를
+  `HwpxValueError`(`shape-chart-line-axes-missing`)로 거부하고 축을 넣는 방법을
+  안내한다. 한컴 SDK 13.60은 이런 문서를 렌더하거나 HWPX·HWP로 저장하다
+  멈췄고, 같은 차트에 축만 넣으면 정상이었다. 축 없는 막대·원형 차트는 한컴이
+  렌더하므로 전처럼 받는다.
 - 암호가 걸린 HWPX를 열면 `Start tag expected, '<' not found` 같은 파일 손상처럼
   보이는 lxml 오류만 나오던 것을 고친다. `META-INF/manifest.xml`이 파트를
   `encryption-data`로 암호화 선언한 경우 예외 타입(`XMLSyntaxError`)은 그대로
@@ -22,6 +27,23 @@
   쪽마다 문서 순서상 마지막으로 해당하는 컨트롤을 그렸고, 양쪽 꼬리말이 뒤에
   있으면 홀수 쪽 꼬리말은 한 번도 그려지지 않았다. `remove_header`·`remove_footer`도
   이제 지정한 쪽 종류의 사본만 지운다.
+- 메모 필드가 한컴에서 저장된 뒤 범위 끝과 작성 시각을 잃던 문제를 고친다.
+  `attach_memo_field`는 MEMO `fieldBegin`에 메모마다 양의 `zorder`를 주고,
+  `CreateDateTime`을 한컴과 같은 UTC ISO 8601(`2024-12-02T09:00:00Z`)로 쓴다.
+  시간대 없는 값은 로컬 시각으로 보고 UTC로 바꾼다. 한컴 SDK 13.60 실측에서
+  `zorder`가 없거나 `-1`이면 저장 때 `fieldEnd`가 빠졌고,
+  `2024-12-02 09:00:00` 형식은 열 때 1601년 값으로 바뀌었다. 매개변수 개수
+  속성도 다른 필드처럼 한컴 표기 `cnt`로 쓴다(한컴은 저장하며 `count`를
+  `cnt`로 바꿔 썼다).
+- `insert_document(..., after_paragraph_index=-1)`는 대상 절의 `hp:secPr`을
+  둘째 이후 문단에 남겼다. 한컴은 이를 새 절의 시작으로 읽어, 끼운 문단을
+  기본 쪽 설정의 별도 절로 열고 쪽을 넘겼다. 이제 절 설정(`hp:secPr`,
+  `hp:ctrl/hp:colPr`)을 새 첫 문단으로 옮기고, 병합 보고서에
+  `sectionPropertiesRelocated`를 남긴다.
+- 문서 병합은 여러 문단에 걸친 필드(한컴 양식의 누름틀 등)의 `fieldEnd`를 옛
+  id에 남겨 짝을 끊었다. 이런 병합 결과는 한컴이 열지 못하거나(`0x800040FF`)
+  저장할 때 `fieldEnd`를 버렸다. 이제 id 대응을 복사한 문단 전체에서 맞추고,
+  `fieldEnd`의 `fieldid`는 자기 `fieldBegin`을 따른다.
 
 ## [6.5.0] - 2026-09-21
 
