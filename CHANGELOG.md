@@ -6,6 +6,12 @@
 
 ### 추가
 
+- `hwpx.layout.lint_layout()`이 쪽에서 나뉘지 않는 본문 표(글자처럼 취급한 표,
+  `pageBreak="NONE"` 표)가 쪽 본문보다 높으면 `TABLE_TALLER_THAN_PAGE`로 알린다.
+  한컴은 이런 표를 한 쪽에 그린다. 쪽 첫머리가 아니면 다음 쪽으로 옮기고, 아래
+  여백까지 내려 그리며, 종이 아래 끝을 넘는 행은 그리지 않는다. 높이는 행마다 가장 높은 셀 높이의 합(아래 한계)으로
+  잰다. 행이 잘리면 `overflow_policy="fail"`에서 오류, 아니면 경고다. 여러 쪽에
+  걸칠 표는 `Table.set_treat_as_char(False)`로 흐르게 한다.
 - `styles.apply_paragraph_format(border={...})`로 문단 테두리를 만든다. 키는
   `sides`(기본 네 면), `color`(`#000000`), `width`(`0.12 mm`), `type`(`SOLID`),
   `offset_mm`(글과의 간격 mm, 수 하나 또는 왼쪽·오른쪽·위·아래), `connect`,

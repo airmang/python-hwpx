@@ -2,7 +2,7 @@
 """LayoutLint — renderer-less structural visual smoke (plan §2 Phase D).
 
 Catches *likely* visual problems without a renderer so the **structural tier**
-(no Hancom reachable) and fast pre-checks still have teeth. Four checks:
+(no Hancom reachable) and fast pre-checks still have teeth. Five checks:
 
 1. **stale lineseg cache** — ``lineseg/@textpos`` beyond the paragraph text length
    (already a ``package_validator`` hard error; surfaced here as a layout finding).
@@ -14,6 +14,10 @@ Catches *likely* visual problems without a renderer so the **structural tier**
    ``overflow="fail"`` policy ⇒ a hard error; otherwise a warning.
 4. **table structural sanity** — Hancom-required ``tbl``/``tc`` children present
    (reuses ``package_validator``).
+5. **table taller than the page** — a body table Hancom does not break across
+   pages (inline, or ``pageBreak="NONE"``) whose rows alone are taller than the
+   page body. Rows past the paper's bottom edge + an ``overflow="fail"`` policy
+   ⇒ a hard error; otherwise a warning.
 
 Severity discipline (acceptance "stricter, never wronger"): only renderer-less
 *provable* defects are errors. Heuristics warn. So the lint never contradicts the
@@ -24,6 +28,7 @@ from __future__ import annotations
 
 import io
 import zipfile
+from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 from xml.etree import ElementTree as ET
 
@@ -36,6 +41,7 @@ from hwpx.tools.package_validator import (
 
 from .report import LayoutFinding, LayoutLintReport
 from ..opc.security import guard_zip_file, read_member
+from ..oxml.section_format import _drawn_page_size
 
 if TYPE_CHECKING:
     from hwpx.quality.ledger import DirtyLayoutLedger
@@ -50,6 +56,7 @@ FIELD_OVERFLOW = "FIELD_OVERFLOW"
 REQUIRED_FIELD_MISSING = "REQUIRED_FIELD_MISSING"
 TABLE_STRUCTURE_INVALID = "TABLE_STRUCTURE_INVALID"
 OVERFLOW_RISK = "OVERFLOW_RISK"
+TABLE_TALLER_THAN_PAGE = "TABLE_TALLER_THAN_PAGE"
 
 # A token this many times wider than its cell cannot wrap into it in any renderer
 # → a provable horizontal overflow worth a hard error (vs. a borderline guess).
@@ -84,6 +91,7 @@ def lint_layout(
 
     _lint_stale_cache(report, section_roots)
     _lint_table_structure(report, section_roots)
+    _lint_table_page_fit(report, section_roots, overflow_policy)
     if ledger is not None:
         _lint_dirty_lineseg(report, section_roots, ledger)
 
@@ -381,6 +389,142 @@ def _iter_cells(doc: Any):
                     yield table, entry.cell
 
 
+# --------------------------------------------------------------------------- #
+# 5: a table Hancom does not break across pages, taller than the page.
+# --------------------------------------------------------------------------- #
+_HWPUNIT_PER_MM = 7200 / 25.4
+
+
+def _lint_table_page_fit(
+    report: LayoutLintReport,
+    roots: list[tuple[str, ET.Element]],
+    overflow_policy: str,
+) -> None:
+    """Flag body tables that cannot break across pages yet are taller than one.
+
+    Hancom never breaks an inline table (``treatAsChar="1"``, the ``add_table``
+    default) across pages, nor a table whose ``pageBreak`` is ``NONE``. Such a
+    table taller than the page body is drawn on one page (the next one unless it
+    starts at the top of a page) and runs on into the bottom margin; rows past
+    the paper's bottom edge are not drawn at all. The
+    height is a lower bound (every row is at least its tallest single-row cell),
+    so a finding never rests on how the text wraps.
+    """
+
+    for part_name, root in roots:
+        page = _page_heights(root)
+        if page is None:
+            continue
+        body, to_edge = page
+        numbers = {id(el): i for i, el in enumerate(el for el in root.iter() if _local_name(el) == "p")}
+        for paragraph, table in _body_tables(root):
+            position = next((child for child in table if _local_name(child) == "pos"), None)
+            inline = position is not None and position.get("treatAsChar", "1") == "1"
+            if not inline and table.get("pageBreak") != "NONE":
+                continue  # Hancom breaks it between rows (CELL) or inside cells (TABLE)
+            height = _table_min_height(table)
+            if height > body:
+                report.add(
+                    _table_page_finding(
+                        part_name, numbers.get(id(paragraph)), inline, height, body, to_edge,
+                        overflow_policy,
+                    )
+                )
+
+
+def _table_page_finding(
+    part_name: str,
+    paragraph: int | None,
+    inline: bool,
+    height: int,
+    body: int,
+    to_edge: int,
+    overflow_policy: str,
+) -> LayoutFinding:
+    cut = height > to_edge
+    kind = "an inline table" if inline else 'a table with pageBreak="NONE"'
+    fix = "Table.set_treat_as_char(False)" if inline else 'pageBreak="CELL"'
+    outcome = "rows past the paper's bottom edge are not drawn" if cut else "it runs into the bottom margin"
+    return LayoutFinding(
+        code=TABLE_TALLER_THAN_PAGE,
+        message=(
+            f"{kind} at least {height / _HWPUNIT_PER_MM:.0f} mm tall does not fit the "
+            f"{body / _HWPUNIT_PER_MM:.0f} mm page body, and Hancom does not break it across pages: "
+            f"it is drawn on one page (the next one unless it starts at the top) and {outcome} "
+            f"(use {fix} to let it flow across pages)"
+        ),
+        severity="error" if (cut and overflow_policy == "fail") else "warning",
+        part=part_name,
+        paragraph=paragraph,
+        detail={"min_height": height, "page_body": body, "to_paper_edge": to_edge,
+                "inline": inline, "rows_cut": cut},
+    )
+
+
+def _page_heights(root: ET.Element) -> tuple[int, int] | None:
+    """(page body height, body top to the paper's bottom edge) of a section.
+
+    Hancom puts the header area below the top margin and the footer area above
+    the bottom margin, so the body is the drawn page height less all four.
+    """
+
+    page = next((el for el in root.iter() if _local_name(el) == "pagePr"), None)
+    if page is None:
+        return None
+    margin = next((el for el in page if _local_name(el) == "margin"), None)
+    if margin is None:
+        return None
+    try:
+        _, height = _drawn_page_size(
+            int(page.get("width", "")), int(page.get("height", "")), page.get("landscape")
+        )
+        top, bottom, header, footer = (
+            int(margin.get(key, "0")) for key in ("top", "bottom", "header", "footer")
+        )
+    except ValueError:
+        return None
+    to_edge = height - top - header
+    return to_edge - bottom - footer, to_edge
+
+
+def _body_tables(root: ET.Element) -> Iterator[tuple[ET.Element, ET.Element]]:
+    """Tables anchored in the section's own paragraphs (not in cells or boxes)."""
+
+    for paragraph in root:
+        if _local_name(paragraph) != "p":
+            continue
+        for run in paragraph:
+            if _local_name(run) != "run":
+                continue
+            for child in run:
+                if _local_name(child) == "tbl":
+                    yield paragraph, child
+
+
+def _table_min_height(table: ET.Element) -> int:
+    """A lower bound of the drawn height: each row is at least its tallest single-row cell."""
+
+    total = 0
+    for row in table:
+        if _local_name(row) != "tr":
+            continue
+        heights = [0]
+        for cell in row:
+            if _local_name(cell) == "tc" and _cell_int(cell, "cellSpan", "rowSpan", 1) == 1:
+                heights.append(_cell_int(cell, "cellSz", "height", 0))
+        total += max(heights)
+    return total
+
+
+def _cell_int(cell: ET.Element, child_name: str, attribute: str, default: int) -> int:
+    child = next((el for el in cell if _local_name(el) == child_name), None)
+    if child is None:
+        return default
+    try:
+        return int(child.get(attribute, default))
+    except ValueError:
+        return default
+
 __all__ = [
     "lint_layout",
     "STALE_LINESEG_DETECTED",
@@ -388,4 +532,5 @@ __all__ = [
     "REQUIRED_FIELD_MISSING",
     "TABLE_STRUCTURE_INVALID",
     "OVERFLOW_RISK",
+    "TABLE_TALLER_THAN_PAGE",
 ]
