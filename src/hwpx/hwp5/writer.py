@@ -22,21 +22,16 @@ from . import docinfo as di
 from . import records as rec
 from . import shapes as sh
 from .cfb import build_compound_file
-from .docinfo_writer import build_docinfo, forbidden_chars, set_bin_count
+from .docinfo_writer import build_docinfo, forbidden_chars, set_bin_count, track_changes
 from .errors import Hwp5Error
 from .fileheader import FileHeader
 from .owpml import NS
-from .section_writer import SectionRecords
+from .section_writer import SectionRecords, stand_in
 
 VERSION = (5, 1, 1, 0)
 _OPF = NS["opf"]
 _HA = NS["ha"]
 
-#: Header content the writer does not carry into DocInfo yet.
-_HEADER_UNSUPPORTED = (
-    ("hh", "trackChanges"),
-    ("hh", "trackChangeAuthors"),
-)
 
 
 def _manifest(files: Mapping[str, bytes]) -> tuple[str, list[str], list[tuple[str, str]]]:
@@ -127,10 +122,11 @@ def _caret(files: Mapping[str, bytes]) -> tuple[int, int, int]:
     return (int(caret.get("listIDRef", 0)), int(caret.get("paraIDRef", 0)), int(caret.get("pos", 0)))
 
 
-def _file_header(head: etree._Element) -> FileHeader:
-    """FileHeader flags: compressed, plus the CCL or KOGL licence mark when the document has one."""
+def _file_header(head: etree._Element, *, tracked: bool = False) -> FileHeader:
+    """FileHeader flags: compressed, plus the CCL or KOGL licence mark when the
+    document has one, and changes tracked when it lists them."""
 
-    flags = 1
+    flags = 1 | (1 << 14 if tracked else 0)
     flags2 = country = 0
     mark = head.find(f".//{{{NS['hh']}}}licensemark")
     if mark is not None:
@@ -146,10 +142,9 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
     header_path, section_paths, binaries = _manifest(files)
     head = etree.fromstring(files[header_path])
     unsupported: Counter[str] = Counter()
-    for prefix, name in _HEADER_UNSUPPORTED:
-        found = len(head.findall(f".//{{{NS[prefix]}}}{name}"))
-        if found:
-            unsupported[f"header/{name}"] += found
+    tracked = track_changes(head)
+    if tracked is None:
+        unsupported["header/trackChanges"] += 1
     if forbidden_chars(head) is None:
         unsupported["header/forbiddenWordList"] += 1
     roots = [etree.fromstring(files[path]) for path in section_paths]
@@ -203,13 +198,18 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
         items.append(item)
         streams.append((f"BinData/{item.stream_name}", rec.deflate(storages.get(item_id) or files[href])))
     set_bin_count(docinfo, items)
-    header = _file_header(head)
+    # A document that tracks changes keeps its body in ViewText, and in
+    # BodyText a stand-in holding only each section's definitions.
+    changing = bool(tracked and tracked[0])
+    header = _file_header(head, tracked=changing)
     out: list[tuple[str, bytes]] = [
         ("FileHeader", header.to_bytes()),
         ("DocInfo", rec.deflate(rec.serialize_records(docinfo.records))),
     ]
     for index, records in enumerate(sections):
-        out.append((f"BodyText/Section{index}", rec.deflate(rec.serialize_records(records))))
+        out.append((f"BodyText/Section{index}", rec.deflate(rec.serialize_records(stand_in(records) if changing else records))))
+        if changing:
+            out.append((f"ViewText/Section{index}", rec.deflate(rec.serialize_records(records))))
     out.extend(streams)
     preview = files.get("Preview/PrvText.txt")
     if preview:

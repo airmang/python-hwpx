@@ -382,28 +382,55 @@ def _object_common(ctrl: str, element: etree._Element) -> ct.ObjectCommon:
     )
 
 
+#: Range tag kinds of tracked insertions and deletions, by the element that
+#: begins one; its low 24 bits are the change it belongs to (``TcId``).
+_TRACK_KINDS = {"insertBegin": 16, "deleteBegin": 17}
+#: Elements that mark ranges in the text.
+_RANGE_MARKS = frozenset({"markpenBegin", "markpenEnd", "insertBegin", "insertEnd", "deleteBegin", "deleteEnd"})
+
+
 class _Highlights:
-    """Highlighter (markpen) ranges of a paragraph list, written as range tags."""
+    """Highlighter (markpen) ranges and tracked insertions and deletions of a
+    paragraph list, written as range tags."""
 
     def __init__(self) -> None:
         self.open: list[tuple[int, int]] = []  # (start, tag), in the order they began
         self.ranges: list[tuple[int, int, int]] = []
+        # Changes begun and not yet ended, by mark id: (start, tag); and the
+        # ended ones: (mark id, start, end, tag).
+        self.changes_open: dict[str, tuple[int, int]] = {}
+        self.changes: list[tuple[int, int, int, int]] = []
 
     def mark(self, element: etree._Element, position: int) -> None:
-        if _local(element) == "markpenBegin":
+        name = _local(element)
+        if name == "markpenBegin":
             value = colorref(element.get("color")) & 0xFFFFFF
             self.open.append((position, RANGE_MARKPEN << 24 | value))
-        elif self.open:
-            start, tag = self.open.pop(0)
-            self.ranges.append((start, position, tag))
+        elif name == "markpenEnd":
+            if self.open:
+                start, tag = self.open.pop(0)
+                self.ranges.append((start, position, tag))
+        elif name in _TRACK_KINDS:
+            self.changes_open[element.get("Id", "")] = (position, _TRACK_KINDS[name] << 24 | (_int(element, "TcId") & 0xFFFFFF))
+        else:
+            begun = self.changes_open.pop(element.get("Id", ""), None)
+            if begun is not None:
+                self.changes.append((_int(element, "Id"), begun[0], position, begun[1]))
 
     def take(self, end: int) -> list[tuple[int, int, int]]:
         """The ranges of the paragraph ending at *end*; a range still open ends
-        there and goes on from the start of the next paragraph."""
+        there and goes on from the start of the next paragraph. Changes follow
+        the highlighter ranges, insertions before deletions and each in text
+        order, as Hancom lists them (a reader numbers the marks in that order)."""
 
         ranges = sorted(self.ranges + [(start, end, tag) for start, tag in self.open], key=lambda r: r[0])
+        changes = [(start, stop, tag) for _, start, stop, tag in self.changes]
+        changes += [(start, end, tag) for start, tag in self.changes_open.values()]
+        ranges += sorted(changes, key=lambda change: (change[2] >> 24, change[0]))
         self.ranges = []
+        self.changes = []
         self.open = [(0, tag) for _, tag in self.open]
+        self.changes_open = {key: (0, tag) for key, (_, tag) in self.changes_open.items()}
         return ranges
 
 
@@ -499,7 +526,7 @@ class SectionRecords:
                 name = _local(child)
                 if name == "t":
                     self.text(child, units, codes, highlights)
-                elif name in ("markpenBegin", "markpenEnd"):
+                elif name in _RANGE_MARKS:
                     highlights.mark(child, len(units) // 2)
                 elif name == "secPr":
                     units += _extended(2, "secd")
@@ -644,7 +671,7 @@ class SectionRecords:
         self._chars(element.text or "", units, codes)
         for child in element:
             name = _local(child)
-            if name in ("markpenBegin", "markpenEnd"):
+            if name in _RANGE_MARKS:
                 highlights.mark(child, len(units) // 2)
             elif name == "tab":
                 units += struct.pack(
@@ -1604,6 +1631,42 @@ class SectionRecords:
             bytes(8) if element.get("name") else bytes(9),
         )
         return [rec.Record(rec.LIST_HEADER, level, cell.encode()), *self.paragraph_list(paragraphs, level)]
+
+
+def stand_in(records: list[rec.Record]) -> list[rec.Record]:
+    """The BodyText Hancom keeps beside the ViewText of a document that tracks
+    changes: the section's first paragraph with only its section and column
+    definitions, no text, line segments or range tags."""
+
+    end = next((i for i in range(1, len(records)) if records[i].level == 0), len(records))
+    first = records[:end]
+    controls: list[rec.Record] = []
+    units = bytearray()
+    shape = 0
+    keep = False
+    for record in first[1:]:
+        if record.level == 1:
+            kind = bt.record_ctrl_id(record) if record.tag == rec.CTRL_HEADER else None
+            keep = kind in ("secd", "cold")
+            if kind is not None and keep:
+                units += _extended(2, kind)
+            if record.tag == rec.PARA_CHAR_SHAPE and len(record.payload) >= 8:
+                shape = struct.unpack_from("<I", record.payload, 4)[0]
+        if keep:
+            controls.append(record)
+    units += struct.pack("<H", bt.PARA_BREAK)
+    layout = struct.Struct("<IIHBBHHHIH")
+    fields = list(layout.unpack_from(first[0].payload.ljust(layout.size, b"\0")))
+    fields[0] = len(units) // 2 | 0x80000000
+    fields[1] = 1 << 2 if controls else 0
+    fields[5:9] = [1, 0, 0, 0]
+    header = layout.pack(*fields) + first[0].payload[layout.size :]
+    return [
+        rec.Record(rec.PARA_HEADER, 0, header),
+        rec.Record(rec.PARA_TEXT, 1, bytes(units)),
+        rec.Record(rec.PARA_CHAR_SHAPE, 1, struct.pack("<II", 0, shape)),
+        *controls,
+    ]
 
 
 def build_section_records(

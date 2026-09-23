@@ -14,6 +14,7 @@ import base64
 import binascii
 import struct
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import Callable, Mapping
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
@@ -453,6 +454,55 @@ def forbidden_chars(head: etree._Element) -> di.ForbiddenChars | None:
     return di.ForbiddenChars((words[0], words[1], words[2], words[3]))
 
 
+#: The kind of each OWPML tracked change type.
+_TRACK_CHANGE_KINDS = {"Insert": 16, "Delete": 17, "ParaShape": 19}
+#: A tracked change keeps local (Korean) time; OWPML writes it in UTC.
+_TRACK_TIME_OFFSET = timedelta(hours=9)
+
+
+def _track_time(value: str) -> datetime | None:
+    """The local time of a tracked change: a date in UTC (``Z``) moves by
+    the offset, one without a zone is local already, as Hancom reads it."""
+
+    for pattern, offset in (("%Y-%m-%dT%H:%M:%SZ", _TRACK_TIME_OFFSET), ("%Y-%m-%dT%H:%M:%S", None), ("%Y-%m-%d %H:%M:%S", None)):
+        try:
+            when = datetime.strptime(value, pattern)
+        except ValueError:
+            continue
+        return when + offset if offset is not None else when
+    return None
+
+
+def track_changes(head: etree._Element) -> tuple[list[di.TrackChange], list[di.TrackChangeAuthor]] | None:
+    """The head's tracked changes and their authors as Hancom writes them:
+    the time to the minute, a deletion hidden, a paragraph shape change with
+    its paragraph shape. None when a change has a type with no kind or a date
+    that is no date."""
+
+    changes: list[di.TrackChange] = []
+    for element in head.iter(f"{{{_HH}}}trackChange"):
+        kind = _TRACK_CHANGE_KINDS.get(element.get("type", ""))
+        when = _track_time(element.get("date", ""))
+        if kind is None or when is None:
+            return None
+        shape = kind == 19
+        fourth = _int(element, "parashapeID") if shape else 1 if kind == 17 else _flag(element, "hide")
+        changes.append(
+            di.TrackChange(
+                kind,
+                (when.year, when.month, when.day, when.hour, when.minute),
+                _int(element, "authorID") & 0xFFFF,
+                (0, 4 if shape else 0, 0, fourth & 0xFFFF, 0),
+                bytes(4) if shape else b"",
+            )
+        )
+    authors = [
+        di.TrackChangeAuthor(element.get("name", ""), _flag(element, "mark"), bytes(4))
+        for element in head.iter(f"{{{_HH}}}trackChangeAuthor")
+    ]
+    return changes, authors
+
+
 def build_docinfo(
     head: etree._Element,
     *,
@@ -502,14 +552,17 @@ def build_docinfo(
         "style": collect("styles", "style", style, rec.STYLE),
         "memo_shape": collect("memoProperties", "memoPr", memo_shape, rec.MEMO_SHAPE),
     }
+    changes, authors = track_changes(head) or ([], [])
     bin_count = 0
     mappings = [bin_count, *font_counts, counts["border_fill"], counts["char_shape"], counts["tab_def"],
                 counts["numbering"], counts["bullet"], counts["para_shape"], counts["style"],
-                counts["memo_shape"], 0, 0]
+                counts["memo_shape"], len(changes), len(authors)]
     records = [
         rec.Record(rec.DOCUMENT_PROPERTIES, 0, properties.encode()),
         rec.Record(rec.ID_MAPPINGS, 0, struct.pack(f"<{len(mappings)}i", *mappings)),
         *mapped,
+        *(rec.Record(rec.TRACK_CHANGE_AUTHOR, 1, author.encode()) for author in authors),
+        *(rec.Record(rec.TRACK_CHANGE, 1, change.encode()) for change in changes),
         rec.Record(rec.FORBIDDEN_CHAR, 1, (forbidden_chars(head) or di.ForbiddenChars()).encode()),
     ]
     compatible = _child(head, _HH, "compatibleDocument")

@@ -760,6 +760,12 @@ class TrackChange:
         value.extra = c.rest()
         return value
 
+    def encode(self) -> bytes:
+        b = Builder().u32(self.kind)
+        for value in (*self.time, self.author, *self.words):
+            b.u16(value)
+        return b.raw(self.extra).bytes()
+
 
 @dataclass
 class TrackChangeAuthor:
@@ -777,6 +783,10 @@ class TrackChangeAuthor:
         value = cls(name, c.u32())
         value.extra = c.rest()
         return value
+
+    def encode(self) -> bytes:
+        units = self.name.encode("utf-16-le", errors="surrogatepass")
+        return Builder().u32(len(units) // 2).raw(units).u32(self.mark).raw(self.extra).bytes()
 
 
 @dataclass

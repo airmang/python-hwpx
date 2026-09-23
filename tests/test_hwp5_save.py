@@ -25,7 +25,7 @@ from hwpx.hwp5.fileheader import FileHeader, parse_file_header
 from hwpx.hwp5.package import convert
 from hwpx.hwp5.reader import read_hwp5
 from hwpx.hwp5.writer import write_hwp5
-from tests.test_hwp5_open import HP, _IDENTITY, _docinfo, _extended, _paragraph, _picture, _section, _u16, make_hwp
+from tests.test_hwp5_open import HP, _IDENTITY, _docinfo, _extended, _paragraph, _picture, _section, _tracked_hwp, _u16, make_hwp
 
 _PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
@@ -676,3 +676,38 @@ def test_a_style_language_past_the_signed_range_opens_unsigned_and_saves_back() 
 
     written = read_hwp5(write_hwp5(files))
     assert [s.lang_id for s in di.decode_docinfo(written.docinfo).styles] == [0x8C00]
+
+
+def test_tracked_changes_save_back_with_their_list_marks_and_stand_in() -> None:
+    data = _tracked_hwp()
+    written = read_hwp5(write_hwp5(convert(data).files))
+    original = read_hwp5(data)
+    assert written.header.has("track_changes")
+
+    def listed(doc, tag):
+        return [r.payload for r in doc.docinfo.records if r.tag == tag]
+
+    for tag in (rec.TRACK_CHANGE, rec.TRACK_CHANGE_AUTHOR):
+        assert listed(written, tag) == listed(original, tag)
+    # BodyText holds a stand-in: the first paragraph with only its section and
+    # column definitions; the body, with its change marks, is in ViewText.
+    body = rec.parse_records(rec.inflate(written.compound.read("BodyText/Section0"), "BodyText"), "BodyText")
+    assert [r.tag for r in body.records if r.level < 2] == [
+        rec.PARA_HEADER, rec.PARA_TEXT, rec.PARA_CHAR_SHAPE, rec.CTRL_HEADER, rec.CTRL_HEADER,
+    ]
+    [tags] = [r.payload for s in written.sections for r in s.records if r.tag == rec.PARA_RANGE_TAG]
+    assert tags == struct.pack("<III", 0, 2, 16 << 24 | 1)
+
+
+def test_tracked_change_times_are_kept_in_local_time_and_deletions_hidden() -> None:
+    from hwpx.hwp5.docinfo_writer import track_changes
+
+    head = etree.fromstring(
+        '<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head"><hh:refList><hh:trackChanges itemCnt="2">'
+        '<hh:trackChange type="Insert" date="2023-02-07T10:21:00Z" authorID="1" hide="0" id="1"/>'
+        '<hh:trackChange type="Delete" date="2026-08-08 09:05:00" authorID="1" hide="0" id="2"/>'
+        "</hh:trackChanges></hh:refList></hh:head>"
+    )
+    changes, _ = track_changes(head)
+    # A time in UTC moves to Korean time; one without a zone is local already.
+    assert [(c.kind, c.time, c.words[3]) for c in changes] == [(16, (2023, 2, 7, 19, 21), 0), (17, (2026, 8, 8, 9, 5), 1)]

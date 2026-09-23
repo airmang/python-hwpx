@@ -532,9 +532,10 @@ def test_unconverted_controls_are_reported_not_dropped_silently() -> None:
     assert document._hwp5_report.unconverted["control-gso"] == 1
 
 
-def test_a_document_that_tracks_changes_opens_with_its_body_and_change_marks() -> None:
-    # Hancom keeps the body of a document that tracks changes, with its change
-    # marks, in ViewText, and a stand-in without the text in BodyText.
+def _tracked_hwp() -> bytes:
+    """A document that tracks changes: Hancom keeps its body, with the change
+    marks, in ViewText, and a stand-in without the text in BodyText."""
+
     shown = _paragraph(0, "고친 본문".encode("utf-16-le") + _u16(13), [(0, 0)], [])
     header = bytearray(shown[0].payload)
     struct.pack_into("<H", header, 14, 2)  # two range tags
@@ -564,6 +565,11 @@ def test_a_document_that_tracks_changes_opens_with_its_body_and_change_marks() -
             ("ViewText/Section0", rec.deflate(rec.serialize_records(_section() + shown))),
         ]
     )
+    return data
+
+
+def test_a_document_that_tracks_changes_opens_with_its_body_and_change_marks() -> None:
+    data = _tracked_hwp()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         document = HwpxDocument.open(data)
