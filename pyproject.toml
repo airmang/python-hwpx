@@ -306,6 +306,8 @@ files = [
     "src/hwpx/hwp5/docinfo_writer.py",
     "src/hwpx/hwp5/section_writer.py",
     "src/hwpx/hwp5/shapes.py",
+    "src/hwpx/hwp5/section_common.py",
+    "src/hwpx/hwp5/shape_xml.py",
     "src/hwpx/hwp5/writer.py",
 ]
 # 칩 후보 1 ✅ 6.14 트레인㊾-1에서 해소: `src/hwpx/table_patch.py`(2073줄,
@@ -497,6 +499,8 @@ include = [
     "src/hwpx/hwp5/docinfo_writer.py",
     "src/hwpx/hwp5/section_writer.py",
     "src/hwpx/hwp5/shapes.py",
+    "src/hwpx/hwp5/section_common.py",
+    "src/hwpx/hwp5/shape_xml.py",
     "src/hwpx/hwp5/writer.py",
 ]
 pythonVersion = "3.10"

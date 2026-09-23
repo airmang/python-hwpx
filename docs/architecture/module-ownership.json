@@ -646,6 +646,18 @@
       "rationale": "Field codecs of HWP 5.0 drawing objects: the shape component (kind, group placement, sizes, flip, rotation, matrices), the line, fill and shadow of a drawn shape, container children, rectangle, ellipse, arc, polygon and line geometry and the text box list header; each re-encodes its payload byte for byte."
     },
     {
+      "path": "src/hwpx/hwp5/section_common.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Pieces the HWP 5.0 section readers share: the conversion report of what was not converted or has no OWPML form, the common properties of objects (tables, pictures, shapes, equations) as OWPML attributes and elements, and paragraph list attributes."
+    },
+    {
+      "path": "src/hwpx/hwp5/shape_xml.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "HWP 5.0 drawing objects to OWPML shape elements (the reading half of hwp5.shapes): rectangles, ellipses, arcs, polygons, lines, containers and pictures with placement, matrices, line, fill and shadow, text boxes, captions and parameter sets; kinds it does not convert are reported."
+    },
+    {
       "path": "src/hwpx/hwp5/writer.py",
       "disposition": "core",
       "approvedBy": "owner-hwp5-core-2026-09-23",
