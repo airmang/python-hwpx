@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### 추가
+
+- `styles.apply_paragraph_format(border={...})`로 문단 테두리를 만든다. 키는
+  `sides`(기본 네 면), `color`(`#000000`), `width`(`0.12 mm`), `type`(`SOLID`),
+  `offset_mm`(글과의 간격 mm, 수 하나 또는 왼쪽·오른쪽·위·아래), `connect`,
+  `ignore_margin`이다. `connect=True`면 같은 문단 모양을 쓰는 연속 문단이 단과
+  쪽을 넘는 상자 하나로 그려진다(한컴의 "문단 테두리 연결"). 상자 안의 빈 문단에도
+  같은 서식을 주면 상자가 끊기지 않는다. 기존 `bottom_border=True`는 그대로
+  아래 한 면만 켠다. 잘못된 지정은 `paragraph-border-invalid`로 거부한다.
+
 ### 고침
 
 - `shapes.add_chart()`가 계열 축이 없는 3D 차트(세 번째 `c:axId`가 `0`)를 축이
@@ -12,6 +22,18 @@
 - `shapes.add_drop_cap(paragraph=...)`이 문단 첫 글자 장식을 문단 텍스트 뒤에
   붙여, 한컴이 장식을 문단 마지막 줄에 그리던 것을 고친다. 이제 장식은 문단 텍스트
   앞에 들어가 첫 줄부터 그려진다.
+- `shapes.add_polygon()`과 그룹 멤버 `ContainerMember.polygon()`이 만든 다각형이 한컴에서
+  마지막 변 없이 열린 선으로 그려지던 것을 고친다. 한컴은 첫 꼭짓점을 끝에 한 번 더
+  써서 다각형을 닫는다. 이제 두 API도 그렇게 쓴다. 열린 선이 필요하면 `closed=False`를
+  넘긴다.
+- 문단 글에 넣은 탭이 한컴에서 사라지던 것을 고친다. `add_paragraph("이름\t홍길동")`
+  같은 탭을 `hp:t`와 나란한 run 자식 `hp:tab`으로 썼는데, 한컴은 이런 탭을 열 때
+  버려서 글이 붙고 탭 정지도 효과가 없었다. 이제 한컴처럼 탭을 `hp:t` 안에
+  쓴다(`<hp:t>이름<hp:tab/>홍길동</hp:t>`).
+- `shapes.add_line()`로 그린 가로선과 세로선이 한컴에서 보이지 않던 것을 고친다.
+  선의 외접 상자(`orgSz`·`curSz`)에 0인 변이 있으면 한컴이 선을 그리지 않는다.
+  이제 한컴처럼 두 크기는 각 변을 최소 1로 쓰고(가로선은 폭 × 1), `sz`와 시작·끝점은
+  그대로 둔다. `Shape.resize()`도 같게 쓴다.
 - `hwpx.tools.read_fidelity.resolve_run_spans()`(와 이를 쓰는 판독 표면)가 위·아래
   첨자를 `offset` 부호만 보고 판정하던 것을 고친다. 부호가 거꾸로여서(음수가
   위로 올린다, DEV-028) 예전 python-hwpx 위첨자를 아래첨자로 보고했고,

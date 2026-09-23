@@ -203,6 +203,7 @@ ERROR_CODES: dict[str, str] = {
     "paragraph-format-empty": "적용할 문단 서식 항목이 하나도 없다.",
     "paragraph-line-spacing-invalid": "줄 간격은 양수여야 한다.",
     "paragraph-outline-level-out-of-range": "문단 개요 수준이 0~10 밖이다.",
+    "paragraph-border-invalid": "문단 테두리(border) 지정에 모르는 키·면이 있거나 여백이 네 개의 0 이상 수가 아니다.",
     "paragraph-tab-pos-invalid": "탭 정지 위치(pos_mm/pos)가 없거나 음수다.",
     "paragraph-tab-type-invalid": "탭 정지 type 값이 OWPML 어휘(LEFT/RIGHT/CENTER/DECIMAL) 밖이다.",
     "paragraph-tab-leader-invalid": "탭 정지 leader 값이 OWPML 어휘(hc:LineType2) 밖이다.",
