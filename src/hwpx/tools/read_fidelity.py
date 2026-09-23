@@ -130,8 +130,6 @@ def _style_to_span(text: str, style: Any, fontfaces: dict[str, dict[str, str]]) 
     height = style.attributes.get("height")
     size_pt = round(_int(height) / 100.0, 2) if height and _int(height) > 0 else None
 
-    offset_h = _int((child.get("offset") or {}).get("hangul"))
-
     return RunSpan(
         text=text,
         bold="bold" in child,
@@ -141,8 +139,10 @@ def _style_to_span(text: str, style: Any, fontfaces: dict[str, dict[str, str]]) 
         color=style.attributes.get("textColor"),
         size_pt=size_pt,
         font=_resolve_font(style, fontfaces),
-        superscript=offset_h > 0,
-        subscript=offset_h < 0,
+        # Hancom marks a script by the element alone (offset stays 0); an
+        # offset without it is the separate character-offset setting.
+        superscript="supscript" in child,
+        subscript="subscript" in child,
     )
 
 

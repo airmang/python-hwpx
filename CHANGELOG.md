@@ -6,6 +6,13 @@
 
 ### 고침
 
+- `hwpx.tools.read_fidelity.resolve_run_spans()`(와 이를 쓰는 판독 표면)가 위·아래
+  첨자를 `offset` 부호만 보고 판정하던 것을 고친다. 부호가 거꾸로여서(음수가
+  위로 올린다, DEV-028) 예전 python-hwpx 위첨자를 아래첨자로 보고했고,
+  `hh:supscript`/`hh:subscript` 요소를 보지 않아 한컴 자신의 첨자(`offset 0`)와
+  지금 `ensure_run(script=...)`이 만드는 첨자는 아예 첨자로 보지 않았다. 이제
+  `CharProperty.is_superscript()`/`is_subscript()`처럼 요소로 판정한다. 요소 없이
+  `offset`만 있는 글자는 한컴의 글자 위치(올림·내림) 설정이라 첨자로 보지 않는다.
 - `styles.ensure_run(script="sup"/"sub")`가 만든 위·아래 첨자가 한컴에서 두 번
   줄어들던 것을 고친다. `hh:supscript`/`hh:subscript` 요소와 함께 `relSz 67`·
   `offset -30/+30`도 썼는데, 한컴은 요소만으로 글자를 줄이고 올리거나 내린다.
