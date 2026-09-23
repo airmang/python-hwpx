@@ -232,6 +232,32 @@ def _memo() -> list[rec.Record]:
     return records + _paragraph(1, "메모 내용".encode("utf-16-le") + _u16(13), [(0, 0)], [])
 
 
+def _picture() -> list[rec.Record]:
+    """A captioned picture with a first-letter decoration parameter set."""
+
+    common = ct.ObjectCommon("gso ", 0x240A2211, 0, 0, 10000, 8000, 0, (0, 0, 0, 0), 297, 0, "그림입니다.", bytes(2))
+    component = sh.ShapeComponent(
+        "$pic", True, 0, 0, 0, 1, 10000, 8000, 10000, 8000, 0x24080000, 0, 5000, 4000, [_IDENTITY, _IDENTITY, _IDENTITY]
+    )
+    corners = [(0, 0), (10000, 0), (10000, 8000), (0, 8000)]
+    picture = sh.Picture(0, 0, 0, corners, (0, 0, 10000, 8000), (0, 0, 0, 0), 0, 0, 0, 0, 0, 297, 0, (10000, 8000), bytes(1))
+    caption = ct.CaptionHeader(1, 0, 0, 1, 8504, 850, 8504).encode()
+    dropcap = ct.ParameterSet(0x021B, [ct.ParameterItem(0x3003, ct.PIT_SET, ct.ParameterSet(0x3003, [ct.ParameterItem(0x7001, 9, 2)]))])
+    return _paragraph(
+        0,
+        _extended(11, "gso ") + _u16(13),
+        [(0, 0)],
+        [
+            rec.Record(rec.CTRL_HEADER, 1, common.encode()),
+            rec.Record(rec.CTRL_DATA, 2, dropcap.encode()),
+            rec.Record(rec.LIST_HEADER, 2, caption),
+            *_paragraph(2, "그림 1".encode("utf-16-le") + _u16(13), [(0, 0)], []),
+            rec.Record(rec.SHAPE_COMPONENT, 2, component.encode()),
+            rec.Record(rec.SHAPE_COMPONENT_PICTURE, 3, picture.encode()),
+        ],
+    )
+
+
 def _master_page() -> list[rec.Record]:
     """A master page: a paragraph list hung on the section's last paragraph."""
 
@@ -251,10 +277,13 @@ def make_hwp(
     label: bool = False,
     markers: bool = False,
     text_box: bool = False,
+    picture: bool = False,
 ) -> bytes:
     section = _section()
     if text_box:
         section += _text_box()
+    if picture:
+        section += _picture()
     if markers:
         section += _markers()
     if label:
@@ -461,6 +490,24 @@ def test_a_text_box_opens_as_a_rectangle_with_its_paragraphs() -> None:
     corners = [(p.get("x"), p.get("y")) for p in rect if etree.QName(p).localname.startswith("pt")]
     assert corners == [("0", "0"), ("20000", "0"), ("20000", "10000"), ("0", "10000")]
     assert rect.find(f"{HP}sz").get("width") == "20000"
+
+
+def test_a_picture_opens_with_its_caption_comment_and_parameter_set() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(picture=True))
+    [pic] = list(document.sections[0].element.iter(f"{HP}pic"))
+    assert (pic.get("instid"), pic.get("dropcapstyle")) == ("297", "TripleLine")
+    order = [etree.QName(child).localname for child in pic]
+    assert order[6:12] == ["img", "imgRect", "imgClip", "inMargin", "imgDim", "effects"]
+    assert order[-4:] == ["outMargin", "shapeComment", "caption", "parameterset"]
+    clip = pic.find(f"{HP}imgClip")
+    assert [clip.get(side) for side in ("left", "right", "top", "bottom")] == ["0", "10000", "0", "8000"]
+    assert pic.find(f"{HP}imgDim").get("dimwidth") == "10000"
+    assert pic.find(f"{HP}shapeComment").text == "그림입니다."
+    assert "".join(pic.find(f"{HP}caption").itertext()) == "그림 1"
+    value = pic.find(f"{HP}parameterset/{HP}listParam/{HP}unsignedintegerParam")
+    assert value is not None and (value.get("name"), value.text) == ("28673", "2")
 
 
 def test_memo_bodies_and_master_pages_are_reported() -> None:

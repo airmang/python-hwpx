@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 
 from . import bodytext as bt
 from . import docinfo as di
+from . import records as rec
 from .binary import Builder, Cursor
 
 Point = tuple[int, int]
@@ -30,6 +31,16 @@ SHAPE_ELEMENTS = {
     "$pol": "polygon",
     "$lin": "line",
     "$con": "container",
+    "$pic": "pic",
+}
+#: The geometry record of each shape kind.
+GEOMETRY_TAGS = {
+    "$rec": rec.SHAPE_COMPONENT_RECTANGLE,
+    "$ell": rec.SHAPE_COMPONENT_ELLIPSE,
+    "$arc": rec.SHAPE_COMPONENT_ARC,
+    "$pol": rec.SHAPE_COMPONENT_POLYGON,
+    "$lin": rec.SHAPE_COMPONENT_LINE,
+    "$pic": rec.SHAPE_COMPONENT_PICTURE,
 }
 
 
@@ -320,6 +331,67 @@ class TextBox:
             b.u32(self.editable)
         if self.name is not None:
             b.raw(b"\xff" + NAME_SET).wstr(self.name)
+        return b.raw(self.extra).bytes()
+
+
+@dataclass
+class Picture:
+    """``SHAPE_COMPONENT_PICTURE``: the border line (colour, width,
+    properties), the image's four corners, the crop box (left, top, right,
+    bottom), the inner margins, brightness, contrast, effect and binary item
+    id, then the alpha, the instance id, the effects word and the image's own
+    size. Records of older versions end after the alpha or the instance id."""
+
+    line_color: int = 0
+    line_width: int = 0
+    line_props: int = 0
+    corners: list[Point] = field(default_factory=lambda: [(0, 0)] * 4)
+    crop: tuple[int, int, int, int] = (0, 0, 0, 0)
+    margins: tuple[int, int, int, int] = (0, 0, 0, 0)
+    bright: int = 0
+    contrast: int = 0
+    effect: int = 0
+    bin_id: int = 0
+    alpha: int | None = 0
+    instance_id: int | None = 0
+    effects: int | None = 0
+    dim: tuple[int, int] | None = (0, 0)
+    extra: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "Picture":
+        c = Cursor(payload, "SHAPE_COMPONENT_PICTURE")
+        value = cls(c.u32(), c.i32(), c.u32(), [_point(c) for _ in range(4)])
+        value.crop = (c.i32(), c.i32(), c.i32(), c.i32())
+        value.margins = (c.u16(), c.u16(), c.u16(), c.u16())
+        value.bright, value.contrast, value.effect, value.bin_id = c.i8(), c.i8(), c.u8(), c.u16()
+        value.alpha = c.u8() if c.left else None
+        value.instance_id = c.u32() if value.alpha is not None and c.left >= 4 else None
+        value.effects = c.u32() if value.instance_id is not None and c.left >= 4 else None
+        # The image's own size follows only when there are no effects to describe.
+        if value.effects == 0 and c.left >= 8:
+            value.dim = (c.u32(), c.u32())
+        else:
+            value.dim = None
+        value.extra = c.rest()
+        return value
+
+    def encode(self) -> bytes:
+        b = Builder().u32(self.line_color).i32(self.line_width).u32(self.line_props)
+        _points(b, self.corners)
+        for value in self.crop:
+            b.i32(value)
+        for margin in self.margins:
+            b.u16(margin)
+        b.i8(self.bright).i8(self.contrast).u8(self.effect).u16(self.bin_id)
+        if self.alpha is not None:
+            b.u8(self.alpha)
+        if self.instance_id is not None:
+            b.u32(self.instance_id)
+        if self.effects is not None:
+            b.u32(self.effects)
+        if self.dim is not None:
+            b.u32(self.dim[0]).u32(self.dim[1])
         return b.raw(self.extra).bytes()
 
 

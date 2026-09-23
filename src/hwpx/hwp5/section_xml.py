@@ -21,7 +21,7 @@ from . import controls as ct
 from . import records as rec
 from . import shapes as sh
 from .errors import Hwp5Error, damaged
-from .header_xml import fill_brush
+from .header_xml import IMAGE_EFFECT, fill_brush
 from .owpml import (
     BORDER_LINE,
     BORDER_WIDTH,
@@ -547,6 +547,11 @@ SHADOW = (
     "SCALE_ENLARGE",
 )
 ARC_TYPE = ("NORMAL", "PIE", "CHORD")
+DROPCAP = ("None", "DoubleLine", "TripleLine", "Margin")
+#: Item paths in a shape's parameter sets: the first-letter decoration kind
+#: (object header) and the hyperlink (shape component).
+DROPCAP_PATH = (0x3003, 0x7001)
+HYPERLINK_PATH = (0x026F, 0x0265)
 ELLIPSE_POINTS = ("center", "ax1", "ax2", "start1", "end1", "start2", "end2")
 #: Flags bit of a shape component that becomes ``rotateimage``.
 ROTATE_IMAGE = 1 << 19
@@ -560,6 +565,41 @@ def matrix_number(value: float) -> str:
         return "-nan(ind)"
     text = f"{value:.6f}".rstrip("0").rstrip(".")
     return "0" if text in ("-0", "") else text
+
+
+def _unescape(text: str) -> str:
+    """Drop the backslashes that escape characters in a hyperlink command."""
+
+    out: list[str] = []
+    escaped = False
+    for char in text:
+        if char == "\\" and not escaped:
+            escaped = True
+            continue
+        out.append(char)
+        escaped = False
+    return "".join(out)
+
+
+def parameter_set(parent: etree._Element, ps: ct.ParameterSet) -> etree._Element:
+    """``hp:parameterset`` with its items; a nested set is an ``hp:listParam``."""
+
+    element = sub(parent, "hp:parameterset", (("cnt", len(ps.items)), ("name", ps.set_id)))
+    _parameter_items(element, ps.items)
+    return element
+
+
+def _parameter_items(parent: etree._Element, items: list[ct.ParameterItem]) -> None:
+    for item in items:
+        if isinstance(item.value, ct.ParameterSet):
+            nested = sub(parent, "hp:listParam", (("cnt", len(item.value.items)), ("name", item.item_id)))
+            _parameter_items(nested, item.value.items)
+        elif isinstance(item.value, str):
+            sub(parent, "hp:stringParam", (("name", item.item_id),)).text = xml_text(item.value)
+        elif item.kind in ct.PIT_UNSIGNED:
+            sub(parent, "hp:unsignedintegerParam", (("name", item.item_id),)).text = str(item.value)
+        else:
+            sub(parent, "hp:integerParam", (("name", item.item_id),)).text = str(item.value)
 
 
 def _char(value: int) -> str:
@@ -903,15 +943,27 @@ class SectionWriter:
         if kind not in sh.SHAPE_ELEMENTS:
             self.report.skip(f"shape-{kind.strip('$') or kind}")
             return None
+        sets: list[ct.ParameterSet] = []
         for child in ctrl.children:
-            if child.tag == rec.LIST_HEADER:
-                self.report.skip("shape-caption")
-            elif child.tag == rec.CTRL_DATA:
-                self.report.skip("shape-data")
+            if child.tag == rec.CTRL_DATA:
+                ps = ct.ParameterSet.decode(child.payload)
+                if ps is None:
+                    self.report.skip("shape-data")
+                else:
+                    sets.append(ps)
         # Build detached so a damaged component leaves nothing half written.
         holder = etree.Element("holder")
         try:
             element = self.shape(holder, component, ct.ObjectCommon.decode(ctrl.payload))
+            for ps in sets:
+                dropcap = ps.find(*DROPCAP_PATH)
+                if isinstance(dropcap, int):
+                    element.set("dropcapstyle", token(DROPCAP, dropcap))
+            # A caption is the paragraph list of the object header itself.
+            for header, paragraphs in lists(ctrl)[:1]:
+                self.caption(element, header, paragraphs)
+            for ps in sets:
+                parameter_set(element, ps)
         except Hwp5Error:
             self.report.skip(f"shape-{kind.strip('$')}-damaged")
             return None
@@ -938,18 +990,33 @@ class SectionWriter:
                 ("lock", 0),
                 ("dropcapstyle", "None"),
             ]
-        children = [c for c in record.children if c.tag != rec.LIST_HEADER and c.tag != rec.PARA_HEADER]
-        geometry = children[0] if children and sc.kind != "$con" else None
+        tag = sh.GEOMETRY_TAGS.get(sc.kind)
+        geometry = next((c for c in record.children if c.tag == tag), None)
+        href = ""
+        for child in record.children:
+            if child.tag == rec.CTRL_DATA:
+                ps = ct.ParameterSet.decode(child.payload)
+                link = ps.find(*HYPERLINK_PATH) if ps is not None else None
+                if isinstance(link, str):
+                    href = _unescape(link)
+                else:
+                    self.report.skip("shape-data")
         style: sh.DrawingStyle | None = None
+        picture: sh.Picture | None = None
         if sc.kind == "$con":
             instance_id = sh.ContainerChildren.decode(sc.rest).instance_id
+        elif sc.kind == "$pic":
+            picture = sh.Picture.decode(geometry.payload) if geometry is not None else sh.Picture()
+            instance_id = picture.instance_id or 0
         else:
             style = sh.DrawingStyle.decode(sc.rest)
             instance_id = style.instance_id
-        attrs += [("href", ""), ("groupLevel", sc.group_level), ("instid", instance_id)]
+        attrs += [("href", href), ("groupLevel", sc.group_level), ("instid", instance_id)]
         attrs += self.shape_attrs(sc.kind, geometry)
         element = sub(parent, f"hp:{name}", attrs)
         self.shape_placement(element, sc)
+        if picture is not None:
+            self.picture(element, picture)
         if sc.kind == "$con":
             for child in record.children:
                 if child.tag != rec.SHAPE_COMPONENT or len(child.payload) < 4:
@@ -987,6 +1054,8 @@ class SectionWriter:
             return [("type", token(ARC_TYPE, sh.Arc.decode(geometry.payload).kind))]
         if kind == "$lin":
             return [("isReverseHV", flag(sh.Line.decode(geometry.payload).reverse))]
+        if kind == "$pic":
+            return [("reverse", 0)]
         return []
 
     @staticmethod
@@ -1016,14 +1085,13 @@ class SectionWriter:
             sub(info, name, [(f"e{i + 1}", matrix_number(v)) for i, v in enumerate(matrix)])
 
     @staticmethod
-    def shape_style(element: etree._Element, style: sh.DrawingStyle) -> None:
-        props = style.line_props
+    def line_shape(element: etree._Element, line_color: int, width: int, props: int, outline: int, alpha: int) -> None:
         sub(
             element,
             "hp:lineShape",
             (
-                ("color", color(style.line_color)),
-                ("width", _u32(style.line_width)),
+                ("color", color(line_color)),
+                ("width", _u32(width)),
                 ("style", token(LINE_STYLE, _bits(props, 0, 6))),
                 ("endCap", token(END_CAP, _bits(props, 6, 4))),
                 ("headStyle", token(ARROW, _bits(props, 10, 6))),
@@ -1032,10 +1100,42 @@ class SectionWriter:
                 ("tailfill", flag(props & (1 << 31))),
                 ("headSz", token(ARROW_SIZE, _bits(props, 22, 4))),
                 ("tailSz", token(ARROW_SIZE, _bits(props, 26, 4))),
-                ("outlineStyle", token(OUTLINE_STYLE, style.outline)),
-                ("alpha", style.line_alpha),
+                ("outlineStyle", token(OUTLINE_STYLE, outline)),
+                ("alpha", alpha),
             ),
         )
+
+    def picture(self, element: etree._Element, pic: sh.Picture) -> None:
+        """The image, its border (when it has one), corners, crop box, margins and size."""
+
+        sub(
+            element,
+            "hc:img",
+            (
+                ("binaryItemIDRef", f"image{pic.bin_id}" if pic.bin_id else ""),
+                ("bright", pic.bright),
+                ("contrast", pic.contrast),
+                ("effect", token(IMAGE_EFFECT, pic.effect)),
+                ("alpha", pic.alpha or 0),
+            ),
+        )
+        if _bits(pic.line_props, 0, 6):
+            self.line_shape(element, pic.line_color, pic.line_width, pic.line_props, 0, 0)
+        corners = sub(element, "hp:imgRect")
+        for index, (x, y) in enumerate(pic.corners):
+            sub(corners, f"hc:pt{index}", (("x", x), ("y", y)))
+        left, top, right, bottom = pic.crop
+        sub(element, "hp:imgClip", (("left", left), ("right", right), ("top", top), ("bottom", bottom)))
+        left, right, top, bottom = pic.margins
+        sub(element, "hp:inMargin", (("left", left), ("right", right), ("top", top), ("bottom", bottom)))
+        width, height = pic.dim or (0, 0)
+        sub(element, "hp:imgDim", (("dimwidth", width), ("dimheight", height)))
+        sub(element, "hp:effects")
+        if pic.effects:
+            self.report.skip("picture-effects")
+
+    def shape_style(self, element: etree._Element, style: sh.DrawingStyle) -> None:
+        self.line_shape(element, style.line_color, style.line_width, style.line_props, style.outline, style.line_alpha)
         fill_brush(element, style.fill)
         sub(
             element,

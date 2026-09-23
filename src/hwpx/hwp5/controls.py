@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 
 from . import bodytext as bt
 from .binary import Builder, Cursor
+from .errors import Hwp5Error, damaged
 
 
 def _padded(payload: bytes, size: int) -> bytes:
@@ -573,6 +574,90 @@ def label_parameter_set(values: dict[str, int]) -> bytes:
     for index in reversed(range(len(LABEL_ITEMS))):
         b.u16(0x4000 + index).u16(4).i32(values.get(LABEL_ITEMS[index], 0))
     return b.bytes()
+
+
+#: Parameter item types: a string, signed and unsigned integers, a nested set.
+PIT_BSTR = 1
+PIT_SIGNED = frozenset({2, 3, 4, 5})
+PIT_UNSIGNED = frozenset({6, 7, 8, 9})
+PIT_SET = 0x8000
+
+
+@dataclass
+class ParameterItem:
+    item_id: int
+    kind: int
+    value: "str | int | ParameterSet"
+
+
+@dataclass
+class ParameterSet:
+    """A ``CTRL_DATA`` parameter set: its id and items (strings, 32-bit
+    integers and nested sets)."""
+
+    set_id: int = 0
+    items: list[ParameterItem] = field(default_factory=list)
+    reserved: int = 0
+
+    @classmethod
+    def read(cls, c: Cursor) -> "ParameterSet":
+        value = cls(c.u16())
+        count = c.i16()
+        value.reserved = c.u16()
+        for _ in range(max(count, 0)):
+            item_id, kind = c.u16(), c.u16()
+            item: str | int | ParameterSet
+            if kind == PIT_BSTR:
+                item = c.wstr()
+            elif kind in PIT_SIGNED:
+                item = c.i32()
+            elif kind in PIT_UNSIGNED:
+                item = c.u32()
+            elif kind == PIT_SET:
+                item = cls.read(c)
+            else:
+                raise damaged("CTRL_DATA has a parameter item of an unknown type", kind=kind)
+            value.items.append(ParameterItem(item_id, kind, item))
+        return value
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "ParameterSet | None":
+        """The set a ``CTRL_DATA`` record holds; None when it holds more or something else."""
+
+        c = Cursor(payload, "CTRL_DATA")
+        try:
+            value = cls.read(c)
+        except Hwp5Error:
+            return None
+        return value if c.left == 0 else None
+
+    def write(self, b: Builder) -> None:
+        b.u16(self.set_id).i16(len(self.items)).u16(self.reserved)
+        for item in self.items:
+            b.u16(item.item_id).u16(item.kind)
+            if isinstance(item.value, ParameterSet):
+                item.value.write(b)
+            elif isinstance(item.value, str):
+                b.wstr(item.value)
+            elif item.kind in PIT_UNSIGNED:
+                b.u32(item.value)
+            else:
+                b.i32(item.value)
+
+    def encode(self) -> bytes:
+        b = Builder()
+        self.write(b)
+        return b.bytes()
+
+    def find(self, *path: int) -> "str | int | ParameterSet | None":
+        """The value at a path of item ids through nested sets."""
+
+        current: str | int | ParameterSet | None = self
+        for item_id in path:
+            if not isinstance(current, ParameterSet):
+                return None
+            current = next((item.value for item in current.items if item.item_id == item_id), None)
+        return current
 
 
 @dataclass
