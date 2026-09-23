@@ -17,13 +17,13 @@ from ..objects.results import (
 )
 from ..oxml._document_primitives import NEW_NUM_KINDS
 from ..oxml.namespaces import HH
+from ..oxml.objects import HwpxOxmlInlineObject
 from ..oxml.section_format import _PAGE_LANDSCAPE, _PAGE_PORTRAIT, _page_orientation_value
 from ._units import _mm_to_hwp_units, _pt_to_hwp_units
 
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
     from ..oxml import (
-        HwpxOxmlInlineObject,
         HwpxOxmlParagraph,
         HwpxOxmlSection,
         HwpxOxmlSectionHeaderFooter,
@@ -510,10 +510,12 @@ def set_columns(
     section: HwpxOxmlSection | None = None,
     section_index: int | None = None,
 ) -> HwpxOxmlInlineObject:
-    """Insert a column definition control.
+    """Set the columns of a section, or start new columns at a paragraph.
 
-    This adds a ``<hp:ctrl><hp:colPr>`` element to the specified paragraph.
-    Text that follows will be laid out in the specified number of columns.
+    Without ``paragraph`` this rewrites the section's own column layout (the
+    ``hp:colPr`` next to ``hp:secPr``) in place, so the whole section is laid
+    out in ``col_count`` columns. With ``paragraph`` it adds a column
+    definition control there, and the text from that paragraph on uses it.
 
     Args:
         col_count: Number of columns (1–255).
@@ -521,7 +523,28 @@ def set_columns(
         same_gap: Gap in HWPUNIT (7200 = 1 inch).
         separator_type: Optional column separator line type (e.g. ``SOLID``).
     """
+    if not 1 <= col_count <= 255:
+        raise HwpxValueError(
+            "col_count must be between 1 and 255",
+            code="page-columns-invalid",
+            context={"requested": col_count},
+            suggestion="Use columns=1 to remove columns.",
+        )
     if paragraph is None:
+        target_section = _resolve_section(doc, section=section, section_index=section_index)
+        ctrl = target_section.properties.set_columns(
+            col_count,
+            col_type=col_type,
+            layout=layout,
+            same_size=same_size,
+            same_gap=same_gap,
+            column_widths=column_widths,
+            separator_type=separator_type,
+            separator_width=separator_width,
+            separator_color=separator_color,
+        )
+        if ctrl is not None:
+            return HwpxOxmlInlineObject(ctrl, target_section.paragraphs[0])
         paragraph = doc.add_paragraph(
             "", section=section, section_index=section_index,
             include_run=False,

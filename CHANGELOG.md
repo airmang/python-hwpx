@@ -20,6 +20,15 @@
   한컴에서 열 때 항목과 링크를 잃던 것을 고친다. `dirty` 기본값이 늘 `True`라,
   한컴이 목차를 다시 만들면서 개요 문단만 모았다. 이제 `dirty`의 기본값은 제목을
   자동으로 찾을 때 `True`, `headings`를 직접 줄 때 `False`다. 직접 넘기면 그 값을 쓴다.
+- `page.setup(columns=N)`과 `page.set_columns()`가 섹션의 단 정의는 그대로 두고 섹션
+  끝에 빈 문단과 단 컨트롤을 덧붙여, 이미 있는 본문이 1단으로 남던 것을 고친다. 이제
+  `hp:secPr` 옆의 섹션 단 정의(`hp:colPr`)를 제자리에서 고쳐 섹션 전체가 N단이 된다.
+  구분선(`separator_type` 등)도 이 정의에 들어가고, 빠진 값은 한컴 기본값(`SOLID`,
+  `0.12 mm`, `#000000`)으로 채운다. 특정 문단부터 단을 바꾸려면
+  `page.set_columns(paragraph=...)`를 쓴다.
+  - `page.setup(columns=...)`은 같은 폭의 단 N개와 간격만 쓴다. 있던 구분선은 지운다.
+  - `page.set_columns`는 1~255 밖의 단 수를 `page-columns-invalid`로 거부한다.
+  - 문단에 넣는 단 컨트롤도 한컴 표기대로 `id=""`와 `sameSz="1"`/`"0"`을 쓴다.
 - 용지 방향을 한컴 표기로 쓴다. `page.setup(orientation="PORTRAIT")`는 스키마 밖 값
   `landscape="PORTRAIT"`를 써서 한컴이 가로로 그렸고, `set_page_size(orientation=
   "LANDSCAPE")`에 가로 치수를 주면 세로로 그려졌다. 이제 세로는 `WIDELY`, 가로는

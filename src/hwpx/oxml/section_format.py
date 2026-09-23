@@ -383,6 +383,74 @@ class HwpxOxmlSectionProperties:
         if changed:
             self.section.mark_dirty()
 
+    # -- columns --------------------------------------------------------------
+    def _column_control(self) -> ET.Element | None:
+        """The ``hp:ctrl`` holding the section's own ``hp:colPr``.
+
+        Hancom keeps it in the run that carries ``hp:secPr``; one is added
+        right after ``hp:secPr`` when that run has none.
+        """
+
+        carrier = next(
+            (run for run in self.section.element.iter(f"{_HP}run") if any(child is self.element for child in run)),
+            None,
+        )
+        if carrier is None:
+            return None
+        for ctrl in carrier.findall(f"{_HP}ctrl"):
+            if ctrl.find(f"{_HP}colPr") is not None:
+                return ctrl
+        ctrl = carrier.makeelement(f"{_HP}ctrl", {})
+        carrier.insert(list(carrier).index(self.element) + 1, ctrl)
+        _append_child(ctrl, f"{_HP}colPr", {
+            "id": "", "type": "NEWSPAPER", "layout": "LEFT", "colCount": "1", "sameSz": "1", "sameGap": "0",
+        })
+        return ctrl
+
+    def set_columns(
+        self,
+        col_count: int,
+        *,
+        col_type: str = "NEWSPAPER",
+        layout: str = "LEFT",
+        same_size: bool = True,
+        same_gap: int = 0,
+        column_widths: Sequence[tuple[int, int]] | None = None,
+        separator_type: str | None = None,
+        separator_width: str | None = None,
+        separator_color: str | None = None,
+    ) -> ET.Element | None:
+        """Rewrite the section's own column layout in place.
+
+        That is the ``hp:colPr`` next to ``hp:secPr``, which lays out the
+        whole section. Any separator argument adds a column line; the others
+        take Hancom's defaults (``SOLID``, ``0.12 mm``, ``#000000``). Returns
+        the ``hp:ctrl`` holding it, or ``None`` when no run carries
+        ``hp:secPr``.
+        """
+
+        ctrl = self._column_control()
+        col_pr = None if ctrl is None else ctrl.find(f"{_HP}colPr")
+        if ctrl is None or col_pr is None:
+            return None
+        col_pr.set("type", col_type)
+        col_pr.set("layout", layout)
+        col_pr.set("colCount", str(col_count))
+        col_pr.set("sameSz", "1" if same_size else "0")
+        col_pr.set("sameGap", str(same_gap) if same_size else "0")
+        for child in list(col_pr):
+            col_pr.remove(child)
+        if separator_type or separator_width or separator_color:
+            _append_child(col_pr, f"{_HP}colLine", {
+                "type": separator_type or "SOLID",
+                "width": separator_width or "0.12 mm",
+                "color": separator_color or "#000000",
+            })
+        for width, gap in () if same_size else (column_widths or ()):
+            _append_child(col_pr, f"{_HP}colSz", {"width": str(width), "gap": str(gap)})
+        self.section.mark_dirty()
+        return ctrl
+
     # -- numbering ----------------------------------------------------------
     @property
     def start_numbering(self) -> SectionStartNumbering:
