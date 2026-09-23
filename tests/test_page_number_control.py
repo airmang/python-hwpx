@@ -277,6 +277,35 @@ def test_real_corpus_new_controls_coexist_with_existing_ones_after_roundtrip(
         reopened.close()
 
 
+def _story_counters(story) -> list[str]:
+    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    return [node.get("numType") for node in story.element.iter(f"{hp}autoNum")]
+
+
+def test_page_total_format_counts_the_total_pages() -> None:
+    # Hancom SDK 13.60 drew "1/1, 2/2, 3/3" on a three-page document when the
+    # second counter was another PAGE; Hancom's own page/total footers (42 in
+    # the gold corpus) use TOTAL_PAGE there and draw "1/3, 2/3, 3/3".
+    document = HwpxDocument.new()
+    footer = document.page.set_page_number(format="page/total")
+    assert _story_counters(footer) == ["PAGE", "TOTAL_PAGE"]
+    assert footer.text.count("/") == 1
+
+
+def test_page_total_format_adds_one_page_number_position_control() -> None:
+    document = HwpxDocument.new()
+    footer = document.page.set_page_number(format="page/total", prefix="Page ")
+    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    assert len(footer.element.findall(f".//{hp}ctrl/{hp}pageNum")) == 1
+    assert footer.text.startswith("Page ")
+
+
+def test_plain_page_format_keeps_a_single_page_counter() -> None:
+    document = HwpxDocument.new()
+    footer = document.page.set_page_number(format="page")
+    assert _story_counters(footer) == ["PAGE"]
+
+
 def test_titlemark_authoring_lives_on_the_paragraph_not_doc_page() -> None:
     """감사 갭 titleMark(DEV-044) — 6.15 트레인에서 캐럿 문단 타겟팅이
     실측 확정돼 저작 보류가 풀렸다(``tests/test_title_mark.py``가 계약을
