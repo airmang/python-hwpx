@@ -83,8 +83,9 @@ def test_single_cell_fill_invalidates_only_that_cell(blank_section: bytes) -> No
     filled = _section_bytes(saved)
     # Only the filled cell's caches may disappear — every other authored cache
     # survives verbatim. (The old blanket policy dropped all of them: a 3-char
-    # fill removed 644 caches and shifted a 10-page form to 11 pages with 1621
-    # glyph overlaps on real Hancom.)
+    # fill removed 644 caches and drew 1621 glyph overlaps on real Hancom. The
+    # form grows from 10 to 11 pages either way: the filled cell shares its
+    # line with a checkbox, so the three characters wrap to a second line.)
     assert blank_count - _cache_count(filled) <= max(1, cell_cache_count + 1)
     assert _cache_count(filled) >= blank_count - 2
     for cache in set(re.findall(rb"<hp:linesegarray>.*?</hp:linesegarray>", blank_section)):
