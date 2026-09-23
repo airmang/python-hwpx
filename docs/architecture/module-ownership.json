@@ -620,6 +620,30 @@
       "disposition": "core",
       "approvedBy": "owner-hwp5-core-2026-09-23",
       "rationale": "Reads the HWP 5.0 document summary property set (title, author, subject, keywords, comments, dates) for the package metadata; a malformed set yields no properties."
+    },
+    {
+      "path": "src/hwpx/hwp5/controls.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Field codecs shared by HWP 5.0 reading and writing for BodyText controls: section and column definitions, page definition, note shape, page border fill, the common object header, the TABLE record, cell, caption, header/footer and note list headers; each re-encodes its payload byte for byte."
+    },
+    {
+      "path": "src/hwpx/hwp5/docinfo_writer.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Contents/header.xml to HWP 5.0 DocInfo records (the inverse of header_xml): fonts, border fills, char and para shapes, tabs, numbering, bullets, styles, memo shapes and the id mapping table, in the record order and layouts of the current format version."
+    },
+    {
+      "path": "src/hwpx/hwp5/section_writer.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Contents/section<N>.xml to HWP 5.0 BodyText records (the inverse of section_xml): paragraphs, text and inline controls, char shape runs, line segments, section and column definitions, tables with captions and cells, headers, footers and notes; elements it cannot write are counted so the save can refuse them."
+    },
+    {
+      "path": "src/hwpx/hwp5/writer.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Writes HWPX package parts as an HWP 5.0 file: finds the header, sections and embedded binaries through the manifest, builds and compresses the record streams and the compound file, and refuses with hwp5-write-unsupported before writing when content cannot be expressed."
     }
   ],
   "removed": [

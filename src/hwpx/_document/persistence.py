@@ -281,9 +281,16 @@ def save_to_path(
     _run_pre_save_validation(doc)
     archive_bytes, measurement = _build_measured(doc, reset_dirty=False)
     actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
-    report = _gate_and_write(
-        doc, archive_bytes, output_path=path, source_label="document.save_to_path"
-    )
+    if str(path).lower().endswith(".hwp"):
+        # An .hwp target is written as HWP 5.0 from the validated HWPX parts;
+        # the gate still checks those parts, and nothing is written when the
+        # HWP 5.0 writer cannot express the document.
+        report = _gate_and_write(doc, archive_bytes, source_label="document.save_to_path")
+        _write_hwp5(path, archive_bytes)
+    else:
+        report = _gate_and_write(
+            doc, archive_bytes, output_path=path, source_label="document.save_to_path"
+        )
     _mark_save_clean(doc)
     if return_report:
         return _compose_mutation_report(
@@ -295,6 +302,18 @@ def save_to_path(
             report=report,
         )
     return path
+
+
+def _write_hwp5(path: str | PathLike[str], archive_bytes: bytes) -> None:
+    import io
+    import zipfile
+
+    from ..hwp5.writer import write_hwp5
+    from ..quality.save_pipeline import write_bytes_atomically
+
+    with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+        files = {name: archive.read(name) for name in archive.namelist() if not name.endswith("/")}
+    write_bytes_atomically(path, write_hwp5(files))
 
 
 def save_to_stream(

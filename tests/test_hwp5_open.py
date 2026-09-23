@@ -18,6 +18,7 @@ from lxml import etree
 from hwpx import HwpxDocument
 from hwpx.hwp5 import bodytext as bt
 from hwpx.hwp5 import cfb
+from hwpx.hwp5 import controls as ct
 from hwpx.hwp5 import docinfo as di
 from hwpx.hwp5 import records as rec
 from hwpx.hwp5.errors import Hwp5ConversionWarning, Hwp5Error
@@ -46,8 +47,20 @@ def _docinfo() -> list[rec.Record]:
     return records
 
 
-def _para_header(chars: int, char_shapes: int, *, lines: int = 1) -> bytes:
-    return struct.pack("<IIHBBHHHIH", chars, 0, 0, 0, 0, char_shapes, 0, lines, 0, 0)
+def _para_header(chars: int, char_shapes: int, *, lines: int = 1, mask: int = 0, breaks: int = 0) -> bytes:
+    return struct.pack("<IIHBBHHHIH", chars, mask, 0, 0, breaks, char_shapes, 0, lines, 0, 0)
+
+
+def _control_mask(text: bytes) -> tuple[int, int]:
+    """The control-character mask (paragraph break excluded) and section/column break bits."""
+
+    chunks, _ = bt.split_text(text)
+    mask = 0
+    for chunk in chunks:
+        if chunk.kind != "text" and chunk.code != 13:
+            mask |= 1 << chunk.code
+    ids = {chunk.control_id for chunk in chunks}
+    return mask, (1 if "secd" in ids else 0) | (2 if "cold" in ids else 0)
 
 
 def _extended(code: int, ctrl: str) -> bytes:
@@ -60,7 +73,8 @@ def _line_seg() -> bytes:
 
 def _paragraph(level: int, text: bytes, shapes: list[tuple[int, int]], controls: list[rec.Record]) -> list[rec.Record]:
     units = len(text) // 2
-    out = [rec.Record(rec.PARA_HEADER, level, _para_header(units, len(shapes)))]
+    mask, breaks = _control_mask(text)
+    out = [rec.Record(rec.PARA_HEADER, level, _para_header(units, len(shapes), mask=mask, breaks=breaks))]
     if units > 1:
         out.append(rec.Record(rec.PARA_TEXT, level + 1, text))
     out.append(rec.Record(rec.PARA_CHAR_SHAPE, level + 1, b"".join(struct.pack("<II", p, s) for p, s in shapes)))
@@ -94,16 +108,17 @@ def _section() -> list[rec.Record]:
             rec.Record(rec.CTRL_HEADER, 1, cold),
         ],
     )
-    tab = _u16(9) + struct.pack("<IBB", 4000, 0, 0) + b"\0" * 6 + _u16(9)
+    # A tab stores its width, leader and type, padded with three spaces.
+    tab = _u16(9) + struct.pack("<IBB", 4000, 0, 0) + " ".encode("utf-16-le") * 3 + _u16(9)
     body = "가나다 ".encode("utf-16-le") + "abc".encode("utf-16-le") + tab + "끝".encode("utf-16-le") + _u16(10)
     body += "둘째 줄".encode("utf-16-le") + _u16(13)
     second = _paragraph(0, body, [(0, 0), (4, 1), (7, 0)], [])
     common = struct.pack("<IIiiIIihhhhIi", bt.ctrl_word("tbl "), 0x082A2211, 0, 0, 42000, 3600, 0, 0, 0, 0, 0, 77, 0)
-    common += _u16(0)
+    common += _u16(0) + _u16(0)  # empty description, then two reserved bytes
     table = struct.pack("<IHHH4HHHH", 2, 1, 2, 0, 510, 510, 141, 141, 2, 1, 0)
     cells: list[rec.Record] = []
     for col, label in enumerate(("셀1", "셀2")):
-        header = struct.pack("<IIHHHHII4hH", 1, 0x20, col, 0, 1, 1, 21000, 3600, 510, 510, 141, 141, 1)
+        header = ct.CellHeader(1, 0x00200000, 0, col, 0, 1, 1, 21000, 3600, (510, 510, 141, 141), 1, 21000).encode()
         cells.append(rec.Record(rec.LIST_HEADER, 2, header))
         cells += _paragraph(2, label.encode("utf-16-le") + _u16(13), [(0, 0)], [])
     third = _paragraph(

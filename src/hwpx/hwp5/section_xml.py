@@ -17,8 +17,8 @@ from dataclasses import dataclass, field
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
 from . import bodytext as bt
+from . import controls as ct
 from . import records as rec
-from .binary import Cursor
 from .owpml import (
     BORDER_LINE,
     BORDER_WIDTH,
@@ -51,6 +51,12 @@ def _unit(raw: int) -> tuple[int, str]:
     return raw >> 1, "CHAR" if raw & 1 else "HWPUNIT"
 
 
+def _u32(value: int) -> int:
+    """A signed 16/32-bit value the way Hancom prints it: unsigned 32-bit."""
+
+    return value & 0xFFFFFFFF
+
+
 # -- object common properties (tables, pictures, shapes, equations) -----------------
 
 VERT_REL = ("PAPER", "PAGE", "PARA")
@@ -64,89 +70,57 @@ TEXT_FLOW = ("BOTH_SIDES", "LEFT_ONLY", "RIGHT_ONLY", "LARGEST_ONLY")
 NUMBERING_TYPE = ("NONE", "PICTURE", "TABLE", "EQUATION")
 
 
-@dataclass
-class ObjectCommon:
-    """The shared header of a table, picture, shape or equation control."""
+def object_attrs(common: ct.ObjectCommon) -> list[tuple[str, object]]:
+    p = common.props
+    return [
+        ("id", common.instance_id),
+        ("zOrder", common.z_order),
+        ("numberingType", token(NUMBERING_TYPE, _bits(p, 26, 3))),
+        ("textWrap", token(TEXT_WRAP, _bits(p, 21, 3))),
+        ("textFlow", token(TEXT_FLOW, _bits(p, 24, 2))),
+        ("lock", flag(p & (1 << 30))),
+        ("dropcapstyle", "None"),
+    ]
 
-    ctrl: str
-    props: int = 0
-    vert_offset: int = 0
-    horz_offset: int = 0
-    width: int = 0
-    height: int = 0
-    z_order: int = 0
-    margins: tuple[int, int, int, int] = (0, 0, 0, 0)
-    instance_id: int = 0
-    prevent_page_break: int = 0
-    description: str = ""
-    extra: bytes = b""
 
-    @classmethod
-    def decode(cls, payload: bytes) -> "ObjectCommon":
-        c = Cursor(payload, "CTRL_HEADER")
-        ctrl = bt.ctrl_id(c.u32())
-        obj = cls(ctrl)
-        if c.left < 40:
-            obj.extra = c.rest()
-            return obj
-        obj.props = c.u32()
-        obj.vert_offset = c.i32()
-        obj.horz_offset = c.i32()
-        obj.width = c.u32()
-        obj.height = c.u32()
-        obj.z_order = c.i32()
-        obj.margins = (c.i16(), c.i16(), c.i16(), c.i16())
-        obj.instance_id = c.u32()
-        obj.prevent_page_break = c.i32() if c.left >= 4 else 0
-        if c.left >= 2:
-            obj.description = c.wstr()
-        obj.extra = c.rest()
-        return obj
+def object_layout(element: etree._Element, common: ct.ObjectCommon) -> None:
+    """``hp:sz``, ``hp:pos`` and ``hp:outMargin`` of an object."""
 
-    def write(self, element: etree._Element, *, size_protect: bool = True) -> None:
-        p = self.props
-        sub(
-            element,
-            "hp:sz",
-            (
-                ("width", self.width),
-                ("widthRelTo", token(WIDTH_REL, _bits(p, 15, 3))),
-                ("height", self.height),
-                ("heightRelTo", token(HEIGHT_REL, _bits(p, 18, 2))),
-                ("protect", flag(p & (1 << 20))),
-            ),
-        )
-        sub(
-            element,
-            "hp:pos",
-            (
-                ("treatAsChar", flag(p & 0x1)),
-                ("affectLSpacing", flag(p & 0x4)),
-                ("flowWithText", flag(p & (1 << 13))),
-                ("allowOverlap", flag(p & (1 << 14))),
-                ("holdAnchorAndSO", flag(p & (1 << 29))),
-                ("vertRelTo", token(VERT_REL, _bits(p, 3, 2))),
-                ("horzRelTo", token(HORZ_REL, _bits(p, 8, 2))),
-                ("vertAlign", token(VERT_ALIGN, _bits(p, 5, 3))),
-                ("horzAlign", token(HORZ_ALIGN, _bits(p, 10, 3))),
-                ("vertOffset", self.vert_offset),
-                ("horzOffset", self.horz_offset),
-            ),
-        )
-        left, right, top, bottom = self.margins
-        sub(element, "hp:outMargin", (("left", left), ("right", right), ("top", top), ("bottom", bottom)))
-
-    def attrs(self) -> list[tuple[str, object]]:
-        p = self.props
-        return [
-            ("id", self.instance_id),
-            ("zOrder", self.z_order),
-            ("numberingType", token(NUMBERING_TYPE, _bits(p, 26, 3))),
-            ("textWrap", token(TEXT_WRAP, _bits(p, 21, 3))),
-            ("textFlow", token(TEXT_FLOW, _bits(p, 24, 2))),
-            ("lock", flag(p & (1 << 30))),
-            ("dropcapstyle", "None"),
-        ]
+    p = common.props
+    sub(
+        element,
+        "hp:sz",
+        (
+            ("width", common.width),
+            ("widthRelTo", token(WIDTH_REL, _bits(p, 15, 3))),
+            ("height", common.height),
+            ("heightRelTo", token(HEIGHT_REL, _bits(p, 18, 2))),
+            ("protect", flag(p & (1 << 20))),
+        ),
+    )
+    sub(
+        element,
+        "hp:pos",
+        (
+            ("treatAsChar", flag(p & 0x1)),
+            ("affectLSpacing", flag(p & 0x4)),
+            ("flowWithText", flag(p & (1 << 13))),
+            ("allowOverlap", flag(p & (1 << 14))),
+            ("holdAnchorAndSO", flag(p & (1 << 29))),
+            ("vertRelTo", token(VERT_REL, _bits(p, 3, 2))),
+            ("horzRelTo", token(HORZ_REL, _bits(p, 8, 2))),
+            ("vertAlign", token(VERT_ALIGN, _bits(p, 5, 3))),
+            ("horzAlign", token(HORZ_ALIGN, _bits(p, 10, 3))),
+            ("vertOffset", _u32(common.vert_offset)),
+            ("horzOffset", _u32(common.horz_offset)),
+        ),
+    )
+    left, right, top, bottom = common.margins
+    sub(
+        element,
+        "hp:outMargin",
+        (("left", _u32(left)), ("right", _u32(right)), ("top", _u32(top)), ("bottom", _u32(bottom))),
+    )
 
 
 # -- sections and columns -------------------------------------------------------------
@@ -160,27 +134,22 @@ PAGE_BORDER_TYPES = ("BOTH", "EVEN", "ODD")
 FILL_AREA = ("PAPER", "PAGE", "BORDER")
 COL_TYPE = ("NEWSPAPER", "BALANCED_NEWSPAPER", "PARALLEL")
 COL_LAYOUT = ("LEFT", "RIGHT", "MIRROR")
+#: Low nibble of the section direction word; bit 4 is textVerticalWidthHead.
+SECTION_TEXT_DIRECTION = {0: "HORIZONTAL", 2: "VERTICAL", 4: "VERTICALALL"}
 
 
 def _note_pr(parent: etree._Element, name: str, record: rec.Record | None, *, endnote: bool) -> None:
     element = sub(parent, name)
-    payload = record.payload if record is not None else b""
-    c = Cursor(payload.ljust(28, b"\0"), "FOOTNOTE_SHAPE")
-    props = c.u32()
-    user, prefix, suffix = c.u16(), c.u16(), c.u16()
-    start = c.u16()
-    length = c.i32()
-    above, below, between = c.u16(), c.u16(), c.u16()
-    line_type, line_width = c.u8(), c.u8()
-    line_color = c.u32()
+    note = ct.NoteShape.decode(record.payload if record is not None else b"")
+    props = note.props
     sub(
         element,
         "hp:autoNumFormat",
         (
             ("type", token(NUMBER_FORMAT, _bits(props, 0, 8), "DIGIT")),
-            ("userChar", chr(user) if user else ""),
-            ("prefixChar", chr(prefix) if prefix else ""),
-            ("suffixChar", chr(suffix) if suffix else ""),
+            ("userChar", chr(note.user_char) if note.user_char else ""),
+            ("prefixChar", chr(note.prefix_char) if note.prefix_char else ""),
+            ("suffixChar", chr(note.suffix_char) if note.suffix_char else ""),
             ("supscript", flag(props & (1 << 12))),
         ),
     )
@@ -188,14 +157,14 @@ def _note_pr(parent: etree._Element, name: str, record: rec.Record | None, *, en
         element,
         "hp:noteLine",
         (
-            ("length", length),
-            ("type", token(BORDER_LINE, line_type)),
-            ("width", token(BORDER_WIDTH, line_width)),
-            ("color", color(line_color)),
+            ("length", note.line_length),
+            ("type", token(BORDER_LINE, note.line_type)),
+            ("width", token(BORDER_WIDTH, note.line_width)),
+            ("color", color(note.line_color)),
         ),
     )
-    sub(element, "hp:noteSpacing", (("betweenNotes", between), ("belowLine", below), ("aboveLine", above)))
-    sub(element, "hp:numbering", (("type", token(NOTE_NUMBERING, _bits(props, 10, 2))), ("newNum", start)))
+    sub(element, "hp:noteSpacing", (("betweenNotes", note.between), ("belowLine", note.below), ("aboveLine", note.above)))
+    sub(element, "hp:numbering", (("type", token(NOTE_NUMBERING, _bits(props, 10, 2))), ("newNum", note.start)))
     places = ENDNOTE_PLACE if endnote else FOOTNOTE_PLACE
     sub(element, "hp:placement", (("place", token(places, _bits(props, 8, 2))), ("beneathText", flag(props & (1 << 13)))))
 
@@ -203,42 +172,36 @@ def _note_pr(parent: etree._Element, name: str, record: rec.Record | None, *, en
 def section_properties(parent: etree._Element, ctrl: rec.Record) -> etree._Element:
     """``hp:secPr`` from a ``secd`` control and its child records."""
 
-    c = Cursor(ctrl.payload.ljust(28, b"\0"), "secd")
-    c.u32()
-    props = c.u32()
-    space_columns = c.u16()
-    line_grid = c.u16()
-    char_grid = c.u16()
-    tab_stop = c.u32()
-    outline = c.u16()
-    page_start, pic_start, tbl_start, eq_start = c.u16(), c.u16(), c.u16(), c.u16()
-    tab_value, tab_unit = _unit(tab_stop)
+    sd = ct.SectionDef.decode(ctrl.payload)
+    props = sd.props
+    tab_value, tab_unit = _unit(sd.tab_stop)
+    direction = SECTION_TEXT_DIRECTION.get(sd.text_direction & 0xF, "HORIZONTAL")
     element = sub(
         parent,
         "hp:secPr",
         (
             ("id", ""),
-            ("textDirection", "VERTICAL" if props & (1 << 16) else "HORIZONTAL"),
-            ("spaceColumns", space_columns),
-            ("tabStop", tab_stop),
+            ("textDirection", direction),
+            ("spaceColumns", sd.space_columns),
+            ("tabStop", sd.tab_stop),
             ("tabStopVal", tab_value),
             ("tabStopUnit", tab_unit),
-            ("outlineShapeIDRef", outline),
-            ("memoShapeIDRef", 0),
-            ("textVerticalWidthHead", 0),
-            ("masterPageCnt", 0),
+            ("outlineShapeIDRef", sd.outline_numbering),
+            ("memoShapeIDRef", sd.memo_shape),
+            ("textVerticalWidthHead", flag(sd.text_direction & 0x10)),
+            ("masterPageCnt", sd.master_pages),
         ),
     )
-    sub(element, "hp:grid", (("lineGrid", line_grid), ("charGrid", char_grid), ("wonggojiFormat", flag(props & (1 << 22)))))
+    sub(element, "hp:grid", (("lineGrid", sd.line_grid), ("charGrid", sd.char_grid), ("wonggojiFormat", flag(props & (1 << 22)))))
     sub(
         element,
         "hp:startNum",
         (
             ("pageStartsOn", token(PAGE_STARTS_ON, _bits(props, 20, 2))),
-            ("page", page_start),
-            ("pic", pic_start),
-            ("tbl", tbl_start),
-            ("equation", eq_start),
+            ("page", sd.page_start),
+            ("pic", sd.picture_start),
+            ("tbl", sd.table_start),
+            ("equation", sd.equation_start),
         ),
     )
     sub(
@@ -255,33 +218,39 @@ def section_properties(parent: etree._Element, ctrl: rec.Record) -> etree._Eleme
             ("showLineNumber", 0),
         ),
     )
-    sub(element, "hp:lineNumberShape", (("restartType", 0), ("countBy", 0), ("distance", 0), ("startNumber", 0)))
-    page = next((r for r in ctrl.children if r.tag == rec.PAGE_DEF), None)
-    pc = Cursor((page.payload if page is not None else b"").ljust(40, b"\0"), "PAGE_DEF")
-    width, height = pc.u32(), pc.u32()
-    left, right, top, bottom, header, footer, gutter = (pc.u32() for _ in range(7))
-    page_props = pc.u32()
+    sub(
+        element,
+        "hp:lineNumberShape",
+        (
+            ("restartType", sd.line_number_restart),
+            ("countBy", sd.line_number_count_by),
+            ("distance", sd.line_number_distance),
+            ("startNumber", sd.line_number_start),
+        ),
+    )
+    page_record = next((r for r in ctrl.children if r.tag == rec.PAGE_DEF), None)
+    page = ct.PageDef.decode(page_record.payload if page_record is not None else b"")
     page_pr = sub(
         element,
         "hp:pagePr",
         (
-            ("landscape", "NARROWLY" if page_props & 0x1 else "WIDELY"),
-            ("width", width),
-            ("height", height),
-            ("gutterType", token(GUTTER, _bits(page_props, 1, 2))),
+            ("landscape", "NARROWLY" if page.props & 0x1 else "WIDELY"),
+            ("width", page.width),
+            ("height", page.height),
+            ("gutterType", token(GUTTER, _bits(page.props, 1, 2))),
         ),
     )
     sub(
         page_pr,
         "hp:margin",
         (
-            ("header", header),
-            ("footer", footer),
-            ("gutter", gutter),
-            ("left", left),
-            ("right", right),
-            ("top", top),
-            ("bottom", bottom),
+            ("header", page.header),
+            ("footer", page.footer),
+            ("gutter", page.gutter),
+            ("left", page.left),
+            ("right", page.right),
+            ("top", page.top),
+            ("bottom", page.bottom),
         ),
     )
     notes = [r for r in ctrl.children if r.tag == rec.FOOTNOTE_SHAPE]
@@ -289,72 +258,57 @@ def section_properties(parent: etree._Element, ctrl: rec.Record) -> etree._Eleme
     _note_pr(element, "hp:endNotePr", notes[1] if len(notes) > 1 else None, endnote=True)
     borders: list[rec.Record | None] = [r for r in ctrl.children if r.tag == rec.PAGE_BORDER_FILL]
     for kind, record in zip(PAGE_BORDER_TYPES, borders or [None, None, None]):
-        bc = Cursor((record.payload if record is not None else b"").ljust(14, b"\0"), "PAGE_BORDER_FILL")
-        border_props = bc.u32()
-        offsets = (bc.u16(), bc.u16(), bc.u16(), bc.u16())
-        fill_id = bc.u16()
+        border = ct.PageBorderFill.decode(record.payload if record is not None else b"")
         fill_element = sub(
             element,
             "hp:pageBorderFill",
             (
                 ("type", kind),
-                ("borderFillIDRef", fill_id),
-                ("textBorder", "PAPER" if border_props & 0x1 else "CONTENT"),
-                ("headerInside", flag(border_props & 0x2)),
-                ("footerInside", flag(border_props & 0x4)),
-                ("fillArea", token(FILL_AREA, _bits(border_props, 3, 2))),
+                ("borderFillIDRef", border.border_fill),
+                ("textBorder", "PAPER" if border.props & 0x1 else "CONTENT"),
+                ("headerInside", flag(border.props & 0x2)),
+                ("footerInside", flag(border.props & 0x4)),
+                ("fillArea", token(FILL_AREA, _bits(border.props, 3, 2))),
             ),
         )
-        sub(
-            fill_element,
-            "hp:offset",
-            (("left", offsets[0]), ("right", offsets[1]), ("top", offsets[2]), ("bottom", offsets[3])),
-        )
+        left, right, top, bottom = border.offsets
+        sub(fill_element, "hp:offset", (("left", left), ("right", right), ("top", top), ("bottom", bottom)))
     return element
 
 
-def column_properties(parent: etree._Element, ctrl: rec.Record) -> None:
+def column_properties(parent: etree._Element, ctrl: rec.Record) -> etree._Element:
     """``hp:ctrl/hp:colPr`` from a ``cold`` control."""
 
-    c = Cursor(ctrl.payload, "cold")
-    c.u32()
-    props = c.u16() if c.left >= 2 else 0
-    count = _bits(props, 2, 8) or 1
-    same = bool(props & (1 << 12))
-    gap = c.u16() if c.left >= 2 else 0
-    widths: list[int] = []
-    if not same and count > 1:
-        widths = [c.u16() for _ in range(min(count * 2, c.left // 2))]
+    cd = ct.ColumnDef.decode(ctrl.payload)
     wrapper = sub(parent, "hp:ctrl")
     col = sub(
         wrapper,
         "hp:colPr",
         (
             ("id", ""),
-            ("type", token(COL_TYPE, _bits(props, 0, 2))),
-            ("layout", token(COL_LAYOUT, _bits(props, 10, 2))),
-            ("colCount", count),
-            ("sameSz", flag(same)),
-            ("sameGap", gap if same else 0),
+            ("type", token(COL_TYPE, _bits(cd.props, 0, 2))),
+            ("layout", token(COL_LAYOUT, _bits(cd.props, 10, 2))),
+            ("colCount", cd.count),
+            ("sameSz", flag(cd.same_width)),
+            ("sameGap", cd.gap if cd.same_width else 0),
         ),
     )
-    if widths:
+    if cd.widths:
+        # Width, gap, width, gap, ..., width: the last column has no gap.
+        widths = [*cd.widths, 0] if len(cd.widths) % 2 else list(cd.widths)
         for index in range(0, len(widths) - 1, 2):
             sub(col, "hp:colSz", (("width", widths[index]), ("gap", widths[index + 1])))
-    if c.left >= 8:
-        c.u16()
-        line_type, line_width = c.u8(), c.u8()
-        line_color = c.u32()
-        if line_type:
-            sub(
-                col,
-                "hp:colLine",
-                (
-                    ("type", token(BORDER_LINE, line_type)),
-                    ("width", token(BORDER_WIDTH, line_width)),
-                    ("color", color(line_color)),
-                ),
-            )
+    if cd.line_type:
+        sub(
+            col,
+            "hp:colLine",
+            (
+                ("type", token(BORDER_LINE, cd.line_type)),
+                ("width", token(BORDER_WIDTH, cd.line_width)),
+                ("color", color(cd.line_color)),
+            ),
+        )
+    return wrapper
 
 
 # -- the section writer -------------------------------------------------------------------
@@ -363,6 +317,25 @@ TEXT_DIRECTION = ("HORIZONTAL", "VERTICAL", "VERTICALALL")
 LINE_WRAP = ("BREAK", "SQUEEZE", "KEEP")
 LIST_VERT_ALIGN = ("TOP", "CENTER", "BOTTOM")
 TABLE_PAGE_BREAK = ("NONE", "TABLE", "CELL")
+CAPTION_SIDE = ("LEFT", "RIGHT", "TOP", "BOTTOM")
+CHAR_ELEMENTS = {10: "hp:lineBreak", 24: "hp:hyphen", 30: "hp:nbSpace", 31: "hp:fwSpace"}
+
+
+def list_attrs(props: int) -> list[tuple[str, object]]:
+    """``hp:subList`` attributes from a list property word (bits 16-22)."""
+
+    return [
+        ("id", ""),
+        ("textDirection", token(TEXT_DIRECTION, _bits(props, 16, 3))),
+        ("lineWrap", token(LINE_WRAP, _bits(props, 19, 2))),
+        ("vertAlign", token(LIST_VERT_ALIGN, _bits(props, 21, 2))),
+        ("linkListIDRef", 0),
+        ("linkListNextIDRef", 0),
+        ("textWidth", 0),
+        ("textHeight", 0),
+        ("hasTextRef", 0),
+        ("hasNumRef", 0),
+    ]
 
 
 class SectionWriter:
@@ -421,7 +394,7 @@ class SectionWriter:
         chunks = list(para.chunks)
         index = 0
         last: etree._Element | None = None
-        for (start, shape_id), end in zip(shapes, bounds):
+        for (_start, shape_id), end in zip(shapes, bounds):
             run = sub(element, "hp:run", (("charPrIDRef", shape_id),))
             text: etree._Element | None = None
             last = None
@@ -440,9 +413,7 @@ class SectionWriter:
                     continue
                 index += 1
                 if chunk.kind == "char":
-                    if chunk.code == bt.PARA_BREAK:
-                        continue
-                    name = {10: "hp:lineBreak", 24: "hp:hyphen", 30: "hp:nbSpace", 31: "hp:fwSpace"}.get(chunk.code)
+                    name = CHAR_ELEMENTS.get(chunk.code)
                     if name is None:
                         continue
                     text = self._text(run, text, "")
@@ -464,7 +435,7 @@ class SectionWriter:
                     if ctrl is None:
                         self.report.skip("control-without-record")
                         continue
-                    last = self.control(run, ctrl, chunk)
+                    last = self.control(run, ctrl)
                     # Section and column definitions keep a run of their own.
                     if chunk.control_id in ("secd", "cold"):
                         following = chunks[index] if index < len(chunks) else None
@@ -479,7 +450,9 @@ class SectionWriter:
         if last is not None and etree.QName(last).localname == "run":
             sub(last, "hp:t")
         elif last is not None and etree.QName(last).localname != "t":
-            sub(last.getparent(), "hp:t")
+            parent = last.getparent()
+            if parent is not None:
+                sub(parent, "hp:t")
 
     @staticmethod
     def _text(run: etree._Element, text: etree._Element | None, value: str) -> etree._Element:
@@ -498,13 +471,12 @@ class SectionWriter:
 
     # controls ------------------------------------------------------------------------
 
-    def control(self, run: etree._Element, ctrl: rec.Record, chunk: bt.Chunk) -> etree._Element | None:
+    def control(self, run: etree._Element, ctrl: rec.Record) -> etree._Element | None:
         kind = bt.record_ctrl_id(ctrl) or "?"
         if kind == "secd":
             return section_properties(run, ctrl)
         if kind == "cold":
-            column_properties(run, ctrl)
-            return run[-1]
+            return column_properties(run, ctrl)
         if kind == "tbl ":
             return self.table(run, ctrl)
         if kind in ("head", "foot"):
@@ -514,83 +486,65 @@ class SectionWriter:
         self.report.skip(f"control-{kind.strip() or kind}")
         return None
 
-    def sub_list(self, parent: etree._Element, header: rec.Record, paragraphs: list[rec.Record]) -> None:
-        props = struct.unpack_from("<I", header.payload.ljust(8, b"\0"), 4)[0] if len(header.payload) >= 8 else 0
-        attrs: list[tuple[str, object]] = [
-            ("id", ""),
-            ("textDirection", token(TEXT_DIRECTION, _bits(props, 0, 3))),
-            ("lineWrap", token(LINE_WRAP, _bits(props, 3, 2))),
-            ("vertAlign", token(LIST_VERT_ALIGN, _bits(props, 5, 2))),
-            ("linkListIDRef", 0),
-            ("linkListNextIDRef", 0),
-            ("textWidth", 0),
-            ("textHeight", 0),
-            ("hasTextRef", 0),
-            ("hasNumRef", 0),
-        ]
-        element = sub(parent, "hp:subList", attrs)
-        self.paragraphs(element, paragraphs)
+    def body(self, parent: etree._Element, ctrl: rec.Record) -> None:
+        """The single paragraph list of a header, footer or note."""
+
+        for header, paragraphs in lists(ctrl)[:1]:
+            list_header = ct.ListHeader.decode(header.payload)
+            attrs = list_attrs(list_header.props)
+            width, height = list_header.text_size
+            attrs[6] = ("textWidth", width)
+            attrs[7] = ("textHeight", height)
+            element = sub(parent, "hp:subList", attrs)
+            self.paragraphs(element, paragraphs)
 
     def header_footer(self, run: etree._Element, ctrl: rec.Record, kind: str) -> etree._Element:
-        c = Cursor(ctrl.payload.ljust(8, b"\0"), kind)
-        c.u32()
-        props = c.u32()
+        hf = ct.HeaderFooterCtrl.decode(ctrl.payload)
         wrapper = sub(run, "hp:ctrl")
         element = sub(
             wrapper,
             "hp:header" if kind == "head" else "hp:footer",
-            (("id", 0), ("applyPageType", token(PAGE_BORDER_TYPES, _bits(props, 0, 2)))),
+            (("id", hf.number), ("applyPageType", token(PAGE_BORDER_TYPES, _bits(hf.props, 0, 2)))),
         )
-        for header, paragraphs in lists(ctrl)[:1]:
-            self.sub_list(element, header, paragraphs)
+        self.body(element, ctrl)
         return wrapper
 
     def note(self, run: etree._Element, ctrl: rec.Record, kind: str) -> etree._Element:
-        c = Cursor(ctrl.payload.ljust(12, b"\0"), kind)
-        c.u32()
-        number = c.u32()
+        nc = ct.NoteCtrl.decode(ctrl.payload)
         wrapper = sub(run, "hp:ctrl")
-        element = sub(
-            wrapper,
-            "hp:footNote" if kind == "fn  " else "hp:endNote",
-            (("number", number), ("suffixChar", ")"), ("instId", 0)),
-        )
-        for header, paragraphs in lists(ctrl)[:1]:
-            self.sub_list(element, header, paragraphs)
+        attrs: list[tuple[str, object]] = [("number", nc.number)]
+        if nc.prefix_char:
+            attrs.append(("prefixChar", chr(nc.prefix_char)))
+        attrs += [("suffixChar", chr(nc.suffix_char) if nc.suffix_char else ""), ("instId", nc.instance_id)]
+        element = sub(wrapper, "hp:footNote" if kind == "fn  " else "hp:endNote", attrs)
+        self.body(element, ctrl)
         return wrapper
 
     # tables --------------------------------------------------------------------------
 
     def table(self, run: etree._Element, ctrl: rec.Record) -> etree._Element:
-        common = ObjectCommon.decode(ctrl.payload)
+        common = ct.ObjectCommon.decode(ctrl.payload)
         table_record = next((r for r in ctrl.children if r.tag == rec.TABLE), None)
-        tc = Cursor((table_record.payload if table_record is not None else b"").ljust(22, b"\0"), "TABLE")
-        props = tc.u32()
-        rows, cols = tc.u16(), tc.u16()
-        spacing = tc.u16()
-        inner = (tc.u16(), tc.u16(), tc.u16(), tc.u16())
-        row_sizes = [tc.u16() for _ in range(min(rows, tc.left // 2))]
-        border_fill = tc.u16() if tc.left >= 2 else 0
-        zones: list[tuple[int, int, int, int, int]] = []
-        if tc.left >= 2:
-            count = tc.u16()
-            for _ in range(min(count, tc.left // 10)):
-                zones.append((tc.u16(), tc.u16(), tc.u16(), tc.u16(), tc.u16()))
-        attrs = common.attrs() + [
-            ("pageBreak", token(TABLE_PAGE_BREAK, _bits(props, 0, 2))),
-            ("repeatHeader", flag(props & 0x4)),
-            ("rowCnt", rows),
-            ("colCnt", cols),
-            ("cellSpacing", spacing),
-            ("borderFillIDRef", border_fill),
-            ("noAdjust", flag(props & 0x8)),
+        tp = ct.TableProps.decode(table_record.payload) if table_record is not None else ct.TableProps()
+        attrs = object_attrs(common) + [
+            ("pageBreak", token(TABLE_PAGE_BREAK, _bits(tp.props, 0, 2))),
+            ("repeatHeader", flag(tp.props & 0x4)),
+            ("rowCnt", tp.rows),
+            ("colCnt", tp.cols),
+            ("cellSpacing", tp.spacing),
+            ("borderFillIDRef", tp.border_fill),
+            ("noAdjust", flag(tp.props & 0x8)),
         ]
         table = sub(run, "hp:tbl", attrs)
-        common.write(table)
-        sub(table, "hp:inMargin", (("left", inner[0]), ("right", inner[1]), ("top", inner[2]), ("bottom", inner[3])))
-        if zones:
+        object_layout(table, common)
+        caption, cells = table_lists(ctrl)
+        if caption is not None:
+            self.caption(table, *caption)
+        left, right, top, bottom = tp.inner
+        sub(table, "hp:inMargin", (("left", left), ("right", right), ("top", top), ("bottom", bottom)))
+        if tp.zones:
             zone_list = sub(table, "hp:cellzoneList")
-            for start_col, start_row, end_col, end_row, fill in zones:
+            for start_row, start_col, end_row, end_col, fill in tp.zones:
                 sub(
                     zone_list,
                     "hp:cellzone",
@@ -602,42 +556,57 @@ class SectionWriter:
                         ("borderFillIDRef", fill),
                     ),
                 )
-        cells = lists(ctrl)
         position = 0
-        for row_size in row_sizes or [len(cells)]:
+        for row_size in tp.row_sizes or [len(cells)]:
             tr = sub(table, "hp:tr")
             for header, paragraphs in cells[position : position + row_size]:
                 self.cell(tr, header, paragraphs)
             position += row_size
         return table
 
+    def caption(self, parent: etree._Element, header: rec.Record, paragraphs: list[rec.Record]) -> None:
+        cap = ct.CaptionHeader.decode(header.payload)
+        element = sub(
+            parent,
+            "hp:caption",
+            (
+                ("side", token(CAPTION_SIDE, _bits(cap.props, 0, 2))),
+                ("fullSz", flag(cap.props & 0x4)),
+                ("width", cap.width),
+                ("gap", cap.gap),
+                ("lastWidth", cap.last_width),
+            ),
+        )
+        sub_list = sub(element, "hp:subList", list_attrs(cap.list_props))
+        self.paragraphs(sub_list, paragraphs)
+
     def cell(self, tr: etree._Element, header: rec.Record, paragraphs: list[rec.Record]) -> None:
-        c = Cursor(header.payload.ljust(34, b"\0"), "cell")
-        c.u32()
-        props = c.u32()
-        col, row, col_span, row_span = c.u16(), c.u16(), c.u16(), c.u16()
-        width, height = c.u32(), c.u32()
-        # An unset margin is -1; Hancom writes it as the unsigned 32-bit value.
-        margins = tuple(value & 0xFFFFFFFF for value in (c.i16(), c.i16(), c.i16(), c.i16()))
-        fill = c.u16()
+        cell = ct.CellHeader.decode(header.payload)
+        flags = cell.flags
         tc = sub(
             tr,
             "hp:tc",
             (
-                ("name", ""),
-                ("header", flag(props & (1 << 18))),
-                ("hasMargin", flag(props & (1 << 16))),
-                ("protect", flag(props & (1 << 17))),
-                ("editable", flag(props & (1 << 19))),
-                ("dirty", flag(props & (1 << 20))),
-                ("borderFillIDRef", fill),
+                ("name", cell.name),
+                ("header", flag(flags & 0x4)),
+                ("hasMargin", flag(flags & 0x1)),
+                ("protect", flag(flags & 0x2)),
+                ("editable", flag(flags & 0x8)),
+                ("dirty", flag(flags & 0x10)),
+                ("borderFillIDRef", cell.border_fill),
             ),
         )
-        self.sub_list(tc, header, paragraphs)
-        sub(tc, "hp:cellAddr", (("colAddr", col), ("rowAddr", row)))
-        sub(tc, "hp:cellSpan", (("colSpan", col_span), ("rowSpan", row_span)))
-        sub(tc, "hp:cellSz", (("width", width), ("height", height)))
-        sub(tc, "hp:cellMargin", (("left", margins[0]), ("right", margins[1]), ("top", margins[2]), ("bottom", margins[3])))
+        sub_list = sub(tc, "hp:subList", list_attrs(cell.list_props))
+        self.paragraphs(sub_list, paragraphs)
+        sub(tc, "hp:cellAddr", (("colAddr", cell.col), ("rowAddr", cell.row)))
+        sub(tc, "hp:cellSpan", (("colSpan", cell.col_span), ("rowSpan", cell.row_span)))
+        sub(tc, "hp:cellSz", (("width", cell.width), ("height", cell.height)))
+        left, right, top, bottom = cell.margins
+        sub(
+            tc,
+            "hp:cellMargin",
+            (("left", _u32(left)), ("right", _u32(right)), ("top", _u32(top)), ("bottom", _u32(bottom))),
+        )
 
 
 def lists(owner: rec.Record) -> list[tuple[rec.Record, list[rec.Record]]]:
@@ -652,6 +621,29 @@ def lists(owner: rec.Record) -> list[tuple[rec.Record, list[rec.Record]]]:
         elif record.tag == rec.PARA_HEADER and out:
             out[-1][1].append(record)
     return out
+
+
+def table_lists(
+    ctrl: rec.Record,
+) -> tuple[tuple[rec.Record, list[rec.Record]] | None, list[tuple[rec.Record, list[rec.Record]]]]:
+    """A table's caption list (before the ``TABLE`` record) and its cell lists (after it)."""
+
+    caption: tuple[rec.Record, list[rec.Record]] | None = None
+    cells: list[tuple[rec.Record, list[rec.Record]]] = []
+    seen_table = False
+    for record in ctrl.children:
+        if record.tag == rec.TABLE:
+            seen_table = True
+        elif record.tag == rec.LIST_HEADER:
+            if seen_table:
+                cells.append((record, []))
+            else:
+                caption = (record, [])
+        elif record.tag == rec.PARA_HEADER:
+            target = cells[-1] if seen_table and cells else caption
+            if target is not None:
+                target[1].append(record)
+    return caption, cells
 
 
 def _split_text(chunk: bt.Chunk, units: int) -> tuple[bt.Chunk, bt.Chunk]:
