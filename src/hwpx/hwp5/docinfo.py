@@ -712,6 +712,27 @@ class MemoShape:
 
 
 @dataclass
+class ForbiddenChars:
+    """``FORBIDDEN_CHAR``: four lists of characters kept off the start or
+    end of a line, as their lengths (u32 each) and then their characters.
+    Hancom writes four empty lists unless the document sets its own."""
+
+    words: tuple[str, str, str, str] = ("", "", "", "")
+    extra: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "ForbiddenChars":
+        c = Cursor(payload, "FORBIDDEN_CHAR")
+        lengths = [c.u32() for _ in range(4)]
+        texts = [c.raw(2 * n).decode("utf-16-le", errors="surrogatepass") for n in lengths]
+        return cls((texts[0], texts[1], texts[2], texts[3]), c.rest())
+
+    def encode(self) -> bytes:
+        units = [word.encode("utf-16-le", errors="surrogatepass") for word in self.words]
+        return struct.pack("<4I", *(len(u) // 2 for u in units)) + b"".join(units) + self.extra
+
+
+@dataclass
 class TrackChange:
     """``TRACK_CHANGE``: one tracked change: its kind (16 insertion, 17
     deletion, 19 paragraph shape), the local time it was made (year, month,

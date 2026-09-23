@@ -10,6 +10,8 @@ them, in the 5.1.1.0 layouts.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import struct
 from dataclasses import dataclass, field
 from typing import Callable, Mapping
@@ -431,6 +433,26 @@ class DocInfoResult:
     unsupported: list[str] = field(default_factory=list)
 
 
+def forbidden_chars(head: etree._Element) -> di.ForbiddenChars | None:
+    """The ``FORBIDDEN_CHAR`` record for the head's ``hh:forbiddenWordList``
+    (a space stands for an empty list); four empty lists without one. None
+    when the list does not hold four readable words."""
+
+    listing = _child(head, _HH, "forbiddenWordList")
+    if listing is None:
+        return di.ForbiddenChars()
+    words: list[str] = []
+    for word in listing.findall(f"{{{_HH}}}forbiddenWord"):
+        try:
+            text = base64.b64decode("".join((word.text or "").split()), validate=True).decode("utf-16-le")
+        except (binascii.Error, UnicodeDecodeError):
+            return None
+        words.append("" if text == " " else text)
+    if len(words) != 4:
+        return None
+    return di.ForbiddenChars((words[0], words[1], words[2], words[3]))
+
+
 def build_docinfo(
     head: etree._Element,
     *,
@@ -488,7 +510,7 @@ def build_docinfo(
         rec.Record(rec.DOCUMENT_PROPERTIES, 0, properties.encode()),
         rec.Record(rec.ID_MAPPINGS, 0, struct.pack(f"<{len(mappings)}i", *mappings)),
         *mapped,
-        rec.Record(rec.FORBIDDEN_CHAR, 1, b"\0" * 16),
+        rec.Record(rec.FORBIDDEN_CHAR, 1, (forbidden_chars(head) or di.ForbiddenChars()).encode()),
     ]
     compatible = _child(head, _HH, "compatibleDocument")
     target = index_of(TARGET_PROGRAM, compatible.get("targetProgram") if compatible is not None else None, 0)

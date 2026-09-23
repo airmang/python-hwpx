@@ -9,6 +9,7 @@ and a font id is its index within its language list.
 
 from __future__ import annotations
 
+import base64
 import struct
 from datetime import datetime, timedelta
 
@@ -568,6 +569,31 @@ def _track_changes(refs: etree._Element, changes: list[di.TrackChange], authors:
             sub(items, "hh:trackChangeAuthor", (("name", author.name), ("mark", flag(author.mark)), ("id", index)))
 
 
+def forbidden_words(info: di.DocInfo) -> tuple[str, str, str, str] | None:
+    """The document's own lists of characters kept off the start or end of a
+    line; None when it keeps Hancom's (four empty lists) or the record cannot
+    be read."""
+
+    record = _record(info, rec.FORBIDDEN_CHAR)
+    if record is None:
+        return None
+    try:
+        words = di.ForbiddenChars.decode(record.payload).words
+    except Hwp5Error:
+        return None
+    return words if any(words) else None
+
+
+def _forbidden_word_list(head: etree._Element, words: tuple[str, str, str, str]) -> None:
+    """``hh:forbiddenWordList``: each list as base64 of its UTF-16 text in
+    72-character lines, the way Hancom writes it; an empty list is a space."""
+
+    listing = sub(head, "hh:forbiddenWordList", (("itemCnt", len(words)),))
+    for word in words:
+        text = base64.b64encode((word or " ").encode("utf-16-le", errors="surrogatepass")).decode("ascii")
+        sub(listing, "hh:forbiddenWord").text = "\n".join(text[i : i + 72] for i in range(0, len(text), 72))
+
+
 def build_header(
     info: di.DocInfo,
     section_count: int,
@@ -625,6 +651,9 @@ def build_header(
     tracked = track_changes(info)
     if tracked is not None:
         _track_changes(refs, *tracked)
+    words = forbidden_words(info)
+    if words is not None:
+        _forbidden_word_list(head, words)
     target = info.compatible_target or 0
     compatible = sub(head, "hh:compatibleDocument", (("targetProgram", token(TARGET_PROGRAM, target)),))
     sub(compatible, "hh:layoutCompatibility")

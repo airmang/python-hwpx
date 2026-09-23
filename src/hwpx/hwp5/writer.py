@@ -22,7 +22,7 @@ from . import docinfo as di
 from . import records as rec
 from . import shapes as sh
 from .cfb import build_compound_file
-from .docinfo_writer import build_docinfo, set_bin_count
+from .docinfo_writer import build_docinfo, forbidden_chars, set_bin_count
 from .errors import Hwp5Error
 from .fileheader import FileHeader
 from .owpml import NS
@@ -34,7 +34,6 @@ _HA = NS["ha"]
 
 #: Header content the writer does not carry into DocInfo yet.
 _HEADER_UNSUPPORTED = (
-    ("hh", "forbiddenWordList"),
     ("hh", "trackChanges"),
     ("hh", "trackChangeAuthors"),
 )
@@ -151,6 +150,8 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
         found = len(head.findall(f".//{{{NS[prefix]}}}{name}"))
         if found:
             unsupported[f"header/{name}"] += found
+    if forbidden_chars(head) is None:
+        unsupported["header/forbiddenWordList"] += 1
     roots = [etree.fromstring(files[path]) for path in section_paths]
     # A chart with no OLE object gets a storage of its own, after the others.
     storages: dict[str, bytes] = {}

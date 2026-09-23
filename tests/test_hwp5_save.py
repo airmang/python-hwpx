@@ -635,3 +635,25 @@ def test_a_header_python_hwpx_also_keeps_in_the_section_properties_is_written_on
     assert len(heads) == 1
     reopened = HwpxDocument.open(target)
     assert ["".join(h.itertext()) for s in reopened.sections for h in s.element.iter(f"{HP}header")] == ["머리말"]
+
+
+def test_the_lists_of_characters_kept_off_line_ends_open_and_save_back() -> None:
+    words = di.ForbiddenChars(("", "", "!%),.:;?", "$([{"))
+    records = _docinfo()
+    records.insert(len(records), rec.Record(rec.FORBIDDEN_CHAR, 1, words.encode()))
+    data = cfb.build_compound_file(
+        [
+            ("FileHeader", FileHeader((5, 1, 1, 0), 1).to_bytes()),
+            ("DocInfo", rec.deflate(rec.serialize_records(records))),
+            ("BodyText/Section0", rec.deflate(rec.serialize_records(_section()))),
+        ]
+    )
+    files = convert(data).files
+    head = etree.fromstring(files["Contents/header.xml"])
+    listing = [w.text for w in head.iter("{http://www.hancom.co.kr/hwpml/2011/head}forbiddenWord")]
+    # An empty list is written as a space, as Hancom does.
+    assert listing == ["IAA=", "IAA=", "IQAlACkALAAuADoAOwA/AA==", "JAAoAFsAewA="]
+
+    written = read_hwp5(write_hwp5(files))
+    [record] = [r for r in written.docinfo.records if r.tag == rec.FORBIDDEN_CHAR]
+    assert record.payload == words.encode()
