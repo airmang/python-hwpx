@@ -54,6 +54,97 @@ def _mirrored_stories(
     ]
 
 
+def _control_page_types(section: HwpxOxmlSection, kind: str) -> list[str]:
+    return sorted(
+        story.get("applyPageType", "BOTH")
+        for story in section.element.findall(f".//{HP}ctrl/{HP}{kind}")
+    )
+
+
+def _control_text(section: HwpxOxmlSection, kind: str, page_type: str) -> str:
+    (story,) = [
+        story
+        for story in section.element.findall(f".//{HP}ctrl/{HP}{kind}")
+        if story.get("applyPageType", "BOTH") == page_type
+    ]
+    return "".join(t.text or "" for t in story.iter(f"{HP}t"))
+
+
+def test_footers_of_different_page_types_each_keep_a_hancom_control() -> None:
+    # Hancom SDK 13.60 oracle (v12-pagelayout corpus): Hancom reads stories from
+    # hp:ctrl only and drops the hp:secPr copies on save. Syncing the BOTH footer
+    # used to delete the ODD footer's control, so the ODD text vanished in Hancom.
+    section, _ = _build_section_with_sec_pr()
+    properties = section.properties
+
+    properties.set_footer_text("odd pages", page_type="ODD")
+    properties.set_footer_text("every page", page_type="BOTH")
+
+    assert _control_page_types(section, "footer") == ["BOTH", "ODD"]
+    assert _control_text(section, "footer", "ODD") == "odd pages"
+
+
+def _control_order(section: HwpxOxmlSection, kind: str) -> list[str]:
+    return [
+        story.get("applyPageType", "BOTH")
+        for story in section.element.findall(f".//{HP}ctrl/{HP}{kind}")
+    ]
+
+
+@pytest.mark.parametrize("first", ["BOTH", "ODD"])
+def test_page_specific_story_follows_the_both_story_whatever_the_call_order(first: str) -> None:
+    # Hancom SDK 13.60 oracle: on each page Hancom draws the last applicable
+    # control in document order -- with BOTH after ODD the ODD footer never
+    # showed. BOTH must come first so ODD/EVEN override it on their pages.
+    section, _ = _build_section_with_sec_pr()
+    properties = section.properties
+    second = "ODD" if first == "BOTH" else "BOTH"
+
+    properties.set_footer_text(f"{first} text", page_type=first)
+    properties.set_footer_text(f"{second} text", page_type=second)
+    properties.set_footer_text("even text", page_type="EVEN")
+
+    order = _control_order(section, "footer")
+    assert order[0] == "BOTH"
+    assert sorted(order[1:]) == ["EVEN", "ODD"]
+
+
+def test_resetting_a_page_type_replaces_only_its_own_control() -> None:
+    section, _ = _build_section_with_sec_pr()
+    properties = section.properties
+
+    properties.set_header_text("odd", page_type="ODD")
+    properties.set_header_text("even", page_type="EVEN")
+    properties.set_header_text("odd again", page_type="ODD")
+
+    assert _control_page_types(section, "header") == ["EVEN", "ODD"]
+    assert _control_text(section, "header", "ODD") == "odd again"
+
+
+def test_removing_one_page_type_keeps_the_other_controls() -> None:
+    section, _ = _build_section_with_sec_pr()
+    properties = section.properties
+    properties.set_header_text("odd", page_type="ODD")
+    properties.set_header_text("even", page_type="EVEN")
+
+    properties.remove_header(page_type="EVEN")
+
+    assert _control_page_types(section, "header") == ["ODD"]
+
+
+def test_page_number_footer_keeps_an_existing_footer_of_another_page_type() -> None:
+    # The corpus case end to end: set_footer(ODD) then set_page_number (BOTH).
+    document = HwpxDocument.new()
+    document.page.set_footer(text="담당부서 배포", page_type="ODD")
+    document.page.set_page_number(position="BOTTOM_CENTER", prefix="- ", suffix=" -")
+
+    reopened = HwpxDocument.open(document.to_bytes())
+    section = reopened.sections[0]
+
+    assert _control_order(section, "footer") == ["BOTH", "ODD"]
+    assert _control_text(section, "footer", "ODD") == "담당부서 배포"
+
+
 def test_set_header_text_creates_header_apply() -> None:
     section, sec_pr = _build_section_with_sec_pr()
     properties = section.properties
