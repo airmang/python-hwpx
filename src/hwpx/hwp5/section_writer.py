@@ -121,6 +121,17 @@ def _char(element: etree._Element | None, name: str) -> int:
     return ord(value[0]) if value else 0
 
 
+def _char_code(element: etree._Element, name: str, default: int) -> int:
+    """A character attribute given as its code (``41``) or as the character (``)``)."""
+
+    value = element.get(name)
+    if value is None:
+        return default
+    if value.isdigit():
+        return int(value) & 0xFFFF
+    return ord(value[0]) & 0xFFFF if value else 0
+
+
 def _child_text(element: etree._Element, name: str) -> str:
     child = _find(element, name)
     return "".join(child.itertext()) if child is not None else ""
@@ -635,14 +646,17 @@ class SectionRecords:
         return [rec.Record(rec.CTRL_HEADER, level, value.encode()), *self._body(element, level + 1, sized=True)]
 
     def note(self, element: etree._Element, kind: str, level: int) -> list[rec.Record]:
-        suffix = element.get("suffixChar", ")")
-        prefix = element.get("prefixChar", "")
+        # Without ``flag`` the note repeats the number format and superscript
+        # flag of the auto number inside it.
+        number_format = next(element.iter(f"{{{_HP}}}autoNumFormat"), None)
+        shape = index_of(NUMBER_FORMAT, number_format.get("type") if number_format is not None else None, 0) & 0xFF
+        shape |= _flag(number_format, "supscript") << 8
         value = ct.NoteCtrl(
             "fn  " if kind == "footNote" else "en  ",
             _int(element, "number", 1),
-            ord(prefix[0]) if prefix else 0,
-            ord(suffix[0]) if suffix else 0,
-            0,
+            _char_code(element, "prefixChar", 0),
+            _char_code(element, "suffixChar", ord(")")),
+            _int(element, "flag", shape) & 0xFFFFFFFF,
             _int(element, "instId") & 0xFFFFFFFF,
         )
         return [rec.Record(rec.CTRL_HEADER, level, value.encode()), *self._body(element, level + 1, sized=False)]

@@ -84,7 +84,7 @@ def object_attrs(common: ct.ObjectCommon) -> list[tuple[str, object]]:
     return [
         ("id", common.instance_id),
         ("zOrder", common.z_order),
-        ("numberingType", token(NUMBERING_TYPE, _bits(p, 26, 3))),
+        ("numberingType", token(NUMBERING_TYPE, _bits(p, 26, 2))),  # bit 28 has no OWPML form
         ("textWrap", token(TEXT_WRAP, _bits(p, 21, 3))),
         ("textFlow", token(TEXT_FLOW, _bits(p, 24, 2))),
         ("lock", flag(p & (1 << 30))),
@@ -880,10 +880,13 @@ class SectionWriter:
     def note(self, run: etree._Element, ctrl: rec.Record, kind: str) -> etree._Element:
         nc = ct.NoteCtrl.decode(ctrl.payload)
         wrapper = sub(run, "hp:ctrl")
-        attrs: list[tuple[str, object]] = [("number", nc.number)]
+        # Hancom writes the note's characters as codes, and its number shape
+        # word as ``flag`` when it is not zero.
+        attrs: list[tuple[str, object]] = [("flag", nc.reserved)] if nc.reserved else []
+        attrs.append(("number", nc.number))
         if nc.prefix_char:
-            attrs.append(("prefixChar", chr(nc.prefix_char)))
-        attrs += [("suffixChar", chr(nc.suffix_char) if nc.suffix_char else ""), ("instId", nc.instance_id)]
+            attrs.append(("prefixChar", nc.prefix_char))
+        attrs += [("suffixChar", nc.suffix_char), ("instId", nc.instance_id)]
         element = sub(wrapper, "hp:footNote" if kind == "fn  " else "hp:endNote", attrs)
         self.body(element, ctrl)
         return wrapper

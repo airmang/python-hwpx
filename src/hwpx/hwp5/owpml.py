@@ -79,14 +79,17 @@ NO_COLOR = 0xFFFFFFFF
 
 
 def color(value: int | None) -> str:
-    """COLORREF (0xAABBGGRR) as ``#RRGGBB``, ``#AARRGGBB`` with a non-zero top byte,
-    and ``none`` for ``0xFFFFFFFF``."""
+    """COLORREF (0xAABBGGRR) as ``#RRGGBB``, and ``none`` for ``0xFFFFFFFF``.
+
+    With a non-zero top byte the value is ARGB in hex without leading zeros,
+    as Hancom writes it (``#A10FCA0`` for alpha 0x0A).
+    """
 
     if value is None or value == NO_COLOR:
         return "none"
-    rgb = f"{value & 0xFF:02X}{(value >> 8) & 0xFF:02X}{(value >> 16) & 0xFF:02X}"
+    rgb = (value & 0xFF) << 16 | (value & 0xFF00) | (value >> 16) & 0xFF
     alpha = (value >> 24) & 0xFF
-    return f"#{alpha:02X}{rgb}" if alpha else f"#{rgb}"
+    return f"#{alpha << 24 | rgb:X}" if alpha else f"#{rgb:06X}"
 
 
 def colorref(text: str | None) -> int:
@@ -96,9 +99,9 @@ def colorref(text: str | None) -> int:
         return NO_COLOR
     digits = text[1:]
     alpha = 0
-    if len(digits) == 8:
+    if len(digits) in (7, 8):
         try:
-            alpha, digits = int(digits[:2], 16), digits[2:]
+            alpha, digits = int(digits[:-6], 16), digits[-6:]
         except ValueError:
             return NO_COLOR
     if len(digits) != 6:
