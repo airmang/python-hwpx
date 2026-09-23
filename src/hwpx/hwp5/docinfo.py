@@ -654,6 +654,10 @@ class Bullet:
 
 @dataclass
 class Style:
+    """``STYLE``: the names, kind and next style, the language (16 bits,
+    which OWPML writes unsigned), the paragraph and character shapes and the
+    form lock."""
+
     name: str = ""
     eng_name: str = ""
     props: int = 0
@@ -667,14 +671,14 @@ class Style:
     @classmethod
     def decode(cls, payload: bytes) -> "Style":
         c = Cursor(payload, "STYLE")
-        style = cls(c.wstr(), c.wstr(), c.u8(), c.u8(), c.i16(), c.u16(), c.u16())
+        style = cls(c.wstr(), c.wstr(), c.u8(), c.u8(), c.u16(), c.u16(), c.u16())
         style.lock_form = c.u16() if c.left >= 2 else None
         style.extra = c.rest()
         return style
 
     def encode(self) -> bytes:
         b = Builder().wstr(self.name).wstr(self.eng_name).u8(self.props).u8(self.next_id)
-        b.i16(self.lang_id).u16(self.para_shape_id).u16(self.char_shape_id)
+        b.u16(self.lang_id & 0xFFFF).u16(self.para_shape_id).u16(self.char_shape_id)
         if self.lock_form is not None:
             b.u16(self.lock_form)
         return b.raw(self.extra).bytes()

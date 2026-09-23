@@ -657,3 +657,22 @@ def test_the_lists_of_characters_kept_off_line_ends_open_and_save_back() -> None
     written = read_hwp5(write_hwp5(files))
     [record] = [r for r in written.docinfo.records if r.tag == rec.FORBIDDEN_CHAR]
     assert record.payload == words.encode()
+
+
+def test_a_style_language_past_the_signed_range_opens_unsigned_and_saves_back() -> None:
+    records = _docinfo()
+    index = next(i for i, r in enumerate(records) if r.tag == rec.STYLE)
+    records[index] = rec.Record(rec.STYLE, 1, di.Style("바탕글", "Normal", lang_id=0x8C00).encode())
+    data = cfb.build_compound_file(
+        [
+            ("FileHeader", FileHeader((5, 1, 1, 0), 1).to_bytes()),
+            ("DocInfo", rec.deflate(rec.serialize_records(records))),
+            ("BodyText/Section0", rec.deflate(rec.serialize_records(_section()))),
+        ]
+    )
+    files = convert(data).files
+    [style] = etree.fromstring(files["Contents/header.xml"]).iter("{http://www.hancom.co.kr/hwpml/2011/head}style")
+    assert style.get("langID") == "35840"
+
+    written = read_hwp5(write_hwp5(files))
+    assert [s.lang_id for s in di.decode_docinfo(written.docinfo).styles] == [0x8C00]
