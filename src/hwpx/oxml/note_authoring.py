@@ -27,8 +27,8 @@ from ._document_primitives import (
     _append_child,
     _default_sublist_attributes,
     _object_id,
-    _sanitize_text,
 )
+from ._paragraph_text_edit import set_text_with_tabs
 from .memo import HwpxOxmlNote
 
 if TYPE_CHECKING:
@@ -149,8 +149,7 @@ def _paragraph_add_note(
         f"{_HP}autoNumFormat",
         {"type": "DIGIT", "userChar": "", "prefixChar": "", "suffixChar": suffix, "supscript": "0"},
     )
-    t = _append_child(note_run, f"{_HP}t", {})
-    t.text = _sanitize_text(text)
+    set_text_with_tabs(_append_child(note_run, f"{_HP}t", {}), text)
     self.section.mark_dirty()
     return HwpxOxmlNote(note_element, self)
 

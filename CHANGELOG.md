@@ -22,6 +22,11 @@
 
 ### 고침
 
+- 머리말·꼬리말 글(`page.set_header(text=...)`·`set_footer(text=...)`, 머리말·꼬리말
+  객체의 `text`와 `add_run()`)과 각주·미주 글(`notes.add_footnote()` 등, 주석 객체의
+  `text`)이 탭을 지우던 것을 고친다. 이제 탭을 `hp:t` 안의 `hp:tab`으로 쓴다
+  (`page.set_header(text="학교명\t날짜")`). 두 `text`는 `hp:t` 안 요소 뒤의 글과 탭까지
+  읽는다. 머리말·꼬리말의 `set_simple_text_preserving()`은 전처럼 탭을 받지 않는다.
 - 셀의 `set_text()`(`Table.set_cell_text()`)와 `run.text = ...`가 옛 글 일부를 남기던 것을
   고친다. 한컴이 쓴 셀과 run에는 `hp:t` 안에 줄바꿈·탭·공백 요소와 형광펜 표시가 있고,
   그 뒤에도 글이 있다. 두 설정자는 `hp:t`의 앞 글만 바꿔서 요소와 그 뒤 옛 글이 새 값

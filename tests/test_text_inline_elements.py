@@ -8,9 +8,11 @@ only ``hp:t``'s own text returned "성" and lost the rest.
 from __future__ import annotations
 
 import io
+import re
 import zipfile
 
 import pytest
+from lxml import etree
 
 from hwpx import HwpxDocument
 from hwpx.tools.markdown_export import export_markdown
@@ -132,3 +134,47 @@ def test_split_cell_text_keeps_a_tab() -> None:
     table.set_cell_text(0, 0, "가\t나\n다", split_paragraphs=True)
 
     assert [paragraph.text for paragraph in table.cell(0, 0).paragraphs] == ["가\t나", "다"]
+
+
+# Header, footer and note text: a tab is written as an hp:tab inside hp:t and
+# read back as a tab, like body text.
+def _section_texts(data: bytes) -> list[str]:
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        section = archive.read("Contents/section0.xml").decode("utf-8")
+    return re.findall(r"<hp:t(?:\s[^>]*)?>(.*?)</hp:t>", section, re.S)
+
+
+def test_header_and_footer_text_keep_a_tab() -> None:
+    doc = HwpxDocument.new()
+    doc.page.set_header(text="학교명\t날짜")
+    doc.page.set_footer(text="쪽\t끝")
+    data = doc.to_bytes()
+
+    texts = _section_texts(data)
+    assert "학교명<hp:tab/>날짜" in texts
+    assert "쪽<hp:tab/>끝" in texts
+    assert not [text for text in texts if "\t" in text]
+    properties = HwpxDocument.open(data).sections[0].properties
+    assert properties.get_header().text == "학교명\t날짜"
+    assert properties.get_footer().text == "쪽\t끝"
+
+
+def test_note_text_keeps_a_tab() -> None:
+    doc = HwpxDocument.new()
+    note = doc.notes.add_footnote("각주\t탭", doc.add_paragraph("본문"))
+    assert note.text == "각주\t탭"
+    note.text = "바뀐\t각주"
+    data = doc.to_bytes()
+
+    assert "바뀐<hp:tab/>각주" in _section_texts(data)
+    assert not [text for text in _section_texts(data) if "\t" in text]
+
+
+def test_header_text_reads_what_follows_inline_elements() -> None:
+    doc = HwpxDocument.new()
+    header = doc.sections[0].properties.set_header_text("성명")
+    text = next(header.element.iter("{http://www.hancom.co.kr/hwpml/2011/paragraph}t"))
+    text.text = "성"
+    space = etree.SubElement(text, "{http://www.hancom.co.kr/hwpml/2011/paragraph}fwSpace")
+    space.tail = "명"
+    assert header.text == "성　명"
