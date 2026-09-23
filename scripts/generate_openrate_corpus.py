@@ -1168,7 +1168,8 @@ def gen_authored_toc(out_dir: Path, n: int = AUTHORED_TOC_N) -> tuple[list[dict[
                             f"{title}에 대한 상세 설명 문장입니다. 본문 내용이 이어집니다. " * body_reps,
                             style_id_ref="1", para_pr_id_ref=1,
                         )
-                summary = toc_author.add_native_toc(doc, headings=headings, hyperlink=False)
+                # The headings are outline paragraphs, so Hancom's regeneration keeps them.
+                summary = toc_author.add_native_toc(doc, headings=headings, hyperlink=False, dirty=True)
                 doc.save_to_path(out_path)
                 if out_path.exists():
                     produced = True

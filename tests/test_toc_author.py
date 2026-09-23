@@ -170,21 +170,36 @@ def test_emitted_fields_survive_structural_roundtrip():
 
 
 def test_native_toc_dirty_default_and_mark_toc_dirty():
-    """dirty=1 is the measured re-number trigger (Hancom regenerates the region
-    on open); authored TOCs default to it, and mark_toc_dirty re-arms it."""
+    """dirty=1 makes Hancom regenerate the region on open, from the paragraphs
+    it collects. A TOC from auto-detected outline headings defaults to it; one
+    from explicit headings defaults to dirty=0 so Hancom keeps its entries;
+    mark_toc_dirty re-arms it."""
 
     _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
+    def toc_dirties(doc):
+        return [
+            fb.get("dirty")
+            for sec in doc.oxml.sections
+            for fb in sec.element.iter(f"{_HP}fieldBegin")
+            if fb.get("type") == "TABLEOFCONTENTS"
+        ]
+
     def toc_dirty(doc):
-        for sec in doc.oxml.sections:
-            for fb in sec.element.iter(f"{_HP}fieldBegin"):
-                if fb.get("type") == "TABLEOFCONTENTS":
-                    return fb.get("dirty")
-        return None
+        found = toc_dirties(doc)
+        return found[0] if found else None
+
+    outline_doc = HwpxDocument.open(GOLD_A)
+    ta.add_native_toc(outline_doc, at_index=1)
+    assert "1" in toc_dirties(outline_doc)  # auto-detected: first Hancom open recomputes
 
     doc, headings = _doc_with_headings(2)
     ta.add_native_toc(doc, headings=headings)
-    assert toc_dirty(doc) == "1"  # default: first Hancom open recomputes
+    assert toc_dirty(doc) == "0"  # explicit headings: Hancom keeps the entries
+
+    doc3, headings3 = _doc_with_headings(2)
+    ta.add_native_toc(doc3, headings=headings3, dirty=True)
+    assert toc_dirty(doc3) == "1"
 
     doc2, headings2 = _doc_with_headings(2)
     ta.add_native_toc(doc2, headings=headings2, dirty=False)
