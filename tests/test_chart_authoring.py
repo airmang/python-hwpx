@@ -5,6 +5,7 @@ import zipfile
 from pathlib import Path
 
 from hwpx import HwpxDocument
+from hwpx.errors import HwpxValueError
 from hwpx.tools.package_validator import validate_editor_open_safety
 
 import pytest
@@ -30,6 +31,30 @@ PIE_CHARTML = (
     "</c:numCache></c:numRef></c:val></c:ser></c:pieChart>"
     "</c:plotArea></c:chart></c:chartSpace>"
 )
+
+
+SERIES = (
+    '<c:ser><c:idx val="0"/><c:order val="0"/>'
+    '<c:cat><c:strRef><c:f>Sheet1!$A$2:$A$3</c:f><c:strCache><c:ptCount val="2"/>'
+    '<c:pt idx="0"><c:v>A</c:v></c:pt><c:pt idx="1"><c:v>B</c:v></c:pt></c:strCache></c:strRef></c:cat>'
+    '<c:val><c:numRef><c:f>Sheet1!$B$2:$B$3</c:f><c:numCache><c:formatCode>General</c:formatCode>'
+    '<c:ptCount val="2"/><c:pt idx="0"><c:v>60</c:v></c:pt><c:pt idx="1"><c:v>40</c:v></c:pt>'
+    "</c:numCache></c:numRef></c:val></c:ser>"
+)
+AX_IDS = '<c:axId val="111"/><c:axId val="222"/>'
+AXES = (
+    '<c:catAx><c:axId val="111"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
+    '<c:delete val="0"/><c:axPos val="b"/><c:crossAx val="222"/></c:catAx>'
+    '<c:valAx><c:axId val="222"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
+    '<c:delete val="0"/><c:axPos val="l"/><c:crossAx val="111"/></c:valAx>'
+)
+
+
+def _line_chartml(ax_ids: str = "", axes: str = "") -> str:
+    return (
+        CHART_HEAD + '<c:lineChart><c:grouping val="standard"/>' + SERIES + ax_ids + "</c:lineChart>"
+        + axes + "</c:plotArea></c:chart></c:chartSpace>"
+    )
 
 
 def _roundtrip(doc: HwpxDocument) -> tuple[HwpxDocument, bytes]:
@@ -170,3 +195,39 @@ class TestValidation:
         doc = HwpxDocument.new()
         with pytest.raises(ValueError, match="chartSpace"):
             doc.add_chart("<not-a-chart/>")
+
+    # Hancom SDK 13.60 oracle: an axis-less line chart crashes the engine's
+    # page render and every save; the same chart with c:catAx/c:valAx renders.
+    def test_line_chart_without_axes_rejected_before_any_write(self) -> None:
+        doc = HwpxDocument.new()
+        with pytest.raises(HwpxValueError) as caught:
+            doc.add_chart(_line_chartml())
+        assert caught.value.code == "shape-chart-line-axes-missing"
+        assert caught.value.suggestion
+        assert _anchors(doc) == []
+        buffer = io.BytesIO()
+        doc.save_to_stream(buffer)
+        with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
+            assert not [n for n in package.namelist() if n.startswith("Chart/")]
+
+    def test_line_chart_naming_undefined_axes_rejected(self) -> None:
+        doc = HwpxDocument.new()
+        with pytest.raises(HwpxValueError) as caught:
+            doc.add_chart(_line_chartml(ax_ids=AX_IDS))
+        assert caught.value.code == "shape-chart-line-axes-missing"
+        assert caught.value.context["axIds"] == ["111", "222"]
+
+    def test_line_chart_with_axes_accepted(self) -> None:
+        doc = HwpxDocument.new()
+        doc.add_chart(_line_chartml(ax_ids=AX_IDS, axes=AXES))
+        assert len(_anchors(doc)) == 1
+
+    def test_bar_chart_without_axes_still_accepted(self) -> None:
+        # Hancom renders an axis-less bar chart, so the check stays on line charts.
+        bar = (
+            CHART_HEAD + '<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/>' + SERIES
+            + "</c:barChart></c:plotArea></c:chart></c:chartSpace>"
+        )
+        doc = HwpxDocument.new()
+        doc.add_chart(bar)
+        assert len(_anchors(doc)) == 1
