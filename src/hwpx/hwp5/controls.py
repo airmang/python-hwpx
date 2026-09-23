@@ -792,3 +792,41 @@ class Dutmal:
     def encode(self) -> bytes:
         b = Builder().u32(bt.ctrl_word("tdut")).wstr(self.main_text).wstr(self.sub_text).u32(self.position)
         return b.u32(self.size_ratio).u32(self.option).u32(self.style_id).u32(self.align).raw(self.extra).bytes()
+
+
+#: What Hancom writes for an equation whose record leaves these out.
+EQUATION_VERSION = "Equation Version 60"
+EQUATION_FONT = "HYhwpEQ"
+
+
+@dataclass
+class EquationEdit:
+    """``EQEDIT``: properties (bit 0: line mode), the script, the base unit
+    (character size), colour, baseline, then the version and the font, which
+    older records leave out."""
+
+    props: int = 0
+    script: str = ""
+    base_unit: int = 1000
+    color: int = 0
+    baseline: int = 0
+    version: str | None = EQUATION_VERSION
+    font: str | None = EQUATION_FONT
+    extra: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "EquationEdit":
+        c = Cursor(payload, "EQEDIT")
+        value = cls(c.u32(), c.wstr(), c.u32(), c.u32(), c.i32())
+        value.version = c.wstr() if c.left >= 2 else None
+        value.font = c.wstr() if value.version is not None and c.left >= 2 else None
+        value.extra = c.rest()
+        return value
+
+    def encode(self) -> bytes:
+        b = Builder().u32(self.props).wstr(self.script).u32(self.base_unit).u32(self.color).i32(self.baseline)
+        if self.version is not None:
+            b.wstr(self.version)
+            if self.font is not None:
+                b.wstr(self.font)
+        return b.raw(self.extra).bytes()

@@ -364,6 +364,10 @@ class SectionRecords:
                     units += _extended(11, "gso ")
                     codes.add(11)
                     controls.append(self.drawing(child, level + 1))
+                elif name == "equation":
+                    units += _extended(11, "eqed")
+                    codes.add(11)
+                    controls.append(self.equation(child, level + 1))
                 else:
                     self.unsupported[name] += 1
         if not shapes:
@@ -641,6 +645,22 @@ class SectionRecords:
             index_of(DUTMAL_ALIGN, element.get("align"), 0),
         )
         return [rec.Record(rec.CTRL_HEADER, level, value.encode())]
+
+    def equation(self, element: etree._Element, level: int) -> list[rec.Record]:
+        common = _object_common("eqed", element)
+        comment = _find(element, "shapeComment")
+        common.description = "".join(comment.itertext()) if comment is not None else ""
+        script = _find(element, "script")
+        equation = ct.EquationEdit(
+            1 if element.get("lineMode") == "LINE" else 0,
+            "".join(script.itertext()) if script is not None else "",
+            _int(element, "baseUnit", 1000),
+            colorref(element.get("textColor", "#000000")),
+            _i32(_int(element, "baseLine")),
+            element.get("version") or ct.EQUATION_VERSION,
+            element.get("font") or ct.EQUATION_FONT,
+        )
+        return [rec.Record(rec.CTRL_HEADER, level, common.encode()), rec.Record(rec.EQEDIT, level + 1, equation.encode())]
 
     # drawing objects -----------------------------------------------------------------
 

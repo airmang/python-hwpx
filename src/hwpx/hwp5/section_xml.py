@@ -687,6 +687,8 @@ class SectionWriter(ShapeReader):
             return self.dutmal(run, ctrl)
         if kind == "gso ":
             return self.drawing(run, ctrl)
+        if kind == "eqed":
+            return self.equation(run, ctrl)
         self.report.skip(f"control-{kind.strip() or kind}")
         return None
 
@@ -736,6 +738,38 @@ class SectionWriter(ShapeReader):
             if mark.second:
                 sub(element, "hp:secondKey").text = xml_text(mark.second)
         return wrapper
+
+    def equation(self, run: etree._Element, ctrl: rec.Record) -> etree._Element | None:
+        """``hp:equation``: the object layout, its comment and the script."""
+
+        record = next((c for c in ctrl.children if c.tag == rec.EQEDIT), None)
+        if record is None:
+            self.report.skip("control-eqed")
+            return None
+        for child in ctrl.children:
+            if child.tag == rec.LIST_HEADER:
+                self.report.skip("equation-caption")
+        common = ct.ObjectCommon.decode(ctrl.payload)
+        eq = ct.EquationEdit.decode(record.payload)
+        element = sub(
+            run,
+            "hp:equation",
+            object_attrs(common)
+            + [
+                ("version", eq.version or ct.EQUATION_VERSION),
+                ("baseLine", eq.baseline),
+                ("textColor", color(eq.color)),
+                ("baseUnit", eq.base_unit),
+                ("lineMode", "LINE" if eq.props & 0x1 else "CHAR"),
+                ("font", eq.font or ct.EQUATION_FONT),
+            ],
+        )
+        object_layout(element, common)
+        if common.description:
+            sub(element, "hp:shapeComment").text = xml_text(common.description)
+        # Hancom's HWPX leaves the carriage returns of a script out.
+        sub(element, "hp:script").text = xml_text(eq.script.replace("\r", ""))
+        return element
 
     def dutmal(self, run: etree._Element, ctrl: rec.Record) -> etree._Element:
         """``hp:dutmal``: text with a smaller text set above or below it."""
