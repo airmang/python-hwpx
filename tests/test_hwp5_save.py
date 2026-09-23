@@ -231,3 +231,36 @@ def test_a_memo_made_with_the_api_saves_as_hwp_with_its_body(tmp_path: Path) -> 
     params = {p.get("name"): p.text or "" for p in memo.find(f"{HP}parameters")}
     assert params["Author"] == "검토자"
     assert "".join(memo.find(f"{HP}subList").itertext()) == "검토 의견"
+
+
+def _merged_table(covered_text: str) -> str:
+    cells = []
+    for col, span, width, text in ((0, 2, 14400, "합친 칸"), (1, 1, 0, covered_text), (2, 1, 7200, "셋째")):
+        cells.append(
+            f'<hp:tc><hp:subList><hp:p><hp:run><hp:t>{text}</hp:t></hp:run></hp:p></hp:subList>'
+            f'<hp:cellAddr colAddr="{col}" rowAddr="0"/><hp:cellSpan colSpan="{span}" rowSpan="1"/>'
+            f'<hp:cellSz width="{width}" height="{3600 if width else 0}"/></hp:tc>'
+        )
+    return (
+        '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"'
+        ' xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"><hp:p><hp:run>'
+        f'<hp:tbl rowCnt="1" colCnt="3"><hp:tr>{"".join(cells)}</hp:tr></hp:tbl>'
+        "</hp:run></hp:p></hs:sec>"
+    )
+
+
+def test_an_empty_cell_under_another_cells_span_is_left_out() -> None:
+    from lxml import etree
+
+    from hwpx.hwp5.section_writer import build_section_records
+
+    records, unsupported = build_section_records(etree.fromstring(_merged_table("")))
+    assert unsupported == {}
+    [table] = [r for r in records if r.tag == rec.TABLE]
+    assert struct.unpack_from("<HHH", table.payload, 4)[:2] == (1, 3)
+    assert struct.unpack_from("<H", table.payload, 18)[0] == 2
+    cells = [ct.CellHeader.decode(r.payload) for r in records if r.tag == rec.LIST_HEADER]
+    assert [(c.col, c.col_span) for c in cells] == [(0, 2), (2, 1)]
+
+    _, unsupported = build_section_records(etree.fromstring(_merged_table("가려진 글")))
+    assert unsupported == {"tc/covered": 1}

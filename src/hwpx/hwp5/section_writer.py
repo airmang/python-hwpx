@@ -225,6 +225,15 @@ def _child_text(element: etree._Element, name: str) -> str:
     return "".join(child.itertext()) if child is not None else ""
 
 
+def _has_content(cell: etree._Element) -> bool:
+    """Whether a cell holds text or anything else than empty paragraphs."""
+
+    for run in cell.iter(f"{{{_HP}}}run"):
+        for child in run:
+            if isinstance(child.tag, str) and (_local(child) != "t" or child.text or len(child)):
+                return True
+    return False
+
 
 def _extended(code: int, ctrl: str) -> bytes:
     return struct.pack("<HI", code, bt.ctrl_word(ctrl)) + bytes(8) + struct.pack("<H", code)
@@ -1128,21 +1137,52 @@ class SectionRecords:
                 )
         props = index_of(TABLE_PAGE_BREAK, element.get("pageBreak"), 0)
         props |= _flag(element, "repeatHeader") << 2 | _flag(element, "noAdjust") << 3
+        row_count, col_count = _int(element, "rowCnt", len(rows)), _int(element, "colCnt", 1)
+        cells = self.visible_cells([[tc for tc in tr if _local(tc) == "tc"] for tr in rows], row_count, col_count)
         table = ct.TableProps(
             props,
-            _int(element, "rowCnt", len(rows)),
-            _int(element, "colCnt", 1),
+            row_count,
+            col_count,
             _int(element, "cellSpacing"),
             tuple(_int(inner, side, default) for side, default in (("left", 510), ("right", 510), ("top", 141), ("bottom", 141))),  # type: ignore[arg-type]
-            [len([tc for tc in tr if _local(tc) == "tc"]) for tr in rows],
+            [len(row) for row in cells],
             _int(element, "borderFillIDRef", 1),
             zones,
         )
         out.append(rec.Record(rec.TABLE, level + 1, table.encode()))
-        for tr in rows:
-            for tc in tr:
-                if _local(tc) == "tc":
-                    out.extend(self.cell(tc, level + 1))
+        for row in cells:
+            for tc in row:
+                out.extend(self.cell(tc, level + 1))
+        return out
+
+    def visible_cells(self, rows: list[list[etree._Element]], row_count: int, col_count: int) -> list[list[etree._Element]]:
+        """Each row's cells without those lying under another cell's span.
+        HWP keeps no such cell: Hancom writes one it is given but then reads
+        the table as a single cell. An empty one is left out; one with
+        content is unsupported."""
+
+        owner: dict[tuple[int, int], etree._Element] = {}
+        for row in rows:
+            for tc in row:
+                addr, span = _find(tc, "cellAddr"), _find(tc, "cellSpan")
+                col, line = _int(addr, "colAddr"), _int(addr, "rowAddr")
+                last_line = min(line + max(_int(span, "rowSpan", 1), 1), max(row_count, line + 1))
+                last_col = min(col + max(_int(span, "colSpan", 1), 1), max(col_count, col + 1))
+                for r in range(line, last_line):
+                    for c in range(col, last_col):
+                        if (r, c) != (line, col):
+                            owner.setdefault((r, c), tc)
+        out: list[list[etree._Element]] = []
+        for row in rows:
+            kept = []
+            for tc in row:
+                addr = _find(tc, "cellAddr")
+                cover = owner.get((_int(addr, "rowAddr"), _int(addr, "colAddr")))
+                if cover is None or cover is tc:
+                    kept.append(tc)
+                elif _has_content(tc):
+                    self.unsupported["tc/covered"] += 1
+            out.append(kept)
         return out
 
     def caption(self, element: etree._Element, level: int) -> list[rec.Record]:
