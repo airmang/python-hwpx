@@ -457,19 +457,38 @@ COMPOSE_CIRCLE = (
 COMPOSE_TYPE = ("SPREAD", "OVERLAP")
 #: The glyph an overlapped character's text starts with for its frame (by
 #: circle type); Hancom's composeText leaves it out, the frame being circleType.
-COMPOSE_FRAME_GLYPH = {0: "　", 1: "◯", 2: "●", 3: "□", 6: "▲", 8: "◇"}
-#: Framed digits Hancom spells as plain digits in composeText, by circle type:
-#: circled 1-9, and its own glyphs for circled tens and units, boxed and
-#: reversed boxed digits (only the code points seen in its output).
-COMPOSE_FRAMED_DIGITS: dict[int, dict[int, str]] = {
-    1: {
-        **{0x2460 + n - 1: str(n) for n in range(1, 10)},
-        **{0xF0289 + n - 1: str(n) for n in range(1, 5)},
-        **{0xF0292 + n: str(n) for n in range(10)},
-    },
-    3: {0xF02B1 + n - 1: str(n) for n in range(1, 8)},
-    4: {0xF02CE: "1", 0xF02CF: "2"},
+COMPOSE_FRAME_GLYPH = {
+    0: "\u3000",
+    1: "\u25ef",
+    2: "\u25cf",
+    3: "\u25a1",
+    4: "\u25a0",
+    5: "\u25b3",
+    6: "\u25b2",
+    7: "\u263c",
+    8: "\u25c7",
+    9: "\u25c6",
+    10: "\u25a2",
+    11: "\u2672",
+    12: "\u267a",
+    13: "\u267b",
 }
+#: Hancom's glyphs that stand for a digit and its frame together, by circle
+#: type, and in a circle the tens and units glyphs of a two-digit number (only
+#: the code points seen in its files).
+COMPOSE_DIGIT_GLYPHS: dict[int, dict[int, str]] = {
+    1: {n: chr(0x2460 + n - 1) for n in range(1, 10)},
+    3: {n: chr(0xF02B1 + n - 1) for n in range(1, 8)},
+    4: {n: chr(0xF02CE + n - 1) for n in range(1, 3)},
+}
+COMPOSE_TENS_GLYPHS = {n: chr(0xF0289 + n - 1) for n in range(1, 5)}
+COMPOSE_UNITS_GLYPHS = {n: chr(0xF0292 + n) for n in range(10)}
+#: composeText spells those glyphs as plain digits.
+COMPOSE_FRAMED_DIGITS: dict[int, dict[int, str]] = {
+    circle: {ord(glyph): str(n) for n, glyph in glyphs.items()} for circle, glyphs in COMPOSE_DIGIT_GLYPHS.items()
+}
+COMPOSE_FRAMED_DIGITS[1].update({ord(glyph): str(n) for n, glyph in COMPOSE_TENS_GLYPHS.items()})
+COMPOSE_FRAMED_DIGITS[1].update({ord(glyph): str(n) for n, glyph in COMPOSE_UNITS_GLYPHS.items()})
 #: Controls written as one element inside ``hp:ctrl``.
 MARKERS = {
     "pgnp": "pageNum",

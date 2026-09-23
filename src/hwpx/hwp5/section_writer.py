@@ -43,8 +43,11 @@ from .section_xml import (
     COL_LAYOUT,
     COL_TYPE,
     COMPOSE_CIRCLE,
+    COMPOSE_DIGIT_GLYPHS,
     COMPOSE_FRAME_GLYPH,
+    COMPOSE_TENS_GLYPHS,
     COMPOSE_TYPE,
+    COMPOSE_UNITS_GLYPHS,
     DUTMAL_ALIGN,
     DUTMAL_POS,
     ENDNOTE_PLACE,
@@ -223,6 +226,20 @@ def _char_code(element: etree._Element, name: str, default: int) -> int:
 def _child_text(element: etree._Element, name: str) -> str:
     child = _find(element, name)
     return "".join(child.itertext()) if child is not None else ""
+
+
+def _compose_text(circle: int, text: str) -> str:
+    """The record text of overlapped characters: Hancom's glyph for a digit (or
+    in a circle a two-digit number) in this frame where it has one, else the
+    frame's glyph and the characters."""
+
+    if text.isascii() and text.isdigit():
+        glyph = COMPOSE_DIGIT_GLYPHS.get(circle, {}).get(int(text)) if len(text) == 1 else None
+        if glyph is not None:
+            return glyph
+        if circle == 1 and len(text) == 2 and int(text[0]) in COMPOSE_TENS_GLYPHS:
+            return COMPOSE_TENS_GLYPHS[int(text[0])] + COMPOSE_UNITS_GLYPHS[int(text[1])]
+    return COMPOSE_FRAME_GLYPH[circle] + text
 
 
 def _has_content(cell: etree._Element) -> bool:
@@ -785,23 +802,20 @@ class SectionRecords:
         return [rec.Record(rec.CTRL_HEADER, level, value.encode())]
 
     def compose(self, element: etree._Element, level: int) -> list[rec.Record] | None:
-        """Overlapped characters. The text starts with the frame's glyph, as
-        Hancom writes it (with no frame, a lone character gets an ideographic
-        space in front). A frame whose glyph is not known, or a size step or
-        place count the record cannot hold, is unsupported."""
+        """Overlapped characters, written as Hancom writes them: the size step
+        -4 and ten char shape places unless given, the text behind its
+        frame's glyph, or a digit in a frame as Hancom's glyph for both. A
+        frame, size step or place count the record cannot hold is unsupported."""
 
         circle = index_of(COMPOSE_CIRCLE, element.get("circleType", "SHAPE_CIRCLE"), -1)
         kind = index_of(COMPOSE_TYPE, element.get("composeType", "SPREAD"), -1)
-        size = _int(element, "charSz")
+        size = _int(element, "charSz", -4)
         shapes = [_int(item, "prIDRef", ct.NO_CHAR_SHAPE) & 0xFFFFFFFF for item in element.findall(f"{{{_HP}}}charPr")]
-        glyph = COMPOSE_FRAME_GLYPH.get(circle)
-        if glyph is None or kind < 0 or not -128 <= size <= 127 or len(shapes) > 255:
+        shapes += [ct.NO_CHAR_SHAPE] * (10 - len(shapes))
+        if circle < 0 or kind < 0 or not -128 <= size <= 127 or len(shapes) > 255:
             self.unsupported["compose"] += 1
             return None
-        text = element.get("composeText", "")
-        if circle != 0 or len(text) == 1:
-            text = glyph + text
-        value = ct.Compose(text, circle, size, kind, shapes)
+        value = ct.Compose(_compose_text(circle, element.get("composeText", "")), circle, size, kind, shapes)
         return [rec.Record(rec.CTRL_HEADER, level, value.encode())]
 
     def equation(self, element: etree._Element, level: int) -> list[rec.Record]:

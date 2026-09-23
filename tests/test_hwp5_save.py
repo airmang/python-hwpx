@@ -215,7 +215,8 @@ def test_overlapped_characters_the_record_cannot_hold_are_refused() -> None:
     assert unsupported == {"compose": 2}
     [compose] = [r for r in records if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "tcps"]
     value = ct.Compose.decode(compose.payload)
-    assert (value.text, value.circle, value.kind, value.char_shapes) == ("◯다", 1, 0, [0])
+    assert (value.text, value.circle, value.kind, value.size) == ("\u25ef다", 1, 0, -4)
+    assert value.char_shapes == [0] + [ct.NO_CHAR_SHAPE] * 9
 
 
 def test_a_memo_made_with_the_api_saves_as_hwp_with_its_body(tmp_path: Path) -> None:
@@ -264,3 +265,30 @@ def test_an_empty_cell_under_another_cells_span_is_left_out() -> None:
 
     _, unsupported = build_section_records(etree.fromstring(_merged_table("가려진 글")))
     assert unsupported == {"tc/covered": 1}
+
+
+@pytest.mark.parametrize(
+    ("circle", "text", "record"),
+    [
+        ("CHAR", "가나", "\u3000가나"),
+        ("SHAPE_LIGHT", "가", "\u263c가"),
+        ("SHAPE_CIRCLE", "1", "\u2460"),
+        ("SHAPE_CIRCLE", "12", "\U000f0289\U000f0294"),
+        ("SHAPE_RECTANGLE", "3", "\U000f02b3"),
+        ("SHAPE_CIRCLE", "77", "\u25ef77"),
+    ],
+)
+def test_overlapped_characters_are_written_behind_their_frame(circle: str, text: str, record: str) -> None:
+    from lxml import etree
+
+    from hwpx.hwp5.section_writer import build_section_records
+
+    section = etree.fromstring(
+        '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"'
+        ' xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"><hp:p><hp:run>'
+        f'<hp:compose circleType="{circle}" composeText="{text}"/></hp:run></hp:p></hs:sec>'
+    )
+    records, unsupported = build_section_records(section)
+    assert unsupported == {}
+    [compose] = [r for r in records if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "tcps"]
+    assert ct.Compose.decode(compose.payload).text == record

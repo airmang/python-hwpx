@@ -198,7 +198,7 @@ def _compose() -> list[rec.Record]:
     record's text starts with the rectangle's glyph."""
 
     text = "앞".encode("utf-16-le") + _extended(23, "tcps") + "뒤".encode("utf-16-le") + _u16(13)
-    compose = ct.Compose("□가나", 3, -3, 1, [1, 0] + [ct.NO_CHAR_SHAPE] * 8)
+    compose = ct.Compose("\u25a1가나", 3, -3, 1, [1, 0] + [ct.NO_CHAR_SHAPE] * 8)
     return _paragraph(0, text, [(0, 0)], [rec.Record(rec.CTRL_HEADER, 1, compose.encode())])
 
 
@@ -516,11 +516,11 @@ def test_overlapped_characters_open_as_compose_between_the_text() -> None:
 @pytest.mark.parametrize(
     ("text", "circle", "expected"),
     [
-        ("□가", 3, "가"),  # the rectangle's own glyph leads the text
-        ("　나", 0, "나"),
-        ("②", 1, "2"),  # a circled digit in a circle
+        ("\u25a1가", 3, "가"),  # the rectangle's own glyph leads the text
+        ("\u3000나", 0, "나"),
+        ("\u2461", 1, "2"),  # a circled digit in a circle
         ("\U000f0289\U000f0294", 1, "12"),
-        ("□가", 1, "□가"),  # not this frame's glyph
+        ("\u25a1가", 1, "\u25a1가"),  # not this frame's glyph
     ],
 )
 def test_the_text_of_overlapped_characters_leaves_out_their_frame(text: str, circle: int, expected: str) -> None:
