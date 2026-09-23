@@ -6,6 +6,11 @@
 
 ### 고침
 
+- `hwpx.tools.toc_author.add_native_toc()`를 기본값(`at_index=0`)으로 부르면 목차가
+  구역 설정(`hp:secPr`)을 가진 첫 문단 앞에 들어가, 한컴이 목차를 별도 구역으로
+  읽던 것을 고친다(한컴 SDK 13.60 재저장: 구역 2개, 목차 뒤 쪽 나눔). 이제
+  `hp:secPr`와 구역 처음부터 적용되는 조판 부호(단·머리말·꼬리말·쪽 번호)는 새
+  첫 문단의 맨 앞 run으로 옮겨 가고, 목차는 그대로 문서 맨 앞에 선다.
 - 암호가 걸린 HWPX를 열면 `Start tag expected, '<' not found` 같은 파일 손상처럼
   보이는 lxml 오류만 나오던 것을 고친다. `META-INF/manifest.xml`이 파트를
   `encryption-data`로 암호화 선언한 경우 예외 타입(`XMLSyntaxError`)은 그대로
