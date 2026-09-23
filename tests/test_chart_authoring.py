@@ -51,10 +51,24 @@ AXES = (
 
 
 def _line_chartml(ax_ids: str = "", axes: str = "") -> str:
+    return _chartml("lineChart", '<c:grouping val="standard"/>', ax_ids, axes)
+
+
+def _chartml(kind: str, head: str = "", ax_ids: str = "", axes: str = "") -> str:
     return (
-        CHART_HEAD + '<c:lineChart><c:grouping val="standard"/>' + SERIES + ax_ids + "</c:lineChart>"
+        CHART_HEAD + f"<c:{kind}>" + head + SERIES + ax_ids + f"</c:{kind}>"
         + axes + "</c:plotArea></c:chart></c:chartSpace>"
     )
+
+
+AXIS_KINDS = {
+    "barChart": '<c:barDir val="col"/><c:grouping val="clustered"/>',
+    "lineChart": '<c:grouping val="standard"/>',
+    "areaChart": '<c:grouping val="standard"/>',
+    "scatterChart": '<c:scatterStyle val="lineMarker"/>',
+    "radarChart": '<c:radarStyle val="marker"/>',
+    "bubbleChart": "",
+}
 
 
 def _roundtrip(doc: HwpxDocument) -> tuple[HwpxDocument, bytes]:
@@ -202,7 +216,7 @@ class TestValidation:
         doc = HwpxDocument.new()
         with pytest.raises(HwpxValueError) as caught:
             doc.add_chart(_line_chartml())
-        assert caught.value.code == "shape-chart-line-axes-missing"
+        assert caught.value.code == "shape-chart-axes-missing"
         assert caught.value.suggestion
         assert _anchors(doc) == []
         buffer = io.BytesIO()
@@ -214,20 +228,33 @@ class TestValidation:
         doc = HwpxDocument.new()
         with pytest.raises(HwpxValueError) as caught:
             doc.add_chart(_line_chartml(ax_ids=AX_IDS))
-        assert caught.value.code == "shape-chart-line-axes-missing"
+        assert caught.value.code == "shape-chart-axes-missing"
         assert caught.value.context["axIds"] == ["111", "222"]
+        assert caught.value.context["chartKind"] == "lineChart"
 
     def test_line_chart_with_axes_accepted(self) -> None:
         doc = HwpxDocument.new()
         doc.add_chart(_line_chartml(ax_ids=AX_IDS, axes=AXES))
         assert len(_anchors(doc)) == 1
 
-    def test_bar_chart_without_axes_still_accepted(self) -> None:
-        # Hancom renders an axis-less bar chart, so the check stays on line charts.
-        bar = (
-            CHART_HEAD + '<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/>' + SERIES
-            + "</c:barChart></c:plotArea></c:chart></c:chartSpace>"
-        )
+    # Without axes Hancom draws a bar chart with no bars and crashes on the
+    # other kinds that need axes.
+    @pytest.mark.parametrize("kind", sorted(AXIS_KINDS))
+    def test_chart_kinds_that_need_axes_are_rejected_without_them(self, kind: str) -> None:
         doc = HwpxDocument.new()
-        doc.add_chart(bar)
+        with pytest.raises(HwpxValueError) as caught:
+            doc.add_chart(_chartml(kind, AXIS_KINDS[kind]))
+        assert caught.value.code == "shape-chart-axes-missing"
+        assert caught.value.context["chartKind"] == kind
+        assert _anchors(doc) == []
+
+    def test_bar_chart_with_axes_accepted(self) -> None:
+        doc = HwpxDocument.new()
+        doc.add_chart(_chartml("barChart", AXIS_KINDS["barChart"], AX_IDS, AXES))
+        assert len(_anchors(doc)) == 1
+
+    @pytest.mark.parametrize("kind", ["pieChart", "doughnutChart"])
+    def test_charts_without_axes_by_design_are_accepted(self, kind: str) -> None:
+        doc = HwpxDocument.new()
+        doc.add_chart(_chartml(kind, '<c:varyColors val="1"/>'))
         assert len(_anchors(doc)) == 1

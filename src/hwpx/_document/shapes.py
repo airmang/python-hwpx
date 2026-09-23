@@ -489,14 +489,24 @@ _CHART_NS = "{http://schemas.openxmlformats.org/drawingml/2006/chart}"
 _CHART_AXES = tuple(f"{_CHART_NS}{name}" for name in ("catAx", "valAx", "dateAx", "serAx"))
 
 
-def _check_line_chart_axes(root: Any) -> None:
-    """Reject a ``c:lineChart`` whose two axes are missing.
+#: Chart kinds drawn against axes: ECMA-376 gives each two (or three)
+#: ``c:axId`` children naming axes defined in ``c:plotArea``. Pie, doughnut and
+#: of-pie charts have none.
+_AXIS_CHART_KINDS = tuple(
+    f"{_CHART_NS}{name}"
+    for name in (
+        "barChart", "bar3DChart", "lineChart", "line3DChart", "areaChart", "area3DChart",
+        "scatterChart", "radarChart", "bubbleChart", "stockChart", "surfaceChart", "surface3DChart",
+    )
+)
 
-    ECMA-376 gives a line chart two ``c:axId`` children, each naming an axis
-    defined in ``c:plotArea``. Hancom's engine crashes on a line chart without
-    them, rendering the page or saving the document, and the same chart
-    renders once ``c:catAx``/``c:valAx`` are added. Bar charts without axes
-    render, so only line charts are checked.
+
+def _check_chart_axes(root: Any) -> None:
+    """Reject a chart kind that needs axes when its two axes are missing.
+
+    Without them Hancom draws a bar chart with no bars and crashes on the
+    other kinds, rendering the page or saving the document; the same charts
+    render once their axes are added.
     """
 
     defined = {
@@ -504,16 +514,19 @@ def _check_line_chart_axes(root: Any) -> None:
         for axis in root.iter(*_CHART_AXES)
         for ax_id in axis.findall(f"{_CHART_NS}axId")
     }
-    for line_chart in root.iter(f"{_CHART_NS}lineChart"):
-        ax_ids = [ax_id.get("val") for ax_id in line_chart.findall(f"{_CHART_NS}axId")]
+    for chart in root.iter(*_AXIS_CHART_KINDS):
+        kind = str(chart.tag).rsplit("}", 1)[-1]
+        ax_ids = [ax_id.get("val") for ax_id in chart.findall(f"{_CHART_NS}axId")]
         if len(ax_ids) < 2 or any(value not in defined for value in ax_ids):
             raise HwpxValueError(
-                "chart_xml has a c:lineChart without its two axes; Hancom crashes rendering or saving it",
-                code="shape-chart-line-axes-missing",
-                context={"axIds": ax_ids, "definedAxes": sorted(value for value in defined if value)},
+                f"chart_xml has a c:{kind} without its axes; Hancom draws it empty or crashes on it",
+                code="shape-chart-axes-missing",
+                context={"chartKind": kind, "axIds": ax_ids,
+                         "definedAxes": sorted(value for value in defined if value)},
                 suggestion=(
-                    "Give c:lineChart two <c:axId val=...> children and define a c:catAx and a c:valAx "
-                    "with those ids (each naming the other in c:crossAx) in c:plotArea."
+                    f"Give c:{kind} two <c:axId val=...> children and define the axes they name in "
+                    "c:plotArea (a c:catAx and a c:valAx; two c:valAx for scatter and bubble charts), "
+                    "each naming the other in c:crossAx."
                 ),
             )
 
@@ -568,7 +581,7 @@ def add_chart(
             context={"root": str(root.tag)},
             suggestion="Pass the c:chartSpace document, not the whole chart part.",
         )
-    _check_line_chart_axes(root)
+    _check_chart_axes(root)
 
     existing = {name for name in doc._package.part_names() if name.startswith("Chart/")}
     n = 1
