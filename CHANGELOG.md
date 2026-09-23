@@ -6,6 +6,12 @@
 
 ### 고침
 
+- `doc.page.set_page_number(format="page/total")`이 "쪽/전체 쪽수" 대신
+  "쪽/쪽"을 그리던 것을 고친다. 두 번째 번호도 현재 쪽(`numType="PAGE"`)으로
+  써서, 한컴 SDK 13.60 렌더에서 3쪽 문서가 1/1, 2/2, 3/3으로 나왔다. 이제 한컴
+  자신의 쪽/전체 머리말·꼬리말(골드 코퍼스 42건)처럼 `/` 뒤에
+  `hp:autoNum numType="TOTAL_PAGE"`를 쓰고(렌더 1/3, 2/3, 3/3), 쪽 번호 위치
+  컨트롤(`hp:pageNum`)은 한 번만 넣는다.
 - `hwpx.tools.toc_author.add_native_toc()`를 기본값(`at_index=0`)으로 부르면 목차가
   구역 설정(`hp:secPr`)을 가진 첫 문단 앞에 들어가, 한컴이 목차를 별도 구역으로
   읽던 것을 고친다(한컴 SDK 13.60 재저장: 구역 2개, 목차 뒤 쪽 나눔). 이제

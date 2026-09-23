@@ -613,6 +613,22 @@ class HwpxOxmlSectionHeaderFooter:
         self._properties.section.mark_dirty()
         return page_number
 
+    def _add_total_page_counter(self, paragraph: ET.Element) -> None:
+        """Append the total-page counter of a "page/total" field.
+
+        Hancom's own page/total headers and footers (42 in the SDK gold corpus)
+        put ``hp:autoNum numType="TOTAL_PAGE"`` after the "/"; a second PAGE
+        counter drew "1/1, 2/2, 3/3" on a three-page document (Hancom SDK
+        13.60). The position control (``hp:pageNum``) belongs to the page
+        counter only, so none is added here.
+        """
+
+        run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
+        ctrl = _append_child(run, f"{_HP}ctrl", {})
+        _append_child(ctrl, f"{_HP}autoNum", {"num": "1", "numType": "TOTAL_PAGE"})
+        _clear_paragraph_layout_cache(paragraph)
+        self._properties.section.mark_dirty()
+
     def set_content(self, content: Sequence[Mapping[str, Any]]) -> None:
         """Replace header/footer content with paragraph/run/page-number specs."""
 
@@ -652,12 +668,7 @@ class HwpxOxmlSectionHeaderFooter:
                     )
                     if page_format == "page/total":
                         self.add_run("/", paragraph=paragraph)
-                        self.add_page_number_field(
-                            paragraph=paragraph,
-                            format=page_format,
-                            position=str(child.get("position", "BOTTOM_CENTER")),
-                            format_type=child.get("formatType") or child.get("format_type"),
-                        )
+                        self._add_total_page_counter(paragraph)
                     continue
                 raise ValueError(f"unsupported header/footer content type: {kind}")
 
