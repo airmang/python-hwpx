@@ -86,6 +86,8 @@ class HwpxDocument(_LegacyFacade):
         self._managed_resources = list(managed_resources)
         self._closed = False
         self.validate_on_save = validate_on_save
+        # What an ``.hwp`` conversion could not carry into the model (None for HWPX).
+        self._hwp5_report: Any = None
         # The one gate every write funnels through (plan §2 Phase B). The oracle
         # is resolved lazily and only when a policy actually renders, so normal
         # (transparent) saves never probe Hancom.
@@ -127,11 +129,43 @@ class HwpxDocument(_LegacyFacade):
             stream = io.BytesIO(source)
             open_source = stream
             internal_resources.append(stream)
+        if HwpxPackage._leading_bytes(cast(Any, open_source), 8) == HwpxPackage.OLE2_MAGIC:
+            return cls._open_hwp5(open_source)
         # HwpxPackage/ZipFile accepts os.PathLike at runtime; its narrower
         # compatibility annotation intentionally remains frozen.
         package = HwpxPackage.open(cast(Any, open_source))
         root = HwpxOxmlDocument.from_package(package)
         return cls(package, root, managed_resources=tuple(internal_resources))
+
+    @classmethod
+    def _open_hwp5(cls, source: Any) -> "HwpxDocument":
+        """Convert an HWP 5.0 (``.hwp``) file into the HWPX document model."""
+
+        import warnings
+
+        from .hwp5.errors import Hwp5ConversionWarning
+        from .hwp5.package import convert, to_hwpx_bytes
+
+        if isinstance(source, (str, PathLike)):
+            with open(source, "rb") as handle:
+                data = handle.read()
+        else:
+            source.seek(0)
+            data = source.read()
+        converted = convert(data)
+        package = HwpxPackage.open(to_hwpx_bytes(converted.files))
+        root = HwpxOxmlDocument.from_package(package)
+        document = cls(package, root)
+        document._hwp5_report = converted.report
+        skipped = converted.report.unconverted
+        if skipped:
+            summary = ", ".join(f"{kind} x{count}" for kind, count in sorted(skipped.items()))
+            warnings.warn(
+                f"HWP content not converted into the document model: {summary}",
+                Hwp5ConversionWarning,
+                stacklevel=3,
+            )
+        return document
 
     @classmethod
     def new(cls) -> "HwpxDocument":

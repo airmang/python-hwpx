@@ -584,6 +584,42 @@
       "disposition": "core",
       "approvedBy": "owner-hwp5-core-2026-09-23",
       "rationale": "HWP 5.0 record layer: tag/level/size headers including the extended size word, the level tree, bounded raw-deflate stream decompression, and record serialization for writing."
+    },
+    {
+      "path": "src/hwpx/hwp5/binary.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Little-endian field cursor and builder for HWP 5.0 record payloads; running past a payload is reported as damage."
+    },
+    {
+      "path": "src/hwpx/hwp5/header_xml.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "HWP 5.0 DocInfo to Contents/header.xml: fonts, border fills, char and para shapes, tabs, numbering, bullets, styles and memo shapes, with ids kept one-to-one with the records."
+    },
+    {
+      "path": "src/hwpx/hwp5/owpml.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "OWPML namespaces, colour conversion and the value tables that map HWP 5.0 record codes to OWPML tokens, shared by the reading and writing directions so they cannot drift apart."
+    },
+    {
+      "path": "src/hwpx/hwp5/package.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Assembles an HWP 5.0 document as HWPX package parts (mimetype, version, container, content.hpf, header, sections, settings, preview text, BinData) and zips them for the ordinary HWPX reader."
+    },
+    {
+      "path": "src/hwpx/hwp5/section_xml.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "HWP 5.0 BodyText sections to Contents/section<N>.xml: paragraphs, runs, text and its inline controls, section and column definitions, tables, headers, footers and notes; controls it does not convert are counted in a conversion report instead of being dropped silently."
+    },
+    {
+      "path": "src/hwpx/hwp5/summary.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Reads the HWP 5.0 document summary property set (title, author, subject, keywords, comments, dates) for the package metadata; a malformed set yields no properties."
     }
   ],
   "removed": [

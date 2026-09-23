@@ -20,6 +20,13 @@ class Hwp5Error(HwpxError, ValueError):
     default_code = "hwp5-damaged"
 
 
+class Hwp5ConversionWarning(UserWarning):
+    """Opening an ``.hwp`` left content out of the document model.
+
+    The message names each kind that was not converted and how often.
+    """
+
+
 def damaged(message: str, **context: object) -> Hwp5Error:
     """Build the error for a broken container or record stream."""
 
