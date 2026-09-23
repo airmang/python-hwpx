@@ -253,6 +253,18 @@ class TestValidation:
         doc.add_chart(_chartml("barChart", AXIS_KINDS["barChart"], AX_IDS, AXES))
         assert len(_anchors(doc)) == 1
 
+    # A 3-D chart without a series axis names it with an axis id of 0.
+    def test_a_zero_axis_id_stands_for_no_axis(self) -> None:
+        doc = HwpxDocument.new()
+        doc.add_chart(_chartml("bar3DChart", AXIS_KINDS["barChart"], AX_IDS + '<c:axId val="0"/>', AXES))
+        assert len(_anchors(doc)) == 1
+
+    def test_a_zero_axis_id_does_not_count_as_one_of_the_two_axes(self) -> None:
+        doc = HwpxDocument.new()
+        with pytest.raises(HwpxValueError) as caught:
+            doc.add_chart(_chartml("barChart", AXIS_KINDS["barChart"], '<c:axId val="111"/><c:axId val="0"/>', AXES))
+        assert caught.value.code == "shape-chart-axes-missing"
+
     @pytest.mark.parametrize("kind", ["pieChart", "doughnutChart"])
     def test_charts_without_axes_by_design_are_accepted(self, kind: str) -> None:
         doc = HwpxDocument.new()
