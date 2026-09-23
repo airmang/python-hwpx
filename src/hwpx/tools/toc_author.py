@@ -44,8 +44,52 @@ _TOC_COMMAND = (
 )
 
 
+#: ``hp:ctrl`` children that set up the section from its first paragraph on.
+_SECTION_START_CONTROLS = frozenset(
+    {"colPr", "header", "footer", "pageNum", "pageNumCtrl", "pageHiding", "newNum"}
+)
+
+
 def _rand_id() -> str:
     return str(uuid4().int & 0x7FFFFFFF)
+
+
+def _keep_section_setup_first(section: Any) -> bool:
+    """Move the section setup back into the section's first paragraph.
+
+    Paragraphs inserted in front of the one that carries ``hp:secPr`` leave the
+    setup in the middle of the section, and Hancom reads a ``hp:secPr`` that is
+    not in a section's first paragraph as the start of a new section: a TOC
+    put at index 0 became a section of its own, followed by a page break
+    (Hancom SDK 13.60 re-save: 2 sections). ``hp:secPr`` and the controls that
+    apply from the section start (columns, header, footer, page numbering) move,
+    in order, into a new leading run of the first paragraph -- where Hancom
+    keeps them when it inserts a TOC at the start of a document itself.
+    Returns whether anything moved.
+    """
+    paragraphs = [p.element for p in section.paragraphs]
+    if not paragraphs or paragraphs[0].find(f"{_HP}run/{_HP}secPr") is not None:
+        return False
+    holder = next((p for p in paragraphs[1:] if p.find(f"{_HP}run/{_HP}secPr") is not None), None)
+    if holder is None:
+        return False
+    first = paragraphs[0]
+    setup_run = first.makeelement(f"{_HP}run", {"charPrIDRef": "0"})
+    for run in holder.findall(f"{_HP}run"):
+        for node in list(run):
+            name = ET.QName(node).localname
+            if name == "secPr" or (
+                name == "ctrl" and any(ET.QName(c).localname in _SECTION_START_CONTROLS for c in node)
+            ):
+                if name == "secPr":
+                    setup_run.set("charPrIDRef", run.get("charPrIDRef", "0"))
+                run.remove(node)
+                setup_run.append(node)
+        if len(run) == 0 and len(holder.findall(f"{_HP}run")) > 1:
+            holder.remove(run)
+    first.insert(0, setup_run)
+    section.mark_dirty()
+    return True
 
 
 def _existing_paragraph_ids(doc: HwpxDocument) -> set[str]:
@@ -326,6 +370,8 @@ def add_native_toc(
     _field_end(close_run, toc_field_id)
 
     section.insert_paragraphs(at_index, [open_p, *entry_elements, close_p])
+    if at_index == 0:
+        _keep_section_setup_first(section)
     return {
         "tocFieldId": toc_field_id,
         "entryCount": len(anchors),

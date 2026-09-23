@@ -6,6 +6,11 @@
 
 ### 고침
 
+- `hwpx.tools.toc_author.add_native_toc()`를 기본값(`at_index=0`)으로 부르면 목차가
+  구역 설정(`hp:secPr`)을 가진 첫 문단 앞에 들어가, 한컴이 목차를 별도 구역으로
+  읽던 것을 고친다(한컴 SDK 13.60 재저장: 구역 2개, 목차 뒤 쪽 나눔). 이제
+  `hp:secPr`와 구역 처음부터 적용되는 조판 부호(단·머리말·꼬리말·쪽 번호)는 새
+  첫 문단의 맨 앞 run으로 옮겨 가고, 목차는 그대로 문서 맨 앞에 선다.
 - `doc.styles.apply_paragraph_format()`·`apply_list_format()`처럼 문단 모양
   (`paraPrIDRef`)을 바꾸는 편집이 그 문단의 줄배치 캐시(`hp:linesegarray`)를 남기던
   것을 고친다. 한컴은 줄 높이를 이 캐시에서 가져오므로, 행간을 130%로 바꿔도
