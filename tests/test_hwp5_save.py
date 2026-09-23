@@ -621,3 +621,17 @@ def test_parameter_sets_keep_their_arrays_and_binary_items() -> None:
     assert ct.ParameterSet.decode(payload) == ps
     # hp:parameterset has no form for them, so a drawing object reports such a set.
     assert not ps.plain()
+
+
+def test_a_header_python_hwpx_also_keeps_in_the_section_properties_is_written_once(tmp_path: Path) -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("본문")
+    document.page.set_header(text="머리말")
+    target = tmp_path / "header.hwp"
+    document.save_to_path(target)
+
+    written = read_hwp5(target.read_bytes())
+    heads = [r for s in written.sections for r in s.records if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "head"]
+    assert len(heads) == 1
+    reopened = HwpxDocument.open(target)
+    assert ["".join(h.itertext()) for s in reopened.sections for h in s.element.iter(f"{HP}header")] == ["머리말"]

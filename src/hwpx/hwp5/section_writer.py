@@ -148,9 +148,14 @@ _DRAW_ASPECT_CODES = {name: code for code, name in DRAW_ASPECT.items()}
 #: The codes of the presentation effects and targets.
 _PRESENTATION_EFFECT_CODES = {name: code for code, name in PRESENTATION_EFFECT.items()}
 _PRESENTATION_APPLY_TO_CODES = {name: code for code, name in PRESENTATION_APPLY_TO.items()}
-#: Children of a section's properties the writer writes.
+#: Children of a section's properties the writer writes. Headers and footers
+#: there (and the elements that apply them) are copies of the header and
+#: footer controls in the text, which Hancom writes instead; so does the writer.
 _SECTION_PARTS = frozenset(
-    {"grid", "startNum", "visibility", "lineNumberShape", "pagePr", "footNotePr", "endNotePr", "pageBorderFill", "masterPage", "presentation"}
+    {
+        "grid", "startNum", "visibility", "lineNumberShape", "pagePr", "footNotePr", "endNotePr", "pageBorderFill",
+        "masterPage", "presentation", "header", "footer", "headerApply", "footerApply",
+    }
 )
 _IDENTITY: sh.Matrix = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
 #: Children of a container that are not shapes.
