@@ -6,6 +6,20 @@
 
 ### 고침
 
+- `doc.refs.add_hyperlink()`로 만든 링크가 한컴에서 **아무 데도 가지 않던** 것을
+  고친다. 대상 주소를 `fieldBegin@name`에만 썼는데, 한컴은 링크 대상을 필드
+  매개변수에서 읽는다. 한컴 SDK 13.60으로 다시 저장하면 링크는 남지만
+  `Category=HWPHYPERLINK_TYPE_HWP`만 붙고 `Command`가 없는(대상 없는) 문서 안
+  링크가 됐다. 이제 한컴 코퍼스(웹·메일 링크 1,267개, 책갈피 링크 434개)와 같은
+  모양으로 `Command`(`: ? ; #` 백슬래시 이스케이프 + `;1;0;0;`, 메일 `;2;0;0`,
+  책갈피 `?이름;0;0;0;`)·`Path`·`Category`·`TargetType`·`DocOpenType`을 쓰고,
+  `fieldid`는 한컴 하이퍼링크 컨트롤 id(627600491)로 둔다. `#이름`을 주면 그
+  책갈피로 가는 링크가 된다. 옛 판독기를 위해 `@name`에도 주소를 그대로 둔다.
+- 링크 대상을 읽는 곳이 서로 달랐던 것을 맞춘다. `paragraph.hyperlinks`와
+  Markdown 내보내기는 `@name`만 읽어 한컴이 만든 링크의 주소가 빈 값이었고,
+  주석 달린 텍스트 추출은 `Command`를 이스케이프와 `;1;0;0;` 꼬리가 붙은 채로
+  돌려줬다. 이제 셋 다 `Path` → `Command`(꼬리·툴팁 제거, 이스케이프 풀기) →
+  `@name` 순으로 같은 값을 돌려준다.
 - 암호가 걸린 HWPX를 열면 `Start tag expected, '<' not found` 같은 파일 손상처럼
   보이는 lxml 오류만 나오던 것을 고친다. `META-INF/manifest.xml`이 파트를
   `encryption-data`로 암호화 선언한 경우 예외 타입(`XMLSyntaxError`)은 그대로

@@ -530,6 +530,12 @@
       "disposition": "core",
       "approvedBy": "bounded-text-edit-implementation-review",
       "rationale": "Format-level helpers for unambiguous plain-text node selection and run/control preservation. Extracted from paragraph.py to keep its complexity bounded; no application workflow, renderer, or agent policy."
+    },
+    {
+      "path": "src/hwpx/oxml/hyperlink_form.py",
+      "disposition": "core",
+      "approvedBy": "hancom-sdk-073-hyperlink-target-parameters",
+      "rationale": "Hancom's storage of a hyperlink field target: hyperlink_parameters() writes the hp:parameters Hancom reads (Command with : ? ; # backslash-escaped and a ;kind;0;0 tail, Path, Category, TargetType, DocOpenType -- the form of 1,267 web/mail and 434 bookmark links in the Hancom SDK 13.60 gold corpus) and hyperlink_target() reads a target back (Path, else the unescaped Command head, else @name). A new module rather than more paragraph.py lines (1,584/1,600 owner-file cap); paragraph.add_hyperlink, paragraph.hyperlinks, Markdown export and the text extractor all call it, so the three readers that disagreed now read one way. Format-level only: no renderer, application workflow or agent policy."
     }
   ],
   "removed": [
