@@ -65,6 +65,81 @@ def _normalize_page_orientation(value: str | None) -> str | None:
     return orientation
 
 
+#: Keys of ``set_paragraph_format(border=...)``.
+_PARAGRAPH_BORDER_KEYS = frozenset(
+    {"sides", "color", "width", "type", "connect", "offset_mm", "ignore_margin"}
+)
+_PARAGRAPH_BORDER_SIDES = ("left", "right", "top", "bottom")
+
+
+def _paragraph_border_problem(
+    spec: Mapping[str, Any], sides: tuple[str, ...], offsets: tuple[Any, ...]
+) -> str | None:
+    unknown = sorted(set(spec) - _PARAGRAPH_BORDER_KEYS)
+    if unknown:
+        return f"unknown paragraph border keys: {unknown}"
+    if not sides or any(side not in _PARAGRAPH_BORDER_SIDES for side in sides):
+        return f"unsupported paragraph border sides: {list(sides)}"
+    if len(offsets) != 4 or any(
+        isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0 for value in offsets
+    ):
+        return "offset_mm must be a non-negative number or four of them (left, right, top, bottom)"
+    return None
+
+
+def _paragraph_border_attrs(
+    header: Any,
+    border: Mapping[str, Any] | None,
+    *,
+    bottom_border: bool,
+    border_color: str,
+    border_width: str,
+) -> dict[str, str] | None:
+    """``hh:paraPr/hh:border`` attributes for ``border`` (or ``bottom_border``)."""
+
+    if border is None and not bottom_border:
+        return None
+    spec: Mapping[str, Any] = (
+        border if border is not None
+        else {"sides": ("bottom",), "color": border_color, "width": border_width}
+    )
+    raw_sides = spec.get("sides", _PARAGRAPH_BORDER_SIDES)
+    sides = tuple(str(side).strip().lower() for side in ((raw_sides,) if isinstance(raw_sides, str) else raw_sides))
+    raw_offsets = spec.get("offset_mm", 0)
+    offsets = tuple((raw_offsets,) * 4 if isinstance(raw_offsets, (int, float)) else raw_offsets)
+    problem = (
+        "pass either bottom_border or border, not both"
+        if border is not None and bottom_border
+        else _paragraph_border_problem(spec, sides, offsets)
+    )
+    if problem is not None:
+        raise HwpxValueError(
+            problem,
+            code="paragraph-border-invalid",
+            context={"border": {str(key): str(value) for key, value in spec.items()}},
+            suggestion=(
+                "border keys: sides, color, width, type, connect, offset_mm "
+                "(mm, one number or left/right/top/bottom), ignore_margin."
+            ),
+        )
+    border_fill_id = header.ensure_border_fill(
+        border_color=str(spec.get("color", "#000000")),
+        border_width=str(spec.get("width", "0.12 mm")),
+        active_borders=sides,
+        border_type=str(spec.get("type", "SOLID")),
+    )
+    left, right, top, bottom = (str(_mm_to_hwp_units(float(value))) for value in offsets)
+    return {
+        "borderFillIDRef": border_fill_id,
+        "offsetLeft": left,
+        "offsetRight": right,
+        "offsetTop": top,
+        "offsetBottom": bottom,
+        "connect": "1" if spec.get("connect") else "0",
+        "ignoreMargin": "1" if spec.get("ignore_margin") else "0",
+    }
+
+
 def _resolve_paragraph_targets(
     doc: "HwpxDocument",
     *,
@@ -127,6 +202,7 @@ def set_paragraph_format(
     tab_stops: Sequence[Mapping[str, Any]] | None = None,
     auto_tab_left: bool | None = None,
     auto_tab_right: bool | None = None,
+    border: Mapping[str, Any] | None = None,
 ) -> ParagraphFormatResult:
     """Apply paragraph-level formatting using human units.
 
@@ -145,6 +221,17 @@ def set_paragraph_format(
     position-ascending. Passing ``tab_stops``/``auto_tab_left``/
     ``auto_tab_right`` mints (or reuses — dedupe) a ``hh:tabPr`` and wires
     the paragraph's ``tabPrIDRef`` to it.
+
+    ``border`` is a mapping for a paragraph border: ``sides`` (default all
+    four of ``"left"``/``"right"``/``"top"``/``"bottom"``), ``color``
+    (``"#000000"``), ``width`` (``"0.12 mm"``), ``type`` (``"SOLID"``),
+    ``offset_mm`` (gap to the text in mm, one number or ``(left, right, top,
+    bottom)``, default 0), ``connect`` and ``ignore_margin`` (default
+    ``False``). With
+    ``connect=True`` Hancom draws consecutive paragraphs that share the
+    paragraph shape as one box, across columns and pages; give an empty
+    paragraph inside the box the same format so it does not split the box.
+    ``bottom_border=True`` is the older bottom-only form.
     """
 
     if not doc._root.headers:
@@ -207,6 +294,7 @@ def set_paragraph_format(
         and not margins
         and heading is None
         and not bottom_border
+        and border is None
         and not break_setting
         and not wants_tab_definition
         and column_break is None
@@ -239,22 +327,13 @@ def set_paragraph_format(
             auto_tab_right=bool(auto_tab_right),
         )
 
-    border: dict[str, str] | None = None
-    if bottom_border:
-        border_fill_id = header.ensure_border_fill(
-            border_color=border_color,
-            border_width=border_width,
-            active_borders=("bottom",),
-        )
-        border = {
-            "borderFillIDRef": border_fill_id,
-            "offsetLeft": "0",
-            "offsetRight": "0",
-            "offsetTop": "0",
-            "offsetBottom": "0",
-            "connect": "0",
-            "ignoreMargin": "0",
-        }
+    border_attrs = _paragraph_border_attrs(
+        header,
+        border,
+        bottom_border=bottom_border,
+        border_color=border_color,
+        border_width=border_width,
+    )
 
     # column_break bypasses paraPr entirely (it's hp:p's own attribute, not
     # a shared style) -- only mint a new paraPr when one of the *other*
@@ -265,7 +344,7 @@ def set_paragraph_format(
         or line_spacing_percent is not None
         or bool(margins)
         or heading is not None
-        or bottom_border
+        or border_attrs is not None
         or bool(break_setting)
         or wants_tab_definition
     )
@@ -283,7 +362,7 @@ def set_paragraph_format(
                 line_spacing_percent=line_spacing_percent,
                 margins=margins,
                 heading=heading,
-                border=border,
+                border=border_attrs,
                 break_setting=break_setting or None,
                 tab_pr_id_ref=tab_pr_id,
             )

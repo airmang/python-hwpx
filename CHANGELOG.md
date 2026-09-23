@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### 추가
+
+- `styles.apply_paragraph_format(border={...})`로 문단 테두리를 만든다. 키는
+  `sides`(기본 네 면), `color`(`#000000`), `width`(`0.12 mm`), `type`(`SOLID`),
+  `offset_mm`(글과의 간격 mm, 수 하나 또는 왼쪽·오른쪽·위·아래), `connect`,
+  `ignore_margin`이다. `connect=True`면 같은 문단 모양을 쓰는 연속 문단이 단과
+  쪽을 넘는 상자 하나로 그려진다(한컴의 "문단 테두리 연결"). 상자 안의 빈 문단에도
+  같은 서식을 주면 상자가 끊기지 않는다. 기존 `bottom_border=True`는 그대로
+  아래 한 면만 켠다. 잘못된 지정은 `paragraph-border-invalid`로 거부한다.
+
 ### 고침
 
 - `hwpx.tools.read_fidelity.resolve_run_spans()`(와 이를 쓰는 판독 표면)가 위·아래
