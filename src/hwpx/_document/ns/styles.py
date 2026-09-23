@@ -396,8 +396,8 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
 
         `outline` (외곽선, OWPML `hc:LineType1` 어휘: NONE/SOLID/DOT/THICK/
         DASH/DASH_DOT/DASH_DOT_DOT), `emboss`/`engrave` (양각/음각)는 6.3
-        추가분이다. `script="sup"/"sub"`는 기존 `relSz`/`offset` 수치 근사에
-        더해 실제 `hh:supscript`/`hh:subscript` 요소를 함께 방출한다.
+        추가분이다. `script="sup"/"sub"`는 한컴처럼 `hh:supscript`/`hh:subscript`
+        요소만 쓴다(요소가 글자를 줄이고 올리거나 내린다. `relSz`/`offset`은 그대로).
         """
 
         return self._doc.oxml.ensure_run_style(
