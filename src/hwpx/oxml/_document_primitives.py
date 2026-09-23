@@ -85,8 +85,8 @@ _ILLEGAL_XML_CHARS = _re.compile(
 def _sanitize_text(value: str) -> str:
     """Strip characters that are illegal inside an HWPML ``<hp:t>`` node.
 
-    Tab (``\\t`` / U+0009) is stripped because HWPML requires it to be
-    represented as a dedicated ``<hp:ctrl>`` element, not as raw text.
+    Tab (``\\t`` / U+0009) is stripped because Hancom reads a tab only as an
+    ``hp:tab`` element inside ``hp:t`` (``_paragraph_text_edit.set_text_with_tabs``).
     Carriage return (``\\r`` / U+000D) is stripped; newline (``\\n`` / U+000A)
     is preserved for multiline cells.
     """

@@ -89,3 +89,46 @@ def test_a_spaced_form_label_is_found_by_its_letters() -> None:
     doc = _document_with('<hp:t>성<hp:fwSpace/>명</hp:t>', in_table=True)
     result = doc.tables.find_cell_by_label("성 명")
     assert result["count"] >= 1
+
+
+# Setting text replaces all of it: the line breaks, tabs, spaces and marks
+# inside hp:t belong to the old value, and so does the text after them.
+def test_setting_a_cell_replaces_the_text_after_inline_elements() -> None:
+    doc = _document_with(HANCOM_T, in_table=True)
+    table = doc.tables.all[0]
+    table.set_cell_text(0, 0, "새 값")
+
+    assert table.cell(0, 0).text == "새 값"
+    assert HwpxDocument.open(doc.to_bytes()).tables.all[0].cell(0, 0).text == "새 값"
+
+
+def test_setting_a_run_replaces_the_text_after_inline_elements() -> None:
+    doc = _document_with(HANCOM_T)
+    paragraph = doc.paragraphs[-1]
+    paragraph.runs[-1].text = "새 값"
+
+    assert paragraph.runs[-1].text == "새 값"
+    assert paragraph.text == "새 값"
+
+
+def test_cell_and_run_text_keep_a_tab_as_an_element() -> None:
+    doc = HwpxDocument.new()
+    doc.add_table(1, 1).set_cell_text(0, 0, "이름\t홍길동")
+    doc.add_paragraph("").add_run("번호").text = "번호\t1"
+    data = doc.to_bytes()
+
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        section = archive.read("Contents/section0.xml").decode("utf-8")
+    assert "이름<hp:tab/>홍길동" in section
+    assert "번호<hp:tab/>1" in section
+    reopened = HwpxDocument.open(data)
+    assert reopened.tables.all[0].cell(0, 0).text == "이름\t홍길동"
+    assert reopened.paragraphs[-1].text == "번호\t1"
+
+
+def test_split_cell_text_keeps_a_tab() -> None:
+    doc = HwpxDocument.new()
+    table = doc.add_table(1, 1)
+    table.set_cell_text(0, 0, "가\t나\n다", split_paragraphs=True)
+
+    assert [paragraph.text for paragraph in table.cell(0, 0).paragraphs] == ["가\t나", "다"]
