@@ -514,3 +514,82 @@ def test_a_chart_without_an_ole_object_is_refused() -> None:
     )
     _, unsupported = build_section_records(section)
     assert unsupported == {"chart": 1}
+
+
+def _presentation_hwp(settings: ct.Presentation) -> bytes:
+    """A document whose section definition holds *settings* as its parameter set."""
+
+    section = _section()
+    secd = next(i for i, r in enumerate(section) if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "secd")
+    section.insert(secd + 1, rec.Record(rec.CTRL_DATA, 2, settings.parameter_set().encode()))
+    return cfb.build_compound_file(
+        [
+            ("FileHeader", FileHeader((5, 1, 1, 0), 1).to_bytes()),
+            ("DocInfo", rec.deflate(rec.serialize_records(_docinfo()))),
+            ("BodyText/Section0", rec.deflate(rec.serialize_records(section))),
+        ]
+    )
+
+
+def _gradation() -> di.Fill:
+    fill = di.Fill(di.FILL_GRADATION, grad_type=4, grad_angle=35, grad_center_x=80, grad_center_y=20, grad_step=255)
+    fill.grad_colors, fill.additional, fill.alphas = [0xF1E6D4, 0xFFFFFF], bytes([50]), bytes(1)
+    return fill
+
+
+def test_presentation_settings_open_and_save_back_as_they_were(tmp_path: Path) -> None:
+    settings = ct.Presentation(invert_text=1, show_time=0xFFFFFFFF, fill=_gradation())
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(_presentation_hwp(settings))
+    [element] = [e for s in document.sections for e in s.element.iter(f"{HP}presentation")]
+    assert element.getparent().tag == f"{HP}secPr" and element.getparent()[-1] is element
+    assert dict(element.attrib) == {
+        "effect": "none", "soundIDRef": "", "invertText": "1", "autoshow": "0", "showtime": "4294967295", "applyto": "WholeDoc",
+    }
+    gradation = element.find("{http://www.hancom.co.kr/hwpml/2011/core}fillBrush/{http://www.hancom.co.kr/hwpml/2011/core}gradation")
+    assert (gradation.get("type"), gradation.get("angle"), gradation.get("colorNum")) == ("SQUARE", "35", "2")
+    assert [c.get("value") for c in gradation] == ["#D4E6F1", "#FFFFFF"]
+
+    target = tmp_path / "presentation.hwp"
+    document.save_to_path(target)
+    written = read_hwp5(target.read_bytes())
+    [data] = [
+        c.payload
+        for s in written.sections
+        for r in s.records
+        if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "secd"
+        for c in r.children
+        if c.tag == rec.CTRL_DATA
+    ]
+    assert data == settings.parameter_set().encode()
+
+
+def test_presentation_settings_the_record_has_no_code_for_are_refused() -> None:
+    from hwpx.hwp5.section_writer import build_section_records
+
+    section = etree.fromstring(
+        '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"'
+        ' xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"'
+        ' xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core"><hp:p><hp:run><hp:secPr>'
+        '<hp:presentation effect="overLeft" soundIDRef="" invertText="0" autoshow="0" showtime="0" applyto="WholeDoc">'
+        '<hc:fillBrush><hc:winBrush faceColor="#FFFFFF" hatchColor="#FFFFFF" alpha="0"/></hc:fillBrush></hp:presentation>'
+        "<hp:unknownPart/></hp:secPr></hp:run></hp:p></hs:sec>"
+    )
+    _, unsupported = build_section_records(section)
+    assert unsupported == {"presentation": 1, "secPr/unknownPart": 1}
+
+
+def test_parameter_sets_keep_their_arrays_and_binary_items() -> None:
+    ps = ct.ParameterSet(
+        0x0266,
+        [
+            ct.ParameterItem(0x4008, ct.PIT_ARRAY, ct.ParameterArray([(5, 0xFF0000), (5, 0)])),
+            ct.ParameterItem(0x401E, ct.PIT_BINARY, b""),
+        ],
+    )
+    payload = ps.encode()
+    assert payload == bytes.fromhex("660202000000" "08400180" "02000000" "05000000ff00" "050000000000" "1e400280" "0000")
+    assert ct.ParameterSet.decode(payload) == ps
+    # hp:parameterset has no form for them, so a drawing object reports such a set.
+    assert not ps.plain()

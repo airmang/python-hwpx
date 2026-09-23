@@ -18,6 +18,7 @@ from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 from . import bodytext as bt
 from . import controls as ct
 from . import records as rec
+from .header_xml import fill_brush
 from .section_common import (
     ConversionReport,
     _bits,
@@ -67,6 +68,34 @@ MASTER_PAGE_BITS = ((29, "BOTH"), (30, "EVEN"), (31, "ODD"))
 #: The kind word (offset 18) of a master page list on a section's last
 #: paragraph: this for the last page, plus the page number for an optional page.
 MASTER_PAGE_LAST = 3
+#: Presentation settings OWPML spells: the screen change effect and what the
+#: settings apply to, by the codes met (0 for both).
+PRESENTATION_EFFECT = {0: "none"}
+PRESENTATION_APPLY_TO = {0: "WholeDoc"}
+
+
+def presentation(parent: etree._Element, settings: ct.Presentation) -> bool:
+    """``hp:presentation`` of a section; False, with nothing written, for an
+    effect or target with no known name, a sound or an automatic show."""
+
+    effect = PRESENTATION_EFFECT.get(settings.effect)
+    apply_to = PRESENTATION_APPLY_TO.get(settings.apply_to)
+    if effect is None or apply_to is None or settings.sound or settings.autoshow:
+        return False
+    element = sub(
+        parent,
+        "hp:presentation",
+        (
+            ("effect", effect),
+            ("soundIDRef", ""),
+            ("invertText", flag(settings.invert_text)),
+            ("autoshow", 0),
+            ("showtime", settings.show_time),
+            ("applyto", apply_to),
+        ),
+    )
+    fill_brush(element, settings.fill)
+    return True
 
 
 def _note_pr(parent: etree._Element, name: str, record: rec.Record | None, *, endnote: bool) -> None:
@@ -851,12 +880,9 @@ class SectionWriter(ShapeReader):
         if kind.startswith("%"):
             return self.field_begin(run, ctrl, text_id or kind)
         if kind == "secd":
-            # The section definition's parameter set holds the presentation
-            # settings; its paragraph lists are the section's master pages for
-            # both, even and odd pages, one per property bit set.
-            for child in ctrl.children:
-                if child.tag == rec.CTRL_DATA:
-                    self.report.skip("presentation")
+            # The section definition's paragraph lists are the section's master
+            # pages for both, even and odd pages, one per property bit set; its
+            # parameter set holds the presentation settings, which come last.
             element = section_properties(run, ctrl)
             self.section_pr = element
             props = ct.SectionDef.decode(ctrl.payload).props
@@ -867,6 +893,12 @@ class SectionWriter(ShapeReader):
                     self.master_page(types[index], 0, header, paragraphs)
                 else:
                     self.report.skip("master-page")
+            for child in ctrl.children:
+                if child.tag == rec.CTRL_DATA:
+                    ps = ct.ParameterSet.decode(child.payload)
+                    settings = ct.Presentation.from_set(ps) if ps is not None else None
+                    if settings is None or not presentation(element, settings):
+                        self.report.skip("presentation")
             return element
         if kind == "cold":
             return column_properties(run, ctrl)

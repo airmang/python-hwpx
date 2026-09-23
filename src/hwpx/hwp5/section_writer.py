@@ -19,6 +19,7 @@ from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
 from . import bodytext as bt
 from . import controls as ct
+from . import docinfo as di
 from . import records as rec
 from . import shapes as sh
 from .docinfo_writer import fill as fill_from_brush
@@ -70,6 +71,8 @@ from .section_xml import (
     PAGE_HIDING,
     PAGE_NUM_POS,
     PAGE_STARTS_ON,
+    PRESENTATION_APPLY_TO,
+    PRESENTATION_EFFECT,
     RANGE_MARKPEN,
     TABLE_PAGE_BREAK,
     TITLE_MARK,
@@ -139,6 +142,13 @@ _FLAG_GROUP_MEMBER = 1 << 17
 _CHART_OBJECT = 1 << 28
 #: The code of each OLE draw aspect.
 _DRAW_ASPECT_CODES = {name: code for code, name in DRAW_ASPECT.items()}
+#: The codes of the presentation effects and targets.
+_PRESENTATION_EFFECT_CODES = {name: code for code, name in PRESENTATION_EFFECT.items()}
+_PRESENTATION_APPLY_TO_CODES = {name: code for code, name in PRESENTATION_APPLY_TO.items()}
+#: Children of a section's properties the writer writes.
+_SECTION_PARTS = frozenset(
+    {"grid", "startNum", "visibility", "lineNumberShape", "pagePr", "footNotePr", "endNotePr", "pageBorderFill", "masterPage", "presentation"}
+)
 _IDENTITY: sh.Matrix = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
 #: Children of a container that are not shapes.
 _CONTAINER_PARTS = frozenset({"offset", "orgSz", "curSz", "flip", "rotationInfo", "renderingInfo", "sz", "pos", "outMargin", "shapeComment", "caption", "parameterset"})
@@ -698,6 +708,14 @@ class SectionRecords:
             _int(numbers, "startNumber"),
         )
         out = [rec.Record(rec.CTRL_HEADER, level, sd.encode())]
+        for child in element:
+            if isinstance(child.tag, str) and _local(child) not in _SECTION_PARTS:
+                self.unsupported[f"secPr/{_local(child)}"] += 1
+        settings = _find(element, "presentation")
+        if settings is not None:
+            parameters = self.presentation(settings)
+            if parameters is not None:
+                out.append(rec.Record(rec.CTRL_DATA, level + 1, parameters.encode()))
         page_pr = _find(element, "pagePr")
         margin = _find(page_pr, "margin") if page_pr is not None else None
         page = ct.PageDef(
@@ -733,6 +751,28 @@ class SectionRecords:
             if page_type in pages:
                 out.extend(self.master_page_list(pages[page_type], level + 1))
         return out
+
+    def presentation(self, element: etree._Element) -> ct.ParameterSet | None:
+        """A section's presentation settings as the parameter set of its
+        definition; an effect or target with no code, a sound, an automatic
+        show or a fill other than one solid colour or a gradation of at most
+        ten colours is unsupported."""
+
+        fill = fill_from_brush(element.find(f"{{{_HC}}}fillBrush"), self.bin_ids)
+        effect = _PRESENTATION_EFFECT_CODES.get(element.get("effect", "none"))
+        apply_to = _PRESENTATION_APPLY_TO_CODES.get(element.get("applyto", "WholeDoc"))
+        if (
+            effect is None
+            or apply_to is None
+            or element.get("soundIDRef")
+            or _flag(element, "autoshow")
+            or fill.kind not in (di.FILL_SOLID, di.FILL_GRADATION)
+            or len(fill.grad_colors) > 10
+        ):
+            self.unsupported["presentation"] += 1
+            return None
+        settings = ct.Presentation(effect, b"", _flag(element, "invertText"), 0, apply_to, _int(element, "showtime") & 0xFFFFFFFF, fill)
+        return settings.parameter_set()
 
     def section_master_pages(self, element: etree._Element) -> dict[str, etree._Element]:
         """The section's master pages for both, even and odd pages by type;

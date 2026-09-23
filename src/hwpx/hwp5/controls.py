@@ -13,6 +13,7 @@ import struct
 from dataclasses import dataclass, field
 
 from . import bodytext as bt
+from . import docinfo as di
 from .binary import Builder, Cursor
 from .errors import Hwp5Error, damaged
 
@@ -578,24 +579,35 @@ def label_parameter_set(values: dict[str, int]) -> bytes:
     return b.bytes()
 
 
-#: Parameter item types: a string, signed and unsigned integers, a nested set.
+#: Parameter item types: a string, signed and unsigned integers, a nested
+#: set, an array (whose values each carry their own type) and binary data.
 PIT_BSTR = 1
 PIT_SIGNED = frozenset({2, 3, 4, 5})
 PIT_UNSIGNED = frozenset({6, 7, 8, 9})
 PIT_SET = 0x8000
+PIT_ARRAY = 0x8001
+PIT_BINARY = 0x8002
 
 
 @dataclass
 class ParameterItem:
     item_id: int
     kind: int
-    value: "str | int | ParameterSet"
+    value: "str | int | bytes | ParameterSet | ParameterArray"
+
+
+@dataclass
+class ParameterArray:
+    """An array item: a count, a reserved word, then each value with its type."""
+
+    values: list[tuple[int, "str | int | bytes | ParameterSet | ParameterArray"]] = field(default_factory=list)
+    reserved: int = 0
 
 
 @dataclass
 class ParameterSet:
     """A ``CTRL_DATA`` parameter set: its id and items (strings, 32-bit
-    integers and nested sets)."""
+    integers, nested sets, arrays and binary data)."""
 
     set_id: int = 0
     items: list[ParameterItem] = field(default_factory=list)
@@ -608,18 +620,7 @@ class ParameterSet:
         value.reserved = c.u16()
         for _ in range(max(count, 0)):
             item_id, kind = c.u16(), c.u16()
-            item: str | int | ParameterSet
-            if kind == PIT_BSTR:
-                item = c.wstr()
-            elif kind in PIT_SIGNED:
-                item = c.i32()
-            elif kind in PIT_UNSIGNED:
-                item = c.u32()
-            elif kind == PIT_SET:
-                item = cls.read(c)
-            else:
-                raise damaged("CTRL_DATA has a parameter item of an unknown type", kind=kind)
-            value.items.append(ParameterItem(item_id, kind, item))
+            value.items.append(ParameterItem(item_id, kind, _read_value(c, kind)))
         return value
 
     @classmethod
@@ -637,29 +638,212 @@ class ParameterSet:
         b.u16(self.set_id).i16(len(self.items)).u16(self.reserved)
         for item in self.items:
             b.u16(item.item_id).u16(item.kind)
-            if isinstance(item.value, ParameterSet):
-                item.value.write(b)
-            elif isinstance(item.value, str):
-                b.wstr(item.value)
-            elif item.kind in PIT_UNSIGNED:
-                b.u32(item.value)
-            else:
-                b.i32(item.value)
+            _write_value(b, item.kind, item.value)
 
     def encode(self) -> bytes:
         b = Builder()
         self.write(b)
         return b.bytes()
 
-    def find(self, *path: int) -> "str | int | ParameterSet | None":
+    def plain(self) -> bool:
+        """Whether the set holds only strings, integers and plain nested sets,
+        which is what ``hp:parameterset`` can hold."""
+
+        return all(
+            isinstance(item.value, (str, int)) or (isinstance(item.value, ParameterSet) and item.value.plain())
+            for item in self.items
+        )
+
+    def find(self, *path: int) -> "str | int | bytes | ParameterSet | ParameterArray | None":
         """The value at a path of item ids through nested sets."""
 
-        current: str | int | ParameterSet | None = self
+        current: str | int | bytes | ParameterSet | ParameterArray | None = self
         for item_id in path:
             if not isinstance(current, ParameterSet):
                 return None
             current = next((item.value for item in current.items if item.item_id == item_id), None)
         return current
+
+
+def _read_value(c: Cursor, kind: int) -> "str | int | bytes | ParameterSet | ParameterArray":
+    if kind == PIT_BSTR:
+        return c.wstr()
+    if kind in PIT_SIGNED:
+        return c.i32()
+    if kind in PIT_UNSIGNED:
+        return c.u32()
+    if kind == PIT_SET:
+        return ParameterSet.read(c)
+    if kind == PIT_ARRAY:
+        count, reserved = c.u16(), c.u16()
+        values: list[tuple[int, str | int | bytes | ParameterSet | ParameterArray]] = []
+        for _ in range(count):
+            value_kind = c.u16()
+            values.append((value_kind, _read_value(c, value_kind)))
+        return ParameterArray(values, reserved)
+    if kind == PIT_BINARY:
+        return c.raw(c.u16())
+    raise damaged("CTRL_DATA has a parameter item of an unknown type", kind=kind)
+
+
+def _write_value(b: Builder, kind: int, value: "str | int | bytes | ParameterSet | ParameterArray") -> None:
+    if isinstance(value, ParameterSet):
+        value.write(b)
+    elif isinstance(value, ParameterArray):
+        b.u16(len(value.values)).u16(value.reserved)
+        for value_kind, item in value.values:
+            b.u16(value_kind)
+            _write_value(b, value_kind, item)
+    elif isinstance(value, bytes):
+        b.u16(len(value)).raw(value)
+    elif isinstance(value, str):
+        b.wstr(value)
+    elif kind in PIT_UNSIGNED:
+        b.u32(value)
+    else:
+        b.i32(value - (1 << 32) if value >= 1 << 31 else value)
+
+
+#: Presentation settings, the parameter set of a section definition: the
+#: outer set holds the settings set, which holds the fill set.
+PRESENTATION = 0x021B
+PRESENTATION_SETTINGS = 0x0219
+PRESENTATION_FILL = 0x0266
+#: Items of the settings set: effect, sound, inverted text, automatic show,
+#: what the settings apply to and the show time; 0x7001 has no OWPML form.
+_SETTINGS_ITEMS = frozenset({0x4000, 0x4001, 0x4002, 0x4003, 0x4004, 0x4005, 0x7001, PRESENTATION_FILL})
+#: Values an array of the fill set has room for (colours, positions).
+_FILL_SLOTS = 10
+
+
+@dataclass
+class Presentation:
+    """Presentation settings: the screen change effect, sound, inverted text,
+    automatic show, what they apply to, the show time and the background
+    fill (solid or gradation). :meth:`parameter_set` lays the items out the
+    way Hancom writes them."""
+
+    effect: int = 0
+    sound: bytes = b""
+    invert_text: int = 0
+    autoshow: int = 0
+    apply_to: int = 0
+    show_time: int = 0
+    fill: di.Fill = field(default_factory=di.Fill)
+
+    @classmethod
+    def from_set(cls, ps: ParameterSet) -> "Presentation | None":
+        """The settings *ps* holds; None when it holds something else, an item
+        this codec does not know or a fill it has no layout for."""
+
+        settings = ps.find(PRESENTATION_SETTINGS)
+        if ps.set_id != PRESENTATION or len(ps.items) != 1 or not isinstance(settings, ParameterSet):
+            return None
+        items = {item.item_id: item.value for item in settings.items}
+        fill = items.get(PRESENTATION_FILL)
+        sound = items.get(0x4001, b"")
+        if not set(items) <= _SETTINGS_ITEMS or not isinstance(fill, ParameterSet) or not isinstance(sound, bytes):
+            return None
+        background = _presentation_fill(fill)
+        if background is None:
+            return None
+        return cls(
+            _number(items, 0x4000),
+            sound,
+            _number(items, 0x4002),
+            _number(items, 0x4003),
+            _number(items, 0x4004),
+            _number(items, 0x4005) & 0xFFFFFFFF,
+            background,
+        )
+
+    def parameter_set(self) -> ParameterSet:
+        """The settings as a parameter set; the fill must be solid or a
+        gradation of at most ten colours, and there is no sound."""
+
+        fill = self.fill
+        alpha = fill.alphas[0] if fill.alphas else 0
+        if fill.kind == di.FILL_SOLID:
+            fill_items = [
+                ParameterItem(0x4001, 9, di.FILL_SOLID),
+                ParameterItem(0x4018, 6, alpha),
+                ParameterItem(0x4016, 5, fill.pattern_type),
+                ParameterItem(0x4015, 9, fill.pattern_color & 0xFFFFFFFF),
+                ParameterItem(0x4014, 9, fill.back_color & 0xFFFFFFFF),
+                ParameterItem(0x402F, 6, 1),
+                ParameterItem(0x4031, 6, 0),
+                ParameterItem(0x4030, 6, 0),
+            ]
+        else:
+            count = len(fill.grad_colors)
+            positions = fill.grad_positions if count > 2 else []
+            fill_items = [
+                ParameterItem(0x400B, 6, alpha),
+                ParameterItem(0x400A, 6, fill.additional[0] if fill.additional else 50),
+                ParameterItem(0x4009, PIT_ARRAY, _slots(positions)),
+                ParameterItem(0x4008, PIT_ARRAY, _slots(fill.grad_colors)),
+                ParameterItem(0x4007, 5, count),
+                ParameterItem(0x4006, 5, fill.grad_step),
+                ParameterItem(0x4005, 5, fill.grad_center_y),
+                ParameterItem(0x4004, 5, fill.grad_center_x),
+                ParameterItem(0x4003, 5, fill.grad_angle),
+                ParameterItem(0x4002, 5, fill.grad_type),
+                ParameterItem(0x4001, 9, di.FILL_GRADATION),
+                ParameterItem(0x402F, 6, 0),
+                ParameterItem(0x4031, 6, 0),
+                ParameterItem(0x4030, 6, 1),
+            ]
+        settings = [
+            ParameterItem(0x4004, 9, self.apply_to),
+            ParameterItem(0x4005, 9, self.show_time & 0xFFFFFFFF),
+            ParameterItem(0x4003, 5, self.autoshow),
+            ParameterItem(0x4002, 5, self.invert_text),
+            ParameterItem(0x4000, 9, self.effect),
+            ParameterItem(PRESENTATION_FILL, PIT_SET, ParameterSet(PRESENTATION_FILL, fill_items)),
+        ]
+        inner = ParameterSet(PRESENTATION_SETTINGS, settings)
+        return ParameterSet(PRESENTATION, [ParameterItem(PRESENTATION_SETTINGS, PIT_SET, inner)])
+
+
+def _number(items: dict[int, "str | int | bytes | ParameterSet | ParameterArray"], key: int, default: int = 0) -> int:
+    value = items.get(key, default)
+    return value if isinstance(value, int) else default
+
+
+def _slots(values: list[int]) -> ParameterArray:
+    slots: list[tuple[int, str | int | bytes | ParameterSet | ParameterArray]] = [(5, value & 0xFFFFFFFF) for value in values]
+    return ParameterArray(slots + [(5, 0)] * (_FILL_SLOTS - len(values)))
+
+
+def _presentation_fill(ps: ParameterSet) -> di.Fill | None:
+    """A solid or gradation fill from the fill set; None for any other fill,
+    an image or a gradation whose colours the set does not hold."""
+
+    items = {item.item_id: item.value for item in ps.items}
+    kind = _number(items, 0x4001)
+    if ps.set_id != PRESENTATION_FILL or kind not in (di.FILL_SOLID, di.FILL_GRADATION) or items.get(0x401E, b"") != b"":
+        return None
+    fill = di.Fill(kind)
+    if kind == di.FILL_SOLID:
+        fill.back_color = _number(items, 0x4014, 0xFFFFFF) & 0xFFFFFFFF
+        fill.pattern_color = _number(items, 0x4015) & 0xFFFFFFFF
+        fill.pattern_type = _number(items, 0x4016, -1)
+        fill.alphas = bytes([_number(items, 0x4018) & 0xFF])
+        return fill
+    colors, positions, count = items.get(0x4008), items.get(0x4009), _number(items, 0x4007)
+    if not isinstance(colors, ParameterArray) or not 0 <= count <= len(colors.values):
+        return None
+    fill.grad_type = _number(items, 0x4002)
+    fill.grad_angle = _number(items, 0x4003)
+    fill.grad_center_x = _number(items, 0x4004)
+    fill.grad_center_y = _number(items, 0x4005)
+    fill.grad_step = _number(items, 0x4006)
+    fill.grad_colors = [value & 0xFFFFFFFF if isinstance(value, int) else 0 for _, value in colors.values[:count]]
+    if count > 2 and isinstance(positions, ParameterArray):
+        fill.grad_positions = [value if isinstance(value, int) else 0 for _, value in positions.values[:count]]
+    fill.additional = bytes([_number(items, 0x400A, 50) & 0xFF])
+    fill.alphas = bytes([_number(items, 0x400B) & 0xFF])
+    return fill
 
 
 @dataclass

@@ -290,7 +290,7 @@ class ShapeReader:
         for child in ctrl.children:
             if child.tag == rec.CTRL_DATA:
                 ps = ct.ParameterSet.decode(child.payload)
-                if ps is None:
+                if ps is None or not ps.plain():
                     self.report.skip("shape-data")
                 else:
                     sets.append(ps)
