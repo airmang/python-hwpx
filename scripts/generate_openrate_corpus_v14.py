@@ -476,10 +476,10 @@ _CHART_XML_HEAD = (
 )
 _CHART_XML_TAIL = "</c:plotArea></c:chart></c:chartSpace>"
 _CHART_TYPE_BANK: tuple[str, ...] = ("pie", "bar", "line", "pie", "bar")
-#: A line chart needs its two axes: without them Hancom crashed rendering and
-#: saving v14-chart-002, and ``add_chart`` now rejects it
-#: (``shape-chart-line-axes-missing``).
-_LINE_CHART_AXES = (
+#: Line and bar charts need their two axes: without them Hancom crashed
+#: rendering and saving v14-chart-002 (a line chart) and drew bar charts empty,
+#: and ``add_chart`` now rejects both (``shape-chart-axes-missing``).
+_CHART_AXES = (
     '<c:catAx><c:axId val="111"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
     '<c:delete val="0"/><c:axPos val="b"/><c:crossAx val="222"/></c:catAx>'
     '<c:valAx><c:axId val="222"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
@@ -506,10 +506,13 @@ def _build_chart_ml(chart_type: str, categories: list[str], values: list[float],
     elif chart_type == "line":
         body = (
             f'<c:lineChart><c:grouping val="standard"/>{series}'
-            '<c:axId val="111"/><c:axId val="222"/></c:lineChart>' + _LINE_CHART_AXES
+            '<c:axId val="111"/><c:axId val="222"/></c:lineChart>' + _CHART_AXES
         )
     else:  # bar
-        body = f'<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/>{series}</c:barChart>'
+        body = (
+            f'<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/>{series}'
+            '<c:axId val="111"/><c:axId val="222"/></c:barChart>' + _CHART_AXES
+        )
     return _CHART_XML_HEAD + body + _CHART_XML_TAIL
 
 
