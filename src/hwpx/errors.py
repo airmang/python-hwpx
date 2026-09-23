@@ -275,6 +275,7 @@ ERROR_CODES: dict[str, str] = {
     "shape-chart-xml-empty": "차트 XML 이 비어 있다.",
     "shape-chart-xml-malformed": "차트 XML 이 올바른 XML 이 아니다.",
     "shape-chart-root-invalid": "차트 XML 루트가 c:chartSpace 가 아니다.",
+    "shape-chart-line-axes-missing": "꺾은선 차트에 두 축(c:axId·c:catAx·c:valAx)이 없다(한컴이 렌더·저장하다 멈춘다).",
     "shape-chart-anchor-detached": "만든 차트 앵커가 자기 파트를 가리키지 않는다.",
     "shape-chart-not-created": "만든 차트를 표준 스캔이 다시 찾지 못했다.",
     "shape-caption-side-invalid": "캡션 side 값이 OWPML 어휘(LEFT/RIGHT/TOP/BOTTOM) 밖이다.",
