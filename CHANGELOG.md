@@ -22,6 +22,13 @@
 
 ### 고침
 
+- 셀의 `set_text()`(`Table.set_cell_text()`)와 `run.text = ...`가 옛 글 일부를 남기던 것을
+  고친다. 한컴이 쓴 셀과 run에는 `hp:t` 안에 줄바꿈·탭·공백 요소와 형광펜 표시가 있고,
+  그 뒤에도 글이 있다. 두 설정자는 `hp:t`의 앞 글만 바꿔서 요소와 그 뒤 옛 글이 새 값
+  뒤에 남았다(`run.text`는 새 값을 옛 글 뒤에 붙였다). 이제 `paragraph.text`처럼 옛 글을
+  요소까지 모두 지우고 새 값을 쓴다. `run.text`는 첫 `hp:t` 자리에 쓴다.
+- 같은 두 설정자가 값의 탭을 지우던 것을 고친다. 이제 탭을 `hp:t` 안의 `hp:tab`으로
+  쓴다(`split_paragraphs=True`도 같다).
 - 탭 문자가 든 글을 쓴 문서를 한컴이 끝내 열지 못하던 것을 고친다.
   `paragraph.add_run("이름\t홍길동")`, `doc.text.replace()`, `fill_cells()`,
   `paragraph_patch()`, `apply_body_ops()`의 `replace_text`와 삽입 op는 탭을 문자 그대로

@@ -127,8 +127,9 @@ _TEXT_SETTER_APPLIERS: tuple[Callable[[str], str], ...] = (
 
 _TEXT_SETTER_IDS = ("header_footer", "run", "table_cell")
 
+# A tab is not an illegal character: the run and cell setters write it as an
+# hp:tab element inside hp:t (tests/test_text_inline_elements.py).
 _TEXT_SANITIZATION_CASES: tuple[tuple[str, str], ...] = (
-    ("a\tb", "ab"),
     ("left\r\nright", "left\nright"),
     ("a\x01b", "ab"),
     ("line1\nline2", "line1\nline2"),
