@@ -15,7 +15,9 @@ from ._document_primitives import (
     _default_sublist_attributes,
     _paragraph_id,
     _sanitize_text,
+    _text_element_content,
 )
+from ._paragraph_text_edit import set_text_with_tabs
 
 if TYPE_CHECKING:
     from .section_format import HwpxOxmlSectionProperties
@@ -426,11 +428,7 @@ class HwpxOxmlSectionHeaderFooter:
     def text(self) -> str:
         """Return the concatenated text content of the header/footer."""
 
-        parts: list[str] = []
-        for node in self.element.findall(f".//{_HP}t"):
-            if node.text:
-                parts.append(node.text)
-        return "".join(parts)
+        return "".join(_text_element_content(node) for node in self.element.findall(f".//{_HP}t"))
 
     @text.setter
     def text(self, value: str) -> None:
@@ -438,8 +436,8 @@ class HwpxOxmlSectionHeaderFooter:
         for child in list(self.element):
             if child.tag == f"{_HP}subList":
                 self.element.remove(child)
-        text_node = self._ensure_text_element()
-        text_node.text = _sanitize_text(value)
+        # A tab becomes an hp:tab inside hp:t, as Hancom writes it.
+        set_text_with_tabs(self._ensure_text_element(), value)
         # Clear cached lineseg so Hangul recalculates layout.
         for p_elem in self.element.findall(f".//{_HP}p"):
             _clear_paragraph_layout_cache(p_elem)
@@ -568,8 +566,7 @@ class HwpxOxmlSectionHeaderFooter:
                     strike=strike,
                 )
         run = _append_child(target, f"{_HP}run", {"charPrIDRef": str(char_pr_id_ref)})
-        text_node = _append_child(run, f"{_HP}t")
-        text_node.text = _sanitize_text(text)
+        set_text_with_tabs(_append_child(run, f"{_HP}t"), text)
         _clear_paragraph_layout_cache(target)
         self._properties.section.mark_dirty()
         return run

@@ -14,8 +14,9 @@ from ._document_primitives import (
     _default_sublist_attributes,
     _element_local_name,
     _memo_id,
-    _sanitize_text,
+    _text_element_content,
 )
+from ._paragraph_text_edit import set_text_with_tabs
 
 if TYPE_CHECKING:
     from .objects import HwpxOxmlInlineObject
@@ -284,11 +285,7 @@ class HwpxOxmlNote:
     @property
     def text(self) -> str:
         """Return the note body text."""
-        texts: list[str] = []
-        for t in self.element.findall(f".//{_HP}t"):
-            if t.text:
-                texts.append(t.text)
-        return "".join(texts)
+        return "".join(_text_element_content(t) for t in self.element.findall(f".//{_HP}t"))
 
     @text.setter
     def text(self, value: str) -> None:
@@ -321,8 +318,7 @@ class HwpxOxmlNote:
         run = _append_child(paragraph, f"{_HP}run", run_attrs)
         if auto_num is not None:
             run.append(auto_num)
-        t = _append_child(run, f"{_HP}t", {})
-        t.text = _sanitize_text(value)
+        set_text_with_tabs(_append_child(run, f"{_HP}t", {}), value)
         self.paragraph.section.mark_dirty()
 
     @property
