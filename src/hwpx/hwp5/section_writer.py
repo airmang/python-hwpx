@@ -12,6 +12,7 @@ from __future__ import annotations
 import struct
 import zlib
 from collections import Counter
+from datetime import datetime, timedelta
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
@@ -112,6 +113,27 @@ _CONTAINER_PARTS = frozenset({"offset", "orgSz", "curSz", "flip", "rotationInfo"
 
 def _local(element: etree._Element) -> str:
     return etree.QName(element).localname
+
+
+#: Hancom prints a memo's creation time in Korean time (UTC+9).
+_MEMO_TIME_OFFSET = timedelta(hours=9)
+
+
+def _memo_command(number: int, params: dict[str, str]) -> str:
+    """The command of a memo that has none: ``MEMO/<memo shape>/<number>/<time low>/<time
+    high>/<author>/`` followed by Hancom's closing ``\\;;``."""
+
+    ticks = 0
+    created = params.get("CreateDateTime", "")
+    try:
+        when = datetime.strptime(created, "%Y-%m-%dT%H:%M:%SZ") - _MEMO_TIME_OFFSET
+        ticks = int((when - datetime(1601, 1, 1)).total_seconds() * 10_000_000)
+    except ValueError:
+        ticks = 0
+    ticks = max(ticks, 0)
+    author = params.get("Author", "")
+    shape = params.get("MemoShapeIDRef") or "65535"
+    return f"MEMO/{shape}/{number}/{ticks & 0xFFFFFFFF}/{ticks >> 32}/{author}/" + chr(92) + ";;"
 
 
 def _matrix_value(text: str | None) -> float:
@@ -275,6 +297,9 @@ class SectionRecords:
 
     def __init__(self, bin_ids: dict[str, int] | None = None) -> None:
         self.unsupported: Counter[str] = Counter()
+        # Memo bodies (their hp:subList) in the order of their memo fields; the
+        # document keeps them all on the last paragraph of its last section.
+        self.memo_bodies: list[tuple[int, etree._Element | None]] = []
         # BinData id of each binary item id, for pictures.
         self.bin_ids = bin_ids or {}
         # Fields begun and not yet ended: the begin id and the field-end
@@ -283,6 +308,21 @@ class SectionRecords:
 
     def section(self, root: etree._Element) -> list[rec.Record]:
         return self.paragraph_list([p for p in root if _local(p) == "p"], 0)
+
+    def memo_records(self, bodies: list[tuple[int, etree._Element | None]]) -> list[rec.Record]:
+        """The memo bodies of a document, to hang on its last paragraph: each
+        ``MEMO_LIST`` (the memo's number), list header and paragraphs."""
+
+        out: list[rec.Record] = []
+        for number, sub_list in bodies:
+            paragraphs = [p for p in sub_list if _local(p) == "p"] if sub_list is not None else []
+            if not paragraphs:
+                paragraphs = [etree.Element(f"{{{_HP}}}p")]
+            header = ct.ListHeader(len(paragraphs), _list_props(sub_list), bytes(10))
+            out.append(rec.Record(rec.MEMO_LIST, 1, struct.pack("<I", number)))
+            out.append(rec.Record(rec.LIST_HEADER, 1, header.encode()))
+            out.extend(self.paragraph_list(paragraphs, 1))
+        return out
 
     def paragraph_list(self, paragraphs: list[etree._Element], level: int) -> list[rec.Record]:
         out: list[rec.Record] = []
@@ -861,8 +901,11 @@ class SectionRecords:
         kind = element.get("type", "")
         begin_id = element.get("id", "")
         text_id = _FIELD_TEXT_ID.get(kind)
-        # Memo bodies and fields of unknown kinds are not written yet.
-        if text_id is None or kind == "MEMO" or _find(element, "subList") is not None:
+        memo = kind == "MEMO"
+        sub_list = _find(element, "subList")
+        # Fields of unknown kinds, and a paragraph list on anything but a memo,
+        # are not written yet.
+        if text_id is None or (sub_list is not None and not memo):
             self.unsupported[f"field/{kind or '?'}"] += 1
             self.open_fields.append((begin_id, None))
             return None
@@ -877,13 +920,21 @@ class SectionRecords:
             instance_id = int(begin_id) & 0xFFFFFFFF
         except ValueError:
             instance_id = zlib.crc32(begin_id.encode("utf-8"))
+        z_order = max(_int(element, "zorder", -1), 0)
+        command = params.get("Command")
+        if memo:
+            # A memo's number is its z-order; its body goes to the document's end.
+            z_order = z_order or max(_number(params.get("Number")), 1)
+            if command is None:
+                command = _memo_command(z_order, params)
+            self.memo_bodies.append((z_order, sub_list))
         value = ct.FieldCtrl(
             "%unk" if kind in _FIELD_HEAD_UNKNOWN else text_id,
             props,
             extra,
-            params.get("Command", ""),
+            command or "",
             instance_id,
-            max(_int(element, "zorder", -1), 0),
+            z_order,
         )
         records = [rec.Record(rec.CTRL_HEADER, level, value.encode())]
         name = element.get("name", "")
@@ -892,7 +943,8 @@ class SectionRecords:
         # The field end repeats the field's text id with the property byte, and
         # whether the field is editable.
         end_id = (bt.ctrl_word(text_id) & 0xFFFFFF) | extra << 24
-        self.open_fields.append((begin_id, struct.pack("<HIIIH", 4, end_id, props & 1, 0, 4)))
+        number = z_order if memo else 0
+        self.open_fields.append((begin_id, struct.pack("<HIIIH", 4, end_id, props & 1, number, 4)))
         return text_id, records
 
     def field_end(self, element: etree._Element) -> bytes | None:

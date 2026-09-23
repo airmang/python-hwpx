@@ -339,10 +339,14 @@ def _hyperlink_parameters(command: str) -> list[tuple[str, str, str]]:
 MEMO_TIME_OFFSET = timedelta(hours=9)
 
 
+#: The memo shape reference of a memo whose command gives none.
+MEMO_SHAPE_UNSET = 65535
+
+
 def _memo_parameters(field: ct.FieldCtrl, shape: int | None) -> list[tuple[str, str, str]]:
     """``ID``, ``Number``, ``Author``, ``MemoShapeIDRef`` and ``CreateDateTime``
     of a memo: the number is the field's z-order, and the command
-    ``MEMO/<n>/<n>/<time low>/<time high>/<author>/...`` holds the rest."""
+    ``MEMO/<memo shape>/<number>/<time low>/<time high>/<author>/...`` holds the rest."""
 
     parts = field.command.split("/")
 
@@ -361,7 +365,7 @@ def _memo_parameters(field: ct.FieldCtrl, shape: int | None) -> list[tuple[str, 
         ("stringParam", "ID", f"memo{field.z_order}"),
         ("integerParam", "Number", str(field.z_order)),
         ("stringParam", "Author", part(5)),
-        ("stringParam", "MemoShapeIDRef", str(shape) if shape is not None else ""),
+        ("stringParam", "MemoShapeIDRef", part(1) or str(MEMO_SHAPE_UNSET)),
         ("stringParam", "CreateDateTime", created),
     ]
 
@@ -371,7 +375,7 @@ def field_parameters(text_id: str, field: ct.FieldCtrl, memo_shape: int | None =
     Hancom spells out of the command for the kinds that have it."""
 
     params = [("integerParam", "Prop", str(field.extra))]
-    if field.command:
+    if field.command or text_id == "%%me":
         params.append(("stringParam", "Command", field.command))
     if text_id == "%clk":
         values = _command_values(field.command)

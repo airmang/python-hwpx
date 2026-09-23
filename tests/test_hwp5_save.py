@@ -54,7 +54,7 @@ def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "extras",
-    [{}, {"fields": True}, {"highlights": True}, {"label": True}, {"markers": True}, {"text_box": True}, {"picture": True}],
+    [{}, {"fields": True}, {"highlights": True}, {"label": True}, {"markers": True}, {"text_box": True}, {"picture": True}, {"memo": True}],
 )
 def test_hwp_to_hwpx_to_hwp_keeps_the_section_records(extras: dict[str, bool]) -> None:
     original = make_hwp(**extras)
@@ -98,15 +98,15 @@ def test_content_the_writer_cannot_express_is_refused_before_writing(tmp_path: P
     assert not target.exists()
 
 
-def test_memos_and_master_pages_are_refused_until_they_can_be_written(tmp_path: Path) -> None:
+def test_master_pages_are_refused_until_they_can_be_written(tmp_path: Path) -> None:
     document = HwpxDocument.open(make_hwp(memo=True))
     [sec_pr] = list(document.sections[0].element.iter(f"{HP}secPr"))
     sec_pr.set("masterPageCnt", "1")
     document.sections[0].mark_dirty()
-    target = tmp_path / "메모.hwp"
+    target = tmp_path / "바탕쪽.hwp"
     with pytest.raises(Hwp5Error) as info:
         document.save_to_path(target)
-    assert info.value.context["unsupported"] == {"field/MEMO": 1, "masterPage": 1}
+    assert info.value.context["unsupported"] == {"masterPage": 1}
     assert not target.exists()
 
 

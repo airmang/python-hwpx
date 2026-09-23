@@ -22,7 +22,7 @@ from .docinfo_writer import build_docinfo, set_bin_count
 from .errors import Hwp5Error
 from .fileheader import FileHeader
 from .owpml import NS
-from .section_writer import build_section_records
+from .section_writer import SectionRecords
 
 VERSION = (5, 1, 1, 0)
 _OPF = NS["opf"]
@@ -106,11 +106,18 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
             unsupported[f"header/{name}"] += found
     used: set[int] = set()
     bin_ids = {item_id: _bin_id(item_id, used) for item_id, _ in binaries}
-    sections = []
+    sections: list[list[rec.Record]] = []
+    writers: list[SectionRecords] = []
     for path in section_paths:
-        records, missing = build_section_records(etree.fromstring(files[path]), bin_ids)
-        sections.append(records)
-        unsupported.update(missing)
+        writer = SectionRecords(bin_ids)
+        sections.append(writer.section(etree.fromstring(files[path])))
+        writers.append(writer)
+    # Memo bodies of every section hang on the last paragraph of the last one.
+    memos = [body for writer in writers for body in writer.memo_bodies]
+    if memos and sections:
+        sections[-1].extend(writers[-1].memo_records(memos))
+    for writer in writers:
+        unsupported.update(writer.unsupported)
     if unsupported:
         summary = ", ".join(f"{kind} x{count}" for kind, count in sorted(unsupported.items()))
         raise Hwp5Error(
