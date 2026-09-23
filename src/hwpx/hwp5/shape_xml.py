@@ -2,9 +2,10 @@
 """Drawing objects of an HWP 5.0 section as OWPML shape elements.
 
 The reading half of :mod:`hwpx.hwp5.shapes`: rectangles, ellipses, arcs,
-polygons, lines, containers and pictures with their placement, matrices,
-line, fill and shadow, text boxes, captions and parameter sets. Kinds this
-module does not convert are reported, never dropped.
+polygons, lines, curves, connectors, containers and pictures with their
+placement, matrices, line, fill and shadow, text boxes, captions and
+parameter sets. Kinds this module does not convert are reported, never
+dropped.
 """
 
 from __future__ import annotations
@@ -80,6 +81,18 @@ SHADOW = (
     "SCALE_ENLARGE",
 )
 ARC_TYPE = ("NORMAL", "PIE", "CHORD")
+CURVE_SEGMENT = ("LINE", "CURVE")
+CONNECT_TYPE = (
+    "STRAIGHT_NOARROW",
+    "STRAIGHT_ONEWAY",
+    "STRAIGHT_BOTH",
+    "STROKE_NOARROW",
+    "STROKE_ONEWAY",
+    "STROKE_BOTH",
+    "ARC_NOARROW",
+    "ARC_ONEWAY",
+    "ARC_BOTH",
+)
 DROPCAP = ("None", "DoubleLine", "TripleLine", "Margin")
 #: Item paths in a shape's parameter sets: the first-letter decoration kind
 #: (object header) and the hyperlink (shape component).
@@ -269,6 +282,8 @@ class ShapeReader:
             return [("type", token(ARC_TYPE, sh.Arc.decode(geometry.payload).kind))]
         if kind == "$lin":
             return [("isReverseHV", flag(sh.Line.decode(geometry.payload).reverse))]
+        if kind == "$col":
+            return [("type", token(CONNECT_TYPE, sh.ConnectLine.decode(geometry.payload).kind))]
         if kind == "$pic":
             return [("reverse", 0)]
         return []
@@ -392,5 +407,20 @@ class ShapeReader:
         elif kind == "$lin":
             line = sh.Line.decode(geometry.payload)
             points = [("hc:startPt", line.start), ("hc:endPt", line.end)]
+        elif kind == "$cur":
+            curve = sh.Curve.decode(geometry.payload)
+            for segment, (x1, y1), (x2, y2) in zip(curve.segments, curve.points, curve.points[1:]):
+                sub(element, "hp:seg", (("type", token(CURVE_SEGMENT, segment)), ("x1", x1), ("y1", y1), ("x2", x2), ("y2", y2)))
+        elif kind == "$col":
+            connect = sh.ConnectLine.decode(geometry.payload)
+            for name, (x, y), subject, index in (
+                ("hp:startPt", connect.start, connect.start_subject, connect.start_index),
+                ("hp:endPt", connect.end, connect.end_subject, connect.end_index),
+            ):
+                sub(element, name, (("x", x), ("y", y), ("subjectIDRef", subject), ("subjectIdx", index)))
+            if connect.control_points:
+                control = sub(element, "hp:controlPoints")
+                for x, y, point_kind in connect.control_points:
+                    sub(control, "hp:point", (("x", x), ("y", y), ("type", point_kind)))
         for name, (x, y) in points:
             sub(element, name, (("x", x), ("y", y)))

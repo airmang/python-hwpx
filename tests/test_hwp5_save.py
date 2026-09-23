@@ -69,6 +69,7 @@ def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
         {"master_page": True},
         {"memo": True, "master_page": True},
         {"compose": True},
+        {"drawings": True},
     ],
 )
 def test_hwp_to_hwpx_to_hwp_keeps_the_section_records(extras: dict[str, bool]) -> None:
@@ -177,11 +178,11 @@ def test_a_container_holding_a_shape_the_writer_cannot_write_is_refused() -> Non
     section = etree.fromstring(
         '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"'
         ' xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">'
-        "<hp:p><hp:run><hp:container><hp:offset/><hp:orgSz/><hp:connectLine/></hp:container></hp:run></hp:p>"
+        "<hp:p><hp:run><hp:container><hp:offset/><hp:orgSz/><hp:textart/></hp:container></hp:run></hp:p>"
         "</hs:sec>"
     )
     _, unsupported = build_section_records(section)
-    assert unsupported == {"connectLine": 1}
+    assert unsupported == {"textart": 1}
 
 
 def test_an_unknown_element_directly_in_a_section_is_refused() -> None:

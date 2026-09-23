@@ -30,6 +30,8 @@ SHAPE_ELEMENTS = {
     "$arc": "arc",
     "$pol": "polygon",
     "$lin": "line",
+    "$cur": "curve",
+    "$col": "connectLine",
     "$con": "container",
     "$pic": "pic",
 }
@@ -40,6 +42,8 @@ GEOMETRY_TAGS = {
     "$arc": rec.SHAPE_COMPONENT_ARC,
     "$pol": rec.SHAPE_COMPONENT_POLYGON,
     "$lin": rec.SHAPE_COMPONENT_LINE,
+    "$cur": rec.SHAPE_COMPONENT_CURVE,
+    "$col": rec.SHAPE_COMPONENT_LINE,
     "$pic": rec.SHAPE_COMPONENT_PICTURE,
 }
 
@@ -261,6 +265,69 @@ class Polygon:
     def encode(self) -> bytes:
         b = Builder().u32(len(self.points))
         _points(b, self.points)
+        return b.raw(self.extra).bytes()
+
+
+@dataclass
+class Curve:
+    """``SHAPE_COMPONENT_CURVE``: the points, the kind of each segment between
+    two of them (0 line, 1 curve), then four bytes OWPML has no place for."""
+
+    points: list[Point] = field(default_factory=list)
+    segments: list[int] = field(default_factory=list)
+    extra: bytes = bytes(4)
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "Curve":
+        c = Cursor(payload, "SHAPE_COMPONENT_CURVE")
+        count = c.u32()
+        points = [_point(c) for _ in range(min(count, c.left // 8))]
+        value = cls(points, list(c.raw(min(max(len(points) - 1, 0), c.left))))
+        value.extra = c.rest()
+        return value
+
+    def encode(self) -> bytes:
+        b = Builder().u32(len(self.points))
+        _points(b, self.points)
+        return b.raw(bytes(self.segments)).raw(self.extra).bytes()
+
+
+#: A connector's control point: x, y and its kind.
+ControlPoint = tuple[int, int, int]
+
+
+@dataclass
+class ConnectLine:
+    """The ``SHAPE_COMPONENT_LINE`` of a connector: the start and end points,
+    the connector type, the shape (instance id) and connection point each end
+    is attached to, the control points, then a word OWPML has no place for."""
+
+    start: Point = (0, 0)
+    end: Point = (0, 0)
+    kind: int = 0
+    start_subject: int = 0
+    start_index: int = 0
+    end_subject: int = 0
+    end_index: int = 0
+    control_points: list[ControlPoint] = field(default_factory=list)
+    extra: bytes = bytes(4)
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "ConnectLine":
+        c = Cursor(payload.ljust(40, b"\0"), "SHAPE_COMPONENT_LINE")
+        value = cls(_point(c), _point(c), c.u32(), c.u32(), c.u32(), c.u32(), c.u32())
+        count = c.u32()
+        value.control_points = [(c.i32(), c.i32(), c.u16()) for _ in range(min(count, c.left // 10))]
+        value.extra = c.rest()
+        return value
+
+    def encode(self) -> bytes:
+        b = Builder()
+        _points(b, [self.start, self.end])
+        b.u32(self.kind).u32(self.start_subject).u32(self.start_index).u32(self.end_subject).u32(self.end_index)
+        b.u32(len(self.control_points))
+        for x, y, kind in self.control_points:
+            b.i32(x).i32(y).u16(kind)
         return b.raw(self.extra).bytes()
 
 

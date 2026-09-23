@@ -232,6 +232,44 @@ def _text_box() -> list[rec.Record]:
     )
 
 
+def _drawings() -> list[rec.Record]:
+    """A closed curve of a line and two curved segments, and a connector with
+    two control points between the shapes of instance ids 185 and 186."""
+
+    records: list[rec.Record] = []
+    for kind, geometry_tag, geometry, fill in (
+        (
+            "$cur",
+            rec.SHAPE_COMPONENT_CURVE,
+            sh.Curve([(0, 0), (8000, 0), (8000, 6000), (0, 0)], [0, 1, 1]),
+            di.Fill(di.FILL_SOLID, 0x00FFFFFF, 0, -1, additional=b"", alphas=b"\0"),
+        ),
+        (
+            "$col",
+            rec.SHAPE_COMPONENT_LINE,
+            sh.ConnectLine((0, 0), (8000, 6000), 1, 185, 1, 186, 2, [(0, 0, 3), (0, 6000, 26)]),
+            di.Fill(),
+        ),
+    ):
+        common = ct.ObjectCommon("gso ", 0x000A2211, 0, 0, 8000, 6000, 0, (0, 0, 0, 0), 190, 0, "", b"\0\0")
+        style = sh.DrawingStyle(0, 33, 0xC0000041, 0, fill, 0, 0xB2B2B2, 0, 0, 190)
+        component = sh.ShapeComponent(
+            kind, True, 0, 0, 0, 1, 8000, 6000, 8000, 6000, 1 << 19, 0, 4000, 3000,
+            [_IDENTITY, _IDENTITY, _IDENTITY], style.encode(),
+        )
+        records += _paragraph(
+            0,
+            _extended(11, "gso ") + _u16(13),
+            [(0, 0)],
+            [
+                rec.Record(rec.CTRL_HEADER, 1, common.encode()),
+                rec.Record(rec.SHAPE_COMPONENT, 2, component.encode()),
+                rec.Record(geometry_tag, 3, geometry.encode()),
+            ],
+        )
+    return records
+
+
 def _memo() -> list[rec.Record]:
     """A memo field; its body hangs on the paragraph after a ``MEMO_LIST`` record."""
 
@@ -311,8 +349,11 @@ def make_hwp(
     text_box: bool = False,
     picture: bool = False,
     compose: bool = False,
+    drawings: bool = False,
 ) -> bytes:
     section = _section()
+    if drawings:
+        section += _drawings()
     if compose:
         section += _compose()
     if text_box:
@@ -511,6 +552,30 @@ def test_overlapped_characters_open_as_compose_between_the_text() -> None:
     assert [c.get("prIDRef") for c in compose.findall(f"{HP}charPr")] == ["1", "0"] + ["4294967295"] * 8
     run = compose.getparent()
     assert [(etree.QName(c).localname, c.text) for c in run] == [("t", "앞"), ("compose", None), ("t", "뒤")]
+
+
+def test_curves_and_connectors_open_with_their_segments_and_ends() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(drawings=True))
+    section = document.sections[0].element
+    [curve] = list(section.iter(f"{HP}curve"))
+    segments = [(s.get("type"), s.get("x1"), s.get("y1"), s.get("x2"), s.get("y2")) for s in curve.findall(f"{HP}seg")]
+    assert segments == [
+        ("LINE", "0", "0", "8000", "0"),
+        ("CURVE", "8000", "0", "8000", "6000"),
+        ("CURVE", "8000", "6000", "0", "0"),
+    ]
+    [connector] = list(section.iter(f"{HP}connectLine"))
+    assert connector.get("type") == "STRAIGHT_ONEWAY"
+    ends = [dict(connector.find(f"{HP}{name}").attrib) for name in ("startPt", "endPt")]
+    assert ends == [
+        {"x": "0", "y": "0", "subjectIDRef": "185", "subjectIdx": "1"},
+        {"x": "8000", "y": "6000", "subjectIDRef": "186", "subjectIdx": "2"},
+    ]
+    points = [dict(p.attrib) for p in connector.find(f"{HP}controlPoints")]
+    assert points == [{"x": "0", "y": "0", "type": "3"}, {"x": "0", "y": "6000", "type": "26"}]
+    assert connector.find("{http://www.hancom.co.kr/hwpml/2011/core}fillBrush") is None
 
 
 @pytest.mark.parametrize(

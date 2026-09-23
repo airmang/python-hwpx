@@ -74,6 +74,8 @@ from .shape_xml import (
     ARC_TYPE,
     ARROW,
     ARROW_SIZE,
+    CONNECT_TYPE,
+    CURVE_SEGMENT,
     DROPCAP,
     DROPCAP_PATH,
     ELLIPSE_POINTS,
@@ -989,8 +991,43 @@ class SectionRecords:
         if kind == "$pol":
             points = [(_i32(_int(p, "x")), _i32(_int(p, "y"))) for p in element.findall(f"{{{_HC}}}pt")]
             return sh.Polygon(points, bytes(4)).encode()
+        if kind == "$cur":
+            return self.curve(element).encode()
+        if kind == "$col":
+            return self.connect_line(element).encode()
         start, end = self._point(element, "startPt"), self._point(element, "endPt")
         return sh.Line(start, end, _flag(element, "isReverseHV")).encode()
+
+    def curve(self, element: etree._Element) -> sh.Curve:
+        """The points of a curve's segments, each starting where the one before
+        it ends; segments that do not join are unsupported."""
+
+        points: list[sh.Point] = []
+        kinds: list[int] = []
+        for segment in element.findall(f"{{{_HP}}}seg"):
+            start = (_i32(_int(segment, "x1")), _i32(_int(segment, "y1")))
+            if points and points[-1] != start:
+                self.unsupported["curve/gap"] += 1
+            elif not points:
+                points.append(start)
+            points.append((_i32(_int(segment, "x2")), _i32(_int(segment, "y2"))))
+            kinds.append(index_of(CURVE_SEGMENT, segment.get("type", "CURVE"), 1))
+        return sh.Curve(points, kinds, bytes(4))
+
+    @staticmethod
+    def connect_line(element: etree._Element) -> sh.ConnectLine:
+        start, end, control = _find(element, "startPt"), _find(element, "endPt"), _find(element, "controlPoints")
+        return sh.ConnectLine(
+            (_i32(_int(start, "x")), _i32(_int(start, "y"))),
+            (_i32(_int(end, "x")), _i32(_int(end, "y"))),
+            index_of(CONNECT_TYPE, element.get("type"), 0),
+            _int(start, "subjectIDRef") & 0xFFFFFFFF,
+            _int(start, "subjectIdx") & 0xFFFFFFFF,
+            _int(end, "subjectIDRef") & 0xFFFFFFFF,
+            _int(end, "subjectIdx") & 0xFFFFFFFF,
+            [(_i32(_int(p, "x")), _i32(_int(p, "y")), _int(p, "type") & 0xFFFF) for p in control] if control is not None else [],
+            bytes(4),
+        )
 
     def picture(self, element: etree._Element) -> bytes:
         image, line = element.find(f"{{{_HC}}}img"), _find(element, "lineShape")
