@@ -193,6 +193,15 @@ def _markers() -> list[rec.Record]:
     return _paragraph(0, text, [(0, 0)], controls)
 
 
+def _compose() -> list[rec.Record]:
+    """Two characters set over each other in a rectangle, between text; the
+    record's text starts with the rectangle's glyph."""
+
+    text = "앞".encode("utf-16-le") + _extended(23, "tcps") + "뒤".encode("utf-16-le") + _u16(13)
+    compose = ct.Compose("□가나", 3, -3, 1, [1, 0] + [ct.NO_CHAR_SHAPE] * 8)
+    return _paragraph(0, text, [(0, 0)], [rec.Record(rec.CTRL_HEADER, 1, compose.encode())])
+
+
 _IDENTITY = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
 
 
@@ -301,8 +310,11 @@ def make_hwp(
     markers: bool = False,
     text_box: bool = False,
     picture: bool = False,
+    compose: bool = False,
 ) -> bytes:
     section = _section()
+    if compose:
+        section += _compose()
     if text_box:
         section += _text_box()
     if picture:
@@ -482,6 +494,45 @@ def test_numbering_bookmark_index_and_dutmal_controls_open() -> None:
     assert (dutmal.get("posType"), dutmal.get("align")) == ("BOTTOM", "LEFT")
     assert one("titleMark").get("ignore") == "1"
     assert [dutmal.find(f"{HP}mainText").text, dutmal.find(f"{HP}subText").text] == ["협동조합", "coop"]
+
+
+def test_overlapped_characters_open_as_compose_between_the_text() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(compose=True))
+    [compose] = list(document.sections[0].element.iter(f"{HP}compose"))
+    assert dict(compose.attrib) == {
+        "circleType": "SHAPE_RECTANGLE",
+        "charSz": "-3",
+        "composeType": "OVERLAP",
+        "charPrCnt": "10",
+        "composeText": "가나",
+    }
+    assert [c.get("prIDRef") for c in compose.findall(f"{HP}charPr")] == ["1", "0"] + ["4294967295"] * 8
+    run = compose.getparent()
+    assert [(etree.QName(c).localname, c.text) for c in run] == [("t", "앞"), ("compose", None), ("t", "뒤")]
+
+
+@pytest.mark.parametrize(
+    ("text", "circle", "expected"),
+    [
+        ("□가", 3, "가"),  # the rectangle's own glyph leads the text
+        ("　나", 0, "나"),
+        ("②", 1, "2"),  # a circled digit in a circle
+        ("\U000f0289\U000f0294", 1, "12"),
+        ("□가", 1, "□가"),  # not this frame's glyph
+    ],
+)
+def test_the_text_of_overlapped_characters_leaves_out_their_frame(text: str, circle: int, expected: str) -> None:
+    section = _section()
+    code = _extended(23, "tcps") + _u16(13)
+    compose = ct.Compose(text, circle, 0, 0)
+    section += _paragraph(0, code, [(0, 0)], [rec.Record(rec.CTRL_HEADER, 1, compose.encode())])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(_compound(section))
+    [element] = list(document.sections[0].element.iter(f"{HP}compose"))
+    assert element.get("composeText") == expected
 
 
 def test_a_table_name_is_counted_and_presentation_settings_are_reported() -> None:

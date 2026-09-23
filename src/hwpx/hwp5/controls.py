@@ -796,6 +796,43 @@ class Dutmal:
         return b.u32(self.size_ratio).u32(self.option).u32(self.style_id).u32(self.align).raw(self.extra).bytes()
 
 
+#: A char shape place of an overlapped character that has none of its own.
+NO_CHAR_SHAPE = 0xFFFFFFFF
+
+
+@dataclass
+class Compose:
+    """``tcps``: the characters set over each other, the frame around them,
+    the size step of the characters inside it (signed), whether they spread
+    or overlap, then the char shape of each place (Hancom keeps ten)."""
+
+    text: str = ""
+    circle: int = 1
+    size: int = 0
+    kind: int = 0
+    char_shapes: list[int] = field(default_factory=lambda: [NO_CHAR_SHAPE] * 10)
+    extra: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "Compose":
+        c = Cursor(_padded(payload, 6), "tcps")
+        c.u32()
+        text = c.wstr()
+        t = Cursor(_padded(c.rest(), 4), "tcps")
+        value = cls(text, t.u8(), t.i8(), t.u8())
+        count = t.u8()
+        value.char_shapes = [t.u32() for _ in range(min(count, t.left // 4))]
+        value.extra = t.rest()
+        return value
+
+    def encode(self) -> bytes:
+        b = Builder().u32(bt.ctrl_word("tcps")).wstr(self.text).u8(self.circle).i8(self.size).u8(self.kind)
+        b.u8(len(self.char_shapes))
+        for shape in self.char_shapes:
+            b.u32(shape)
+        return b.raw(self.extra).bytes()
+
+
 #: What Hancom writes for an equation whose record leaves these out.
 EQUATION_VERSION = "Equation Version 60"
 EQUATION_FONT = "HYhwpEQ"

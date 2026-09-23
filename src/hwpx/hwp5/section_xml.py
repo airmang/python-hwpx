@@ -437,6 +437,39 @@ NUMBER_TYPE = ("PAGE", "FOOTNOTE", "ENDNOTE", "PICTURE", "TABLE", "EQUATION", "T
 PAGE_HIDING = ("hideHeader", "hideFooter", "hideMasterPage", "hideBorder", "hideFill", "hidePageNum")
 DUTMAL_POS = ("TOP", "BOTTOM", "CENTER")
 DUTMAL_ALIGN = ("JUSTIFY", "LEFT", "RIGHT", "CENTER", "DISTRIBUTE", "DISTRIBUTE_SPACE")
+#: Frames of overlapped characters, spelt as Hancom writes them ("TIRANGLE").
+COMPOSE_CIRCLE = (
+    "CHAR",
+    "SHAPE_CIRCLE",
+    "SHAPE_REVERSAL_CIRCLE",
+    "SHAPE_RECTANGLE",
+    "SHAPE_REVERSAL_RECTANGLE",
+    "SHAPE_TRIANGLE",
+    "SHAPE_REVERSAL_TIRANGLE",
+    "SHAPE_LIGHT",
+    "SHAPE_RHOMBUS",
+    "SHAPE_REVERSAL_RHOMBUS",
+    "SHAPE_ROUNDED_RECTANGLE",
+    "SHAPE_EMPTY_CIRCULATE_TRIANGLE",
+    "SHAPE_THIN_CIRCULATE_TRIANGLE",
+    "SHAPE_THICK_CIRCULATE_TRIANGLE",
+)
+COMPOSE_TYPE = ("SPREAD", "OVERLAP")
+#: The glyph an overlapped character's text starts with for its frame (by
+#: circle type); Hancom's composeText leaves it out, the frame being circleType.
+COMPOSE_FRAME_GLYPH = {0: "　", 1: "◯", 2: "●", 3: "□", 6: "▲", 8: "◇"}
+#: Framed digits Hancom spells as plain digits in composeText, by circle type:
+#: circled 1-9, and its own glyphs for circled tens and units, boxed and
+#: reversed boxed digits (only the code points seen in its output).
+COMPOSE_FRAMED_DIGITS: dict[int, dict[int, str]] = {
+    1: {
+        **{0x2460 + n - 1: str(n) for n in range(1, 10)},
+        **{0xF0289 + n - 1: str(n) for n in range(1, 5)},
+        **{0xF0292 + n: str(n) for n in range(10)},
+    },
+    3: {0xF02B1 + n - 1: str(n) for n in range(1, 8)},
+    4: {0xF02CE: "1", 0xF02CF: "2"},
+}
 #: Controls written as one element inside ``hp:ctrl``.
 MARKERS = {
     "pgnp": "pageNum",
@@ -718,6 +751,8 @@ class SectionWriter(ShapeReader):
             return self.marker(run, ctrl, kind)
         if kind == "tdut":
             return self.dutmal(run, ctrl)
+        if kind == "tcps":
+            return self.compose(run, ctrl)
         if kind == "gso ":
             return self.drawing(run, ctrl)
         if kind == "eqed":
@@ -821,6 +856,33 @@ class SectionWriter(ShapeReader):
         )
         sub(element, "hp:mainText").text = xml_text(d.main_text)
         sub(element, "hp:subText").text = xml_text(d.sub_text)
+        return element
+
+    def compose(self, run: etree._Element, ctrl: rec.Record) -> etree._Element:
+        """``hp:compose``: characters set over each other in a frame, with the
+        char shape of each place."""
+
+        value = ct.Compose.decode(ctrl.payload)
+        if value.circle >= len(COMPOSE_CIRCLE) or value.kind >= len(COMPOSE_TYPE):
+            self.report.skip("compose-frame")
+        text = value.text
+        if len(text) > 1 and text[0] == COMPOSE_FRAME_GLYPH.get(value.circle):
+            text = text[1:]
+        digits = COMPOSE_FRAMED_DIGITS.get(value.circle, {})
+        text = "".join(digits.get(ord(ch), ch) for ch in text)
+        element = sub(
+            run,
+            "hp:compose",
+            (
+                ("circleType", token(COMPOSE_CIRCLE, value.circle)),
+                ("charSz", value.size),
+                ("composeType", token(COMPOSE_TYPE, value.kind)),
+                ("charPrCnt", len(value.char_shapes)),
+                ("composeText", text),
+            ),
+        )
+        for shape in value.char_shapes:
+            sub(element, "hp:charPr", (("prIDRef", shape),))
         return element
 
     # fields --------------------------------------------------------------------------

@@ -13,6 +13,7 @@ import pytest
 from hwpx import HwpxDocument
 from hwpx.hwp5 import bodytext as bt
 from hwpx.hwp5 import cfb
+from hwpx.hwp5 import controls as ct
 from hwpx.hwp5 import records as rec
 from hwpx.hwp5.errors import Hwp5Error
 from hwpx.hwp5.fileheader import parse_file_header
@@ -67,6 +68,7 @@ def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
         {"memo": True},
         {"master_page": True},
         {"memo": True, "master_page": True},
+        {"compose": True},
     ],
 )
 def test_hwp_to_hwpx_to_hwp_keeps_the_section_records(extras: dict[str, bool]) -> None:
@@ -194,6 +196,26 @@ def test_an_unknown_element_directly_in_a_section_is_refused() -> None:
     )
     _, unsupported = build_section_records(section)
     assert unsupported == {"sec/unknownPart": 1}
+
+
+def test_overlapped_characters_the_record_cannot_hold_are_refused() -> None:
+    from lxml import etree
+
+    from hwpx.hwp5.section_writer import build_section_records
+
+    section = etree.fromstring(
+        '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"'
+        ' xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"><hp:p><hp:run>'
+        '<hp:compose circleType="SHAPE_STAR" composeText="가"/>'
+        '<hp:compose circleType="CHAR" charSz="300" composeText="나"/>'
+        '<hp:compose composeText="다"><hp:charPr prIDRef="0"/></hp:compose>'
+        "</hp:run></hp:p></hs:sec>"
+    )
+    records, unsupported = build_section_records(section)
+    assert unsupported == {"compose": 2}
+    [compose] = [r for r in records if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "tcps"]
+    value = ct.Compose.decode(compose.payload)
+    assert (value.text, value.circle, value.kind, value.char_shapes) == ("◯다", 1, 0, [0])
 
 
 def test_a_memo_made_with_the_api_saves_as_hwp_with_its_body(tmp_path: Path) -> None:
