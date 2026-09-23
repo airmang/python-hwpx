@@ -18,6 +18,7 @@ from zipfile import BadZipFile, ZipFile
 
 from ..equation import render_equation
 from ..opc.security import guard_zip_file, parse_xml_stdlib, read_member
+from ..oxml.section_format import _PAGE_PORTRAIT
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
@@ -312,6 +313,8 @@ def _page_spec(section: ET.Element) -> tuple[float, float, dict[str, float]]:
         return _DEFAULT_PAGE_WIDTH_MM, _DEFAULT_PAGE_HEIGHT_MM, dict(_DEFAULT_MARGINS_MM)
     width = _hwp_to_mm(page_pr.get("width"), _DEFAULT_PAGE_WIDTH_MM)
     height = _hwp_to_mm(page_pr.get("height"), _DEFAULT_PAGE_HEIGHT_MM)
+    if page_pr.get("landscape") != _PAGE_PORTRAIT:  # NARROWLY turns the page
+        width, height = height, width
     margin_node = page_pr.find(f"{_HP}margin")
     margins = dict(_DEFAULT_MARGINS_MM)
     if margin_node is not None:

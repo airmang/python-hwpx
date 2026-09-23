@@ -17,12 +17,13 @@ from ..objects.results import (
 )
 from ..oxml._document_primitives import NEW_NUM_KINDS
 from ..oxml.namespaces import HH
+from ..oxml.objects import HwpxOxmlInlineObject
+from ..oxml.section_format import _PAGE_LANDSCAPE, _PAGE_PORTRAIT, _page_orientation_value
 from ._units import _mm_to_hwp_units, _pt_to_hwp_units
 
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
     from ..oxml import (
-        HwpxOxmlInlineObject,
         HwpxOxmlParagraph,
         HwpxOxmlSection,
         HwpxOxmlSectionHeaderFooter,
@@ -45,16 +46,9 @@ _PAPER_SIZES_MM: dict[str, tuple[float, float]] = {
 def _normalize_page_orientation(value: str | None) -> str | None:
     if value is None:
         return None
-    normalized = value.strip().upper()
-    aliases = {
-        "PORTRAIT": "PORTRAIT",
-        "NARROW": "PORTRAIT",
-        "NARROWLY": "PORTRAIT",
-        "LANDSCAPE": "WIDELY",
-        "WIDE": "WIDELY",
-        "WIDELY": "WIDELY",
-    }
-    orientation = aliases.get(normalized)
+    # PORTRAIT/NARROW -> WIDELY and LANDSCAPE/WIDE -> NARROWLY; the stored
+    # values themselves keep Hancom's meaning (WIDELY is portrait).
+    orientation = _page_orientation_value(value)
     if orientation is None:
         raise HwpxValueError(
             f"unsupported page orientation: {value}",
@@ -475,7 +469,12 @@ def set_page_setup(
     section: HwpxOxmlSection | None = None,
     section_index: int | None = None,
 ) -> PageSetup:
-    """Set page size, margins, orientation, and optional columns in human units."""
+    """Set page size, margins, orientation, and optional columns in human units.
+
+    The page is written as Hancom writes it: ``WIDELY`` for portrait and
+    ``NARROWLY`` for landscape, both with the paper's portrait size. The
+    returned ``page_size`` reports the page as drawn (landscape is wider).
+    """
 
     normalized_orientation = _normalize_page_orientation(orientation)
     target_width_mm = width_mm
@@ -494,10 +493,11 @@ def set_page_setup(
         target_height_mm = paper_height if target_height_mm is None else target_height_mm
 
     if target_width_mm is not None and target_height_mm is not None:
-        if normalized_orientation == "WIDELY" and target_width_mm < target_height_mm:
-            target_width_mm, target_height_mm = target_height_mm, target_width_mm
-        elif normalized_orientation == "PORTRAIT" and target_width_mm > target_height_mm:
-            target_width_mm, target_height_mm = target_height_mm, target_width_mm
+        short_side, long_side = sorted((target_width_mm, target_height_mm))
+        if normalized_orientation == _PAGE_LANDSCAPE:
+            target_width_mm, target_height_mm = long_side, short_side
+        elif normalized_orientation == _PAGE_PORTRAIT:
+            target_width_mm, target_height_mm = short_side, long_side
 
     width = _mm_to_hwp_units(float(target_width_mm)) if target_width_mm is not None else None
     height = _mm_to_hwp_units(float(target_height_mm)) if target_height_mm is not None else None
@@ -589,10 +589,12 @@ def set_columns(
     section: HwpxOxmlSection | None = None,
     section_index: int | None = None,
 ) -> HwpxOxmlInlineObject:
-    """Insert a column definition control.
+    """Set the columns of a section, or start new columns at a paragraph.
 
-    This adds a ``<hp:ctrl><hp:colPr>`` element to the specified paragraph.
-    Text that follows will be laid out in the specified number of columns.
+    Without ``paragraph`` this rewrites the section's own column layout (the
+    ``hp:colPr`` next to ``hp:secPr``) in place, so the whole section is laid
+    out in ``col_count`` columns. With ``paragraph`` it adds a column
+    definition control there, and the text from that paragraph on uses it.
 
     Args:
         col_count: Number of columns (1–255).
@@ -600,7 +602,28 @@ def set_columns(
         same_gap: Gap in HWPUNIT (7200 = 1 inch).
         separator_type: Optional column separator line type (e.g. ``SOLID``).
     """
+    if not 1 <= col_count <= 255:
+        raise HwpxValueError(
+            "col_count must be between 1 and 255",
+            code="page-columns-invalid",
+            context={"requested": col_count},
+            suggestion="Use columns=1 to remove columns.",
+        )
     if paragraph is None:
+        target_section = _resolve_section(doc, section=section, section_index=section_index)
+        ctrl = target_section.properties.set_columns(
+            col_count,
+            col_type=col_type,
+            layout=layout,
+            same_size=same_size,
+            same_gap=same_gap,
+            column_widths=column_widths,
+            separator_type=separator_type,
+            separator_width=separator_width,
+            separator_color=separator_color,
+        )
+        if ctrl is not None:
+            return HwpxOxmlInlineObject(ctrl, target_section.paragraphs[0])
         paragraph = doc.add_paragraph(
             "", section=section, section_index=section_index,
             include_run=False,
@@ -710,7 +733,7 @@ def set_page_size(
     target_section.properties.set_page_size(
         width=width,
         height=height,
-        orientation=orientation,
+        orientation=_normalize_page_orientation(orientation),
         gutter_type=gutter_type,
     )
 

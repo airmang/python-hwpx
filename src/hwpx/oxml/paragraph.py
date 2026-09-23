@@ -557,7 +557,7 @@ class HwpxOxmlParagraph:
             return None
         if page.width <= 0:
             return None
-        usable = page.width - margins.left - margins.right - margins.gutter
+        usable = page.drawn_width - margins.left - margins.right - margins.gutter
         return usable if usable > 0 else None
 
     def add_table(
@@ -800,11 +800,11 @@ class HwpxOxmlParagraph:
         )
         ctrl = _append_child(run, f"{_HP}ctrl", {})
         col_pr_attrs: dict[str, str] = {
-            "id": _object_id(),
+            "id": "",
             "type": col_type,
             "layout": layout,
             "colCount": str(col_count),
-            "sameSz": str(same_size).lower(),
+            "sameSz": "1" if same_size else "0",
             "sameGap": str(same_gap) if same_size else "0",
         }
         col_pr = _append_child(ctrl, f"{_HP}colPr", col_pr_attrs)

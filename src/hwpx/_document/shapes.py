@@ -506,7 +506,8 @@ def _check_chart_axes(root: Any) -> None:
 
     Without them Hancom draws a bar chart with no bars and crashes on the
     other kinds, rendering the page or saving the document; the same charts
-    render once their axes are added.
+    render once their axes are added. An axis id of 0 stands for "no axis"
+    (a 3-D chart without a series axis) and is not checked.
     """
 
     defined = {
@@ -517,7 +518,8 @@ def _check_chart_axes(root: Any) -> None:
     for chart in root.iter(*_AXIS_CHART_KINDS):
         kind = str(chart.tag).rsplit("}", 1)[-1]
         ax_ids = [ax_id.get("val") for ax_id in chart.findall(f"{_CHART_NS}axId")]
-        if len(ax_ids) < 2 or any(value not in defined for value in ax_ids):
+        named = [value for value in ax_ids if value != "0"]
+        if len(named) < 2 or any(value not in defined for value in named):
             raise HwpxValueError(
                 f"chart_xml has a c:{kind} without its axes; Hancom draws it empty or crashes on it",
                 code="shape-chart-axes-missing",
