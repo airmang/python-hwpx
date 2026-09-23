@@ -6,6 +6,13 @@
 
 ### 고침
 
+- `doc.styles.apply_paragraph_format()`·`apply_list_format()`처럼 문단 모양
+  (`paraPrIDRef`)을 바꾸는 편집이 그 문단의 줄배치 캐시(`hp:linesegarray`)를 남기던
+  것을 고친다. 한컴은 줄 높이를 이 캐시에서 가져오므로, 행간을 130%로 바꿔도
+  예전 160% 줄 높이로 그려졌다(한컴 SDK 13.60 렌더: 1→2 줄 간격 20pt, 한컴이 직접
+  만든 130% 문서는 17pt). 이제 문단 모양이 바뀐 문단의 캐시만 지우고, 글자 모양을
+  바꿀 때처럼 다른 문단의 캐시는 그대로 둔다. 캐시를 지운 문서는 한컴 정답 문서와
+  렌더가 픽셀까지 같았다.
 - 암호가 걸린 HWPX를 열면 `Start tag expected, '<' not found` 같은 파일 손상처럼
   보이는 lxml 오류만 나오던 것을 고친다. `META-INF/manifest.xml`이 파트를
   `encryption-data`로 암호화 선언한 경우 예외 타입(`XMLSyntaxError`)은 그대로
