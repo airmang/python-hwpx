@@ -22,6 +22,12 @@
 
 ### 고침
 
+- 탭 문자가 든 글을 쓴 문서를 한컴이 끝내 열지 못하던 것을 고친다.
+  `paragraph.add_run("이름\t홍길동")`, `doc.text.replace()`, `fill_cells()`,
+  `paragraph_patch()`, `apply_body_ops()`의 `replace_text`와 삽입 op는 탭을 문자 그대로
+  `hp:t`에 넣었다. 한컴은 탭을 `hp:t` 안의 `hp:tab` 요소로만 읽고, 탭 문자가 있으면
+  문단 배치를 끝내지 못한다. 이제 모든 쓰기 경로가 탭을 `hp:tab` 요소로 쓴다.
+  메모리의 문서 트리는 그대로이고, 저장하는 XML만 바뀐다.
 - 라이브러리 안의 코드가 6.0에서 옮긴 `HwpxDocument` 이름을 불러, 지금 API만 쓰는
   사용자에게도 `DeprecationWarning`이 나던 것을 고친다. 셀 맞춤(`set_cell_text(fit=...)`,
   메일 머지)의 글자·문단 모양 읽기와 글자 줄이기, `lint_layout(required_fields=...)`,

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 from lxml import etree
 
-from .namespaces import tag_local_name
+from .namespaces import HP10_NS, HP_NS, tag_local_name
 
 _TRUE_VALUES = {"1", "true", "True", "TRUE"}
 _FALSE_VALUES = {"0", "false", "False", "FALSE"}
@@ -92,3 +92,48 @@ def coerce_xml_source(source: XmlSource) -> Tuple[etree._Element, etree._Element
 
     root = etree.fromstring(xml_bytes)
     return root, root.getroottree()
+
+
+def tabs_as_elements(root: etree._Element) -> bool:
+    """Write each tab character inside ``hp:t`` of *root* as an ``hp:tab`` element.
+
+    Hancom reads a tab only as an ``hp:tab`` element inside ``hp:t``; with a tab
+    character there it keeps laying the paragraph out, so the document never
+    finishes opening. Returns whether anything changed.
+    """
+
+    changed = False
+    for text in root.iter(f"{{{HP_NS}}}t", f"{{{HP10_NS}}}t"):
+        tab_tag = text.tag[: -len("t")] + "tab"
+        value = text.text or ""
+        if "	" in value:
+            head, *rest = value.split("	")
+            text.text = head
+            for index, segment in enumerate(rest):
+                tab = text.makeelement(tab_tag, {})
+                tab.tail = segment
+                text.insert(index, tab)
+            changed = True
+        for child in list(text):
+            tail = child.tail or ""
+            if "	" in tail:
+                head, *rest = tail.split("	")
+                child.tail = head
+                position = text.index(child) + 1
+                for offset, segment in enumerate(rest):
+                    tab = text.makeelement(tab_tag, {})
+                    tab.tail = segment
+                    text.insert(position + offset, tab)
+                changed = True
+    return changed
+
+
+def tab_elements_in(xml: bytes) -> bytes:
+    """*xml* with each tab character inside ``hp:t`` written as an ``hp:tab`` element."""
+
+    if b"	" not in xml:
+        return xml
+    root = etree.fromstring(xml)
+    if not tabs_as_elements(root):
+        return xml
+    return etree.tostring(root, encoding="utf-8", xml_declaration=True)
