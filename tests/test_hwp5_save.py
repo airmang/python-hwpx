@@ -4,23 +4,28 @@
 from __future__ import annotations
 
 import base64
+import io
 import struct
 import warnings
+import zipfile
 from pathlib import Path
 
 import pytest
+from lxml import etree
 
 from hwpx import HwpxDocument
 from hwpx.hwp5 import bodytext as bt
 from hwpx.hwp5 import cfb
 from hwpx.hwp5 import controls as ct
+from hwpx.hwp5 import docinfo as di
+from hwpx.hwp5 import shapes as sh
 from hwpx.hwp5 import records as rec
 from hwpx.hwp5.errors import Hwp5Error
-from hwpx.hwp5.fileheader import parse_file_header
+from hwpx.hwp5.fileheader import FileHeader, parse_file_header
 from hwpx.hwp5.package import convert
 from hwpx.hwp5.reader import read_hwp5
 from hwpx.hwp5.writer import write_hwp5
-from tests.test_hwp5_open import HP, make_hwp
+from tests.test_hwp5_open import HP, _docinfo, _picture, _section, make_hwp
 
 _PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
@@ -317,3 +322,57 @@ def test_overlapped_characters_are_written_behind_their_frame(circle: str, text:
     assert unsupported == {}
     [compose] = [r for r in records if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "tcps"]
     assert ct.Compose.decode(compose.payload).text == record
+
+
+def test_binary_items_are_numbered_by_their_place() -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("그림이 있는 문서")
+    document.add_picture(_PNG, "png")
+    stream = io.BytesIO()
+    document.save_to_stream(stream)
+    with zipfile.ZipFile(io.BytesIO(stream.getvalue())) as package:
+        files = {name: package.read(name) for name in package.namelist()}
+    # Another tool may name the only image item BIN0002.
+    [(item_id, href)] = [
+        (i.get("id"), i.get("href"))
+        for i in etree.fromstring(files["Contents/content.hpf"]).iter("{http://www.idpf.org/2007/opf/}item")
+        if (i.get("href") or "").startswith("BinData/")
+    ]
+    files["Contents/content.hpf"] = files["Contents/content.hpf"].replace(f'id="{item_id}"'.encode(), b'id="BIN0002"')
+    files["Contents/content.hpf"] = files["Contents/content.hpf"].replace(href.encode(), b"BinData/BIN0002.png")
+    files["Contents/section0.xml"] = files["Contents/section0.xml"].replace(f'"{item_id}"'.encode(), b'"BIN0002"')
+    files["BinData/BIN0002.png"] = files.pop(href)
+
+    written = read_hwp5(write_hwp5(files))
+    assert [item.bin_id for item in di.decode_docinfo(written.docinfo).bin_data] == [1]
+    assert written.compound.has_stream("BinData/BIN0001.png")
+    [picture] = [r for s in written.sections for r in s.records if r.tag == rec.SHAPE_COMPONENT_PICTURE]
+    assert sh.Picture.decode(picture.payload).bin_id == 1
+
+
+def test_a_picture_finds_its_image_by_the_place_of_its_bindata_record() -> None:
+    # The only BinData record keeps id 5; a picture refers to it by its place, 1.
+    records = _docinfo()
+    counts = struct.unpack("<18i", records[1].payload)
+    records[1] = rec.Record(rec.ID_MAPPINGS, 0, struct.pack("<18i", 1, *counts[1:]))
+    records.insert(2, rec.Record(rec.BIN_DATA, 1, di.BinDataItem(di.BIN_EMBEDDING, bin_id=5, extension="png").encode()))
+    section = _section() + _picture()
+    index = next(i for i, r in enumerate(section) if r.tag == rec.SHAPE_COMPONENT_PICTURE)
+    picture = sh.Picture.decode(section[index].payload)
+    picture.bin_id = 1
+    section[index] = rec.Record(rec.SHAPE_COMPONENT_PICTURE, section[index].level, picture.encode())
+    data = cfb.build_compound_file(
+        [
+            ("FileHeader", FileHeader((5, 1, 1, 0), 1).to_bytes()),
+            ("DocInfo", rec.deflate(rec.serialize_records(records))),
+            ("BodyText/Section0", rec.deflate(rec.serialize_records(section))),
+            ("BinData/BIN0005.png", rec.deflate(_PNG)),
+        ]
+    )
+    files = convert(data).files
+    assert files["BinData/image1.png"] == _PNG
+    [image] = [
+        i for name, part in files.items() if name.startswith("Contents/section")
+        for i in etree.fromstring(part).iter("{http://www.hancom.co.kr/hwpml/2011/core}img")
+    ]
+    assert image.get("binaryItemIDRef") == "image1"

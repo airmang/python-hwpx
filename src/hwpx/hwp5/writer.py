@@ -83,15 +83,6 @@ def _master_pages(files: Mapping[str, bytes]) -> Callable[[str], etree._Element 
     return find
 
 
-def _bin_id(item_id: str, used: set[int]) -> int:
-    digits = "".join(ch for ch in item_id if ch.isdigit())
-    number = int(digits) if digits else 0
-    if number <= 0 or number in used:
-        number = max(used, default=0) + 1
-    used.add(number)
-    return number
-
-
 def _caret(files: Mapping[str, bytes]) -> tuple[int, int, int]:
     data = files.get("settings.xml")
     if not data:
@@ -125,8 +116,9 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
         found = len(head.findall(f".//{{{NS[prefix]}}}{name}"))
         if found:
             unsupported[f"header/{name}"] += found
-    used: set[int] = set()
-    bin_ids = {item_id: _bin_id(item_id, used) for item_id, _ in binaries}
+    # Hancom finds a picture's, fill's or bullet's image by the place of its
+    # BinData record (1 first), so the binary items are numbered by place.
+    bin_ids = {item_id: number for number, (item_id, _) in enumerate(binaries, 1)}
     master_page = _master_pages(files)
     sections: list[list[rec.Record]] = []
     writers: list[SectionRecords] = []
@@ -148,7 +140,7 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
             context={"unsupported": dict(unsupported)},
             suggestion="Save the document as .hwpx instead, or remove the listed content first.",
         )
-    docinfo = build_docinfo(head, section_count=len(sections), caret=_caret(files))
+    docinfo = build_docinfo(head, section_count=len(sections), caret=_caret(files), bin_ids=bin_ids)
     items: list[di.BinDataItem] = []
     streams: list[tuple[str, bytes]] = []
     for item_id, href in binaries:

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import struct
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Mapping
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
@@ -148,7 +148,7 @@ def _line(element: etree._Element | None) -> di.Line:
     )
 
 
-def fill(brush: etree._Element | None) -> di.Fill:
+def fill(brush: etree._Element | None, bin_ids: Mapping[str, int] | None = None) -> di.Fill:
     result = di.Fill()
     if brush is None:
         return result
@@ -183,7 +183,7 @@ def fill(brush: etree._Element | None) -> di.Fill:
             result.image_bright = _int(img, "bright")
             result.image_contrast = _int(img, "contrast")
             result.image_effect = index_of(IMAGE_EFFECT, img.get("effect"), 0)
-            result.image_bin_id = _bin_ref(img.get("binaryItemIDRef"))
+            result.image_bin_id = _bin_ref(img.get("binaryItemIDRef"), bin_ids)
             alphas.append(_int(img, "alpha"))
     if result.kind:
         result.alphas = bytes(a & 0xFF for a in alphas)
@@ -192,14 +192,18 @@ def fill(brush: etree._Element | None) -> di.Fill:
     return result
 
 
-def _bin_ref(value: str | None) -> int:
-    """``image7``-style binary item reference -> 7 (0 when absent)."""
+def _bin_ref(value: str | None, bin_ids: Mapping[str, int] | None = None) -> int:
+    """A binary item reference as its BinData number: the item's place among
+    the binary items (``bin_ids``, 0 for an item not among them), or without
+    that list the number in its id (``image7`` -> 7)."""
 
+    if bin_ids is not None:
+        return bin_ids.get(value or "", 0)
     digits = "".join(ch for ch in (value or "") if ch.isdigit())
     return int(digits) if digits else 0
 
 
-def border_fill(element: etree._Element) -> di.BorderFill:
+def border_fill(element: etree._Element, bin_ids: Mapping[str, int] | None = None) -> di.BorderFill:
     slash = _child(element, _HH, "slash")
     back = _child(element, _HH, "backSlash")
     props = _flag(element, "threeD") | (_flag(element, "shadow") << 1)
@@ -216,7 +220,7 @@ def border_fill(element: etree._Element) -> di.BorderFill:
         _line(_child(element, _HH, "topBorder")),
         _line(_child(element, _HH, "bottomBorder")),
         _line(diagonal) if diagonal is not None else di.Line(1, 0, 0),
-        fill(_child(element, _HC, "fillBrush")),
+        fill(_child(element, _HC, "fillBrush"), bin_ids),
     )
 
 
@@ -305,7 +309,7 @@ def numbering(element: etree._Element) -> di.Numbering:
     return result
 
 
-def bullet(element: etree._Element) -> di.Bullet:
+def bullet(element: etree._Element, bin_ids: Mapping[str, int] | None = None) -> di.Bullet:
     head_element = _child(element, _HH, "paraHead")
     head = para_head(head_element) if head_element is not None else di.ParaHead()
     head.format = ""
@@ -321,7 +325,7 @@ def bullet(element: etree._Element) -> di.Bullet:
                 _int(image, "bright") & 0xFF,
                 _int(image, "contrast") & 0xFF,
                 index_of(IMAGE_EFFECT, image.get("effect"), 0),
-                _bin_ref(image.get("binaryItemIDRef")) & 0xFF,
+                _bin_ref(image.get("binaryItemIDRef"), bin_ids) & 0xFF,
             ]
         )
     return result
@@ -427,8 +431,15 @@ class DocInfoResult:
     unsupported: list[str] = field(default_factory=list)
 
 
-def build_docinfo(head: etree._Element, *, section_count: int, caret: tuple[int, int, int] = (0, 0, 0)) -> DocInfoResult:
-    """DocInfo records for a parsed ``hh:head`` element."""
+def build_docinfo(
+    head: etree._Element,
+    *,
+    section_count: int,
+    caret: tuple[int, int, int] = (0, 0, 0),
+    bin_ids: Mapping[str, int] | None = None,
+) -> DocInfoResult:
+    """DocInfo records for a parsed ``hh:head`` element; ``bin_ids`` maps
+    binary item ids to their BinData numbers for fill and bullet images."""
 
     begin = _child(head, _HH, "beginNum")
     properties = di.DocumentProperties(
@@ -460,11 +471,11 @@ def build_docinfo(head: etree._Element, *, section_count: int, caret: tuple[int,
         for font in fonts:
             mapped.append(rec.Record(rec.FACE_NAME, 1, face_name(font).encode()))
     counts = {
-        "border_fill": collect("borderFills", "borderFill", border_fill, rec.BORDER_FILL),
+        "border_fill": collect("borderFills", "borderFill", lambda e: border_fill(e, bin_ids), rec.BORDER_FILL),
         "char_shape": collect("charProperties", "charPr", char_shape, rec.CHAR_SHAPE),
         "tab_def": collect("tabProperties", "tabPr", tab_def, rec.TAB_DEF),
         "numbering": collect("numberings", "numbering", numbering, rec.NUMBERING),
-        "bullet": collect("bullets", "bullet", bullet, rec.BULLET),
+        "bullet": collect("bullets", "bullet", lambda e: bullet(e, bin_ids), rec.BULLET),
         "para_shape": collect("paraProperties", "paraPr", para_shape, rec.PARA_SHAPE),
         "style": collect("styles", "style", style, rec.STYLE),
         "memo_shape": collect("memoProperties", "memoPr", memo_shape, rec.MEMO_SHAPE),

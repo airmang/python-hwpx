@@ -1022,7 +1022,7 @@ class SectionRecords:
             _i32(_int(line, "width")),
             self._line_props(line),
             index_of(OUTLINE_STYLE, line.get("outlineStyle") if line is not None else None, 0),
-            fill_from_brush(element.find(f"{{{_HC}}}fillBrush")),
+            fill_from_brush(element.find(f"{{{_HC}}}fillBrush"), self.bin_ids),
             index_of(SHADOW, shadow.get("type") if shadow is not None else None, 0),
             colorref(shadow.get("color")) if shadow is not None else 0xB2B2B2,
             _i32(_int(shadow, "offsetX")),

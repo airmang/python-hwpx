@@ -94,10 +94,15 @@ def _container_rdf(sections: int) -> bytes:
 
 
 def _bin_items(doc: Hwp5File, info: di.DocInfo) -> list[tuple[str, str, bytes, str, bool]]:
-    """``(item id, href, payload, media type, embedded)`` for every BinData record."""
+    """``(item id, href, payload, media type, embedded)`` for every BinData record.
+
+    A picture, fill or bullet refers to its image by the place of the BinData
+    record (1 first), not by the id the record keeps (which names its stream),
+    so the items are named by place.
+    """
 
     items = []
-    for item in info.bin_data:
+    for place, item in enumerate(info.bin_data, 1):
         if item.kind == di.BIN_LINK:
             continue
         path = f"BinData/{item.stream_name}"
@@ -107,10 +112,10 @@ def _bin_items(doc: Hwp5File, info: di.DocInfo) -> list[tuple[str, str, bytes, s
         compressed = doc.header.compressed if item.compression == 0 else item.compression == 1
         payload = rec.inflate(raw, path) if compressed else raw
         if item.kind == di.BIN_STORAGE:
-            items.append((f"ole{item.bin_id}", f"BinData/ole{item.bin_id}.ole", payload, "application/ole", False))
+            items.append((f"ole{place}", f"BinData/ole{place}.ole", payload, "application/ole", False))
         else:
             ext = item.extension
-            items.append((f"image{item.bin_id}", f"BinData/image{item.bin_id}.{ext}", payload, f"image/{ext.lower()}", True))
+            items.append((f"image{place}", f"BinData/image{place}.{ext}", payload, f"image/{ext.lower()}", True))
     return items
 
 
