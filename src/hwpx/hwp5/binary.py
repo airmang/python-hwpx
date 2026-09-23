@@ -13,6 +13,7 @@ _U16 = struct.Struct("<H")
 _I16 = struct.Struct("<h")
 _U32 = struct.Struct("<I")
 _I32 = struct.Struct("<i")
+_F32 = struct.Struct("<f")
 
 
 class Cursor:
@@ -49,6 +50,9 @@ class Cursor:
 
     def i32(self) -> int:
         return int(_I32.unpack_from(self.data, self._take(4))[0])
+
+    def f32(self) -> float:
+        return float(_F32.unpack_from(self.data, self._take(4))[0])
 
     def raw(self, size: int) -> bytes:
         start = self._take(size)
@@ -100,6 +104,10 @@ class Builder:
 
     def i32(self, value: int) -> "Builder":
         self.out += _I32.pack(value)
+        return self
+
+    def f32(self, value: float) -> "Builder":
+        self.out += _F32.pack(value)
         return self
 
     def raw(self, value: bytes) -> "Builder":

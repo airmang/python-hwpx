@@ -80,10 +80,13 @@ from .shape_xml import (
     ARC_TYPE,
     ARROW,
     ARROW_SIZE,
+    COLOR_EFFECTS,
     CONNECT_TYPE,
     CURVE_SEGMENT,
     DROPCAP,
     DROPCAP_PATH,
+    EFFECT_ALIGN,
+    EFFECT_COLOR_TYPE,
     ELLIPSE_POINTS,
     END_CAP,
     HYPERLINK_PATH,
@@ -91,6 +94,7 @@ from .shape_xml import (
     OUTLINE_STYLE,
     ROTATE_IMAGE,
     SHADOW,
+    SHADOW_STYLE,
 )
 
 _HP = NS["hp"]
@@ -207,6 +211,12 @@ def _i16(value: int) -> int:
 def _i32(value: int) -> int:
     value &= 0xFFFFFFFF
     return value - 0x100000000 if value >= 0x80000000 else value
+
+
+def _float(element: etree._Element | None, name: str, default: float = 0.0) -> float:
+    if element is None or element.get(name) in (None, ""):
+        return default
+    return _matrix_value(element.get(name))
 
 
 def _flag(element: etree._Element | None, name: str) -> int:
@@ -1113,9 +1123,7 @@ class SectionRecords:
         image, line = element.find(f"{{{_HC}}}img"), _find(element, "lineShape")
         corners_parent = _find(element, "imgRect")
         clip, margin, dim = _find(element, "imgClip"), _find(element, "inMargin"), _find(element, "imgDim")
-        effects = _find(element, "effects")
-        if effects is not None and len(effects):
-            self.unsupported["pic/effects"] += 1
+        effects = self.picture_effects(_find(element, "effects"))
         ref = image.get("binaryItemIDRef", "") if image is not None else ""
         if ref and ref not in self.bin_ids:
             self.unsupported["pic/missing-image"] += 1
@@ -1133,10 +1141,90 @@ class SectionRecords:
             self.bin_ids.get(ref, 0),
             _int(image, "alpha") & 0xFF,
             _int(element, "instid") & 0xFFFFFFFF,
-            0,
+            effects.flags if effects is not None else 0,
             (_int(dim, "dimwidth"), _int(dim, "dimheight")),
             bytes(1),
+            effects,
         ).encode()
+
+    def picture_effects(self, element: etree._Element | None) -> sh.PictureEffects | None:
+        """A picture's effects; an effect, colour type or colour effect the
+        record has no code for (or a colour it cannot keep) is unsupported."""
+
+        if element is None or not len(element):
+            return None
+        effects = sh.PictureEffects()
+        for child in element:
+            name = _local(child)
+            skew, scale = _find(child, "skew"), _find(child, "scale")
+            if name == "shadow":
+                effects.shadow = sh.ShadowEffect(
+                    self._effect_code(SHADOW_STYLE, child, "style", "OUTSIDE"),
+                    _float(child, "alpha"),
+                    _float(child, "radius"),
+                    _float(child, "direction"),
+                    _float(child, "distance"),
+                    self._effect_code(EFFECT_ALIGN, child, "alignStyle", "CENTER"),
+                    (_float(skew, "x"), _float(skew, "y")),
+                    (_float(scale, "x", 1.0), _float(scale, "y", 1.0)),
+                    _flag(child, "rotationStyle"),
+                    self.effect_color(child),
+                )
+            elif name == "glow":
+                effects.glow = sh.GlowEffect(_float(child, "alpha"), _float(child, "radius"), self.effect_color(child))
+            elif name == "softEdge":
+                effects.soft_edge = _float(child, "radius")
+            elif name == "reflection":
+                alpha, pos = _find(child, "alpha"), _find(child, "pos")
+                effects.reflection = sh.ReflectionEffect(
+                    self._effect_code(EFFECT_ALIGN, child, "alignStyle", "BOTTOM_LEFT"),
+                    _float(child, "radius"),
+                    _float(child, "direction"),
+                    _float(child, "distance"),
+                    (_float(skew, "x"), _float(skew, "y")),
+                    (_float(scale, "x", 1.0), _float(scale, "y", -1.0)),
+                    _flag(child, "rotationStyle"),
+                    (_float(alpha, "start"), _float(pos, "start")),
+                    (_float(alpha, "end"), _float(pos, "end")),
+                    _float(child, "fadeDirection"),
+                )
+            else:
+                self.unsupported[f"pic/effects/{name}"] += 1
+        return effects
+
+    def _effect_code(self, table: tuple[str, ...], element: etree._Element, name: str, default: str) -> int:
+        value = element.get(name, default)
+        if value not in table:
+            self.unsupported[f"pic/effects/{value}"] += 1
+            return 0
+        return table.index(value)
+
+    def effect_color(self, element: etree._Element) -> sh.EffectColor:
+        """An effect's colour: RGB as 0x00RRGGBB, a scheme or system colour by
+        its index (its own components have no place in the record)."""
+
+        color = _find(element, "effectsColor")
+        kind = color.get("type", "RGB") if color is not None else "RGB"
+        codes = {name: code for code, name in EFFECT_COLOR_TYPE.items()}
+        value = 0
+        if color is None:
+            pass
+        elif kind == "RGB":
+            rgb = _find(color, "rgb")
+            value = (_int(rgb, "r") & 0xFF) << 16 | (_int(rgb, "g") & 0xFF) << 8 | (_int(rgb, "b") & 0xFF)
+        elif kind in ("SCHEME", "SYSTEM") and _find(color, kind.lower()) is None:
+            value = _int(color, "schemeIdx" if kind == "SCHEME" else "systemIdx") & 0xFFFFFFFF
+        else:
+            self.unsupported[f"pic/effects/{kind}"] += 1
+        names = {name: code for code, name in COLOR_EFFECTS.items()}
+        amounts: list[tuple[int, float]] = []
+        for effect in color.findall(f"{{{_HP}}}effect") if color is not None else ():
+            code = names.get(effect.get("type", ""))
+            if code is None:
+                self.unsupported[f"pic/effects/{effect.get('type')}"] += 1
+            else:
+                amounts.append((code, _float(effect, "value")))
+        return sh.EffectColor(codes.get(kind, 0), value, amounts)
 
     # fields --------------------------------------------------------------------------
 

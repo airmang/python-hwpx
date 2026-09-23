@@ -232,6 +232,24 @@ def _text_box() -> list[rec.Record]:
     )
 
 
+def _picture_effects() -> list[rec.Record]:
+    """The captioned picture again, now with a shadow, a glow whose colour is
+    saturated, a soft edge and a reflection."""
+
+    records = _picture()
+    index = next(i for i, r in enumerate(records) if r.tag == rec.SHAPE_COMPONENT_PICTURE)
+    picture = sh.Picture.decode(records[index].payload)
+    picture.effect_list = sh.PictureEffects(
+        sh.ShadowEffect(0, 0.5, 600.0, 180.0, 600.0, 4, (0.0, 0.0), (1.0, 1.0), 0, sh.EffectColor(0, 0x000000)),
+        sh.GlowEffect(0.5, 500.0, sh.EffectColor(0, 0xE9AE2B, [(516, 1.75)])),
+        300.0,
+        sh.ReflectionEffect(6, 50.0, 90.0, 0.0, (0.0, 0.0), (1.0, -1.0), 0, (0.5, 0.0), (0.997, 0.5), 90.0),
+    )
+    picture.effects = picture.effect_list.flags
+    records[index] = rec.Record(rec.SHAPE_COMPONENT_PICTURE, records[index].level, picture.encode())
+    return records
+
+
 def _hidden_comment() -> list[rec.Record]:
     """A hidden comment: a paragraph list under its control, like a note body."""
 
@@ -405,8 +423,11 @@ def make_hwp(
     drawings: bool = False,
     forms: bool = False,
     hidden_comment: bool = False,
+    picture_effects: bool = False,
 ) -> bytes:
     section = _section()
+    if picture_effects:
+        section += _picture_effects()
     if hidden_comment:
         section += _hidden_comment()
     if forms:
@@ -634,6 +655,22 @@ def test_an_older_drawing_style_that_stops_early_still_opens(keep: str) -> None:
     [rect] = list(document.sections[0].element.iter(f"{HP}rect"))
     assert rect.find(f"{HP}lineShape").get("color") == "#332211"
     assert rect.find(f"{HP}shadow").get("type") == "NONE"
+
+
+def test_picture_effects_open_with_their_values() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(picture_effects=True))
+    [pic] = list(document.sections[0].element.iter(f"{HP}pic"))
+    effects = pic.find(f"{HP}effects")
+    assert [etree.QName(c).localname for c in effects] == ["shadow", "glow", "softEdge", "reflection"]
+    shadow = effects.find(f"{HP}shadow")
+    assert [shadow.get(n) for n in ("style", "alpha", "radius", "alignStyle")] == ["OUTSIDE", "0.5", "600", "CENTER"]
+    color = effects.find(f"{HP}glow/{HP}effectsColor")
+    assert dict(color.find(f"{HP}rgb").attrib) == {"r": "233", "g": "174", "b": "43"}
+    assert dict(color.find(f"{HP}effect").attrib) == {"type": "SAT_MOD", "value": "1.75"}
+    reflection = effects.find(f"{HP}reflection")
+    assert (reflection.get("alignStyle"), reflection.find(f"{HP}alpha").get("end")) == ("BOTTOM_LEFT", "0.997")
 
 
 def test_a_hidden_comment_opens_with_its_paragraphs() -> None:

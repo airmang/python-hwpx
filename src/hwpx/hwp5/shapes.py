@@ -19,6 +19,7 @@ from . import bodytext as bt
 from . import docinfo as di
 from . import records as rec
 from .binary import Builder, Cursor
+from .errors import Hwp5Error
 
 Point = tuple[int, int]
 Matrix = tuple[float, float, float, float, float, float]
@@ -410,12 +411,128 @@ class TextBox:
 
 
 @dataclass
+class EffectColor:
+    """The colour of a picture effect: its type (0 RGB with the colour as
+    0x00RRGGBB, 2 scheme and 3 system with their index as the value) and its
+    colour effects, each a kind and an amount."""
+
+    kind: int = 0
+    value: int = 0
+    effects: list[tuple[int, float]] = field(default_factory=list)
+
+    @classmethod
+    def read(cls, c: Cursor) -> "EffectColor":
+        value = cls(c.u32(), c.u32())
+        value.effects = [(c.u32(), c.f32()) for _ in range(c.u32())]
+        return value
+
+    def write(self, b: Builder) -> None:
+        b.u32(self.kind).u32(self.value).u32(len(self.effects))
+        for kind, amount in self.effects:
+            b.u32(kind).f32(amount)
+
+
+@dataclass
+class ShadowEffect:
+    style: int = 0
+    alpha: float = 0.0
+    radius: float = 0.0
+    direction: float = 0.0
+    distance: float = 0.0
+    align: int = 0
+    skew: tuple[float, float] = (0.0, 0.0)
+    scale: tuple[float, float] = (1.0, 1.0)
+    rotation: int = 0
+    color: EffectColor = field(default_factory=EffectColor)
+
+
+@dataclass
+class GlowEffect:
+    alpha: float = 0.0
+    radius: float = 0.0
+    color: EffectColor = field(default_factory=EffectColor)
+
+
+@dataclass
+class ReflectionEffect:
+    align: int = 0
+    radius: float = 0.0
+    direction: float = 0.0
+    distance: float = 0.0
+    skew: tuple[float, float] = (0.0, 0.0)
+    scale: tuple[float, float] = (1.0, 1.0)
+    rotation: int = 0
+    start: tuple[float, float] = (0.0, 0.0)  # alpha and position where it starts
+    end: tuple[float, float] = (0.0, 0.0)  # and where it ends
+    fade: float = 0.0
+
+
+@dataclass
+class PictureEffects:
+    """A picture's effects, each present when its bit of the effects word is
+    set: shadow (1), glow (2), soft edge (4) and reflection (8), in that order."""
+
+    shadow: ShadowEffect | None = None
+    glow: GlowEffect | None = None
+    soft_edge: float | None = None
+    reflection: ReflectionEffect | None = None
+
+    @property
+    def flags(self) -> int:
+        return (
+            (1 if self.shadow is not None else 0)
+            | (2 if self.glow is not None else 0)
+            | (4 if self.soft_edge is not None else 0)
+            | (8 if self.reflection is not None else 0)
+        )
+
+    @classmethod
+    def read(cls, c: Cursor, flags: int) -> "PictureEffects":
+        value = cls()
+        if flags & 1:
+            value.shadow = ShadowEffect(c.u32(), c.f32(), c.f32(), c.f32(), c.f32(), c.u32())
+            value.shadow.skew, value.shadow.scale = (c.f32(), c.f32()), (c.f32(), c.f32())
+            value.shadow.rotation, value.shadow.color = c.u32(), EffectColor.read(c)
+        if flags & 2:
+            value.glow = GlowEffect(c.f32(), c.f32(), EffectColor.read(c))
+        if flags & 4:
+            value.soft_edge = c.f32()
+        if flags & 8:
+            value.reflection = ReflectionEffect(c.u32(), c.f32(), c.f32(), c.f32())
+            reflection = value.reflection
+            reflection.skew, reflection.scale = (c.f32(), c.f32()), (c.f32(), c.f32())
+            reflection.rotation = c.u32()
+            start_alpha, start_pos, end_alpha, end_pos = c.f32(), c.f32(), c.f32(), c.f32()
+            reflection.start, reflection.end = (start_alpha, start_pos), (end_alpha, end_pos)
+            reflection.fade = c.f32()
+        return value
+
+    def write(self, b: Builder) -> None:
+        if self.shadow is not None:
+            s = self.shadow
+            b.u32(s.style).f32(s.alpha).f32(s.radius).f32(s.direction).f32(s.distance).u32(s.align)
+            b.f32(s.skew[0]).f32(s.skew[1]).f32(s.scale[0]).f32(s.scale[1]).u32(s.rotation)
+            s.color.write(b)
+        if self.glow is not None:
+            b.f32(self.glow.alpha).f32(self.glow.radius)
+            self.glow.color.write(b)
+        if self.soft_edge is not None:
+            b.f32(self.soft_edge)
+        if self.reflection is not None:
+            r = self.reflection
+            b.u32(r.align).f32(r.radius).f32(r.direction).f32(r.distance)
+            b.f32(r.skew[0]).f32(r.skew[1]).f32(r.scale[0]).f32(r.scale[1]).u32(r.rotation)
+            b.f32(r.start[0]).f32(r.start[1]).f32(r.end[0]).f32(r.end[1]).f32(r.fade)
+
+
+@dataclass
 class Picture:
     """``SHAPE_COMPONENT_PICTURE``: the border line (colour, width,
     properties), the image's four corners, the crop box (left, top, right,
     bottom), the inner margins, brightness, contrast, effect and binary item
-    id, then the alpha, the instance id, the effects word and the image's own
-    size. Records of older versions end after the alpha or the instance id."""
+    id, then the alpha, the instance id, the effects word, the effects it
+    announces and the image's own size. Records of older versions end after
+    the alpha or the instance id."""
 
     line_color: int = 0
     line_width: int = 0
@@ -432,6 +549,9 @@ class Picture:
     effects: int | None = 0
     dim: tuple[int, int] | None = (0, 0)
     extra: bytes = b""
+    # The effects the word announces; None when there are none or they could
+    # not be read (their bytes then stay in ``extra``).
+    effect_list: PictureEffects | None = None
 
     @classmethod
     def decode(cls, payload: bytes) -> "Picture":
@@ -443,11 +563,14 @@ class Picture:
         value.alpha = c.u8() if c.left else None
         value.instance_id = c.u32() if value.alpha is not None and c.left >= 4 else None
         value.effects = c.u32() if value.instance_id is not None and c.left >= 4 else None
-        # The image's own size follows only when there are no effects to describe.
-        if value.effects == 0 and c.left >= 8:
-            value.dim = (c.u32(), c.u32())
-        else:
-            value.dim = None
+        if value.effects:
+            start = c.pos
+            try:
+                value.effect_list = PictureEffects.read(c, value.effects)
+            except Hwp5Error:
+                c.pos, value.effect_list = start, None
+        # The image's own size follows the effects.
+        value.dim = (c.u32(), c.u32()) if value.effects is not None and (value.effects == 0 or value.effect_list) and c.left >= 8 else None
         value.extra = c.rest()
         return value
 
@@ -465,6 +588,8 @@ class Picture:
             b.u32(self.instance_id)
         if self.effects is not None:
             b.u32(self.effects)
+        if self.effect_list is not None:
+            self.effect_list.write(b)
         if self.dim is not None:
             b.u32(self.dim[0]).u32(self.dim[1])
         return b.raw(self.extra).bytes()

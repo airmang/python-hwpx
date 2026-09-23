@@ -101,6 +101,20 @@ HYPERLINK_PATH = (0x026F, 0x0265)
 ELLIPSE_POINTS = ("center", "ax1", "ax2", "start1", "end1", "start2", "end2")
 #: Flags bit of a shape component that becomes ``rotateimage``.
 ROTATE_IMAGE = 1 << 19
+#: Picture effects: shadow styles, align styles, colour types (Hancom keeps
+#: no CMYK) and colour effects by code (Hancom keeps no others).
+SHADOW_STYLE = ("OUTSIDE", "INSIDE")
+EFFECT_ALIGN = ("TOP_LEFT", "TOP", "TOP_RIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOM_LEFT", "BOTTOM", "BOTTOM_RIGHT")
+EFFECT_COLOR_TYPE = {0: "RGB", 2: "SCHEME", 3: "SYSTEM"}
+COLOR_EFFECTS = {
+    503 + index: name
+    for index, name in enumerate(
+        (
+            "RED", "RED_MOD", "RED_OFF", "GREEN", "GREEN_MOD", "GREEN_OFF", "BLUE", "BLUE_MOD", "BLUE_OFF",
+            "HUE", "HUE_MOD", "HUE_OFF", "SAT", "SAT_MOD", "SAT_OFF", "LUM", "LUM_MOD", "LUM_OFF", "SHADE", "TINT",
+        )
+    )
+}
 
 
 def matrix_number(value: float) -> str:
@@ -146,6 +160,81 @@ def _parameter_items(parent: etree._Element, items: list[ct.ParameterItem]) -> N
             sub(parent, "hp:unsignedintegerParam", (("name", item.item_id),)).text = str(item.value)
         else:
             sub(parent, "hp:integerParam", (("name", item.item_id),)).text = str(item.value)
+
+
+def picture_effects(parent: etree._Element, effects: sh.PictureEffects) -> bool:
+    """The children of ``hp:effects``; False, with nothing written, when a
+    code has no known name."""
+
+    colors = [effect.color for effect in (effects.shadow, effects.glow) if effect is not None]
+    aligns = [effect.align for effect in (effects.shadow, effects.reflection) if effect is not None]
+    if not all(c.kind in EFFECT_COLOR_TYPE and all(code in COLOR_EFFECTS for code, _ in c.effects) for c in colors):
+        return False
+    if not all(0 <= align < len(EFFECT_ALIGN) for align in aligns):
+        return False
+    if effects.shadow is not None and effects.shadow.style >= len(SHADOW_STYLE):
+        return False
+    n = matrix_number
+    if effects.shadow is not None:
+        s = effects.shadow
+        element = sub(
+            parent,
+            "hp:shadow",
+            (
+                ("style", SHADOW_STYLE[s.style]),
+                ("alpha", n(s.alpha)),
+                ("radius", n(s.radius)),
+                ("direction", n(s.direction)),
+                ("distance", n(s.distance)),
+                ("alignStyle", EFFECT_ALIGN[s.align]),
+                ("rotationStyle", s.rotation),
+            ),
+        )
+        sub(element, "hp:skew", (("x", n(s.skew[0])), ("y", n(s.skew[1]))))
+        sub(element, "hp:scale", (("x", n(s.scale[0])), ("y", n(s.scale[1]))))
+        _effect_color(element, s.color)
+    if effects.glow is not None:
+        element = sub(parent, "hp:glow", (("alpha", n(effects.glow.alpha)), ("radius", n(effects.glow.radius))))
+        _effect_color(element, effects.glow.color)
+    if effects.soft_edge is not None:
+        sub(parent, "hp:softEdge", (("radius", n(effects.soft_edge)),))
+    if effects.reflection is not None:
+        r = effects.reflection
+        element = sub(
+            parent,
+            "hp:reflection",
+            (
+                ("alignStyle", EFFECT_ALIGN[r.align]),
+                ("radius", n(r.radius)),
+                ("direction", n(r.direction)),
+                ("distance", n(r.distance)),
+                ("rotationStyle", r.rotation),
+                ("fadeDirection", n(r.fade)),
+            ),
+        )
+        sub(element, "hp:skew", (("x", n(r.skew[0])), ("y", n(r.skew[1]))))
+        sub(element, "hp:scale", (("x", n(r.scale[0])), ("y", n(r.scale[1]))))
+        sub(element, "hp:alpha", (("start", n(r.start[0])), ("end", n(r.end[0]))))
+        sub(element, "hp:pos", (("start", n(r.start[1])), ("end", n(r.end[1]))))
+    return True
+
+
+def _effect_color(parent: etree._Element, color: sh.EffectColor) -> None:
+    kind = EFFECT_COLOR_TYPE[color.kind]
+    element = sub(
+        parent,
+        "hp:effectsColor",
+        (
+            ("type", kind),
+            ("schemeIdx", color.value if kind == "SCHEME" else -1),
+            ("systemIdx", color.value if kind == "SYSTEM" else -1),
+            ("presetIdx", -1),
+        ),
+    )
+    if kind == "RGB":
+        sub(element, "hp:rgb", (("r", color.value >> 16 & 0xFF), ("g", color.value >> 8 & 0xFF), ("b", color.value & 0xFF)))
+    for code, amount in color.effects:
+        sub(element, "hp:effect", (("type", COLOR_EFFECTS[code]), ("value", matrix_number(amount))))
 
 
 class ShapeReader:
@@ -360,8 +449,8 @@ class ShapeReader:
         sub(element, "hp:inMargin", (("left", left), ("right", right), ("top", top), ("bottom", bottom)))
         width, height = pic.dim or (0, 0)
         sub(element, "hp:imgDim", (("dimwidth", width), ("dimheight", height)))
-        sub(element, "hp:effects")
-        if pic.effects:
+        effects = sub(element, "hp:effects")
+        if pic.effects and (pic.effect_list is None or not picture_effects(effects, pic.effect_list)):
             self.report.skip("picture-effects")
 
     def shape_style(self, element: etree._Element, style: sh.DrawingStyle) -> None:

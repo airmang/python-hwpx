@@ -77,6 +77,7 @@ def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
         {"drawings": True},
         {"forms": True},
         {"hidden_comment": True},
+        {"picture_effects": True},
     ],
 )
 def test_hwp_to_hwpx_to_hwp_keeps_the_section_records(extras: dict[str, bool]) -> None:
@@ -376,3 +377,17 @@ def test_a_picture_finds_its_image_by_the_place_of_its_bindata_record() -> None:
         for i in etree.fromstring(part).iter("{http://www.hancom.co.kr/hwpml/2011/core}img")
     ]
     assert image.get("binaryItemIDRef") == "image1"
+
+
+def test_picture_effects_the_record_cannot_hold_are_refused() -> None:
+    from hwpx.hwp5.section_writer import build_section_records
+
+    section = etree.fromstring(
+        '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"'
+        ' xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"><hp:p><hp:run><hp:pic><hp:effects>'
+        '<hp:glow alpha="0.5" radius="500"><hp:effectsColor type="CMYK"><hp:cmyk c="1" m="2" y="3" k="4"/>'
+        '<hp:effect type="ALPHA" value="0.5"/></hp:effectsColor></hp:glow>'
+        "</hp:effects></hp:pic></hp:run></hp:p></hs:sec>"
+    )
+    _, unsupported = build_section_records(section)
+    assert unsupported == {"pic/effects/CMYK": 1, "pic/effects/ALPHA": 1}
