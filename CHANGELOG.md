@@ -6,6 +6,12 @@
 
 ### 고침
 
+- `doc.styles.ensure_run()`이 만든 글자 모양(`hh:charPr`)의 자식 순서가 OWPML
+  스키마(`CharShapeType`)를 어기던 것을 고친다. `bold`·`italic`·`underline`·
+  `strikeout`을 `outline`·`shadow` 뒤에 덧붙였고, `bold`를 `italic`보다 먼저 썼다.
+  이제 서식을 적용한 뒤 자식을 스키마 순서(`fontRef, ratio, spacing, relSz, offset,
+  italic, bold, underline, strikeout, outline, shadow, emboss, engrave, supscript,
+  subscript`)로 맞춘다. 한컴이 쓰는 순서와 같다.
 - `doc.refs.add_hyperlink()`로 만든 링크가 한컴에서 **아무 데도 가지 않던** 것을
   고친다. 대상 주소를 `fieldBegin@name`에만 썼는데, 한컴은 링크 대상을 필드
   매개변수에서 읽는다. 한컴 SDK 13.60으로 다시 저장하면 링크는 남지만
