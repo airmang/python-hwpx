@@ -122,17 +122,69 @@ def test_insert_before_first_paragraph_preserves_targets_own_section_properties(
 
     target = HwpxDocument.new()
     target.add_paragraph("existing")
-    target_first_id = target.sections[0].paragraphs[0].element.get("id")
+    target_first = target.sections[0].paragraphs[0].element
+    target_secpr = target_first.find(f"{_HP}run/{_HP}secPr")
+    target_colpr_ctrl = next(
+        ctrl for ctrl in target_first.iter(f"{_HP}ctrl") if ctrl.find(f"{_HP}colPr") is not None
+    )
 
     report = insert_document(target, source, after_paragraph_index=-1)
 
     assert report["sectionPropertiesStripped"] == 1
+    assert report["sectionPropertiesRelocated"] is True
     section = target.sections[0]
     secpr_bearing = [
         p for p in section.paragraphs if p.element.find(f"{_HP}run/{_HP}secPr") is not None
     ]
     assert len(secpr_bearing) == 1
-    assert secpr_bearing[0].element.get("id") == target_first_id
+    # Hancom oracle (SDK 13.60): a secPr outside the section's first paragraph
+    # starts a new section -- the inserted paragraphs got default page setup
+    # and a page break. The target's own setup must move to the new first
+    # paragraph.
+    assert secpr_bearing[0].element is section.paragraphs[0].element
+    assert section.paragraphs[0].element.find(f"{_HP}run/{_HP}secPr") is target_secpr
+    first_run = section.paragraphs[0].element.find(f"{_HP}run")
+    assert target_colpr_ctrl in list(first_run)
+
+
+def test_insert_before_first_paragraph_leaves_text_packed_with_section_setup() -> None:
+    # Real Hancom files may pack secPr/ctrl/t into one run (the contract
+    # doc's reader_writer__SimpleTable.hwpx case): only the setup elements move.
+    source = HwpxDocument.new()
+    source.add_paragraph("top")
+
+    target = HwpxDocument.new()
+    first = target.sections[0].paragraphs[0].element
+    setup_run = next(run for run in first.findall(f"{_HP}run") if run.find(f"{_HP}secPr") is not None)
+    packed = setup_run.makeelement(f"{_HP}t", {})
+    packed.text = "packed title"
+    setup_run.append(packed)
+    old_first_id = first.get("id")
+
+    report = insert_document(target, source, after_paragraph_index=-1)
+
+    assert report["sectionPropertiesRelocated"] is True
+    section = target.sections[0]
+    assert section.paragraphs[0].element.find(f"{_HP}run/{_HP}secPr") is not None
+    old_first = next(p.element for p in section.paragraphs if p.element.get("id") == old_first_id)
+    assert old_first.find(f"{_HP}run/{_HP}secPr") is None
+    assert "packed title" in "".join(t.text or "" for t in old_first.iter(f"{_HP}t"))
+
+
+def test_insert_after_a_paragraph_does_not_move_section_setup() -> None:
+    source = HwpxDocument.new()
+    source.add_paragraph("middle")
+
+    target = HwpxDocument.new()
+    target.add_paragraph("existing")
+    first_id = target.sections[0].paragraphs[0].element.get("id")
+
+    report = insert_document(target, source, after_paragraph_index=0)
+
+    assert report["sectionPropertiesRelocated"] is False
+    section = target.sections[0]
+    assert section.paragraphs[0].element.get("id") == first_id
+    assert section.paragraphs[0].element.find(f"{_HP}run/{_HP}secPr") is not None
 
 
 def test_append_document_strips_a_second_documents_section_setup_run() -> None:
@@ -727,6 +779,62 @@ def test_merge_refreshes_field_end_fieldid_to_match_its_paired_field_begin() -> 
     # value, not a leftover.
     assert len(field_begin.get("fieldid")) != 32
     assert len(field_end.get("fieldid")) != 32
+
+
+def _field_run(paragraph_element, child_tag: str, attributes: dict[str, str]) -> None:
+    run = paragraph_element.makeelement(f"{_HP}run", {"charPrIDRef": "0"})
+    ctrl = run.makeelement(f"{_HP}ctrl", {})
+    ctrl.append(ctrl.makeelement(f"{_HP}{child_tag}", attributes))
+    run.append(ctrl)
+    paragraph_element.append(run)
+
+
+def test_merge_keeps_a_field_pair_that_spans_paragraphs() -> None:
+    """Hancom forms carry click-here fields whose fieldEnd sits paragraphs
+    after the fieldBegin. The per-paragraph id maps renamed the begin and
+    left the end on the source's old id; Hancom drops such an unpaired
+    fieldEnd when it saves (SDK 13.60 oracle, v20 cross-real-merge corpus)."""
+
+    source = HwpxDocument.new()
+    opening = source.add_paragraph("click here")
+    source.add_paragraph("still inside the field")
+    closing = source.add_paragraph("field ends here")
+    _field_run(opening.element, "fieldBegin", {"id": "1878228493", "type": "CLICK_HERE", "fieldid": "627272811"})
+    _field_run(closing.element, "fieldEnd", {"beginIDRef": "1878228493", "fieldid": "627272811"})
+
+    for merge in (append_document, lambda t, s: insert_document(t, s, after_paragraph_index=-1)):
+        target = HwpxDocument.new()
+        target.add_paragraph("existing")
+        merge(target, source)
+
+        section = target.sections[0].element
+        (field_begin,) = [n for n in section.iter(f"{_HP}fieldBegin") if n.get("type") == "CLICK_HERE"]
+        (field_end,) = list(section.iter(f"{_HP}fieldEnd"))
+        assert field_begin.get("id") != "1878228493"
+        assert field_end.get("beginIDRef") == field_begin.get("id")
+        assert field_end.get("fieldid") == field_begin.get("fieldid")
+
+
+def test_merge_pairs_each_field_end_with_its_own_begin_when_fieldids_repeat() -> None:
+    # Hancom gives every field of a type one fieldid, so two click-here
+    # fields share 627272811; each end must follow the begin it names.
+    source = HwpxDocument.new()
+    paragraphs = [source.add_paragraph(f"line {i}") for i in range(4)]
+    _field_run(paragraphs[0].element, "fieldBegin", {"id": "111", "type": "CLICK_HERE", "fieldid": "627272811"})
+    _field_run(paragraphs[1].element, "fieldEnd", {"beginIDRef": "111", "fieldid": "627272811"})
+    _field_run(paragraphs[2].element, "fieldBegin", {"id": "222", "type": "CLICK_HERE", "fieldid": "627272811"})
+    _field_run(paragraphs[3].element, "fieldEnd", {"beginIDRef": "222", "fieldid": "627272811"})
+
+    target = HwpxDocument.new()
+    append_document(target, source)
+
+    section = target.sections[0].element
+    begins = {n.get("id"): n.get("fieldid") for n in section.iter(f"{_HP}fieldBegin")}
+    ends = list(section.iter(f"{_HP}fieldEnd"))
+    assert len(begins) == 2 and len(ends) == 2
+    for field_end in ends:
+        assert field_end.get("beginIDRef") in begins
+        assert field_end.get("fieldid") == begins[field_end.get("beginIDRef")]
 
 
 # ============================================================================

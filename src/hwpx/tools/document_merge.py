@@ -650,6 +650,17 @@ def _refresh_field_and_bookmark_ids(paragraphs: list[Any], existing_bookmark_nam
     sibling ``hp:memogroup``, not nested in this paragraph subtree at all.
     """
 
+    # The map spans every copied paragraph, not one: Hancom forms carry
+    # click-here fields whose fieldEnd sits paragraphs after its fieldBegin
+    # (a real public form: begin in paragraph 14, end in 18). Per-paragraph
+    # maps renamed the begin but left the end pointing at the old id, and
+    # Hancom drops such an unpaired fieldEnd when it saves (SDK 13.60 oracle).
+    # A fieldEnd takes its new fieldid from the fieldBegin its beginIDRef
+    # names: Hancom's own files give every field of a type the same fieldid
+    # (CLICK_HERE 627272811, MEMO 623209829), so a map keyed by the old
+    # fieldid would hand one field's value to another field's end.
+    begin_map: dict[str, tuple[str, str | None]] = {}
+    begin_fieldid_map: dict[str, str] = {}
     for paragraph in paragraphs:
         # hp:fieldBegin/fieldEnd -- id/fieldid must both get fresh values,
         # and fieldEnd's beginIDRef/fieldid must follow its OWN fieldBegin's
@@ -668,29 +679,33 @@ def _refresh_field_and_bookmark_ids(paragraphs: list[Any], existing_bookmark_nam
         # genuinely stale, unrefreshed value on copied content -- exactly
         # this module's own "silent corruption" failure shape, just on an
         # attribute nothing currently gates on).
-        begin_id_map: dict[str, str] = {}
-        begin_fieldid_map: dict[str, str] = {}
         for node in paragraph.iter():
             if _local_name(node.tag) == "fieldBegin":
                 old_id = node.get("id")
                 new_id = _object_id()
-                if old_id:
-                    begin_id_map[old_id] = new_id
                 node.set("id", new_id)
+                new_fieldid = None
                 old_fieldid = node.get("fieldid")
                 if old_fieldid:
                     new_fieldid = _object_id()
-                    begin_fieldid_map[old_fieldid] = new_fieldid
+                    begin_fieldid_map.setdefault(old_fieldid, new_fieldid)
                     node.set("fieldid", new_fieldid)
+                if old_id:
+                    begin_map[old_id] = (new_id, new_fieldid)
+    for paragraph in paragraphs:
         for node in paragraph.iter():
             if _local_name(node.tag) == "fieldEnd":
-                old_begin = node.get("beginIDRef")
-                if old_begin and old_begin in begin_id_map:
-                    node.set("beginIDRef", begin_id_map[old_begin])
+                paired = begin_map.get(node.get("beginIDRef") or "")
                 old_end_fieldid = node.get("fieldid")
-                if old_end_fieldid and old_end_fieldid in begin_fieldid_map:
+                if paired is not None:
+                    new_id, new_fieldid = paired
+                    node.set("beginIDRef", new_id)
+                    if old_end_fieldid and new_fieldid is not None:
+                        node.set("fieldid", new_fieldid)
+                elif old_end_fieldid and old_end_fieldid in begin_fieldid_map:
                     node.set("fieldid", begin_fieldid_map[old_end_fieldid])
 
+    for paragraph in paragraphs:
         # hp:bookmark name -- not an id, a user-chosen string. Target
         # collision is avoided with a numeric suffix (v1 policy -- the
         # contract doc's own choice, simple over clever).
@@ -827,6 +842,42 @@ def _strip_embedded_section_properties(paragraphs: list[Any]) -> int:
             if len(run) == 0:
                 paragraph.remove(run)
     return removed
+
+
+def _move_section_setup_to_first_paragraph(section: Any) -> bool:
+    """Keep the target's ``hp:secPr`` in its section's first paragraph.
+
+    ``insert_document(..., after_paragraph_index=-1)`` puts the copies in
+    front of the paragraph that carries the section setup. Hancom reads a
+    ``hp:secPr`` that is not in a section's first paragraph as the start of a
+    new section: the inserted paragraphs become a section of their own with
+    default page setup, and a page break appears before the old first
+    paragraph (Hancom SDK 13.60 oracle: 2 pages and 2 sections on save, 1 and
+    1 once the setup is moved). So the ``hp:secPr`` and the ``hp:ctrl`` that
+    wraps ``hp:colPr`` move, element by element as in
+    :func:`_strip_embedded_section_properties`, into a new leading run of the
+    first paragraph. Returns whether anything moved.
+    """
+
+    paragraphs = [p.element for p in section.paragraphs]
+    if not paragraphs or paragraphs[0].find(f"{_HP}run/{_HP}secPr") is not None:
+        return False
+    first = paragraphs[0]
+    for paragraph in paragraphs[1:]:
+        for run in paragraph.findall(f"{_HP}run"):
+            secpr = run.find(f"{_HP}secPr")
+            if secpr is None:
+                continue
+            moving = [secpr] + [ctrl for ctrl in run.findall(f"{_HP}ctrl") if ctrl.find(f"{_HP}colPr") is not None]
+            setup_run = first.makeelement(f"{_HP}run", {"charPrIDRef": run.get("charPrIDRef", "0")})
+            for node in moving:
+                run.remove(node)
+                setup_run.append(node)
+            if len(run) == 0 and len(paragraph.findall(f"{_HP}run")) > 1:
+                paragraph.remove(run)
+            first.insert(0, setup_run)
+            return True
+    return False
 
 
 # ================================================================================
@@ -1296,7 +1347,13 @@ def insert_document(
             )
         if copies:
             target_section.insert_paragraphs(after_paragraph_index + 1, copies)
+        relocated = after_paragraph_index == -1 and bool(copies) and _move_section_setup_to_first_paragraph(
+            target_section
+        )
+        if relocated:
+            target_section.mark_dirty()
         _insert_memos_into_target_section(target_section, memo_clones)
+        report["sectionPropertiesRelocated"] = relocated
         report["position"] = "after_paragraph"
         report["afterParagraphIndex"] = after_paragraph_index
         report["targetSectionIndex"] = target_section_index
