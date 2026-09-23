@@ -61,6 +61,31 @@ def test_add_drop_cap_embeds_the_character_in_a_nested_paragraph() -> None:
     assert sub_list.find(f"{_HP}p") is not None
 
 
+def test_add_drop_cap_goes_in_front_of_the_paragraph_text() -> None:
+    # Hancom draws a drop cap where its run sits: after the text it would
+    # land on the paragraph's last line.
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("장식 뒤의 본문 문장입니다. " * 10)
+
+    result = document.shapes.add_drop_cap("가", width=4200, height=4200, paragraph=paragraph)
+
+    runs = paragraph.element.findall(f"{_HP}run")
+    holder = next(run for run in runs if any(node is result.element for node in run))
+    text_run = next(run for run in runs if run is not holder and run.find(f"{_HP}t") is not None)
+    assert runs.index(holder) < runs.index(text_run)
+
+
+def test_the_real_sample_places_its_drop_cap_before_the_text() -> None:
+    with zipfile.ZipFile(REAL_SAMPLE) as package:
+        section = etree.fromstring(package.read("Contents/section0.xml"))
+    rect = _find_drop_cap_rect(section)
+    assert rect is not None
+    run = rect.getparent()
+    siblings = list(run)
+    texts = [node for node in siblings if node.tag == f"{_HP}t"]
+    assert texts and siblings.index(rect) < siblings.index(texts[0])
+
+
 def test_add_drop_cap_round_trips_through_save_and_reopen() -> None:
     document = HwpxDocument.new()
     document.shapes.add_drop_cap("붐", width=4200, height=4200)
