@@ -48,6 +48,9 @@ from .section_xml import (
     TEXT_DIRECTION,
     TEXT_FLOW,
     TEXT_WRAP,
+    TITLE_MARK,
+    TITLE_MARK_CODE,
+    TITLE_MARK_IGNORED,
     VERT_ALIGN,
     VERT_REL,
     WIDTH_REL,
@@ -370,6 +373,11 @@ class SectionRecords:
                 )
                 units += _TAB_PADDING + struct.pack("<H", bt.TAB)
                 codes.add(bt.TAB)
+            elif name == "titleMark":
+                word = bt.ctrl_word(TITLE_MARK if _flag(child, "ignore") else TITLE_MARK_IGNORED)
+                units += struct.pack("<HI", TITLE_MARK_CODE, word) + _TAB_PADDING + b"\x20\x00"
+                units += struct.pack("<H", TITLE_MARK_CODE)
+                codes.add(TITLE_MARK_CODE)
             elif name in _CHAR_CODES:
                 units += struct.pack("<H", _CHAR_CODES[name])
                 codes.add(_CHAR_CODES[name])

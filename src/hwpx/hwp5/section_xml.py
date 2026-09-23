@@ -459,6 +459,11 @@ CAPTION_SIDE = ("LEFT", "RIGHT", "TOP", "BOTTOM")
 CHAR_ELEMENTS = {10: "hp:lineBreak", 24: "hp:hyphen", 30: "hp:nbSpace", 31: "hp:fwSpace"}
 #: The range tag kind of a highlighter (markpen) range; its low 24 bits are the color.
 RANGE_MARKPEN = 2
+#: The inline control of a title mark, and its words: ``Mtit`` is written
+#: ``ignore="1"`` by Hancom and ``Mign`` ``ignore="0"``.
+TITLE_MARK_CODE = 8
+TITLE_MARK = "Mtit"
+TITLE_MARK_IGNORED = "Mign"
 #: ``hp:label`` orientation by the label set's ``landscape`` value.
 LABEL_LANDSCAPE = ("WIDELY", "NARROWLY")
 PAGE_NUM_POS = (
@@ -779,6 +784,11 @@ class SectionWriter:
                         text = self._text(run, text, "")
                         width, leader, kind = struct.unpack_from("<IBB", chunk.params.ljust(6, b"\0"), 0)
                         sub(text, "hp:tab", (("width", width), ("leader", leader), ("type", kind)))
+                        last = text
+                    elif chunk.code == TITLE_MARK_CODE:
+                        text = self._text(run, text, "")
+                        word = bt.ctrl_id(struct.unpack_from("<I", chunk.params.ljust(4, b"\0"))[0])
+                        sub(text, "hp:titleMark", (("ignore", flag(word == TITLE_MARK)),))
                         last = text
                     elif chunk.code == 4:
                         text = None

@@ -174,10 +174,12 @@ def _highlights(*, unmapped: bool = False) -> list[rec.Record]:
 
 def _markers() -> list[rec.Record]:
     """Page number place, page hiding, a new number, an auto number, a
-    bookmark, an index mark and a dutmal in one paragraph."""
+    bookmark, an index mark, a dutmal and a title mark in one paragraph."""
 
+    title_mark = _u16(8) + struct.pack("<I", bt.ctrl_word("Mtit")) + " ".encode("utf-16-le") * 4 + _u16(8)
     text = _extended(21, "pgnp") + _extended(21, "pghd") + _extended(21, "nwno") + _extended(18, "atno")
-    text += "쪽".encode("utf-16-le") + _extended(22, "bokm") + _extended(22, "idxm") + _extended(23, "tdut") + _u16(13)
+    text += "쪽".encode("utf-16-le") + title_mark + _extended(22, "bokm") + _extended(22, "idxm") + _extended(23, "tdut")
+    text += _u16(13)
     controls = [
         rec.Record(rec.CTRL_HEADER, 1, ct.PageNumberPosition(0x600, side_char=ord("-")).encode()),
         rec.Record(rec.CTRL_HEADER, 1, ct.PageHiding(0x18).encode()),
@@ -457,6 +459,7 @@ def test_numbering_bookmark_index_and_dutmal_controls_open() -> None:
     assert [key.text for key in one("indexmark")] == ["가나", "다라"]
     dutmal = one("dutmal")
     assert (dutmal.get("posType"), dutmal.get("align")) == ("BOTTOM", "LEFT")
+    assert one("titleMark").get("ignore") == "1"
     assert [dutmal.find(f"{HP}mainText").text, dutmal.find(f"{HP}subText").text] == ["협동조합", "coop"]
 
 
