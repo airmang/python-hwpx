@@ -109,13 +109,15 @@ def test_content_the_writer_cannot_express_is_refused_before_writing(tmp_path: P
     document = HwpxDocument.new()
     document.add_paragraph("양식 개체가 있는 문서")
     [run] = list(document.sections[0].element.iter(f"{HP}run"))[-1:]
-    etree.SubElement(run, f"{HP}comboBox")
+    combo = etree.SubElement(run, f"{HP}comboBox")
+    for value in ("가", "나"):  # an HWP combo box keeps one value, not a list
+        etree.SubElement(combo, f"{HP}listItem", displayText=value, value=value)
     document.sections[0].mark_dirty()
     target = tmp_path / "양식.hwp"
     with pytest.raises(Hwp5Error) as info:
         document.save_to_path(target)
     assert info.value.code == "hwp5-write-unsupported"
-    assert info.value.context["unsupported"].get("comboBox") == 1
+    assert info.value.context["unsupported"].get("comboBox/listItem") == 1
     assert not target.exists()
 
 

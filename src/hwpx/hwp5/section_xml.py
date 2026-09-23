@@ -489,9 +489,8 @@ COMPOSE_FRAMED_DIGITS: dict[int, dict[int, str]] = {
 }
 COMPOSE_FRAMED_DIGITS[1].update({ord(glyph): str(n) for n, glyph in COMPOSE_TENS_GLYPHS.items()})
 COMPOSE_FRAMED_DIGITS[1].update({ord(glyph): str(n) for n, glyph in COMPOSE_UNITS_GLYPHS.items()})
-#: The OWPML element of each form kind converted (a combo box keeps its list
-#: items where no record shows them yet).
-FORM_ELEMENTS = {"+cbt": "checkBtn", "+rbt": "radioBtn", "+pbt": "btn", "+edt": "edit"}
+#: The OWPML element of each form kind.
+FORM_ELEMENTS = {"+cbt": "checkBtn", "+rbt": "radioBtn", "+pbt": "btn", "+edt": "edit", "+cob": "comboBox"}
 FORM_VALUE = ("UNCHECKED", "CHECKED", "INDETERMINATE")
 FORM_BACK_STYLE = ("TRANSPARENT", "OPAQUE")
 EDIT_SCROLL_BARS = ("NONE", "VERTICAL", "HORIZONTAL", "BOTH")
@@ -547,6 +546,16 @@ FORM_OWN = {
             ("alignText", "AlignText", "int"),
         ),
     ),
+    # A combo box keeps no list: its text is the value of its one list item.
+    "comboBox": (
+        "ComboBoxSet",
+        (
+            ("listBoxRows", "ListBoxRows", "int"),
+            ("text", "Text", "wstring"),
+            ("listBoxWidth", "ListBoxWidth", "int"),
+            ("editEnable", "EditEnable", "bool"),
+        ),
+    ),
 }
 #: The attributes of each form element in Hancom's order, with the value of
 #: those its record has no item for; the common ones follow.
@@ -564,6 +573,7 @@ FORM_ATTRIBUTES = {
         ("readOnly", "0"),
         ("alignText", "LEFT"),
     ),
+    "comboBox": (("listBoxRows", "10"), ("listBoxWidth", "0"), ("editEnable", "0"), ("selectedValue", "")),
 }
 FORM_COMMON_ATTRIBUTES = (
     "name",
@@ -978,8 +988,9 @@ class SectionWriter(ShapeReader):
         return element
 
     def form(self, run: etree._Element, ctrl: rec.Record) -> etree._Element | None:
-        """A form object (check box, radio button, push button, edit box) from
-        its property text; the object header gives its size and place."""
+        """A form object (check box, radio button, push button, edit box,
+        combo box) from its property text; the object header gives its size
+        and place."""
 
         record = next((c for c in ctrl.children if c.tag == rec.FORM_OBJECT), None)
         if record is None:
@@ -1003,6 +1014,8 @@ class SectionWriter(ShapeReader):
         sub(element, "hp:formCharPr", [(attribute, found.get(attribute, "0")) for attribute, _, _ in FORM_CHAR])
         if name == "edit":
             sub(element, "hp:text").text = xml_text(found.get("text", ""))
+        elif name == "comboBox":
+            sub(element, "hp:listItem", (("displayText", ""), ("value", found.get("text", ""))))
         object_layout(element, ct.ObjectCommon.decode(ctrl.payload))
         return element
 

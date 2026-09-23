@@ -840,6 +840,15 @@ class SectionRecords:
         name = _local(element)
         own_set, own_items = FORM_OWN[name]
         char, text = _find(element, "formCharPr"), _find(element, "text")
+        own_text = "".join(text.itertext()) if text is not None else ""
+        if name == "comboBox":
+            # The record keeps one text, the value of the first list item;
+            # more items, another display text or selection cannot be kept.
+            options = element.findall(f"{{{_HP}}}listItem")
+            own_text = options[0].get("value", "") if options else ""
+            display = options[0].get("displayText", "") if options else ""
+            if len(options) > 1 or display not in ("", own_text) or element.get("selectedValue", "") not in ("", own_text):
+                self.unsupported["comboBox/listItem"] += 1
         sets: list[tuple[str, list[ct.FormItem]]] = []
         for set_name, source, table in (
             ("CommonSet", element, FORM_COMMON),
@@ -849,7 +858,7 @@ class SectionRecords:
             items: list[ct.FormItem] = []
             for attribute, key, kind in table:
                 if attribute == "text":
-                    raw: str | None = "".join(text.itertext()) if text is not None else ""
+                    raw: str | None = own_text
                 else:
                     raw = source.get(attribute) if source is not None else None
                 items.append((key, kind, _form_item(attribute, kind, raw)))

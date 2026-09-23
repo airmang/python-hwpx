@@ -233,7 +233,8 @@ def _text_box() -> list[rec.Record]:
 
 
 def _forms() -> list[rec.Record]:
-    """A checked check box and a number-only edit box, as Hancom writes them."""
+    """A checked check box, a number-only edit box and a combo box, as Hancom
+    writes them."""
 
     common = [
         ("Name", "wstring", "chk"), ("GroupName", "wstring", ""), ("TabStop", "bool", "1"), ("TabOrder", "int", "0"),
@@ -255,11 +256,16 @@ def _forms() -> list[rec.Record]:
             ("Number", "bool", "1"), ("ReadOnly", "bool", "0"), ("AlignText", "int", "2"),
         ]),
     ])
+    combo = ct.FormObject("+cob", [
+        ("CommonSet", [("Name", "wstring", "pick")] + common[1:]),
+        ("CharShapeSet", char),
+        ("ComboBoxSet", [("ListBoxRows", "int", "10"), ("Text", "wstring", "가"), ("ListBoxWidth", "int", "0"), ("EditEnable", "bool", "1")]),
+    ])
     controls: list[rec.Record] = []
-    for value in (check, edit):
+    for value in (check, edit, combo):
         header = ct.ObjectCommon("form", 0x002A6211, 0, 0, 9921, 1984, 0, (0, 0, 0, 0), 0, 0, "", b"\0\0")
         controls += [rec.Record(rec.CTRL_HEADER, 1, header.encode()), rec.Record(rec.FORM_OBJECT, 2, value.encode())]
-    return _paragraph(0, _extended(11, "form") * 2 + _u16(13), [(0, 0)], controls)
+    return _paragraph(0, _extended(11, "form") * 3 + _u16(13), [(0, 0)], controls)
 
 
 def _drawings() -> list[rec.Record]:
@@ -629,6 +635,9 @@ def test_form_objects_open_with_their_properties() -> None:
     assert [edit.get(n) for n in ("passwordChar", "numOnly", "alignText", "foreColor", "name")] == ["X", "1", "RIGHT", "#F3EFE4", "num"]
     assert [etree.QName(c).localname for c in edit] == ["formCharPr", "text", "sz", "pos", "outMargin"]
     assert edit.find(f"{HP}text").text == "1234"
+    [combo] = list(section.iter(f"{HP}comboBox"))
+    assert [combo.get(n) for n in ("listBoxRows", "editEnable", "selectedValue", "name")] == ["10", "1", "", "pick"]
+    assert [dict(item.attrib) for item in combo.findall(f"{HP}listItem")] == [{"displayText": "", "value": "가"}]
 
 
 def test_curves_and_connectors_open_with_their_segments_and_ends() -> None:
