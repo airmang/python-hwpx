@@ -16,6 +16,7 @@ from ._document_primitives import (
     _clear_paragraph_layout_cache,
     _element_local_name,
     _sanitize_text,
+    _text_element_content,
 )
 
 if TYPE_CHECKING:
@@ -374,7 +375,7 @@ class HwpxOxmlRun:
     def text(self) -> str:
         parts: list[str] = []
         for node in self.element.findall(f"{_HP}t"):
-            parts.append("".join(node.itertext()))
+            parts.append(_text_element_content(node))
         return "".join(parts)
 
     @text.setter
