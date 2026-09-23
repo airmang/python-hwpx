@@ -1488,12 +1488,17 @@ class HwpxOxmlParagraph:
         if value is None:
             if "paraPrIDRef" in self.element.attrib:
                 del self.element.attrib["paraPrIDRef"]
+                _clear_paragraph_layout_cache(self.element)
                 self.section.mark_dirty()
             return
 
         new_value = str(value)
         if self.element.get("paraPrIDRef") != new_value:
             self.element.set("paraPrIDRef", new_value)
+            # A new paragraph shape changes line spacing, indents and alignment.
+            # Hancom takes the line heights from the cached layout, so a kept
+            # cache would draw the old line spacing.
+            _clear_paragraph_layout_cache(self.element)
             self.section.mark_dirty()
 
     @property
