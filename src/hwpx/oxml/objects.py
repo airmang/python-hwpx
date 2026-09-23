@@ -306,8 +306,10 @@ def _create_line_element(
     h = abs(end_y - start_y)
 
     el = ET.Element(f"{_HP}line", {"isReverseHV": "0"})
-    # 1) AbstractShapeComponentType children (offset, orgSz, … renderingInfo)
-    _build_shape_common_children(el, w, h, treat_as_char=treat_as_char)
+    # 1) AbstractShapeComponentType children (offset, orgSz, … renderingInfo).
+    # orgSz/curSz keep at least 1 on each side, as Hancom writes a horizontal
+    # line (w x 1): with a 0 side Hancom does not draw the line at all.
+    _build_shape_common_children(el, max(w, 1), max(h, 1), treat_as_char=treat_as_char)
     # 2) AbstractDrawingObjectType children (lineShape, shadow)
     _build_drawing_object_children(
         el, line_color=line_color, line_width=line_width,
@@ -485,6 +487,19 @@ def _create_polygon_element(
     return el
 
 
+def _closed_points(points: Sequence[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Repeat the first vertex at the end unless it is already there.
+
+    That is how Hancom closes a polygon; without it Hancom draws the vertices
+    as an open line and leaves the last side out.
+    """
+
+    closed = [(x, y) for x, y in points]
+    if closed and closed[0] != closed[-1]:
+        closed.append(closed[0])
+    return closed
+
+
 @dataclass(frozen=True)
 class ContainerMember:
     """One shape inside a group (``<hp:container>``), placed at (*x*, *y*)
@@ -561,12 +576,15 @@ class ContainerMember:
         line_color: str = "#000000",
         line_width: str = "283",
         fill_color: str | None = None,
+        closed: bool = True,
     ) -> "ContainerMember":
-        """A polygon member — see :func:`_create_polygon_element`."""
+        """A polygon member — see :func:`_create_polygon_element`. It is
+        closed (the first vertex repeated at the end) unless *closed* is
+        false."""
 
         element = _create_polygon_element(
-            points, line_color=line_color, line_width=line_width,
-            fill_color=fill_color,
+            _closed_points(points) if closed else points,
+            line_color=line_color, line_width=line_width, fill_color=fill_color,
         )
         return cls(element, x, y)
 
@@ -1361,12 +1379,13 @@ class HwpxOxmlShape:
         the requested size.
         """
         old_width, old_height = self._geometry_size()
-        w, h = str(width), str(height)
         for tag in ("sz", "orgSz", "curSz"):
             child = self.element.find(f"{_HP}{tag}")
             if child is not None:
-                child.set("width", w)
-                child.set("height", h)
+                # orgSz/curSz keep at least 1 on each side (see _create_line_element).
+                floor = 0 if tag == "sz" else 1
+                child.set("width", str(max(width, floor)))
+                child.set("height", str(max(height, floor)))
         rot = self.element.find(f"{_HP}rotationInfo")
         if rot is not None:
             rot.set("centerX", str(width // 2))
@@ -1379,8 +1398,19 @@ class HwpxOxmlShape:
 
         That is ``orgSz``: in the corpus fixtures a shape's geometry always
         matches ``orgSz`` even when ``sz`` differs because ``scaMatrix``
-        scales it.
+        scales it. A line's comes from its endpoints, since its ``orgSz``
+        keeps at least 1 on a side the line does not extend along.
         """
+        start = self.element.find(f"{_HC}startPt")
+        end = self.element.find(f"{_HC}endPt")
+        if self.shape_type == "line" and start is not None and end is not None:
+            try:
+                return (
+                    abs(int(end.get("x", "0")) - int(start.get("x", "0"))),
+                    abs(int(end.get("y", "0")) - int(start.get("y", "0"))),
+                )
+            except ValueError:
+                return 0, 0
         for tag in ("orgSz", "sz"):
             child = self.element.find(f"{_HP}{tag}")
             if child is None:

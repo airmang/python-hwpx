@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Sequence, cast
 
 from ._units import _mm_to_hwp_units
 from ..errors import HwpxStateError, HwpxValueError
+from ..oxml.objects import _closed_points
 
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
@@ -350,8 +351,13 @@ def add_polygon(
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
     section_index: int | None = None,
+    closed: bool = True,
 ) -> HwpxOxmlShape:
     """Insert a polygon drawing shape.
+
+    The polygon is closed: the first vertex is repeated at the end, as Hancom
+    writes a polygon, unless *closed* is false (an open line through the
+    vertices).
 
     *points_mm* are millimetre vertex coordinates (3 or more). Hancom stores
     a polygon's vertices in its own top-left-anchored local coordinate space
@@ -374,6 +380,8 @@ def add_polygon(
             include_run=False,
         )
     hwp_points = [(_mm_to_hwp_units(x), _mm_to_hwp_units(y)) for x, y in points]
+    if closed:
+        hwp_points = _closed_points(hwp_points)
     return paragraph.add_polygon(
         hwp_points,
         line_color=line_color, line_width=line_width,
