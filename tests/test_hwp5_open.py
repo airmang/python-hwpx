@@ -232,6 +232,36 @@ def _text_box() -> list[rec.Record]:
     )
 
 
+def _forms() -> list[rec.Record]:
+    """A checked check box and a number-only edit box, as Hancom writes them."""
+
+    common = [
+        ("Name", "wstring", "chk"), ("GroupName", "wstring", ""), ("TabStop", "bool", "1"), ("TabOrder", "int", "0"),
+        ("Command", "wstring", ""), ("Editable", "bool", "1"), ("ForeColor", "int", "0"), ("BackColor", "int", "16777215"),
+        ("Enabled", "bool", "1"), ("BorderType", "int", "0"), ("DrawFrame", "bool", "1"), ("Printable", "bool", "1"),
+    ]
+    char = [("CharShapeID", "int", "0"), ("FollowContext", "bool", "0"), ("AutoSize", "bool", "0"), ("WordWrap", "bool", "0")]
+    check = ct.FormObject("+cbt", [
+        ("CommonSet", common),
+        ("CharShapeSet", char),
+        ("ButtonSet", [("Caption", "wstring", "동의함"), ("Value", "int", "1"), ("TriState", "bool", "0"), ("BackStyle", "int", "1")]),
+    ])
+    edit = ct.FormObject("+edt", [
+        ("CommonSet", [("Name", "wstring", "num")] + common[1:6] + [("ForeColor", "int", "15003635")] + common[7:]),
+        ("CharShapeSet", char),
+        ("EditSet", [
+            ("Text", "wstring", "1234"), ("MultiLine", "bool", "0"), ("PasswordChar", "wstring", "X"),
+            ("MaxLength", "int", "2147483647"), ("ScrollBars", "int", "0"), ("TabKeyBehavior", "int", "0"),
+            ("Number", "bool", "1"), ("ReadOnly", "bool", "0"), ("AlignText", "int", "2"),
+        ]),
+    ])
+    controls: list[rec.Record] = []
+    for value in (check, edit):
+        header = ct.ObjectCommon("form", 0x002A6211, 0, 0, 9921, 1984, 0, (0, 0, 0, 0), 0, 0, "", b"\0\0")
+        controls += [rec.Record(rec.CTRL_HEADER, 1, header.encode()), rec.Record(rec.FORM_OBJECT, 2, value.encode())]
+    return _paragraph(0, _extended(11, "form") * 2 + _u16(13), [(0, 0)], controls)
+
+
 def _drawings() -> list[rec.Record]:
     """A closed curve of a line and two curved segments, and a connector with
     two control points between the shapes of instance ids 185 and 186."""
@@ -350,8 +380,11 @@ def make_hwp(
     picture: bool = False,
     compose: bool = False,
     drawings: bool = False,
+    forms: bool = False,
 ) -> bytes:
     section = _section()
+    if forms:
+        section += _forms()
     if drawings:
         section += _drawings()
     if compose:
@@ -575,6 +608,27 @@ def test_an_older_drawing_style_that_stops_early_still_opens(keep: str) -> None:
     [rect] = list(document.sections[0].element.iter(f"{HP}rect"))
     assert rect.find(f"{HP}lineShape").get("color") == "#332211"
     assert rect.find(f"{HP}shadow").get("type") == "NONE"
+
+
+def test_form_objects_open_with_their_properties() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(forms=True))
+    section = document.sections[0].element
+    [check] = list(section.iter(f"{HP}checkBtn"))
+    assert list(check.attrib.items())[:6] == [
+        ("caption", "동의함"),
+        ("value", "CHECKED"),
+        ("radioGroupName", ""),
+        ("triState", "0"),
+        ("backStyle", "OPAQUE"),
+        ("name", "chk"),
+    ]
+    assert (check.get("backColor"), check.get("tabStop"), check.get("command")) == ("#FFFFFF", "1", "")
+    [edit] = list(section.iter(f"{HP}edit"))
+    assert [edit.get(n) for n in ("passwordChar", "numOnly", "alignText", "foreColor", "name")] == ["X", "1", "RIGHT", "#F3EFE4", "num"]
+    assert [etree.QName(c).localname for c in edit] == ["formCharPr", "text", "sz", "pos", "outMargin"]
+    assert edit.find(f"{HP}text").text == "1234"
 
 
 def test_curves_and_connectors_open_with_their_segments_and_ends() -> None:

@@ -70,6 +70,7 @@ def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
         {"memo": True, "master_page": True},
         {"compose": True},
         {"drawings": True},
+        {"forms": True},
     ],
 )
 def test_hwp_to_hwpx_to_hwp_keeps_the_section_records(extras: dict[str, bool]) -> None:
@@ -103,15 +104,35 @@ def test_saving_as_hwp_keeps_text_formatting_and_tables(tmp_path: Path) -> None:
 
 
 def test_content_the_writer_cannot_express_is_refused_before_writing(tmp_path: Path) -> None:
+    from lxml import etree
+
     document = HwpxDocument.new()
     document.add_paragraph("양식 개체가 있는 문서")
-    document.fields.add_check_box("동의")
+    [run] = list(document.sections[0].element.iter(f"{HP}run"))[-1:]
+    etree.SubElement(run, f"{HP}comboBox")
+    document.sections[0].mark_dirty()
     target = tmp_path / "양식.hwp"
     with pytest.raises(Hwp5Error) as info:
         document.save_to_path(target)
     assert info.value.code == "hwp5-write-unsupported"
-    assert info.value.context["unsupported"].get("checkBtn") == 1
+    assert info.value.context["unsupported"].get("comboBox") == 1
     assert not target.exists()
+
+
+def test_a_check_box_made_with_the_api_saves_as_hwp(tmp_path: Path) -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("양식 개체가 있는 문서")
+    document.fields.add_check_box("동의")
+    [before] = list(document.sections[0].element.iter(f"{HP}checkBtn"))
+    target = tmp_path / "양식.hwp"
+    document.save_to_path(target)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        reopened = HwpxDocument.open(target)
+    [after] = list(reopened.sections[0].element.iter(f"{HP}checkBtn"))
+    assert dict(after.attrib) == dict(before.attrib)
+    names = ("formCharPr", "sz", "pos", "outMargin")
+    assert [dict(after.find(f"{HP}{n}").attrib) for n in names] == [dict(before.find(f"{HP}{n}").attrib) for n in names]
 
 
 def test_master_pages_save_as_hwp_under_the_section_and_on_its_last_paragraph(tmp_path: Path) -> None:

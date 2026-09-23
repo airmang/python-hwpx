@@ -489,6 +489,104 @@ COMPOSE_FRAMED_DIGITS: dict[int, dict[int, str]] = {
 }
 COMPOSE_FRAMED_DIGITS[1].update({ord(glyph): str(n) for n, glyph in COMPOSE_TENS_GLYPHS.items()})
 COMPOSE_FRAMED_DIGITS[1].update({ord(glyph): str(n) for n, glyph in COMPOSE_UNITS_GLYPHS.items()})
+#: The OWPML element of each form kind converted (a combo box keeps its list
+#: items where no record shows them yet).
+FORM_ELEMENTS = {"+cbt": "checkBtn", "+rbt": "radioBtn", "+pbt": "btn", "+edt": "edit"}
+FORM_VALUE = ("UNCHECKED", "CHECKED", "INDETERMINATE")
+FORM_BACK_STYLE = ("TRANSPARENT", "OPAQUE")
+EDIT_SCROLL_BARS = ("NONE", "VERTICAL", "HORIZONTAL", "BOTH")
+EDIT_TAB_KEY = ("NEXT_OBJECT", "INSERT_TAB")
+EDIT_ALIGN = ("LEFT", "CENTER", "RIGHT")
+#: A form's common properties: OWPML attribute, property key and type, in
+#: Hancom's order; colours are COLORREF numbers.
+FORM_COMMON = (
+    ("name", "Name", "wstring"),
+    ("groupName", "GroupName", "wstring"),
+    ("tabStop", "TabStop", "bool"),
+    ("tabOrder", "TabOrder", "int"),
+    ("command", "Command", "wstring"),
+    ("editable", "Editable", "bool"),
+    ("foreColor", "ForeColor", "int"),
+    ("backColor", "BackColor", "int"),
+    ("enabled", "Enabled", "bool"),
+    ("borderTypeIDRef", "BorderType", "int"),
+    ("drawFrame", "DrawFrame", "bool"),
+    ("printable", "Printable", "bool"),
+)
+FORM_CHAR = (
+    ("charPrIDRef", "CharShapeID", "int"),
+    ("followContext", "FollowContext", "bool"),
+    ("autoSz", "AutoSize", "bool"),
+    ("wordWrap", "WordWrap", "bool"),
+)
+#: Each kind's own set: its name and items (attribute, key, type) in order.
+FORM_OWN = {
+    "checkBtn": ("ButtonSet", (("caption", "Caption", "wstring"), ("value", "Value", "int"), ("triState", "TriState", "bool"), ("backStyle", "BackStyle", "int"))),
+    "radioBtn": (
+        "ButtonSet",
+        (
+            ("caption", "Caption", "wstring"),
+            ("radioGroupName", "RadioGroupName", "wstring"),
+            ("value", "Value", "int"),
+            ("triState", "TriState", "bool"),
+            ("backStyle", "BackStyle", "int"),
+        ),
+    ),
+    "btn": ("ButtonSet", (("caption", "Caption", "wstring"),)),
+    "edit": (
+        "EditSet",
+        (
+            ("text", "Text", "wstring"),
+            ("multiLine", "MultiLine", "bool"),
+            ("passwordChar", "PasswordChar", "wstring"),
+            ("maxLength", "MaxLength", "int"),
+            ("scrollBars", "ScrollBars", "int"),
+            ("tabKeyBehavior", "TabKeyBehavior", "int"),
+            ("numOnly", "Number", "bool"),
+            ("readOnly", "ReadOnly", "bool"),
+            ("alignText", "AlignText", "int"),
+        ),
+    ),
+}
+#: The attributes of each form element in Hancom's order, with the value of
+#: those its record has no item for; the common ones follow.
+FORM_ATTRIBUTES = {
+    "checkBtn": (("caption", ""), ("value", "UNCHECKED"), ("radioGroupName", ""), ("triState", "0"), ("backStyle", "OPAQUE")),
+    "radioBtn": (("caption", ""), ("value", "UNCHECKED"), ("radioGroupName", ""), ("triState", "0"), ("backStyle", "OPAQUE")),
+    "btn": (("caption", ""), ("radioGroupName", ""), ("triState", "0")),
+    "edit": (
+        ("multiLine", "0"),
+        ("passwordChar", "*"),
+        ("maxLength", "2147483647"),
+        ("scrollBars", "NONE"),
+        ("tabKeyBehavior", "NEXT_OBJECT"),
+        ("numOnly", "0"),
+        ("readOnly", "0"),
+        ("alignText", "LEFT"),
+    ),
+}
+FORM_COMMON_ATTRIBUTES = (
+    "name",
+    "foreColor",
+    "backColor",
+    "groupName",
+    "tabStop",
+    "editable",
+    "tabOrder",
+    "enabled",
+    "borderTypeIDRef",
+    "drawFrame",
+    "printable",
+    "command",
+)
+#: Attributes whose number is a token, by attribute.
+FORM_TOKENS = {
+    "value": FORM_VALUE,
+    "backStyle": FORM_BACK_STYLE,
+    "scrollBars": EDIT_SCROLL_BARS,
+    "tabKeyBehavior": EDIT_TAB_KEY,
+    "alignText": EDIT_ALIGN,
+}
 #: Controls written as one element inside ``hp:ctrl``.
 MARKERS = {
     "pgnp": "pageNum",
@@ -772,6 +870,8 @@ class SectionWriter(ShapeReader):
             return self.dutmal(run, ctrl)
         if kind == "tcps":
             return self.compose(run, ctrl)
+        if kind == "form":
+            return self.form(run, ctrl)
         if kind == "gso ":
             return self.drawing(run, ctrl)
         if kind == "eqed":
@@ -875,6 +975,35 @@ class SectionWriter(ShapeReader):
         )
         sub(element, "hp:mainText").text = xml_text(d.main_text)
         sub(element, "hp:subText").text = xml_text(d.sub_text)
+        return element
+
+    def form(self, run: etree._Element, ctrl: rec.Record) -> etree._Element | None:
+        """A form object (check box, radio button, push button, edit box) from
+        its property text; the object header gives its size and place."""
+
+        record = next((c for c in ctrl.children if c.tag == rec.FORM_OBJECT), None)
+        if record is None:
+            self.report.skip("control-form")
+            return None
+        value = ct.FormObject.decode(record.payload)
+        name = FORM_ELEMENTS.get(value.kind)
+        if name is None:
+            self.report.skip(f"form-{value.kind.strip('+') or '?'}")
+            return None
+        sets = value.items()
+        own_set, own_items = FORM_OWN[name]
+        found: dict[str, str] = {}
+        for items, table in ((sets.get("CommonSet", {}), FORM_COMMON), (sets.get("CharShapeSet", {}), FORM_CHAR), (sets.get(own_set, {}), own_items)):
+            for attribute, key, _kind in table:
+                if key in items:
+                    found[attribute] = _form_value(attribute, items[key])
+        attrs = [(attribute, found.get(attribute, default)) for attribute, default in FORM_ATTRIBUTES[name]]
+        attrs += [(attribute, found.get(attribute, "")) for attribute in FORM_COMMON_ATTRIBUTES]
+        element = sub(run, f"hp:{name}", attrs)
+        sub(element, "hp:formCharPr", [(attribute, found.get(attribute, "0")) for attribute, _, _ in FORM_CHAR])
+        if name == "edit":
+            sub(element, "hp:text").text = xml_text(found.get("text", ""))
+        object_layout(element, ct.ObjectCommon.decode(ctrl.payload))
         return element
 
     def compose(self, run: etree._Element, ctrl: rec.Record) -> etree._Element:
@@ -1141,6 +1270,17 @@ def table_lists(
             if target is not None:
                 target[1].append(record)
     return caption, cells
+
+
+def _form_value(attribute: str, raw: str) -> str:
+    """A form property as its OWPML attribute value: colours from COLORREF
+    numbers, tokens from their numbers, the rest as written."""
+
+    number = int(raw) if raw.lstrip("-").isdigit() else 0
+    if attribute in ("foreColor", "backColor"):
+        return color(number)
+    table = FORM_TOKENS.get(attribute)
+    return token(table, number) if table is not None else raw
 
 
 def _split_text(chunk: bt.Chunk, units: int) -> tuple[bt.Chunk, bt.Chunk]:

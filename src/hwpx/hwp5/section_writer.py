@@ -54,6 +54,12 @@ from .section_xml import (
     FIELD_TYPES,
     FILL_AREA,
     FOOTNOTE_PLACE,
+    FORM_ATTRIBUTES,
+    FORM_CHAR,
+    FORM_COMMON,
+    FORM_ELEMENTS,
+    FORM_OWN,
+    FORM_TOKENS,
     GUTTER,
     LABEL_LANDSCAPE,
     MASTER_PAGE_BITS,
@@ -109,6 +115,8 @@ _MARKERS = {
 }
 
 
+#: The form kind of each form element.
+_FORM_KINDS = {name: kind for kind, name in FORM_ELEMENTS.items()}
 #: The shape kind of each drawing object element.
 _SHAPE_KINDS = {name: kind for kind, name in sh.SHAPE_ELEMENTS.items()}
 #: Shape component flags with no OWPML attribute of their own: a text box, a
@@ -242,6 +250,36 @@ def _compose_text(circle: int, text: str) -> str:
         if circle == 1 and len(text) == 2 and int(text[0]) in COMPOSE_TENS_GLYPHS:
             return COMPOSE_TENS_GLYPHS[int(text[0])] + COMPOSE_UNITS_GLYPHS[int(text[1])]
     return COMPOSE_FRAME_GLYPH[circle] + text
+
+
+#: Form attribute values when the element leaves them out (OWPML defaults).
+_FORM_DEFAULTS = {
+    **{attribute: default for attributes in FORM_ATTRIBUTES.values() for attribute, default in attributes},
+    "foreColor": "#000000",
+    "backColor": "#FFFFFF",
+    "tabStop": "1",
+    "editable": "1",
+    "enabled": "1",
+    "drawFrame": "1",
+    "printable": "1",
+}
+
+
+def _form_item(attribute: str, kind: str, raw: str | None) -> str:
+    """A form attribute as its property value: colours as COLORREF numbers,
+    tokens as their numbers, flags as 0 or 1."""
+
+    value = raw if raw is not None else _FORM_DEFAULTS.get(attribute, "")
+    if attribute in ("foreColor", "backColor"):
+        return str(colorref(value))
+    table = FORM_TOKENS.get(attribute)
+    if table is not None:
+        return str(index_of(table, value, index_of(table, _FORM_DEFAULTS.get(attribute), 0)))
+    if kind == "bool":
+        return "1" if value in ("1", "true") else "0"
+    if kind == "int":
+        return str(_number(value))
+    return value
 
 
 def _has_content(cell: etree._Element) -> bool:
@@ -468,6 +506,10 @@ class SectionRecords:
                         units += _extended(23, "tcps")
                         codes.add(23)
                         controls.append(composed)
+                elif name in _FORM_KINDS:
+                    units += _extended(11, "form")
+                    codes.add(11)
+                    controls.append(self.form(child, level + 1))
                 elif name in _SHAPE_KINDS:
                     units += _extended(11, "gso ")
                     codes.add(11)
@@ -790,6 +832,31 @@ class SectionRecords:
         else:
             payload = ct.IndexMark(_child_text(element, "firstKey"), _child_text(element, "secondKey")).encode()
         return [rec.Record(rec.CTRL_HEADER, level, payload)]
+
+    def form(self, element: etree._Element, level: int) -> list[rec.Record]:
+        """A form object: its object header and its property sets, each item
+        in Hancom's order (colours as COLORREF numbers, tokens as numbers)."""
+
+        name = _local(element)
+        own_set, own_items = FORM_OWN[name]
+        char, text = _find(element, "formCharPr"), _find(element, "text")
+        sets: list[tuple[str, list[ct.FormItem]]] = []
+        for set_name, source, table in (
+            ("CommonSet", element, FORM_COMMON),
+            ("CharShapeSet", char, FORM_CHAR),
+            (own_set, element, own_items),
+        ):
+            items: list[ct.FormItem] = []
+            for attribute, key, kind in table:
+                if attribute == "text":
+                    raw: str | None = "".join(text.itertext()) if text is not None else ""
+                else:
+                    raw = source.get(attribute) if source is not None else None
+                items.append((key, kind, _form_item(attribute, kind, raw)))
+            sets.append((set_name, items))
+        value = ct.FormObject(_FORM_KINDS[name], sets)
+        common = _object_common("form", element)
+        return [rec.Record(rec.CTRL_HEADER, level, common.encode()), rec.Record(rec.FORM_OBJECT, level + 1, value.encode())]
 
     def dutmal(self, element: etree._Element, level: int) -> list[rec.Record]:
         value = ct.Dutmal(

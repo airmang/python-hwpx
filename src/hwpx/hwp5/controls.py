@@ -833,6 +833,69 @@ class Compose:
         return b.raw(self.extra).bytes()
 
 
+#: One item of a form's property text: its key, type (``wstring``, ``int``,
+#: ``bool``) and value.
+FormItem = tuple[str, str, str]
+
+
+@dataclass
+class FormObject:
+    """``FORM_OBJECT``: the form's kind (twice), then its properties as text:
+    sets written ``Name:set:<length>:<items> ``, each item ``Key:type:value ``
+    (a ``wstring`` value is preceded by its length)."""
+
+    kind: str = "+cbt"
+    sets: list[tuple[str, list[FormItem]]] = field(default_factory=list)
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "FormObject":
+        c = Cursor(payload, "FORM_OBJECT")
+        value = cls(bt.ctrl_id(c.u32()))
+        c.u32()
+        c.u32()
+        text = c.wstr()
+        position = 0
+        while position < len(text):
+            if text[position] == " ":
+                position += 1
+                continue
+            name, kind, length, _ = text[position:].split(":", 3)
+            if kind != "set" or not length.isdigit():
+                raise damaged("A form's property text is not a list of sets.", kind=kind)
+            start = position + len(name) + len(kind) + len(length) + 3
+            value.sets.append((name, _form_items(text[start : start + int(length)])))
+            position = start + int(length)
+        return value
+
+    def items(self) -> dict[str, dict[str, str]]:
+        return {name: {key: item for key, _, item in items} for name, items in self.sets}
+
+    def encode(self) -> bytes:
+        text = ""
+        for name, items in self.sets:
+            body = "".join(
+                f"{key}:{kind}:{len(item)}:{item} " if kind == "wstring" else f"{key}:{kind}:{item} "
+                for key, kind, item in items
+            )
+            text += f"{name}:set:{len(body)}:{body} "
+        word = bt.ctrl_word(self.kind)
+        return Builder().u32(word).u32(word).u32(len(text)).wstr(text).bytes()
+
+
+def _form_items(body: str) -> list[FormItem]:
+    items: list[FormItem] = []
+    while body:
+        key, kind, rest = body.split(":", 2)
+        if kind == "wstring":
+            length, _, rest = rest.partition(":")
+            items.append((key, kind, rest[: int(length)]))
+            body = rest[int(length) + 1 :]
+        else:
+            item, _, body = rest.partition(" ")
+            items.append((key, kind, item))
+    return items
+
+
 #: What Hancom writes for an equation whose record leaves these out.
 EQUATION_VERSION = "Equation Version 60"
 EQUATION_FONT = "HYhwpEQ"
