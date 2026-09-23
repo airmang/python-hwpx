@@ -144,6 +144,8 @@ def test_line_size_is_the_bounding_box_of_its_endpoints(start, end, expected) ->
     """Gold ``SimpleLine`` has endPt (22478, 8447) with orgSz 22478x8447, and
     gold ``SimpleConnectLine`` runs (0, 5900) → (9000, 0) with orgSz 9000x5900:
     Hancom stores the box the endpoints span, not the segment length.
+    orgSz/curSz keep at least 1 on each side, as Hancom writes a horizontal
+    line; sz keeps the span itself.
     """
 
     element = _create_line_element(start[0], start[1], end[0], end[1])
@@ -151,13 +153,42 @@ def test_line_size_is_the_bounding_box_of_its_endpoints(start, end, expected) ->
     for tag in ("orgSz", "curSz", "sz"):
         box = element.find(f"{HP}{tag}")
         assert box is not None
-        assert (int(box.get("width", "")), int(box.get("height", ""))) == expected
+        floor = 0 if tag == "sz" else 1
+        assert (int(box.get("width", "")), int(box.get("height", ""))) == (
+            max(expected[0], floor), max(expected[1], floor),
+        )
 
     start_pt = element.find(f"{HC}startPt")
     end_pt = element.find(f"{HC}endPt")
     assert start_pt is not None and end_pt is not None
     assert (start_pt.get("x"), start_pt.get("y")) == (str(start[0]), str(start[1]))
     assert (end_pt.get("x"), end_pt.get("y")) == (str(end[0]), str(end[1]))
+
+
+@pytest.mark.parametrize("end", [(14400, 0), (0, 7200)])
+def test_a_straight_line_keeps_a_box_of_at_least_one(end) -> None:
+    """A horizontal or vertical line with a 0 side in orgSz is not drawn."""
+
+    element = _create_line_element(0, 0, *end)
+
+    for tag in ("orgSz", "curSz"):
+        box = element.find(f"{HP}{tag}")
+        assert box is not None
+        assert min(int(box.get("width", "")), int(box.get("height", ""))) == 1
+
+
+def test_resizing_a_flat_line_keeps_its_box_at_least_one() -> None:
+    shape = _paragraph().add_line(0, 0, 14400, 0)
+
+    shape.resize(28800, 0)
+
+    org = shape.element.find(f"{HP}orgSz")
+    sz = shape.element.find(f"{HP}sz")
+    end_pt = shape.element.find(f"{HC}endPt")
+    assert org is not None and sz is not None and end_pt is not None
+    assert (org.get("width"), org.get("height")) == ("28800", "1")
+    assert (sz.get("width"), sz.get("height")) == ("28800", "0")
+    assert (end_pt.get("x"), end_pt.get("y")) == ("28800", "0")
 
 
 def test_diagonal_line_is_not_sized_by_its_hypotenuse() -> None:
