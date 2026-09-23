@@ -1143,21 +1143,50 @@ class HwpxOxmlSectionProperties:
         return run
 
     def _sync_header_footer_control(self, tag: str, source: ET.Element) -> None:
+        """Mirror *source* into the ``hp:ctrl`` Hancom reads, replacing only the
+        control of the same page type, with ``BOTH`` ahead of ``ODD``/``EVEN``.
+
+        Hancom takes header/footer stories from ``hp:ctrl`` alone and drops the
+        ``hp:secPr`` copies when it saves, and on each page it draws the *last*
+        applicable control in document order (Hancom SDK 13.60). So clearing
+        every control of the tag erased the other page types (an ODD footer
+        followed by a BOTH page-number footer lost the ODD text in Hancom), and
+        a BOTH control placed after an ODD one hid it on every odd page. The
+        ``BOTH`` control therefore goes before the page-specific ones: ODD and
+        EVEN override it on their pages whatever order they were set in.
+        """
         run = self._header_footer_control_run()
+        page_type = source.get("applyPageType", "BOTH")
         for ctrl in list(run.findall(f"{_HP}ctrl")):
-            if ctrl.find(f"{_HP}{tag}") is not None:
+            story = ctrl.find(f"{_HP}{tag}")
+            if story is not None and story.get("applyPageType", "BOTH") == page_type:
                 run.remove(ctrl)
-        ctrl = _append_child(run, f"{_HP}ctrl", {})
+        ctrl = run.makeelement(f"{_HP}ctrl", {})
         ctrl.append(deepcopy(source))
+        specific = [
+            existing
+            for existing in run.findall(f"{_HP}ctrl")
+            if (story := existing.find(f"{_HP}{tag}")) is not None
+            and story.get("applyPageType", "BOTH") != "BOTH"
+        ]
+        if page_type == "BOTH" and specific:
+            run.insert(list(run).index(specific[0]), ctrl)  # stdlib and lxml elements alike
+        else:
+            run.append(ctrl)
         self.section.mark_dirty()
 
-    def _remove_header_footer_controls(self, tag: str) -> bool:
+    def _remove_header_footer_controls(self, tag: str, page_type: str | None = None) -> bool:
+        """Remove the ``hp:ctrl`` stories of *tag*; only *page_type*'s when given."""
         removed = False
         for run in self.section.element.findall(f".//{_HP}run"):
             for ctrl in list(run.findall(f"{_HP}ctrl")):
-                if ctrl.find(f"{_HP}{tag}") is not None:
-                    run.remove(ctrl)
-                    removed = True
+                story = ctrl.find(f"{_HP}{tag}")
+                if story is None:
+                    continue
+                if page_type is not None and story.get("applyPageType", "BOTH") != page_type:
+                    continue
+                run.remove(ctrl)
+                removed = True
         return removed
 
     @property
@@ -1245,7 +1274,7 @@ class HwpxOxmlSectionProperties:
             removed = True
         if self._remove_header_footer_apply("header", page_type, element):
             removed = True
-        if self._remove_header_footer_controls("header"):
+        if self._remove_header_footer_controls("header", page_type):
             removed = True
         if removed:
             self.section.mark_dirty()
@@ -1258,7 +1287,7 @@ class HwpxOxmlSectionProperties:
             removed = True
         if self._remove_header_footer_apply("footer", page_type, element):
             removed = True
-        if self._remove_header_footer_controls("footer"):
+        if self._remove_header_footer_controls("footer", page_type):
             removed = True
         if removed:
             self.section.mark_dirty()
