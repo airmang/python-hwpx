@@ -237,7 +237,7 @@ def _memo() -> list[rec.Record]:
 def _picture() -> list[rec.Record]:
     """A captioned picture with a first-letter decoration parameter set."""
 
-    common = ct.ObjectCommon("gso ", 0x040A2211, 0, 0, 10000, 8000, 0, (0, 0, 0, 0), 297, 0, "그림입니다.", bytes(2))
+    common = ct.ObjectCommon("gso ", 0x240A2211, 0, 0, 10000, 8000, 0, (0, 0, 0, 0), 297, 0, "그림입니다.", bytes(2))
     component = sh.ShapeComponent(
         "$pic", True, 0, 0, 0, 1, 10000, 8000, 10000, 8000, 0x24080000, 0, 5000, 4000, [_IDENTITY, _IDENTITY, _IDENTITY]
     )

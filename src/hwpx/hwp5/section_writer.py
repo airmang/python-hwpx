@@ -106,6 +106,8 @@ _FLAG_PICTURE = (1 << 26) | (1 << 29)
 _FLAG_GROUP = 1 << 16
 _FLAG_GROUP_MEMBER = 1 << 17
 _IDENTITY: sh.Matrix = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+#: Children of a container that are not shapes.
+_CONTAINER_PARTS = frozenset({"offset", "orgSz", "curSz", "flip", "rotationInfo", "renderingInfo", "sz", "pos", "outMargin", "shapeComment", "caption", "parameterset"})
 
 
 def _local(element: etree._Element) -> str:
@@ -225,6 +227,8 @@ def _object_common(ctrl: str, element: etree._Element) -> ct.ObjectCommon:
     props |= index_of(TEXT_FLOW, element.get("textFlow"), 0) << 24
     props |= index_of(NUMBERING_TYPE, element.get("numberingType"), 0) << 26
     props |= _flag(element, "lock") << 30
+    # Hancom refuses an object whose caption list is not announced by bit 29.
+    props |= (1 << 29) if _find(element, "caption") is not None else 0
     return ct.ObjectCommon(
         ctrl,
         props,
@@ -710,6 +714,12 @@ class SectionRecords:
             ps = ct.ParameterSet(0x021B, [ct.ParameterItem(HYPERLINK_PATH[0], ct.PIT_SET, link)])
             children.append(rec.Record(rec.CTRL_DATA, level + 1, ps.encode()))
         if kind == "$con":
+            # Any other child is a shape the writer cannot write yet: refuse it
+            # rather than leave it out of the container.
+            for child in element:
+                name = _local(child)
+                if name not in _SHAPE_KINDS and name not in _CONTAINER_PARTS:
+                    self.unsupported[name] += 1
             shapes = [child for child in element if _local(child) in _SHAPE_KINDS]
             kinds = [_SHAPE_KINDS[_local(child)] for child in shapes]
             rest = sh.ContainerChildren(kinds, _int(element, "instid") & 0xFFFFFFFF).encode()

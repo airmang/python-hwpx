@@ -130,3 +130,18 @@ def test_hwpx_targets_are_unchanged(tmp_path: Path) -> None:
     target = tmp_path / "out.hwpx"
     document.save_to_path(target)
     assert target.read_bytes()[:2] == b"PK"
+
+
+def test_a_container_holding_a_shape_the_writer_cannot_write_is_refused() -> None:
+    from lxml import etree
+
+    from hwpx.hwp5.section_writer import build_section_records
+
+    section = etree.fromstring(
+        '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"'
+        ' xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">'
+        "<hp:p><hp:run><hp:container><hp:offset/><hp:orgSz/><hp:connectLine/></hp:container></hp:run></hp:p>"
+        "</hs:sec>"
+    )
+    _, unsupported = build_section_records(section)
+    assert unsupported == {"connectLine": 1}
