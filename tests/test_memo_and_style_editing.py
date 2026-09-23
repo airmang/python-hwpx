@@ -205,7 +205,8 @@ def test_attach_memo_field_inserts_control_runs() -> None:
 
     parameters = field_begin.find(f"{HP}parameters")
     assert parameters is not None
-    assert parameters.get("count") == "5"
+    assert parameters.get("cnt") == "5"
+    assert parameters.get("count") is None
     memo_shape_param = parameters.find(f"{HP}stringParam[@name='MemoShapeIDRef']")
     assert memo_shape_param is not None
     assert memo_shape_param.text == memo.memo_shape_id_ref

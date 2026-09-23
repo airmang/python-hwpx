@@ -180,7 +180,9 @@ def attach_memo_field(
         },
     )
 
-    parameters = _append_element(field_begin, f"{_HP}parameters", {"count": "5", "name": ""})
+    # ``cnt`` as in Hancom's own fields (and every other python-hwpx field
+    # writer); Hancom SDK 13.60 rewrote ``count`` to ``cnt`` on save.
+    parameters = _append_element(field_begin, f"{_HP}parameters", {"cnt": "5", "name": ""})
     _append_element(parameters, f"{_HP}stringParam", {"name": "ID"}).text = memo.id or ""
     _append_element(parameters, f"{_HP}integerParam", {"name": "Number"}).text = str(max(1, number))
     _append_element(parameters, f"{_HP}stringParam", {"name": "CreateDateTime"}).text = created_value
