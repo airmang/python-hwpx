@@ -466,7 +466,11 @@ def test_save_preserves_unjudgeable_layout_cache_on_dirty_complex_paragraph() ->
 
         paragraph_element = paragraph.element
         extra_run = paragraph_element.makeelement(f"{HP}run", {"charPrIDRef": "0"})
-        extra_run.append(paragraph_element.makeelement(f"{HP}ctrl", {"id": "field"}))
+        ctrl = paragraph_element.makeelement(f"{HP}ctrl", {})
+        ctrl.append(paragraph_element.makeelement(f"{HP}colPr", {
+            "id": "", "type": "NEWSPAPER", "layout": "LEFT", "colCount": "1", "sameSz": "1", "sameGap": "0",
+        }))
+        extra_run.append(ctrl)
         paragraph_element.append(extra_run)
         line_array = paragraph_element.makeelement(f"{HP}linesegarray", {})
         line_array.append(paragraph_element.makeelement(f"{HP}lineseg", {"textpos": "999"}))

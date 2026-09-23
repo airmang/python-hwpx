@@ -43,6 +43,20 @@
   - 새 `PageSize.drawn_width`/`drawn_height`는 한컴이 그리는 쪽 크기다. 표 기본 폭,
     머리말·꼬리말 폭, `template_analyzer`의 쪽·본문 폭, `layout_preview`의 쪽 상자가
     이 크기를 쓴다. 그래서 `NARROWLY`와 세로 치수로 된 가로 문서도 가로 폭으로 계산한다.
+- 편집기 안전 검사(`validate_package`·`validate_editor_open_safety`)가 한컴이 열지
+  못하거나(거부) 멈추거나 배치를 끝내지 못하는 문서를 통과시키던 것을 고친다. 이제
+  다음은 오류이고, 공개 저장 경로는 이런 문서를 쓰지 않는다.
+  - 패키지: `rootfile@media-type`, `opf:item`의 `id`·`href`·`media-type`,
+    `opf:itemref@idref`, `opf:meta@name`이 없거나 `opf:manifest`에 항목이 없음
+  - `hh:head@secCnt` 없음(예전에는 경고), `HCFVersion@tagetApplication` 없음
+  - 표: `hp:tbl`의 `rowCnt`·`colCnt`, `hp:tr`/`hp:tc`, `hp:cellAddr`의
+    `colAddr`·`rowAddr`, `hp:cellSpan`의 `colSpan`·`rowSpan`이 없음
+  - `hp:secPr`에 `hp:startNum`·`hp:visibility` 없음, `hp:lineseg@textpos` 없음
+  - 필드: `hp:fieldBegin@id`, `hp:fieldEnd@beginIDRef`가 없거나, `fieldEnd`가 없는
+    `fieldBegin`을 가리키거나, 필드 종류와 `fieldid`가 둘 다 한컴이 모르는 값임
+  - 도형: 필수 하위 요소가 없는 도형과 빈 `hp:ctrl`(예전에는 경고),
+    `hp:renderingInfo` 행렬이 없는 도형, 모서리 점(`hc:pt0`~`pt3`)이 없는 사각형,
+    `hc:img`가 없는 그림
 - `styles.ensure_run(script="sup"/"sub")`가 만든 위·아래 첨자가 한컴에서 두 번
   줄어들던 것을 고친다. `hh:supscript`/`hh:subscript` 요소와 함께 `relSz 67`·
   `offset -30/+30`도 썼는데, 한컴은 요소만으로 글자를 줄이고 올리거나 내린다.

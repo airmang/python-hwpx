@@ -16,7 +16,7 @@ _MIMETYPE = b"application/hwp+zip"
 _VERSION_XML = (
     "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>"
     "<hv:HCFVersion xmlns:hv=\"http://www.hancom.co.kr/hwpml/2011/version\" "
-    "targetApplication=\"WORDPROCESSOR\" major=\"5\" minor=\"0\" micro=\"5\" "
+    "tagetApplication=\"WORDPROCESSOR\" major=\"5\" minor=\"0\" micro=\"5\" "
     "buildNumber=\"0\" os=\"1\" xmlVersion=\"1.4\" application=\"Hancom Office Hangul\" "
     "appVersion=\"9, 1, 1, 5656 WIN32LEWindows_Unknown_Version\"/>"
 ).encode("utf-8")

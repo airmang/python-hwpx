@@ -52,8 +52,8 @@ _MANIFEST_XML = (
     b"<?xml version='1.0' encoding='UTF-8'?>"
     b"<opf:package xmlns:opf='http://www.idpf.org/2007/opf/'>"
     b"<opf:manifest>"
-    b"<opf:item id='header' href='Contents/header.xml'/>"
-    b"<opf:item id='section0' href='Contents/section0.xml'/>"
+    b"<opf:item id='header' href='Contents/header.xml' media-type='application/xml'/>"
+    b"<opf:item id='section0' href='Contents/section0.xml' media-type='application/xml'/>"
     b"</opf:manifest>"
     b"<opf:spine><opf:itemref idref='section0'/></opf:spine>"
     b"</opf:package>"
@@ -64,11 +64,11 @@ _HWPML_ROOT_NAMESPACE_ATTRS = " ".join(
 ).encode("utf-8")
 _HEADER_XML = (
     b"<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"
-    b"<hh:head " + _HWPML_ROOT_NAMESPACE_ATTRS + b"/>"
+    b"<hh:head version='1.5' secCnt='1' " + _HWPML_ROOT_NAMESPACE_ATTRS + b"/>"
 )
 _HEADER_XML_WITH_TEST_STYLE = (
     b"<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"
-    b"<hh:head " + _HWPML_ROOT_NAMESPACE_ATTRS + b">"
+    b"<hh:head version='1.5' secCnt='1' " + _HWPML_ROOT_NAMESPACE_ATTRS + b">"
     b"<hh:refList>"
     b"<hh:styles itemCnt='1'>"
     b"<hh:style id='26' type='PARA' name='TestStyle' engName='TestStyle' "
@@ -684,9 +684,9 @@ def test_settings_path_resolves_via_manifest_item() -> None:
         b"<?xml version='1.0' encoding='UTF-8'?>"
         b"<opf:package xmlns:opf='http://www.idpf.org/2007/opf/'>"
         b"<opf:manifest>"
-        b"<opf:item id='header' href='Contents/header.xml'/>"
-        b"<opf:item id='section0' href='Contents/section0.xml'/>"
-        b"<opf:item id='settings' href='settings.xml'/>"
+        b"<opf:item id='header' href='Contents/header.xml' media-type='application/xml'/>"
+        b"<opf:item id='section0' href='Contents/section0.xml' media-type='application/xml'/>"
+        b"<opf:item id='settings' href='settings.xml' media-type='application/xml'/>"
         b"</opf:manifest>"
         b"<opf:spine><opf:itemref idref='section0'/></opf:spine>"
         b"</opf:package>"

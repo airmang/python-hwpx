@@ -215,13 +215,20 @@ def test_parse_plain_regenerated_entries_inside_region():
     ta.add_native_toc(doc, headings=headings, hyperlink=False)
     # strip the HYPERLINK wrappers to simulate Hancom's plain regeneration
 
+    # (Hancom's plain entries carry neither the begin nor the end of a link.)
     _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
     for sec in doc.oxml.sections:
+        link_ids = set()
         for fb in list(sec.element.iter(f"{_HP}fieldBegin")):
             if fb.get("type") == "HYPERLINK":
+                link_ids.add(fb.get("id"))
                 ctrl = fb.getparent()
                 run = ctrl.getparent()
                 run.remove(ctrl)
+        for fe in list(sec.element.iter(f"{_HP}fieldEnd")):
+            if fe.get("beginIDRef") in link_ids:
+                ctrl = fe.getparent()
+                ctrl.getparent().remove(ctrl)
     model = tf.parse_toc_model(HwpxDocument.open(doc.to_bytes()))
     assert len(model.entries) == 2
     assert all(e.target_id is None for e in model.entries)  # identity by title
