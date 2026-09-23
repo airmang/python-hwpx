@@ -874,6 +874,11 @@ class SectionWriter(ShapeReader):
             return self.header_footer(run, ctrl, kind)
         if kind in ("fn  ", "en  "):
             return self.note(run, ctrl, kind)
+        if kind == "tcmt":
+            # A hidden comment is a paragraph list, like a note body.
+            wrapper = sub(run, "hp:ctrl")
+            self.body(sub(wrapper, "hp:hiddenComment"), ctrl)
+            return wrapper
         if kind in MARKERS:
             return self.marker(run, ctrl, kind)
         if kind == "tdut":

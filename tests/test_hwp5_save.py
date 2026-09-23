@@ -71,6 +71,7 @@ def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
         {"compose": True},
         {"drawings": True},
         {"forms": True},
+        {"hidden_comment": True},
     ],
 )
 def test_hwp_to_hwpx_to_hwp_keeps_the_section_records(extras: dict[str, bool]) -> None:

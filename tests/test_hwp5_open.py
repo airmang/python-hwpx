@@ -232,6 +232,23 @@ def _text_box() -> list[rec.Record]:
     )
 
 
+def _hidden_comment() -> list[rec.Record]:
+    """A hidden comment: a paragraph list under its control, like a note body."""
+
+    text = "본문".encode("utf-16-le") + _extended(15, "tcmt") + _u16(13)
+    body = ct.ListHeader(1, 0, bytes(10)).encode()
+    return _paragraph(
+        0,
+        text,
+        [(0, 0)],
+        [
+            rec.Record(rec.CTRL_HEADER, 1, struct.pack("<I", bt.ctrl_word("tcmt"))),
+            rec.Record(rec.LIST_HEADER, 2, body),
+            *_paragraph(2, "숨은 설명".encode("utf-16-le") + _u16(13), [(0, 0)], []),
+        ],
+    )
+
+
 def _forms() -> list[rec.Record]:
     """A checked check box, a number-only edit box and a combo box, as Hancom
     writes them."""
@@ -387,8 +404,11 @@ def make_hwp(
     compose: bool = False,
     drawings: bool = False,
     forms: bool = False,
+    hidden_comment: bool = False,
 ) -> bytes:
     section = _section()
+    if hidden_comment:
+        section += _hidden_comment()
     if forms:
         section += _forms()
     if drawings:
@@ -614,6 +634,16 @@ def test_an_older_drawing_style_that_stops_early_still_opens(keep: str) -> None:
     [rect] = list(document.sections[0].element.iter(f"{HP}rect"))
     assert rect.find(f"{HP}lineShape").get("color") == "#332211"
     assert rect.find(f"{HP}shadow").get("type") == "NONE"
+
+
+def test_a_hidden_comment_opens_with_its_paragraphs() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(hidden_comment=True))
+    [comment] = list(document.sections[0].element.iter(f"{HP}hiddenComment"))
+    assert etree.QName(comment.getparent()).localname == "ctrl"
+    assert "".join(comment.itertext()) == "숨은 설명"
+    assert comment.find(f"{HP}subList").get("textWidth") == "0"
 
 
 def test_form_objects_open_with_their_properties() -> None:

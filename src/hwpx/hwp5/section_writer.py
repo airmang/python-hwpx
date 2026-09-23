@@ -474,6 +474,10 @@ class SectionRecords:
                             units += _extended(17, "fn  " if kind == "footNote" else "en  ")
                             codes.add(17)
                             controls.append(self.note(item, kind, level + 1))
+                        elif kind == "hiddenComment":
+                            units += _extended(15, "tcmt")
+                            codes.add(15)
+                            controls.append(self.hidden_comment(item, level + 1))
                         elif kind == "fieldBegin":
                             field = self.field_begin(item, level + 1)
                             if field is not None:
@@ -1217,6 +1221,10 @@ class SectionRecords:
         applies = index_of(PAGE_BORDER_TYPES, element.get("applyPageType"), 0)
         value = ct.HeaderFooterCtrl("head" if kind == "header" else "foot", applies, _int(element, "id"))
         return [rec.Record(rec.CTRL_HEADER, level, value.encode()), *self._body(element, level + 1, sized=True)]
+
+    def hidden_comment(self, element: etree._Element, level: int) -> list[rec.Record]:
+        header = rec.Record(rec.CTRL_HEADER, level, struct.pack("<I", bt.ctrl_word("tcmt")))
+        return [header, *self._body(element, level + 1, sized=False)]
 
     def note(self, element: etree._Element, kind: str, level: int) -> list[rec.Record]:
         # Without ``flag`` the note repeats the number format and superscript
