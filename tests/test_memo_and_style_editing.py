@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+import re
 from typing import cast
 import xml.etree.ElementTree as ET
 
@@ -218,6 +220,70 @@ def test_attach_memo_field_inserts_control_runs() -> None:
     field_end = runs[-1].find(f"{HP}ctrl/{HP}fieldEnd")
     assert field_end is not None
     assert field_end.get("beginIDRef") == "field-01"
+
+
+def _memo_field_begins(section: HwpxOxmlSection) -> list[ET.Element]:
+    return [
+        node
+        for node in section.element.iter(f"{HP}fieldBegin")
+        if node.get("type") == "MEMO"
+    ]
+
+
+def _create_time(field_begin: ET.Element) -> str | None:
+    param = field_begin.find(f"{HP}parameters/{HP}stringParam[@name='CreateDateTime']")
+    return None if param is None else param.text
+
+
+def test_memo_fields_get_distinct_positive_zorder() -> None:
+    # Hancom oracle (SDK 13.60): a MEMO fieldBegin without zorder, or with -1,
+    # loses its fieldEnd when Hancom saves the file; a positive zorder keeps it.
+    document, section, _ = _build_document()
+    first = document.add_memo("First", memo_shape_id_ref="5", memo_id="z-1", char_pr_id_ref="10")
+    second = document.add_memo("Second", memo_shape_id_ref="5", memo_id="z-2", char_pr_id_ref="10")
+
+    document.attach_memo_field(section.paragraphs[0], first, field_id="field-z1")
+    document.attach_memo_field(section.paragraphs[0], second, field_id="field-z2")
+
+    zorders = [node.get("zorder") for node in _memo_field_begins(section)]
+    assert sorted(zorders, key=int) == ["1", "2"]
+
+
+@pytest.mark.parametrize(
+    ("created", "expected"),
+    [
+        (datetime(2024, 12, 2, 9, 0, tzinfo=timezone.utc), "2024-12-02T09:00:00Z"),
+        (datetime(2024, 12, 2, 18, 0, tzinfo=timezone(timedelta(hours=9))), "2024-12-02T09:00:00Z"),
+        ("2024-12-02T09:00:00Z", "2024-12-02T09:00:00Z"),
+        ("2024-12-02 18:00:00+09:00", "2024-12-02T09:00:00Z"),
+        ("not a timestamp", "not a timestamp"),
+    ],
+)
+def test_memo_create_time_is_written_as_utc_iso(created: object, expected: str) -> None:
+    # Hancom oracle (SDK 13.60): "2024-12-02 09:00:00" is unreadable -- the
+    # engine turns it into a 1601 FILETIME -- while "…T…Z" survives a save.
+    document, section, _ = _build_document()
+    memo = document.add_memo("Dated", memo_shape_id_ref="5", memo_id="t-1", char_pr_id_ref="10")
+
+    document.attach_memo_field(section.paragraphs[0], memo, field_id="field-t1", created=created)
+
+    (field_begin,) = _memo_field_begins(section)
+    assert _create_time(field_begin) == expected
+
+
+def test_memo_create_time_defaults_to_now_in_utc() -> None:
+    document, section, _ = _build_document()
+    memo = document.add_memo("Now", memo_shape_id_ref="5", memo_id="n-1", char_pr_id_ref="10")
+
+    before = datetime.now(timezone.utc).replace(microsecond=0)
+    document.attach_memo_field(section.paragraphs[0], memo, field_id="field-n1")
+    after = datetime.now(timezone.utc)
+
+    (field_begin,) = _memo_field_begins(section)
+    text = _create_time(field_begin)
+    assert text is not None and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", text)
+    stamp = datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    assert before <= stamp <= after
 
 
 def test_add_memo_with_anchor_creates_paragraph_when_missing() -> None:
