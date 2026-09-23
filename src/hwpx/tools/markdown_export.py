@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Union
 
 from ..document import HwpxDocument
+from ..oxml._document_primitives import _text_element_content
 from ..oxml.hyperlink_form import hyperlink_target
 from ..oxml.namespaces import tag_local_name
 
@@ -289,8 +290,9 @@ def _p_element_to_md(p_el, doc, notes_out: list | None = None) -> str:
         for child in run:
             tag = _local_name(child)
             if tag == "t":
-                if child.text:
-                    _md_push_text(state, cpr, child.text)
+                text = _text_element_content(child)
+                if text:
+                    _md_push_text(state, cpr, text)
             elif tag == "ctrl":
                 _md_handle_ctrl_child(child, state, base_cp, chars, doc, notes_out)
             elif tag in ("footNote", "endNote"):

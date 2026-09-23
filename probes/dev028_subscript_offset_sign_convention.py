@@ -18,15 +18,14 @@ probe cannot re-run that render measurement (no Hancom oracle in this
 environment); it reproduces the convention as our code currently encodes
 it, live.
 
-Our handling: ``document_parts.py``'s ``_run_style_script_matches``/
-``_run_style_apply_script_extension`` encode ``wanted_offset = "-30" if
-script == "sup" else "30"`` -- a value the schema alone could not have
-told us. The functions additionally emit a real ``<hh:supscript>``/
-``<hh:subscript>`` element in parallel with the numeric offset/relSz
-approximation, per a second real-corpus measurement (hwpxlib
-``error__20250808`` fixture, charPr id=513) that found Hancom's own
-superscript toggle carries that element even when its own numeric offset/
-relSz happened to still read the un-toggled default.
+Our handling: ``ensure_run(script="sup"/"sub")`` writes the real
+``<hh:supscript>``/``<hh:subscript>`` element alone, as Hancom's own
+superscript toggle does (hwpxlib ``error__20250808`` fixture, charPr id=513:
+the element with relSz 100 / offset 0). The element already shrinks and
+shifts the glyphs; earlier versions also wrote relSz 67 / offset -30/+30,
+which shrank a script twice. The sign convention now only identifies that
+legacy approximation (``_run_style_is_legacy_script_approximation``), which is
+not reused and is reset when used as a base.
 
 Run: ``python probes/dev028_subscript_offset_sign_convention.py``
 """
@@ -63,20 +62,14 @@ def main() -> int:
 
     sup_offset = sup_style.child_attributes["offset"]["hangul"]
     sub_offset = sub_style.child_attributes["offset"]["hangul"]
-    assert sup_offset == "-30", f"expected superscript offset -30, got {sup_offset}"
-    assert sub_offset == "30", f"expected subscript offset 30, got {sub_offset}"
-    print(f"confirmed our writer: script=sup -> hh:offset[hangul]={sup_offset}, "
-          f"script=sub -> hh:offset[hangul]={sub_offset}")
+    assert sup_offset == "0", f"expected superscript offset 0, got {sup_offset}"
+    assert sub_offset == "0", f"expected subscript offset 0, got {sub_offset}"
+    print("confirmed our writer leaves hh:offset at 0 for script=sup/sub")
 
-    assert "supscript" in sup_style.child_attributes, (
-        "expected a real hh:supscript element alongside the numeric offset approximation"
-    )
-    assert "subscript" in sub_style.child_attributes, (
-        "expected a real hh:subscript element alongside the numeric offset approximation"
-    )
-    print("confirmed both charPr also carry a real hh:supscript/hh:subscript element "
-          "(parallel to the numeric offset/relSz approximation, per the error__20250808 "
-          "real-corpus finding)")
+    assert "supscript" in sup_style.child_attributes, "expected a real hh:supscript element"
+    assert "subscript" in sub_style.child_attributes, "expected a real hh:subscript element"
+    print("confirmed both charPr carry the real hh:supscript/hh:subscript element alone "
+          "(as in the error__20250808 real-corpus finding)")
 
     print("PASS: DEV-028 reproduced (schema silence + live writer convention, "
           "render confirmation is previously-verified per owner memory only)")

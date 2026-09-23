@@ -21,6 +21,7 @@ from ._document_primitives import (
     _children_by_local,
     _clear_paragraph_layout_cache,
     _is_tab_control_element,
+    _text_element_content,
     _normalize_enum_attr,
     _object_id,
     _sanitize_text,
@@ -300,8 +301,7 @@ class HwpxOxmlParagraph:
         for run in self._run_elements():
             for child in run:
                 if tag_local_name(child.tag) == "t":
-                    if child.text:
-                        texts.append(child.text)
+                    texts.append(_text_element_content(child))
                 elif tag_local_name(child.tag) == "tab" or _is_tab_control_element(child):
                     texts.append("\t")
         return "".join(texts)

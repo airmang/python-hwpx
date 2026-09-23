@@ -190,8 +190,9 @@ class TestRunStyleExtensions:
         assert char_props[ratio].find(f"{HH}ratio").get("hangul") == "200"
         assert char_props[spacing].find(f"{HH}spacing").get("hangul") == "30"
         assert char_props[shadow].find(f"{HH}shadow").get("type") == "DROP"
-        assert char_props[sup].find(f"{HH}relSz").get("hangul") == "67"
-        assert char_props[sup].find(f"{HH}offset").get("hangul") == "-30"
+        assert char_props[sup].find(f"{HH}supscript") is not None
+        assert char_props[sup].find(f"{HH}relSz").get("hangul") == "100"
+        assert char_props[sup].find(f"{HH}offset").get("hangul") == "0"
         assert char_props[double_strike].find(f"{HH}strikeout").get("shape") == "DOUBLE_SLIM"
 
     def test_extended_styles_are_idempotent(self) -> None:
@@ -215,9 +216,9 @@ class TestRunStyleExtensions:
         with pytest.raises(ValueError):
             doc.ensure_run_style(**kwargs)
 
-    def test_sub_script_offsets_downward(self) -> None:
-        # 실한컴 렌더 실측(600dpi): offset 양수=아래, 음수=위. 감사 battery1의
-        # "+30=위첨자 픽셀 정확" 판정은 오독이었다(픽셀 재검증으로 정정).
+    def test_sub_script_is_the_subscript_element_alone(self) -> None:
+        # Hancom lowers and shrinks a subscript by hh:subscript alone; an extra
+        # offset/relSz would move and shrink it a second time.
         doc = HwpxDocument.new()
         sub = doc.ensure_run_style(script="sub")
         HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -226,7 +227,9 @@ class TestRunStyleExtensions:
             for header in doc.headers
             for el in header._char_properties_element()
         }
-        assert char_props[sub].find(f"{HH}offset").get("hangul") == "30"
+        assert char_props[sub].find(f"{HH}subscript") is not None
+        assert char_props[sub].find(f"{HH}offset").get("hangul") == "0"
+        assert char_props[sub].find(f"{HH}relSz").get("hangul") == "100"
 
 
 class TestCharacterFormatResidual:
@@ -276,24 +279,40 @@ class TestCharacterFormatResidual:
         assert engrave_cp.find(f"{self.HH}engrave") is not None
         assert engrave_cp.find(f"{self.HH}emboss") is None
 
-    def test_script_pairs_real_flag_element_with_existing_offset_approximation(
-        self,
-    ) -> None:
+    def test_script_writes_the_flag_element_alone(self) -> None:
         doc = HwpxDocument.new()
         sup = doc.styles.ensure_run(script="sup")
         sub = doc.styles.ensure_run(script="sub")
         char_props_el = doc.oxml.headers[0]._char_properties_element()
         sup_cp = char_props_el.find(f"{self.HH}charPr[@id='{sup}']")
         sub_cp = char_props_el.find(f"{self.HH}charPr[@id='{sub}']")
-        # 기존 계약(파괴 금지): relSz=67, offset 부호는 그대로.
-        assert sup_cp.find(f"{self.HH}relSz").get("hangul") == "67"
-        assert sup_cp.find(f"{self.HH}offset").get("hangul") == "-30"
-        assert sub_cp.find(f"{self.HH}offset").get("hangul") == "30"
-        # 신규: 실요소가 병행 방출된다.
+        # Hancom's own scripts: the element, relSz 100, offset 0.
+        for cp in (sup_cp, sub_cp):
+            assert cp.find(f"{self.HH}relSz").get("hangul") == "100"
+            assert cp.find(f"{self.HH}offset").get("hangul") == "0"
         assert sup_cp.find(f"{self.HH}supscript") is not None
         assert sup_cp.find(f"{self.HH}subscript") is None
         assert sub_cp.find(f"{self.HH}subscript") is not None
         assert sub_cp.find(f"{self.HH}supscript") is None
+
+    def test_legacy_double_shrink_script_shape_is_not_reused(self) -> None:
+        # Earlier versions wrote relSz 67 / offset -30 next to hh:supscript.
+        # Such a charPr must not be handed out again, and a new one built on
+        # it as a base is put back to relSz 100 / offset 0.
+        doc = HwpxDocument.new()
+        legacy = doc.styles.ensure_run(script="sup")
+        char_props_el = doc.oxml.headers[0]._char_properties_element()
+        legacy_cp = char_props_el.find(f"{self.HH}charPr[@id='{legacy}']")
+        for tag, value in (("relSz", "67"), ("offset", "-30")):
+            node = legacy_cp.find(f"{self.HH}{tag}")
+            for lang in list(node.attrib):
+                node.set(lang, value)
+        fresh = doc.styles.ensure_run(script="sup", base_char_pr_id=legacy)
+        assert fresh != legacy
+        fresh_cp = char_props_el.find(f"{self.HH}charPr[@id='{fresh}']")
+        assert fresh_cp.find(f"{self.HH}relSz").get("hangul") == "100"
+        assert fresh_cp.find(f"{self.HH}offset").get("hangul") == "0"
+        assert fresh_cp.find(f"{self.HH}supscript") is not None
 
     def test_residual_extensions_are_idempotent(self) -> None:
         doc = HwpxDocument.new()
