@@ -56,6 +56,40 @@ def _is_integer_literal(value: str | None) -> bool:
     return True
 
 
+def _declared_encrypted_parts(data: bytes | None) -> frozenset[str]:
+    """Part names that ``META-INF/manifest.xml`` declares encrypted.
+
+    Hancom saves a password-protected HWPX with ODF package encryption: each
+    encrypted part gets an ``odf:file-entry`` carrying an ``odf:encryption-data``
+    child (AES-256-CBC, PBKDF2), and its bytes in the archive are ciphertext.
+    A plain document's ``META-INF/manifest.xml`` is an empty ``odf:manifest``.
+
+    Detection only -- it never raises. A missing or unreadable manifest means
+    "nothing declared", so the ordinary parse path keeps reporting whatever is
+    actually wrong with the package.
+    """
+
+    if not data:
+        return frozenset()
+    try:
+        root = parse_xml(data)
+    except (etree.LxmlError, ValueError):  # unreadable, or over a security guard: nothing declared
+        return frozenset()
+    declared: set[str] = set()
+    for entry in root.iter():
+        if not isinstance(entry.tag, str) or etree.QName(entry).localname != "file-entry":
+            continue
+        if not any(
+            isinstance(child.tag, str) and etree.QName(child).localname == "encryption-data"
+            for child in entry
+        ):
+            continue
+        for key, value in entry.attrib.items():
+            if etree.QName(key).localname == "full-path" and value.strip():
+                declared.add(normalize_part_name(value))
+    return frozenset(declared)
+
+
 class HwpxPackageError(Exception):
     """Base error raised for issues related to :class:`HwpxPackage`."""
 
@@ -360,6 +394,9 @@ class HwpxPackage:
     HEADER_PATH = "Contents/header.xml"
     #: OLE2/CFBF container signature — the HWP v5 (``.hwp``) binary format.
     OLE2_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+    #: ODF package manifest; a password-protected HWPX declares its encrypted
+    #: parts here (``odf:encryption-data``).
+    ODF_MANIFEST_PATH = "META-INF/manifest.xml"
 
     def __init__(
         self,
@@ -384,6 +421,7 @@ class HwpxPackage:
         self._zip_infos = dict(zip_infos or {})
         self._opened_zip_infos: dict[str, ZipInfo] = dict(zip_infos or {})
         self._zip_order = list(zip_order or files.keys())
+        self._encrypted_parts = _declared_encrypted_parts(files.get(self.ODF_MANIFEST_PATH))
         self._manifest_tree: etree._Element | None = None
         self._spine_cache: list[str] | None = None
         self._section_paths_cache: list[str] | None = None
@@ -585,7 +623,25 @@ class HwpxPackage:
         self.write(part_name, data)
 
     def get_xml(self, part_name: str) -> etree._Element:
-        return parse_xml(self.read(part_name))
+        data = self.read(part_name)
+        try:
+            return parse_xml(data)
+        except etree.XMLSyntaxError as exc:
+            if self._normalize_path(part_name) not in self._encrypted_parts:
+                raise
+            # Same shape as the HWP v5 guidance in open(): the exception type
+            # callers already catch stays, the message names the next step, and
+            # the original lxml error rides along as __cause__.
+            line, column = exc.position or (1, 1)
+            raise etree.XMLSyntaxError(
+                "암호가 걸린 HWPX 문서는 지원하지 않습니다"
+                f"('{self._normalize_path(part_name)}' 파트가 암호화돼 있습니다). "
+                "한컴오피스에서 문서 암호를 해제한 뒤 다시 저장해 사용하세요.",
+                exc.code,
+                line,
+                column,
+                exc.filename,
+            ) from exc
 
     def set_xml(self, part_name: str, element: etree._Element) -> None:
         self.set_part(part_name, element)
