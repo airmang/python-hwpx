@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from ..errors import HwpxValueError
@@ -16,6 +16,52 @@ if TYPE_CHECKING:
     from ..oxml import HwpxOxmlMemo, HwpxOxmlParagraph, HwpxOxmlSection
 
 _HP = HP
+
+#: Hancom writes a memo's ``CreateDateTime`` as UTC ISO 8601 ("2024-03-14T22:38:25Z").
+_HANCOM_MEMO_TIME = "%Y-%m-%dT%H:%M:%SZ"
+
+
+def _memo_create_time(value: "datetime | str | None") -> str:
+    """Format a memo timestamp the way Hancom reads it.
+
+    The Hancom engine cannot read "2024-12-02 09:00:00": opening such a file
+    turns the memo's creation time into a 1601 FILETIME, and saving keeps the
+    broken value. Naive values are local time, as ``datetime.now()`` gives, and
+    are converted to UTC. A string that is not a timestamp is kept as given.
+    """
+
+    if value is None:
+        moment = datetime.now(timezone.utc)
+    elif isinstance(value, datetime):
+        moment = value
+    else:
+        text = str(value).strip()
+        try:
+            moment = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return text
+    return moment.astimezone(timezone.utc).strftime(_HANCOM_MEMO_TIME)
+
+
+def _next_memo_zorder(doc: "HwpxDocument") -> str:
+    """Return a z-order above every MEMO field already in *doc*.
+
+    Hancom gives each memo field its own positive ``zorder``. Without one (or
+    with the ``-1`` other field kinds use) Hancom drops the memo's
+    ``hp:fieldEnd`` when it saves the document, so the memo loses the end of
+    its range.
+    """
+
+    highest = 0
+    for section in doc.sections:
+        for node in section.element.iter(f"{_HP}fieldBegin"):
+            if node.get("type") != "MEMO":
+                continue
+            try:
+                highest = max(highest, int(node.get("zorder", "0")))
+            except ValueError:
+                continue
+    return str(highest + 1)
 
 
 def _append_element(
@@ -103,13 +149,9 @@ def attach_memo_field(
     field_value = field_id or uuid.uuid4().hex
     author_value = author or memo.attributes.get("author") or ""
 
-    created_value = created if created is not None else memo.attributes.get("createDateTime")
-    if isinstance(created_value, datetime):
-        created_value = created_value.strftime("%Y-%m-%d %H:%M:%S")
-    elif created_value is None:
-        created_value = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    else:
-        created_value = str(created_value)
+    created_value = _memo_create_time(
+        created if created is not None else memo.attributes.get("createDateTime")
+    )
 
     memo_shape_id = memo.memo_shape_id_ref or ""
 
@@ -133,11 +175,14 @@ def attach_memo_field(
             "type": "MEMO",
             "editable": "true",
             "dirty": "false",
+            "zorder": _next_memo_zorder(doc),
             "fieldid": field_value,
         },
     )
 
-    parameters = _append_element(field_begin, f"{_HP}parameters", {"count": "5", "name": ""})
+    # ``cnt`` as in Hancom's own fields (and every other python-hwpx field
+    # writer); Hancom SDK 13.60 rewrote ``count`` to ``cnt`` on save.
+    parameters = _append_element(field_begin, f"{_HP}parameters", {"cnt": "5", "name": ""})
     _append_element(parameters, f"{_HP}stringParam", {"name": "ID"}).text = memo.id or ""
     _append_element(parameters, f"{_HP}integerParam", {"name": "Number"}).text = str(max(1, number))
     _append_element(parameters, f"{_HP}stringParam", {"name": "CreateDateTime"}).text = created_value
