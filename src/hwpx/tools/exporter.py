@@ -32,6 +32,13 @@ __all__ = [
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HP = f"{{{_HP_NS}}}"
+#: Elements whose sub-lists hold text outside the body: headers and footers,
+#: foot/end notes, memos (a memo's text sits under its ``hp:fieldBegin``) and
+#: hidden comments. The exporters do not read below them.
+_NOT_BODY_TAGS = frozenset(
+    f"{_HP}{name}"
+    for name in ("header", "footer", "footNote", "endNote", "fieldBegin", "hiddenComment")
+)
 
 _SECTION_RE = re.compile(r"^Contents/section\d+\.xml$")
 
@@ -95,18 +102,104 @@ def _table_cells_text(
     for tr in tbl.findall(f"{_HP}tr"):
         row: list[str] = []
         for tc in tr.findall(f"{_HP}tc"):
-            cell_parts: list[str] = []
-            for paragraph in tc.findall(f".//{_HP}p"):
-                text = _paragraph_text(paragraph, tab_token=tab_token)
-                if text:
-                    cell_parts.append(text)
-            row.append(_mask_text("\n".join(cell_parts).strip(), masking_policy))
+            row.append(_cell_text(tc, tab_token=tab_token, masking_policy=masking_policy))
         rows.append(row)
     return rows
 
 
+def _cell_text(
+    tc: ET.Element,
+    *,
+    tab_token: str = "\t",
+    masking_policy: "TextSanitizer | None" = None,
+) -> str:
+    cell_parts: list[str] = []
+    for paragraph in _body_paragraphs(tc):
+        text = _paragraph_text(paragraph, tab_token=tab_token)
+        if text:
+            cell_parts.append(text)
+    return _mask_text("\n".join(cell_parts).strip(), masking_policy)
+
+
+def _int_attribute(element: ET.Element | None, name: str) -> int | None:
+    if element is None:
+        return None
+    try:
+        return int(element.get(name) or "")
+    except ValueError:
+        return None
+
+
+def _table_grid_text(
+    tbl: ET.Element,
+    *,
+    tab_token: str = "\t",
+    masking_policy: "TextSanitizer | None" = None,
+) -> list[list[str]]:
+    """Cell texts laid on the table's column grid.
+
+    Each cell goes to its ``hp:cellAddr`` position (a cell without one follows
+    the previous cell of its row), and the grid is as wide as the widest row,
+    so no cell is dropped. The positions a merged cell covers stay empty.
+    """
+    placed: dict[tuple[int, int], str] = {}
+    width = 0
+    for row_index, tr in enumerate(tbl.findall(f"{_HP}tr")):
+        column = 0
+        for tc in tr.findall(f"{_HP}tc"):
+            address = tc.find(f"{_HP}cellAddr")
+            row_addr = _int_attribute(address, "rowAddr")
+            col_addr = _int_attribute(address, "colAddr")
+            if row_addr is None or col_addr is None or row_addr < 0 or col_addr < 0:
+                row_addr, col_addr = row_index, column
+            while (row_addr, col_addr) in placed:
+                col_addr += 1
+            placed[(row_addr, col_addr)] = _cell_text(tc, tab_token=tab_token, masking_policy=masking_policy)
+            span = _int_attribute(tc.find(f"{_HP}cellSpan"), "colSpan")
+            column = col_addr + max(span or 1, 1)
+            width = max(width, column)
+    if not placed:
+        return []
+    height = max(row for row, _ in placed) + 1
+    return [[placed.get((row, col), "") for col in range(width)] for row in range(height)]
+
+
+def _body_paragraphs(element: ET.Element) -> list[ET.Element]:
+    """Paragraphs below *element* in document order.
+
+    Paragraphs of nested tables and text boxes count; those of notes, memos,
+    headers and footers do not.
+    """
+    found: list[ET.Element] = []
+    for child in element:
+        if child.tag in _NOT_BODY_TAGS:
+            continue
+        if child.tag == f"{_HP}p":
+            found.append(child)
+        found.extend(_body_paragraphs(child))
+    return found
+
+
 def _find_tables(p: ET.Element) -> list[ET.Element]:
-    return p.findall(f".//{_HP}tbl")
+    """Tables placed in paragraph *p*, outermost only.
+
+    A table nested in a cell is already part of that cell's text, and a table
+    in a header, footer, note or memo is not body text.
+    """
+    found: list[ET.Element] = []
+    for child in p:
+        if child.tag in _NOT_BODY_TAGS:
+            continue
+        if child.tag == f"{_HP}tbl":
+            found.append(child)
+            continue
+        found.extend(_find_tables(child))
+    return found
+
+
+def _markdown_cell(text: str) -> str:
+    """Cell text on one Markdown table line: ``|`` escaped, line breaks as ``<br>``."""
+    return text.replace("|", "\\|").replace("\n", "<br>")
 
 
 def export_text(
@@ -207,14 +300,13 @@ def export_markdown(
                 lines.append("")
             if include_tables:
                 for tbl in _find_tables(p):
-                    rows = _table_cells_text(tbl, tab_token=tab_token, masking_policy=masking_policy)
+                    rows = _table_grid_text(tbl, tab_token=tab_token, masking_policy=masking_policy)
                     if rows:
                         header = rows[0]
-                        lines.append("| " + " | ".join(header) + " |")
+                        lines.append("| " + " | ".join(_markdown_cell(cell) for cell in header) + " |")
                         lines.append("| " + " | ".join("---" for _ in header) + " |")
                         for row in rows[1:]:
-                            padded = row + [""] * max(0, len(header) - len(row))
-                            lines.append("| " + " | ".join(padded[: len(header)]) + " |")
+                            lines.append("| " + " | ".join(_markdown_cell(cell) for cell in row) + " |")
                         lines.append("")
         section_parts.append("\n".join(lines).rstrip())
     return section_separator.join(section_parts)
