@@ -76,7 +76,35 @@ def test_set_content_and_clear_content_reach_the_control_copy() -> None:
     assert _copies(_section_xml(doc), "footer")[1] == ("ctrl", "내용으로 바꿈")
 
     footer.clear_content()
-    assert _copies(_section_xml(doc), "footer") == [("secPr", ""), ("ctrl", "")]
+    xml = _section_xml(doc)
+    assert _copies(xml, "footer") == [("secPr", ""), ("ctrl", "")]
+    # an empty paragraph stays: a story without hp:subList stops Hancom opening the document
+    stories = re.findall(r"<hp:footer\b.*?</hp:footer>", xml, re.S)
+    assert len(stories) == 2 and all("<hp:subList" in story for story in stories)
+
+
+def test_clearing_a_story_that_exists_only_as_a_control_keeps_a_paragraph() -> None:
+    doc = _doc()
+    doc.page.set_header(text="한컴 방식")
+    sec_pr = doc.sections[0].element.find(f"{HP}p/{HP}run/{HP}secPr")
+    for story in sec_pr.findall(f"{HP}header"):
+        sec_pr.remove(story)
+    [header] = doc.sections[0].properties.headers
+
+    header.clear_content()
+    [story] = re.findall(r"<hp:header\b.*?</hp:header>|<hp:header\b[^>]*/>", _section_xml(doc), re.S)
+
+    assert story.count("<hp:p ") == 1 and header.text == ""
+
+
+def test_set_content_with_nothing_keeps_a_paragraph() -> None:
+    doc = _doc()
+    footer = doc.page.set_footer(text="처음")
+
+    footer.set_content([])
+
+    stories = re.findall(r"<hp:footer\b.*?</hp:footer>", _section_xml(doc), re.S)
+    assert len(stories) == 2 and all("<hp:p " in story for story in stories)
 
 
 def test_copies_already_alike_are_written_unchanged() -> None:

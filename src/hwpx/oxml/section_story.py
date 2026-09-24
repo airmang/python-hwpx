@@ -591,16 +591,24 @@ class HwpxOxmlSectionHeaderFooter:
             )
         return sublist
 
-    def clear_content(self) -> None:
-        """Remove existing rich/plain content while keeping header/footer linkage."""
-
+    def _remove_sublists(self) -> bool:
         removed = False
         for child in list(self.element):
             if child.tag == f"{_HP}subList":
                 self.element.remove(child)
                 removed = True
-        if removed:
-            self._properties.section.mark_dirty()
+        return removed
+
+    def clear_content(self) -> None:
+        """Remove existing rich/plain content while keeping header/footer linkage.
+
+        One empty paragraph stays: Hancom cannot open a document with a header or
+        footer that has no ``hp:subList``.
+        """
+
+        self._remove_sublists()
+        set_text_with_tabs(self._ensure_text_element(), "")
+        self._properties.section.mark_dirty()
 
     def add_paragraph(self, *, align: str | None = None) -> ET.Element:
         """Append an empty paragraph to the header/footer subList."""
@@ -720,7 +728,11 @@ class HwpxOxmlSectionHeaderFooter:
     def set_content(self, content: Sequence[Mapping[str, Any]]) -> None:
         """Replace header/footer content with paragraph/run/page-number specs."""
 
-        self.clear_content()
+        if not content:
+            self.clear_content()
+            return
+        self._remove_sublists()
+        self._properties.section.mark_dirty()
         for paragraph_spec in content:
             paragraph = self.add_paragraph(align=paragraph_spec.get("align"))
             children = paragraph_spec.get("children")
