@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 125 | 11 |
+| 개수 | 134 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -45,7 +45,7 @@ except HwpxError as exc:
 `<도메인>-<조건>`, 전부 소문자 kebab-case. 도메인은 6.0 네임스페이스와
 패키지 수준 관심사에서 온다:
 
-`capability`, `contract`, `document`, `field`, `header`, `heading`, `hwpx`, `master`, `media`, `note`, `open`, `package`, `page`, `paragraph`, `parts`, `plan`, `preservation`, `quality`, `ref`, `save`, `section`, `shape`, `style`, `table`, `text`, `track`
+`capability`, `contract`, `document`, `field`, `header`, `heading`, `hwp5`, `hwpx`, `master`, `media`, `note`, `open`, `package`, `page`, `paragraph`, `parts`, `plan`, `preservation`, `quality`, `ref`, `save`, `section`, `shape`, `style`, `table`, `text`, `track`
 
 유예 2건 — `unknown-contract-document`, `unknown-contract-schema` —
 은 5.6.0 에 이미 나간 이름이라 문법에 맞지 않아도 바꾸지 않는다(7.0 정리).
@@ -109,6 +109,19 @@ except HwpxError as exc:
 | `heading-level-invalid` | 개요 수준이 정수가 아니다. |
 | `heading-level-out-of-range` | 개요 수준이 1~10 밖이다. |
 | `heading-style-missing` | 이 문서에 해당 수준의 개요 스타일이 없다. |
+
+### `hwp5-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `hwp5-damaged` | HWP 5.0 문서의 컨테이너나 레코드가 깨졌다(잘림·범위 밖 섹터·순환·레코드 길이·압축). |
+| `hwp5-distribution` | 배포용 HWP 5.0 문서라 본문이 암호화돼 있다. |
+| `hwp5-drm` | DRM·인증서로 암호화된 HWP 5.0 문서다. |
+| `hwp5-limit-exceeded` | HWP 5.0 입력이 파싱 상한(스트림 크기·레코드 수·디렉터리 수)을 넘는다. |
+| `hwp5-not-hwp5` | 복합 파일이지만 HWP 5.0 FileHeader가 없다. |
+| `hwp5-password` | 암호가 걸린 HWP 5.0 문서다. |
+| `hwp5-version-unsupported` | FileHeader의 주 버전이 5가 아니다. |
+| `hwp5-write-unsupported` | HWP 5.0 작성기가 표현할 수 없는 내용이다. |
 
 ### `hwpx-*`
 
@@ -209,6 +222,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `save-failed` | 저장 경로가 아무것도 쓰기 전에 fail-closed 했다. |
+| `save-format-unsupported` | 저장 형식(format)이 'hwpx'도 'hwp'도 아니다. |
 | `save-package-contract-violated` | package.save(None) 이 bytes 를 돌려주지 않았다. |
 
 ### `section-*`
