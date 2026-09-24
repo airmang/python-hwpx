@@ -449,7 +449,7 @@
 - `get_cell_map()`: `row_count x column_count` 크기의 2차원 리스트로 격자 맵을 반환합니다. 각 항목은 `HwpxTableGridPosition`입니다.
 - `set_cell_text(row_index, col_index, text, logical=False, split_merged=False)`: 셀의 텍스트 내용을 업데이트하는 단축 메서드입니다. `logical=True`를 지정하면 논리적 격자 좌표로 셀을 찾고, `split_merged=True`일 때는 병합을 자동으로 해제한 뒤 값을 씁니다. 내부적으로 줄 배치 캐시를 비워 한/글에서 셀 텍스트 변경 후 줄바꿈이 재계산되도록 합니다.
 - `split_merged_cell(row_index, col_index)`: 지정한 논리 좌표를 포함하는 병합 셀을 해제하고, 해당 위치에 독립적인 셀을 생성한 뒤 래퍼를 반환합니다.
-- `merge_cells(start_row, ...)`: 직사각형 영역의 유효성을 검사하고, 종속 셀을 제거하며, 병합 및 크기 값을 업데이트한 후, 살아남은 대상 셀을 반환합니다.
+- `merge_cells(start_row, ...)`: 직사각형 영역의 유효성을 검사하고, 종속 셀을 제거하며, 병합 및 크기 값을 업데이트한 후, 살아남은 대상 셀을 반환합니다. 종속 셀 중 글이나 개체가 있는 셀의 문단은 읽기 순서로 대상 셀에 옮기고, 빈 셀은 아무것도 보태지 않습니다.
 
 ### 클래스 `HwpxOxmlParagraph`
 

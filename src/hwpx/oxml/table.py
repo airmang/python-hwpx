@@ -114,6 +114,20 @@ def _wrap_paragraph(
 
     return HwpxOxmlParagraph(element, section)
 
+def _is_blank_cell(element: ET.Element) -> bool:
+    """Whether a cell holds one empty paragraph and nothing else, like a new cell."""
+    sublist = element.find(f"{_HP}subList")
+    paragraphs = [] if sublist is None else sublist.findall(f"{_HP}p")
+    if len(paragraphs) > 1:
+        return False
+    for paragraph in paragraphs:
+        for run in paragraph.findall(f"{_HP}run"):
+            for child in run:
+                if _element_local_name(child) != "t" or child.text or len(child):
+                    return False
+    return True
+
+
 class HwpxOxmlTableCell:
     """Represents an individual table cell."""
 
@@ -1422,6 +1436,32 @@ class HwpxOxmlTable:
             # them here instead of retaining deactivated placeholders.
             row_element.remove(element)
 
+    def _move_covered_contents(
+        self, target: HwpxOxmlTableCell, start_row: int, start_col: int, end_row: int, end_col: int
+    ) -> None:
+        # The merged cell takes the paragraphs of every cell that holds
+        # something, in reading order.  A blank cell adds nothing, and a blank
+        # merged cell gives up its own empty line to the moved paragraphs.
+        filled: list[ET.Element] = []
+        for row_index in range(start_row, end_row + 1):
+            for col_index in range(start_col, end_col + 1):
+                element = self.cell(row_index, col_index).element
+                if all(element is not seen for seen in filled) and not _is_blank_cell(element):
+                    filled.append(element)
+        if not filled or (len(filled) == 1 and filled[0] is target.element):
+            return
+        sublist = target._ensure_sublist()
+        if filled[0] is not target.element:
+            for paragraph in sublist.findall(f"{_HP}p"):
+                sublist.remove(paragraph)
+        for element in filled:
+            source = element.find(f"{_HP}subList")
+            if element is target.element or source is None:
+                continue
+            for paragraph in source.findall(f"{_HP}p"):
+                source.remove(paragraph)
+                sublist.append(paragraph)
+
     def merge_cells(
         self,
         start_row: int | str,
@@ -1429,6 +1469,11 @@ class HwpxOxmlTable:
         end_row: int | None = None,
         end_col: int | None = None,
     ) -> HwpxOxmlTableCell:
+        """Merge a rectangle of cells into its top-left cell and return that cell.
+
+        The merged cell keeps the paragraphs of the covered cells that hold
+        text or objects, in reading order after its own; blank cells add nothing.
+        """
         if isinstance(start_row, str):
             start_row, start_col, end_row, end_col = self._parse_spreadsheet_range(start_row)
         if start_col is None or end_row is None or end_col is None:
@@ -1446,10 +1491,14 @@ class HwpxOxmlTable:
         if not removal_elements and target.span == (new_row_span, new_col_span):
             return target
 
+        self._move_covered_contents(target, start_row, start_col, end_row, end_col)
         self._remove_merged_cell_elements(removal_elements, element_to_row)
 
         target.set_span(new_row_span, new_col_span)
         target.set_size(total_width or target.width, total_height or target.height)
+        # the cell is wider or taller now and may hold moved paragraphs, so its
+        # line caches no longer describe it
+        target._clear_own_layout_caches()
         self.mark_dirty()
         return target
 

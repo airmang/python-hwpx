@@ -50,6 +50,12 @@
 
 ### 고침
 
+- 표 `merge_cells()`(`doc.tables.merge_cells`)가 가려지는 칸의 글과 개체를 버리던 것을
+  고친다. 이제 병합 칸이 글이나 개체가 있는 칸의 문단을 읽기 순서(행마다 왼쪽에서
+  오른쪽, 위 행부터)로 모두 받고, 빈 칸(빈 문단 하나)은 아무것도 보태지 않는다. 병합
+  칸이 비어 있었으면 그 빈 줄 대신 옮겨 온 문단만 남는다. 칸 크기가 바뀌므로 병합 칸의
+  줄 배치 캐시는 비운다. 병합한 뒤 `split_merged_cell()`로 나누면 옮겨 온 글은 첫 칸에
+  남는다.
 - `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
   (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
   `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.
