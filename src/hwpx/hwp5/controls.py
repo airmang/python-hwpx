@@ -706,6 +706,61 @@ def _write_value(b: Builder, kind: int, value: "str | int | bytes | ParameterSet
         b.i32(value - (1 << 32) if value >= 1 << 31 else value)
 
 
+#: Print settings: Hancom keeps the ``PrintInfo`` items of settings.xml in the
+#: DocInfo record DOC_DATA, as set 0x21C holding set 0x207. Each item by name,
+#: in the order settings.xml lists them: its item id, its config type and its
+#: parameter item type.
+PRINT_INFO_SET = 0x021C
+PRINT_INFO = 0x0207
+PRINT_INFO_ITEMS: dict[str, tuple[int, str, int]] = {
+    "PrintAutoFootNote": (0x400A, "boolean", 6),
+    "PrintAutoHeadNote": (0x400E, "boolean", 6),
+    "PrintMethod": (0x4006, "short", 6),
+    "OverlapSize": (0x4010, "short", 7),
+    "PrintCropMark": (0x401A, "short", 6),
+    "BinderHoleType": (0x401D, "short", 6),
+    "ZoomX": (0x401F, "short", 7),
+    "ZoomY": (0x4020, "short", 7),
+}
+#: The order Hancom lists the items in.
+_PRINT_INFO_ORDER = (0x4006, 0x400E, 0x400A, 0x401F, 0x401D, 0x401A, 0x4010, 0x4020)
+
+
+def print_info(payload: bytes) -> tuple[dict[str, int], int] | None:
+    """The print settings a DOC_DATA record holds, by item name, and how many
+    of its items have no name; None when the record holds something else."""
+
+    outer = ParameterSet.decode(payload)
+    if outer is None or outer.set_id != PRINT_INFO_SET or len(outer.items) != 1:
+        return None
+    inner = outer.find(PRINT_INFO)
+    if not isinstance(inner, ParameterSet):
+        return None
+    names = {item_id: name for name, (item_id, _, _) in PRINT_INFO_ITEMS.items()}
+    values: dict[str, int] = {}
+    unnamed = 0
+    for item in inner.items:
+        name = names.get(item.item_id)
+        if name is None or not isinstance(item.value, int):
+            unnamed += 1
+        else:
+            values[name] = item.value
+    return values, unnamed
+
+
+def print_info_data(values: dict[str, int]) -> bytes:
+    """The DOC_DATA payload of print settings by item name, in Hancom's order."""
+
+    kinds = {item_id: (name, kind) for name, (item_id, _, kind) in PRINT_INFO_ITEMS.items()}
+    items = []
+    for item_id in _PRINT_INFO_ORDER:
+        name, kind = kinds[item_id]
+        if name in values:
+            items.append(ParameterItem(item_id, kind, values[name] & (0xFF if kind == 6 else 0xFFFF)))
+    inner = ParameterSet(PRINT_INFO, items)
+    return ParameterSet(PRINT_INFO_SET, [ParameterItem(PRINT_INFO, PIT_SET, inner)]).encode()
+
+
 #: Presentation settings, the parameter set of a section definition: the
 #: outer set holds the settings set, which holds the fill set.
 PRESENTATION = 0x021B

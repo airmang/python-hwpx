@@ -13,11 +13,13 @@ holds only the chart part, which Hancom draws the chart from. Content the writer
 
 from __future__ import annotations
 
+import struct
 from collections import Counter
 from typing import Callable, Mapping
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
+from . import controls as ct
 from . import docinfo as di
 from . import records as rec
 from . import shapes as sh
@@ -29,8 +31,13 @@ from .owpml import NS
 from .section_writer import SectionRecords, stand_in
 
 VERSION = (5, 1, 1, 0)
+#: The FileHeader's encrypt version word: 4 (the scheme of Hangul 7.0 and
+#: later), which Hancom writes whether the document is encrypted or not.
+ENCRYPT_VERSION = 4
 _OPF = NS["opf"]
 _HA = NS["ha"]
+_HH = NS["hh"]
+_CONFIG = NS["config"]
 
 
 
@@ -123,6 +130,50 @@ def _caret(files: Mapping[str, bytes]) -> tuple[int, int, int]:
     return (int(caret.get("listIDRef", 0)), int(caret.get("paraIDRef", 0)), int(caret.get("pos", 0)))
 
 
+def _print_info(files: Mapping[str, bytes], unsupported: Counter[str]) -> bytes | None:
+    """The DOC_DATA payload of the print settings in settings.xml; None when it
+    has none. Settings DOC_DATA has no place for count as unsupported."""
+
+    data = files.get("settings.xml")
+    if not data:
+        return None
+    values: dict[str, int] = {}
+    for group in etree.fromstring(data):
+        if not isinstance(group.tag, str) or not group.tag.startswith(f"{{{_CONFIG}}}"):
+            continue
+        name = group.get("name", "")
+        if etree.QName(group).localname != "config-item-set" or name != "PrintInfo":
+            unsupported[f"settings/{name or etree.QName(group).localname}"] += 1
+            continue
+        for item in group:
+            if not isinstance(item.tag, str):
+                continue
+            known = ct.PRINT_INFO_ITEMS.get(item.get("name", ""))
+            text = (item.text or "").strip()
+            if etree.QName(item).localname != "config-item" or known is None:
+                unsupported[f"settings/PrintInfo/{item.get('name', '')}"] += 1
+            elif known[1] == "boolean":
+                values[item.get("name", "")] = int(text == "true")
+            elif text.lstrip("-").isdigit():
+                values[item.get("name", "")] = int(text)
+            else:
+                unsupported[f"settings/PrintInfo/{item.get('name', '')}"] += 1
+    return ct.print_info_data(values) if values else None
+
+
+def _link_doc(head: etree._Element) -> bytes:
+    """``DocOptions/_LinkDoc``: the path of the linked document (room for 260
+    characters) and a flag word, bit 0 for page numbers and bit 1 for footnote
+    numbers going on from it."""
+
+    link = head.find(f"{{{_HH}}}docOption/{{{_HH}}}linkinfo")
+    if link is None:
+        return bytes(524)
+    path = link.get("path", "").encode("utf-16-le", errors="surrogatepass")[:518]
+    flags = int(link.get("pageInherit") in ("1", "true")) | int(link.get("footnoteInherit") in ("1", "true")) << 1
+    return path.ljust(520, b"\0") + struct.pack("<I", flags)
+
+
 def _file_header(head: etree._Element, *, tracked: bool = False) -> FileHeader:
     """FileHeader flags: compressed, plus the CCL or KOGL licence mark when the
     document has one, and changes tracked when it lists them."""
@@ -134,7 +185,7 @@ def _file_header(head: etree._Element, *, tracked: bool = False) -> FileHeader:
         flags |= 1 << (11 if mark.get("type") == "CCL" else 15)
         flags2 = int(mark.get("flag", "0") or 0)
         country = int(mark.get("lang", "0") or 0)
-    return FileHeader(VERSION, flags, flags2, 0, country)
+    return FileHeader(VERSION, flags, flags2, ENCRYPT_VERSION, country)
 
 
 def write_hwp5(files: Mapping[str, bytes]) -> bytes:
@@ -148,6 +199,7 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
         unsupported["header/trackChanges"] += 1
     if forbidden_chars(head) is None:
         unsupported["header/forbiddenWordList"] += 1
+    print_info = _print_info(files, unsupported)
     roots = [etree.fromstring(files[path]) for path in section_paths]
     # A chart with no OLE object gets a storage of its own, after the others.
     storages: dict[str, bytes] = {}
@@ -185,7 +237,7 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
             context={"unsupported": dict(unsupported)},
             suggestion="Save the document as .hwpx instead, or remove the listed content first.",
         )
-    docinfo = build_docinfo(head, section_count=len(sections), caret=_caret(files), bin_ids=bin_ids)
+    docinfo = build_docinfo(head, section_count=len(sections), caret=_caret(files), bin_ids=bin_ids, doc_data=print_info)
     items: list[di.BinDataItem] = []
     streams: list[tuple[str, bytes]] = []
     number = 0
@@ -218,6 +270,7 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
         if changing:
             out.append((f"ViewText/Section{index}", rec.deflate(rec.serialize_records(records))))
     out.extend(streams)
+    out.append(("DocOptions/_LinkDoc", _link_doc(head)))
     preview = files.get("Preview/PrvText.txt")
     if preview:
         text = preview.decode("utf-8", errors="replace")

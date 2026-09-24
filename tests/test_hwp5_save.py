@@ -26,6 +26,7 @@ from hwpx.hwp5.package import convert
 from hwpx.hwp5.reader import read_hwp5
 from hwpx.hwp5.writer import write_hwp5
 from tests.test_hwp5_open import (
+    HH,
     HP,
     _IDENTITY,
     _compound,
@@ -62,7 +63,7 @@ def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
     data = target.read_bytes()
     assert data[:8] == cfb.SIGNATURE
     header = parse_file_header(cfb.CompoundFile(data).read("FileHeader"))
-    assert header.version == (5, 1, 1, 0) and header.compressed
+    assert header.version == (5, 1, 1, 0) and header.compressed and header.encrypt_version == 4
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         reopened = HwpxDocument.open(target)
@@ -275,6 +276,89 @@ def test_the_highlighter_of_an_empty_paragraph_keeps_covering_its_end() -> None:
     assert len(empty) == 1 and not "".join(empty[0].itertext())
     written = read_hwp5(write_hwp5(convert(data).files))
     assert [r.payload for s in written.sections for r in s.records if r.tag == rec.PARA_RANGE_TAG] == [tag]
+
+
+#: Print settings as Hancom keeps them in DOC_DATA (PrintMethod 6, zoom 100 %).
+_PRINT_INFO = bytes.fromhex(
+    "1c02010000000702008007020800000006400600060000000e400600000000000a400600000000001f40070064000000"
+    "1d400600000000001a4006000000000010400700000000002040070064000000"
+)
+_CONFIG = "urn:oasis:names:tc:opendocument:xmlns:config:1.0"
+_PRINT_ITEMS = (
+    ("PrintAutoFootNote", "boolean", "false"),
+    ("PrintAutoHeadNote", "boolean", "false"),
+    ("PrintMethod", "short", "6"),
+    ("OverlapSize", "short", "0"),
+    ("PrintCropMark", "short", "0"),
+    ("BinderHoleType", "short", "0"),
+    ("ZoomX", "short", "100"),
+    ("ZoomY", "short", "100"),
+)
+
+
+def _with_print_info(items: tuple[tuple[str, str, str], ...]) -> dict[str, bytes]:
+    document = HwpxDocument.new()
+    document.add_paragraph("인쇄 설정")
+    buffer = io.BytesIO()
+    document.save_to_stream(buffer)
+    with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
+        files = {name: package.read(name) for name in package.namelist()}
+    listed = "".join(f'<config:config-item name="{n}" type="{k}">{v}</config:config-item>' for n, k, v in items)
+    files["settings.xml"] = (
+        f'<ha:HWPApplicationSetting xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" xmlns:config="{_CONFIG}">'
+        '<ha:CaretPosition listIDRef="0" paraIDRef="0" pos="0"/>'
+        f'<config:config-item-set name="PrintInfo">{listed}</config:config-item-set></ha:HWPApplicationSetting>'
+    ).encode("utf-8")
+    return files
+
+
+def test_print_settings_are_written_as_hancom_keeps_them() -> None:
+    written = read_hwp5(write_hwp5(_with_print_info(_PRINT_ITEMS)))
+    tags = [(r.tag, r.level) for r in written.docinfo.records]
+    index = tags.index((rec.DOC_DATA, 0))
+    assert tags[index - 1] == (rec.STYLE, 1) and tags[index + 1] == (rec.FORBIDDEN_CHAR, 1)
+    assert [r.payload for r in written.docinfo.records if r.tag == rec.DOC_DATA] == [_PRINT_INFO]
+
+
+def test_print_settings_come_back_into_settings_xml() -> None:
+    items = tuple((n, k, "true" if n == "PrintAutoFootNote" else "3" if n == "PrintMethod" else v) for n, k, v in _PRINT_ITEMS)
+    hwp = write_hwp5(_with_print_info(items))
+    settings = etree.fromstring(convert(hwp).files["settings.xml"])
+    assert [(i.get("name"), i.get("type"), i.text) for i in settings.iter(f"{{{_CONFIG}}}config-item")] == list(items)
+    again = read_hwp5(write_hwp5(convert(hwp).files))
+    assert [r.payload for r in again.docinfo.records if r.tag == rec.DOC_DATA] == [
+        r.payload for r in read_hwp5(hwp).docinfo.records if r.tag == rec.DOC_DATA
+    ]
+
+
+def test_a_print_setting_with_no_place_is_refused() -> None:
+    with pytest.raises(Hwp5Error) as refused:
+        write_hwp5(_with_print_info((*_PRINT_ITEMS, ("PrintColor", "short", "1"))))
+    assert refused.value.context["unsupported"] == {"settings/PrintInfo/PrintColor": 1}
+
+
+def test_document_data_other_than_print_settings_is_reported() -> None:
+    other = ct.ParameterSet(0x21C, [ct.ParameterItem(0x4000, 6, 1)]).encode()
+    document = HwpxDocument.open(_compound(_section(), docinfo_extra=[rec.Record(rec.DOC_DATA, 0, other)]))
+    assert document.conversion_report is not None and document.conversion_report.dropped["doc-data"] == 1
+
+
+def test_the_linked_document_setting_is_written_and_read_back() -> None:
+    files = _with_print_info(_PRINT_ITEMS)
+    head = etree.fromstring(files["Contents/header.xml"])
+    option = head.find(f"{HH}docOption")
+    if option is None:
+        option = etree.SubElement(head, f"{HH}docOption")
+    link = option.find(f"{HH}linkinfo")
+    if link is None:
+        link = etree.SubElement(option, f"{HH}linkinfo")
+    link.attrib.update({"path": "C:\\문서\\앞.hwp", "pageInherit": "1", "footnoteInherit": "0"})
+    files["Contents/header.xml"] = etree.tostring(head)
+    hwp = write_hwp5(files)
+    stream = cfb.CompoundFile(hwp).read("DocOptions/_LinkDoc")
+    assert stream == "C:\\문서\\앞.hwp".encode("utf-16-le").ljust(520, b"\0") + struct.pack("<I", 1)
+    back = etree.fromstring(convert(hwp).files["Contents/header.xml"]).find(f"{HH}docOption/{HH}linkinfo")
+    assert back is not None and (back.get("path"), back.get("pageInherit"), back.get("footnoteInherit")) == ("C:\\문서\\앞.hwp", "1", "0")
 
 
 def test_a_border_fill_without_a_diagonal_element_draws_no_diagonal() -> None:

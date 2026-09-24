@@ -20,6 +20,7 @@ from dataclasses import dataclass
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
+from . import controls as ct
 from . import docinfo as di
 from . import records as rec
 from . import shapes as sh
@@ -188,12 +189,30 @@ def _content_hpf(
     return serialize(package)
 
 
-def _settings(info: di.DocInfo) -> bytes:
+def _settings(info: di.DocInfo, report: ConversionReport) -> bytes:
     settings = etree.Element(f"{{{NS['ha']}}}HWPApplicationSetting", nsmap={"ha": NS["ha"], "config": NS["config"]})
     caret = etree.SubElement(settings, f"{{{NS['ha']}}}CaretPosition")
     caret.set("listIDRef", str(info.properties.caret_list_id))
     caret.set("paraIDRef", str(info.properties.caret_para_id))
     caret.set("pos", str(info.properties.caret_pos))
+    # The print settings DOC_DATA keeps; other document data has no place.
+    for record in info.other:
+        if record.tag != rec.DOC_DATA:
+            continue
+        found = ct.print_info(record.payload)
+        if found is None:
+            report.drop("doc-data")
+            continue
+        values, unnamed = found
+        for _ in range(unnamed):
+            report.drop("print-setting")
+        if not values:
+            continue
+        group = etree.SubElement(settings, f"{{{NS['config']}}}config-item-set", name="PrintInfo")
+        for name, (_, kind, _) in ct.PRINT_INFO_ITEMS.items():
+            if name in values:
+                item = etree.SubElement(group, f"{{{NS['config']}}}config-item", name=name, type=kind)
+                item.text = ("true" if values[name] else "false") if kind == "boolean" else str(values[name])
     return serialize(settings)
 
 
@@ -249,7 +268,7 @@ def convert(data: bytes) -> Converted:
         first += count
         files[f"Contents/section{index}.xml"] = part
     files["Preview/PrvText.txt"] = _preview_text(doc)
-    files["settings.xml"] = _settings(info)
+    files["settings.xml"] = _settings(info, report)
     files["META-INF/container.rdf"] = _container_rdf(len(doc.sections))
     summary = read_summary(doc.compound.read("\x05HwpSummaryInformation")) if doc.compound.has_stream(
         "\x05HwpSummaryInformation"

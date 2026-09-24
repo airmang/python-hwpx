@@ -524,7 +524,7 @@ def make_hwp(
     return _compound(section, flags=flags)
 
 
-def _compound(section: list[rec.Record], *, flags: int = 1) -> bytes:
+def _compound(section: list[rec.Record], *, flags: int = 1, docinfo_extra: list[rec.Record] | None = None) -> bytes:
     compressed = bool(flags & 1)
 
     def pack(records: list[rec.Record]) -> bytes:
@@ -534,7 +534,7 @@ def _compound(section: list[rec.Record], *, flags: int = 1) -> bytes:
     return cfb.build_compound_file(
         [
             ("FileHeader", FileHeader((5, 1, 1, 0), flags).to_bytes()),
-            ("DocInfo", pack(_docinfo())),
+            ("DocInfo", pack(_docinfo() + list(docinfo_extra or []))),
             ("BodyText/Section0", pack(section)),
             ("PrvText", "미리보기".encode("utf-16-le")),
         ]

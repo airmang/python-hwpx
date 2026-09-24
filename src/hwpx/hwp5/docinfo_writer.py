@@ -524,9 +524,11 @@ def build_docinfo(
     section_count: int,
     caret: tuple[int, int, int] = (0, 0, 0),
     bin_ids: Mapping[str, int] | None = None,
+    doc_data: bytes | None = None,
 ) -> DocInfoResult:
     """DocInfo records for a parsed ``hh:head`` element; ``bin_ids`` maps
-    binary item ids to their BinData numbers for fill and bullet images."""
+    binary item ids to their BinData numbers for fill and bullet images, and
+    ``doc_data`` is the payload of the DOC_DATA record (the print settings)."""
 
     begin = _child(head, _HH, "beginNum")
     properties = di.DocumentProperties(
@@ -578,6 +580,9 @@ def build_docinfo(
         *mapped,
         *(rec.Record(rec.TRACK_CHANGE_AUTHOR, 1, author.encode()) for author in authors),
         *(rec.Record(rec.TRACK_CHANGE, 1, change.encode()) for change in changes),
+        # DOC_DATA follows the id-mapped lists, before the forbidden characters;
+        # Hancom reads it nowhere else.
+        *([rec.Record(rec.DOC_DATA, 0, doc_data)] if doc_data is not None else []),
         rec.Record(rec.FORBIDDEN_CHAR, 1, (forbidden_chars(head) or di.ForbiddenChars()).encode()),
     ]
     compatible = _child(head, _HH, "compatibleDocument")
