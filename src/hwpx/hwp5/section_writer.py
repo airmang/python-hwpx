@@ -1290,9 +1290,9 @@ class SectionRecords:
         corners_parent = _find(element, "imgRect")
         clip, margin, dim = _find(element, "imgClip"), _find(element, "inMargin"), _find(element, "imgDim")
         effects = self.picture_effects(_find(element, "effects"))
+        # A picture whose image the package does not hold is written with no
+        # image (item 0), as Hancom writes it.
         ref = image.get("binaryItemIDRef", "") if image is not None else ""
-        if ref and ref not in self.bin_ids:
-            self.unsupported["pic/missing-image"] += 1
         corners = [self._point(corners_parent, f"pt{i}") if corners_parent is not None else (0, 0) for i in range(4)]
         return sh.Picture(
             colorref(line.get("color")) if line is not None else 0,

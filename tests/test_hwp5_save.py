@@ -485,6 +485,57 @@ def test_a_web_video_keeps_its_tag_and_an_unknown_kind_is_damaged() -> None:
         sh.Video.decode(struct.pack("<IHH", 7, 1, 2))
 
 
+def test_an_image_item_without_an_extension_keeps_its_image() -> None:
+    # The stream of an item with no extension is named with no dot.
+    records = _docinfo()
+    counts = struct.unpack("<18i", records[1].payload)
+    records[1] = rec.Record(rec.ID_MAPPINGS, 0, struct.pack("<18i", 1, *counts[1:]))
+    records.insert(2, rec.Record(rec.BIN_DATA, 1, di.BinDataItem(di.BIN_EMBEDDING, bin_id=1, extension="").encode()))
+    section = _section() + _picture()
+    index = next(i for i, r in enumerate(section) if r.tag == rec.SHAPE_COMPONENT_PICTURE)
+    picture = sh.Picture.decode(section[index].payload)
+    picture.bin_id = 1
+    section[index] = rec.Record(rec.SHAPE_COMPONENT_PICTURE, section[index].level, picture.encode())
+    data = cfb.build_compound_file(
+        [
+            ("FileHeader", FileHeader((5, 1, 1, 0), 1).to_bytes()),
+            ("DocInfo", rec.deflate(rec.serialize_records(records))),
+            ("BodyText/Section0", rec.deflate(rec.serialize_records(section))),
+            ("BinData/BIN0001", rec.deflate(_PNG)),
+        ]
+    )
+    converted = convert(data)
+    assert converted.files["BinData/image1."] == _PNG
+    assert _manifest_bins(converted.files) == [
+        {"id": "image1", "href": "BinData/image1.", "media-type": "image/", "isEmbeded": "1"}
+    ]
+
+    written = read_hwp5(write_hwp5(converted.files))
+    [item] = di.decode_docinfo(written.docinfo).bin_data
+    assert (item.kind, item.bin_id, item.extension) == (di.BIN_EMBEDDING, 1, "")
+    raw = written.compound.read("BinData/BIN0001")
+    assert (rec.inflate(raw, "BinData") if written.header.compressed else raw) == _PNG
+
+
+def test_a_picture_whose_image_the_package_lacks_is_written_without_one() -> None:
+    document = HwpxDocument.new()
+    document.add_picture(_PNG, "png")
+    buffer = io.BytesIO()
+    document.save_to_stream(buffer)
+    with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
+        files = {name: package.read(name) for name in package.namelist()}
+    root = etree.fromstring(files["Contents/content.hpf"])
+    [item] = [i for i in root.iter("{http://www.idpf.org/2007/opf/}item") if (i.get("href") or "").startswith("BinData/")]
+    del files[item.get("href")]
+    item.getparent().remove(item)
+    files["Contents/content.hpf"] = etree.tostring(root)
+
+    written = read_hwp5(write_hwp5(files))
+    assert di.decode_docinfo(written.docinfo).bin_data == []
+    [picture] = [r for s in written.sections for r in s.records if r.tag == rec.SHAPE_COMPONENT_PICTURE]
+    assert sh.Picture.decode(picture.payload).bin_id == 0
+
+
 def test_picture_effects_the_record_cannot_hold_are_refused() -> None:
     from hwpx.hwp5.section_writer import build_section_records
 

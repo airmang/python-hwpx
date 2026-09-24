@@ -171,7 +171,11 @@ class BinDataItem:
 
     @property
     def stream_name(self) -> str:
-        return f"BIN{self.bin_id:04X}.{self.extension}"
+        """The item's stream in ``BinData``; an item with no extension has a
+        name with no dot."""
+
+        name = f"BIN{self.bin_id:04X}"
+        return f"{name}.{self.extension}" if self.extension else name
 
     @classmethod
     def decode(cls, payload: bytes) -> "BinDataItem":
