@@ -731,6 +731,16 @@ def test_a_formula_may_end_with_a_question_mark() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [(800, (400, "HWPUNIT")), (799, (399, "CHAR")), (-800, (-400, "HWPUNIT")), (-799, (-400, "CHAR"))],
+)
+def test_a_stored_length_keeps_its_value_and_unit(raw: int, expected: tuple[int, str]) -> None:
+    from hwpx.hwp5.header_xml import _unit_value
+
+    assert _unit_value(raw) == expected
+
+
 def test_highlights_open_as_markpen_marks_inside_the_text() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")

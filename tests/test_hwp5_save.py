@@ -298,6 +298,19 @@ def test_a_shadowed_shape_keeps_its_outer_margin_across_hwpx() -> None:
     assert ct.ObjectCommon.decode(header.payload).margins == (0, 317, 0, 317)
 
 
+def test_a_strikeout_in_the_underline_bits_keeps_its_colour() -> None:
+    from hwpx.hwp5.docinfo_writer import char_shape
+
+    element = etree.fromstring(
+        f"<hh:charPr {_HEAD_NS} height=\"1000\">"
+        '<hh:underline type="NONE" shape="SOLID" color="#000000"/>'
+        '<hh:strikeout shape="3D" color="#0000FF"/></hh:charPr>'
+    )
+    shape = char_shape(element)
+    assert shape.props >> 2 & 0x3 == 2
+    assert shape.underline_color == shape.strikeout_color == 0x00FF0000
+
+
 def test_saving_as_hwp_keeps_text_formatting_and_tables(tmp_path: Path) -> None:
     source = HwpxDocument.open(make_hwp())
     target = tmp_path / "out.hwp"

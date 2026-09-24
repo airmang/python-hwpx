@@ -252,14 +252,19 @@ def char_shape(element: etree._Element) -> di.CharShape:
     strike_shape = strike.get("shape", "NONE") if strike is not None else "NONE"
     underline_type = index_of(UNDERLINE_TYPE, underline.get("type") if underline is not None else None, 0)
     underline_shape = index_of(CHAR_LINE, underline.get("shape") if underline is not None else None, 0)
+    strike_as_underline = False
     if strike_shape != "NONE":
         props |= 1 << 18
         props |= (index_of(CHAR_LINE, strike_shape, 0) & 0xF) << 26
         if underline_type == 0:
-            # Hancom also records a strikeout in the old centre-underline bits.
+            # Hancom also records a strikeout in the old centre-underline
+            # bits, in the strikeout's colour.
             underline_type, underline_shape = 2, index_of(CHAR_LINE, strike_shape, 0)
+            strike_as_underline = True
     props |= (underline_type & 0x3) << 2 | (underline_shape & 0xF) << 4
     shape.underline_color = colorref(underline.get("color", "#000000")) if underline is not None else 0
+    if strike_as_underline and strike is not None:
+        shape.underline_color = colorref(strike.get("color", "#000000"))
     shape.strikeout_color = colorref(strike.get("color", "#000000")) if strike is not None else 0
     outline = _child(element, _HH, "outline")
     props |= index_of(OUTLINE, outline.get("type") if outline is not None else None, 0) << 8

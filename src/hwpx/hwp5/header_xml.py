@@ -300,9 +300,10 @@ def _char_pr(parent: etree._Element, index: int, cs: di.CharShape) -> None:
 
 
 def _unit_value(raw: int) -> tuple[int, str]:
-    """A length stored doubled with the unit in bit 0 (1 means character units)."""
+    """A length stored doubled with the unit in bit 0 (1 means character
+    units); a negative one is shifted like any other (-799 is -400 characters)."""
 
-    return raw >> 1 if raw >= 0 else -((-raw) >> 1), "CHAR" if raw & 1 else "HWPUNIT"
+    return raw >> 1, "CHAR" if raw & 1 else "HWPUNIT"
 
 
 def _tab_pr(parent: etree._Element, index: int, tab: di.TabDef) -> None:
