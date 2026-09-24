@@ -469,8 +469,8 @@ class HwpxPackage:
         except BadZipFile as exc:
             if cls._leading_bytes(stream, len(cls.OLE2_MAGIC)) == cls.OLE2_MAGIC:
                 raise BadZipFile(
-                    "HWP v5(.hwp) 형식은 지원하지 않습니다. "
-                    "한컴오피스에서 HWPX로 변환한 뒤 사용하세요."
+                    "HwpxPackage는 HWPX 패키지만 엽니다. HWP 5.0(.hwp) 문서는 "
+                    "HwpxDocument.open으로 열거나, 한컴오피스에서 HWPX로 변환한 뒤 사용하세요."
                 ) from exc
             raise
         logger.debug("HWPX 패키지 파일 목록 %d개를 로드했습니다.", len(files))

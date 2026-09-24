@@ -711,3 +711,70 @@ def test_tracked_change_times_are_kept_in_local_time_and_deletions_hidden() -> N
     changes, _ = track_changes(head)
     # A time in UTC moves to Korean time; one without a zone is local already.
     assert [(c.kind, c.time, c.words[3]) for c in changes] == [(16, (2023, 2, 7, 19, 21), 0), (17, (2026, 8, 8, 9, 5), 1)]
+
+
+def test_a_document_saves_as_hwp_to_a_stream_and_to_bytes() -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("스트림 문단")
+    data = document.to_bytes(format="hwp")
+    stream = io.BytesIO()
+    assert document.save_to_stream(stream, format="hwp") is stream
+
+    for blob in (data, stream.getvalue()):
+        assert blob[:8] == cfb.SIGNATURE
+        assert "스트림 문단" in _texts(HwpxDocument.open(blob))
+    # HWPX stays the default.
+    assert document.to_bytes()[:2] == b"PK"
+
+
+def test_an_unknown_save_format_is_refused_before_anything_is_written() -> None:
+    from hwpx.errors import HwpxValueError
+
+    document = HwpxDocument.new()
+    stream = io.BytesIO()
+    with pytest.raises(HwpxValueError) as refused:
+        document.save_to_stream(stream, format="pdf")  # type: ignore[arg-type]
+    assert refused.value.code == "save-format-unsupported"
+    assert stream.getvalue() == b""
+    with pytest.raises(HwpxValueError):
+        document.to_bytes(format="HWP")  # type: ignore[arg-type]
+
+
+def test_hwp_bytes_are_refused_for_content_the_writer_cannot_express() -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("본문")
+    section = document.sections[0].element
+    settings = etree.SubElement(next(section.iter(f"{HP}secPr")), f"{HP}presentation")
+    settings.set("effect", "overLeft")
+    document.sections[0].mark_dirty()
+    with pytest.raises(Hwp5Error) as refused:
+        document.to_bytes(format="hwp")
+    assert refused.value.code == "hwp5-write-unsupported"
+
+
+def test_the_conversion_report_is_read_only_and_only_for_hwp() -> None:
+    import dataclasses
+
+    assert HwpxDocument.new().conversion_report is None
+    report = HwpxDocument.open(make_hwp()).conversion_report
+    assert report is not None
+    assert dict(report.unconverted) == {} and dict(report.dropped) == {}
+    with pytest.raises(TypeError):
+        report.unconverted["shape"] = 1  # type: ignore[index]
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        report.dropped = {}  # type: ignore[misc]
+
+
+def test_the_hwp_error_and_warning_are_exported_at_the_top_level() -> None:
+    import hwpx
+    from hwpx.hwp5 import errors
+
+    assert hwpx.Hwp5Error is errors.Hwp5Error
+    assert hwpx.Hwp5ConversionWarning is errors.Hwp5ConversionWarning
+
+
+def test_the_package_layer_points_an_hwp_file_to_the_document() -> None:
+    from hwpx.opc.package import HwpxPackage
+
+    with pytest.raises(zipfile.BadZipFile, match="HwpxDocument.open"):
+        HwpxPackage.open(make_hwp())

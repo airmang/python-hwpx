@@ -53,8 +53,11 @@
 - **메모 필드는 무음 수용 캐비앗이 있다.** `attach_memo_field`가 앵커를 못
   찾아도 조용히 넘어가는 경로가 있다(recipes의 mutation-semantics 표 참조) —
   결과 리포트의 실측 필드를 확인하라.
-- **암호화 HWPX·HWP5 바이너리는 열리지 않는 게 정상이다.** 각각 파싱 예외·
-  `BadZipFile`로 fail-closed 거부한다. 우회 API는 없다.
+- **암호화 HWPX는 열리지 않는 게 정상이다.** 파싱 예외로 fail-closed 거부한다.
+  우회 API는 없다.
+- **HWP 5.0(`.hwp`)은 `HwpxDocument.open`으로 연다.** `HwpxPackage.open`은 HWPX 전용이라
+  `.hwp`를 `BadZipFile`로 거부한다. 암호·배포용·DRM `.hwp`는 `Hwp5Error`로 거부하고,
+  옮기지 못한 내용은 `document.conversion_report`에 남는다.
 
 ## 계획 실행기(hwpx.plan) 자체의 정직 범위
 

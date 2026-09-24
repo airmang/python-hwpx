@@ -3,6 +3,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
+from types import MappingProxyType
+
 from ..errors import HwpxError
 
 
@@ -25,6 +29,27 @@ class Hwp5ConversionWarning(UserWarning):
 
     The message names each kind that was not converted and how often.
     """
+
+
+@dataclass(frozen=True)
+class Hwp5ConversionReport:
+    """What opening an ``.hwp`` document could not carry into the document
+    model, as counts by kind (``HwpxDocument.conversion_report``).
+
+    ``unconverted`` is content the document model can hold but the conversion
+    does not produce yet; opening warns about it once
+    (:class:`Hwp5ConversionWarning`). ``dropped`` is data HWPX has no element
+    for, which is counted without a warning. Both are read-only.
+    """
+
+    unconverted: Mapping[str, int]
+    dropped: Mapping[str, int]
+
+    @classmethod
+    def of(cls, unconverted: Mapping[str, int], dropped: Mapping[str, int]) -> "Hwp5ConversionReport":
+        """A report holding read-only copies of *unconverted* and *dropped*."""
+
+        return cls(MappingProxyType(dict(unconverted)), MappingProxyType(dict(dropped)))
 
 
 def damaged(message: str, **context: object) -> Hwp5Error:

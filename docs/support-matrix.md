@@ -41,7 +41,7 @@
 | 차례 숨기기·제목 차례 표시 | Create(experimental)·Render-verified | `HwpxOxmlParagraph.add_title_mark(in_toc=)`(6.15 트레인, DEV-044). 스키마는 `hp:titleMark`를 `hp:t`의 선택군 자식으로 실제 선언하되(`ignore: xs:boolean, default="false"`) `xs:documentation`이 전혀 없어 의미는 미문서화 — 실코퍼스 14건(전부 `ignore="1"`, 차례 페이지 항목 문단의 헤딩 텍스트 미러 run 바로 앞)으로 구조는 6.13에 이미 확정됐으나, 캐럿이 있는 문단에 정확히 들어간다는 타겟팅 계약은 이 환경의 자동화 한계(캔버스 클릭·키 입력 모두 문서에 미도달)로 실측이 안 돼 저작을 보류하고 있었다. **6.15**: 팀장의 Windows 박스 COM `SetPos`+`MarkTitle`/`HideTitle` 3변형(`SetPos(0,2,0)`+`MarkTitle`→p2에만 `ignore="1"`, `SetPos(0,2,0)`+`HideTitle`→p2에만 `ignore="0"`, `SetPos(0,1,0)`+`MarkTitle`→p1에만 `ignore="1"`)이 타겟팅을 확정 — 마크는 항상 캐럿이 있는 문단의 첫 run 첫 `hp:t` 맨 앞, 그 문단 자신의 텍스트 바로 앞에 들어간다(이전 Mac 프로브의 절 정의 문단 착지는 캐럿 이동 불가에 따른 퇴화 현상이었음이 확인됨). 폴라리티는 이름의 직관과 반대(`in_toc=True`="제목 차례 표시"→`ignore="1"`, `in_toc=False`="차례 숨기기"→`ignore="0"`) — Mac GUI A/B와 Windows COM 양쪽에서 독립 재확인. 호출자가 대상 문단을 직접 지정하는 API 형태가 실 편집기의 "캐럿 문단" 타겟팅과 정확히 대응한다. 실한컴 렌더 검증: `docs/openrate/report-v21.json` authored-title-mark 스트라텀(극성 로테이션·단일/두-표제 문서·양쪽 표제 반대 극성 동시 표시·기존 charPr 합성 각 1건, 5건), macOS Hancom GUI 오라클 5/5 render_checked·0 render_failed(2026-08-15 측정) |
 | 색인 표시 | Create(experimental) | `HwpxOxmlParagraph.add_index_mark(first, second=)`(P4). 팀장 실한컴(HWP 13.0.0.3901) GUI 프로브 gold 2건(`tests/fixtures/gui_probes/index_mark_first_only.hwpx`=1단계 키만, `index_mark_two_keys.hwpx`=2단계 키까지) 역설계. 배치는 `add_title_mark`와 **다르다** — titleMark는 `hp:t` 안에 들어가지만 indexmark는 같은 run 안의 `hp:ctrl` 형제로 텍스트 **앞**에 선다(`<hp:run><hp:ctrl><hp:indexmark><hp:firstKey>apple</hp:firstKey></hp:indexmark></hp:ctrl><hp:t>apple item paragraph.</hp:t></hp:run>`). 타겟팅 계약은 같다 — 호출자가 대상 문단을 직접 지정하는 형태가 실 편집기의 "캐럿이 있는 문단"과 대응한다. **스키마 편차**: `ParaList XML schema.xml:209-216`은 `firstKey`/`secondKey`를 둘 다 필수 시퀀스로 선언하는데(속성 0개, 두 키 모두 무타입) 실물은 1단계 색인에서 `secondKey`를 아예 생략한다 — `add_new_num`의 `autoNumFormat` 생략과 같은 부류로 실측을 따랐다(빈 문자열 키는 생략과 방출 XML이 달라져 typed 거부). 코퍼스 실사용 0건 — 계약 근거는 GUI 프로브 gold 전부. 실한컴 렌더 검증: `docs/openrate/report-v22.json` authored-index-mark 스트라텀(1키/2키/두 문단 독립 마크/**한 문단 2마크(관측 밖 경계)**/커스텀 charPr 표제 합성, 5건), macOS Hancom GUI 오라클 5/5 render_checked·0 render_failed(2026-08-18 측정) — 관측 밖 조합 포함 전량 수용 |
 | 암호화 HWPX | Unsupported-and-rejected | 복호화 API 없음. 암호화된 content part는 파싱 단계에서 예외(`XMLSyntaxError`)로 거부 — 무음으로 잘못된 문서를 만들지 않음(fail-closed). `META-INF/manifest.xml`이 `encryption-data`로 암호화를 선언한 파트(한컴 암호 문서의 ODF 패키지 암호화)면 예외 메시지가 문서 암호 해제 후 재저장을 안내한다(예외 타입은 그대로, 원래 lxml 오류는 `__cause__`). 패키지 수준 열기(`HwpxPackage.open`)와 평문 파트 읽기는 그대로 된다 |
-| HWP 5.x 바이너리 | Unsupported-and-rejected | HWP v5는 ZIP이 아니므로 열기 시 `BadZipFile` 예외. OLE2/CFBF 시그니처를 확인하면 예외 메시지가 HWPX 변환을 안내한다(예외 타입은 그대로) |
+| HWP 5.x 바이너리 | Parse·Create | HWP 5.0 읽기·쓰기(핵심 범위). `HwpxDocument.open`이 `.hwp`를 HWPX 문서 모델로 읽고, `save_to_path("x.hwp")`·`save_to_stream(..., format="hwp")`·`to_bytes(format="hwp")`가 HWP 5.0으로 쓴다. 옮기지 못한 내용은 `conversion_report`에 세고 `Hwp5ConversionWarning`으로 알린다. HWP 5.0으로 쓸 수 없는 내용은 쓰기 전에 `Hwp5Error`(`hwp5-write-unsupported`)로 거부한다. 암호·배포용·DRM 문서는 `Hwp5Error`로 거부한다. `HwpxPackage.open`은 HWPX 전용이라 `.hwp`를 `BadZipFile`로 거부하고 `HwpxDocument.open`을 안내한다 |
 | 누름틀(form field) 생성 | Parse·Edit·Create(experimental)·Render-verified | `list_form_fields`·`fill_form_field`로 조회·서식 보존 채움에 더해, `doc.fields.add`(구 `add_form_field`, 5.1.0+)가 실한컴 CLICKHERE 계약 그대로 신규 누름틀을 생성한다(표 셀 배치 포함). 만든 필드는 기존 list/fill과 실제 한컴이 특수분기 없이 소비. 실한컴 렌더 검증: `docs/openrate/report-v15.json` authored-formfield 스트라텀(prompt/memo/editable 로테이션 + 표 셀 배치 1건, 5건), macOS Hancom GUI 오라클 5/5 render_checked·0 render_failed(2026-08-08 측정) — 이 영역의 첫 독립 실한컴 판정. **원장 라우팅은 없음** — `hp:fieldBegin`은 CLICKHERE/TOC/CROSSREF/하이퍼링크/메모가 공유하는 저수준 요소라 여전히 미등록(무근거 승격 회피 원칙) — 등급 갱신은 이 산문과 report-v15.json 직접 인용으로만 |
 | 체크박스 양식개체 | Create·Render-verified | `add_check_box`·`list_check_boxes`·`set_check_box`(5.7.0+). 실한컴 실측 계약: `value` CHECKED=☑ / UNCHECKED=□, `<hp:formCharPr>`는 **필수 자식**(없으면 한컴이 문서를 거부하는데 우리 open-safety·ID 무결성은 통과한다 — 실한컴이 유일한 판정자다). 라디오(`hp:radioBtn`)·명령단추(`hp:btn`)는 읽기·보존만 하고 저작 API 없음 |
 | 형광펜(하이라이트) | Parse·Create(experimental)·Render-verified | `doc.text.highlight`·`doc.text.highlights`(6.2+). 실코퍼스(`hwpxlib_corpus/error__20251107__test*.hwpx`)와 OWPML 스키마(`ParaList XML schema.xml`) 리버스: `markpenBegin`/`markpenEnd`는 단일 `hp:t` 안에서 위치로 짝짓는다(id 없음) — `add_tracked_delete`와 같은 단일-run 매치 제약을 그대로 따른다. 색은 `#RRGGBB` 6자리 16진만 허용(typed 거부). 실한컴 렌더 검증: `docs/openrate/report-v6.json` authored-highlight 스트라텀, macOS Hancom GUI 오라클 15/15 render_checked·0 render_failed(2026-08-06 측정) |
@@ -91,7 +91,7 @@
 | 차례 숨기기·제목 차례 표시 | `doc.refs` |
 | 색인 표시 | `doc.refs` |
 | 암호화 HWPX | 미지원 |
-| HWP 5.x 바이너리 | 미지원 |
+| HWP 5.x 바이너리 | 루트 — `HwpxDocument.open` · `doc.save_to_path` · `doc.save_to_stream(format=)` · `doc.to_bytes(format=)` · `doc.conversion_report` |
 | 누름틀(form field) 생성 | `doc.fields` |
 | 체크박스 양식개체 | `doc.fields` |
 | 형광펜(하이라이트) | `doc.text` |
@@ -126,8 +126,7 @@
   측정에 근거한다. 손대지 않은 part는 patch 경로에서 압축 해제 페이로드가 바이트
   동일하게 유지되며, 코퍼스 v2에서 497/497로 실측됐다.
 - **Unsupported-and-rejected**는 입력을 무음 처리하지 않고 예외로 거부함을 확인한
-  경로에만 붙인다(암호화 content, HWP 5.x 바이너리). 두 경로 모두 실제 예외를 관찰해
-  판정했다.
+  경로에만 붙인다(암호화 content). 실제 예외를 관찰해 판정했다.
 - **Unsupported-but-preserved**는 생성/편집 API가 없지만 기존 요소가 patch 저장에서
   보존됨을 뜻한다(차트). 새로 만들거나 편집하는 기능은 제공하지 않는다.
 

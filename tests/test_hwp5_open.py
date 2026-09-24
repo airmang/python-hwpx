@@ -492,7 +492,7 @@ def test_open_hwp_builds_the_document_model(flags: int) -> None:
     assert table.get("rowCnt") == "1" and table.get("colCnt") == "2"
     cells = ["".join(tc.itertext()) for tc in table.iter(f"{HP}tc")]
     assert cells == ["셀1", "셀2"]
-    assert document._hwp5_report is not None and not document._hwp5_report.unconverted
+    assert document.conversion_report is not None and not document.conversion_report.unconverted
 
 
 def test_runs_follow_the_char_shape_boundaries() -> None:
@@ -529,7 +529,7 @@ def test_unconverted_controls_are_reported_not_dropped_silently() -> None:
     shape = rec.Record(rec.CTRL_HEADER, 1, struct.pack("<I", bt.ctrl_word("gso ")) + b"\0" * 44)
     with pytest.warns(Hwp5ConversionWarning, match="control-gso x1"):
         document = HwpxDocument.open(make_hwp(extra_controls=[shape]))
-    assert document._hwp5_report.unconverted["control-gso"] == 1
+    assert document.conversion_report.unconverted["control-gso"] == 1
 
 
 def _tracked_hwp() -> bytes:
@@ -577,7 +577,7 @@ def test_a_document_that_tracks_changes_opens_with_its_body_and_change_marks() -
     marks = [(etree.QName(e).localname, dict(e.attrib)) for e in paragraph.iter(f"{HP}insertBegin", f"{HP}insertEnd")]
     assert marks == [("insertBegin", {"Id": "2", "TcId": "1"}), ("insertEnd", {"Id": "2", "TcId": "1", "paraend": "0"})]
     # The paragraph shape change has no mark in the text: counted, not warned about.
-    assert document._hwp5_report.dropped == {"range-tag-19": 1}
+    assert document.conversion_report.dropped == {"range-tag-19": 1}
 
     from hwpx.hwp5.package import convert
 
@@ -604,7 +604,7 @@ def test_fields_open_as_field_begin_and_end() -> None:
     ends = [e.get("beginIDRef") for e in section.iter(f"{HP}fieldEnd")]
     assert ends == ["1234", "1235"]
     assert "이름 링크 누리집" in [paragraph.text for paragraph in document.paragraphs]
-    assert not document._hwp5_report.unconverted
+    assert not document.conversion_report.unconverted
 
 
 def test_highlights_open_as_markpen_marks_inside_the_text() -> None:
@@ -626,7 +626,7 @@ def test_highlights_open_as_markpen_marks_inside_the_text() -> None:
         ("1", [" ", "markpenBegin:#E5CCFF", "칠한 ", "markpenEnd:", "글"]),
     ]
     # A range tag kind OWPML has no element for is counted, without a warning.
-    assert document._hwp5_report.dropped == {"range-tag-0": 1}
+    assert document.conversion_report.dropped == {"range-tag-0": 1}
 
 
 def test_a_label_sheet_table_keeps_its_layout() -> None:
@@ -646,7 +646,7 @@ def test_a_label_sheet_table_keeps_its_layout() -> None:
         "pagewidth": "59528",
         "pageheight": "84188",
     }
-    assert not document._hwp5_report.unconverted
+    assert not document.conversion_report.unconverted
 
 
 def test_numbering_bookmark_index_and_dutmal_controls_open() -> None:
@@ -820,8 +820,8 @@ def test_a_table_name_is_counted_and_presentation_settings_are_reported() -> Non
     with pytest.warns(Hwp5ConversionWarning, match="presentation x1"):
         document = HwpxDocument.open(_compound(section))
     # The table name has no OWPML form: counted, not warned about.
-    assert document._hwp5_report.dropped == {"table-name": 1}
-    assert document._hwp5_report.unconverted == {"presentation": 1}
+    assert document.conversion_report.dropped == {"table-name": 1}
+    assert document.conversion_report.unconverted == {"presentation": 1}
 
 
 def test_a_text_box_opens_as_a_rectangle_with_its_paragraphs() -> None:

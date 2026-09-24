@@ -310,6 +310,7 @@ ERROR_CODES: dict[str, str] = {
     # -- 저장·패키지 -----------------------------------------------------
     "save-failed": "저장 경로가 아무것도 쓰기 전에 fail-closed 했다.",
     "save-package-contract-violated": "package.save(None) 이 bytes 를 돌려주지 않았다.",
+    "save-format-unsupported": "저장 형식(format)이 'hwpx'도 'hwp'도 아니다.",
     "open-safety-failed": "산출 패키지가 편집기 열기 안전성 검사를 통과하지 못했다.",
     "quality-gate-failed": "품질 게이트가 저장을 막았다(quality 코드는 context 에).",
     "preservation-downgrade": "요청한 보존 등급을 저장이 달성하지 못했다.",

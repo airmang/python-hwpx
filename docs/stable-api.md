@@ -65,7 +65,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 
 ### 6.0 파사드 표면
 
-`HwpxDocument` 의 공개 멤버는 **34개**다(5.x 는 102개). 나머지 79개는 도메인
+`HwpxDocument` 의 공개 멤버는 **35개**다(5.x 는 102개). 나머지 79개는 도메인
 네임스페이스로 이동했고, 옛 이름은 `DeprecationWarning` 과 함께 계속 답한다 —
 7.0 에서 제거된다. 대응표는 [6.0 이주 가이드](migration-6.0.md).
 
@@ -73,7 +73,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 
 | | 수 | 락 |
 |---|---:|---|
-| 루트 공개 멤버 | 34 | `tests/data/document_facade_surface.json` |
+| 루트 공개 멤버 | 35 | `tests/data/document_facade_surface.json` |
 | 위임 shim (7.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
 | 반환 객체 계약 | 173 | `tests/data/model_surface.json` |
 
@@ -83,7 +83,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 python -m hwpx.capabilities --verify
 ```
 
-## stable (34)
+## stable (36)
 
 major 경계에서만 깨지는 이름들입니다.
 
@@ -92,6 +92,7 @@ major 경계에서만 깨지는 이름들입니다.
 - `SavePipeline`, `QualityPolicy`, `VisualCompleteReport`
 - `MutationReport`, `PreservationDowngradeError`
 - `HwpxError` (구조화 예외 베이스 — 아래 오류 계약 참조)
+- `Hwp5Error`, `Hwp5ConversionWarning` (HWP 5.0 `.hwp` 읽기·쓰기 — 아래 오류 계약 참조)
 - `EditorOpenSafetyReport`, `PackageValidationReport`,
   `validate_editor_open_safety`, `validate_package`
 
@@ -173,6 +174,17 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 | `hwpx.errors.SaveError` | `save-failed`(기본), `document-validation-failed`·`open-safety-failed`·`quality-gate-failed` | `HwpxError`, `ValueError` | 대표 저장 경로의 사전검증·open-safety·품질 게이트 실패 |
 | `hwpx.table_patch.TableStructureError` | `table-structure` | `HwpxError`, `ValueError` | 표 구조 편집 거부(fail-closed)·미지원 |
 | `hwpx.table_patch.RenderCheckRequired` | `render-check-required` | `HwpxError`, `RuntimeError` | `verify_fill(require=True)`인데 실한컴 오라클 미렌더 |
+| `Hwp5Error` | `hwp5-damaged`(기본)·`hwp5-password`·`hwp5-distribution`·`hwp5-drm`·`hwp5-not-hwp5`·`hwp5-version-unsupported`·`hwp5-limit-exceeded`·`hwp5-write-unsupported` | `HwpxError`, `ValueError` | `.hwp` 열기(`HwpxDocument.open`)와 HWP 5.0 쓰기(`save_to_path("x.hwp")`, `format="hwp"`) |
+
+### HWP 5.0 (`.hwp`)
+
+`HwpxDocument.open`은 `.hwp`(HWP 5.0)도 열어 같은 문서 모델로 바꿉니다. 옮기지 못한
+내용은 읽기 전용 `document.conversion_report`(`unconverted`·`dropped` 개수)에 남고,
+`unconverted`가 있으면 `Hwp5ConversionWarning`을 한 번 냅니다. `.hwpx`로 연 문서에서는
+`conversion_report`가 `None`입니다. `save_to_path("x.hwp")`, `save_to_stream(..., format="hwp")`,
+`to_bytes(format="hwp")`는 HWP 5.0으로 씁니다. 쓸 수 없는 내용이 있으면 아무것도 쓰기 전에
+`Hwp5Error`(`hwp5-write-unsupported`)로 거부합니다. `format`에 `"hwpx"`·`"hwp"` 밖의 값을
+주면 `hwpx.errors.HwpxValueError`(`save-format-unsupported`)입니다.
 
 응용 계층의 agent·exam 오류 계약은 `python-hwpx-automation`이 소유합니다.
 이 문서는 core에 실제로 남은 공개 예외만 기술합니다.
