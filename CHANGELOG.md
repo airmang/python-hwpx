@@ -6,6 +6,12 @@
 
 ### 추가
 
+- 쪽 번호·줄 번호 설명을 보강한다(`page.set_page_number`, `set_visibility`,
+  `hide_page_elements`, `set_line_numbers`와 known-traps). `set_page_number()`의
+  번호는 머리말/꼬리말 글이라 한컴의 쪽 번호 감추기(`hide_first_page_num`,
+  `hide_page_elements(page_num=True)`)로 숨지 않으니 머리말/꼬리말째 감춘다.
+  `hide_page_elements()`는 문단이 있는 쪽에서만 감춘다(다음 쪽부터 다시 보임, 설명을
+  바로잡음). 줄 번호는 `set_visibility(show_line_number=True)`일 때만 그려진다.
 - 새 문서가 빈 줄로 시작하는 까닭(`HwpxDocument.new()`의 첫 문단은 구역 설정을 담은
   빈 문단이고 `add_paragraph()`는 그 뒤에 붙는다)과 첫 줄부터 쓰는 법
   (`doc.paragraphs[0].text = ...`)을 `HwpxDocument.new()` 설명과 known-traps에 적는다.
