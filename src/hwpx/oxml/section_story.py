@@ -167,6 +167,31 @@ def _find_target_mirror(
     return targets[0] if targets else None
 
 
+def _place_both_first(section_element: ET.Element, story: ET.Element) -> None:
+    """Move the control holding a ``BOTH`` *story* ahead of its run's ODD/EVEN controls.
+
+    Hancom draws the last applicable control on each page, so a ``BOTH`` control
+    after an ``ODD`` or ``EVEN`` one would hide it.
+    """
+
+    kind = _story_kind(story)
+    for run in _iter_body_runs_without_section_properties(section_element):
+        controls = _direct_children(run, f"{_HP}ctrl")
+        owner = next((control for control in controls if any(child is story for child in control)), None)
+        if owner is None:
+            continue
+        specific = [
+            control for control in controls
+            if (other := control.find(f"{_HP}{kind}")) is not None
+            and other.get("applyPageType", "BOTH") != "BOTH"
+        ]
+        children = list(run)
+        if specific and children.index(specific[0]) < children.index(owner):
+            run.remove(owner)
+            run.insert(list(run).index(specific[0]), owner)
+        return
+
+
 def _same_tree(a: ET.Element, b: ET.Element) -> bool:
     if a.tag != b.tag or dict(a.attrib) != dict(b.attrib) or (a.text or "") != (b.text or ""):
         return False
@@ -332,6 +357,18 @@ class HwpxOxmlSectionHeaderFooter:
 
         return self._apply_element
 
+    def _control_copy(self) -> ET.Element | None:
+        """The one ``hp:ctrl`` copy of this ``hp:secPr`` story (same id and page type), if any."""
+
+        if all(child is not self.element for child in self._properties.element):
+            return None
+        identity = (self.element.get("id"), self.element.get("applyPageType", "BOTH"))
+        copies = [
+            story for _, story in _iter_control_stories(self._properties.section.element, _story_kind(self.element))
+            if (story.get("id"), story.get("applyPageType", "BOTH")) == identity
+        ]
+        return copies[0] if len(copies) == 1 else None
+
     @property
     def id(self) -> str | None:
         """Return the identifier assigned to the header/footer element."""
@@ -340,11 +377,14 @@ class HwpxOxmlSectionHeaderFooter:
 
     @id.setter
     def id(self, value: str | None) -> None:
+        copy = self._control_copy()
         if value is None:
             changed = False
             if "id" in self.element.attrib:
                 del self.element.attrib["id"]
                 changed = True
+            if copy is not None and "id" in copy.attrib:
+                del copy.attrib["id"]
             if self._update_apply_reference(None):
                 changed = True
             if changed:
@@ -356,6 +396,8 @@ class HwpxOxmlSectionHeaderFooter:
         if self.element.get("id") != new_value:
             self.element.set("id", new_value)
             changed = True
+        if copy is not None:
+            copy.set("id", new_value)
         if self._update_apply_reference(new_value):
             changed = True
         if changed:
@@ -374,6 +416,7 @@ class HwpxOxmlSectionHeaderFooter:
 
     @apply_page_type.setter
     def apply_page_type(self, value: str) -> None:
+        copy = self._control_copy()
         changed = False
         if self.element.get("applyPageType") != value:
             self.element.set("applyPageType", value)
@@ -381,6 +424,10 @@ class HwpxOxmlSectionHeaderFooter:
         if self._apply_element is not None and self._apply_element.get("applyPageType") != value:
             self._apply_element.set("applyPageType", value)
             changed = True
+        if copy is not None and copy.get("applyPageType") != value:
+            copy.set("applyPageType", value)
+            if value == "BOTH":
+                _place_both_first(self._properties.section.element, copy)
         if changed:
             self._properties.section.mark_dirty()
 

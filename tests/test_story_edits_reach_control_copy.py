@@ -112,3 +112,42 @@ def test_two_control_copies_of_one_story_are_left_alone() -> None:
     header.text = "둘"
 
     assert _copies(_section_xml(doc), "header") == [("secPr", "둘"), ("ctrl", "하나"), ("ctrl", "하나")]
+
+
+def _control_attrs(xml: str, kind: str, name: str) -> list[str | None]:
+    """*name* of every control copy of *kind*, in document order."""
+    values = []
+    for match in re.finditer(rf"<hp:{kind}\b[^>]*>", xml):
+        if xml.rfind("<hp:secPr", 0, match.start()) > xml.rfind("</hp:secPr>", 0, match.start()):
+            continue
+        found = re.search(rf'\b{name}="([^"]*)"', match.group(0))
+        values.append(found.group(1) if found else None)
+    return values
+
+
+def test_changing_the_page_type_changes_the_control_copy_too() -> None:
+    doc = _doc()
+    header = doc.page.set_header(text="홀수 쪽만")
+
+    header.apply_page_type = "ODD"
+
+    assert _control_attrs(_section_xml(doc), "header", "applyPageType") == ["ODD"]
+
+
+def test_a_story_turned_both_goes_ahead_of_the_page_specific_controls() -> None:
+    doc = _doc()
+    doc.page.set_header(text="짝수", page_type="EVEN")
+    odd = doc.page.set_header(text="홀수", page_type="ODD")
+
+    odd.apply_page_type = "BOTH"
+
+    assert _control_attrs(_section_xml(doc), "header", "applyPageType") == ["BOTH", "EVEN"]
+
+
+def test_changing_the_id_changes_the_control_copy_too() -> None:
+    doc = _doc()
+    header = doc.page.set_header(text="아이디")
+
+    header.id = "777"
+
+    assert _control_attrs(_section_xml(doc), "header", "id") == ["777"]
