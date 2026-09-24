@@ -74,6 +74,7 @@ from .section_xml import (
     PAGE_STARTS_ON,
     PRESENTATION_APPLY_TO,
     PRESENTATION_EFFECT,
+    RANGE_CHAR_STYLE,
     RANGE_MARKPEN,
     TABLE_PAGE_BREAK,
     TITLE_MARK,
@@ -163,7 +164,7 @@ _PRESENTATION_APPLY_TO_CODES = {name: code for code, name in PRESENTATION_APPLY_
 _SECTION_PARTS = frozenset(
     {
         "grid", "startNum", "visibility", "lineNumberShape", "pagePr", "footNotePr", "endNotePr", "pageBorderFill",
-        "masterPage", "presentation", "header", "footer", "headerApply", "footerApply",
+        "masterPage", "presentation", "parameterset", "header", "footer", "headerApply", "footerApply",
     }
 )
 _IDENTITY: sh.Matrix = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
@@ -205,18 +206,30 @@ def _matrix_value(text: str | None) -> float:
         return float(struct.unpack("<d", struct.pack("<Q", 0xFFF8000000000000))[0])
 
 
-def _parameter_items(element: etree._Element) -> list[ct.ParameterItem]:
+def _parameter_items(element: etree._Element, unsupported: Counter[str], *, signed: int = 4) -> list[ct.ParameterItem]:
+    """The items of an ``hp:parameterset`` (or of a list or array in it).
+    OWPML keeps no integer width, so a signed integer is written as type
+    *signed* and an unsigned one as 9; any other kind of item is unsupported."""
+
     items: list[ct.ParameterItem] = []
     for child in element:
+        if not isinstance(child.tag, str):
+            continue
         name, item_id = _local(child), _int(child, "name") & 0xFFFF
         if name == "listParam":
-            items.append(ct.ParameterItem(item_id, ct.PIT_SET, ct.ParameterSet(item_id, _parameter_items(child))))
+            value = ct.ParameterSet(item_id, _parameter_items(child, unsupported, signed=signed))
+            items.append(ct.ParameterItem(item_id, ct.PIT_SET, value))
+        elif name == "arrayParam":
+            array = ct.ParameterArray([(item.kind, item.value) for item in _parameter_items(child, unsupported, signed=signed)])
+            items.append(ct.ParameterItem(item_id, ct.PIT_ARRAY, array))
         elif name == "stringParam":
             items.append(ct.ParameterItem(item_id, ct.PIT_BSTR, child.text or ""))
         elif name == "unsignedintegerParam":
             items.append(ct.ParameterItem(item_id, 9, _number(child.text) & 0xFFFFFFFF))
         elif name == "integerParam":
-            items.append(ct.ParameterItem(item_id, 4, _i32(_number(child.text))))
+            items.append(ct.ParameterItem(item_id, signed, _i32(_number(child.text))))
+        else:
+            unsupported[f"parameterset/{name}"] += 1
     return items
 
 
@@ -399,16 +412,29 @@ _RANGE_MARKS = frozenset({"markpenBegin", "markpenEnd", "insertBegin", "insertEn
 
 
 class _Highlights:
-    """Highlighter (markpen) ranges and tracked insertions and deletions of a
-    paragraph list, written as range tags."""
+    """Character styles, highlighter (markpen) ranges and tracked insertions
+    and deletions of a paragraph list, written as range tags."""
 
     def __init__(self) -> None:
+        self.styles: list[tuple[int, int, int]] = []  # (start, end, tag) in text order
         self.open: list[tuple[int, int]] = []  # (start, tag), in the order they began
         self.ranges: list[tuple[int, int, int]] = []
         # Changes begun and not yet ended, by mark id: (start, tag); and the
         # ended ones: (mark id, start, end, tag).
         self.changes_open: dict[str, tuple[int, int]] = {}
         self.changes: list[tuple[int, int, int, int]] = []
+
+    def style(self, start: int, end: int, style_id: int) -> None:
+        """A character style over [start, end): styled text right after text
+        of the same style goes on in its range; empty text has none."""
+
+        if start >= end:
+            return
+        tag = RANGE_CHAR_STYLE << 24 | (style_id & 0xFFFFFF)
+        if self.styles and self.styles[-1][1] == start and self.styles[-1][2] == tag:
+            self.styles[-1] = (self.styles[-1][0], end, tag)
+        else:
+            self.styles.append((start, end, tag))
 
     def mark(self, element: etree._Element, position: int) -> None:
         name = _local(element)
@@ -428,11 +454,14 @@ class _Highlights:
 
     def take(self, end: int) -> list[tuple[int, int, int]]:
         """The ranges of the paragraph ending at *end*; a range still open ends
-        there and goes on from the start of the next paragraph. Changes follow
-        the highlighter ranges, insertions before deletions and each in text
-        order, as Hancom lists them (a reader numbers the marks in that order)."""
+        there and goes on from the start of the next paragraph. Character
+        styles come first, then the highlighter ranges, then the changes
+        (insertions before deletions), each in text order, as Hancom lists
+        them (a reader numbers the change marks in that order)."""
 
-        ranges = sorted(self.ranges + [(start, end, tag) for start, tag in self.open], key=lambda r: r[0])
+        ranges = list(self.styles)
+        self.styles = []
+        ranges += sorted(self.ranges + [(start, end, tag) for start, tag in self.open], key=lambda r: r[0])
         changes = [(start, stop, tag) for _, start, stop, tag in self.changes]
         changes += [(start, end, tag) for start, tag in self.changes_open.values()]
         ranges += sorted(changes, key=lambda change: (change[2] >> 24, change[0]))
@@ -677,6 +706,7 @@ class SectionRecords:
         return out
 
     def text(self, element: etree._Element, units: bytearray, codes: set[int], highlights: _Highlights) -> None:
+        start = len(units) // 2
         self._chars(element.text or "", units, codes)
         for child in element:
             name = _local(child)
@@ -699,6 +729,8 @@ class SectionRecords:
             else:
                 self.unsupported[f"t/{name}"] += 1
             self._chars(child.tail or "", units, codes)
+        if element.get("charStyleIDRef") is not None:
+            highlights.style(start, len(units) // 2, _int(element, "charStyleIDRef"))
 
     def _chars(self, value: str, units: bytearray, codes: set[int]) -> None:
         for char in value:
@@ -769,6 +801,11 @@ class SectionRecords:
             parameters = self.presentation(settings)
             if parameters is not None:
                 out.append(rec.Record(rec.CTRL_DATA, level + 1, parameters.encode()))
+        # Settings kept as a parameter set of their own go in item by item,
+        # integers typed as Hancom types those of presentation settings.
+        for raw in element.findall(f"{{{_HP}}}parameterset"):
+            parameters = ct.ParameterSet(_int(raw, "name") & 0xFFFF, _parameter_items(raw, self.unsupported, signed=5))
+            out.append(rec.Record(rec.CTRL_DATA, level + 1, parameters.encode()))
         page_pr = _find(element, "pagePr")
         margin = _find(page_pr, "margin") if page_pr is not None else None
         page = ct.PageDef(
@@ -1054,7 +1091,10 @@ class SectionRecords:
         comment = _find(element, "shapeComment")
         common.description = "".join(comment.itertext()) if comment is not None else ""
         out = [rec.Record(rec.CTRL_HEADER, level, common.encode())]
-        sets = [ct.ParameterSet(_int(p, "name") & 0xFFFF, _parameter_items(p)) for p in element.findall(f"{{{_HP}}}parameterset")]
+        sets = [
+            ct.ParameterSet(_int(p, "name") & 0xFFFF, _parameter_items(p, self.unsupported))
+            for p in element.findall(f"{{{_HP}}}parameterset")
+        ]
         dropcap = index_of(DROPCAP, element.get("dropcapstyle"), 0)
         if dropcap and not any(isinstance(ps.find(*DROPCAP_PATH), int) for ps in sets):
             value = ct.ParameterSet(DROPCAP_PATH[0], [ct.ParameterItem(DROPCAP_PATH[1], 9, dropcap)])

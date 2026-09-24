@@ -440,6 +440,9 @@ def field_parameters(text_id: str, field: ct.FieldCtrl, memo_shape: int | None =
 
 CAPTION_SIDE = ("LEFT", "RIGHT", "TOP", "BOTTOM")
 CHAR_ELEMENTS = {10: "hp:lineBreak", 24: "hp:hyphen", 30: "hp:nbSpace", 31: "hp:fwSpace"}
+#: The range tag kind of a character style over the text; its low 24 bits
+#: are the style's id.
+RANGE_CHAR_STYLE = 1
 #: The range tag kind of a highlighter (markpen) range; its low 24 bits are the color.
 RANGE_MARKPEN = 2
 #: Range tag kinds of tracked changes: an insertion or deletion becomes a pair
@@ -650,6 +653,26 @@ def _char(value: int) -> str:
     return chr(value) if 0 < value < 0xD800 or 0xE000 <= value < 0x110000 else ""
 
 
+#: A character style over the text: start, end (both in the paragraph's
+#: characters) and the style's id.
+CharStyle = tuple[int, int, int]
+
+
+def char_styles(record: rec.Record) -> list[CharStyle]:
+    """The character styles the paragraph's range tags put on its text, in
+    text order."""
+
+    styles: list[CharStyle] = []
+    for child in record.children:
+        if child.tag != rec.PARA_RANGE_TAG:
+            continue
+        for offset in range(0, len(child.payload) - 11, 12):
+            start, end, tag = struct.unpack_from("<III", child.payload, offset)
+            if tag >> 24 == RANGE_CHAR_STYLE and start < end:
+                styles.append((start, end, tag & 0xFFFFFF))
+    return sorted(styles)
+
+
 def _is_open(run: etree._Element, text: etree._Element | None) -> bool:
     """Whether *text* is the run's last child, so more text can go into it."""
 
@@ -708,7 +731,7 @@ class SectionWriter(ShapeReader):
                 ("merged", flag(para.merge_flag)),
             ),
         )
-        self.runs(element, para, self.marks(record))
+        self.runs(element, para, self.marks(record), char_styles(record))
         # Lists hung on the paragraph itself: memo bodies after MEMO_LIST (the
         # memo fields take them, see memo_bodies), or (on a section's last
         # paragraph) its last-page and optional-page master pages.
@@ -772,14 +795,28 @@ class SectionWriter(ShapeReader):
                 elif kind == TRACK_PARA_SHAPE:
                     self.track_ids[0] += 1
                     self.report.drop(f"range-tag-{kind}")
-                elif kind in (0, 1):
+                elif kind == RANGE_CHAR_STYLE:
+                    continue  # see char_styles
+                elif kind == 0:
                     self.report.drop(f"range-tag-{kind}")
                 else:
                     self.report.skip(f"range-tag-{kind}")
         events.sort(key=lambda event: (event[0], event[1]))
         return events
 
-    def runs(self, element: etree._Element, para: bt.Paragraph, marks: list[Mark]) -> None:
+    def runs(
+        self, element: etree._Element, para: bt.Paragraph, marks: list[Mark], styles: list[CharStyle] | None = None
+    ) -> None:
+        """The runs of a paragraph: one per character shape, text split where
+        a mark or a character style begins or ends; styled text goes in text
+        nodes of its own."""
+
+        styles = styles or []
+        edges = sorted({position for start, stop, _ in styles for position in (start, stop)})
+
+        def style(position: int) -> int | None:
+            return next((style_id for start, stop, style_id in styles if start <= position < stop), None)
+
         shapes = para.char_shapes or [(0, 0)]
         bounds = [start for start, _ in shapes[1:]] + [1 << 31]
         controls = iter(para.controls)
@@ -798,10 +835,8 @@ class SectionWriter(ShapeReader):
                 if pending < len(marks) and marks[pending][0] <= chunk.position:
                     # A mark goes into the open text node, into a new one when
                     # text follows, or straight into the run before a control.
-                    if not _is_open(run, text) and (
-                        chunk.kind in ("text", "char") or (chunk.kind == "inline" and chunk.code == bt.TAB)
-                    ):
-                        text = self._text(run, text, "")
+                    if chunk.kind in ("text", "char") or (chunk.kind == "inline" and chunk.code == bt.TAB):
+                        text = self._text(run, text, "", style(chunk.position))
                     target = text if text is not None and _is_open(run, text) else run
                     pending = _place_marks(target, marks, pending, chunk.position)
                     if target is text:
@@ -810,6 +845,8 @@ class SectionWriter(ShapeReader):
                     limit = end
                     if pending < len(marks) and chunk.position < marks[pending][0] < limit:
                         limit = marks[pending][0]
+                    edge = next((position for position in edges if position > chunk.position), limit)
+                    limit = min(limit, edge)
                     split = limit - chunk.position
                     if chunk.width > split:
                         head, tail = _split_text(chunk, split)
@@ -817,7 +854,7 @@ class SectionWriter(ShapeReader):
                         chunk = head
                     else:
                         index += 1
-                    text = self._text(run, text, chunk.text)
+                    text = self._text(run, text, chunk.text, style(chunk.position))
                     last = text
                     continue
                 index += 1
@@ -825,17 +862,17 @@ class SectionWriter(ShapeReader):
                     name = CHAR_ELEMENTS.get(chunk.code)
                     if name is None:
                         continue
-                    text = self._text(run, text, "")
+                    text = self._text(run, text, "", style(chunk.position))
                     sub(text, name)
                     last = text
                 elif chunk.kind == "inline":
                     if chunk.code == bt.TAB:
-                        text = self._text(run, text, "")
+                        text = self._text(run, text, "", style(chunk.position))
                         width, leader, kind = struct.unpack_from("<IBB", chunk.params.ljust(6, b"\0"), 0)
                         sub(text, "hp:tab", (("width", width), ("leader", leader), ("type", kind)))
                         last = text
                     elif chunk.code == TITLE_MARK_CODE:
-                        text = self._text(run, text, "")
+                        text = self._text(run, text, "", style(chunk.position))
                         word = bt.ctrl_id(struct.unpack_from("<I", chunk.params.ljust(4, b"\0"))[0])
                         sub(text, "hp:titleMark", (("ignore", flag(word == TITLE_MARK)),))
                         last = text
@@ -864,23 +901,39 @@ class SectionWriter(ShapeReader):
             # A mark where the run ends stays in the run while its text node is open.
             if text is not None and _is_open(run, text):
                 pending = _place_marks(text, marks, pending, end)
+        end_style = style(para.char_count - 1)
         if run is not None and pending < len(marks):
-            text = self._text(run, text, "")
+            text = self._text(run, text, "", end_style)
             _place_marks(text, marks, pending, 1 << 31)
             last = text
-        # Hancom closes a paragraph that ends on a control with an empty text node.
+        # A character style that ends before the paragraph's end closes its
+        # text node there; Hancom opens an empty one for the rest.
+        if run is not None and _is_open(run, text) and text is not None and text.get("charStyleIDRef") is not None:
+            if end_style is None:
+                text = last = sub(run, "hp:t")
+        # Hancom closes a paragraph that ends on a control with an empty text
+        # node: in the control's run, or in the run of the paragraph's end
+        # when that one has nothing else.
         if last is not None and etree.QName(last).localname == "run":
             sub(last, "hp:t")
         elif last is not None and etree.QName(last).localname != "t":
             parent = last.getparent()
             if parent is not None:
                 sub(parent, "hp:t")
+        elif last is None and run is not None and len(run) == 0:
+            filled = [r for r in element if etree.QName(r).localname == "run" and len(r)]
+            if filled and etree.QName(filled[-1][-1]).localname != "t":
+                sub(run, "hp:t")
 
     @staticmethod
-    def _text(run: etree._Element, text: etree._Element | None, value: str) -> etree._Element:
+    def _text(run: etree._Element, text: etree._Element | None, value: str, style: int | None = None) -> etree._Element:
+        """The text node *value* goes on in: *text* while it is the run's last
+        child and has the character style *style*, else a new one."""
+
         target = text
-        if target is None or target.getparent() is not run or run[-1] is not target:
-            target = sub(run, "hp:t")
+        wanted = None if style is None else str(style)
+        if target is None or target.getparent() is not run or run[-1] is not target or target.get("charStyleIDRef") != wanted:
+            target = sub(run, "hp:t", () if style is None else (("charStyleIDRef", style),))
         value = xml_text(value)
         if not value:
             return target

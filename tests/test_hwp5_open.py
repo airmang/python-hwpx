@@ -172,6 +172,21 @@ def _highlights(*, unmapped: bool = False) -> list[rec.Record]:
     return records
 
 
+def _char_styles() -> list[rec.Record]:
+    """Two character styles in a paragraph of two runs: style 7 from the
+    second character across the run boundary, then style 8 up to the
+    paragraph's end."""
+
+    text = "가나다라마".encode("utf-16-le") + _u16(13)
+    tags = [(1, 4, 1 << 24 | 7), (4, 5, 1 << 24 | 8)]
+    records = _paragraph(0, text, [(0, 0), (3, 1)], [])
+    header = bytearray(records[0].payload)
+    struct.pack_into("<H", header, 14, len(tags))  # the range tag count
+    records[0] = rec.Record(rec.PARA_HEADER, 0, bytes(header))
+    records.append(rec.Record(rec.PARA_RANGE_TAG, 1, b"".join(struct.pack("<III", *tag) for tag in tags)))
+    return records
+
+
 def _markers() -> list[rec.Record]:
     """Page number place, page hiding, a new number, an auto number, a
     bookmark, an index mark, a dutmal and a title mark in one paragraph."""
@@ -449,6 +464,7 @@ def make_hwp(
     fields: bool = False,
     highlights: bool = False,
     unmapped_range: bool = False,
+    char_styles: bool = False,
     memo: bool = False,
     master_page: bool = False,
     label: bool = False,
@@ -494,6 +510,8 @@ def make_hwp(
         section += _fields()
     if highlights:
         section += _highlights(unmapped=unmapped_range)
+    if char_styles:
+        section += _char_styles()
     if memo:
         section += _memo()
     if master_page:
@@ -667,6 +685,24 @@ def test_highlights_open_as_markpen_marks_inside_the_text() -> None:
     ]
     # A range tag kind OWPML has no element for is counted, without a warning.
     assert document.conversion_report.dropped == {"range-tag-0": 1}
+
+
+def test_character_styles_open_as_styled_text_nodes() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(char_styles=True))
+    [paragraph] = [p for p in document.sections[0].element.iter(f"{HP}p") if "".join(p.itertext()) == "가나다라마"]
+    layout = [
+        (run.get("charPrIDRef"), [(t.get("charStyleIDRef"), t.text or "") for t in run.iter(f"{HP}t")])
+        for run in paragraph.iter(f"{HP}run")
+    ]
+    # A style goes on across the run boundary; the one ending before the
+    # paragraph's end leaves an empty text node, as Hancom writes it.
+    assert layout == [
+        ("0", [(None, "가"), ("7", "나다")]),
+        ("1", [("7", "라"), ("8", "마"), (None, "")]),
+    ]
+    assert not document.conversion_report.dropped
 
 
 def test_a_label_sheet_table_keeps_its_layout() -> None:

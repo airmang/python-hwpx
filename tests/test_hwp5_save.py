@@ -66,6 +66,7 @@ def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
         {},
         {"fields": True},
         {"highlights": True},
+        {"char_styles": True},
         {"label": True},
         {"markers": True},
         {"text_box": True},
@@ -111,6 +112,72 @@ def test_a_text_art_name_with_no_code_is_refused(old: bytes, new: bytes, kind: s
     with pytest.raises(Hwp5Error) as refused:
         write_hwp5({**files, "Contents/section0.xml": section.replace(old, new)})
     assert refused.value.context["unsupported"] == {kind: 1}
+
+
+def test_a_character_style_on_new_text_is_written_as_a_range_tag() -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("머리 강조 꼬리")
+    buffer = io.BytesIO()
+    document.save_to_stream(buffer)
+    with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
+        files = {name: package.read(name) for name in package.namelist()}
+    # Style 1 over "강조", the middle of the text.
+    section = files["Contents/section0.xml"].decode("utf-8")
+    assert section.count("<hp:t>머리 강조 꼬리</hp:t>") == 1
+    styled = '<hp:t>머리 </hp:t><hp:t charStyleIDRef="1">강조</hp:t><hp:t> 꼬리</hp:t>'
+    files["Contents/section0.xml"] = section.replace("<hp:t>머리 강조 꼬리</hp:t>", styled).encode("utf-8")
+
+    written = read_hwp5(write_hwp5(files))
+    tags = [r.payload for s in written.sections for r in s.records if r.tag == rec.PARA_RANGE_TAG]
+    assert tags == [struct.pack("<III", 3, 5, 1 << 24 | 1)]
+
+
+_RAW_SETTINGS = (
+    '<hp:parameterset xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" cnt="1" name="539">'
+    '<hp:listParam cnt="2" name="537">'
+    '<hp:unsignedintegerParam name="16386">1</hp:unsignedintegerParam>'
+    '<hp:listParam cnt="3" name="614">'
+    '<hp:arrayParam cnt="2" name="16392">'
+    '<hp:integerParam name="0">255</hp:integerParam><hp:integerParam name="1">-2</hp:integerParam>'
+    "</hp:arrayParam>"
+    '<hp:integerParam name="16391">2</hp:integerParam>'
+    "EXTRA"
+    '<hp:unsignedintegerParam name="16385">4</hp:unsignedintegerParam>'
+    "</hp:listParam></hp:listParam></hp:parameterset>"
+)
+
+
+def _with_raw_settings(extra: str = "") -> dict[str, bytes]:
+    document = HwpxDocument.new()
+    document.add_paragraph("발표 설정을 날것으로 적은 문서")
+    document.sections[0].properties.element.append(etree.fromstring(_RAW_SETTINGS.replace("EXTRA", extra)))
+    document.sections[0].mark_dirty()
+    buffer = io.BytesIO()
+    document.save_to_stream(buffer)
+    with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
+        return {name: package.read(name) for name in package.namelist()}
+
+
+def test_settings_kept_as_a_parameter_set_are_written_item_by_item() -> None:
+    written = read_hwp5(write_hwp5(_with_raw_settings()))
+    [data] = [r.payload for s in written.sections for r in s.records if r.tag == rec.CTRL_DATA]
+    fill = ct.ParameterSet(
+        614,
+        [
+            ct.ParameterItem(16392, ct.PIT_ARRAY, ct.ParameterArray([(5, 255), (5, -2)])),
+            ct.ParameterItem(16391, 5, 2),
+            ct.ParameterItem(16385, 9, 4),
+        ],
+    )
+    settings = ct.ParameterSet(537, [ct.ParameterItem(16386, 9, 1), ct.ParameterItem(614, ct.PIT_SET, fill)])
+    assert data == ct.ParameterSet(539, [ct.ParameterItem(537, ct.PIT_SET, settings)]).encode()
+
+
+def test_a_parameter_of_a_kind_with_no_code_is_refused() -> None:
+    files = _with_raw_settings('<hp:booleanParam name="16400">1</hp:booleanParam>')
+    with pytest.raises(Hwp5Error) as refused:
+        write_hwp5(files)
+    assert refused.value.context["unsupported"] == {"parameterset/booleanParam": 1}
 
 
 def test_saving_as_hwp_keeps_text_formatting_and_tables(tmp_path: Path) -> None:
