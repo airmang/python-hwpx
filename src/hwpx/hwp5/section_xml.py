@@ -817,7 +817,9 @@ class SectionWriter(ShapeReader):
         def style(position: int) -> int | None:
             return next((style_id for start, stop, style_id in styles if start <= position < stop), None)
 
-        shapes = para.char_shapes or [(0, 0)]
+        entries = para.char_shapes or [(0, 0)]
+        # Hancom writes one run for consecutive entries of the same shape.
+        shapes = [entry for index, entry in enumerate(entries) if index == 0 or entry[1] != entries[index - 1][1]]
         bounds = [start for start, _ in shapes[1:]] + [1 << 31]
         controls = iter(para.controls)
         chunks = list(para.chunks)

@@ -465,6 +465,7 @@ def make_hwp(
     highlights: bool = False,
     unmapped_range: bool = False,
     char_styles: bool = False,
+    extra_paragraphs: list[rec.Record] | None = None,
     memo: bool = False,
     master_page: bool = False,
     label: bool = False,
@@ -512,6 +513,8 @@ def make_hwp(
         section += _highlights(unmapped=unmapped_range)
     if char_styles:
         section += _char_styles()
+    if extra_paragraphs:
+        section += extra_paragraphs
     if memo:
         section += _memo()
     if master_page:
@@ -685,6 +688,14 @@ def test_highlights_open_as_markpen_marks_inside_the_text() -> None:
     ]
     # A range tag kind OWPML has no element for is counted, without a warning.
     assert document.conversion_report.dropped == {"range-tag-0": 1}
+
+
+def test_consecutive_entries_of_one_char_shape_make_one_run() -> None:
+    text = "가나다라마".encode("utf-16-le") + _u16(13)
+    document = HwpxDocument.open(make_hwp(extra_paragraphs=_paragraph(0, text, [(0, 0), (2, 0), (4, 1)], [])))
+    [paragraph] = [p for p in document.sections[0].element.iter(f"{HP}p") if "".join(p.itertext()) == "가나다라마"]
+    runs = [(run.get("charPrIDRef"), "".join(run.itertext())) for run in paragraph.iter(f"{HP}run")]
+    assert runs == [("0", "가나다라"), ("1", "마")]
 
 
 def test_character_styles_open_as_styled_text_nodes() -> None:
