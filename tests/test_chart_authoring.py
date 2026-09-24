@@ -85,6 +85,47 @@ def _anchors(doc: HwpxDocument):
     return found
 
 
+def _chart_size(doc: HwpxDocument) -> tuple[int, int]:
+    (anchor,) = _anchors(doc)
+    size = anchor.find(f"{HP}sz")
+    return int(size.get("width")), int(size.get("height"))
+
+
+class TestDefaultSizeFitsItsContainer:
+    """A default-sized chart must not stick out of the table cell it goes
+    into: Hancom clips it at the cell's edge."""
+
+    def _cell_doc(self, cols: int, **kwargs) -> HwpxDocument:
+        doc = HwpxDocument.new()
+        table = doc.add_table(2, cols)
+        doc.shapes.add_chart(PIE_CHARTML, paragraph=table.cell(0, 0).paragraphs[0], **kwargs)
+        return doc
+
+    def test_default_chart_fits_a_two_column_cell(self) -> None:
+        doc = self._cell_doc(2)
+        # A4 text body 42520 / 2 columns = 21260, minus 510 + 510 cell margins.
+        assert _chart_size(doc) == (20240, round(18750 * 20240 / 32250))
+        reopened, _payload = _roundtrip(doc)
+        assert _chart_size(reopened) == (20240, 11767)
+
+    def test_default_chart_fits_a_three_column_cell(self) -> None:
+        doc = self._cell_doc(3)
+        width, height = _chart_size(doc)
+        table = doc.sections[0].element.find(f".//{HP}tbl")
+        cell = table.find(f".//{HP}tc")
+        usable = int(cell.find(f"{HP}cellSz").get("width")) - 1020
+        assert (width, height) == (usable, round(18750 * usable / 32250))
+
+    def test_default_chart_in_the_text_body_keeps_the_gold_size(self) -> None:
+        doc = HwpxDocument.new()
+        doc.shapes.add_chart(PIE_CHARTML)
+        assert _chart_size(doc) == (32250, 18750)
+
+    def test_explicit_size_is_kept_in_a_cell(self) -> None:
+        doc = self._cell_doc(2, size=(30000, 10000))
+        assert _chart_size(doc) == (30000, 10000)
+
+
 class TestGoldContractShape:
     """The emitted anchor must match the real-Hancom chart contract
     (specs/055-chart-authoring/evidence/p0/chart-contract.md)."""
