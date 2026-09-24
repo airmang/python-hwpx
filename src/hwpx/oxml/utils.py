@@ -94,6 +94,25 @@ def coerce_xml_source(source: XmlSource) -> Tuple[etree._Element, etree._Element
     return root, root.getroottree()
 
 
+#: Text positions Hancom gives the inline elements of ``hp:t`` in a paragraph's
+#: layout cache (``hp:lineseg@textpos``). A tab takes 8, as an inline control of
+#: the HWP text model does; a line break, a hyphen and the two fixed spaces
+#: take 1. Other inline elements (highlight marks and the like) take none.
+HANCOM_INLINE_TEXT_WIDTHS = {"tab": 8, "lineBreak": 1, "hyphen": 1, "nbSpace": 1, "fwSpace": 1}
+
+
+def hancom_text_length(text_element: etree._Element) -> int:
+    """Length of an ``hp:t`` in Hancom's text positions, inline elements included."""
+
+    total = len(text_element.text or "")
+    for child in text_element:
+        if isinstance(child.tag, str):
+            total += HANCOM_INLINE_TEXT_WIDTHS.get(tag_local_name(child.tag), 0)
+            total += len("".join(child.itertext()))
+        total += len(child.tail or "")
+    return total
+
+
 def tabs_as_elements(root: etree._Element) -> bool:
     """Write each tab character inside ``hp:t`` of *root* as an ``hp:tab`` element.
 

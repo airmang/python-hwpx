@@ -25,7 +25,7 @@ from .namespaces import (
     tag_local_name,
     tag_namespace,
 )
-from .utils import tab_elements_in, tabs_as_elements
+from .utils import hancom_text_length, tab_elements_in, tabs_as_elements
 
 register_owpml_namespaces(ET.register_namespace)
 
@@ -292,7 +292,7 @@ def _simple_paragraph_text_length(paragraph: ET.Element) -> int | None:
         for run_child in child:
             run_child_name = _element_local_name(run_child).lower()
             if run_child_name == "t":
-                total += len("".join(run_child.itertext()))
+                total += hancom_text_length(run_child)
             elif run_child_name in {
                 "tab",
                 "linebreak",
