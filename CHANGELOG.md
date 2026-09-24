@@ -41,6 +41,11 @@
 
 ### 고침
 
+- `append_document`/`insert_document`가 원본 첫 문단의 단 설정(`hp:colPr`)을 뺄 때, 같은
+  `hp:ctrl` 안에 함께 있던 다른 컨트롤(누름틀 시작, 쪽 번호 새로 시작 등)까지 지우던 것을
+  고친다. 누름틀 끝만 남아 짝이 끊긴 문서는 한컴에서 열리지 않았다. 이제 `hp:colPr`만 빼고,
+  `hp:ctrl`은 비었을 때만 지운다. `insert_document(after_paragraph_index=-1)`가 대상의 구역
+  설정을 새 첫 문단으로 옮길 때도 `hp:colPr`만 옮긴다.
 - `styles.ensure_run(font=...)`가 머리말에 없는 글꼴을 조용히 무시하던 것을 고친다(글자는 기본
   글꼴로 그려졌다). 이제 한컴처럼 그 글꼴을 일곱 언어 모두에 선언하고 적용한다(`ensure_font`의
   기본값과 같다).
