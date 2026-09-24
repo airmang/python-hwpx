@@ -136,7 +136,12 @@ class HwpxDocument(_LegacyFacade):
 
     @classmethod
     def new(cls) -> "HwpxDocument":
-        """Return a new blank document based on the default skeleton template."""
+        """Return a new blank document based on the default skeleton template.
+
+        Its only paragraph is empty and holds the section settings, and
+        :meth:`add_paragraph` appends after it, so the document starts with an
+        empty line. Write the first line with ``document.paragraphs[0].text = ...``.
+        """
 
         return cls.open(blank_document_bytes())
 
