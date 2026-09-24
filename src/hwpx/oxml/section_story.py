@@ -167,6 +167,50 @@ def _find_target_mirror(
     return targets[0] if targets else None
 
 
+def _same_tree(a: ET.Element, b: ET.Element) -> bool:
+    if a.tag != b.tag or dict(a.attrib) != dict(b.attrib) or (a.text or "") != (b.text or ""):
+        return False
+    a_children, b_children = list(a), list(b)
+    return len(a_children) == len(b_children) and all(
+        (x.tail or "") == (y.tail or "") and _same_tree(x, y) for x, y in zip(a_children, b_children)
+    )
+
+
+def sync_story_mirrors(section_element: ET.Element) -> int:
+    """Bring each ``hp:ctrl`` copy of a header/footer up to date with its ``hp:secPr`` story.
+
+    The stories python-hwpx writes live twice: under ``hp:secPr``, where they
+    are read and edited, and in a body ``hp:ctrl``, the only copy Hancom reads.
+    Edits through a story's object (text, runs, paragraphs, page numbers)
+    change the first, so the save path calls this to make the second follow.
+    A copy is replaced in place only when exactly one control story has the
+    same id and page type and its content differs. Stories that exist only
+    as a control, as in documents Hancom saved, are left alone.
+    """
+
+    replaced = 0
+    for sec_pr in section_element.findall(f"{_HP}p/{_HP}run/{_HP}secPr"):
+        for story in list(sec_pr):
+            if story.tag not in (f"{_HP}header", f"{_HP}footer"):
+                continue
+            identity = (story.get("id"), story.get("applyPageType", "BOTH"))
+            copies = [
+                (control, mirror)
+                for control, mirror in _iter_control_stories(section_element, _story_kind(story))
+                if (mirror.get("id"), mirror.get("applyPageType", "BOTH")) == identity
+            ]
+            if len(copies) != 1 or _same_tree(copies[0][1], story):
+                continue
+            control, mirror = copies[0]
+            fresh = deepcopy(story)
+            fresh.tail = mirror.tail
+            index = list(control).index(mirror)
+            control.remove(mirror)
+            control.insert(index, fresh)
+            replaced += 1
+    return replaced
+
+
 def _section_story_elements(properties: Any, kind: str) -> list[ET.Element]:
     """Expose native control-only stories as well as legacy logical stories."""
     logical = properties.element.findall(f"{_HP}{kind}")

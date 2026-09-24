@@ -39,6 +39,7 @@ from .namespaces import tag_local_name
 from .paragraph import HwpxOxmlParagraph
 from .run import RunStyle, _char_properties_from_header
 from .section import HwpxOxmlSection
+from .section_story import sync_story_mirrors
 from . import section_layout as _section_layout
 from .simple_parts import (
     HwpxOxmlHistory,
@@ -1540,6 +1541,8 @@ class HwpxOxmlDocument:
             section.remove_stale_layout_caches()
         for section in self._sections:
             if section.dirty:
+                # Header/footer edits land on the secPr story; Hancom reads the control copy.
+                sync_story_mirrors(section.element)
                 updates[section.part_name] = section.to_bytes()
         headers_dirty = False
         for header in self._headers:

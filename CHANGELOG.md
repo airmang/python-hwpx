@@ -50,6 +50,13 @@
 
 ### 고침
 
+- 머리말·꼬리말 객체로 고친 내용이 한/글에 나타나지 않던 것을 고친다. python-hwpx가 만든
+  머리말·꼬리말은 구역 설정(`hp:secPr`) 안과 본문 `hp:ctrl` 안에 두 벌로 쓰이고, 한/글은
+  `hp:ctrl` 쪽만 읽는다. `set_header()`·`set_footer()`가 돌려준 객체의 `text` 설정,
+  `add_run()`, `add_paragraph()`, `add_page_number_field()`, `set_content()`,
+  `clear_content()`와 그 문단을 고친 내용은 구역 설정 쪽에만 들어가, 한/글에서는 처음 글이
+  그대로 보였다. 이제 고친 구역을 저장할 때 내용이 다른 `hp:ctrl` 쪽을 구역 설정 쪽으로
+  맞춘다. 한/글이 저장한 문서처럼 `hp:ctrl` 쪽만 있는 머리말·꼬리말은 그대로 둔다.
 - `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
   (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
   `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.
