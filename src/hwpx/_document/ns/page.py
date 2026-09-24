@@ -327,7 +327,14 @@ class PageNamespace(_Namespace):
         section: "int | HwpxOxmlSection | None" = None,
         section_index: int | None = None,
     ) -> "HwpxOxmlSectionHeaderFooter":
-        """쪽 번호를 머리말/꼬리말에 넣는다."""
+        """쪽 번호를 머리말/꼬리말에 넣는다.
+
+        번호는 그 머리말/꼬리말의 내용을 바꾼 자동 번호 글이다. 한컴의 쪽 번호
+        컨트롤("쪽 번호 매기기")이 아니어서 ``set_visibility(hide_first_page_num=True)``와
+        ``hide_page_elements(page_num=True)``로는 숨지 않는다. 첫 쪽에서 감추려면
+        ``set_visibility(hide_first_footer=True)``(머리말이면 ``hide_first_header``)를,
+        한 쪽만 감추려면 ``hide_page_elements(paragraph, footer=True)``를 쓴다.
+        """
 
         from .. import layout as _layout
 
@@ -377,7 +384,12 @@ class PageNamespace(_Namespace):
         fill: bool = False,
         page_num: bool = False,
     ) -> "HwpxOxmlInlineObject":
-        """*paragraph* 가 속한 쪽부터 지정한 요소를 숨긴다(`hp:pageHiding`)."""
+        """*paragraph* 가 있는 쪽에서만 지정한 요소를 숨긴다(`hp:pageHiding`).
+
+        한컴의 "현재 쪽만 감추기"와 같아서 다음 쪽부터는 다시 보인다. *page_num* 은
+        한컴 쪽 번호 컨트롤의 번호를 감춘다. ``set_page_number()`` 의 번호는
+        머리말/꼬리말 글이라 *footer* (또는 *header*)로 감춘다.
+        """
 
         from .. import layout as _layout
 
@@ -543,7 +555,13 @@ class PageNamespace(_Namespace):
         section: "int | HwpxOxmlSection | None" = None,
         section_index: int | None = None,
     ) -> None:
-        """첫 쪽 숨김 플래그와 줄번호 표시 여부를 설정한다."""
+        """첫 쪽 숨김 플래그와 줄번호 표시 여부를 설정한다.
+
+        *hide_first_page_num* 은 한컴 쪽 번호 컨트롤의 첫 쪽 번호를 감춘다.
+        ``set_page_number()`` 의 번호는 머리말/꼬리말 글이라 *hide_first_footer*
+        (또는 *hide_first_header*)로 감춘다. 줄 번호는 *show_line_number* 가 참일
+        때만 그려진다(모양은 ``set_line_numbers()``).
+        """
 
         self._section(
             section, section_index, "set_visibility"
@@ -580,7 +598,12 @@ class PageNamespace(_Namespace):
         section: "int | HwpxOxmlSection | None" = None,
         section_index: int | None = None,
     ) -> None:
-        """줄번호 재시작·간격·시작값을 설정한다."""
+        """줄번호 재시작·간격·시작값을 설정한다.
+
+        모양만 정한다. 한컴은 ``set_visibility(show_line_number=True)`` 일 때만 줄
+        번호를 그린다. *restart_type* 은 1이면 쪽마다 1부터 다시 세고, 0이면 이어
+        센다.
+        """
 
         self._section(
             section, section_index, "set_line_numbers"

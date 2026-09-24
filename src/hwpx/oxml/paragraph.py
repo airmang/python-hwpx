@@ -1049,7 +1049,7 @@ class HwpxOxmlParagraph:
     ) -> HwpxOxmlInlineObject:
         """Insert ``<hp:ctrl><hp:pageHiding .../></hp:ctrl>``.
 
-        Hides the named page elements from this paragraph's page onward
+        Hides the named page elements on this paragraph's page only
         (``ParaList XML schema.xml:148-163`` — six independent booleans, all
         default ``false``/unhidden). Matches real corpus (hwpxlib_corpus, 4
         files) sibling placement: its own dedicated ``hp:ctrl``, typically

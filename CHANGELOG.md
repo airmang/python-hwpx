@@ -6,6 +6,12 @@
 
 ### 추가
 
+- 쪽 번호·줄 번호 설명을 보강한다(`page.set_page_number`, `set_visibility`,
+  `hide_page_elements`, `set_line_numbers`와 known-traps). `set_page_number()`의
+  번호는 머리말/꼬리말 글이라 한컴의 쪽 번호 감추기(`hide_first_page_num`,
+  `hide_page_elements(page_num=True)`)로 숨지 않으니 머리말/꼬리말째 감춘다.
+  `hide_page_elements()`는 문단이 있는 쪽에서만 감춘다(다음 쪽부터 다시 보임, 설명을
+  바로잡음). 줄 번호는 `set_visibility(show_line_number=True)`일 때만 그려진다.
 - 새 문서가 빈 줄로 시작하는 까닭(`HwpxDocument.new()`의 첫 문단은 구역 설정을 담은
   빈 문단이고 `add_paragraph()`는 그 뒤에 붙는다)과 첫 줄부터 쓰는 법
   (`doc.paragraphs[0].text = ...`)을 `HwpxDocument.new()` 설명과 known-traps에 적는다.
@@ -44,6 +50,22 @@
 - 3차원 테두리 선 이름을 한컴 표기(`THICK3D`, `THICKREV3D`, `3D`, `REV3D`)로 쓴다. 전에 쓰던
   `THICK_3D`, `THICK_3D_REVERSE_LIGHTING`, `SLIM_3D`, `SLIM_3D_REVERSE_LIGHTING`은 한컴이 선
   없음으로 읽었다. 옛 이름도 계속 받아서 한컴 이름으로 쓴다.
+- `append_document`/`insert_document`가 원본 첫 문단의 단 설정(`hp:colPr`)을 뺄 때, 같은
+  `hp:ctrl` 안에 함께 있던 다른 컨트롤(누름틀 시작, 쪽 번호 새로 시작 등)까지 지우던 것을
+  고친다. 누름틀 끝만 남아 짝이 끊긴 문서는 한컴에서 열리지 않았다. 이제 `hp:colPr`만 빼고,
+  `hp:ctrl`은 비었을 때만 지운다. `insert_document(after_paragraph_index=-1)`가 대상의 구역
+  설정을 새 첫 문단으로 옮길 때도 `hp:colPr`만 옮긴다.
+- `styles.ensure_run(font=...)`가 머리말에 없는 글꼴을 조용히 무시하던 것을 고친다(글자는 기본
+  글꼴로 그려졌다). 이제 한컴처럼 그 글꼴을 일곱 언어 모두에 선언하고 적용한다(`ensure_font`의
+  기본값과 같다).
+- 일부 언어에만 선언된 글꼴을 `ensure_run(font=...)`로 쓰면, 선언되지 않은 언어의 `fontRef`에
+  다른 언어의 글꼴 번호가 들어가던 것을 고친다. `fontRef`는 언어마다 번호를 따로 매겨서, 그
+  언어에 글꼴이 더 있으면 엉뚱한 글꼴이 됐다. 이제 글꼴이 선언된 언어만 바꾸고, 나머지 언어는
+  바탕 글자 모양의 글꼴을 그대로 둔다(`font_ref_for_face`는 선언된 언어만 돌려준다).
+- 긴 문서를 열고 저장하는 시간을 줄인다. 네임스페이스 정규화(`normalize_hwpml_namespaces`)가
+  XML 파트마다 모든 태그와 속성을 파이썬 콜백으로 다시 훑었는데, 이제 2016 네임스페이스 URI가
+  든 태그만 찾아 고친다. 결과 바이트는 같다. 저장은 열기 안전 검사에서 패키지를 다시 읽으므로
+  함께 빨라진다.
 - `page.set_page_number(format_type=...)`로 고른 쪽 번호 모양(로마 숫자, 원 숫자 등)이
   한컴에서 늘 아라비아 숫자로 그려지던 것을 고친다. 한컴은 머리말·꼬리말의 쪽 번호를
   `hp:autoNum`으로 그리고 그 모양을 자식 `hp:autoNumFormat`에서 읽는데, 모양은 옆의
