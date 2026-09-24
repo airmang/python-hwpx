@@ -988,7 +988,7 @@ control = document.add_control(
 
 ```python
 options = section.properties
-options.set_page_size(width=72000, height=43200, orientation="WIDELY")
+options.set_page_size(width=72000, height=43200, orientation="LANDSCAPE")
 options.set_page_margins(left=2000, right=2000, header=1500, footer=1500)
 
 document.headers[0].set_begin_numbering(page=1)

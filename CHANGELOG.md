@@ -4,8 +4,188 @@
 
 ## [Unreleased]
 
+### 추가
+
+- 쪽 번호·줄 번호 설명을 보강한다(`page.set_page_number`, `set_visibility`,
+  `hide_page_elements`, `set_line_numbers`와 known-traps). `set_page_number()`의
+  번호는 머리말/꼬리말 글이라 한컴의 쪽 번호 감추기(`hide_first_page_num`,
+  `hide_page_elements(page_num=True)`)로 숨지 않으니 머리말/꼬리말째 감춘다.
+  `hide_page_elements()`는 문단이 있는 쪽에서만 감춘다(다음 쪽부터 다시 보임, 설명을
+  바로잡음). 줄 번호는 `set_visibility(show_line_number=True)`일 때만 그려진다.
+- 새 문서가 빈 줄로 시작하는 까닭(`HwpxDocument.new()`의 첫 문단은 구역 설정을 담은
+  빈 문단이고 `add_paragraph()`는 그 뒤에 붙는다)과 첫 줄부터 쓰는 법
+  (`doc.paragraphs[0].text = ...`)을 `HwpxDocument.new()` 설명과 known-traps에 적는다.
+- `hwpx.layout.lint_layout()`이 쪽에서 나뉘지 않는 본문 표(글자처럼 취급한 표,
+  `pageBreak="NONE"` 표)가 쪽 본문보다 높으면 `TABLE_TALLER_THAN_PAGE`로 알린다.
+  한컴은 이런 표를 한 쪽에 그린다. 쪽 첫머리가 아니면 다음 쪽으로 옮기고, 아래
+  여백까지 내려 그리며, 종이 아래 끝을 넘는 행은 그리지 않는다. 높이는 행마다 가장 높은 셀 높이의 합(아래 한계)으로
+  잰다. 행이 잘리면 `overflow_policy="fail"`에서 오류, 아니면 경고다. 여러 쪽에
+  걸칠 표는 `Table.set_treat_as_char(False)`로 흐르게 한다.
+- `styles.apply_paragraph_format(border={...})`로 문단 테두리를 만든다. 키는
+  `sides`(기본 네 면), `color`(`#000000`), `width`(`0.12 mm`), `type`(`SOLID`),
+  `offset_mm`(글과의 간격 mm, 수 하나 또는 왼쪽·오른쪽·위·아래), `connect`,
+  `ignore_margin`이다. `connect=True`면 같은 문단 모양을 쓰는 연속 문단이 단과
+  쪽을 넘는 상자 하나로 그려진다(한컴의 "문단 테두리 연결"). 상자 안의 빈 문단에도
+  같은 서식을 주면 상자가 끊기지 않는다. 기존 `bottom_border=True`는 그대로
+  아래 한 면만 켠다. 잘못된 지정은 `paragraph-border-invalid`로 거부한다.
+
+### 바꿈
+
+- `add_table()`이 만드는 표의 행 높이 기본값을 12.7 mm(3600)에서 한컴이 새 표에 쓰는
+  282로 바꾼다. 행은 셀 글 높이에 맞춰 자라서, 한 줄이면 약 4.6 mm다. 전처럼 높은 행이
+  필요하면 `height=`를 준다.
+- `add_table()`은 행들만으로 쪽 본문보다 높은 표를 흐르는 표로 만든다(글자처럼 취급을
+  끔). 행 높이는 셀 높이와 셀 글 한 줄 + 셀 위아래 여백 중 큰 값으로 잰다. 한컴은
+  글자처럼 취급한 표를 쪽에서 나누지 않아, 이런 표는 종이 끝에서 잘렸다. 흐르는 표는
+  행 사이에서 쪽을 넘는다. 쪽 크기는 그려지는 쪽(가로면 돌린 높이)으로 잰다.
+
 ### 고침
 
+- `doc.tracking.delete(문단)`로 글만 있는 문단을 통째로 지우면, 한컴에서 그 자리에 빈 줄이
+  남던 것을 고친다. 문단 나눔은 삭제로 표시되지 않았다. 이제 뒤에 문단이 이어지면 마지막
+  삭제 표시에 `paraend="1"`을 써서 문단 나눔도 지운다. 구역 설정·컨트롤·개체가 있는
+  문단과 마지막 문단은 전처럼 나눔을 남긴다.
+- `append_document`/`insert_document`가 원본 첫 문단의 단 설정(`hp:colPr`)을 뺄 때, 같은
+  `hp:ctrl` 안에 함께 있던 다른 컨트롤(누름틀 시작, 쪽 번호 새로 시작 등)까지 지우던 것을
+  고친다. 누름틀 끝만 남아 짝이 끊긴 문서는 한컴에서 열리지 않았다. 이제 `hp:colPr`만 빼고,
+  `hp:ctrl`은 비었을 때만 지운다. `insert_document(after_paragraph_index=-1)`가 대상의 구역
+  설정을 새 첫 문단으로 옮길 때도 `hp:colPr`만 옮긴다.
+- 문서를 저장할 때 같은 패키지 바이트에 열기 안전 검사(`validate_editor_open_safety`)를
+  두 번 돌리던 것을 한 번으로 줄인다. 패키지 저장이 검사를 통과시킨 바이트의 SHA-256을
+  기억하고, 문서 쪽 검사는 같은 바이트면 건너뛴다. 패키지가 검사하지 않은 바이트는 전처럼
+  검사한다. 긴 문서의 저장이 빨라진다.
+- `styles.ensure_run(font=...)`가 머리말에 없는 글꼴을 조용히 무시하던 것을 고친다(글자는 기본
+  글꼴로 그려졌다). 이제 한컴처럼 그 글꼴을 일곱 언어 모두에 선언하고 적용한다(`ensure_font`의
+  기본값과 같다).
+- 일부 언어에만 선언된 글꼴을 `ensure_run(font=...)`로 쓰면, 선언되지 않은 언어의 `fontRef`에
+  다른 언어의 글꼴 번호가 들어가던 것을 고친다. `fontRef`는 언어마다 번호를 따로 매겨서, 그
+  언어에 글꼴이 더 있으면 엉뚱한 글꼴이 됐다. 이제 글꼴이 선언된 언어만 바꾸고, 나머지 언어는
+  바탕 글자 모양의 글꼴을 그대로 둔다(`font_ref_for_face`는 선언된 언어만 돌려준다).
+- 긴 문서를 열고 저장하는 시간을 줄인다. 네임스페이스 정규화(`normalize_hwpml_namespaces`)가
+  XML 파트마다 모든 태그와 속성을 파이썬 콜백으로 다시 훑었는데, 이제 2016 네임스페이스 URI가
+  든 태그만 찾아 고친다. 결과 바이트는 같다. 저장은 열기 안전 검사에서 패키지를 다시 읽으므로
+  함께 빨라진다.
+- `page.set_page_number(format_type=...)`로 고른 쪽 번호 모양(로마 숫자, 원 숫자 등)이
+  한컴에서 늘 아라비아 숫자로 그려지던 것을 고친다. 한컴은 머리말·꼬리말의 쪽 번호를
+  `hp:autoNum`으로 그리고 그 모양을 자식 `hp:autoNumFormat`에서 읽는데, 모양은 옆의
+  `hp:pageNum@formatType`에만 적혀 있었다. 이제 `hp:autoNum`이 한컴처럼 모양을 가진다.
+  "쪽/전체 쪽"(`format="page/total"`)의 전체 쪽 번호도 같은 모양을 쓴다.
+- 표 셀에 넣은 차트(`shapes.add_chart(..., paragraph=셀 문단)`)가 셀보다 넓게 만들어져
+  한컴에서 셀 경계에서 잘리던 것을 고친다. `size`를 주지 않으면 기본 크기(32250×18750)를
+  넣을 곳(표 셀이나 본문)의 쓸 수 있는 폭에 맞게 같은 비율로 줄인다. 중첩 표의 기본 폭과
+  같은 기준이다. 본문의 기본 크기와 `size`로 준 크기는 그대로다.
+- `tools.toc_author.add_native_toc()`가 만든 차례 항목에서 쪽 번호가 제목 바로 뒤에
+  붙던 것을 고친다. 한컴은 탭을 문단의 탭 정지로 배치하고 `hp:tab` 속성은 그 결과의
+  캐시로만 쓰는데, 항목 문단(기본 문단 모양)에는 탭 정지가 없었다. 이제 항목 문단은
+  첫 구역 본문 오른쪽 끝(쪽 폭에서 왼쪽·오른쪽·제본 여백을 뺀 곳)에 `leader` 채움의
+  오른쪽 탭 정지를 가진다. 기본값 3은 한컴 차례와 같은 점선이다. `leader`는 탭 채움
+  코드 0–11만 받고, 그 밖의 값은 `paragraph-tab-leader-invalid`로 거부한다.
+- 탭이 든 문단의 멀쩡한 줄 배치 캐시를 오래됐다고 보고 지우던 것을 고친다. 그래서 한컴 문서를
+  편집 없이 저장하기만 해도 쪽 경계에서 줄이 옮겨 갈 수 있었다. 캐시의 줄 시작 위치
+  (`hp:lineseg@textpos`)는 `hp:t` 안의 인라인 요소도 센다. 탭은 8칸, 줄바꿈·하이픈·고정 빈칸은
+  1칸이다. 저장 때 캐시 정리와 편집 안전 검사의 "줄 시작이 글 길이를 넘는 캐시" 규칙이 이 길이
+  (`oxml.utils.hancom_text_length`)를 쓴다. 글을 넘어서 시작하는 캐시는 전처럼 지운다.
+- 문서에 이미 들어 있던 줄 배치 캐시가 문단 글을 다 담지 못하면(여러 줄 글에 한 줄
+  캐시) python-hwpx가 편집하지 않은 문서도 저장하지 못하던 것을 고친다. 편집 안전
+  검사는 이런 캐시를 거부하는데(한컴이 꼬리 글을 겹쳐 그린다), 저장 때 모든 구역에
+  도는 캐시 정리(`HwpxOxmlSection.remove_stale_layout_caches()`)는 글 길이를 넘는 줄
+  시작만 지웠다. 이제 그 검사가 거부할 캐시도 지운다. 한컴은 그 문단을 다시 배치한다.
+- 머리말·꼬리말 글(`page.set_header(text=...)`·`set_footer(text=...)`, 머리말·꼬리말
+  객체의 `text`와 `add_run()`)과 각주·미주 글(`notes.add_footnote()` 등, 주석 객체의
+  `text`)이 탭을 지우던 것을 고친다. 이제 탭을 `hp:t` 안의 `hp:tab`으로 쓴다
+  (`page.set_header(text="학교명\t날짜")`). 두 `text`는 `hp:t` 안 요소 뒤의 글과 탭까지
+  읽는다. 머리말·꼬리말의 `set_simple_text_preserving()`은 전처럼 탭을 받지 않는다.
+- 셀의 `set_text()`(`Table.set_cell_text()`)와 `run.text = ...`가 옛 글 일부를 남기던 것을
+  고친다. 한컴이 쓴 셀과 run에는 `hp:t` 안에 줄바꿈·탭·공백 요소와 형광펜 표시가 있고,
+  그 뒤에도 글이 있다. 두 설정자는 `hp:t`의 앞 글만 바꿔서 요소와 그 뒤 옛 글이 새 값
+  뒤에 남았다(`run.text`는 새 값을 옛 글 뒤에 붙였다). 이제 `paragraph.text`처럼 옛 글을
+  요소까지 모두 지우고 새 값을 쓴다. `run.text`는 첫 `hp:t` 자리에 쓴다.
+- 같은 두 설정자가 값의 탭을 지우던 것을 고친다. 이제 탭을 `hp:t` 안의 `hp:tab`으로
+  쓴다(`split_paragraphs=True`도 같다).
+- 탭 문자가 든 글을 쓴 문서를 한컴이 끝내 열지 못하던 것을 고친다.
+  `paragraph.add_run("이름\t홍길동")`, `doc.text.replace()`, `fill_cells()`,
+  `paragraph_patch()`, `apply_body_ops()`의 `replace_text`와 삽입 op는 탭을 문자 그대로
+  `hp:t`에 넣었다. 한컴은 탭을 `hp:t` 안의 `hp:tab` 요소로만 읽고, 탭 문자가 있으면
+  문단 배치를 끝내지 못한다. 이제 모든 쓰기 경로가 탭을 `hp:tab` 요소로 쓴다.
+  메모리의 문서 트리는 그대로이고, 저장하는 XML만 바뀐다.
+- 라이브러리 안의 코드가 6.0에서 옮긴 `HwpxDocument` 이름을 불러, 지금 API만 쓰는
+  사용자에게도 `DeprecationWarning`이 나던 것을 고친다. 셀 맞춤(`set_cell_text(fit=...)`,
+  메일 머지)의 글자·문단 모양 읽기와 글자 줄이기, `lint_layout(required_fields=...)`,
+  변경 추적 점검(`inspect_redline_structure`), HWPX→Markdown 수집기가 이제 새 이름
+  (`doc.fields.all`, `doc.tracking.*`, `doc.parts.headers`, `doc.text.markdown(rich=True)`)이나
+  문서 루트를 부른다.
+- `shapes.add_chart()`가 계열 축이 없는 3D 차트(세 번째 `c:axId`가 `0`)를 축이
+  없다고 거부하던 것을 고친다. `0`은 축이 없다는 표시라, 이제 나머지 두 축 id만
+  정의돼 있으면 받아들인다. 한컴은 이런 차트를 축 id 두 개짜리와 같게 그린다.
+- `shapes.add_polygon()`과 그룹 멤버 `ContainerMember.polygon()`이 만든 다각형이 한컴에서
+  마지막 변 없이 열린 선으로 그려지던 것을 고친다. 한컴은 첫 꼭짓점을 끝에 한 번 더
+  써서 다각형을 닫는다. 이제 두 API도 그렇게 쓴다. 열린 선이 필요하면 `closed=False`를
+  넘긴다.
+- 문단 글에 넣은 탭이 한컴에서 사라지던 것을 고친다. `add_paragraph("이름\t홍길동")`
+  같은 탭을 `hp:t`와 나란한 run 자식 `hp:tab`으로 썼는데, 한컴은 이런 탭을 열 때
+  버려서 글이 붙고 탭 정지도 효과가 없었다. 이제 한컴처럼 탭을 `hp:t` 안에
+  쓴다(`<hp:t>이름<hp:tab/>홍길동</hp:t>`).
+- `shapes.add_line()`로 그린 가로선과 세로선이 한컴에서 보이지 않던 것을 고친다.
+  선의 외접 상자(`orgSz`·`curSz`)에 0인 변이 있으면 한컴이 선을 그리지 않는다.
+  이제 한컴처럼 두 크기는 각 변을 최소 1로 쓰고(가로선은 폭 × 1), `sz`와 시작·끝점은
+  그대로 둔다. `Shape.resize()`도 같게 쓴다.
+- `add_picture(align="CENTER")`(와 `"LEFT"`·`"RIGHT"`)로 넣은 그림이 한컴에서 늘 왼쪽에
+  놓이던 것을 고친다. 글자처럼 취급하는 그림은 문단 정렬을 따르는데, `hp:pos@horzAlign`만
+  바꾸고 그림 문단은 양쪽 정렬로 두었다. 이제 그림 문단의 정렬도 같은 값으로 맞춘다.
+- `hwpx.tools.read_fidelity.resolve_run_spans()`(와 이를 쓰는 판독 표면)가 위·아래
+  첨자를 `offset` 부호만 보고 판정하던 것을 고친다. 부호가 거꾸로여서(음수가
+  위로 올린다, DEV-028) 예전 python-hwpx 위첨자를 아래첨자로 보고했고,
+  `hh:supscript`/`hh:subscript` 요소를 보지 않아 한컴 자신의 첨자(`offset 0`)와
+  지금 `ensure_run(script=...)`이 만드는 첨자는 아예 첨자로 보지 않았다. 이제
+  `CharProperty.is_superscript()`/`is_subscript()`처럼 요소로 판정한다. 요소 없이
+  `offset`만 있는 글자는 한컴의 글자 위치(올림·내림) 설정이라 첨자로 보지 않는다.
+- `hwpx.tools.toc_author.add_native_toc(headings=...)`로 제목을 직접 준 목차가
+  한컴에서 열 때 항목과 링크를 잃던 것을 고친다. `dirty` 기본값이 늘 `True`라,
+  한컴이 목차를 다시 만들면서 개요 문단만 모았다. 이제 `dirty`의 기본값은 제목을
+  자동으로 찾을 때 `True`, `headings`를 직접 줄 때 `False`다. 직접 넘기면 그 값을 쓴다.
+- `page.setup(columns=N)`과 `page.set_columns()`가 섹션의 단 정의는 그대로 두고 섹션
+  끝에 빈 문단과 단 컨트롤을 덧붙여, 이미 있는 본문이 1단으로 남던 것을 고친다. 이제
+  `hp:secPr` 옆의 섹션 단 정의(`hp:colPr`)를 제자리에서 고쳐 섹션 전체가 N단이 된다.
+  구분선(`separator_type` 등)도 이 정의에 들어가고, 빠진 값은 한컴 기본값(`SOLID`,
+  `0.12 mm`, `#000000`)으로 채운다. 특정 문단부터 단을 바꾸려면
+  `page.set_columns(paragraph=...)`를 쓴다.
+  - `page.setup(columns=...)`은 같은 폭의 단 N개와 간격만 쓴다. 있던 구분선은 지운다.
+  - `page.set_columns`는 1~255 밖의 단 수를 `page-columns-invalid`로 거부한다.
+  - 문단에 넣는 단 컨트롤도 한컴 표기대로 `id=""`와 `sameSz="1"`/`"0"`을 쓴다.
+- 용지 방향을 한컴 표기로 쓴다. `page.setup(orientation="PORTRAIT")`는 스키마 밖 값
+  `landscape="PORTRAIT"`를 써서 한컴이 가로로 그렸고, `set_page_size(orientation=
+  "LANDSCAPE")`에 가로 치수를 주면 세로로 그려졌다. 이제 세로는 `WIDELY`, 가로는
+  `NARROWLY`이고, 치수는 두 방향 모두 용지의 세로 치수(너비 ≤ 높이)로 저장한다
+  (`NARROWLY`는 한컴이 돌려서 그린다). `page.setup`, `page.set_size`,
+  `section.properties.set_page_size`가 모두 같다.
+  - `WIDELY`/`NARROWLY`를 직접 넘기면 한컴 뜻 그대로(`WIDELY`가 세로) 읽는다.
+    예전에는 `WIDELY`를 가로로 읽었다.
+  - `page.set_size`는 모르는 방향 값을 `page-orientation-unsupported`로 거부한다.
+  - `landscape`가 없으면 `page_size.orientation`은 스키마 기본값 `NARROWLY`를
+    돌려준다. 한컴도 그렇게 읽는다.
+  - 새 `PageSize.drawn_width`/`drawn_height`는 한컴이 그리는 쪽 크기다. 표 기본 폭,
+    머리말·꼬리말 폭, `template_analyzer`의 쪽·본문 폭, `layout_preview`의 쪽 상자가
+    이 크기를 쓴다. 그래서 `NARROWLY`와 세로 치수로 된 가로 문서도 가로 폭으로 계산한다.
+- `styles.ensure_run(script="sup"/"sub")`가 만든 위·아래 첨자가 한컴에서 두 번
+  줄어들던 것을 고친다. `hh:supscript`/`hh:subscript` 요소와 함께 `relSz 67`·
+  `offset -30/+30`도 썼는데, 한컴은 요소만으로 글자를 줄이고 올리거나 내린다.
+  이제 한컴 자신의 첨자처럼 요소만 쓴다(`relSz 100`·`offset 0`). 예전 모양의
+  글자 모양은 다시 쓰지 않고, 기준 글자 모양으로 받으면 기본값으로 되돌린다.
+- 한컴이 `hp:t` 안에 넣는 탭·줄 바꿈·특수 공백(`<hp:t>성<hp:fwSpace/>명<hp:tab/>홍길동</hp:t>`)
+  뒤의 글자를 `paragraph.text`·`run.text`·`doc.text.plain()`·Markdown 내보내기·
+  표 이름표 찾기가 버리던 것을 고친다. 이들은 `hp:t`의 첫 글자 묶음만 읽어 위
+  예에서 "성"만 돌려줬다. 이제 모두 `hwpx.tools.text_extractor`와 같은
+  규칙으로 읽는다: 탭 `\t`, 줄 바꿈 `\n`, 줄 안 공백 U+00A0, 전각 공백 U+3000,
+  하이픈 U+00AD, 그 밖의 자식 요소는 제 글자와 뒤 글자(형광펜·변경 추적 표시는
+  빈 요소라 뒤 글자만). 텍스트 추출기도 `hp:t` 안의
+  탭을 버리던 것을 고친다(목차 항목의 점선 탭 뒤 쪽 번호가 붙어 나왔다). 변경 추적으로
+  삽입한 글(`hp:insertBegin` 뒤 글자)도 이제 `paragraph.text`와 평문에 나온다.
+- `doc.styles.ensure_run()`이 만든 글자 모양(`hh:charPr`)의 자식 순서가 OWPML
+  스키마(`CharShapeType`)를 어기던 것을 고친다. `bold`·`italic`·`underline`·
+  `strikeout`을 `outline`·`shadow` 뒤에 덧붙였고, `bold`를 `italic`보다 먼저 썼다.
+  이제 서식을 적용한 뒤 자식을 스키마 순서(`fontRef, ratio, spacing, relSz, offset,
+  italic, bold, underline, strikeout, outline, shadow, emboss, engrave, supscript,
+  subscript`)로 맞춘다. 한컴이 쓰는 순서와 같다.
 - `doc.refs.add_hyperlink()`로 만든 링크가 한컴에서 **아무 데도 가지 않던** 것을
   고친다. 대상 주소를 `fieldBegin@name`에만 썼는데, 한컴은 링크 대상을 필드
   매개변수에서 읽는다. 한컴에서 다시 저장하면 링크는 남지만
@@ -34,11 +214,12 @@
   것을 고친다. 한컴은 줄 높이를 이 캐시에서 가져오므로, 행간을 130%로 바꿔도
   예전 160% 줄 높이로 그려졌다. 이제 문단 모양이 바뀐 문단의 캐시만 지우고, 글자
   모양을 바꿀 때처럼 다른 문단의 캐시는 그대로 둔다.
-- `add_chart`가 축(`c:axId`·`c:catAx`·`c:valAx`) 없는 꺾은선 차트를
-  `HwpxValueError`(`shape-chart-line-axes-missing`)로 거부하고 축을 넣는 방법을
-  안내한다. 한컴은 이런 문서를 렌더하거나 저장하다
-  멈췄고, 같은 차트에 축만 넣으면 정상이었다. 축 없는 막대·원형 차트는 한컴이
-  렌더하므로 전처럼 받는다.
+- `add_chart`가 축(`c:axId`·`c:catAx`·`c:valAx`)이 필요한 차트 종류(막대·꺾은선·
+  영역·분산형·방사형·거품형, 3D·주식형·표면형 포함)에 축이 없으면
+  `HwpxValueError`(`shape-chart-axes-missing`)로 거부하고 축을 넣는 방법을
+  안내한다. 한컴은 축 없는 막대 차트를 막대 없이 빈 차트로 그리고, 나머지 종류는
+  렌더하거나 저장하다 멈췄다. 같은 차트에 축만 넣으면 정상이었다. 축이 없는
+  원형·도넛 차트는 전처럼 받는다.
 - 암호가 걸린 HWPX를 열면 `Start tag expected, '<' not found` 같은 파일 손상처럼
   보이는 lxml 오류만 나오던 것을 고친다. `META-INF/manifest.xml`이 파트를
   `encryption-data`로 암호화 선언한 경우 예외 타입(`XMLSyntaxError`)은 그대로

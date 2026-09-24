@@ -44,10 +44,16 @@
 
 ## 문서 구조
 
+- **새 문서는 빈 줄로 시작한다.** `HwpxDocument.new()`의 첫 문단은 구역 설정
+  (`hp:secPr`)을 담은 빈 문단이고, `add_paragraph()`는 그 뒤에 새 문단을 붙인다.
+  첫 줄부터 쓰려면 첫 글은 `doc.paragraphs[0].text = ...`로 넣는다.
 - **네이티브 목차는 `dirty="1"`이 재계산 트리거다.** 목차 삽입/문서 변경 후
   `mark_toc_dirty`를 잊으면 한컴이 옛 페이지 번호를 그대로 보여준다. dirty
   재생성 직후 같은 세션에서 export하면 한컴이 크래시할 수 있다(refresh와
   render는 세션 분리).
+- **dirty 목차는 한컴이 수집 규칙대로 다시 만든다.** `add_native_toc(headings=...)`로
+  개요가 아닌 문단을 제목으로 준 목차에 `dirty="1"`을 두면 한컴이 열면서 항목과
+  링크를 버린다. 그래서 `headings`를 직접 주면 `dirty` 기본값은 `False`다.
 - **본문 문단이 스타일 0(바탕글)이면 목차에 수집될 수 있다.** 한컴 목차 수집은
   스타일 기반이다 — 본문은 본문 스타일, 제목은 개요 스타일로.
 - **메모 필드는 무음 수용 캐비앗이 있다.** `attach_memo_field`가 앵커를 못
@@ -58,6 +64,25 @@
 - **HWP 5.0(`.hwp`)은 `HwpxDocument.open`으로 연다.** `HwpxPackage.open`은 HWPX 전용이라
   `.hwp`를 `BadZipFile`로 거부한다. 암호·배포용·DRM `.hwp`는 `Hwp5Error`로 거부하고,
   옮기지 못한 내용은 `document.conversion_report`에 남는다.
+- **글자처럼 취급한 표는 쪽에서 나뉘지 않는다.** 한컴은 글자처럼 취급한 표
+  (`add_table()`의 기본)와 `pageBreak="NONE"` 표를 쪽에서 나누지 않는다. 쪽 본문보다
+  높은 표도 한 쪽에 그린다. 쪽 첫머리가 아니면 다음 쪽으로 옮기고, 아래 여백까지
+  내려 그리며, 종이 아래 끝을 넘는 행은 그리지 않는다. `add_table()`은 만들 때
+  행들만으로 쪽 본문보다 높은 표(행마다 적어도 셀 글 한 줄과 셀 위아래 여백)를
+  흐르는 표로 만든다. 만든 뒤 행을 늘리거나 글을 채워 쪽을 넘게 된 표는 글자처럼
+  취급 그대로이니 `table.set_treat_as_char(False)`로 흐르게 하라.
+  `hwpx.layout.lint_layout`이 이런 표를 `TABLE_TALLER_THAN_PAGE`로 알린다.
+- **`set_page_number()`의 번호는 한컴의 쪽 번호 감추기로 숨지 않는다.** 이 번호는
+  머리말/꼬리말 안의 자동 번호 글이고, `set_visibility(hide_first_page_num=True)`와
+  `hide_page_elements(page_num=True)`는 한컴 쪽 번호 컨트롤("쪽 번호 매기기")만
+  감춘다. 첫 쪽에서 감추려면 `set_visibility(hide_first_footer=True)`(머리말이면
+  `hide_first_header`), 한 쪽만 감추려면 `hide_page_elements(paragraph, footer=True)`를
+  쓴다. `set_page_number()`는 그 머리말/꼬리말의 내용을 번호로 바꾼다.
+- **`hide_page_elements()`는 그 쪽만 감춘다.** 한컴의 "현재 쪽만 감추기"와 같아서,
+  문단이 있는 쪽에서만 숨고 다음 쪽부터는 다시 보인다.
+- **줄 번호는 `show_line_number=True`일 때만 보인다.** `set_line_numbers()`는 모양
+  (재시작·간격·거리·시작 번호)만 정한다. `set_visibility(show_line_number=True)`를
+  함께 준다. `restart_type=1`이면 쪽마다 1부터 다시 센다.
 
 ## 계획 실행기(hwpx.plan) 자체의 정직 범위
 

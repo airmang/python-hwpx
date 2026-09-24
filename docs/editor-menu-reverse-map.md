@@ -138,7 +138,7 @@ Windows 한컴 전용 표면은 이 스캔으로 부재를 단정할 수 없다.
 | 쪽 나누기 | [대응 영역] | `set_paragraph_format(page_break_before=)`(`_document/layout.py:122`) — `hp:p`의 페이지분리 속성 write 확인 |
 | 단 나누기 | ✅ [대응 영역] | ~~신규 갭~~ **트레인㊸ 갭④에서 해소**(`ffe0ef8`) — `doc.styles.apply_paragraph_format(column_break=True)`가 `hp:p`의 `columnBreak` 속성을 저작한다(`page_break_before`와는 별개 메커니즘으로 밝혀짐 — 전자는 `hh:breakSetting` 공유 스타일, 후자는 문단 자신의 인스턴스 속성), v16 render-verified |
 | 단 | [대응 영역] | 페이지 레이아웃(`set_columns`, `hp:colPr`) |
-| 다단 설정 나누기 | [대응 영역] | **트레인㊺ 판정**: 스키마가 이 개념을 정확히 구분해 선언한다 — 단순 강제 분리는 `hp:p`의 `columnBreak` 불리언(갭④가 저작), "새 단 구성 시작"은 `hp:ColumnDefType`/`hp:colPr`(전체 컬럼 레이아웃 정의: `id`/`colCount`/`layout`/`colSz` 등, 코퍼스 100건 실사용 확인, 예 `<hp:colPr type="NEWSPAPER" colCount="2" sameGap="1420"/>`). "다단 설정 나누기"는 후자와 정확히 일치 — `add_column_definition`/`set_columns`가 이미 `hp:ctrl><hp:colPr>`를 문단에 저작한다(별도 `hs:sec` 불필요, 새 절이 아니라 새 컬럼 컨트롤 삽입). 세 번째 별개 구조는 없음 — 메뉴 라벨만 다를 뿐 이미 대응 |
+| 다단 설정 나누기 | [대응 영역] | **트레인㊺ 판정**: 스키마가 이 개념을 정확히 구분해 선언한다 — 단순 강제 분리는 `hp:p`의 `columnBreak` 불리언(갭④가 저작), "새 단 구성 시작"은 `hp:ColumnDefType`/`hp:colPr`(전체 컬럼 레이아웃 정의: `id`/`colCount`/`layout`/`colSz` 등, 코퍼스 100건 실사용 확인, 예 `<hp:colPr type="NEWSPAPER" colCount="2" sameGap="1420"/>`). "다단 설정 나누기"는 후자와 정확히 일치 — `add_column_definition`/`set_columns(paragraph=)`가 이미 `hp:ctrl><hp:colPr>`를 문단에 저작한다(별도 `hs:sec` 불필요, 새 절이 아니라 새 컬럼 컨트롤 삽입). 세 번째 별개 구조는 없음 — 메뉴 라벨만 다를 뿐 이미 대응 |
 | 구역 설정… | [대응 영역] | `add_section`(`hs:sec`/`hp:secPr`) 관련 |
 | 구역 나누기 | [대응 영역] | `add_section` |
 | 원고지… | [대응 영역] | 페이지 레이아웃(`doc.page.set_grid(wonggoji_format=)`, `hp:grid/@wonggojiFormat` — 이번 트레인에서 확인) |

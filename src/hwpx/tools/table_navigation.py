@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, TypedDict
 
 from ..oxml import HwpxOxmlParagraph, HwpxOxmlTable
+from ..oxml._document_primitives import _text_element_content
 
 if TYPE_CHECKING:
     from ..document import HwpxDocument
@@ -151,8 +152,8 @@ def _direct_paragraph_text(paragraph: HwpxOxmlParagraph) -> str:
     parts: list[str] = []
     for run in paragraph.element.findall(f"{_HP}run"):
         for child in run:
-            if child.tag == f"{_HP}t" and child.text:
-                parts.append(child.text)
+            if child.tag == f"{_HP}t":
+                parts.append(_text_element_content(child))
     return _collapse_whitespace("".join(parts))
 
 

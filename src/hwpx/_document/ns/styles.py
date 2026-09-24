@@ -396,8 +396,8 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
 
         `outline` (외곽선, OWPML `hc:LineType1` 어휘: NONE/SOLID/DOT/THICK/
         DASH/DASH_DOT/DASH_DOT_DOT), `emboss`/`engrave` (양각/음각)는 6.3
-        추가분이다. `script="sup"/"sub"`는 기존 `relSz`/`offset` 수치 근사에
-        더해 실제 `hh:supscript`/`hh:subscript` 요소를 함께 방출한다.
+        추가분이다. `script="sup"/"sub"`는 한컴처럼 `hh:supscript`/`hh:subscript`
+        요소만 쓴다(요소가 글자를 줄이고 올리거나 내린다. `relSz`/`offset`은 그대로).
         """
 
         return self._doc.oxml.ensure_run_style(
@@ -563,8 +563,17 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         tab_stops: Sequence[Mapping[str, object]] | None = None,
         auto_tab_left: bool | None = None,
         auto_tab_right: bool | None = None,
+        border: Mapping[str, object] | None = None,
     ) -> "ParagraphFormatResult":
         """문단 서식을 사람 단위(mm·pt·%)로 적용한다.
+
+        `border`는 문단 테두리 매핑이다: `sides`(기본 네 면 "left"·"right"·
+        "top"·"bottom"), `color`("#000000"), `width`("0.12 mm"), `type`
+        ("SOLID"), `offset_mm`(글과의 간격 mm, 수 하나 또는 `(왼쪽, 오른쪽, 위, 아래)`, 기본 0),
+        `connect`·`ignore_margin`(기본 False). `connect=True`면 한컴이 같은 문단
+        모양을 쓰는 연속 문단을 단·쪽을 넘는 상자 하나로 그린다(문단 테두리 연결).
+        상자 안의 빈 문단에도 같은 서식을 주면 상자가 끊기지 않는다.
+        `bottom_border=True`는 아래 한 면만 켜는 예전 형태다.
 
         `tab_stops`는 `{"pos_mm": ..., "type": "LEFT"|"RIGHT"|"CENTER"|
         "DECIMAL", "leader": "NONE"|...}` 매핑의 순서 있는 시퀀스다(`type`·
@@ -601,6 +610,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             tab_stops=tab_stops,
             auto_tab_left=auto_tab_left,
             auto_tab_right=auto_tab_right,
+            border=border,
         )
 
     def apply_list_format(

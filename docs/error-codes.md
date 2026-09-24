@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 133 | 11 |
+| 개수 | 134 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -179,6 +179,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `paragraph-argument-conflict` | paragraph_index 와 paragraph_indexes 를 동시에 지정했다. |
+| `paragraph-border-invalid` | 문단 테두리(border) 지정에 모르는 키·면이 있거나 여백이 네 개의 0 이상 수가 아니다. |
 | `paragraph-format-empty` | 적용할 문단 서식 항목이 하나도 없다. |
 | `paragraph-indexes-empty` | paragraph_indexes 가 비어 있다. |
 | `paragraph-invalid-type` | paragraph 인자가 정수도 문단 객체도 아니다. |
@@ -241,7 +242,7 @@ except HwpxError as exc:
 | `shape-arc-type-invalid` | add_arc 의 arc_type 인자가 OWPML 어휘(NORMAL/PIE/CHORD) 밖이다. |
 | `shape-caption-side-invalid` | 캡션 side 값이 OWPML 어휘(LEFT/RIGHT/TOP/BOTTOM) 밖이다. |
 | `shape-chart-anchor-detached` | 만든 차트 앵커가 자기 파트를 가리키지 않는다. |
-| `shape-chart-line-axes-missing` | 꺾은선 차트에 두 축(c:axId·c:catAx·c:valAx)이 없다(한컴이 렌더·저장하다 멈춘다). |
+| `shape-chart-axes-missing` | 축이 필요한 차트(막대·꺾은선·영역·분산형·방사형·거품형 등)에 두 축(c:axId와 정의된 축)이 없다(한컴이 빈 차트를 그리거나 멈춘다). |
 | `shape-chart-not-created` | 만든 차트를 표준 스캔이 다시 찾지 못했다. |
 | `shape-chart-root-invalid` | 차트 XML 루트가 c:chartSpace 가 아니다. |
 | `shape-chart-xml-empty` | 차트 XML 이 비어 있다. |

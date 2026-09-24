@@ -28,14 +28,75 @@ if TYPE_CHECKING:
     from .section import HwpxOxmlSection
 
 
+#: ``hp:pagePr@landscape`` as Hancom writes it. Both values keep the paper's
+#: portrait size (width <= height): ``WIDELY`` draws the page as stored, so it
+#: is portrait, and ``NARROWLY`` turns it, so it is landscape. ``NARROWLY`` is
+#: also the schema default, which a missing or unknown value falls back to.
+_PAGE_PORTRAIT = "WIDELY"
+_PAGE_LANDSCAPE = "NARROWLY"
+_PAGE_ORIENTATIONS = {
+    "PORTRAIT": _PAGE_PORTRAIT,
+    "NARROW": _PAGE_PORTRAIT,
+    "WIDELY": _PAGE_PORTRAIT,
+    "LANDSCAPE": _PAGE_LANDSCAPE,
+    "WIDE": _PAGE_LANDSCAPE,
+    "NARROWLY": _PAGE_LANDSCAPE,
+}
+
+
+def _page_orientation_value(value: str) -> str | None:
+    """Return the ``landscape`` value for an orientation name, or ``None``."""
+
+    return _PAGE_ORIENTATIONS.get(value.strip().upper())
+
+
+def _drawn_page_size(width: int, height: int, landscape: str | None) -> tuple[int, int]:
+    """Width and height of the page as Hancom draws it."""
+
+    return (width, height) if landscape == _PAGE_PORTRAIT else (height, width)
+
+
+def _hancom_page_orientation(
+    page_pr: ET.Element, orientation: str, width: int | None, height: int | None
+) -> tuple[str, int | None, int | None]:
+    """Map *orientation* to Hancom's value and keep the paper's portrait size.
+
+    Hancom stores both orientations with the shorter side as the width and
+    lets ``NARROWLY`` turn the page. Unknown values pass through unchanged.
+    """
+
+    value = _page_orientation_value(orientation)
+    if value is None:
+        return orientation, width, height
+    new_width = _get_int_attr(page_pr, "width", 0) if width is None else width
+    new_height = _get_int_attr(page_pr, "height", 0) if height is None else height
+    if new_width > new_height:
+        return value, new_height, new_width
+    return value, width, height
+
+
 @dataclass(slots=True)
 class PageSize:
-    """Represents the size and orientation of a page."""
+    """Represents the size and orientation of a page.
+
+    ``width``/``height``/``orientation`` are stored values: ``orientation`` is
+    ``WIDELY`` for a portrait page and ``NARROWLY`` for a landscape page, and a
+    landscape page keeps the paper's portrait width and height.
+    ``drawn_width``/``drawn_height`` give the page as Hancom draws it.
+    """
 
     width: int
     height: int
     orientation: str
     gutter_type: str
+
+    @property
+    def drawn_width(self) -> int:
+        return _drawn_page_size(self.width, self.height, self.orientation)[0]
+
+    @property
+    def drawn_height(self) -> int:
+        return _drawn_page_size(self.width, self.height, self.orientation)[1]
 
 
 @dataclass(slots=True)
@@ -193,7 +254,7 @@ class HwpxOxmlSectionProperties:
             page_pr = ET.SubElement(
                 self.element,
                 f"{_HP}pagePr",
-                {"landscape": "PORTRAIT", "width": "0", "height": "0", "gutterType": "LEFT_ONLY"},
+                {"landscape": _PAGE_PORTRAIT, "width": "0", "height": "0", "gutterType": "LEFT_ONLY"},
             )
             self.section.mark_dirty()
         return page_pr
@@ -224,11 +285,11 @@ class HwpxOxmlSectionProperties:
     def page_size(self) -> PageSize:
         page_pr = self._page_pr_element()
         if page_pr is None:
-            return PageSize(width=0, height=0, orientation="PORTRAIT", gutter_type="LEFT_ONLY")
+            return PageSize(width=0, height=0, orientation=_PAGE_LANDSCAPE, gutter_type="LEFT_ONLY")
         return PageSize(
             width=_get_int_attr(page_pr, "width", 0),
             height=_get_int_attr(page_pr, "height", 0),
-            orientation=page_pr.get("landscape", "PORTRAIT"),
+            orientation=page_pr.get("landscape", _PAGE_LANDSCAPE),
             gutter_type=page_pr.get("gutterType", "LEFT_ONLY"),
         )
 
@@ -240,9 +301,18 @@ class HwpxOxmlSectionProperties:
         orientation: str | None = None,
         gutter_type: str | None = None,
     ) -> None:
+        """Set the page size; ``orientation`` decides how Hancom draws the page.
+
+        ``orientation`` takes ``PORTRAIT``/``LANDSCAPE`` (or ``WIDELY``/
+        ``NARROWLY``) and is written as Hancom writes it, with the paper's
+        portrait size whichever order ``width`` and ``height`` come in. Other
+        values are written as given.
+        """
         page_pr = self._page_pr_element(create=True)
         if page_pr is None:
             return
+        if orientation is not None:
+            orientation, width, height = _hancom_page_orientation(page_pr, orientation, width, height)
 
         changed = False
         if width is not None:
@@ -312,6 +382,74 @@ class HwpxOxmlSectionProperties:
                 changed = True
         if changed:
             self.section.mark_dirty()
+
+    # -- columns --------------------------------------------------------------
+    def _column_control(self) -> ET.Element | None:
+        """The ``hp:ctrl`` holding the section's own ``hp:colPr``.
+
+        Hancom keeps it in the run that carries ``hp:secPr``; one is added
+        right after ``hp:secPr`` when that run has none.
+        """
+
+        carrier = next(
+            (run for run in self.section.element.iter(f"{_HP}run") if any(child is self.element for child in run)),
+            None,
+        )
+        if carrier is None:
+            return None
+        for ctrl in carrier.findall(f"{_HP}ctrl"):
+            if ctrl.find(f"{_HP}colPr") is not None:
+                return ctrl
+        ctrl = carrier.makeelement(f"{_HP}ctrl", {})
+        carrier.insert(list(carrier).index(self.element) + 1, ctrl)
+        _append_child(ctrl, f"{_HP}colPr", {
+            "id": "", "type": "NEWSPAPER", "layout": "LEFT", "colCount": "1", "sameSz": "1", "sameGap": "0",
+        })
+        return ctrl
+
+    def set_columns(
+        self,
+        col_count: int,
+        *,
+        col_type: str = "NEWSPAPER",
+        layout: str = "LEFT",
+        same_size: bool = True,
+        same_gap: int = 0,
+        column_widths: Sequence[tuple[int, int]] | None = None,
+        separator_type: str | None = None,
+        separator_width: str | None = None,
+        separator_color: str | None = None,
+    ) -> ET.Element | None:
+        """Rewrite the section's own column layout in place.
+
+        That is the ``hp:colPr`` next to ``hp:secPr``, which lays out the
+        whole section. Any separator argument adds a column line; the others
+        take Hancom's defaults (``SOLID``, ``0.12 mm``, ``#000000``). Returns
+        the ``hp:ctrl`` holding it, or ``None`` when no run carries
+        ``hp:secPr``.
+        """
+
+        ctrl = self._column_control()
+        col_pr = None if ctrl is None else ctrl.find(f"{_HP}colPr")
+        if ctrl is None or col_pr is None:
+            return None
+        col_pr.set("type", col_type)
+        col_pr.set("layout", layout)
+        col_pr.set("colCount", str(col_count))
+        col_pr.set("sameSz", "1" if same_size else "0")
+        col_pr.set("sameGap", str(same_gap) if same_size else "0")
+        for child in list(col_pr):
+            col_pr.remove(child)
+        if separator_type or separator_width or separator_color:
+            _append_child(col_pr, f"{_HP}colLine", {
+                "type": separator_type or "SOLID",
+                "width": separator_width or "0.12 mm",
+                "color": separator_color or "#000000",
+            })
+        for width, gap in () if same_size else (column_widths or ()):
+            _append_child(col_pr, f"{_HP}colSz", {"width": str(width), "gap": str(gap)})
+        self.section.mark_dirty()
+        return ctrl
 
     # -- numbering ----------------------------------------------------------
     @property

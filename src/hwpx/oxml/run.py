@@ -15,8 +15,9 @@ from ._document_primitives import (
     _HP,
     _clear_paragraph_layout_cache,
     _element_local_name,
-    _sanitize_text,
+    _text_element_content,
 )
+from ._paragraph_text_edit import clear_text_element, set_text_with_tabs
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
@@ -374,26 +375,21 @@ class HwpxOxmlRun:
     def text(self) -> str:
         parts: list[str] = []
         for node in self.element.findall(f"{_HP}t"):
-            parts.append("".join(node.itertext()))
+            parts.append(_text_element_content(node))
         return "".join(parts)
 
     @text.setter
     def text(self, value: str) -> None:
-        primary = self._ensure_plain_text_node()
-        changed = (primary.text or "") != value
-        primary.text = _sanitize_text(value)
-        for node in self._plain_text_nodes()[1:]:
-            if node.text:
-                node.text = ""
-                changed = True
-        # Also clear text from <hp:t> nodes that have children (mixed
-        # content).  The child markup is preserved; only the direct text
-        # is removed so the displayed content is not duplicated.
-        for node in self.element.findall(f"{_HP}t"):
-            if len(list(node)) > 0 and node is not primary:
-                if node.text:
-                    node.text = ""
-                    changed = True
+        # The value replaces the run's whole text in place: the first hp:t
+        # (which may sit between field controls) takes it, tabs as hp:tab
+        # elements, and every hp:t loses its old text together with the line
+        # breaks, tabs and spaces inside it and the text after them.
+        changed = self.text != value
+        nodes = self.element.findall(f"{_HP}t")
+        primary = nodes[0] if nodes else self._ensure_plain_text_node()
+        set_text_with_tabs(primary, value)
+        for node in nodes[1:]:
+            clear_text_element(node)
         if changed:
             _clear_paragraph_layout_cache(self.paragraph.element)
             self.paragraph.section.mark_dirty()

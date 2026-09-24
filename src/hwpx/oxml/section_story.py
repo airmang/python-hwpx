@@ -15,7 +15,9 @@ from ._document_primitives import (
     _default_sublist_attributes,
     _paragraph_id,
     _sanitize_text,
+    _text_element_content,
 )
+from ._paragraph_text_edit import set_text_with_tabs
 
 if TYPE_CHECKING:
     from .section_format import HwpxOxmlSectionProperties
@@ -393,7 +395,7 @@ class HwpxOxmlSectionHeaderFooter:
         attrs["vertAlign"] = "TOP" if self.element.tag.endswith("header") else "BOTTOM"
         size = self._properties.page_size
         margins = self._properties.page_margins
-        text_width = max(size.width - margins.left - margins.right, 0)
+        text_width = max(size.drawn_width - margins.left - margins.right, 0)
         text_height = margins.header if self.element.tag.endswith("header") else margins.footer
         if text_width:
             attrs["textWidth"] = str(text_width)
@@ -426,11 +428,7 @@ class HwpxOxmlSectionHeaderFooter:
     def text(self) -> str:
         """Return the concatenated text content of the header/footer."""
 
-        parts: list[str] = []
-        for node in self.element.findall(f".//{_HP}t"):
-            if node.text:
-                parts.append(node.text)
-        return "".join(parts)
+        return "".join(_text_element_content(node) for node in self.element.findall(f".//{_HP}t"))
 
     @text.setter
     def text(self, value: str) -> None:
@@ -438,8 +436,8 @@ class HwpxOxmlSectionHeaderFooter:
         for child in list(self.element):
             if child.tag == f"{_HP}subList":
                 self.element.remove(child)
-        text_node = self._ensure_text_element()
-        text_node.text = _sanitize_text(value)
+        # A tab becomes an hp:tab inside hp:t, as Hancom writes it.
+        set_text_with_tabs(self._ensure_text_element(), value)
         # Clear cached lineseg so Hangul recalculates layout.
         for p_elem in self.element.findall(f".//{_HP}p"):
             _clear_paragraph_layout_cache(p_elem)
@@ -568,8 +566,7 @@ class HwpxOxmlSectionHeaderFooter:
                     strike=strike,
                 )
         run = _append_child(target, f"{_HP}run", {"charPrIDRef": str(char_pr_id_ref)})
-        text_node = _append_child(run, f"{_HP}t")
-        text_node.text = _sanitize_text(text)
+        set_text_with_tabs(_append_child(run, f"{_HP}t"), text)
         _clear_paragraph_layout_cache(target)
         self._properties.section.mark_dirty()
         return run
@@ -601,7 +598,7 @@ class HwpxOxmlSectionHeaderFooter:
         page_format_type = format_aliases.get(normalized_format, normalized_format)
         auto_run = _append_child(target, f"{_HP}run", {"charPrIDRef": "0"})
         auto_ctrl = _append_child(auto_run, f"{_HP}ctrl", {})
-        _append_child(auto_ctrl, f"{_HP}autoNum", {"num": "1", "numType": "PAGE"})
+        _append_auto_number(auto_ctrl, "PAGE", page_format_type)
         run = _append_child(target, f"{_HP}run", {"charPrIDRef": "0"})
         ctrl = _append_child(run, f"{_HP}ctrl", {})
         page_number = _append_child(
@@ -613,19 +610,19 @@ class HwpxOxmlSectionHeaderFooter:
         self._properties.section.mark_dirty()
         return page_number
 
-    def _add_total_page_counter(self, paragraph: ET.Element) -> None:
+    def _add_total_page_counter(self, paragraph: ET.Element, format_type: str = "DIGIT") -> None:
         """Append the total-page counter of a "page/total" field.
 
         Hancom's own page/total headers and footers put
         ``hp:autoNum numType="TOTAL_PAGE"`` after the "/"; a second PAGE
         counter drew "1/1, 2/2, 3/3" on a three-page document. The position
         control (``hp:pageNum``) belongs to the page counter only, so none is
-        added here.
+        added here. The total takes the page counter's number format.
         """
 
         run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
         ctrl = _append_child(run, f"{_HP}ctrl", {})
-        _append_child(ctrl, f"{_HP}autoNum", {"num": "1", "numType": "TOTAL_PAGE"})
+        _append_auto_number(ctrl, "TOTAL_PAGE", format_type)
         _clear_paragraph_layout_cache(paragraph)
         self._properties.section.mark_dirty()
 
@@ -660,7 +657,7 @@ class HwpxOxmlSectionHeaderFooter:
                     continue
                 if kind == "page_number":
                     page_format = str(page_number_format or child.get("format", "page"))
-                    self.add_page_number_field(
+                    page_number = self.add_page_number_field(
                         paragraph=paragraph,
                         format=page_format,
                         position=str(child.get("position", "BOTTOM_CENTER")),
@@ -668,8 +665,24 @@ class HwpxOxmlSectionHeaderFooter:
                     )
                     if page_format == "page/total":
                         self.add_run("/", paragraph=paragraph)
-                        self._add_total_page_counter(paragraph)
+                        self._add_total_page_counter(paragraph, page_number.get("formatType") or "DIGIT")
                     continue
                 raise ValueError(f"unsupported header/footer content type: {kind}")
+
+def _append_auto_number(ctrl: ET.Element, num_type: str, format_type: str) -> ET.Element:
+    """Append ``hp:autoNum`` with its number format, as Hancom writes it.
+
+    Hancom draws the number from the ``hp:autoNum`` itself and reads its shape
+    from the ``hp:autoNumFormat`` child; without one it draws plain digits,
+    whatever the neighbouring ``hp:pageNum@formatType`` says.
+    """
+    auto = _append_child(ctrl, f"{_HP}autoNum", {"num": "1", "numType": num_type})
+    _append_child(
+        auto,
+        f"{_HP}autoNumFormat",
+        {"type": format_type, "userChar": "", "prefixChar": "", "suffixChar": "", "supscript": "0"},
+    )
+    return auto
+
 
 __all__ = ["HwpxOxmlSectionHeaderFooter"]

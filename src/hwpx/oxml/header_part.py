@@ -12,7 +12,6 @@ from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxm
 from ._document_primitives import (
     T,
     _FONT_FACE_LANG_TO_REF,
-    _FONT_REF_ATTRIBUTES,
     _HC_NS,
     _HH,
     _allocate_font_id,
@@ -175,7 +174,11 @@ class HwpxOxmlHeader:
         return candidate
 
     def font_ref_for_face(self, face: str) -> dict[str, str] | None:
-        """Return ``hh:fontRef`` attributes for *face* when the header defines it."""
+        """Return ``hh:fontRef`` attributes for the languages that declare *face*.
+
+        Each language numbers its fonts on its own, so a language that does
+        not declare *face* gets no entry (its reference stays as it was).
+        """
 
         target = face.strip()
         if not target:
@@ -191,10 +194,7 @@ class HwpxOxmlHeader:
                     refs[attr_name] = font.get("id", "")
                     break
 
-        if not refs:
-            return None
-        fallback = next(iter(refs.values()))
-        return {name: refs.get(name, fallback) for name in _FONT_REF_ATTRIBUTES}
+        return refs or None
 
     def _allocate_char_property_id(
         self,

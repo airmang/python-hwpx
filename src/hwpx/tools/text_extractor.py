@@ -446,6 +446,10 @@ class TextExtractor:
             elif tag == "fwSpace":
                 # U+3000 IDEOGRAPHIC SPACE (CJK full-width space).
                 fragments.append("　" if preserve_breaks else " ")
+            elif tag == "tab":
+                # A tab Hancom nests inside hp:t (a TOC entry's leader tab
+                # before its page number): the same rule as a run-level tab.
+                fragments.append("\t" if preserve_breaks else " ")
             elif tag == "hyphen":
                 # U+00AD SOFT HYPHEN -- an optional word-break point,
                 # invisible except where a line actually breaks there;

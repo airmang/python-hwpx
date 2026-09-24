@@ -47,7 +47,7 @@ class HwpxMarkdownConverter:
 
         doc = HwpxDocument.open(data)
         try:
-            markdown = doc.export_rich_markdown(**markdown_kwargs)
+            markdown = doc.text.markdown(rich=True, **markdown_kwargs)
             sections = _sections_payload(doc)
             tables = _tables_payload(doc)
             paragraph_count = len(list(doc.paragraphs))

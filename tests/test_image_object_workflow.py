@@ -134,3 +134,23 @@ def test_id_integrity_detects_orphan_bindata() -> None:
     assert report.ok is False
     assert report.dangling == []
     assert any(item.item_id == "BIN0001" for item in report.orphan_bin_data)
+
+def _picture_paragraph_alignment(document: HwpxDocument) -> str | None:
+    paragraph = next(p for p in document.paragraphs if p.element.find(f".//{HP}pic") is not None)
+    shape = document._root.paragraph_property(paragraph.para_pr_id_ref)
+    return shape.align.horizontal if shape is not None and shape.align is not None else None
+
+
+def test_an_aligned_inline_picture_takes_the_paragraph_alignment() -> None:
+    # An inline picture follows its paragraph's alignment; horzAlign alone
+    # leaves it at the left edge.
+    for align in ("CENTER", "RIGHT", "left"):
+        document = HwpxDocument.new()
+        document.add_picture(PNG_1X1, "png", width=7200, height=7200, align=align)
+        assert _picture_paragraph_alignment(document) == align.upper()
+
+
+def test_a_picture_without_align_keeps_the_paragraph_alignment() -> None:
+    document = HwpxDocument.new()
+    document.add_picture(PNG_1X1, "png", width=7200, height=7200)
+    assert _picture_paragraph_alignment(document) == "JUSTIFY"

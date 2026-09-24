@@ -21,6 +21,7 @@ from ._document_primitives import (
     _children_by_local,
     _clear_paragraph_layout_cache,
     _is_tab_control_element,
+    _text_element_content,
     _normalize_enum_attr,
     _object_id,
     _sanitize_text,
@@ -300,8 +301,7 @@ class HwpxOxmlParagraph:
         for run in self._run_elements():
             for child in run:
                 if tag_local_name(child.tag) == "t":
-                    if child.text:
-                        texts.append(child.text)
+                    texts.append(_text_element_content(child))
                 elif tag_local_name(child.tag) == "tab" or _is_tab_control_element(child):
                     texts.append("\t")
         return "".join(texts)
@@ -557,7 +557,7 @@ class HwpxOxmlParagraph:
             return None
         if page.width <= 0:
             return None
-        usable = page.width - margins.left - margins.right - margins.gutter
+        usable = page.drawn_width - margins.left - margins.right - margins.gutter
         return usable if usable > 0 else None
 
     def add_table(
@@ -800,11 +800,11 @@ class HwpxOxmlParagraph:
         )
         ctrl = _append_child(run, f"{_HP}ctrl", {})
         col_pr_attrs: dict[str, str] = {
-            "id": _object_id(),
+            "id": "",
             "type": col_type,
             "layout": layout,
             "colCount": str(col_count),
-            "sameSz": str(same_size).lower(),
+            "sameSz": "1" if same_size else "0",
             "sameGap": str(same_gap) if same_size else "0",
         }
         col_pr = _append_child(ctrl, f"{_HP}colPr", col_pr_attrs)
@@ -1049,7 +1049,7 @@ class HwpxOxmlParagraph:
     ) -> HwpxOxmlInlineObject:
         """Insert ``<hp:ctrl><hp:pageHiding .../></hp:ctrl>``.
 
-        Hides the named page elements from this paragraph's page onward
+        Hides the named page elements on this paragraph's page only
         (``ParaList XML schema.xml:148-163`` — six independent booleans, all
         default ``false``/unhidden). Matches real corpus (hwpxlib_corpus, 4
         files) sibling placement: its own dedicated ``hp:ctrl``, typically

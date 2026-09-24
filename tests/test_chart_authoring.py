@@ -51,10 +51,24 @@ AXES = (
 
 
 def _line_chartml(ax_ids: str = "", axes: str = "") -> str:
+    return _chartml("lineChart", '<c:grouping val="standard"/>', ax_ids, axes)
+
+
+def _chartml(kind: str, head: str = "", ax_ids: str = "", axes: str = "") -> str:
     return (
-        CHART_HEAD + '<c:lineChart><c:grouping val="standard"/>' + SERIES + ax_ids + "</c:lineChart>"
+        CHART_HEAD + f"<c:{kind}>" + head + SERIES + ax_ids + f"</c:{kind}>"
         + axes + "</c:plotArea></c:chart></c:chartSpace>"
     )
+
+
+AXIS_KINDS = {
+    "barChart": '<c:barDir val="col"/><c:grouping val="clustered"/>',
+    "lineChart": '<c:grouping val="standard"/>',
+    "areaChart": '<c:grouping val="standard"/>',
+    "scatterChart": '<c:scatterStyle val="lineMarker"/>',
+    "radarChart": '<c:radarStyle val="marker"/>',
+    "bubbleChart": "",
+}
 
 
 def _roundtrip(doc: HwpxDocument) -> tuple[HwpxDocument, bytes]:
@@ -69,6 +83,47 @@ def _anchors(doc: HwpxDocument):
     for section in doc.sections:
         found.extend(section.element.iter(f"{HP}chart"))
     return found
+
+
+def _chart_size(doc: HwpxDocument) -> tuple[int, int]:
+    (anchor,) = _anchors(doc)
+    size = anchor.find(f"{HP}sz")
+    return int(size.get("width")), int(size.get("height"))
+
+
+class TestDefaultSizeFitsItsContainer:
+    """A default-sized chart must not stick out of the table cell it goes
+    into: Hancom clips it at the cell's edge."""
+
+    def _cell_doc(self, cols: int, **kwargs) -> HwpxDocument:
+        doc = HwpxDocument.new()
+        table = doc.add_table(2, cols)
+        doc.shapes.add_chart(PIE_CHARTML, paragraph=table.cell(0, 0).paragraphs[0], **kwargs)
+        return doc
+
+    def test_default_chart_fits_a_two_column_cell(self) -> None:
+        doc = self._cell_doc(2)
+        # A4 text body 42520 / 2 columns = 21260, minus 510 + 510 cell margins.
+        assert _chart_size(doc) == (20240, round(18750 * 20240 / 32250))
+        reopened, _payload = _roundtrip(doc)
+        assert _chart_size(reopened) == (20240, 11767)
+
+    def test_default_chart_fits_a_three_column_cell(self) -> None:
+        doc = self._cell_doc(3)
+        width, height = _chart_size(doc)
+        table = doc.sections[0].element.find(f".//{HP}tbl")
+        cell = table.find(f".//{HP}tc")
+        usable = int(cell.find(f"{HP}cellSz").get("width")) - 1020
+        assert (width, height) == (usable, round(18750 * usable / 32250))
+
+    def test_default_chart_in_the_text_body_keeps_the_gold_size(self) -> None:
+        doc = HwpxDocument.new()
+        doc.shapes.add_chart(PIE_CHARTML)
+        assert _chart_size(doc) == (32250, 18750)
+
+    def test_explicit_size_is_kept_in_a_cell(self) -> None:
+        doc = self._cell_doc(2, size=(30000, 10000))
+        assert _chart_size(doc) == (30000, 10000)
 
 
 class TestGoldContractShape:
@@ -202,7 +257,7 @@ class TestValidation:
         doc = HwpxDocument.new()
         with pytest.raises(HwpxValueError) as caught:
             doc.add_chart(_line_chartml())
-        assert caught.value.code == "shape-chart-line-axes-missing"
+        assert caught.value.code == "shape-chart-axes-missing"
         assert caught.value.suggestion
         assert _anchors(doc) == []
         buffer = io.BytesIO()
@@ -214,20 +269,45 @@ class TestValidation:
         doc = HwpxDocument.new()
         with pytest.raises(HwpxValueError) as caught:
             doc.add_chart(_line_chartml(ax_ids=AX_IDS))
-        assert caught.value.code == "shape-chart-line-axes-missing"
+        assert caught.value.code == "shape-chart-axes-missing"
         assert caught.value.context["axIds"] == ["111", "222"]
+        assert caught.value.context["chartKind"] == "lineChart"
 
     def test_line_chart_with_axes_accepted(self) -> None:
         doc = HwpxDocument.new()
         doc.add_chart(_line_chartml(ax_ids=AX_IDS, axes=AXES))
         assert len(_anchors(doc)) == 1
 
-    def test_bar_chart_without_axes_still_accepted(self) -> None:
-        # Hancom renders an axis-less bar chart, so the check stays on line charts.
-        bar = (
-            CHART_HEAD + '<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/>' + SERIES
-            + "</c:barChart></c:plotArea></c:chart></c:chartSpace>"
-        )
+    # Without axes Hancom draws a bar chart with no bars and crashes on the
+    # other kinds that need axes.
+    @pytest.mark.parametrize("kind", sorted(AXIS_KINDS))
+    def test_chart_kinds_that_need_axes_are_rejected_without_them(self, kind: str) -> None:
         doc = HwpxDocument.new()
-        doc.add_chart(bar)
+        with pytest.raises(HwpxValueError) as caught:
+            doc.add_chart(_chartml(kind, AXIS_KINDS[kind]))
+        assert caught.value.code == "shape-chart-axes-missing"
+        assert caught.value.context["chartKind"] == kind
+        assert _anchors(doc) == []
+
+    def test_bar_chart_with_axes_accepted(self) -> None:
+        doc = HwpxDocument.new()
+        doc.add_chart(_chartml("barChart", AXIS_KINDS["barChart"], AX_IDS, AXES))
+        assert len(_anchors(doc)) == 1
+
+    # A 3-D chart without a series axis names it with an axis id of 0.
+    def test_a_zero_axis_id_stands_for_no_axis(self) -> None:
+        doc = HwpxDocument.new()
+        doc.add_chart(_chartml("bar3DChart", AXIS_KINDS["barChart"], AX_IDS + '<c:axId val="0"/>', AXES))
+        assert len(_anchors(doc)) == 1
+
+    def test_a_zero_axis_id_does_not_count_as_one_of_the_two_axes(self) -> None:
+        doc = HwpxDocument.new()
+        with pytest.raises(HwpxValueError) as caught:
+            doc.add_chart(_chartml("barChart", AXIS_KINDS["barChart"], '<c:axId val="111"/><c:axId val="0"/>', AXES))
+        assert caught.value.code == "shape-chart-axes-missing"
+
+    @pytest.mark.parametrize("kind", ["pieChart", "doughnutChart"])
+    def test_charts_without_axes_by_design_are_accepted(self, kind: str) -> None:
+        doc = HwpxDocument.new()
+        doc.add_chart(_chartml(kind, '<c:varyColors val="1"/>'))
         assert len(_anchors(doc)) == 1

@@ -127,8 +127,9 @@ _TEXT_SETTER_APPLIERS: tuple[Callable[[str], str], ...] = (
 
 _TEXT_SETTER_IDS = ("header_footer", "run", "table_cell")
 
+# A tab is not an illegal character: the run and cell setters write it as an
+# hp:tab element inside hp:t (tests/test_text_inline_elements.py).
 _TEXT_SANITIZATION_CASES: tuple[tuple[str, str], ...] = (
-    ("a\tb", "ab"),
     ("left\r\nright", "left\nright"),
     ("a\x01b", "ab"),
     ("line1\nline2", "line1\nline2"),
@@ -143,8 +144,11 @@ def test_paragraph_text_setter_serializes_tabs_as_elements() -> None:
 
     run = paragraph.element.find(f"{HP}run")
     assert run is not None
-    children = list(run)
-    assert [child.tag for child in children] == [f"{HP}t", f"{HP}tab", f"{HP}t"]
+    # A tab sits inside hp:t, as Hancom writes it; one beside hp:t is dropped.
+    assert [child.tag for child in run] == [f"{HP}t"]
+    text = run.find(f"{HP}t")
+    assert text is not None
+    assert [child.tag for child in text] == [f"{HP}tab"]
     assert paragraph.text == "left	right"
 
 
@@ -709,8 +713,9 @@ def test_section_properties_updates_page_settings() -> None:
     properties.set_page_size(width=72000, height=36000, orientation="NARROWLY", gutter_type="TOP_BOTTOM")
     page_pr = sec_pr.find(f"{HP}pagePr")
     assert page_pr is not None
-    assert page_pr.get("width") == "72000"
-    assert page_pr.get("height") == "36000"
+    # NARROWLY (landscape) keeps the portrait size: the shorter side is the width.
+    assert page_pr.get("width") == "36000"
+    assert page_pr.get("height") == "72000"
     assert page_pr.get("landscape") == "NARROWLY"
     assert page_pr.get("gutterType") == "TOP_BOTTOM"
     assert section.dirty is True

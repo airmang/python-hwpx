@@ -21,9 +21,10 @@ def _sample_ids() -> list[str]:
 def test_layout_preview_renders_page_box_and_margins() -> None:
     preview = render_layout_preview(CORPUS / "reader_writer__PageSize_Margin.hwpx")
 
+    # The sample is a landscape B4 page: NARROWLY with the portrait size.
     page = preview.pages[0]
-    assert page.width_mm > 250
-    assert page.height_mm > 350
+    assert page.width_mm > 350
+    assert page.height_mm > 250
     assert page.margins_mm["left"] == pytest.approx(30.0, abs=0.2)
     assert page.margins_mm["top"] == pytest.approx(20.0, abs=0.2)
     assert "hwpx-preview-page" in preview.html

@@ -158,6 +158,9 @@ class PageSize:
     ``set_page_size`` call — the number and its stated unit disagreed. This
     reports the millimetre inputs the call measured; ``hwpx.oxml`` section
     properties remain the HWPUNIT source of truth for what was written.
+    ``width_mm``/``height_mm`` describe the page as drawn (a landscape page is
+    wider than tall) and ``orientation`` is the ``landscape`` value written:
+    ``WIDELY`` for portrait, ``NARROWLY`` for landscape.
     """
 
     width_mm: float | None

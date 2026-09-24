@@ -16,13 +16,14 @@ from ..objects.results import (
     Units,
 )
 from ..oxml._document_primitives import NEW_NUM_KINDS
-from ..oxml.namespaces import HH
+from ..oxml.namespaces import HH, HP
+from ..oxml.objects import HwpxOxmlInlineObject
+from ..oxml.section_format import _PAGE_LANDSCAPE, _PAGE_PORTRAIT, _page_orientation_value
 from ._units import _mm_to_hwp_units, _pt_to_hwp_units
 
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
     from ..oxml import (
-        HwpxOxmlInlineObject,
         HwpxOxmlParagraph,
         HwpxOxmlSection,
         HwpxOxmlSectionHeaderFooter,
@@ -45,16 +46,9 @@ _PAPER_SIZES_MM: dict[str, tuple[float, float]] = {
 def _normalize_page_orientation(value: str | None) -> str | None:
     if value is None:
         return None
-    normalized = value.strip().upper()
-    aliases = {
-        "PORTRAIT": "PORTRAIT",
-        "NARROW": "PORTRAIT",
-        "NARROWLY": "PORTRAIT",
-        "LANDSCAPE": "WIDELY",
-        "WIDE": "WIDELY",
-        "WIDELY": "WIDELY",
-    }
-    orientation = aliases.get(normalized)
+    # PORTRAIT/NARROW -> WIDELY and LANDSCAPE/WIDE -> NARROWLY; the stored
+    # values themselves keep Hancom's meaning (WIDELY is portrait).
+    orientation = _page_orientation_value(value)
     if orientation is None:
         raise HwpxValueError(
             f"unsupported page orientation: {value}",
@@ -63,6 +57,81 @@ def _normalize_page_orientation(value: str | None) -> str | None:
             suggestion="Pass 'PORTRAIT' or 'LANDSCAPE'.",
         )
     return orientation
+
+
+#: Keys of ``set_paragraph_format(border=...)``.
+_PARAGRAPH_BORDER_KEYS = frozenset(
+    {"sides", "color", "width", "type", "connect", "offset_mm", "ignore_margin"}
+)
+_PARAGRAPH_BORDER_SIDES = ("left", "right", "top", "bottom")
+
+
+def _paragraph_border_problem(
+    spec: Mapping[str, Any], sides: tuple[str, ...], offsets: tuple[Any, ...]
+) -> str | None:
+    unknown = sorted(set(spec) - _PARAGRAPH_BORDER_KEYS)
+    if unknown:
+        return f"unknown paragraph border keys: {unknown}"
+    if not sides or any(side not in _PARAGRAPH_BORDER_SIDES for side in sides):
+        return f"unsupported paragraph border sides: {list(sides)}"
+    if len(offsets) != 4 or any(
+        isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0 for value in offsets
+    ):
+        return "offset_mm must be a non-negative number or four of them (left, right, top, bottom)"
+    return None
+
+
+def _paragraph_border_attrs(
+    header: Any,
+    border: Mapping[str, Any] | None,
+    *,
+    bottom_border: bool,
+    border_color: str,
+    border_width: str,
+) -> dict[str, str] | None:
+    """``hh:paraPr/hh:border`` attributes for ``border`` (or ``bottom_border``)."""
+
+    if border is None and not bottom_border:
+        return None
+    spec: Mapping[str, Any] = (
+        border if border is not None
+        else {"sides": ("bottom",), "color": border_color, "width": border_width}
+    )
+    raw_sides = spec.get("sides", _PARAGRAPH_BORDER_SIDES)
+    sides = tuple(str(side).strip().lower() for side in ((raw_sides,) if isinstance(raw_sides, str) else raw_sides))
+    raw_offsets = spec.get("offset_mm", 0)
+    offsets = tuple((raw_offsets,) * 4 if isinstance(raw_offsets, (int, float)) else raw_offsets)
+    problem = (
+        "pass either bottom_border or border, not both"
+        if border is not None and bottom_border
+        else _paragraph_border_problem(spec, sides, offsets)
+    )
+    if problem is not None:
+        raise HwpxValueError(
+            problem,
+            code="paragraph-border-invalid",
+            context={"border": {str(key): str(value) for key, value in spec.items()}},
+            suggestion=(
+                "border keys: sides, color, width, type, connect, offset_mm "
+                "(mm, one number or left/right/top/bottom), ignore_margin."
+            ),
+        )
+    border_fill_id = header.ensure_border_fill(
+        border_color=str(spec.get("color", "#000000")),
+        border_width=str(spec.get("width", "0.12 mm")),
+        active_borders=sides,
+        border_type=str(spec.get("type", "SOLID")),
+    )
+    left, right, top, bottom = (str(_mm_to_hwp_units(float(value))) for value in offsets)
+    return {
+        "borderFillIDRef": border_fill_id,
+        "offsetLeft": left,
+        "offsetRight": right,
+        "offsetTop": top,
+        "offsetBottom": bottom,
+        "connect": "1" if spec.get("connect") else "0",
+        "ignoreMargin": "1" if spec.get("ignore_margin") else "0",
+    }
 
 
 def _resolve_paragraph_targets(
@@ -127,6 +196,7 @@ def set_paragraph_format(
     tab_stops: Sequence[Mapping[str, Any]] | None = None,
     auto_tab_left: bool | None = None,
     auto_tab_right: bool | None = None,
+    border: Mapping[str, Any] | None = None,
 ) -> ParagraphFormatResult:
     """Apply paragraph-level formatting using human units.
 
@@ -145,6 +215,17 @@ def set_paragraph_format(
     position-ascending. Passing ``tab_stops``/``auto_tab_left``/
     ``auto_tab_right`` mints (or reuses — dedupe) a ``hh:tabPr`` and wires
     the paragraph's ``tabPrIDRef`` to it.
+
+    ``border`` is a mapping for a paragraph border: ``sides`` (default all
+    four of ``"left"``/``"right"``/``"top"``/``"bottom"``), ``color``
+    (``"#000000"``), ``width`` (``"0.12 mm"``), ``type`` (``"SOLID"``),
+    ``offset_mm`` (gap to the text in mm, one number or ``(left, right, top,
+    bottom)``, default 0), ``connect`` and ``ignore_margin`` (default
+    ``False``). With
+    ``connect=True`` Hancom draws consecutive paragraphs that share the
+    paragraph shape as one box, across columns and pages; give an empty
+    paragraph inside the box the same format so it does not split the box.
+    ``bottom_border=True`` is the older bottom-only form.
     """
 
     if not doc._root.headers:
@@ -207,6 +288,7 @@ def set_paragraph_format(
         and not margins
         and heading is None
         and not bottom_border
+        and border is None
         and not break_setting
         and not wants_tab_definition
         and column_break is None
@@ -239,22 +321,13 @@ def set_paragraph_format(
             auto_tab_right=bool(auto_tab_right),
         )
 
-    border: dict[str, str] | None = None
-    if bottom_border:
-        border_fill_id = header.ensure_border_fill(
-            border_color=border_color,
-            border_width=border_width,
-            active_borders=("bottom",),
-        )
-        border = {
-            "borderFillIDRef": border_fill_id,
-            "offsetLeft": "0",
-            "offsetRight": "0",
-            "offsetTop": "0",
-            "offsetBottom": "0",
-            "connect": "0",
-            "ignoreMargin": "0",
-        }
+    border_attrs = _paragraph_border_attrs(
+        header,
+        border,
+        bottom_border=bottom_border,
+        border_color=border_color,
+        border_width=border_width,
+    )
 
     # column_break bypasses paraPr entirely (it's hp:p's own attribute, not
     # a shared style) -- only mint a new paraPr when one of the *other*
@@ -265,7 +338,7 @@ def set_paragraph_format(
         or line_spacing_percent is not None
         or bool(margins)
         or heading is not None
-        or bottom_border
+        or border_attrs is not None
         or bool(break_setting)
         or wants_tab_definition
     )
@@ -283,7 +356,7 @@ def set_paragraph_format(
                 line_spacing_percent=line_spacing_percent,
                 margins=margins,
                 heading=heading,
-                border=border,
+                border=border_attrs,
                 break_setting=break_setting or None,
                 tab_pr_id_ref=tab_pr_id,
             )
@@ -396,7 +469,12 @@ def set_page_setup(
     section: HwpxOxmlSection | None = None,
     section_index: int | None = None,
 ) -> PageSetup:
-    """Set page size, margins, orientation, and optional columns in human units."""
+    """Set page size, margins, orientation, and optional columns in human units.
+
+    The page is written as Hancom writes it: ``WIDELY`` for portrait and
+    ``NARROWLY`` for landscape, both with the paper's portrait size. The
+    returned ``page_size`` reports the page as drawn (landscape is wider).
+    """
 
     normalized_orientation = _normalize_page_orientation(orientation)
     target_width_mm = width_mm
@@ -415,10 +493,11 @@ def set_page_setup(
         target_height_mm = paper_height if target_height_mm is None else target_height_mm
 
     if target_width_mm is not None and target_height_mm is not None:
-        if normalized_orientation == "WIDELY" and target_width_mm < target_height_mm:
-            target_width_mm, target_height_mm = target_height_mm, target_width_mm
-        elif normalized_orientation == "PORTRAIT" and target_width_mm > target_height_mm:
-            target_width_mm, target_height_mm = target_height_mm, target_width_mm
+        short_side, long_side = sorted((target_width_mm, target_height_mm))
+        if normalized_orientation == _PAGE_LANDSCAPE:
+            target_width_mm, target_height_mm = long_side, short_side
+        elif normalized_orientation == _PAGE_PORTRAIT:
+            target_width_mm, target_height_mm = short_side, long_side
 
     width = _mm_to_hwp_units(float(target_width_mm)) if target_width_mm is not None else None
     height = _mm_to_hwp_units(float(target_height_mm)) if target_height_mm is not None else None
@@ -510,10 +589,12 @@ def set_columns(
     section: HwpxOxmlSection | None = None,
     section_index: int | None = None,
 ) -> HwpxOxmlInlineObject:
-    """Insert a column definition control.
+    """Set the columns of a section, or start new columns at a paragraph.
 
-    This adds a ``<hp:ctrl><hp:colPr>`` element to the specified paragraph.
-    Text that follows will be laid out in the specified number of columns.
+    Without ``paragraph`` this rewrites the section's own column layout (the
+    ``hp:colPr`` next to ``hp:secPr``) in place, so the whole section is laid
+    out in ``col_count`` columns. With ``paragraph`` it adds a column
+    definition control there, and the text from that paragraph on uses it.
 
     Args:
         col_count: Number of columns (1–255).
@@ -521,7 +602,28 @@ def set_columns(
         same_gap: Gap in HWPUNIT (7200 = 1 inch).
         separator_type: Optional column separator line type (e.g. ``SOLID``).
     """
+    if not 1 <= col_count <= 255:
+        raise HwpxValueError(
+            "col_count must be between 1 and 255",
+            code="page-columns-invalid",
+            context={"requested": col_count},
+            suggestion="Use columns=1 to remove columns.",
+        )
     if paragraph is None:
+        target_section = _resolve_section(doc, section=section, section_index=section_index)
+        ctrl = target_section.properties.set_columns(
+            col_count,
+            col_type=col_type,
+            layout=layout,
+            same_size=same_size,
+            same_gap=same_gap,
+            column_widths=column_widths,
+            separator_type=separator_type,
+            separator_width=separator_width,
+            separator_color=separator_color,
+        )
+        if ctrl is not None:
+            return HwpxOxmlInlineObject(ctrl, target_section.paragraphs[0])
         paragraph = doc.add_paragraph(
             "", section=section, section_index=section_index,
             include_run=False,
@@ -631,7 +733,7 @@ def set_page_size(
     target_section.properties.set_page_size(
         width=width,
         height=height,
-        orientation=orientation,
+        orientation=_normalize_page_orientation(orientation),
         gutter_type=gutter_type,
     )
 
@@ -868,10 +970,14 @@ def hide_page_elements(
     fill: bool = False,
     page_num: bool = False,
 ) -> "HwpxOxmlInlineObject":
-    """Hide the named page elements from *paragraph*'s page onward.
+    """Hide the named page elements on *paragraph*'s page only.
 
     Inserts ``<hp:ctrl><hp:pageHiding .../></hp:ctrl>`` (``ParaList XML
     schema.xml:148-163`` — six independent booleans, all default unhidden).
+    Hancom applies it to that page alone (its "hide on the current page
+    only"); the next page shows the elements again. *page_num* hides
+    Hancom's page-number control, not the header/footer number that
+    ``set_page_number`` writes -- hide that one with *footer* (or *header*).
     """
 
     return paragraph.add_page_hiding(
@@ -920,3 +1026,57 @@ def remove_footer(
             return
         target_section = doc._root.sections[-1]
     target_section.properties.remove_footer(page_type=page_type)
+
+
+def flow_table_taller_than_page(doc: "HwpxDocument", table: Any) -> None:
+    """Let a new body *table* flow across pages when its rows alone outgrow a page.
+
+    Hancom never breaks a table laid out as a character (``treatAsChar``, the
+    ``add_table`` default) across pages: one taller than the page body is cut
+    off at the paper's edge. Such a table becomes a flowing one instead
+    (``Table.set_treat_as_char(False)``), which Hancom breaks between rows.
+    """
+
+    properties = table.paragraph.section.properties
+    size, margins = properties.page_size, properties.page_margins
+    body = size.drawn_height - margins.top - margins.bottom - margins.header - margins.footer
+    if body > 0 and _table_min_height(doc, table.element) > body:
+        table.set_treat_as_char(False)
+
+
+def _table_min_height(doc: "HwpxDocument", table: Any) -> int:
+    """A lower bound of the drawn height: every row is at least its tallest
+    single-row cell, and a cell at least one line of its text plus its top and
+    bottom margins."""
+
+    total = 0
+    for row in table.findall(f"{HP}tr"):
+        tallest = 0
+        for cell in row.findall(f"{HP}tc"):
+            span = cell.find(f"{HP}cellSpan")
+            if span is not None and span.get("rowSpan", "1") != "1":
+                continue
+            run = cell.find(f".//{HP}run")
+            line = _char_height(doc, run.get("charPrIDRef") if run is not None else None)
+            margin = cell.find(f"{HP}cellMargin")
+            padding = _int_attr(margin, "top") + _int_attr(margin, "bottom")
+            tallest = max(tallest, _int_attr(cell.find(f"{HP}cellSz"), "height"), line + padding)
+        total += tallest
+    return total
+
+
+def _char_height(doc: "HwpxDocument", char_pr_id_ref: str | None) -> int:
+    style = doc._root.char_property(char_pr_id_ref if char_pr_id_ref is not None else "0")
+    try:
+        return int(style.attributes.get("height", "1000")) if style is not None else 1000
+    except ValueError:
+        return 1000
+
+
+def _int_attr(element: Any, name: str) -> int:
+    if element is None:
+        return 0
+    try:
+        return int(element.get(name, "0"))
+    except ValueError:
+        return 0

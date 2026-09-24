@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Sequence, cast
 
 from ._units import _mm_to_hwp_units
 from ..errors import HwpxStateError, HwpxValueError
+from ..oxml.objects import _closed_points
 
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
@@ -350,8 +351,13 @@ def add_polygon(
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
     section_index: int | None = None,
+    closed: bool = True,
 ) -> HwpxOxmlShape:
     """Insert a polygon drawing shape.
+
+    The polygon is closed: the first vertex is repeated at the end, as Hancom
+    writes a polygon, unless *closed* is false (an open line through the
+    vertices).
 
     *points_mm* are millimetre vertex coordinates (3 or more). Hancom stores
     a polygon's vertices in its own top-left-anchored local coordinate space
@@ -374,6 +380,8 @@ def add_polygon(
             include_run=False,
         )
     hwp_points = [(_mm_to_hwp_units(x), _mm_to_hwp_units(y)) for x, y in points]
+    if closed:
+        hwp_points = _closed_points(hwp_points)
     return paragraph.add_polygon(
         hwp_points,
         line_color=line_color, line_width=line_width,
@@ -489,14 +497,25 @@ _CHART_NS = "{http://schemas.openxmlformats.org/drawingml/2006/chart}"
 _CHART_AXES = tuple(f"{_CHART_NS}{name}" for name in ("catAx", "valAx", "dateAx", "serAx"))
 
 
-def _check_line_chart_axes(root: Any) -> None:
-    """Reject a ``c:lineChart`` whose two axes are missing.
+#: Chart kinds drawn against axes: ECMA-376 gives each two (or three)
+#: ``c:axId`` children naming axes defined in ``c:plotArea``. Pie, doughnut and
+#: of-pie charts have none.
+_AXIS_CHART_KINDS = tuple(
+    f"{_CHART_NS}{name}"
+    for name in (
+        "barChart", "bar3DChart", "lineChart", "line3DChart", "areaChart", "area3DChart",
+        "scatterChart", "radarChart", "bubbleChart", "stockChart", "surfaceChart", "surface3DChart",
+    )
+)
 
-    ECMA-376 gives a line chart two ``c:axId`` children, each naming an axis
-    defined in ``c:plotArea``. Hancom's engine crashes on a line chart without
-    them, rendering the page or saving the document, and the same chart
-    renders once ``c:catAx``/``c:valAx`` are added. Bar charts without axes
-    render, so only line charts are checked.
+
+def _check_chart_axes(root: Any) -> None:
+    """Reject a chart kind that needs axes when its two axes are missing.
+
+    Without them Hancom draws a bar chart with no bars and crashes on the
+    other kinds, rendering the page or saving the document; the same charts
+    render once their axes are added. An axis id of 0 stands for "no axis"
+    (a 3-D chart without a series axis) and is not checked.
     """
 
     defined = {
@@ -504,18 +523,41 @@ def _check_line_chart_axes(root: Any) -> None:
         for axis in root.iter(*_CHART_AXES)
         for ax_id in axis.findall(f"{_CHART_NS}axId")
     }
-    for line_chart in root.iter(f"{_CHART_NS}lineChart"):
-        ax_ids = [ax_id.get("val") for ax_id in line_chart.findall(f"{_CHART_NS}axId")]
-        if len(ax_ids) < 2 or any(value not in defined for value in ax_ids):
+    for chart in root.iter(*_AXIS_CHART_KINDS):
+        kind = str(chart.tag).rsplit("}", 1)[-1]
+        ax_ids = [ax_id.get("val") for ax_id in chart.findall(f"{_CHART_NS}axId")]
+        named = [value for value in ax_ids if value != "0"]
+        if len(named) < 2 or any(value not in defined for value in named):
             raise HwpxValueError(
-                "chart_xml has a c:lineChart without its two axes; Hancom crashes rendering or saving it",
-                code="shape-chart-line-axes-missing",
-                context={"axIds": ax_ids, "definedAxes": sorted(value for value in defined if value)},
+                f"chart_xml has a c:{kind} without its axes; Hancom draws it empty or crashes on it",
+                code="shape-chart-axes-missing",
+                context={"chartKind": kind, "axIds": ax_ids,
+                         "definedAxes": sorted(value for value in defined if value)},
                 suggestion=(
-                    "Give c:lineChart two <c:axId val=...> children and define a c:catAx and a c:valAx "
-                    "with those ids (each naming the other in c:crossAx) in c:plotArea."
+                    f"Give c:{kind} two <c:axId val=...> children and define the axes they name in "
+                    "c:plotArea (a c:catAx and a c:valAx; two c:valAx for scatter and bubble charts), "
+                    "each naming the other in c:crossAx."
                 ),
             )
+
+
+#: The chart size (``hp:sz``) of the gold document ``HwpxOxmlParagraph.add_chart``
+#: defaults to.
+_DEFAULT_CHART_SIZE = (32250, 18750)
+
+
+def _default_chart_size(paragraph: HwpxOxmlParagraph) -> tuple[int, int]:
+    """The default chart size, scaled down to fit where the chart goes.
+
+    Hancom clips an object at the edge of its table cell, so a default chart
+    wider than the cell's usable width (or the text body) is narrowed, keeping
+    its shape, as the default width of a nested table is.
+    """
+    width, height = _DEFAULT_CHART_SIZE
+    usable = paragraph._context_table_width()
+    if usable is not None and usable < width:
+        return usable, round(height * usable / width)
+    return width, height
 
 
 def add_chart(
@@ -539,6 +581,10 @@ def add_chart(
     is written; after insertion the anchor is re-read through the standard
     section scan — creation fails loudly if it did not land (no
     special-casing by design).
+
+    Without ``size`` the chart takes the gold document's 32250x18750, scaled
+    down (keeping its shape) to the usable width of the table cell or text
+    body it goes into; Hancom clips an object at its cell's edge.
     """
     from lxml import etree as _etree  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
@@ -568,7 +614,7 @@ def add_chart(
             context={"root": str(root.tag)},
             suggestion="Pass the c:chartSpace document, not the whole chart part.",
         )
-    _check_line_chart_axes(root)
+    _check_chart_axes(root)
 
     existing = {name for name in doc._package.part_names() if name.startswith("Chart/")}
     n = 1
@@ -584,7 +630,7 @@ def add_chart(
     doc._package.write(part_path, data)
     inline_object = paragraph.add_chart(
         part_path,
-        size=size,
+        size=size if size is not None else _default_chart_size(paragraph),
         treat_as_char=treat_as_char,
         char_pr_id_ref=char_pr_id_ref,
     )

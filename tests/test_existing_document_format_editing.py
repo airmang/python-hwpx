@@ -124,8 +124,9 @@ def test_set_page_setup_header_footer_and_page_number_are_open_safe(tmp_path) ->
     reopened = HwpxDocument.open(target)
     size = reopened.sections[0].properties.page_size
     margins = reopened.sections[0].properties.page_margins
-    assert size.width == _mm(297)
-    assert size.height == _mm(210)
+    # A landscape page keeps the portrait size; NARROWLY turns it when drawn.
+    assert (size.width, size.height, size.orientation) == (_mm(210), _mm(297), "NARROWLY")
+    assert (size.drawn_width, size.drawn_height) == (_mm(297), _mm(210))
     assert margins.left == _mm(20)
     assert reopened.sections[0].properties.get_header().text == "Confidential"
 
