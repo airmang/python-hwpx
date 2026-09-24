@@ -50,6 +50,13 @@
 
 ### 고침
 
+- `doc.text.markdown(rich=True)`(`hwpx.tools.markdown_export`)가 도형(사각형·타원·
+  다각형)을 품은 문단의 글을 잃던 것을 고친다.
+  - 도형을 품은 문단은 제 글을 통째로 버렸다(도형 글이 흘러나온 것으로 보았다). 이제
+    문단 자신의 글이 도형 안의 글과 같을 때만 뺀다.
+  - 도형 안 문단을 이미 쓴 것인지 `id()`로 가렸다. 풀린 lxml 요소 프록시의 번호를
+    다른 문단이 다시 받으면, 처음 보는 도형 문단을 건너뛰었다(칸 안 도형도 같음).
+    이제 요소 자체로 가린다.
 - `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
   (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
   `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.
