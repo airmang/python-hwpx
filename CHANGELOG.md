@@ -9,8 +9,6 @@
 - 새 문서가 빈 줄로 시작하는 까닭(`HwpxDocument.new()`의 첫 문단은 구역 설정을 담은
   빈 문단이고 `add_paragraph()`는 그 뒤에 붙는다)과 첫 줄부터 쓰는 법
   (`doc.paragraphs[0].text = ...`)을 `HwpxDocument.new()` 설명과 known-traps에 적는다.
-  안정 API 문서에 「7.0 에서 바뀌는 동작」을 두고, 7.0에서 첫 `add_paragraph()`가 그
-  빈 문단을 채우게 바뀜을 알린다.
 - `hwpx.layout.lint_layout()`이 쪽에서 나뉘지 않는 본문 표(글자처럼 취급한 표,
   `pageBreak="NONE"` 표)가 쪽 본문보다 높으면 `TABLE_TALLER_THAN_PAGE`로 알린다.
   한컴은 이런 표를 한 쪽에 그린다. 쪽 첫머리가 아니면 다음 쪽으로 옮기고, 아래

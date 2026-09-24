@@ -83,16 +83,6 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 python -m hwpx.capabilities --verify
 ```
 
-### 7.0 에서 바뀌는 동작
-
-이름이 아니라 동작이 바뀌는 것도 한 major 앞서 여기에 알린다.
-
-- **새 문서의 첫 `add_paragraph()`**: 지금은 `HwpxDocument.new()`의 빈 첫 문단(구역
-  설정을 담은 문단) 뒤에 새 문단을 붙여서, 새 문서가 빈 줄로 시작한다. 7.0 에서는
-  문서에 그 빈 문단 하나뿐일 때 첫 `add_paragraph()`가 그 문단을 채운다. 문단 번호가
-  하나씩 당겨진다(첫 글이 `paragraphs[0]`). 6.x 에서 빈 줄 없이 시작하려면 첫 글을
-  `doc.paragraphs[0].text = ...`로 넣는다.
-
 ## stable (34)
 
 major 경계에서만 깨지는 이름들입니다.

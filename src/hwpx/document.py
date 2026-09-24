@@ -140,7 +140,6 @@ class HwpxDocument(_LegacyFacade):
         Its only paragraph is empty and holds the section settings, and
         :meth:`add_paragraph` appends after it, so the document starts with an
         empty line. Write the first line with ``document.paragraphs[0].text = ...``.
-        From 7.0 the first :meth:`add_paragraph` fills that paragraph instead.
         """
 
         return cls.open(blank_document_bytes())
