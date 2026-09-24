@@ -41,6 +41,12 @@
 
 ### 고침
 
+- `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
+  (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
+  `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.
+  `object_behavior="nested"`는 칸 안의 표처럼 개체 안의 개체 글을 문단 하나 안에서도
+  거듭 썼다. 이제 앞 문단의 글에 이미 들어간 문단은 따로 쓰지 않고, 개체는 자기
+  칸·글상자의 문단만 돌며 그 안의 개체는 그 문단이 쓴다.
 - 평문·HTML·Markdown 내보내기(`doc.text.plain()`·`html()`·`markdown()`,
   `hwpx.tools.exporter`)의 표 글을 고친다. 칸 안의 표는 바깥 칸의 글에 들어 있는데도
   따로 한 번 더 나왔다. 칸에 단 각주·미주·메모의 본문이 칸 글에 섞였다(본문 문단에
