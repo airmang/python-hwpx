@@ -85,3 +85,90 @@ def test_the_sweep_leaves_a_cache_that_fits() -> None:
     assert section.remove_stale_layout_caches() == 1
     short = _paragraph_with(section.element, SHORT)
     assert short.find("{http://www.hancom.co.kr/hwpml/2011/paragraph}linesegarray") is not None
+
+
+def _cached_paragraph_with_inline_elements(textpos: int):
+    """``가``x10, a tab, a line break, ``나``x5 -- Hancom puts the second line at 19."""
+    from lxml import etree
+
+    from hwpx.document import HwpxDocument
+
+    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("가" * 10)
+    text = paragraph.element.find(f".//{hp}t")
+    etree.SubElement(text, f"{hp}tab", {"width": "2280", "leader": "0", "type": "1"})
+    etree.SubElement(text, f"{hp}lineBreak").tail = "나" * 5
+    cache = etree.SubElement(paragraph.element, f"{hp}linesegarray")
+    for start in (0, textpos):
+        etree.SubElement(cache, f"{hp}lineseg", {
+            "textpos": str(start), "vertpos": "0", "vertsize": "1000", "textheight": "1000",
+            "baseline": "850", "spacing": "600", "horzpos": "0", "horzsize": "42520", "flags": "393216",
+        })
+    return doc, paragraph
+
+
+def test_cache_counting_a_tab_as_eight_positions_is_kept() -> None:
+    doc, paragraph = _cached_paragraph_with_inline_elements(19)
+    assert doc.oxml.sections[0].remove_stale_layout_caches() == 0
+    assert paragraph.element.find("{http://www.hancom.co.kr/hwpml/2011/paragraph}linesegarray") is not None
+
+
+def test_cache_starting_past_the_text_is_still_cleared() -> None:
+    doc, paragraph = _cached_paragraph_with_inline_elements(25)
+    assert doc.oxml.sections[0].remove_stale_layout_caches() == 1
+    assert paragraph.element.find("{http://www.hancom.co.kr/hwpml/2011/paragraph}linesegarray") is None
+
+
+def test_hancom_text_length_counts_inline_elements() -> None:
+    from lxml import etree
+
+    from hwpx.oxml.utils import hancom_text_length
+
+    hp = "http://www.hancom.co.kr/hwpml/2011/paragraph"
+    text = etree.fromstring(
+        f'<hp:t xmlns:hp="{hp}">ab<hp:tab/>c<hp:lineBreak/><hp:nbSpace/><hp:fwSpace/><hp:hyphen/>'
+        f'<hp:markpenBegin color="#FFFF00"/>d<hp:markpenEnd/></hp:t>'
+    )
+    assert hancom_text_length(text) == 2 + 8 + 1 + 1 + 1 + 1 + 1 + 1
+
+
+def test_save_keeps_a_cache_that_counts_a_tab_as_eight_positions() -> None:
+    """An unedited paragraph Hancom laid out keeps its cache through a save."""
+    import io
+    import zipfile
+
+    from hwpx.document import HwpxDocument
+
+    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    doc = HwpxDocument.new()
+    doc.add_paragraph("가" * 10 + "SPLIT" + "나" * 5)
+    source = io.BytesIO(doc.to_bytes())
+    target = io.BytesIO()
+    with zipfile.ZipFile(source) as src, zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as dst:
+        for info in src.infolist():
+            data = src.read(info.filename)
+            if info.filename == "Contents/section0.xml":
+                text = data.decode("utf-8")
+                paragraph_end = text.index("</hp:p>", text.index("SPLIT"))
+                cache = (
+                    '<hp:linesegarray>'
+                    + ''.join(
+                        f'<hp:lineseg textpos="{start}" vertpos="0" vertsize="1000" textheight="1000" '
+                        f'baseline="850" spacing="600" horzpos="0" horzsize="42520" flags="393216"/>'
+                        for start in (0, 19)
+                    )
+                    + '</hp:linesegarray>'
+                )
+                text = text[:paragraph_end] + cache + text[paragraph_end:]
+                text = text.replace(
+                    "SPLIT", '<hp:tab width="2280" leader="0" type="1"/><hp:lineBreak/>', 1
+                )
+                data = text.encode("utf-8")
+            dst.writestr(zipfile.ZipInfo(info.filename, date_time=info.date_time), data,
+                         compress_type=info.compress_type)
+    opened = HwpxDocument.open(target.getvalue())
+    reopened = HwpxDocument.open(opened.to_bytes())
+    (tab_paragraph,) = [p for p in reopened.paragraphs if p.element.find(f".//{hp}tab") is not None]
+    starts = [s.get("textpos") for s in tab_paragraph.element.iter(f"{hp}lineseg")]
+    assert starts == ["0", "19"], "the valid layout cache was dropped on save"
