@@ -19,6 +19,7 @@ from hwpx.hwp5 import cfb
 from hwpx.hwp5 import controls as ct
 from hwpx.hwp5 import docinfo as di
 from hwpx.hwp5 import shapes as sh
+from hwpx.hwp5 import summary as sm
 from hwpx.hwp5 import records as rec
 from hwpx.hwp5.errors import Hwp5Error
 from hwpx.hwp5.fileheader import FileHeader, parse_file_header
@@ -359,6 +360,56 @@ def test_the_linked_document_setting_is_written_and_read_back() -> None:
     assert stream == "C:\\문서\\앞.hwp".encode("utf-16-le").ljust(520, b"\0") + struct.pack("<I", 1)
     back = etree.fromstring(convert(hwp).files["Contents/header.xml"]).find(f"{HH}docOption/{HH}linkinfo")
     assert back is not None and (back.get("path"), back.get("pageInherit"), back.get("footnoteInherit")) == ("C:\\문서\\앞.hwp", "1", "0")
+
+
+_OPF = "{http://www.idpf.org/2007/opf/}"
+_METADATA = {
+    "creator": "지은이",
+    "subject": "주제",
+    "description": "설명",
+    "lastsaveby": "마지막 저장한 이",
+    "CreatedDate": "2025-09-17T04:32:50Z",
+    "ModifiedDate": "2026-01-02T03:04:05Z",
+    "date": "2025년 9월 17일 수요일 오후 1:32:50",
+    "keyword": "낱말",
+}
+
+
+def _with_metadata() -> dict[str, bytes]:
+    files = _with_print_info(_PRINT_ITEMS)
+    package = etree.fromstring(files["Contents/content.hpf"])
+    metadata = package.find(f"{_OPF}metadata")
+    assert metadata is not None
+    title = metadata.find(f"{_OPF}title")
+    if title is None:
+        title = etree.SubElement(metadata, f"{_OPF}title")
+    title.text = "문서 제목"
+    for element in metadata.findall(f"{_OPF}meta"):
+        metadata.remove(element)
+    for name, value in _METADATA.items():
+        etree.SubElement(metadata, f"{_OPF}meta", name=name, content="text").text = value
+    files["Contents/content.hpf"] = etree.tostring(package)
+    files["Preview/PrvImage.png"] = _PNG
+    return files
+
+
+def test_document_properties_are_written_as_hancom_lays_them_out() -> None:
+    hwp = write_hwp5(_with_metadata())
+    compound = cfb.CompoundFile(hwp)
+    stream = compound.read("\x05HwpSummaryInformation")
+    values = sm.read_summary(stream)
+    assert (values[sm.TITLE], values[sm.AUTHOR], values[sm.KEYWORDS], values[sm.DATE_TEXT]) == (
+        "문서 제목",
+        "지은이",
+        "낱말",
+        _METADATA["date"],
+    )
+    assert sm.filetime_text(values[sm.CREATED]) == _METADATA["CreatedDate"]  # type: ignore[arg-type]
+    assert sm.write_summary(values) == stream
+    assert compound.read("PrvImage") == _PNG
+    back = etree.fromstring(convert(hwp).files["Contents/content.hpf"]).find(f"{_OPF}metadata")
+    assert back is not None
+    assert {m.get("name"): m.text for m in back.findall(f"{_OPF}meta")} == _METADATA
 
 
 def test_a_border_fill_without_a_diagonal_element_draws_no_diagonal() -> None:

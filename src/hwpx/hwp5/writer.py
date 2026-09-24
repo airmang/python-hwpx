@@ -23,6 +23,7 @@ from . import controls as ct
 from . import docinfo as di
 from . import records as rec
 from . import shapes as sh
+from . import summary as sm
 from .cfb import build_compound_file
 from .docinfo_writer import build_docinfo, forbidden_chars, set_bin_count, track_changes
 from .errors import Hwp5Error
@@ -161,6 +162,30 @@ def _print_info(files: Mapping[str, bytes], unsupported: Counter[str]) -> bytes 
     return ct.print_info_data(values) if values else None
 
 
+def _summary(files: Mapping[str, bytes]) -> bytes:
+    """``\\x05HwpSummaryInformation`` from the package metadata: title,
+    subject, author, date text, keywords, description, last author and the
+    creation and modification times."""
+
+    metadata = etree.fromstring(files["Contents/content.hpf"]).find(f"{{{_OPF}}}metadata")
+    if metadata is None:
+        return sm.write_summary({})
+    title = metadata.find(f"{{{_OPF}}}title")
+    meta = {m.get("name"): (m.text or "") for m in metadata.findall(f"{{{_OPF}}}meta")}
+    values: dict[int, object] = {
+        sm.TITLE: (title.text or "") if title is not None else "",
+        sm.SUBJECT: meta.get("subject", ""),
+        sm.AUTHOR: meta.get("creator", ""),
+        sm.DATE_TEXT: meta.get("date", ""),
+        sm.KEYWORDS: meta.get("keyword", ""),
+        sm.COMMENTS: meta.get("description", ""),
+        sm.LAST_AUTHOR: meta.get("lastsaveby", ""),
+        sm.CREATED: sm.filetime_value(meta.get("CreatedDate", "")),
+        sm.LAST_SAVED: sm.filetime_value(meta.get("ModifiedDate", "")),
+    }
+    return sm.write_summary(values)
+
+
 def _link_doc(head: etree._Element) -> bytes:
     """``DocOptions/_LinkDoc``: the path of the linked document (room for 260
     characters) and a flag word, bit 0 for page numbers and bit 1 for footnote
@@ -271,8 +296,12 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
             out.append((f"ViewText/Section{index}", rec.deflate(rec.serialize_records(records))))
     out.extend(streams)
     out.append(("DocOptions/_LinkDoc", _link_doc(head)))
+    out.append(("\x05HwpSummaryInformation", _summary(files)))
     preview = files.get("Preview/PrvText.txt")
     if preview:
         text = preview.decode("utf-8", errors="replace")
         out.append(("PrvText", text.encode("utf-16-le", errors="surrogatepass")))
+    image = files.get("Preview/PrvImage.png")
+    if image:
+        out.append(("PrvImage", image))
     return build_compound_file(out)
