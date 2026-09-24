@@ -6,6 +6,15 @@
 
 ### 추가
 
+- HWP 5.0(`.hwp`)을 읽고 쓴다. `HwpxDocument.open`이 `.hwp`를 같은 문서 모델로 열고,
+  `save_to_path("x.hwp")`·`save_to_stream(..., format="hwp")`·`to_bytes(format="hwp")`가
+  HWP 5.0으로 쓴다. 본문·글자와 문단 모양·스타일·표·그림·그리기 개체·글맵시·수식·차트·OLE·
+  동영상·필드·누름틀과 양식 개체·머리말과 꼬리말·각주와 미주·메모·바탕쪽·변경 추적·
+  문서 정보·인쇄 설정·스크립트를 옮긴다. 옮기지 못한 내용은 `document.conversion_report`
+  (`unconverted`·`dropped`)에 세고 `Hwp5ConversionWarning`으로 알린다. HWP 5.0으로 쓸 수
+  없는 내용은 쓰기 전에 `Hwp5Error`(`hwp5-write-unsupported`)로 거부하고, 암호·배포용·DRM
+  문서도 `Hwp5Error`로 거부한다(`hwp5-*` 코드). `HwpxPackage.open`은 그대로 HWPX 전용이며
+  `.hwp`에는 `HwpxDocument.open`을 안내한다. 새 의존성은 없다.
 - 쪽 번호·줄 번호 설명을 보강한다(`page.set_page_number`, `set_visibility`,
   `hide_page_elements`, `set_line_numbers`와 known-traps). `set_page_number()`의
   번호는 머리말/꼬리말 글이라 한컴의 쪽 번호 감추기(`hide_first_page_num`,
