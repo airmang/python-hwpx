@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+### 바꿈
+
+- FormFit(`hwpx.form_fit`)이 셀과 누름틀 값의 줄을 한컴의 줄 배치 규칙으로 센다.
+  글꼴 파일은 쓰지 않는다. 공백은 0.5 em이고, 폭에 장평과 (1 + 자간)을 곱한다.
+  한글·영어 나눔 설정을 따른다(한글 `BREAK_WORD`는 어절 단위, `KEEP_WORD`는 글자
+  단위). 줄 끝 공백은 여백 밖으로 걸치고, 첫 줄 들여쓰기와 내어쓰기, 최소 공백,
+  닫는 부호의 줄 머리 금칙을 반영한다. 영어 단어 안의 `/ - . @` 뒤에서는 나누지
+  않는다. 같은 줄의 체크박스 같은 인라인 개체는 첫 줄 폭만 줄인다.
+  - 셀 슬롯(`resolve_slot_metrics`)은 셀 첫 문단의 문단 모양과 글자 모양에서,
+    누름틀 슬롯은 필드 문단과 글자 모양에서 이 설정(`TextStyle`)을 읽는다.
+  - 새 `TextStyle`과 `hancom_line_starts()`를 공개한다. `estimate_text_width`와
+    `estimate_lines`는 `style`을 선택 인자로 받고, `style` 없이 부르면 전과 같다.
 ### 추가
 
 - 쪽 번호·줄 번호 설명을 보강한다(`page.set_page_number`, `set_visibility`,

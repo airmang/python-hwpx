@@ -823,7 +823,10 @@ def _measure_form_field_fit(
 ) -> "FitResult":
     """Run the FormFit engine for a native field (plan §2 C)."""
 
+    from dataclasses import replace
+
     from hwpx.form_fit import DEFAULT_SAFETY, FitEngine, FitResult, SlotMetrics
+    from hwpx.form_fit.measure import text_style_from_refs
 
     runs = match["_runs"]
     begin_index = int(match["_begin_run_index"])
@@ -850,10 +853,16 @@ def _measure_form_field_fit(
             field_id=field_id,
         )
 
+    # The field sits inside its paragraph, so the paragraph's indent does not
+    # apply to the box.
+    text_style = text_style_from_refs(
+        doc._root, match["_paragraph"].para_pr_id_ref, [begin_ref]
+    )
     slot = SlotMetrics(
         available_width=float(box_width) * DEFAULT_SAFETY,
         font_pt=resolved_pt,
         max_lines=fit_policy.effective_max_lines,
+        text_style=replace(text_style, indent=0),
     )
     return FitEngine().fit(value, slot, fit_policy, field_id=field_id)
 

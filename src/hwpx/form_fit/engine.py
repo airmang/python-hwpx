@@ -21,6 +21,7 @@ from .measure import (
     GROSS_ROW_GROWTH_FACTOR,
     MIN_ROW_GROWTH_LINES,
     SlotMetrics,
+    TextStyle,
     estimate_text_width,
     measure,
 )
@@ -183,7 +184,9 @@ class FitEngine:
         warnings = list(m.notes)
         # Row-expand fixes vertical room only; a single token wider than the slot
         # still overflows horizontally and the oracle must catch it.
-        horizontal_risk = self._longest_token_width(value, slot.font_pt) > slot.available_width
+        horizontal_risk = (
+            self._longest_token_width(value, slot.font_pt, slot.text_style) > slot.available_width
+        )
         if horizontal_risk:
             warnings.append(
                 "a token is wider than the slot; expand_row cannot fix horizontal "
@@ -246,13 +249,7 @@ class FitEngine:
         candidate = min(slot.font_pt, ceiling)
         best: FitResult | None = None
         while candidate >= policy.min_font_pt - 1e-9:
-            trial = SlotMetrics(
-                available_width=slot.available_width,
-                font_pt=candidate,
-                max_lines=max_lines,
-                raw_width=slot.raw_width,
-                source=slot.source,
-            )
+            trial = replace(slot, font_pt=candidate, max_lines=max_lines)
             m = measure(value, trial)
             if m.fits and m.confidence == "high":
                 changes: dict[str, object] = {
@@ -531,10 +528,12 @@ class FitEngine:
 
     # -- helpers ----------------------------------------------------------- #
     @staticmethod
-    def _longest_token_width(value: str, font_pt: float) -> float:
+    def _longest_token_width(
+        value: str, font_pt: float, style: TextStyle | None = None
+    ) -> float:
         widest = 0.0
         for token in value.replace("\t", " ").split(" "):
-            widest = max(widest, estimate_text_width(token, font_pt))
+            widest = max(widest, estimate_text_width(token, font_pt, style))
         return widest
 
     @staticmethod
@@ -548,7 +547,7 @@ class FitEngine:
             mid = (low + high) // 2
             prefix = value[:mid]
             m = measure(prefix, slot)
-            if estimate_text_width(prefix, slot.font_pt) <= capacity * (1 - m.band) and m.fits:
+            if estimate_text_width(prefix, slot.font_pt, slot.text_style) <= capacity * (1 - m.band) and m.fits:
                 best = mid
                 low = mid + 1
             else:
