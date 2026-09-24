@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import io
 import os
@@ -18,6 +19,7 @@ from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 
 if TYPE_CHECKING:
     from ..oxml.document_metadata import DocumentMetadata
+    from ..tools.package_validator import EditorOpenSafetyReport
 from .relationships import (
     MAIN_ROOTFILE_MEDIA_TYPE,
     OPF_NS,
@@ -433,6 +435,9 @@ class HwpxPackage:
         self._settings_path_cache: str | None = None
         self._settings_path_cache_resolved = False
         self._archive_write_depth = 0
+        # SHA-256 of the last archive bytes this package's save verified as
+        # editor-open safe (see _save_to_zip); None until such a save.
+        self._verified_archive_digest: bytes | None = None
         self._validate_structure()
 
     @staticmethod
@@ -1158,16 +1163,24 @@ class HwpxPackage:
                     raise HwpxPackageError(
                         f"ZIP integrity check failed for entry '{bad}'"
                     )
+            payload = buffer.getvalue()
             if verify_open_safety:
-                self._verify_editor_open_safe_archive(buffer.getvalue())
-            buffer.seek(0)
-            payload = buffer.read()
+                report = self._verify_editor_open_safe_archive(payload)
+                # Remember which exact bytes passed, so the document-level
+                # check of the same save need not run the validation again.
+                self._verified_archive_digest = (
+                    hashlib.sha256(payload).digest()
+                    if report is not None and report.ok
+                    else None
+                )
             _write_stream_or_rollback(pkg_file, payload)
             if mark_clean and version_was_dirty:
                 self._version.mark_clean()
 
     @classmethod
-    def _verify_editor_open_safe_archive(cls, source: str | Path | bytes) -> None:
+    def _verify_editor_open_safe_archive(
+        cls, source: str | Path | bytes
+    ) -> "EditorOpenSafetyReport":
         from ..tools.package_validator import validate_editor_open_safety
 
         report = validate_editor_open_safety(source)
@@ -1176,6 +1189,7 @@ class HwpxPackage:
                 "Generated HWPX package failed open-safety validation: "
                 + report.summary
             )
+        return report
 
     def _write_archive_from_save(self, zf: ZipFile) -> None:
         self._archive_write_depth += 1
