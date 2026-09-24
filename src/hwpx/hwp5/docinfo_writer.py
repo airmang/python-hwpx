@@ -589,8 +589,21 @@ def build_docinfo(
     target = index_of(TARGET_PROGRAM, compatible.get("targetProgram") if compatible is not None else None, 0)
     records.append(rec.Record(rec.COMPATIBLE_DOCUMENT, 0, struct.pack("<I", target)))
     records.append(rec.Record(rec.LAYOUT_COMPATIBILITY, 1, b"\0" * 20))
-    records.append(rec.Record(rec.TRACKCHANGE, 1, struct.pack("<I", 4) + b"\0" * 1028))
+    records.append(rec.Record(rec.TRACKCHANGE, 1, _track_settings(head)))
     return DocInfoResult(records, section_count)
+
+
+def _track_settings(head: etree._Element) -> bytes:
+    """The change-tracking settings record: 4 when the header has its settings
+    (56 when not, as Hancom writes it), and the password algorithm last (4 for
+    SHA1)."""
+
+    config = _child(head, _HH, "trackchageConfig")
+    sha1 = config is not None and any(
+        item.get("name") == "algorithm-name" and (item.text or "").strip() == "SHA1"
+        for item in config.iter(f"{{{NS['config']}}}config-item")
+    )
+    return struct.pack("<I", 4 if config is not None else 56) + b"\0" * 1024 + struct.pack("<I", 4 if sha1 else 0)
 
 
 def set_bin_count(result: DocInfoResult, items: list[di.BinDataItem]) -> None:

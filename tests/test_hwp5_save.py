@@ -468,6 +468,25 @@ def test_a_new_documents_scripts_are_kept_as_none() -> None:
     assert empty == bytes.fromhex("63604005ff8100006ebb6ed114000000")
 
 
+@pytest.mark.parametrize(("password", "words"), [(False, (4, 0)), (True, (4, 4))])
+def test_the_change_tracking_password_algorithm_is_kept(password: bool, words: tuple[int, int]) -> None:
+    files = _with_print_info(_PRINT_ITEMS)
+    head = etree.fromstring(files["Contents/header.xml"])
+    config = head.find(f".//{HH}trackchageConfig")
+    assert config is not None
+    if password:
+        group = etree.SubElement(config, f"{{{_CONFIG}}}config-item-set", name="TrackChangePasswordInfo")
+        etree.SubElement(group, f"{{{_CONFIG}}}config-item", name="algorithm-name", type="string").text = "SHA1"
+    files["Contents/header.xml"] = etree.tostring(head)
+    hwp = write_hwp5(files)
+    [settings] = [r.payload for r in read_hwp5(hwp).docinfo.records if r.tag == rec.TRACKCHANGE]
+    assert (struct.unpack_from("<I", settings)[0], struct.unpack_from("<I", settings, 1028)[0]) == words
+    back = etree.fromstring(convert(hwp).files["Contents/header.xml"]).find(f".//{HH}trackchageConfig")
+    assert back is not None
+    names = [item.text for item in back.iter(f"{{{_CONFIG}}}config-item")]
+    assert names == (["SHA1"] if password else [])
+
+
 def test_a_border_fill_without_a_diagonal_element_draws_no_diagonal() -> None:
     document = HwpxDocument.new()
     buffer = io.BytesIO()

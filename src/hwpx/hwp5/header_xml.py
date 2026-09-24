@@ -673,9 +673,18 @@ def build_header(
         sub(option, "hh:licensemark", attrs)
     # Hancom reports 4 for a document that carries the track-change settings
     # record whatever its value, and 56 for an older one without it.
-    flags = 4 if _record(info, rec.TRACKCHANGE) is not None else 56
-    sub(head, "hh:trackchageConfig", (("flags", flags),))
+    settings = _record(info, rec.TRACKCHANGE)
+    config = sub(head, "hh:trackchageConfig", (("flags", 4 if settings is not None else 56),))
+    # The last word names the algorithm of the change-tracking password: 4 is SHA1.
+    if settings is not None and len(settings.payload) >= 8 and settings.payload[-4:] == TRACK_PASSWORD_SHA1:
+        password = sub(config, "config:config-item-set", (("name", "TrackChangePasswordInfo"),))
+        sub(password, "config:config-item", (("name", "algorithm-name"), ("type", "string"))).text = "SHA1"
     return serialize(head)
+
+
+#: The last word of the change-tracking settings record when its password is
+#: hashed with SHA1.
+TRACK_PASSWORD_SHA1 = struct.pack("<I", 4)
 
 
 def _link_doc(data: bytes | None) -> tuple[str, bool, bool]:
