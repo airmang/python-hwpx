@@ -60,7 +60,9 @@ def _set_cell_borders_preserving(table: Any, cell: Any, color: str, line_type: s
         refuse("cell border edit requires an attached document header")
     header = document.headers[0]
     try:
-        line_type = _normalize_border_type(line_type, header._BORDER_LINE_TYPES)
+        line_type = _normalize_border_type(
+            header._BORDER_LINE_TYPE_ALIASES.get(str(line_type).upper(), line_type), header._BORDER_LINE_TYPES
+        )
     except (ValueError, TypeError, AttributeError):
         refuse("border line type is unsupported")
     container = header._border_fills_element()
@@ -83,6 +85,77 @@ def _set_cell_borders_preserving(table: Any, cell: Any, color: str, line_type: s
     header.mark_dirty()
     cell.element.set("borderFillIDRef", candidate.get("id"))
     table.mark_dirty()
+    _match_touching_edges(table, cell)
+
+
+#: (side of the edited cell, side of the neighbour that shares it)
+_SHARED_EDGES = (("rightBorder", "leftBorder"), ("leftBorder", "rightBorder"),
+                 ("bottomBorder", "topBorder"), ("topBorder", "bottomBorder"))
+
+
+def _match_touching_edges(table: Any, cell: Any) -> None:
+    """Give each neighbour of *cell* the same line on the edge they share.
+
+    Hancom's cell border command sets both cells of a shared edge. Every cell
+    keeps its own four sides and both are drawn, so a neighbour that keeps its
+    old line shows through a new one (or keeps a line meant to go). Only the
+    neighbour's shared side changes; its other sides and fill stay. Like
+    Hancom, a neighbour whose side reaches past this cell's (a merged cell
+    beside a single one) is left as it is.
+    """
+    from .namespaces import HH
+
+    document = table.paragraph.section.document
+    if document is None or not document.headers:
+        return
+    header = document.headers[0]
+    container = header._border_fills_element()
+    if container is None:
+        return
+    fills = {n.get("id"): n for n in container if n.tag == HH + "borderFill"}
+    own = fills.get(cell.element.get("borderFillIDRef") or table.element.get("borderFillIDRef"))
+    if own is None:
+        return
+    (r0, c0), (rs, cs) = cell.address, cell.span
+    r1, c1 = r0 + rs - 1, c0 + cs - 1
+    for row in table.rows:
+        for other in row.cells:
+            (o_r0, o_c0), (o_rs, o_cs) = other.address, other.span
+            o_r1, o_c1 = o_r0 + o_rs - 1, o_c0 + o_cs - 1
+            # only a neighbour whose shared side lies within this cell's side
+            # changes; a longer (merged) neighbour keeps its line, as in Hancom
+            rows_within = o_r0 >= r0 and o_r1 <= r1
+            cols_within = o_c0 >= c0 and o_c1 <= c1
+            touches = (o_c0 == c1 + 1 and rows_within, o_c1 == c0 - 1 and rows_within,
+                       o_r0 == r1 + 1 and cols_within, o_r1 == r0 - 1 and cols_within)
+            for (own_side, other_side), touching in zip(_SHARED_EDGES, touches):
+                if touching:
+                    _set_shared_side(table, header, container, fills, other, own.find(HH + own_side), other_side)
+
+
+def _set_shared_side(table: Any, header: Any, container: Any, fills: dict, other: Any, line: Any, side: str) -> None:
+    from .namespaces import HH
+
+    base = fills.get(other.element.get("borderFillIDRef") or table.element.get("borderFillIDRef"))
+    if base is None or line is None:
+        return
+    candidate = deepcopy(base)
+    target = candidate.find(HH + side)
+    if target is None:
+        return
+    for key, value in line.attrib.items():
+        target.set(key, value)
+    key = _border_edit_signature(candidate, root=True)
+    for existing in container:
+        if existing.tag == HH + "borderFill" and _border_edit_signature(existing, root=True) == key:
+            other.element.set("borderFillIDRef", existing.get("id"))
+            return
+    candidate.set("id", header._allocate_border_fill_id(container))
+    container.append(candidate)
+    container.set("itemCnt", str(len(container.findall(HH + "borderFill"))))
+    fills[candidate.get("id")] = candidate
+    header.mark_dirty()
+    other.element.set("borderFillIDRef", candidate.get("id"))
 
 
 def _color_existing_borders(candidate: Any, color: str, line_type: str) -> None:
@@ -864,11 +937,14 @@ class HwpxOxmlTable:
         """Point one cell at a header ``borderFill`` definition.
 
         Pairs with :meth:`set_cell_shading`; obtain ids from
-        ``document.ensure_border_fill`` (line style/width/color/fill).
+        ``document.ensure_border_fill`` (line style/width/color/fill). As
+        Hancom does, the neighbouring cells take the same line on the edge
+        they share with this cell.
         """
         cell = self.cell(row_index, col_index)
         cell.element.set("borderFillIDRef", str(border_fill_id_ref))
         self.mark_dirty()
+        _match_touching_edges(self, cell)
 
     def set_cell_borders(
         self, row_index: int, col_index: int, *, color: str, line_type: str = "SOLID"
@@ -876,7 +952,9 @@ class HwpxOxmlTable:
         """Change four existing border colors/types, preserving fill and widths.
 
         Copies and deduplicates the complete existing style; other cells that
-        share it remain unchanged. Missing or ambiguous style definitions refuse.
+        share it remain unchanged, except that the neighbouring cells take the
+        same line on the edge they share with this cell, as in Hancom. Missing
+        or ambiguous style definitions refuse.
         """
         cell = self.cell(row_index, col_index)
         _set_cell_borders_preserving(self, cell, color, line_type)
