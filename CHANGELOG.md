@@ -50,6 +50,10 @@
 
 ### 고침
 
+- 그림 같은 이진 항목이 많은 문서를 여는 데 오래 걸리던 것을 고친다. `content.hpf`의
+  항목마다 패키지의 모든 파트 이름을 다시 정규화해서, 항목·파트 수의 제곱에 비례했다
+  (파트 1,400개 문서에서 열기 1분 넘게). 이제 목록을 읽을 때 파트 이름을 한 번만
+  정규화한다. `resolve_part_name()`의 동작은 그대로다.
 - `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
   (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
   `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.
