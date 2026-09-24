@@ -109,6 +109,9 @@ packages = [
     "hwpx.data",
     "hwpx.equation",
     "hwpx.form_fit",
+    # HWP 5.0(.hwp) 읽기·쓰기. `hwpx/__init__.py`가 이 패키지를 가져오므로 빠지면
+    # 휠에서 `import hwpx`가 깨진다.
+    "hwpx.hwp5",
     "hwpx.ingest",
     "hwpx.layout",
     # 6.0: add_* 가 반환하는 도메인 객체·결과 dataclass (WP-C가 채운다).
@@ -286,6 +289,29 @@ files = [
     # Hyperlink field target form (Hancom's Command/Path parameters,
     # written and read in one place) -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/hyperlink_form.py",
+    # HWP 5.0 (.hwp) container and record layer -- born in the gate, per the
+    # WP-A rule.
+    "src/hwpx/hwp5/__init__.py",
+    "src/hwpx/hwp5/bodytext.py",
+    "src/hwpx/hwp5/cfb.py",
+    "src/hwpx/hwp5/docinfo.py",
+    "src/hwpx/hwp5/errors.py",
+    "src/hwpx/hwp5/fileheader.py",
+    "src/hwpx/hwp5/reader.py",
+    "src/hwpx/hwp5/records.py",
+    "src/hwpx/hwp5/binary.py",
+    "src/hwpx/hwp5/header_xml.py",
+    "src/hwpx/hwp5/owpml.py",
+    "src/hwpx/hwp5/package.py",
+    "src/hwpx/hwp5/section_xml.py",
+    "src/hwpx/hwp5/summary.py",
+    "src/hwpx/hwp5/controls.py",
+    "src/hwpx/hwp5/docinfo_writer.py",
+    "src/hwpx/hwp5/section_writer.py",
+    "src/hwpx/hwp5/shapes.py",
+    "src/hwpx/hwp5/section_common.py",
+    "src/hwpx/hwp5/shape_xml.py",
+    "src/hwpx/hwp5/writer.py",
 ]
 # 칩 후보 1 ✅ 6.14 트레인㊾-1에서 해소: `src/hwpx/table_patch.py`(2073줄,
 # 6.12 트레인㊸ 갭⑤ 정리 시 team-lead가 지목, f7e4e67 리뷰) — 위 files
@@ -456,6 +482,29 @@ include = [
     # Hyperlink field target form (Hancom's Command/Path parameters,
     # written and read in one place) -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/hyperlink_form.py",
+    # HWP 5.0 (.hwp) container and record layer -- born in the gate, per the
+    # WP-A rule.
+    "src/hwpx/hwp5/__init__.py",
+    "src/hwpx/hwp5/bodytext.py",
+    "src/hwpx/hwp5/cfb.py",
+    "src/hwpx/hwp5/docinfo.py",
+    "src/hwpx/hwp5/errors.py",
+    "src/hwpx/hwp5/fileheader.py",
+    "src/hwpx/hwp5/reader.py",
+    "src/hwpx/hwp5/records.py",
+    "src/hwpx/hwp5/binary.py",
+    "src/hwpx/hwp5/header_xml.py",
+    "src/hwpx/hwp5/owpml.py",
+    "src/hwpx/hwp5/package.py",
+    "src/hwpx/hwp5/section_xml.py",
+    "src/hwpx/hwp5/summary.py",
+    "src/hwpx/hwp5/controls.py",
+    "src/hwpx/hwp5/docinfo_writer.py",
+    "src/hwpx/hwp5/section_writer.py",
+    "src/hwpx/hwp5/shapes.py",
+    "src/hwpx/hwp5/section_common.py",
+    "src/hwpx/hwp5/shape_xml.py",
+    "src/hwpx/hwp5/writer.py",
 ]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"

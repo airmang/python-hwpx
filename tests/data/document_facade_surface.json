@@ -39,6 +39,9 @@
   "kind": "method",
   "signature": "(self) -> 'None'"
  },
+ "conversion_report": {
+  "kind": "property"
+ },
  "fields": {
   "kind": "property"
  },
@@ -92,7 +95,7 @@
  },
  "save_to_stream": {
   "kind": "method",
-  "signature": "(self, stream: 'BinaryIO', *, mode: 'Mode' = 'auto', fallback: 'Fallback' = 'error', return_report: 'bool' = False) -> 'BinaryIO | MutationReport'"
+  "signature": "(self, stream: 'BinaryIO', *, mode: 'Mode' = 'auto', fallback: 'Fallback' = 'error', return_report: 'bool' = False, format: 'SaveFormat' = 'hwpx') -> 'BinaryIO | MutationReport'"
  },
  "sections": {
   "kind": "property"
@@ -111,7 +114,7 @@
  },
  "to_bytes": {
   "kind": "method",
-  "signature": "(self, *, mode: 'Mode' = 'auto', fallback: 'Fallback' = 'error') -> 'bytes'"
+  "signature": "(self, *, mode: 'Mode' = 'auto', fallback: 'Fallback' = 'error', format: 'SaveFormat' = 'hwpx') -> 'bytes'"
  },
  "tracking": {
   "kind": "property"

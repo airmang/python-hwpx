@@ -6,6 +6,15 @@
 
 ### 추가
 
+- HWP 5.0(`.hwp`)을 읽고 쓴다. `HwpxDocument.open`이 `.hwp`를 같은 문서 모델로 열고,
+  `save_to_path("x.hwp")`·`save_to_stream(..., format="hwp")`·`to_bytes(format="hwp")`가
+  HWP 5.0으로 쓴다. 본문·글자와 문단 모양·스타일·표·그림·그리기 개체·글맵시·수식·차트·OLE·
+  동영상·필드·누름틀과 양식 개체·머리말과 꼬리말·각주와 미주·메모·바탕쪽·변경 추적·
+  문서 정보·인쇄 설정·스크립트를 옮긴다. 옮기지 못한 내용은 `document.conversion_report`
+  (`unconverted`·`dropped`)에 세고 `Hwp5ConversionWarning`으로 알린다. HWP 5.0으로 쓸 수
+  없는 내용은 쓰기 전에 `Hwp5Error`(`hwp5-write-unsupported`)로 거부하고, 암호·배포용·DRM
+  문서도 `Hwp5Error`로 거부한다(`hwp5-*` 코드). `HwpxPackage.open`은 그대로 HWPX 전용이며
+  `.hwp`에는 `HwpxDocument.open`을 안내한다. 새 의존성은 없다.
 - 쪽 번호·줄 번호 설명을 보강한다(`page.set_page_number`, `set_visibility`,
   `hide_page_elements`, `set_line_numbers`와 known-traps). `set_page_number()`의
   번호는 머리말/꼬리말 글이라 한컴의 쪽 번호 감추기(`hide_first_page_num`,
@@ -50,6 +59,22 @@
 - 3차원 테두리 선 이름을 한컴 표기(`THICK3D`, `THICKREV3D`, `3D`, `REV3D`)로 쓴다. 전에 쓰던
   `THICK_3D`, `THICK_3D_REVERSE_LIGHTING`, `SLIM_3D`, `SLIM_3D_REVERSE_LIGHTING`은 한컴이 선
   없음으로 읽었다. 옛 이름도 계속 받아서 한컴 이름으로 쓴다.
+- `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
+  (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
+  `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.
+  `object_behavior="nested"`는 칸 안의 표처럼 개체 안의 개체 글을 문단 하나 안에서도
+  거듭 썼다. 이제 앞 문단의 글에 이미 들어간 문단은 따로 쓰지 않고, 개체는 자기
+  칸·글상자의 문단만 돌며 그 안의 개체는 그 문단이 쓴다.
+- 평문·HTML·Markdown 내보내기(`doc.text.plain()`·`html()`·`markdown()`,
+  `hwpx.tools.exporter`)의 표 글을 고친다. 칸 안의 표는 바깥 칸의 글에 들어 있는데도
+  따로 한 번 더 나왔다. 칸에 단 각주·미주·메모의 본문이 칸 글에 섞였다(본문 문단에
+  단 것은 빠졌다). 머리말·꼬리말 안의 표가 본문 첫 문단 자리에 나왔다. 이제 표는
+  바깥 표만 한 번 나오고, 각주·미주·메모·숨은 설명·머리말·꼬리말의 글은 본문
+  내보내기에 넣지 않는다. Markdown 표 칸은 문단 나눔을 `<br>`로, `|`를 `\|`로 써서
+  한 줄에 둔다(전에는 칸 안의 줄 나눔이 표 행을 깨뜨렸다).
+- `doc.text.markdown()`이 첫 행보다 칸이 많은 행의 뒤쪽 칸을 버리던 것을 고친다.
+  첫 행이 합친 칸(제목 행 등)이면 그 아래 행은 첫 칸만 남았다. 이제 칸을
+  `hp:cellAddr` 자리에 놓고 가장 넓은 행만큼 열을 두며, 합친 칸이 덮는 자리는 비운다.
 - `doc.tracking.delete(문단)`로 글만 있는 문단을 통째로 지우면, 한컴에서 그 자리에 빈 줄이
   남던 것을 고친다. 문단 나눔은 삭제로 표시되지 않았다. 이제 뒤에 문단이 이어지면 마지막
   삭제 표시에 `paraend="1"`을 써서 문단 나눔도 지운다. 구역 설정·컨트롤·개체가 있는
