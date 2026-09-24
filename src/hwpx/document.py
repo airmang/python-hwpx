@@ -38,6 +38,7 @@ from ._document import media as _media
 from ._document import persistence as _persistence
 from ._document import _resolve
 from ._document import headings as _headings
+from ._document import layout as _layout
 from .model import Paragraph
 from ._document._legacy import _LegacyFacade
 from ._document.ns import (
@@ -519,7 +520,7 @@ class HwpxDocument(_LegacyFacade):
             inherit_style=inherit_style,
             **cast(Any, extra_attrs),
         )
-        return paragraph.add_table(
+        table = paragraph.add_table(
             rows,
             cols,
             width=width,
@@ -528,6 +529,8 @@ class HwpxDocument(_LegacyFacade):
             run_attributes=run_attributes,
             char_pr_id_ref=char_pr_id_ref,
         )
+        _layout.flow_table_taller_than_page(self, table)
+        return table
 
     def add_picture(
         self,

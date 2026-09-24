@@ -47,7 +47,7 @@ _DEFAULT_PARAGRAPH_ATTRS = {
 }
 
 _DEFAULT_CELL_WIDTH = 7200
-_DEFAULT_CELL_HEIGHT = 3600
+_DEFAULT_CELL_HEIGHT = 282  # as a new Hancom table: each row grows to its text
 
 _BASIC_BORDER_FILL_ATTRIBUTES = {
     "threeD": "0",
