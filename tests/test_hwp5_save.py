@@ -440,6 +440,20 @@ def test_scripts_are_written_and_read_back() -> None:
     assert [r.get("idref") for r in package.iter(f"{_OPF}itemref")][-2:] == ["headersc", "sourcesc"]
 
 
+@pytest.mark.parametrize(
+    ("scripts", "kept"),
+    [
+        (["\r\n", "", "", ""], False),
+        (["\r\n", "\r\n", "", ""], False),
+        ([sm.DEFAULT_HEADER_SCRIPT, sm.DEFAULT_SOURCE_SCRIPT + "\r\n", "", ""], False),
+        ([sm.DEFAULT_HEADER_SCRIPT, _SOURCE_SCRIPT, "", ""], True),
+        (["", "", "", "var before = 1;"], True),
+    ],
+)
+def test_blank_or_new_document_scripts_get_no_parts(scripts: list[str], kept: bool) -> None:
+    assert sm.default_scripts(scripts) is not kept
+
+
 def test_a_new_documents_scripts_are_kept_as_none() -> None:
     hwp = write_hwp5(_with_scripts(sm.DEFAULT_HEADER_SCRIPT, sm.DEFAULT_SOURCE_SCRIPT + "\r\n"))
     assert sm.read_scripts(cfb.CompoundFile(hwp).read("Scripts/DefaultJScript"), is_compressed=True) == [

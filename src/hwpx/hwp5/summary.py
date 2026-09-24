@@ -193,12 +193,12 @@ def write_scripts(header: str, source: str) -> bytes:
 
 
 def default_scripts(scripts: list[str]) -> bool:
-    """Whether the scripts are no more than a new document's."""
+    """Whether the scripts are no more than a new document's (or blank)."""
 
     padded = scripts + [""] * (4 - len(scripts))
     header, source, rest = padded[0], padded[1], padded[2:]
     return (
-        header in ("", DEFAULT_HEADER_SCRIPT)
-        and source.rstrip("\r\n") in ("", DEFAULT_SOURCE_SCRIPT.rstrip("\r\n"))
-        and not any(rest)
+        header.strip() in ("", DEFAULT_HEADER_SCRIPT.strip())
+        and source.strip() in ("", DEFAULT_SOURCE_SCRIPT.strip())
+        and not any(text.strip() for text in rest)
     )
