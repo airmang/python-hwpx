@@ -98,14 +98,21 @@ def _container_rdf(sections: int) -> bytes:
 def _bin_items(doc: Hwp5File, info: di.DocInfo) -> list[tuple[str, str, bytes, str, bool]]:
     """``(item id, href, payload, media type, embedded)`` for every BinData record.
 
-    A picture, fill or bullet refers to its image by the place of the BinData
-    record (1 first), not by the id the record keeps (which names its stream),
-    so the items are named by place.
+    A picture, fill, bullet or video refers to its item by the place of the
+    BinData record (1 first), not by the id the record keeps (which names its
+    stream), so the items are named by place: ``video`` for a file a video
+    plays, else ``image`` (or ``ole`` for a storage). A linked file keeps its
+    path as its href and has no part.
     """
 
+    videos = {place for section in doc.sections for place in sh.video_files(section.records)}
     items = []
     for place, item in enumerate(info.bin_data, 1):
+        kind = "video" if place in videos else "image"
         if item.kind == di.BIN_LINK:
+            href = item.abs_path or item.rel_path
+            ext = href.rsplit(".", 1)[-1].lower() if "." in href.replace("/", chr(92)).rsplit(chr(92), 1)[-1] else ""
+            items.append((f"{kind}{place}", href, b"", f"{kind}/{ext}", False))
             continue
         path = f"BinData/{item.stream_name}"
         if not doc.compound.has_stream(path):
@@ -117,7 +124,7 @@ def _bin_items(doc: Hwp5File, info: di.DocInfo) -> list[tuple[str, str, bytes, s
             items.append((f"ole{place}", f"BinData/ole{place}.ole", payload, "application/ole", False))
         else:
             ext = item.extension
-            items.append((f"image{place}", f"BinData/image{place}.{ext}", payload, f"image/{ext.lower()}", True))
+            items.append((f"{kind}{place}", f"BinData/{kind}{place}.{ext}", payload, f"{kind}/{ext.lower()}", True))
     return items
 
 
@@ -218,7 +225,8 @@ def convert(data: bytes) -> Converted:
         if chart is not None:
             charts[item_id] = f"Chart/chart{len(charts) + 1}.xml"
             files[charts[item_id]] = chart
-        files[href] = payload
+        if href.startswith("BinData/"):
+            files[href] = payload
     files["Contents/header.xml"] = build_header(
         info, len(doc.sections), link_doc=link_doc, license_mark=license_mark
     )
@@ -249,9 +257,6 @@ def convert(data: bytes) -> Converted:
     files["Contents/content.hpf"] = _content_hpf(summary, counts, bins)
     files["META-INF/container.xml"] = CONTAINER_XML
     files["META-INF/manifest.xml"] = MANIFEST_XML
-    for item in info.bin_data:
-        if item.kind == di.BIN_LINK:
-            report.skip("bindata-link")
     # The header leaves out tracked changes it cannot express.
     if track_changes(info) is None:
         report.skip("track-changes")

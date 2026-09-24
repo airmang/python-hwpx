@@ -103,6 +103,11 @@ from .shape_xml import (
     ROTATE_IMAGE,
     SHADOW,
     SHADOW_STYLE,
+    TEXTART_ALIGN,
+    TEXTART_BREAKS,
+    TEXTART_FONT_TYPE,
+    TEXTART_SHAPE,
+    VIDEO_TYPE,
 )
 
 _HP = NS["hp"]
@@ -143,6 +148,10 @@ _FLAG_GROUP_MEMBER = 1 << 17
 _CHART_OBJECT = 1 << 28
 #: The size and extent Hancom gives the OLE object it makes for a chart.
 _CHART_OLE_SIZE = "7200"
+#: The code of each text art font type, and the line break each symbol in
+#: a text art's text stands for.
+_TEXTART_FONT_TYPES = {name: code for code, name in TEXTART_FONT_TYPE.items()}
+_TEXTART_CHARS = {symbol: char for char, symbol in TEXTART_BREAKS.items()}
 #: The code of each OLE draw aspect.
 _DRAW_ASPECT_CODES = {name: code for code, name in DRAW_ASPECT.items()}
 #: The codes of the presentation effects and targets.
@@ -1101,6 +1110,9 @@ class SectionRecords:
         elif kind == "$ole":
             rest = b""
             children.append(rec.Record(rec.SHAPE_COMPONENT_OLE, level + 1, self.ole(element)))
+        elif kind == "$vid":
+            rest = b""
+            children.append(rec.Record(rec.VIDEO_DATA, level + 1, self.video(element)))
         else:
             rest = self.drawing_style(element).encode()
             if draw_text is not None:
@@ -1198,8 +1210,49 @@ class SectionRecords:
             return self.curve(element).encode()
         if kind == "$col":
             return self.connect_line(element).encode()
+        if kind == "$tat":
+            return self.text_art(element).encode()
         start, end = self._point(element, "startPt"), self._point(element, "endPt")
         return sh.Line(start, end, _flag(element, "isReverseHV")).encode()
+
+    def text_art(self, element: etree._Element) -> sh.TextArt:
+        """A text art object's corners, text, font, shape, spacing, alignment,
+        the text's shadow and outline; a name with no code, or more than one
+        outline, is unsupported."""
+
+        props = _find(element, "textartPr")
+        shadow = _find(props, "shadow") if props is not None else None
+        names = dict(props.attrib) if props is not None else {}
+        codes = {
+            "fontType": _TEXTART_FONT_TYPES.get(names.get("fontType", "TTF"), -1),
+            "textShape": index_of(TEXTART_SHAPE, names.get("textShape"), -1),
+            "align": index_of(TEXTART_ALIGN, names.get("align", "LEFT"), -1),
+            "shadow": index_of(SHADOW, shadow.get("type", "NONE") if shadow is not None else "NONE", -1),
+        }
+        for name, code in codes.items():
+            if code < 0:
+                self.unsupported[f"textart/{name}"] += 1
+        outlines = element.findall(f"{{{_HP}}}outline")
+        if len(outlines) > 1:
+            self.unsupported["textart/outline"] += 1
+        points = [child for outline in outlines[:1] for child in outline if _local(child) == "pt"]
+        text: str = element.get("text") or ""
+        return sh.TextArt(
+            [self._point(element, f"pt{i}") for i in range(4)],
+            "".join(_TEXTART_CHARS.get(char, char) for char in text),
+            names.get("fontName", ""),
+            names.get("fontStyle", ""),
+            max(codes["fontType"], 0),
+            max(codes["textShape"], 0),
+            _int(props, "lineSpacing", 120),
+            _int(props, "charSpacing", 100),
+            max(codes["align"], 0),
+            max(codes["shadow"], 0),
+            _i32(_int(shadow, "offsetX")),
+            _i32(_int(shadow, "offsetY")),
+            colorref(shadow.get("color")) if shadow is not None else 0,
+            [(_i32(_int(point, "x")), _i32(_int(point, "y"))) for point in points],
+        )
 
     def curve(self, element: etree._Element) -> sh.Curve:
         """The points of a curve's segments, each starting where the one before
@@ -1282,6 +1335,22 @@ class SectionRecords:
             self._line_props(line),
             _int(element, "instid") & 0xFFFFFFFF,
         ).encode()
+
+    def video(self, element: etree._Element) -> bytes:
+        """A video: its file (a binary item) or web tag, and the picture shown
+        in its place; a kind with no code, or an item the package does not
+        hold, is unsupported."""
+
+        kind = index_of(VIDEO_TYPE, element.get("videotype", "Local"), -1)
+        file_ref, image_ref = element.get("fileIDRef", ""), element.get("imageIDRef", "")
+        if kind < 0:
+            self.unsupported["video/videotype"] += 1
+        elif kind == sh.VIDEO_LOCAL and file_ref not in self.bin_ids:
+            self.unsupported["video/missing-file"] += 1
+        if image_ref and image_ref not in self.bin_ids:
+            self.unsupported["video/missing-image"] += 1
+        tag = element.get("tag", "") if kind == sh.VIDEO_WEB else ""
+        return sh.Video(max(kind, 0), self.bin_ids.get(file_ref, 0), tag, self.bin_ids.get(image_ref, 0)).encode()
 
     def chart_object(self, chart: etree._Element) -> etree._Element | None:
         """The OLE object Hancom makes for a chart that has none: the chart's

@@ -95,6 +95,70 @@ CONNECT_TYPE = (
     "ARC_ONEWAY",
     "ARC_BOTH",
 )
+#: Text art: the font types by code, and the shapes and alignments in the
+#: order of their codes. The text keeps a line break as a visible symbol.
+TEXTART_FONT_TYPE = {1: "TTF", 2: "HTF"}
+TEXTART_SHAPE = (
+    "PARALLELOGRAM",
+    "INVERTED_PARALLELOGRAM",
+    "INVERTED_UPWARD_CASCADE",
+    "INVERTED_DOWNWARD_CASCADE",
+    "UPWARD_CASCADE",
+    "DOWNWARD_CASCADE",
+    "REDUCE_RIGHT",
+    "REDUCE_LEFT",
+    "ISOSCELES_TRAPEZOID",
+    "INVERTED_ISOSCELES_TRAPEZOID",
+    "TOP_RIBBON_RECTANGLE",
+    "BOTTOM_RIBBON_RECTANGLE",
+    "CHEVRON_DOWN",
+    "CHEVRON",
+    "BOW_TIE",
+    "HEXAGON",
+    "WAVE1",
+    "WAVE2",
+    "WAVE3",
+    "WAVE4",
+    "LEFT_TILT_CYLINDER",
+    "RIGHT_TILT_CYLINDER",
+    "BOTTOM_WIDE_CYLINDER",
+    "TOP_WIDE_CYLINDER",
+    "THIN_CURVE_UP1",
+    "THIN_CURVE_UP2",
+    "THIN_CURVE_DOWN1",
+    "THIN_CURVE_DOWN2",
+    "INVERSED_FINGERNAIL",
+    "FINGERNAIL",
+    "GINKO_LEAF1",
+    "GINKO_LEAF2",
+    "INFLATE_RIGHT",
+    "INFLATE_LEFT",
+    "INFLATE_UP_CONVEX",
+    "INFLATE_BOTTOM_CONVEX",
+    "DEFLATE_TOP",
+    "DEFLATE_BOTTOM",
+    "DEFLATE",
+    "INFLATE",
+    "INFLATE_TOP",
+    "INFLATE_BOTTOM",
+    "RECTANGLE",
+    "LEFT_CYLINDER",
+    "CYLINDER",
+    "RIGHT_CYLINDER",
+    "CIRCLE",
+    "CURVE_DOWN",
+    "ARCH_UP",
+    "ARCH_DOWN",
+    "SINGLE_LINE_CIRCLE1",
+    "SINGLE_LINE_CIRCLE2",
+    "TRIPLE_LINE_CIRCLE1",
+    "TRIPLE_LINE_CIRCLE2",
+    "DOUBLE_LINE_CIRCLE",
+)
+TEXTART_ALIGN = ("LEFT", "RIGHT", "CENTER", "FULL", "TABLE")
+TEXTART_BREAKS = {"\r": "\u240d", "\n": "\u240a"}
+#: Videos: a file or a web page's tag.
+VIDEO_TYPE = ("Local", "Web")
 #: OLE objects: the object type (bits 16-21 of the properties) and the draw
 #: aspect (bits 0-7) by code; Hancom calls every chart UNKNOWN.
 OLE_TYPE = ("UNKNOWN", "EMBEDDED", "LINK", "STATIC", "EQUATION")
@@ -350,6 +414,7 @@ class ShapeReader:
         style: sh.DrawingStyle | None = None
         picture: sh.Picture | None = None
         ole: sh.OleObject | None = None
+        art: sh.TextArt | None = None
         if sc.kind == "$con":
             instance_id = sh.ContainerChildren.decode(sc.rest).instance_id
         elif sc.kind == "$pic":
@@ -360,11 +425,22 @@ class ShapeReader:
                 raise damaged("OLE object without its record")
             ole = sh.OleObject.decode(geometry.payload)
             instance_id = ole.instance_id or 0
+        elif sc.kind == "$vid":
+            if geometry is None:
+                raise damaged("video without its record")
+            # HWP keeps no instance id for a video; Hancom makes one up.
+            instance_id = 0
         else:
             style = sh.DrawingStyle.decode(sc.rest)
             instance_id = style.instance_id
+        if sc.kind == "$tat":
+            if geometry is None:
+                raise damaged("text art without its record")
+            art = sh.TextArt.decode(geometry.payload)
         attrs += [("href", href), ("groupLevel", sc.group_level), ("instid", instance_id)]
         attrs += self.shape_attrs(sc.kind, geometry) if ole is None else self.ole_attrs(ole)
+        if art is not None:
+            attrs.append(("text", "".join(TEXTART_BREAKS.get(char, char) for char in art.text)))
         element = sub(parent, f"hp:{name}", attrs)
         self.shape_placement(element, sc)
         if picture is not None:
@@ -386,6 +462,8 @@ class ShapeReader:
             for header, paragraphs in lists(record)[:1]:
                 self.text_box(element, header, paragraphs)
             self.shape_geometry(element, sc.kind, geometry)
+            if art is not None:
+                self.text_art(element, art)
         if common is not None:
             object_layout(element, common)
             if common.description:
@@ -413,6 +491,14 @@ class ShapeReader:
             return [("type", token(CONNECT_TYPE, sh.ConnectLine.decode(geometry.payload).kind))]
         if kind == "$pic":
             return [("reverse", 0)]
+        if kind == "$vid":
+            video = sh.Video.decode(geometry.payload)
+            return [
+                ("videotype", token(VIDEO_TYPE, video.kind)),
+                ("fileIDRef", f"video{video.file}" if video.file else ""),
+                ("imageIDRef", f"image{video.image}" if video.image else ""),
+                ("tag", video.tag),
+            ]
         return []
 
     def ole_attrs(self, ole: sh.OleObject) -> list[tuple[str, object]]:
@@ -532,6 +618,45 @@ class ShapeReader:
         self.paragraphs(sub_list, paragraphs)
         left, right, top, bottom = box.margins
         sub(draw_text, "hp:textMargin", (("left", left), ("right", right), ("top", top), ("bottom", bottom)))
+
+    def text_art(self, element: etree._Element, art: sh.TextArt) -> None:
+        """The corners of a text art object, then its font, shape, spacing,
+        alignment, the text's shadow (HWP keeps no alpha for it) and outline.
+        A code with no OWPML name is reported and written as the default."""
+
+        for index, (x, y) in enumerate(art.corners):
+            sub(element, f"hc:pt{index}", (("x", x), ("y", y)))
+        font_type = TEXTART_FONT_TYPE.get(art.font_type)
+        if font_type is None or art.shape >= len(TEXTART_SHAPE) or art.align >= len(TEXTART_ALIGN) or art.shadow_type >= len(SHADOW):
+            self.report.skip("textart-code")
+        props = sub(
+            element,
+            "hp:textartPr",
+            (
+                ("fontName", art.font_name),
+                ("fontStyle", art.font_style),
+                ("fontType", font_type or "TTF"),
+                ("textShape", token(TEXTART_SHAPE, art.shape)),
+                ("lineSpacing", art.line_spacing),
+                ("charSpacing", art.char_spacing),
+                ("align", token(TEXTART_ALIGN, art.align)),
+            ),
+        )
+        sub(
+            props,
+            "hp:shadow",
+            (
+                ("type", token(SHADOW, art.shadow_type)),
+                ("color", color(art.shadow_color)),
+                ("offsetX", art.shadow_x),
+                ("offsetY", art.shadow_y),
+                ("alpha", 0),
+            ),
+        )
+        if art.outline:
+            outline = sub(element, "hp:outline", (("cnt", len(art.outline)),))
+            for x, y in art.outline:
+                sub(outline, "hc:pt", (("x", x), ("y", y)))
 
     @staticmethod
     def shape_geometry(element: etree._Element, kind: str, geometry: rec.Record | None) -> None:

@@ -75,6 +75,7 @@ def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
         {"memo": True, "master_page": True},
         {"compose": True},
         {"drawings": True},
+        {"text_art": True},
         {"forms": True},
         {"hidden_comment": True},
         {"picture_effects": True},
@@ -93,6 +94,23 @@ def test_hwp_to_hwpx_to_hwp_keeps_the_section_records(extras: dict[str, bool]) -
             assert a.payload[4:] == b.payload[4:]
         else:
             assert a.payload == b.payload, rec.TAG_NAMES.get(a.tag)
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "kind"),
+    [
+        (b'textShape="RECTANGLE"', b'textShape="SPIRAL"', "textart/textShape"),
+        (b'fontType="TTF"', b'fontType="OTF"', "textart/fontType"),
+        (b'align="CENTER"', b'align="MIDDLE"', "textart/align"),
+    ],
+)
+def test_a_text_art_name_with_no_code_is_refused(old: bytes, new: bytes, kind: str) -> None:
+    files = convert(make_hwp(text_art=True)).files
+    section = files["Contents/section0.xml"]
+    assert section.count(old) == 1
+    with pytest.raises(Hwp5Error) as refused:
+        write_hwp5({**files, "Contents/section0.xml": section.replace(old, new)})
+    assert refused.value.context["unsupported"] == {kind: 1}
 
 
 def test_saving_as_hwp_keeps_text_formatting_and_tables(tmp_path: Path) -> None:
@@ -208,11 +226,11 @@ def test_a_container_holding_a_shape_the_writer_cannot_write_is_refused() -> Non
     section = etree.fromstring(
         '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"'
         ' xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">'
-        "<hp:p><hp:run><hp:container><hp:offset/><hp:orgSz/><hp:textart/></hp:container></hp:run></hp:p>"
+        "<hp:p><hp:run><hp:container><hp:offset/><hp:orgSz/><hp:hologram/></hp:container></hp:run></hp:p>"
         "</hs:sec>"
     )
     _, unsupported = build_section_records(section)
-    assert unsupported == {"textart": 1}
+    assert unsupported == {"hologram": 1}
 
 
 def test_an_unknown_element_directly_in_a_section_is_refused() -> None:
@@ -377,6 +395,94 @@ def test_a_picture_finds_its_image_by_the_place_of_its_bindata_record() -> None:
         for i in etree.fromstring(part).iter("{http://www.hancom.co.kr/hwpml/2011/core}img")
     ]
     assert image.get("binaryItemIDRef") == "image1"
+
+
+_VIDEO_PATH = "C:" + chr(92) + "clips" + chr(92) + "intro.avi"
+
+
+def _video_hwp() -> bytes:
+    """A video that plays a linked file (the first BinData record) and shows
+    an embedded picture (the second, whose stream is the first)."""
+
+    records = _docinfo()
+    counts = struct.unpack("<18i", records[1].payload)
+    records[1] = rec.Record(rec.ID_MAPPINGS, 0, struct.pack("<18i", 2, *counts[1:]))
+    link = di.BinDataItem(di.BIN_LINK, abs_path=_VIDEO_PATH, rel_path="..\\clips\\intro.avi")
+    image = di.BinDataItem(di.BIN_EMBEDDING, bin_id=1, extension="png")
+    records[2:2] = [rec.Record(rec.BIN_DATA, 1, link.encode()), rec.Record(rec.BIN_DATA, 1, image.encode())]
+    common = ct.ObjectCommon("gso ", 0x040A2210, 0, 0, 22500, 15000, 0, (0, 0, 0, 0), 0, 0, "", bytes(2))
+    component = sh.ShapeComponent("$vid", True, 0, 0, 0, 1, 22500, 15000, 22500, 15000, 1 << 19, 0, 11250, 7500, [_IDENTITY] * 3)
+    controls = [
+        rec.Record(rec.CTRL_HEADER, 1, common.encode()),
+        rec.Record(rec.SHAPE_COMPONENT, 2, component.encode()),
+        rec.Record(rec.VIDEO_DATA, 3, sh.Video(sh.VIDEO_LOCAL, 1, "", 2).encode()),
+    ]
+    section = _section() + _paragraph(0, _extended(11, "gso ") + _u16(13), [(0, 0)], controls)
+    return cfb.build_compound_file(
+        [
+            ("FileHeader", FileHeader((5, 1, 1, 0), 1).to_bytes()),
+            ("DocInfo", rec.deflate(rec.serialize_records(records))),
+            ("BodyText/Section0", rec.deflate(rec.serialize_records(section))),
+            ("BinData/BIN0001.png", rec.deflate(_PNG)),
+        ]
+    )
+
+
+def _manifest_bins(files: dict[str, bytes]) -> list[dict[str, str]]:
+    root = etree.fromstring(files["Contents/content.hpf"])
+    return [dict(i.attrib) for i in root.iter("{http://www.idpf.org/2007/opf/}item") if "isEmbeded" in i.attrib]
+
+
+def test_a_video_opens_with_its_linked_file_and_its_picture() -> None:
+    converted = convert(_video_hwp())
+    assert not converted.report.unconverted
+    [video] = list(etree.fromstring(converted.files["Contents/section0.xml"]).iter(f"{HP}video"))
+    attrs = {name: video.get(name) for name in ("videotype", "fileIDRef", "imageIDRef", "tag")}
+    assert attrs == {"videotype": "Local", "fileIDRef": "video1", "imageIDRef": "image2", "tag": ""}
+    assert [etree.QName(c).localname for c in video] == [
+        "offset", "orgSz", "curSz", "flip", "rotationInfo", "renderingInfo", "sz", "pos", "outMargin",
+    ]
+    # The linked file is named by its path and has no part of its own.
+    assert _manifest_bins(converted.files) == [
+        {"id": "video1", "href": _VIDEO_PATH, "media-type": "video/avi", "isEmbeded": "0"},
+        {"id": "image2", "href": "BinData/image2.png", "media-type": "image/png", "isEmbeded": "1"},
+    ]
+    assert sorted(name for name in converted.files if name.startswith("BinData/")) == ["BinData/image2.png"]
+
+
+def test_a_video_and_its_linked_file_save_back_as_hwp() -> None:
+    original = _video_hwp()
+    written = read_hwp5(write_hwp5(convert(original).files))
+
+    items = di.decode_docinfo(written.docinfo).bin_data
+    assert [(i.kind, i.abs_path, i.bin_id, i.extension) for i in items] == [
+        (di.BIN_LINK, _VIDEO_PATH, 0, ""),
+        (di.BIN_EMBEDDING, "", 1, "png"),
+    ]
+    assert written.compound.has_stream("BinData/BIN0001.png")
+    before = read_hwp5(original).sections[0].records
+    after = written.sections[0].records
+    assert [(r.tag, r.level) for r in after] == [(r.tag, r.level) for r in before]
+    video = [r.payload for r in after if r.tag == rec.VIDEO_DATA]
+    assert video == [sh.Video(sh.VIDEO_LOCAL, 1, "", 2).encode()]
+
+
+def test_a_video_whose_file_the_package_does_not_list_is_refused() -> None:
+    files = convert(_video_hwp()).files
+    root = etree.fromstring(files["Contents/content.hpf"])
+    [item] = [i for i in root.iter("{http://www.idpf.org/2007/opf/}item") if i.get("id") == "video1"]
+    item.getparent().remove(item)
+    files["Contents/content.hpf"] = etree.tostring(root)
+    with pytest.raises(Hwp5Error) as refused:
+        write_hwp5(files)
+    assert refused.value.context["unsupported"] == {"video/missing-file": 1}
+
+
+def test_a_web_video_keeps_its_tag_and_an_unknown_kind_is_damaged() -> None:
+    web = sh.Video(sh.VIDEO_WEB, tag='<iframe src="https://example.com/v"></iframe>', image=3)
+    assert sh.Video.decode(web.encode()) == web
+    with pytest.raises(Hwp5Error):
+        sh.Video.decode(struct.pack("<IHH", 7, 1, 2))
 
 
 def test_picture_effects_the_record_cannot_hold_are_refused() -> None:

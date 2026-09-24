@@ -55,7 +55,8 @@ def _manifest(files: Mapping[str, bytes]) -> tuple[str, list[str], list[tuple[st
     binaries: list[tuple[str, str]] = []
     for item_id, item in items.items():
         href = item.get("href", "")
-        if href.startswith("BinData/") and href in files:
+        linked = item.get("isEmbeded") == "0" and bool(href) and href not in files and not href.startswith("BinData/")
+        if (href.startswith("BinData/") and href in files) or linked:
             binaries.append((item_id or "", href))
     return header, sections, binaries
 
@@ -187,8 +188,14 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
     docinfo = build_docinfo(head, section_count=len(sections), caret=_caret(files), bin_ids=bin_ids)
     items: list[di.BinDataItem] = []
     streams: list[tuple[str, bytes]] = []
+    number = 0
     for item_id, href in binaries:
-        number = bin_ids[item_id]
+        if href not in files and item_id not in storages:
+            # A linked file: the record keeps its path; it has no stream.
+            items.append(di.BinDataItem(di.BIN_LINK, abs_path=href))
+            continue
+        # A stream is numbered among the items that have one.
+        number += 1
         extension = href.rsplit(".", 1)[-1] if "." in href.rsplit("/", 1)[-1] else ""
         storage = extension.lower() == "ole"
         # Hancom names an OLE storage's stream with the extension in capitals.

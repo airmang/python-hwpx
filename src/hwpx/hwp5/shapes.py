@@ -37,6 +37,8 @@ SHAPE_ELEMENTS = {
     "$con": "container",
     "$pic": "pic",
     "$ole": "ole",
+    "$tat": "textart",
+    "$vid": "video",
 }
 #: The geometry record of each shape kind.
 GEOMETRY_TAGS = {
@@ -49,6 +51,8 @@ GEOMETRY_TAGS = {
     "$col": rec.SHAPE_COMPONENT_LINE,
     "$pic": rec.SHAPE_COMPONENT_PICTURE,
     "$ole": rec.SHAPE_COMPONENT_OLE,
+    "$tat": rec.SHAPE_COMPONENT_TEXTART,
+    "$vid": rec.VIDEO_DATA,
 }
 
 
@@ -630,6 +634,106 @@ class OleObject:
         if self.instance_id is not None:
             b.u32(self.instance_id)
         return b.raw(self.extra).bytes()
+
+
+@dataclass
+class TextArt:
+    """``SHAPE_COMPONENT_TEXTART``: the four corners, the text, the font name
+    and style, then the font type, the shape the text is laid on, the line
+    and character spacing (per cent), the alignment, the text's own shadow
+    (kind, offsets, colour) and the points of the text's outline."""
+
+    corners: list[Point] = field(default_factory=lambda: [(0, 0)] * 4)
+    text: str = ""
+    font_name: str = ""
+    font_style: str = ""
+    font_type: int = 1
+    shape: int = 0
+    line_spacing: int = 120
+    char_spacing: int = 100
+    align: int = 0
+    shadow_type: int = 0
+    shadow_x: int = 0
+    shadow_y: int = 0
+    shadow_color: int = 0
+    outline: list[Point] = field(default_factory=list)
+    extra: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "TextArt":
+        c = Cursor(payload, "SHAPE_COMPONENT_TEXTART")
+        value = cls([_point(c) for _ in range(4)], c.wstr(), c.wstr(), c.wstr())
+        value.font_type, value.shape = c.u32(), c.u32()
+        value.line_spacing, value.char_spacing, value.align = c.u32(), c.u32(), c.u32()
+        value.shadow_type, value.shadow_x, value.shadow_y = c.u32(), c.i32(), c.i32()
+        value.shadow_color, count = c.u32(), c.u32()
+        value.outline = [_point(c) for _ in range(min(count, c.left // 8))]
+        value.extra = c.rest()
+        return value
+
+    def encode(self) -> bytes:
+        b = Builder()
+        _points(b, self.corners)
+        b.wstr(self.text).wstr(self.font_name).wstr(self.font_style)
+        b.u32(self.font_type).u32(self.shape).u32(self.line_spacing).u32(self.char_spacing).u32(self.align)
+        b.u32(self.shadow_type).i32(self.shadow_x).i32(self.shadow_y).u32(self.shadow_color)
+        b.u32(len(self.outline))
+        _points(b, self.outline)
+        return b.raw(self.extra).bytes()
+
+
+#: A video plays a file (a BinData item) or a web page's tag.
+VIDEO_LOCAL, VIDEO_WEB = 0, 1
+
+
+@dataclass
+class Video:
+    """``VIDEO_DATA``: the kind of video, then the BinData item of its file
+    (by place, 1 first) or the tag that plays it from the web, then the
+    BinData item of the picture shown in its place."""
+
+    kind: int = VIDEO_LOCAL
+    file: int = 0
+    tag: str = ""
+    image: int = 0
+    extra: bytes = b""
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "Video":
+        c = Cursor(payload, "VIDEO_DATA")
+        value = cls(c.u32())
+        if value.kind == VIDEO_LOCAL:
+            value.file = c.u16()
+        elif value.kind == VIDEO_WEB:
+            value.tag = c.wstr()
+        else:
+            raise Hwp5Error(f"unknown video kind {value.kind}", code="hwp5-damaged")
+        value.image = c.u16()
+        value.extra = c.rest()
+        return value
+
+    def encode(self) -> bytes:
+        b = Builder().u32(self.kind)
+        if self.kind == VIDEO_LOCAL:
+            b.u16(self.file)
+        else:
+            b.wstr(self.tag)
+        return b.u16(self.image).raw(self.extra).bytes()
+
+
+def video_files(records: list[rec.Record]) -> set[int]:
+    """The places of the BinData items that videos among *records* play."""
+
+    places = set()
+    for record in records:
+        if record.tag == rec.VIDEO_DATA:
+            try:
+                video = Video.decode(record.payload)
+            except Hwp5Error:
+                continue
+            if video.kind == VIDEO_LOCAL and video.file:
+                places.add(video.file)
+    return places
 
 
 #: The class of a Hancom chart's OLE storage, {4C3DA137-DC90-47B9-9BED-59DAE352A280}.

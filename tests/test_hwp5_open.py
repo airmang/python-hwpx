@@ -341,6 +341,42 @@ def _drawings() -> list[rec.Record]:
     return records
 
 
+def _text_art(font_type: int = 1) -> list[rec.Record]:
+    """A text art object: two lines laid on a rectangle, centred, with a
+    shadow of its own and a one-point outline."""
+
+    art = sh.TextArt(
+        corners=[(0, 0), (14173, 0), (14173, 14173), (0, 14173)],
+        text="글맵시\r\n둘째 줄",
+        font_name="함초롬바탕",
+        font_style="보통",
+        font_type=font_type,
+        shape=42,
+        align=2,
+        shadow_x=12,
+        shadow_y=-34,
+        shadow_color=0x00808080,
+        outline=[(500, 1000)],
+    )
+    common = ct.ObjectCommon("gso ", 0x000A2211, 0, 0, 14173, 14173, 0, (0, 0, 0, 0), 191, 0, "", b"\0\0")
+    fill = di.Fill(di.FILL_SOLID, 0x00FF0000, 0, -1, additional=b"", alphas=b"\0")
+    style = sh.DrawingStyle(0, 0, 0, 2, fill, 0, 0xB2B2B2, 0, 0, 191)
+    component = sh.ShapeComponent(
+        "$tat", True, 0, 0, 0, 1, 14173, 14173, 14173, 14173, 1 << 19, 0, 7086, 7086,
+        [_IDENTITY, _IDENTITY, _IDENTITY], style.encode(),
+    )
+    return _paragraph(
+        0,
+        _extended(11, "gso ") + _u16(13),
+        [(0, 0)],
+        [
+            rec.Record(rec.CTRL_HEADER, 1, common.encode()),
+            rec.Record(rec.SHAPE_COMPONENT, 2, component.encode()),
+            rec.Record(rec.SHAPE_COMPONENT_TEXTART, 3, art.encode()),
+        ],
+    )
+
+
 def _memo() -> list[rec.Record]:
     """A memo field; its body hangs on the paragraph after a ``MEMO_LIST`` record."""
 
@@ -421,6 +457,8 @@ def make_hwp(
     picture: bool = False,
     compose: bool = False,
     drawings: bool = False,
+    text_art: bool = False,
+    text_art_font: int = 1,
     forms: bool = False,
     hidden_comment: bool = False,
     picture_effects: bool = False,
@@ -434,6 +472,8 @@ def make_hwp(
         section += _forms()
     if drawings:
         section += _drawings()
+    if text_art:
+        section += _text_art(text_art_font)
     if compose:
         section += _compose()
     if text_box:
@@ -786,6 +826,41 @@ def test_curves_and_connectors_open_with_their_segments_and_ends() -> None:
     points = [dict(p.attrib) for p in connector.find(f"{HP}controlPoints")]
     assert points == [{"x": "0", "y": "0", "type": "3"}, {"x": "0", "y": "6000", "type": "26"}]
     assert connector.find("{http://www.hancom.co.kr/hwpml/2011/core}fillBrush") is None
+
+
+def test_text_art_opens_with_its_shape_font_shadow_and_outline() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(text_art=True))
+    [art] = list(document.sections[0].element.iter(f"{HP}textart"))
+    # A line break in the text is kept as a visible symbol.
+    assert art.get("text") == "글맵시\u240d\u240a둘째 줄"
+    assert [etree.QName(c).localname for c in art] == [
+        "offset", "orgSz", "curSz", "flip", "rotationInfo", "renderingInfo", "lineShape", "fillBrush", "shadow",
+        "pt0", "pt1", "pt2", "pt3", "textartPr", "outline", "sz", "pos", "outMargin",
+    ]
+    props = art.find(f"{HP}textartPr")
+    assert dict(props.attrib) == {
+        "fontName": "함초롬바탕",
+        "fontStyle": "보통",
+        "fontType": "TTF",
+        "textShape": "RECTANGLE",
+        "lineSpacing": "120",
+        "charSpacing": "100",
+        "align": "CENTER",
+    }
+    shadow = {"type": "NONE", "color": "#808080", "offsetX": "12", "offsetY": "-34", "alpha": "0"}
+    assert dict(props.find(f"{HP}shadow").attrib) == shadow
+    outline = art.find(f"{HP}outline")
+    assert outline.get("cnt") == "1" and [dict(p.attrib) for p in outline] == [{"x": "500", "y": "1000"}]
+
+
+def test_a_text_art_code_with_no_owpml_name_is_reported() -> None:
+    with pytest.warns(Hwp5ConversionWarning, match="textart-code x1"):
+        document = HwpxDocument.open(make_hwp(text_art=True, text_art_font=9))
+    assert document.conversion_report.unconverted["textart-code"] == 1
+    [props] = list(document.sections[0].element.iter(f"{HP}textartPr"))
+    assert props.get("fontType") == "TTF"
 
 
 @pytest.mark.parametrize(
