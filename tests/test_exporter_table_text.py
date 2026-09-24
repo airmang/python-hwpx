@@ -130,7 +130,8 @@ def test_markdown_keeps_every_cell_under_a_merged_first_row() -> None:
     table = doc.add_table(3, 3)
     for row in range(3):
         for col in range(3):
-            table.cell(row, col).text = f"r{row}c{col}"
+            if row or not col:  # the cells the merge covers stay blank
+                table.cell(row, col).text = f"r{row}c{col}"
     doc.tables.merge_cells(table, "A1:C1")
 
     lines = doc.text.markdown().splitlines()[-4:]
