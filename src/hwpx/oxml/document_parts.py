@@ -232,9 +232,7 @@ def _run_style_predicate(element: ET.Element, spec: _RunStyleSpec) -> bool:
         font_ref = element.find(f"{_HH}fontRef")
         if font_ref is None:
             return False
-        if {
-            key: font_ref.get(key, "") for key in _FONT_REF_ATTRIBUTES
-        } != spec.font_ref:
+        if any(font_ref.get(key, "") != value for key, value in spec.font_ref.items()):
             return False
     return True
 
@@ -249,7 +247,7 @@ def _run_style_apply_font_and_colors(element: ET.Element, spec: _RunStyleSpec) -
     if spec.font_ref is not None:
         font_ref = element.find(f"{_HH}fontRef")
         if font_ref is None:
-            font_ref = element.makeelement(f"{_HH}fontRef", {})
+            font_ref = element.makeelement(f"{_HH}fontRef", {name: "0" for name in _FONT_REF_ATTRIBUTES})
             element.insert(0, font_ref)
         for attr_name in list(font_ref.attrib.keys()):
             if attr_name not in _FONT_REF_ATTRIBUTES:
@@ -775,13 +773,18 @@ class HwpxOxmlDocument:
             normalized_outline = candidate
 
         header = self._headers[0]
+        font_ref = header.font_ref_for_face(font) if font is not None else None
+        if font is not None and font_ref is None and font.strip():
+            # Hancom declares a font it is asked to apply; so does ensure_font by default
+            self.ensure_font(font)
+            font_ref = header.font_ref_for_face(font)
         spec = _RunStyleSpec(
             flags=(bool(bold), bool(italic), bool(underline)),
             color=_normalize_color(color),
             highlight=_normalize_color(highlight),
             height=_char_height_from_points(size),
             strike=strike,
-            font_ref=header.font_ref_for_face(font) if font is not None else None,
+            font_ref=font_ref,
             underline_shape=normalized_underline_shape,
             underline_color=_normalize_color(underline_color),
             strike_shape=normalized_strike_shape,
