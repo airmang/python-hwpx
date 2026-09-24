@@ -109,6 +109,9 @@ packages = [
     "hwpx.data",
     "hwpx.equation",
     "hwpx.form_fit",
+    # HWP 5.0(.hwp) 읽기·쓰기. `hwpx/__init__.py`가 이 패키지를 가져오므로 빠지면
+    # 휠에서 `import hwpx`가 깨진다.
+    "hwpx.hwp5",
     "hwpx.ingest",
     "hwpx.layout",
     # 6.0: add_* 가 반환하는 도메인 객체·결과 dataclass (WP-C가 채운다).
