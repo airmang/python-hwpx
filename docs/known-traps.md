@@ -69,6 +69,17 @@
   흐르는 표로 만든다. 만든 뒤 행을 늘리거나 글을 채워 쪽을 넘게 된 표는 글자처럼
   취급 그대로이니 `table.set_treat_as_char(False)`로 흐르게 하라.
   `hwpx.layout.lint_layout`이 이런 표를 `TABLE_TALLER_THAN_PAGE`로 알린다.
+- **`set_page_number()`의 번호는 한컴의 쪽 번호 감추기로 숨지 않는다.** 이 번호는
+  머리말/꼬리말 안의 자동 번호 글이고, `set_visibility(hide_first_page_num=True)`와
+  `hide_page_elements(page_num=True)`는 한컴 쪽 번호 컨트롤("쪽 번호 매기기")만
+  감춘다. 첫 쪽에서 감추려면 `set_visibility(hide_first_footer=True)`(머리말이면
+  `hide_first_header`), 한 쪽만 감추려면 `hide_page_elements(paragraph, footer=True)`를
+  쓴다. `set_page_number()`는 그 머리말/꼬리말의 내용을 번호로 바꾼다.
+- **`hide_page_elements()`는 그 쪽만 감춘다.** 한컴의 "현재 쪽만 감추기"와 같아서,
+  문단이 있는 쪽에서만 숨고 다음 쪽부터는 다시 보인다.
+- **줄 번호는 `show_line_number=True`일 때만 보인다.** `set_line_numbers()`는 모양
+  (재시작·간격·거리·시작 번호)만 정한다. `set_visibility(show_line_number=True)`를
+  함께 준다. `restart_type=1`이면 쪽마다 1부터 다시 센다.
 
 ## 계획 실행기(hwpx.plan) 자체의 정직 범위
 

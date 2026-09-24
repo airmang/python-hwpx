@@ -970,10 +970,14 @@ def hide_page_elements(
     fill: bool = False,
     page_num: bool = False,
 ) -> "HwpxOxmlInlineObject":
-    """Hide the named page elements from *paragraph*'s page onward.
+    """Hide the named page elements on *paragraph*'s page only.
 
     Inserts ``<hp:ctrl><hp:pageHiding .../></hp:ctrl>`` (``ParaList XML
     schema.xml:148-163`` — six independent booleans, all default unhidden).
+    Hancom applies it to that page alone (its "hide on the current page
+    only"); the next page shows the elements again. *page_num* hides
+    Hancom's page-number control, not the header/footer number that
+    ``set_page_number`` writes -- hide that one with *footer* (or *header*).
     """
 
     return paragraph.add_page_hiding(
