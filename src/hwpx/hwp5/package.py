@@ -38,7 +38,9 @@ from .summary import (
     LAST_SAVED,
     SUBJECT,
     TITLE,
+    default_scripts,
     filetime_text,
+    read_scripts,
     read_summary,
 )
 
@@ -130,7 +132,10 @@ def _bin_items(doc: Hwp5File, info: di.DocInfo) -> list[tuple[str, str, bytes, s
 
 
 def _content_hpf(
-    summary: dict[int, object], master_pages: list[int], bins: list[tuple[str, str, bytes, str, bool]]
+    summary: dict[int, object],
+    master_pages: list[int],
+    bins: list[tuple[str, str, bytes, str, bool]],
+    scripts: bool = False,
 ) -> bytes:
     """The package manifest and spine; *master_pages* holds the number of
     master pages of each section, whose items go just before the section's."""
@@ -181,12 +186,38 @@ def _content_hpf(
             "opf:item",
             (("id", f"section{index}"), ("href", f"Contents/section{index}.xml"), ("media-type", "application/xml")),
         )
+    for item_id, href in _SCRIPT_PARTS if scripts else ():
+        sub(manifest, "opf:item", (("id", item_id), ("href", href), ("media-type", _SCRIPT_MEDIA)))
     sub(manifest, "opf:item", (("id", "settings"), ("href", "settings.xml"), ("media-type", "application/xml")))
     spine = sub(package, "opf:spine")
     sub(spine, "opf:itemref", (("idref", "header"), ("linear", "yes")))
     for index in range(sections):
         sub(spine, "opf:itemref", (("idref", f"section{index}"), ("linear", "yes")))
+    for item_id, _ in _SCRIPT_PARTS if scripts else ():
+        sub(spine, "opf:itemref", (("idref", item_id), ("linear", "yes")))
     return serialize(package)
+
+
+#: The package parts of a document's header and source scripts.
+_SCRIPT_PARTS = (("headersc", "Scripts/headerScripts"), ("sourcesc", "Scripts/sourceScripts"))
+_SCRIPT_MEDIA = "application/x-javascript ;charset=utf-16"
+
+
+def _scripts(doc: Hwp5File, report: ConversionReport) -> list[str] | None:
+    """The header and source scripts to keep as package parts; None when the
+    document has none beyond a new document's."""
+
+    if not doc.compound.has_stream("Scripts/DefaultJScript"):
+        return None
+    scripts = read_scripts(doc.compound.read("Scripts/DefaultJScript"), is_compressed=doc.header.compressed)
+    if scripts is None:
+        report.drop("scripts")
+        return None
+    if default_scripts(scripts):
+        return None
+    if any(scripts[2:]):
+        report.drop("script-before-after")
+    return (scripts + ["", ""])[:2]
 
 
 def _settings(info: di.DocInfo, report: ConversionReport) -> bytes:
@@ -273,7 +304,11 @@ def convert(data: bytes) -> Converted:
     summary = read_summary(doc.compound.read("\x05HwpSummaryInformation")) if doc.compound.has_stream(
         "\x05HwpSummaryInformation"
     ) else {}
-    files["Contents/content.hpf"] = _content_hpf(summary, counts, bins)
+    scripts = _scripts(doc, report)
+    if scripts is not None:
+        for (_, href), text in zip(_SCRIPT_PARTS, scripts):
+            files[href] = text.encode("utf-16-le", errors="surrogatepass")
+    files["Contents/content.hpf"] = _content_hpf(summary, counts, bins, scripts is not None)
     files["META-INF/container.xml"] = CONTAINER_XML
     files["META-INF/manifest.xml"] = MANIFEST_XML
     # The header leaves out tracked changes it cannot express.

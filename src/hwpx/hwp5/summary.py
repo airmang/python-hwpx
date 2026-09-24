@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-"""``\\x05HwpSummaryInformation``: the document properties of an HWP 5.0 file.
+"""``\\x05HwpSummaryInformation``: the document properties of an HWP 5.0 file,
+and ``Scripts/DefaultJScript``: its scripts.
 
-The stream is an OLE property set ([MS-OLEPS]). Only the value types HWP
+The properties are an OLE property set ([MS-OLEPS]). Only the value types HWP
 writes are read: strings, 16/32-bit integers and FILETIME timestamps. A
 malformed set yields no properties rather than an error, because the
 properties are metadata and never content.
@@ -11,6 +12,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import struct
+import zlib
 
 TITLE = 2
 SUBJECT = 3
@@ -139,3 +141,64 @@ def write_summary(values: dict[int, object]) -> bytes:
         body += value
     section = struct.pack("<II", table + len(body), len(entries)) + b"".join(offsets) + body
     return struct.pack("<HHI16sI16sI", 0xFFFE, 0, 0x0D, FORMAT_ID, 1, FORMAT_ID, 48) + section
+
+
+#: The scripts Hancom gives a new document: the header script, and a source
+#: script with an empty handler, which it keeps as no source.
+DEFAULT_HEADER_SCRIPT = "var Documents = XHwpDocuments;\r\nvar Document = Documents.Active_XHwpDocument;\r\n"
+DEFAULT_SOURCE_SCRIPT = "function OnDocument_New()\r\n{\r\n\t//todo : \r\n}\r\n"
+#: ``Scripts/JScriptVersion``: version 1, 0.
+SCRIPT_VERSION = struct.pack("<II", 1, 0)
+
+
+def compressed(raw: bytes) -> bytes:
+    """A script stream as Hancom compresses it: raw deflate, then the CRC-32
+    and the length of *raw*."""
+
+    packer = zlib.compressobj(zlib.Z_DEFAULT_COMPRESSION, zlib.DEFLATED, -15)
+    return packer.compress(raw) + packer.flush() + struct.pack("<II", zlib.crc32(raw), len(raw))
+
+
+def read_scripts(data: bytes, *, is_compressed: bool) -> list[str] | None:
+    """The scripts of ``Scripts/DefaultJScript``: header, source, before and
+    after, each a length in UTF-16 units and the text, until -1; None when the
+    stream cannot be read."""
+
+    try:
+        raw = zlib.decompressobj(-15).decompress(data) if is_compressed else data
+        scripts: list[str] = []
+        at = 0
+        while True:
+            (units,) = struct.unpack_from("<i", raw, at)
+            at += 4
+            if units == -1:
+                return scripts
+            if units < 0 or at + 2 * units > len(raw):
+                return None
+            scripts.append(raw[at : at + 2 * units].decode("utf-16-le", errors="surrogatepass"))
+            at += 2 * units
+    except (zlib.error, struct.error, UnicodeDecodeError):
+        return None
+
+
+def write_scripts(header: str, source: str) -> bytes:
+    """``Scripts/DefaultJScript`` holding a header and a source script (nothing
+    before or after), compressed."""
+
+    raw = b""
+    for text in (header, source, "", ""):
+        encoded = text.encode("utf-16-le", errors="surrogatepass")
+        raw += struct.pack("<I", len(encoded) // 2) + encoded
+    return compressed(raw + struct.pack("<i", -1))
+
+
+def default_scripts(scripts: list[str]) -> bool:
+    """Whether the scripts are no more than a new document's."""
+
+    padded = scripts + [""] * (4 - len(scripts))
+    header, source, rest = padded[0], padded[1], padded[2:]
+    return (
+        header in ("", DEFAULT_HEADER_SCRIPT)
+        and source.rstrip("\r\n") in ("", DEFAULT_SOURCE_SCRIPT.rstrip("\r\n"))
+        and not any(rest)
+    )

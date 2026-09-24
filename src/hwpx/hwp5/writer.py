@@ -186,6 +186,22 @@ def _summary(files: Mapping[str, bytes]) -> bytes:
     return sm.write_summary(values)
 
 
+def _scripts(files: Mapping[str, bytes]) -> bytes:
+    """``Scripts/DefaultJScript`` from the package's header and source scripts;
+    an untouched source (a new document's) is kept as none, as Hancom keeps it."""
+
+    texts: dict[str, str] = {}
+    for item in etree.fromstring(files["Contents/content.hpf"]).iter(f"{{{_OPF}}}item"):
+        data = files.get(item.get("href", ""))
+        if item.get("id") in ("headersc", "sourcesc") and data is not None:
+            text = data.decode("utf-16-le", errors="surrogatepass")
+            texts[item.get("id", "")] = text[1:] if text.startswith("\ufeff") else text
+    header, source = texts.get("headersc", ""), texts.get("sourcesc", "")
+    if source.rstrip("\r\n") == sm.DEFAULT_SOURCE_SCRIPT.rstrip("\r\n"):
+        source = ""
+    return sm.write_scripts(header, source)
+
+
 def _link_doc(head: etree._Element) -> bytes:
     """``DocOptions/_LinkDoc``: the path of the linked document (room for 260
     characters) and a flag word, bit 0 for page numbers and bit 1 for footnote
@@ -297,6 +313,8 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
     out.extend(streams)
     out.append(("DocOptions/_LinkDoc", _link_doc(head)))
     out.append(("\x05HwpSummaryInformation", _summary(files)))
+    out.append(("Scripts/DefaultJScript", _scripts(files)))
+    out.append(("Scripts/JScriptVersion", sm.compressed(sm.SCRIPT_VERSION)))
     preview = files.get("Preview/PrvText.txt")
     if preview:
         text = preview.decode("utf-8", errors="replace")

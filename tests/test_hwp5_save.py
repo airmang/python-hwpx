@@ -412,6 +412,48 @@ def test_document_properties_are_written_as_hancom_lays_them_out() -> None:
     assert {m.get("name"): m.text for m in back.findall(f"{_OPF}meta")} == _METADATA
 
 
+_SOURCE_SCRIPT = "function OnCheckBox1_Click()\r\n{\r\n\tDocument.Run(\"Cancel\");\r\n}\r\n"
+
+
+def _with_scripts(header: str, source: str) -> dict[str, bytes]:
+    files = _with_print_info(_PRINT_ITEMS)
+    package = etree.fromstring(files["Contents/content.hpf"])
+    manifest, spine = package.find(f"{_OPF}manifest"), package.find(f"{_OPF}spine")
+    assert manifest is not None and spine is not None
+    for item_id, href, text in (("headersc", "Scripts/headerScripts.js", header), ("sourcesc", "Scripts/sourceScripts.js", source)):
+        etree.SubElement(manifest, f"{_OPF}item", id=item_id, href=href, **{"media-type": "application/x-javascript ;charset=utf-16"})
+        etree.SubElement(spine, f"{_OPF}itemref", idref=item_id, linear="yes")
+        files[href] = text.encode("utf-16-le")
+    files["Contents/content.hpf"] = etree.tostring(package)
+    return files
+
+
+def test_scripts_are_written_and_read_back() -> None:
+    hwp = write_hwp5(_with_scripts(sm.DEFAULT_HEADER_SCRIPT, _SOURCE_SCRIPT))
+    compound = cfb.CompoundFile(hwp)
+    scripts = sm.read_scripts(compound.read("Scripts/DefaultJScript"), is_compressed=True)
+    assert scripts == [sm.DEFAULT_HEADER_SCRIPT, _SOURCE_SCRIPT, "", ""]
+    assert compound.read("Scripts/JScriptVersion") == sm.compressed(sm.SCRIPT_VERSION)
+    files = convert(hwp).files
+    assert files["Scripts/sourceScripts"].decode("utf-16-le") == _SOURCE_SCRIPT
+    package = etree.fromstring(files["Contents/content.hpf"])
+    assert [r.get("idref") for r in package.iter(f"{_OPF}itemref")][-2:] == ["headersc", "sourcesc"]
+
+
+def test_a_new_documents_scripts_are_kept_as_none() -> None:
+    hwp = write_hwp5(_with_scripts(sm.DEFAULT_HEADER_SCRIPT, sm.DEFAULT_SOURCE_SCRIPT + "\r\n"))
+    assert sm.read_scripts(cfb.CompoundFile(hwp).read("Scripts/DefaultJScript"), is_compressed=True) == [
+        sm.DEFAULT_HEADER_SCRIPT,
+        "",
+        "",
+        "",
+    ]
+    assert not [name for name in convert(hwp).files if name.startswith("Scripts/")]
+    # With no script parts at all the stream is the empty one Hancom writes.
+    empty = cfb.CompoundFile(write_hwp5(_with_print_info(_PRINT_ITEMS))).read("Scripts/DefaultJScript")
+    assert empty == bytes.fromhex("63604005ff8100006ebb6ed114000000")
+
+
 def test_a_border_fill_without_a_diagonal_element_draws_no_diagonal() -> None:
     document = HwpxDocument.new()
     buffer = io.BytesIO()
