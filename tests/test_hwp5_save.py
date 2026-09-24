@@ -25,7 +25,19 @@ from hwpx.hwp5.fileheader import FileHeader, parse_file_header
 from hwpx.hwp5.package import convert
 from hwpx.hwp5.reader import read_hwp5
 from hwpx.hwp5.writer import write_hwp5
-from tests.test_hwp5_open import HP, _IDENTITY, _docinfo, _extended, _paragraph, _picture, _section, _tracked_hwp, _u16, make_hwp
+from tests.test_hwp5_open import (
+    HP,
+    _IDENTITY,
+    _compound,
+    _docinfo,
+    _extended,
+    _paragraph,
+    _picture,
+    _section,
+    _tracked_hwp,
+    _u16,
+    make_hwp,
+)
 
 _PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
@@ -178,6 +190,77 @@ def test_a_parameter_of_a_kind_with_no_code_is_refused() -> None:
     with pytest.raises(Hwp5Error) as refused:
         write_hwp5(files)
     assert refused.value.context["unsupported"] == {"parameterset/booleanParam": 1}
+
+
+_LABEL_VALUES = (1000, 500, 20000, 10000, 0, 0, 2, 5, 0, 59528, 84188, 1, 0)
+
+
+def _raw_label(values: tuple[int, ...]) -> str:
+    items = "".join(
+        f'<hp:integerParam name="{16384 + index}">{values[index]}</hp:integerParam>' for index in reversed(range(len(values)))
+    )
+    return (
+        f'<hp:parameterset xmlns:hp="{HP[1:-1]}" cnt="1" name="539">'
+        f'<hp:listParam cnt="{len(values)}" name="578">{items}</hp:listParam></hp:parameterset>'
+    )
+
+
+def _table_with(*parts: str) -> bytes:
+    document = HwpxDocument.new()
+    table = document.add_table(1, 1)
+    for part in parts:
+        table.element.append(etree.fromstring(part))
+    table.mark_dirty()
+    return document.to_bytes(format="hwp")
+
+
+def test_a_label_sheet_kept_as_a_parameter_set_stays_the_table_label() -> None:
+    written = _table_with(_raw_label(_LABEL_VALUES))
+    [data] = [r.payload for s in read_hwp5(written).sections for r in s.records if r.tag == rec.CTRL_DATA]
+    assert ct.label_items(data) == {16384 + index: value for index, value in enumerate(_LABEL_VALUES)}
+    reopened = HwpxDocument.open(io.BytesIO(written))
+    label = next(reopened.sections[0].element.iter(f"{HP}label"))
+    assert (label.get("labelcols"), label.get("labelrows"), label.get("pagewidth")) == ("2", "5", "59528")
+    assert reopened.conversion_report is not None and reopened.conversion_report.dropped["label-item"] == 2
+
+
+def test_a_label_sheet_given_both_ways_is_written_once() -> None:
+    label = f'<hp:label xmlns:hp="{HP[1:-1]}" topmargin="7" labelcols="3" landscape="WIDELY"/>'
+    written = _table_with(label, _raw_label(_LABEL_VALUES))
+    [data] = [r.payload for s in read_hwp5(written).sections for r in s.records if r.tag == rec.CTRL_DATA]
+    values = ct.label_values(data)
+    assert values is not None and (values["topmargin"], values["labelcols"]) == (7, 3)
+
+
+def test_a_single_column_of_its_own_width_is_written_with_its_width() -> None:
+    document = HwpxDocument.open(make_hwp())
+    column = next(document.sections[0].element.iter(f"{HP}colPr"))
+    column.set("sameSz", "0")
+    etree.SubElement(column, f"{HP}colSz", width="32768", gap="0")
+    document.sections[0].mark_dirty()
+    written = read_hwp5(document.to_bytes(format="hwp"))
+    [payload] = [
+        r.payload
+        for s in written.sections
+        for r in s.records
+        if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "cold"
+    ]
+    value = ct.ColumnDef.decode(payload)
+    assert (value.count, value.same_width, value.widths) == (1, False, [32768])
+
+
+@pytest.mark.parametrize(("code", "name"), [(0x80, "SYMBOL"), (0x81, "USER_CHAR")])
+def test_note_numbers_of_symbols_or_a_user_character_keep_their_shape(code: int, name: str) -> None:
+    section = _section()
+    index = next(i for i, r in enumerate(section) if r.tag == rec.FOOTNOTE_SHAPE)
+    note = struct.pack("<IHHHHiHHHBBI", code, 0x3000, 0, ord(")"), 1, -1, 850, 567, 283, 1, 1, 0)
+    section[index] = rec.Record(rec.FOOTNOTE_SHAPE, 2, note)
+    data = _compound(section)
+    footnote = next(HwpxDocument.open(data).sections[0].element.iter(f"{HP}footNotePr"))
+    number = footnote.find(f"{HP}autoNumFormat")
+    assert number is not None and (number.get("type"), number.get("userChar")) == (name, "\u3000")
+    written = read_hwp5(write_hwp5(convert(data).files))
+    assert [r.payload for s in written.sections for r in s.records if r.tag == rec.FOOTNOTE_SHAPE][0] == note
 
 
 def test_a_border_fill_without_a_diagonal_element_draws_no_diagonal() -> None:

@@ -201,7 +201,9 @@ class ColumnDef:
         c = Cursor(_padded(payload, 16), "cold")
         c.u32()
         value = cls(c.u16(), c.u16())
-        if not value.same_width and value.count > 1:
+        # Columns of their own widths list width, gap, ..., width (one width
+        # for a single column).
+        if not value.same_width:
             value.widths = [c.u16() for _ in range(min(value.count * 2 - 1, c.left // 2))]
         if c.left >= 8:
             value.props2 = c.u16()
@@ -475,8 +477,8 @@ class FieldCtrl:
     """A field control (``%hlk``, ``%clk``, ``%fmu``, ...).
 
     Properties (bit 0 editable in form mode, bit 15 dirty), one more property
-    byte, the command string, the field's id and a word that carries a memo's
-    z-order.
+    byte, the command string, the field's id and its z-order (a memo's
+    number), which the field's end repeats.
     """
 
     ctrl: str = "%unk"

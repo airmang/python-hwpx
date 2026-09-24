@@ -32,6 +32,7 @@ from .shape_xml import ShapeReader
 from .owpml import (
     BORDER_LINE,
     BORDER_WIDTH,
+    NOTE_NUMBER_FORMAT,
     NS,
     NUMBER_FORMAT,
     color,
@@ -107,7 +108,7 @@ def _note_pr(parent: etree._Element, name: str, record: rec.Record | None, *, en
         element,
         "hp:autoNumFormat",
         (
-            ("type", token(NUMBER_FORMAT, _bits(props, 0, 8), "DIGIT")),
+            ("type", NOTE_NUMBER_FORMAT.get(_bits(props, 0, 8), "DIGIT")),
             ("userChar", chr(note.user_char) if note.user_char else ""),
             ("prefixChar", chr(note.prefix_char) if note.prefix_char else ""),
             ("suffixChar", chr(note.suffix_char) if note.suffix_char else ""),
@@ -255,11 +256,7 @@ def column_properties(parent: etree._Element, ctrl: rec.Record) -> etree._Elemen
             ("sameGap", cd.gap if cd.same_width else 0),
         ),
     )
-    if cd.widths:
-        # Width, gap, width, gap, ..., width: the last column has no gap.
-        widths = [*cd.widths, 0] if len(cd.widths) % 2 else list(cd.widths)
-        for index in range(0, len(widths) - 1, 2):
-            sub(col, "hp:colSz", (("width", widths[index]), ("gap", widths[index + 1])))
+    # The separator line comes first, then the width of each column.
     if cd.line_type:
         sub(
             col,
@@ -270,6 +267,11 @@ def column_properties(parent: etree._Element, ctrl: rec.Record) -> etree._Elemen
                 ("color", color(cd.line_color)),
             ),
         )
+    if cd.widths:
+        # Width, gap, width, gap, ..., width: the last column has no gap.
+        widths = [*cd.widths, 0] if len(cd.widths) % 2 else list(cd.widths)
+        for index in range(0, len(widths) - 1, 2):
+            sub(col, "hp:colSz", (("width", widths[index]), ("gap", widths[index + 1])))
     return wrapper
 
 
@@ -1047,7 +1049,7 @@ class SectionWriter(ShapeReader):
                 element,
                 "hp:autoNumFormat",
                 (
-                    ("type", token(NUMBER_FORMAT, _bits(an.props, 4, 8), "DIGIT")),
+                    ("type", NOTE_NUMBER_FORMAT.get(_bits(an.props, 4, 8), "DIGIT")),
                     ("userChar", _char(an.user_char)),
                     ("prefixChar", _char(an.prefix_char)),
                     ("suffixChar", _char(an.suffix_char)),

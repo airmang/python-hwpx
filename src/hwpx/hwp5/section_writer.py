@@ -25,7 +25,7 @@ from . import records as rec
 from . import shapes as sh
 from .docinfo_writer import fill as fill_from_brush
 from .header_xml import IMAGE_EFFECT
-from .owpml import BORDER_LINE, BORDER_WIDTH, NS, NUMBER_FORMAT, colorref, index_of
+from .owpml import BORDER_LINE, BORDER_WIDTH, NOTE_NUMBER_FORMAT_CODES, NS, NUMBER_FORMAT, colorref, index_of
 from .section_common import (
     HEIGHT_REL,
     HORZ_ALIGN,
@@ -923,7 +923,7 @@ class SectionRecords:
         spacing = _find(element, "noteSpacing")
         numbering = _find(element, "numbering")
         placement = _find(element, "placement")
-        props = index_of(NUMBER_FORMAT, fmt.get("type") if fmt is not None else None, 0)
+        props = index_of(NOTE_NUMBER_FORMAT_CODES, fmt.get("type") if fmt is not None else None, 0)
         props |= index_of(places, placement.get("place") if placement is not None else None, 0) << 8
         props |= index_of(NOTE_NUMBERING, numbering.get("type") if numbering is not None else None, 0) << 10
         props |= _flag(fmt, "supscript") << 12 | _flag(placement, "beneathText") << 13
@@ -949,7 +949,8 @@ class SectionRecords:
 
     def column_def(self, element: etree._Element, level: int) -> list[rec.Record]:
         count = max(_int(element, "colCount", 1), 1)
-        same = _flag(element, "sameSz") or count == 1
+        # A single column is of the same width unless it lists its own.
+        same = _flag(element, "sameSz") or (count == 1 and _find(element, "colSz") is None)
         props = index_of(COL_TYPE, element.get("type"), 0) | (count & 0xFF) << 2
         props |= index_of(COL_LAYOUT, element.get("layout"), 0) << 10
         props |= (1 << 12) if same else 0
@@ -989,7 +990,7 @@ class SectionRecords:
         elif kind == "autoNum":
             fmt = _find(element, "autoNumFormat")
             props = index_of(NUMBER_TYPE, element.get("numType"), 0)
-            props |= (index_of(NUMBER_FORMAT, fmt.get("type") if fmt is not None else None, 0) & 0xFF) << 4
+            props |= (index_of(NOTE_NUMBER_FORMAT_CODES, fmt.get("type") if fmt is not None else None, 0) & 0xFF) << 4
             props |= _flag(fmt, "supscript") << 12
             payload = ct.AutoNumber(
                 props,
@@ -1572,11 +1573,11 @@ class SectionRecords:
         name = element.get("name", "")
         if name or kind == "CLICK_HERE":
             records.append(rec.Record(rec.CTRL_DATA, level + 1, ct.name_parameter_set(name)))
-        # The field end repeats the field's text id with the property byte, and
-        # whether the field is editable.
+        # The field end repeats the field's text id with the property byte,
+        # whether the field is editable and the field's z-order, which Hancom
+        # pairs the end with its field by.
         end_id = (bt.ctrl_word(text_id) & 0xFFFFFF) | extra << 24
-        number = z_order if memo else 0
-        self.open_fields.append((begin_id, struct.pack("<HIIIH", 4, end_id, props & 1, number, 4)))
+        self.open_fields.append((begin_id, struct.pack("<HIIIH", 4, end_id, props & 1, z_order, 4)))
         return text_id, records
 
     def field_end(self, element: etree._Element) -> bytes | None:
@@ -1617,7 +1618,7 @@ class SectionRecords:
         # Without ``flag`` the note repeats the number format and superscript
         # flag of the auto number inside it.
         number_format = next(element.iter(f"{{{_HP}}}autoNumFormat"), None)
-        shape = index_of(NUMBER_FORMAT, number_format.get("type") if number_format is not None else None, 0) & 0xFF
+        shape = index_of(NOTE_NUMBER_FORMAT_CODES, number_format.get("type") if number_format is not None else None, 0) & 0xFF
         shape |= _flag(number_format, "supscript") << 8
         value = ct.NoteCtrl(
             "fn  " if kind == "footNote" else "en  ",
@@ -1639,6 +1640,13 @@ class SectionRecords:
             values = {name: _int(label, name) for name in ct.LABEL_ITEMS}
             values["landscape"] = index_of(LABEL_LANDSCAPE, label.get("landscape"), 0)
             out.append(rec.Record(rec.CTRL_DATA, level + 1, ct.label_parameter_set(values)))
+        # Sets kept as a parameter set of their own (a label sheet among them)
+        # go in item by item; a label sheet given as hp:label is not repeated.
+        for raw in element.findall(f"{{{_HP}}}parameterset"):
+            parameters = ct.ParameterSet(_int(raw, "name") & 0xFFFF, _parameter_items(raw, self.unsupported))
+            data = parameters.encode()
+            if label is None or ct.label_items(data) is None:
+                out.append(rec.Record(rec.CTRL_DATA, level + 1, data))
         caption = _find(element, "caption")
         if caption is not None:
             out.extend(self.caption(caption, level + 1))

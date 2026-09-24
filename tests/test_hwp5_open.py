@@ -138,13 +138,14 @@ def _field_end(ctrl: str, prop: int, editable: int, number: int = 0) -> bytes:
 
 
 def _fields() -> list[rec.Record]:
-    """A click-here field with a name and a hyperlink, each around some text."""
+    """A click-here field with a name and a hyperlink, each around some text;
+    each field's end repeats the field's z-order."""
 
-    text = _extended(3, "%clk") + "이름".encode("utf-16-le") + _field_end("%clk", 9, 1)
+    text = _extended(3, "%clk") + "이름".encode("utf-16-le") + _field_end("%clk", 9, 1, 2)
     text += " 링크 ".encode("utf-16-le") + _extended(3, "%hlk") + "누리집".encode("utf-16-le")
-    text += _field_end("%hlk", 0, 0) + _u16(13)
-    click = ct.FieldCtrl("%clk", 1, 9, "Clickhere:set:66:Direction:wstring:9:이름을 입력하세요 HelpState:wstring:0: ", 1234)
-    link = ct.FieldCtrl("%hlk", 0, 0, "https\\://example.com/a;1;0;0;", 1235)
+    text += _field_end("%hlk", 0, 0, 5) + _u16(13)
+    click = ct.FieldCtrl("%clk", 1, 9, "Clickhere:set:66:Direction:wstring:9:이름을 입력하세요 HelpState:wstring:0: ", 1234, 2)
+    link = ct.FieldCtrl("%hlk", 0, 0, "https\\://example.com/a;1;0;0;", 1235, 5)
     return _paragraph(
         0,
         text,
@@ -739,6 +740,14 @@ def test_a_stored_length_keeps_its_value_and_unit(raw: int, expected: tuple[int,
     from hwpx.hwp5.header_xml import _unit_value
 
     assert _unit_value(raw) == expected
+
+
+def test_a_single_column_of_its_own_width_keeps_its_separator_line() -> None:
+    payload = bytes.fromhex("646c6f630400000000800000030100000000")
+    column = ct.ColumnDef.decode(payload)
+    assert (column.count, column.same_width, column.widths) == (1, False, [0x8000])
+    assert (column.line_type, column.line_width, column.line_color) == (3, 1, 0)
+    assert column.encode() == payload
 
 
 def test_highlights_open_as_markpen_marks_inside_the_text() -> None:

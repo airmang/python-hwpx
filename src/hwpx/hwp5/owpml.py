@@ -270,6 +270,10 @@ NUMBER_FORMAT = (
     "DECAGON_CIRCLE",
     "DECAGON_CIRCLE_HANJA",
 )
+#: The number formats of notes and auto numbers by code: those above, then
+#: four symbols in turn (0x80) and a character of the user's (0x81).
+NOTE_NUMBER_FORMAT: dict[int, str] = {**dict(enumerate(NUMBER_FORMAT)), 0x80: "SYMBOL", 0x81: "USER_CHAR"}
+NOTE_NUMBER_FORMAT_CODES: dict[str, int] = {name: code for code, name in NOTE_NUMBER_FORMAT.items()}
 STYLE_TYPE = ("PARA", "CHAR")
 MEMO_TYPE = ("NOMAL", "USER_INSERT", "USER_DELETE", "USER_UPDATE")
 TARGET_PROGRAM = ("HWP201X", "HWP200X", "MS_WORD")
