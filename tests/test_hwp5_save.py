@@ -263,6 +263,20 @@ def test_note_numbers_of_symbols_or_a_user_character_keep_their_shape(code: int,
     assert [r.payload for s in written.sections for r in s.records if r.tag == rec.FOOTNOTE_SHAPE][0] == note
 
 
+def test_the_highlighter_of_an_empty_paragraph_keeps_covering_its_end() -> None:
+    records = _paragraph(0, _u16(13), [(0, 0)], [])
+    header = bytearray(records[0].payload)
+    struct.pack_into("<H", header, 14, 1)  # the range tag count
+    records[0] = rec.Record(rec.PARA_HEADER, 0, bytes(header))
+    tag = struct.pack("<III", 0, 1, 2 << 24 | 0x00FFFF)
+    records.append(rec.Record(rec.PARA_RANGE_TAG, 1, tag))
+    data = make_hwp(extra_paragraphs=records)
+    empty = [p for p in HwpxDocument.open(data).sections[0].element.iter(f"{HP}p") if p.find(f".//{HP}markpenBegin") is not None]
+    assert len(empty) == 1 and not "".join(empty[0].itertext())
+    written = read_hwp5(write_hwp5(convert(data).files))
+    assert [r.payload for s in written.sections for r in s.records if r.tag == rec.PARA_RANGE_TAG] == [tag]
+
+
 def test_a_border_fill_without_a_diagonal_element_draws_no_diagonal() -> None:
     document = HwpxDocument.new()
     buffer = io.BytesIO()

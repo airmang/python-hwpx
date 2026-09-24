@@ -462,11 +462,15 @@ class _Highlights:
         there and goes on from the start of the next paragraph. Character
         styles come first, then the highlighter ranges, then the changes
         (insertions before deletions), each in text order, as Hancom lists
-        them (a reader numbers the change marks in that order)."""
+        them (a reader numbers the change marks in that order). A
+        highlighter range with no text at the end of the paragraph covers the
+        paragraph's end character, as the highlighter of an empty paragraph
+        does."""
 
         ranges = list(self.styles)
         self.styles = []
-        ranges += sorted(self.ranges + [(start, end, tag) for start, tag in self.open], key=lambda r: r[0])
+        marks = [(start, stop + 1 if start == stop == end else stop, tag) for start, stop, tag in self.ranges]
+        ranges += sorted(marks + [(start, end, tag) for start, tag in self.open], key=lambda r: r[0])
         changes = [(start, stop, tag) for _, start, stop, tag in self.changes]
         changes += [(start, end, tag) for start, tag in self.changes_open.values()]
         ranges += sorted(changes, key=lambda change: (change[2] >> 24, change[0]))
