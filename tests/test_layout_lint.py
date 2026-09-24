@@ -542,11 +542,13 @@ def test_pipeline_warn_mode_surfaces_but_does_not_block(tmp_path):
 # 5: a table Hancom does not break across pages, taller than the page.
 # --------------------------------------------------------------------------- #
 # The default A4 page: 232 mm body, 262 mm from the body top to the paper's
-# bottom edge. add_table rows are 3600 (12.7 mm) high.
+# bottom edge. These tables have rows 3600 (12.7 mm) high and are kept inline
+# (add_table would make one taller than the page flow).
 def _long_table_doc(rows: int) -> HwpxDocument:
     doc = HwpxDocument.new()
     doc.add_paragraph("표 앞 문단")
-    table = doc.add_table(rows, 2)
+    table = doc.add_table(rows, 2, height=rows * 3600)
+    table.set_treat_as_char(True)
     for row in range(rows):
         table.set_cell_text(row, 0, f"{row}행")
     return doc
