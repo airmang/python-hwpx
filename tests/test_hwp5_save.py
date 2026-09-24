@@ -487,6 +487,19 @@ def test_the_change_tracking_password_algorithm_is_kept(password: bool, words: t
     assert names == (["SHA1"] if password else [])
 
 
+def test_an_end_cap_with_no_name_is_left_out_and_written_flat() -> None:
+    from hwpx.hwp5.section_writer import SectionRecords
+    from hwpx.hwp5.shape_xml import ShapeReader
+
+    parent = etree.Element(f"{HP}polygon")
+    ShapeReader.line_shape(parent, 0x7A85C5, 141, 0xC00003C1, 0, 0)
+    line = parent.find(f"{HP}lineShape")
+    assert line is not None and line.get("endCap") is None and line.get("style") == "SOLID"
+    assert (SectionRecords._line_props(line) >> 6) & 0xF == 1
+    line.set("endCap", "ROUND")
+    assert (SectionRecords._line_props(line) >> 6) & 0xF == 0
+
+
 def test_a_border_fill_without_a_diagonal_element_draws_no_diagonal() -> None:
     document = HwpxDocument.new()
     buffer = io.BytesIO()

@@ -549,6 +549,8 @@ class ShapeReader:
 
     @staticmethod
     def line_shape(element: etree._Element, line_color: int, width: int, props: int, outline: int, alpha: int) -> None:
+        # An end cap with no OWPML name is left out, as Hancom leaves it out.
+        cap = _bits(props, 6, 4)
         sub(
             element,
             "hp:lineShape",
@@ -556,7 +558,7 @@ class ShapeReader:
                 ("color", color(line_color)),
                 ("width", _u32(width)),
                 ("style", token(LINE_STYLE, _bits(props, 0, 6))),
-                ("endCap", token(END_CAP, _bits(props, 6, 4))),
+                *((("endCap", END_CAP[cap]),) if cap < len(END_CAP) else ()),
                 ("headStyle", token(ARROW, _bits(props, 10, 6))),
                 ("tailStyle", token(ARROW, _bits(props, 16, 6))),
                 ("headfill", flag(props & (1 << 30))),

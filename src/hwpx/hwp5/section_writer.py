@@ -1199,7 +1199,8 @@ class SectionRecords:
         if line is None:
             return 0
         props = index_of(LINE_STYLE, line.get("style"), 0)
-        props |= index_of(END_CAP, line.get("endCap"), 0) << 6
+        # A line with no end cap gets a flat one, as Hancom writes it.
+        props |= index_of(END_CAP, line.get("endCap"), 1) << 6
         props |= index_of(ARROW, line.get("headStyle"), 0) << 10
         props |= index_of(ARROW, line.get("tailStyle"), 0) << 16
         props |= index_of(ARROW_SIZE, line.get("headSz"), 0) << 22
