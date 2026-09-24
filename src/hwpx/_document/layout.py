@@ -16,7 +16,7 @@ from ..objects.results import (
     Units,
 )
 from ..oxml._document_primitives import NEW_NUM_KINDS
-from ..oxml.namespaces import HH
+from ..oxml.namespaces import HH, HP
 from ..oxml.objects import HwpxOxmlInlineObject
 from ..oxml.section_format import _PAGE_LANDSCAPE, _PAGE_PORTRAIT, _page_orientation_value
 from ._units import _mm_to_hwp_units, _pt_to_hwp_units
@@ -1022,3 +1022,57 @@ def remove_footer(
             return
         target_section = doc._root.sections[-1]
     target_section.properties.remove_footer(page_type=page_type)
+
+
+def flow_table_taller_than_page(doc: "HwpxDocument", table: Any) -> None:
+    """Let a new body *table* flow across pages when its rows alone outgrow a page.
+
+    Hancom never breaks a table laid out as a character (``treatAsChar``, the
+    ``add_table`` default) across pages: one taller than the page body is cut
+    off at the paper's edge. Such a table becomes a flowing one instead
+    (``Table.set_treat_as_char(False)``), which Hancom breaks between rows.
+    """
+
+    properties = table.paragraph.section.properties
+    size, margins = properties.page_size, properties.page_margins
+    body = size.drawn_height - margins.top - margins.bottom - margins.header - margins.footer
+    if body > 0 and _table_min_height(doc, table.element) > body:
+        table.set_treat_as_char(False)
+
+
+def _table_min_height(doc: "HwpxDocument", table: Any) -> int:
+    """A lower bound of the drawn height: every row is at least its tallest
+    single-row cell, and a cell at least one line of its text plus its top and
+    bottom margins."""
+
+    total = 0
+    for row in table.findall(f"{HP}tr"):
+        tallest = 0
+        for cell in row.findall(f"{HP}tc"):
+            span = cell.find(f"{HP}cellSpan")
+            if span is not None and span.get("rowSpan", "1") != "1":
+                continue
+            run = cell.find(f".//{HP}run")
+            line = _char_height(doc, run.get("charPrIDRef") if run is not None else None)
+            margin = cell.find(f"{HP}cellMargin")
+            padding = _int_attr(margin, "top") + _int_attr(margin, "bottom")
+            tallest = max(tallest, _int_attr(cell.find(f"{HP}cellSz"), "height"), line + padding)
+        total += tallest
+    return total
+
+
+def _char_height(doc: "HwpxDocument", char_pr_id_ref: str | None) -> int:
+    style = doc._root.char_property(char_pr_id_ref if char_pr_id_ref is not None else "0")
+    try:
+        return int(style.attributes.get("height", "1000")) if style is not None else 1000
+    except ValueError:
+        return 1000
+
+
+def _int_attr(element: Any, name: str) -> int:
+    if element is None:
+        return 0
+    try:
+        return int(element.get(name, "0"))
+    except ValueError:
+        return 0
