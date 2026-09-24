@@ -24,6 +24,7 @@ from hwpx.hwp5 import records as rec
 from hwpx.hwp5 import shapes as sh
 from hwpx.hwp5.errors import Hwp5ConversionWarning, Hwp5Error
 from hwpx.hwp5.fileheader import FileHeader
+from hwpx.hwp5.section_xml import field_parameters
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -666,6 +667,68 @@ def test_fields_open_as_field_begin_and_end() -> None:
     assert ends == ["1234", "1235"]
     assert "이름 링크 누리집" in [paragraph.text for paragraph in document.paragraphs]
     assert not document.conversion_report.unconverted
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        (
+            "www.example.com|tip;1;0;0;",
+            [
+                ("Path", "www.example.com"),
+                ("Category", "HWPHYPERLINK_TYPE_URL"),
+                ("TargetType", "HWPHYPERLINK_TARGET_BOOKMARK"),
+                ("DocOpenType", "HWPHYPERLINK_JUMP_CURRENTTAB"),
+                ("ToolTip", "tip"),
+            ],
+        ),
+        (
+            "http://example.com;1;5;-1;",
+            [
+                ("Path", "http://example.com"),
+                ("Category", "HWPHYPERLINK_TYPE_URL"),
+                ("TargetType", "HWPHYPERLINK_TARGET_HYPERLINK"),
+                ("DocOpenType", "HWPHYPERLINK_JUMP_DONTCARE"),
+            ],
+        ),
+        (
+            "#표1;0;2;1;",
+            [
+                ("Category", "HWPHYPERLINK_TYPE_HWP"),
+                ("TargetType", "HWPHYPERLINK_TARGET_TABLE"),
+                ("DocOpenType", "HWPHYPERLINK_JUMP_NEWTAB"),
+            ],
+        ),
+    ],
+)
+def test_hyperlink_parameters_spell_out_the_command(command: str, expected: list[tuple[str, str]]) -> None:
+    params = field_parameters("%hlk", ct.FieldCtrl("%hlk", command=command))
+    assert [(name, value) for _, name, value in params[2:]] == expected
+
+
+def test_a_click_here_field_leaves_out_an_empty_direction() -> None:
+    command = "Clickhere:set:42:Direction:wstring:0: HelpState:wstring:4:도움말 "
+    params = field_parameters("%clk", ct.FieldCtrl("%clk", command=command))
+    assert [name for _, name, _ in params] == ["Prop", "Command", "HelpState"]
+
+
+def test_a_control_character_in_a_command_becomes_a_space() -> None:
+    command = "Clickhere:set:43:Direction:wstring:3:a" + chr(0x13) + "b HelpState:wstring:0: "
+    params = field_parameters("%clk", ct.FieldCtrl("%clk", command=command))
+    assert [(name, value) for _, name, value in params] == [
+        ("Prop", "0"),
+        ("Command", command.replace(chr(0x13), " ")),
+        ("Direction", "a b"),
+    ]
+
+
+def test_a_formula_may_end_with_a_question_mark() -> None:
+    params = field_parameters("%fmu", ct.FieldCtrl("%fmu", command="=A1+B1???%g;;3"))
+    assert [(name, value) for _, name, value in params[2:]] == [
+        ("Formula", "=A1+B1?"),
+        ("ResultFormat", "%g"),
+        ("LastResult", "3"),
+    ]
 
 
 def test_highlights_open_as_markpen_marks_inside_the_text() -> None:

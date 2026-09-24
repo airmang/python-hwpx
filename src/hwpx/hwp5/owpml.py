@@ -51,6 +51,14 @@ def root(name: str) -> etree._Element:
     return etree.Element(q(name), nsmap=dict(NS))
 
 
+def xml_spaced(value: object) -> str:
+    """*value* as text XML 1.0 can hold, each character it cannot hold
+    written as a space, as Hancom writes a field's command."""
+
+    text = str(value)
+    return _NOT_XML.sub(" ", text) if _NOT_XML.search(text) else text
+
+
 def xml_text(value: object) -> str:
     """*value* as text XML 1.0 can hold: control characters and lone surrogates dropped."""
 

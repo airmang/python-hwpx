@@ -41,6 +41,7 @@ from .owpml import (
     serialize,
     sub,
     token,
+    xml_spaced,
     xml_text,
 )
 
@@ -324,6 +325,19 @@ def _command_values(command: str) -> dict[str, str]:
 
 
 _HYPERLINK_KIND = ("HWPHYPERLINK_TYPE_HWP", "HWPHYPERLINK_TYPE_URL", "HWPHYPERLINK_TYPE_EMAIL")
+#: A hyperlink's target and how it opens, by the code in its command; any
+#: other code reads as the first.
+_HYPERLINK_TARGET = {
+    "0": "HWPHYPERLINK_TARGET_BOOKMARK",
+    "1": "HWPHYPERLINK_TARGET_OUTLINE",
+    "2": "HWPHYPERLINK_TARGET_TABLE",
+    "5": "HWPHYPERLINK_TARGET_HYPERLINK",
+}
+_HYPERLINK_JUMP = {
+    "0": "HWPHYPERLINK_JUMP_CURRENTTAB",
+    "1": "HWPHYPERLINK_JUMP_NEWTAB",
+    "-1": "HWPHYPERLINK_JUMP_DONTCARE",
+}
 
 
 def _split_escaped(command: str) -> list[str]:
@@ -348,28 +362,23 @@ def _split_escaped(command: str) -> list[str]:
 
 
 def _hyperlink_parameters(command: str) -> list[tuple[str, str, str]]:
-    """``Path``, ``Category``, ``TargetType`` and ``DocOpenType`` of a hyperlink
-    command ``target;kind;outline;new-tab;``."""
+    """``Path``, ``Category``, ``TargetType``, ``DocOpenType`` and ``ToolTip``
+    of a hyperlink command ``target|tooltip;kind;target type;open type;``."""
 
     parts = _split_escaped(command) if command else [""]
     fields = parts[1:] + ["", "", ""]
     kind = int(fields[0]) if fields[0].isdigit() else 0
+    path, bar, tooltip = parts[0].partition("|")
     params: list[tuple[str, str, str]] = []
     if kind in (1, 2):
-        params.append(("stringParam", "Path", parts[0]))
+        params.append(("stringParam", "Path", path))
     params += [
         ("stringParam", "Category", _HYPERLINK_KIND[kind] if kind < len(_HYPERLINK_KIND) else _HYPERLINK_KIND[0]),
-        (
-            "stringParam",
-            "TargetType",
-            "HWPHYPERLINK_TARGET_OUTLINE" if fields[1] == "1" else "HWPHYPERLINK_TARGET_BOOKMARK",
-        ),
-        (
-            "stringParam",
-            "DocOpenType",
-            "HWPHYPERLINK_JUMP_NEWTAB" if fields[2] == "1" else "HWPHYPERLINK_JUMP_CURRENTTAB",
-        ),
+        ("stringParam", "TargetType", _HYPERLINK_TARGET.get(fields[1], _HYPERLINK_TARGET["0"])),
+        ("stringParam", "DocOpenType", _HYPERLINK_JUMP.get(fields[2], _HYPERLINK_JUMP["0"])),
     ]
+    if bar:
+        params.append(("stringParam", "ToolTip", tooltip))
     return params
 
 
@@ -412,23 +421,31 @@ def field_parameters(text_id: str, field: ct.FieldCtrl, memo_shape: int | None =
     """``hp:parameters`` items for a field: ``Prop`` and ``Command``, then what
     Hancom spells out of the command for the kinds that have it."""
 
+    # A control character in a command becomes a space, so its length
+    # prefixes still count right.
+    command = xml_spaced(field.command)
     params = [("integerParam", "Prop", str(field.extra))]
     if field.command or text_id == "%%me":
-        params.append(("stringParam", "Command", field.command))
+        params.append(("stringParam", "Command", command))
     if text_id == "%clk":
-        values = _command_values(field.command)
-        if "Direction" in values:
+        values = _command_values(command)
+        if values.get("Direction"):
             params.append(("stringParam", "Direction", values["Direction"]))
         if values.get("HelpState"):
             params.append(("stringParam", "HelpState", values["HelpState"]))
     elif text_id == "%hlk":
-        params += _hyperlink_parameters(field.command)
+        params += _hyperlink_parameters(command)
     elif text_id == "%%me":
         params += _memo_parameters(field, memo_shape)
     elif text_id == "%pat":
-        params.append(("stringParam", "Format", field.command))
-    elif text_id == "%fmu" and "??" in field.command:
-        formula, _, rest = field.command.partition("??")
+        params.append(("stringParam", "Format", command))
+    elif text_id == "%fmu" and "??" in command:
+        # The formula ends where the first run of question marks leaves two:
+        # a formula may end with a question mark of its own.
+        index = command.find("??")
+        while command[index + 2 : index + 3] == "?":
+            index += 1
+        formula, rest = command[:index], command[index + 2 :]
         result_format, _, last = rest.partition(";;")
         params += [
             ("stringParam", "Formula", formula),
