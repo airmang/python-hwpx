@@ -536,7 +536,8 @@ class PictureEffects:
 class Picture:
     """``SHAPE_COMPONENT_PICTURE``: the border line (colour, width,
     properties), the image's four corners, the crop box (left, top, right,
-    bottom), the inner margins, brightness, contrast, effect and binary item
+    bottom), the inner margins, contrast and brightness (in that order, as
+    Hancom writes them), effect and binary item
     id, then the alpha, the instance id, the effects word, the effects it
     announces and the image's own size. Records of older versions end after
     the alpha or the instance id."""
@@ -566,7 +567,7 @@ class Picture:
         value = cls(c.u32(), c.i32(), c.u32(), [_point(c) for _ in range(4)])
         value.crop = (c.i32(), c.i32(), c.i32(), c.i32())
         value.margins = (c.u16(), c.u16(), c.u16(), c.u16())
-        value.bright, value.contrast, value.effect, value.bin_id = c.i8(), c.i8(), c.u8(), c.u16()
+        value.contrast, value.bright, value.effect, value.bin_id = c.i8(), c.i8(), c.u8(), c.u16()
         value.alpha = c.u8() if c.left else None
         value.instance_id = c.u32() if value.alpha is not None and c.left >= 4 else None
         value.effects = c.u32() if value.instance_id is not None and c.left >= 4 else None
@@ -588,7 +589,7 @@ class Picture:
             b.i32(value)
         for margin in self.margins:
             b.u16(margin)
-        b.i8(self.bright).i8(self.contrast).u8(self.effect).u16(self.bin_id)
+        b.i8(self.contrast).i8(self.bright).u8(self.effect).u16(self.bin_id)
         if self.alpha is not None:
             b.u8(self.alpha)
         if self.instance_id is not None:
@@ -680,6 +681,25 @@ class TextArt:
         b.u32(len(self.outline))
         _points(b, self.outline)
         return b.raw(self.extra).bytes()
+
+
+#: A parallel shadow falls this far toward its corner (shadow kinds 1-4:
+#: left top, right top, left bottom, right bottom), moved by its offsets.
+PARALLEL_SHADOW_DISTANCE = 600
+_PARALLEL_SHADOW_SIGNS = {1: (-1, -1), 2: (1, -1), 3: (-1, 1), 4: (1, 1)}
+
+
+def shadow_margins(kind: int, offset_x: int, offset_y: int) -> tuple[int, int, int, int]:
+    """(left, right, top, bottom) that HWP adds to the outer margin of a
+    drawn shape for where its parallel shadow falls; nothing for other
+    shadows. The package's margin leaves it out."""
+
+    signs = _PARALLEL_SHADOW_SIGNS.get(kind)
+    if signs is None:
+        return (0, 0, 0, 0)
+    dx = PARALLEL_SHADOW_DISTANCE * signs[0] + offset_x
+    dy = PARALLEL_SHADOW_DISTANCE * signs[1] + offset_y
+    return (max(-dx, 0), max(dx, 0), max(-dy, 0), max(dy, 0))
 
 
 #: A video plays a file (a BinData item) or a web page's tag.

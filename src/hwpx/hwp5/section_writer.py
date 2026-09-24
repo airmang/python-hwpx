@@ -153,6 +153,8 @@ _CHART_OLE_SIZE = "7200"
 #: a text art's text stands for.
 _TEXTART_FONT_TYPES = {name: code for code, name in TEXTART_FONT_TYPE.items()}
 _TEXTART_CHARS = {symbol: char for char, symbol in TEXTART_BREAKS.items()}
+#: Shape kinds with no line, fill or shadow of their own.
+_UNSTYLED_KINDS = frozenset({"$pic", "$ole", "$con", "$vid"})
 #: The code of each OLE draw aspect.
 _DRAW_ASPECT_CODES = {name: code for code, name in DRAW_ASPECT.items()}
 #: The codes of the presentation effects and targets.
@@ -302,10 +304,11 @@ def _child_text(element: etree._Element, name: str) -> str:
     return "".join(child.itertext()) if child is not None else ""
 
 
-def _compose_text(circle: int, text: str) -> str:
+def _compose_text(circle: int, text: str, kind: int = 0) -> str:
     """The record text of overlapped characters: Hancom's glyph for a digit (or
     in a circle a two-digit number) in this frame where it has one, else the
-    frame's glyph and the characters."""
+    frame's glyph and the characters. Characters overlapped with no frame
+    (*kind* 1) have no glyph before them."""
 
     if text.isascii() and text.isdigit():
         glyph = COMPOSE_DIGIT_GLYPHS.get(circle, {}).get(int(text)) if len(text) == 1 else None
@@ -313,6 +316,8 @@ def _compose_text(circle: int, text: str) -> str:
             return glyph
         if circle == 1 and len(text) == 2 and int(text[0]) in COMPOSE_TENS_GLYPHS:
             return COMPOSE_TENS_GLYPHS[int(text[0])] + COMPOSE_UNITS_GLYPHS[int(text[1])]
+    if circle == 0 and kind == 1:
+        return text
     return COMPOSE_FRAME_GLYPH[circle] + text
 
 
@@ -1060,7 +1065,7 @@ class SectionRecords:
         if circle < 0 or kind < 0 or not -128 <= size <= 127 or len(shapes) > 255:
             self.unsupported["compose"] += 1
             return None
-        value = ct.Compose(_compose_text(circle, element.get("composeText", "")), circle, size, kind, shapes)
+        value = ct.Compose(_compose_text(circle, element.get("composeText", ""), kind), circle, size, kind, shapes)
         return [rec.Record(rec.CTRL_HEADER, level, value.encode())]
 
     def equation(self, element: etree._Element, level: int) -> list[rec.Record]:
@@ -1088,6 +1093,12 @@ class SectionRecords:
 
         common = _object_common("gso ", element)
         common.props |= _CHART_OBJECT if chart else 0
+        shadow = _find(element, "shadow")
+        if shadow is not None and _SHAPE_KINDS.get(_local(element)) not in _UNSTYLED_KINDS:
+            extra = sh.shadow_margins(
+                index_of(SHADOW, shadow.get("type"), 0), _i32(_int(shadow, "offsetX")), _i32(_int(shadow, "offsetY"))
+            )
+            common.margins = tuple(_i16(margin + add) for margin, add in zip(common.margins, extra))  # type: ignore[assignment]
         comment = _find(element, "shapeComment")
         common.description = "".join(comment.itertext()) if comment is not None else ""
         out = [rec.Record(rec.CTRL_HEADER, level, common.encode())]

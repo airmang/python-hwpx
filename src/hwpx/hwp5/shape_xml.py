@@ -12,6 +12,7 @@ this module does not convert are reported, never dropped.
 from __future__ import annotations
 
 import copy
+import dataclasses
 import struct
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
@@ -465,6 +466,10 @@ class ShapeReader:
             if art is not None:
                 self.text_art(element, art)
         if common is not None:
+            if style is not None:
+                extra = sh.shadow_margins(style.shadow_type, style.shadow_x, style.shadow_y)
+                margins = tuple(margin - add for margin, add in zip(common.margins, extra))
+                common = dataclasses.replace(common, margins=margins)  # type: ignore[arg-type]
             object_layout(element, common)
             if common.description:
                 sub(element, "hp:shapeComment").text = xml_text(common.description)

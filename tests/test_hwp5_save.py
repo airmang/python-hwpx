@@ -180,6 +180,124 @@ def test_a_parameter_of_a_kind_with_no_code_is_refused() -> None:
     assert refused.value.context["unsupported"] == {"parameterset/booleanParam": 1}
 
 
+def test_a_border_fill_without_a_diagonal_element_draws_no_diagonal() -> None:
+    document = HwpxDocument.new()
+    buffer = io.BytesIO()
+    document.save_to_stream(buffer)
+    with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
+        files = {name: package.read(name) for name in package.namelist()}
+    header = files["Contents/header.xml"].decode("utf-8")
+    diagonal = '<hh:diagonal type="SOLID" width="0.1 mm" color="#000000"/>'
+    slash = '<hh:slash type="NONE" Crooked="0" isCounter="0"/>'
+    assert header.count(diagonal) >= 2 and slash in header
+    # Border fill 2: a slash is on, and the diagonal element is left out.
+    first, second = header.split('<hh:borderFill id="2"', 1)
+    second = second.replace(diagonal, "", 1).replace(slash, '<hh:slash type="CENTER" Crooked="0" isCounter="0"/>', 1)
+    files["Contents/header.xml"] = (first + '<hh:borderFill id="2"' + second).encode("utf-8")
+
+    written = read_hwp5(write_hwp5(files))
+    fills = di.decode_docinfo(written.docinfo).border_fills
+    assert fills[1].props >> 2 & 0x7 != 0
+    assert (fills[1].diagonal.kind, fills[1].diagonal.width, fills[1].diagonal.color) == (0, 1, 0)
+
+
+@pytest.mark.parametrize(
+    ("circle", "kind", "text", "expected"),
+    [
+        (0, 0, "AO", chr(0x3000) + "AO"),  # spread with no frame: an ideographic space first
+        (0, 1, "AO", "AO"),  # overlapped with no frame: the characters alone
+        (3, 1, "주", chr(0x25A1) + "주"),  # a frame's glyph goes first either way
+    ],
+)
+def test_the_text_of_overlapped_characters_as_hancom_writes_it(circle: int, kind: int, text: str, expected: str) -> None:
+    from hwpx.hwp5.section_writer import _compose_text
+
+    assert _compose_text(circle, text, kind) == expected
+
+
+def test_a_picture_keeps_contrast_before_brightness() -> None:
+    corners = [(0, 0), (100, 0), (100, 100), (0, 100)]
+    picture = sh.Picture(0, 0, 0, corners, (0, 0, 100, 100), (0, 0, 0, 0), 15, -5, 0, 1, 0, 7, 0, (100, 100), bytes(1))
+    payload = picture.encode()
+    assert struct.unpack_from("<bb", payload, 68) == (-5, 15)
+    decoded = sh.Picture.decode(payload)
+    assert (decoded.bright, decoded.contrast) == (15, -5)
+
+
+_HEAD_NS = (
+    'xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" '
+    'xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" '
+    'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"'
+)
+_MARGIN = (
+    '<hh:margin><hc:intent value="{0}" unit="HWPUNIT"/><hc:left value="{1}" unit="HWPUNIT"/>'
+    '<hc:right value="0" unit="HWPUNIT"/><hc:prev value="0" unit="HWPUNIT"/><hc:next value="0" unit="HWPUNIT"/>'
+    '</hh:margin><hh:lineSpacing type="FIXED" value="{2}" unit="HWPUNIT"/>'
+)
+
+
+def test_paragraph_lengths_with_no_switch_are_what_hwp_keeps() -> None:
+    from hwpx.hwp5.docinfo_writer import para_shape
+
+    plain = etree.fromstring(f"<hh:paraPr {_HEAD_NS}>{_MARGIN.format(-2800, 1000, 2000)}</hh:paraPr>")
+    switched = etree.fromstring(
+        f'<hh:paraPr {_HEAD_NS}><hp:switch><hp:case hp:required-namespace="x">{_MARGIN.format(-1400, 500, 1000)}</hp:case>'
+        f"<hp:default>{_MARGIN.format(-2800, 1000, 2000)}</hp:default></hp:switch></hh:paraPr>"
+    )
+    for element in (plain, switched):
+        shape = para_shape(element)
+        assert (shape.indent, shape.left, shape.line_spacing) == (-2800, 1000, 2000)
+
+
+@pytest.mark.parametrize(
+    ("kind", "offsets", "expected"),
+    [
+        (1, (0, 0), (600, 0, 600, 0)),  # left top
+        (2, (0, 0), (0, 600, 600, 0)),  # right top
+        (2, (283, 283), (0, 883, 317, 0)),
+        (4, (-283, -283), (0, 317, 0, 317)),  # right bottom
+        (0, (283, 283), (0, 0, 0, 0)),  # no shadow
+        (5, (0, 0), (0, 0, 0, 0)),  # a shear shadow adds nothing here
+    ],
+)
+def test_where_a_parallel_shadow_falls_widens_the_outer_margin(
+    kind: int, offsets: tuple[int, int], expected: tuple[int, int, int, int]
+) -> None:
+    assert sh.shadow_margins(kind, *offsets) == expected
+
+
+def test_a_shadowed_shape_keeps_its_outer_margin_across_hwpx() -> None:
+    common = ct.ObjectCommon("gso ", 0x000A2211, 0, 0, 8000, 6000, 0, (0, 317, 0, 317), 190, 0, "", bytes(2))
+    fill = di.Fill(di.FILL_SOLID, 0x00FFFFFF, 0, -1, additional=b"", alphas=b"\0")
+    style = sh.DrawingStyle(0, 33, 0, 0, fill, 4, 0xB2B2B2, -283, -283, 190)
+    component = sh.ShapeComponent(
+        "$rec", True, 0, 0, 0, 1, 8000, 6000, 8000, 6000, 1 << 19, 0, 4000, 3000, [_IDENTITY] * 3, style.encode()
+    )
+    rect = sh.Rectangle(0, [(0, 0), (8000, 0), (8000, 6000), (0, 6000)])
+    controls = [
+        rec.Record(rec.CTRL_HEADER, 1, common.encode()),
+        rec.Record(rec.SHAPE_COMPONENT, 2, component.encode()),
+        rec.Record(rec.SHAPE_COMPONENT_RECTANGLE, 3, rect.encode()),
+    ]
+    section = _section() + _paragraph(0, _extended(11, "gso ") + _u16(13), [(0, 0)], controls)
+    original = cfb.build_compound_file(
+        [
+            ("FileHeader", FileHeader((5, 1, 1, 0), 1).to_bytes()),
+            ("DocInfo", rec.deflate(rec.serialize_records(_docinfo()))),
+            ("BodyText/Section0", rec.deflate(rec.serialize_records(section))),
+        ]
+    )
+    files = convert(original).files
+    [shape] = list(etree.fromstring(files["Contents/section0.xml"]).iter(f"{HP}rect"))
+    margin = shape.find(f"{HP}outMargin")
+    # The package leaves out what the shadow adds.
+    assert [margin.get(side) for side in ("left", "right", "top", "bottom")] == ["0", "0", "0", "0"]
+
+    written = read_hwp5(write_hwp5(files))
+    [header] = [r for s in written.sections for r in s.records if r.tag == rec.CTRL_HEADER and r.payload[:4] == b" osg"]
+    assert ct.ObjectCommon.decode(header.payload).margins == (0, 317, 0, 317)
+
+
 def test_saving_as_hwp_keeps_text_formatting_and_tables(tmp_path: Path) -> None:
     source = HwpxDocument.open(make_hwp())
     target = tmp_path / "out.hwp"

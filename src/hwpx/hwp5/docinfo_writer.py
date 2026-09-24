@@ -215,6 +215,9 @@ def border_fill(element: etree._Element, bin_ids: Mapping[str, int] | None = Non
     props |= _flag(slash, "Crooked") << 8 | _flag(back, "Crooked") << 9
     props |= _flag(element, "breakCellSeparateLine") << 10
     props |= _flag(slash, "isCounter") << 11 | _flag(back, "isCounter") << 12
+    # With no diagonal element there is no diagonal line: Hancom writes it as
+    # kind 0, width 1, colour 0 (a drawn line here would show wherever a slash
+    # or back slash is on).
     diagonal = _child(element, _HH, "diagonal")
     return di.BorderFill(
         props,
@@ -222,7 +225,7 @@ def border_fill(element: etree._Element, bin_ids: Mapping[str, int] | None = Non
         _line(_child(element, _HH, "rightBorder")),
         _line(_child(element, _HH, "topBorder")),
         _line(_child(element, _HH, "bottomBorder")),
-        _line(diagonal) if diagonal is not None else di.Line(1, 0, 0),
+        _line(diagonal) if diagonal is not None else di.Line(0, 1, 0),
         fill(_child(element, _HC, "fillBrush"), bin_ids),
     )
 
@@ -344,8 +347,11 @@ def para_shape(element: etree._Element) -> di.ParaShape:
     brk = _child(element, _HH, "breakSetting")
     auto = _child(element, _HH, "autoSpacing")
     border = _child(element, _HH, "border")
+    # Lengths in the switch's case are halved; written with no switch they
+    # are what HWP keeps, as Hancom reads them (the switch's default side).
     margin = None
     spacing = None
+    plain = False
     for switch in element.findall(f"{{{_HP}}}switch"):
         case = switch.find(f"{{{_HP}}}case")
         if case is not None and case.find(f"{{{_HH}}}margin") is not None:
@@ -354,6 +360,7 @@ def para_shape(element: etree._Element) -> di.ParaShape:
     if margin is None:
         margin = _child(element, _HH, "margin")
         spacing = _child(element, _HH, "lineSpacing")
+        plain = True
     heading_type = index_of(HEADING, heading.get("type") if heading is not None else None, 0)
     level = _int(heading, "level")
     spacing_type = index_of(LINE_SPACING, spacing.get("type") if spacing is not None else None, 0)
@@ -373,10 +380,13 @@ def para_shape(element: etree._Element) -> di.ParaShape:
     shape.props1 = p1
     for name, attr in (("intent", "indent"), ("left", "left"), ("right", "right"), ("prev", "prev"), ("next", "next")):
         value = margin.find(f"{{{_HC}}}{name}") if margin is not None else None
-        setattr(shape, attr, _doubled(_int(value, "value"), value.get("unit") if value is not None else None))
+        unit = value.get("unit") if value is not None else None
+        amount = _int(value, "value")
+        setattr(shape, attr, amount if plain and unit != "CHAR" else _doubled(amount, unit))
     line_value = _int(spacing, "value", 160)
     line_unit = spacing.get("unit") if spacing is not None else None
-    line_spacing = line_value if spacing_type == 0 else _doubled(line_value, line_unit)
+    raw_line = spacing_type == 0 or (plain and line_unit != "CHAR")
+    line_spacing = line_value if raw_line else _doubled(line_value, line_unit)
     shape.line_spacing_old = line_spacing
     shape.line_spacing = line_spacing
     shape.tab_def_id = _int(element, "tabPrIDRef")
