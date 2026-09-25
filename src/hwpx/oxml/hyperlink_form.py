@@ -88,4 +88,19 @@ def hyperlink_target(field_begin: Any) -> str:
     return field_begin.get("name", "") or ""
 
 
-__all__ = ["HYPERLINK_FIELD_ID", "hyperlink_parameters", "hyperlink_target"]
+def hyperlink_char_pr(section: Any, char_pr_id_ref: str | int | None) -> str | int | None:
+    """The char property of a link's visible text: the one given, or Hancom's convention.
+
+    Hancom writes link text blue (``#0000FF``) with a blue underline. Without a
+    document (a detached section) the text keeps the paragraph's style.
+    """
+
+    if char_pr_id_ref is not None:
+        return char_pr_id_ref
+    document = getattr(section, "document", None)
+    if document is None:
+        return None
+    return document.ensure_run_style(underline=True, color="#0000FF", underline_color="#0000FF")
+
+
+__all__ = ["HYPERLINK_FIELD_ID", "hyperlink_char_pr", "hyperlink_parameters", "hyperlink_target"]
