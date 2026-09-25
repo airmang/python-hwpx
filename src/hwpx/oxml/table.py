@@ -6,6 +6,7 @@ from __future__ import annotations
 import re as _re
 from copy import deepcopy
 from dataclasses import dataclass
+from math import lcm
 from typing import TYPE_CHECKING, Any, Iterator, NoReturn, Sequence, cast
 import xml.etree.ElementTree as ET
 
@@ -442,6 +443,51 @@ class HwpxOxmlTableRow:
             HwpxOxmlTableCell(cell_element, self.table, self.element)
             for cell_element in self.element.findall(f"{_HP}tc")
         ]
+
+
+def _rows_of_cells(entries: Iterator[HwpxTableGridPosition], row_count: int) -> list[list[HwpxOxmlTableCell]]:
+    """The distinct cells crossing each row, left to right; a merged cell once per row it spans."""
+
+    rows: list[list[HwpxOxmlTableCell]] = [[] for _ in range(row_count)]
+    for entry in entries:
+        cells = rows[entry.row]
+        if not cells or cells[-1].element is not entry.cell.element:
+            cells.append(entry.cell)
+    return [cells for cells in rows if cells]
+
+
+def _equal_cell_edges(
+    rows: list[list[HwpxOxmlTableCell]], total: int
+) -> tuple[dict[int, tuple[int, int]], dict[int, HwpxOxmlTableCell]]:
+    """Left and right edge of every cell when each row splits *total* evenly among its cells."""
+
+    from ..errors import HwpxValueError
+
+    edges: dict[int, tuple[int, int]] = {}
+    anchors: dict[int, HwpxOxmlTableCell] = {}
+    for cells in rows:
+        width = total // len(cells)
+        for index, cell in enumerate(cells):
+            span = (index * width, (index + 1) * width)
+            if edges.setdefault(id(cell.element), span) != span:
+                row_index, col_index = cell.address
+                raise HwpxValueError(
+                    f"cell ({row_index}, {col_index}) spans rows that would give it different widths",
+                    context={"row": row_index, "column": col_index},
+                    suggestion="split the merged cell first, or set widths with set_column_widths()",
+                )
+            anchors[id(cell.element)] = cell
+    return edges, anchors
+
+
+def _place_cell(cell: HwpxOxmlTableCell, first_column: int, end_column: int, width: int) -> None:
+    addr = cell._addr_element()
+    if addr is not None:
+        addr.set("colAddr", str(first_column))
+    cell.set_span(cell.span[0], end_column - first_column)
+    if cell.width != width:
+        cell.set_size(width=width)
+        cell._clear_own_layout_caches()
 
 
 class HwpxOxmlTable:
@@ -1019,15 +1065,60 @@ class HwpxOxmlTable:
             entry.cell.set_size(width=width)
 
     def equalize_column_widths(self) -> None:
-        """모든 열 너비를 같게 만든다(6.13 트레인㊻, 갭"셀 너비를 같게").
+        """행마다 칸 너비를 같게 한다(한/글 "셀 너비를 같게"와 같은 결과).
 
-        ``set_column_widths([1] * column_count)``와 정확히 동치다 — 균등
-        가중치를 넘기면 이미 그렇게 나뉜다. 이 메서드는 그 조합을
-        전용 이름으로 노출할 뿐, 신규 계산 로직은 없다(호출자가 매번
-        "가중치를 다 1로 넣으면 되나?"를 스스로 알아내야 했던 게 실제
-        갭이었다 — 편집기 메뉴 표면 역매핑 트레인㊷·㊺가 찾은 부분 대응).
+        행마다 그 행을 지나는 칸(합친 칸은 한 칸)에 같은 너비를 준다. 모든 행이 같은
+        자리에서 끝나도록 표 너비를 행마다의 칸 수로 모두 나누어떨어지는 가장 가까운 값까지
+        올린다(예: 3칸 행과 4칸 행이 있으면 12의 배수). 행마다 칸 경계가 달라지면 열
+        격자(``colCnt``·``hp:cellAddr``·``hp:cellSpan``)를 그 경계로 다시 짠다.
+
+        여러 행에 걸친 칸이 행마다 다른 자리를 받아야 하면(예: 세로로 합친 칸 옆 행들의
+        칸 수가 다름) 한/글처럼 표를 그대로 두고 :class:`~hwpx.errors.HwpxValueError`를
+        낸다. 격자 열마다 같은 너비를 주려면 ``set_column_widths([1] * column_count)``를
+        쓴다.
         """
-        self.set_column_widths([1] * self.column_count)
+
+        grid = self._build_cell_grid()
+        rows = _rows_of_cells(self.iter_grid(), self.row_count)
+        if not rows:
+            return
+        sz = self.element.find(f"{_HP}sz")
+        total = max(sum(cell.width for cell in cells) for cells in rows)
+        if total <= 0 and sz is not None and sz.get("width", "").isdigit():
+            total = int(sz.get("width", "0"))
+        if total <= 0:
+            return
+        step = lcm(*(len(cells) for cells in rows))
+        total = -(-total // step) * step
+        edges, anchors = _equal_cell_edges(rows, total)
+
+        bounds = sorted({edge for span in edges.values() for edge in span})
+        column = {edge: index for index, edge in enumerate(bounds)}
+        self._follow_covering_cells(grid, edges, column)
+        for marker, (left, right) in edges.items():
+            _place_cell(anchors[marker], column[left], column[right], right - left)
+        self.element.set("colCnt", str(len(bounds) - 1))
+        if sz is not None:
+            sz.set("width", str(total))
+        self.mark_dirty()
+
+    def _follow_covering_cells(
+        self,
+        grid: dict[tuple[int, int], HwpxTableGridPosition],
+        edges: dict[int, tuple[int, int]],
+        column: dict[int, int],
+    ) -> None:
+        """Move each zero-size placeholder inside a merged area to the new column of the cell covering it."""
+
+        for row_element in self.element.findall(f"{_HP}tr"):
+            for cell_element in row_element.findall(f"{_HP}tc"):
+                if id(cell_element) in edges:
+                    continue
+                placeholder = HwpxOxmlTableCell(cell_element, self, row_element)
+                covering = grid.get(placeholder.address)
+                addr = placeholder._addr_element()
+                if covering is not None and addr is not None and id(covering.cell.element) in edges:
+                    addr.set("colAddr", str(column[edges[id(covering.cell.element)][0]]))
 
     def equalize_row_heights(self) -> None:
         """모든 행 높이를 같게 만든다(6.13 트레인㊻, 갭"셀 높이를 같게").
