@@ -6,6 +6,11 @@
 
 ### 추가
 
+- `doc.text.plain()`·`markdown()`·`html()`(`hwpx.tools.exporter`)에 `list_labels` 인자(기본
+  `False`): 번호·개요·글머리표 문단 앞에 한/글이 그리는 글자(`1.`·`가.`·`①`·`●` 등)와 공백
+  하나를 붙인다. 번호는 번호 정의와 수준마다 문서 순서로 세고(윗수준이 오면 아랫수준은 새로
+  시작, 건너뛴 윗수준은 시작값), 개요 문단은 구역의 개요 번호를 쓴다. 표 칸 문단도 읽는 순서로
+  센다.
 - HWP 5.0(`.hwp`)을 읽고 쓴다. `HwpxDocument.open`이 `.hwp`를 같은 문서 모델로 열고,
   `save_to_path("x.hwp")`·`save_to_stream(..., format="hwp")`·`to_bytes(format="hwp")`가
   HWP 5.0으로 쓴다. 본문·글자와 문단 모양·스타일·표·그림·그리기 개체·글맵시·수식·차트·OLE·
