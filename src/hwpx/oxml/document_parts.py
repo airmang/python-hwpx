@@ -622,7 +622,7 @@ class HwpxOxmlDocument:
         *,
         text: str | None = None,
         paragraphs: "Sequence[str] | None" = None,
-        page_type: str = "OPTIONAL_PAGE",
+        page_type: str = "BOTH",
         page_number: int = 1,
         page_duplicate: bool = False,
         page_front: bool = False,
