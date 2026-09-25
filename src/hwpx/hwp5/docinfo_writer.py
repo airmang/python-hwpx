@@ -24,11 +24,11 @@ from . import records as rec
 from .owpml import (
     ALIGN_H,
     ALIGN_V,
-    BORDER_LINE,
+    BORDER_LINE_CODES,
     BORDER_WIDTH,
     BREAK_LATIN,
     BREAK_NON_LATIN,
-    CHAR_LINE,
+    CHAR_LINE_CODES,
     FAMILY,
     GRADATION,
     HATCH,
@@ -145,7 +145,7 @@ def _line(element: etree._Element | None) -> di.Line:
     if element is None:
         return di.Line()
     return di.Line(
-        index_of(BORDER_LINE, element.get("type"), 0),
+        index_of(BORDER_LINE_CODES, element.get("type"), 0),
         index_of(BORDER_WIDTH, element.get("width"), 0),
         colorref(element.get("color")),
     )
@@ -251,15 +251,15 @@ def char_shape(element: etree._Element) -> di.CharShape:
     strike = _child(element, _HH, "strikeout")
     strike_shape = strike.get("shape", "NONE") if strike is not None else "NONE"
     underline_type = index_of(UNDERLINE_TYPE, underline.get("type") if underline is not None else None, 0)
-    underline_shape = index_of(CHAR_LINE, underline.get("shape") if underline is not None else None, 0)
+    underline_shape = index_of(CHAR_LINE_CODES, underline.get("shape") if underline is not None else None, 0)
     strike_as_underline = False
     if strike_shape != "NONE":
         props |= 1 << 18
-        props |= (index_of(CHAR_LINE, strike_shape, 0) & 0xF) << 26
+        props |= (index_of(CHAR_LINE_CODES, strike_shape, 0) & 0xF) << 26
         if underline_type == 0:
             # Hancom also records a strikeout in the old centre-underline
             # bits, in the strikeout's colour.
-            underline_type, underline_shape = 2, index_of(CHAR_LINE, strike_shape, 0)
+            underline_type, underline_shape = 2, index_of(CHAR_LINE_CODES, strike_shape, 0)
             strike_as_underline = True
     props |= (underline_type & 0x3) << 2 | (underline_shape & 0xF) << 4
     shape.underline_color = colorref(underline.get("color", "#000000")) if underline is not None else 0
@@ -289,7 +289,7 @@ def tab_def(element: etree._Element) -> di.TabDef:
     for item in _switch_case(element, "tabItem"):
         position = _doubled(_int(item, "pos"), item.get("unit"))
         tab.items.append(
-            di.TabItem(position, index_of(TAB_TYPE, item.get("type"), 0), index_of(BORDER_LINE, item.get("leader"), 0))
+            di.TabItem(position, index_of(TAB_TYPE, item.get("type"), 0), index_of(BORDER_LINE_CODES, item.get("leader"), 0))
         )
     return tab
 
@@ -299,7 +299,8 @@ def para_head(element: etree._Element) -> di.ParaHead:
     props |= _flag(element, "useInstWidth") << 2
     props |= _flag(element, "autoIndent") << 3
     props |= (1 if element.get("textOffsetType") == "HWPUNIT" else 0) << 4
-    props |= (index_of(NUMBER_FORMAT, element.get("numFormat"), 0) & 0xF) << 5
+    # The number format takes five bits: DECAGON_CIRCLE_HANJA is 16.
+    props |= (index_of(NUMBER_FORMAT, element.get("numFormat"), 0) & 0x1F) << 5
     return di.ParaHead(
         props,
         _int(element, "widthAdjust"),
@@ -430,7 +431,7 @@ def style(element: etree._Element) -> di.Style:
 def memo_shape(element: etree._Element) -> di.MemoShape:
     return di.MemoShape(
         _int(element, "width"),
-        index_of(BORDER_LINE, element.get("lineType"), 1),
+        index_of(BORDER_LINE_CODES, element.get("lineType"), 1),
         _int(element, "lineWidth"),
         colorref(element.get("lineColor")),
         colorref(element.get("fillColor")),

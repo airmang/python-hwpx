@@ -141,7 +141,7 @@ def index_of(table: Sequence[str] | Mapping[str, int], value: str | None, defaul
         return default
 
 
-#: Border and fill line types; 0 is no line.
+#: Border and fill line types by their HWP code, as Hancom spells them; 0 is no line.
 BORDER_LINE = (
     "NONE",
     "SOLID",
@@ -156,15 +156,29 @@ BORDER_LINE = (
     "THICK_SLIM",
     "SLIM_THICK_SLIM",
     "WAVE",
-    "DOUBLE_WAVE",
-    "THICK_3D",
-    "THICK_3D_REVERS",
+    "DOUBLEWAVE",
+    "THICK3D",
+    "THICKREV3D",
     "3D",
-    "3D_REVERS",
+    "REV3D",
 )
+
+#: The code of each line name. The lines Hancom names DOUBLEWAVE, THICK3D,
+#: THICKREV3D, 3D and REV3D are also taken by their other spellings.
+BORDER_LINE_CODES: dict[str, int] = {
+    **{name: code for code, name in enumerate(BORDER_LINE)},
+    "DOUBLE_WAVE": 13,
+    "THICK_3D": 14,
+    "THICK_3D_REVERS": 15,
+    "THICK_3D_REVERSE_LIGHTING": 15,
+    "SLIM_3D": 16,
+    "3D_REVERS": 17,
+    "SLIM_3D_REVERSE_LIGHTING": 17,
+}
 
 #: Underline and strikeout shapes; 0 is a solid line.
 CHAR_LINE = BORDER_LINE[1:]
+CHAR_LINE_CODES: dict[str, int] = {name: code - 1 for name, code in BORDER_LINE_CODES.items() if code}
 
 BORDER_WIDTH = (
     "0.1 mm",

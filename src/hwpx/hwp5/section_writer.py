@@ -24,7 +24,7 @@ from . import docinfo as di
 from . import records as rec
 from . import shapes as sh
 from .docinfo_writer import fill as fill_from_brush
-from .owpml import BORDER_LINE, BORDER_WIDTH, IMAGE_EFFECT_CODES, NOTE_NUMBER_FORMAT_CODES, NS, NUMBER_FORMAT, colorref, index_of
+from .owpml import BORDER_LINE_CODES, BORDER_WIDTH, IMAGE_EFFECT_CODES, NOTE_NUMBER_FORMAT_CODES, NS, NUMBER_FORMAT, colorref, index_of
 from .section_common import (
     HEIGHT_REL,
     HORZ_ALIGN,
@@ -945,7 +945,7 @@ class SectionRecords:
             _int(spacing, "aboveLine", 850),
             _int(spacing, "belowLine", 567),
             _int(spacing, "betweenNotes", 283),
-            index_of(BORDER_LINE, line.get("type") if line is not None else None, 1),
+            index_of(BORDER_LINE_CODES, line.get("type") if line is not None else None, 1),
             index_of(BORDER_WIDTH, line.get("width") if line is not None else None, 1),
             colorref(line.get("color") if line is not None else "#000000"),
         )
@@ -968,7 +968,7 @@ class SectionRecords:
             _int(element, "sameGap") if same else 0,
             widths,
             0,
-            index_of(BORDER_LINE, line.get("type") if line is not None else None, 0),
+            index_of(BORDER_LINE_CODES, line.get("type") if line is not None else None, 0),
             index_of(BORDER_WIDTH, line.get("width") if line is not None else None, 0),
             colorref(line.get("color") if line is not None else "#000000") if line is not None else 0,
         )

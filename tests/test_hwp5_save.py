@@ -556,6 +556,74 @@ _MARGIN = (
 )
 
 
+def test_a_numbering_level_writes_its_number_format_in_five_bits() -> None:
+    """Hancom writes DECAGON_CIRCLE_HANJA (16) at level 1 as 0x20C."""
+
+    from hwpx.hwp5.docinfo_writer import para_head
+
+    element = etree.fromstring(
+        f'<hh:paraHead {_HEAD_NS} level="1" align="LEFT" useInstWidth="1" autoIndent="1" widthAdjust="0"'
+        ' textOffsetType="PERCENT" textOffset="50" numFormat="DECAGON_CIRCLE_HANJA" charPrIDRef="4294967295">^1.</hh:paraHead>'
+    )
+    assert para_head(element).props == 0x20C
+
+
+@pytest.mark.parametrize(("props", "name"), [(0x20C, "DECAGON_CIRCLE_HANJA"), (0x1EC, "DECAGON_CIRCLE"), (0x0C, "DIGIT")])
+def test_a_numbering_level_opens_with_its_five_bit_number_format(props: int, name: str) -> None:
+    from hwpx.hwp5.header_xml import _numbering
+
+    parent = etree.Element("numberings")
+    _numbering(parent, 0, di.Numbering([di.ParaHead(props, 0, 50, 0xFFFFFFFF, "^1.")]))
+    assert parent.find(f"{HH}numbering/{HH}paraHead").get("numFormat") == name
+
+
+@pytest.mark.parametrize(
+    ("name", "code"),
+    [
+        ("DOUBLEWAVE", 13),
+        ("THICK3D", 14),
+        ("THICKREV3D", 15),
+        ("3D", 16),
+        ("REV3D", 17),
+        ("DOUBLE_WAVE", 13),
+        ("THICK_3D", 14),
+        ("THICK_3D_REVERS", 15),
+        ("THICK_3D_REVERSE_LIGHTING", 15),
+        ("SLIM_3D", 16),
+        ("3D_REVERS", 17),
+        ("SLIM_3D_REVERSE_LIGHTING", 17),
+    ],
+)
+def test_border_and_character_lines_are_written_by_any_spelling_of_their_name(name: str, code: int) -> None:
+    from hwpx.hwp5.docinfo_writer import border_fill, char_shape
+
+    fill = border_fill(
+        etree.fromstring(f'<hh:borderFill {_HEAD_NS} id="1"><hh:leftBorder type="{name}" width="0.12 mm" color="#000000"/></hh:borderFill>')
+    )
+    assert fill.left.kind == code
+    shape = char_shape(
+        etree.fromstring(
+            f'<hh:charPr {_HEAD_NS} id="0" height="1000"><hh:underline type="BOTTOM" shape="{name}" color="#000000"/>'
+            f'<hh:strikeout shape="{name}" color="#000000"/></hh:charPr>'
+        )
+    )
+    # Character lines take four bits, so REV3D (16) comes out solid, as Hancom writes it.
+    assert ((shape.props >> 4) & 0xF, (shape.props >> 26) & 0xF) == ((code - 1) & 0xF, (code - 1) & 0xF)
+
+
+@pytest.mark.parametrize(("code", "name"), [(13, "DOUBLEWAVE"), (14, "THICK3D"), (15, "THICKREV3D"), (16, "3D"), (17, "REV3D")])
+def test_border_and_character_lines_open_with_the_names_hancom_reads(code: int, name: str) -> None:
+    from hwpx.hwp5.header_xml import _char_pr, _line
+
+    fills = etree.Element("borderFill")
+    _line(fills, "hh:leftBorder", di.Line(code, 0, 0))
+    assert fills.find(f"{HH}leftBorder").get("type") == name
+    if code <= 16:
+        shapes = etree.Element("charProperties")
+        _char_pr(shapes, 0, di.CharShape(props=(1 << 2) | ((code - 1) << 4)))
+        assert shapes.find(f"{HH}charPr/{HH}underline").get("shape") == name
+
+
 def test_paragraph_lengths_with_no_switch_are_what_hwp_keeps() -> None:
     from hwpx.hwp5.docinfo_writer import para_shape
 

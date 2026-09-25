@@ -338,7 +338,7 @@ def _para_head(
         ("widthAdjust", head.width_adjust),
         ("textOffsetType", "HWPUNIT" if props & 0x10 else "PERCENT"),
         ("textOffset", head.text_offset),
-        ("numFormat", token(NUMBER_FORMAT, _bits(props, 5, 4))),
+        ("numFormat", token(NUMBER_FORMAT, _bits(props, 5, 5))),
         ("charPrIDRef", head.char_shape_id),
         # Hancom reports checkable from bit 5, the low bit of the number format.
         ("checkable", flag(props & (1 << 5))),
