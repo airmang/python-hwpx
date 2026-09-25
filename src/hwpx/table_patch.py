@@ -1165,12 +1165,54 @@ def _split_cell_vertical(table: str, row: int, col: int, sizes: Sequence[int]) -
     return out
 
 
+def _empty_cell_like(tc: str) -> str:
+    """*tc* holding one empty paragraph instead of its content, with the first
+    paragraph's paragraph shape and the first run's character shape kept."""
+    p_open = re.search(r"<hp:p\b[^>]*>", tc)
+    char = re.search(r'<hp:run\b[^>]*\bcharPrIDRef="(\d+)"', tc)
+    paragraph = (
+        (p_open.group(0) if p_open else '<hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" '
+         'columnBreak="0" merged="0">')
+        + f'<hp:run charPrIDRef="{char.group(1) if char else 0}"><hp:t/></hp:run></hp:p>'
+    )
+    return re.sub(r"(<hp:subList\b[^>]*>).*(</hp:subList>)", lambda m: m.group(1) + paragraph + m.group(2),
+                  tc, count=1, flags=re.S)
+
+
+def _clone_row_template(rows: list[str], ref_row: int) -> str:
+    """The row a clone of physical row *ref_row* starts from, as Hancom inserts a row
+    below it: the cells of *ref_row* that end there, and under each cell of an upper
+    row that ends at *ref_row* an empty cell of its format and width (with the
+    height of *ref_row*). Cells running on below *ref_row* are not in it -- they
+    grow over the new rows instead."""
+    height = _physical_row_height(rows, ref_row)
+    cells: list[tuple[int, str]] = []
+    for index, row in enumerate(rows[: ref_row + 1]):
+        for tc in _S_TC.findall(row):
+            ra = _si(tc, "cellAddr", "rowAddr")
+            rs = _si(tc, "cellSpan", "rowSpan") or 1
+            if ra is None or ra + rs - 1 != ref_row:
+                continue
+            if index < ref_row:
+                tc = _ss(_empty_cell_like(tc), "cellSpan", "rowSpan", 1)
+                tc = _ss(tc, "cellSz", "height", height or (_si(tc, "cellSz", "height") or 0) // rs)
+            cells.append((_si(tc, "cellAddr", "colAddr") or 0, tc))
+    if not cells:
+        raise TableStructureError(f"every cell of row {ref_row} runs on below it; nothing to clone")
+    opening = re.match(r"<hp:tr\b[^>]*>", rows[ref_row])
+    return (opening.group(0) if opening else "<hp:tr>") + "".join(tc for _, tc in sorted(cells, key=lambda c: c[0])) + "</hp:tr>"
+
+
 def _insert_row_by_clone(
     table: str, ref_row: int, count: int = 1, *, used_ids: set[int] | None = None
 ) -> str:
     """Insert *count* rows after physical row *ref_row* by cloning it (formatting
-    preserved, paragraph ids refreshed). Rows below shift; cells spanning across
-    the insertion grow their rowSpan."""
+    preserved, paragraph ids refreshed). Rows below shift.
+
+    Merged cells follow Hancom's row insertion: a cell running on below *ref_row*
+    grows its rowSpan over the new rows instead of being cloned, and under a cell
+    from an upper row that ends at *ref_row* each new row gets an empty cell of
+    its format and width."""
     _guard_flat(table)
     if count < 1:
         return table
@@ -1188,12 +1230,9 @@ def _insert_row_by_clone(
             return _ss(tc, "cellSpan", "rowSpan", rs + count)
         return tc
 
+    # build the clones from the ORIGINAL rows, before the shift
+    ref = _clone_row_template(rows, ref_row)
     shifted = [_map_cells(r, shift) for r in rows]
-    # build the clones from the ORIGINAL ref row (single-row cells only; a ref row
-    # whose cells are all rowSpan==1 is the safe clone source)
-    ref = rows[ref_row]
-    if any((_si(tc, "cellSpan", "rowSpan") or 1) != 1 for tc in _S_TC.findall(ref)):
-        raise TableStructureError("clone source row must have rowSpan==1 cells")
     occupied = set(used_ids or ()) | {int(m.group(2)) for m in _PARA_ID_RE.finditer(table)}
     next_id = 1
 
@@ -1218,8 +1257,8 @@ def _insert_block_by_clone(table: str, r0: int, r1: int, count: int = 1) -> str:
     times, preserving the block's internal span pattern (FR-001).
 
     The 성취기준 A~E unit is one such block: a leading cell with ``rowSpan=N`` plus
-    ``N`` rows of ``rowSpan==1`` cells. :func:`_insert_row_by_clone` refuses it (its
-    ref row carries the row-spanning anchor); this clones the whole unit, offsets the
+    ``N`` rows of ``rowSpan==1`` cells. :func:`_insert_row_by_clone` would grow the
+    leading cell over one new row; this clones the whole unit, offsets the
     clones' ``rowAddr`` by the block height, shifts every row below, refreshes
     paragraph ids, and grows ``rowCnt``. Fail-closed (Constitution VI): the block must
     be a clean merge unit — no cell inside spans out of ``[r0,r1]`` and no cell
