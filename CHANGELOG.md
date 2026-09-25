@@ -6,6 +6,9 @@
 
 ### 추가
 
+- `apply_list_format()`의 기본 글머리표·번호 모양이 한/글 새 목록과 다른 점(글머리표
+  `-`·`○` 대 `●`, 번호 3수준 `1.1.1.` 대 `1)`)과 글머리표를 맞추는 법(`bullet_char="●"`)을
+  설명과 known-traps에 적는다. 기본값은 7.0에서 한/글에 맞춘다.
 - HWP 5.0(`.hwp`)을 읽고 쓴다. `HwpxDocument.open`이 `.hwp`를 같은 문서 모델로 열고,
   `save_to_path("x.hwp")`·`save_to_stream(..., format="hwp")`·`to_bytes(format="hwp")`가
   HWP 5.0으로 쓴다. 본문·글자와 문단 모양·스타일·표·그림·그리기 개체·글맵시·수식·차트·OLE·
