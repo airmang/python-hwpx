@@ -57,6 +57,9 @@
 
 ### 고침
 
+- `doc.text.replace()`(과 `run.replace_text()`를 쓰는 메일 병합)가 `hp:t` 안의 탭·줄 바꿈을 사이에
+  둔 글을 이어 읽어, `사⇥과`를 `사과`로 찾아 바꾸던 것을 고친다(탭은 남고 글자만 합쳐졌다).
+  한/글처럼 탭·줄 바꿈 같은 글자 요소와 컨트롤은 말을 끊는다. 형광펜 표시는 전처럼 끊지 않는다.
 - `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
   (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
   `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.
