@@ -190,7 +190,7 @@ def _char_styles() -> list[rec.Record]:
     return records
 
 
-def _markers() -> list[rec.Record]:
+def _markers(dutmal_position: int = 1) -> list[rec.Record]:
     """Page number place, page hiding, a new number, an auto number, a
     bookmark, an index mark, a dutmal and a title mark in one paragraph."""
 
@@ -206,7 +206,7 @@ def _markers() -> list[rec.Record]:
         rec.Record(rec.CTRL_HEADER, 1, struct.pack("<I", bt.ctrl_word("bokm"))),
         rec.Record(rec.CTRL_DATA, 2, ct.name_parameter_set("처음")),
         rec.Record(rec.CTRL_HEADER, 1, ct.IndexMark("가나", "다라").encode()),
-        rec.Record(rec.CTRL_HEADER, 1, ct.Dutmal("협동조합", "coop", 1, 0, 0, 0, 1).encode()),
+        rec.Record(rec.CTRL_HEADER, 1, ct.Dutmal("협동조합", "coop", dutmal_position, 0, 0, 0, 1).encode()),
     ]
     return _paragraph(0, text, [(0, 0)], controls)
 
@@ -484,6 +484,7 @@ def make_hwp(
     hidden_comment: bool = False,
     picture_effects: bool = False,
     picture_effect: int = 0,
+    dutmal_position: int = 1,
 ) -> bytes:
     section = _section()
     if picture_effects:
@@ -503,7 +504,7 @@ def make_hwp(
     if picture:
         section += _picture(picture_effect)
     if markers:
-        section += _markers()
+        section += _markers(dutmal_position)
     if label:
         # A label sheet: the table carries the sheet layout as a parameter set.
         layout = dict(zip(ct.LABEL_ITEMS, (5670, 5670, 28346, 28346, 850, 850, 1, 2, 0, 59528, 84188)))
@@ -844,6 +845,17 @@ def test_numbering_bookmark_index_and_dutmal_controls_open() -> None:
     assert (dutmal.get("posType"), dutmal.get("align")) == ("BOTTOM", "LEFT")
     assert one("titleMark").get("ignore") == "1"
     assert [dutmal.find(f"{HP}mainText").text, dutmal.find(f"{HP}subText").text] == ["협동조합", "coop"]
+
+
+@pytest.mark.parametrize(("position", "name"), [(0, "TOP"), (1, "BOTTOM"), (2, None)])
+def test_a_dutmal_position_opens_with_its_owpml_name_or_without_one(position: int, name: str | None) -> None:
+    """Hancom leaves the dutmal position 2 out of OWPML."""
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(markers=True, dutmal_position=position))
+    [dutmal] = list(document.sections[0].element.iter(f"{HP}dutmal"))
+    assert dutmal.get("posType") == name
 
 
 def test_overlapped_characters_open_as_compose_between_the_text() -> None:

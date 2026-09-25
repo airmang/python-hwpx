@@ -50,7 +50,7 @@ from .section_xml import (
     COMPOSE_TYPE,
     COMPOSE_UNITS_GLYPHS,
     DUTMAL_ALIGN,
-    DUTMAL_POS,
+    DUTMAL_POS_CODES,
     ENDNOTE_PLACE,
     FIELD_TYPES,
     FILL_AREA,
@@ -82,7 +82,7 @@ from .section_xml import (
 )
 from .shape_xml import (
     ARC_TYPE,
-    ARROW,
+    ARROW_CODES,
     ARROW_SIZE,
     CHART_ATTRS,
     CHART_PARTS,
@@ -386,7 +386,9 @@ def _object_common(ctrl: str, element: etree._Element) -> ct.ObjectCommon:
     props |= index_of(WIDTH_REL, sz.get("widthRelTo") if sz is not None else None, 4) << 15
     props |= index_of(HEIGHT_REL, sz.get("heightRelTo") if sz is not None else None, 2) << 18
     props |= _flag(sz, "protect") << 20
-    props |= index_of(TEXT_WRAP, element.get("textWrap"), 1) << 21
+    # With no textWrap Hancom writes a form object TOP_AND_BOTTOM (1) and any
+    # other object SQUARE (0).
+    props |= index_of(TEXT_WRAP, element.get("textWrap"), 1 if ctrl == "form" else 0) << 21
     props |= index_of(TEXT_FLOW, element.get("textFlow"), 0) << 24
     props |= index_of(NUMBERING_TYPE, element.get("numberingType"), 0) << 26
     props |= _flag(element, "lock") << 30
@@ -1047,7 +1049,7 @@ class SectionRecords:
         value = ct.Dutmal(
             _child_text(element, "mainText"),
             _child_text(element, "subText"),
-            index_of(DUTMAL_POS, element.get("posType"), 0),
+            index_of(DUTMAL_POS_CODES, element.get("posType"), 0),
             _int(element, "szRatio"),
             _int(element, "option"),
             _int(element, "styleIDRef"),
@@ -1100,7 +1102,11 @@ class SectionRecords:
         shadow = _find(element, "shadow")
         if shadow is not None and _SHAPE_KINDS.get(_local(element)) not in _UNSTYLED_KINDS:
             extra = sh.shadow_margins(
-                index_of(SHADOW, shadow.get("type"), 0), _i32(_int(shadow, "offsetX")), _i32(_int(shadow, "offsetY"))
+                index_of(SHADOW, shadow.get("type"), 0),
+                _i32(_int(shadow, "offsetX")),
+                _i32(_int(shadow, "offsetY")),
+                common.width,
+                common.height,
             )
             common.margins = tuple(_i16(margin + add) for margin, add in zip(common.margins, extra))  # type: ignore[assignment]
         comment = _find(element, "shapeComment")
@@ -1200,8 +1206,8 @@ class SectionRecords:
         props = index_of(LINE_STYLE, line.get("style"), 0)
         # A line with no end cap gets a flat one, as Hancom writes it.
         props |= index_of(END_CAP, line.get("endCap"), 1) << 6
-        props |= index_of(ARROW, line.get("headStyle"), 0) << 10
-        props |= index_of(ARROW, line.get("tailStyle"), 0) << 16
+        props |= index_of(ARROW_CODES, line.get("headStyle"), 0) << 10
+        props |= index_of(ARROW_CODES, line.get("tailStyle"), 0) << 16
         props |= index_of(ARROW_SIZE, line.get("headSz"), 0) << 22
         props |= index_of(ARROW_SIZE, line.get("tailSz"), 0) << 26
         return props | _flag(line, "headfill") << 30 | _flag(line, "tailfill") << 31

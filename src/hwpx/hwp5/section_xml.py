@@ -493,7 +493,10 @@ PAGE_NUM_POS = (
 )
 NUMBER_TYPE = ("PAGE", "FOOTNOTE", "ENDNOTE", "PICTURE", "TABLE", "EQUATION", "TOTAL_PAGE")
 PAGE_HIDING = ("hideHeader", "hideFooter", "hideMasterPage", "hideBorder", "hideFill", "hidePageNum")
-DUTMAL_POS = ("TOP", "BOTTOM", "CENTER")
+DUTMAL_POS = ("TOP", "BOTTOM")
+#: The HWP code of each dutmal position. Hancom reads CENTER as TOP and leaves
+#: the code 2 out of OWPML.
+DUTMAL_POS_CODES: dict[str, int] = {"TOP": 0, "BOTTOM": 1, "CENTER": 0}
 DUTMAL_ALIGN = ("JUSTIFY", "LEFT", "RIGHT", "CENTER", "DISTRIBUTE", "DISTRIBUTE_SPACE")
 #: Frames of overlapped characters, spelt as Hancom writes them ("TIRANGLE").
 COMPOSE_CIRCLE = (
@@ -1107,7 +1110,7 @@ class SectionWriter(ShapeReader):
             run,
             "hp:dutmal",
             (
-                ("posType", token(DUTMAL_POS, d.position)),
+                *((("posType", DUTMAL_POS[d.position]),) if 0 <= d.position < len(DUTMAL_POS) else ()),
                 ("szRatio", d.size_ratio),
                 ("option", d.option),
                 ("styleIDRef", d.style_id),

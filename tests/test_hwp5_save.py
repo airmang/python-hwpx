@@ -638,26 +638,50 @@ def test_paragraph_lengths_with_no_switch_are_what_hwp_keeps() -> None:
 
 
 @pytest.mark.parametrize(
-    ("kind", "offsets", "expected"),
+    ("kind", "offsets", "size", "expected"),
     [
-        (1, (0, 0), (600, 0, 600, 0)),  # left top
-        (2, (0, 0), (0, 600, 600, 0)),  # right top
-        (2, (283, 283), (0, 883, 317, 0)),
-        (4, (-283, -283), (0, 317, 0, 317)),  # right bottom
-        (0, (283, 283), (0, 0, 0, 0)),  # no shadow
-        (5, (0, 0), (0, 0, 0, 0)),  # a shear shadow adds nothing here
+        (1, (0, 0), (8000, 6000), (600, 0, 600, 0)),  # parallel, left top
+        (2, (0, 0), (8000, 6000), (0, 600, 600, 0)),  # parallel, right top
+        (4, (-283, -283), (8000, 6000), (0, 317, 0, 317)),  # parallel, right bottom
+        (0, (283, 283), (8000, 6000), (0, 0, 0, 0)),  # no shadow
+        # What Hancom writes for each shadow kind, shape size and offset.
+        (1, (850, 283), (14400, 7200), (0, 250, 317, 0)),
+        (2, (283, 850), (14400, 7200), (0, 883, 0, 250)),
+        (3, (283, 283), (7200, 14400), (317, 0, 0, 883)),
+        (4, (850, 283), (7200, 14400), (0, 1450, 0, 883)),
+        (5, (283, 850), (7200, 14400), (7890, 283, 0, 850)),  # shear, left top
+        (6, (283, 283), (28800, 3600), (0, 2326, 0, 283)),  # shear, right top
+        (6, (0, 0), (6803, 1984), (0, 1126, 0, 0)),
+        (7, (850, 283), (28800, 3600), (1193, 850, 0, 2083)),  # shear, left bottom
+        (8, (283, 850), (28800, 3600), (0, 2326, 0, 2650)),  # shear, right bottom
+        (9, (283, 283), (14400, 7200), (6390, 283, 0, 283)),  # perspective, left top
+        (10, (850, 283), (14400, 7200), (0, 7523, 0, 283)),  # perspective, right top
+        (11, (283, 850), (14400, 7200), (6390, 283, 0, 8050)),  # perspective, left bottom
+        (12, (283, 283), (7200, 14400), (0, 13629, 0, 14683)),  # perspective, right bottom
+        (13, (850, 283), (7200, 14400), (0, 0, 317, 0)),  # narrowed
+        (13, (0, 0), (7875, 5850), (600, 0, 600, 0)),
+        (14, (283, 850), (7200, 14400), (2117, 0, 3350, 250)),  # enlarged
     ],
 )
-def test_where_a_parallel_shadow_falls_widens_the_outer_margin(
-    kind: int, offsets: tuple[int, int], expected: tuple[int, int, int, int]
+def test_where_a_shadow_falls_widens_the_outer_margin(
+    kind: int, offsets: tuple[int, int], size: tuple[int, int], expected: tuple[int, int, int, int]
 ) -> None:
-    assert sh.shadow_margins(kind, *offsets) == expected
+    assert sh.shadow_margins(kind, *offsets, *size) == expected
 
 
-def test_a_shadowed_shape_keeps_its_outer_margin_across_hwpx() -> None:
-    common = ct.ObjectCommon("gso ", 0x000A2211, 0, 0, 8000, 6000, 0, (0, 317, 0, 317), 190, 0, "", bytes(2))
+@pytest.mark.parametrize(
+    ("kind", "offset", "margins"),
+    [
+        (4, -283, (0, 317, 0, 317)),  # parallel, right bottom
+        (6, 0, (0, 3405, 0, 0)),  # shear, right top
+        (11, 283, (5277, 283, 0, 6283)),  # perspective, left bottom
+        (14, 283, (2317, 0, 1817, 0)),  # enlarged
+    ],
+)
+def test_a_shadowed_shape_keeps_its_outer_margin_across_hwpx(kind: int, offset: int, margins: tuple[int, ...]) -> None:
+    common = ct.ObjectCommon("gso ", 0x000A2211, 0, 0, 8000, 6000, 0, margins, 190, 0, "", bytes(2))
     fill = di.Fill(di.FILL_SOLID, 0x00FFFFFF, 0, -1, additional=b"", alphas=b"\0")
-    style = sh.DrawingStyle(0, 33, 0, 0, fill, 4, 0xB2B2B2, -283, -283, 190)
+    style = sh.DrawingStyle(0, 33, 0, 0, fill, kind, 0xB2B2B2, offset, offset, 190)
     component = sh.ShapeComponent(
         "$rec", True, 0, 0, 0, 1, 8000, 6000, 8000, 6000, 1 << 19, 0, 4000, 3000, [_IDENTITY] * 3, style.encode()
     )
@@ -683,7 +707,69 @@ def test_a_shadowed_shape_keeps_its_outer_margin_across_hwpx() -> None:
 
     written = read_hwp5(write_hwp5(files))
     [header] = [r for s in written.sections for r in s.records if r.tag == rec.CTRL_HEADER and r.payload[:4] == b" osg"]
-    assert ct.ObjectCommon.decode(header.payload).margins == (0, 317, 0, 317)
+    assert ct.ObjectCommon.decode(header.payload).margins == margins
+
+
+@pytest.mark.parametrize(
+    ("ctrl", "wrap", "code"),
+    [("gso ", None, 0), ("gso ", "TOP_AND_BOTTOM", 1), ("gso ", "BEHIND_TEXT", 2), ("form", None, 1), ("form", "SQUARE", 0)],
+)
+def test_an_object_without_a_text_wrap_wraps_as_hancom_writes_it(ctrl: str, wrap: str | None, code: int) -> None:
+    """With no textWrap Hancom writes a form object TOP_AND_BOTTOM and any other object SQUARE."""
+
+    from hwpx.hwp5.section_writer import _object_common
+
+    attr = f' textWrap="{wrap}"' if wrap else ""
+    element = etree.fromstring(
+        f'<hp:rect xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"{attr}>'
+        '<hp:sz width="100" height="100"/><hp:pos treatAsChar="1"/></hp:rect>'
+    )
+    assert (_object_common(ctrl, element).props >> 21) & 0x7 == code
+
+
+@pytest.mark.parametrize(
+    ("name", "code"),
+    [("EMPTY_DIAMOND", 4), ("EMPTY_BOX", 6), ("FILLED_DIAMOND", 0), ("FILLED_CIRCLE", 0), ("FILLED_BOX", 0)],
+)
+def test_arrows_are_written_with_the_codes_hancom_reads(name: str, code: int) -> None:
+    """Hancom reads the FILLED_* arrow names as NORMAL; its filled arrows are EMPTY_* with a fill."""
+
+    from hwpx.hwp5.section_writer import SectionRecords
+
+    line = etree.fromstring(
+        '<hp:lineShape xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" color="#000000" width="33"'
+        f' style="SOLID" headStyle="{name}" tailStyle="{name}" headfill="1" tailfill="1"/>'
+    )
+    props = SectionRecords._line_props(line)
+    assert ((props >> 10) & 0x3F, (props >> 16) & 0x3F) == (code, code)
+
+
+@pytest.mark.parametrize(("code", "name"), [(4, "EMPTY_DIAMOND"), (6, "EMPTY_BOX"), (7, None), (9, None)])
+def test_an_arrow_past_empty_box_opens_without_a_style(code: int, name: str | None) -> None:
+    from hwpx.hwp5.shape_xml import ShapeReader
+
+    element = etree.Element("rect")
+    ShapeReader.line_shape(element, 0, 33, code << 10 | code << 16, 0, 0)
+    line = element.find(f"{HP}lineShape")
+    assert line is not None and (line.get("headStyle"), line.get("tailStyle")) == (name, name)
+
+
+@pytest.mark.parametrize(("position", "code"), [("TOP", 0), ("BOTTOM", 1), ("CENTER", 0)])
+def test_a_dutmal_position_is_written_with_the_code_hancom_reads(position: str, code: int) -> None:
+    """Hancom reads a dutmal set in the CENTER as one on TOP."""
+
+    from hwpx.hwp5.section_writer import build_section_records
+
+    section = etree.fromstring(
+        '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"'
+        ' xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"><hp:p><hp:run>'
+        f'<hp:dutmal posType="{position}" szRatio="0" option="0" styleIDRef="0" align="CENTER">'
+        "<hp:mainText>본말</hp:mainText><hp:subText>덧말</hp:subText></hp:dutmal></hp:run></hp:p></hs:sec>"
+    )
+    records, unsupported = build_section_records(section)
+    assert not unsupported
+    [header] = [r for r in records if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "tdut"]
+    assert ct.Dutmal.decode(header.payload).position == code
 
 
 def test_a_strikeout_in_the_underline_bits_keeps_its_colour() -> None:

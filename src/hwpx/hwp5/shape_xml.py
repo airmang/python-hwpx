@@ -49,10 +49,16 @@ ARROW = (
     "EMPTY_DIAMOND",
     "EMPTY_CIRCLE",
     "EMPTY_BOX",
-    "FILLED_DIAMOND",
-    "FILLED_CIRCLE",
-    "FILLED_BOX",
 )
+#: The HWP code of each arrow name. Hancom reads FILLED_DIAMOND, FILLED_CIRCLE
+#: and FILLED_BOX as NORMAL (its filled arrows are EMPTY_* with headfill or
+#: tailfill), and leaves the codes past EMPTY_BOX out of OWPML.
+ARROW_CODES: dict[str, int] = {
+    **{name: code for code, name in enumerate(ARROW)},
+    "FILLED_DIAMOND": 0,
+    "FILLED_CIRCLE": 0,
+    "FILLED_BOX": 0,
+}
 ARROW_SIZE = (
     "SMALL_SMALL",
     "SMALL_MEDIUM",
@@ -467,7 +473,9 @@ class ShapeReader:
                 self.text_art(element, art)
         if common is not None:
             if style is not None:
-                extra = sh.shadow_margins(style.shadow_type, style.shadow_x, style.shadow_y)
+                extra = sh.shadow_margins(
+                    style.shadow_type, style.shadow_x, style.shadow_y, common.width, common.height
+                )
                 margins = tuple(margin - add for margin, add in zip(common.margins, extra))
                 common = dataclasses.replace(common, margins=margins)  # type: ignore[arg-type]
             object_layout(element, common)
@@ -549,8 +557,9 @@ class ShapeReader:
 
     @staticmethod
     def line_shape(element: etree._Element, line_color: int, width: int, props: int, outline: int, alpha: int) -> None:
-        # An end cap with no OWPML name is left out, as Hancom leaves it out.
+        # An end cap or an arrow with no OWPML name is left out, as Hancom leaves it out.
         cap = _bits(props, 6, 4)
+        head, tail = _bits(props, 10, 6), _bits(props, 16, 6)
         sub(
             element,
             "hp:lineShape",
@@ -559,8 +568,8 @@ class ShapeReader:
                 ("width", _u32(width)),
                 ("style", token(LINE_STYLE, _bits(props, 0, 6))),
                 *((("endCap", END_CAP[cap]),) if cap < len(END_CAP) else ()),
-                ("headStyle", token(ARROW, _bits(props, 10, 6))),
-                ("tailStyle", token(ARROW, _bits(props, 16, 6))),
+                *((("headStyle", ARROW[head]),) if head < len(ARROW) else ()),
+                *((("tailStyle", ARROW[tail]),) if tail < len(ARROW) else ()),
                 ("headfill", flag(props & (1 << 30))),
                 ("tailfill", flag(props & (1 << 31))),
                 ("headSz", token(ARROW_SIZE, _bits(props, 22, 4))),
