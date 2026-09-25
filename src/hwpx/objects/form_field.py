@@ -188,4 +188,41 @@ class FormField:
         )
 
 
-__all__ = ["FieldLocation", "FieldParameter", "FormField"]
+class CellField:
+    """A live view over one named table cell -- Hancom's cell field (``hp:tc@name``).
+
+    ``text`` reads the cell's text and, when assigned, replaces it the way
+    ``cell.set_text`` does (the cell's character and paragraph shapes are kept).
+    ``cell`` is the table cell itself (:class:`hwpx.model.TableCell`) for anything else.
+    """
+
+    __slots__ = ("_cell",)
+
+    def __init__(self, cell: Any) -> None:
+        self._cell = cell
+
+    @property
+    def name(self) -> str:
+        return str(self._cell.field_name)
+
+    @property
+    def text(self) -> str:
+        return str(self._cell.text)
+
+    @text.setter
+    def text(self, value: str) -> None:
+        self._cell.set_text(value)
+
+    @property
+    def cell(self) -> Any:
+        return self._cell
+
+    def to_dict(self) -> dict[str, Any]:
+        row, col = self._cell.address
+        return {"name": self.name, "text": self.text, "row": row, "column": col}
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"CellField(name={self.name!r}, text={self.text!r})"
+
+
+__all__ = ["CellField", "FieldLocation", "FieldParameter", "FormField"]

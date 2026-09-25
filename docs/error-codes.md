@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 134 | 11 |
+| 개수 | 135 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -82,6 +82,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `field-ambiguous` | 선택자가 누름틀 여럿에 걸린다. |
+| `field-cell-not-found` | 그 이름(과 순번)의 셀 필드(이름 붙은 표 칸)가 없다. |
 | `field-checkbox-ambiguous` | 선택자가 체크박스 여럿에 걸린다. |
 | `field-checkbox-caption-empty` | 체크박스 캡션이 비어 있다. |
 | `field-checkbox-not-created` | 만든 체크박스를 표준 리더가 다시 찾지 못했다. |

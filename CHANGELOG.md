@@ -6,6 +6,10 @@
 
 ### 추가
 
+- 셀 필드(이름 붙은 표 칸, `hp:tc@name`): `doc.fields.cells`가 문서 순서로 돌려주고(본문 표와
+  칸 안의 표), `doc.fields.fill_cell(value, name=..., index=None)`이 한/글 `PutFieldText`처럼
+  같은 이름의 칸을 모두 채운다. `index`(0부터)를 주면 그 하나만 채운다. 칸의 이름은
+  `cell.field_name`으로 읽고 쓴다. 새 오류 코드 `field-cell-not-found`.
 - HWP 5.0(`.hwp`)을 읽고 쓴다. `HwpxDocument.open`이 `.hwp`를 같은 문서 모델로 열고,
   `save_to_path("x.hwp")`·`save_to_stream(..., format="hwp")`·`to_bytes(format="hwp")`가
   HWP 5.0으로 쓴다. 본문·글자와 문단 모양·스타일·표·그림·그리기 개체·글맵시·수식·차트·OLE·
