@@ -624,7 +624,12 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         number_format: str | None = None,
         start: int | None = None,
     ) -> "ListFormatResult":
-        """글머리표/번호 문단 서식을 적용한다."""
+        """글머리표/번호 문단 서식을 적용한다.
+
+        기본 모양은 한/글 새 목록과 다르다: 글머리표는 1수준 ``-``·2수준 ``○``(한/글은
+        ``●``), 번호 3수준은 ``1.1.1.``(한/글은 ``1)``). 글머리표를 한/글처럼 하려면
+        ``bullet_char="●"``를 준다. 기본값은 7.0에서 한/글에 맞춘다.
+        """
 
         from .. import layout as _layout
 
