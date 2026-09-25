@@ -27,6 +27,7 @@ from hwpx.hwp5.fileheader import FileHeader
 from hwpx.hwp5.section_xml import field_parameters
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 
 
@@ -405,15 +406,16 @@ def _memo() -> list[rec.Record]:
     return records + _paragraph(1, "메모 내용".encode("utf-16-le") + _u16(13), [(0, 0)], [])
 
 
-def _picture() -> list[rec.Record]:
-    """A captioned picture with a first-letter decoration parameter set."""
+def _picture(effect: int = 0) -> list[rec.Record]:
+    """A captioned picture with a first-letter decoration parameter set, and
+    the picture effect code *effect*."""
 
     common = ct.ObjectCommon("gso ", 0x240A2211, 0, 0, 10000, 8000, 0, (0, 0, 0, 0), 297, 0, "그림입니다.", bytes(2))
     component = sh.ShapeComponent(
         "$pic", True, 0, 0, 0, 1, 10000, 8000, 10000, 8000, 0x24080000, 0, 5000, 4000, [_IDENTITY, _IDENTITY, _IDENTITY]
     )
     corners = [(0, 0), (10000, 0), (10000, 8000), (0, 8000)]
-    picture = sh.Picture(0, 0, 0, corners, (0, 0, 10000, 8000), (0, 0, 0, 0), 0, 0, 0, 0, 0, 297, 0, (10000, 8000), bytes(1))
+    picture = sh.Picture(0, 0, 0, corners, (0, 0, 10000, 8000), (0, 0, 0, 0), 0, 0, effect, 0, 0, 297, 0, (10000, 8000), bytes(1))
     caption = ct.CaptionHeader(1, 0, 0, 1, 8504, 850, 8504).encode()
     dropcap = ct.ParameterSet(0x021B, [ct.ParameterItem(0x3003, ct.PIT_SET, ct.ParameterSet(0x3003, [ct.ParameterItem(0x7001, 9, 2)]))])
     return _paragraph(
@@ -481,6 +483,7 @@ def make_hwp(
     forms: bool = False,
     hidden_comment: bool = False,
     picture_effects: bool = False,
+    picture_effect: int = 0,
 ) -> bytes:
     section = _section()
     if picture_effects:
@@ -498,7 +501,7 @@ def make_hwp(
     if text_box:
         section += _text_box()
     if picture:
-        section += _picture()
+        section += _picture(picture_effect)
     if markers:
         section += _markers()
     if label:
@@ -1062,6 +1065,24 @@ def test_a_picture_opens_with_its_caption_comment_and_parameter_set() -> None:
     assert "".join(pic.find(f"{HP}caption").itertext()) == "그림 1"
     value = pic.find(f"{HP}parameterset/{HP}listParam/{HP}unsignedintegerParam")
     assert value is not None and (value.get("name"), value.text) == ("28673", "2")
+
+
+@pytest.mark.parametrize(("code", "effect"), [(1, "GRAY_SCALE"), (2, "BLACK_WHITE"), (3, None)])
+def test_an_image_effect_opens_with_its_owpml_name_or_without_one(code: int, effect: str | None) -> None:
+    """Hancom leaves the effect out of OWPML for the HWP code 3."""
+
+    from hwpx.hwp5.header_xml import _bullet, fill_brush
+
+    fills = etree.Element("fills")
+    fill_brush(fills, di.Fill(kind=di.FILL_IMAGE, image_effect=code, image_bin_id=1))
+    bullets = etree.Element("bullets")
+    _bullet(bullets, 0, di.Bullet(di.ParaHead(), 0x25CF, 1, bytes([0, 0, code, 1])))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(picture=True, picture_effect=code))
+    [pic] = list(document.sections[0].element.iter(f"{HP}pic"))
+    images = [*fills.iter(f"{HC}img"), *bullets.iter(f"{HC}img"), pic.find(f"{HC}img")]
+    assert [image.get("effect") for image in images] == [effect] * 3
 
 
 def test_a_memo_opens_with_its_body_beside_a_master_page() -> None:

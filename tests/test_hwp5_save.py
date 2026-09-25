@@ -728,6 +728,29 @@ def test_a_picture_saves_as_hwp_with_its_image(tmp_path: Path) -> None:
     assert image is not None and image.get("binaryItemIDRef", "").startswith("image")
 
 
+@pytest.mark.parametrize(("effect", "code"), [("GRAY_SCALE", 1), ("BLACK_WHITE", 2), ("PATTERN8x8", 0)])
+def test_image_effects_are_written_with_the_codes_hancom_writes(effect: str, code: int, tmp_path: Path) -> None:
+    """Hancom writes PATTERN8x8 to HWP as 0 (REAL_PIC): in image fills, bullet images and pictures."""
+
+    from hwpx.hwp5.docinfo_writer import bullet, fill
+
+    img = f'<hc:img binaryItemIDRef="image1" bright="0" contrast="0" effect="{effect}" alpha="0"/>'
+    brush = etree.fromstring(f'<hc:fillBrush {_HEAD_NS}><hc:imgBrush mode="TOTAL">{img}</hc:imgBrush></hc:fillBrush>')
+    assert fill(brush, {"image1": 1}).image_effect == code
+    element = etree.fromstring(f'<hh:bullet {_HEAD_NS} id="1" char="&#x25CF;" useImage="1">{img}</hh:bullet>')
+    assert bullet(element, {"image1": 1}).image_props[2] == code
+
+    document = HwpxDocument.new()
+    document.add_picture(_PNG, "png")
+    [image] = [i for s in document.sections for i in s.element.iter("{http://www.hancom.co.kr/hwpml/2011/core}img")]
+    image.set("effect", effect)
+    target = tmp_path / "effect.hwp"
+    document.save_to_path(target)
+    doc = read_hwp5(target.read_bytes())
+    pictures = [r for s in doc.sections for r in s.records if r.tag == rec.SHAPE_COMPONENT_PICTURE]
+    assert [sh.Picture.decode(r.payload).effect for r in pictures] == [code]
+
+
 def test_hwpx_targets_are_unchanged(tmp_path: Path) -> None:
     document = HwpxDocument.new()
     document.add_paragraph("HWPX로 저장")

@@ -206,7 +206,19 @@ IMAGE_MODE = (
     "RIGHT_BOTTOM",
     "ZOOM",
 )
-IMAGE_EFFECT = ("REAL_PIC", "GRAY_SCALE", "BLACK_WHITE", "PATTERN8x8")
+#: Picture effects by their HWP code. OWPML also names PATTERN8x8, but Hancom
+#: writes it to HWP as 0 (REAL_PIC), and leaves the effect out of OWPML for an
+#: HWP code 3.
+IMAGE_EFFECT = ("REAL_PIC", "GRAY_SCALE", "BLACK_WHITE")
+#: The HWP code each OWPML picture effect is written as.
+IMAGE_EFFECT_CODES: dict[str, int] = {**{name: code for code, name in enumerate(IMAGE_EFFECT)}, "PATTERN8x8": 0}
+
+
+def image_effect(code: int) -> tuple[tuple[str, str], ...]:
+    """The ``effect`` attribute of an ``hc:img``; none for a code OWPML has no name for."""
+
+    return (("effect", IMAGE_EFFECT[code]),) if 0 <= code < len(IMAGE_EFFECT) else ()
+
 
 UNDERLINE_TYPE = ("NONE", "BOTTOM", "CENTER", "TOP")
 OUTLINE = ("NONE", "SOLID", "DOT", "THICK", "DASH", "DASH_DOT", "DASH_DOT_DOT")

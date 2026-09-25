@@ -22,8 +22,8 @@ from . import controls as ct
 from . import records as rec
 from . import shapes as sh
 from .errors import Hwp5Error, damaged
-from .header_xml import IMAGE_EFFECT, fill_brush
-from .owpml import NS, color, flag, q, sub, token, xml_text
+from .header_xml import fill_brush
+from .owpml import NS, color, flag, image_effect, q, sub, token, xml_text
 from .section_common import ConversionReport, _bits, _u32, list_attrs, lists, object_attrs, object_layout
 
 LINE_STYLE = (
@@ -580,7 +580,7 @@ class ShapeReader:
                 ("binaryItemIDRef", f"image{pic.bin_id}" if pic.bin_id else ""),
                 ("bright", pic.bright),
                 ("contrast", pic.contrast),
-                ("effect", token(IMAGE_EFFECT, pic.effect)),
+                *image_effect(pic.effect),
                 ("alpha", pic.alpha or 0),
             ),
         )

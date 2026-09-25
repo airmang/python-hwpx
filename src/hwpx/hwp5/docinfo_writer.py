@@ -33,7 +33,7 @@ from .owpml import (
     GRADATION,
     HATCH,
     HEADING,
-    IMAGE_EFFECT,
+    IMAGE_EFFECT_CODES,
     IMAGE_MODE,
     LANG_ATTRS,
     LANGS,
@@ -185,7 +185,7 @@ def fill(brush: etree._Element | None, bin_ids: Mapping[str, int] | None = None)
         if img is not None:
             result.image_bright = _int(img, "bright")
             result.image_contrast = _int(img, "contrast")
-            result.image_effect = index_of(IMAGE_EFFECT, img.get("effect"), 0)
+            result.image_effect = index_of(IMAGE_EFFECT_CODES, img.get("effect"), 0)
             result.image_bin_id = _bin_ref(img.get("binaryItemIDRef"), bin_ids)
             alphas.append(_int(img, "alpha"))
     if result.kind:
@@ -335,7 +335,7 @@ def bullet(element: etree._Element, bin_ids: Mapping[str, int] | None = None) ->
             [
                 _int(image, "bright") & 0xFF,
                 _int(image, "contrast") & 0xFF,
-                index_of(IMAGE_EFFECT, image.get("effect"), 0),
+                index_of(IMAGE_EFFECT_CODES, image.get("effect"), 0),
                 _bin_ref(image.get("binaryItemIDRef"), bin_ids) & 0xFF,
             ]
         )

@@ -24,8 +24,7 @@ from . import docinfo as di
 from . import records as rec
 from . import shapes as sh
 from .docinfo_writer import fill as fill_from_brush
-from .header_xml import IMAGE_EFFECT
-from .owpml import BORDER_LINE, BORDER_WIDTH, NOTE_NUMBER_FORMAT_CODES, NS, NUMBER_FORMAT, colorref, index_of
+from .owpml import BORDER_LINE, BORDER_WIDTH, IMAGE_EFFECT_CODES, NOTE_NUMBER_FORMAT_CODES, NS, NUMBER_FORMAT, colorref, index_of
 from .section_common import (
     HEIGHT_REL,
     HORZ_ALIGN,
@@ -1360,7 +1359,7 @@ class SectionRecords:
             (_int(margin, "left"), _int(margin, "right"), _int(margin, "top"), _int(margin, "bottom")),
             max(-128, min(127, _int(image, "bright"))),
             max(-128, min(127, _int(image, "contrast"))),
-            index_of(IMAGE_EFFECT, image.get("effect") if image is not None else None, 0),
+            index_of(IMAGE_EFFECT_CODES, image.get("effect") if image is not None else None, 0),
             self.bin_ids.get(ref, 0),
             _int(image, "alpha") & 0xFF,
             _int(element, "instid") & 0xFFFFFFFF,
