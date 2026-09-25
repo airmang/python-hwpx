@@ -50,6 +50,12 @@
 
 ### 고침
 
+- 표 셀·머리말·꼬리말 문단의 `remove()`가 아무 일도 하지 않던 것을 고친다. 문단을 구역
+  바로 아래에서만 찾아, 셀 문단(`cell.paragraphs[i].remove()`)은 오류 없이 그대로 남았다.
+  이제 문단을 담은 구역이나 `hp:subList`에서 지운다. 담은 곳의 마지막 문단은 지우지 않고
+  `ValueError`를 낸다(문단이 없는 셀·머리말·꼬리말은 한/글이 열지 못한다). 이미 지운 문단의
+  `remove()`는 조용히 넘어간다. 같은 까닭으로 셀 문단의 `apply_model()`이 `ValueError`를
+  내던 것도 고친다.
 - `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
   (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
   `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.
