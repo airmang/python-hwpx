@@ -541,12 +541,12 @@ def _is_integer_literal(value: str | None) -> bool:
     return True
 
 
-#: ``hc:imgBrush/@mode`` vocabulary (Core XML schema.xml:813-884). Real corpus
-#: (hwpxlib_corpus, 5 files) observes only ``TOTAL``; the rest are schema-legal
-#: but unattested.
+#: ``hc:imgBrush/@mode`` vocabulary: the 12 values of Core XML schema.xml:813-884 plus four the
+#: schema leaves out and Hancom writes (its fill codes 10-13: LEFT_TOP ... RIGHT_TOP).
 FILL_IMAGE_MODES = frozenset({
-    "TILE", "TILE_HORZ_TOP", "TILE_HORZ_BOTTOM", "TILE_VERT_LEFT", "TILE_VERT_RIGHT",
-    "TOTAL", "CENTER", "CENTER_TOP", "CENTER_BOTTOM", "LEFT_CENTER", "RIGHT_BOTTOM", "ZOOM",
+    "TILE", "TILE_HORZ_TOP", "TILE_HORZ_BOTTOM", "TILE_VERT_LEFT", "TILE_VERT_RIGHT", "TOTAL", "CENTER",
+    "CENTER_TOP", "CENTER_BOTTOM", "LEFT_CENTER", "LEFT_TOP", "LEFT_BOTTOM", "RIGHT_CENTER", "RIGHT_TOP",
+    "RIGHT_BOTTOM", "ZOOM",
 })
 
 #: ``hc:img/@effect`` vocabulary (Core XML schema.xml:602-624).

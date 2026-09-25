@@ -50,6 +50,9 @@
 
 ### 고침
 
+- 칸·테두리 그림 채우기(`set_cell_fill_image(mode=)`, `ensure_border_fill(fill_image={"mode": ...})`)가
+  `LEFT_TOP`·`LEFT_BOTTOM`·`RIGHT_CENTER`·`RIGHT_TOP`도 받는다. 한/글이 쓰는 그림 위치인데 OWPML
+  스키마의 목록(12개)에 없어 `ValueError`를 냈다.
 - `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
   (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
   `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.
