@@ -55,6 +55,30 @@
   글자 수에서 빼고 셌다. 한컴의 줄 시작 위치(`textpos`)는 이것들을 센다(탭 8, 나머지 1).
   그래서 구역을 다시 쓸 때(그 구역의 다른 문단만 고쳐도) 이런 문단의 캐시가 사라져, 한컴이
   그 문단을 새로 배치하면서 쪽 수가 바뀔 수 있었다. 이제 한컴의 글자 위치로 센다.
+- `doc.text.markdown(rich=True)`(`hwpx.tools.markdown_export`)가 도형(사각형·타원·
+  다각형)을 품은 문단의 글을 잃던 것을 고친다.
+  - 도형을 품은 문단은 제 글을 통째로 버렸다(도형 글이 흘러나온 것으로 보았다). 이제
+    문단 자신의 글이 도형 안의 글과 같을 때만 뺀다.
+  - 도형 안 문단을 이미 쓴 것인지 `id()`로 가렸다. 풀린 lxml 요소 프록시의 번호를
+    다른 문단이 다시 받으면, 처음 보는 도형 문단을 건너뛰었다(칸 안 도형도 같음).
+    이제 요소 자체로 가린다.
+- `hwpx.table_patch.apply_table_ops`의 `delete_table`·`clone_table`·`split_table`·
+  `merge_table`이 표를 담은 문단을 잘못 찾던 것을 고친다. 문단 안에서 표 앞에
+  `hp:pagePr`·`hp:pageBorderFill`·`hp:pic`처럼 이름이 `p`로 시작하는 요소가 있으면
+  (구역 설정이 든 구역 첫 문단의 표 등) 그 요소를 문단 시작으로 알아, 잘린 XML이
+  저장 전 검사에 걸려 `ValueError`로 멈추거나 `merge_table`이 두 표 사이에 글이
+  있다고 잘못 거부했다. 이제 표를 감싸는 가장 안쪽 문단을 찾는다.
+- `autofit_columns`가 표 안에 표가 있는 표에서 `KeyError`를 내던 것을, 다른 구조
+  편집처럼 `TableStructureError`로 거부하게 한다.
+- `delete_column`이 한 칸짜리 칸만 있는 행이 표의 모든 열을 덮지 않을 때(오른쪽 열이
+  윗행에서 내려온 합친 칸에 덮인 행) 그 행을 열 폭의 근거로 써서 `KeyError`를 내던
+  것을 고친다. 이런 행은 건너뛰고, 없으면 합친 칸 격자에서 폭을 구한다.
+- `delete_row`가 세로로 합친 칸의 첫 행을 지우면 합친 칸까지 지워 표에 빈 자리가
+  생겨 거부되던 것을 고친다. 이제 합친 칸은 다음 행으로 내려가 한 행 줄어들고, 글과
+  서식은 그대로다(한컴 편집기에서 그 행을 지운 결과와 같다).
+- HWP 5.0으로 저장(`to_bytes(format="hwp")`·`save_to_path("*.hwp")`)할 때 원본 구역에
+  XML 주석이 있으면 `ValueError: Invalid input tag`로 멈추던 것을 고친다. 실문서 가운데
+  표 행 안에 주석을 둔 문서가 있었다. 이제 주석과 처리 명령은 내용이 아니므로 건너뛴다.
 - `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
   (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
   `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.
