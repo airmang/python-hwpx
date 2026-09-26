@@ -1110,6 +1110,38 @@ def _check_header_section_counts(
             )
 
 
+def _check_section_ids(
+    relationships: ManifestRelationships,
+    selected_rootfile: RootFileRef,
+    resolved_section_paths: list[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    """Hancom finds the sections by the manifest ids ``section0``, ``section1``, ... in number order.
+
+    It does not open a document that lacks one of these ids (the part names and the spine do not
+    count), and it reads the sections in the order of the numbers, not in the spine's order.
+    """
+    ids_by_path = {item.resolved_path: item.item_id or "" for item in relationships.items}
+    section_ids = [ids_by_path.get(path, "") for path in resolved_section_paths]
+    if "" in section_ids:  # a section this lookup cannot match to its item: the href checks report it
+        return
+    wanted = [f"section{index}" for index in range(len(section_ids))]
+    missing = [ident for ident in wanted if ident not in section_ids]
+    if missing:
+        _error(
+            issues,
+            selected_rootfile.full_path,
+            f"section manifest ids {section_ids} are not section0 to section{len(section_ids) - 1}; "
+            f"Hancom finds sections by these ids and refuses to open the document without {missing[0]!r}",
+        )
+    elif section_ids != wanted:
+        _warning(
+            issues,
+            selected_rootfile.full_path,
+            f"the spine lists the sections as {section_ids}; Hancom reads them in the order of their ids",
+        )
+
+
 def _check_header_fallback(
     relationships: ManifestRelationships,
     name_set: set[str],
@@ -1314,6 +1346,7 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
         _check_header_section_counts(
             relationships, xml_roots, resolved_section_paths, name_set, issues
         )
+        _check_section_ids(relationships, selected_rootfile, resolved_section_paths, issues)
         _check_header_fallback(relationships, name_set, selected_rootfile, issues)
         _check_master_page_parts(relationships, name_set, selected_rootfile, issues)
         _check_section_master_page_refs(relationships, xml_roots, resolved_section_paths, name_set, issues)
