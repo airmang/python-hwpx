@@ -26,7 +26,7 @@ from .memo import HwpxOxmlMemo, HwpxOxmlMemoGroup
 from .paragraph import HwpxOxmlParagraph
 from .section_format import HwpxOxmlSectionProperties
 from .namespaces import tag_local_name
-from .section_story import HwpxOxmlSectionHeaderFooter
+from .section_story import HwpxOxmlSectionHeaderFooter, story_marks
 
 if TYPE_CHECKING:
     from .document_parts import HwpxOxmlDocument
@@ -46,6 +46,8 @@ class HwpxOxmlSection:
         self._dirty = False
         self._properties_cache: HwpxOxmlSectionProperties | None = None
         self._document = document
+        # the header/footer copies that agree when opened, for the save to tell which copy an edit changed
+        self._story_marks = story_marks(element)
 
     def __repr__(self) -> str:
         """Return a compact and safe summary of section structure."""
