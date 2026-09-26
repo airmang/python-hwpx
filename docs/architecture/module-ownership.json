@@ -487,7 +487,7 @@
       "path": "src/hwpx/oxml/section_layout.py",
       "disposition": "core",
       "approvedBy": "cycle-6.11/train-44-add-section-first-run-fix",
-      "rationale": "add_section()'s renderable-layout carrier lookup (has_positive_page_geometry/renderable_section_carriers/copy_renderable_section_layout) -- moved out of document_parts.py verbatim (format-level structural helper, no behavior change beyond the first-run-assumption fix itself) because document_parts.py had only 2 lines of headroom left under the 1600-line owner-file cap; same overflow-module pattern as header_compat.py/dutmal_compose.py"
+      "rationale": "add_section()'s renderable-layout carrier lookup (has_positive_page_geometry/renderable_section_carriers/copy_renderable_section_layout) -- moved out of document_parts.py verbatim (format-level structural helper, no behavior change beyond the first-run-assumption fix itself) because document_parts.py had only 2 lines of headroom left under the 1600-line owner-file cap; same overflow-module pattern as header_compat.py/dutmal_compose.py. Also holds the section manifest ids (number_section_ids/new_section_names: section0, section1, ... in document order after add_section, remove_section and on save) for the same headroom reason"
     },
     {
       "path": "src/hwpx/oxml/document_metadata.py",
