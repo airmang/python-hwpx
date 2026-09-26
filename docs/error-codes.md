@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 139 | 11 |
+| 개수 | 143 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -250,6 +250,7 @@ except HwpxError as exc:
 | `shape-chart-xml-empty` | 차트 XML 이 비어 있다. |
 | `shape-chart-xml-malformed` | 차트 XML 이 올바른 XML 이 아니다. |
 | `shape-container-no-members` | add_container 에 부재를 하나도 안 줬다. |
+| `shape-draw-text-vert-align` | 도형 글상자 vert_align 값이 OWPML 어휘(hp:subList/@vertAlign, TOP/CENTER/BOTTOM) 밖이다. |
 | `shape-drop-cap-anchor-detached` | 만든 드롭캡이 요청한 dropcapstyle 을 안 갖고 있다(방어적 분기). |
 | `shape-drop-cap-character-empty` | 드롭캡으로 키울 문자가 비어 있다. |
 | `shape-drop-cap-not-created` | 만든 드롭캡을 표준 섹션 스캔이 다시 찾지 못했다. |
@@ -259,6 +260,9 @@ except HwpxError as exc:
 | `shape-equation-script-empty` | 수식 스크립트가 비어 있다. |
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
 | `shape-polygon-too-few-points` | add_polygon 에 꼭짓점을 3개 미만으로 줬다. |
+| `shape-position-frame` | 도형 기준 프레임·정렬 값이 OWPML 어휘(hp:pos 의 vertRelTo/horzRelTo/vertAlign/horzAlign) 밖이다. |
+| `shape-position-unsupported` | 위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다. |
+| `shape-position-value` | 도형 오프셋이 signed 32-bit 정수(HWPUNIT)가 아니다. |
 
 ### `style-*`
 

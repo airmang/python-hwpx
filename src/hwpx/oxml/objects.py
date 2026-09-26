@@ -24,6 +24,7 @@ from ._document_primitives import (
     _reposition_child_before_any,
     _paragraph_id,
 )
+from .shape_position import _shape_set_position, validate_draw_text_vert_align
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
@@ -1068,9 +1069,12 @@ def _add_sublist_paragraph(
     section: "HwpxOxmlSection",
     vert_align: str,
     char_pr_id_ref: str | int | None,
+    para_pr_id_ref: str | int | None = None,
 ) -> "HwpxOxmlParagraph":
     sublist = _ensure_sublist(container, vert_align=vert_align)
     attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
+    if para_pr_id_ref is not None:
+        attrs["paraPrIDRef"] = str(para_pr_id_ref)
     paragraph = _append_child(sublist, f"{_HP}p", attrs)
     run_attrs = {"charPrIDRef": str(char_pr_id_ref) if char_pr_id_ref is not None else "0"}
     run = _append_child(paragraph, f"{_HP}run", run_attrs)
@@ -1085,6 +1089,7 @@ def _replace_sublist_text(
     section: "HwpxOxmlSection",
     vert_align: str,
     char_pr_id_ref: str | int | None,
+    para_pr_id_ref: str | int | None = None,
 ) -> "HwpxOxmlParagraph":
     """Clear any existing paragraphs and author a single fresh one."""
 
@@ -1093,7 +1098,8 @@ def _replace_sublist_text(
         for existing in list(sublist.findall(f"{_HP}p")):
             sublist.remove(existing)
     return _add_sublist_paragraph(
-        container, text, section=section, vert_align=vert_align, char_pr_id_ref=char_pr_id_ref
+        container, text, section=section, vert_align=vert_align,
+        char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref,
     )
 
 
@@ -1263,7 +1269,10 @@ def _write_draw_text(
     editable: bool,
     margin: dict[str, int] | None,
     char_pr_id_ref: str | int | None,
+    para_pr_id_ref: str | int | None = None,
+    vert_align: str | None = None,
 ) -> DrawText:
+    vert_align = validate_draw_text_vert_align(vert_align)
     element = host.find(f"{_HP}drawText")
     if element is None:
         element = _append_child(host, f"{_HP}drawText", {})
@@ -1276,8 +1285,12 @@ def _write_draw_text(
         element.set("lastWidth", sz.get("width", ""))
 
     _replace_sublist_text(
-        element, text, section=section, vert_align="CENTER", char_pr_id_ref=char_pr_id_ref
+        element, text, section=section, vert_align=vert_align or "CENTER",
+        char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref,
     )
+    sublist = element.find(f"{_HP}subList")
+    if vert_align is not None and sublist is not None:  # else an existing one keeps its own
+        sublist.set("vertAlign", vert_align)
 
     margin_element = element.find(f"{_HP}textMargin")
     resolved_margin = margin or _DRAW_TEXT_DEFAULT_MARGIN
@@ -1323,32 +1336,8 @@ class HwpxOxmlShape:
 
     # --- size access -------------------------------------------------------
 
-    def set_position(self, *, horizontal_offset: int, vertical_offset: int) -> None:
-        """Set an existing floating shape's offsets, in HWP units.
-
-        The existing reference frames, alignment, anchor, geometry and size
-        are preserved. Inline shapes and missing positioning metadata refuse
-        before mutation: changing their offsets would not move the drawing.
-        """
-        from ..errors import HwpxValueError
-
-        for value in (horizontal_offset, vertical_offset):
-            if isinstance(value, bool) or not isinstance(value, int) or not -(2**31) <= value < 2**31:
-                raise HwpxValueError(
-                    "shape offsets must be signed 32-bit integer HWP units",
-                    code="shape-position-value",
-                    suggestion="Pass integer offsets in the shape's existing reference frame.",
-                )
-        position = self.element.find(f"{_HP}pos")
-        if position is None or position.get("treatAsChar") not in {"0", "false", "False"}:
-            raise HwpxValueError(
-                "position editing requires an existing floating shape",
-                code="shape-position-unsupported",
-                suggestion="Inspect the anchor; inline placement is controlled by paragraph flow.",
-            )
-        position.set("horzOffset", str(horizontal_offset))
-        position.set("vertOffset", str(vertical_offset))
-        self.paragraph.section.mark_dirty()
+    # Lives in ``oxml/shape_position.py`` (this owner file is at its line cap).
+    set_position = _shape_set_position
 
     @property
     def width(self) -> int:
@@ -1558,6 +1547,8 @@ class HwpxOxmlShape:
         editable: bool = False,
         margin: dict[str, int] | None = None,
         char_pr_id_ref: str | int | None = None,
+        para_pr_id_ref: str | int | None = None,
+        vert_align: str | None = None,
     ) -> "DrawText":
         """Create (or replace the text of) this shape's ``hp:drawText``.
 
@@ -1565,13 +1556,19 @@ class HwpxOxmlShape:
         ``bottom``, HWPUNIT); defaults to the real-corpus majority value
         (0.1cm/283 all four sides, 90-sample). *name* is Hancom's
         auto-generated shape-tree object label, not a caption — leave it
-        empty unless reproducing a specific gold file.
+        empty unless reproducing a specific gold file. *para_pr_id_ref* sets
+        the text paragraph's ``paraPrIDRef`` (e.g. a centred paraPr), default
+        ``0``. *vert_align* sets ``hp:subList/@vertAlign`` (``TOP``/``CENTER``/
+        ``BOTTOM``); ``None`` gives a new text ``CENTER`` and leaves existing
+        text's alignment alone. A bad value refuses before any change with
+        ``shape-draw-text-vert-align``.
         """
 
         return _write_draw_text(
             self.element, text, section=self.paragraph.section,
             name=name, editable=editable, margin=margin,
-            char_pr_id_ref=char_pr_id_ref,
+            char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref,
+            vert_align=vert_align,
         )
 
     def remove_draw_text(self) -> bool:
