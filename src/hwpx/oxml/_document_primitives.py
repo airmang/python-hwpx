@@ -560,9 +560,8 @@ def _normalize_enum_attr(value: str, allowed: frozenset[str], *, label: str) -> 
     return normalized
 
 
-def _normalize_border_type(border_type: str, allowed: frozenset[str], aliases: Mapping[str, str] | None = None) -> str:
-    value = str(border_type or "SOLID")
-    return _normalize_enum_attr((aliases or {}).get(value.upper(), value), allowed, label="border_type")
+def _normalize_border_type(border_type: str, allowed: frozenset[str]) -> str:
+    return _normalize_enum_attr(border_type or "SOLID", allowed, label="border_type")
 
 
 def _border_fill_image_gradient(
