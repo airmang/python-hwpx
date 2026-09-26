@@ -506,11 +506,13 @@ class HwpxDocument(_LegacyFacade):
             self, section, section_index, caller="add_heading"
         )
         resolved = _headings.resolve_heading_style(self, level=level, style=style)
+        # Hancom draws a paragraph by its own shapes, not its style's: start from the style's.
         paragraph = self._root.add_paragraph(
             text,
             section=target,
+            para_pr_id_ref=resolved.para_pr_id_ref,
             style_id_ref=resolved.id,
-            char_pr_id_ref=char_pr_id_ref,
+            char_pr_id_ref=char_pr_id_ref if char_pr_id_ref is not None else resolved.char_pr_id_ref,
             inherit_style=False,
             **cast(Any, extra_attrs),
         )
