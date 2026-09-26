@@ -172,6 +172,81 @@ def test_a_story_turned_both_goes_ahead_of_the_page_specific_controls() -> None:
     assert _control_attrs(_section_xml(doc), "header", "applyPageType") == ["BOTH", "EVEN"]
 
 
+def _reopened_with_a_header_field() -> HwpxDocument:
+    doc = _doc()
+    header = doc.page.set_header(text="Name: ")
+    paragraph = HwpxOxmlParagraph(header.element.find(f".//{HP}p"), doc.sections[0])
+    doc.fields.add("who", prompt="type here", paragraph=paragraph)
+    return HwpxDocument.open(io.BytesIO(doc.to_bytes()))
+
+
+def _control_header(doc: HwpxDocument):
+    return next(
+        story for control in doc.oxml.sections[0].element.iter(f"{HP}ctrl")
+        for story in control if story.tag == f"{HP}header"
+    )
+
+
+def test_a_header_kept_twice_lists_its_form_field_once() -> None:
+    doc = _reopened_with_a_header_field()
+
+    assert [field.name for field in doc.fields.all] == ["who"]
+
+
+def test_filling_a_header_field_by_name_reaches_both_copies() -> None:
+    doc = _reopened_with_a_header_field()
+
+    doc.fields.fill("Alice", name="who")
+    xml = _section_xml(doc)
+
+    assert [where for where, text in _copies(xml, "header") if "Alice" in text] == ["secPr", "ctrl"]
+
+
+def test_an_edit_to_the_control_copy_is_kept_and_reaches_the_other_copy() -> None:
+    doc = _doc()
+    doc.page.set_header(text="머리말")
+    doc = HwpxDocument.open(io.BytesIO(doc.to_bytes()))
+    next(_control_header(doc).iter(f"{HP}t")).text = "한/글 쪽에서 고침"
+    doc.oxml.sections[0].mark_dirty()
+
+    xml = _section_xml(doc)
+
+    assert _copies(xml, "header") == [("secPr", "한/글 쪽에서 고침"), ("ctrl", "한/글 쪽에서 고침")]
+
+
+def test_a_control_edit_made_right_after_setting_the_story_is_kept() -> None:
+    doc = _doc()
+    doc.page.set_header(text="머리말")
+    next(_control_header(doc).iter(f"{HP}t")).text = "바로 고침"
+
+    assert _copies(_section_xml(doc), "header") == [("secPr", "바로 고침"), ("ctrl", "바로 고침")]
+
+
+def test_a_story_object_keeps_working_after_a_save_that_updated_it() -> None:
+    doc = _doc()
+    header = doc.page.set_header(text="머리말")
+    next(_control_header(doc).iter(f"{HP}t")).text = "한/글 쪽에서 고침"
+    doc.to_bytes()
+
+    header.text = "나중에 고침"
+
+    assert _copies(_section_xml(doc), "header") == [("secPr", "나중에 고침"), ("ctrl", "나중에 고침")]
+
+
+def test_a_control_only_story_turned_both_goes_ahead_too() -> None:
+    doc = _doc()
+    doc.page.set_header(text="짝수", page_type="EVEN")
+    doc.page.set_header(text="홀수", page_type="ODD")
+    sec_pr = doc.oxml.sections[0].element.find(f".//{HP}secPr")
+    for child in list(sec_pr):
+        if child.tag in (f"{HP}header", f"{HP}headerApply"):
+            sec_pr.remove(child)  # as Hancom saves it: the stories live only in controls
+
+    doc.oxml.sections[0].properties.get_header("ODD").apply_page_type = "BOTH"
+
+    assert _control_attrs(_section_xml(doc), "header", "applyPageType") == ["BOTH", "EVEN"]
+
+
 def test_changing_the_id_changes_the_control_copy_too() -> None:
     doc = _doc()
     header = doc.page.set_header(text="아이디")

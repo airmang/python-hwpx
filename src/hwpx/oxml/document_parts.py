@@ -1542,7 +1542,7 @@ class HwpxOxmlDocument:
         for section in self._sections:
             if section.dirty:
                 # Header/footer edits land on the secPr story; Hancom reads the control copy.
-                sync_story_mirrors(section.element)
+                sync_story_mirrors(section)
                 updates[section.part_name] = section.to_bytes()
         headers_dirty = False
         for header in self._headers:

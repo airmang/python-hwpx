@@ -12,6 +12,7 @@ from ..objects.form_field import FieldLocation, FieldParameter, FormField
 from ..objects.results import FieldFillResult
 from ..oxml import HwpxOxmlParagraph
 from ..oxml.namespaces import HP
+from ..oxml.section_story import control_twins
 
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
@@ -291,11 +292,13 @@ def _iter_form_field_matches(doc: "HwpxDocument") -> list[dict[str, Any]]:
             paragraph.element: index
             for index, paragraph in enumerate(section.paragraphs)
         }
+        # a header/footer python-hwpx keeps twice counts once: its hp:secPr copy
+        twins = control_twins(section.element)
 
         def iter_content_paragraphs(element: Any) -> Iterator[Any]:
             for child in element:
                 local = _local_name(child)
-                if local == "memogroup":
+                if local == "memogroup" or child in twins:
                     continue
                 if local == "p":
                     yield child

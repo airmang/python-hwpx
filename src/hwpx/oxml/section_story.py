@@ -192,48 +192,111 @@ def _place_both_first(section_element: ET.Element, story: ET.Element) -> None:
         return
 
 
-def _same_tree(a: ET.Element, b: ET.Element) -> bool:
-    if a.tag != b.tag or dict(a.attrib) != dict(b.attrib) or (a.text or "") != (b.text or ""):
-        return False
-    a_children, b_children = list(a), list(b)
-    return len(a_children) == len(b_children) and all(
-        (x.tail or "") == (y.tail or "") and _same_tree(x, y) for x, y in zip(a_children, b_children)
-    )
+_STORY_TAGS = (f"{_HP}header", f"{_HP}footer")
+_PairKey = tuple[str, "str | None", str]
 
 
-def sync_story_mirrors(section_element: ET.Element) -> int:
-    """Bring each ``hp:ctrl`` copy of a header/footer up to date with its ``hp:secPr`` story.
+def _pair_key(story: ET.Element) -> _PairKey:
+    return (_story_kind(story), story.get("id"), story.get("applyPageType", "BOTH"))
 
-    The stories python-hwpx writes live twice: under ``hp:secPr``, where they
-    are read and edited, and in a body ``hp:ctrl``, the only copy Hancom reads.
-    Edits through a story's object (text, runs, paragraphs, page numbers)
-    change the first, so the save path calls this to make the second follow.
-    A copy is replaced in place only when exactly one control story has the
-    same id and page type and its content differs. Stories that exist only
-    as a control, as in documents Hancom saved, are left alone.
+
+def _tree_key(element: ET.Element) -> tuple:
+    """The content of *element* -- tag, attributes, text, children and their tails -- without its own tail."""
+
+    children = tuple((_tree_key(child), child.tail or "") for child in element)
+    return (element.tag, tuple(sorted(element.attrib.items())), element.text or "", children)
+
+
+def _control_story_index(section_element: ET.Element) -> dict[_PairKey, list[ET.Element]]:
+    """Every header/footer a body control holds, by (kind, id, page type), in one pass over the section."""
+
+    index: dict[_PairKey, list[ET.Element]] = {}
+    for run in _iter_body_runs_without_section_properties(section_element):
+        for control in _direct_children(run, f"{_HP}ctrl"):
+            for story in control:
+                if story.tag in _STORY_TAGS:
+                    index.setdefault(_pair_key(story), []).append(story)
+    return index
+
+
+def _story_pairs(section_element: ET.Element) -> list[tuple[ET.Element, ET.Element]]:
+    """(``hp:secPr`` story, its one ``hp:ctrl`` copy) for each story python-hwpx keeps twice."""
+
+    stories = [story for sec_pr in section_element.findall(f"{_HP}p/{_HP}run/{_HP}secPr")
+               for story in sec_pr if story.tag in _STORY_TAGS]
+    if not stories:
+        return []
+    index = _control_story_index(section_element)
+    return [(story, copies[0]) for story in stories if len(copies := index.get(_pair_key(story), [])) == 1]
+
+
+def story_marks(section_element: ET.Element) -> dict[_PairKey, tuple]:
+    """The content of each story whose two copies agree, for a later save to tell which copy changed."""
+
+    return {_pair_key(story): content for story, mirror in _story_pairs(section_element)
+            if (content := _tree_key(story)) == _tree_key(mirror)}
+
+
+def remember_story_pair(section: Any, story: ET.Element) -> None:
+    """Note that *story* and its control copy agree now: they were just written alike."""
+
+    marks = getattr(section, "_story_marks", None)
+    if marks is None:
+        marks = section._story_marks = {}
+    marks[_pair_key(story)] = _tree_key(story)
+
+
+def control_twins(section_element: ET.Element) -> set[ET.Element]:
+    """The ``hp:ctrl`` copies of the stories python-hwpx keeps twice.
+
+    A reader that walks the whole section skips them, so that each header or
+    footer counts once (its form fields, for one).
     """
 
-    replaced = 0
-    for sec_pr in section_element.findall(f"{_HP}p/{_HP}run/{_HP}secPr"):
-        for story in list(sec_pr):
-            if story.tag not in (f"{_HP}header", f"{_HP}footer"):
-                continue
-            identity = (story.get("id"), story.get("applyPageType", "BOTH"))
-            copies = [
-                (control, mirror)
-                for control, mirror in _iter_control_stories(section_element, _story_kind(story))
-                if (mirror.get("id"), mirror.get("applyPageType", "BOTH")) == identity
-            ]
-            if len(copies) != 1 or _same_tree(copies[0][1], story):
-                continue
-            control, mirror = copies[0]
-            fresh = deepcopy(story)
-            fresh.tail = mirror.tail
-            index = list(control).index(mirror)
-            control.remove(mirror)
-            control.insert(index, fresh)
-            replaced += 1
-    return replaced
+    return {mirror for _, mirror in _story_pairs(section_element)}
+
+
+def _copy_into(target: ET.Element, source: ET.Element) -> None:
+    """Give *target* the content of *source*, keeping *target* itself (and its tail) in place."""
+
+    target.attrib.clear()
+    target.attrib.update(source.attrib)
+    target.text = source.text
+    for child in list(target):
+        target.remove(child)
+    for child in source:
+        target.append(deepcopy(child))
+
+
+def sync_story_mirrors(section: Any) -> int:
+    """Bring the two copies of each header/footer back in step before a save.
+
+    The stories python-hwpx writes live twice: under ``hp:secPr``, where its
+    story objects read and edit them, and in a body ``hp:ctrl``, the only copy
+    Hancom reads. When the copies differ, the one that changed since they last
+    agreed (when the document was opened, when the story was set, or at the
+    last save) is copied over the other; when that is not known, or both
+    changed, the ``hp:secPr`` story wins. Both elements stay in place, so story
+    objects keep working after a save. A pair is synced only when exactly one
+    control story has the same id and page type; stories that exist only as a
+    control, as in documents Hancom saved, are left alone.
+    """
+
+    marks = getattr(section, "_story_marks", None) or {}
+    fresh: dict[_PairKey, tuple] = {}
+    changed = 0
+    for story, mirror in _story_pairs(section.element):
+        key = _pair_key(story)
+        logical = _tree_key(story)
+        if logical != _tree_key(mirror):
+            if marks.get(key) == logical:  # only the control copy changed
+                _copy_into(story, mirror)
+            else:
+                _copy_into(mirror, story)
+            changed += 1
+        fresh[key] = _tree_key(story)
+    section._story_marks = fresh
+    return changed
 
 
 def _section_story_elements(properties: Any, kind: str) -> list[ET.Element]:
@@ -362,11 +425,7 @@ class HwpxOxmlSectionHeaderFooter:
 
         if all(child is not self.element for child in self._properties.element):
             return None
-        identity = (self.element.get("id"), self.element.get("applyPageType", "BOTH"))
-        copies = [
-            story for _, story in _iter_control_stories(self._properties.section.element, _story_kind(self.element))
-            if (story.get("id"), story.get("applyPageType", "BOTH")) == identity
-        ]
+        copies = _control_story_index(self._properties.section.element).get(_pair_key(self.element), [])
         return copies[0] if len(copies) == 1 else None
 
     @property
@@ -426,8 +485,10 @@ class HwpxOxmlSectionHeaderFooter:
             changed = True
         if copy is not None and copy.get("applyPageType") != value:
             copy.set("applyPageType", value)
-            if value == "BOTH":
-                _place_both_first(self._properties.section.element, copy)
+            changed = True
+        if changed and value == "BOTH":
+            # the control Hancom reads: the copy, or the story itself when it exists only as a control
+            _place_both_first(self._properties.section.element, copy if copy is not None else self.element)
         if changed:
             self._properties.section.mark_dirty()
 
