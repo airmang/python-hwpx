@@ -309,14 +309,15 @@ def _p_element_to_md(p_el, doc, notes_out: list | None = None) -> str:
 # ──────────────────────────────────────────────────────────────────
 def _shape_text_lines(scope_el, doc, notes_out: list | None = None) -> list[str]:
     lines: list[str] = []
+    # 요소 자체를 담아 둔다: id()는 풀린 lxml 프록시의 번호를 다른 요소가 다시 받아
+    # 처음 보는 문단을 본 것으로 여길 수 있다.
     seen_p = set()
     for tag in SHAPE_TAGS:
         for shape in _descendants(scope_el, tag):
             for sub_p in _descendants(shape, "p"):
-                pid = id(sub_p)
-                if pid in seen_p:
+                if sub_p in seen_p:
                     continue
-                seen_p.add(pid)
+                seen_p.add(sub_p)
                 md = _p_element_to_md(sub_p, doc, notes_out).strip()
                 if md:
                     lines.append(md)
@@ -438,26 +439,37 @@ def _export_dedupe_md(md: str, p) -> str:
         if plain and plain in all_cell_text:
             md = ""
 
-    # 중복 가드 2: 도형 보유 시 paragraph text는 도형 텍스트의 흘러나옴
+    # 중복 가드 2: 문단 자신의 글이 품은 도형의 글과 같을 때만 뺀다. 도형을 품은
+    # 문단도 대개 제 글을 따로 가진다.
     if md and any(_has_descendant(p.element, tag) for tag in SHAPE_TAGS):
-        md = ""
+        own = "".join((p.text or "").split())
+        if own and own in "".join(_shape_plain_text(p.element).split()):
+            md = ""
     return md
+
+
+def _shape_plain_text(p_el) -> str:
+    return "".join(
+        "".join(t.itertext())
+        for tag in SHAPE_TAGS
+        for shape in _descendants(p_el, tag)
+        for t in _descendants(shape, "t")
+    )
 
 
 def _export_shape_lines(p, doc, notes) -> list[str]:
     # 도형 내부 paragraph 추출 (표 안 도형은 cell_to_md에서 처리됨)
     shape_lines: list[str] = []
-    seen_p = set()
+    seen_p = set()  # 요소 자체(id()는 풀린 lxml 프록시 번호가 되풀이될 수 있다)
     for sub in p.tables:
         for nested_p in _descendants(sub.element, "p"):
-            seen_p.add(id(nested_p))
+            seen_p.add(nested_p)
     for tag in SHAPE_TAGS:
         for shape in _descendants(p.element, tag):
             for sub_p in _descendants(shape, "p"):
-                pid = id(sub_p)
-                if pid in seen_p:
+                if sub_p in seen_p:
                     continue
-                seen_p.add(pid)
+                seen_p.add(sub_p)
                 sub_md = _p_element_to_md(sub_p, doc, notes).strip()
                 if sub_md:
                     shape_lines.append(sub_md)
