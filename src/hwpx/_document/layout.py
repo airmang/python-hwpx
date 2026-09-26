@@ -751,21 +751,12 @@ def add_hyperlink(
 
     The display text follows the Hancom convention (blue ``#0000FF`` text
     with a blue bottom underline — dominant styling across real-corpus
-    hyperlinks) unless ``char_pr_id_ref`` overrides it.
+    hyperlinks) on the character look of the paragraph it goes into, unless
+    ``char_pr_id_ref`` overrides it. ``paragraph.add_hyperlink`` picks that
+    style, so a link looks the same whichever way it was added.
 
     Returns the ``<hp:ctrl>`` wrapper containing the ``<hp:fieldBegin>``.
     """
-    if char_pr_id_ref is None:
-        # `doc._root.ensure_run_style` rather than `doc.ensure_run_style` —
-        # that facade name moved in 6.0 (design table row 52) and is a pure
-        # passthrough to `_root`, so this is byte-identical minus the
-        # DeprecationWarning it would otherwise fire on every hyperlink even
-        # when reached via the new `doc.refs.add_hyperlink` namespace path.
-        char_pr_id_ref = doc._root.ensure_run_style(
-            underline=True,
-            color="#0000FF",
-            underline_color="#0000FF",
-        )
     if paragraph is None:
         paragraph = doc.add_paragraph(
             "", section=section, section_index=section_index,

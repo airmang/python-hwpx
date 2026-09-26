@@ -130,14 +130,20 @@ def _style_key(style: dict) -> tuple:
     return tuple(sorted((k, v) for k, v in style.items() if v))
 
 
-def _render_runs(items, base_cp, chars) -> str:
-    """[(cpr_id, text)] 시퀀스를 인접 동일 서식 머지 후 markdown으로."""
+def _render_runs(items, base_cp, chars, *, link: bool = False) -> str:
+    """[(cpr_id, text)] 시퀀스를 인접 동일 서식 머지 후 markdown으로.
+
+    *link*면 밑줄·글자색은 싣지 않는다 — 링크 표기가 이미 그 모양이다(한컴도 링크 글을
+    파랑 밑줄로 쓴다).
+    """
     groups: list[tuple[tuple, str]] = []
     for cpr, text in items:
         if not text:
             continue
         cp = chars.get(str(cpr), base_cp)
         style = _diff_style(cp, base_cp)
+        if link:
+            style = {**style, "underline": False, "color": None}
         key = _style_key(style)
         escaped = _escape_markdown_text(text)
         if groups and groups[-1][0] == key:
@@ -233,7 +239,7 @@ def _md_flush_items(state: _MdParagraphState, base_cp, chars) -> None:
 def _md_flush_link(state: _MdParagraphState, base_cp, chars) -> None:
     if state.link_url is None:
         return
-    text = _render_runs(state.link_items, base_cp, chars)
+    text = _render_runs(state.link_items, base_cp, chars, link=True)
     if text:
         state.output.append(f"[{text}]({state.link_url})" if state.link_url else text)
     state.link_url = None
