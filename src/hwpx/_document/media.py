@@ -443,8 +443,10 @@ def remove_image(doc: "HwpxDocument", item_id: "str | BinaryItem") -> bool:
             if part_path is not None:
                 matched = f"BinData/{bin_data_val}" == part_path
             else:
-                # Match by data file name prefix (e.g. "BIN0001" matches "BIN0001.jpg")
-                matched = bin_data_val.startswith(item_id)
+                # Match the data file name's stem ("BIN0001" matches "BIN0001.jpg"),
+                # or the whole file name; a prefix match would take "image10.png"
+                # for "image1".
+                matched = item_id in (bin_data_val, _bin_data_stem(bin_data_val))
             if matched:
                 bin_item_numeric_id = bi.get("id")
                 if bin_data_val:

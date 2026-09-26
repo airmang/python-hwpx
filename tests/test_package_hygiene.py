@@ -277,6 +277,20 @@ def test_remove_image_removes_manifest_only_items(how: str) -> None:
     assert document.media.remove_image(target) is False
 
 
+def test_remove_image_does_not_match_a_longer_id_with_the_same_prefix() -> None:
+    document = HwpxDocument.new()
+    document.media.add_image(PNG, "png", item_id="image10")
+    document.media.add_image(PNG + b"1", "png", item_id="image1")
+
+    assert document.media.remove_image("image1") is True
+
+    assert [item.item_id for item in document.media.images] == ["image10"]
+    assert document.package.has_part("BinData/image10.png")
+    assert not document.package.has_part("BinData/image1.png")
+    header = document.oxml.headers[0]
+    assert [item.get("BinData") for item in header.list_bin_items()] == ["image10.png"]
+
+
 def test_remove_manifest_item_matches_id_then_href() -> None:
     package = HwpxPackage.open(PICTURE)
 

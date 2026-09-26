@@ -304,6 +304,9 @@
   media-type이 `image/*`)을 붙인다. `isEmbeded="0"`으로 바깥 파일을 잇는 항목은 넣지 않고,
   파트가 없는 내장 항목은 `size=0`으로 넣는다. `doc.media.remove_image()`는 매니페스트 id·파트 경로
   (`"BinData/image1.png"`)·`BinaryItem`을 모두 받아 이런 항목도 지운다.
+- `doc.media.remove_image("image1")`이 header에 `image10.png`가 먼저 있으면 그 `binItem`과
+  파트를 대신 지우던 것을 고친다. header 항목을 파일 이름 앞부분으로 맞췄기 때문이다. 이제
+  확장자를 뺀 파일 이름(또는 파일 이름 전체)이 같아야 맞는다.
 - `HwpxPackage.remove_manifest_item()`에 파트 경로를 넘기면 `False`만 돌려주고 항목을
   남기던 것을 고친다. 이 인자는 매니페스트 `id`다. 그 id의 항목이 없고 값에 `/`가 있으면
   href가 같은 파트를 가리키는 항목을 지운다.
