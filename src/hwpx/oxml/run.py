@@ -257,7 +257,9 @@ def _text_stretches(runs: Sequence[ET.Element]) -> list[list[_ReplaceSegment]]:
     def visit(element: ET.Element) -> None:
         stretches[-1].append(_ReplaceSegment(element, "text", element.text or ""))
         for child in list(element):
-            if _element_local_name(child) in _TEXT_CHARACTER_ELEMENTS:
+            if not isinstance(child.tag, str):
+                pass  # a comment or processing instruction: not text, the text around it still joins
+            elif _element_local_name(child) in _TEXT_CHARACTER_ELEMENTS:
                 cut()
             else:
                 visit(child)

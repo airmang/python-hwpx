@@ -52,3 +52,62 @@ def test_limit_still_counts_across_the_stretches_of_a_run() -> None:
 
     assert count == 2
     assert paragraph.text == "배\t배\t사과"
+
+
+def test_replace_leaves_xml_comment_text_alone() -> None:
+    """An XML comment inside ``hp:t`` is not text: its content is neither searched
+    nor rewritten, and the text on both sides of it still matches as one stretch."""
+    import io
+    import warnings
+    import zipfile
+
+    from hwpx import HwpxDocument
+
+    document = HwpxDocument.new()
+    document.add_paragraph("사과 주스")
+    source = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(document.to_bytes())) as zin, zipfile.ZipFile(source, "w") as zout:
+        for info in zin.infolist():
+            data = zin.read(info.filename)
+            if info.filename == "Contents/section0.xml":
+                data = data.replace("사과 주스".encode(), "사<!-- 사과 -->과 주스".encode(), 1)
+                assert "<!-- 사과 -->".encode() in data
+            zout.writestr(info, data)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        commented = HwpxDocument.open(source.getvalue())
+    count = commented.text.replace("사과", "배", everywhere=True)
+    comments = [node.text for node in commented.sections[0].element.iter() if not isinstance(node.tag, str)]
+    assert comments == [" 사과 "]
+    assert count == 1
+    # the edited section saves; the comment is not content and is not written back
+    with zipfile.ZipFile(io.BytesIO(commented.to_bytes())) as package:
+        section = package.read("Contents/section0.xml").decode("utf-8")
+    assert "<hp:t>배 주스</hp:t>" in section
+
+
+def test_an_edited_section_with_xml_comments_saves() -> None:
+    """Real documents carry XML comments inside table rows. Editing such a
+    section used to fail to save (xml.etree cannot write lxml comment nodes)."""
+    import io
+    import warnings
+    import zipfile
+
+    from hwpx import HwpxDocument
+
+    document = HwpxDocument.new()
+    table = document.add_table(2, 2)
+    table.set_cell_text(0, 0, "가")
+    source = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(document.to_bytes())) as zin, zipfile.ZipFile(source, "w") as zout:
+        for info in zin.infolist():
+            data = zin.read(info.filename)
+            if info.filename == "Contents/section0.xml":
+                data = data.replace(b"<hp:tr>", b"<hp:tr><!-- row note --><?note row?>", 1)
+            zout.writestr(info, data)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        commented = HwpxDocument.open(source.getvalue())
+        commented.add_paragraph("추가")
+        reopened = HwpxDocument.open(commented.to_bytes())
+    assert "가" in reopened.text.plain() and "추가" in reopened.text.plain()
