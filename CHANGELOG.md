@@ -69,6 +69,15 @@
   쪽을 넘는 상자 하나로 그려진다(한컴의 "문단 테두리 연결"). 상자 안의 빈 문단에도
   같은 서식을 주면 상자가 끊기지 않는다. 기존 `bottom_border=True`는 그대로
   아래 한 면만 켠다. 잘못된 지정은 `paragraph-border-invalid`로 거부한다.
+- 템플릿을 넘기기 전에 패키지를 정리하는 기본 동작을 더한다. 무엇을 지울지는 호출자가
+  정한다.
+  - `doc.parts.clear_document_metadata(keep=("title", "language"),
+    timestamp="1970-01-01T00:00:00Z")`(`HwpxPackage`에도 같은 이름)는 `opf:metadata`에서
+    `keep` 밖의 필드를 모두 비우고 비운 키를 문서 순서로 돌려준다. 이 라이브러리가 모르는
+    `opf:meta` 이름도 비운다. `CreatedDate`·`ModifiedDate`처럼 이름에 `Date`가 든 필드는
+    `timestamp`로 바꾸고, 자유형식 `date`를 비롯한 나머지는 요소와 속성을 두고 내용만 비운다.
+  - `doc.parts.clear_preview()`는 `Preview/PrvText.txt`를 비우고 `Preview/PrvImage.png`를
+    1×1 흰 PNG로 바꾼다. 두 파트를 지우지는 않는다.
 
 ### 바꿈
 

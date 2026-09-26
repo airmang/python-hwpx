@@ -916,6 +916,51 @@ class HwpxPackage:
 
         self._persist_manifest()
 
+    def clear_document_metadata(
+        self,
+        *,
+        keep: Iterable[str] = ("title", "language"),
+        timestamp: str = "1970-01-01T00:00:00Z",
+    ) -> list[str]:
+        """Empty every ``opf:metadata`` field whose key is not in *keep*.
+
+        A child's key is its ``name`` attribute for ``opf:meta`` and its
+        local name otherwise (``title``, ``language``). Names this library
+        does not model are cleared too, so metadata a caller does not know
+        about does not survive. An ``opf:meta`` whose name contains
+        ``"Date"`` (``CreatedDate``/``ModifiedDate``) gets *timestamp*;
+        every other cleared element keeps its attributes and loses its
+        content -- the free-form ``date`` field is emptied, never
+        timestamped. Missing elements are not created. A bare string
+        *keep* counts as one key.
+
+        Returns the cleared keys in document order; ``[]`` when the part has
+        no metadata block.
+        """
+
+        metadata_el = self._metadata_element(create=False)
+        if metadata_el is None:
+            return []
+        kept = {keep} if isinstance(keep, str) else set(keep)
+        meta_tag = f"{{{OPF_NS['opf']}}}meta"
+
+        cleared: list[str] = []
+        for child in metadata_el:
+            if not isinstance(child.tag, str):
+                continue  # comments and processing instructions carry no field
+            is_meta = child.tag == meta_tag
+            key = (child.get("name") if is_meta else None) or _local_name(child)
+            if key in kept:
+                continue
+            for grandchild in list(child):
+                child.remove(grandchild)
+            child.text = timestamp if is_meta and "Date" in key else None
+            cleared.append(key)
+
+        if cleared:
+            self._persist_manifest()
+        return cleared
+
     def add_manifest_item(
         self,
         item_id: str,
