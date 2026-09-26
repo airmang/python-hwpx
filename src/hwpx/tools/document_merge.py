@@ -804,11 +804,15 @@ def _strip_embedded_section_properties(paragraphs: list[Any]) -> int:
     table and text along with the section setup, passing every gate this
     module has (referential integrity has nothing to say about content
     that was never dangling because it no longer exists). Now each
-    ``hp:secPr`` and each ``hp:ctrl`` that wraps ``hp:colPr`` specifically
-    (never any other control type sharing the same run) is removed
-    individually, and the run itself is only dropped if that leaves it
-    completely empty -- preserving the original single-element-run
-    behavior exactly while no longer touching unrelated siblings.
+    ``hp:secPr`` and each ``hp:colPr`` specifically (never any other control
+    sharing the same run) is removed individually, and the run itself is only
+    dropped if that leaves it completely empty -- preserving the original
+    single-element-run behavior exactly while no longer touching unrelated
+    siblings. The same holds inside one ``hp:ctrl``: some Hancom files put a
+    click-here ``hp:fieldBegin`` or a page-number restart in the ``hp:ctrl``
+    that holds ``hp:colPr``, so only ``hp:colPr`` leaves it, and the
+    ``hp:ctrl`` goes only when that empties it (dropping the whole ``hp:ctrl``
+    left the field's ``hp:fieldEnd`` unpaired, and Hancom cannot open that).
 
     v1's merge always inserts into an *already-existing* target section (it
     never creates a new one), so a copied source paragraph is never the
@@ -837,7 +841,11 @@ def _strip_embedded_section_properties(paragraphs: list[Any]) -> int:
             run.remove(secpr)
             removed += 1
             for ctrl in list(run.findall(f"{_HP}ctrl")):
-                if ctrl.find(f"{_HP}colPr") is not None:
+                colpr = ctrl.find(f"{_HP}colPr")
+                if colpr is None:
+                    continue
+                ctrl.remove(colpr)
+                if len(ctrl) == 0:
                     run.remove(ctrl)
             if len(run) == 0:
                 paragraph.remove(run)
@@ -852,10 +860,11 @@ def _move_section_setup_to_first_paragraph(section: Any) -> bool:
     ``hp:secPr`` that is not in a section's first paragraph as the start of a
     new section: the inserted paragraphs become a section of their own with
     default page setup, and a page break appears before the old first
-    paragraph. So the ``hp:secPr`` and the ``hp:ctrl`` that
-    wraps ``hp:colPr`` move, element by element as in
-    :func:`_strip_embedded_section_properties`, into a new leading run of the
-    first paragraph. Returns whether anything moved.
+    paragraph. So the ``hp:secPr`` and the ``hp:colPr`` move, element by
+    element as in :func:`_strip_embedded_section_properties`, into a new
+    leading run of the first paragraph. An ``hp:ctrl`` that holds only
+    ``hp:colPr`` moves whole; other controls in it stay where they are.
+    Returns whether anything moved.
     """
 
     paragraphs = [p.element for p in section.paragraphs]
@@ -867,10 +876,22 @@ def _move_section_setup_to_first_paragraph(section: Any) -> bool:
             secpr = run.find(f"{_HP}secPr")
             if secpr is None:
                 continue
-            moving = [secpr] + [ctrl for ctrl in run.findall(f"{_HP}ctrl") if ctrl.find(f"{_HP}colPr") is not None]
+            moving = [secpr]
+            for ctrl in run.findall(f"{_HP}ctrl"):
+                colpr = ctrl.find(f"{_HP}colPr")
+                if colpr is None:
+                    continue
+                if len(ctrl) == 1:
+                    moving.append(ctrl)
+                else:
+                    ctrl.remove(colpr)
+                    own = ctrl.makeelement(f"{_HP}ctrl", {})
+                    own.append(colpr)
+                    moving.append(own)
             setup_run = first.makeelement(f"{_HP}run", {"charPrIDRef": run.get("charPrIDRef", "0")})
             for node in moving:
-                run.remove(node)
+                if node.getparent() is run:
+                    run.remove(node)
                 setup_run.append(node)
             if len(run) == 0 and len(paragraph.findall(f"{_HP}run")) > 1:
                 paragraph.remove(run)

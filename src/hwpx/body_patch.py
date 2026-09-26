@@ -185,7 +185,9 @@ def _op_replace_text(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[str, An
     replace = str(op.get("replace", ""))
     expected = int(op.get("count", 1))
     esc_find = html.escape(find, quote=False)
-    esc_replace = html.escape(replace, quote=False)
+    # A tab goes in as an hp:tab element: Hancom never finishes laying out a
+    # raw tab character inside hp:t.
+    esc_replace = "<hp:tab/>".join(html.escape(part, quote=False) for part in replace.split("\t"))
     hits: list[tuple[int, int]] = []
     for t in _T_CONTENT_RE.finditer(xml):
         a, b = t.start(1), t.end(1)

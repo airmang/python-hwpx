@@ -82,6 +82,10 @@ def _bin_data_stem(value: Any) -> str | None:
     return stem or None
 
 
+#: ``align`` values an inline picture also takes as its paragraph alignment.
+_INLINE_PICTURE_ALIGNMENT = {"LEFT": "LEFT", "CENTER": "CENTER", "RIGHT": "RIGHT"}
+
+
 def add_picture(
     doc: "HwpxDocument",
     image_data: bytes,
@@ -134,6 +138,13 @@ def add_picture(
         include_run=False,
         **cast(Any, extra_attrs),
     )
+    alignment = _INLINE_PICTURE_ALIGNMENT.get(str(align).strip().upper()) if align else None
+    if alignment is not None and doc._root.headers:
+        # The picture sits in the text line, so Hancom places it by the
+        # paragraph's alignment; hp:pos/@horzAlign alone does not move it.
+        paragraph.para_pr_id_ref = doc._root.headers[0].ensure_paragraph_format(
+            base_para_pr_id=paragraph.para_pr_id_ref, alignment=alignment,
+        )
     return paragraph.add_picture(
         binary_item_id_ref,
         width=resolved_width,

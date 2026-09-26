@@ -43,7 +43,7 @@ from .note_authoring import (
     _paragraph_endnotes,
     _paragraph_footnotes,
 )
-from ._paragraph_text_edit import edit_node_candidates, plain_text_nodes_for_edit
+from ._paragraph_text_edit import edit_node_candidates, paragraph_container, plain_text_nodes_for_edit
 from .objects import (
     HwpxOxmlInlineObject,
     _create_picture_element,
@@ -95,7 +95,7 @@ class HwpxOxmlParagraph:
     def apply_model(self, model: "body.Paragraph") -> None:
         new_node = body.serialize_paragraph(model)
         xml_bytes = LET.tostring(new_node)
-        parent = self.section.element
+        parent = paragraph_container(self.element, self.section.element) or self.section.element
         if isinstance(parent, LET._Element):
             replacement = LET.fromstring(xml_bytes)
         else:
@@ -394,23 +394,23 @@ class HwpxOxmlParagraph:
         self.section.mark_dirty()
 
     def remove(self) -> None:
-        """Remove this paragraph from its parent section.
+        """Remove this paragraph from the section, table cell, header or footer holding it.
 
         After removal, the paragraph wrapper should no longer be used.
-        Raises ``ValueError`` if the section would become empty (HWPX
-        requires at least one ``<hp:p>`` per section).
+        Raises ``ValueError`` if that container would be left without a
+        paragraph: HWPX needs at least one ``<hp:p>`` per section, and Hancom
+        cannot open a cell, header or footer whose paragraph list is empty.
         """
-        parent = self.section.element
+        parent = paragraph_container(self.element, self.section.element)
+        if parent is None:  # already removed
+            return
         siblings = parent.findall(f"{_HP}p")
         if len(siblings) <= 1:
             raise ValueError(
-                "섹션에는 최소 하나의 단락이 필요합니다. "
+                "섹션과 셀·머리말·꼬리말에는 최소 하나의 단락이 필요합니다. "
                 "마지막 단락은 삭제할 수 없습니다."
             )
-        try:
-            parent.remove(self.element)
-        except ValueError:  # pragma: no cover – defensive
-            return
+        parent.remove(self.element)
         self.section.mark_dirty()
 
     def _create_run_for_object(
@@ -1050,7 +1050,7 @@ class HwpxOxmlParagraph:
     ) -> HwpxOxmlInlineObject:
         """Insert ``<hp:ctrl><hp:pageHiding .../></hp:ctrl>``.
 
-        Hides the named page elements from this paragraph's page onward
+        Hides the named page elements on this paragraph's page only
         (``ParaList XML schema.xml:148-163`` — six independent booleans, all
         default ``false``/unhidden). Matches real corpus (hwpxlib_corpus, 4
         files) sibling placement: its own dedicated ``hp:ctrl``, typically

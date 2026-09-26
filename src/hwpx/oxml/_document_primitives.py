@@ -25,6 +25,7 @@ from .namespaces import (
     tag_local_name,
     tag_namespace,
 )
+from .utils import hancom_text_length, tab_elements_in, tabs_as_elements
 
 register_owpml_namespaces(ET.register_namespace)
 
@@ -46,7 +47,7 @@ _DEFAULT_PARAGRAPH_ATTRS = {
 }
 
 _DEFAULT_CELL_WIDTH = 7200
-_DEFAULT_CELL_HEIGHT = 3600
+_DEFAULT_CELL_HEIGHT = 282  # as a new Hancom table: each row grows to its text
 
 _BASIC_BORDER_FILL_ATTRIBUTES = {
     "threeD": "0",
@@ -85,8 +86,8 @@ _ILLEGAL_XML_CHARS = _re.compile(
 def _sanitize_text(value: str) -> str:
     """Strip characters that are illegal inside an HWPML ``<hp:t>`` node.
 
-    Tab (``\\t`` / U+0009) is stripped because HWPML requires it to be
-    represented as a dedicated ``<hp:ctrl>`` element, not as raw text.
+    Tab (``\\t`` / U+0009) is stripped because Hancom reads a tab only as an
+    ``hp:tab`` element inside ``hp:t`` (``_paragraph_text_edit.set_text_with_tabs``).
     Carriage return (``\\r`` / U+000D) is stripped; newline (``\\n`` / U+000A)
     is preserved for multiline cells.
     """
@@ -139,10 +140,11 @@ def _char_height_from_points(value: int | float | None) -> str | None:
 
 
 def _serialize_xml(element: ET.Element) -> bytes:
-    """Return a UTF-8 encoded XML document for *element*."""
+    """Return a UTF-8 encoded XML document for *element*, a tab in ``hp:t`` as ``hp:tab``."""
     xml_bytes = ET.tostring(element, encoding="utf-8", xml_declaration=False)
     if element.tag in {_HS + "sec", _HH + "head"}:
         root = LET.fromstring(xml_bytes)
+        tabs_as_elements(root)
         wrapped = LET.Element(root.tag, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
         wrapped.attrib.update(root.attrib)
         wrapped.text = root.text
@@ -155,7 +157,7 @@ def _serialize_xml(element: ET.Element) -> bytes:
             xml_declaration=True,
             standalone=True,
         )
-    return ET.tostring(element, encoding="utf-8", xml_declaration=True)
+    return tab_elements_in(ET.tostring(element, encoding="utf-8", xml_declaration=True))
 
 
 def _paragraph_id() -> str:
@@ -290,7 +292,7 @@ def _simple_paragraph_text_length(paragraph: ET.Element) -> int | None:
         for run_child in child:
             run_child_name = _element_local_name(run_child).lower()
             if run_child_name == "t":
-                total += len("".join(run_child.itertext()))
+                total += hancom_text_length(run_child)
             elif run_child_name in {
                 "tab",
                 "linebreak",

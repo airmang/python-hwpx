@@ -330,13 +330,22 @@ class HwpxOxmlSection:
         self._dirty = False
 
     def remove_stale_layout_caches(self) -> int:
-        """Drop paragraph layout caches that no longer match plain text length."""
+        """Drop paragraph layout caches that cannot match the paragraph's text.
+
+        A cache is stale when a cached line starts past the plain text, or when
+        the text after the last cached line start is far wider than that line
+        (the cache lacks lines, so Hancom would draw the tail over itself). The
+        save path runs this on every section, so a document whose own caches
+        look like that still saves; Hancom lays those paragraphs out again.
+        """
 
         removed = 0
         for paragraph in self._element.iter():
             if _element_local_name(paragraph) != "p":
                 continue
-            if _remove_stale_paragraph_layout_cache(paragraph):
+            if _remove_stale_paragraph_layout_cache(paragraph) or _remove_short_paragraph_layout_cache(
+                paragraph
+            ):
                 removed += 1
         if removed:
             self.mark_dirty()
@@ -361,5 +370,35 @@ class HwpxOxmlSection:
 
     def to_bytes(self) -> bytes:
         return _serialize_xml(self._element)
+
+
+def _remove_short_paragraph_layout_cache(paragraph: ET.Element) -> bool:
+    """Clear a plain paragraph's cache whose lines cannot hold its text.
+
+    Uses the editor-open-safety rule itself
+    (``package_validator._check_line_seg_tail_coverage``), so the save-time
+    sweep removes exactly the caches that check would refuse.
+    """
+
+    from ..tools.package_validator import (
+        PackageValidationIssue,
+        _check_line_seg_tail_coverage,
+        _simple_paragraph_text,
+    )
+
+    text = _simple_paragraph_text(paragraph)
+    if text is None:
+        return False
+    for child in paragraph:
+        if _element_local_name(child).lower() != "linesegarray":
+            continue
+        line_segs = [seg for seg in child if _element_local_name(seg).lower() == "lineseg"]
+        findings: list[PackageValidationIssue] = []
+        _check_line_seg_tail_coverage(findings, "", 0, text, line_segs)
+        if findings:
+            _clear_paragraph_layout_cache(paragraph)
+            return True
+    return False
+
 
 __all__ = ["HwpxOxmlSection", "HwpxOxmlSectionHeaderFooter", "HwpxOxmlSectionProperties"]

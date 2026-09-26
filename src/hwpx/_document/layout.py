@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
-from ..errors import HwpxStateError, HwpxValueError
+from ..errors import HwpxStateError, HwpxTypeError, HwpxValueError
 from ..objects.results import (
     ColumnLayout,
     ListFormatResult,
@@ -16,7 +16,7 @@ from ..objects.results import (
     Units,
 )
 from ..oxml._document_primitives import NEW_NUM_KINDS
-from ..oxml.namespaces import HH
+from ..oxml.namespaces import HH, HP
 from ..oxml.objects import HwpxOxmlInlineObject
 from ..oxml.section_format import _PAGE_LANDSCAPE, _PAGE_PORTRAIT, _page_orientation_value
 from ._units import _mm_to_hwp_units, _pt_to_hwp_units
@@ -173,11 +173,67 @@ def _resolve_paragraph_targets(
     return targets
 
 
+def _tree_root(element: Any) -> Any:
+    if hasattr(element, "getparent"):
+        while element.getparent() is not None:
+            element = element.getparent()
+    return element
+
+
+def _resolve_paragraph_objects(
+    doc: "HwpxDocument", paragraphs: Sequence[HwpxOxmlParagraph]
+) -> list[HwpxOxmlParagraph]:
+    """Check that every paragraph object belongs to *doc*, before anything changes.
+
+    Body, table cell (nested too), header and footer paragraphs all live in a
+    section's XML tree, so a paragraph belongs to the document when its element
+    is inside one of the document's section elements.
+    """
+
+    from ..oxml import HwpxOxmlParagraph
+
+    items = list(paragraphs)
+    if not items:
+        raise HwpxValueError(
+            "paragraphs 가 비어 있습니다.",
+            code="paragraph-indexes-empty",
+            suggestion="서식을 적용할 문단을 하나 이상 지정하세요.",
+        )
+    roots = [section.element for section in doc.sections]
+    resolved: list[HwpxOxmlParagraph] = []
+    for position, paragraph in enumerate(items):
+        if not isinstance(paragraph, HwpxOxmlParagraph):
+            raise HwpxTypeError(
+                f"paragraphs[{position}] 는 문단 객체가 아닙니다 — {type(paragraph).__name__}.",
+                code="paragraph-invalid-type",
+                context={"position": position, "type": type(paragraph).__name__},
+                suggestion="doc.paragraphs, cell.paragraphs, header.paragraphs 의 문단을 넘기세요.",
+            )
+        element = paragraph.element
+        root = _tree_root(element)
+        inside = (
+            any(root is section_root for section_root in roots)
+            if hasattr(element, "getparent")
+            else any(node is element for section_root in roots for node in section_root.iter())
+        )
+        if not inside:
+            raise HwpxValueError(
+                f"paragraphs[{position}] 는 이 문서에 속한 문단이 아닙니다.",
+                code="paragraph-not-in-document",
+                context={"position": position},
+                suggestion="이 문서에서 얻은 문단(본문·셀·머리말·꼬리말)을 넘기세요. 지운 문단이나 다른 문서의 문단은 받지 않습니다.",
+            )
+        if all(element is not seen.element for seen in resolved):
+            resolved.append(paragraph)
+    return resolved
+
+
 def set_paragraph_format(
     doc: "HwpxDocument",
     *,
     paragraph_index: int | None = None,
     paragraph_indexes: Sequence[int] | None = None,
+    paragraphs: Sequence[HwpxOxmlParagraph] | None = None,
     alignment: str | None = None,
     line_spacing_percent: int | float | None = None,
     indent_left_mm: float | None = None,
@@ -199,6 +255,12 @@ def set_paragraph_format(
     border: Mapping[str, Any] | None = None,
 ) -> ParagraphFormatResult:
     """Apply paragraph-level formatting using human units.
+
+    Targets are body paragraphs by index (``paragraph_index`` /
+    ``paragraph_indexes``; neither means every body paragraph) or paragraph
+    objects of this document (``paragraphs``): body, table cell (nested
+    tables too), header and footer paragraphs. The result lists body indexes
+    only; ``formatted`` counts every target.
 
     Millimetre inputs are converted to HWP units; paragraph spacing uses
     points; line spacing is stored as a percent value. ``keep_with_next`` /
@@ -299,6 +361,26 @@ def set_paragraph_format(
             suggestion="Pass alignment, line_spacing_percent, or another option to change.",
         )
 
+    # Resolve every target before the header gains tab or border definitions,
+    # so a bad target changes nothing.
+    targets: list[tuple[int | None, HwpxOxmlParagraph]]
+    if paragraphs is not None:
+        if paragraph_index is not None or paragraph_indexes is not None:
+            raise HwpxValueError(
+                "use either paragraphs or paragraph_index/paragraph_indexes, not both",
+                code="paragraph-argument-conflict",
+                suggestion="Pass only one.",
+            )
+        objects = _resolve_paragraph_objects(doc, paragraphs)
+        body = doc.paragraphs
+        body_index = {paragraph.element: index for index, paragraph in enumerate(body)}
+        targets = [(body_index.get(paragraph.element), paragraph) for paragraph in objects]
+    else:
+        targets = list(_resolve_paragraph_targets(doc,
+            paragraph_index=paragraph_index,
+            paragraph_indexes=paragraph_indexes,
+        ))
+
     tab_pr_id: str | None = None
     if wants_tab_definition:
         converted_stops: list[dict[str, object]] = []
@@ -343,12 +425,7 @@ def set_paragraph_format(
         or wants_tab_definition
     )
 
-    targets = _resolve_paragraph_targets(doc,
-        paragraph_index=paragraph_index,
-        paragraph_indexes=paragraph_indexes,
-    )
-    formatted: list[int] = []
-    for index, paragraph in targets:
+    for paragraph in (paragraph for _, paragraph in targets):
         if wants_para_pr_change:
             para_pr_id = header.ensure_paragraph_format(
                 base_para_pr_id=paragraph.para_pr_id_ref,
@@ -363,11 +440,10 @@ def set_paragraph_format(
             paragraph.para_pr_id_ref = para_pr_id
         if column_break is not None:
             paragraph.column_break = column_break
-        formatted.append(index)
 
     return ParagraphFormatResult(
-        formatted=len(formatted),
-        paragraphs=tuple(formatted),
+        formatted=len(targets),
+        paragraphs=tuple(index for index, _ in targets if index is not None),
         units=Units(indent="mm", paragraph_spacing="pt", line_spacing="%"),
     )
 
@@ -970,10 +1046,14 @@ def hide_page_elements(
     fill: bool = False,
     page_num: bool = False,
 ) -> "HwpxOxmlInlineObject":
-    """Hide the named page elements from *paragraph*'s page onward.
+    """Hide the named page elements on *paragraph*'s page only.
 
     Inserts ``<hp:ctrl><hp:pageHiding .../></hp:ctrl>`` (``ParaList XML
     schema.xml:148-163`` — six independent booleans, all default unhidden).
+    Hancom applies it to that page alone (its "hide on the current page
+    only"); the next page shows the elements again. *page_num* hides
+    Hancom's page-number control, not the header/footer number that
+    ``set_page_number`` writes -- hide that one with *footer* (or *header*).
     """
 
     return paragraph.add_page_hiding(
@@ -1022,3 +1102,57 @@ def remove_footer(
             return
         target_section = doc._root.sections[-1]
     target_section.properties.remove_footer(page_type=page_type)
+
+
+def flow_table_taller_than_page(doc: "HwpxDocument", table: Any) -> None:
+    """Let a new body *table* flow across pages when its rows alone outgrow a page.
+
+    Hancom never breaks a table laid out as a character (``treatAsChar``, the
+    ``add_table`` default) across pages: one taller than the page body is cut
+    off at the paper's edge. Such a table becomes a flowing one instead
+    (``Table.set_treat_as_char(False)``), which Hancom breaks between rows.
+    """
+
+    properties = table.paragraph.section.properties
+    size, margins = properties.page_size, properties.page_margins
+    body = size.drawn_height - margins.top - margins.bottom - margins.header - margins.footer
+    if body > 0 and _table_min_height(doc, table.element) > body:
+        table.set_treat_as_char(False)
+
+
+def _table_min_height(doc: "HwpxDocument", table: Any) -> int:
+    """A lower bound of the drawn height: every row is at least its tallest
+    single-row cell, and a cell at least one line of its text plus its top and
+    bottom margins."""
+
+    total = 0
+    for row in table.findall(f"{HP}tr"):
+        tallest = 0
+        for cell in row.findall(f"{HP}tc"):
+            span = cell.find(f"{HP}cellSpan")
+            if span is not None and span.get("rowSpan", "1") != "1":
+                continue
+            run = cell.find(f".//{HP}run")
+            line = _char_height(doc, run.get("charPrIDRef") if run is not None else None)
+            margin = cell.find(f"{HP}cellMargin")
+            padding = _int_attr(margin, "top") + _int_attr(margin, "bottom")
+            tallest = max(tallest, _int_attr(cell.find(f"{HP}cellSz"), "height"), line + padding)
+        total += tallest
+    return total
+
+
+def _char_height(doc: "HwpxDocument", char_pr_id_ref: str | None) -> int:
+    style = doc._root.char_property(char_pr_id_ref if char_pr_id_ref is not None else "0")
+    try:
+        return int(style.attributes.get("height", "1000")) if style is not None else 1000
+    except ValueError:
+        return 1000
+
+
+def _int_attr(element: Any, name: str) -> int:
+    if element is None:
+        return 0
+    try:
+        return int(element.get(name, "0"))
+    except ValueError:
+        return 0
