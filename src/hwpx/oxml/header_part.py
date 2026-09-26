@@ -608,12 +608,8 @@ class HwpxOxmlHeader:
     def _apply_paragraph_margins(self, para_pr: ET.Element, margins: Mapping[str, int]) -> None:
         margin_elements = self._descendants_by_local(para_pr, "margin")
         if not margin_elements:
-            margin = self._ensure_direct_para_child(
-                para_pr,
-                "margin",
-                after_local_names={"breakSetting", "autoSpacing", "heading", "align"},
-            )
-            margin_elements = [margin]
+            margin_elements = [self._ensure_direct_para_child(
+                para_pr, "margin", after_local_names={"breakSetting", "autoSpacing", "heading", "align"})]
 
         # Hancom keeps hp:default at twice the hp:case value; a margin outside hp:switch is as given.
         doubled = para_pr.findall(f"{_HP}switch/{_HP}default/{_HH}margin")
