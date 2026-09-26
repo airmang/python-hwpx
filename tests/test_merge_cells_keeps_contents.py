@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import zipfile
 
 from hwpx.document import HwpxDocument
 
@@ -120,6 +121,50 @@ def test_setting_text_keeps_blank_lines_and_objects() -> None:
     assert cell.paragraphs[0].text == "홍길동"
     assert len(cell.paragraphs[1].tables) == 1
     assert cell.paragraphs[2].text == ""
+
+
+def _rows(table) -> list[list[tuple[int, int, int, int, int]]]:
+    return [
+        [(c.address[0], c.address[1], c.span[0], c.span[1], c.height) for c in row.cells]
+        for row in table.rows
+    ]
+
+
+def test_merging_whole_rows_leaves_one_row_of_their_height() -> None:
+    doc = HwpxDocument.new()
+    table = doc.add_table(3, 3)
+    height = table.cell(0, 0).height
+
+    merged = table.merge_cells("A1:C2")
+
+    assert (table.row_count, table.column_count) == (2, 3)
+    assert _rows(table) == [
+        [(0, 0, 1, 3, 2 * height)],
+        [(1, 0, 1, 1, height), (1, 1, 1, 1, height), (1, 2, 1, 1, height)],
+    ]
+    assert merged.address == (0, 0)
+    with zipfile.ZipFile(io.BytesIO(doc.to_bytes())) as archive:
+        section = archive.read("Contents/section0.xml").decode("utf-8")
+    assert "<hp:tr/>" not in section and "<hp:tr></hp:tr>" not in section
+
+
+def test_merging_a_whole_table_leaves_one_cell() -> None:
+    table = HwpxDocument.new().add_table(2, 2)
+    width, height = table.cell(0, 0).width, table.cell(0, 0).height
+
+    merged = table.merge_cells("A1:B2")
+
+    assert (table.row_count, table.column_count) == (1, 1)
+    assert (merged.span, merged.width, merged.height) == ((1, 1), 2 * width, 2 * height)
+
+
+def test_a_merge_inside_the_rows_keeps_the_grid() -> None:
+    table = HwpxDocument.new().add_table(3, 3)
+
+    table.merge_cells("A1:B2")
+
+    assert (table.row_count, table.column_count) == (3, 3)
+    assert table.cell(1, 2).address == (1, 2)
 
 
 def test_merged_text_survives_saving() -> None:

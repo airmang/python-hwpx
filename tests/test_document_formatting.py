@@ -599,11 +599,11 @@ def test_table_merge_cells_rejects_partial_overlap() -> None:
     root = HwpxOxmlDocument(manifest, [section], [])
     document = HwpxDocument(cast(HwpxPackage, object()), root)
 
-    table = document.add_table(2, 2, section=section)
+    table = document.add_table(3, 3, section=section)
     table.merge_cells(0, 0, 1, 1)
 
     with pytest.raises(ValueError):
-        table.merge_cells(0, 1, 1, 1)
+        table.merge_cells(0, 1, 1, 2)
 
 
 def test_table_iter_grid_reports_merged_cells() -> None:
