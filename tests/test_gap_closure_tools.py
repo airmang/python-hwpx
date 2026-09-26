@@ -37,7 +37,7 @@ def _hwpml_root_namespace_attrs() -> str:
 
 _HEADER_XML = (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-    f"<hh:head {_hwpml_root_namespace_attrs()}/>"
+    f"<hh:head version=\"1.5\" secCnt=\"1\" {_hwpml_root_namespace_attrs()}/>"
 ).encode("utf-8")
 _MASTER_PAGE_XML = (
     b'<?xml version="1.0" encoding="UTF-8"?>'
@@ -390,7 +390,7 @@ def test_package_validator_warns_for_engine_fallback_rootfile_selection() -> Non
         section_href="parts/section0.xml",
         version_href="../version.xml",
         text="Fallback fixture",
-        rootfile_media_type=None,
+        rootfile_media_type="application/xml",
     )
 
     package = HwpxPackage.open(package_bytes)
@@ -400,6 +400,26 @@ def test_package_validator_warns_for_engine_fallback_rootfile_selection() -> Non
     assert report.ok
     assert any(issue.level == "warning" for issue in report.warnings)
     assert any(issue.part_name == "META-INF/container.xml" for issue in report.warnings)
+
+
+def test_package_validator_rejects_a_rootfile_without_media_type() -> None:
+    # Hancom refuses to open a package whose rootfile declares no media-type.
+    package_bytes, _paths = _build_manual_package(
+        manifest_path="Alt/content.hpf",
+        header_href="parts/header-main.xml",
+        section_href="parts/section0.xml",
+        version_href="../version.xml",
+        text="No media type",
+        rootfile_media_type=None,
+    )
+
+    report = validate_package(package_bytes)
+
+    assert not report.ok
+    assert any(
+        issue.part_name == "META-INF/container.xml" and "media-type" in issue.message
+        for issue in report.errors
+    )
 
 
 def test_validator_and_engine_do_not_disagree_on_engine_valid_fixture() -> None:

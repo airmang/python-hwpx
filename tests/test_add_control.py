@@ -16,6 +16,9 @@ import zipfile
 import pytest
 
 from hwpx import HwpxDocument
+from hwpx.opc.package import HwpxPackageError
+
+HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 
 def _section_xml(payload: bytes) -> str:
@@ -41,25 +44,34 @@ def test_add_control_creates_an_element_of_the_tree_s_own_kind(control_type: str
                 attributes={"id": f"guide-{control_type}", "type": control_type},
             )
         assert obj is not None
-        # 만들어만 놓고 트리에 안 붙으면 직렬화에서 사라진다. HWPX는 ZIP이라
-        # 원시 바이트를 뒤지면 압축 때문에 언제나 못 찾는다 — 열어서 봐야 한다.
-        assert control_type in _section_xml(document.to_bytes())
+        # 만들어만 놓고 트리에 안 붙으면 직렬화에서 사라진다 — 섹션 트리에 붙었는지 본다.
+        section_element = document.sections[0].element
+        assert any(
+            ctrl.get("id") == f"guide-{control_type}" for ctrl in section_element.iter(f"{HP}ctrl")
+        )
+        # 자식 없는 <hp:ctrl>은 한컴이 열다 멈추므로, 그대로는 저장하지 않는다.
+        with pytest.raises(HwpxPackageError, match="no control child"):
+            document.to_bytes()
     finally:
         document.close()
 
 
 def test_add_control_survives_a_save_and_reopen(tmp_path) -> None:
-    """붙인 control이 저장·재오픈 뒤에도 남아야 한다."""
+    """붙인 control이 저장·재오픈 뒤에도 남아야 한다(자식 컨트롤을 채운 뒤)."""
     path = tmp_path / "control.hwpx"
     document = HwpxDocument.new()
     try:
         document.add_paragraph("본문")
         with pytest.warns(UserWarning, match="no control child"):
-            document.add_control(
+            obj = document.add_control(
                 section=document.sections[0],
                 control_type="LINE",
                 attributes={"id": "keepme", "type": "LINE"},
             )
+        ctrl = obj.element
+        ctrl.append(ctrl.makeelement(f"{HP}colPr", {
+            "id": "", "type": "NEWSPAPER", "layout": "LEFT", "colCount": "1", "sameSz": "1", "sameGap": "0",
+        }))
         document.save_to_path(path)
     finally:
         document.close()

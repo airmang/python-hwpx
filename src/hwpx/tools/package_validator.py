@@ -554,28 +554,21 @@ def _check_shape_open_safety_risks(
     root: ET.Element,
 ) -> None:
     """Flag shapes/controls the low-level escape hatches (``add_shape``,
-    ``add_control``) can produce that real Hancom (12.30.0, confirmed by
-    negative control) refuses to open -- ``add_shape``/``add_control``
-    already raise a ``UserWarning`` at creation time, but that warning is
-    ephemeral (tied to the call stack, not persisted in the saved file), so
-    a document built this way and later opened, validated, or handed off
-    separately from that call site showed no trace of the risk here before
-    this check existed (``validate_package``/``validate_editor_open_safety``
-    both reported ``ok=True``). This is an honest signal, not a gate: a
-    ``warning``, not an ``error`` -- it does not flip ``PackageValidationReport
-    .ok``/``EditorOpenSafetyReport.ok`` to ``False`` for an otherwise-valid
-    document, matching how the creation-time UserWarning itself does not
-    block the call that raises it. Verified zero false positives against
-    every shape in the vendored real corpus (422/422 top-level shapes
-    complete, table_patch/dedicated shape helpers unaffected) plus the full
-    test suite.
+    ``add_control``) can produce that Hancom refuses to open (a shape without
+    its required children) or crashes on (an empty ``hp:ctrl``). These are
+    errors: ``add_shape``/``add_control`` raise a ``UserWarning`` at creation
+    time, but that warning is not persisted in the saved file, and a document
+    Hancom cannot open must not pass as editor-open-safe. Zero false
+    positives against every shape in the vendored real corpus (422/422
+    top-level shapes complete, table_patch/dedicated shape helpers
+    unaffected).
     """
 
     if not is_section_part_name(part_name):
         return
 
     for shape, missing in _iter_shape_open_safety_risks(root):
-        _warning(
+        _error(
             issues,
             part_name,
             f"hp:{_local_name(shape)} missing {', '.join(missing)}; Hancom refuses to "
@@ -585,10 +578,10 @@ def _check_shape_open_safety_risks(
 
     for ctrl in (element for element in root.iter() if _local_name(element) == "ctrl"):
         if len(ctrl) == 0:
-            _warning(
+            _error(
                 issues,
                 part_name,
-                "hp:ctrl has no control child; Hancom refuses to open a document "
+                "hp:ctrl has no control child; Hancom crashes on a document "
                 "containing it (produced by the add_control escape hatch before a "
                 "control element was appended)",
             )
@@ -696,6 +689,152 @@ def _check_bold_fontref_axis(
                 part_name,
                 f"bold charPr id={char_pr_id!r} has an empty hh:fontRef",
             )
+
+
+#: Attributes and children whose absence makes Hancom refuse to open a document
+#: (reject), crash, or never finish laying it out (hang): each removed from
+#: Hancom-authored documents one at a time, consistently across documents.
+_REQUIRED_TABLE_ATTRIBUTES = ("rowCnt", "colCnt")
+_REQUIRED_CELL_PART_ATTRIBUTES = {"cellAddr": ("colAddr", "rowAddr"), "cellSpan": ("colSpan", "rowSpan")}
+_REQUIRED_SECTION_PROPERTY_CHILDREN = ("startNum", "visibility")
+_RENDERING_MATRICES = ("transMatrix", "scaMatrix", "rotMatrix")
+#: Hancom's field types and the control ids it writes as ``fieldid`` for them
+#: (the control id's four characters read as a big-endian 32-bit integer).
+#: Hancom opens a field when either one is recognised and refuses it when both
+#: are unknown (e.g. ``type="ClickHere"`` with ``fieldid="field-date"``).
+_HANCOM_FIELD_TYPES = frozenset({
+    "CLICK_HERE", "HYPERLINK", "BOOKMARK", "FORMULA", "SUMMARY", "USER_INFO", "DATE", "DOC_DATE",
+    "PATH", "CROSSREF", "MAILMERGE", "MEMO", "PROOFREADING_MARKS", "PROOFREADING_MARKS_SIGN",
+    "PROOFREADING_MARKS_DELETE", "PRIVATE_INFO", "METADATA", "CITATION", "BIBLIOGRAPHY", "TABLEOFCONTENTS",
+})
+_HANCOM_FIELD_IDS = frozenset({
+    "627600491", "627272811", "623209829", "627207531", "627469685", "627340389", "628650598",
+    "628387683", "627928423", "628121972", "628320615", "623192676",
+})
+_RECT_CORNERS = ("pt0", "pt1", "pt2", "pt3")
+
+
+def _check_hancom_required_structure(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    root: ET.Element,
+) -> None:
+    if _local_name(root) == "HCFVersion" and root.get("tagetApplication") is None:
+        _error(
+            issues,
+            part_name,
+            "HCFVersion missing tagetApplication (Hancom's spelling); Hancom refuses to open the document",
+        )
+    if not is_section_part_name(part_name):
+        return
+    for element in root.iter():
+        name = _local_name(element)
+        if name == "tbl":
+            _check_required_table_structure(issues, part_name, element)
+        elif name in _REQUIRED_CELL_PART_ATTRIBUTES:
+            for attribute in _REQUIRED_CELL_PART_ATTRIBUTES[name]:
+                if element.get(attribute) is None:
+                    _error(issues, part_name, f"hp:{name} missing {attribute}; Hancom crashes or never finishes laying out the table")
+        elif name == "secPr":
+            for child in _REQUIRED_SECTION_PROPERTY_CHILDREN:
+                if _first_child_by_local(element, child) is None:
+                    _error(issues, part_name, f"hp:secPr missing hp:{child}; Hancom refuses to open the document")
+        elif name.lower() == "lineseg" and element.get("textpos") is None:
+            _error(issues, part_name, "hp:lineseg missing textpos; Hancom crashes on the document")
+        elif name == "fieldBegin":
+            _check_field_begin(issues, part_name, element)
+        elif name == "fieldEnd" and element.get("beginIDRef") is None:
+            _error(issues, part_name, "hp:fieldEnd missing beginIDRef; Hancom refuses to open the document")
+    _check_required_drawing_structure(issues, part_name, root)
+
+
+def _check_field_begin(issues: list[PackageValidationIssue], part_name: str, element: ET.Element) -> None:
+    if element.get("id") is None:
+        _error(issues, part_name, "hp:fieldBegin missing id; Hancom refuses to open the document")
+    field_type, field_id = element.get("type"), element.get("fieldid")
+    if field_type not in _HANCOM_FIELD_TYPES and field_id not in _HANCOM_FIELD_IDS:
+        _error(
+            issues,
+            part_name,
+            f"hp:fieldBegin type={field_type!r} is not a Hancom field type and fieldid={field_id!r} "
+            "is not a Hancom field control id; Hancom refuses to open the document",
+        )
+
+
+def _check_required_table_structure(
+    issues: list[PackageValidationIssue], part_name: str, table: ET.Element
+) -> None:
+    for attribute in _REQUIRED_TABLE_ATTRIBUTES:
+        if table.get(attribute) is None:
+            _error(issues, part_name, f"hp:tbl missing {attribute}; Hancom refuses to open the document")
+    rows = _children_by_local(table, "tr")
+    if not rows or any(not _children_by_local(row, "tc") for row in rows):
+        _error(issues, part_name, "hp:tbl has a missing hp:tr or hp:tc; Hancom refuses to open the document")
+
+
+def _check_required_drawing_structure(
+    issues: list[PackageValidationIssue], part_name: str, root: ET.Element
+) -> None:
+    """Top-level drawing objects need their rendering matrices and a picture its
+    image (group members are skipped, as in ``_iter_shape_open_safety_risks``);
+    a rectangle needs its four corner points wherever it sits."""
+
+    def visit(element: ET.Element, inside_container: bool) -> None:
+        name = _local_name(element)
+        if name in (_SHAPE_OPEN_SAFETY_TAGS | {"pic"}) and not inside_container:
+            rendering = _first_child_by_local(element, "renderingInfo")
+            if rendering is None or any(_first_child_by_local(rendering, m) is None for m in _RENDERING_MATRICES):
+                _error(issues, part_name, f"hp:{name} missing hp:renderingInfo matrices; Hancom crashes on the document")
+            if name == "pic" and _first_child_by_local(element, "img") is None:
+                _error(issues, part_name, "hp:pic missing hc:img; Hancom refuses to open the document")
+        if name == "rect" and any(_first_child_by_local(element, pt) is None for pt in _RECT_CORNERS):
+            _error(issues, part_name, "hp:rect missing a corner point (hc:pt0..pt3); Hancom refuses to open the document")
+        for child in element:
+            if isinstance(child.tag, str):
+                visit(child, inside_container or name == "container")
+
+    visit(root, False)
+
+
+def _check_container_rootfiles(container_root: ET.Element, issues: list[PackageValidationIssue]) -> None:
+    for rootfile in (element for element in container_root.iter() if _local_name(element) == "rootfile"):
+        if rootfile.get("media-type") is None:
+            _error(issues, CONTAINER_PATH, "rootfile missing media-type; Hancom refuses to open the document")
+
+
+def _check_manifest_entries(
+    manifest_root: ET.Element, manifest_path: str, issues: list[PackageValidationIssue]
+) -> None:
+    manifest = next((element for element in manifest_root.iter() if _local_name(element) == "manifest"), None)
+    items = _children_by_local(manifest, "item") if manifest is not None else []
+    if not items:
+        _error(issues, manifest_path, "opf:manifest lists no opf:item; Hancom refuses to open the document")
+    for element in manifest_root.iter():
+        name = _local_name(element)
+        required = {"item": ("id", "href", "media-type"), "itemref": ("idref",), "meta": ("name",)}.get(name, ())
+        for attribute in required:
+            if element.get(attribute) is None:
+                _error(issues, manifest_path, f"opf:{name} missing {attribute}; Hancom crashes on the document")
+
+
+def _check_field_end_pairs(
+    xml_roots: dict[str, ET.Element], section_paths: list[str], issues: list[PackageValidationIssue]
+) -> None:
+    begins: set[str] = set()
+    ends: list[tuple[str, str]] = []
+    for path in section_paths:
+        root = xml_roots.get(path)
+        if root is None:
+            continue
+        for element in root.iter():
+            name = _local_name(element)
+            if name == "fieldBegin" and element.get("id") is not None:
+                begins.add(element.get("id") or "")
+            elif name == "fieldEnd" and element.get("beginIDRef") is not None:
+                ends.append((path, element.get("beginIDRef") or ""))
+    for path, begin_ref in ends:
+        if begin_ref not in begins:
+            _error(issues, path, f"hp:fieldEnd beginIDRef={begin_ref!r} names no hp:fieldBegin; Hancom refuses to open the document")
 
 
 def _error(issues: list[PackageValidationIssue], part_name: str, message: str) -> None:
@@ -819,6 +958,7 @@ def _parse_all_xml(
             _check_section_properties_location(issues, name, root)
             _check_header_editor_acceptance(issues, name, root)
             _check_bold_fontref_axis(issues, name, root)
+            _check_hancom_required_structure(issues, name, root)
         except ValueError as exc:
             _error(issues, name, str(exc))
     return xml_roots
@@ -917,10 +1057,10 @@ def _check_header_section_counts(
             continue
         declared_section_count = header_root.get("secCnt")
         if declared_section_count is None:
-            _warning(
+            _error(
                 issues,
                 header_path,
-                "hh:head secCnt is missing; resolved section count cannot be cross-checked",
+                "hh:head secCnt is missing; Hancom refuses to open the document",
             )
             continue
         try:
@@ -1079,6 +1219,7 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
         if container_root is None:
             return PackageValidationReport(tuple(checked_parts), tuple(issues))
 
+        _check_container_rootfiles(container_root, issues)
         rootfiles = parse_container_rootfiles(container_root)
         if not rootfiles:
             _error(issues, CONTAINER_PATH, "declares no rootfile entries")
@@ -1113,10 +1254,12 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
             known_parts=name_set,
         )
 
+        _check_manifest_entries(manifest_root, selected_rootfile.full_path, issues)
         _check_manifest_hrefs(relationships, selected_rootfile, name_set, issues)
         resolved_section_paths = _resolve_section_paths(
             relationships, selected_rootfile, name_set, issues
         )
+        _check_field_end_pairs(xml_roots, resolved_section_paths, issues)
         _check_header_section_counts(
             relationships, xml_roots, resolved_section_paths, name_set, issues
         )

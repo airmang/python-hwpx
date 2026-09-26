@@ -30,7 +30,7 @@ def _add_click_here_field(
         f"{HP}fieldBegin",
         {
             "id": "field-date",
-            "fieldid": "field-date",
+            "fieldid": "627272811",
             "type": "ClickHere",
             "name": name,
             "prompt": prompt,

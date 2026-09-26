@@ -333,14 +333,14 @@ def _add_empty_field(doc: HwpxDocument, name: str) -> None:
     begin.append(ctrl)
     fb = ctrl.makeelement(
         f"{HP}fieldBegin",
-        {"id": "f", "fieldid": "f", "type": "ClickHere", "name": name, "prompt": name},
+        {"id": "f", "fieldid": "627272811", "type": "ClickHere", "name": name, "prompt": name},
     )
     ctrl.append(fb)
     end = p.makeelement(f"{HP}run", {"charPrIDRef": "0"})
     p.append(end)
     ec = end.makeelement(f"{HP}ctrl", {})
     end.append(ec)
-    ec.append(ec.makeelement(f"{HP}fieldEnd", {"beginIDRef": "f", "fieldid": "f"}))
+    ec.append(ec.makeelement(f"{HP}fieldEnd", {"beginIDRef": "f", "fieldid": "627272811"}))
     paragraph.section.mark_dirty()
 
 
