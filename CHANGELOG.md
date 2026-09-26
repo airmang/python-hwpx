@@ -110,6 +110,27 @@
 
 ### 고침
 
+- 색 인자가 `#RRGGBB`가 아니어도 그대로 쓰던 것을 고친다. 한컴은 색 값을 16진 수 하나로
+  읽고 나머지를 거부하지 않아서, `#ABC`는 CSS의 `#AABBCC`가 아니라 `#000ABC`로, `red`는
+  검정으로, `#12345`는 `#012345`로 보였다. 이제 `styles.ensure_run`(`color`·`highlight`·
+  `underline_color`·`shadow`), 칸·테두리 채우기와 그러데이션 색, 메모 모양, 도형 선·채우기,
+  단 구분선, `body_patch`의 `restyle_text` 글자색은 `#RRGGBB`(`#` 생략·소문자 허용)만
+  받고(`none`을 받던 자리는 `none`도), 그 밖의 값은 `HwpxValueError`(`style-color-invalid`)로
+  거부한다. 거부하면 아무것도 바꾸지 않는다: 머리말·꼬리말 `set_content`는 내용을 비우기 전에
+  색을 검사하고, 그 뒤에 값이 거부되어도 원래 내용으로 되돌린다. `set_columns`도 구분선 값을
+  먼저 검사한다.
+- 테두리 굵기(`styles.ensure_border_fill`의 `border_width`, `apply_paragraph_format`의
+  문단 테두리 굵기)와 단 구분선 굵기(`page.set_columns`의 `separator_width`)를 받은 그대로
+  쓰던 것을 고친다. 한컴은 선 굵기 목록(`0.1 mm`~`5.0 mm`)에 글자 그대로 있는 값만 읽고,
+  `1 mm`·`2 mm`·`0.12mm`처럼 목록 밖의 값은 가장 가는 `0.1 mm`로 그렸다. 이제 `"1 mm"`·
+  `"1mm"`·`1`은 `"1.0 mm"`로 쓰고, 목록에 없는 굵기는 `HwpxValueError`
+  (`style-line-width-invalid`)로 거부한다. `hwpx.oxml.utils.LINE_WIDTHS`가 그 목록이다.
+- `styles.ensure_run(ratio=...)`(장평)가 256~400을 받던 것을 고친다. 한컴은 장평을 한
+  바이트로 두어 256 이상은 256을 뺀 값이 된다(300은 44%로 그려짐). 이제 범위는 10~255다.
+- 테두리 종류(`styles.ensure_border_fill`의 `border_type`, 문단 테두리, 표 칸 테두리)의
+  `THICK_3D`·`THICK_3D_REVERSE_LIGHTING`·`SLIM_3D`·`SLIM_3D_REVERSE_LIGHTING`을 그대로 써서,
+  한컴이 모르는 표기라 테두리가 없는 것(`NONE`)으로 그려지던 것을 고친다. 이제 한컴 표기
+  `THICK3D`·`THICKREV3D`·`3D`·`REV3D`로 바꿔 쓰고, 한컴 표기도 그대로 받는다.
 - `add_heading()`이 제목 문단을 그 개요 스타일의 문단 모양·글자 모양에서 만든다. 전에는 문단
   모양 0(바탕글)에 개요 수준만 더하고 글자 모양도 0을 써서, 한컴에서 개요 번호는 붙지만 스타일의
   들여쓰기·간격·글자 모양이 빠진 제목이 됐다. 한컴은 문단을 스타일이 아니라 문단에 달린 모양으로

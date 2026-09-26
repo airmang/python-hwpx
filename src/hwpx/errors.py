@@ -242,6 +242,8 @@ ERROR_CODES: dict[str, str] = {
     "style-border-fill-gradient-colors-invalid": "fill_gradient 의 colors 가 2개 미만이다.",
     "style-memo-shape-line-type-invalid": "메모 모양의 line_type 값이 OWPML 어휘(hc:LineType2) 밖이다.",
     "style-memo-shape-memo-type-invalid": "메모 모양의 memo_type 값이 OWPML 어휘(NOMAL/USER_INSERT/USER_DELETE/USER_UPDATE) 밖이다.",
+    "style-color-invalid": "색 인자가 #RRGGBB(16진 6자리)나 none이 아니다.",
+    "style-line-width-invalid": "선 굵기가 한컴 선 굵기 목록(hc:LineWidth, 0.1 mm~5.0 mm) 밖이다.",
     "style-run-outline-type-invalid": "ensure_run 의 outline 값이 OWPML 어휘(hc:LineType1: NONE/SOLID/DOT/THICK/DASH/DASH_DOT/DASH_DOT_DOT) 밖이다.",
     "heading-level-invalid": "개요 수준이 정수가 아니다.",
     "heading-level-out-of-range": "개요 수준이 1~10 밖이다.",

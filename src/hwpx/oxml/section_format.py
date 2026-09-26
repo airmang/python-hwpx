@@ -17,11 +17,13 @@ from ._document_primitives import (
     _bool_str,
     _get_bool_attr,
     _get_int_attr,
+    _normalize_color,
     _object_id,
     _optional_int_attr,
     _paragraph_id,
 )
 from .numbering import SectionStartNumbering
+from .utils import normalize_line_width
 from .section_story import HwpxOxmlSectionHeaderFooter, _section_story_elements, remember_story_pair
 
 if TYPE_CHECKING:
@@ -429,6 +431,14 @@ class HwpxOxmlSectionProperties:
         ``hp:secPr``.
         """
 
+        line = None
+        if separator_type or separator_width or separator_color:
+            # checked before anything changes: a refused value leaves the columns as they were
+            line = {
+                "type": separator_type or "SOLID",
+                "width": normalize_line_width(separator_width or "0.12 mm"),
+                "color": _normalize_color(separator_color) or "#000000",
+            }
         ctrl = self._column_control()
         col_pr = None if ctrl is None else ctrl.find(f"{_HP}colPr")
         if ctrl is None or col_pr is None:
@@ -440,12 +450,8 @@ class HwpxOxmlSectionProperties:
         col_pr.set("sameGap", str(same_gap) if same_size else "0")
         for child in list(col_pr):
             col_pr.remove(child)
-        if separator_type or separator_width or separator_color:
-            _append_child(col_pr, f"{_HP}colLine", {
-                "type": separator_type or "SOLID",
-                "width": separator_width or "0.12 mm",
-                "color": separator_color or "#000000",
-            })
+        if line is not None:
+            _append_child(col_pr, f"{_HP}colLine", line)
         for width, gap in () if same_size else (column_widths or ()):
             _append_child(col_pr, f"{_HP}colSz", {"width": str(width), "gap": str(gap)})
         self.section.mark_dirty()

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["color_family"]
+__all__ = ["color_family", "normalize_color", "rgb_color"]
 
 _HEX_RE = re.compile(r"#([0-9A-Fa-f]{6})")
 
@@ -30,6 +30,38 @@ _NEAR_WHITE = 0xE0
 _STRONG = 0x96
 _WEAK = 0x78
 _GRAY_SPREAD = 0x18
+
+
+def rgb_color(value: object) -> str:
+    """*value* as the ``#RRGGBB`` Hancom writes: the ``#`` may be left out, the digits lower case.
+
+    Anything else is refused with :class:`~hwpx.errors.HwpxValueError`. Hancom reads a colour
+    as one hexadecimal number and does not reject the rest, so ``#ABC`` would show as
+    ``#000ABC`` (not CSS's ``#AABBCC``), ``red`` as black and ``#12345`` as ``#012345``.
+    """
+    text = str(value).strip()
+    if not _HEX_RE.fullmatch(text if text.startswith("#") else "#" + text):
+        from ..errors import HwpxValueError
+
+        raise HwpxValueError(
+            f"colour {text!r} is not #RRGGBB",
+            code="style-color-invalid",
+            context={"color": text},
+            suggestion="Pass six hexadecimal digits after '#', e.g. '#FF0000'.",
+        )
+    return "#" + text.lstrip("#").upper()
+
+
+def normalize_color(value: str | None) -> str | None:
+    """:func:`rgb_color`, but ``"none"`` stays ``"none"`` and an empty value is ``None``."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.lower() == "none":
+        return "none"
+    return rgb_color(text)
 
 
 def color_family(hex_color: str) -> str:
