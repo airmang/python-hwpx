@@ -72,7 +72,10 @@ def _roman(value: int) -> str:
     return out
 
 
+#: The number formats a label can be written in. A paragraph whose label uses any
+#: other format gets no label (its level still counts).
 _NUMBER_FORMATS: dict[str, Callable[[int], str]] = {
+    "DIGIT": str,
     "HANGUL_SYLLABLE": lambda n: _HANGUL_SYLLABLES[(n - 1) % len(_HANGUL_SYLLABLES)],
     "HANGUL_JAMO": lambda n: _HANGUL_JAMO[(n - 1) % len(_HANGUL_JAMO)],
     "CIRCLED_DIGIT": lambda n: chr(0x2460 + n - 1) if n <= 20 else str(n),
@@ -112,7 +115,7 @@ _DEFAULT_BULLET = "\u25cf"
 def _number_text(value: int, number_format: str) -> str:
     if value <= 0:
         return str(value)
-    return _NUMBER_FORMATS.get(number_format, str)(value)
+    return _NUMBER_FORMATS[number_format](value)
 
 
 class _ListLabels:
@@ -174,6 +177,9 @@ class _ListLabels:
         counters[level] = counters[level] + 1 if level in counters else heads[level][2]
         for deeper in [k for k in counters if k > level]:
             del counters[deeper]
+        template = heads[level][0]
+        if any(heads.get(int(k), ("", "DIGIT", 1))[1] not in _NUMBER_FORMATS for k in re.findall(r"\^(\d+)", template)):
+            return ""
 
         def fill(match: re.Match[str]) -> str:
             if match.group(1) == "N":
@@ -182,7 +188,28 @@ class _ListLabels:
             _, number_format, start = heads.get(k, ("", "DIGIT", 1))
             return _number_text(counters.get(k, start), number_format)
 
-        return re.sub(r"\^(\d+|N)", fill, heads[level][0])
+        return re.sub(r"\^(\d+|N)", fill, template)
+
+    def count(self, table: ET.Element) -> None:
+        """Count the paragraphs of a table that is not written: Hancom numbers them all.
+
+        They count in the order they would be written: each cell's paragraphs, and the
+        tables, text boxes and captions placed in them.
+        """
+        for tc in table.findall(f"{_HP}tr/{_HP}tc"):
+            for paragraph in tc.findall(f"{_HP}subList/{_HP}p"):
+                self._count_paragraph(paragraph)
+
+    def _count_paragraph(self, p: ET.Element) -> None:
+        self.label(p)
+        for piece in _paragraph_pieces(p):
+            if isinstance(piece, str):
+                continue
+            if piece.tag == f"{_HP}tbl":
+                self.count(piece)
+            else:
+                for inner in _text_box_paragraphs(piece):
+                    self._count_paragraph(inner)
 
     def start_section(self, section: ET.Element) -> None:
         sec_pr = next(section.iter(f"{_HP}secPr"), None)
@@ -460,6 +487,8 @@ def export_text(
                 rows = _table_cells_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels)
                 for row in rows:
                     para_texts.append(tab_token.join(row))
+            elif labels is not None:
+                labels.count(block)
 
         def emit(p: ET.Element) -> None:
             _emit_paragraph(p, tab_token=tab_token, labels=labels, masking_policy=masking_policy,
@@ -506,6 +535,8 @@ def export_html(
             if include_tables
             else []
         )
+        if not include_tables and labels is not None:
+            labels.count(block)
         if rows:
             body_parts.append('<table border="1">')
             for row in rows:
@@ -582,6 +613,8 @@ def export_markdown(
                 if include_tables
                 else []
             )
+            if not include_tables and labels is not None:
+                labels.count(block)
             if rows:
                 header = rows[0]
                 lines.append("| " + " | ".join(_markdown_cell(cell) for cell in header) + " |")
