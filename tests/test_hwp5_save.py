@@ -556,6 +556,74 @@ _MARGIN = (
 )
 
 
+def test_a_numbering_level_writes_its_number_format_in_five_bits() -> None:
+    """Hancom writes DECAGON_CIRCLE_HANJA (16) at level 1 as 0x20C."""
+
+    from hwpx.hwp5.docinfo_writer import para_head
+
+    element = etree.fromstring(
+        f'<hh:paraHead {_HEAD_NS} level="1" align="LEFT" useInstWidth="1" autoIndent="1" widthAdjust="0"'
+        ' textOffsetType="PERCENT" textOffset="50" numFormat="DECAGON_CIRCLE_HANJA" charPrIDRef="4294967295">^1.</hh:paraHead>'
+    )
+    assert para_head(element).props == 0x20C
+
+
+@pytest.mark.parametrize(("props", "name"), [(0x20C, "DECAGON_CIRCLE_HANJA"), (0x1EC, "DECAGON_CIRCLE"), (0x0C, "DIGIT")])
+def test_a_numbering_level_opens_with_its_five_bit_number_format(props: int, name: str) -> None:
+    from hwpx.hwp5.header_xml import _numbering
+
+    parent = etree.Element("numberings")
+    _numbering(parent, 0, di.Numbering([di.ParaHead(props, 0, 50, 0xFFFFFFFF, "^1.")]))
+    assert parent.find(f"{HH}numbering/{HH}paraHead").get("numFormat") == name
+
+
+@pytest.mark.parametrize(
+    ("name", "code"),
+    [
+        ("DOUBLEWAVE", 13),
+        ("THICK3D", 14),
+        ("THICKREV3D", 15),
+        ("3D", 16),
+        ("REV3D", 17),
+        ("DOUBLE_WAVE", 13),
+        ("THICK_3D", 14),
+        ("THICK_3D_REVERS", 15),
+        ("THICK_3D_REVERSE_LIGHTING", 15),
+        ("SLIM_3D", 16),
+        ("3D_REVERS", 17),
+        ("SLIM_3D_REVERSE_LIGHTING", 17),
+    ],
+)
+def test_border_and_character_lines_are_written_by_any_spelling_of_their_name(name: str, code: int) -> None:
+    from hwpx.hwp5.docinfo_writer import border_fill, char_shape
+
+    fill = border_fill(
+        etree.fromstring(f'<hh:borderFill {_HEAD_NS} id="1"><hh:leftBorder type="{name}" width="0.12 mm" color="#000000"/></hh:borderFill>')
+    )
+    assert fill.left.kind == code
+    shape = char_shape(
+        etree.fromstring(
+            f'<hh:charPr {_HEAD_NS} id="0" height="1000"><hh:underline type="BOTTOM" shape="{name}" color="#000000"/>'
+            f'<hh:strikeout shape="{name}" color="#000000"/></hh:charPr>'
+        )
+    )
+    # Character lines take four bits, so REV3D (16) comes out solid, as Hancom writes it.
+    assert ((shape.props >> 4) & 0xF, (shape.props >> 26) & 0xF) == ((code - 1) & 0xF, (code - 1) & 0xF)
+
+
+@pytest.mark.parametrize(("code", "name"), [(13, "DOUBLEWAVE"), (14, "THICK3D"), (15, "THICKREV3D"), (16, "3D"), (17, "REV3D")])
+def test_border_and_character_lines_open_with_the_names_hancom_reads(code: int, name: str) -> None:
+    from hwpx.hwp5.header_xml import _char_pr, _line
+
+    fills = etree.Element("borderFill")
+    _line(fills, "hh:leftBorder", di.Line(code, 0, 0))
+    assert fills.find(f"{HH}leftBorder").get("type") == name
+    if code <= 16:
+        shapes = etree.Element("charProperties")
+        _char_pr(shapes, 0, di.CharShape(props=(1 << 2) | ((code - 1) << 4)))
+        assert shapes.find(f"{HH}charPr/{HH}underline").get("shape") == name
+
+
 def test_paragraph_lengths_with_no_switch_are_what_hwp_keeps() -> None:
     from hwpx.hwp5.docinfo_writer import para_shape
 
@@ -570,26 +638,65 @@ def test_paragraph_lengths_with_no_switch_are_what_hwp_keeps() -> None:
 
 
 @pytest.mark.parametrize(
-    ("kind", "offsets", "expected"),
+    ("kind", "offsets", "size", "expected"),
     [
-        (1, (0, 0), (600, 0, 600, 0)),  # left top
-        (2, (0, 0), (0, 600, 600, 0)),  # right top
-        (2, (283, 283), (0, 883, 317, 0)),
-        (4, (-283, -283), (0, 317, 0, 317)),  # right bottom
-        (0, (283, 283), (0, 0, 0, 0)),  # no shadow
-        (5, (0, 0), (0, 0, 0, 0)),  # a shear shadow adds nothing here
+        (1, (0, 0), (8000, 6000), (600, 0, 600, 0)),  # parallel, left top
+        (2, (0, 0), (8000, 6000), (0, 600, 600, 0)),  # parallel, right top
+        (4, (-283, -283), (8000, 6000), (0, 317, 0, 317)),  # parallel, right bottom
+        (0, (283, 283), (8000, 6000), (0, 0, 0, 0)),  # no shadow
+        # What Hancom writes for each shadow kind, shape size and offset.
+        (1, (850, 283), (14400, 7200), (0, 250, 317, 0)),
+        (2, (283, 850), (14400, 7200), (0, 883, 0, 250)),
+        (3, (283, 283), (7200, 14400), (317, 0, 0, 883)),
+        (4, (850, 283), (7200, 14400), (0, 1450, 0, 883)),
+        (5, (283, 850), (7200, 14400), (7890, 283, 0, 850)),  # shear, left top
+        (6, (283, 283), (28800, 3600), (0, 2326, 0, 283)),  # shear, right top
+        (6, (0, 0), (6803, 1984), (0, 1126, 0, 0)),
+        (7, (850, 283), (28800, 3600), (1193, 850, 0, 2083)),  # shear, left bottom
+        (8, (283, 850), (28800, 3600), (0, 2326, 0, 2650)),  # shear, right bottom
+        (9, (283, 283), (14400, 7200), (6390, 283, 0, 283)),  # perspective, left top
+        (10, (850, 283), (14400, 7200), (0, 7523, 0, 283)),  # perspective, right top
+        (11, (283, 850), (14400, 7200), (6390, 283, 0, 8050)),  # perspective, left bottom
+        (12, (283, 283), (7200, 14400), (0, 13629, 0, 14683)),  # perspective, right bottom
+        (13, (850, 283), (7200, 14400), (0, 0, 317, 0)),  # narrowed
+        (13, (0, 0), (7875, 5850), (600, 0, 600, 0)),
+        (14, (283, 850), (7200, 14400), (2117, 0, 3350, 250)),  # enlarged
+        # Offsets to the left or up, which Hancom mirrors side for side.
+        (6, (-850, 0), (28800, 3600), (850, 1193, 0, 0)),
+        (5, (850, -283), (28800, 3600), (1193, 850, 0, 0)),
+        (9, (0, -850), (28800, 3600), (3336, 0, 850, 0)),
+        (5, (0, -850), (28800, 3600), (2043, 0, 0, 0)),
+        (11, (-283, -283), (28800, 3600), (3619, 0, 0, 3317)),
+        (1, (-850, 0), (28800, 3600), (1450, 0, 600, 0)),
+        (13, (-283, 850), (28800, 3600), (883, 0, 0, 0)),
+        (14, (-283, -283), (28800, 3600), (8083, 0, 1783, 0)),
+        # Shapes tall enough that the shadow leans out past 16 bits.
+        (11, (283, 283), (28346, 42520), (39125, 283, 0, 42803)),
+        (12, (283, 283), (28346, 42520), (0, 39691, 0, 42803)),
+        (7, (283, 283), (20000, 60000), (33771, 283, 0, 30283)),
+        (9, (283, 283), (7200, 72000), (66447, 283, 0, 283)),
+        (11, (283, 283), (8000, 1000), (644, 283, 0, 1283)),  # a lean of 926.8 rounds up
     ],
 )
-def test_where_a_parallel_shadow_falls_widens_the_outer_margin(
-    kind: int, offsets: tuple[int, int], expected: tuple[int, int, int, int]
+def test_where_a_shadow_falls_widens_the_outer_margin(
+    kind: int, offsets: tuple[int, int], size: tuple[int, int], expected: tuple[int, int, int, int]
 ) -> None:
-    assert sh.shadow_margins(kind, *offsets) == expected
+    assert sh.shadow_margins(kind, *offsets, *size) == expected
 
 
-def test_a_shadowed_shape_keeps_its_outer_margin_across_hwpx() -> None:
-    common = ct.ObjectCommon("gso ", 0x000A2211, 0, 0, 8000, 6000, 0, (0, 317, 0, 317), 190, 0, "", bytes(2))
+@pytest.mark.parametrize(
+    ("kind", "offset", "margins"),
+    [
+        (4, -283, (0, 317, 0, 317)),  # parallel, right bottom
+        (6, 0, (0, 3405, 0, 0)),  # shear, right top
+        (11, 283, (5278, 283, 0, 6283)),  # perspective, left bottom
+        (14, 283, (2317, 0, 1817, 0)),  # enlarged
+    ],
+)
+def test_a_shadowed_shape_keeps_its_outer_margin_across_hwpx(kind: int, offset: int, margins: tuple[int, ...]) -> None:
+    common = ct.ObjectCommon("gso ", 0x000A2211, 0, 0, 8000, 6000, 0, margins, 190, 0, "", bytes(2))
     fill = di.Fill(di.FILL_SOLID, 0x00FFFFFF, 0, -1, additional=b"", alphas=b"\0")
-    style = sh.DrawingStyle(0, 33, 0, 0, fill, 4, 0xB2B2B2, -283, -283, 190)
+    style = sh.DrawingStyle(0, 33, 0, 0, fill, kind, 0xB2B2B2, offset, offset, 190)
     component = sh.ShapeComponent(
         "$rec", True, 0, 0, 0, 1, 8000, 6000, 8000, 6000, 1 << 19, 0, 4000, 3000, [_IDENTITY] * 3, style.encode()
     )
@@ -615,7 +722,171 @@ def test_a_shadowed_shape_keeps_its_outer_margin_across_hwpx() -> None:
 
     written = read_hwp5(write_hwp5(files))
     [header] = [r for s in written.sections for r in s.records if r.tag == rec.CTRL_HEADER and r.payload[:4] == b" osg"]
-    assert ct.ObjectCommon.decode(header.payload).margins == (0, 317, 0, 317)
+    assert ct.ObjectCommon.decode(header.payload).margins == margins
+
+
+@pytest.mark.parametrize(
+    ("kind", "size", "stored"),
+    [
+        (11, (28346, 42520), (-26411, 283, 0, -22733)),  # perspective, left bottom
+        (12, (28346, 42520), (0, -25845, 0, -22733)),  # perspective, right bottom
+        (7, (20000, 60000), (-31765, 283, 0, 30283)),  # shear, left bottom
+    ],
+)
+def test_a_shadow_margin_past_16_bits_is_saved_wrapped_and_opens_as_saved(
+    kind: int, size: tuple[int, int], stored: tuple[int, ...]
+) -> None:
+    """Hancom keeps the low 16 bits of such a margin; opening takes the shadow back out."""
+
+    width, height = size
+    common = ct.ObjectCommon("gso ", 0x000A2211, 0, 0, width, height, 0, stored, 190, 0, "", bytes(2))
+    fill = di.Fill(di.FILL_SOLID, 0x00FFFFFF, 0, -1, additional=b"", alphas=b"\0")
+    style = sh.DrawingStyle(0, 33, 0, 0, fill, kind, 0xB2B2B2, 283, 283, 190)
+    component = sh.ShapeComponent(
+        "$rec", True, 0, 0, 0, 1, width, height, width, height, 1 << 19, 0, width // 2, height // 2,
+        [_IDENTITY] * 3, style.encode(),
+    )
+    rect = sh.Rectangle(0, [(0, 0), (width, 0), (width, height), (0, height)])
+    controls = [
+        rec.Record(rec.CTRL_HEADER, 1, common.encode()),
+        rec.Record(rec.SHAPE_COMPONENT, 2, component.encode()),
+        rec.Record(rec.SHAPE_COMPONENT_RECTANGLE, 3, rect.encode()),
+    ]
+    section = _section() + _paragraph(0, _extended(11, "gso ") + _u16(13), [(0, 0)], controls)
+    files = convert(_compound(section)).files
+    [shape] = list(etree.fromstring(files["Contents/section0.xml"]).iter(f"{HP}rect"))
+    margin = shape.find(f"{HP}outMargin")
+    assert [margin.get(side) for side in ("left", "right", "top", "bottom")] == ["0", "0", "0", "0"]
+
+    written = read_hwp5(write_hwp5(files))
+    [header] = [r for s in written.sections for r in s.records if r.tag == rec.CTRL_HEADER and r.payload[:4] == b" osg"]
+    assert ct.ObjectCommon.decode(header.payload).margins == stored
+
+
+def test_a_margin_short_of_its_shadow_keeps_what_is_left() -> None:
+    """Hancom opens such a margin below 0 and saves it back as it was."""
+
+    assert sh.without_shadow((100, 283, 5, 0), (283, 883, 0, 0)) == (-183, -600, 5, 0)
+    assert sh.without_shadow((-26411, 283, 0, -22733), (39125, 283, 0, 42803)) == (0, 0, 0, 0)
+
+
+def test_characters_overlapped_with_no_frame_keep_their_text_across_hwpx() -> None:
+    """With no glyph before them they stay overlapped and get none: Hancom writes OVERLAP as kind 1."""
+
+    value = ct.Compose("가나", 0, -3, 0, [1, 0] + [ct.NO_CHAR_SHAPE] * 8)
+    written = read_hwp5(write_hwp5(convert(make_hwp(compose=True, compose_value=value)).files))
+    [header] = [r for s in written.sections for r in s.records if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "tcps"]
+    again = ct.Compose.decode(header.payload)
+    assert (again.text, again.circle, again.kind) == ("가나", 0, 1)
+
+
+@pytest.mark.parametrize("version", ["", "Equation Version 60"])
+def test_an_equation_keeps_its_version_across_hwpx(version: str) -> None:
+    """An empty equation version stays empty, as Hancom keeps it."""
+
+    files = convert(make_hwp(equation_version=version)).files
+    [equation] = list(etree.fromstring(files["Contents/section0.xml"]).iter(f"{HP}equation"))
+    assert equation.get("version") == version
+    written = read_hwp5(write_hwp5(files))
+    [record] = [r for s in written.sections for r in s.records if r.tag == rec.EQEDIT]
+    assert ct.EquationEdit.decode(record.payload).version == version
+
+
+@pytest.mark.parametrize(
+    ("ctrl", "wrap", "code"),
+    [("gso ", None, 0), ("gso ", "TOP_AND_BOTTOM", 1), ("gso ", "BEHIND_TEXT", 2), ("form", None, 1), ("form", "SQUARE", 0)],
+)
+def test_an_object_without_a_text_wrap_wraps_as_hancom_writes_it(ctrl: str, wrap: str | None, code: int) -> None:
+    """With no textWrap Hancom writes a form object TOP_AND_BOTTOM and any other object SQUARE."""
+
+    from hwpx.hwp5.section_writer import _object_common
+
+    attr = f' textWrap="{wrap}"' if wrap else ""
+    element = etree.fromstring(
+        f'<hp:rect xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"{attr}>'
+        '<hp:sz width="100" height="100"/><hp:pos treatAsChar="1"/></hp:rect>'
+    )
+    assert (_object_common(ctrl, element).props >> 21) & 0x7 == code
+
+
+@pytest.mark.parametrize(
+    ("attrs", "expected"),
+    [
+        ("", (0, 0, 1, 1)),  # Hancom: PAPER, PAPER, PAGE, PAGE
+        ('vertRelTo="PARA" horzRelTo="COLUMN"|widthRelTo="ABSOLUTE" heightRelTo="ABSOLUTE"', (2, 2, 4, 2)),
+    ],
+)
+def test_missing_position_and_size_attributes_take_hancom_values(attrs: str, expected: tuple[int, ...]) -> None:
+    from hwpx.hwp5.section_writer import _object_common
+
+    pos, _, sz = attrs.partition("|")
+    element = etree.fromstring(
+        '<hp:rect xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">'
+        f'<hp:sz width="100" height="100" {sz}/><hp:pos treatAsChar="0" {pos}/></hp:rect>'
+    )
+    props = _object_common("gso ", element).props
+    assert ((props >> 3) & 3, (props >> 8) & 3, (props >> 15) & 7, (props >> 18) & 3) == expected
+
+
+@pytest.mark.parametrize(("side", "code"), [(None, 0), ("BOTTOM", 3), ("TOP", 2)])
+def test_a_caption_without_a_side_is_on_the_left(side: str | None, code: int) -> None:
+    """Hancom reads a caption with no side as LEFT."""
+
+    from hwpx.hwp5.section_writer import SectionRecords
+
+    attr = f' side="{side}"' if side else ""
+    caption = etree.fromstring(
+        f'<hp:caption xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"{attr} fullSz="0" width="8504" gap="850" lastWidth="0">'
+        "<hp:subList><hp:p><hp:run><hp:t>캡션</hp:t></hp:run></hp:p></hp:subList></hp:caption>"
+    )
+    [header, *_] = SectionRecords({}).caption(caption, 1)
+    assert header.tag == rec.LIST_HEADER
+    assert ct.CaptionHeader.decode(header.payload).props & 3 == code
+
+
+@pytest.mark.parametrize(
+    ("name", "code"),
+    [("EMPTY_DIAMOND", 4), ("EMPTY_BOX", 6), ("FILLED_DIAMOND", 0), ("FILLED_CIRCLE", 0), ("FILLED_BOX", 0)],
+)
+def test_arrows_are_written_with_the_codes_hancom_reads(name: str, code: int) -> None:
+    """Hancom reads the FILLED_* arrow names as NORMAL; its filled arrows are EMPTY_* with a fill."""
+
+    from hwpx.hwp5.section_writer import SectionRecords
+
+    line = etree.fromstring(
+        '<hp:lineShape xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" color="#000000" width="33"'
+        f' style="SOLID" headStyle="{name}" tailStyle="{name}" headfill="1" tailfill="1"/>'
+    )
+    props = SectionRecords._line_props(line)
+    assert ((props >> 10) & 0x3F, (props >> 16) & 0x3F) == (code, code)
+
+
+@pytest.mark.parametrize(("code", "name"), [(4, "EMPTY_DIAMOND"), (6, "EMPTY_BOX"), (7, None), (9, None)])
+def test_an_arrow_past_empty_box_opens_without_a_style(code: int, name: str | None) -> None:
+    from hwpx.hwp5.shape_xml import ShapeReader
+
+    element = etree.Element("rect")
+    ShapeReader.line_shape(element, 0, 33, code << 10 | code << 16, 0, 0)
+    line = element.find(f"{HP}lineShape")
+    assert line is not None and (line.get("headStyle"), line.get("tailStyle")) == (name, name)
+
+
+@pytest.mark.parametrize(("position", "code"), [("TOP", 0), ("BOTTOM", 1), ("CENTER", 0)])
+def test_a_dutmal_position_is_written_with_the_code_hancom_reads(position: str, code: int) -> None:
+    """Hancom reads a dutmal set in the CENTER as one on TOP."""
+
+    from hwpx.hwp5.section_writer import build_section_records
+
+    section = etree.fromstring(
+        '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"'
+        ' xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"><hp:p><hp:run>'
+        f'<hp:dutmal posType="{position}" szRatio="0" option="0" styleIDRef="0" align="CENTER">'
+        "<hp:mainText>본말</hp:mainText><hp:subText>덧말</hp:subText></hp:dutmal></hp:run></hp:p></hs:sec>"
+    )
+    records, unsupported = build_section_records(section)
+    assert not unsupported
+    [header] = [r for r in records if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "tdut"]
+    assert ct.Dutmal.decode(header.payload).position == code
 
 
 def test_a_strikeout_in_the_underline_bits_keeps_its_colour() -> None:
@@ -726,6 +997,29 @@ def test_a_picture_saves_as_hwp_with_its_image(tmp_path: Path) -> None:
     [pic] = [p for s in reopened.sections for p in s.element.iter(f"{HP}pic")]
     image = pic.find("{http://www.hancom.co.kr/hwpml/2011/core}img")
     assert image is not None and image.get("binaryItemIDRef", "").startswith("image")
+
+
+@pytest.mark.parametrize(("effect", "code"), [("GRAY_SCALE", 1), ("BLACK_WHITE", 2), ("PATTERN8x8", 0)])
+def test_image_effects_are_written_with_the_codes_hancom_writes(effect: str, code: int, tmp_path: Path) -> None:
+    """Hancom writes PATTERN8x8 to HWP as 0 (REAL_PIC): in image fills, bullet images and pictures."""
+
+    from hwpx.hwp5.docinfo_writer import bullet, fill
+
+    img = f'<hc:img binaryItemIDRef="image1" bright="0" contrast="0" effect="{effect}" alpha="0"/>'
+    brush = etree.fromstring(f'<hc:fillBrush {_HEAD_NS}><hc:imgBrush mode="TOTAL">{img}</hc:imgBrush></hc:fillBrush>')
+    assert fill(brush, {"image1": 1}).image_effect == code
+    element = etree.fromstring(f'<hh:bullet {_HEAD_NS} id="1" char="&#x25CF;" useImage="1">{img}</hh:bullet>')
+    assert bullet(element, {"image1": 1}).image_props[2] == code
+
+    document = HwpxDocument.new()
+    document.add_picture(_PNG, "png")
+    [image] = [i for s in document.sections for i in s.element.iter("{http://www.hancom.co.kr/hwpml/2011/core}img")]
+    image.set("effect", effect)
+    target = tmp_path / "effect.hwp"
+    document.save_to_path(target)
+    doc = read_hwp5(target.read_bytes())
+    pictures = [r for s in doc.sections for r in s.records if r.tag == rec.SHAPE_COMPONENT_PICTURE]
+    assert [sh.Picture.decode(r.payload).effect for r in pictures] == [code]
 
 
 def test_hwpx_targets_are_unchanged(tmp_path: Path) -> None:

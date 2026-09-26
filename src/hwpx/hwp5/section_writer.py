@@ -24,8 +24,7 @@ from . import docinfo as di
 from . import records as rec
 from . import shapes as sh
 from .docinfo_writer import fill as fill_from_brush
-from .header_xml import IMAGE_EFFECT
-from .owpml import BORDER_LINE, BORDER_WIDTH, NOTE_NUMBER_FORMAT_CODES, NS, NUMBER_FORMAT, colorref, index_of
+from .owpml import BORDER_LINE_CODES, BORDER_WIDTH, IMAGE_EFFECT_CODES, NOTE_NUMBER_FORMAT_CODES, NS, NUMBER_FORMAT, colorref, index_of
 from .section_common import (
     HEIGHT_REL,
     HORZ_ALIGN,
@@ -51,7 +50,7 @@ from .section_xml import (
     COMPOSE_TYPE,
     COMPOSE_UNITS_GLYPHS,
     DUTMAL_ALIGN,
-    DUTMAL_POS,
+    DUTMAL_POS_CODES,
     ENDNOTE_PLACE,
     FIELD_TYPES,
     FILL_AREA,
@@ -83,7 +82,7 @@ from .section_xml import (
 )
 from .shape_xml import (
     ARC_TYPE,
-    ARROW,
+    ARROW_CODES,
     ARROW_SIZE,
     CHART_ATTRS,
     CHART_PARTS,
@@ -382,16 +381,20 @@ def _object_common(ctrl: str, element: etree._Element) -> ct.ObjectCommon:
     sz = _find(element, "sz")
     pos = _find(element, "pos")
     margin = _find(element, "outMargin")
+    # A missing attribute takes the value Hancom gives it: PAPER for vertRelTo
+    # and horzRelTo, PAGE for widthRelTo and heightRelTo.
     props = _flag(pos, "treatAsChar") | _flag(pos, "affectLSpacing") << 2
-    props |= index_of(VERT_REL, pos.get("vertRelTo") if pos is not None else None, 2) << 3
+    props |= index_of(VERT_REL, pos.get("vertRelTo") if pos is not None else None, 0) << 3
     props |= index_of(VERT_ALIGN, pos.get("vertAlign") if pos is not None else None, 0) << 5
-    props |= index_of(HORZ_REL, pos.get("horzRelTo") if pos is not None else None, 2) << 8
+    props |= index_of(HORZ_REL, pos.get("horzRelTo") if pos is not None else None, 0) << 8
     props |= index_of(HORZ_ALIGN, pos.get("horzAlign") if pos is not None else None, 0) << 10
     props |= _flag(pos, "flowWithText") << 13 | _flag(pos, "allowOverlap") << 14
-    props |= index_of(WIDTH_REL, sz.get("widthRelTo") if sz is not None else None, 4) << 15
-    props |= index_of(HEIGHT_REL, sz.get("heightRelTo") if sz is not None else None, 2) << 18
+    props |= index_of(WIDTH_REL, sz.get("widthRelTo") if sz is not None else None, 1) << 15
+    props |= index_of(HEIGHT_REL, sz.get("heightRelTo") if sz is not None else None, 1) << 18
     props |= _flag(sz, "protect") << 20
-    props |= index_of(TEXT_WRAP, element.get("textWrap"), 1) << 21
+    # With no textWrap Hancom writes a form object TOP_AND_BOTTOM (1) and any
+    # other object SQUARE (0).
+    props |= index_of(TEXT_WRAP, element.get("textWrap"), 1 if ctrl == "form" else 0) << 21
     props |= index_of(TEXT_FLOW, element.get("textFlow"), 0) << 24
     props |= index_of(NUMBERING_TYPE, element.get("numberingType"), 0) << 26
     props |= _flag(element, "lock") << 30
@@ -950,7 +953,7 @@ class SectionRecords:
             _int(spacing, "aboveLine", 850),
             _int(spacing, "belowLine", 567),
             _int(spacing, "betweenNotes", 283),
-            index_of(BORDER_LINE, line.get("type") if line is not None else None, 1),
+            index_of(BORDER_LINE_CODES, line.get("type") if line is not None else None, 1),
             index_of(BORDER_WIDTH, line.get("width") if line is not None else None, 1),
             colorref(line.get("color") if line is not None else "#000000"),
         )
@@ -973,7 +976,7 @@ class SectionRecords:
             _int(element, "sameGap") if same else 0,
             widths,
             0,
-            index_of(BORDER_LINE, line.get("type") if line is not None else None, 0),
+            index_of(BORDER_LINE_CODES, line.get("type") if line is not None else None, 0),
             index_of(BORDER_WIDTH, line.get("width") if line is not None else None, 0),
             colorref(line.get("color") if line is not None else "#000000") if line is not None else 0,
         )
@@ -1052,7 +1055,7 @@ class SectionRecords:
         value = ct.Dutmal(
             _child_text(element, "mainText"),
             _child_text(element, "subText"),
-            index_of(DUTMAL_POS, element.get("posType"), 0),
+            index_of(DUTMAL_POS_CODES, element.get("posType"), 0),
             _int(element, "szRatio"),
             _int(element, "option"),
             _int(element, "styleIDRef"),
@@ -1088,7 +1091,7 @@ class SectionRecords:
             _int(element, "baseUnit", 1000),
             colorref(element.get("textColor", "#000000")),
             _i32(_int(element, "baseLine")),
-            element.get("version") or ct.EQUATION_VERSION,
+            element.get("version", ct.EQUATION_VERSION),
             element.get("font") or ct.EQUATION_FONT,
         )
         return [rec.Record(rec.CTRL_HEADER, level, common.encode()), rec.Record(rec.EQEDIT, level + 1, equation.encode())]
@@ -1105,8 +1108,14 @@ class SectionRecords:
         shadow = _find(element, "shadow")
         if shadow is not None and _SHAPE_KINDS.get(_local(element)) not in _UNSTYLED_KINDS:
             extra = sh.shadow_margins(
-                index_of(SHADOW, shadow.get("type"), 0), _i32(_int(shadow, "offsetX")), _i32(_int(shadow, "offsetY"))
+                index_of(SHADOW, shadow.get("type"), 0),
+                _i32(_int(shadow, "offsetX")),
+                _i32(_int(shadow, "offsetY")),
+                common.width,
+                common.height,
             )
+            # A margin too large for its 16 bits keeps its low 16, as Hancom
+            # writes it; reading takes the shadow out the same way.
             common.margins = tuple(_i16(margin + add) for margin, add in zip(common.margins, extra))  # type: ignore[assignment]
         comment = _find(element, "shapeComment")
         common.description = "".join(comment.itertext()) if comment is not None else ""
@@ -1205,8 +1214,8 @@ class SectionRecords:
         props = index_of(LINE_STYLE, line.get("style"), 0)
         # A line with no end cap gets a flat one, as Hancom writes it.
         props |= index_of(END_CAP, line.get("endCap"), 1) << 6
-        props |= index_of(ARROW, line.get("headStyle"), 0) << 10
-        props |= index_of(ARROW, line.get("tailStyle"), 0) << 16
+        props |= index_of(ARROW_CODES, line.get("headStyle"), 0) << 10
+        props |= index_of(ARROW_CODES, line.get("tailStyle"), 0) << 16
         props |= index_of(ARROW_SIZE, line.get("headSz"), 0) << 22
         props |= index_of(ARROW_SIZE, line.get("tailSz"), 0) << 26
         return props | _flag(line, "headfill") << 30 | _flag(line, "tailfill") << 31
@@ -1364,7 +1373,7 @@ class SectionRecords:
             (_int(margin, "left"), _int(margin, "right"), _int(margin, "top"), _int(margin, "bottom")),
             max(-128, min(127, _int(image, "bright"))),
             max(-128, min(127, _int(image, "contrast"))),
-            index_of(IMAGE_EFFECT, image.get("effect") if image is not None else None, 0),
+            index_of(IMAGE_EFFECT_CODES, image.get("effect") if image is not None else None, 0),
             self.bin_ids.get(ref, 0),
             _int(image, "alpha") & 0xFF,
             _int(element, "instid") & 0xFFFFFFFF,
@@ -1727,7 +1736,8 @@ class SectionRecords:
     def caption(self, element: etree._Element, level: int) -> list[rec.Record]:
         sub_list = _find(element, "subList")
         paragraphs = [p for p in sub_list if _local(p) == "p"] if sub_list is not None else []
-        props = index_of(CAPTION_SIDE, element.get("side"), 3) | _flag(element, "fullSz") << 2
+        # A caption with no side is on the LEFT, as Hancom reads it.
+        props = index_of(CAPTION_SIDE, element.get("side"), 0) | _flag(element, "fullSz") << 2
         header = ct.CaptionHeader(
             len(paragraphs),
             _list_props(sub_list),

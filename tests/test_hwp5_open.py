@@ -27,6 +27,7 @@ from hwpx.hwp5.fileheader import FileHeader
 from hwpx.hwp5.section_xml import field_parameters
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 
 
@@ -189,7 +190,7 @@ def _char_styles() -> list[rec.Record]:
     return records
 
 
-def _markers() -> list[rec.Record]:
+def _markers(dutmal_position: int = 1) -> list[rec.Record]:
     """Page number place, page hiding, a new number, an auto number, a
     bookmark, an index mark, a dutmal and a title mark in one paragraph."""
 
@@ -205,17 +206,31 @@ def _markers() -> list[rec.Record]:
         rec.Record(rec.CTRL_HEADER, 1, struct.pack("<I", bt.ctrl_word("bokm"))),
         rec.Record(rec.CTRL_DATA, 2, ct.name_parameter_set("처음")),
         rec.Record(rec.CTRL_HEADER, 1, ct.IndexMark("가나", "다라").encode()),
-        rec.Record(rec.CTRL_HEADER, 1, ct.Dutmal("협동조합", "coop", 1, 0, 0, 0, 1).encode()),
+        rec.Record(rec.CTRL_HEADER, 1, ct.Dutmal("협동조합", "coop", dutmal_position, 0, 0, 0, 1).encode()),
     ]
     return _paragraph(0, text, [(0, 0)], controls)
 
 
-def _compose() -> list[rec.Record]:
+def _equation(version: str) -> list[rec.Record]:
+    """An equation set as a character, with the version string *version*."""
+
+    common = ct.ObjectCommon("eqed", 0x000A2211, 0, 0, 3000, 1500, 0, (56, 56, 0, 0), 301, 0, "", bytes(2))
+    equation = ct.EquationEdit(0, "a over b", 1000, 0, 850, version, ct.EQUATION_FONT)
+    return _paragraph(
+        0,
+        _extended(11, "eqed") + _u16(13),
+        [(0, 0)],
+        [rec.Record(rec.CTRL_HEADER, 1, common.encode()), rec.Record(rec.EQEDIT, 2, equation.encode())],
+    )
+
+
+def _compose(value: ct.Compose | None = None) -> list[rec.Record]:
     """Two characters set over each other in a rectangle, between text; the
-    record's text starts with the rectangle's glyph."""
+    record's text starts with the rectangle's glyph. *value* replaces the
+    overlapped characters."""
 
     text = "앞".encode("utf-16-le") + _extended(23, "tcps") + "뒤".encode("utf-16-le") + _u16(13)
-    compose = ct.Compose("\u25a1가나", 3, -3, 1, [1, 0] + [ct.NO_CHAR_SHAPE] * 8)
+    compose = value or ct.Compose("\u25a1가나", 3, -3, 1, [1, 0] + [ct.NO_CHAR_SHAPE] * 8)
     return _paragraph(0, text, [(0, 0)], [rec.Record(rec.CTRL_HEADER, 1, compose.encode())])
 
 
@@ -405,15 +420,16 @@ def _memo() -> list[rec.Record]:
     return records + _paragraph(1, "메모 내용".encode("utf-16-le") + _u16(13), [(0, 0)], [])
 
 
-def _picture() -> list[rec.Record]:
-    """A captioned picture with a first-letter decoration parameter set."""
+def _picture(effect: int = 0) -> list[rec.Record]:
+    """A captioned picture with a first-letter decoration parameter set, and
+    the picture effect code *effect*."""
 
     common = ct.ObjectCommon("gso ", 0x240A2211, 0, 0, 10000, 8000, 0, (0, 0, 0, 0), 297, 0, "그림입니다.", bytes(2))
     component = sh.ShapeComponent(
         "$pic", True, 0, 0, 0, 1, 10000, 8000, 10000, 8000, 0x24080000, 0, 5000, 4000, [_IDENTITY, _IDENTITY, _IDENTITY]
     )
     corners = [(0, 0), (10000, 0), (10000, 8000), (0, 8000)]
-    picture = sh.Picture(0, 0, 0, corners, (0, 0, 10000, 8000), (0, 0, 0, 0), 0, 0, 0, 0, 0, 297, 0, (10000, 8000), bytes(1))
+    picture = sh.Picture(0, 0, 0, corners, (0, 0, 10000, 8000), (0, 0, 0, 0), 0, 0, effect, 0, 0, 297, 0, (10000, 8000), bytes(1))
     caption = ct.CaptionHeader(1, 0, 0, 1, 8504, 850, 8504).encode()
     dropcap = ct.ParameterSet(0x021B, [ct.ParameterItem(0x3003, ct.PIT_SET, ct.ParameterSet(0x3003, [ct.ParameterItem(0x7001, 9, 2)]))])
     return _paragraph(
@@ -475,12 +491,16 @@ def make_hwp(
     text_box: bool = False,
     picture: bool = False,
     compose: bool = False,
+    compose_value: ct.Compose | None = None,
+    equation_version: str | None = None,
     drawings: bool = False,
     text_art: bool = False,
     text_art_font: int = 1,
     forms: bool = False,
     hidden_comment: bool = False,
     picture_effects: bool = False,
+    picture_effect: int = 0,
+    dutmal_position: int = 1,
 ) -> bytes:
     section = _section()
     if picture_effects:
@@ -494,13 +514,15 @@ def make_hwp(
     if text_art:
         section += _text_art(text_art_font)
     if compose:
-        section += _compose()
+        section += _compose(compose_value)
+    if equation_version is not None:
+        section += _equation(equation_version)
     if text_box:
         section += _text_box()
     if picture:
-        section += _picture()
+        section += _picture(picture_effect)
     if markers:
-        section += _markers()
+        section += _markers(dutmal_position)
     if label:
         # A label sheet: the table carries the sheet layout as a parameter set.
         layout = dict(zip(ct.LABEL_ITEMS, (5670, 5670, 28346, 28346, 850, 850, 1, 2, 0, 59528, 84188)))
@@ -843,6 +865,17 @@ def test_numbering_bookmark_index_and_dutmal_controls_open() -> None:
     assert [dutmal.find(f"{HP}mainText").text, dutmal.find(f"{HP}subText").text] == ["협동조합", "coop"]
 
 
+@pytest.mark.parametrize(("position", "name"), [(0, "TOP"), (1, "BOTTOM"), (2, None)])
+def test_a_dutmal_position_opens_with_its_owpml_name_or_without_one(position: int, name: str | None) -> None:
+    """Hancom leaves the dutmal position 2 out of OWPML."""
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(markers=True, dutmal_position=position))
+    [dutmal] = list(document.sections[0].element.iter(f"{HP}dutmal"))
+    assert dutmal.get("posType") == name
+
+
 def test_overlapped_characters_open_as_compose_between_the_text() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -881,6 +914,20 @@ def test_an_older_drawing_style_that_stops_early_still_opens(keep: str) -> None:
     [rect] = list(document.sections[0].element.iter(f"{HP}rect"))
     assert rect.find(f"{HP}lineShape").get("color") == "#332211"
     assert rect.find(f"{HP}shadow").get("type") == "NONE"
+
+@pytest.mark.parametrize(
+    ("text", "kind", "expected"),
+    [("가나", 0, "OVERLAP"), ("가나", 1, "OVERLAP"), ("\u3000가", 0, "SPREAD")],
+)
+def test_characters_overlapped_with_no_frame_open_as_hancom_reads_them(text: str, kind: int, expected: str) -> None:
+    """Hancom reads characters with no frame as OVERLAP unless their text starts with the frame's glyph."""
+
+    value = ct.Compose(text, 0, -3, kind, [1, 0] + [ct.NO_CHAR_SHAPE] * 8)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(compose=True, compose_value=value))
+    [compose] = list(document.sections[0].element.iter(f"{HP}compose"))
+    assert (compose.get("composeType"), compose.get("composeText")) == (expected, text.lstrip("\u3000"))
 
 
 def test_picture_effects_open_with_their_values() -> None:
@@ -1062,6 +1109,24 @@ def test_a_picture_opens_with_its_caption_comment_and_parameter_set() -> None:
     assert "".join(pic.find(f"{HP}caption").itertext()) == "그림 1"
     value = pic.find(f"{HP}parameterset/{HP}listParam/{HP}unsignedintegerParam")
     assert value is not None and (value.get("name"), value.text) == ("28673", "2")
+
+
+@pytest.mark.parametrize(("code", "effect"), [(1, "GRAY_SCALE"), (2, "BLACK_WHITE"), (3, None)])
+def test_an_image_effect_opens_with_its_owpml_name_or_without_one(code: int, effect: str | None) -> None:
+    """Hancom leaves the effect out of OWPML for the HWP code 3."""
+
+    from hwpx.hwp5.header_xml import _bullet, fill_brush
+
+    fills = etree.Element("fills")
+    fill_brush(fills, di.Fill(kind=di.FILL_IMAGE, image_effect=code, image_bin_id=1))
+    bullets = etree.Element("bullets")
+    _bullet(bullets, 0, di.Bullet(di.ParaHead(), 0x25CF, 1, bytes([0, 0, code, 1])))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(picture=True, picture_effect=code))
+    [pic] = list(document.sections[0].element.iter(f"{HP}pic"))
+    images = [*fills.iter(f"{HC}img"), *bullets.iter(f"{HC}img"), pic.find(f"{HC}img")]
+    assert [image.get("effect") for image in images] == [effect] * 3
 
 
 def test_a_memo_opens_with_its_body_beside_a_master_page() -> None:
