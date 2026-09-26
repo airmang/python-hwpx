@@ -64,9 +64,12 @@ print(report.actual_mode)
 - `section.clear_body()`는 첫 문단의 첫 run에서 `hp:secPr`(쪽 설정)와
   `hp:ctrl`(단·머리말·꼬리말·쪽 번호)만 남긴다. 첫 문단의 나머지 run은 안의
   컨트롤까지 통째로 지운다. `on_control_content="strip"`은 내용이 든
-  `hp:ctrl`만 지우고 `hp:secPr`는 건드리지 않는다. `set_header()`가
-  `hp:secPr` 안에 남기는 머리말 사본(한컴은 읽지 않고 저장 때 버린다)은
-  그대로 남는다. 공유 전에 무엇을 지울지는 호출자가 정한다.
+  `hp:ctrl`과, `set_header()`·`set_footer()`가 `hp:secPr` 안에 따로 쓰는
+  머리말·꼬리말 사본(한컴은 `hp:ctrl` 쪽만 읽는다)과 그것을 가리키는
+  `headerApply`·`footerApply`를 지운다. 그래도 내용이 남을 자리(`hp:secPr`의
+  다른 자식 등)에 내용이 있으면 지우지 않고 `section-clear-control-content`로
+  거부한다 — `"strip"`이 성공했다면 남은 내용은 없다. 공유 전에 무엇을 지울지는
+  호출자가 정한다.
 - 편집은 저장 전까지 메모리에만 있다. 저장 경로가 곧 커밋이다.
 
 ## 다음 단계

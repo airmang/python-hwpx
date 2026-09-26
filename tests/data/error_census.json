@@ -199,13 +199,13 @@
    "_document/_resolve.py:75"
   ],
   "section-clear-control-content": [
-   "oxml/section.py:247"
+   "oxml/section.py:306"
   ],
   "section-clear-mode-invalid": [
-   "oxml/section.py:225"
+   "oxml/section.py:235"
   ],
   "section-clear-no-section-properties": [
-   "oxml/section.py:235"
+   "oxml/section.py:245"
   ],
   "section-invalid-type": [
    "_document/_resolve.py:111"

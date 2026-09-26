@@ -35,6 +35,12 @@ if TYPE_CHECKING:
 
 _CLEAR_BODY_MODES = ("raise", "keep", "strip")
 _CLEAR_BODY_KEPT_TAGS = frozenset({f"{_HP}secPr", f"{_HP}ctrl"})
+_SECTION_STORY_TAGS = frozenset({f"{_HP}header", f"{_HP}footer"})
+# Reference attributes an apply element may carry (compared case-insensitively),
+# the same set ``HwpxOxmlSectionProperties`` reads.
+_APPLY_REFERENCE_ATTRIBUTES = frozenset(
+    {"idref", "headeridref", "headerref", "footeridref", "footerref"}
+)
 # Descendants of the kept secPr/ctrl children that count as body content.
 _CLEAR_BODY_CONTENT_NAMES = frozenset(INLINE_OBJECT_NAMES | {"tbl"})
 
@@ -205,9 +211,13 @@ class HwpxOxmlSection:
         ``HwpxValueError(code="section-clear-control-content")`` whose
         ``context["tags"]`` names the tags found; ``"keep"`` keeps them and
         reports the tags; ``"strip"`` removes each first-run ``hp:ctrl`` whose
-        subtree holds such content and reports the tags. ``hp:secPr`` is never
-        touched, so a story copy kept inside it (``set_header()`` writes one;
-        Hancom reads only the ``hp:ctrl`` story) survives ``"strip"``.
+        subtree holds such content, and each ``hp:header``/``hp:footer`` story
+        copy inside ``hp:secPr`` that holds content together with the
+        ``hp:headerApply``/``hp:footerApply`` pointing at it (``set_header()``
+        writes such copies; Hancom reads only the ``hp:ctrl`` story), and
+        reports the tags. ``"strip"`` never leaves content behind: when content
+        sits anywhere those removals do not reach (elsewhere in ``hp:secPr``,
+        say), it refuses with ``section-clear-control-content`` instead.
         Deciding what to strip before a document is shared is the caller's
         policy; this call only reports and carries it out.
 
@@ -242,25 +252,14 @@ class HwpxOxmlSection:
         first = paragraphs[0]
         first_run = runs[0].element
 
-        found, controls_with_content = _clear_body_control_content(first_run)
-        if found and on_control_content == "raise":
-            raise HwpxValueError(
-                "the kept section controls hold content (a header or footer, perhaps): "
-                + ", ".join(found),
-                code="section-clear-control-content",
-                context={"part": self.part_name, "tags": list(found)},
-                suggestion='pass on_control_content="strip" to remove those controls, '
-                'or "keep" to keep them.',
-            )
+        found, removals = self._plan_control_content(first_run, on_control_content)
 
         later_runs = runs[1:]
         for run in later_runs:
             first.element.remove(run.element)
         stripped_children = _strip_to_kept_children(first_run)
-        if on_control_content != "strip":
-            controls_with_content = []
-        for control in controls_with_content:
-            first_run.remove(control)
+        for parent, child in removals:
+            parent.remove(child)
         for cache in first.element.findall(f"{_HP}linesegarray"):
             first.element.remove(cache)
         later_paragraphs = paragraphs[1:]
@@ -272,7 +271,43 @@ class HwpxOxmlSection:
             removed_runs=len(later_runs),
             stripped_run_children=stripped_children,
             control_content=tuple(found),
-            stripped_controls=len(controls_with_content),
+            stripped_controls=sum(1 for _, child in removals if child.tag == f"{_HP}ctrl"),
+            stripped_section_stories=sum(
+                1 for _, child in removals if child.tag in _SECTION_STORY_TAGS
+            ),
+        )
+
+    def _plan_control_content(
+        self, first_run: ET.Element, on_control_content: str
+    ) -> tuple[list[str], list[tuple[ET.Element, ET.Element]]]:
+        """Scan the kept children and plan the ``"strip"`` removals, or refuse.
+
+        Refuses (before anything changes) when content is found under
+        ``"raise"``, or when content would remain after the ``"strip"`` plan.
+        """
+
+        from ..errors import HwpxValueError
+
+        found = _clear_body_kept_content(first_run, excluded=())
+        if not found or on_control_content == "keep":
+            return found, []
+        removals = _plan_control_strip(first_run) if on_control_content == "strip" else []
+        remaining = _clear_body_kept_content(first_run, excluded=[child for _, child in removals])
+        if not remaining:
+            return found, removals
+        if on_control_content == "raise":
+            message = "the kept section controls hold content (a header or footer, perhaps): "
+            suggestion = (
+                'pass on_control_content="strip" to remove those controls, or "keep" to keep them.'
+            )
+        else:
+            message = "stripping the section controls would still leave content behind: "
+            suggestion = 'remove that content first, or pass on_control_content="keep".'
+        raise HwpxValueError(
+            message + ", ".join(remaining),
+            code="section-clear-control-content",
+            context={"part": self.part_name, "tags": remaining, "mode": on_control_content},
+            suggestion=suggestion,
         )
 
     def _inherited_paragraph_refs(
@@ -479,36 +514,86 @@ def _strip_to_kept_children(first_run: ET.Element) -> int:
     return len(removed)
 
 
-def _clear_body_control_content(first_run: ET.Element) -> tuple[list[str], list[ET.Element]]:
-    """Content tags inside the kept secPr/ctrl children, and the ctrls holding them."""
+def _clear_body_kept_content(
+    first_run: ET.Element, *, excluded: Sequence[ET.Element]
+) -> list[str]:
+    """Content tags inside the kept secPr/ctrl children, skipping *excluded* subtrees."""
 
     found: list[str] = []
-    controls: list[ET.Element] = []
     for child in first_run:
-        if child.tag not in _CLEAR_BODY_KEPT_TAGS:
+        if child.tag in _CLEAR_BODY_KEPT_TAGS:
+            _collect_content_tags(child, found, excluded)
+    return found
+
+
+def _collect_content_tags(
+    element: ET.Element, found: list[str], excluded: Sequence[ET.Element]
+) -> None:
+    """Append ``hp:<name>`` tags of body content under *element*, first-seen order.
+
+    A ``hp:t`` counts when its own text is not blank; any element named in
+    ``_CLEAR_BODY_CONTENT_NAMES`` counts as it is.
+    """
+
+    stack = [element]
+    while stack:
+        node = stack.pop()
+        if any(node is skip for skip in excluded):
             continue
-        tags = _clear_body_content_tags(child)
-        found.extend(tag for tag in tags if tag not in found)
-        if tags and child.tag == f"{_HP}ctrl":
-            controls.append(child)
-    return found, controls
-
-
-def _clear_body_content_tags(element: ET.Element) -> list[str]:
-    """``hp:<name>`` tags of body content inside *element*, first-seen order."""
-
-    tags: list[str] = []
-    for node in element.iter():
         name = _element_local_name(node)
-        if name == "t":
-            if not (node.text or "").strip():
-                continue
-        elif name not in _CLEAR_BODY_CONTENT_NAMES:
+        holds = bool((node.text or "").strip()) if name == "t" else name in _CLEAR_BODY_CONTENT_NAMES
+        if holds and f"hp:{name}" not in found:
+            found.append(f"hp:{name}")
+        stack.extend(reversed(list(node)))
+
+
+def _holds_content(element: ET.Element) -> bool:
+    found: list[str] = []
+    _collect_content_tags(element, found, ())
+    return bool(found)
+
+
+def _plan_control_strip(first_run: ET.Element) -> list[tuple[ET.Element, ET.Element]]:
+    """``(parent, child)`` pairs ``"strip"`` removes from the first run.
+
+    The first run's ``hp:ctrl`` children that hold content, and, inside its
+    ``hp:secPr``, the ``hp:header``/``hp:footer`` story copies that hold
+    content together with the ``hp:headerApply``/``hp:footerApply`` that
+    point at them by id. Those copies are not OWPML ``hp:secPr`` children;
+    ``set_header()``/``set_footer()`` write them, and Hancom reads only the
+    ``hp:ctrl`` story.
+    """
+
+    removals: list[tuple[ET.Element, ET.Element]] = []
+    for child in first_run:
+        if child.tag == f"{_HP}ctrl" and _holds_content(child):
+            removals.append((first_run, child))
+        elif child.tag == f"{_HP}secPr":
+            removals.extend(_plan_section_story_strip(child))
+    return removals
+
+
+def _plan_section_story_strip(section_properties: ET.Element) -> list[tuple[ET.Element, ET.Element]]:
+    removals: list[tuple[ET.Element, ET.Element]] = []
+    for story in section_properties:
+        if story.tag not in _SECTION_STORY_TAGS or not _holds_content(story):
             continue
-        tag = f"hp:{name}"
-        if tag not in tags:
-            tags.append(tag)
-    return tags
+        removals.append((section_properties, story))
+        story_id = story.get("id")
+        apply_tag = f"{story.tag}Apply"
+        for apply in section_properties:
+            if apply.tag == apply_tag and story_id and _apply_reference(apply) == story_id:
+                removals.append((section_properties, apply))
+    return removals
+
+
+def _apply_reference(apply: ET.Element) -> str | None:
+    """The story id an ``hp:headerApply``/``hp:footerApply`` points at."""
+
+    for attr, value in apply.attrib.items():
+        if attr.lower() in _APPLY_REFERENCE_ATTRIBUTES and value:
+            return value
+    return None
 
 
 def _remove_short_paragraph_layout_cache(paragraph: ET.Element) -> bool:

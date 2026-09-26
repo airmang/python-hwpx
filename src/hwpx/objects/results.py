@@ -241,8 +241,11 @@ class ClearBodyReport:
     ``stripped_run_children`` the first run's children other than
     ``hp:secPr``/``hp:ctrl``. ``control_content`` lists the content tags
     (``"hp:t"``, ``"hp:tbl"``, ...) found inside the kept ``hp:secPr``/``hp:ctrl``
-    children, in first-seen order; ``stripped_controls`` counts the ``hp:ctrl``
-    children removed for holding such content (``on_control_content="strip"``).
+    children, in first-seen order. With ``on_control_content="strip"``,
+    ``stripped_controls`` counts the ``hp:ctrl`` children removed for holding
+    such content and ``stripped_section_stories`` the ``hp:header``/``hp:footer``
+    story copies removed from inside ``hp:secPr`` (the ``hp:headerApply``/
+    ``hp:footerApply`` elements pointing at them go too and are not counted).
     """
 
     removed_paragraphs: int
@@ -250,6 +253,7 @@ class ClearBodyReport:
     stripped_run_children: int
     control_content: tuple[str, ...]
     stripped_controls: int
+    stripped_section_stories: int
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -258,6 +262,7 @@ class ClearBodyReport:
             "strippedRunChildren": self.stripped_run_children,
             "controlContent": list(self.control_content),
             "strippedControls": self.stripped_controls,
+            "strippedSectionStories": self.stripped_section_stories,
         }
 
 

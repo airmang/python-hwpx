@@ -10,8 +10,10 @@
   설정)와 `hp:ctrl`(단·머리말·꼬리말·쪽 번호)을 남기고, 나머지 문단, 첫 문단의 다른
   run, 첫 run의 다른 자식, 첫 문단의 줄 배치 캐시를 지운다. 머리말·꼬리말처럼 남길
   컨트롤 안에 글·표·개체가 있으면 기본으로 `section-clear-control-content`로 거부하고,
-  `on_control_content="keep"`은 남기며, `"strip"`은 그 컨트롤을 지운다. 어느 쪽이든
-  찾은 태그를 `ClearBodyReport.control_content`에 담는다. 거부는 바꾸기 전에 일어난다.
+  `on_control_content="keep"`은 남기며, `"strip"`은 그 컨트롤과 `hp:secPr` 안의
+  머리말·꼬리말 사본을 지운다. `"strip"`으로도 지울 수 없는 내용이 있으면 거부한다.
+  어느 쪽이든 찾은 태그를 `ClearBodyReport.control_content`에 담는다. 거부는 바꾸기
+  전에 일어난다.
 - `Run.content_kinds()`가 run이 담은 것을 닫힌 어휘(`RUN_CONTENT_KINDS`: `text`·
   `table`·`picture`·`shape`·`equation`·`ole`·`chart`·`video`·`form`·`control`·
   `section_properties`·`other`)로 알려 준다. 빈 `hp:t`는 글로 세지 않는다.

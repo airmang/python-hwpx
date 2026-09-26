@@ -147,6 +147,7 @@ def test_clear_body_writes_the_same_bytes_as_the_manual_edit(name: str, data: by
     assert report.stripped_run_children == expected["stripped_run_children"]
     assert report.control_content == ()
     assert report.stripped_controls == 0
+    assert report.stripped_section_stories == 0
 
 
 def test_the_generated_fixture_exercises_every_removal_step() -> None:
@@ -203,6 +204,7 @@ def test_clear_body_report_to_dict_is_camel_case() -> None:
         stripped_run_children=2,
         control_content=("hp:t",),
         stripped_controls=1,
+        stripped_section_stories=2,
     )
     assert report.to_dict() == {
         "removedParagraphs": 3,
@@ -210,6 +212,7 @@ def test_clear_body_report_to_dict_is_camel_case() -> None:
         "strippedRunChildren": 2,
         "controlContent": ["hp:t"],
         "strippedControls": 1,
+        "strippedSectionStories": 2,
     }
 
 
@@ -265,23 +268,63 @@ def test_control_content_can_be_stripped() -> None:
     assert report.stripped_controls == 1
     names = [tag_local_name(child.tag) for child in section.paragraphs[0].runs[0].element]
     assert names == ["secPr", "ctrl"]
-    (control,) = section.paragraphs[0].runs[0].element.findall(f"{HP}ctrl")
-    assert "머리말 글" not in etree.tostring(control, encoding="unicode")
+    assert report.stripped_section_stories == 1
+    assert "머리말 글" not in etree.tostring(section.element, encoding="unicode")
     assert _open(document.to_bytes()).validate().ok
 
 
-def test_strip_never_touches_section_properties() -> None:
-    # set_header() also writes a non-schema copy of the story into hp:secPr
-    # (Hancom reads only the hp:ctrl one and drops the copy when it saves).
-    # "strip" removes controls only, so that copy stays; the scan reported it.
-    document = _open(_with_header_text())
+def _nonblank_texts(element: etree._Element) -> list[str]:
+    return [t.text for t in element.iter(f"{HP}t") if (t.text or "").strip()]
+
+
+def test_strip_removes_the_story_copies_python_hwpx_writes_into_secpr() -> None:
+    # set_header()/set_footer() write the story twice: into hp:ctrl (what
+    # Hancom reads) and as a non-schema copy inside hp:secPr.
+    document = HwpxDocument.new()
+    document.page.set_header(text="머리말 글")
+    document.page.set_footer(text="꼬리말 글")
+    document.add_paragraph("본문")
+    document = _open(document.to_bytes())
     section = document.sections[0]
     section_properties = section.paragraphs[0].runs[0].element.find(f"{HP}secPr")
-    before = etree.tostring(section_properties)
+    assert {"머리말 글", "꼬리말 글"} <= set(_nonblank_texts(section_properties))
 
-    section.clear_body(on_control_content="strip")
+    report = section.clear_body(on_control_content="strip")
 
-    assert etree.tostring(section.paragraphs[0].runs[0].element.find(f"{HP}secPr")) == before
+    assert report.stripped_controls == 2
+    assert report.stripped_section_stories == 2
+    assert report.control_content == ("hp:t",)
+    (paragraph,) = section.paragraphs
+    assert _nonblank_texts(paragraph.element) == []
+    section_properties = paragraph.runs[0].element.find(f"{HP}secPr")
+    for tag in ("header", "footer", "headerApply", "footerApply"):
+        assert section_properties.find(f"{HP}{tag}") is None, tag
+    assert section_properties.find(f"{HP}pagePr") is not None
+
+    reopened = _open(document.to_bytes())
+    assert reopened.validate().ok
+    assert _nonblank_texts(reopened.sections[0].paragraphs[0].element) == []
+
+
+def test_strip_refuses_content_it_cannot_remove_and_changes_nothing() -> None:
+    document = HwpxDocument.new()
+    document.page.set_header(text="머리말 글")
+    document.add_paragraph("본문")
+    document = _open(document.to_bytes())
+    section_properties = document.sections[0].paragraphs[0].runs[0].element.find(f"{HP}secPr")
+    stray = etree.SubElement(section_properties, f"{HP}presentation")
+    etree.SubElement(stray, f"{HP}t").text = "지울 수 없는 글"
+    document.sections[0].reset_dirty()
+    before = etree.tostring(document.sections[0].element)
+
+    with pytest.raises(HwpxValueError) as caught:
+        document.sections[0].clear_body(on_control_content="strip")
+
+    assert caught.value.code == "section-clear-control-content"
+    assert caught.value.context["tags"] == ["hp:t"]
+    assert caught.value.context["mode"] == "strip"
+    assert etree.tostring(document.sections[0].element) == before
+    assert not document.sections[0].dirty
 
 
 def test_control_content_tags_come_in_first_seen_order_without_duplicates() -> None:
@@ -317,6 +360,7 @@ def test_the_real_header_footer_fixture_is_refused_and_can_be_stripped() -> None
     report = document.sections[0].clear_body(on_control_content="strip")
     assert report.stripped_controls >= 1
     assert "hp:t" in report.control_content
+    assert _nonblank_texts(document.sections[0].paragraphs[0].element) == []
     reopened = _open(document.to_bytes())
     assert reopened.validate().ok
     assert _content_tags_in(reopened.sections[0].paragraphs[0].runs[0].element) == []
@@ -385,5 +429,5 @@ def test_clear_body_is_idempotent() -> None:
 
     report = section.clear_body()
 
-    assert report == ClearBodyReport(0, 0, 0, (), 0)
+    assert report == ClearBodyReport(0, 0, 0, (), 0, 0)
     assert document.to_bytes() == once

@@ -232,7 +232,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `section-argument-conflict` | section 과 section_index 를 동시에 지정했다. |
-| `section-clear-control-content` | clear_body 가 남길 hp:secPr/hp:ctrl 안에 글·표·개체가 있다(머리말·꼬리말 등, 태그는 context 에). |
+| `section-clear-control-content` | clear_body 가 남길 hp:secPr/hp:ctrl 안에 글·표·개체가 있다(머리말·꼬리말 등, strip 으로도 못 지우는 경우 포함, 태그는 context 에). |
 | `section-clear-mode-invalid` | clear_body 의 on_control_content 값이 raise/keep/strip 밖이다. |
 | `section-clear-no-section-properties` | 섹션 첫 문단의 첫 run 에 hp:secPr 가 없어 clear_body 가 남길 쪽 설정이 없다. |
 | `section-invalid-type` | section 인자가 정수도 섹션 객체도 아니다. |
