@@ -155,6 +155,21 @@
 - HWP 5.0으로 저장(`to_bytes(format="hwp")`·`save_to_path("*.hwp")`)할 때 원본 구역에
   XML 주석이 있으면 `ValueError: Invalid input tag`로 멈추던 것을 고친다. 실문서 가운데
   표 행 안에 주석을 둔 문서가 있었다. 이제 주석과 처리 명령은 내용이 아니므로 건너뛴다.
+- 머리말·꼬리말 객체로 고친 내용이 한/글에 나타나지 않던 것을 고친다. python-hwpx가 만든
+  머리말·꼬리말은 구역 설정(`hp:secPr`) 안과 본문 `hp:ctrl` 안에 두 벌로 쓰이고, 한/글은
+  `hp:ctrl` 쪽만 읽는다. `set_header()`·`set_footer()`가 돌려준 객체의 `text` 설정,
+  `add_run()`, `add_paragraph()`, `add_page_number_field()`, `set_content()`,
+  `clear_content()`와 그 문단을 고친 내용은 구역 설정 쪽에만 들어가, 한/글에서는 처음 글이
+  그대로 보였다. 이제 고친 구역을 저장할 때 두 벌을 맞춘다. 두 벌이 마지막으로 같았던
+  때(문서를 열 때, 머리말·꼬리말을 설정할 때, 저장할 때) 뒤에 바뀐 쪽을 다른 쪽에 옮기고,
+  알 수 없거나 둘 다 바뀌었으면 구역 설정 쪽을 따른다. 두 요소는 제자리에 남아서 저장한 뒤에도
+  머리말 객체를 계속 쓸 수 있다. 두 벌로 쓰인 머리말·꼬리말의 누름틀은 `doc.fields`에 한 번만
+  나온다. `id`·`apply_page_type`을 바꾸면 `hp:ctrl` 쪽도 함께 바꾸고(홀수 쪽으로 바꾼
+  머리말이 모든 쪽에 보이던 것), `BOTH`가 되면 홀수·짝수 쪽 것보다 앞에 둔다(`hp:ctrl` 쪽만
+  있는 머리말·꼬리말도 같다). 한/글이 저장한 문서처럼 `hp:ctrl` 쪽만 있는 머리말·꼬리말의
+  내용은 저장할 때 건드리지 않는다. `clear_content()`와 빈
+  `set_content([])`는 빈 문단 하나를 남긴다. `hp:subList`가 없는 머리말·꼬리말은 한/글이
+  열지 못해, 한/글이 저장한 문서의 머리말을 비우면 문서가 열리지 않았다.
 - `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
   (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
   `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.
