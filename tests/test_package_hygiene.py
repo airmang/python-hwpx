@@ -5,6 +5,8 @@
   outside *keep*, including ``opf:meta`` names the library does not know.
 - ``doc.parts.clear_preview`` empties the preview text and replaces the
   preview image with a 1x1 white PNG; neither part is deleted.
+- ``doc.media.images``/``remove_image`` see binary items that only the
+  ``content.hpf`` manifest lists (the usual case for Hancom-saved files).
 """
 
 from __future__ import annotations
@@ -16,13 +18,18 @@ import zipfile
 import zlib
 from pathlib import Path
 
+import pytest
+
 from hwpx.document import HwpxDocument
+from hwpx.objects import BinaryItem
 from hwpx.opc.package import HwpxPackage
 
 CORPUS = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
 TITLED = CORPUS / "error__20251107__test.hwpx"
 PICTURE = CORPUS / "reader_writer__SimplePicture.hwpx"
 TEXT_PREVIEW_ONLY = CORPUS / "error__20241104__mot.hwpx"
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 40
 
 
 def _rewrite(source: Path, part: str, edit) -> bytes:
@@ -198,3 +205,57 @@ def test_clear_preview_only_touches_the_parts_that_exist() -> None:
 
     assert document.parts.clear_preview() == ["Preview/PrvText.txt"]
     assert "Preview/PrvImage.png" not in _names(document.to_bytes())
+
+
+# ---------------------------------------------------------------------------
+# manifest-only binary items
+# ---------------------------------------------------------------------------
+
+
+def test_images_lists_manifest_only_items() -> None:
+    document = HwpxDocument.open(PICTURE)
+    size = len(_read_part(PICTURE.read_bytes(), "BinData/image1.jpg"))
+
+    assert document.media.images == (
+        BinaryItem(item_id="image1", format="jpg", href="BinData/image1.jpg", size=size),
+    )
+
+
+def test_images_lists_header_items_first_without_duplicates() -> None:
+    document = HwpxDocument.new()
+    listed = document.media.add_image(PNG, "png")
+    document.package.write("BinData/extra.png", PNG)
+    document.package.add_manifest_item("extra", "BinData/extra.png", "image/png")
+
+    images = document.media.images
+
+    assert [item.item_id for item in images] == [listed.item_id, "extra"]
+    assert images[1] == BinaryItem(item_id="extra", format="png", href="BinData/extra.png", size=len(PNG))
+
+
+@pytest.mark.parametrize("how", ["id", "href", "item"])
+def test_remove_image_removes_manifest_only_items(how: str) -> None:
+    document = HwpxDocument.open(PICTURE)
+    (item,) = document.media.images
+    target = {"id": "image1", "href": "BinData/image1.jpg", "item": item}[how]
+
+    assert document.media.remove_image(target) is True
+
+    assert document.media.images == ()
+    assert not document.package.has_part("BinData/image1.jpg")
+    hpf = _read_part(document.to_bytes(), "Contents/content.hpf").decode()
+    assert 'id="image1"' not in hpf
+    assert document.media.remove_image(target) is False
+
+
+def test_remove_manifest_item_matches_id_then_href() -> None:
+    package = HwpxPackage.open(PICTURE)
+
+    assert package.remove_manifest_item("BinData/missing.jpg") is False
+    assert package.remove_manifest_item("image1.jpg") is False
+    assert package.remove_manifest_item("./BinData/image1.jpg") is True
+    assert 'id="image1"' not in package.get_text("Contents/content.hpf")
+
+    package = HwpxPackage.open(PICTURE)
+    assert package.remove_manifest_item("image1") is True
+    assert package.remove_manifest_item("image1") is False

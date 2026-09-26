@@ -295,6 +295,14 @@
 - `delete_row`가 세로로 합친 칸의 첫 행을 지우면 합친 칸까지 지워 표에 빈 자리가
   생겨 거부되던 것을 고친다. 이제 합친 칸은 다음 행으로 내려가 한 행 줄어들고, 글과
   서식은 그대로다(한컴 편집기에서 그 행을 지운 결과와 같다).
+- `doc.media.images`가 `content.hpf` 매니페스트에만 있는 이진 항목을 보지 못하던 것을
+  고친다. 한컴이 저장한 파일은 보통 header에 `binDataList`가 없어 그림이 있어도 빈 목록이
+  나왔다. 이제 header 항목 뒤에 매니페스트에만 있는 항목(href가 `BinData/` 아래이거나
+  media-type이 `image/*`)을 붙인다. `doc.media.remove_image()`는 매니페스트 id·파트 경로
+  (`"BinData/image1.png"`)·`BinaryItem`을 모두 받아 이런 항목도 지운다.
+- `HwpxPackage.remove_manifest_item()`에 파트 경로를 넘기면 `False`만 돌려주고 항목을
+  남기던 것을 고친다. 이 인자는 매니페스트 `id`다. 그 id의 항목이 없고 값에 `/`가 있으면
+  href가 같은 파트를 가리키는 항목을 지운다.
 - HWP 5.0으로 저장(`to_bytes(format="hwp")`·`save_to_path("*.hwp")`)할 때 원본 구역에
   XML 주석이 있으면 `ValueError: Invalid input tag`로 멈추던 것을 고친다. 실문서 가운데
   표 행 안에 주석을 둔 문서가 있었다. 이제 주석과 처리 명령은 내용이 아니므로 건너뛴다.

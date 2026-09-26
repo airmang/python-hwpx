@@ -991,17 +991,31 @@ class HwpxPackage:
         self._persist_manifest()
 
     def remove_manifest_item(self, item_id: str) -> bool:
-        """Remove an ``<opf:item>`` by id.  Returns ``True`` on success."""
+        """Remove an ``<opf:item>`` by its manifest ``id``.  Returns ``True`` on success.
+
+        *item_id* is the manifest id (``"image1"``), not a part path --
+        :meth:`part_names` returns paths (``"BinData/image1.png"``). When no
+        item has that id and the value contains ``/``, an item whose
+        ``href`` names the same part (normalized like part names) is
+        removed instead.
+        """
         manifest_el = self._manifest_element()
         if manifest_el is None:
             return False
 
-        for existing in manifest_el.findall("opf:item", OPF_NS):
-            if existing.get("id") == item_id:
-                manifest_el.remove(existing)
-                self._persist_manifest()
-                return True
-        return False
+        items = manifest_el.findall("opf:item", OPF_NS)
+        match = next((item for item in items if item.get("id") == item_id), None)
+        if match is None and "/" in item_id:
+            part_name = normalize_part_name(item_id)
+            match = next(
+                (item for item in items if normalize_part_name(item.get("href", "")) == part_name),
+                None,
+            )
+        if match is None:
+            return False
+        manifest_el.remove(match)
+        self._persist_manifest()
+        return True
 
     def _persist_manifest(self) -> None:
         """Write the in-memory manifest tree back to the package."""
