@@ -17,11 +17,13 @@ from ._document_primitives import (
     _bool_str,
     _get_bool_attr,
     _get_int_attr,
+    _normalize_color,
     _object_id,
     _optional_int_attr,
     _paragraph_id,
 )
 from .numbering import SectionStartNumbering
+from .utils import normalize_line_width
 from .section_story import HwpxOxmlSectionHeaderFooter, _section_story_elements
 
 if TYPE_CHECKING:
@@ -443,8 +445,8 @@ class HwpxOxmlSectionProperties:
         if separator_type or separator_width or separator_color:
             _append_child(col_pr, f"{_HP}colLine", {
                 "type": separator_type or "SOLID",
-                "width": separator_width or "0.12 mm",
-                "color": separator_color or "#000000",
+                "width": normalize_line_width(separator_width or "0.12 mm"),
+                "color": _normalize_color(separator_color) or "#000000",
             })
         for width, gap in () if same_size else (column_widths or ()):
             _append_child(col_pr, f"{_HP}colSz", {"width": str(width), "gap": str(gap)})

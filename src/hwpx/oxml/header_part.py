@@ -70,7 +70,7 @@ from .header import (
 )
 from .namespaces import tag_local_name, tag_namespace
 from .numbering import DocumentNumbering
-from .utils import parse_int
+from .utils import normalize_line_width, parse_int
 
 if TYPE_CHECKING:
     from .document_parts import HwpxOxmlDocument
@@ -946,12 +946,17 @@ class HwpxOxmlHeader:
         self.mark_dirty()
         return new_id
 
+    #: The border types Hancom reads; it draws a type it does not know as no border at all.
     _BORDER_LINE_TYPES = frozenset({
         "SOLID", "DASH", "DOT", "DASH_DOT", "DASH_DOT_DOT", "LONG_DASH",
         "CIRCLE", "DOUBLE_SLIM", "SLIM_THICK", "THICK_SLIM", "SLIM_THICK_SLIM",
-        "WAVE", "DOUBLEWAVE", "THICK_3D", "THICK_3D_REVERSE_LIGHTING",
-        "SLIM_3D", "SLIM_3D_REVERSE_LIGHTING",
+        "WAVE", "DOUBLEWAVE", "THICK3D", "THICKREV3D", "3D", "REV3D",
     })
+    #: Names this library took for Hancom's 3D lines, written as Hancom spells them.
+    _BORDER_LINE_ALIASES = {
+        "THICK_3D": "THICK3D", "THICK_3D_REVERSE_LIGHTING": "THICKREV3D",
+        "SLIM_3D": "3D", "SLIM_3D_REVERSE_LIGHTING": "REV3D",
+    }
 
     def ensure_border_fill(
         self,
@@ -968,9 +973,9 @@ class HwpxOxmlHeader:
         if element is None:  # pragma: no cover - defensive branch
             raise RuntimeError("failed to create <borderFills> element")
 
-        normalized_border_type = _normalize_border_type(border_type, self._BORDER_LINE_TYPES)
+        normalized_border_type = _normalize_border_type(border_type, self._BORDER_LINE_TYPES, self._BORDER_LINE_ALIASES)
         normalized_border_color = _normalize_color(border_color) or "#BFBFBF"
-        normalized_border_width = str(border_width or "0.12 mm")
+        normalized_border_width = normalize_line_width(border_width or "0.12 mm")
         normalized_active_borders = _normalize_border_side_names(active_borders)
         normalized_fill_color = _normalize_color(fill_color)
 

@@ -33,6 +33,7 @@ import difflib
 from typing import TYPE_CHECKING, Iterator, Mapping, Sequence
 
 from ...errors import HwpxLookupError, HwpxValueError
+from ...oxml.color import rgb_color
 from ...oxml._document_primitives import (
     FILL_GRADIENT_TYPES,
     FILL_IMAGE_EFFECTS,
@@ -139,7 +140,7 @@ def _resolve_fill_gradient(value: "Mapping[str, object] | None") -> dict[str, ob
         return None
     raw_colors = value.get("colors")
     colors = (
-        [str(color) for color in raw_colors]
+        [rgb_color(color) for color in raw_colors]
         if isinstance(raw_colors, Sequence) and not isinstance(raw_colors, str)
         else []
     )

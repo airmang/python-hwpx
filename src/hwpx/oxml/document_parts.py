@@ -753,8 +753,9 @@ class HwpxOxmlDocument:
         )
         if normalized_strike_shape is not None:
             strike = True
-        if ratio is not None and not 10 <= int(ratio) <= 400:
-            raise ValueError("ratio must be a percentage between 10 and 400")
+        # Hancom keeps a width ratio in one byte: 256 and up come out as ratio - 256.
+        if ratio is not None and not 10 <= int(ratio) <= 255:
+            raise ValueError("ratio must be a percentage between 10 and 255")
         if letter_spacing is not None and not -50 <= int(letter_spacing) <= 100:
             raise ValueError("letter_spacing must be between -50 and 100")
         if script is not None and script not in ("sup", "sub"):
