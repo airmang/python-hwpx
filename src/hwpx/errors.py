@@ -218,7 +218,9 @@ ERROR_CODES: dict[str, str] = {
     "paragraph-text-style-ambiguous": "텍스트 수정이 run 경계를 넘거나 삽입할 글자 모양이 모호하다.",
     "paragraph-mixed-text-unsupported": "hp:t 안에 인라인 마크업이 섞여 있어 안전하게 고칠 수 없다.",
     "paragraph-tab-target-required": "탭 컨트롤이 있는 문단은 고칠 run을 명시해야 한다.",
+    "paragraph-remove-last": "구역·셀·머리말·꼬리말의 마지막 문단은 지울 수 없다(담은 곳은 context.container).",
     # -- 표 셀 -----------------------------------------------------------
+    "cell-margin-value": "셀 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "cell-border-edit-unsupported": "셀 테두리 편집 대상 스타일이 없거나 모호하거나 네 변이 온전하지 않다(또는 색·선 종류가 잘못됐다).",
     "table-position-missing": "표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다.",
     "table-cell-zone-grid-mismatch": "셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다.",

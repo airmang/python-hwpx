@@ -25,6 +25,7 @@ from .checkbox import CheckBox
 from .form_field import CellField, FieldLocation, FieldParameter, FormField
 from .highlight import Highlight
 from .results import (
+    CellMargins,
     ColumnLayout,
     FieldFillResult,
     ListFormatResult,
@@ -40,6 +41,7 @@ from .tracked import TrackedChange, TrackedReplacement
 __all__ = [
     "BinaryItem",
     "CellField",
+    "CellMargins",
     "CheckBox",
     "ColumnLayout",
     "FieldFillResult",

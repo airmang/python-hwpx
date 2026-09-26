@@ -4,6 +4,9 @@
    "oxml/table.py:170",
    "oxml/table.py:53"
   ],
+  "cell-margin-value": [
+   "oxml/table_sizes.py:292"
+  ],
   "contract-document-missing": [
    "capabilities.py:629"
   ],
@@ -166,10 +169,10 @@
    "_document/layout.py:358"
   ],
   "paragraph-index-mark-empty-key": [
-   "oxml/paragraph.py:992"
+   "oxml/paragraph.py:990"
   ],
   "paragraph-index-mark-no-text-run": [
-   "oxml/paragraph.py:984"
+   "oxml/paragraph.py:982"
   ],
   "paragraph-indexes-empty": [
    "_document/layout.py:162",
@@ -199,6 +202,9 @@
   "paragraph-outline-level-out-of-range": [
    "_document/layout.py:328"
   ],
+  "paragraph-remove-last": [
+   "oxml/_paragraph_text_edit.py:109"
+  ],
   "paragraph-tab-leader-invalid": [
    "oxml/_document_primitives.py:1391",
    "tools/toc_author.py:370"
@@ -216,13 +222,13 @@
    "oxml/_document_primitives.py:1379"
   ],
   "paragraph-text-missing": [
-   "oxml/paragraph.py:356"
+   "oxml/paragraph.py:361"
   ],
   "paragraph-text-style-ambiguous": [
-   "oxml/paragraph.py:368"
+   "oxml/paragraph.py:373"
   ],
   "paragraph-title-mark-no-text-run": [
-   "oxml/paragraph.py:941"
+   "oxml/paragraph.py:939"
   ],
   "parts-auto-spacing-unknown-para-pr": [
    "_document/ns/parts.py:266"
@@ -392,10 +398,10 @@
    "oxml/header_part.py:772"
   ],
   "table-cell-zone-grid-mismatch": [
-   "oxml/table_sizes.py:177"
+   "oxml/table_sizes.py:189"
   ],
   "table-position-missing": [
-   "oxml/table.py:606"
+   "oxml/table.py:610"
   ],
   "text-highlight-color-invalid": [
    "_document/highlight.py:42"
@@ -441,8 +447,8 @@
  "malformedCodes": [],
  "observed": {
   "other": 213,
-  "typed": 202,
-  "untyped": 204,
+  "typed": 204,
+  "untyped": 203,
   "untypedByFile": {
    "body_patch.py": 20,
    "equation/mathml.py": 1,
@@ -457,7 +463,7 @@
    "oxml/header_part.py": 16,
    "oxml/memo.py": 1,
    "oxml/numbering_kinds.py": 1,
-   "oxml/paragraph.py": 20,
+   "oxml/paragraph.py": 19,
    "oxml/parser.py": 2,
    "oxml/run.py": 2,
    "oxml/section.py": 1,

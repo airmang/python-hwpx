@@ -43,7 +43,12 @@ from .note_authoring import (
     _paragraph_endnotes,
     _paragraph_footnotes,
 )
-from ._paragraph_text_edit import edit_node_candidates, paragraph_container, plain_text_nodes_for_edit
+from ._paragraph_text_edit import (
+    edit_node_candidates,
+    paragraph_container,
+    plain_text_nodes_for_edit,
+    remove_paragraph_element,
+)
 from .objects import (
     HwpxOxmlInlineObject,
     _create_picture_element,
@@ -396,22 +401,15 @@ class HwpxOxmlParagraph:
     def remove(self) -> None:
         """Remove this paragraph from the section, table cell, header or footer holding it.
 
-        After removal, the paragraph wrapper should no longer be used.
-        Raises ``ValueError`` if that container would be left without a
-        paragraph: HWPX needs at least one ``<hp:p>`` per section, and Hancom
-        cannot open a cell, header or footer whose paragraph list is empty.
+        After removal, the paragraph wrapper should no longer be used, and a
+        second call does nothing. Raises :class:`~hwpx.errors.HwpxValueError`
+        (a ``ValueError``, ``code="paragraph-remove-last"``) if that container
+        would be left without a paragraph: HWPX needs at least one ``<hp:p>``
+        per section, and Hancom cannot open a cell, header or footer whose
+        paragraph list is empty.
         """
-        parent = paragraph_container(self.element, self.section.element)
-        if parent is None:  # already removed
-            return
-        siblings = parent.findall(f"{_HP}p")
-        if len(siblings) <= 1:
-            raise ValueError(
-                "섹션과 셀·머리말·꼬리말에는 최소 하나의 단락이 필요합니다. "
-                "마지막 단락은 삭제할 수 없습니다."
-            )
-        parent.remove(self.element)
-        self.section.mark_dirty()
+        if remove_paragraph_element(self.element, self.section.element):
+            self.section.mark_dirty()
 
     def _create_run_for_object(
         self,

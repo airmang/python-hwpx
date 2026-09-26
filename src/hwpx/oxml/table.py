@@ -206,6 +206,7 @@ def _is_blank_cell(element: ET.Element) -> bool:
     return len(paragraphs) <= 1 and all(_is_blank_paragraph(paragraph) for paragraph in paragraphs)
 
 
+
 class HwpxOxmlTableCell:
     """Represents an individual table cell."""
 
@@ -304,6 +305,9 @@ class HwpxOxmlTableCell:
         if height is not None:
             size.set("height", str(max(height, 0)))
         self.table.mark_dirty()
+
+    margins = property(_table_sizes.cell_margins)
+    set_margins = _table_sizes.set_cell_margins
 
     @property
     def text(self) -> str:

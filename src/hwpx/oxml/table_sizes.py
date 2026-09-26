@@ -1,22 +1,34 @@
 # SPDX-License-Identifier: Apache-2.0
-"""How a table shares out its width and height among its cells.
+"""How a table shares out its width and height among its cells, and a cell's inner margins.
 
 The bodies of ``HwpxOxmlTable.set_column_widths``, ``equalize_column_widths`` and
-``equalize_row_heights``. They live here so that ``table.py`` stays inside the owner-file
-line budget; the table methods keep their documentation and delegate.
+``equalize_row_heights``, and of ``HwpxOxmlTableCell.margins`` / ``set_margins``. They
+live here so that ``table.py`` stays inside the owner-file line budget; the table methods
+keep their documentation and delegate, and the two cell members are these functions
+assigned as class attributes.
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
 from math import lcm
 from typing import TYPE_CHECKING, Any, Iterator, Sequence
 
-from ._document_primitives import _HP, _distribute_size
+from ..objects.results import CellMargins
+from ._document_primitives import _HP, _distribute_size, _element_local_name
 
 if TYPE_CHECKING:
     from .table import HwpxOxmlTable, HwpxOxmlTableCell, HwpxTableGridPosition
 
-__all__ = ["equalize_column_widths", "equalize_row_heights", "set_column_widths"]
+__all__ = [
+    "cell_margins",
+    "equalize_column_widths",
+    "equalize_row_heights",
+    "set_cell_margins",
+    "set_column_widths",
+]
+
+_MARGIN_SIDES = ("left", "right", "top", "bottom")
 
 
 def set_column_widths(table: "HwpxOxmlTable", weights: Sequence[int | float]) -> None:
@@ -234,3 +246,70 @@ def equalize_row_heights(table: "HwpxOxmlTable") -> None:
             continue
         height = sum(row_heights[start_row:start_row + span_row])
         entry.cell.set_size(height=height)
+
+
+def cell_margins(cell: "HwpxOxmlTableCell") -> CellMargins:
+    """The inner margins Hancom lays this cell out with, in HWPUNIT.
+
+    The table's ``hp:inMargin`` applies unless the cell's ``hasMargin`` is
+    on (``"1"``/``"true"``); then the cell's own ``hp:cellMargin`` does.
+    When the chosen element is missing the other one is used, and a cell
+    with neither reads as zero margins.
+    """
+    own = cell.element.find(f"{_HP}cellMargin")
+    inherited = cell.table.element.find(f"{_HP}inMargin")
+    if (cell.element.get("hasMargin") or "").strip().lower() in {"1", "true"}:
+        source = own if own is not None else inherited
+    else:
+        source = inherited if inherited is not None else own
+    if source is None:
+        return CellMargins(0, 0, 0, 0)
+    return CellMargins(*(int(source.get(side, "0") or 0) for side in _MARGIN_SIDES))
+
+
+def set_cell_margins(
+    cell: "HwpxOxmlTableCell",
+    *,
+    left: int | None = None,
+    right: int | None = None,
+    top: int | None = None,
+    bottom: int | None = None,
+) -> CellMargins:
+    """Give this cell its own inner margins and return them.
+
+    Sides left as ``None`` keep their current effective value (see
+    :attr:`margins`). All four are written to the cell's ``hp:cellMargin``
+    and ``hasMargin`` is turned on, so the table margin no longer applies.
+    With no arguments nothing changes. A value that is not an ``int`` in
+    ``0 <= value < 2**31`` is refused before anything changes.
+    """
+    from ..errors import HwpxValueError
+
+    requested = {"left": left, "right": right, "top": top, "bottom": bottom}
+    given = {side: value for side, value in requested.items() if value is not None}
+    for side, value in given.items():
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**31:
+            raise HwpxValueError(
+                f"cell margin {side} must be an int in 0 <= value < 2**31 (HWPUNIT), got {value!r}",
+                code="cell-margin-value",
+                context={"side": side, "value": repr(value)},
+                suggestion="Pass a non-negative int in HWPUNIT (1 mm = 283.465 HWPUNIT).",
+            )
+    margins = cell_margins(cell)
+    if not given:
+        return margins
+    margins = replace(margins, **given)
+    own = cell.element.find(f"{_HP}cellMargin")
+    if own is None:
+        own = cell.element.makeelement(f"{_HP}cellMargin", {})
+        preceding = [
+            index
+            for index, child in enumerate(cell.element)
+            if _element_local_name(child) in {"subList", "cellAddr", "cellSpan", "cellSz"}
+        ]
+        cell.element.insert(preceding[-1] + 1 if preceding else len(cell.element), own)
+    for side in _MARGIN_SIDES:
+        own.set(side, str(getattr(margins, side)))
+    cell.element.set("hasMargin", "1")
+    cell.table.mark_dirty()
+    return margins

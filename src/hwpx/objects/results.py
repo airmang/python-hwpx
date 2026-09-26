@@ -204,6 +204,23 @@ class PageMargins:
 
 
 @dataclass(frozen=True)
+class CellMargins:
+    """A table cell's inner margins in HWPUNIT, as ``cell.margins`` reads them.
+
+    These are the margins Hancom lays the cell out with: the table's
+    ``hp:inMargin`` unless the cell turns its own ``hp:cellMargin`` on.
+    """
+
+    left: int
+    right: int
+    top: int
+    bottom: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"left": self.left, "right": self.right, "top": self.top, "bottom": self.bottom}
+
+
+@dataclass(frozen=True)
 class ColumnLayout:
     """Column count/gap applied by ``doc.page.setup(columns=...)``."""
 
@@ -233,6 +250,7 @@ class PageSetup:
 
 
 __all__ = [
+    "CellMargins",
     "ColumnLayout",
     "FieldFillResult",
     "ListFormatResult",
