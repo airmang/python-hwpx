@@ -6,6 +6,10 @@
 
 ### 추가
 
+- 셀 필드(이름 붙은 표 칸, `hp:tc@name`): `doc.fields.cells`가 문서 순서로 돌려주고(본문 표와
+  칸 안의 표), `doc.fields.fill_cell(value, name=..., index=None)`이 한/글 `PutFieldText`처럼
+  같은 이름의 칸을 모두 채운다. `index`(0부터)를 주면 그 하나만 채운다. 칸의 이름은
+  `cell.field_name`으로 읽고 쓴다. 새 오류 코드 `field-cell-not-found`.
 - `doc.text.replace(search, replacement, everywhere=True)`: 한/글 "모두 바꾸기"처럼 표
   칸(칸 안 표 포함)·글상자·캡션·머리말·꼬리말·각주·미주·바탕쪽의 문단도 바꾸고, 서식이 다른 런에
   걸친 말도 바꾼다. 바꿀 글의 글자는 같은 자리의 찾은 글자가 있던 런의 서식을 따르고, 남는
