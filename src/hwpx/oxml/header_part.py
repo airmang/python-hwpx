@@ -513,6 +513,7 @@ class HwpxOxmlHeader:
             "END": "RIGHT",
             "JUSTIFY": "JUSTIFY",
             "DISTRIBUTE": "DISTRIBUTE",
+            "DISTRIBUTE_SPACE": "DISTRIBUTE_SPACE",
         }
         horizontal = aliases.get(normalized)
         if horizontal is None:

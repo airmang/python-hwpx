@@ -108,7 +108,7 @@
 - `char_property(char_pr_id_ref)`
   - ID를 사용하여 `RunStyle`을 조회합니다.
 - `ensure_run_style(...) -> str`
-  - 요청된 굵게/기울임/밑줄 플래그와 일치하는 런 스타일이 헤더에 정의되어 있는지 확인하고 해당 스타일 ID를 반환합니다. 필요한 경우 기존 스타일을 복제합니다.
+  - 기준 글자 모양(`base_char_pr_id`, 없으면 첫 글자 모양)에서 요청한 값만 바꾼 런 스타일의 ID를 반환합니다. 내용이 같은 스타일이 있으면 그것을, 없으면 기준을 복제해 만듭니다.
 - `iter_runs()`
   - 문서 전체의 모든 `HwpxOxmlRun`을 순회(yield)합니다.
 - `find_runs_by_style(...) -> list[HwpxOxmlRun]`
@@ -497,7 +497,7 @@
 - `sections`, `headers`: 섹션 및 헤더 래퍼 목록의 복사본을 반환하는 프로퍼티입니다.
 - `char_properties`: 글자 스타일 ID를 `RunStyle` 객체에 매핑한 딕셔너리를 반환하며, 모든 헤더의 결과를 캐시합니다.
 - `char_property(char_pr_id_ref)`: 문자열 또는 숫자 값을 받아 ID로 `RunStyle`을 조회합니다.
-- `ensure_run_style(...)`: 요청된 굵게, 기울임, 밑줄 플래그를 가진 런 스타일이 첫 번째 헤더에 존재하는지 확인하며, 필요에 따라 항목을 생성하거나 복제합니다.
+- `ensure_run_style(...)`: 기준 글자 모양(`base_char_pr_id`, 없으면 첫 글자 모양)에서 요청한 값만 바꾼 런 스타일을 첫 번째 헤더에서 찾고, 없으면 기준을 복제해 만듭니다.
 - `memo_shapes`: 모든 헤더의 메모 모양을 하나의 딕셔너리로 병합하는 프로퍼티입니다.
 - `memo_shape(memo_shape_id_ref)`: ID로 메모 모양을 가져옵니다.
 - `paragraphs`: 모든 섹션의 단락 래퍼를 연결하여 반환하는 프로퍼티입니다.
@@ -650,7 +650,7 @@
 - `load_default_schemas(schema_dir=None)`: 번들로 제공되는 헤더 및 섹션 XSD 파일을 로드하며, 스키마 디렉토리가 없을 때 예외를 발생시킵니다. 두 스키마는 루트 요소만 선언하고 나머지를 `<xs:any processContents="lax"/>`로 받는 느슨한 구조 스키마이므로, 통과했다고 해서 OWPML 전체가 검증된 것도 한컴이 문서를 연다는 뜻도 아닙니다.
 - `_iter_parts(document)`: `HwpxDocument`의 모든 헤더와 섹션에 대해 `(파트 이름, XML 바이트, 헤더 여부)`를 순회하는 내부 헬퍼입니다.
 - `_issues_from_error(part_name, exc)`: `lxml` 유효성 검사 오류를 `ValidationIssue` 인스턴스로 정규화합니다.
-- `validate_document(source, ...)`: 문서를 열고, 제공되지 않은 경우 기본 스키마를 로드하며, 각 헤더 및 섹션 파트를 적절한 파서로 검증하고 이슈를 집계합니다.
+- `validate_document(source, ..., full_schema=True)`: 문서를 열고, 제공되지 않은 경우 기본 스키마를 로드하며, 각 헤더 및 섹션 파트를 적절한 파서로 검증하고 이슈를 집계합니다. `full_schema`(기본 `True`)면 번들된 전체 OWPML 스키마(`owpml-*.xsd`)로도 검사해, 한/글이 여는 문서에도 있는 편차를 뺀 위반을 경고(`OWPML schema: …`)로 더합니다. `ok`는 하드 오류만 봅니다(`docs/owpml-deviations.md`).
 
 ***
 
