@@ -59,8 +59,11 @@
 - **메모 필드는 무음 수용 캐비앗이 있다.** `attach_memo_field`가 앵커를 못
   찾아도 조용히 넘어가는 경로가 있다(recipes의 mutation-semantics 표 참조) —
   결과 리포트의 실측 필드를 확인하라.
-- **암호화 HWPX·HWP5 바이너리는 열리지 않는 게 정상이다.** 각각 파싱 예외·
-  `BadZipFile`로 fail-closed 거부한다. 우회 API는 없다.
+- **암호화 HWPX는 열리지 않는 게 정상이다.** 파싱 예외로 fail-closed 거부한다.
+  우회 API는 없다.
+- **HWP 5.0(`.hwp`)은 `HwpxDocument.open`으로 연다.** `HwpxPackage.open`은 HWPX 전용이라
+  `.hwp`를 `BadZipFile`로 거부한다. 암호·배포용·DRM `.hwp`는 `Hwp5Error`로 거부하고,
+  옮기지 못한 내용은 `document.conversion_report`에 남는다.
 - **글자처럼 취급한 표는 쪽에서 나뉘지 않는다.** 한컴은 글자처럼 취급한 표
   (`add_table()`의 기본)와 `pageBreak="NONE"` 표를 쪽에서 나누지 않는다. 쪽 본문보다
   높은 표도 한 쪽에 그린다. 쪽 첫머리가 아니면 다음 쪽으로 옮기고, 아래 여백까지

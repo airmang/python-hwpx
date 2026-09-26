@@ -536,6 +536,132 @@
       "disposition": "core",
       "approvedBy": "hancom-hyperlink-target-parameters",
       "rationale": "Hancom's storage of a hyperlink field target: hyperlink_parameters() writes the hp:parameters Hancom reads (Command with : ? ; # backslash-escaped and a ;kind;0;0 tail, Path, Category, TargetType, DocOpenType -- the form Hancom writes for web, mail and bookmark links) and hyperlink_target() reads a target back (Path, else the unescaped Command head, else @name). A new module rather than more paragraph.py lines (1,584/1,600 owner-file cap); paragraph.add_hyperlink, paragraph.hyperlinks, Markdown export and the text extractor all call it, so the three readers that disagreed now read one way. Format-level only: no renderer, application workflow or agent policy."
+    },
+    {
+      "path": "src/hwpx/hwp5/__init__.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "HWP 5.0 (.hwp) subpackage: converts between the HWP 5.0 compound file and the OWPML parts of an HWPX package so HwpxDocument opens and saves .hwp with the same document model and API. Format-level only: no renderer, application workflow or agent policy."
+    },
+    {
+      "path": "src/hwpx/hwp5/bodytext.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "HWP 5.0 BodyText paragraphs: PARA_HEADER fields, the paragraph text split into plain text and char/inline/extended control characters, char shape runs and the CTRL_HEADER records a paragraph owns. Format-level decoding only."
+    },
+    {
+      "path": "src/hwpx/hwp5/cfb.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Compound File Binary reader and writer for the HWP 5.0 container, written from the public [MS-CFB] specification with the standard library only: bounded sector-chain reading that refuses truncated, looping or out-of-file chains, and version 3 writing with a red-black directory tree per storage."
+    },
+    {
+      "path": "src/hwpx/hwp5/docinfo.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "HWP 5.0 DocInfo id-mapping table (bin data, fonts per language, border fills, char and para shapes, tab definitions, numbering, bullets, styles, memo shapes) and the check that each count matches the records present."
+    },
+    {
+      "path": "src/hwpx/hwp5/errors.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Hwp5Error, the typed error with hwp5-* codes for HWP 5.0 input that is protected (password, distribution, DRM), damaged, not HWP 5.0 or beyond a parsing limit, and for content the HWP 5.0 writer cannot express."
+    },
+    {
+      "path": "src/hwpx/hwp5/fileheader.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "The 256-byte HWP 5.0 FileHeader stream: signature, version and the property flags (compression, password, distribution, DRM, certificate encryption and the rest)."
+    },
+    {
+      "path": "src/hwpx/hwp5/reader.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Opens an HWP 5.0 file into its FileHeader, DocInfo and section record trees, and refuses protected, damaged and non-HWP 5.0 files with stable error codes before any record is interpreted."
+    },
+    {
+      "path": "src/hwpx/hwp5/records.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "HWP 5.0 record layer: tag/level/size headers including the extended size word, the level tree, bounded raw-deflate stream decompression, and record serialization for writing."
+    },
+    {
+      "path": "src/hwpx/hwp5/binary.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Little-endian field cursor and builder for HWP 5.0 record payloads; running past a payload is reported as damage."
+    },
+    {
+      "path": "src/hwpx/hwp5/header_xml.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "HWP 5.0 DocInfo to Contents/header.xml: fonts, border fills, char and para shapes, tabs, numbering, bullets, styles and memo shapes, with ids kept one-to-one with the records."
+    },
+    {
+      "path": "src/hwpx/hwp5/owpml.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "OWPML namespaces, colour conversion and the value tables that map HWP 5.0 record codes to OWPML tokens, shared by the reading and writing directions so they cannot drift apart."
+    },
+    {
+      "path": "src/hwpx/hwp5/package.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Assembles an HWP 5.0 document as HWPX package parts (mimetype, version, container, content.hpf, header, sections, settings, preview text, BinData) and zips them for the ordinary HWPX reader."
+    },
+    {
+      "path": "src/hwpx/hwp5/section_xml.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "HWP 5.0 BodyText sections to Contents/section<N>.xml: paragraphs, runs, text and its inline controls, section and column definitions, tables, headers, footers and notes; controls it does not convert are counted in a conversion report instead of being dropped silently."
+    },
+    {
+      "path": "src/hwpx/hwp5/summary.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Reads the HWP 5.0 document summary property set (title, author, subject, keywords, comments, dates) for the package metadata; a malformed set yields no properties."
+    },
+    {
+      "path": "src/hwpx/hwp5/controls.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Field codecs shared by HWP 5.0 reading and writing for BodyText controls: section and column definitions, page definition, note shape, page border fill, the common object header, the TABLE record, cell, caption, header/footer and note list headers; each re-encodes its payload byte for byte."
+    },
+    {
+      "path": "src/hwpx/hwp5/docinfo_writer.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Contents/header.xml to HWP 5.0 DocInfo records (the inverse of header_xml): fonts, border fills, char and para shapes, tabs, numbering, bullets, styles, memo shapes and the id mapping table, in the record order and layouts of the current format version."
+    },
+    {
+      "path": "src/hwpx/hwp5/section_writer.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Contents/section<N>.xml to HWP 5.0 BodyText records (the inverse of section_xml): paragraphs, text and inline controls, char shape runs, line segments, section and column definitions, tables with captions and cells, headers, footers and notes; elements it cannot write are counted so the save can refuse them."
+    },
+    {
+      "path": "src/hwpx/hwp5/shapes.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Field codecs of HWP 5.0 drawing objects: the shape component (kind, group placement, sizes, flip, rotation, matrices), the line, fill and shadow of a drawn shape, container children, rectangle, ellipse, arc, polygon and line geometry and the text box list header; each re-encodes its payload byte for byte."
+    },
+    {
+      "path": "src/hwpx/hwp5/section_common.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Pieces the HWP 5.0 section readers share: the conversion report of what was not converted or has no OWPML form, the common properties of objects (tables, pictures, shapes, equations) as OWPML attributes and elements, and paragraph list attributes."
+    },
+    {
+      "path": "src/hwpx/hwp5/shape_xml.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "HWP 5.0 drawing objects to OWPML shape elements (the reading half of hwp5.shapes): rectangles, ellipses, arcs, polygons, lines, containers and pictures with placement, matrices, line, fill and shadow, text boxes, captions and parameter sets; kinds it does not convert are reported."
+    },
+    {
+      "path": "src/hwpx/hwp5/writer.py",
+      "disposition": "core",
+      "approvedBy": "owner-hwp5-core-2026-09-23",
+      "rationale": "Writes HWPX package parts as an HWP 5.0 file: finds the header, sections and embedded binaries through the manifest, builds and compresses the record streams and the compound file, and refuses with hwp5-write-unsupported before writing when content cannot be expressed."
     }
   ],
   "removed": [

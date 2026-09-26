@@ -7,7 +7,7 @@ import hashlib
 from os import PathLike
 from typing import TYPE_CHECKING, Any, BinaryIO, Literal, Sequence
 
-from ..errors import HwpxTypeError, SaveError
+from ..errors import HwpxTypeError, HwpxValueError, SaveError
 from ..mutation_report import (
     Fallback,
     Mode,
@@ -21,6 +21,9 @@ from ..mutation_report import (
 from ..opc.package import _UNCHECKED_SAVE_TOKEN
 from ..quality import QualityPolicy
 from ..quality.report import OpenSafetyReport
+
+#: The file formats a document saves to: HWPX, or HWP 5.0.
+SaveFormat = Literal["hwpx", "hwp"]
 
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
@@ -290,9 +293,16 @@ def save_to_path(
     _run_pre_save_validation(doc)
     archive_bytes, measurement = _build_measured(doc, reset_dirty=False)
     actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
-    report = _gate_and_write(
-        doc, archive_bytes, output_path=path, source_label="document.save_to_path"
-    )
+    if str(path).lower().endswith(".hwp"):
+        # An .hwp target is written as HWP 5.0 from the validated HWPX parts;
+        # the gate still checks those parts, and nothing is written when the
+        # HWP 5.0 writer cannot express the document.
+        report = _gate_and_write(doc, archive_bytes, source_label="document.save_to_path")
+        _write_hwp5(path, archive_bytes)
+    else:
+        report = _gate_and_write(
+            doc, archive_bytes, output_path=path, source_label="document.save_to_path"
+        )
     _mark_save_clean(doc)
     if return_report:
         return _compose_mutation_report(
@@ -306,6 +316,35 @@ def save_to_path(
     return path
 
 
+def _write_hwp5(path: str | PathLike[str], archive_bytes: bytes) -> None:
+    from ..quality.save_pipeline import write_bytes_atomically
+
+    write_bytes_atomically(path, _hwp5_bytes(archive_bytes))
+
+
+def _hwp5_bytes(archive_bytes: bytes) -> bytes:
+    """The HWP 5.0 file for the validated HWPX parts of *archive_bytes*."""
+
+    import io
+    import zipfile
+
+    from ..hwp5.writer import write_hwp5
+
+    with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+        files = {name: archive.read(name) for name in archive.namelist() if not name.endswith("/")}
+    return write_hwp5(files)
+
+
+def _check_format(format: str) -> None:
+    if format not in ("hwpx", "hwp"):
+        raise HwpxValueError(
+            f"Unknown save format {format!r}; use 'hwpx' or 'hwp'.",
+            code="save-format-unsupported",
+            context={"format": format},
+            suggestion="Pass format='hwpx' (the default) or format='hwp'.",
+        )
+
+
 def save_to_stream(
     doc: "HwpxDocument",
     stream: BinaryIO,
@@ -313,20 +352,29 @@ def save_to_stream(
     mode: Mode = "auto",
     fallback: Fallback = "error",
     return_report: bool = False,
+    format: SaveFormat = "hwpx",
 ) -> BinaryIO | MutationReport:
     """Persist pending changes to *stream*.
 
     Returns *stream* by default; ``return_report=True`` returns the
     :class:`~hwpx.mutation_report.MutationReport` receipt instead. See
     :func:`save_to_path` for the ``mode``/``fallback`` grade semantics.
+    ``format="hwp"`` writes HWP 5.0 the way an ``.hwp`` path does.
     """
 
+    _check_format(format)
     _run_pre_save_validation(doc)
     archive_bytes, measurement = _build_measured(doc, reset_dirty=False)
     actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
-    report = _gate_and_write(
-        doc, archive_bytes, output_stream=stream, source_label="document.save_to_stream"
-    )
+    if format == "hwp":
+        # As for an .hwp path: the gate checks the HWPX parts, and nothing is
+        # written when the HWP 5.0 writer cannot express the document.
+        report = _gate_and_write(doc, archive_bytes, source_label="document.save_to_stream")
+        stream.write(_hwp5_bytes(archive_bytes))
+    else:
+        report = _gate_and_write(
+            doc, archive_bytes, output_stream=stream, source_label="document.save_to_stream"
+        )
     _mark_save_clean(doc)
     if return_report:
         return _compose_mutation_report(
@@ -394,6 +442,7 @@ def to_bytes(
     *,
     mode: Mode = "auto",
     fallback: Fallback = "error",
+    format: SaveFormat = "hwpx",
 ) -> bytes:
     """Serialize pending changes and return the HWPX archive as bytes.
 
@@ -401,14 +450,17 @@ def to_bytes(
     :func:`save_to_path`: ``mode="patch"`` with ``fallback="error"`` raises
     :class:`PreservationDowngradeError` before returning when the archive is not
     patch-grade. There is no ``return_report`` — the enforcement is via the typed
-    exception, so the byte return stays unchanged.
+    exception, so the byte return stays unchanged. ``format="hwp"`` returns an
+    HWP 5.0 file instead; the document stays unsaved when that cannot be written.
     """
 
+    _check_format(format)
     _run_pre_save_validation(doc)
     archive_bytes, measurement = _build_measured(doc, reset_dirty=False)
     _resolve_grade(mode, fallback, measurement)
+    data = _hwp5_bytes(archive_bytes) if format == "hwp" else archive_bytes
     _mark_save_clean(doc)
-    return archive_bytes
+    return data
 
 
 def _to_bytes_raw(

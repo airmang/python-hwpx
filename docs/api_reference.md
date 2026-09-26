@@ -155,11 +155,17 @@
 #### 영속성(Persistence)
 
 - `save_to_path(path) -> str | PathLike[str]`
-  - 변경된 XML 파트를 지정한 경로에 저장하고 입력 경로를 그대로 반환합니다.
-- `save_to_stream(stream) -> BinaryIO`
+  - 변경된 XML 파트를 지정한 경로에 저장하고 입력 경로를 그대로 반환합니다. 경로가
+    `.hwp`로 끝나면 HWP 5.0으로 씁니다.
+- `save_to_stream(stream, *, format="hwpx") -> BinaryIO`
   - 변경된 XML 파트를 파일과 유사한 바이너리 스트림에 저장하고 입력 스트림을 그대로 반환합니다.
-- `to_bytes() -> bytes`
-  - 변경된 XML 파트를 직렬화한 HWPX ZIP 바이트를 반환합니다.
+    `format="hwp"`이면 HWP 5.0으로 씁니다.
+- `to_bytes(*, format="hwpx") -> bytes`
+  - 변경된 XML 파트를 직렬화한 HWPX ZIP 바이트를 반환합니다. `format="hwp"`이면 HWP 5.0
+    파일 바이트를 반환합니다.
+- `conversion_report -> Hwp5ConversionReport | None`
+  - `.hwp`를 열 때 문서 모델로 옮기지 못한 내용의 개수(`unconverted`·`dropped`, 읽기 전용).
+    `.hwp`로 열지 않은 문서에서는 `None`입니다.
 - `save(path_or_stream=None) -> str | PathLike[str] | BinaryIO | bytes`
   - 하위 호환용 래퍼입니다. 내부에서 `save_to_path()`/`save_to_stream()`/`to_bytes()`를 호출하며 `DeprecationWarning`을 발생시킵니다.
 
