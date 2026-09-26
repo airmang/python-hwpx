@@ -159,7 +159,7 @@ Windows 한컴 전용 표면은 이 스캔으로 부재를 단정할 수 없다.
 | 셀 나누기… | [대응 영역] | 표 구조 변경(`split_cell_vertical`) |
 | 셀 합치기 | [대응 영역] | 표 생성(`merge_cells`) |
 | 셀 높이를 같게 | ✅ [대응 영역] | ~~부분 대응~~ **트레인㊻에서 해소**: `HwpxOxmlTable.equalize_row_heights()`(`oxml/table.py`) — `set_column_widths`의 행 대응(같은 `iter_grid`/rowSpan 로직, `_distribute_size` 재사용). 신규 XML 어휘 없음(기존 `cellSz` 그대로) |
-| 셀 너비를 같게 | ✅ [대응 영역] | ~~부분 대응~~ **트레인㊻에서 해소**: `HwpxOxmlTable.equalize_column_widths()`가 기존 `set_column_widths([1]*column_count)`를 전용 이름으로 노출(신규 계산 로직 없음 — 균등 가중치를 넘기면 이미 그렇게 나뉜다는 사실을 호출자가 몰라도 되게 함) |
+| 셀 너비를 같게 | ✅ [대응 영역] | `HwpxOxmlTable.equalize_column_widths()` — 한/글처럼 행마다 그 행의 칸(합친 칸은 한 칸)을 같은 너비로 나누고, 모든 행이 같이 끝나도록 표 너비를 행별 칸 수의 공배수로 올린 뒤 열 격자를 새 경계로 다시 짠다. 세로로 합친 칸이 행마다 다른 너비를 받아야 하면 거부(한/글도 바꾸지 않음). 격자 열 균등은 `set_column_widths([1]*column_count)` |
 | 표 뒤집기… | **[대응 없음=신규 갭]** | 행/열 반전 — 코드 검색 무결과. **트레인㊸에서 근거 명시 보류**(`f7e4e67` 커밋 메시지·`docs/support-matrix.md` 표 구조 변경 행): 병합 셀·중첩표에서 반전의 정의 자체가 안 서고(예: rowSpan 셀을 반전하면 어느 칸이 내용을 갖는가?) 실코퍼스 근거가 전혀 없다 — curve·connectLine과 같은 원칙으로 무근거 추측 안 함 |
 | 블록 계산식 | [대응 없음, core] | `hwpx_automation.office.utilities.table_compute`에 존재 — **core에는 없음**(개인정보 보호와 같은 계층 판정 패턴) |
 | 쉬운 계산식 | [대응 없음, core] | 상동 |

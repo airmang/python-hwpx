@@ -30,6 +30,7 @@ from ._document_primitives import (
     FILL_IMAGE_MODES,
 )
 from ._paragraph_text_edit import clear_text_element, sanitize_keeping_tabs, set_text_with_tabs
+from . import table_sizes as _table_sizes
 
 from .body import Label, parse_label_element
 from .objects import Caption, _read_caption, _remove_caption, _write_caption
@@ -983,51 +984,23 @@ class HwpxOxmlTable:
         self.mark_dirty()
 
     def set_column_widths(self, weights: Sequence[int | float]) -> None:
-        if len(weights) != self.column_count:
-            raise ValueError("column width weights must match table column count")
-        numeric_weights = [max(float(weight), 0.0) for weight in weights]
-        if not any(numeric_weights):
-            raise ValueError("at least one column width weight must be positive")
-
-        sz = self.element.find(f"{_HP}sz")
-        if sz is not None and sz.get("width", "").isdigit():
-            total_width = int(sz.get("width", "0"))
-        else:
-            total_width = sum(self.cell(0, col).width for col in range(self.column_count))
-        weight_total = sum(numeric_weights)
-        column_widths: list[int] = []
-        allocated = 0
-        for index, weight in enumerate(numeric_weights):
-            if index == len(numeric_weights) - 1:
-                width = max(total_width - allocated, 0)
-            else:
-                width = round(total_width * weight / weight_total)
-                allocated += width
-            column_widths.append(width)
-
-        updated_cells: set[int] = set()
-        for entry in self.iter_grid():
-            marker = id(entry.cell.element)
-            if marker in updated_cells:
-                continue
-            updated_cells.add(marker)
-            start_row, start_col = entry.cell.address
-            span_row, span_col = entry.cell.span
-            if span_row <= 0 or span_col <= 0:
-                continue
-            width = sum(column_widths[start_col:start_col + span_col])
-            entry.cell.set_size(width=width)
+        _table_sizes.set_column_widths(self, weights)
 
     def equalize_column_widths(self) -> None:
-        """모든 열 너비를 같게 만든다(6.13 트레인㊻, 갭"셀 너비를 같게").
+        """행마다 칸 너비를 같게 한다(한/글 "셀 너비를 같게"와 같은 결과).
 
-        ``set_column_widths([1] * column_count)``와 정확히 동치다 — 균등
-        가중치를 넘기면 이미 그렇게 나뉜다. 이 메서드는 그 조합을
-        전용 이름으로 노출할 뿐, 신규 계산 로직은 없다(호출자가 매번
-        "가중치를 다 1로 넣으면 되나?"를 스스로 알아내야 했던 게 실제
-        갭이었다 — 편집기 메뉴 표면 역매핑 트레인㊷·㊺가 찾은 부분 대응).
+        행마다 그 행을 지나는 칸(합친 칸은 한 칸)에 같은 너비를 준다. 모든 행이 같은
+        자리에서 끝나도록 표 너비를 행마다의 칸 수로 모두 나누어떨어지는 가장 가까운 값까지
+        올린다(예: 3칸 행과 4칸 행이 있으면 12의 배수). 행마다 칸 경계가 달라지면 열
+        격자(``colCnt``·``hp:cellAddr``·``hp:cellSpan``)를 그 경계로 다시 짠다.
+
+        여러 행에 걸친 칸이 행마다 다른 자리를 받아야 하면(예: 세로로 합친 칸 옆 행들의
+        칸 수가 다름) 한/글처럼 표를 그대로 두고 :class:`~hwpx.errors.HwpxValueError`를
+        낸다. 격자 열마다 같은 너비를 주려면 ``set_column_widths([1] * column_count)``를
+        쓴다.
         """
-        self.set_column_widths([1] * self.column_count)
+
+        _table_sizes.equalize_column_widths(self)
 
     def equalize_row_heights(self) -> None:
         """모든 행 높이를 같게 만든다(6.13 트레인㊻, 갭"셀 높이를 같게").
@@ -1038,25 +1011,7 @@ class HwpxOxmlTable:
         0열 셀들의 높이 합으로 대체한다 — ``set_column_widths``의
         ``total_width`` 유도와 동형.
         """
-        sz = self.element.find(f"{_HP}sz")
-        if sz is not None and sz.get("height", "").isdigit():
-            total_height = int(sz.get("height", "0"))
-        else:
-            total_height = sum(self.cell(row, 0).height for row in range(self.row_count))
-        row_heights = _distribute_size(max(total_height, 0), self.row_count)
-
-        updated_cells: set[int] = set()
-        for entry in self.iter_grid():
-            marker = id(entry.cell.element)
-            if marker in updated_cells:
-                continue
-            updated_cells.add(marker)
-            start_row, start_col = entry.cell.address
-            span_row, span_col = entry.cell.span
-            if span_row <= 0 or span_col <= 0:
-                continue
-            height = sum(row_heights[start_row:start_row + span_row])
-            entry.cell.set_size(height=height)
+        _table_sizes.equalize_row_heights(self)
 
     def set_cell_text(
         self,
