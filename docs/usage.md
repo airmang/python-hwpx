@@ -965,12 +965,13 @@ paragraph = document.add_paragraph(
 paragraph.element.set("outlineLevel", "1")
 
 # 표를 추가하고 헤더 행을 병합합니다. border_fill_id_ref를 생략하면 기본 실선 채우기가 자동 생성됩니다.
+# 글이 든 칸을 병합하면 가려지는 칸의 글도 병합 칸에 줄로 남으므로(한/글과 같음), 병합한 뒤 글을 넣습니다.
 table = document.add_table(2, 3, section=section, border_fill_id_ref="2")
-table.set_cell_text(0, 0, "Quarter")
-table.set_cell_text(0, 1, "Actual")
-table.set_cell_text(0, 2, "Forecast")
 table.merge_cells(0, 0, 0, 2)
+table.set_cell_text(0, 0, "Quarter")
 table.cell(1, 0).text = "Q1"
+table.set_cell_text(1, 1, "Actual")
+table.set_cell_text(1, 2, "Forecast")
 
 # 개체도 문서 또는 문단 수준에서 추가할 수 있습니다.
 rectangle = document.add_rectangle(9000, 4500, fill_color="#FFD9CC", section=section)

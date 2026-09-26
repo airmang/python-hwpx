@@ -85,6 +85,43 @@ def test_line_caches_of_the_merged_cell_are_dropped() -> None:
     assert [p.element.find(f"{HP}linesegarray") for p in merged.paragraphs] == [None, None]
 
 
+def test_text_set_after_merging_replaces_the_moved_lines() -> None:
+    table = HwpxDocument.new().add_table(3, 3)
+    for row in range(3):
+        for col in range(3):
+            table.cell(row, col).text = f"r{row}c{col}"
+    merged = table.merge_cells(0, 0, 1, 0)
+
+    merged.text = "merged"
+
+    assert merged.text == "merged"
+    assert _texts(merged) == ["merged"]
+
+
+def test_setting_text_reads_back_from_a_cell_of_several_lines() -> None:
+    table = HwpxDocument.new().add_table(1, 1)
+    cell = table.cell(0, 0)
+    cell.set_text("A1\nA2\nA3", split_paragraphs=True)
+
+    cell.text = "x"
+
+    assert _texts(cell) == ["x"]
+
+
+def test_setting_text_keeps_blank_lines_and_objects() -> None:
+    table = HwpxDocument.new().add_table(1, 1)
+    cell = table.cell(0, 0)
+    cell.set_text("서명\n\n", split_paragraphs=True)
+    cell.paragraphs[1].add_table(1, 1)
+
+    cell.text = "홍길동"
+
+    assert len(cell.paragraphs) == 3
+    assert cell.paragraphs[0].text == "홍길동"
+    assert len(cell.paragraphs[1].tables) == 1
+    assert cell.paragraphs[2].text == ""
+
+
 def test_merged_text_survives_saving() -> None:
     doc = HwpxDocument.new()
     table = doc.add_table(2, 2)
