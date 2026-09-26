@@ -60,7 +60,9 @@ def _set_cell_borders_preserving(table: Any, cell: Any, color: str, line_type: s
         refuse("cell border edit requires an attached document header")
     header = document.headers[0]
     try:
-        line_type = _normalize_border_type(line_type, header._BORDER_LINE_TYPES, header._BORDER_LINE_ALIASES)
+        line_type = _normalize_border_type(
+            header._BORDER_LINE_TYPE_ALIASES.get(str(line_type).upper(), line_type), header._BORDER_LINE_TYPES
+        )
     except (ValueError, TypeError, AttributeError):
         refuse("border line type is unsupported")
     container = header._border_fills_element()
