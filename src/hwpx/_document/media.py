@@ -372,7 +372,9 @@ def list_images(doc: "HwpxDocument") -> tuple[BinaryItem, ...]:
     Items the header ``binDataList`` lists come first. Binary items only the
     ``content.hpf`` manifest lists (href under ``BinData/`` or an ``image/*``
     media type) follow in manifest order -- Hancom-saved files usually
-    have no ``binDataList`` at all.
+    have no ``binDataList`` at all. Items marked ``isEmbeded="0"`` link a
+    file outside the package and are left out; an embedded item whose part
+    is missing is listed with ``size=0``.
     """
 
     header = doc._root.headers[0] if doc._root.headers else None
@@ -400,6 +402,8 @@ def list_images(doc: "HwpxDocument") -> tuple[BinaryItem, ...]:
             continue
         if not _is_binary_manifest_item(href, str(manifest_item.get("media-type", "")).strip()):
             continue
+        if manifest_item.get("isEmbeded") == "0":
+            continue  # links a file outside the package; not a binary it holds
         if item_id in listed or _bin_data_stem(href) in listed:
             continue
         part_name = resolve_part_name(manifest_path, href, known_parts=part_names)

@@ -301,7 +301,8 @@
 - `doc.media.images`가 `content.hpf` 매니페스트에만 있는 이진 항목을 보지 못하던 것을
   고친다. 한컴이 저장한 파일은 보통 header에 `binDataList`가 없어 그림이 있어도 빈 목록이
   나왔다. 이제 header 항목 뒤에 매니페스트에만 있는 항목(href가 `BinData/` 아래이거나
-  media-type이 `image/*`)을 붙인다. `doc.media.remove_image()`는 매니페스트 id·파트 경로
+  media-type이 `image/*`)을 붙인다. `isEmbeded="0"`으로 바깥 파일을 잇는 항목은 넣지 않고,
+  파트가 없는 내장 항목은 `size=0`으로 넣는다. `doc.media.remove_image()`는 매니페스트 id·파트 경로
   (`"BinData/image1.png"`)·`BinaryItem`을 모두 받아 이런 항목도 지운다.
 - `HwpxPackage.remove_manifest_item()`에 파트 경로를 넘기면 `False`만 돌려주고 항목을
   남기던 것을 고친다. 이 인자는 매니페스트 `id`다. 그 id의 항목이 없고 값에 `/`가 있으면

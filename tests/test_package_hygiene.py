@@ -237,6 +237,31 @@ def test_images_lists_header_items_first_without_duplicates() -> None:
     assert images[1] == BinaryItem(item_id="extra", format="png", href="BinData/extra.png", size=len(PNG))
 
 
+def test_images_leaves_out_linked_items_but_keeps_embedded_ones_without_a_part() -> None:
+    document = HwpxDocument.open(LINKED_VIDEO)
+    size = len(_read_part(LINKED_VIDEO.read_bytes(), "BinData/image2.bmp"))
+
+    assert document.media.images == (
+        BinaryItem(item_id="image2", format="bmp", href="BinData/image2.bmp", size=size),
+    )
+
+    document.package.delete("BinData/image2.bmp")
+    assert document.media.images == (
+        BinaryItem(item_id="image2", format="bmp", href="BinData/image2.bmp", size=0),
+    )
+
+
+def test_removing_every_listed_image_keeps_linked_items() -> None:
+    document = HwpxDocument.open(LINKED_VIDEO)
+
+    for item in document.media.images:
+        assert document.media.remove_image(item) is True
+
+    hpf = _read_part(document.to_bytes(), "Contents/content.hpf").decode()
+    assert 'id="image1"' in hpf
+    assert 'id="image2"' not in hpf
+
+
 @pytest.mark.parametrize("how", ["id", "href", "item"])
 def test_remove_image_removes_manifest_only_items(how: str) -> None:
     document = HwpxDocument.open(PICTURE)
