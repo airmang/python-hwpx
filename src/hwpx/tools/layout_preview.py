@@ -342,6 +342,29 @@ def _render_object_marker(label: str) -> str:
     return f'<span class="hwpx-object-marker">⟦{html.escape(label)}⟧</span>'
 
 
+def _shape_text_lines(element: ET.Element) -> list[str]:
+    """The text of a drawing object's text boxes (a group's too), one line per paragraph.
+
+    Tables inside are rendered as tables after the paragraph and are not read here.
+    """
+    lines: list[str] = []
+    for child in element:
+        if child.tag == f"{_HP}tbl":
+            continue
+        if child.tag == f"{_HP}p":
+            text = _paragraph_text(child)
+            if text.strip():
+                lines.append(text)
+        lines.extend(_shape_text_lines(child))
+    return lines
+
+
+def _render_shape(shape: ET.Element) -> str:
+    lines = _shape_text_lines(shape)
+    text = "<br>".join(html.escape(line) for line in lines)
+    return _render_object_marker("도형") + (f'<span class="hwpx-shape-text">{text}</span>' if lines else "")
+
+
 def _render_inline_runs(
     paragraph: ET.Element,
     styles: Mapping[str, Any],
@@ -370,7 +393,7 @@ def _render_inline_runs(
             elif child.tag == _OLE_TAG:
                 spans.append(_render_object_marker("개체"))
             elif child.tag in _SHAPE_TAGS:
-                spans.append(_render_object_marker("도형"))
+                spans.append(_render_shape(child))
     return "".join(spans)
 
 
@@ -561,6 +584,7 @@ def _base_css(mode: str) -> str:
         ".hwpx-object-marker { display: inline-block; padding: 0 0.3em; "
         "border: 1px dashed #9aa2ad; border-radius: 4px; color: #4b5563; "
         "font-size: 0.9em; background: #eef1f5; }\n"
+        ".hwpx-shape-text { margin-left: 0.3em; }\n"
         "@media print { body { padding: 0; background: #fff; } "
         ".hwpx-preview-page { margin: 0; box-shadow: none; page-break-after: always; } }\n"
         f"{long_page_css}"

@@ -28,7 +28,7 @@ from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...form_fit.policy import FitPolicy
-    from ...objects import CheckBox, FieldFillResult, FormField
+    from ...objects import CellField, CheckBox, FieldFillResult, FormField
     from ...oxml import HwpxOxmlParagraph, HwpxOxmlSection
 
 __all__ = ["FieldsNamespace"]
@@ -106,6 +106,31 @@ class FieldsNamespace(_Namespace):
             box_width=box_width,
             font_pt=font_pt,
         )
+
+    # -- 셀 필드 -----------------------------------------------------------
+
+    @property
+    def cells(self) -> "tuple[CellField, ...]":
+        """이름 붙은 표 칸(한/글 "셀 필드")을 문서 순서로. 본문 표와 그 칸 안의 표를 본다.
+
+        칸에 이름을 붙이려면 ``table.cell(r, c).field_name = "이름"``을 쓴다.
+        """
+
+        from .. import fields as _fields
+
+        return _fields.list_cell_fields(self._doc)
+
+    def fill_cell(self, value: str, *, name: str, index: int | None = None) -> "tuple[CellField, ...]":
+        """이름이 *name* 인 셀 필드의 글을 *value* 로 바꾸고, 바꾼 셀 필드들을 돌려준다.
+
+        한/글 ``PutFieldText``처럼 같은 이름의 칸이 여럿이면 모두 채운다. *index*(0부터,
+        문서 순서)를 주면 그 하나만 채운다(한/글의 ``이름{{n}}``). 누름틀은 건드리지 않는다
+        (누름틀은 :meth:`fill`). 없으면 ``HwpxValueError(code="field-cell-not-found")``.
+        """
+
+        from .. import fields as _fields
+
+        return _fields.fill_cell_fields(self._doc, value, name=name, index=index)
 
     # -- 체크박스 ----------------------------------------------------------
 

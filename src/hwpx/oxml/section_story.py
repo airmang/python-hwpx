@@ -20,6 +20,7 @@ from ._document_primitives import (
 from ._paragraph_text_edit import set_text_with_tabs
 
 if TYPE_CHECKING:
+    from .paragraph import HwpxOxmlParagraph
     from .section_format import HwpxOxmlSectionProperties
 
 
@@ -510,6 +511,18 @@ class HwpxOxmlSectionHeaderFooter:
                 removed = True
         if removed:
             self._properties.section.mark_dirty()
+
+    @property
+    def paragraphs(self) -> list["HwpxOxmlParagraph"]:
+        """Return the paragraphs of this header/footer, like ``cell.paragraphs``."""
+
+        from .paragraph import HwpxOxmlParagraph
+
+        sublist = self.element.find(f"{_HP}subList")
+        if sublist is None:
+            return []
+        section = self._properties.section
+        return [HwpxOxmlParagraph(element, section) for element in sublist.findall(f"{_HP}p")]
 
     def add_paragraph(self, *, align: str | None = None) -> ET.Element:
         """Append an empty paragraph to the header/footer subList."""

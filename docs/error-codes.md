@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 134 | 11 |
+| 개수 | 135 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -82,6 +82,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `field-ambiguous` | 선택자가 누름틀 여럿에 걸린다. |
+| `field-cell-not-found` | 그 이름(과 순번)의 셀 필드(이름 붙은 표 칸)가 없다. |
 | `field-checkbox-ambiguous` | 선택자가 체크박스 여럿에 걸린다. |
 | `field-checkbox-caption-empty` | 체크박스 캡션이 비어 있다. |
 | `field-checkbox-not-created` | 만든 체크박스를 표준 리더가 다시 찾지 못했다. |
@@ -178,14 +179,15 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
-| `paragraph-argument-conflict` | paragraph_index 와 paragraph_indexes 를 동시에 지정했다. |
+| `paragraph-argument-conflict` | paragraph_index·paragraph_indexes·paragraphs 중 둘 이상을 동시에 지정했다. |
 | `paragraph-border-invalid` | 문단 테두리(border) 지정에 모르는 키·면이 있거나 여백이 네 개의 0 이상 수가 아니다. |
 | `paragraph-format-empty` | 적용할 문단 서식 항목이 하나도 없다. |
-| `paragraph-indexes-empty` | paragraph_indexes 가 비어 있다. |
+| `paragraph-indexes-empty` | paragraph_indexes 또는 paragraphs 가 비어 있다. |
 | `paragraph-invalid-type` | paragraph 인자가 정수도 문단 객체도 아니다. |
 | `paragraph-line-spacing-invalid` | 줄 간격은 양수여야 한다. |
 | `paragraph-missing` | 문서(또는 지정 범위)에 문단이 하나도 없다. |
 | `paragraph-not-found` | 문단 인덱스가 범위를 벗어났다. |
+| `paragraph-not-in-document` | 넘긴 문단 객체가 이 문서에 속해 있지 않다(다른 문서의 문단이거나 지운 문단). |
 | `paragraph-outline-level-out-of-range` | 문단 개요 수준이 0~10 밖이다. |
 | `paragraph-tab-leader-invalid` | 탭 정지 leader 값이 OWPML 어휘(hc:LineType2) 밖이다. |
 | `paragraph-tab-pos-invalid` | 탭 정지 위치(pos_mm/pos)가 없거나 음수다. |
