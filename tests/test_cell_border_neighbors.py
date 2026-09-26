@@ -3,6 +3,8 @@
 
 Each cell keeps its own four sides and both cells of a shared edge are drawn,
 so Hancom's cell border command changes the neighbour's side of that edge too.
+``set_cell_borders`` does the same; ``set_cell_border_fill`` only points one
+cell at a definition and leaves its neighbours alone.
 """
 from __future__ import annotations
 
@@ -42,31 +44,31 @@ def test_middle_cell_border_reaches_all_four_neighbours() -> None:
     assert _side(doc, table, 0, 0, "bottomBorder") != ("DOT", "#0000FF")
 
 
-def test_border_fill_without_lines_clears_the_shared_edges() -> None:
+def test_the_shared_edges_survive_save_and_reopen() -> None:
     doc = HwpxDocument.new()
     table = doc.add_table(2, 2)
-    no_lines = doc.styles.ensure_border_fill(active_borders=[])
-    table.set_cell_border_fill(0, 0, no_lines)
-    assert _side(doc, table, 0, 1, "leftBorder")[0] == "NONE"
-    assert _side(doc, table, 1, 0, "topBorder")[0] == "NONE"
+    table.set_cell_borders(0, 0, color="#FF0000", line_type="DASH")
     reopened = HwpxDocument.open(doc.to_bytes())
     table2 = reopened.paragraphs[1].tables[0] if reopened.paragraphs[1].tables else None
     assert table2 is not None
-    assert _side(reopened, table2, 0, 1, "leftBorder")[0] == "NONE"
+    assert _side(reopened, table2, 0, 1, "leftBorder") == ("DASH", "#FF0000")
+    assert _side(reopened, table2, 1, 0, "topBorder") == ("DASH", "#FF0000")
 
 
-def test_three_d_lines_are_written_with_hancom_names() -> None:
+def test_pointing_one_cell_at_a_border_fill_leaves_the_neighbours_alone() -> None:
+    # A cell pointed at its own definition, one cell at a time, is how per-cell
+    # lines (connectors, open boxes) are drawn: the neighbours must keep theirs.
     doc = HwpxDocument.new()
-    fill_id = doc.styles.ensure_border_fill(border_type="THICK_3D")
-    fill = doc.oxml.headers[0].element.find(f".//{HH}borderFill[@id='{fill_id}']")
-    assert {side.get("type") for side in fill if side.tag.endswith("Border")} <= {"THICK3D", "NONE"}
-    assert "THICK3D" in {side.get("type") for side in fill if side.tag.endswith("Border")}
-    table = doc.add_table(1, 2)
-    table.set_cell_borders(0, 0, color="#000000", line_type="SLIM_3D")
-    assert _side(doc, table, 0, 0, "leftBorder")[0] == "3D"
-    for name in ("THICK3D", "THICKREV3D", "3D", "REV3D"):
-        table.set_cell_borders(0, 1, color="#000000", line_type=name)
-        assert _side(doc, table, 0, 1, "rightBorder")[0] == name
+    table = doc.add_table(2, 2)
+    before = {
+        (row, col, side): _side(doc, table, row, col, side)
+        for row, col in ((0, 1), (1, 0), (1, 1))
+        for side in ("leftBorder", "rightBorder", "topBorder", "bottomBorder")
+    }
+    no_lines = doc.styles.ensure_border_fill(active_borders=[])
+    table.set_cell_border_fill(0, 0, no_lines)
+    assert _side(doc, table, 0, 0, "rightBorder")[0] == "NONE"
+    assert {key: _side(doc, table, *key) for key in before} == before
 
 
 def test_a_longer_merged_neighbour_keeps_its_line() -> None:

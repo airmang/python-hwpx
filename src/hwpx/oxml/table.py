@@ -60,9 +60,7 @@ def _set_cell_borders_preserving(table: Any, cell: Any, color: str, line_type: s
         refuse("cell border edit requires an attached document header")
     header = document.headers[0]
     try:
-        line_type = _normalize_border_type(
-            header._BORDER_LINE_TYPE_ALIASES.get(str(line_type).upper(), line_type), header._BORDER_LINE_TYPES
-        )
+        line_type = _normalize_border_type(line_type, header._BORDER_LINE_TYPES)
     except (ValueError, TypeError, AttributeError):
         refuse("border line type is unsupported")
     container = header._border_fills_element()
@@ -937,14 +935,13 @@ class HwpxOxmlTable:
         """Point one cell at a header ``borderFill`` definition.
 
         Pairs with :meth:`set_cell_shading`; obtain ids from
-        ``document.ensure_border_fill`` (line style/width/color/fill). As
-        Hancom does, the neighbouring cells take the same line on the edge
-        they share with this cell.
+        ``document.ensure_border_fill`` (line style/width/color/fill). Only
+        this cell changes; :meth:`set_cell_borders` also sets the edges the
+        neighbouring cells share with it.
         """
         cell = self.cell(row_index, col_index)
         cell.element.set("borderFillIDRef", str(border_fill_id_ref))
         self.mark_dirty()
-        _match_touching_edges(self, cell)
 
     def set_cell_borders(
         self, row_index: int, col_index: int, *, color: str, line_type: str = "SOLID"

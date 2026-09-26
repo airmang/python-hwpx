@@ -949,11 +949,9 @@ class HwpxOxmlHeader:
     _BORDER_LINE_TYPES = frozenset({
         "SOLID", "DASH", "DOT", "DASH_DOT", "DASH_DOT_DOT", "LONG_DASH",
         "CIRCLE", "DOUBLE_SLIM", "SLIM_THICK", "THICK_SLIM", "SLIM_THICK_SLIM",
-        "WAVE", "DOUBLEWAVE", "THICK3D", "THICKREV3D", "3D", "REV3D",
+        "WAVE", "DOUBLEWAVE", "THICK_3D", "THICK_3D_REVERSE_LIGHTING",
+        "SLIM_3D", "SLIM_3D_REVERSE_LIGHTING",
     })
-    #: Earlier python-hwpx names of the 3-D lines, which Hancom reads as no line.
-    _BORDER_LINE_TYPE_ALIASES = {"THICK_3D": "THICK3D", "THICK_3D_REVERSE_LIGHTING": "THICKREV3D",
-                                 "SLIM_3D": "3D", "SLIM_3D_REVERSE_LIGHTING": "REV3D"}
 
     def ensure_border_fill(
         self,
@@ -970,8 +968,7 @@ class HwpxOxmlHeader:
         if element is None:  # pragma: no cover - defensive branch
             raise RuntimeError("failed to create <borderFills> element")
 
-        normalized_border_type = _normalize_border_type(
-            self._BORDER_LINE_TYPE_ALIASES.get(str(border_type).upper(), border_type), self._BORDER_LINE_TYPES)
+        normalized_border_type = _normalize_border_type(border_type, self._BORDER_LINE_TYPES)
         normalized_border_color = _normalize_color(border_color) or "#BFBFBF"
         normalized_border_width = str(border_width or "0.12 mm")
         normalized_active_borders = _normalize_border_side_names(active_borders)
