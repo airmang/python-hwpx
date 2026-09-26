@@ -30,6 +30,48 @@ def _form() -> HwpxDocument:
     return document
 
 
+def _cell_with_a_table(text: str = "바깥"):
+    document = HwpxDocument.new()
+    cell = document.add_table(1, 1).cell(0, 0)
+    if text:
+        cell.text = text
+    inner = cell.paragraphs[0].add_table(1, 2)
+    inner.cell(0, 0).text = "안쪽1"
+    inner.cell(0, 1).text = "안쪽2"
+    cell.field_name = "바깥칸"
+    return document, cell, inner
+
+
+def test_filling_a_cell_keeps_the_text_of_a_table_inside_it() -> None:
+    document, cell, inner = _cell_with_a_table()
+
+    document.fields.fill_cell("새 값", name="바깥칸")
+
+    assert cell.text == "새 값"
+    assert (inner.cell(0, 0).text, inner.cell(0, 1).text) == ("안쪽1", "안쪽2")
+
+
+def test_a_cell_field_inside_a_filled_cell_keeps_its_value() -> None:
+    document, _cell, inner = _cell_with_a_table()
+    inner.cell(0, 1).field_name = "안칸"
+
+    document.fields.fill_cell("새 값", name="바깥칸")
+
+    assert [(field.name, field.text) for field in document.fields.cells] == [("바깥칸", "새 값"), ("안칸", "안쪽2")]
+
+
+def test_a_cell_holding_only_a_table_gets_its_text_in_front_of_it() -> None:
+    document, cell, inner = _cell_with_a_table(text="")
+
+    document.fields.fill_cell("새 값", name="바깥칸")
+
+    assert cell.text == "새 값"
+    assert len(cell.paragraphs) == 1 and len(cell.paragraphs[0].tables) == 1
+    assert (inner.cell(0, 0).text, inner.cell(0, 1).text) == ("안쪽1", "안쪽2")
+    reopened = HwpxDocument.open(io.BytesIO(document.to_bytes()))
+    assert [field.text for field in reopened.fields.cells] == ["새 값"]
+
+
 def test_named_cells_are_listed_in_document_order() -> None:
     document = _form()
 

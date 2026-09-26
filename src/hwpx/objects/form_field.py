@@ -188,11 +188,42 @@ class FormField:
         )
 
 
+def _set_own_text(cell: Any, value: str) -> None:
+    """Put *value* in the cell's own paragraphs; a table or object inside the
+    cell keeps its text (and the cell fields in it their values)."""
+
+    from ..oxml._paragraph_text_edit import clear_text_element, sanitize_keeping_tabs, set_text_with_tabs
+    from ..oxml.namespaces import HP
+
+    text = sanitize_keeping_tabs(value)
+    sublist = cell._ensure_sublist()
+    if text and text != cell.text and (sublist.get("lineWrap") or "").upper() == "SQUEEZE":
+        sublist.set("lineWrap", "BREAK")  # as set_text: squeezed longer text overlaps in Hancom
+    paragraphs = sublist.findall(f"{HP}p")
+    own = [node for paragraph in paragraphs for node in paragraph.findall(f"{HP}run/{HP}t")]
+    if own:
+        target = own[0]
+    elif not paragraphs:
+        target = cell._ensure_text_element()
+    else:  # the first paragraph holds only objects: the text goes in front of them
+        run = paragraphs[0].makeelement(f"{HP}run", {"charPrIDRef": cell._first_run_char_pr_id_ref()})
+        paragraphs[0].insert(0, run)
+        target = run.makeelement(f"{HP}t", {})
+        run.append(target)
+    set_text_with_tabs(target, text)
+    for node in own[1:]:
+        clear_text_element(node)
+    cell._clear_own_layout_caches()
+    cell.element.set("dirty", "1")
+    cell.table.mark_dirty()
+
+
 class CellField:
     """A live view over one named table cell -- Hancom's cell field (``hp:tc@name``).
 
-    ``text`` reads the cell's text and, when assigned, replaces it the way
-    ``cell.set_text`` does (the cell's character and paragraph shapes are kept).
+    ``text`` reads the cell's text and, when assigned, replaces the text of the
+    cell's own paragraphs (the cell's character and paragraph shapes are kept);
+    a table or object inside the cell keeps its text.
     ``cell`` is the table cell itself (:class:`hwpx.model.TableCell`) for anything else.
     """
 
@@ -211,7 +242,7 @@ class CellField:
 
     @text.setter
     def text(self, value: str) -> None:
-        self._cell.set_text(value)
+        _set_own_text(self._cell, value)
 
     @property
     def cell(self) -> Any:
