@@ -5,7 +5,7 @@
    "oxml/table.py:53"
   ],
   "cell-margin-value": [
-   "oxml/table_sizes.py:292"
+   "oxml/table_sizes.py:307"
   ],
   "contract-document-missing": [
    "capabilities.py:629"
@@ -169,10 +169,10 @@
    "_document/layout.py:358"
   ],
   "paragraph-index-mark-empty-key": [
-   "oxml/paragraph.py:990"
+   "oxml/paragraph.py:992"
   ],
   "paragraph-index-mark-no-text-run": [
-   "oxml/paragraph.py:982"
+   "oxml/paragraph.py:984"
   ],
   "paragraph-indexes-empty": [
    "_document/layout.py:162",
@@ -222,13 +222,13 @@
    "oxml/_document_primitives.py:1379"
   ],
   "paragraph-text-missing": [
-   "oxml/paragraph.py:361"
+   "oxml/paragraph.py:363"
   ],
   "paragraph-text-style-ambiguous": [
-   "oxml/paragraph.py:373"
+   "oxml/paragraph.py:375"
   ],
   "paragraph-title-mark-no-text-run": [
-   "oxml/paragraph.py:939"
+   "oxml/paragraph.py:941"
   ],
   "parts-auto-spacing-unknown-para-pr": [
    "_document/ns/parts.py:266"
@@ -398,7 +398,7 @@
    "oxml/header_part.py:772"
   ],
   "table-cell-zone-grid-mismatch": [
-   "oxml/table_sizes.py:189"
+   "oxml/table_sizes.py:194"
   ],
   "table-position-missing": [
    "oxml/table.py:610"

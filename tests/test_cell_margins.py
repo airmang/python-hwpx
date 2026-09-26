@@ -120,13 +120,34 @@ def test_set_margins_refuses_a_bad_value_before_changing_anything(value: object)
     assert doc.to_bytes() == before
 
 
-def test_set_margins_leaves_the_cell_line_layout_cache_alone() -> None:
-    _, _, cell = _cell()
-    paragraph = cell.paragraphs[0].element
+def _cached(paragraph) -> None:
     paragraph.append(paragraph.makeelement(f"{HP}linesegarray", {}))
+
+
+def test_set_margins_drops_the_line_layout_of_this_cells_own_paragraphs() -> None:
+    _, _, cell = _cell()
+    cell.add_paragraph("둘째")
+    inner = cell.add_table(1, 1).cell(0, 0)
+    own = [p.element for p in cell.paragraphs]
+    nested = inner.paragraphs[0].element
+    for paragraph in [*own, nested]:
+        _cached(paragraph)
 
     cell.set_margins(left=0)
 
+    assert all(p.find(f"{HP}linesegarray") is None for p in own)
+    assert nested.find(f"{HP}linesegarray") is not None
+
+
+def test_set_margins_keeps_the_line_layout_when_the_margins_stay_the_same() -> None:
+    _, _, cell = _cell()
+    paragraph = cell.paragraphs[0].element
+    _cached(paragraph)
+
+    cell.set_margins()
+    cell.set_margins(left=510, top=141)
+
+    assert cell.element.get("hasMargin") == "1"
     assert paragraph.find(f"{HP}linesegarray") is not None
 
 

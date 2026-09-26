@@ -74,7 +74,8 @@
   `hasMargin`이 꺼져 있으면 표의 `hp:inMargin`, 켜져 있으면 셀의 `hp:cellMargin`이다.
   `add_table()`이 만든 셀은 `CellMargins(510, 510, 141, 141)`이다.
   `cell.set_margins(left=, right=, top=, bottom=)`는 주지 않은 면을 지금 여백으로 채워
-  네 면을 셀 여백에 쓰고 `hasMargin="1"`로 켠 뒤 새 여백을 돌려준다. 인자가 없으면
+  네 면을 셀 여백에 쓰고 `hasMargin="1"`로 켠 뒤 새 여백을 돌려준다. 여백이 실제로 바뀌면
+  그 셀에 바로 든 문단의 줄 배치 캐시를 지운다(안쪽 표 문단은 그대로). 인자가 없으면
   아무것도 바꾸지 않는다. `0 <= v < 2**31`인 `int`가 아닌 값(`bool` 포함)은 바꾸기 전에
   `HwpxValueError`(`cell-margin-value`)로 거부한다.
 - 편집 의미론 문서에 `table.set_cell_text()`가 남기는 것과 다시 만드는 것(기본은 첫

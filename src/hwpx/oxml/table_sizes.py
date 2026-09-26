@@ -15,7 +15,12 @@ from math import lcm
 from typing import TYPE_CHECKING, Any, Iterator, Sequence
 
 from ..objects.results import CellMargins
-from ._document_primitives import _HP, _distribute_size, _element_local_name
+from ._document_primitives import (
+    _HP,
+    _clear_paragraph_layout_cache,
+    _distribute_size,
+    _element_local_name,
+)
 
 if TYPE_CHECKING:
     from .table import HwpxOxmlTable, HwpxOxmlTableCell, HwpxTableGridPosition
@@ -253,8 +258,14 @@ def cell_margins(cell: "HwpxOxmlTableCell") -> CellMargins:
 
     The table's ``hp:inMargin`` applies unless the cell's ``hasMargin`` is
     on (``"1"``/``"true"``); then the cell's own ``hp:cellMargin`` does.
-    When the chosen element is missing the other one is used, and a cell
-    with neither reads as zero margins.
+    A missing ``hasMargin`` is off: the OWPML schema declares it
+    ``xs:boolean`` with ``default="false"`` on ``hp:tc`` (ParaList XML
+    schema, ``DevDoc/OWPML SCHEMA/ParaList XML schema.xml``).
+
+    When the chosen element is missing the other one is used: a cell with
+    ``hasMargin`` on but no ``hp:cellMargin`` reads the table's
+    ``hp:inMargin``, and a table without ``hp:inMargin`` reads the cell's
+    ``hp:cellMargin``. A cell with neither reads as zero margins.
     """
     own = cell.element.find(f"{_HP}cellMargin")
     inherited = cell.table.element.find(f"{_HP}inMargin")
@@ -280,7 +291,11 @@ def set_cell_margins(
     Sides left as ``None`` keep their current effective value (see
     :attr:`margins`). All four are written to the cell's ``hp:cellMargin``
     and ``hasMargin`` is turned on, so the table margin no longer applies.
-    With no arguments nothing changes. A value that is not an ``int`` in
+    When the effective margins change, the cached line layout
+    (``hp:linesegarray``) of the paragraphs directly in this cell's
+    ``hp:subList`` is dropped so Hancom re-breaks their lines; nested
+    tables keep theirs, since their own cell widths do not change. With no
+    arguments nothing changes. A value that is not an ``int`` in
     ``0 <= value < 2**31`` is refused before anything changes.
     """
     from ..errors import HwpxValueError
@@ -295,10 +310,10 @@ def set_cell_margins(
                 context={"side": side, "value": repr(value)},
                 suggestion="Pass a non-negative int in HWPUNIT (1 mm = 283.465 HWPUNIT).",
             )
-    margins = cell_margins(cell)
+    before = cell_margins(cell)
     if not given:
-        return margins
-    margins = replace(margins, **given)
+        return before
+    margins = replace(before, **given)
     own = cell.element.find(f"{_HP}cellMargin")
     if own is None:
         own = cell.element.makeelement(f"{_HP}cellMargin", {})
@@ -311,5 +326,9 @@ def set_cell_margins(
     for side in _MARGIN_SIDES:
         own.set(side, str(getattr(margins, side)))
     cell.element.set("hasMargin", "1")
+    sublist = cell.element.find(f"{_HP}subList")
+    if margins != before and sublist is not None:
+        for paragraph in sublist.findall(f"{_HP}p"):
+            _clear_paragraph_layout_cache(paragraph)
     cell.table.mark_dirty()
     return margins
