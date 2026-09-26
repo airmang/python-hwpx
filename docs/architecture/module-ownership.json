@@ -352,6 +352,12 @@
       "rationale": "authoring direction of the equation vocabulary: LaTeX -> EqEdit conversion and the hp:equation size heuristic live beside the reader (eqedit.py) as reusable HWPX format behavior; refuses outside the verified token set instead of approximating"
     },
     {
+      "approvedBy": "054-equation-authoring/P1",
+      "disposition": "core",
+      "path": "src/hwpx/equation/measure.py",
+      "rationale": "hp:equation box and baseLine measure used by authoring.py's size estimate and add_equation: lays an EqEdit script out as boxes by its structure (characters by kind, fractions, scripts, roots, big operators and limits, matrices, piles, line breaks) beside the reader (eqedit.py) as reusable HWPX format behavior"
+    },
+    {
       "path": "src/hwpx/model.py",
       "disposition": "core",
       "approvedBy": "062-engine-surface/WP-A",
