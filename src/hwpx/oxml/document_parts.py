@@ -623,7 +623,7 @@ class HwpxOxmlDocument:
         text: str | None = None,
         paragraphs: "Sequence[str] | None" = None,
         page_type: str = "BOTH",
-        page_number: int = 1,
+        page_number: int | None = None,
         page_duplicate: bool = False,
         page_front: bool = False,
     ) -> str:
