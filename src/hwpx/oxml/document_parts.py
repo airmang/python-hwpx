@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 import logging
-from typing import TYPE_CHECKING, Iterable, Mapping, Sequence, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence, TypeVar
 import xml.etree.ElementTree as ET
 
 from hwpx.opc.relationships import resolve_part_name
@@ -87,13 +88,6 @@ def _run_style_element_flags(element: ET.Element) -> tuple[bool, bool, bool]:
     return bold_present, italic_present, underline_present
 
 
-def _run_style_element_strike(element: ET.Element) -> bool:
-    strike_element = element.find(f"{_HH}strikeout")
-    if strike_element is None:
-        return False
-    return strike_element.get("shape", "").upper() != "NONE"
-
-
 def _validated_line_shape(
     value: str | None, vocabulary: frozenset[str], label: str
 ) -> str | None:
@@ -105,23 +99,6 @@ def _validated_line_shape(
     return normalized
 
 
-def _run_style_underline_matches(element: ET.Element, spec: _RunStyleSpec) -> bool:
-    if spec.underline_shape is None and spec.underline_color is None:
-        return True
-    underline = element.find(f"{_HH}underline")
-    if underline is None:
-        return False
-    if spec.underline_shape is not None and (
-        underline.get("shape", "").upper() != spec.underline_shape
-    ):
-        return False
-    if spec.underline_color is not None and (
-        (underline.get("color") or "").upper() != spec.underline_color.upper()
-    ):
-        return False
-    return True
-
-
 def _run_style_lang_value_matches(
     element: ET.Element, tag: str, value: int | None
 ) -> bool:
@@ -129,67 +106,6 @@ def _run_style_lang_value_matches(
         return True
     node = element.find(f"{_HH}{tag}")
     return node is not None and node.get("hangul") == str(value)
-
-
-def _run_style_extensions_match(element: ET.Element, spec: _RunStyleSpec) -> bool:
-    if not _run_style_underline_matches(element, spec):
-        return False
-    if spec.strike_shape is not None:
-        strike_el = element.find(f"{_HH}strikeout")
-        if strike_el is None or strike_el.get("shape", "").upper() != spec.strike_shape:
-            return False
-    if not _run_style_lang_value_matches(element, "ratio", spec.ratio):
-        return False
-    if not _run_style_lang_value_matches(element, "spacing", spec.letter_spacing):
-        return False
-    if not _run_style_shadow_matches(element, spec.shadow_color):
-        return False
-    if not _run_style_script_matches(element, spec.script):
-        return False
-    return _run_style_residual_matches(element, spec)
-
-
-def _run_style_residual_matches(element: ET.Element, spec: _RunStyleSpec) -> bool:
-    """cycle-6.3 문자 서식 잔여(outline/emboss/engrave) 매칭.
-
-    ``_run_style_extensions_match`` 에서 분리한 별도 함수 — 한 함수에 다
-    몰아넣으면 C901 한도(10)를 넘는다."""
-    if not _run_style_outline_matches(element, spec.outline):
-        return False
-    if not _run_style_emboss_matches(element, spec.emboss):
-        return False
-    if not _run_style_engrave_matches(element, spec.engrave):
-        return False
-    return True
-
-
-def _run_style_outline_matches(element: ET.Element, outline: str | None) -> bool:
-    if outline is None:
-        return True
-    outline_el = element.find(f"{_HH}outline")
-    have = (outline_el.get("type", "NONE").upper() if outline_el is not None else "NONE")
-    return have == outline
-
-
-def _run_style_emboss_matches(element: ET.Element, emboss: bool | None) -> bool:
-    if emboss is None:
-        return True
-    return (element.find(f"{_HH}emboss") is not None) == bool(emboss)
-
-
-def _run_style_engrave_matches(element: ET.Element, engrave: bool | None) -> bool:
-    if engrave is None:
-        return True
-    return (element.find(f"{_HH}engrave") is not None) == bool(engrave)
-
-
-def _run_style_shadow_matches(element: ET.Element, shadow_color: str | None) -> bool:
-    if shadow_color is None:
-        return True
-    shadow_el = element.find(f"{_HH}shadow")
-    if shadow_el is None or shadow_el.get("type", "").upper() == "NONE":
-        return False
-    return (shadow_el.get("color") or "").upper() == shadow_color.upper()
 
 
 def _run_style_is_legacy_script_approximation(element: ET.Element) -> bool:
@@ -203,38 +119,57 @@ def _run_style_is_legacy_script_approximation(element: ET.Element) -> bool:
     )
 
 
-def _run_style_script_matches(element: ET.Element, script: str | None) -> bool:
-    if script is None:
-        return True
-    if _run_style_is_legacy_script_approximation(element):
-        return False
-    wanted, other = ("supscript", "subscript") if script == "sup" else ("subscript", "supscript")
-    return element.find(f"{_HH}{wanted}") is not None and element.find(f"{_HH}{other}") is None
+def _run_style_base(header: HwpxOxmlHeader, base_char_pr_id: str | int | None) -> ET.Element | None:
+    """The ``hh:charPr`` a requested style is built on: *base_char_pr_id*, else the first one."""
+
+    ref_list = header.element.find(f"{_HH}refList")
+    container = None if ref_list is None else ref_list.find(f"{_HH}charProperties")
+    if container is None:
+        return None
+    named = None if base_char_pr_id is None else container.find(f"{_HH}charPr[@id='{base_char_pr_id}']")
+    return named if named is not None else container.find(f"{_HH}charPr")
 
 
-def _run_style_predicate(element: ET.Element, spec: _RunStyleSpec) -> bool:
-    if _run_style_element_flags(element) != spec.flags:
-        return False
-    if spec.color is not None and element.get("textColor") != spec.color:
-        return False
-    if (
-        spec.highlight is not None
-        and element.get("shadeColor") != spec.highlight
-    ):
-        return False
-    if spec.height is not None and element.get("height") != spec.height:
-        return False
-    if spec.strike is not None and _run_style_element_strike(element) != bool(spec.strike):
-        return False
-    if not _run_style_extensions_match(element, spec):
-        return False
-    if spec.font_ref is not None:
-        font_ref = element.find(f"{_HH}fontRef")
-        if font_ref is None:
+def _run_style_flags(
+    requested: tuple[bool | None, bool | None, bool | None], base: ET.Element | None, keep_base: bool
+) -> tuple[bool, bool, bool]:
+    """Bold, italic and underline; one left out (``None``) keeps the named base's, else is off."""
+
+    inherited = _run_style_element_flags(base) if base is not None and keep_base else (False, False, False)
+    bold, italic, underline = (have if want is None else bool(want) for want, have in zip(requested, inherited))
+    return bold, italic, underline
+
+
+def _char_pr_children(element: ET.Element) -> tuple[Any, ...]:
+    """The children of a ``hh:charPr`` with their attributes and text, in any order."""
+
+    def node(child: ET.Element) -> tuple[Any, ...]:
+        return str(child.tag), tuple(sorted(child.attrib.items())), (child.text or "").strip(), _char_pr_children(child)
+
+    return tuple(sorted(map(node, element)))
+
+
+def _run_style_wanted(base: ET.Element | None, spec: _RunStyleSpec) -> Callable[[ET.Element], bool]:
+    """Whether a ``hh:charPr`` is the one *spec* asks for: *base* with the requested changes.
+
+    Its attributes (other than the id) and its children must match; the height is compared
+    first, the children only when the attributes agree.
+    """
+
+    wanted = deepcopy(base) if base is not None else ET.Element(f"{_HH}charPr")
+    _run_style_modifier(wanted, spec)
+    height = wanted.get("height")
+    attributes = {key: value for key, value in wanted.attrib.items() if key != "id"}
+    children = _char_pr_children(wanted)
+
+    def same(element: ET.Element) -> bool:
+        if element.get("height") != height:
             return False
-        if any(font_ref.get(key, "") != value for key, value in spec.font_ref.items()):
+        if {key: value for key, value in element.attrib.items() if key != "id"} != attributes:
             return False
-    return True
+        return _char_pr_children(element) == children
+
+    return same
 
 
 def _run_style_apply_font_and_colors(element: ET.Element, spec: _RunStyleSpec) -> None:
@@ -285,6 +220,8 @@ def _run_style_apply_underline(
 def _run_style_apply_strikeout(
     element: ET.Element, base_strike_attrs: dict[str, str], strike: bool | None
 ) -> None:
+    if strike is None and base_strike_attrs:
+        _append_child(element, f"{_HH}strikeout", dict(base_strike_attrs))
     if strike is not None:
         strike_attrs = dict(base_strike_attrs)
         strike_attrs["shape"] = "SOLID" if strike else "NONE"
@@ -704,9 +641,9 @@ class HwpxOxmlDocument:
     def ensure_run_style(
         self,
         *,
-        bold: bool = False,
-        italic: bool = False,
-        underline: bool = False,
+        bold: bool | None = None,
+        italic: bool | None = None,
+        underline: bool | None = None,
         color: str | None = None,
         font: str | None = None,
         size: int | float | None = None,
@@ -724,7 +661,12 @@ class HwpxOxmlDocument:
         engrave: bool | None = None,
         base_char_pr_id: str | int | None = None,
     ) -> str:
-        """Return a char property identifier matching the requested flags.
+        """Return the id of a ``hh:charPr`` that is the base with the requested changes.
+
+        The base is *base_char_pr_id*, or the first ``hh:charPr``. An existing entry
+        with the same content is reused; otherwise the base is copied and changed.
+        *bold*, *italic* and *underline* left out keep the base's when
+        *base_char_pr_id* is given and are off otherwise.
 
         The 5.4.0 additions mirror what the fidelity audit render-verified on
         real Hancom: ``underline_shape``/``underline_color`` (implies an
@@ -778,8 +720,9 @@ class HwpxOxmlDocument:
             # Hancom declares a font it is asked to apply; so does ensure_font by default
             self.ensure_font(font)
             font_ref = header.font_ref_for_face(font)
+        base = _run_style_base(header, base_char_pr_id)
         spec = _RunStyleSpec(
-            flags=(bool(bold), bool(italic), bool(underline)),
+            flags=_run_style_flags((bold, italic, underline), base, base_char_pr_id is not None),
             color=_normalize_color(color),
             highlight=_normalize_color(highlight),
             height=_char_height_from_points(size),
@@ -797,9 +740,9 @@ class HwpxOxmlDocument:
             engrave=None if engrave is None else bool(engrave),
         )
         element = header.ensure_char_property(
-            predicate=lambda el: _run_style_predicate(el, spec),
+            predicate=_run_style_wanted(base, spec),
             modifier=lambda el: _run_style_modifier(el, spec),
-            base_char_pr_id=base_char_pr_id,
+            base_char_pr_id=None if base is None else base.get("id"),
         )
 
         char_id = element.get("id")

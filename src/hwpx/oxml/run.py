@@ -404,6 +404,7 @@ class HwpxOxmlRun:
             bold=target[0],
             italic=target[1],
             underline=target[2],
+            base_char_pr_id=self.char_pr_id_ref,
         )
         self.char_pr_id_ref = style_id
 

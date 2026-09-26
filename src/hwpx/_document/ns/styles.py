@@ -373,9 +373,9 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
     def ensure_run(
         self,
         *,
-        bold: bool = False,
-        italic: bool = False,
-        underline: bool = False,
+        bold: bool | None = None,
+        italic: bool | None = None,
+        underline: bool | None = None,
         color: str | None = None,
         font: str | None = None,
         size: int | float | None = None,
@@ -394,6 +394,11 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         base_char_pr_id: str | int | None = None,
     ) -> str:
         """요청한 글자 서식의 `charPr` id 를 보장하고 그 id 를 돌려준다.
+
+        돌려주는 글자 모양은 기준(`base_char_pr_id`, 없으면 첫 `charPr`)에서 요청한
+        값만 바꾼 것이다. 내용이 같은 글자 모양이 있으면 그것을 다시 쓴다.
+        `bold`·`italic`·`underline`을 주지 않으면 `base_char_pr_id`의 것을 따르고,
+        기준을 주지 않았으면 끈다.
 
         `outline` (외곽선, OWPML `hc:LineType1` 어휘: NONE/SOLID/DOT/THICK/
         DASH/DASH_DOT/DASH_DOT_DOT), `emboss`/`engrave` (양각/음각)는 6.3
