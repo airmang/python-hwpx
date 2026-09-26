@@ -780,6 +780,48 @@ def test_characters_overlapped_with_no_frame_keep_their_text_across_hwpx() -> No
     assert (again.text, again.circle, again.kind) == ("가나", 0, 1)
 
 
+@pytest.mark.parametrize(
+    ("shape", "flags", "kept"),
+    [
+        (5, 0x60000, False),  # a numbered paragraph
+        (0, 0x260000, False),  # no head, but its lines say one is drawn
+        (0, 0x60000, True),  # no head
+        (7, 0x260000, True),  # a bullet
+    ],
+)
+def test_the_line_cache_of_a_numbered_paragraph_is_left_out(shape: int, flags: int, kept: bool) -> None:
+    """Hancom lays a paragraph with a number or outline head out again rather than keep its line cache."""
+
+    from hwpx.hwp5.section_writer import SectionRecords
+
+    section = etree.fromstring(
+        '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"'
+        ' xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">'
+        f'<hp:p paraPrIDRef="{shape}"><hp:run><hp:t>글</hp:t></hp:run><hp:linesegarray>'
+        f'<hp:lineseg textpos="0" vertpos="0" vertsize="1000" textheight="1000" baseline="850" spacing="600"'
+        f' horzpos="0" horzsize="42520" flags="{flags}"/></hp:linesegarray></hp:p></hs:sec>'
+    )
+    records = SectionRecords({}, numbered=frozenset({5}), headless=frozenset({0})).section(section)
+    header = next(r for r in records if r.tag == rec.PARA_HEADER)
+    lines = [r for r in records if r.tag == rec.PARA_LINE_SEG]
+    assert (struct.unpack_from("<H", header.payload, 16)[0], len(lines)) == ((1, 1) if kept else (0, 0))
+
+
+def test_paragraph_shapes_are_sorted_by_their_head() -> None:
+    from hwpx.hwp5.writer import _heads
+
+    head = etree.fromstring(
+        f"<hh:head {_HEAD_NS}><hh:refList><hh:paraProperties>"
+        '<hh:paraPr id="0"><hh:heading type="NONE" idRef="0" level="0"/></hh:paraPr>'
+        '<hh:paraPr id="1"><hh:heading type="NUMBER" idRef="1" level="0"/></hh:paraPr>'
+        '<hh:paraPr id="2"><hh:heading type="OUTLINE" idRef="0" level="1"/></hh:paraPr>'
+        '<hh:paraPr id="3"><hh:heading type="BULLET" idRef="1" level="0"/></hh:paraPr>'
+        '<hh:paraPr id="4"/>'
+        "</hh:paraProperties></hh:refList></hh:head>"
+    )
+    assert _heads(head) == (frozenset({1, 2}), frozenset({0, 4}))
+
+
 @pytest.mark.parametrize("version", ["", "Equation Version 60"])
 def test_an_equation_keeps_its_version_across_hwpx(version: str) -> None:
     """An empty equation version stays empty, as Hancom keeps it."""

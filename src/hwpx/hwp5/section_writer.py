@@ -497,8 +497,13 @@ class SectionRecords:
         master_page: Callable[[str], etree._Element | None] | None = None,
         chart_kept: Callable[[str, str], bool] | None = None,
         chart_items: dict[str, str] | None = None,
+        numbered: frozenset[int] = frozenset(),
+        headless: frozenset[int] = frozenset(),
     ) -> None:
         self.unsupported: Counter[str] = Counter()
+        # Paragraph shapes with a number or outline head, and those with no head.
+        self.numbered = numbered
+        self.headless = headless
         # Memo bodies (their hp:subList) in the order of their memo fields; the
         # document keeps them all on the last paragraph of its last section.
         self.memo_bodies: list[tuple[int, etree._Element | None]] = []
@@ -679,6 +684,14 @@ class SectionRecords:
             s for s in (element.find(f"{{{_HP}}}linesegarray") if element.find(f"{{{_HP}}}linesegarray") is not None else [])
             if _local(s) == "lineseg"
         ]
+        # Hancom does not keep the line cache of a paragraph with a number or
+        # outline head, nor one whose lines say a head is drawn (bit 21) on a
+        # paragraph with none: it lays such a paragraph out again.
+        shape_id = _int(element, "paraPrIDRef")
+        if shape_id in self.numbered or (
+            shape_id in self.headless and any(_int(s, "flags") >> 21 & 1 for s in segs)
+        ):
+            segs = []
         ranges = highlights.take(count - 1)
         header = struct.pack(
             "<IIHBBHHHIH",
