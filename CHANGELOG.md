@@ -9,7 +9,7 @@
 - `Section.clear_body()`로 문서를 양식 틀로 비운다. 첫 문단 첫 run의 `hp:secPr`(쪽
   설정)와 `hp:ctrl`(단·머리말·꼬리말·쪽 번호)을 남기고, 나머지 문단, 첫 문단의 다른
   run, 첫 run의 다른 자식, 첫 문단의 줄 배치 캐시를 지운다. 머리말·꼬리말처럼 남길
-  컨트롤 안에 글·표·개체가 있으면 기본으로 `section-clear-control-content`로 거부하고,
+  컨트롤 안에 글·표·개체·양식 개체·덧말·글자 겹침이 있으면 기본으로 `section-clear-control-content`로 거부하고,
   `on_control_content="keep"`은 남기며, `"strip"`은 그 컨트롤과 `hp:secPr` 안의
   머리말·꼬리말 사본을 지운다. `"strip"`으로도 지울 수 없는 내용이 있으면 거부한다.
   어느 쪽이든 찾은 태그를 `ClearBodyReport.control_content`에 담는다. 거부는 바꾸기

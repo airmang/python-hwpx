@@ -431,3 +431,81 @@ def test_clear_body_is_idempotent() -> None:
 
     assert report == ClearBodyReport(0, 0, 0, (), 0, 0)
     assert document.to_bytes() == once
+
+
+def test_a_call_with_nothing_to_remove_leaves_the_section_clean() -> None:
+    document = _open(_generated_source())
+    section = document.sections[0]
+    section.clear_body()
+    reopened = _open(document.to_bytes())
+    section = reopened.sections[0]
+    section.reset_dirty()
+
+    report = section.clear_body()
+
+    assert report == ClearBodyReport(0, 0, 0, (), 0, 0)
+    assert not section.dirty
+
+
+def test_a_call_that_only_drops_the_layout_cache_marks_the_section_dirty() -> None:
+    document = HwpxDocument.new()
+    section = document.sections[0]
+    first = section.paragraphs[0]
+    for cache in first.element.findall(f"{HP}linesegarray"):
+        first.element.remove(cache)
+    etree.SubElement(first.element, f"{HP}linesegarray")
+    section.reset_dirty()
+
+    section.clear_body()
+
+    assert first.element.find(f"{HP}linesegarray") is None
+    assert section.dirty
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["btn", "radioBtn", "checkBtn", "comboBox", "listBox", "edit", "scrollBar", "compose", "dutmal"],
+)
+def test_form_objects_and_text_atoms_in_a_control_count_as_content(name: str) -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("본문")
+    first_run = document.sections[0].paragraphs[0].runs[0].element
+    ctrl = etree.SubElement(first_run, f"{HP}ctrl")
+    run = etree.SubElement(
+        etree.SubElement(etree.SubElement(etree.SubElement(ctrl, f"{HP}header"), f"{HP}subList"), f"{HP}p"),
+        f"{HP}run",
+    )
+    etree.SubElement(run, f"{HP}{name}")
+    section = document.sections[0]
+    section.reset_dirty()
+    before = etree.tostring(section.element)
+
+    with pytest.raises(HwpxValueError) as caught:
+        section.clear_body()
+
+    assert caught.value.context["tags"] == [f"hp:{name}"]
+    assert etree.tostring(section.element) == before
+    assert not section.dirty
+
+    report = section.clear_body(on_control_content="strip")
+    assert report.control_content == (f"hp:{name}",)
+    assert report.stripped_controls == 1
+
+
+def test_a_form_object_in_the_real_corpus_control_is_refused() -> None:
+    # A Hancom-saved form object, moved into a kept control's header story.
+    buttons = _open((FIXTURES / "hwpxlib_corpus/reader_writer__SimpleButtons.hwpx").read_bytes())
+    button = buttons.sections[0].paragraphs[0].runs[0].element.find(f"{HP}checkBtn")
+    document = HwpxDocument.new()
+    first_run = document.sections[0].paragraphs[0].runs[0].element
+    ctrl = etree.SubElement(first_run, f"{HP}ctrl")
+    story_run = etree.SubElement(
+        etree.SubElement(etree.SubElement(etree.SubElement(ctrl, f"{HP}footer"), f"{HP}subList"), f"{HP}p"),
+        f"{HP}run",
+    )
+    story_run.append(copy.deepcopy(button))
+
+    with pytest.raises(HwpxValueError) as caught:
+        document.sections[0].clear_body()
+
+    assert caught.value.context["tags"] == ["hp:checkBtn"]

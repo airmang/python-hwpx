@@ -41,8 +41,13 @@ _SECTION_STORY_TAGS = frozenset({f"{_HP}header", f"{_HP}footer"})
 _APPLY_REFERENCE_ATTRIBUTES = frozenset(
     {"idref", "headeridref", "headerref", "footeridref", "footerref"}
 )
-# Descendants of the kept secPr/ctrl children that count as body content.
-_CLEAR_BODY_CONTENT_NAMES = frozenset(INLINE_OBJECT_NAMES | {"tbl"})
+# Descendants of the kept secPr/ctrl children that count as body content:
+# tables, inline objects, form objects, and the compose/dutmal text atoms.
+_CLEAR_BODY_CONTENT_NAMES = frozenset(
+    INLINE_OBJECT_NAMES
+    | {"tbl", "compose", "dutmal"}
+    | {"btn", "radioBtn", "checkBtn", "comboBox", "listBox", "edit", "scrollBar"}
+)
 
 
 class HwpxOxmlSection:
@@ -206,7 +211,8 @@ class HwpxOxmlSection:
 
         A kept ``hp:ctrl`` can hold content of its own, such as a header with
         a name in it. ``on_control_content`` says what to do when the kept
-        children hold non-blank ``hp:t`` text or a table/picture/shape/object:
+        children hold non-blank ``hp:t`` text, a table, picture, shape or other
+        object, a form object, or ``hp:compose``/``hp:dutmal``:
         ``"raise"`` (default) refuses with
         ``HwpxValueError(code="section-clear-control-content")`` whose
         ``context["tags"]`` names the tags found; ``"keep"`` keeps them and
@@ -225,7 +231,8 @@ class HwpxOxmlSection:
         directly, or the call raises
         ``HwpxValueError(code="section-clear-no-section-properties")``. Every
         refusal happens before anything changes, so a failed call leaves the
-        section as it was. Calling it again on a blank section changes nothing.
+        section as it was. Calling it again on a blank section changes nothing
+        and does not mark the section dirty.
         """
 
         from ..errors import HwpxValueError
@@ -260,12 +267,14 @@ class HwpxOxmlSection:
         stripped_children = _strip_to_kept_children(first_run)
         for parent, child in removals:
             parent.remove(child)
-        for cache in first.element.findall(f"{_HP}linesegarray"):
+        caches = first.element.findall(f"{_HP}linesegarray")
+        for cache in caches:
             first.element.remove(cache)
         later_paragraphs = paragraphs[1:]
         for paragraph in later_paragraphs:
             self._element.remove(paragraph.element)
-        self.mark_dirty()
+        if later_runs or stripped_children or removals or caches or later_paragraphs:
+            self.mark_dirty()
         return ClearBodyReport(
             removed_paragraphs=len(later_paragraphs),
             removed_runs=len(later_runs),
