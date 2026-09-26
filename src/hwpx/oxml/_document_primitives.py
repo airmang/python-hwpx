@@ -26,7 +26,7 @@ from .namespaces import (
     tag_namespace,
 )
 from .color import normalize_color
-from .utils import hancom_text_length, tab_elements_in, tabs_as_elements
+from .utils import hancom_text_length, tab_elements_in, tabs_as_elements, without_markup_nodes
 
 register_owpml_namespaces(ET.register_namespace)
 
@@ -135,6 +135,7 @@ def _char_height_from_points(value: int | float | None) -> str | None:
 
 def _serialize_xml(element: ET.Element) -> bytes:
     """Return a UTF-8 encoded XML document for *element*, a tab in ``hp:t`` as ``hp:tab``."""
+    element = without_markup_nodes(element)
     xml_bytes = ET.tostring(element, encoding="utf-8", xml_declaration=False)
     if element.tag in {_HS + "sec", _HH + "head"}:
         root = LET.fromstring(xml_bytes)
