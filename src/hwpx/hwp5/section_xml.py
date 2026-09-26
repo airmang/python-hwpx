@@ -1161,6 +1161,9 @@ class SectionWriter(ShapeReader):
         if value.circle >= len(COMPOSE_CIRCLE) or value.kind >= len(COMPOSE_TYPE):
             self.report.skip("compose-frame")
         text = value.text
+        # Hancom reads characters overlapped with no frame as OVERLAP unless
+        # their text starts with the frame's glyph, whatever the kind says.
+        overlap = value.kind == 1 or (value.circle == 0 and not text.startswith(COMPOSE_FRAME_GLYPH[0]))
         if len(text) > 1 and text[0] == COMPOSE_FRAME_GLYPH.get(value.circle):
             text = text[1:]
         digits = COMPOSE_FRAMED_DIGITS.get(value.circle, {})
@@ -1171,7 +1174,7 @@ class SectionWriter(ShapeReader):
             (
                 ("circleType", token(COMPOSE_CIRCLE, value.circle)),
                 ("charSz", value.size),
-                ("composeType", token(COMPOSE_TYPE, value.kind)),
+                ("composeType", "OVERLAP" if overlap else token(COMPOSE_TYPE, value.kind)),
                 ("charPrCnt", len(value.char_shapes)),
                 ("composeText", text),
             ),

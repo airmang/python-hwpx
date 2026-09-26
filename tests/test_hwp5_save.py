@@ -710,6 +710,16 @@ def test_a_shadowed_shape_keeps_its_outer_margin_across_hwpx(kind: int, offset: 
     assert ct.ObjectCommon.decode(header.payload).margins == margins
 
 
+def test_characters_overlapped_with_no_frame_keep_their_text_across_hwpx() -> None:
+    """With no glyph before them they stay overlapped and get none: Hancom writes OVERLAP as kind 1."""
+
+    value = ct.Compose("가나", 0, -3, 0, [1, 0] + [ct.NO_CHAR_SHAPE] * 8)
+    written = read_hwp5(write_hwp5(convert(make_hwp(compose=True, compose_value=value)).files))
+    [header] = [r for s in written.sections for r in s.records if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "tcps"]
+    again = ct.Compose.decode(header.payload)
+    assert (again.text, again.circle, again.kind) == ("가나", 0, 1)
+
+
 @pytest.mark.parametrize(
     ("ctrl", "wrap", "code"),
     [("gso ", None, 0), ("gso ", "TOP_AND_BOTTOM", 1), ("gso ", "BEHIND_TEXT", 2), ("form", None, 1), ("form", "SQUARE", 0)],

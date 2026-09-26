@@ -211,12 +211,13 @@ def _markers(dutmal_position: int = 1) -> list[rec.Record]:
     return _paragraph(0, text, [(0, 0)], controls)
 
 
-def _compose() -> list[rec.Record]:
+def _compose(value: ct.Compose | None = None) -> list[rec.Record]:
     """Two characters set over each other in a rectangle, between text; the
-    record's text starts with the rectangle's glyph."""
+    record's text starts with the rectangle's glyph. *value* replaces the
+    overlapped characters."""
 
     text = "앞".encode("utf-16-le") + _extended(23, "tcps") + "뒤".encode("utf-16-le") + _u16(13)
-    compose = ct.Compose("\u25a1가나", 3, -3, 1, [1, 0] + [ct.NO_CHAR_SHAPE] * 8)
+    compose = value or ct.Compose("\u25a1가나", 3, -3, 1, [1, 0] + [ct.NO_CHAR_SHAPE] * 8)
     return _paragraph(0, text, [(0, 0)], [rec.Record(rec.CTRL_HEADER, 1, compose.encode())])
 
 
@@ -477,6 +478,7 @@ def make_hwp(
     text_box: bool = False,
     picture: bool = False,
     compose: bool = False,
+    compose_value: ct.Compose | None = None,
     drawings: bool = False,
     text_art: bool = False,
     text_art_font: int = 1,
@@ -498,7 +500,7 @@ def make_hwp(
     if text_art:
         section += _text_art(text_art_font)
     if compose:
-        section += _compose()
+        section += _compose(compose_value)
     if text_box:
         section += _text_box()
     if picture:
@@ -896,6 +898,20 @@ def test_an_older_drawing_style_that_stops_early_still_opens(keep: str) -> None:
     [rect] = list(document.sections[0].element.iter(f"{HP}rect"))
     assert rect.find(f"{HP}lineShape").get("color") == "#332211"
     assert rect.find(f"{HP}shadow").get("type") == "NONE"
+
+@pytest.mark.parametrize(
+    ("text", "kind", "expected"),
+    [("가나", 0, "OVERLAP"), ("가나", 1, "OVERLAP"), ("\u3000가", 0, "SPREAD")],
+)
+def test_characters_overlapped_with_no_frame_open_as_hancom_reads_them(text: str, kind: int, expected: str) -> None:
+    """Hancom reads characters with no frame as OVERLAP unless their text starts with the frame's glyph."""
+
+    value = ct.Compose(text, 0, -3, kind, [1, 0] + [ct.NO_CHAR_SHAPE] * 8)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(compose=True, compose_value=value))
+    [compose] = list(document.sections[0].element.iter(f"{HP}compose"))
+    assert (compose.get("composeType"), compose.get("composeText")) == (expected, text.lstrip("\u3000"))
 
 
 def test_picture_effects_open_with_their_values() -> None:
