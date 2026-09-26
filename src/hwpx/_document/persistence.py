@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 from os import PathLike
 from typing import TYPE_CHECKING, Any, BinaryIO, Literal, Sequence
@@ -28,7 +29,7 @@ SaveFormat = Literal["hwpx", "hwp"]
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
     from ..quality import VisualCompleteReport
-    from ..tools.validator import ValidationReport
+    from ..tools.validator import ValidationIssue, ValidationReport
 
 
 def _summarize_validation_issues(issues: Sequence[Any], *, limit: int = 5) -> str:
@@ -76,9 +77,63 @@ def validate(doc: "HwpxDocument") -> "ValidationReport":
     """
     from ..tools.validator import validate_document
 
-    return validate_document(
-        _to_bytes_for_validation(doc)
+    archive = _to_bytes_for_validation(doc)
+    report = validate_document(archive)
+    drift = _manifest_drift_issues(archive)
+    if not drift:
+        return report
+    return dataclasses.replace(report, issues=report.issues + tuple(drift))
+
+
+def _manifest_drift_issues(archive: bytes) -> list["ValidationIssue"]:
+    """Warn about manifest items with no part and ``BinData/`` parts with no item.
+
+    Warnings, not errors: the editor-open safety check already treats a
+    manifest href missing from the archive as advisory. An item marked
+    ``isEmbeded="0"`` links a file outside the package, so its missing
+    part is not drift.
+    """
+
+    from ..opc.package import HwpxPackage
+    from ..opc.relationships import parse_manifest_relationships
+    from ..tools.validator import ValidationIssue
+
+    package = HwpxPackage.open(archive)
+    manifest_path = package.main_content.full_path
+    part_names = set(package.part_names())
+    relationships = parse_manifest_relationships(
+        package.manifest_tree(), manifest_path, known_parts=part_names
     )
+
+    linked = {
+        item.get("id") for item in package._manifest_items() if item.get("isEmbeded") == "0"
+    }
+
+    issues: list[ValidationIssue] = []
+    declared: set[str] = set()
+    for item in relationships.items:
+        declared.add(item.resolved_path)
+        if item.resolved_path not in part_names and item.item_id not in linked:
+            issues.append(
+                ValidationIssue(
+                    part_name=manifest_path,
+                    message=(
+                        f"manifest item {item.item_id!r} names {item.href!r}, "
+                        "which is not a part in the package"
+                    ),
+                    severity="warning",
+                )
+            )
+    for part_name in sorted(part_names):
+        if part_name.startswith("BinData/") and part_name not in declared:
+            issues.append(
+                ValidationIssue(
+                    part_name=part_name,
+                    message=f"BinData part {part_name!r} has no manifest item in {manifest_path}",
+                    severity="warning",
+                )
+            )
+    return issues
 
 
 def _run_pre_save_validation(doc: "HwpxDocument") -> None:

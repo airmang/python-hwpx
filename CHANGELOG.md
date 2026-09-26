@@ -78,6 +78,9 @@
     `timestamp`로 바꾸고, 자유형식 `date`를 비롯한 나머지는 요소와 속성을 두고 내용만 비운다.
   - `doc.parts.clear_preview()`는 `Preview/PrvText.txt`를 비우고 `Preview/PrvImage.png`를
     1×1 흰 PNG로 바꾼다. 두 파트를 지우지는 않는다.
+  - `doc.validate()`가 파트가 없는 매니페스트 항목과, 매니페스트 항목이 없는 `BinData/`
+    파트를 경고로 알린다. 경고라서 `ok`는 그대로다. `isEmbeded="0"`으로 바깥 파일을
+    잇는 항목은 알리지 않는다.
 
 ### 바꿈
 

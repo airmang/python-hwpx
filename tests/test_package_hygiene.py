@@ -7,6 +7,8 @@
   preview image with a 1x1 white PNG; neither part is deleted.
 - ``doc.media.images``/``remove_image`` see binary items that only the
   ``content.hpf`` manifest lists (the usual case for Hancom-saved files).
+- ``doc.validate()`` warns about manifest items with no part and ``BinData/``
+  parts with no manifest item.
 """
 
 from __future__ import annotations
@@ -28,6 +30,8 @@ CORPUS = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
 TITLED = CORPUS / "error__20251107__test.hwpx"
 PICTURE = CORPUS / "reader_writer__SimplePicture.hwpx"
 TEXT_PREVIEW_ONLY = CORPUS / "error__20241104__mot.hwpx"
+# links a video by absolute path (isEmbeded="0"), so the part is absent by design
+LINKED_VIDEO = CORPUS / "reader_writer__SimpleVideo.hwpx"
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 40
 
@@ -259,3 +263,50 @@ def test_remove_manifest_item_matches_id_then_href() -> None:
     package = HwpxPackage.open(PICTURE)
     assert package.remove_manifest_item("image1") is True
     assert package.remove_manifest_item("image1") is False
+
+
+# ---------------------------------------------------------------------------
+# validate() — manifest drift
+# ---------------------------------------------------------------------------
+
+
+def _drift(document: HwpxDocument) -> list[str]:
+    return [
+        issue.message
+        for issue in document.validate().warnings
+        if "manifest" in issue.message
+    ]
+
+
+def test_validate_warns_about_a_manifest_item_without_a_part() -> None:
+    document = HwpxDocument.open(PICTURE)
+    document.package.delete("BinData/image1.jpg")
+
+    report = document.validate()
+
+    assert report.ok
+    drift = [issue for issue in report.warnings if "image1" in issue.message]
+    assert len(drift) == 1
+    assert drift[0].part_name == "Contents/content.hpf"
+    assert "'BinData/image1.jpg'" in drift[0].message
+
+
+def test_validate_warns_about_a_bindata_part_without_a_manifest_item() -> None:
+    document = HwpxDocument.open(PICTURE)
+    document.package.write("BinData/stray.png", PNG)
+
+    report = document.validate()
+
+    assert report.ok
+    drift = [issue for issue in report.warnings if issue.part_name == "BinData/stray.png"]
+    assert len(drift) == 1
+    assert "'BinData/stray.png'" in drift[0].message
+
+
+@pytest.mark.parametrize("source", [None, PICTURE, TITLED, LINKED_VIDEO])
+def test_validate_reports_no_drift_on_clean_documents(source: Path | None) -> None:
+    document = HwpxDocument.new() if source is None else HwpxDocument.open(source)
+    if source is None:
+        document.media.add_image(PNG, "png")
+
+    assert _drift(document) == []
