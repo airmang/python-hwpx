@@ -66,6 +66,11 @@
 
 ### 바꿈
 
+- `validate_document()`가 구역·머리 XML을 번들된 전체 OWPML 스키마(`DevDoc/OWPML SCHEMA`의
+  Body·ParaList·Core·Header)로도 검사한다(#118). 한/글 2011 네임스페이스를 2024로 바꿔 끼운
+  사본을 보고, 한/글이 여는 문서에도 있는 편차(2011 관행)는 빼고 나머지를 경고(`OWPML
+  schema: …`)로 낸다. `ok`는 전처럼 하드 오류만 본다. 끄려면 `full_schema=False`. 이 검사가
+  돌지 못하면 멈추지 않고 그 까닭을 경고로 남긴다. `hp:secPr` 안의 주석·처리 지시는 건너뛴다.
 - 문단 객체의 `add_hyperlink(url, text)`도 `doc.add_hyperlink`·`doc.refs.add_hyperlink`처럼
   링크 글을 한/글 관례(파랑 `#0000FF` + 파랑 밑줄)로 쓴다. 전에는 문단의 글자 모양을 그대로
   써서 링크가 보통 글처럼 보였다. 글꼴·크기·굵기 같은 나머지 모양은 링크가 들어가는 문단의

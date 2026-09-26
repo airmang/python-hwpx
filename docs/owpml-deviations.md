@@ -114,3 +114,22 @@ reflection/softEdge/shadow/skew/scale/rgb 등, census 각 1파일)은 이번
 명시한다. 확정 편차를 `_schemas`에 반영하면 관련 패치 커밋을 상태 칸에
 남긴다. 프로브는 모두 `python probes/devNNN_*.py`로 단독 실행 가능하며,
 근거 파일이 로컬에 없으면(`.gitignore` 대상 등) SKIP으로 종료한다(exit 0).
+
+## 전체 스키마 검사 (`validate_document`)
+
+- `validate_document()`는 구역·머리 XML을 번들된 전체 스키마로도 검사한다. 스키마는
+  `DevDoc/OWPML SCHEMA`의 Body·ParaList·Core·Header를 공백 없는 이름
+  (`src/hwpx/tools/_schemas/owpml-*.xsd`)으로 옮기고 `xml.xsd`를 로컬(`owpml-xml.xsd`)로
+  둔 것이다.
+- 한/글이 쓰는 2011 네임스페이스를 2024 네임스페이스로 바꿔 끼운 사본을 검사한다. 그 사본의
+  `hp:secPr` 자식은 스키마 순서로 맞춘다. 한/글은 `grid`를 `startNum` 앞에 쓰는데, 검사기는
+  한 부모 안에서 처음 어긋난 자식 뒤를 보지 않아 이 순서 차이가 `hp:pagePr` 이하를 가린다.
+- 위반은 값을 뺀 서명(`section | paragraph:pagePr@landscape: value not allowed`처럼)으로
+  모은다. 한/글이 여는 문서에도 있는 서명은 알리지 않는다(`validator._KNOWN_OWPML_DEVIATIONS`):
+  한/글 자신의 문서에 있는 것, 그리고 한/글이 받아들인 python-hwpx 산출물 가운데 두 문서
+  이상에 있는 것. 이 표의 편차처럼 2011 관행과 2024 스키마의 차이다.
+- 나머지 위반은 경고(`severity="warning"`, 메시지 `OWPML schema: …`, 같은 서명은 한 번에
+  횟수와 함께)다. `ok`는 전처럼 하드 오류만 본다. 목록이 안정되면 오류로 올린다.
+  `full_schema=False`로 끌 수 있다.
+- 한계: `hp:secPr` 밖에서도 어긋난 자식 하나가 같은 부모의 나머지 검사를 가릴 수 있다.
+  머리·구역 외 파트(바탕쪽 등)는 아직 전체 스키마로 보지 않는다.
