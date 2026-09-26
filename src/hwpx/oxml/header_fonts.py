@@ -197,6 +197,15 @@ def replace_font(
     the *src_face* font, renumber the rest 0..N-1 by position, set
     ``fontCnt`` to N and remap every ``hh:fontRef`` through the old → new
     ids (values that name no font are left as they are).
+
+    On a well-formed block (ids 0..N-1, every reference naming a font) the
+    result is byte-identical to doing those steps literally. Two malformed
+    inputs are handled deliberately: the appended font's placeholder id is
+    kept out of the old -> new map, so in a block whose ids are not 0..N-1 a
+    placeholder equal to an existing id cannot pull that font's references
+    onto *dst_face*; and a reference that named no font (for example one
+    equal to the placeholder) stays dangling instead of starting to name
+    *dst_face*.
     """
 
     src = (src_face or "").strip()
