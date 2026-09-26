@@ -43,6 +43,9 @@ _NOT_BODY_TAGS = frozenset(
 
 _SECTION_RE = re.compile(r"^Contents/section\d+\.xml$")
 
+#: Placed blocks whose own paragraphs are exported in place: text boxes and captions.
+_PARAGRAPH_BLOCKS = frozenset((f"{_HP}drawText", f"{_HP}caption"))
+
 
 def _header_xml(source: HwpxDocument | bytes) -> ET.Element | None:
     """The document's ``header.xml`` root (styles, numberings, bullets), if it has one."""
@@ -85,6 +88,30 @@ _NUMBER_FORMATS: dict[str, Callable[[int], str]] = {
 }
 
 
+#: Symbol-font characters (private use area) that Hancom's text save writes as a Unicode
+#: symbol when one of them is a whole list label. Other labels, and symbol characters in
+#: the text, are kept.
+_BULLET_SYMBOLS = {
+    "\uf046": "\u261e",  # ☞
+    "\uf06c": "\u25cf",  # ●
+    "\uf06e": "\u25a0",  # ■
+    "\uf06f": "\u25a1",  # □
+    "\uf075": "\u25c6",  # ◆
+    "\uf076": "\u2605",  # ★
+    "\uf077": "\u25c6",  # ◆
+    "\uf09f": "\u25cf",  # ●
+    "\uf0a1": "\u25cb",  # ○
+    "\uf0a4": "\u25cb",  # ○
+    "\uf0a7": "\u25a0",  # ■
+    "\uf0ab": "\u2605",  # ★
+    "\uf0fc": "\u25cf",  # ●
+    "\uf0fe": "\u25a1",  # □
+}
+
+#: The label of a bullet paragraph whose bullet is not defined.
+_DEFAULT_BULLET = "\u25cf"
+
+
 def _number_text(value: int, number_format: str) -> str:
     if value <= 0:
         return str(value)
@@ -97,8 +124,12 @@ class _ListLabels:
     Each numbering keeps one counter per level. A paragraph at level L counts level L up
     (from the level's ``start``) and resets the deeper levels; levels skipped on the way
     down count at their start value. The label is the level's ``hh:paraHead`` text with
-    ``^k`` replaced by level k's counter in level k's number format. A bullet's label is
-    its character. Outline paragraphs use the section's outline numbering (``outline``).
+    ``^k`` replaced by level k's counter in level k's number format, and ``^N`` by the
+    counters of levels 1 to L in digits, each followed by a dot (``1.2.``). A numbering
+    that is not defined numbers every level that way. A bullet's label is its character,
+    ``●`` when the bullet is not defined. A label that is one symbol-font character is
+    written as the Unicode symbol Hancom's text save writes for it (U+F09F as ``●``).
+    Outline paragraphs use the section's outline numbering (``outline``).
     """
 
     def __init__(self, header: ET.Element | None) -> None:
@@ -128,9 +159,15 @@ class _ListLabels:
             return ""
         kind, ref, level = heading[0], heading[1], heading[2] + 1
         if kind == "BULLET":
-            return self._bullets.get(ref, "")
-        numbering = (self.outline or "") if kind == "OUTLINE" else ref
+            text = self._bullets.get(ref, _DEFAULT_BULLET)
+        else:
+            text = self._number_label((self.outline or "") if kind == "OUTLINE" else ref, level)
+        return _BULLET_SYMBOLS.get(text, text)
+
+    def _number_label(self, numbering: str, level: int) -> str:
         heads = self._numberings.get(numbering)
+        if heads is None and numbering:
+            heads = {k: ("^N", "DIGIT", 1) for k in range(1, max(level, 10) + 1)}
         if not heads or level not in heads:
             return ""
         counters = self._counters.setdefault(numbering, {})
@@ -145,18 +182,34 @@ class _ListLabels:
             return ""
 
         def fill(match: re.Match[str]) -> str:
+            if match.group(1) == "N":
+                return "".join(f"{counters.get(k, 1)}." for k in range(1, level + 1))
             k = int(match.group(1))
             _, number_format, start = heads.get(k, ("", "DIGIT", 1))
             return _number_text(counters.get(k, start), number_format)
 
-        return re.sub(r"\^(\d+)", fill, template)
+        return re.sub(r"\^(\d+|N)", fill, template)
 
     def count(self, table: ET.Element) -> None:
-        """Count the paragraphs of a table that is not written: Hancom numbers them all."""
-        for tr in table.findall(f"{_HP}tr"):
-            for tc in tr.findall(f"{_HP}tc"):
-                for paragraph in _body_paragraphs(tc):
-                    self.label(paragraph)
+        """Count the paragraphs of a table that is not written: Hancom numbers them all.
+
+        They count in the order they would be written: each cell's paragraphs, and the
+        tables, text boxes and captions placed in them.
+        """
+        for tc in table.findall(f"{_HP}tr/{_HP}tc"):
+            for paragraph in tc.findall(f"{_HP}subList/{_HP}p"):
+                self._count_paragraph(paragraph)
+
+    def _count_paragraph(self, p: ET.Element) -> None:
+        self.label(p)
+        for piece in _paragraph_pieces(p):
+            if isinstance(piece, str):
+                continue
+            if piece.tag == f"{_HP}tbl":
+                self.count(piece)
+            else:
+                for inner in _text_box_paragraphs(piece):
+                    self._count_paragraph(inner)
 
     def start_section(self, section: ET.Element) -> None:
         sec_pr = next(section.iter(f"{_HP}secPr"), None)
@@ -188,23 +241,82 @@ def _is_tab_control(child: ET.Element) -> bool:
     return child.tag == f"{_HP}ctrl" and (child.get("id") or "").lower() == "tab"
 
 
-def _paragraph_text(p: ET.Element, *, tab_token: str = "\t", labels: _ListLabels | None = None) -> str:
-    """Extract paragraph text from direct runs, preserving tab semantics.
+def _run_child_text(child: ET.Element, tab_token: str) -> str | None:
+    """The text a run child adds, or ``None`` when it is a control or an object."""
+    if child.tag == f"{_HP}t":
+        return _text_element_content(child, tab=tab_token)
+    if child.tag == f"{_HP}tab" or _is_tab_control(child):
+        return tab_token
+    if child.tag == f"{_HP}lineBreak":
+        return "\n"
+    if child.tag == f"{_HP}dutmal":
+        return _dutmal_text(child)
+    if child.tag == f"{_HP}ctrl" and (auto_num := child.find(f"{_HP}autoNum")) is not None:
+        return _auto_number_text(auto_num)
+    return None
 
-    With *labels*, a numbered, outline or bullet paragraph starts with its label.
-    """
-    if labels is not None:
-        return _labelled(_paragraph_text(p, tab_token=tab_token), labels.label(p))
-    parts: list[str] = []
+
+def _auto_number_text(auto_num: ET.Element) -> str:
+    """An auto number (a caption's picture or table number, ...) as Hancom shows it: the
+    number it holds, in its format, between its prefix and suffix characters."""
+    value = _int_attribute(auto_num, "num")
+    if value is None:
+        return ""
+    number_format = auto_num.find(f"{_HP}autoNumFormat")
+    kind = number_format.get("type", "DIGIT") if number_format is not None else "DIGIT"
+    text = _NUMBER_FORMATS[kind](value) if kind in _NUMBER_FORMATS and value > 0 else str(value)
+    if number_format is None:
+        return text
+    return f"{number_format.get('prefixChar', '')}{text}{number_format.get('suffixChar', '')}"
+
+
+def _paragraph_pieces(p: ET.Element, *, tab_token: str = "\t") -> "list[str | ET.Element]":
+    """The text of paragraph *p* and the tables, text boxes and captions placed in it, in order."""
+    pieces: list[str | ET.Element] = []
     for run in p.findall(f"{_HP}run"):
         for child in run:
-            if child.tag == f"{_HP}t":
-                parts.append(_text_element_content(child, tab=tab_token))
-            elif child.tag == f"{_HP}tab" or _is_tab_control(child):
-                parts.append(tab_token)
-            elif child.tag == f"{_HP}lineBreak":
-                parts.append("\n")
-    return "".join(parts)
+            text = _run_child_text(child, tab_token)
+            if text is None:
+                pieces.extend(_blocks_in(child))
+            elif text:
+                pieces.append(text)
+    return pieces
+
+
+def _emit_paragraph(
+    p: ET.Element,
+    *,
+    tab_token: str,
+    labels: _ListLabels | None,
+    masking_policy: "TextSanitizer | None",
+    write_text: Callable[[str], None],
+    write_block: Callable[[ET.Element], None],
+) -> None:
+    """Write paragraph *p*, its text split where a table, text box or caption sits.
+
+    Hancom's text save writes a placed object where its control sits in the paragraph;
+    a numbered paragraph's label goes with the first piece of text.
+    """
+    label = labels.label(p) if labels is not None else ""
+    buffer: list[str] = []
+    for piece in [*_paragraph_pieces(p, tab_token=tab_token), None]:
+        if isinstance(piece, str):
+            buffer.append(piece)
+            continue
+        text = _mask_text(_labelled("".join(buffer), label), masking_policy)
+        if text:
+            write_text(text)
+        label = ""
+        buffer.clear()
+        if piece is not None:
+            write_block(piece)
+
+
+def _dutmal_text(dutmal: ET.Element) -> str:
+    """덧말 as Hancom's text save writes it: the main text, then ``(덧말:<sub text>)``."""
+    main = dutmal.findtext(f"{_HP}mainText") or ""
+    sub = dutmal.findtext(f"{_HP}subText") or ""
+    return f"{main}(덧말:{sub})" if sub else main
 
 
 def _mask_text(text: str, masking_policy: "TextSanitizer | None") -> str:
@@ -246,12 +358,34 @@ def _cell_text(
     masking_policy: "TextSanitizer | None" = None,
     labels: _ListLabels | None = None,
 ) -> str:
-    cell_parts: list[str] = []
-    for paragraph in _body_paragraphs(tc):
-        text = _paragraph_text(paragraph, tab_token=tab_token, labels=labels)
-        if text:
-            cell_parts.append(text)
-    return _mask_text("\n".join(cell_parts).strip(), masking_policy)
+    """The text of cell *tc*, a line per paragraph.
+
+    Tables, text boxes and captions in the cell come where they sit, as in the body: a
+    nested table's cells in order, then its caption.
+    """
+    lines: list[str] = []
+    for paragraph in tc.findall(f"{_HP}subList/{_HP}p"):
+        _emit_nested_paragraph(paragraph, lines, tab_token=tab_token, labels=labels)
+    return _mask_text("\n".join(lines).strip(), masking_policy)
+
+
+def _emit_nested_paragraph(
+    p: ET.Element, lines: list[str], *, tab_token: str, labels: _ListLabels | None
+) -> None:
+    """Add paragraph *p* of a cell, text box or caption to *lines*, its objects where they sit."""
+
+    def write_block(block: ET.Element) -> None:
+        if block.tag in _PARAGRAPH_BLOCKS:
+            for inner in _text_box_paragraphs(block):
+                _emit_nested_paragraph(inner, lines, tab_token=tab_token, labels=labels)
+            return
+        for tc in block.findall(f"{_HP}tr/{_HP}tc"):
+            text = _cell_text(tc, tab_token=tab_token, labels=labels)
+            if text:
+                lines.append(text)
+
+    _emit_paragraph(p, tab_token=tab_token, labels=labels, masking_policy=None,
+                    write_text=lines.append, write_block=write_block)
 
 
 def _int_attribute(element: ET.Element | None, name: str) -> int | None:
@@ -298,42 +432,32 @@ def _table_grid_text(
     return [[placed.get((row, col), "") for col in range(width)] for row in range(height)]
 
 
-def _body_paragraphs(element: ET.Element) -> list[ET.Element]:
-    """Paragraphs below *element* in document order.
+def _blocks_in(element: ET.Element) -> list[ET.Element]:
+    """Tables, text boxes and captions in *element* (a run child), in document order, outermost only.
 
-    Paragraphs of nested tables and text boxes count; those of notes, memos,
-    headers and footers do not.
+    A text box is returned as its ``hp:drawText``. A table's caption follows the
+    table, where Hancom's text save puts it; the caption of a picture or a shape
+    comes where it sits. A table or text box nested in a cell is already part of
+    that cell's text, and one in a header, footer, note or memo is not body text.
     """
-    found: list[ET.Element] = []
-    for child in element:
-        if child.tag in _NOT_BODY_TAGS:
-            continue
-        if child.tag == f"{_HP}p":
-            found.append(child)
-        found.extend(_body_paragraphs(child))
-    return found
+    if element.tag in _NOT_BODY_TAGS:
+        return []
+    if element.tag == f"{_HP}switch":
+        # the same object twice: one branch (hp:case, else hp:default) is read
+        branch = element.find(f"{_HP}case")
+        if branch is None:
+            branch = element.find(f"{_HP}default")
+        return [] if branch is None else _blocks_in(branch)
+    if element.tag == f"{_HP}tbl":
+        return [element, *element.findall(f"{_HP}caption")]
+    if element.tag in _PARAGRAPH_BLOCKS:
+        return [element]
+    return [block for child in element for block in _blocks_in(child)]
 
 
-def _placed_blocks(p: ET.Element) -> list[ET.Element]:
-    """Tables and text boxes placed in paragraph *p*, in document order, outermost only.
-
-    A text box is returned as its ``hp:drawText``. A table or text box nested in
-    a cell is already part of that cell's text, and one in a header, footer,
-    note or memo is not body text.
-    """
-    found: list[ET.Element] = []
-    for child in p:
-        if child.tag in _NOT_BODY_TAGS:
-            continue
-        if child.tag in (f"{_HP}tbl", f"{_HP}drawText"):
-            found.append(child)
-            continue
-        found.extend(_placed_blocks(child))
-    return found
-
-
-def _text_box_paragraphs(draw_text: ET.Element) -> list[ET.Element]:
-    return draw_text.findall(f"{_HP}subList/{_HP}p")
+def _text_box_paragraphs(block: ET.Element) -> list[ET.Element]:
+    """The paragraphs of a text box (``hp:drawText``) or a caption."""
+    return block.findall(f"{_HP}subList/{_HP}p")
 
 
 def _markdown_cell(text: str) -> str:
@@ -353,7 +477,9 @@ def export_text(
 ) -> str:
     """Export document content as plain text.
 
-    The tables and text boxes of a paragraph follow its text, in document order.
+    A paragraph's tables, text boxes and captions come where they sit in its text, as in
+    Hancom's text save (a table's caption after the table). A 덧말 is its main text and
+    ``(덧말:<sub text>)``.
     With *list_labels*, numbered, outline and bullet paragraphs start with the label
     Hancom draws for them (``1.``, ``가.``, ``●`` ...) and a space.
     """
@@ -365,20 +491,26 @@ def export_text(
         if labels is not None:
             labels.start_section(section_root)
 
-        def emit(p: ET.Element) -> None:
-            text = _mask_text(_paragraph_text(p, tab_token=tab_token, labels=labels), masking_policy)
-            if text:
-                para_texts.append(text)
-            for block in _placed_blocks(p):
-                if block.tag == f"{_HP}drawText":
-                    for inner in _text_box_paragraphs(block):
-                        emit(inner)
-                elif include_tables:
-                    rows = _table_cells_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels)
-                    for row in rows:
-                        para_texts.append(tab_token.join(row))
-                elif labels is not None:
+        left_out: set[ET.Element] = set()
+
+        def write_block(block: ET.Element) -> None:
+            if block in left_out:
+                return
+            if block.tag in _PARAGRAPH_BLOCKS:
+                for inner in _text_box_paragraphs(block):
+                    emit(inner)
+            elif include_tables:
+                rows = _table_cells_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels)
+                for row in rows:
+                    para_texts.append(tab_token.join(row))
+            else:
+                left_out.update(block.findall(f"{_HP}caption"))  # a left-out table's captions go with it
+                if labels is not None:
                     labels.count(block)
+
+        def emit(p: ET.Element) -> None:
+            _emit_paragraph(p, tab_token=tab_token, labels=labels, masking_policy=masking_policy,
+                            write_text=para_texts.append, write_block=write_block)
 
         for p in _iter_paragraphs(section_root):
             emit(p)
@@ -402,37 +534,46 @@ def export_html(
 ) -> str:
     """Export document content as HTML.
 
-    The tables and text boxes of a paragraph follow its text, in document order.
+    A paragraph's tables, text boxes and captions come where they sit in its text, as in
+    Hancom's text save (a table's caption after the table). A 덧말 is its main text and
+    ``(덧말:<sub text>)``.
     With *list_labels*, numbered, outline and bullet paragraphs start with their label.
     """
     sections = _section_xmls(source)
     labels = _ListLabels(_header_xml(source)) if list_labels else None
     body_parts: list[str] = []
 
-    def emit(p: ET.Element) -> None:
-        text = _mask_text(_paragraph_text(p, tab_token=tab_token, labels=labels), masking_policy)
-        if text:
-            body_parts.append(f"<p>{_escape_html(text)}</p>")
-        for block in _placed_blocks(p):
-            if block.tag == f"{_HP}drawText":
-                for inner in _text_box_paragraphs(block):
-                    emit(inner)
-                continue
-            rows = (
-                _table_cells_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels)
-                if include_tables
-                else []
-            )
-            if not include_tables and labels is not None:
+    left_out: set[ET.Element] = set()
+
+    def write_block(block: ET.Element) -> None:
+        if block in left_out:
+            return
+        if block.tag in _PARAGRAPH_BLOCKS:
+            for inner in _text_box_paragraphs(block):
+                emit(inner)
+            return
+        rows = (
+            _table_cells_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels)
+            if include_tables
+            else []
+        )
+        if not include_tables:
+            left_out.update(block.findall(f"{_HP}caption"))  # a left-out table's captions go with it
+            if labels is not None:
                 labels.count(block)
-            if rows:
-                body_parts.append('<table border="1">')
-                for row in rows:
-                    body_parts.append("  <tr>")
-                    for cell in row:
-                        body_parts.append(f"    <td>{_escape_html(cell)}</td>")
-                    body_parts.append("  </tr>")
-                body_parts.append("</table>")
+        if rows:
+            body_parts.append('<table border="1">')
+            for row in rows:
+                body_parts.append("  <tr>")
+                for cell in row:
+                    body_parts.append(f"    <td>{_escape_html(cell)}</td>")
+                body_parts.append("  </tr>")
+            body_parts.append("</table>")
+
+    def emit(p: ET.Element) -> None:
+        _emit_paragraph(p, tab_token=tab_token, labels=labels, masking_policy=masking_policy,
+                        write_text=lambda text: body_parts.append(f"<p>{_escape_html(text)}</p>"),
+                        write_block=write_block)
 
     for sec_idx, section_root in enumerate(sections):
         if sec_idx > 0:
@@ -469,7 +610,9 @@ def export_markdown(
 ) -> str:
     """Export document content as Markdown.
 
-    The tables and text boxes of a paragraph follow its text, in document order.
+    A paragraph's tables, text boxes and captions come where they sit in its text, as in
+    Hancom's text save (a table's caption after the table). A 덧말 is its main text and
+    ``(덧말:<sub text>)``.
     With *list_labels*, numbered, outline and bullet paragraphs start with their label.
     """
     sections = _section_xmls(source)
@@ -480,30 +623,39 @@ def export_markdown(
         if labels is not None:
             labels.start_section(section_root)
 
-        def emit(p: ET.Element) -> None:
-            text = _mask_text(_paragraph_text(p, tab_token=tab_token, labels=labels), masking_policy)
-            if text:
-                lines.append(text)
-                lines.append("")
-            for block in _placed_blocks(p):
-                if block.tag == f"{_HP}drawText":
-                    for inner in _text_box_paragraphs(block):
-                        emit(inner)
-                    continue
-                rows = (
-                    _table_grid_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels)
-                    if include_tables
-                    else []
-                )
-                if not include_tables and labels is not None:
+        def write_text(text: str) -> None:
+            lines.append(text)
+            lines.append("")
+
+        left_out: set[ET.Element] = set()
+
+        def write_block(block: ET.Element) -> None:
+            if block in left_out:
+                return
+            if block.tag in _PARAGRAPH_BLOCKS:
+                for inner in _text_box_paragraphs(block):
+                    emit(inner)
+                return
+            rows = (
+                _table_grid_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels)
+                if include_tables
+                else []
+            )
+            if not include_tables:
+                left_out.update(block.findall(f"{_HP}caption"))  # a left-out table's captions go with it
+                if labels is not None:
                     labels.count(block)
-                if rows:
-                    header = rows[0]
-                    lines.append("| " + " | ".join(_markdown_cell(cell) for cell in header) + " |")
-                    lines.append("| " + " | ".join("---" for _ in header) + " |")
-                    for row in rows[1:]:
-                        lines.append("| " + " | ".join(_markdown_cell(cell) for cell in row) + " |")
-                    lines.append("")
+            if rows:
+                header = rows[0]
+                lines.append("| " + " | ".join(_markdown_cell(cell) for cell in header) + " |")
+                lines.append("| " + " | ".join("---" for _ in header) + " |")
+                for row in rows[1:]:
+                    lines.append("| " + " | ".join(_markdown_cell(cell) for cell in row) + " |")
+                lines.append("")
+
+        def emit(p: ET.Element) -> None:
+            _emit_paragraph(p, tab_token=tab_token, labels=labels, masking_policy=masking_policy,
+                            write_text=write_text, write_block=write_block)
 
         for p in _iter_paragraphs(section_root):
             emit(p)
