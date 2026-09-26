@@ -175,6 +175,10 @@ _CONTAINER_PARTS = frozenset({"offset", "orgSz", "curSz", "flip", "rotationInfo"
 
 
 def _local(element: etree._Element) -> str:
+    """Local name of an element; "" for a comment or processing instruction,
+    whose tag is not a name (real documents carry comments inside table rows)."""
+    if not isinstance(element.tag, str):
+        return ""
     return etree.QName(element).localname
 
 
