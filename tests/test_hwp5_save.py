@@ -661,6 +661,21 @@ def test_paragraph_lengths_with_no_switch_are_what_hwp_keeps() -> None:
         (13, (850, 283), (7200, 14400), (0, 0, 317, 0)),  # narrowed
         (13, (0, 0), (7875, 5850), (600, 0, 600, 0)),
         (14, (283, 850), (7200, 14400), (2117, 0, 3350, 250)),  # enlarged
+        # Offsets to the left or up, which Hancom mirrors side for side.
+        (6, (-850, 0), (28800, 3600), (850, 1193, 0, 0)),
+        (5, (850, -283), (28800, 3600), (1193, 850, 0, 0)),
+        (9, (0, -850), (28800, 3600), (3336, 0, 850, 0)),
+        (5, (0, -850), (28800, 3600), (2043, 0, 0, 0)),
+        (11, (-283, -283), (28800, 3600), (3619, 0, 0, 3317)),
+        (1, (-850, 0), (28800, 3600), (1450, 0, 600, 0)),
+        (13, (-283, 850), (28800, 3600), (883, 0, 0, 0)),
+        (14, (-283, -283), (28800, 3600), (8083, 0, 1783, 0)),
+        # Shapes tall enough that the shadow leans out past 16 bits.
+        (11, (283, 283), (28346, 42520), (39125, 283, 0, 42803)),
+        (12, (283, 283), (28346, 42520), (0, 39691, 0, 42803)),
+        (7, (283, 283), (20000, 60000), (33771, 283, 0, 30283)),
+        (9, (283, 283), (7200, 72000), (66447, 283, 0, 283)),
+        (11, (283, 283), (8000, 1000), (644, 283, 0, 1283)),  # a lean of 926.8 rounds up
     ],
 )
 def test_where_a_shadow_falls_widens_the_outer_margin(
@@ -674,7 +689,7 @@ def test_where_a_shadow_falls_widens_the_outer_margin(
     [
         (4, -283, (0, 317, 0, 317)),  # parallel, right bottom
         (6, 0, (0, 3405, 0, 0)),  # shear, right top
-        (11, 283, (5277, 283, 0, 6283)),  # perspective, left bottom
+        (11, 283, (5278, 283, 0, 6283)),  # perspective, left bottom
         (14, 283, (2317, 0, 1817, 0)),  # enlarged
     ],
 )
@@ -708,6 +723,51 @@ def test_a_shadowed_shape_keeps_its_outer_margin_across_hwpx(kind: int, offset: 
     written = read_hwp5(write_hwp5(files))
     [header] = [r for s in written.sections for r in s.records if r.tag == rec.CTRL_HEADER and r.payload[:4] == b" osg"]
     assert ct.ObjectCommon.decode(header.payload).margins == margins
+
+
+@pytest.mark.parametrize(
+    ("kind", "size", "stored"),
+    [
+        (11, (28346, 42520), (-26411, 283, 0, -22733)),  # perspective, left bottom
+        (12, (28346, 42520), (0, -25845, 0, -22733)),  # perspective, right bottom
+        (7, (20000, 60000), (-31765, 283, 0, 30283)),  # shear, left bottom
+    ],
+)
+def test_a_shadow_margin_past_16_bits_is_saved_wrapped_and_opens_as_saved(
+    kind: int, size: tuple[int, int], stored: tuple[int, ...]
+) -> None:
+    """Hancom keeps the low 16 bits of such a margin; opening takes the shadow back out."""
+
+    width, height = size
+    common = ct.ObjectCommon("gso ", 0x000A2211, 0, 0, width, height, 0, stored, 190, 0, "", bytes(2))
+    fill = di.Fill(di.FILL_SOLID, 0x00FFFFFF, 0, -1, additional=b"", alphas=b"\0")
+    style = sh.DrawingStyle(0, 33, 0, 0, fill, kind, 0xB2B2B2, 283, 283, 190)
+    component = sh.ShapeComponent(
+        "$rec", True, 0, 0, 0, 1, width, height, width, height, 1 << 19, 0, width // 2, height // 2,
+        [_IDENTITY] * 3, style.encode(),
+    )
+    rect = sh.Rectangle(0, [(0, 0), (width, 0), (width, height), (0, height)])
+    controls = [
+        rec.Record(rec.CTRL_HEADER, 1, common.encode()),
+        rec.Record(rec.SHAPE_COMPONENT, 2, component.encode()),
+        rec.Record(rec.SHAPE_COMPONENT_RECTANGLE, 3, rect.encode()),
+    ]
+    section = _section() + _paragraph(0, _extended(11, "gso ") + _u16(13), [(0, 0)], controls)
+    files = convert(_compound(section)).files
+    [shape] = list(etree.fromstring(files["Contents/section0.xml"]).iter(f"{HP}rect"))
+    margin = shape.find(f"{HP}outMargin")
+    assert [margin.get(side) for side in ("left", "right", "top", "bottom")] == ["0", "0", "0", "0"]
+
+    written = read_hwp5(write_hwp5(files))
+    [header] = [r for s in written.sections for r in s.records if r.tag == rec.CTRL_HEADER and r.payload[:4] == b" osg"]
+    assert ct.ObjectCommon.decode(header.payload).margins == stored
+
+
+def test_a_margin_short_of_its_shadow_keeps_what_is_left() -> None:
+    """Hancom opens such a margin below 0 and saves it back as it was."""
+
+    assert sh.without_shadow((100, 283, 5, 0), (283, 883, 0, 0)) == (-183, -600, 5, 0)
+    assert sh.without_shadow((-26411, 283, 0, -22733), (39125, 283, 0, 42803)) == (0, 0, 0, 0)
 
 
 def test_characters_overlapped_with_no_frame_keep_their_text_across_hwpx() -> None:

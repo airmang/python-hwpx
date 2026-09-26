@@ -476,7 +476,7 @@ class ShapeReader:
                 extra = sh.shadow_margins(
                     style.shadow_type, style.shadow_x, style.shadow_y, common.width, common.height
                 )
-                margins = tuple(margin - add for margin, add in zip(common.margins, extra))
+                margins = sh.without_shadow(common.margins, extra)
                 common = dataclasses.replace(common, margins=margins)  # type: ignore[arg-type]
             object_layout(element, common)
             if common.description:

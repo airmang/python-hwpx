@@ -1110,6 +1110,8 @@ class SectionRecords:
                 common.width,
                 common.height,
             )
+            # A margin too large for its 16 bits keeps its low 16, as Hancom
+            # writes it; reading takes the shadow out the same way.
             common.margins = tuple(_i16(margin + add) for margin, add in zip(common.margins, extra))  # type: ignore[assignment]
         comment = _find(element, "shapeComment")
         common.description = "".join(comment.itertext()) if comment is not None else ""

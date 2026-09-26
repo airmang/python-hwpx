@@ -690,8 +690,9 @@ _PARALLEL_SHADOW_SIGNS = {1: (-1, -1), 2: (1, -1), 3: (-1, 1), 4: (1, 1)}
 
 
 #: How far a shear (kinds 5-8) and a perspective (kinds 9-12) shadow lean
-#: out, in hundred-thousandths of the shape's height, as Hancom measures it.
-_SHADOW_LEAN = {5: 56757, 9: 92681}
+#: out, in hundred-thousandths of the shape's height, rounded as Hancom
+#: rounds it.
+_SHADOW_LEAN = {5: 56756, 9: 92680}
 SHADOW_SCALE_NARROW, SHADOW_SCALE_ENLARGE = 13, 14
 
 
@@ -702,36 +703,55 @@ def shadow_margins(
     drawn shape of *width* x *height* for where its shadow falls. The
     package's margin leaves it out.
 
-    A parallel shadow lies 600 past the shape. A shear or a perspective one
-    leans out to the left or the right by a share of the shape's height, and
-    a bottom one drops by half (shear) or all (perspective) of that height.
-    A narrowed shadow reaches 600 past the left and the top, an enlarged one
-    a quarter of the shape more. The offsets move each shadow."""
+    Each shadow covers a box that the offsets move, and on each side the
+    margin grows by how far that box reaches past the shape. A parallel
+    shadow is the shape moved 600 out. A shear or a perspective one leans
+    out to the left or the right by a share of the shape's height: a top
+    one stands behind the shape (a shear one over its lower half), a bottom
+    one lies below it, half (shear) or all (perspective) of its height
+    deep. An enlarged shadow reaches a quarter of the shape and 600 past
+    the left and the top and ends 600 short of the right and the bottom; a
+    narrowed one reaches only 600 past the left and the top."""
 
     distance = PARALLEL_SHADOW_DISTANCE
     signs = _PARALLEL_SHADOW_SIGNS.get(kind)
     if signs is not None:
-        dx = distance * signs[0] + offset_x
-        dy = distance * signs[1] + offset_y
-        return (max(-dx, 0), max(dx, 0), max(-dy, 0), max(dy, 0))
-    if 5 <= kind <= 12:
-        first = 5 if kind <= 8 else 9
-        corner = kind - first  # left top, right top, left bottom, right bottom
-        lean = height * _SHADOW_LEAN[first] // 100000
-        drop = ((height // 2 if first == 5 else height) if corner >= 2 else 0) + offset_y
-        if corner in (0, 2):
-            left, right = lean - offset_x, offset_x
-        else:
-            left, right = 0, lean + offset_x
-        top, bottom = 0, drop
+        x0, y0 = distance * signs[0], distance * signs[1]
+        x1, y1 = width + x0, height + y0
+    elif 5 <= kind <= 12:
+        shear = kind <= 8
+        corner = kind - (5 if shear else 9)  # left top, right top, left bottom, right bottom
+        lean = (height * _SHADOW_LEAN[5 if shear else 9] + 50000) // 100000
+        depth = height // 2 if shear else height
+        x0, x1 = (-lean, width) if corner in (0, 2) else (0, width + lean)
+        y0, y1 = (height - depth if shear else 0, height) if corner < 2 else (height, height + depth)
     elif kind == SHADOW_SCALE_NARROW:
-        left, right, top, bottom = distance - offset_x, 0, distance - offset_y, 0
+        return (max(distance - offset_x, 0), 0, max(distance - offset_y, 0), 0)
     elif kind == SHADOW_SCALE_ENLARGE:
-        left, right = width // 4 + distance - offset_x, offset_x - distance
-        top, bottom = height // 4 + distance - offset_y, offset_y - distance
+        x0, x1 = -(width // 4 + distance), width - distance
+        y0, y1 = -(height // 4 + distance), height - distance
     else:
         return (0, 0, 0, 0)
-    return (max(left, 0), max(right, 0), max(top, 0), max(bottom, 0))
+    return (
+        max(-(x0 + offset_x), 0),
+        max(x1 + offset_x - width, 0),
+        max(-(y0 + offset_y), 0),
+        max(y1 + offset_y - height, 0),
+    )
+
+
+def without_shadow(margins: tuple[int, ...], extra: tuple[int, ...]) -> tuple[int, ...]:
+    """The package's outer margins: the HWP ones less what the shadow adds,
+    kept to 16 bits as HWP keeps them. A margin that grew past 16 bits with
+    its shadow was saved wrapped, as Hancom saves it, and opens as it was
+    before; one smaller than its shadow's reach keeps what is left of it,
+    below 0, as Hancom reads it."""
+
+    out = []
+    for margin, add in zip(margins, extra):
+        value = (margin - add) & 0xFFFF
+        out.append(value - 0x10000 if value >= 0x8000 else value)
+    return tuple(out)
 
 
 #: A video plays a file (a BinData item) or a web page's tag.
