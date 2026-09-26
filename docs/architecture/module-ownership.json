@@ -538,6 +538,12 @@
       "rationale": "Hancom's storage of a hyperlink field target: hyperlink_parameters() writes the hp:parameters Hancom reads (Command with : ? ; # backslash-escaped and a ;kind;0;0 tail, Path, Category, TargetType, DocOpenType -- the form Hancom writes for web, mail and bookmark links) and hyperlink_target() reads a target back (Path, else the unescaped Command head, else @name). A new module rather than more paragraph.py lines (1,584/1,600 owner-file cap); paragraph.add_hyperlink, paragraph.hyperlinks, Markdown export and the text extractor all call it, so the three readers that disagreed now read one way. Format-level only: no renderer, application workflow or agent policy."
     },
     {
+      "path": "src/hwpx/oxml/table_sizes.py",
+      "disposition": "core",
+      "approvedBy": "hancom-distribute-cell-width",
+      "rationale": "How a table shares out its width and height among its cells: the bodies of HwpxOxmlTable.set_column_widths, equalize_column_widths (Hancom's distribute-cell-width rule: each row splits the table width among its own cells, the width rounded up to a common multiple of every row's cell count, the column grid rebuilt from the new cell edges) and equalize_row_heights. A new module rather than more table.py lines: the open table fixes together would take that owner file past the 1,600-line cap; the table methods keep their documentation and delegate. Format-level only."
+    },
+    {
       "path": "src/hwpx/hwp5/__init__.py",
       "disposition": "core",
       "approvedBy": "owner-hwp5-core-2026-09-23",
