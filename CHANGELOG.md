@@ -6,6 +6,9 @@
 
 ### 추가
 
+- `Run.content_kinds()`가 run이 담은 것을 닫힌 어휘(`RUN_CONTENT_KINDS`: `text`·
+  `table`·`picture`·`shape`·`equation`·`ole`·`chart`·`video`·`form`·`control`·
+  `section_properties`·`other`)로 알려 준다. 빈 `hp:t`는 글로 세지 않는다.
 - `doc.text.plain()`·`markdown()`·`html()`(`hwpx.tools.exporter`)에 `list_labels` 인자(기본
   `False`): 번호·개요·글머리표 문단 앞에 한/글이 그리는 글자(`1.`·`가.`·`①`·`●` 등)와 공백
   하나를 붙인다. 번호는 번호 정의와 수준마다 문서 순서로 세고(윗수준이 오면 아랫수준은 새로

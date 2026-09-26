@@ -169,6 +169,7 @@
    "stable": [
     "bold",
     "char_pr_id_ref",
+    "content_kinds",
     "italic",
     "remove",
     "replace_text",

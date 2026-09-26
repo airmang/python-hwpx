@@ -20,6 +20,7 @@ stable 편집 표면의 계약을 한 곳에 모았다. 아래 표의 실패 모
 | `document.text.replace(search, repl, everywhere=False)` | `int` (치환 수) | 빈 `search`는 `ValueError` | 치환할 것이 없으면 `0` — 1회차 후 수렴 |
 | `document.notes.add_memo(..., anchor=p)` | `Memo` (`paragraph`, `field_id` 속성) | 아래 캐비앗 참고 | 메모가 하나 더 붙는다(비멱등) |
 | `document.notes.add_footnote(text, paragraph)` | `HwpxOxmlNote` | 사실상 없음 | 각주가 하나 더 붙는다(비멱등) |
+| `run.content_kinds()` | `frozenset[str]` (`RUN_CONTENT_KINDS` 어휘) | 사실상 없음 | 읽기 전용 |
 
 "사실상 없음"은 정상 인자에서 실패 경로가 없다는 뜻이다 — 타입이 어긋난
 인자는 여느 파이썬 API처럼 `TypeError` 계열로 즉시 드러난다.
