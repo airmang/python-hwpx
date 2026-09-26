@@ -1,7 +1,8 @@
 """table_patch structure ops on tables that real documents often have.
 
 - a table in a paragraph that also holds the section setup (``hp:secPr`` with
-  ``hp:pagePr`` / ``hp:pageBorderFill`` before the table),
+  ``hp:pagePr`` / ``hp:pageBorderFill`` before the table), text or another
+  table: the ops touch only the table there,
 - a table with a nested table (autofit refuses like the other structure edits),
 - a row whose right-hand column is covered by a cell merged down from above,
 - deleting the top row of a vertical merge.
@@ -10,9 +11,13 @@
 from __future__ import annotations
 
 import io
+import zipfile
+
+import pytest
 
 from hwpx.document import HwpxDocument
 from hwpx.table_patch import apply_table_ops
+from hwpx.tools.package_validator import validate_package
 
 
 def _fill(table, rows: int, cols: int) -> None:
@@ -32,6 +37,96 @@ def _first_paragraph_table(rows: int = 4, cols: int = 2) -> bytes:
 def _reopen(result) -> HwpxDocument:
     assert not result.skipped, [skip.reason for skip in result.skipped]
     return HwpxDocument.open(io.BytesIO(result.data))
+
+
+def _section_xml(data: bytes) -> str:
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        return archive.read("Contents/section0.xml").decode("utf-8")
+
+
+def _shapes(document: HwpxDocument) -> list[tuple[int, int, str]]:
+    return [(t.row_count, t.column_count, t.cell(0, 0).text) for t in document.tables.all]
+
+
+def _two_tables_in_one_paragraph(text: str = "intro text") -> bytes:
+    """A paragraph with *text*, a 2x2 table A and a 4x2 table B."""
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph(text)
+    _fill(paragraph.add_table(2, 2), 2, 2)
+    _fill(paragraph.add_table(4, 2), 4, 2)
+    return doc.to_bytes()
+
+
+@pytest.mark.parametrize(
+    "op",
+    [
+        {"op": "delete_table", "table_index": 0},
+        {"op": "clone_table", "table_index": 0},
+        {"op": "split_table", "table_index": 0, "split_row": 2},
+    ],
+)
+def test_the_section_setup_stays_single_and_in_place(op: dict) -> None:
+    result = apply_table_ops(_first_paragraph_table(), [op])
+
+    xml = _section_xml(result.data)
+    assert [xml.count(f"<hp:{tag}") for tag in ("secPr", "colPr", "pagePr")] == [1, 1, 1]
+    assert validate_package(result.data).ok
+    reopened = _reopen(result)
+    assert reopened.oxml.sections[0].properties.page_size.width > 0
+    assert "after the table" in reopened.text.plain()
+
+
+def test_deleting_one_of_two_tables_in_a_paragraph_keeps_the_rest() -> None:
+    result = apply_table_ops(_two_tables_in_one_paragraph(), [{"op": "delete_table", "table_index": 1}])
+
+    reopened = _reopen(result)
+    assert _shapes(reopened) == [(2, 2, "r0c0")]
+    assert reopened.text.plain().startswith("intro text")
+
+
+def test_splitting_the_second_table_of_a_paragraph_leaves_the_first_alone() -> None:
+    result = apply_table_ops(
+        _two_tables_in_one_paragraph(), [{"op": "split_table", "table_index": 1, "split_row": 2}]
+    )
+
+    assert _shapes(_reopen(result)) == [(2, 2, "r0c0"), (2, 2, "r0c0"), (2, 2, "r2c0")]
+    assert _section_xml(result.data).count("intro text") == 1
+
+
+def test_cloning_the_second_table_of_a_paragraph_copies_only_it() -> None:
+    result = apply_table_ops(_two_tables_in_one_paragraph(), [{"op": "clone_table", "table_index": 1}])
+
+    assert _shapes(_reopen(result)) == [(2, 2, "r0c0"), (4, 2, "r0c0"), (4, 2, "r0c0")]
+    assert _section_xml(result.data).count("intro text") == 1
+
+
+def test_merging_two_tables_of_one_paragraph_joins_them_once() -> None:
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("")
+    _fill(paragraph.add_table(2, 2), 2, 2)
+    _fill(paragraph.add_table(2, 2), 2, 2)
+
+    result = apply_table_ops(doc.to_bytes(), [{"op": "merge_table", "table_index": 0}])
+
+    (merged,) = _reopen(result).tables.all
+    assert (merged.row_count, merged.column_count) == (4, 2)
+
+
+def test_text_between_two_tables_of_one_paragraph_refuses_the_merge() -> None:
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("")
+    _fill(paragraph.add_table(2, 2), 2, 2)
+    paragraph.add_run("between")
+    _fill(paragraph.add_table(2, 2), 2, 2)
+    source = doc.to_bytes()
+
+    result = apply_table_ops(source, [{"op": "merge_table", "table_index": 0}])
+
+    assert [skip.reason for skip in result.skipped] == [
+        "merge_table: merge_table: real content (non-empty text) sits between the two tables "
+        "-- refusing (would silently discard it)"
+    ]
+    assert result.data == source
 
 
 def test_split_table_in_the_section_setup_paragraph() -> None:
