@@ -50,6 +50,20 @@
 
 ### 고침
 
+- `hwpx.table_patch.apply_table_ops`의 `delete_table`·`clone_table`·`split_table`·
+  `merge_table`이 표를 담은 문단을 잘못 찾던 것을 고친다. 문단 안에서 표 앞에
+  `hp:pagePr`·`hp:pageBorderFill`·`hp:pic`처럼 이름이 `p`로 시작하는 요소가 있으면
+  (구역 설정이 든 구역 첫 문단의 표 등) 그 요소를 문단 시작으로 알아, 잘린 XML이
+  저장 전 검사에 걸려 `ValueError`로 멈추거나 `merge_table`이 두 표 사이에 글이
+  있다고 잘못 거부했다. 이제 표를 감싸는 가장 안쪽 문단을 찾는다.
+- `autofit_columns`가 표 안에 표가 있는 표에서 `KeyError`를 내던 것을, 다른 구조
+  편집처럼 `TableStructureError`로 거부하게 한다.
+- `delete_column`이 한 칸짜리 칸만 있는 행이 표의 모든 열을 덮지 않을 때(오른쪽 열이
+  윗행에서 내려온 합친 칸에 덮인 행) 그 행을 열 폭의 근거로 써서 `KeyError`를 내던
+  것을 고친다. 이런 행은 건너뛰고, 없으면 합친 칸 격자에서 폭을 구한다.
+- `delete_row`가 세로로 합친 칸의 첫 행을 지우면 합친 칸까지 지워 표에 빈 자리가
+  생겨 거부되던 것을 고친다. 이제 합친 칸은 다음 행으로 내려가 한 행 줄어들고, 글과
+  서식은 그대로다(한컴 편집기에서 그 행을 지운 결과와 같다).
 - HWP 5.0으로 저장(`to_bytes(format="hwp")`·`save_to_path("*.hwp")`)할 때 원본 구역에
   XML 주석이 있으면 `ValueError: Invalid input tag`로 멈추던 것을 고친다. 실문서 가운데
   표 행 안에 주석을 둔 문서가 있었다. 이제 주석과 처리 명령은 내용이 아니므로 건너뛴다.
