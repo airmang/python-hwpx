@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from ...oxml import (
         Bullet,
         GenericElement,
+        HwpxOxmlParagraph,
         MemoShape,
         ParagraphProperty,
         RunStyle,
@@ -550,6 +551,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         *,
         paragraph_index: int | None = None,
         paragraph_indexes: Sequence[int] | None = None,
+        paragraphs: "Sequence[HwpxOxmlParagraph] | None" = None,
         alignment: str | None = None,
         line_spacing_percent: int | float | None = None,
         indent_left_mm: float | None = None,
@@ -571,6 +573,14 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         border: Mapping[str, object] | None = None,
     ) -> "ParagraphFormatResult":
         """문단 서식을 사람 단위(mm·pt·%)로 적용한다.
+
+        대상은 본문 문단 인덱스(`paragraph_index`·`paragraph_indexes`, 둘 다 없으면
+        본문 문단 전부) 또는 이 문서의 문단 객체(`paragraphs`)다. `paragraphs`로는
+        본문뿐 아니라 표 셀(중첩 표 포함)·머리말·꼬리말 문단에도 적용한다 —
+        예: `paragraphs=[table.cell(0, 0).paragraphs[0]]`,
+        `paragraphs=header.paragraphs`. 다른 문서의 문단이나 지운 문단이 섞이면
+        아무것도 바꾸기 전에 거부한다(`paragraph-not-in-document`). 결과의
+        `paragraphs`에는 본문 문단의 인덱스만 담기고 `formatted`는 대상 수다.
 
         `border`는 문단 테두리 매핑이다: `sides`(기본 네 면 "left"·"right"·
         "top"·"bottom"), `color`("#000000"), `width`("0.12 mm"), `type`
@@ -597,6 +607,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             self._doc,
             paragraph_index=paragraph_index,
             paragraph_indexes=paragraph_indexes,
+            paragraphs=paragraphs,
             alignment=alignment,
             line_spacing_percent=line_spacing_percent,
             indent_left_mm=indent_left_mm,
