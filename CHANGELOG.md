@@ -95,6 +95,15 @@
 
 ### 고침
 
+- 번호 형식을 받은 그대로(대문자로만 바꿔) 쓰던 것을 고친다. 목록(`styles.apply_list_format`의
+  `number_format`, `ensure_numbering` 레벨의 `format`), 각주·미주(`set_footnote_auto_num_format`·
+  `set_endnote_auto_num_format`의 `type`), 쪽 번호(`page.set_page_number`의 `format_type`)가
+  그렇다. 한컴은 모르는 형식을 거부하지 않고 아라비아 숫자로 매겨서, `number_format="decimal"`
+  같은 값이 조용히 `1. 2. 3.`이 되었다. 이제 한컴 번호 모양 19개(`DIGIT`·`ROMAN_SMALL`·
+  `ROMAN_CAPITAL`·`LATIN_SMALL`·`CIRCLED_DIGIT`·`HANGUL_SYLLABLE`·`DECAGON_CIRCLE`·`SYMBOL`
+  등, `hwpx.oxml.numbering_kinds.NUMBER_FORMATS`)와 쪽 번호가 먼저 받던 짧은 이름(`roman`→
+  `ROMAN_CAPITAL`, `roman_lower`→`ROMAN_SMALL`, `alpha`→`LATIN_CAPITAL` 등)만 받고, 그 밖의 값은
+  `HwpxValueError`(`style-number-format-invalid`)로 거부한다.
 - 색 인자가 `#RRGGBB`가 아니어도 그대로 쓰던 것을 고친다. 한컴은 색 값을 16진 수 하나로
   읽고 나머지를 거부하지 않아서, `#ABC`는 CSS의 `#AABBCC`가 아니라 `#000ABC`로, `red`는
   검정으로, `#12345`는 `#012345`로 보였다. 이제 `styles.ensure_run`(`color`·`highlight`·
