@@ -149,8 +149,8 @@ def _package_with_stale_lineseg_textpos() -> bytes:
 def _build_manual_package(
     *,
     manifest_path: str = "Contents/content.hpf",
-    header_href: str = "header.xml",
-    section_href: str = "section0.xml",
+    header_href: str = "Contents/header.xml",
+    section_href: str = "Contents/section0.xml",
     version_href: str = "../version.xml",
     text: str = "Fixture text",
     rootfile_media_type: str | None = MAIN_ROOTFILE_MEDIA_TYPE,
@@ -367,8 +367,8 @@ def test_package_validator_detects_crc_corruption() -> None:
 def test_package_validator_accepts_nondefault_rootfile_fixture() -> None:
     package_bytes, paths = _build_manual_package(
         manifest_path="Alt/content.hpf",
-        header_href="parts/header-main.xml",
-        section_href="parts/section0.xml",
+        header_href="Alt/parts/header-main.xml",
+        section_href="Alt/parts/section0.xml",
         version_href="../version.xml",
         text="Nondefault fixture",
     )
@@ -386,8 +386,8 @@ def test_package_validator_accepts_nondefault_rootfile_fixture() -> None:
 def test_package_validator_warns_for_engine_fallback_rootfile_selection() -> None:
     package_bytes, paths = _build_manual_package(
         manifest_path="Alt/content.hpf",
-        header_href="parts/header-main.xml",
-        section_href="parts/section0.xml",
+        header_href="Alt/parts/header-main.xml",
+        section_href="Alt/parts/section0.xml",
         version_href="../version.xml",
         text="Fallback fixture",
         rootfile_media_type="application/xml",
@@ -406,8 +406,8 @@ def test_package_validator_rejects_a_rootfile_without_media_type() -> None:
     # Hancom refuses to open a package whose rootfile declares no media-type.
     package_bytes, _paths = _build_manual_package(
         manifest_path="Alt/content.hpf",
-        header_href="parts/header-main.xml",
-        section_href="parts/section0.xml",
+        header_href="Alt/parts/header-main.xml",
+        section_href="Alt/parts/section0.xml",
         version_href="../version.xml",
         text="No media type",
         rootfile_media_type=None,
@@ -425,8 +425,8 @@ def test_package_validator_rejects_a_rootfile_without_media_type() -> None:
 def test_validator_and_engine_do_not_disagree_on_engine_valid_fixture() -> None:
     package_bytes, paths = _build_manual_package(
         manifest_path="Nested/content.hpf",
-        header_href="parts/header.xml",
-        section_href="parts/section0.xml",
+        header_href="Nested/parts/header.xml",
+        section_href="Nested/parts/section0.xml",
         version_href="../version.xml",
         text="Aligned fixture",
     )
@@ -443,8 +443,8 @@ def test_validator_and_engine_do_not_disagree_on_engine_valid_fixture() -> None:
 def test_document_roundtrip_preserves_nondefault_manifest_path() -> None:
     package_bytes, paths = _build_manual_package(
         manifest_path="Alt/content.hpf",
-        header_href="parts/header-main.xml",
-        section_href="parts/section0.xml",
+        header_href="Alt/parts/header-main.xml",
+        section_href="Alt/parts/section0.xml",
         version_href="../version.xml",
         text="Document roundtrip",
     )
@@ -664,8 +664,8 @@ def test_page_guard_detects_shape_and_control_drift() -> None:
 def test_page_guard_collects_metrics_for_nondefault_rootfile_package() -> None:
     package_bytes, _ = _build_manual_package(
         manifest_path="Alt/content.hpf",
-        header_href="parts/header-main.xml",
-        section_href="parts/section0.xml",
+        header_href="Alt/parts/header-main.xml",
+        section_href="Alt/parts/section0.xml",
         version_href="../version.xml",
         text="Page guard fixture",
     )
@@ -756,8 +756,8 @@ def test_text_extract_cli_smoke_on_nondefault_rootfile_package(tmp_path: Path) -
     output_file = tmp_path / "sample.md"
     package_bytes, _ = _build_manual_package(
         manifest_path="Alt/content.hpf",
-        header_href="parts/header-main.xml",
-        section_href="parts/section0.xml",
+        header_href="Alt/parts/header-main.xml",
+        section_href="Alt/parts/section0.xml",
         version_href="../version.xml",
         text="Custom Extract Text",
     )

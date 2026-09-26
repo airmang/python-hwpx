@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from .binary_item import BinaryItem, PictureRef
 from .checkbox import CheckBox
-from .form_field import FieldLocation, FieldParameter, FormField
+from .form_field import CellField, FieldLocation, FieldParameter, FormField
 from .highlight import Highlight
 from .results import (
     ColumnLayout,
@@ -39,6 +39,7 @@ from .tracked import TrackedChange, TrackedReplacement
 
 __all__ = [
     "BinaryItem",
+    "CellField",
     "CheckBox",
     "ColumnLayout",
     "FieldFillResult",

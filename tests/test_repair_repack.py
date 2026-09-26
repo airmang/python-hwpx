@@ -28,8 +28,8 @@ _CONTENT_HPF = (
     b'<?xml version="1.0" encoding="UTF-8"?>'
     b'<opf:package xmlns:opf="http://www.idpf.org/2007/opf/">'
     b"<opf:manifest>"
-    b'<opf:item id="header" href="header.xml" media-type="application/xml"/>'
-    b'<opf:item id="section0" href="section0.xml" media-type="application/xml"/>'
+    b'<opf:item id="header" href="Contents/header.xml" media-type="application/xml"/>'
+    b'<opf:item id="section0" href="Contents/section0.xml" media-type="application/xml"/>'
     b'<opf:item id="version" href="../version.xml" media-type="application/xml"/>'
     b"</opf:manifest>"
     b'<opf:spine><opf:itemref idref="section0"/></opf:spine>'

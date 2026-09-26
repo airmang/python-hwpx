@@ -8,9 +8,11 @@ only ``hp:t``'s own text returned "성" and lost the rest.
 from __future__ import annotations
 
 import io
+import re
 import zipfile
 
 import pytest
+from lxml import etree
 
 from hwpx import HwpxDocument
 from hwpx.tools.markdown_export import export_markdown
@@ -89,3 +91,90 @@ def test_a_spaced_form_label_is_found_by_its_letters() -> None:
     doc = _document_with('<hp:t>성<hp:fwSpace/>명</hp:t>', in_table=True)
     result = doc.tables.find_cell_by_label("성 명")
     assert result["count"] >= 1
+
+
+# Setting text replaces all of it: the line breaks, tabs, spaces and marks
+# inside hp:t belong to the old value, and so does the text after them.
+def test_setting_a_cell_replaces_the_text_after_inline_elements() -> None:
+    doc = _document_with(HANCOM_T, in_table=True)
+    table = doc.tables.all[0]
+    table.set_cell_text(0, 0, "새 값")
+
+    assert table.cell(0, 0).text == "새 값"
+    assert HwpxDocument.open(doc.to_bytes()).tables.all[0].cell(0, 0).text == "새 값"
+
+
+def test_setting_a_run_replaces_the_text_after_inline_elements() -> None:
+    doc = _document_with(HANCOM_T)
+    paragraph = doc.paragraphs[-1]
+    paragraph.runs[-1].text = "새 값"
+
+    assert paragraph.runs[-1].text == "새 값"
+    assert paragraph.text == "새 값"
+
+
+def test_cell_and_run_text_keep_a_tab_as_an_element() -> None:
+    doc = HwpxDocument.new()
+    doc.add_table(1, 1).set_cell_text(0, 0, "이름\t홍길동")
+    doc.add_paragraph("").add_run("번호").text = "번호\t1"
+    data = doc.to_bytes()
+
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        section = archive.read("Contents/section0.xml").decode("utf-8")
+    assert "이름<hp:tab/>홍길동" in section
+    assert "번호<hp:tab/>1" in section
+    reopened = HwpxDocument.open(data)
+    assert reopened.tables.all[0].cell(0, 0).text == "이름\t홍길동"
+    assert reopened.paragraphs[-1].text == "번호\t1"
+
+
+def test_split_cell_text_keeps_a_tab() -> None:
+    doc = HwpxDocument.new()
+    table = doc.add_table(1, 1)
+    table.set_cell_text(0, 0, "가\t나\n다", split_paragraphs=True)
+
+    assert [paragraph.text for paragraph in table.cell(0, 0).paragraphs] == ["가\t나", "다"]
+
+
+# Header, footer and note text: a tab is written as an hp:tab inside hp:t and
+# read back as a tab, like body text.
+def _section_texts(data: bytes) -> list[str]:
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        section = archive.read("Contents/section0.xml").decode("utf-8")
+    return re.findall(r"<hp:t(?:\s[^>]*)?>(.*?)</hp:t>", section, re.S)
+
+
+def test_header_and_footer_text_keep_a_tab() -> None:
+    doc = HwpxDocument.new()
+    doc.page.set_header(text="학교명\t날짜")
+    doc.page.set_footer(text="쪽\t끝")
+    data = doc.to_bytes()
+
+    texts = _section_texts(data)
+    assert "학교명<hp:tab/>날짜" in texts
+    assert "쪽<hp:tab/>끝" in texts
+    assert not [text for text in texts if "\t" in text]
+    properties = HwpxDocument.open(data).sections[0].properties
+    assert properties.get_header().text == "학교명\t날짜"
+    assert properties.get_footer().text == "쪽\t끝"
+
+
+def test_note_text_keeps_a_tab() -> None:
+    doc = HwpxDocument.new()
+    note = doc.notes.add_footnote("각주\t탭", doc.add_paragraph("본문"))
+    assert note.text == "각주\t탭"
+    note.text = "바뀐\t각주"
+    data = doc.to_bytes()
+
+    assert "바뀐<hp:tab/>각주" in _section_texts(data)
+    assert not [text for text in _section_texts(data) if "\t" in text]
+
+
+def test_header_text_reads_what_follows_inline_elements() -> None:
+    doc = HwpxDocument.new()
+    header = doc.sections[0].properties.set_header_text("성명")
+    text = next(header.element.iter("{http://www.hancom.co.kr/hwpml/2011/paragraph}t"))
+    text.text = "성"
+    space = etree.SubElement(text, "{http://www.hancom.co.kr/hwpml/2011/paragraph}fwSpace")
+    space.tail = "명"
+    assert header.text == "성　명"

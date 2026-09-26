@@ -175,8 +175,8 @@ def _build_nonstandard_rootfile() -> bytes:
         (
             manifest_path,
             MANIFEST_XML_TEMPLATE.format(
-                header_href="header.xml",
-                section_href="section0.xml",
+                header_href=header_path,
+                section_href=section_path,
                 version_href="../version.xml",
             ).encode("utf-8"),
         ),
