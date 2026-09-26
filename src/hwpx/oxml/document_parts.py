@@ -6,7 +6,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 import logging
-from typing import TYPE_CHECKING, Iterable, Mapping, Sequence, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence, TypeVar
 import xml.etree.ElementTree as ET
 
 from hwpx.opc.relationships import resolve_part_name
@@ -122,10 +122,12 @@ def _run_style_is_legacy_script_approximation(element: ET.Element) -> bool:
 def _run_style_base(header: HwpxOxmlHeader, base_char_pr_id: str | int | None) -> ET.Element | None:
     """The ``hh:charPr`` a requested style is built on: *base_char_pr_id*, else the first one."""
 
-    char_prs = list(header.element.iter(f"{_HH}charPr"))
-    wanted_id = None if base_char_pr_id is None else str(base_char_pr_id)
-    named = next((el for el in char_prs if wanted_id is not None and el.get("id") == wanted_id), None)
-    return named if named is not None else next(iter(char_prs), None)
+    ref_list = header.element.find(f"{_HH}refList")
+    container = None if ref_list is None else ref_list.find(f"{_HH}charProperties")
+    if container is None:
+        return None
+    named = None if base_char_pr_id is None else container.find(f"{_HH}charPr[@id='{base_char_pr_id}']")
+    return named if named is not None else container.find(f"{_HH}charPr")
 
 
 def _run_style_flags(
@@ -138,22 +140,36 @@ def _run_style_flags(
     return bold, italic, underline
 
 
-def _char_pr_content(element: ET.Element) -> str:
-    """What a ``hh:charPr`` says apart from its id: its attributes, and its children in any order."""
+def _char_pr_children(element: ET.Element) -> tuple[Any, ...]:
+    """The children of a ``hh:charPr`` with their attributes and text, in any order."""
 
-    def node(child: ET.Element) -> str:
-        return repr((str(child.tag), sorted(child.attrib.items()), (child.text or "").strip(), sorted(map(node, child))))
+    def node(child: ET.Element) -> tuple[Any, ...]:
+        return str(child.tag), tuple(sorted(child.attrib.items())), (child.text or "").strip(), _char_pr_children(child)
 
-    attributes = sorted((key, value) for key, value in element.attrib.items() if key != "id")
-    return repr((attributes, sorted(map(node, element))))
+    return tuple(sorted(map(node, element)))
 
 
-def _run_style_wanted(base: ET.Element | None, spec: _RunStyleSpec) -> str:
-    """The content of the ``hh:charPr`` *spec* asks for: *base* with the requested changes."""
+def _run_style_wanted(base: ET.Element | None, spec: _RunStyleSpec) -> Callable[[ET.Element], bool]:
+    """Whether a ``hh:charPr`` is the one *spec* asks for: *base* with the requested changes.
 
-    element = deepcopy(base) if base is not None else ET.Element(f"{_HH}charPr")
-    _run_style_modifier(element, spec)
-    return _char_pr_content(element)
+    Its attributes (other than the id) and its children must match; the height is compared
+    first, the children only when the attributes agree.
+    """
+
+    wanted = deepcopy(base) if base is not None else ET.Element(f"{_HH}charPr")
+    _run_style_modifier(wanted, spec)
+    height = wanted.get("height")
+    attributes = {key: value for key, value in wanted.attrib.items() if key != "id"}
+    children = _char_pr_children(wanted)
+
+    def same(element: ET.Element) -> bool:
+        if element.get("height") != height:
+            return False
+        if {key: value for key, value in element.attrib.items() if key != "id"} != attributes:
+            return False
+        return _char_pr_children(element) == children
+
+    return same
 
 
 def _run_style_apply_font_and_colors(element: ET.Element, spec: _RunStyleSpec) -> None:
@@ -723,9 +739,8 @@ class HwpxOxmlDocument:
             emboss=None if emboss is None else bool(emboss),
             engrave=None if engrave is None else bool(engrave),
         )
-        wanted = _run_style_wanted(base, spec)
         element = header.ensure_char_property(
-            predicate=lambda el: _char_pr_content(el) == wanted,
+            predicate=_run_style_wanted(base, spec),
             modifier=lambda el: _run_style_modifier(el, spec),
             base_char_pr_id=None if base is None else base.get("id"),
         )
