@@ -994,6 +994,39 @@ def _check_manifest_hrefs(
             selected_rootfile.full_path,
             f"spine itemref references missing manifest id {idref!r}",
         )
+    _check_hrefs_from_package_root(relationships, selected_rootfile, name_set, issues)
+
+
+def _check_hrefs_from_package_root(
+    relationships: ManifestRelationships,
+    selected_rootfile: RootFileRef,
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    """Hancom looks up every ``opf:item@href`` from the package root, exactly as written.
+
+    An href relative to the manifest's folder, or one starting with ``/``, still finds its part
+    here but not in Hancom: a header or section named that way makes Hancom refuse the document,
+    a picture named that way is left out of it.
+    """
+    spine = set(relationships.spine_paths)
+    for item in relationships.items:
+        written = item.href.replace("\\", "/").strip()
+        if item.resolved_path not in name_set or written in name_set:
+            continue
+        found_only_here = f"manifest href {item.href!r} is not the part name {item.resolved_path!r}"
+        if item.resolved_path in spine:
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                f"{found_only_here}; Hancom reads hrefs from the package root and refuses to open the document",
+            )
+        elif item.resolved_path.startswith("BinData/") or (item.media_type or "").startswith("image/"):
+            _warning(
+                issues,
+                selected_rootfile.full_path,
+                f"{found_only_here}; Hancom reads hrefs from the package root and leaves the picture out",
+            )
 
 
 def _resolve_section_paths(

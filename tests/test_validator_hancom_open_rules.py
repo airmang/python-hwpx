@@ -93,6 +93,15 @@ def append_to(tag: str, xml: str) -> Change:
     return change
 
 
+def rewrite_hrefs(prefix: str, rewrite: Callable[[str], str]) -> Change:
+    def change(root: etree._Element) -> None:
+        for element in _named(root, "item"):
+            href = element.get("href", "")
+            if href.startswith(prefix):
+                element.set("href", rewrite(href))
+    return change
+
+
 _BOOLEAN_SET = (
     f'<hp:parameterset xmlns:hp="{HP[1:-1]}" cnt="1" name="539"><hp:listParam cnt="1" name="537">'
     '<hp:booleanParam name="16400">1</hp:booleanParam></hp:listParam></hp:parameterset>'
@@ -125,6 +134,10 @@ CASES = [
     ("parameterset-boolean", SECTION, append_to("secPr", _BOOLEAN_SET), "hp:booleanParam inside hp:parameterset"),
     ("masterPage-without-part", SECTION, append_to("secPr", f'<hp:masterPage xmlns:hp="{HP[1:-1]}" idRef="masterpage9"/>'),
      "a master page the package does not have"),
+    ("href-from-manifest-folder", "Contents/content.hpf", rewrite_hrefs("Contents/", lambda href: href[len("Contents/"):]),
+     "reads hrefs from the package root"),
+    ("href-leading-slash", "Contents/content.hpf", rewrite_hrefs("Contents/", lambda href: "/" + href),
+     "reads hrefs from the package root"),
 ]
 
 
@@ -162,6 +175,30 @@ def test_a_master_page_the_package_has_is_fine() -> None:
     doc.page.set_master_page(doc.parts.add_master_page(text="바탕쪽"))
     report = validate_package(doc.to_bytes())
     assert not any("master page" in issue.message for issue in report.errors), [i.message for i in report.errors]
+
+
+def test_a_picture_href_from_the_manifest_folder_is_a_warning(valid_bytes: bytes) -> None:
+    # Hancom opens the document but leaves the picture out.
+    changed = _mutate(valid_bytes, "Contents/content.hpf", rewrite_hrefs("BinData/", lambda href: "../" + href))
+    report = validate_package(changed)
+    assert report.ok
+    assert any("leaves the picture out" in issue.message for issue in report.warnings)
+
+
+def test_a_manifest_outside_contents_with_hrefs_from_the_root_is_fine() -> None:
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(HwpxDocument.new().to_bytes())) as source, zipfile.ZipFile(out, "w") as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            name = "Alt/content.hpf" if info.filename == "Contents/content.hpf" else info.filename
+            if name == "META-INF/container.xml":
+                payload = payload.replace(b"Contents/content.hpf", b"Alt/content.hpf")
+            method = zipfile.ZIP_STORED if name == "mimetype" else zipfile.ZIP_DEFLATED
+            target.writestr(name, payload, compress_type=method)
+
+    report = validate_package(out.getvalue())
+
+    assert not any("package root" in issue.message for issue in report.issues), [i.message for i in report.issues]
 
 
 def _drop_footer_paragraphs(under: str) -> Change:

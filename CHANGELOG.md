@@ -57,6 +57,11 @@
   - 도형: 필수 하위 요소가 없는 도형과 빈 `hp:ctrl`(예전에는 경고),
     `hp:renderingInfo` 행렬이 없는 도형, 모서리 점(`hc:pt0`~`pt3`)이 없는 사각형,
     `hc:img`가 없는 그림
+  - 구역 설정의 `hp:parameterset` 안 `hp:booleanParam`, 패키지에 없는 바탕쪽을 가리키는
+    `hp:masterPage`, `hp:subList`가 없는 머리말·꼬리말 컨트롤, 문단 없는 `hp:subList`
+  - 머리말·구역 항목의 `opf:item@href`가 패키지 루트에서 본 파트 이름이 아님
+    (`content.hpf` 폴더 기준 상대 경로, `/`로 시작하는 경로). 한컴은 href를 패키지
+    루트에서 그대로 찾는다. 그림 항목이 그러면 경고다(한컴은 그 그림을 빼고 연다)
 - `styles.ensure_run(script="sup"/"sub")`가 만든 위·아래 첨자가 한컴에서 두 번
   줄어들던 것을 고친다. `hh:supscript`/`hh:subscript` 요소와 함께 `relSz 67`·
   `offset -30/+30`도 썼는데, 한컴은 요소만으로 글자를 줄이고 올리거나 내린다.
