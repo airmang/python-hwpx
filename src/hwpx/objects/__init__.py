@@ -25,6 +25,7 @@ from .checkbox import CheckBox
 from .form_field import CellField, FieldLocation, FieldParameter, FormField
 from .highlight import Highlight
 from .results import (
+    ClearBodyReport,
     ColumnLayout,
     FieldFillResult,
     ListFormatResult,
@@ -41,6 +42,7 @@ __all__ = [
     "BinaryItem",
     "CellField",
     "CheckBox",
+    "ClearBodyReport",
     "ColumnLayout",
     "FieldFillResult",
     "FieldLocation",

@@ -184,6 +184,7 @@
    "stable": [
     "add_memo",
     "add_paragraph",
+    "clear_body",
     "copy_paragraph_range",
     "insert_paragraphs",
     "memo_group",

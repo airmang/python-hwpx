@@ -198,6 +198,15 @@
   "section-argument-conflict": [
    "_document/_resolve.py:75"
   ],
+  "section-clear-control-content": [
+   "oxml/section.py:247"
+  ],
+  "section-clear-mode-invalid": [
+   "oxml/section.py:225"
+  ],
+  "section-clear-no-section-properties": [
+   "oxml/section.py:235"
+  ],
   "section-invalid-type": [
    "_document/_resolve.py:111"
   ],
