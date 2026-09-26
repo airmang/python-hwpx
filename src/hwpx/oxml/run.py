@@ -126,21 +126,6 @@ class _ReplaceSegment:
             setattr(self.element, self.attr, "")
 
 
-def _gather_replace_segments(node: ET.Element) -> list[_ReplaceSegment]:
-    segments: list[_ReplaceSegment] = []
-
-    def visit(element: ET.Element) -> None:
-        text_value = element.text or ""
-        segments.append(_ReplaceSegment(element, "text", text_value))
-        for child in list(element):
-            visit(child)
-            tail_value = child.tail or ""
-            segments.append(_ReplaceSegment(child, "tail", tail_value))
-
-    visit(node)
-    return segments
-
-
 def _replace_segment_boundaries(segments: Sequence[_ReplaceSegment]) -> list[tuple[int, int]]:
     bounds: list[tuple[int, int]] = []
     offset = 0
@@ -504,7 +489,9 @@ class HwpxOxmlRun:
 
         The replacement traverses nested markup tags (e.g. highlights) and
         preserves the existing element structure so formatting metadata remains
-        intact. Returns the number of replacements that were performed.
+        intact. Text on the two sides of a tab, a line break or another
+        character element, or of a control, is not joined -- Hancom reads each
+        as a character of its own. Returns the number of replacements.
         """
 
         if not search:
@@ -513,16 +500,12 @@ class HwpxOxmlRun:
         if count is not None and count <= 0:
             return 0
 
-        segments: list[_ReplaceSegment] = []
-        for text_node in self.element.findall(f"{_HP}t"):
-            segments.extend(_gather_replace_segments(text_node))
-
-        if not segments:
-            return 0
-
-        total_replacements = _replace_all_occurrences(
-            segments, search, replacement, count
-        )
+        total_replacements = 0
+        for segments in _text_stretches([self.element]):
+            remaining = None if count is None else count - total_replacements
+            if remaining is not None and remaining <= 0:
+                break
+            total_replacements += _replace_all_occurrences(segments, search, replacement, remaining)
 
         if total_replacements:
             if _clear_layout:
