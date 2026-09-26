@@ -89,6 +89,23 @@ def test_rows_that_do_not_divide_evenly_widen_the_table_to_a_common_multiple() -
     assert _table_width(table) == 24492
 
 
+def test_many_different_cell_counts_widen_the_table_as_hancom_does() -> None:
+    # rows of 5 to 11 cells: the common multiple is 27720, so the width goes up to 55440 and the
+    # grid gets 42 columns -- Hancom's "셀 너비를 같게" gives this table exactly this layout
+    document = HwpxDocument.new()
+    table = document.add_table(rows=7, cols=11, width=41954)
+    for row, cells in enumerate(range(5, 12)):
+        if cells < 11:
+            table.merge_cells(row, 0, row, 11 - cells)
+
+    table.equalize_column_widths()
+
+    count, rows = _layout(table)
+    assert (count, _table_width(table)) == (42, 55440)
+    assert [{width for _, _, width in row} for row in rows] == [{11088}, {9240}, {7920}, {6930}, {6160}, {5544}, {5040}]
+    assert [(col, span) for col, span, _ in rows[0]] == [(0, 8), (8, 9), (17, 8), (25, 9), (34, 8)]
+
+
 def test_a_tall_cell_keeps_one_width_when_its_rows_agree() -> None:
     document = HwpxDocument.new()
     table = document.add_table(rows=3, cols=3, width=41952)
@@ -154,6 +171,59 @@ def test_resized_cells_drop_their_line_layout_cache() -> None:
 
     for cell in (table.cell(0, 0), table.cell(1, 0)):
         assert cell.element.find(f".//{HP}linesegarray") is None
+
+
+def _add_cell_zone(table, top: int, first: int, bottom: int, last: int):
+    zones = table.element.find(f"{HP}cellzoneList")
+    if zones is None:
+        zones = table.element.makeelement(f"{HP}cellzoneList", {})
+        table.element.insert(list(table.element).index(table.element.find(f"{HP}tr")), zones)
+    zone = zones.makeelement(
+        f"{HP}cellzone",
+        {"startRowAddr": str(top), "startColAddr": str(first), "endRowAddr": str(bottom),
+         "endColAddr": str(last), "borderFillIDRef": "1"},
+    )
+    zones.append(zone)
+    return zone
+
+
+def _zone_cells(table, zone) -> set[tuple[int, int]]:
+    top, first, bottom, last = (int(zone.get(name)) for name in
+                                ("startRowAddr", "startColAddr", "endRowAddr", "endColAddr"))
+    return {entry.cell.address for entry in table.iter_grid()
+            if top <= entry.row <= bottom and first <= entry.column <= last}
+
+
+def test_cell_zones_follow_their_cells_to_the_new_grid() -> None:
+    document = HwpxDocument.new()
+    table = document.add_table(rows=2, cols=3, width=18366)
+    table.merge_cells("A1:B1")
+    corner = _add_cell_zone(table, 0, 2, 0, 2)  # C1
+    second_row = _add_cell_zone(table, 1, 0, 1, 2)  # A2:C2
+
+    table.equalize_column_widths()
+
+    assert table.column_count == 4
+    assert (corner.get("startColAddr"), corner.get("endColAddr")) == ("2", "3")
+    assert _zone_cells(table, corner) == {(0, 2)}
+    assert (second_row.get("startColAddr"), second_row.get("endColAddr")) == ("0", "3")
+    assert _zone_cells(table, second_row) == {(1, 0), (1, 1), (1, 3)}
+
+
+def test_a_cell_zone_that_cannot_follow_is_refused_and_the_table_kept() -> None:
+    document = HwpxDocument.new()
+    table = document.add_table(rows=2, cols=3, width=18366)
+    table.merge_cells("A1:B1")
+    # C1 and C2: on the new grid C1 spans two columns and C2 one, so no
+    # rectangle holds just the two of them
+    zone = _add_cell_zone(table, 0, 2, 1, 2)
+    before = (_layout(table), _table_width(table), dict(zone.attrib))
+
+    with pytest.raises(HwpxValueError) as caught:
+        table.equalize_column_widths()
+
+    assert caught.value.code == "table-cell-zone-grid-mismatch"
+    assert (_layout(table), _table_width(table), dict(zone.attrib)) == before
 
 
 def test_an_even_table_is_unchanged() -> None:

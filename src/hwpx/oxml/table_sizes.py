@@ -9,7 +9,7 @@ line budget; the table methods keep their documentation and delegate.
 from __future__ import annotations
 
 from math import lcm
-from typing import TYPE_CHECKING, Iterator, Sequence
+from typing import TYPE_CHECKING, Any, Iterator, Sequence
 
 from ._document_primitives import _HP, _distribute_size
 
@@ -119,6 +119,46 @@ def _follow_covering_cells(
                 addr.set("colAddr", str(column[edges[id(covering.cell.element)][0]]))
 
 
+def _zone_moves(
+    table: "HwpxOxmlTable",
+    anchors: dict[int, "HwpxOxmlTableCell"],
+    edges: dict[int, tuple[int, int]],
+    column: dict[int, int],
+) -> list[tuple[Any, int, int]]:
+    """The new ``startColAddr``/``endColAddr`` of each ``hp:cellzone``, so that it
+    covers the same cells on the new column grid. A zone whose cells no longer
+    form a rectangle there is refused, and the table is left as it is."""
+
+    from ..errors import HwpxValueError
+
+    zones = table.element.findall(f"{_HP}cellzoneList/{_HP}cellzone")
+    if not zones:
+        return []
+    cells = []  # (marker, first row, last row, old first col, old last col, new first col, new last col)
+    for marker, cell in anchors.items():
+        row, col = cell.address
+        row_span, col_span = cell.span
+        left, right = edges[marker]
+        cells.append((marker, row, row + row_span - 1, col, col + col_span - 1, column[left], column[right] - 1))
+    moves = []
+    for zone in zones:
+        top, first, bottom, last = (int(zone.get(name) or 0) for name in
+                                    ("startRowAddr", "startColAddr", "endRowAddr", "endColAddr"))
+        rows = [c for c in cells if c[1] <= bottom and c[2] >= top]
+        inside = {c[0] for c in rows if c[3] <= last and c[4] >= first}
+        new_first = min((c[5] for c in rows if c[0] in inside), default=0)
+        new_last = max((c[6] for c in rows if c[0] in inside), default=-1)
+        if not inside or {c[0] for c in rows if c[5] <= new_last and c[6] >= new_first} != inside:
+            raise HwpxValueError(
+                f"cell zone ({top}, {first})-({bottom}, {last}) cannot cover the same cells on the new column grid",
+                code="table-cell-zone-grid-mismatch",
+                context={"startRowAddr": top, "startColAddr": first, "endRowAddr": bottom, "endColAddr": last},
+                suggestion="remove or narrow the cell zone first, or set widths with set_column_widths()",
+            )
+        moves.append((zone, new_first, new_last))
+    return moves
+
+
 def equalize_column_widths(table: "HwpxOxmlTable") -> None:
     grid = table._build_cell_grid()
     rows = _rows_of_cells(table.iter_grid(), table.row_count)
@@ -136,9 +176,13 @@ def equalize_column_widths(table: "HwpxOxmlTable") -> None:
 
     bounds = sorted({edge for span in edges.values() for edge in span})
     column = {edge: index for index, edge in enumerate(bounds)}
+    zones = _zone_moves(table, anchors, edges, column)
     _follow_covering_cells(table, grid, edges, column)
     for marker, (left, right) in edges.items():
         _place_cell(anchors[marker], column[left], column[right], right - left)
+    for zone, first, last in zones:
+        zone.set("startColAddr", str(first))
+        zone.set("endColAddr", str(last))
     table.element.set("colCnt", str(len(bounds) - 1))
     if sz is not None:
         sz.set("width", str(total))
