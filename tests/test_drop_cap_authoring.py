@@ -75,6 +75,39 @@ def test_add_drop_cap_goes_in_front_of_the_paragraph_text() -> None:
     assert runs.index(holder) < runs.index(text_run)
 
 
+def test_the_paragraph_method_puts_the_drop_cap_in_front_of_the_text() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("장식 뒤의 본문 문장입니다. " * 10)
+
+    result = paragraph.add_drop_cap("가", width=4200, height=4200)
+
+    runs = paragraph.element.findall(f"{_HP}run")
+    holder = next(run for run in runs if any(node is result.element for node in run))
+    text_run = next(run for run in runs if run is not holder and run.find(f"{_HP}t") is not None)
+    assert runs.index(holder) < runs.index(text_run)
+
+
+def test_the_run_holding_the_drop_cap_keeps_the_text_character_shape() -> None:
+    # A letter-sized shape on the holder run makes Hancom lay the first line out at
+    # that size, and the text no longer wraps around the drop cap.
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("장식 뒤의 본문 문장입니다. " * 10)
+    text_char_pr = paragraph.element.findall(f"{_HP}run")[0].get("charPrIDRef")
+    letter_char_pr = document.styles.ensure_run(size=42)
+
+    result = document.shapes.add_drop_cap(
+        "가", width=4200, height=4200, paragraph=paragraph, char_pr_id_ref=letter_char_pr
+    )
+
+    holder = next(
+        run for run in paragraph.element.findall(f"{_HP}run") if any(node is result.element for node in run)
+    )
+    letter_run = result.element.find(f"{_HP}drawText/{_HP}subList/{_HP}p/{_HP}run")
+    assert holder.get("charPrIDRef") == text_char_pr
+    assert letter_run is not None and letter_run.get("charPrIDRef") == str(letter_char_pr)
+    assert text_char_pr != str(letter_char_pr)
+
+
 def test_the_real_sample_places_its_drop_cap_before_the_text() -> None:
     with zipfile.ZipFile(REAL_SAMPLE) as package:
         section = etree.fromstring(package.read("Contents/section0.xml"))

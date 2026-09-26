@@ -631,30 +631,6 @@ def add_chart(
     )
 
 
-def _place_drop_cap_before_text(paragraph: HwpxOxmlParagraph, drop_cap: Any) -> None:
-    """Move the drop cap's run in front of the paragraph's text.
-
-    Hancom draws a drop cap at the line where its run sits, so one placed
-    after the text lands on the paragraph's last line instead of its first.
-    """
-
-    from ..oxml.namespaces import HP
-
-    element = paragraph.element
-    runs = [child for child in element if child.tag == f"{HP}run"]
-    holder = next((run for run in runs if any(node is drop_cap for node in run)), None)
-    text_run = next(
-        (run for run in runs if run is not holder and run.find(f"{HP}t") is not None), None
-    )
-    if holder is None or text_run is None:
-        return
-    if list(element).index(holder) < list(element).index(text_run):
-        return
-    element.remove(holder)
-    element.insert(list(element).index(text_run), holder)
-    paragraph.section.mark_dirty()
-
-
 def add_drop_cap(
     doc: "HwpxDocument",
     character: str,
@@ -692,7 +668,6 @@ def add_drop_cap(
         width=width, height=height, style=style,
         char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref,
     )
-    _place_drop_cap_before_text(paragraph, inline_object.element)
 
     created_id = inline_object.element.get("id", "")
     for owning_section in doc.sections:

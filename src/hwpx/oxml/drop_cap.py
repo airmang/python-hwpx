@@ -49,9 +49,16 @@ element` 등이 전부 이 속성을 `"None"`으로 기본 방출하는 이유�
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 import xml.etree.ElementTree as ET
 
+from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
+
 from ._document_primitives import _HC, _HP, _append_child, _object_id, _paragraph_id
+from .objects import HwpxOxmlInlineObject
+
+if TYPE_CHECKING:
+    from .paragraph import HwpxOxmlParagraph
 
 __all__ = ["DROP_CAP_STYLES", "create_drop_cap_element"]
 
@@ -216,3 +223,39 @@ def create_drop_cap_element(
     int_param.text = "2"
 
     return el
+
+def _paragraph_add_drop_cap(
+    self: "HwpxOxmlParagraph",
+    character: str,
+    *,
+    width: int,
+    height: int,
+    style: str = "TripleLine",
+    char_pr_id_ref: str | int | None = None,
+    para_pr_id_ref: str | int | None = None,
+    run_attributes: dict[str, str] | None = None,
+) -> HwpxOxmlInlineObject:
+    """Insert a real-Hancom-shaped drop cap (문단 첫 글자 장식) in front of the paragraph text.
+
+    The element is :func:`create_drop_cap_element` (``TripleLine``-only v1 scope, see this
+    module's docstring). *char_pr_id_ref* is the letter's character shape; the run holding the
+    drop cap keeps the text's, since with a letter-sized shape there Hancom lays the first line
+    out at that size and the text no longer wraps around the drop cap. The run goes in front of
+    the text: Hancom draws a drop cap on the line its run sits on.
+    """
+
+    text_run = next((run for run in self._run_elements() if run.find(f"{_HP}t") is not None), None)
+    run = self._create_run_for_object(
+        run_attributes, char_pr_id_ref=text_run.get("charPrIDRef") if text_run is not None else None
+    )
+    drop_cap = create_drop_cap_element(
+        width, height, character, style=style, char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref
+    )
+    if type(drop_cap) is not type(run):  # lxml vs stdlib ET, the bridge _paragraph_insert_shape_element uses
+        drop_cap = LET.fromstring(ET.tostring(drop_cap, encoding="utf-8"))
+    run.append(drop_cap)
+    if text_run is not None:
+        self.element.remove(run)
+        self.element.insert(list(self.element).index(text_run), run)
+    self.section.mark_dirty()
+    return HwpxOxmlInlineObject(drop_cap, self)
