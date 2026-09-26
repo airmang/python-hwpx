@@ -108,7 +108,7 @@
 - `char_property(char_pr_id_ref)`
   - ID를 사용하여 `RunStyle`을 조회합니다.
 - `ensure_run_style(...) -> str`
-  - 요청된 굵게/기울임/밑줄 플래그와 일치하는 런 스타일이 헤더에 정의되어 있는지 확인하고 해당 스타일 ID를 반환합니다. 필요한 경우 기존 스타일을 복제합니다.
+  - 기준 글자 모양(`base_char_pr_id`, 없으면 첫 글자 모양)에서 요청한 값만 바꾼 런 스타일의 ID를 반환합니다. 내용이 같은 스타일이 있으면 그것을, 없으면 기준을 복제해 만듭니다.
 - `iter_runs()`
   - 문서 전체의 모든 `HwpxOxmlRun`을 순회(yield)합니다.
 - `find_runs_by_style(...) -> list[HwpxOxmlRun]`
@@ -497,7 +497,7 @@
 - `sections`, `headers`: 섹션 및 헤더 래퍼 목록의 복사본을 반환하는 프로퍼티입니다.
 - `char_properties`: 글자 스타일 ID를 `RunStyle` 객체에 매핑한 딕셔너리를 반환하며, 모든 헤더의 결과를 캐시합니다.
 - `char_property(char_pr_id_ref)`: 문자열 또는 숫자 값을 받아 ID로 `RunStyle`을 조회합니다.
-- `ensure_run_style(...)`: 요청된 굵게, 기울임, 밑줄 플래그를 가진 런 스타일이 첫 번째 헤더에 존재하는지 확인하며, 필요에 따라 항목을 생성하거나 복제합니다.
+- `ensure_run_style(...)`: 기준 글자 모양(`base_char_pr_id`, 없으면 첫 글자 모양)에서 요청한 값만 바꾼 런 스타일을 첫 번째 헤더에서 찾고, 없으면 기준을 복제해 만듭니다.
 - `memo_shapes`: 모든 헤더의 메모 모양을 하나의 딕셔너리로 병합하는 프로퍼티입니다.
 - `memo_shape(memo_shape_id_ref)`: ID로 메모 모양을 가져옵니다.
 - `paragraphs`: 모든 섹션의 단락 래퍼를 연결하여 반환하는 프로퍼티입니다.

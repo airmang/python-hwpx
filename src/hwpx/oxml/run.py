@@ -126,21 +126,6 @@ class _ReplaceSegment:
             setattr(self.element, self.attr, "")
 
 
-def _gather_replace_segments(node: ET.Element) -> list[_ReplaceSegment]:
-    segments: list[_ReplaceSegment] = []
-
-    def visit(element: ET.Element) -> None:
-        text_value = element.text or ""
-        segments.append(_ReplaceSegment(element, "text", text_value))
-        for child in list(element):
-            visit(child)
-            tail_value = child.tail or ""
-            segments.append(_ReplaceSegment(child, "tail", tail_value))
-
-    visit(node)
-    return segments
-
-
 def _replace_segment_boundaries(segments: Sequence[_ReplaceSegment]) -> list[tuple[int, int]]:
     bounds: list[tuple[int, int]] = []
     offset = 0
@@ -255,6 +240,96 @@ def _replace_all_occurrences(
     return total_replacements
 
 
+#: Character elements inside ``hp:t``: a tab, a line break, a soft hyphen, a non-breaking or
+#: fixed-width space. Hancom's search reads each as a character, so text is not joined across one.
+_TEXT_CHARACTER_ELEMENTS = frozenset({"tab", "lineBreak", "hyphen", "nbSpace", "fwSpace"})
+
+
+def _text_stretches(runs: Sequence[ET.Element]) -> list[list[_ReplaceSegment]]:
+    """Split the text of consecutive runs into the stretches one match may cover."""
+
+    stretches: list[list[_ReplaceSegment]] = [[]]
+
+    def cut() -> None:
+        if stretches[-1]:
+            stretches.append([])
+
+    def visit(element: ET.Element) -> None:
+        stretches[-1].append(_ReplaceSegment(element, "text", element.text or ""))
+        for child in list(element):
+            if not isinstance(child.tag, str):
+                pass  # a comment or processing instruction: not text, the text around it still joins
+            elif _element_local_name(child) in _TEXT_CHARACTER_ELEMENTS:
+                cut()
+            else:
+                visit(child)
+            stretches[-1].append(_ReplaceSegment(child, "tail", child.tail or ""))
+
+    for run in runs:
+        for child in run:
+            if _element_local_name(child) == "t":
+                visit(child)
+            else:
+                cut()
+    return [stretch for stretch in stretches if stretch]
+
+
+def _overlay_replacement(segments: Sequence[_ReplaceSegment], start: int, end: int, replacement: str) -> None:
+    """Replace ``[start, end)`` of the joined *segments* character by character, as Hancom does.
+
+    The i-th replacement character takes the place of the i-th matched character, so it keeps
+    that character's run. Replacement characters beyond the match follow its last character;
+    matched characters beyond the replacement are removed.
+    """
+
+    affected: list[tuple[_ReplaceSegment, int, int]] = []
+    offset = 0
+    for segment in segments:
+        segment_start, offset = offset, offset + len(segment.text)
+        if offset <= start or segment_start >= end:
+            continue
+        affected.append((segment, max(start - segment_start, 0), min(end - segment_start, len(segment.text))))
+    used = 0
+    for index, (segment, local_start, local_end) in enumerate(affected):
+        last = index == len(affected) - 1
+        portion = replacement[used:] if last else replacement[used : used + local_end - local_start]
+        used += len(portion)
+        segment.set(segment.text[:local_start] + portion + segment.text[local_end:])
+
+
+def replace_across_runs(
+    paragraph: "HwpxOxmlParagraph",
+    runs: Sequence[ET.Element],
+    search: str,
+    replacement: str,
+    *,
+    count: int | None = None,
+) -> int:
+    """Replace non-empty *search* in consecutive *runs* of *paragraph* as Hancom's find and replace does.
+
+    A match may start in one run and end in a later one. Each replacement character takes the
+    place, and so the run, of the matched character at the same position; extra replacement
+    characters follow the last matched one, and matched characters left over are removed (a
+    run may be left empty). Text is joined across run boundaries and markup such as
+    highlights, but not across a tab, a line break or another character element, nor across a
+    control or an object. Returns the number of replacements.
+    """
+
+    total = 0
+    for segments in _text_stretches(runs):
+        combined = "".join(segment.text for segment in segments)
+        position = combined.find(search)
+        while position != -1 and (count is None or total < count):
+            _overlay_replacement(segments, position, position + len(search), replacement)
+            total += 1
+            combined = "".join(segment.text for segment in segments)
+            position = combined.find(search, position + len(replacement))
+    if total:
+        _clear_paragraph_layout_cache(paragraph.element)
+        paragraph.section.mark_dirty()
+    return total
+
+
 class HwpxOxmlRun:
     """Lightweight wrapper around an ``<hp:run>`` element."""
 
@@ -331,6 +406,7 @@ class HwpxOxmlRun:
             bold=target[0],
             italic=target[1],
             underline=target[2],
+            base_char_pr_id=self.char_pr_id_ref,
         )
         self.char_pr_id_ref = style_id
 
@@ -416,7 +492,9 @@ class HwpxOxmlRun:
 
         The replacement traverses nested markup tags (e.g. highlights) and
         preserves the existing element structure so formatting metadata remains
-        intact. Returns the number of replacements that were performed.
+        intact. Text on the two sides of a tab, a line break or another
+        character element, or of a control, is not joined -- Hancom reads each
+        as a character of its own. Returns the number of replacements.
         """
 
         if not search:
@@ -425,16 +503,12 @@ class HwpxOxmlRun:
         if count is not None and count <= 0:
             return 0
 
-        segments: list[_ReplaceSegment] = []
-        for text_node in self.element.findall(f"{_HP}t"):
-            segments.extend(_gather_replace_segments(text_node))
-
-        if not segments:
-            return 0
-
-        total_replacements = _replace_all_occurrences(
-            segments, search, replacement, count
-        )
+        total_replacements = 0
+        for segments in _text_stretches([self.element]):
+            remaining = None if count is None else count - total_replacements
+            if remaining is not None and remaining <= 0:
+                break
+            total_replacements += _replace_all_occurrences(segments, search, replacement, remaining)
 
         if total_replacements:
             if _clear_layout:
@@ -483,4 +557,4 @@ class HwpxOxmlRun:
     def underline(self, value: bool | None) -> None:
         self._apply_format_change(underline=value)
 
-__all__ = ["HwpxOxmlRun", "RunStyle"]
+__all__ = ["HwpxOxmlRun", "RunStyle", "replace_across_runs"]

@@ -20,6 +20,7 @@ from ._document_primitives import (
 from ._paragraph_text_edit import set_text_with_tabs
 
 if TYPE_CHECKING:
+    from .paragraph import HwpxOxmlParagraph
     from .section_format import HwpxOxmlSectionProperties
 
 
@@ -167,6 +168,138 @@ def _find_target_mirror(
     return targets[0] if targets else None
 
 
+def _place_both_first(section_element: ET.Element, story: ET.Element) -> None:
+    """Move the control holding a ``BOTH`` *story* ahead of its run's ODD/EVEN controls.
+
+    Hancom draws the last applicable control on each page, so a ``BOTH`` control
+    after an ``ODD`` or ``EVEN`` one would hide it.
+    """
+
+    kind = _story_kind(story)
+    for run in _iter_body_runs_without_section_properties(section_element):
+        controls = _direct_children(run, f"{_HP}ctrl")
+        owner = next((control for control in controls if any(child is story for child in control)), None)
+        if owner is None:
+            continue
+        specific = [
+            control for control in controls
+            if (other := control.find(f"{_HP}{kind}")) is not None
+            and other.get("applyPageType", "BOTH") != "BOTH"
+        ]
+        children = list(run)
+        if specific and children.index(specific[0]) < children.index(owner):
+            run.remove(owner)
+            run.insert(list(run).index(specific[0]), owner)
+        return
+
+
+_STORY_TAGS = (f"{_HP}header", f"{_HP}footer")
+_PairKey = tuple[str, "str | None", str]
+
+
+def _pair_key(story: ET.Element) -> _PairKey:
+    return (_story_kind(story), story.get("id"), story.get("applyPageType", "BOTH"))
+
+
+def _tree_key(element: ET.Element) -> tuple:
+    """The content of *element* -- tag, attributes, text, children and their tails -- without its own tail."""
+
+    children = tuple((_tree_key(child), child.tail or "") for child in element)
+    return (element.tag, tuple(sorted(element.attrib.items())), element.text or "", children)
+
+
+def _control_story_index(section_element: ET.Element) -> dict[_PairKey, list[ET.Element]]:
+    """Every header/footer a body control holds, by (kind, id, page type), in one pass over the section."""
+
+    index: dict[_PairKey, list[ET.Element]] = {}
+    for run in _iter_body_runs_without_section_properties(section_element):
+        for control in _direct_children(run, f"{_HP}ctrl"):
+            for story in control:
+                if story.tag in _STORY_TAGS:
+                    index.setdefault(_pair_key(story), []).append(story)
+    return index
+
+
+def _story_pairs(section_element: ET.Element) -> list[tuple[ET.Element, ET.Element]]:
+    """(``hp:secPr`` story, its one ``hp:ctrl`` copy) for each story python-hwpx keeps twice."""
+
+    stories = [story for sec_pr in section_element.findall(f"{_HP}p/{_HP}run/{_HP}secPr")
+               for story in sec_pr if story.tag in _STORY_TAGS]
+    if not stories:
+        return []
+    index = _control_story_index(section_element)
+    return [(story, copies[0]) for story in stories if len(copies := index.get(_pair_key(story), [])) == 1]
+
+
+def story_marks(section_element: ET.Element) -> dict[_PairKey, tuple]:
+    """The content of each story whose two copies agree, for a later save to tell which copy changed."""
+
+    return {_pair_key(story): content for story, mirror in _story_pairs(section_element)
+            if (content := _tree_key(story)) == _tree_key(mirror)}
+
+
+def remember_story_pair(section: Any, story: ET.Element) -> None:
+    """Note that *story* and its control copy agree now: they were just written alike."""
+
+    marks = getattr(section, "_story_marks", None)
+    if marks is None:
+        marks = section._story_marks = {}
+    marks[_pair_key(story)] = _tree_key(story)
+
+
+def control_twins(section_element: ET.Element) -> set[ET.Element]:
+    """The ``hp:ctrl`` copies of the stories python-hwpx keeps twice.
+
+    A reader that walks the whole section skips them, so that each header or
+    footer counts once (its form fields, for one).
+    """
+
+    return {mirror for _, mirror in _story_pairs(section_element)}
+
+
+def _copy_into(target: ET.Element, source: ET.Element) -> None:
+    """Give *target* the content of *source*, keeping *target* itself (and its tail) in place."""
+
+    target.attrib.clear()
+    target.attrib.update(source.attrib)
+    target.text = source.text
+    for child in list(target):
+        target.remove(child)
+    for child in source:
+        target.append(deepcopy(child))
+
+
+def sync_story_mirrors(section: Any) -> int:
+    """Bring the two copies of each header/footer back in step before a save.
+
+    The stories python-hwpx writes live twice: under ``hp:secPr``, where its
+    story objects read and edit them, and in a body ``hp:ctrl``, the only copy
+    Hancom reads. When the copies differ, the one that changed since they last
+    agreed (when the document was opened, when the story was set, or at the
+    last save) is copied over the other; when that is not known, or both
+    changed, the ``hp:secPr`` story wins. Both elements stay in place, so story
+    objects keep working after a save. A pair is synced only when exactly one
+    control story has the same id and page type; stories that exist only as a
+    control, as in documents Hancom saved, are left alone.
+    """
+
+    marks = getattr(section, "_story_marks", None) or {}
+    fresh: dict[_PairKey, tuple] = {}
+    changed = 0
+    for story, mirror in _story_pairs(section.element):
+        key = _pair_key(story)
+        logical = _tree_key(story)
+        if logical != _tree_key(mirror):
+            if marks.get(key) == logical:  # only the control copy changed
+                _copy_into(story, mirror)
+            else:
+                _copy_into(mirror, story)
+            changed += 1
+        fresh[key] = _tree_key(story)
+    section._story_marks = fresh
+    return changed
+
+
 def _section_story_elements(properties: Any, kind: str) -> list[ET.Element]:
     """Expose native control-only stories as well as legacy logical stories."""
     logical = properties.element.findall(f"{_HP}{kind}")
@@ -288,6 +421,14 @@ class HwpxOxmlSectionHeaderFooter:
 
         return self._apply_element
 
+    def _control_copy(self) -> ET.Element | None:
+        """The one ``hp:ctrl`` copy of this ``hp:secPr`` story (same id and page type), if any."""
+
+        if all(child is not self.element for child in self._properties.element):
+            return None
+        copies = _control_story_index(self._properties.section.element).get(_pair_key(self.element), [])
+        return copies[0] if len(copies) == 1 else None
+
     @property
     def id(self) -> str | None:
         """Return the identifier assigned to the header/footer element."""
@@ -296,11 +437,14 @@ class HwpxOxmlSectionHeaderFooter:
 
     @id.setter
     def id(self, value: str | None) -> None:
+        copy = self._control_copy()
         if value is None:
             changed = False
             if "id" in self.element.attrib:
                 del self.element.attrib["id"]
                 changed = True
+            if copy is not None and "id" in copy.attrib:
+                del copy.attrib["id"]
             if self._update_apply_reference(None):
                 changed = True
             if changed:
@@ -312,6 +456,8 @@ class HwpxOxmlSectionHeaderFooter:
         if self.element.get("id") != new_value:
             self.element.set("id", new_value)
             changed = True
+        if copy is not None:
+            copy.set("id", new_value)
         if self._update_apply_reference(new_value):
             changed = True
         if changed:
@@ -330,6 +476,7 @@ class HwpxOxmlSectionHeaderFooter:
 
     @apply_page_type.setter
     def apply_page_type(self, value: str) -> None:
+        copy = self._control_copy()
         changed = False
         if self.element.get("applyPageType") != value:
             self.element.set("applyPageType", value)
@@ -337,6 +484,12 @@ class HwpxOxmlSectionHeaderFooter:
         if self._apply_element is not None and self._apply_element.get("applyPageType") != value:
             self._apply_element.set("applyPageType", value)
             changed = True
+        if copy is not None and copy.get("applyPageType") != value:
+            copy.set("applyPageType", value)
+            changed = True
+        if changed and value == "BOTH":
+            # the control Hancom reads: the copy, or the story itself when it exists only as a control
+            _place_both_first(self._properties.section.element, copy if copy is not None else self.element)
         if changed:
             self._properties.section.mark_dirty()
 
@@ -500,16 +653,36 @@ class HwpxOxmlSectionHeaderFooter:
             )
         return sublist
 
-    def clear_content(self) -> None:
-        """Remove existing rich/plain content while keeping header/footer linkage."""
-
+    def _remove_sublists(self) -> bool:
         removed = False
         for child in list(self.element):
             if child.tag == f"{_HP}subList":
                 self.element.remove(child)
                 removed = True
-        if removed:
-            self._properties.section.mark_dirty()
+        return removed
+
+    def clear_content(self) -> None:
+        """Remove existing rich/plain content while keeping header/footer linkage.
+
+        One empty paragraph stays: Hancom cannot open a document with a header or
+        footer that has no ``hp:subList``.
+        """
+
+        self._remove_sublists()
+        set_text_with_tabs(self._ensure_text_element(), "")
+        self._properties.section.mark_dirty()
+
+    @property
+    def paragraphs(self) -> list["HwpxOxmlParagraph"]:
+        """Return the paragraphs of this header/footer, like ``cell.paragraphs``."""
+
+        from .paragraph import HwpxOxmlParagraph
+
+        sublist = self.element.find(f"{_HP}subList")
+        if sublist is None:
+            return []
+        section = self._properties.section
+        return [HwpxOxmlParagraph(element, section) for element in sublist.findall(f"{_HP}p")]
 
     def add_paragraph(self, *, align: str | None = None) -> ET.Element:
         """Append an empty paragraph to the header/footer subList."""
@@ -629,7 +802,11 @@ class HwpxOxmlSectionHeaderFooter:
     def set_content(self, content: Sequence[Mapping[str, Any]]) -> None:
         """Replace header/footer content with paragraph/run/page-number specs."""
 
-        self.clear_content()
+        if not content:
+            self.clear_content()
+            return
+        self._remove_sublists()
+        self._properties.section.mark_dirty()
         for paragraph_spec in content:
             paragraph = self.add_paragraph(align=paragraph_spec.get("align"))
             children = paragraph_spec.get("children")

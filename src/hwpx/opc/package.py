@@ -16,6 +16,7 @@ from zipfile import BadZipFile, ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
+from ..oxml.utils import hancom_text_length
 
 if TYPE_CHECKING:
     from ..oxml.document_metadata import DocumentMetadata
@@ -199,11 +200,13 @@ def _local_name(element: etree._Element) -> str:
 
 
 def _paragraph_plain_text_length(paragraph: etree._Element) -> int | None:
-    """Plain text length of a simple paragraph, or ``None`` when unjudgeable.
+    """Length of a simple paragraph in Hancom's text positions, or ``None``.
 
     Mirrors the oxml-side stale detector: only paragraphs made purely of runs
     with text/tab-like children can be judged at the byte boundary; anything
     else (controls, tables, fields) returns ``None`` so its cache is kept.
+    An ``hp:t`` counts its inline elements (line breaks, fixed spaces, tabs)
+    at their Hancom widths, as ``hp:lineseg@textpos`` does.
     """
     total = 0
     for child in paragraph:
@@ -215,7 +218,7 @@ def _paragraph_plain_text_length(paragraph: etree._Element) -> int | None:
         for run_child in child:
             run_child_name = _local_name(run_child).lower()
             if run_child_name == "t":
-                total += len("".join(run_child.itertext()))
+                total += hancom_text_length(run_child)
             elif run_child_name in {"tab", "linebreak", "hyphen", "nbspace"}:
                 total += 1
             else:
