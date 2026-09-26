@@ -1134,9 +1134,12 @@ def _check_section_ids(
     It does not open a document that lacks one of these ids (the part names and the spine do not
     count), and it reads the sections in the order of the numbers, not in the spine's order.
     """
-    ids_by_path = {item.resolved_path: item.item_id or "" for item in relationships.items}
-    section_ids = [ids_by_path.get(path, "") for path in resolved_section_paths]
-    if "" in section_ids:  # a section this lookup cannot match to its item: the href checks report it
+    # the ids the spine lists for the sections: another item naming the same part does not count
+    section_paths = set(resolved_section_paths)
+    section_ids = [
+        ident for ident, path in zip(relationships.spine_ids, relationships.spine_paths) if path in section_paths
+    ]
+    if len(section_ids) != len(resolved_section_paths):  # sections found without the spine: other checks report it
         return
     wanted = [f"section{index}" for index in range(len(section_ids))]
     missing = [ident for ident in wanted if ident not in section_ids]

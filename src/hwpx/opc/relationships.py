@@ -56,6 +56,8 @@ class ManifestRelationships:
     history_paths: tuple[str, ...]
     version_path: str | None
     settings_path: str | None
+    #: The idref of each entry of ``spine_paths``, in the same order.
+    spine_ids: tuple[str, ...] = ()
 
 
 def normalize_part_name(path: str) -> str:
@@ -203,6 +205,7 @@ def parse_manifest_relationships(
             id_to_path[item_ref.item_id] = resolved_path
 
     spine_paths: list[str] = []
+    spine_ids: list[str] = []
     dangling_idrefs: list[str] = []
     for itemref in manifest_root.findall(".//opf:itemref", OPF_NS):
         idref = (itemref.get("idref") or "").strip()
@@ -211,6 +214,7 @@ def parse_manifest_relationships(
         spine_path = id_to_path.get(idref)
         if spine_path:
             spine_paths.append(spine_path)
+            spine_ids.append(idref)
         else:
             dangling_idrefs.append(idref)
 
@@ -238,6 +242,7 @@ def parse_manifest_relationships(
         manifest_path=normalize_part_name(manifest_path),
         items=tuple(items),
         spine_paths=tuple(spine_paths),
+        spine_ids=tuple(spine_ids),
         dangling_idrefs=tuple(dangling_idrefs),
         header_paths=header_paths,
         master_page_paths=master_page_paths,
