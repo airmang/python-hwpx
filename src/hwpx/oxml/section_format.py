@@ -616,9 +616,18 @@ class HwpxOxmlSectionProperties:
         중복 idRef는 다시 추가하지 않는다(멱등). ``masterPageCnt``를
         실제 자식 개수로 동기화한다 -- 실 예시 1건에서 `masterPageCnt="1"`
         이 `hp:masterPage` 자식 1개와 정확히 일치함을 확인했다.
+
+        이 절이 같은 쪽(양쪽·홀수·짝수·마지막 쪽, 또는 같은 번호의 한 쪽)에
+        이미 바탕쪽을 두고 있으면 ``HwpxValueError``
+        (``master-page-pages-taken``)를 낸다.
         """
         if id_ref in self.master_page_refs:
             return
+        document = self.section.document
+        if document is not None:
+            from .master_page_authoring import refuse_pages_taken
+
+            refuse_pages_taken(document, self.master_page_refs, id_ref)
         _append_child(self.element, f"{_HP}masterPage", {"idRef": id_ref})
         self.element.set("masterPageCnt", str(len(self.master_page_refs)))
         self.section.mark_dirty()

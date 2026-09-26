@@ -75,8 +75,8 @@ class PartsNamespace(_Namespace):
         *,
         text: str | None = None,
         paragraphs: Iterable[str] | None = None,
-        page_type: str = "OPTIONAL_PAGE",
-        page_number: int = 1,
+        page_type: str = "BOTH",
+        page_number: int | None = None,
         page_duplicate: bool = False,
         page_front: bool = False,
     ) -> str:
@@ -87,6 +87,13 @@ class PartsNamespace(_Namespace):
         절에서도 참조하지 않는다. 실제로 쓰려면
         ``section.properties.add_master_page_reference(id)``를 호출할
         것(``doc.oxml.sections[i].properties``).
+
+        기본 ``page_type="BOTH"``는 모든 쪽에 나온다. 홀수·짝수 쪽만이면
+        ``"ODD"``·``"EVEN"``, 한 쪽에만 두려면 ``"OPTIONAL_PAGE"``와
+        ``page_number``(그 쪽 번호, 주지 않으면 1)를 준다. 다른 종류는
+        ``page_number``를 주지 않으면 0을 쓴다. 한 절에는 같은 쪽의
+        바탕쪽을 하나만 둘 수 있어서, 이미 있는 종류의 바탕쪽을 절에
+        연결하면 ``HwpxValueError``가 난다.
 
         실측(유일한 실 예시): 절의 `hp:secPr` 자식 시퀀스에서
         `hp:masterPage`는 맨 끝에 오고, `masterPageCnt`가 그 개수와

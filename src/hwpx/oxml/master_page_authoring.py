@@ -47,7 +47,7 @@ from .simple_parts import HwpxOxmlMasterPage
 if TYPE_CHECKING:
     from .document_parts import HwpxOxmlDocument
 
-__all__ = ["add_master_page"]
+__all__ = ["add_master_page", "refuse_pages_taken"]
 
 _OPF_NS = "http://www.idpf.org/2007/opf/"
 _PART_INDEX_RE = re.compile(r"masterpage(\d+)")
@@ -72,13 +72,73 @@ def _manifest_element(document: "HwpxOxmlDocument") -> _etree._Element:
     return manifest_el
 
 
+def _default_page_number(page_type: str) -> int:
+    return 1 if page_type == "OPTIONAL_PAGE" else 0
+
+
+def _master_page_pages(document: "HwpxOxmlDocument", id_ref: str) -> tuple[str, int] | None:
+    """The pages a master page reference covers: its type, and for
+    ``OPTIONAL_PAGE`` its page number. None when the part cannot be found."""
+
+    manifest = document._manifest
+    if manifest is None:
+        return None
+    manifest_el = manifest.find("opf:manifest", {"opf": _OPF_NS})
+    if manifest_el is None:
+        return None
+    href = next((item.get("href", "") for item in manifest_el.findall(f"{{{_OPF_NS}}}item") if item.get("id") == id_ref), None)
+    if href is None:
+        return None
+    part_name = href if href.startswith("Contents/") or "/" in href else f"Contents/{href}"
+    master_page = next((page for page in document._master_pages if page.part_name == part_name), None)
+    if master_page is None:
+        return None
+    page_type = master_page.element.get("type", "")
+    number = 0
+    if page_type == "OPTIONAL_PAGE":
+        try:
+            number = int(master_page.element.get("pageNumber", "0"))
+        except ValueError:
+            number = 0
+    return page_type, number
+
+
+def refuse_pages_taken(document: "HwpxOxmlDocument", existing: Sequence[str], id_ref: str) -> None:
+    """Refuse a second master page for the same pages of one section.
+
+    A section has one master page each for all, odd, even and last pages,
+    and one per page number for single pages; a second one for the same
+    pages is not something Hancom writes, and saving as ``.hwp`` refuses it.
+    """
+
+    wanted = _master_page_pages(document, id_ref)
+    if wanted is None:
+        return
+    taken = next((ref for ref in existing if _master_page_pages(document, ref) == wanted), None)
+    if taken is None:
+        return
+    from ..errors import HwpxValueError
+
+    page_type, number = wanted
+    pages = f"{page_type} page {number}" if page_type == "OPTIONAL_PAGE" else page_type
+    raise HwpxValueError(
+        f"the section already has a master page for {pages}: {taken!r}",
+        code="master-page-pages-taken",
+        context={"requested": id_ref, "existing": taken, "page_type": page_type, "page_number": number},
+        suggestion=(
+            "Give the new master page another page_type (ODD, EVEN, LAST_PAGE, or OPTIONAL_PAGE "
+            "with its page_number), or put its content in the existing master page."
+        ),
+    )
+
+
 def add_master_page(
     document: "HwpxOxmlDocument",
     *,
     text: str | None = None,
     paragraphs: Sequence[str] | None = None,
-    page_type: str = "OPTIONAL_PAGE",
-    page_number: int = 1,
+    page_type: str = "BOTH",
+    page_number: int | None = None,
     page_duplicate: bool = False,
     page_front: bool = False,
 ) -> str:
@@ -89,7 +149,9 @@ def add_master_page(
     (이 함수는 파트를 만들 뿐, 어느 절과도 자동으로 연결하지 않는다).
 
     *text*/*paragraphs* 중 하나로 본문을 채운다(둘 다 없으면 빈 문단
-    하나). *page_type*은 스키마 선언 열거값만 받는다.
+    하나). *page_type*은 스키마 선언 열거값만 받는다. *page_number*를
+    주지 않으면 ``OPTIONAL_PAGE``는 1쪽, 다른 종류는 0(쪽 번호 없음)을
+    쓴다. 한/글도 ``OPTIONAL_PAGE``가 아닌 바탕쪽에는 0을 쓴다.
     """
     from ..errors import HwpxValueError
 
@@ -117,7 +179,7 @@ def add_master_page(
         {
             "id": master_page_id,
             "type": page_type,
-            "pageNumber": str(max(page_number, 0)),
+            "pageNumber": str(max(_default_page_number(page_type) if page_number is None else page_number, 0)),
             "pageDuplicate": "1" if page_duplicate else "0",
             "pageFront": "1" if page_front else "0",
         },

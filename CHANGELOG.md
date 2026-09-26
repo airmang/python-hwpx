@@ -40,6 +40,14 @@
 
 ### 바꿈
 
+- `doc.parts.add_master_page()`의 기본 쪽 종류를 `OPTIONAL_PAGE`(`page_number`로 준 한
+  쪽에만 나옴)에서 `BOTH`(모든 쪽)로 바꾼다. 한/글 문서의 바탕쪽은 대부분 모든 쪽에
+  걸린다. 한 쪽에만 두려면 `page_type="OPTIONAL_PAGE"`와 `page_number`를, 홀수·짝수
+  쪽만이면 `"ODD"`·`"EVEN"`을 준다. `doc.oxml.add_master_page()`의 기본값도 같다.
+  `page_number`를 주지 않으면 `OPTIONAL_PAGE`는 1, 다른 종류는 한/글처럼 0을 쓴다.
+- 한 구역에 같은 쪽의 바탕쪽을 둘 연결하면(`add_master_page_reference`·`doc.page.set_master_page`)
+  `HwpxValueError`(`master-page-pages-taken`)를 낸다. 양쪽·홀수·짝수·마지막 쪽은 하나씩,
+  한 쪽 바탕쪽은 쪽 번호마다 하나다. 전에는 그대로 연결되어 `.hwp` 저장이 실패했다.
 - `add_table()`이 만드는 표의 행 높이 기본값을 12.7 mm(3600)에서 한컴이 새 표에 쓰는
   282로 바꾼다. 행은 셀 글 높이에 맞춰 자라서, 한 줄이면 약 4.6 mm다. 전처럼 높은 행이
   필요하면 `height=`를 준다.
