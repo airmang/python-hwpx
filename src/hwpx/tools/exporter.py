@@ -241,16 +241,6 @@ def _is_tab_control(child: ET.Element) -> bool:
     return child.tag == f"{_HP}ctrl" and (child.get("id") or "").lower() == "tab"
 
 
-def _paragraph_text(p: ET.Element, *, tab_token: str = "\t", labels: _ListLabels | None = None) -> str:
-    """Extract paragraph text from direct runs, preserving tab semantics.
-
-    With *labels*, a numbered, outline or bullet paragraph starts with its label.
-    """
-    if labels is not None:
-        return _labelled(_paragraph_text(p, tab_token=tab_token), labels.label(p))
-    return "".join(piece for piece in _paragraph_pieces(p, tab_token=tab_token) if isinstance(piece, str))
-
-
 def _run_child_text(child: ET.Element, tab_token: str) -> str | None:
     """The text a run child adds, or ``None`` when it is a control or an object."""
     if child.tag == f"{_HP}t":
@@ -261,7 +251,23 @@ def _run_child_text(child: ET.Element, tab_token: str) -> str | None:
         return "\n"
     if child.tag == f"{_HP}dutmal":
         return _dutmal_text(child)
+    if child.tag == f"{_HP}ctrl" and (auto_num := child.find(f"{_HP}autoNum")) is not None:
+        return _auto_number_text(auto_num)
     return None
+
+
+def _auto_number_text(auto_num: ET.Element) -> str:
+    """An auto number (a caption's picture or table number, ...) as Hancom shows it: the
+    number it holds, in its format, between its prefix and suffix characters."""
+    value = _int_attribute(auto_num, "num")
+    if value is None:
+        return ""
+    number_format = auto_num.find(f"{_HP}autoNumFormat")
+    kind = number_format.get("type", "DIGIT") if number_format is not None else "DIGIT"
+    text = _NUMBER_FORMATS[kind](value) if kind in _NUMBER_FORMATS and value > 0 else str(value)
+    if number_format is None:
+        return text
+    return f"{number_format.get('prefixChar', '')}{text}{number_format.get('suffixChar', '')}"
 
 
 def _paragraph_pieces(p: ET.Element, *, tab_token: str = "\t") -> "list[str | ET.Element]":
@@ -436,6 +442,12 @@ def _blocks_in(element: ET.Element) -> list[ET.Element]:
     """
     if element.tag in _NOT_BODY_TAGS:
         return []
+    if element.tag == f"{_HP}switch":
+        # the same object twice: one branch (hp:case, else hp:default) is read
+        branch = element.find(f"{_HP}case")
+        if branch is None:
+            branch = element.find(f"{_HP}default")
+        return [] if branch is None else _blocks_in(branch)
     if element.tag == f"{_HP}tbl":
         return [element, *element.findall(f"{_HP}caption")]
     if element.tag in _PARAGRAPH_BLOCKS:
@@ -479,7 +491,11 @@ def export_text(
         if labels is not None:
             labels.start_section(section_root)
 
+        left_out: set[ET.Element] = set()
+
         def write_block(block: ET.Element) -> None:
+            if block in left_out:
+                return
             if block.tag in _PARAGRAPH_BLOCKS:
                 for inner in _text_box_paragraphs(block):
                     emit(inner)
@@ -487,8 +503,10 @@ def export_text(
                 rows = _table_cells_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels)
                 for row in rows:
                     para_texts.append(tab_token.join(row))
-            elif labels is not None:
-                labels.count(block)
+            else:
+                left_out.update(block.findall(f"{_HP}caption"))  # a left-out table's captions go with it
+                if labels is not None:
+                    labels.count(block)
 
         def emit(p: ET.Element) -> None:
             _emit_paragraph(p, tab_token=tab_token, labels=labels, masking_policy=masking_policy,
@@ -525,7 +543,11 @@ def export_html(
     labels = _ListLabels(_header_xml(source)) if list_labels else None
     body_parts: list[str] = []
 
+    left_out: set[ET.Element] = set()
+
     def write_block(block: ET.Element) -> None:
+        if block in left_out:
+            return
         if block.tag in _PARAGRAPH_BLOCKS:
             for inner in _text_box_paragraphs(block):
                 emit(inner)
@@ -535,8 +557,10 @@ def export_html(
             if include_tables
             else []
         )
-        if not include_tables and labels is not None:
-            labels.count(block)
+        if not include_tables:
+            left_out.update(block.findall(f"{_HP}caption"))  # a left-out table's captions go with it
+            if labels is not None:
+                labels.count(block)
         if rows:
             body_parts.append('<table border="1">')
             for row in rows:
@@ -603,7 +627,11 @@ def export_markdown(
             lines.append(text)
             lines.append("")
 
+        left_out: set[ET.Element] = set()
+
         def write_block(block: ET.Element) -> None:
+            if block in left_out:
+                return
             if block.tag in _PARAGRAPH_BLOCKS:
                 for inner in _text_box_paragraphs(block):
                     emit(inner)
@@ -613,8 +641,10 @@ def export_markdown(
                 if include_tables
                 else []
             )
-            if not include_tables and labels is not None:
-                labels.count(block)
+            if not include_tables:
+                left_out.update(block.findall(f"{_HP}caption"))  # a left-out table's captions go with it
+                if labels is not None:
+                    labels.count(block)
             if rows:
                 header = rows[0]
                 lines.append("| " + " | ".join(_markdown_cell(cell) for cell in header) + " |")
