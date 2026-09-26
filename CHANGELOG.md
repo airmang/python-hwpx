@@ -6,6 +6,11 @@
 
 ### 추가
 
+- `doc.text.plain()`·`markdown()`·`html()`(`hwpx.tools.exporter`)에 `list_labels` 인자(기본
+  `False`): 번호·개요·글머리표 문단 앞에 한/글이 그리는 글자(`1.`·`가.`·`①`·`●` 등)와 공백
+  하나를 붙인다. 번호는 번호 정의와 수준마다 문서 순서로 세고(윗수준이 오면 아랫수준은 새로
+  시작, 건너뛴 윗수준은 시작값), 개요 문단은 구역의 개요 번호를 쓴다. 표 칸 문단도 읽는 순서로
+  센다.
 - 셀 필드(이름 붙은 표 칸, `hp:tc@name`): `doc.fields.cells`가 문서 순서로 돌려주고(본문 표와
   칸 안의 표), `doc.fields.fill_cell(value, name=..., index=None)`이 한/글 `PutFieldText`처럼
   같은 이름의 칸을 모두 채운다. `index`(0부터)를 주면 그 하나만 채운다. 칸의 이름은
