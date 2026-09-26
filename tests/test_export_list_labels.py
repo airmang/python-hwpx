@@ -105,6 +105,36 @@ def test_numbered_paragraphs_in_cells_keep_counting_in_reading_order() -> None:
     assert export_text(document, list_labels=True).split("\n") == ["1. 항목1", "2. 칸 항목", "3. 뒤 항목"]
 
 
+def _numbered_with_a_numbered_cell() -> HwpxDocument:
+    document = _numbered(1)
+    list_style = document.paragraphs[1].element.get("paraPrIDRef")
+    cell = document.add_table(1, 1).cell(0, 0)
+    cell.text = "칸 항목"
+    cell.paragraphs[0].element.set("paraPrIDRef", list_style)
+    document.add_paragraph("범위")
+    document.paragraphs[-1].element.set("paraPrIDRef", list_style)
+    return document
+
+
+def test_numbered_paragraphs_in_a_left_out_table_still_count() -> None:
+    document = _numbered_with_a_numbered_cell()
+
+    assert export_text(document, list_labels=True, include_tables=False).split("\n") == ["1. 항목1", "3. 범위"]
+    assert "3. 범위" in export_markdown(document, list_labels=True, include_tables=False)
+    assert "<p>3. 범위</p>" in export_html(document, list_labels=True, include_tables=False, full_document=False)
+
+
+def test_a_format_the_labels_cannot_write_gets_no_label() -> None:
+    for number_format in ("DECAGON_CIRCLE", "IDEOGRAPH", "HANGUL_PHONETIC", "CIRCLED_LATIN_SMALL", "USER_CHAR"):
+        assert _labels({1: ("^1.", number_format)}, [1, 1]) == ["", ""], number_format
+
+
+def test_a_level_after_an_unwritable_one_keeps_counting() -> None:
+    heads = {1: ("^1.", "DIGIT"), 2: ("^2)", "IDEOGRAPH")}
+
+    assert _labels(heads, [1, 2, 2, 1]) == ["1.", "", "", "2."]
+
+
 def test_a_saved_document_gives_the_same_labels() -> None:
     document = _numbered(3)
 

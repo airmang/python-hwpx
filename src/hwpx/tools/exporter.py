@@ -69,7 +69,10 @@ def _roman(value: int) -> str:
     return out
 
 
+#: The number formats a label can be written in. A paragraph whose label uses any
+#: other format gets no label (its level still counts).
 _NUMBER_FORMATS: dict[str, Callable[[int], str]] = {
+    "DIGIT": str,
     "HANGUL_SYLLABLE": lambda n: _HANGUL_SYLLABLES[(n - 1) % len(_HANGUL_SYLLABLES)],
     "HANGUL_JAMO": lambda n: _HANGUL_JAMO[(n - 1) % len(_HANGUL_JAMO)],
     "CIRCLED_DIGIT": lambda n: chr(0x2460 + n - 1) if n <= 20 else str(n),
@@ -85,7 +88,7 @@ _NUMBER_FORMATS: dict[str, Callable[[int], str]] = {
 def _number_text(value: int, number_format: str) -> str:
     if value <= 0:
         return str(value)
-    return _NUMBER_FORMATS.get(number_format, str)(value)
+    return _NUMBER_FORMATS[number_format](value)
 
 
 class _ListLabels:
@@ -137,13 +140,23 @@ class _ListLabels:
         counters[level] = counters[level] + 1 if level in counters else heads[level][2]
         for deeper in [k for k in counters if k > level]:
             del counters[deeper]
+        template = heads[level][0]
+        if any(heads.get(int(k), ("", "DIGIT", 1))[1] not in _NUMBER_FORMATS for k in re.findall(r"\^(\d+)", template)):
+            return ""
 
         def fill(match: re.Match[str]) -> str:
             k = int(match.group(1))
             _, number_format, start = heads.get(k, ("", "DIGIT", 1))
             return _number_text(counters.get(k, start), number_format)
 
-        return re.sub(r"\^(\d+)", fill, heads[level][0])
+        return re.sub(r"\^(\d+)", fill, template)
+
+    def count(self, table: ET.Element) -> None:
+        """Count the paragraphs of a table that is not written: Hancom numbers them all."""
+        for tr in table.findall(f"{_HP}tr"):
+            for tc in tr.findall(f"{_HP}tc"):
+                for paragraph in _body_paragraphs(tc):
+                    self.label(paragraph)
 
     def start_section(self, section: ET.Element) -> None:
         sec_pr = next(section.iter(f"{_HP}secPr"), None)
@@ -364,6 +377,8 @@ def export_text(
                     rows = _table_cells_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels)
                     for row in rows:
                         para_texts.append(tab_token.join(row))
+                elif labels is not None:
+                    labels.count(block)
 
         for p in _iter_paragraphs(section_root):
             emit(p)
@@ -408,6 +423,8 @@ def export_html(
                 if include_tables
                 else []
             )
+            if not include_tables and labels is not None:
+                labels.count(block)
             if rows:
                 body_parts.append('<table border="1">')
                 for row in rows:
@@ -478,6 +495,8 @@ def export_markdown(
                     if include_tables
                     else []
                 )
+                if not include_tables and labels is not None:
+                    labels.count(block)
                 if rows:
                     header = rows[0]
                     lines.append("| " + " | ".join(_markdown_cell(cell) for cell in header) + " |")
