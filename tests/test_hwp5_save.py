@@ -638,6 +638,21 @@ def test_paragraph_lengths_with_no_switch_are_what_hwp_keeps() -> None:
 
 
 @pytest.mark.parametrize(
+    ("kind", "value", "old"),
+    [("PERCENT", 160, (0, 160)), ("FIXED", 2000, (1, 2000)), ("BETWEEN_LINES", 2000, (2, 2000)), ("AT_LEAST", 2000, (0, 100))],
+)
+def test_the_old_line_spacing_of_at_least_is_one_hundred_percent(kind: str, value: int, old: tuple[int, int]) -> None:
+    from hwpx.hwp5.docinfo_writer import para_shape
+
+    element = etree.fromstring(
+        f'<hh:paraPr {_HEAD_NS}><hh:margin/><hh:lineSpacing type="{kind}" value="{value}" unit="HWPUNIT"/></hh:paraPr>'
+    )
+    shape = para_shape(element)
+    assert (shape.props1 & 3, shape.line_spacing_old) == old
+    assert (shape.props3, shape.line_spacing) == (("PERCENT", "FIXED", "BETWEEN_LINES", "AT_LEAST").index(kind), value)
+
+
+@pytest.mark.parametrize(
     ("kind", "offsets", "size", "expected"),
     [
         (1, (0, 0), (8000, 6000), (600, 0, 600, 0)),  # parallel, left top

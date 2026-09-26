@@ -372,7 +372,9 @@ def para_shape(element: etree._Element) -> di.ParaShape:
     heading_type = index_of(HEADING, heading.get("type") if heading is not None else None, 0)
     level = _int(heading, "level")
     spacing_type = index_of(LINE_SPACING, spacing.get("type") if spacing is not None else None, 0)
-    p1 = min(spacing_type, 2)
+    # The old line spacing has no AT_LEAST; Hancom writes it there as 100 percent.
+    at_least = spacing_type == 3
+    p1 = 0 if at_least else spacing_type
     p1 |= index_of(ALIGN_H, align.get("horizontal") if align is not None else None, 0) << 2
     p1 |= index_of(BREAK_LATIN, brk.get("breakLatinWord") if brk is not None else None, 0) << 5
     p1 |= index_of(BREAK_NON_LATIN, brk.get("breakNonLatinWord") if brk is not None else None, 1) << 7
@@ -395,7 +397,7 @@ def para_shape(element: etree._Element) -> di.ParaShape:
     line_unit = spacing.get("unit") if spacing is not None else None
     raw_line = spacing_type == 0 or (plain and line_unit != "CHAR")
     line_spacing = line_value if raw_line else _doubled(line_value, line_unit)
-    shape.line_spacing_old = line_spacing
+    shape.line_spacing_old = 100 if at_least else line_spacing
     shape.line_spacing = line_spacing
     shape.tab_def_id = _int(element, "tabPrIDRef")
     shape.numbering_id = _int(heading, "idRef")
