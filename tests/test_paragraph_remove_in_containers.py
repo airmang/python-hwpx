@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import warnings
 
 import pytest
 
@@ -116,3 +117,17 @@ def test_removing_a_cell_paragraph_writes_the_same_bytes_as_editing_the_tree() -
     reopened = HwpxDocument.open(io.BytesIO(by_api.to_bytes())).tables.all[0].cell(0, 0)
     assert len(reopened.paragraphs) == 1
     assert reopened.tables[0].cell(0, 0).text == "안쪽"
+
+
+def test_apply_model_on_a_cell_paragraph_does_not_truth_test_an_element() -> None:
+    doc = HwpxDocument.new()
+    cell = doc.add_table(1, 1).cell(0, 0)
+    cell.text = "셀 글"
+    paragraph = cell.paragraphs[0]
+    model = paragraph.to_model()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        paragraph.apply_model(model)
+
+    assert [p.text for p in cell.paragraphs] == ["셀 글"]

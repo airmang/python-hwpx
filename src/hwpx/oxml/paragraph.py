@@ -100,7 +100,9 @@ class HwpxOxmlParagraph:
     def apply_model(self, model: "body.Paragraph") -> None:
         new_node = body.serialize_paragraph(model)
         xml_bytes = LET.tostring(new_node)
-        parent = paragraph_container(self.element, self.section.element) or self.section.element
+        parent = paragraph_container(self.element, self.section.element)
+        if parent is None:
+            parent = self.section.element
         if isinstance(parent, LET._Element):
             replacement = LET.fromstring(xml_bytes)
         else:
