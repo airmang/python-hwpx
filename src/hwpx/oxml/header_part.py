@@ -14,6 +14,7 @@ from ._document_primitives import (
     _FONT_FACE_LANG_TO_REF,
     _HC_NS,
     _HH,
+    _HP,
     _allocate_font_id,
     _append_child,
     _append_fill_brush,
@@ -614,7 +615,10 @@ class HwpxOxmlHeader:
             )
             margin_elements = [margin]
 
+        # Hancom keeps hp:default at twice the hp:case value; a margin outside hp:switch is as given.
+        doubled = para_pr.findall(f"{_HP}switch/{_HP}default/{_HH}margin")
         for margin in margin_elements:
+            scale = 2 if margin in doubled else 1
             for name, value in margins.items():
                 if value is None:
                     continue
@@ -622,7 +626,7 @@ class HwpxOxmlHeader:
                 if child is None:
                     child = margin.makeelement(f"{_HH}{name}", {})
                     margin.append(child)
-                self._set_margin_unit_value(child, int(value))
+                self._set_margin_unit_value(child, int(value) * scale)
 
     def _apply_paragraph_line_spacing(self, para_pr: ET.Element, percent: int | float) -> None:
         value = str(int(round(float(percent))))

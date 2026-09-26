@@ -110,6 +110,9 @@
 
 ### 고침
 
+- `apply_paragraph_format()`가 여백·들여쓰기·문단 간격을 `hp:switch` 안에 쓸 때 `hp:default`에는
+  `hp:case` 값의 두 배를 쓴다. 한컴 문서와 같은 표기다. 전에는 두 곳에 같은 값을 써서, `hp:case`를
+  모르고 `hp:default`를 읽는 프로그램에서는 여백이 절반으로 보였다. `hp:switch` 밖의 여백은 준 값 그대로다.
 - `apply_paragraph_format(alignment=...)`가 한컴의 나눔 정렬 `DISTRIBUTE_SPACE`를 받는다. 전에는
   배분 정렬 `DISTRIBUTE`만 받고 `DISTRIBUTE_SPACE`는 알 수 없는 정렬이라며 거부했다(문서를 읽을
   때는 이 값을 그대로 둔다).
