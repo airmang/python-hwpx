@@ -167,5 +167,6 @@ def test_set_list_format_applies_bullet_and_numbered_properties() -> None:
         f".//{HH}numbering[@id='{numbering_id}']/{HH}paraHead"
     )
     assert para_head is not None
-    assert para_head.get("numFormat") == "ROMAN"
+    # "roman" is the short name for ROMAN_CAPITAL; a bare "ROMAN" is not a Hancom number format.
+    assert para_head.get("numFormat") == "ROMAN_CAPITAL"
     assert para_head.get("start") == "3"

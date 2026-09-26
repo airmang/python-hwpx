@@ -31,9 +31,44 @@ from typing import TYPE_CHECKING, Mapping, Sequence
 if TYPE_CHECKING:
     from .header_part import HwpxOxmlHeader
 
-__all__ = ["ensure_numbering_refs"]
+__all__ = ["NUMBER_FORMATS", "NUMBER_FORMAT_ALIASES", "ensure_numbering_refs", "number_format"]
 
 _DEFAULT_BULLET_CHARS = ("-", "○", "□", "•")
+
+#: The number formats Hancom reads for lists, outline numbers and note numbers
+#: (``hc:NumberType2``). It numbers in plain digits when the format is anything else.
+NUMBER_FORMATS = frozenset({
+    "DIGIT", "CIRCLED_DIGIT", "ROMAN_CAPITAL", "ROMAN_SMALL", "LATIN_CAPITAL", "LATIN_SMALL",
+    "CIRCLED_LATIN_CAPITAL", "CIRCLED_LATIN_SMALL", "HANGUL_SYLLABLE", "CIRCLED_HANGUL_SYLLABLE",
+    "HANGUL_JAMO", "CIRCLED_HANGUL_JAMO", "HANGUL_PHONETIC", "IDEOGRAPH", "CIRCLED_IDEOGRAPH",
+    "DECAGON_CIRCLE", "DECAGON_CIRCLE_HANJA", "SYMBOL", "USER_CHAR",
+})
+
+#: Short names for some of :data:`NUMBER_FORMATS` (``page.set_page_number`` took them first).
+NUMBER_FORMAT_ALIASES = {
+    "NUMBER": "DIGIT", "ROMAN": "ROMAN_CAPITAL", "ROMAN_UPPER": "ROMAN_CAPITAL", "ROMAN_LOWER": "ROMAN_SMALL",
+    "ALPHA": "LATIN_CAPITAL", "ALPHA_UPPER": "LATIN_CAPITAL", "ALPHA_LOWER": "LATIN_SMALL",
+    "HANGUL": "HANGUL_SYLLABLE",
+}
+
+
+def number_format(value: object) -> str:
+    """*value* as one of :data:`NUMBER_FORMATS`, in either case or as one of the short names.
+
+    Anything else is refused.
+    """
+    normalized = str(value).strip().upper()
+    normalized = NUMBER_FORMAT_ALIASES.get(normalized, normalized)
+    if normalized not in NUMBER_FORMATS:
+        from ..errors import HwpxValueError
+
+        raise HwpxValueError(
+            f"unsupported number format {value!r}",
+            code="style-number-format-invalid",
+            context={"format": str(value), "allowed": sorted(NUMBER_FORMATS)},
+            suggestion="Use one of: " + ", ".join([*sorted(NUMBER_FORMATS), *sorted(NUMBER_FORMAT_ALIASES)]),
+        )
+    return normalized
 
 
 def _numbering_refs_for_kind(
@@ -47,7 +82,11 @@ def _numbering_refs_for_kind(
     번호 모양) — 만드는 ``hh:numbering``/``hh:paraHead`` 구조 자체는
     완전히 동일, 참조하는 `hh:heading`의 `type`만 다르다.
     """
-    numbering_id = header._create_numbering_definition(list(resolved_levels))
+    checked_levels = [
+        {**level, "numFormat": number_format(value)} if (value := level.get("numFormat") or level.get("format")) else level
+        for level in resolved_levels
+    ]
+    numbering_id = header._create_numbering_definition(checked_levels)
     return [
         header._ensure_para_property_heading(
             heading_type=heading_type,

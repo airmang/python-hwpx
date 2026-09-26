@@ -23,6 +23,7 @@ from ._document_primitives import (
     _paragraph_id,
 )
 from .numbering import SectionStartNumbering
+from .numbering_kinds import number_format
 from .utils import normalize_line_width
 from .section_story import HwpxOxmlSectionHeaderFooter, _section_story_elements
 
@@ -967,6 +968,8 @@ class HwpxOxmlSectionProperties:
         suffix_char: str | None = None,
         supscript: bool | None = None,
     ) -> None:
+        if type is not None:
+            type = number_format(type)
         parent = self._note_pr_element(tag, create=True)
         element = parent.find(f"{_HP}autoNumFormat") if parent is not None else None
         if element is None:  # pragma: no cover - defensive branch, schema-mandatory
