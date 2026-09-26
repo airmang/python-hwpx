@@ -59,6 +59,41 @@ def test_a_skipped_level_counts_at_its_start_value() -> None:
     assert _labels(heads, [3, 3, 2]) == ["1.1.i", "1.1.ii", "1.2."]
 
 
+def test_caret_n_writes_the_numbers_of_every_level_down_to_its_own() -> None:
+    heads = {1: ("^N", "DIGIT"), 2: ("^N", "HANGUL_SYLLABLE"), 3: ("(^N)", "DIGIT")}
+
+    assert _labels(heads, [1, 2, 2, 3, 1, 2]) == ["1.", "1.1.", "1.2.", "(1.2.1.)", "2.", "2.1."]
+
+
+def test_a_numbering_that_is_not_defined_numbers_every_level() -> None:
+    header = ET.Element(f"{HH}head")
+    for level in (1, 2):
+        para_pr = ET.SubElement(header, f"{HH}paraPr", {"id": str(level)})
+        ET.SubElement(para_pr, f"{HH}heading", {"type": "NUMBER", "idRef": "9", "level": str(level - 1)})
+    labels = _ListLabels(header)
+
+    assert [labels.label(ET.Element(f"{HP}p", {"paraPrIDRef": str(level)})) for level in (1, 2, 2, 1)] == [
+        "1.",
+        "1.1.",
+        "1.2.",
+        "2.",
+    ]
+
+
+def test_a_bullet_that_is_not_defined_is_a_black_circle() -> None:
+    header = ET.Element(f"{HH}head")
+    para_pr = ET.SubElement(header, f"{HH}paraPr", {"id": "1"})
+    ET.SubElement(para_pr, f"{HH}heading", {"type": "BULLET", "idRef": "0", "level": "0"})
+
+    assert _ListLabels(header).label(ET.Element(f"{HP}p", {"paraPrIDRef": "1"})) == "●"
+
+
+def test_a_numbering_text_of_one_symbol_character_is_written_as_the_symbol() -> None:
+    heads = {1: ("\uf09f", "DIGIT"), 2: ("^2\uf06c", "DIGIT")}
+
+    assert _labels(heads, [1, 2]) == ["●", "1\uf06c"]
+
+
 def test_number_formats() -> None:
     formats = ["LATIN_CAPITAL", "ROMAN_CAPITAL", "HANGUL_JAMO", "CIRCLED_HANGUL_SYLLABLE"]
     labels = [_labels({1: ("^1", number_format)}, [1, 1, 1, 1])[-1] for number_format in formats]
@@ -74,6 +109,24 @@ def test_bullets_take_their_character() -> None:
     document.styles.apply_list_format(paragraph_index=2, kind="bullet", bullet_char="●")
 
     assert export_text(document, list_labels=True).split("\n") == ["- 기본", "● 동그라미"]
+
+
+def test_symbol_font_bullets_are_written_as_unicode_symbols() -> None:
+    document = HwpxDocument.new()
+    for text in ("동그라미", "네모", "그대로"):
+        document.add_paragraph(text)
+    document.styles.apply_list_format(paragraph_index=1, kind="bullet", bullet_char="\uf09f")
+    document.styles.apply_list_format(paragraph_index=2, kind="bullet", bullet_char="\uf0a7")
+    document.styles.apply_list_format(paragraph_index=3, kind="bullet", bullet_char="\uf0a2")
+
+    assert export_text(document, list_labels=True).split("\n") == ["● 동그라미", "■ 네모", "\uf0a2 그대로"]
+
+
+def test_symbol_characters_in_the_text_are_kept() -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("앞 \uf09f 뒤")
+
+    assert export_text(document, list_labels=True) == "앞 \uf09f 뒤"
 
 
 def test_outline_headings_use_the_section_outline_numbering() -> None:
