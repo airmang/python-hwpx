@@ -720,6 +720,18 @@ def test_characters_overlapped_with_no_frame_keep_their_text_across_hwpx() -> No
     assert (again.text, again.circle, again.kind) == ("가나", 0, 1)
 
 
+@pytest.mark.parametrize("version", ["", "Equation Version 60"])
+def test_an_equation_keeps_its_version_across_hwpx(version: str) -> None:
+    """An empty equation version stays empty, as Hancom keeps it."""
+
+    files = convert(make_hwp(equation_version=version)).files
+    [equation] = list(etree.fromstring(files["Contents/section0.xml"]).iter(f"{HP}equation"))
+    assert equation.get("version") == version
+    written = read_hwp5(write_hwp5(files))
+    [record] = [r for s in written.sections for r in s.records if r.tag == rec.EQEDIT]
+    assert ct.EquationEdit.decode(record.payload).version == version
+
+
 @pytest.mark.parametrize(
     ("ctrl", "wrap", "code"),
     [("gso ", None, 0), ("gso ", "TOP_AND_BOTTOM", 1), ("gso ", "BEHIND_TEXT", 2), ("form", None, 1), ("form", "SQUARE", 0)],

@@ -1087,7 +1087,7 @@ class SectionRecords:
             _int(element, "baseUnit", 1000),
             colorref(element.get("textColor", "#000000")),
             _i32(_int(element, "baseLine")),
-            element.get("version") or ct.EQUATION_VERSION,
+            element.get("version", ct.EQUATION_VERSION),
             element.get("font") or ct.EQUATION_FONT,
         )
         return [rec.Record(rec.CTRL_HEADER, level, common.encode()), rec.Record(rec.EQEDIT, level + 1, equation.encode())]

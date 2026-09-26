@@ -1087,7 +1087,8 @@ class SectionWriter(ShapeReader):
             "hp:equation",
             object_attrs(common)
             + [
-                ("version", eq.version or ct.EQUATION_VERSION),
+                # An empty version stays empty, as Hancom keeps it.
+                ("version", ct.EQUATION_VERSION if eq.version is None else eq.version),
                 ("baseLine", eq.baseline),
                 ("textColor", color(eq.color)),
                 ("baseUnit", eq.base_unit),

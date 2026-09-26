@@ -211,6 +211,19 @@ def _markers(dutmal_position: int = 1) -> list[rec.Record]:
     return _paragraph(0, text, [(0, 0)], controls)
 
 
+def _equation(version: str) -> list[rec.Record]:
+    """An equation set as a character, with the version string *version*."""
+
+    common = ct.ObjectCommon("eqed", 0x000A2211, 0, 0, 3000, 1500, 0, (56, 56, 0, 0), 301, 0, "", bytes(2))
+    equation = ct.EquationEdit(0, "a over b", 1000, 0, 850, version, ct.EQUATION_FONT)
+    return _paragraph(
+        0,
+        _extended(11, "eqed") + _u16(13),
+        [(0, 0)],
+        [rec.Record(rec.CTRL_HEADER, 1, common.encode()), rec.Record(rec.EQEDIT, 2, equation.encode())],
+    )
+
+
 def _compose(value: ct.Compose | None = None) -> list[rec.Record]:
     """Two characters set over each other in a rectangle, between text; the
     record's text starts with the rectangle's glyph. *value* replaces the
@@ -479,6 +492,7 @@ def make_hwp(
     picture: bool = False,
     compose: bool = False,
     compose_value: ct.Compose | None = None,
+    equation_version: str | None = None,
     drawings: bool = False,
     text_art: bool = False,
     text_art_font: int = 1,
@@ -501,6 +515,8 @@ def make_hwp(
         section += _text_art(text_art_font)
     if compose:
         section += _compose(compose_value)
+    if equation_version is not None:
+        section += _equation(equation_version)
     if text_box:
         section += _text_box()
     if picture:
