@@ -37,6 +37,8 @@ from .owpml import (
     IMAGE_MODE,
     LANG_ATTRS,
     LANGS,
+    LAYOUT_COMPATIBILITY_BITS,
+    LAYOUT_COMPATIBILITY_DEFAULT,
     LINE_SPACING,
     LINE_WRAP,
     MEMO_TYPE,
@@ -589,9 +591,30 @@ def build_docinfo(
     compatible = _child(head, _HH, "compatibleDocument")
     target = index_of(TARGET_PROGRAM, compatible.get("targetProgram") if compatible is not None else None, 0)
     records.append(rec.Record(rec.COMPATIBLE_DOCUMENT, 0, struct.pack("<I", target)))
-    records.append(rec.Record(rec.LAYOUT_COMPATIBILITY, 1, b"\0" * 20))
+    layout = struct.pack("<5I", *_layout_compatibility(compatible, target))
+    records.append(rec.Record(rec.LAYOUT_COMPATIBILITY, 1, layout))
     records.append(rec.Record(rec.TRACKCHANGE, 1, _track_settings(head)))
     return DocInfoResult(records, section_count)
+
+
+def _layout_compatibility(compatible: etree._Element | None, target: int) -> tuple[int, ...]:
+    """The LAYOUT_COMPATIBILITY words: a bit for each layoutCompatibility child.
+    Hancom writes none for a document meant for Hangul 2010 or later
+    (HWP201X), and its default flags when a child is not one it knows."""
+
+    words = [0] * 5
+    layout = _child(compatible, _HH, "layoutCompatibility") if compatible is not None else None
+    if layout is None or target == 0:
+        return tuple(words)
+    for child in layout:
+        if not isinstance(child.tag, str):
+            continue
+        place = LAYOUT_COMPATIBILITY_BITS.get(etree.QName(child).localname)
+        if place is None:
+            return LAYOUT_COMPATIBILITY_DEFAULT
+        word, bit = place
+        words[word] |= 1 << bit
+    return tuple(words)
 
 
 def _track_settings(head: etree._Element) -> bytes:

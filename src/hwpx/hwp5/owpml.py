@@ -304,5 +304,84 @@ STYLE_TYPE = ("PARA", "CHAR")
 MEMO_TYPE = ("NOMAL", "USER_INSERT", "USER_DELETE", "USER_UPDATE")
 TARGET_PROGRAM = ("HWP201X", "HWP200X", "MS_WORD")
 
+#: The ``hh:layoutCompatibility`` children by LAYOUT_COMPATIBILITY word and
+#: bit, in the order Hancom writes them. The fifth word has none.
+LAYOUT_COMPATIBILITY: tuple[tuple[str | None, ...], ...] = (
+    (
+        "applyFontWeightToBold",
+        "useInnerUnderline",
+        "fixedUnderlineWidth",
+        "doNotApplyStrikeoutWithUnderline",
+        None,
+        "useLowercaseStrikeout",
+        "extendLineheightToOffset",
+        "applyFontspaceToLatin",
+        "treatQuotationAsLatin",
+    ),
+    (
+        "doNotAlignWhitespaceOnRight",
+        "doNotAdjustWordInJustify",
+        "baseCharUnitOnEAsian",
+        "baseCharUnitOfIndentOnFirstChar",
+        "adjustLineheightToFont",
+        "adjustBaselineInFixedLinespacing",
+        "applyPrevspacingBeneathObject",
+        "applyNextspacingOfLastPara",
+        "applyAtLeastToPercent100Pct",
+        "doNotApplyAutoSpaceEAsianEng",
+        "doNotApplyAutoSpaceEAsianNum",
+        "adjustParaBorderfillToSpacing",
+        "connectParaBorderfillOfEqualBorder",
+        "adjustParaBorderOffsetWithBorder",
+        "extendLineheightToParaBorderOffset",
+        "applyParaBorderToOutside",
+        "applyMinColumnWidthTo1mm",
+        "applyTabPosBasedOnSegment",
+        "breakTabOverLine",
+        "adjustVertPosOfLine",
+        "doNotApplyWhiteSpaceHeight",
+        "doNotAlignLastPeriod",
+        "doNotAlignLastForbidden",
+        "adjustMarginFromAdjustLineheight",
+    ),
+    (
+        "baseLineSpacingOnLineGrid",
+        "applyCharSpacingToCharGrid",
+        "doNotApplyGridInHeaderFooter",
+        "applyExtendHeaderFooterEachSection",
+        "doNotApplyHeaderFooterAtNoSpace",
+        "doNotApplyColSeparatorAtNoGap",
+        "doNotApplyLinegridAtNoLinespacing",
+    ),
+    (
+        "doNotApplyImageEffect",
+        "doNotApplyShapeComment",
+        "doNotAdjustEmptyAnchorLine",
+        "overlapBothAllowOverlap",
+        "doNotApplyVertOffsetOfForward",
+        "extendVertLimitToPageMargins",
+        "doNotHoldAnchorOfTable",
+        "doNotFormattingAtBeneathAnchor",
+        "adjustBaselineOfObjectToBottom",
+    ),
+)
+#: The word and bit of each layoutCompatibility child.
+LAYOUT_COMPATIBILITY_BITS: dict[str, tuple[int, int]] = {
+    name: (word, bit) for word, names in enumerate(LAYOUT_COMPATIBILITY) for bit, name in enumerate(names) if name
+}
+#: The words Hancom writes when a layoutCompatibility child is not one of those.
+LAYOUT_COMPATIBILITY_DEFAULT = (0x1E3, 0xCFF8FF, 0x4F, 0x1EC, 0)
+
+
+def layout_compatibility(words: Sequence[int]) -> list[str]:
+    """The layoutCompatibility children the LAYOUT_COMPATIBILITY words turn on."""
+
+    return [
+        name
+        for word, names in zip(words, LAYOUT_COMPATIBILITY)
+        for bit, name in enumerate(names)
+        if name and word >> bit & 1
+    ]
+
 LANGS = ("HANGUL", "LATIN", "HANJA", "JAPANESE", "OTHER", "SYMBOL", "USER")
 LANG_ATTRS = ("hangul", "latin", "hanja", "japanese", "other", "symbol", "user")
