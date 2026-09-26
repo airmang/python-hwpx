@@ -867,7 +867,7 @@ class HwpxOxmlParagraph:
                 bookmark ``name``. It is written where Hancom reads it, the
                 field's ``Command``/``Path`` parameters (``hyperlink_form``),
                 and kept in ``@name`` for older readers.
-            display_text: The visible text, blue and underlined as Hancom writes links unless char_pr_id_ref is given.
+            display_text: The visible text in the paragraph's look, blue and underlined as Hancom writes links, unless char_pr_id_ref is given.
 
         Returns:
             The ``<hp:ctrl>`` element wrapping the ``<hp:fieldBegin>``.
@@ -895,7 +895,8 @@ class HwpxOxmlParagraph:
             _append_child(holder, f"{_HP}{kind}", {"name": name}).text = text
 
         # Run 2: visible text content
-        run2 = self._create_run_for_object(char_pr_id_ref=hyperlink_char_pr(self.section, char_pr_id_ref))
+        link_style = hyperlink_char_pr(self.section, char_pr_id_ref, self.char_pr_id_ref or "0")
+        run2 = self._create_run_for_object(char_pr_id_ref=link_style)
         t = _append_child(run2, f"{_HP}t", {})
         t.text = _sanitize_text(display_text)
 

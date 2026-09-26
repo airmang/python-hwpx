@@ -72,6 +72,48 @@ def test_a_footnote_link_gets_the_same_style() -> None:
     assert underline == "BOTTOM"
 
 
+def _look(document: HwpxDocument, run) -> tuple:
+    header = document._root.headers[0]
+    char_pr = next(el for el in header._char_properties_element() if el.get("id") == run.get("charPrIDRef"))
+    bold = any(el.tag.endswith("}bold") for el in char_pr)
+    return char_pr.get("height"), bold, char_pr.get("textColor")
+
+
+def test_a_link_keeps_the_size_and_weight_of_its_paragraph() -> None:
+    document = HwpxDocument.new()
+    big = document._root.ensure_run_style(bold=True, size=16)
+    paragraph = document.add_paragraph("제목 ", char_pr_id_ref=big)
+
+    paragraph.add_hyperlink("https://example.com", "링크")
+
+    assert _look(document, _display_run(paragraph)) == ("1600", True, "#0000FF")
+    assert _style(document, _display_run(paragraph))[1] == "BOTTOM"
+
+
+def test_a_link_style_made_for_one_paragraph_does_not_leak_into_another() -> None:
+    document = HwpxDocument.new()
+    big = document._root.ensure_run_style(bold=True, size=16)
+    title = document.add_paragraph("제목 ", char_pr_id_ref=big)
+    title.add_hyperlink("https://example.com", "링크")
+    body = document.add_paragraph("본문 ")
+
+    body.add_hyperlink("https://example.com", "링크")
+
+    assert _look(document, _display_run(body)) == ("1000", False, "#0000FF")
+    assert _display_run(body).get("charPrIDRef") != _display_run(title).get("charPrIDRef")
+
+
+def test_links_in_paragraphs_of_the_same_look_share_one_style() -> None:
+    document = HwpxDocument.new()
+    big = document._root.ensure_run_style(bold=True, size=16)
+    first = document.add_paragraph("제목 ", char_pr_id_ref=big)
+    first.add_hyperlink("https://example.com", "링크")
+    second = document.add_paragraph("다른 제목 ", char_pr_id_ref=big)
+    document.refs.add_hyperlink("https://example.com", "링크", paragraph=second)
+
+    assert _display_run(first).get("charPrIDRef") == _display_run(second).get("charPrIDRef")
+
+
 def test_markdown_writes_link_text_without_the_link_style() -> None:
     from hwpx.tools.markdown_export import export_markdown
 
