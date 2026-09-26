@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 139 | 11 |
+| 개수 | 141 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -272,11 +272,13 @@ except HwpxError as exc:
 | `style-border-fill-image-effect-invalid` | fill_image 의 effect 값이 OWPML 어휘(REAL_PIC/GRAY_SCALE/BLACK_WHITE) 밖이다. |
 | `style-border-fill-image-missing` | fill_image 가 doc.media 이진 항목을 가리키지 않는다. |
 | `style-border-fill-image-mode-invalid` | fill_image 의 mode 값이 OWPML 어휘(hc:imgBrush/@mode) 밖이다. |
+| `style-border-fill-width-invalid` | hh:borderFill 선의 width 가 '<숫자> mm' 꼴이 아니다(border_fill_info). |
 | `style-color-invalid` | 색 인자가 #RRGGBB·#AARRGGBB(16진 6·8자리)나 none이 아니다. |
 | `style-container-create-failed` | styles 컨테이너를 만들지 못했다(방어적 분기). |
 | `style-font-container-create-failed` | fontfaces/fontface 컨테이너를 만들지 못했다. |
 | `style-font-face-empty` | face 값이 비어 있다. |
 | `style-font-lang-invalid` | lang 값이 OWPML 어휘(HANGUL/LATIN/HANJA/JAPANESE/OTHER/SYMBOL/USER) 밖이다. |
+| `style-font-replace-same-face` | replace_font 의 src_face 와 dst_face 가 같은 글꼴이다. |
 | `style-font-substitute-incomplete` | 대체 글꼴 인자가 일부만 주어졌다(subst_face 가 필요하다). |
 | `style-font-type-invalid` | font_type/subst_type 값이 OWPML 어휘(REP/TTF/HFT) 밖이다. |
 | `style-line-width-invalid` | 선 굵기가 0보다 큰 mm 값이 아니다(목록 밖 값은 가장 가까운 한컴 선 굵기로 쓴다). |
