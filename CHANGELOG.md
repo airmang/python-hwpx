@@ -168,8 +168,8 @@
   머리말이 모든 쪽에 보이던 것), `BOTH`가 되면 홀수·짝수 쪽 것보다 앞에 둔다(`hp:ctrl` 쪽만
   있는 머리말·꼬리말도 같다). 한/글이 저장한 문서처럼 `hp:ctrl` 쪽만 있는 머리말·꼬리말의
   내용은 저장할 때 건드리지 않는다. `clear_content()`와 빈
-  `set_content([])`는 빈 문단 하나를 남긴다. `hp:subList`가 없는 머리말·꼬리말은 한/글이
-  열지 못해, 한/글이 저장한 문서의 머리말을 비우면 문서가 열리지 않았다.
+  `set_content([])`는 빈 문단 하나를 남긴다. 전에는 `hp:subList`까지 지웠는데, 실제 문서의
+  머리말·꼬리말은 모두 `hp:subList`와 문단을 하나 이상 가진다.
 - `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
   (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
   `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.
