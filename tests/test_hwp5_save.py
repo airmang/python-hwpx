@@ -1453,3 +1453,25 @@ def test_the_package_layer_points_an_hwp_file_to_the_document() -> None:
 
     with pytest.raises(zipfile.BadZipFile, match="HwpxDocument.open"):
         HwpxPackage.open(make_hwp())
+
+
+def test_hwp_save_skips_xml_comments_in_the_source() -> None:
+    """XML comments in a section (some real documents carry them inside table
+    rows) are not content and must not stop the HWP writer."""
+    document = HwpxDocument.new()
+    table = document.add_table(2, 2)
+    table.set_cell_text(0, 0, "가")
+    table.set_cell_text(1, 1, "나")
+    source = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(document.to_bytes())) as zin, zipfile.ZipFile(source, "w") as zout:
+        for info in zin.infolist():
+            data = zin.read(info.filename)
+            if info.filename == "Contents/section0.xml":
+                data = data.replace(b"<hp:tr>", b"<hp:tr><!-- row note -->", 1)
+                data = data.replace(b"<hp:p ", b"<!-- paragraph note --><hp:p ", 1)
+            zout.writestr(info, data)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        commented = HwpxDocument.open(source.getvalue())
+        reopened = HwpxDocument.open(commented.to_bytes(format="hwp"))
+    assert "가" in reopened.text.plain() and "나" in reopened.text.plain()

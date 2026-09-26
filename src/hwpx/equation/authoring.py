@@ -440,19 +440,17 @@ def latex_to_eqedit(latex: str) -> str:
 
 
 def estimate_equation_size(script: str, *, base_unit: int = 1100) -> tuple[int, int]:
-    """Heuristic ``(width, height)`` in HWPUNIT for ``<hp:sz>``.
+    """``(width, height)`` in HWPUNIT for ``<hp:sz>``, measured from the script's structure.
 
-    Hancom re-measures the shape when the document is opened (P0 evidence:
-    a fixed size rendered correctly), so this only needs to be a sane
-    placeholder, mirroring the gold documents' proportions.
+    Hancom does not measure an equation again when it opens a document: it
+    lays the page out with the stored box, so the box has to fit the script
+    (see :func:`hwpx.equation.measure.measure_equation`).
     """
 
-    visible = len(script.replace("{", "").replace("}", "").replace(" ", ""))
-    rows = 1 + script.count("#")
-    tall = any(word in script for word in ("over", "sqrt", "int", "sum", "prod", "lim"))
-    width = int(base_unit * 0.45 * max(6, visible))
-    height = int(base_unit * (2.5 if tall else 1.6) * max(1, rows))
-    return width, height
+    from .measure import measure_equation
+
+    size = measure_equation(script, base_unit=base_unit)
+    return size.width, size.height
 
 
 __all__ = [

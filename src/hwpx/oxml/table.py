@@ -179,6 +179,17 @@ class HwpxOxmlTableCell:
         col_span = int(span.get("colSpan", "1"))
         return (row_span, col_span)
 
+    @property
+    def field_name(self) -> str:
+        """이 칸의 셀 필드 이름(``hp:tc@name``, 한/글 "셀 속성 → 필드 이름"). 없으면 빈 문자열."""
+
+        return self.element.get("name") or ""
+
+    @field_name.setter
+    def field_name(self, value: str | None) -> None:
+        self.element.set("name", (value or "").strip())
+        self.table.mark_dirty()
+
     def set_span(self, row_span: int, col_span: int) -> None:
         span = self._span_element()
         span.set("rowSpan", str(max(row_span, 1)))

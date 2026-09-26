@@ -78,6 +78,17 @@ def resolve_part_name(
     *,
     known_parts: Collection[str] | None = None,
 ) -> str:
+    return _resolve_part_name(base_part, href, _normalized_parts(known_parts))
+
+
+def _normalized_parts(known_parts: Collection[str] | None) -> frozenset[str] | None:
+    if known_parts is None:
+        return None
+    return frozenset(normalize_part_name(part) for part in known_parts)
+
+
+def _resolve_part_name(base_part: str, href: str, normalized_parts: frozenset[str] | None) -> str:
+    """:func:`resolve_part_name` against part names normalized once by the caller."""
     raw_href = href.replace("\\", "/").strip()
     if not raw_href:
         return ""
@@ -85,8 +96,7 @@ def resolve_part_name(
         return normalize_part_name(raw_href)
     base_dir = PurePosixPath(normalize_part_name(base_part)).parent
     normalized_href = normalize_part_name(raw_href)
-    if known_parts is not None:
-        normalized_parts = {normalize_part_name(part) for part in known_parts}
+    if normalized_parts is not None:
         if normalized_href in normalized_parts:
             return normalized_href
         relative_candidate = normalize_part_name(str(base_dir / raw_href))
@@ -172,12 +182,15 @@ def parse_manifest_relationships(
 ) -> ManifestRelationships:
     items: list[ManifestItemRef] = []
     id_to_path: dict[str, str] = {}
+    # once per manifest, not once per item: a package with many binary parts
+    # (images) has as many manifest items, which made opening quadratic
+    normalized_parts = _normalized_parts(known_parts)
 
     for item in manifest_root.findall(".//opf:item", OPF_NS):
         href = (item.get("href") or "").strip()
         if not href:
             continue
-        resolved_path = resolve_part_name(manifest_path, href, known_parts=known_parts)
+        resolved_path = _resolve_part_name(manifest_path, href, normalized_parts)
         item_ref = ManifestItemRef(
             item_id=item.get("id"),
             href=href,
