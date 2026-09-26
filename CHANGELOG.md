@@ -50,6 +50,11 @@
 
 ### 고침
 
+- 끝이 아닌 구역을 `remove_section()`으로 지운 문서를 한/글이 열지 못하고, `add_section(after=...)`로
+  가운데 넣은 구역이 한/글에서 맨 뒤에 나오던 것을 고친다. 한/글은 구역을 `content.hpf` 항목 id
+  `section0`, `section1`, …의 번호 순서로 찾고(spine 순서나 파일 이름이 아니라), 번호가 하나라도
+  빠지면 문서를 열지 않는다. 이제 구역을 넣거나 지우면 구역 항목의 id를 문서 순서대로 다시 매긴다
+  (파일 이름은 그대로).
 - `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
   (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
   `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.

@@ -1363,6 +1363,7 @@ class HwpxOxmlDocument:
             part_name,
             spine_index=spine_index,
         )
+        self._number_section_ids()
         self._sync_header_section_count()
 
         new_section.mark_dirty()
@@ -1403,6 +1404,7 @@ class HwpxOxmlDocument:
 
         # Update manifest: remove <opf:item> and <opf:itemref>
         self._remove_section_from_manifest(removed.part_name)
+        self._number_section_ids()
         self._sync_header_section_count()
 
     # ------------------------------------------------------------------
@@ -1513,6 +1515,22 @@ class HwpxOxmlDocument:
             insert_at = len(spine_el)
         spine_el.insert(insert_at, itemref)
         self._manifest_dirty = True
+
+    def _number_section_ids(self) -> None:
+        """Give section manifest items the ids ``section0``, ``section1``, ... in document order.
+
+        Hancom finds sections by these ids in number order (not the spine or the part
+        names) and does not open a document lacking one.
+        """
+        try:
+            refs = [self._section_manifest_references(section.part_name) for section in self._sections]
+        except ValueError:
+            return
+        for index, (_manifest, _spine, item, itemref) in enumerate(refs):
+            if item.get("id") != f"section{index}":
+                item.set("id", f"section{index}")
+                itemref.set("idref", f"section{index}")
+                self._manifest_dirty = True
 
     def _remove_section_from_manifest(self, part_name: str) -> None:
         """Remove the ``<opf:item>`` + ``<opf:itemref>`` for a deleted section."""
