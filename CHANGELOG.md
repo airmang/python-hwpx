@@ -6,6 +6,15 @@
 
 ### 추가
 
+- `doc.styles.apply_paragraph_format(paragraphs=[...])`: 본문 인덱스 대신 문단 객체를
+  받아 표 셀(중첩 표 포함)·머리말·꼬리말 문단에도 사람 단위(mm·pt·%) 문단 서식을
+  적용한다(예: `paragraphs=[table.cell(0, 0).paragraphs[0]]`). 같은 문단 모양을 쓰던
+  다른 문단은 그대로다. 이 문서에 속하지 않은 문단(다른 문서의 문단, 지운 문단)이
+  섞이면 아무것도 바꾸기 전에 `paragraph-not-in-document`로 거부하고, 인덱스 인자와
+  함께 주면 `paragraph-argument-conflict`로 거부한다. 결과의 `paragraphs`에는 본문
+  문단 인덱스만 담기고 `formatted`는 대상 수다. 기존 `paragraph_index`·
+  `paragraph_indexes`의 뜻은 그대로다. 머리말·꼬리말 객체에 `paragraphs` 속성
+  (`cell.paragraphs`처럼 문단 객체 목록)을 더한다.
 - HWP 5.0(`.hwp`)을 읽고 쓴다. `HwpxDocument.open`이 `.hwp`를 같은 문서 모델로 열고,
   `save_to_path("x.hwp")`·`save_to_stream(..., format="hwp")`·`to_bytes(format="hwp")`가
   HWP 5.0으로 쓴다. 본문·글자와 문단 모양·스타일·표·그림·그리기 개체·글맵시·수식·차트·OLE·
