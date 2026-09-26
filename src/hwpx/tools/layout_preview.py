@@ -359,6 +359,21 @@ def _shape_text_lines(element: ET.Element) -> list[str]:
     return lines
 
 
+def _cell_paragraphs(cell: ET.Element) -> list[ET.Element]:
+    """The paragraphs a table cell shows, in order: a nested table's are flattened
+    in; a text box's are left to the shape that holds them (:func:`_render_shape`)."""
+
+    parents = {child: parent for parent in cell.iter() for child in parent}
+    shown: list[ET.Element] = []
+    for paragraph in cell.iter(f"{_HP}p"):
+        node = parents.get(paragraph)
+        while node is not None and node is not cell and node.tag != f"{_HP}tbl" and node.tag not in _SHAPE_TAGS:
+            node = parents.get(node)
+        if node is None or node.tag not in _SHAPE_TAGS:
+            shown.append(paragraph)
+    return shown
+
+
 def _render_shape(shape: ET.Element) -> str:
     lines = _shape_text_lines(shape)
     text = "<br>".join(html.escape(line) for line in lines)
@@ -466,7 +481,7 @@ def _render_table(
                 }
             )
             body_parts = []
-            for para in tc.findall(f".//{_HP}p"):
+            for para in _cell_paragraphs(tc):
                 body_parts.append(
                     _render_paragraph(para, styles, counter, include_tables=False)
                 )

@@ -24,6 +24,40 @@ def _document() -> HwpxDocument:
     return document
 
 
+def test_a_text_box_in_a_table_cell_shows_once_in_the_preview() -> None:
+    document = HwpxDocument.new()
+    cell = document.add_table(1, 1).cell(0, 0)
+    cell.text = "칸 글"
+    document.shapes.add_rectangle(paragraph=cell.paragraphs[0]).set_draw_text("칸상자글")
+
+    html = render_layout_preview(document.to_bytes()).html
+
+    assert html.count("칸상자글") == 1
+    assert html.count("칸 글") == 1
+
+
+def test_mail_merge_fills_placeholders_in_text_boxes(tmp_path) -> None:
+    from hwpx.tools.mail_merge import merge_template_rows
+
+    document = HwpxDocument.new()
+    document.add_paragraph("이름: {{name}}")
+    holder = document.add_paragraph("상자 담은 문단")
+    document.shapes.add_rectangle(paragraph=holder).set_draw_text("상자: {{name}}")
+    cell = document.add_table(1, 1).cell(0, 0)
+    cell.text = "칸"
+    document.shapes.add_rectangle(paragraph=cell.paragraphs[0]).set_draw_text("칸 상자: {{name}}")
+    template = tmp_path / "tpl.hwpx"
+    document.save_to_path(template)
+
+    report = merge_template_rows(template, [{"name": "홍길동"}], output_dir=tmp_path / "out")
+
+    (row,) = report["rows"]
+    assert row["ok"], row
+    assert row["replacedCount"] == 3
+    text = export_text(HwpxDocument.open(row["filename"]))
+    assert "상자: 홍길동" in text and "칸 상자: 홍길동" in text and "{{name}}" not in text
+
+
 def test_plain_text_puts_the_box_after_its_paragraph_in_document_order() -> None:
     text = export_text(_document())
 
