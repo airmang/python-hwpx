@@ -251,6 +251,7 @@ def merge_template_rows(
 
         document = HwpxDocument.open(template_path)
         row_cells = _iter_cells(document)
+        row_boxes = _text_box_paragraphs(document)
         replaced_count = 0
         fit_fields: list[dict[str, Any]] = []
         masked_fields: list[str] = []
@@ -272,7 +273,7 @@ def merge_template_rows(
                     apply_value = fit_result.applied_value
                     if (not fit_result.ok) or fit_result.overflow_detected:
                         fit_fields.append(_fit_field_report(key, fit_result))
-                replaced_count += _replace_token(document, token, apply_value, row_cells)
+                replaced_count += _replace_token(document, token, apply_value, row_cells, row_boxes)
             document.save_to_path(out_path)
         finally:
             document.close()
@@ -419,13 +420,35 @@ def _open_safety_summary(row_reports: Sequence[Mapping[str, Any]], *, created_co
     }
 
 
-def _replace_token(document: HwpxDocument, token: str, value: str, cells: Sequence[Any]) -> int:
-    """Replace *token* in body runs **and** table-cell runs.
+def _text_box_paragraphs(document: HwpxDocument) -> list[Any]:
+    """The paragraphs of every text box (``hp:drawText``) -- in the body, in table
+    cells or in other boxes, and those of a table in a box -- each once."""
+
+    from ..oxml import HwpxOxmlParagraph
+    from ..oxml.namespaces import HP
+
+    found: list[Any] = []
+    seen: set[Any] = set()
+    for section in document.oxml.sections:
+        for draw_text in section.element.iter(f"{HP}drawText"):
+            for paragraph in draw_text.iter(f"{HP}p"):
+                if paragraph not in seen:
+                    seen.add(paragraph)
+                    found.append(HwpxOxmlParagraph(paragraph, section))
+    return found
+
+
+def _replace_token(
+    document: HwpxDocument, token: str, value: str, cells: Sequence[Any], boxes: Sequence[Any] = ()
+) -> int:
+    """Replace *token* in body runs, table-cell runs **and** text-box runs.
 
     ``doc.text.replace`` only reaches body runs (``find_runs`` does not
-    descend into ``<hp:tbl>`` cells), so a placeholder living in a 발신·결재/안내 표
-    cell would silently survive as an unresolved token. Cells are handled per-run here
-    (same per-run semantics as the body path).
+    descend into ``<hp:tbl>`` cells or text boxes), so a placeholder living in a
+    발신·결재/안내 표 cell or a text box would silently survive as an unresolved
+    token -- which the unresolved check reads, since export reads both. Cells and
+    boxes (*boxes*: :func:`_text_box_paragraphs`) are handled per-run here (same
+    per-run semantics as the body path).
     """
 
     count = document.text.replace(token, value)
@@ -433,6 +456,9 @@ def _replace_token(document: HwpxDocument, token: str, value: str, cells: Sequen
         for cell_para in getattr(cell, "paragraphs", None) or []:
             for run in cell_para.runs:
                 count += run.replace_text(token, value)
+    for paragraph in boxes:
+        for run in paragraph.runs:
+            count += run.replace_text(token, value)
     return count
 
 

@@ -22,7 +22,7 @@ from ._document_primitives import (
     _paragraph_id,
 )
 from .numbering import SectionStartNumbering
-from .section_story import HwpxOxmlSectionHeaderFooter, _section_story_elements
+from .section_story import HwpxOxmlSectionHeaderFooter, _section_story_elements, remember_story_pair
 
 if TYPE_CHECKING:
     from .section import HwpxOxmlSection
@@ -1320,6 +1320,7 @@ class HwpxOxmlSectionProperties:
             run.insert(list(run).index(specific[0]), ctrl)  # stdlib and lxml elements alike
         else:
             run.append(ctrl)
+        remember_story_pair(self.section, source)
         self.section.mark_dirty()
 
     def _remove_header_footer_controls(self, tag: str, page_type: str | None = None) -> bool:
