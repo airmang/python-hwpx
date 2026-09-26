@@ -235,27 +235,29 @@ def _paragraph_add_drop_cap(
     para_pr_id_ref: str | int | None = None,
     run_attributes: dict[str, str] | None = None,
 ) -> HwpxOxmlInlineObject:
-    """Insert a real-Hancom-shaped drop cap (문단 첫 글자 장식) in front of the paragraph text.
+    """Insert a real-Hancom-shaped drop cap (문단 첫 글자 장식) right before the paragraph text.
 
     The element is :func:`create_drop_cap_element` (``TripleLine``-only v1 scope, see this
-    module's docstring). *char_pr_id_ref* is the letter's character shape; the run holding the
-    drop cap keeps the text's, since with a letter-sized shape there Hancom lays the first line
-    out at that size and the text no longer wraps around the drop cap. The run goes in front of
-    the text: Hancom draws a drop cap on the line its run sits on.
+    module's docstring). Hancom writes a drop cap in the run of the paragraph's first text,
+    right before that ``hp:t`` and after the controls in front of it (a section's first
+    paragraph keeps its section settings first), and draws it on that line. The run keeps the
+    text's character shape: *char_pr_id_ref* is the letter's, inside the drop cap. With a
+    letter-sized shape on the run, Hancom would lay the first line out at that size and the
+    text would no longer wrap around the drop cap. A paragraph without text gets a run of its
+    own for the drop cap (*run_attributes*).
     """
 
-    text_run = next((run for run in self._run_elements() if run.find(f"{_HP}t") is not None), None)
-    run = self._create_run_for_object(
-        run_attributes, char_pr_id_ref=text_run.get("charPrIDRef") if text_run is not None else None
-    )
     drop_cap = create_drop_cap_element(
         width, height, character, style=style, char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref
     )
+    text_run = next((run for run in self._run_elements() if run.find(f"{_HP}t") is not None), None)
+    run = text_run if text_run is not None else self._create_run_for_object(run_attributes)
     if type(drop_cap) is not type(run):  # lxml vs stdlib ET, the bridge _paragraph_insert_shape_element uses
         drop_cap = LET.fromstring(ET.tostring(drop_cap, encoding="utf-8"))
-    run.append(drop_cap)
-    if text_run is not None:
-        self.element.remove(run)
-        self.element.insert(list(self.element).index(text_run), run)
+    text = run.find(f"{_HP}t")
+    if text is None:
+        run.append(drop_cap)
+    else:
+        run.insert(list(run).index(text), drop_cap)
     self.section.mark_dirty()
     return HwpxOxmlInlineObject(drop_cap, self)

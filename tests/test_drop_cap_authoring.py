@@ -26,6 +26,20 @@ _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
 
 
+def _holder_and_first_text_run(paragraph, drop_cap):
+    runs = paragraph.element.findall(f"{_HP}run")
+    holder = next(run for run in runs if any(node is drop_cap for node in run))
+    first_text_run = next(run for run in runs if run.find(f"{_HP}t") is not None)
+    return holder, first_text_run
+
+
+def _assert_right_before_the_first_text(paragraph, drop_cap) -> None:
+    holder, first_text_run = _holder_and_first_text_run(paragraph, drop_cap)
+    assert holder is first_text_run
+    children = list(holder)
+    assert children[children.index(drop_cap) + 1] is holder.find(f"{_HP}t")
+
+
 def _find_drop_cap_rect(section_element) -> "etree._Element | None":
     for node in section_element.iter(f"{_HP}rect"):
         if node.get("dropcapstyle"):
@@ -69,10 +83,7 @@ def test_add_drop_cap_goes_in_front_of_the_paragraph_text() -> None:
 
     result = document.shapes.add_drop_cap("가", width=4200, height=4200, paragraph=paragraph)
 
-    runs = paragraph.element.findall(f"{_HP}run")
-    holder = next(run for run in runs if any(node is result.element for node in run))
-    text_run = next(run for run in runs if run is not holder and run.find(f"{_HP}t") is not None)
-    assert runs.index(holder) < runs.index(text_run)
+    _assert_right_before_the_first_text(paragraph, result.element)
 
 
 def test_the_paragraph_method_puts_the_drop_cap_in_front_of_the_text() -> None:
@@ -81,10 +92,31 @@ def test_the_paragraph_method_puts_the_drop_cap_in_front_of_the_text() -> None:
 
     result = paragraph.add_drop_cap("가", width=4200, height=4200)
 
-    runs = paragraph.element.findall(f"{_HP}run")
-    holder = next(run for run in runs if any(node is result.element for node in run))
-    text_run = next(run for run in runs if run is not holder and run.find(f"{_HP}t") is not None)
-    assert runs.index(holder) < runs.index(text_run)
+    _assert_right_before_the_first_text(paragraph, result.element)
+
+
+def test_a_drop_cap_in_a_section_first_paragraph_goes_after_the_section_settings() -> None:
+    # The first paragraph of a section holds the section settings in its first run,
+    # and here its text too. Hancom keeps the settings and controls first and puts
+    # the drop cap right before the text.
+    document = HwpxDocument.new()
+    first = document.paragraphs[0]
+    first.text = "첫 문단 본문입니다."
+    settings_run = first.element.findall(f"{_HP}run")[0]
+    assert settings_run.find(f"{_HP}secPr") is not None
+
+    result = document.shapes.add_drop_cap("첫", width=3000, height=3000, paragraph=first)
+
+    assert first.element.findall(f"{_HP}run")[0] is settings_run
+    assert list(settings_run)[0].tag == f"{_HP}secPr"
+    _assert_right_before_the_first_text(first, result.element)
+    holder = _holder_and_first_text_run(first, result.element)[0]
+    children = list(holder)
+    assert all(
+        children.index(node) < children.index(result.element)
+        for node in children
+        if node.tag in (f"{_HP}secPr", f"{_HP}ctrl")
+    )
 
 
 def test_the_run_holding_the_drop_cap_keeps_the_text_character_shape() -> None:
@@ -99,9 +131,7 @@ def test_the_run_holding_the_drop_cap_keeps_the_text_character_shape() -> None:
         "가", width=4200, height=4200, paragraph=paragraph, char_pr_id_ref=letter_char_pr
     )
 
-    holder = next(
-        run for run in paragraph.element.findall(f"{_HP}run") if any(node is result.element for node in run)
-    )
+    holder = _holder_and_first_text_run(paragraph, result.element)[0]
     letter_run = result.element.find(f"{_HP}drawText/{_HP}subList/{_HP}p/{_HP}run")
     assert holder.get("charPrIDRef") == text_char_pr
     assert letter_run is not None and letter_run.get("charPrIDRef") == str(letter_char_pr)
