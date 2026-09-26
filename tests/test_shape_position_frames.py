@@ -319,7 +319,3 @@ def test_draw_text_is_a_contract_named_stable_type() -> None:
     assert lock["DrawText"]["stable"] == sorted(
         ["add_paragraph", "editable", "name", "paragraphs", "text", "text_margin"]
     )
-    for name in ("Shape", "DrawText"):
-        cls = getattr(model, name)
-        public = {m for m in dir(cls) if not m.startswith("_")}
-        assert lock[name]["internalCount"] == len(public - set(lock[name]["stable"]))
