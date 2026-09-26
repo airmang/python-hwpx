@@ -50,6 +50,15 @@
 
 ### 고침
 
+- 글자 모양을 바꾸는 API가 기준 글자 모양의 나머지 서식을 지키게 고친다. 런의
+  `bold`·`italic`·`underline`을 바꾸면 글자 크기·색·글꼴이 첫 글자 모양의 것으로
+  돌아갔다. `styles.ensure_run()`과 `add_run(size=...)` 같은 글자 서식 인자는 요청한 값만
+  같은 아무 글자 모양이나 돌려줘, 새 문서에서 `add_run("글", size=16)`이 파란 제목 글자가
+  되고 `base_char_pr_id`를 주어도 다른 글자 모양이 나왔다. 양식 칸에 맞춰 글자를 줄이면
+  굵게·기울임·밑줄이 풀렸고, 새로 만든 글자 모양에서는 기준의 취소선이 빠졌다. 이제
+  요청한 글자 모양은 기준(`base_char_pr_id`, 없으면 첫 글자 모양)에서 요청한 값만 바꾼
+  것이고, 내용이 같은 글자 모양이 있을 때만 그것을 다시 쓴다. `ensure_run()`에서 주지
+  않은 `bold`·`italic`·`underline`은 기준의 것을 따른다(기준을 주지 않으면 끔).
 - `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
   (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
   `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.
