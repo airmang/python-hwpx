@@ -26,6 +26,7 @@ from hwpx.hwp5.fileheader import FileHeader, parse_file_header
 from hwpx.hwp5.package import convert
 from hwpx.hwp5.reader import read_hwp5
 from hwpx.hwp5.writer import write_hwp5
+from hwpx.opc.package import HwpxPackageError
 from tests.test_hwp5_open import (
     HH,
     HP,
@@ -162,14 +163,22 @@ _RAW_SETTINGS = (
 
 
 def _with_raw_settings(extra: str = "") -> dict[str, bytes]:
+    """The package of a new document whose section setup carries the settings as raw parameters.
+
+    They go into the saved XML, as another writer leaves them: python-hwpx's own save checks
+    the parameters before the HWP writer could.
+    """
     document = HwpxDocument.new()
     document.add_paragraph("발표 설정을 날것으로 적은 문서")
-    document.sections[0].properties.element.append(etree.fromstring(_RAW_SETTINGS.replace("EXTRA", extra)))
-    document.sections[0].mark_dirty()
     buffer = io.BytesIO()
     document.save_to_stream(buffer)
     with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
-        return {name: package.read(name) for name in package.namelist()}
+        files = {name: package.read(name) for name in package.namelist()}
+    section = files["Contents/section0.xml"].decode("utf-8")
+    files["Contents/section0.xml"] = section.replace(
+        "</hp:secPr>", _RAW_SETTINGS.replace("EXTRA", extra) + "</hp:secPr>", 1
+    ).encode("utf-8")
+    return files
 
 
 def test_settings_kept_as_a_parameter_set_are_written_item_by_item() -> None:
@@ -708,10 +717,19 @@ def test_a_master_page_without_its_part_is_refused(tmp_path: Path) -> None:
     document = HwpxDocument.open(make_hwp())
     document.sections[0].properties.add_master_page_reference("masterpage9")
     target = tmp_path / "바탕쪽.hwp"
-    with pytest.raises(Hwp5Error) as info:
+    with pytest.raises((Hwp5Error, HwpxPackageError)):  # the package check refuses it first
         document.save_to_path(target)
-    assert info.value.context["unsupported"] == {"masterPage": 1}
     assert not target.exists()
+
+    # a package written elsewhere with the same reference: the HWP writer refuses it too
+    files = convert(make_hwp()).files
+    section = files["Contents/section0.xml"].decode("utf-8")
+    files["Contents/section0.xml"] = section.replace(
+        "</hp:secPr>", '<hp:masterPage idRef="masterpage9"/></hp:secPr>', 1
+    ).encode("utf-8")
+    with pytest.raises(Hwp5Error) as info:
+        write_hwp5(files)
+    assert info.value.context["unsupported"] == {"masterPage": 1}
 
 
 def test_a_picture_saves_as_hwp_with_its_image(tmp_path: Path) -> None:
