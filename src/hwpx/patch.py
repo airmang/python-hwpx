@@ -22,7 +22,7 @@ _PARAGRAPH_RE = re.compile(
     re.DOTALL,
 )
 _TEXT_RE = re.compile(
-    rb"<(?:[A-Za-z_][\w.-]*:)?t\b[^>/]*>(?P<text>.*?)</(?:[A-Za-z_][\w.-]*:)?t>",
+    rb"<(?P<prefix>(?:[A-Za-z_][\w.-]*:)?)t\b[^>/]*>(?P<text>.*?)</(?:[A-Za-z_][\w.-]*:)?t>",
     re.DOTALL,
 )
 _SELF_CLOSING_TEXT_RE = re.compile(
@@ -418,8 +418,18 @@ def _patch_section_xml(
     return _apply_edits(section_xml, edits), applied, skipped
 
 
+def _escaped_text(text: str, prefix: bytes) -> bytes:
+    """*text* escaped for ``hp:t``, each tab written as an ``hp:tab`` element.
+
+    Hancom reads a tab only as that element; a raw tab character inside
+    ``hp:t`` keeps it laying the paragraph out forever.
+    """
+
+    tab = b"<" + prefix + b"tab/>"
+    return tab.join(html.escape(part, quote=False).encode("utf-8") for part in text.split("\t"))
+
+
 def _text_edit_for_paragraph(paragraph: bytes, replacement_text: str) -> tuple[int, int, bytes, str] | None:
-    escaped = html.escape(replacement_text, quote=False).encode("utf-8")
     text_matches = list(_TEXT_RE.finditer(paragraph))
     if text_matches:
         original_text = "".join(
@@ -427,6 +437,7 @@ def _text_edit_for_paragraph(paragraph: bytes, replacement_text: str) -> tuple[i
             for match in text_matches
         )
         first = text_matches[0]
+        escaped = _escaped_text(replacement_text, first.group("prefix"))
         edits = [(first.start("text"), first.end("text"), escaped)]
         edits.extend((match.start("text"), match.end("text"), b"") for match in text_matches[1:])
         updated = _apply_edits(paragraph, edits)
@@ -437,6 +448,7 @@ def _text_edit_for_paragraph(paragraph: bytes, replacement_text: str) -> tuple[i
         prefix = self_closing_text.group("prefix")
         attrs = self_closing_text.group("attrs").rstrip()
         tag = prefix + b"t"
+        escaped = _escaped_text(replacement_text, prefix)
         replacement = b"<" + tag + attrs + b">" + escaped + b"</" + tag + b">"
         return self_closing_text.start(), self_closing_text.end(), replacement, ""
 
@@ -446,6 +458,7 @@ def _text_edit_for_paragraph(paragraph: bytes, replacement_text: str) -> tuple[i
         attrs = self_closing_run.group("attrs").rstrip()
         run_tag = prefix + b"run"
         text_tag = prefix + b"t"
+        escaped = _escaped_text(replacement_text, prefix)
         replacement = (
             b"<"
             + run_tag
@@ -467,7 +480,7 @@ def _text_edit_for_paragraph(paragraph: bytes, replacement_text: str) -> tuple[i
         return None
     prefix = run_open.group("prefix")
     text_tag = prefix + b"t"
-    insertion = b"<" + text_tag + b">" + escaped + b"</" + text_tag + b">"
+    insertion = b"<" + text_tag + b">" + _escaped_text(replacement_text, prefix) + b"</" + text_tag + b">"
     return run_open.end(), run_open.end(), insertion, ""
 
 

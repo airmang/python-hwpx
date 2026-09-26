@@ -64,7 +64,11 @@ class TrackingNamespace(_Namespace):
         author: str = "AI Agent",
         date: str | None = None,
     ) -> "TrackedChange":
-        """문단(또는 그 안의 *match*)을 삭제로 표시한다."""
+        """문단(또는 그 안의 *match*)을 삭제로 표시한다.
+
+        글만 있는 문단을 통째로 지우고 뒤에 문단이 이어지면, 문단 나눔도
+        삭제로 표시한다(`paraend="1"`). 그래서 한컴에서 빈 줄이 남지 않는다.
+        """
 
         from .. import tracked as _tracked
         from .._resolve import resolve_paragraph

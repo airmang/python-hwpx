@@ -25,6 +25,7 @@ from .namespaces import (
     tag_local_name,
     tag_namespace,
 )
+from .utils import hancom_text_length, tab_elements_in, tabs_as_elements, without_markup_nodes
 
 register_owpml_namespaces(ET.register_namespace)
 
@@ -46,7 +47,7 @@ _DEFAULT_PARAGRAPH_ATTRS = {
 }
 
 _DEFAULT_CELL_WIDTH = 7200
-_DEFAULT_CELL_HEIGHT = 3600
+_DEFAULT_CELL_HEIGHT = 282  # as a new Hancom table: each row grows to its text
 
 _BASIC_BORDER_FILL_ATTRIBUTES = {
     "threeD": "0",
@@ -85,8 +86,8 @@ _ILLEGAL_XML_CHARS = _re.compile(
 def _sanitize_text(value: str) -> str:
     """Strip characters that are illegal inside an HWPML ``<hp:t>`` node.
 
-    Tab (``\\t`` / U+0009) is stripped because HWPML requires it to be
-    represented as a dedicated ``<hp:ctrl>`` element, not as raw text.
+    Tab (``\\t`` / U+0009) is stripped because Hancom reads a tab only as an
+    ``hp:tab`` element inside ``hp:t`` (``_paragraph_text_edit.set_text_with_tabs``).
     Carriage return (``\\r`` / U+000D) is stripped; newline (``\\n`` / U+000A)
     is preserved for multiline cells.
     """
@@ -139,10 +140,12 @@ def _char_height_from_points(value: int | float | None) -> str | None:
 
 
 def _serialize_xml(element: ET.Element) -> bytes:
-    """Return a UTF-8 encoded XML document for *element*."""
+    """Return a UTF-8 encoded XML document for *element*, a tab in ``hp:t`` as ``hp:tab``."""
+    element = without_markup_nodes(element)
     xml_bytes = ET.tostring(element, encoding="utf-8", xml_declaration=False)
     if element.tag in {_HS + "sec", _HH + "head"}:
         root = LET.fromstring(xml_bytes)
+        tabs_as_elements(root)
         wrapped = LET.Element(root.tag, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
         wrapped.attrib.update(root.attrib)
         wrapped.text = root.text
@@ -155,7 +158,7 @@ def _serialize_xml(element: ET.Element) -> bytes:
             xml_declaration=True,
             standalone=True,
         )
-    return ET.tostring(element, encoding="utf-8", xml_declaration=True)
+    return tab_elements_in(ET.tostring(element, encoding="utf-8", xml_declaration=True))
 
 
 def _paragraph_id() -> str:
@@ -290,7 +293,7 @@ def _simple_paragraph_text_length(paragraph: ET.Element) -> int | None:
         for run_child in child:
             run_child_name = _element_local_name(run_child).lower()
             if run_child_name == "t":
-                total += len("".join(run_child.itertext()))
+                total += hancom_text_length(run_child)
             elif run_child_name in {
                 "tab",
                 "linebreak",
@@ -453,29 +456,31 @@ def _is_tab_control_element(node: ET.Element) -> bool:
 
 
 def _append_text_with_tabs(run: ET.Element, value: str) -> None:
-    segments = value.split("\t")
+    """Insert *value* as one ``hp:t`` with each tab as an ``hp:tab`` inside it.
+
+    That is how Hancom writes a tab (``<hp:t>이름<hp:tab/>홍길동</hp:t>``). An
+    ``hp:tab`` beside ``hp:t`` in the run is dropped when Hancom opens the
+    document, so the tab and the tab stops it would use are lost.
+    """
+
     text_tag = _child_tag_like(run, "t", _HP_NS)
     tab_tag = _child_tag_like(run, "tab", _HP_NS)
-    for index, segment in enumerate(segments):
-        text_element = run.makeelement(text_tag, {})
-        text_element.text = _sanitize_text(segment)
-        run.append(text_element)
-        if index < len(segments) - 1:
-            run.append(run.makeelement(tab_tag, {}))
+    segments = value.split("\t")
+    text_element = run.makeelement(text_tag, {})
+    text_element.text = _sanitize_text(segments[0])
+    run.append(text_element)
+    for segment in segments[1:]:
+        tab_element = text_element.makeelement(tab_tag, {})
+        tab_element.tail = _sanitize_text(segment)
+        text_element.append(tab_element)
 
 
 #: "\n" -> hp:lineBreak, " " (NO-BREAK SPACE) -> hp:nbSpace, "　"
 #: (IDEOGRAPHIC SPACE) -> hp:fwSpace. Real corpus (error__20230818__test.hwpx,
 #: error__20251107__test.hwpx, error__20250808__...hwpx) confirms all three
 #: sit nested inside a single hp:t via mixed content
-#: (<hp:t>before<hp:lineBreak/>after</hp:t>) -- unlike hp:tab, which
-#: _append_text_with_tabs above represents as a sibling of hp:t within
-#: hp:run instead (also schema-legal -- RunType's own choice group lists
-#: tab/lineBreak/nbSpace/fwSpace identically -- but not the shape any real
-#: sample of these three uses). Tab is intentionally not handled here: it
-#: already has an established, presumably Hancom-verified representation
-#: via _append_text_with_tabs, and retrofitting it risks behavior no
-#: existing caller asked to change.
+#: (<hp:t>before<hp:lineBreak/>after</hp:t>), the same shape
+#: _append_text_with_tabs above gives hp:tab.
 _RUN_CHOICE_ATOM_MARKERS: dict[str, str] = {
     "\n": "lineBreak",
     " ": "nbSpace",

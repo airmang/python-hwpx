@@ -102,9 +102,9 @@ REMOVED_REFERENCE_PATTERN = re.compile(
 
 
 def test_all_is_exactly_the_stable_set() -> None:
-    """``__all__`` is exactly the 34 stable names — no experimental, no deprecated."""
+    """``__all__`` is exactly the 36 stable names — no experimental, no deprecated."""
 
-    assert len(hwpx.__all__) == 34
+    assert len(hwpx.__all__) == 36
     assert STABLE_NAMES.isdisjoint(EXPERIMENTAL_NAMES)
     assert STABLE_NAMES.isdisjoint(DEPRECATED_NAMES)
     # __all__에 중복 없음.
@@ -112,12 +112,13 @@ def test_all_is_exactly_the_stable_set() -> None:
 
 
 def test_layer_counts() -> None:
-    assert len(STABLE_NAMES) == 34
+    # 36: the HWP 5.0 error and warning joined the stable surface beside HwpxError.
+    assert len(STABLE_NAMES) == 36
     # 5.6: +8 — 편집 계획 실행기 5명(hwpx.plan) + 자기서술 3명(hwpx.capabilities).
     assert len(EXPERIMENTAL_NAMES) == 23
     # Emptied in 5.0: the 4.x notice promised these names would go in the next major.
     assert len(DEPRECATED_NAMES) == 0
-    assert len(ALL_LEGACY_NAMES) == 57
+    assert len(ALL_LEGACY_NAMES) == 59
 
 
 def test_hwpx_error_is_stable_and_importable() -> None:

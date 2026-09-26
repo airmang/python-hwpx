@@ -39,7 +39,7 @@ def inspect_redline_structure(
 
     if document is not None:
         try:
-            changes = document.track_changes
+            changes = document.tracking.changes
             changes_by_id = {
                 int(change.id): change
                 for change in changes.values()
@@ -135,8 +135,8 @@ def author_demo_redline(doc: HwpxDocument) -> HwpxDocument:
     """Apply one tracked insert and one tracked delete to *doc*."""
 
     paragraph = doc.add_paragraph("redline delete target", char_pr_id_ref="0")
-    doc.add_tracked_insert(paragraph, " inserted", date=_DEMO_DATE)
-    doc.add_tracked_delete(paragraph, match="delete", date=_DEMO_DATE)
+    doc.tracking.insert(paragraph, " inserted", date=_DEMO_DATE)
+    doc.tracking.delete(paragraph, match="delete", date=_DEMO_DATE)
     return doc
 
 
@@ -194,7 +194,7 @@ def _marks_are_linked(
 
 
 def _track_change_display_enabled(document: HwpxDocument) -> bool:
-    for header in document.headers:
+    for header in document.parts.headers:
         config = header.to_model().track_change_config
         if config is not None and config.flags is not None and config.flags & 1:
             return True
