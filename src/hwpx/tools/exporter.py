@@ -180,21 +180,26 @@ def _body_paragraphs(element: ET.Element) -> list[ET.Element]:
     return found
 
 
-def _find_tables(p: ET.Element) -> list[ET.Element]:
-    """Tables placed in paragraph *p*, outermost only.
+def _placed_blocks(p: ET.Element) -> list[ET.Element]:
+    """Tables and text boxes placed in paragraph *p*, in document order, outermost only.
 
-    A table nested in a cell is already part of that cell's text, and a table
-    in a header, footer, note or memo is not body text.
+    A text box is returned as its ``hp:drawText``. A table or text box nested in
+    a cell is already part of that cell's text, and one in a header, footer,
+    note or memo is not body text.
     """
     found: list[ET.Element] = []
     for child in p:
         if child.tag in _NOT_BODY_TAGS:
             continue
-        if child.tag == f"{_HP}tbl":
+        if child.tag in (f"{_HP}tbl", f"{_HP}drawText"):
             found.append(child)
             continue
-        found.extend(_find_tables(child))
+        found.extend(_placed_blocks(child))
     return found
+
+
+def _text_box_paragraphs(draw_text: ET.Element) -> list[ET.Element]:
+    return draw_text.findall(f"{_HP}subList/{_HP}p")
 
 
 def _markdown_cell(text: str) -> str:
@@ -211,20 +216,30 @@ def export_text(
     tab_token: str = "\t",
     masking_policy: "TextSanitizer | None" = None,
 ) -> str:
-    """Export document content as plain text."""
+    """Export document content as plain text.
+
+    The tables and text boxes of a paragraph follow its text, in document order.
+    """
     sections = _section_xmls(source)
     section_texts: list[str] = []
     for section_root in sections:
         para_texts: list[str] = []
-        for p in _iter_paragraphs(section_root):
+
+        def emit(p: ET.Element) -> None:
             text = _mask_text(_paragraph_text(p, tab_token=tab_token), masking_policy)
             if text:
                 para_texts.append(text)
-            if include_tables:
-                for tbl in _find_tables(p):
-                    rows = _table_cells_text(tbl, tab_token=tab_token, masking_policy=masking_policy)
+            for block in _placed_blocks(p):
+                if block.tag == f"{_HP}drawText":
+                    for inner in _text_box_paragraphs(block):
+                        emit(inner)
+                elif include_tables:
+                    rows = _table_cells_text(block, tab_token=tab_token, masking_policy=masking_policy)
                     for row in rows:
                         para_texts.append(tab_token.join(row))
+
+        for p in _iter_paragraphs(section_root):
+            emit(p)
         section_texts.append(paragraph_separator.join(para_texts))
     return section_separator.join(section_texts)
 
@@ -242,27 +257,37 @@ def export_html(
     tab_token: str = "\t",
     masking_policy: "TextSanitizer | None" = None,
 ) -> str:
-    """Export document content as HTML."""
+    """Export document content as HTML.
+
+    The tables and text boxes of a paragraph follow its text, in document order.
+    """
     sections = _section_xmls(source)
     body_parts: list[str] = []
+
+    def emit(p: ET.Element) -> None:
+        text = _mask_text(_paragraph_text(p, tab_token=tab_token), masking_policy)
+        if text:
+            body_parts.append(f"<p>{_escape_html(text)}</p>")
+        for block in _placed_blocks(p):
+            if block.tag == f"{_HP}drawText":
+                for inner in _text_box_paragraphs(block):
+                    emit(inner)
+                continue
+            rows = _table_cells_text(block, tab_token=tab_token, masking_policy=masking_policy) if include_tables else []
+            if rows:
+                body_parts.append('<table border="1">')
+                for row in rows:
+                    body_parts.append("  <tr>")
+                    for cell in row:
+                        body_parts.append(f"    <td>{_escape_html(cell)}</td>")
+                    body_parts.append("  </tr>")
+                body_parts.append("</table>")
+
     for sec_idx, section_root in enumerate(sections):
         if sec_idx > 0:
             body_parts.append("<hr />")
         for p in _iter_paragraphs(section_root):
-            text = _mask_text(_paragraph_text(p, tab_token=tab_token), masking_policy)
-            if text:
-                body_parts.append(f"<p>{_escape_html(text)}</p>")
-            if include_tables:
-                for tbl in _find_tables(p):
-                    rows = _table_cells_text(tbl, tab_token=tab_token, masking_policy=masking_policy)
-                    if rows:
-                        body_parts.append('<table border="1">')
-                        for row in rows:
-                            body_parts.append("  <tr>")
-                            for cell in row:
-                                body_parts.append(f"    <td>{_escape_html(cell)}</td>")
-                            body_parts.append("  </tr>")
-                        body_parts.append("</table>")
+            emit(p)
     body = "\n".join(body_parts)
     if full_document:
         return (
@@ -288,25 +313,35 @@ def export_markdown(
     tab_token: str = "\t",
     masking_policy: "TextSanitizer | None" = None,
 ) -> str:
-    """Export document content as Markdown."""
+    """Export document content as Markdown.
+
+    The tables and text boxes of a paragraph follow its text, in document order.
+    """
     sections = _section_xmls(source)
     section_parts: list[str] = []
     for section_root in sections:
         lines: list[str] = []
-        for p in _iter_paragraphs(section_root):
+
+        def emit(p: ET.Element) -> None:
             text = _mask_text(_paragraph_text(p, tab_token=tab_token), masking_policy)
             if text:
                 lines.append(text)
                 lines.append("")
-            if include_tables:
-                for tbl in _find_tables(p):
-                    rows = _table_grid_text(tbl, tab_token=tab_token, masking_policy=masking_policy)
-                    if rows:
-                        header = rows[0]
-                        lines.append("| " + " | ".join(_markdown_cell(cell) for cell in header) + " |")
-                        lines.append("| " + " | ".join("---" for _ in header) + " |")
-                        for row in rows[1:]:
-                            lines.append("| " + " | ".join(_markdown_cell(cell) for cell in row) + " |")
-                        lines.append("")
+            for block in _placed_blocks(p):
+                if block.tag == f"{_HP}drawText":
+                    for inner in _text_box_paragraphs(block):
+                        emit(inner)
+                    continue
+                rows = _table_grid_text(block, tab_token=tab_token, masking_policy=masking_policy) if include_tables else []
+                if rows:
+                    header = rows[0]
+                    lines.append("| " + " | ".join(_markdown_cell(cell) for cell in header) + " |")
+                    lines.append("| " + " | ".join("---" for _ in header) + " |")
+                    for row in rows[1:]:
+                        lines.append("| " + " | ".join(_markdown_cell(cell) for cell in row) + " |")
+                    lines.append("")
+
+        for p in _iter_paragraphs(section_root):
+            emit(p)
         section_parts.append("\n".join(lines).rstrip())
     return section_separator.join(section_parts)
