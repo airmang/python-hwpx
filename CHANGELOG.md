@@ -43,7 +43,8 @@
 - `validate_document()`가 구역·머리 XML을 번들된 전체 OWPML 스키마(`DevDoc/OWPML SCHEMA`의
   Body·ParaList·Core·Header)로도 검사한다(#118). 한/글 2011 네임스페이스를 2024로 바꿔 끼운
   사본을 보고, 한/글이 여는 문서에도 있는 편차(2011 관행)는 빼고 나머지를 경고(`OWPML
-  schema: …`)로 낸다. `ok`는 전처럼 하드 오류만 본다. 끄려면 `full_schema=False`.
+  schema: …`)로 낸다. `ok`는 전처럼 하드 오류만 본다. 끄려면 `full_schema=False`. 이 검사가
+  돌지 못하면 멈추지 않고 그 까닭을 경고로 남긴다. `hp:secPr` 안의 주석·처리 지시는 건너뛴다.
 - `add_table()`이 만드는 표의 행 높이 기본값을 12.7 mm(3600)에서 한컴이 새 표에 쓰는
   282로 바꾼다. 행은 셀 글 높이에 맞춰 자라서, 한 줄이면 약 4.6 mm다. 전처럼 높은 행이
   필요하면 `height=`를 준다.

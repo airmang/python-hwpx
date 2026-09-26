@@ -285,11 +285,12 @@ def _owpml_violations(payload: bytes, kind: str) -> list[tuple[str, int | None]]
     except etree.XMLSyntaxError:
         return []  # the part cannot be read at all -- reported by the parse check
     for sec_pr in root.iter(f"{_OWPML_PARAGRAPH}secPr"):
-        children = list(sec_pr)
+        # elements only: a comment or processing instruction has no name to order by
+        children = [child for child in sec_pr if isinstance(child.tag, str)]
         ordered = sorted(children, key=lambda child: _SEC_PR_ORDER.get(etree.QName(child).localname, len(_SEC_PR_ORDER)))
         if ordered != children:
-            for child in children:
-                sec_pr.remove(child)
+            for child in list(sec_pr):
+                sec_pr.remove(child)  # comments and instructions go too; the schema check skips them anyway
             sec_pr.extend(ordered)
     schema = _owpml_schema(kind)
     schema.validate(root)
@@ -374,7 +375,14 @@ def validate_document(
         schema = header_schema if is_header else section_schema
         validator = parse_header_xml if is_header else parse_section_xml
         if full_schema:
-            issues.extend(_owpml_issues(part_name, payload, "header" if is_header else "section"))
+            try:
+                issues.extend(_owpml_issues(part_name, payload, "header" if is_header else "section"))
+            except Exception as exc:  # the full-schema lint must not stop the other checks
+                issues.append(ValidationIssue(
+                    part_name=part_name,
+                    message=f"OWPML schema check could not run: {type(exc).__name__}: {exc}",
+                    severity="warning",
+                ))
         try:
             validator(payload, schema=schema)
         except etree.DocumentInvalid as exc:
