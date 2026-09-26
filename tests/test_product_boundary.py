@@ -303,7 +303,9 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # Command/Path parameters, written and read in one place.
     # +21: the HWP 5.0 (.hwp) reader, writer and their HWPX conversion (src/hwpx/hwp5/).
     # +1: the equation box and baseline measure (equation/measure.py).
-    assert report["classifiedFiles"] == 171
+    # +1: grid clean-up after a cell merge (oxml/table_merge.py), moved out of the
+    # table.py owner file.
+    assert report["classifiedFiles"] == 172
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

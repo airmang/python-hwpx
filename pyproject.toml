@@ -286,6 +286,9 @@ files = [
     # headroom -- same escape valve as dutmal_compose.py/objects.py/
     # field_marks.py above, per the WP-A rule.
     "src/hwpx/oxml/note_authoring.py",
+    # Grid clean-up after a cell merge (rows left without cells, columns no
+    # cell starts at) moved out of table.py -- born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/table_merge.py",
     # Hyperlink field target form (Hancom's Command/Path parameters,
     # written and read in one place) -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/hyperlink_form.py",
@@ -479,6 +482,9 @@ include = [
     # headroom -- same escape valve as dutmal_compose.py/objects.py/
     # field_marks.py above, per the WP-A rule.
     "src/hwpx/oxml/note_authoring.py",
+    # Grid clean-up after a cell merge (rows left without cells, columns no
+    # cell starts at) moved out of table.py -- born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/table_merge.py",
     # Hyperlink field target form (Hancom's Command/Path parameters,
     # written and read in one place) -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/hyperlink_form.py",
