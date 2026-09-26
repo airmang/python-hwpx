@@ -65,7 +65,9 @@
   `underline_color`·`shadow`), 칸·테두리 채우기와 그러데이션 색, 메모 모양, 도형 선·채우기,
   단 구분선, `body_patch`의 `restyle_text` 글자색은 `#RRGGBB`(`#` 생략·소문자 허용)만
   받고(`none`을 받던 자리는 `none`도), 그 밖의 값은 `HwpxValueError`(`style-color-invalid`)로
-  거부한다.
+  거부한다. 거부하면 아무것도 바꾸지 않는다: 머리말·꼬리말 `set_content`는 내용을 비우기 전에
+  색을 검사하고, 그 뒤에 값이 거부되어도 원래 내용으로 되돌린다. `set_columns`도 구분선 값을
+  먼저 검사한다.
 - 테두리 굵기(`styles.ensure_border_fill`의 `border_width`, `apply_paragraph_format`의
   문단 테두리 굵기)와 단 구분선 굵기(`page.set_columns`의 `separator_width`)를 받은 그대로
   쓰던 것을 고친다. 한컴은 선 굵기 목록(`0.1 mm`~`5.0 mm`)에 글자 그대로 있는 값만 읽고,

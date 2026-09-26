@@ -21,6 +21,43 @@ from hwpx.oxml.color import normalize_color
 NOT_RRGGBB = ["#ABC", "red", "#RED", "#12345", "#1234567", "#FF123456", "#GGGGGG", "#12 345"]
 
 
+def test_a_refused_colour_leaves_the_header_as_it_was() -> None:
+    doc = HwpxDocument.new()
+    doc.page.set_header(text="기존 머리말")
+
+    with pytest.raises(HwpxValueError):
+        doc.page.set_header(content=[{"children": [{"type": "run", "text": "새 머리말", "color": "#abc"}]}])
+
+    assert doc.oxml.sections[0].properties.get_header().text == "기존 머리말"
+    with zipfile.ZipFile(io.BytesIO(doc.to_bytes())) as archive:
+        section = archive.read("Contents/section0.xml").decode("utf-8")
+    assert section.count("기존 머리말") == 2 and "새 머리말" not in section
+
+
+def test_a_header_refused_later_in_its_content_is_put_back() -> None:
+    doc = HwpxDocument.new()
+    header = doc.page.set_header(text="기존 머리말")
+
+    with pytest.raises(ValueError):
+        header.set_content([{"children": [{"type": "run", "text": "앞"}, {"type": "unknown"}]}])
+
+    assert header.text == "기존 머리말"
+
+
+def test_a_refused_column_line_leaves_the_columns_as_they_were() -> None:
+    doc = HwpxDocument.new()
+    props = doc.oxml.sections[0].properties
+    props.set_columns(2, separator_type="DOT", separator_width="0.5 mm", separator_color="#FF0000")
+    col_pr = next(doc.oxml.sections[0].element.iter("{http://www.hancom.co.kr/hwpml/2011/paragraph}colPr"))
+    before = (dict(col_pr.attrib), [dict(child.attrib) for child in col_pr])
+
+    for bad in ({"separator_width": "0.13 mm"}, {"separator_color": "#abc"}):
+        with pytest.raises(HwpxValueError):
+            props.set_columns(3, **bad)
+
+    assert (dict(col_pr.attrib), [dict(child.attrib) for child in col_pr]) == before
+
+
 @pytest.mark.parametrize("value", NOT_RRGGBB)
 def test_a_value_that_is_not_rrggbb_is_refused(value: str) -> None:
     with pytest.raises(HwpxValueError) as caught:

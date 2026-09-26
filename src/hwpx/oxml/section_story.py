@@ -617,8 +617,32 @@ class HwpxOxmlSectionHeaderFooter:
         self._properties.section.mark_dirty()
 
     def set_content(self, content: Sequence[Mapping[str, Any]]) -> None:
-        """Replace header/footer content with paragraph/run/page-number specs."""
+        """Replace header/footer content with paragraph/run/page-number specs.
 
+        A value that is refused (a colour, a page number format, ...) leaves the
+        header/footer as it was.
+        """
+
+        from .color import normalize_color
+
+        for paragraph_spec in content:  # colours first: nothing is cleared for a bad one
+            for child in paragraph_spec.get("children") or paragraph_spec.get("runs") or ():
+                for key in ("color", "highlight"):
+                    if child.get(key) is not None:
+                        normalize_color(child.get(key))
+        saved = deepcopy(self.element)
+        try:
+            self._fill_content(content)
+        except Exception:
+            self.element.attrib.clear()
+            self.element.attrib.update(saved.attrib)
+            self.element.text = saved.text
+            for child in list(self.element):
+                self.element.remove(child)
+            self.element.extend(list(saved))
+            raise
+
+    def _fill_content(self, content: Sequence[Mapping[str, Any]]) -> None:
         self.clear_content()
         for paragraph_spec in content:
             paragraph = self.add_paragraph(align=paragraph_spec.get("align"))
