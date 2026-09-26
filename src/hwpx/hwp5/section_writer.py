@@ -377,14 +377,16 @@ def _object_common(ctrl: str, element: etree._Element) -> ct.ObjectCommon:
     sz = _find(element, "sz")
     pos = _find(element, "pos")
     margin = _find(element, "outMargin")
+    # A missing attribute takes the value Hancom gives it: PAPER for vertRelTo
+    # and horzRelTo, PAGE for widthRelTo and heightRelTo.
     props = _flag(pos, "treatAsChar") | _flag(pos, "affectLSpacing") << 2
-    props |= index_of(VERT_REL, pos.get("vertRelTo") if pos is not None else None, 2) << 3
+    props |= index_of(VERT_REL, pos.get("vertRelTo") if pos is not None else None, 0) << 3
     props |= index_of(VERT_ALIGN, pos.get("vertAlign") if pos is not None else None, 0) << 5
-    props |= index_of(HORZ_REL, pos.get("horzRelTo") if pos is not None else None, 2) << 8
+    props |= index_of(HORZ_REL, pos.get("horzRelTo") if pos is not None else None, 0) << 8
     props |= index_of(HORZ_ALIGN, pos.get("horzAlign") if pos is not None else None, 0) << 10
     props |= _flag(pos, "flowWithText") << 13 | _flag(pos, "allowOverlap") << 14
-    props |= index_of(WIDTH_REL, sz.get("widthRelTo") if sz is not None else None, 4) << 15
-    props |= index_of(HEIGHT_REL, sz.get("heightRelTo") if sz is not None else None, 2) << 18
+    props |= index_of(WIDTH_REL, sz.get("widthRelTo") if sz is not None else None, 1) << 15
+    props |= index_of(HEIGHT_REL, sz.get("heightRelTo") if sz is not None else None, 1) << 18
     props |= _flag(sz, "protect") << 20
     # With no textWrap Hancom writes a form object TOP_AND_BOTTOM (1) and any
     # other object SQUARE (0).
@@ -1728,7 +1730,8 @@ class SectionRecords:
     def caption(self, element: etree._Element, level: int) -> list[rec.Record]:
         sub_list = _find(element, "subList")
         paragraphs = [p for p in sub_list if _local(p) == "p"] if sub_list is not None else []
-        props = index_of(CAPTION_SIDE, element.get("side"), 3) | _flag(element, "fullSz") << 2
+        # A caption with no side is on the LEFT, as Hancom reads it.
+        props = index_of(CAPTION_SIDE, element.get("side"), 0) | _flag(element, "fullSz") << 2
         header = ct.CaptionHeader(
             len(paragraphs),
             _list_props(sub_list),

@@ -728,6 +728,41 @@ def test_an_object_without_a_text_wrap_wraps_as_hancom_writes_it(ctrl: str, wrap
 
 
 @pytest.mark.parametrize(
+    ("attrs", "expected"),
+    [
+        ("", (0, 0, 1, 1)),  # Hancom: PAPER, PAPER, PAGE, PAGE
+        ('vertRelTo="PARA" horzRelTo="COLUMN"|widthRelTo="ABSOLUTE" heightRelTo="ABSOLUTE"', (2, 2, 4, 2)),
+    ],
+)
+def test_missing_position_and_size_attributes_take_hancom_values(attrs: str, expected: tuple[int, ...]) -> None:
+    from hwpx.hwp5.section_writer import _object_common
+
+    pos, _, sz = attrs.partition("|")
+    element = etree.fromstring(
+        '<hp:rect xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">'
+        f'<hp:sz width="100" height="100" {sz}/><hp:pos treatAsChar="0" {pos}/></hp:rect>'
+    )
+    props = _object_common("gso ", element).props
+    assert ((props >> 3) & 3, (props >> 8) & 3, (props >> 15) & 7, (props >> 18) & 3) == expected
+
+
+@pytest.mark.parametrize(("side", "code"), [(None, 0), ("BOTTOM", 3), ("TOP", 2)])
+def test_a_caption_without_a_side_is_on_the_left(side: str | None, code: int) -> None:
+    """Hancom reads a caption with no side as LEFT."""
+
+    from hwpx.hwp5.section_writer import SectionRecords
+
+    attr = f' side="{side}"' if side else ""
+    caption = etree.fromstring(
+        f'<hp:caption xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"{attr} fullSz="0" width="8504" gap="850" lastWidth="0">'
+        "<hp:subList><hp:p><hp:run><hp:t>캡션</hp:t></hp:run></hp:p></hp:subList></hp:caption>"
+    )
+    [header, *_] = SectionRecords({}).caption(caption, 1)
+    assert header.tag == rec.LIST_HEADER
+    assert ct.CaptionHeader.decode(header.payload).props & 3 == code
+
+
+@pytest.mark.parametrize(
     ("name", "code"),
     [("EMPTY_DIAMOND", 4), ("EMPTY_BOX", 6), ("FILLED_DIAMOND", 0), ("FILLED_CIRCLE", 0), ("FILLED_BOX", 0)],
 )
