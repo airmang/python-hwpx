@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Sequence, cast
 
 from ._units import _mm_to_hwp_units
 from ..errors import HwpxStateError, HwpxValueError
+from ..oxml.objects import _closed_points
 
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
@@ -350,8 +351,13 @@ def add_polygon(
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
     section_index: int | None = None,
+    closed: bool = True,
 ) -> HwpxOxmlShape:
     """Insert a polygon drawing shape.
+
+    The polygon is closed: the first vertex is repeated at the end, as Hancom
+    writes a polygon, unless *closed* is false (an open line through the
+    vertices).
 
     *points_mm* are millimetre vertex coordinates (3 or more). Hancom stores
     a polygon's vertices in its own top-left-anchored local coordinate space
@@ -374,6 +380,8 @@ def add_polygon(
             include_run=False,
         )
     hwp_points = [(_mm_to_hwp_units(x), _mm_to_hwp_units(y)) for x, y in points]
+    if closed:
+        hwp_points = _closed_points(hwp_points)
     return paragraph.add_polygon(
         hwp_points,
         line_color=line_color, line_width=line_width,
@@ -533,6 +541,25 @@ def _check_chart_axes(root: Any) -> None:
             )
 
 
+#: The chart size (``hp:sz``) of the gold document ``HwpxOxmlParagraph.add_chart``
+#: defaults to.
+_DEFAULT_CHART_SIZE = (32250, 18750)
+
+
+def _default_chart_size(paragraph: HwpxOxmlParagraph) -> tuple[int, int]:
+    """The default chart size, scaled down to fit where the chart goes.
+
+    Hancom clips an object at the edge of its table cell, so a default chart
+    wider than the cell's usable width (or the text body) is narrowed, keeping
+    its shape, as the default width of a nested table is.
+    """
+    width, height = _DEFAULT_CHART_SIZE
+    usable = paragraph._context_table_width()
+    if usable is not None and usable < width:
+        return usable, round(height * usable / width)
+    return width, height
+
+
 def add_chart(
     doc: "HwpxDocument",
     chart_xml: bytes | str,
@@ -554,6 +581,10 @@ def add_chart(
     is written; after insertion the anchor is re-read through the standard
     section scan — creation fails loudly if it did not land (no
     special-casing by design).
+
+    Without ``size`` the chart takes the gold document's 32250x18750, scaled
+    down (keeping its shape) to the usable width of the table cell or text
+    body it goes into; Hancom clips an object at its cell's edge.
     """
     from lxml import etree as _etree  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
@@ -599,7 +630,7 @@ def add_chart(
     doc._package.write(part_path, data)
     inline_object = paragraph.add_chart(
         part_path,
-        size=size,
+        size=size if size is not None else _default_chart_size(paragraph),
         treat_as_char=treat_as_char,
         char_pr_id_ref=char_pr_id_ref,
     )

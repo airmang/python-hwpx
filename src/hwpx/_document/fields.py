@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
 
 from ..errors import HwpxStateError, HwpxValueError
 from ..objects.checkbox import CheckBox
-from ..objects.form_field import FieldLocation, FieldParameter, FormField
+from ..objects.form_field import CellField, FieldLocation, FieldParameter, FormField
 from ..objects.results import FieldFillResult
 from ..oxml import HwpxOxmlParagraph
 from ..oxml.namespaces import HP
@@ -401,6 +401,42 @@ def list_form_fields(doc: "HwpxDocument") -> tuple[FormField, ...]:
     """Return native form/click-here fields in document order."""
 
     return tuple(_form_field_from_match(doc, match) for match in _iter_form_field_matches(doc))
+
+
+def _named_cells(paragraphs: Any) -> Iterator[Any]:
+    for paragraph in paragraphs:
+        for table in paragraph.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    if cell.field_name:
+                        yield cell
+                    yield from _named_cells(cell.paragraphs)
+
+
+def list_cell_fields(doc: "HwpxDocument") -> tuple[CellField, ...]:
+    """Named table cells (Hancom's cell fields) in document order: body tables and the tables in their cells."""
+
+    return tuple(CellField(cell) for section in doc.sections for cell in _named_cells(section.paragraphs))
+
+
+def fill_cell_fields(doc: "HwpxDocument", value: str, *, name: str, index: int | None = None) -> tuple[CellField, ...]:
+    """Set the text of every cell field called *name*, or of the *index*-th of them only."""
+
+    wanted = (name or "").strip()
+    fields = [field for field in list_cell_fields(doc) if wanted and field.name == wanted]
+    if index is not None:
+        fields = fields[index : index + 1] if index >= 0 else []
+    if not fields:
+        where = f"{wanted!r}" if index is None else f"{wanted!r} at index {index}"
+        raise HwpxValueError(
+            f"no cell field named {where}",
+            code="field-cell-not-found",
+            context={"name": wanted, "index": index},
+            suggestion="List doc.fields.cells to see the cell field names.",
+        )
+    for field in fields:
+        field.text = value
+    return tuple(fields)
 
 
 _PROMPT_TEXT_COLOR = "#FF0000"

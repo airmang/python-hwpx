@@ -26,6 +26,20 @@ _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
 
 
+def _holder_and_first_text_run(paragraph, drop_cap):
+    runs = paragraph.element.findall(f"{_HP}run")
+    holder = next(run for run in runs if any(node is drop_cap for node in run))
+    first_text_run = next(run for run in runs if run.find(f"{_HP}t") is not None)
+    return holder, first_text_run
+
+
+def _assert_right_before_the_first_text(paragraph, drop_cap) -> None:
+    holder, first_text_run = _holder_and_first_text_run(paragraph, drop_cap)
+    assert holder is first_text_run
+    children = list(holder)
+    assert children[children.index(drop_cap) + 1] is holder.find(f"{_HP}t")
+
+
 def _find_drop_cap_rect(section_element) -> "etree._Element | None":
     for node in section_element.iter(f"{_HP}rect"):
         if node.get("dropcapstyle"):
@@ -59,6 +73,80 @@ def test_add_drop_cap_embeds_the_character_in_a_nested_paragraph() -> None:
     sub_list = draw_text.find(f"{_HP}subList")
     assert sub_list is not None
     assert sub_list.find(f"{_HP}p") is not None
+
+
+def test_add_drop_cap_goes_in_front_of_the_paragraph_text() -> None:
+    # Hancom draws a drop cap where its run sits: after the text it would
+    # land on the paragraph's last line.
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("장식 뒤의 본문 문장입니다. " * 10)
+
+    result = document.shapes.add_drop_cap("가", width=4200, height=4200, paragraph=paragraph)
+
+    _assert_right_before_the_first_text(paragraph, result.element)
+
+
+def test_the_paragraph_method_puts_the_drop_cap_in_front_of_the_text() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("장식 뒤의 본문 문장입니다. " * 10)
+
+    result = paragraph.add_drop_cap("가", width=4200, height=4200)
+
+    _assert_right_before_the_first_text(paragraph, result.element)
+
+
+def test_a_drop_cap_in_a_section_first_paragraph_goes_after_the_section_settings() -> None:
+    # The first paragraph of a section holds the section settings in its first run,
+    # and here its text too. Hancom keeps the settings and controls first and puts
+    # the drop cap right before the text.
+    document = HwpxDocument.new()
+    first = document.paragraphs[0]
+    first.text = "첫 문단 본문입니다."
+    settings_run = first.element.findall(f"{_HP}run")[0]
+    assert settings_run.find(f"{_HP}secPr") is not None
+
+    result = document.shapes.add_drop_cap("첫", width=3000, height=3000, paragraph=first)
+
+    assert first.element.findall(f"{_HP}run")[0] is settings_run
+    assert list(settings_run)[0].tag == f"{_HP}secPr"
+    _assert_right_before_the_first_text(first, result.element)
+    holder = _holder_and_first_text_run(first, result.element)[0]
+    children = list(holder)
+    assert all(
+        children.index(node) < children.index(result.element)
+        for node in children
+        if node.tag in (f"{_HP}secPr", f"{_HP}ctrl")
+    )
+
+
+def test_the_run_holding_the_drop_cap_keeps_the_text_character_shape() -> None:
+    # A letter-sized shape on the holder run makes Hancom lay the first line out at
+    # that size, and the text no longer wraps around the drop cap.
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("장식 뒤의 본문 문장입니다. " * 10)
+    text_char_pr = paragraph.element.findall(f"{_HP}run")[0].get("charPrIDRef")
+    letter_char_pr = document.styles.ensure_run(size=42)
+
+    result = document.shapes.add_drop_cap(
+        "가", width=4200, height=4200, paragraph=paragraph, char_pr_id_ref=letter_char_pr
+    )
+
+    holder = _holder_and_first_text_run(paragraph, result.element)[0]
+    letter_run = result.element.find(f"{_HP}drawText/{_HP}subList/{_HP}p/{_HP}run")
+    assert holder.get("charPrIDRef") == text_char_pr
+    assert letter_run is not None and letter_run.get("charPrIDRef") == str(letter_char_pr)
+    assert text_char_pr != str(letter_char_pr)
+
+
+def test_the_real_sample_places_its_drop_cap_before_the_text() -> None:
+    with zipfile.ZipFile(REAL_SAMPLE) as package:
+        section = etree.fromstring(package.read("Contents/section0.xml"))
+    rect = _find_drop_cap_rect(section)
+    assert rect is not None
+    run = rect.getparent()
+    siblings = list(run)
+    texts = [node for node in siblings if node.tag == f"{_HP}t"]
+    assert texts and siblings.index(rect) < siblings.index(texts[0])
 
 
 def test_add_drop_cap_round_trips_through_save_and_reopen() -> None:

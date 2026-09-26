@@ -26,10 +26,10 @@ from ._document_primitives import (
     _element_local_name,
     _object_id,
     _paragraph_id,
-    _sanitize_text,
     FILL_GRADIENT_TYPES,
     FILL_IMAGE_MODES,
 )
+from ._paragraph_text_edit import clear_text_element, sanitize_keeping_tabs, set_text_with_tabs
 
 from .body import Label, parse_label_element
 from .objects import Caption, _read_caption, _remove_caption, _write_caption
@@ -178,6 +178,17 @@ class HwpxOxmlTableCell:
         col_span = int(span.get("colSpan", "1"))
         return (row_span, col_span)
 
+    @property
+    def field_name(self) -> str:
+        """이 칸의 셀 필드 이름(``hp:tc@name``, 한/글 "셀 속성 → 필드 이름"). 없으면 빈 문자열."""
+
+        return self.element.get("name") or ""
+
+    @field_name.setter
+    def field_name(self, value: str | None) -> None:
+        self.element.set("name", (value or "").strip())
+        self.table.mark_dirty()
+
     def set_span(self, row_span: int, col_span: int) -> None:
         span = self._span_element()
         span.set("rowSpan", str(max(row_span, 1)))
@@ -270,7 +281,7 @@ class HwpxOxmlTableCell:
         split_paragraphs: bool = False,
     ) -> None:
         previous_text = self.text
-        sanitized_value = _sanitize_text(value)
+        sanitized_value = sanitize_keeping_tabs(value)
         if sanitized_value and sanitized_value != previous_text:
             sublist = self._ensure_sublist()
             if (sublist.get("lineWrap") or "").upper() == "SQUEEZE":
@@ -286,12 +297,10 @@ class HwpxOxmlTableCell:
             return
 
         text_element = self._ensure_text_element()
-        text_element.text = sanitized_value
+        set_text_with_tabs(text_element, sanitized_value)
         for node in self.element.findall(f".//{_HP}t"):
-            if node is text_element:
-                continue
-            if node.text:
-                node.text = ""
+            if node is not text_element:
+                clear_text_element(node)
         if not preserve_format:
             current: Any | None = text_element
             while current is not None and _element_local_name(current) != "run":

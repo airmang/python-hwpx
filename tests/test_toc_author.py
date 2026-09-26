@@ -208,6 +208,74 @@ def test_native_toc_dirty_default_and_mark_toc_dirty():
     assert toc_dirty(doc2) == "1"
 
 
+def _entry_tab_stops(doc: HwpxDocument) -> list[list[tuple[int, str, str]]]:
+    """Tab stops of each TOC entry paragraph (the ones holding a HYPERLINK field)."""
+    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    hh = "{http://www.hancom.co.kr/hwpml/2011/head}"
+    header = doc.oxml.headers[0].element
+    stops = []
+    for sec in doc.oxml.sections:
+        for p in sec.element.iter(f"{hp}p"):
+            if not any(fb.get("type") == "HYPERLINK" for fb in p.iter(f"{hp}fieldBegin")):
+                continue
+            para_pr = header.find(f".//{hh}paraPr[@id='{p.get('paraPrIDRef')}']")
+            tab_pr = header.find(f".//{hh}tabPr[@id='{para_pr.get('tabPrIDRef')}']")
+            items = tab_pr.findall(f".//{hh}tabItem") if tab_pr is not None else []
+            stops.append([(int(i.get("pos")), i.get("type"), i.get("leader")) for i in items])
+    return stops
+
+
+def test_toc_entries_right_align_page_numbers_at_the_text_edge():
+    doc, headings = _doc_with_headings(3)
+    ta.add_native_toc(doc, headings=headings)
+    properties = doc.oxml.sections[0].properties
+    width = (
+        properties.page_size.drawn_width
+        - properties.page_margins.left
+        - properties.page_margins.right
+        - properties.page_margins.gutter
+    )
+    assert width == 42520  # A4 with 30 mm side margins
+    assert _entry_tab_stops(doc) == [[(width, "RIGHT", "DASH")]] * 3
+    reopened = HwpxDocument.open(doc.to_bytes())
+    assert _entry_tab_stops(reopened) == [[(width, "RIGHT", "DASH")]] * 3
+
+
+def test_toc_entry_leader_follows_the_leader_code():
+    doc, headings = _doc_with_headings(2)
+    ta.add_native_toc(doc, headings=headings, leader=7)
+    assert _entry_tab_stops(doc) == [[(42520, "RIGHT", "CIRCLE")]] * 2
+    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    leaders = {tab.get("leader") for sec in doc.oxml.sections for tab in sec.element.iter(f"{hp}tab")}
+    assert leaders == {"7"}
+
+
+def test_toc_entry_tab_stop_uses_the_drawn_width_of_a_landscape_page():
+    doc, headings = _doc_with_headings(2)
+    doc.page.setup(paper_size="A4", orientation="LANDSCAPE")
+    ta.add_native_toc(doc, headings=headings)
+    properties = doc.oxml.sections[0].properties
+    width = properties.page_size.drawn_width - properties.page_margins.left - properties.page_margins.right
+    assert width > 42520
+    assert _entry_tab_stops(doc) == [[(width, "RIGHT", "DASH")]] * 2
+
+
+def test_toc_rejects_an_unknown_leader_code():
+    doc, headings = _doc_with_headings(1)
+    for bad in (-1, 12, True):
+        try:
+            ta.add_native_toc(doc, headings=headings, leader=bad)
+        except ValueError as exc:
+            assert getattr(exc, "code", None) == "paragraph-tab-leader-invalid"
+        else:  # pragma: no cover - failure path
+            raise AssertionError(f"leader={bad!r} was accepted")
+    assert all(
+        fb.get("type") != "TABLEOFCONTENTS"
+        for sec in doc.oxml.sections
+        for fb in sec.element.iter("{http://www.hancom.co.kr/hwpml/2011/paragraph}fieldBegin")
+    )
+
+
 def test_parse_plain_regenerated_entries_inside_region():
     """Hancom's ContentsHyperlink:0 regeneration emits PLAIN entries (no
     HYPERLINK field) — the harness must still see them inside the TOC region."""
