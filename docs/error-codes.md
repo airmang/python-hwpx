@@ -147,7 +147,9 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `master-page-in-use` | 지우려는 바탕쪽을 아직 어떤 절이 참조한다. |
 | `master-page-manifest-missing` | content.hpf 매니페스트에 opf:manifest 요소가 없다. |
+| `master-page-not-found` | 그 id의 바탕쪽 파트가 문서에 없다. |
 | `master-page-type-unsupported` | 바탕쪽 type 값이 OWPML 어휘(BOTH/EVEN/ODD/LAST_PAGE/OPTIONAL_PAGE) 밖이다. |
 
 ### `media-*`
@@ -279,6 +281,7 @@ except HwpxError as exc:
 | `shape-equation-not-verbatim` | 만든 수식이 스크립트를 그대로 담지 않았다. |
 | `shape-equation-script-empty` | 수식 스크립트가 비어 있다. |
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
+| `shape-original-size-invalid` | add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다. |
 | `shape-polygon-too-few-points` | add_polygon 에 꼭짓점을 3개 미만으로 줬다. |
 | `shape-position-frame` | 도형 기준 프레임·정렬 값이 OWPML 어휘(hp:pos 의 vertRelTo/horzRelTo/vertAlign/horzAlign) 밖이다. |
 | `shape-position-unsupported` | 위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다. |

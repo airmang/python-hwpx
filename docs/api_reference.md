@@ -126,8 +126,8 @@
   - 글자 모양의 `fontRef`가 그 lang 블록에서 가리키는 글꼴 이름입니다. 글자 모양·`fontRef`·속성·글꼴 id 중 하나라도 없으면 `None`입니다.
 - `styles.border_fill_info(border_fill_id_ref) -> BorderFillInfo | None`
   - `hh:borderFill` 하나를 `BorderFillInfo(id, left, right, top, bottom, diagonal, fill)`로 읽습니다. 각 변은 `BorderLine(type, width_mm, color)`이고 직계 자식 `hh:leftBorder`·`hh:rightBorder`·`hh:topBorder`·`hh:bottomBorder`·`hh:diagonal`에서 저장된 값 그대로 읽습니다. 요소가 없으면 `BorderLine("NONE", 0.0, "#000000")`입니다. `fill`은 첫 `hc:winBrush`의 `faceColor`이고, 없거나 `none`이면 `None`입니다. 그라데이션·그림 채우기는 설명하지 않습니다. 너비를 `"<숫자> mm"`로 읽을 수 없으면 `style-border-fill-width-invalid`, 없는 id면 `None`입니다. `border_fill()`은 그대로 `GenericElement`를 돌려줍니다.
-- `styles.replace_font(src_face, dst_face, *, langs=None) -> FontReplaceReport`
-  - 글꼴 하나를 문서 전체에서 다른 글꼴로 바꿉니다. lang 블록마다(`langs`를 주면 그 블록만) *src_face*가 없으면 건너뛰고, *dst_face*가 없으면 블록 끝에 `<hh:font id=… face=… type="TTF" isEmbedded="0"/>`를 더하고, *src_face*를 가리키던 `fontRef`를 *dst_face*로 옮긴 뒤 *src_face*를 지우고 남은 글꼴 id를 순서대로 0..N-1로 다시 매깁니다(`fontCnt`도 맞춤). 다른 `fontRef`는 모두 전과 같은 글꼴 이름을 가리킵니다. 결과 `FontReplaceReport`의 `langs`는 바뀐 블록, `declared`는 *dst_face*를 새로 더한 블록, `repointed`는 옮긴 `fontRef` 속성 수입니다. 빈 이름은 `style-font-face-empty`, 같은 이름 둘은 `style-font-replace-same-face`로 바꾸기 전에 거부합니다.
+- `styles.replace_font(src_face, dst_face, *, langs=None, font_type=None) -> FontReplaceReport`
+  - 글꼴 하나를 문서 전체에서 다른 글꼴로 바꿉니다. lang 블록마다(`langs`를 주면 그 블록만) *src_face*가 없으면 건너뛰고, *dst_face*가 없으면 블록 끝에 *dst_face* 글꼴을 더하고(다른 블록에 *dst_face* 선언이 있으면 그 `hh:font`를 id만 바꿔 복사해 `type`·자식 요소가 같고, 어디에도 없으면 `<hh:font id=… face=… type="TTF" isEmbedded="0"/>`, *font_type*을 주면 더하는 글꼴의 `type`은 그 값), *src_face*를 가리키던 `fontRef`를 *dst_face*로 옮긴 뒤 *src_face*를 지우고 남은 글꼴 id를 순서대로 0..N-1로 다시 매깁니다(`fontCnt`도 맞춤). 다른 `fontRef`는 모두 전과 같은 글꼴 이름을 가리킵니다. 결과 `FontReplaceReport`의 `langs`는 바뀐 블록, `declared`는 *dst_face*를 새로 더한 블록, `repointed`는 옮긴 `fontRef` 속성 수입니다. 빈 이름은 `style-font-face-empty`, 같은 이름 둘은 `style-font-replace-same-face`로 바꾸기 전에 거부합니다.
 
 #### 콘텐츠 생성 헬퍼
 
