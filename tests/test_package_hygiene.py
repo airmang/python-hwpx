@@ -349,3 +349,23 @@ def test_validate_reports_no_drift_on_clean_documents(source: Path | None) -> No
         document.media.add_image(PNG, "png")
 
     assert _drift(document) == []
+
+
+# Hancom marks OLE objects isEmbeded="0" too, but keeps their file in BinData/.
+OLE = CORPUS / "reader_writer__SimpleOLE.hwpx"
+
+
+def test_validate_warns_about_a_missing_ole_part_marked_not_embedded() -> None:
+    document = HwpxDocument.open(OLE)
+    assert _drift(document) == []
+    document.package.delete("BinData/ole1.ole")
+
+    drift = [issue for issue in document.validate().warnings if "ole1" in issue.message]
+
+    assert len(drift) == 1
+    assert "'BinData/ole1.ole'" in drift[0].message
+
+
+def test_validate_still_skips_a_linked_file_outside_the_package() -> None:
+    # SimpleVideo links a video by absolute path (isEmbeded="0", href outside BinData/)
+    assert _drift(HwpxDocument.open(LINKED_VIDEO)) == []
