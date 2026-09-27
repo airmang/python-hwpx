@@ -11,6 +11,7 @@ averages (Hangul 1.0 em, lower-case Latin 0.52 em, punctuation 0.42 em).
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,10 +26,12 @@ from hwpx.form_fit import (
     hancom_line_starts,
     measure,
 )
-from hwpx.form_fit.measure import _cell_text_style, resolve_slot_metrics
+from hwpx.form_fit.measure import _cell_text_style, resolve_slot_metrics, text_style_from_refs
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_rules.hwpx"
+FACE_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_face_advance.hwpx"
+INLINE_OBJECTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_inline_objects.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
 
@@ -96,6 +99,21 @@ def test_inline_objects_take_their_width_off_the_first_line_only() -> None:
     )
     assert measure("가나다라마바", slot).lines == 2
     assert measure("가나다라마바", SlotMetrics(available_width=2000.0, font_pt=10.0, max_lines=2)).lines == 3
+
+
+def test_text_that_cannot_start_beside_the_objects_starts_on_the_next_line() -> None:
+    slot = SlotMetrics(
+        available_width=500.0,
+        font_pt=10.0,
+        max_lines=3,
+        inline_object_width=4500.0,
+        inline_object_count=1,
+        text_style=CHARS,
+    )
+    assert measure("가", slot).lines == 2
+    assert measure("가나다라마바", slot).lines == 3
+    assert measure("가나다", replace(slot, available_width=0.0)).lines == 2
+    assert measure("가나다", replace(slot, available_width=1000.0)).lines == 2
 
 
 def test_the_shrink_ladder_keeps_the_text_style() -> None:
@@ -189,3 +207,47 @@ def test_the_line_starts_are_the_ones_hancom_saves() -> None:
         widths = [slot.available_width - max(style.indent, 0), slot.available_width - max(-style.indent, 0)]
 
         assert hancom_line_starts(cell.text, widths, slot.font_pt, style) == [int(s.get("textpos")) for s in segs], cell.text
+
+
+def test_a_hangul_syllable_takes_the_advance_of_its_face() -> None:
+    doc = HwpxDocument.new()
+    advances = {
+        face: text_style_from_refs(doc, None, [doc.oxml.ensure_run_style(font=face, size=10)]).hangul_advance
+        for face in ("함초롬바탕", "함초롬돋움", "한컴 고딕", "맑은 고딕")
+    }
+
+    assert advances == {"함초롬바탕": 0.972, "함초롬돋움": 0.972, "한컴 고딕": 0.932, "맑은 고딕": 1.0}
+    assert round(estimate_text_width("가", 10, TextStyle(hangul_advance=0.972))) == 972
+
+
+def test_each_face_breaks_where_hancom_breaks() -> None:
+    """Fourteen syllables per face, in a cell just wide enough and in one 10 HWPUNIT narrower
+    (함초롬바탕, 함초롬돋움, 한컴 고딕, 맑은 고딕), laid out and saved by Hancom."""
+    doc = HwpxDocument.open(FACE_ADVANCES.read_bytes())
+    tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+    assert len(tables) == 8
+    for table in tables:
+        cell = table.cell(0, 0)
+        segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
+        style = _cell_text_style(cell, doc)
+        slot = resolve_slot_metrics(cell, doc, safety=1.0)
+
+        assert hancom_line_starts(cell.text, [slot.available_width], slot.font_pt, style) == [
+            int(s.get("textpos")) for s in segs
+        ], (style.hangul_advance, slot.available_width)
+
+
+def test_text_after_inline_objects_breaks_where_hancom_breaks() -> None:
+    """A picture set in the line (its width 1000 to 4700 in a 5000 cell) and then the text: the text
+    starts beside it when its first character fits there, else on the next line."""
+    doc = HwpxDocument.open(INLINE_OBJECTS.read_bytes())
+    tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+    assert len(tables) == 12
+    for table in tables:
+        cell = table.cell(0, 0)
+        segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
+        slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
+
+        assert measure(cell.text, slot).lines == len(segs), cell.text
