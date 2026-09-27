@@ -1241,7 +1241,9 @@ class _LegacyFacade:
         """Remove an embedded image by its manifest item id.
 
         This removes the binary data from the ZIP, the manifest entry, and
-        the header binItem entry.
+        the header binItem entry. An item the document still points at is
+        refused with ``HwpxValueError`` (code ``media-item-in-use``);
+        ``doc.media.remove_image(item_id, force=True)`` removes it anyway.
 
         Returns:
             ``True`` if any component was removed.
