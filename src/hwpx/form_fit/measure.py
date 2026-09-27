@@ -28,6 +28,8 @@ import unicodedata
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
+from ..oxml.table_sizes import cell_margins_of
+
 # Advance width as a fraction of the em (font height in HWPUNIT). Hangul/wide are
 # exact (full-width cells); the Latin/digit/punct values are conservative class
 # averages — slightly generous so "it fits" stays trustworthy, never tight.
@@ -561,49 +563,20 @@ def _local_name(tag: object) -> str:
     return str(tag).rsplit("}", 1)[-1]
 
 
-def _cell_margin(cell_element: object) -> tuple[int, int]:
-    """Return (left, right) cellMargin in HWPUNIT, defaulting to 0."""
-
-    for child in cell_element:  # type: ignore[attr-defined]
-        if _local_name(child.tag) == "cellMargin":
-            return (
-                int(child.get("left", "0") or 0),
-                int(child.get("right", "0") or 0),
-            )
-    return (0, 0)
-
-
-def _cell_margin_vertical(cell_element: object) -> tuple[int, int]:
-    """Return (top, bottom) cellMargin in HWPUNIT, defaulting to 0."""
-
-    for child in cell_element:  # type: ignore[attr-defined]
-        if _local_name(child.tag) == "cellMargin":
-            return (
-                int(child.get("top", "0") or 0),
-                int(child.get("bottom", "0") or 0),
-            )
-    return (0, 0)
-
-
 def _effective_cell_margins(cell: object) -> tuple[int, int, int, int]:
-    """Respect explicit table-margin inheritance instead of inactive cell zeros."""
+    """(left, right, top, bottom) the cell is laid out with, as ``cell.margins`` reads them.
+
+    The table's ``hp:inMargin`` unless the cell's ``hasMargin`` is on; see
+    :func:`hwpx.oxml.table_sizes.effective_cell_margin_source`.
+    """
     element = getattr(cell, "element", None)
     if element is None:
         return (0, 0, 0, 0)
-    if element.get("hasMargin") in {"0", "false", "False"}:
-        table_element = getattr(getattr(cell, "table", None), "element", None)
-        if table_element is not None:
-            for child in table_element:
-                if _local_name(child.tag) == "inMargin":
-                    return (
-                        int(child.get("left", "0") or 0),
-                        int(child.get("right", "0") or 0),
-                        int(child.get("top", "0") or 0),
-                        int(child.get("bottom", "0") or 0),
-                    )
-    left, right = _cell_margin(element)
-    top, bottom = _cell_margin_vertical(element)
-    return left, right, top, bottom
+    table_element = getattr(getattr(cell, "table", None), "element", None)
+    margins = cell_margins_of(element, table_element)
+    if margins is None:
+        return (0, 0, 0, 0)
+    return margins.left, margins.right, margins.top, margins.bottom
 
 
 def _document_root(document: object) -> Any:
@@ -771,7 +744,9 @@ def resolve_slot_metrics(
 ) -> SlotMetrics:
     """Build :class:`SlotMetrics` from a live table cell.
 
-    ``available_width = max(cellSz.width - cellMargin.L - cellMargin.R, MIN_LINE_WIDTH) * safety`` —
+    ``available_width = max(cellSz.width - margin.L - margin.R, MIN_LINE_WIDTH) * safety``,
+    where the margins are the cell's effective ones (``cell.margins``: the
+    table's ``hp:inMargin`` unless ``hasMargin`` is on) —
     verified against Hancom's own ``lineSeg/@horzsize`` (±10 HWPUNIT on 82% of
     cells; the safety factor covers the rest plus paragraph indent, which is left
     to the HarfBuzz pass).

@@ -166,3 +166,146 @@ def test_cell_margins_is_a_frozen_payload() -> None:
     assert margins.to_dict() == {"left": 1, "right": 2, "top": 3, "bottom": 4}
     with pytest.raises(dataclasses.FrozenInstanceError):
         margins.left = 5  # type: ignore[misc]
+
+
+# --------------------------------------------------------------------------
+# Every reader of a cell's inner margins follows the rule ``cell.margins`` does.
+
+_TABLE_MARGIN = (100, 200, 300, 400)
+_CELL_MARGIN = (1, 2, 3, 4)
+
+
+def _cell_with_two_margins(has_margin: str | None):
+    doc, table, cell = _cell()
+    _set_box(table.element.find(f"{HP}inMargin"), *_TABLE_MARGIN)
+    _set_box(cell.element.find(f"{HP}cellMargin"), *_CELL_MARGIN)
+    if has_margin is None:
+        cell.element.attrib.pop("hasMargin", None)
+    else:
+        cell.element.set("hasMargin", has_margin)
+    return doc, table, cell
+
+
+_RULE_CASES = [("0", _TABLE_MARGIN), (None, _TABLE_MARGIN), ("1", _CELL_MARGIN)]
+
+
+@pytest.mark.parametrize(("has_margin", "expected"), _RULE_CASES)
+def test_form_fit_reads_the_same_margins_as_cell_margins(has_margin, expected) -> None:
+    from hwpx.form_fit.measure import MIN_LINE_WIDTH, resolve_slot_metrics
+
+    doc, _, cell = _cell_with_two_margins(has_margin)
+    assert tuple(dataclasses.astuple(cell.margins)) == expected
+
+    slot = resolve_slot_metrics(cell, doc, safety=1.0)
+    left, right, top, bottom = expected
+    assert slot.available_width == max(cell.width - left - right, MIN_LINE_WIDTH)
+
+
+@pytest.mark.parametrize(("has_margin", "expected"), _RULE_CASES)
+def test_a_nested_table_default_width_uses_the_effective_margins(has_margin, expected) -> None:
+    _, _, cell = _cell_with_two_margins(has_margin)
+    left, right, _, _ = expected
+
+    assert cell.paragraphs[0]._context_table_width() == cell.width - left - right
+
+
+@pytest.mark.parametrize(("has_margin", "expected"), _RULE_CASES)
+def test_the_table_height_bound_uses_the_effective_margins(has_margin, expected) -> None:
+    from hwpx._document.layout import _table_min_height
+
+    doc, table, cell = _cell_with_two_margins(has_margin)
+    cell.element.find(f"{HP}cellSz").set("height", "1")
+    _, _, top, bottom = expected
+
+    assert _table_min_height(doc, table.element) == 1000 + top + bottom
+
+
+@pytest.mark.parametrize(("has_margin", "expected"), _RULE_CASES)
+def test_the_template_analyzer_reports_the_effective_margins(
+    has_margin, expected, tmp_path
+) -> None:
+    from hwpx.tools.template_analyzer import analyze_template
+
+    doc, _, _ = _cell_with_two_margins(has_margin)
+    path = tmp_path / "margins.hwpx"
+    doc.save_to_path(path)
+
+    (table,) = analyze_template(path).table_summaries
+    assert table.cells[0].margin == dict(zip(("left", "right", "top", "bottom"), expected))
+
+
+@pytest.mark.parametrize(("has_margin", "expected"), _RULE_CASES)
+def test_the_layout_preview_pads_cells_with_the_effective_margins(has_margin, expected) -> None:
+    from hwpx.tools.layout_preview import _fmt_mm, _hwp_to_mm, render_layout_preview
+
+    doc, _, _ = _cell_with_two_margins(has_margin)
+    buffer = io.BytesIO()
+    doc.save_to_stream(buffer)
+
+    left, right, top, bottom = (_fmt_mm(_hwp_to_mm(value)) for value in expected)
+    assert f"padding:{top} {right} {bottom} {left}" in render_layout_preview(
+        buffer.getvalue()
+    ).html.replace(": ", ":")
+
+
+@pytest.mark.parametrize(("has_margin", "expected"), _RULE_CASES)
+def test_the_byte_patch_font_fit_uses_the_effective_margins(has_margin, expected) -> None:
+    from hwpx.table_patch import _cell_inner_width, _direct_cells, _iter_table_spans
+
+    doc, _, cell = _cell_with_two_margins(has_margin)
+    buffer = io.BytesIO()
+    doc.save_to_stream(buffer)
+    import zipfile
+
+    section = zipfile.ZipFile(buffer).read("Contents/section0.xml")
+    (span,) = _iter_table_spans(section)
+    table = section[span[0]:span[1]]
+    (only,) = _direct_cells(table)
+    left, right, _, _ = expected
+
+    assert _cell_inner_width(table, table[only.start:only.end]) == cell.width - left - right
+
+
+def _cells(tables):
+    for table in tables:
+        for row in table.rows:
+            for cell in row.cells:
+                yield cell
+                for paragraph in cell.paragraphs:
+                    yield from _cells(paragraph.tables)
+
+
+def test_hancom_lays_out_hasmargin_off_cells_with_the_table_margin() -> None:
+    """Hancom's own line layout of a real document agrees with ``cell.margins``.
+
+    ``seoul_sihaengmun.hwpx`` is a public document saved by Hancom Office
+    Hangul 11 (its ``version.xml``), line layout included. Its cells turn ``hasMargin`` off while carrying an ``hp:cellMargin`` different
+    from the table's ``hp:inMargin``. The line width Hancom recorded
+    (``lineseg@horzsize``) is the cell width minus the table margin, not
+    minus the cell's own one.
+    """
+    from pathlib import Path
+
+    path = Path(__file__).parent / "fixtures" / "m3_gongmun_gold" / "seoul_sihaengmun.hwpx"
+    doc = HwpxDocument.open(path)
+    checked = 0
+    for section in doc.oxml.sections:
+        for paragraph in section.paragraphs:
+            for cell in _cells(paragraph.tables):
+                own = cell.element.find(f"{HP}cellMargin")
+                inherited = cell.table.element.find(f"{HP}inMargin")
+                if cell.element.get("hasMargin") != "0" or own is None or inherited is None:
+                    continue
+                if int(own.get("left")) + int(own.get("right")) == int(
+                    inherited.get("left")
+                ) + int(inherited.get("right")):
+                    continue
+                segment = cell.element.find(f"{HP}subList/{HP}p/{HP}linesegarray/{HP}lineseg")
+                if segment is None or int(segment.get("horzsize")) <= 1440:
+                    continue  # Hancom's minimum line width, not the margin, decides
+                margins = cell.margins
+                assert abs(
+                    cell.width - margins.left - margins.right - int(segment.get("horzsize"))
+                ) <= 4
+                checked += 1
+    assert checked >= 40

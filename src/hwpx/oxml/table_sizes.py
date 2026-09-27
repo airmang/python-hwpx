@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from math import lcm
-from typing import TYPE_CHECKING, Any, Iterator, Sequence
+from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence
 
 from ..objects.results import CellMargins
 from ._document_primitives import (
@@ -27,9 +27,11 @@ if TYPE_CHECKING:
 
 __all__ = [
     "cell_margins",
+    "cell_margins_of",
     "equalize_column_widths",
     "equalize_row_heights",
     "set_cell_margins",
+    "effective_cell_margin_source",
     "set_column_widths",
 ]
 
@@ -253,6 +255,62 @@ def equalize_row_heights(table: "HwpxOxmlTable") -> None:
         entry.cell.set_size(height=height)
 
 
+def effective_cell_margin_source(
+    has_margin: str | None,
+    own: Mapping[str, Any] | Any | None,
+    inherited: Mapping[str, Any] | Any | None,
+) -> Any | None:
+    """Pick the margin record a cell is laid out with -- the one rule every reader uses.
+
+    *has_margin* is the cell's ``hasMargin`` attribute, *own* its
+    ``hp:cellMargin`` and *inherited* the table's ``hp:inMargin`` (elements
+    or attribute mappings; ``None`` when absent). The table margin applies
+    unless ``hasMargin`` is on (``"1"``/``"true"``). A missing ``hasMargin``
+    is off: the OWPML schema declares it ``xs:boolean`` with
+    ``default="false"`` on ``hp:tc`` (``owpml-paralist.xsd``). When the
+    chosen record is missing the other one is used; ``None`` when both are.
+    """
+    if (has_margin or "").strip().lower() in {"1", "true"}:
+        return own if own is not None else inherited
+    return inherited if inherited is not None else own
+
+
+def _margin_child(element: Any, local_name: str) -> Any | None:
+    if element is None:
+        return None
+    for child in element:
+        if _element_local_name(child) == local_name:
+            return child
+    return None
+
+
+def cell_margins_of(cell_element: Any, table_element: Any | None) -> CellMargins | None:
+    """The effective inner margins of a raw ``hp:tc`` element, in HWPUNIT.
+
+    For readers that hold elements rather than :class:`HwpxOxmlTableCell`
+    (form fit, the layout preview, the template analyzer). *table_element*
+    is the ``hp:tbl`` that owns the cell; without it only the cell's own
+    ``hp:cellMargin`` can be read. ``None`` when neither margin element
+    exists. Children are matched by local name, so stdlib and lxml trees
+    both work.
+    """
+    source = effective_cell_margin_source(
+        cell_element.get("hasMargin"),
+        _margin_child(cell_element, "cellMargin"),
+        _margin_child(table_element, "inMargin"),
+    )
+    if source is None:
+        return None
+    return CellMargins(*(_margin_value(source.get(side)) for side in _MARGIN_SIDES))
+
+
+def _margin_value(raw: str | None) -> int:
+    try:
+        return int(raw or 0)
+    except ValueError:
+        return 0
+
+
 def cell_margins(cell: "HwpxOxmlTableCell") -> CellMargins:
     """The inner margins Hancom lays this cell out with, in HWPUNIT.
 
@@ -265,17 +323,12 @@ def cell_margins(cell: "HwpxOxmlTableCell") -> CellMargins:
     When the chosen element is missing the other one is used: a cell with
     ``hasMargin`` on but no ``hp:cellMargin`` reads the table's
     ``hp:inMargin``, and a table without ``hp:inMargin`` reads the cell's
-    ``hp:cellMargin``. A cell with neither reads as zero margins.
+    ``hp:cellMargin``. A cell with neither reads as zero margins. The rule
+    itself is :func:`effective_cell_margin_source`, shared with every other
+    reader of cell margins in the engine.
     """
-    own = cell.element.find(f"{_HP}cellMargin")
-    inherited = cell.table.element.find(f"{_HP}inMargin")
-    if (cell.element.get("hasMargin") or "").strip().lower() in {"1", "true"}:
-        source = own if own is not None else inherited
-    else:
-        source = inherited if inherited is not None else own
-    if source is None:
-        return CellMargins(0, 0, 0, 0)
-    return CellMargins(*(int(source.get(side, "0") or 0) for side in _MARGIN_SIDES))
+    margins = cell_margins_of(cell.element, cell.table.element)
+    return margins if margins is not None else CellMargins(0, 0, 0, 0)
 
 
 def set_cell_margins(
