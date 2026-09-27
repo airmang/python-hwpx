@@ -4,6 +4,24 @@
 
 ## [Unreleased]
 
+### 추가
+
+- `doc.parts.remove_master_page(id)`를 더한다. 어느 구역도 참조하지 않는 바탕쪽의 매니페스트 항목과
+  파트를 지우고, 저장된 적이 있어 패키지에 있는 파트 파일도 지운다. 구역이 참조하는 바탕쪽은
+  `master-page-in-use`, 없는 id는 `master-page-not-found`로 거부하고 아무것도 바꾸지 않는다.
+- `doc.parts.add_master_page()`에 `section`을 더한다. 주면 만든 바탕쪽을 그 구역에 바로 연결한다.
+  그 구역에 같은 쪽의 바탕쪽이 이미 있으면 파트를 만들기 전에 `master-page-pages-taken`으로
+  거부하므로, 거부된 호출은 문서에 아무것도 남기지 않는다.
+- `add_rectangle()`·`add_ellipse()`(`doc.shapes`와 문단)에 `original_size=(w, h)`를 더한다.
+  `hp:orgSz`를 그리는 크기와 따로 쓴다. 도형과 기하는 원래 크기로 만들고, `curSz`·`sz`는
+  `width`×`height`, `scaMatrix`는 두 크기의 비율, 회전 중심은 `curSz`의 절반이다. 한/글이 저장한
+  코퍼스 파일의 크기 바뀐 도형과 같은 배치다. 주지 않으면 출력은 전과 같다. 양의 정수 두 개가
+  아니면 `shape-original-size-invalid`로 거부한다. 한/글에서 렌더는 확인하지 않았다.
+- `doc.styles.replace_font()`에 `font_type`(`REP`/`TTF`/`HFT`)을 더한다. 이 호출이 새로 선언하는
+  글꼴의 `type`을 정한다. 이미 있던 글꼴은 바꾸지 않는다.
+
+- `hwpx.opc.relationships.ManifestItemRef`에 매니페스트 항목의 `isEmbeded` 값을 담는 `is_embeded` 필드를
+  더한다.
 ### 바꿈
 
 - FormFit이 한글 한 자를 글자 모양의 한글 글꼴에서 한/글이 배치하는 폭으로 센다.
@@ -12,12 +30,23 @@
   조금 더 들어간다고 본다.
   - `TextStyle.hangul_advance`(em, 기본 1.0)를 더했다. 셀·누름틀 슬롯은 첫 run 글자 모양의
     한글 글꼴 이름으로 이 값을 채운다.
+- FormFit이 한글이 아닌 글자(숫자, 영문, 문장 부호, 자주 쓰는 기호)도 함초롬바탕·함초롬돋움·맑은
+  고딕에서는 한/글이 배치하는 글자별 폭으로 센다. 전에는 글자 종류별 평균(숫자 0.55 em, 문장 부호
+  0.42 em 등)을 썼다. 한글·영문·기타·기호 글꼴이 모두 같은 글자 모양일 때 쓰고, 다른 글꼴이나 표에
+  없는 글자는 전처럼 평균을 쓴다(`TextStyle.glyph_face`, `hwpx.form_fit.measure.glyph_advance_em`).
+- FormFit이 칸 줄 폭을 한/글처럼 센다. 1440 HWPUNIT 하한을 들여쓰기를 뺀 뒤 줄마다 적용하고(좁은 칸의
+  내어쓰기 줄도 1440), 칸보다 넓은 인라인 개체 다음 줄들은 칸 폭으로 센다(`SlotMetrics.line_width`,
+  `SlotMetrics.min_line_width`).
 - FormFit이 칸 첫 줄의 인라인 개체(체크 상자·그림 등) 뒤에 글의 첫 글자도 들어가지 않으면,
   한/글처럼 글이 다음 줄에서 시작한다고 센다. 전에는 첫 줄에 한 글자를 억지로 넣어 한 줄 적게
   세거나, 개체 뒤 폭이 0이면 들어갈 수 없다고 보았다.
 
 ### 고침
 
+- `doc.styles.replace_font()`가 *dst_face*를 새로 선언하는 블록에 늘 `type="TTF"`를 쓰던 것을
+  고친다. 다른 블록이 같은 글꼴을 `HFT`로 선언해도 그랬다. 이제 다른 블록에 *dst_face* 선언이
+  있으면 그 `hh:font`를 id만 바꿔 복사한다. 그래서 `type`·`isEmbedded`·`hh:typeInfo`가 그 선언과
+  같다. 어느 블록에도 없을 때만 전처럼 `TTF`로 선언한다.
 - `check_id_integrity()`가 동영상이 가리키는 항목(포스터 `imageIDRef`, 파일 `fileIDRef`)을 고아
   BinData로 보고해 `ok=False`를 내던 것을 고친다. `binaryItemIDRef`만 참조로 셌기 때문이다. 이제
   `imageIDRef`·`fileIDRef`·`soundIDRef`도 참조로 세고, 패키지 밖 파일을 잇는 항목(`isEmbeded="0"`이고
@@ -41,6 +70,23 @@
   테스트가 없어 19개 클래스 중 12개 값이 실제와 어긋나 있던 것을 고친다. 값을 실제에 맞추고(합 82 →
   154), 표면 테스트가 모든 클래스의 값과 `docs/stable-api.md`의 수를 확인한다. 공개 API는 바뀌지
   않는다.
+- 5.0에서 `python-hwpx-automation`으로 옮긴 모듈(`hwpx.builder`, `hwpx.authoring`, `hwpx.exam`,
+  `hwpx.tools.pii` 등 21개)을 import하면 `No module named ...`만 나오던 것을 고친다. 이제
+  `ModuleNotFoundError` 메시지가 새 모듈 경로(예: `hwpx_automation.office.authoring.builder`),
+  `pip install python-hwpx-automation`, 이전 가이드 주소를 알려 준다. 배포본에서 뺀 저장소 전용
+  패키지(`hwpx.benchmark`, `hwpx.conformance`, `hwpx.tools.fuzz`)는 소스 체크아웃에서 쓰라고
+  알려 준다. core는 여전히 companion 패키지를 import하지 않고, 옮긴 경로를 파일로 되살리지 않는다.
+  모듈별 대체표는 `docs/migration-5.0.md`의 "Module paths"에 있고 메시지와 같은 표에서 나온다.
+- `validate_package()`(`hwpx-validate-package`)가 패키지 밖 파일을 잇는 매니페스트 항목(`isEmbeded="0"`이고
+  href가 `BinData/` 밖, 예: 연결한 동영상)을 파트가 없다는 오류로 보고해 `ok=False`를 내던 것을 고친다.
+  이 때문에 참조 무결성 게이트(`require_reference_integrity`)로 저장하면 `OPC/package validation failed`로
+  실패했다. 이제 `doc.validate()`·`check_id_integrity()`·`doc.media.images`와 같은 규칙(`is_linked_file`)으로
+  이런 항목을 건너뛴다. `BinData/`에 파일을 두는 OLE 항목은 `isEmbeded="0"`이어도 계속 검사한다.
+- `doc.validate()`와 `validate_document()`(`hwpx-validate`)가 같은 패키지에 다른 답을 하던 것을 고친다.
+  매니페스트 불일치 경고(파트가 없는 매니페스트 항목, 매니페스트 항목이 없는 `BinData/` 파트)를
+  `doc.validate()`만 냈기 때문이다. 이제 이 검사를 `validate_document()`가 하고 `doc.validate()`는 그 결과를
+  그대로 돌려준다. 파트가 없는 매니페스트 항목을 오류로 보는 것은 여전히 패키지 검사(`validate_package()`)다.
+  `doc.validate()`의 docstring에 무엇을 검사하는지 적는다.
 
 ## [6.6.0] - 2026-09-28
 

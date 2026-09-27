@@ -2,9 +2,10 @@
 """Helpers for resolving HWPX container and manifest relationships.
 
 This includes the binary item rules -- which manifest items hold binary data,
-and how content refers to them -- that ``doc.media``, ``doc.validate()`` and
-``hwpx.tools.id_integrity`` share, so they cannot disagree about whether an
-item is a binary item or whether the document still uses it.
+and how content refers to them -- that ``doc.media``, ``doc.validate()``,
+``hwpx.tools.id_integrity`` and ``hwpx.tools.package_validator`` share, so they
+cannot disagree about whether an item is a binary item, whether it links a
+file outside the package or whether the document still uses it.
 """
 
 from __future__ import annotations
@@ -59,6 +60,7 @@ class ManifestItemRef:
     resolved_path: str
     media_type: str | None = None
     properties: str | None = None
+    is_embeded: str | None = None
 
 
 @dataclass(frozen=True)
@@ -260,6 +262,7 @@ def parse_manifest_relationships(
             resolved_path=resolved_path,
             media_type=item.get("media-type"),
             properties=item.get("properties"),
+            is_embeded=item.get("isEmbeded"),
         )
         items.append(item_ref)
         if item_ref.item_id:

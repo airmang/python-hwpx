@@ -24,7 +24,9 @@ from ._document_primitives import (
     _reposition_child_before_any,
     _paragraph_id,
 )
-from .shape_position import _shape_set_position, validate_draw_text_vert_align
+from .shape_position import (
+    _shape_set_position, build_at_original_size, validate_draw_text_vert_align,
+)
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
@@ -855,14 +857,16 @@ def _paragraph_add_rectangle(
     treat_as_char: bool = True,
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
+    original_size: tuple[int, int] | None = None,
 ) -> "HwpxOxmlShape":
     """Insert a spec-compliant ``<hp:rect>`` drawing shape.
 
     Dimensions are in HWPUNIT.  *ratio* controls corner roundness
-    (0 = sharp, 50 = semicircle).
+    (0 = sharp, 50 = semicircle).  *original_size* ``(w, h)`` sets ``orgSz``
+    apart from the drawn size (see ``shape_position.build_at_original_size``).
     """
-    el = _create_rectangle_element(
-        width, height,
+    el = build_at_original_size(
+        _create_rectangle_element, width, height, original_size,
         ratio=ratio,
         line_color=line_color,
         line_width=line_width,
@@ -885,13 +889,14 @@ def _paragraph_add_ellipse(
     treat_as_char: bool = True,
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
+    original_size: tuple[int, int] | None = None,
 ) -> "HwpxOxmlShape":
     """Insert a spec-compliant ``<hp:ellipse>`` drawing shape.
 
-    Dimensions are in HWPUNIT.
+    Dimensions are in HWPUNIT.  *original_size* is as for ``add_rectangle``.
     """
-    el = _create_ellipse_element(
-        width, height,
+    el = build_at_original_size(
+        _create_ellipse_element, width, height, original_size,
         line_color=line_color,
         line_width=line_width,
         fill_color=fill_color,
