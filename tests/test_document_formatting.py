@@ -432,6 +432,26 @@ def test_table_set_cell_text_converts_squeeze_to_break() -> None:
     assert sublist.get("lineWrap") == "SQUEEZE"
 
 
+def test_a_value_that_squeezes_readably_keeps_the_cell_squeezed() -> None:
+    # Hancom keeps a SQUEEZE cell on one line and narrows the spacing; up to 1.1
+    # times the line width the text still reads. 10 pt: a Hangul syllable is 972
+    # wide and the new cell's line 41,500.
+    document = HwpxDocument.new()
+    cell = document.add_table(1, 1).cell(0, 0)
+    sublist = cell.element.find(f"{HP}subList")
+    assert sublist is not None
+    sublist.set("lineWrap", "SQUEEZE")
+
+    cell.text = "가" * 44  # 42,768: 1.03 times the line
+    assert sublist.get("lineWrap") == "SQUEEZE"
+
+    cell.text = "가" * 46  # 44,712: 1.08 times
+    assert sublist.get("lineWrap") == "SQUEEZE"
+
+    cell.text = "가" * 48  # 46,656: 1.12 times
+    assert sublist.get("lineWrap") == "BREAK"
+
+
 def test_save_removes_stale_layout_cache_after_low_level_text_edit() -> None:
     document = HwpxDocument.new()
     try:
