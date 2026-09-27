@@ -17,11 +17,14 @@ def _para_pr(doc: HwpxDocument, paragraph) -> dict[str, object]:
     element = doc._root.headers[0].element.find(f".//{HH}paraPr[@id='{paragraph.para_pr_id_ref}']")
     assert element is not None
     local = {node.tag.rsplit("}", 1)[-1]: node for node in element.iter()}
+    # The spacing Hancom reads: hp:default keeps it at twice the hp:case value.
+    in_default = {node for branch in element.iter(f"{HP}default") for node in branch.iter()}
+    read = [node for node in element.iter() if node not in in_default]
     return {
         "align": local["align"].get("horizontal"),
         "line_spacing": {node.get("value") for node in element.iter() if node.tag == f"{HH}lineSpacing"},
-        "prev": {node.get("value") for node in element.iter() if node.tag.endswith("}prev")},
-        "next": {node.get("value") for node in element.iter() if node.tag.endswith("}next")},
+        "prev": {node.get("value") for node in read if node.tag.endswith("}prev")},
+        "next": {node.get("value") for node in read if node.tag.endswith("}next")},
     }
 
 
