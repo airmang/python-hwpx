@@ -223,7 +223,7 @@ def test_line_height_and_budget_math():
 def test_budget_uses_declared_percent_line_spacing():
     slot = _vslot(height=3300, ratio=2.0)  # declared 200% → 2000/line
     assert slot.line_height(10.0) == pytest.approx(2000.0)
-    assert slot.height_lines(10.0) == 1          # floor(3300 / 2000)
+    assert slot.height_lines(10.0) == 2          # two lines take 2000 + 1000
     # Optimistic budget never uses a looser pitch than the tight floor.
     assert slot.height_lines_optimistic(10.0) == 3  # floor(3300 / 1000)
 
@@ -328,11 +328,12 @@ def test_modest_vertical_overflow_shrinks_into_budget_when_possible():
 
 
 def test_modest_vertical_overflow_defers_when_shrink_cannot_reach_budget():
-    # height=1600 cannot hold two lines even at min font — the honest outcome
-    # stays the reported modest deferral, never a false shrink claim.
+    # height=1500 cannot hold two lines even at min font (two 6 pt lines take
+    # 960 + 600) — the honest outcome stays the reported modest deferral, never
+    # a false shrink claim.
     engine = FitEngine()
     result = engine.fit(
-        "가" * 11, _vslot(height=1600), FitPolicy(mode="wrap_then_shrink", min_font_pt=6.0)
+        "가" * 11, _vslot(height=1500), FitPolicy(mode="wrap_then_shrink", min_font_pt=6.0)
     )
     assert result.ok is True
     assert result.overflow_detected is True

@@ -474,6 +474,10 @@ class SlotMetrics:
     # ``None`` takes the line as ``available_width + inline_object_width``.
     line_width: float | None = None
     min_line_width: float = 0.0
+    # The cell's first paragraph line spacing as (type, value): PERCENT in per
+    # cent, FIXED / BETWEEN_LINES / AT_LEAST in HWPUNIT. ``None`` falls back to
+    # ``line_spacing_ratio``.
+    line_spacing: tuple[str, float] | None = None
 
     @property
     def capacity(self) -> float:
@@ -487,6 +491,9 @@ class SlotMetrics:
         """Expected per-line vertical advance in HWPUNIT at *font_pt*."""
 
         pt = self.font_pt if font_pt is None else font_pt
+        if self.line_spacing is not None:
+            kind, value = self.line_spacing
+            return _line_pitch(kind, value, pt * 100.0)
         return pt * 100.0 * self._line_ratio()
 
     def height_lines(self, font_pt: float | None = None) -> int | None:
@@ -501,7 +508,7 @@ class SlotMetrics:
         line_h = self.line_height(font_pt)
         if line_h <= 0:
             return None
-        return max(int(self.available_height // line_h), 1)
+        return _lines_in_height(self.available_height, line_h, (self.font_pt if font_pt is None else font_pt) * 100.0)
 
     def height_lines_optimistic(self, font_pt: float | None = None) -> int | None:
         """Most-generous vertical budget (tightest plausible pitch).
@@ -513,11 +520,32 @@ class SlotMetrics:
         if self.available_height is None:
             return None
         pt = self.font_pt if font_pt is None else font_pt
-        ratio = min(self._line_ratio(), MIN_LINE_SPACING_RATIO)
-        line_h = pt * 100.0 * ratio
+        line_h = min(self.line_height(pt), pt * 100.0 * MIN_LINE_SPACING_RATIO)
         if line_h <= 0:
             return None
-        return max(int(self.available_height // line_h), 1)
+        return _lines_in_height(self.available_height, line_h, pt * 100.0)
+
+
+def _line_pitch(kind: str, value: float, size: float) -> float:
+    """Hancom's vertical advance of one line of *size* (HWPUNIT) under a spacing
+    type: PERCENT a share of the size, FIXED the value, BETWEEN_LINES the size
+    plus the value, AT_LEAST the larger of the two."""
+
+    kind = kind.upper()
+    if kind == "FIXED":
+        return value
+    if kind == "BETWEEN_LINES":
+        return size + value
+    if kind == "AT_LEAST":
+        return max(size, value)
+    return size * value / 100.0
+
+
+def _lines_in_height(height: float, pitch: float, size: float) -> int:
+    """How many lines Hancom fits in *height*: n lines take (n - 1) pitches and
+    one line's *size*, the last line's spacing left out; never fewer than one."""
+
+    return max(int((height - size) // pitch) + 1, 1)
 
 
 @dataclass(slots=True)
@@ -721,6 +749,31 @@ def _first_para_line_spacing_ratio(cell: object, document: object) -> float | No
     return None
 
 
+def _first_para_line_spacing(cell: object, document: object) -> tuple[str, float] | None:
+    """The cell's first paragraph line spacing as (type, value), any type."""
+
+    try:
+        paragraphs = cell.paragraphs  # type: ignore[attr-defined]
+    except Exception:  # pragma: no cover - defensive
+        return None
+    for paragraph in paragraphs:
+        ref = getattr(paragraph, "para_pr_id_ref", None)
+        if ref is None or document is None:
+            continue
+        try:
+            prop = _document_root(document).paragraph_property(ref)
+        except Exception:  # pragma: no cover - defensive
+            prop = None
+        spacing = getattr(prop, "line_spacing", None) if prop is not None else None
+        if spacing is None or not getattr(spacing, "value", None):
+            continue
+        try:
+            return (getattr(spacing, "spacing_type", None) or "PERCENT").upper(), float(spacing.value)
+        except (TypeError, ValueError):  # pragma: no cover - defensive
+            return None
+    return None
+
+
 def _style_number(value: object, default: float) -> float:
     try:
         return float(value)  # type: ignore[arg-type]
@@ -915,6 +968,7 @@ def resolve_slot_metrics(
         text_style=_cell_text_style(cell, document),
         line_width=line if raw_width > 0 else None,
         min_line_width=MIN_LINE_WIDTH * safety,
+        line_spacing=_first_para_line_spacing(cell, document),
     )
 
 

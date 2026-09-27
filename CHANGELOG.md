@@ -34,6 +34,11 @@
   고딕에서는 한/글이 배치하는 글자별 폭으로 센다. 전에는 글자 종류별 평균(숫자 0.55 em, 문장 부호
   0.42 em 등)을 썼다. 한글·영문·기타·기호 글꼴이 모두 같은 글자 모양일 때 쓰고, 다른 글꼴이나 표에
   없는 글자는 전처럼 평균을 쓴다(`TextStyle.glyph_face`, `hwpx.form_fit.measure.glyph_advance_em`).
+- FormFit의 세로 예산(`SlotMetrics.height_lines`)이 한/글이 칸을 늘리는 식을 따른다. n줄은
+  (n − 1) × 줄 간격 + 글자 크기를 차지하고 마지막 줄의 줄 간격은 들어가지 않는다. 전에는 n × 줄
+  간격으로 셌다. 줄 간격은 비율(`PERCENT`)뿐 아니라 고정(`FIXED` = 값), 여백만(`BETWEEN_LINES` = 크기
+  + 값), 최소(`AT_LEAST` = 크기와 값 중 큰 것)도 읽는다(`SlotMetrics.line_spacing`). 전에는 비율이
+  아니면 160%로 봤다.
 - FormFit이 칸 줄 폭을 한/글처럼 센다. 1440 HWPUNIT 하한을 들여쓰기를 뺀 뒤 줄마다 적용하고(좁은 칸의
   내어쓰기 줄도 1440), 칸보다 넓은 인라인 개체 다음 줄들은 칸 폭으로 센다(`SlotMetrics.line_width`,
   `SlotMetrics.min_line_width`).
