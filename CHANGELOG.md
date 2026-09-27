@@ -69,6 +69,19 @@
   쪽을 넘는 상자 하나로 그려진다(한컴의 "문단 테두리 연결"). 상자 안의 빈 문단에도
   같은 서식을 주면 상자가 끊기지 않는다. 기존 `bottom_border=True`는 그대로
   아래 한 면만 켠다. 잘못된 지정은 `paragraph-border-invalid`로 거부한다.
+- `Shape.set_position()`이 기준 프레임과 정렬도 정한다. `horz_rel_to`·`vert_rel_to`·
+  `horz_align`·`vert_align`이 `hp:pos`의 `horzRelTo`·`vertRelTo`·`horzAlign`·
+  `vertAlign`을 쓴다. 값은 OWPML 스키마 철자 그대로다(`vert_rel_to`에는 `COLUMN`이
+  없다). `PAPER`로 두면 확인 도장 같은 떠 있는 도형을 쪽 여백에 고정할 수 있다.
+  주지 않은 값은 그대로 두므로 오프셋만 주는 기존 호출은 결과가 같다. 스키마 밖의
+  값은 아무것도 바꾸기 전에 `shape-position-frame`으로 거부한다.
+- `Shape.set_draw_text()`에 `para_pr_id_ref`(도형 안 문단의 `paraPrIDRef`)와
+  `vert_align`(`hp:subList/@vertAlign`, `TOP`/`CENTER`/`BOTTOM`)을 더한다. 둘 다
+  생략하면 XML이 전과 같다. 잘못된 정렬 값은 `shape-draw-text-vert-align`으로 거부한다.
+- `Shape.draw_text`·`set_draw_text`·`remove_draw_text`를 stable 표면에 올리고, 이들이
+  돌려주는 글상자를 `hwpx.model.DrawText`라는 계약 이름으로 낸다(`name`·`editable`·
+  `text_margin`·`paragraphs`·`text`·`add_paragraph`가 stable). 반환 객체 계약은
+  19개 클래스 / 189개 멤버가 된다.
 - 글꼴 표와 테두리를 값으로 읽는다. `doc.styles.fonts(lang="HANGUL")`는 그 lang 블록의
   글꼴을 id 문자열 → `Font`로, `doc.styles.font_face(char_pr_id_ref, lang="HANGUL")`는 글자
   모양이 그 lang에서 가리키는 글꼴 이름을 돌려준다. `doc.styles.border_fill_info(id)`는

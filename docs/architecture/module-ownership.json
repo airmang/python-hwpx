@@ -562,6 +562,12 @@
       "rationale": "Font table and border-fill reads over the live Contents/header.xml (doc.styles.fonts/font_face/border_fill_info) plus replace_font, which swaps one hh:font face for another per hh:fontface block and remaps every hh:charPr/hh:fontRef so no other reference changes the face it names. Reusable HWPX format behavior a converter (e.g. HWPX to DOCX) needs; no renderer, application workflow or agent policy. Free functions over HwpxOxmlHeader rather than methods because header_part.py sits at 1598/1600 lines -- same pattern as header_compat.py."
     },
     {
+      "path": "src/hwpx/oxml/shape_position.py",
+      "disposition": "core",
+      "approvedBy": "shape-position-reference-frames",
+      "rationale": "HwpxOxmlShape.set_position with hp:pos reference frames and alignment (vertRelTo/horzRelTo/vertAlign/horzAlign) plus the hp:subList/@vertAlign check for set_draw_text -- the OWPML enumerations from DevDoc/OWPML SCHEMA/ParaList XML schema.xml (AbstractShapeObjectType/pos, ParaListType), validated before any mutation. A new module rather than more objects.py lines (1,583/1,600 owner-file cap); set_position is attached to HwpxOxmlShape as a plain class attribute, the same escape valve as dutmal_compose.py. Format-level only: no renderer, application workflow or agent policy."
+    },
+    {
       "path": "src/hwpx/hwp5/__init__.py",
       "disposition": "core",
       "approvedBy": "owner-hwp5-core-2026-09-23",

@@ -295,6 +295,10 @@ files = [
     # Table width/height distribution (distribute cell width row by row) moved out
     # of table.py -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/table_sizes.py",
+    # Floating-shape reference frames (set_position) and shape-text
+    # vertical alignment -- objects.py's overflow module (1600-line cap),
+    # born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/shape_position.py",
     # Font table and border-fill reads plus replace_font (header.xml) --
     # born in the gate, per the WP-A rule.
     "src/hwpx/oxml/header_fonts.py",
@@ -497,6 +501,10 @@ include = [
     # Table width/height distribution (distribute cell width row by row) moved out
     # of table.py -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/table_sizes.py",
+    # Floating-shape reference frames (set_position) and shape-text
+    # vertical alignment -- objects.py's overflow module (1600-line cap),
+    # born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/shape_position.py",
     # Font table and border-fill reads plus replace_font (header.xml) --
     # born in the gate, per the WP-A rule.
     "src/hwpx/oxml/header_fonts.py",
