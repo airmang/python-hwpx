@@ -9,7 +9,14 @@ from typing import TYPE_CHECKING, Any, Iterator, NamedTuple, cast
 from ..errors import HwpxStateError, HwpxValueError
 from ..objects.binary_item import BinaryItem, PictureRef
 from ..objects.results import PictureReplacement
-from ..opc.relationships import normalize_part_name, resolve_part_name
+from ..opc.relationships import (
+    BINARY_ITEM_REF_ATTRS,
+    bin_ref_aliases,
+    is_binary_manifest_item,
+    is_linked_file,
+    normalize_part_name,
+    resolve_part_name,
+)
 from ..oxml import HwpxOxmlInlineObject, HwpxOxmlParagraph
 from ..oxml.namespaces import HC, HP
 from ._units import _mm_to_hwp_units
@@ -344,7 +351,7 @@ def _existing_image_item_ids(doc: "HwpxDocument") -> set[str]:
 
     for item in doc._package._manifest_items():
         href = str(item.get("href", "")).strip()
-        if _is_binary_manifest_item(href, str(item.get("media-type", "")).strip()):
+        if is_binary_manifest_item(href, str(item.get("media-type", "")).strip()):
             item_id = str(item.get("id", "")).strip()
             if item_id:
                 existing_ids.add(item_id)
@@ -359,22 +366,17 @@ def _existing_image_item_ids(doc: "HwpxDocument") -> set[str]:
     return existing_ids
 
 
-def _is_binary_manifest_item(href: str, media_type: str) -> bool:
-    href_path = PurePosixPath(href)
-    return media_type.lower().startswith("image/") or (
-        len(href_path.parts) >= 2 and href_path.parts[0] == "BinData"
-    )
-
-
 def list_images(doc: "HwpxDocument") -> tuple[BinaryItem, ...]:
     """Return every embedded binary data item as a :class:`BinaryItem`.
 
     Items the header ``binDataList`` lists come first. Binary items only the
     ``content.hpf`` manifest lists (href under ``BinData/`` or an ``image/*``
     media type) follow in manifest order -- Hancom-saved files usually
-    have no ``binDataList`` at all. Items marked ``isEmbeded="0"`` link a
-    file outside the package and are left out; an embedded item whose part
-    is missing is listed with ``size=0``.
+    have no ``binDataList`` at all. An item marked ``isEmbeded="0"`` whose
+    href lies outside ``BinData/`` links a file outside the package and is
+    left out; Hancom marks OLE objects ``isEmbeded="0"`` too but keeps their
+    file in ``BinData/``, so they are listed. An embedded item whose part is
+    missing is listed with ``size=0``.
     """
 
     header = doc._root.headers[0] if doc._root.headers else None
@@ -400,9 +402,9 @@ def list_images(doc: "HwpxDocument") -> tuple[BinaryItem, ...]:
         href = str(manifest_item.get("href", "")).strip()
         if not item_id or not href:
             continue
-        if not _is_binary_manifest_item(href, str(manifest_item.get("media-type", "")).strip()):
+        if not is_binary_manifest_item(href, str(manifest_item.get("media-type", "")).strip()):
             continue
-        if manifest_item.get("isEmbeded") == "0":
+        if is_linked_file(href, manifest_item.get("isEmbeded")):
             continue  # links a file outside the package; not a binary it holds
         if item_id in listed or _bin_data_stem(href) in listed:
             continue
@@ -457,13 +459,6 @@ def remove_image(
                 ),
             )
     return _remove_binary_item(doc, target)
-
-
-#: Attributes that name a binary item. Pictures, image fills and bullets, OLE
-#: objects and embedded fonts use ``binaryItemIDRef``; a video names its file
-#: and poster image with ``fileIDRef``/``imageIDRef``; a slide show sound
-#: uses ``soundIDRef``.
-_BINARY_ITEM_REF_ATTRS = ("binaryItemIDRef", "imageIDRef", "fileIDRef", "soundIDRef")
 
 
 class _BinaryItemTarget(NamedTuple):
@@ -527,11 +522,11 @@ def _find_binary_item(doc: "HwpxDocument", item_id: str) -> _BinaryItemTarget | 
 
     if bin_item_numeric_id is None:
         if manifest_item is not None:
-            is_binary = _is_binary_manifest_item(
+            is_binary = is_binary_manifest_item(
                 manifest_item.get("href", ""), manifest_item.get("media-type", "")
             )
         else:
-            is_binary = bin_data_path is not None and _is_binary_manifest_item(bin_data_path, "")
+            is_binary = bin_data_path is not None and is_binary_manifest_item(bin_data_path, "")
         if not is_binary:
             return None
 
@@ -542,34 +537,13 @@ def _find_binary_item(doc: "HwpxDocument", item_id: str) -> _BinaryItemTarget | 
         bin_data_path,
         bin_item_numeric_id,
     ):
-        aliases.update(_bin_ref_aliases(value))
+        aliases.update(bin_ref_aliases(value))
     return _BinaryItemTarget(
         item_id=item_id,
         bin_item_numeric_id=bin_item_numeric_id,
         bin_data_path=bin_data_path,
         aliases=frozenset(aliases),
     )
-
-
-def _bin_ref_aliases(value: Any) -> set[str]:
-    """The names *value* stands for: itself, its file name, its stem and,
-    when it is a number, its integer form -- the names
-    ``hwpx.tools.id_integrity`` also matches binary item references by.
-    """
-
-    if value is None:
-        return set()
-    raw = str(value).strip()
-    if not raw:
-        return set()
-    path = PurePosixPath(raw)
-    aliases = {raw, path.name, path.stem}
-    try:
-        aliases.add(str(int(raw)))
-    except ValueError:
-        pass
-    aliases.discard("")
-    return aliases
 
 
 def _binary_item_references(doc: "HwpxDocument", target: _BinaryItemTarget) -> list[str]:
@@ -582,9 +556,9 @@ def _binary_item_references(doc: "HwpxDocument", target: _BinaryItemTarget) -> l
     found: dict[str, None] = {}
     for part in (*root.headers, *root.sections, *root.master_pages, *root.histories):
         for element in part.element.iter():
-            for attr in _BINARY_ITEM_REF_ATTRS:
+            for attr in BINARY_ITEM_REF_ATTRS:
                 value = element.get(attr)
-                if value and not target.aliases.isdisjoint(_bin_ref_aliases(value)):
+                if value and not target.aliases.isdisjoint(bin_ref_aliases(value)):
                     found[f"{part.part_name}: {_local_name(element)}@{attr}"] = None
     return list(found)
 

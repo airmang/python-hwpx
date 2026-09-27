@@ -7,6 +7,12 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Any, Iterable, Mapping
 
+from hwpx.opc.relationships import (
+    BINARY_ITEM_REF_ATTRS,
+    bin_ref_aliases,
+    is_binary_manifest_item,
+    is_linked_file,
+)
 from hwpx.oxml.canonical_defaults import CHAR_PR_ID_REF_UNSET
 
 
@@ -98,7 +104,12 @@ class IgnoredIDRef:
 
 @dataclass(frozen=True)
 class OrphanBinData:
-    """A BinData image asset that is not referenced by any picture object."""
+    """A BinData asset nothing in the document points at.
+
+    A reference is any of ``binaryItemIDRef`` (pictures, image fills and
+    bullets, OLE objects, embedded fonts), ``imageIDRef``/``fileIDRef`` (a
+    video's poster and file) or ``soundIDRef``.
+    """
 
     item_id: str
     aliases: tuple[str, ...]
@@ -110,7 +121,7 @@ class OrphanBinData:
         path = f" path={self.path!r}" if self.path else ""
         return (
             f"{self.severity}: BinData asset {self.item_id!r}{path} is not "
-            f"referenced by any binaryItemIDRef"
+            f"referenced by any {'/'.join(BINARY_ITEM_REF_ATTRS)}"
         )
 
 
@@ -149,8 +160,8 @@ def check_id_integrity(document: Any) -> IdIntegrityReport:
                 value = str(raw_value).strip()
                 if not value:
                     continue
-                if attr == "binaryItemIDRef":
-                    _add_bin_aliases(binary_refs, value)
+                if attr in BINARY_ITEM_REF_ATTRS:
+                    binary_refs.update(bin_ref_aliases(value))
                 table = _table_for_reference(element_name, attr, element)
                 if table is None:
                     if attr.endswith("IDRef") or attr.endswith("IdRef"):
@@ -230,7 +241,7 @@ def _collect_definition_tables(document: Any, oxml: Any) -> dict[str, set[str]]:
             name = _local_name(element.tag)
             if name == "binItem":
                 _add_aliases(tables["bin_data"], element.get("id"))
-                _add_bin_aliases(tables["bin_data"], element.get("BinData"))
+                tables["bin_data"].update(bin_ref_aliases(element.get("BinData")))
             elif name == "numbering":
                 _add_aliases(tables["numberings"], element.get("id"))
             elif name == "tabPr":
@@ -249,8 +260,8 @@ def _collect_definition_tables(document: Any, oxml: Any) -> dict[str, set[str]]:
     if callable(manifest_items):
         for item in manifest_items():
             if _is_bin_data_manifest_item(item):
-                _add_bin_aliases(tables["bin_data"], item.get("id"))
-                _add_bin_aliases(tables["bin_data"], item.get("href"))
+                tables["bin_data"].update(bin_ref_aliases(item.get("id")))
+                tables["bin_data"].update(bin_ref_aliases(item.get("href")))
 
     part_names = getattr(package, "part_names", None)
     if callable(part_names):
@@ -288,6 +299,8 @@ def _find_orphan_bin_data(document: Any, binary_refs: set[str]) -> list[OrphanBi
         for item in manifest_items():
             if not _is_bin_data_manifest_item(item):
                 continue
+            if is_linked_file(str(item.get("href", "")), item.get("isEmbeded")):
+                continue  # links a file outside the package, not a BinData asset
             _record_bin_asset(
                 assets,
                 source="manifest",
@@ -332,7 +345,7 @@ def _record_bin_asset(
 ) -> None:
     aliases: set[str] = set()
     for value in values:
-        _add_bin_aliases(aliases, value)
+        aliases.update(bin_ref_aliases(value))
     if not aliases:
         return
     key = _bin_asset_key(path, aliases)
@@ -352,13 +365,7 @@ def _bin_asset_key(path: Any, aliases: set[str]) -> str:
 
 
 def _is_bin_data_manifest_item(item: Any) -> bool:
-    href = str(item.get("href", "")).strip()
-    media_type = str(item.get("media-type", "")).strip().lower()
-    if href:
-        path = PurePosixPath(href)
-        if len(path.parts) >= 2 and path.parts[0] == "BinData":
-            return True
-    return media_type.startswith("image/")
+    return is_binary_manifest_item(str(item.get("href", "")), str(item.get("media-type", "")))
 
 
 def _iter_xml_parts(oxml: Any) -> Iterable[tuple[str, Any]]:
@@ -403,26 +410,6 @@ def _add_aliases(target: set[str], value: Any) -> None:
     if not raw:
         return
     target.add(raw)
-    try:
-        target.add(str(int(raw)))
-    except ValueError:
-        pass
-
-
-def _add_bin_aliases(target: set[str], value: Any) -> None:
-    if value is None:
-        return
-    raw = str(value).strip()
-    if not raw:
-        return
-    target.add(raw)
-    path = PurePosixPath(raw)
-    if path.name:
-        target.add(path.name)
-    if path.stem:
-        target.add(path.stem)
-    if path.name and len(path.parts) == 1 and raw != path.name:
-        target.add(path.name)
     try:
         target.add(str(int(raw)))
     except ValueError:

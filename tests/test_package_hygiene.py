@@ -269,6 +269,17 @@ def _drop_pictures(document: HwpxDocument) -> None:
         section.mark_dirty()
 
 
+def test_images_lists_an_ole_object_marked_not_embedded() -> None:
+    # Hancom marks OLE objects isEmbeded="0" but keeps their file in BinData/
+    document = HwpxDocument.open(OLE)
+    size = len(_read_part(OLE.read_bytes(), "BinData/ole1.ole"))
+
+    assert size > 0
+    assert document.media.images == (
+        BinaryItem(item_id="ole1", format="ole", href="BinData/ole1.ole", size=size),
+    )
+
+
 def test_removing_every_listed_image_keeps_linked_items() -> None:
     document = HwpxDocument.open(LINKED_VIDEO)
 
