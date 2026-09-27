@@ -88,6 +88,41 @@ def _sanitize_field_text(value: str) -> str:
     return _TEXT_ILLEGAL.sub("", value)
 
 
+# Characters an hp:t holds as child elements; they belong to the text they sit in.
+_TEXT_CHARACTER_NAMES = {"tab": "\t", "lineBreak": "\n", "hyphen": "", "nbSpace": "\u00a0", "fwSpace": "\u3000"}
+
+
+def _text_node_value(node: Any) -> str:
+    """The text of an ``hp:t``, with ``hp:lineBreak`` as a newline and ``hp:tab`` as a tab."""
+
+    parts = [node.text or ""]
+    for child in node:
+        parts.append(_TEXT_CHARACTER_NAMES.get(_local_name(child), ""))
+        parts.append(child.tail or "")
+    return "".join(parts)
+
+
+def _write_text_node(node: Any, value: str) -> None:
+    """Put *value* in the ``hp:t`` *node* in place of its text.
+
+    A line break (CRLF, LF or CR) becomes ``hp:lineBreak``, the element Hancom
+    turns such a character into when it opens the file. The characters of the
+    old text (tabs, line breaks) go; other marks stay, emptied.
+    """
+
+    for child in list(node):
+        if _local_name(child) in _TEXT_CHARACTER_NAMES:
+            node.remove(child)
+        else:
+            child.tail = ""
+    lines = value.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    node.text = lines[0]
+    for line in lines[1:]:
+        line_break = node.makeelement(f"{_HP}lineBreak", {})
+        node.append(line_break)
+        line_break.tail = line
+
+
 def _field_type_tokens(*values: str | None) -> set[str]:
     tokens: set[str] = set()
     for value in values:
@@ -252,7 +287,7 @@ def _find_field_end_in_following_paragraphs(
 
 
 def _run_texts(runs: Sequence[Any]) -> str:
-    return "".join("".join(node.itertext()) for run in runs for node in run if _local_name(node) == "t")
+    return "".join(_text_node_value(node) for run in runs for node in run if _local_name(node) == "t")
 
 
 def _field_text_nodes(
@@ -388,7 +423,7 @@ def _iter_form_field_matches(doc: "HwpxDocument") -> list[dict[str, Any]]:
                             end_run_index=end_run_index if span is None else len(runs) - 1,
                             end_child_index=end_child_index,
                         )
-                        current_value = "".join("".join(node.itertext()) for node in text_nodes)
+                        current_value = "".join(_text_node_value(node) for node in text_nodes)
                         if span is not None:
                             # the content goes on over paragraphs: their texts, one per line
                             end_paragraph, end_runs, span_run, span_child, middle = span
@@ -404,7 +439,7 @@ def _iter_form_field_matches(doc: "HwpxDocument") -> list[dict[str, Any]]:
                                 [
                                     current_value,
                                     *(_run_texts([c for c in p if _local_name(c) == "run"]) for p in middle),
-                                    "".join("".join(node.itertext()) for node in tail),
+                                    "".join(_text_node_value(node) for node in tail),
                                 ]
                             )
                         payload = _form_field_payload(
@@ -807,7 +842,7 @@ def _insert_form_field_text_run(
     runs: list[Any] = match["_runs"]
     begin_run = runs[int(match["_begin_run_index"])]
     text_node = begin_run.makeelement(f"{_HP}t", {})
-    text_node.text = _sanitize_field_text(value)
+    _write_text_node(text_node, _sanitize_field_text(value))
     begin_run.insert(int(match["_begin_child_index"]) + 1, text_node)
 
 
@@ -912,13 +947,9 @@ def fill_form_field(
         _insert_form_field_text_run(doc, match, sanitized)
     elif text_nodes:
         primary = text_nodes[0]
-        primary.text = sanitized
-        for child in list(primary):
-            child.tail = ""
+        _write_text_node(primary, sanitized)
         for node in text_nodes[1:]:
-            node.text = ""
-            for child in list(node):
-                child.tail = ""
+            _write_text_node(node, "")
         if match.get("is_placeholder"):
             # Contract (P0 gold): Hancom swaps the screen-only prompt style for
             # the surrounding style when a value replaces the placeholder.

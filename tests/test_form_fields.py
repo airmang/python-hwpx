@@ -212,3 +212,36 @@ def test_filling_a_command_prompt_field_drops_the_prompt_style() -> None:
     assert value.getparent().get("charPrIDRef") == begin_style
     assert [(p.get("name"), p.text) for p in begin.find(f"{HP}parameters")] == parameters
     assert begin.get("dirty") == "1"
+
+
+def _field_text_nodes_of(doc: HwpxDocument, name: str):
+    begin = next(b for b in doc.sections[0].element.iter(f"{HP}fieldBegin") if b.get("name") == name)
+    paragraph = begin.getparent().getparent().getparent()
+    return [t for t in paragraph.iter(f"{HP}t")]
+
+
+def test_a_line_break_in_a_field_value_is_written_as_hp_line_break() -> None:
+    doc = HwpxDocument.new()
+    doc.fields.add("주소", prompt="주소", paragraph=doc.add_paragraph(""))
+
+    result = doc.fields.fill("서울\r\n종로구\n1번지", name="주소")
+
+    [text] = [t for t in _field_text_nodes_of(doc, "주소") if "".join(t.itertext())]
+    assert text.text == "서울"
+    assert [(child.tag, child.tail) for child in text] == [(f"{HP}lineBreak", "종로구"), (f"{HP}lineBreak", "1번지")]
+    assert result.field.value == "서울\n종로구\n1번지"
+
+
+def test_filling_a_field_drops_the_line_breaks_of_its_old_value() -> None:
+    doc = HwpxDocument.new()
+    doc.fields.add("주소", prompt="주소", paragraph=doc.add_paragraph(""))
+    doc.fields.fill("서울", name="주소")
+    [text] = [t for t in _field_text_nodes_of(doc, "주소") if "".join(t.itertext())]
+    line_break = text.makeelement(f"{HP}lineBreak", {})  # as Hancom saves a two-line value
+    text.append(line_break)
+    line_break.tail = "종로구"
+
+    result = doc.fields.fill("부산", name="주소")
+
+    assert not any(t.findall(f"{HP}lineBreak") for t in _field_text_nodes_of(doc, "주소"))
+    assert result.field.value == "부산"
