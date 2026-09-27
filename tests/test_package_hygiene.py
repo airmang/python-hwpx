@@ -7,12 +7,16 @@
   preview image with a 1x1 white PNG; neither part is deleted.
 - ``doc.media.images``/``remove_image`` see binary items that only the
   ``content.hpf`` manifest lists (the usual case for Hancom-saved files).
+- ``remove_image`` refuses an item the document still points at (a picture,
+  a header image fill, a master page, a video, an OLE object) unless
+  ``force=True``, and never removes a manifest item that is not a binary item.
 - ``doc.validate()`` warns about manifest items with no part and ``BinData/``
   parts with no manifest item.
 """
 
 from __future__ import annotations
 
+import copy
 import io
 import re
 import struct
@@ -23,8 +27,10 @@ from pathlib import Path
 import pytest
 
 from hwpx.document import HwpxDocument
+from hwpx.errors import HwpxValueError
 from hwpx.objects import BinaryItem
 from hwpx.opc.package import HwpxPackage
+from hwpx.tools.id_integrity import check_id_integrity
 
 CORPUS = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
 TITLED = CORPUS / "error__20251107__test.hwpx"
@@ -32,6 +38,9 @@ PICTURE = CORPUS / "reader_writer__SimplePicture.hwpx"
 TEXT_PREVIEW_ONLY = CORPUS / "error__20241104__mot.hwpx"
 # links a video by absolute path (isEmbeded="0"), so the part is absent by design
 LINKED_VIDEO = CORPUS / "reader_writer__SimpleVideo.hwpx"
+OLE = CORPUS / "reader_writer__SimpleOLE.hwpx"
+
+HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 40
 
@@ -251,11 +260,21 @@ def test_images_leaves_out_linked_items_but_keeps_embedded_ones_without_a_part()
     )
 
 
+def _drop_pictures(document: HwpxDocument) -> None:
+    """Delete the body pictures, so the images they showed are no longer used."""
+
+    for section in document.oxml.sections:
+        for picture in list(section.element.iter(f"{HP}pic")):
+            picture.getparent().remove(picture)
+        section.mark_dirty()
+
+
 def test_removing_every_listed_image_keeps_linked_items() -> None:
     document = HwpxDocument.open(LINKED_VIDEO)
 
     for item in document.media.images:
-        assert document.media.remove_image(item) is True
+        # the video still names image2 as its poster
+        assert document.media.remove_image(item, force=True) is True
 
     hpf = _read_part(document.to_bytes(), "Contents/content.hpf").decode()
     assert 'id="image1"' in hpf
@@ -265,6 +284,7 @@ def test_removing_every_listed_image_keeps_linked_items() -> None:
 @pytest.mark.parametrize("how", ["id", "href", "item"])
 def test_remove_image_removes_manifest_only_items(how: str) -> None:
     document = HwpxDocument.open(PICTURE)
+    _drop_pictures(document)
     (item,) = document.media.images
     target = {"id": "image1", "href": "BinData/image1.jpg", "item": item}[how]
 
@@ -289,6 +309,82 @@ def test_remove_image_does_not_match_a_longer_id_with_the_same_prefix() -> None:
     assert not document.package.has_part("BinData/image1.png")
     header = document.oxml.headers[0]
     assert [item.get("BinData") for item in header.list_bin_items()] == ["image10.png"]
+
+
+@pytest.mark.parametrize(
+    ("source", "target", "reference"),
+    [
+        (PICTURE, "image1", "Contents/section0.xml: img@binaryItemIDRef"),
+        (PICTURE, "BinData/image1.jpg", "Contents/section0.xml: img@binaryItemIDRef"),
+        # a page border fill image, used only by the header
+        (TITLED, "image1", "Contents/header.xml: img@binaryItemIDRef"),
+        (LINKED_VIDEO, "image2", "Contents/section0.xml: video@imageIDRef"),
+        (LINKED_VIDEO, "image1", "Contents/section0.xml: video@fileIDRef"),
+        (OLE, "ole1", "Contents/section0.xml: ole@binaryItemIDRef"),
+    ],
+)
+def test_remove_image_refuses_an_item_the_document_still_uses(
+    source: Path, target: str, reference: str
+) -> None:
+    document = HwpxDocument.open(source)
+    images = document.media.images
+    parts = document.package.part_names()
+    hpf = document.package.get_text("Contents/content.hpf")
+
+    with pytest.raises(HwpxValueError) as caught:
+        document.media.remove_image(target)
+
+    assert caught.value.code == "media-item-in-use"
+    assert caught.value.context == {"itemId": target, "references": [reference]}
+    assert document.media.images == images
+    assert document.package.part_names() == parts
+    assert document.package.get_text("Contents/content.hpf") == hpf
+
+
+def test_remove_image_refuses_an_item_a_master_page_uses() -> None:
+    document = HwpxDocument.new()
+    item = document.media.add_image(PNG, "png")
+    document.add_picture(PNG, "png")
+    document.parts.add_master_page(text="master")
+    master_page = document.oxml.master_pages[0]
+    picture = next(document.oxml.sections[0].element.iter(f"{HP}pic"))
+    next(master_page.element.iter(f"{HP}run")).append(copy.deepcopy(picture))
+    _drop_pictures(document)
+    # the master page's copy shows the image add_picture embedded
+    shown = document.media.images[1]
+
+    with pytest.raises(HwpxValueError) as caught:
+        document.media.remove_image(shown)
+
+    assert caught.value.context["references"] == [
+        "Contents/masterpage0.xml: img@binaryItemIDRef"
+    ]
+    assert document.media.remove_image(item) is True
+
+
+def test_remove_image_with_force_removes_an_item_in_use() -> None:
+    document = HwpxDocument.open(PICTURE)
+
+    assert document.media.remove_image("image1", force=True) is True
+
+    assert document.media.images == ()
+    assert not document.package.has_part("BinData/image1.jpg")
+    assert [(ref.attr, ref.value) for ref in check_id_integrity(document).dangling] == [
+        ("binaryItemIDRef", "image1")
+    ]
+
+
+@pytest.mark.parametrize("target", ["section0", "Contents/section0.xml", "header", "settings"])
+def test_remove_image_leaves_manifest_items_that_are_not_binary(target: str) -> None:
+    document = HwpxDocument.open(PICTURE)
+    parts = document.package.part_names()
+    hpf = document.package.get_text("Contents/content.hpf")
+
+    assert document.media.remove_image(target) is False
+    assert document.media.remove_image(target, force=True) is False
+
+    assert document.package.part_names() == parts
+    assert document.package.get_text("Contents/content.hpf") == hpf
 
 
 def test_remove_manifest_item_matches_id_then_href() -> None:
