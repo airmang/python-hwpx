@@ -391,8 +391,9 @@
 - `doc.media.images`가 `content.hpf` 매니페스트에만 있는 이진 항목을 보지 못하던 것을
   고친다. 한컴이 저장한 파일은 보통 header에 `binDataList`가 없어 그림이 있어도 빈 목록이
   나왔다. 이제 header 항목 뒤에 매니페스트에만 있는 항목(href가 `BinData/` 아래이거나
-  media-type이 `image/*`)을 붙인다. `isEmbeded="0"`으로 바깥 파일을 잇는 항목은 넣지 않고,
-  파트가 없는 내장 항목은 `size=0`으로 넣는다. `doc.media.remove_image()`는 매니페스트 id·파트 경로
+  media-type이 `image/*`)을 붙인다. `isEmbeded="0"`이고 href가 `BinData/` 밖이라 바깥 파일을
+  잇는 항목은 넣지 않는다. 한/글은 OLE에도 `isEmbeded="0"`을 쓰지만 파일을 `BinData/`에 두므로
+  OLE 항목은 넣는다. 파트가 없는 내장 항목은 `size=0`으로 넣는다. `doc.media.remove_image()`는 매니페스트 id·파트 경로
   (`"BinData/image1.png"`)·`BinaryItem`을 모두 받아 이런 항목도 지운다.
 - `doc.media.remove_image("image1")`이 header에 `image10.png`가 먼저 있으면 그 `binItem`과
   파트를 대신 지우던 것을 고친다. header 항목을 파일 이름 앞부분으로 맞췄기 때문이다. 이제
@@ -400,6 +401,13 @@
 - `doc.media.replace_picture()`가 바꾼 그림의 옛 이진 항목을 header의 채우기 그림이나 바탕쪽
   같은 다른 곳이 아직 쓰는데도 지우던 것을 고친다. 본문 그림만 보고 고아로 판단했기
   때문이다. 이제 문서 어디서도 가리키지 않을 때만 지우고, 아니면 남긴다(`removed_orphans`가 빈다).
+- `check_id_integrity()`가 동영상이 가리키는 항목(포스터 `imageIDRef`, 파일 `fileIDRef`)을 고아
+  BinData로 보고해 `ok=False`를 내던 것을 고친다. `binaryItemIDRef`만 참조로 셌기 때문이다. 이제
+  `imageIDRef`·`fileIDRef`·`soundIDRef`도 참조로 세고, 패키지 밖 파일을 잇는 항목(`isEmbeded="0"`이고
+  href가 `BinData/` 밖)은 고아 목록에 넣지 않는다. 이진 항목 판정·이름 비교·참조 속성은
+  `doc.media.remove_image()`·`doc.media.images`·`doc.validate()`와 같은 규칙(`hwpx.opc.relationships`)을
+  쓴다. 참조 무결성 게이트(`require_reference_integrity`)가 고아 항목 때문에 실패하면 메시지에 그
+  항목을 적는다. 전에는 메시지가 `ID/reference integrity failed: `로 끝났다.
 - `HwpxPackage.remove_manifest_item()`에 파트 경로를 넘기면 `False`만 돌려주고 항목을
   남기던 것을 고친다. 이 인자는 매니페스트 `id`다. 그 id의 항목이 없고 값에 `/`가 있으면
   href가 같은 파트를 가리키는 항목을 지운다.

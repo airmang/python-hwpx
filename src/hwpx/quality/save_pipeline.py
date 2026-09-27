@@ -346,11 +346,14 @@ class SavePipeline:
                     document.close()
             if not id_report.ok:
                 ok = False
+                # An orphan BinData asset alone also fails the report; name it
+                # too, or the message ends in nothing.
+                problems = [*id_report.dangling, *id_report.orphan_bin_data]
                 errors.append(
                     QualityError(
                         REFERENCE_INTEGRITY_FAILED,
                         "ID/reference integrity failed: "
-                        + ", ".join(str(item) for item in id_report.dangling[:5]),
+                        + ", ".join(str(item) for item in problems[:5]),
                     )
                 )
         except Exception as exc:  # pragma: no cover - defensive: never crash the gate
