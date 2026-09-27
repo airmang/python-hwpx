@@ -12,6 +12,8 @@ from typing import BinaryIO, Iterable, Sequence
 from lxml import etree
 
 from ..document import HwpxDocument
+from ..opc.package import HwpxPackage
+from ..opc.relationships import is_linked_file, parse_manifest_relationships
 from ..oxml import load_schema, parse_header_xml, parse_section_xml
 
 _DEFAULT_SCHEMA_DIR = Path(__file__).resolve().parent / "_schemas"
@@ -340,6 +342,50 @@ def _issues_from_error(part_name: str, exc: etree.DocumentInvalid) -> list[Valid
     return issues
 
 
+def _manifest_drift_issues(package: HwpxPackage) -> list[ValidationIssue]:
+    """Warn about manifest items with no part and ``BinData/`` parts with no item.
+
+    Warnings, not errors: the editor-open safety check already treats a
+    manifest href missing from the archive as advisory. An item marked
+    ``isEmbeded="0"`` whose href lies outside ``BinData/`` links a file
+    outside the package (a video, say), so its missing part is not drift.
+    Hancom also marks OLE objects ``isEmbeded="0"``, but keeps their file in
+    ``BinData/``; a missing one of those is reported.
+    """
+
+    manifest_path = package.main_content.full_path
+    part_names = set(package.part_names())
+    relationships = parse_manifest_relationships(
+        package.manifest_tree(), manifest_path, known_parts=part_names
+    )
+
+    issues: list[ValidationIssue] = []
+    declared: set[str] = set()
+    for item in relationships.items:
+        declared.add(item.resolved_path)
+        if item.resolved_path not in part_names and not is_linked_file(item.href, item.is_embeded):
+            issues.append(
+                ValidationIssue(
+                    part_name=manifest_path,
+                    message=(
+                        f"manifest item {item.item_id!r} names {item.href!r}, "
+                        "which is not a part in the package"
+                    ),
+                    severity="warning",
+                )
+            )
+    for part_name in sorted(part_names):
+        if part_name.startswith("BinData/") and part_name not in declared:
+            issues.append(
+                ValidationIssue(
+                    part_name=part_name,
+                    message=f"BinData part {part_name!r} has no manifest item in {manifest_path}",
+                    severity="warning",
+                )
+            )
+    return issues
+
+
 def validate_document(
     source: str | Path | bytes | BinaryIO,
     *,
@@ -349,6 +395,12 @@ def validate_document(
     full_schema: bool = True,
 ) -> ValidationReport:
     """Validate the header and section XML parts of an HWPX archive.
+
+    Also warns about manifest drift: manifest items with no part (except
+    items linking a file outside the package) and ``BinData/`` parts with no
+    manifest item. ``doc.validate()`` runs this same check. Package structure
+    is :func:`~hwpx.tools.package_validator.validate_package`'s job; it
+    reports a manifest item with no part as an error.
 
     With *full_schema* (the default) the parts are also checked against the full OWPML
     schema. Violations that documents Hancom opens also carry (its 2011 practice
@@ -393,6 +445,7 @@ def validate_document(
             # A non-DocumentInvalid failure (e.g. not-well-formed XML, load error)
             # is a genuine structural problem, not schema lint: keep it a hard error.
             issues.append(ValidationIssue(part_name=part_name, message=str(exc), severity="error"))
+    issues.extend(_manifest_drift_issues(document.package))
 
     return ValidationReport(validated_parts=tuple(validated_parts), issues=tuple(issues))
 

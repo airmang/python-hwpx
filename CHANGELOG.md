@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 추가
+
+- `hwpx.opc.relationships.ManifestItemRef`에 매니페스트 항목의 `isEmbeded` 값을 담는 `is_embeded` 필드를
+  더한다.
 ### 바꿈
 
 - FormFit이 한글 한 자를 글자 모양의 한글 글꼴에서 한/글이 배치하는 폭으로 센다.
@@ -28,6 +32,16 @@
 - `doc.media.images`가 한/글이 `BinData/`에 두는 OLE 항목을 빼던 것을 고친다. `isEmbeded="0"`이면
   모두 바깥 파일로 봤기 때문이다. 이제 href가 `BinData/` 밖인 `isEmbeded="0"` 항목(패키지 밖 파일)만
   뺀다.
+- `validate_package()`(`hwpx-validate-package`)가 패키지 밖 파일을 잇는 매니페스트 항목(`isEmbeded="0"`이고
+  href가 `BinData/` 밖, 예: 연결한 동영상)을 파트가 없다는 오류로 보고해 `ok=False`를 내던 것을 고친다.
+  이 때문에 참조 무결성 게이트(`require_reference_integrity`)로 저장하면 `OPC/package validation failed`로
+  실패했다. 이제 `doc.validate()`·`check_id_integrity()`·`doc.media.images`와 같은 규칙(`is_linked_file`)으로
+  이런 항목을 건너뛴다. `BinData/`에 파일을 두는 OLE 항목은 `isEmbeded="0"`이어도 계속 검사한다.
+- `doc.validate()`와 `validate_document()`(`hwpx-validate`)가 같은 패키지에 다른 답을 하던 것을 고친다.
+  매니페스트 불일치 경고(파트가 없는 매니페스트 항목, 매니페스트 항목이 없는 `BinData/` 파트)를
+  `doc.validate()`만 냈기 때문이다. 이제 이 검사를 `validate_document()`가 하고 `doc.validate()`는 그 결과를
+  그대로 돌려준다. 파트가 없는 매니페스트 항목을 오류로 보는 것은 여전히 패키지 검사(`validate_package()`)다.
+  `doc.validate()`의 docstring에 무엇을 검사하는지 적는다.
 
 ## [6.6.0] - 2026-09-28
 
