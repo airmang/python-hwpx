@@ -140,6 +140,16 @@
 
 ### 고침
 
+- MS Word처럼 배치하는 문서(`hh:compatibleDocument`의 `targetProgram="MS_WORD"`)를 `.hwp`로 열고 저장할
+  때 배치 호환 설정이 사라지던 것을 고친다. 열 때 `hh:layoutCompatibility`를 비워 두고 저장할 때 0으로
+  써서, Word 호환 배치가 모두 꺼졌다. 이제 켜진 설정마다 `hh:layoutCompatibility`의 자식 하나로
+  한/글이 쓰는 순서대로 열고, 저장할 때 다시 쓴다. 한/글처럼 `HWP201X` 문서는 설정 없이 저장하고,
+  한/글이 모르는 자식이 있으면 한/글의 기본 설정으로 저장한다. 한/글의 일부 판이 쓰는 묶음 요소
+  (`hh:char`·`hh:paragraph`·`hh:section`·`hh:object`·`hh:field`)와 그 안의 것은 한/글처럼 건너뛴다.
+  `applyFontspaceToLatin`은 한/글이 HWPX로 쓰지는 않지만 읽는 설정이라, 문서의 배치가 그대로 남도록
+  열어 둔다.
+- `.hwp`로 저장할 때 줄 간격 `AT_LEAST`(최소)를 옛 줄 간격 필드에 한/글처럼 100%로 쓴다. 전에는
+  옛 필드에 `BETWEEN_LINES`와 새 값을 썼다.
 - 표 `merge_cells()`(`doc.tables.merge_cells`)가 가려지는 칸의 글과 개체를 버리던 것을
   고친다. 이제 병합 칸이 글이나 개체가 있는 칸의 문단을 읽기 순서(행마다 왼쪽에서
   오른쪽, 위 행부터)로 모두 받고, 빈 칸(빈 문단 하나)은 아무것도 보태지 않는다. 병합
