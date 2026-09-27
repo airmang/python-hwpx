@@ -16,9 +16,10 @@ Catches *likely* visual problems without a renderer so the **structural tier**
    (reuses ``package_validator``).
 5. **table taller than the page** — a body table Hancom does not break across
    pages (inline, or ``pageBreak="NONE"``) whose rows alone are taller than the
-   page body. A row is at least as tall as the lines its cells' paragraphs and
-   line breaks force. Rows past the paper's bottom edge + an
-   ``overflow="fail"`` policy ⇒ a hard error; otherwise a warning.
+   page body, or a row taller than the page body in a table Hancom breaks only
+   between rows (``pageBreak="TABLE"``). A row is at least as tall as the lines
+   its cells' paragraphs and line breaks force. Rows past the paper's bottom
+   edge + an ``overflow="fail"`` policy ⇒ a hard error; otherwise a warning.
 
 Severity discipline (acceptance "stricter, never wronger"): only renderer-less
 *provable* defects are errors. Heuristics warn. So the lint never contradicts the
@@ -411,7 +412,7 @@ def _iter_cells(doc: Any):
 
 
 # --------------------------------------------------------------------------- #
-# 5: a table Hancom does not break across pages, taller than the page.
+# 5: a table (or a row) Hancom does not break across pages, taller than the page.
 # --------------------------------------------------------------------------- #
 _HWPUNIT_PER_MM = 7200 / 25.4
 
@@ -428,9 +429,11 @@ def _lint_table_page_fit(
     default) across pages, nor a table whose ``pageBreak`` is ``NONE``. Such a
     table taller than the page body is drawn on one page (the next one unless it
     starts at the top of a page) and runs on into the bottom margin; rows past
-    the paper's bottom edge are not drawn at all.
+    the paper's bottom edge are not drawn at all. A table whose ``pageBreak`` is
+    ``TABLE`` breaks only between rows, so one of its rows taller than the page
+    body is drawn the same way; ``CELL`` also breaks a row between its lines.
 
-    The height is a lower bound: every row is at least its tallest single-row
+    The heights are lower bounds: every row is at least its tallest single-row
     cell, and a cell at least the lines its paragraphs and line breaks force
     (see :class:`_LineHeights`). Lines the text wraps into are not counted, so a
     finding never rests on how the text wraps.
@@ -446,14 +449,17 @@ def _lint_table_page_fit(
         for paragraph, table in _body_tables(root):
             position = next((child for child in table if _local_name(child) == "pos"), None)
             inline = position is not None and position.get("treatAsChar", "1") == "1"
-            if not inline and table.get("pageBreak") != "NONE":
-                continue  # Hancom breaks it between rows (CELL) or inside cells (TABLE)
-            height = _table_min_height(table, lines)
+            page_break = table.get("pageBreak", "CELL")
+            if not inline and page_break not in ("NONE", "TABLE"):
+                continue  # Hancom breaks it between rows and inside them (CELL)
+            rows = _row_min_heights(table, lines)
+            whole = inline or page_break == "NONE"
+            height = sum(rows) if whole else max(rows, default=0)
             if height > body:
                 report.add(
                     _table_page_finding(
                         part_name, numbers.get(id(paragraph)), inline, height, body, to_edge,
-                        overflow_policy,
+                        overflow_policy, row=None if whole else rows.index(height),
                     )
                 )
 
@@ -466,24 +472,37 @@ def _table_page_finding(
     body: int,
     to_edge: int,
     overflow_policy: str,
+    row: int | None = None,
 ) -> LayoutFinding:
     cut = height > to_edge
-    kind = "an inline table" if inline else 'a table with pageBreak="NONE"'
-    fix = "Table.set_treat_as_char(False)" if inline else 'pageBreak="CELL"'
-    outcome = "rows past the paper's bottom edge are not drawn" if cut else "it runs into the bottom margin"
-    return LayoutFinding(
-        code=TABLE_TALLER_THAN_PAGE,
-        message=(
+    detail: dict[str, Any] = {"min_height": height, "page_body": body, "to_paper_edge": to_edge,
+                              "inline": inline, "rows_cut": cut}
+    if row is None:
+        kind = "an inline table" if inline else 'a table with pageBreak="NONE"'
+        fix = "Table.set_treat_as_char(False)" if inline else 'pageBreak="CELL"'
+        outcome = "rows past the paper's bottom edge are not drawn" if cut else "it runs into the bottom margin"
+        message = (
             f"{kind} at least {height / _HWPUNIT_PER_MM:.0f} mm tall does not fit the "
             f"{body / _HWPUNIT_PER_MM:.0f} mm page body, and Hancom does not break it across pages: "
             f"it is drawn on one page (the next one unless it starts at the top) and {outcome} "
             f"(use {fix} to let it flow across pages)"
-        ),
+        )
+    else:
+        detail["row"] = row
+        outcome = "lines past the paper's bottom edge are not drawn" if cut else "it runs into the bottom margin"
+        message = (
+            f'a row of a table with pageBreak="TABLE" at least {height / _HWPUNIT_PER_MM:.0f} mm tall does '
+            f"not fit the {body / _HWPUNIT_PER_MM:.0f} mm page body, and Hancom breaks this table only "
+            f"between rows: the row is drawn on one page and {outcome} "
+            f'(use pageBreak="CELL" to let the row break across pages)'
+        )
+    return LayoutFinding(
+        code=TABLE_TALLER_THAN_PAGE,
+        message=message,
         severity="error" if (cut and overflow_policy == "fail") else "warning",
         part=part_name,
         paragraph=paragraph,
-        detail={"min_height": height, "page_body": body, "to_paper_edge": to_edge,
-                "inline": inline, "rows_cut": cut},
+        detail=detail,
     )
 
 
@@ -527,11 +546,11 @@ def _body_tables(root: ET.Element) -> Iterator[tuple[ET.Element, ET.Element]]:
                     yield paragraph, child
 
 
-def _table_min_height(table: ET.Element, lines: "_LineHeights") -> int:
-    """A lower bound of the drawn height: each row is at least its tallest
+def _row_min_heights(table: ET.Element, lines: "_LineHeights") -> list[int]:
+    """Lower bounds of the drawn row heights: each row is at least its tallest
     single-row cell, and a cell at least its declared height and its forced lines."""
 
-    total = 0
+    heights_by_row = []
     for row in table:
         if _local_name(row) != "tr":
             continue
@@ -539,8 +558,8 @@ def _table_min_height(table: ET.Element, lines: "_LineHeights") -> int:
         for cell in row:
             if _local_name(cell) == "tc" and _cell_int(cell, "cellSpan", "rowSpan", 1) == 1:
                 heights.append(max(_cell_int(cell, "cellSz", "height", 0), lines.cell_height(cell, table)))
-        total += max(heights)
-    return total
+        heights_by_row.append(max(heights))
+    return heights_by_row
 
 
 class _LineHeights:
