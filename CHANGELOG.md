@@ -14,11 +14,13 @@ HWP 5.0(`.hwp`) 읽기·쓰기를 더하고, 템플릿·양식을 공개 API만�
 ### 추가
 
 - `Section.clear_body()`로 문서를 양식 틀로 비운다. 첫 문단 첫 run의 `hp:secPr`(쪽
-  설정)와 `hp:ctrl`(단·머리말·꼬리말·쪽 번호)을 남기고, 나머지 문단, 첫 문단의 다른
-  run, 첫 run의 다른 자식, 첫 문단의 줄 배치 캐시를 지운다. 머리말·꼬리말처럼 남길
+  설정)와 첫 문단 모든 run의 `hp:ctrl`(단·머리말·꼬리말·쪽 번호 — 한/글은 이것들을 흔히
+  둘째 run에 쓴다)을 남기고, 나머지 문단, 첫 문단 run의 다른 자식, 컨트롤이 없는 뒤쪽 run,
+  첫 문단의 줄 배치 캐시를 지운다. 머리말·꼬리말처럼 남길
   컨트롤 안에 글·표·개체·양식 개체·덧말·글자 겹침이 있으면 기본으로 `section-clear-control-content`로 거부하고,
   `on_control_content="keep"`은 남기며, `"strip"`은 그 컨트롤과 `hp:secPr` 안의
   머리말·꼬리말 사본을 지운다. `"strip"`으로도 지울 수 없는 내용이 있으면 거부한다.
+  `hp:t` 안 자식 뒤의 글(`<hp:t><hp:tab/>이름</hp:t>`)도 내용으로 본다.
   어느 쪽이든 찾은 태그를 `ClearBodyReport.control_content`에 담는다. 거부는 바꾸기
   전에 일어난다.
 - `Run.content_kinds()`가 run이 담은 것을 닫힌 어휘(`RUN_CONTENT_KINDS`: `text`·
@@ -56,6 +58,10 @@ HWP 5.0(`.hwp`) 읽기·쓰기를 더하고, 템플릿·양식을 공개 API만�
   문단 인덱스만 담기고 `formatted`는 대상 수다. 기존 `paragraph_index`·
   `paragraph_indexes`의 뜻은 그대로다. 머리말·꼬리말 객체에 `paragraphs` 속성
   (`cell.paragraphs`처럼 문단 객체 목록)을 더한다.
+- `apply_list_format()`의 기본 글머리표·번호 모양이 한/글 새 목록과 다른 점(글머리표
+  `-`·`○` 대 `●`, 번호 2수준 `1.1.` 대 `가.`, 3수준 `1.1.1.` 대 `1)`)과 글머리표를 맞추는 법
+  (`bullet_char="●"`)을 설명과 known-traps에 적는다. 한/글이 새 목록에 쓰는 모양은 한/글이
+  저장한 목록 fixture로 테스트에 고정한다.
 - HWP 5.0(`.hwp`)을 읽고 쓴다. `HwpxDocument.open`이 `.hwp`를 같은 문서 모델로 열고,
   `save_to_path("x.hwp")`·`save_to_stream(..., format="hwp")`·`to_bytes(format="hwp")`가
   HWP 5.0으로 쓴다. 본문·글자와 문단 모양·스타일·표·그림·그리기 개체·글맵시·수식·차트·OLE·
@@ -97,8 +103,9 @@ HWP 5.0(`.hwp`) 읽기·쓰기를 더하고, 템플릿·양식을 공개 API만�
   - `doc.parts.clear_preview()`는 `Preview/PrvText.txt`를 비우고 `Preview/PrvImage.png`를
     1×1 흰 PNG로 바꾼다. 두 파트를 지우지는 않는다.
   - `doc.validate()`가 파트가 없는 매니페스트 항목과, 매니페스트 항목이 없는 `BinData/`
-    파트를 경고로 알린다. 경고라서 `ok`는 그대로다. `isEmbeded="0"`으로 바깥 파일을
-    잇는 항목은 알리지 않는다.
+    파트를 경고로 알린다. 경고라서 `ok`는 그대로다. `BinData/` 밖의 파일을 잇는
+    `isEmbeded="0"` 항목(동영상 링크 등)은 알리지 않는다. 한/글은 OLE 개체에도
+    `isEmbeded="0"`을 쓰지만 그 파일은 `BinData/` 안에 두므로, 빠지면 알린다.
 - `Shape.set_position()`이 기준 프레임과 정렬도 정한다. `horz_rel_to`·`vert_rel_to`·
   `horz_align`·`vert_align`이 `hp:pos`의 `horzRelTo`·`vertRelTo`·`horzAlign`·
   `vertAlign`을 쓴다. 값은 OWPML 스키마 철자 그대로다(`vert_rel_to`에는 `COLUMN`이
@@ -187,6 +194,12 @@ HWP 5.0(`.hwp`) 읽기·쓰기를 더하고, 템플릿·양식을 공개 API만�
   넣는다. 전에는 기준 행에 여러 행에 걸친 칸이 있으면 거부했고("clone source row must have
   rowSpan==1 cells"), 합친 칸이 기준 행에서 끝나면 새 행에 칸이 비어 거부했다. 모든 칸이 아래로
   이어지는 행은 복제할 칸이 없어 거부한다.
+- `doc.parts.add_master_page()`(`doc.oxml.add_master_page()`)가 `page_number`를 받지 않으면
+  `OPTIONAL_PAGE`는 1, 다른 종류(`BOTH`·`ODD`·`EVEN`·`LAST_PAGE`)는 한/글처럼 0을 쓴다. 전에는
+  종류와 상관없이 1을 썼다.
+- 한 구역에 같은 쪽의 바탕쪽을 둘 연결하면(`add_master_page_reference`·`doc.page.set_master_page`)
+  `HwpxValueError`(`master-page-pages-taken`)를 낸다. 양쪽·홀수·짝수·마지막 쪽은 하나씩,
+  한 쪽 바탕쪽은 쪽 번호마다 하나다. 전에는 그대로 연결되어 `.hwp` 저장이 실패했다.
 - `add_table()`이 만드는 표의 행 높이 기본값을 12.7 mm(3600)에서 한컴이 새 표에 쓰는
   282로 바꾼다. 행은 셀 글 높이에 맞춰 자라서, 한 줄이면 약 4.6 mm다. 전처럼 높은 행이
   필요하면 `height=`를 준다.
@@ -194,9 +207,20 @@ HWP 5.0(`.hwp`) 읽기·쓰기를 더하고, 템플릿·양식을 공개 API만�
   끔). 행 높이는 셀 높이와 셀 글 한 줄 + 셀 위아래 여백 중 큰 값으로 잰다. 한컴은
   글자처럼 취급한 표를 쪽에서 나누지 않아, 이런 표는 종이 끝에서 잘렸다. 흐르는 표는
   행 사이에서 쪽을 넘는다. 쪽 크기는 그려지는 쪽(가로면 돌린 높이)으로 잰다.
+- `doc.media.remove_image()`가 문서가 아직 가리키는 이진 항목을 지우지 않고
+  `HwpxValueError`(`media-item-in-use`)를 낸다. 가리키는 곳은 그림, header의 채우기 그림·그림
+  글머리표, 바탕쪽, 동영상 파일·포스터, OLE, 내장 글꼴이고, `context["references"]`에
+  `"파트: 요소@속성"`으로 담긴다. 거부는 바꾸기 전에 일어난다. 전에는 그대로 지워서 쪽 테두리
+  채우기 그림 같은 참조가 끊긴 채 저장되었다. 그래도 지우려면 `force=True`를 준다. 구역·header처럼
+  이진 항목이 아닌 매니페스트 항목은 지우지 않고 `False`를 돌려준다(전에는
+  `remove_image("section0")`이 구역 파트를 지웠다).
 
 ### 고침
 
+- `doc.styles.replace_font()`가 한 언어 블록에 같은 이름으로 두 번 선언된 글꼴을 하나만 바꾸던 것을
+  고친다. 한/글이 저장한 문서에 흔한 모양으로, 둘째 선언을 가리키는 글자 모양은 옛 글꼴로 남는데
+  보고서는 그 블록이 바뀌었다고 알렸다. 이제 블록 안의 같은 이름 선언을 모두 지우고 그 참조를 모두 새
+  글꼴로 옮긴다.
 - MS Word처럼 배치하는 문서(`hh:compatibleDocument`의 `targetProgram="MS_WORD"`)를 `.hwp`로 열고 저장할
   때 배치 호환 설정이 사라지던 것을 고친다. 열 때 `hh:layoutCompatibility`를 비워 두고 저장할 때 0으로
   써서, Word 호환 배치가 모두 꺼졌다. 이제 켜진 설정마다 `hh:layoutCompatibility`의 자식 하나로
@@ -380,6 +404,9 @@ HWP 5.0(`.hwp`) 읽기·쓰기를 더하고, 템플릿·양식을 공개 API만�
 - `doc.media.remove_image("image1")`이 header에 `image10.png`가 먼저 있으면 그 `binItem`과
   파트를 대신 지우던 것을 고친다. header 항목을 파일 이름 앞부분으로 맞췄기 때문이다. 이제
   확장자를 뺀 파일 이름(또는 파일 이름 전체)이 같아야 맞는다.
+- `doc.media.replace_picture()`가 바꾼 그림의 옛 이진 항목을 header의 채우기 그림이나 바탕쪽
+  같은 다른 곳이 아직 쓰는데도 지우던 것을 고친다. 본문 그림만 보고 고아로 판단했기
+  때문이다. 이제 문서 어디서도 가리키지 않을 때만 지우고, 아니면 남긴다(`removed_orphans`가 빈다).
 - `HwpxPackage.remove_manifest_item()`에 파트 경로를 넘기면 `False`만 돌려주고 항목을
   남기던 것을 고친다. 이 인자는 매니페스트 `id`다. 그 id의 항목이 없고 값에 `/`가 있으면
   href가 같은 파트를 가리키는 항목을 지운다.
@@ -401,6 +428,9 @@ HWP 5.0(`.hwp`) 읽기·쓰기를 더하고, 템플릿·양식을 공개 API만�
   내용은 저장할 때 건드리지 않는다. `clear_content()`와 빈
   `set_content([])`는 빈 문단 하나를 남긴다. 전에는 `hp:subList`까지 지웠는데, 실제 문서의
   머리말·꼬리말은 모두 `hp:subList`와 문단을 하나 이상 가진다.
+- 칸·테두리 그림 채우기(`set_cell_fill_image(mode=)`, `ensure_border_fill(fill_image={"mode": ...})`)가
+  `LEFT_TOP`·`LEFT_BOTTOM`·`RIGHT_CENTER`·`RIGHT_TOP`도 받는다. 한/글이 쓰는 그림 위치인데 OWPML
+  스키마의 목록(12개)에 없어 `ValueError`를 냈다.
 - `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
   (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
   `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.

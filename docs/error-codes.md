@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 163 | 11 |
+| 개수 | 164 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -155,6 +155,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `media-item-id-taken` | 그 이진 항목 id 가 이미 쓰이고 있다. |
+| `media-item-in-use` | 지우려는 이진 항목을 문서가 아직 가리킨다(그림·채우기·동영상·OLE 등). force=True 로만 지운다. |
 | `media-owner-paragraph-missing` | 교체한 그림 요소가 소속 문단을 찾지 못했다(방어적 분기). |
 
 ### `note-*`
