@@ -65,8 +65,9 @@ def test_repeated_add_heading_does_not_grow_para_properties_unboundedly() -> Non
         document.add_heading(f"제목 {i}", level=3)
 
     after = _para_properties_count(document)
-    # exactly one new paraPr for the shared level-3 heading format, not five.
-    assert after == before + 1
+    # at most one new paraPr for the shared level-3 heading format, not five
+    # (none when the outline style's own paraPr already declares the level).
+    assert after <= before + 1
 
 
 def test_same_paragraph_format_call_on_two_fresh_paragraphs_dedupes() -> None:
