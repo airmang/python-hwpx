@@ -257,3 +257,41 @@ def test_the_widths_are_the_ones_hancom_saves() -> None:
 
     assert _layout(table) == _layout(hancom)
     assert _table_width(table) == _table_width(hancom) == 55440
+
+
+def _with_placeholders(table, row: int, first: int, span: int) -> None:
+    """Merge *span* cells of *row* from *first* the old way: the covered cells stay as zero-size placeholders."""
+    width = sum(table.cell(row, col).width for col in range(first, first + span))
+    for col in range(first + 1, first + span):
+        table.cell(row, col).set_size(width=0, height=0)
+    anchor = table.cell(row, first)
+    anchor.set_span(1, span)
+    anchor.set_size(width=width)
+
+
+def _column_addresses(table) -> list[list[int]]:
+    return [[int(tc.find(f"{HP}cellAddr").get("colAddr")) for tc in tr.findall(f"{HP}tc")]
+            for tr in table.element.findall(f"{HP}tr")]
+
+
+def test_placeholders_under_a_merged_cell_each_get_their_own_column() -> None:
+    table = HwpxDocument.new().add_table(rows=2, cols=3, width=18000)
+    _with_placeholders(table, 0, 0, 3)
+
+    table.equalize_column_widths()
+
+    assert _column_addresses(table) == [[0, 1, 2], [0, 1, 2]]
+
+
+def test_a_placeholder_left_without_a_column_is_removed() -> None:
+    # Row 1 keeps two cells, so the new grid has two columns: the merged cell of row 0 covers
+    # both, and only one of its two placeholders has a column of its own.
+    table = HwpxDocument.new().add_table(rows=2, cols=3, width=18000)
+    _with_placeholders(table, 0, 0, 3)
+    _with_placeholders(table, 1, 1, 2)
+
+    table.equalize_column_widths()
+
+    assert table.column_count == 2
+    assert _column_addresses(table) == [[0, 1], [0, 1]]
+

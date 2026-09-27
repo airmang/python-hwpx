@@ -101,22 +101,47 @@ def _place_cell(cell: "HwpxOxmlTableCell", first_column: int, end_column: int, w
         cell._clear_own_layout_caches()
 
 
+def _is_blank_placeholder(cell: "HwpxOxmlTableCell") -> bool:
+    return cell.width == 0 and cell.height == 0 and not any(t.text for t in cell.element.iter(f"{_HP}t"))
+
+
 def _follow_covering_cells(
     table: "HwpxOxmlTable",
     grid: dict[tuple[int, int], "HwpxTableGridPosition"],
     edges: dict[int, tuple[int, int]],
     column: dict[int, int],
 ) -> None:
-    """Move each zero-size placeholder inside a merged area to the new column of the cell covering it."""
+    """Give each zero-size placeholder inside a merged area its own new column under the cell covering it.
 
+    The placeholders of one row under one covering cell take that cell's new columns left to right
+    (in the covering cell's own row, the columns after its first one). A blank placeholder left
+    without a column there is removed: Hancom writes no cell under a merged cell at all.
+    """
+
+    groups: dict[tuple[int, int], list[tuple[Any, "HwpxOxmlTableCell", "HwpxOxmlTableCell", Any]]] = {}
     for row in table.rows:
         for placeholder in row.cells:
-            if id(placeholder.element) in edges:
+            addr = placeholder._addr_element()
+            if id(placeholder.element) in edges or addr is None:
                 continue
             covering = grid.get(placeholder.address)
-            addr = placeholder._addr_element()
-            if covering is not None and addr is not None and id(covering.cell.element) in edges:
-                addr.set("colAddr", str(column[edges[id(covering.cell.element)][0]]))
+            if covering is not None and id(covering.cell.element) in edges:
+                key = (id(row.element), id(covering.cell.element))
+                groups.setdefault(key, []).append((row.element, covering.cell, placeholder, addr))
+    for members in groups.values():
+        row_element, covering_cell, first_placeholder, _addr = members[0]
+        left, right = edges[id(covering_cell.element)]
+        first, end = column[left], column[right]
+        if first_placeholder.address[0] == covering_cell.address[0]:
+            first += 1
+        members.sort(key=lambda member: member[2].address[1])
+        for index, (_row, _covering, placeholder, addr) in enumerate(members):
+            if first + index < end:
+                addr.set("colAddr", str(first + index))
+            elif _is_blank_placeholder(placeholder):
+                row_element.remove(placeholder.element)
+            else:
+                addr.set("colAddr", str(end - 1))
 
 
 def _zone_moves(
