@@ -692,7 +692,12 @@ class SlotMetrics:
 def _line_pitch(kind: str, value: float, size: float) -> float:
     """Hancom's vertical advance of one line of *size* (HWPUNIT) under a spacing
     type: PERCENT a share of the size, FIXED the value, BETWEEN_LINES the size
-    plus the value, AT_LEAST the larger of the two."""
+    plus the value, AT_LEAST the larger of the two.
+
+    Under PERCENT Hancom counts the spacing beyond the size in 1/1800 inch
+    (4 HWPUNIT): the em is the size in that unit, rounded down, and its share
+    is rounded half away from zero (10.5 pt at 160 %: 262 x 0.6 = 157.2, so 628
+    rather than 630)."""
 
     kind = kind.upper()
     if kind == "FIXED":
@@ -701,7 +706,9 @@ def _line_pitch(kind: str, value: float, size: float) -> float:
         return size + value
     if kind == "AT_LEAST":
         return max(size, value)
-    return size * value / 100.0
+    share = Fraction(round(size) // _LAYOUT_UNIT) * (Fraction(value) - 100) / 100
+    units = math.floor(abs(share) + Fraction(1, 2))
+    return size + float(_LAYOUT_UNIT) * (units if share >= 0 else -units)
 
 
 def _lines_in_height(height: float, pitch: float, size: float) -> int:
