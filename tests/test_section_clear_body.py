@@ -306,6 +306,35 @@ def test_strip_removes_the_story_copies_python_hwpx_writes_into_secpr() -> None:
     assert _nonblank_texts(reopened.sections[0].paragraphs[0].element) == []
 
 
+@pytest.mark.parametrize("round_trip_first", [True, False], ids=["reopened", "in-memory"])
+def test_stripped_stories_do_not_come_back_on_save(round_trip_first: bool) -> None:
+    # The save path rewrites a header/footer's hp:ctrl copy from its hp:secPr
+    # copy. Once "strip" has removed both, saving must not bring either back,
+    # including when the hp:secPr copy was edited after set_header() and the
+    # control copy is still stale in memory.
+    document = HwpxDocument.new()
+    header = document.page.set_header(text="처음 머리말")
+    header.text = "고친 머리말"
+    document.page.set_footer(text="꼬리말 글")
+    document.add_paragraph("본문")
+    if round_trip_first:
+        document = _open(document.to_bytes())
+    section = document.sections[0]
+
+    section.clear_body(on_control_content="strip")
+    saved = document.to_bytes()
+    reopened = _open(saved)
+
+    assert reopened.validate().ok
+    section_xml = etree.tostring(reopened.sections[0].element, encoding="unicode")
+    for text in ("처음 머리말", "고친 머리말", "꼬리말 글"):
+        assert text not in section_xml
+    properties = reopened.sections[0].properties
+    assert [story.text for story in properties.headers] == []
+    assert [story.text for story in properties.footers] == []
+    assert _open(reopened.to_bytes()).to_bytes() == reopened.to_bytes()
+
+
 def test_strip_refuses_content_it_cannot_remove_and_changes_nothing() -> None:
     document = HwpxDocument.new()
     document.page.set_header(text="머리말 글")
