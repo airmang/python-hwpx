@@ -240,11 +240,12 @@ def replace_font(
         if attr is None or lang not in wanted:
             continue
         fonts_in_block = fontface.findall(f"{_HH}font")
-        src_font = next((f for f in fonts_in_block if f.get("face") == src), None)
-        if src_font is None:
+        # Hancom-saved blocks often list one face more than once; every copy goes.
+        src_fonts = [f for f in fonts_in_block if f.get("face") == src]
+        if not src_fonts:
             continue
-        src_id = src_font.get("id")
-        remaining = [f for f in fonts_in_block if f is not src_font]
+        src_ids = {f.get("id") for f in src_fonts}
+        remaining = [f for f in fonts_in_block if all(f is not s for s in src_fonts)]
         # old id -> new id of the fonts that were already declared. The new
         # dst font stays out of it: its id is only a placeholder, and in a
         # block whose ids are not 0..N-1 it can equal an existing id.
@@ -264,12 +265,13 @@ def replace_font(
             value = font_ref.get(attr)
             if value is None:
                 continue
-            if value == src_id:
+            if value in src_ids:
                 font_ref.set(attr, dst_new_id)
                 repointed += 1
             elif value in new_ids:
                 font_ref.set(attr, new_ids[value])
-        fontface.remove(src_font)
+        for src_font in src_fonts:
+            fontface.remove(src_font)
         for index, font in enumerate(remaining):
             font.set("id", str(index))
         fontface.set("fontCnt", str(len(remaining)))

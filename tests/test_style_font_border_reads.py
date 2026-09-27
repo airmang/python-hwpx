@@ -679,3 +679,25 @@ def test_replace_font_matches_reference_byte_for_byte(
     assert etree.tostring(_header(api_doc)) == etree.tostring(_header(ref_doc))
     assert etree.tostring(_header(api_doc)) != etree.tostring(header_before)
     assert _saved_header(api_doc) == _saved_header(ref_doc)
+
+
+def test_replace_font_replaces_every_copy_of_a_face_listed_twice() -> None:
+    # Hancom-saved blocks often list one face twice: SimpleEdit's HANJA block
+    # declares 함초롬바탕 at id 0 and id 2, and character shapes use both.
+    document = HwpxDocument.open(CORPUS / "reader_writer__SimpleEdit.hwpx")
+    header = document.oxml.headers[0].element
+    ids = [char_pr.get("id") for char_pr in header.iter(f"{HH}charPr")]
+    before = {char_pr: document.styles.font_face(char_pr, "HANJA") for char_pr in ids}
+    assert [font.face for font in document.styles.fonts("HANJA").values()].count("함초롬바탕") == 2
+
+    report = document.styles.replace_font("함초롬바탕", "맑은 고딕", langs=["HANJA"])
+
+    faces = [font.face for font in document.styles.fonts("HANJA").values()]
+    assert "함초롬바탕" not in faces
+    assert report.langs == ("HANJA",)
+    for char_pr, face in before.items():
+        expected = "맑은 고딕" if face == "함초롬바탕" else face
+        assert document.styles.font_face(char_pr, "HANJA") == expected
+
+    reopened = HwpxDocument.open(document.to_bytes())
+    assert "함초롬바탕" not in [font.face for font in reopened.styles.fonts("HANJA").values()]
