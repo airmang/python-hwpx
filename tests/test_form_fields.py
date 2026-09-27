@@ -184,3 +184,31 @@ def test_hancom_leaves_a_field_without_an_end_as_it_was() -> None:
     with pytest.raises(HwpxValueError) as raised:
         before.fields.fill("새 값 1", name="본문")
     assert raised.value.code == "field-end-missing"
+
+
+HWPXLIB = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
+
+
+def test_a_prompt_kept_only_in_the_command_string_is_the_placeholder() -> None:
+    doc = HwpxDocument.open((HWPXLIB / "tool__finder__TestFinder.hwpx").read_bytes())
+
+    assert [(field.name, field.prompt, field.is_placeholder) for field in doc.fields.all][:2] == [
+        ("필드1", "필드1", True),
+        ("필드2", "필드2", True),
+    ]
+
+
+def test_filling_a_command_prompt_field_drops_the_prompt_style() -> None:
+    """The prompt run is red; the value takes the field's own character shape, and the field's parameters stay
+    as they were."""
+    doc = HwpxDocument.open((HWPXLIB / "tool__textextractor__Table.hwpx").read_bytes())
+    begin = next(b for b in doc.sections[0].element.iter(f"{HP}fieldBegin") if b.get("name") == "날짜")
+    begin_style = begin.getparent().getparent().get("charPrIDRef")
+    parameters = [(p.get("name"), p.text) for p in begin.find(f"{HP}parameters")]
+
+    doc.fields.fill("2026-09-28", name="날짜")
+
+    value = next(t for t in doc.sections[0].element.iter(f"{HP}t") if (t.text or "") == "2026-09-28")
+    assert value.getparent().get("charPrIDRef") == begin_style
+    assert [(p.get("name"), p.text) for p in begin.find(f"{HP}parameters")] == parameters
+    assert begin.get("dirty") == "1"

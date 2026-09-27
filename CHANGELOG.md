@@ -64,6 +64,10 @@
   `FormField.value`는 걸친 문단의 글을 한 줄에 한 문단씩 읽는다.
 - 끝(`hp:fieldEnd`)이 없는 누름틀을 `doc.fields.fill()`로 채우면 `HwpxValueError(code="field-end-missing")`를
   낸다. 바꿀 내용이 없기 때문이다(한/글도 이런 누름틀은 채우지 않는다). 전에는 값을 시작 뒤에 넣었다.
+- 안내문을 `Command` 문자열(`Clickhere:set:…:Direction:wstring:<길이>:<안내문> …`) 안에만 둔 누름틀을
+  자리표시로 알아보지 못하던 것을 고친다. 그래서 `doc.fields.fill()`이 값을 안내문의 글자 모양(보통 빨강)으로
+  남겼다. 이제 안내문을 그 문자열에서도 읽고(`FormField.prompt`, `is_placeholder`), 값은 누름틀의 글자
+  모양으로 쓴다. 누름틀의 매개변수는 바꾸지 않는다.
 - `doc.parts.add_master_page(section=...)`가 내는 `master-page-pages-taken`을 오류 코드 목록
   (`hwpx.errors.ERROR_CODES`, `docs/error-codes.md`)에 올린다. 전에는 목록에 없었다.
 - `doc.styles.replace_font()`가 *dst_face*를 새로 선언하는 블록에 늘 `type="TTF"`를 쓰던 것을
@@ -110,6 +114,11 @@
   `doc.validate()`만 냈기 때문이다. 이제 이 검사를 `validate_document()`가 하고 `doc.validate()`는 그 결과를
   그대로 돌려준다. 파트가 없는 매니페스트 항목을 오류로 보는 것은 여전히 패키지 검사(`validate_package()`)다.
   `doc.validate()`의 docstring에 무엇을 검사하는지 적는다.
+- `lint_layout()`이 글을 채워 쪽 본문보다 높아진 글자처럼 취급한 표를 알리지 못하던 것을 고친다.
+  행 높이를 칸에 저장된 높이(`hp:cellSz`)로만 셌기 때문이다. 글을 채워도 저장된 높이는 그대로이고,
+  한/글은 칸의 줄에 맞춰 행을 늘려 그린다. 이제 칸마다 문단과 줄바꿈(`hp:lineBreak`, 글 안의 줄바꿈
+  문자) 수만큼 줄을 센다. n줄은 (n − 1) × 줄 간격 + 글자 크기를 차지하고, 여기에 칸 위아래 여백을
+  더한 값을 행 높이의 하한으로 쓴다. 긴 글이 칸 폭에서 접혀 늘어난 줄은 세지 않는다.
 
 ## [6.6.0] - 2026-09-28
 
