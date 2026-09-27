@@ -18,6 +18,7 @@ from ._document_primitives import (
     _text_element_content,
 )
 from ._paragraph_text_edit import set_text_with_tabs
+from .numbering_kinds import number_format
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
@@ -756,19 +757,8 @@ class HwpxOxmlSectionHeaderFooter:
 
         target = paragraph if paragraph is not None else self._ensure_content_paragraph()
         normalized_format = str(format_type or format or "DIGIT").strip().upper()
-        format_aliases = {
-            "PAGE": "DIGIT",
-            "PAGE/TOTAL": "DIGIT",
-            "NUMBER": "DIGIT",
-            "DIGIT": "DIGIT",
-            "ROMAN": "ROMAN_CAPITAL",
-            "ROMAN_UPPER": "ROMAN_CAPITAL",
-            "ROMAN_LOWER": "ROMAN_SMALL",
-            "ALPHA": "LATIN_CAPITAL",
-            "ALPHA_UPPER": "LATIN_CAPITAL",
-            "ALPHA_LOWER": "LATIN_SMALL",
-        }
-        page_format_type = format_aliases.get(normalized_format, normalized_format)
+        # ``format`` also names the display ("page", "page/total"); those count in digits.
+        page_format_type = number_format("DIGIT" if normalized_format in {"PAGE", "PAGE/TOTAL"} else normalized_format)
         auto_run = _append_child(target, f"{_HP}run", {"charPrIDRef": "0"})
         auto_ctrl = _append_child(auto_run, f"{_HP}ctrl", {})
         _append_auto_number(auto_ctrl, "PAGE", page_format_type)

@@ -243,6 +243,7 @@ ERROR_CODES: dict[str, str] = {
     "style-memo-shape-line-type-invalid": "메모 모양의 line_type 값이 OWPML 어휘(hc:LineType2) 밖이다.",
     "style-memo-shape-memo-type-invalid": "메모 모양의 memo_type 값이 OWPML 어휘(NOMAL/USER_INSERT/USER_DELETE/USER_UPDATE) 밖이다.",
     "style-color-invalid": "색 인자가 #RRGGBB·#AARRGGBB(16진 6·8자리)나 none이 아니다.",
+    "style-number-format-invalid": "번호 형식이 한컴 번호 모양 밖이다(목록·개요 머리와 쪽 번호는 hc:NumberType1 15개, 각주·미주 번호는 hc:NumberType2 19개).",
     "style-line-width-invalid": "선 굵기가 0보다 큰 mm 값이 아니다(목록 밖 값은 가장 가까운 한컴 선 굵기로 쓴다).",
     "style-run-outline-type-invalid": "ensure_run 의 outline 값이 OWPML 어휘(hc:LineType1: NONE/SOLID/DOT/THICK/DASH/DASH_DOT/DASH_DOT_DOT) 밖이다.",
     "heading-level-invalid": "개요 수준이 정수가 아니다.",
