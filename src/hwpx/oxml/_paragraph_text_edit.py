@@ -74,3 +74,11 @@ def clear_text_element(text_element: ET.Element) -> None:
         text_element.remove(child)
     if text_element.text:
         text_element.text = ""
+
+
+def paragraph_container(element: ET.Element, section_element: ET.Element) -> ET.Element | None:
+    """The element that directly holds the paragraph *element*: its section or a ``hp:subList``."""
+
+    if hasattr(element, "getparent"):
+        return element.getparent()
+    return next((node for node in section_element.iter() if any(child is element for child in node)), None)

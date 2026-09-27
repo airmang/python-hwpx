@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 134 | 11 |
+| 개수 | 139 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -82,6 +82,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `field-ambiguous` | 선택자가 누름틀 여럿에 걸린다. |
+| `field-cell-not-found` | 그 이름(과 순번)의 셀 필드(이름 붙은 표 칸)가 없다. |
 | `field-checkbox-ambiguous` | 선택자가 체크박스 여럿에 걸린다. |
 | `field-checkbox-caption-empty` | 체크박스 캡션이 비어 있다. |
 | `field-checkbox-not-created` | 만든 체크박스를 표준 리더가 다시 찾지 못했다. |
@@ -178,14 +179,15 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
-| `paragraph-argument-conflict` | paragraph_index 와 paragraph_indexes 를 동시에 지정했다. |
+| `paragraph-argument-conflict` | paragraph_index·paragraph_indexes·paragraphs 중 둘 이상을 동시에 지정했다. |
 | `paragraph-border-invalid` | 문단 테두리(border) 지정에 모르는 키·면이 있거나 여백이 네 개의 0 이상 수가 아니다. |
 | `paragraph-format-empty` | 적용할 문단 서식 항목이 하나도 없다. |
-| `paragraph-indexes-empty` | paragraph_indexes 가 비어 있다. |
+| `paragraph-indexes-empty` | paragraph_indexes 또는 paragraphs 가 비어 있다. |
 | `paragraph-invalid-type` | paragraph 인자가 정수도 문단 객체도 아니다. |
 | `paragraph-line-spacing-invalid` | 줄 간격은 양수여야 한다. |
 | `paragraph-missing` | 문서(또는 지정 범위)에 문단이 하나도 없다. |
 | `paragraph-not-found` | 문단 인덱스가 범위를 벗어났다. |
+| `paragraph-not-in-document` | 넘긴 문단 객체가 이 문서에 속해 있지 않다(다른 문서의 문단이거나 지운 문단). |
 | `paragraph-outline-level-out-of-range` | 문단 개요 수준이 0~10 밖이다. |
 | `paragraph-tab-leader-invalid` | 탭 정지 leader 값이 OWPML 어휘(hc:LineType2) 밖이다. |
 | `paragraph-tab-pos-invalid` | 탭 정지 위치(pos_mm/pos)가 없거나 음수다. |
@@ -270,17 +272,20 @@ except HwpxError as exc:
 | `style-border-fill-image-effect-invalid` | fill_image 의 effect 값이 OWPML 어휘(REAL_PIC/GRAY_SCALE/BLACK_WHITE) 밖이다. |
 | `style-border-fill-image-missing` | fill_image 가 doc.media 이진 항목을 가리키지 않는다. |
 | `style-border-fill-image-mode-invalid` | fill_image 의 mode 값이 OWPML 어휘(hc:imgBrush/@mode) 밖이다. |
+| `style-color-invalid` | 색 인자가 #RRGGBB·#AARRGGBB(16진 6·8자리)나 none이 아니다. |
 | `style-container-create-failed` | styles 컨테이너를 만들지 못했다(방어적 분기). |
 | `style-font-container-create-failed` | fontfaces/fontface 컨테이너를 만들지 못했다. |
 | `style-font-face-empty` | face 값이 비어 있다. |
 | `style-font-lang-invalid` | lang 값이 OWPML 어휘(HANGUL/LATIN/HANJA/JAPANESE/OTHER/SYMBOL/USER) 밖이다. |
 | `style-font-substitute-incomplete` | 대체 글꼴 인자가 일부만 주어졌다(subst_face 가 필요하다). |
 | `style-font-type-invalid` | font_type/subst_type 값이 OWPML 어휘(REP/TTF/HFT) 밖이다. |
+| `style-line-width-invalid` | 선 굵기가 0보다 큰 mm 값이 아니다(목록 밖 값은 가장 가까운 한컴 선 굵기로 쓴다). |
 | `style-list-level-invalid` | 글머리표/번호 수준은 1 이상이어야 한다. |
 | `style-list-property-failed` | 번호 문단모양을 만들지 못했다. |
 | `style-memo-shape-line-type-invalid` | 메모 모양의 line_type 값이 OWPML 어휘(hc:LineType2) 밖이다. |
 | `style-memo-shape-memo-type-invalid` | 메모 모양의 memo_type 값이 OWPML 어휘(NOMAL/USER_INSERT/USER_DELETE/USER_UPDATE) 밖이다. |
 | `style-not-found` | 그 id·이름의 스타일이 없다(가용 목록·가장 가까운 이름 동봉). |
+| `style-number-format-invalid` | 번호 형식이 한컴 번호 모양 밖이다(목록·개요 머리와 쪽 번호는 hc:NumberType1 15개, 각주·미주 번호는 hc:NumberType2 19개). |
 | `style-run-outline-type-invalid` | ensure_run 의 outline 값이 OWPML 어휘(hc:LineType1: NONE/SOLID/DOT/THICK/DASH/DASH_DOT/DASH_DOT_DOT) 밖이다. |
 | `style-tab-container-create-failed` | tabProperties 컨테이너를 만들지 못했다. |
 

@@ -493,7 +493,10 @@ PAGE_NUM_POS = (
 )
 NUMBER_TYPE = ("PAGE", "FOOTNOTE", "ENDNOTE", "PICTURE", "TABLE", "EQUATION", "TOTAL_PAGE")
 PAGE_HIDING = ("hideHeader", "hideFooter", "hideMasterPage", "hideBorder", "hideFill", "hidePageNum")
-DUTMAL_POS = ("TOP", "BOTTOM", "CENTER")
+DUTMAL_POS = ("TOP", "BOTTOM")
+#: The HWP code of each dutmal position. Hancom reads CENTER as TOP and leaves
+#: the code 2 out of OWPML.
+DUTMAL_POS_CODES: dict[str, int] = {"TOP": 0, "BOTTOM": 1, "CENTER": 0}
 DUTMAL_ALIGN = ("JUSTIFY", "LEFT", "RIGHT", "CENTER", "DISTRIBUTE", "DISTRIBUTE_SPACE")
 #: Frames of overlapped characters, spelt as Hancom writes them ("TIRANGLE").
 COMPOSE_CIRCLE = (
@@ -1084,7 +1087,8 @@ class SectionWriter(ShapeReader):
             "hp:equation",
             object_attrs(common)
             + [
-                ("version", eq.version or ct.EQUATION_VERSION),
+                # An empty version stays empty, as Hancom keeps it.
+                ("version", ct.EQUATION_VERSION if eq.version is None else eq.version),
                 ("baseLine", eq.baseline),
                 ("textColor", color(eq.color)),
                 ("baseUnit", eq.base_unit),
@@ -1107,7 +1111,7 @@ class SectionWriter(ShapeReader):
             run,
             "hp:dutmal",
             (
-                ("posType", token(DUTMAL_POS, d.position)),
+                *((("posType", DUTMAL_POS[d.position]),) if 0 <= d.position < len(DUTMAL_POS) else ()),
                 ("szRatio", d.size_ratio),
                 ("option", d.option),
                 ("styleIDRef", d.style_id),
@@ -1158,6 +1162,9 @@ class SectionWriter(ShapeReader):
         if value.circle >= len(COMPOSE_CIRCLE) or value.kind >= len(COMPOSE_TYPE):
             self.report.skip("compose-frame")
         text = value.text
+        # Hancom reads characters overlapped with no frame as OVERLAP unless
+        # their text starts with the frame's glyph, whatever the kind says.
+        overlap = value.kind == 1 or (value.circle == 0 and not text.startswith(COMPOSE_FRAME_GLYPH[0]))
         if len(text) > 1 and text[0] == COMPOSE_FRAME_GLYPH.get(value.circle):
             text = text[1:]
         digits = COMPOSE_FRAMED_DIGITS.get(value.circle, {})
@@ -1168,7 +1175,7 @@ class SectionWriter(ShapeReader):
             (
                 ("circleType", token(COMPOSE_CIRCLE, value.circle)),
                 ("charSz", value.size),
-                ("composeType", token(COMPOSE_TYPE, value.kind)),
+                ("composeType", "OVERLAP" if overlap else token(COMPOSE_TYPE, value.kind)),
                 ("charPrCnt", len(value.char_shapes)),
                 ("composeText", text),
             ),

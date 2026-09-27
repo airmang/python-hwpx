@@ -17,7 +17,7 @@ stable 편집 표면의 계약을 한 곳에 모았다. 아래 표의 실패 모
 | `paragraph.remove()` | `None` | 섹션의 마지막 단락 삭제 시 `ValueError` | 이미 제거된 문단이면 조용히 무시된다(무해) |
 | `add_table(rows, cols)` | `HwpxOxmlTable` | 사실상 없음 | 표가 하나 더 추가된다(비멱등) |
 | `table.set_cell_text(r, c, text)` | `FitResult \| None` | 범위 밖 좌표는 `IndexError` (`exceed table bounds`) | 같은 값이면 결과 동일(수렴) |
-| `document.text.replace(search, repl)` | `int` (치환 수) | 빈 `search`는 `ValueError` | 치환할 것이 없으면 `0` — 1회차 후 수렴 |
+| `document.text.replace(search, repl, everywhere=False)` | `int` (치환 수) | 빈 `search`는 `ValueError` | 치환할 것이 없으면 `0` — 1회차 후 수렴 |
 | `document.notes.add_memo(..., anchor=p)` | `Memo` (`paragraph`, `field_id` 속성) | 아래 캐비앗 참고 | 메모가 하나 더 붙는다(비멱등) |
 | `document.notes.add_footnote(text, paragraph)` | `HwpxOxmlNote` | 사실상 없음 | 각주가 하나 더 붙는다(비멱등) |
 
@@ -51,9 +51,12 @@ print(report.actual_mode)
   모양인지 **검증하지 않고 조용히 수용한다**. 존재하지 않는 ID를 넣으면
   저장은 되지만 편집기 표시가 어긋날 수 있다. `document.styles.memo_shapes`로
   실재 ID를 확인하고 쓰는 것을 권장한다.
-- `document.text.replace`는 본문 문단의 개별 런 안에서 치환한다. 여러 런에
-  걸친 검색어와 중첩 셀 문단은 이 경로의 대상이 아니다. `0`을 반환하면 저장
-  성공 여부와 관계없이 요청이 반영되지 않은 것이다.
+- `document.text.replace`는 기본으로 본문 문단의 개별 런 안에서 치환한다. 여러
+  런에 걸친 검색어와 표 칸·머리말 같은 다른 곳의 문단은 대상이 아니다.
+  `everywhere=True`면 한/글 "모두 바꾸기"처럼 표 칸(칸 안 표 포함)·글상자·캡션·
+  머리말·꼬리말·각주·미주·바탕쪽의 문단과 여러 런에 걸친 말까지 바꾼다(바꿀 글의 글자는
+  같은 자리의 찾은 글자가 있던 런의 서식). 메모 본문은 어느 쪽이든 바꾸지 않는다. `0`을 반환하면
+  저장 성공 여부와 관계없이 요청이 반영되지 않은 것이다.
 - `add_*` 계열은 전부 append 의미론이다. "없으면 추가"가 필요하면 먼저
   {doc}`recipes-traversal`의 순회로 존재 여부를 확인하라.
 - 편집은 저장 전까지 메모리에만 있다. 저장 경로가 곧 커밋이다.
