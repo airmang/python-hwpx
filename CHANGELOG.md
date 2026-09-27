@@ -180,6 +180,12 @@
   넣는다. 전에는 기준 행에 여러 행에 걸친 칸이 있으면 거부했고("clone source row must have
   rowSpan==1 cells"), 합친 칸이 기준 행에서 끝나면 새 행에 칸이 비어 거부했다. 모든 칸이 아래로
   이어지는 행은 복제할 칸이 없어 거부한다.
+- `doc.parts.add_master_page()`(`doc.oxml.add_master_page()`)가 `page_number`를 받지 않으면
+  `OPTIONAL_PAGE`는 1, 다른 종류(`BOTH`·`ODD`·`EVEN`·`LAST_PAGE`)는 한/글처럼 0을 쓴다. 전에는
+  종류와 상관없이 1을 썼다.
+- 한 구역에 같은 쪽의 바탕쪽을 둘 연결하면(`add_master_page_reference`·`doc.page.set_master_page`)
+  `HwpxValueError`(`master-page-pages-taken`)를 낸다. 양쪽·홀수·짝수·마지막 쪽은 하나씩,
+  한 쪽 바탕쪽은 쪽 번호마다 하나다. 전에는 그대로 연결되어 `.hwp` 저장이 실패했다.
 - `add_table()`이 만드는 표의 행 높이 기본값을 12.7 mm(3600)에서 한컴이 새 표에 쓰는
   282로 바꾼다. 행은 셀 글 높이에 맞춰 자라서, 한 줄이면 약 4.6 mm다. 전처럼 높은 행이
   필요하면 `height=`를 준다.
