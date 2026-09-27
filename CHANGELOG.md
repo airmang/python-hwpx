@@ -56,6 +56,10 @@
 
 ### 고침
 
+- 안내문을 `Command` 문자열(`Clickhere:set:…:Direction:wstring:<길이>:<안내문> …`) 안에만 둔 누름틀을
+  자리표시로 알아보지 못하던 것을 고친다. 그래서 `doc.fields.fill()`이 값을 안내문의 글자 모양(보통 빨강)으로
+  남겼다. 이제 안내문을 그 문자열에서도 읽고(`FormField.prompt`, `is_placeholder`), 값은 누름틀의 글자
+  모양으로 쓰며, 한/글처럼 안내문을 `Direction` 매개변수로도 남긴다.
 - `doc.styles.replace_font()`가 *dst_face*를 새로 선언하는 블록에 늘 `type="TTF"`를 쓰던 것을
   고친다. 다른 블록이 같은 글꼴을 `HFT`로 선언해도 그랬다. 이제 다른 블록에 *dst_face* 선언이
   있으면 그 `hh:font`를 id만 바꿔 복사한다. 그래서 `type`·`isEmbedded`·`hh:typeInfo`가 그 선언과

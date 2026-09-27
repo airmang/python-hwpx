@@ -178,6 +178,38 @@ def _field_parameter_value(parameters: Sequence[dict[str, str]], *names: str) ->
     return ""
 
 
+_COMMAND_DIRECTION = re.compile(r"(?:^|[\s:])Direction:wstring:(\d+):")
+
+
+def _command_direction(parameters: Sequence[dict[str, str]]) -> str:
+    """The prompt a field keeps only in its ``Command`` string
+    (``Clickhere:set:N:Direction:wstring:<length>:<prompt> HelpState:...``)."""
+
+    command = _field_parameter_value(parameters, "Command")
+    found = _COMMAND_DIRECTION.search(command)
+    if found is None:
+        return ""
+    start = found.end()
+    return command[start : start + int(found.group(1))]
+
+
+def _add_direction_parameter(field_begin: Any, prompt: str) -> None:
+    """Keep a prompt read from the ``Command`` string as a ``Direction``
+    parameter too, as Hancom does when it fills such a field."""
+
+    parameters = field_begin.find(f"{_HP}parameters")
+    if parameters is None or not prompt:
+        return
+    for param in parameters:
+        if _local_name(param) == "stringParam" and param.get("name") == "Direction":
+            return
+    param = parameters.makeelement(f"{_HP}stringParam", {"name": "Direction"})
+    param.text = prompt
+    parameters.append(param)
+    if parameters.get("cnt") is not None:
+        parameters.set("cnt", str(sum(1 for child in parameters if _local_name(child).endswith("Param"))))
+
+
 def _clear_form_field_layout_cache(paragraph: Any) -> int:
     removed = 0
     for child in list(paragraph):
@@ -251,6 +283,9 @@ def _form_field_payload(
     if not prompt:
         # "Direction" is the real-Hancom 안내문 parameter (P0 gold contract).
         prompt = _field_parameter_value(parameters, "Direction", *_FORM_FIELD_PARAM_NAMES)
+    if not prompt:
+        # Some fields keep it only inside their Command string.
+        prompt = _command_direction(parameters)
     instruction = _field_parameter_value(parameters, "instruction", "guide", "help", "description", "desc")
     if not instruction:
         instruction = prompt
@@ -827,6 +862,7 @@ def fill_form_field(
     field_begin = match.get("_field_begin")
     if field_begin is not None:
         field_begin.set("dirty", "1")
+        _add_direction_parameter(field_begin, _command_direction(match.get("parameters", [])))
 
     if fit_result is not None:
         _apply_form_field_fit_style(doc, match, fit_result)

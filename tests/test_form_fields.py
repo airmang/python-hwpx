@@ -99,3 +99,32 @@ def test_fill_form_field_rejects_memo_and_hyperlink_fields() -> None:
     paragraph.section.mark_dirty()
 
     assert doc.list_form_fields() == ()  # list_form_fields now returns a tuple (design §2.5)
+
+
+HWPXLIB = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
+
+
+def test_a_prompt_kept_only_in_the_command_string_is_the_placeholder() -> None:
+    doc = HwpxDocument.open((HWPXLIB / "tool__finder__TestFinder.hwpx").read_bytes())
+
+    assert [(field.name, field.prompt, field.is_placeholder) for field in doc.fields.all][:2] == [
+        ("필드1", "필드1", True),
+        ("필드2", "필드2", True),
+    ]
+
+
+def test_filling_a_command_prompt_field_drops_the_prompt_style() -> None:
+    """The prompt run is red; Hancom puts the value in the field's own character shape and keeps the prompt
+    as a Direction parameter."""
+    doc = HwpxDocument.open((HWPXLIB / "tool__textextractor__Table.hwpx").read_bytes())
+    begin = next(b for b in doc.sections[0].element.iter(f"{HP}fieldBegin") if b.get("name") == "날짜")
+    begin_style = begin.getparent().getparent().get("charPrIDRef")
+
+    doc.fields.fill("2026-09-28", name="날짜")
+
+    value = next(t for t in doc.sections[0].element.iter(f"{HP}t") if (t.text or "") == "2026-09-28")
+    assert value.getparent().get("charPrIDRef") == begin_style
+    parameters = begin.find(f"{HP}parameters")
+    assert [(p.get("name"), p.text) for p in parameters if p.get("name") == "Direction"] == [("Direction", "날짜")]
+    assert parameters.get("cnt") == "3"
+    assert begin.get("dirty") == "1"
