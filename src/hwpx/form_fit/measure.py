@@ -101,6 +101,9 @@ _HANGING_SPACES = " " + chr(0xA0)
 _NO_LINE_START = frozenset("!%),.:;?]}¢°’”‰′″℃〉》」』】〕…·、。")
 #: Opening punctuation that never ends a line.
 _NO_LINE_END = frozenset("([{‘“〈《「『【〔")
+#: Hangul advance (em) of the faces Hancom lays a syllable out narrower than an
+#: em; any other face (맑은 고딕, 바탕, 돋움, 굴림 and 궁서 among them) takes a full em.
+_HANGUL_ADVANCE_EM: dict[str, float] = {"함초롬바탕": 0.972, "함초롬돋움": 0.972, "한컴 고딕": 0.932}
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,7 +118,8 @@ class TextStyle:
     breaks between any two syllables; ``break_latin_word`` works as named.
     ``condense`` (최소 공백, %) lets the spaces inside a line shrink by that
     share. ``indent`` is the first-line indent in HWPUNIT; a negative value is
-    a hanging indent taken off every line after the first.
+    a hanging indent taken off every line after the first. ``hangul_advance``
+    is a Hangul syllable's advance in em in the run's face.
     """
 
     ratio: float = 100.0
@@ -125,6 +129,7 @@ class TextStyle:
     break_non_latin_word: str = "BREAK_WORD"
     condense: int = 0
     indent: int = 0
+    hangul_advance: float = 1.0
 
 
 def classify_char(ch: str) -> str:
@@ -152,7 +157,13 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
 
     if style is None:
         return _ADVANCE_EM[classify_char(ch)] * font_pt * 100.0
-    base = 0.5 if ch == " " and not style.use_font_space else _ADVANCE_EM[classify_char(ch)]
+    cls = classify_char(ch)
+    if ch == " " and not style.use_font_space:
+        base = 0.5
+    elif cls == "hangul":
+        base = style.hangul_advance
+    else:
+        base = _ADVANCE_EM[cls]
     return base * font_pt * 100.0 * style.ratio / 100.0 * (1 + style.spacing / 100.0)
 
 
@@ -632,13 +643,25 @@ def _style_number(value: object, default: float) -> float:
         return default
 
 
+def _hangul_advance(root: Any, char_pr_id_ref: object) -> float:
+    """The Hangul advance (em) of the face the character shape names."""
+
+    from ..oxml.header_fonts import font_face
+
+    try:
+        face = font_face(root.headers[0], char_pr_id_ref, "HANGUL")
+    except Exception:  # pragma: no cover - defensive
+        face = None
+    return _HANGUL_ADVANCE_EM.get(face or "", 1.0)
+
+
 def text_style_from_refs(
     document: object, para_pr_id_ref: object, char_pr_id_refs: "list[object]"
 ) -> TextStyle:
     """Hancom layout settings of a paragraph shape and the first resolvable
     character shape among *char_pr_id_refs*."""
 
-    ratio, spacing, use_font_space = 100.0, 0.0, False
+    ratio, spacing, use_font_space, hangul_advance = 100.0, 0.0, False, 1.0
     root = _document_root(document)
     for ref in char_pr_id_refs:
         try:
@@ -651,13 +674,14 @@ def text_style_from_refs(
         ratio = _style_number((children.get("ratio") or {}).get("hangul"), 100.0)
         spacing = _style_number((children.get("spacing") or {}).get("hangul"), 0.0)
         use_font_space = (getattr(run_style, "attributes", {}) or {}).get("useFontSpace") in {"1", "true"}
+        hangul_advance = _hangul_advance(root, ref)
         break
     try:
         prop = root.paragraph_property(para_pr_id_ref)
     except Exception:  # pragma: no cover - defensive
         prop = None
     if prop is None:
-        return TextStyle(ratio=ratio, spacing=spacing, use_font_space=use_font_space)
+        return TextStyle(ratio=ratio, spacing=spacing, use_font_space=use_font_space, hangul_advance=hangul_advance)
     breaks = getattr(prop, "break_setting", None)
     # hp:case carries the HWPUNIT values Hancom lays out with; hp:default doubles them.
     switch = getattr(prop, "version_switch", None)
@@ -673,6 +697,7 @@ def text_style_from_refs(
         break_non_latin_word=getattr(breaks, "break_non_latin_word", None) or "BREAK_WORD",
         condense=int(_style_number(getattr(prop, "condense", 0), 0.0)),
         indent=int(_style_number(getattr(margin, "intent", 0), 0.0)),
+        hangul_advance=hangul_advance,
     )
 
 

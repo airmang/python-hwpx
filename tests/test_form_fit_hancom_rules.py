@@ -25,10 +25,11 @@ from hwpx.form_fit import (
     hancom_line_starts,
     measure,
 )
-from hwpx.form_fit.measure import _cell_text_style, resolve_slot_metrics
+from hwpx.form_fit.measure import _cell_text_style, resolve_slot_metrics, text_style_from_refs
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_rules.hwpx"
+FACE_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_face_advance.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
 
@@ -189,3 +190,32 @@ def test_the_line_starts_are_the_ones_hancom_saves() -> None:
         widths = [slot.available_width - max(style.indent, 0), slot.available_width - max(-style.indent, 0)]
 
         assert hancom_line_starts(cell.text, widths, slot.font_pt, style) == [int(s.get("textpos")) for s in segs], cell.text
+
+
+def test_a_hangul_syllable_takes_the_advance_of_its_face() -> None:
+    doc = HwpxDocument.new()
+    advances = {
+        face: text_style_from_refs(doc, None, [doc.oxml.ensure_run_style(font=face, size=10)]).hangul_advance
+        for face in ("함초롬바탕", "함초롬돋움", "한컴 고딕", "맑은 고딕")
+    }
+
+    assert advances == {"함초롬바탕": 0.972, "함초롬돋움": 0.972, "한컴 고딕": 0.932, "맑은 고딕": 1.0}
+    assert round(estimate_text_width("가", 10, TextStyle(hangul_advance=0.972))) == 972
+
+
+def test_each_face_breaks_where_hancom_breaks() -> None:
+    """Fourteen syllables per face, in a cell just wide enough and in one 10 HWPUNIT narrower
+    (함초롬바탕, 함초롬돋움, 한컴 고딕, 맑은 고딕), laid out and saved by Hancom."""
+    doc = HwpxDocument.open(FACE_ADVANCES.read_bytes())
+    tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+    assert len(tables) == 8
+    for table in tables:
+        cell = table.cell(0, 0)
+        segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
+        style = _cell_text_style(cell, doc)
+        slot = resolve_slot_metrics(cell, doc, safety=1.0)
+
+        assert hancom_line_starts(cell.text, [slot.available_width], slot.font_pt, style) == [
+            int(s.get("textpos")) for s in segs
+        ], (style.hangul_advance, slot.available_width)
