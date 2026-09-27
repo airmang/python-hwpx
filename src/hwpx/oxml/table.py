@@ -378,6 +378,8 @@ class HwpxOxmlTableCell:
     ) -> None:
         previous_text = self.text
         sanitized_value = sanitize_keeping_tabs(value)
+        if sanitized_value == previous_text and preserve_format:
+            return  # the same text changes nothing: paragraphs, runs and line caches stay
         if sanitized_value and sanitized_value != previous_text:
             sublist = self._ensure_sublist()
             if (sublist.get("lineWrap") or "").upper() == "SQUEEZE":
