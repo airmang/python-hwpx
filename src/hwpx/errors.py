@@ -121,6 +121,7 @@ class HwpxStateError(HwpxError, RuntimeError):
 ERROR_CODE_DOMAINS = frozenset(
     {
         "capability",
+        "cell",
         "contract",
         "document",
         "field",
@@ -143,6 +144,7 @@ ERROR_CODE_DOMAINS = frozenset(
         "save",
         "section",
         "shape",
+        "story",
         "style",
         "table",
         "text",
@@ -210,11 +212,27 @@ ERROR_CODES: dict[str, str] = {
     "paragraph-tab-type-invalid": "탭 정지 type 값이 OWPML 어휘(LEFT/RIGHT/CENTER/DECIMAL) 밖이다.",
     "paragraph-tab-leader-invalid": "탭 정지 leader 값이 OWPML 어휘(hc:LineType2) 밖이다.",
     "paragraph-title-mark-no-text-run": "문단에 hp:t를 가진 run이 없어 titleMark를 넣을 자리가 없다.",
+    "paragraph-index-mark-no-text-run": "문단에 hp:t를 가진 run이 없어 indexmark를 넣을 자리가 없다.",
+    "paragraph-index-mark-empty-key": "찾아보기 표시의 first/second 키가 빈 문자열이다.",
+    "paragraph-text-missing": "문단에 고칠 일반 텍스트(hp:t) 노드가 없다.",
+    "paragraph-text-style-ambiguous": "텍스트 수정이 run 경계를 넘거나 삽입할 글자 모양이 모호하다.",
+    "paragraph-mixed-text-unsupported": "hp:t 안에 인라인 마크업이 섞여 있어 안전하게 고칠 수 없다.",
+    "paragraph-tab-target-required": "탭 컨트롤이 있는 문단은 고칠 run을 명시해야 한다.",
+    "paragraph-remove-last": "구역·셀·머리말·꼬리말의 마지막 문단은 지울 수 없다(담은 곳은 context.container).",
+    # -- 표 셀 -----------------------------------------------------------
+    "cell-margin-value": "셀 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
+    "cell-border-edit-unsupported": "셀 테두리 편집 대상 스타일이 없거나 모호하거나 네 변이 온전하지 않다(또는 색·선 종류가 잘못됐다).",
+    "table-position-missing": "표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다.",
+    "table-cell-zone-grid-mismatch": "셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다.",
+    # -- 머리말·꼬리말 story ------------------------------------------------
+    "story-ambiguous": "그 쪽 종류·id 에 맞는 머리말/꼬리말 story 가 여럿이거나 식별이 모호하다.",
+    "story-linkage": "기존 머리말/꼬리말 컨트롤과 구역 적용 정보가 서로 맞지 않는다.",
     # -- 문서 파트(doc.parts) ----------------------------------------------
     "parts-no-header-part": "문서에 header.xml 파트가 없다(doc.parts 경로).",
     "parts-auto-spacing-unknown-para-pr": "그 id 의 hh:paraPr 를 문서에서 찾지 못했다.",
     "header-compat-empty-target-program": "target_program 값이 비어 있다.",
     "header-compat-empty-flag-name": "layout compatibility 플래그 이름이 비어 있다.",
+    "header-compat-empty-license-mark-type": "라이선스 표시 mark_type 값이 비어 있다.",
     "master-page-manifest-missing": "content.hpf 매니페스트에 opf:manifest 요소가 없다.",
     "master-page-type-unsupported": "바탕쪽 type 값이 OWPML 어휘(BOTH/EVEN/ODD/LAST_PAGE/OPTIONAL_PAGE) 밖이다.",
     # -- 문서 병합(doc.merge) ------------------------------------------------
@@ -274,6 +292,7 @@ ERROR_CODES: dict[str, str] = {
     "field-date-format-unsupported": "날짜/시간 필드 date_format 값이 실증된 어휘(단일 관측값) 밖이다.",
     "field-proofreading-mark-unsupported": "교정 부호 mark 값이 $RevisionSign 인덱스가 확인된 어휘 밖이다.",
     "field-path-format-unsupported": "파일 이름 필드 path_format 값이 실증된 어휘(단일 관측값) 밖이다.",
+    "field-mail-merge-empty-name": "메일 머지 필드 이름이 비어 있다.",
     # -- 인라인 개체 -----------------------------------------------------
     "shape-equation-script-empty": "수식 스크립트가 비어 있다.",
     "shape-equation-script-too-large": "수식 스크립트가 크기 한도를 넘었다.",
@@ -294,6 +313,8 @@ ERROR_CODES: dict[str, str] = {
     "shape-drop-cap-character-empty": "드롭캡으로 키울 문자가 비어 있다.",
     "shape-drop-cap-anchor-detached": "만든 드롭캡이 요청한 dropcapstyle 을 안 갖고 있다(방어적 분기).",
     "shape-drop-cap-not-created": "만든 드롭캡을 표준 섹션 스캔이 다시 찾지 못했다.",
+    "shape-position-value": "도형 오프셋이 부호 있는 32비트 int(HWPUNIT)가 아니다.",
+    "shape-position-unsupported": "글자처럼 배치됐거나 hp:pos 가 없는 개체라 위치를 옮길 수 없다.",
     # -- 미디어 ----------------------------------------------------------
     "media-item-id-taken": "그 이진 항목 id 가 이미 쓰이고 있다.",
     "media-owner-paragraph-missing": "교체한 그림 요소가 소속 문단을 찾지 못했다(방어적 분기).",

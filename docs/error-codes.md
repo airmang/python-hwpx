@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 139 | 11 |
+| 개수 | 156 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -45,7 +45,7 @@ except HwpxError as exc:
 `<도메인>-<조건>`, 전부 소문자 kebab-case. 도메인은 6.0 네임스페이스와
 패키지 수준 관심사에서 온다:
 
-`capability`, `contract`, `document`, `field`, `header`, `heading`, `hwp5`, `hwpx`, `master`, `media`, `note`, `open`, `package`, `page`, `paragraph`, `parts`, `plan`, `preservation`, `quality`, `ref`, `save`, `section`, `shape`, `style`, `table`, `text`, `track`
+`capability`, `cell`, `contract`, `document`, `field`, `header`, `heading`, `hwp5`, `hwpx`, `master`, `media`, `note`, `open`, `package`, `page`, `paragraph`, `parts`, `plan`, `preservation`, `quality`, `ref`, `save`, `section`, `shape`, `story`, `style`, `table`, `text`, `track`
 
 유예 2건 — `unknown-contract-document`, `unknown-contract-schema` —
 은 5.6.0 에 이미 나간 이름이라 문법에 맞지 않아도 바꾸지 않는다(7.0 정리).
@@ -56,6 +56,13 @@ except HwpxError as exc:
 문서가 사본이다 — 문서끼리 대조하는 가드는 "양쪽에 다 없으면 통과"하므로,
 문서를 코드에서 유도하는 쪽이 옳다.
 
+
+### `cell-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `cell-border-edit-unsupported` | 셀 테두리 편집 대상 스타일이 없거나 모호하거나 네 변이 온전하지 않다(또는 색·선 종류가 잘못됐다). |
+| `cell-margin-value` | 셀 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 
 ### `contract-*`
 
@@ -89,6 +96,7 @@ except HwpxError as exc:
 | `field-checkbox-not-found` | 그 선택자로 체크박스를 찾지 못했다. |
 | `field-date-format-unsupported` | 날짜/시간 필드 date_format 값이 실증된 어휘(단일 관측값) 밖이다. |
 | `field-fit-failed` | 값이 FitPolicy 하에서 필드 상자에 들어가지 않는다(측정치·재시도 제안 동봉). |
+| `field-mail-merge-empty-name` | 메일 머지 필드 이름이 비어 있다. |
 | `field-name-empty` | 누름틀 이름이 비어 있다. |
 | `field-not-created` | 만든 누름틀을 표준 매처가 다시 찾지 못했다. |
 | `field-not-found` | 그 선택자로 누름틀을 찾지 못했다. |
@@ -101,6 +109,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `header-compat-empty-flag-name` | layout compatibility 플래그 이름이 비어 있다. |
+| `header-compat-empty-license-mark-type` | 라이선스 표시 mark_type 값이 비어 있다. |
 | `header-compat-empty-target-program` | target_program 값이 비어 있다. |
 
 ### `heading-*`
@@ -182,16 +191,23 @@ except HwpxError as exc:
 | `paragraph-argument-conflict` | paragraph_index·paragraph_indexes·paragraphs 중 둘 이상을 동시에 지정했다. |
 | `paragraph-border-invalid` | 문단 테두리(border) 지정에 모르는 키·면이 있거나 여백이 네 개의 0 이상 수가 아니다. |
 | `paragraph-format-empty` | 적용할 문단 서식 항목이 하나도 없다. |
+| `paragraph-index-mark-empty-key` | 찾아보기 표시의 first/second 키가 빈 문자열이다. |
+| `paragraph-index-mark-no-text-run` | 문단에 hp:t를 가진 run이 없어 indexmark를 넣을 자리가 없다. |
 | `paragraph-indexes-empty` | paragraph_indexes 또는 paragraphs 가 비어 있다. |
 | `paragraph-invalid-type` | paragraph 인자가 정수도 문단 객체도 아니다. |
 | `paragraph-line-spacing-invalid` | 줄 간격은 양수여야 한다. |
 | `paragraph-missing` | 문서(또는 지정 범위)에 문단이 하나도 없다. |
+| `paragraph-mixed-text-unsupported` | hp:t 안에 인라인 마크업이 섞여 있어 안전하게 고칠 수 없다. |
 | `paragraph-not-found` | 문단 인덱스가 범위를 벗어났다. |
 | `paragraph-not-in-document` | 넘긴 문단 객체가 이 문서에 속해 있지 않다(다른 문서의 문단이거나 지운 문단). |
 | `paragraph-outline-level-out-of-range` | 문단 개요 수준이 0~10 밖이다. |
+| `paragraph-remove-last` | 구역·셀·머리말·꼬리말의 마지막 문단은 지울 수 없다(담은 곳은 context.container). |
 | `paragraph-tab-leader-invalid` | 탭 정지 leader 값이 OWPML 어휘(hc:LineType2) 밖이다. |
 | `paragraph-tab-pos-invalid` | 탭 정지 위치(pos_mm/pos)가 없거나 음수다. |
+| `paragraph-tab-target-required` | 탭 컨트롤이 있는 문단은 고칠 run을 명시해야 한다. |
 | `paragraph-tab-type-invalid` | 탭 정지 type 값이 OWPML 어휘(LEFT/RIGHT/CENTER/DECIMAL) 밖이다. |
+| `paragraph-text-missing` | 문단에 고칠 일반 텍스트(hp:t) 노드가 없다. |
+| `paragraph-text-style-ambiguous` | 텍스트 수정이 run 경계를 넘거나 삽입할 글자 모양이 모호하다. |
 | `paragraph-title-mark-no-text-run` | 문단에 hp:t를 가진 run이 없어 titleMark를 넣을 자리가 없다. |
 
 ### `parts-*`
@@ -259,6 +275,15 @@ except HwpxError as exc:
 | `shape-equation-script-empty` | 수식 스크립트가 비어 있다. |
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
 | `shape-polygon-too-few-points` | add_polygon 에 꼭짓점을 3개 미만으로 줬다. |
+| `shape-position-unsupported` | 글자처럼 배치됐거나 hp:pos 가 없는 개체라 위치를 옮길 수 없다. |
+| `shape-position-value` | 도형 오프셋이 부호 있는 32비트 int(HWPUNIT)가 아니다. |
+
+### `story-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `story-ambiguous` | 그 쪽 종류·id 에 맞는 머리말/꼬리말 story 가 여럿이거나 식별이 모호하다. |
+| `story-linkage` | 기존 머리말/꼬리말 컨트롤과 구역 적용 정보가 서로 맞지 않는다. |
 
 ### `style-*`
 
@@ -288,6 +313,13 @@ except HwpxError as exc:
 | `style-number-format-invalid` | 번호 형식이 한컴 번호 모양 밖이다(목록·개요 머리와 쪽 번호는 hc:NumberType1 15개, 각주·미주 번호는 hc:NumberType2 19개). |
 | `style-run-outline-type-invalid` | ensure_run 의 outline 값이 OWPML 어휘(hc:LineType1: NONE/SOLID/DOT/THICK/DASH/DASH_DOT/DASH_DOT_DOT) 밖이다. |
 | `style-tab-container-create-failed` | tabProperties 컨테이너를 만들지 못했다. |
+
+### `table-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `table-cell-zone-grid-mismatch` | 셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다. |
+| `table-position-missing` | 표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다. |
 
 ### `text-*`
 

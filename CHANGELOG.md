@@ -69,9 +69,27 @@
   쪽을 넘는 상자 하나로 그려진다(한컴의 "문단 테두리 연결"). 상자 안의 빈 문단에도
   같은 서식을 주면 상자가 끊기지 않는다. 기존 `bottom_border=True`는 그대로
   아래 한 면만 켠다. 잘못된 지정은 `paragraph-border-invalid`로 거부한다.
+- 표 셀 안쪽 여백을 읽고 쓴다. `cell.margins`는 한/글이 셀을 배치하는 여백을
+  `hwpx.objects.CellMargins`(HWPUNIT, `left`·`right`·`top`·`bottom`)로 돌려준다. 셀의
+  `hasMargin`이 꺼져 있으면 표의 `hp:inMargin`, 켜져 있으면 셀의 `hp:cellMargin`이다.
+  `add_table()`이 만든 셀은 `CellMargins(510, 510, 141, 141)`이다.
+  `cell.set_margins(left=, right=, top=, bottom=)`는 주지 않은 면을 지금 여백으로 채워
+  네 면을 셀 여백에 쓰고 `hasMargin="1"`로 켠 뒤 새 여백을 돌려준다. 여백이 실제로 바뀌면
+  그 셀에 바로 든 문단의 줄 배치 캐시를 지운다(안쪽 표 문단은 그대로). 인자가 없으면
+  아무것도 바꾸지 않는다. `0 <= v < 2**31`인 `int`가 아닌 값(`bool` 포함)은 바꾸기 전에
+  `HwpxValueError`(`cell-margin-value`)로 거부한다.
+- 편집 의미론 문서에 `table.set_cell_text()`가 남기는 것과 다시 만드는 것(기본은 첫
+  `hp:t`에 쓰고 나머지 `hp:t`를 비우며 그렇게 비워진 문단만 지운다, `split_paragraphs=True`는
+  문단을 다시 만든다),
+  `table.set_column_widths([1] * column_count)`가 나누는 규칙(전의 `equalize_column_widths()`
+  나눔: 표 너비 유지, 앞 `n-1`열 `round(W / n)`, 마지막 열 나머지)과 `Paragraph.char_pr_id_ref`가 그 문단의 run 전부에 들어간다는 것을 적는다.
 
 ### 바꿈
 
+- 마지막 문단을 지우려는 `paragraph.remove()`가 맨 `ValueError` 대신
+  `HwpxValueError`(`ValueError` 하위라 `except ValueError`는 그대로 잡는다)를 낸다.
+  `code`는 `paragraph-remove-last`, `context["container"]`는 문단을 담은 곳
+  (`section`·`cell`·`header`·`footer`)이다. 메시지는 같다.
 - `HwpxOxmlTable.equalize_column_widths()`가 한/글 "셀 너비를 같게"처럼 행마다 칸을 같은
   너비로 나눈다. 합친 칸은 그 행의 한 칸으로 세고, 모든 행이 같은 자리에서 끝나도록 표
   너비를 행마다의 칸 수로 모두 나누어떨어지는 값까지 올린 뒤(예: 3칸 행과 4칸 행이면 12의
