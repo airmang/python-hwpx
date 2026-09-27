@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import math
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 # Advance width as a fraction of the em (font height in HWPUNIT). Hangul/wide are
@@ -60,6 +60,10 @@ _CLASS_UNCERTAINTY: dict[str, float] = {
 # explicit cellMargin; empirically ~284 HWPUNIT on small cells). Applied as a
 # multiplicative factor so it scales and also buys headroom on the advance error.
 DEFAULT_SAFETY = 0.93
+
+#: Hancom never lays a cell line out narrower than this (HWPUNIT): below it the
+#: line keeps this width however narrow the cell.
+MIN_LINE_WIDTH = 1440
 
 # --- Vertical (line-height) model ------------------------------------------- #
 # Per-line vertical advance as a multiple of the em (font height in HWPUNIT).
@@ -104,7 +108,8 @@ class TextStyle:
     """Character and paragraph settings Hancom lays a line out with.
 
     ``ratio`` (장평, %) and ``spacing`` (자간, % of each glyph's own width)
-    scale every advance, and a space is half an em unless ``use_font_space``.
+    scale every advance, except that the glyph ending a line takes no 자간
+    after it, and a space is half an em unless ``use_font_space``.
     ``break_non_latin_word`` works the reverse of its name in Hancom:
     ``BREAK_WORD`` (the default) keeps Hangul words whole and ``KEEP_WORD``
     breaks between any two syllables; ``break_latin_word`` works as named.
@@ -237,7 +242,8 @@ def hancom_line_starts(
     """Where Hancom starts each line of the one-line *text* (no newlines).
 
     ``widths[k]`` is the width of line ``k`` in HWPUNIT (the last one repeats).
-    A line takes characters while they fit; spaces at its end hang past the
+    A line takes characters while they fit (the last one without its 자간);
+    spaces at its end hang past the
     margin and, with ``style.condense``, the spaces inside it may shrink to
     make room. The line then ends at the last break opportunity that fits —
     never before a closing or after an opening punctuation mark — or mid-word
@@ -246,6 +252,7 @@ def hancom_line_starts(
 
     breaks = _hancom_break_opportunities(text, style)
     space = char_advance(" ", font_pt, style)
+    unspaced = replace(style, spacing=0.0)
     starts = [0]
     length = len(text)
     start = 0
@@ -261,7 +268,7 @@ def hancom_line_starts(
                 end += 1
                 continue
             shrink = (inner + pending) * space * style.condense / 100.0
-            if used + advance - shrink > width and end > start:
+            if used + char_advance(ch, font_pt, unspaced) - shrink > width and end > start:
                 break
             used += advance
             inner += pending
@@ -632,9 +639,10 @@ def text_style_from_refs(
     character shape among *char_pr_id_refs*."""
 
     ratio, spacing, use_font_space = 100.0, 0.0, False
+    root = _document_root(document)
     for ref in char_pr_id_refs:
         try:
-            run_style = document.char_property(ref)  # type: ignore[attr-defined]
+            run_style = root.char_property(ref)
         except Exception:  # pragma: no cover - defensive
             run_style = None
         if run_style is None:
@@ -645,7 +653,7 @@ def text_style_from_refs(
         use_font_space = (getattr(run_style, "attributes", {}) or {}).get("useFontSpace") in {"1", "true"}
         break
     try:
-        prop = document.paragraph_property(para_pr_id_ref)  # type: ignore[attr-defined]
+        prop = root.paragraph_property(para_pr_id_ref)
     except Exception:  # pragma: no cover - defensive
         prop = None
     if prop is None:
@@ -726,7 +734,7 @@ def resolve_slot_metrics(
 ) -> SlotMetrics:
     """Build :class:`SlotMetrics` from a live table cell.
 
-    ``available_width = (cellSz.width - cellMargin.L - cellMargin.R) * safety`` —
+    ``available_width = max(cellSz.width - cellMargin.L - cellMargin.R, MIN_LINE_WIDTH) * safety`` —
     verified against Hancom's own ``lineSeg/@horzsize`` (±10 HWPUNIT on 82% of
     cells; the safety factor covers the rest plus paragraph indent, which is left
     to the HarfBuzz pass).
@@ -747,7 +755,7 @@ def resolve_slot_metrics(
     raw_width = float(getattr(cell, "width", 0) or 0)
     element = getattr(cell, "element", None)
     left, right, top, bottom = _effective_cell_margins(cell)
-    inner = max(raw_width - left - right, 0.0) * safety
+    inner = (max(raw_width - left - right, MIN_LINE_WIDTH) if raw_width > 0 else 0.0) * safety
     inline_width, inline_count = (
         _inline_object_width(element) if element is not None else (0.0, 0)
     )

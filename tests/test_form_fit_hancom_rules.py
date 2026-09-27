@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """FormFit follows Hancom's line layout rules when a slot carries a TextStyle.
 
-A space is half an em, 장평 and 자간 scale every advance, the paragraph's break
-settings decide where a line may end (the Hangul value works the reverse of
-its name), spaces at a line end hang past the margin, 최소 공백 lets inner
-spaces shrink, indents come off the first or the following lines, and closing
-punctuation never starts a line. All advances here use the class averages
-(Hangul 1.0 em, lower-case Latin 0.52 em, punctuation 0.42 em).
+A space is half an em, 장평 and 자간 scale every advance (the glyph ending a
+line takes no 자간), the paragraph's break settings decide where a line may end
+(the Hangul value works the reverse of its name), spaces at a line end hang
+past the margin, 최소 공백 lets inner spaces shrink, indents come off the first
+or the following lines, closing punctuation never starts a line, and a cell
+line is never narrower than 1440 HWPUNIT. All advances here use the class
+averages (Hangul 1.0 em, lower-case Latin 0.52 em, punctuation 0.42 em).
 """
 from __future__ import annotations
 
@@ -40,6 +41,19 @@ def test_a_space_is_half_an_em_unless_the_font_space_is_used() -> None:
 
 def test_ratio_and_spacing_scale_each_advance() -> None:
     assert estimate_text_width("가", 10, TextStyle(ratio=80, spacing=-10)) == 720
+
+
+def test_the_glyph_ending_a_line_takes_no_spacing() -> None:
+    # At 자간 -20 % seven syllables sit 800 apart, but the last one is 1000 wide: 5800 in all.
+    assert hancom_line_starts("가나다라마바사", [5600], 10, TextStyle(break_non_latin_word="KEEP_WORD", spacing=-20)) == [0, 6]
+    assert hancom_line_starts("가나다라마바사", [8300], 10, TextStyle(break_non_latin_word="KEEP_WORD", spacing=20)) == [0]
+
+
+def test_a_narrow_cell_still_gets_lines_1440_wide() -> None:
+    doc = HwpxDocument.new()
+    cell = doc.add_table(1, 1, width=700 + 2 * 510).cell(0, 0)
+
+    assert resolve_slot_metrics(cell, doc, safety=1.0).available_width == 1440
 
 
 def test_break_word_keeps_hangul_words_whole_and_keep_word_breaks_syllables() -> None:
@@ -162,10 +176,11 @@ def test_the_indent_hancom_saved_is_read() -> None:
 
 def test_the_line_starts_are_the_ones_hancom_saves() -> None:
     """Hancom laid these cells out (a Hangul word or syllable break, spaces, closing and opening
-    punctuation, indents, 최소 공백, a Latin hyphen); each breaks where Hancom broke it."""
+    punctuation, indents, 최소 공백, a Latin hyphen, 자간 and 장평 with and without spaces, a cell
+    narrower than a line); each breaks where Hancom broke it."""
     doc, tables = _hancom_tables()
 
-    assert len(tables) == 13
+    assert len(tables) == 21
     for table in tables:
         cell = table.cell(0, 0)
         segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
