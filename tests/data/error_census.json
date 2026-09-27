@@ -36,7 +36,7 @@
    "oxml/settings.py:135"
   ],
   "document-validation-failed": [
-   "_document/persistence.py:91"
+   "_document/persistence.py:146"
   ],
   "document-version-root-invalid": [
    "oxml/version_part.py:52"
@@ -114,10 +114,10 @@
    "oxml/master_page_authoring.py:97"
   ],
   "media-item-id-taken": [
-   "_document/media.py:303"
+   "_document/media.py:304"
   ],
   "media-owner-paragraph-missing": [
-   "_document/media.py:255"
+   "_document/media.py:256"
   ],
   "note-anchor-detached": [
    "_document/memos.py:137"
@@ -130,7 +130,7 @@
    "_document/memos.py:280"
   ],
   "open-safety-failed": [
-   "_document/persistence.py:117"
+   "_document/persistence.py:172"
   ],
   "page-argument-conflict": [
    "_document/layout.py:912",
@@ -231,20 +231,20 @@
    "oxml/paragraph.py:941"
   ],
   "parts-auto-spacing-unknown-para-pr": [
-   "_document/ns/parts.py:266"
+   "_document/ns/parts.py:329"
   ],
   "parts-no-header-part": [
-   "_document/ns/parts.py:172"
+   "_document/ns/parts.py:235"
   ],
   "quality-gate-failed": [
-   "_document/persistence.py:155"
+   "_document/persistence.py:210"
   ],
   "save-format-unsupported": [
-   "_document/persistence.py:340"
+   "_document/persistence.py:395"
   ],
   "save-package-contract-violated": [
-   "_document/persistence.py:196",
-   "_document/persistence.py:489"
+   "_document/persistence.py:251",
+   "_document/persistence.py:544"
   ],
   "section-argument-conflict": [
    "_document/_resolve.py:75"

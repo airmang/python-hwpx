@@ -80,6 +80,18 @@
   쪽을 넘는 상자 하나로 그려진다(한컴의 "문단 테두리 연결"). 상자 안의 빈 문단에도
   같은 서식을 주면 상자가 끊기지 않는다. 기존 `bottom_border=True`는 그대로
   아래 한 면만 켠다. 잘못된 지정은 `paragraph-border-invalid`로 거부한다.
+- 템플릿을 넘기기 전에 패키지를 정리하는 기본 동작을 더한다. 무엇을 지울지는 호출자가
+  정한다.
+  - `doc.parts.clear_document_metadata(keep=("title", "language"),
+    timestamp="1970-01-01T00:00:00Z")`(`HwpxPackage`에도 같은 이름)는 `opf:metadata`에서
+    `keep` 밖의 필드를 모두 비우고 비운 키를 문서 순서로 돌려준다. 이 라이브러리가 모르는
+    `opf:meta` 이름도 비운다. `CreatedDate`·`ModifiedDate`처럼 이름에 `Date`가 든 필드는
+    `timestamp`로 바꾸고, 자유형식 `date`를 비롯한 나머지는 요소와 속성을 두고 내용만 비운다.
+  - `doc.parts.clear_preview()`는 `Preview/PrvText.txt`를 비우고 `Preview/PrvImage.png`를
+    1×1 흰 PNG로 바꾼다. 두 파트를 지우지는 않는다.
+  - `doc.validate()`가 파트가 없는 매니페스트 항목과, 매니페스트 항목이 없는 `BinData/`
+    파트를 경고로 알린다. 경고라서 `ok`는 그대로다. `isEmbeded="0"`으로 바깥 파일을
+    잇는 항목은 알리지 않는다.
 - `Shape.set_position()`이 기준 프레임과 정렬도 정한다. `horz_rel_to`·`vert_rel_to`·
   `horz_align`·`vert_align`이 `hp:pos`의 `horzRelTo`·`vertRelTo`·`horzAlign`·
   `vertAlign`을 쓴다. 값은 OWPML 스키마 철자 그대로다(`vert_rel_to`에는 `COLUMN`이
@@ -352,6 +364,18 @@
 - `delete_row`가 세로로 합친 칸의 첫 행을 지우면 합친 칸까지 지워 표에 빈 자리가
   생겨 거부되던 것을 고친다. 이제 합친 칸은 다음 행으로 내려가 한 행 줄어들고, 글과
   서식은 그대로다(한컴 편집기에서 그 행을 지운 결과와 같다).
+- `doc.media.images`가 `content.hpf` 매니페스트에만 있는 이진 항목을 보지 못하던 것을
+  고친다. 한컴이 저장한 파일은 보통 header에 `binDataList`가 없어 그림이 있어도 빈 목록이
+  나왔다. 이제 header 항목 뒤에 매니페스트에만 있는 항목(href가 `BinData/` 아래이거나
+  media-type이 `image/*`)을 붙인다. `isEmbeded="0"`으로 바깥 파일을 잇는 항목은 넣지 않고,
+  파트가 없는 내장 항목은 `size=0`으로 넣는다. `doc.media.remove_image()`는 매니페스트 id·파트 경로
+  (`"BinData/image1.png"`)·`BinaryItem`을 모두 받아 이런 항목도 지운다.
+- `doc.media.remove_image("image1")`이 header에 `image10.png`가 먼저 있으면 그 `binItem`과
+  파트를 대신 지우던 것을 고친다. header 항목을 파일 이름 앞부분으로 맞췄기 때문이다. 이제
+  확장자를 뺀 파일 이름(또는 파일 이름 전체)이 같아야 맞는다.
+- `HwpxPackage.remove_manifest_item()`에 파트 경로를 넘기면 `False`만 돌려주고 항목을
+  남기던 것을 고친다. 이 인자는 매니페스트 `id`다. 그 id의 항목이 없고 값에 `/`가 있으면
+  href가 같은 파트를 가리키는 항목을 지운다.
 - HWP 5.0으로 저장(`to_bytes(format="hwp")`·`save_to_path("*.hwp")`)할 때 원본 구역에
   XML 주석이 있으면 `ValueError: Invalid input tag`로 멈추던 것을 고친다. 실문서 가운데
   표 행 안에 주석을 둔 문서가 있었다. 이제 주석과 처리 명령은 내용이 아니므로 건너뛴다.
