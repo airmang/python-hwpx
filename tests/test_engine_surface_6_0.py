@@ -382,6 +382,20 @@ def test_model_surface_lock_matches_the_live_classes() -> None:
         live = {member for member in dir(cls) if not member.startswith("_")}
         missing = sorted(set(entry["stable"]) - live)
         assert not missing, f"{name} 의 stable 멤버가 사라졌습니다: {missing}"
+        internal = len(live - set(entry["stable"]))
+        assert entry["internalCount"] == internal, (
+            f"{name} 의 목록 밖 공개 멤버는 {internal}개인데 락은 {entry['internalCount']}개입니다"
+        )
+
+
+def test_stable_api_doc_counts_match_the_model_surface_lock() -> None:
+    locked = json.loads((DATA / "model_surface.json").read_text(encoding="utf-8"))["classes"]
+    doc = (Path(__file__).parents[1] / "docs" / "stable-api.md").read_text(encoding="utf-8")
+    stable = sum(len(entry["stable"]) for entry in locked.values())
+    internal = sum(entry["internalCount"] for entry in locked.values())
+
+    assert f"**{len(locked)}개 클래스 / {stable}개\n멤버**" in doc
+    assert f"목록 **밖**의 멤버({internal}개" in doc
 
 
 # --------------------------------------------------------------------------

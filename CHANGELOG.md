@@ -57,6 +57,19 @@
 - `doc.media.images`가 한/글이 `BinData/`에 두는 OLE 항목을 빼던 것을 고친다. `isEmbeded="0"`이면
   모두 바깥 파일로 봤기 때문이다. 이제 href가 `BinData/` 밖인 `isEmbeded="0"` 항목(패키지 밖 파일)만
   뺀다.
+- 표 칸의 안쪽 여백을 읽는 곳마다 규칙이 달라 같은 칸에 서로 다른 값을 쓰던 것을 고친다. 이제
+  양식 맞춤(`resolve_slot_metrics`), 칸 안 중첩 표의 기본 너비, 새 표의 쪽 넘김 판단, 레이아웃
+  미리보기의 칸 안쪽 여백, 템플릿 분석(`analyze_template`)의 `CellSummary.margin`, 바이트 보존 칸
+  채우기(`fill_cells`)의 글자 줄이기가 모두 `cell.margins`와 같은 규칙을 따른다. 칸의 `hasMargin`이
+  켜져 있을 때만 칸의 `hp:cellMargin`을 쓰고, 꺼져 있거나 없으면 표의 `hp:inMargin`을 쓴다. 전에는
+  양식 맞춤이 `hasMargin`이 없는 칸에 칸 여백을 썼고, 나머지는 `hasMargin`을 보지 않고 칸 여백만
+  읽었다. 한/글이 저장한 실문서의 줄 너비(`lineseg@horzsize`)가 이 규칙과 맞는다. `hasMargin="0"`이고
+  두 여백이 다른 칸이 있는 문서는 중첩 표 기본 너비, 미리보기 안쪽 여백, 템플릿 분석 값,
+  `fill_cells`의 글자 줄이기 판단이 바뀐다. 양식 맞춤 결과는 테스트 실문서에서 바뀌지 않는다.
+- `tests/data/model_surface.json`의 `internalCount`(stable 목록 밖 공개 멤버 수)를 확인하는
+  테스트가 없어 19개 클래스 중 12개 값이 실제와 어긋나 있던 것을 고친다. 값을 실제에 맞추고(합 82 →
+  154), 표면 테스트가 모든 클래스의 값과 `docs/stable-api.md`의 수를 확인한다. 공개 API는 바뀌지
+  않는다.
 - 5.0에서 `python-hwpx-automation`으로 옮긴 모듈(`hwpx.builder`, `hwpx.authoring`, `hwpx.exam`,
   `hwpx.tools.pii` 등 21개)을 import하면 `No module named ...`만 나오던 것을 고친다. 이제
   `ModuleNotFoundError` 메시지가 새 모듈 경로(예: `hwpx_automation.office.authoring.builder`),
