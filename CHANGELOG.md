@@ -54,6 +54,12 @@
 - FormFit이 칸 첫 줄의 인라인 개체(체크 상자·그림 등) 뒤에 글의 첫 글자도 들어가지 않으면,
   한/글처럼 글이 다음 줄에서 시작한다고 센다. 전에는 첫 줄에 한 글자를 억지로 넣어 한 줄 적게
   세거나, 개체 뒤 폭이 0이면 들어갈 수 없다고 보았다.
+- 도형의 기본 선 굵기를 283(1 mm)에서 33(0.12 mm)으로 바꾼다. 한/글이 새 도형에 쓰는 굵기다.
+  `doc.shapes.add_line()`·`add_rectangle()`·`add_ellipse()`·`add_arc()`·`add_polygon()`, 문단의 같은 이름
+  메서드, 묶음 도형의 멤버가 이 기본값을 쓴다. `line_width`를 주지 않은 도형은 전보다 가늘게 그려진다.
+  옛 5.x 이름(`doc.add_rectangle()` 등)은 시그니처를 그대로 두기로 한 호환 계층이라 전처럼 283이다.
+- `set_footnote_numbering()`·`set_endnote_numbering()`의 설명과 `docs/known-traps.md`에, 시작 번호(`new_num`)는
+  번호 방식이 `ON_SECTION`일 때만 한/글에 보인다고 적는다. `CONTINUOUS`·`ON_PAGE`는 1부터 매긴다.
 
 ### 고침
 
