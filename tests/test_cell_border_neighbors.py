@@ -8,9 +8,16 @@ cell at a definition and leaves its neighbours alone.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from hwpx.document import HwpxDocument
 
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
+HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
+SIDES = ("leftBorder", "rightBorder", "topBorder", "bottomBorder")
 
 
 def _side(doc: HwpxDocument, table, row: int, col: int, side: str) -> tuple[str | None, str | None]:
@@ -90,3 +97,39 @@ def test_a_merged_cell_reaches_every_neighbour_along_its_side() -> None:
     assert _side(doc, table, 0, 1, "leftBorder") == ("DASH", "#FF0000")
     assert _side(doc, table, 1, 1, "leftBorder") == ("DASH", "#FF0000")
     assert _side(doc, table, 2, 0, "topBorder") == ("DASH", "#FF0000")
+
+
+def _sides_by_cell(doc: HwpxDocument) -> dict[tuple[int, int], dict[str, tuple[str | None, ...]]]:
+    """(row, col) -> side -> (type, width, color) of the first table, read through each cell's border fill."""
+    table = next(table for paragraph in doc.paragraphs for table in paragraph.tables)
+    header = doc.oxml.headers[0].element
+    cells = {}
+    for tc in table.element.iter(f"{HP}tc"):
+        address = tc.find(f"{HP}cellAddr")
+        fill = header.find(f".//{HH}borderFill[@id='{tc.get('borderFillIDRef')}']")
+        sides = {side: fill.find(f"{HH}{side}") for side in SIDES}
+        cells[(int(address.get("rowAddr")), int(address.get("colAddr")))] = {
+            side: (element.get("type"), element.get("width"), element.get("color")) for side, element in sides.items()
+        }
+    return cells
+
+
+@pytest.mark.parametrize(
+    ("base", "edited", "row", "col"),
+    [
+        ("cell_border_2x3_base", "cell_border_2x3_corner_dash", 0, 0),
+        ("cell_border_3x3_base", "cell_border_3x3_middle_dash", 1, 1),
+        # (0,0)-(1,0) merged: the longer merged neighbour on the left keeps its line
+        ("cell_border_vmerge_base", "cell_border_vmerge_neighbor_dash", 0, 1),
+        # the merged cell itself: both cells along its right side take the line
+        ("cell_border_vmerge_base", "cell_border_vmerge_self_dash", 0, 0),
+    ],
+)
+def test_the_borders_are_the_ones_hancom_saves(base: str, edited: str, row: int, col: int) -> None:
+    """Hancom gave one cell of each saved table a red dashed cell border; the same call here matches it."""
+    doc = HwpxDocument.open((FIXTURES / f"{base}.hwpx").read_bytes())
+    table = next(table for paragraph in doc.paragraphs for table in paragraph.tables)
+
+    table.set_cell_borders(row, col, color="#FF0000", line_type="DASH")
+
+    assert _sides_by_cell(doc) == _sides_by_cell(HwpxDocument.open((FIXTURES / f"{edited}.hwpx").read_bytes()))
