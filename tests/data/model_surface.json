@@ -34,6 +34,18 @@
     "version"
    ]
   },
+  "DrawText": {
+   "implementation": "hwpx.oxml.objects.DrawText",
+   "internalCount": 0,
+   "stable": [
+    "add_paragraph",
+    "editable",
+    "name",
+    "paragraphs",
+    "text",
+    "text_margin"
+   ]
+  },
   "HeaderFooter": {
    "implementation": "hwpx.oxml.section_story.HwpxOxmlSectionHeaderFooter",
    "internalCount": 1,
@@ -169,6 +181,7 @@
    "stable": [
     "bold",
     "char_pr_id_ref",
+    "content_kinds",
     "italic",
     "remove",
     "replace_text",
@@ -183,6 +196,7 @@
    "stable": [
     "add_memo",
     "add_paragraph",
+    "clear_body",
     "copy_paragraph_range",
     "insert_paragraphs",
     "memo_group",
@@ -216,16 +230,19 @@
   },
   "Shape": {
    "implementation": "hwpx.oxml.objects.HwpxOxmlShape",
-   "internalCount": 0,
+   "internalCount": 3,
    "stable": [
     "attributes",
+    "draw_text",
     "get_attribute",
     "height",
     "inst_id",
     "line_color",
     "line_style",
+    "remove_draw_text",
     "resize",
     "set_attribute",
+    "set_draw_text",
     "set_position",
     "shape_type",
     "width"
@@ -262,8 +279,10 @@
     "add_table",
     "address",
     "height",
+    "margins",
     "paragraphs",
     "remove",
+    "set_margins",
     "set_size",
     "set_span",
     "set_text",
