@@ -160,9 +160,10 @@ def main() -> int:
             "(hp:case's and hp:default's), not just a direct child"
         )
         assert margins_before != margins_after, "the setter did not actually change anything"
-        assert all(v == "9999" for v in margins_after), margins_after
+        # hp:case takes the value; hp:default keeps twice it, as Hancom writes the pair.
+        assert margins_after == ["9999", "19998"], margins_after
         print(f"confirmed _apply_paragraph_margins updates all {len(margins_after)} "
-              "hh:margin descendants under hp:switch (both branches), not just one")
+              "hh:margin descendants under hp:switch (both branches, hp:default doubled), not just one")
     else:
         print("(first paraPr in this fixture has no hp:switch -- skipped the live-update check)")
 

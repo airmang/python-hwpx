@@ -105,7 +105,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
 |---|---|---|---|
-| HWP 5.x 바이너리 | 없음(거부) | 지원 매트릭스 「HWP 5.x 바이너리」(`Unsupported-and-rejected`) · capabilities 영역 `hwp5-binary` · 위치 미지원 | 해당없음(의도적 거부, 실측으로 확인) |
+| HWP 5.x 바이너리 | 저작 api | 지원 매트릭스 「HWP 5.x 바이너리」(`Parse·Create`) · capabilities 영역 `hwp5-binary` · 위치 루트 — `HwpxDocument.open` · `doc.save_to_path` · `doc.save_to_stream(format=)` · `doc.to_bytes(format=)` · `doc.conversion_report` | 미실측 |
 | 라이선스 표시(CCL) | 저작 api | 지원 매트릭스 「라이선스 표시(CCL)」(`Parse·Create`) · capabilities 영역 `license-mark` · 위치 `doc.parts` | 미실측 |
 | 문서 옵션·호환성 | 저작 api | 지원 매트릭스 「문서 옵션·호환성」(`Parse·Preserve·Edit·Render-verified`) · capabilities 영역 `document-options-compatibility` · 위치 `doc.parts` | Render-verified |
 | 문서 정보(메타데이터) | 저작 api | 지원 매트릭스 「문서 정보(메타데이터)」(`Parse·Edit·Render-verified`) · capabilities 영역 `document-metadata` · 위치 `doc.parts` | Render-verified |

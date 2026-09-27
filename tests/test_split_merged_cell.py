@@ -147,8 +147,8 @@ def test_split_then_save_reopen_roundtrip(tmp_path) -> None:
     rt_table = rt_tables[0]
     assert rt_table.cell(0, 0).span == (1, 1)
     assert rt_table.cell(0, 1).span == (1, 1)
-    # Master cell kept its original text
-    assert rt_table.cell(0, 0).text == "A"
+    # Master cell kept its text and the text the merge moved into it
+    assert rt_table.cell(0, 0).text == "A\nB"
     # Restored cell has the text we set
     assert rt_table.cell(0, 1).text == "B-restored"
     # Untouched cell is intact

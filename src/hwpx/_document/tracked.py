@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..errors import HwpxValueError
 from ..objects.tracked import TrackedChange, TrackedReplacement
@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
     from ..oxml import HwpxOxmlParagraph
 
+_HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _TRACKED_TEXT_ILLEGAL = re.compile(r"[\x00-\x08\x09\x0b\x0c\x0d\x0e-\x1f\ufffe\uffff]")
 
 
@@ -173,6 +174,8 @@ def add_tracked_delete(
         first_mark_id=mark_id,
         match=match,
     )
+    if match is None:
+        _delete_paragraph_break(paragraph, change.change_id)
     return TrackedChange(
         change_id=change.change_id,
         kind=change.kind,
@@ -180,6 +183,51 @@ def add_tracked_delete(
         date=change.date,
         paragraph=paragraph,
     )
+
+
+def _delete_paragraph_break(paragraph: "HwpxOxmlParagraph", change_id: int) -> None:
+    """Mark the break of a wholly deleted plain paragraph deleted as well.
+
+    Hancom shows a deleted paragraph whose break is kept as an empty line.
+    It reads ``paraend="1"`` on the last delete mark as the break deleted too,
+    so when another paragraph follows in the same list, that mark gets it.
+    A paragraph holding anything but text runs (section setup, controls,
+    objects) keeps its break.
+    """
+
+    element = paragraph.element
+    following = _next_sibling(paragraph.section.element, element)
+    if following is None or following.tag != f"{_HP}p":
+        return
+    for run in element.findall(f"{_HP}run"):
+        if any(child.tag != f"{_HP}t" for child in run):
+            return
+    ends = [
+        end
+        for end in element.findall(f"{_HP}run/{_HP}t/{_HP}deleteEnd")
+        if end.get("TcId") == str(change_id)
+    ]
+    if ends:
+        ends[-1].set("paraend", "1")
+        paragraph.section.mark_dirty()
+
+
+def _next_sibling(root: Any, element: Any) -> Any:
+    """The element after *element* under its parent, found from *root* down.
+
+    Walks down rather than using lxml's ``getnext()``, so hand-built
+    ``xml.etree.ElementTree`` trees work too.
+    """
+
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        children = list(node)
+        for index, child in enumerate(children):
+            if child is element:
+                return children[index + 1] if index + 1 < len(children) else None
+            stack.append(child)
+    return None
 
 
 def add_tracked_replace(

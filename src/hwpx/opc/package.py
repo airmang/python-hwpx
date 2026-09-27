@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import io
 import os
@@ -15,9 +16,11 @@ from zipfile import BadZipFile, ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
+from ..oxml.utils import hancom_text_length
 
 if TYPE_CHECKING:
     from ..oxml.document_metadata import DocumentMetadata
+    from ..tools.package_validator import EditorOpenSafetyReport
 from .relationships import (
     MAIN_ROOTFILE_MEDIA_TYPE,
     OPF_NS,
@@ -197,11 +200,13 @@ def _local_name(element: etree._Element) -> str:
 
 
 def _paragraph_plain_text_length(paragraph: etree._Element) -> int | None:
-    """Plain text length of a simple paragraph, or ``None`` when unjudgeable.
+    """Length of a simple paragraph in Hancom's text positions, or ``None``.
 
     Mirrors the oxml-side stale detector: only paragraphs made purely of runs
     with text/tab-like children can be judged at the byte boundary; anything
     else (controls, tables, fields) returns ``None`` so its cache is kept.
+    An ``hp:t`` counts its inline elements (line breaks, fixed spaces, tabs)
+    at their Hancom widths, as ``hp:lineseg@textpos`` does.
     """
     total = 0
     for child in paragraph:
@@ -213,7 +218,7 @@ def _paragraph_plain_text_length(paragraph: etree._Element) -> int | None:
         for run_child in child:
             run_child_name = _local_name(run_child).lower()
             if run_child_name == "t":
-                total += len("".join(run_child.itertext()))
+                total += hancom_text_length(run_child)
             elif run_child_name in {"tab", "linebreak", "hyphen", "nbspace"}:
                 total += 1
             else:
@@ -433,6 +438,9 @@ class HwpxPackage:
         self._settings_path_cache: str | None = None
         self._settings_path_cache_resolved = False
         self._archive_write_depth = 0
+        # SHA-256 of the last archive bytes this package's save verified as
+        # editor-open safe (see _save_to_zip); None until such a save.
+        self._verified_archive_digest: bytes | None = None
         self._validate_structure()
 
     @staticmethod
@@ -469,8 +477,8 @@ class HwpxPackage:
         except BadZipFile as exc:
             if cls._leading_bytes(stream, len(cls.OLE2_MAGIC)) == cls.OLE2_MAGIC:
                 raise BadZipFile(
-                    "HWP v5(.hwp) 형식은 지원하지 않습니다. "
-                    "한컴오피스에서 HWPX로 변환한 뒤 사용하세요."
+                    "HwpxPackage는 HWPX 패키지만 엽니다. HWP 5.0(.hwp) 문서는 "
+                    "HwpxDocument.open으로 열거나, 한컴오피스에서 HWPX로 변환한 뒤 사용하세요."
                 ) from exc
             raise
         logger.debug("HWPX 패키지 파일 목록 %d개를 로드했습니다.", len(files))
@@ -908,6 +916,51 @@ class HwpxPackage:
 
         self._persist_manifest()
 
+    def clear_document_metadata(
+        self,
+        *,
+        keep: Iterable[str] = ("title", "language"),
+        timestamp: str = "1970-01-01T00:00:00Z",
+    ) -> list[str]:
+        """Empty every ``opf:metadata`` field whose key is not in *keep*.
+
+        A child's key is its ``name`` attribute for ``opf:meta`` and its
+        local name otherwise (``title``, ``language``). Names this library
+        does not model are cleared too, so metadata a caller does not know
+        about does not survive. An ``opf:meta`` whose name contains
+        ``"Date"`` (``CreatedDate``/``ModifiedDate``) gets *timestamp*;
+        every other cleared element keeps its attributes and loses its
+        content -- the free-form ``date`` field is emptied, never
+        timestamped. Missing elements are not created. A bare string
+        *keep* counts as one key.
+
+        Returns the cleared keys in document order; ``[]`` when the part has
+        no metadata block.
+        """
+
+        metadata_el = self._metadata_element(create=False)
+        if metadata_el is None:
+            return []
+        kept = {keep} if isinstance(keep, str) else set(keep)
+        meta_tag = f"{{{OPF_NS['opf']}}}meta"
+
+        cleared: list[str] = []
+        for child in metadata_el:
+            if not isinstance(child.tag, str):
+                continue  # comments and processing instructions carry no field
+            is_meta = child.tag == meta_tag
+            key = (child.get("name") if is_meta else None) or _local_name(child)
+            if key in kept:
+                continue
+            for grandchild in list(child):
+                child.remove(grandchild)
+            child.text = timestamp if is_meta and "Date" in key else None
+            cleared.append(key)
+
+        if cleared:
+            self._persist_manifest()
+        return cleared
+
     def add_manifest_item(
         self,
         item_id: str,
@@ -938,17 +991,31 @@ class HwpxPackage:
         self._persist_manifest()
 
     def remove_manifest_item(self, item_id: str) -> bool:
-        """Remove an ``<opf:item>`` by id.  Returns ``True`` on success."""
+        """Remove an ``<opf:item>`` by its manifest ``id``.  Returns ``True`` on success.
+
+        *item_id* is the manifest id (``"image1"``), not a part path --
+        :meth:`part_names` returns paths (``"BinData/image1.png"``). When no
+        item has that id and the value contains ``/``, an item whose
+        ``href`` names the same part (normalized like part names) is
+        removed instead.
+        """
         manifest_el = self._manifest_element()
         if manifest_el is None:
             return False
 
-        for existing in manifest_el.findall("opf:item", OPF_NS):
-            if existing.get("id") == item_id:
-                manifest_el.remove(existing)
-                self._persist_manifest()
-                return True
-        return False
+        items = manifest_el.findall("opf:item", OPF_NS)
+        match = next((item for item in items if item.get("id") == item_id), None)
+        if match is None and "/" in item_id:
+            part_name = normalize_part_name(item_id)
+            match = next(
+                (item for item in items if normalize_part_name(item.get("href", "")) == part_name),
+                None,
+            )
+        if match is None:
+            return False
+        manifest_el.remove(match)
+        self._persist_manifest()
+        return True
 
     def _persist_manifest(self) -> None:
         """Write the in-memory manifest tree back to the package."""
@@ -1158,16 +1225,24 @@ class HwpxPackage:
                     raise HwpxPackageError(
                         f"ZIP integrity check failed for entry '{bad}'"
                     )
+            payload = buffer.getvalue()
             if verify_open_safety:
-                self._verify_editor_open_safe_archive(buffer.getvalue())
-            buffer.seek(0)
-            payload = buffer.read()
+                report = self._verify_editor_open_safe_archive(payload)
+                # Remember which exact bytes passed, so the document-level
+                # check of the same save need not run the validation again.
+                self._verified_archive_digest = (
+                    hashlib.sha256(payload).digest()
+                    if report is not None and report.ok
+                    else None
+                )
             _write_stream_or_rollback(pkg_file, payload)
             if mark_clean and version_was_dirty:
                 self._version.mark_clean()
 
     @classmethod
-    def _verify_editor_open_safe_archive(cls, source: str | Path | bytes) -> None:
+    def _verify_editor_open_safe_archive(
+        cls, source: str | Path | bytes
+    ) -> "EditorOpenSafetyReport":
         from ..tools.package_validator import validate_editor_open_safety
 
         report = validate_editor_open_safety(source)
@@ -1176,6 +1251,7 @@ class HwpxPackage:
                 "Generated HWPX package failed open-safety validation: "
                 + report.summary
             )
+        return report
 
     def _write_archive_from_save(self, zf: ZipFile) -> None:
         self._archive_write_depth += 1

@@ -108,13 +108,26 @@
 - `char_property(char_pr_id_ref)`
   - ID를 사용하여 `RunStyle`을 조회합니다.
 - `ensure_run_style(...) -> str`
-  - 요청된 굵게/기울임/밑줄 플래그와 일치하는 런 스타일이 헤더에 정의되어 있는지 확인하고 해당 스타일 ID를 반환합니다. 필요한 경우 기존 스타일을 복제합니다.
+  - 기준 글자 모양(`base_char_pr_id`, 없으면 첫 글자 모양)에서 요청한 값만 바꾼 런 스타일의 ID를 반환합니다. 내용이 같은 스타일이 있으면 그것을, 없으면 기준을 복제해 만듭니다.
 - `iter_runs()`
   - 문서 전체의 모든 `HwpxOxmlRun`을 순회(yield)합니다.
 - `find_runs_by_style(...) -> list[HwpxOxmlRun]`
   - 색상, 밑줄 유형 또는 특정 글자 속성 참조와 같은 스타일 속성으로 런을 필터링합니다.
 - `replace_text_in_runs(search, replacement, ...) -> int`
   - `find_runs_by_style()`을 사용하여 런을 찾고 문자열을 교체합니다. 선택적으로 교체 횟수를 제한할 수 있으며, 하이라이트나 태그로 나뉜 텍스트도 서식을 유지한 채 치환합니다.
+
+#### 글꼴 표와 테두리 읽기 (`doc.styles`)
+
+글꼴 id는 `hh:fontface` lang 블록마다 따로 매겨집니다. `hh:fontRef/@hangul`은 HANGUL 블록의 id, `@latin`은 LATIN 블록의 id입니다. 아래 호출은 모두 메모리의 첫 헤더를 읽으므로 `ensure_font()`·`ensure_border_fill()` 직후에도 맞습니다. *lang*은 HANGUL·LATIN·HANJA·JAPANESE·OTHER·SYMBOL·USER 중 하나(대소문자 무시)이고, 그 밖이면 `HwpxValueError`(`style-font-lang-invalid`)입니다.
+
+- `styles.fonts(lang="HANGUL") -> dict[str, Font]`
+  - 그 lang 블록의 `hh:font` 목록을 id 문자열 → `hwpx.oxml.Font`로 돌려줍니다. 블록이 없으면 `{}`입니다.
+- `styles.font_face(char_pr_id_ref, lang="HANGUL") -> str | None`
+  - 글자 모양의 `fontRef`가 그 lang 블록에서 가리키는 글꼴 이름입니다. 글자 모양·`fontRef`·속성·글꼴 id 중 하나라도 없으면 `None`입니다.
+- `styles.border_fill_info(border_fill_id_ref) -> BorderFillInfo | None`
+  - `hh:borderFill` 하나를 `BorderFillInfo(id, left, right, top, bottom, diagonal, fill)`로 읽습니다. 각 변은 `BorderLine(type, width_mm, color)`이고 직계 자식 `hh:leftBorder`·`hh:rightBorder`·`hh:topBorder`·`hh:bottomBorder`·`hh:diagonal`에서 저장된 값 그대로 읽습니다. 요소가 없으면 `BorderLine("NONE", 0.0, "#000000")`입니다. `fill`은 첫 `hc:winBrush`의 `faceColor`이고, 없거나 `none`이면 `None`입니다. 그라데이션·그림 채우기는 설명하지 않습니다. 너비를 `"<숫자> mm"`로 읽을 수 없으면 `style-border-fill-width-invalid`, 없는 id면 `None`입니다. `border_fill()`은 그대로 `GenericElement`를 돌려줍니다.
+- `styles.replace_font(src_face, dst_face, *, langs=None) -> FontReplaceReport`
+  - 글꼴 하나를 문서 전체에서 다른 글꼴로 바꿉니다. lang 블록마다(`langs`를 주면 그 블록만) *src_face*가 없으면 건너뛰고, *dst_face*가 없으면 블록 끝에 `<hh:font id=… face=… type="TTF" isEmbedded="0"/>`를 더하고, *src_face*를 가리키던 `fontRef`를 *dst_face*로 옮긴 뒤 *src_face*를 지우고 남은 글꼴 id를 순서대로 0..N-1로 다시 매깁니다(`fontCnt`도 맞춤). 다른 `fontRef`는 모두 전과 같은 글꼴 이름을 가리킵니다. 결과 `FontReplaceReport`의 `langs`는 바뀐 블록, `declared`는 *dst_face*를 새로 더한 블록, `repointed`는 옮긴 `fontRef` 속성 수입니다. 빈 이름은 `style-font-face-empty`, 같은 이름 둘은 `style-font-replace-same-face`로 바꾸기 전에 거부합니다.
 
 #### 콘텐츠 생성 헬퍼
 
@@ -155,11 +168,17 @@
 #### 영속성(Persistence)
 
 - `save_to_path(path) -> str | PathLike[str]`
-  - 변경된 XML 파트를 지정한 경로에 저장하고 입력 경로를 그대로 반환합니다.
-- `save_to_stream(stream) -> BinaryIO`
+  - 변경된 XML 파트를 지정한 경로에 저장하고 입력 경로를 그대로 반환합니다. 경로가
+    `.hwp`로 끝나면 HWP 5.0으로 씁니다.
+- `save_to_stream(stream, *, format="hwpx") -> BinaryIO`
   - 변경된 XML 파트를 파일과 유사한 바이너리 스트림에 저장하고 입력 스트림을 그대로 반환합니다.
-- `to_bytes() -> bytes`
-  - 변경된 XML 파트를 직렬화한 HWPX ZIP 바이트를 반환합니다.
+    `format="hwp"`이면 HWP 5.0으로 씁니다.
+- `to_bytes(*, format="hwpx") -> bytes`
+  - 변경된 XML 파트를 직렬화한 HWPX ZIP 바이트를 반환합니다. `format="hwp"`이면 HWP 5.0
+    파일 바이트를 반환합니다.
+- `conversion_report -> Hwp5ConversionReport | None`
+  - `.hwp`를 열 때 문서 모델로 옮기지 못한 내용의 개수(`unconverted`·`dropped`, 읽기 전용).
+    `.hwp`로 열지 않은 문서에서는 `None`입니다.
 - `save(path_or_stream=None) -> str | PathLike[str] | BinaryIO | bytes`
   - 하위 호환용 래퍼입니다. 내부에서 `save_to_path()`/`save_to_stream()`/`to_bytes()`를 호출하며 `DeprecationWarning`을 발생시킵니다.
 
@@ -415,6 +434,8 @@
 - `set_span(row_span, col_span)`: 병합 속성을 업데이트하고 표를 dirty로 표시합니다.
 - `width`, `height`: `<hp:cellSz>`에서 캐시된 셀 크기를 노출하는 프로퍼티입니다.
 - `set_size(width=None, height=None)`: 크기 속성을 0 또는 그 이상으로 업데이트합니다.
+- `margins`: 한/글이 셀을 배치하는 안쪽 여백을 `CellMargins(left, right, top, bottom)`(HWPUNIT)로 반환하는 프로퍼티입니다. 셀의 `hasMargin`이 꺼져 있으면 표의 `<hp:inMargin>`, 켜져 있으면 셀의 `<hp:cellMargin>`을 읽습니다.
+- `set_margins(*, left=None, right=None, top=None, bottom=None)`: 주지 않은 면은 지금 여백을 유지한 채 네 면을 `<hp:cellMargin>`에 쓰고 `hasMargin="1"`로 켠 뒤 새 `CellMargins`를 반환합니다. 잘못된 값은 `HwpxValueError`(`cell-margin-value`)로 거부합니다.
 - `text`: 셀 내부의 첫 번째 텍스트 노드를 반환하는 프로퍼티입니다. setter는 텍스트를 할당하기 전에 중첩된 단락 구조를 보장하고, `<hp:lineSegArray>`와 같은 줄 배치 캐시를 제거하여 한/글이 줄바꿈을 다시 계산하도록 합니다.
 - `remove()`: 행에서 셀 엘리먼트를 제거합니다.
 - `_addr_element()`, `_span_element()`, `_size_element()`, `_ensure_text_element()`: 중첩된 XML 구조를 관리하는 내부 헬퍼입니다.
@@ -443,7 +464,7 @@
 - `get_cell_map()`: `row_count x column_count` 크기의 2차원 리스트로 격자 맵을 반환합니다. 각 항목은 `HwpxTableGridPosition`입니다.
 - `set_cell_text(row_index, col_index, text, logical=False, split_merged=False)`: 셀의 텍스트 내용을 업데이트하는 단축 메서드입니다. `logical=True`를 지정하면 논리적 격자 좌표로 셀을 찾고, `split_merged=True`일 때는 병합을 자동으로 해제한 뒤 값을 씁니다. 내부적으로 줄 배치 캐시를 비워 한/글에서 셀 텍스트 변경 후 줄바꿈이 재계산되도록 합니다.
 - `split_merged_cell(row_index, col_index)`: 지정한 논리 좌표를 포함하는 병합 셀을 해제하고, 해당 위치에 독립적인 셀을 생성한 뒤 래퍼를 반환합니다.
-- `merge_cells(start_row, ...)`: 직사각형 영역의 유효성을 검사하고, 종속 셀을 제거하며, 병합 및 크기 값을 업데이트한 후, 살아남은 대상 셀을 반환합니다.
+- `merge_cells(start_row, ...)`: 직사각형 영역의 유효성을 검사하고, 종속 셀을 제거하며, 병합 및 크기 값을 업데이트한 후, 살아남은 대상 셀을 반환합니다. 종속 셀 중 글이나 개체가 있는 셀의 문단은 읽기 순서로 대상 셀에 옮기고, 빈 셀은 아무것도 보태지 않습니다.
 
 ### 클래스 `HwpxOxmlParagraph`
 
@@ -491,7 +512,7 @@
 - `sections`, `headers`: 섹션 및 헤더 래퍼 목록의 복사본을 반환하는 프로퍼티입니다.
 - `char_properties`: 글자 스타일 ID를 `RunStyle` 객체에 매핑한 딕셔너리를 반환하며, 모든 헤더의 결과를 캐시합니다.
 - `char_property(char_pr_id_ref)`: 문자열 또는 숫자 값을 받아 ID로 `RunStyle`을 조회합니다.
-- `ensure_run_style(...)`: 요청된 굵게, 기울임, 밑줄 플래그를 가진 런 스타일이 첫 번째 헤더에 존재하는지 확인하며, 필요에 따라 항목을 생성하거나 복제합니다.
+- `ensure_run_style(...)`: 기준 글자 모양(`base_char_pr_id`, 없으면 첫 글자 모양)에서 요청한 값만 바꾼 런 스타일을 첫 번째 헤더에서 찾고, 없으면 기준을 복제해 만듭니다.
 - `memo_shapes`: 모든 헤더의 메모 모양을 하나의 딕셔너리로 병합하는 프로퍼티입니다.
 - `memo_shape(memo_shape_id_ref)`: ID로 메모 모양을 가져옵니다.
 - `paragraphs`: 모든 섹션의 단락 래퍼를 연결하여 반환하는 프로퍼티입니다.
@@ -644,7 +665,7 @@
 - `load_default_schemas(schema_dir=None)`: 번들로 제공되는 헤더 및 섹션 XSD 파일을 로드하며, 스키마 디렉토리가 없을 때 예외를 발생시킵니다. 두 스키마는 루트 요소만 선언하고 나머지를 `<xs:any processContents="lax"/>`로 받는 느슨한 구조 스키마이므로, 통과했다고 해서 OWPML 전체가 검증된 것도 한컴이 문서를 연다는 뜻도 아닙니다.
 - `_iter_parts(document)`: `HwpxDocument`의 모든 헤더와 섹션에 대해 `(파트 이름, XML 바이트, 헤더 여부)`를 순회하는 내부 헬퍼입니다.
 - `_issues_from_error(part_name, exc)`: `lxml` 유효성 검사 오류를 `ValidationIssue` 인스턴스로 정규화합니다.
-- `validate_document(source, ...)`: 문서를 열고, 제공되지 않은 경우 기본 스키마를 로드하며, 각 헤더 및 섹션 파트를 적절한 파서로 검증하고 이슈를 집계합니다.
+- `validate_document(source, ..., full_schema=True)`: 문서를 열고, 제공되지 않은 경우 기본 스키마를 로드하며, 각 헤더 및 섹션 파트를 적절한 파서로 검증하고 이슈를 집계합니다. `full_schema`(기본 `True`)면 번들된 전체 OWPML 스키마(`owpml-*.xsd`)로도 검사해, 한/글이 여는 문서에도 있는 편차를 뺀 위반을 경고(`OWPML schema: …`)로 더합니다. `ok`는 하드 오류만 봅니다(`docs/owpml-deviations.md`).
 
 ***
 

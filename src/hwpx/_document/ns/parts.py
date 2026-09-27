@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import struct
+import zlib
 from typing import TYPE_CHECKING, Iterable
 
 from ...errors import HwpxValueError
@@ -44,6 +46,23 @@ if TYPE_CHECKING:
     from ...oxml.document_metadata import DocumentMetadata
 
 __all__ = ["PartsNamespace"]
+
+_PREVIEW_TEXT_PART = "Preview/PrvText.txt"
+_PREVIEW_IMAGE_PART = "Preview/PrvImage.png"
+
+
+def _png_chunk(tag: bytes, body: bytes) -> bytes:
+    crc = zlib.crc32(tag + body) & 0xFFFFFFFF
+    return struct.pack(">I", len(body)) + tag + body + struct.pack(">I", crc)
+
+
+#: `clear_preview`가 `Preview/PrvImage.png` 자리에 넣는 1×1 흰 RGB PNG.
+_NEUTRAL_PREVIEW_PNG = (
+    b"\x89PNG\r\n\x1a\n"
+    + _png_chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
+    + _png_chunk(b"IDAT", zlib.compress(b"\x00" + b"\xff\xff\xff"))
+    + _png_chunk(b"IEND", b"")
+)
 
 
 class PartsNamespace(_Namespace):
@@ -76,7 +95,7 @@ class PartsNamespace(_Namespace):
         text: str | None = None,
         paragraphs: Iterable[str] | None = None,
         page_type: str = "OPTIONAL_PAGE",
-        page_number: int = 1,
+        page_number: int | None = None,
         page_duplicate: bool = False,
         page_front: bool = False,
     ) -> str:
@@ -87,6 +106,12 @@ class PartsNamespace(_Namespace):
         절에서도 참조하지 않는다. 실제로 쓰려면
         ``section.properties.add_master_page_reference(id)``를 호출할
         것(``doc.oxml.sections[i].properties``).
+
+        기본 ``page_type="OPTIONAL_PAGE"``는 ``page_number``(그 쪽 번호, 주지 않으면 1)
+        한 쪽에만 나온다. 모든 쪽이면 ``"BOTH"``, 홀수·짝수 쪽만이면 ``"ODD"``·
+        ``"EVEN"``을 준다. 이 종류들은 ``page_number``를 주지 않으면 0을 쓴다. 한
+        절에는 같은 쪽의 바탕쪽을 하나만 둘 수 있어서, 이미 있는 종류의 바탕쪽을
+        절에 연결하면 ``HwpxValueError``가 난다.
 
         실측(유일한 실 예시): 절의 `hp:secPr` 자식 시퀀스에서
         `hp:masterPage`는 맨 끝에 오고, `masterPageCnt`가 그 개수와
@@ -155,7 +180,8 @@ class PartsNamespace(_Namespace):
         포맷 추정이 된다, `hwpx.oxml.document_metadata` 참조).
         `created_date`/`modified_date`는 이미 포맷된 ISO 8601 문자열을
         받는다(`"%Y-%m-%dT%H:%M:%SZ"`, 실코퍼스 100% 일관 관측) — 이
-        함수가 포맷을 강제하지 않는다."""
+        함수가 포맷을 강제하지 않는다. 저작 대상 밖의 필드까지 비우려면
+        `clear_document_metadata`를 쓴다."""
 
         self._doc.package.set_document_metadata(
             title=title,
@@ -165,6 +191,49 @@ class PartsNamespace(_Namespace):
             created_date=created_date,
             modified_date=modified_date,
         )
+
+    def clear_document_metadata(
+        self,
+        *,
+        keep: Iterable[str] = ("title", "language"),
+        timestamp: str = "1970-01-01T00:00:00Z",
+    ) -> list[str]:
+        """``opf:metadata``에서 *keep* 밖의 필드를 모두 비우고, 비운 키를
+        문서 순서대로 돌려준다.
+
+        키는 ``opf:meta``면 ``name`` 속성, 그 밖의 요소면 로컬 이름
+        (``title``·``language``)이다. 이 라이브러리가 모르는 ``opf:meta``
+        이름도 비운다 — 호출자가 모르는 메타데이터가 남지 않게 하려는
+        것이다. 이름에 ``"Date"``가 든 ``opf:meta``(``CreatedDate``·
+        ``ModifiedDate``)에는 *timestamp*를 넣고, 나머지는 요소와 속성
+        (``content="text"`` 등)을 두고 내용만 비운다. 자유형식 ``date``는
+        비울 뿐 timestamp를 넣지 않는다. 없는 요소는 만들지 않고, metadata
+        블록이 없으면 ``[]``다. 무엇을 지울지(개인정보 정책)는 호출자가
+        정한다."""
+
+        return self._doc.package.clear_document_metadata(keep=keep, timestamp=timestamp)
+
+    def clear_preview(self) -> list[str]:
+        """패키지에 저장된 미리 보기를 비우고, 바꾼 파트 이름을 돌려준다.
+
+        ``Preview/PrvText.txt``가 있으면 빈 바이트로 덮어쓴다. 지우지 않는
+        까닭은 ``META-INF/container.xml``이 보통 이 파트를 rootfile로
+        선언하기 때문이다. ``Preview/PrvImage.png``가 있으면 1×1 흰 PNG로
+        바꾼다. 이 그림에는 본문 내용이 보일 수 있다. 이것도 지우지 않고
+        바꿔서 패키지의 파트 구성을 유지한다. 없는 파트는 만들지 않는다.
+        다른 확장자의 미리 보기 파트(예: ``PrvImage.bmp``)는 건드리지
+        않는다."""
+
+        package = self._doc.package
+        changed: list[str] = []
+        for part_name, payload in (
+            (_PREVIEW_TEXT_PART, b""),
+            (_PREVIEW_IMAGE_PART, _NEUTRAL_PREVIEW_PNG),
+        ):
+            if package.has_part(part_name):
+                package.write(part_name, payload)
+                changed.append(part_name)
+        return changed
 
     def _primary_header(self) -> "HwpxOxmlHeader":
         headers = self._doc.oxml.headers

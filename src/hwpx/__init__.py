@@ -376,6 +376,7 @@ from .tools.package_validator import (
 )
 from .ingest import HwpxMarkdownConverter
 from .errors import HwpxError
+from .hwp5.errors import Hwp5ConversionWarning, Hwp5Error
 from .mutation_report import (
     MutationReport,
     PreservationDowngradeError,
@@ -415,6 +416,8 @@ __all__ = [
     "PackageValidationReport",
     "BytePreservingPatchResult",
     "HwpxError",
+    "Hwp5Error",
+    "Hwp5ConversionWarning",
     "MutationReport",
     "PreservationDowngradeError",
     "ParagraphTextPatch",

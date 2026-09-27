@@ -21,6 +21,7 @@ from hwpx.layout.lint import (
     OVERFLOW_RISK,
     STALE_LINESEG_DETECTED,
     TABLE_STRUCTURE_INVALID,
+    TABLE_TALLER_THAN_PAGE,
 )
 from hwpx.quality import QualityPolicy, SavePipeline
 from hwpx.quality.ledger import DirtyLayoutLedger, DirtyLayoutRange
@@ -535,3 +536,93 @@ def test_pipeline_warn_mode_surfaces_but_does_not_block(tmp_path):
     report = SavePipeline().run(data, output_path=out, quality=policy)
     assert report.layout.ok is True  # warn never blocks
     assert any("STALE_LINESEG" in w for w in report.layout.warnings)
+
+
+# --------------------------------------------------------------------------- #
+# 5: a table Hancom does not break across pages, taller than the page.
+# --------------------------------------------------------------------------- #
+# The default A4 page: 232 mm body, 262 mm from the body top to the paper's
+# bottom edge. These tables have rows 3600 (12.7 mm) high and are kept inline
+# (add_table would make one taller than the page flow).
+def _long_table_doc(rows: int) -> HwpxDocument:
+    doc = HwpxDocument.new()
+    doc.add_paragraph("표 앞 문단")
+    table = doc.add_table(rows, 2, height=rows * 3600)
+    table.set_treat_as_char(True)
+    for row in range(rows):
+        table.set_cell_text(row, 0, f"{row}행")
+    return doc
+
+
+def _page_findings(report) -> list:
+    return [f for f in report.findings if f.code == TABLE_TALLER_THAN_PAGE]
+
+
+def test_inline_table_past_the_paper_edge_is_flagged():
+    data = _bytes(_long_table_doc(30))  # 381 mm
+
+    warn = lint_layout(data, overflow_policy="warn")
+    [finding] = _page_findings(warn)
+    assert finding.severity == "warning"
+    assert finding.detail["inline"] is True and finding.detail["rows_cut"] is True
+    assert "set_treat_as_char(False)" in finding.message
+    assert warn.ok
+
+    hard = lint_layout(data, overflow_policy="fail")
+    assert [f.severity for f in _page_findings(hard)] == ["error"]
+    assert not hard.ok
+
+
+def test_inline_table_running_into_the_bottom_margin_only_warns():
+    for rows in (19, 20):  # 241 mm, 254 mm: drawn whole, below the body
+        [finding] = _page_findings(lint_layout(_bytes(_long_table_doc(rows)), overflow_policy="fail"))
+        assert finding.severity == "warning"
+        assert finding.detail["rows_cut"] is False
+    [cut] = _page_findings(lint_layout(_bytes(_long_table_doc(21)), overflow_policy="fail"))
+    assert cut.severity == "error"  # 267 mm: the last row falls off the paper
+
+
+def test_table_that_fits_the_page_body_is_not_flagged():
+    assert _page_findings(lint_layout(_bytes(_long_table_doc(18)), overflow_policy="fail")) == []
+
+
+def test_long_table_that_flows_across_pages_is_not_flagged():
+    doc = _long_table_doc(30)
+    doc.tables.all[0].set_treat_as_char(False)
+    assert _page_findings(lint_layout(_bytes(doc), overflow_policy="fail")) == []
+
+
+def test_floating_table_that_may_not_break_is_flagged():
+    doc = _long_table_doc(30)
+    table = doc.tables.all[0]
+    table.set_treat_as_char(False)
+    table.element.set("pageBreak", "NONE")
+    [finding] = _page_findings(lint_layout(_bytes(doc)))
+    assert finding.detail["inline"] is False
+    assert 'pageBreak="CELL"' in finding.message
+
+
+def test_table_page_fit_uses_the_page_as_drawn():
+    doc = _long_table_doc(12)  # 152 mm: fits the portrait body, not the 145 mm landscape one
+    assert _page_findings(lint_layout(_bytes(doc))) == []
+    doc.page.setup(orientation="LANDSCAPE")
+    assert len(_page_findings(lint_layout(_bytes(doc)))) == 1
+
+
+def test_table_height_counts_rows_not_merged_cells():
+    doc = _long_table_doc(30)
+    doc.tables.all[0].merge_cells(0, 1, 29, 1)  # one cell spanning every row
+    [finding] = _page_findings(lint_layout(_bytes(doc)))
+    assert finding.detail["min_height"] == 30 * 3600
+
+
+def test_pipeline_strict_blocks_a_table_cut_off_at_the_page_edge(tmp_path):
+    out = tmp_path / "blocked.hwpx"
+    policy = QualityPolicy(
+        render_check="off", require_visual_complete=False,
+        require_reference_integrity=False, layout_lint="strict", overflow_policy="fail",
+    )
+    report = SavePipeline().run(_bytes(_long_table_doc(30)), output_path=out, quality=policy)
+    assert report.ok is False
+    assert TABLE_TALLER_THAN_PAGE in report.error_codes
+    assert not out.exists()

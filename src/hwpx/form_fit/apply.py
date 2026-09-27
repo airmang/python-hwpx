@@ -63,7 +63,7 @@ def _apply_font(cell: Any, document: Any, font_pt: float) -> bool:
         for run in getattr(paragraph, "runs", []):
             base_ref = getattr(run, "char_pr_id_ref", None)
             try:
-                new_ref = document.ensure_run_style(
+                new_ref = getattr(document, "_root", document).ensure_run_style(
                     size=font_pt, base_char_pr_id=base_ref
                 )
             except Exception:  # pragma: no cover - defensive: never break the fill

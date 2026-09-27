@@ -34,6 +34,8 @@ EXPECTED_PACKAGES = {
     "hwpx.data",
     "hwpx.equation",
     "hwpx.form_fit",
+    # HWP 5.0(.hwp) 읽기·쓰기. `hwpx/__init__.py`가 가져오므로 휠에 들어가야 한다.
+    "hwpx.hwp5",
     "hwpx.ingest",
     "hwpx.layout",
     "hwpx.opc",

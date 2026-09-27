@@ -167,13 +167,15 @@ GitHub Release에 첨부되는 `py3-none-any` wheel을 문서와 함께 올리�
 
 | | python-hwpx | pyhwpx | pyhwp |
 |---|---|---|---|
-| **대상 포맷** | `.hwpx` (OWPML/OPC) | `.hwpx` | `.hwp` (v5 바이너리) |
+| **대상 포맷** | `.hwpx` (OWPML/OPC), `.hwp` (HWP 5.0) | `.hwpx` | `.hwp` (v5 바이너리) |
 | **한/글 설치** | 불필요 | 필요 (Windows COM) | 불필요 |
 | **크로스 플랫폼** | ✅ Linux / macOS / Windows / CI | ❌ Windows 전용 | ✅ |
 | **편집/생성 API** | ✅ | ✅ (COM) | ❌ 대부분 읽기 |
 | **AI 에이전트 연동 (MCP)** | ✅ companion 경유 | ❌ | ❌ |
 
-> HWP(v5 바이너리)는 지원하지 않습니다. 한컴오피스에서 HWPX로 변환 후 사용하세요.
+> HWP 5.0(`.hwp`)은 `HwpxDocument.open`으로 열어 같은 API로 편집하고,
+> `save_to_path("x.hwp")`로 HWP로 저장합니다. 옮기지 못한 내용은
+> `document.conversion_report`에 남고, 암호·배포용 문서는 `Hwp5Error`로 거부합니다.
 
 ## 알려진 제약
 
@@ -181,7 +183,7 @@ GitHub Release에 첨부되는 `py3-none-any` wheel을 문서와 함께 올리�
   열지 못하는 파일이 됩니다(호출 시 경고만 나옵니다). 도형은 `add_line()` /
   `add_rectangle()` / `add_ellipse()`를 쓰세요.
 - 그림은 단순 개체 생성까지 지원합니다 (그룹·효과 미지원).
-- 암호화된 HWPX는 지원하지 않습니다.
+- 암호화된 HWPX와 암호·배포용 HWP는 지원하지 않습니다.
 
 ## 기여하기
 

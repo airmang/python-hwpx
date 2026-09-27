@@ -127,8 +127,9 @@ _TEXT_SETTER_APPLIERS: tuple[Callable[[str], str], ...] = (
 
 _TEXT_SETTER_IDS = ("header_footer", "run", "table_cell")
 
+# A tab is not an illegal character: the run and cell setters write it as an
+# hp:tab element inside hp:t (tests/test_text_inline_elements.py).
 _TEXT_SANITIZATION_CASES: tuple[tuple[str, str], ...] = (
-    ("a\tb", "ab"),
     ("left\r\nright", "left\nright"),
     ("a\x01b", "ab"),
     ("line1\nline2", "line1\nline2"),
@@ -598,11 +599,11 @@ def test_table_merge_cells_rejects_partial_overlap() -> None:
     root = HwpxOxmlDocument(manifest, [section], [])
     document = HwpxDocument(cast(HwpxPackage, object()), root)
 
-    table = document.add_table(2, 2, section=section)
+    table = document.add_table(3, 3, section=section)
     table.merge_cells(0, 0, 1, 1)
 
     with pytest.raises(ValueError):
-        table.merge_cells(0, 1, 1, 1)
+        table.merge_cells(0, 1, 1, 2)
 
 
 def test_table_iter_grid_reports_merged_cells() -> None:
