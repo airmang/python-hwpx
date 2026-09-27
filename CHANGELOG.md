@@ -16,6 +16,10 @@
     누름틀 슬롯은 필드 문단과 글자 모양에서 이 설정(`TextStyle`)을 읽는다.
   - 새 `TextStyle`과 `hancom_line_starts()`를 공개한다. `estimate_text_width`와
     `estimate_lines`는 `style`을 선택 인자로 받고, `style` 없이 부르면 전과 같다.
+  - 문단 모양 읽기(`ParagraphProperty.margin`)가 한컴 표기의 여백 값
+    (`<hc:intent value="1000" unit="HWPUNIT"/>`)을 읽는다. 전에는 요소 글자에서만 값을 찾아
+    한컴 문서의 문단 여백이 모두 `None`이었고, FormFit도 들여쓰기를 0으로 봤다.
+
 ### 추가
 
 - `Section.clear_body()`로 문서를 양식 틀로 비운다. 첫 문단 첫 run의 `hp:secPr`(쪽

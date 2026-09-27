@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+from hwpx.document import HwpxDocument
 from hwpx.form_fit import (
     FitEngine,
     FitPolicy,
@@ -24,6 +25,9 @@ from hwpx.form_fit import (
     measure,
 )
 from hwpx.form_fit.measure import _cell_text_style, resolve_slot_metrics
+
+HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_rules.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
 
@@ -142,3 +146,31 @@ def test_a_real_cell_slot_carries_its_text_style() -> None:
         doc.close()
     assert isinstance(slot.text_style, TextStyle)
     assert slot.text_style.break_non_latin_word in {"BREAK_WORD", "KEEP_WORD"}
+
+
+def _hancom_tables() -> tuple[HwpxDocument, list]:
+    doc = HwpxDocument.open(HANCOM_SAVED.read_bytes())
+    return doc, [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+
+def test_the_indent_hancom_saved_is_read() -> None:
+    doc, tables = _hancom_tables()
+    indents = [_cell_text_style(table.cell(0, 0), doc).indent for table in tables]
+
+    assert indents.count(1000) == 1 and indents.count(-1000) == 2
+
+
+def test_the_line_starts_are_the_ones_hancom_saves() -> None:
+    """Hancom laid these cells out (a Hangul word or syllable break, spaces, closing and opening
+    punctuation, indents, 최소 공백, a Latin hyphen); each breaks where Hancom broke it."""
+    doc, tables = _hancom_tables()
+
+    assert len(tables) == 13
+    for table in tables:
+        cell = table.cell(0, 0)
+        segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
+        style = _cell_text_style(cell, doc)
+        slot = resolve_slot_metrics(cell, doc, safety=1.0)
+        widths = [slot.available_width - max(style.indent, 0), slot.available_width - max(-style.indent, 0)]
+
+        assert hancom_line_starts(cell.text, widths, slot.font_pt, style) == [int(s.get("textpos")) for s in segs], cell.text
