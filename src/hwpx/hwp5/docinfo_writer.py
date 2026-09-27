@@ -39,6 +39,7 @@ from .owpml import (
     LANGS,
     LAYOUT_COMPATIBILITY_BITS,
     LAYOUT_COMPATIBILITY_DEFAULT,
+    LAYOUT_COMPATIBILITY_GROUPS,
     LINE_SPACING,
     LINE_WRAP,
     MEMO_TYPE,
@@ -602,7 +603,8 @@ def build_docinfo(
 def _layout_compatibility(compatible: etree._Element | None, target: int) -> tuple[int, ...]:
     """The LAYOUT_COMPATIBILITY words: a bit for each layoutCompatibility child.
     Hancom writes none for a document meant for Hangul 2010 or later
-    (HWP201X), and its default flags when a child is not one it knows."""
+    (HWP201X), and its default flags when a child is not one it knows. It
+    skips grouping elements and what they hold."""
 
     words = [0] * 5
     layout = _child(compatible, _HH, "layoutCompatibility") if compatible is not None else None
@@ -611,7 +613,10 @@ def _layout_compatibility(compatible: etree._Element | None, target: int) -> tup
     for child in layout:
         if not isinstance(child.tag, str):
             continue
-        place = LAYOUT_COMPATIBILITY_BITS.get(etree.QName(child).localname)
+        name = etree.QName(child).localname
+        if name in LAYOUT_COMPATIBILITY_GROUPS:
+            continue
+        place = LAYOUT_COMPATIBILITY_BITS.get(name)
         if place is None:
             return LAYOUT_COMPATIBILITY_DEFAULT
         word, bit = place

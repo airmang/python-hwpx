@@ -369,6 +369,9 @@ LAYOUT_COMPATIBILITY: tuple[tuple[str | None, ...], ...] = (
 LAYOUT_COMPATIBILITY_BITS: dict[str, tuple[int, int]] = {
     name: (word, bit) for word, names in enumerate(LAYOUT_COMPATIBILITY) for bit, name in enumerate(names) if name
 }
+#: Grouping elements some Hancom versions write inside layoutCompatibility.
+#: Hancom reads neither them nor what they hold.
+LAYOUT_COMPATIBILITY_GROUPS = frozenset({"char", "paragraph", "section", "object", "field"})
 #: The words Hancom writes when a layoutCompatibility child is not one of those.
 LAYOUT_COMPATIBILITY_DEFAULT = (0x1E3, 0xCFF8FF, 0x4F, 0x1EC, 0)
 

@@ -1741,6 +1741,34 @@ def test_layout_compatibility_children_are_saved_as_their_bits(
     assert struct.unpack("<5I", record.payload) == words
 
 
+@pytest.mark.parametrize(
+    ("children", "words"),
+    [
+        ("<hh:char/><hh:paragraph/><hh:section/><hh:object/><hh:field/>", (0, 0, 0, 0, 0)),
+        ("<hh:char><hh:applyFontWeightToBold/></hh:char><hh:paragraph/>", (0, 0, 0, 0, 0)),
+        ("<hh:char/><hh:paragraph/><hh:applyFontWeightToBold/>", (1, 0, 0, 0, 0)),
+    ],
+)
+def test_layout_compatibility_groups_are_skipped(children: str, words: tuple[int, ...]) -> None:
+    """Hancom reads the flags written straight under layoutCompatibility and skips grouping elements."""
+
+    files = _with_print_info(_PRINT_ITEMS)
+    head = etree.fromstring(files["Contents/header.xml"])
+    compatible = head.find(f"{HH}compatibleDocument")
+    if compatible is None:
+        compatible = etree.SubElement(head, f"{HH}compatibleDocument")
+    compatible.set("targetProgram", "MS_WORD")
+    for old in compatible.findall(f"{HH}layoutCompatibility"):
+        compatible.remove(old)
+    layout = etree.fromstring(
+        f'<hh:layoutCompatibility xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head">{children}</hh:layoutCompatibility>'
+    )
+    compatible.append(layout)
+    files["Contents/header.xml"] = etree.tostring(head)
+    [record] = [r for r in read_hwp5(write_hwp5(files)).docinfo.records if r.tag == rec.LAYOUT_COMPATIBILITY]
+    assert struct.unpack("<5I", record.payload) == words
+
+
 def test_a_style_language_past_the_signed_range_opens_unsigned_and_saves_back() -> None:
     records = _docinfo()
     index = next(i for i, r in enumerate(records) if r.tag == rec.STYLE)
