@@ -14,18 +14,22 @@ render oracle) is the only authority on the close calls (plan §1 "measure-first
 §2 C acceptance "measurement honesty over false precision").
 
 A slot with a :class:`TextStyle` (cell and form-field slots carry one) breaks
-lines the way Hancom does, with no font file: a space is half an em, 장평 and
-자간 scale each advance, the paragraph's break settings decide where a line may
-end, spaces at a line end hang past the margin, 최소 공백 lets inner spaces
-shrink, indents come off the first or the following lines, closing punctuation
-never starts a line, and inline objects on the line take their width off the
-first line only (see :func:`hancom_line_starts`).
+lines the way Hancom does, with no font file: the glyphs of common faces take
+their design advances rounded to Hancom's layout unit (1/1800 inch), a space
+is half an em, 장평 and 자간 scale each advance, the paragraph's break
+settings decide where a line may end, spaces at a line end hang past the
+margin, 최소 공백 lets inner spaces shrink, indents come off the first or the
+following lines, closing punctuation never starts a line, and inline objects
+on the line take their width off the first line only (see
+:func:`hancom_line_starts`).
 """
 from __future__ import annotations
 
 import math
 import unicodedata
 from dataclasses import dataclass, field, replace
+from fractions import Fraction
+from functools import lru_cache
 from typing import Any, Literal
 
 # Advance width as a fraction of the em (font height in HWPUNIT). Hangul/wide are
@@ -101,69 +105,216 @@ _HANGING_SPACES = " " + chr(0xA0)
 _NO_LINE_START = frozenset("!%),.:;?]}¢°’”‰′″℃〉》」』】〕…·、。")
 #: Opening punctuation that never ends a line.
 _NO_LINE_END = frozenset("([{‘“〈《「『【〔")
-#: The scripts whose faces must match for the per-face glyph table to apply:
-#: it was measured with one face for all of them.
+#: The scripts whose faces must match for the per-face glyph table to apply to
+#: the glyphs that are not Hangul.
 _GLYPH_TABLE_SCRIPTS = ("HANGUL", "LATIN", "OTHER", "SYMBOL")
 
 # --- Advances per face ---------------------------------------------------------- #
-# Measured from cells of known width: one glyph and five Hangul syllables at 10 pt
-# with syllable breaking stay on one line while their advances fit, so the narrowest
-# one-line cell gives the glyph's advance to a hundredth of an em. A face or glyph
-# not listed falls back to the class averages.
-#: Hangul syllable advance per face; a face not listed takes a full em
-#: (맑은 고딕, 바탕, 돋움, 굴림 and 궁서 among them).
-HANGUL_ADVANCE_EM: dict[str, float] = {"함초롬바탕": 0.972, "함초롬돋움": 0.972, "한컴 고딕": 0.932}
+# Hancom lays glyphs out in 1/1800 inch (``_LAYOUT_UNIT`` HWPUNIT). The em is the
+# character height in that unit, rounded down. A glyph takes its design advance
+# at that em, rounded half up at 100% 장평 and down at any other 장평, and 자간
+# adds its share of that advance, rounded half away from zero. The half-em space
+# is half the em, rounded down, at the 장평, rounded half up. Bold text keeps the
+# regular advances. A face or glyph not listed below falls back to the class
+# averages, unrounded.
+_LAYOUT_UNIT = 4
 
 #: The glyphs each face's row below gives, in order: printable ASCII, then
 #: punctuation and symbols common in Korean documents.
 _GLYPHS = '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~·…“”‘’「」『』〈〉《》※○●□■△▲◇◆☆★→←↑↓ㆍ×÷±°℃‰—–'
 
-#: Advance of each glyph in ``_GLYPHS`` in thousandths of an em (0: not measured).
-_PERMILLE: dict[str, tuple[int, ...]] = {
-    "함초롬바탕": (
-        315, 315, 615, 615, 835, 725, 315, 315, 315, 555, 555, 315, 555, 315, 555, 555,
-        555, 555, 555, 555, 555, 555, 555, 555, 555, 315, 315, 555, 555, 555, 555, 835,
-        705, 605, 685, 715, 625, 615, 685, 735, 305, 315, 655, 605, 835, 735, 735, 605,
-        705, 655, 625, 665, 735, 705, 915, 705, 705, 625, 315, 555, 315, 555, 555, 315,
-        565, 595, 555, 595, 535, 355, 565, 635, 285, 285, 585, 285, 905, 635, 585, 595,
-        575, 475, 495, 355, 635, 565, 715, 545, 545, 485, 315, 315, 315, 555, 315, 955,
-        475, 475, 315, 315, 495, 495, 495, 495, 495, 495, 495, 495, 775, 975, 975, 975,
-        975, 975, 975, 975, 975, 975, 975, 975, 975, 975, 975, 975, 615, 675, 795, 295,
-        975, 985, 875, 625,
-    ),
-    "함초롬돋움": (
-        335, 335, 685, 625, 855, 755, 255, 315, 315, 495, 545, 255, 465, 275, 375, 555,
-        555, 555, 555, 555, 555, 555, 555, 555, 555, 315, 315, 595, 535, 595, 575, 865,
-        655, 665, 635, 695, 625, 605, 645, 695, 315, 515, 665, 585, 825, 725, 675, 655,
-        675, 685, 615, 575, 705, 595, 895, 605, 575, 585, 335, 375, 325, 565, 535, 375,
-        565, 575, 515, 575, 565, 335, 565, 595, 275, 265, 555, 255, 915, 595, 585, 555,
-        555, 425, 515, 345, 595, 465, 755, 485, 465, 475, 375, 345, 375, 545, 295, 705,
-        455, 455, 285, 285, 495, 495, 495, 495, 495, 495, 495, 495, 695, 975, 975, 975,
-        975, 975, 975, 975, 975, 975, 975, 975, 975, 975, 975, 975, 585, 675, 785, 305,
-        975, 895, 525, 345,
-    ),
-    "맑은 고딕": (
-        285, 395, 605, 555, 835, 815, 235, 305, 305, 425, 695, 215, 415, 215, 395, 555,
-        555, 555, 555, 555, 555, 555, 555, 555, 555, 215, 215, 695, 695, 695, 455, 975,
-        655, 585, 635, 715, 515, 495, 695, 725, 275, 355, 595, 475, 915, 765, 775, 575,
-        775, 605, 545, 535, 705, 635, 955, 595, 565, 585, 305, 765, 305, 695, 425, 275,
-        515, 595, 475, 605, 535, 315, 605, 575, 245, 245, 505, 245, 875, 575, 595, 595,
-        605, 355, 435, 345, 575, 485, 735, 465, 495, 455, 305, 235, 305, 695, 215, 735,
-        375, 375, 235, 235, 575, 575, 515, 515, 535, 535, 595, 595, 795, 995, 995, 995,
-        995, 995, 995, 995, 995, 995, 995, 955, 955, 955, 955, 995, 695, 695, 695, 385,
-        955, 0, 1025, 515,
-    ),
+#: Design advances per face in font units: units per em, a Hangul syllable, the
+#: space, and each glyph of ``_GLYPHS`` (0: not in the face).
+_DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
+    "함초롬바탕": (1000, 970, 300, (
+        320, 320, 610, 610, 830, 724, 320, 320, 320, 550, 550, 320, 550, 320, 550, 550,
+        550, 550, 550, 550, 550, 550, 550, 550, 550, 320, 320, 550, 550, 550, 550, 830,
+        706, 605, 685, 719, 627, 617, 683, 734, 305, 315, 660, 605, 839, 734, 732, 603,
+        705, 660, 627, 664, 731, 706, 910, 705, 705, 626, 320, 550, 320, 550, 550, 320,
+        569, 597, 552, 597, 536, 356, 562, 635, 287, 288, 582, 287, 907, 635, 588, 597,
+        579, 478, 496, 356, 635, 563, 720, 542, 543, 486, 320, 320, 320, 550, 320, 960,
+        480, 480, 320, 320, 500, 500, 500, 500, 500, 500, 500, 500, 770, 970, 970, 970,
+        970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 617, 678, 798, 291,
+        970, 988, 875, 625,
+    )),
+    "함초롬돋움": (1000, 970, 300, (
+        333, 339, 686, 626, 853, 761, 260, 313, 313, 498, 548, 258, 466, 270, 374, 550,
+        550, 550, 550, 550, 550, 550, 550, 550, 550, 312, 312, 600, 534, 600, 570, 865,
+        654, 664, 633, 701, 625, 609, 645, 694, 317, 515, 664, 584, 826, 728, 676, 660,
+        681, 683, 617, 573, 702, 594, 897, 607, 581, 584, 338, 373, 329, 562, 532, 373,
+        563, 581, 513, 578, 567, 336, 563, 594, 271, 268, 559, 258, 919, 595, 582, 552,
+        552, 427, 513, 349, 595, 469, 760, 483, 466, 479, 372, 342, 372, 546, 294, 702,
+        451, 453, 288, 288, 500, 500, 500, 500, 500, 500, 500, 500, 690, 970, 970, 970,
+        970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 587, 670, 782, 306,
+        970, 892, 522, 348,
+    )),
+    "맑은 고딕": (2048, 2048, 720, (
+        592, 809, 1242, 1128, 1713, 1675, 475, 624, 624, 870, 1435, 448, 840, 448, 811, 1128,
+        1128, 1128, 1128, 1128, 1128, 1128, 1128, 1128, 1128, 448, 448, 1435, 1435, 1435, 942, 2006,
+        1348, 1195, 1300, 1469, 1059, 1021, 1437, 1484, 553, 737, 1209, 983, 1878, 1567, 1584, 1169,
+        1584, 1249, 1112, 1093, 1439, 1299, 1953, 1231, 1154, 1193, 624, 1564, 624, 1435, 872, 557,
+        1065, 1230, 968, 1233, 1096, 648, 1233, 1185, 504, 504, 1036, 504, 1802, 1184, 1227, 1230,
+        1233, 724, 887, 706, 1184, 998, 1508, 952, 1009, 946, 624, 490, 624, 1435, 448, 1515,
+        776, 776, 473, 473, 1169, 1169, 1059, 1059, 1110, 1110, 1221, 1221, 1638, 2048, 2048, 2048,
+        2048, 2048, 2048, 2048, 2048, 2048, 2048, 1946, 1946, 1946, 1946, 2048, 1435, 1435, 1435, 792,
+        1946, 2536, 2101, 1051,
+    )),
+    "한컴 고딕": (1000, 932, 264, (
+        446, 297, 583, 583, 892, 892, 297, 446, 446, 446, 583, 297, 583, 297, 446, 583,
+        583, 583, 583, 583, 583, 583, 583, 583, 583, 297, 297, 446, 583, 446, 669, 1052,
+        644, 627, 639, 721, 596, 554, 710, 718, 247, 410, 626, 529, 884, 710, 752, 586,
+        752, 610, 592, 621, 696, 635, 961, 617, 611, 594, 446, 961, 446, 434, 446, 297,
+        560, 588, 490, 588, 559, 340, 588, 592, 244, 301, 530, 244, 892, 592, 577, 588,
+        588, 383, 475, 357, 592, 530, 788, 528, 530, 473, 446, 446, 446, 669, 446, 892,
+        446, 446, 303, 303, 486, 486, 486, 486, 486, 486, 486, 486, 932, 932, 932, 932,
+        932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 800, 800, 800, 446,
+        932, 892, 0, 0,
+    )),
+    "바탕": (1024, 1024, 341, (
+        320, 427, 638, 574, 876, 853, 256, 386, 386, 512, 853, 299, 640, 299, 384, 610,
+        610, 610, 610, 610, 610, 610, 610, 610, 610, 341, 341, 640, 640, 640, 512, 1024,
+        754, 725, 725, 752, 688, 660, 758, 784, 334, 436, 764, 654, 916, 794, 754, 670,
+        756, 688, 640, 768, 794, 768, 968, 704, 702, 640, 512, 1024, 512, 512, 512, 597,
+        555, 590, 555, 590, 590, 374, 597, 588, 296, 299, 586, 299, 866, 584, 597, 588,
+        588, 450, 532, 368, 580, 586, 828, 620, 602, 512, 512, 597, 512, 768, 341, 1024,
+        512, 512, 299, 299, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 911,
+        911, 1024, 936, 1024, 1024, 1024, 1024, 1024, 1024, 768, 768, 1024, 832, 832, 832, 448,
+        1024, 1024, 1024, 512,
+    )),
+    "바탕체": (1024, 1024, 512, (
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 512, 512,
+    )),
+    "궁서": (1024, 1024, 341, (
+        427, 427, 640, 555, 683, 597, 299, 427, 427, 512, 640, 341, 852, 341, 384, 597,
+        597, 597, 597, 597, 597, 597, 597, 597, 597, 341, 341, 725, 640, 725, 597, 753,
+        704, 700, 704, 695, 673, 672, 717, 719, 474, 576, 704, 640, 832, 729, 689, 667,
+        719, 719, 634, 664, 730, 699, 812, 682, 684, 650, 512, 768, 512, 576, 512, 335,
+        628, 653, 630, 653, 625, 512, 653, 666, 481, 483, 657, 512, 896, 662, 673, 671,
+        671, 597, 597, 576, 661, 661, 768, 628, 663, 565, 512, 512, 512, 811, 340, 1024,
+        512, 512, 341, 341, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 911,
+        911, 1024, 936, 1024, 1024, 1024, 1024, 1024, 1024, 768, 768, 1024, 853, 853, 853, 448,
+        1024, 1024, 1024, 512,
+    )),
+    "궁서체": (1024, 1024, 512, (
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 512, 512,
+    )),
+    "굴림": (1024, 1024, 341, (
+        341, 384, 768, 612, 896, 704, 290, 384, 384, 512, 640, 342, 640, 342, 427, 588,
+        588, 588, 588, 588, 588, 588, 588, 588, 588, 342, 342, 640, 640, 640, 555, 1024,
+        661, 693, 735, 739, 640, 610, 788, 748, 276, 512, 650, 556, 832, 716, 788, 652,
+        792, 682, 648, 596, 728, 614, 916, 640, 640, 640, 512, 939, 512, 555, 512, 341,
+        576, 620, 586, 620, 581, 350, 620, 585, 247, 247, 512, 237, 882, 594, 620, 620,
+        620, 341, 538, 321, 584, 512, 768, 512, 512, 512, 512, 512, 512, 811, 384, 1024,
+        512, 512, 341, 341, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 911,
+        911, 1024, 936, 1024, 1024, 1024, 1024, 1024, 1024, 768, 768, 1024, 853, 853, 853, 384,
+        1024, 1024, 1024, 512,
+    )),
+    "굴림체": (1024, 1024, 512, (
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 512, 512,
+    )),
+    "돋움": (1024, 1024, 342, (
+        342, 427, 640, 512, 939, 726, 298, 384, 384, 597, 596, 384, 604, 384, 427, 597,
+        597, 597, 597, 597, 597, 597, 597, 597, 597, 348, 348, 640, 598, 640, 597, 1024,
+        683, 696, 738, 742, 644, 614, 768, 740, 264, 496, 672, 554, 828, 714, 768, 658,
+        768, 684, 654, 597, 742, 616, 914, 618, 616, 618, 512, 981, 512, 640, 512, 340,
+        597, 614, 572, 618, 572, 352, 612, 574, 234, 234, 522, 236, 939, 582, 614, 616,
+        618, 328, 528, 320, 568, 486, 742, 490, 492, 494, 512, 512, 512, 810, 340, 1024,
+        469, 469, 299, 299, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 960, 911,
+        911, 1024, 936, 1024, 1024, 1024, 1024, 1024, 1024, 768, 768, 1024, 853, 853, 853, 415,
+        1024, 1024, 1024, 512,
+    )),
+    "돋움체": (1024, 1024, 512, (
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 512, 512,
+    )),
 }
 
 
 def glyph_advance_em(face: str, ch: str) -> float | None:
-    """Advance of *ch* in *face* in em, or ``None`` when not measured."""
+    """Design advance of *ch* in *face* in em, or ``None`` when not listed."""
 
-    widths = _PERMILLE.get(face)
-    index = _GLYPHS.find(ch) if len(ch) == 1 else -1
-    if widths is None or index < 0 or not widths[index]:
+    design = _design_units(face, ch)
+    return design[0] / design[1] if design is not None else None
+
+
+def _design_units(face: str, ch: str | None) -> tuple[int, int] | None:
+    """``(advance, units per em)`` of *ch* in *face*, a Hangul syllable when *ch*
+    is ``None``, or ``None`` when not listed."""
+
+    entry = _DESIGN.get(face)
+    if entry is None:
         return None
-    return widths[index] / 1000.0
+    upem, hangul, space, glyphs = entry
+    if ch is None:
+        units = hangul
+    elif ch == " ":
+        units = space
+    else:
+        index = _GLYPHS.find(ch) if len(ch) == 1 else -1
+        units = glyphs[index] if index >= 0 else 0
+    return (units, upem) if units else None
+
+
+@lru_cache(maxsize=4096)
+def _laid_out(units: int, upem: int, height: int, ratio: float, spacing: float) -> float:
+    """HWPUNIT a glyph of design advance *units* (of *upem*) takes at a character
+    height of *height* HWPUNIT, its 자간 included."""
+
+    scaled = Fraction(units * (height // _LAYOUT_UNIT), upem)
+    if ratio == 100:
+        advance = math.floor(scaled + Fraction(1, 2))
+    else:
+        advance = math.floor(scaled * Fraction(ratio) / 100)
+    return float((advance + _spacing_units(advance, spacing)) * _LAYOUT_UNIT)
+
+
+@lru_cache(maxsize=512)
+def _laid_out_space(height: int, ratio: float, spacing: float) -> float:
+    """HWPUNIT the half-em space takes at a character height of *height* HWPUNIT,
+    its 자간 included."""
+
+    half = height // _LAYOUT_UNIT // 2
+    advance = math.floor(half * Fraction(ratio) / 100 + Fraction(1, 2))
+    return float((advance + _spacing_units(advance, spacing)) * _LAYOUT_UNIT)
+
+
+def _spacing_units(advance: int, spacing: float) -> int:
+    """자간 of *spacing* % on *advance* layout units, rounded half away from zero."""
+
+    share = Fraction(advance) * Fraction(spacing) / 100
+    units = math.floor(abs(share) + Fraction(1, 2))
+    return units if share >= 0 else -units
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,10 +329,12 @@ class TextStyle:
     breaks between any two syllables; ``break_latin_word`` works as named.
     ``condense`` (최소 공백, %) lets the spaces inside a line shrink by that
     share. ``indent`` is the first-line indent in HWPUNIT; a negative value is
-    a hanging indent taken off every line after the first. ``hangul_advance``
-    is a Hangul syllable's advance in em in the run's face. ``glyph_face``
-    names the face whose measured advances the other glyphs take; empty, or a
-    glyph it does not list, falls back to the class averages.
+    a hanging indent taken off every line after the first. ``hangul_face``
+    and ``glyph_face`` name the faces whose design advances Hangul syllables
+    and the other glyphs take, laid out as Hancom rounds them (see
+    :func:`char_advance`); an empty or unlisted face, or a glyph it does not
+    list, falls back to ``hangul_advance`` (a Hangul syllable in em) and to
+    the class averages.
     """
 
     ratio: float = 100.0
@@ -193,6 +346,7 @@ class TextStyle:
     indent: int = 0
     hangul_advance: float = 1.0
     glyph_face: str = ""
+    hangul_face: str = ""
 
 
 def classify_char(ch: str) -> str:
@@ -216,18 +370,25 @@ def classify_char(ch: str) -> str:
 
 
 def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> float:
-    """Advance of *ch* at *font_pt*, in HWPUNIT."""
+    """Advance of *ch* at *font_pt*, in HWPUNIT.
+
+    With *style*, the half-em space and the glyphs of a listed face take the
+    advance Hancom lays them out with, their 자간 included (see
+    ``_LAYOUT_UNIT``); other glyphs scale their class average.
+    """
 
     if style is None:
         return _ADVANCE_EM[classify_char(ch)] * font_pt * 100.0
     cls = classify_char(ch)
+    height = round(font_pt * 100.0)
     if ch == " " and not style.use_font_space:
-        base = 0.5
-    elif cls == "hangul":
-        base = style.hangul_advance
+        return _laid_out_space(height, style.ratio, style.spacing)
+    if cls == "hangul":
+        design, base = _design_units(style.hangul_face, None), style.hangul_advance
     else:
-        measured = glyph_advance_em(style.glyph_face, ch) if style.glyph_face else None
-        base = measured if measured is not None else _ADVANCE_EM[cls]
+        design, base = _design_units(style.glyph_face, ch), _ADVANCE_EM[cls]
+    if design is not None:
+        return _laid_out(design[0], design[1], height, style.ratio, style.spacing)
     return base * font_pt * 100.0 * style.ratio / 100.0 * (1 + style.spacing / 100.0)
 
 
@@ -728,9 +889,9 @@ def _style_number(value: object, default: float) -> float:
         return default
 
 
-def _face_advances(root: Any, char_pr_id_ref: object) -> tuple[float, str]:
-    """The Hangul advance (em) of the face the character shape names, and that
-    face as the glyph face when the Latin, other and symbol scripts use it too."""
+def _face_names(root: Any, char_pr_id_ref: object) -> tuple[str, str]:
+    """The Hangul face the character shape names, and that face again as the
+    glyph face when the Latin, other and symbol scripts use it too."""
 
     from ..oxml.header_fonts import font_face
 
@@ -738,8 +899,8 @@ def _face_advances(root: Any, char_pr_id_ref: object) -> tuple[float, str]:
         faces = {font_face(root.headers[0], char_pr_id_ref, lang) for lang in _GLYPH_TABLE_SCRIPTS}
         face = font_face(root.headers[0], char_pr_id_ref, "HANGUL") or ""
     except Exception:  # pragma: no cover - defensive
-        return 1.0, ""
-    return HANGUL_ADVANCE_EM.get(face, 1.0), face if len(faces) == 1 else ""
+        return "", ""
+    return face, face if len(faces) == 1 else ""
 
 
 def text_style_from_refs(
@@ -748,7 +909,7 @@ def text_style_from_refs(
     """Hancom layout settings of a paragraph shape and the first resolvable
     character shape among *char_pr_id_refs*."""
 
-    ratio, spacing, use_font_space, hangul_advance, glyph_face = 100.0, 0.0, False, 1.0, ""
+    ratio, spacing, use_font_space, hangul_face, glyph_face = 100.0, 0.0, False, "", ""
     root = _document_root(document)
     for ref in char_pr_id_refs:
         try:
@@ -761,7 +922,7 @@ def text_style_from_refs(
         ratio = _style_number((children.get("ratio") or {}).get("hangul"), 100.0)
         spacing = _style_number((children.get("spacing") or {}).get("hangul"), 0.0)
         use_font_space = (getattr(run_style, "attributes", {}) or {}).get("useFontSpace") in {"1", "true"}
-        hangul_advance, glyph_face = _face_advances(root, ref)
+        hangul_face, glyph_face = _face_names(root, ref)
         break
     try:
         prop = root.paragraph_property(para_pr_id_ref)
@@ -772,8 +933,8 @@ def text_style_from_refs(
             ratio=ratio,
             spacing=spacing,
             use_font_space=use_font_space,
-            hangul_advance=hangul_advance,
             glyph_face=glyph_face,
+            hangul_face=hangul_face,
         )
     breaks = getattr(prop, "break_setting", None)
     # hp:case carries the HWPUNIT values Hancom lays out with; hp:default doubles them.
@@ -790,8 +951,8 @@ def text_style_from_refs(
         break_non_latin_word=getattr(breaks, "break_non_latin_word", None) or "BREAK_WORD",
         condense=int(_style_number(getattr(prop, "condense", 0), 0.0)),
         indent=int(_style_number(getattr(margin, "intent", 0), 0.0)),
-        hangul_advance=hangul_advance,
         glyph_face=glyph_face,
+        hangul_face=hangul_face,
     )
 
 
