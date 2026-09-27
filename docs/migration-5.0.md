@@ -29,6 +29,39 @@ The tables below give the exact replacement for each removed surface.
 `pip install "python-hwpx<5"` restores every 4.x surface. The 4.x line stays
 available; it is not a deprecated dead end you are being pushed off.
 
+### Module paths
+
+Importing a moved module from core 5.0 or later raises `ModuleNotFoundError`
+whose message names the new module, the package to install, and this page.
+Core does not import the companion to do this; it only reports the address.
+
+| removed module | new module |
+|---|---|
+| `hwpx.agent` | `hwpx_automation.office.agent` |
+| `hwpx.authoring` | `hwpx_automation.office.authoring` |
+| `hwpx.builder` | `hwpx_automation.office.authoring.builder` |
+| `hwpx.design` | `hwpx_automation.office.authoring.design` |
+| `hwpx.evalplan_fill` | `hwpx_automation.office.evalplan` |
+| `hwpx.exam` | `hwpx_automation.office.exam` |
+| `hwpx.fill_residue` | `hwpx_automation.office.form_fill.fill_residue` |
+| `hwpx.form_fill` | `hwpx_automation.office.form_fill` |
+| `hwpx.form_fit.seal` | `hwpx_automation.office.form_fill.fit.seal` |
+| `hwpx.form_fit.wordbox` | `hwpx_automation.office.form_fill.fit.wordbox` |
+| `hwpx.formfill_quality` | `hwpx_automation.office.form_fill.quality` |
+| `hwpx.guidance_scan` | `hwpx_automation.office.form_fill.guidance` |
+| `hwpx.presets` | `hwpx_automation.office.authoring.presets` |
+| `hwpx.template_formfit` | `hwpx_automation.office.form_fill.template_formfit` |
+| `hwpx.tools.advanced_generators` | `hwpx_automation.office.authoring.advanced_generators` |
+| `hwpx.tools.official_lint` | `hwpx_automation.office.compliance.official_lint` |
+| `hwpx.tools.pii` | `hwpx_automation.office.compliance.pii` |
+| `hwpx.tools.report_parser` | `hwpx_automation.office.authoring.report_parser` |
+| `hwpx.tools.style_profile` | `hwpx_automation.office.authoring.style_profile` |
+| `hwpx.tools.table_compute` | `hwpx_automation.office.utilities.table_compute` |
+| `hwpx.visual` | `hwpx_automation.office.rendering` |
+| `hwpx.benchmark` | not shipped; run it from a source checkout |
+| `hwpx.conformance` | not shipped; run it from a source checkout |
+| `hwpx.tools.fuzz` | not shipped; `scripts/fuzz/` in a source checkout |
+
 ---
 
 ## Removed surfaces

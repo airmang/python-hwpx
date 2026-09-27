@@ -669,11 +669,14 @@ class HwpxDocument(_LegacyFacade):
     # ------------------------------------------------------------------
 
     def validate(self) -> "ValidationReport":
-        """Run XML schema validation on the current document state.
+        """Validate the current document state, as ``hwpx-validate`` does.
 
-        Returns a :class:`~hwpx.tools.validator.ValidationReport` with
-        any issues found.  This does **not** require ``validate_on_save``
-        to be enabled.
+        Checks the header and section XML against the schemas and warns
+        about manifest items with no part and ``BinData/`` parts with no
+        manifest item. Returns a :class:`~hwpx.tools.validator.ValidationReport`.
+        Package structure (ZIP, container, manifest hrefs) is checked by
+        :func:`~hwpx.tools.package_validator.validate_package`. This does
+        **not** require ``validate_on_save`` to be enabled.
         """
 
         return _persistence.validate(self)

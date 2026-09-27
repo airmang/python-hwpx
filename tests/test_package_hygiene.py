@@ -10,8 +10,10 @@
 - ``remove_image`` refuses an item the document still points at (a picture,
   a header image fill, a master page, a video, an OLE object) unless
   ``force=True``, and never removes a manifest item that is not a binary item.
-- ``doc.validate()`` warns about manifest items with no part and ``BinData/``
-  parts with no manifest item.
+- ``doc.validate()`` and ``validate_document()`` (``hwpx-validate``) warn about
+  manifest items with no part and ``BinData/`` parts with no manifest item;
+  ``validate_package()`` reports a missing part as an error. All three skip
+  an item that links a file outside the package.
 """
 
 from __future__ import annotations
@@ -476,3 +478,81 @@ def test_validate_warns_about_a_missing_ole_part_marked_not_embedded() -> None:
 def test_validate_still_skips_a_linked_file_outside_the_package() -> None:
     # SimpleVideo links a video by absolute path (isEmbeded="0", href outside BinData/)
     assert _drift(HwpxDocument.open(LINKED_VIDEO)) == []
+
+
+# ---------------------------------------------------------------------------
+# doc.validate(), hwpx-validate and hwpx-validate-package agree
+# ---------------------------------------------------------------------------
+
+
+def _without_part(source: Path, part: str) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(source) as src, zipfile.ZipFile(buffer, "w") as dst:
+        for info in src.infolist():
+            if info.filename != part:
+                dst.writestr(info, src.read(info.filename))
+    return buffer.getvalue()
+
+
+def _manifest_messages(issues) -> list[str]:
+    return [issue.message for issue in issues if "manifest" in issue.message]
+
+
+def test_validate_and_validate_document_report_the_same_missing_bindata_part() -> None:
+    from hwpx.tools.package_validator import validate_package
+    from hwpx.tools.validator import validate_document
+
+    data = _without_part(PICTURE, "BinData/image1.jpg")
+
+    from_document = HwpxDocument.open(data).validate()
+    from_tool = validate_document(data)
+
+    assert from_tool.ok and from_document.ok
+    assert _manifest_messages(from_tool.warnings) == _manifest_messages(from_document.warnings)
+    assert len(_manifest_messages(from_tool.warnings)) == 1
+    # the package check is the strict one: an embedded item needs its part
+    assert not validate_package(data).ok
+
+
+def test_validate_document_warns_about_a_bindata_part_without_a_manifest_item() -> None:
+    from hwpx.tools.validator import validate_document
+
+    document = HwpxDocument.open(PICTURE)
+    document.package.write("BinData/stray.png", PNG)
+
+    report = validate_document(document.to_bytes())
+
+    assert [issue.part_name for issue in report.warnings if "manifest" in issue.message] == [
+        "BinData/stray.png"
+    ]
+
+
+def test_validate_package_accepts_a_linked_file_outside_the_package() -> None:
+    from hwpx.tools.package_validator import validate_editor_open_safety, validate_package
+
+    report = validate_package(LINKED_VIDEO)
+
+    assert report.ok, [str(issue) for issue in report.errors]
+    assert not [issue for issue in report.issues if "sample-video" in issue.message]
+    assert validate_editor_open_safety(LINKED_VIDEO).ok
+
+
+def test_save_with_reference_integrity_accepts_a_linked_file() -> None:
+    from hwpx.quality.policy import QualityPolicy
+
+    report = HwpxDocument.open(LINKED_VIDEO).save_report(
+        io.BytesIO(),
+        quality=QualityPolicy.transparent().with_(require_reference_integrity=True),
+    )
+
+    assert report.ok, report
+
+
+def test_validate_package_still_requires_an_ole_part_marked_not_embedded() -> None:
+    from hwpx.tools.package_validator import validate_package
+
+    assert validate_package(OLE).ok
+    report = validate_package(_without_part(OLE, "BinData/ole1.ole"))
+
+    assert len(report.errors) == 1
+    assert report.errors[0].message.startswith("manifest href missing from archive: 'BinData/ole1.ole'")
