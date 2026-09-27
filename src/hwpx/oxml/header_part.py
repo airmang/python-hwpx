@@ -14,6 +14,7 @@ from ._document_primitives import (
     _FONT_FACE_LANG_TO_REF,
     _HC_NS,
     _HH,
+    _HP,
     _allocate_font_id,
     _append_child,
     _append_fill_brush,
@@ -70,7 +71,7 @@ from .header import (
 )
 from .namespaces import tag_local_name, tag_namespace
 from .numbering import DocumentNumbering
-from .utils import parse_int
+from .utils import normalize_line_width, parse_int
 
 if TYPE_CHECKING:
     from .document_parts import HwpxOxmlDocument
@@ -607,14 +608,13 @@ class HwpxOxmlHeader:
     def _apply_paragraph_margins(self, para_pr: ET.Element, margins: Mapping[str, int]) -> None:
         margin_elements = self._descendants_by_local(para_pr, "margin")
         if not margin_elements:
-            margin = self._ensure_direct_para_child(
-                para_pr,
-                "margin",
-                after_local_names={"breakSetting", "autoSpacing", "heading", "align"},
-            )
-            margin_elements = [margin]
+            margin_elements = [self._ensure_direct_para_child(
+                para_pr, "margin", after_local_names={"breakSetting", "autoSpacing", "heading", "align"})]
 
+        # Hancom keeps hp:default at twice the hp:case value; a margin outside hp:switch is as given.
+        doubled = para_pr.findall(f"{_HP}switch/{_HP}default/{_HH}margin")
         for margin in margin_elements:
+            scale = 2 if margin in doubled else 1
             for name, value in margins.items():
                 if value is None:
                     continue
@@ -622,7 +622,7 @@ class HwpxOxmlHeader:
                 if child is None:
                     child = margin.makeelement(f"{_HH}{name}", {})
                     margin.append(child)
-                self._set_margin_unit_value(child, int(value))
+                self._set_margin_unit_value(child, int(value) * scale)
 
     def _apply_paragraph_line_spacing(self, para_pr: ET.Element, percent: int | float) -> None:
         value = str(int(round(float(percent))))
@@ -947,12 +947,15 @@ class HwpxOxmlHeader:
         self.mark_dirty()
         return new_id
 
+    #: The border types Hancom reads; it draws a type it does not know as no border at all.
     _BORDER_LINE_TYPES = frozenset({
         "SOLID", "DASH", "DOT", "DASH_DOT", "DASH_DOT_DOT", "LONG_DASH",
         "CIRCLE", "DOUBLE_SLIM", "SLIM_THICK", "THICK_SLIM", "SLIM_THICK_SLIM",
-        "WAVE", "DOUBLEWAVE", "THICK_3D", "THICK_3D_REVERSE_LIGHTING",
-        "SLIM_3D", "SLIM_3D_REVERSE_LIGHTING",
+        "WAVE", "DOUBLEWAVE", "THICK3D", "THICKREV3D", "3D", "REV3D",
     })
+    #: Earlier python-hwpx names of the 3-D lines, which Hancom reads as no line.
+    _BORDER_LINE_TYPE_ALIASES = {"THICK_3D": "THICK3D", "THICK_3D_REVERSE_LIGHTING": "THICKREV3D",
+                                 "SLIM_3D": "3D", "SLIM_3D_REVERSE_LIGHTING": "REV3D"}
 
     def ensure_border_fill(
         self,
@@ -969,9 +972,10 @@ class HwpxOxmlHeader:
         if element is None:  # pragma: no cover - defensive branch
             raise RuntimeError("failed to create <borderFills> element")
 
-        normalized_border_type = _normalize_border_type(border_type, self._BORDER_LINE_TYPES)
+        normalized_border_type = _normalize_border_type(
+            self._BORDER_LINE_TYPE_ALIASES.get(str(border_type).upper(), border_type), self._BORDER_LINE_TYPES)
         normalized_border_color = _normalize_color(border_color) or "#BFBFBF"
-        normalized_border_width = str(border_width or "0.12 mm")
+        normalized_border_width = normalize_line_width(border_width or "0.12 mm")
         normalized_active_borders = _normalize_border_side_names(active_borders)
         normalized_fill_color = _normalize_color(fill_color)
 

@@ -20,7 +20,8 @@
 - 셀 필드(이름 붙은 표 칸, `hp:tc@name`): `doc.fields.cells`가 문서 순서로 돌려주고(본문 표와
   칸 안의 표), `doc.fields.fill_cell(value, name=..., index=None)`이 한/글 `PutFieldText`처럼
   같은 이름의 칸을 모두 채운다. `index`(0부터)를 주면 그 하나만 채운다. 칸의 이름은
-  `cell.field_name`으로 읽고 쓴다. 새 오류 코드 `field-cell-not-found`.
+  `cell.field_name`으로 읽고 쓴다. 채우면 칸 자신의 문단 글만 바뀌고, 칸 안에 든 표나 개체의
+  글(그 안의 셀 필드 값 포함)은 그대로다. 새 오류 코드 `field-cell-not-found`.
 - `doc.text.replace(search, replacement, everywhere=True)`: 한/글 "모두 바꾸기"처럼 표
   칸(칸 안 표 포함)·글상자·캡션·머리말·꼬리말·각주·미주·바탕쪽의 문단도 바꾸고, 서식이 다른 런에
   걸친 말도 바꾼다. 바꿀 글의 글자는 같은 자리의 찾은 글자가 있던 런의 서식을 따르고, 남는
@@ -71,6 +72,17 @@
 
 ### 바꿈
 
+- `HwpxOxmlTable.equalize_column_widths()`가 한/글 "셀 너비를 같게"처럼 행마다 칸을 같은
+  너비로 나눈다. 합친 칸은 그 행의 한 칸으로 세고, 모든 행이 같은 자리에서 끝나도록 표
+  너비를 행마다의 칸 수로 모두 나누어떨어지는 값까지 올린 뒤(예: 3칸 행과 4칸 행이면 12의
+  배수) 열 격자(`colCnt`·`cellAddr`·`cellSpan`)를 새 칸 경계로 다시 짠다. 한/글과 같아서 칸 수가
+  다른 행이 많으면 표가 크게 넓어질 수 있다. 칸 영역(`hp:cellzone`)의 열 주소도 새 격자로
+  옮기고, 같은 칸을 덮을 수 없으면 표를 그대로 두고 `HwpxValueError`를 낸다. 합친 칸 아래에
+  크기 0인 자리 표시 칸이 남아 있는 표에서는 자리 표시 칸마다 덮는 칸의 새 열을 하나씩 주고,
+  열이 모자라면 남는 빈 자리 표시 칸은 없앤다(한/글은 합친 칸 아래에 칸을 쓰지 않는다). 전에는 격자 열을
+  같게 해서, 칸 경계가 행마다 다른 표에서는 칸 너비가 고르지 않았다. 세로로 합친 칸이
+  행마다 다른 너비를 받아야 하는 표는 한/글처럼 바꾸지 않고 `HwpxValueError`를 낸다.
+  격자 열마다 같은 너비가 필요하면 `set_column_widths([1] * column_count)`를 쓴다.
 - `validate_document()`가 구역·머리 XML을 번들된 전체 OWPML 스키마(`DevDoc/OWPML SCHEMA`의
   Body·ParaList·Core·Header)로도 검사한다(#118). 한/글 2011 네임스페이스를 2024로 바꿔 끼운
   사본을 보고, 한/글이 여는 문서에도 있는 편차(2011 관행)는 빼고 나머지를 경고(`OWPML
@@ -110,6 +122,75 @@
 
 ### 고침
 
+- 표 `merge_cells()`(`doc.tables.merge_cells`)가 가려지는 칸의 글과 개체를 버리던 것을
+  고친다. 이제 병합 칸이 글이나 개체가 있는 칸의 문단을 읽기 순서(행마다 왼쪽에서
+  오른쪽, 위 행부터)로 모두 받고, 빈 칸(빈 문단 하나)은 아무것도 보태지 않는다. 병합
+  칸이 비어 있었으면 그 빈 줄 대신 옮겨 온 문단만 남는다. 칸 크기가 바뀌므로 병합 칸의
+  줄 배치 캐시는 비운다. 병합한 뒤 `split_merged_cell()`로 나누면 옮겨 온 글은 첫 칸에
+  남는다. 병합할 영역의 칸 격자는 한 번만 만들어서 큰 표의 병합이 빨라졌다. 병합으로 칸이
+  하나도 남지 않은 행과, 어느 칸도 시작하지 않는 열은 한/글처럼 없앤다(행 전체를 합치면 그
+  높이의 한 행이 되고, 표 전체를 합치면 한 칸짜리 표가 된다). 빈 `hp:tr`이 남은 표는 한/글이
+  열지 못했다.
+- 표 칸의 `.text =`(`set_text`)가 글을 지운 문단을 빈 줄로 남기던 것을 고친다. 글이 지워지고
+  남은 것이 없는 칸 문단은 없애서, 넣은 글이 그대로 읽힌다(병합한 칸에 글을 넣을 때도 같다).
+  원래 빈 줄이던 문단과 개체가 든 문단은 그대로 둔다.
+- 번호 형식을 받은 그대로(대문자로만 바꿔) 쓰던 것을 고친다. 목록(`styles.apply_list_format`의
+  `number_format`, `ensure_numbering` 레벨의 `format`), 각주·미주(`set_footnote_auto_num_format`·
+  `set_endnote_auto_num_format`의 `type`), 쪽 번호(`page.set_page_number`의 `format_type`)가
+  그렇다. 한컴은 모르는 형식을 거부하지 않고 아라비아 숫자로 매겨서, `number_format="decimal"`
+  같은 값이 조용히 `1. 2. 3.`이 되었다. 이제 목록·개요 머리와 쪽 번호는 한컴 번호 모양
+  15개(`hc:NumberType1`: `DIGIT`·`ROMAN_SMALL`·`ROMAN_CAPITAL`·`LATIN_SMALL`·`CIRCLED_DIGIT`·
+  `HANGUL_SYLLABLE` 등, `hwpx.oxml.numbering_kinds.NUMBER_FORMATS`)를, 각주·미주 번호는 여기에
+  `DECAGON_CIRCLE`·`DECAGON_CIRCLE_HANJA`·`SYMBOL`·`USER_CHAR`를 더한 19개(`hc:NumberType2`,
+  `NOTE_NUMBER_FORMATS`)를 받는다. 쪽 번호가 먼저 받던 짧은 이름(`roman`→`ROMAN_CAPITAL`,
+  `roman_lower`→`ROMAN_SMALL`, `alpha`→`LATIN_CAPITAL` 등)도 받고, 그 밖의 값은
+  `HwpxValueError`(`style-number-format-invalid`)로 거부한다.
+- 색 인자가 `#RRGGBB`가 아니어도 그대로 쓰던 것을 고친다. 한컴은 색 값을 16진 수 하나로
+  읽고 나머지를 거부하지 않아서, `#ABC`는 CSS의 `#AABBCC`가 아니라 `#000ABC`로, `red`는
+  검정으로, `#12345`는 `#012345`로 보였다. 이제 `styles.ensure_run`(`color`·`highlight`·
+  `underline_color`·`shadow`), 칸·테두리 채우기와 그러데이션 색, 메모 모양, 도형 선·채우기,
+  단 구분선, `body_patch`의 `restyle_text` 글자색은 `#RRGGBB`와 `#AARRGGBB`(`#` 생략·소문자
+  허용)만 받고(`none`을 받던 자리는 `none`도), 그 밖의 값은 `HwpxValueError`
+  (`style-color-invalid`)로 거부한다. `#AARRGGBB`는 한컴이 무늬·테두리·선·그림자 색에 쓰는
+  꼴(알파 먼저)이라, 문서에서 읽은 색을 넘겨도 그대로 쓴다. 거부하면 아무것도 바꾸지 않는다: 머리말·꼬리말 `set_content`는 내용을 비우기 전에
+  색을 검사하고, 그 뒤에 값이 거부되어도 원래 내용으로 되돌린다. `set_columns`도 구분선 값을
+  먼저 검사한다.
+- 테두리 굵기(`styles.ensure_border_fill`의 `border_width`, `apply_paragraph_format`의
+  문단 테두리 굵기)와 단 구분선 굵기(`page.set_columns`의 `separator_width`)를 받은 그대로
+  쓰던 것을 고친다. 한컴은 선 굵기 목록(`0.1 mm`~`5.0 mm`)에 글자 그대로 있는 값만 읽고,
+  `1 mm`·`2 mm`·`0.12mm`처럼 목록 밖의 값은 가장 가는 `0.1 mm`로 그렸다. 이제 `"1 mm"`·
+  `"1mm"`·`1`은 `"1.0 mm"`로 쓰고, 목록에 없는 굵기는 가장 가까운 목록 값으로 쓴다(한가운데면
+  굵은 쪽: `"0.45 mm"`는 `"0.5 mm"`, `"6 mm"`는 `"5.0 mm"`). 0보다 큰 mm 값이 아니면
+  (`"thick"`·`"1 cm"`·`0`) `HwpxValueError`(`style-line-width-invalid`)로 거부한다.
+  `hwpx.oxml.utils.LINE_WIDTHS`가 그 목록이다.
+- `styles.ensure_run(ratio=...)`(장평)가 256~400을 받던 것을 고친다. 한컴은 장평을 한
+  바이트로 두어 256 이상은 256을 뺀 값이 된다(300은 44%로 그려짐). 이제 범위는 10~255다.
+- 테두리 종류(`styles.ensure_border_fill`의 `border_type`, 문단 테두리, 표 칸 테두리)의
+  `THICK_3D`·`THICK_3D_REVERSE_LIGHTING`·`SLIM_3D`·`SLIM_3D_REVERSE_LIGHTING`을 그대로 써서,
+  한컴이 모르는 표기라 테두리가 없는 것(`NONE`)으로 그려지던 것을 고친다. 이제 한컴 표기
+  `THICK3D`·`THICKREV3D`·`3D`·`REV3D`로 바꿔 쓰고, 한컴 표기도 그대로 받는다.
+- `.hwp`로 저장할 때 그림 효과 `PATTERN8x8`을 한/글이 읽지 않는 값으로 쓰던 것을 고친다. 한/글처럼
+  원래 그림(`REAL_PIC`)으로 쓰고, `.hwp`에서 이름이 없는 효과 값은 `effect` 없이 연다.
+- `.hwp`의 선 종류 13~17을 한/글이 쓰는 이름(`DOUBLEWAVE`·`THICK3D`·`THICKREV3D`·`3D`·`REV3D`)으로
+  열고, 저장할 때는 이 이름과 `THICK_3D` 같은 다른 철자를 모두 받는다. 문단 번호의 번호 형식을
+  4비트로만 써서 `DECAGON_CIRCLE_HANJA`가 다른 형식으로 바뀌던 것도 고친다.
+- 그림자가 있는 도형을 `.hwp`로 저장하고 열 때 바깥 여백을 한/글처럼 셈한다. 기울임·원근·확대·축소
+  그림자가 도형 밖으로 나간 만큼을 더하고 빼며, 왼쪽이나 위로 민 그림자도 그쪽 여백에 더한다. 큰
+  도형에서 여백이 16비트를 넘으면 한/글처럼 아래 16비트로 저장하고, 열 때 원래 여백으로 되돌린다
+  (전에는 32비트를 넘는 값으로 열렸다).
+- HWPX에 없는 배치 속성을 `.hwp`에 쓸 때 한/글이 주는 값을 쓴다. `textWrap`은 도형이 `SQUARE`,
+  양식 개체가 `TOP_AND_BOTTOM`이고, `vertRelTo`·`horzRelTo`는 `PAPER`, `widthRelTo`·`heightRelTo`는
+  `PAGE`, 캡션 `side`는 `LEFT`다. 채운 화살표(`FILLED_*`)와 덧말 위치 `CENTER`처럼 `.hwp`에 없는
+  값도 한/글처럼 기본값으로 쓴다.
+- `.hwp`의 틀 없는 글자 겹치기를 한/글처럼 `OVERLAP`으로 연다. 전에는 `SPREAD`로 열어 저장할 때
+  빈칸을 붙였다. 수식 버전이 빈 `.hwp` 수식은 빈 채로 열고 저장한다.
+- `export_text()`·`export_markdown()`·`export_html()`이 표 칸 글의 앞뒤 공백을 지우던 것을 고친다.
+  들여 맞춘 `  용  역  명`이 `용  역  명`으로, `협조자   `가 `협조자`로 나왔다. 한/글이 저장한
+  문서의 미리보기 글(`Preview/PrvText.txt`)도 칸 글의 공백을 그대로 둔다. 칸 끝의 빈 문단은
+  전처럼 빼고, 글에 든 공백만 지킨다.
+- `apply_paragraph_format()`가 여백·들여쓰기·문단 간격을 `hp:switch` 안에 쓸 때 `hp:default`에는
+  `hp:case` 값의 두 배를 쓴다. 한컴 문서와 같은 표기다. 전에는 두 곳에 같은 값을 써서, `hp:case`를
+  모르고 `hp:default`를 읽는 프로그램에서는 여백이 절반으로 보였다. `hp:switch` 밖의 여백은 준 값 그대로다.
 - 표 칸 하나의 테두리를 바꾸면(`table.set_cell_borders`) 이웃 칸의 맞닿은 변이 옛 선으로
   남아, 한컴에서 두 선이 겹쳐 그려지던 것을 고친다. 칸마다 네 변을 따로 가지고 맞닿은 변은
   두 칸의 선이 다 그려지므로, 한컴의 칸 테두리 명령은 이웃 칸의 맞닿은 변도 같은 선으로

@@ -14,6 +14,7 @@ from ._document_primitives import (
     _DEFAULT_PARAGRAPH_ATTRS,
     _HC,
     _HP,
+    _normalize_color,
     _append_child,
     _append_text_with_tabs,
     _default_sublist_attributes,
@@ -267,17 +268,18 @@ def _build_drawing_object_children(
 ) -> None:
     """Append AbstractDrawingObjectType children: lineShape, fillBrush, shadow."""
     ls_attrs = dict(_DEFAULT_LINE_SHAPE_ATTRS)
-    ls_attrs["color"] = line_color
+    ls_attrs["color"] = _normalize_color(line_color) or "#000000"
     ls_attrs["width"] = line_width
     ls_attrs["style"] = line_style
     _append_child(parent, f"{_HP}lineShape", ls_attrs)
 
-    if fill_color is not None:
+    face_color = _normalize_color(fill_color)
+    if face_color is not None:
         # Hancom reads the fill from the core namespace; an ``hp:fillBrush`` is
         # accepted by the parser but silently rendered unfilled.
         fb = _append_child(parent, f"{_HC}fillBrush", {})
         _append_child(fb, f"{_HC}winBrush", {
-            "faceColor": fill_color, "hatchColor": "#FFFFFF",
+            "faceColor": face_color, "hatchColor": "#FFFFFF",
         })
 
     _append_child(parent, f"{_HP}shadow", {
