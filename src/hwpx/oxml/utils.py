@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from copy import deepcopy
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
@@ -14,6 +15,42 @@ from .namespaces import HP10_NS, HP_NS, tag_local_name
 
 _TRUE_VALUES = {"1", "true", "True", "TRUE"}
 _FALSE_VALUES = {"0", "false", "False", "FALSE"}
+
+#: OWPML ``hc:LineWidth``, the widths Hancom keeps for borders and column lines. Hancom draws
+#: any other string, even ``1 mm``, ``0.12mm`` or ``0.45 mm``, as ``0.1 mm``.
+LINE_WIDTHS = (
+    "0.1 mm", "0.12 mm", "0.15 mm", "0.2 mm", "0.25 mm", "0.3 mm", "0.4 mm", "0.5 mm",
+    "0.6 mm", "0.7 mm", "1.0 mm", "1.5 mm", "2.0 mm", "3.0 mm", "4.0 mm", "5.0 mm",
+)
+_LINE_WIDTH_BY_MM = {Decimal(width.split()[0]): width for width in LINE_WIDTHS}
+
+
+def normalize_line_width(value: str | int | float) -> str:
+    """*value* written as one of :data:`LINE_WIDTHS`.
+
+    ``"1 mm"``, ``"1mm"``, ``"1.0 mm"`` and ``1`` are all ``"1.0 mm"``. A width that is not on
+    the list is written as the nearest listed width, the thicker one when it lies halfway
+    (``"0.45 mm"`` is ``"0.5 mm"``, ``"6 mm"`` is ``"5.0 mm"``), rather than as the ``0.1 mm``
+    Hancom would draw. A value that is not a positive number of millimetres is refused with
+    :class:`~hwpx.errors.HwpxValueError`.
+    """
+    text = str(value).strip().lower()
+    number = (text[:-2] if text.endswith("mm") else text).strip()
+    try:
+        millimetres: Decimal | None = Decimal(number)
+    except InvalidOperation:
+        millimetres = None
+    if millimetres is None or not millimetres.is_finite() or millimetres <= 0:
+        from ..errors import HwpxValueError
+
+        raise HwpxValueError(
+            f"line width {value!r} is not a width in millimetres",
+            code="style-line-width-invalid",
+            context={"width": str(value), "allowed": list(LINE_WIDTHS)},
+            suggestion="Pass a width in millimetres such as '0.5 mm'; Hancom's widths are " + ", ".join(LINE_WIDTHS),
+        )
+    nearest = min(_LINE_WIDTH_BY_MM, key=lambda listed: (abs(listed - millimetres), -listed))
+    return _LINE_WIDTH_BY_MM[nearest]
 
 
 def local_name(node: etree._Element) -> str:

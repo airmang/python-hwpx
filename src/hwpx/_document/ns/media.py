@@ -47,14 +47,27 @@ class MediaNamespace(_Namespace):
 
     @property
     def images(self) -> "tuple[BinaryItem, ...]":
-        """패키지가 품은 이진 이미지 항목 목록."""
+        """패키지가 품은 이진 이미지 항목 목록.
+
+        header의 ``binDataList``에 있는 항목이 먼저 오고, ``content.hpf``
+        매니페스트에만 있는 이진 항목(href가 ``BinData/`` 아래이거나
+        media-type이 ``image/*``)이 매니페스트 순서로 뒤따른다. 한컴이
+        저장한 파일은 보통 ``binDataList``가 없어 뒤쪽만 나온다.
+        ``isEmbeded="0"``으로 바깥 파일을 잇는 항목은 넣지 않는다. 파트가
+        없는 내장 항목은 ``size=0``으로 나온다."""
 
         from .. import media as _media
 
         return _media.list_images(self._doc)
 
-    def remove_image(self, item_id: str) -> bool:
-        """이진 항목을 제거한다. 없으면 ``False``."""
+    def remove_image(self, item_id: "str | BinaryItem") -> bool:
+        """이진 항목을 제거한다. 없으면 ``False``.
+
+        매니페스트 id(``"image1"``), 파트 경로(``"BinData/image1.png"``),
+        ``images``가 돌려준 ``BinaryItem`` 가운데 무엇이든 받는다.
+        매니페스트 항목·파트·header의 ``binItem``(있으면)을 함께 지운다.
+        본문이 아직 그 항목을 참조하는지는 보지 않는다 — 참조 여부는
+        ``picture_references()``로 확인한다."""
 
         from .. import media as _media
 

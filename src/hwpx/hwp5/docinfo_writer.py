@@ -24,19 +24,22 @@ from . import records as rec
 from .owpml import (
     ALIGN_H,
     ALIGN_V,
-    BORDER_LINE,
+    BORDER_LINE_CODES,
     BORDER_WIDTH,
     BREAK_LATIN,
     BREAK_NON_LATIN,
-    CHAR_LINE,
+    CHAR_LINE_CODES,
     FAMILY,
     GRADATION,
     HATCH,
     HEADING,
-    IMAGE_EFFECT,
+    IMAGE_EFFECT_CODES,
     IMAGE_MODE,
     LANG_ATTRS,
     LANGS,
+    LAYOUT_COMPATIBILITY_BITS,
+    LAYOUT_COMPATIBILITY_DEFAULT,
+    LAYOUT_COMPATIBILITY_GROUPS,
     LINE_SPACING,
     LINE_WRAP,
     MEMO_TYPE,
@@ -145,7 +148,7 @@ def _line(element: etree._Element | None) -> di.Line:
     if element is None:
         return di.Line()
     return di.Line(
-        index_of(BORDER_LINE, element.get("type"), 0),
+        index_of(BORDER_LINE_CODES, element.get("type"), 0),
         index_of(BORDER_WIDTH, element.get("width"), 0),
         colorref(element.get("color")),
     )
@@ -185,7 +188,7 @@ def fill(brush: etree._Element | None, bin_ids: Mapping[str, int] | None = None)
         if img is not None:
             result.image_bright = _int(img, "bright")
             result.image_contrast = _int(img, "contrast")
-            result.image_effect = index_of(IMAGE_EFFECT, img.get("effect"), 0)
+            result.image_effect = index_of(IMAGE_EFFECT_CODES, img.get("effect"), 0)
             result.image_bin_id = _bin_ref(img.get("binaryItemIDRef"), bin_ids)
             alphas.append(_int(img, "alpha"))
     if result.kind:
@@ -251,15 +254,15 @@ def char_shape(element: etree._Element) -> di.CharShape:
     strike = _child(element, _HH, "strikeout")
     strike_shape = strike.get("shape", "NONE") if strike is not None else "NONE"
     underline_type = index_of(UNDERLINE_TYPE, underline.get("type") if underline is not None else None, 0)
-    underline_shape = index_of(CHAR_LINE, underline.get("shape") if underline is not None else None, 0)
+    underline_shape = index_of(CHAR_LINE_CODES, underline.get("shape") if underline is not None else None, 0)
     strike_as_underline = False
     if strike_shape != "NONE":
         props |= 1 << 18
-        props |= (index_of(CHAR_LINE, strike_shape, 0) & 0xF) << 26
+        props |= (index_of(CHAR_LINE_CODES, strike_shape, 0) & 0xF) << 26
         if underline_type == 0:
             # Hancom also records a strikeout in the old centre-underline
             # bits, in the strikeout's colour.
-            underline_type, underline_shape = 2, index_of(CHAR_LINE, strike_shape, 0)
+            underline_type, underline_shape = 2, index_of(CHAR_LINE_CODES, strike_shape, 0)
             strike_as_underline = True
     props |= (underline_type & 0x3) << 2 | (underline_shape & 0xF) << 4
     shape.underline_color = colorref(underline.get("color", "#000000")) if underline is not None else 0
@@ -289,7 +292,7 @@ def tab_def(element: etree._Element) -> di.TabDef:
     for item in _switch_case(element, "tabItem"):
         position = _doubled(_int(item, "pos"), item.get("unit"))
         tab.items.append(
-            di.TabItem(position, index_of(TAB_TYPE, item.get("type"), 0), index_of(BORDER_LINE, item.get("leader"), 0))
+            di.TabItem(position, index_of(TAB_TYPE, item.get("type"), 0), index_of(BORDER_LINE_CODES, item.get("leader"), 0))
         )
     return tab
 
@@ -299,7 +302,8 @@ def para_head(element: etree._Element) -> di.ParaHead:
     props |= _flag(element, "useInstWidth") << 2
     props |= _flag(element, "autoIndent") << 3
     props |= (1 if element.get("textOffsetType") == "HWPUNIT" else 0) << 4
-    props |= (index_of(NUMBER_FORMAT, element.get("numFormat"), 0) & 0xF) << 5
+    # The number format takes five bits: DECAGON_CIRCLE_HANJA is 16.
+    props |= (index_of(NUMBER_FORMAT, element.get("numFormat"), 0) & 0x1F) << 5
     return di.ParaHead(
         props,
         _int(element, "widthAdjust"),
@@ -335,7 +339,7 @@ def bullet(element: etree._Element, bin_ids: Mapping[str, int] | None = None) ->
             [
                 _int(image, "bright") & 0xFF,
                 _int(image, "contrast") & 0xFF,
-                index_of(IMAGE_EFFECT, image.get("effect"), 0),
+                index_of(IMAGE_EFFECT_CODES, image.get("effect"), 0),
                 _bin_ref(image.get("binaryItemIDRef"), bin_ids) & 0xFF,
             ]
         )
@@ -369,7 +373,9 @@ def para_shape(element: etree._Element) -> di.ParaShape:
     heading_type = index_of(HEADING, heading.get("type") if heading is not None else None, 0)
     level = _int(heading, "level")
     spacing_type = index_of(LINE_SPACING, spacing.get("type") if spacing is not None else None, 0)
-    p1 = min(spacing_type, 2)
+    # The old line spacing has no AT_LEAST; Hancom writes it there as 100 percent.
+    at_least = spacing_type == 3
+    p1 = 0 if at_least else spacing_type
     p1 |= index_of(ALIGN_H, align.get("horizontal") if align is not None else None, 0) << 2
     p1 |= index_of(BREAK_LATIN, brk.get("breakLatinWord") if brk is not None else None, 0) << 5
     p1 |= index_of(BREAK_NON_LATIN, brk.get("breakNonLatinWord") if brk is not None else None, 1) << 7
@@ -392,7 +398,7 @@ def para_shape(element: etree._Element) -> di.ParaShape:
     line_unit = spacing.get("unit") if spacing is not None else None
     raw_line = spacing_type == 0 or (plain and line_unit != "CHAR")
     line_spacing = line_value if raw_line else _doubled(line_value, line_unit)
-    shape.line_spacing_old = line_spacing
+    shape.line_spacing_old = 100 if at_least else line_spacing
     shape.line_spacing = line_spacing
     shape.tab_def_id = _int(element, "tabPrIDRef")
     shape.numbering_id = _int(heading, "idRef")
@@ -430,7 +436,7 @@ def style(element: etree._Element) -> di.Style:
 def memo_shape(element: etree._Element) -> di.MemoShape:
     return di.MemoShape(
         _int(element, "width"),
-        index_of(BORDER_LINE, element.get("lineType"), 1),
+        index_of(BORDER_LINE_CODES, element.get("lineType"), 1),
         _int(element, "lineWidth"),
         colorref(element.get("lineColor")),
         colorref(element.get("fillColor")),
@@ -588,9 +594,34 @@ def build_docinfo(
     compatible = _child(head, _HH, "compatibleDocument")
     target = index_of(TARGET_PROGRAM, compatible.get("targetProgram") if compatible is not None else None, 0)
     records.append(rec.Record(rec.COMPATIBLE_DOCUMENT, 0, struct.pack("<I", target)))
-    records.append(rec.Record(rec.LAYOUT_COMPATIBILITY, 1, b"\0" * 20))
+    layout = struct.pack("<5I", *_layout_compatibility(compatible, target))
+    records.append(rec.Record(rec.LAYOUT_COMPATIBILITY, 1, layout))
     records.append(rec.Record(rec.TRACKCHANGE, 1, _track_settings(head)))
     return DocInfoResult(records, section_count)
+
+
+def _layout_compatibility(compatible: etree._Element | None, target: int) -> tuple[int, ...]:
+    """The LAYOUT_COMPATIBILITY words: a bit for each layoutCompatibility child.
+    Hancom writes none for a document meant for Hangul 2010 or later
+    (HWP201X), and its default flags when a child is not one it knows. It
+    skips grouping elements and what they hold."""
+
+    words = [0] * 5
+    layout = _child(compatible, _HH, "layoutCompatibility") if compatible is not None else None
+    if layout is None or target == 0:
+        return tuple(words)
+    for child in layout:
+        if not isinstance(child.tag, str):
+            continue
+        name = etree.QName(child).localname
+        if name in LAYOUT_COMPATIBILITY_GROUPS:
+            continue
+        place = LAYOUT_COMPATIBILITY_BITS.get(name)
+        if place is None:
+            return LAYOUT_COMPATIBILITY_DEFAULT
+        word, bit = place
+        words[word] |= 1 << bit
+    return tuple(words)
 
 
 def _track_settings(head: etree._Element) -> bytes:

@@ -250,7 +250,6 @@ def merge_template_rows(
             continue
 
         document = HwpxDocument.open(template_path)
-        row_cells = _iter_cells(document)
         replaced_count = 0
         fit_fields: list[dict[str, Any]] = []
         masked_fields: list[str] = []
@@ -272,7 +271,7 @@ def merge_template_rows(
                     apply_value = fit_result.applied_value
                     if (not fit_result.ok) or fit_result.overflow_detected:
                         fit_fields.append(_fit_field_report(key, fit_result))
-                replaced_count += _replace_token(document, token, apply_value, row_cells)
+                replaced_count += _replace_token(document, token, apply_value)
             document.save_to_path(out_path)
         finally:
             document.close()
@@ -419,20 +418,27 @@ def _open_safety_summary(row_reports: Sequence[Mapping[str, Any]], *, created_co
     }
 
 
-def _replace_token(document: HwpxDocument, token: str, value: str, cells: Sequence[Any]) -> int:
-    """Replace *token* in body runs **and** table-cell runs.
+def _replace_token(document: HwpxDocument, token: str, value: str) -> int:
+    """Replace *token* wherever the export that finds placeholders reads text.
 
-    ``doc.text.replace`` only reaches body runs (``find_runs`` does not
-    descend into ``<hp:tbl>`` cells), so a placeholder living in a 발신·결재/안내 표
-    cell would silently survive as an unresolved token. Cells are handled per-run here
-    (same per-run semantics as the body path).
+    ``doc.text.replace(..., everywhere=True)`` reaches what Hancom's find and
+    replace reaches: body text, table cells (nested ones too), text boxes,
+    captions, headers, footers and notes, and a token split over runs of
+    different formatting. A 덧말's main and sub text are plain element text, so
+    they are replaced here. The unresolved-placeholder check reads the export,
+    so a token left in any of these would fail the row.
     """
 
-    count = document.text.replace(token, value)
-    for cell in cells:
-        for cell_para in getattr(cell, "paragraphs", None) or []:
-            for run in cell_para.runs:
-                count += run.replace_text(token, value)
+    from ..oxml.namespaces import HP
+
+    count = document.text.replace(token, value, everywhere=True)
+    for section in document.oxml.sections:
+        for dutmal in section.element.iter(f"{HP}dutmal"):
+            for part in (dutmal.find(f"{HP}mainText"), dutmal.find(f"{HP}subText")):
+                if part is not None and part.text and token in part.text:
+                    count += part.text.count(token)
+                    part.text = part.text.replace(token, value)
+                    section.mark_dirty()
     return count
 
 

@@ -204,6 +204,23 @@ class PageMargins:
 
 
 @dataclass(frozen=True)
+class CellMargins:
+    """A table cell's inner margins in HWPUNIT, as ``cell.margins`` reads them.
+
+    These are the margins Hancom lays the cell out with: the table's
+    ``hp:inMargin`` unless the cell turns its own ``hp:cellMargin`` on.
+    """
+
+    left: int
+    right: int
+    top: int
+    bottom: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"left": self.left, "right": self.right, "top": self.top, "bottom": self.bottom}
+
+
+@dataclass(frozen=True)
 class ColumnLayout:
     """Column count/gap applied by ``doc.page.setup(columns=...)``."""
 
@@ -232,9 +249,120 @@ class PageSetup:
         }
 
 
+@dataclass(frozen=True)
+class ClearBodyReport:
+    """The outcome of blanking a section down to a template (``Section.clear_body``).
+
+    ``removed_paragraphs`` counts the section paragraphs after the first,
+    ``removed_runs`` the first paragraph's runs after its first, and
+    ``stripped_run_children`` the first run's children other than
+    ``hp:secPr``/``hp:ctrl``. ``control_content`` lists the content tags
+    (``"hp:t"``, ``"hp:tbl"``, ...) found inside the kept ``hp:secPr``/``hp:ctrl``
+    children, in first-seen order. With ``on_control_content="strip"``,
+    ``stripped_controls`` counts the ``hp:ctrl`` children removed for holding
+    such content and ``stripped_section_stories`` the ``hp:header``/``hp:footer``
+    story copies removed from inside ``hp:secPr`` (the ``hp:headerApply``/
+    ``hp:footerApply`` elements pointing at them go too and are not counted).
+    """
+
+    removed_paragraphs: int
+    removed_runs: int
+    stripped_run_children: int
+    control_content: tuple[str, ...]
+    stripped_controls: int
+    stripped_section_stories: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "removedParagraphs": self.removed_paragraphs,
+            "removedRuns": self.removed_runs,
+            "strippedRunChildren": self.stripped_run_children,
+            "controlContent": list(self.control_content),
+            "strippedControls": self.stripped_controls,
+            "strippedSectionStories": self.stripped_section_stories,
+        }
+
+
+@dataclass(frozen=True)
+class BorderLine:
+    """One side of an ``hh:borderFill`` (``doc.styles.border_fill_info``).
+
+    ``type`` and ``color`` are the stored attribute values, unnormalized;
+    ``width_mm`` is the number in front of the stored ``"<n> mm"`` width.
+    """
+
+    type: str
+    width_mm: float
+    color: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": self.type, "widthMm": self.width_mm, "color": self.color}
+
+
+@dataclass(frozen=True)
+class BorderFillInfo:
+    """A typed read of one ``hh:borderFill`` (``doc.styles.border_fill_info``).
+
+    ``fill`` is the solid ``hc:winBrush`` face colour, or ``None`` when there
+    is no solid fill. Gradient and image fills are not described here.
+    Like the action results above, it is a snapshot taken at call time and
+    does not follow later edits to the header.
+    """
+
+    id: str
+    left: BorderLine
+    right: BorderLine
+    top: BorderLine
+    bottom: BorderLine
+    diagonal: BorderLine
+    fill: str | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "left": self.left.to_dict(),
+            "right": self.right.to_dict(),
+            "top": self.top.to_dict(),
+            "bottom": self.bottom.to_dict(),
+            "diagonal": self.diagonal.to_dict(),
+            "fill": self.fill,
+        }
+
+
+@dataclass(frozen=True)
+class FontReplaceReport:
+    """The outcome of ``doc.styles.replace_font``.
+
+    ``langs`` lists the ``hh:fontface`` blocks that changed, in document
+    order; ``declared`` the blocks where the replacement face was newly
+    added; ``repointed`` counts the ``hh:fontRef`` attributes moved from the
+    old face to the new one.
+    """
+
+    src_face: str
+    dst_face: str
+    langs: tuple[str, ...]
+    repointed: int
+    declared: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "srcFace": self.src_face,
+            "dstFace": self.dst_face,
+            "langs": list(self.langs),
+            "repointed": self.repointed,
+            "declared": list(self.declared),
+        }
+
+
 __all__ = [
+    "BorderFillInfo",
+    "BorderLine",
+    "CellMargins",
+    "ClearBodyReport",
     "ColumnLayout",
     "FieldFillResult",
+    "FontReplaceReport",
     "ListFormatResult",
     "PageMargins",
     "PageSetup",

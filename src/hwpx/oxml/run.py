@@ -23,6 +23,74 @@ if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
 
 
+#: The closed vocabulary :meth:`HwpxOxmlRun.content_kinds` answers in.
+#: ``"other"`` stands for any element child outside the rest, so a caller that
+#: only knows these names still sees that the run holds something.
+RUN_CONTENT_KINDS: frozenset[str] = frozenset(
+    {
+        "text",
+        "table",
+        "picture",
+        "shape",
+        "equation",
+        "ole",
+        "chart",
+        "video",
+        "form",
+        "control",
+        "section_properties",
+        "other",
+    }
+)
+
+# Glyph atoms inside ``hp:t`` that stand for characters without holding any.
+_TEXT_GLYPH_NAMES = frozenset({"tab", "lineBreak", "hyphen", "nbSpace", "fwSpace"})
+
+# Run children by local name (OWPML ``hp:run`` choice, plus the non-schema
+# ``picture``/``polyline``/``drawingObject``/``shape`` names the reader
+# already accepts as inline objects).
+_RUN_CHILD_KINDS: dict[str, str] = {
+    "compose": "text",
+    "dutmal": "text",
+    "tbl": "table",
+    "pic": "picture",
+    "picture": "picture",
+    **{
+        name: "shape"
+        for name in (
+            "line",
+            "rect",
+            "ellipse",
+            "arc",
+            "polyline",
+            "polygon",
+            "curve",
+            "connectLine",
+            "container",
+            "drawingObject",
+            "shape",
+            "textart",
+        )
+    },
+    "equation": "equation",
+    "ole": "ole",
+    "chart": "chart",
+    "video": "video",
+    **{
+        name: "form"
+        for name in ("btn", "radioBtn", "checkBtn", "comboBox", "listBox", "edit", "scrollBar")
+    },
+    "ctrl": "control",
+    "secPr": "section_properties",
+}
+
+
+def _text_element_holds_text(node: ET.Element) -> bool:
+    if "".join(node.itertext()):
+        return True
+    return any(_element_local_name(child) in _TEXT_GLYPH_NAMES for child in node.iter())
+
+
 @dataclass(slots=True)
 class RunStyle:
     """Represents the resolved character style applied to a run."""
@@ -516,6 +584,33 @@ class HwpxOxmlRun:
             self.paragraph.section.mark_dirty()
         return total_replacements
 
+    def content_kinds(self) -> frozenset[str]:
+        """Return what this run holds, judged from its direct children.
+
+        The answer uses the closed vocabulary :data:`RUN_CONTENT_KINDS`:
+        ``"text"`` for an ``hp:t`` holding characters or a glyph atom (tab,
+        line break, hyphen, non-breaking or fixed-width space), and for
+        ``hp:compose``/``hp:dutmal``; ``"table"``; ``"picture"``; ``"shape"``
+        (drawing objects, containers and text art); ``"equation"``; ``"ole"``;
+        ``"chart"``; ``"video"``; ``"form"`` (buttons, combo/list boxes, edits,
+        scroll bars); ``"control"`` (``hp:ctrl``); ``"section_properties"``
+        (``hp:secPr``); and ``"other"`` for any other element child. An empty
+        ``hp:t`` contributes nothing. What sits inside a child (a header's text
+        inside an ``hp:ctrl``, a cell's text inside a table) is not looked at.
+        """
+
+        kinds: set[str] = set()
+        for child in self.element:
+            name = _element_local_name(child)
+            if not name:
+                continue
+            if name == "t":
+                if _text_element_holds_text(child):
+                    kinds.add("text")
+                continue
+            kinds.add(_RUN_CHILD_KINDS.get(name, "other"))
+        return frozenset(kinds)
+
     def remove(self) -> None:
         parent = self.paragraph.element
         try:
@@ -557,4 +652,4 @@ class HwpxOxmlRun:
     def underline(self, value: bool | None) -> None:
         self._apply_format_change(underline=value)
 
-__all__ = ["HwpxOxmlRun", "RunStyle", "replace_across_runs"]
+__all__ = ["RUN_CONTENT_KINDS", "HwpxOxmlRun", "RunStyle", "replace_across_runs"]

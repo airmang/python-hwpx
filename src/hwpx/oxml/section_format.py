@@ -17,12 +17,15 @@ from ._document_primitives import (
     _bool_str,
     _get_bool_attr,
     _get_int_attr,
+    _normalize_color,
     _object_id,
     _optional_int_attr,
     _paragraph_id,
 )
 from .numbering import SectionStartNumbering
-from .section_story import HwpxOxmlSectionHeaderFooter, _section_story_elements
+from .numbering_kinds import number_format
+from .utils import normalize_line_width
+from .section_story import HwpxOxmlSectionHeaderFooter, _section_story_elements, remember_story_pair
 
 if TYPE_CHECKING:
     from .section import HwpxOxmlSection
@@ -429,6 +432,14 @@ class HwpxOxmlSectionProperties:
         ``hp:secPr``.
         """
 
+        line = None
+        if separator_type or separator_width or separator_color:
+            # checked before anything changes: a refused value leaves the columns as they were
+            line = {
+                "type": separator_type or "SOLID",
+                "width": normalize_line_width(separator_width or "0.12 mm"),
+                "color": _normalize_color(separator_color) or "#000000",
+            }
         ctrl = self._column_control()
         col_pr = None if ctrl is None else ctrl.find(f"{_HP}colPr")
         if ctrl is None or col_pr is None:
@@ -440,12 +451,8 @@ class HwpxOxmlSectionProperties:
         col_pr.set("sameGap", str(same_gap) if same_size else "0")
         for child in list(col_pr):
             col_pr.remove(child)
-        if separator_type or separator_width or separator_color:
-            _append_child(col_pr, f"{_HP}colLine", {
-                "type": separator_type or "SOLID",
-                "width": separator_width or "0.12 mm",
-                "color": separator_color or "#000000",
-            })
+        if line is not None:
+            _append_child(col_pr, f"{_HP}colLine", line)
         for width, gap in () if same_size else (column_widths or ()):
             _append_child(col_pr, f"{_HP}colSz", {"width": str(width), "gap": str(gap)})
         self.section.mark_dirty()
@@ -616,9 +623,18 @@ class HwpxOxmlSectionProperties:
         중복 idRef는 다시 추가하지 않는다(멱등). ``masterPageCnt``를
         실제 자식 개수로 동기화한다 -- 실 예시 1건에서 `masterPageCnt="1"`
         이 `hp:masterPage` 자식 1개와 정확히 일치함을 확인했다.
+
+        이 절이 같은 쪽(양쪽·홀수·짝수·마지막 쪽, 또는 같은 번호의 한 쪽)에
+        이미 바탕쪽을 두고 있으면 ``HwpxValueError``
+        (``master-page-pages-taken``)를 낸다.
         """
         if id_ref in self.master_page_refs:
             return
+        document = self.section.document
+        if document is not None:
+            from .master_page_authoring import refuse_pages_taken
+
+            refuse_pages_taken(document, self.master_page_refs, id_ref)
         _append_child(self.element, f"{_HP}masterPage", {"idRef": id_ref})
         self.element.set("masterPageCnt", str(len(self.master_page_refs)))
         self.section.mark_dirty()
@@ -965,6 +981,8 @@ class HwpxOxmlSectionProperties:
         suffix_char: str | None = None,
         supscript: bool | None = None,
     ) -> None:
+        if type is not None:
+            type = number_format(type, note=True)
         parent = self._note_pr_element(tag, create=True)
         element = parent.find(f"{_HP}autoNumFormat") if parent is not None else None
         if element is None:  # pragma: no cover - defensive branch, schema-mandatory
@@ -1311,6 +1329,7 @@ class HwpxOxmlSectionProperties:
             run.insert(list(run).index(specific[0]), ctrl)  # stdlib and lxml elements alike
         else:
             run.append(ctrl)
+        remember_story_pair(self.section, source)
         self.section.mark_dirty()
 
     def _remove_header_footer_controls(self, tag: str, page_type: str | None = None) -> bool:
