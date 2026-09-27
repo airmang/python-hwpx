@@ -357,7 +357,9 @@ def _materialize_restyled_charpr(
 def _op_restyle_text(xml: str, op: Mapping[str, Any], ctx: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     find = str(op["find"])
     expected = int(op.get("count", 1))
-    text_color = op.get("text_color", op.get("textColor"))
+    from .oxml.color import normalize_color
+
+    text_color = normalize_color(op.get("text_color", op.get("textColor")))
     drop_italic = bool(op.get("drop_italic", op.get("dropItalic", True)))
     esc_find = html.escape(find, quote=False)
     hits: list[int] = []

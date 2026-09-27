@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
-from ..errors import HwpxStateError, HwpxValueError
+from ..errors import HwpxStateError, HwpxTypeError, HwpxValueError
 from ..objects.results import (
     ColumnLayout,
     ListFormatResult,
@@ -173,11 +173,67 @@ def _resolve_paragraph_targets(
     return targets
 
 
+def _tree_root(element: Any) -> Any:
+    if hasattr(element, "getparent"):
+        while element.getparent() is not None:
+            element = element.getparent()
+    return element
+
+
+def _resolve_paragraph_objects(
+    doc: "HwpxDocument", paragraphs: Sequence[HwpxOxmlParagraph]
+) -> list[HwpxOxmlParagraph]:
+    """Check that every paragraph object belongs to *doc*, before anything changes.
+
+    Body, table cell (nested too), header and footer paragraphs all live in a
+    section's XML tree, so a paragraph belongs to the document when its element
+    is inside one of the document's section elements.
+    """
+
+    from ..oxml import HwpxOxmlParagraph
+
+    items = list(paragraphs)
+    if not items:
+        raise HwpxValueError(
+            "paragraphs 가 비어 있습니다.",
+            code="paragraph-indexes-empty",
+            suggestion="서식을 적용할 문단을 하나 이상 지정하세요.",
+        )
+    roots = [section.element for section in doc.sections]
+    resolved: list[HwpxOxmlParagraph] = []
+    for position, paragraph in enumerate(items):
+        if not isinstance(paragraph, HwpxOxmlParagraph):
+            raise HwpxTypeError(
+                f"paragraphs[{position}] 는 문단 객체가 아닙니다 — {type(paragraph).__name__}.",
+                code="paragraph-invalid-type",
+                context={"position": position, "type": type(paragraph).__name__},
+                suggestion="doc.paragraphs, cell.paragraphs, header.paragraphs 의 문단을 넘기세요.",
+            )
+        element = paragraph.element
+        root = _tree_root(element)
+        inside = (
+            any(root is section_root for section_root in roots)
+            if hasattr(element, "getparent")
+            else any(node is element for section_root in roots for node in section_root.iter())
+        )
+        if not inside:
+            raise HwpxValueError(
+                f"paragraphs[{position}] 는 이 문서에 속한 문단이 아닙니다.",
+                code="paragraph-not-in-document",
+                context={"position": position},
+                suggestion="이 문서에서 얻은 문단(본문·셀·머리말·꼬리말)을 넘기세요. 지운 문단이나 다른 문서의 문단은 받지 않습니다.",
+            )
+        if all(element is not seen.element for seen in resolved):
+            resolved.append(paragraph)
+    return resolved
+
+
 def set_paragraph_format(
     doc: "HwpxDocument",
     *,
     paragraph_index: int | None = None,
     paragraph_indexes: Sequence[int] | None = None,
+    paragraphs: Sequence[HwpxOxmlParagraph] | None = None,
     alignment: str | None = None,
     line_spacing_percent: int | float | None = None,
     indent_left_mm: float | None = None,
@@ -199,6 +255,12 @@ def set_paragraph_format(
     border: Mapping[str, Any] | None = None,
 ) -> ParagraphFormatResult:
     """Apply paragraph-level formatting using human units.
+
+    Targets are body paragraphs by index (``paragraph_index`` /
+    ``paragraph_indexes``; neither means every body paragraph) or paragraph
+    objects of this document (``paragraphs``): body, table cell (nested
+    tables too), header and footer paragraphs. The result lists body indexes
+    only; ``formatted`` counts every target.
 
     Millimetre inputs are converted to HWP units; paragraph spacing uses
     points; line spacing is stored as a percent value. ``keep_with_next`` /
@@ -299,6 +361,26 @@ def set_paragraph_format(
             suggestion="Pass alignment, line_spacing_percent, or another option to change.",
         )
 
+    # Resolve every target before the header gains tab or border definitions,
+    # so a bad target changes nothing.
+    targets: list[tuple[int | None, HwpxOxmlParagraph]]
+    if paragraphs is not None:
+        if paragraph_index is not None or paragraph_indexes is not None:
+            raise HwpxValueError(
+                "use either paragraphs or paragraph_index/paragraph_indexes, not both",
+                code="paragraph-argument-conflict",
+                suggestion="Pass only one.",
+            )
+        objects = _resolve_paragraph_objects(doc, paragraphs)
+        body = doc.paragraphs
+        body_index = {paragraph.element: index for index, paragraph in enumerate(body)}
+        targets = [(body_index.get(paragraph.element), paragraph) for paragraph in objects]
+    else:
+        targets = list(_resolve_paragraph_targets(doc,
+            paragraph_index=paragraph_index,
+            paragraph_indexes=paragraph_indexes,
+        ))
+
     tab_pr_id: str | None = None
     if wants_tab_definition:
         converted_stops: list[dict[str, object]] = []
@@ -343,12 +425,7 @@ def set_paragraph_format(
         or wants_tab_definition
     )
 
-    targets = _resolve_paragraph_targets(doc,
-        paragraph_index=paragraph_index,
-        paragraph_indexes=paragraph_indexes,
-    )
-    formatted: list[int] = []
-    for index, paragraph in targets:
+    for paragraph in (paragraph for _, paragraph in targets):
         if wants_para_pr_change:
             para_pr_id = header.ensure_paragraph_format(
                 base_para_pr_id=paragraph.para_pr_id_ref,
@@ -363,11 +440,10 @@ def set_paragraph_format(
             paragraph.para_pr_id_ref = para_pr_id
         if column_break is not None:
             paragraph.column_break = column_break
-        formatted.append(index)
 
     return ParagraphFormatResult(
-        formatted=len(formatted),
-        paragraphs=tuple(formatted),
+        formatted=len(targets),
+        paragraphs=tuple(index for index, _ in targets if index is not None),
         units=Units(indent="mm", paragraph_spacing="pt", line_spacing="%"),
     )
 
@@ -675,21 +751,12 @@ def add_hyperlink(
 
     The display text follows the Hancom convention (blue ``#0000FF`` text
     with a blue bottom underline — dominant styling across real-corpus
-    hyperlinks) unless ``char_pr_id_ref`` overrides it.
+    hyperlinks) on the character look of the paragraph it goes into, unless
+    ``char_pr_id_ref`` overrides it. ``paragraph.add_hyperlink`` picks that
+    style, so a link looks the same whichever way it was added.
 
     Returns the ``<hp:ctrl>`` wrapper containing the ``<hp:fieldBegin>``.
     """
-    if char_pr_id_ref is None:
-        # `doc._root.ensure_run_style` rather than `doc.ensure_run_style` —
-        # that facade name moved in 6.0 (design table row 52) and is a pure
-        # passthrough to `_root`, so this is byte-identical minus the
-        # DeprecationWarning it would otherwise fire on every hyperlink even
-        # when reached via the new `doc.refs.add_hyperlink` namespace path.
-        char_pr_id_ref = doc._root.ensure_run_style(
-            underline=True,
-            color="#0000FF",
-            underline_color="#0000FF",
-        )
     if paragraph is None:
         paragraph = doc.add_paragraph(
             "", section=section, section_index=section_index,

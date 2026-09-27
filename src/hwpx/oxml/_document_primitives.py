@@ -25,7 +25,8 @@ from .namespaces import (
     tag_local_name,
     tag_namespace,
 )
-from .utils import hancom_text_length, tab_elements_in, tabs_as_elements
+from .color import normalize_color
+from .utils import hancom_text_length, tab_elements_in, tabs_as_elements, without_markup_nodes
 
 register_owpml_namespaces(ET.register_namespace)
 
@@ -123,14 +124,7 @@ _FONT_FACE_LANG_TO_REF = {
 
 
 def _normalize_color(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = str(value).strip()
-    if not normalized:
-        return None
-    if normalized.lower() == "none":
-        return "none"
-    return "#" + normalized.lstrip("#").upper()
+    return normalize_color(value)
 
 
 def _char_height_from_points(value: int | float | None) -> str | None:
@@ -141,6 +135,7 @@ def _char_height_from_points(value: int | float | None) -> str | None:
 
 def _serialize_xml(element: ET.Element) -> bytes:
     """Return a UTF-8 encoded XML document for *element*, a tab in ``hp:t`` as ``hp:tab``."""
+    element = without_markup_nodes(element)
     xml_bytes = ET.tostring(element, encoding="utf-8", xml_declaration=False)
     if element.tag in {_HS + "sec", _HH + "head"}:
         root = LET.fromstring(xml_bytes)

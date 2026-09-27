@@ -352,6 +352,12 @@
       "rationale": "authoring direction of the equation vocabulary: LaTeX -> EqEdit conversion and the hp:equation size heuristic live beside the reader (eqedit.py) as reusable HWPX format behavior; refuses outside the verified token set instead of approximating"
     },
     {
+      "approvedBy": "054-equation-authoring/P1",
+      "disposition": "core",
+      "path": "src/hwpx/equation/measure.py",
+      "rationale": "hp:equation box and baseLine measure used by authoring.py's size estimate and add_equation: lays an EqEdit script out as boxes by its structure (characters by kind, fractions, scripts, roots, big operators and limits, matrices, piles, line breaks) beside the reader (eqedit.py) as reusable HWPX format behavior"
+    },
+    {
       "path": "src/hwpx/model.py",
       "disposition": "core",
       "approvedBy": "062-engine-surface/WP-A",
@@ -487,7 +493,7 @@
       "path": "src/hwpx/oxml/section_layout.py",
       "disposition": "core",
       "approvedBy": "cycle-6.11/train-44-add-section-first-run-fix",
-      "rationale": "add_section()'s renderable-layout carrier lookup (has_positive_page_geometry/renderable_section_carriers/copy_renderable_section_layout) -- moved out of document_parts.py verbatim (format-level structural helper, no behavior change beyond the first-run-assumption fix itself) because document_parts.py had only 2 lines of headroom left under the 1600-line owner-file cap; same overflow-module pattern as header_compat.py/dutmal_compose.py"
+      "rationale": "add_section()'s renderable-layout carrier lookup (has_positive_page_geometry/renderable_section_carriers/copy_renderable_section_layout) -- moved out of document_parts.py verbatim (format-level structural helper, no behavior change beyond the first-run-assumption fix itself) because document_parts.py had only 2 lines of headroom left under the 1600-line owner-file cap; same overflow-module pattern as header_compat.py/dutmal_compose.py. Also holds the section manifest ids (number_section_ids/new_section_names: section0, section1, ... in document order after add_section, remove_section and on save) for the same headroom reason"
     },
     {
       "path": "src/hwpx/oxml/document_metadata.py",
@@ -532,10 +538,22 @@
       "rationale": "Format-level helpers for unambiguous plain-text node selection and run/control preservation. Extracted from paragraph.py to keep its complexity bounded; no application workflow, renderer, or agent policy."
     },
     {
+      "path": "src/hwpx/oxml/table_merge.py",
+      "disposition": "core",
+      "approvedBy": "hancom-merge-cells-grid",
+      "rationale": "What a cell merge leaves behind in a table's grid: collapse_merged_grid() removes the rows a merge left without cells and the columns no cell starts at, as Hancom's merge does (Hancom does not open a table with an empty hp:tr), and moves the cell addresses, spans and cell zones past them back. A new module rather than more table.py lines: with the merge fix that owner file would pass the 1,600-line cap; HwpxOxmlTable.merge_cells calls it. Format-level only."
+    },
+    {
       "path": "src/hwpx/oxml/hyperlink_form.py",
       "disposition": "core",
       "approvedBy": "hancom-hyperlink-target-parameters",
       "rationale": "Hancom's storage of a hyperlink field target: hyperlink_parameters() writes the hp:parameters Hancom reads (Command with : ? ; # backslash-escaped and a ;kind;0;0 tail, Path, Category, TargetType, DocOpenType -- the form Hancom writes for web, mail and bookmark links) and hyperlink_target() reads a target back (Path, else the unescaped Command head, else @name). A new module rather than more paragraph.py lines (1,584/1,600 owner-file cap); paragraph.add_hyperlink, paragraph.hyperlinks, Markdown export and the text extractor all call it, so the three readers that disagreed now read one way. Format-level only: no renderer, application workflow or agent policy."
+    },
+    {
+      "path": "src/hwpx/oxml/table_sizes.py",
+      "disposition": "core",
+      "approvedBy": "hancom-distribute-cell-width",
+      "rationale": "How a table shares out its width and height among its cells: the bodies of HwpxOxmlTable.set_column_widths, equalize_column_widths (Hancom's distribute-cell-width rule: each row splits the table width among its own cells, the width rounded up to a common multiple of every row's cell count, the column grid rebuilt from the new cell edges) and equalize_row_heights. A new module rather than more table.py lines: the open table fixes together would take that owner file past the 1,600-line cap; the table methods keep their documentation and delegate. Format-level only."
     },
     {
       "path": "src/hwpx/hwp5/__init__.py",

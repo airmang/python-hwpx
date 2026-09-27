@@ -16,15 +16,26 @@ functions since none of them actually used ``cls``/``self`` -- each is a
 pure lookup over a passed-in ``section``. ``HwpxOxmlDocument.
 _section_layout_for_insertion`` (still in ``document_parts.py``, since it
 genuinely needs ``self._sections``) is the only caller.
+
+The section manifest ids (``number_section_ids``/``new_section_names``, used
+by ``add_section``, ``remove_section`` and the save path) live here too, for
+the same reason.
 """
 
 from __future__ import annotations
 
 from copy import deepcopy
+import re
+from typing import TYPE_CHECKING
 import xml.etree.ElementTree as ET
+
+from hwpx.opc.relationships import resolve_part_name
 
 from ._document_primitives import _HP, _element_local_name, _object_id
 from .section import HwpxOxmlSection
+
+if TYPE_CHECKING:
+    from .document_parts import HwpxOxmlDocument
 
 
 def has_positive_page_geometry(section_properties: ET.Element) -> bool:
@@ -131,3 +142,79 @@ def copy_renderable_section_layout(
         copied_column_properties.set("id", "")
     copied_column_control.append(copied_column_properties)
     return copied_properties, copied_column_control
+
+
+# --- section manifest ids ------------------------------------------------------
+#
+# Hancom finds a package's sections by their manifest item ids, section0,
+# section1, ... in number order (not by the spine or the part names), and does
+# not open a document that lacks one of them.
+
+_OPF = "{http://www.idpf.org/2007/opf/}"
+
+
+def _section_items(document: "HwpxOxmlDocument") -> list[tuple[ET.Element, ET.Element]] | None:
+    """(manifest item, spine itemref) of each section in document order, or None
+    when one cannot be found. The maps are built once, and items and itemrefs
+    are paired as elements, so two items with the same id cannot swap."""
+
+    try:
+        manifest_el, spine_el = document._manifest_section_containers()
+    except ValueError:
+        return None
+    parts = [section.part_name for section in document._sections]
+    known = set(parts)
+    items: dict[str, list[ET.Element]] = {}
+    for item in manifest_el.findall(f"{_OPF}item"):
+        href = item.get("href")
+        part = resolve_part_name(document._manifest_path, href, known_parts=known) if href else None
+        if part in known:
+            items.setdefault(part, []).append(item)
+    refs: dict[str, list[ET.Element]] = {}
+    for itemref in spine_el.findall(f"{_OPF}itemref"):
+        refs.setdefault(itemref.get("idref") or "", []).append(itemref)
+    pairs: list[tuple[ET.Element, ET.Element]] = []
+    taken: set[int] = set()
+    for part in parts:
+        pair = next(((item, ref) for item in items.get(part, []) for ref in refs.get(item.get("id") or "", [])
+                     if id(ref) not in taken), None)
+        if pair is None:
+            return None
+        taken.add(id(pair[1]))
+        pairs.append(pair)
+    return pairs
+
+
+def number_section_ids(document: "HwpxOxmlDocument") -> bool:
+    """Give the sections' manifest items the ids section0, section1, ... in
+    document order; the part names stay. Nothing changes when a section's item
+    cannot be found or another item already holds one of the ids. Returns
+    whether an id changed (the manifest is then marked for saving)."""
+
+    pairs = _section_items(document)
+    if not pairs:
+        return False
+    wanted = [f"section{index}" for index in range(len(pairs))]
+    if all(item.get("id") == name == ref.get("idref") for (item, ref), name in zip(pairs, wanted)):
+        return False
+    manifest_el, _spine = document._manifest_section_containers()
+    paired = {id(item) for item, _ref in pairs}
+    if any(item.get("id") in wanted for item in manifest_el.findall(f"{_OPF}item") if id(item) not in paired):
+        return False
+    for (item, ref), name in zip(pairs, wanted):
+        item.set("id", name)
+        ref.set("idref", name)
+    document._manifest_dirty = True
+    return True
+
+
+def new_section_names(document: "HwpxOxmlDocument") -> tuple[str, str]:
+    """A manifest id and part name for a new section that no section part or
+    manifest item uses yet (``number_section_ids`` then puts it in its place)."""
+
+    manifest_el, _spine = document._manifest_section_containers()
+    names = [section.part_name for section in document._sections]
+    names += [item.get("id") or "" for item in manifest_el.findall(f"{_OPF}item")]
+    numbers = [int(match.group(1)) for name in names if (match := re.search(r"section(\d+)", name))]
+    index = max(numbers) + 1 if numbers else 0
+    return f"section{index}", f"Contents/section{index}.xml"

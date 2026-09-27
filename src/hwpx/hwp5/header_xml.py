@@ -33,7 +33,6 @@ from .owpml import (
     HEADING,
     HP10,
     HWPUNITCHAR,
-    IMAGE_EFFECT,
     IMAGE_MODE,
     LANG_ATTRS,
     LANGS,
@@ -53,6 +52,8 @@ from .owpml import (
     UNDERLINE_TYPE,
     color,
     flag,
+    image_effect,
+    layout_compatibility,
     root,
     serialize,
     sub,
@@ -174,7 +175,7 @@ def fill_brush(parent: etree._Element, fill: di.Fill) -> None:
                 ("binaryItemIDRef", f"image{fill.image_bin_id}" if fill.image_bin_id else ""),
                 ("bright", fill.image_bright),
                 ("contrast", fill.image_contrast),
-                ("effect", token(IMAGE_EFFECT, fill.image_effect)),
+                *image_effect(fill.image_effect),
                 ("alpha", alpha()),
             ),
         )
@@ -338,7 +339,7 @@ def _para_head(
         ("widthAdjust", head.width_adjust),
         ("textOffsetType", "HWPUNIT" if props & 0x10 else "PERCENT"),
         ("textOffset", head.text_offset),
-        ("numFormat", token(NUMBER_FORMAT, _bits(props, 5, 4))),
+        ("numFormat", token(NUMBER_FORMAT, _bits(props, 5, 5))),
         ("charPrIDRef", head.char_shape_id),
         # Hancom reports checkable from bit 5, the low bit of the number format.
         ("checkable", flag(props & (1 << 5))),
@@ -377,7 +378,7 @@ def _bullet(parent: etree._Element, index: int, bullet: di.Bullet) -> None:
                 ("binaryItemIDRef", f"image{props[3]}"),
                 ("bright", struct.unpack("<b", props[0:1])[0]),
                 ("contrast", struct.unpack("<b", props[1:2])[0]),
-                ("effect", token(IMAGE_EFFECT, props[2])),
+                *image_effect(props[2]),
                 ("alpha", 0),
             ),
         )
@@ -657,7 +658,11 @@ def build_header(
         _forbidden_word_list(head, words)
     target = info.compatible_target or 0
     compatible = sub(head, "hh:compatibleDocument", (("targetProgram", token(TARGET_PROGRAM, target)),))
-    sub(compatible, "hh:layoutCompatibility")
+    layout = sub(compatible, "hh:layoutCompatibility")
+    # Hancom reads applyFontspaceToLatin but leaves it out when it writes
+    # OWPML; it is kept so that the document keeps its layout.
+    for name in layout_compatibility(info.layout_compatibility or ()):
+        sub(layout, f"hh:{name}")
     option = sub(head, "hh:docOption")
     path, page_inherit, footnote_inherit = _link_doc(link_doc)
     sub(
