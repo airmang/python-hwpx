@@ -1130,7 +1130,8 @@ class HwpxOxmlTable:
         여러 행에 걸친 칸이 행마다 다른 자리를 받아야 하면(예: 세로로 합친 칸 옆 행들의
         칸 수가 다름) 한/글처럼 표를 그대로 두고 :class:`~hwpx.errors.HwpxValueError`를
         낸다. 격자 열마다 같은 너비를 주려면 ``set_column_widths([1] * column_count)``를
-        쓴다.
+        쓴다. 이 메서드가 전에 나누던 방식(표 너비 유지, 앞 n-1열 ``round(W / n)``, 마지막
+        열 나머지)이 바로 그 호출이다.
         """
 
         _table_sizes.equalize_column_widths(self)

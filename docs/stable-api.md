@@ -48,7 +48,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
 **계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **18개 클래스 / 173개
+클래스별로 stable 멤버를 정확히 나열한다 — 현재 **18개 클래스 / 182개
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
@@ -75,7 +75,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 |---|---:|---|
 | 루트 공개 멤버 | 35 | `tests/data/document_facade_surface.json` |
 | 위임 shim (7.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
-| 반환 객체 계약 | 173 | `tests/data/model_surface.json` |
+| 반환 객체 계약 | 182 | `tests/data/model_surface.json` |
 
 설치본에 직접 물어볼 수도 있다:
 
@@ -214,3 +214,11 @@ identity/적용 범위 충돌은 거부합니다. 새로 만드는 `set_header_t
 복제해 보존하고 동일한 스타일이 있으면 재사용합니다. 공유 원본 스타일은
 수정하지 않습니다. 스타일이 없거나 중복되었으면 변경 전에 거부합니다.
 전체 스타일을 바꾸려면 기존 `set_cell_border_fill`을 사용하세요.
+
+`TableCell.margins`는 한/글이 셀을 배치하는 안쪽 여백을 `hwpx.objects.CellMargins`
+(HWPUNIT)로 돌려줍니다. 셀의 `hasMargin`이 꺼져 있으면 표의 `hp:inMargin`,
+켜져 있으면 셀의 `hp:cellMargin`입니다. `add_table()`이 만든 셀은
+`CellMargins(510, 510, 141, 141)`입니다. `TableCell.set_margins(left=..., right=...,
+top=..., bottom=...)`는 주지 않은 면을 지금 여백으로 채워 셀 여백 네 면을 쓰고
+`hasMargin`을 켭니다. 값은 `0 <= v < 2**31`인 `int`여야 하며, 아니면 바꾸기 전에
+`cell-margin-value`로 거부합니다. 인자가 없으면 아무것도 바꾸지 않습니다.
