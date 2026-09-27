@@ -21,6 +21,7 @@ import re
 __all__ = ["color_family", "normalize_color", "rgb_color"]
 
 _HEX_RE = re.compile(r"#([0-9A-Fa-f]{6})")
+_COLOR_RE = re.compile(r"#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})")
 
 #: Thresholds are deliberately coarse. They were fitted against real documents
 #: where the same semantic colour varies between authors and Hancom versions, so
@@ -33,21 +34,23 @@ _GRAY_SPREAD = 0x18
 
 
 def rgb_color(value: object) -> str:
-    """*value* as the ``#RRGGBB`` Hancom writes: the ``#`` may be left out, the digits lower case.
+    """*value* as the ``#RRGGBB`` or ``#AARRGGBB`` Hancom writes: the ``#`` may be left out, the
+    digits lower case. ``#AARRGGBB`` (the alpha byte first, the form Hancom writes for hatch,
+    border, line and shadow colours) is kept as it is.
 
     Anything else is refused with :class:`~hwpx.errors.HwpxValueError`. Hancom reads a colour
     as one hexadecimal number and does not reject the rest, so ``#ABC`` would show as
     ``#000ABC`` (not CSS's ``#AABBCC``), ``red`` as black and ``#12345`` as ``#012345``.
     """
     text = str(value).strip()
-    if not _HEX_RE.fullmatch(text if text.startswith("#") else "#" + text):
+    if not _COLOR_RE.fullmatch(text if text.startswith("#") else "#" + text):
         from ..errors import HwpxValueError
 
         raise HwpxValueError(
-            f"colour {text!r} is not #RRGGBB",
+            f"colour {text!r} is not #RRGGBB or #AARRGGBB",
             code="style-color-invalid",
             context={"color": text},
-            suggestion="Pass six hexadecimal digits after '#', e.g. '#FF0000'.",
+            suggestion="Pass six hexadecimal digits after '#', e.g. '#FF0000', or eight with the alpha byte first.",
         )
     return "#" + text.lstrip("#").upper()
 
