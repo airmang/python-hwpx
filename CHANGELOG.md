@@ -92,8 +92,9 @@
   - `doc.parts.clear_preview()`는 `Preview/PrvText.txt`를 비우고 `Preview/PrvImage.png`를
     1×1 흰 PNG로 바꾼다. 두 파트를 지우지는 않는다.
   - `doc.validate()`가 파트가 없는 매니페스트 항목과, 매니페스트 항목이 없는 `BinData/`
-    파트를 경고로 알린다. 경고라서 `ok`는 그대로다. `isEmbeded="0"`으로 바깥 파일을
-    잇는 항목은 알리지 않는다.
+    파트를 경고로 알린다. 경고라서 `ok`는 그대로다. `BinData/` 밖의 파일을 잇는
+    `isEmbeded="0"` 항목(동영상 링크 등)은 알리지 않는다. 한/글은 OLE 개체에도
+    `isEmbeded="0"`을 쓰지만 그 파일은 `BinData/` 안에 두므로, 빠지면 알린다.
 - `Shape.set_position()`이 기준 프레임과 정렬도 정한다. `horz_rel_to`·`vert_rel_to`·
   `horz_align`·`vert_align`이 `hp:pos`의 `horzRelTo`·`vertRelTo`·`horzAlign`·
   `vertAlign`을 쓴다. 값은 OWPML 스키마 철자 그대로다(`vert_rel_to`에는 `COLUMN`이

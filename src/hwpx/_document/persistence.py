@@ -90,8 +90,10 @@ def _manifest_drift_issues(archive: bytes) -> list["ValidationIssue"]:
 
     Warnings, not errors: the editor-open safety check already treats a
     manifest href missing from the archive as advisory. An item marked
-    ``isEmbeded="0"`` links a file outside the package, so its missing
-    part is not drift.
+    ``isEmbeded="0"`` whose href lies outside ``BinData/`` links a file
+    outside the package (a video, say), so its missing part is not drift.
+    Hancom also marks OLE objects ``isEmbeded="0"``, but keeps their file in
+    ``BinData/``; a missing one of those is reported.
     """
 
     from ..opc.package import HwpxPackage
@@ -106,7 +108,9 @@ def _manifest_drift_issues(archive: bytes) -> list["ValidationIssue"]:
     )
 
     linked = {
-        item.get("id") for item in package._manifest_items() if item.get("isEmbeded") == "0"
+        item.get("id")
+        for item in package._manifest_items()
+        if item.get("isEmbeded") == "0" and not (item.get("href") or "").startswith("BinData/")
     }
 
     issues: list[ValidationIssue] = []
