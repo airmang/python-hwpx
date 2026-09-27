@@ -197,9 +197,8 @@ def _refresh_copied_paragraph_subtree_ids(paragraph: ET.Element) -> None:
         }:
             node.set("id", _object_id())
 
-        # 스키마·실한컴 산출물의 속성명은 소문자 "instid"다. 과거 이 코드가
-        # 방출한 "instId"(카멜케이스)를 실은 파일도 재발급 대상에 남긴다 —
-        # 속성명 자체는 보존(바이트 보수), 값만 재발급.
+        # 개체(그림·도형 등)의 속성명은 "instid", 각주·미주는 "instId"다
+        # (스키마·한/글). 어느 철자든 값만 재발급하고 속성명은 그대로 둔다.
         for inst_attr in ("instid", "instId"):
             if inst_attr in node.attrib:
                 node.set(inst_attr, _object_id())
