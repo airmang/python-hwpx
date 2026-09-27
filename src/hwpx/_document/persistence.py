@@ -97,7 +97,7 @@ def _manifest_drift_issues(archive: bytes) -> list["ValidationIssue"]:
     """
 
     from ..opc.package import HwpxPackage
-    from ..opc.relationships import parse_manifest_relationships
+    from ..opc.relationships import is_linked_file, parse_manifest_relationships
     from ..tools.validator import ValidationIssue
 
     package = HwpxPackage.open(archive)
@@ -110,7 +110,7 @@ def _manifest_drift_issues(archive: bytes) -> list["ValidationIssue"]:
     linked = {
         item.get("id")
         for item in package._manifest_items()
-        if item.get("isEmbeded") == "0" and not (item.get("href") or "").startswith("BinData/")
+        if is_linked_file(item.get("href") or "", item.get("isEmbeded"))
     }
 
     issues: list[ValidationIssue] = []

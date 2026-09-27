@@ -15,6 +15,18 @@
 - FormFit이 칸 첫 줄의 인라인 개체(체크 상자·그림 등) 뒤에 글의 첫 글자도 들어가지 않으면,
   한/글처럼 글이 다음 줄에서 시작한다고 센다. 전에는 첫 줄에 한 글자를 억지로 넣어 한 줄 적게
   세거나, 개체 뒤 폭이 0이면 들어갈 수 없다고 보았다.
+### 고침
+
+- `check_id_integrity()`가 동영상이 가리키는 항목(포스터 `imageIDRef`, 파일 `fileIDRef`)을 고아
+  BinData로 보고해 `ok=False`를 내던 것을 고친다. `binaryItemIDRef`만 참조로 셌기 때문이다. 이제
+  `imageIDRef`·`fileIDRef`·`soundIDRef`도 참조로 세고, 패키지 밖 파일을 잇는 항목(`isEmbeded="0"`이고
+  href가 `BinData/` 밖)은 고아 목록에 넣지 않는다. 이진 항목 판정·이름 비교·참조 속성은
+  `doc.media.remove_image()`·`doc.media.images`·`doc.validate()`와 같은 규칙(`hwpx.opc.relationships`)을
+  쓴다. 참조 무결성 게이트(`require_reference_integrity`)가 고아 항목 때문에 실패하면 메시지에 그
+  항목을 적는다. 전에는 메시지가 `ID/reference integrity failed: `로 끝났다.
+- `doc.media.images`가 한/글이 `BinData/`에 두는 OLE 항목을 빼던 것을 고친다. `isEmbeded="0"`이면
+  모두 바깥 파일로 봤기 때문이다. 이제 href가 `BinData/` 밖인 `isEmbeded="0"` 항목(패키지 밖 파일)만
+  뺀다.
 
 ## [6.6.0] - 2026-09-28
 

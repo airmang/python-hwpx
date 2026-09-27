@@ -53,8 +53,10 @@ class MediaNamespace(_Namespace):
         매니페스트에만 있는 이진 항목(href가 ``BinData/`` 아래이거나
         media-type이 ``image/*``)이 매니페스트 순서로 뒤따른다. 한컴이
         저장한 파일은 보통 ``binDataList``가 없어 뒤쪽만 나온다.
-        ``isEmbeded="0"``으로 바깥 파일을 잇는 항목은 넣지 않는다. 파트가
-        없는 내장 항목은 ``size=0``으로 나온다."""
+        ``isEmbeded="0"``이고 href가 ``BinData/`` 밖이라 바깥 파일을 잇는
+        항목은 넣지 않는다. 한/글은 OLE에도 ``isEmbeded="0"``을 쓰지만 그
+        파일은 ``BinData/``에 두므로 OLE 항목은 넣는다. 파트가 없는 내장
+        항목은 ``size=0``으로 나온다."""
 
         from .. import media as _media
 

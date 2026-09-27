@@ -4,7 +4,10 @@ import base64
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import pytest
+
 from hwpx.document import HwpxDocument
+from hwpx.errors import HwpxValueError
 from hwpx.tools.id_integrity import check_id_integrity
 from hwpx.tools.package_validator import validate_package
 from hwpx.tools.repair import repair_repack
@@ -12,10 +15,12 @@ from hwpx.tools.repair import repair_repack
 HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
+CORPUS = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
 # image1 and image2 fill the page borders; only the header uses them
-BORDER_FILL_IMAGES = (
-    Path(__file__).parent / "fixtures" / "hwpxlib_corpus" / "error__20251107__test.hwpx"
-)
+BORDER_FILL_IMAGES = CORPUS / "error__20251107__test.hwpx"
+# a video that embeds its poster (image2, imageIDRef) and links its file by an
+# absolute path (image1, fileIDRef, isEmbeded="0")
+VIDEO = CORPUS / "reader_writer__SimpleVideo.hwpx"
 
 PNG_1X1 = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axwAqkAAAAASUVORK5CYII="
@@ -151,6 +156,62 @@ def test_id_integrity_detects_orphan_bindata() -> None:
     assert report.ok is False
     assert report.dangling == []
     assert any(item.item_id == "BIN0001" for item in report.orphan_bin_data)
+
+def test_id_integrity_counts_a_video_poster_and_file_as_references() -> None:
+    report = check_id_integrity(HwpxDocument.open(VIDEO))
+
+    assert report.orphan_bin_data == []
+    assert report.ok
+
+
+def test_id_integrity_reports_a_video_poster_once_the_video_is_gone() -> None:
+    document = HwpxDocument.open(VIDEO)
+    section = document.oxml.sections[0]
+    for video in list(section.element.iter(f"{HP}video")):
+        video.getparent().remove(video)
+    section.mark_dirty()
+
+    report = check_id_integrity(document)
+
+    # the linked video file lies outside the package, so it is no BinData asset
+    assert [item.item_id for item in report.orphan_bin_data] == ["image2"]
+
+
+def _assert_in_use_means_not_orphan(source: bytes) -> None:
+    orphans: set[str] = set()
+    for orphan in check_id_integrity(HwpxDocument.open(source)).orphan_bin_data:
+        orphans.update(orphan.aliases)
+    items = HwpxDocument.open(source).media.images
+    assert items
+    for item in items:
+        try:
+            HwpxDocument.open(source).media.remove_image(item)
+            in_use = False
+        except HwpxValueError:
+            in_use = True
+        assert in_use is (item.item_id not in orphans), item.item_id
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "reader_writer__SimplePicture.hwpx",  # a body picture
+        "error__20251107__test.hwpx",  # page border fill images in the header
+        "reader_writer__SimpleVideo.hwpx",  # a video poster
+        "reader_writer__SimpleOLE.hwpx",  # an OLE object marked isEmbeded="0"
+    ],
+)
+def test_remove_image_and_id_integrity_agree_on_what_is_in_use(name: str) -> None:
+    _assert_in_use_means_not_orphan((CORPUS / name).read_bytes())
+
+
+def test_remove_image_and_id_integrity_agree_on_an_unused_image() -> None:
+    document = HwpxDocument.new()
+    document.add_picture(PNG_1X1, "png")
+    document.media.add_image(PNG_1X1_ALT, "png")  # embedded, but nothing shows it
+
+    _assert_in_use_means_not_orphan(document.to_bytes())
+
 
 def _picture_paragraph_alignment(document: HwpxDocument) -> str | None:
     paragraph = next(p for p in document.paragraphs if p.element.find(f".//{HP}pic") is not None)
