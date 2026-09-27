@@ -8,11 +8,15 @@ rebuilt from the new cell edges.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from hwpx.document import HwpxDocument
 from hwpx.errors import HwpxValueError
 from hwpx.oxml.namespaces import HP
+
+FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 
 
 def _layout(table) -> tuple[int, list[list[tuple[int, int, int]]]]:
@@ -235,3 +239,21 @@ def test_an_even_table_is_unchanged() -> None:
 
     assert _layout(table) == before
     assert _table_width(table) == 30000
+
+
+def _first_table(document: HwpxDocument):
+    return next(table for paragraph in document.paragraphs for table in paragraph.tables)
+
+
+def test_the_widths_are_the_ones_hancom_saves() -> None:
+    # A table Hancom made and saved (author, version and dates removed): 7x11, each row r with its
+    # first 7 - r cells merged, so the rows keep 5 to 11 cells (lcm 27720); then the same table after
+    # Hancom's "셀 너비를 같게" over the whole table: 55440 wide, 42 columns.
+    table = _first_table(HwpxDocument.open(FIXTURES / "equalize_widths_before.hwpx"))
+    hancom = _first_table(HwpxDocument.open(FIXTURES / "equalize_widths_after.hwpx"))
+    assert (_layout(table)[0], _table_width(table)) == (11, 41954)
+
+    table.equalize_column_widths()
+
+    assert _layout(table) == _layout(hancom)
+    assert _table_width(table) == _table_width(hancom) == 55440
