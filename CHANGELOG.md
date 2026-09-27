@@ -110,6 +110,10 @@
 
 ### 고침
 
+- `export_text()`·`export_markdown()`·`export_html()`이 표 칸 글의 앞뒤 공백을 지우던 것을 고친다.
+  들여 맞춘 `  용  역  명`이 `용  역  명`으로, `협조자   `가 `협조자`로 나왔다. 한/글이 저장한
+  문서의 미리보기 글(`Preview/PrvText.txt`)도 칸 글의 공백을 그대로 둔다. 칸 끝의 빈 문단은
+  전처럼 빼고, 글에 든 공백만 지킨다.
 - `apply_paragraph_format()`가 여백·들여쓰기·문단 간격을 `hp:switch` 안에 쓸 때 `hp:default`에는
   `hp:case` 값의 두 배를 쓴다. 한컴 문서와 같은 표기다. 전에는 두 곳에 같은 값을 써서, `hp:case`를
   모르고 `hp:default`를 읽는 프로그램에서는 여백이 절반으로 보였다. `hp:switch` 밖의 여백은 준 값 그대로다.
