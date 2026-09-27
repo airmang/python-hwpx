@@ -347,6 +347,13 @@ def __dir__() -> list[str]:
     )
 
 
+# ``import hwpx.builder`` goes through the import system, not ``__getattr__``,
+# so the moved module names get their destination from a finder instead.
+from . import _moved_modules
+
+_moved_modules.install(_MOVED_TO_COMPANION)
+
+
 # --- stable 최상위 표면 (eager import) ------------------------------------------
 from .tools.text_extractor import (
     DEFAULT_NAMESPACES,
