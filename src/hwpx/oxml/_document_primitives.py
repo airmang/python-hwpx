@@ -25,6 +25,7 @@ from .namespaces import (
     tag_local_name,
     tag_namespace,
 )
+from .color import normalize_color
 from .utils import hancom_text_length, tab_elements_in, tabs_as_elements, without_markup_nodes
 
 register_owpml_namespaces(ET.register_namespace)
@@ -123,14 +124,7 @@ _FONT_FACE_LANG_TO_REF = {
 
 
 def _normalize_color(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = str(value).strip()
-    if not normalized:
-        return None
-    if normalized.lower() == "none":
-        return "none"
-    return "#" + normalized.lstrip("#").upper()
+    return normalize_color(value)
 
 
 def _char_height_from_points(value: int | float | None) -> str | None:
