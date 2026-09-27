@@ -369,6 +369,18 @@ class HwpxOxmlTableCell:
             )
             _append_text_with_tabs(run, line)
 
+    def _wrap_new_content(self, value: str, previous_text: str) -> None:
+        """Let new content wrap in a SQUEEZE cell.
+
+        SQUEEZE can compress a longer filled value until Hancom renders
+        adjacent glyphs on top of each other.  New content should wrap/reflow;
+        untouched template cells keep their mode.
+        """
+        if value and value != previous_text:
+            sublist = self._ensure_sublist()
+            if (sublist.get("lineWrap") or "").upper() == "SQUEEZE":
+                sublist.set("lineWrap", "BREAK")
+
     def set_text(
         self,
         value: str,
@@ -380,13 +392,7 @@ class HwpxOxmlTableCell:
         sanitized_value = sanitize_keeping_tabs(value)
         if sanitized_value == previous_text and preserve_format:
             return  # the same text changes nothing: paragraphs, runs and line caches stay
-        if sanitized_value and sanitized_value != previous_text:
-            sublist = self._ensure_sublist()
-            if (sublist.get("lineWrap") or "").upper() == "SQUEEZE":
-                # SQUEEZE can compress a longer filled value until Hancom
-                # renders adjacent glyphs on top of each other.  New content
-                # should wrap/reflow; untouched template cells keep their mode.
-                sublist.set("lineWrap", "BREAK")
+        self._wrap_new_content(sanitized_value, previous_text)
         if split_paragraphs:
             self._set_split_paragraph_text(sanitized_value)
             self._clear_own_layout_caches()
