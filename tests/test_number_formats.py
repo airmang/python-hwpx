@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""List, outline, note and page number formats are the ones Hancom reads.
+"""List, outline, note and page number formats are the ones Hancom's schema gives each place.
 
 Hancom numbers in plain digits when a number format is one it does not know, so
-``number_format="decimal"`` came out as ``1. 2. 3.``. A format outside ``hc:NumberType2`` and
-the short names ``page.set_page_number`` already took is now refused, everywhere a number format
-is written.
+``number_format="decimal"`` came out as ``1. 2. 3.``. List and outline heads and page numbers
+take ``hc:NumberType1``; footnote and endnote numbers take ``hc:NumberType2``, which adds
+``DECAGON_CIRCLE``, ``DECAGON_CIRCLE_HANJA``, ``SYMBOL`` and ``USER_CHAR``. The short names
+``page.set_page_number`` already took are kept. Anything else is refused, everywhere a number
+format is written.
 """
 from __future__ import annotations
 
@@ -16,7 +18,7 @@ import pytest
 
 from hwpx.document import HwpxDocument
 from hwpx.errors import HwpxValueError
-from hwpx.oxml.numbering_kinds import NUMBER_FORMAT_ALIASES, NUMBER_FORMATS, number_format
+from hwpx.oxml.numbering_kinds import NOTE_NUMBER_FORMATS, NUMBER_FORMAT_ALIASES, NUMBER_FORMATS, number_format
 
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 
@@ -52,14 +54,22 @@ def test_a_list_format_hancom_does_not_know_is_refused(value: str) -> None:
 
 @pytest.mark.parametrize(
     ("value", "written"),
-    [("roman_small", "ROMAN_SMALL"), ("ROMAN_CAPITAL", "ROMAN_CAPITAL"), ("DECAGON_CIRCLE", "DECAGON_CIRCLE"),
-     ("SYMBOL", "SYMBOL"), ("roman", "ROMAN_CAPITAL"), ("roman_lower", "ROMAN_SMALL"), ("alpha_lower", "LATIN_SMALL"),
+    [("roman_small", "ROMAN_SMALL"), ("ROMAN_CAPITAL", "ROMAN_CAPITAL"), ("circled_ideograph", "CIRCLED_IDEOGRAPH"),
+     ("roman", "ROMAN_CAPITAL"), ("roman_lower", "ROMAN_SMALL"), ("alpha_lower", "LATIN_SMALL"),
      ("hangul", "HANGUL_SYLLABLE")],
 )
 def test_a_list_format_is_written_as_hancom_spells_it(value: str, written: str) -> None:
     document, index = _document_with_item()
     document.styles.apply_list_format(kind="number", number_format=value, paragraph_indexes=[index])
     assert _list_format(document, index) == written
+
+
+@pytest.mark.parametrize("value", ["DECAGON_CIRCLE", "decagon_circle_hanja", "SYMBOL", "USER_CHAR"])
+def test_a_note_only_format_is_refused_for_a_list(value: str) -> None:
+    document, index = _document_with_item()
+    with pytest.raises(HwpxValueError, match="for footnote and endnote numbers only") as caught:
+        document.styles.apply_list_format(kind="number", number_format=value, paragraph_indexes=[index])
+    assert caught.value.code == "style-number-format-invalid"
 
 
 def test_numbering_levels_are_checked_for_numbers_and_outlines() -> None:
@@ -82,10 +92,25 @@ def test_a_note_number_format_is_checked_and_written_as_hancom_spells_it() -> No
     assert note is not None and '<hp:autoNumFormat type="ROMAN_SMALL"' in note.group(0)
 
 
+@pytest.mark.parametrize("value", ["DECAGON_CIRCLE", "decagon_circle_hanja", "SYMBOL", "USER_CHAR"])
+def test_a_note_number_takes_the_note_only_formats(value: str) -> None:
+    document = HwpxDocument.new()
+    properties = document.sections[0].properties
+    properties.set_footnote_auto_num_format(type=value)
+    properties.set_endnote_auto_num_format(type=value)
+
+    xml = _section_xml(document)
+    for tag in ("footNotePr", "endNotePr"):
+        note = re.search(rf"<hp:{tag}>.*?</hp:{tag}>", xml, re.S)
+        assert note is not None and f'<hp:autoNumFormat type="{value.upper()}"' in note.group(0)
+
+
 def test_a_page_number_format_is_checked() -> None:
     document = HwpxDocument.new()
     with pytest.raises(HwpxValueError, match="unsupported number format"):
         document.page.set_page_number(format_type="decimal")
+    with pytest.raises(HwpxValueError, match="for footnote and endnote numbers only"):
+        document.page.set_page_number(format_type="SYMBOL")
 
 
 def test_a_refused_page_number_format_leaves_the_footer_as_it_was() -> None:
@@ -101,5 +126,7 @@ def test_a_refused_page_number_format_leaves_the_footer_as_it_was() -> None:
 
 
 def test_every_hancom_format_and_short_name_reads_as_a_hancom_format() -> None:
+    assert len(NUMBER_FORMATS) == 15 and len(NOTE_NUMBER_FORMATS) == 19 and NUMBER_FORMATS < NOTE_NUMBER_FORMATS
     assert {number_format(value.lower()) for value in NUMBER_FORMATS} == NUMBER_FORMATS
+    assert {number_format(value.lower(), note=True) for value in NOTE_NUMBER_FORMATS} == NOTE_NUMBER_FORMATS
     assert {number_format(name.lower()) for name in NUMBER_FORMAT_ALIASES} <= NUMBER_FORMATS

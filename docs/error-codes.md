@@ -285,7 +285,7 @@ except HwpxError as exc:
 | `style-memo-shape-line-type-invalid` | 메모 모양의 line_type 값이 OWPML 어휘(hc:LineType2) 밖이다. |
 | `style-memo-shape-memo-type-invalid` | 메모 모양의 memo_type 값이 OWPML 어휘(NOMAL/USER_INSERT/USER_DELETE/USER_UPDATE) 밖이다. |
 | `style-not-found` | 그 id·이름의 스타일이 없다(가용 목록·가장 가까운 이름 동봉). |
-| `style-number-format-invalid` | 번호 형식이 한컴 번호 모양(hc:NumberType2: DIGIT·ROMAN_SMALL 등 19개) 밖이다. |
+| `style-number-format-invalid` | 번호 형식이 한컴 번호 모양 밖이다(목록·개요 머리와 쪽 번호는 hc:NumberType1 15개, 각주·미주 번호는 hc:NumberType2 19개). |
 | `style-run-outline-type-invalid` | ensure_run 의 outline 값이 OWPML 어휘(hc:LineType1: NONE/SOLID/DOT/THICK/DASH/DASH_DOT/DASH_DOT_DOT) 밖이다. |
 | `style-tab-container-create-failed` | tabProperties 컨테이너를 만들지 못했다. |
 
