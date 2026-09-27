@@ -14,6 +14,8 @@ HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved"
 SPANNING = HANCOM_SAVED / "form_fields_spanning_before.hwpx"
 SPANNING_FILLED = HANCOM_SAVED / "form_fields_spanning_after.hwpx"
 SPANNING_VALUES = {"본문": "새 값 1", "칸": "새 값 2", "붙음": "새 값 3", "한줄": "새 값 4"}
+NO_END = HANCOM_SAVED / "form_field_no_end_before.hwpx"
+NO_END_FILLED = HANCOM_SAVED / "form_field_no_end_after.hwpx"
 
 
 def _append(parent, tag: str, attrs: dict[str, str] | None = None):
@@ -170,3 +172,15 @@ def test_fill_refuses_a_field_without_an_end() -> None:
         doc.fields.fill("값", name="끝없음")
     assert raised.value.code == "field-end-missing"
     assert _paragraph_marks(doc) == before
+
+
+def test_hancom_leaves_a_field_without_an_end_as_it_was() -> None:
+    """Hancom was asked to fill 본문, a field whose end is missing, with "새 값 1" and saved the document as it
+    was; python-hwpx refuses the same fill."""
+    before, after = (HwpxDocument.open(path.read_bytes()) for path in (NO_END, NO_END_FILLED))
+
+    assert _paragraph_marks(after) == _paragraph_marks(before)
+    assert [(field.name, field.has_end) for field in before.fields.all] == [("본문", False)]
+    with pytest.raises(HwpxValueError) as raised:
+        before.fields.fill("새 값 1", name="본문")
+    assert raised.value.code == "field-end-missing"
