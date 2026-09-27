@@ -79,6 +79,8 @@
   흐르는 표로 만든다. 만든 뒤 행을 늘리거나 글을 채워 쪽을 넘게 된 표는 글자처럼
   취급 그대로이니 `table.set_treat_as_char(False)`로 흐르게 하라.
   `hwpx.layout.lint_layout`이 이런 표를 `TABLE_TALLER_THAN_PAGE`로 알린다.
+  행 높이는 칸의 문단과 줄바꿈 수로 센다. 긴 글이 칸 폭에서 접혀 늘어난 줄은 세지
+  않는다.
 - **`set_page_number()`의 번호는 한컴의 쪽 번호 감추기로 숨지 않는다.** 이 번호는
   머리말/꼬리말 안의 자동 번호 글이고, `set_visibility(hide_first_page_num=True)`와
   `hide_page_elements(page_num=True)`는 한컴 쪽 번호 컨트롤("쪽 번호 매기기")만
