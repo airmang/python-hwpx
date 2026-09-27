@@ -4,6 +4,7 @@ open with the values Hancom wrote and save back to the same records."""
 
 from __future__ import annotations
 
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,37 @@ FIXTURES = Path(__file__).parent / "fixtures" / "hwp5"
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 SIDES = ("leftBorder", "rightBorder", "topBorder", "bottomBorder")
+
+
+def _package(name: str) -> dict[str, bytes]:
+    with zipfile.ZipFile(FIXTURES / name) as package:
+        return {n: package.read(n) for n in package.namelist() if not n.endswith("/")}
+
+
+def _records(data: bytes, tag: int) -> list[bytes]:
+    doc = read_hwp5(data)
+    return [r.payload for r in doc.docinfo.records if r.tag == tag]
+
+
+def _line_caches(data: bytes) -> list[bytes | None]:
+    """Each body paragraph's line cache record, None where it has none."""
+
+    out: list[bytes | None] = []
+    for section in read_hwp5(data).sections:
+        records = section.records
+        for i, record in enumerate(records):
+            if record.tag == rec.PARA_HEADER and record.level == 0:
+                cache = next(
+                    (r for r in records[i + 1 : i + 6] if r.tag == rec.PARA_LINE_SEG and r.level == 1), None
+                )
+                out.append(cache.payload if cache is not None else None)
+    return out
+
+
+def _flags(head: etree._Element) -> list[str]:
+    layout = head.find(f".//{HH}layoutCompatibility")
+    assert layout is not None
+    return [etree.QName(child).localname for child in layout]
 
 
 def _objects(data: bytes) -> list[ct.ObjectCommon]:
@@ -82,3 +114,41 @@ def test_an_object_with_no_width_basis_is_saved_as_hancom_saves_it() -> None:
     del size.attrib["widthRelTo"]
     files["Contents/section0.xml"] = etree.tostring(root)
     assert [o.props for o in _objects(write_hwp5(files))] == [o.props for o in _objects(data)]
+
+
+@pytest.mark.parametrize("name", ["word_compat_35", "word_compat_4"])
+def test_word_layout_flags_open_and_save_as_hancom_writes_them(name: str) -> None:
+    """Hancom saved the same document as .hwp and as .hwpx: the flags open as
+    Hancom's own package lists them and save to its words."""
+
+    data = (FIXTURES / f"{name}.hwp").read_bytes()
+    package = _package(f"{name}.hwpx")
+    opened = etree.fromstring(convert(data).files["Contents/header.xml"])
+    assert _flags(opened) == _flags(etree.fromstring(package["Contents/header.xml"]))
+    written = write_hwp5(package)
+    for tag in (rec.COMPATIBLE_DOCUMENT, rec.LAYOUT_COMPATIBILITY):
+        assert _records(written, tag) == _records(data, tag)
+
+
+def test_word_layout_flags_in_groups_are_skipped_as_hancom_skips_them() -> None:
+    """The package holds grouping elements and one flag straight under them; Hancom saved only that flag."""
+
+    data = (FIXTURES / "word_compat_groups.hwp").read_bytes()
+    written = write_hwp5(_package("word_compat_groups.hwpx"))
+    assert _records(written, rec.LAYOUT_COMPATIBILITY) == _records(data, rec.LAYOUT_COMPATIBILITY)
+
+
+@pytest.mark.parametrize("name", ["heads_and_at_least", "heads_no_head_marked"])
+def test_every_paragraph_keeps_its_line_cache_as_hancom_saves_it(name: str) -> None:
+    """Numbered, outline, bullet and plain paragraphs, one of them with no head but a head mark."""
+
+    data = (FIXTURES / f"{name}.hwp").read_bytes()
+    theirs = _line_caches(data)
+    assert theirs and all(cache is not None for cache in theirs)
+    assert _line_caches(write_hwp5(_package(f"{name}.hwpx"))) == theirs
+
+
+def test_at_least_line_spacing_is_saved_as_hancom_saves_it() -> None:
+    data = (FIXTURES / "heads_and_at_least.hwp").read_bytes()
+    written = write_hwp5(_package("heads_and_at_least.hwpx"))
+    assert _records(written, rec.PARA_SHAPE) == _records(data, rec.PARA_SHAPE)

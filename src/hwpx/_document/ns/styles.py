@@ -44,10 +44,16 @@ from ...oxml._document_primitives import (
 from ._base import _Namespace
 
 if TYPE_CHECKING:
-    from ...objects import ListFormatResult, ParagraphFormatResult
+    from ...objects import (
+        BorderFillInfo,
+        FontReplaceReport,
+        ListFormatResult,
+        ParagraphFormatResult,
+    )
     from ...objects.binary_item import BinaryItem
     from ...oxml import (
         Bullet,
+        Font,
         GenericElement,
         HwpxOxmlParagraph,
         MemoShape,
@@ -56,6 +62,7 @@ if TYPE_CHECKING:
         Style,
         TabDefinition,
     )
+    from ...oxml.header_part import HwpxOxmlHeader
 
 __all__ = ["StylesNamespace"]
 
@@ -354,6 +361,116 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         self, border_fill_id_ref: "int | str | None"
     ) -> "GenericElement | None":
         return self._doc.oxml.border_fill(border_fill_id_ref)
+
+    def border_fill_info(
+        self, border_fill_id_ref: "int | str | None"
+    ) -> "BorderFillInfo | None":
+        """`hh:borderFill` 하나를 값으로 읽는다(없는 id면 `None`).
+
+        네 변과 대각선은 `hh:borderFill`의 **직계** 자식
+        `hh:leftBorder`·`hh:rightBorder`·`hh:topBorder`·`hh:bottomBorder`·
+        `hh:diagonal`에서 읽는다. 요소가 없으면 `BorderLine("NONE", 0.0,
+        "#000000")`, 속성이 없으면 `type="NONE"`·`width="0 mm"`·
+        `color="#000000"`로 본다. 값은 저장된 그대로 돌려준다(대소문자·색
+        표기를 바꾸지 않는다). `width_mm`는 `"0.12 mm"`의 앞 숫자이고, 숫자로
+        읽을 수 없으면 `HwpxValueError(code="style-border-fill-width-invalid")`.
+
+        `fill`은 첫 `hc:winBrush`의 `faceColor`이고, winBrush가 없거나
+        `faceColor`가 `"none"`(대소문자 무시)이면 `None`이다. 그라데이션·그림
+        채우기는 여기서 설명하지 않는다(`fill`은 `None`) — 그 요소는
+        `border_fill()`의 `GenericElement`로 읽는다. 메모리의 첫 헤더를 읽으므로
+        `ensure_border_fill()`로 만든 id도 저장 없이 바로 읽힌다.
+        """
+
+        from ...oxml import header_fonts
+
+        return header_fonts.border_fill_info(self._primary_header(), border_fill_id_ref)
+
+    # -- 글꼴 표 -----------------------------------------------------------
+
+    def fonts(self, lang: str = "HANGUL") -> dict[str, "Font"]:
+        """`hh:fontface[@lang=lang]` 블록의 `hh:font` 목록(id 문자열 → `Font`).
+
+        글꼴 id는 lang 블록마다 따로 매겨진다 — `hh:fontRef/@hangul`은 HANGUL
+        블록의 id, `@latin`은 LATIN 블록의 id다. *lang*은 HANGUL·LATIN·HANJA·
+        JAPANESE·OTHER·SYMBOL·USER 중 하나(대소문자 무시)이고, 그 밖이면
+        `HwpxValueError(code="style-font-lang-invalid")`. 블록이 없으면 `{}`.
+        메모리의 첫 헤더를 읽으므로 `ensure_font()` 직후에도 맞는다.
+        """
+
+        from ...oxml import header_fonts
+
+        return header_fonts.fonts(self._primary_header(), lang)
+
+    def font_face(
+        self, char_pr_id_ref: "int | str | None", lang: str = "HANGUL"
+    ) -> str | None:
+        """글자 모양 *char_pr_id_ref*가 *lang* 블록에서 가리키는 글꼴 이름.
+
+        `hh:charPr/hh:fontRef/@<lang 소문자>`의 id를 그 lang 블록에서 찾는다.
+        글자 모양·`fontRef`·속성·글꼴 id 중 하나라도 없으면 `None`. id는
+        `char_property()`처럼 정수와 문자열을 모두 받는다.
+        """
+
+        from ...oxml import header_fonts
+
+        return header_fonts.font_face(self._primary_header(), char_pr_id_ref, lang)
+
+    def replace_font(
+        self,
+        src_face: str,
+        dst_face: str,
+        *,
+        langs: "Sequence[str] | None" = None,
+    ) -> "FontReplaceReport":
+        """글꼴 *src_face*를 문서 전체에서 *dst_face*로 바꾼다.
+
+        읽는 쪽에 없는 장식 글꼴을 흔한 글꼴로 바꿀 때 쓴다. `hh:fontface`
+        블록을 문서 순서대로(*langs*를 주면 그 lang 블록만) 하나씩 처리한다.
+
+        1. 블록에 *src_face* 글꼴이 없으면 건너뛴다(오류 아님).
+        2. *dst_face* 글꼴이 있으면 그 id를 쓰고, 없으면 블록 끝에
+           `<hh:font id="{글꼴 수}" face="{dst_face}" type="TTF" isEmbedded="0"/>`를
+           더한다.
+        3. 헤더의 모든 `hh:charPr`에서 `fontRef/@<lang>`이 *src_face*를
+           가리키면 *dst_face*를 가리키게 한다(`repointed`로 센다).
+        4. *src_face* 글꼴을 지우고, 남은 글꼴의 id를 문서 순서대로 0..N-1로
+           다시 매기고(옛 id 값이 아니라 순서 기준), `fontCnt`를 N으로 맞추고,
+           모든 `fontRef/@<lang>`을 옛 id → 새 id로 옮긴다. 어떤 글꼴도
+           가리키지 않던 값은 그대로 둔다. 2에서 더한 글꼴의 임시 id는 옛 id
+           표에 넣지 않는다 — id가 0..N-1이 아닌 블록에서는 기존 id와 겹칠 수
+           있고, 아무 글꼴도 가리키지 않던 값이 새 글꼴을 가리키게 되어서도
+           안 된다.
+
+        id가 0..N-1이고 모든 참조가 글꼴을 가리키는 블록에서는 위 단계를 그대로
+        수행한 것과 바이트까지 같다. 망가진 입력 두 가지만 다르게 다룬다: id가
+        0..N-1이 아닌 블록에서 임시 id가 기존 글꼴 id와 겹쳐도 그 글꼴의 참조가
+        *dst_face*로 끌려가지 않고, 아무 글꼴도 가리키지 않던 참조(임시 id와 같은
+        값 포함)는 계속 아무것도 가리키지 않는다.
+
+        그래서 바뀐 참조 말고는 모든 `(charPr, lang)`이 전과 같은 글꼴 이름을
+        가리킨다. `fontfaces/@itemCnt`는 건드리지 않는다. 무엇이든 바뀌면 헤더를
+        dirty로 표시한다.
+
+        인자는 바꾸기 전에 검사한다: 빈 이름은 `style-font-face-empty`, 같은
+        이름 둘은 `style-font-replace-same-face`, 모르는 lang은
+        `style-font-lang-invalid`(`HwpxValueError`).
+
+        Returns:
+            `FontReplaceReport` — `langs`는 실제로 바뀐 블록(문서 순서),
+            `declared`는 *dst_face*를 새로 더한 블록, `repointed`는
+            *src_face*에서 *dst_face*로 옮긴 `fontRef` 속성 수.
+        """
+
+        from ...oxml import header_fonts
+
+        return header_fonts.replace_font(
+            self._primary_header(), src_face, dst_face, langs=langs
+        )
+
+    def _primary_header(self) -> "HwpxOxmlHeader | None":
+        headers = self._doc.oxml.headers
+        return headers[0] if headers else None
 
     @property
     def bullets(self) -> dict[str, "Bullet"]:

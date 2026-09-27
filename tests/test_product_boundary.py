@@ -307,7 +307,11 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # +1: the equation box and baseline measure (equation/measure.py).
     # +1: grid clean-up after a cell merge (oxml/table_merge.py), moved out of the
     # table.py owner file.
-    assert report["classifiedFiles"] == 173
+    # +1: floating-shape reference frames (oxml/shape_position.py) -- objects.py's
+    # overflow module under the 1600-line cap.
+    # +1: font table and border-fill reads plus replace_font (oxml/header_fonts.py),
+    # outside header_part.py because that owner file sits at its 1600-line cap.
+    assert report["classifiedFiles"] == 175
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

@@ -37,6 +37,9 @@ from .owpml import (
     IMAGE_MODE,
     LANG_ATTRS,
     LANGS,
+    LAYOUT_COMPATIBILITY_BITS,
+    LAYOUT_COMPATIBILITY_DEFAULT,
+    LAYOUT_COMPATIBILITY_GROUPS,
     LINE_SPACING,
     LINE_WRAP,
     MEMO_TYPE,
@@ -370,7 +373,9 @@ def para_shape(element: etree._Element) -> di.ParaShape:
     heading_type = index_of(HEADING, heading.get("type") if heading is not None else None, 0)
     level = _int(heading, "level")
     spacing_type = index_of(LINE_SPACING, spacing.get("type") if spacing is not None else None, 0)
-    p1 = min(spacing_type, 2)
+    # The old line spacing has no AT_LEAST; Hancom writes it there as 100 percent.
+    at_least = spacing_type == 3
+    p1 = 0 if at_least else spacing_type
     p1 |= index_of(ALIGN_H, align.get("horizontal") if align is not None else None, 0) << 2
     p1 |= index_of(BREAK_LATIN, brk.get("breakLatinWord") if brk is not None else None, 0) << 5
     p1 |= index_of(BREAK_NON_LATIN, brk.get("breakNonLatinWord") if brk is not None else None, 1) << 7
@@ -393,7 +398,7 @@ def para_shape(element: etree._Element) -> di.ParaShape:
     line_unit = spacing.get("unit") if spacing is not None else None
     raw_line = spacing_type == 0 or (plain and line_unit != "CHAR")
     line_spacing = line_value if raw_line else _doubled(line_value, line_unit)
-    shape.line_spacing_old = line_spacing
+    shape.line_spacing_old = 100 if at_least else line_spacing
     shape.line_spacing = line_spacing
     shape.tab_def_id = _int(element, "tabPrIDRef")
     shape.numbering_id = _int(heading, "idRef")
@@ -589,9 +594,34 @@ def build_docinfo(
     compatible = _child(head, _HH, "compatibleDocument")
     target = index_of(TARGET_PROGRAM, compatible.get("targetProgram") if compatible is not None else None, 0)
     records.append(rec.Record(rec.COMPATIBLE_DOCUMENT, 0, struct.pack("<I", target)))
-    records.append(rec.Record(rec.LAYOUT_COMPATIBILITY, 1, b"\0" * 20))
+    layout = struct.pack("<5I", *_layout_compatibility(compatible, target))
+    records.append(rec.Record(rec.LAYOUT_COMPATIBILITY, 1, layout))
     records.append(rec.Record(rec.TRACKCHANGE, 1, _track_settings(head)))
     return DocInfoResult(records, section_count)
+
+
+def _layout_compatibility(compatible: etree._Element | None, target: int) -> tuple[int, ...]:
+    """The LAYOUT_COMPATIBILITY words: a bit for each layoutCompatibility child.
+    Hancom writes none for a document meant for Hangul 2010 or later
+    (HWP201X), and its default flags when a child is not one it knows. It
+    skips grouping elements and what they hold."""
+
+    words = [0] * 5
+    layout = _child(compatible, _HH, "layoutCompatibility") if compatible is not None else None
+    if layout is None or target == 0:
+        return tuple(words)
+    for child in layout:
+        if not isinstance(child.tag, str):
+            continue
+        name = etree.QName(child).localname
+        if name in LAYOUT_COMPATIBILITY_GROUPS:
+            continue
+        place = LAYOUT_COMPATIBILITY_BITS.get(name)
+        if place is None:
+            return LAYOUT_COMPATIBILITY_DEFAULT
+        word, bit = place
+        words[word] |= 1 << bit
+    return tuple(words)
 
 
 def _track_settings(head: etree._Element) -> bytes:

@@ -80,9 +80,54 @@
   쪽을 넘는 상자 하나로 그려진다(한컴의 "문단 테두리 연결"). 상자 안의 빈 문단에도
   같은 서식을 주면 상자가 끊기지 않는다. 기존 `bottom_border=True`는 그대로
   아래 한 면만 켠다. 잘못된 지정은 `paragraph-border-invalid`로 거부한다.
+- `Shape.set_position()`이 기준 프레임과 정렬도 정한다. `horz_rel_to`·`vert_rel_to`·
+  `horz_align`·`vert_align`이 `hp:pos`의 `horzRelTo`·`vertRelTo`·`horzAlign`·
+  `vertAlign`을 쓴다. 값은 OWPML 스키마 철자 그대로다(`vert_rel_to`에는 `COLUMN`이
+  없다). `PAPER`로 두면 확인 도장 같은 떠 있는 도형을 쪽 여백에 고정할 수 있다.
+  주지 않은 값은 그대로 두므로 오프셋만 주는 기존 호출은 결과가 같다. 스키마 밖의
+  값은 아무것도 바꾸기 전에 `shape-position-frame`으로 거부한다.
+- `Shape.set_draw_text()`에 `para_pr_id_ref`(도형 안 문단의 `paraPrIDRef`)와
+  `vert_align`(`hp:subList/@vertAlign`, `TOP`/`CENTER`/`BOTTOM`)을 더한다. 둘 다
+  생략하면 XML이 전과 같다. 잘못된 정렬 값은 `shape-draw-text-vert-align`으로 거부한다.
+- `Shape.draw_text`·`set_draw_text`·`remove_draw_text`를 stable 표면에 올리고, 이들이
+  돌려주는 글상자를 `hwpx.model.DrawText`라는 계약 이름으로 낸다(`name`·`editable`·
+  `text_margin`·`paragraphs`·`text`·`add_paragraph`가 stable). 반환 객체 계약은
+  19개 클래스 / 189개 멤버가 된다.
+- 글꼴 표와 테두리를 값으로 읽는다. `doc.styles.fonts(lang="HANGUL")`는 그 lang 블록의
+  글꼴을 id 문자열 → `Font`로, `doc.styles.font_face(char_pr_id_ref, lang="HANGUL")`는 글자
+  모양이 그 lang에서 가리키는 글꼴 이름을 돌려준다. `doc.styles.border_fill_info(id)`는
+  `hh:borderFill` 하나를 `BorderFillInfo`(네 변과 대각선의 `BorderLine(type, width_mm, color)`,
+  단색 채우기 `fill`)로 돌려준다. 값은 저장된 그대로이고, 그라데이션·그림 채우기는 설명하지
+  않는다(`fill`은 `None`). 너비를 읽을 수 없으면 `style-border-fill-width-invalid`다. 기존
+  `border_fill()`은 그대로 `GenericElement`를 돌려준다. 모두 메모리의 헤더를 읽어
+  `ensure_font()`·`ensure_border_fill()` 직후에도 맞는다.
+- `doc.styles.replace_font(src_face, dst_face, *, langs=None)`로 글꼴 하나를 문서 전체에서
+  다른 글꼴로 바꾼다(읽는 쪽에 없는 장식 글꼴을 흔한 글꼴로 바꿀 때). lang 블록마다 바꿀
+  글꼴을 지우고 남은 글꼴 id를 0부터 다시 매기며, 모든 글자 모양의 `fontRef`를 옮겨 다른
+  참조가 가리키는 글꼴은 바뀌지 않는다. 결과는 `FontReplaceReport`(바뀐 블록 `langs`, 새로
+  선언한 블록 `declared`, 옮긴 참조 수 `repointed`)다. 같은 글꼴 둘은
+  `style-font-replace-same-face`로 거부한다.
+- 표 셀 안쪽 여백을 읽고 쓴다. `cell.margins`는 한/글이 셀을 배치하는 여백을
+  `hwpx.objects.CellMargins`(HWPUNIT, `left`·`right`·`top`·`bottom`)로 돌려준다. 셀의
+  `hasMargin`이 꺼져 있으면 표의 `hp:inMargin`, 켜져 있으면 셀의 `hp:cellMargin`이다.
+  `add_table()`이 만든 셀은 `CellMargins(510, 510, 141, 141)`이다.
+  `cell.set_margins(left=, right=, top=, bottom=)`는 주지 않은 면을 지금 여백으로 채워
+  네 면을 셀 여백에 쓰고 `hasMargin="1"`로 켠 뒤 새 여백을 돌려준다. 여백이 실제로 바뀌면
+  그 셀에 바로 든 문단의 줄 배치 캐시를 지운다(안쪽 표 문단은 그대로). 인자가 없으면
+  아무것도 바꾸지 않는다. `0 <= v < 2**31`인 `int`가 아닌 값(`bool` 포함)은 바꾸기 전에
+  `HwpxValueError`(`cell-margin-value`)로 거부한다.
+- 편집 의미론 문서에 `table.set_cell_text()`가 남기는 것과 다시 만드는 것(기본은 첫
+  `hp:t`에 쓰고 나머지 `hp:t`를 비우며 그렇게 비워진 문단만 지운다, `split_paragraphs=True`는
+  문단을 다시 만든다),
+  `table.set_column_widths([1] * column_count)`가 나누는 규칙(전의 `equalize_column_widths()`
+  나눔: 표 너비 유지, 앞 `n-1`열 `round(W / n)`, 마지막 열 나머지)과 `Paragraph.char_pr_id_ref`가 그 문단의 run 전부에 들어간다는 것을 적는다.
 
 ### 바꿈
 
+- 마지막 문단을 지우려는 `paragraph.remove()`가 맨 `ValueError` 대신
+  `HwpxValueError`(`ValueError` 하위라 `except ValueError`는 그대로 잡는다)를 낸다.
+  `code`는 `paragraph-remove-last`, `context["container"]`는 문단을 담은 곳
+  (`section`·`cell`·`header`·`footer`)이다. 메시지는 같다.
 - `HwpxOxmlTable.equalize_column_widths()`가 한/글 "셀 너비를 같게"처럼 행마다 칸을 같은
   너비로 나눈다. 합친 칸은 그 행의 한 칸으로 세고, 모든 행이 같은 자리에서 끝나도록 표
   너비를 행마다의 칸 수로 모두 나누어떨어지는 값까지 올린 뒤(예: 3칸 행과 4칸 행이면 12의
@@ -133,6 +178,16 @@
 
 ### 고침
 
+- MS Word처럼 배치하는 문서(`hh:compatibleDocument`의 `targetProgram="MS_WORD"`)를 `.hwp`로 열고 저장할
+  때 배치 호환 설정이 사라지던 것을 고친다. 열 때 `hh:layoutCompatibility`를 비워 두고 저장할 때 0으로
+  써서, Word 호환 배치가 모두 꺼졌다. 이제 켜진 설정마다 `hh:layoutCompatibility`의 자식 하나로
+  한/글이 쓰는 순서대로 열고, 저장할 때 다시 쓴다. 한/글처럼 `HWP201X` 문서는 설정 없이 저장하고,
+  한/글이 모르는 자식이 있으면 한/글의 기본 설정으로 저장한다. 한/글의 일부 판이 쓰는 묶음 요소
+  (`hh:char`·`hh:paragraph`·`hh:section`·`hh:object`·`hh:field`)와 그 안의 것은 한/글처럼 건너뛴다.
+  `applyFontspaceToLatin`은 한/글이 HWPX로 쓰지는 않지만 읽는 설정이라, 문서의 배치가 그대로 남도록
+  열어 둔다.
+- `.hwp`로 저장할 때 줄 간격 `AT_LEAST`(최소)를 옛 줄 간격 필드에 한/글처럼 100%로 쓴다. 전에는
+  옛 필드에 `BETWEEN_LINES`와 새 값을 썼다.
 - 표 `merge_cells()`(`doc.tables.merge_cells`)가 가려지는 칸의 글과 개체를 버리던 것을
   고친다. 이제 병합 칸이 글이나 개체가 있는 칸의 문단을 읽기 순서(행마다 왼쪽에서
   오른쪽, 위 행부터)로 모두 받고, 빈 칸(빈 문단 하나)은 아무것도 보태지 않는다. 병합

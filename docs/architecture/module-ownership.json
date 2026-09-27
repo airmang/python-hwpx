@@ -553,7 +553,19 @@
       "path": "src/hwpx/oxml/table_sizes.py",
       "disposition": "core",
       "approvedBy": "hancom-distribute-cell-width",
-      "rationale": "How a table shares out its width and height among its cells: the bodies of HwpxOxmlTable.set_column_widths, equalize_column_widths (Hancom's distribute-cell-width rule: each row splits the table width among its own cells, the width rounded up to a common multiple of every row's cell count, the column grid rebuilt from the new cell edges) and equalize_row_heights. A new module rather than more table.py lines: the open table fixes together would take that owner file past the 1,600-line cap; the table methods keep their documentation and delegate. Format-level only."
+      "rationale": "How a table shares out its width and height among its cells: the bodies of HwpxOxmlTable.set_column_widths, equalize_column_widths (Hancom's distribute-cell-width rule: each row splits the table width among its own cells, the width rounded up to a common multiple of every row's cell count, the column grid rebuilt from the new cell edges) and equalize_row_heights; and the bodies of HwpxOxmlTableCell.margins/set_margins (the effective inner margins: the table's hp:inMargin unless the cell's hasMargin is on, then its hp:cellMargin), assigned onto the cell class as attributes. A new module rather than more table.py lines: the open table fixes together would take that owner file past the 1,600-line cap; the table methods keep their documentation and delegate. Format-level only."
+    },
+    {
+      "path": "src/hwpx/oxml/header_fonts.py",
+      "disposition": "core",
+      "approvedBy": "style-font-border-reads",
+      "rationale": "Font table and border-fill reads over the live Contents/header.xml (doc.styles.fonts/font_face/border_fill_info) plus replace_font, which swaps one hh:font face for another per hh:fontface block and remaps every hh:charPr/hh:fontRef so no other reference changes the face it names. Reusable HWPX format behavior a converter (e.g. HWPX to DOCX) needs; no renderer, application workflow or agent policy. Free functions over HwpxOxmlHeader rather than methods because header_part.py sits at 1598/1600 lines -- same pattern as header_compat.py."
+    },
+    {
+      "path": "src/hwpx/oxml/shape_position.py",
+      "disposition": "core",
+      "approvedBy": "shape-position-reference-frames",
+      "rationale": "HwpxOxmlShape.set_position with hp:pos reference frames and alignment (vertRelTo/horzRelTo/vertAlign/horzAlign) plus the hp:subList/@vertAlign check for set_draw_text -- the OWPML enumerations from DevDoc/OWPML SCHEMA/ParaList XML schema.xml (AbstractShapeObjectType/pos, ParaListType), validated before any mutation. A new module rather than more objects.py lines (1,583/1,600 owner-file cap); set_position is attached to HwpxOxmlShape as a plain class attribute, the same escape valve as dutmal_compose.py. Format-level only: no renderer, application workflow or agent policy."
     },
     {
       "path": "src/hwpx/hwp5/__init__.py",

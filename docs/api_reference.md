@@ -116,6 +116,19 @@
 - `replace_text_in_runs(search, replacement, ...) -> int`
   - `find_runs_by_style()`을 사용하여 런을 찾고 문자열을 교체합니다. 선택적으로 교체 횟수를 제한할 수 있으며, 하이라이트나 태그로 나뉜 텍스트도 서식을 유지한 채 치환합니다.
 
+#### 글꼴 표와 테두리 읽기 (`doc.styles`)
+
+글꼴 id는 `hh:fontface` lang 블록마다 따로 매겨집니다. `hh:fontRef/@hangul`은 HANGUL 블록의 id, `@latin`은 LATIN 블록의 id입니다. 아래 호출은 모두 메모리의 첫 헤더를 읽으므로 `ensure_font()`·`ensure_border_fill()` 직후에도 맞습니다. *lang*은 HANGUL·LATIN·HANJA·JAPANESE·OTHER·SYMBOL·USER 중 하나(대소문자 무시)이고, 그 밖이면 `HwpxValueError`(`style-font-lang-invalid`)입니다.
+
+- `styles.fonts(lang="HANGUL") -> dict[str, Font]`
+  - 그 lang 블록의 `hh:font` 목록을 id 문자열 → `hwpx.oxml.Font`로 돌려줍니다. 블록이 없으면 `{}`입니다.
+- `styles.font_face(char_pr_id_ref, lang="HANGUL") -> str | None`
+  - 글자 모양의 `fontRef`가 그 lang 블록에서 가리키는 글꼴 이름입니다. 글자 모양·`fontRef`·속성·글꼴 id 중 하나라도 없으면 `None`입니다.
+- `styles.border_fill_info(border_fill_id_ref) -> BorderFillInfo | None`
+  - `hh:borderFill` 하나를 `BorderFillInfo(id, left, right, top, bottom, diagonal, fill)`로 읽습니다. 각 변은 `BorderLine(type, width_mm, color)`이고 직계 자식 `hh:leftBorder`·`hh:rightBorder`·`hh:topBorder`·`hh:bottomBorder`·`hh:diagonal`에서 저장된 값 그대로 읽습니다. 요소가 없으면 `BorderLine("NONE", 0.0, "#000000")`입니다. `fill`은 첫 `hc:winBrush`의 `faceColor`이고, 없거나 `none`이면 `None`입니다. 그라데이션·그림 채우기는 설명하지 않습니다. 너비를 `"<숫자> mm"`로 읽을 수 없으면 `style-border-fill-width-invalid`, 없는 id면 `None`입니다. `border_fill()`은 그대로 `GenericElement`를 돌려줍니다.
+- `styles.replace_font(src_face, dst_face, *, langs=None) -> FontReplaceReport`
+  - 글꼴 하나를 문서 전체에서 다른 글꼴로 바꿉니다. lang 블록마다(`langs`를 주면 그 블록만) *src_face*가 없으면 건너뛰고, *dst_face*가 없으면 블록 끝에 `<hh:font id=… face=… type="TTF" isEmbedded="0"/>`를 더하고, *src_face*를 가리키던 `fontRef`를 *dst_face*로 옮긴 뒤 *src_face*를 지우고 남은 글꼴 id를 순서대로 0..N-1로 다시 매깁니다(`fontCnt`도 맞춤). 다른 `fontRef`는 모두 전과 같은 글꼴 이름을 가리킵니다. 결과 `FontReplaceReport`의 `langs`는 바뀐 블록, `declared`는 *dst_face*를 새로 더한 블록, `repointed`는 옮긴 `fontRef` 속성 수입니다. 빈 이름은 `style-font-face-empty`, 같은 이름 둘은 `style-font-replace-same-face`로 바꾸기 전에 거부합니다.
+
 #### 콘텐츠 생성 헬퍼
 
 - `add_paragraph(text="", ...) -> HwpxOxmlParagraph`
@@ -421,6 +434,8 @@
 - `set_span(row_span, col_span)`: 병합 속성을 업데이트하고 표를 dirty로 표시합니다.
 - `width`, `height`: `<hp:cellSz>`에서 캐시된 셀 크기를 노출하는 프로퍼티입니다.
 - `set_size(width=None, height=None)`: 크기 속성을 0 또는 그 이상으로 업데이트합니다.
+- `margins`: 한/글이 셀을 배치하는 안쪽 여백을 `CellMargins(left, right, top, bottom)`(HWPUNIT)로 반환하는 프로퍼티입니다. 셀의 `hasMargin`이 꺼져 있으면 표의 `<hp:inMargin>`, 켜져 있으면 셀의 `<hp:cellMargin>`을 읽습니다.
+- `set_margins(*, left=None, right=None, top=None, bottom=None)`: 주지 않은 면은 지금 여백을 유지한 채 네 면을 `<hp:cellMargin>`에 쓰고 `hasMargin="1"`로 켠 뒤 새 `CellMargins`를 반환합니다. 잘못된 값은 `HwpxValueError`(`cell-margin-value`)로 거부합니다.
 - `text`: 셀 내부의 첫 번째 텍스트 노드를 반환하는 프로퍼티입니다. setter는 텍스트를 할당하기 전에 중첩된 단락 구조를 보장하고, `<hp:lineSegArray>`와 같은 줄 배치 캐시를 제거하여 한/글이 줄바꿈을 다시 계산하도록 합니다.
 - `remove()`: 행에서 셀 엘리먼트를 제거합니다.
 - `_addr_element()`, `_span_element()`, `_size_element()`, `_ensure_text_element()`: 중첩된 XML 구조를 관리하는 내부 헬퍼입니다.

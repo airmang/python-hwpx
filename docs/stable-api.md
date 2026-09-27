@@ -48,7 +48,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
 **계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **18개 클래스 / 173개
+클래스별로 stable 멤버를 정확히 나열한다 — 현재 **19개 클래스 / 193개
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
@@ -75,7 +75,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 |---|---:|---|
 | 루트 공개 멤버 | 35 | `tests/data/document_facade_surface.json` |
 | 위임 shim (7.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
-| 반환 객체 계약 | 173 | `tests/data/model_surface.json` |
+| 반환 객체 계약 | 193 | `tests/data/model_surface.json` |
 
 설치본에 직접 물어볼 수도 있다:
 
@@ -198,10 +198,26 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 ## 기존 도형과 페이지 story 편집
 
 `Shape.set_position(horizontal_offset=..., vertical_offset=...)`는 기존 떠 있는
-도형의 `hp:pos` 오프셋만 바꿉니다(단위 HWPUNIT, signed 32-bit 정수).
-기준 프레임·정렬·앵커·기하 정보는 보존합니다. 글자처럼 배치된 개체, 위치 요소가
-없는 개체는 `shape-position-unsupported`, 잘못된 값은 `shape-position-value`로
-변경 전에 거부합니다. 이동 후 실제 배치는 한컴으로 확인해야 합니다.
+도형의 `hp:pos` 오프셋을 바꿉니다(단위 HWPUNIT, signed 32-bit 정수).
+`horz_rel_to`·`vert_rel_to`·`horz_align`·`vert_align`을 주면 `hp:pos`의
+`horzRelTo`·`vertRelTo`·`horzAlign`·`vertAlign`도 씁니다. 값은 OWPML 스키마
+철자 그대로(대문자, 정확히 일치)입니다 — `horz_rel_to`는 `PAPER`/`PAGE`/`COLUMN`/
+`PARA`, `vert_rel_to`는 `PAPER`/`PAGE`/`PARA`(스키마에 세로 `COLUMN`은 없습니다),
+`horz_align`은 `LEFT`/`CENTER`/`RIGHT`/`INSIDE`/`OUTSIDE`, `vert_align`은 `TOP`/
+`CENTER`/`BOTTOM`/`INSIDE`/`OUTSIDE`. 예를 들어 `PAPER`는 용지 가장자리를 기준으로
+삼으므로 확인 도장을 쪽 여백에 고정할 수 있습니다. 주지 않은 값(`None`)은 그대로
+두므로, 오프셋만 주는 호출은 이전과 같은 결과를 냅니다. 앵커·기하 정보는
+보존합니다. 모든 인자는 변경 전에 검사합니다 — 글자처럼 배치된 개체, 위치 요소가
+없는 개체는 `shape-position-unsupported`, 잘못된 오프셋은 `shape-position-value`,
+스키마 밖의 프레임·정렬 값은 `shape-position-frame`으로 거부합니다. 이동 후 실제
+배치는 한컴으로 확인해야 합니다.
+
+`Shape.draw_text`·`set_draw_text`·`remove_draw_text`와 이들이 돌려주는
+`model.DrawText`는 stable입니다. `set_draw_text(..., para_pr_id_ref=..., vert_align=...)`는
+도형 안 문단의 `paraPrIDRef`와 `hp:subList/@vertAlign`(`TOP`/`CENTER`/`BOTTOM`)을
+정합니다. 둘 다 생략하면 이전과 같은 XML이 나옵니다 — 새 글상자는 `paraPrIDRef="0"`·
+`CENTER`, 기존 글상자는 제 정렬을 유지합니다. 잘못된 정렬 값은
+`shape-draw-text-vert-align`으로 변경 전에 거부합니다.
 
 `SectionProperties.headers`/`footers`와 `get_header`/`get_footer`는 본문 컨트롤에
 있는 기존 머리말·꼬리말도 찾습니다. `set_simple_text_preserving`은 빈 문단·빈 run을
@@ -214,3 +230,11 @@ identity/적용 범위 충돌은 거부합니다. 새로 만드는 `set_header_t
 복제해 보존하고 동일한 스타일이 있으면 재사용합니다. 공유 원본 스타일은
 수정하지 않습니다. 스타일이 없거나 중복되었으면 변경 전에 거부합니다.
 전체 스타일을 바꾸려면 기존 `set_cell_border_fill`을 사용하세요.
+
+`TableCell.margins`는 한/글이 셀을 배치하는 안쪽 여백을 `hwpx.objects.CellMargins`
+(HWPUNIT)로 돌려줍니다. 셀의 `hasMargin`이 꺼져 있으면 표의 `hp:inMargin`,
+켜져 있으면 셀의 `hp:cellMargin`입니다. `add_table()`이 만든 셀은
+`CellMargins(510, 510, 141, 141)`입니다. `TableCell.set_margins(left=..., right=...,
+top=..., bottom=...)`는 주지 않은 면을 지금 여백으로 채워 셀 여백 네 면을 쓰고
+`hasMargin`을 켭니다. 값은 `0 <= v < 2**31`인 `int`여야 하며, 아니면 바꾸기 전에
+`cell-margin-value`로 거부합니다. 인자가 없으면 아무것도 바꾸지 않습니다.
