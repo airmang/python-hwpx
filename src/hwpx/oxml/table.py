@@ -30,9 +30,11 @@ from ._document_primitives import (
     FILL_IMAGE_MODES,
 )
 from ._paragraph_text_edit import clear_text_element, sanitize_keeping_tabs, set_text_with_tabs
+from . import table_sizes as _table_sizes
 
 from .body import Label, parse_label_element
 from .objects import Caption, _read_caption, _remove_caption, _write_caption
+from .table_merge import collapse_merged_grid
 
 if TYPE_CHECKING:
     from hwpx.form_fit.policy import FitPolicy
@@ -60,7 +62,9 @@ def _set_cell_borders_preserving(table: Any, cell: Any, color: str, line_type: s
         refuse("cell border edit requires an attached document header")
     header = document.headers[0]
     try:
-        line_type = _normalize_border_type(line_type, header._BORDER_LINE_TYPES)
+        line_type = _normalize_border_type(
+            header._BORDER_LINE_TYPE_ALIASES.get(str(line_type).upper(), line_type), header._BORDER_LINE_TYPES
+        )
     except (ValueError, TypeError, AttributeError):
         refuse("border line type is unsupported")
     container = header._border_fills_element()
@@ -83,6 +87,77 @@ def _set_cell_borders_preserving(table: Any, cell: Any, color: str, line_type: s
     header.mark_dirty()
     cell.element.set("borderFillIDRef", candidate.get("id"))
     table.mark_dirty()
+    _match_touching_edges(table, cell)
+
+
+#: (side of the edited cell, side of the neighbour that shares it)
+_SHARED_EDGES = (("rightBorder", "leftBorder"), ("leftBorder", "rightBorder"),
+                 ("bottomBorder", "topBorder"), ("topBorder", "bottomBorder"))
+
+
+def _match_touching_edges(table: Any, cell: Any) -> None:
+    """Give each neighbour of *cell* the same line on the edge they share.
+
+    Hancom's cell border command sets both cells of a shared edge. Every cell
+    keeps its own four sides and both are drawn, so a neighbour that keeps its
+    old line shows through a new one (or keeps a line meant to go). Only the
+    neighbour's shared side changes; its other sides and fill stay. Like
+    Hancom, a neighbour whose side reaches past this cell's (a merged cell
+    beside a single one) is left as it is.
+    """
+    from .namespaces import HH
+
+    document = table.paragraph.section.document
+    if document is None or not document.headers:
+        return
+    header = document.headers[0]
+    container = header._border_fills_element()
+    if container is None:
+        return
+    fills = {n.get("id"): n for n in container if n.tag == HH + "borderFill"}
+    own = fills.get(cell.element.get("borderFillIDRef") or table.element.get("borderFillIDRef"))
+    if own is None:
+        return
+    (r0, c0), (rs, cs) = cell.address, cell.span
+    r1, c1 = r0 + rs - 1, c0 + cs - 1
+    for row in table.rows:
+        for other in row.cells:
+            (o_r0, o_c0), (o_rs, o_cs) = other.address, other.span
+            o_r1, o_c1 = o_r0 + o_rs - 1, o_c0 + o_cs - 1
+            # only a neighbour whose shared side lies within this cell's side
+            # changes; a longer (merged) neighbour keeps its line, as in Hancom
+            rows_within = o_r0 >= r0 and o_r1 <= r1
+            cols_within = o_c0 >= c0 and o_c1 <= c1
+            touches = (o_c0 == c1 + 1 and rows_within, o_c1 == c0 - 1 and rows_within,
+                       o_r0 == r1 + 1 and cols_within, o_r1 == r0 - 1 and cols_within)
+            for (own_side, other_side), touching in zip(_SHARED_EDGES, touches):
+                if touching:
+                    _set_shared_side(table, header, container, fills, other, own.find(HH + own_side), other_side)
+
+
+def _set_shared_side(table: Any, header: Any, container: Any, fills: dict, other: Any, line: Any, side: str) -> None:
+    from .namespaces import HH
+
+    base = fills.get(other.element.get("borderFillIDRef") or table.element.get("borderFillIDRef"))
+    if base is None or line is None:
+        return
+    candidate = deepcopy(base)
+    target = candidate.find(HH + side)
+    if target is None:
+        return
+    for key, value in line.attrib.items():
+        target.set(key, value)
+    key = _border_edit_signature(candidate, root=True)
+    for existing in container:
+        if existing.tag == HH + "borderFill" and _border_edit_signature(existing, root=True) == key:
+            other.element.set("borderFillIDRef", existing.get("id"))
+            return
+    candidate.set("id", header._allocate_border_fill_id(container))
+    container.append(candidate)
+    container.set("itemCnt", str(len(container.findall(HH + "borderFill"))))
+    fills[candidate.get("id")] = candidate
+    header.mark_dirty()
+    other.element.set("borderFillIDRef", candidate.get("id"))
 
 
 def _color_existing_borders(candidate: Any, color: str, line_type: str) -> None:
@@ -113,6 +188,23 @@ def _wrap_paragraph(
     from .paragraph import HwpxOxmlParagraph
 
     return HwpxOxmlParagraph(element, section)
+
+
+def _is_blank_paragraph(paragraph: ET.Element) -> bool:
+    """Whether a paragraph's runs hold nothing but empty ``hp:t``."""
+    for run in paragraph.findall(f"{_HP}run"):
+        for child in run:
+            if _element_local_name(child) != "t" or child.text or len(child):
+                return False
+    return True
+
+
+def _is_blank_cell(element: ET.Element) -> bool:
+    """Whether a cell holds one empty paragraph and nothing else, like a new cell."""
+    sublist = element.find(f"{_HP}subList")
+    paragraphs = [] if sublist is None else sublist.findall(f"{_HP}p")
+    return len(paragraphs) <= 1 and all(_is_blank_paragraph(paragraph) for paragraph in paragraphs)
+
 
 class HwpxOxmlTableCell:
     """Represents an individual table cell."""
@@ -298,9 +390,13 @@ class HwpxOxmlTableCell:
 
         text_element = self._ensure_text_element()
         set_text_with_tabs(text_element, sanitized_value)
+        emptied: list[ET.Element] = []
         for node in self.element.findall(f".//{_HP}t"):
             if node is not text_element:
+                if node.text or len(node):
+                    emptied.append(node)
                 clear_text_element(node)
+        self._drop_emptied_paragraphs(text_element, emptied)
         if not preserve_format:
             current: Any | None = text_element
             while current is not None and _element_local_name(current) != "run":
@@ -310,6 +406,22 @@ class HwpxOxmlTableCell:
         self._clear_own_layout_caches()
         self.element.set("dirty", "1")
         self.table.mark_dirty()
+
+    def _drop_emptied_paragraphs(self, text_element: ET.Element, emptied: list[ET.Element]) -> None:
+        # A paragraph of this cell whose text was just cleared and that holds
+        # nothing else goes, so the cell reads back the text it was given (a
+        # merged cell carries the covered cells' paragraphs).  Paragraphs that
+        # were already empty (blank lines) or hold objects stay.
+        sublist = self.element.find(f"{_HP}subList")
+        if sublist is None or not emptied:
+            return
+        emptied_ids = {id(node) for node in emptied}
+        for paragraph in sublist.findall(f"{_HP}p"):
+            own = [node for run in paragraph.findall(f"{_HP}run") for node in run.findall(f"{_HP}t")]
+            if any(node is text_element for node in own):
+                continue
+            if any(id(node) in emptied_ids for node in own) and _is_blank_paragraph(paragraph):
+                sublist.remove(paragraph)
 
     def _clear_own_layout_caches(self) -> None:
         # Edit-scoped invalidation: only this cell's paragraphs lose their
@@ -875,7 +987,9 @@ class HwpxOxmlTable:
         """Point one cell at a header ``borderFill`` definition.
 
         Pairs with :meth:`set_cell_shading`; obtain ids from
-        ``document.ensure_border_fill`` (line style/width/color/fill).
+        ``document.ensure_border_fill`` (line style/width/color/fill). Only
+        this cell changes; :meth:`set_cell_borders` also sets the edges the
+        neighbouring cells share with it.
         """
         cell = self.cell(row_index, col_index)
         cell.element.set("borderFillIDRef", str(border_fill_id_ref))
@@ -887,7 +1001,9 @@ class HwpxOxmlTable:
         """Change four existing border colors/types, preserving fill and widths.
 
         Copies and deduplicates the complete existing style; other cells that
-        share it remain unchanged. Missing or ambiguous style definitions refuse.
+        share it remain unchanged, except that the neighbouring cells take the
+        same line on the edge they share with this cell, as in Hancom. Missing
+        or ambiguous style definitions refuse.
         """
         cell = self.cell(row_index, col_index)
         _set_cell_borders_preserving(self, cell, color, line_type)
@@ -994,51 +1110,26 @@ class HwpxOxmlTable:
         self.mark_dirty()
 
     def set_column_widths(self, weights: Sequence[int | float]) -> None:
-        if len(weights) != self.column_count:
-            raise ValueError("column width weights must match table column count")
-        numeric_weights = [max(float(weight), 0.0) for weight in weights]
-        if not any(numeric_weights):
-            raise ValueError("at least one column width weight must be positive")
-
-        sz = self.element.find(f"{_HP}sz")
-        if sz is not None and sz.get("width", "").isdigit():
-            total_width = int(sz.get("width", "0"))
-        else:
-            total_width = sum(self.cell(0, col).width for col in range(self.column_count))
-        weight_total = sum(numeric_weights)
-        column_widths: list[int] = []
-        allocated = 0
-        for index, weight in enumerate(numeric_weights):
-            if index == len(numeric_weights) - 1:
-                width = max(total_width - allocated, 0)
-            else:
-                width = round(total_width * weight / weight_total)
-                allocated += width
-            column_widths.append(width)
-
-        updated_cells: set[int] = set()
-        for entry in self.iter_grid():
-            marker = id(entry.cell.element)
-            if marker in updated_cells:
-                continue
-            updated_cells.add(marker)
-            start_row, start_col = entry.cell.address
-            span_row, span_col = entry.cell.span
-            if span_row <= 0 or span_col <= 0:
-                continue
-            width = sum(column_widths[start_col:start_col + span_col])
-            entry.cell.set_size(width=width)
+        _table_sizes.set_column_widths(self, weights)
 
     def equalize_column_widths(self) -> None:
-        """모든 열 너비를 같게 만든다(6.13 트레인㊻, 갭"셀 너비를 같게").
+        """행마다 칸 너비를 같게 한다(한/글 "셀 너비를 같게"와 같은 결과).
 
-        ``set_column_widths([1] * column_count)``와 정확히 동치다 — 균등
-        가중치를 넘기면 이미 그렇게 나뉜다. 이 메서드는 그 조합을
-        전용 이름으로 노출할 뿐, 신규 계산 로직은 없다(호출자가 매번
-        "가중치를 다 1로 넣으면 되나?"를 스스로 알아내야 했던 게 실제
-        갭이었다 — 편집기 메뉴 표면 역매핑 트레인㊷·㊺가 찾은 부분 대응).
+        행마다 그 행을 지나는 칸(합친 칸은 한 칸)에 같은 너비를 준다. 모든 행이 같은
+        자리에서 끝나도록 표 너비를 행마다의 칸 수로 모두 나누어떨어지는 가장 가까운 값까지
+        올린다(예: 3칸 행과 4칸 행이 있으면 12의 배수). 한/글과 같아서, 칸 수가 다른 행이
+        많으면 표가 크게 넓어질 수 있다(5칸부터 11칸까지의 행이면 27720의 배수). 행마다 칸
+        경계가 달라지면 열 격자(``colCnt``·``hp:cellAddr``·``hp:cellSpan``)를 그 경계로 다시
+        짜고, ``hp:cellzone``의 열 주소도 새 격자로 옮긴다. 칸 영역이 같은 칸을 덮는 사각형이
+        될 수 없으면 표를 그대로 두고 :class:`~hwpx.errors.HwpxValueError`를 낸다.
+
+        여러 행에 걸친 칸이 행마다 다른 자리를 받아야 하면(예: 세로로 합친 칸 옆 행들의
+        칸 수가 다름) 한/글처럼 표를 그대로 두고 :class:`~hwpx.errors.HwpxValueError`를
+        낸다. 격자 열마다 같은 너비를 주려면 ``set_column_widths([1] * column_count)``를
+        쓴다.
         """
-        self.set_column_widths([1] * self.column_count)
+
+        _table_sizes.equalize_column_widths(self)
 
     def equalize_row_heights(self) -> None:
         """모든 행 높이를 같게 만든다(6.13 트레인㊻, 갭"셀 높이를 같게").
@@ -1049,25 +1140,7 @@ class HwpxOxmlTable:
         0열 셀들의 높이 합으로 대체한다 — ``set_column_widths``의
         ``total_width`` 유도와 동형.
         """
-        sz = self.element.find(f"{_HP}sz")
-        if sz is not None and sz.get("height", "").isdigit():
-            total_height = int(sz.get("height", "0"))
-        else:
-            total_height = sum(self.cell(row, 0).height for row in range(self.row_count))
-        row_heights = _distribute_size(max(total_height, 0), self.row_count)
-
-        updated_cells: set[int] = set()
-        for entry in self.iter_grid():
-            marker = id(entry.cell.element)
-            if marker in updated_cells:
-                continue
-            updated_cells.add(marker)
-            start_row, start_col = entry.cell.address
-            span_row, span_col = entry.cell.span
-            if span_row <= 0 or span_col <= 0:
-                continue
-            height = sum(row_heights[start_row:start_row + span_row])
-            entry.cell.set_size(height=height)
+        _table_sizes.equalize_row_heights(self)
 
     def set_cell_text(
         self,
@@ -1388,16 +1461,24 @@ class HwpxOxmlTable:
 
     def _scan_merge_region(
         self, start_row: int, start_col: int, end_row: int, end_col: int, target: HwpxOxmlTableCell
-    ) -> tuple[set[ET.Element], int, int]:
+    ) -> tuple[set[ET.Element], int, int, list[ET.Element]]:
+        """The covered cells, the merged size, and the region's cells in reading order."""
         removal_elements: set[ET.Element] = set()
         width_elements: set[ET.Element] = set()
         height_elements: set[ET.Element] = set()
         total_width = 0
         total_height = 0
+        in_order: list[ET.Element] = []
+        seen: set[ET.Element] = set()
+        grid = self._build_cell_grid()
 
         for row_index in range(start_row, end_row + 1):
             for col_index in range(start_col, end_col + 1):
-                cell = self.cell(row_index, col_index)
+                entry = grid.get((row_index, col_index))
+                cell = entry.cell if entry is not None else self.cell(row_index, col_index)
+                if cell.element not in seen:
+                    seen.add(cell.element)
+                    in_order.append(cell.element)
                 cell_row, cell_col = cell.address
                 span_row, span_col = cell.span
                 if (
@@ -1415,7 +1496,7 @@ class HwpxOxmlTable:
                     total_height += cell.height
                 if cell.element is not target.element:
                     removal_elements.add(cell.element)
-        return removal_elements, total_width, total_height
+        return removal_elements, total_width, total_height, in_order
 
     @staticmethod
     def _remove_merged_cell_elements(
@@ -1433,6 +1514,25 @@ class HwpxOxmlTable:
             # them here instead of retaining deactivated placeholders.
             row_element.remove(element)
 
+    def _move_covered_contents(self, target: HwpxOxmlTableCell, region: list[ET.Element]) -> None:
+        # The merged cell takes the paragraphs of every cell that holds
+        # something, in reading order.  A blank cell adds nothing, and a blank
+        # merged cell gives up its own empty line to the moved paragraphs.
+        filled = [element for element in region if not _is_blank_cell(element)]
+        if not filled or (len(filled) == 1 and filled[0] is target.element):
+            return
+        sublist = target._ensure_sublist()
+        if filled[0] is not target.element:
+            for paragraph in sublist.findall(f"{_HP}p"):
+                sublist.remove(paragraph)
+        for element in filled:
+            source = element.find(f"{_HP}subList")
+            if element is target.element or source is None:
+                continue
+            for paragraph in source.findall(f"{_HP}p"):
+                source.remove(paragraph)
+                sublist.append(paragraph)
+
     def merge_cells(
         self,
         start_row: int | str,
@@ -1440,6 +1540,14 @@ class HwpxOxmlTable:
         end_row: int | None = None,
         end_col: int | None = None,
     ) -> HwpxOxmlTableCell:
+        """Merge a rectangle of cells into its top-left cell and return that cell.
+
+        The merged cell keeps the paragraphs of the covered cells that hold
+        text or objects, in reading order after its own; blank cells add nothing.
+        Rows the merge leaves without cells and columns no cell starts at are
+        removed, as Hancom does: a merge over whole rows makes one row of their
+        height, and merging a whole table leaves a one-cell table.
+        """
         if isinstance(start_row, str):
             start_row, start_col, end_row, end_col = self._parse_spreadsheet_range(start_row)
         if start_col is None or end_row is None or end_col is None:
@@ -1450,17 +1558,22 @@ class HwpxOxmlTable:
         new_col_span = end_col - start_col + 1
 
         element_to_row = self._build_element_to_row_map()
-        removal_elements, total_width, total_height = self._scan_merge_region(
+        removal_elements, total_width, total_height, region = self._scan_merge_region(
             start_row, start_col, end_row, end_col, target
         )
 
         if not removal_elements and target.span == (new_row_span, new_col_span):
             return target
 
+        self._move_covered_contents(target, region)
         self._remove_merged_cell_elements(removal_elements, element_to_row)
 
         target.set_span(new_row_span, new_col_span)
         target.set_size(total_width or target.width, total_height or target.height)
+        # the cell is wider or taller now and may hold moved paragraphs, so its
+        # line caches no longer describe it
+        target._clear_own_layout_caches()
+        collapse_merged_grid(self.element)
         self.mark_dirty()
         return target
 

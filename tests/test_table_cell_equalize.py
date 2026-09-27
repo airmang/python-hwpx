@@ -2,10 +2,10 @@
 """셀 높이/너비를 같게 -- cycle 6.13 트레인㊻ (편집기 메뉴 표면 역매핑
 트레인㊷·㊺가 찾은 "부분 대응": `set_column_widths`/`set_row_heights`류는
 이미 있었으나 "균등화" 전용 헬퍼가 없어 호출자가 매번 값을 직접 계산해야
-했다). ``equalize_column_widths``는 균등 가중치로 기존
-``set_column_widths``를 호출하는 것과 정확히 동치, ``equalize_row_heights``는
-그 행 대응(같은 rowSpan/iter_grid 로직, 축만 다름) -- 둘 다 신규 XML
-어휘가 전혀 없다.
+했다). ``equalize_column_widths``는 행마다 칸을 같게 한다(합친 칸이 없는
+표에서는 균등 가중치 ``set_column_widths``와 같다; 합친 칸·어긋난 경계는
+``test_equalize_widths_per_row.py``), ``equalize_row_heights``는 격자 행을
+같게 한다(같은 rowSpan/iter_grid 로직).
 """
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def test_equalize_column_widths_is_equivalent_to_uniform_weights() -> None:
     assert [a.cell(0, c).width for c in range(4)] == [b.cell(0, c).width for c in range(4)]
 
 
-def test_equalize_column_widths_gives_a_merged_cell_the_sum_of_its_span() -> None:
+def test_equalize_column_widths_counts_a_merged_cell_as_one_cell_of_its_row() -> None:
     document = HwpxDocument.new()
     table = document.add_table(rows=2, cols=4, width=40000)
     table.merge_cells("A1:B1")
@@ -44,8 +44,9 @@ def test_equalize_column_widths_gives_a_merged_cell_the_sum_of_its_span() -> Non
     table.equalize_column_widths()
 
     merged = table.cell(0, 0)
-    assert merged.span == (1, 2)
-    assert merged.width == table.cell(0, 2).width + table.cell(0, 3).width
+    assert merged.width == table.cell(0, 2).width == table.cell(0, 4).width
+    assert [table.cell(1, c).width for c in (0, 1, 3, 5)] == [10002] * 4
+    assert merged.width * 3 == 10002 * 4
 
 
 def test_equalize_row_heights_normalizes_uneven_heights() -> None:

@@ -449,7 +449,7 @@
 - `get_cell_map()`: `row_count x column_count` 크기의 2차원 리스트로 격자 맵을 반환합니다. 각 항목은 `HwpxTableGridPosition`입니다.
 - `set_cell_text(row_index, col_index, text, logical=False, split_merged=False)`: 셀의 텍스트 내용을 업데이트하는 단축 메서드입니다. `logical=True`를 지정하면 논리적 격자 좌표로 셀을 찾고, `split_merged=True`일 때는 병합을 자동으로 해제한 뒤 값을 씁니다. 내부적으로 줄 배치 캐시를 비워 한/글에서 셀 텍스트 변경 후 줄바꿈이 재계산되도록 합니다.
 - `split_merged_cell(row_index, col_index)`: 지정한 논리 좌표를 포함하는 병합 셀을 해제하고, 해당 위치에 독립적인 셀을 생성한 뒤 래퍼를 반환합니다.
-- `merge_cells(start_row, ...)`: 직사각형 영역의 유효성을 검사하고, 종속 셀을 제거하며, 병합 및 크기 값을 업데이트한 후, 살아남은 대상 셀을 반환합니다.
+- `merge_cells(start_row, ...)`: 직사각형 영역의 유효성을 검사하고, 종속 셀을 제거하며, 병합 및 크기 값을 업데이트한 후, 살아남은 대상 셀을 반환합니다. 종속 셀 중 글이나 개체가 있는 셀의 문단은 읽기 순서로 대상 셀에 옮기고, 빈 셀은 아무것도 보태지 않습니다.
 
 ### 클래스 `HwpxOxmlParagraph`
 
@@ -650,7 +650,7 @@
 - `load_default_schemas(schema_dir=None)`: 번들로 제공되는 헤더 및 섹션 XSD 파일을 로드하며, 스키마 디렉토리가 없을 때 예외를 발생시킵니다. 두 스키마는 루트 요소만 선언하고 나머지를 `<xs:any processContents="lax"/>`로 받는 느슨한 구조 스키마이므로, 통과했다고 해서 OWPML 전체가 검증된 것도 한컴이 문서를 연다는 뜻도 아닙니다.
 - `_iter_parts(document)`: `HwpxDocument`의 모든 헤더와 섹션에 대해 `(파트 이름, XML 바이트, 헤더 여부)`를 순회하는 내부 헬퍼입니다.
 - `_issues_from_error(part_name, exc)`: `lxml` 유효성 검사 오류를 `ValidationIssue` 인스턴스로 정규화합니다.
-- `validate_document(source, ...)`: 문서를 열고, 제공되지 않은 경우 기본 스키마를 로드하며, 각 헤더 및 섹션 파트를 적절한 파서로 검증하고 이슈를 집계합니다.
+- `validate_document(source, ..., full_schema=True)`: 문서를 열고, 제공되지 않은 경우 기본 스키마를 로드하며, 각 헤더 및 섹션 파트를 적절한 파서로 검증하고 이슈를 집계합니다. `full_schema`(기본 `True`)면 번들된 전체 OWPML 스키마(`owpml-*.xsd`)로도 검사해, 한/글이 여는 문서에도 있는 편차를 뺀 위반을 경고(`OWPML schema: …`)로 더합니다. `ok`는 하드 오류만 봅니다(`docs/owpml-deviations.md`).
 
 ***
 
