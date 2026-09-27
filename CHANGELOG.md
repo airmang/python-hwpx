@@ -190,6 +190,10 @@
 
 ### 고침
 
+- `doc.styles.replace_font()`가 한 언어 블록에 같은 이름으로 두 번 선언된 글꼴을 하나만 바꾸던 것을
+  고친다. 한/글이 저장한 문서에 흔한 모양으로, 둘째 선언을 가리키는 글자 모양은 옛 글꼴로 남는데
+  보고서는 그 블록이 바뀌었다고 알렸다. 이제 블록 안의 같은 이름 선언을 모두 지우고 그 참조를 모두 새
+  글꼴로 옮긴다.
 - MS Word처럼 배치하는 문서(`hh:compatibleDocument`의 `targetProgram="MS_WORD"`)를 `.hwp`로 열고 저장할
   때 배치 호환 설정이 사라지던 것을 고친다. 열 때 `hh:layoutCompatibility`를 비워 두고 저장할 때 0으로
   써서, Word 호환 배치가 모두 꺼졌다. 이제 켜진 설정마다 `hh:layoutCompatibility`의 자식 하나로
