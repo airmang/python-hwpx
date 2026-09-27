@@ -616,6 +616,88 @@ def test_table_height_counts_rows_not_merged_cells():
     assert finding.detail["min_height"] == 30 * 3600
 
 
+# A new table fits the page and stays inline: each row is stored one line high
+# (282). Filling it grows the rows as Hancom draws them -- 10 pt text at 160 %
+# takes 1600 a line and 1000 for the last, plus 141 + 141 of cell margins.
+_FILLED_ROW = 5 * 1600 + 1000 + 282  # six lines
+
+
+def _filled_table_doc(rows: int, *, split_paragraphs: bool) -> HwpxDocument:
+    doc = HwpxDocument.new()
+    doc.add_paragraph("표 앞 문단")
+    table = doc.add_table(rows, 2)
+    assert table.treat_as_char is True
+    for row in range(rows):
+        table.set_cell_text(row, 0, f"{row}행")
+        table.cell(row, 1).set_text(
+            "\n".join(f"{row}행 {line}줄" for line in range(6)), split_paragraphs=split_paragraphs
+        )
+    return doc
+
+
+def test_inline_table_grown_by_filled_lines_is_flagged():
+    for split_paragraphs in (True, False):  # paragraphs, or newlines Hancom shows as line breaks
+        doc = _filled_table_doc(8, split_paragraphs=split_paragraphs)
+        [finding] = _page_findings(lint_layout(_bytes(doc), overflow_policy="fail"))
+        assert finding.detail["min_height"] == 8 * _FILLED_ROW  # 262 mm
+        assert finding.detail["inline"] is True
+        assert finding.detail["rows_cut"] is False and finding.severity == "warning"
+
+    [cut] = _page_findings(lint_layout(_bytes(_filled_table_doc(10, split_paragraphs=True)), overflow_policy="fail"))
+    assert cut.detail["min_height"] == 10 * _FILLED_ROW
+    assert cut.severity == "error"
+
+
+def test_filled_lines_that_fit_the_page_body_are_not_flagged():
+    doc = _filled_table_doc(7, split_paragraphs=True)  # 229 mm
+    assert _page_findings(lint_layout(_bytes(doc))) == []
+
+
+def test_filled_lines_count_line_breaks_not_wrapping():
+    doc = HwpxDocument.new()
+    table = doc.add_table(2, 1)
+    table.set_cell_text(0, 0, "긴 글 " * 2000)  # wraps onto many lines, forces none
+    assert _page_findings(lint_layout(_bytes(doc))) == []
+
+
+def test_filled_lines_of_vertical_text_are_not_counted():
+    doc = _filled_table_doc(10, split_paragraphs=True)
+    for sub_list in doc.tables.all[0].element.iter(f"{HP}subList"):
+        sub_list.set("textDirection", "VERTICAL")
+    assert _page_findings(lint_layout(_bytes(doc))) == []
+
+
+def _row_table_doc(page_break: str) -> HwpxDocument:
+    doc = HwpxDocument.new()
+    doc.add_paragraph("표 앞 문단")
+    table = doc.add_table(3, 2)
+    table.set_treat_as_char(False)
+    table.element.set("pageBreak", page_break)
+    table.cell(1, 1).set_text("\n".join(f"{line}줄" for line in range(60)))
+    return doc
+
+
+def test_row_taller_than_the_page_in_a_table_broken_between_rows_is_flagged():
+    [finding] = _page_findings(lint_layout(_bytes(_row_table_doc("TABLE")), overflow_policy="fail"))
+    assert finding.detail["row"] == 1
+    assert finding.detail["min_height"] == 59 * 1600 + 1000 + 282  # 338 mm
+    assert finding.detail["inline"] is False and finding.detail["rows_cut"] is True
+    assert finding.severity == "error"
+    assert 'pageBreak="CELL"' in finding.message
+
+
+def test_row_taller_than_the_page_in_a_table_broken_inside_rows_is_not_flagged():
+    assert _page_findings(lint_layout(_bytes(_row_table_doc("CELL")))) == []
+
+
+def test_table_broken_between_rows_with_rows_that_fit_is_not_flagged():
+    doc = _long_table_doc(30)  # 381 mm of 12.7 mm rows
+    table = doc.tables.all[0]
+    table.set_treat_as_char(False)
+    table.element.set("pageBreak", "TABLE")
+    assert _page_findings(lint_layout(_bytes(doc))) == []
+
+
 def test_pipeline_strict_blocks_a_table_cut_off_at_the_page_edge(tmp_path):
     out = tmp_path / "blocked.hwpx"
     policy = QualityPolicy(
