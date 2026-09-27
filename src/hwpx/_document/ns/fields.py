@@ -90,6 +90,11 @@ class FieldsNamespace(_Namespace):
     ) -> "FieldFillResult":
         """누름틀 하나를 채우고 채움 결과를 돌려준다.
 
+        내용이 여러 문단에 걸친 누름틀은 한/글처럼 채운다. 걸친 문단(그 안의 표 포함)을 지우고,
+        값과 누름틀 끝을 시작 문단에 둔다. 끝 문단에서 누름틀 끝 뒤에 있던 글은 시작 문단으로 합친다.
+        끝(``hp:fieldEnd``)이 없는 누름틀은 바꿀 내용이 없으므로
+        ``HwpxValueError(code="field-end-missing")``를 낸다.
+
         실패는 결과의 불리언 필드가 아니라 typed error 로 나간다 — 5.x 의
         ``ok`` 키는 없다(설계서 §2.4, 헌법 VI fail-closed).
         """
