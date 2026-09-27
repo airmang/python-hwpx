@@ -366,7 +366,8 @@ def _cell_text(
     lines: list[str] = []
     for paragraph in tc.findall(f"{_HP}subList/{_HP}p"):
         _emit_nested_paragraph(paragraph, lines, tab_token=tab_token, labels=labels)
-    return _mask_text("\n".join(lines).strip(), masking_policy)
+    # blank lines at the cell's ends go; the spaces the text itself holds stay, as Hancom keeps them
+    return _mask_text("\n".join(lines).strip("\n"), masking_policy)
 
 
 def _emit_nested_paragraph(
