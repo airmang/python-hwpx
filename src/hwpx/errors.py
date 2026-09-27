@@ -239,6 +239,7 @@ ERROR_CODES: dict[str, str] = {
     "master-page-in-use": "지우려는 바탕쪽을 아직 어떤 절이 참조한다.",
     "master-page-manifest-missing": "content.hpf 매니페스트에 opf:manifest 요소가 없다.",
     "master-page-not-found": "그 id의 바탕쪽 파트가 문서에 없다.",
+    "master-page-pages-taken": "그 구역에 같은 쪽(종류와 번호)의 바탕쪽이 이미 있다.",
     "master-page-type-unsupported": "바탕쪽 type 값이 OWPML 어휘(BOTH/EVEN/ODD/LAST_PAGE/OPTIONAL_PAGE) 밖이다.",
     # -- 문서 병합(doc.merge) ------------------------------------------------
     "document-merge-index-out-of-range": "after_paragraph_index 가 대상 섹션의 문단 개수 범위를 벗어났다.",

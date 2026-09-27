@@ -33,6 +33,12 @@
   고딕에서는 한/글이 배치하는 글자별 폭으로 센다. 전에는 글자 종류별 평균(숫자 0.55 em, 문장 부호
   0.42 em 등)을 썼다. 한글·영문·기타·기호 글꼴이 모두 같은 글자 모양일 때 쓰고, 다른 글꼴이나 표에
   없는 글자는 전처럼 평균을 쓴다(`TextStyle.glyph_face`, `hwpx.form_fit.measure.glyph_advance_em`).
+- FormFit의 세로 예산(`SlotMetrics.height_lines`)이 한/글이 칸을 늘리는 식을 따른다. n줄은
+  (n − 1) × 줄 간격 + 글자 크기를 차지하고 마지막 줄의 줄 간격은 들어가지 않는다. 전에는 n × 줄
+  간격으로 셌다. 줄 간격은 비율(`PERCENT`)뿐 아니라 고정(`FIXED` = 값), 여백만(`BETWEEN_LINES` = 크기
+  + 값), 최소(`AT_LEAST` = 크기와 값 중 큰 것)도 읽는다(`SlotMetrics.line_spacing`). 전에는 비율이
+  아니면 160%로 봤다. 비율 줄 간격에서 크기를 넘는 부분은 한/글처럼 1/1800인치(4 HWPUNIT) 단위로
+  센다(크기를 그 단위로 내린 em에 비율을 곱해 반올림, 10.5pt 160%는 630이 아니라 628).
 - FormFit이 글자 폭을 한/글처럼 1/1800인치(4 HWPUNIT) 단위로 센다. 글꼴의 설계 폭을 글자 크기에
   맞춘 뒤 장평이 100%면 반올림하고 다른 장평이면 내린다. 자간은 그 폭에 비율을 곱해 0에서 먼 쪽으로
   반올림해 더한다. 반각 공백은 em의 절반(내림)에 장평을 곱해 반올림한다. 전에는 10pt에서 본 비율을
@@ -58,6 +64,8 @@
   `FormField.value`는 걸친 문단의 글을 한 줄에 한 문단씩 읽는다.
 - 끝(`hp:fieldEnd`)이 없는 누름틀을 `doc.fields.fill()`로 채우면 `HwpxValueError(code="field-end-missing")`를
   낸다. 바꿀 내용이 없기 때문이다(한/글도 이런 누름틀은 채우지 않는다). 전에는 값을 시작 뒤에 넣었다.
+- `doc.parts.add_master_page(section=...)`가 내는 `master-page-pages-taken`을 오류 코드 목록
+  (`hwpx.errors.ERROR_CODES`, `docs/error-codes.md`)에 올린다. 전에는 목록에 없었다.
 - `doc.styles.replace_font()`가 *dst_face*를 새로 선언하는 블록에 늘 `type="TTF"`를 쓰던 것을
   고친다. 다른 블록이 같은 글꼴을 `HFT`로 선언해도 그랬다. 이제 다른 블록에 *dst_face* 선언이
   있으면 그 `hh:font`를 id만 바꿔 복사한다. 그래서 `type`·`isEmbedded`·`hh:typeInfo`가 그 선언과

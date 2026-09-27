@@ -16,6 +16,8 @@ from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from hwpx.document import HwpxDocument
 from hwpx.form_fit import (
     FitEngine,
@@ -34,7 +36,9 @@ HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_li
 FACE_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_face_advance.hwpx"
 INLINE_OBJECTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_inline_objects.hwpx"
 GLYPH_WIDTHS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_glyph_widths.hwpx"
+LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_heights.hwpx"
 ROUNDED_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_rounded_advances.hwpx"
+LINE_PITCHES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_pitches.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
 
@@ -342,6 +346,53 @@ def test_glyph_widths_break_where_hancom_breaks() -> None:
         assert measure(cell.text, slot).lines == len(segs), (cell.text, slot.available_width)
 
 
+def test_each_line_spacing_type_advances_a_line_as_hancom_does() -> None:
+    def pitch(kind: str, value: float) -> float:
+        return SlotMetrics(available_width=5000.0, font_pt=10.0, line_spacing=(kind, value)).line_height()
+
+    assert [pitch("PERCENT", 130), pitch("FIXED", 1200), pitch("BETWEEN_LINES", 300)] == [1300, 1200, 1300]
+    assert [pitch("AT_LEAST", 800), pitch("AT_LEAST", 1500)] == [1000, 1500]
+
+
+def test_percent_spacing_is_counted_in_hancom_layout_units() -> None:
+    """The spacing beyond the size: the em in 1/1800 inch (size // 4) times the share, rounded half away
+    from zero, in units of 4 HWPUNIT; the size itself and the other spacing types are not rounded."""
+    def pitch(pt: float, kind: str, value: float) -> float:
+        return SlotMetrics(available_width=5000.0, font_pt=pt, line_spacing=(kind, value)).line_height()
+
+    assert [pitch(10.5, "PERCENT", p) for p in (90, 115, 130, 160, 175)] == [946, 1206, 1366, 1678, 1838]
+    assert [pitch(9.5, "PERCENT", p) for p in (90, 160)] == [854, 1518]
+    assert [pitch(10, "PERCENT", p) for p in (115, 175)] == [1152, 1752]
+    assert [pitch(10, "FIXED", 1333), pitch(10, "BETWEEN_LINES", 333), pitch(10, "AT_LEAST", 1333)] == [1333, 1333, 1333]
+
+
+def test_the_last_line_of_a_cell_takes_no_spacing() -> None:
+    slot = SlotMetrics(available_width=5000.0, font_pt=10.0, available_height=4200.0, line_spacing=("PERCENT", 160))
+
+    assert slot.height_lines() == 3  # 2 x 1600 + 1000
+    assert replace(slot, available_height=4199.0).height_lines() == 2
+
+
+@pytest.mark.parametrize("fixture, count", [(LINE_HEIGHTS, 46), (LINE_PITCHES, 26)])
+def test_the_line_budget_matches_the_heights_hancom_gives_cells(fixture: Path, count: int) -> None:
+    """Cells grown by Hancom to their text: 1 to 5 lines under every line spacing type at 10 and 12 pt,
+    and three lines at 9.5, 10.5 and 11.5 pt under 90 to 175 % and spacing values that are not multiples
+    of 4. The table height Hancom saved, less the cell margins, holds exactly those lines."""
+    doc = HwpxDocument.open(fixture.read_bytes())
+    tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+    assert len(tables) == count
+    for table in tables:
+        cell = table.cell(0, 0)
+        lines = len(cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg"))
+        height = int(table.element.find(f"{HP}sz").get("height"))
+        margin = cell.element.find(f"{HP}cellMargin")
+        content = height - int(margin.get("top")) - int(margin.get("bottom"))
+        slot = resolve_slot_metrics(cell, doc, safety=1.0)
+
+        assert replace(slot, available_height=float(content)).height_lines() == lines, (slot.line_spacing, content)
+        if lines > 1:
+            assert replace(slot, available_height=float(content - 1)).height_lines() == lines - 1
 def test_rounded_advances_break_where_hancom_breaks() -> None:
     """Addresses, dates, phone numbers, amounts and Latin in twelve faces at 9 to 12 pt, 장평 90 to 110 % and
     자간 -20 to 5 %, each in a cell exactly as wide as its line and in one 2 HWPUNIT narrower, laid out and
