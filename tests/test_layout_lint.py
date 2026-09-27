@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import zipfile
+from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from lxml import etree
@@ -696,6 +697,42 @@ def test_table_broken_between_rows_with_rows_that_fit_is_not_flagged():
     table.set_treat_as_char(False)
     table.element.set("pageBreak", "TABLE")
     assert _page_findings(lint_layout(_bytes(doc))) == []
+
+
+# Hancom saved a flowing 3 x 2 table whose middle row holds 60 paragraphs
+# (95,682 tall, more than the 65,764 page body) once per pageBreak value. It
+# saves a table that runs over pages as tall as its part on the first page, so
+# the saved height shows where Hancom broke the table.
+_ONE_LINE_ROW = 1000 + 282
+_ROW_OF_60 = 59 * 1600 + 1000 + 282
+
+
+def _saved_break_table(mode: str) -> tuple[bytes, int]:
+    data = (Path(__file__).parent / "fixtures" / "hancom_saved" / f"table_page_break_{mode}.hwpx").read_bytes()
+    root = ET.fromstring(zipfile.ZipFile(io.BytesIO(data)).read("Contents/section0.xml"))
+    table = next(root.iter(f"{HP}tbl"))
+    assert table.get("pageBreak") == mode.upper()
+    return data, int(table.find(f"{HP}sz").get("height"))
+
+
+def test_hancom_breaks_a_table_break_table_only_between_rows():
+    data, first_page = _saved_break_table("table")
+    assert first_page == _ONE_LINE_ROW  # the tall row went whole to the next page
+    [finding] = _page_findings(lint_layout(data))
+    assert finding.detail["row"] == 1 and finding.detail["min_height"] == _ROW_OF_60
+
+
+def test_hancom_breaks_a_cell_break_table_inside_rows():
+    data, first_page = _saved_break_table("cell")
+    assert first_page == _ONE_LINE_ROW + 37 * 1600 + 1000 + 282  # 38 of the 60 lines on the first page
+    assert _page_findings(lint_layout(data)) == []
+
+
+def test_hancom_keeps_a_none_break_table_on_one_page():
+    data, first_page = _saved_break_table("none")
+    assert first_page == _ONE_LINE_ROW + _ROW_OF_60 + _ONE_LINE_ROW
+    [finding] = _page_findings(lint_layout(data))
+    assert finding.detail["min_height"] == first_page and "row" not in finding.detail
 
 
 def test_pipeline_strict_blocks_a_table_cut_off_at_the_page_edge(tmp_path):
