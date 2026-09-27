@@ -69,6 +69,20 @@
   쪽을 넘는 상자 하나로 그려진다(한컴의 "문단 테두리 연결"). 상자 안의 빈 문단에도
   같은 서식을 주면 상자가 끊기지 않는다. 기존 `bottom_border=True`는 그대로
   아래 한 면만 켠다. 잘못된 지정은 `paragraph-border-invalid`로 거부한다.
+- 글꼴 표와 테두리를 값으로 읽는다. `doc.styles.fonts(lang="HANGUL")`는 그 lang 블록의
+  글꼴을 id 문자열 → `Font`로, `doc.styles.font_face(char_pr_id_ref, lang="HANGUL")`는 글자
+  모양이 그 lang에서 가리키는 글꼴 이름을 돌려준다. `doc.styles.border_fill_info(id)`는
+  `hh:borderFill` 하나를 `BorderFillInfo`(네 변과 대각선의 `BorderLine(type, width_mm, color)`,
+  단색 채우기 `fill`)로 돌려준다. 값은 저장된 그대로이고, 그라데이션·그림 채우기는 설명하지
+  않는다(`fill`은 `None`). 너비를 읽을 수 없으면 `style-border-fill-width-invalid`다. 기존
+  `border_fill()`은 그대로 `GenericElement`를 돌려준다. 모두 메모리의 헤더를 읽어
+  `ensure_font()`·`ensure_border_fill()` 직후에도 맞는다.
+- `doc.styles.replace_font(src_face, dst_face, *, langs=None)`로 글꼴 하나를 문서 전체에서
+  다른 글꼴로 바꾼다(읽는 쪽에 없는 장식 글꼴을 흔한 글꼴로 바꿀 때). lang 블록마다 바꿀
+  글꼴을 지우고 남은 글꼴 id를 0부터 다시 매기며, 모든 글자 모양의 `fontRef`를 옮겨 다른
+  참조가 가리키는 글꼴은 바뀌지 않는다. 결과는 `FontReplaceReport`(바뀐 블록 `langs`, 새로
+  선언한 블록 `declared`, 옮긴 참조 수 `repointed`)다. 같은 글꼴 둘은
+  `style-font-replace-same-face`로 거부한다.
 - 표 셀 안쪽 여백을 읽고 쓴다. `cell.margins`는 한/글이 셀을 배치하는 여백을
   `hwpx.objects.CellMargins`(HWPUNIT, `left`·`right`·`top`·`bottom`)로 돌려준다. 셀의
   `hasMargin`이 꺼져 있으면 표의 `hp:inMargin`, 켜져 있으면 셀의 `hp:cellMargin`이다.

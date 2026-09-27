@@ -249,10 +249,85 @@ class PageSetup:
         }
 
 
+@dataclass(frozen=True)
+class BorderLine:
+    """One side of an ``hh:borderFill`` (``doc.styles.border_fill_info``).
+
+    ``type`` and ``color`` are the stored attribute values, unnormalized;
+    ``width_mm`` is the number in front of the stored ``"<n> mm"`` width.
+    """
+
+    type: str
+    width_mm: float
+    color: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": self.type, "widthMm": self.width_mm, "color": self.color}
+
+
+@dataclass(frozen=True)
+class BorderFillInfo:
+    """A typed read of one ``hh:borderFill`` (``doc.styles.border_fill_info``).
+
+    ``fill`` is the solid ``hc:winBrush`` face colour, or ``None`` when there
+    is no solid fill. Gradient and image fills are not described here.
+    Like the action results above, it is a snapshot taken at call time and
+    does not follow later edits to the header.
+    """
+
+    id: str
+    left: BorderLine
+    right: BorderLine
+    top: BorderLine
+    bottom: BorderLine
+    diagonal: BorderLine
+    fill: str | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "left": self.left.to_dict(),
+            "right": self.right.to_dict(),
+            "top": self.top.to_dict(),
+            "bottom": self.bottom.to_dict(),
+            "diagonal": self.diagonal.to_dict(),
+            "fill": self.fill,
+        }
+
+
+@dataclass(frozen=True)
+class FontReplaceReport:
+    """The outcome of ``doc.styles.replace_font``.
+
+    ``langs`` lists the ``hh:fontface`` blocks that changed, in document
+    order; ``declared`` the blocks where the replacement face was newly
+    added; ``repointed`` counts the ``hh:fontRef`` attributes moved from the
+    old face to the new one.
+    """
+
+    src_face: str
+    dst_face: str
+    langs: tuple[str, ...]
+    repointed: int
+    declared: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "srcFace": self.src_face,
+            "dstFace": self.dst_face,
+            "langs": list(self.langs),
+            "repointed": self.repointed,
+            "declared": list(self.declared),
+        }
+
+
 __all__ = [
+    "BorderFillInfo",
+    "BorderLine",
     "CellMargins",
     "ColumnLayout",
     "FieldFillResult",
+    "FontReplaceReport",
     "ListFormatResult",
     "PageMargins",
     "PageSetup",
