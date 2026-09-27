@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Iterator, cast
 from ..errors import HwpxStateError, HwpxValueError
 from ..objects.binary_item import BinaryItem, PictureRef
 from ..objects.results import PictureReplacement
+from ..opc.relationships import normalize_part_name, resolve_part_name
 from ..oxml import HwpxOxmlInlineObject, HwpxOxmlParagraph
 from ..oxml.namespaces import HC, HP
 from ._units import _mm_to_hwp_units
@@ -82,6 +83,10 @@ def _bin_data_stem(value: Any) -> str | None:
     return stem or None
 
 
+#: ``align`` values an inline picture also takes as its paragraph alignment.
+_INLINE_PICTURE_ALIGNMENT = {"LEFT": "LEFT", "CENTER": "CENTER", "RIGHT": "RIGHT"}
+
+
 def add_picture(
     doc: "HwpxDocument",
     image_data: bytes,
@@ -134,6 +139,13 @@ def add_picture(
         include_run=False,
         **cast(Any, extra_attrs),
     )
+    alignment = _INLINE_PICTURE_ALIGNMENT.get(str(align).strip().upper()) if align else None
+    if alignment is not None and doc._root.headers:
+        # The picture sits in the text line, so Hancom places it by the
+        # paragraph's alignment; hp:pos/@horzAlign alone does not move it.
+        paragraph.para_pr_id_ref = doc._root.headers[0].ensure_paragraph_format(
+            base_para_pr_id=paragraph.para_pr_id_ref, alignment=alignment,
+        )
     return paragraph.add_picture(
         binary_item_id_ref,
         width=resolved_width,
@@ -332,12 +344,7 @@ def _existing_image_item_ids(doc: "HwpxDocument") -> set[str]:
 
     for item in doc._package._manifest_items():
         href = str(item.get("href", "")).strip()
-        media_type = str(item.get("media-type", "")).strip().lower()
-        href_path = PurePosixPath(href)
-        if (
-            media_type.startswith("image/")
-            or (len(href_path.parts) >= 2 and href_path.parts[0] == "BinData")
-        ):
+        if _is_binary_manifest_item(href, str(item.get("media-type", "")).strip()):
             item_id = str(item.get("id", "")).strip()
             if item_id:
                 existing_ids.add(item_id)
@@ -352,15 +359,28 @@ def _existing_image_item_ids(doc: "HwpxDocument") -> set[str]:
     return existing_ids
 
 
+def _is_binary_manifest_item(href: str, media_type: str) -> bool:
+    href_path = PurePosixPath(href)
+    return media_type.lower().startswith("image/") or (
+        len(href_path.parts) >= 2 and href_path.parts[0] == "BinData"
+    )
+
+
 def list_images(doc: "HwpxDocument") -> tuple[BinaryItem, ...]:
-    """Return every embedded binary data item as a :class:`BinaryItem`."""
+    """Return every embedded binary data item as a :class:`BinaryItem`.
+
+    Items the header ``binDataList`` lists come first. Binary items only the
+    ``content.hpf`` manifest lists (href under ``BinData/`` or an ``image/*``
+    media type) follow in manifest order -- Hancom-saved files usually
+    have no ``binDataList`` at all. Items marked ``isEmbeded="0"`` link a
+    file outside the package and are left out; an embedded item whose part
+    is missing is listed with ``size=0``.
+    """
 
     header = doc._root.headers[0] if doc._root.headers else None
-    if header is None:
-        return ()
 
     items: list[BinaryItem] = []
-    for entry in header.list_bin_items():
+    for entry in header.list_bin_items() if header is not None else ():
         bin_data = entry.get("BinData", "")
         item_id = _bin_data_stem(bin_data) or entry.get("id", "")
         href = f"BinData/{bin_data}" if bin_data else ""
@@ -370,14 +390,38 @@ def list_images(doc: "HwpxDocument") -> tuple[BinaryItem, ...]:
         items.append(
             BinaryItem(item_id=item_id, format=entry.get("Format", ""), href=href, size=size)
         )
+
+    listed = {item.item_id for item in items}
+    package = doc._package
+    manifest_path = package.main_content.full_path
+    part_names = package.part_names()
+    for manifest_item in package._manifest_items():
+        item_id = str(manifest_item.get("id", "")).strip()
+        href = str(manifest_item.get("href", "")).strip()
+        if not item_id or not href:
+            continue
+        if not _is_binary_manifest_item(href, str(manifest_item.get("media-type", "")).strip()):
+            continue
+        if manifest_item.get("isEmbeded") == "0":
+            continue  # links a file outside the package; not a binary it holds
+        if item_id in listed or _bin_data_stem(href) in listed:
+            continue
+        part_name = resolve_part_name(manifest_path, href, known_parts=part_names)
+        size = len(package.read(part_name)) if package.has_part(part_name) else 0
+        fmt = PurePosixPath(href).suffix.lower().lstrip(".")
+        items.append(BinaryItem(item_id=item_id, format=fmt, href=href, size=size))
+        listed.add(item_id)
     return tuple(items)
 
 
-def remove_image(doc: "HwpxDocument", item_id: str) -> bool:
-    """Remove an embedded image by its manifest item id.
+def remove_image(doc: "HwpxDocument", item_id: "str | BinaryItem") -> bool:
+    """Remove an embedded image by its manifest item id or part path.
 
-    This removes the binary data from the ZIP, the manifest entry, and
-    the header binItem entry.
+    *item_id* is a manifest id (``"image1"``), a part path
+    (``"BinData/image1.png"``), or a :class:`BinaryItem` from
+    :func:`list_images`. This removes the binary data from the ZIP, the
+    manifest entry, and the header binItem entry when there is one, so
+    items only the manifest lists are removed too.
 
     Returns:
         ``True`` if any component was removed.
@@ -386,6 +430,7 @@ def remove_image(doc: "HwpxDocument", item_id: str) -> bool:
     # 6.0: callers may hand back the BinaryItem that add_image returned; its
     # str() is the manifest id, which is the join key this walk uses.
     item_id = str(item_id)
+    part_path = normalize_part_name(item_id) if "/" in item_id else None
     removed = False
     header = doc._root.headers[0] if doc._root.headers else None
 
@@ -395,14 +440,22 @@ def remove_image(doc: "HwpxDocument", item_id: str) -> bool:
     if header is not None:
         for bi in header.list_bin_items():
             bin_data_val = bi.get("BinData", "")
-            # Match by data file name prefix (e.g. "BIN0001" matches "BIN0001.jpg")
-            if bin_data_val.startswith(item_id):
+            if part_path is not None:
+                matched = f"BinData/{bin_data_val}" == part_path
+            else:
+                # Match the data file name's stem ("BIN0001" matches "BIN0001.jpg"),
+                # or the whole file name; a prefix match would take "image10.png"
+                # for "image1".
+                matched = item_id in (bin_data_val, _bin_data_stem(bin_data_val))
+            if matched:
                 bin_item_numeric_id = bi.get("id")
                 if bin_data_val:
                     bin_data_path = f"BinData/{bin_data_val}"
                 break
 
     # Also try manifest-based lookup for the file path
+    if bin_data_path is None:
+        bin_data_path = part_path
     if bin_data_path is None:
         manifest_el = doc._package._manifest_element()
         if manifest_el is not None:
@@ -419,7 +472,7 @@ def remove_image(doc: "HwpxDocument", item_id: str) -> bool:
         if header.remove_bin_item(bin_item_numeric_id):
             removed = True
 
-    # Remove from manifest
+    # Remove from manifest (by id, or by href when given a part path)
     if doc._package.remove_manifest_item(item_id):
         removed = True
 

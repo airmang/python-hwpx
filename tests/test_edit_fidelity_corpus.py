@@ -64,10 +64,10 @@ CASES = [
     {"id": "repeated-rows", "file": "tool__textextractor__Table.hwpx", "kind": "rows",
      "row": 2, "count": 2, "expected": "completed",
      "reason": "clone a data row twice; verify row addresses, styles and untouched content"},
-    {"id": "merged-row-refusal", "file": "reader_writer__SimpleTable.hwpx", "kind": "rows",
-     "row": 0, "count": 1, "expected": "safe_refusal",
-     "refusal": "clone source row must have rowSpan==1 cells",
-     "reason": "rowSpan source is outside insert_row_by_clone; block cloning is a separate API"},
+    {"id": "merged-row-clone", "file": "reader_writer__SimpleTable.hwpx", "kind": "rows",
+     "row": 0, "count": 1, "expected": "completed",
+     "reason": "a row holding a merged cell that runs on below: the merged cell grows over the new row "
+               "and only the other cells are cloned, as Hancom inserts a row"},
 ]
 
 
@@ -128,7 +128,12 @@ def _compare_modified_section(before: bytes, after: bytes, case: dict) -> dict:
         old_rows, new_rows = old_table.findall(HP + "tr"), new_table.findall(HP + "tr")
         row_index, count = case["row"], case["count"]
         assert len(new_rows) == len(old_rows) + count
-        reference = old_rows[row_index]
+        # A cell running on below the reference row grows over the new rows
+        # instead of being cloned, so the clone holds the reference row's other cells.
+        reference = copy.deepcopy(old_rows[row_index])
+        for cell in reference.findall(HP + "tc"):
+            if int(cell.find(HP + "cellSpan").get("rowSpan", "1")) > 1:
+                reference.remove(cell)
         reference_ids = [p.get("id") for p in reference.iter(HP + "p")]
         for i in range(count):
             clone = new_rows[row_index + 1 + i]
@@ -149,6 +154,12 @@ def _compare_modified_section(before: bytes, after: bytes, case: dict) -> dict:
         # rest of the section, including other objects and tables, to match.
         assert int(new_table.get("rowCnt")) == int(old_table.get("rowCnt")) + count
         new_table.set("rowCnt", old_table.get("rowCnt"))
+        for row in new_table.findall(HP + "tr")[: row_index + 1]:
+            for cell in row.findall(HP + "tc"):
+                span = cell.find(HP + "cellSpan")
+                top = int(cell.find(HP + "cellAddr").get("rowAddr"))
+                if top + int(span.get("rowSpan", "1")) - 1 > row_index:
+                    span.set("rowSpan", str(int(span.get("rowSpan")) - count))
         for row in new_table.findall(HP + "tr")[row_index + 1:]:
             for address in row.iter(HP + "cellAddr"):
                 address.set("rowAddr", str(int(address.get("rowAddr")) - count))

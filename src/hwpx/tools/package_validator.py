@@ -15,6 +15,7 @@ from lxml import etree as LET  # type: ignore[reportMissingImports]
 
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from ..oxml.objects import _REQUIRED_SHAPE_CHILD_NAMES
+from ..oxml.utils import hancom_text_length
 from ..opc.security import HwpxSecurityError, MAX_ZIP_MEMBER_BYTES, MAX_ZIP_MIMETYPE_BYTES, MAX_ZIP_SMALL_PART_BYTES, read_member
 from ..opc.relationships import (
     MAIN_ROOTFILE_MEDIA_TYPE,
@@ -360,8 +361,20 @@ def _simple_paragraph_text(paragraph: ET.Element) -> str | None:
 
 
 def _simple_paragraph_text_length(paragraph: ET.Element) -> int | None:
-    text = _simple_paragraph_text(paragraph)
-    return None if text is None else len(text)
+    """Length in Hancom's text positions, the unit of ``hp:lineseg@textpos``.
+
+    An inline element of ``hp:t`` takes its Hancom width (a tab takes 8); a
+    run-level control counts one, as in :func:`_simple_paragraph_text`.
+    """
+    if _simple_paragraph_text(paragraph) is None:
+        return None
+    total = 0
+    for run in paragraph:
+        if _local_name(run).lower() != "run":
+            continue
+        for child in run:
+            total += hancom_text_length(child) if _local_name(child).lower() == "t" else 1
+    return total
 
 
 #: 꼬리 폭 판정 마진 — 추정 폭이 줄 폭의 이 배수를 넘을 때만 증명으로 취급.
@@ -432,9 +445,9 @@ def _check_line_seg_text_positions(
         element for element in root.iter() if _local_name(element) == "p"
     ):
         text = _simple_paragraph_text(paragraph)
-        if text is None:
+        text_length = _simple_paragraph_text_length(paragraph)
+        if text is None or text_length is None:
             continue
-        text_length = len(text)
         for child in paragraph:
             if _local_name(child).lower() != "linesegarray":
                 continue

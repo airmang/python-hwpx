@@ -106,10 +106,13 @@ document.save_to_path("/mnt/data/report.hwpx")
 from hwpx import HwpxDocument
 
 document = HwpxDocument.open("/mnt/data/form.hwpx")
-count = document.text.replace("○○", "새 값")
+count = document.text.replace("○○", "새 값", everywhere=True)
 document.save_to_path("/mnt/data/form-filled.hwpx")
-print("바뀐 run 수:", count)
+print("바꾼 곳 수:", count)
 ```
+
+양식의 자리 표시는 대개 표 칸에 있어서 `everywhere=True`가 필요합니다. 이 인자가
+없으면 본문 문단만 바꿉니다.
 
 손대지 않은 부분은 바이트 그대로 보존되고, 저장은 원자적이며 보존 등급을
 지킬 수 없으면 아무것도 쓰지 않고 실패합니다. 자세한 API는

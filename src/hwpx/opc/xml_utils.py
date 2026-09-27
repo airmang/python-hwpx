@@ -31,6 +31,23 @@ _XML_MARKUP = re.compile(
     re.S,
 )
 _XML_ATTRIBUTE = re.compile(rb"([\w:.-]+)(\s*=\s*)([\"'])(.*?)\3", re.S)
+_HWPML_2016_MAPPING: dict[bytes, bytes] = dict(_HWPML_2016_TO_2011)
+# Every 2016 URI above contains this; a tag without it has nothing to rewrite.
+_HWPML_2016_MARKER = b"hwpml/2016/"
+
+
+def _normalize_attribute(match: re.Match[bytes]) -> bytes:
+    name, equals, quote, value = match.groups()
+    if name == b"xmlns" or name.startswith(b"xmlns:"):
+        value = _HWPML_2016_MAPPING.get(value, value)
+    return name + equals + quote + value + quote
+
+
+def _normalize_markup(match: re.Match[bytes]) -> bytes:
+    tag = match.group()
+    if _HWPML_2016_MARKER not in tag or tag.startswith((b"<!", b"<?")):
+        return tag
+    return _XML_ATTRIBUTE.sub(_normalize_attribute, tag)
 
 
 def normalize_hwpml_namespaces(data: bytes) -> bytes:
@@ -40,22 +57,34 @@ def normalize_hwpml_namespaces(data: bytes) -> bytes:
     not a namespace declaration. Rewriting it can select the wrong switch case.
     Comments, CDATA, processing instructions and quoted non-xmlns values stay
     byte-identical. The parser still uses the canonical 2011 namespace family.
+
+    Only a tag that contains a 2016 URI can change, so those tags are found
+    directly from the URI occurrences instead of scanning every tag and
+    attribute. When the part has comments, CDATA or a DOCTYPE (``<!``), where a
+    ``<`` does not always open a tag, every piece of markup is scanned in order.
     """
-    mapping = dict(_HWPML_2016_TO_2011)
-
-    def attribute(match: re.Match[bytes]) -> bytes:
-        name, equals, quote, value = match.groups()
-        if name == b"xmlns" or name.startswith(b"xmlns:"):
-            value = mapping.get(value, value)
-        return name + equals + quote + value + quote
-
-    def markup(match: re.Match[bytes]) -> bytes:
-        tag = match.group()
-        if tag.startswith((b"<!", b"<?")):
-            return tag
-        return _XML_ATTRIBUTE.sub(attribute, tag)
-
-    return _XML_MARKUP.sub(markup, data)
+    if _HWPML_2016_MARKER not in data:
+        return data
+    if b"<!" in data:
+        return _XML_MARKUP.sub(_normalize_markup, data)
+    out: list[bytes] = []
+    pos = 0
+    hit = data.find(_HWPML_2016_MARKER)
+    while hit != -1:
+        # Attribute values cannot hold "<", so the last "<" before the URI
+        # opens the tag that holds it, if any does.
+        start = data.rfind(b"<", pos, hit)
+        match = _XML_MARKUP.match(data, start) if start != -1 else None
+        if match is None or match.end() <= hit or data.startswith(b"<?", start):
+            # the URI sits in text or in a processing instruction: left as is
+            hit = data.find(_HWPML_2016_MARKER, hit + len(_HWPML_2016_MARKER))
+            continue
+        out.append(data[pos:start])
+        out.append(_XML_ATTRIBUTE.sub(_normalize_attribute, match.group()))
+        pos = match.end()
+        hit = data.find(_HWPML_2016_MARKER, pos)
+    out.append(data[pos:])
+    return b"".join(out)
 
 
 def parse_xml(data: bytes) -> etree._Element:

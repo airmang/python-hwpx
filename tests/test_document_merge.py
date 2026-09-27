@@ -814,6 +814,65 @@ def test_merge_keeps_a_field_pair_that_spans_paragraphs() -> None:
         assert field_end.get("fieldid") == field_begin.get("fieldid")
 
 
+def _pack_controls_beside_colpr(paragraph_element) -> None:
+    """Some Hancom files put other controls in the ctrl that holds colPr: here a
+    page-number restart and a click-here field whose end comes later in the paragraph."""
+
+    ctrl = next(c for c in paragraph_element.iter(f"{_HP}ctrl") if c.find(f"{_HP}colPr") is not None)
+    ctrl.append(ctrl.makeelement(f"{_HP}newNum", {"num": "1", "numType": "PAGE"}))
+    ctrl.append(ctrl.makeelement(f"{_HP}fieldBegin", {"id": "2134831757", "type": "CLICK_HERE", "fieldid": "627272811"}))
+    _field_run(paragraph_element, "fieldEnd", {"beginIDRef": "2134831757", "fieldid": "627272811"})
+
+
+def _assert_fields_paired(section_element) -> None:
+    begins = {n.get("id") for n in section_element.iter(f"{_HP}fieldBegin")}
+    ends = [n.get("beginIDRef") for n in section_element.iter(f"{_HP}fieldEnd")]
+    assert ends
+    assert all(end in begins for end in ends)
+
+
+def test_append_keeps_controls_that_share_the_column_layout_ctrl() -> None:
+    source = HwpxDocument.new()
+    source.add_paragraph("body")
+    _pack_controls_beside_colpr(source.sections[0].paragraphs[0].element)
+
+    target = HwpxDocument.new()
+    target.add_paragraph("existing")
+    report = append_document(target, source)
+
+    assert report["sectionPropertiesStripped"] == 1
+    section = target.sections[0].element
+    _assert_fields_paired(section)
+    assert len(list(section.iter(f"{_HP}newNum"))) == 1
+    assert len(list(section.iter(f"{_HP}colPr"))) == 1  # the target's own
+    reopened = HwpxDocument.open(target.to_bytes())
+    _assert_fields_paired(reopened.sections[0].element)
+
+
+def test_insert_before_first_paragraph_moves_only_the_column_layout() -> None:
+    source = HwpxDocument.new()
+    source.add_paragraph("top")
+
+    target = HwpxDocument.new()
+    target.add_paragraph("existing")
+    first = target.sections[0].paragraphs[0].element
+    _pack_controls_beside_colpr(first)
+    old_first_id = first.get("id")
+
+    report = insert_document(target, source, after_paragraph_index=-1)
+
+    assert report["sectionPropertiesRelocated"] is True
+    section = target.sections[0]
+    new_first = section.paragraphs[0].element
+    assert new_first.find(f"{_HP}run/{_HP}secPr") is not None
+    (colpr_ctrl,) = [c for c in new_first.iter(f"{_HP}ctrl") if c.find(f"{_HP}colPr") is not None]
+    assert [child.tag for child in colpr_ctrl] == [f"{_HP}colPr"]
+    old_first = next(p.element for p in section.paragraphs if p.element.get("id") == old_first_id)
+    assert old_first.find(f".//{_HP}fieldBegin") is not None
+    assert old_first.find(f".//{_HP}newNum") is not None
+    _assert_fields_paired(section.element)
+
+
 def test_merge_pairs_each_field_end_with_its_own_begin_when_fieldids_repeat() -> None:
     # Hancom gives every field of a type one fieldid, so two click-here
     # fields share 627272811; each end must follow the begin it names.

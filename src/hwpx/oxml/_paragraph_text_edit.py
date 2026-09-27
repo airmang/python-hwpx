@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Small helpers for a style-preserving paragraph text edit."""
+"""Small helpers for editing the text inside ``hp:t`` and for taking a paragraph out of its list."""
 
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 
 from ..errors import HwpxValueError
-from ._document_primitives import _is_tab_control_element
+from ._document_primitives import _HP_NS, _child_tag_like, _is_tab_control_element, _sanitize_text
 from .namespaces import tag_local_name
 
 
@@ -40,3 +40,78 @@ def edit_node_candidates(
             candidates.append((node, offset))
         offset += length
     return candidates
+
+
+def sanitize_keeping_tabs(value: str) -> str:
+    """``_sanitize_text``, but keep tabs for :func:`set_text_with_tabs`."""
+
+    return "\t".join(_sanitize_text(part) for part in value.split("\t"))
+
+
+def set_text_with_tabs(text_element: ET.Element, value: str) -> None:
+    """Make *value* the whole content of the ``hp:t`` *text_element*.
+
+    Each tab becomes an ``hp:tab`` inside it, the way Hancom writes one.
+    Elements already inside it (line breaks, tabs, spaces, marks) go, with the
+    text after them: they belong to the old value.
+    """
+
+    tab_tag = _child_tag_like(text_element, "tab", _HP_NS)
+    for child in list(text_element):
+        text_element.remove(child)
+    segments = value.split("\t")
+    text_element.text = _sanitize_text(segments[0])
+    for segment in segments[1:]:
+        tab_element = text_element.makeelement(tab_tag, {})
+        tab_element.tail = _sanitize_text(segment)
+        text_element.append(tab_element)
+
+
+def clear_text_element(text_element: ET.Element) -> None:
+    """Empty an ``hp:t``: its text, and the elements inside it with the text after them."""
+
+    for child in list(text_element):
+        text_element.remove(child)
+    if text_element.text:
+        text_element.text = ""
+
+
+def paragraph_container(element: ET.Element, section_element: ET.Element) -> ET.Element | None:
+    """The element that directly holds the paragraph *element*: its section or a ``hp:subList``."""
+
+    if hasattr(element, "getparent"):
+        return element.getparent()
+    return next((node for node in section_element.iter() if any(child is element for child in node)), None)
+
+
+#: What holds a ``hp:subList`` paragraph list, as a refusal names it.
+_SUBLIST_OWNERS = {"tc": "cell", "header": "header", "footer": "footer"}
+
+
+def remove_paragraph_element(element: ET.Element, section_element: ET.Element) -> bool:
+    """Take the paragraph *element* out of the section or ``hp:subList`` holding it.
+
+    Returns ``False`` when it is already gone. The last paragraph of its list
+    stays: HWPX needs one ``<hp:p>`` per section, and Hancom cannot open a cell,
+    header or footer whose paragraph list is empty.
+    """
+
+    parent = paragraph_container(element, section_element)
+    if parent is None:
+        return False
+    if len(parent.findall(f"{{{_HP_NS}}}p")) <= 1:
+        if parent is section_element:
+            container = "section"
+        else:
+            owner = paragraph_container(parent, section_element)
+            name = tag_local_name(owner.tag) if owner is not None else "subList"
+            container = _SUBLIST_OWNERS.get(name, name)
+        raise HwpxValueError(
+            "섹션과 셀·머리말·꼬리말에는 최소 하나의 단락이 필요합니다. "
+            "마지막 단락은 삭제할 수 없습니다.",
+            code="paragraph-remove-last",
+            context={"container": container},
+            suggestion='마지막 단락은 지우지 말고 글을 비우세요(paragraph.text = "").',
+        )
+    parent.remove(element)
+    return True

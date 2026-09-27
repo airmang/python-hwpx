@@ -18,6 +18,7 @@ from .lint import (
     REQUIRED_FIELD_MISSING,
     STALE_LINESEG_DETECTED,
     TABLE_STRUCTURE_INVALID,
+    TABLE_TALLER_THAN_PAGE,
     lint_layout,
 )
 from .report import LayoutFinding, LayoutLintReport
@@ -33,4 +34,5 @@ __all__ = [
     "REQUIRED_FIELD_MISSING",
     "TABLE_STRUCTURE_INVALID",
     "OVERFLOW_RISK",
+    "TABLE_TALLER_THAN_PAGE",
 ]

@@ -4,11 +4,515 @@
 
 ## [Unreleased]
 
+### 추가
+
+- `Section.clear_body()`로 문서를 양식 틀로 비운다. 첫 문단 첫 run의 `hp:secPr`(쪽
+  설정)와 `hp:ctrl`(단·머리말·꼬리말·쪽 번호)을 남기고, 나머지 문단, 첫 문단의 다른
+  run, 첫 run의 다른 자식, 첫 문단의 줄 배치 캐시를 지운다. 머리말·꼬리말처럼 남길
+  컨트롤 안에 글·표·개체·양식 개체·덧말·글자 겹침이 있으면 기본으로 `section-clear-control-content`로 거부하고,
+  `on_control_content="keep"`은 남기며, `"strip"`은 그 컨트롤과 `hp:secPr` 안의
+  머리말·꼬리말 사본을 지운다. `"strip"`으로도 지울 수 없는 내용이 있으면 거부한다.
+  어느 쪽이든 찾은 태그를 `ClearBodyReport.control_content`에 담는다. 거부는 바꾸기
+  전에 일어난다.
+- `Run.content_kinds()`가 run이 담은 것을 닫힌 어휘(`RUN_CONTENT_KINDS`: `text`·
+  `table`·`picture`·`shape`·`equation`·`ole`·`chart`·`video`·`form`·`control`·
+  `section_properties`·`other`)로 알려 준다. 빈 `hp:t`는 글로 세지 않는다.
+- `doc.text.plain()`·`markdown()`·`html()`(`hwpx.tools.exporter`)에 `list_labels` 인자(기본
+  `False`): 번호·개요·글머리표 문단 앞에 한/글이 그리는 글자(`1.`·`가.`·`①`·`●` 등)와 공백
+  하나를 붙인다. 번호는 번호 정의와 수준마다 문서 순서로 세고(윗수준이 오면 아랫수준은 새로
+  시작, 건너뛴 윗수준은 시작값), 개요 문단은 구역의 개요 번호를 쓴다. 표 칸 문단도 읽는 순서로
+  센다(`include_tables=False`로 표를 빼도 세기는 한다). 쓸 수 있는 번호 모양은 숫자·한글·자모·
+  원 숫자·원 한글·로마 숫자·라틴 문자이고, 다른 모양(갑·일·一 등)의 문단에는 라벨을 붙이지 않는다.
+  센다(`include_tables=False`로 표를 빼도 세기는 한다). `^N`은 1수준부터 그 수준까지의 번호를
+  숫자로 잇고(`1.2.`), 정의가 없는 번호는 모든 수준을 그렇게 쓰며, 정의가 없는 글머리표는 `●`로
+  쓴다. 글자가 기호 글꼴 문자(사용자 정의 영역의 U+F09F·U+F0A7 등) 하나뿐이면 한/글의 텍스트
+  저장처럼 `●`·`■` 등 유니코드 기호로 쓴다. 쓸 수 있는 번호 모양은 숫자·한글·자모·원 숫자·
+  원 한글·로마 숫자·라틴 문자이고, 다른 모양(갑·일·一 등)의 문단에는 라벨을 붙이지 않는다.
+- 셀 필드(이름 붙은 표 칸, `hp:tc@name`): `doc.fields.cells`가 문서 순서로 돌려주고(본문 표와
+  칸 안의 표), `doc.fields.fill_cell(value, name=..., index=None)`이 한/글 `PutFieldText`처럼
+  같은 이름의 칸을 모두 채운다. `index`(0부터)를 주면 그 하나만 채운다. 칸의 이름은
+  `cell.field_name`으로 읽고 쓴다. 채우면 칸 자신의 문단 글만 바뀌고, 칸 안에 든 표나 개체의
+  글(그 안의 셀 필드 값 포함)은 그대로다. 새 오류 코드 `field-cell-not-found`.
+- `doc.text.replace(search, replacement, everywhere=True)`: 한/글 "모두 바꾸기"처럼 표
+  칸(칸 안 표 포함)·글상자·캡션·머리말·꼬리말·각주·미주·바탕쪽의 문단도 바꾸고, 서식이 다른 런에
+  걸친 말도 바꾼다. 바꿀 글의 글자는 같은 자리의 찾은 글자가 있던 런의 서식을 따르고, 남는
+  글자는 찾은 글의 마지막 글자 뒤에 붙는다. 탭·줄 바꿈이나 컨트롤을
+  사이에 둔 글은 한 말로 보지 않고, 메모 본문은 바꾸지 않는다. python-hwpx가 두 벌로 쓰는
+  머리말·꼬리말은 두 곳을 같이 바꾸고 한 번으로 센다. 기본값(`False`)은 전처럼 본문 문단의
+  런 안만 바꾼다. `docs/ai-assistants.md`의 양식 채우기 예제는 이 인자를 쓴다.
+- `doc.styles.apply_paragraph_format(paragraphs=[...])`: 본문 인덱스 대신 문단 객체를
+  받아 표 셀(중첩 표 포함)·머리말·꼬리말 문단에도 사람 단위(mm·pt·%) 문단 서식을
+  적용한다(예: `paragraphs=[table.cell(0, 0).paragraphs[0]]`). 같은 문단 모양을 쓰던
+  다른 문단은 그대로다. 이 문서에 속하지 않은 문단(다른 문서의 문단, 지운 문단)이
+  섞이면 아무것도 바꾸기 전에 `paragraph-not-in-document`로 거부하고, 인덱스 인자와
+  함께 주면 `paragraph-argument-conflict`로 거부한다. 결과의 `paragraphs`에는 본문
+  문단 인덱스만 담기고 `formatted`는 대상 수다. 기존 `paragraph_index`·
+  `paragraph_indexes`의 뜻은 그대로다. 머리말·꼬리말 객체에 `paragraphs` 속성
+  (`cell.paragraphs`처럼 문단 객체 목록)을 더한다.
+- HWP 5.0(`.hwp`)을 읽고 쓴다. `HwpxDocument.open`이 `.hwp`를 같은 문서 모델로 열고,
+  `save_to_path("x.hwp")`·`save_to_stream(..., format="hwp")`·`to_bytes(format="hwp")`가
+  HWP 5.0으로 쓴다. 본문·글자와 문단 모양·스타일·표·그림·그리기 개체·글맵시·수식·차트·OLE·
+  동영상·필드·누름틀과 양식 개체·머리말과 꼬리말·각주와 미주·메모·바탕쪽·변경 추적·
+  문서 정보·인쇄 설정·스크립트를 옮긴다. 옮기지 못한 내용은 `document.conversion_report`
+  (`unconverted`·`dropped`)에 세고 `Hwp5ConversionWarning`으로 알린다. HWP 5.0으로 쓸 수
+  없는 내용은 쓰기 전에 `Hwp5Error`(`hwp5-write-unsupported`)로 거부하고, 암호·배포용·DRM
+  문서도 `Hwp5Error`로 거부한다(`hwp5-*` 코드). `HwpxPackage.open`은 그대로 HWPX 전용이며
+  `.hwp`에는 `HwpxDocument.open`을 안내한다. 새 의존성은 없다.
+- 쪽 번호·줄 번호 설명을 보강한다(`page.set_page_number`, `set_visibility`,
+  `hide_page_elements`, `set_line_numbers`와 known-traps). `set_page_number()`의
+  번호는 머리말/꼬리말 글이라 한컴의 쪽 번호 감추기(`hide_first_page_num`,
+  `hide_page_elements(page_num=True)`)로 숨지 않으니 머리말/꼬리말째 감춘다.
+  `hide_page_elements()`는 문단이 있는 쪽에서만 감춘다(다음 쪽부터 다시 보임, 설명을
+  바로잡음). 줄 번호는 `set_visibility(show_line_number=True)`일 때만 그려진다.
+- 새 문서가 빈 줄로 시작하는 까닭(`HwpxDocument.new()`의 첫 문단은 구역 설정을 담은
+  빈 문단이고 `add_paragraph()`는 그 뒤에 붙는다)과 첫 줄부터 쓰는 법
+  (`doc.paragraphs[0].text = ...`)을 `HwpxDocument.new()` 설명과 known-traps에 적는다.
+- `hwpx.layout.lint_layout()`이 쪽에서 나뉘지 않는 본문 표(글자처럼 취급한 표,
+  `pageBreak="NONE"` 표)가 쪽 본문보다 높으면 `TABLE_TALLER_THAN_PAGE`로 알린다.
+  한컴은 이런 표를 한 쪽에 그린다. 쪽 첫머리가 아니면 다음 쪽으로 옮기고, 아래
+  여백까지 내려 그리며, 종이 아래 끝을 넘는 행은 그리지 않는다. 높이는 행마다 가장 높은 셀 높이의 합(아래 한계)으로
+  잰다. 행이 잘리면 `overflow_policy="fail"`에서 오류, 아니면 경고다. 여러 쪽에
+  걸칠 표는 `Table.set_treat_as_char(False)`로 흐르게 한다.
+- `styles.apply_paragraph_format(border={...})`로 문단 테두리를 만든다. 키는
+  `sides`(기본 네 면), `color`(`#000000`), `width`(`0.12 mm`), `type`(`SOLID`),
+  `offset_mm`(글과의 간격 mm, 수 하나 또는 왼쪽·오른쪽·위·아래), `connect`,
+  `ignore_margin`이다. `connect=True`면 같은 문단 모양을 쓰는 연속 문단이 단과
+  쪽을 넘는 상자 하나로 그려진다(한컴의 "문단 테두리 연결"). 상자 안의 빈 문단에도
+  같은 서식을 주면 상자가 끊기지 않는다. 기존 `bottom_border=True`는 그대로
+  아래 한 면만 켠다. 잘못된 지정은 `paragraph-border-invalid`로 거부한다.
+- 템플릿을 넘기기 전에 패키지를 정리하는 기본 동작을 더한다. 무엇을 지울지는 호출자가
+  정한다.
+  - `doc.parts.clear_document_metadata(keep=("title", "language"),
+    timestamp="1970-01-01T00:00:00Z")`(`HwpxPackage`에도 같은 이름)는 `opf:metadata`에서
+    `keep` 밖의 필드를 모두 비우고 비운 키를 문서 순서로 돌려준다. 이 라이브러리가 모르는
+    `opf:meta` 이름도 비운다. `CreatedDate`·`ModifiedDate`처럼 이름에 `Date`가 든 필드는
+    `timestamp`로 바꾸고, 자유형식 `date`를 비롯한 나머지는 요소와 속성을 두고 내용만 비운다.
+  - `doc.parts.clear_preview()`는 `Preview/PrvText.txt`를 비우고 `Preview/PrvImage.png`를
+    1×1 흰 PNG로 바꾼다. 두 파트를 지우지는 않는다.
+  - `doc.validate()`가 파트가 없는 매니페스트 항목과, 매니페스트 항목이 없는 `BinData/`
+    파트를 경고로 알린다. 경고라서 `ok`는 그대로다. `isEmbeded="0"`으로 바깥 파일을
+    잇는 항목은 알리지 않는다.
+- `Shape.set_position()`이 기준 프레임과 정렬도 정한다. `horz_rel_to`·`vert_rel_to`·
+  `horz_align`·`vert_align`이 `hp:pos`의 `horzRelTo`·`vertRelTo`·`horzAlign`·
+  `vertAlign`을 쓴다. 값은 OWPML 스키마 철자 그대로다(`vert_rel_to`에는 `COLUMN`이
+  없다). `PAPER`로 두면 확인 도장 같은 떠 있는 도형을 쪽 여백에 고정할 수 있다.
+  주지 않은 값은 그대로 두므로 오프셋만 주는 기존 호출은 결과가 같다. 스키마 밖의
+  값은 아무것도 바꾸기 전에 `shape-position-frame`으로 거부한다.
+- `Shape.set_draw_text()`에 `para_pr_id_ref`(도형 안 문단의 `paraPrIDRef`)와
+  `vert_align`(`hp:subList/@vertAlign`, `TOP`/`CENTER`/`BOTTOM`)을 더한다. 둘 다
+  생략하면 XML이 전과 같다. 잘못된 정렬 값은 `shape-draw-text-vert-align`으로 거부한다.
+- `Shape.draw_text`·`set_draw_text`·`remove_draw_text`를 stable 표면에 올리고, 이들이
+  돌려주는 글상자를 `hwpx.model.DrawText`라는 계약 이름으로 낸다(`name`·`editable`·
+  `text_margin`·`paragraphs`·`text`·`add_paragraph`가 stable). 반환 객체 계약은
+  19개 클래스 / 189개 멤버가 된다.
+- 글꼴 표와 테두리를 값으로 읽는다. `doc.styles.fonts(lang="HANGUL")`는 그 lang 블록의
+  글꼴을 id 문자열 → `Font`로, `doc.styles.font_face(char_pr_id_ref, lang="HANGUL")`는 글자
+  모양이 그 lang에서 가리키는 글꼴 이름을 돌려준다. `doc.styles.border_fill_info(id)`는
+  `hh:borderFill` 하나를 `BorderFillInfo`(네 변과 대각선의 `BorderLine(type, width_mm, color)`,
+  단색 채우기 `fill`)로 돌려준다. 값은 저장된 그대로이고, 그라데이션·그림 채우기는 설명하지
+  않는다(`fill`은 `None`). 너비를 읽을 수 없으면 `style-border-fill-width-invalid`다. 기존
+  `border_fill()`은 그대로 `GenericElement`를 돌려준다. 모두 메모리의 헤더를 읽어
+  `ensure_font()`·`ensure_border_fill()` 직후에도 맞는다.
+- `doc.styles.replace_font(src_face, dst_face, *, langs=None)`로 글꼴 하나를 문서 전체에서
+  다른 글꼴로 바꾼다(읽는 쪽에 없는 장식 글꼴을 흔한 글꼴로 바꿀 때). lang 블록마다 바꿀
+  글꼴을 지우고 남은 글꼴 id를 0부터 다시 매기며, 모든 글자 모양의 `fontRef`를 옮겨 다른
+  참조가 가리키는 글꼴은 바뀌지 않는다. 결과는 `FontReplaceReport`(바뀐 블록 `langs`, 새로
+  선언한 블록 `declared`, 옮긴 참조 수 `repointed`)다. 같은 글꼴 둘은
+  `style-font-replace-same-face`로 거부한다.
+- 표 셀 안쪽 여백을 읽고 쓴다. `cell.margins`는 한/글이 셀을 배치하는 여백을
+  `hwpx.objects.CellMargins`(HWPUNIT, `left`·`right`·`top`·`bottom`)로 돌려준다. 셀의
+  `hasMargin`이 꺼져 있으면 표의 `hp:inMargin`, 켜져 있으면 셀의 `hp:cellMargin`이다.
+  `add_table()`이 만든 셀은 `CellMargins(510, 510, 141, 141)`이다.
+  `cell.set_margins(left=, right=, top=, bottom=)`는 주지 않은 면을 지금 여백으로 채워
+  네 면을 셀 여백에 쓰고 `hasMargin="1"`로 켠 뒤 새 여백을 돌려준다. 여백이 실제로 바뀌면
+  그 셀에 바로 든 문단의 줄 배치 캐시를 지운다(안쪽 표 문단은 그대로). 인자가 없으면
+  아무것도 바꾸지 않는다. `0 <= v < 2**31`인 `int`가 아닌 값(`bool` 포함)은 바꾸기 전에
+  `HwpxValueError`(`cell-margin-value`)로 거부한다.
+- 편집 의미론 문서에 `table.set_cell_text()`가 남기는 것과 다시 만드는 것(기본은 첫
+  `hp:t`에 쓰고 나머지 `hp:t`를 비우며 그렇게 비워진 문단만 지운다, `split_paragraphs=True`는
+  문단을 다시 만든다),
+  `table.set_column_widths([1] * column_count)`가 나누는 규칙(전의 `equalize_column_widths()`
+  나눔: 표 너비 유지, 앞 `n-1`열 `round(W / n)`, 마지막 열 나머지)과 `Paragraph.char_pr_id_ref`가 그 문단의 run 전부에 들어간다는 것을 적는다.
+
+### 바꿈
+
+- 마지막 문단을 지우려는 `paragraph.remove()`가 맨 `ValueError` 대신
+  `HwpxValueError`(`ValueError` 하위라 `except ValueError`는 그대로 잡는다)를 낸다.
+  `code`는 `paragraph-remove-last`, `context["container"]`는 문단을 담은 곳
+  (`section`·`cell`·`header`·`footer`)이다. 메시지는 같다.
+- `HwpxOxmlTable.equalize_column_widths()`가 한/글 "셀 너비를 같게"처럼 행마다 칸을 같은
+  너비로 나눈다. 합친 칸은 그 행의 한 칸으로 세고, 모든 행이 같은 자리에서 끝나도록 표
+  너비를 행마다의 칸 수로 모두 나누어떨어지는 값까지 올린 뒤(예: 3칸 행과 4칸 행이면 12의
+  배수) 열 격자(`colCnt`·`cellAddr`·`cellSpan`)를 새 칸 경계로 다시 짠다. 한/글과 같아서 칸 수가
+  다른 행이 많으면 표가 크게 넓어질 수 있다. 칸 영역(`hp:cellzone`)의 열 주소도 새 격자로
+  옮기고, 같은 칸을 덮을 수 없으면 표를 그대로 두고 `HwpxValueError`를 낸다. 합친 칸 아래에
+  크기 0인 자리 표시 칸이 남아 있는 표에서는 자리 표시 칸마다 덮는 칸의 새 열을 하나씩 주고,
+  열이 모자라면 남는 빈 자리 표시 칸은 없앤다(한/글은 합친 칸 아래에 칸을 쓰지 않는다). 전에는 격자 열을
+  같게 해서, 칸 경계가 행마다 다른 표에서는 칸 너비가 고르지 않았다. 세로로 합친 칸이
+  행마다 다른 너비를 받아야 하는 표는 한/글처럼 바꾸지 않고 `HwpxValueError`를 낸다.
+  격자 열마다 같은 너비가 필요하면 `set_column_widths([1] * column_count)`를 쓴다.
+- `validate_document()`가 구역·머리 XML을 번들된 전체 OWPML 스키마(`DevDoc/OWPML SCHEMA`의
+  Body·ParaList·Core·Header)로도 검사한다(#118). 한/글 2011 네임스페이스를 2024로 바꿔 끼운
+  사본을 보고, 한/글이 여는 문서에도 있는 편차(2011 관행)는 빼고 나머지를 경고(`OWPML
+  schema: …`)로 낸다. `ok`는 전처럼 하드 오류만 본다. 끄려면 `full_schema=False`. 이 검사가
+  돌지 못하면 멈추지 않고 그 까닭을 경고로 남긴다. `hp:secPr` 안의 주석·처리 지시는 건너뛴다.
+- 문단 객체의 `add_hyperlink(url, text)`도 `doc.add_hyperlink`·`doc.refs.add_hyperlink`처럼
+  링크 글을 한/글 관례(파랑 `#0000FF` + 파랑 밑줄)로 쓴다. 전에는 문단의 글자 모양을 그대로
+  써서 링크가 보통 글처럼 보였다. 글꼴·크기·굵기 같은 나머지 모양은 링크가 들어가는 문단의
+  글자 모양을 따른다. 두 경로 모두 같고, 모양이 같은 문단의 링크는 글자 모양 하나를 함께 쓴다.
+  `char_pr_id_ref`를 주면 그 모양을 쓴다. 각주·미주 본문의 `add_hyperlink`도 같다. Markdown 내보내기는 링크 글에 밑줄·글자색 장식을 붙이지 않는다
+  (링크 표기가 이미 그 모양이다).
+- `doc.text.plain()`·`markdown()`·`html()`(`hwpx.tools.exporter`)이 본문 글상자(도형 안 글)의
+  글을 내보낸다. 글상자의 문단은 그 글상자가 놓인 자리에, 그 문단의 표와 함께 문서 순서로
+  온다. 쪽 미리보기(`render_layout_preview`, 문서 뷰어)는 `⟦도형⟧` 표시 옆에 글상자
+  글을 쓴다. 전에는 둘 다 글상자 글을 버렸다(칸 안 글상자는 전부터 칸 글에 들어갔다).
+  머리말·꼬리말·각주·미주·메모 안의 글상자는 전처럼 본문으로 치지 않는다. 칸 안 글상자의 글은
+  미리보기에 한 번만 나온다. 메일 머지(`merge_template_rows`)는 글상자 속 자리표시자도 바꾼다
+  (본문·칸·다른 글상자 안의 글상자 모두). 전에는 찾기만 하고 바꾸지 않았다.
+- `doc.text.plain()`·`markdown()`·`html()`(`hwpx.tools.exporter`)이 문단 안의 표·글상자·
+  캡션을 그 문단의 글 뒤에 모아 쓰지 않고, 한/글의 텍스트 저장처럼 놓인 자리에서 문단 글을
+  나눠 쓴다(개체 앞 글, 개체, 개체 뒤 글). `list_labels`의 번호와 글머리표는 첫 조각에
+  붙는다. 표 칸 안에서도 같아서, 칸 안의 글상자와 표는 칸 글 속 제자리에 오고 칸 안 표의
+  캡션은 그 표 뒤에 온다(전에는 칸 문단의 글 뒤에 왔고 캡션은 표 앞에 왔다).
+- `apply_table_ops`의 `insert_row_by_clone`이 합친 칸이 걸린 행도 한/글이 줄을 넣듯 처리한다.
+  기준 행 아래로 이어지는 합친 칸은 복제하지 않고 새 행 수만큼 `rowSpan`을 늘리며, 윗행에서
+  내려와 기준 행에서 끝나는 합친 칸 밑에는 새 행마다 그 칸의 서식·너비로 빈 칸(기준 행 높이)을
+  넣는다. 전에는 기준 행에 여러 행에 걸친 칸이 있으면 거부했고("clone source row must have
+  rowSpan==1 cells"), 합친 칸이 기준 행에서 끝나면 새 행에 칸이 비어 거부했다. 모든 칸이 아래로
+  이어지는 행은 복제할 칸이 없어 거부한다.
+- `doc.parts.add_master_page()`(`doc.oxml.add_master_page()`)가 `page_number`를 받지 않으면
+  `OPTIONAL_PAGE`는 1, 다른 종류(`BOTH`·`ODD`·`EVEN`·`LAST_PAGE`)는 한/글처럼 0을 쓴다. 전에는
+  종류와 상관없이 1을 썼다.
+- 한 구역에 같은 쪽의 바탕쪽을 둘 연결하면(`add_master_page_reference`·`doc.page.set_master_page`)
+  `HwpxValueError`(`master-page-pages-taken`)를 낸다. 양쪽·홀수·짝수·마지막 쪽은 하나씩,
+  한 쪽 바탕쪽은 쪽 번호마다 하나다. 전에는 그대로 연결되어 `.hwp` 저장이 실패했다.
+- `add_table()`이 만드는 표의 행 높이 기본값을 12.7 mm(3600)에서 한컴이 새 표에 쓰는
+  282로 바꾼다. 행은 셀 글 높이에 맞춰 자라서, 한 줄이면 약 4.6 mm다. 전처럼 높은 행이
+  필요하면 `height=`를 준다.
+- `add_table()`은 행들만으로 쪽 본문보다 높은 표를 흐르는 표로 만든다(글자처럼 취급을
+  끔). 행 높이는 셀 높이와 셀 글 한 줄 + 셀 위아래 여백 중 큰 값으로 잰다. 한컴은
+  글자처럼 취급한 표를 쪽에서 나누지 않아, 이런 표는 종이 끝에서 잘렸다. 흐르는 표는
+  행 사이에서 쪽을 넘는다. 쪽 크기는 그려지는 쪽(가로면 돌린 높이)으로 잰다.
+
 ### 고침
 
+- MS Word처럼 배치하는 문서(`hh:compatibleDocument`의 `targetProgram="MS_WORD"`)를 `.hwp`로 열고 저장할
+  때 배치 호환 설정이 사라지던 것을 고친다. 열 때 `hh:layoutCompatibility`를 비워 두고 저장할 때 0으로
+  써서, Word 호환 배치가 모두 꺼졌다. 이제 켜진 설정마다 `hh:layoutCompatibility`의 자식 하나로
+  한/글이 쓰는 순서대로 열고, 저장할 때 다시 쓴다. 한/글처럼 `HWP201X` 문서는 설정 없이 저장하고,
+  한/글이 모르는 자식이 있으면 한/글의 기본 설정으로 저장한다. 한/글의 일부 판이 쓰는 묶음 요소
+  (`hh:char`·`hh:paragraph`·`hh:section`·`hh:object`·`hh:field`)와 그 안의 것은 한/글처럼 건너뛴다.
+  `applyFontspaceToLatin`은 한/글이 HWPX로 쓰지는 않지만 읽는 설정이라, 문서의 배치가 그대로 남도록
+  열어 둔다.
+- `.hwp`로 저장할 때 줄 간격 `AT_LEAST`(최소)를 옛 줄 간격 필드에 한/글처럼 100%로 쓴다. 전에는
+  옛 필드에 `BETWEEN_LINES`와 새 값을 썼다.
+- 표 `merge_cells()`(`doc.tables.merge_cells`)가 가려지는 칸의 글과 개체를 버리던 것을
+  고친다. 이제 병합 칸이 글이나 개체가 있는 칸의 문단을 읽기 순서(행마다 왼쪽에서
+  오른쪽, 위 행부터)로 모두 받고, 빈 칸(빈 문단 하나)은 아무것도 보태지 않는다. 병합
+  칸이 비어 있었으면 그 빈 줄 대신 옮겨 온 문단만 남는다. 칸 크기가 바뀌므로 병합 칸의
+  줄 배치 캐시는 비운다. 병합한 뒤 `split_merged_cell()`로 나누면 옮겨 온 글은 첫 칸에
+  남는다. 병합할 영역의 칸 격자는 한 번만 만들어서 큰 표의 병합이 빨라졌다. 병합으로 칸이
+  하나도 남지 않은 행과, 어느 칸도 시작하지 않는 열은 한/글처럼 없앤다(행 전체를 합치면 그
+  높이의 한 행이 되고, 표 전체를 합치면 한 칸짜리 표가 된다). 빈 `hp:tr`이 남은 표는 한/글이
+  열지 못했다.
+- 표 칸의 `.text =`(`set_text`)가 글을 지운 문단을 빈 줄로 남기던 것을 고친다. 글이 지워지고
+  남은 것이 없는 칸 문단은 없애서, 넣은 글이 그대로 읽힌다(병합한 칸에 글을 넣을 때도 같다).
+  원래 빈 줄이던 문단과 개체가 든 문단은 그대로 둔다.
+- 번호 형식을 받은 그대로(대문자로만 바꿔) 쓰던 것을 고친다. 목록(`styles.apply_list_format`의
+  `number_format`, `ensure_numbering` 레벨의 `format`), 각주·미주(`set_footnote_auto_num_format`·
+  `set_endnote_auto_num_format`의 `type`), 쪽 번호(`page.set_page_number`의 `format_type`)가
+  그렇다. 한컴은 모르는 형식을 거부하지 않고 아라비아 숫자로 매겨서, `number_format="decimal"`
+  같은 값이 조용히 `1. 2. 3.`이 되었다. 이제 목록·개요 머리와 쪽 번호는 한컴 번호 모양
+  15개(`hc:NumberType1`: `DIGIT`·`ROMAN_SMALL`·`ROMAN_CAPITAL`·`LATIN_SMALL`·`CIRCLED_DIGIT`·
+  `HANGUL_SYLLABLE` 등, `hwpx.oxml.numbering_kinds.NUMBER_FORMATS`)를, 각주·미주 번호는 여기에
+  `DECAGON_CIRCLE`·`DECAGON_CIRCLE_HANJA`·`SYMBOL`·`USER_CHAR`를 더한 19개(`hc:NumberType2`,
+  `NOTE_NUMBER_FORMATS`)를 받는다. 쪽 번호가 먼저 받던 짧은 이름(`roman`→`ROMAN_CAPITAL`,
+  `roman_lower`→`ROMAN_SMALL`, `alpha`→`LATIN_CAPITAL` 등)도 받고, 그 밖의 값은
+  `HwpxValueError`(`style-number-format-invalid`)로 거부한다.
+- 색 인자가 `#RRGGBB`가 아니어도 그대로 쓰던 것을 고친다. 한컴은 색 값을 16진 수 하나로
+  읽고 나머지를 거부하지 않아서, `#ABC`는 CSS의 `#AABBCC`가 아니라 `#000ABC`로, `red`는
+  검정으로, `#12345`는 `#012345`로 보였다. 이제 `styles.ensure_run`(`color`·`highlight`·
+  `underline_color`·`shadow`), 칸·테두리 채우기와 그러데이션 색, 메모 모양, 도형 선·채우기,
+  단 구분선, `body_patch`의 `restyle_text` 글자색은 `#RRGGBB`와 `#AARRGGBB`(`#` 생략·소문자
+  허용)만 받고(`none`을 받던 자리는 `none`도), 그 밖의 값은 `HwpxValueError`
+  (`style-color-invalid`)로 거부한다. `#AARRGGBB`는 한컴이 무늬·테두리·선·그림자 색에 쓰는
+  꼴(알파 먼저)이라, 문서에서 읽은 색을 넘겨도 그대로 쓴다. 거부하면 아무것도 바꾸지 않는다: 머리말·꼬리말 `set_content`는 내용을 비우기 전에
+  색을 검사하고, 그 뒤에 값이 거부되어도 원래 내용으로 되돌린다. `set_columns`도 구분선 값을
+  먼저 검사한다.
+- 테두리 굵기(`styles.ensure_border_fill`의 `border_width`, `apply_paragraph_format`의
+  문단 테두리 굵기)와 단 구분선 굵기(`page.set_columns`의 `separator_width`)를 받은 그대로
+  쓰던 것을 고친다. 한컴은 선 굵기 목록(`0.1 mm`~`5.0 mm`)에 글자 그대로 있는 값만 읽고,
+  `1 mm`·`2 mm`·`0.12mm`처럼 목록 밖의 값은 가장 가는 `0.1 mm`로 그렸다. 이제 `"1 mm"`·
+  `"1mm"`·`1`은 `"1.0 mm"`로 쓰고, 목록에 없는 굵기는 가장 가까운 목록 값으로 쓴다(한가운데면
+  굵은 쪽: `"0.45 mm"`는 `"0.5 mm"`, `"6 mm"`는 `"5.0 mm"`). 0보다 큰 mm 값이 아니면
+  (`"thick"`·`"1 cm"`·`0`) `HwpxValueError`(`style-line-width-invalid`)로 거부한다.
+  `hwpx.oxml.utils.LINE_WIDTHS`가 그 목록이다.
+- `styles.ensure_run(ratio=...)`(장평)가 256~400을 받던 것을 고친다. 한컴은 장평을 한
+  바이트로 두어 256 이상은 256을 뺀 값이 된다(300은 44%로 그려짐). 이제 범위는 10~255다.
+- 테두리 종류(`styles.ensure_border_fill`의 `border_type`, 문단 테두리, 표 칸 테두리)의
+  `THICK_3D`·`THICK_3D_REVERSE_LIGHTING`·`SLIM_3D`·`SLIM_3D_REVERSE_LIGHTING`을 그대로 써서,
+  한컴이 모르는 표기라 테두리가 없는 것(`NONE`)으로 그려지던 것을 고친다. 이제 한컴 표기
+  `THICK3D`·`THICKREV3D`·`3D`·`REV3D`로 바꿔 쓰고, 한컴 표기도 그대로 받는다.
+- `.hwp`로 저장할 때 그림 효과 `PATTERN8x8`을 한/글이 읽지 않는 값으로 쓰던 것을 고친다. 한/글처럼
+  원래 그림(`REAL_PIC`)으로 쓰고, `.hwp`에서 이름이 없는 효과 값은 `effect` 없이 연다.
+- `.hwp`의 선 종류 13~17을 한/글이 쓰는 이름(`DOUBLEWAVE`·`THICK3D`·`THICKREV3D`·`3D`·`REV3D`)으로
+  열고, 저장할 때는 이 이름과 `THICK_3D` 같은 다른 철자를 모두 받는다. 문단 번호의 번호 형식을
+  4비트로만 써서 `DECAGON_CIRCLE_HANJA`가 다른 형식으로 바뀌던 것도 고친다.
+- 그림자가 있는 도형을 `.hwp`로 저장하고 열 때 바깥 여백을 한/글처럼 셈한다. 기울임·원근·확대·축소
+  그림자가 도형 밖으로 나간 만큼을 더하고 빼며, 왼쪽이나 위로 민 그림자도 그쪽 여백에 더한다. 큰
+  도형에서 여백이 16비트를 넘으면 한/글처럼 아래 16비트로 저장하고, 열 때 원래 여백으로 되돌린다
+  (전에는 32비트를 넘는 값으로 열렸다).
+- HWPX에 없는 배치 속성을 `.hwp`에 쓸 때 한/글이 주는 값을 쓴다. `textWrap`은 도형이 `SQUARE`,
+  양식 개체가 `TOP_AND_BOTTOM`이고, `vertRelTo`·`horzRelTo`는 `PAPER`, `widthRelTo`·`heightRelTo`는
+  `PAGE`, 캡션 `side`는 `LEFT`다. 채운 화살표(`FILLED_*`)와 덧말 위치 `CENTER`처럼 `.hwp`에 없는
+  값도 한/글처럼 기본값으로 쓴다.
+- `.hwp`의 틀 없는 글자 겹치기를 한/글처럼 `OVERLAP`으로 연다. 전에는 `SPREAD`로 열어 저장할 때
+  빈칸을 붙였다. 수식 버전이 빈 `.hwp` 수식은 빈 채로 열고 저장한다.
+- `export_text()`·`export_markdown()`·`export_html()`이 표 칸 글의 앞뒤 공백을 지우던 것을 고친다.
+  들여 맞춘 `  용  역  명`이 `용  역  명`으로, `협조자   `가 `협조자`로 나왔다. 한/글이 저장한
+  문서의 미리보기 글(`Preview/PrvText.txt`)도 칸 글의 공백을 그대로 둔다. 칸 끝의 빈 문단은
+  전처럼 빼고, 글에 든 공백만 지킨다.
+- `apply_paragraph_format()`가 여백·들여쓰기·문단 간격을 `hp:switch` 안에 쓸 때 `hp:default`에는
+  `hp:case` 값의 두 배를 쓴다. 한컴 문서와 같은 표기다. 전에는 두 곳에 같은 값을 써서, `hp:case`를
+  모르고 `hp:default`를 읽는 프로그램에서는 여백이 절반으로 보였다. `hp:switch` 밖의 여백은 준 값 그대로다.
+- 표 칸 하나의 테두리를 바꾸면(`table.set_cell_borders`) 이웃 칸의 맞닿은 변이 옛 선으로
+  남아, 한컴에서 두 선이 겹쳐 그려지던 것을 고친다. 칸마다 네 변을 따로 가지고 맞닿은 변은
+  두 칸의 선이 다 그려지므로, 한컴의 칸 테두리 명령은 이웃 칸의 맞닿은 변도 같은 선으로
+  바꾼다. 이제 `set_cell_borders()`도 이웃 칸의 맞닿은 변만 같은 선으로 바꾼 테두리/배경
+  정의를 이웃에 준다. 이웃의 다른 변과 배경은 그대로다. 한컴처럼, 맞닿은 변이 바꾼 칸의
+  변보다 긴 이웃(한 칸 옆의 병합 칸)은 바꾸지 않는다. 칸 하나가 가리킬 정의를 정하는
+  `set_cell_border_fill()`은 전처럼 그 칸만 바꾼다.
+- `apply_paragraph_format(alignment=...)`가 한컴의 나눔 정렬 `DISTRIBUTE_SPACE`를 받는다. 전에는
+  배분 정렬 `DISTRIBUTE`만 받고 `DISTRIBUTE_SPACE`는 알 수 없는 정렬이라며 거부했다(문서를 읽을
+  때는 이 값을 그대로 둔다).
+- `add_heading()`이 제목 문단을 그 개요 스타일의 문단 모양·글자 모양에서 만든다. 전에는 문단
+  모양 0(바탕글)에 개요 수준만 더하고 글자 모양도 0을 써서, 한컴에서 개요 번호는 붙지만 스타일의
+  들여쓰기·간격·글자 모양이 빠진 제목이 됐다. 한컴은 문단을 스타일이 아니라 문단에 달린 모양으로
+  그린다. `char_pr_id_ref`를 주면 그 글자 모양을 쓴다.
+- 수식 상자 크기(`hp:sz`)와 기준선(`baseLine`)을 수식 구조로 잰다(`add_equation`,
+  `estimate_equation_size`). 한컴은 문서를 열 때 수식을 다시 재지 않고 저장된 상자로 줄을
+  배치한다. 이전 추정(보이는 글자 수 × 0.45, 높이는 기준 크기의 1.6~2.5배)은 한 줄짜리 수식도
+  상자를 크게 잡아 수식 뒤에 빈틈이 생기고 줄이 높아졌으며, 좁으면 뒤 글자와 겹쳤다. 기준선도
+  기준 크기에서 계산한 값이라 수식이 위아래로 어긋났다. 이제 글자 종류별 너비, 분수(`over`),
+  위·아래 첨자, 근호, 큰 연산자와 그 범위, `lim` 아래 범위, 행렬과 `pile`, 줄 나눔(`#`)을
+  상자로 쌓아 크기를 재고, 기준선은 상자 높이에서 기준선 위 부분의 비율(한 줄 수식 약 86)로
+  쓴다. 설명의 '한컴이 열 때 다시 잰다'도 바로잡았다.
+- 구역에 XML 주석이나 처리 명령이 있는 문서를 편집한 뒤 저장하면
+  `TypeError: cannot serialize <cyfunction Comment>`로 멈추던 것을 고친다(6.5.0부터 있던
+  결함). 실문서 가운데 표 행 안에 주석을 둔 문서가 있었고, 편집하지 않고 저장하면 원본
+  바이트를 그대로 써서 드러나지 않았다. 이제 편집한 파트를 쓸 때 주석과 처리 명령은
+  내용이 아니므로 빼고, 그 뒤의 글은 남긴다. 주석이 없는 문서의 출력은 그대로다.
+- `doc.text.replace(..., everywhere=True)`가 `hp:t` 안 XML 주석의 글까지 찾아 바꾸던 것을
+  고친다. 주석은 건너뛰고, 주석 양쪽의 글은 이어진 글로 찾는다.
+- `doc.text.plain()`·`markdown()`·`html()`(`hwpx.tools.exporter`)이 표·그림·도형의 캡션과 덧말을
+  내보내지 않던 것을 고친다. 한/글의 텍스트 저장처럼 표 캡션은 표 뒤에, 그림·도형 캡션은 그 자리에
+  오고, 덧말은 본말 뒤에 `(덧말:<덧말 글>)`로 붙는다. 칸 안 표의 캡션은 전처럼 칸 글에 한 번
+  들어간다. 캡션의 자동 번호는 담긴 번호로 쓴다(`그림 1`, `표 1`). `hp:switch`에 두 번 쓰인 개체
+  (차트와 그 OLE 대체본)는 한 번만 읽고, `include_tables=False`면 표와 함께 그 캡션도 뺀다.
+  메일 머지(`merge_template_rows`)는 자리표시자를 한/글 "모두 바꾸기"가 닿는 곳(표 칸·글상자·
+  캡션·머리말·꼬리말·각주·미주)과 덧말에서도 바꾼다. 전에는 내보내기로 찾기만 하고 바꾸지 못해
+  그 행을 실패로 보고했다.
+- 글자 모양을 바꾸는 API가 기준 글자 모양의 나머지 서식을 지키게 고친다. 런의
+  `bold`·`italic`·`underline`을 바꾸면 글자 크기·색·글꼴이 첫 글자 모양의 것으로
+  돌아갔다. `styles.ensure_run()`과 `add_run(size=...)` 같은 글자 서식 인자는 요청한 값만
+  같은 아무 글자 모양이나 돌려줘, 새 문서에서 `add_run("글", size=16)`이 파란 제목 글자가
+  되고 `base_char_pr_id`를 주어도 다른 글자 모양이 나왔다. 양식 칸에 맞춰 글자를 줄이면
+  굵게·기울임·밑줄이 풀렸고, 새로 만든 글자 모양에서는 기준의 취소선이 빠졌다. 이제
+  요청한 글자 모양은 기준(`base_char_pr_id`, 없으면 첫 글자 모양)에서 요청한 값만 바꾼
+  것이고, 내용이 같은 글자 모양이 있을 때만 그것을 다시 쓴다. `ensure_run()`에서 주지
+  않은 `bold`·`italic`·`underline`은 기준의 것을 따른다(기준을 주지 않으면 끔).
+- 끝이 아닌 구역을 `remove_section()`으로 지운 문서를 한/글이 열지 못하고, `add_section(after=...)`로
+  가운데 넣은 구역이 한/글에서 맨 뒤에 나오던 것을 고친다. 한/글은 구역을 `content.hpf` 항목 id
+  `section0`, `section1`, …의 번호 순서로 찾고(spine 순서나 파일 이름이 아니라), 번호가 하나라도
+  빠지면 문서를 열지 않는다. 이제 구역을 넣거나 지우거나 문서를 저장할 때 구역 항목의 id를 문서
+  순서대로 다시 매긴다(파일 이름은 그대로). 그래서 id가 어긋난 채 저장된 파일도 다시 저장하면
+  바로잡힌다. 새 구역은 다른 구역 파일이나 항목이 쓰는 번호를 받지 않는다.
+- `doc.text.replace()`(과 `run.replace_text()`를 쓰는 메일 병합)가 `hp:t` 안의 탭·줄 바꿈을 사이에
+  둔 글을 이어 읽어, `사⇥과`를 `사과`로 찾아 바꾸던 것을 고친다(탭은 남고 글자만 합쳐졌다).
+  한/글처럼 탭·줄 바꿈 같은 글자 요소와 컨트롤은 말을 끊는다. 형광펜 표시는 전처럼 끊지 않는다.
+- 표 셀·머리말·꼬리말 문단의 `remove()`가 아무 일도 하지 않던 것을 고친다. 문단을 구역
+  바로 아래에서만 찾아, 셀 문단(`cell.paragraphs[i].remove()`)은 오류 없이 그대로 남았다.
+  이제 문단을 담은 구역이나 `hp:subList`에서 지운다. 담은 곳의 마지막 문단은 지우지 않고
+  `ValueError`를 낸다(문단이 없는 셀·머리말·꼬리말은 한/글이 열지 못한다). 이미 지운 문단의
+  `remove()`는 조용히 넘어간다. 같은 까닭으로 셀 문단의 `apply_model()`이 `ValueError`를
+  내던 것도 고친다.
+- 그림 같은 이진 항목이 많은 문서를 여는 데 오래 걸리던 것을 고친다. `content.hpf`의
+  항목마다 패키지의 모든 파트 이름을 다시 정규화해서, 항목·파트 수의 제곱에 비례했다
+  (파트 1,400개 문서에서 열기 1분 넘게). 이제 목록을 읽을 때 파트 이름을 한 번만
+  정규화한다. `resolve_part_name()`의 동작은 그대로다.
+- 저장이 한컴이 쓴 문단 줄 배치 캐시(`hp:linesegarray`)를 멀쩡한데도 지우던 것을 고친다.
+  저장 때 캐시가 글보다 뒤를 가리키는지 보는 검사가 `hp:t` 안의 줄 바꿈·고정 폭 빈칸·탭을
+  글자 수에서 빼고 셌다. 한컴의 줄 시작 위치(`textpos`)는 이것들을 센다(탭 8, 나머지 1).
+  그래서 구역을 다시 쓸 때(그 구역의 다른 문단만 고쳐도) 이런 문단의 캐시가 사라져, 한컴이
+  그 문단을 새로 배치하면서 쪽 수가 바뀔 수 있었다. 이제 한컴의 글자 위치로 센다.
+- `doc.text.markdown(rich=True)`(`hwpx.tools.markdown_export`)가 도형(사각형·타원·
+  다각형)을 품은 문단의 글을 잃던 것을 고친다.
+  - 도형을 품은 문단은 제 글을 통째로 버렸다(도형 글이 흘러나온 것으로 보았다). 이제
+    문단 자신의 글이 도형 안의 글과 같을 때만 뺀다.
+  - 도형 안 문단을 이미 쓴 것인지 `id()`로 가렸다. 풀린 lxml 요소 프록시의 번호를
+    다른 문단이 다시 받으면, 처음 보는 도형 문단을 건너뛰었다(칸 안 도형도 같음).
+    이제 요소 자체로 가린다.
+- `hwpx.table_patch.apply_table_ops`의 `delete_table`·`clone_table`·`split_table`·
+  `merge_table`이 표를 담은 문단을 잘못 찾던 것을 고친다. 문단 안에서 표 앞에
+  `hp:pagePr`·`hp:pageBorderFill`·`hp:pic`처럼 이름이 `p`로 시작하는 요소가 있으면
+  (구역 설정이 든 구역 첫 문단의 표 등) 그 요소를 문단 시작으로 알아, 잘린 XML이
+  저장 전 검사에 걸려 `ValueError`로 멈추거나 `merge_table`이 두 표 사이에 글이
+  있다고 잘못 거부했다. 이제 표를 감싸는 가장 안쪽 문단을 찾는다. 그 문단에 구역
+  설정·글·다른 표가 함께 있으면 문단 대신 표만 다룬다. `delete_table`은 표만 지우고,
+  `clone_table`·`split_table`의 새 표는 그 표만 담은 새 문단(같은 문단 모양, 쪽·단
+  나눔 없음)에 들어간다. 한 문단에 든 두 표를 `merge_table`하면 표만 합치고, 두 표
+  사이에 글이 있으면 거부한다.
+- `autofit_columns`가 표 안에 표가 있는 표에서 `KeyError`를 내던 것을, 다른 구조
+  편집처럼 `TableStructureError`로 거부하게 한다.
+- `delete_column`이 한 칸짜리 칸만 있는 행이 표의 모든 열을 덮지 않을 때(오른쪽 열이
+  윗행에서 내려온 합친 칸에 덮인 행) 그 행을 열 폭의 근거로 써서 `KeyError`를 내던
+  것을 고친다. 이런 행은 건너뛰고, 없으면 합친 칸 격자에서 폭을 구한다.
+- `delete_row`가 세로로 합친 칸의 첫 행을 지우면 합친 칸까지 지워 표에 빈 자리가
+  생겨 거부되던 것을 고친다. 이제 합친 칸은 다음 행으로 내려가 한 행 줄어들고, 글과
+  서식은 그대로다(한컴 편집기에서 그 행을 지운 결과와 같다).
+- `doc.media.images`가 `content.hpf` 매니페스트에만 있는 이진 항목을 보지 못하던 것을
+  고친다. 한컴이 저장한 파일은 보통 header에 `binDataList`가 없어 그림이 있어도 빈 목록이
+  나왔다. 이제 header 항목 뒤에 매니페스트에만 있는 항목(href가 `BinData/` 아래이거나
+  media-type이 `image/*`)을 붙인다. `isEmbeded="0"`으로 바깥 파일을 잇는 항목은 넣지 않고,
+  파트가 없는 내장 항목은 `size=0`으로 넣는다. `doc.media.remove_image()`는 매니페스트 id·파트 경로
+  (`"BinData/image1.png"`)·`BinaryItem`을 모두 받아 이런 항목도 지운다.
+- `doc.media.remove_image("image1")`이 header에 `image10.png`가 먼저 있으면 그 `binItem`과
+  파트를 대신 지우던 것을 고친다. header 항목을 파일 이름 앞부분으로 맞췄기 때문이다. 이제
+  확장자를 뺀 파일 이름(또는 파일 이름 전체)이 같아야 맞는다.
+- `HwpxPackage.remove_manifest_item()`에 파트 경로를 넘기면 `False`만 돌려주고 항목을
+  남기던 것을 고친다. 이 인자는 매니페스트 `id`다. 그 id의 항목이 없고 값에 `/`가 있으면
+  href가 같은 파트를 가리키는 항목을 지운다.
+- HWP 5.0으로 저장(`to_bytes(format="hwp")`·`save_to_path("*.hwp")`)할 때 원본 구역에
+  XML 주석이 있으면 `ValueError: Invalid input tag`로 멈추던 것을 고친다. 실문서 가운데
+  표 행 안에 주석을 둔 문서가 있었다. 이제 주석과 처리 명령은 내용이 아니므로 건너뛴다.
+- 머리말·꼬리말 객체로 고친 내용이 한/글에 나타나지 않던 것을 고친다. python-hwpx가 만든
+  머리말·꼬리말은 구역 설정(`hp:secPr`) 안과 본문 `hp:ctrl` 안에 두 벌로 쓰이고, 한/글은
+  `hp:ctrl` 쪽만 읽는다. `set_header()`·`set_footer()`가 돌려준 객체의 `text` 설정,
+  `add_run()`, `add_paragraph()`, `add_page_number_field()`, `set_content()`,
+  `clear_content()`와 그 문단을 고친 내용은 구역 설정 쪽에만 들어가, 한/글에서는 처음 글이
+  그대로 보였다. 이제 고친 구역을 저장할 때 두 벌을 맞춘다. 두 벌이 마지막으로 같았던
+  때(문서를 열 때, 머리말·꼬리말을 설정할 때, 저장할 때) 뒤에 바뀐 쪽을 다른 쪽에 옮기고,
+  알 수 없거나 둘 다 바뀌었으면 구역 설정 쪽을 따른다. 두 요소는 제자리에 남아서 저장한 뒤에도
+  머리말 객체를 계속 쓸 수 있다. 두 벌로 쓰인 머리말·꼬리말의 누름틀은 `doc.fields`에 한 번만
+  나온다. `id`·`apply_page_type`을 바꾸면 `hp:ctrl` 쪽도 함께 바꾸고(홀수 쪽으로 바꾼
+  머리말이 모든 쪽에 보이던 것), `BOTH`가 되면 홀수·짝수 쪽 것보다 앞에 둔다(`hp:ctrl` 쪽만
+  있는 머리말·꼬리말도 같다). 한/글이 저장한 문서처럼 `hp:ctrl` 쪽만 있는 머리말·꼬리말의
+  내용은 저장할 때 건드리지 않는다. `clear_content()`와 빈
+  `set_content([])`는 빈 문단 하나를 남긴다. 전에는 `hp:subList`까지 지웠는데, 실제 문서의
+  머리말·꼬리말은 모두 `hp:subList`와 문단을 하나 이상 가진다.
+- `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
+  (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
+  `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.
+  `object_behavior="nested"`는 칸 안의 표처럼 개체 안의 개체 글을 문단 하나 안에서도
+  거듭 썼다. 이제 앞 문단의 글에 이미 들어간 문단은 따로 쓰지 않고, 개체는 자기
+  칸·글상자의 문단만 돌며 그 안의 개체는 그 문단이 쓴다.
+- 평문·HTML·Markdown 내보내기(`doc.text.plain()`·`html()`·`markdown()`,
+  `hwpx.tools.exporter`)의 표 글을 고친다. 칸 안의 표는 바깥 칸의 글에 들어 있는데도
+  따로 한 번 더 나왔다. 칸에 단 각주·미주·메모의 본문이 칸 글에 섞였다(본문 문단에
+  단 것은 빠졌다). 머리말·꼬리말 안의 표가 본문 첫 문단 자리에 나왔다. 이제 표는
+  바깥 표만 한 번 나오고, 각주·미주·메모·숨은 설명·머리말·꼬리말의 글은 본문
+  내보내기에 넣지 않는다. Markdown 표 칸은 문단 나눔을 `<br>`로, `|`를 `\|`로 써서
+  한 줄에 둔다(전에는 칸 안의 줄 나눔이 표 행을 깨뜨렸다).
+- `doc.text.markdown()`이 첫 행보다 칸이 많은 행의 뒤쪽 칸을 버리던 것을 고친다.
+  첫 행이 합친 칸(제목 행 등)이면 그 아래 행은 첫 칸만 남았다. 이제 칸을
+  `hp:cellAddr` 자리에 놓고 가장 넓은 행만큼 열을 두며, 합친 칸이 덮는 자리는 비운다.
+- `doc.tracking.delete(문단)`로 글만 있는 문단을 통째로 지우면, 한컴에서 그 자리에 빈 줄이
+  남던 것을 고친다. 문단 나눔은 삭제로 표시되지 않았다. 이제 뒤에 문단이 이어지면 마지막
+  삭제 표시에 `paraend="1"`을 써서 문단 나눔도 지운다. 구역 설정·컨트롤·개체가 있는
+  문단과 마지막 문단은 전처럼 나눔을 남긴다.
+- `append_document`/`insert_document`가 원본 첫 문단의 단 설정(`hp:colPr`)을 뺄 때, 같은
+  `hp:ctrl` 안에 함께 있던 다른 컨트롤(누름틀 시작, 쪽 번호 새로 시작 등)까지 지우던 것을
+  고친다. 누름틀 끝만 남아 짝이 끊긴 문서는 한컴에서 열리지 않았다. 이제 `hp:colPr`만 빼고,
+  `hp:ctrl`은 비었을 때만 지운다. `insert_document(after_paragraph_index=-1)`가 대상의 구역
+  설정을 새 첫 문단으로 옮길 때도 `hp:colPr`만 옮긴다.
+- 문서를 저장할 때 같은 패키지 바이트에 열기 안전 검사(`validate_editor_open_safety`)를
+  두 번 돌리던 것을 한 번으로 줄인다. 패키지 저장이 검사를 통과시킨 바이트의 SHA-256을
+  기억하고, 문서 쪽 검사는 같은 바이트면 건너뛴다. 패키지가 검사하지 않은 바이트는 전처럼
+  검사한다. 긴 문서의 저장이 빨라진다.
+- `styles.ensure_run(font=...)`가 머리말에 없는 글꼴을 조용히 무시하던 것을 고친다(글자는 기본
+  글꼴로 그려졌다). 이제 한컴처럼 그 글꼴을 일곱 언어 모두에 선언하고 적용한다(`ensure_font`의
+  기본값과 같다).
+- 일부 언어에만 선언된 글꼴을 `ensure_run(font=...)`로 쓰면, 선언되지 않은 언어의 `fontRef`에
+  다른 언어의 글꼴 번호가 들어가던 것을 고친다. `fontRef`는 언어마다 번호를 따로 매겨서, 그
+  언어에 글꼴이 더 있으면 엉뚱한 글꼴이 됐다. 이제 글꼴이 선언된 언어만 바꾸고, 나머지 언어는
+  바탕 글자 모양의 글꼴을 그대로 둔다(`font_ref_for_face`는 선언된 언어만 돌려준다).
+- 긴 문서를 열고 저장하는 시간을 줄인다. 네임스페이스 정규화(`normalize_hwpml_namespaces`)가
+  XML 파트마다 모든 태그와 속성을 파이썬 콜백으로 다시 훑었는데, 이제 2016 네임스페이스 URI가
+  든 태그만 찾아 고친다. 결과 바이트는 같다. 저장은 열기 안전 검사에서 패키지를 다시 읽으므로
+  함께 빨라진다.
+- `page.set_page_number(format_type=...)`로 고른 쪽 번호 모양(로마 숫자, 원 숫자 등)이
+  한컴에서 늘 아라비아 숫자로 그려지던 것을 고친다. 한컴은 머리말·꼬리말의 쪽 번호를
+  `hp:autoNum`으로 그리고 그 모양을 자식 `hp:autoNumFormat`에서 읽는데, 모양은 옆의
+  `hp:pageNum@formatType`에만 적혀 있었다. 이제 `hp:autoNum`이 한컴처럼 모양을 가진다.
+  "쪽/전체 쪽"(`format="page/total"`)의 전체 쪽 번호도 같은 모양을 쓴다.
+- 표 셀에 넣은 차트(`shapes.add_chart(..., paragraph=셀 문단)`)가 셀보다 넓게 만들어져
+  한컴에서 셀 경계에서 잘리던 것을 고친다. `size`를 주지 않으면 기본 크기(32250×18750)를
+  넣을 곳(표 셀이나 본문)의 쓸 수 있는 폭에 맞게 같은 비율로 줄인다. 중첩 표의 기본 폭과
+  같은 기준이다. 본문의 기본 크기와 `size`로 준 크기는 그대로다.
+- `tools.toc_author.add_native_toc()`가 만든 차례 항목에서 쪽 번호가 제목 바로 뒤에
+  붙던 것을 고친다. 한컴은 탭을 문단의 탭 정지로 배치하고 `hp:tab` 속성은 그 결과의
+  캐시로만 쓰는데, 항목 문단(기본 문단 모양)에는 탭 정지가 없었다. 이제 항목 문단은
+  첫 구역 본문 오른쪽 끝(쪽 폭에서 왼쪽·오른쪽·제본 여백을 뺀 곳)에 `leader` 채움의
+  오른쪽 탭 정지를 가진다. 기본값 3은 한컴 차례와 같은 점선이다. `leader`는 탭 채움
+  코드 0–11만 받고, 그 밖의 값은 `paragraph-tab-leader-invalid`로 거부한다.
+- 탭이 든 문단의 멀쩡한 줄 배치 캐시를 오래됐다고 보고 지우던 것을 고친다. 그래서 한컴 문서를
+  편집 없이 저장하기만 해도 쪽 경계에서 줄이 옮겨 갈 수 있었다. 캐시의 줄 시작 위치
+  (`hp:lineseg@textpos`)는 `hp:t` 안의 인라인 요소도 센다. 탭은 8칸, 줄바꿈·하이픈·고정 빈칸은
+  1칸이다. 저장 때 캐시 정리와 편집 안전 검사의 "줄 시작이 글 길이를 넘는 캐시" 규칙이 이 길이
+  (`oxml.utils.hancom_text_length`)를 쓴다. 글을 넘어서 시작하는 캐시는 전처럼 지운다.
+- 문서에 이미 들어 있던 줄 배치 캐시가 문단 글을 다 담지 못하면(여러 줄 글에 한 줄
+  캐시) python-hwpx가 편집하지 않은 문서도 저장하지 못하던 것을 고친다. 편집 안전
+  검사는 이런 캐시를 거부하는데(한컴이 꼬리 글을 겹쳐 그린다), 저장 때 모든 구역에
+  도는 캐시 정리(`HwpxOxmlSection.remove_stale_layout_caches()`)는 글 길이를 넘는 줄
+  시작만 지웠다. 이제 그 검사가 거부할 캐시도 지운다. 한컴은 그 문단을 다시 배치한다.
+- 머리말·꼬리말 글(`page.set_header(text=...)`·`set_footer(text=...)`, 머리말·꼬리말
+  객체의 `text`와 `add_run()`)과 각주·미주 글(`notes.add_footnote()` 등, 주석 객체의
+  `text`)이 탭을 지우던 것을 고친다. 이제 탭을 `hp:t` 안의 `hp:tab`으로 쓴다
+  (`page.set_header(text="학교명\t날짜")`). 두 `text`는 `hp:t` 안 요소 뒤의 글과 탭까지
+  읽는다. 머리말·꼬리말의 `set_simple_text_preserving()`은 전처럼 탭을 받지 않는다.
+- 셀의 `set_text()`(`Table.set_cell_text()`)와 `run.text = ...`가 옛 글 일부를 남기던 것을
+  고친다. 한컴이 쓴 셀과 run에는 `hp:t` 안에 줄바꿈·탭·공백 요소와 형광펜 표시가 있고,
+  그 뒤에도 글이 있다. 두 설정자는 `hp:t`의 앞 글만 바꿔서 요소와 그 뒤 옛 글이 새 값
+  뒤에 남았다(`run.text`는 새 값을 옛 글 뒤에 붙였다). 이제 `paragraph.text`처럼 옛 글을
+  요소까지 모두 지우고 새 값을 쓴다. `run.text`는 첫 `hp:t` 자리에 쓴다.
+- 같은 두 설정자가 값의 탭을 지우던 것을 고친다. 이제 탭을 `hp:t` 안의 `hp:tab`으로
+  쓴다(`split_paragraphs=True`도 같다).
+- 탭 문자가 든 글을 쓴 문서를 한컴이 끝내 열지 못하던 것을 고친다.
+  `paragraph.add_run("이름\t홍길동")`, `doc.text.replace()`, `fill_cells()`,
+  `paragraph_patch()`, `apply_body_ops()`의 `replace_text`와 삽입 op는 탭을 문자 그대로
+  `hp:t`에 넣었다. 한컴은 탭을 `hp:t` 안의 `hp:tab` 요소로만 읽고, 탭 문자가 있으면
+  문단 배치를 끝내지 못한다. 이제 모든 쓰기 경로가 탭을 `hp:tab` 요소로 쓴다.
+  메모리의 문서 트리는 그대로이고, 저장하는 XML만 바뀐다.
+- 라이브러리 안의 코드가 6.0에서 옮긴 `HwpxDocument` 이름을 불러, 지금 API만 쓰는
+  사용자에게도 `DeprecationWarning`이 나던 것을 고친다. 셀 맞춤(`set_cell_text(fit=...)`,
+  메일 머지)의 글자·문단 모양 읽기와 글자 줄이기, `lint_layout(required_fields=...)`,
+  변경 추적 점검(`inspect_redline_structure`), HWPX→Markdown 수집기가 이제 새 이름
+  (`doc.fields.all`, `doc.tracking.*`, `doc.parts.headers`, `doc.text.markdown(rich=True)`)이나
+  문서 루트를 부른다.
 - `shapes.add_chart()`가 계열 축이 없는 3D 차트(세 번째 `c:axId`가 `0`)를 축이
   없다고 거부하던 것을 고친다. `0`은 축이 없다는 표시라, 이제 나머지 두 축 id만
   정의돼 있으면 받아들인다. 한컴은 이런 차트를 축 id 두 개짜리와 같게 그린다.
+- `shapes.add_drop_cap(paragraph=...)`과 문단의 `add_drop_cap()`이 문단 첫 글자 장식을
+  문단 텍스트 뒤에 붙여, 한컴이 장식을 문단 마지막 줄에 그리던 것을 고친다. 이제 장식은
+  한컴처럼 문단 첫 글이 든 run 안, 그 글(`hp:t`) 바로 앞(앞선 컨트롤 뒤)에 들어가 첫
+  줄부터 그려진다. 구역 첫 문단의 구역 설정은 그대로 맨 앞에 남는다. 장식을 담은 run은
+  첫 글자의 글자 모양(`char_pr_id_ref`) 대신 문단 글의 글자 모양을 쓴다. 큰 글자 모양이
+  그 run에 있으면 한컴이 첫 줄을 그 크기로 잡아 글이 장식을 감싸지 못했다.
+- `shapes.add_polygon()`과 그룹 멤버 `ContainerMember.polygon()`이 만든 다각형이 한컴에서
+  마지막 변 없이 열린 선으로 그려지던 것을 고친다. 한컴은 첫 꼭짓점을 끝에 한 번 더
+  써서 다각형을 닫는다. 이제 두 API도 그렇게 쓴다. 열린 선이 필요하면 `closed=False`를
+  넘긴다.
+- 문단 글에 넣은 탭이 한컴에서 사라지던 것을 고친다. `add_paragraph("이름\t홍길동")`
+  같은 탭을 `hp:t`와 나란한 run 자식 `hp:tab`으로 썼는데, 한컴은 이런 탭을 열 때
+  버려서 글이 붙고 탭 정지도 효과가 없었다. 이제 한컴처럼 탭을 `hp:t` 안에
+  쓴다(`<hp:t>이름<hp:tab/>홍길동</hp:t>`).
+- `shapes.add_line()`로 그린 가로선과 세로선이 한컴에서 보이지 않던 것을 고친다.
+  선의 외접 상자(`orgSz`·`curSz`)에 0인 변이 있으면 한컴이 선을 그리지 않는다.
+  이제 한컴처럼 두 크기는 각 변을 최소 1로 쓰고(가로선은 폭 × 1), `sz`와 시작·끝점은
+  그대로 둔다. `Shape.resize()`도 같게 쓴다.
+- `add_picture(align="CENTER")`(와 `"LEFT"`·`"RIGHT"`)로 넣은 그림이 한컴에서 늘 왼쪽에
+  놓이던 것을 고친다. 글자처럼 취급하는 그림은 문단 정렬을 따르는데, `hp:pos@horzAlign`만
+  바꾸고 그림 문단은 양쪽 정렬로 두었다. 이제 그림 문단의 정렬도 같은 값으로 맞춘다.
 - `hwpx.tools.read_fidelity.resolve_run_spans()`(와 이를 쓰는 판독 표면)가 위·아래
   첨자를 `offset` 부호만 보고 판정하던 것을 고친다. 부호가 거꾸로여서(음수가
   위로 올린다, DEV-028) 예전 python-hwpx 위첨자를 아래첨자로 보고했고,

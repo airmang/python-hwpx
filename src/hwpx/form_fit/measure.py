@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 import unicodedata
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 # Advance width as a fraction of the em (font height in HWPUNIT). Hangul/wide are
 # exact (full-width cells); the Latin/digit/punct values are conservative class
@@ -407,6 +407,16 @@ def _effective_cell_margins(cell: object) -> tuple[int, int, int, int]:
     return left, right, top, bottom
 
 
+def _document_root(document: object) -> Any:
+    """The OXML document root: ``HwpxDocument._root``, or *document* itself.
+
+    Callers pass either; the root's own ``paragraph_property``/``char_property``
+    do not raise the 6.0 move warnings that the ``HwpxDocument`` names do.
+    """
+
+    return getattr(document, "_root", document)
+
+
 def _first_para_line_spacing_ratio(cell: object, document: object) -> float | None:
     """Per-line em multiple from the cell's first paragraph line spacing (PERCENT).
 
@@ -424,7 +434,7 @@ def _first_para_line_spacing_ratio(cell: object, document: object) -> float | No
         if ref is None or document is None:
             continue
         try:
-            prop = document.paragraph_property(ref)  # type: ignore[attr-defined]
+            prop = _document_root(document).paragraph_property(ref)
         except Exception:  # pragma: no cover - defensive
             prop = None
         spacing = getattr(prop, "line_spacing", None) if prop is not None else None
@@ -459,7 +469,7 @@ def _font_pt_from_ref(ref: object, document: object) -> float | None:
     if ref is None or document is None:
         return None
     try:
-        style = document.char_property(ref)  # type: ignore[attr-defined]
+        style = _document_root(document).char_property(ref)
     except Exception:  # pragma: no cover - defensive
         return None
     if style is None:

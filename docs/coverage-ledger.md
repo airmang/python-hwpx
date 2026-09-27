@@ -18,7 +18,7 @@
 **5) 속성 축.** 요소별 관측 속성 **이름** 집합을 census가 함께 기록한다(`observedAttributes` 컬럼, 값 빈도까지는 이번 사이클 범위 밖 — 생성기 독스트링에 명시).
 **6) openrate 코퍼스 환류(v4~v21).** `docs/openrate/report-v{4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21}.json`의 스트라타별 실한컴 수용(`render_checked>0`·`render_failed==0`, 구세대 스키마는 `opened==requested>0`도 함께)을 `verificationBasis`로 환류한다(`by-openrate-corpus`/`by-capability-area+openrate-corpus`) — 2026-08-04 감사 R4가 지목한 v4 배선(원 이름 `by-v4-corpus`)을 2026-08 사이클 6.5 트레인⑰에서 v8까지, 사이클 6.6 트레인⑳에서 v9까지, 사이클 6.7 트레인㉔에서 v10까지 확장하며 버전-중립 이름으로 바꿨다. 두 경로로 매핑한다: 이미 등록된 capabilityArea와 1:1 대응하는 스트라타는 `_OPENRATE_STRATUM_TO_CAPABILITY_AREA`(차트·체크박스·수식·각주 2종·테두리채우기·하이라이트·메모·그룹컨테이너·문서옵션호환성), capabilityArea가 아직 없거나 있어도 혼합 지원 영역이라 요소만 지목해야 하는 신규 능력(글꼴·탭·도형텍스트·캡션·쪽번호제어·문자서식·필드파라미터·arc/polygon·인라인 원자 3종)은 `_OPENRATE_STRATUM_TO_ELEMENTS`로 요소를 직접 지목한다 — 둘 다 근거는 각 생성기 스크립트 독스트링이 실제로 부른다고 명시하는 것뿐(무근거 매핑 금지, `fieldBegin`을 일부러 안 매핑한 것과 같은 원칙).
 
-**전 vs 후 (감사가 하한을 인용한 것과 같은 슬라이스 — corpusFileCount>0인 요소만)**: 감사 인용 하한은 관측 228건 중 write=none **70** · read=none **56** · frozen-template **28**([감사 판정문](2026-08-04-completeness-audit-verdict.md) 요약표). 이 원장 재생성 기준으로는 관측 229건 중 write=none **32** · read=none **20** · frozen-template **14**. **주의**: 두 population이 다르다(모집단을 재정의했다 — 위 4항목) — 이 비교는 "같은 잣대로 다시 잰 정확한 델타"가 아니라 분류기 수리가 방향대로 움직였는지의 참고 신호다. 분류기 수리 자체의 정확도 증거는 위 1~3항의 요소별 재현 로그가 1차 근거다.
+**전 vs 후 (감사가 하한을 인용한 것과 같은 슬라이스 — corpusFileCount>0인 요소만)**: 감사 인용 하한은 관측 228건 중 write=none **70** · read=none **56** · frozen-template **28**([감사 판정문](2026-08-04-completeness-audit-verdict.md) 요약표). 이 원장 재생성 기준으로는 관측 229건 중 write=none **32** · read=none **2** · frozen-template **12**. **주의**: 두 population이 다르다(모집단을 재정의했다 — 위 4항목) — 이 비교는 "같은 잣대로 다시 잰 정확한 델타"가 아니라 분류기 수리가 방향대로 움직였는지의 참고 신호다. 분류기 수리 자체의 정확도 증거는 위 1~3항의 요소별 재현 로그가 1차 근거다.
 
 ## 전체 통계
 
@@ -28,9 +28,9 @@
 | 스키마 선언 | 307 | 89.0% |
 | 코퍼스에만 있음(스키마 미대응) | 38 | 11.0% |
 | 실코퍼스에서 관측(빈도>0) | 229 | 66.4% |
-| 코드 읽기 | 247 | 71.6% |
-| 코드 쓰기(api) | 194 | 56.2% |
-| 쓰기 frozen-template | 14 | 4.1% |
+| 코드 읽기 | 268 | 77.7% |
+| 코드 쓰기(api) | 196 | 56.8% |
+| 쓰기 frozen-template | 12 | 3.5% |
 | 쓰기 none | 137 | 39.7% |
 | 능력 영역 매핑됨 | 111 | 32.2% |
 | Render-verified(매핑 근거) | 132 | 38.3% |
@@ -59,51 +59,51 @@
 | `hc:prev` | 1.0000 | 237 | True | frozen-template | — |
 | `hc:right` | 1.0000 | 237 | True | frozen-template | — |
 | `hh:head` | 1.0000 | 237 | True | frozen-template | — |
-| `hp:case` | 0.9958 | 236 | True | frozen-template | — |
 | `hp:default` | 0.9958 | 236 | True | frozen-template | — |
-| `hp:switch` | 0.9958 | 236 | True | frozen-template | — |
 | `hh:typeInfo` | 0.9747 | 231 | True | frozen-template | — |
 | `hp:lineseg` | 0.8987 | 213 | True | frozen-template | 문단·표 저작/편집 |
 | `hh:metaTag` | 0.0422 | 10 | True | frozen-template | — |
 | `hh:forbiddenWord` | 0.0127 | 3 | True | none | — |
 | `hh:forbiddenWordList` | 0.0127 | 3 | True | none | — |
-| `hc:extent` | 0.0084 | 2 | False | none | — |
+| `hc:extent` | 0.0084 | 2 | True | none | — |
 | `hp:connectLine` | 0.0084 | 2 | True | none | arc·polygon·curve·connectLine |
-| `hp:endPt` | 0.0084 | 2 | False | none | — |
+| `hp:endPt` | 0.0084 | 2 | True | none | — |
 | `hp:ole` | 0.0084 | 2 | True | none | — |
-| `hp:startPt` | 0.0084 | 2 | False | none | — |
-| `hp:alpha` | 0.0042 | 1 | False | none | — |
+| `hp:startPt` | 0.0084 | 2 | True | none | — |
+| `hp:alpha` | 0.0042 | 1 | True | none | — |
 | `hp:btn` | 0.0042 | 1 | False | none | 체크박스 양식개체 |
 | `hp:comboBox` | 0.0042 | 1 | True | none | — |
-| `hp:controlPoints` | 0.0042 | 1 | False | none | — |
+| `hp:controlPoints` | 0.0042 | 1 | True | none | — |
 | `hp:curve` | 0.0042 | 1 | True | none | arc·polygon·curve·connectLine |
 | `hp:edit` | 0.0042 | 1 | True | none | — |
-| `hp:effect` | 0.0042 | 1 | False | none | — |
-| `hp:effectsColor` | 0.0042 | 1 | False | none | — |
-| `hp:glow` | 0.0042 | 1 | False | none | — |
-| `hp:hiddenComment` | 0.0042 | 1 | False | none | — |
+| `hp:effect` | 0.0042 | 1 | True | none | — |
+| `hp:effectsColor` | 0.0042 | 1 | True | none | — |
+| `hp:glow` | 0.0042 | 1 | True | none | — |
+| `hp:hiddenComment` | 0.0042 | 1 | True | none | — |
 | `hp:listItem` | 0.0042 | 1 | True | none | — |
 | `hp:metaTag` | 0.0042 | 1 | True | none | — |
-| `hp:point` | 0.0042 | 1 | False | none | — |
-| `hp:presentation` | 0.0042 | 1 | False | none | — |
+| `hp:point` | 0.0042 | 1 | True | none | — |
+| `hp:presentation` | 0.0042 | 1 | True | none | — |
 | `hp:radioBtn` | 0.0042 | 1 | False | none | 체크박스 양식개체 |
-| `hp:reflection` | 0.0042 | 1 | False | none | — |
-| `hp:rgb` | 0.0042 | 1 | False | none | — |
-| `hp:scale` | 0.0042 | 1 | False | none | — |
+| `hp:reflection` | 0.0042 | 1 | True | none | — |
+| `hp:rgb` | 0.0042 | 1 | True | none | — |
+| `hp:scale` | 0.0042 | 1 | True | none | — |
 | `hp:seg` | 0.0042 | 1 | True | none | arc·polygon·curve·connectLine |
+| `hp:skew` | 0.0042 | 1 | True | none | — |
+| `hp:softEdge` | 0.0042 | 1 | True | none | — |
 
-(총 46건 중 상위 40건만 표시 — 전체는 coverage-ledger.json의 `elements` 참조.)
+(총 44건 중 상위 40건만 표시 — 전체는 coverage-ledger.json의 `elements` 참조.)
 
 ## 네임스페이스별 표
 
 | 네임스페이스 | 요소 수 | 스키마 선언 | 코퍼스 관측 | 읽기 | 쓰기 api | frozen-template | 쓰기 none |
 |---|---|---|---|---|---|---|---|
 | `ha` | 2 | 0 | 2 | 2 | 0 | 2 | 0 |
-| `hc` | 31 | 7 | 29 | 30 | 23 | 5 | 3 |
+| `hc` | 31 | 7 | 29 | 31 | 23 | 5 | 3 |
 | `hh` | 126 | 125 | 64 | 74 | 63 | 3 | 60 |
 | `hhs` | 10 | 10 | 0 | 10 | 0 | 0 | 10 |
 | `hm` | 2 | 2 | 0 | 2 | 0 | 0 | 2 |
-| `hp` | 171 | 161 | 132 | 126 | 106 | 4 | 61 |
+| `hp` | 171 | 161 | 132 | 146 | 108 | 2 | 61 |
 | `hs` | 1 | 1 | 1 | 1 | 1 | 0 | 0 |
 | `hv` | 2 | 1 | 1 | 2 | 1 | 0 | 1 |
 

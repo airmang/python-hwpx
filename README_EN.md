@@ -176,13 +176,16 @@ at all, and where uploads land, varies by plan and settings.
 
 | | python-hwpx | pyhwpx | pyhwp |
 |---|---|---|---|
-| **Target format** | `.hwpx` (OWPML/OPC) | `.hwpx` | `.hwp` (v5 binary) |
+| **Target format** | `.hwpx` (OWPML/OPC), `.hwp` (HWP 5.0) | `.hwpx` | `.hwp` (v5 binary) |
 | **Hancom install** | Not required | Required (Windows COM) | Not required |
 | **Cross-platform** | ✅ Linux / macOS / Windows / CI | ❌ Windows only | ✅ |
 | **Edit/create API** | ✅ | ✅ (COM) | ❌ mostly read |
 | **AI agent integration (MCP)** | ✅ via companion | ❌ | ❌ |
 
-> HWP (v5 binary) files are not supported. Convert to HWPX in Hancom Office first.
+> HWP 5.0 (`.hwp`) files open with `HwpxDocument.open`, are edited with the same API
+> and save back with `save_to_path("x.hwp")`. What could not be carried over is listed
+> in `document.conversion_report`; password-protected and distribution documents are
+> refused with `Hwp5Error`.
 
 ## Known limitations
 
@@ -191,7 +194,7 @@ at all, and where uploads land, varies by plan and settings.
   time. For shapes use `add_line()` / `add_rectangle()` / `add_ellipse()`.
 - Pictures: simple picture objects can be generated; complex ones (groups,
   effects) cannot.
-- Encrypted HWPX files are not supported.
+- Encrypted HWPX files and password-protected or distribution HWP files are not supported.
 
 ## Contributing
 

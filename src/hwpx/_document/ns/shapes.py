@@ -241,8 +241,12 @@ class ShapesNamespace(_Namespace):
         paragraph: "Paragraph | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
+        closed: bool = True,
     ) -> "Shape":
-        """다각형을 넣는다(꼭짓점은 mm, 자기 bbox 좌상단 원점 로컬 좌표계로 배치)."""
+        """다각형을 넣는다(꼭짓점은 mm, 자기 bbox 좌상단 원점 로컬 좌표계로 배치).
+
+        첫 꼭짓점을 끝에 한 번 더 써서 닫는다(한컴이 다각형을 닫는 방식).
+        `closed=False`면 꼭짓점을 잇는 열린 선이다."""
 
         from .. import shapes as _shapes
 
@@ -255,6 +259,7 @@ class ShapesNamespace(_Namespace):
             treat_as_char=treat_as_char,
             paragraph=paragraph,
             section=self._section(section, section_index, "add_polygon"),
+            closed=closed,
         )
 
     def add_container(

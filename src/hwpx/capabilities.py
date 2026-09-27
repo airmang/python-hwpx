@@ -263,7 +263,7 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "area": "hwp5-binary",
         "namespace": None,
         "matrix_row": "HWP 5.x 바이너리",
-        "entry_points": (),
+        "entry_points": ("hwpx.document:HwpxDocument",),
         "authoring_methods": (),
     },
     {

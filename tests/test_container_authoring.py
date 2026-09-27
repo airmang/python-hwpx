@@ -311,3 +311,11 @@ def test_authored_container_passes_open_safety(tmp_path) -> None:
 
     report = validate_editor_open_safety(path).to_dict()
     assert report["ok"] is True
+
+def test_a_polygon_member_is_closed_like_hancom_writes_it() -> None:
+    member = ContainerMember.polygon(0, 0, [(0, 0), (4000, 0), (2000, 4000)])
+    points = [child for child in member.element if child.tag.endswith("}pt")]
+    assert len(points) == 4
+    assert (points[0].get("x"), points[0].get("y")) == (points[-1].get("x"), points[-1].get("y"))
+    open_member = ContainerMember.polygon(0, 0, [(0, 0), (4000, 0), (2000, 4000)], closed=False)
+    assert len([child for child in open_member.element if child.tag.endswith("}pt")]) == 3

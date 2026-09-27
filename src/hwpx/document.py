@@ -36,8 +36,11 @@ from .templates import blank_document_bytes
 from ._document import fields as _fields
 from ._document import media as _media
 from ._document import persistence as _persistence
+from ._document.persistence import SaveFormat
+from .hwp5.errors import Hwp5ConversionReport
 from ._document import _resolve
 from ._document import headings as _headings
+from ._document import layout as _layout
 from .model import Paragraph
 from ._document._legacy import _LegacyFacade
 from ._document.ns import (
@@ -86,6 +89,8 @@ class HwpxDocument(_LegacyFacade):
         self._managed_resources = list(managed_resources)
         self._closed = False
         self.validate_on_save = validate_on_save
+        # What an ``.hwp`` conversion could not carry into the model (None for HWPX).
+        self._hwp5_report: Hwp5ConversionReport | None = None
         # The one gate every write funnels through (plan §2 Phase B). The oracle
         # is resolved lazily and only when a policy actually renders, so normal
         # (transparent) saves never probe Hancom.
@@ -127,6 +132,8 @@ class HwpxDocument(_LegacyFacade):
             stream = io.BytesIO(source)
             open_source = stream
             internal_resources.append(stream)
+        if HwpxPackage._leading_bytes(cast(Any, open_source), 8) == HwpxPackage.OLE2_MAGIC:
+            return cls._open_hwp5(open_source)
         # HwpxPackage/ZipFile accepts os.PathLike at runtime; its narrower
         # compatibility annotation intentionally remains frozen.
         package = HwpxPackage.open(cast(Any, open_source))
@@ -134,8 +141,51 @@ class HwpxDocument(_LegacyFacade):
         return cls(package, root, managed_resources=tuple(internal_resources))
 
     @classmethod
+    def _open_hwp5(cls, source: Any) -> "HwpxDocument":
+        """Convert an HWP 5.0 (``.hwp``) file into the HWPX document model."""
+
+        import warnings
+
+        from .hwp5.errors import Hwp5ConversionReport, Hwp5ConversionWarning
+        from .hwp5.package import convert, to_hwpx_bytes
+
+        if isinstance(source, (str, PathLike)):
+            with open(source, "rb") as handle:
+                data = handle.read()
+        else:
+            source.seek(0)
+            data = source.read()
+        converted = convert(data)
+        package = HwpxPackage.open(to_hwpx_bytes(converted.files))
+        root = HwpxOxmlDocument.from_package(package)
+        document = cls(package, root)
+        document._hwp5_report = Hwp5ConversionReport.of(converted.report.unconverted, converted.report.dropped)
+        skipped = converted.report.unconverted
+        if skipped:
+            summary = ", ".join(f"{kind} x{count}" for kind, count in sorted(skipped.items()))
+            warnings.warn(
+                f"HWP content not converted into the document model: {summary}",
+                Hwp5ConversionWarning,
+                stacklevel=3,
+            )
+        return document
+
+    @property
+    def conversion_report(self) -> Hwp5ConversionReport | None:
+        """What opening an ``.hwp`` file could not carry into the document
+        model, as read-only counts by kind (``unconverted``, ``dropped``);
+        None for a document that was not opened from ``.hwp``."""
+
+        return self._hwp5_report
+
+    @classmethod
     def new(cls) -> "HwpxDocument":
-        """Return a new blank document based on the default skeleton template."""
+        """Return a new blank document based on the default skeleton template.
+
+        Its only paragraph is empty and holds the section settings, and
+        :meth:`add_paragraph` appends after it, so the document starts with an
+        empty line. Write the first line with ``document.paragraphs[0].text = ...``.
+        """
 
         return cls.open(blank_document_bytes())
 
@@ -456,11 +506,13 @@ class HwpxDocument(_LegacyFacade):
             self, section, section_index, caller="add_heading"
         )
         resolved = _headings.resolve_heading_style(self, level=level, style=style)
+        # Hancom draws a paragraph by its own shapes, not its style's: start from the style's.
         paragraph = self._root.add_paragraph(
             text,
             section=target,
+            para_pr_id_ref=resolved.para_pr_id_ref,
             style_id_ref=resolved.id,
-            char_pr_id_ref=char_pr_id_ref,
+            char_pr_id_ref=char_pr_id_ref if char_pr_id_ref is not None else resolved.char_pr_id_ref,
             inherit_style=False,
             **cast(Any, extra_attrs),
         )
@@ -514,7 +566,7 @@ class HwpxDocument(_LegacyFacade):
             inherit_style=inherit_style,
             **cast(Any, extra_attrs),
         )
-        return paragraph.add_table(
+        table = paragraph.add_table(
             rows,
             cols,
             width=width,
@@ -523,6 +575,8 @@ class HwpxDocument(_LegacyFacade):
             run_attributes=run_attributes,
             char_pr_id_ref=char_pr_id_ref,
         )
+        _layout.flow_table_taller_than_page(self, table)
+        return table
 
     def add_picture(
         self,
@@ -685,6 +739,7 @@ class HwpxDocument(_LegacyFacade):
         mode: Mode = ...,
         fallback: Fallback = ...,
         return_report: Literal[False] = ...,
+        format: SaveFormat = ...,
     ) -> BinaryIO: ...
 
     @overload
@@ -695,6 +750,7 @@ class HwpxDocument(_LegacyFacade):
         mode: Mode = ...,
         fallback: Fallback = ...,
         return_report: Literal[True],
+        format: SaveFormat = ...,
     ) -> MutationReport: ...
 
     def save_to_stream(
@@ -704,12 +760,14 @@ class HwpxDocument(_LegacyFacade):
         mode: Mode = "auto",
         fallback: Fallback = "error",
         return_report: bool = False,
+        format: SaveFormat = "hwpx",
     ) -> BinaryIO | MutationReport:
         """Persist pending changes to *stream* and return the same stream.
 
         ``return_report=True`` returns the Safe Write Contract
         :class:`~hwpx.mutation_report.MutationReport` instead. See
         :meth:`save_to_path` for the ``mode``/``fallback`` grade semantics.
+        ``format="hwp"`` writes HWP 5.0 instead of HWPX.
         """
 
         return _persistence.save_to_stream(
@@ -718,6 +776,7 @@ class HwpxDocument(_LegacyFacade):
             mode=mode,
             fallback=fallback,
             return_report=return_report,
+            format=format,
         )
 
     def save_report(
@@ -757,16 +816,17 @@ class HwpxDocument(_LegacyFacade):
         *,
         mode: Mode = "auto",
         fallback: Fallback = "error",
+        format: SaveFormat = "hwpx",
     ) -> bytes:
         """Serialize pending changes and return the HWPX archive as bytes.
 
         ``mode="patch"`` with ``fallback="error"`` raises
         :class:`~hwpx.mutation_report.PreservationDowngradeError` before
         returning when the archive is not patch-grade; the byte return itself is
-        unchanged.
+        unchanged. ``format="hwp"`` returns an HWP 5.0 file instead.
         """
 
-        return _persistence.to_bytes(self, mode=mode, fallback=fallback)
+        return _persistence.to_bytes(self, mode=mode, fallback=fallback, format=format)
 
     def _to_bytes_raw(
         self,

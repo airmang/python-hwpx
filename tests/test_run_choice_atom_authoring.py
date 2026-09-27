@@ -154,19 +154,17 @@ def test_authored_atoms_pass_open_safety(tmp_path: Path) -> None:
 # ============================================================================
 
 
-def test_run_choice_atoms_differ_structurally_from_tab() -> None:
-    """paragraph.text 세터는 hp:tab을 _append_text_with_tabs로 저작한다
-    (기존 동작, 이번 트레인은 안 건드림) — hp:run 형제인 별도 hp:t로
-    갈라진다. add_run(expand_special_characters=True)의 세 원자는 그와
-    달리 **하나의** hp:t 안에 중첩된다 — 실코퍼스가 보여주는 실제 차이를
-    구조적으로 고정."""
+def test_tab_and_run_choice_atoms_nest_inside_one_text_element() -> None:
+    """paragraph.text 세터의 hp:tab도, add_run(expand_special_characters=True)의
+    세 원자도 **하나의** hp:t 안에 중첩된다 — 한컴이 쓰는 모양이다. hp:run의
+    형제로 둔 hp:tab은 한컴이 열 때 버린다."""
 
     doc = HwpxDocument.new()
     tab_paragraph = doc.add_paragraph("left\tright")
     tab_run = tab_paragraph._run_elements()[0]
     tab_children = [_local(c.tag) for c in tab_run]
-    assert tab_children.count("t") == 2
-    assert "tab" in tab_children
+    assert tab_children == ["t"]
+    assert [_local(c.tag) for c in tab_run[0]] == ["tab"]
 
     atom_paragraph = doc.add_paragraph("")
     atom_run = atom_paragraph.add_run("left\nright", expand_special_characters=True)

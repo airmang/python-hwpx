@@ -228,7 +228,21 @@ def test_add_polygon_accepts_exactly_three_points() -> None:
         [(0.0, 0.0), (10.0, 0.0), (5.0, 10.0)], section=0,
     )
     points = [pt for pt in shape.element if pt.tag == f"{HC}pt"]
-    assert len(points) == 3
+    # closed: the first vertex is repeated at the end, as Hancom writes it
+    assert len(points) == 4
+    assert (points[0].get("x"), points[0].get("y")) == (points[-1].get("x"), points[-1].get("y"))
+
+
+def test_add_polygon_closed_false_keeps_an_open_line() -> None:
+    doc = HwpxDocument.new()
+    shape = doc.shapes.add_polygon([(0.0, 0.0), (10.0, 0.0), (5.0, 10.0)], closed=False)
+    assert len([pt for pt in shape.element if pt.tag == f"{HC}pt"]) == 3
+
+
+def test_add_polygon_does_not_repeat_a_vertex_that_already_closes_it() -> None:
+    doc = HwpxDocument.new()
+    shape = doc.shapes.add_polygon([(0.0, 0.0), (10.0, 0.0), (5.0, 10.0), (0.0, 0.0)])
+    assert len([pt for pt in shape.element if pt.tag == f"{HC}pt"]) == 4
 
 
 # ============================================================================
@@ -330,7 +344,7 @@ def test_new_authoring_shape_is_structurally_valid_and_rereadable(
 
     assert _missing_shape_children(shape.element) == []
     vertex_count = len([pt for pt in shape.element if pt.tag == f"{HC}pt"])
-    assert vertex_count == len(points_mm)
+    assert vertex_count == len(points_mm) + 1  # closed
 
     path = tmp_path / f"{name}.hwpx"
     doc.save_to_path(path)
@@ -345,7 +359,7 @@ def test_new_authoring_shape_is_structurally_valid_and_rereadable(
     ]
     polygons = [s for s in shapes if s.element.tag == f"{HP}polygon"]
     assert len(polygons) == 1
-    assert len([pt for pt in polygons[0].element if pt.tag == f"{HC}pt"]) == len(points_mm)
+    assert len([pt for pt in polygons[0].element if pt.tag == f"{HC}pt"]) == len(points_mm) + 1
 
     from hwpx.tools.package_validator import validate_editor_open_safety
 
