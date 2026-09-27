@@ -53,6 +53,7 @@ from .owpml import (
     color,
     flag,
     image_effect,
+    layout_compatibility,
     root,
     serialize,
     sub,
@@ -657,7 +658,11 @@ def build_header(
         _forbidden_word_list(head, words)
     target = info.compatible_target or 0
     compatible = sub(head, "hh:compatibleDocument", (("targetProgram", token(TARGET_PROGRAM, target)),))
-    sub(compatible, "hh:layoutCompatibility")
+    layout = sub(compatible, "hh:layoutCompatibility")
+    # Hancom reads applyFontspaceToLatin but leaves it out when it writes
+    # OWPML; it is kept so that the document keeps its layout.
+    for name in layout_compatibility(info.layout_compatibility or ()):
+        sub(layout, f"hh:{name}")
     option = sub(head, "hh:docOption")
     path, page_inherit, footnote_inherit = _link_doc(link_doc)
     sub(

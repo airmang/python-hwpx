@@ -434,6 +434,8 @@
 - `set_span(row_span, col_span)`: 병합 속성을 업데이트하고 표를 dirty로 표시합니다.
 - `width`, `height`: `<hp:cellSz>`에서 캐시된 셀 크기를 노출하는 프로퍼티입니다.
 - `set_size(width=None, height=None)`: 크기 속성을 0 또는 그 이상으로 업데이트합니다.
+- `margins`: 한/글이 셀을 배치하는 안쪽 여백을 `CellMargins(left, right, top, bottom)`(HWPUNIT)로 반환하는 프로퍼티입니다. 셀의 `hasMargin`이 꺼져 있으면 표의 `<hp:inMargin>`, 켜져 있으면 셀의 `<hp:cellMargin>`을 읽습니다.
+- `set_margins(*, left=None, right=None, top=None, bottom=None)`: 주지 않은 면은 지금 여백을 유지한 채 네 면을 `<hp:cellMargin>`에 쓰고 `hasMargin="1"`로 켠 뒤 새 `CellMargins`를 반환합니다. 잘못된 값은 `HwpxValueError`(`cell-margin-value`)로 거부합니다.
 - `text`: 셀 내부의 첫 번째 텍스트 노드를 반환하는 프로퍼티입니다. setter는 텍스트를 할당하기 전에 중첩된 단락 구조를 보장하고, `<hp:lineSegArray>`와 같은 줄 배치 캐시를 제거하여 한/글이 줄바꿈을 다시 계산하도록 합니다.
 - `remove()`: 행에서 셀 엘리먼트를 제거합니다.
 - `_addr_element()`, `_span_element()`, `_size_element()`, `_ensure_text_element()`: 중첩된 XML 구조를 관리하는 내부 헬퍼입니다.

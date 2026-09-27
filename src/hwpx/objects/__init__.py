@@ -27,6 +27,7 @@ from .highlight import Highlight
 from .results import (
     BorderFillInfo,
     BorderLine,
+    CellMargins,
     ColumnLayout,
     FieldFillResult,
     FontReplaceReport,
@@ -45,6 +46,7 @@ __all__ = [
     "BorderFillInfo",
     "BorderLine",
     "CellField",
+    "CellMargins",
     "CheckBox",
     "ColumnLayout",
     "FieldFillResult",
