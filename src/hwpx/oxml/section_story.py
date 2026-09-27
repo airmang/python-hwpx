@@ -18,6 +18,7 @@ from ._document_primitives import (
     _text_element_content,
 )
 from ._paragraph_text_edit import set_text_with_tabs
+from .numbering_kinds import number_format
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
@@ -756,19 +757,8 @@ class HwpxOxmlSectionHeaderFooter:
 
         target = paragraph if paragraph is not None else self._ensure_content_paragraph()
         normalized_format = str(format_type or format or "DIGIT").strip().upper()
-        format_aliases = {
-            "PAGE": "DIGIT",
-            "PAGE/TOTAL": "DIGIT",
-            "NUMBER": "DIGIT",
-            "DIGIT": "DIGIT",
-            "ROMAN": "ROMAN_CAPITAL",
-            "ROMAN_UPPER": "ROMAN_CAPITAL",
-            "ROMAN_LOWER": "ROMAN_SMALL",
-            "ALPHA": "LATIN_CAPITAL",
-            "ALPHA_UPPER": "LATIN_CAPITAL",
-            "ALPHA_LOWER": "LATIN_SMALL",
-        }
-        page_format_type = format_aliases.get(normalized_format, normalized_format)
+        # ``format`` also names the display ("page", "page/total"); those count in digits.
+        page_format_type = number_format("DIGIT" if normalized_format in {"PAGE", "PAGE/TOTAL"} else normalized_format)
         auto_run = _append_child(target, f"{_HP}run", {"charPrIDRef": "0"})
         auto_ctrl = _append_child(auto_run, f"{_HP}ctrl", {})
         _append_auto_number(auto_ctrl, "PAGE", page_format_type)
@@ -800,8 +790,32 @@ class HwpxOxmlSectionHeaderFooter:
         self._properties.section.mark_dirty()
 
     def set_content(self, content: Sequence[Mapping[str, Any]]) -> None:
-        """Replace header/footer content with paragraph/run/page-number specs."""
+        """Replace header/footer content with paragraph/run/page-number specs.
 
+        A value that is refused (a colour, a page number format, ...) leaves the
+        header/footer as it was.
+        """
+
+        from .color import normalize_color
+
+        for paragraph_spec in content:  # colours first: nothing is cleared for a bad one
+            for child in paragraph_spec.get("children") or paragraph_spec.get("runs") or ():
+                for key in ("color", "highlight"):
+                    if child.get(key) is not None:
+                        normalize_color(child.get(key))
+        saved = deepcopy(self.element)
+        try:
+            self._fill_content(content)
+        except Exception:
+            self.element.attrib.clear()
+            self.element.attrib.update(saved.attrib)
+            self.element.text = saved.text
+            for child in list(self.element):
+                self.element.remove(child)
+            self.element.extend(list(saved))
+            raise
+
+    def _fill_content(self, content: Sequence[Mapping[str, Any]]) -> None:
         if not content:
             self.clear_content()
             return
