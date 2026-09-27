@@ -205,9 +205,15 @@ def _set_own_text(cell: Any, value: str) -> None:
         target = own[0]
     elif not paragraphs:
         target = cell._ensure_text_element()
-    else:  # the first paragraph holds only objects: the text goes in front of them
-        run = paragraphs[0].makeelement(f"{HP}run", {"charPrIDRef": cell._first_run_char_pr_id_ref()})
-        paragraphs[0].insert(0, run)
+    else:
+        # No text node yet. A run of the first paragraph that holds nothing (Hancom's empty
+        # cell is one such run) takes it; when the paragraph holds only objects, the text
+        # goes in a new run in front of them.
+        first = paragraphs[0]
+        run = next((run for run in first.findall(f"{HP}run") if len(run) == 0), None)
+        if run is None:
+            run = first.makeelement(f"{HP}run", {"charPrIDRef": cell._first_run_char_pr_id_ref()})
+            first.insert(0, run)
         target = run.makeelement(f"{HP}t", {})
         run.append(target)
     set_text_with_tabs(target, text)

@@ -15,6 +15,7 @@ import pytest
 
 from hwpx.document import HwpxDocument
 from hwpx.errors import HwpxValueError
+from hwpx.oxml.namespaces import HP
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -70,6 +71,26 @@ def test_a_cell_holding_only_a_table_gets_its_text_in_front_of_it() -> None:
     assert (inner.cell(0, 0).text, inner.cell(0, 1).text) == ("안쪽1", "안쪽2")
     reopened = HwpxDocument.open(io.BytesIO(document.to_bytes()))
     assert [field.text for field in reopened.fields.cells] == ["새 값"]
+
+
+def test_a_cell_with_an_empty_run_gets_its_text_in_that_run() -> None:
+    # Hancom saves an empty cell as one run without hp:t.
+    document = HwpxDocument.new()
+    cell = document.add_table(1, 1).cell(0, 0)
+    cell.field_name = "이름칸"
+    for run in cell.element.iter(f"{HP}run"):
+        for node in run.findall(f"{HP}t"):
+            run.remove(node)
+    runs = cell.paragraphs[0].element.findall(f"{HP}run")
+    assert [len(run) for run in runs] == [0]
+    char_pr = runs[0].get("charPrIDRef")
+
+    document.fields.fill_cell("Alice", name="이름칸")
+
+    runs = cell.paragraphs[0].element.findall(f"{HP}run")
+    assert [[child.tag for child in run] for run in runs] == [[f"{HP}t"]]
+    assert runs[0].get("charPrIDRef") == char_pr
+    assert cell.text == "Alice"
 
 
 def test_named_cells_are_listed_in_document_order() -> None:
