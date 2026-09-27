@@ -23,6 +23,8 @@ stable 편집 표면의 계약을 한 곳에 모았다. 아래 표의 실패 모
 | `document.text.replace(search, repl, everywhere=False)` | `int` (치환 수) | 빈 `search`는 `ValueError` | 치환할 것이 없으면 `0` — 1회차 후 수렴 |
 | `document.notes.add_memo(..., anchor=p)` | `Memo` (`paragraph`, `field_id` 속성) | 아래 캐비앗 참고 | 메모가 하나 더 붙는다(비멱등) |
 | `document.notes.add_footnote(text, paragraph)` | `HwpxOxmlNote` | 사실상 없음 | 각주가 하나 더 붙는다(비멱등) |
+| `section.clear_body(on_control_content="raise")` | `ClearBodyReport` | 첫 문단 첫 run에 `hp:secPr`가 없으면 `section-clear-no-section-properties`, 남길 `hp:secPr`/`hp:ctrl` 안에 글·표·개체·양식 개체·덧말·글자 겹침이 있으면 `section-clear-control-content`(`context["tags"]`), 모르는 모드면 `section-clear-mode-invalid` — 모두 바꾸기 전에 거부 | 이미 비운 섹션이면 아무것도 바꾸지 않고 dirty로 표시하지도 않는다(멱등, 보고 수치 0) |
+| `run.content_kinds()` | `frozenset[str]` (`RUN_CONTENT_KINDS` 어휘) | 사실상 없음 | 읽기 전용 |
 
 "사실상 없음"은 정상 인자에서 실패 경로가 없다는 뜻이다 — 타입이 어긋난
 인자는 여느 파이썬 API처럼 `TypeError` 계열로 즉시 드러난다.
@@ -92,6 +94,15 @@ print(report.actual_mode)
   저장 성공 여부와 관계없이 요청이 반영되지 않은 것이다.
 - `add_*` 계열은 전부 append 의미론이다. "없으면 추가"가 필요하면 먼저
   {doc}`recipes-traversal`의 순회로 존재 여부를 확인하라.
+- `section.clear_body()`는 첫 문단의 첫 run에서 `hp:secPr`(쪽 설정)와
+  `hp:ctrl`(단·머리말·꼬리말·쪽 번호)만 남긴다. 첫 문단의 나머지 run은 안의
+  컨트롤까지 통째로 지운다. `on_control_content="strip"`은 내용이 든
+  `hp:ctrl`과, `set_header()`·`set_footer()`가 `hp:secPr` 안에 따로 쓰는
+  머리말·꼬리말 사본(한컴은 `hp:ctrl` 쪽만 읽는다)과 그것을 가리키는
+  `headerApply`·`footerApply`를 지운다. 그래도 내용이 남을 자리(`hp:secPr`의
+  다른 자식 등)에 내용이 있으면 지우지 않고 `section-clear-control-content`로
+  거부한다 — `"strip"`이 성공했다면 남은 내용은 없다. 공유 전에 무엇을 지울지는
+  호출자가 정한다.
 - 편집은 저장 전까지 메모리에만 있다. 저장 경로가 곧 커밋이다.
 
 ## 다음 단계

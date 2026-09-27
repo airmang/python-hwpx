@@ -250,6 +250,40 @@ class PageSetup:
 
 
 @dataclass(frozen=True)
+class ClearBodyReport:
+    """The outcome of blanking a section down to a template (``Section.clear_body``).
+
+    ``removed_paragraphs`` counts the section paragraphs after the first,
+    ``removed_runs`` the first paragraph's runs after its first, and
+    ``stripped_run_children`` the first run's children other than
+    ``hp:secPr``/``hp:ctrl``. ``control_content`` lists the content tags
+    (``"hp:t"``, ``"hp:tbl"``, ...) found inside the kept ``hp:secPr``/``hp:ctrl``
+    children, in first-seen order. With ``on_control_content="strip"``,
+    ``stripped_controls`` counts the ``hp:ctrl`` children removed for holding
+    such content and ``stripped_section_stories`` the ``hp:header``/``hp:footer``
+    story copies removed from inside ``hp:secPr`` (the ``hp:headerApply``/
+    ``hp:footerApply`` elements pointing at them go too and are not counted).
+    """
+
+    removed_paragraphs: int
+    removed_runs: int
+    stripped_run_children: int
+    control_content: tuple[str, ...]
+    stripped_controls: int
+    stripped_section_stories: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "removedParagraphs": self.removed_paragraphs,
+            "removedRuns": self.removed_runs,
+            "strippedRunChildren": self.stripped_run_children,
+            "controlContent": list(self.control_content),
+            "strippedControls": self.stripped_controls,
+            "strippedSectionStories": self.stripped_section_stories,
+        }
+
+
+@dataclass(frozen=True)
 class BorderLine:
     """One side of an ``hh:borderFill`` (``doc.styles.border_fill_info``).
 
@@ -325,6 +359,7 @@ __all__ = [
     "BorderFillInfo",
     "BorderLine",
     "CellMargins",
+    "ClearBodyReport",
     "ColumnLayout",
     "FieldFillResult",
     "FontReplaceReport",

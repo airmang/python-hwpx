@@ -249,6 +249,15 @@
   "section-argument-conflict": [
    "_document/_resolve.py:75"
   ],
+  "section-clear-control-content": [
+   "oxml/section.py:315"
+  ],
+  "section-clear-mode-invalid": [
+   "oxml/section.py:242"
+  ],
+  "section-clear-no-section-properties": [
+   "oxml/section.py:252"
+  ],
   "section-invalid-type": [
    "_document/_resolve.py:111"
   ],
@@ -454,7 +463,7 @@
  "malformedCodes": [],
  "observed": {
   "other": 213,
-  "typed": 208,
+  "typed": 211,
   "untyped": 203,
   "untypedByFile": {
    "body_patch.py": 20,

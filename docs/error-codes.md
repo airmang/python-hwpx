@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 160 | 11 |
+| 개수 | 163 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -248,6 +248,9 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `section-argument-conflict` | section 과 section_index 를 동시에 지정했다. |
+| `section-clear-control-content` | clear_body 가 남길 hp:secPr/hp:ctrl 안에 글·표·개체가 있다(머리말·꼬리말 등, strip 으로도 못 지우는 경우 포함, 태그는 context 에). |
+| `section-clear-mode-invalid` | clear_body 의 on_control_content 값이 raise/keep/strip 밖이다. |
+| `section-clear-no-section-properties` | 섹션 첫 문단의 첫 run 에 hp:secPr 가 없어 clear_body 가 남길 쪽 설정이 없다. |
 | `section-invalid-type` | section 인자가 정수도 섹션 객체도 아니다. |
 | `section-missing` | 문서에 섹션이 하나도 없다. |
 | `section-not-found` | 섹션 인덱스가 범위를 벗어났다. |
