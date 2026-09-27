@@ -236,7 +236,9 @@ ERROR_CODES: dict[str, str] = {
     "header-compat-empty-target-program": "target_program 값이 비어 있다.",
     "header-compat-empty-flag-name": "layout compatibility 플래그 이름이 비어 있다.",
     "header-compat-empty-license-mark-type": "라이선스 표시 mark_type 값이 비어 있다.",
+    "master-page-in-use": "지우려는 바탕쪽을 아직 어떤 절이 참조한다.",
     "master-page-manifest-missing": "content.hpf 매니페스트에 opf:manifest 요소가 없다.",
+    "master-page-not-found": "그 id의 바탕쪽 파트가 문서에 없다.",
     "master-page-type-unsupported": "바탕쪽 type 값이 OWPML 어휘(BOTH/EVEN/ODD/LAST_PAGE/OPTIONAL_PAGE) 밖이다.",
     # -- 문서 병합(doc.merge) ------------------------------------------------
     "document-merge-index-out-of-range": "after_paragraph_index 가 대상 섹션의 문단 개수 범위를 벗어났다.",
@@ -311,6 +313,7 @@ ERROR_CODES: dict[str, str] = {
     "shape-chart-not-created": "만든 차트를 표준 스캔이 다시 찾지 못했다.",
     "shape-caption-side-invalid": "캡션 side 값이 OWPML 어휘(LEFT/RIGHT/TOP/BOTTOM) 밖이다.",
     "shape-draw-text-vert-align": "도형 글상자 vert_align 값이 OWPML 어휘(hp:subList/@vertAlign, TOP/CENTER/BOTTOM) 밖이다.",
+    "shape-original-size-invalid": "add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다.",
     "shape-position-value": "도형 오프셋이 signed 32-bit 정수(HWPUNIT)가 아니다.",
     "shape-position-unsupported": "위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다.",
     "shape-position-frame": "도형 기준 프레임·정렬 값이 OWPML 어휘(hp:pos 의 vertRelTo/horzRelTo/vertAlign/horzAlign) 밖이다.",

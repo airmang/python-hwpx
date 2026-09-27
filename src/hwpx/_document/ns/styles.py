@@ -422,6 +422,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         dst_face: str,
         *,
         langs: "Sequence[str] | None" = None,
+        font_type: str | None = None,
     ) -> "FontReplaceReport":
         """글꼴 *src_face*를 문서 전체에서 *dst_face*로 바꾼다.
 
@@ -429,9 +430,14 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         블록을 문서 순서대로(*langs*를 주면 그 lang 블록만) 하나씩 처리한다.
 
         1. 블록에 *src_face* 글꼴이 없으면 건너뛴다(오류 아님).
-        2. *dst_face* 글꼴이 있으면 그 id를 쓰고, 없으면 블록 끝에
-           `<hh:font id="{글꼴 수}" face="{dst_face}" type="TTF" isEmbedded="0"/>`를
-           더한다.
+        2. *dst_face* 글꼴이 있으면 그 id를 쓰고, 없으면 블록 끝에 id가
+           `{글꼴 수}`인 *dst_face* 글꼴을 더한다. 다른 블록에 *dst_face* 선언이
+           있으면(바꾸기 전 문서 순서로 첫 선언) 그 `hh:font`를 id만 바꿔
+           복사한다. 그래서 `type`·`isEmbedded`·자식 요소가 그 선언과 같다.
+           어느 블록에도 없으면
+           `<hh:font id="{글꼴 수}" face="{dst_face}" type="TTF" isEmbedded="0"/>`다.
+           *font_type*(`REP`/`TTF`/`HFT`)을 주면 이 호출이 더하는 글꼴의
+           `type`을 그 값으로 쓴다. 이미 있던 글꼴은 바꾸지 않는다.
         3. 헤더의 모든 `hh:charPr`에서 `fontRef/@<lang>`이 *src_face*를
            가리키면 *dst_face*를 가리키게 한다(`repointed`로 센다).
         4. *src_face* 글꼴을 지우고, 남은 글꼴의 id를 문서 순서대로 0..N-1로
@@ -454,7 +460,8 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
 
         인자는 바꾸기 전에 검사한다: 빈 이름은 `style-font-face-empty`, 같은
         이름 둘은 `style-font-replace-same-face`, 모르는 lang은
-        `style-font-lang-invalid`(`HwpxValueError`).
+        `style-font-lang-invalid`, 모르는 *font_type*은
+        `style-font-type-invalid`(`HwpxValueError`).
 
         Returns:
             `FontReplaceReport` — `langs`는 실제로 바뀐 블록(문서 순서),
@@ -465,7 +472,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         from ...oxml import header_fonts
 
         return header_fonts.replace_font(
-            self._primary_header(), src_face, dst_face, langs=langs
+            self._primary_header(), src_face, dst_face, langs=langs, font_type=font_type
         )
 
     def _primary_header(self) -> "HwpxOxmlHeader | None":

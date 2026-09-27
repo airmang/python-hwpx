@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+### 추가
+
+- `doc.parts.remove_master_page(id)`를 더한다. 어느 구역도 참조하지 않는 바탕쪽의 매니페스트 항목과
+  파트를 지우고, 저장된 적이 있어 패키지에 있는 파트 파일도 지운다. 구역이 참조하는 바탕쪽은
+  `master-page-in-use`, 없는 id는 `master-page-not-found`로 거부하고 아무것도 바꾸지 않는다.
+- `doc.parts.add_master_page()`에 `section`을 더한다. 주면 만든 바탕쪽을 그 구역에 바로 연결한다.
+  그 구역에 같은 쪽의 바탕쪽이 이미 있으면 파트를 만들기 전에 `master-page-pages-taken`으로
+  거부하므로, 거부된 호출은 문서에 아무것도 남기지 않는다.
+- `add_rectangle()`·`add_ellipse()`(`doc.shapes`와 문단)에 `original_size=(w, h)`를 더한다.
+  `hp:orgSz`를 그리는 크기와 따로 쓴다. 도형과 기하는 원래 크기로 만들고, `curSz`·`sz`는
+  `width`×`height`, `scaMatrix`는 두 크기의 비율, 회전 중심은 `curSz`의 절반이다. 한/글이 저장한
+  코퍼스 파일의 크기 바뀐 도형과 같은 배치다. 주지 않으면 출력은 전과 같다. 양의 정수 두 개가
+  아니면 `shape-original-size-invalid`로 거부한다. 한/글에서 렌더는 확인하지 않았다.
+- `doc.styles.replace_font()`에 `font_type`(`REP`/`TTF`/`HFT`)을 더한다. 이 호출이 새로 선언하는
+  글꼴의 `type`을 정한다. 이미 있던 글꼴은 바꾸지 않는다.
+
 ### 바꿈
 
 - FormFit이 한글 한 자를 글자 모양의 한글 글꼴에서 한/글이 배치하는 폭으로 센다.
@@ -18,6 +34,10 @@
 
 ### 고침
 
+- `doc.styles.replace_font()`가 *dst_face*를 새로 선언하는 블록에 늘 `type="TTF"`를 쓰던 것을
+  고친다. 다른 블록이 같은 글꼴을 `HFT`로 선언해도 그랬다. 이제 다른 블록에 *dst_face* 선언이
+  있으면 그 `hh:font`를 id만 바꿔 복사한다. 그래서 `type`·`isEmbedded`·`hh:typeInfo`가 그 선언과
+  같다. 어느 블록에도 없을 때만 전처럼 `TTF`로 선언한다.
 - `check_id_integrity()`가 동영상이 가리키는 항목(포스터 `imageIDRef`, 파일 `fileIDRef`)을 고아
   BinData로 보고해 `ok=False`를 내던 것을 고친다. `binaryItemIDRef`만 참조로 셌기 때문이다. 이제
   `imageIDRef`·`fileIDRef`·`soundIDRef`도 참조로 세고, 패키지 밖 파일을 잇는 항목(`isEmbeded="0"`이고

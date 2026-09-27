@@ -46,8 +46,9 @@ from .simple_parts import HwpxOxmlMasterPage
 
 if TYPE_CHECKING:
     from .document_parts import HwpxOxmlDocument
+    from .section import HwpxOxmlSection
 
-__all__ = ["add_master_page", "refuse_pages_taken"]
+__all__ = ["add_master_page", "refuse_pages_taken", "remove_master_page"]
 
 _OPF_NS = "http://www.idpf.org/2007/opf/"
 _PART_INDEX_RE = re.compile(r"masterpage(\d+)")
@@ -114,6 +115,12 @@ def refuse_pages_taken(document: "HwpxOxmlDocument", existing: Sequence[str], id
     wanted = _master_page_pages(document, id_ref)
     if wanted is None:
         return
+    _refuse_wanted_pages(document, existing, id_ref, wanted)
+
+
+def _refuse_wanted_pages(
+    document: "HwpxOxmlDocument", existing: Sequence[str], id_ref: str, wanted: tuple[str, int]
+) -> None:
     taken = next((ref for ref in existing if _master_page_pages(document, ref) == wanted), None)
     if taken is None:
         return
@@ -141,6 +148,7 @@ def add_master_page(
     page_number: int | None = None,
     page_duplicate: bool = False,
     page_front: bool = False,
+    section: "HwpxOxmlSection | None" = None,
 ) -> str:
     """새 바탕쪽 파트를 만들고 매니페스트에 등록한다.
 
@@ -152,6 +160,9 @@ def add_master_page(
     하나). *page_type*은 스키마 선언 열거값만 받는다. *page_number*를
     주지 않으면 ``OPTIONAL_PAGE``는 1쪽, 다른 종류는 0(쪽 번호 없음)을
     쓴다. 한/글도 ``OPTIONAL_PAGE``가 아닌 바탕쪽에는 0을 쓴다.
+
+    *section*을 주면 그 절에 바로 연결한다. 연결이 거부되면
+    (``master-page-pages-taken``) 파트도 만들지 않는다.
     """
     from ..errors import HwpxValueError
 
@@ -164,6 +175,7 @@ def add_master_page(
         )
 
     body_lines = list(paragraphs) if paragraphs is not None else [text or ""]
+    number = max(_default_page_number(page_type) if page_number is None else page_number, 0)
 
     existing_indices: list[int] = []
     for master_page in document._master_pages:
@@ -174,12 +186,17 @@ def add_master_page(
     master_page_id = f"masterpage{next_index}"
     part_name = f"Contents/{master_page_id}.xml"
 
+    if section is not None:
+        # Check the link before the part exists, so a refused link leaves nothing behind.
+        wanted = (page_type, number if page_type == "OPTIONAL_PAGE" else 0)
+        _refuse_wanted_pages(document, section.properties.master_page_refs, master_page_id, wanted)
+
     root = _etree.Element(
         "masterPage",
         {
             "id": master_page_id,
             "type": page_type,
-            "pageNumber": str(max(_default_page_number(page_type) if page_number is None else page_number, 0)),
+            "pageNumber": str(number),
             "pageDuplicate": "1" if page_duplicate else "0",
             "pageFront": "1" if page_front else "0",
         },
@@ -212,4 +229,49 @@ def add_master_page(
     new_master_page.mark_dirty()
     document._master_pages.append(new_master_page)
 
+    if section is not None:
+        section.properties.add_master_page_reference(master_page_id)
     return master_page_id
+
+
+def remove_master_page(document: "HwpxOxmlDocument", id_ref: str) -> str:
+    """Remove a master page no section references, and return its part name.
+
+    Drops its manifest item and its in-memory part. The caller removes the
+    part file from the package (``doc.parts.remove_master_page`` does).
+    A master page a section still references is refused, so no section is
+    left pointing at a part that is gone.
+    """
+    from ..errors import HwpxLookupError, HwpxValueError
+
+    manifest_el = _manifest_element(document)
+    item = next(
+        (item for item in manifest_el.findall(f"{{{_OPF_NS}}}item") if item.get("id") == id_ref),
+        None,
+    )
+    href = item.get("href", "") if item is not None else ""
+    part_name = href if href.startswith("Contents/") or "/" in href else f"Contents/{href}"
+    master_page = next((page for page in document._master_pages if page.part_name == part_name), None)
+    if item is None or master_page is None:
+        raise HwpxLookupError(
+            f"no master page with id {id_ref!r}",
+            code="master-page-not-found",
+            context={"requested": id_ref, "available": [page.part_name for page in document._master_pages]},
+            suggestion="Pass an id returned by doc.parts.add_master_page.",
+        )
+    users = [
+        index
+        for index, section in enumerate(document.sections)
+        if id_ref in section.properties.master_page_refs
+    ]
+    if users:
+        raise HwpxValueError(
+            f"master page {id_ref!r} is still referenced by section(s) {users}",
+            code="master-page-in-use",
+            context={"requested": id_ref, "sections": users},
+            suggestion="Only a master page no section references can be removed.",
+        )
+    manifest_el.remove(item)
+    document._manifest_dirty = True
+    document._master_pages.remove(master_page)
+    return part_name
