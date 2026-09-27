@@ -6,11 +6,15 @@ Hancom's fill image codes 10-13 are saved as ``LEFT_TOP``, ``LEFT_BOTTOM``, ``RI
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from hwpx.document import HwpxDocument
 
 HANCOM_ONLY_MODES = ["LEFT_TOP", "LEFT_BOTTOM", "RIGHT_CENTER", "RIGHT_TOP"]
+HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
+FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 
 
 def _document_with_image():
@@ -49,3 +53,21 @@ def test_an_unknown_mode_is_still_refused() -> None:
 
     with pytest.raises(ValueError):
         document.add_table(1, 1).set_cell_fill_image(0, 0, image, mode="LEFT_MIDDLE")
+
+
+def _saved_modes(document: HwpxDocument) -> list[str | None]:
+    return [brush.get("mode") for brush in document.oxml.headers[0].element.iter(f"{HC}imgBrush")]
+
+
+@pytest.mark.parametrize("mode", HANCOM_ONLY_MODES)
+def test_the_position_is_the_one_hancom_saves(mode: str) -> None:
+    """Hancom saved a table cell whose image fill takes this position: the same name is written here."""
+    hancom = HwpxDocument.open((FIXTURES / f"fill_image_{mode.lower()}.hwpx").read_bytes())
+    [saved] = _saved_modes(hancom)
+    document, image = _document_with_image()
+    table = document.add_table(1, 1)
+
+    table.set_cell_fill_image(0, 0, image, mode=saved)
+
+    assert _img_brush_mode(document, table.cell(0, 0).element.get("borderFillIDRef")) == saved == mode
+    assert _saved_modes(HwpxDocument.open(hancom.to_bytes())) == [mode]
