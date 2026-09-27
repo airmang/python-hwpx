@@ -649,6 +649,17 @@ def test_inline_table_grown_by_filled_lines_is_flagged():
     assert cut.severity == "error"
 
 
+def test_filled_table_height_is_the_height_hancom_saved():
+    # Hancom saved _filled_table_doc(8) (neutral text): it keeps the stored row
+    # heights and writes the table as tall as it lays it out.
+    data = (Path(__file__).parent / "fixtures" / "hancom_saved" / "table_page_filled_rows.hwpx").read_bytes()
+    root = ET.fromstring(zipfile.ZipFile(io.BytesIO(data)).read("Contents/section0.xml"))
+    table = next(root.iter(f"{HP}tbl"))
+    assert {cell.get("height") for cell in table.iter(f"{HP}cellSz")} == {"282"}
+    [finding] = _page_findings(lint_layout(data))
+    assert finding.detail["min_height"] == int(table.find(f"{HP}sz").get("height")) == 8 * _FILLED_ROW
+
+
 def test_filled_lines_that_fit_the_page_body_are_not_flagged():
     doc = _filled_table_doc(7, split_paragraphs=True)  # 229 mm
     assert _page_findings(lint_layout(_bytes(doc))) == []

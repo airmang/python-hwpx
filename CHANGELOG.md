@@ -57,6 +57,17 @@
 
 ### 고침
 
+- `doc.fields.fill()`이 내용이 여러 문단에 걸친 누름틀을 채우면 값만 시작 뒤에 넣고 걸친 문단의 원래
+  글을 그대로 두던 것을 고친다. 누름틀 끝을 시작과 같은 문단에서만 찾았기 때문이다. 이제 끝을 뒤
+  문단에서도 찾고, 한/글처럼 걸친 문단(그 안의 표 포함)을 지운 뒤 값과 끝을 시작 문단에 둔다. 끝
+  문단에서 끝 뒤에 있던 글은 시작 문단으로 합치고, 시작 문단의 문단 모양은 그대로다. 이런 누름틀의
+  `FormField.value`는 걸친 문단의 글을 한 줄에 한 문단씩 읽는다.
+- 끝(`hp:fieldEnd`)이 없는 누름틀을 `doc.fields.fill()`로 채우면 `HwpxValueError(code="field-end-missing")`를
+  낸다. 바꿀 내용이 없기 때문이다(한/글도 이런 누름틀은 채우지 않는다). 전에는 값을 시작 뒤에 넣었다.
+- 안내문을 `Command` 문자열(`Clickhere:set:…:Direction:wstring:<길이>:<안내문> …`) 안에만 둔 누름틀을
+  자리표시로 알아보지 못하던 것을 고친다. 그래서 `doc.fields.fill()`이 값을 안내문의 글자 모양(보통 빨강)으로
+  남겼다. 이제 안내문을 그 문자열에서도 읽고(`FormField.prompt`, `is_placeholder`), 값은 누름틀의 글자
+  모양으로 쓴다. 누름틀의 매개변수는 바꾸지 않는다.
 - `doc.parts.add_master_page(section=...)`가 내는 `master-page-pages-taken`을 오류 코드 목록
   (`hwpx.errors.ERROR_CODES`, `docs/error-codes.md`)에 올린다. 전에는 목록에 없었다.
 - `doc.styles.replace_font()`가 *dst_face*를 새로 선언하는 블록에 늘 `type="TTF"`를 쓰던 것을

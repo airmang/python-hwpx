@@ -142,7 +142,10 @@ class FormField:
 
     @property
     def value(self) -> str:
-        """The field's current text content (replaces the old ``current_value`` key)."""
+        """The field's current text content (replaces the old ``current_value`` key).
+
+        A field whose content runs over paragraphs reads as their texts, one
+        paragraph per line."""
 
         return self._value
 
@@ -177,7 +180,8 @@ class FormField:
 
     @property
     def has_end(self) -> bool:
-        """Whether a matching ``<hp:fieldEnd>`` was found for this field."""
+        """Whether a matching ``<hp:fieldEnd>`` was found for this field, in its
+        paragraph or in a later paragraph beside it."""
 
         return self._has_end
 

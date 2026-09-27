@@ -95,6 +95,7 @@ except HwpxError as exc:
 | `field-checkbox-not-created` | 만든 체크박스를 표준 리더가 다시 찾지 못했다. |
 | `field-checkbox-not-found` | 그 선택자로 체크박스를 찾지 못했다. |
 | `field-date-format-unsupported` | 날짜/시간 필드 date_format 값이 실증된 어휘(단일 관측값) 밖이다. |
+| `field-end-missing` | 누름틀에 끝(fieldEnd)이 없어 바꿀 내용이 없다(한/글도 이런 누름틀은 채우지 않는다). |
 | `field-fit-failed` | 값이 FitPolicy 하에서 필드 상자에 들어가지 않는다(측정치·재시도 제안 동봉). |
 | `field-mail-merge-empty-name` | 메일 머지 필드 이름이 비어 있다. |
 | `field-name-empty` | 누름틀 이름이 비어 있다. |
