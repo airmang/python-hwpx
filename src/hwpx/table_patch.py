@@ -1067,22 +1067,10 @@ def _delete_rows(table: str, del_rows: Iterable[int]) -> str:
         # move into the next row, one row shorter, content kept (as Hancom does).
         moved = _S_TC.findall(rows[empty])
         if moved and empty + 1 < len(rows):
-            rows[empty + 1] = _insert_cells(rows[empty + 1], moved)
+            for cell in moved:
+                rows[empty + 1] = _insert_tc_in_order(rows[empty + 1], cell, _si(cell, "cellAddr", "colAddr") or 0)
         rows = [r for i, r in enumerate(rows) if i != empty]
     return _rebuild(prefix, rows, suffix, rowcnt=len(rows))
-
-
-def _insert_cells(row: str, cells: list[str]) -> str:
-    """Put *cells* into the ``<hp:tr>`` *row* in column (``colAddr``) order."""
-    for cell in cells:
-        col = _si(cell, "cellAddr", "colAddr") or 0
-        at = row.rindex("</hp:tr>")
-        for m in _S_TC.finditer(row):
-            if (_si(m.group(0), "cellAddr", "colAddr") or 0) > col:
-                at = m.start()
-                break
-        row = row[:at] + cell + row[at:]
-    return row
 
 
 def _reorder_rows(table: str, order: Sequence[int]) -> str:
@@ -1729,6 +1717,142 @@ def _p_wrapper_span(section: bytes, table_start: int) -> tuple[int, int]:
     raise TableStructureError("could not find wrapping <hp:p> for table")
 
 
+_LINESEG_RE = re.compile(
+    rb"<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)linesegarray\b(?:[^>]*?/>|[^>]*>.*?</(?P=ns)linesegarray>)", re.S
+)
+_EMPTY_T_RE = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?t\b[^>]*/>|<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)t\b[^>]*>\s*</(?P=ns)t>")
+_P_RUN_TAG_RE = re.compile(rb"</?(?:[A-Za-z_][\w.-]*:)?(?:p|run)\b[^>]*>")
+_RUN_TAG_RE = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?run\b[^>]*?(/?)>|</(?:[A-Za-z_][\w.-]*:)?run>")
+_P_CLOSE_ONLY_RE = re.compile(rb"\s*</(?:[A-Za-z_][\w.-]*:)?p>\s*")
+
+
+def _table_alone(section: bytes, ps: int, pe: int, ts: int, te: int) -> bool:
+    """Whether the paragraph ``section[ps:pe]`` holds the table ``section[ts:te]``
+    and nothing else -- no section setup, text or other object. Only then may a
+    table op delete or copy the whole paragraph."""
+    rest = section[ps:ts] + section[te:pe]
+    for pattern in (_LINESEG_RE, _EMPTY_T_RE, _P_RUN_TAG_RE):
+        rest = pattern.sub(b"", rest)
+    return not rest.strip()
+
+
+def _own_lineseg_dropped(paragraph: bytes) -> bytes:
+    """*paragraph* without its own ``hp:linesegarray`` (the one just before its
+    close): its line layout no longer holds once a table in it goes or changes."""
+    matches = list(_LINESEG_RE.finditer(paragraph))
+    if not matches or not _P_CLOSE_ONLY_RE.fullmatch(paragraph[matches[-1].end():]):
+        return paragraph
+    return paragraph[:matches[-1].start()] + paragraph[matches[-1].end():]
+
+
+def _table_run_open(section: bytes, ps: int, ts: int) -> bytes:
+    """The opening tag of the run that holds the table starting at *ts*."""
+    open_runs: list[bytes] = []
+    for m in _RUN_TAG_RE.finditer(section, ps, ts):
+        if m.group(0).startswith(b"</"):
+            if open_runs:
+                open_runs.pop()
+        elif not m.group(1):
+            open_runs.append(m.group(0))
+    if not open_runs:
+        raise TableStructureError("could not find the run that holds the table")
+    return open_runs[-1]
+
+
+def _paragraph_for(section: bytes, ps: int, ts: int, table: str) -> str:
+    """A paragraph holding only *table*, shaped like the paragraph at *ps* (its
+    paragraph shape and style, the table run's character shape), without a page
+    or column break -- for a table copied out of a paragraph that holds more."""
+    p_open = section[ps:section.index(b">", ps) + 1].decode("utf-8")
+    p_open = re.sub(r'\b(pageBreak|columnBreak)="1"', r'\1="0"', p_open)
+    prefix_match = re.match(r"<((?:[A-Za-z_][\w.-]*:)?)p\b", p_open)
+    prefix = prefix_match.group(1) if prefix_match else ""
+    run_open = _table_run_open(section, ps, ts).decode("utf-8")
+    return f"{p_open}{run_open}{table}</{prefix}run></{prefix}p>"
+
+
+def _bumped_ids(block: str, bump: int) -> str:
+    return _PARA_ID_RE.sub(lambda m: m.group(1) + str((int(m.group(2)) + bump) & 0x7FFFFFFF) + m.group(3), block)
+
+
+def _delete_table(section: bytes, ts: int, te: int) -> bytes:
+    """The section without the table: its paragraph goes when it holds nothing
+    else, otherwise only the table leaves it."""
+    ps, pe = _p_wrapper_span(section, ts)
+    if _table_alone(section, ps, pe, ts, te):
+        return section[:ps] + section[pe:]
+    return section[:ps] + _own_lineseg_dropped(section[ps:ts] + section[te:pe]) + section[pe:]
+
+
+def _clone_table(section: bytes, ts: int, te: int, count: int) -> bytes:
+    """*count* copies of the table after its paragraph: copies of the paragraph
+    when it holds nothing else, otherwise new paragraphs holding only the table."""
+    if count < 1:
+        raise TableStructureError("clone_table: count must be >= 1")
+    ps, pe = _p_wrapper_span(section, ts)
+    if _table_alone(section, ps, pe, ts, te):
+        block = section[ps:pe].decode("utf-8")
+    else:
+        block = _paragraph_for(section, ps, ts, section[ts:te].decode("utf-8"))
+    clones = "".join(_bumped_ids(block, 900000 + k * 7919) for k in range(1, count + 1))
+    return section[:pe] + clones.encode("utf-8") + section[pe:]
+
+
+def _split_table(section: bytes, ts: int, te: int, split_row: int) -> tuple[bytes, str]:
+    """The top rows stay in place; the bottom rows follow in a paragraph of their
+    own (a copy of the paragraph when it holds only the table)."""
+    ps, pe = _p_wrapper_span(section, ts)
+    top_table, bottom_table = _split_table_rows(section[ts:te].decode("utf-8"), split_row)
+    _validate_or_raise(top_table)
+    _validate_or_raise(bottom_table)
+    if _table_alone(section, ps, pe, ts, te):
+        # top half replaces the table in place -- same wrapper paragraph, same
+        # table id (least surprise: it's "the same table", just shorter).
+        new_first = section[ps:ts] + top_table.encode("utf-8") + section[te:pe]
+        second_str = (section[ps:ts] + bottom_table.encode("utf-8") + section[te:pe]).decode("utf-8")
+    else:
+        new_first = _own_lineseg_dropped(section[ps:ts] + top_table.encode("utf-8") + section[te:pe])
+        second_str = _paragraph_for(section, ps, ts, bottom_table)
+    # the bottom half gets its own hp:p id and hp:tbl id/instid, bumped so
+    # nothing collides -- see _bump_table_id's real-corpus note.
+    second_str = _bump_table_id(_bumped_ids(second_str, 960000), 960000)
+    new_section = section[:ps] + new_first + second_str.encode("utf-8") + section[pe:]
+    return new_section, f"{_table_dims(top_table)} + {_table_dims(bottom_table)}"
+
+
+def _merge_tables(section: bytes, spans: list[tuple[int, int]], ti: int) -> tuple[bytes, str]:
+    """The next table's rows join this table. A paragraph that held only the next
+    table goes (with the blank paragraphs before it); otherwise only that table
+    leaves its paragraph. Real text between the two tables refuses the merge."""
+    if ti + 1 >= len(spans):
+        raise TableStructureError("merge_table: no next table to merge with")
+    ts, te = spans[ti]
+    ts2, te2 = spans[ti + 1]
+    if ts2 < te:
+        raise TableStructureError("merge_table: the next table sits inside this one")
+    ps1, pe1 = _p_wrapper_span(section, ts)
+    ps2, pe2 = _p_wrapper_span(section, ts2)
+    whole_second = ps2 >= pe1 and _table_alone(section, ps2, pe2, ts2, te2)
+    if not _blank_region(section, *((pe1, ps2) if whole_second else (te, ts2))):
+        raise TableStructureError(
+            "merge_table: real content (non-empty text) sits between the "
+            "two tables -- refusing (would silently discard it)"
+        )
+    merged_table = _merge_table_rows(section[ts:te].decode("utf-8"), section[ts2:te2].decode("utf-8"))
+    _validate_or_raise(merged_table)
+    merged = merged_table.encode("utf-8")
+    if whole_second:
+        new_section = section[:ps1] + section[ps1:ts] + merged + section[te:pe1] + section[pe2:]
+    elif ps2 == ps1:
+        paragraph = section[ps1:ts] + merged + section[te:ts2] + section[te2:pe1]
+        new_section = section[:ps1] + _own_lineseg_dropped(paragraph) + section[pe1:]
+    else:
+        first = _own_lineseg_dropped(section[ps1:ts] + merged + section[te:pe1])
+        second = _own_lineseg_dropped(section[ps2:ts2] + section[te2:pe2])
+        new_section = section[:ps1] + first + section[pe1:ps2] + second + section[pe2:]
+    return new_section, _table_dims(merged_table)
+
+
 _TEXT_SPAN_RE = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?t\b[^>]*>(.*?)</(?:[A-Za-z_][\w.-]*:)?t>", re.DOTALL)
 
 
@@ -1858,23 +1982,11 @@ def apply_table_ops(
         dims_before = _table_dims(section[ts:te])
         try:
             if name == "delete_table":
-                ps, pe = _p_wrapper_span(section, ts)
-                new_section = section[:ps] + section[pe:]
+                new_section = _delete_table(section, ts, te)
                 dims_after = "deleted"
             elif name == "clone_table":
-                ps, pe = _p_wrapper_span(section, ts)
-                block = section[ps:pe].decode("utf-8")
                 count = int(op.get("count", 1))
-                if count < 1:
-                    raise TableStructureError("clone_table: count must be >= 1")
-                def _clone_ids(k: int) -> str:
-                    def _bump_id(m: re.Match[str]) -> str:
-                        return m.group(1) + str((int(m.group(2)) + 900000 + k * 7919) & 0x7FFFFFFF) + m.group(3)
-
-                    return _PARA_ID_RE.sub(_bump_id, block)
-
-                clones = "".join(_clone_ids(k) for k in range(1, count + 1))
-                new_section = section[:pe] + clones.encode("utf-8") + section[pe:]
+                new_section = _clone_table(section, ts, te, count)
                 dims_after = f"cloned x{count}"
             elif name == "split_table":
                 split_row_raw = op.get("split_row")
@@ -1886,45 +1998,9 @@ def apply_table_ops(
                     raise TableStructureError(
                         f"split_table: 'split_row' must be an integer, got {split_row_raw!r}"
                     )
-                ps, pe = _p_wrapper_span(section, ts)
-                top_table, bottom_table = _split_table_rows(
-                    section[ts:te].decode("utf-8"), split_row
-                )
-                _validate_or_raise(top_table)
-                _validate_or_raise(bottom_table)
-                # top half replaces the table in place -- same wrapper
-                # paragraph, same table id (least surprise: it's "the same
-                # table", just shorter).
-                new_first = section[ps:ts] + top_table.encode("utf-8") + section[te:pe]
-                # bottom half gets a full duplicate wrapper (own hp:p id +
-                # own hp:tbl id/instid, bumped so nothing collides -- see
-                # _bump_table_id's real-corpus note).
-                second_str = (section[ps:ts] + bottom_table.encode("utf-8") + section[te:pe]).decode("utf-8")
-                second_str = _PARA_ID_RE.sub(
-                    lambda m: m.group(1) + str((int(m.group(2)) + 960000) & 0x7FFFFFFF) + m.group(3),
-                    second_str,
-                )
-                second_str = _bump_table_id(second_str, 960000)
-                new_section = section[:ps] + new_first + second_str.encode("utf-8") + section[pe:]
-                dims_after = f"{_table_dims(top_table)} + {_table_dims(bottom_table)}"
+                new_section, dims_after = _split_table(section, ts, te, split_row)
             elif name == "merge_table":
-                if ti + 1 >= len(spans):
-                    raise TableStructureError("merge_table: no next table to merge with")
-                ts2, te2 = spans[ti + 1]
-                ps1, pe1 = _p_wrapper_span(section, ts)
-                ps2, pe2 = _p_wrapper_span(section, ts2)
-                if not _blank_region(section, pe1, ps2):
-                    raise TableStructureError(
-                        "merge_table: real content (non-empty text) sits between the "
-                        "two tables -- refusing (would silently discard it)"
-                    )
-                merged_table = _merge_table_rows(
-                    section[ts:te].decode("utf-8"), section[ts2:te2].decode("utf-8")
-                )
-                _validate_or_raise(merged_table)
-                new_first = section[ps1:ts] + merged_table.encode("utf-8") + section[te:pe1]
-                new_section = section[:ps1] + new_first + section[pe2:]
-                dims_after = _table_dims(merged_table)
+                new_section, dims_after = _merge_tables(section, spans, ti)
             elif name in _STRUCT_OPS:
                 if name == "insert_row_by_clone":
                     used_ids = {int(m.group(2)) for data in sections.values()

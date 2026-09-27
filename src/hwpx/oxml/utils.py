@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
@@ -156,3 +157,21 @@ def tab_elements_in(xml: bytes) -> bytes:
     if not tabs_as_elements(root):
         return xml
     return etree.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
+def without_markup_nodes(element: etree._Element) -> etree._Element:
+    """*element*, or a copy of it without XML comments and processing instructions.
+
+    Parts are serialized with ``xml.etree``, which cannot write lxml's comment
+    and processing-instruction nodes; a part read from a document that carries
+    them (real documents do, inside table rows) failed to save once edited.
+    They are not content, so the copy drops them and keeps the text after them.
+    """
+
+    if not isinstance(element, etree._Element):
+        return element
+    if next(element.iter(etree.Comment), None) is None and next(element.iter(etree.ProcessingInstruction), None) is None:
+        return element
+    copy = deepcopy(element)
+    etree.strip_elements(copy, etree.Comment, etree.ProcessingInstruction, with_tail=False)
+    return copy

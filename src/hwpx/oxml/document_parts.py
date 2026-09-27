@@ -40,6 +40,7 @@ from .namespaces import tag_local_name
 from .paragraph import HwpxOxmlParagraph
 from .run import RunStyle, _char_properties_from_header
 from .section import HwpxOxmlSection
+from .section_story import sync_story_mirrors
 from . import section_layout as _section_layout
 from .simple_parts import (
     HwpxOxmlHistory,
@@ -1267,19 +1268,8 @@ class HwpxOxmlDocument:
             raise ValueError(
                 "cannot add a renderable section: the document has no hh:head part"
             )
-        self._manifest_section_containers()
-
-        # Determine part name
-        existing_indices: list[int] = []
-        for sec in self._sections:
-            import re as _section_re
-
-            m = _section_re.search(r"section(\d+)", sec.part_name)
-            if m:
-                existing_indices.append(int(m.group(1)))
-        next_index = (max(existing_indices) + 1) if existing_indices else 0
-        section_id = f"section{next_index}"
-        part_name = f"Contents/{section_id}.xml"
+        # a name no section part or manifest item uses yet
+        section_id, part_name = _section_layout.new_section_names(self)
 
         # Build a renderable empty section.  ``secPr`` and ``colPr`` must
         # precede body text in the first paragraph's first run.
@@ -1306,7 +1296,7 @@ class HwpxOxmlDocument:
             part_name,
             spine_index=spine_index,
         )
-        self._number_section_ids()
+        _section_layout.number_section_ids(self)
         self._sync_header_section_count()
 
         new_section.mark_dirty()
@@ -1347,7 +1337,7 @@ class HwpxOxmlDocument:
 
         # Update manifest: remove <opf:item> and <opf:itemref>
         self._remove_section_from_manifest(removed.part_name)
-        self._number_section_ids()
+        _section_layout.number_section_ids(self)
         self._sync_header_section_count()
 
     # ------------------------------------------------------------------
@@ -1459,22 +1449,6 @@ class HwpxOxmlDocument:
         spine_el.insert(insert_at, itemref)
         self._manifest_dirty = True
 
-    def _number_section_ids(self) -> None:
-        """Give section manifest items the ids ``section0``, ``section1``, ... in document order.
-
-        Hancom finds sections by these ids in number order (not the spine or the part
-        names) and does not open a document lacking one.
-        """
-        try:
-            refs = [self._section_manifest_references(section.part_name) for section in self._sections]
-        except ValueError:
-            return
-        for index, (_manifest, _spine, item, itemref) in enumerate(refs):
-            if item.get("id") != f"section{index}":
-                item.set("id", f"section{index}")
-                itemref.set("idref", f"section{index}")
-                self._manifest_dirty = True
-
     def _remove_section_from_manifest(self, part_name: str) -> None:
         """Remove the ``<opf:item>`` + ``<opf:itemref>`` for a deleted section."""
         manifest_el, spine_el, target_item, target_ref = (
@@ -1488,6 +1462,7 @@ class HwpxOxmlDocument:
         """Return a mapping of part names to updated XML payloads."""
         updates: dict[str, bytes] = {}
         self._normalize_named_style_references()
+        _section_layout.number_section_ids(self)  # files saved with ids out of order are put right
         if self._manifest_dirty:
             updates[self._manifest_path] = _serialize_xml(self._manifest)
         for section in self._sections:
@@ -1501,6 +1476,8 @@ class HwpxOxmlDocument:
             section.remove_stale_layout_caches()
         for section in self._sections:
             if section.dirty:
+                # Header/footer edits land on the secPr story; Hancom reads the control copy.
+                sync_story_mirrors(section)
                 updates[section.part_name] = section.to_bytes()
         headers_dirty = False
         for header in self._headers:
