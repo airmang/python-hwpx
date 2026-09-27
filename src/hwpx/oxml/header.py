@@ -1398,6 +1398,10 @@ def parse_paragraph_break_setting(node: etree._Element) -> ParagraphBreakSetting
 
 
 def _margin_value(child: etree._Element) -> Optional[str]:
+    # Hancom writes a margin as ``<hc:left value="1000" unit="HWPUNIT"/>``; older files put it in the text.
+    attribute = child.get("value")
+    if attribute is not None:
+        return attribute
     value = text_or_none(child)
     return value if value is not None else child.text.strip() if child.text else None
 

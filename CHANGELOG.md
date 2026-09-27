@@ -4,6 +4,23 @@
 
 ## [Unreleased]
 
+### 바꿈
+
+- FormFit(`hwpx.form_fit`)이 셀과 누름틀 값의 줄을 한컴의 줄 배치 규칙으로 센다.
+  글꼴 파일은 쓰지 않는다. 공백은 0.5 em이고, 폭에 장평과 (1 + 자간)을 곱한다(줄 끝
+  글자에는 자간을 붙이지 않는다). 칸 안 폭이 1440 HWPUNIT보다 좁아도 줄 폭은 1440이다.
+  한글·영어 나눔 설정을 따른다(한글 `BREAK_WORD`는 어절 단위, `KEEP_WORD`는 글자
+  단위). 줄 끝 공백은 여백 밖으로 걸치고, 첫 줄 들여쓰기와 내어쓰기, 최소 공백,
+  닫는 부호의 줄 머리 금칙을 반영한다. 영어 단어 안의 `/ - . @` 뒤에서는 나누지
+  않는다. 같은 줄의 체크박스 같은 인라인 개체는 첫 줄 폭만 줄인다.
+  - 셀 슬롯(`resolve_slot_metrics`)은 셀 첫 문단의 문단 모양과 글자 모양에서,
+    누름틀 슬롯은 필드 문단과 글자 모양에서 이 설정(`TextStyle`)을 읽는다.
+  - 새 `TextStyle`과 `hancom_line_starts()`를 공개한다. `estimate_text_width`와
+    `estimate_lines`는 `style`을 선택 인자로 받고, `style` 없이 부르면 전과 같다.
+  - 문단 모양 읽기(`ParagraphProperty.margin`)가 한컴 표기의 여백 값
+    (`<hc:intent value="1000" unit="HWPUNIT"/>`)을 읽는다. 전에는 요소 글자에서만 값을 찾아
+    한컴 문서의 문단 여백이 모두 `None`이었고, FormFit도 들여쓰기를 0으로 봤다.
+
 ### 추가
 
 - `Section.clear_body()`로 문서를 양식 틀로 비운다. 첫 문단 첫 run의 `hp:secPr`(쪽
