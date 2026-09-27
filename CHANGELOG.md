@@ -2,7 +2,7 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
-## [6.6.0] - 2026-09-27
+## [6.6.0] - 2026-09-28
 
 HWP 5.0(`.hwp`) 읽기·쓰기를 더하고, 템플릿·양식을 공개 API만으로 다루는 기능(칸 안쪽 여백,
 글꼴·테두리 읽기와 글꼴 교체, 떠 있는 도형의 기준 틀, 본문 비우기, 메타데이터·미리보기·그림
