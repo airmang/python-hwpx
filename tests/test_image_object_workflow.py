@@ -12,6 +12,11 @@ from hwpx.tools.repair import repair_repack
 HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
+# image1 and image2 fill the page borders; only the header uses them
+BORDER_FILL_IMAGES = (
+    Path(__file__).parent / "fixtures" / "hwpxlib_corpus" / "error__20251107__test.hwpx"
+)
+
 PNG_1X1 = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axwAqkAAAAASUVORK5CYII="
 )
@@ -107,6 +112,18 @@ def test_replace_picture_preserves_geometry_and_replaces_only_asset_graph(tmp_pa
     repaired = tmp_path / "replace-picture.repaired.hwpx"
     document.save_to_path(source)
     _assert_repair_repack_validates(source, repaired)
+
+
+def test_replace_picture_keeps_an_old_image_the_header_still_uses() -> None:
+    document = HwpxDocument.open(BORDER_FILL_IMAGES)
+    document.add_paragraph("").add_picture("image1", width=1000, height=1000)
+
+    result = document.media.replace_picture(PNG_1X1, "png", binary_item_id_ref="image1")
+
+    assert result.previous_item_id == "image1"
+    assert result.removed_orphans == ()
+    assert document.package.has_part("BinData/image1.jpg")
+    assert check_id_integrity(document).dangling == []
 
 
 def test_id_integrity_detects_dangling_binary_item_ref() -> None:
