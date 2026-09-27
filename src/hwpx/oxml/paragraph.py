@@ -64,6 +64,7 @@ from .objects import (
 )
 from .run import HwpxOxmlRun
 from .table import HwpxOxmlTable
+from .table_sizes import cell_margins_of
 
 if TYPE_CHECKING:
     from .section import HwpxOxmlSection
@@ -527,20 +528,18 @@ class HwpxOxmlParagraph:
         while ancestor is not None:
             if tag_local_name(ancestor.tag) == "tc":
                 cell_sz = ancestor.find(f"{_HP}cellSz")
-                margin = ancestor.find(f"{_HP}cellMargin")
                 if cell_sz is not None:
                     try:
                         width = int(cell_sz.get("width", "0"))
                     except ValueError:
                         return None
-                    pad = 0
-                    if margin is not None:
-                        try:
-                            pad = int(margin.get("left", "0")) + int(
-                                margin.get("right", "0")
-                            )
-                        except ValueError:
-                            pad = 0
+                    # The cell's effective margins (``cell.margins``): the
+                    # table's hp:inMargin unless hasMargin is on.
+                    row = getattr(ancestor, "getparent")()
+                    inner = cell_margins_of(
+                        ancestor, row.getparent() if row is not None else None
+                    )
+                    pad = inner.left + inner.right if inner is not None else 0
                     usable = width - pad
                     return usable if usable > 0 else None
                 return None

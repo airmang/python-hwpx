@@ -6,8 +6,9 @@ line takes no 자간), the paragraph's break settings decide where a line may en
 (the Hangul value works the reverse of its name), spaces at a line end hang
 past the margin, 최소 공백 lets inner spaces shrink, indents come off the first
 or the following lines, closing punctuation never starts a line, and a cell
-line is never narrower than 1440 HWPUNIT. All advances here use the class
-averages (Hangul 1.0 em, lower-case Latin 0.52 em, punctuation 0.42 em).
+line is never narrower than 1440 HWPUNIT. Unless a test names a face, the
+advances use the class averages (Hangul 1.0 em, lower-case Latin 0.52 em,
+punctuation 0.42 em).
 """
 from __future__ import annotations
 
@@ -34,6 +35,7 @@ FACE_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_f
 INLINE_OBJECTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_inline_objects.hwpx"
 GLYPH_WIDTHS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_glyph_widths.hwpx"
 LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_heights.hwpx"
+ROUNDED_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_rounded_advances.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
 
@@ -238,13 +240,14 @@ def test_the_line_starts_are_the_ones_hancom_saves() -> None:
 
 def test_a_hangul_syllable_takes_the_advance_of_its_face() -> None:
     doc = HwpxDocument.new()
-    advances = {
-        face: text_style_from_refs(doc, None, [doc.oxml.ensure_run_style(font=face, size=10)]).hangul_advance
-        for face in ("함초롬바탕", "함초롬돋움", "한컴 고딕", "맑은 고딕")
+    faces = ("함초롬바탕", "함초롬돋움", "한컴 고딕", "맑은 고딕", "바탕", "궁서체")
+    widths = {
+        face: estimate_text_width("가", 10, text_style_from_refs(doc, None, [doc.oxml.ensure_run_style(font=face, size=10)]))
+        for face in faces
     }
 
-    assert advances == {"함초롬바탕": 0.972, "함초롬돋움": 0.972, "한컴 고딕": 0.932, "맑은 고딕": 1.0}
-    assert round(estimate_text_width("가", 10, TextStyle(hangul_advance=0.972))) == 972
+    assert widths == {"함초롬바탕": 972, "함초롬돋움": 972, "한컴 고딕": 932, "맑은 고딕": 1000, "바탕": 1000, "궁서체": 1000}
+    assert round(estimate_text_width("가", 10, TextStyle(hangul_advance=0.972))) == 972  # a face not listed
 
 
 def test_each_face_breaks_where_hancom_breaks() -> None:
@@ -262,7 +265,7 @@ def test_each_face_breaks_where_hancom_breaks() -> None:
 
         assert hancom_line_starts(cell.text, [slot.available_width], slot.font_pt, style) == [
             int(s.get("textpos")) for s in segs
-        ], (style.hangul_advance, slot.available_width)
+        ], (style.hangul_face, slot.available_width)
 
 
 def test_text_after_inline_objects_breaks_where_hancom_breaks() -> None:
@@ -282,12 +285,35 @@ def test_text_after_inline_objects_breaks_where_hancom_breaks() -> None:
         assert measure(cell.text, slot).lines == len(segs), cell.text
 
 
-def test_other_glyphs_take_the_measured_widths_of_their_face() -> None:
-    assert [glyph_advance_em(face, ".") for face in ("함초롬바탕", "함초롬돋움", "맑은 고딕")] == [0.315, 0.275, 0.215]
-    assert glyph_advance_em("맑은 고딕", "0") == 0.555
+def test_other_glyphs_take_the_design_widths_of_their_face() -> None:
+    assert [glyph_advance_em(face, ".") for face in ("함초롬바탕", "함초롬돋움", "맑은 고딕")] == [0.32, 0.27, 448 / 2048]
+    assert glyph_advance_em("맑은 고딕", "0") == 1128 / 2048
     assert glyph_advance_em("없는 글꼴", "0") is None
-    assert round(estimate_text_width("0.", 10, TextStyle(glyph_face="맑은 고딕"))) == 770
+    assert estimate_text_width("0.", 10, TextStyle(glyph_face="맑은 고딕")) == 552 + 220
     assert round(estimate_text_width("0.", 10, TextStyle())) == 970  # class averages
+
+
+def test_advances_are_rounded_to_hancom_layout_units() -> None:
+    """1/1800 inch (4 HWPUNIT): the design advance at the size, rounded half up at 100 % 장평 and down at any
+    other 장평; 자간 adds its share of that, rounded half away from zero."""
+    batang = TextStyle(hangul_face="함초롬바탕")
+
+    assert [estimate_text_width("가", pt, batang) for pt in (9, 9.5, 10, 10.5, 11, 12)] == [872, 920, 972, 1016, 1068, 1164]
+    assert [estimate_text_width("가", 10, replace(batang, ratio=r)) for r in (50, 90, 95, 110, 150)] == [
+        484, 872, 920, 1064, 1452,
+    ]
+    assert estimate_text_width("가", 10, replace(batang, ratio=90, spacing=-5)) == 872 - 44
+    assert estimate_text_width("가", 10, TextStyle(hangul_face="맑은 고딕", spacing=-5)) == 1000 - 52
+    assert estimate_text_width("A", 10, TextStyle(glyph_face="맑은 고딕", ratio=95)) == 624
+
+
+def test_the_half_em_space_is_rounded_on_its_own() -> None:
+    """Half the em, rounded down, at the 장평, rounded half up; the font's own space as any glyph."""
+    assert [estimate_text_width(" ", pt, TextStyle()) for pt in (9, 10, 11, 12)] == [448, 500, 548, 600]
+    assert [estimate_text_width(" ", 10, TextStyle(ratio=r)) for r in (90, 95, 110)] == [452, 476, 552]
+    assert [estimate_text_width(" ", 11, TextStyle(ratio=r)) for r in (90, 95, 110)] == [492, 520, 604]
+    assert estimate_text_width(" ", 10, TextStyle(use_font_space=True, glyph_face="함초롬바탕")) == 300
+    assert estimate_text_width(" ", 11, TextStyle(use_font_space=True, glyph_face="맑은 고딕")) == 388
 
 
 def test_the_glyph_table_applies_only_when_every_script_uses_the_face() -> None:
@@ -350,3 +376,19 @@ def test_the_line_budget_matches_the_heights_hancom_gives_cells() -> None:
         assert replace(slot, available_height=float(content)).height_lines() == lines, (slot.line_spacing, content)
         if lines > 1:
             assert replace(slot, available_height=float(content - 1)).height_lines() == lines - 1
+def test_rounded_advances_break_where_hancom_breaks() -> None:
+    """Addresses, dates, phone numbers, amounts and Latin in twelve faces at 9 to 12 pt, 장평 90 to 110 % and
+    자간 -20 to 5 %, each in a cell exactly as wide as its line and in one 2 HWPUNIT narrower, laid out and
+    saved by Hancom."""
+    doc = HwpxDocument.open(ROUNDED_ADVANCES.read_bytes())
+    tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+    hancom = [
+        len(table.cell(0, 0).paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")) for table in tables
+    ]
+
+    assert hancom == [1, 2] * 26
+    for table, lines in zip(tables, hancom):
+        cell = table.cell(0, 0)
+        slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
+
+        assert measure(cell.text, slot).lines == lines, (cell.text, slot.font_pt, slot.available_width)

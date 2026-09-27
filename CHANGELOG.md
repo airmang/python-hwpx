@@ -28,8 +28,7 @@
   함초롬바탕·함초롬돋움은 0.972 em, 한컴 고딕은 0.932 em이고, 다른 글꼴(맑은 고딕·바탕·
   돋움·굴림·궁서 등)은 전처럼 1 em이다. 이 세 글꼴의 셀과 누름틀에는 전보다 한 줄에 글자가
   조금 더 들어간다고 본다.
-  - `TextStyle.hangul_advance`(em, 기본 1.0)를 더했다. 셀·누름틀 슬롯은 첫 run 글자 모양의
-    한글 글꼴 이름으로 이 값을 채운다.
+  - `TextStyle.hangul_advance`(em, 기본 1.0)를 더했다. 글자별 폭을 모르는 글꼴의 한글 폭이다.
 - FormFit이 한글이 아닌 글자(숫자, 영문, 문장 부호, 자주 쓰는 기호)도 함초롬바탕·함초롬돋움·맑은
   고딕에서는 한/글이 배치하는 글자별 폭으로 센다. 전에는 글자 종류별 평균(숫자 0.55 em, 문장 부호
   0.42 em 등)을 썼다. 한글·영문·기타·기호 글꼴이 모두 같은 글자 모양일 때 쓰고, 다른 글꼴이나 표에
@@ -39,6 +38,15 @@
   간격으로 셌다. 줄 간격은 비율(`PERCENT`)뿐 아니라 고정(`FIXED` = 값), 여백만(`BETWEEN_LINES` = 크기
   + 값), 최소(`AT_LEAST` = 크기와 값 중 큰 것)도 읽는다(`SlotMetrics.line_spacing`). 전에는 비율이
   아니면 160%로 봤다.
+- FormFit이 글자 폭을 한/글처럼 1/1800인치(4 HWPUNIT) 단위로 센다. 글꼴의 설계 폭을 글자 크기에
+  맞춘 뒤 장평이 100%면 반올림하고 다른 장평이면 내린다. 자간은 그 폭에 비율을 곱해 0에서 먼 쪽으로
+  반올림해 더한다. 반각 공백은 em의 절반(내림)에 장평을 곱해 반올림한다. 전에는 10pt에서 본 비율을
+  크기에 곱하기만 해서, 10pt가 아닌 크기나 장평·자간이 있는 칸에서 줄 끝이 한/글과 어긋날 수 있었다.
+  - 글자별 폭을 아는 글꼴에 바탕·바탕체·돋움·돋움체·굴림·굴림체·궁서·궁서체·한컴 고딕을 더했다(모두
+    12개). 굵은 글자도 같은 폭을 쓴다.
+  - `TextStyle.hangul_face`를 더했다. 셀·누름틀 슬롯은 첫 run 글자 모양의 한글 글꼴 이름으로 채우고,
+    표에 있는 글꼴이면 `hangul_advance` 대신 그 글꼴의 한글 폭을 쓴다.
+  - `glyph_advance_em()`은 글꼴의 설계 폭(em)을 돌려준다.
 - FormFit이 칸 줄 폭을 한/글처럼 센다. 1440 HWPUNIT 하한을 들여쓰기를 뺀 뒤 줄마다 적용하고(좁은 칸의
   내어쓰기 줄도 1440), 칸보다 넓은 인라인 개체 다음 줄들은 칸 폭으로 센다(`SlotMetrics.line_width`,
   `SlotMetrics.min_line_width`).
@@ -62,6 +70,19 @@
 - `doc.media.images`가 한/글이 `BinData/`에 두는 OLE 항목을 빼던 것을 고친다. `isEmbeded="0"`이면
   모두 바깥 파일로 봤기 때문이다. 이제 href가 `BinData/` 밖인 `isEmbeded="0"` 항목(패키지 밖 파일)만
   뺀다.
+- 표 칸의 안쪽 여백을 읽는 곳마다 규칙이 달라 같은 칸에 서로 다른 값을 쓰던 것을 고친다. 이제
+  양식 맞춤(`resolve_slot_metrics`), 칸 안 중첩 표의 기본 너비, 새 표의 쪽 넘김 판단, 레이아웃
+  미리보기의 칸 안쪽 여백, 템플릿 분석(`analyze_template`)의 `CellSummary.margin`, 바이트 보존 칸
+  채우기(`fill_cells`)의 글자 줄이기가 모두 `cell.margins`와 같은 규칙을 따른다. 칸의 `hasMargin`이
+  켜져 있을 때만 칸의 `hp:cellMargin`을 쓰고, 꺼져 있거나 없으면 표의 `hp:inMargin`을 쓴다. 전에는
+  양식 맞춤이 `hasMargin`이 없는 칸에 칸 여백을 썼고, 나머지는 `hasMargin`을 보지 않고 칸 여백만
+  읽었다. 한/글이 저장한 실문서의 줄 너비(`lineseg@horzsize`)가 이 규칙과 맞는다. `hasMargin="0"`이고
+  두 여백이 다른 칸이 있는 문서는 중첩 표 기본 너비, 미리보기 안쪽 여백, 템플릿 분석 값,
+  `fill_cells`의 글자 줄이기 판단이 바뀐다. 양식 맞춤 결과는 테스트 실문서에서 바뀌지 않는다.
+- `tests/data/model_surface.json`의 `internalCount`(stable 목록 밖 공개 멤버 수)를 확인하는
+  테스트가 없어 19개 클래스 중 12개 값이 실제와 어긋나 있던 것을 고친다. 값을 실제에 맞추고(합 82 →
+  154), 표면 테스트가 모든 클래스의 값과 `docs/stable-api.md`의 수를 확인한다. 공개 API는 바뀌지
+  않는다.
 - 5.0에서 `python-hwpx-automation`으로 옮긴 모듈(`hwpx.builder`, `hwpx.authoring`, `hwpx.exam`,
   `hwpx.tools.pii` 등 21개)을 import하면 `No module named ...`만 나오던 것을 고친다. 이제
   `ModuleNotFoundError` 메시지가 새 모듈 경로(예: `hwpx_automation.office.authoring.builder`),

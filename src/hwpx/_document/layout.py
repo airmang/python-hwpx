@@ -19,6 +19,7 @@ from ..oxml._document_primitives import NEW_NUM_KINDS
 from ..oxml.namespaces import HH, HP
 from ..oxml.objects import HwpxOxmlInlineObject
 from ..oxml.section_format import _PAGE_LANDSCAPE, _PAGE_PORTRAIT, _page_orientation_value
+from ..oxml.table_sizes import cell_margins_of
 from ._units import _mm_to_hwp_units, _pt_to_hwp_units
 
 if TYPE_CHECKING:
@@ -1125,8 +1126,8 @@ def _table_min_height(doc: "HwpxDocument", table: Any) -> int:
                 continue
             run = cell.find(f".//{HP}run")
             line = _char_height(doc, run.get("charPrIDRef") if run is not None else None)
-            margin = cell.find(f"{HP}cellMargin")
-            padding = _int_attr(margin, "top") + _int_attr(margin, "bottom")
+            margins = cell_margins_of(cell, table)
+            padding = margins.top + margins.bottom if margins is not None else 0
             tallest = max(tallest, _int_attr(cell.find(f"{HP}cellSz"), "height"), line + padding)
         total += tallest
     return total
