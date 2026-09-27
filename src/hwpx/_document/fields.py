@@ -223,6 +223,38 @@ def _find_field_end_position(
     return None
 
 
+def _find_field_end_in_following_paragraphs(
+    paragraph_element: Any, field_begin: Any
+) -> tuple[Any, list[Any], int, int, list[Any]] | None:
+    """The end of a field whose content runs past its paragraph: the later
+    paragraph beside it that holds the fieldEnd naming this field's id, that
+    paragraph's runs, the end's run and child index, and the paragraphs in
+    between. Only an end that names the begin's id counts here."""
+
+    ids = {value for value in (field_begin.get("id"), field_begin.get("fieldid")) if value}
+    if not ids:
+        return None
+    middle: list[Any] = []
+    sibling = paragraph_element.getnext()
+    while sibling is not None:
+        if _local_name(sibling) == "p":
+            runs = [child for child in sibling if _local_name(child) == "run"]
+            for run_index, run in enumerate(runs):
+                for child_index, child in enumerate(run):
+                    if _local_name(child) != "ctrl":
+                        continue
+                    for field_end in child.findall(f"{_HP}fieldEnd"):
+                        if ids & {field_end.get("beginIDRef"), field_end.get("fieldid")}:
+                            return sibling, runs, run_index, child_index, middle
+            middle.append(sibling)
+        sibling = sibling.getnext()
+    return None
+
+
+def _run_texts(runs: Sequence[Any]) -> str:
+    return "".join("".join(node.itertext()) for run in runs for node in run if _local_name(node) == "t")
+
+
 def _field_text_nodes(
     doc: "HwpxDocument",
     runs: Sequence[Any],
@@ -343,17 +375,38 @@ def _iter_form_field_matches(doc: "HwpxDocument") -> list[dict[str, Any]]:
                         )
                         end_run_index: int | None = None
                         end_child_index: int | None = None
+                        span = None
                         if end_position is not None:
                             end_run_index, end_child_index, _field_end = end_position
+                        else:
+                            span = _find_field_end_in_following_paragraphs(paragraph_element, field_begin)
                         text_nodes = _field_text_nodes(
                             doc,
                             runs,
                             begin_run_index=run_index,
                             begin_child_index=child_index,
-                            end_run_index=end_run_index,
+                            end_run_index=end_run_index if span is None else len(runs) - 1,
                             end_child_index=end_child_index,
                         )
                         current_value = "".join("".join(node.itertext()) for node in text_nodes)
+                        if span is not None:
+                            # the content goes on over paragraphs: their texts, one per line
+                            end_paragraph, end_runs, span_run, span_child, middle = span
+                            tail = _field_text_nodes(
+                                doc,
+                                end_runs,
+                                begin_run_index=0,
+                                begin_child_index=-1,
+                                end_run_index=span_run,
+                                end_child_index=span_child,
+                            )
+                            current_value = "\n".join(
+                                [
+                                    current_value,
+                                    *(_run_texts([c for c in p if _local_name(c) == "run"]) for p in middle),
+                                    "".join("".join(node.itertext()) for node in tail),
+                                ]
+                            )
                         payload = _form_field_payload(
                             doc,
                             index=len(matches),
@@ -365,7 +418,7 @@ def _iter_form_field_matches(doc: "HwpxDocument") -> list[dict[str, Any]]:
                             ctrl=child,
                             field_begin=field_begin,
                             current_value=current_value,
-                            has_end=end_position is not None,
+                            has_end=end_position is not None or span is not None,
                         )
                         payload["_paragraph"] = paragraph
                         payload["_runs"] = runs
@@ -374,6 +427,7 @@ def _iter_form_field_matches(doc: "HwpxDocument") -> list[dict[str, Any]]:
                         payload["_end_run_index"] = end_run_index
                         payload["_end_child_index"] = end_child_index
                         payload["_text_nodes"] = text_nodes
+                        payload["_span"] = span
                         matches.append(payload)
             paragraph_index += 1
     return matches
@@ -757,6 +811,32 @@ def _insert_form_field_text_run(
     begin_run.insert(int(match["_begin_child_index"]) + 1, text_node)
 
 
+def _collapse_field_span(match: Mapping[str, Any]) -> None:
+    """Hancom's way with a field whose content runs over paragraphs: the
+    content between the begin and the end goes, paragraphs and all, and the
+    end with the rest of its paragraph joins the begin's paragraph."""
+
+    end_paragraph, end_runs, end_run_index, end_child_index, middle = match["_span"]
+    paragraph_element = match["_paragraph"].element
+    runs: list[Any] = match["_runs"]
+    begin_run_index = int(match["_begin_run_index"])
+    begin_run = runs[begin_run_index]
+    for child in list(begin_run)[int(match["_begin_child_index"]) + 1 :]:
+        begin_run.remove(child)
+    for run in runs[begin_run_index + 1 :]:
+        paragraph_element.remove(run)
+    for element in middle:
+        element.getparent().remove(element)
+    end_run = end_runs[end_run_index]
+    moved = end_run.makeelement(end_run.tag, dict(end_run.attrib))
+    for child in list(end_run)[end_child_index:]:
+        moved.append(child)
+    position = paragraph_element.index(begin_run) + 1
+    for offset, run in enumerate([moved, *end_runs[end_run_index + 1 :]]):
+        paragraph_element.insert(position + offset, run)
+    end_paragraph.getparent().remove(end_paragraph)
+
+
 def fill_form_field(
     doc: "HwpxDocument",
     value: str,
@@ -784,6 +864,13 @@ def fill_form_field(
         field_id=field_id,
         name=name,
     )
+    if not match.get("has_end"):
+        raise HwpxValueError(
+            f"the field {match.get('name') or match.get('index')!r} has no end, so it has no content to replace",
+            code="field-end-missing",
+            context={"name": match.get("name"), "index": match.get("index")},
+            suggestion="Hancom leaves such a field unchanged too; give it an end or remove it.",
+        )
     paragraph = match["_paragraph"]
     runs = match["_runs"]
     before_value = str(match.get("current_value", ""))
@@ -820,7 +907,10 @@ def fill_form_field(
 
     text_nodes: list[Any] = match.get("_text_nodes", [])
     sanitized = _sanitize_field_text(write_value)
-    if text_nodes:
+    if match.get("_span") is not None:
+        _collapse_field_span(match)
+        _insert_form_field_text_run(doc, match, sanitized)
+    elif text_nodes:
         primary = text_nodes[0]
         primary.text = sanitized
         for child in list(primary):
