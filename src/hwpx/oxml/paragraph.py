@@ -321,8 +321,12 @@ class HwpxOxmlParagraph:
 
         Style references (``paraPrIDRef``, ``styleIDRef`` on the paragraph and
         ``charPrIDRef`` on the surviving run) are preserved.  Empty runs that
-        contained only text nodes are removed to keep the XML clean.
+        contained only text nodes are removed to keep the XML clean.  Setting
+        the text the paragraph already has changes nothing: its runs and its
+        line layout caches stay.
         """
+        if value == self.text:
+            return
         runs = self._run_elements()
 
         # Identify first run — its charPrIDRef will be kept.
