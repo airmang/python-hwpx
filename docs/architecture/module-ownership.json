@@ -538,6 +538,12 @@
       "rationale": "Format-level helpers for unambiguous plain-text node selection and run/control preservation. Extracted from paragraph.py to keep its complexity bounded; no application workflow, renderer, or agent policy."
     },
     {
+      "path": "src/hwpx/oxml/table_merge.py",
+      "disposition": "core",
+      "approvedBy": "hancom-merge-cells-grid",
+      "rationale": "What a cell merge leaves behind in a table's grid: collapse_merged_grid() removes the rows a merge left without cells and the columns no cell starts at, as Hancom's merge does (Hancom does not open a table with an empty hp:tr), and moves the cell addresses, spans and cell zones past them back. A new module rather than more table.py lines: with the merge fix that owner file would pass the 1,600-line cap; HwpxOxmlTable.merge_cells calls it. Format-level only."
+    },
+    {
       "path": "src/hwpx/oxml/hyperlink_form.py",
       "disposition": "core",
       "approvedBy": "hancom-hyperlink-target-parameters",

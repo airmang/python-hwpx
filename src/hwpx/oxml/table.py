@@ -34,6 +34,7 @@ from . import table_sizes as _table_sizes
 
 from .body import Label, parse_label_element
 from .objects import Caption, _read_caption, _remove_caption, _write_caption
+from .table_merge import collapse_merged_grid
 
 if TYPE_CHECKING:
     from hwpx.form_fit.policy import FitPolicy
@@ -116,6 +117,23 @@ def _wrap_paragraph(
     from .paragraph import HwpxOxmlParagraph
 
     return HwpxOxmlParagraph(element, section)
+
+
+def _is_blank_paragraph(paragraph: ET.Element) -> bool:
+    """Whether a paragraph's runs hold nothing but empty ``hp:t``."""
+    for run in paragraph.findall(f"{_HP}run"):
+        for child in run:
+            if _element_local_name(child) != "t" or child.text or len(child):
+                return False
+    return True
+
+
+def _is_blank_cell(element: ET.Element) -> bool:
+    """Whether a cell holds one empty paragraph and nothing else, like a new cell."""
+    sublist = element.find(f"{_HP}subList")
+    paragraphs = [] if sublist is None else sublist.findall(f"{_HP}p")
+    return len(paragraphs) <= 1 and all(_is_blank_paragraph(paragraph) for paragraph in paragraphs)
+
 
 class HwpxOxmlTableCell:
     """Represents an individual table cell."""
@@ -301,9 +319,13 @@ class HwpxOxmlTableCell:
 
         text_element = self._ensure_text_element()
         set_text_with_tabs(text_element, sanitized_value)
+        emptied: list[ET.Element] = []
         for node in self.element.findall(f".//{_HP}t"):
             if node is not text_element:
+                if node.text or len(node):
+                    emptied.append(node)
                 clear_text_element(node)
+        self._drop_emptied_paragraphs(text_element, emptied)
         if not preserve_format:
             current: Any | None = text_element
             while current is not None and _element_local_name(current) != "run":
@@ -313,6 +335,22 @@ class HwpxOxmlTableCell:
         self._clear_own_layout_caches()
         self.element.set("dirty", "1")
         self.table.mark_dirty()
+
+    def _drop_emptied_paragraphs(self, text_element: ET.Element, emptied: list[ET.Element]) -> None:
+        # A paragraph of this cell whose text was just cleared and that holds
+        # nothing else goes, so the cell reads back the text it was given (a
+        # merged cell carries the covered cells' paragraphs).  Paragraphs that
+        # were already empty (blank lines) or hold objects stay.
+        sublist = self.element.find(f"{_HP}subList")
+        if sublist is None or not emptied:
+            return
+        emptied_ids = {id(node) for node in emptied}
+        for paragraph in sublist.findall(f"{_HP}p"):
+            own = [node for run in paragraph.findall(f"{_HP}run") for node in run.findall(f"{_HP}t")]
+            if any(node is text_element for node in own):
+                continue
+            if any(id(node) in emptied_ids for node in own) and _is_blank_paragraph(paragraph):
+                sublist.remove(paragraph)
 
     def _clear_own_layout_caches(self) -> None:
         # Edit-scoped invalidation: only this cell's paragraphs lose their
@@ -1348,16 +1386,24 @@ class HwpxOxmlTable:
 
     def _scan_merge_region(
         self, start_row: int, start_col: int, end_row: int, end_col: int, target: HwpxOxmlTableCell
-    ) -> tuple[set[ET.Element], int, int]:
+    ) -> tuple[set[ET.Element], int, int, list[ET.Element]]:
+        """The covered cells, the merged size, and the region's cells in reading order."""
         removal_elements: set[ET.Element] = set()
         width_elements: set[ET.Element] = set()
         height_elements: set[ET.Element] = set()
         total_width = 0
         total_height = 0
+        in_order: list[ET.Element] = []
+        seen: set[ET.Element] = set()
+        grid = self._build_cell_grid()
 
         for row_index in range(start_row, end_row + 1):
             for col_index in range(start_col, end_col + 1):
-                cell = self.cell(row_index, col_index)
+                entry = grid.get((row_index, col_index))
+                cell = entry.cell if entry is not None else self.cell(row_index, col_index)
+                if cell.element not in seen:
+                    seen.add(cell.element)
+                    in_order.append(cell.element)
                 cell_row, cell_col = cell.address
                 span_row, span_col = cell.span
                 if (
@@ -1375,7 +1421,7 @@ class HwpxOxmlTable:
                     total_height += cell.height
                 if cell.element is not target.element:
                     removal_elements.add(cell.element)
-        return removal_elements, total_width, total_height
+        return removal_elements, total_width, total_height, in_order
 
     @staticmethod
     def _remove_merged_cell_elements(
@@ -1393,6 +1439,25 @@ class HwpxOxmlTable:
             # them here instead of retaining deactivated placeholders.
             row_element.remove(element)
 
+    def _move_covered_contents(self, target: HwpxOxmlTableCell, region: list[ET.Element]) -> None:
+        # The merged cell takes the paragraphs of every cell that holds
+        # something, in reading order.  A blank cell adds nothing, and a blank
+        # merged cell gives up its own empty line to the moved paragraphs.
+        filled = [element for element in region if not _is_blank_cell(element)]
+        if not filled or (len(filled) == 1 and filled[0] is target.element):
+            return
+        sublist = target._ensure_sublist()
+        if filled[0] is not target.element:
+            for paragraph in sublist.findall(f"{_HP}p"):
+                sublist.remove(paragraph)
+        for element in filled:
+            source = element.find(f"{_HP}subList")
+            if element is target.element or source is None:
+                continue
+            for paragraph in source.findall(f"{_HP}p"):
+                source.remove(paragraph)
+                sublist.append(paragraph)
+
     def merge_cells(
         self,
         start_row: int | str,
@@ -1400,6 +1465,14 @@ class HwpxOxmlTable:
         end_row: int | None = None,
         end_col: int | None = None,
     ) -> HwpxOxmlTableCell:
+        """Merge a rectangle of cells into its top-left cell and return that cell.
+
+        The merged cell keeps the paragraphs of the covered cells that hold
+        text or objects, in reading order after its own; blank cells add nothing.
+        Rows the merge leaves without cells and columns no cell starts at are
+        removed, as Hancom does: a merge over whole rows makes one row of their
+        height, and merging a whole table leaves a one-cell table.
+        """
         if isinstance(start_row, str):
             start_row, start_col, end_row, end_col = self._parse_spreadsheet_range(start_row)
         if start_col is None or end_row is None or end_col is None:
@@ -1410,17 +1483,22 @@ class HwpxOxmlTable:
         new_col_span = end_col - start_col + 1
 
         element_to_row = self._build_element_to_row_map()
-        removal_elements, total_width, total_height = self._scan_merge_region(
+        removal_elements, total_width, total_height, region = self._scan_merge_region(
             start_row, start_col, end_row, end_col, target
         )
 
         if not removal_elements and target.span == (new_row_span, new_col_span):
             return target
 
+        self._move_covered_contents(target, region)
         self._remove_merged_cell_elements(removal_elements, element_to_row)
 
         target.set_span(new_row_span, new_col_span)
         target.set_size(total_width or target.width, total_height or target.height)
+        # the cell is wider or taller now and may hold moved paragraphs, so its
+        # line caches no longer describe it
+        target._clear_own_layout_caches()
+        collapse_merged_grid(self.element)
         self.mark_dirty()
         return target
 

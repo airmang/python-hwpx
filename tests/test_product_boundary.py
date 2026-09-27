@@ -305,7 +305,9 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # +1: table width/height distribution (oxml/table_sizes.py), moved out of the
     # table.py owner file.
     # +1: the equation box and baseline measure (equation/measure.py).
-    assert report["classifiedFiles"] == 172
+    # +1: grid clean-up after a cell merge (oxml/table_merge.py), moved out of the
+    # table.py owner file.
+    assert report["classifiedFiles"] == 173
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(
