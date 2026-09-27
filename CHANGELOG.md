@@ -2,7 +2,14 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
-## [Unreleased]
+## [6.6.0] - 2026-09-28
+
+HWP 5.0(`.hwp`) 읽기·쓰기를 더하고, 템플릿·양식을 공개 API만으로 다루는 기능(칸 안쪽 여백,
+글꼴·테두리 읽기와 글꼴 교체, 떠 있는 도형의 기준 틀, 본문 비우기, 메타데이터·미리보기·그림
+정리)을 공개한 릴리스입니다. 한/글과 결과를 맞추느라 출력이 바뀌는 고침이 여럿 있습니다.
+특히 `equalize_column_widths()`는 한/글처럼 표 폭을 행별 칸 수의 공배수로 올립니다. 전의 분배가
+필요하면 `set_column_widths([1] * column_count)`를 씁니다. 저장 성공만으로 시각 품질을
+보증하지 않습니다.
 
 ### 바꿈
 
