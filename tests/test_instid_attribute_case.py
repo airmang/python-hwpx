@@ -12,6 +12,7 @@ from __future__ import annotations
 import io
 import re
 import zipfile
+from pathlib import Path
 
 from hwpx import HwpxDocument
 from hwpx.oxml._document_primitives import _clone_paragraph_element
@@ -56,6 +57,21 @@ def test_note_inst_id_survives_an_hwp_save() -> None:
     reopened = HwpxDocument.open(document.to_bytes(format="hwp"))
     [note] = reopened.sections[0].element.iter(f"{HP}footNote")
     assert note.get("instId") == authored
+
+
+def test_hancom_writes_a_note_inst_id_as_inst_id() -> None:
+    # Hancom saved a document python-hwpx wrote with a lowercase instid on its
+    # footnote and endnote: it dropped instid and wrote instId.
+    data = (Path(__file__).parent / "fixtures" / "hancom_saved" / "notes_inst_id.hwpx").read_bytes()
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        section = archive.read("Contents/section0.xml")
+    notes = re.findall(rb"<hp:(?:footNote|endNote)\b[^>]*>", section)
+    assert len(notes) == 2
+    assert all(b'instId="' in note and b"instid=" not in note for note in notes)
+
+    document = HwpxDocument.open(data)
+    [footnote] = document.sections[0].element.iter(f"{HP}footNote")
+    assert HwpxOxmlNote(footnote, document.paragraphs[0]).inst_id == footnote.get("instId")
 
 
 def test_clone_reissues_the_note_inst_id() -> None:
