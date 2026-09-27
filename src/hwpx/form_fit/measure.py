@@ -12,12 +12,20 @@ Hangul/CJK is reliably 1.0 em; Latin/digit/space/punct are averaged and therefor
 **confidence** and the engine refuses to hard-fail a borderline case — Hancom (the
 render oracle) is the only authority on the close calls (plan §1 "measure-first",
 §2 C acceptance "measurement honesty over false precision").
+
+A slot with a :class:`TextStyle` (cell and form-field slots carry one) breaks
+lines the way Hancom does, with no font file: a space is half an em, 장평 and
+자간 scale each advance, the paragraph's break settings decide where a line may
+end, spaces at a line end hang past the margin, 최소 공백 lets inner spaces
+shrink, indents come off the first or the following lines, closing punctuation
+never starts a line, and inline objects on the line take their width off the
+first line only (see :func:`hancom_line_starts`).
 """
 from __future__ import annotations
 
 import math
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 # Advance width as a fraction of the em (font height in HWPUNIT). Hangul/wide are
@@ -53,6 +61,10 @@ _CLASS_UNCERTAINTY: dict[str, float] = {
 # multiplicative factor so it scales and also buys headroom on the advance error.
 DEFAULT_SAFETY = 0.93
 
+#: Hancom never lays a cell line out narrower than this (HWPUNIT): below it the
+#: line keeps this width however narrow the cell.
+MIN_LINE_WIDTH = 1440
+
 # --- Vertical (line-height) model ------------------------------------------- #
 # Per-line vertical advance as a multiple of the em (font height in HWPUNIT).
 # HWP's application default is 160% line spacing, so a line occupies ~1.6 em; this
@@ -80,6 +92,40 @@ MIN_ROW_GROWTH_LINES = 2
 
 Confidence = Literal["high", "low"]
 
+# --- Hancom line layout rules (no font file needed) --------------------------- #
+#: Spaces that hang past the right margin at a line end; a line never starts
+#: with one.
+_HANGING_SPACES = " " + chr(0xA0)
+#: Closing punctuation that never starts a line; it moves down with the
+#: character before it.
+_NO_LINE_START = frozenset("!%),.:;?]}¢°’”‰′″℃〉》」』】〕…·、。")
+#: Opening punctuation that never ends a line.
+_NO_LINE_END = frozenset("([{‘“〈《「『【〔")
+
+
+@dataclass(frozen=True, slots=True)
+class TextStyle:
+    """Character and paragraph settings Hancom lays a line out with.
+
+    ``ratio`` (장평, %) and ``spacing`` (자간, % of each glyph's own width)
+    scale every advance, except that the glyph ending a line takes no 자간
+    after it, and a space is half an em unless ``use_font_space``.
+    ``break_non_latin_word`` works the reverse of its name in Hancom:
+    ``BREAK_WORD`` (the default) keeps Hangul words whole and ``KEEP_WORD``
+    breaks between any two syllables; ``break_latin_word`` works as named.
+    ``condense`` (최소 공백, %) lets the spaces inside a line shrink by that
+    share. ``indent`` is the first-line indent in HWPUNIT; a negative value is
+    a hanging indent taken off every line after the first.
+    """
+
+    ratio: float = 100.0
+    spacing: float = 0.0
+    use_font_space: bool = False
+    break_latin_word: str = "KEEP_WORD"
+    break_non_latin_word: str = "BREAK_WORD"
+    condense: int = 0
+    indent: int = 0
+
 
 def classify_char(ch: str) -> str:
     """Bucket *ch* into an advance class (see ``_ADVANCE_EM``)."""
@@ -101,15 +147,23 @@ def classify_char(ch: str) -> str:
     return "other"
 
 
-def char_advance(ch: str, font_pt: float) -> float:
+def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> float:
     """Advance of *ch* at *font_pt*, in HWPUNIT."""
 
-    return _ADVANCE_EM[classify_char(ch)] * font_pt * 100.0
+    if style is None:
+        return _ADVANCE_EM[classify_char(ch)] * font_pt * 100.0
+    base = 0.5 if ch == " " and not style.use_font_space else _ADVANCE_EM[classify_char(ch)]
+    return base * font_pt * 100.0 * style.ratio / 100.0 * (1 + style.spacing / 100.0)
 
 
-def estimate_text_width(text: str, font_pt: float) -> float:
-    """Conservative single-line width of *text* at *font_pt*, in HWPUNIT."""
+def estimate_text_width(text: str, font_pt: float, style: TextStyle | None = None) -> float:
+    """Conservative single-line width of *text* at *font_pt*, in HWPUNIT.
 
+    With *style* the advances follow Hancom's rules (see :class:`TextStyle`).
+    """
+
+    if style is not None:
+        return sum(char_advance(ch, font_pt, style) for ch in text)
     em = font_pt * 100.0
     return sum(_ADVANCE_EM[classify_char(ch)] for ch in text) * em
 
@@ -130,9 +184,10 @@ def _uncertainty_band(text: str) -> float:
     return weighted / total if total else _CLASS_UNCERTAINTY["other"]
 
 
-# In-word punctuation a Latin run may break *after* (Hancom / UAX #14): an email,
-# URL, file path, or hyphenated model number wraps at these — it is NOT one
-# unbreakable token. Without this the overflow lint false-positives on such cells.
+# In-word punctuation a Latin run may break *after* in the class-average model
+# (no TextStyle): an email, URL, file path, or hyphenated model number wraps at
+# these. Hancom itself keeps such a word whole unless it is longer than the
+# line, which is what the TextStyle path (``hancom_line_starts``) follows.
 _LATIN_BREAK_AFTER = frozenset("/\\-.@:_?=&,;")
 
 
@@ -161,14 +216,116 @@ def _break_opportunities(text: str) -> set[int]:
     return opportunities
 
 
-def estimate_lines(text: str, available_width: float, font_pt: float) -> int:
+def _hancom_break_opportunities(text: str, style: TextStyle) -> set[int]:
+    """Indices before which Hancom may start a new line under *style*."""
+
+    opportunities: set[int] = set()
+    for index in range(1, len(text)):
+        prev, cur = text[index - 1], text[index]
+        if cur in _HANGING_SPACES:
+            continue
+        if prev in _HANGING_SPACES:
+            opportunities.add(index)
+            continue
+        if classify_char(prev) in ("hangul", "wide") or classify_char(cur) in ("hangul", "wide"):
+            if style.break_non_latin_word == "KEEP_WORD":
+                opportunities.add(index)
+            continue
+        if style.break_latin_word == "BREAK_WORD":
+            opportunities.add(index)
+    return opportunities
+
+
+def hancom_line_starts(
+    text: str, widths: list[float], font_pt: float, style: TextStyle
+) -> list[int]:
+    """Where Hancom starts each line of the one-line *text* (no newlines).
+
+    ``widths[k]`` is the width of line ``k`` in HWPUNIT (the last one repeats).
+    A line takes characters while they fit (the last one without its 자간);
+    spaces at its end hang past the
+    margin and, with ``style.condense``, the spaces inside it may shrink to
+    make room. The line then ends at the last break opportunity that fits —
+    never before a closing or after an opening punctuation mark — or mid-word
+    when no opportunity is left.
+    """
+
+    breaks = _hancom_break_opportunities(text, style)
+    space = char_advance(" ", font_pt, style)
+    unspaced = replace(style, spacing=0.0)
+    starts = [0]
+    length = len(text)
+    start = 0
+    while True:
+        width = widths[min(len(starts) - 1, len(widths) - 1)]
+        end, used, inner, pending = start, 0.0, 0, 0
+        while end < length:
+            ch = text[end]
+            advance = char_advance(ch, font_pt, style)
+            if ch in _HANGING_SPACES:
+                used += advance
+                pending += 1
+                end += 1
+                continue
+            shrink = (inner + pending) * space * style.condense / 100.0
+            if used + char_advance(ch, font_pt, unspaced) - shrink > width and end > start:
+                break
+            used += advance
+            inner += pending
+            pending = 0
+            end += 1
+        if end >= length:
+            return starts
+        options = [
+            index for index in breaks
+            if start < index <= end
+            and text[index] not in _NO_LINE_START
+            and text[index - 1] not in _NO_LINE_END
+        ]
+        start = max(options) if options else end
+        while start < length and text[start] in _HANGING_SPACES:
+            start += 1
+        if start >= length:
+            return starts
+        starts.append(start)
+
+
+def _hancom_line_count(
+    text: str, first_width: float, rest_width: float, font_pt: float, style: TextStyle
+) -> int:
+    if first_width <= 0 or rest_width <= 0:
+        return 1_000_000
+    total = 0
+    logical = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    for index, line in enumerate(logical):
+        if not line:
+            total += 1
+            continue
+        widths = [first_width, rest_width] if index == 0 else [rest_width]
+        total += len(hancom_line_starts(line, widths, font_pt, style))
+    return max(total, 1)
+
+
+def estimate_lines(
+    text: str, available_width: float, font_pt: float, style: TextStyle | None = None
+) -> int:
     """Greedy line count for *text* in a slot *available_width* wide (HWPUNIT).
 
     Greedy packing over-estimates slightly versus a naive width/budget ratio
     (it accounts for wrap waste), which keeps the line count — and therefore an
-    overflow verdict — on the conservative side.
+    overflow verdict — on the conservative side. With *style* the lines follow
+    Hancom's rules (see :func:`hancom_line_starts`), and ``style.indent`` comes
+    off the first line (or, when negative, off the others).
     """
 
+    if style is not None:
+        return _hancom_line_count(
+            text,
+            available_width - max(style.indent, 0),
+            available_width - max(-style.indent, 0),
+            font_pt,
+            style,
+        )
     if available_width <= 0:
         return 1_000_000
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
@@ -232,6 +389,10 @@ class SlotMetrics:
     # auto-grow floor shorter than one line). Records "height budget unavailable"
     # so the fit reports width-only honestly rather than guessing a vertical fit.
     height_unavailable: bool = False
+    # Hancom's layout settings for the slot's text. ``None`` keeps the class
+    # average model; with a style, lines follow Hancom's rules and the inline
+    # objects take their width off the first line only.
+    text_style: TextStyle | None = None
 
     @property
     def capacity(self) -> float:
@@ -315,13 +476,22 @@ def measure(value: str, slot: SlotMetrics) -> Measurement:
     is *low* confidence, which the engine treats as "defer to the oracle".
     """
 
-    width = estimate_text_width(value, slot.font_pt)
-    lines = estimate_lines(value, slot.available_width, slot.font_pt)
-    fits = lines <= slot.max_lines
+    style = slot.text_style
+    width = estimate_text_width(value, slot.font_pt, style)
     band = _uncertainty_band(value)
     available_single = slot.available_width or 1.0
     ratio = width / available_single
-    capacity = slot.capacity or 1.0
+    if style is None:
+        lines = estimate_lines(value, slot.available_width, slot.font_pt)
+        capacity = slot.capacity or 1.0
+    else:
+        # Inline objects share the first line only; indents come off the first
+        # line or, when hanging, off the others.
+        first = slot.available_width - max(style.indent, 0)
+        rest = slot.available_width + slot.inline_object_width - max(-style.indent, 0)
+        lines = _hancom_line_count(value, first, rest, slot.font_pt, style)
+        capacity = (first + rest * (slot.max_lines - 1)) or 1.0
+    fits = lines <= slot.max_lines
 
     notes: list[str] = []
     if fits:
@@ -335,9 +505,15 @@ def measure(value: str, slot: SlotMetrics) -> Measurement:
     else:
         # Need to overflow the band too, else it is a borderline overflow that a
         # crude advance table must not turn into a hard failure.
-        min_lines_high_conf = math.ceil(
-            (width * (1 - band)) / available_single - 1e-9
-        )
+        if style is None:
+            min_lines_high_conf = math.ceil(
+                (width * (1 - band)) / available_single - 1e-9
+            )
+        else:
+            optimistic = width * (1 - band)
+            min_lines_high_conf = 1 if optimistic <= first else 1 + math.ceil(
+                (optimistic - first) / max(rest, 1.0) - 1e-9
+            )
         confidence = "high" if min_lines_high_conf > slot.max_lines else "low"
         if confidence == "low":
             notes.append(
@@ -449,6 +625,71 @@ def _first_para_line_spacing_ratio(cell: object, document: object) -> float | No
     return None
 
 
+def _style_number(value: object, default: float) -> float:
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+
+
+def text_style_from_refs(
+    document: object, para_pr_id_ref: object, char_pr_id_refs: "list[object]"
+) -> TextStyle:
+    """Hancom layout settings of a paragraph shape and the first resolvable
+    character shape among *char_pr_id_refs*."""
+
+    ratio, spacing, use_font_space = 100.0, 0.0, False
+    root = _document_root(document)
+    for ref in char_pr_id_refs:
+        try:
+            run_style = root.char_property(ref)
+        except Exception:  # pragma: no cover - defensive
+            run_style = None
+        if run_style is None:
+            continue
+        children = getattr(run_style, "child_attributes", {}) or {}
+        ratio = _style_number((children.get("ratio") or {}).get("hangul"), 100.0)
+        spacing = _style_number((children.get("spacing") or {}).get("hangul"), 0.0)
+        use_font_space = (getattr(run_style, "attributes", {}) or {}).get("useFontSpace") in {"1", "true"}
+        break
+    try:
+        prop = root.paragraph_property(para_pr_id_ref)
+    except Exception:  # pragma: no cover - defensive
+        prop = None
+    if prop is None:
+        return TextStyle(ratio=ratio, spacing=spacing, use_font_space=use_font_space)
+    breaks = getattr(prop, "break_setting", None)
+    # hp:case carries the HWPUNIT values Hancom lays out with; hp:default doubles them.
+    switch = getattr(prop, "version_switch", None)
+    case = getattr(switch, "case", None) if switch is not None else None
+    margin = getattr(case, "margin", None) if case is not None else None
+    if margin is None:
+        margin = getattr(prop, "margin", None)
+    return TextStyle(
+        ratio=ratio,
+        spacing=spacing,
+        use_font_space=use_font_space,
+        break_latin_word=getattr(breaks, "break_latin_word", None) or "KEEP_WORD",
+        break_non_latin_word=getattr(breaks, "break_non_latin_word", None) or "BREAK_WORD",
+        condense=int(_style_number(getattr(prop, "condense", 0), 0.0)),
+        indent=int(_style_number(getattr(margin, "intent", 0), 0.0)),
+    )
+
+
+def _cell_text_style(cell: object, document: object) -> TextStyle:
+    """Hancom layout settings of the cell's first paragraph and first run."""
+
+    try:
+        paragraphs = list(cell.paragraphs)  # type: ignore[attr-defined]
+    except Exception:  # pragma: no cover - defensive
+        paragraphs = []
+    if not paragraphs or document is None:
+        return TextStyle()
+    paragraph = paragraphs[0]
+    refs = [getattr(run, "char_pr_id_ref", None) for run in getattr(paragraph, "runs", [])]
+    return text_style_from_refs(document, getattr(paragraph, "para_pr_id_ref", None), refs)
+
+
 def _first_run_font_pt(cell: object, document: object) -> float:
     """Resolve the cell's first run font size in points (default 10pt)."""
 
@@ -493,10 +734,14 @@ def resolve_slot_metrics(
 ) -> SlotMetrics:
     """Build :class:`SlotMetrics` from a live table cell.
 
-    ``available_width = (cellSz.width - cellMargin.L - cellMargin.R) * safety`` —
+    ``available_width = max(cellSz.width - cellMargin.L - cellMargin.R, MIN_LINE_WIDTH) * safety`` —
     verified against Hancom's own ``lineSeg/@horzsize`` (±10 HWPUNIT on 82% of
     cells; the safety factor covers the rest plus paragraph indent, which is left
     to the HarfBuzz pass).
+
+    ``text_style`` carries the Hancom layout settings of the cell's first
+    paragraph and run (break settings, 최소 공백, indent, 장평, 자간), so the
+    fit follows Hancom's line breaking rules.
 
     ``available_height`` follows the same philosophy — ``(cellSz.height - top -
     bottom margin) * safety`` — but is recorded as *unavailable* (``None`` +
@@ -510,7 +755,7 @@ def resolve_slot_metrics(
     raw_width = float(getattr(cell, "width", 0) or 0)
     element = getattr(cell, "element", None)
     left, right, top, bottom = _effective_cell_margins(cell)
-    inner = max(raw_width - left - right, 0.0) * safety
+    inner = (max(raw_width - left - right, MIN_LINE_WIDTH) if raw_width > 0 else 0.0) * safety
     inline_width, inline_count = (
         _inline_object_width(element) if element is not None else (0.0, 0)
     )
@@ -547,6 +792,7 @@ def resolve_slot_metrics(
         height_unavailable=height_unavailable,
         inline_object_width=inline_width,
         inline_object_count=inline_count,
+        text_style=_cell_text_style(cell, document),
     )
 
 
@@ -590,6 +836,7 @@ def _inline_object_width(cell_element: object) -> tuple[float, int]:
 
 __all__ = [
     "SlotMetrics",
+    "TextStyle",
     "Measurement",
     "Confidence",
     "DEFAULT_SAFETY",
@@ -601,6 +848,7 @@ __all__ = [
     "char_advance",
     "estimate_text_width",
     "estimate_lines",
+    "hancom_line_starts",
     "measure",
     "resolve_slot_metrics",
 ]

@@ -179,6 +179,19 @@ def test_fill_form_field_box_width_gross_overflow_fails():
     assert excinfo.value.context["suggestedRetry"]["code"] == "FIELD_OVERFLOW"
 
 
+def test_fill_form_field_fit_follows_hancom_line_rules():
+    """A trailing space hangs past the box edge, so five Hangul syllables and a
+    space still take one line of a box five syllables wide."""
+    doc = HwpxDocument.new()
+    _add_click_here_field(doc)
+    result = doc.fill_form_field(
+        "가나다라마 ", name="주소", fit_policy=FitPolicy.keep(), box_width=5377
+    )
+    assert result.fit is not None
+    assert result.fit.lines == 1
+    assert not result.fit.overflow_detected
+
+
 def test_fill_form_field_no_fit_policy_unchanged(tmp_path: Path):
     doc = HwpxDocument.new()
     _add_click_here_field(doc)
