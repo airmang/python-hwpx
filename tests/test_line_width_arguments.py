@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Border and column-line widths are written as one of Hancom's line widths, or refused.
+"""Border and column-line widths are written as one of Hancom's line widths.
 
 Hancom keeps a width only when it is one of the ``hc:LineWidth`` strings (``0.1 mm`` …
-``5.0 mm``) exactly; ``1 mm``, ``2 mm`` or ``0.12mm`` are drawn as ``0.1 mm``.
+``5.0 mm``) exactly; ``1 mm``, ``2 mm`` or ``0.12mm`` are drawn as ``0.1 mm``. A width off the
+list is written as the nearest listed width; a value that is not a width is refused.
 """
 from __future__ import annotations
 
@@ -26,8 +27,18 @@ def test_a_width_on_the_list_is_written_the_way_hancom_writes_it(value: object, 
     assert normalize_line_width(value) == written  # type: ignore[arg-type]
 
 
-@pytest.mark.parametrize("value", ["0.13 mm", "6 mm", "40", "thick", "", "1 cm"])
-def test_a_width_off_the_list_is_refused(value: str) -> None:
+@pytest.mark.parametrize(
+    ("value", "written"),
+    [("0.13 mm", "0.12 mm"), ("0.45 mm", "0.5 mm"), ("0.35", "0.4 mm"), (2.5, "3.0 mm"), ("0.8 mm", "0.7 mm"),
+     ("0.05mm", "0.1 mm"), ("6 mm", "5.0 mm"), ("40", "5.0 mm")],
+)
+def test_a_width_off_the_list_is_written_as_the_nearest_listed_width(value: object, written: str) -> None:
+    # halfway between two widths (0.45, 0.35, 2.5) takes the thicker one
+    assert normalize_line_width(value) == written  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("value", ["thick", "", "1 cm", "3 pt", "0", "-1 mm", "nan", "inf"])
+def test_a_value_that_is_not_a_width_is_refused(value: str) -> None:
     with pytest.raises(HwpxValueError) as caught:
         normalize_line_width(value)
     assert caught.value.code == "style-line-width-invalid"
@@ -52,19 +63,23 @@ def test_a_border_fill_width_is_written_from_the_list() -> None:
     assert set(re.findall(r'<hh:(?:left|right|top|bottom)Border [^>]*width="([^"]*)"', block.group(0))) == {"1.0 mm"}
 
 
-def test_a_border_fill_width_off_the_list_is_refused() -> None:
+def test_a_border_fill_width_off_the_list_is_written_as_the_nearest() -> None:
     document = HwpxDocument.new()
-    with pytest.raises(HwpxValueError, match="not one of Hancom's line widths"):
-        document.styles.ensure_border_fill(border_width="0.13 mm")
+    fill_id = document.styles.ensure_border_fill(border_width="0.45 mm")
+
+    block = re.search(rf'<hh:borderFill id="{fill_id}".*?</hh:borderFill>', _header_xml(document), re.S)
+
+    assert block is not None
+    assert set(re.findall(r'<hh:(?:left|right|top|bottom)Border [^>]*width="([^"]*)"', block.group(0))) == {"0.5 mm"}
 
 
 def test_a_paragraph_border_width_goes_through_the_same_check() -> None:
     document = HwpxDocument.new()
     document.add_paragraph("테두리 문단")
     index = len(document.paragraphs) - 1
-    with pytest.raises(HwpxValueError, match="not one of Hancom's line widths"):
+    with pytest.raises(HwpxValueError, match="not a width in millimetres"):
         document.styles.apply_paragraph_format(paragraph_index=index, border={"width": "3 pt"})
-    with pytest.raises(HwpxValueError, match="not one of Hancom's line widths"):
+    with pytest.raises(HwpxValueError, match="not a width in millimetres"):
         document.styles.apply_paragraph_format(paragraph_index=index, bottom_border=True, border_width="1 cm")
 
 
@@ -75,5 +90,5 @@ def test_a_column_separator_width_is_written_from_the_list() -> None:
         section = archive.read("Contents/section0.xml").decode("utf-8")
     assert re.search(r'<hp:colLine [^>]*width="0.5 mm"', section)
 
-    with pytest.raises(HwpxValueError, match="not one of Hancom's line widths"):
+    with pytest.raises(HwpxValueError, match="not a width in millimetres"):
         document.page.set_columns(2, separator_type="SOLID", separator_width="thick")

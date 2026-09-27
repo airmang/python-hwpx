@@ -272,14 +272,14 @@ except HwpxError as exc:
 | `style-border-fill-image-effect-invalid` | fill_image 의 effect 값이 OWPML 어휘(REAL_PIC/GRAY_SCALE/BLACK_WHITE) 밖이다. |
 | `style-border-fill-image-missing` | fill_image 가 doc.media 이진 항목을 가리키지 않는다. |
 | `style-border-fill-image-mode-invalid` | fill_image 의 mode 값이 OWPML 어휘(hc:imgBrush/@mode) 밖이다. |
-| `style-color-invalid` | 색 인자가 #RRGGBB(16진 6자리)나 none이 아니다. |
+| `style-color-invalid` | 색 인자가 #RRGGBB·#AARRGGBB(16진 6·8자리)나 none이 아니다. |
 | `style-container-create-failed` | styles 컨테이너를 만들지 못했다(방어적 분기). |
 | `style-font-container-create-failed` | fontfaces/fontface 컨테이너를 만들지 못했다. |
 | `style-font-face-empty` | face 값이 비어 있다. |
 | `style-font-lang-invalid` | lang 값이 OWPML 어휘(HANGUL/LATIN/HANJA/JAPANESE/OTHER/SYMBOL/USER) 밖이다. |
 | `style-font-substitute-incomplete` | 대체 글꼴 인자가 일부만 주어졌다(subst_face 가 필요하다). |
 | `style-font-type-invalid` | font_type/subst_type 값이 OWPML 어휘(REP/TTF/HFT) 밖이다. |
-| `style-line-width-invalid` | 선 굵기가 한컴 선 굵기 목록(hc:LineWidth, 0.1 mm~5.0 mm) 밖이다. |
+| `style-line-width-invalid` | 선 굵기가 0보다 큰 mm 값이 아니다(목록 밖 값은 가장 가까운 한컴 선 굵기로 쓴다). |
 | `style-list-level-invalid` | 글머리표/번호 수준은 1 이상이어야 한다. |
 | `style-list-property-failed` | 번호 문단모양을 만들지 못했다. |
 | `style-memo-shape-line-type-invalid` | 메모 모양의 line_type 값이 OWPML 어휘(hc:LineType2) 밖이다. |

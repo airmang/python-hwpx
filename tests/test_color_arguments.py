@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Colour arguments are written as the ``#RRGGBB`` Hancom writes, or refused.
+"""Colour arguments are written as the ``#RRGGBB`` or ``#AARRGGBB`` Hancom writes, or refused.
 
 Hancom reads a colour attribute as one hexadecimal number and does not reject the rest:
 ``#ABC`` shows as ``#000ABC`` (not CSS's ``#AABBCC``), ``red`` as black and ``#12345`` as
-``#012345``. A value that is not six hexadecimal digits is refused before it is written.
+``#012345``. A value that is not six or eight hexadecimal digits is refused before it is written.
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from hwpx.document import HwpxDocument
 from hwpx.errors import HwpxValueError
 from hwpx.oxml.color import normalize_color
 
-NOT_RRGGBB = ["#ABC", "red", "#RED", "#12345", "#1234567", "#FF123456", "#GGGGGG", "#12 345"]
+NOT_RRGGBB = ["#ABC", "red", "#RED", "#12345", "#1234567", "#123456789", "#GGGGGG", "#12 345"]
 
 
 def test_a_refused_colour_leaves_the_header_as_it_was() -> None:
@@ -51,7 +51,7 @@ def test_a_refused_column_line_leaves_the_columns_as_they_were() -> None:
     col_pr = next(doc.oxml.sections[0].element.iter("{http://www.hancom.co.kr/hwpml/2011/paragraph}colPr"))
     before = (dict(col_pr.attrib), [dict(child.attrib) for child in col_pr])
 
-    for bad in ({"separator_width": "0.13 mm"}, {"separator_color": "#abc"}):
+    for bad in ({"separator_width": "thick"}, {"separator_color": "#abc"}):
         with pytest.raises(HwpxValueError):
             props.set_columns(3, **bad)
 
@@ -67,7 +67,8 @@ def test_a_value_that_is_not_rrggbb_is_refused(value: str) -> None:
 
 @pytest.mark.parametrize(
     ("value", "written"),
-    [("#1a2b3c", "#1A2B3C"), ("1A2B3C", "#1A2B3C"), (" #00ff00 ", "#00FF00"), ("NONE", "none"), ("", None), (None, None)],
+    [("#1a2b3c", "#1A2B3C"), ("1A2B3C", "#1A2B3C"), (" #00ff00 ", "#00FF00"), ("NONE", "none"), ("", None), (None, None),
+     ("#ff123456", "#FF123456"), ("C0FFFFFF", "#C0FFFFFF")],
 )
 def test_rrggbb_is_taken_with_or_without_the_hash_in_either_case(value: str | None, written: str | None) -> None:
     assert normalize_color(value) == written
@@ -150,4 +151,20 @@ def test_body_patch_refuses_a_restyle_colour_that_is_not_rrggbb() -> None:
 
     result = apply_body_ops(document.to_bytes(), [{"op": "restyle_text", "find": "바꿀 글", "text_color": "red"}])
 
-    assert [entry["status"] for entry in result.skipped] == ["refused: colour 'red' is not #RRGGBB"]
+    assert [entry["status"] for entry in result.skipped] == ["refused: colour 'red' is not #RRGGBB or #AARRGGBB"]
+
+
+def test_an_aarrggbb_colour_read_from_a_document_is_written_back_as_it_is() -> None:
+    # Hancom writes border, hatch, line and shadow colours with the alpha byte first
+    # (#FF000000); a colour read from a document goes back in unchanged.
+    document = HwpxDocument.new()
+    fill_id = document.styles.ensure_border_fill(border_color="#ff000000", fill_color="#C0FFFFFF")
+    with zipfile.ZipFile(io.BytesIO(document.to_bytes())) as archive:
+        header = archive.read("Contents/header.xml").decode("utf-8")
+    block = re.search(rf'<hh:borderFill id="{fill_id}".*?</hh:borderFill>', header, re.S)
+
+    assert block is not None
+    assert set(re.findall(r'<hh:(?:left|right|top|bottom)Border [^>]*color="([^"]*)"', block.group(0))) == {"#FF000000"}
+    assert 'faceColor="#C0FFFFFF"' in block.group(0)
+    document.shapes.add_rectangle(line_color="#10ABCDEF")
+    assert re.search(r'<hp:lineShape\b[^>]*\bcolor="#10ABCDEF"', _section_xml(document))
