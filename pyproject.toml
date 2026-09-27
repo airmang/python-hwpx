@@ -289,6 +289,9 @@ files = [
     # Hyperlink field target form (Hancom's Command/Path parameters,
     # written and read in one place) -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/hyperlink_form.py",
+    # Table width/height distribution (distribute cell width row by row) moved out
+    # of table.py -- born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/table_sizes.py",
     # HWP 5.0 (.hwp) container and record layer -- born in the gate, per the
     # WP-A rule.
     "src/hwpx/hwp5/__init__.py",
@@ -482,6 +485,9 @@ include = [
     # Hyperlink field target form (Hancom's Command/Path parameters,
     # written and read in one place) -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/hyperlink_form.py",
+    # Table width/height distribution (distribute cell width row by row) moved out
+    # of table.py -- born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/table_sizes.py",
     # HWP 5.0 (.hwp) container and record layer -- born in the gate, per the
     # WP-A rule.
     "src/hwpx/hwp5/__init__.py",
