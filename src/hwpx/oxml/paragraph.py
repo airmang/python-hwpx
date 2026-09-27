@@ -43,7 +43,12 @@ from .note_authoring import (
     _paragraph_endnotes,
     _paragraph_footnotes,
 )
-from ._paragraph_text_edit import edit_node_candidates, paragraph_container, plain_text_nodes_for_edit
+from ._paragraph_text_edit import (
+    edit_node_candidates,
+    paragraph_container,
+    plain_text_nodes_for_edit,
+    remove_paragraph_element,
+)
 from .objects import (
     HwpxOxmlInlineObject,
     _create_picture_element,
@@ -95,7 +100,9 @@ class HwpxOxmlParagraph:
     def apply_model(self, model: "body.Paragraph") -> None:
         new_node = body.serialize_paragraph(model)
         xml_bytes = LET.tostring(new_node)
-        parent = paragraph_container(self.element, self.section.element) or self.section.element
+        parent = paragraph_container(self.element, self.section.element)
+        if parent is None:
+            parent = self.section.element
         if isinstance(parent, LET._Element):
             replacement = LET.fromstring(xml_bytes)
         else:
@@ -396,22 +403,15 @@ class HwpxOxmlParagraph:
     def remove(self) -> None:
         """Remove this paragraph from the section, table cell, header or footer holding it.
 
-        After removal, the paragraph wrapper should no longer be used.
-        Raises ``ValueError`` if that container would be left without a
-        paragraph: HWPX needs at least one ``<hp:p>`` per section, and Hancom
-        cannot open a cell, header or footer whose paragraph list is empty.
+        After removal, the paragraph wrapper should no longer be used, and a
+        second call does nothing. Raises :class:`~hwpx.errors.HwpxValueError`
+        (a ``ValueError``, ``code="paragraph-remove-last"``) if that container
+        would be left without a paragraph: HWPX needs at least one ``<hp:p>``
+        per section, and Hancom cannot open a cell, header or footer whose
+        paragraph list is empty.
         """
-        parent = paragraph_container(self.element, self.section.element)
-        if parent is None:  # already removed
-            return
-        siblings = parent.findall(f"{_HP}p")
-        if len(siblings) <= 1:
-            raise ValueError(
-                "섹션과 셀·머리말·꼬리말에는 최소 하나의 단락이 필요합니다. "
-                "마지막 단락은 삭제할 수 없습니다."
-            )
-        parent.remove(self.element)
-        self.section.mark_dirty()
+        if remove_paragraph_element(self.element, self.section.element):
+            self.section.mark_dirty()
 
     def _create_run_for_object(
         self,
@@ -1171,20 +1171,18 @@ class HwpxOxmlParagraph:
             script: EqEdit script stored verbatim (e.g. ``{a} over {b}``).
             base_unit: Equation base font size in 1/100 pt (gold: 1100/1200).
             size: Optional explicit ``(width, height)`` HWPUNIT pair for
-                ``<hp:sz>``; when omitted a proportional placeholder is
-                written — Hancom re-measures on open (P0 evidence).
+                ``<hp:sz>``; when omitted the box is measured from the script.
+                Hancom lays the page out with the stored box on open.
         """
         text = script.strip()
         if not text:
             raise ValueError("equation script must be a non-empty string")
         if base_unit <= 0:
             raise ValueError("base_unit must be positive")
-        if size is None:
-            visible = len(text.replace("{", "").replace("}", "").replace(" ", ""))
-            width = int(base_unit * 0.45 * max(6, visible))
-            height = int(base_unit * 2.5)
-        else:
-            width, height = size
+        from ..equation.measure import measure_equation
+
+        measured = measure_equation(text, base_unit=base_unit)
+        width, height = size if size is not None else (measured.width, measured.height)
         run = self._create_run_for_object(
             run_attributes, char_pr_id_ref=char_pr_id_ref
         )
@@ -1197,7 +1195,7 @@ class HwpxOxmlParagraph:
             "lock": "0",
             "dropcapstyle": "None",
             "version": "Equation Version 60",
-            "baseLine": str(max(1, round(base_unit * 69 / 1200))),
+            "baseLine": str(measured.base_line),
             "textColor": "#000000",
             "baseUnit": str(base_unit),
             "lineMode": "CHAR",

@@ -1,16 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 """A document Hancom cannot open is an editor-open-safety error.
 
-Each case removes (or garbles) one attribute or element from an otherwise
-valid python-hwpx document. Without it Hancom refuses to open the document,
-crashes on it, or never finishes laying it out, so ``validate_package``
-reports an error and the public save paths refuse to write it.
+Each case removes (or garbles) one attribute or element from a document Hancom
+saved: ``hancom_saved/open_rules_base.hwpx`` (a hyperlink, a table with a merged
+cell, a paragraph of several lines, a rectangle and a picture), or for
+``colSpan`` the Hancom-saved ``exam/B_submitted.hwpx``. With that one change
+Hancom refuses to open the document, crashes on it, or cannot lay it out, so
+``validate_package`` reports an error and the public save paths refuse to write it.
 """
 from __future__ import annotations
 
 import io
 import zipfile
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 from lxml import etree
@@ -19,6 +22,10 @@ from hwpx import HwpxDocument
 from hwpx.tools.package_validator import validate_package
 
 SECTION = "Contents/section0.xml"
+FIXTURES = Path(__file__).parent / "fixtures"
+BASE = "hancom_saved/open_rules_base.hwpx"
+#: Cases whose change Hancom only fails on in another saved document.
+OTHER_BASE = {"cellSpan-colSpan": "exam/B_submitted.hwpx"}
 Change = Callable[[etree._Element], None]
 
 
@@ -32,13 +39,7 @@ def _png() -> bytes:
 
 @pytest.fixture(scope="module")
 def valid_bytes() -> bytes:
-    doc = HwpxDocument.new()
-    paragraph = doc.add_paragraph("링크 문단")
-    doc.refs.add_hyperlink("https://example.com", "링크", paragraph=paragraph)
-    doc.add_table(2, 2).set_cell_text(0, 0, "셀")
-    doc.shapes.add_rectangle(4000, 2000)
-    doc.add_picture(_png(), "png")
-    return doc.to_bytes()
+    return (FIXTURES / BASE).read_bytes()
 
 
 def _mutate(data: bytes, part: str, change: Change) -> bytes:
@@ -141,15 +142,27 @@ CASES = [
 ]
 
 
-def test_the_unchanged_document_passes(valid_bytes: bytes) -> None:
-    assert validate_package(valid_bytes).ok
+@pytest.mark.parametrize("base", [BASE, *sorted(set(OTHER_BASE.values()))])
+def test_the_unchanged_documents_pass(base: str) -> None:
+    assert validate_package((FIXTURES / base).read_bytes()).ok
 
 
-@pytest.mark.parametrize(("part", "change", "expected"), [case[1:] for case in CASES], ids=[case[0] for case in CASES])
+def test_a_new_python_hwpx_document_passes() -> None:
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("링크 문단")
+    doc.refs.add_hyperlink("https://example.com", "링크", paragraph=paragraph)
+    doc.add_table(2, 2).set_cell_text(0, 0, "셀")
+    doc.shapes.add_rectangle(4000, 2000)
+    doc.add_picture(_png(), "png")
+    assert validate_package(doc.to_bytes()).ok
+
+
+@pytest.mark.parametrize(("name", "part", "change", "expected"), CASES, ids=[case[0] for case in CASES])
 def test_a_document_hancom_cannot_open_is_an_error(
-    valid_bytes: bytes, part: str, change: Change, expected: str
+    valid_bytes: bytes, name: str, part: str, change: Change, expected: str
 ) -> None:
-    report = validate_package(_mutate(valid_bytes, part, change))
+    source = (FIXTURES / OTHER_BASE[name]).read_bytes() if name in OTHER_BASE else valid_bytes
+    report = validate_package(_mutate(source, part, change))
 
     assert not report.ok
     assert any(expected in issue.message for issue in report.errors), [issue.message for issue in report.errors]

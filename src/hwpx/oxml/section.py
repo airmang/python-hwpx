@@ -22,14 +22,32 @@ from ._document_primitives import (
     _remove_stale_paragraph_layout_cache,
     _serialize_xml,
 )
+from .body import INLINE_OBJECT_NAMES
 from .memo import HwpxOxmlMemo, HwpxOxmlMemoGroup
 from .paragraph import HwpxOxmlParagraph
 from .section_format import HwpxOxmlSectionProperties
 from .namespaces import tag_local_name
-from .section_story import HwpxOxmlSectionHeaderFooter
+from .section_story import HwpxOxmlSectionHeaderFooter, story_marks
 
 if TYPE_CHECKING:
+    from ..objects.results import ClearBodyReport
     from .document_parts import HwpxOxmlDocument
+
+_CLEAR_BODY_MODES = ("raise", "keep", "strip")
+_CLEAR_BODY_KEPT_TAGS = frozenset({f"{_HP}secPr", f"{_HP}ctrl"})
+_SECTION_STORY_TAGS = frozenset({f"{_HP}header", f"{_HP}footer"})
+# Reference attributes an apply element may carry (compared case-insensitively),
+# the same set ``HwpxOxmlSectionProperties`` reads.
+_APPLY_REFERENCE_ATTRIBUTES = frozenset(
+    {"idref", "headeridref", "headerref", "footeridref", "footerref"}
+)
+# Descendants of the kept secPr/ctrl children that count as body content:
+# tables, inline objects, form objects, and the compose/dutmal text atoms.
+_CLEAR_BODY_CONTENT_NAMES = frozenset(
+    INLINE_OBJECT_NAMES
+    | {"tbl", "compose", "dutmal"}
+    | {"btn", "radioBtn", "checkBtn", "comboBox", "listBox", "edit", "scrollBar"}
+)
 
 
 class HwpxOxmlSection:
@@ -46,6 +64,8 @@ class HwpxOxmlSection:
         self._dirty = False
         self._properties_cache: HwpxOxmlSectionProperties | None = None
         self._document = document
+        # the header/footer copies that agree when opened, for the save to tell which copy an edit changed
+        self._story_marks = story_marks(element)
 
     def __repr__(self) -> str:
         """Return a compact and safe summary of section structure."""
@@ -176,6 +196,128 @@ class HwpxOxmlSection:
                 raise IndexError(f"단락 인덱스 {paragraph}이(가) 범위를 벗어났습니다 (총 {len(paras)}개)")
             paragraph = paras[paragraph]
         paragraph.remove()
+
+    def clear_body(self, *, on_control_content: str = "raise") -> ClearBodyReport:
+        """Blank this section down to a template: keep its page setup, drop the body.
+
+        What stays: the first paragraph (its attributes untouched), its first
+        run, and that run's ``hp:secPr`` (page setup) and ``hp:ctrl`` children
+        (columns, headers, footers, page numbering); every non-paragraph child
+        of the section (a memo group, for instance). What goes: every paragraph
+        after the first, the first paragraph's other runs *wholesale* (controls
+        in them included), the first run's other children (text, tables,
+        pictures, shapes...), and the first paragraph's layout cache
+        (``hp:linesegarray``).
+
+        A kept ``hp:ctrl`` can hold content of its own, such as a header with
+        a name in it. ``on_control_content`` says what to do when the kept
+        children hold non-blank ``hp:t`` text, a table, picture, shape or other
+        object, a form object, or ``hp:compose``/``hp:dutmal``:
+        ``"raise"`` (default) refuses with
+        ``HwpxValueError(code="section-clear-control-content")`` whose
+        ``context["tags"]`` names the tags found; ``"keep"`` keeps them and
+        reports the tags; ``"strip"`` removes each first-run ``hp:ctrl`` whose
+        subtree holds such content, and each ``hp:header``/``hp:footer`` story
+        copy inside ``hp:secPr`` that holds content together with the
+        ``hp:headerApply``/``hp:footerApply`` pointing at it (``set_header()``
+        writes such copies; Hancom reads only the ``hp:ctrl`` story), and
+        reports the tags. ``"strip"`` never leaves content behind: when content
+        sits anywhere those removals do not reach (elsewhere in ``hp:secPr``,
+        say), it refuses with ``section-clear-control-content`` instead.
+        Deciding what to strip before a document is shared is the caller's
+        policy; this call only reports and carries it out.
+
+        The first run of the first paragraph must hold an ``hp:secPr``
+        directly, or the call raises
+        ``HwpxValueError(code="section-clear-no-section-properties")``. Every
+        refusal happens before anything changes, so a failed call leaves the
+        section as it was. Calling it again on a blank section changes nothing
+        and does not mark the section dirty.
+        """
+
+        from ..errors import HwpxValueError
+        from ..objects.results import ClearBodyReport
+
+        if on_control_content not in _CLEAR_BODY_MODES:
+            raise HwpxValueError(
+                f"on_control_content must be one of {', '.join(_CLEAR_BODY_MODES)}: "
+                f"{on_control_content!r}",
+                code="section-clear-mode-invalid",
+                context={"value": on_control_content, "allowed": list(_CLEAR_BODY_MODES)},
+            )
+
+        paragraphs = self.paragraphs
+        runs = paragraphs[0].runs if paragraphs else []
+        if not runs or runs[0].element.find(f"{_HP}secPr") is None:
+            raise HwpxValueError(
+                "the first run of the section's first paragraph holds no hp:secPr",
+                code="section-clear-no-section-properties",
+                context={"part": self.part_name},
+                suggestion="clear_body() keeps the page setup in the first run; "
+                "this section has none there to keep.",
+            )
+        first = paragraphs[0]
+        first_run = runs[0].element
+
+        found, removals = self._plan_control_content(first_run, on_control_content)
+
+        later_runs = runs[1:]
+        for run in later_runs:
+            first.element.remove(run.element)
+        stripped_children = _strip_to_kept_children(first_run)
+        for parent, child in removals:
+            parent.remove(child)
+        caches = first.element.findall(f"{_HP}linesegarray")
+        for cache in caches:
+            first.element.remove(cache)
+        later_paragraphs = paragraphs[1:]
+        for paragraph in later_paragraphs:
+            self._element.remove(paragraph.element)
+        if later_runs or stripped_children or removals or caches or later_paragraphs:
+            self.mark_dirty()
+        return ClearBodyReport(
+            removed_paragraphs=len(later_paragraphs),
+            removed_runs=len(later_runs),
+            stripped_run_children=stripped_children,
+            control_content=tuple(found),
+            stripped_controls=sum(1 for _, child in removals if child.tag == f"{_HP}ctrl"),
+            stripped_section_stories=sum(
+                1 for _, child in removals if child.tag in _SECTION_STORY_TAGS
+            ),
+        )
+
+    def _plan_control_content(
+        self, first_run: ET.Element, on_control_content: str
+    ) -> tuple[list[str], list[tuple[ET.Element, ET.Element]]]:
+        """Scan the kept children and plan the ``"strip"`` removals, or refuse.
+
+        Refuses (before anything changes) when content is found under
+        ``"raise"``, or when content would remain after the ``"strip"`` plan.
+        """
+
+        from ..errors import HwpxValueError
+
+        found = _clear_body_kept_content(first_run, excluded=())
+        if not found or on_control_content == "keep":
+            return found, []
+        removals = _plan_control_strip(first_run) if on_control_content == "strip" else []
+        remaining = _clear_body_kept_content(first_run, excluded=[child for _, child in removals])
+        if not remaining:
+            return found, removals
+        if on_control_content == "raise":
+            message = "the kept section controls hold content (a header or footer, perhaps): "
+            suggestion = (
+                'pass on_control_content="strip" to remove those controls, or "keep" to keep them.'
+            )
+        else:
+            message = "stripping the section controls would still leave content behind: "
+            suggestion = 'remove that content first, or pass on_control_content="keep".'
+        raise HwpxValueError(
+            message + ", ".join(remaining),
+            code="section-clear-control-content",
+            context={"part": self.part_name, "tags": remaining, "mode": on_control_content},
+            suggestion=suggestion,
+        )
 
     def _inherited_paragraph_refs(
         self,
@@ -370,6 +512,97 @@ class HwpxOxmlSection:
 
     def to_bytes(self) -> bytes:
         return _serialize_xml(self._element)
+
+
+def _strip_to_kept_children(first_run: ET.Element) -> int:
+    """Remove every child of *first_run* but ``hp:secPr``/``hp:ctrl``; return the count."""
+
+    removed = [child for child in first_run if child.tag not in _CLEAR_BODY_KEPT_TAGS]
+    for child in removed:
+        first_run.remove(child)
+    return len(removed)
+
+
+def _clear_body_kept_content(
+    first_run: ET.Element, *, excluded: Sequence[ET.Element]
+) -> list[str]:
+    """Content tags inside the kept secPr/ctrl children, skipping *excluded* subtrees."""
+
+    found: list[str] = []
+    for child in first_run:
+        if child.tag in _CLEAR_BODY_KEPT_TAGS:
+            _collect_content_tags(child, found, excluded)
+    return found
+
+
+def _collect_content_tags(
+    element: ET.Element, found: list[str], excluded: Sequence[ET.Element]
+) -> None:
+    """Append ``hp:<name>`` tags of body content under *element*, first-seen order.
+
+    A ``hp:t`` counts when its own text is not blank; any element named in
+    ``_CLEAR_BODY_CONTENT_NAMES`` counts as it is.
+    """
+
+    stack = [element]
+    while stack:
+        node = stack.pop()
+        if any(node is skip for skip in excluded):
+            continue
+        name = _element_local_name(node)
+        holds = bool((node.text or "").strip()) if name == "t" else name in _CLEAR_BODY_CONTENT_NAMES
+        if holds and f"hp:{name}" not in found:
+            found.append(f"hp:{name}")
+        stack.extend(reversed(list(node)))
+
+
+def _holds_content(element: ET.Element) -> bool:
+    found: list[str] = []
+    _collect_content_tags(element, found, ())
+    return bool(found)
+
+
+def _plan_control_strip(first_run: ET.Element) -> list[tuple[ET.Element, ET.Element]]:
+    """``(parent, child)`` pairs ``"strip"`` removes from the first run.
+
+    The first run's ``hp:ctrl`` children that hold content, and, inside its
+    ``hp:secPr``, the ``hp:header``/``hp:footer`` story copies that hold
+    content together with the ``hp:headerApply``/``hp:footerApply`` that
+    point at them by id. Those copies are not OWPML ``hp:secPr`` children;
+    ``set_header()``/``set_footer()`` write them, and Hancom reads only the
+    ``hp:ctrl`` story.
+    """
+
+    removals: list[tuple[ET.Element, ET.Element]] = []
+    for child in first_run:
+        if child.tag == f"{_HP}ctrl" and _holds_content(child):
+            removals.append((first_run, child))
+        elif child.tag == f"{_HP}secPr":
+            removals.extend(_plan_section_story_strip(child))
+    return removals
+
+
+def _plan_section_story_strip(section_properties: ET.Element) -> list[tuple[ET.Element, ET.Element]]:
+    removals: list[tuple[ET.Element, ET.Element]] = []
+    for story in section_properties:
+        if story.tag not in _SECTION_STORY_TAGS or not _holds_content(story):
+            continue
+        removals.append((section_properties, story))
+        story_id = story.get("id")
+        apply_tag = f"{story.tag}Apply"
+        for apply in section_properties:
+            if apply.tag == apply_tag and story_id and _apply_reference(apply) == story_id:
+                removals.append((section_properties, apply))
+    return removals
+
+
+def _apply_reference(apply: ET.Element) -> str | None:
+    """The story id an ``hp:headerApply``/``hp:footerApply`` points at."""
+
+    for attr, value in apply.attrib.items():
+        if attr.lower() in _APPLY_REFERENCE_ATTRIBUTES and value:
+            return value
+    return None
 
 
 def _remove_short_paragraph_layout_cache(paragraph: ET.Element) -> bool:

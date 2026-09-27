@@ -42,6 +42,7 @@ from hwpx.form_fit import FitPolicy
 from hwpx.objects import (
     BinaryItem,
     CheckBox,
+    ClearBodyReport,
     ColumnLayout,
     FieldFillResult,
     FieldLocation,
@@ -249,6 +250,7 @@ _RESULT_DATACLASSES = (
     FieldParameter,
     TrackedChange,
     TrackedReplacement,
+    ClearBodyReport,
 )
 
 
