@@ -299,6 +299,9 @@ files = [
     # vertical alignment -- objects.py's overflow module (1600-line cap),
     # born in the gate, per the WP-A rule.
     "src/hwpx/oxml/shape_position.py",
+    # Font table and border-fill reads plus replace_font (header.xml) --
+    # born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/header_fonts.py",
     # HWP 5.0 (.hwp) container and record layer -- born in the gate, per the
     # WP-A rule.
     "src/hwpx/hwp5/__init__.py",
@@ -502,6 +505,9 @@ include = [
     # vertical alignment -- objects.py's overflow module (1600-line cap),
     # born in the gate, per the WP-A rule.
     "src/hwpx/oxml/shape_position.py",
+    # Font table and border-fill reads plus replace_font (header.xml) --
+    # born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/header_fonts.py",
     # HWP 5.0 (.hwp) container and record layer -- born in the gate, per the
     # WP-A rule.
     "src/hwpx/hwp5/__init__.py",

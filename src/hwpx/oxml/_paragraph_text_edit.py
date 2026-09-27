@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Small helpers for editing the text inside ``hp:t``."""
+"""Small helpers for editing the text inside ``hp:t`` and for taking a paragraph out of its list."""
 
 from __future__ import annotations
 
@@ -82,3 +82,36 @@ def paragraph_container(element: ET.Element, section_element: ET.Element) -> ET.
     if hasattr(element, "getparent"):
         return element.getparent()
     return next((node for node in section_element.iter() if any(child is element for child in node)), None)
+
+
+#: What holds a ``hp:subList`` paragraph list, as a refusal names it.
+_SUBLIST_OWNERS = {"tc": "cell", "header": "header", "footer": "footer"}
+
+
+def remove_paragraph_element(element: ET.Element, section_element: ET.Element) -> bool:
+    """Take the paragraph *element* out of the section or ``hp:subList`` holding it.
+
+    Returns ``False`` when it is already gone. The last paragraph of its list
+    stays: HWPX needs one ``<hp:p>`` per section, and Hancom cannot open a cell,
+    header or footer whose paragraph list is empty.
+    """
+
+    parent = paragraph_container(element, section_element)
+    if parent is None:
+        return False
+    if len(parent.findall(f"{{{_HP_NS}}}p")) <= 1:
+        if parent is section_element:
+            container = "section"
+        else:
+            owner = paragraph_container(parent, section_element)
+            name = tag_local_name(owner.tag) if owner is not None else "subList"
+            container = _SUBLIST_OWNERS.get(name, name)
+        raise HwpxValueError(
+            "섹션과 셀·머리말·꼬리말에는 최소 하나의 단락이 필요합니다. "
+            "마지막 단락은 삭제할 수 없습니다.",
+            code="paragraph-remove-last",
+            context={"container": container},
+            suggestion='마지막 단락은 지우지 말고 글을 비우세요(paragraph.text = "").',
+        )
+    parent.remove(element)
+    return True
