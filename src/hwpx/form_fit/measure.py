@@ -478,6 +478,18 @@ class Measurement:
         }
 
 
+def _line_count_after_objects(
+    value: str, slot: SlotMetrics, style: TextStyle, first: float, rest: float
+) -> int:
+    """Lines *value* takes after the slot's inline objects. When not even its
+    first character fits beside them, the objects fill the first line and
+    Hancom starts the text on the next one."""
+
+    if slot.inline_object_width and value and char_advance(value[0], slot.font_pt, style) > first:
+        return 1 + _hancom_line_count(value, rest, rest, slot.font_pt, style)
+    return _hancom_line_count(value, first, rest, slot.font_pt, style)
+
+
 def measure(value: str, slot: SlotMetrics) -> Measurement:
     """Measure *value* against *slot* and judge fit + confidence.
 
@@ -500,7 +512,7 @@ def measure(value: str, slot: SlotMetrics) -> Measurement:
         # line or, when hanging, off the others.
         first = slot.available_width - max(style.indent, 0)
         rest = slot.available_width + slot.inline_object_width - max(-style.indent, 0)
-        lines = _hancom_line_count(value, first, rest, slot.font_pt, style)
+        lines = _line_count_after_objects(value, slot, style, first, rest)
         capacity = (first + rest * (slot.max_lines - 1)) or 1.0
     fits = lines <= slot.max_lines
 
