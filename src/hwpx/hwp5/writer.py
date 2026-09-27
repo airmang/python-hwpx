@@ -229,25 +229,6 @@ def _file_header(head: etree._Element, *, tracked: bool = False) -> FileHeader:
     return FileHeader(VERSION, flags, flags2, ENCRYPT_VERSION, country)
 
 
-def _heads(head: etree._Element) -> tuple[frozenset[int], frozenset[int]]:
-    """Ids of the paragraph shapes with a number or outline head, and of those with no head."""
-
-    numbered: set[int] = set()
-    headless: set[int] = set()
-    for shape in head.iter(f"{{{_HH}}}paraPr"):
-        heading = shape.find(f"{{{_HH}}}heading")
-        kind = heading.get("type") if heading is not None else "NONE"
-        try:
-            shape_id = int(shape.get("id", ""))
-        except ValueError:
-            continue
-        if kind in ("NUMBER", "OUTLINE"):
-            numbered.add(shape_id)
-        elif kind in ("NONE", None):
-            headless.add(shape_id)
-    return frozenset(numbered), frozenset(headless)
-
-
 def write_hwp5(files: Mapping[str, bytes]) -> bytes:
     """Build the bytes of a ``.hwp`` file from the parts of an HWPX package."""
 
@@ -279,9 +260,8 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
     chart_kept = _chart_kept(files, binaries)
     sections: list[list[rec.Record]] = []
     writers: list[SectionRecords] = []
-    numbered, headless = _heads(head)
     for root in roots:
-        writer = SectionRecords(bin_ids, master_page, chart_kept, chart_items, numbered, headless)
+        writer = SectionRecords(bin_ids, master_page, chart_kept, chart_items)
         sections.append(writer.section(root))
         writers.append(writer)
     # Memo bodies of every section hang on the last paragraph of the last one.
