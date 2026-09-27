@@ -562,6 +562,12 @@
       "rationale": "Font table and border-fill reads over the live Contents/header.xml (doc.styles.fonts/font_face/border_fill_info) plus replace_font, which swaps one hh:font face for another per hh:fontface block and remaps every hh:charPr/hh:fontRef so no other reference changes the face it names. Reusable HWPX format behavior a converter (e.g. HWPX to DOCX) needs; no renderer, application workflow or agent policy. Free functions over HwpxOxmlHeader rather than methods because header_part.py sits at 1598/1600 lines -- same pattern as header_compat.py."
     },
     {
+      "path": "src/hwpx/_moved_modules.py",
+      "disposition": "core",
+      "approvedBy": "moved-module-import-guidance",
+      "rationale": "Import-time guidance for the module names removed in 5.0: a finder appended to sys.meta_path raises ModuleNotFoundError naming the python-hwpx-automation module and the migration guide. It never imports the companion and restores no removed path; the top-level names come from hwpx._MOVED_TO_COMPANION."
+    },
+    {
       "path": "src/hwpx/oxml/shape_position.py",
       "disposition": "core",
       "approvedBy": "shape-position-reference-frames",

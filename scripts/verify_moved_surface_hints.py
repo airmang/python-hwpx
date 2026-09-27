@@ -4,9 +4,11 @@
 
 from __future__ import annotations
 
+import importlib
 import importlib.util
 
 import hwpx
+from hwpx import _moved_modules
 
 
 def main() -> int:
@@ -33,11 +35,21 @@ def main() -> int:
         if legacy_name not in namespace:
             failures.append(f"{legacy_name}: statement did not bind the legacy name")
 
+    moved_modules = _moved_modules.moved_modules(hwpx._MOVED_TO_COMPANION)
+    for legacy, target in moved_modules.items():
+        try:
+            importlib.import_module(target)
+        except Exception as exc:
+            failures.append(f"{legacy}: import {target}: {type(exc).__name__}: {exc}")
+
     if failures:
         for failure in failures:
             print(f"[FAIL] {failure}")
         return 1
-    print(f"[OK] executed {len(hwpx._MOVED_TO_COMPANION)} moved-surface hints")
+    print(
+        f"[OK] executed {len(hwpx._MOVED_TO_COMPANION)} moved-surface hints and "
+        f"imported {len(moved_modules)} moved-module targets"
+    )
     return 0
 
 

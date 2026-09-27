@@ -28,6 +28,13 @@
 - `doc.media.images`가 한/글이 `BinData/`에 두는 OLE 항목을 빼던 것을 고친다. `isEmbeded="0"`이면
   모두 바깥 파일로 봤기 때문이다. 이제 href가 `BinData/` 밖인 `isEmbeded="0"` 항목(패키지 밖 파일)만
   뺀다.
+- 5.0에서 `python-hwpx-automation`으로 옮긴 모듈(`hwpx.builder`, `hwpx.authoring`, `hwpx.exam`,
+  `hwpx.tools.pii` 등 21개)을 import하면 `No module named ...`만 나오던 것을 고친다. 이제
+  `ModuleNotFoundError` 메시지가 새 모듈 경로(예: `hwpx_automation.office.authoring.builder`),
+  `pip install python-hwpx-automation`, 이전 가이드 주소를 알려 준다. 배포본에서 뺀 저장소 전용
+  패키지(`hwpx.benchmark`, `hwpx.conformance`, `hwpx.tools.fuzz`)는 소스 체크아웃에서 쓰라고
+  알려 준다. core는 여전히 companion 패키지를 import하지 않고, 옮긴 경로를 파일로 되살리지 않는다.
+  모듈별 대체표는 `docs/migration-5.0.md`의 "Module paths"에 있고 메시지와 같은 표에서 나온다.
 
 ## [6.6.0] - 2026-09-28
 
