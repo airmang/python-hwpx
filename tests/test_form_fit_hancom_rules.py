@@ -34,6 +34,7 @@ HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_li
 FACE_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_face_advance.hwpx"
 INLINE_OBJECTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_inline_objects.hwpx"
 GLYPH_WIDTHS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_glyph_widths.hwpx"
+LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_heights.hwpx"
 ROUNDED_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_rounded_advances.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
@@ -342,6 +343,39 @@ def test_glyph_widths_break_where_hancom_breaks() -> None:
         assert measure(cell.text, slot).lines == len(segs), (cell.text, slot.available_width)
 
 
+def test_each_line_spacing_type_advances_a_line_as_hancom_does() -> None:
+    def pitch(kind: str, value: float) -> float:
+        return SlotMetrics(available_width=5000.0, font_pt=10.0, line_spacing=(kind, value)).line_height()
+
+    assert [pitch("PERCENT", 130), pitch("FIXED", 1200), pitch("BETWEEN_LINES", 300)] == [1300, 1200, 1300]
+    assert [pitch("AT_LEAST", 800), pitch("AT_LEAST", 1500)] == [1000, 1500]
+
+
+def test_the_last_line_of_a_cell_takes_no_spacing() -> None:
+    slot = SlotMetrics(available_width=5000.0, font_pt=10.0, available_height=4200.0, line_spacing=("PERCENT", 160))
+
+    assert slot.height_lines() == 3  # 2 x 1600 + 1000
+    assert replace(slot, available_height=4199.0).height_lines() == 2
+
+
+def test_the_line_budget_matches_the_heights_hancom_gives_cells() -> None:
+    """Cells of 1 to 5 lines under every line spacing type, sizes 10 and 12, grown by Hancom to their
+    text; the table height Hancom saved, less the cell margins, holds exactly those lines."""
+    doc = HwpxDocument.open(LINE_HEIGHTS.read_bytes())
+    tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+    assert len(tables) == 46
+    for table in tables:
+        cell = table.cell(0, 0)
+        lines = len(cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg"))
+        height = int(table.element.find(f"{HP}sz").get("height"))
+        margin = cell.element.find(f"{HP}cellMargin")
+        content = height - int(margin.get("top")) - int(margin.get("bottom"))
+        slot = resolve_slot_metrics(cell, doc, safety=1.0)
+
+        assert replace(slot, available_height=float(content)).height_lines() == lines, (slot.line_spacing, content)
+        if lines > 1:
+            assert replace(slot, available_height=float(content - 1)).height_lines() == lines - 1
 def test_rounded_advances_break_where_hancom_breaks() -> None:
     """Addresses, dates, phone numbers, amounts and Latin in twelve faces at 9 to 12 pt, 장평 90 to 110 % and
     자간 -20 to 5 %, each in a cell exactly as wide as its line and in one 2 HWPUNIT narrower, laid out and
