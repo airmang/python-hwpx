@@ -26,12 +26,13 @@ from hwpx.form_fit import (
     hancom_line_starts,
     measure,
 )
-from hwpx.form_fit.measure import _cell_text_style, resolve_slot_metrics, text_style_from_refs
+from hwpx.form_fit.measure import _cell_text_style, glyph_advance_em, resolve_slot_metrics, text_style_from_refs
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_rules.hwpx"
 FACE_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_face_advance.hwpx"
 INLINE_OBJECTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_inline_objects.hwpx"
+GLYPH_WIDTHS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_glyph_widths.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
 
@@ -114,6 +115,31 @@ def test_text_that_cannot_start_beside_the_objects_starts_on_the_next_line() -> 
     assert measure("가나다라마바", slot).lines == 3
     assert measure("가나다", replace(slot, available_width=0.0)).lines == 2
     assert measure("가나다", replace(slot, available_width=1000.0)).lines == 2
+
+
+def test_the_lines_after_an_object_wider_than_the_cell_take_the_cell_width() -> None:
+    slot = SlotMetrics(
+        available_width=0.0,
+        font_pt=10.0,
+        max_lines=3,
+        inline_object_width=6000.0,
+        inline_object_count=1,
+        text_style=CHARS,
+        line_width=5000.0,
+    )
+    assert measure("가나다라마바", slot).lines == 3
+
+
+def test_a_hanging_indent_leaves_a_narrow_cell_line_1440_wide() -> None:
+    slot = SlotMetrics(
+        available_width=1440.0,
+        font_pt=10.0,
+        max_lines=5,
+        text_style=replace(CHARS, indent=-704),
+        line_width=1000.0,
+        min_line_width=1440.0,
+    )
+    assert measure("가 12", slot).lines == 2
 
 
 def test_the_shrink_ladder_keeps_the_text_style() -> None:
@@ -240,14 +266,51 @@ def test_each_face_breaks_where_hancom_breaks() -> None:
 
 def test_text_after_inline_objects_breaks_where_hancom_breaks() -> None:
     """A picture set in the line (its width 1000 to 4700 in a 5000 cell) and then the text: the text
-    starts beside it when its first character fits there, else on the next line."""
+    starts beside it when its first character fits there, else on the next line. Also a picture wider
+    than the cell (the lines after it are the cell's width) and a cell narrower than a line with a
+    hanging indent (every line stays 1440 wide after the indent)."""
     doc = HwpxDocument.open(INLINE_OBJECTS.read_bytes())
     tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
 
-    assert len(tables) == 12
+    assert len(tables) == 15
     for table in tables:
         cell = table.cell(0, 0)
         segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
         slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
 
         assert measure(cell.text, slot).lines == len(segs), cell.text
+
+
+def test_other_glyphs_take_the_measured_widths_of_their_face() -> None:
+    assert [glyph_advance_em(face, ".") for face in ("함초롬바탕", "함초롬돋움", "맑은 고딕")] == [0.315, 0.275, 0.215]
+    assert glyph_advance_em("맑은 고딕", "0") == 0.555
+    assert glyph_advance_em("없는 글꼴", "0") is None
+    assert round(estimate_text_width("0.", 10, TextStyle(glyph_face="맑은 고딕"))) == 770
+    assert round(estimate_text_width("0.", 10, TextStyle())) == 970  # class averages
+
+
+def test_the_glyph_table_applies_only_when_every_script_uses_the_face() -> None:
+    doc = HwpxDocument.new()
+    same = doc.oxml.ensure_run_style(font="맑은 고딕", size=10)
+    mixed = doc.oxml.ensure_run_style(font="맑은 고딕", size=10, bold=True)
+    char_pr = next(el for el in doc.oxml.headers[0].element.iter() if el.tag.endswith("}charPr") and el.get("id") == str(mixed))
+    font_ref = next(child for child in char_pr if child.tag.endswith("}fontRef"))
+    font_ref.set("latin", "0")
+
+    assert text_style_from_refs(doc, None, [same]).glyph_face == "맑은 고딕"
+    assert text_style_from_refs(doc, None, [mixed]).glyph_face == ""
+
+
+def test_glyph_widths_break_where_hancom_breaks() -> None:
+    """Dates, phone numbers, brackets, per cent and quotes in 함초롬바탕, 함초롬돋움 and 맑은 고딕, each in a
+    cell just wider than their measured width and one just narrower, laid out and saved by Hancom."""
+    doc = HwpxDocument.open(GLYPH_WIDTHS.read_bytes())
+    tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+    assert len(tables) == 30
+    for table in tables:
+        cell = table.cell(0, 0)
+        segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
+        slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
+
+        assert measure(cell.text, slot).lines == len(segs), (cell.text, slot.available_width)

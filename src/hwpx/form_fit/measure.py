@@ -101,9 +101,69 @@ _HANGING_SPACES = " " + chr(0xA0)
 _NO_LINE_START = frozenset("!%),.:;?]}¢°’”‰′″℃〉》」』】〕…·、。")
 #: Opening punctuation that never ends a line.
 _NO_LINE_END = frozenset("([{‘“〈《「『【〔")
-#: Hangul advance (em) of the faces Hancom lays a syllable out narrower than an
-#: em; any other face (맑은 고딕, 바탕, 돋움, 굴림 and 궁서 among them) takes a full em.
-_HANGUL_ADVANCE_EM: dict[str, float] = {"함초롬바탕": 0.972, "함초롬돋움": 0.972, "한컴 고딕": 0.932}
+#: The scripts whose faces must match for the per-face glyph table to apply:
+#: it was measured with one face for all of them.
+_GLYPH_TABLE_SCRIPTS = ("HANGUL", "LATIN", "OTHER", "SYMBOL")
+
+# --- Advances per face ---------------------------------------------------------- #
+# Measured from cells of known width: one glyph and five Hangul syllables at 10 pt
+# with syllable breaking stay on one line while their advances fit, so the narrowest
+# one-line cell gives the glyph's advance to a hundredth of an em. A face or glyph
+# not listed falls back to the class averages.
+#: Hangul syllable advance per face; a face not listed takes a full em
+#: (맑은 고딕, 바탕, 돋움, 굴림 and 궁서 among them).
+HANGUL_ADVANCE_EM: dict[str, float] = {"함초롬바탕": 0.972, "함초롬돋움": 0.972, "한컴 고딕": 0.932}
+
+#: The glyphs each face's row below gives, in order: printable ASCII, then
+#: punctuation and symbols common in Korean documents.
+_GLYPHS = '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~·…“”‘’「」『』〈〉《》※○●□■△▲◇◆☆★→←↑↓ㆍ×÷±°℃‰—–'
+
+#: Advance of each glyph in ``_GLYPHS`` in thousandths of an em (0: not measured).
+_PERMILLE: dict[str, tuple[int, ...]] = {
+    "함초롬바탕": (
+        315, 315, 615, 615, 835, 725, 315, 315, 315, 555, 555, 315, 555, 315, 555, 555,
+        555, 555, 555, 555, 555, 555, 555, 555, 555, 315, 315, 555, 555, 555, 555, 835,
+        705, 605, 685, 715, 625, 615, 685, 735, 305, 315, 655, 605, 835, 735, 735, 605,
+        705, 655, 625, 665, 735, 705, 915, 705, 705, 625, 315, 555, 315, 555, 555, 315,
+        565, 595, 555, 595, 535, 355, 565, 635, 285, 285, 585, 285, 905, 635, 585, 595,
+        575, 475, 495, 355, 635, 565, 715, 545, 545, 485, 315, 315, 315, 555, 315, 955,
+        475, 475, 315, 315, 495, 495, 495, 495, 495, 495, 495, 495, 775, 975, 975, 975,
+        975, 975, 975, 975, 975, 975, 975, 975, 975, 975, 975, 975, 615, 675, 795, 295,
+        975, 985, 875, 625,
+    ),
+    "함초롬돋움": (
+        335, 335, 685, 625, 855, 755, 255, 315, 315, 495, 545, 255, 465, 275, 375, 555,
+        555, 555, 555, 555, 555, 555, 555, 555, 555, 315, 315, 595, 535, 595, 575, 865,
+        655, 665, 635, 695, 625, 605, 645, 695, 315, 515, 665, 585, 825, 725, 675, 655,
+        675, 685, 615, 575, 705, 595, 895, 605, 575, 585, 335, 375, 325, 565, 535, 375,
+        565, 575, 515, 575, 565, 335, 565, 595, 275, 265, 555, 255, 915, 595, 585, 555,
+        555, 425, 515, 345, 595, 465, 755, 485, 465, 475, 375, 345, 375, 545, 295, 705,
+        455, 455, 285, 285, 495, 495, 495, 495, 495, 495, 495, 495, 695, 975, 975, 975,
+        975, 975, 975, 975, 975, 975, 975, 975, 975, 975, 975, 975, 585, 675, 785, 305,
+        975, 895, 525, 345,
+    ),
+    "맑은 고딕": (
+        285, 395, 605, 555, 835, 815, 235, 305, 305, 425, 695, 215, 415, 215, 395, 555,
+        555, 555, 555, 555, 555, 555, 555, 555, 555, 215, 215, 695, 695, 695, 455, 975,
+        655, 585, 635, 715, 515, 495, 695, 725, 275, 355, 595, 475, 915, 765, 775, 575,
+        775, 605, 545, 535, 705, 635, 955, 595, 565, 585, 305, 765, 305, 695, 425, 275,
+        515, 595, 475, 605, 535, 315, 605, 575, 245, 245, 505, 245, 875, 575, 595, 595,
+        605, 355, 435, 345, 575, 485, 735, 465, 495, 455, 305, 235, 305, 695, 215, 735,
+        375, 375, 235, 235, 575, 575, 515, 515, 535, 535, 595, 595, 795, 995, 995, 995,
+        995, 995, 995, 995, 995, 995, 995, 955, 955, 955, 955, 995, 695, 695, 695, 385,
+        955, 0, 1025, 515,
+    ),
+}
+
+
+def glyph_advance_em(face: str, ch: str) -> float | None:
+    """Advance of *ch* in *face* in em, or ``None`` when not measured."""
+
+    widths = _PERMILLE.get(face)
+    index = _GLYPHS.find(ch) if len(ch) == 1 else -1
+    if widths is None or index < 0 or not widths[index]:
+        return None
+    return widths[index] / 1000.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,7 +179,9 @@ class TextStyle:
     ``condense`` (최소 공백, %) lets the spaces inside a line shrink by that
     share. ``indent`` is the first-line indent in HWPUNIT; a negative value is
     a hanging indent taken off every line after the first. ``hangul_advance``
-    is a Hangul syllable's advance in em in the run's face.
+    is a Hangul syllable's advance in em in the run's face. ``glyph_face``
+    names the face whose measured advances the other glyphs take; empty, or a
+    glyph it does not list, falls back to the class averages.
     """
 
     ratio: float = 100.0
@@ -130,6 +192,7 @@ class TextStyle:
     condense: int = 0
     indent: int = 0
     hangul_advance: float = 1.0
+    glyph_face: str = ""
 
 
 def classify_char(ch: str) -> str:
@@ -163,7 +226,8 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     elif cls == "hangul":
         base = style.hangul_advance
     else:
-        base = _ADVANCE_EM[cls]
+        measured = glyph_advance_em(style.glyph_face, ch) if style.glyph_face else None
+        base = measured if measured is not None else _ADVANCE_EM[cls]
     return base * font_pt * 100.0 * style.ratio / 100.0 * (1 + style.spacing / 100.0)
 
 
@@ -404,6 +468,12 @@ class SlotMetrics:
     # average model; with a style, lines follow Hancom's rules and the inline
     # objects take their width off the first line only.
     text_style: TextStyle | None = None
+    # The cell's own line width (after margins and safety, before the inline
+    # objects and the MIN_LINE_WIDTH floor) and that floor after safety. With a
+    # text style every line is at least ``min_line_width`` wide after its indent.
+    # ``None`` takes the line as ``available_width + inline_object_width``.
+    line_width: float | None = None
+    min_line_width: float = 0.0
 
     @property
     def capacity(self) -> float:
@@ -510,10 +580,13 @@ def measure(value: str, slot: SlotMetrics) -> Measurement:
     else:
         # Inline objects share the first line only; indents come off the first
         # line or, when hanging, off the others.
-        first = slot.available_width - max(style.indent, 0)
-        rest = slot.available_width + slot.inline_object_width - max(-style.indent, 0)
+        line = slot.line_width if slot.line_width is not None else slot.available_width + slot.inline_object_width
+        # Each line keeps Hancom's minimum width after its indent; the inline
+        # objects then take their width off the first line.
+        first = max(line - max(style.indent, 0), slot.min_line_width) - slot.inline_object_width
+        rest = max(line - max(-style.indent, 0), slot.min_line_width)
         lines = _line_count_after_objects(value, slot, style, first, rest)
-        capacity = (first + rest * (slot.max_lines - 1)) or 1.0
+        capacity = (max(first, 0.0) + rest * (slot.max_lines - 1)) or 1.0
     fits = lines <= slot.max_lines
 
     notes: list[str] = []
@@ -655,16 +728,18 @@ def _style_number(value: object, default: float) -> float:
         return default
 
 
-def _hangul_advance(root: Any, char_pr_id_ref: object) -> float:
-    """The Hangul advance (em) of the face the character shape names."""
+def _face_advances(root: Any, char_pr_id_ref: object) -> tuple[float, str]:
+    """The Hangul advance (em) of the face the character shape names, and that
+    face as the glyph face when the Latin, other and symbol scripts use it too."""
 
     from ..oxml.header_fonts import font_face
 
     try:
-        face = font_face(root.headers[0], char_pr_id_ref, "HANGUL")
+        faces = {font_face(root.headers[0], char_pr_id_ref, lang) for lang in _GLYPH_TABLE_SCRIPTS}
+        face = font_face(root.headers[0], char_pr_id_ref, "HANGUL") or ""
     except Exception:  # pragma: no cover - defensive
-        face = None
-    return _HANGUL_ADVANCE_EM.get(face or "", 1.0)
+        return 1.0, ""
+    return HANGUL_ADVANCE_EM.get(face, 1.0), face if len(faces) == 1 else ""
 
 
 def text_style_from_refs(
@@ -673,7 +748,7 @@ def text_style_from_refs(
     """Hancom layout settings of a paragraph shape and the first resolvable
     character shape among *char_pr_id_refs*."""
 
-    ratio, spacing, use_font_space, hangul_advance = 100.0, 0.0, False, 1.0
+    ratio, spacing, use_font_space, hangul_advance, glyph_face = 100.0, 0.0, False, 1.0, ""
     root = _document_root(document)
     for ref in char_pr_id_refs:
         try:
@@ -686,14 +761,20 @@ def text_style_from_refs(
         ratio = _style_number((children.get("ratio") or {}).get("hangul"), 100.0)
         spacing = _style_number((children.get("spacing") or {}).get("hangul"), 0.0)
         use_font_space = (getattr(run_style, "attributes", {}) or {}).get("useFontSpace") in {"1", "true"}
-        hangul_advance = _hangul_advance(root, ref)
+        hangul_advance, glyph_face = _face_advances(root, ref)
         break
     try:
         prop = root.paragraph_property(para_pr_id_ref)
     except Exception:  # pragma: no cover - defensive
         prop = None
     if prop is None:
-        return TextStyle(ratio=ratio, spacing=spacing, use_font_space=use_font_space, hangul_advance=hangul_advance)
+        return TextStyle(
+            ratio=ratio,
+            spacing=spacing,
+            use_font_space=use_font_space,
+            hangul_advance=hangul_advance,
+            glyph_face=glyph_face,
+        )
     breaks = getattr(prop, "break_setting", None)
     # hp:case carries the HWPUNIT values Hancom lays out with; hp:default doubles them.
     switch = getattr(prop, "version_switch", None)
@@ -710,6 +791,7 @@ def text_style_from_refs(
         condense=int(_style_number(getattr(prop, "condense", 0), 0.0)),
         indent=int(_style_number(getattr(margin, "intent", 0), 0.0)),
         hangul_advance=hangul_advance,
+        glyph_face=glyph_face,
     )
 
 
@@ -792,6 +874,7 @@ def resolve_slot_metrics(
     raw_width = float(getattr(cell, "width", 0) or 0)
     element = getattr(cell, "element", None)
     left, right, top, bottom = _effective_cell_margins(cell)
+    line = max(raw_width - left - right, 0.0) * safety
     inner = (max(raw_width - left - right, MIN_LINE_WIDTH) if raw_width > 0 else 0.0) * safety
     inline_width, inline_count = (
         _inline_object_width(element) if element is not None else (0.0, 0)
@@ -830,6 +913,8 @@ def resolve_slot_metrics(
         inline_object_width=inline_width,
         inline_object_count=inline_count,
         text_style=_cell_text_style(cell, document),
+        line_width=line if raw_width > 0 else None,
+        min_line_width=MIN_LINE_WIDTH * safety,
     )
 
 
