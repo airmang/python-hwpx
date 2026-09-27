@@ -56,6 +56,8 @@
 
 ### 고침
 
+- `doc.parts.add_master_page(section=...)`가 내는 `master-page-pages-taken`을 오류 코드 목록
+  (`hwpx.errors.ERROR_CODES`, `docs/error-codes.md`)에 올린다. 전에는 목록에 없었다.
 - `doc.styles.replace_font()`가 *dst_face*를 새로 선언하는 블록에 늘 `type="TTF"`를 쓰던 것을
   고친다. 다른 블록이 같은 글꼴을 `HFT`로 선언해도 그랬다. 이제 다른 블록에 *dst_face* 선언이
   있으면 그 `hh:font`를 id만 바꿔 복사한다. 그래서 `type`·`isEmbedded`·`hh:typeInfo`가 그 선언과
