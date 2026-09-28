@@ -160,6 +160,18 @@ def _field_parameters(field_begin: Any) -> list[dict[str, str]]:
     return parameters
 
 
+def _field_name(field_begin: Any, parameters: Sequence[dict[str, str]]) -> str:
+    """The field's name. A ``name`` attribute is the name even when empty: Hancom
+    treats such a field as unnamed (it lists and fills fields by name only)."""
+
+    if field_begin.get("name") is not None:
+        return field_begin.get("name", "").strip()
+    name = _first_attr(field_begin, _FORM_FIELD_NAME_ATTRS)
+    if not name:
+        name = _field_parameter_value(parameters, "fieldName", "fieldname", "field_name", "name", "title")
+    return name
+
+
 def _first_attr(element: Any, names: Sequence[str]) -> str:
     for name in names:
         value = (element.get(name) or "").strip()
@@ -291,9 +303,7 @@ def _form_field_payload(
     has_end: bool,
 ) -> dict[str, Any]:
     parameters = _field_parameters(field_begin)
-    name = _first_attr(field_begin, _FORM_FIELD_NAME_ATTRS)
-    if not name:
-        name = _field_parameter_value(parameters, "fieldName", "fieldname", "field_name", "name", "title")
+    name = _field_name(field_begin, parameters)
     prompt = _first_attr(field_begin, _FORM_FIELD_PROMPT_ATTRS)
     if not prompt:
         # "Direction" is the real-Hancom 안내문 parameter (P0 gold contract).
@@ -473,9 +483,13 @@ def _form_field_from_match(doc: "HwpxDocument", match: Mapping[str, Any]) -> For
 
 
 def list_form_fields(doc: "HwpxDocument") -> tuple[FormField, ...]:
-    """Return native form/click-here fields in document order."""
+    """Return native form/click-here fields in document order.
 
-    return tuple(_form_field_from_match(doc, match) for match in _iter_form_field_matches(doc))
+    Unnamed fields are left out, as Hancom's own field list leaves them out;
+    ``field_index`` and ``field_id`` still reach them in :func:`fill_form_field`.
+    """
+
+    return tuple(_form_field_from_match(doc, match) for match in _iter_form_field_matches(doc) if match["name"])
 
 
 def _named_cells(paragraphs: Any) -> Iterator[Any]:
@@ -758,6 +772,7 @@ def _select_form_field(
             match
             for match in matches
             if wanted_name
+            and match.get("name")
             and wanted_name
             in {
                 str(match.get("name", "")).strip().casefold(),
