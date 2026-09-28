@@ -29,13 +29,8 @@ from ._document_primitives import (
     FILL_GRADIENT_TYPES,
     FILL_IMAGE_MODES,
 )
-from ._paragraph_text_edit import (
-    clear_text_element,
-    new_own_text_node,
-    own_text_nodes,
-    sanitize_keeping_tabs,
-    set_text_with_tabs,
-)
+from ._paragraph_text_edit import clear_text_element, sanitize_keeping_tabs, set_text_with_tabs
+from ._paragraph_text_edit import new_own_text_node, own_text_nodes
 from . import table_sizes as _table_sizes
 
 from .body import Label, parse_label_element
