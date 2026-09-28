@@ -94,6 +94,19 @@
   `hp:charPr` 열 칸을 쓰고(쓰지 않는 칸은 `4294967295`), 주지 않은 속성은 한/글이 새 글자 겹치기에 주는 값
   (`circleType="SHAPE_CIRCLE"`, `charSz="-4"`, `composeType="SPREAD"`)으로 쓴다. 덧말은 스타일을 주지 않으면
   `styleIDRef="0"`을 쓴다. 전에는 준 칸만 쓰고 속성을 뺐으며, 한/글은 저장할 때 이 값들을 채웠다.
+- 새 도형(`add_rectangle()`·`add_ellipse()`·`add_line()`·`add_arc()`·`add_polygon()`·`add_container()`)에
+  `textWrap`·`textFlow`를 쓴다. 한/글은 모든 도형에 이 둘을 쓰고, 없으면 `SQUARE`·`BOTH_SIDES`로 읽는다.
+  그래서 새 도형은 `textWrap="SQUARE" textFlow="BOTH_SIDES"`이고, 묶음(`hp:container`) 안 도형은 한/글처럼
+  `TOP_AND_BOTTOM`이다. 채운 도형의 `hc:winBrush`에도 한/글처럼 `alpha="0"`을 쓴다. 한/글에서 보이는 모양은
+  그대로다.
+- 필드를 쓸 때 `fieldid`에 그 필드 종류의 제어 id를 쓴다. 한/글은 종류마다 모든 필드에 같은 `fieldid`를 쓴다.
+  제어 id 네 글자를 수로 읽은 값이다(누름틀 `%clk` 627272811, 날짜 `%dte`, 경로 `%pat`, 교정 부호 `%sig`, 메일
+  머지 `%mmg`, 차례 `%toc`, 하이퍼링크 `%hlk`, 상호 참조 `%xrf`). 전에는 누름틀·날짜·경로·교정 부호·메일 머지·
+  차례·상호 참조 필드에 임의 수를 썼고, 차례 도구가 쓴 필드 끝에는 `fieldid`가 없었다. 문서 합치기
+  (`insert_document()`·`append_document()`)도 가져온 필드의 `fieldid`를 임의 수 대신 종류의 제어 id로 쓴다.
+- 누름틀의 끝을 찾을 때 `beginIDRef`가 있는 끝은 그 id의 누름틀 끝으로만 본다. 같은 종류의 필드는 `fieldid`를
+  함께 쓰기 때문에, 한/글이 저장한 문서에서 끝이 없는 누름틀이 다음 누름틀의 끝을 제 끝으로 잡았다. 그러면
+  채울 때 그 사이 내용을 지웠다. 이제 이런 누름틀은 `field-end-missing`으로 거부한다.
 - 메모를 여럿 달면 모두 `Number` 1로 쓰던 것을 고친다. 한/글은 번호가 같은 메모를 한 메모로 보아, 문서를
   다시 저장할 때 둘째 메모부터 메모 범위의 끝(`hp:fieldEnd`)을 지웠다. 이제 `doc.notes.add_memo()`·
   `doc.notes.attach()`에 `number`를 주지 않으면 메모는 문서의 다음 번호(`zorder`와 같은 값)를 쓴다. 메모
