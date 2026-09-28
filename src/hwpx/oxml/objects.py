@@ -185,9 +185,12 @@ def _build_shape_common_children(
     parent.set("id", the_id)
     parent.set("zOrder", "0")
     parent.set("numberingType", "NONE")
-    # Hancom writes both on every shape and reads a shape without them as these.
-    parent.set("textWrap", "SQUARE")
-    parent.set("textFlow", "BOTH_SIDES")
+    # Hancom writes both on every shape and reads a shape without them as these;
+    # a value the caller set (a picture's text_wrap) stays.
+    if parent.get("textWrap") is None:
+        parent.set("textWrap", "SQUARE")
+    if parent.get("textFlow") is None:
+        parent.set("textFlow", "BOTH_SIDES")
     parent.set("lock", "0")
     parent.set("dropcapstyle", "None")
     parent.set("href", "")

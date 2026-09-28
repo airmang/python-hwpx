@@ -85,6 +85,11 @@ def test_the_moved_root_names_still_answer(document: HwpxDocument) -> None:
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
+# A 1x1 PNG.
+_PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+    "1f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082"
+)
 HWPXLIB = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
 
 
@@ -174,6 +179,17 @@ def test_a_group_member_lets_the_group_place_it(document: HwpxDocument) -> None:
     assert len(members) == 2
     assert {member.get("textWrap") for member in members} == {"TOP_AND_BOTTOM"}
     assert (group.element.get("textWrap"), group.element.get("textFlow")) == ("SQUARE", "BOTH_SIDES")
+
+
+def test_a_picture_keeps_the_text_wrap_it_was_given(document: HwpxDocument) -> None:
+    # A seal stamped in front of the text must not push the text aside.
+    paragraph = document.add_paragraph("")
+    item = document.media.add_image(_PNG, "png")
+    placed = paragraph.add_picture(str(item), treat_as_char=False, text_wrap="IN_FRONT_OF_TEXT")
+    plain = paragraph.add_picture(str(item))
+
+    assert (placed.element.get("textWrap"), placed.element.get("textFlow")) == ("IN_FRONT_OF_TEXT", "BOTH_SIDES")
+    assert plain.element.get("textWrap") == "SQUARE"
 
 
 def test_a_filled_shape_writes_its_brush_as_hancom_does(document: HwpxDocument) -> None:
