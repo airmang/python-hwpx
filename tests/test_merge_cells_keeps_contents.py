@@ -109,7 +109,7 @@ def test_setting_text_reads_back_from_a_cell_of_several_lines() -> None:
     assert _texts(cell) == ["x"]
 
 
-def test_setting_text_keeps_blank_lines_and_objects() -> None:
+def test_setting_text_keeps_objects_and_drops_blank_lines() -> None:
     table = HwpxDocument.new().add_table(1, 1)
     cell = table.cell(0, 0)
     cell.set_text("서명\n\n", split_paragraphs=True)
@@ -117,10 +117,11 @@ def test_setting_text_keeps_blank_lines_and_objects() -> None:
 
     cell.text = "홍길동"
 
-    assert len(cell.paragraphs) == 3
+    # As Hancom fills a cell, the value is its one paragraph: the blank line
+    # goes, and the paragraph holding a table stays.
+    assert len(cell.paragraphs) == 2
     assert cell.paragraphs[0].text == "홍길동"
     assert len(cell.paragraphs[1].tables) == 1
-    assert cell.paragraphs[2].text == ""
 
 
 def _rows(table) -> list[list[tuple[int, int, int, int, int]]]:
