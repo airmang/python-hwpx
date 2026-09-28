@@ -461,6 +461,25 @@ def remove_image(
     return _remove_binary_item(doc, target)
 
 
+def remove_unused_images(doc: "HwpxDocument") -> tuple[BinaryItem, ...]:
+    """Remove every embedded binary item nothing in the document points at and
+    return the removed items.
+
+    Hancom drops such items when it saves a document; a picture removed from the
+    body (``section.clear_body()``, a deleted paragraph) leaves its image behind.
+    An item is kept while anything :func:`remove_image` checks points at it.
+    """
+
+    removed: list[BinaryItem] = []
+    for item in list_images(doc):
+        target = _find_binary_item(doc, str(item))
+        if target is None or _binary_item_references(doc, target):
+            continue
+        if _remove_binary_item(doc, target):
+            removed.append(item)
+    return tuple(removed)
+
+
 class _BinaryItemTarget(NamedTuple):
     """One binary item as :func:`remove_image` found it."""
 
