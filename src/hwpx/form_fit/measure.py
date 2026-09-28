@@ -1223,8 +1223,10 @@ def resolve_slot_metrics(
     paragraph and run (break settings, 최소 공백, indent, 장평, 자간), so the
     fit follows Hancom's line breaking rules.
 
-    ``available_height`` follows the same philosophy — ``(cellSz.height - top -
-    bottom margin) * safety``. A merged cell has no usable height (its
+    ``available_height`` is the stored inner height, ``cellSz.height - top -
+    bottom margin``: Hancom lays lines out up to it without growing the row, and
+    the line pitch is Hancom's own, so no safety inset applies (the width's
+    covers the error in measuring a line). A merged cell has no usable height (its
     ``cellSz.height`` is a single-row fragment, not the spanned height): it is
     recorded as *unavailable* (``None`` + ``height_unavailable``) and the fit
     stays width-only rather than guess a vertical fit. A cell stored shorter than
@@ -1241,12 +1243,12 @@ def resolve_slot_metrics(
         # A merged row-span's cellSz.height is only one of the spanned rows.
         return replace(slot, height_unavailable=True)
     raw_height = float(getattr(cell, "height", 0) or 0)
-    inner_h = max(raw_height - top - bottom, 0.0) * safety if raw_height > 0 else 0.0
-    if inner_h >= slot.font_pt * 100.0 * MIN_LINE_SPACING_RATIO:
+    stored = max(raw_height - top - bottom, 0.0) if raw_height > 0 else 0.0
+    if stored * safety >= slot.font_pt * 100.0 * MIN_LINE_SPACING_RATIO:
         # The stored height, unless lines Hancom laid out in the row run past it:
         # Hancom then draws the row as tall as those lines.
         drawn = _drawn_row_height(cell) - top - bottom
-        return replace(slot, available_height=max(inner_h, drawn))
+        return replace(slot, available_height=max(stored, drawn))
     # Stored shorter than one line at the tightest pitch: the row grows with its
     # text, and holds as many lines as its tallest cell.
     return replace(slot, available_height=_auto_grow_row_height(cell, document) - top - bottom)
