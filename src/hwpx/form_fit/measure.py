@@ -540,11 +540,12 @@ def hancom_line_starts(
 
     ``widths[k]`` is the width of line ``k`` in HWPUNIT (the last one repeats).
     A line takes characters while they fit (the last one without its 자간);
-    spaces at its end hang past the
-    margin and, with ``style.condense``, the spaces inside it may shrink to
-    make room. The line then ends at the last break opportunity that fits —
-    never before a closing or after an opening punctuation mark — or mid-word
-    when no opportunity is left.
+    the space right after a word hangs past the margin, and a further space
+    that starts at or past it begins the next line. With ``style.condense`` the
+    spaces after the line's first text may shrink to make room for a
+    character; the spaces before it never do. The line then ends at the last
+    break opportunity that fits — never before a closing or after an opening
+    punctuation mark — or mid-word when no opportunity is left.
     """
 
     breaks = _hancom_break_opportunities(text, style)
@@ -555,13 +556,17 @@ def hancom_line_starts(
     start = 0
     while True:
         width = widths[min(len(starts) - 1, len(widths) - 1)]
-        end, used, inner, pending = start, 0.0, 0, 0
+        end, used, inner, pending, seen, spilled = start, 0.0, 0, 0, False, False
         while end < length:
             ch = text[end]
             advance = char_advance(ch, font_pt, style)
             if ch in _HANGING_SPACES:
+                if used >= width and end > start and text[end - 1] in _HANGING_SPACES:
+                    spilled = True
+                    break
                 used += advance
-                pending += 1
+                if seen:  # the spaces before the line's first text never shrink
+                    pending += 1
                 end += 1
                 continue
             shrink = (inner + pending) * space * style.condense / 100.0
@@ -570,18 +575,22 @@ def hancom_line_starts(
             used += advance
             inner += pending
             pending = 0
+            seen = True
             end += 1
         if end >= length:
             return starts
-        options = [
-            index for index in breaks
-            if start < index <= end
-            and text[index] not in _NO_LINE_START
-            and text[index - 1] not in _NO_LINE_END
-        ]
-        start = max(options) if options else end
-        while start < length and text[start] in _HANGING_SPACES:
-            start += 1
+        if spilled:
+            start = end
+        else:
+            options = [
+                index for index in breaks
+                if start < index <= end
+                and text[index] not in _NO_LINE_START
+                and text[index - 1] not in _NO_LINE_END
+            ]
+            start = max(options) if options else end
+            while start < length and text[start] in _HANGING_SPACES:
+                start += 1
         if start >= length:
             return starts
         starts.append(start)
