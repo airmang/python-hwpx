@@ -297,6 +297,7 @@ ERROR_CODES: dict[str, str] = {
     "field-cell-not-found": "그 이름(과 순번)의 셀 필드(이름 붙은 표 칸)가 없다.",
     "field-checkbox-not-created": "만든 체크박스를 표준 리더가 다시 찾지 못했다.",
     "field-fit-failed": "값이 FitPolicy 하에서 필드 상자에 들어가지 않는다(측정치·재시도 제안 동봉).",
+    "field-text-box-not-found": "그 이름의 글상자 필드가 없다(doc.fields.text_boxes 로 이름을 본다).",
     "field-end-missing": "누름틀에 끝(fieldEnd)이 없어 바꿀 내용이 없다(한/글도 이런 누름틀은 채우지 않는다).",
     # -- 자동 갱신 필드(날짜/시간·교정 부호·파일 이름, 누름틀과 다른 부류) --
     "field-date-format-unsupported": "날짜/시간 필드 date_format 값이 실증된 어휘(단일 관측값) 밖이다.",

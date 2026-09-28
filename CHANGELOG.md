@@ -12,6 +12,12 @@
   그런 목록이 없으면 새 목록을 만든다. 앞 목록의 번호 정의에 없는 더 깊은 수준으로 이어 붙이면 그 수준의
   모양을 새 목록과 같은 꼴(`^1.^2.`)로 정의에 더한다. 한/글은 번호 정의에 없는 수준에는 번호를 그리지
   않는다. `number_format`·`start`와 함께 주면 `style-list-continue-conflict`로 거부한다.
+- `doc.fields.text_boxes`와 `doc.fields.fill_text_box()`를 더한다. 한/글은 이름이 있는 글상자
+  (`hp:drawText@name`)를 필드로 보고, 필드 목록에 넣고 이름으로 채운다. `text_boxes`는 이름 붙은 글상자를 문서
+  순서로 돌려준다(이름 없는 글상자는 뺀다). `fill_text_box(value, name=, index=)`는 한/글처럼 글상자의 글을 값 한
+  문단으로 바꾼다. 첫 문단과 첫 run의 모양은 그대로이고, 줄바꿈은 `hp:lineBreak`로 쓴다. 같은 이름의 글상자는
+  모두 채우고, 없는 이름은 `field-text-box-not-found`로 거부한다. `set_draw_text(name=)`의 설명도 고쳤다(이름이
+  글상자를 필드로 만든다).
 - `doc.parts.remove_master_page(id)`를 더한다. 어느 구역도 참조하지 않는 바탕쪽의 매니페스트 항목과
   파트를 지우고, 저장된 적이 있어 패키지에 있는 파트 파일도 지운다. 구역이 참조하는 바탕쪽은
   `master-page-in-use`, 없는 id는 `master-page-not-found`로 거부하고 아무것도 바꾸지 않는다.

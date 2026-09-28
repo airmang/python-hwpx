@@ -1163,7 +1163,7 @@ class DrawText:
 
     @property
     def name(self) -> str:
-        """Hancom's auto-generated shape-tree object name (not a caption)."""
+        """The text box's name. Hancom takes a named text box for a field (``doc.fields.text_boxes``)."""
 
         return self.element.get("name", "")
 
@@ -1559,9 +1559,10 @@ class HwpxOxmlShape:
 
         *margin* overrides ``hp:textMargin`` (``left``/``right``/``top``/
         ``bottom``, HWPUNIT); defaults to the real-corpus majority value
-        (0.1cm/283 all four sides, 90-sample). *name* is Hancom's
-        auto-generated shape-tree object label, not a caption — leave it
-        empty unless reproducing a specific gold file. *para_pr_id_ref* sets
+        (0.1cm/283 all four sides, 90-sample). *name* makes the text box a
+        field: Hancom lists a named text box among its fields and fills it
+        by name (``doc.fields.text_boxes``, ``doc.fields.fill_text_box()``);
+        leave it empty for a plain text box. *para_pr_id_ref* sets
         the text paragraph's ``paraPrIDRef`` (e.g. a centred paraPr), default
         ``0``. *vert_align* sets ``hp:subList/@vertAlign`` (``TOP``/``CENTER``/
         ``BOTTOM``); ``None`` gives a new text ``CENTER`` and leaves existing
