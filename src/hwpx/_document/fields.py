@@ -942,6 +942,32 @@ def _insert_form_field_text_run(
     begin_run.insert(int(match["_begin_child_index"]) + 1, text_node)
 
 
+def _drop_nested_fields(match: Mapping[str, Any]) -> None:
+    """Hancom's way with a field that holds other fields: the value replaces
+    them with the rest of the content, so the begin and end of every field
+    lying wholly between this field's begin and end go."""
+
+    runs: list[Any] = match["_runs"]
+    end_run_index = match.get("_end_run_index")
+    if end_run_index is None:
+        return
+    begin_run_index = int(match["_begin_run_index"])
+    inside: list[tuple[Any, Any]] = []
+    for run_index in range(begin_run_index, int(end_run_index) + 1):
+        children = list(runs[run_index])
+        start = int(match["_begin_child_index"]) + 1 if run_index == begin_run_index else 0
+        stop = int(match["_end_child_index"]) if run_index == end_run_index else len(children)
+        inside.extend((runs[run_index], child) for child in children[start:stop] if _local_name(child) == "ctrl")
+    begun = {mark.get("id") for _, ctrl in inside for mark in ctrl.findall(f"{_HP}fieldBegin")}
+    ended = {mark.get("beginIDRef") for _, ctrl in inside for mark in ctrl.findall(f"{_HP}fieldEnd")}
+    nested = (begun & ended) - {None, ""}
+    for run, ctrl in inside:
+        marks = [(mark.get("id") if _local_name(mark) == "fieldBegin" else mark.get("beginIDRef"))
+                 for mark in ctrl if _local_name(mark) in ("fieldBegin", "fieldEnd")]
+        if marks and all(mark in nested for mark in marks):
+            run.remove(ctrl)
+
+
 def _collapse_field_span(match: Mapping[str, Any]) -> None:
     """Hancom's way with a field whose content runs over paragraphs: the
     content between the begin and the end goes, paragraphs and all, and the
@@ -1038,6 +1064,8 @@ def fill_form_field(
 
     text_nodes: list[Any] = match.get("_text_nodes", [])
     sanitized = _sanitize_field_text(write_value)
+    if match.get("_span") is None:
+        _drop_nested_fields(match)
     if match.get("_span") is not None:
         _collapse_field_span(match)
         _insert_form_field_text_run(doc, match, sanitized)
