@@ -9,11 +9,15 @@ mismatch its only real-corpus sample exposed).
 
 from __future__ import annotations
 
+import re
+import zipfile
 from pathlib import Path
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml.body import ComposedCharacter, ComposedCharacterSlot, Dutmal
 from hwpx.tools.id_integrity import check_id_integrity
+
+HWPXLIB = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
@@ -155,14 +159,39 @@ def test_add_composed_character_round_trips_through_the_read_model() -> None:
     assert composed.compose_text == "합"
     assert composed.circle_type == "SHAPE_CIRCLE"
     assert composed.compose_type == "OVERLAP"
-    assert composed.slots == [ComposedCharacterSlot(pr_id_ref=int(cid))]
+    assert composed.slots == [ComposedCharacterSlot(pr_id_ref=int(cid))] + [
+        ComposedCharacterSlot(pr_id_ref=4294967295)
+    ] * 9
 
 
-def test_add_composed_character_without_slots_omits_char_pr_cnt() -> None:
+def _hancom_sample(tag: str) -> str:
+    with zipfile.ZipFile(HWPXLIB / f"reader_writer__Simple{tag}.hwpx") as archive:
+        return archive.read("Contents/section0.xml").decode("utf-8")
+
+
+def test_a_composed_character_is_written_as_hancom_writes_one() -> None:
+    # Hancom's 글자 겹치기 carries its three attributes and ten charPr slots, the
+    # unused ones 4294967295; a new one's attributes are SHAPE_CIRCLE, -4, SPREAD.
+    for sample in re.findall(r"<hp:compose\b[^>]*>.*?</hp:compose>", _hancom_sample("Compose"), re.S):
+        assert 'charPrCnt="10"' in sample and sample.count("<hp:charPr ") == 10
+        assert re.findall(r'prIDRef="(\d+)"', sample)[1:] == ["4294967295"] * 9
+
     doc = HwpxDocument.new()
-    p = doc.add_paragraph("본문")
-    obj = doc.shapes.add_composed_character("합", paragraph=p)
-    assert obj.get_attribute("charPrCnt") is None
+    obj = doc.shapes.add_composed_character("합", paragraph=doc.add_paragraph("본문"))
+
+    attributes = {name: obj.get_attribute(name) for name in ("circleType", "charSz", "composeType", "charPrCnt")}
+    assert attributes == {"circleType": "SHAPE_CIRCLE", "charSz": "-4", "composeType": "SPREAD", "charPrCnt": "10"}
+    slots = [child.get("prIDRef") for child in obj.element if child.tag.endswith("}charPr")]
+    assert slots == ["4294967295"] * 10
+
+
+def test_a_dutmal_takes_style_0_as_hancom_writes_it() -> None:
+    assert 'styleIDRef="0"' in re.search(r"<hp:dutmal\b[^>]*>", _hancom_sample("Dutmal")).group(0)
+
+    doc = HwpxDocument.new()
+    obj = doc.shapes.add_dutmal("본말", "덧말", paragraph=doc.add_paragraph("본문"))
+
+    assert obj.get_attribute("styleIDRef") == "0"
 
 
 def test_add_composed_character_without_a_paragraph_creates_its_own() -> None:

@@ -90,6 +90,10 @@
 
 ### 고침
 
+- 글자 겹치기(`add_composed_character()`)와 덧말(`add_dutmal()`)을 한/글이 쓰는 모양으로 쓴다. 글자 겹치기는 늘
+  `hp:charPr` 열 칸을 쓰고(쓰지 않는 칸은 `4294967295`), 주지 않은 속성은 한/글이 새 글자 겹치기에 주는 값
+  (`circleType="SHAPE_CIRCLE"`, `charSz="-4"`, `composeType="SPREAD"`)으로 쓴다. 덧말은 스타일을 주지 않으면
+  `styleIDRef="0"`을 쓴다. 전에는 준 칸만 쓰고 속성을 뺐으며, 한/글은 저장할 때 이 값들을 채웠다.
 - 새 도형(`add_rectangle()`·`add_ellipse()`·`add_line()`·`add_arc()`·`add_polygon()`·`add_container()`)에
   `textWrap`·`textFlow`를 쓴다. 한/글은 모든 도형에 이 둘을 쓰고, 없으면 `SQUARE`·`BOTH_SIDES`로 읽는다.
   그래서 새 도형은 `textWrap="SQUARE" textFlow="BOTH_SIDES"`이고, 묶음(`hp:container`) 안 도형은 한/글처럼
