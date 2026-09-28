@@ -1175,9 +1175,10 @@ class HwpxOxmlTable:
         Without *fit* this is the historical raw set (returns ``None``). With a
         :class:`~hwpx.form_fit.policy.FitPolicy` the value is measured against the
         cell box and wrapped/shrunk/failed accordingly; the returned
-        :class:`~hwpx.form_fit.report.FitResult` carries the verdict (and an
-        ``overflow=fail`` miss makes ``ok`` ``False``). ``split_paragraphs`` is
-        ignored in fit mode — line breaks are decided by measurement.
+        :class:`~hwpx.form_fit.report.FitResult` carries the verdict. An
+        ``overflow=fail`` miss makes ``ok`` ``False`` and leaves the cell as it
+        was. ``split_paragraphs`` is ignored in fit mode — line breaks are
+        decided by measurement.
         """
 
         if logical:
