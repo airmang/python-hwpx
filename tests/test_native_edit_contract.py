@@ -128,18 +128,18 @@ def test_real_cell_inherits_table_margins_and_reports_height_risk():
         assert cell.element.get("hasMargin") == "0"
         slot = resolve_slot_metrics(cell, doc)
         assert slot.available_width == pytest.approx((3140 - 1020) * 0.93)
-        assert (
-            slot.available_height is None
-        )  # inherited padding leaves less than one line
-        assert slot.height_unavailable
+        # Inherited padding leaves less than one line: an auto-grow cell, as tall as
+        # the one (empty) line Hancom laid out in it. That line is the budget.
+        assert not slot.height_unavailable
+        assert slot.height_lines() == 1
         result = fit_cell_text(
             cell,
             "김민준",
             FitPolicy(mode="wrap_then_shrink", overflow="fail", min_font_pt=8),
             document=doc,
         )
-        assert result.lines >= 2
-        assert any("height" in warning for warning in result.warnings)
+        assert result.ok is False and result.lines >= 2
+        assert any("FIELD_OVERFLOW" in error for error in result.errors)
 
 
 def test_explicit_cell_margin_overrides_table():

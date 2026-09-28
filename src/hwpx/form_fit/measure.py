@@ -789,6 +789,89 @@ def _line_pitch(kind: str, value: float, size: float) -> float:
     return size + float(_LAYOUT_UNIT) * (units if share >= 0 else -units)
 
 
+def _laid_out_height(cell_element: Any) -> float | None:
+    """The height of the lines Hancom laid out in a cell's own paragraphs (the end
+    of their last cached line), or ``None`` when they hold no line cache."""
+
+    if cell_element is None:
+        return None
+    ends = [
+        int(line.get("vertpos", 0)) + int(line.get("vertsize", 0))
+        for sub_list in cell_element
+        if _local_name(sub_list.tag) == "subList"
+        for paragraph in sub_list
+        if _local_name(paragraph.tag) == "p"
+        for cache in paragraph
+        if _local_name(cache.tag) == "linesegarray"
+        for line in cache
+        if _local_name(line.tag) == "lineseg"
+    ]
+    return float(max(ends)) if ends else None
+
+
+def _row_span(cell: object) -> int:
+    try:
+        return int(getattr(cell, "span", (1, 1))[0])
+    except Exception:  # pragma: no cover - defensive
+        return 1
+
+
+def _row_cells(cell: object) -> list[Any]:
+    """The cells of the table row (``hp:tr``) holding *cell*, or *cell* alone."""
+
+    element = getattr(cell, "element", None)
+    for row in getattr(getattr(cell, "table", None), "rows", None) or ():
+        cells = list(getattr(row, "cells", ()))
+        if any(getattr(other, "element", None) is element for other in cells):
+            return cells
+    return [cell]
+
+
+def _lines_end(cell: object, document: object) -> float:
+    """Where the lines of a cell's own paragraphs end: their line cache or, without
+    one, the lines its text measures at its own size and full width below the
+    paragraph's spacing before (Hancom lays such a cell out when it opens the file)."""
+
+    drawn = _laid_out_height(getattr(cell, "element", None))
+    if drawn:
+        return drawn
+    slot = _cell_slot(cell, document, max_lines=1, font_pt=None, safety=1.0)
+    text = str(getattr(cell, "text", "") or "")
+    lines = measure(text, slot).lines if text else 1
+    before = slot.text_style.space_before if slot.text_style is not None else 0
+    return before + (lines - 1) * slot.line_height() + slot.font_pt * 100.0
+
+
+def _drawn_row_height(cell: object) -> float:
+    """The height of the row as its line caches have it: the tallest of its
+    cells that span one row, the end of the lines Hancom laid out in it plus
+    its top and bottom margins; 0 when no such cell holds a line cache."""
+
+    tallest = 0.0
+    for other in _row_cells(cell):
+        drawn = _laid_out_height(getattr(other, "element", None)) if _row_span(other) <= 1 else None
+        if drawn:
+            _left, _right, top, bottom = _effective_cell_margins(other)
+            tallest = max(tallest, drawn + top + bottom)
+    return tallest
+
+
+def _auto_grow_row_height(cell: object, document: object) -> float:
+    """How tall Hancom draws the row of a cell stored shorter than one line: as
+    tall as its tallest cell. Each cell of the row that spans one row is its
+    stored height or the end of its lines plus its top and bottom margins,
+    whichever is taller; a merged cell is left out."""
+
+    tallest = 0.0
+    for other in _row_cells(cell):
+        if _row_span(other) > 1:
+            continue
+        _left, _right, top, bottom = _effective_cell_margins(other)
+        stored = float(getattr(other, "height", 0) or 0)
+        tallest = max(tallest, stored, _lines_end(other, document) + top + bottom)
+    return tallest
+
+
 def _lines_in_height(height: float, pitch: float, size: float) -> int:
     """How many lines Hancom fits in *height*: n lines take (n - 1) pitches and
     one line's *size*, the last line's spacing left out; never fewer than one."""
@@ -1141,17 +1224,47 @@ def resolve_slot_metrics(
     fit follows Hancom's line breaking rules.
 
     ``available_height`` follows the same philosophy — ``(cellSz.height - top -
-    bottom margin) * safety`` — but is recorded as *unavailable* (``None`` +
-    ``height_unavailable``) whenever the authored height is not a real ceiling:
-    a merged cell (its ``cellSz.height`` is a single-row fragment, not the spanned
-    height), a cell with no height, or an auto-grow floor shorter than one line
-    (Hancom simply grows the row past it). The fit then stays width-only rather
-    than guess a vertical fit.
+    bottom margin) * safety``. A merged cell has no usable height (its
+    ``cellSz.height`` is a single-row fragment, not the spanned height): it is
+    recorded as *unavailable* (``None`` + ``height_unavailable``) and the fit
+    stays width-only rather than guess a vertical fit. A cell stored shorter than
+    one line grows with its text: Hancom draws its row as tall as the row's
+    tallest cell, so that height, less the cell's own margins, is its budget
+    (see :func:`_auto_grow_row_height`), and a value needing more lines than the
+    row holds grows the row. A row whose laid-out lines already run past its
+    stored height is as tall as those lines too (:func:`_drawn_row_height`).
     """
+
+    slot = _cell_slot(cell, document, max_lines=max_lines, font_pt=font_pt, safety=safety)
+    _left, _right, top, bottom = _effective_cell_margins(cell)
+    if _row_span(cell) > 1:
+        # A merged row-span's cellSz.height is only one of the spanned rows.
+        return replace(slot, height_unavailable=True)
+    raw_height = float(getattr(cell, "height", 0) or 0)
+    inner_h = max(raw_height - top - bottom, 0.0) * safety if raw_height > 0 else 0.0
+    if inner_h >= slot.font_pt * 100.0 * MIN_LINE_SPACING_RATIO:
+        # The stored height, unless lines Hancom laid out in the row run past it:
+        # Hancom then draws the row as tall as those lines.
+        drawn = _drawn_row_height(cell) - top - bottom
+        return replace(slot, available_height=max(inner_h, drawn))
+    # Stored shorter than one line at the tightest pitch: the row grows with its
+    # text, and holds as many lines as its tallest cell.
+    return replace(slot, available_height=_auto_grow_row_height(cell, document) - top - bottom)
+
+
+def _cell_slot(
+    cell: object,
+    document: object,
+    *,
+    max_lines: int,
+    font_pt: float | None,
+    safety: float,
+) -> SlotMetrics:
+    """The width, font and text style of a cell's slot, without a height budget."""
 
     raw_width = float(getattr(cell, "width", 0) or 0)
     element = getattr(cell, "element", None)
-    left, right, top, bottom = _effective_cell_margins(cell)
+    left, right, _top, _bottom = _effective_cell_margins(cell)
     line = max(raw_width - left - right, 0.0) * safety
     inner = (max(raw_width - left - right, MIN_LINE_WIDTH) if raw_width > 0 else 0.0) * safety
     inline_width, inline_count = (
@@ -1160,24 +1273,6 @@ def resolve_slot_metrics(
     if inline_width:
         inner = max(inner - inline_width, 0.0)
     resolved_pt = font_pt if font_pt is not None else _first_run_font_pt(cell, document)
-    line_ratio = _first_para_line_spacing_ratio(cell, document)
-
-    available_height: float | None = None
-    height_unavailable = False
-    raw_height = float(getattr(cell, "height", 0) or 0)
-    try:
-        row_span = int(getattr(cell, "span", (1, 1))[0])
-    except Exception:  # pragma: no cover - defensive
-        row_span = 1
-    inner_h = max(raw_height - top - bottom, 0.0) * safety if raw_height > 0 else 0.0
-    # A cell authored shorter than one line at the tightest pitch is an auto-grow
-    # floor, not a ceiling (Hancom grows the row past it); a merged row-span's
-    # cellSz.height is only one of the spanned rows. Neither is a usable budget.
-    one_line = resolved_pt * 100.0 * MIN_LINE_SPACING_RATIO
-    if row_span <= 1 and inner_h >= one_line:
-        available_height = inner_h
-    else:
-        height_unavailable = True
 
     return SlotMetrics(
         available_width=inner,
@@ -1185,9 +1280,7 @@ def resolve_slot_metrics(
         max_lines=max(max_lines, 1),
         raw_width=raw_width,
         source="cell",
-        available_height=available_height,
-        line_spacing_ratio=line_ratio,
-        height_unavailable=height_unavailable,
+        line_spacing_ratio=_first_para_line_spacing_ratio(cell, document),
         inline_object_width=inline_width,
         inline_object_count=inline_count,
         text_style=_cell_text_style(cell, document),

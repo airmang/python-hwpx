@@ -16,6 +16,7 @@ SPANNING_FILLED = HANCOM_SAVED / "form_fields_spanning_after.hwpx"
 SPANNING_VALUES = {"본문": "새 값 1", "칸": "새 값 2", "붙음": "새 값 3", "한줄": "새 값 4"}
 NO_END = HANCOM_SAVED / "form_field_no_end_before.hwpx"
 NESTED = HANCOM_SAVED / "nested_field_saved.hwpx"
+VALUE_SHAPES = {"파랑": "새 파랑", "굵게": "새 굵게", "같음": "새 같음", "안내": "새 안내"}
 NO_END_FILLED = HANCOM_SAVED / "form_field_no_end_after.hwpx"
 
 
@@ -185,6 +186,38 @@ def test_filling_the_field_inside_keeps_the_field_around_it() -> None:
         ("안쪽", "새 안쪽 값"),
         ("따로", "따로 값"),
     ]
+
+
+def _value_shapes(doc: HwpxDocument) -> dict[str, set[str]]:
+    """Each field's name and the shapes of the runs holding its text."""
+    shapes: dict[str, set[str]] = {}
+    for paragraph in doc.sections[0].element.iter(f"{HP}p"):
+        name = None
+        for run in paragraph.findall(f"{HP}run"):
+            for child in run:
+                begin = child.find(f"{HP}fieldBegin")
+                if begin is not None:
+                    name = begin.get("name")
+                elif child.find(f"{HP}fieldEnd") is not None:
+                    name = None
+                elif name and child.tag == f"{HP}t" and "".join(child.itertext()):
+                    shapes.setdefault(name, set()).add(run.get("charPrIDRef"))
+    return shapes
+
+
+def test_a_value_takes_the_shape_of_the_field_begin_as_hancom_writes_it() -> None:
+    """Hancom saved four fields whose begin and end sit in runs of shape 0: 파랑 holding a value in a blue run,
+    굵게 one in a bold run, 같음 one in a run of shape 0, and 안내 its prompt. It filled all four: every value
+    took the shape of the run holding the field's begin."""
+    doc = HwpxDocument.open((HANCOM_SAVED / "field_value_shape_saved.hwpx").read_bytes())
+    hancom = HwpxDocument.open((HANCOM_SAVED / "field_value_shape_filled.hwpx").read_bytes())
+    assert _value_shapes(doc)["파랑"] != {"0"} and _value_shapes(doc)["굵게"] != {"0"}
+
+    results = [doc.fields.fill(value, name=name) for name, value in VALUE_SHAPES.items()]
+
+    assert _value_shapes(doc) == _value_shapes(hancom) == {name: {"0"} for name in VALUE_SHAPES}
+    assert [field.value for field in doc.fields.all] == list(VALUE_SHAPES.values())
+    assert [result.style_preserved for result in results] == [False, False, True, False]
 
 
 def test_fill_refuses_a_field_without_an_end() -> None:
