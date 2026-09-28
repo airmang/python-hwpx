@@ -17,7 +17,7 @@
 
 한컴오피스가 없어도 됩니다. HWPX는 ZIP+XML(OWPML) 포맷이라 순수 파이썬만으로
 읽고, 고치고, 새로 만들 수 있습니다 — Windows·macOS·Linux·CI, 그리고
-**파이썬이 도는 ChatGPT 채팅 안에서도** 그대로 동작합니다. 기존 문서의 저장은 요청한 보존 등급과 실제 검증 결과를 영수증으로 남깁니다.
+**파이썬이 도는 ChatGPT 채팅 안에서도** 그대로 동작합니다.
 새 문서의 한컴 호환성은 아래에 날짜·버전을 명시한 코퍼스로 측정합니다.
 
 <p align="center">
@@ -79,7 +79,7 @@ doc.save_to_path("계획.hwpx")
 - **편집** — 문단·표·이미지·머리글/바닥글·메모·각주, 줄간격·여백·쪽번호 같은 서식
 - **양식 채우기** — 라벨로 셀을 찾아 값만 채우기, 행·열 조정 같은 구조 편집도 바이트 보존으로
 - **생성·일괄 처리** — 새 문서 저작, 목차·상호참조, mail merge, 텍스트 diff, 변경추적(redline)
-- **검증·안전** — 패키지 구조 검증 CLI, 열림 안전 게이트, 모든 저장에 영수증(`MutationReport`)
+- **검증·안전** — 패키지 구조 검증 CLI, 열림 안전 게이트, 저장 결과 보고(`return_report=True`)
 
 자세한 내용: [5분 퀵스타트](docs/quickstart.md) · [사용 가이드](docs/usage.md) · [API 레퍼런스](https://airmang.github.io/python-hwpx/) · [예제](docs/examples.md)
 
@@ -101,20 +101,6 @@ report = doc.save_to_path("신청서-작성완료.hwpx", mode="patch", fallback=
 바이트 보존을 요구합니다. 수정 파트 내부의 보존과 시각적 배치는 별도 확인이
 필요합니다. 출력 재개봉과 내용 확인까지 포함한 경로는 [안전한 쓰기 계약](docs/safe-write-contract.md)을 따르세요.
 
-### 저장에는 영수증이 따라옵니다
-
-```python
-report = doc.save_to_path("결과.hwpx", return_report=True)
-print(report.actual_mode)        # "patch" 또는 "rebuild" — 실제 저장 등급
-print(report.preservation.untouched_part_payloads.to_dict())
-                                 # {"verified": 17, "changed": 0}
-```
-
-`mode="patch", fallback="error"`는 보존 등급 미달 시 출력하지 않습니다.
-기본 `auto`는 달성 가능한 등급을 선택합니다. `report.ok`는 요청 반영이나 시각
-검증 완료를 뜻하지 않습니다.
-전체 규칙: [안전한 쓰기 계약](docs/safe-write-contract.md).
-
 *예제 중 **독립 실행 예제** 표시가 없는 블록은 여러분의 기존 문서를 입력으로
 쓰는 조각입니다. 예제별 Python 블록 판정은
 [실행 ledger](docs/python-example-ledger.json)에 동결돼 있습니다.*
@@ -124,10 +110,9 @@ print(report.preservation.untouched_part_payloads.to_dict())
 만든 파일이 실제 한컴오피스에서 열리는지 재서 그대로 공개합니다. 측정마다
 스택과 날짜를 병기합니다:
 
-- **한컴 열림 120/120 · 렌더 검증 120/120** — 현행 스택(5.7.0 · 실한컴
-  12.0.0.3288 · 2026-08-03)의 축소 측정: 기준 스트라텀 + 신규 저작 표면
-  6종(각주·누름틀·수식·차트·체크박스·편집 계획). 영수증은 행마다 bucket이
-  있어 `jq` 한 줄로 재현됩니다
+- **한컴 열림 120/120 · 렌더 검증 120/120** — 기준 문서군 + 저작 기능
+  6종(각주·누름틀·수식·차트·체크박스·편집 계획) 축소 측정
+  (5.7.0 · 실한컴 12.0.0.3288 · 2026-08-03)
 - **한컴 열림 476/476** — 전수 동결 코퍼스(N=497) 측정
   (3.4.1 · 실한컴 12.0.0.3288 · 2026-07-19)
 - **미수정 영역 바이트 보존 497/497** · 개인정보 유출 0

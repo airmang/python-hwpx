@@ -13,11 +13,11 @@
     "docs/safe-write-contract.md",
     "docs/golden-api.md"
   ],
-  "fenceCount": 117,
-  "sourceSha256": "5fb384bb9e1da11c9129d3092d6a0fd50783af32df630fba1db46247e5d209d9",
+  "fenceCount": 115,
+  "sourceSha256": "02406542d050938ace10148981857ec04f95f8b854cbb5accf86ad9a8be59eb9",
   "manualSha256": {
-    "README.md": "7d3a2a6baa9203f5df2c92ce2d4e0493658be3e29294e5eafb393fcadf832e69",
-    "README_EN.md": "13ffe7e34b008bb5a2ac8a88a6b732a78801f5197c532253d71c33d37713635f",
+    "README.md": "abfa8df0c136b0c18d303e0b6547220fa4815643dec38497d8d3d54b176c566b",
+    "README_EN.md": "72456b479d060299afe0431e68dfcb0c512d9e3ce2b77da20d5189b77afc0632",
     "docs/quickstart.md": "44d8ca82ee70c0e3dfdf087713a4e4ce935e64cd3f6a546311f95b054a285a18",
     "docs/recipes-traversal.md": "b63f42b1a6ed23812688599474dcf83300509b86a94b5daceae679bfdbde9343",
     "docs/mutation-semantics.md": "225649d4bdb1f5a1863fc842d3bce348eaa85055cea9ad35295f83b042864aee",
@@ -139,9 +139,7 @@
     "context-fragment/prior-state": {
       "ids": [
         "README.md#2",
-        "README.md#3",
         "README_EN.md#2",
-        "README_EN.md#3",
         "docs/quickstart.md#6",
         "docs/mutation-semantics.md#1",
         "docs/usage.md#34",
@@ -169,14 +167,8 @@
         "README.md#2": [
           "HwpxDocument"
         ],
-        "README.md#3": [
-          "doc"
-        ],
         "README_EN.md#2": [
           "HwpxDocument"
-        ],
-        "README_EN.md#3": [
-          "doc"
         ],
         "docs/quickstart.md#6": [
           "document"
