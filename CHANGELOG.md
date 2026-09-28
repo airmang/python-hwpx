@@ -60,6 +60,12 @@
   옛 5.x 이름(`doc.add_rectangle()` 등)은 시그니처를 그대로 두기로 한 호환 계층이라 전처럼 283이다.
 - `set_footnote_numbering()`·`set_endnote_numbering()`의 설명과 `docs/known-traps.md`에, 시작 번호(`new_num`)는
   번호 방식이 `ON_SECTION`일 때만 한/글에 보인다고 적는다. `CONTINUOUS`·`ON_PAGE`는 1부터 매긴다.
+- FormFit이 칸을 채울 때 기본으로 행 높이를 지킨다. 값이 칸 높이가 담는 줄 수보다 조금 많으면 전에는 줄여 넣지
+  못한 경우 경고(`overflow_detected`)만 남기고 값을 넣어 행이 늘었고, 그 뒤 쪽이 밀렸다. 이제 넘는 정도와
+  관계없이 글자를 줄여(`min_font_pt`까지) 칸 안에 넣고, 그래도 안 되면 `FitPolicy.overflow`를 따른다. 기본
+  `fail`은 채우지 않는다(`doc.fields.fill()`은 `field-fit-failed`, `set_cell_text(fit=...)`는 칸을 그대로 두고 `ok=False`인 결과). 행을 늘려도 되면
+  `FitPolicy(allow_row_expand=True)`, 경고만 받고 넣으려면 `FitPolicy(overflow="warn")`을 준다. 칸 높이를 잴 수 없는
+  칸(병합·자동 늘어남)은 전처럼 폭만 본다.
 
 ### 고침
 

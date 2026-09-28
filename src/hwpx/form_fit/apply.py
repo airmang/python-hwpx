@@ -31,12 +31,18 @@ def fit_cell_text(
     field_id: str | None = None,
     preserve_format: bool = True,
 ) -> FitResult:
-    """Measure, decide, and apply *value* to *cell* under *policy*."""
+    """Measure, decide, and apply *value* to *cell* under *policy*.
+
+    A value that does not fit (``ok`` is ``False``) is not written: the cell
+    and its row stay as they were.
+    """
 
     # Resolve geometry from the cell as it stands (its template font is the slot's
     # intended size) BEFORE we overwrite the text.
     slot = resolve_slot_metrics(cell, document, max_lines=policy.effective_max_lines)
     result = FitEngine().fit(value, slot, policy, field_id=field_id)
+    if not result.ok:
+        return result
 
     cell.set_text(result.applied_value, preserve_format=preserve_format)
 

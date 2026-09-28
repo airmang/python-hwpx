@@ -37,12 +37,6 @@ _HEIGHT_UNAVAILABLE_NOTE = (
     "cell height is not a usable budget (merged/auto-grow); fit is width-only — "
     "render oracle should confirm the vertical fit"
 )
-# The content needs more vertical room than the authored cell height, but not
-# grossly — the row will grow modestly. Reported (never silent), deferred to oracle.
-_ROW_GROWTH_NOTE = (
-    "value needs more lines than the cell height budgets; the row will grow — "
-    "render oracle should confirm no page shift"
-)
 
 
 @dataclass(slots=True)
@@ -288,14 +282,13 @@ class FitEngine:
         """Overlay the authored row-height budget on a width-fitting *result*.
 
         The width ladder decides horizontal fit; this decides whether the value
-        also sits inside the cell's *vertical* room, so a filled row does not
-        silently grow and shift the page (the dominant M9 form-fill defect).
-
-        Honesty contract (mirrors the width path, grounded in differential
-        measurement): the authored ``cellSz.height`` is an unreliable proxy in wild
-        forms (auto-grow, tiny floors, merges), so a *modest* vertical overflow is
-        reported and deferred to the render oracle; only a *gross* balloon shrinks
-        or fails closed. ``allow_row_expand`` / ``expand_row`` opt out entirely.
+        also sits inside the cell's *vertical* room. A value that needs more lines
+        than the row holds grows the row, and the pages after it shift. So the
+        row keeps its height: the value shrinks into the budget where the policy
+        allows, and otherwise ``policy.overflow`` decides (``fail`` by default,
+        ``warn`` keeps the value and lets the row grow). ``allow_row_expand`` /
+        ``expand_row`` opt out of the budget entirely. A cell whose height is no
+        usable budget (merged, auto-grow floor) stays width-only.
         """
 
         if slot.available_height is None:
@@ -307,30 +300,10 @@ class FitEngine:
 
         font = result.font_pt if result.font_pt is not None else slot.font_pt
         wrapped = result.lines if result.lines is not None else 1
-        verdict = self._height_verdict(slot, wrapped, font)
-        if verdict == "fits":
+        if self._height_verdict(slot, wrapped, font) == "fits":
             return result
-        if verdict == "modest":
-            # Differential calibration round 2: the modest
-            # band is where pages actually shift, so try to shrink INTO the
-            # budget first; only defer to the oracle when no font >= min can
-            # land the value fully inside the authored height.
-            if policy.may_shrink:
-                shrunk = self._try_shrink_for_height(
-                    value, slot, policy, wrap_lines, field_id, accept_modest=False
-                )
-                if shrunk is not None:
-                    return shrunk
-            result.overflow_detected = True
-            result.warnings.append(_ROW_GROWTH_NOTE)
-            return result
-
-        # Gross vertical balloon: shrink (prefer a full fit, else the least
-        # growth), else fail-closed.
         if policy.may_shrink:
-            shrunk = self._try_shrink_for_height(
-                value, slot, policy, wrap_lines, field_id, accept_modest=True
-            )
+            shrunk = self._try_shrink_for_height(value, slot, policy, wrap_lines, field_id)
             if shrunk is not None:
                 return shrunk
         return self._overflow_height(value, slot, policy, field_id, wrapped, font)
@@ -356,38 +329,18 @@ class FitEngine:
         policy: FitPolicy,
         wrap_lines: int,
         field_id: str | None,
-        *,
-        accept_modest: bool,
     ) -> FitResult | None:
-        """Largest font (>= min) that lands the value INSIDE the height budget.
-
-        Walks the shrink ladder preferring a full vertical fit ("fits"). When
-        ``accept_modest`` is true and no font achieves a full fit, the largest
-        candidate whose growth is merely *modest* (never gross) is returned as
-        the least-damage fallback, reported and deferred to the oracle.
-        """
+        """Largest font (>= min) that lands the value INSIDE the height budget,
+        or ``None`` when no font on the shrink ladder does."""
 
         ceiling = policy.max_font_pt or slot.font_pt
         candidate = min(slot.font_pt, ceiling)
-        modest_candidate: tuple[float, int] | None = None
         while candidate >= policy.min_font_pt - 1e-9:
             trial = replace(slot, font_pt=candidate, max_lines=wrap_lines)
             m = measure(value, trial)
-            if m.fits and m.confidence == "high":
-                verdict = self._height_verdict(slot, m.lines, candidate)
-                if verdict == "fits":
-                    return self._shrunk_result(
-                        value, slot, candidate, m.lines, wrap_lines, field_id,
-                        modest=False,
-                    )
-                if verdict == "modest" and modest_candidate is None:
-                    modest_candidate = (candidate, m.lines)
+            if m.fits and m.confidence == "high" and self._height_verdict(slot, m.lines, candidate) == "fits":
+                return self._shrunk_result(value, slot, candidate, m.lines, wrap_lines, field_id)
             candidate = round(candidate - _SHRINK_STEP_PT, 4)
-        if accept_modest and modest_candidate is not None:
-            font_pt, lines = modest_candidate
-            return self._shrunk_result(
-                value, slot, font_pt, lines, wrap_lines, field_id, modest=True
-            )
         return None
 
     def _shrunk_result(
@@ -398,8 +351,6 @@ class FitEngine:
         lines: int,
         wrap_lines: int,
         field_id: str | None,
-        *,
-        modest: bool,
     ) -> FitResult:
         changes: dict[str, object] = {}
         warnings: list[str] = []
@@ -413,8 +364,6 @@ class FitEngine:
             )
         if wrap_lines > 1 and lines > 1:
             changes["wrapped_lines"] = lines
-        if modest:
-            warnings.append(_ROW_GROWTH_NOTE)
         return FitResult(
             ok=True,
             value=value,
@@ -423,7 +372,7 @@ class FitEngine:
             lines=lines,
             font_pt=round(candidate, 2),
             confidence="high",
-            overflow_detected=modest,
+            overflow_detected=False,
             warnings=warnings,
             field_id=field_id,
         )
@@ -437,7 +386,7 @@ class FitEngine:
         wrapped_lines: int,
         font_pt: float,
     ) -> FitResult:
-        """Terminal action for a gross vertical balloon that shrink cannot resolve."""
+        """Terminal action for a value the row cannot hold that shrink cannot resolve."""
 
         budget = slot.height_lines(font_pt)
         action = policy.overflow
