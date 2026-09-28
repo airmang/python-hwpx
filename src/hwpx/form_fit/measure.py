@@ -122,8 +122,9 @@ _GLYPH_TABLE_SCRIPTS = ("HANGUL", "LATIN", "OTHER", "SYMBOL")
 _LAYOUT_UNIT = 4
 
 #: The glyphs each face's row below gives, in order: printable ASCII, then
-#: punctuation and symbols common in Korean documents.
-_GLYPHS = '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~·…“”‘’「」『』〈〉《》※○●□■△▲◇◆☆★→←↑↓ㆍ×÷±°℃‰—–'
+#: punctuation and symbols common in Korean documents, then Roman numerals
+#: (Ⅰ–Ⅻ, ⅰ–ⅻ) and circled and parenthesized numbers (①–⑳, ⑴–⒇).
+_GLYPHS = '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~·…“”‘’「」『』〈〉《》※○●□■△▲◇◆☆★→←↑↓ㆍ×÷±°℃‰—–ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫⅰⅱⅲⅳⅴⅵⅶⅷⅸⅹⅺⅻ①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿⒀⒁⒂⒃⒄⒅⒆⒇'
 
 #: Design advances per face in font units: units per em, a Hangul syllable, the
 #: space, and each glyph of ``_GLYPHS`` (0: not in the face).
@@ -137,7 +138,11 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         579, 478, 496, 356, 635, 563, 720, 542, 543, 486, 320, 320, 320, 550, 320, 960,
         480, 480, 320, 320, 500, 500, 500, 500, 500, 500, 500, 500, 770, 970, 970, 970,
         970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 617, 678, 798, 291,
-        970, 988, 875, 625,
+        970, 988, 875, 625, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970,
+        970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970,
+        970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970,
+        970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970,
+        970, 970, 970, 970,
     )),
     "함초롬돋움": (1000, 970, 300, (
         333, 339, 686, 626, 853, 761, 260, 313, 313, 498, 548, 258, 466, 270, 374, 550,
@@ -148,7 +153,11 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         552, 427, 513, 349, 595, 469, 760, 483, 466, 479, 372, 342, 372, 546, 294, 702,
         451, 453, 288, 288, 500, 500, 500, 500, 500, 500, 500, 500, 690, 970, 970, 970,
         970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 587, 670, 782, 306,
-        970, 892, 522, 348,
+        970, 892, 522, 348, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970,
+        970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970,
+        970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970,
+        970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970,
+        970, 970, 970, 970,
     )),
     "맑은 고딕": (2048, 2048, 720, (
         592, 809, 1242, 1128, 1713, 1675, 475, 624, 624, 870, 1435, 448, 840, 448, 811, 1128,
@@ -159,7 +168,11 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         1233, 724, 887, 706, 1184, 998, 1508, 952, 1009, 946, 624, 490, 624, 1435, 448, 1515,
         776, 776, 473, 473, 1169, 1169, 1059, 1059, 1110, 1110, 1221, 1221, 1638, 2048, 2048, 2048,
         2048, 2048, 2048, 2048, 2048, 2048, 2048, 1946, 1946, 1946, 1946, 2048, 1435, 1435, 1435, 792,
-        1946, 2536, 2101, 1051,
+        1946, 2536, 2101, 1051, 1946, 1946, 1946, 1946, 1946, 1946, 1946, 1946, 1946, 1946, 0, 0,
+        1946, 1946, 1946, 1946, 1946, 1946, 1946, 1946, 1946, 1946, 0, 0, 2048, 2048, 2048, 2048,
+        2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 0, 0, 0, 0, 0,
+        2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 0,
+        0, 0, 0, 0,
     )),
     "한컴 고딕": (1000, 932, 264, (
         446, 297, 583, 583, 892, 892, 297, 446, 446, 446, 583, 297, 583, 297, 446, 583,
@@ -170,7 +183,11 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         588, 383, 475, 357, 592, 530, 788, 528, 530, 473, 446, 446, 446, 669, 446, 892,
         446, 446, 303, 303, 486, 486, 486, 486, 486, 486, 486, 486, 932, 932, 932, 932,
         932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 800, 800, 800, 446,
-        932, 892, 0, 0,
+        932, 892, 0, 0, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 0, 0,
+        932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 0, 0, 932, 932, 932, 932,
+        932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 0, 0, 0, 0, 0,
+        932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 0,
+        0, 0, 0, 0,
     )),
     "바탕": (1024, 1024, 341, (
         320, 427, 638, 574, 876, 853, 256, 386, 386, 512, 853, 299, 640, 299, 384, 610,
@@ -181,7 +198,11 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         588, 450, 532, 368, 580, 586, 828, 620, 602, 512, 512, 597, 512, 768, 341, 1024,
         512, 512, 299, 299, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 911,
         911, 1024, 936, 1024, 1024, 1024, 1024, 1024, 1024, 768, 768, 1024, 832, 832, 832, 448,
-        1024, 1024, 1024, 512,
+        1024, 1024, 1024, 512, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 0, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0,
+        0, 0, 0, 0,
     )),
     "바탕체": (1024, 1024, 512, (
         512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
@@ -192,7 +213,11 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
-        1024, 1024, 512, 512,
+        1024, 1024, 512, 512, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 0, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0,
+        0, 0, 0, 0,
     )),
     "궁서": (1024, 1024, 341, (
         427, 427, 640, 555, 683, 597, 299, 427, 427, 512, 640, 341, 852, 341, 384, 597,
@@ -203,7 +228,11 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         671, 597, 597, 576, 661, 661, 768, 628, 663, 565, 512, 512, 512, 811, 340, 1024,
         512, 512, 341, 341, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 911,
         911, 1024, 936, 1024, 1024, 1024, 1024, 1024, 1024, 768, 768, 1024, 853, 853, 853, 448,
-        1024, 1024, 1024, 512,
+        1024, 1024, 1024, 512, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 0, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0,
+        0, 0, 0, 0,
     )),
     "궁서체": (1024, 1024, 512, (
         512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
@@ -214,7 +243,11 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
-        1024, 1024, 512, 512,
+        1024, 1024, 512, 512, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 0, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0,
+        0, 0, 0, 0,
     )),
     "굴림": (1024, 1024, 341, (
         341, 384, 768, 612, 896, 704, 290, 384, 384, 512, 640, 342, 640, 342, 427, 588,
@@ -225,7 +258,11 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         620, 341, 538, 321, 584, 512, 768, 512, 512, 512, 512, 512, 512, 811, 384, 1024,
         512, 512, 341, 341, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 911,
         911, 1024, 936, 1024, 1024, 1024, 1024, 1024, 1024, 768, 768, 1024, 853, 853, 853, 384,
-        1024, 1024, 1024, 512,
+        1024, 1024, 1024, 512, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 0, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0,
+        0, 0, 0, 0,
     )),
     "굴림체": (1024, 1024, 512, (
         512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
@@ -236,7 +273,11 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
-        1024, 1024, 512, 512,
+        1024, 1024, 512, 512, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 0, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0,
+        0, 0, 0, 0,
     )),
     "돋움": (1024, 1024, 342, (
         342, 427, 640, 512, 939, 726, 298, 384, 384, 597, 596, 384, 604, 384, 427, 597,
@@ -247,7 +288,11 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         618, 328, 528, 320, 568, 486, 742, 490, 492, 494, 512, 512, 512, 810, 340, 1024,
         469, 469, 299, 299, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 960, 911,
         911, 1024, 936, 1024, 1024, 1024, 1024, 1024, 1024, 768, 768, 1024, 853, 853, 853, 415,
-        1024, 1024, 1024, 512,
+        1024, 1024, 1024, 512, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 0, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0,
+        0, 0, 0, 0,
     )),
     "돋움체": (1024, 1024, 512, (
         512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
@@ -258,7 +303,11 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
-        1024, 1024, 512, 512,
+        1024, 1024, 512, 512, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 0, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0,
+        0, 0, 0, 0,
     )),
 }
 
@@ -331,7 +380,10 @@ class TextStyle:
     breaks between any two syllables; ``break_latin_word`` works as named.
     ``condense`` (최소 공백, %) lets the spaces inside a line shrink by that
     share. ``indent`` is the first-line indent in HWPUNIT; a negative value is
-    a hanging indent taken off every line after the first. ``hangul_face``
+    a hanging indent taken off every line after the first. ``margin_left`` and
+    ``margin_right`` (HWPUNIT) come off every line: Hancom starts a line at the
+    paragraph's left margin. ``space_before`` (HWPUNIT) is room above the first
+    line; the spacing after the paragraph takes no room in a cell. ``hangul_face``
     and ``glyph_face`` name the faces whose design advances Hangul syllables
     and the other glyphs take, laid out as Hancom rounds them (see
     :func:`char_advance`); an empty or unlisted face, or a glyph it does not
@@ -346,6 +398,9 @@ class TextStyle:
     break_non_latin_word: str = "BREAK_WORD"
     condense: int = 0
     indent: int = 0
+    margin_left: int = 0
+    margin_right: int = 0
+    space_before: int = 0
     hangul_advance: float = 1.0
     glyph_face: str = ""
     hangul_face: str = ""
@@ -361,6 +416,10 @@ def classify_char(ch: str) -> str:
     if 0xAC00 <= code <= 0xD7A3 or 0x1100 <= code <= 0x11FF or 0x3130 <= code <= 0x318F:
         return "hangul"
     if unicodedata.east_asian_width(ch) in ("W", "F"):
+        return "wide"
+    # Roman numerals and circled and parenthesized numbers: full width in Korean
+    # faces (Hancom draws them 0.95 to 1 em, a face without them included).
+    if 0x2160 <= code <= 0x217F or 0x2460 <= code <= 0x24FF:
         return "wide"
     if ch.isdigit():
         return "digit"
@@ -481,11 +540,12 @@ def hancom_line_starts(
 
     ``widths[k]`` is the width of line ``k`` in HWPUNIT (the last one repeats).
     A line takes characters while they fit (the last one without its 자간);
-    spaces at its end hang past the
-    margin and, with ``style.condense``, the spaces inside it may shrink to
-    make room. The line then ends at the last break opportunity that fits —
-    never before a closing or after an opening punctuation mark — or mid-word
-    when no opportunity is left.
+    the space right after a word hangs past the margin, and a further space
+    that starts at or past it begins the next line. With ``style.condense`` the
+    spaces after the line's first text may shrink to make room for a
+    character; the spaces before it never do. The line then ends at the last
+    break opportunity that fits — never before a closing or after an opening
+    punctuation mark — or mid-word when no opportunity is left.
     """
 
     breaks = _hancom_break_opportunities(text, style)
@@ -496,13 +556,17 @@ def hancom_line_starts(
     start = 0
     while True:
         width = widths[min(len(starts) - 1, len(widths) - 1)]
-        end, used, inner, pending = start, 0.0, 0, 0
+        end, used, inner, pending, seen, spilled = start, 0.0, 0, 0, False, False
         while end < length:
             ch = text[end]
             advance = char_advance(ch, font_pt, style)
             if ch in _HANGING_SPACES:
+                if used >= width and end > start and text[end - 1] in _HANGING_SPACES:
+                    spilled = True
+                    break
                 used += advance
-                pending += 1
+                if seen:  # the spaces before the line's first text never shrink
+                    pending += 1
                 end += 1
                 continue
             shrink = (inner + pending) * space * style.condense / 100.0
@@ -511,18 +575,22 @@ def hancom_line_starts(
             used += advance
             inner += pending
             pending = 0
+            seen = True
             end += 1
         if end >= length:
             return starts
-        options = [
-            index for index in breaks
-            if start < index <= end
-            and text[index] not in _NO_LINE_START
-            and text[index - 1] not in _NO_LINE_END
-        ]
-        start = max(options) if options else end
-        while start < length and text[start] in _HANGING_SPACES:
-            start += 1
+        if spilled:
+            start = end
+        else:
+            options = [
+                index for index in breaks
+                if start < index <= end
+                and text[index] not in _NO_LINE_START
+                and text[index - 1] not in _NO_LINE_END
+            ]
+            start = max(options) if options else end
+            while start < length and text[start] in _HANGING_SPACES:
+                start += 1
         if start >= length:
             return starts
         starts.append(start)
@@ -671,7 +739,13 @@ class SlotMetrics:
         line_h = self.line_height(font_pt)
         if line_h <= 0:
             return None
-        return _lines_in_height(self.available_height, line_h, (self.font_pt if font_pt is None else font_pt) * 100.0)
+        return _lines_in_height(self._lines_room(), line_h, (self.font_pt if font_pt is None else font_pt) * 100.0)
+
+    def _lines_room(self) -> float:
+        """The available height less the paragraph's spacing before its first line."""
+
+        before = self.text_style.space_before if self.text_style is not None else 0
+        return (self.available_height or 0.0) - before
 
     def height_lines_optimistic(self, font_pt: float | None = None) -> int | None:
         """Most-generous vertical budget (tightest plausible pitch).
@@ -686,7 +760,7 @@ class SlotMetrics:
         line_h = min(self.line_height(pt), pt * 100.0 * MIN_LINE_SPACING_RATIO)
         if line_h <= 0:
             return None
-        return _lines_in_height(self.available_height, line_h, pt * 100.0)
+        return _lines_in_height(self._lines_room(), line_h, pt * 100.0)
 
 
 def _line_pitch(kind: str, value: float, size: float) -> float:
@@ -779,6 +853,7 @@ def measure(value: str, slot: SlotMetrics) -> Measurement:
         # Inline objects share the first line only; indents come off the first
         # line or, when hanging, off the others.
         line = slot.line_width if slot.line_width is not None else slot.available_width + slot.inline_object_width
+        line -= style.margin_left + style.margin_right
         # Each line keeps Hancom's minimum width after its indent; the inline
         # objects then take their width off the first line.
         first = max(line - max(style.indent, 0), slot.min_line_width) - slot.inline_object_width
@@ -984,6 +1059,9 @@ def text_style_from_refs(
         break_non_latin_word=getattr(breaks, "break_non_latin_word", None) or "BREAK_WORD",
         condense=int(_style_number(getattr(prop, "condense", 0), 0.0)),
         indent=int(_style_number(getattr(margin, "intent", 0), 0.0)),
+        margin_left=int(_style_number(getattr(margin, "left", 0), 0.0)),
+        margin_right=int(_style_number(getattr(margin, "right", 0), 0.0)),
+        space_before=int(_style_number(getattr(margin, "prev", 0), 0.0)),
         glyph_face=glyph_face,
         hangul_face=hangul_face,
     )

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from .binary_item import BinaryItem, PictureRef
 from .checkbox import CheckBox
-from .form_field import CellField, FieldLocation, FieldParameter, FormField
+from .form_field import CellField, FieldLocation, FieldParameter, FormField, TextBoxField
 from .highlight import Highlight
 from .results import (
     BorderFillInfo,
@@ -47,6 +47,7 @@ __all__ = [
     "BorderFillInfo",
     "BorderLine",
     "CellField",
+    "TextBoxField",
     "CellMargins",
     "CheckBox",
     "ClearBodyReport",

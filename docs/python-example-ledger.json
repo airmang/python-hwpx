@@ -14,13 +14,13 @@
     "docs/golden-api.md"
   ],
   "fenceCount": 115,
-  "sourceSha256": "02406542d050938ace10148981857ec04f95f8b854cbb5accf86ad9a8be59eb9",
+  "sourceSha256": "b924d97f4a04691b26d3098514b1e2db25faac02715aa9646fedc91ca5182444",
   "manualSha256": {
-    "README.md": "abfa8df0c136b0c18d303e0b6547220fa4815643dec38497d8d3d54b176c566b",
-    "README_EN.md": "72456b479d060299afe0431e68dfcb0c512d9e3ce2b77da20d5189b77afc0632",
+    "README.md": "abce12159ada8d3d6006ff4fa695e78286db3ceb1bf382ff40974098f8e12dcc",
+    "README_EN.md": "efa11468f453229a5293105413e6e398f4e41f6c8b4f17af57b60ceb4090e627",
     "docs/quickstart.md": "44d8ca82ee70c0e3dfdf087713a4e4ce935e64cd3f6a546311f95b054a285a18",
     "docs/recipes-traversal.md": "b63f42b1a6ed23812688599474dcf83300509b86a94b5daceae679bfdbde9343",
-    "docs/mutation-semantics.md": "225649d4bdb1f5a1863fc842d3bce348eaa85055cea9ad35295f83b042864aee",
+    "docs/mutation-semantics.md": "10f250a30c7dd7214228c0e395113efa0433cd8a9cb74476d307a83320a04183",
     "docs/usage.md": "df93e611c465f9da290af12612e4c5b524a88406307d953ed08fa354763f8dc5",
     "docs/examples.md": "662dc489a364e6319c57d2221fa4d4b1484e79b27a17235b0f99953ab5501a30",
     "docs/faq.md": "cd82e2f1e740cff3f50e620c060ed8ae0aa130271fa373eca3a07a70fb9ca604",

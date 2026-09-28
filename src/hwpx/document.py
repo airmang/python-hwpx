@@ -420,8 +420,19 @@ class HwpxDocument(_LegacyFacade):
         ``HwpxLookupError`` 가 그 자리에서 난다. 5.x 는 이름을 serialize 시점에만
         해석했고 오타는 저장까지 조용히 통과했다 — 한컴에서 스타일이 안 먹은
         문서가 나오는 경로였다. 숫자 id 를 쓰던 ``style_id_ref`` 는 그대로 동작한다.
+
+        ``style`` 을 주면 문단은 그 스타일의 문단 모양과 글자 모양을 쓴다. 한/글이
+        스타일을 적용할 때와 같다. 문단 모양·글자 모양 id 를 함께 주면
+        (``para_pr_id_ref``·``char_pr_id_ref``, ``run_attributes`` 의 ``charPrIDRef``)
+        그 값이 먼저다. ``style_id_ref`` 로 준 숫자 id 는 전처럼 스타일 이름만 붙인다.
         """
         style_id_ref = self._resolve_style_ref(style, style_id_ref, caller="add_paragraph")
+        if style is not None:
+            para_pr_id_ref, char_pr_id_ref = self._style_shapes(
+                style,
+                para_pr_id_ref if para_pr_id_ref is not None else extra_attrs.get("paraPrIDRef"),
+                char_pr_id_ref if char_pr_id_ref is not None else (run_attributes or {}).get("charPrIDRef"),
+            )
         section = _resolve.resolve_section(
             self, section, section_index, caller="add_paragraph"
         )
@@ -437,6 +448,22 @@ class HwpxDocument(_LegacyFacade):
             inherit_style=inherit_style,
             **cast(Any, extra_attrs),
         )
+
+    def _style_shapes(
+        self,
+        style: int | str | Style,
+        para_pr_id_ref: str | int | None,
+        char_pr_id_ref: str | int | None,
+    ) -> tuple[str | int | None, str | int | None]:
+        """The paragraph and character shapes Hancom applies with *style*, where
+        the caller gave none."""
+
+        resolved = self.styles.resolve(style)
+        if para_pr_id_ref is None:
+            para_pr_id_ref = resolved.para_pr_id_ref
+        if char_pr_id_ref is None:
+            char_pr_id_ref = resolved.char_pr_id_ref
+        return para_pr_id_ref, char_pr_id_ref
 
     def _resolve_style_ref(
         self,

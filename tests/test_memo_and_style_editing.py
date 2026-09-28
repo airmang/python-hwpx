@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 import re
 from typing import cast
 import xml.etree.ElementTree as ET
@@ -248,6 +249,70 @@ def test_memo_fields_get_distinct_positive_zorder() -> None:
 
     zorders = [node.get("zorder") for node in _memo_field_begins(section)]
     assert sorted(zorders, key=int) == ["1", "2"]
+
+
+HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved"
+
+
+def _memo_number(field_begin: ET.Element) -> str | None:
+    param = field_begin.find(f"{HP}parameters/{HP}integerParam[@name='Number']")
+    return None if param is None else param.text
+
+
+def _two_anchored_memos(**kwargs: object) -> HwpxDocument:
+    document = HwpxDocument.new()
+    for index in (1, 2):
+        document.add_paragraph(f"메모가 붙는 문단 {index}")
+        document.notes.add_memo(f"메모 {index}", anchor=document.paragraphs[-1], **kwargs)
+    return document
+
+
+def test_memo_fields_are_numbered_one_by_one() -> None:
+    document = _two_anchored_memos()
+
+    begins = _memo_field_begins(document.sections[0])
+
+    assert [_memo_number(node) for node in begins] == ["1", "2"]
+    assert [node.get("zorder") for node in begins] == ["1", "2"]
+
+
+def test_a_memo_number_given_is_kept() -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("문단")
+
+    document.notes.add_memo("메모", anchor=document.paragraphs[-1], number=5)
+
+    assert [_memo_number(node) for node in _memo_field_begins(document.sections[0])] == ["5"]
+
+
+def test_a_memo_field_is_written_as_hancom_writes_it() -> None:
+    hancom = HwpxDocument.open((HANCOM_SAVED / "memos_numbered.hwpx").read_bytes())
+    saved = _memo_field_begins(hancom.sections[0])[0]
+    written = _memo_field_begins(_two_anchored_memos().sections[0])[0]
+
+    for name in ("type", "name", "editable", "dirty", "fieldid"):
+        assert written.get(name) == saved.get(name), name
+    assert written.get("id", "").isdigit()
+    assert written.find(f"{HP}subList").attrib == saved.find(f"{HP}subList").attrib
+    assert written.find(f"{HP}subList/{HP}p").get("id") == saved.find(f"{HP}subList/{HP}p").get("id")
+
+
+def _closed_memos(document: HwpxDocument) -> list[bool]:
+    section = document.sections[0].element
+    ends = {node.get("beginIDRef") for node in section.iter(f"{HP}fieldEnd")}
+    return [node.get("id") in ends for node in _memo_field_begins(document.sections[0])]
+
+
+def test_hancom_keeps_the_end_of_every_memo_only_when_their_numbers_differ() -> None:
+    """Hancom saved two documents of two memos each, made by this code: numbered 1 and 2, and both
+    given number 1. It kept both range ends of the first and dropped the second memo's of the other."""
+
+    numbered = HwpxDocument.open((HANCOM_SAVED / "memos_numbered.hwpx").read_bytes())
+    same = HwpxDocument.open((HANCOM_SAVED / "memos_same_number.hwpx").read_bytes())
+
+    assert _closed_memos(numbered) == [True, True]
+    assert [_memo_number(node) for node in _memo_field_begins(numbered.sections[0])] == ["1", "2"]
+    assert _closed_memos(same) == [True, False]
 
 
 @pytest.mark.parametrize(

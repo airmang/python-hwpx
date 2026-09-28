@@ -30,6 +30,7 @@ from ._document_primitives import (
     FILL_IMAGE_MODES,
 )
 from ._paragraph_text_edit import clear_text_element, sanitize_keeping_tabs, set_text_with_tabs
+from ._paragraph_text_edit import new_own_text_node, own_text_nodes
 from . import table_sizes as _table_sizes
 
 from .body import Label, parse_label_element
@@ -370,15 +371,17 @@ class HwpxOxmlTableCell:
             _append_text_with_tabs(run, line)
 
     def _wrap_new_content(self, value: str, previous_text: str) -> None:
-        """Let new content wrap in a SQUEEZE cell.
+        """Let a value that would squeeze too far wrap in a SQUEEZE cell.
 
-        SQUEEZE can compress a longer filled value until Hancom renders
-        adjacent glyphs on top of each other.  New content should wrap/reflow;
-        untouched template cells keep their mode.
+        Hancom keeps a SQUEEZE cell's text on one line and narrows only the
+        spacing between its characters: a line up to 1.1 times the cell's line
+        width still reads, a longer one makes the characters touch and overlap.
+        Such a value switches the cell to BREAK; a shorter one keeps SQUEEZE,
+        as Hancom's own fill does.  Untouched template cells keep their mode.
         """
         if value and value != previous_text:
             sublist = self._ensure_sublist()
-            if (sublist.get("lineWrap") or "").upper() == "SQUEEZE":
+            if (sublist.get("lineWrap") or "").upper() == "SQUEEZE" and not _table_sizes.squeezes_readably(self, value):
                 sublist.set("lineWrap", "BREAK")
 
     def set_text(
@@ -400,14 +403,14 @@ class HwpxOxmlTableCell:
             self.table.mark_dirty()
             return
 
-        text_element = self._ensure_text_element()
+        # Only the cell's own paragraphs take the text: a table or object inside
+        # the cell keeps its text.
+        own = own_text_nodes(self._ensure_sublist())
+        text_element = own[0] if own else new_own_text_node(self._ensure_sublist(), self._first_run_char_pr_id_ref())
         set_text_with_tabs(text_element, sanitized_value)
-        emptied: list[ET.Element] = []
-        for node in self.element.findall(f".//{_HP}t"):
-            if node is not text_element:
-                if node.text or len(node):
-                    emptied.append(node)
-                clear_text_element(node)
+        emptied = [node for node in own[1:] if node.text or len(node)]
+        for node in own[1:]:
+            clear_text_element(node)
         self._drop_emptied_paragraphs(text_element, emptied)
         if not preserve_format:
             current: Any | None = text_element
@@ -1173,9 +1176,10 @@ class HwpxOxmlTable:
         Without *fit* this is the historical raw set (returns ``None``). With a
         :class:`~hwpx.form_fit.policy.FitPolicy` the value is measured against the
         cell box and wrapped/shrunk/failed accordingly; the returned
-        :class:`~hwpx.form_fit.report.FitResult` carries the verdict (and an
-        ``overflow=fail`` miss makes ``ok`` ``False``). ``split_paragraphs`` is
-        ignored in fit mode — line breaks are decided by measurement.
+        :class:`~hwpx.form_fit.report.FitResult` carries the verdict. An
+        ``overflow=fail`` miss makes ``ok`` ``False`` and leaves the cell as it
+        was. ``split_paragraphs`` is ignored in fit mode — line breaks are
+        decided by measurement.
         """
 
         if logical:

@@ -15,6 +15,7 @@ SPANNING = HANCOM_SAVED / "form_fields_spanning_before.hwpx"
 SPANNING_FILLED = HANCOM_SAVED / "form_fields_spanning_after.hwpx"
 SPANNING_VALUES = {"본문": "새 값 1", "칸": "새 값 2", "붙음": "새 값 3", "한줄": "새 값 4"}
 NO_END = HANCOM_SAVED / "form_field_no_end_before.hwpx"
+NESTED = HANCOM_SAVED / "nested_field_saved.hwpx"
 NO_END_FILLED = HANCOM_SAVED / "form_field_no_end_after.hwpx"
 
 
@@ -157,6 +158,33 @@ def test_fields_running_over_paragraphs_fill_as_hancom_does() -> None:
     assert _paragraph_marks(doc) == _paragraph_marks(hancom)
     assert [field.value for field in doc.fields.all] == list(SPANNING_VALUES.values())
     assert next(p for p in doc.paragraphs if "앞 글" in p.text).element.get("paraPrIDRef") == shape
+
+
+def test_filling_a_field_drops_the_fields_inside_it_as_hancom_does() -> None:
+    """Hancom saved a paragraph holding the field 바깥 ("바깥 앞 ", the field 안쪽, " 바깥 뒤") and filled 바깥:
+    the value took the whole content, and 안쪽 went with it."""
+    doc = HwpxDocument.open(NESTED.read_bytes())
+    hancom = HwpxDocument.open((HANCOM_SAVED / "nested_field_outer.hwpx").read_bytes())
+    assert "바깥 앞 [B]안쪽 값[E] 바깥 뒤" in "".join(_paragraph_marks(doc))
+
+    doc.fields.fill("새 바깥 값", name="바깥")
+
+    assert _paragraph_marks(doc) == _paragraph_marks(hancom)
+    assert [field.name for field in doc.fields.all] == [field.name for field in hancom.fields.all] == ["바깥", "따로"]
+
+
+def test_filling_the_field_inside_keeps_the_field_around_it() -> None:
+    doc = HwpxDocument.open(NESTED.read_bytes())
+    hancom = HwpxDocument.open((HANCOM_SAVED / "nested_field_inner.hwpx").read_bytes())
+
+    doc.fields.fill("새 안쪽 값", name="안쪽")
+
+    assert _paragraph_marks(doc) == _paragraph_marks(hancom)
+    assert [(field.name, field.value) for field in doc.fields.all] == [
+        ("바깥", "바깥 앞 새 안쪽 값 바깥 뒤"),
+        ("안쪽", "새 안쪽 값"),
+        ("따로", "따로 값"),
+    ]
 
 
 def test_fill_refuses_a_field_without_an_end() -> None:

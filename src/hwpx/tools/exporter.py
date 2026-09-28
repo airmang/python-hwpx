@@ -17,6 +17,7 @@ from zipfile import ZipFile
 
 from ..opc.security import guard_zip_file, parse_xml_stdlib, read_member
 from ..oxml._document_primitives import _text_element_content
+from ..oxml.paragraph_heading import paragraph_heading
 #: A caller-supplied redaction step. Declared here rather than imported from
 #: mail_merge, which imports export_text — the two would form a cycle.
 TextSanitizer = Callable[[str], str]
@@ -148,7 +149,7 @@ class _ListLabels:
         for bullet in header.iter(f"{_HH}bullet"):
             self._bullets[bullet.get("id") or ""] = bullet.get("char") or ""
         for para_pr in header.iter(f"{_HH}paraPr"):
-            heading = para_pr.find(f"{_HH}heading")
+            heading = paragraph_heading(para_pr)
             kind = heading.get("type", "NONE") if heading is not None else "NONE"
             if heading is not None and kind != "NONE":
                 self._headings[para_pr.get("id") or ""] = (kind, heading.get("idRef") or "", _int_attribute(heading, "level") or 0)
@@ -216,6 +217,92 @@ class _ListLabels:
         self.outline = sec_pr.get("outlineShapeIDRef") if sec_pr is not None else None
 
 
+#: Foot and end notes: the section property that numbers them and their auto number type.
+_NOTE_KINDS = {f"{_HP}footNote": ("footNotePr", "FOOTNOTE"), f"{_HP}endNote": ("endNotePr", "ENDNOTE")}
+
+
+def _note_label(value: int, number_format: ET.Element | None) -> str:
+    """Note number *value* in a section's ``autoNumFormat`` (Hancom's ``1)`` when there is none)."""
+    if number_format is None:
+        return f"{value})"
+    kind = number_format.get("type", "DIGIT")
+    if kind == "USER_CHAR":
+        text = (number_format.get("userChar") or "") * max(value, 0)
+    else:
+        text = _number_text(value, kind) if kind in _NUMBER_FORMATS else str(value)
+    return f"{number_format.get('prefixChar', '')}{text}{number_format.get('suffixChar', '')}"
+
+
+class _NoteLabels:
+    """Hancom's numbers of foot and end notes, counted in document order, and their text.
+
+    Each kind counts on its own, from 1. A section numbered ``ON_SECTION`` starts again
+    at its ``newNum``; any other section runs on from the one before (``ON_PAGE`` too:
+    pages are not laid out here). An ``hp:newNum`` control of the kind sets the next
+    number. The label is the number in the section's ``autoNumFormat`` between its
+    prefix and suffix characters (``USER_CHAR`` repeats its character number times),
+    for the note's reference and its own number alike.
+    """
+
+    def __init__(self, sections: list[ET.Element]) -> None:
+        self._labels: dict[ET.Element, str] = {}
+        counters = {"FOOTNOTE": 1, "ENDNOTE": 1}
+        for section in sections:
+            formats = self._start_section(section, counters)
+            for element in section.iter():
+                if element.tag == f"{_HP}newNum" and element.get("numType") in counters:
+                    counters[element.get("numType") or ""] = _int_attribute(element, "num") or 1
+                elif element.tag in _NOTE_KINDS:
+                    kind = _NOTE_KINDS[element.tag][1]
+                    self._labels[element] = _note_label(counters[kind], formats[kind])
+                    counters[kind] += 1
+
+    @staticmethod
+    def _start_section(section: ET.Element, counters: dict[str, int]) -> dict[str, ET.Element | None]:
+        sec_pr = next(section.iter(f"{_HP}secPr"), None)
+        formats: dict[str, ET.Element | None] = {}
+        for tag, kind in _NOTE_KINDS.values():
+            properties = sec_pr.find(f"{_HP}{tag}") if sec_pr is not None else None
+            numbering = properties.find(f"{_HP}numbering") if properties is not None else None
+            if numbering is not None and numbering.get("type") == "ON_SECTION":
+                counters[kind] = _int_attribute(numbering, "newNum") or 1
+            formats[kind] = properties.find(f"{_HP}autoNumFormat") if properties is not None else None
+        return formats
+
+    def text(self, child: ET.Element, tab_token: str) -> str | None:
+        """The notes run child *child* holds, as Hancom's text save writes them where they
+        sit: the label, then each paragraph of the note (its own number as the label)
+        followed by a line break. ``None`` when *child* holds no note."""
+        if child.tag in _NOTE_KINDS:
+            notes = [child]
+        elif child.tag == f"{_HP}ctrl":
+            notes = [note for note in child if note.tag in _NOTE_KINDS]
+        else:
+            notes = []
+        if not notes:
+            return None
+        parts: list[str] = []
+        for note in notes:
+            label = self._labels.get(note, "")
+            parts.append(label)
+            for paragraph in note.findall(f"{_HP}subList/{_HP}p"):
+                parts.append(_note_paragraph_text(paragraph, label, tab_token) + "\n")
+        return "".join(parts)
+
+
+def _note_paragraph_text(p: ET.Element, label: str, tab_token: str) -> str:
+    """The text of a note's paragraph, its auto number written as *label*."""
+    parts: list[str] = []
+    for run in p.findall(f"{_HP}run"):
+        for child in run:
+            auto_num = child.find(f"{_HP}autoNum") if child.tag == f"{_HP}ctrl" else None
+            if auto_num is not None and auto_num.get("numType") in ("FOOTNOTE", "ENDNOTE"):
+                parts.append(label)
+            else:
+                parts.append(_run_child_text(child, tab_token) or "")
+    return "".join(parts)
+
+
 def _labelled(text: str, label: str) -> str:
     if not label:
         return text
@@ -270,12 +357,19 @@ def _auto_number_text(auto_num: ET.Element) -> str:
     return f"{number_format.get('prefixChar', '')}{text}{number_format.get('suffixChar', '')}"
 
 
-def _paragraph_pieces(p: ET.Element, *, tab_token: str = "\t") -> "list[str | ET.Element]":
-    """The text of paragraph *p* and the tables, text boxes and captions placed in it, in order."""
+def _paragraph_pieces(
+    p: ET.Element, *, tab_token: str = "\t", notes: "_NoteLabels | None" = None
+) -> "list[str | ET.Element]":
+    """The text of paragraph *p* and the tables, text boxes and captions placed in it, in order.
+
+    With *notes*, the foot and end notes in it too, as text where they sit.
+    """
     pieces: list[str | ET.Element] = []
     for run in p.findall(f"{_HP}run"):
         for child in run:
             text = _run_child_text(child, tab_token)
+            if text is None and notes is not None:
+                text = notes.text(child, tab_token)
             if text is None:
                 pieces.extend(_blocks_in(child))
             elif text:
@@ -291,6 +385,7 @@ def _emit_paragraph(
     masking_policy: "TextSanitizer | None",
     write_text: Callable[[str], None],
     write_block: Callable[[ET.Element], None],
+    notes: "_NoteLabels | None" = None,
 ) -> None:
     """Write paragraph *p*, its text split where a table, text box or caption sits.
 
@@ -299,7 +394,7 @@ def _emit_paragraph(
     """
     label = labels.label(p) if labels is not None else ""
     buffer: list[str] = []
-    for piece in [*_paragraph_pieces(p, tab_token=tab_token), None]:
+    for piece in [*_paragraph_pieces(p, tab_token=tab_token, notes=notes), None]:
         if isinstance(piece, str):
             buffer.append(piece)
             continue
@@ -340,13 +435,14 @@ def _table_cells_text(
     tab_token: str = "\t",
     masking_policy: "TextSanitizer | None" = None,
     labels: _ListLabels | None = None,
+    notes: "_NoteLabels | None" = None,
 ) -> list[list[str]]:
     """Return a row-major 2D list of cell texts from a table element."""
     rows: list[list[str]] = []
     for tr in tbl.findall(f"{_HP}tr"):
         row: list[str] = []
         for tc in tr.findall(f"{_HP}tc"):
-            row.append(_cell_text(tc, tab_token=tab_token, masking_policy=masking_policy, labels=labels))
+            row.append(_cell_text(tc, tab_token=tab_token, masking_policy=masking_policy, labels=labels, notes=notes))
         rows.append(row)
     return rows
 
@@ -357,6 +453,7 @@ def _cell_text(
     tab_token: str = "\t",
     masking_policy: "TextSanitizer | None" = None,
     labels: _ListLabels | None = None,
+    notes: "_NoteLabels | None" = None,
 ) -> str:
     """The text of cell *tc*, a line per paragraph.
 
@@ -365,28 +462,33 @@ def _cell_text(
     """
     lines: list[str] = []
     for paragraph in tc.findall(f"{_HP}subList/{_HP}p"):
-        _emit_nested_paragraph(paragraph, lines, tab_token=tab_token, labels=labels)
+        _emit_nested_paragraph(paragraph, lines, tab_token=tab_token, labels=labels, notes=notes)
     # blank lines at the cell's ends go; the spaces the text itself holds stay, as Hancom keeps them
     return _mask_text("\n".join(lines).strip("\n"), masking_policy)
 
 
 def _emit_nested_paragraph(
-    p: ET.Element, lines: list[str], *, tab_token: str, labels: _ListLabels | None
+    p: ET.Element,
+    lines: list[str],
+    *,
+    tab_token: str,
+    labels: _ListLabels | None,
+    notes: "_NoteLabels | None" = None,
 ) -> None:
     """Add paragraph *p* of a cell, text box or caption to *lines*, its objects where they sit."""
 
     def write_block(block: ET.Element) -> None:
         if block.tag in _PARAGRAPH_BLOCKS:
             for inner in _text_box_paragraphs(block):
-                _emit_nested_paragraph(inner, lines, tab_token=tab_token, labels=labels)
+                _emit_nested_paragraph(inner, lines, tab_token=tab_token, labels=labels, notes=notes)
             return
         for tc in block.findall(f"{_HP}tr/{_HP}tc"):
-            text = _cell_text(tc, tab_token=tab_token, labels=labels)
+            text = _cell_text(tc, tab_token=tab_token, labels=labels, notes=notes)
             if text:
                 lines.append(text)
 
     _emit_paragraph(p, tab_token=tab_token, labels=labels, masking_policy=None,
-                    write_text=lines.append, write_block=write_block)
+                    write_text=lines.append, write_block=write_block, notes=notes)
 
 
 def _int_attribute(element: ET.Element | None, name: str) -> int | None:
@@ -404,6 +506,7 @@ def _table_grid_text(
     tab_token: str = "\t",
     masking_policy: "TextSanitizer | None" = None,
     labels: _ListLabels | None = None,
+    notes: "_NoteLabels | None" = None,
 ) -> list[list[str]]:
     """Cell texts laid on the table's column grid.
 
@@ -423,7 +526,9 @@ def _table_grid_text(
                 row_addr, col_addr = row_index, column
             while (row_addr, col_addr) in placed:
                 col_addr += 1
-            placed[(row_addr, col_addr)] = _cell_text(tc, tab_token=tab_token, masking_policy=masking_policy, labels=labels)
+            placed[(row_addr, col_addr)] = _cell_text(
+                tc, tab_token=tab_token, masking_policy=masking_policy, labels=labels, notes=notes
+            )
             span = _int_attribute(tc.find(f"{_HP}cellSpan"), "colSpan")
             column = col_addr + max(span or 1, 1)
             width = max(width, column)
@@ -475,6 +580,7 @@ def export_text(
     tab_token: str = "\t",
     masking_policy: "TextSanitizer | None" = None,
     list_labels: bool = False,
+    notes: bool = False,
 ) -> str:
     """Export document content as plain text.
 
@@ -483,9 +589,14 @@ def export_text(
     ``(덧말:<sub text>)``.
     With *list_labels*, numbered, outline and bullet paragraphs start with the label
     Hancom draws for them (``1.``, ``가.``, ``●`` ...) and a space.
+    With *notes*, foot and end notes come where they sit, as in Hancom's text save: the
+    note's number (``1)``), then each paragraph of the note, starting with its number,
+    and a line break. Notes are numbered in document order in their section's number
+    format; notes numbered per page are numbered straight on.
     """
     sections = _section_xmls(source)
     labels = _ListLabels(_header_xml(source)) if list_labels else None
+    note_labels = _NoteLabels(sections) if notes else None
     section_texts: list[str] = []
     for section_root in sections:
         para_texts: list[str] = []
@@ -501,7 +612,9 @@ def export_text(
                 for inner in _text_box_paragraphs(block):
                     emit(inner)
             elif include_tables:
-                rows = _table_cells_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels)
+                rows = _table_cells_text(
+                    block, tab_token=tab_token, masking_policy=masking_policy, labels=labels, notes=note_labels
+                )
                 for row in rows:
                     para_texts.append(tab_token.join(row))
             else:
@@ -511,7 +624,7 @@ def export_text(
 
         def emit(p: ET.Element) -> None:
             _emit_paragraph(p, tab_token=tab_token, labels=labels, masking_policy=masking_policy,
-                            write_text=para_texts.append, write_block=write_block)
+                            write_text=para_texts.append, write_block=write_block, notes=note_labels)
 
         for p in _iter_paragraphs(section_root):
             emit(p)
@@ -532,6 +645,7 @@ def export_html(
     tab_token: str = "\t",
     masking_policy: "TextSanitizer | None" = None,
     list_labels: bool = False,
+    notes: bool = False,
 ) -> str:
     """Export document content as HTML.
 
@@ -539,9 +653,11 @@ def export_html(
     Hancom's text save (a table's caption after the table). A 덧말 is its main text and
     ``(덧말:<sub text>)``.
     With *list_labels*, numbered, outline and bullet paragraphs start with their label.
+    With *notes*, foot and end notes come where they sit, as in :func:`export_text`.
     """
     sections = _section_xmls(source)
     labels = _ListLabels(_header_xml(source)) if list_labels else None
+    note_labels = _NoteLabels(sections) if notes else None
     body_parts: list[str] = []
 
     left_out: set[ET.Element] = set()
@@ -554,7 +670,7 @@ def export_html(
                 emit(inner)
             return
         rows = (
-            _table_cells_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels)
+            _table_cells_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels, notes=note_labels)
             if include_tables
             else []
         )
@@ -574,7 +690,7 @@ def export_html(
     def emit(p: ET.Element) -> None:
         _emit_paragraph(p, tab_token=tab_token, labels=labels, masking_policy=masking_policy,
                         write_text=lambda text: body_parts.append(f"<p>{_escape_html(text)}</p>"),
-                        write_block=write_block)
+                        write_block=write_block, notes=note_labels)
 
     for sec_idx, section_root in enumerate(sections):
         if sec_idx > 0:
@@ -608,6 +724,7 @@ def export_markdown(
     tab_token: str = "\t",
     masking_policy: "TextSanitizer | None" = None,
     list_labels: bool = False,
+    notes: bool = False,
 ) -> str:
     """Export document content as Markdown.
 
@@ -615,9 +732,11 @@ def export_markdown(
     Hancom's text save (a table's caption after the table). A 덧말 is its main text and
     ``(덧말:<sub text>)``.
     With *list_labels*, numbered, outline and bullet paragraphs start with their label.
+    With *notes*, foot and end notes come where they sit, as in :func:`export_text`.
     """
     sections = _section_xmls(source)
     labels = _ListLabels(_header_xml(source)) if list_labels else None
+    note_labels = _NoteLabels(sections) if notes else None
     section_parts: list[str] = []
     for section_root in sections:
         lines: list[str] = []
@@ -638,7 +757,7 @@ def export_markdown(
                     emit(inner)
                 return
             rows = (
-                _table_grid_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels)
+                _table_grid_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels, notes=note_labels)
                 if include_tables
                 else []
             )
@@ -656,7 +775,7 @@ def export_markdown(
 
         def emit(p: ET.Element) -> None:
             _emit_paragraph(p, tab_token=tab_token, labels=labels, masking_policy=masking_policy,
-                            write_text=write_text, write_block=write_block)
+                            write_text=write_text, write_block=write_block, notes=note_labels)
 
         for p in _iter_paragraphs(section_root):
             emit(p)
