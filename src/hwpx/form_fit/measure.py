@@ -380,7 +380,10 @@ class TextStyle:
     breaks between any two syllables; ``break_latin_word`` works as named.
     ``condense`` (최소 공백, %) lets the spaces inside a line shrink by that
     share. ``indent`` is the first-line indent in HWPUNIT; a negative value is
-    a hanging indent taken off every line after the first. ``hangul_face``
+    a hanging indent taken off every line after the first. ``margin_left`` and
+    ``margin_right`` (HWPUNIT) come off every line: Hancom starts a line at the
+    paragraph's left margin. ``space_before`` (HWPUNIT) is room above the first
+    line; the spacing after the paragraph takes no room in a cell. ``hangul_face``
     and ``glyph_face`` name the faces whose design advances Hangul syllables
     and the other glyphs take, laid out as Hancom rounds them (see
     :func:`char_advance`); an empty or unlisted face, or a glyph it does not
@@ -395,6 +398,9 @@ class TextStyle:
     break_non_latin_word: str = "BREAK_WORD"
     condense: int = 0
     indent: int = 0
+    margin_left: int = 0
+    margin_right: int = 0
+    space_before: int = 0
     hangul_advance: float = 1.0
     glyph_face: str = ""
     hangul_face: str = ""
@@ -724,7 +730,13 @@ class SlotMetrics:
         line_h = self.line_height(font_pt)
         if line_h <= 0:
             return None
-        return _lines_in_height(self.available_height, line_h, (self.font_pt if font_pt is None else font_pt) * 100.0)
+        return _lines_in_height(self._lines_room(), line_h, (self.font_pt if font_pt is None else font_pt) * 100.0)
+
+    def _lines_room(self) -> float:
+        """The available height less the paragraph's spacing before its first line."""
+
+        before = self.text_style.space_before if self.text_style is not None else 0
+        return (self.available_height or 0.0) - before
 
     def height_lines_optimistic(self, font_pt: float | None = None) -> int | None:
         """Most-generous vertical budget (tightest plausible pitch).
@@ -739,7 +751,7 @@ class SlotMetrics:
         line_h = min(self.line_height(pt), pt * 100.0 * MIN_LINE_SPACING_RATIO)
         if line_h <= 0:
             return None
-        return _lines_in_height(self.available_height, line_h, pt * 100.0)
+        return _lines_in_height(self._lines_room(), line_h, pt * 100.0)
 
 
 def _line_pitch(kind: str, value: float, size: float) -> float:
@@ -832,6 +844,7 @@ def measure(value: str, slot: SlotMetrics) -> Measurement:
         # Inline objects share the first line only; indents come off the first
         # line or, when hanging, off the others.
         line = slot.line_width if slot.line_width is not None else slot.available_width + slot.inline_object_width
+        line -= style.margin_left + style.margin_right
         # Each line keeps Hancom's minimum width after its indent; the inline
         # objects then take their width off the first line.
         first = max(line - max(style.indent, 0), slot.min_line_width) - slot.inline_object_width
@@ -1037,6 +1050,9 @@ def text_style_from_refs(
         break_non_latin_word=getattr(breaks, "break_non_latin_word", None) or "BREAK_WORD",
         condense=int(_style_number(getattr(prop, "condense", 0), 0.0)),
         indent=int(_style_number(getattr(margin, "intent", 0), 0.0)),
+        margin_left=int(_style_number(getattr(margin, "left", 0), 0.0)),
+        margin_right=int(_style_number(getattr(margin, "right", 0), 0.0)),
+        space_before=int(_style_number(getattr(margin, "prev", 0), 0.0)),
         glyph_face=glyph_face,
         hangul_face=hangul_face,
     )
