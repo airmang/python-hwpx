@@ -16,11 +16,13 @@ unwrapped (non-switch) tabItem never do (0/483). A real unwrapped document
 scale: its direct tabItem positions (8064, 3216) match hp:default's values
 exactly, not hp:case's halved ones.
 
-So unlike DEV-018 (prefer case, either branch works), the correct choice
-here is prefer default: TabDefinition.tab_stops must return the value that
-matches how real, unwrapped hh:tabPr already means "pos", not the
-alternate-scale hp:case value. Getting this backwards would silently
-produce tab stops at half their intended distance.
+Hancom 13.60 settles it the other way: it lays a stop out at hp:case's
+position (HWPUNIT), reads an unwrapped hh:tabItem in HWPUNIT too, and saves
+such an item as a switch of that position in hp:case and twice it in
+hp:default (tab_bare_right_saved.hwpx). The unwrapped control document's
+values are the doubled scale an older Hancom wrote. So TabDefinition.tab_stops
+reads hp:case, as DEV-018 does. Hancom wraps each stop in its own hp:switch;
+the read model gathers the stops of every switch.
 
 This is worse than DEV-018 pre-fix in one respect: margin/lineSpacing
 became None when unread (an absent value, not a wrong one). Here the
@@ -46,9 +48,13 @@ CORPUS = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
 #: 실코퍼스 실측(DEV-022): id=1~4 4개 tabPr 전량이 hp:switch로 감싸이고,
 #: hp:case pos가 hp:default의 정확히 절반이다.
 SWITCH_WRAPPED_SAMPLE = CORPUS / "error__20230413__test.hwpx"
-#: 대조군: 직속 hh:tabItem(hp:switch 없음)을 가진 실 문서 -- hp:default
-#: 스케일이 "진짜" 스케일이라는 판정의 근거.
+#: 대조군: 직속 hh:tabItem(hp:switch 없음)을 가진 실 문서. 값은 옛 한/글이 쓴
+#: 두 배 스케일이다.
 DIRECT_CHILD_SAMPLE = CORPUS / "error__20240626__no_manifest.hwpx"
+#: python-hwpx가 맨 hh:tabItem pos=42520(150mm, 오른쪽 점선 탭)으로 쓴 문서를
+#: 한/글이 저장한 것 -- hp:case 42520(HWPUNIT)과 hp:default 85040으로 나눠 썼다.
+BARE_RIGHT_TAB_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved" / "tab_bare_right_saved.hwpx"
+HP_NS = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH_NS = "{http://www.hancom.co.kr/hwpml/2011/head}"
 
 
@@ -84,28 +90,64 @@ def test_switch_wrapped_tab_stops_are_empty_before_the_fix_reproduces_on_real_so
     )
 
 
-def test_tab_definition_tab_stops_use_the_default_branch_scale() -> None:
+def test_tab_definition_tab_stops_are_the_case_positions_of_every_switch() -> None:
     root = _header_root(SWITCH_WRAPPED_SAMPLE)
-    tab_prs = _tab_pr_elements(root)
+    tab_prs = [tp for tp in _tab_pr_elements(root) if tp.find(f"{HP_NS}switch") is not None]
+    assert len(tab_prs) == 4
 
-    definitions = [parse_tab_definition(node) for node in tab_prs]
-    with_switch = [d for d in definitions if d.version_switch is not None]
-    assert len(with_switch) == 4
-
-    for definition in with_switch:
+    for node in tab_prs:
+        definition = parse_tab_definition(node)
         switch = definition.version_switch
         assert switch is not None
         assert switch.case is not None and switch.default is not None
         case_pos = [s.pos for s in switch.case.tab_stops]
         default_pos = [s.pos for s in switch.default.tab_stops]
-        assert definition.tab_stops, "expected tab_stops to be populated, not empty"
-        assert [s.pos for s in definition.tab_stops] == default_pos, (
-            "tab_stops must match hp:default's scale, not hp:case's"
-        )
-        # DEV-022's core numeric claim: case is always exactly half of default.
-        assert case_pos and default_pos
-        for cp, dp in zip(case_pos, default_pos):
-            assert dp == cp * 2, (cp, dp)
+        # Hancom wraps each stop in its own switch: one stop per switch.
+        assert len(definition.tab_stops) == len(node.findall(f"{HP_NS}switch")) > 1
+        assert [s.pos for s in definition.tab_stops] == case_pos
+        assert all(s.attributes.get("unit") == "HWPUNIT" for s in definition.tab_stops)
+        # DEV-022's numeric claim: hp:default is always twice hp:case.
+        assert default_pos == [pos * 2 for pos in case_pos]
+
+
+def test_hancom_reads_a_bare_tab_item_in_hwpunit() -> None:
+    # python-hwpx wrote one bare tabItem pos=42520 (a 150 mm right tab with a dotted leader); Hancom laid it
+    # out at 150 mm and saved it as hp:case 42520 unit=HWPUNIT and hp:default 85040.
+    root = _header_root(BARE_RIGHT_TAB_SAVED)
+    node = next(tp for tp in _tab_pr_elements(root) if tp.find(f"{HP_NS}switch") is not None)
+
+    definition = parse_tab_definition(node)
+
+    assert [(s.pos, s.type, s.leader) for s in definition.tab_stops] == [(42520, "RIGHT", "DOT")]
+    assert definition.version_switch is not None and definition.version_switch.default is not None
+    assert [s.pos for s in definition.version_switch.default.tab_stops] == [85040]
+
+
+def test_a_tab_definition_is_written_as_hancom_writes_it() -> None:
+    import xml.etree.ElementTree as ET
+
+    from hwpx.document import HwpxDocument
+
+    def shape(node) -> list:
+        return [(child.tag.rsplit("}", 1)[-1], sorted((k.rsplit("}", 1)[-1], v) for k, v in child.attrib.items()))
+                for child in node.iter() if child is not node]
+
+    hancom = next(tp for tp in _tab_pr_elements(_header_root(BARE_RIGHT_TAB_SAVED))
+                  if tp.find(f"{HP_NS}switch") is not None)
+    doc = HwpxDocument.new()
+    header = doc.oxml.headers[0]
+    tab_id = header.ensure_tab_definition(tab_stops=[{"pos": 42520, "type": "RIGHT", "leader": "DOT"}])
+    ours = next(tp for tp in header.element.iter(f"{HH_NS}tabPr") if tp.get("id") == tab_id)
+
+    assert shape(etree.fromstring(ET.tostring(ours))) == shape(hancom)
+
+    saved = HwpxDocument.open(BARE_RIGHT_TAB_SAVED.read_bytes())
+    saved_header = saved.oxml.headers[0]
+    count = len(list(saved_header.element.iter(f"{HH_NS}tabPr")))
+    assert saved_header.ensure_tab_definition(
+        tab_stops=[{"pos": 42520, "type": "RIGHT", "leader": "DOT"}]
+    ) == hancom.get("id")
+    assert len(list(saved_header.element.iter(f"{HH_NS}tabPr"))) == count
 
 
 def test_version_switch_exposes_required_namespace_and_unit_attribute() -> None:
@@ -130,10 +172,9 @@ def test_version_switch_exposes_required_namespace_and_unit_attribute() -> None:
 
 
 def test_direct_children_still_take_priority_over_switch_fallback() -> None:
-    """대조군: hp:switch가 없는 실 문서는 직접 자식 값이 이미 정확했다
-    (이 트레인 전에도 tab_stops가 비지 않았다) -- 폴백 도입이 이 경로를
-    바꾸지 않았는지 확인. 이 직속 값(8064·3216)이 §hp:default 스케일과
-    일치한다는 사실 자체가 "default가 진짜 스케일" 판정의 근거였다."""
+    """대조군: hp:switch가 없는 실 문서는 직속 값을 그대로 읽는다(한/글도 맨
+    hh:tabItem을 HWPUNIT으로 읽는다). 이 문서의 값(8064·3216)은 옛 한/글이 쓴
+    두 배 스케일이다."""
 
     root = _header_root(DIRECT_CHILD_SAMPLE)
     tab_prs = _tab_pr_elements(root)

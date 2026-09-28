@@ -45,6 +45,12 @@
   더한다.
 ### 바꿈
 
+- 탭 정의를 한/글처럼 읽고 쓴다. 한/글이 저장한 `hh:tabPr`은 탭마다 `hp:switch`로 감싸 `hp:case`에 HWPUNIT 위치
+  (`unit="HWPUNIT"`)를, `hp:default`에 그 두 배를 쓴다. `doc.styles.tab_properties`·`tab_property()`의 `tab_stops`가
+  이제 모든 스위치의 `hp:case` 위치를 읽는다. 전에는 첫 스위치의 `hp:default`만 읽어서, 탭이 여럿인 정의를 탭
+  하나로, 위치는 두 배로 보고했다. 스위치 없는 `hh:tabItem`은 전처럼 그 값 그대로다(한/글도 HWPUNIT으로 읽는다).
+  `ensure_tab_definition()`(`apply_paragraph_format(tab_stops=…)`, 차례 만들기)도 탭마다 같은 스위치로 쓰고, 같은
+  정의를 찾을 때 `hp:case` 위치로 비교한다.
 - FormFit이 저장 높이가 한 줄보다 낮은 칸(글에 따라 늘어나는 칸)에도 높이 예산을 쓴다. 한/글은 이런
   행을 그 행에서 가장 높은 칸만큼 그린다. 그 높이에서 이 칸의 위아래 여백을 뺀 것이 예산이다. 칸의
   높이는 한/글이 배치한 줄(줄 캐시)의 끝에 여백을 더한 것이고, 줄 캐시가 없으면 그 칸의 글을 잰 줄
