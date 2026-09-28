@@ -245,3 +245,18 @@ def test_filling_a_field_drops_the_line_breaks_of_its_old_value() -> None:
 
     assert not any(t.findall(f"{HP}lineBreak") for t in _field_text_nodes_of(doc, "주소"))
     assert result.field.value == "부산"
+
+
+def test_a_field_value_line_break_matches_what_hancom_saves() -> None:
+    """Hancom opened a document whose field 주소 held "서울", a raw newline and "종로구", and saved the
+    newline as hp:lineBreak; python-hwpx now writes the same."""
+    hancom = HwpxDocument.open((HANCOM_SAVED / "form_field_line_break.hwpx").read_bytes())
+    [saved] = [t for t in _field_text_nodes_of(hancom, "주소") if (t.text or "").startswith("서울")]
+    assert (saved.text, [(child.tag, child.tail) for child in saved]) == ("서울", [(f"{HP}lineBreak", "종로구")])
+    assert [(field.name, field.value) for field in hancom.fields.all] == [("주소", "서울\n종로구")]
+
+    doc = HwpxDocument.new()
+    doc.fields.add("주소", prompt="주소", paragraph=doc.add_paragraph("주소: "))
+    doc.fields.fill("서울\n종로구", name="주소")
+    [written] = [t for t in _field_text_nodes_of(doc, "주소") if (t.text or "").startswith("서울")]
+    assert (written.text, [(child.tag, child.tail) for child in written]) == ("서울", [(f"{HP}lineBreak", "종로구")])
