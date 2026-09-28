@@ -81,6 +81,18 @@ class MediaNamespace(_Namespace):
 
         return _media.remove_image(self._doc, item_id=item_id, force=force)
 
+    def remove_unused_images(self) -> "tuple[BinaryItem, ...]":
+        """문서가 어디서도 가리키지 않는 이진 항목을 모두 지우고, 지운 항목을 돌려준다.
+
+        한/글은 문서를 저장할 때 쓰지 않는 이진 항목을 지운다. 본문에서 그림을 지우면
+        (``section.clear_body()``, 문단 삭제) 그 그림의 이진 항목은 패키지에 남는다.
+        :meth:`remove_image`가 확인하는 참조(그림, 채우기 그림·그림 글머리표, 바탕쪽,
+        동영상, OLE, 내장 글꼴)가 하나라도 있으면 지우지 않는다."""
+
+        from .. import media as _media
+
+        return _media.remove_unused_images(self._doc)
+
     def picture_references(self) -> "tuple[PictureRef, ...]":
         """본문의 그림 개체가 어떤 이진 항목을 가리키는지의 역참조 표."""
 

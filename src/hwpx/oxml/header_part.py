@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
+from .paragraph_heading import paragraph_heading, set_paragraph_heading
 from ._document_primitives import (
     T,
     _FONT_FACE_LANG_TO_REF,
@@ -430,7 +431,7 @@ class HwpxOxmlHeader:
             raise RuntimeError("failed to create <paraProperties> element")
 
         for para_pr in para_properties.findall(f"{_HH}paraPr"):
-            heading = para_pr.find(f"{_HH}heading")
+            heading = paragraph_heading(para_pr)
             if heading is None:
                 continue
             if (
@@ -445,18 +446,7 @@ class HwpxOxmlHeader:
         base = para_properties.find(f"{_HH}paraPr")
         para_pr = deepcopy(base) if base is not None else para_properties.makeelement(f"{_HH}paraPr", {})
         para_pr.attrib.pop("id", None)
-        for heading in list(para_pr.findall(f"{_HH}heading")):
-            para_pr.remove(heading)
-        heading = para_pr.makeelement(
-            f"{_HH}heading",
-            {"type": heading_type, "idRef": str(id_ref), "level": str(level)},
-        )
-        insert_at = 0
-        for index, child in enumerate(list(para_pr)):
-            if _element_local_name(child) == "align":
-                insert_at = index + 1
-                break
-        para_pr.insert(insert_at, heading)
+        set_paragraph_heading(para_pr, {"type": heading_type, "idRef": str(id_ref), "level": str(level)})
         para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
         para_pr.set("id", para_pr_id)
         para_properties.append(para_pr)
@@ -708,16 +698,11 @@ class HwpxOxmlHeader:
                 align_element.set("vertical", "BASELINE")
 
         if heading is not None:
-            self._remove_descendants_by_local(para_pr, "heading")
-            heading_element = para_pr.makeelement(
-                f"{_HH}heading",
-                {
-                    "type": str(heading.get("type", "NONE")).upper(),
-                    "idRef": str(heading.get("idRef", heading.get("id_ref", "0"))),
-                    "level": str(heading.get("level", "0")),
-                },
-            )
-            self._insert_child_after(para_pr, heading_element, {"align"})
+            set_paragraph_heading(para_pr, {
+                "type": str(heading.get("type", "NONE")).upper(),
+                "idRef": str(heading.get("idRef", heading.get("id_ref", "0"))),
+                "level": str(heading.get("level", "0")),
+            })
 
         clean_margins = {name: value for name, value in dict(margins or {}).items() if value is not None}
         if clean_margins:
