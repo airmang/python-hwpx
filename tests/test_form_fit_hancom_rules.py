@@ -37,6 +37,7 @@ FACE_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_f
 INLINE_OBJECTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_inline_objects.hwpx"
 GLYPH_WIDTHS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_glyph_widths.hwpx"
 NUMERAL_WIDTHS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_numeral_widths.hwpx"
+UNLISTED_SYMBOLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_unlisted_face_symbols.hwpx"
 LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_heights.hwpx"
 ROUNDED_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_rounded_advances.hwpx"
 LINE_PITCHES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_pitches.hwpx"
@@ -367,6 +368,24 @@ def test_roman_numerals_and_circled_numbers_break_where_hancom_breaks_them() -> 
 
 def test_a_numeral_a_face_does_not_list_is_full_width() -> None:
     assert classify_char("⑳") == "wide" and classify_char("Ⅻ") == "wide"
+
+
+def test_a_symbol_in_a_face_the_table_does_not_list_breaks_where_hancom_breaks_it() -> None:
+    # Five ○ in 휴먼명조 10 pt, which the glyph table does not list, in cells 4400 and 5400 wide inside:
+    # Hancom laid them out in two lines and in one.
+    doc = HwpxDocument.open(UNLISTED_SYMBOLS.read_bytes())
+    tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+    lines = []
+    for table in tables:
+        cell = table.cell(0, 0)
+        segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
+        slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
+        assert glyph_advance_em(slot.text_style.hangul_face, "○") is None
+        assert measure(cell.text, slot).lines == len(segs), (cell.width, len(segs))
+        lines.append(len(segs))
+    assert lines == [2, 1]
+    assert {classify_char(ch) for ch in "→○□☆"} == {"wide"}
 
 
 def test_each_line_spacing_type_advances_a_line_as_hancom_does() -> None:

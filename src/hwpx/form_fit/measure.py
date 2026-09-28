@@ -421,6 +421,10 @@ def classify_char(ch: str) -> str:
     # faces (Hancom draws them 0.95 to 1 em, a face without them included).
     if 0x2160 <= code <= 0x217F or 0x2460 <= code <= 0x24FF:
         return "wide"
+    # Arrows, geometric shapes (○ □ △ ◇) and other symbols (☆ ☎ ♥): 0.89 to 1 em
+    # in the Korean faces the glyph table lists, and full width in one it does not.
+    if 0x2190 <= code <= 0x21FF or 0x25A0 <= code <= 0x25FF or 0x2600 <= code <= 0x26FF:
+        return "wide"
     if ch.isdigit():
         return "digit"
     if ch.isalpha():
