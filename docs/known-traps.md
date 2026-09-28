@@ -92,6 +92,9 @@
   쓴다. `set_page_number()`는 그 머리말/꼬리말의 내용을 번호로 바꾼다.
 - **`hide_page_elements()`는 그 쪽만 감춘다.** 한컴의 "현재 쪽만 감추기"와 같아서,
   문단이 있는 쪽에서만 숨고 다음 쪽부터는 다시 보인다.
+- **각주·미주 시작 번호는 구역마다 새로 매길 때만 보인다.** `set_footnote_numbering(new_num=)`·
+  `set_endnote_numbering(new_num=)`의 시작 번호는 번호 방식이 `ON_SECTION`일 때만 한/글에 보인다.
+  `CONTINUOUS`와 `ON_PAGE`에서는 1부터 매기고, 값은 파일에만 남는다.
 - **줄 번호는 `show_line_number=True`일 때만 보인다.** `set_line_numbers()`는 모양
   (재시작·간격·거리·시작 번호)만 정한다. `set_visibility(show_line_number=True)`를
   함께 준다. `restart_type=1`이면 쪽마다 1부터 다시 센다.

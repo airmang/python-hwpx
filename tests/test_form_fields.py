@@ -260,3 +260,45 @@ def test_a_field_value_line_break_matches_what_hancom_saves() -> None:
     doc.fields.fill("서울\n종로구", name="주소")
     [written] = [t for t in _field_text_nodes_of(doc, "주소") if (t.text or "").startswith("서울")]
     assert (written.text, [(child.tag, child.tail) for child in written]) == ("서울", [(f"{HP}lineBreak", "종로구")])
+
+
+def _unnamed_field_document() -> HwpxDocument:
+    doc = HwpxDocument.new()
+    doc.fields.add("이름", prompt="이름", paragraph=doc.add_paragraph(""))
+    doc.fields.add("임시", prompt="날짜", paragraph=doc.add_paragraph(""))
+    unnamed = next(b for b in doc.sections[0].element.iter(f"{HP}fieldBegin") if b.get("name") == "임시")
+    unnamed.set("name", "")  # Hancom keeps an unnamed click-here field with name=""
+    return doc
+
+
+def test_an_unnamed_field_is_left_out_of_the_field_list() -> None:
+    doc = _unnamed_field_document()
+
+    assert [field.name for field in doc.fields.all] == ["이름"]
+
+
+def test_an_unnamed_field_is_not_found_by_name_but_by_index() -> None:
+    doc = _unnamed_field_document()
+    unnamed = next(b for b in doc.sections[0].element.iter(f"{HP}fieldBegin") if b.get("name") == "")
+
+    for name in (unnamed.get("id"), "날짜"):  # neither its id nor its prompt is a name
+        with pytest.raises(HwpxValueError) as raised:
+            doc.fields.fill("2026-09-28", name=name)
+        assert raised.value.code == "field-not-found"
+
+    result = doc.fields.fill("2026-09-28", field_index=1)
+    assert result.field.name == ""
+    assert result.field.value == "2026-09-28"
+
+
+def test_hancom_lists_and_fills_only_the_named_field() -> None:
+    """Hancom saved a document with a field 이름 and a field whose name is empty, before and after it was
+    asked to fill 이름 with 홍길동 and the unnamed field, by its id, with a date: its field list held
+    이름 alone, and only 이름 was filled."""
+    before = HwpxDocument.open((HANCOM_SAVED / "form_field_unnamed_before.hwpx").read_bytes())
+    after = HwpxDocument.open((HANCOM_SAVED / "form_field_unnamed_after.hwpx").read_bytes())
+
+    assert [field.name for field in before.fields.all] == ["이름"]
+    assert [(field.name, field.value) for field in after.fields.all] == [("이름", "홍길동")]
+    unnamed = [b for b in after.sections[0].element.iter(f"{HP}fieldBegin") if b.get("name") == ""]
+    assert len(unnamed) == 1 and unnamed[0].get("dirty") != "1"

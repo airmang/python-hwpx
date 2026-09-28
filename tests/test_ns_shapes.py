@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
+import re
 import warnings
+import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -77,3 +80,41 @@ def test_the_moved_root_names_still_answer(document: HwpxDocument) -> None:
             warnings.simplefilter("ignore", UserWarning)
             with pytest.warns(DeprecationWarning):
                 getattr(document, name)(*args, section_index=0)
+
+
+HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+HWPXLIB = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "reader_writer__SimpleArc.hwpx",
+        "reader_writer__SimpleCurve.hwpx",
+        "reader_writer__SimpleLine.hwpx",
+        "reader_writer__SimplePolygon.hwpx",
+        "reader_writer__SimpleRectangle.hwpx",
+    ],
+)
+def test_shapes_drawn_in_hancom_have_a_33_line(name: str) -> None:
+    # One shape drawn and saved in Hancom per file: its line is Hancom's
+    # default, 0.12 mm (33 HWPUNIT).
+    with zipfile.ZipFile(HWPXLIB / name) as archive:
+        section = archive.read("Contents/section0.xml").decode("utf-8")
+    assert set(re.findall(r'<hp:lineShape\b[^>]*\bwidth="(\d+)"', section)) == {"33"}
+
+
+@pytest.mark.parametrize(
+    ("name", "args"),
+    [
+        ("add_line", ()),
+        ("add_rectangle", ()),
+        ("add_ellipse", ()),
+        ("add_arc", ()),
+        ("add_polygon", ([(0.0, 0.0), (10.0, 0.0), (5.0, 10.0)],)),
+    ],
+)
+def test_a_new_shape_draws_hancoms_default_line(name: str, args: tuple, document: HwpxDocument) -> None:
+    shape = getattr(document.shapes, name)(*args)
+    [line] = shape.element.iter(f"{HP}lineShape")
+    assert line.get("width") == "33"
