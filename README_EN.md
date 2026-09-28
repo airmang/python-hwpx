@@ -61,7 +61,7 @@ from hwpx import HwpxDocument
 
 doc = HwpxDocument.new()
 doc.add_heading("2026 Operating Plan", level=1)
-doc.add_paragraph("A. Background", style="개요 2")
+doc.add_paragraph("Background", style="개요 2")  # Hangul numbers it "가."
 doc.save_to_path("plan.hwpx")
 ```
 

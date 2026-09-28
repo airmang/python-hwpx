@@ -30,6 +30,7 @@ from ._document_primitives import (
     FILL_IMAGE_MODES,
 )
 from ._paragraph_text_edit import clear_text_element, sanitize_keeping_tabs, set_text_with_tabs
+from ._paragraph_text_edit import new_own_text_node, own_text_nodes
 from . import table_sizes as _table_sizes
 
 from .body import Label, parse_label_element
@@ -402,14 +403,14 @@ class HwpxOxmlTableCell:
             self.table.mark_dirty()
             return
 
-        text_element = self._ensure_text_element()
+        # Only the cell's own paragraphs take the text: a table or object inside
+        # the cell keeps its text.
+        own = own_text_nodes(self._ensure_sublist())
+        text_element = own[0] if own else new_own_text_node(self._ensure_sublist(), self._first_run_char_pr_id_ref())
         set_text_with_tabs(text_element, sanitized_value)
-        emptied: list[ET.Element] = []
-        for node in self.element.findall(f".//{_HP}t"):
-            if node is not text_element:
-                if node.text or len(node):
-                    emptied.append(node)
-                clear_text_element(node)
+        emptied = [node for node in own[1:] if node.text or len(node)]
+        for node in own[1:]:
+            clear_text_element(node)
         self._drop_emptied_paragraphs(text_element, emptied)
         if not preserve_format:
             current: Any | None = text_element

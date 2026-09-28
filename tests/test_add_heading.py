@@ -88,9 +88,11 @@ def test_the_5_x_halves_really_were_separate() -> None:
     assert _heading_of(document, only_level).type == "OUTLINE"
     assert str(only_level.style_id_ref) == "0", "스타일은 여전히 바탕글이다"
 
-    # 절반 B: 스타일만. 문단은 자기 개요 수준을 선언하지 않는다.
+    # 절반 B: 스타일만. 문단은 자기 개요 수준을 선언하지 않는다. 5.x 의
+    # ``style=`` 이 이랬고, 숫자 id 를 쓰는 ``style_id_ref`` 는 지금도 이렇다
+    # (``style=`` 은 이제 스타일의 문단 모양까지 쓴다 — test_style_resolution).
     document = HwpxDocument.new()
-    only_style = document.add_paragraph("스타일만", style="개요 1")
+    only_style = document.add_paragraph("스타일만", style_id_ref=2)
     assert str(only_style.style_id_ref) == "2"
     assert _heading_of(document, only_style).type == "NONE"
 
@@ -337,17 +339,17 @@ def test_the_three_line_demo_runs_and_its_render_claim_stays_unverified(tmp_path
 
     document = HwpxDocument.new()
     document.add_heading("2026 학년도 운영계획", level=1)
-    document.add_paragraph("가. 추진 배경", style="개요 2")
+    document.add_paragraph("추진 배경", style="개요 2")
     target = tmp_path / "plan.hwpx"
     document.save_to_path(target)
 
     with HwpxDocument.open(target) as reopened:
-        names = [
-            reopened.styles[str(p.style_id_ref)].name
-            for p in reopened.paragraphs
-            if p.text.strip()
-        ]
+        written = [p for p in reopened.paragraphs if p.text.strip()]
+        names = [reopened.styles[str(p.style_id_ref)].name for p in written]
         assert names == ["개요 1", "개요 2"]
+        # 두 번째 문단은 개요 2 수준으로 번호가 붙는다(앞 제목의 개요 1 수준을 물려받지 않는다).
+        heading = _heading_of(reopened, written[1])
+        assert (heading.type, str(heading.level)) == ("OUTLINE", "1")
 
     render_verdict = "unverified"  # 오라클 미가용 — 이 스위트는 한컴을 부르지 않는다
     assert render_verdict == "unverified"
