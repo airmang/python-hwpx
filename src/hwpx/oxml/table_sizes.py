@@ -385,3 +385,36 @@ def set_cell_margins(
             _clear_paragraph_layout_cache(paragraph)
     cell.table.mark_dirty()
     return margins
+
+
+#: A SQUEEZE line up to this share of the cell's line width still reads in Hancom.
+SQUEEZE_READABLE_RATIO = 1.1
+
+
+def squeezes_readably(cell: "HwpxOxmlTableCell", value: str) -> bool:
+    """Whether each line of *value* is at most 1.1 times *cell*'s line width at
+    the cell's character shape (``False`` when that cannot be measured).
+
+    Hancom keeps a SQUEEZE cell's text on one line and narrows only the spacing
+    between its characters: up to 1.1 times the line width the text still reads,
+    beyond it the characters touch and overlap.
+    """
+    from hwpx.form_fit.measure import char_advance, text_style_from_refs
+
+    try:
+        document = cell.table.paragraph.section.document
+        char_ref = cell._first_run_char_pr_id_ref()
+        char_style = document.char_property(char_ref) if document is not None else None
+        if char_style is None:
+            return False
+        margins = cell_margins(cell)
+        width = cell.width - margins.left - margins.right
+        paragraphs = cell.paragraphs
+        style = text_style_from_refs(document, paragraphs[0].para_pr_id_ref if paragraphs else None, [char_ref])
+        font_pt = int(char_style.attributes.get("height", "1000")) / 100
+    except Exception:  # pragma: no cover - defensive: an unreadable cell is not squeezed
+        return False
+    if width <= 0:
+        return False
+    lines = value.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    return all(sum(char_advance(ch, font_pt, style) for ch in line) <= SQUEEZE_READABLE_RATIO * width for line in lines)
