@@ -93,6 +93,30 @@ def test_a_cell_with_an_empty_run_gets_its_text_in_that_run() -> None:
     assert cell.text == "Alice"
 
 
+def test_filling_a_cell_drops_the_paragraphs_it_emptied() -> None:
+    # A cell of three paragraphs filled with one value: the emptied paragraphs
+    # would stay as blank lines and make the row taller.
+    document = HwpxDocument.new()
+    cell = document.add_table(1, 1).cell(0, 0)
+    cell.text = "첫째"
+    cell.add_paragraph("둘째")
+    cell.add_paragraph("셋째")
+    cell.field_name = "칸"
+
+    document.fields.fill_cell("새 값", name="칸")
+
+    assert [paragraph.text for paragraph in cell.paragraphs] == ["새 값"]
+
+
+def test_setting_a_cell_text_keeps_the_text_of_a_table_inside_it() -> None:
+    _document, cell, inner = _cell_with_a_table()
+
+    cell.text = "새 값"
+
+    assert cell.paragraphs[0].text == "새 값"
+    assert (inner.cell(0, 0).text, inner.cell(0, 1).text) == ("안쪽1", "안쪽2")
+
+
 def test_named_cells_are_listed_in_document_order() -> None:
     document = _form()
 
