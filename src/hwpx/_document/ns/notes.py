@@ -113,7 +113,7 @@ class NotesNamespace(_Namespace):
         field_id: str | None = None,
         author: str | None = None,
         created: "datetime | str | None" = None,
-        number: int = 1,
+        number: int | None = None,
         anchor_char_pr_id_ref: str | int | None = None,
     ) -> "Memo":
         """메모를 만든다. ``anchor`` 를 주면 그 문단에 앵커까지 건다.
@@ -177,7 +177,7 @@ class NotesNamespace(_Namespace):
         field_id: str | None = None,
         author: str | None = None,
         created: "datetime | str | None" = None,
-        number: int = 1,
+        number: int | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> "Memo":
         """이미 있는 메모를 문단에 앵커로 걸고 그 메모를 돌려준다.
