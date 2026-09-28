@@ -1074,14 +1074,13 @@ def fill_form_field(
         _write_text_node(primary, sanitized)
         for node in text_nodes[1:]:
             _write_text_node(node, "")
-        if match.get("is_placeholder"):
-            # Contract (P0 gold): Hancom swaps the screen-only prompt style for
-            # the surrounding style when a value replaces the placeholder.
-            begin_run = runs[int(match["_begin_run_index"])]
-            begin_ref = begin_run.get("charPrIDRef")
-            primary_run = primary.getparent()
-            if begin_ref is not None and primary_run is not None:
-                primary_run.set("charPrIDRef", begin_ref)
+        # Hancom writes the value in the shape of the run holding the field's
+        # begin, whatever shape the old value or the screen-only prompt had.
+        begin_run = runs[int(match["_begin_run_index"])]
+        begin_ref = begin_run.get("charPrIDRef")
+        primary_run = primary.getparent()
+        if begin_ref is not None and primary_run is not None:
+            primary_run.set("charPrIDRef", begin_ref)
     else:
         _insert_form_field_text_run(doc, match, sanitized)
 

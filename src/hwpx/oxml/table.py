@@ -408,10 +408,9 @@ class HwpxOxmlTableCell:
         own = own_text_nodes(self._ensure_sublist())
         text_element = own[0] if own else new_own_text_node(self._ensure_sublist(), self._first_run_char_pr_id_ref())
         set_text_with_tabs(text_element, sanitized_value)
-        emptied = [node for node in own[1:] if node.text or len(node)]
         for node in own[1:]:
             clear_text_element(node)
-        self._drop_emptied_paragraphs(text_element, emptied)
+        self._drop_blank_paragraphs(text_element)
         if not preserve_format:
             current: Any | None = text_element
             while current is not None and _element_local_name(current) != "run":
@@ -422,20 +421,17 @@ class HwpxOxmlTableCell:
         self.element.set("dirty", "1")
         self.table.mark_dirty()
 
-    def _drop_emptied_paragraphs(self, text_element: ET.Element, emptied: list[ET.Element]) -> None:
-        # A paragraph of this cell whose text was just cleared and that holds
-        # nothing else goes, so the cell reads back the text it was given (a
-        # merged cell carries the covered cells' paragraphs).  Paragraphs that
-        # were already empty (blank lines) or hold objects stay.
+    def _drop_blank_paragraphs(self, text_element: ET.Element) -> None:
+        # As Hancom fills a cell, the value becomes the cell's one paragraph: every
+        # other paragraph of the cell holding no text and nothing else goes, the
+        # blank lines it had included, so the cell reads back the text it was given.
+        # A paragraph holding a table or an object stays.
         sublist = self.element.find(f"{_HP}subList")
-        if sublist is None or not emptied:
+        if sublist is None:
             return
-        emptied_ids = {id(node) for node in emptied}
         for paragraph in sublist.findall(f"{_HP}p"):
             own = [node for run in paragraph.findall(f"{_HP}run") for node in run.findall(f"{_HP}t")]
-            if any(node is text_element for node in own):
-                continue
-            if any(id(node) in emptied_ids for node in own) and _is_blank_paragraph(paragraph):
+            if not any(node is text_element for node in own) and _is_blank_paragraph(paragraph):
                 sublist.remove(paragraph)
 
     def _clear_own_layout_caches(self) -> None:

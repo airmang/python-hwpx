@@ -108,6 +108,29 @@ def test_filling_a_cell_drops_the_paragraphs_it_emptied() -> None:
     assert [paragraph.text for paragraph in cell.paragraphs] == ["새 값"]
 
 
+def _cell_paragraphs(document: HwpxDocument, name: str) -> list[tuple[str, int]]:
+    cell = next(field for field in document.fields.cells if field.name == name)
+    return [(paragraph.text, len(paragraph.tables)) for paragraph in cell.cell.paragraphs]
+
+
+def test_filling_a_cell_leaves_one_paragraph_as_hancom_does() -> None:
+    """Hancom saved three cell fields -- 위 ("첫째", a blank line, "셋째"), 앞 (a blank line, "둘째", a
+    blank line) and 표 ("글", a blank line, a paragraph holding a table) -- and filled them: each became one
+    paragraph of its value. Here the table stays, as a cell text write keeps what is inside the cell."""
+    document = HwpxDocument.open((FIXTURES / "hancom_saved" / "cell_blank_lines_saved.hwpx").read_bytes())
+    hancom = HwpxDocument.open((FIXTURES / "hancom_saved" / "cell_blank_lines_filled.hwpx").read_bytes())
+    values = {"위": "새 값 하나", "앞": "새 값 둘", "표": "새 값 셋"}
+    assert [len(_cell_paragraphs(document, name)) for name in values] == [3, 3, 3]
+
+    for name, value in values.items():
+        document.fields.fill_cell(value, name=name)
+
+    for name in ("위", "앞"):
+        assert _cell_paragraphs(document, name) == _cell_paragraphs(hancom, name) == [(values[name], 0)]
+    assert _cell_paragraphs(hancom, "표") == [("새 값 셋", 0)]
+    assert _cell_paragraphs(document, "표") == [("새 값 셋", 0), ("", 1)]
+
+
 def test_setting_a_cell_text_keeps_the_text_of_a_table_inside_it() -> None:
     _document, cell, inner = _cell_with_a_table()
 
