@@ -17,7 +17,7 @@
 
 You don't need Hancom Office. HWPX is a ZIP+XML (OWPML) format, so pure Python
 is enough to read, edit, and create documents — on Windows, macOS, Linux, CI,
-and **inside a ChatGPT chat wherever Python runs**. Saves record the requested preservation grade and measured checks in a receipt.
+and **inside a ChatGPT chat wherever Python runs**.
 Generated-document compatibility is measured on the dated, versioned corpus below.
 
 <p align="center">
@@ -85,7 +85,7 @@ alongside it.
 - **Edit** — paragraphs, tables, images, headers/footers, memos, footnotes; line spacing, margins, page numbers
 - **Form filling** — find cells by label and change values only; structural edits (rows, columns) stay byte-preserving
 - **Create & batch** — new-document authoring, TOCs and cross-references, mail merge, text diff, tracked changes (redline)
-- **Verify & safety** — package-structure validation CLI, open-safety gate, a receipt on every save (`MutationReport`)
+- **Verify & safety** — package-structure validation CLI, open-safety gate, a save report (`return_report=True`)
 
 More: [five-minute quickstart](docs/quickstart.md) · [usage guide](docs/usage.md) · [API reference](https://airmang.github.io/python-hwpx/) · [examples](docs/examples.md)
 
@@ -108,19 +108,6 @@ untouched ZIP parts to retain their bytes. Preservation inside an edited part
 and visual layout need separate checks. See the [safe write contract](docs/safe-write-contract.md)
 for reopening the output and verifying content.
 
-### Every save comes with a receipt
-
-```python
-report = doc.save_to_path("out.hwpx", return_report=True)
-print(report.actual_mode)        # "patch" or "rebuild" — the measured save grade
-print(report.preservation.untouched_part_payloads.to_dict())
-                                 # {"verified": 17, "changed": 0}
-```
-
-`mode="patch", fallback="error"` refuses an unavailable preservation grade.
-Default `auto` selects the achievable grade. `report.ok` alone does not verify
-the requested content or visual appearance. Full rules: [Safe Write Contract](docs/safe-write-contract.md).
-
 *Blocks without a **Standalone example** label take your existing document as
 input. The per-example Python-block status is frozen in the
 [execution ledger](docs/python-example-ledger.json).*
@@ -130,11 +117,9 @@ input. The per-example Python-block status is frozen in the
 Whether the files we produce open in real Hancom Office is measured and
 published as-is, with the measurement stack and date next to every figure:
 
-- **Hancom opens 120/120 · render-verified 120/120** — the current stack
-  (5.7.0 · real Hancom 12.0.0.3288 · 2026-08-03), reduced scope: a baseline
-  stratum plus the six authoring surfaces added in 4.x/5.x (footnotes, form
-  fields, equations, charts, check boxes, edit plans). Receipts carry a
-  per-row bucket, so every split reproduces with one line of `jq`
+- **Hancom opens 120/120 · render-verified 120/120** — a baseline set plus six
+  authoring surfaces (footnotes, form fields, equations, charts, check boxes,
+  edit plans), reduced scope (5.7.0 · real Hancom 12.0.0.3288 · 2026-08-03)
 - **Hancom opens 476/476** — the full frozen corpus (N=497), measured on
   3.4.1 · real Hancom 12.0.0.3288 · 2026-07-19
 - **Byte preservation of untouched regions 497/497** · personal-info 0-leak
