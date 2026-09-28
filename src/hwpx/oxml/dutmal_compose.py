@@ -36,6 +36,10 @@ from .objects import HwpxOxmlInlineObject
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
 
+#: Hancom's ``hp:compose``: ten ``hp:charPr`` slots, the unused ones pointing nowhere.
+COMPOSE_SLOTS = 10
+EMPTY_COMPOSE_SLOT = 4294967295
+
 
 def _paragraph_add_composed_character(
     self: "HwpxOxmlParagraph",
@@ -55,18 +59,21 @@ def _paragraph_add_composed_character(
     XML schema.xml:538-543) -- distinct from *char_pr_id_ref*, which is
     the *run's own* ``charPrIDRef`` (the run this element sits inside,
     matching every other ``add_*`` inline-object method's own contract).
+
+    Written as Hancom writes it: ten slots (the unused ones ``4294967295``)
+    and, where not given, the values Hancom gives a new one --
+    ``circleType="SHAPE_CIRCLE"``, ``charSz="-4"``, ``composeType="SPREAD"``.
     """
 
-    slots = [
-        body.ComposedCharacterSlot(pr_id_ref=int(ref))
-        for ref in (char_pr_id_refs or ())
-    ]
+    refs = [int(ref) for ref in (char_pr_id_refs or ())]
+    refs += [EMPTY_COMPOSE_SLOT] * (COMPOSE_SLOTS - len(refs))
+    slots = [body.ComposedCharacterSlot(pr_id_ref=ref) for ref in refs]
     composed = body.ComposedCharacter(
         tag=f"{_HP}compose",
-        circle_type=circle_type,
-        char_sz=char_sz,
-        compose_type=compose_type,
-        char_pr_cnt=len(slots) or None,
+        circle_type=circle_type or "SHAPE_CIRCLE",
+        char_sz=-4 if char_sz is None else char_sz,
+        compose_type=compose_type or "SPREAD",
+        char_pr_cnt=len(slots),
         compose_text=compose_text,
         slots=slots,
     )
@@ -103,7 +110,9 @@ def _paragraph_add_dutmal(
     than the schema's stated ``xs:positiveInteger``/``fixed="4"`` -- real
     output already contradicts both schema claims once (DEV-041,
     ``docs/owpml-deviations.md``), so this module does not enforce them as
-    validation rules; pass an explicit value to override.
+    validation rules; pass an explicit value to override. Without
+    *style_id_ref* the 덧말 takes style ``0``, as in that sample: Hancom
+    writes ``styleIDRef`` on every 덧말.
     """
 
     dutmal = body.Dutmal(
@@ -111,7 +120,7 @@ def _paragraph_add_dutmal(
         pos_type=pos_type,
         sz_ratio=sz_ratio,
         option=option,
-        style_id_ref=int(style_id_ref) if style_id_ref is not None else None,
+        style_id_ref=int(style_id_ref) if style_id_ref is not None else 0,
         align=align,
         main_text=main_text,
         sub_text=sub_text,

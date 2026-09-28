@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
 
 from ..errors import HwpxStateError, HwpxValueError
 from ..objects.checkbox import CheckBox
-from ..objects.form_field import CellField, FieldLocation, FieldParameter, FormField
+from ..objects.form_field import CellField, FieldLocation, FieldParameter, FormField, TextBoxField
 from ..objects.results import FieldFillResult
 from ..oxml import HwpxOxmlParagraph
 from ..oxml.namespaces import HP
@@ -160,6 +160,11 @@ def _field_identifier(field_begin: Any) -> str:
 
 
 def _field_end_matches(field_begin: Any, field_end: Any) -> bool:
+    # An end that names its begin (beginIDRef) is that begin's end only: a fieldid
+    # is shared by every field of a type (Hancom's control id), so it pairs only
+    # ends that name no begin.
+    if field_begin.get("id") and field_end.get("beginIDRef"):
+        return field_begin.get("id") == field_end.get("beginIDRef")
     begin_keys = {
         value
         for value in (
@@ -291,7 +296,9 @@ def _find_field_end_in_following_paragraphs(
                     if _local_name(child) != "ctrl":
                         continue
                     for field_end in child.findall(f"{_HP}fieldEnd"):
-                        if ids & {field_end.get("beginIDRef"), field_end.get("fieldid")}:
+                        if _field_end_matches(field_begin, field_end) and (
+                            ids & {field_end.get("beginIDRef"), field_end.get("fieldid")}
+                        ):
                             return sibling, runs, run_index, child_index, middle
             middle.append(sibling)
         sibling = sibling.getnext()
@@ -561,6 +568,80 @@ def fill_cell_fields(doc: "HwpxDocument", value: str, *, name: str, index: int |
     for field in fields:
         field.text = value
     return tuple(fields)
+
+
+def list_text_box_fields(doc: "HwpxDocument") -> tuple[TextBoxField, ...]:
+    """Named text boxes in document order: Hancom lists a text box whose ``hp:drawText``
+    has a name among its fields (and leaves an unnamed one out)."""
+
+    return tuple(
+        TextBoxField(draw_text, section)
+        for section in doc.sections
+        for draw_text in section.element.iter(f"{_HP}drawText")
+        if (draw_text.get("name") or "").strip()
+    )
+
+
+def fill_text_box_fields(
+    doc: "HwpxDocument", value: str, *, name: str, index: int | None = None
+) -> tuple[TextBoxField, ...]:
+    """Set the text of every text box called *name*, or of the *index*-th of them only."""
+
+    wanted = (name or "").strip()
+    fields = [field for field in list_text_box_fields(doc) if wanted and field.name == wanted]
+    if index is not None:
+        fields = fields[index : index + 1] if index >= 0 else []
+    if not fields:
+        where = f"{wanted!r}" if index is None else f"{wanted!r} at index {index}"
+        raise HwpxValueError(
+            f"no text box named {where}",
+            code="field-text-box-not-found",
+            context={"name": wanted, "index": index},
+            suggestion="List doc.fields.text_boxes to see the text box names.",
+        )
+    for field in fields:
+        field.text = value
+    return tuple(fields)
+
+
+def text_box_text(draw_text: Any) -> str:
+    """The text of a text box, a line per paragraph."""
+
+    return "\n".join(
+        "".join(_text_node_value(node) for node in paragraph.iter(f"{_HP}t"))
+        for paragraph in draw_text.findall(f"{_HP}subList/{_HP}p")
+    )
+
+
+def set_text_box_text(draw_text: Any, section: Any, value: str) -> None:
+    """Put *value* in a text box as Hancom fills a text box field: the box keeps its
+    first paragraph and that paragraph's first run, which hold the value alone."""
+
+    sub_list = draw_text.find(f"{_HP}subList")
+    if sub_list is None:
+        sub_list = draw_text.makeelement(f"{_HP}subList", {})
+        draw_text.insert(0, sub_list)
+    paragraphs = sub_list.findall(f"{_HP}p")
+    first = paragraphs[0] if paragraphs else sub_list.makeelement(
+        f"{_HP}p", {"id": "0", "paraPrIDRef": "0", "styleIDRef": "0", "pageBreak": "0", "columnBreak": "0", "merged": "0"}
+    )
+    if not paragraphs:
+        sub_list.append(first)
+    for extra in paragraphs[1:]:
+        sub_list.remove(extra)
+    runs = first.findall(f"{_HP}run")
+    run = runs[0] if runs else first.makeelement(f"{_HP}run", {"charPrIDRef": "0"})
+    if not runs:
+        first.insert(0, run)
+    for extra in runs[1:]:
+        first.remove(extra)
+    for child in list(run):
+        run.remove(child)
+    text = run.makeelement(f"{_HP}t", {})
+    run.append(text)
+    _write_text_node(text, value)
+    _clear_form_field_layout_cache(first)
+    section.mark_dirty()
 
 
 _PROMPT_TEXT_COLOR = "#FF0000"

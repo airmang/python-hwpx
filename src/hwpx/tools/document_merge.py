@@ -53,6 +53,7 @@ from typing import Any
 from .._document.media import _bin_data_stem, add_image
 from ..document import HwpxDocument
 from ..errors import HwpxValueError
+from ..oxml.field_marks import field_type_id
 from ..oxml._document_primitives import (
     _FONT_FACE_LANG_TO_REF,
     _FONT_REF_ATTRIBUTES,
@@ -687,7 +688,9 @@ def _refresh_field_and_bookmark_ids(paragraphs: list[Any], existing_bookmark_nam
                 new_fieldid = None
                 old_fieldid = node.get("fieldid")
                 if old_fieldid:
-                    new_fieldid = _object_id()
+                    # Hancom's fieldid is the field type's control id, the same for
+                    # every field of the type; a type without one gets a new id.
+                    new_fieldid = field_type_id(node.get("type"))
                     begin_fieldid_map.setdefault(old_fieldid, new_fieldid)
                     node.set("fieldid", new_fieldid)
                 if old_id:

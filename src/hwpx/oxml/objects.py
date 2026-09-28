@@ -185,6 +185,12 @@ def _build_shape_common_children(
     parent.set("id", the_id)
     parent.set("zOrder", "0")
     parent.set("numberingType", "NONE")
+    # Hancom writes both on every shape and reads a shape without them as these;
+    # a value the caller set (a picture's text_wrap) stays.
+    if parent.get("textWrap") is None:
+        parent.set("textWrap", "SQUARE")
+    if parent.get("textFlow") is None:
+        parent.set("textFlow", "BOTH_SIDES")
     parent.set("lock", "0")
     parent.set("dropcapstyle", "None")
     parent.set("href", "")
@@ -282,7 +288,7 @@ def _build_drawing_object_children(
         # accepted by the parser but silently rendered unfilled.
         fb = _append_child(parent, f"{_HC}fillBrush", {})
         _append_child(fb, f"{_HC}winBrush", {
-            "faceColor": face_color, "hatchColor": "#FFFFFF",
+            "faceColor": face_color, "hatchColor": "#FFFFFF", "alpha": "0",
         })
 
     _append_child(parent, f"{_HP}shadow", {
@@ -666,6 +672,9 @@ def _create_container_element(
         # creation.
         member_el.set("id", "0")
         member_el.set("groupLevel", "1")
+        # Real corpus: every group member is TOP_AND_BOTTOM; the group's own
+        # placement decides how text goes around it.
+        member_el.set("textWrap", "TOP_AND_BOTTOM")
 
         # AbstractShapeObjectType tail (sz/pos/outMargin/shapeComment) is
         # container-level only — every observed member carries none of it.
@@ -1163,7 +1172,7 @@ class DrawText:
 
     @property
     def name(self) -> str:
-        """Hancom's auto-generated shape-tree object name (not a caption)."""
+        """The text box's name. Hancom takes a named text box for a field (``doc.fields.text_boxes``)."""
 
         return self.element.get("name", "")
 
@@ -1559,9 +1568,10 @@ class HwpxOxmlShape:
 
         *margin* overrides ``hp:textMargin`` (``left``/``right``/``top``/
         ``bottom``, HWPUNIT); defaults to the real-corpus majority value
-        (0.1cm/283 all four sides, 90-sample). *name* is Hancom's
-        auto-generated shape-tree object label, not a caption — leave it
-        empty unless reproducing a specific gold file. *para_pr_id_ref* sets
+        (0.1cm/283 all four sides, 90-sample). *name* makes the text box a
+        field: Hancom lists a named text box among its fields and fills it
+        by name (``doc.fields.text_boxes``, ``doc.fields.fill_text_box()``);
+        leave it empty for a plain text box. *para_pr_id_ref* sets
         the text paragraph's ``paraPrIDRef`` (e.g. a centred paraPr), default
         ``0``. *vert_align* sets ``hp:subList/@vertAlign`` (``TOP``/``CENTER``/
         ``BOTTOM``); ``None`` gives a new text ``CENTER`` and leaves existing

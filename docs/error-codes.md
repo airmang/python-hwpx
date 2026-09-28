@@ -104,6 +104,7 @@ except HwpxError as exc:
 | `field-path-format-unsupported` | 파일 이름 필드 path_format 값이 실증된 어휘(단일 관측값) 밖이다. |
 | `field-proofreading-mark-unsupported` | 교정 부호 mark 값이 $RevisionSign 인덱스가 확인된 어휘 밖이다. |
 | `field-selector-conflict` | 선택자를 둘 이상 동시에 지정했다. |
+| `field-text-box-not-found` | 그 이름의 글상자 필드가 없다(doc.fields.text_boxes 로 이름을 본다). |
 
 ### `header-*`
 
