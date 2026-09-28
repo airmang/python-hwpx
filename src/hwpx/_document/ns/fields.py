@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""`doc.fields` — 누름틀·체크박스 양식개체.
+"""`doc.fields` — 누름틀·셀 필드·글상자 필드·체크박스 양식개체.
 
 능력 레지스트리의 `form-field-create` 와 `check-box` 두 영역이 여기로 온다.
 5.x 는 여섯 이름(`add_form_field`·`list_form_fields`·`fill_form_field`·
@@ -28,7 +28,7 @@ from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...form_fit.policy import FitPolicy
-    from ...objects import CellField, CheckBox, FieldFillResult, FormField
+    from ...objects import CellField, CheckBox, FieldFillResult, FormField, TextBoxField
     from ...oxml import HwpxOxmlParagraph, HwpxOxmlSection
 
 __all__ = ["FieldsNamespace"]
@@ -140,6 +140,32 @@ class FieldsNamespace(_Namespace):
         from .. import fields as _fields
 
         return _fields.fill_cell_fields(self._doc, value, name=name, index=index)
+
+    # -- 글상자 필드 -------------------------------------------------------
+
+    @property
+    def text_boxes(self) -> "tuple[TextBoxField, ...]":
+        """이름 붙은 글상자를 문서 순서로. 한/글은 이름(``hp:drawText@name``)이 있는 글상자를
+        필드로 보고 필드 목록에 넣고 이름으로 채운다. 이름 없는 글상자는 뺀다.
+
+        글상자에 이름을 붙이려면 ``shape.set_draw_text(글, name="이름")``을 쓴다.
+        """
+
+        from .. import fields as _fields
+
+        return _fields.list_text_box_fields(self._doc)
+
+    def fill_text_box(self, value: str, *, name: str, index: int | None = None) -> "tuple[TextBoxField, ...]":
+        """이름이 *name* 인 글상자의 글을 *value* 로 바꾸고, 바꾼 글상자들을 돌려준다.
+
+        한/글 ``PutFieldText``처럼 글상자의 글을 값 한 문단으로 바꾼다(첫 문단과 첫 run의
+        모양은 그대로). 같은 이름의 글상자가 여럿이면 모두 채우고, *index*(0부터, 문서 순서)를
+        주면 그 하나만 채운다. 없으면 ``HwpxValueError(code="field-text-box-not-found")``.
+        """
+
+        from .. import fields as _fields
+
+        return _fields.fill_text_box_fields(self._doc, value, name=name, index=index)
 
     # -- 체크박스 ----------------------------------------------------------
 
