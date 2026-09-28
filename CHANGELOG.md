@@ -104,6 +104,12 @@
 
 ### 고침
 
+- `add_heading(level=8~10)`과 `apply_paragraph_format(outline_level=8~10)`이 문단 모양의 개요를 한/글과 다른
+  모양으로 쓰던 것을 고친다. 개요 8~10 수준은 2016 문단 이름공간에만 있어서, 한/글은 `hp:switch`의 `hp:case`에
+  개요를 두고 `hp:default`에 `NONE`을 둔다(새 문서의 개요 8~10 스타일도 이렇다). 전에는 이 `hp:switch`를
+  비우고 개요를 문단 모양에 바로 썼다. 이제 한/글과 같은 모양으로 쓰고, 새 문서에서는 개요 8~10 스타일의 문단
+  모양을 그대로 쓴다. 문단 모양을 읽을 때도 `hp:switch` 안의 개요를 읽는다(`paragraph_property().heading`,
+  목록 글자 내보내기).
 - 글자 겹치기(`add_composed_character()`)와 덧말(`add_dutmal()`)을 한/글이 쓰는 모양으로 쓴다. 글자 겹치기는 늘
   `hp:charPr` 열 칸을 쓰고(쓰지 않는 칸은 `4294967295`), 주지 않은 속성은 한/글이 새 글자 겹치기에 주는 값
   (`circleType="SHAPE_CIRCLE"`, `charSz="-4"`, `composeType="SPREAD"`)으로 쓴다. 덧말은 스타일을 주지 않으면
