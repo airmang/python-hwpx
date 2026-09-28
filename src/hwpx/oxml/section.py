@@ -234,6 +234,10 @@ class HwpxOxmlSection:
         refusal happens before anything changes, so a failed call leaves the
         section as it was. Calling it again on a blank section changes nothing
         and does not mark the section dirty.
+
+        The images of removed pictures stay in the package, pointed at by
+        nothing (Hancom drops them when it saves);
+        ``doc.media.remove_unused_images()`` removes them.
         """
 
         from ..errors import HwpxValueError

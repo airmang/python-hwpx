@@ -17,6 +17,10 @@
   그런 목록이 없으면 새 목록을 만든다. 앞 목록의 번호 정의에 없는 더 깊은 수준으로 이어 붙이면 그 수준의
   모양을 새 목록과 같은 꼴(`^1.^2.`)로 정의에 더한다. 한/글은 번호 정의에 없는 수준에는 번호를 그리지
   않는다. `number_format`·`start`와 함께 주면 `style-list-continue-conflict`로 거부한다.
+- `doc.media.remove_unused_images()`를 더한다. 문서가 어디서도 가리키지 않는 이진 항목(매니페스트 항목·파트·
+  header의 `binItem`)을 모두 지우고 지운 항목을 돌려준다. 한/글은 문서를 저장할 때 이런 항목을 지운다. 본문에서
+  그림을 지우면(`section.clear_body()`, 문단 삭제) 그 그림의 이진 항목이 남으므로 이 호출로 정리한다. `remove_image`가
+  확인하는 참조(그림, 채우기 그림·그림 글머리표, 바탕쪽, 동영상, OLE, 내장 글꼴)가 있는 항목은 남긴다.
 - `doc.fields.text_boxes`와 `doc.fields.fill_text_box()`를 더한다. 한/글은 이름이 있는 글상자
   (`hp:drawText@name`)를 필드로 보고, 필드 목록에 넣고 이름으로 채운다. `text_boxes`는 이름 붙은 글상자를 문서
   순서로 돌려준다(이름 없는 글상자는 뺀다). `fill_text_box(value, name=, index=)`는 한/글처럼 글상자의 글을 값 한
