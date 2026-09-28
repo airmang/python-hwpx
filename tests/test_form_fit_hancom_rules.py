@@ -39,6 +39,7 @@ GLYPH_WIDTHS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_gl
 LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_heights.hwpx"
 ROUNDED_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_rounded_advances.hwpx"
 LINE_PITCHES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_pitches.hwpx"
+SPACE_RUNS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_runs.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
 
@@ -344,6 +345,25 @@ def test_glyph_widths_break_where_hancom_breaks() -> None:
         slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
 
         assert measure(cell.text, slot).lines == len(segs), (cell.text, slot.available_width)
+
+
+def test_space_runs_and_condense_break_where_hancom_breaks_them() -> None:
+    # 최소 공백 75: "가나다 라마바 사아자 차카타" in cells 12400, 12900 and 11900 wide inside, "가" + 20 spaces
+    # + "나" and 20 spaces + "가나" in cells 8000 and 10500 wide; the first two again with 최소 공백 0 in the
+    # widest cell. Hancom shrank the spaces between words by 75%, never the spaces before a line's first
+    # text, and began the next line with a space that started past the line.
+    doc = HwpxDocument.open(SPACE_RUNS.read_bytes())
+    tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+    assert len(tables) == 9
+    for table in tables:
+        cell = table.cell(0, 0)
+        segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
+        slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
+        starts = hancom_line_starts(cell.text, [slot.line_width], slot.font_pt, slot.text_style)
+
+        assert starts == [int(seg.get("textpos")) for seg in segs], (cell.width, slot.text_style.condense)
+        assert measure(cell.text, slot).lines == len(segs)
 
 
 def test_each_line_spacing_type_advances_a_line_as_hancom_does() -> None:
