@@ -58,7 +58,7 @@ from hwpx import HwpxDocument
 
 doc = HwpxDocument.new()
 doc.add_heading("2026 운영계획", level=1)
-doc.add_paragraph("가. 추진 배경", style="개요 2")
+doc.add_paragraph("추진 배경", style="개요 2")  # 한/글이 "가." 번호를 붙인다
 doc.save_to_path("계획.hwpx")
 ```
 
