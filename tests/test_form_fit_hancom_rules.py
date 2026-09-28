@@ -29,19 +29,22 @@ from hwpx.form_fit import (
     hancom_line_starts,
     measure,
 )
-from hwpx.form_fit.measure import _cell_text_style, glyph_advance_em, resolve_slot_metrics, text_style_from_refs
+from hwpx.form_fit.measure import classify_char, _cell_text_style, glyph_advance_em, resolve_slot_metrics, text_style_from_refs
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_rules.hwpx"
 FACE_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_face_advance.hwpx"
 INLINE_OBJECTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_inline_objects.hwpx"
 GLYPH_WIDTHS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_glyph_widths.hwpx"
+NUMERAL_WIDTHS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_numeral_widths.hwpx"
 LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_heights.hwpx"
 ROUNDED_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_rounded_advances.hwpx"
 LINE_PITCHES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_pitches.hwpx"
-SPACE_RUNS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_runs.hwpx"
+PARAGRAPH_MARGINS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_margins.hwpx"
+PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_spacing.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
+SPACE_RUNS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_runs.hwpx"
 
 
 def test_a_space_is_half_an_em_unless_the_font_space_is_used() -> None:
@@ -347,23 +350,23 @@ def test_glyph_widths_break_where_hancom_breaks() -> None:
         assert measure(cell.text, slot).lines == len(segs), (cell.text, slot.available_width)
 
 
-def test_space_runs_and_condense_break_where_hancom_breaks_them() -> None:
-    # 최소 공백 75: "가나다 라마바 사아자 차카타" in cells 12400, 12900 and 11900 wide inside, "가" + 20 spaces
-    # + "나" and 20 spaces + "가나" in cells 8000 and 10500 wide; the first two again with 최소 공백 0 in the
-    # widest cell. Hancom shrank the spaces between words by 75%, never the spaces before a line's first
-    # text, and began the next line with a space that started past the line.
-    doc = HwpxDocument.open(SPACE_RUNS.read_bytes())
+def test_roman_numerals_and_circled_numbers_break_where_hancom_breaks_them() -> None:
+    # Hancom laid out each of Ⅰ ⅳ ① ⑩ ⑴ ⑳ and five syllables in 함초롬바탕, 함초롬돋움 and
+    # 맑은 고딕 at 10 pt, in the widest cell that took two lines and the narrowest that took one.
+    doc = HwpxDocument.open(NUMERAL_WIDTHS.read_bytes())
     tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
 
-    assert len(tables) == 9
+    assert len(tables) == 36
     for table in tables:
         cell = table.cell(0, 0)
         segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
         slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
-        starts = hancom_line_starts(cell.text, [slot.line_width], slot.font_pt, slot.text_style)
 
-        assert starts == [int(seg.get("textpos")) for seg in segs], (cell.width, slot.text_style.condense)
-        assert measure(cell.text, slot).lines == len(segs)
+        assert measure(cell.text, slot).lines == len(segs), (cell.text, slot.available_width)
+
+
+def test_a_numeral_a_face_does_not_list_is_full_width() -> None:
+    assert classify_char("⑳") == "wide" and classify_char("Ⅻ") == "wide"
 
 
 def test_each_line_spacing_type_advances_a_line_as_hancom_does() -> None:
@@ -429,3 +432,60 @@ def test_rounded_advances_break_where_hancom_breaks() -> None:
         slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
 
         assert measure(cell.text, slot).lines == lines, (cell.text, slot.font_pt, slot.available_width)
+
+
+def _one_cell_tables(path: Path) -> tuple[HwpxDocument, list]:
+    doc = HwpxDocument.open(path.read_bytes())
+    return doc, [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+
+def test_paragraph_margins_come_off_every_line_as_hancom_lays_them_out() -> None:
+    # Ten syllables in paragraphs whose margins (left, right, indent) are (1000, 0, 0), (500, 500, 0),
+    # (0, 800, 0) and (600, 200, 400), each in a cell 150 wider than the text and the margins and one 150
+    # narrower. Hancom laid them out and saved them.
+    doc, tables = _one_cell_tables(PARAGRAPH_MARGINS)
+
+    lines = []
+    for table in tables:
+        cell = table.cell(0, 0)
+        segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
+        slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
+        assert measure(cell.text, slot).lines == len(segs), (cell.width, len(segs))
+        lines.append(len(segs))
+    assert lines == [1, 2] * 4
+
+
+def test_spacing_before_takes_room_in_a_cell_and_spacing_after_does_not() -> None:
+    # Two lines in a paragraph with 600 before and 400 after, in cells stored 50 taller than the two lines,
+    # than the spacing before and the two lines, and than all three. Hancom started each first line at 600
+    # and grew only the first row, to the spacing before, the two lines and the cell margins.
+    doc, tables = _one_cell_tables(PARAGRAPH_SPACING)
+    heights = [int(table.element.find(f"{HP}sz").get("height")) for table in tables]
+    first_lines = [
+        int(table.cell(0, 0).paragraphs[0].element.find(f"{HP}linesegarray/{HP}lineseg").get("vertpos"))
+        for table in tables
+    ]
+
+    assert heights == [3482, 3532, 3932]
+    assert first_lines == [600, 600, 600]
+    budgets = [resolve_slot_metrics(table.cell(0, 0), doc, safety=1.0).height_lines() for table in tables]
+    assert budgets == [1, 2, 2]
+
+
+def test_space_runs_and_condense_break_where_hancom_breaks_them() -> None:
+    # 최소 공백 75: "가나다 라마바 사아자 차카타" in cells 12400, 12900 and 11900 wide inside, "가" + 20 spaces
+    # + "나" and 20 spaces + "가나" in cells 8000 and 10500 wide; the first two again with 최소 공백 0 in the
+    # widest cell. Hancom shrank the spaces between words by 75%, never the spaces before a line's first
+    # text, and began the next line with a space that started past the line.
+    doc = HwpxDocument.open(SPACE_RUNS.read_bytes())
+    tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+    assert len(tables) == 9
+    for table in tables:
+        cell = table.cell(0, 0)
+        segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
+        slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
+        starts = hancom_line_starts(cell.text, [slot.line_width], slot.font_pt, slot.text_style)
+
+        assert starts == [int(seg.get("textpos")) for seg in segs], (cell.width, slot.text_style.condense)
+        assert measure(cell.text, slot).lines == len(segs)

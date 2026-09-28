@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
 
 from ..errors import HwpxStateError, HwpxValueError
 from ..objects.checkbox import CheckBox
-from ..objects.form_field import CellField, FieldLocation, FieldParameter, FormField
+from ..objects.form_field import CellField, FieldLocation, FieldParameter, FormField, TextBoxField
 from ..objects.results import FieldFillResult
 from ..oxml import HwpxOxmlParagraph
 from ..oxml.namespaces import HP
@@ -570,6 +570,80 @@ def fill_cell_fields(doc: "HwpxDocument", value: str, *, name: str, index: int |
     return tuple(fields)
 
 
+def list_text_box_fields(doc: "HwpxDocument") -> tuple[TextBoxField, ...]:
+    """Named text boxes in document order: Hancom lists a text box whose ``hp:drawText``
+    has a name among its fields (and leaves an unnamed one out)."""
+
+    return tuple(
+        TextBoxField(draw_text, section)
+        for section in doc.sections
+        for draw_text in section.element.iter(f"{_HP}drawText")
+        if (draw_text.get("name") or "").strip()
+    )
+
+
+def fill_text_box_fields(
+    doc: "HwpxDocument", value: str, *, name: str, index: int | None = None
+) -> tuple[TextBoxField, ...]:
+    """Set the text of every text box called *name*, or of the *index*-th of them only."""
+
+    wanted = (name or "").strip()
+    fields = [field for field in list_text_box_fields(doc) if wanted and field.name == wanted]
+    if index is not None:
+        fields = fields[index : index + 1] if index >= 0 else []
+    if not fields:
+        where = f"{wanted!r}" if index is None else f"{wanted!r} at index {index}"
+        raise HwpxValueError(
+            f"no text box named {where}",
+            code="field-text-box-not-found",
+            context={"name": wanted, "index": index},
+            suggestion="List doc.fields.text_boxes to see the text box names.",
+        )
+    for field in fields:
+        field.text = value
+    return tuple(fields)
+
+
+def text_box_text(draw_text: Any) -> str:
+    """The text of a text box, a line per paragraph."""
+
+    return "\n".join(
+        "".join(_text_node_value(node) for node in paragraph.iter(f"{_HP}t"))
+        for paragraph in draw_text.findall(f"{_HP}subList/{_HP}p")
+    )
+
+
+def set_text_box_text(draw_text: Any, section: Any, value: str) -> None:
+    """Put *value* in a text box as Hancom fills a text box field: the box keeps its
+    first paragraph and that paragraph's first run, which hold the value alone."""
+
+    sub_list = draw_text.find(f"{_HP}subList")
+    if sub_list is None:
+        sub_list = draw_text.makeelement(f"{_HP}subList", {})
+        draw_text.insert(0, sub_list)
+    paragraphs = sub_list.findall(f"{_HP}p")
+    first = paragraphs[0] if paragraphs else sub_list.makeelement(
+        f"{_HP}p", {"id": "0", "paraPrIDRef": "0", "styleIDRef": "0", "pageBreak": "0", "columnBreak": "0", "merged": "0"}
+    )
+    if not paragraphs:
+        sub_list.append(first)
+    for extra in paragraphs[1:]:
+        sub_list.remove(extra)
+    runs = first.findall(f"{_HP}run")
+    run = runs[0] if runs else first.makeelement(f"{_HP}run", {"charPrIDRef": "0"})
+    if not runs:
+        first.insert(0, run)
+    for extra in runs[1:]:
+        first.remove(extra)
+    for child in list(run):
+        run.remove(child)
+    text = run.makeelement(f"{_HP}t", {})
+    run.append(text)
+    _write_text_node(text, value)
+    _clear_form_field_layout_cache(first)
+    section.mark_dirty()
+
+
 _PROMPT_TEXT_COLOR = "#FF0000"
 
 
@@ -868,6 +942,32 @@ def _insert_form_field_text_run(
     begin_run.insert(int(match["_begin_child_index"]) + 1, text_node)
 
 
+def _drop_nested_fields(match: Mapping[str, Any]) -> None:
+    """Hancom's way with a field that holds other fields: the value replaces
+    them with the rest of the content, so the begin and end of every field
+    lying wholly between this field's begin and end go."""
+
+    runs: list[Any] = match["_runs"]
+    end_run_index = match.get("_end_run_index")
+    if end_run_index is None:
+        return
+    begin_run_index = int(match["_begin_run_index"])
+    inside: list[tuple[Any, Any]] = []
+    for run_index in range(begin_run_index, int(end_run_index) + 1):
+        children = list(runs[run_index])
+        start = int(match["_begin_child_index"]) + 1 if run_index == begin_run_index else 0
+        stop = int(match["_end_child_index"]) if run_index == end_run_index else len(children)
+        inside.extend((runs[run_index], child) for child in children[start:stop] if _local_name(child) == "ctrl")
+    begun = {mark.get("id") for _, ctrl in inside for mark in ctrl.findall(f"{_HP}fieldBegin")}
+    ended = {mark.get("beginIDRef") for _, ctrl in inside for mark in ctrl.findall(f"{_HP}fieldEnd")}
+    nested = (begun & ended) - {None, ""}
+    for run, ctrl in inside:
+        marks = [(mark.get("id") if _local_name(mark) == "fieldBegin" else mark.get("beginIDRef"))
+                 for mark in ctrl if _local_name(mark) in ("fieldBegin", "fieldEnd")]
+        if marks and all(mark in nested for mark in marks):
+            run.remove(ctrl)
+
+
 def _collapse_field_span(match: Mapping[str, Any]) -> None:
     """Hancom's way with a field whose content runs over paragraphs: the
     content between the begin and the end goes, paragraphs and all, and the
@@ -964,6 +1064,8 @@ def fill_form_field(
 
     text_nodes: list[Any] = match.get("_text_nodes", [])
     sanitized = _sanitize_field_text(write_value)
+    if match.get("_span") is None:
+        _drop_nested_fields(match)
     if match.get("_span") is not None:
         _collapse_field_span(match)
         _insert_form_field_text_run(doc, match, sanitized)

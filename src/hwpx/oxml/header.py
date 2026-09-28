@@ -12,6 +12,7 @@ from lxml import etree
 
 from .common import GenericElement, parse_generic_element
 from .namespaces import HP
+from .paragraph_heading import paragraph_heading
 from .utils import local_name, parse_bool, parse_int, text_or_none
 
 
@@ -1542,6 +1543,12 @@ def parse_paragraph_property(node: etree._Element) -> ParagraphProperty:
             version_switch = parse_paragraph_property_version_switch(child)
         else:
             other_children.setdefault(name, []).append(parse_generic_element(child))
+
+    # 개요 8~10 수준의 heading은 hp:switch 안(hp:case)에 있다(한컴 표기).
+    if heading is None:
+        switched = paragraph_heading(node)
+        if switched is not None:
+            heading = parse_paragraph_heading(switched)
 
     # 실코퍼스 236/237(99.6%)은 margin/lineSpacing을 직접 자식이 아니라
     # hp:switch 안(hp:case 또는 hp:default)에 둔다(DEV-018) -- 직접 자식이
