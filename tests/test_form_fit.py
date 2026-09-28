@@ -252,14 +252,22 @@ def test_value_fits_within_ample_height_is_unchanged():
     assert not any("row will grow" in w for w in result.warnings)
 
 
-def test_modest_vertical_overflow_warns_and_defers_to_oracle():
+def test_a_value_the_row_cannot_hold_fails_by_default():
     engine = FitEngine()
-    # 2 lines needed, 1-line height budget → modest growth: reported, never a fail.
+    # 2 lines needed, 1-line height budget: the row would grow and shift the pages.
     result = engine.fit("가" * 11, _vslot(height=1600), FitPolicy(mode="wrap"))
-    assert result.ok is True
-    assert result.overflow_detected is True
-    assert result.errors == []
-    assert any("row will grow" in w for w in result.warnings)
+    assert result.ok is False and result.overflow_detected
+    assert any("FIELD_OVERFLOW" in e for e in result.errors)
+
+
+def test_a_row_grows_only_when_the_policy_allows_it():
+    engine = FitEngine()
+    warned = engine.fit("가" * 11, _vslot(height=1600), FitPolicy(mode="wrap", overflow="warn"))
+    assert warned.ok is True and warned.overflow_detected
+    assert any("row will balloon" in w for w in warned.warnings)
+
+    expanded = engine.fit("가" * 11, _vslot(height=1600), FitPolicy(mode="wrap", allow_row_expand=True))
+    assert expanded.ok is True and expanded.errors == []
 
 
 def test_gross_vertical_balloon_fails_closed_when_cannot_shrink():
@@ -272,13 +280,18 @@ def test_gross_vertical_balloon_fails_closed_when_cannot_shrink():
     assert any("FIELD_OVERFLOW" in e for e in result.errors)
 
 
-def test_gross_vertical_balloon_shrinks_when_allowed():
+def test_gross_vertical_balloon_shrinks_into_the_row_when_allowed():
     engine = FitEngine()
     before = _vslot(height=1600)
-    result = engine.fit("가" * 20, before, FitPolicy(mode="wrap_then_shrink", min_font_pt=8.0))
-    assert result.ok is True
+    result = engine.fit("가" * 20, before, FitPolicy(mode="wrap_then_shrink", min_font_pt=6.0))
+    assert result.ok is True and not result.overflow_detected
     assert result.font_pt is not None and result.font_pt < before.font_pt
     assert result.applied_style_changes.get("from_font_pt") == 10.0
+
+    # No font down to 8 pt fits the row: shrinking part way no longer counts.
+    refused = engine.fit("가" * 20, before, FitPolicy(mode="wrap_then_shrink", min_font_pt=8.0))
+    assert refused.ok is False
+    assert any("FIELD_OVERFLOW" in e for e in refused.errors)
 
 
 def test_expand_row_bypasses_the_height_budget():
@@ -327,17 +340,15 @@ def test_modest_vertical_overflow_shrinks_into_budget_when_possible():
     assert result.font_pt is not None and result.font_pt < before.font_pt
 
 
-def test_modest_vertical_overflow_defers_when_shrink_cannot_reach_budget():
+def test_a_value_shrink_cannot_fit_in_the_row_fails():
     # height=1500 cannot hold two lines even at min font (two 6 pt lines take
-    # 960 + 600) — the honest outcome stays the reported modest deferral, never
-    # a false shrink claim.
+    # 960 + 600): no false shrink claim, and no silent row growth.
     engine = FitEngine()
     result = engine.fit(
         "가" * 11, _vslot(height=1500), FitPolicy(mode="wrap_then_shrink", min_font_pt=6.0)
     )
-    assert result.ok is True
-    assert result.overflow_detected is True
-    assert any("row will grow" in w for w in result.warnings)
+    assert result.ok is False and result.overflow_detected
+    assert any("FIELD_OVERFLOW" in e for e in result.errors)
 
 
 def test_inline_control_width_narrows_slot_and_refuses_wrap() -> None:
@@ -403,3 +414,22 @@ def test_inline_control_consuming_whole_width_gets_named_refusal() -> None:
     result = FitEngine().fit("값", slot, FitPolicy())
     assert not result.ok and result.overflow_detected
     assert any("leave no usable width" in e for e in result.errors)
+
+
+def test_a_cell_fit_that_fails_leaves_the_cell_as_it_was():
+    from hwpx import HwpxDocument
+
+    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    document = HwpxDocument.new()
+    table = document.add_table(1, 1)
+    cell = table.cell(0, 0)
+    cell.text = "원래 값"
+    cell.element.find(f"{hp}cellSz").set("height", str(1600 + 1000 + 282))  # two 10 pt lines and the margins
+
+    refused = table.set_cell_text(0, 0, "가" * 200, fit=FitPolicy(mode="wrap"))
+    assert refused is not None and refused.ok is False
+    assert cell.text == "원래 값"
+
+    grown = table.set_cell_text(0, 0, "가" * 200, fit=FitPolicy(mode="wrap", allow_row_expand=True))
+    assert grown is not None and grown.ok is True
+    assert cell.text == "가" * 200

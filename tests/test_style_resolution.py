@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 import warnings
+from pathlib import Path
 
 import pytest
 
@@ -141,6 +142,58 @@ def test_numeric_ids_keep_working(document: HwpxDocument) -> None:
     assert document.styles.resolve(2).name == "개요 1"
     assert document.styles.resolve("2").name == "개요 1"
     assert str(document.add_paragraph("t", style=2).style_id_ref) == "2"
+
+
+# --------------------------------------------------------------------------
+# 게이트 ②-1 스타일을 주면 그 스타일의 문단·글자 모양을 쓴다
+
+
+def _run_char_pr(paragraph) -> str | None:
+    run = paragraph.element.find("{http://www.hancom.co.kr/hwpml/2011/paragraph}run")
+    return None if run is None else run.get("charPrIDRef")
+
+
+def test_hancom_points_a_styled_paragraph_at_the_styles_shapes() -> None:
+    # A document written in Hancom: its outline paragraphs use their style's own
+    # paragraph and character shapes.
+    document = HwpxDocument.open(
+        Path(__file__).parent / "fixtures" / "hwpxlib_corpus" / "error__20240919__테스트문서.hwpx"
+    )
+    styled = [
+        (paragraph, document.styles.resolve(str(paragraph.style_id_ref)))
+        for paragraph in document.paragraphs
+        if paragraph.style_id_ref is not None and str(paragraph.style_id_ref) != "0"
+    ]
+    assert sorted(style.name for _, style in styled) == ["개요 1", "개요 1", "개요 2"]
+    for paragraph, style in styled:
+        assert str(paragraph.para_pr_id_ref) == str(style.para_pr_id_ref)
+        assert _run_char_pr(paragraph) == str(style.char_pr_id_ref)
+
+
+def test_a_named_style_brings_its_paragraph_and_character_shapes(document: HwpxDocument) -> None:
+    document.add_heading("앞 제목", level=1)  # the paragraph a new one inherits from
+    style = document.styles.resolve("차례 제목")
+    assert (style.para_pr_id_ref, style.char_pr_id_ref) != (0, 0)
+
+    paragraph = document.add_paragraph("차례", style="차례 제목")
+
+    assert str(paragraph.style_id_ref) == str(style.id)
+    assert str(paragraph.para_pr_id_ref) == str(style.para_pr_id_ref)
+    assert _run_char_pr(paragraph) == str(style.char_pr_id_ref)
+
+
+def test_shape_ids_given_with_a_style_win(document: HwpxDocument) -> None:
+    given = document.add_paragraph("t", style="차례 제목", para_pr_id_ref=0, char_pr_id_ref=0)
+    assert (str(given.para_pr_id_ref), _run_char_pr(given)) == ("0", "0")
+
+    in_run = document.add_paragraph("t", style="차례 제목", run_attributes={"charPrIDRef": "0"})
+    assert _run_char_pr(in_run) == "0"
+    assert str(in_run.para_pr_id_ref) == str(document.styles.resolve("차례 제목").para_pr_id_ref)
+
+
+def test_a_numeric_style_id_ref_still_only_names_the_style(document: HwpxDocument) -> None:
+    paragraph = document.add_paragraph("t", style_id_ref=document.styles.resolve("차례 제목").id)
+    assert (str(paragraph.para_pr_id_ref), _run_char_pr(paragraph)) == ("0", "0")
 
 
 # --------------------------------------------------------------------------

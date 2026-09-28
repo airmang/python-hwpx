@@ -24,6 +24,12 @@
   더한다.
 ### 바꿈
 
+- `add_paragraph(style=…)`가 문단에 그 스타일의 문단 모양과 글자 모양을 쓴다. 한/글이 스타일을
+  적용할 때처럼 문단의 `paraPrIDRef`와 첫 run의 `charPrIDRef`가 스타일의 것이 된다. 전에는
+  `styleIDRef`만 바꾸고 모양은 앞 문단에서 물려받아, 한/글에서 개요 스타일 문단이 본문처럼 보이거나
+  앞 제목의 번호가 붙었다. `para_pr_id_ref`·`char_pr_id_ref`나 `run_attributes`의 `charPrIDRef`를
+  함께 주면 그 값을 쓴다. 숫자 id를 쓰는 `style_id_ref`는 전처럼 스타일 이름만 붙인다.
+  개요 스타일 문단에는 한/글이 개요 번호를 붙이므로 README 예시에서 글에 쓴 번호를 뺐다.
 - FormFit이 한글 한 자를 글자 모양의 한글 글꼴에서 한/글이 배치하는 폭으로 센다.
   함초롬바탕·함초롬돋움은 0.972 em, 한컴 고딕은 0.932 em이고, 다른 글꼴(맑은 고딕·바탕·
   돋움·굴림·궁서 등)은 전처럼 1 em이다. 이 세 글꼴의 셀과 누름틀에는 전보다 한 줄에 글자가
@@ -64,6 +70,12 @@
   옛 5.x 이름(`doc.add_rectangle()` 등)은 시그니처를 그대로 두기로 한 호환 계층이라 전처럼 283이다.
 - `set_footnote_numbering()`·`set_endnote_numbering()`의 설명과 `docs/known-traps.md`에, 시작 번호(`new_num`)는
   번호 방식이 `ON_SECTION`일 때만 한/글에 보인다고 적는다. `CONTINUOUS`·`ON_PAGE`는 1부터 매긴다.
+- FormFit이 칸을 채울 때 기본으로 행 높이를 지킨다. 값이 칸 높이가 담는 줄 수보다 조금 많으면 전에는 줄여 넣지
+  못한 경우 경고(`overflow_detected`)만 남기고 값을 넣어 행이 늘었고, 그 뒤 쪽이 밀렸다. 이제 넘는 정도와
+  관계없이 글자를 줄여(`min_font_pt`까지) 칸 안에 넣고, 그래도 안 되면 `FitPolicy.overflow`를 따른다. 기본
+  `fail`은 채우지 않는다(`doc.fields.fill()`은 `field-fit-failed`, `set_cell_text(fit=...)`는 칸을 그대로 두고 `ok=False`인 결과). 행을 늘려도 되면
+  `FitPolicy(allow_row_expand=True)`, 경고만 받고 넣으려면 `FitPolicy(overflow="warn")`을 준다. 칸 높이를 잴 수 없는
+  칸(병합·자동 늘어남)은 전처럼 폭만 본다.
 
 ### 고침
 
