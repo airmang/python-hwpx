@@ -17,6 +17,7 @@ from zipfile import ZipFile
 
 from ..opc.security import guard_zip_file, parse_xml_stdlib, read_member
 from ..oxml._document_primitives import _text_element_content
+from ..oxml.paragraph_heading import paragraph_heading
 #: A caller-supplied redaction step. Declared here rather than imported from
 #: mail_merge, which imports export_text — the two would form a cycle.
 TextSanitizer = Callable[[str], str]
@@ -148,7 +149,7 @@ class _ListLabels:
         for bullet in header.iter(f"{_HH}bullet"):
             self._bullets[bullet.get("id") or ""] = bullet.get("char") or ""
         for para_pr in header.iter(f"{_HH}paraPr"):
-            heading = para_pr.find(f"{_HH}heading")
+            heading = paragraph_heading(para_pr)
             kind = heading.get("type", "NONE") if heading is not None else "NONE"
             if heading is not None and kind != "NONE":
                 self._headings[para_pr.get("id") or ""] = (kind, heading.get("idRef") or "", _int_attribute(heading, "level") or 0)
