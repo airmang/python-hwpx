@@ -39,6 +39,8 @@ GLYPH_WIDTHS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_gl
 LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_heights.hwpx"
 ROUNDED_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_rounded_advances.hwpx"
 LINE_PITCHES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_pitches.hwpx"
+PARAGRAPH_MARGINS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_margins.hwpx"
+PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_spacing.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
 
@@ -344,6 +346,44 @@ def test_glyph_widths_break_where_hancom_breaks() -> None:
         slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
 
         assert measure(cell.text, slot).lines == len(segs), (cell.text, slot.available_width)
+
+
+def _one_cell_tables(path: Path) -> tuple[HwpxDocument, list]:
+    doc = HwpxDocument.open(path.read_bytes())
+    return doc, [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+
+def test_paragraph_margins_come_off_every_line_as_hancom_lays_them_out() -> None:
+    # Ten syllables in paragraphs whose margins (left, right, indent) are (1000, 0, 0), (500, 500, 0),
+    # (0, 800, 0) and (600, 200, 400), each in a cell 150 wider than the text and the margins and one 150
+    # narrower. Hancom laid them out and saved them.
+    doc, tables = _one_cell_tables(PARAGRAPH_MARGINS)
+
+    lines = []
+    for table in tables:
+        cell = table.cell(0, 0)
+        segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
+        slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
+        assert measure(cell.text, slot).lines == len(segs), (cell.width, len(segs))
+        lines.append(len(segs))
+    assert lines == [1, 2] * 4
+
+
+def test_spacing_before_takes_room_in_a_cell_and_spacing_after_does_not() -> None:
+    # Two lines in a paragraph with 600 before and 400 after, in cells stored 50 taller than the two lines,
+    # than the spacing before and the two lines, and than all three. Hancom started each first line at 600
+    # and grew only the first row, to the spacing before, the two lines and the cell margins.
+    doc, tables = _one_cell_tables(PARAGRAPH_SPACING)
+    heights = [int(table.element.find(f"{HP}sz").get("height")) for table in tables]
+    first_lines = [
+        int(table.cell(0, 0).paragraphs[0].element.find(f"{HP}linesegarray/{HP}lineseg").get("vertpos"))
+        for table in tables
+    ]
+
+    assert heights == [3482, 3532, 3932]
+    assert first_lines == [600, 600, 600]
+    budgets = [resolve_slot_metrics(table.cell(0, 0), doc, safety=1.0).height_lines() for table in tables]
+    assert budgets == [1, 2, 2]
 
 
 def test_each_line_spacing_type_advances_a_line_as_hancom_does() -> None:
