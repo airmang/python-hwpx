@@ -370,15 +370,17 @@ class HwpxOxmlTableCell:
             _append_text_with_tabs(run, line)
 
     def _wrap_new_content(self, value: str, previous_text: str) -> None:
-        """Let new content wrap in a SQUEEZE cell.
+        """Let a value that would squeeze too far wrap in a SQUEEZE cell.
 
-        SQUEEZE can compress a longer filled value until Hancom renders
-        adjacent glyphs on top of each other.  New content should wrap/reflow;
-        untouched template cells keep their mode.
+        Hancom keeps a SQUEEZE cell's text on one line and narrows only the
+        spacing between its characters: a line up to 1.1 times the cell's line
+        width still reads, a longer one makes the characters touch and overlap.
+        Such a value switches the cell to BREAK; a shorter one keeps SQUEEZE,
+        as Hancom's own fill does.  Untouched template cells keep their mode.
         """
         if value and value != previous_text:
             sublist = self._ensure_sublist()
-            if (sublist.get("lineWrap") or "").upper() == "SQUEEZE":
+            if (sublist.get("lineWrap") or "").upper() == "SQUEEZE" and not _table_sizes.squeezes_readably(self, value):
                 sublist.set("lineWrap", "BREAK")
 
     def set_text(
@@ -1173,9 +1175,10 @@ class HwpxOxmlTable:
         Without *fit* this is the historical raw set (returns ``None``). With a
         :class:`~hwpx.form_fit.policy.FitPolicy` the value is measured against the
         cell box and wrapped/shrunk/failed accordingly; the returned
-        :class:`~hwpx.form_fit.report.FitResult` carries the verdict (and an
-        ``overflow=fail`` miss makes ``ok`` ``False``). ``split_paragraphs`` is
-        ignored in fit mode — line breaks are decided by measurement.
+        :class:`~hwpx.form_fit.report.FitResult` carries the verdict. An
+        ``overflow=fail`` miss makes ``ok`` ``False`` and leaves the cell as it
+        was. ``split_paragraphs`` is ignored in fit mode — line breaks are
+        decided by measurement.
         """
 
         if logical:

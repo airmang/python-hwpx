@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import io
 from typing import Callable, cast
 from zipfile import ZipFile
@@ -430,6 +432,43 @@ def test_table_set_cell_text_converts_squeeze_to_break() -> None:
     sublist.set("lineWrap", "SQUEEZE")
     table.set_cell_text(0, 0, cell.text)
     assert sublist.get("lineWrap") == "SQUEEZE"
+
+
+def test_a_value_that_squeezes_readably_keeps_the_cell_squeezed() -> None:
+    # Hancom keeps a SQUEEZE cell on one line and narrows the spacing; up to 1.1
+    # times the line width the text still reads. 10 pt: a Hangul syllable is 972
+    # wide and the new cell's line 41,500.
+    document = HwpxDocument.new()
+    cell = document.add_table(1, 1).cell(0, 0)
+    sublist = cell.element.find(f"{HP}subList")
+    assert sublist is not None
+    sublist.set("lineWrap", "SQUEEZE")
+
+    cell.text = "가" * 44  # 42,768: 1.03 times the line
+    assert sublist.get("lineWrap") == "SQUEEZE"
+
+    cell.text = "가" * 46  # 44,712: 1.08 times
+    assert sublist.get("lineWrap") == "SQUEEZE"
+
+    cell.text = "가" * 48  # 46,656: 1.12 times
+    assert sublist.get("lineWrap") == "BREAK"
+
+
+def test_hancom_keeps_a_squeeze_cell_on_one_line_when_it_fills_it() -> None:
+    # Hancom filled a SQUEEZE cell field with 64 syllables, 1.5 times the cell's
+    # 41,500 line: the cell stays SQUEEZE and the value sits on one line.
+    # python-hwpx keeps SQUEEZE only up to 1.1 times, where the text still reads.
+    path = Path(__file__).parent / "fixtures" / "hancom_saved" / "table_cell_squeeze_filled.hwpx"
+    document = HwpxDocument.open(path.read_bytes())
+    cell = document.tables.all[0].cell(0, 0)
+    sublist = cell.element.find(f"{HP}subList")
+    assert sublist is not None and sublist.get("lineWrap") == "SQUEEZE"
+    [paragraph] = cell.paragraphs
+    assert len(paragraph.element.findall(f"{HP}linesegarray/{HP}lineseg")) == 1
+    assert cell.text == "가" * 64
+
+    cell.text = "가" * 65
+    assert sublist.get("lineWrap") == "BREAK"
 
 
 def test_save_removes_stale_layout_cache_after_low_level_text_edit() -> None:

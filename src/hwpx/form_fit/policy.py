@@ -27,7 +27,13 @@ OverflowAction = Literal["fail", "warn", "truncate"]
 
 @dataclass(frozen=True)
 class FitPolicy:
-    """The fit decision rule for one value (plan Appendix A)."""
+    """The fit decision rule for one value (plan Appendix A).
+
+    A filled cell keeps its authored row height: a value that needs more lines
+    than the row holds shrinks into it where the mode allows, and otherwise
+    ``overflow`` decides (``fail`` refuses, ``warn`` keeps the value and lets
+    the row grow). ``allow_row_expand=True`` lets the row grow to the value.
+    """
 
     mode: FitMode = "wrap_then_shrink"
     max_lines: int | None = None

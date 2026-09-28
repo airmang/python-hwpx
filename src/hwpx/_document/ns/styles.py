@@ -764,12 +764,22 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         bullet_char: str | None = None,
         number_format: str | None = None,
         start: int | None = None,
+        continue_list: bool = False,
     ) -> "ListFormatResult":
         """글머리표/번호 문단 서식을 적용한다.
 
         기본 모양은 한/글 새 목록과 다르다: 글머리표는 1수준 ``-``·2수준 ``○``(한/글은
         ``●``), 번호 2수준은 ``1.1.``(한/글은 ``가.``)·3수준은 ``1.1.1.``(한/글은 ``1)``).
         글머리표를 한/글처럼 하려면 ``bullet_char="●"``를 준다.
+
+        번호 목록은 부를 때마다 새 번호 정의를 만들고, 한/글은 번호 정의마다 번호를
+        센다. 그래서 문단마다 따로 부르면 목록이 매번 1부터 다시 시작한다. 이어지는
+        목록은 ``paragraph_indexes=[...]``로 한 번에 적용하거나 ``continue_list=True``를
+        준다. 그러면 대상 문단 앞의 마지막 번호 목록(개요는 개요)에 이어 번호를 매긴다.
+        앞에 그런 목록이 없으면 새 목록을 만든다. 앞 목록의 번호 정의에 없는 더 깊은
+        수준이면 그 수준의 모양을 정의에 더한다(한/글은 없는 수준에 번호를 그리지 않는다).
+        글머리표에는 번호가 없어 바뀌는 것이 없다. ``number_format``·``start``와 함께 주면 ``style-list-continue-conflict``로
+        거부한다.
         """
 
         from .. import layout as _layout
@@ -783,6 +793,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             bullet_char=bullet_char,
             number_format=number_format,
             start=start,
+            continue_list=continue_list,
         )
 
     @staticmethod

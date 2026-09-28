@@ -28,10 +28,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Mapping, Sequence
 
+from .namespaces import HH
+
 if TYPE_CHECKING:
     from .header_part import HwpxOxmlHeader
 
-__all__ = ["NOTE_NUMBER_FORMATS", "NUMBER_FORMATS", "NUMBER_FORMAT_ALIASES", "ensure_numbering_refs", "number_format"]
+__all__ = [
+    "NOTE_NUMBER_FORMATS",
+    "NUMBER_FORMATS",
+    "NUMBER_FORMAT_ALIASES",
+    "ensure_numbering_levels",
+    "ensure_numbering_refs",
+    "number_format",
+]
 
 _DEFAULT_BULLET_CHARS = ("-", "○", "□", "•")
 
@@ -142,3 +151,28 @@ def ensure_numbering_refs(
         return _numbering_refs_for_kind(header, "OUTLINE", resolved_levels)
 
     raise ValueError("kind must be 'bullet', 'number', or 'outline'")
+
+
+def ensure_numbering_levels(header: "HwpxOxmlHeader", numbering_id: str, levels: int) -> None:
+    """Give numbering *numbering_id* a head for every level up to *levels*, in the form a new
+    definition's heads take (``^1.^2.`` …): Hancom draws no number for a level its numbering
+    lacks. A numbering the header does not hold (an outline's ``idRef="0"``) is left alone."""
+
+    numbering = next(
+        (item for item in header.element.iter(f"{HH}numbering") if item.get("id") == str(numbering_id)),
+        None,
+    )
+    if numbering is None:
+        return
+    present = {head.get("level") for head in numbering.findall(f"{HH}paraHead")}
+    missing = [level for level in range(1, levels + 1) if str(level) not in present]
+    if not missing:
+        return
+    for level in missing:
+        head = numbering.makeelement(f"{HH}paraHead", header._default_para_head_attributes(level))
+        head.text = ".".join(f"^{part}" for part in range(1, level + 1)) + "."
+        numbering.append(head)
+    for head in sorted(numbering.findall(f"{HH}paraHead"), key=lambda head: int(head.get("level") or 0)):
+        numbering.remove(head)
+        numbering.append(head)
+    header.mark_dirty()
