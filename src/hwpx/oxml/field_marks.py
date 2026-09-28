@@ -12,8 +12,8 @@ hyperlink식으로 3-run 분리하지 않는다.
 
 ## 날짜/시간 필드(``type="DATE"``)
 
-실측 원문(``hp:fieldBegin``): ``id``/``fieldid``는 각각 독립 난수(같은
-값 아님) · ``editable="0"``·``dirty="0"``(TOC와 달리 열기 시 재계산
+실측 원문(``hp:fieldBegin``): ``id``는 난수, ``fieldid``는 필드 종류의
+제어 id(``%dte``, :func:`field_type_id`) · ``editable="0"``·``dirty="0"``(TOC와 달리 열기 시 재계산
 트리거가 **아니다** -- 캐시 텍스트가 정본) · ``zorder="-1"``·
 ``metaTag=""``. ``hp:parameters``(``cnt="4"``): ``Prop=8``(유일한 관측값,
 고정) · ``Command``는 포맷 **코드가 아니라 예시 문자열**(관측
@@ -86,9 +86,9 @@ mail_merge``가 치환 대상으로 인식하는 세 문법 중 하나) -- DATE/
 호출자에게 떠넘기지 않는다.
 
 ``fieldid``: gold의 두 필드는 ``id``가 서로 다른데 ``fieldid``는 같은
-값을 공유한다(``627928423``). 표본이 문서 하나뿐이라 이게 "필드 종류당
-1개"인지 "문서당 1개"인지 역산할 근거가 없어, DATE/PATH와 같은
-독립 난수 채번을 그대로 쓴다(실한컴도 ``id``≠``fieldid``인 건 같다).
+값을 공유한다(``627928423``). 이 값은 필드 종류의 제어 id ``%mmg``를
+네 바이트 수로 읽은 것이다. 한/글은 종류마다 모든 필드에 같은 값을 쓴다
+(누름틀 ``%clk``, 메모 ``%%me``, 날짜 ``%dte`` …, :data:`FIELD_TYPE_CONTROL_IDS`).
 """
 
 from __future__ import annotations
@@ -112,7 +112,38 @@ __all__ = [
     "create_mail_merge_field",
     "create_proofreading_mark_field",
     "create_path_field",
+    "FIELD_TYPE_CONTROL_IDS",
+    "field_type_id",
 ]
+
+#: The control id of each field type (``hp:fieldBegin/@type``): four ASCII characters
+#: Hancom writes, read as a big-endian number, as the ``fieldid`` of every field of the
+#: type and of its ``fieldEnd`` (a mail merge field's 627928423 is ``%mmg``).
+FIELD_TYPE_CONTROL_IDS: dict[str, str] = {
+    "CLICK_HERE": "%clk",
+    "HYPERLINK": "%hlk",
+    "FORMULA": "%fmu",
+    "BOOKMARK": "%bmk",
+    "DATE": "%dte",
+    "DOC_DATE": "%ddt",
+    "PATH": "%pat",
+    "TABLEOFCONTENTS": "%toc",
+    "MAILMERGE": "%mmg",
+    "CROSSREF": "%xrf",
+    "SUMMARY": "%sum",
+    "USER_INFO": "%usr",
+    "MEMO": "%%me",
+    "PROOFREADING_MARKS_SIGN": "%sig",
+}
+
+
+def field_type_id(field_type: str | None) -> str:
+    """The ``fieldid`` Hancom writes for a field of *field_type*, or a new id for a
+    type without a known control id."""
+
+    control = FIELD_TYPE_CONTROL_IDS.get((field_type or "").upper())
+    return str(int.from_bytes(control.encode("ascii"), "big")) if control else _object_id()
+
 
 #: 실측된 유일한 (date_format -> command 미리보기 문자열) 매핑. 다른
 #: 포맷의 command 문자열을 역산할 근거가 없어 이 하나만 지원한다.
@@ -141,7 +172,7 @@ def _field_begin(
 
     Returns ``(ctrl, fieldBegin, field_id, field_ref_id)`` -- *field_id*는
     ``fieldEnd``의 ``beginIDRef``에, *field_ref_id*(fieldBegin 자신의
-    ``fieldid``, ``id``와는 독립 난수)는 ``fieldEnd``의 ``fieldid``에
+    ``fieldid``, 필드 종류의 제어 id)는 ``fieldEnd``의 ``fieldid``에
     그대로 쓴다(둘 다 실측 gold에 있는 속성 -- 값이 다른데도 fieldEnd가
     양쪽을 다 반복해서 갖는다).
 
@@ -150,7 +181,7 @@ def _field_begin(
     유일한 속성이라 여기서만 분기한다(모듈 독스트링 참조).
     """
     field_id = _object_id()
-    field_ref_id = _object_id()
+    field_ref_id = field_type_id(field_type)
     ctrl = ET.Element(f"{_HP}ctrl")
     attributes = {
         "id": field_id,
