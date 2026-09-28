@@ -388,6 +388,21 @@ def test_a_symbol_in_a_face_the_table_does_not_list_breaks_where_hancom_breaks_i
     assert {classify_char(ch) for ch in "→○□☆"} == {"wide"}
 
 
+def test_a_cell_holds_lines_up_to_its_stored_height() -> None:
+    # Hancom laid the spacing before and two lines out in the second cell (3482 of its stored 3532 with the
+    # margins) and kept the row: lines fit up to the stored height, with no inset below it.
+    doc, tables = _one_cell_tables(PARAGRAPH_SPACING)
+    assert [int(table.element.find(f"{HP}sz").get("height")) for table in tables][1] == 3532
+    for table in tables:
+        for paragraph in table.element.iter(f"{HP}p"):
+            for cache in paragraph.findall(f"{HP}linesegarray"):
+                paragraph.remove(cache)
+
+    budgets = [resolve_slot_metrics(table.cell(0, 0), doc).height_lines() for table in tables]
+
+    assert budgets == [1, 2, 2]
+
+
 def test_each_line_spacing_type_advances_a_line_as_hancom_does() -> None:
     def pitch(kind: str, value: float) -> float:
         return SlotMetrics(available_width=5000.0, font_pt=10.0, line_spacing=(kind, value)).line_height()
