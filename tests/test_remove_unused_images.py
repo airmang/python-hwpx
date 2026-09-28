@@ -69,3 +69,16 @@ def test_the_images_of_a_cleared_body_are_removed() -> None:
     assert len(removed) == 2
     assert document.media.images == ()
     assert document.media.remove_unused_images() == ()
+
+
+def test_the_image_of_a_removed_paragraph_stays_in_the_file_until_it_is_removed() -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("그림 앞")
+    picture = document.add_picture(USED, "png", width=3000, height=3000)
+    document.add_paragraph("그림 뒤")
+
+    picture.paragraph.remove()
+
+    assert _bin_data(document.to_bytes()) == [USED]
+    assert [str(item) for item in document.media.remove_unused_images()] == ["BIN0001"]
+    assert _bin_data(document.to_bytes()) == []

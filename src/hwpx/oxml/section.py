@@ -208,7 +208,9 @@ class HwpxOxmlSection:
         What goes: every paragraph after the first, every other child of the
         first paragraph's runs (text, tables, pictures, shapes...), the runs
         after the first that hold no control, and the first paragraph's layout
-        cache (``hp:linesegarray``).
+        cache (``hp:linesegarray``). The images of removed pictures stay in
+        the package until ``doc.media.remove_unused_images()`` drops them;
+        Hancom drops images nothing points at when it saves.
 
         A kept ``hp:ctrl`` can hold content of its own, such as a header with
         a name in it. ``on_control_content`` says what to do when the kept
