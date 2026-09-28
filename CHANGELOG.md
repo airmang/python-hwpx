@@ -67,6 +67,11 @@
 
 ### 고침
 
+- 새 도형(`add_rectangle()`·`add_ellipse()`·`add_line()`·`add_arc()`·`add_polygon()`·`add_container()`)에
+  `textWrap`·`textFlow`를 쓴다. 한/글은 모든 도형에 이 둘을 쓰고, 없으면 `SQUARE`·`BOTH_SIDES`로 읽는다.
+  그래서 새 도형은 `textWrap="SQUARE" textFlow="BOTH_SIDES"`이고, 묶음(`hp:container`) 안 도형은 한/글처럼
+  `TOP_AND_BOTTOM`이다. 채운 도형의 `hc:winBrush`에도 한/글처럼 `alpha="0"`을 쓴다. 한/글에서 보이는 모양은
+  그대로다.
 - `doc.fields.fill()`이 내용이 여러 문단에 걸친 누름틀을 채우면 값만 시작 뒤에 넣고 걸친 문단의 원래
   글을 그대로 두던 것을 고친다. 누름틀 끝을 시작과 같은 문단에서만 찾았기 때문이다. 이제 끝을 뒤
   문단에서도 찾고, 한/글처럼 걸친 문단(그 안의 표 포함)을 지운 뒤 값과 끝을 시작 문단에 둔다. 끝

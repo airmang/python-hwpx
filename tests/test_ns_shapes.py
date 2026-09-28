@@ -13,6 +13,7 @@ import pytest
 from hwpx import model
 from hwpx.document import HwpxDocument
 from hwpx.errors import HwpxError
+from hwpx.oxml import ContainerMember
 
 CHART = b'<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"/>'
 MEMBERS = {
@@ -83,6 +84,7 @@ def test_the_moved_root_names_still_answer(document: HwpxDocument) -> None:
 
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
 HWPXLIB = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
 
 
@@ -118,3 +120,63 @@ def test_a_new_shape_draws_hancoms_default_line(name: str, args: tuple, document
     shape = getattr(document.shapes, name)(*args)
     [line] = shape.element.iter(f"{HP}lineShape")
     assert line.get("width") == "33"
+
+
+_SHAPE_TAGS = ("rect", "ellipse", "line", "arc", "polygon", "curve", "connectLine", "container")
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "reader_writer__SimpleArc.hwpx",
+        "reader_writer__SimpleContainer.hwpx",
+        "reader_writer__SimpleCurve.hwpx",
+        "reader_writer__SimpleEllipse.hwpx",
+        "reader_writer__SimpleLine.hwpx",
+        "reader_writer__SimplePolygon.hwpx",
+        "reader_writer__SimpleRectangle.hwpx",
+    ],
+)
+def test_shapes_drawn_in_hancom_say_how_text_goes_around_them(name: str) -> None:
+    # Every shape Hancom saves carries textWrap and textFlow; a group's members
+    # are TOP_AND_BOTTOM. Every brush carries alpha.
+    with zipfile.ZipFile(HWPXLIB / name) as archive:
+        section = archive.read("Contents/section0.xml").decode("utf-8")
+    shapes = re.findall(rf"<hp:(?:{'|'.join(_SHAPE_TAGS)})\b[^>]*>", section)
+    assert shapes
+    for shape in shapes:
+        assert re.search(r'\btextWrap="[A-Z_]+"', shape) and 'textFlow="BOTH_SIDES"' in shape, shape
+        if 'groupLevel="1"' in shape:
+            assert 'textWrap="TOP_AND_BOTTOM"' in shape, shape
+    assert all("alpha=" in brush for brush in re.findall(r"<hc:winBrush\b[^>]*>", section))
+
+
+@pytest.mark.parametrize(
+    ("name", "args"),
+    [
+        ("add_line", ()),
+        ("add_rectangle", ()),
+        ("add_ellipse", ()),
+        ("add_arc", ()),
+        ("add_polygon", ([(0.0, 0.0), (10.0, 0.0), (5.0, 10.0)],)),
+    ],
+)
+def test_a_new_shape_says_how_text_goes_around_it(name: str, args: tuple, document: HwpxDocument) -> None:
+    shape = getattr(document.shapes, name)(*args)
+    assert (shape.element.get("textWrap"), shape.element.get("textFlow")) == ("SQUARE", "BOTH_SIDES")
+
+
+def test_a_group_member_lets_the_group_place_it(document: HwpxDocument) -> None:
+    group = document.shapes.add_container(
+        [ContainerMember.rect(0, 0, 1000, 1000), ContainerMember.ellipse(1000, 0, 1000, 1000)]
+    )
+    members = [child for child in group.element if child.get("groupLevel") == "1"]
+    assert len(members) == 2
+    assert {member.get("textWrap") for member in members} == {"TOP_AND_BOTTOM"}
+    assert (group.element.get("textWrap"), group.element.get("textFlow")) == ("SQUARE", "BOTH_SIDES")
+
+
+def test_a_filled_shape_writes_its_brush_as_hancom_does(document: HwpxDocument) -> None:
+    shape = document.shapes.add_rectangle(fill_color="#F1CB7E")
+    [brush] = shape.element.iter(f"{HC}winBrush")
+    assert brush.attrib == {"faceColor": "#F1CB7E", "hatchColor": "#FFFFFF", "alpha": "0"}
