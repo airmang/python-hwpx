@@ -185,6 +185,12 @@ def _build_shape_common_children(
     parent.set("id", the_id)
     parent.set("zOrder", "0")
     parent.set("numberingType", "NONE")
+    # Hancom writes both on every shape and reads a shape without them as these;
+    # a value the caller set (a picture's text_wrap) stays.
+    if parent.get("textWrap") is None:
+        parent.set("textWrap", "SQUARE")
+    if parent.get("textFlow") is None:
+        parent.set("textFlow", "BOTH_SIDES")
     parent.set("lock", "0")
     parent.set("dropcapstyle", "None")
     parent.set("href", "")
@@ -282,7 +288,7 @@ def _build_drawing_object_children(
         # accepted by the parser but silently rendered unfilled.
         fb = _append_child(parent, f"{_HC}fillBrush", {})
         _append_child(fb, f"{_HC}winBrush", {
-            "faceColor": face_color, "hatchColor": "#FFFFFF",
+            "faceColor": face_color, "hatchColor": "#FFFFFF", "alpha": "0",
         })
 
     _append_child(parent, f"{_HP}shadow", {
@@ -666,6 +672,9 @@ def _create_container_element(
         # creation.
         member_el.set("id", "0")
         member_el.set("groupLevel", "1")
+        # Real corpus: every group member is TOP_AND_BOTTOM; the group's own
+        # placement decides how text goes around it.
+        member_el.set("textWrap", "TOP_AND_BOTTOM")
 
         # AbstractShapeObjectType tail (sz/pos/outMargin/shapeComment) is
         # container-level only — every observed member carries none of it.

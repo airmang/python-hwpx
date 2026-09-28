@@ -160,6 +160,11 @@ def _field_identifier(field_begin: Any) -> str:
 
 
 def _field_end_matches(field_begin: Any, field_end: Any) -> bool:
+    # An end that names its begin (beginIDRef) is that begin's end only: a fieldid
+    # is shared by every field of a type (Hancom's control id), so it pairs only
+    # ends that name no begin.
+    if field_begin.get("id") and field_end.get("beginIDRef"):
+        return field_begin.get("id") == field_end.get("beginIDRef")
     begin_keys = {
         value
         for value in (
@@ -291,7 +296,9 @@ def _find_field_end_in_following_paragraphs(
                     if _local_name(child) != "ctrl":
                         continue
                     for field_end in child.findall(f"{_HP}fieldEnd"):
-                        if ids & {field_end.get("beginIDRef"), field_end.get("fieldid")}:
+                        if _field_end_matches(field_begin, field_end) and (
+                            ids & {field_end.get("beginIDRef"), field_end.get("fieldid")}
+                        ):
                             return sibling, runs, run_index, child_index, middle
             middle.append(sibling)
         sibling = sibling.getnext()
