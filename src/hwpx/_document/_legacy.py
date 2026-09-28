@@ -615,7 +615,7 @@ class _LegacyFacade:
         field_id: str | None = None,
         author: str | None = None,
         created: datetime | str | None = None,
-        number: int = 1,
+        number: int | None = None,
         anchor_char_pr_id_ref: str | int | None = None,
     ) -> tuple[HwpxOxmlMemo, HwpxOxmlParagraph, str]:
         """Create a memo and ensure it is visible by anchoring a MEMO field."""
@@ -801,7 +801,7 @@ class _LegacyFacade:
         field_id: str | None = None,
         author: str | None = None,
         created: datetime | str | None = None,
-        number: int = 1,
+        number: int | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> str:
         """Attach a MEMO field control to *paragraph* so Hangul shows *memo*."""
