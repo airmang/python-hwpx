@@ -241,3 +241,16 @@ def test_an_unnamed_field_is_not_found_by_name_but_by_index() -> None:
     result = doc.fields.fill("2026-09-28", field_index=1)
     assert result.field.name == ""
     assert result.field.value == "2026-09-28"
+
+
+def test_hancom_lists_and_fills_only_the_named_field() -> None:
+    """Hancom saved a document with a field 이름 and a field whose name is empty, before and after it was
+    asked to fill 이름 with 홍길동 and the unnamed field, by its id, with a date: its field list held
+    이름 alone, and only 이름 was filled."""
+    before = HwpxDocument.open((HANCOM_SAVED / "form_field_unnamed_before.hwpx").read_bytes())
+    after = HwpxDocument.open((HANCOM_SAVED / "form_field_unnamed_after.hwpx").read_bytes())
+
+    assert [field.name for field in before.fields.all] == ["이름"]
+    assert [(field.name, field.value) for field in after.fields.all] == [("이름", "홍길동")]
+    unnamed = [b for b in after.sections[0].element.iter(f"{HP}fieldBegin") if b.get("name") == ""]
+    assert len(unnamed) == 1 and unnamed[0].get("dirty") != "1"
