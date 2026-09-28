@@ -468,6 +468,14 @@ def test_spacing_before_takes_room_in_a_cell_and_spacing_after_does_not() -> Non
 
     assert heights == [3482, 3532, 3932]
     assert first_lines == [600, 600, 600]
+    # Hancom drew the first row as tall as its lines, so those lines are its room.
+    budgets = [resolve_slot_metrics(table.cell(0, 0), doc, safety=1.0).height_lines() for table in tables]
+    assert budgets == [2, 2, 2]
+    # By the stored heights alone the spacing before leaves the first cell one line.
+    for table in tables:
+        for paragraph in table.element.iter(f"{HP}p"):
+            for cache in paragraph.findall(f"{HP}linesegarray"):
+                paragraph.remove(cache)
     budgets = [resolve_slot_metrics(table.cell(0, 0), doc, safety=1.0).height_lines() for table in tables]
     assert budgets == [1, 2, 2]
 
