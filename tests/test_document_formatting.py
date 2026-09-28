@@ -1325,11 +1325,15 @@ def test_header_ensure_tab_definition_creates_and_dedupes() -> None:
     assert tabpr.get("id") == tab_id
     assert tabpr.get("autoTabLeft") == "0"  # 실코퍼스 관행: "0"/"1"(true/false 아님)
     assert tabpr.get("autoTabRight") == "0"
-    items = tabpr.findall(f"{HH}tabItem")
+    # As Hancom writes a tab stop (DEV-022): hp:case holds the HWPUNIT position, hp:default twice it.
+    assert tabpr.findall(f"{HH}tabItem") == []
+    items = tabpr.findall(f"{HP}switch/{HP}case/{HH}tabItem")
     assert len(items) == 1
     assert items[0].get("pos") == "3543"
     assert items[0].get("type") == "LEFT"
     assert items[0].get("leader") == "NONE"
+    assert items[0].get("unit") == "HWPUNIT"
+    assert [item.get("pos") for item in tabpr.findall(f"{HP}switch/{HP}default/{HH}tabItem")] == ["7086"]
 
     # 동일 스펙 재호출은 새 항목을 안 만들고 같은 id를 재사용한다(ensure_style 선례).
     reused_id = header.ensure_tab_definition(
@@ -1372,9 +1376,9 @@ def test_header_ensure_tab_definition_auto_flags_are_part_of_the_dedupe_key() ->
 
 
 def test_header_ensure_tab_definition_dedupes_against_a_switch_wrapped_existing_entry() -> None:
-    """DEV-022: 실코퍼스 449/449 hp:switch로 감싼 hh:tabPr은 직속 hh:tabItem이
-    없다 — 그 경우 dedupe 비교가 hp:default 분기를 보지 않으면 동등한
-    스펙을 "불일치"로 오판해 중복 tabPr을 만든다(결함-부활으로 확인됨)."""
+    """DEV-022: 한/글이 저장한 hh:tabPr은 탭마다 hp:switch로 감싸 직속 hh:tabItem이
+    없다 — dedupe 비교는 hp:case의 HWPUNIT 위치로 한다. 그러지 않으면 동등한
+    스펙을 "불일치"로 오판해 중복 tabPr을 만든다."""
 
     head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
     header = HwpxOxmlHeader("header.xml", head_element)
@@ -1393,14 +1397,15 @@ def test_header_ensure_tab_definition_dedupes_against_a_switch_wrapped_existing_
     default = ET.SubElement(switch, f"{HP}default")
     ET.SubElement(default, f"{HH}tabItem", {"pos": "8064", "type": "LEFT", "leader": "NONE"})
 
-    # hp:default's value (8064) is the real-corpus-verified standard scale --
-    # matching it should reuse id="0", not create a duplicate.
+    # hp:case holds the position Hancom lays the stop out at (4032 HWPUNIT):
+    # the same stop reuses id="0"; the doubled hp:default value is another stop.
     matched_id = header.ensure_tab_definition(
-        tab_stops=[{"pos": 8064, "type": "LEFT", "leader": "NONE"}],
+        tab_stops=[{"pos": 4032, "type": "LEFT", "leader": "NONE"}],
     )
 
     assert matched_id == "0"
     assert len(tabprops.findall(f"{HH}tabPr")) == 1
+    assert header.ensure_tab_definition(tab_stops=[{"pos": 8064, "type": "LEFT", "leader": "NONE"}]) != "0"
 
 
 def test_header_ensure_tab_definition_rejects_missing_pos() -> None:

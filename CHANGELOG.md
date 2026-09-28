@@ -45,6 +45,12 @@
   더한다.
 ### 바꿈
 
+- 탭 정의를 한/글처럼 읽고 쓴다. 한/글이 저장한 `hh:tabPr`은 탭마다 `hp:switch`로 감싸 `hp:case`에 HWPUNIT 위치
+  (`unit="HWPUNIT"`)를, `hp:default`에 그 두 배를 쓴다. `doc.styles.tab_properties`·`tab_property()`의 `tab_stops`가
+  이제 모든 스위치의 `hp:case` 위치를 읽는다. 전에는 첫 스위치의 `hp:default`만 읽어서, 탭이 여럿인 정의를 탭
+  하나로, 위치는 두 배로 보고했다. 스위치 없는 `hh:tabItem`은 전처럼 그 값 그대로다(한/글도 HWPUNIT으로 읽는다).
+  `ensure_tab_definition()`(`apply_paragraph_format(tab_stops=…)`, 차례 만들기)도 탭마다 같은 스위치로 쓰고, 같은
+  정의를 찾을 때 `hp:case` 위치로 비교한다.
 - `add_paragraph(style=…)`가 문단에 그 스타일의 문단 모양과 글자 모양을 쓴다. 한/글이 스타일을
   적용할 때처럼 문단의 `paraPrIDRef`와 첫 run의 `charPrIDRef`가 스타일의 것이 된다. 전에는
   `styleIDRef`만 바꾸고 모양은 앞 문단에서 물려받아, 한/글에서 개요 스타일 문단이 본문처럼 보이거나
