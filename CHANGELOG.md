@@ -90,6 +90,11 @@
 
 ### 고침
 
+- 새 도형(`add_rectangle()`·`add_ellipse()`·`add_line()`·`add_arc()`·`add_polygon()`·`add_container()`)에
+  `textWrap`·`textFlow`를 쓴다. 한/글은 모든 도형에 이 둘을 쓰고, 없으면 `SQUARE`·`BOTH_SIDES`로 읽는다.
+  그래서 새 도형은 `textWrap="SQUARE" textFlow="BOTH_SIDES"`이고, 묶음(`hp:container`) 안 도형은 한/글처럼
+  `TOP_AND_BOTTOM`이다. 채운 도형의 `hc:winBrush`에도 한/글처럼 `alpha="0"`을 쓴다. 한/글에서 보이는 모양은
+  그대로다.
 - 필드를 쓸 때 `fieldid`에 그 필드 종류의 제어 id를 쓴다. 한/글은 종류마다 모든 필드에 같은 `fieldid`를 쓴다.
   제어 id 네 글자를 수로 읽은 값이다(누름틀 `%clk` 627272811, 날짜 `%dte`, 경로 `%pat`, 교정 부호 `%sig`, 메일
   머지 `%mmg`, 차례 `%toc`, 하이퍼링크 `%hlk`, 상호 참조 `%xrf`). 전에는 누름틀·날짜·경로·교정 부호·메일 머지·
