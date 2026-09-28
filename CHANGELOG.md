@@ -45,6 +45,9 @@
   더한다.
 ### 바꿈
 
+- FormFit이 화살표·도형 기호·그 밖의 기호(U+2190–21FF, U+25A0–25FF, U+2600–26FF: → ○ □ △ ☆ ☎ 등)를 글꼴 폭
+  표에 없는 글꼴에서 전각(1 em)으로 센다. 표에 있는 한국어 글꼴에서 이 기호들은 0.89~1 em이다. 전에는 문장
+  부호 폭으로 세어, 표에 없는 글꼴의 ○ 다섯 개를 한 줄로 예측했는데 한/글은 두 줄로 나눴다.
 - 탭 정의를 한/글처럼 읽고 쓴다. 한/글이 저장한 `hh:tabPr`은 탭마다 `hp:switch`로 감싸 `hp:case`에 HWPUNIT 위치
   (`unit="HWPUNIT"`)를, `hp:default`에 그 두 배를 쓴다. `doc.styles.tab_properties`·`tab_property()`의 `tab_stops`가
   이제 모든 스위치의 `hp:case` 위치를 읽는다. 전에는 첫 스위치의 `hp:default`만 읽어서, 탭이 여럿인 정의를 탭
