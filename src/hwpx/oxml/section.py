@@ -201,13 +201,14 @@ class HwpxOxmlSection:
         """Blank this section down to a template: keep its page setup, drop the body.
 
         What stays: the first paragraph (its attributes untouched), its first
-        run, and that run's ``hp:secPr`` (page setup) and ``hp:ctrl`` children
-        (columns, headers, footers, page numbering); every non-paragraph child
-        of the section (a memo group, for instance). What goes: every paragraph
-        after the first, the first paragraph's other runs *wholesale* (controls
-        in them included), the first run's other children (text, tables,
-        pictures, shapes...), and the first paragraph's layout cache
-        (``hp:linesegarray``).
+        run with its ``hp:secPr`` (page setup), and the ``hp:ctrl`` children
+        (columns, headers, footers, page numbering) of every run of the first
+        paragraph -- Hancom often writes those controls in the second run;
+        every non-paragraph child of the section (a memo group, for instance).
+        What goes: every paragraph after the first, every other child of the
+        first paragraph's runs (text, tables, pictures, shapes...), the runs
+        after the first that hold no control, and the first paragraph's layout
+        cache (``hp:linesegarray``).
 
         A kept ``hp:ctrl`` can hold content of its own, such as a header with
         a name in it. ``on_control_content`` says what to do when the kept
@@ -216,7 +217,7 @@ class HwpxOxmlSection:
         ``"raise"`` (default) refuses with
         ``HwpxValueError(code="section-clear-control-content")`` whose
         ``context["tags"]`` names the tags found; ``"keep"`` keeps them and
-        reports the tags; ``"strip"`` removes each first-run ``hp:ctrl`` whose
+        reports the tags; ``"strip"`` removes each first-paragraph ``hp:ctrl`` whose
         subtree holds such content, and each ``hp:header``/``hp:footer`` story
         copy inside ``hp:secPr`` that holds content together with the
         ``hp:headerApply``/``hp:footerApply`` pointing at it (``set_header()``
@@ -233,6 +234,10 @@ class HwpxOxmlSection:
         refusal happens before anything changes, so a failed call leaves the
         section as it was. Calling it again on a blank section changes nothing
         and does not mark the section dirty.
+
+        The images of removed pictures stay in the package, pointed at by
+        nothing (Hancom drops them when it saves);
+        ``doc.media.remove_unused_images()`` removes them.
         """
 
         from ..errors import HwpxValueError
@@ -257,16 +262,17 @@ class HwpxOxmlSection:
                 "this section has none there to keep.",
             )
         first = paragraphs[0]
-        first_run = runs[0].element
+        run_elements = [run.element for run in runs]
 
-        found, removals = self._plan_control_content(first_run, on_control_content)
+        found, removals = self._plan_control_content(run_elements, on_control_content)
 
-        later_runs = runs[1:]
-        for run in later_runs:
-            first.element.remove(run.element)
-        stripped_children = _strip_to_kept_children(first_run)
+        stripped_children = sum(_strip_to_kept_children(run) for run in run_elements)
         for parent, child in removals:
             parent.remove(child)
+        # a later run is only kept for the controls it holds
+        later_runs = [run for run in run_elements[1:] if len(run) == 0]
+        for run in later_runs:
+            first.element.remove(run)
         caches = first.element.findall(f"{_HP}linesegarray")
         for cache in caches:
             first.element.remove(cache)
@@ -287,7 +293,7 @@ class HwpxOxmlSection:
         )
 
     def _plan_control_content(
-        self, first_run: ET.Element, on_control_content: str
+        self, runs: Sequence[ET.Element], on_control_content: str
     ) -> tuple[list[str], list[tuple[ET.Element, ET.Element]]]:
         """Scan the kept children and plan the ``"strip"`` removals, or refuse.
 
@@ -297,11 +303,11 @@ class HwpxOxmlSection:
 
         from ..errors import HwpxValueError
 
-        found = _clear_body_kept_content(first_run, excluded=())
+        found = _clear_body_kept_content(runs, excluded=())
         if not found or on_control_content == "keep":
             return found, []
-        removals = _plan_control_strip(first_run) if on_control_content == "strip" else []
-        remaining = _clear_body_kept_content(first_run, excluded=[child for _, child in removals])
+        removals = _plan_control_strip(runs) if on_control_content == "strip" else []
+        remaining = _clear_body_kept_content(runs, excluded=[child for _, child in removals])
         if not remaining:
             return found, removals
         if on_control_content == "raise":
@@ -514,24 +520,25 @@ class HwpxOxmlSection:
         return _serialize_xml(self._element)
 
 
-def _strip_to_kept_children(first_run: ET.Element) -> int:
-    """Remove every child of *first_run* but ``hp:secPr``/``hp:ctrl``; return the count."""
+def _strip_to_kept_children(run: ET.Element) -> int:
+    """Remove every child of *run* but ``hp:secPr``/``hp:ctrl``; return the count."""
 
-    removed = [child for child in first_run if child.tag not in _CLEAR_BODY_KEPT_TAGS]
+    removed = [child for child in run if child.tag not in _CLEAR_BODY_KEPT_TAGS]
     for child in removed:
-        first_run.remove(child)
+        run.remove(child)
     return len(removed)
 
 
 def _clear_body_kept_content(
-    first_run: ET.Element, *, excluded: Sequence[ET.Element]
+    runs: Sequence[ET.Element], *, excluded: Sequence[ET.Element]
 ) -> list[str]:
     """Content tags inside the kept secPr/ctrl children, skipping *excluded* subtrees."""
 
     found: list[str] = []
-    for child in first_run:
-        if child.tag in _CLEAR_BODY_KEPT_TAGS:
-            _collect_content_tags(child, found, excluded)
+    for run in runs:
+        for child in run:
+            if child.tag in _CLEAR_BODY_KEPT_TAGS:
+                _collect_content_tags(child, found, excluded)
     return found
 
 
@@ -540,7 +547,8 @@ def _collect_content_tags(
 ) -> None:
     """Append ``hp:<name>`` tags of body content under *element*, first-seen order.
 
-    A ``hp:t`` counts when its own text is not blank; any element named in
+    A ``hp:t`` counts when its text is not blank -- its own text or the text
+    after a child element in it, as in ``<hp:t><hp:tab/>name</hp:t>``; any element named in
     ``_CLEAR_BODY_CONTENT_NAMES`` counts as it is.
     """
 
@@ -550,7 +558,10 @@ def _collect_content_tags(
         if any(node is skip for skip in excluded):
             continue
         name = _element_local_name(node)
-        holds = bool((node.text or "").strip()) if name == "t" else name in _CLEAR_BODY_CONTENT_NAMES
+        if name == "t":
+            holds = bool((node.text or "").strip()) or any((child.tail or "").strip() for child in node)
+        else:
+            holds = name in _CLEAR_BODY_CONTENT_NAMES
         if holds and f"hp:{name}" not in found:
             found.append(f"hp:{name}")
         stack.extend(reversed(list(node)))
@@ -562,10 +573,10 @@ def _holds_content(element: ET.Element) -> bool:
     return bool(found)
 
 
-def _plan_control_strip(first_run: ET.Element) -> list[tuple[ET.Element, ET.Element]]:
-    """``(parent, child)`` pairs ``"strip"`` removes from the first run.
+def _plan_control_strip(runs: Sequence[ET.Element]) -> list[tuple[ET.Element, ET.Element]]:
+    """``(parent, child)`` pairs ``"strip"`` removes from the first paragraph's runs.
 
-    The first run's ``hp:ctrl`` children that hold content, and, inside its
+    The runs' ``hp:ctrl`` children that hold content, and, inside the
     ``hp:secPr``, the ``hp:header``/``hp:footer`` story copies that hold
     content together with the ``hp:headerApply``/``hp:footerApply`` that
     point at them by id. Those copies are not OWPML ``hp:secPr`` children;
@@ -574,11 +585,12 @@ def _plan_control_strip(first_run: ET.Element) -> list[tuple[ET.Element, ET.Elem
     """
 
     removals: list[tuple[ET.Element, ET.Element]] = []
-    for child in first_run:
-        if child.tag == f"{_HP}ctrl" and _holds_content(child):
-            removals.append((first_run, child))
-        elif child.tag == f"{_HP}secPr":
-            removals.extend(_plan_section_story_strip(child))
+    for run in runs:
+        for child in run:
+            if child.tag == f"{_HP}ctrl" and _holds_content(child):
+                removals.append((run, child))
+            elif child.tag == f"{_HP}secPr":
+                removals.extend(_plan_section_story_strip(child))
     return removals
 
 

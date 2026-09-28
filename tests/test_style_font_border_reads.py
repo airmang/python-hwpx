@@ -457,8 +457,9 @@ def test_replace_font_reuses_dst_where_already_declared() -> None:
         "JAPANESE", [(DOTUM, t), (BATANG, t), (GULIM, t)]
     )
     assert _fontface_xml(doc, "USER") == _expected_fontface("USER", [(GULIM, t)])
+    # the appended 굴림 copies the JAPANESE declaration, typeInfo included
     assert _fontface_xml(doc, "HANGUL") == _expected_fontface(
-        "HANGUL", [(DOTUM, t), (BATANG, t), (GULIM, False)]
+        "HANGUL", [(DOTUM, t), (BATANG, t), (GULIM, t)]
     )
     refs = _font_refs(doc)
     assert refs["0"]["japanese"] == "2"
@@ -608,6 +609,9 @@ def _reference_replace(
 
     wanted = set(langs) if langs is not None else set(LANGS)
     char_prs = list(header.iter(f"{HH}charPr"))
+    template = next(
+        (f for f in header.iter(f"{HH}font") if f.get("face") == dst), None
+    )
     for fontface in header.iter(f"{HH}fontface"):
         lang = fontface.get("lang", "")
         if lang not in wanted:
@@ -619,7 +623,13 @@ def _reference_replace(
             continue
         src_id = src_font.get("id")
         dst_font = next((f for f in fonts if f.get("face") == dst), None)
-        if dst_font is None:
+        if dst_font is None and template is not None:
+            dst_font = deepcopy(template)
+            dst_font.tail = None
+            dst_font.set("id", str(len(fonts)))
+            fontface.append(dst_font)
+            fonts.append(dst_font)
+        elif dst_font is None:
             dst_font = fontface.makeelement(
                 f"{HH}font",
                 {"id": str(len(fonts)), "face": dst, "type": "TTF", "isEmbedded": "0"},
@@ -679,3 +689,91 @@ def test_replace_font_matches_reference_byte_for_byte(
     assert etree.tostring(_header(api_doc)) == etree.tostring(_header(ref_doc))
     assert etree.tostring(_header(api_doc)) != etree.tostring(header_before)
     assert _saved_header(api_doc) == _saved_header(ref_doc)
+
+
+def test_replace_font_replaces_every_copy_of_a_face_listed_twice() -> None:
+    # Hancom-saved blocks often list one face twice: SimpleEdit's HANJA block
+    # declares 함초롬바탕 at id 0 and id 2, and character shapes use both.
+    document = HwpxDocument.open(CORPUS / "reader_writer__SimpleEdit.hwpx")
+    header = document.oxml.headers[0].element
+    ids = [char_pr.get("id") for char_pr in header.iter(f"{HH}charPr")]
+    before = {char_pr: document.styles.font_face(char_pr, "HANJA") for char_pr in ids}
+    assert [font.face for font in document.styles.fonts("HANJA").values()].count("함초롬바탕") == 2
+
+    report = document.styles.replace_font("함초롬바탕", "맑은 고딕", langs=["HANJA"])
+
+    faces = [font.face for font in document.styles.fonts("HANJA").values()]
+    assert "함초롬바탕" not in faces
+    assert report.langs == ("HANJA",)
+    for char_pr, face in before.items():
+        expected = "맑은 고딕" if face == "함초롬바탕" else face
+        assert document.styles.font_face(char_pr, "HANJA") == expected
+
+    reopened = HwpxDocument.open(document.to_bytes())
+    assert "함초롬바탕" not in [font.face for font in reopened.styles.fonts("HANJA").values()]
+
+
+# ---------------------------------------------------------------------------
+# replace_font() declares dst the way the document already declares it
+
+
+def _declared_fonts(doc: HwpxDocument, face: str) -> dict[str, dict[str, str]]:
+    return {
+        fontface.get("lang", ""): dict(font.attrib)
+        for fontface in _header(doc).iter(f"{HH}fontface")
+        for font in fontface.findall(f"{HH}font")
+        if font.get("face") == face
+    }
+
+
+def test_replace_font_copies_dst_type_from_another_block() -> None:
+    # 한양신명조 is declared HFT in six blocks; USER lacks it but has 함초롬돋움.
+    doc = HwpxDocument.open(CORPUS / "error__20251107__test.hwpx")
+    before = _declared_fonts(doc, "한양신명조")
+    assert "USER" not in before and {a["type"] for a in before.values()} == {"HFT"}
+
+    report = doc.styles.replace_font("함초롬돋움", "한양신명조")
+
+    assert report.declared == ("USER",)
+    user = next(
+        fontface for fontface in _header(doc).iter(f"{HH}fontface")
+        if fontface.get("lang") == "USER"
+    )
+    added = next(f for f in user.findall(f"{HH}font") if f.get("face") == "한양신명조")
+    assert added.get("type") == "HFT" and added.get("isEmbedded") == "0"
+    type_info = added.find(f"{HH}typeInfo")
+    assert type_info is not None and type_info.get("familyType") == "FCAT_MYUNGJO"
+    assert {a["type"] for a in _declared_fonts(doc, "한양신명조").values()} == {"HFT"}
+
+    reopened = HwpxDocument.open(doc.to_bytes())
+    assert reopened.styles.fonts("USER")[added.get("id")].type == "HFT"
+
+
+def test_replace_font_keeps_ttf_when_no_block_declares_dst() -> None:
+    doc = _decor_doc()
+
+    doc.styles.replace_font(DECOR, DST)
+
+    assert {a["type"] for a in _declared_fonts(doc, DST).values()} == {"TTF"}
+
+
+def test_replace_font_font_type_sets_the_type_of_appended_fonts() -> None:
+    doc = _decor_doc()
+
+    report = doc.styles.replace_font(DECOR, GULIM, font_type="hft")
+
+    declared = _declared_fonts(doc, GULIM)
+    assert {declared[lang]["type"] for lang in report.declared} == {"HFT"}
+    # fonts that already declared 굴림 are left as they were
+    assert {declared[lang]["type"] for lang in ("JAPANESE", "SYMBOL", "USER")} == {"TTF"}
+
+
+def test_replace_font_rejects_an_unknown_font_type_before_mutating() -> None:
+    doc = _decor_doc()
+    header_before = etree.tostring(_header(doc))
+
+    with pytest.raises(HwpxValueError) as caught:
+        doc.styles.replace_font(DECOR, DST, font_type="OTF")
+
+    assert caught.value.code == "style-font-type-invalid"
+    assert etree.tostring(_header(doc)) == header_before

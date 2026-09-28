@@ -124,6 +124,22 @@ def test_malformed_bytes_fail_integrity(tmp_path) -> None:
     assert not out.exists()  # on_pass: a failing doc is never published
 
 
+def test_reference_integrity_failure_names_an_orphan_asset() -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("본문")
+    document.media.add_image(b"\x89PNG\r\n\x1a\n" + b"0" * 40, "png")  # nothing shows it
+
+    report = SavePipeline().run(
+        document.to_bytes(),
+        quality=QualityPolicy.transparent().with_(require_reference_integrity=True),
+    )
+
+    messages = [
+        error.message for error in report.errors if error.code == REFERENCE_INTEGRITY_FAILED
+    ]
+    assert any("BIN0001" in message for message in messages), messages
+
+
 # --------------------------------------------------------------------------- #
 # Open-safety gate
 # --------------------------------------------------------------------------- #

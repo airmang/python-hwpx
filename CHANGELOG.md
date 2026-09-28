@@ -6,12 +6,295 @@
 
 ### 추가
 
+- `export_text()`·`export_html()`·`export_markdown()`에 `notes`를 더한다. `True`면 각주·미주를 본문·칸·글상자
+  안의 제자리에 한/글 텍스트 저장처럼 쓴다. 참조 번호(`1)`) 뒤에 각주의 문단마다 그 번호로 시작하는 글과
+  줄바꿈이 온다. 번호는 각주·미주를 따로 문서 순서로 매기고, 구역의 번호 모양(`autoNumFormat`)과 번호
+  매기기(`ON_SECTION`은 구역마다 `newNum`부터, 새 번호 지정 `hp:newNum`)를 따른다. 쪽마다 새로 매기는
+  번호는 쪽을 나누지 않으므로 이어 매긴다. 기본값은 전처럼 각주·미주를 쓰지 않는다.
+- `doc.styles.apply_list_format()`에 `continue_list`를 더한다. `True`면 대상 문단 앞의 마지막 번호
+  목록(개요는 개요 목록)과 같은 번호 정의를 써서 한/글에서 번호가 이어진다. 전에는 부를 때마다 번호
+  정의를 새로 만들어, 문단마다 따로 부르면 목록이 매번 1부터 다시 시작했다(기본 동작은 그대로다). 앞에
+  그런 목록이 없으면 새 목록을 만든다. 앞 목록의 번호 정의에 없는 더 깊은 수준으로 이어 붙이면 그 수준의
+  모양을 새 목록과 같은 꼴(`^1.^2.`)로 정의에 더한다. 한/글은 번호 정의에 없는 수준에는 번호를 그리지
+  않는다. `number_format`·`start`와 함께 주면 `style-list-continue-conflict`로 거부한다.
+- `doc.media.remove_unused_images()`를 더한다. 문서가 어디서도 가리키지 않는 이진 항목(매니페스트 항목·파트·
+  header의 `binItem`)을 모두 지우고 지운 항목을 돌려준다. 한/글은 문서를 저장할 때 이런 항목을 지운다. 본문에서
+  그림을 지우면(`section.clear_body()`, 문단 삭제) 그 그림의 이진 항목이 남으므로 이 호출로 정리한다. `remove_image`가
+  확인하는 참조(그림, 채우기 그림·그림 글머리표, 바탕쪽, 동영상, OLE, 내장 글꼴)가 있는 항목은 남긴다.
+- `doc.fields.text_boxes`와 `doc.fields.fill_text_box()`를 더한다. 한/글은 이름이 있는 글상자
+  (`hp:drawText@name`)를 필드로 보고, 필드 목록에 넣고 이름으로 채운다. `text_boxes`는 이름 붙은 글상자를 문서
+  순서로 돌려준다(이름 없는 글상자는 뺀다). `fill_text_box(value, name=, index=)`는 한/글처럼 글상자의 글을 값 한
+  문단으로 바꾼다. 첫 문단과 첫 run의 모양은 그대로이고, 줄바꿈은 `hp:lineBreak`로 쓴다. 같은 이름의 글상자는
+  모두 채우고, 없는 이름은 `field-text-box-not-found`로 거부한다. `set_draw_text(name=)`의 설명도 고쳤다(이름이
+  글상자를 필드로 만든다).
+- `doc.parts.remove_master_page(id)`를 더한다. 어느 구역도 참조하지 않는 바탕쪽의 매니페스트 항목과
+  파트를 지우고, 저장된 적이 있어 패키지에 있는 파트 파일도 지운다. 구역이 참조하는 바탕쪽은
+  `master-page-in-use`, 없는 id는 `master-page-not-found`로 거부하고 아무것도 바꾸지 않는다.
+- `doc.parts.add_master_page()`에 `section`을 더한다. 주면 만든 바탕쪽을 그 구역에 바로 연결한다.
+  그 구역에 같은 쪽의 바탕쪽이 이미 있으면 파트를 만들기 전에 `master-page-pages-taken`으로
+  거부하므로, 거부된 호출은 문서에 아무것도 남기지 않는다.
+- `add_rectangle()`·`add_ellipse()`(`doc.shapes`와 문단)에 `original_size=(w, h)`를 더한다.
+  `hp:orgSz`를 그리는 크기와 따로 쓴다. 도형과 기하는 원래 크기로 만들고, `curSz`·`sz`는
+  `width`×`height`, `scaMatrix`는 두 크기의 비율, 회전 중심은 `curSz`의 절반이다. 한/글이 저장한
+  코퍼스 파일의 크기 바뀐 도형과 같은 배치다. 주지 않으면 출력은 전과 같다. 양의 정수 두 개가
+  아니면 `shape-original-size-invalid`로 거부한다. 한/글에서 렌더는 확인하지 않았다.
+- `doc.styles.replace_font()`에 `font_type`(`REP`/`TTF`/`HFT`)을 더한다. 이 호출이 새로 선언하는
+  글꼴의 `type`을 정한다. 이미 있던 글꼴은 바꾸지 않는다.
+
+- `hwpx.opc.relationships.ManifestItemRef`에 매니페스트 항목의 `isEmbeded` 값을 담는 `is_embeded` 필드를
+  더한다.
+### 바꿈
+
+- FormFit이 화살표·도형 기호·그 밖의 기호(U+2190–21FF, U+25A0–25FF, U+2600–26FF: → ○ □ △ ☆ ☎ 등)를 글꼴 폭
+  표에 없는 글꼴에서 전각(1 em)으로 센다. 표에 있는 한국어 글꼴에서 이 기호들은 0.89~1 em이다. 전에는 문장
+  부호 폭으로 세어, 표에 없는 글꼴의 ○ 다섯 개를 한 줄로 예측했는데 한/글은 두 줄로 나눴다.
+- 탭 정의를 한/글처럼 읽고 쓴다. 한/글이 저장한 `hh:tabPr`은 탭마다 `hp:switch`로 감싸 `hp:case`에 HWPUNIT 위치
+  (`unit="HWPUNIT"`)를, `hp:default`에 그 두 배를 쓴다. `doc.styles.tab_properties`·`tab_property()`의 `tab_stops`가
+  이제 모든 스위치의 `hp:case` 위치를 읽는다. 전에는 첫 스위치의 `hp:default`만 읽어서, 탭이 여럿인 정의를 탭
+  하나로, 위치는 두 배로 보고했다. 스위치 없는 `hh:tabItem`은 전처럼 그 값 그대로다(한/글도 HWPUNIT으로 읽는다).
+  `ensure_tab_definition()`(`apply_paragraph_format(tab_stops=…)`, 차례 만들기)도 탭마다 같은 스위치로 쓰고, 같은
+  정의를 찾을 때 `hp:case` 위치로 비교한다.
+- FormFit이 저장 높이가 한 줄보다 낮은 칸(글에 따라 늘어나는 칸)에도 높이 예산을 쓴다. 한/글은 이런
+  행을 그 행에서 가장 높은 칸만큼 그린다. 그 높이에서 이 칸의 위아래 여백을 뺀 것이 예산이다. 칸의
+  높이는 한/글이 배치한 줄(줄 캐시)의 끝에 여백을 더한 것이고, 줄 캐시가 없으면 그 칸의 글을 잰 줄
+  수로 계산한다. 저장 높이가 더 크면 저장 높이다. 전에는 이런 칸을 너비로만 맞춰서, 행이 담는 것보다
+  줄이 많은 값을 쓰면 행이 커졌다. 이제 다른 행과 같이 정책을 따른다. 기본 정책은 그런 값을 거부하고,
+  `allow_row_expand`를 주면 전처럼 행이 커진다.
+- FormFit이 줄이 이미 저장 높이를 넘친 행에서는 한/글이 그린 높이를 예산으로 쓴다. 한/글은 칸의 줄이 저장
+  높이를 넘으면 행을 그 줄만큼 그린다. 전에는 저장 높이로만 예산을 잡아, 원래 두 줄이던 칸에 두 줄 값을
+  넣어도 한 줄로 줄이거나 거부했다.
+- `doc.fields.fill()`이 값을 누름틀 시작이 든 런의 글자 모양으로 쓴다. 한/글은 값이 이미 든 누름틀을 채울
+  때도 옛 값의 글자 모양(파란 글자, 굵게 등)을 버리고 시작 런의 모양으로 쓴다. 전에는 안내문(자리표시)을
+  바꿀 때만 시작 런의 모양으로 바꾸고, 값이 든 누름틀에서는 옛 값 런의 모양을 지켰다. 그런 누름틀을 채운
+  결과의 `style_preserved`는 이제 `False`다.
+- 셀 글 쓰기(`table.set_cell_text()`, `cell.text = …`, `doc.fields.fill_cell()`)가 값을 받은 문단 밖의 빈 문단을
+  모두 지운다. 한/글은 칸을 채우면 값을 칸의 한 문단으로 만든다. 전에는 이번 쓰기로 비운 문단만 지우고 원래
+  비어 있던 문단(빈 줄)은 남겼다. 그래서 칸이 빈 줄만큼 높았고, `cell.text`가 쓴 값과 다르게 읽히기도 했다.
+  안쪽 표·개체를 담은 문단은 전처럼 남는다.
+- `add_paragraph(style=…)`가 문단에 그 스타일의 문단 모양과 글자 모양을 쓴다. 한/글이 스타일을
+  적용할 때처럼 문단의 `paraPrIDRef`와 첫 run의 `charPrIDRef`가 스타일의 것이 된다. 전에는
+  `styleIDRef`만 바꾸고 모양은 앞 문단에서 물려받아, 한/글에서 개요 스타일 문단이 본문처럼 보이거나
+  앞 제목의 번호가 붙었다. `para_pr_id_ref`·`char_pr_id_ref`나 `run_attributes`의 `charPrIDRef`를
+  함께 주면 그 값을 쓴다. 숫자 id를 쓰는 `style_id_ref`는 전처럼 스타일 이름만 붙인다.
+  개요 스타일 문단에는 한/글이 개요 번호를 붙이므로 README 예시에서 글에 쓴 번호를 뺐다.
+- FormFit이 로마 숫자(Ⅰ–Ⅻ, ⅰ–ⅻ)와 원 숫자·괄호 숫자(①–⑳, ⑴–⒇)를 글꼴에서 한/글이 배치하는 폭으로 센다.
+  함초롬바탕·함초롬돋움은 0.972 em, 맑은 고딕은 로마 숫자 0.952 em·원 숫자 1 em이다. 글꼴 폭 표에 없는
+  글꼴이나 글자도 전각(1 em)으로 본다. 전에는 평균 폭(0.62 em)으로 세어, 이런 글자가 든 칸을 한 줄로
+  예측했는데 한/글은 두 줄로 나눴다.
+- FormFit이 한글 한 자를 글자 모양의 한글 글꼴에서 한/글이 배치하는 폭으로 센다.
+  함초롬바탕·함초롬돋움은 0.972 em, 한컴 고딕은 0.932 em이고, 다른 글꼴(맑은 고딕·바탕·
+  돋움·굴림·궁서 등)은 전처럼 1 em이다. 이 세 글꼴의 셀과 누름틀에는 전보다 한 줄에 글자가
+  조금 더 들어간다고 본다.
+  - `TextStyle.hangul_advance`(em, 기본 1.0)를 더했다. 글자별 폭을 모르는 글꼴의 한글 폭이다.
+- FormFit이 한글이 아닌 글자(숫자, 영문, 문장 부호, 자주 쓰는 기호)도 함초롬바탕·함초롬돋움·맑은
+  고딕에서는 한/글이 배치하는 글자별 폭으로 센다. 전에는 글자 종류별 평균(숫자 0.55 em, 문장 부호
+  0.42 em 등)을 썼다. 한글·영문·기타·기호 글꼴이 모두 같은 글자 모양일 때 쓰고, 다른 글꼴이나 표에
+  없는 글자는 전처럼 평균을 쓴다(`TextStyle.glyph_face`, `hwpx.form_fit.measure.glyph_advance_em`).
+- FormFit의 세로 예산(`SlotMetrics.height_lines`)이 한/글이 칸을 늘리는 식을 따른다. n줄은
+  (n − 1) × 줄 간격 + 글자 크기를 차지하고 마지막 줄의 줄 간격은 들어가지 않는다. 전에는 n × 줄
+  간격으로 셌다. 줄 간격은 비율(`PERCENT`)뿐 아니라 고정(`FIXED` = 값), 여백만(`BETWEEN_LINES` = 크기
+  + 값), 최소(`AT_LEAST` = 크기와 값 중 큰 것)도 읽는다(`SlotMetrics.line_spacing`). 전에는 비율이
+  아니면 160%로 봤다. 비율 줄 간격에서 크기를 넘는 부분은 한/글처럼 1/1800인치(4 HWPUNIT) 단위로
+  센다(크기를 그 단위로 내린 em에 비율을 곱해 반올림, 10.5pt 160%는 630이 아니라 628).
+- FormFit이 글자 폭을 한/글처럼 1/1800인치(4 HWPUNIT) 단위로 센다. 글꼴의 설계 폭을 글자 크기에
+  맞춘 뒤 장평이 100%면 반올림하고 다른 장평이면 내린다. 자간은 그 폭에 비율을 곱해 0에서 먼 쪽으로
+  반올림해 더한다. 반각 공백은 em의 절반(내림)에 장평을 곱해 반올림한다. 전에는 10pt에서 본 비율을
+  크기에 곱하기만 해서, 10pt가 아닌 크기나 장평·자간이 있는 칸에서 줄 끝이 한/글과 어긋날 수 있었다.
+  - 글자별 폭을 아는 글꼴에 바탕·바탕체·돋움·돋움체·굴림·굴림체·궁서·궁서체·한컴 고딕을 더했다(모두
+    12개). 굵은 글자도 같은 폭을 쓴다.
+  - `TextStyle.hangul_face`를 더했다. 셀·누름틀 슬롯은 첫 run 글자 모양의 한글 글꼴 이름으로 채우고,
+    표에 있는 글꼴이면 `hangul_advance` 대신 그 글꼴의 한글 폭을 쓴다.
+  - `glyph_advance_em()`은 글꼴의 설계 폭(em)을 돌려준다.
+- FormFit이 칸 줄 폭을 한/글처럼 센다. 1440 HWPUNIT 하한을 들여쓰기를 뺀 뒤 줄마다 적용하고(좁은 칸의
+  내어쓰기 줄도 1440), 칸보다 넓은 인라인 개체 다음 줄들은 칸 폭으로 센다(`SlotMetrics.line_width`,
+  `SlotMetrics.min_line_width`).
+- FormFit이 칸 첫 줄의 인라인 개체(체크 상자·그림 등) 뒤에 글의 첫 글자도 들어가지 않으면,
+  한/글처럼 글이 다음 줄에서 시작한다고 센다. 전에는 첫 줄에 한 글자를 억지로 넣어 한 줄 적게
+  세거나, 개체 뒤 폭이 0이면 들어갈 수 없다고 보았다.
+- 한 줄에 좁혀 넣는 칸(`lineWrap="SQUEEZE"`)에 글을 넣으면(`cell.text = …`, `set_cell_text()`), 값이 칸 줄 폭의
+  1.1배 이하일 때는 SQUEEZE를 그대로 둔다. 전에는 글이 바뀌면 늘 BREAK로 바꿔서, 줄 폭을 조금만 넘어도 줄이
+  바뀌고 행이 커져 쪽이 밀렸다. 한/글은 SQUEEZE 칸의 글을 한 줄에 두고 글자 사이만 좁히며, 1.1배까지는 읽히고
+  그보다 길면 글자가 닿거나 겹친다. 그래서 더 긴 값은 전처럼 BREAK로 바꾼다. 폭은 칸의 글자 모양으로 잰다.
+- 도형의 기본 선 굵기를 283(1 mm)에서 33(0.12 mm)으로 바꾼다. 한/글이 새 도형에 쓰는 굵기다.
+  `doc.shapes.add_line()`·`add_rectangle()`·`add_ellipse()`·`add_arc()`·`add_polygon()`, 문단의 같은 이름
+  메서드, 묶음 도형의 멤버가 이 기본값을 쓴다. `line_width`를 주지 않은 도형은 전보다 가늘게 그려진다.
+  옛 5.x 이름(`doc.add_rectangle()` 등)은 시그니처를 그대로 두기로 한 호환 계층이라 전처럼 283이다.
+- `set_footnote_numbering()`·`set_endnote_numbering()`의 설명과 `docs/known-traps.md`에, 시작 번호(`new_num`)는
+  번호 방식이 `ON_SECTION`일 때만 한/글에 보인다고 적는다. `CONTINUOUS`·`ON_PAGE`는 1부터 매긴다.
+- FormFit이 칸을 채울 때 기본으로 행 높이를 지킨다. 값이 칸 높이가 담는 줄 수보다 조금 많으면 전에는 줄여 넣지
+  못한 경우 경고(`overflow_detected`)만 남기고 값을 넣어 행이 늘었고, 그 뒤 쪽이 밀렸다. 이제 넘는 정도와
+  관계없이 글자를 줄여(`min_font_pt`까지) 칸 안에 넣고, 그래도 안 되면 `FitPolicy.overflow`를 따른다. 기본
+  `fail`은 채우지 않는다(`doc.fields.fill()`은 `field-fit-failed`, `set_cell_text(fit=...)`는 칸을 그대로 두고 `ok=False`인 결과). 행을 늘려도 되면
+  `FitPolicy(allow_row_expand=True)`, 경고만 받고 넣으려면 `FitPolicy(overflow="warn")`을 준다. 칸 높이를 잴 수 없는
+  칸(병합·자동 늘어남)은 전처럼 폭만 본다.
+
+### 고침
+
+- `add_heading(level=8~10)`과 `apply_paragraph_format(outline_level=8~10)`이 문단 모양의 개요를 한/글과 다른
+  모양으로 쓰던 것을 고친다. 개요 8~10 수준은 2016 문단 이름공간에만 있어서, 한/글은 `hp:switch`의 `hp:case`에
+  개요를 두고 `hp:default`에 `NONE`을 둔다(새 문서의 개요 8~10 스타일도 이렇다). 전에는 이 `hp:switch`를
+  비우고 개요를 문단 모양에 바로 썼다. 이제 한/글과 같은 모양으로 쓰고, 새 문서에서는 개요 8~10 스타일의 문단
+  모양을 그대로 쓴다. 문단 모양을 읽을 때도 `hp:switch` 안의 개요를 읽는다(`paragraph_property().heading`,
+  목록 글자 내보내기).
+- 글자 겹치기(`add_composed_character()`)와 덧말(`add_dutmal()`)을 한/글이 쓰는 모양으로 쓴다. 글자 겹치기는 늘
+  `hp:charPr` 열 칸을 쓰고(쓰지 않는 칸은 `4294967295`), 주지 않은 속성은 한/글이 새 글자 겹치기에 주는 값
+  (`circleType="SHAPE_CIRCLE"`, `charSz="-4"`, `composeType="SPREAD"`)으로 쓴다. 덧말은 스타일을 주지 않으면
+  `styleIDRef="0"`을 쓴다. 전에는 준 칸만 쓰고 속성을 뺐으며, 한/글은 저장할 때 이 값들을 채웠다.
+- 새 도형(`add_rectangle()`·`add_ellipse()`·`add_line()`·`add_arc()`·`add_polygon()`·`add_container()`)에
+  `textWrap`·`textFlow`를 쓴다. 한/글은 모든 도형에 이 둘을 쓰고, 없으면 `SQUARE`·`BOTH_SIDES`로 읽는다.
+  그래서 새 도형은 `textWrap="SQUARE" textFlow="BOTH_SIDES"`이고, 묶음(`hp:container`) 안 도형은 한/글처럼
+  `TOP_AND_BOTTOM`이다. 채운 도형의 `hc:winBrush`에도 한/글처럼 `alpha="0"`을 쓴다. 한/글에서 보이는 모양은
+  그대로다.
+- FormFit이 공백이 이어진 글을 한/글처럼 줄 나눈다. 낱말 바로 뒤의 공백은 전처럼 줄 끝에 매달리지만, 그 뒤로
+  이어지는 공백이 줄 끝이나 그 너머에서 시작하면 다음 줄로 간다. 최소 공백(`condense`)은 줄의 첫 글자 뒤에 있는
+  공백만 줄이고, 줄 앞의 공백은 줄이지 않는다. 전에는 이어진 공백을 모두 줄 끝에 매달고 줄 앞 공백까지 줄여서,
+  공백으로 칸을 채운 값을 한 줄로 예측했는데 한/글은 두 줄로 나눴다.
+- 누름틀 안에 다른 누름틀이 있을 때 바깥 누름틀을 `doc.fields.fill()`로 채우면 안쪽 누름틀의 시작과 끝을
+  지운다. 한/글은 바깥 누름틀의 내용 전체를 값으로 바꾸므로 안쪽 누름틀도 함께 없어진다. 전에는 안쪽
+  누름틀의 시작과 끝이 빈 채로 남아 필드 목록에 그대로 있었다. 안쪽 누름틀만 채우면 바깥 누름틀은 그대로다.
+- 필드를 쓸 때 `fieldid`에 그 필드 종류의 제어 id를 쓴다. 한/글은 종류마다 모든 필드에 같은 `fieldid`를 쓴다.
+  제어 id 네 글자를 수로 읽은 값이다(누름틀 `%clk` 627272811, 날짜 `%dte`, 경로 `%pat`, 교정 부호 `%sig`, 메일
+  머지 `%mmg`, 차례 `%toc`, 하이퍼링크 `%hlk`, 상호 참조 `%xrf`). 전에는 누름틀·날짜·경로·교정 부호·메일 머지·
+  차례·상호 참조 필드에 임의 수를 썼고, 차례 도구가 쓴 필드 끝에는 `fieldid`가 없었다. 문서 합치기
+  (`insert_document()`·`append_document()`)도 가져온 필드의 `fieldid`를 임의 수 대신 종류의 제어 id로 쓴다.
+- 누름틀의 끝을 찾을 때 `beginIDRef`가 있는 끝은 그 id의 누름틀 끝으로만 본다. 같은 종류의 필드는 `fieldid`를
+  함께 쓰기 때문에, 한/글이 저장한 문서에서 끝이 없는 누름틀이 다음 누름틀의 끝을 제 끝으로 잡았다. 그러면
+  채울 때 그 사이 내용을 지웠다. 이제 이런 누름틀은 `field-end-missing`으로 거부한다.
+- FormFit이 문단의 왼쪽·오른쪽 여백을 줄 폭에서 빼고, 문단 위 간격을 칸의 높이 예산에서 뺀다. 한/글은 줄을 문단
+  왼쪽 여백에서 시작하고, 줄 폭은 칸 안쪽에서 두 여백을 뺀 값이다. 첫 줄은 위 간격 아래에서 시작하고, 칸
+  마지막 문단의 아래 간격은 자리를 차지하지 않는다. 전에는 두 여백과 위 간격을 무시해서, 여백이 있는 칸에서
+  줄 수를 적게 세고 칸에 들어가는 줄 수를 많게 셌다.
+- 메모를 여럿 달면 모두 `Number` 1로 쓰던 것을 고친다. 한/글은 번호가 같은 메모를 한 메모로 보아, 문서를
+  다시 저장할 때 둘째 메모부터 메모 범위의 끝(`hp:fieldEnd`)을 지웠다. 이제 `doc.notes.add_memo()`·
+  `doc.notes.attach()`에 `number`를 주지 않으면 메모는 문서의 다음 번호(`zorder`와 같은 값)를 쓴다. 메모
+  필드도 한/글이 쓰는 모양으로 쓴다. 필드 id는 숫자이고, `fieldid`는 메모 필드의 종류 코드(`%%me`)다.
+  `name=""`, `editable="1"`, `dirty="0"`을 쓰고, 메모 글 `subList`에는 한/글과 같은 속성을 쓴다.
+- `doc.fields.fill()`이 내용이 여러 문단에 걸친 누름틀을 채우면 값만 시작 뒤에 넣고 걸친 문단의 원래
+  글을 그대로 두던 것을 고친다. 누름틀 끝을 시작과 같은 문단에서만 찾았기 때문이다. 이제 끝을 뒤
+  문단에서도 찾고, 한/글처럼 걸친 문단(그 안의 표 포함)을 지운 뒤 값과 끝을 시작 문단에 둔다. 끝
+  문단에서 끝 뒤에 있던 글은 시작 문단으로 합치고, 시작 문단의 문단 모양은 그대로다. 이런 누름틀의
+  `FormField.value`는 걸친 문단의 글을 한 줄에 한 문단씩 읽는다.
+- 끝(`hp:fieldEnd`)이 없는 누름틀을 `doc.fields.fill()`로 채우면 `HwpxValueError(code="field-end-missing")`를
+  낸다. 바꿀 내용이 없기 때문이다(한/글도 이런 누름틀은 채우지 않는다). 전에는 값을 시작 뒤에 넣었다.
+- 안내문을 `Command` 문자열(`Clickhere:set:…:Direction:wstring:<길이>:<안내문> …`) 안에만 둔 누름틀을
+  자리표시로 알아보지 못하던 것을 고친다. 그래서 `doc.fields.fill()`이 값을 안내문의 글자 모양(보통 빨강)으로
+  남겼다. 이제 안내문을 그 문자열에서도 읽고(`FormField.prompt`, `is_placeholder`), 값은 누름틀의 글자
+  모양으로 쓴다. 누름틀의 매개변수는 바꾸지 않는다.
+- `doc.parts.add_master_page(section=...)`가 내는 `master-page-pages-taken`을 오류 코드 목록
+  (`hwpx.errors.ERROR_CODES`, `docs/error-codes.md`)에 올린다. 전에는 목록에 없었다.
+- `doc.styles.replace_font()`가 *dst_face*를 새로 선언하는 블록에 늘 `type="TTF"`를 쓰던 것을
+  고친다. 다른 블록이 같은 글꼴을 `HFT`로 선언해도 그랬다. 이제 다른 블록에 *dst_face* 선언이
+  있으면 그 `hh:font`를 id만 바꿔 복사한다. 그래서 `type`·`isEmbedded`·`hh:typeInfo`가 그 선언과
+  같다. 어느 블록에도 없을 때만 전처럼 `TTF`로 선언한다.
+- `check_id_integrity()`가 동영상이 가리키는 항목(포스터 `imageIDRef`, 파일 `fileIDRef`)을 고아
+  BinData로 보고해 `ok=False`를 내던 것을 고친다. `binaryItemIDRef`만 참조로 셌기 때문이다. 이제
+  `imageIDRef`·`fileIDRef`·`soundIDRef`도 참조로 세고, 패키지 밖 파일을 잇는 항목(`isEmbeded="0"`이고
+  href가 `BinData/` 밖)은 고아 목록에 넣지 않는다. 이진 항목 판정·이름 비교·참조 속성은
+  `doc.media.remove_image()`·`doc.media.images`·`doc.validate()`와 같은 규칙(`hwpx.opc.relationships`)을
+  쓴다. 참조 무결성 게이트(`require_reference_integrity`)가 고아 항목 때문에 실패하면 메시지에 그
+  항목을 적는다. 전에는 메시지가 `ID/reference integrity failed: `로 끝났다.
+- `doc.media.images`가 한/글이 `BinData/`에 두는 OLE 항목을 빼던 것을 고친다. `isEmbeded="0"`이면
+  모두 바깥 파일로 봤기 때문이다. 이제 href가 `BinData/` 밖인 `isEmbeded="0"` 항목(패키지 밖 파일)만
+  뺀다.
+- 표 칸의 안쪽 여백을 읽는 곳마다 규칙이 달라 같은 칸에 서로 다른 값을 쓰던 것을 고친다. 이제
+  양식 맞춤(`resolve_slot_metrics`), 칸 안 중첩 표의 기본 너비, 새 표의 쪽 넘김 판단, 레이아웃
+  미리보기의 칸 안쪽 여백, 템플릿 분석(`analyze_template`)의 `CellSummary.margin`, 바이트 보존 칸
+  채우기(`fill_cells`)의 글자 줄이기가 모두 `cell.margins`와 같은 규칙을 따른다. 칸의 `hasMargin`이
+  켜져 있을 때만 칸의 `hp:cellMargin`을 쓰고, 꺼져 있거나 없으면 표의 `hp:inMargin`을 쓴다. 전에는
+  양식 맞춤이 `hasMargin`이 없는 칸에 칸 여백을 썼고, 나머지는 `hasMargin`을 보지 않고 칸 여백만
+  읽었다. 한/글이 저장한 실문서의 줄 너비(`lineseg@horzsize`)가 이 규칙과 맞는다. `hasMargin="0"`이고
+  두 여백이 다른 칸이 있는 문서는 중첩 표 기본 너비, 미리보기 안쪽 여백, 템플릿 분석 값,
+  `fill_cells`의 글자 줄이기 판단이 바뀐다. 양식 맞춤 결과는 테스트 실문서에서 바뀌지 않는다.
+- `tests/data/model_surface.json`의 `internalCount`(stable 목록 밖 공개 멤버 수)를 확인하는
+  테스트가 없어 19개 클래스 중 12개 값이 실제와 어긋나 있던 것을 고친다. 값을 실제에 맞추고(합 82 →
+  154), 표면 테스트가 모든 클래스의 값과 `docs/stable-api.md`의 수를 확인한다. 공개 API는 바뀌지
+  않는다.
+- 5.0에서 `python-hwpx-automation`으로 옮긴 모듈(`hwpx.builder`, `hwpx.authoring`, `hwpx.exam`,
+  `hwpx.tools.pii` 등 21개)을 import하면 `No module named ...`만 나오던 것을 고친다. 이제
+  `ModuleNotFoundError` 메시지가 새 모듈 경로(예: `hwpx_automation.office.authoring.builder`),
+  `pip install python-hwpx-automation`, 이전 가이드 주소를 알려 준다. 배포본에서 뺀 저장소 전용
+  패키지(`hwpx.benchmark`, `hwpx.conformance`, `hwpx.tools.fuzz`)는 소스 체크아웃에서 쓰라고
+  알려 준다. core는 여전히 companion 패키지를 import하지 않고, 옮긴 경로를 파일로 되살리지 않는다.
+  모듈별 대체표는 `docs/migration-5.0.md`의 "Module paths"에 있고 메시지와 같은 표에서 나온다.
+- `validate_package()`(`hwpx-validate-package`)가 패키지 밖 파일을 잇는 매니페스트 항목(`isEmbeded="0"`이고
+  href가 `BinData/` 밖, 예: 연결한 동영상)을 파트가 없다는 오류로 보고해 `ok=False`를 내던 것을 고친다.
+  이 때문에 참조 무결성 게이트(`require_reference_integrity`)로 저장하면 `OPC/package validation failed`로
+  실패했다. 이제 `doc.validate()`·`check_id_integrity()`·`doc.media.images`와 같은 규칙(`is_linked_file`)으로
+  이런 항목을 건너뛴다. `BinData/`에 파일을 두는 OLE 항목은 `isEmbeded="0"`이어도 계속 검사한다.
+- `doc.validate()`와 `validate_document()`(`hwpx-validate`)가 같은 패키지에 다른 답을 하던 것을 고친다.
+  매니페스트 불일치 경고(파트가 없는 매니페스트 항목, 매니페스트 항목이 없는 `BinData/` 파트)를
+  `doc.validate()`만 냈기 때문이다. 이제 이 검사를 `validate_document()`가 하고 `doc.validate()`는 그 결과를
+  그대로 돌려준다. 파트가 없는 매니페스트 항목을 오류로 보는 것은 여전히 패키지 검사(`validate_package()`)다.
+  `doc.validate()`의 docstring에 무엇을 검사하는지 적는다.
+- `lint_layout()`이 글을 채워 쪽 본문보다 높아진 글자처럼 취급한 표를 알리지 못하던 것을 고친다.
+  행 높이를 칸에 저장된 높이(`hp:cellSz`)로만 셌기 때문이다. 글을 채워도 저장된 높이는 그대로이고,
+  한/글은 칸의 줄에 맞춰 행을 늘려 그린다. 이제 칸마다 문단과 줄바꿈(`hp:lineBreak`, 글 안의 줄바꿈
+  문자) 수만큼 줄을 센다. n줄은 (n − 1) × 줄 간격 + 글자 크기를 차지하고, 여기에 칸 위아래 여백을
+  더한 값을 행 높이의 하한으로 쓴다. 긴 글이 칸 폭에서 접혀 늘어난 줄은 세지 않는다.
+- 문단이나 표 칸에 이미 가진 글을 다시 넣으면(`paragraph.text = paragraph.text`, `cell.text = cell.text`)
+  줄 배치 캐시(`hp:linesegarray`)를 지우던 것을 고친다. 한/글은 캐시가 없는 문단을 다시 배치하는데, 다른
+  판의 한/글이 만든 캐시와 결과가 달라 글이 바뀌지 않았는데도 쪽 수가 달라질 수 있었다. 여러 런 문단은
+  런까지 첫 글자 모양으로 합쳐졌고, 여러 문단 칸은 한 문단이 됐다. 이제 같은 글이면 아무것도 바꾸지
+  않는다(`set_text_preserving_runs`와 같다). 칸의 `set_text(..., preserve_format=False)`는 같은 글이어도
+  전처럼 글자 모양을 되돌린다.
+- `lint_layout()`이 `pageBreak="TABLE"` 표를 검사하지 않던 것을 고친다. 한/글은 이 표를 행
+  사이에서만 나눈다. 그래서 쪽 본문보다 높은 행은 한 쪽에 그리고, 종이 아래 끝을 넘는 줄은 그리지
+  않는다. 이제 이런 행을 `TABLE_TALLER_THAN_PAGE`로 알린다(`detail["row"]`는 행 번호). 행 안에서도
+  나누는 `pageBreak="CELL"` 표는 전처럼 검사하지 않는다.
+- 각주·미주의 인스턴스 ID를 `instid` 속성으로 쓰던 것을 고친다. 스키마(`NoteType`)와 한/글이 쓰는 이름은
+  `instId`이고, 소문자 `instid`는 그림·도형 같은 개체의 철자다. 한/글은 이런 파일을 저장하며 `instid`를
+  버리고 `instId`를 새로 매겼다. HWP로 저장하면 각주·미주의 인스턴스 ID가 0이 됐다. 이제 `add_footnote()`·
+  `add_endnote()`는 `instId`를 쓰고, 읽기는 `instId`를 먼저 보고 전에 쓴 `instid`도 읽는다. 문단 복제는
+  어느 철자든 값만 새로 매긴다.
+- `doc.fields.fill()`이 값의 줄바꿈 문자(CRLF·LF·CR)를 글 안에 그대로 쓰던 것을 고친다. 한/글은 이 문자를
+  열 때 같은 문단 안 줄바꿈(`hp:lineBreak`)으로 바꿔 보여 줬다. 이제 줄바꿈마다 `hp:lineBreak`를 쓴다.
+  누름틀 값을 읽을 때도 `hp:lineBreak`를 줄바꿈 문자로, `hp:tab`을 탭으로 읽는다(전에는 빠졌다).
+  채울 때 옛 값에 있던 줄바꿈·탭 요소가 새 값 뒤에 남던 것도 함께 고친다.
+- 이름이 빈 누름틀(`name=""`)을 `doc.fields.all`이 `id`를 이름으로 삼아 보여 주던 것을 고친다. 한/글은 이런
+  누름틀을 이름 없는 필드로 보고 필드 목록과 이름으로 채우기에서 뺀다. 이제 `name` 속성이 있으면 빈 값이라도
+  그 값을 이름으로 쓰고, 이름 없는 누름틀은 `doc.fields.all`에 나오지 않으며 `fill(name=)`으로 찾지 않는다
+  (안내문으로도 찾지 않는다). `fill(field_index=)`·`fill(field_id=)`로는 전처럼 채울 수 있다.
+- 안에 표가 든 칸에 글을 넣으면(`cell.text = …`, `set_cell_text()`) 안쪽 표의 칸 글까지 모두 지워 빈 표가
+  남던 것을 고친다. 이제 칸 자신의 문단 글만 바꾸고, 칸 안의 표·개체는 글을 그대로 둔다. 누름틀 칸 채우기
+  (`doc.fields.fill_cell()`)도 같은 방식으로 쓴다. 그래서 `fill_cell()`도 이번 쓰기로 비워진 칸 문단을
+  지운다(전에는 빈 줄로 남아 칸이 높아졌다).
+
+## [6.6.0] - 2026-09-28
+
+HWP 5.0(`.hwp`) 읽기·쓰기를 더하고, 템플릿·양식을 공개 API만으로 다루는 기능(칸 안쪽 여백,
+글꼴·테두리 읽기와 글꼴 교체, 떠 있는 도형의 기준 틀, 본문 비우기, 메타데이터·미리보기·그림
+정리)을 공개한 릴리스입니다. 한/글과 결과를 맞추느라 출력이 바뀌는 고침이 여럿 있습니다.
+특히 `equalize_column_widths()`는 한/글처럼 표 폭을 행별 칸 수의 공배수로 올립니다. 전의 분배가
+필요하면 `set_column_widths([1] * column_count)`를 씁니다. 저장 성공만으로 시각 품질을
+보증하지 않습니다.
+
+### 바꿈
+
+- FormFit(`hwpx.form_fit`)이 셀과 누름틀 값의 줄을 한컴의 줄 배치 규칙으로 센다.
+  글꼴 파일은 쓰지 않는다. 공백은 0.5 em이고, 폭에 장평과 (1 + 자간)을 곱한다(줄 끝
+  글자에는 자간을 붙이지 않는다). 칸 안 폭이 1440 HWPUNIT보다 좁아도 줄 폭은 1440이다.
+  한글·영어 나눔 설정을 따른다(한글 `BREAK_WORD`는 어절 단위, `KEEP_WORD`는 글자
+  단위). 줄 끝 공백은 여백 밖으로 걸치고, 첫 줄 들여쓰기와 내어쓰기, 최소 공백,
+  닫는 부호의 줄 머리 금칙을 반영한다. 영어 단어 안의 `/ - . @` 뒤에서는 나누지
+  않는다. 같은 줄의 체크박스 같은 인라인 개체는 첫 줄 폭만 줄인다.
+  - 셀 슬롯(`resolve_slot_metrics`)은 셀 첫 문단의 문단 모양과 글자 모양에서,
+    누름틀 슬롯은 필드 문단과 글자 모양에서 이 설정(`TextStyle`)을 읽는다.
+  - 새 `TextStyle`과 `hancom_line_starts()`를 공개한다. `estimate_text_width`와
+    `estimate_lines`는 `style`을 선택 인자로 받고, `style` 없이 부르면 전과 같다.
+  - 문단 모양 읽기(`ParagraphProperty.margin`)가 한컴 표기의 여백 값
+    (`<hc:intent value="1000" unit="HWPUNIT"/>`)을 읽는다. 전에는 요소 글자에서만 값을 찾아
+    한컴 문서의 문단 여백이 모두 `None`이었고, FormFit도 들여쓰기를 0으로 봤다.
+
+### 추가
+
 - `Section.clear_body()`로 문서를 양식 틀로 비운다. 첫 문단 첫 run의 `hp:secPr`(쪽
-  설정)와 `hp:ctrl`(단·머리말·꼬리말·쪽 번호)을 남기고, 나머지 문단, 첫 문단의 다른
-  run, 첫 run의 다른 자식, 첫 문단의 줄 배치 캐시를 지운다. 머리말·꼬리말처럼 남길
+  설정)와 첫 문단 모든 run의 `hp:ctrl`(단·머리말·꼬리말·쪽 번호 — 한/글은 이것들을 흔히
+  둘째 run에 쓴다)을 남기고, 나머지 문단, 첫 문단 run의 다른 자식, 컨트롤이 없는 뒤쪽 run,
+  첫 문단의 줄 배치 캐시를 지운다. 머리말·꼬리말처럼 남길
   컨트롤 안에 글·표·개체·양식 개체·덧말·글자 겹침이 있으면 기본으로 `section-clear-control-content`로 거부하고,
   `on_control_content="keep"`은 남기며, `"strip"`은 그 컨트롤과 `hp:secPr` 안의
   머리말·꼬리말 사본을 지운다. `"strip"`으로도 지울 수 없는 내용이 있으면 거부한다.
+  `hp:t` 안 자식 뒤의 글(`<hp:t><hp:tab/>이름</hp:t>`)도 내용으로 본다.
   어느 쪽이든 찾은 태그를 `ClearBodyReport.control_content`에 담는다. 거부는 바꾸기
   전에 일어난다.
 - `Run.content_kinds()`가 run이 담은 것을 닫힌 어휘(`RUN_CONTENT_KINDS`: `text`·
@@ -49,6 +332,10 @@
   문단 인덱스만 담기고 `formatted`는 대상 수다. 기존 `paragraph_index`·
   `paragraph_indexes`의 뜻은 그대로다. 머리말·꼬리말 객체에 `paragraphs` 속성
   (`cell.paragraphs`처럼 문단 객체 목록)을 더한다.
+- `apply_list_format()`의 기본 글머리표·번호 모양이 한/글 새 목록과 다른 점(글머리표
+  `-`·`○` 대 `●`, 번호 2수준 `1.1.` 대 `가.`, 3수준 `1.1.1.` 대 `1)`)과 글머리표를 맞추는 법
+  (`bullet_char="●"`)을 설명과 known-traps에 적는다. 한/글이 새 목록에 쓰는 모양은 한/글이
+  저장한 목록 fixture로 테스트에 고정한다.
 - HWP 5.0(`.hwp`)을 읽고 쓴다. `HwpxDocument.open`이 `.hwp`를 같은 문서 모델로 열고,
   `save_to_path("x.hwp")`·`save_to_stream(..., format="hwp")`·`to_bytes(format="hwp")`가
   HWP 5.0으로 쓴다. 본문·글자와 문단 모양·스타일·표·그림·그리기 개체·글맵시·수식·차트·OLE·
@@ -90,8 +377,9 @@
   - `doc.parts.clear_preview()`는 `Preview/PrvText.txt`를 비우고 `Preview/PrvImage.png`를
     1×1 흰 PNG로 바꾼다. 두 파트를 지우지는 않는다.
   - `doc.validate()`가 파트가 없는 매니페스트 항목과, 매니페스트 항목이 없는 `BinData/`
-    파트를 경고로 알린다. 경고라서 `ok`는 그대로다. `isEmbeded="0"`으로 바깥 파일을
-    잇는 항목은 알리지 않는다.
+    파트를 경고로 알린다. 경고라서 `ok`는 그대로다. `BinData/` 밖의 파일을 잇는
+    `isEmbeded="0"` 항목(동영상 링크 등)은 알리지 않는다. 한/글은 OLE 개체에도
+    `isEmbeded="0"`을 쓰지만 그 파일은 `BinData/` 안에 두므로, 빠지면 알린다.
 - `Shape.set_position()`이 기준 프레임과 정렬도 정한다. `horz_rel_to`·`vert_rel_to`·
   `horz_align`·`vert_align`이 `hp:pos`의 `horzRelTo`·`vertRelTo`·`horzAlign`·
   `vertAlign`을 쓴다. 값은 OWPML 스키마 철자 그대로다(`vert_rel_to`에는 `COLUMN`이
@@ -193,9 +481,20 @@
   끔). 행 높이는 셀 높이와 셀 글 한 줄 + 셀 위아래 여백 중 큰 값으로 잰다. 한컴은
   글자처럼 취급한 표를 쪽에서 나누지 않아, 이런 표는 종이 끝에서 잘렸다. 흐르는 표는
   행 사이에서 쪽을 넘는다. 쪽 크기는 그려지는 쪽(가로면 돌린 높이)으로 잰다.
+- `doc.media.remove_image()`가 문서가 아직 가리키는 이진 항목을 지우지 않고
+  `HwpxValueError`(`media-item-in-use`)를 낸다. 가리키는 곳은 그림, header의 채우기 그림·그림
+  글머리표, 바탕쪽, 동영상 파일·포스터, OLE, 내장 글꼴이고, `context["references"]`에
+  `"파트: 요소@속성"`으로 담긴다. 거부는 바꾸기 전에 일어난다. 전에는 그대로 지워서 쪽 테두리
+  채우기 그림 같은 참조가 끊긴 채 저장되었다. 그래도 지우려면 `force=True`를 준다. 구역·header처럼
+  이진 항목이 아닌 매니페스트 항목은 지우지 않고 `False`를 돌려준다(전에는
+  `remove_image("section0")`이 구역 파트를 지웠다).
 
 ### 고침
 
+- `doc.styles.replace_font()`가 한 언어 블록에 같은 이름으로 두 번 선언된 글꼴을 하나만 바꾸던 것을
+  고친다. 한/글이 저장한 문서에 흔한 모양으로, 둘째 선언을 가리키는 글자 모양은 옛 글꼴로 남는데
+  보고서는 그 블록이 바뀌었다고 알렸다. 이제 블록 안의 같은 이름 선언을 모두 지우고 그 참조를 모두 새
+  글꼴로 옮긴다.
 - MS Word처럼 배치하는 문서(`hh:compatibleDocument`의 `targetProgram="MS_WORD"`)를 `.hwp`로 열고 저장할
   때 배치 호환 설정이 사라지던 것을 고친다. 열 때 `hh:layoutCompatibility`를 비워 두고 저장할 때 0으로
   써서, Word 호환 배치가 모두 꺼졌다. 이제 켜진 설정마다 `hh:layoutCompatibility`의 자식 하나로
@@ -379,6 +678,9 @@
 - `doc.media.remove_image("image1")`이 header에 `image10.png`가 먼저 있으면 그 `binItem`과
   파트를 대신 지우던 것을 고친다. header 항목을 파일 이름 앞부분으로 맞췄기 때문이다. 이제
   확장자를 뺀 파일 이름(또는 파일 이름 전체)이 같아야 맞는다.
+- `doc.media.replace_picture()`가 바꾼 그림의 옛 이진 항목을 header의 채우기 그림이나 바탕쪽
+  같은 다른 곳이 아직 쓰는데도 지우던 것을 고친다. 본문 그림만 보고 고아로 판단했기
+  때문이다. 이제 문서 어디서도 가리키지 않을 때만 지우고, 아니면 남긴다(`removed_orphans`가 빈다).
 - `HwpxPackage.remove_manifest_item()`에 파트 경로를 넘기면 `False`만 돌려주고 항목을
   남기던 것을 고친다. 이 인자는 매니페스트 `id`다. 그 id의 항목이 없고 값에 `/`가 있으면
   href가 같은 파트를 가리키는 항목을 지운다.
@@ -400,6 +702,9 @@
   내용은 저장할 때 건드리지 않는다. `clear_content()`와 빈
   `set_content([])`는 빈 문단 하나를 남긴다. 전에는 `hp:subList`까지 지웠는데, 실제 문서의
   머리말·꼬리말은 모두 `hp:subList`와 문단을 하나 이상 가진다.
+- 칸·테두리 그림 채우기(`set_cell_fill_image(mode=)`, `ensure_border_fill(fill_image={"mode": ...})`)가
+  `LEFT_TOP`·`LEFT_BOTTOM`·`RIGHT_CENTER`·`RIGHT_TOP`도 받는다. 한/글이 쓰는 그림 위치인데 OWPML
+  스키마의 목록(12개)에 없어 `ValueError`를 냈다.
 - `TextExtractor.extract_text()`가 안쪽 문단을 두 번 쓰던 것을 고친다. `include_nested=True`
   (기본)에서 각주를 `footnote="inline"`으로, 컨트롤을 `control="nested"`로, 개체를
   `object_behavior="nested"`로 글에 넣으면 그 안의 문단이 따로 한 번 더 나왔다.

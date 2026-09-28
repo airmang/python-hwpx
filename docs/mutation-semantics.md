@@ -34,10 +34,13 @@ stable 편집 표면의 계약을 한 곳에 모았다. 아래 표의 실패 모
 `table.set_cell_text(r, c, text)`(= `cell.set_text(text)`)의 기본 동작은 문단을
 다시 만들지 않는다.
 
-- 글은 첫 문단 첫 run의 첫 `hp:t`에 들어간다(없으면 만든다). 셀 안의 다른
-  `hp:t`는 모두 비운다. 안쪽 표 셀의 글도 비워진다(그 문단은 남는다).
-- 이번 쓰기로 글이 비워져 빈 `hp:t`만 남은 셀 문단은 지운다. 원래 비어 있던
-  문단(빈 줄)과 안쪽 표·개체를 담은 문단은 남는다.
+- 글은 셀 자신의 문단에 있는 첫 `hp:t`에 들어간다. 없으면 첫 문단의 빈 run에,
+  빈 run도 없으면 첫 문단 맨 앞의 새 run에 만든다. 셀 자신의 문단에 있는 다른
+  `hp:t`는 비운다. 셀 안의 표·개체는 글을 그대로 둔다(누름틀 칸 채우기
+  `doc.fields.fill_cell()`도 같다).
+- 글을 받은 문단 밖의 셀 문단은 빈 `hp:t`만 남으면 지운다. 원래 비어 있던
+  문단(빈 줄)도 지운다. 한/글이 칸을 채울 때처럼 값이 칸의 한 문단이 된다.
+  안쪽 표·개체를 담은 문단은 남는다.
 - 남는 문단은 id와 `paraPrIDRef`, run의 `charPrIDRef`가 그대로다.
 - `preserve_format=False`면 글을 받은 run 하나만 `charPrIDRef="0"`이 된다.
 - 셀 문단의 줄 배치 캐시(`hp:linesegarray`)를 지워 한/글이 줄을 다시 나누게 한다.
@@ -94,9 +97,10 @@ print(report.actual_mode)
   저장 성공 여부와 관계없이 요청이 반영되지 않은 것이다.
 - `add_*` 계열은 전부 append 의미론이다. "없으면 추가"가 필요하면 먼저
   {doc}`recipes-traversal`의 순회로 존재 여부를 확인하라.
-- `section.clear_body()`는 첫 문단의 첫 run에서 `hp:secPr`(쪽 설정)와
-  `hp:ctrl`(단·머리말·꼬리말·쪽 번호)만 남긴다. 첫 문단의 나머지 run은 안의
-  컨트롤까지 통째로 지운다. `on_control_content="strip"`은 내용이 든
+- `section.clear_body()`는 첫 문단 첫 run의 `hp:secPr`(쪽 설정)와 첫 문단 모든
+  run의 `hp:ctrl`(단·머리말·꼬리말·쪽 번호)만 남긴다. 한/글은 쪽 번호·머리말
+  컨트롤을 흔히 둘째 run에 쓴다. 컨트롤이 없는 뒤쪽 run은 지우고, 첫 문단 안 표
+  속의 컨트롤은 표와 함께 지운다. `on_control_content="strip"`은 내용이 든
   `hp:ctrl`과, `set_header()`·`set_footer()`가 `hp:secPr` 안에 따로 쓰는
   머리말·꼬리말 사본(한컴은 `hp:ctrl` 쪽만 읽는다)과 그것을 가리키는
   `headerApply`·`footerApply`를 지운다. 그래도 내용이 남을 자리(`hp:secPr`의

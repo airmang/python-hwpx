@@ -34,6 +34,7 @@ def _build_enriched_template(path: Path) -> str:
     run = styled_cell.element.find(f".//{HP}run")
     assert run is not None
     run.set("charPrIDRef", rich_style)
+    styled_cell.element.set("hasMargin", "1")  # the cell's own margins apply
     margin = styled_cell.element.find(f"{HP}cellMargin")
     assert margin is not None
     margin.set("left", "11")

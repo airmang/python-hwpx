@@ -220,7 +220,8 @@ def _entry_tab_stops(doc: HwpxDocument) -> list[list[tuple[int, str, str]]]:
                 continue
             para_pr = header.find(f".//{hh}paraPr[@id='{p.get('paraPrIDRef')}']")
             tab_pr = header.find(f".//{hh}tabPr[@id='{para_pr.get('tabPrIDRef')}']")
-            items = tab_pr.findall(f".//{hh}tabItem") if tab_pr is not None else []
+            # the HWPUNIT position in hp:case (DEV-022; hp:default holds twice it)
+            items = tab_pr.findall(f".//{hp}case/{hh}tabItem") if tab_pr is not None else []
             stops.append([(int(i.get("pos")), i.get("type"), i.get("leader")) for i in items])
     return stops
 

@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 163 | 11 |
+| 개수 | 170 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -95,6 +95,7 @@ except HwpxError as exc:
 | `field-checkbox-not-created` | 만든 체크박스를 표준 리더가 다시 찾지 못했다. |
 | `field-checkbox-not-found` | 그 선택자로 체크박스를 찾지 못했다. |
 | `field-date-format-unsupported` | 날짜/시간 필드 date_format 값이 실증된 어휘(단일 관측값) 밖이다. |
+| `field-end-missing` | 누름틀에 끝(fieldEnd)이 없어 바꿀 내용이 없다(한/글도 이런 누름틀은 채우지 않는다). |
 | `field-fit-failed` | 값이 FitPolicy 하에서 필드 상자에 들어가지 않는다(측정치·재시도 제안 동봉). |
 | `field-mail-merge-empty-name` | 메일 머지 필드 이름이 비어 있다. |
 | `field-name-empty` | 누름틀 이름이 비어 있다. |
@@ -103,6 +104,7 @@ except HwpxError as exc:
 | `field-path-format-unsupported` | 파일 이름 필드 path_format 값이 실증된 어휘(단일 관측값) 밖이다. |
 | `field-proofreading-mark-unsupported` | 교정 부호 mark 값이 $RevisionSign 인덱스가 확인된 어휘 밖이다. |
 | `field-selector-conflict` | 선택자를 둘 이상 동시에 지정했다. |
+| `field-text-box-not-found` | 그 이름의 글상자 필드가 없다(doc.fields.text_boxes 로 이름을 본다). |
 
 ### `header-*`
 
@@ -147,7 +149,10 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `master-page-in-use` | 지우려는 바탕쪽을 아직 어떤 절이 참조한다. |
 | `master-page-manifest-missing` | content.hpf 매니페스트에 opf:manifest 요소가 없다. |
+| `master-page-not-found` | 그 id의 바탕쪽 파트가 문서에 없다. |
+| `master-page-pages-taken` | 그 구역에 같은 쪽(종류와 번호)의 바탕쪽이 이미 있다. |
 | `master-page-type-unsupported` | 바탕쪽 type 값이 OWPML 어휘(BOTH/EVEN/ODD/LAST_PAGE/OPTIONAL_PAGE) 밖이다. |
 
 ### `media-*`
@@ -155,6 +160,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `media-item-id-taken` | 그 이진 항목 id 가 이미 쓰이고 있다. |
+| `media-item-in-use` | 지우려는 이진 항목을 문서가 아직 가리킨다(그림·채우기·동영상·OLE 등). force=True 로만 지운다. |
 | `media-owner-paragraph-missing` | 교체한 그림 요소가 소속 문단을 찾지 못했다(방어적 분기). |
 
 ### `note-*`
@@ -278,6 +284,7 @@ except HwpxError as exc:
 | `shape-equation-not-verbatim` | 만든 수식이 스크립트를 그대로 담지 않았다. |
 | `shape-equation-script-empty` | 수식 스크립트가 비어 있다. |
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
+| `shape-original-size-invalid` | add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다. |
 | `shape-polygon-too-few-points` | add_polygon 에 꼭짓점을 3개 미만으로 줬다. |
 | `shape-position-frame` | 도형 기준 프레임·정렬 값이 OWPML 어휘(hp:pos 의 vertRelTo/horzRelTo/vertAlign/horzAlign) 밖이다. |
 | `shape-position-unsupported` | 위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다. |
@@ -312,6 +319,7 @@ except HwpxError as exc:
 | `style-font-substitute-incomplete` | 대체 글꼴 인자가 일부만 주어졌다(subst_face 가 필요하다). |
 | `style-font-type-invalid` | font_type/subst_type 값이 OWPML 어휘(REP/TTF/HFT) 밖이다. |
 | `style-line-width-invalid` | 선 굵기가 0보다 큰 mm 값이 아니다(목록 밖 값은 가장 가까운 한컴 선 굵기로 쓴다). |
+| `style-list-continue-conflict` | continue_list 와 number_format·start 를 함께 주었다(이어 붙이는 목록은 앞 목록의 번호 모양을 쓴다). |
 | `style-list-level-invalid` | 글머리표/번호 수준은 1 이상이어야 한다. |
 | `style-list-property-failed` | 번호 문단모양을 만들지 못했다. |
 | `style-memo-shape-line-type-invalid` | 메모 모양의 line_type 값이 OWPML 어휘(hc:LineType2) 밖이다. |

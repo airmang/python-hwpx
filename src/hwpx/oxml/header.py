@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import base64
 import binascii
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Dict, List, Mapping, Optional
 
@@ -12,6 +12,7 @@ from lxml import etree
 
 from .common import GenericElement, parse_generic_element
 from .namespaces import HP
+from .paragraph_heading import paragraph_heading
 from .utils import local_name, parse_bool, parse_int, text_or_none
 
 
@@ -174,13 +175,11 @@ class TabDefinitionVersionBranch:
     """``hp:case``/``hp:default`` 한쪽 분기의 ``hh:tabItem`` 목록(DEV-022).
 
     ``ParagraphPropertyVersionBranch``와 달리 두 분기 값이 **다르다** —
-    ``hp:case``는 실측 449/449 전부 ``unit="HWPUNIT"`` 속성을 명시하고
-    ``pos``가 ``hp:default``의 **정확히 절반**이다(34/34 쌍, 실코퍼스
-    전수 검증). ``TabDefinition.tab_stops``는 실측으로 확인된 표준
-    스케일(``hp:default`` — 스위치가 없는 실 문서의 직속 ``hh:tabItem``과
-    ``pos`` 값이 정확히 일치)을 대표값으로 쓴다; ``hp:case``의 값은 여기
-    보존만 한다(용도 미상, `unit="HWPUNIT"`가 명시적으로 붙어 있음에도
-    실측 스케일이 다르다는 사실 자체가 이례적)."""
+    ``hp:case``는 ``unit="HWPUNIT"``을 명시하고 ``pos``가 한/글이 탭을 두는
+    HWPUNIT 위치다. ``hp:default``는 그 **두 배**다(옛 판 독자를 위한 값).
+    한/글은 스위치가 없는 ``hh:tabItem``도 HWPUNIT으로 읽고, 저장할 때
+    ``hp:case``(같은 값)와 ``hp:default``(두 배)로 나눠 쓴다.
+    ``TabDefinition.tab_stops``는 ``hp:case`` 값을 쓴다."""
 
     tab_stops: List[TabStop] = field(default_factory=list)
 
@@ -1216,21 +1215,26 @@ def parse_tab_definition_version_branch(node: etree._Element) -> TabDefinitionVe
     )
 
 
-def parse_tab_definition_version_switch(node: etree._Element) -> TabDefinitionVersionSwitch:
-    """``hp:switch`` 전체(DEV-022) — ``hp:case``의 ``hp:required-namespace``
-    속성은 DEV-018과 같은 Clark 표기 조회가 필요(bare가 아니다)."""
+def parse_tab_definition_version_switch(*nodes: etree._Element) -> TabDefinitionVersionSwitch:
+    """한 ``hh:tabPr``의 ``hp:switch``들(DEV-022). 한/글은 탭마다 스위치를
+    하나씩 쓰므로 각 분기는 모든 스위치의 탭을 차례대로 모은다.
+    ``hp:case``의 ``hp:required-namespace`` 속성은 DEV-018과 같은 Clark 표기
+    조회가 필요(bare가 아니다)."""
 
     case_branch: Optional[TabDefinitionVersionBranch] = None
     default_branch: Optional[TabDefinitionVersionBranch] = None
     required_namespace: Optional[str] = None
 
-    for child in node:
-        name = local_name(child)
-        if name == "case":
-            case_branch = parse_tab_definition_version_branch(child)
-            required_namespace = child.get(f"{HP}required-namespace")
-        elif name == "default":
-            default_branch = parse_tab_definition_version_branch(child)
+    for node in nodes:
+        for child in node:
+            name = local_name(child)
+            if name == "case":
+                case_branch = case_branch or TabDefinitionVersionBranch()
+                case_branch.tab_stops.extend(parse_tab_definition_version_branch(child).tab_stops)
+                required_namespace = required_namespace or child.get(f"{HP}required-namespace")
+            elif name == "default":
+                default_branch = default_branch or TabDefinitionVersionBranch()
+                default_branch.tab_stops.extend(parse_tab_definition_version_branch(child).tab_stops)
 
     return TabDefinitionVersionSwitch(
         required_namespace=required_namespace, case=case_branch, default=default_branch
@@ -1241,22 +1245,18 @@ def parse_tab_definition(node: etree._Element) -> TabDefinition:
     raw_id = node.get("id")
     tab_stops = [parse_tab_stop(child) for child in node if local_name(child) == "tabItem"]
     version_switch: Optional[TabDefinitionVersionSwitch] = None
-    switch_element = next((child for child in node if local_name(child) == "switch"), None)
-    if switch_element is not None:
-        version_switch = parse_tab_definition_version_switch(switch_element)
+    switch_elements = [child for child in node if local_name(child) == "switch"]
+    if switch_elements:
+        version_switch = parse_tab_definition_version_switch(*switch_elements)
 
-    # 실코퍼스 449/449 hp:switch 감싼 hh:tabPr은 직속 hh:tabItem이 없다
-    # (DEV-022) -- 그럴 때만 스위치 분기에서 채운다. hp:default를 쓴다
-    # (hp:case가 아니다): hp:case는 34/34 쌍에서 pos가 hp:default의 정확히
-    # 절반이고 unit="HWPUNIT"을 명시하지만, switch 없는 실 문서의 직속
-    # hh:tabItem 값과 정확히 일치하는 쪽은 hp:default다(실측 확인,
-    # error__20240626__no_manifest.hwpx) -- ParagraphPropertyVersionSwitch
-    # (DEV-018, case 우선)과 반대 선택이다. 같은 값 두 벌이 아니라 다른
-    # 스케일 두 벌이므로 "먼저 오는 쪽"이 아니라 실측으로 검증된 쪽을 쓴다.
+    # 한/글이 저장한 hh:tabPr은 탭마다 hp:switch로 감싸 직속 hh:tabItem이 없다
+    # (DEV-022). 그럴 때 탭 위치는 hp:case(한/글이 탭을 두는 HWPUNIT 값)에서
+    # 읽는다. hp:default는 그 두 배라, case가 없을 때만 절반으로 읽는다.
     if not tab_stops and version_switch is not None:
-        preferred = version_switch.default or version_switch.case
-        if preferred is not None:
-            tab_stops = preferred.tab_stops
+        if version_switch.case is not None and version_switch.case.tab_stops:
+            tab_stops = version_switch.case.tab_stops
+        elif version_switch.default is not None:
+            tab_stops = [replace(stop, pos=stop.pos // 2) for stop in version_switch.default.tab_stops]
 
     return TabDefinition(
         id=parse_int(raw_id),
@@ -1398,6 +1398,10 @@ def parse_paragraph_break_setting(node: etree._Element) -> ParagraphBreakSetting
 
 
 def _margin_value(child: etree._Element) -> Optional[str]:
+    # Hancom writes a margin as ``<hc:left value="1000" unit="HWPUNIT"/>``; older files put it in the text.
+    attribute = child.get("value")
+    if attribute is not None:
+        return attribute
     value = text_or_none(child)
     return value if value is not None else child.text.strip() if child.text else None
 
@@ -1538,6 +1542,12 @@ def parse_paragraph_property(node: etree._Element) -> ParagraphProperty:
             version_switch = parse_paragraph_property_version_switch(child)
         else:
             other_children.setdefault(name, []).append(parse_generic_element(child))
+
+    # 개요 8~10 수준의 heading은 hp:switch 안(hp:case)에 있다(한컴 표기).
+    if heading is None:
+        switched = paragraph_heading(node)
+        if switched is not None:
+            heading = parse_paragraph_heading(switched)
 
     # 실코퍼스 236/237(99.6%)은 margin/lineSpacing을 직접 자식이 아니라
     # hp:switch 안(hp:case 또는 hp:default)에 둔다(DEV-018) -- 직접 자식이

@@ -32,6 +32,7 @@ from .drop_cap import _paragraph_add_drop_cap
 from .dutmal_compose import _paragraph_add_composed_character, _paragraph_add_dutmal
 from .hyperlink_form import HYPERLINK_FIELD_ID, hyperlink_char_pr, hyperlink_parameters, hyperlink_target
 from .field_marks import (
+    field_type_id,
     _paragraph_add_date_field,
     _paragraph_add_mail_merge_field,
     _paragraph_add_path_field,
@@ -64,6 +65,7 @@ from .objects import (
 )
 from .run import HwpxOxmlRun
 from .table import HwpxOxmlTable
+from .table_sizes import cell_margins_of
 
 if TYPE_CHECKING:
     from .section import HwpxOxmlSection
@@ -320,8 +322,12 @@ class HwpxOxmlParagraph:
 
         Style references (``paraPrIDRef``, ``styleIDRef`` on the paragraph and
         ``charPrIDRef`` on the surviving run) are preserved.  Empty runs that
-        contained only text nodes are removed to keep the XML clean.
+        contained only text nodes are removed to keep the XML clean.  Setting
+        the text the paragraph already has changes nothing: its runs and its
+        line layout caches stay.
         """
+        if value == self.text:
+            return
         runs = self._run_elements()
 
         # Identify first run — its charPrIDRef will be kept.
@@ -527,20 +533,18 @@ class HwpxOxmlParagraph:
         while ancestor is not None:
             if tag_local_name(ancestor.tag) == "tc":
                 cell_sz = ancestor.find(f"{_HP}cellSz")
-                margin = ancestor.find(f"{_HP}cellMargin")
                 if cell_sz is not None:
                     try:
                         width = int(cell_sz.get("width", "0"))
                     except ValueError:
                         return None
-                    pad = 0
-                    if margin is not None:
-                        try:
-                            pad = int(margin.get("left", "0")) + int(
-                                margin.get("right", "0")
-                            )
-                        except ValueError:
-                            pad = 0
+                    # The cell's effective margins (``cell.margins``): the
+                    # table's hp:inMargin unless hasMargin is on.
+                    row = getattr(ancestor, "getparent")()
+                    inner = cell_margins_of(
+                        ancestor, row.getparent() if row is not None else None
+                    )
+                    pad = inner.left + inner.right if inner is not None else 0
                     usable = width - pad
                     return usable if usable > 0 else None
                 return None
@@ -1252,8 +1256,8 @@ class HwpxOxmlParagraph:
         ``HelpState`` parameters, an optional prompt run showing *prompt* (the
         안내문, screen-only — Hancom does not print it), and a ``fieldEnd`` ctrl
         run. ``Command`` lengths count UTF-16 characters, so values may contain
-        spaces. ``id``/``fieldid`` values are semantically free — Hancom reissues
-        its own on save.
+        spaces. ``fieldid`` is the click-here control id (``%clk``) Hancom gives
+        every click-here field; ``id`` is new.
 
         Args:
             name: Field name used by ``list_form_fields``/``fill_form_field``.
@@ -1266,7 +1270,7 @@ class HwpxOxmlParagraph:
             The ``<hp:ctrl>`` element wrapping the ``<hp:fieldBegin>``.
         """
         field_id = _object_id()
-        field_instance_id = _object_id()
+        field_instance_id = field_type_id("CLICK_HERE")
         direction = _sanitize_text(prompt)
         help_state = _sanitize_text(memo)
 

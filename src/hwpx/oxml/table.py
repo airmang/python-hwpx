@@ -30,6 +30,7 @@ from ._document_primitives import (
     FILL_IMAGE_MODES,
 )
 from ._paragraph_text_edit import clear_text_element, sanitize_keeping_tabs, set_text_with_tabs
+from ._paragraph_text_edit import new_own_text_node, own_text_nodes
 from . import table_sizes as _table_sizes
 
 from .body import Label, parse_label_element
@@ -369,6 +370,20 @@ class HwpxOxmlTableCell:
             )
             _append_text_with_tabs(run, line)
 
+    def _wrap_new_content(self, value: str, previous_text: str) -> None:
+        """Let a value that would squeeze too far wrap in a SQUEEZE cell.
+
+        Hancom keeps a SQUEEZE cell's text on one line and narrows only the
+        spacing between its characters: a line up to 1.1 times the cell's line
+        width still reads, a longer one makes the characters touch and overlap.
+        Such a value switches the cell to BREAK; a shorter one keeps SQUEEZE,
+        as Hancom's own fill does.  Untouched template cells keep their mode.
+        """
+        if value and value != previous_text:
+            sublist = self._ensure_sublist()
+            if (sublist.get("lineWrap") or "").upper() == "SQUEEZE" and not _table_sizes.squeezes_readably(self, value):
+                sublist.set("lineWrap", "BREAK")
+
     def set_text(
         self,
         value: str,
@@ -378,13 +393,9 @@ class HwpxOxmlTableCell:
     ) -> None:
         previous_text = self.text
         sanitized_value = sanitize_keeping_tabs(value)
-        if sanitized_value and sanitized_value != previous_text:
-            sublist = self._ensure_sublist()
-            if (sublist.get("lineWrap") or "").upper() == "SQUEEZE":
-                # SQUEEZE can compress a longer filled value until Hancom
-                # renders adjacent glyphs on top of each other.  New content
-                # should wrap/reflow; untouched template cells keep their mode.
-                sublist.set("lineWrap", "BREAK")
+        if sanitized_value == previous_text and preserve_format:
+            return  # the same text changes nothing: paragraphs, runs and line caches stay
+        self._wrap_new_content(sanitized_value, previous_text)
         if split_paragraphs:
             self._set_split_paragraph_text(sanitized_value)
             self._clear_own_layout_caches()
@@ -392,15 +403,14 @@ class HwpxOxmlTableCell:
             self.table.mark_dirty()
             return
 
-        text_element = self._ensure_text_element()
+        # Only the cell's own paragraphs take the text: a table or object inside
+        # the cell keeps its text.
+        own = own_text_nodes(self._ensure_sublist())
+        text_element = own[0] if own else new_own_text_node(self._ensure_sublist(), self._first_run_char_pr_id_ref())
         set_text_with_tabs(text_element, sanitized_value)
-        emptied: list[ET.Element] = []
-        for node in self.element.findall(f".//{_HP}t"):
-            if node is not text_element:
-                if node.text or len(node):
-                    emptied.append(node)
-                clear_text_element(node)
-        self._drop_emptied_paragraphs(text_element, emptied)
+        for node in own[1:]:
+            clear_text_element(node)
+        self._drop_blank_paragraphs(text_element)
         if not preserve_format:
             current: Any | None = text_element
             while current is not None and _element_local_name(current) != "run":
@@ -411,20 +421,17 @@ class HwpxOxmlTableCell:
         self.element.set("dirty", "1")
         self.table.mark_dirty()
 
-    def _drop_emptied_paragraphs(self, text_element: ET.Element, emptied: list[ET.Element]) -> None:
-        # A paragraph of this cell whose text was just cleared and that holds
-        # nothing else goes, so the cell reads back the text it was given (a
-        # merged cell carries the covered cells' paragraphs).  Paragraphs that
-        # were already empty (blank lines) or hold objects stay.
+    def _drop_blank_paragraphs(self, text_element: ET.Element) -> None:
+        # As Hancom fills a cell, the value becomes the cell's one paragraph: every
+        # other paragraph of the cell holding no text and nothing else goes, the
+        # blank lines it had included, so the cell reads back the text it was given.
+        # A paragraph holding a table or an object stays.
         sublist = self.element.find(f"{_HP}subList")
-        if sublist is None or not emptied:
+        if sublist is None:
             return
-        emptied_ids = {id(node) for node in emptied}
         for paragraph in sublist.findall(f"{_HP}p"):
             own = [node for run in paragraph.findall(f"{_HP}run") for node in run.findall(f"{_HP}t")]
-            if any(node is text_element for node in own):
-                continue
-            if any(id(node) in emptied_ids for node in own) and _is_blank_paragraph(paragraph):
+            if not any(node is text_element for node in own) and _is_blank_paragraph(paragraph):
                 sublist.remove(paragraph)
 
     def _clear_own_layout_caches(self) -> None:
@@ -1165,9 +1172,10 @@ class HwpxOxmlTable:
         Without *fit* this is the historical raw set (returns ``None``). With a
         :class:`~hwpx.form_fit.policy.FitPolicy` the value is measured against the
         cell box and wrapped/shrunk/failed accordingly; the returned
-        :class:`~hwpx.form_fit.report.FitResult` carries the verdict (and an
-        ``overflow=fail`` miss makes ``ok`` ``False``). ``split_paragraphs`` is
-        ignored in fit mode — line breaks are decided by measurement.
+        :class:`~hwpx.form_fit.report.FitResult` carries the verdict. An
+        ``overflow=fail`` miss makes ``ok`` ``False`` and leaves the cell as it
+        was. ``split_paragraphs`` is ignored in fit mode — line breaks are
+        decided by measurement.
         """
 
         if logical:

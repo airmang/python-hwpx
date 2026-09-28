@@ -553,13 +553,25 @@
       "path": "src/hwpx/oxml/table_sizes.py",
       "disposition": "core",
       "approvedBy": "hancom-distribute-cell-width",
-      "rationale": "How a table shares out its width and height among its cells: the bodies of HwpxOxmlTable.set_column_widths, equalize_column_widths (Hancom's distribute-cell-width rule: each row splits the table width among its own cells, the width rounded up to a common multiple of every row's cell count, the column grid rebuilt from the new cell edges) and equalize_row_heights; and the bodies of HwpxOxmlTableCell.margins/set_margins (the effective inner margins: the table's hp:inMargin unless the cell's hasMargin is on, then its hp:cellMargin), assigned onto the cell class as attributes. A new module rather than more table.py lines: the open table fixes together would take that owner file past the 1,600-line cap; the table methods keep their documentation and delegate. Format-level only."
+      "rationale": "How a table shares out its width and height among its cells: the bodies of HwpxOxmlTable.set_column_widths, equalize_column_widths (Hancom's distribute-cell-width rule: each row splits the table width among its own cells, the width rounded up to a common multiple of every row's cell count, the column grid rebuilt from the new cell edges) and equalize_row_heights; and the bodies of HwpxOxmlTableCell.margins/set_margins (the effective inner margins: the table's hp:inMargin unless the cell's hasMargin is on, then its hp:cellMargin), assigned onto the cell class as attributes. That margin rule (effective_cell_margin_source / cell_margins_of) is the one every other reader uses -- form fit, the nested-table default width, the table height bound, the layout preview, the template analyzer and the byte-level cell fill -- so the engine reports one value per cell. A new module rather than more table.py lines: the open table fixes together would take that owner file past the 1,600-line cap; the table methods keep their documentation and delegate. Format-level only."
+    },
+    {
+      "path": "src/hwpx/oxml/paragraph_heading.py",
+      "disposition": "core",
+      "approvedBy": "hancom-outline-levels-8-to-10",
+      "rationale": "The hh:heading of a paragraph shape as Hancom writes it: outline levels 8 to 10 (level 7 to 9) exist only in the 2016 paragraph namespace, so Hancom writes such a heading in an hp:switch whose hp:case holds it and whose hp:default says NONE (the 개요 8 to 개요 10 styles of a new document are written so). set_paragraph_heading() writes a heading that way (header_part.ensure_paragraph_format and the list paragraph shapes call it) and paragraph_heading() reads one, own or in a switch (the header model, the exporter's list labels and the list shape lookup call it), so writers and readers agree. A new module rather than more header_part.py lines (1,598/1,600 owner-file cap). Format-level only."
     },
     {
       "path": "src/hwpx/oxml/header_fonts.py",
       "disposition": "core",
       "approvedBy": "style-font-border-reads",
       "rationale": "Font table and border-fill reads over the live Contents/header.xml (doc.styles.fonts/font_face/border_fill_info) plus replace_font, which swaps one hh:font face for another per hh:fontface block and remaps every hh:charPr/hh:fontRef so no other reference changes the face it names. Reusable HWPX format behavior a converter (e.g. HWPX to DOCX) needs; no renderer, application workflow or agent policy. Free functions over HwpxOxmlHeader rather than methods because header_part.py sits at 1598/1600 lines -- same pattern as header_compat.py."
+    },
+    {
+      "path": "src/hwpx/_moved_modules.py",
+      "disposition": "core",
+      "approvedBy": "moved-module-import-guidance",
+      "rationale": "Import-time guidance for the module names removed in 5.0: a finder appended to sys.meta_path raises ModuleNotFoundError naming the python-hwpx-automation module and the migration guide. It never imports the companion and restores no removed path; the top-level names come from hwpx._MOVED_TO_COMPANION."
     },
     {
       "path": "src/hwpx/oxml/shape_position.py",

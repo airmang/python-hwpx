@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import zipfile
+from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from lxml import etree
@@ -614,6 +615,135 @@ def test_table_height_counts_rows_not_merged_cells():
     doc.tables.all[0].merge_cells(0, 1, 29, 1)  # one cell spanning every row
     [finding] = _page_findings(lint_layout(_bytes(doc)))
     assert finding.detail["min_height"] == 30 * 3600
+
+
+# A new table fits the page and stays inline: each row is stored one line high
+# (282). Filling it grows the rows as Hancom draws them -- 10 pt text at 160 %
+# takes 1600 a line and 1000 for the last, plus 141 + 141 of cell margins.
+_FILLED_ROW = 5 * 1600 + 1000 + 282  # six lines
+
+
+def _filled_table_doc(rows: int, *, split_paragraphs: bool) -> HwpxDocument:
+    doc = HwpxDocument.new()
+    doc.add_paragraph("표 앞 문단")
+    table = doc.add_table(rows, 2)
+    assert table.treat_as_char is True
+    for row in range(rows):
+        table.set_cell_text(row, 0, f"{row}행")
+        table.cell(row, 1).set_text(
+            "\n".join(f"{row}행 {line}줄" for line in range(6)), split_paragraphs=split_paragraphs
+        )
+    return doc
+
+
+def test_inline_table_grown_by_filled_lines_is_flagged():
+    for split_paragraphs in (True, False):  # paragraphs, or newlines Hancom shows as line breaks
+        doc = _filled_table_doc(8, split_paragraphs=split_paragraphs)
+        [finding] = _page_findings(lint_layout(_bytes(doc), overflow_policy="fail"))
+        assert finding.detail["min_height"] == 8 * _FILLED_ROW  # 262 mm
+        assert finding.detail["inline"] is True
+        assert finding.detail["rows_cut"] is False and finding.severity == "warning"
+
+    [cut] = _page_findings(lint_layout(_bytes(_filled_table_doc(10, split_paragraphs=True)), overflow_policy="fail"))
+    assert cut.detail["min_height"] == 10 * _FILLED_ROW
+    assert cut.severity == "error"
+
+
+def test_filled_table_height_is_the_height_hancom_saved():
+    # Hancom saved _filled_table_doc(8) (neutral text): it keeps the stored row
+    # heights and writes the table as tall as it lays it out.
+    data = (Path(__file__).parent / "fixtures" / "hancom_saved" / "table_page_filled_rows.hwpx").read_bytes()
+    root = ET.fromstring(zipfile.ZipFile(io.BytesIO(data)).read("Contents/section0.xml"))
+    table = next(root.iter(f"{HP}tbl"))
+    assert {cell.get("height") for cell in table.iter(f"{HP}cellSz")} == {"282"}
+    [finding] = _page_findings(lint_layout(data))
+    assert finding.detail["min_height"] == int(table.find(f"{HP}sz").get("height")) == 8 * _FILLED_ROW
+
+
+def test_filled_lines_that_fit_the_page_body_are_not_flagged():
+    doc = _filled_table_doc(7, split_paragraphs=True)  # 229 mm
+    assert _page_findings(lint_layout(_bytes(doc))) == []
+
+
+def test_filled_lines_count_line_breaks_not_wrapping():
+    doc = HwpxDocument.new()
+    table = doc.add_table(2, 1)
+    table.set_cell_text(0, 0, "긴 글 " * 2000)  # wraps onto many lines, forces none
+    assert _page_findings(lint_layout(_bytes(doc))) == []
+
+
+def test_filled_lines_of_vertical_text_are_not_counted():
+    doc = _filled_table_doc(10, split_paragraphs=True)
+    for sub_list in doc.tables.all[0].element.iter(f"{HP}subList"):
+        sub_list.set("textDirection", "VERTICAL")
+    assert _page_findings(lint_layout(_bytes(doc))) == []
+
+
+def _row_table_doc(page_break: str) -> HwpxDocument:
+    doc = HwpxDocument.new()
+    doc.add_paragraph("표 앞 문단")
+    table = doc.add_table(3, 2)
+    table.set_treat_as_char(False)
+    table.element.set("pageBreak", page_break)
+    table.cell(1, 1).set_text("\n".join(f"{line}줄" for line in range(60)))
+    return doc
+
+
+def test_row_taller_than_the_page_in_a_table_broken_between_rows_is_flagged():
+    [finding] = _page_findings(lint_layout(_bytes(_row_table_doc("TABLE")), overflow_policy="fail"))
+    assert finding.detail["row"] == 1
+    assert finding.detail["min_height"] == 59 * 1600 + 1000 + 282  # 338 mm
+    assert finding.detail["inline"] is False and finding.detail["rows_cut"] is True
+    assert finding.severity == "error"
+    assert 'pageBreak="CELL"' in finding.message
+
+
+def test_row_taller_than_the_page_in_a_table_broken_inside_rows_is_not_flagged():
+    assert _page_findings(lint_layout(_bytes(_row_table_doc("CELL")))) == []
+
+
+def test_table_broken_between_rows_with_rows_that_fit_is_not_flagged():
+    doc = _long_table_doc(30)  # 381 mm of 12.7 mm rows
+    table = doc.tables.all[0]
+    table.set_treat_as_char(False)
+    table.element.set("pageBreak", "TABLE")
+    assert _page_findings(lint_layout(_bytes(doc))) == []
+
+
+# Hancom saved a flowing 3 x 2 table whose middle row holds 60 paragraphs
+# (95,682 tall, more than the 65,764 page body) once per pageBreak value. It
+# saves a table that runs over pages as tall as its part on the first page, so
+# the saved height shows where Hancom broke the table.
+_ONE_LINE_ROW = 1000 + 282
+_ROW_OF_60 = 59 * 1600 + 1000 + 282
+
+
+def _saved_break_table(mode: str) -> tuple[bytes, int]:
+    data = (Path(__file__).parent / "fixtures" / "hancom_saved" / f"table_page_break_{mode}.hwpx").read_bytes()
+    root = ET.fromstring(zipfile.ZipFile(io.BytesIO(data)).read("Contents/section0.xml"))
+    table = next(root.iter(f"{HP}tbl"))
+    assert table.get("pageBreak") == mode.upper()
+    return data, int(table.find(f"{HP}sz").get("height"))
+
+
+def test_hancom_breaks_a_table_break_table_only_between_rows():
+    data, first_page = _saved_break_table("table")
+    assert first_page == _ONE_LINE_ROW  # the tall row went whole to the next page
+    [finding] = _page_findings(lint_layout(data))
+    assert finding.detail["row"] == 1 and finding.detail["min_height"] == _ROW_OF_60
+
+
+def test_hancom_breaks_a_cell_break_table_inside_rows():
+    data, first_page = _saved_break_table("cell")
+    assert first_page == _ONE_LINE_ROW + 37 * 1600 + 1000 + 282  # 38 of the 60 lines on the first page
+    assert _page_findings(lint_layout(data)) == []
+
+
+def test_hancom_keeps_a_none_break_table_on_one_page():
+    data, first_page = _saved_break_table("none")
+    assert first_page == _ONE_LINE_ROW + _ROW_OF_60 + _ONE_LINE_ROW
+    [finding] = _page_findings(lint_layout(data))
+    assert finding.detail["min_height"] == first_page and "row" not in finding.detail
 
 
 def test_pipeline_strict_blocks_a_table_cut_off_at_the_page_edge(tmp_path):

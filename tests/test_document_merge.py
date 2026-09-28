@@ -1212,10 +1212,13 @@ def test_merge_imports_parapr_tab_definition_instead_of_aliasing() -> None:
             c for c in header._tab_properties_element() if c.get("id") == tab_ref
         )
         return sorted(
-            item.get("pos") for item in tab_pr if item.tag.rsplit("}", 1)[-1] == "tabItem"
+            item.get("pos")
+            for item in tab_pr.iter()
+            if item.tag.rsplit("}", 1)[-1] == "tabItem" and item.get("unit") == "HWPUNIT"
         )
 
     expected = _tab_positions(source, "tabbed line")
+    assert expected == ["8504"]  # 30 mm
     append_document(target, source)
     assert _tab_positions(target, "tabbed line") == expected
 

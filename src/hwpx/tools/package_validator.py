@@ -22,6 +22,7 @@ from ..opc.relationships import (
     ManifestRelationships,
     RootFileRef,
     is_header_part_name,
+    is_linked_file,
     is_section_part_name,
     parse_container_rootfiles,
     parse_manifest_relationships,
@@ -985,7 +986,8 @@ def _check_manifest_hrefs(
     issues: list[PackageValidationIssue],
 ) -> None:
     for item in relationships.items:
-        if item.resolved_path not in name_set:
+        # an item linking a file outside the package has no part by design
+        if item.resolved_path not in name_set and not is_linked_file(item.href, item.is_embeded):
             _error(
                 issues,
                 selected_rootfile.full_path,
