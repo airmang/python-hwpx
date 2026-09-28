@@ -370,15 +370,17 @@ class HwpxOxmlTableCell:
             _append_text_with_tabs(run, line)
 
     def _wrap_new_content(self, value: str, previous_text: str) -> None:
-        """Let new content wrap in a SQUEEZE cell.
+        """Let a value that would squeeze too far wrap in a SQUEEZE cell.
 
-        SQUEEZE can compress a longer filled value until Hancom renders
-        adjacent glyphs on top of each other.  New content should wrap/reflow;
-        untouched template cells keep their mode.
+        Hancom keeps a SQUEEZE cell's text on one line and narrows only the
+        spacing between its characters: a line up to 1.1 times the cell's line
+        width still reads, a longer one makes the characters touch and overlap.
+        Such a value switches the cell to BREAK; a shorter one keeps SQUEEZE,
+        as Hancom's own fill does.  Untouched template cells keep their mode.
         """
         if value and value != previous_text:
             sublist = self._ensure_sublist()
-            if (sublist.get("lineWrap") or "").upper() == "SQUEEZE":
+            if (sublist.get("lineWrap") or "").upper() == "SQUEEZE" and not _table_sizes.squeezes_readably(self, value):
                 sublist.set("lineWrap", "BREAK")
 
     def set_text(
