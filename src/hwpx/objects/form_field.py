@@ -232,4 +232,47 @@ class CellField:
         return f"CellField(name={self.name!r}, text={self.text!r})"
 
 
-__all__ = ["CellField", "FieldLocation", "FieldParameter", "FormField"]
+class TextBoxField:
+    """A live view over one named text box -- a field for Hancom (``hp:drawText@name``).
+
+    Hancom lists a text box that has a name among its fields and fills it by that
+    name. ``text`` reads the box's paragraphs, a line each, and, when assigned,
+    replaces them with one paragraph holding the value, as Hancom fills the box:
+    the box's first paragraph and its first run keep their shapes.
+    ``element`` is the ``hp:drawText`` itself.
+    """
+
+    __slots__ = ("_draw_text", "_section")
+
+    def __init__(self, draw_text: Any, section: Any) -> None:
+        self._draw_text = draw_text
+        self._section = section
+
+    @property
+    def name(self) -> str:
+        return str(self._draw_text.get("name") or "")
+
+    @property
+    def text(self) -> str:
+        from .._document.fields import text_box_text
+
+        return text_box_text(self._draw_text)
+
+    @text.setter
+    def text(self, value: str) -> None:
+        from .._document.fields import set_text_box_text
+
+        set_text_box_text(self._draw_text, self._section, value)
+
+    @property
+    def element(self) -> Any:
+        return self._draw_text
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "text": self.text}
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"TextBoxField(name={self.name!r}, text={self.text!r})"
+
+
+__all__ = ["CellField", "FieldLocation", "FieldParameter", "FormField", "TextBoxField"]

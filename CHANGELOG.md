@@ -17,6 +17,16 @@
   그런 목록이 없으면 새 목록을 만든다. 앞 목록의 번호 정의에 없는 더 깊은 수준으로 이어 붙이면 그 수준의
   모양을 새 목록과 같은 꼴(`^1.^2.`)로 정의에 더한다. 한/글은 번호 정의에 없는 수준에는 번호를 그리지
   않는다. `number_format`·`start`와 함께 주면 `style-list-continue-conflict`로 거부한다.
+- `doc.media.remove_unused_images()`를 더한다. 문서가 어디서도 가리키지 않는 이진 항목(매니페스트 항목·파트·
+  header의 `binItem`)을 모두 지우고 지운 항목을 돌려준다. 한/글은 문서를 저장할 때 이런 항목을 지운다. 본문에서
+  그림을 지우면(`section.clear_body()`, 문단 삭제) 그 그림의 이진 항목이 남으므로 이 호출로 정리한다. `remove_image`가
+  확인하는 참조(그림, 채우기 그림·그림 글머리표, 바탕쪽, 동영상, OLE, 내장 글꼴)가 있는 항목은 남긴다.
+- `doc.fields.text_boxes`와 `doc.fields.fill_text_box()`를 더한다. 한/글은 이름이 있는 글상자
+  (`hp:drawText@name`)를 필드로 보고, 필드 목록에 넣고 이름으로 채운다. `text_boxes`는 이름 붙은 글상자를 문서
+  순서로 돌려준다(이름 없는 글상자는 뺀다). `fill_text_box(value, name=, index=)`는 한/글처럼 글상자의 글을 값 한
+  문단으로 바꾼다. 첫 문단과 첫 run의 모양은 그대로이고, 줄바꿈은 `hp:lineBreak`로 쓴다. 같은 이름의 글상자는
+  모두 채우고, 없는 이름은 `field-text-box-not-found`로 거부한다. `set_draw_text(name=)`의 설명도 고쳤다(이름이
+  글상자를 필드로 만든다).
 - `doc.parts.remove_master_page(id)`를 더한다. 어느 구역도 참조하지 않는 바탕쪽의 매니페스트 항목과
   파트를 지우고, 저장된 적이 있어 패키지에 있는 파트 파일도 지운다. 구역이 참조하는 바탕쪽은
   `master-page-in-use`, 없는 id는 `master-page-not-found`로 거부하고 아무것도 바꾸지 않는다.
@@ -41,6 +51,10 @@
   앞 제목의 번호가 붙었다. `para_pr_id_ref`·`char_pr_id_ref`나 `run_attributes`의 `charPrIDRef`를
   함께 주면 그 값을 쓴다. 숫자 id를 쓰는 `style_id_ref`는 전처럼 스타일 이름만 붙인다.
   개요 스타일 문단에는 한/글이 개요 번호를 붙이므로 README 예시에서 글에 쓴 번호를 뺐다.
+- FormFit이 로마 숫자(Ⅰ–Ⅻ, ⅰ–ⅻ)와 원 숫자·괄호 숫자(①–⑳, ⑴–⒇)를 글꼴에서 한/글이 배치하는 폭으로 센다.
+  함초롬바탕·함초롬돋움은 0.972 em, 맑은 고딕은 로마 숫자 0.952 em·원 숫자 1 em이다. 글꼴 폭 표에 없는
+  글꼴이나 글자도 전각(1 em)으로 본다. 전에는 평균 폭(0.62 em)으로 세어, 이런 글자가 든 칸을 한 줄로
+  예측했는데 한/글은 두 줄로 나눴다.
 - FormFit이 한글 한 자를 글자 모양의 한글 글꼴에서 한/글이 배치하는 폭으로 센다.
   함초롬바탕·함초롬돋움은 0.972 em, 한컴 고딕은 0.932 em이고, 다른 글꼴(맑은 고딕·바탕·
   돋움·굴림·궁서 등)은 전처럼 1 em이다. 이 세 글꼴의 셀과 누름틀에는 전보다 한 줄에 글자가
@@ -96,6 +110,10 @@
   비우고 개요를 문단 모양에 바로 썼다. 이제 한/글과 같은 모양으로 쓰고, 새 문서에서는 개요 8~10 스타일의 문단
   모양을 그대로 쓴다. 문단 모양을 읽을 때도 `hp:switch` 안의 개요를 읽는다(`paragraph_property().heading`,
   목록 글자 내보내기).
+- 글자 겹치기(`add_composed_character()`)와 덧말(`add_dutmal()`)을 한/글이 쓰는 모양으로 쓴다. 글자 겹치기는 늘
+  `hp:charPr` 열 칸을 쓰고(쓰지 않는 칸은 `4294967295`), 주지 않은 속성은 한/글이 새 글자 겹치기에 주는 값
+  (`circleType="SHAPE_CIRCLE"`, `charSz="-4"`, `composeType="SPREAD"`)으로 쓴다. 덧말은 스타일을 주지 않으면
+  `styleIDRef="0"`을 쓴다. 전에는 준 칸만 쓰고 속성을 뺐으며, 한/글은 저장할 때 이 값들을 채웠다.
 - 새 도형(`add_rectangle()`·`add_ellipse()`·`add_line()`·`add_arc()`·`add_polygon()`·`add_container()`)에
   `textWrap`·`textFlow`를 쓴다. 한/글은 모든 도형에 이 둘을 쓰고, 없으면 `SQUARE`·`BOTH_SIDES`로 읽는다.
   그래서 새 도형은 `textWrap="SQUARE" textFlow="BOTH_SIDES"`이고, 묶음(`hp:container`) 안 도형은 한/글처럼

@@ -29,13 +29,14 @@ from hwpx.form_fit import (
     hancom_line_starts,
     measure,
 )
-from hwpx.form_fit.measure import _cell_text_style, glyph_advance_em, resolve_slot_metrics, text_style_from_refs
+from hwpx.form_fit.measure import classify_char, _cell_text_style, glyph_advance_em, resolve_slot_metrics, text_style_from_refs
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_rules.hwpx"
 FACE_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_face_advance.hwpx"
 INLINE_OBJECTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_inline_objects.hwpx"
 GLYPH_WIDTHS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_glyph_widths.hwpx"
+NUMERAL_WIDTHS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_numeral_widths.hwpx"
 LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_heights.hwpx"
 ROUNDED_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_rounded_advances.hwpx"
 LINE_PITCHES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_pitches.hwpx"
@@ -344,6 +345,25 @@ def test_glyph_widths_break_where_hancom_breaks() -> None:
         slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
 
         assert measure(cell.text, slot).lines == len(segs), (cell.text, slot.available_width)
+
+
+def test_roman_numerals_and_circled_numbers_break_where_hancom_breaks_them() -> None:
+    # Hancom laid out each of Ⅰ ⅳ ① ⑩ ⑴ ⑳ and five syllables in 함초롬바탕, 함초롬돋움 and
+    # 맑은 고딕 at 10 pt, in the widest cell that took two lines and the narrowest that took one.
+    doc = HwpxDocument.open(NUMERAL_WIDTHS.read_bytes())
+    tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+    assert len(tables) == 36
+    for table in tables:
+        cell = table.cell(0, 0)
+        segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
+        slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
+
+        assert measure(cell.text, slot).lines == len(segs), (cell.text, slot.available_width)
+
+
+def test_a_numeral_a_face_does_not_list_is_full_width() -> None:
+    assert classify_char("⑳") == "wide" and classify_char("Ⅻ") == "wide"
 
 
 def test_each_line_spacing_type_advances_a_line_as_hancom_does() -> None:
