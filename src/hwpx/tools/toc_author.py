@@ -31,6 +31,7 @@ from lxml import etree as ET
 
 from hwpx.document import HwpxDocument
 from hwpx.errors import HwpxValueError
+from hwpx.oxml.field_marks import field_type_id
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _NON_UNIQUE_PARA_ID = "2147483648"
@@ -169,16 +170,17 @@ def _field_begin(run: ET.Element, *, ftype: str, field_id: str, editable: str, d
             "editable": editable,
             "dirty": dirty,
             "zorder": "-1",
-            "fieldid": _rand_id(),
+            "fieldid": field_type_id(ftype),
             "metaTag": "",
         },
     )
     return begin
 
 
-def _field_end(run: ET.Element, field_id: str) -> None:
+def _field_end(run: ET.Element, begin: ET.Element) -> None:
+    """The end of field *begin*: its id and, as Hancom writes it, its ``fieldid``."""
     ctrl = ET.SubElement(run, f"{_HP}ctrl")
-    ET.SubElement(ctrl, f"{_HP}fieldEnd", {"beginIDRef": field_id})
+    ET.SubElement(ctrl, f"{_HP}fieldEnd", {"beginIDRef": begin.get("id", ""), "fieldid": begin.get("fieldid", "")})
 
 
 def _entry_para_pr(doc: HwpxDocument, leader: int) -> str:
@@ -232,7 +234,7 @@ def _entry_paragraph(
     tab.tail = str(page)
 
     run3 = ET.SubElement(p, f"{_HP}run", {"charPrIDRef": char_pr})
-    _field_end(run3, field_id)
+    _field_end(run3, begin)
     return p
 
 
@@ -422,7 +424,7 @@ def add_native_toc(
         "pageBreak": "0", "columnBreak": "0", "merged": "0",
     })
     close_run = ET.SubElement(close_p, f"{_HP}run", {"charPrIDRef": "0"})
-    _field_end(close_run, toc_field_id)
+    _field_end(close_run, begin)
 
     section.insert_paragraphs(at_index, [open_p, *entry_elements, close_p])
     if at_index == 0:
@@ -467,7 +469,7 @@ def add_page_crossref(
     t.text = str(cached_page)
 
     run3 = ET.SubElement(p_el, f"{_HP}run", {"charPrIDRef": "0"})
-    _field_end(run3, field_id)
+    _field_end(run3, begin)
 
     paragraph.section.mark_dirty()
     return {"fieldId": field_id, "targetId": target_id, "cachedPage": cached_page}

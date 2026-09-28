@@ -32,6 +32,7 @@ from .drop_cap import _paragraph_add_drop_cap
 from .dutmal_compose import _paragraph_add_composed_character, _paragraph_add_dutmal
 from .hyperlink_form import HYPERLINK_FIELD_ID, hyperlink_char_pr, hyperlink_parameters, hyperlink_target
 from .field_marks import (
+    field_type_id,
     _paragraph_add_date_field,
     _paragraph_add_mail_merge_field,
     _paragraph_add_path_field,
@@ -1255,8 +1256,8 @@ class HwpxOxmlParagraph:
         ``HelpState`` parameters, an optional prompt run showing *prompt* (the
         안내문, screen-only — Hancom does not print it), and a ``fieldEnd`` ctrl
         run. ``Command`` lengths count UTF-16 characters, so values may contain
-        spaces. ``id``/``fieldid`` values are semantically free — Hancom reissues
-        its own on save.
+        spaces. ``fieldid`` is the click-here control id (``%clk``) Hancom gives
+        every click-here field; ``id`` is new.
 
         Args:
             name: Field name used by ``list_form_fields``/``fill_form_field``.
@@ -1269,7 +1270,7 @@ class HwpxOxmlParagraph:
             The ``<hp:ctrl>`` element wrapping the ``<hp:fieldBegin>``.
         """
         field_id = _object_id()
-        field_instance_id = _object_id()
+        field_instance_id = field_type_id("CLICK_HERE")
         direction = _sanitize_text(prompt)
         help_state = _sanitize_text(memo)
 
