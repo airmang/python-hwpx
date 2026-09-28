@@ -58,6 +58,12 @@
   1.1배 이하일 때는 SQUEEZE를 그대로 둔다. 전에는 글이 바뀌면 늘 BREAK로 바꿔서, 줄 폭을 조금만 넘어도 줄이
   바뀌고 행이 커져 쪽이 밀렸다. 한/글은 SQUEEZE 칸의 글을 한 줄에 두고 글자 사이만 좁히며, 1.1배까지는 읽히고
   그보다 길면 글자가 닿거나 겹친다. 그래서 더 긴 값은 전처럼 BREAK로 바꾼다. 폭은 칸의 글자 모양으로 잰다.
+- 도형의 기본 선 굵기를 283(1 mm)에서 33(0.12 mm)으로 바꾼다. 한/글이 새 도형에 쓰는 굵기다.
+  `doc.shapes.add_line()`·`add_rectangle()`·`add_ellipse()`·`add_arc()`·`add_polygon()`, 문단의 같은 이름
+  메서드, 묶음 도형의 멤버가 이 기본값을 쓴다. `line_width`를 주지 않은 도형은 전보다 가늘게 그려진다.
+  옛 5.x 이름(`doc.add_rectangle()` 등)은 시그니처를 그대로 두기로 한 호환 계층이라 전처럼 283이다.
+- `set_footnote_numbering()`·`set_endnote_numbering()`의 설명과 `docs/known-traps.md`에, 시작 번호(`new_num`)는
+  번호 방식이 `ON_SECTION`일 때만 한/글에 보인다고 적는다. `CONTINUOUS`·`ON_PAGE`는 1부터 매긴다.
 
 ### 고침
 
@@ -138,6 +144,10 @@
   버리고 `instId`를 새로 매겼다. HWP로 저장하면 각주·미주의 인스턴스 ID가 0이 됐다. 이제 `add_footnote()`·
   `add_endnote()`는 `instId`를 쓰고, 읽기는 `instId`를 먼저 보고 전에 쓴 `instid`도 읽는다. 문단 복제는
   어느 철자든 값만 새로 매긴다.
+- 이름이 빈 누름틀(`name=""`)을 `doc.fields.all`이 `id`를 이름으로 삼아 보여 주던 것을 고친다. 한/글은 이런
+  누름틀을 이름 없는 필드로 보고 필드 목록과 이름으로 채우기에서 뺀다. 이제 `name` 속성이 있으면 빈 값이라도
+  그 값을 이름으로 쓰고, 이름 없는 누름틀은 `doc.fields.all`에 나오지 않으며 `fill(name=)`으로 찾지 않는다
+  (안내문으로도 찾지 않는다). `fill(field_index=)`·`fill(field_id=)`로는 전처럼 채울 수 있다.
 
 ## [6.6.0] - 2026-09-28
 
