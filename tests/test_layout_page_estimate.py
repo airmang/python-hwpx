@@ -49,6 +49,8 @@ HANCOM_PAGES = {
     "pages_objects_after_text_rectangle": 1,  # rectangles set as characters after text
     "pages_table_anchored_after_text": 1,  # a top-and-bottom table anchored after three lines of text
     "pages_picture_anchored_before_text": 1,  # a top-and-bottom picture anchored before the text
+    "pages_picture_square_left": 2,       # a picture wrapped square on the left, text beside it into the next paragraph
+    "pages_picture_square_right": 2,      # a wide picture wrapped square on the right
 }
 
 
