@@ -71,6 +71,14 @@ def test_each_character_can_take_its_own_size() -> None:
     assert hancom_line_starts("가나다라마", [5000], 10, style, sizes=[10, 10, 20, 10, 10]) == [0, 4]
 
 
+def test_each_character_can_take_its_own_style() -> None:
+    wide = TextStyle(break_non_latin_word="KEEP_WORD")
+    narrow = TextStyle(break_non_latin_word="KEEP_WORD", ratio=50)
+
+    assert hancom_line_starts("가나다라마바", [4800], 10, wide) == [0, 4]
+    assert hancom_line_starts("가나다라마바", [4800], 10, wide, styles=[wide] * 3 + [narrow] * 3) == [0]
+
+
 def test_a_narrow_cell_still_gets_lines_1440_wide() -> None:
     doc = HwpxDocument.new()
     cell = doc.add_table(1, 1, width=700 + 2 * 510).cell(0, 0)

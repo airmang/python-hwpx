@@ -7,8 +7,9 @@
   path would keep that cache -- those are the lines Hancom drew, each as tall as Hancom made it
   and followed by its spacing (``vertsize``, ``spacing``). Other paragraphs break like FormFit
   (:func:`hwpx.form_fit.measure.hancom_line_starts`) at the column width less the paragraph's
-  margins and first-line indent, each character at its own size; a line of several sizes is as
-  tall as its largest character, and its line spacing is reckoned from that size.
+  margins and first-line indent, each character at its own size and with its own run's face, 장평
+  and 자간; a line of several sizes is as tall as its largest character, and its line spacing is
+  reckoned from that size.
 * Height: a line advances by the paragraph's line spacing (percent, fixed, between lines, at
   least), paragraphs add their spacing before and after, and a line stays on the page while its
   bottom is within the body height. Page and column breaks, page break before, keep lines
@@ -301,15 +302,16 @@ class _Measure:
                    for line in text.split("\n"))
 
     def line_starts(self, text: str, widths: list[float], size: int, style: Any,
-                    sizes: list[int] | None = None) -> list[int]:
-        """Where each line starts, as offsets into *text*; *sizes* is each character's size when the
-        text mixes sizes."""
+                    sizes: list[int] | None = None, styles: list[Any] | None = None) -> list[int]:
+        """Where each line starts, as offsets into *text*; *sizes* and *styles* are each character's size
+        and style when the text mixes them."""
 
         starts: list[int] = []
         base = 0
         for line in text.split("\n"):
             points = None if sizes is None else [height / 100 for height in sizes[base:base + len(line)]]
-            starts += [base + start for start in (hancom_line_starts(line, widths, size / 100, style, points)
+            looks = None if styles is None else styles[base:base + len(line)]
+            starts += [base + start for start in (hancom_line_starts(line, widths, size / 100, style, points, looks)
                                                   if line else [0])]
             base += len(line) + 1
         return starts
@@ -551,14 +553,27 @@ def _text_size(measure: _Measure, runs: list[Any]) -> tuple[int, list[Any], list
     return min(sizes or [measure.char_height(ref) for ref in refs]), refs, sizes
 
 
+def _char_styles(measure: _Measure, paragraph: Any, runs: list[Any]) -> list[Any] | None:
+    """Each character's style from its own run when the runs holding text differ in face, 장평 or 자간;
+    ``None`` when they do not."""
+
+    para_pr = paragraph.get("paraPrIDRef")
+    looks: list[Any] = []
+    for run in runs:
+        length = sum(len(_t_text(text)) for text in run.findall(f"{HP}t"))
+        if length:
+            looks += [measure.style(para_pr, [run.get("charPrIDRef")])] * length
+    return looks if len(set(looks)) > 1 else None
+
+
 def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
-                  shape: _Shape, lead: Any) -> tuple[tuple[int, int], ...]:
+                  shape: _Shape, lead: Any, styles: list[Any] | None = None) -> tuple[tuple[int, int], ...]:
     """(height, advance) of each line FormFit breaks *text* into, every character at its own size: a line
     is as tall as its largest character, its line spacing reckoned from that size. A picture *lead* set as
     a character before the text makes the first line at least as tall as the picture; the spacing stays
     the text's, and a fixed line spacing keeps the next line that far down."""
 
-    starts = measure.line_starts(text, widths, min(sizes), style, sizes if len(set(sizes)) > 1 else None)
+    starts = measure.line_starts(text, widths, min(sizes), style, sizes if len(set(sizes)) > 1 else None, styles)
     metrics = []
     for start, end in zip(starts, [*starts[1:], len(text)]):
         height = max(sizes[start:end] or sizes[-1:])
@@ -636,11 +651,12 @@ def _note_anchors(runs: list[Any]) -> list[tuple[int, Any]]:
 
 
 def _anchored_notes(measure: _Measure, runs: list[Any], text: str, widths: list[float], size: int, style: Any,
-                    width: int, sizes: list[int] | None = None) -> dict[int, tuple[int, int, int]]:
+                    width: int, sizes: list[int] | None = None,
+                    styles: list[Any] | None = None) -> dict[int, tuple[int, int, int]]:
     anchors = _note_anchors(runs)
     if not anchors:
         return {}
-    starts = measure.line_starts(text, widths, size, style, sizes)
+    starts = measure.line_starts(text, widths, size, style, sizes, styles)
     anchored: dict[int, tuple[int, int, int]] = {}
     for offset, note in anchors:
         line = max(index for index, start in enumerate(starts) if start <= max(offset - 1, 0))
@@ -668,14 +684,16 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any) -> _Para:
     if lead is not None:
         widths[0] -= _object_extent(lead)[0]
     mixed = len(set(sizes)) > 1
-    if not cached and not alone and (mixed or lead is not None):
-        cached = _line_metrics(measure, text, widths, sizes, style, shape, lead)
+    looks = _char_styles(measure, paragraph, runs)
+    if not cached and not alone and (mixed or lead is not None or looks is not None):
+        cached = _line_metrics(measure, text, widths, sizes, style, shape, lead, looks)
     count = len(cached) or measure.lines(text, widths, size, style)
     pitch = _pitch(shape.kind, shape.value, size)
     table = None
     if alone:
         count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch)
-    notes = _anchored_notes(measure, runs, text, widths, size, style, page.column_width, sizes if mixed else None)
+    notes = _anchored_notes(measure, runs, text, widths, size, style, page.column_width, sizes if mixed else None,
+                            looks)
     flags = shape.flags
     return _Para(count, size, pitch, shape.prev, shape.next, _on(flags, "pageBreakBefore"), _on(flags, "keepLines"),
                  _on(flags, "keepWithNext"), _on(flags, "widowOrphan"), paragraph.get("pageBreak") == "1",
