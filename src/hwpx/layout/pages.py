@@ -25,15 +25,17 @@
 
 A table set as a character that the row model does not follow (merged rows, a nested table) keeps
 the height Hancom saved for it (``hp:sz``) when every paragraph in it keeps a valid layout cache,
-i.e. Hancom laid the table out as it is.
+i.e. Hancom laid the table out as it is. Otherwise a table set as a character whose cells merge
+rows is as tall as its rows, each as its tallest cell of one row, plus what the tallest merged
+cell over the same rows lacks.
 
 Anything else makes the estimate unsupported: endnotes, a column change inside a section (column
 settings in a cell or a text box are that list's own), section settings after a section's first
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but a picture before the text, with line spacing in percent or
-fixed), two tables starting past their anchors on one page, merged rows or a nested table in a
-table flowing with the text or in one Hancom has not laid out as it is, objects placed on the
-page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
+fixed), two tables starting past their anchors on one page, merged rows in a table flowing with
+the text, a nested table in one Hancom has not laid out as it is (or merged cells whose rows
+overlap otherwise), objects placed on the page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -355,9 +357,39 @@ def _rows(measure: _Measure, table: Any) -> list[_Row]:
     return rows
 
 
-def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
+def _row_span(cell: Any) -> int:
     span = cell.find(f"{HP}cellSpan")
-    if span is not None and span.get("rowSpan", "1") != "1":
+    return 1 if span is None else int(span.get("rowSpan", 1))
+
+
+def _merged_table_height(measure: _Measure, table: Any) -> int:
+    """The height of a table whose cells merge rows: each row as its tallest cell of one row, and the
+    tallest merged cell over the same rows adds what those rows lack. Spans that overlap without being
+    the same rows, and rows made of merged cells only, are not followed."""
+
+    rows: dict[int, int] = {}
+    merged: dict[tuple[int, int], int] = {}  # (first row, rows spanned) -> the tallest such cell
+    for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
+        address = tc.find(f"{HP}cellAddr")
+        first, span = int(address.get("rowAddr", 0)), _row_span(tc)
+        height = _cell_row(measure, table, tc, merged=True).height
+        if span == 1:
+            rows[first] = max(rows.get(first, 0), height)
+        else:
+            merged[first, span] = max(merged.get((first, span), 0), height)
+    taken: set[int] = set()
+    extra = 0
+    for (first, span), height in merged.items():
+        spanned = range(first, first + span)
+        if taken.intersection(spanned) or any(row not in rows for row in spanned):
+            raise _Unsupported("a table with merged rows")
+        taken.update(spanned)
+        extra += max(height - sum(rows[row] for row in spanned), 0)
+    return sum(rows.values()) + extra
+
+
+def _cell_row(measure: _Measure, table: Any, cell: Any, merged: bool = False) -> _Row:
+    if not merged and _row_span(cell) != 1:
         raise _Unsupported("a table with merged rows")
     if cell.find(f".//{HP}tbl") is not None:
         raise _Unsupported("a nested table")
@@ -450,9 +482,9 @@ def _inline_table_height(measure: _Measure, table: Any) -> int:
         return sum(row.height for row in _rows(measure, table))
     except _Unsupported:
         paragraphs = list(table.iter(f"{HP}p"))
-        if not paragraphs or not all(_cache_lines(paragraph) for paragraph in paragraphs):
-            raise
-        return int(table.find(f"{HP}sz").get("height", 0))
+        if paragraphs and all(_cache_lines(paragraph) for paragraph in paragraphs):
+            return int(table.find(f"{HP}sz").get("height", 0))
+        return _merged_table_height(measure, table)
 
 
 @dataclass(frozen=True)

@@ -39,6 +39,8 @@ HANCOM_PAGES = {
     "pages_mixed_sizes_at_least": 2,      # 8 pt and 16 pt runs, line spacing at least 18 pt
     "pages_picture_before_text_percent": 2,  # a picture set as a character before the text, 160%
     "pages_picture_before_text_fixed": 2,    # a picture taller than the fixed line spacing
+    "pages_table_merged_rows_tall": 1,    # a table set as a character, a merged cell taller than its rows
+    "pages_table_merged_rows_short": 1,   # the same, the merged cell shorter than its rows
 }
 
 
