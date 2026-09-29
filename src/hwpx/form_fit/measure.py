@@ -33,6 +33,7 @@ from functools import lru_cache
 from typing import Any, Literal
 
 from ..oxml.table_sizes import cell_margins_of
+from ._glyph_table import ADVANCES, FALLBACK, UNITS_PER_EM
 
 # Advance width as a fraction of the em (font height in HWPUNIT). Hangul/wide are
 # exact (full-width cells); the Latin/digit/punct values are conservative class
@@ -117,8 +118,10 @@ _GLYPH_TABLE_SCRIPTS = ("HANGUL", "LATIN", "OTHER", "SYMBOL")
 # at that em, rounded half up at 100% 장평 and down at any other 장평, and 자간
 # adds its share of that advance, rounded half away from zero. The half-em space
 # is half the em, rounded down, at the 장평, rounded half up. Bold text keeps the
-# regular advances. A face or glyph not listed below falls back to the class
-# averages, unrounded.
+# regular advances. A glyph a face lacks takes the advance of the face Hancom
+# lays it out from (``_glyph_table.FALLBACK``), moved into the face's own units
+# and rounded. A face or glyph listed nowhere falls back to the class averages,
+# unrounded.
 _LAYOUT_UNIT = 4
 
 #: The glyphs each face's row below gives, in order: printable ASCII, then
@@ -319,22 +322,44 @@ def glyph_advance_em(face: str, ch: str) -> float | None:
     return design[0] / design[1] if design is not None else None
 
 
+@lru_cache(maxsize=8192)
 def _design_units(face: str, ch: str | None) -> tuple[int, int] | None:
     """``(advance, units per em)`` of *ch* in *face*, a Hangul syllable when *ch*
-    is ``None``, or ``None`` when not listed."""
+    is ``None``, or ``None`` when not listed. A glyph the face lacks takes the
+    advance of its fallback face, in the face's own units."""
 
     entry = _DESIGN.get(face)
     if entry is None:
         return None
-    upem, hangul, space, glyphs = entry
-    if ch is None:
-        units = hangul
-    elif ch == " ":
-        units = space
-    else:
-        index = _GLYPHS.find(ch) if len(ch) == 1 else -1
-        units = glyphs[index] if index >= 0 else 0
-    return (units, upem) if units else None
+    upem, hangul, space, _ = entry
+    if ch is None or ch == " ":
+        return (hangul if ch is None else space), upem
+    source = face
+    while source:
+        units = _own_units(source, ch)
+        if units:
+            if source != face:
+                units = math.floor(Fraction(units * upem, UNITS_PER_EM[source]) + Fraction(1, 2))
+            return units, upem
+        source = FALLBACK.get(source, "")
+    return None
+
+
+def _own_units(face: str, ch: str) -> int:
+    """Design advance of *ch* in *face* itself; 0 when the face does not have it."""
+
+    entry = _DESIGN.get(face)
+    index = _GLYPHS.find(ch) if len(ch) == 1 else -1
+    if entry is not None and index >= 0:
+        return entry[3][index]
+    return _face_glyphs(face).get(ch, 0)
+
+
+@lru_cache(maxsize=None)
+def _face_glyphs(face: str) -> dict[str, int]:
+    """Design advance of every glyph ``_glyph_table`` lists for *face*."""
+
+    return {ch: units for units, chars in ADVANCES.get(face, {}).items() for ch in chars}
 
 
 @lru_cache(maxsize=4096)

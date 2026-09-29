@@ -710,6 +710,12 @@
       "disposition": "core",
       "approvedBy": "owner-page-estimate-2026-09-29",
       "rationale": "Experimental page estimate (re-exported from hwpx.experimental): follows each body paragraph onto its page and column from the document alone -- lines from a paragraph's valid layout cache or FormFit line breaking, line and paragraph spacing, page/column breaks and paragraph break rules, equal columns, inline and flowing tables, top-and-bottom objects and footnotes -- and reports anything else as unsupported with a reason. Reads OXML only; writes nothing."
+    },
+    {
+      "path": "src/hwpx/form_fit/_glyph_table.py",
+      "disposition": "core",
+      "approvedBy": "formfit-glyph-widths",
+      "rationale": "FormFit glyph widths beyond measure._GLYPHS: per face, the design advance of each glyph of the KS X 1001 symbols, the full-width forms and eight common Unicode blocks, read from the font files, and the face Hancom lays a glyph out from when a face lacks it. Data only; imports nothing."
     }
   ],
   "removed": [

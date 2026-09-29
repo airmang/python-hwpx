@@ -29,7 +29,14 @@ from hwpx.form_fit import (
     hancom_line_starts,
     measure,
 )
-from hwpx.form_fit.measure import classify_char, _cell_text_style, glyph_advance_em, resolve_slot_metrics, text_style_from_refs
+from hwpx.form_fit.measure import (
+    _cell_text_style,
+    char_advance,
+    classify_char,
+    glyph_advance_em,
+    resolve_slot_metrics,
+    text_style_from_refs,
+)
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_rules.hwpx"
@@ -62,6 +69,28 @@ def test_the_glyph_ending_a_line_takes_no_spacing() -> None:
     # At 자간 -20 % seven syllables sit 800 apart, but the last one is 1000 wide: 5800 in all.
     assert hancom_line_starts("가나다라마바사", [5600], 10, TextStyle(break_non_latin_word="KEEP_WORD", spacing=-20)) == [0, 6]
     assert hancom_line_starts("가나다라마바사", [8300], 10, TextStyle(break_non_latin_word="KEEP_WORD", spacing=20)) == [0]
+
+
+@pytest.mark.parametrize(
+    ("face", "glyph", "advance"),
+    [
+        ("바탕", "∑", 812),  # a KS X 1001 symbol at its design advance
+        ("맑은 고딕", "∮", 544),
+        ("함초롬돋움", "Ω", 720),  # 함초롬돋움 lays Greek out at 함초롬바탕's advances
+        ("한컴 고딕", "я", 544),
+        ("바탕", "〄", 968),  # 바탕 lacks it: 함초롬바탕's advance moved into 바탕's units
+    ],
+)
+def test_a_symbol_takes_the_advance_hancom_lays_it_out_at(face: str, glyph: str, advance: int) -> None:
+    assert char_advance(glyph, 10, TextStyle(glyph_face=face, hangul_face=face)) == advance
+
+
+def test_every_fallback_face_has_a_table() -> None:
+    from hwpx.form_fit import _glyph_table as table
+
+    for face, fallback in table.FALLBACK.items():
+        assert face in table.ADVANCES and fallback in table.ADVANCES
+        assert face in table.UNITS_PER_EM and fallback in table.UNITS_PER_EM
 
 
 def test_a_narrow_cell_still_gets_lines_1440_wide() -> None:
