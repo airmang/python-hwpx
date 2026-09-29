@@ -51,6 +51,10 @@ HANCOM_PAGES = {
     "pages_table_flow_tall_row_table_margins_500": 2,  # the table's inner margins 500: 1290 goes on
     "pages_table_flow_tall_row_bottom_aligned": 2,    # cells aligned to the bottom: 1290 goes on
     "pages_table_flow_tall_row_16pt": 2,              # 16 pt text: 1283 goes on
+    "pages_table_flow_row_ends_100_above_foot": 2,    # a row of two lines ending 100 above the foot: split
+    "pages_table_flow_row_ends_101_above_foot": 2,    # the same ending 101 above it stays
+    "pages_table_flow_moved_row_ends_100_above_foot": 2,  # moved row by row: 100 above the foot goes on
+    "pages_table_flow_moved_row_ends_101_above_foot": 2,  # and 101 above it stays
     "pages_table_flow_anchor_on_next_page": 2,  # the table's anchor line has no room: both go on
     "pages_table_merged_rows_held": 1,    # a cell merged over rows 0-3 holding one over rows 1-2
     "pages_table_merged_rows_staggered": 1,  # merged over rows 0-1 and 1-2: row 1 has no cell of its own
@@ -82,6 +86,11 @@ HANCOM_PAGES = {
     "pages_table_anchored_offset_after_text": 1,   # 3000 down from the last line: the next paragraph's second
     "pages_picture_anchored_offset_next_paragraph": 1,  # 1600 down: the next paragraph's first line
     "pages_picture_anchored_small_offset": 1,  # 500 down: the line it stands on goes below it
+    "pages_table_offset_flowing_split_by_cell": 2,  # a flowing table 500 down over the page end:
+                                                    # the line it stands on goes below its end
+    "pages_table_offset_flowing_row_by_row": 2,  # the same moved row by row
+    "pages_table_offset_flowing_second_line": 2,  # 2000 down: the second line goes below its end
+    "pages_table_offset_flowing_next_paragraph": 2,  # the next paragraph's first line does
     "pages_picture_square_left": 2,       # a picture wrapped square on the left, text beside it into the next paragraph
     "pages_picture_square_right": 2,      # a wide picture wrapped square on the right
     "pages_picture_square_alone": 2,      # a picture wrapped square alone in its paragraph
@@ -298,8 +307,9 @@ def test_a_page_break_in_a_row_holding_a_table_beside_a_taller_cell_is_unsupport
     assert estimate.unsupported == ("section 0: a page break in a flowing table row holding a table",)
 
 
-def test_a_top_and_bottom_table_offset_past_the_page_foot_is_unsupported() -> None:
+def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_is_unsupported() -> None:
     document, table = _flowing_table_after(38, 3)
+    table.element.set("pageBreak", "NONE")
     table.element.find(f"{HP}pos").set("vertOffset", "3000")
     document.paragraphs[-1].add_run("앵커 문단 글")
 
@@ -308,6 +318,18 @@ def test_a_top_and_bottom_table_offset_past_the_page_foot_is_unsupported() -> No
     assert estimate.pages is None
     assert estimate.unsupported == (
         "section 0: a square-wrapped or offset top-and-bottom object past the page foot",)
+
+
+@pytest.mark.parametrize(("fixture", "content"), [("pages_composed_characters", "compose"),
+                                                  ("pages_ruby_text", "dutmal")])
+def test_composed_characters_and_ruby_text_follow_the_lines_hancom_drew(fixture: str, content: str) -> None:
+    # Circled numbers among three lines of text, and ruby text above a word: the lines of their
+    # paragraphs' caches. Without the caches the estimate does not break such lines itself.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
+    assert estimate_pages(_without_caches(data)).unsupported == (
+        f"section 0: {content} in a paragraph without a layout cache",)
 
 
 def test_lines_of_two_columns_are_in_columns() -> None:
