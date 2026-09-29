@@ -42,6 +42,9 @@ HANCOM_PAGES = {
     "pages_table_merged_rows_tall": 1,    # a table set as a character, a merged cell taller than its rows
     "pages_table_merged_rows_short": 1,   # the same, the merged cell shorter than its rows
     "pages_table_flow_merged_rows": 2,    # a table flowing with the text, cells merged over rows
+    "pages_table_merged_rows_held": 1,    # a cell merged over rows 0-3 holding one over rows 1-2
+    "pages_table_merged_rows_staggered": 1,  # merged over rows 0-1 and 1-2: row 1 has no cell of its own
+    "pages_table_merged_rows_ending_first": 1,  # merged over rows 0-2 and 2-3: the one ending first first
 }
 
 
@@ -119,13 +122,13 @@ def test_the_lines_around_a_nested_table_are_where_hancom_put_them() -> None:
     _assert_like_hancom(estimate_pages(data), data, 1)
 
 
-def test_a_merged_table_hancom_has_not_laid_out_is_unsupported() -> None:
+def test_a_nested_table_hancom_has_not_laid_out_is_unsupported() -> None:
     data = (FIXTURES.parent / "m2_corpus" / "public_official_table.hwpx").read_bytes()
 
     estimate = estimate_pages(_without_caches(data))
 
     assert estimate.pages is None
-    assert estimate.unsupported == ("section 0: a table with merged rows",)
+    assert estimate.unsupported == ("section 0: a nested table",)
 
 
 def test_paragraphs_of_several_character_sizes_hancom_laid_out_follow_their_cached_lines() -> None:
