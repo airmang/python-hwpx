@@ -51,6 +51,10 @@ HANCOM_PAGES = {
     "pages_table_flow_tall_row_table_margins_500": 2,  # the table's inner margins 500: 1290 goes on
     "pages_table_flow_tall_row_bottom_aligned": 2,    # cells aligned to the bottom: 1290 goes on
     "pages_table_flow_tall_row_16pt": 2,              # 16 pt text: 1283 goes on
+    "pages_table_flow_row_ends_100_above_foot": 2,    # a row of two lines ending 100 above the foot: split
+    "pages_table_flow_row_ends_101_above_foot": 2,    # the same ending 101 above it stays
+    "pages_table_flow_moved_row_ends_100_above_foot": 2,  # moved row by row: 100 above the foot goes on
+    "pages_table_flow_moved_row_ends_101_above_foot": 2,  # and 101 above it stays
     "pages_table_flow_anchor_on_next_page": 2,  # the table's anchor line has no room: both go on
     "pages_table_merged_rows_held": 1,    # a cell merged over rows 0-3 holding one over rows 1-2
     "pages_table_merged_rows_staggered": 1,  # merged over rows 0-1 and 1-2: row 1 has no cell of its own
@@ -80,12 +84,21 @@ HANCOM_PAGES = {
     "pages_table_anchored_offset_after_text": 1,   # 3000 down from the last line: the next paragraph's second
     "pages_picture_anchored_offset_next_paragraph": 1,  # 1600 down: the next paragraph's first line
     "pages_picture_anchored_small_offset": 1,  # 500 down: the line it stands on goes below it
+    "pages_table_offset_flowing_split_by_cell": 2,  # a flowing table 500 down over the page end:
+                                                    # the line it stands on goes below its end
+    "pages_table_offset_flowing_row_by_row": 2,  # the same moved row by row
+    "pages_table_offset_flowing_second_line": 2,  # 2000 down: the second line goes below its end
+    "pages_table_offset_flowing_next_paragraph": 2,  # the next paragraph's first line does
     "pages_picture_square_left": 2,       # a picture wrapped square on the left, text beside it into the next paragraph
     "pages_picture_square_right": 2,      # a wide picture wrapped square on the right
     "pages_picture_square_alone": 2,      # a picture wrapped square alone in its paragraph
     "pages_picture_square_wider_than_column": 2,  # no room beside it: the text goes below
     "pages_picture_square_offset": 2,     # a picture wrapped square 3000 below the paragraph's top
     "pages_table_square_alone": 1,        # a table wrapped square alone, as tall as its rows
+    "pages_picture_in_front_of_text": 1,  # a picture in front of three lines of text: no line moves
+    "pages_rectangle_behind_text_alone": 1,  # a rectangle behind the text alone: an empty line
+    "pages_table_as_character_beside_rectangle_in_front": 1,  # beside a rectangle in front, on the paper
+    "pages_picture_behind_text_past_page_foot": 2,  # a picture behind the text past the page foot
 }
 
 
@@ -293,8 +306,9 @@ def test_a_page_break_in_a_row_holding_a_table_and_declared_taller_is_unsupporte
     assert estimate.unsupported == ("section 0: a page break in a flowing table row holding a table",)
 
 
-def test_a_top_and_bottom_table_offset_past_the_page_foot_is_unsupported() -> None:
+def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_is_unsupported() -> None:
     document, table = _flowing_table_after(38, 3)
+    table.element.set("pageBreak", "NONE")
     table.element.find(f"{HP}pos").set("vertOffset", "3000")
     document.paragraphs[-1].add_run("앵커 문단 글")
 
