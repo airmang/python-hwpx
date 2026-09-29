@@ -23,7 +23,8 @@
   than them adds what they lack to the last of them. A row declared taller than its text is cut
   just above the page's foot, and what is left of it goes on to the next page unless it is no
   taller than a 10 pt line with the default cell margins (the cell's own margins, alignment and
-  character size change neither). When a table moved row by row has no
+  character size change neither). A flowing table's anchor line that does not fit at the page end
+  goes to the next page, and the table with it. When a table moved row by row has no
   room for its first row under its anchor line, it starts on the next page and the text after it
   goes on under the anchor, then below the table on the pages the table takes. Footnotes take
   room at the foot of the page and go on over the page end.
@@ -798,6 +799,8 @@ class _Paginator:
             self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], para.advance(para.lines - 1), para.next
 
     def _flow(self, para: _Para, table: _FlowTable, start: int) -> None:
+        if self.last_vp is not None and start + para.height(0) > self.body:  # the anchor line goes on
+            start = self._next_frame(para, 0, True)                         # to the next page
         self.out.append((self.frame, start))  # the anchor paragraph's line, under the table's top
         before = self.frame
         top = start + table.margins[0]
