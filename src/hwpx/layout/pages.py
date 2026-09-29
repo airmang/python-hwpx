@@ -20,12 +20,13 @@
   far down). A top-and-bottom object anchored to an empty paragraph pushes the next line below
   it; a table flowing with the text is laid out row by row -- split between cell lines, moved row
   by row or moved whole -- with its header rows repeated; a cell merged over rows that is taller
-  than them adds what they lack to the last of them. A table set as a character alone in a
-  paragraph of a cell is one line as tall as it there, spaced like the text. A row declared taller
-  than its text is cut just above the page's foot, and what is left of it goes on to the next page
-  unless it is no taller than a 10 pt line with the default cell margins (the cell's own margins,
-  alignment and character size change neither). A flowing table's anchor line that does not fit at
-  the page end goes to the next page, and the table with it. When a table moved row by row has no
+  than them adds what they lack to the last of them, the cell that ends first first (a row with no
+  cell of its own starts at 0). A table set as a character alone in a paragraph of a cell is one
+  line as tall as it there, spaced like the text. A row declared taller than its text is cut just
+  above the page's foot, and what is left of it goes on to the next page unless it is no taller
+  than a 10 pt line with the default cell margins (the cell's own margins, alignment and character
+  size change neither). A flowing table's anchor line that does not fit at the page end goes to the
+  next page, and the table with it. When a table moved row by row has no
   room for its first row under its anchor line, it starts on the next page and the text after it
   goes on under the anchor, then below the table on the pages the table takes. Footnotes take
   room at the foot of the page and go on over the page end.
@@ -33,18 +34,18 @@
 A table set as a character that the row model does not follow (merged rows, a nested table) keeps
 the height Hancom saved for it (``hp:sz``) when every paragraph in it keeps a valid layout cache,
 i.e. Hancom laid the table out as it is. Otherwise a table whose cells merge rows has its rows as
-their tallest cells of one row, the last row of a merge taking what the tallest merged cell over
-the same rows lacks.
+their tallest cells of one row, and each merged cell, the one that ends first first, gives the last
+of its rows what they lack.
 
 Anything else makes the estimate unsupported: endnotes, a column change inside a section (column
 settings in a cell or a text box are that list's own), section settings after a section's first
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but objects set as characters, with line spacing in percent or
 fixed), footnotes in such a paragraph, two tables starting past their anchors on one page, a page
-break among rows merged in a flowing table, merged cells over rows that overlap otherwise, a nested
-table among text or not set as a character (in a table Hancom has not laid out as it is), a page
-break between the cell lines of a flowing row holding a table, objects placed on the page or the
-paper, composed characters and ruby text. ``pages`` is then ``None`` and
+break among rows merged in a flowing table, a nested table among text or not set as a character (in
+a table Hancom has not laid out as it is), a page break between the cell lines of a flowing row
+holding a table, objects placed on the page or the paper, composed characters and ruby text.
+``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -377,11 +378,11 @@ class _FlowTable:
 
 def _rows(measure: _Measure, table: Any) -> list[_Row]:
     """Each row as its tallest cell of one row: the cell's declared height or its content with its
-    margins. The tallest cell merged over the same rows adds what those rows lack to the last of them.
-    Merged cells over rows that overlap otherwise, and rows made of merged cells only, are not followed."""
+    margins (a row with no cell of its own starts at 0). Then each cell merged over rows, the one
+    ending first first, adds what its rows lack to the last of them."""
 
     rows: dict[int, _Row] = {}
-    merged: dict[tuple[int, int], int] = {}  # (first row, rows spanned) -> the tallest such cell
+    merged: list[tuple[int, int, _Row]] = []  # (first row, rows spanned, the cell as a row)
     nested: set[int] = set()  # rows with a cell holding a table
     for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
         row, span = _cell_row(measure, table, tc), _row_span(tc)
@@ -390,21 +391,22 @@ def _rows(measure: _Measure, table: Any) -> list[_Row]:
         if row.nested:
             nested.update(range(first, first + span))
         if span > 1:
-            merged[first, span] = max(merged.get((first, span), 0), row.height)
+            merged.append((first, span, row))
         elif first not in rows or row.height > rows[first].height:
             rows[first] = row
-    taken: set[int] = set()
-    for (first, span), height in merged.items():
+    for first, span, cell in merged:
+        for index in range(first, first + span):
+            if index not in rows:  # every cell over it is merged over rows
+                rows[index] = replace(cell, height=0, lines=1, margins=0, spare=0)
+    for first, span, cell in sorted(merged, key=lambda cell: (cell[0] + cell[1], cell[0])):
         spanned = range(first, first + span)
-        if taken.intersection(spanned) or any(index not in rows for index in spanned):
-            raise _Unsupported("a table with merged rows")
-        taken.update(spanned)
         for index in spanned:
             rows[index] = replace(rows[index], merged=True)
         last = rows[first + span - 1]
-        lacking = height - sum(rows[index].height for index in spanned)
+        lacking = cell.height - sum(rows[index].height for index in spanned)
         rows[first + span - 1] = replace(last, height=last.height + max(lacking, 0))
-    return [replace(rows[index], nested=index in nested) for index in sorted(rows)]
+    return [replace(rows[index], nested=index in nested)  # a row address no cell covers is skipped
+            for index in sorted(rows)]
 
 
 def _row_span(cell: Any) -> int:
