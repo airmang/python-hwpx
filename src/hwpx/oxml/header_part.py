@@ -62,6 +62,7 @@ from .header import (
     parse_border_fills,
     parse_header_element,
     parse_paragraph_properties,
+    parse_paragraph_property,
     parse_styles,
     parse_tab_definitions,
     parse_track_change_authors,
@@ -1416,7 +1417,17 @@ class HwpxOxmlHeader:
     def paragraph_property(
         self, para_pr_id_ref: int | str | None
     ) -> ParagraphProperty | None:
-        return self._lookup_by_id(self.paragraph_properties, para_pr_id_ref)
+        # Parse only the hh:paraPr asked for, under the keys paragraph_properties gives it; parsing
+        # them all on each lookup cost most of a second in a header of many paragraph shapes.
+        elements: dict[str, ET.Element] = {}
+        parent = self._para_properties_element()
+        for child in [] if parent is None else parent:
+            raw = child.get("id") if _element_local_name(child) == "paraPr" else None
+            for key in (raw, str(int(raw)) if raw and raw.strip().lstrip("+-").isdigit() else None):
+                if key and key not in elements:
+                    elements[key] = child
+        found = self._lookup_by_id(elements, para_pr_id_ref)
+        return None if found is None else parse_paragraph_property(self._convert_to_lxml(found))
 
     @property
     def tab_properties(self) -> dict[str, TabDefinition]:
