@@ -56,6 +56,8 @@ HANCOM_PAGES = {
     "pages_table_merged_rows_ending_first": 1,  # merged over rows 0-2 and 2-3: the one ending first first
     "pages_table_flow_merged_rows_moved_whole": 2,  # moved row by row: rows 1-2 merged go on as one
     "pages_table_flow_merged_three_rows_moved_whole": 2,  # the same with rows 1-3
+    "pages_table_flow_merged_rows_split_by_cell": 2,  # split between cell lines: the merged cell's rest goes on
+    "pages_table_flow_merged_three_rows_split_by_cell": 2,  # the rest over two rows, what they lack in the last
 }
 
 
@@ -200,14 +202,17 @@ def _flowing_table_after(paragraphs: int, rows: int) -> tuple[HwpxDocument, obje
     return document, table
 
 
-def test_a_page_break_among_merged_rows_of_a_flowing_table_is_unsupported() -> None:
+def test_a_page_break_among_merged_rows_taller_than_their_text_is_unsupported() -> None:
     document, table = _flowing_table_after(38, 6)
+    for cell in table.element.iter(f"{HP}tc"):
+        if cell.find(f"{HP}cellAddr").get("rowAddr") == "2":
+            cell.find(f"{HP}cellSz").set("height", "6000")
     table.merge_cells(1, 0, 4, 0)
 
     estimate = estimate_pages(document)
 
     assert estimate.pages is None
-    assert estimate.unsupported == ("section 0: a page break among rows merged in a flowing table",)
+    assert estimate.unsupported == ("section 0: a page break among merged rows taller than their text",)
 
 
 @pytest.mark.parametrize(("height", "rest"), [(20000, 13221), (8029, 0), (8061, 0), (8062, 1283), (8079, 1300)])
