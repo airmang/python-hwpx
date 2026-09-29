@@ -21,8 +21,9 @@
   it; a table flowing with the text is laid out row by row -- split between cell lines, moved row
   by row or moved whole -- with its header rows repeated; a cell merged over rows that is taller
   than them adds what they lack to the last of them. A row declared taller than its text is cut
-  just above the page's foot, and what is left of it goes on to the next page unless it is shorter
-  than a line with the default cell margins. When a table moved row by row has no
+  just above the page's foot, and what is left of it goes on to the next page unless it is no
+  taller than a 10 pt line with the default cell margins (the cell's own margins, alignment and
+  character size change neither). When a table moved row by row has no
   room for its first row under its anchor line, it starts on the next page and the text after it
   goes on under the anchor, then below the table on the pages the table takes. Footnotes take
   room at the foot of the page and go on over the page end.
@@ -72,10 +73,11 @@ _OBJECTS = frozenset({
 #: Run content that changes a line's height in ways the estimate does not follow.
 _UNSUPPORTED_CONTENT = frozenset({"compose", "dutmal"})
 #: A flowing table row whose declared height leaves room under its text (CELL) is cut this far above
-#: the body's foot; what is left goes on to the next page unless it is shorter than _SPARE_MIN_REST,
-#: which is dropped (the row ends at the page's foot). Both in HWPUNIT, as Hancom lays such rows out.
+#: the body's foot; what is left goes on to the next page unless it is _SPARE_DROPPED or less, which
+#: is dropped (the row ends at the page's foot). Both in HWPUNIT, as Hancom lays such rows out
+#: whatever the cells' margins, vertical alignment and character size.
 _SPARE_CUT = 101
-_SPARE_MIN_REST = 1282
+_SPARE_DROPPED = 1282
 #: The narrowest line FormFit breaks at, in HWPUNIT.
 _MIN_LINE_WIDTH = 1440
 
@@ -774,7 +776,7 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) 
                 fitting += 1
             if fitting and row.spare:
                 rest = height - (body - _SPARE_CUT - y)
-                if rest < _SPARE_MIN_REST:
+                if rest <= _SPARE_DROPPED:
                     return frame, body
                 frame, y = frame + 1, header
                 remaining, height = 1, rest
