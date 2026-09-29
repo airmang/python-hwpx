@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import math
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
 from functools import lru_cache
@@ -545,6 +545,7 @@ def hancom_line_starts(
     style: TextStyle,
     sizes: Sequence[float] | None = None,
     styles: Sequence[TextStyle] | None = None,
+    advances: Mapping[int, float] | None = None,
 ) -> list[int]:
     """Where Hancom starts each line of the one-line *text* (no newlines).
 
@@ -560,6 +561,8 @@ def hancom_line_starts(
     character, and every space that shrinks, then takes its own size.
     *styles*, when given, holds each character's own style (runs of several
     faces, 장평 or 자간) for its advance; *style* still gives the break rules.
+    *advances* gives the width of characters that stand for something else,
+    such as an object set as a character, by their index.
     """
 
     breaks = _hancom_break_opportunities(text, style)
@@ -575,7 +578,8 @@ def hancom_line_starts(
             ch = text[end]
             size = font_pt if sizes is None else sizes[end]
             look = style if styles is None else styles[end]
-            advance = char_advance(ch, size, look)
+            fixed = None if advances is None else advances.get(end)
+            advance = char_advance(ch, size, look) if fixed is None else fixed
             if ch in _HANGING_SPACES:
                 if used >= width and end > start and text[end - 1] in _HANGING_SPACES:
                     spilled = True
@@ -587,7 +591,7 @@ def hancom_line_starts(
                 end += 1
                 continue
             shrink = (inner + pending) * space * style.condense / 100.0
-            last = char_advance(ch, size, unspaced if styles is None else _without_spacing(look))
+            last = fixed if fixed is not None else char_advance(ch, size, unspaced if styles is None else _without_spacing(look))
             if used + last - shrink > width and end > start:
                 break
             used += advance
