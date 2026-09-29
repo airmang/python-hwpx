@@ -136,6 +136,9 @@
 
 ### 고침
 
+- `doc.page.set_header()`·`set_footer()`·`set_page_number()`가 구역 첫 문단의 첫 run에서 시작하는 필드(누름틀 등)
+  뒤에 머리말·꼬리말 컨트롤을 넣던 것을 고친다. 그 자리는 필드 범위 안이라 한/글이 저장하면서 머리말·꼬리말을
+  버렸다. 이제 필드가 시작하는 컨트롤 앞에 넣는다. 머리말·꼬리말 글을 고치며 `hp:ctrl` 사본을 새로 만들 때도 같다.
 - `add_heading(level=8~10)`과 `apply_paragraph_format(outline_level=8~10)`이 문단 모양의 개요를 한/글과 다른
   모양으로 쓰던 것을 고친다. 개요 8~10 수준은 2016 문단 이름공간에만 있어서, 한/글은 `hp:switch`의 `hp:case`에
   개요를 두고 `hp:default`에 `NONE`을 둔다(새 문서의 개요 8~10 스타일도 이렇다). 전에는 이 `hp:switch`를
