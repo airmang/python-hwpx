@@ -27,13 +27,16 @@
   top-and-bottom object; a table flowing with the text is laid out row by row -- split between cell lines, moved row
   by row or moved whole -- with its header rows repeated; a cell merged over rows that is taller
   than them adds what they lack to the last of them, the cell that ends first first (a row with no
-  cell of its own starts at 0). A table set as a character alone in a paragraph of a cell is one
-  line as tall as it there, spaced like the text, and a row holding one splits between its cell's
-  lines, each as tall as it is. A row declared taller than its text is cut just
-  above the page's foot, and what is left of it goes on to the next page unless it is no taller
-  than a 10 pt line with the default cell margins (the cell's own margins, alignment and character
-  size change neither). A flowing table's anchor line that does not fit at the page end goes to the
-  next page, and the table with it. When a table moved row by row has no
+  cell of its own starts at 0); in a table moved row by row, rows joined by a cell merged over them
+  move to the next page as one, and in one split between cell lines each of their cells keeps the
+  lines that fit and the rest go on, the rows from the one the page end falls in as tall as their
+  cells' rest. A table set as a character alone in a paragraph of a cell is one line as tall as it
+  there, spaced like the text, and a row holding one splits between its cell's lines, each as tall
+  as it is. A row declared taller than its text is cut just above the page's
+  foot, and what is left of it goes on to the next page unless it is no taller than a 10 pt line
+  with the default cell margins (the cell's own margins, alignment and character size change
+  neither). A flowing table's anchor line that does not fit at the page end goes to the next page,
+  and the table with it. When a table moved row by row has no
   room for its first row under its anchor line, it starts on the next page and the text after it
   goes on under the anchor, then below the table on the pages the table takes. Footnotes take
   room at the foot of the page and go on over the page end.
@@ -50,11 +53,11 @@ paragraph (Hancom starts a new section there), a line or character grid, an obje
 other objects in its paragraph (but objects set as characters, with line spacing in percent or
 fixed, one top-and-bottom object at the paragraph's top, and one object wrapped square at a column
 edge before any text, whose band stays on one page with the lines beside it), footnotes in such a
-paragraph, two tables starting past their anchors on one page, a page break among rows merged in a
-flowing table, a nested table among text or not set as a character (in a table Hancom has not laid
-out as it is), a page break in a flowing row holding a table and declared taller than its text,
-objects placed on the page or the paper, composed characters and ruby text. ``pages`` is then
-``None`` and
+paragraph, two tables starting past their anchors on one page, a page break among merged rows
+taller than their text, rows merged together that do not fit under their table's anchor or on a
+page, a nested table among text or not set as a character (in a table Hancom has not laid out as
+it is), a page break in a flowing row holding a table and declared taller than its text, objects
+placed on the page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -403,6 +406,7 @@ class _Row:
     margins: int  # top + bottom cell margins
     header: bool
     merged: bool = False  # under a cell merged over rows: no page break in or around it
+    joined: bool = False  # a cell merged over rows joins it to the next row
     spare: int = 0        # room the row's declared height leaves under its text
     nested: bool = False  # a cell holds a table
     #: (height, advance) of each line of the row's tallest cell when it holds a table
@@ -415,6 +419,8 @@ class _FlowTable:
     mode: str                  # hp:tbl@pageBreak: CELL, TABLE or NONE
     repeat_header: bool
     margins: tuple[int, int]   # hp:outMargin top, bottom: kept above and below the table
+    #: every cell as (the position of its first row in ``rows``, rows it spans, the cell as a row)
+    cells: tuple[tuple[int, int, _Row], ...] = ()
 
 
 def _rows(measure: _Measure, table: Any) -> list[_Row]:
@@ -422,13 +428,22 @@ def _rows(measure: _Measure, table: Any) -> list[_Row]:
     margins (a row with no cell of its own starts at 0). Then each cell merged over rows, the one
     ending first first, adds what its rows lack to the last of them."""
 
+    return _table_rows(measure, table)[0]
+
+
+def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[int, int, _Row]]]:
+    """The rows (see :func:`_rows`) and every cell as (its first row's position, rows spanned, the cell
+    as a row)."""
+
     rows: dict[int, _Row] = {}
     merged: list[tuple[int, int, _Row]] = []  # (first row, rows spanned, the cell as a row)
+    cells: list[tuple[int, int, _Row]] = []
     nested: set[int] = set()  # rows with a cell holding a table
     for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
         row, span = _cell_row(measure, table, tc), _row_span(tc)
         address = tc.find(f"{HP}cellAddr")
         first = int(address.get("rowAddr", 0)) if address is not None else len(rows)
+        cells.append((first, span, row))
         if row.nested:
             nested.update(range(first, first + span))
         if span > 1:
@@ -442,12 +457,14 @@ def _rows(measure: _Measure, table: Any) -> list[_Row]:
     for first, span, cell in sorted(merged, key=lambda cell: (cell[0] + cell[1], cell[0])):
         spanned = range(first, first + span)
         for index in spanned:
-            rows[index] = replace(rows[index], merged=True)
+            rows[index] = replace(rows[index], merged=True, joined=rows[index].joined or index < first + span - 1)
         last = rows[first + span - 1]
         lacking = cell.height - sum(rows[index].height for index in spanned)
         rows[first + span - 1] = replace(last, height=last.height + max(lacking, 0))
-    return [replace(rows[index], nested=index in nested)  # a row address no cell covers is skipped
-            for index in sorted(rows)]
+    order = sorted(rows)  # a row address no cell covers is skipped
+    place = {address: position for position, address in enumerate(order)}
+    return ([replace(rows[address], nested=address in nested) for address in order],
+            [(place[first], span, cell) for first, span, cell in cells])
 
 
 def _row_span(cell: Any) -> int:
@@ -803,8 +820,9 @@ def _object_line(
     on_paragraph = pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"
     if _wraps_top_and_bottom(obj, column) and on_paragraph:
         if name == "tbl":
-            rows = _rows(measure, obj)
-            table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom))
+            rows, cells = _table_rows(measure, obj)
+            table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
+                               tuple(cells))
             return count, size, pitch, table
         below = int(pos.get("vertOffset", 0)) + tall
         return 1, below, below, None
@@ -1012,12 +1030,73 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
     """Lay the rows out from vertical position *y*; the frame and position where the table ends."""
 
     header = _repeated_header(table)
-    for row in table.rows:
+    rows, index = table.rows, 0
+    while index < len(rows):
+        end = index
+        while rows[end].joined and end + 1 < len(rows):
+            end += 1
+        if table.mode == "TABLE" and end > index:  # rows joined by merged cells move as one
+            height = sum(row.height for row in rows[index:end + 1])
+            if y + height > body and y != header:
+                if index == 0:
+                    raise _Unsupported("a table whose first rows, merged together, have no room under its anchor")
+                frame, y = frame + 1, header
+            if y + height > body:
+                raise _Unsupported("rows merged together taller than a page")
+            y, index = y + height, end + 1
+            continue
+        if table.mode == "CELL" and end > index and table.cells \
+                and y + sum(row.height for row in rows[index:end + 1]) > body:  # split cell by cell
+            frame, y = frame + 1, header + _block_rest(table, index, end, y, body)
+            if y > body:
+                raise _Unsupported("rows merged together taller than a page")
+            index = end + 1
+            continue
         before = frame
-        frame, y = _flow_row(table.mode, row, frame, y, body, header)
-        if row.merged and frame != before:
+        frame, y = _flow_row(table.mode, rows[index], frame, y, body, header)
+        if rows[index].merged and frame != before:
             raise _Unsupported("a page break among rows merged in a flowing table")
+        index += 1
     return frame, y
+
+
+def _block_rest(table: _FlowTable, first: int, last: int, top: int, body: int) -> int:
+    """How tall rows *first*..*last*, joined by merged cells, are on the next page when the page end
+    falls among them in a table split between cell lines: every cell keeps the lines that fit above
+    the page end and the rest go on. From the row the page end falls in, each row is as tall as the
+    rest of its cells of one row (the rows after it whole), then each merged cell's rest, the one
+    ending first first, adds what its rows lack to the last of them."""
+
+    rows, tops, y = table.rows, {}, top
+    for index in range(first, last + 1):
+        tops[index] = y
+        y += rows[index].height
+    cut = next(index for index in range(first, last + 1) if tops[index] + rows[index].height > body)
+    heights = dict.fromkeys(range(cut, last + 1), 0)
+    rests: list[tuple[int, int, int]] = []
+    for start, span, cell in table.cells:
+        end = start + span - 1
+        if start < first or start > last or end < cut:
+            continue  # another row, or done above the page end
+        if start > cut:  # wholly on the next page
+            rest = cell.height
+        else:
+            if cell.spare:
+                raise _Unsupported("a page break among merged rows taller than their text")
+            fitting = 0
+            while fitting < cell.lines and tops[start] + cell.margins + fitting * cell.pitch + cell.size <= body:
+                fitting += 1
+            if fitting == cell.lines:
+                continue
+            rest = cell.margins + (cell.lines - fitting - 1) * cell.pitch + cell.size
+        if span == 1:
+            heights[start] = max(heights[start], rest)
+        else:
+            rests.append((max(start, cut), end, rest))
+    for start, end, rest in sorted(rests, key=lambda item: (item[1], item[0])):
+        lacking = rest - sum(heights[index] for index in range(start, end + 1))
+        heights[end] += max(lacking, 0)
+    return sum(heights.values())
 
 
 def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) -> tuple[int, int]:
