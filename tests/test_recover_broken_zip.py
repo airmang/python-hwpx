@@ -283,7 +283,7 @@ def test_repair_from_recovered_removes_complex_paragraph_layout_cache(tmp_path: 
             name,
             payload.replace(
                 b"</hp:p>",
-                b'<hp:run charPrIDRef="0"><hp:ctrl id="field"/></hp:run>'
+                b'<hp:run charPrIDRef="0"><hp:ctrl><hp:colPr id="" type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/></hp:ctrl></hp:run>'
                 b'<hp:linesegarray><hp:lineseg textpos="999"/></hp:linesegarray></hp:p>',
                 1,
             ),

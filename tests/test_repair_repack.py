@@ -41,7 +41,7 @@ _HWPML_NS_ATTRS = b" ".join(
 )
 _HEADER_XML = (
     b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-    b"<hh:head "
+    b"<hh:head version=\"1.5\" secCnt=\"1\" "
     + _HWPML_NS_ATTRS
     + b" />"
 )
@@ -235,7 +235,7 @@ def test_repair_repack_removes_complex_paragraph_layout_cache(tmp_path: Path) ->
     output = tmp_path / "repaired.hwpx"
     complex_section = _SECTION_XML.replace(
         b"</hp:p>",
-        b'<hp:run charPrIDRef="0"><hp:ctrl id="field"/></hp:run>'
+        b'<hp:run charPrIDRef="0"><hp:ctrl><hp:colPr id="" type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/></hp:ctrl></hp:run>'
         b'<hp:linesegarray><hp:lineseg textpos="999"/></hp:linesegarray></hp:p>',
         1,
     )

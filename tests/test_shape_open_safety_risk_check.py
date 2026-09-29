@@ -13,68 +13,76 @@ persisted in the saved file. Neither ``validate_package`` nor
 ``validate_editor_open_safety`` caught this at all before this train:
 running either against a document built this way reported ``ok=True``.
 
-This is an *honest signal*, not a gate: the new check adds a ``warning``
--level ``PackageValidationIssue``, never an ``error`` -- ``.ok`` on both
-report types stays ``True`` for an otherwise-valid document. Making it a
-blocking error would be a scope change to what "editor-open-safe" already
-means for anyone currently building documents incrementally through the
-escape hatch across multiple calls, which is exactly what the escape hatch
-is documented to allow.
+The check was first a ``warning``. It is now an ``error``: Hancom refuses to
+open such a shape and crashes on an empty ``hp:ctrl``, so the public save
+paths refuse the document and ``validate_package``/
+``validate_editor_open_safety`` report it as blocking. Building a document
+incrementally through the escape hatch still works; only saving it before
+the required children are in place is refused.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from hwpx.document import HwpxDocument
+from hwpx.opc.package import _UNCHECKED_SAVE_TOKEN, HwpxPackageError
 from hwpx.tools.package_validator import validate_editor_open_safety, validate_package
+
+
+def _bytes_without_open_safety_gate(document: HwpxDocument) -> bytes:
+    """The public save paths refuse a document Hancom cannot open; build its
+    bytes the same way minus that gate, to look at what the validator says."""
+
+    for part_name, payload in document._root.serialize().items():
+        document._package.set_part(part_name, payload)
+    data = document._package._save_bytes_unchecked(_unchecked_token=_UNCHECKED_SAVE_TOKEN)
+    assert isinstance(data, bytes)
+    return data
 
 CORPUS = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
 
 
-def test_add_shape_escape_hatch_is_caught_by_validate_package_as_a_warning() -> None:
+def test_add_shape_escape_hatch_is_refused_on_save_and_reported_as_an_error() -> None:
     document = HwpxDocument.new()
     document.shapes.add_raw("rect")  # UserWarning at creation time -- not under test here.
-    data = document.to_bytes()
+    with pytest.raises(HwpxPackageError, match="hp:rect missing"):
+        document.to_bytes()
 
-    report = validate_package(data)
+    report = validate_package(_bytes_without_open_safety_gate(document))
 
-    assert report.ok, "a missing-children shape must not become a blocking error"
-    shape_warnings = [
-        issue for issue in report.warnings if issue.message.startswith("hp:rect missing")
+    assert not report.ok
+    shape_errors = [
+        issue for issue in report.errors if issue.message.startswith("hp:rect missing offset")
     ]
-    assert len(shape_warnings) == 1
-    warning = shape_warnings[0]
-    assert warning.level == "warning"
+    assert len(shape_errors) == 1
     for required in ("offset", "orgSz", "curSz", "sz", "pos"):
-        assert required in warning.message
+        assert required in shape_errors[0].message
 
 
-def test_add_control_escape_hatch_is_caught_by_validate_package_as_a_warning() -> None:
+def test_add_control_escape_hatch_is_refused_on_save_and_reported_as_an_error() -> None:
     document = HwpxDocument.new()
     document.shapes.add_control(control_type="LINE")
-    data = document.to_bytes()
+    with pytest.raises(HwpxPackageError, match="no control child"):
+        document.to_bytes()
 
-    report = validate_package(data)
+    report = validate_package(_bytes_without_open_safety_gate(document))
 
-    assert report.ok
-    ctrl_warnings = [issue for issue in report.warnings if "hp:ctrl" in issue.message]
-    assert len(ctrl_warnings) == 1
-    assert ctrl_warnings[0].level == "warning"
-    assert "no control child" in ctrl_warnings[0].message
+    assert not report.ok
+    ctrl_errors = [issue for issue in report.errors if "hp:ctrl" in issue.message]
+    assert len(ctrl_errors) == 1
+    assert "no control child" in ctrl_errors[0].message
 
 
-def test_validate_editor_open_safety_surfaces_the_same_risk_and_stays_ok() -> None:
+def test_validate_editor_open_safety_blocks_the_same_risk() -> None:
     document = HwpxDocument.new()
     document.shapes.add_raw("ellipse")
-    data = document.to_bytes()
 
-    safety = validate_editor_open_safety(data)
+    safety = validate_editor_open_safety(_bytes_without_open_safety_gate(document))
 
-    assert safety.ok, safety.summary
-    payload = safety.to_dict()
-    assert any(
-        "hp:ellipse missing" in warning for warning in payload["validatePackage"]["warnings"]
-    )
+    assert not safety.ok
+    assert any("hp:ellipse missing" in str(issue) for issue in safety.blocking_package_errors)
 
 
 def test_dedicated_shape_helpers_produce_no_open_safety_risk_warnings() -> None:
