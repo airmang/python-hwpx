@@ -19,7 +19,9 @@
   far down). A top-and-bottom object anchored to an empty paragraph pushes the next line below
   it; a table flowing with the text is laid out row by row -- split between cell lines, moved row
   by row or moved whole -- with its header rows repeated; a cell merged over rows that is taller
-  than them adds what they lack to the last of them. When a table moved row by row has no
+  than them adds what they lack to the last of them. A row declared taller than its text is cut
+  just above the page's foot, and what is left of it goes on to the next page unless it is shorter
+  than a line with the default cell margins. When a table moved row by row has no
   room for its first row under its anchor line, it starts on the next page and the text after it
   goes on under the anchor, then below the table on the pages the table takes. Footnotes take
   room at the foot of the page and go on over the page end.
@@ -35,9 +37,8 @@ settings in a cell or a text box are that list's own), section settings after a 
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but a picture before the text, with line spacing in percent or
 fixed), two tables starting past their anchors on one page, a page break among rows merged in a
-flowing table or in a flowing row taller than its text, merged cells over rows that overlap
-otherwise, a nested table in a table Hancom has not laid out as it is, objects placed on the page
-or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
+flowing table, merged cells over rows that overlap otherwise, a nested table in a table Hancom has
+not laid out as it is, objects placed on the page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -69,6 +70,11 @@ _OBJECTS = frozenset({
 })
 #: Run content that changes a line's height in ways the estimate does not follow.
 _UNSUPPORTED_CONTENT = frozenset({"compose", "dutmal"})
+#: A flowing table row whose declared height leaves room under its text (CELL) is cut this far above
+#: the body's foot; what is left goes on to the next page unless it is shorter than _SPARE_MIN_REST,
+#: which is dropped (the row ends at the page's foot). Both in HWPUNIT, as Hancom lays such rows out.
+_SPARE_CUT = 101
+_SPARE_MIN_REST = 1282
 #: The narrowest line FormFit breaks at, in HWPUNIT.
 _MIN_LINE_WIDTH = 1440
 
@@ -706,7 +712,7 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
 
 def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) -> tuple[int, int]:
     """A row that does not fit even a fresh page is drawn there anyway, cut at the paper's edge;
-    CELL breaks a row between its lines."""
+    CELL breaks a row between its lines, or a row taller than its text just above the page's foot."""
 
     remaining, height = row.lines, row.height
     while True:
@@ -717,9 +723,14 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) 
             fitting = 0
             while fitting < remaining and y + row.margins + fitting * row.pitch + row.size <= body:
                 fitting += 1
+            if fitting and row.spare:
+                rest = height - (body - _SPARE_CUT - y)
+                if rest < _SPARE_MIN_REST:
+                    return frame, body
+                frame, y = frame + 1, header
+                remaining, height = 1, rest
+                continue
             if fitting:
-                if row.spare:  # how the room under the text divides at a page break is not known
-                    raise _Unsupported("a page break in a flowing table row taller than its text")
                 remaining -= fitting
                 height = row.margins + (remaining - 1) * row.pitch + row.size
             elif fresh:
