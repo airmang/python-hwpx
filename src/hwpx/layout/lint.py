@@ -31,6 +31,7 @@ from __future__ import annotations
 import io
 import zipfile
 from collections.abc import Iterator
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 from xml.etree import ElementTree as ET
 
@@ -43,7 +44,7 @@ from hwpx.tools.package_validator import (
 
 from .report import LayoutFinding, LayoutLintReport
 from ..opc.security import guard_zip_file, read_member
-from ..oxml.header import parse_paragraph_property
+from ..oxml.header import parse_char_property, parse_paragraph_property
 from ..oxml.section_format import _drawn_page_size
 from ..oxml.table_sizes import cell_margins_of
 
@@ -434,9 +435,10 @@ def _lint_table_page_fit(
     body is drawn the same way; ``CELL`` also breaks a row between its lines.
 
     The heights are lower bounds: every row is at least its tallest single-row
-    cell, and a cell at least the lines its paragraphs and line breaks force
-    (see :class:`_LineHeights`). Lines the text wraps into are not counted, so a
-    finding never rests on how the text wraps.
+    cell, and a cell at least the lines its text takes (see :class:`_LineHeights`).
+    Lines text wraps into count only as many as the text takes even with every
+    character narrower by its measurement error, so a finding never rests on a
+    line Hancom may not draw.
     """
 
     lines = _LineHeights(header)
@@ -548,7 +550,7 @@ def _body_tables(root: ET.Element) -> Iterator[tuple[ET.Element, ET.Element]]:
 
 def _row_min_heights(table: ET.Element, lines: "_LineHeights") -> list[int]:
     """Lower bounds of the drawn row heights: each row is at least its tallest
-    single-row cell, and a cell at least its declared height and its forced lines."""
+    single-row cell, and a cell at least its declared height and the lines its text takes."""
 
     heights_by_row = []
     for row in table:
@@ -563,16 +565,20 @@ def _row_min_heights(table: ET.Element, lines: "_LineHeights") -> list[int]:
 
 
 class _LineHeights:
-    """How tall Hancom draws the lines a cell's text forces, from the header's shapes.
+    """How tall Hancom draws, at least, the lines of a cell's text, from the header's shapes.
 
     A paragraph has at least one line, plus one per line break (``hp:lineBreak``,
-    or a newline in its text, which Hancom shows as one). Its n lines take n - 1
-    line pitches and one line's size, and the next paragraph starts one pitch
-    below the last line. A line is at least as tall as the smallest character
-    shape of its paragraph, and the spacing before and after paragraphs is left
-    out, so the sum is a lower bound. A cell with a paragraph whose shapes are
-    unknown, sized from the font (``fontLineHeight``) or set vertically adds
-    nothing to its declared height.
+    or a newline in its text, which Hancom shows as one). Text in a single
+    character shape also takes the lines it wraps into at the cell's inner width
+    (FormFit's line breaking), counted with every character narrower by its
+    measurement error so that the count never exceeds what Hancom draws. A
+    paragraph with a tab, an object or text in more than one character shape
+    counts its forced lines only. Its n lines take n - 1 line pitches and one
+    line's size, and the next paragraph starts one pitch below the last line. A
+    line is at least as tall as the smallest character shape of its paragraph,
+    and the spacing before and after paragraphs is left out, so the sum is a
+    lower bound. A cell with a paragraph whose shapes are unknown, sized from the
+    font (``fontLineHeight``) or set vertically adds nothing to its declared height.
     """
 
     def __init__(self, header: ET.Element | None) -> None:
@@ -591,18 +597,21 @@ class _LineHeights:
                 if shape.font_line_height or spacing is None or spacing.value is None:
                     continue
                 self._spacings[element.get("id", "")] = (spacing.spacing_type or "PERCENT", spacing.value)
+        self._shapes = _HeaderShapes(header) if header is not None else None
+        self._styles: dict[tuple[str, str], Any] = {}
 
     def cell_height(self, cell: ET.Element, table: ET.Element) -> int:
         sub_list = next((el for el in cell if _local_name(el) == "subList"), None)
         if sub_list is None or sub_list.get("textDirection", "HORIZONTAL") != "HORIZONTAL":
             return 0
-        content = self._paragraphs_height([el for el in sub_list if _local_name(el) == "p"])
+        margins = cell_margins_of(cell, table)
+        width = _cell_int(cell, "cellSz", "width", 0) - (margins.left + margins.right if margins is not None else 0)
+        content = self._paragraphs_height([el for el in sub_list if _local_name(el) == "p"], width)
         if content is None:
             return 0
-        margins = cell_margins_of(cell, table)
         return content + (margins.top + margins.bottom if margins is not None else 0)
 
-    def _paragraphs_height(self, paragraphs: list[ET.Element]) -> int | None:
+    def _paragraphs_height(self, paragraphs: list[ET.Element], width: int) -> int | None:
         from hwpx.form_fit.measure import _line_pitch
 
         if not paragraphs:
@@ -615,10 +624,81 @@ class _LineHeights:
                 return None
             size = min(size for size in sizes if size is not None)
             pitch = int(_line_pitch(spacing[0], spacing[1], size))
-            total += _forced_lines(paragraph) * pitch
+            total += max(_forced_lines(paragraph), self._wrapped_lines(paragraph, width)) * pitch
             if index == len(paragraphs) - 1:
                 total += size - pitch  # the last line takes its size, not a pitch
         return total
+
+    def _wrapped_lines(self, paragraph: ET.Element, width: int) -> int:
+        """Lines single-shape text takes at *width*, never more than Hancom draws (0 when not counted)."""
+
+        from hwpx.form_fit.measure import MIN_LINE_WIDTH, _uncertainty_band, hancom_line_starts, text_style_from_refs
+
+        text, shapes = _measurable_text(paragraph)
+        size = self._sizes.get(next(iter(shapes), ""))
+        if self._shapes is None or not text or len(shapes) != 1 or size is None:
+            return 0
+        key = (paragraph.get("paraPrIDRef", ""), next(iter(shapes)))
+        if key not in self._styles:
+            self._styles[key] = text_style_from_refs(self._shapes, key[0], [key[1]])
+        style = self._styles[key]
+        # Every advance narrower by the measurement error: the line holds at least as much as Hancom's.
+        line = max(width - style.margin_left - style.margin_right, MIN_LINE_WIDTH) / (1.0 - _uncertainty_band(text))
+        return sum(len(hancom_line_starts(part, [line], size / 100, style)) if part else 1 for part in text.split("\n"))
+
+
+class _HeaderShapes:
+    """The character and paragraph shapes of a raw ``header.xml``, as FormFit reads them from a document."""
+
+    def __init__(self, header: ET.Element) -> None:
+        self.headers = [SimpleNamespace(element=header)]
+        self._chars = {el.get("id", ""): el for el in header.iter() if _local_name(el) == "charPr"}
+        self._paras = {el.get("id", ""): el for el in header.iter() if _local_name(el) == "paraPr"}
+
+    def char_property(self, char_pr_id_ref: object) -> Any:
+        element = self._chars.get(str(char_pr_id_ref))
+        return parse_char_property(element) if element is not None else None  # type: ignore[arg-type]
+
+    def paragraph_property(self, para_pr_id_ref: object) -> Any:
+        element = self._paras.get(str(para_pr_id_ref))
+        return parse_paragraph_property(element) if element is not None else None
+
+
+#: Run children with no width of their own: field start and end marks.
+_ZERO_WIDTH_CONTROLS = frozenset({"fieldBegin", "fieldEnd"})
+
+
+def _measurable_text(paragraph: ET.Element) -> tuple[str | None, set[str]]:
+    """The paragraph's text (line breaks as newlines) and the character shapes of the runs holding it;
+    no text when anything but plain text, line breaks and field marks is in it."""
+
+    parts: list[str] = []
+    shapes: set[str] = set()
+    for run in paragraph:
+        if _local_name(run) != "run":
+            continue
+        for child in run:
+            name = _local_name(child)
+            if name == "ctrl" and all(_local_name(mark) in _ZERO_WIDTH_CONTROLS for mark in child):
+                continue
+            text = _plain_text(child) if name == "t" else None
+            if text is None:
+                return None, set()
+            if text:
+                parts.append(text)
+                shapes.add(run.get("charPrIDRef", ""))
+    return "".join(parts), shapes
+
+
+def _plain_text(text_element: ET.Element) -> str | None:
+    """An ``hp:t``'s text with ``hp:lineBreak`` as a newline; None when it holds anything else."""
+
+    parts = [text_element.text or ""]
+    for child in text_element:
+        if _local_name(child) != "lineBreak":
+            return None
+        parts.append("\n" + (child.tail or ""))
+    return "".join(parts)
 
 
 def _forced_lines(paragraph: ET.Element) -> int:
