@@ -51,6 +51,12 @@ HANCOM_PAGES = {
     "pages_table_flow_tall_row_table_margins_500": 2,  # the table's inner margins 500: 1290 goes on
     "pages_table_flow_tall_row_bottom_aligned": 2,    # cells aligned to the bottom: 1290 goes on
     "pages_table_flow_tall_row_16pt": 2,              # 16 pt text: 1283 goes on
+    "pages_table_merged_rows_held": 1,    # a cell merged over rows 0-3 holding one over rows 1-2
+    "pages_table_merged_rows_staggered": 1,  # merged over rows 0-1 and 1-2: row 1 has no cell of its own
+    "pages_table_merged_rows_ending_first": 1,  # merged over rows 0-2 and 2-3: the one ending first first
+    "pages_table_nested_after_text": 1,  # a table in a cell of a flowing table, after a line of text
+    "pages_table_nested_alone": 1,       # a table alone in a cell of a flowing table
+    "pages_table_nested_in_table_as_character": 1,  # a table in a cell of a table set as a character
     "pages_objects_among_text_table": 2,  # a full-width table set as a character among text
     "pages_objects_among_text_equation": 1,  # equations set as characters among text
     "pages_objects_after_text_rectangle": 1,  # rectangles set as characters after text
@@ -139,15 +145,6 @@ def test_the_lines_around_a_nested_table_are_where_hancom_put_them() -> None:
     _assert_like_hancom(estimate_pages(data), data, 1)
 
 
-def test_a_merged_table_hancom_has_not_laid_out_is_unsupported() -> None:
-    data = (FIXTURES.parent / "m2_corpus" / "public_official_table.hwpx").read_bytes()
-
-    estimate = estimate_pages(_without_caches(data))
-
-    assert estimate.pages is None
-    assert estimate.unsupported == ("section 0: a table with merged rows",)
-
-
 def test_paragraphs_of_several_character_sizes_hancom_laid_out_follow_their_cached_lines() -> None:
     # A Hancom-made document of three sections whose paragraphs mix character sizes: each line is as
     # tall and as far apart as its layout cache says.
@@ -231,6 +228,31 @@ def test_a_flowing_row_taller_than_its_text_is_cut_just_above_the_page_foot(heig
 
     assert estimate.unsupported == ()
     assert estimate.lines[-1] == (EstimatedLine(page=1, column=0, vertpos=rest + 1282),)
+
+
+def test_a_table_whose_row_addresses_skip_is_estimated_without_the_missing_rows() -> None:
+    # Documents edited by other tools can number their rows with gaps (row 2 saved as row 5).
+    document = HwpxDocument.new()
+    table = document.add_table(3, 2)
+    for cell in table.element.iter(f"{HP}tc"):
+        address = cell.find(f"{HP}cellAddr")
+        if address.get("rowAddr") == "2":
+            address.set("rowAddr", "5")
+
+    estimate = estimate_pages(document)
+
+    assert estimate.unsupported == ()
+    assert estimate.pages == 1
+
+
+def test_a_page_break_in_a_flowing_row_holding_a_table_is_unsupported() -> None:
+    document, table = _flowing_table_after(38, 3)
+    table.cell(1, 1).add_table(4, 2, width=18000)
+
+    estimate = estimate_pages(document)
+
+    assert estimate.pages is None
+    assert estimate.unsupported == ("section 0: a page break in a flowing table row holding a table",)
 
 
 def test_lines_of_two_columns_are_in_columns() -> None:
