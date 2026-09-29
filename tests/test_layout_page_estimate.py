@@ -86,6 +86,10 @@ HANCOM_PAGES = {
     "pages_picture_square_wider_than_column": 2,  # no room beside it: the text goes below
     "pages_picture_square_offset": 2,     # a picture wrapped square 3000 below the paragraph's top
     "pages_table_square_alone": 1,        # a table wrapped square alone, as tall as its rows
+    "pages_picture_in_front_of_text": 1,  # a picture in front of three lines of text: no line moves
+    "pages_rectangle_behind_text_alone": 1,  # a rectangle behind the text alone: an empty line
+    "pages_table_as_character_beside_rectangle_in_front": 1,  # beside a rectangle in front, on the paper
+    "pages_picture_behind_text_past_page_foot": 2,  # a picture behind the text past the page foot
 }
 
 
