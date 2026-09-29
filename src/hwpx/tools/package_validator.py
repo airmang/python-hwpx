@@ -866,6 +866,13 @@ def _check_manifest_entries(
 def _check_field_end_pairs(
     xml_roots: dict[str, ET.Element], section_paths: list[str], issues: list[PackageValidationIssue]
 ) -> None:
+    """A field end naming no field begin, at the very start of its run.
+
+    Hancom refuses the document when nothing comes before such an end in its
+    ``hp:run``. After text, an empty ``hp:t`` or another control in the run it
+    opens the document and drops the end.
+    """
+
     begins: set[str] = set()
     ends: list[tuple[str, str]] = []
     for path in section_paths:
@@ -876,11 +883,18 @@ def _check_field_end_pairs(
             name = _local_name(element)
             if name == "fieldBegin" and element.get("id") is not None:
                 begins.add(element.get("id") or "")
-            elif name == "fieldEnd" and element.get("beginIDRef") is not None:
-                ends.append((path, element.get("beginIDRef") or ""))
+            elif name == "run" and len(element) and _local_name(element[0]) == "ctrl" and len(element[0]):
+                end = element[0][0]
+                if _local_name(end) == "fieldEnd" and end.get("beginIDRef") is not None:
+                    ends.append((path, end.get("beginIDRef") or ""))
     for path, begin_ref in ends:
         if begin_ref not in begins:
-            _error(issues, path, f"hp:fieldEnd beginIDRef={begin_ref!r} names no hp:fieldBegin; Hancom refuses to open the document")
+            _error(
+                issues,
+                path,
+                f"hp:fieldEnd beginIDRef={begin_ref!r} names no hp:fieldBegin and starts its run; "
+                "Hancom refuses to open the document",
+            )
 
 
 def _error(issues: list[PackageValidationIssue], part_name: str, message: str) -> None:

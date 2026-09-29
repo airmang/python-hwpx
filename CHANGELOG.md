@@ -155,8 +155,10 @@
   - 표: `hp:tbl`의 `rowCnt`·`colCnt`, `hp:tr`/`hp:tc`, `hp:cellAddr`의
     `colAddr`·`rowAddr`, `hp:cellSpan`의 `colSpan`·`rowSpan`이 없음
   - `hp:secPr`에 `hp:startNum`·`hp:visibility` 없음, `hp:lineseg@textpos` 없음
-  - 필드: `hp:fieldBegin@id`, `hp:fieldEnd@beginIDRef`가 없거나, `fieldEnd`가 없는
-    `fieldBegin`을 가리키거나, 필드 종류와 `fieldid`가 둘 다 한컴이 모르는 값임
+  - 필드: `hp:fieldBegin@id`, `hp:fieldEnd@beginIDRef`가 없거나, 없는 `fieldBegin`을
+    가리키는 `fieldEnd`가 자기 `hp:run`의 맨 앞에 있거나, 필드 종류와 `fieldid`가 둘 다
+    한컴이 모르는 값임. run 안에서 글·빈 `hp:t`·다른 컨트롤 뒤에 오는 그런 `fieldEnd`는
+    한컴이 버리고 문서를 연다
   - 도형: 필수 하위 요소가 없는 도형과 빈 `hp:ctrl`(예전에는 경고),
     `hp:renderingInfo` 행렬이 없는 도형, 모서리 점(`hc:pt0`~`pt3`)이 없는 사각형,
     `hc:img`가 없는 그림

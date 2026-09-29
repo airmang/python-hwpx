@@ -128,6 +128,7 @@ CASES = [
     ("fieldBegin-id", SECTION, drop_attribute("fieldBegin", "id"), "hp:fieldBegin missing id"),
     ("fieldEnd-beginIDRef", SECTION, drop_attribute("fieldEnd", "beginIDRef"), "hp:fieldEnd missing beginIDRef"),
     ("fieldEnd-unpaired", SECTION, set_attributes("fieldEnd", beginIDRef="999999"), "names no hp:fieldBegin"),
+    ("fieldBegin-removed", SECTION, lambda root: _drop_control(_named(root, "fieldBegin")[0]), "names no hp:fieldBegin"),
     ("field-type-unknown", SECTION, set_attributes("fieldBegin", type="ClickHere", fieldid="field-x"), "not a Hancom field type"),
     ("renderingInfo", SECTION, drop_element("renderingInfo"), "hp:renderingInfo matrices"),
     ("rect-corner", SECTION, drop_element("pt0"), "corner point"),
@@ -166,6 +167,43 @@ def test_a_document_hancom_cannot_open_is_an_error(
 
     assert not report.ok
     assert any(expected in issue.message for issue in report.errors), [issue.message for issue in report.errors]
+
+
+def _drop_control(element: etree._Element) -> None:
+    control = element.getparent()
+    control.getparent().remove(control)
+
+
+def _unpaired_end_after(text: str | None) -> Change:
+    """The hyperlink's end names no begin and comes after an ``hp:t`` (``text``, or empty) in its run."""
+
+    def change(root: etree._Element) -> None:
+        end = _named(root, "fieldEnd")[0]
+        end.set("beginIDRef", "999999")
+        before = etree.Element(f"{HP}t")
+        before.text = text
+        end.getparent().addprevious(before)
+
+    return change
+
+
+def _unpaired_end_after_the_fields_own_end(root: etree._Element) -> None:
+    end = _named(root, "fieldEnd")[0]
+    control = etree.Element(f"{HP}ctrl")
+    etree.SubElement(control, f"{HP}fieldEnd", beginIDRef="999999", fieldid=end.get("fieldid"))
+    end.getparent().addnext(control)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [_unpaired_end_after("끝"), _unpaired_end_after(None), _unpaired_end_after_the_fields_own_end],
+    ids=["after-text", "after-empty-t", "after-the-fields-own-end"],
+)
+def test_an_unpaired_field_end_that_does_not_start_its_run_is_not_an_error(valid_bytes: bytes, change: Change) -> None:
+    # Hancom opens these and drops the end; it refuses only an unpaired end at the start of its run.
+    report = validate_package(_mutate(valid_bytes, SECTION, change))
+
+    assert not any("names no hp:fieldBegin" in issue.message for issue in report.errors)
 
 
 def test_a_known_field_type_or_a_known_field_id_is_enough(valid_bytes: bytes) -> None:
