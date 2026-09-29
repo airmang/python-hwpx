@@ -54,6 +54,9 @@ HANCOM_PAGES = {
     "pages_table_nested_after_text": 1,  # a table in a cell of a flowing table, after a line of text
     "pages_table_nested_alone": 1,       # a table alone in a cell of a flowing table
     "pages_table_nested_in_table_as_character": 1,  # a table in a cell of a table set as a character
+    "pages_objects_among_text_table": 2,  # a full-width table set as a character among text
+    "pages_objects_among_text_equation": 1,  # equations set as characters among text
+    "pages_objects_after_text_rectangle": 1,  # rectangles set as characters after text
 }
 
 
