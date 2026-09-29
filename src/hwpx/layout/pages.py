@@ -31,7 +31,8 @@
   cell of its own starts at 0); in a table moved row by row, rows joined by a cell merged over them
   move to the next page as one, and in one split between cell lines each of their cells keeps the
   lines that fit and the rest go on, the rows from the one the page end falls in as tall as their
-  cells' rest. A table set as a character alone in a paragraph of a cell is one line as tall as it
+  cells' rest (a cell declared taller than its text, whose first line fits, is cut like such a row,
+  below). A table set as a character alone in a paragraph of a cell is one line as tall as it
   there, spaced like the text. A row declared taller than its text is cut just above the page's
   foot, and what is left of it goes on to the next page unless it is no taller than a 10 pt line
   with the default cell margins (the cell's own margins, alignment and character size change
@@ -54,11 +55,10 @@ other objects in its paragraph (but objects set as characters, with line spacing
 fixed, one top-and-bottom object placed from the paragraph's top, and one object wrapped square
 at a column edge before any text; an object offset down or wrapped square stays on one page with
 the lines above or beside it), footnotes in such a paragraph, two tables starting past their
-anchors on one page, a page break among merged rows taller than their text, rows merged together
-that do not fit under their table's anchor or on a page, a nested table among text or not set as a
-character (in a table Hancom has not laid out as it is), a page break between the cell lines of a
-flowing row holding a table, objects placed on the page or the paper, composed characters and ruby
-text. ``pages`` is then ``None`` and
+anchors on one page, rows merged together that do not fit under their table's anchor or on a
+page, a nested table among text or not set as a character (in a table Hancom has not laid out as
+it is), a page break between the cell lines of a flowing row holding a table, objects placed on
+the page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -774,8 +774,9 @@ def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: 
     margin = obj.find(f"{HP}outMargin")
     top, bottom = (0, 0) if margin is None else (int(margin.get("top", 0)), int(margin.get("bottom", 0)))
     if _local(obj) == "tbl":
-        table = _FlowTable(_rows(measure, obj), obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1",
-                           (top, bottom))
+        rows, cells = _table_rows(measure, obj)
+        table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
+                           tuple(cells))
         return _Anchor(line, table, 0)
     return _Anchor(line, None, int(obj.find(f"{HP}sz").get("height", 0)) + top + bottom)
 
@@ -1114,14 +1115,19 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int, body: int) -
         if start > cut:  # wholly on the next page
             rest = cell.height
         else:
-            if cell.spare:
-                raise _Unsupported("a page break among merged rows taller than their text")
             fitting = 0
             while fitting < cell.lines and tops[start] + cell.margins + fitting * cell.pitch + cell.size <= body:
                 fitting += 1
-            if fitting == cell.lines:
+            if cell.spare and fitting:  # its text starts above the page end: the declared room is cut like a row's
+                rest = tops[start] + cell.height - (body - _SPARE_CUT)
+                if rest <= _SPARE_DROPPED:
+                    continue
+            elif cell.spare:  # none of it fits: it goes on whole
+                rest = cell.height
+            elif fitting == cell.lines:
                 continue
-            rest = cell.margins + (cell.lines - fitting - 1) * cell.pitch + cell.size
+            else:
+                rest = cell.margins + (cell.lines - fitting - 1) * cell.pitch + cell.size
         if span == 1:
             heights[start] = max(heights[start], rest)
         else:
