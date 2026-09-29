@@ -67,6 +67,10 @@ HANCOM_PAGES = {
     "pages_objects_after_text_rectangle": 1,  # rectangles set as characters after text
     "pages_table_anchored_after_text": 1,  # a top-and-bottom table anchored after three lines of text
     "pages_picture_anchored_before_text": 1,  # a top-and-bottom picture anchored before the text
+    "pages_table_anchored_offset_before_text": 1,  # 3000 down from the first line: the third line goes below
+    "pages_table_anchored_offset_after_text": 1,   # 3000 down from the last line: the next paragraph's second
+    "pages_picture_anchored_offset_next_paragraph": 1,  # 1600 down: the next paragraph's first line
+    "pages_picture_anchored_small_offset": 1,  # 500 down: the line it stands on goes below it
     "pages_picture_square_left": 2,       # a picture wrapped square on the left, text beside it into the next paragraph
     "pages_picture_square_right": 2,      # a wide picture wrapped square on the right
     "pages_picture_square_alone": 2,      # a picture wrapped square alone in its paragraph
@@ -271,6 +275,18 @@ def test_a_page_break_in_a_flowing_row_holding_a_table_is_unsupported() -> None:
 
     assert estimate.pages is None
     assert estimate.unsupported == ("section 0: a page break in a flowing table row holding a table",)
+
+
+def test_a_top_and_bottom_table_offset_past_the_page_foot_is_unsupported() -> None:
+    document, table = _flowing_table_after(38, 3)
+    table.element.find(f"{HP}pos").set("vertOffset", "3000")
+    document.paragraphs[-1].add_run("앵커 문단 글")
+
+    estimate = estimate_pages(document)
+
+    assert estimate.pages is None
+    assert estimate.unsupported == (
+        "section 0: a square-wrapped or offset top-and-bottom object past the page foot",)
 
 
 def test_lines_of_two_columns_are_in_columns() -> None:
