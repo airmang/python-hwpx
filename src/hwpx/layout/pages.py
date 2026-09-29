@@ -15,10 +15,12 @@
   least), paragraphs add their spacing before and after, and a line stays on the page while its
   bottom is within the body height. Page and column breaks, page break before, keep lines
   together, keep with next and widow/orphan control; columns of equal width.
-* Objects: a table or picture set as a character is one line as tall as it. Among text, an object
-  set as a character takes its width on its line like a character, and the line is at least as
-  tall as the object; the line spacing stays the text's (a fixed spacing keeps the next line that
-  far down). A top-and-bottom object anchored to an empty paragraph pushes the next line below
+* Objects: an object in front of or behind the text takes no room: the lines go where they would
+  without it, wherever it stands. A table or picture set as a character is one line as tall as it.
+  Among text, an object set as a character takes its width on its line like a character, and the
+  line is at least as tall as the object; the line spacing stays the text's (a fixed spacing keeps
+  the next line that far down). A top-and-bottom object anchored to an empty paragraph pushes the
+  next line below
   it; anchored in a paragraph of text (from the paragraph's top), it stands at the top of the line
   its place in the text falls on, and that line and the rest of the paragraph come below it --
   offset down, it stands that much lower, and the first line reaching it (in that paragraph or the
@@ -59,8 +61,9 @@ at a column edge before any text; an object offset down or wrapped square stays 
 the lines above or beside it), footnotes in such a paragraph, two tables starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor or on a
 page, a nested table among text or not set as a character (in a table Hancom has not laid out as
-it is), a page break in a flowing row holding a table and declared taller than its text, objects
-placed on the page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
+it is), a page break in a flowing row holding a table and declared taller than its text, other
+objects placed on the page or the paper, composed characters and ruby text. ``pages`` is then
+``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -90,6 +93,8 @@ _OBJECTS = frozenset({
     "container", "ole", "equation", "video", "chart", "checkBtn", "radioBtn", "btn", "button",
     "comboBox", "edit", "listBox", "scrollBar",
 })
+#: How an object in front of or behind the text wraps it: it takes no room from the text.
+_FLOATING = frozenset({"IN_FRONT_OF_TEXT", "BEHIND_TEXT"})
 #: Run content that changes a line's height in ways the estimate does not follow.
 _UNSUPPORTED_CONTENT = frozenset({"compose", "dutmal"})
 #: A flowing table row whose declared height leaves room under its text (CELL) is cut this far above
@@ -672,7 +677,15 @@ def _placed_objects(runs: list[Any]) -> list[Any]:
     for obj in objects:
         if obj.find(f"{HP}pos") is None or obj.find(f"{HP}sz") is None:
             raise _Unsupported(f"{_local(obj)} without a position")
-    return objects
+    return [obj for obj in objects if not _floating(obj)]
+
+
+def _floating(obj: Any) -> bool:
+    """An object in front of or behind the text, not set as a character: the text flows as if it were not
+    there."""
+
+    pos = obj.find(f"{HP}pos")
+    return obj.get("textWrap") in _FLOATING and (pos is None or pos.get("treatAsChar") != "1")
 
 
 def _text_size(measure: _Measure, runs: list[Any]) -> tuple[int, list[Any], list[int]]:
@@ -752,6 +765,8 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple
         height, look = measure.char_height(ref), measure.style(paragraph.get("paraPrIDRef"), [ref])
         for child in run:
             name = _local(child)
+            if name in _OBJECTS and _floating(child):
+                continue
             if name in _OBJECTS:
                 if child.find(f"{HP}pos").get("treatAsChar") != "1" or shape.kind not in ("PERCENT", "FIXED"):
                     raise _Unsupported("an object with text or other objects in its paragraph")
