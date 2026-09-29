@@ -7,7 +7,8 @@
   path would keep that cache -- those are the lines Hancom drew, each as tall as Hancom made it
   and followed by its spacing (``vertsize``, ``spacing``). Other paragraphs break like FormFit
   (:func:`hwpx.form_fit.measure.hancom_line_starts`) at the column width less the paragraph's
-  margins and first-line indent.
+  margins and first-line indent, each character at its own size; a line of several sizes is as
+  tall as its largest character, and its line spacing is reckoned from that size.
 * Height: a line advances by the paragraph's line spacing (percent, fixed, between lines, at
   least), paragraphs add their spacing before and after, and a line stays on the page while its
   bottom is within the body height. Page and column breaks, page break before, keep lines
@@ -27,9 +28,8 @@ i.e. Hancom laid the table out as it is.
 Anything else makes the estimate unsupported: endnotes, a column change inside a section (column
 settings in a cell or a text box are that list's own), section settings after a section's first
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
-other objects in its paragraph, two tables starting past their anchors on one page, mixed character
-sizes in a paragraph without a valid layout cache,
-merged rows or a nested table
+other objects in its paragraph, two tables starting past their anchors on one page, merged rows
+or a nested table
 in a table flowing with the text or in one Hancom has not laid out as it is, objects placed on the
 page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
@@ -288,13 +288,17 @@ class _Measure:
         return sum(len(hancom_line_starts(line, widths, size / 100, style)) if line else 1
                    for line in text.split("\n"))
 
-    def line_starts(self, text: str, widths: list[float], size: int, style: Any) -> list[int]:
-        """Where each line starts, as offsets into *text*."""
+    def line_starts(self, text: str, widths: list[float], size: int, style: Any,
+                    sizes: list[int] | None = None) -> list[int]:
+        """Where each line starts, as offsets into *text*; *sizes* is each character's size when the
+        text mixes sizes."""
 
         starts: list[int] = []
         base = 0
         for line in text.split("\n"):
-            starts += [base + start for start in (hancom_line_starts(line, widths, size / 100, style) if line else [0])]
+            points = None if sizes is None else [height / 100 for height in sizes[base:base + len(line)]]
+            starts += [base + start for start in (hancom_line_starts(line, widths, size / 100, style, points)
+                                                  if line else [0])]
             base += len(line) + 1
         return starts
 
@@ -380,8 +384,8 @@ class _Para:
     table: _FlowTable | None = None
     #: line index -> (height of the notes anchored in it, how many, size of the first one's first line)
     notes: dict[int, tuple[int, int, int]] = field(default_factory=dict)
-    #: (height, advance) of each line from the paragraph's valid layout cache; empty when every line
-    #: is ``size`` tall and ``pitch`` apart.
+    #: (height, advance) of each line from the paragraph's valid layout cache, or of each line of a
+    #: paragraph of several character sizes; empty when every line is ``size`` tall and ``pitch`` apart.
     cached: tuple[tuple[int, int], ...] = ()
 
     def height(self, line: int) -> int:
@@ -500,13 +504,32 @@ def _placed_objects(runs: list[Any]) -> list[Any]:
     return objects
 
 
-def _text_size(measure: _Measure, runs: list[Any], text: str, laid_out: bool) -> tuple[int, list[Any]]:
-    refs = [run.get("charPrIDRef") for run in runs if run.find(f"{HP}t") is not None]
+def _text_size(measure: _Measure, runs: list[Any]) -> tuple[int, list[Any], list[int]]:
+    """The paragraph's character size (its smallest), the character shapes of its runs holding text
+    (the style comes from the first), and each character's size. An empty run takes no room."""
+
+    lengths = [sum(len(_t_text(text)) for text in run.findall(f"{HP}t")) for run in runs]
+    refs = [run.get("charPrIDRef") for run, length in zip(runs, lengths) if length]
+    refs = refs or [run.get("charPrIDRef") for run in runs if run.find(f"{HP}t") is not None]
     refs = refs or [run.get("charPrIDRef") for run in runs] or ["0"]
-    sizes = {measure.char_height(ref) for ref in refs}
-    if text and len(sizes) > 1 and not laid_out:  # a valid cache gives each line its own height
-        raise _Unsupported("mixed character sizes in a paragraph")
-    return min(sizes), refs
+    sizes: list[int] = []
+    for run, length in zip(runs, lengths):
+        sizes += [measure.char_height(run.get("charPrIDRef"))] * length
+    return min(sizes or [measure.char_height(ref) for ref in refs]), refs, sizes
+
+
+def _mixed_metrics(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
+                   shape: _Shape) -> tuple[tuple[int, int], ...]:
+    """(height, advance) of each line of a paragraph of several character sizes: FormFit breaks it with
+    every character at its own size, and a line is as tall as its largest character, its line spacing
+    reckoned from that size."""
+
+    starts = measure.line_starts(text, widths, min(sizes), style, sizes)
+    metrics = []
+    for start, end in zip(starts, [*starts[1:], len(text)]):
+        height = max(sizes[start:end] or sizes[-1:])
+        metrics.append((height, _pitch(shape.kind, shape.value, height)))
+    return tuple(metrics)
 
 
 def _object_line(
@@ -551,11 +574,11 @@ def _note_anchors(runs: list[Any]) -> list[tuple[int, Any]]:
 
 
 def _anchored_notes(measure: _Measure, runs: list[Any], text: str, widths: list[float], size: int, style: Any,
-                    width: int) -> dict[int, tuple[int, int, int]]:
+                    width: int, sizes: list[int] | None = None) -> dict[int, tuple[int, int, int]]:
     anchors = _note_anchors(runs)
     if not anchors:
         return {}
-    starts = measure.line_starts(text, widths, size, style)
+    starts = measure.line_starts(text, widths, size, style, sizes)
     anchored: dict[int, tuple[int, int, int]] = {}
     for offset, note in anchors:
         line = max(index for index, start in enumerate(starts) if start <= max(offset - 1, 0))
@@ -575,17 +598,20 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any) -> _Para:
     if objects and (len(objects) > 1 or text.strip()):
         raise _Unsupported("an object with text or other objects in its paragraph")
     cached = () if objects else _cached_metrics(paragraph)
-    size, refs = _text_size(measure, runs, text, bool(cached))
+    size, refs, sizes = _text_size(measure, runs)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     style = measure.style(paragraph.get("paraPrIDRef"), refs)
     line = page.column_width - shape.left - shape.right
     widths: list[float] = [line - max(shape.indent, 0), line - max(-shape.indent, 0)]
+    mixed = len(set(sizes)) > 1
+    if mixed and not cached and not objects:
+        cached = _mixed_metrics(measure, text, widths, sizes, style, shape)
     count = len(cached) or measure.lines(text, widths, size, style)
     pitch = _pitch(shape.kind, shape.value, size)
     table = None
     if objects:
         count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch)
-    notes = _anchored_notes(measure, runs, text, widths, size, style, page.column_width)
+    notes = _anchored_notes(measure, runs, text, widths, size, style, page.column_width, sizes if mixed else None)
     flags = shape.flags
     return _Para(count, size, pitch, shape.prev, shape.next, _on(flags, "pageBreakBefore"), _on(flags, "keepLines"),
                  _on(flags, "keepWithNext"), _on(flags, "widowOrphan"), paragraph.get("pageBreak") == "1",

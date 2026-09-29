@@ -34,6 +34,9 @@ HANCOM_PAGES = {
     "pages_table_multiline_cells": 3,     # a table set as a character
     "pages_picture_floating_tall": 4,     # top-and-bottom pictures
     "pages_cell_column_settings": 3,      # one-column settings in a table cell's paragraph
+    "pages_mixed_sizes_percent": 3,       # 10 pt and 20 pt runs in a paragraph, line spacing 160%
+    "pages_mixed_sizes_fixed": 3,         # 12 pt and 30 pt runs, fixed line spacing (lines overlap)
+    "pages_mixed_sizes_at_least": 2,      # 8 pt and 16 pt runs, line spacing at least 18 pt
 }
 
 
@@ -135,13 +138,34 @@ def test_another_document_of_mixed_character_sizes_has_hancoms_page_count() -> N
     assert estimate.pages == 4
 
 
-def test_mixed_character_sizes_without_layout_caches_are_unsupported() -> None:
-    data = (FIXTURES.parent / "hwpxlib_corpus" / "error__20230728__test.hwpx").read_bytes()
+def _with_empty_first_runs(data: bytes) -> bytes:
+    """Each paragraph starting with an empty run of the default character shape (10 pt), as a paragraph
+    python-hwpx made and then added runs to does; Hancom drops such a run when it saves."""
 
-    estimate = estimate_pages(_without_caches(data))
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                root = etree.fromstring(payload)
+                for paragraph in root.iter(f"{HP}p"):
+                    first = paragraph.find(f"{HP}run")
+                    if first is not None and first.get("charPrIDRef") != "0":
+                        empty = etree.Element(f"{HP}run", charPrIDRef="0")
+                        etree.SubElement(empty, f"{HP}t")
+                        first.addprevious(empty)
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+    return out.getvalue()
 
-    assert estimate.pages is None
-    assert "section 2: mixed character sizes in a paragraph" in estimate.unsupported
+
+def test_an_empty_run_takes_no_room_and_gives_no_character_shape() -> None:
+    # 12 pt and 30 pt runs of 바탕 after an empty 10 pt 함초롬바탕 run: the lines are Hancom's.
+    data = (FIXTURES / "pages_mixed_sizes_fixed.hwpx").read_bytes()
+
+    estimate = estimate_pages(_without_caches(_with_empty_first_runs(data)))
+
+    _assert_like_hancom(estimate, data, HANCOM_PAGES["pages_mixed_sizes_fixed"])
 
 
 def test_lines_of_two_columns_are_in_columns() -> None:
