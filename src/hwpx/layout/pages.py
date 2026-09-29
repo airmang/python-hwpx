@@ -18,7 +18,8 @@
   set as a character takes its width on its line like a character, and the line is at least as
   tall as the object; the line spacing stays the text's (a fixed spacing keeps the next line that
   far down). A top-and-bottom object anchored to an empty paragraph pushes the next line below
-  it; a table flowing with the text is laid out row by row -- split between cell lines, moved row
+  it; anchored in a paragraph of text (at the paragraph's top), it stands at the top of the line
+  its place in the text falls on, and that line and the rest of the paragraph come below it; a table flowing with the text is laid out row by row -- split between cell lines, moved row
   by row or moved whole -- with its header rows repeated; a cell merged over rows that is taller
   than them adds what they lack to the last of them. A row declared taller than its text is cut
   just above the page's foot, and what is left of it goes on to the next page unless it is shorter
@@ -37,7 +38,7 @@ Anything else makes the estimate unsupported: endnotes, a column change inside a
 settings in a cell or a text box are that list's own), section settings after a section's first
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but objects set as characters, with line spacing in percent or
-fixed), footnotes in such a paragraph, two tables starting past their anchors on one page, a page break among rows merged in a
+fixed, and one top-and-bottom object at the paragraph's top), footnotes in such a paragraph, two tables starting past their anchors on one page, a page break among rows merged in a
 flowing table, merged cells over rows that overlap otherwise, a nested table in a table Hancom has
 not laid out as it is, objects placed on the page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
@@ -410,6 +411,16 @@ def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
 
 
 @dataclass(frozen=True)
+class _Anchor:
+    """A top-and-bottom object anchored in a paragraph of text: it stands at the top of line *line*,
+    and that line and the rest of the paragraph come below it."""
+
+    line: int
+    table: _FlowTable | None  # a table flowing with the text, or
+    height: int               # the height of any other object, its outer margins included
+
+
+@dataclass(frozen=True)
 class _Para:
     lines: int
     size: int
@@ -428,6 +439,7 @@ class _Para:
     #: (height, advance) of each line from the paragraph's valid layout cache, or of each line of a
     #: paragraph of several character sizes; empty when every line is ``size`` tall and ``pitch`` apart.
     cached: tuple[tuple[int, int], ...] = ()
+    anchor: _Anchor | None = None
 
     def height(self, line: int) -> int:
         return self.cached[line][0] if self.cached else self.size
@@ -635,6 +647,47 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple
     return "".join(text), sizes, looks, objects
 
 
+def _anchored_object(objects: list[Any], text: str) -> Any:
+    """The one object of a paragraph of text that is placed top and bottom from the paragraph's top
+    (offset 0), or ``None``."""
+
+    if len(objects) != 1 or not text.strip():
+        return None
+    obj = objects[0]
+    pos = obj.find(f"{HP}pos")
+    if pos.get("treatAsChar") == "1" or obj.get("textWrap") != "TOP_AND_BOTTOM":
+        return None
+    if pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP" or int(pos.get("vertOffset", 0)):
+        return None
+    return obj
+
+
+def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: Any, widths: list[float], size: int,
+            style: Any, cached: tuple[tuple[int, int], ...], count: int) -> _Anchor:
+    """Where *obj* stands in the paragraph: the line its place in the text falls on (Hancom counts an
+    object as eight characters in a line cache)."""
+
+    place = 0
+    for child in (child for run in runs for child in run):
+        if child is obj:
+            break
+        if _local(child) == "t":
+            place += len(_t_text(child))
+    if cached:
+        starts = [int(segment.get("textpos", 0)) for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg")]
+        starts = [start if start <= place else start - 8 for start in starts]
+    else:
+        starts = measure.line_starts(text, widths, size, style)
+    line = max((index for index, start in enumerate(starts[:count]) if start <= place), default=0)
+    margin = obj.find(f"{HP}outMargin")
+    top, bottom = (0, 0) if margin is None else (int(margin.get("top", 0)), int(margin.get("bottom", 0)))
+    if _local(obj) == "tbl":
+        table = _FlowTable(_rows(measure, obj), obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1",
+                           (top, bottom))
+        return _Anchor(line, table, 0)
+    return _Anchor(line, None, int(obj.find(f"{HP}sz").get("height", 0)) + top + bottom)
+
+
 def _object_line(
     measure: _Measure, obj: Any, count: int, size: int, pitch: int
 ) -> tuple[int, int, int, _FlowTable | None]:
@@ -700,8 +753,9 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any) -> _Para:
     objects = _placed_objects(runs)
     text = _run_text(runs)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
-    among = bool(objects) and (len(objects) > 1 or bool(text.strip()))  # objects set as characters in text
-    alone = bool(objects) and not among  # an object with no text: one line as tall as it
+    anchored = _anchored_object(objects, text)
+    among = anchored is None and bool(objects) and (len(objects) > 1 or bool(text.strip()))  # as characters
+    alone = bool(objects) and not among and anchored is None  # an object with no text: one line as tall
     cached = () if alone else _cached_metrics(paragraph)
     size, refs, sizes = _text_size(measure, runs)
     style = measure.style(paragraph.get("paraPrIDRef"), refs)
@@ -721,6 +775,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any) -> _Para:
     table = None
     if alone:
         count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch)
+    anchor = None if anchored is None else _anchor(measure, paragraph, runs, text, anchored, widths, size, style,
+                                                   cached, count)
     if among and _note_anchors(runs):
         raise _Unsupported("footnotes in a paragraph with objects among its text")
     notes = _anchored_notes(measure, runs, text, widths, size, style, page.column_width, sizes if mixed else None,
@@ -728,10 +784,18 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any) -> _Para:
     flags = shape.flags
     return _Para(count, size, pitch, shape.prev, shape.next, _on(flags, "pageBreakBefore"), _on(flags, "keepLines"),
                  _on(flags, "keepWithNext"), _on(flags, "widowOrphan"), paragraph.get("pageBreak") == "1",
-                 paragraph.get("columnBreak") == "1", table, notes, cached)
+                 paragraph.get("columnBreak") == "1", table, notes, cached, anchor)
 
 
 # -- laying the paragraphs out ---------------------------------------------------------------------
+
+
+def _lines_of(para: _Para, first: int, count: int, *, prev: int, after: int) -> _Para:
+    """Lines *first* .. *first* + *count* of *para* as a paragraph of their own."""
+
+    cached = para.cached[first:first + count] if para.cached else ()
+    return replace(para, lines=count, prev=prev, next=after, cached=cached, notes={}, anchor=None,
+                   keep_next=False if after == 0 else para.keep_next)
 
 
 def _repeated_header(table: _FlowTable) -> int:
@@ -816,6 +880,9 @@ class _Paginator:
 
     def _paragraph(self, index: int, paras: list[_Para], para: _Para) -> None:
         start = para.prev if self.last_vp is None else self.last_vp + self.last_pitch + self.pending_next + para.prev
+        if para.anchor is not None:
+            self._anchored(index, paras, para, start)
+            return
         table = para.table
         if table is not None and table.mode == "NONE" and start + sum(row.height for row in table.rows) > self.body:
             self.extra_frames = max(self.extra_frames, self.frame + 1)  # the table moves whole to the next page
@@ -839,6 +906,36 @@ class _Paginator:
         if self.frame != before:
             self.page_notes = [0, 0]
         self.last_vp, self.last_pitch, self.pending_next = end + table.margins[1], 0, para.next
+
+    def _anchored(self, index: int, paras: list[_Para], para: _Para, start: int) -> None:
+        """The lines before the anchor's line, the object at that line's top, then the rest of the
+        paragraph below the object."""
+
+        anchor = para.anchor
+        assert anchor is not None
+        if para.notes:
+            raise _Unsupported("footnotes in a paragraph anchoring a top-and-bottom object")
+        start, broke = self._breaks(para, start)
+        head = _lines_of(para, 0, anchor.line, prev=para.prev, after=0)
+        tail = _lines_of(para, anchor.line, para.lines - anchor.line, prev=0, after=para.next)
+        top = start
+        if head.lines:
+            if not self._lay(index, paras, head, start, broke):
+                raise _Unsupported("footnotes in a paragraph anchoring a top-and-bottom object")
+            top = self.out[-1][1] + head.advance(head.lines - 1)
+        if anchor.table is not None:
+            table = anchor.table
+            if _starts_later(table, top + table.margins[0], self.body):
+                raise _Unsupported("a top-and-bottom table anchored in text that starts on the next page")
+            frame, end = _flow_table(table, self.frame, top + table.margins[0], self.body)
+            self.frame, self.table_end, end = frame, max(self.table_end, frame), end + table.margins[1]
+        else:
+            if top + anchor.height > self.body and top > 0:
+                raise _Unsupported("a top-and-bottom object anchored in text at a page end")
+            end = top + anchor.height
+        self.last_vp, self.last_pitch, self.pending_next = end, 0, 0
+        if self._lay(index, paras, tail, end, False):
+            self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], tail.advance(tail.lines - 1), para.next
 
     def _starts_next_page(self, para: _Para, table: _FlowTable, start: int, frame: int, end: int) -> None:
         """The anchor line fits but the table's first row does not, so the table starts on the next page
