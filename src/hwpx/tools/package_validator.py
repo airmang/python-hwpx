@@ -746,8 +746,8 @@ def _check_hancom_required_structure(
             _check_field_begin(issues, part_name, element)
         elif name == "fieldEnd" and element.get("beginIDRef") is None:
             _error(issues, part_name, "hp:fieldEnd missing beginIDRef; Hancom refuses to open the document")
-        elif name == "parameterset" and any(_local_name(node) == "booleanParam" for node in element.iter()):
-            _error(issues, part_name, "hp:booleanParam inside hp:parameterset; Hancom crashes on the document")
+        elif name in ("parameterset", "indexmark"):
+            _check_parameter_set_or_index_mark(issues, part_name, element, name)
         elif name == "ctrl":
             for story in element:
                 kind = _local_name(story)
@@ -756,6 +756,42 @@ def _check_hancom_required_structure(
         elif name == "subList" and _first_child_by_local(element, "p") is None:
             _error(issues, part_name, "hp:subList without hp:p; Hancom crashes on the document")
     _check_required_drawing_structure(issues, part_name, root)
+
+
+#: Parameters inside a shape's hp:parameterset that must carry a name, and what Hancom does without one.
+_NAMED_PARAMETERS = {
+    "listParam": "Hancom refuses to open the document",
+    "unsignedintegerParam": "Hancom crashes on the document",
+}
+
+
+def _check_parameter_set_or_index_mark(
+    issues: list[PackageValidationIssue], part_name: str, element: ET.Element, name: str
+) -> None:
+    """An index mark needs its first key. A shape's parameter set may hold no ``hp:booleanParam``, its
+    ``hp:listParam``/``hp:unsignedintegerParam`` need a name, and it and its lists may not be empty while
+    ``cnt`` counts parameters (``cnt="0"`` with none, or a count other than the parameters held, opens)."""
+
+    if name == "indexmark":
+        if _first_child_by_local(element, "firstKey") is None:
+            _error(issues, part_name, "hp:indexmark without hp:firstKey; Hancom refuses to open the document")
+        return
+    nodes = list(element.iter())
+    if any(_local_name(node) == "booleanParam" for node in nodes):
+        _error(issues, part_name, "hp:booleanParam inside hp:parameterset; Hancom crashes on the document")
+    for node in nodes:
+        kind = _local_name(node)
+        if kind in _NAMED_PARAMETERS and node.get("name") is None:
+            _error(issues, part_name, f"hp:{kind} missing name; {_NAMED_PARAMETERS[kind]}")
+        if kind in ("parameterset", "listParam") and _counts_parameters_it_lacks(node):
+            _error(issues, part_name, f"hp:{kind} cnt={node.get('cnt')} holds no parameter; Hancom crashes on the document")
+
+
+def _counts_parameters_it_lacks(element: ET.Element) -> bool:
+    try:
+        return int(element.get("cnt", "0")) > 0 and len(element) == 0
+    except ValueError:
+        return False
 
 
 def _check_field_begin(issues: list[PackageValidationIssue], part_name: str, element: ET.Element) -> None:

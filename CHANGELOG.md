@@ -136,6 +136,10 @@
 
 ### 고침
 
+- 편집기 안전 검사가 한컴이 열지 못하거나 여는 중에 멈추는 찾아보기 표시·도형 매개변수 묶음을 통과시키던 것을 고친다.
+  이제 다음은 오류다: `hp:firstKey`가 없는 `hp:indexmark`, `hp:parameterset` 안의 `name` 없는 `hp:listParam`·
+  `hp:unsignedintegerParam`, `cnt`로 매개변수가 있다고 하면서 하나도 없는 `hp:parameterset`·`hp:listParam`.
+  `cnt="0"`인 빈 묶음과, 매개변수가 있는데 `cnt`만 다른 묶음은 한컴이 열므로 그대로 둔다.
 - `doc.page.set_header()`·`set_footer()`·`set_page_number()`가 구역 첫 문단의 첫 run에서 시작하는 필드(누름틀 등)
   뒤에 머리말·꼬리말 컨트롤을 넣던 것을 고친다. 그 자리는 필드 범위 안이라 한/글이 저장하면서 머리말·꼬리말을
   버렸다. 이제 필드가 시작하는 컨트롤 앞에 넣는다. 머리말·꼬리말 글을 고치며 `hp:ctrl` 사본을 새로 만들 때도 같다.
