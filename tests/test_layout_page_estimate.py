@@ -24,6 +24,9 @@ HANCOM_PAGES = {
     "pages_text_12pt_160": 5,             # 12 pt text, line spacing 160%
     "pages_spacing_20_20": 3,             # spacing before and after paragraphs
     "pages_boundary_widow_on": 2,         # widow/orphan control at the page end
+    "pages_line_ends_at_page_foot": 2,    # a line ending right at the body's foot goes on
+    "pages_empty_line_ends_at_page_foot": 2,  # an empty one too
+    "pages_line_ends_200_above_page_foot": 2,  # one ending 200 above it stays
     "pages_keep_keep_with_next": 3,       # keep with next
     "pages_columns_2_break": 4,           # two columns and a column break
     "pages_footnotes_6": 3,               # footnotes at the page foot

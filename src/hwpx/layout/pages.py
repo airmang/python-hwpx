@@ -13,7 +13,8 @@
   reckoned from that size.
 * Height: a line advances by the paragraph's line spacing (percent, fixed, between lines, at
   least), paragraphs add their spacing before and after, and a line stays on the page while its
-  bottom is within the body height. Page and column breaks, page break before, keep lines
+  bottom is above the body's foot (one ending right at it goes on to the next page). Page and
+  column breaks, page break before, keep lines
   together, keep with next and widow/orphan control; columns of equal width.
 * Objects: a table or picture set as a character is one line as tall as it. Among text, an object
   set as a character takes its width on its line like a character, and the line is at least as
@@ -1403,8 +1404,8 @@ class _Paginator:
         return count
 
     def _fits(self, start: int, count: int, para: _Para, first: int = 0) -> int:
-        """How many of *count* lines (from line *first*) from *start* stay in the frame, each above the
-        note area including the notes anchored in it. A line whose notes fit only in part (at least
+        """How many of *count* lines (from line *first*) from *start* stay in the frame, each ending above
+        the note area including the notes anchored in it. A line whose notes fit only in part (at least
         their first line) still stays, and ends the frame."""
 
         fitting, height, many = 0, self.page_notes[0], self.page_notes[1]
@@ -1412,10 +1413,10 @@ class _Paginator:
         while fitting < count:
             note_height, notes, head = para.notes.get(first + fitting, (0, 0, 0))
             bottom = start + para.span(first, fitting) + para.height(first + fitting)
-            if bottom <= self.body - self.notes.area(height + note_height, many + notes):
+            if bottom < self.body - self.notes.area(height + note_height, many + notes):
                 height, many, fitting = height + note_height, many + notes, fitting + 1
                 continue
-            if notes and bottom <= self.body - self.notes.area(height + head, many + notes):
+            if notes and bottom < self.body - self.notes.area(height + head, many + notes):
                 room = self.body - bottom - self.notes.area(height, many + notes) + note_height
                 self.carry = max(note_height - room, 0)
                 fitting += 1
