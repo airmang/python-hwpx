@@ -27,6 +27,8 @@ HANCOM_PAGES = {
     "pages_line_ends_at_page_foot": 2,    # a line ending right at the body's foot goes on
     "pages_empty_line_ends_at_page_foot": 2,  # an empty one too
     "pages_line_ends_200_above_page_foot": 2,  # one ending 200 above it stays
+    "pages_line_ends_1_above_page_foot": 2,    # and one ending 1 above it
+    "pages_line_ends_100_above_page_foot": 2,  # and 100 above it: no room is kept below lines
     "pages_keep_keep_with_next": 3,       # keep with next
     "pages_columns_2_break": 4,           # two columns and a column break
     "pages_footnotes_6": 3,               # footnotes at the page foot
