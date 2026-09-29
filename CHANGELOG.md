@@ -6,6 +6,10 @@
 
 ### 추가
 
+- `doc.shapes.remove_unused_charts()`를 더한다. 어떤 차트도 가리키지 않는 차트 파트(`Chart/chartN.xml`)를
+  모두 지우고 지운 파트 이름을 돌려준다. 본문에서 차트를 지우면(`section.clear_body()`, 문단 삭제) 그 파트가 차트의
+  항목 이름·값과 함께 파일에 남았다. 한/글은 문서를 저장할 때 이런 파트를 지운다. `docs/known-traps.md`와
+  `clear_body()` 설명에도 적는다.
 - `export_text()`·`export_html()`·`export_markdown()`에 `notes`를 더한다. `True`면 각주·미주를 본문·칸·글상자
   안의 제자리에 한/글 텍스트 저장처럼 쓴다. 참조 번호(`1)`) 뒤에 각주의 문단마다 그 번호로 시작하는 글과
   줄바꿈이 온다. 번호는 각주·미주를 따로 문서 순서로 매기고, 구역의 번호 모양(`autoNumFormat`)과 번호

@@ -320,6 +320,19 @@ class ShapesNamespace(_Namespace):
             char_pr_id_ref=char_pr_id_ref,
         )
 
+    def remove_unused_charts(self) -> tuple[str, ...]:
+        """어떤 차트도 가리키지 않는 차트 파트(``Chart/...``)를 모두 지우고, 지운 파트 이름을 돌려준다.
+
+        한/글은 문서를 저장할 때 이런 파트를 지운다. 본문에서 차트를 지우면
+        (``section.clear_body()``, 문단 삭제) 그 차트의 파트가 차트 자료와 함께
+        패키지에 남는다. 문서 어디든(구역, 바탕쪽, header, 기록) ``hp:chart``가 그
+        파일을 가리키면 지우지 않는다. 한/글 문서의 차트에 딸린 OLE 대체본
+        (``BinData``)은 :meth:`doc.media.remove_unused_images`가 지운다."""
+
+        from .. import shapes as _shapes
+
+        return _shapes.remove_unused_charts(self._doc)
+
     def add_drop_cap(
         self,
         character: str,
