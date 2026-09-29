@@ -29,34 +29,33 @@ def _cell_with_a_blank_line_between_text_and_a_nested_table():
     return doc, table, cell
 
 
-def test_set_cell_text_writes_the_first_text_and_drops_paragraphs_it_emptied() -> None:
+def test_set_cell_text_writes_the_first_text_and_drops_the_other_blank_paragraphs() -> None:
     _, table, cell = _cell_with_a_blank_line_between_text_and_a_nested_table()
     before = cell.paragraphs
-    kept_ids = [before[0].element.get("id"), before[2].element.get("id"), before[3].element.get("id")]
-    cache = before[2].element.makeelement(f"{HP}linesegarray", {})
-    before[2].element.append(cache)
+    kept_ids = [before[0].element.get("id"), before[3].element.get("id")]
+    cache = before[3].element.makeelement(f"{HP}linesegarray", {})
+    before[3].element.append(cache)
 
     table.set_cell_text(0, 0, "새 글")
 
-    # "둘째" was emptied and held nothing else, so its paragraph goes; the blank
-    # line that was already empty and the paragraph holding the nested table stay.
+    # "둘째" was emptied and the blank line was empty already: both go, as Hancom
+    # makes the value the cell's one paragraph. The paragraph holding the nested
+    # table stays.
     assert [(p.text, len(p.tables)) for p in cell.paragraphs] == [
         ("새 글", 0),
-        ("", 0),
         ("", 1),
     ]
     assert [p.element.get("id") for p in cell.paragraphs] == kept_ids
-    assert cell.paragraphs[1].element.get("paraPrIDRef") == "5"
-    assert cell.paragraphs[1].runs[0].char_pr_id_ref == "6"
     assert cell.paragraphs[1].element.find(f"{HP}linesegarray") is None
-    # Every other hp:t in the cell is emptied, nested table cells included.
-    assert cell.tables[0].cell(0, 0).text == ""
+    # The nested table keeps its text: only the cell's own paragraphs take the value.
+    assert cell.tables[0].cell(0, 0).text == "안쪽"
     assert len(cell.tables[0].cell(0, 0).paragraphs) == 1
 
 
 def test_set_cell_text_without_preserve_format_resets_only_the_written_run() -> None:
     _, table, cell = _cell_with_a_blank_line_between_text_and_a_nested_table()
     cell.paragraphs[0].runs[0].element.set("charPrIDRef", "7")
+    cell.paragraphs[3].runs[0].element.set("charPrIDRef", "6")
 
     table.set_cell_text(0, 0, "새 글", preserve_format=False)
 

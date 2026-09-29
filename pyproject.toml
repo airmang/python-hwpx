@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx"
-version = "6.5.0"
+version = "6.6.0"
 description = "한글 없이 HWPX 문서를 열고, 편집하고, 생성하고, 검증하는 Python 문서 라이브러리"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "Apache-2.0"
@@ -295,6 +295,9 @@ files = [
     # Table width/height distribution (distribute cell width row by row) moved out
     # of table.py -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/table_sizes.py",
+    # A paragraph shape's heading (outline levels 8 to 10 in Hancom's hp:switch form),
+    # written and read in one place -- born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/paragraph_heading.py",
     # Floating-shape reference frames (set_position) and shape-text
     # vertical alignment -- objects.py's overflow module (1600-line cap),
     # born in the gate, per the WP-A rule.
@@ -501,6 +504,9 @@ include = [
     # Table width/height distribution (distribute cell width row by row) moved out
     # of table.py -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/table_sizes.py",
+    # A paragraph shape's heading (outline levels 8 to 10 in Hancom's hp:switch form),
+    # written and read in one place -- born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/paragraph_heading.py",
     # Floating-shape reference frames (set_position) and shape-text
     # vertical alignment -- objects.py's overflow module (1600-line cap),
     # born in the gate, per the WP-A rule.

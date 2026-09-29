@@ -1,5 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Helpers for resolving HWPX container and manifest relationships."""
+"""Helpers for resolving HWPX container and manifest relationships.
+
+This includes the binary item rules -- which manifest items hold binary data,
+and how content refers to them -- that ``doc.media``, ``doc.validate()``,
+``hwpx.tools.id_integrity`` and ``hwpx.tools.package_validator`` share, so they
+cannot disagree about whether an item is a binary item, whether it links a
+file outside the package or whether the document still uses it.
+"""
 
 from __future__ import annotations
 
@@ -13,14 +20,24 @@ CONTAINER_NAMESPACES = (
 MAIN_ROOTFILE_MEDIA_TYPE = "application/hwpml-package+xml"
 OPF_NS = {"opf": "http://www.idpf.org/2007/opf/"}
 
+#: Attributes that name a binary item. Pictures, image fills and bullets, OLE
+#: objects and embedded fonts use ``binaryItemIDRef``; a video names its file
+#: and poster image with ``fileIDRef``/``imageIDRef``; a slide show sound
+#: uses ``soundIDRef``.
+BINARY_ITEM_REF_ATTRS = ("binaryItemIDRef", "imageIDRef", "fileIDRef", "soundIDRef")
+
 __all__ = [
+    "BINARY_ITEM_REF_ATTRS",
     "CONTAINER_NAMESPACES",
     "MAIN_ROOTFILE_MEDIA_TYPE",
     "OPF_NS",
     "ManifestItemRef",
     "ManifestRelationships",
     "RootFileRef",
+    "bin_ref_aliases",
+    "is_binary_manifest_item",
     "is_header_part_name",
+    "is_linked_file",
     "is_section_part_name",
     "normalize_part_name",
     "parse_container_rootfiles",
@@ -43,6 +60,7 @@ class ManifestItemRef:
     resolved_path: str
     media_type: str | None = None
     properties: str | None = None
+    is_embeded: str | None = None
 
 
 @dataclass(frozen=True)
@@ -160,6 +178,53 @@ def is_header_part_name(path: str) -> bool:
     return name.startswith("header") and name.endswith(".xml")
 
 
+def is_binary_manifest_item(href: str, media_type: str) -> bool:
+    """Whether a manifest item holds binary data.
+
+    Its href is under ``BinData/``, or its media type is ``image/*``.
+    """
+
+    href_path = PurePosixPath(href.strip())
+    return media_type.strip().lower().startswith("image/") or (
+        len(href_path.parts) >= 2 and href_path.parts[0] == "BinData"
+    )
+
+
+def is_linked_file(href: str, is_embeded: str | None) -> bool:
+    """Whether a manifest item links a file outside the package.
+
+    That is an item marked ``isEmbeded="0"`` (OWPML's single-d spelling) whose
+    href lies outside ``BinData/`` -- a linked video, say. Hancom also marks
+    OLE objects ``isEmbeded="0"``, but keeps their file in ``BinData/``, so
+    those are parts of the package.
+    """
+
+    return is_embeded == "0" and not href.startswith("BinData/")
+
+
+def bin_ref_aliases(value: Any) -> set[str]:
+    """The names a binary item reference or identifier *value* stands for.
+
+    The value itself, its file name, its stem and, when it is a number, its
+    integer form: ``"image1"`` matches ``"BinData/image1.png"`` and a header
+    ``binItem`` whose ``BinData`` is ``"image1.png"``.
+    """
+
+    if value is None:
+        return set()
+    raw = str(value).strip()
+    if not raw:
+        return set()
+    path = PurePosixPath(raw)
+    aliases = {raw, path.name, path.stem}
+    try:
+        aliases.add(str(int(raw)))
+    except ValueError:
+        pass
+    aliases.discard("")
+    return aliases
+
+
 def _manifest_matches(item: ManifestItemRef, *candidates: str) -> bool:
     haystack = " ".join(
         part.lower()
@@ -197,6 +262,7 @@ def parse_manifest_relationships(
             resolved_path=resolved_path,
             media_type=item.get("media-type"),
             properties=item.get("properties"),
+            is_embeded=item.get("isEmbeded"),
         )
         items.append(item_ref)
         if item_ref.item_id:

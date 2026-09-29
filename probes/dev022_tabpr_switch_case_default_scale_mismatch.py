@@ -26,19 +26,20 @@ unwrapped ``hh:tabPr`` entries settle which branch is the "real"/rendering
 scale: their direct ``pos`` values (8064, 3216) match ``hp:default``'s
 scale exactly, not ``hp:case``'s halved one.
 
-Our handling: unlike ``ParagraphPropertyVersionSwitch`` (DEV-018, prefers
-``hp:case`` -- either branch is fine since both hold the same value),
-``TabDefinition.tab_stops`` prefers ``hp:default`` -- the opposite choice,
-made because the two branches here are not redundant copies but two
-different numeric scales, and only one of them (default) matches how real,
-unwrapped ``hh:tabPr`` already means "pos". Both branches remain
-independently readable via ``TabDefinition.version_switch``. The dedupe
-comparison in ``ensure_tab_definition`` (``_tab_definition_matches``,
-``_document_primitives.py``) shared the same direct-children-only blind
-spot and is fixed the same way -- confirmed to have caused a real
-duplicate-tabPr bug (matching an existing switch-wrapped definition
-against a compatible new one used to always fail, creating a spurious
-duplicate), not just a read gap.
+Which branch is the position: Hancom 13.60 lays a stop out at ``hp:case``'s
+position (HWPUNIT), reads an unwrapped ``hh:tabItem`` in HWPUNIT too, and
+saves such an item as a switch of that position in ``hp:case`` and twice it
+in ``hp:default`` (``tests/fixtures/hancom_saved/tab_bare_right_saved.hwpx``).
+The unwrapped control document's values match ``hp:default``'s scale because
+an older Hancom wrote the doubled scale there.
+
+Our handling: ``TabDefinition.tab_stops`` reads ``hp:case`` (as DEV-018 does).
+Hancom wraps each stop in its own ``hp:switch``; the read model gathers the
+stops of every switch, and both branches stay readable via
+``TabDefinition.version_switch``. ``ensure_tab_definition`` writes each stop
+the same way and compares ``hp:case`` positions when it dedupes
+(``_tab_definition_matches``, ``_document_primitives.py``), so a compatible
+switch-wrapped definition is reused instead of duplicated.
 
 Run: ``python probes/dev022_tabpr_switch_case_default_scale_mismatch.py``
 """
@@ -92,12 +93,8 @@ def main() -> int:
             root = _header_root(path)
         except (zipfile.BadZipFile, KeyError, StopIteration):
             continue
-        for tab_pr in root.iter(f"{{{HH_NS}}}tabPr"):
-            switch = next(
-                (c for c in tab_pr if etree.QName(c).localname == "switch"), None
-            )
-            if switch is None:
-                continue
+        for switch in (s for tab_pr in root.iter(f"{{{HH_NS}}}tabPr") for s in tab_pr
+                       if etree.QName(s).localname == "switch"):
             case = next((c for c in switch if etree.QName(c).localname == "case"), None)
             default = next((c for c in switch if etree.QName(c).localname == "default"), None)
             if case is None or default is None:
@@ -149,7 +146,7 @@ def main() -> int:
         f"hp:default's scale {default_scale_positions}"
     )
     print(f"confirmed unwrapped real tabItem positions {sorted(overlap_default)} match "
-          "hp:default's scale (not hp:case's) -- settles which branch is the real scale")
+          "hp:default's doubled scale -- an older Hancom wrote that scale unwrapped")
 
     from hwpx.oxml.header import TabDefinitionVersionSwitch, parse_tab_definition
 
@@ -164,12 +161,25 @@ def main() -> int:
         assert definition.tab_stops, "tab_stops must not be empty for a switch-wrapped tabPr"
         switch = definition.version_switch
         assert isinstance(switch, TabDefinitionVersionSwitch)
-        assert switch.default is not None
-        assert [s.pos for s in definition.tab_stops] == [s.pos for s in switch.default.tab_stops]
-    print(f"confirmed our TabDefinition.tab_stops prefers hp:default across "
-          f"{len(switch_wrapped_defs)} real switch-wrapped tabPr entries")
+        assert switch.case is not None
+        assert [s.pos for s in definition.tab_stops] == [s.pos for s in switch.case.tab_stops]
+    print(f"confirmed our TabDefinition.tab_stops reads hp:case (HWPUNIT) across "
+          f"{len(switch_wrapped_defs)} real switch-wrapped tabPr entries, every switch gathered")
 
-    print("PASS: DEV-022 reproduced (vendored evidence, scale mismatch confirmed and handled)")
+    import xml.etree.ElementTree as ET
+
+    from hwpx.oxml.header_part import HwpxOxmlHeader
+
+    header = HwpxOxmlHeader("header.xml", ET.Element(f"{{{HH_NS}}}head", {"version": "1.4", "secCnt": "1"}))
+    tab_id = header.ensure_tab_definition(tab_stops=[{"pos": 42520, "type": "RIGHT", "leader": "DOT"}])
+    authored = next(tp for tp in header.element.iter(f"{{{HH_NS}}}tabPr") if tp.get("id") == tab_id)
+    case_items = authored.findall(f"{{{HP_NS}}}switch/{{{HP_NS}}}case/{{{HH_NS}}}tabItem")
+    default_items = authored.findall(f"{{{HP_NS}}}switch/{{{HP_NS}}}default/{{{HH_NS}}}tabItem")
+    assert [(i.get("pos"), i.get("unit")) for i in case_items] == [("42520", "HWPUNIT")]
+    assert [i.get("pos") for i in default_items] == ["85040"]
+    print("confirmed our authoring writes a stop as Hancom does: hp:case 42520 HWPUNIT, hp:default 85040")
+
+    print("PASS: DEV-022 reproduced (vendored evidence; hp:case read and written as Hancom does)")
     return 0
 
 

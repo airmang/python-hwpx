@@ -278,9 +278,9 @@ class HwpxOxmlNote:
 
     @property
     def inst_id(self) -> str | None:
-        # 정본 속성명은 "instid"(스키마·실한컴). "instId"는 과거 우리 저작이
-        # 방출한 카멜케이스 산출물 호환용 폴백.
-        return self.element.get("instid") or self.element.get("instId")
+        # 각주·미주의 속성명은 "instId"(스키마 NoteType·한/글). "instid"는
+        # 6.6 이하 python-hwpx가 각주·미주에 쓰던 철자라 읽기만 한다.
+        return self.element.get("instId") or self.element.get("instid")
 
     @property
     def text(self) -> str:

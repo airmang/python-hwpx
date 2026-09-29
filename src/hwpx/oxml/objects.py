@@ -24,7 +24,9 @@ from ._document_primitives import (
     _reposition_child_before_any,
     _paragraph_id,
 )
-from .shape_position import _shape_set_position, validate_draw_text_vert_align
+from .shape_position import (
+    _shape_set_position, build_at_original_size, validate_draw_text_vert_align,
+)
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
@@ -138,7 +140,7 @@ _REQUIRED_SHAPE_CHILD_NAMES = ("offset", "orgSz", "curSz", "sz", "pos")
 
 _DEFAULT_LINE_SHAPE_ATTRS: dict[str, str] = {
     "color": "#000000",
-    "width": "283",
+    "width": "33",
     "style": "SOLID",
     "endCap": "FLAT",
     "headStyle": "NORMAL",
@@ -183,6 +185,12 @@ def _build_shape_common_children(
     parent.set("id", the_id)
     parent.set("zOrder", "0")
     parent.set("numberingType", "NONE")
+    # Hancom writes both on every shape and reads a shape without them as these;
+    # a value the caller set (a picture's text_wrap) stays.
+    if parent.get("textWrap") is None:
+        parent.set("textWrap", "SQUARE")
+    if parent.get("textFlow") is None:
+        parent.set("textFlow", "BOTH_SIDES")
     parent.set("lock", "0")
     parent.set("dropcapstyle", "None")
     parent.set("href", "")
@@ -263,7 +271,7 @@ def _build_drawing_object_children(
     parent: ET.Element,
     *,
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     line_style: str = "SOLID",
     fill_color: str | None = None,
 ) -> None:
@@ -280,7 +288,7 @@ def _build_drawing_object_children(
         # accepted by the parser but silently rendered unfilled.
         fb = _append_child(parent, f"{_HC}fillBrush", {})
         _append_child(fb, f"{_HC}winBrush", {
-            "faceColor": face_color, "hatchColor": "#FFFFFF",
+            "faceColor": face_color, "hatchColor": "#FFFFFF", "alpha": "0",
         })
 
     _append_child(parent, f"{_HP}shadow", {
@@ -296,7 +304,7 @@ def _create_line_element(
     end_y: int,
     *,
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     treat_as_char: bool = True,
 ) -> ET.Element:
     """Build a complete ``<hp:line>`` element matching real HWPX output."""
@@ -331,7 +339,7 @@ def _create_rectangle_element(
     *,
     ratio: int = 0,
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     fill_color: str | None = None,
     treat_as_char: bool = True,
 ) -> ET.Element:
@@ -355,7 +363,7 @@ def _create_ellipse_element(
     height: int,
     *,
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     fill_color: str | None = None,
     treat_as_char: bool = True,
 ) -> ET.Element:
@@ -411,7 +419,7 @@ def _create_arc_element(
     corner: str = "TOP_LEFT",
     arc_type: str = "NORMAL",
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     fill_color: str | None = None,
     treat_as_char: bool = True,
 ) -> ET.Element:
@@ -457,7 +465,7 @@ def _create_polygon_element(
     points: Sequence[tuple[int, int]],
     *,
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     fill_color: str | None = None,
     treat_as_char: bool = True,
 ) -> ET.Element:
@@ -538,7 +546,7 @@ class ContainerMember:
         *,
         ratio: int = 0,
         line_color: str = "#000000",
-        line_width: str = "283",
+        line_width: str = "33",
         fill_color: str | None = None,
     ) -> "ContainerMember":
         """A rectangle member — see :func:`_create_rectangle_element`."""
@@ -558,7 +566,7 @@ class ContainerMember:
         height: int,
         *,
         line_color: str = "#000000",
-        line_width: str = "283",
+        line_width: str = "33",
         fill_color: str | None = None,
     ) -> "ContainerMember":
         """An ellipse member — see :func:`_create_ellipse_element`."""
@@ -577,7 +585,7 @@ class ContainerMember:
         points: Sequence[tuple[int, int]],
         *,
         line_color: str = "#000000",
-        line_width: str = "283",
+        line_width: str = "33",
         fill_color: str | None = None,
         closed: bool = True,
     ) -> "ContainerMember":
@@ -664,6 +672,9 @@ def _create_container_element(
         # creation.
         member_el.set("id", "0")
         member_el.set("groupLevel", "1")
+        # Real corpus: every group member is TOP_AND_BOTTOM; the group's own
+        # placement decides how text goes around it.
+        member_el.set("textWrap", "TOP_AND_BOTTOM")
 
         # AbstractShapeObjectType tail (sz/pos/outMargin/shapeComment) is
         # container-level only — every observed member carries none of it.
@@ -823,7 +834,7 @@ def _paragraph_add_line(
     end_y: int = 0,
     *,
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     treat_as_char: bool = True,
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
@@ -850,19 +861,21 @@ def _paragraph_add_rectangle(
     *,
     ratio: int = 0,
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     fill_color: str | None = None,
     treat_as_char: bool = True,
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
+    original_size: tuple[int, int] | None = None,
 ) -> "HwpxOxmlShape":
     """Insert a spec-compliant ``<hp:rect>`` drawing shape.
 
     Dimensions are in HWPUNIT.  *ratio* controls corner roundness
-    (0 = sharp, 50 = semicircle).
+    (0 = sharp, 50 = semicircle).  *original_size* ``(w, h)`` sets ``orgSz``
+    apart from the drawn size (see ``shape_position.build_at_original_size``).
     """
-    el = _create_rectangle_element(
-        width, height,
+    el = build_at_original_size(
+        _create_rectangle_element, width, height, original_size,
         ratio=ratio,
         line_color=line_color,
         line_width=line_width,
@@ -880,18 +893,19 @@ def _paragraph_add_ellipse(
     height: int = 7200,
     *,
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     fill_color: str | None = None,
     treat_as_char: bool = True,
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
+    original_size: tuple[int, int] | None = None,
 ) -> "HwpxOxmlShape":
     """Insert a spec-compliant ``<hp:ellipse>`` drawing shape.
 
-    Dimensions are in HWPUNIT.
+    Dimensions are in HWPUNIT.  *original_size* is as for ``add_rectangle``.
     """
-    el = _create_ellipse_element(
-        width, height,
+    el = build_at_original_size(
+        _create_ellipse_element, width, height, original_size,
         line_color=line_color,
         line_width=line_width,
         fill_color=fill_color,
@@ -907,7 +921,7 @@ def _paragraph_add_polygon(
     points: Sequence[tuple[int, int]],
     *,
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     fill_color: str | None = None,
     treat_as_char: bool = True,
     run_attributes: dict[str, str] | None = None,
@@ -939,7 +953,7 @@ def _paragraph_add_arc(
     corner: str = "TOP_LEFT",
     arc_type: str = "NORMAL",
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     fill_color: str | None = None,
     treat_as_char: bool = True,
     run_attributes: dict[str, str] | None = None,
@@ -1158,7 +1172,7 @@ class DrawText:
 
     @property
     def name(self) -> str:
-        """Hancom's auto-generated shape-tree object name (not a caption)."""
+        """The text box's name. Hancom takes a named text box for a field (``doc.fields.text_boxes``)."""
 
         return self.element.get("name", "")
 
@@ -1554,9 +1568,10 @@ class HwpxOxmlShape:
 
         *margin* overrides ``hp:textMargin`` (``left``/``right``/``top``/
         ``bottom``, HWPUNIT); defaults to the real-corpus majority value
-        (0.1cm/283 all four sides, 90-sample). *name* is Hancom's
-        auto-generated shape-tree object label, not a caption — leave it
-        empty unless reproducing a specific gold file. *para_pr_id_ref* sets
+        (0.1cm/283 all four sides, 90-sample). *name* makes the text box a
+        field: Hancom lists a named text box among its fields and fills it
+        by name (``doc.fields.text_boxes``, ``doc.fields.fill_text_box()``);
+        leave it empty for a plain text box. *para_pr_id_ref* sets
         the text paragraph's ``paraPrIDRef`` (e.g. a centred paraPr), default
         ``0``. *vert_align* sets ``hp:subList/@vertAlign`` (``TOP``/``CENTER``/
         ``BOTTOM``); ``None`` gives a new text ``CENTER`` and leaves existing

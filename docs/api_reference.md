@@ -126,8 +126,8 @@
   - 글자 모양의 `fontRef`가 그 lang 블록에서 가리키는 글꼴 이름입니다. 글자 모양·`fontRef`·속성·글꼴 id 중 하나라도 없으면 `None`입니다.
 - `styles.border_fill_info(border_fill_id_ref) -> BorderFillInfo | None`
   - `hh:borderFill` 하나를 `BorderFillInfo(id, left, right, top, bottom, diagonal, fill)`로 읽습니다. 각 변은 `BorderLine(type, width_mm, color)`이고 직계 자식 `hh:leftBorder`·`hh:rightBorder`·`hh:topBorder`·`hh:bottomBorder`·`hh:diagonal`에서 저장된 값 그대로 읽습니다. 요소가 없으면 `BorderLine("NONE", 0.0, "#000000")`입니다. `fill`은 첫 `hc:winBrush`의 `faceColor`이고, 없거나 `none`이면 `None`입니다. 그라데이션·그림 채우기는 설명하지 않습니다. 너비를 `"<숫자> mm"`로 읽을 수 없으면 `style-border-fill-width-invalid`, 없는 id면 `None`입니다. `border_fill()`은 그대로 `GenericElement`를 돌려줍니다.
-- `styles.replace_font(src_face, dst_face, *, langs=None) -> FontReplaceReport`
-  - 글꼴 하나를 문서 전체에서 다른 글꼴로 바꿉니다. lang 블록마다(`langs`를 주면 그 블록만) *src_face*가 없으면 건너뛰고, *dst_face*가 없으면 블록 끝에 `<hh:font id=… face=… type="TTF" isEmbedded="0"/>`를 더하고, *src_face*를 가리키던 `fontRef`를 *dst_face*로 옮긴 뒤 *src_face*를 지우고 남은 글꼴 id를 순서대로 0..N-1로 다시 매깁니다(`fontCnt`도 맞춤). 다른 `fontRef`는 모두 전과 같은 글꼴 이름을 가리킵니다. 결과 `FontReplaceReport`의 `langs`는 바뀐 블록, `declared`는 *dst_face*를 새로 더한 블록, `repointed`는 옮긴 `fontRef` 속성 수입니다. 빈 이름은 `style-font-face-empty`, 같은 이름 둘은 `style-font-replace-same-face`로 바꾸기 전에 거부합니다.
+- `styles.replace_font(src_face, dst_face, *, langs=None, font_type=None) -> FontReplaceReport`
+  - 글꼴 하나를 문서 전체에서 다른 글꼴로 바꿉니다. lang 블록마다(`langs`를 주면 그 블록만) *src_face*가 없으면 건너뛰고, *dst_face*가 없으면 블록 끝에 *dst_face* 글꼴을 더하고(다른 블록에 *dst_face* 선언이 있으면 그 `hh:font`를 id만 바꿔 복사해 `type`·자식 요소가 같고, 어디에도 없으면 `<hh:font id=… face=… type="TTF" isEmbedded="0"/>`, *font_type*을 주면 더하는 글꼴의 `type`은 그 값), *src_face*를 가리키던 `fontRef`를 *dst_face*로 옮긴 뒤 *src_face*를 지우고 남은 글꼴 id를 순서대로 0..N-1로 다시 매깁니다(`fontCnt`도 맞춤). 다른 `fontRef`는 모두 전과 같은 글꼴 이름을 가리킵니다. 결과 `FontReplaceReport`의 `langs`는 바뀐 블록, `declared`는 *dst_face*를 새로 더한 블록, `repointed`는 옮긴 `fontRef` 속성 수입니다. 빈 이름은 `style-font-face-empty`, 같은 이름 둘은 `style-font-replace-same-face`로 바꾸기 전에 거부합니다.
 
 #### 콘텐츠 생성 헬퍼
 
@@ -665,7 +665,7 @@
 - `load_default_schemas(schema_dir=None)`: 번들로 제공되는 헤더 및 섹션 XSD 파일을 로드하며, 스키마 디렉토리가 없을 때 예외를 발생시킵니다. 두 스키마는 루트 요소만 선언하고 나머지를 `<xs:any processContents="lax"/>`로 받는 느슨한 구조 스키마이므로, 통과했다고 해서 OWPML 전체가 검증된 것도 한컴이 문서를 연다는 뜻도 아닙니다.
 - `_iter_parts(document)`: `HwpxDocument`의 모든 헤더와 섹션에 대해 `(파트 이름, XML 바이트, 헤더 여부)`를 순회하는 내부 헬퍼입니다.
 - `_issues_from_error(part_name, exc)`: `lxml` 유효성 검사 오류를 `ValidationIssue` 인스턴스로 정규화합니다.
-- `validate_document(source, ..., full_schema=True)`: 문서를 열고, 제공되지 않은 경우 기본 스키마를 로드하며, 각 헤더 및 섹션 파트를 적절한 파서로 검증하고 이슈를 집계합니다. `full_schema`(기본 `True`)면 번들된 전체 OWPML 스키마(`owpml-*.xsd`)로도 검사해, 한/글이 여는 문서에도 있는 편차를 뺀 위반을 경고(`OWPML schema: …`)로 더합니다. `ok`는 하드 오류만 봅니다(`docs/owpml-deviations.md`).
+- `validate_document(source, ..., full_schema=True)`: 문서를 열고, 제공되지 않은 경우 기본 스키마를 로드하며, 각 헤더 및 섹션 파트를 적절한 파서로 검증하고 이슈를 집계합니다. `full_schema`(기본 `True`)면 번들된 전체 OWPML 스키마(`owpml-*.xsd`)로도 검사해, 한/글이 여는 문서에도 있는 편차를 뺀 위반을 경고(`OWPML schema: …`)로 더합니다. `ok`는 하드 오류만 봅니다(`docs/owpml-deviations.md`). 파트가 없는 매니페스트 항목(패키지 밖 파일을 잇는 항목은 빼고)과 매니페스트 항목이 없는 `BinData/` 파트도 경고로 알립니다. `HwpxDocument.validate()`는 이 함수와 같은 검사를 합니다. 파트가 없는 매니페스트 항목을 오류로 보는 것은 패키지 검사(`validate_package`)입니다.
 
 ***
 

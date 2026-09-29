@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import io
 from typing import Callable, cast
 from zipfile import ZipFile
@@ -430,6 +432,43 @@ def test_table_set_cell_text_converts_squeeze_to_break() -> None:
     sublist.set("lineWrap", "SQUEEZE")
     table.set_cell_text(0, 0, cell.text)
     assert sublist.get("lineWrap") == "SQUEEZE"
+
+
+def test_a_value_that_squeezes_readably_keeps_the_cell_squeezed() -> None:
+    # Hancom keeps a SQUEEZE cell on one line and narrows the spacing; up to 1.1
+    # times the line width the text still reads. 10 pt: a Hangul syllable is 972
+    # wide and the new cell's line 41,500.
+    document = HwpxDocument.new()
+    cell = document.add_table(1, 1).cell(0, 0)
+    sublist = cell.element.find(f"{HP}subList")
+    assert sublist is not None
+    sublist.set("lineWrap", "SQUEEZE")
+
+    cell.text = "가" * 44  # 42,768: 1.03 times the line
+    assert sublist.get("lineWrap") == "SQUEEZE"
+
+    cell.text = "가" * 46  # 44,712: 1.08 times
+    assert sublist.get("lineWrap") == "SQUEEZE"
+
+    cell.text = "가" * 48  # 46,656: 1.12 times
+    assert sublist.get("lineWrap") == "BREAK"
+
+
+def test_hancom_keeps_a_squeeze_cell_on_one_line_when_it_fills_it() -> None:
+    # Hancom filled a SQUEEZE cell field with 64 syllables, 1.5 times the cell's
+    # 41,500 line: the cell stays SQUEEZE and the value sits on one line.
+    # python-hwpx keeps SQUEEZE only up to 1.1 times, where the text still reads.
+    path = Path(__file__).parent / "fixtures" / "hancom_saved" / "table_cell_squeeze_filled.hwpx"
+    document = HwpxDocument.open(path.read_bytes())
+    cell = document.tables.all[0].cell(0, 0)
+    sublist = cell.element.find(f"{HP}subList")
+    assert sublist is not None and sublist.get("lineWrap") == "SQUEEZE"
+    [paragraph] = cell.paragraphs
+    assert len(paragraph.element.findall(f"{HP}linesegarray/{HP}lineseg")) == 1
+    assert cell.text == "가" * 64
+
+    cell.text = "가" * 65
+    assert sublist.get("lineWrap") == "BREAK"
 
 
 def test_save_removes_stale_layout_cache_after_low_level_text_edit() -> None:
@@ -1290,11 +1329,15 @@ def test_header_ensure_tab_definition_creates_and_dedupes() -> None:
     assert tabpr.get("id") == tab_id
     assert tabpr.get("autoTabLeft") == "0"  # 실코퍼스 관행: "0"/"1"(true/false 아님)
     assert tabpr.get("autoTabRight") == "0"
-    items = tabpr.findall(f"{HH}tabItem")
+    # As Hancom writes a tab stop (DEV-022): hp:case holds the HWPUNIT position, hp:default twice it.
+    assert tabpr.findall(f"{HH}tabItem") == []
+    items = tabpr.findall(f"{HP}switch/{HP}case/{HH}tabItem")
     assert len(items) == 1
     assert items[0].get("pos") == "3543"
     assert items[0].get("type") == "LEFT"
     assert items[0].get("leader") == "NONE"
+    assert items[0].get("unit") == "HWPUNIT"
+    assert [item.get("pos") for item in tabpr.findall(f"{HP}switch/{HP}default/{HH}tabItem")] == ["7086"]
 
     # 동일 스펙 재호출은 새 항목을 안 만들고 같은 id를 재사용한다(ensure_style 선례).
     reused_id = header.ensure_tab_definition(
@@ -1337,9 +1380,9 @@ def test_header_ensure_tab_definition_auto_flags_are_part_of_the_dedupe_key() ->
 
 
 def test_header_ensure_tab_definition_dedupes_against_a_switch_wrapped_existing_entry() -> None:
-    """DEV-022: 실코퍼스 449/449 hp:switch로 감싼 hh:tabPr은 직속 hh:tabItem이
-    없다 — 그 경우 dedupe 비교가 hp:default 분기를 보지 않으면 동등한
-    스펙을 "불일치"로 오판해 중복 tabPr을 만든다(결함-부활으로 확인됨)."""
+    """DEV-022: 한/글이 저장한 hh:tabPr은 탭마다 hp:switch로 감싸 직속 hh:tabItem이
+    없다 — dedupe 비교는 hp:case의 HWPUNIT 위치로 한다. 그러지 않으면 동등한
+    스펙을 "불일치"로 오판해 중복 tabPr을 만든다."""
 
     head_element = ET.Element(f"{HH}head", {"version": "1.4", "secCnt": "1"})
     header = HwpxOxmlHeader("header.xml", head_element)
@@ -1358,14 +1401,15 @@ def test_header_ensure_tab_definition_dedupes_against_a_switch_wrapped_existing_
     default = ET.SubElement(switch, f"{HP}default")
     ET.SubElement(default, f"{HH}tabItem", {"pos": "8064", "type": "LEFT", "leader": "NONE"})
 
-    # hp:default's value (8064) is the real-corpus-verified standard scale --
-    # matching it should reuse id="0", not create a duplicate.
+    # hp:case holds the position Hancom lays the stop out at (4032 HWPUNIT):
+    # the same stop reuses id="0"; the doubled hp:default value is another stop.
     matched_id = header.ensure_tab_definition(
-        tab_stops=[{"pos": 8064, "type": "LEFT", "leader": "NONE"}],
+        tab_stops=[{"pos": 4032, "type": "LEFT", "leader": "NONE"}],
     )
 
     assert matched_id == "0"
     assert len(tabprops.findall(f"{HH}tabPr")) == 1
+    assert header.ensure_tab_definition(tab_stops=[{"pos": 8064, "type": "LEFT", "leader": "NONE"}]) != "0"
 
 
 def test_header_ensure_tab_definition_rejects_missing_pos() -> None:

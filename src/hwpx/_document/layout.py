@@ -17,8 +17,10 @@ from ..objects.results import (
 )
 from ..oxml._document_primitives import NEW_NUM_KINDS
 from ..oxml.namespaces import HH, HP
+from ..oxml.numbering_kinds import ensure_numbering_levels
 from ..oxml.objects import HwpxOxmlInlineObject
 from ..oxml.section_format import _PAGE_LANDSCAPE, _PAGE_PORTRAIT, _page_orientation_value
+from ..oxml.table_sizes import cell_margins_of
 from ._units import _mm_to_hwp_units, _pt_to_hwp_units
 
 if TYPE_CHECKING:
@@ -448,6 +450,46 @@ def set_paragraph_format(
     )
 
 
+#: Heading types Hancom counts: paragraphs that share a numbering definition number on.
+_COUNTED_HEADING_TYPES = {"number": "NUMBER", "numbered": "NUMBER", "numbering": "NUMBER", "outline": "OUTLINE"}
+
+
+def _previous_numbering_id(doc: "HwpxDocument", heading_type: str, before: int) -> str | None:
+    """The numbering definition of the last *heading_type* paragraph before paragraph *before*."""
+
+    header = doc._root.headers[0]
+    para_prs = {para_pr.get("id"): para_pr for para_pr in header.element.iter(f"{_HH}paraPr")}
+    for paragraph in reversed(doc.paragraphs[:before]):
+        para_pr = para_prs.get(str(paragraph.para_pr_id_ref))
+        heading = None if para_pr is None else para_pr.find(f"{_HH}heading")
+        if heading is not None and heading.get("type") == heading_type:
+            return heading.get("idRef")
+    return None
+
+
+def _list_para_pr_id(
+    doc: "HwpxDocument",
+    *,
+    kind: str,
+    level: int,
+    level_specs: list[dict[str, str]],
+    continue_before: int | None,
+) -> str:
+    """The list paragraph shape of *level*: in the list before paragraph *continue_before*
+    when there is one to continue, else in a new numbering definition."""
+
+    heading_type = _COUNTED_HEADING_TYPES.get(kind.lower())
+    if continue_before is not None and heading_type is not None:
+        numbering_id = _previous_numbering_id(doc, heading_type, continue_before)
+        if numbering_id is not None:
+            header = doc._root.headers[0]
+            ensure_numbering_levels(header, numbering_id, level)
+            return header._ensure_para_property_heading(
+                heading_type=heading_type, id_ref=numbering_id, level=level - 1
+            )
+    return doc._root.ensure_numbering(kind=kind, levels=level_specs)[level - 1]
+
+
 def set_list_format(
     doc: "HwpxDocument",
     *,
@@ -458,9 +500,18 @@ def set_list_format(
     bullet_char: str | None = None,
     number_format: str | None = None,
     start: int | None = None,
+    continue_list: bool = False,
 ) -> ListFormatResult:
     """Apply bullet or numbered-list paragraph properties to paragraphs."""
 
+    if continue_list and (number_format or start is not None):
+        raise HwpxValueError(
+            "continue_list cannot be combined with number_format or start",
+            code="style-list-continue-conflict",
+            context={"numberFormat": number_format, "start": start},
+            suggestion="A continued list numbers on in the format of the list before it: "
+            "leave out number_format and start, or continue_list to start a new list.",
+        )
     if level < 1:
         raise HwpxValueError(
             "level must be 1 or greater",
@@ -483,8 +534,17 @@ def set_list_format(
     if start is not None:
         level_specs[level - 1]["start"] = str(max(1, int(start)))
 
-    refs = doc._root.ensure_numbering(kind=kind, levels=level_specs)
-    list_para_pr_id = refs[level - 1]
+    targets = _resolve_paragraph_targets(doc,
+        paragraph_index=paragraph_index,
+        paragraph_indexes=paragraph_indexes,
+    )
+    list_para_pr_id = _list_para_pr_id(
+        doc,
+        kind=kind,
+        level=level,
+        level_specs=level_specs,
+        continue_before=min(index for index, _ in targets) if continue_list else None,
+    )
     header = doc._root.headers[0]
     list_para_pr = header.element.find(f".//{_HH}paraPr[@id='{list_para_pr_id}']")
     heading_element = list_para_pr.find(f"{_HH}heading") if list_para_pr is not None else None
@@ -499,10 +559,6 @@ def set_list_format(
         "idRef": heading_element.get("idRef", "0"),
         "level": heading_element.get("level", str(level - 1)),
     }
-    targets = _resolve_paragraph_targets(doc,
-        paragraph_index=paragraph_index,
-        paragraph_indexes=paragraph_indexes,
-    )
 
     formatted: list[int] = []
     first_para_pr_id: str | None = None
@@ -1125,8 +1181,8 @@ def _table_min_height(doc: "HwpxDocument", table: Any) -> int:
                 continue
             run = cell.find(f".//{HP}run")
             line = _char_height(doc, run.get("charPrIDRef") if run is not None else None)
-            margin = cell.find(f"{HP}cellMargin")
-            padding = _int_attr(margin, "top") + _int_attr(margin, "bottom")
+            margins = cell_margins_of(cell, table)
+            padding = margins.top + margins.bottom if margins is not None else 0
             tallest = max(tallest, _int_attr(cell.find(f"{HP}cellSz"), "height"), line + padding)
         total += tallest
     return total

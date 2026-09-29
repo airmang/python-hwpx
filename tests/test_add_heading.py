@@ -88,9 +88,11 @@ def test_the_5_x_halves_really_were_separate() -> None:
     assert _heading_of(document, only_level).type == "OUTLINE"
     assert str(only_level.style_id_ref) == "0", "스타일은 여전히 바탕글이다"
 
-    # 절반 B: 스타일만. 문단은 자기 개요 수준을 선언하지 않는다.
+    # 절반 B: 스타일만. 문단은 자기 개요 수준을 선언하지 않는다. 5.x 의
+    # ``style=`` 이 이랬고, 숫자 id 를 쓰는 ``style_id_ref`` 는 지금도 이렇다
+    # (``style=`` 은 이제 스타일의 문단 모양까지 쓴다 — test_style_resolution).
     document = HwpxDocument.new()
-    only_style = document.add_paragraph("스타일만", style="개요 1")
+    only_style = document.add_paragraph("스타일만", style_id_ref=2)
     assert str(only_style.style_id_ref) == "2"
     assert _heading_of(document, only_style).type == "NONE"
 
@@ -260,6 +262,70 @@ def test_add_heading_returns_a_model_paragraph() -> None:
 
 
 # --------------------------------------------------------------------------
+# 게이트 ⑥-1 개요 8~10 수준은 한/글처럼 hp:switch 안에 쓴다
+
+HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
+HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+
+
+def _para_pr_element(document: HwpxDocument, para_pr_id) -> object:
+    return next(
+        element
+        for element in document.oxml.headers[0].element.iter(f"{HH}paraPr")
+        if element.get("id") == str(para_pr_id)
+    )
+
+
+def _switched_headings(para_pr) -> tuple[list, list]:
+    return (
+        para_pr.findall(f"{HP}switch/{HP}case/{HH}heading"),
+        para_pr.findall(f"{HP}switch/{HP}default/{HH}heading"),
+    )
+
+
+@pytest.mark.parametrize("level", [8, 9, 10])
+def test_hancom_writes_outline_styles_8_to_10_in_a_switch(level: int) -> None:
+    # A new document's outline styles, as Hancom wrote them: the heading in the
+    # hp:case of the 2016 paragraph namespace, NONE in the hp:default.
+    document = HwpxDocument.new()
+    style = document.styles.resolve(f"개요 {level}")
+    para_pr = _para_pr_element(document, style.para_pr_id_ref)
+
+    [case], [default] = _switched_headings(para_pr)
+
+    assert para_pr.find(f"{HH}heading") is None
+    assert (case.get("type"), case.get("level"), default.get("type")) == ("OUTLINE", str(level - 1), "NONE")
+
+
+@pytest.mark.parametrize("level", [8, 9, 10])
+def test_an_outline_heading_of_level_8_to_10_is_written_as_hancom_writes_it(level: int) -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_heading("제목", level=level)
+    para_pr = _para_pr_element(document, paragraph.para_pr_id_ref)
+
+    [case], [default] = _switched_headings(para_pr)
+
+    assert para_pr.find(f"{HH}heading") is None
+    assert (case.get("type"), case.get("level"), default.get("type")) == ("OUTLINE", str(level - 1), "NONE")
+    assert all(len(branch) for branch in para_pr.iter(f"{HP}case")), "no empty hp:case is left"
+    heading = _heading_of(document, paragraph)
+    assert (heading.type, str(heading.level)) == ("OUTLINE", str(level - 1))
+
+
+def test_a_lower_outline_level_drops_the_switch() -> None:
+    document = HwpxDocument.new()
+    document.add_heading("제목", level=8)
+    index = len(document.paragraphs) - 1
+
+    document.styles.apply_paragraph_format(paragraph_index=index, outline_level=3)
+
+    para_pr = _para_pr_element(document, document.paragraphs[index].para_pr_id_ref)
+    assert _switched_headings(para_pr) == ([], [])
+    heading = para_pr.find(f"{HH}heading")
+    assert (heading.get("type"), heading.get("level")) == ("OUTLINE", "2")
+
+
+# --------------------------------------------------------------------------
 # 게이트 ⑦ 3줄 데모 — 오라클 없이 시각 주장을 하지 않는다
 
 
@@ -273,17 +339,17 @@ def test_the_three_line_demo_runs_and_its_render_claim_stays_unverified(tmp_path
 
     document = HwpxDocument.new()
     document.add_heading("2026 학년도 운영계획", level=1)
-    document.add_paragraph("가. 추진 배경", style="개요 2")
+    document.add_paragraph("추진 배경", style="개요 2")
     target = tmp_path / "plan.hwpx"
     document.save_to_path(target)
 
     with HwpxDocument.open(target) as reopened:
-        names = [
-            reopened.styles[str(p.style_id_ref)].name
-            for p in reopened.paragraphs
-            if p.text.strip()
-        ]
+        written = [p for p in reopened.paragraphs if p.text.strip()]
+        names = [reopened.styles[str(p.style_id_ref)].name for p in written]
         assert names == ["개요 1", "개요 2"]
+        # 두 번째 문단은 개요 2 수준으로 번호가 붙는다(앞 제목의 개요 1 수준을 물려받지 않는다).
+        heading = _heading_of(reopened, written[1])
+        assert (heading.type, str(heading.level)) == ("OUTLINE", "1")
 
     render_verdict = "unverified"  # 오라클 미가용 — 이 스위트는 한컴을 부르지 않는다
     assert render_verdict == "unverified"

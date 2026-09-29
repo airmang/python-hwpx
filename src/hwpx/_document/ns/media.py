@@ -53,25 +53,45 @@ class MediaNamespace(_Namespace):
         매니페스트에만 있는 이진 항목(href가 ``BinData/`` 아래이거나
         media-type이 ``image/*``)이 매니페스트 순서로 뒤따른다. 한컴이
         저장한 파일은 보통 ``binDataList``가 없어 뒤쪽만 나온다.
-        ``isEmbeded="0"``으로 바깥 파일을 잇는 항목은 넣지 않는다. 파트가
-        없는 내장 항목은 ``size=0``으로 나온다."""
+        ``isEmbeded="0"``이고 href가 ``BinData/`` 밖이라 바깥 파일을 잇는
+        항목은 넣지 않는다. 한/글은 OLE에도 ``isEmbeded="0"``을 쓰지만 그
+        파일은 ``BinData/``에 두므로 OLE 항목은 넣는다. 파트가 없는 내장
+        항목은 ``size=0``으로 나온다."""
 
         from .. import media as _media
 
         return _media.list_images(self._doc)
 
-    def remove_image(self, item_id: "str | BinaryItem") -> bool:
+    def remove_image(self, item_id: "str | BinaryItem", *, force: bool = False) -> bool:
         """이진 항목을 제거한다. 없으면 ``False``.
 
         매니페스트 id(``"image1"``), 파트 경로(``"BinData/image1.png"``),
         ``images``가 돌려준 ``BinaryItem`` 가운데 무엇이든 받는다.
         매니페스트 항목·파트·header의 ``binItem``(있으면)을 함께 지운다.
-        본문이 아직 그 항목을 참조하는지는 보지 않는다 — 참조 여부는
-        ``picture_references()``로 확인한다."""
+        구역·header처럼 이진 항목이 아닌 매니페스트 항목은 지우지 않고
+        ``False``를 돌려준다.
+
+        문서가 아직 그 항목을 가리키면(그림, header의 채우기 그림·그림
+        글머리표, 바탕쪽, 동영상 파일·포스터, OLE, 내장 글꼴) 아무것도
+        바꾸지 않고 ``HwpxValueError``(``media-item-in-use``)를 낸다.
+        ``context["references"]``가 가리키는 곳이다. ``force=True``면
+        그래도 지우고 그 참조는 끊긴 채 남는다."""
 
         from .. import media as _media
 
-        return _media.remove_image(self._doc, item_id=item_id)
+        return _media.remove_image(self._doc, item_id=item_id, force=force)
+
+    def remove_unused_images(self) -> "tuple[BinaryItem, ...]":
+        """문서가 어디서도 가리키지 않는 이진 항목을 모두 지우고, 지운 항목을 돌려준다.
+
+        한/글은 문서를 저장할 때 쓰지 않는 이진 항목을 지운다. 본문에서 그림을 지우면
+        (``section.clear_body()``, 문단 삭제) 그 그림의 이진 항목은 패키지에 남는다.
+        :meth:`remove_image`가 확인하는 참조(그림, 채우기 그림·그림 글머리표, 바탕쪽,
+        동영상, OLE, 내장 글꼴)가 하나라도 있으면 지우지 않는다."""
+
+        from .. import media as _media
+
+        return _media.remove_unused_images(self._doc)
 
     def picture_references(self) -> "tuple[PictureRef, ...]":
         """본문의 그림 개체가 어떤 이진 항목을 가리키는지의 역참조 표."""

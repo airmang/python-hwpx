@@ -11,6 +11,7 @@ from xml.etree import ElementTree as ET
 from ..opc.package import HwpxPackage
 from ..opc.relationships import parse_manifest_relationships
 from ..oxml.section_format import _drawn_page_size
+from ..oxml.table_sizes import cell_margins_of
 from .archive_cli import unpack_hwpx
 from .page_guard import DocumentMetrics, collect_metrics
 
@@ -340,10 +341,13 @@ def _cell_summary(
     cell_index: int,
     cell: ET.Element,
     style_by_id: dict[str, dict[str, Any]],
+    table: ET.Element | None = None,
 ) -> CellSummary:
     addr = cell.find(f"{_HP_TAG}cellAddr")
     span = cell.find(f"{_HP_TAG}cellSpan")
-    margin = cell.find(f"{_HP_TAG}cellMargin")
+    # The cell's effective margins (``cell.margins``): the table's
+    # hp:inMargin unless the cell's hasMargin is on.
+    margins = cell_margins_of(cell, table)
     sublist = cell.find(f"{_HP_TAG}subList")
     runs = tuple(_run_summary(run, style_by_id) for run in cell.findall(f".//{_HP_TAG}run"))
     char_refs = tuple(
@@ -356,10 +360,9 @@ def _cell_summary(
         col_span=_int_attr(span, "colSpan", 1) or 1,
         width=_cell_int(cell, "cellSz", "width"),
         height=_cell_int(cell, "cellSz", "height"),
-        margin={
-            name: _int_attr(margin, name, 0) or 0
-            for name in ("left", "right", "top", "bottom")
-        },
+        margin=margins.to_dict() if margins is not None else dict.fromkeys(
+            ("left", "right", "top", "bottom"), 0
+        ),
         vert_align=sublist.get("vertAlign") if sublist is not None else None,
         char_pr_id_refs=char_refs,
         runs=runs,
@@ -398,7 +401,7 @@ def _extract_tables(
         cells: list[CellSummary] = []
         for row_index, row in enumerate(table.findall(f"{_HP_TAG}tr")):
             for cell_index, cell in enumerate(row.findall(f"{_HP_TAG}tc")):
-                cells.append(_cell_summary(row_index, cell_index, cell, style_by_id))
+                cells.append(_cell_summary(row_index, cell_index, cell, style_by_id, table))
         column_count = _int_attr(table, "colCnt", 0) or 0
         if column_count <= 0 and cells:
             column_count = max(cell.col + max(cell.col_span, 1) for cell in cells)

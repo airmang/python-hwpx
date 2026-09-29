@@ -27,7 +27,7 @@ _HWP_UNITS_PER_PT = 100
 
 - **용지·여백**: 섹션 정의의 `<hp:sz width height>`, 여백 값. `src/hwpx/_document/layout.py`가 mm 입력을 `_mm_to_hwp_units()`로 변환해 채웁니다.
 - **표 셀 너비/높이**: `<hp:cellSz>`, `<hp:sz>`. 기본 셀 너비 상수도 HWPUNIT입니다 — `src/hwpx/oxml/_document_primitives.py`의 `_DEFAULT_CELL_WIDTH = 7200`(= 1 inch).
-- **글자 크기**: 문자 속성 `<hh:charPr height>`. 글자 높이도 같은 스케일이라 **100 HWPUNIT = 1 pt**입니다. 실제 한컴이 저장한 문서를 보면 10 pt 글자는 `height="1000"`, 9 pt는 `height="900"`, 11 pt는 `height="1100"`으로 나옵니다. `src/hwpx/form_fit/measure.py` 헤더가 지적하듯 "글자 높이와 셀 너비가 같은 단위를 공유"하기 때문에, 글자의 진행폭(advance)을 글자 높이의 분수(em)로 바로 계산할 수 있고 별도의 DPI/포인트 변환이 필요 없습니다.
+- **글자 크기**: 문자 속성 `<hh:charPr height>`. 글자 높이도 같은 스케일이라 **100 HWPUNIT = 1 pt**입니다. 실제 한컴이 저장한 문서를 보면 10 pt 글자는 `height="1000"`, 9 pt는 `height="900"`, 11 pt는 `height="1100"`으로 나옵니다. `src/hwpx/form_fit/measure.py` 헤더가 지적하듯 "글자 높이와 셀 너비가 같은 단위를 공유"하기 때문에, 글자의 진행폭(advance)을 글자 높이의 분수(em)로 바로 계산할 수 있고 별도의 DPI/포인트 변환이 필요 없습니다. 다만 한/글은 글자 폭을 1/1800인치(4 HWPUNIT) 단위로 반올림해 배치하므로, FormFit도 그 단위로 셉니다(`measure.py`의 `_LAYOUT_UNIT`).
 - **개체 위치·크기**: 그림·도형의 `<hp:pos>`, `<hp:sz>` 좌표. `src/hwpx/document.py`, `src/hwpx/_document/shapes.py`의 시그니처가 `height: int = 7200`처럼 HWPUNIT 기본값을 그대로 노출합니다(주석: `Coordinates are in HWPUNIT (7200 per inch)`).
 - **이미지 크기**: `src/hwpx/_document/media.py`가 mm 입력을 `_mm_to_hwp_units()`로 변환하고, 기본값은 `14400`(= 2 inch) 같은 HWPUNIT 상수입니다.
 

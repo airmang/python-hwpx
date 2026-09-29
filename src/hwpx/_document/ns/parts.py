@@ -33,6 +33,7 @@ from ...oxml.header_compat import (
     set_layout_compatibility_flags as _set_layout_compatibility_flags,
     set_license_mark as _set_license_mark,
 )
+from .._resolve import resolve_section
 from ._base import _Namespace
 
 if TYPE_CHECKING:
@@ -40,6 +41,7 @@ if TYPE_CHECKING:
         HwpxOxmlHeader,
         HwpxOxmlHistory,
         HwpxOxmlMasterPage,
+        HwpxOxmlSection,
         HwpxOxmlSettings,
         HwpxOxmlVersion,
     )
@@ -98,6 +100,7 @@ class PartsNamespace(_Namespace):
         page_number: int | None = None,
         page_duplicate: bool = False,
         page_front: bool = False,
+        section: "int | HwpxOxmlSection | None" = None,
     ) -> str:
         """새 바탕쪽 파트를 만들고, 그 id(``"masterpageN"``)를 돌려준다.
 
@@ -116,8 +119,18 @@ class PartsNamespace(_Namespace):
         실측(유일한 실 예시): 절의 `hp:secPr` 자식 시퀀스에서
         `hp:masterPage`는 맨 끝에 오고, `masterPageCnt`가 그 개수와
         일치한다. 실한컴 렌더 검증은 v17 배치 대기(Create(experimental)).
+
+        *section*(절 객체 또는 인덱스)을 주면 만든 바탕쪽을 그 절에 바로
+        연결한다. 그 절에 같은 쪽의 바탕쪽이 이미 있으면 파트를 만들기 전에
+        ``HwpxValueError``(``master-page-pages-taken``)를 내므로, 거부된
+        호출은 문서에 아무것도 남기지 않는다.
         """
 
+        target = (
+            resolve_section(self._doc, section, caller="doc.parts.add_master_page")
+            if section is not None
+            else None
+        )
         return self._doc.oxml.add_master_page(
             text=text,
             paragraphs=list(paragraphs) if paragraphs is not None else None,
@@ -125,7 +138,25 @@ class PartsNamespace(_Namespace):
             page_number=page_number,
             page_duplicate=page_duplicate,
             page_front=page_front,
+            section=target,
         )
+
+    def remove_master_page(self, master_page_id: str) -> None:
+        """어느 절도 참조하지 않는 바탕쪽을 문서에서 지운다.
+
+        매니페스트 항목과 파트를 함께 지운다. 이미 저장된 적이 있어 패키지에
+        파트 파일이 있으면 그 파일도 지운다. 없는 id는
+        ``HwpxLookupError``(``master-page-not-found``), 아직 어떤 절이
+        참조하는 바탕쪽은 ``HwpxValueError``(``master-page-in-use``)로
+        거부한다. 거부되면 아무것도 바뀌지 않는다.
+        """
+
+        from ...oxml.master_page_authoring import remove_master_page as _remove_master_page
+
+        part_name = _remove_master_page(self._doc.oxml, master_page_id)
+        package = self._doc.package
+        if package.has_part(part_name):
+            package.delete(part_name)
 
     @property
     def histories(self) -> list["HwpxOxmlHistory"]:

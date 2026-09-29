@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Sequence, cast
 from ._units import _mm_to_hwp_units
 from ..errors import HwpxStateError, HwpxValueError
 from ..oxml.objects import _closed_points
+from ..oxml.shape_position import validate_original_size
 
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
@@ -152,7 +153,7 @@ def add_line(
     end_y: int = 0,
     *,
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
@@ -251,18 +252,20 @@ def add_rectangle(
     *,
     ratio: int = 0,
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     fill_color: str | None = None,
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
     section_index: int | None = None,
+    original_size: tuple[int, int] | None = None,
 ) -> HwpxOxmlShape:
     """Insert a rectangle drawing shape.
 
     Dimensions are in HWPUNIT.  *ratio* controls corner roundness
     (0 = sharp, 50 = semicircle).
     """
+    validate_original_size(original_size)
     if paragraph is None:
         paragraph = doc.add_paragraph(
             "", section=section, section_index=section_index,
@@ -272,6 +275,7 @@ def add_rectangle(
         width, height, ratio=ratio,
         line_color=line_color, line_width=line_width,
         fill_color=fill_color, treat_as_char=treat_as_char,
+        original_size=original_size,
     )
 
 
@@ -281,17 +285,19 @@ def add_ellipse(
     height: int = 7200,
     *,
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     fill_color: str | None = None,
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
     section_index: int | None = None,
+    original_size: tuple[int, int] | None = None,
 ) -> HwpxOxmlShape:
     """Insert an ellipse drawing shape.
 
     Dimensions are in HWPUNIT.
     """
+    validate_original_size(original_size)
     if paragraph is None:
         paragraph = doc.add_paragraph(
             "", section=section, section_index=section_index,
@@ -301,6 +307,7 @@ def add_ellipse(
         width, height,
         line_color=line_color, line_width=line_width,
         fill_color=fill_color, treat_as_char=treat_as_char,
+        original_size=original_size,
     )
 
 
@@ -312,7 +319,7 @@ def add_arc(
     corner: str = "TOP_LEFT",
     arc_type: str = "NORMAL",
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     fill_color: str | None = None,
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
@@ -345,7 +352,7 @@ def add_polygon(
     points_mm: Sequence[tuple[float, float]],
     *,
     line_color: str = "#000000",
-    line_width: str = "283",
+    line_width: str = "33",
     fill_color: str | None = None,
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,

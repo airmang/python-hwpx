@@ -505,7 +505,7 @@ def test_fill_with_max_lines_shrinks_when_warranted(merged):
         for c in _direct_cells(tbl):
             cb = tbl[c.start:c.end]
             cid = _cell_run_charpr(cb)
-            w = _cell_inner_width(cb)
+            w = _cell_inner_width(tbl, cb)
             h = _charpr_height(header, cid) if cid else None
             if not cid or not w or not h or w < 3000:
                 continue

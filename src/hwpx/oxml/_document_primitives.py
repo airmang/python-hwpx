@@ -32,6 +32,7 @@ register_owpml_namespaces(ET.register_namespace)
 
 _HP_NS = HP_NS
 _HP = HP
+_HWPUNITCHAR_NS = HWPML_COMPAT_ROOT_NAMESPACES["hwpunitchar"]
 _HS_NS = HS_NS
 _HS = HS
 _HH_NS = HH_NS
@@ -197,9 +198,8 @@ def _refresh_copied_paragraph_subtree_ids(paragraph: ET.Element) -> None:
         }:
             node.set("id", _object_id())
 
-        # 스키마·실한컴 산출물의 속성명은 소문자 "instid"다. 과거 이 코드가
-        # 방출한 "instId"(카멜케이스)를 실은 파일도 재발급 대상에 남긴다 —
-        # 속성명 자체는 보존(바이트 보수), 값만 재발급.
+        # 개체(그림·도형 등)의 속성명은 "instid", 각주·미주는 "instId"다
+        # (스키마·한/글). 어느 철자든 값만 재발급하고 속성명은 그대로 둔다.
         for inst_attr in ("instid", "instId"):
             if inst_attr in node.attrib:
                 node.set(inst_attr, _object_id())
@@ -536,12 +536,12 @@ def _is_integer_literal(value: str | None) -> bool:
     return True
 
 
-#: ``hc:imgBrush/@mode`` vocabulary (Core XML schema.xml:813-884). Real corpus
-#: (hwpxlib_corpus, 5 files) observes only ``TOTAL``; the rest are schema-legal
-#: but unattested.
+#: ``hc:imgBrush/@mode`` vocabulary: the 12 values of Core XML schema.xml:813-884 plus four the
+#: schema leaves out and Hancom writes (its fill codes 10-13: LEFT_TOP ... RIGHT_TOP).
 FILL_IMAGE_MODES = frozenset({
-    "TILE", "TILE_HORZ_TOP", "TILE_HORZ_BOTTOM", "TILE_VERT_LEFT", "TILE_VERT_RIGHT",
-    "TOTAL", "CENTER", "CENTER_TOP", "CENTER_BOTTOM", "LEFT_CENTER", "RIGHT_BOTTOM", "ZOOM",
+    "TILE", "TILE_HORZ_TOP", "TILE_HORZ_BOTTOM", "TILE_VERT_LEFT", "TILE_VERT_RIGHT", "TOTAL", "CENTER",
+    "CENTER_TOP", "CENTER_BOTTOM", "LEFT_CENTER", "LEFT_TOP", "LEFT_BOTTOM", "RIGHT_CENTER", "RIGHT_TOP",
+    "RIGHT_BOTTOM", "ZOOM",
 })
 
 #: ``hc:img/@effect`` vocabulary (Core XML schema.xml:602-624).
@@ -1426,21 +1426,15 @@ def _tab_definition_matches(
         return False
     existing = _tab_stop_tuple_from(element)
     if not existing:
-        # 실코퍼스 449/449 hp:switch로 감싼 hh:tabPr은 직속 hh:tabItem이
-        # 없다(DEV-022) -- 그럴 때만 hp:default 분기를 본다(hp:case가
-        # 아니다: hp:case의 pos는 hp:default의 정확히 절반, 실측 확인 —
-        # header.py의 parse_tab_definition과 같은 선택). 이 폴백이 없으면
-        # 이미 존재하는 switch-감싼 tabPr과 동등한 사양이 "불일치"로 오판돼
-        # ensure_tab_definition이 중복 tabPr을 만든다.
-        switch = next(
-            (child for child in element if _element_local_name(child) == "switch"), None
+        # 한/글은 탭마다 hp:switch로 감싸 hp:case에 HWPUNIT 위치를 쓴다(DEV-022,
+        # header.py의 parse_tab_definition과 같은 값). 이 값과 비교해야 같은 정의를
+        # 다시 만들지 않는다.
+        existing = tuple(
+            stop
+            for switch in element if _element_local_name(switch) == "switch"
+            for case in switch if _element_local_name(case) == "case"
+            for stop in _tab_stop_tuple_from(case)
         )
-        if switch is not None:
-            default_branch = next(
-                (child for child in switch if _element_local_name(child) == "default"), None
-            )
-            if default_branch is not None:
-                existing = _tab_stop_tuple_from(default_branch)
     return existing == tab_stops
 
 
@@ -1478,11 +1472,12 @@ def _build_tab_definition_element(
         },
     )
     for pos, tab_type, leader in tab_stops:
-        ET.SubElement(
-            element,
-            f"{_HH}tabItem",
-            {"pos": str(pos), "type": tab_type, "leader": leader},
-        )
+        # As Hancom writes a tab stop (DEV-022): HWPUNIT in hp:case, twice that in hp:default.
+        switch = ET.SubElement(element, f"{_HP}switch")
+        case = ET.SubElement(switch, f"{_HP}case", {f"{_HP}required-namespace": _HWPUNITCHAR_NS})
+        ET.SubElement(case, f"{_HH}tabItem", {"pos": str(pos), "type": tab_type, "leader": leader, "unit": "HWPUNIT"})
+        default = ET.SubElement(switch, f"{_HP}default")
+        ET.SubElement(default, f"{_HH}tabItem", {"pos": str(pos * 2), "type": tab_type, "leader": leader})
     return element
 
 

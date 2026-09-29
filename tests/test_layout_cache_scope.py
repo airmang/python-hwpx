@@ -14,6 +14,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from lxml import etree
 
 from hwpx.document import HwpxDocument
 from hwpx.form_fit import FitPolicy
@@ -153,3 +154,50 @@ def test_charpr_swap_clears_only_containing_paragraph_cache() -> None:
     blank = _section_bytes(FORM_002.read_bytes())
     # ...and everything else still survives the save.
     assert _cache_count(_section_bytes(saved)) >= _cache_count(blank) - 2
+
+
+def _cells(doc: HwpxDocument):
+    for paragraph in doc.sections[0].paragraphs:
+        for table in paragraph.tables:
+            for row in table.rows:
+                yield from row.cells
+
+
+def test_setting_a_paragraph_its_own_text_changes_nothing() -> None:
+    # Rewriting the same text used to drop the paragraph's line caches, and
+    # Hancom then laid the paragraph out again, possibly unlike the caches.
+    doc = HwpxDocument.open(FORM_002)
+    try:
+        paragraph = next(p for c in _cells(doc) for p in c.paragraphs if _has_cache(p) and p.text.strip())
+        before = etree.tostring(paragraph.element)
+        paragraph.text = paragraph.text
+        assert etree.tostring(paragraph.element) == before
+        saved = doc.to_bytes()
+    finally:
+        doc.close()
+    assert _cache_count(_section_bytes(saved)) == _cache_count(_section_bytes(FORM_002.read_bytes()))
+
+
+def test_setting_a_paragraph_its_own_text_keeps_its_runs() -> None:
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("앞 글 ")
+    paragraph.add_run("굵은 글", bold=True)
+    runs = [(run.char_pr_id_ref, run.text) for run in paragraph.runs]
+    paragraph.text = paragraph.text
+    assert [(run.char_pr_id_ref, run.text) for run in paragraph.runs] == runs
+    paragraph.text = "다른 글"
+    assert [run.text for run in paragraph.runs] == ["다른 글"]
+
+
+def test_setting_a_cell_its_own_text_changes_nothing() -> None:
+    doc = HwpxDocument.open(FORM_002)
+    try:
+        cell = next(
+            c for c in _cells(doc)
+            if len(c.paragraphs) > 1 and c.text.strip() and any(_has_cache(p) for p in c.paragraphs)
+        )
+        before = etree.tostring(cell.element)
+        cell.text = cell.text
+        assert etree.tostring(cell.element) == before
+    finally:
+        doc.close()
