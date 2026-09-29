@@ -51,6 +51,10 @@ HANCOM_PAGES = {
     "pages_table_flow_tall_row_table_margins_500": 2,  # the table's inner margins 500: 1290 goes on
     "pages_table_flow_tall_row_bottom_aligned": 2,    # cells aligned to the bottom: 1290 goes on
     "pages_table_flow_tall_row_16pt": 2,              # 16 pt text: 1283 goes on
+    "pages_table_flow_row_ends_100_above_foot": 2,    # a row of two lines ending 100 above the foot: split
+    "pages_table_flow_row_ends_101_above_foot": 2,    # the same ending 101 above it stays
+    "pages_table_flow_moved_row_ends_100_above_foot": 2,  # moved row by row: 100 above the foot goes on
+    "pages_table_flow_moved_row_ends_101_above_foot": 2,  # and 101 above it stays
     "pages_table_flow_anchor_on_next_page": 2,  # the table's anchor line has no room: both go on
     "pages_table_merged_rows_held": 1,    # a cell merged over rows 0-3 holding one over rows 1-2
     "pages_table_merged_rows_staggered": 1,  # merged over rows 0-1 and 1-2: row 1 has no cell of its own
