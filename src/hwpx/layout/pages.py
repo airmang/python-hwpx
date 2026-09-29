@@ -5,7 +5,8 @@
 
 * Lines: a paragraph keeps the lines of its own layout cache (``hp:linesegarray``) when the save
   path would keep that cache -- those are the lines Hancom drew, each as tall as its text and
-  followed by its spacing (``textheight``, ``spacing``). Other paragraphs break like FormFit
+  followed by its spacing (``textheight``, ``spacing``); so do the paragraphs of table cells, and a
+  cache of lines with no height counts as none. Other paragraphs break like FormFit
   (:func:`hwpx.form_fit.measure.hancom_line_starts`) at the column width less the paragraph's
   margins and first-line indent, each character at its own size and with its own run's face, 장평
   and 자간; a line of several sizes is as tall as its largest character, and its line spacing is
@@ -33,7 +34,8 @@
   lines that fit and the rest go on, the rows from the one the page end falls in as tall as their
   cells' rest (a cell declared taller than its text, whose first line fits, is cut like such a row,
   below). A table set as a character alone in a paragraph of a cell is one line as tall as it
-  there, spaced like the text. A row declared taller than its text is cut just above the page's
+  there, spaced like the text, and a row holding one splits between its cell's lines, each as tall
+  as it is. A row declared taller than its text is cut just above the page's
   foot, and what is left of it goes on to the next page unless it is no taller than a 10 pt line
   with the default cell margins (the cell's own margins, alignment and character size change
   neither). A flowing table's anchor line that does not fit at the page end goes to the next page,
@@ -57,8 +59,8 @@ at a column edge before any text; an object offset down or wrapped square stays 
 the lines above or beside it), footnotes in such a paragraph, two tables starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor or on a
 page, a nested table among text or not set as a character (in a table Hancom has not laid out as
-it is), a page break between the cell lines of a flowing row holding a table, objects placed on
-the page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
+it is), a page break in a flowing row holding a table and declared taller than its text, objects
+placed on the page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -265,6 +267,8 @@ def _cached_metrics(paragraph: Any) -> tuple[tuple[int, int], ...]:
     metrics = []
     for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg"):
         height = int(segment.get("textheight", segment.get("vertsize", 0)))
+        if height <= 0:  # a cache of empty lines is none
+            return ()
         metrics.append((height, height + int(segment.get("spacing", 0))))
     return tuple(metrics)
 
@@ -356,6 +360,15 @@ class _Measure:
                 tall = _inline_table_height(self, table) + _extent_margins(table)
                 count, size, pitch = 1, tall, tall + pitch - size
             else:
+                cached = _cached_metrics(paragraph) if caches else ()
+                if cached:  # the lines Hancom laid out, each as tall as it drew it
+                    if pending is not None:
+                        height += pending + shape.prev
+                    height += sum(advance for _, advance in cached[:-1]) + cached[-1][0]
+                    size, pitch = cached[-1]
+                    pending = pitch - size + shape.next
+                    lines += len(cached)
+                    continue
                 count = (_cache_lines(paragraph) if caches else 0) or self.lines(
                     _run_text(runs), [max(width, _MIN_LINE_WIDTH)], size,
                     self.style(paragraph.get("paraPrIDRef"), refs)
@@ -366,6 +379,25 @@ class _Measure:
             pending = pitch - size + shape.next
             lines += count
         return height, lines, pitch, size
+
+    def stack_lines(self, paragraphs: list[Any], width: int, caches: bool) -> tuple[tuple[int, int], ...]:
+        """(height, advance to the next line's top) of every line of *paragraphs* laid out as in
+        :meth:`stack`, a table set as a character alone in its paragraph as one line."""
+
+        metrics: list[tuple[int, int]] = []
+        for paragraph in paragraphs:
+            shape = self.shape(paragraph.get("paraPrIDRef"))
+            if metrics:  # the gap between the paragraphs
+                last_height, last_advance = metrics[-1]
+                metrics[-1] = (last_height, last_advance + shape.prev)
+            cached = () if _table_alone(paragraph.findall(f"{HP}run")) is not None or not caches \
+                else _cached_metrics(paragraph)
+            if cached:
+                metrics += list(cached[:-1]) + [(cached[-1][0], cached[-1][1] + shape.next)]
+                continue
+            height, count, pitch, size = self.stack([paragraph], width, caches)
+            metrics += [(size, pitch)] * (count - 1) + [(height - (count - 1) * pitch, pitch + shape.next)]
+        return tuple(metrics)
 
 
 @dataclass(frozen=True)
@@ -379,7 +411,9 @@ class _Row:
     merged: bool = False  # under a cell merged over rows: no page break in or around it
     joined: bool = False  # a cell merged over rows joins it to the next row
     spare: int = 0        # room the row's declared height leaves under its text
-    nested: bool = False  # a cell holds a table: no page break between its cell lines
+    nested: bool = False  # a cell holds a table
+    #: (height, advance) of each line of the row's tallest cell when it holds a table
+    metrics: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -469,7 +503,8 @@ def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
     vertical = margins.top + margins.bottom
     height = max(int(size.get("height", 0)), vertical + content)
     return _Row(height, lines, pitch, char_size, vertical, cell.get("header") == "1",
-                spare=height - vertical - content, nested=nested)
+                spare=height - vertical - content, nested=nested,
+                metrics=measure.stack_lines(paragraphs, inner, caches=True) if nested else ())
 
 
 @dataclass(frozen=True)
@@ -1142,13 +1177,25 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) 
     """A row that does not fit even a fresh page is drawn there anyway, cut at the paper's edge;
     CELL breaks a row between its lines, or a row taller than its text just above the page's foot."""
 
-    remaining, height = row.lines, row.height
+    remaining, height, metrics = row.lines, row.height, row.metrics
     while True:
         if y + height <= body:
             return frame, y + height
         fresh = y == header
-        if mode == "CELL" and row.nested:
-            raise _Unsupported("a page break in a flowing table row holding a table")
+        if mode == "CELL" and row.nested:  # between its lines, each as tall as it is (a table is one)
+            if not metrics or row.spare:
+                raise _Unsupported("a page break in a flowing table row holding a table")
+            fitting, top = 0, y + row.margins
+            while fitting < len(metrics) and top + metrics[fitting][0] <= body:
+                top += metrics[fitting][1]
+                fitting += 1
+            if fitting:
+                metrics = metrics[fitting:]
+                height = row.margins + sum(advance for _, advance in metrics[:-1]) + metrics[-1][0]
+            elif fresh:
+                return frame, y + height
+            frame, y = frame + 1, header
+            continue
         if mode == "CELL":
             fitting = 0
             while fitting < remaining and y + row.margins + fitting * row.pitch + row.size <= body:

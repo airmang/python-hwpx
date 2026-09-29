@@ -69,6 +69,8 @@ HANCOM_PAGES = {
     "pages_table_nested_after_text": 1,  # a table in a cell of a flowing table, after a line of text
     "pages_table_nested_alone": 1,       # a table alone in a cell of a flowing table
     "pages_table_nested_in_table_as_character": 1,  # a table in a cell of a table set as a character
+    "pages_table_nested_row_split": 2,  # a row holding a table splits after its first line of text
+    "pages_table_nested_row_moved": 2,  # none of a row holding a table fits: it goes on whole
     "pages_objects_among_text_table": 2,  # a full-width table set as a character among text
     "pages_objects_among_text_equation": 1,  # equations set as characters among text
     "pages_objects_after_text_rectangle": 1,  # rectangles set as characters after text
@@ -277,9 +279,13 @@ def test_a_table_whose_row_addresses_skip_is_estimated_without_the_missing_rows(
     assert estimate.pages == 1
 
 
-def test_a_page_break_in_a_flowing_row_holding_a_table_is_unsupported() -> None:
+def test_a_page_break_in_a_row_holding_a_table_and_declared_taller_is_unsupported() -> None:
     document, table = _flowing_table_after(38, 3)
     table.cell(1, 1).add_table(4, 2, width=18000)
+    for cell in table.element.iter(f"{HP}tc"):
+        address = cell.find(f"{HP}cellAddr")
+        if address is not None and address.get("rowAddr") == "1" and cell.getparent().getparent() is table.element:
+            cell.find(f"{HP}cellSz").set("height", "20000")
 
     estimate = estimate_pages(document)
 
