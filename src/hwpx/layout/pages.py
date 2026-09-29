@@ -761,8 +761,9 @@ def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: 
     margin = obj.find(f"{HP}outMargin")
     top, bottom = (0, 0) if margin is None else (int(margin.get("top", 0)), int(margin.get("bottom", 0)))
     if _local(obj) == "tbl":
-        table = _FlowTable(_rows(measure, obj), obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1",
-                           (top, bottom))
+        rows, cells = _table_rows(measure, obj)
+        table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
+                           tuple(cells))
         return _Anchor(line, table, 0)
     return _Anchor(line, None, int(obj.find(f"{HP}sz").get("height", 0)) + top + bottom)
 

@@ -65,6 +65,7 @@ HANCOM_PAGES = {
     "pages_table_flow_merged_cell_declared_rest_1282": 2,  # the merged cell's rest of 1282 is dropped
     "pages_table_flow_merged_cell_declared_rest_1283": 2,  # and one of 1283 goes on
     "pages_table_flow_merged_cell_declared_lines_cut": 2,  # the page end among its 6 lines: cut the same
+    "pages_table_anchored_merged_rows_split_by_cell": 2,  # a table anchored in text: merged rows split the same
     "pages_table_nested_after_text": 1,  # a table in a cell of a flowing table, after a line of text
     "pages_table_nested_alone": 1,       # a table alone in a cell of a flowing table
     "pages_table_nested_in_table_as_character": 1,  # a table in a cell of a table set as a character
