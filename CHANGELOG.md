@@ -130,6 +130,9 @@
   `fail`은 채우지 않는다(`doc.fields.fill()`은 `field-fit-failed`, `set_cell_text(fit=...)`는 칸을 그대로 두고 `ok=False`인 결과). 행을 늘려도 되면
   `FitPolicy(allow_row_expand=True)`, 경고만 받고 넣으려면 `FitPolicy(overflow="warn")`을 준다. 칸 높이를 잴 수 없는
   칸(병합·자동 늘어남)은 전처럼 폭만 본다.
+- `docs/known-traps.md`와 `section.clear_body()` 설명에, 본문에서 지운 그림(`clear_body()`, 문단 삭제)의 이미지가
+  파일에 남는다고 적는다. 파일에서도 없애려면 저장 전에 `doc.media.remove_unused_images()`를 부른다. 한/글은
+  저장할 때 아무것도 가리키지 않는 이미지를 지운다.
 
 ### 고침
 
