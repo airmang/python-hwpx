@@ -139,6 +139,25 @@
 - `doc.page.set_header()`·`set_footer()`·`set_page_number()`가 구역 첫 문단의 첫 run에서 시작하는 필드(누름틀 등)
   뒤에 머리말·꼬리말 컨트롤을 넣던 것을 고친다. 그 자리는 필드 범위 안이라 한/글이 저장하면서 머리말·꼬리말을
   버렸다. 이제 필드가 시작하는 컨트롤 앞에 넣는다. 머리말·꼬리말 글을 고치며 `hp:ctrl` 사본을 새로 만들 때도 같다.
+- 편집기 안전 검사(`validate_package`·`validate_editor_open_safety`)가 한컴이 열지
+  못하거나(거부) 멈추거나 배치를 끝내지 못하는 문서를 통과시키던 것을 고친다. 이제
+  다음은 오류이고, 공개 저장 경로는 이런 문서를 쓰지 않는다.
+  - 패키지: `rootfile@media-type`, `opf:item`의 `id`·`href`·`media-type`,
+    `opf:itemref@idref`, `opf:meta@name`이 없거나 `opf:manifest`에 항목이 없음
+  - `hh:head@secCnt` 없음(예전에는 경고), `HCFVersion@tagetApplication` 없음
+  - 표: `hp:tbl`의 `rowCnt`·`colCnt`, `hp:tr`/`hp:tc`, `hp:cellAddr`의
+    `colAddr`·`rowAddr`, `hp:cellSpan`의 `colSpan`·`rowSpan`이 없음
+  - `hp:secPr`에 `hp:startNum`·`hp:visibility` 없음, `hp:lineseg@textpos` 없음
+  - 필드: `hp:fieldBegin@id`, `hp:fieldEnd@beginIDRef`가 없거나, `fieldEnd`가 없는
+    `fieldBegin`을 가리키거나, 필드 종류와 `fieldid`가 둘 다 한컴이 모르는 값임
+  - 도형: 필수 하위 요소가 없는 도형과 빈 `hp:ctrl`(예전에는 경고),
+    `hp:renderingInfo` 행렬이 없는 도형, 모서리 점(`hc:pt0`~`pt3`)이 없는 사각형,
+    `hc:img`가 없는 그림
+  - 구역 설정의 `hp:parameterset` 안 `hp:booleanParam`, 패키지에 없는 바탕쪽을 가리키는
+    `hp:masterPage`, `hp:subList`가 없는 머리말·꼬리말 컨트롤, 문단 없는 `hp:subList`
+  - 머리말·구역 항목의 `opf:item@href`가 패키지 루트에서 본 파트 이름이 아님
+    (`content.hpf` 폴더 기준 상대 경로, `/`로 시작하는 경로). 한컴은 href를 패키지
+    루트에서 그대로 찾는다. 그림 항목이 그러면 경고다(한컴은 그 그림을 빼고 연다)
 - `add_heading(level=8~10)`과 `apply_paragraph_format(outline_level=8~10)`이 문단 모양의 개요를 한/글과 다른
   모양으로 쓰던 것을 고친다. 개요 8~10 수준은 2016 문단 이름공간에만 있어서, 한/글은 `hp:switch`의 `hp:case`에
   개요를 두고 `hp:default`에 `NONE`을 둔다(새 문서의 개요 8~10 스타일도 이렇다). 전에는 이 `hp:switch`를
@@ -861,20 +880,6 @@ HWP 5.0(`.hwp`) 읽기·쓰기를 더하고, 템플릿·양식을 공개 API만�
   - 새 `PageSize.drawn_width`/`drawn_height`는 한컴이 그리는 쪽 크기다. 표 기본 폭,
     머리말·꼬리말 폭, `template_analyzer`의 쪽·본문 폭, `layout_preview`의 쪽 상자가
     이 크기를 쓴다. 그래서 `NARROWLY`와 세로 치수로 된 가로 문서도 가로 폭으로 계산한다.
-- 편집기 안전 검사(`validate_package`·`validate_editor_open_safety`)가 한컴이 열지
-  못하거나(거부) 멈추거나 배치를 끝내지 못하는 문서를 통과시키던 것을 고친다. 이제
-  다음은 오류이고, 공개 저장 경로는 이런 문서를 쓰지 않는다.
-  - 패키지: `rootfile@media-type`, `opf:item`의 `id`·`href`·`media-type`,
-    `opf:itemref@idref`, `opf:meta@name`이 없거나 `opf:manifest`에 항목이 없음
-  - `hh:head@secCnt` 없음(예전에는 경고), `HCFVersion@tagetApplication` 없음
-  - 표: `hp:tbl`의 `rowCnt`·`colCnt`, `hp:tr`/`hp:tc`, `hp:cellAddr`의
-    `colAddr`·`rowAddr`, `hp:cellSpan`의 `colSpan`·`rowSpan`이 없음
-  - `hp:secPr`에 `hp:startNum`·`hp:visibility` 없음, `hp:lineseg@textpos` 없음
-  - 필드: `hp:fieldBegin@id`, `hp:fieldEnd@beginIDRef`가 없거나, `fieldEnd`가 없는
-    `fieldBegin`을 가리키거나, 필드 종류와 `fieldid`가 둘 다 한컴이 모르는 값임
-  - 도형: 필수 하위 요소가 없는 도형과 빈 `hp:ctrl`(예전에는 경고),
-    `hp:renderingInfo` 행렬이 없는 도형, 모서리 점(`hc:pt0`~`pt3`)이 없는 사각형,
-    `hc:img`가 없는 그림
 - `styles.ensure_run(script="sup"/"sub")`가 만든 위·아래 첨자가 한컴에서 두 번
   줄어들던 것을 고친다. `hh:supscript`/`hh:subscript` 요소와 함께 `relSz 67`·
   `offset -30/+30`도 썼는데, 한컴은 요소만으로 글자를 줄이고 올리거나 내린다.

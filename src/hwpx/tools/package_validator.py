@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from collections.abc import Iterator
-from typing import Any, BinaryIO, Literal, Sequence
+from typing import Any, BinaryIO, Iterable, Literal, Sequence
 from zipfile import ZIP_STORED, BadZipFile, ZipFile, ZipInfo
 
 from lxml import etree as LET  # type: ignore[reportMissingImports]
@@ -746,6 +746,15 @@ def _check_hancom_required_structure(
             _check_field_begin(issues, part_name, element)
         elif name == "fieldEnd" and element.get("beginIDRef") is None:
             _error(issues, part_name, "hp:fieldEnd missing beginIDRef; Hancom refuses to open the document")
+        elif name == "parameterset" and any(_local_name(node) == "booleanParam" for node in element.iter()):
+            _error(issues, part_name, "hp:booleanParam inside hp:parameterset; Hancom crashes on the document")
+        elif name == "ctrl":
+            for story in element:
+                kind = _local_name(story)
+                if kind in ("header", "footer") and _first_child_by_local(story, "subList") is None:
+                    _error(issues, part_name, f"hp:{kind} without hp:subList; Hancom crashes on the document")
+        elif name == "subList" and _first_child_by_local(element, "p") is None:
+            _error(issues, part_name, "hp:subList without hp:p; Hancom crashes on the document")
     _check_required_drawing_structure(issues, part_name, root)
 
 
@@ -1000,6 +1009,39 @@ def _check_manifest_hrefs(
             selected_rootfile.full_path,
             f"spine itemref references missing manifest id {idref!r}",
         )
+    _check_hrefs_from_package_root(relationships, selected_rootfile, name_set, issues)
+
+
+def _check_hrefs_from_package_root(
+    relationships: ManifestRelationships,
+    selected_rootfile: RootFileRef,
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    """Hancom looks up every ``opf:item@href`` from the package root, exactly as written.
+
+    An href relative to the manifest's folder, or one starting with ``/``, still finds its part
+    here but not in Hancom: a header or section named that way makes Hancom refuse the document,
+    a picture named that way is left out of it.
+    """
+    spine = set(relationships.spine_paths)
+    for item in relationships.items:
+        written = item.href.replace("\\", "/").strip()
+        if item.resolved_path not in name_set or written in name_set:
+            continue
+        found_only_here = f"manifest href {item.href!r} is not the part name {item.resolved_path!r}"
+        if item.resolved_path in spine:
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                f"{found_only_here}; Hancom reads hrefs from the package root and refuses to open the document",
+            )
+        elif item.resolved_path.startswith("BinData/") or (item.media_type or "").startswith("image/"):
+            _warning(
+                issues,
+                selected_rootfile.full_path,
+                f"{found_only_here}; Hancom reads hrefs from the package root and leaves the picture out",
+            )
 
 
 def _resolve_section_paths(
@@ -1130,6 +1172,28 @@ def _check_master_page_parts(
                 selected_rootfile.full_path,
                 f"masterPage part missing from archive: {path!r}",
             )
+
+
+def _check_section_master_page_refs(
+    relationships: ManifestRelationships,
+    xml_roots: dict[str, ET.Element],
+    section_paths: Iterable[str],
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    present = {item.item_id for item in relationships.items if item.item_id and item.resolved_path in name_set}
+    for path in section_paths:
+        root = xml_roots.get(path)
+        if root is None:
+            continue
+        for element in root.iter():
+            if _local_name(element) == "masterPage" and element.get("idRef") not in present:
+                _error(
+                    issues,
+                    path,
+                    f"hp:masterPage refers to {element.get('idRef')!r}, a master page the package does not have; "
+                    "Hancom refuses to open the document",
+                )
 
 
 def _check_history_parts(
@@ -1267,6 +1331,7 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
         )
         _check_header_fallback(relationships, name_set, selected_rootfile, issues)
         _check_master_page_parts(relationships, name_set, selected_rootfile, issues)
+        _check_section_master_page_refs(relationships, xml_roots, resolved_section_paths, name_set, issues)
         _check_history_parts(relationships, name_set, selected_rootfile, issues)
         _check_version_part(relationships, name_set, selected_rootfile, issues)
 
