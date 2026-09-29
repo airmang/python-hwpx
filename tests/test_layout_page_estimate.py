@@ -51,6 +51,7 @@ HANCOM_PAGES = {
     "pages_table_flow_tall_row_table_margins_500": 2,  # the table's inner margins 500: 1290 goes on
     "pages_table_flow_tall_row_bottom_aligned": 2,    # cells aligned to the bottom: 1290 goes on
     "pages_table_flow_tall_row_16pt": 2,              # 16 pt text: 1283 goes on
+    "pages_table_flow_anchor_on_next_page": 2,  # the table's anchor line has no room: both go on
     "pages_table_merged_rows_held": 1,    # a cell merged over rows 0-3 holding one over rows 1-2
     "pages_table_merged_rows_staggered": 1,  # merged over rows 0-1 and 1-2: row 1 has no cell of its own
     "pages_table_merged_rows_ending_first": 1,  # merged over rows 0-2 and 2-3: the one ending first first
@@ -228,6 +229,16 @@ def test_a_flowing_row_taller_than_its_text_is_cut_just_above_the_page_foot(heig
 
     assert estimate.unsupported == ()
     assert estimate.lines[-1] == (EstimatedLine(page=1, column=0, vertpos=rest + 1282),)
+
+
+def test_a_flowing_table_whose_anchor_line_has_no_room_starts_on_the_next_page() -> None:
+    document, _ = _flowing_table_after(40, 3)  # the anchor line would start 65600, 1000 tall
+    document.add_paragraph("표 뒤")
+
+    estimate = estimate_pages(document)
+
+    assert estimate.lines[-2] == (EstimatedLine(page=1, column=0, vertpos=0),)
+    assert estimate.lines[-1] == (EstimatedLine(page=1, column=0, vertpos=3 * 1282),)
 
 
 def test_a_table_whose_row_addresses_skip_is_estimated_without_the_missing_rows() -> None:
