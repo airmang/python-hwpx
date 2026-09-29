@@ -209,6 +209,17 @@ def _tree_key(element: ET.Element) -> tuple:
     return (element.tag, tuple(sorted(element.attrib.items())), element.text or "", children)
 
 
+def story_control_index(run: ET.Element, before: ET.Element | None = None) -> int:
+    """Where a header or footer ``hp:ctrl`` goes in the section's first *run*: at its end, but ahead
+    of *before* and of a control that starts a field. Hancom drops a header or footer control that
+    sits inside a field's span when it saves the document."""
+
+    for index, child in enumerate(run):
+        if child is before or (child.tag == f"{_HP}ctrl" and child.find(f"{_HP}fieldBegin") is not None):
+            return index
+    return len(run)
+
+
 def _control_story_index(section_element: ET.Element) -> dict[_PairKey, list[ET.Element]]:
     """Every header/footer a body control holds, by (kind, id, page type), in one pass over the section."""
 
@@ -638,7 +649,8 @@ class HwpxOxmlSectionHeaderFooter:
             changed = bool(_clear_paragraph_layout_cache(mirror_paragraph)) or changed
         else:
             run = self._properties._header_footer_control_run()
-            control = _append_child(run, f"{_HP}ctrl", {})
+            control = run.makeelement(f"{_HP}ctrl", {})
+            run.insert(story_control_index(run), control)
             control.append(deepcopy(self.element))
             changed = True
         if changed:
