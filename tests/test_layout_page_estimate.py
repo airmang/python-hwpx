@@ -29,6 +29,8 @@ HANCOM_PAGES = {
     "pages_footnotes_6": 3,               # footnotes at the page foot
     "pages_table_flow_repeat_header": 3,  # a table flowing with the text, header row repeated
     "pages_table_flow_multiline_cells": 4,  # a flowing table split between cell lines
+    "pages_table_flow_starts_next_page": 2,  # its first row does not fit: the text goes on under the anchor
+    "pages_table_flow_starts_next_page_long": 4,  # the same over two pages: text resumes under the table
     "pages_table_multiline_cells": 3,     # a table set as a character
     "pages_picture_floating_tall": 4,     # top-and-bottom pictures
     "pages_cell_column_settings": 3,      # one-column settings in a table cell's paragraph
