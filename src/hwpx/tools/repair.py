@@ -140,6 +140,42 @@ def _normalize_hwpml_compat_root(part_name: str, payload: bytes) -> bytes:
     return _serialize_hwpml_compat_root(root)
 
 
+_OPF = "{http://www.idpf.org/2007/opf/}"
+
+
+def _repair_section_ids(part_name: str, payload: bytes) -> bytes:
+    """Give the manifest's section items the ids ``section0``, ``section1``, ... in spine order.
+
+    Hancom finds the sections by these ids. The payload stays as it is when the ids already
+    run so, or when another item holds one of them.
+    """
+    if not part_name.endswith(".hpf"):
+        return payload
+    try:
+        root = etree.fromstring(payload)
+    except etree.XMLSyntaxError:
+        return payload
+    items: dict[str, Any] = {}
+    for item in root.iter(f"{_OPF}item"):
+        items.setdefault(item.get("id") or "", item)
+    pairs = []
+    for itemref in root.iter(f"{_OPF}itemref"):
+        item = items.get(itemref.get("idref") or "")
+        href = (item.get("href") or "") if item is not None else ""
+        if item is not None and is_section_part_name(href if "/" in href else f"Contents/{href}"):
+            pairs.append((item, itemref))
+    wanted = [f"section{index}" for index in range(len(pairs))]
+    if all(item.get("id") == name for (item, _itemref), name in zip(pairs, wanted)):
+        return payload
+    paired = {id(item) for item, _itemref in pairs}
+    if any(item.get("id") in wanted for item in root.iter(f"{_OPF}item") if id(item) not in paired):
+        return payload
+    for (item, itemref), name in zip(pairs, wanted):
+        item.set("id", name)
+        itemref.set("idref", name)
+    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+
 def _repair_section_layout_cache(part_name: str, payload: bytes) -> bytes:
     if not is_section_part_name(part_name):
         return _normalize_hwpml_compat_root(part_name, payload)
@@ -231,9 +267,9 @@ def repair_repack(
                 compress_type = ZIP_STORED if entry.info.filename == MIMETYPE_PATH else entry.info.compress_type
                 if compress_type != ZIP_STORED:
                     compress_type = ZIP_DEFLATED
-                payload = _repair_section_layout_cache(
+                payload = _repair_section_ids(
                     entry.info.filename,
-                    entry.payload,
+                    _repair_section_layout_cache(entry.info.filename, entry.payload),
                 )
                 archive.writestr(
                     _clone_info(entry.info, compress_type=compress_type),
