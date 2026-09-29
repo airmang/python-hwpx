@@ -21,7 +21,8 @@
   it; a table flowing with the text is laid out row by row -- split between cell lines, moved row
   by row or moved whole -- with its header rows repeated; a cell merged over rows that is taller
   than them adds what they lack to the last of them, the cell that ends first first (a row with no
-  cell of its own starts at 0). A row declared taller than its text is cut just above the page's
+  cell of its own starts at 0); in a table moved row by row, rows joined by a cell merged over them
+  move to the next page as one. A row declared taller than its text is cut just above the page's
   foot, and what is left of it goes on to the next page unless it is no taller than a 10 pt line
   with the default cell margins (the cell's own margins, alignment and character size change
   neither). When a table moved row by row has no
@@ -40,8 +41,9 @@ settings in a cell or a text box are that list's own), section settings after a 
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but a picture before the text, with line spacing in percent or
 fixed), two tables starting past their anchors on one page, a page break among rows merged in a
-flowing table, a nested table in a table Hancom has not laid out as it is, objects placed on the
-page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
+flowing table split between cell lines, rows merged together that do not fit under their table's
+anchor or on a page, a nested table in a table Hancom has not laid out as it is, objects placed on
+the page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -350,6 +352,7 @@ class _Row:
     margins: int  # top + bottom cell margins
     header: bool
     merged: bool = False  # under a cell merged over rows: no page break in or around it
+    joined: bool = False  # a cell merged over rows joins it to the next row
     spare: int = 0        # room the row's declared height leaves under its text
 
 
@@ -383,7 +386,7 @@ def _rows(measure: _Measure, table: Any) -> list[_Row]:
     for first, span, cell in sorted(merged, key=lambda cell: (cell[0] + cell[1], cell[0])):
         spanned = range(first, first + span)
         for index in spanned:
-            rows[index] = replace(rows[index], merged=True)
+            rows[index] = replace(rows[index], merged=True, joined=rows[index].joined or index < first + span - 1)
         last = rows[first + span - 1]
         lacking = cell.height - sum(rows[index].height for index in spanned)
         rows[first + span - 1] = replace(last, height=last.height + max(lacking, 0))
@@ -723,11 +726,26 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
     """Lay the rows out from vertical position *y*; the frame and position where the table ends."""
 
     header = _repeated_header(table)
-    for row in table.rows:
+    rows, index = table.rows, 0
+    while index < len(rows):
+        end = index
+        while rows[end].joined and end + 1 < len(rows):
+            end += 1
+        if table.mode == "TABLE" and end > index:  # rows joined by merged cells move as one
+            height = sum(row.height for row in rows[index:end + 1])
+            if y + height > body and y != header:
+                if index == 0:
+                    raise _Unsupported("a table whose first rows, merged together, have no room under its anchor")
+                frame, y = frame + 1, header
+            if y + height > body:
+                raise _Unsupported("rows merged together taller than a page")
+            y, index = y + height, end + 1
+            continue
         before = frame
-        frame, y = _flow_row(table.mode, row, frame, y, body, header)
-        if row.merged and frame != before:
+        frame, y = _flow_row(table.mode, rows[index], frame, y, body, header)
+        if rows[index].merged and frame != before:
             raise _Unsupported("a page break among rows merged in a flowing table")
+        index += 1
     return frame, y
 
 

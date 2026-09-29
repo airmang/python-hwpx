@@ -54,6 +54,8 @@ HANCOM_PAGES = {
     "pages_table_merged_rows_held": 1,    # a cell merged over rows 0-3 holding one over rows 1-2
     "pages_table_merged_rows_staggered": 1,  # merged over rows 0-1 and 1-2: row 1 has no cell of its own
     "pages_table_merged_rows_ending_first": 1,  # merged over rows 0-2 and 2-3: the one ending first first
+    "pages_table_flow_merged_rows_moved_whole": 2,  # moved row by row: rows 1-2 merged go on as one
+    "pages_table_flow_merged_three_rows_moved_whole": 2,  # the same with rows 1-3
 }
 
 
