@@ -305,6 +305,18 @@ def test_a_top_and_bottom_table_offset_past_the_page_foot_is_unsupported() -> No
         "section 0: a square-wrapped or offset top-and-bottom object past the page foot",)
 
 
+@pytest.mark.parametrize(("fixture", "content"), [("pages_composed_characters", "compose"),
+                                                  ("pages_ruby_text", "dutmal")])
+def test_composed_characters_and_ruby_text_follow_the_lines_hancom_drew(fixture: str, content: str) -> None:
+    # Circled numbers among three lines of text, and ruby text above a word: the lines of their
+    # paragraphs' caches. Without the caches the estimate does not break such lines itself.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
+    assert estimate_pages(_without_caches(data)).unsupported == (
+        f"section 0: {content} in a paragraph without a layout cache",)
+
+
 def test_lines_of_two_columns_are_in_columns() -> None:
     estimate = estimate_pages(FIXTURES / "pages_columns_2_break.hwpx")
 
