@@ -38,8 +38,10 @@
   cells' rest (a cell declared taller than its text, whose first line fits, is cut like such a row,
   below). A table set as a character alone in a paragraph of a cell is one line as tall as it
   there, spaced like the text, and a row holding one splits between its cell's lines, each as tall
-  as it is. A row declared taller than its text is cut just above the page's
-  foot, and what is left of it goes on to the next page unless it is no taller than a 10 pt line
+  as it is. A flowing table's rows use the body only down to just above the page's foot: a row, or
+  a cell line of a row split between its lines, ending lower goes on to the next page, and a row
+  declared taller than its text is cut there; what is left of it goes on to the next page unless it
+  is no taller than a 10 pt line
   with the default cell margins (the cell's own margins, alignment and character size change
   neither). A flowing table's anchor line that does not fit at the page end goes to the next page,
   and the table with it. When a table moved row by row has no
@@ -99,10 +101,12 @@ _OBJECTS = frozenset({
 _FLOATING = frozenset({"IN_FRONT_OF_TEXT", "BEHIND_TEXT"})
 #: Run content that changes a line's height in ways the estimate does not follow.
 _UNSUPPORTED_CONTENT = frozenset({"compose", "dutmal"})
-#: A flowing table row whose declared height leaves room under its text (CELL) is cut this far above
-#: the body's foot; what is left goes on to the next page unless it is _SPARE_DROPPED or less, which
-#: is dropped (the row ends at the page's foot). Both in HWPUNIT, as Hancom lays such rows out
-#: whatever the cells' margins, vertical alignment and character size.
+#: A flowing table's rows use the body only down to this far above its foot: a row, or a cell line of
+#: a row split between its lines, ending lower goes on to the next page, and a row whose declared
+#: height leaves room under its text (CELL) is cut there. What is left of such a row goes on to the
+#: next page unless it is _SPARE_DROPPED or less, which is dropped (the row ends at the page's foot).
+#: Both in HWPUNIT, as Hancom lays such rows out whatever the cells' margins, vertical alignment and
+#: character size.
 _SPARE_CUT = 101
 _SPARE_DROPPED = 1282
 #: The narrowest line FormFit breaks at, in HWPUNIT.
@@ -1129,13 +1133,13 @@ def _starts_later(table: _FlowTable, y: int, body: int) -> bool:
 
     if table.mode != "TABLE" or not table.rows:
         return False
-    return y + table.rows[0].height > body and y != _repeated_header(table)
+    return y + table.rows[0].height > body - _SPARE_CUT and y != _repeated_header(table)
 
 
 def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, int]:
     """Lay the rows out from vertical position *y*; the frame and position where the table ends."""
 
-    header = _repeated_header(table)
+    header, foot = _repeated_header(table), body - _SPARE_CUT
     rows, index = table.rows, 0
     while index < len(rows):
         end = index
@@ -1143,18 +1147,18 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
             end += 1
         if table.mode == "TABLE" and end > index:  # rows joined by merged cells move as one
             height = sum(row.height for row in rows[index:end + 1])
-            if y + height > body and y != header:
+            if y + height > foot and y != header:
                 if index == 0:
                     raise _Unsupported("a table whose first rows, merged together, have no room under its anchor")
                 frame, y = frame + 1, header
-            if y + height > body:
+            if y + height > foot:
                 raise _Unsupported("rows merged together taller than a page")
             y, index = y + height, end + 1
             continue
         if table.mode == "CELL" and end > index and table.cells \
-                and y + sum(row.height for row in rows[index:end + 1]) > body:  # split cell by cell
+                and y + sum(row.height for row in rows[index:end + 1]) > foot:  # split cell by cell
             frame, y = frame + 1, header + _block_rest(table, index, end, y, body)
-            if y > body:
+            if y > foot:
                 raise _Unsupported("rows merged together taller than a page")
             index = end + 1
             continue
@@ -1173,11 +1177,11 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int, body: int) -
     rest of its cells of one row (the rows after it whole), then each merged cell's rest, the one
     ending first first, adds what its rows lack to the last of them."""
 
-    rows, tops, y = table.rows, {}, top
+    rows, tops, y, foot = table.rows, {}, top, body - _SPARE_CUT
     for index in range(first, last + 1):
         tops[index] = y
         y += rows[index].height
-    cut = next(index for index in range(first, last + 1) if tops[index] + rows[index].height > body)
+    cut = next(index for index in range(first, last + 1) if tops[index] + rows[index].height > foot)
     heights = dict.fromkeys(range(cut, last + 1), 0)
     rests: list[tuple[int, int, int]] = []
     for start, span, cell in table.cells:
@@ -1188,10 +1192,10 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int, body: int) -
             rest = cell.height
         else:
             fitting = 0
-            while fitting < cell.lines and tops[start] + cell.margins + fitting * cell.pitch + cell.size <= body:
+            while fitting < cell.lines and tops[start] + cell.margins + fitting * cell.pitch + cell.size <= foot:
                 fitting += 1
             if cell.spare and fitting:  # its text starts above the page end: the declared room is cut like a row's
-                rest = tops[start] + cell.height - (body - _SPARE_CUT)
+                rest = tops[start] + cell.height - foot
                 if rest <= _SPARE_DROPPED:
                     continue
             elif cell.spare:  # none of it fits: it goes on whole
@@ -1214,16 +1218,16 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) 
     """A row that does not fit even a fresh page is drawn there anyway, cut at the paper's edge;
     CELL breaks a row between its lines, or a row taller than its text just above the page's foot."""
 
-    remaining, height, metrics = row.lines, row.height, row.metrics
+    remaining, height, metrics, foot = row.lines, row.height, row.metrics, body - _SPARE_CUT
     while True:
-        if y + height <= body:
+        if y + height <= foot:
             return frame, y + height
         fresh = y == header
         if mode == "CELL" and row.nested:  # between its lines, each as tall as it is (a table is one)
             if not metrics or row.spare:
                 raise _Unsupported("a page break in a flowing table row holding a table")
             fitting, top = 0, y + row.margins
-            while fitting < len(metrics) and top + metrics[fitting][0] <= body:
+            while fitting < len(metrics) and top + metrics[fitting][0] <= foot:
                 top += metrics[fitting][1]
                 fitting += 1
             if fitting:
@@ -1235,10 +1239,10 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) 
             continue
         if mode == "CELL":
             fitting = 0
-            while fitting < remaining and y + row.margins + fitting * row.pitch + row.size <= body:
+            while fitting < remaining and y + row.margins + fitting * row.pitch + row.size <= foot:
                 fitting += 1
             if fitting and row.spare:
-                rest = height - (body - _SPARE_CUT - y)
+                rest = height - (foot - y)
                 if rest <= _SPARE_DROPPED:
                     return frame, body
                 frame, y = frame + 1, header
