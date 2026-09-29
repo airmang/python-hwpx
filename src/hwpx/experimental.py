@@ -30,6 +30,11 @@ from .plan import (
     apply_edit_plan,
     validate_edit_plan,
 )
+from .layout.pages import (
+    EstimatedLine,
+    PageEstimate,
+    estimate_pages,
+)
 from .ingest import (
     ConversionAttempt,
     DocumentConverter,
@@ -60,6 +65,9 @@ __all__ = [
     "LayoutPreview",
     "PreviewPage",
     "render_layout_preview",
+    "estimate_pages",
+    "PageEstimate",
+    "EstimatedLine",
     "DocumentViewer",
     "render_document_viewer",
     "UnsupportedLatexError",

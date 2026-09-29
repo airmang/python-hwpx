@@ -241,11 +241,12 @@ def test_frozen_facade_exports_remain_exact() -> None:
         | set(hwpx._EXPERIMENTAL_EXPORTS)
         | set(hwpx._DEPRECATED_EXPORTS)
     )
-    # 36 stable + 23 experimental + 0 deprecated. The deprecated layer emptied in
+    # 36 stable + 26 experimental + 0 deprecated. The deprecated layer emptied in
     # 5.0 because its 4.x notice said it would go in the next major; 5.2 added the
     # three equation-authoring names, 5.6 adds the edit-plan five and the
-    # capabilities three to the experimental layer.
-    assert len(total_top_level) == 59
+    # capabilities three to the experimental layer, and the page estimate adds
+    # three more (estimate_pages, PageEstimate, EstimatedLine): 26 experimental.
+    assert len(total_top_level) == 62
     # 110 -> 113: the paragraph tab-stop read model (TabStop, TabDefinition,
     # TabDefinitionList) fills the audit's gap #2 — hh:tabPr/tabItem were
     # frozen-template/unread; this is the "additive model extension" path

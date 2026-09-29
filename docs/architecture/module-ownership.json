@@ -704,6 +704,12 @@
       "disposition": "core",
       "approvedBy": "owner-hwp5-core-2026-09-23",
       "rationale": "Writes HWPX package parts as an HWP 5.0 file: finds the header, sections and embedded binaries through the manifest, builds and compresses the record streams and the compound file, and refuses with hwp5-write-unsupported before writing when content cannot be expressed."
+    },
+    {
+      "path": "src/hwpx/layout/pages.py",
+      "disposition": "core",
+      "approvedBy": "owner-page-estimate-2026-09-29",
+      "rationale": "Experimental page estimate (re-exported from hwpx.experimental): follows each body paragraph onto its page and column from the document alone -- lines from a paragraph's valid layout cache or FormFit line breaking, line and paragraph spacing, page/column breaks and paragraph break rules, equal columns, inline and flowing tables, top-and-bottom objects and footnotes -- and reports anything else as unsupported with a reason. Reads OXML only; writes nothing."
     }
   ],
   "removed": [
