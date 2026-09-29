@@ -44,6 +44,9 @@ HANCOM_PAGES = {
     "pages_table_flow_merged_rows": 2,    # a table flowing with the text, cells merged over rows
     "pages_table_flow_tall_row_carried": 2,  # a row declared taller than its text, cut at the page end
     "pages_table_flow_tall_row_dropped": 2,  # the same, the rest too short to go on
+    "pages_objects_among_text_table": 2,  # a full-width table set as a character among text
+    "pages_objects_among_text_equation": 1,  # equations set as characters among text
+    "pages_objects_after_text_rectangle": 1,  # rectangles set as characters after text
 }
 
 
