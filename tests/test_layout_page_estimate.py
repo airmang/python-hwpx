@@ -61,6 +61,14 @@ HANCOM_PAGES = {
     "pages_objects_among_text_table": 2,  # a full-width table set as a character among text
     "pages_objects_among_text_equation": 1,  # equations set as characters among text
     "pages_objects_after_text_rectangle": 1,  # rectangles set as characters after text
+    "pages_table_anchored_after_text": 1,  # a top-and-bottom table anchored after three lines of text
+    "pages_picture_anchored_before_text": 1,  # a top-and-bottom picture anchored before the text
+    "pages_picture_square_left": 2,       # a picture wrapped square on the left, text beside it into the next paragraph
+    "pages_picture_square_right": 2,      # a wide picture wrapped square on the right
+    "pages_picture_square_alone": 2,      # a picture wrapped square alone in its paragraph
+    "pages_picture_square_wider_than_column": 2,  # no room beside it: the text goes below
+    "pages_picture_square_offset": 2,     # a picture wrapped square 3000 below the paragraph's top
+    "pages_table_square_alone": 1,        # a table wrapped square alone, as tall as its rows
 }
 
 
