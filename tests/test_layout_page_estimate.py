@@ -42,6 +42,9 @@ HANCOM_PAGES = {
     "pages_table_merged_rows_tall": 1,    # a table set as a character, a merged cell taller than its rows
     "pages_table_merged_rows_short": 1,   # the same, the merged cell shorter than its rows
     "pages_table_flow_merged_rows": 2,    # a table flowing with the text, cells merged over rows
+    "pages_table_nested_after_text": 1,  # a table in a cell of a flowing table, after a line of text
+    "pages_table_nested_alone": 1,       # a table alone in a cell of a flowing table
+    "pages_table_nested_in_table_as_character": 1,  # a table in a cell of a table set as a character
 }
 
 
@@ -206,6 +209,16 @@ def test_a_page_break_in_a_flowing_row_taller_than_its_text_is_unsupported() -> 
 
     assert estimate.pages is None
     assert estimate.unsupported == ("section 0: a page break in a flowing table row taller than its text",)
+
+
+def test_a_page_break_in_a_flowing_row_holding_a_table_is_unsupported() -> None:
+    document, table = _flowing_table_after(38, 3)
+    table.cell(1, 1).add_table(4, 2, width=18000)
+
+    estimate = estimate_pages(document)
+
+    assert estimate.pages is None
+    assert estimate.unsupported == ("section 0: a page break in a flowing table row holding a table",)
 
 
 def test_lines_of_two_columns_are_in_columns() -> None:
