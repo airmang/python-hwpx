@@ -225,6 +225,21 @@ def test_a_flowing_row_taller_than_its_text_is_cut_just_above_the_page_foot(heig
     assert estimate.lines[-1] == (EstimatedLine(page=1, column=0, vertpos=rest + 1282),)
 
 
+def test_a_table_whose_row_addresses_skip_is_estimated_without_the_missing_rows() -> None:
+    # Documents edited by other tools can number their rows with gaps (row 2 saved as row 5).
+    document = HwpxDocument.new()
+    table = document.add_table(3, 2)
+    for cell in table.element.iter(f"{HP}tc"):
+        address = cell.find(f"{HP}cellAddr")
+        if address.get("rowAddr") == "2":
+            address.set("rowAddr", "5")
+
+    estimate = estimate_pages(document)
+
+    assert estimate.unsupported == ()
+    assert estimate.pages == 1
+
+
 def test_lines_of_two_columns_are_in_columns() -> None:
     estimate = estimate_pages(FIXTURES / "pages_columns_2_break.hwpx")
 

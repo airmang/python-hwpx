@@ -376,11 +376,10 @@ def _rows(measure: _Measure, table: Any) -> list[_Row]:
             merged.append((first, span, row))
         elif first not in rows or row.height > rows[first].height:
             rows[first] = row
-    count = max([index + 1 for index in rows] + [first + span for first, span, _ in merged], default=0)
-    for index in range(count):
-        if index not in rows:  # every cell over it is merged over rows
-            cell = next(row for first, span, row in merged if first <= index < first + span)
-            rows[index] = replace(cell, height=0, lines=1, margins=0, spare=0)
+    for first, span, cell in merged:
+        for index in range(first, first + span):
+            if index not in rows:  # every cell over it is merged over rows
+                rows[index] = replace(cell, height=0, lines=1, margins=0, spare=0)
     for first, span, cell in sorted(merged, key=lambda cell: (cell[0] + cell[1], cell[0])):
         spanned = range(first, first + span)
         for index in spanned:
@@ -388,7 +387,7 @@ def _rows(measure: _Measure, table: Any) -> list[_Row]:
         last = rows[first + span - 1]
         lacking = cell.height - sum(rows[index].height for index in spanned)
         rows[first + span - 1] = replace(last, height=last.height + max(lacking, 0))
-    return [rows[index] for index in range(count)]
+    return [rows[index] for index in sorted(rows)]  # a row address no cell covers is skipped
 
 
 def _row_span(cell: Any) -> int:
