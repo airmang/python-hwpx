@@ -20,10 +20,11 @@
   far down). A top-and-bottom object anchored to an empty paragraph pushes the next line below
   it; a table flowing with the text is laid out row by row -- split between cell lines, moved row
   by row or moved whole -- with its header rows repeated; a cell merged over rows that is taller
-  than them adds what they lack to the last of them. A row declared taller than its text is cut
-  just above the page's foot, and what is left of it goes on to the next page unless it is no
-  taller than a 10 pt line with the default cell margins (the cell's own margins, alignment and
-  character size change neither). When a table moved row by row has no
+  than them adds what they lack to the last of them. A table set as a character alone in a
+  paragraph of a cell is one line as tall as it there, spaced like the text. A row declared taller
+  than its text is cut just above the page's foot, and what is left of it goes on to the next page
+  unless it is no taller than a 10 pt line with the default cell margins (the cell's own margins,
+  alignment and character size change neither). When a table moved row by row has no
   room for its first row under its anchor line, it starts on the next page and the text after it
   goes on under the anchor, then below the table on the pages the table takes. Footnotes take
   room at the foot of the page and go on over the page end.
@@ -38,9 +39,11 @@ Anything else makes the estimate unsupported: endnotes, a column change inside a
 settings in a cell or a text box are that list's own), section settings after a section's first
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but objects set as characters, with line spacing in percent or
-fixed), footnotes in such a paragraph, two tables starting past their anchors on one page, a page break among rows merged in a
-flowing table, merged cells over rows that overlap otherwise, a nested table in a table Hancom has
-not laid out as it is, objects placed on the page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
+fixed), footnotes in such a paragraph, two tables starting past their anchors on one page, a page
+break among rows merged in a flowing table, merged cells over rows that overlap otherwise, a nested
+table among text or not set as a character (in a table Hancom has not laid out as it is), a page
+break between the cell lines of a flowing row holding a table, objects placed on the page or the
+paper, composed characters and ruby text. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -333,9 +336,15 @@ class _Measure:
             size = self.char_height(refs[0])
             shape = self.shape(paragraph.get("paraPrIDRef"))
             pitch = _pitch(shape.kind, shape.value, size)
-            count = (_cache_lines(paragraph) if caches else 0) or self.lines(
-                _run_text(runs), [max(width, _MIN_LINE_WIDTH)], size, self.style(paragraph.get("paraPrIDRef"), refs)
-            )
+            table = _table_alone(runs)
+            if table is not None:  # one line as tall as the table, spaced like the text
+                tall = _inline_table_height(self, table) + _extent_margins(table)
+                count, size, pitch = 1, tall, tall + pitch - size
+            else:
+                count = (_cache_lines(paragraph) if caches else 0) or self.lines(
+                    _run_text(runs), [max(width, _MIN_LINE_WIDTH)], size,
+                    self.style(paragraph.get("paraPrIDRef"), refs)
+                )
             if pending is not None:
                 height += pending + shape.prev
             height += (count - 1) * pitch + size
@@ -354,6 +363,7 @@ class _Row:
     header: bool
     merged: bool = False  # under a cell merged over rows: no page break in or around it
     spare: int = 0        # room the row's declared height leaves under its text
+    nested: bool = False  # a cell holds a table: no page break between its cell lines
 
 
 @dataclass(frozen=True)
@@ -371,10 +381,13 @@ def _rows(measure: _Measure, table: Any) -> list[_Row]:
 
     rows: dict[int, _Row] = {}
     merged: dict[tuple[int, int], int] = {}  # (first row, rows spanned) -> the tallest such cell
+    nested: set[int] = set()  # rows with a cell holding a table
     for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
         row, span = _cell_row(measure, table, tc), _row_span(tc)
         address = tc.find(f"{HP}cellAddr")
         first = int(address.get("rowAddr", 0)) if address is not None else len(rows)
+        if row.nested:
+            nested.update(range(first, first + span))
         if span > 1:
             merged[first, span] = max(merged.get((first, span), 0), row.height)
         elif first not in rows or row.height > rows[first].height:
@@ -390,7 +403,7 @@ def _rows(measure: _Measure, table: Any) -> list[_Row]:
         last = rows[first + span - 1]
         lacking = height - sum(rows[index].height for index in spanned)
         rows[first + span - 1] = replace(last, height=last.height + max(lacking, 0))
-    return [rows[index] for index in sorted(rows)]
+    return [replace(rows[index], nested=index in nested) for index in sorted(rows)]
 
 
 def _row_span(cell: Any) -> int:
@@ -398,17 +411,35 @@ def _row_span(cell: Any) -> int:
     return 1 if span is None else int(span.get("rowSpan", 1))
 
 
+def _table_alone(runs: list[Any]) -> Any:
+    """The table set as a character that is all a paragraph holds, or ``None``."""
+
+    children = [child for run in runs for child in run if _local(child) not in ("t", "secPr", "ctrl")]
+    if len(children) != 1 or _local(children[0]) != "tbl" or _run_text(runs).strip():
+        return None
+    pos = children[0].find(f"{HP}pos")
+    return children[0] if pos is not None and pos.get("treatAsChar") == "1" else None
+
+
+def _extent_margins(obj: Any) -> int:
+    margin = obj.find(f"{HP}outMargin")
+    return 0 if margin is None else int(margin.get("top", 0)) + int(margin.get("bottom", 0))
+
+
 def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
-    if cell.find(f".//{HP}tbl") is not None:
-        raise _Unsupported("a nested table")
+    paragraphs = cell.findall(f"{HP}subList/{HP}p")
+    nested = cell.find(f".//{HP}tbl") is not None
+    if nested and any(paragraph.find(f".//{HP}tbl") is not None
+                      and _table_alone(paragraph.findall(f"{HP}run")) is None for paragraph in paragraphs):
+        raise _Unsupported("a nested table")  # among text, or not set as a character
     size = cell.find(f"{HP}cellSz")
     margins = cell_margins_of(cell, table)
     inner = int(size.get("width", 0)) - margins.left - margins.right
-    content, lines, pitch, char_size = measure.stack(cell.findall(f"{HP}subList/{HP}p"), inner, caches=True)
+    content, lines, pitch, char_size = measure.stack(paragraphs, inner, caches=True)
     vertical = margins.top + margins.bottom
     height = max(int(size.get("height", 0)), vertical + content)
     return _Row(height, lines, pitch, char_size, vertical, cell.get("header") == "1",
-                spare=height - vertical - content)
+                spare=height - vertical - content, nested=nested)
 
 
 @dataclass(frozen=True)
@@ -770,6 +801,8 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) 
         if y + height <= body:
             return frame, y + height
         fresh = y == header
+        if mode == "CELL" and row.nested:
+            raise _Unsupported("a page break in a flowing table row holding a table")
         if mode == "CELL":
             fitting = 0
             while fitting < remaining and y + row.margins + fitting * row.pitch + row.size <= body:
