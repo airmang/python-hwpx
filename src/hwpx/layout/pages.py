@@ -24,7 +24,8 @@
   it; anchored in a paragraph of text (from the paragraph's top), it stands at the top of the line
   its place in the text falls on, and that line and the rest of the paragraph come below it --
   offset down, it stands that much lower, and the first line reaching it (in that paragraph or the
-  ones after) and the lines after come below it;
+  ones after) and the lines after come below it -- a table flowing with the text flows from there
+  over the page end, and that line goes below its end;
   wrapped square at a column edge before a paragraph's text (or alone in its paragraph), it narrows
   the lines beside it, in that paragraph and the ones after, by its width -- a table by the height
   of its rows -- and wrapped square with no room beside it, it pushes the text below it like a
@@ -57,8 +58,9 @@ settings in a cell or a text box are that list's own), section settings after a 
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but objects set as characters, with line spacing in percent or
 fixed, one top-and-bottom object placed from the paragraph's top, and one object wrapped square
-at a column edge before any text; an object offset down or wrapped square stays on one page with
-the lines above or beside it), footnotes in such a paragraph, two tables starting past their
+at a column edge before any text; an object offset down, but a flowing table, or wrapped square
+stays on one page with the lines above or beside it), footnotes in such a paragraph, two tables
+starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor or on a
 page, a nested table among text or not set as a character (in a table Hancom has not laid out as
 it is), a page break in a flowing row holding a table and declared taller than its text, other
@@ -540,6 +542,17 @@ class _Anchor:
 
 
 @dataclass(frozen=True)
+class _Band:
+    """A table flowing with the text, top and bottom in a paragraph of text and *offset* down from the top
+    of line *line* (its outer margin above included): it flows from there over the page end, and the
+    first line reaching it, in that paragraph or the ones after, and the lines after go below its end."""
+
+    line: int
+    offset: int
+    table: _FlowTable
+
+
+@dataclass(frozen=True)
 class _Para:
     lines: int
     size: int
@@ -565,6 +578,7 @@ class _Para:
     wrap_lines: int = 0
     #: the line the object laid out around the text (the caller's) stands on
     wrap_anchor: int = 0
+    band: _Band | None = None
 
     def height(self, line: int) -> int:
         return self.cached[line][0] if self.cached else self.size
@@ -998,7 +1012,15 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
             raise _Unsupported("a page break or another object beside a square-wrapped object")
     if pusher is not None:
         para = _paragraph(measure, page, paragraph, None, pusher)
-        top = para.span(0, para.wrap_anchor) + int(pusher.find(f"{HP}pos").get("vertOffset", 0))
+        offset = int(pusher.find(f"{HP}pos").get("vertOffset", 0))
+        if _local(pusher) == "tbl" and pusher.get("pageBreak", "CELL") in ("CELL", "TABLE"):  # it flows
+            rows, cells = _table_rows(measure, pusher)
+            margin = pusher.find(f"{HP}outMargin")
+            ends = (0, 0) if margin is None else (int(margin.get("top", 0)), int(margin.get("bottom", 0)))
+            table = _FlowTable(rows, pusher.get("pageBreak", "CELL"), pusher.get("repeatHeader") == "1", ends,
+                               tuple(cells))
+            return replace(para, band=_Band(para.wrap_anchor, offset, table)), None
+        top = para.span(0, para.wrap_anchor) + offset
         tall = _extent(pusher, "height")
         if _local(pusher) == "tbl":  # as tall as its rows
             tall += sum(row.height for row in _rows(measure, pusher)) - int(pusher.find(f"{HP}sz").get("height", 0))
@@ -1248,6 +1270,9 @@ class _Paginator:
         self.table_end = 0      # the last frame a flowing table reaches
         self.reserved: dict[int, int] = {}  # frames a table starting past its anchor takes: where text starts
         self.wrap_frame = -1                  # the frame a square-wrapped object's band is on
+        #: a flowing table's band no line has reached yet: its frame, top, bottom there (None when it goes
+        #: on over the page end), and the frame and position where the lines after it go on
+        self.band: tuple[int, int, int | None, int, int] | None = None
         self.page_notes = [0, 0]  # height and count of the notes on the current page
         self.carry = 0          # height of notes going on over the page end
 
@@ -1260,6 +1285,9 @@ class _Paginator:
 
     def _paragraph(self, index: int, paras: list[_Para], para: _Para) -> None:
         start = para.prev if self.last_vp is None else self.last_vp + self.last_pitch + self.pending_next + para.prev
+        if para.band is not None or self.band is not None:
+            self._banded(index, paras, para, start)
+            return
         if para.anchor is not None:
             self._anchored(index, paras, para, start)
             return
@@ -1323,6 +1351,55 @@ class _Paginator:
                 raise _Unsupported("a top-and-bottom object anchored in text at a page end")
             end = top + anchor.height
         self.last_vp, self.last_pitch, self.pending_next = end, 0, 0
+        if self._lay(index, paras, tail, end, False):
+            self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], tail.advance(tail.lines - 1), para.next
+
+    def _banded(self, index: int, paras: list[_Para], para: _Para, start: int) -> None:
+        """A paragraph starting a flowing table's band (the table flows from its anchor line's top plus the
+        offset), or one after it: its lines above the band stay, and the first line reaching the band and
+        the lines after go on below the table's end."""
+
+        if para.notes or para.anchor is not None or para.table is not None or para.wrap_bottom \
+                or (self.band is not None and (para.band is not None or para.page_break or para.break_before
+                                               or para.column_break)):
+            raise _Unsupported("a page break or another object beside a top-and-bottom table's band")
+        start, broke = self._breaks(para, start)
+        if para.band is not None:
+            band, table = para.band, para.band.table
+            top = start + para.span(0, band.line) + band.offset
+            if start + para.span(0, band.line) + para.height(band.line) > self.body \
+                    or top + table.margins[0] >= self.body or _starts_later(table, top + table.margins[0], self.body):
+                raise _Unsupported("a top-and-bottom table offset down from a line at a page end")
+            frame, end = _flow_table(table, self.frame, top + table.margins[0], self.body)
+            self.table_end = max(self.table_end, frame)
+            bottom = end + table.margins[1]
+            self.band = (self.frame, top, bottom if frame == self.frame else None, frame, bottom)
+        assert self.band is not None
+        frame, top, bottom, end_frame, end = self.band
+        if self.frame != frame:
+            raise _Unsupported("a page break beside a top-and-bottom table's band")
+        reaching = [line for line in range(para.lines)
+                    if start + para.span(0, line) + para.height(line) > top
+                    and (bottom is None or start + para.span(0, line) < bottom)]
+        if not reaching:  # every line above the band, or past it
+            if self._lay(index, paras, para, start, broke):
+                self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], para.advance(para.lines - 1), \
+                    para.next
+            if self.frame != frame:
+                raise _Unsupported("a page break beside a top-and-bottom table's band")
+            if bottom is not None and start + para.span(0, para.lines - 1) >= bottom:
+                self.band = None
+            return
+        first = reaching[0]
+        head = _lines_of(para, 0, first, prev=para.prev, after=0)
+        tail = _lines_of(para, first, para.lines - first, prev=0, after=para.next)
+        if head.lines:
+            self._lay(index, paras, head, start, broke)
+            if self.frame != frame:
+                raise _Unsupported("a page break beside a top-and-bottom table's band")
+        self.band = None
+        if end_frame != self.frame:
+            self.frame, self.page_notes = end_frame, [0, 0]
         if self._lay(index, paras, tail, end, False):
             self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], tail.advance(tail.lines - 1), para.next
 

@@ -80,6 +80,11 @@ HANCOM_PAGES = {
     "pages_table_anchored_offset_after_text": 1,   # 3000 down from the last line: the next paragraph's second
     "pages_picture_anchored_offset_next_paragraph": 1,  # 1600 down: the next paragraph's first line
     "pages_picture_anchored_small_offset": 1,  # 500 down: the line it stands on goes below it
+    "pages_table_offset_flowing_split_by_cell": 2,  # a flowing table 500 down over the page end:
+                                                    # the line it stands on goes below its end
+    "pages_table_offset_flowing_row_by_row": 2,  # the same moved row by row
+    "pages_table_offset_flowing_second_line": 2,  # 2000 down: the second line goes below its end
+    "pages_table_offset_flowing_next_paragraph": 2,  # the next paragraph's first line does
     "pages_picture_square_left": 2,       # a picture wrapped square on the left, text beside it into the next paragraph
     "pages_picture_square_right": 2,      # a wide picture wrapped square on the right
     "pages_picture_square_alone": 2,      # a picture wrapped square alone in its paragraph
@@ -297,8 +302,9 @@ def test_a_page_break_in_a_row_holding_a_table_and_declared_taller_is_unsupporte
     assert estimate.unsupported == ("section 0: a page break in a flowing table row holding a table",)
 
 
-def test_a_top_and_bottom_table_offset_past_the_page_foot_is_unsupported() -> None:
+def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_is_unsupported() -> None:
     document, table = _flowing_table_after(38, 3)
+    table.element.set("pageBreak", "NONE")
     table.element.find(f"{HP}pos").set("vertOffset", "3000")
     document.paragraphs[-1].add_run("앵커 문단 글")
 
