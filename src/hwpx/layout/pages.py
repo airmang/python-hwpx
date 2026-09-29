@@ -10,7 +10,8 @@
   (:func:`hwpx.form_fit.measure.hancom_line_starts`) at the column width less the paragraph's
   margins and first-line indent, each character at its own size and with its own run's face, 장평
   and 자간; a line of several sizes is as tall as its largest character, and its line spacing is
-  reckoned from that size.
+  reckoned from that size. A paragraph with composed characters or ruby text is followed only
+  through its cache.
 * Height: a line advances by the paragraph's line spacing (percent, fixed, between lines, at
   least), paragraphs add their spacing before and after, and a line stays on the page while its
   bottom is within the body height. Page and column breaks, page break before, keep lines
@@ -66,8 +67,8 @@ starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor or on a
 page, a nested table among text or not set as a character (in a table Hancom has not laid out as
 it is), a page break in a flowing row holding a table and declared taller than its text, other
-objects placed on the page or the paper, composed characters and ruby text. ``pages`` is then
-``None`` and
+objects placed on the page or the paper, composed characters and ruby text in a paragraph without
+such a cache. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -99,7 +100,8 @@ _OBJECTS = frozenset({
 })
 #: How an object in front of or behind the text wraps it: it takes no room from the text.
 _FLOATING = frozenset({"IN_FRONT_OF_TEXT", "BEHIND_TEXT"})
-#: Run content that changes a line's height in ways the estimate does not follow.
+#: Run content whose lines the estimate does not break itself: followed only in a paragraph that keeps
+#: its layout cache.
 _UNSUPPORTED_CONTENT = frozenset({"compose", "dutmal"})
 #: A flowing table's rows use the body only down to this far above its foot: a row, or a cell line of
 #: a row split between its lines, ending lower goes on to the next page, and a row whose declared
@@ -686,11 +688,14 @@ def _check_section(section: Any) -> None:
         raise _Unsupported("section settings (hp:secPr) after the first paragraph")
 
 
-def _placed_objects(runs: list[Any]) -> list[Any]:
+def _placed_objects(runs: list[Any], cached: bool = False) -> list[Any]:
+    """The objects of the runs. Composed characters or ruby text are followed only in a paragraph that
+    keeps a valid layout cache (*cached*): its lines are the ones Hancom drew."""
+
     contents = {_local(child) for run in runs for child in run}
     odd = sorted(contents & _UNSUPPORTED_CONTENT)
-    if odd:
-        raise _Unsupported(f"{odd[0]} in a paragraph")
+    if odd and not cached:
+        raise _Unsupported(f"{odd[0]} in a paragraph without a layout cache")
     objects = [child for run in runs for child in run if _local(child) in _OBJECTS]
     for obj in objects:
         if obj.find(f"{HP}pos") is None or obj.find(f"{HP}sz") is None:
@@ -913,7 +918,7 @@ def _anchored_notes(measure: _Measure, runs: list[Any], text: str, widths: list[
 def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | None = None,
                square: Any = None) -> _Para:
     runs = paragraph.findall(f"{HP}run")
-    objects = [obj for obj in _placed_objects(runs) if obj is not square]
+    objects = [obj for obj in _placed_objects(runs, bool(_cached_metrics(paragraph))) if obj is not square]
     text = _run_text(runs)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     anchored = _anchored_object(objects, text, page.column_width)
@@ -1004,7 +1009,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
     next paragraph sees it."""
 
     runs = paragraph.findall(f"{HP}run")
-    objects = _placed_objects(runs)
+    objects = _placed_objects(runs, bool(_cached_metrics(paragraph)))
     square = _square_object(objects, runs, page.column_width)
     pusher = _pushing_object(objects, _run_text(runs), page.column_width)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
