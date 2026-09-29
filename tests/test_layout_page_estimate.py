@@ -58,6 +58,11 @@ HANCOM_PAGES = {
     "pages_table_flow_merged_three_rows_moved_whole": 2,  # the same with rows 1-3
     "pages_table_flow_merged_rows_split_by_cell": 2,  # split between cell lines: the merged cell's rest goes on
     "pages_table_flow_merged_three_rows_split_by_cell": 2,  # the rest over two rows, what they lack in the last
+    "pages_table_flow_merged_rows_declared_row_cut": 2,  # a row under merged rows declared 14000: its rest goes on
+    "pages_table_flow_merged_rows_declared_row_dropped": 2,  # the same declared 6000: a rest of 503 is dropped
+    "pages_table_flow_merged_cell_declared_cut": 2,  # the merged cell declared 6000: its rest goes on
+    "pages_table_flow_merged_cell_declared_rest_1282": 2,  # the merged cell's rest of 1282 is dropped
+    "pages_table_flow_merged_cell_declared_rest_1283": 2,  # and one of 1283 goes on
     "pages_table_nested_after_text": 1,  # a table in a cell of a flowing table, after a line of text
     "pages_table_nested_alone": 1,       # a table alone in a cell of a flowing table
     "pages_table_nested_in_table_as_character": 1,  # a table in a cell of a table set as a character
@@ -199,7 +204,9 @@ def _flowing_table_after(paragraphs: int, rows: int) -> tuple[HwpxDocument, obje
     return document, table
 
 
-def test_a_page_break_among_merged_rows_taller_than_their_text_is_unsupported() -> None:
+def test_a_page_break_among_the_lines_of_a_merged_cell_taller_than_its_text_is_unsupported() -> None:
+    # The cell merged over rows 1-4 holds four lines and is declared taller than them; the page end
+    # falls among its lines.
     document, table = _flowing_table_after(38, 6)
     for cell in table.element.iter(f"{HP}tc"):
         if cell.find(f"{HP}cellAddr").get("rowAddr") == "2":
@@ -209,7 +216,8 @@ def test_a_page_break_among_merged_rows_taller_than_their_text_is_unsupported() 
     estimate = estimate_pages(document)
 
     assert estimate.pages is None
-    assert estimate.unsupported == ("section 0: a page break among merged rows taller than their text",)
+    assert estimate.unsupported == (
+        "section 0: a page break among the lines of a merged row taller than its text",)
 
 
 @pytest.mark.parametrize(("height", "rest"), [(20000, 13221), (8029, 0), (8061, 0), (8062, 1283), (8079, 1300)])
