@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import math
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
 from functools import lru_cache
@@ -564,7 +564,13 @@ def _hancom_break_opportunities(text: str, style: TextStyle) -> set[int]:
 
 
 def hancom_line_starts(
-    text: str, widths: list[float], font_pt: float, style: TextStyle, sizes: Sequence[float] | None = None
+    text: str,
+    widths: list[float],
+    font_pt: float,
+    style: TextStyle,
+    sizes: Sequence[float] | None = None,
+    styles: Sequence[TextStyle] | None = None,
+    advances: Mapping[int, float] | None = None,
 ) -> list[int]:
     """Where Hancom starts each line of the one-line *text* (no newlines).
 
@@ -578,6 +584,10 @@ def hancom_line_starts(
     punctuation mark — or mid-word when no opportunity is left. *sizes*, when
     given, holds each character's size in pt (runs of several sizes): every
     character, and every space that shrinks, then takes its own size.
+    *styles*, when given, holds each character's own style (runs of several
+    faces, 장평 or 자간) for its advance; *style* still gives the break rules.
+    *advances* gives the width of characters that stand for something else,
+    such as an object set as a character, by their index.
     """
 
     breaks = _hancom_break_opportunities(text, style)
@@ -592,19 +602,22 @@ def hancom_line_starts(
         while end < length:
             ch = text[end]
             size = font_pt if sizes is None else sizes[end]
-            advance = char_advance(ch, size, style)
+            look = style if styles is None else styles[end]
+            fixed = None if advances is None else advances.get(end)
+            advance = char_advance(ch, size, look) if fixed is None else fixed
             if ch in _HANGING_SPACES:
                 if used >= width and end > start and text[end - 1] in _HANGING_SPACES:
                     spilled = True
                     break
                 used += advance
                 if seen:  # the spaces before the line's first text never shrink
-                    # a space of another size counts as its share of a space at *font_pt*
-                    pending += 1 if sizes is None else char_advance(" ", size, style) / space
+                    # a space of another size or style counts as its share of a space at *font_pt*
+                    pending += 1 if sizes is None and styles is None else char_advance(" ", size, look) / space
                 end += 1
                 continue
             shrink = (inner + pending) * space * style.condense / 100.0
-            if used + char_advance(ch, size, unspaced) - shrink > width and end > start:
+            last = fixed if fixed is not None else char_advance(ch, size, unspaced if styles is None else _without_spacing(look))
+            if used + last - shrink > width and end > start:
                 break
             used += advance
             inner += pending
@@ -628,6 +641,11 @@ def hancom_line_starts(
         if start >= length:
             return starts
         starts.append(start)
+
+
+@lru_cache(maxsize=256)
+def _without_spacing(style: TextStyle) -> TextStyle:
+    return replace(style, spacing=0.0)
 
 
 def _hancom_line_count(
