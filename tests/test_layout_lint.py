@@ -665,11 +665,69 @@ def test_filled_lines_that_fit_the_page_body_are_not_flagged():
     assert _page_findings(lint_layout(_bytes(doc))) == []
 
 
-def test_filled_lines_count_line_breaks_not_wrapping():
+def test_filled_lines_count_the_lines_long_text_wraps_into():
     doc = HwpxDocument.new()
     table = doc.add_table(2, 1)
-    table.set_cell_text(0, 0, "긴 글 " * 2000)  # wraps onto many lines, forces none
+    table.set_cell_text(0, 0, "긴 글 " * 2000)  # no line breaks: it wraps onto many lines
+    [finding] = _page_findings(lint_layout(_bytes(doc)))
+    assert finding.detail["min_height"] > finding.detail["page_body"]
+
+
+_HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved"
+
+
+def _saved_table(name: str) -> tuple[bytes, ET.Element]:
+    data = (_HANCOM_SAVED / name).read_bytes()
+    root = ET.fromstring(zipfile.ZipFile(io.BytesIO(data)).read("Contents/section0.xml"))
+    return data, next(root.iter(f"{HP}tbl"))
+
+
+def test_wrapped_lines_stay_below_the_height_hancom_draws():
+    # Hancom saved an inline 3 x 2 table whose second-column cells each hold one long paragraph without
+    # line breaks: every such cell wraps onto 34 lines and the table is as tall as those rows.
+    data, table = _saved_table("table_page_wrapped_rows.hwpx")
+    assert [len(tc.findall(f".//{HP}lineseg")) for tc in table.iter(f"{HP}tc")] == [1, 34] * 3
+    saved = int(table.find(f"{HP}sz").get("height"))
+    assert saved == 3 * (33 * 1600 + 1000 + 282)
+    [finding] = _page_findings(lint_layout(data))
+    assert finding.detail["page_body"] < finding.detail["min_height"] <= saved
+
+
+def test_a_wrapped_row_taller_than_the_page_in_a_table_broken_between_rows_is_flagged():
+    # The middle row's long paragraph wraps onto 100 lines in the table Hancom saved (pageBreak="TABLE").
+    data, table = _saved_table("table_page_wrapped_row.hwpx")
+    lines = len(list(table.findall(f"{HP}tr")[1].iter(f"{HP}lineseg"))) - 1  # less the first cell's line
+    assert lines == 100
+    [finding] = _page_findings(lint_layout(data))
+    assert finding.detail["row"] == 1
+    assert finding.detail["page_body"] < finding.detail["min_height"] <= (lines - 1) * 1600 + 1000 + 282
+
+
+def test_wrapped_lines_of_text_in_several_character_shapes_are_not_counted():
+    doc = HwpxDocument.new()
+    table = doc.add_table(2, 1)
+    paragraph = table.cell(0, 0).paragraphs[0]
+    paragraph.add_run("긴 글 " * 1000)
+    paragraph.add_run("긴 글 " * 1000, bold=True)
     assert _page_findings(lint_layout(_bytes(doc))) == []
+
+
+def test_wrapped_lines_of_text_with_a_tab_are_not_counted():
+    doc = HwpxDocument.new()
+    table = doc.add_table(2, 1)
+    table.set_cell_text(0, 0, "긴 글 " * 1000 + "\t" + "긴 글 " * 1000)
+    assert _page_findings(lint_layout(_bytes(doc))) == []
+
+
+def test_the_value_of_a_click_here_field_counts_the_lines_it_wraps_into():
+    from hwpx.form_fit import FitPolicy
+
+    doc = HwpxDocument.new()
+    table = doc.add_table(2, 1)
+    table.cell(0, 0).paragraphs[0].add_form_field("value", prompt="안내")
+    doc.fields.fill("긴 글 " * 2000, name="value", fit_policy=FitPolicy(allow_row_expand=True))
+    [finding] = _page_findings(lint_layout(_bytes(doc)))
+    assert finding.detail["min_height"] > finding.detail["page_body"]
 
 
 def test_filled_lines_of_vertical_text_are_not_counted():

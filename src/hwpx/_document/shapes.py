@@ -661,6 +661,35 @@ def add_chart(
     )
 
 
+def remove_unused_charts(doc: "HwpxDocument") -> tuple[str, ...]:
+    """Remove every chart part (``Chart/...``) no chart points at and return
+    the removed part names.
+
+    Hancom drops such parts when it saves a document; a chart removed from the
+    body (``section.clear_body()``, a deleted paragraph) leaves its part, with
+    the chart's data, behind. A part is kept while a ``hp:chart`` anywhere in
+    the document (sections, master pages, header, histories) names its file.
+    """
+    from pathlib import PurePosixPath
+
+    from ..oxml.namespaces import HP
+    from ..opc.relationships import normalize_part_name
+
+    root = doc._root
+    used = {
+        PurePosixPath(normalize_part_name(anchor.get("chartIDRef", ""))).name
+        for part in (*root.headers, *root.sections, *root.master_pages, *root.histories)
+        for anchor in part.element.iter(f"{HP}chart")
+    }
+    removed: list[str] = []
+    for part_name in doc._package.part_names():
+        if part_name.startswith("Chart/") and PurePosixPath(part_name).name not in used:
+            doc._package.remove_manifest_item(part_name)
+            doc._package.delete(part_name)
+            removed.append(part_name)
+    return tuple(removed)
+
+
 def add_drop_cap(
     doc: "HwpxDocument",
     character: str,
