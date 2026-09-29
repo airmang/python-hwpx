@@ -42,6 +42,15 @@ HANCOM_PAGES = {
     "pages_table_merged_rows_tall": 1,    # a table set as a character, a merged cell taller than its rows
     "pages_table_merged_rows_short": 1,   # the same, the merged cell shorter than its rows
     "pages_table_flow_merged_rows": 2,    # a table flowing with the text, cells merged over rows
+    "pages_table_flow_tall_row_carried": 2,  # a row declared taller than its text, cut at the page end
+    "pages_table_flow_tall_row_dropped": 2,  # the same, the rest too short to go on
+    "pages_table_flow_tall_row_rest_1282": 2,  # a rest of 1282 is dropped
+    "pages_table_flow_tall_row_rest_1283": 2,  # a rest of 1283 goes on
+    "pages_table_flow_tall_row_cell_margins_0": 2,    # the cells' own margins 0: 1283 goes on
+    "pages_table_flow_tall_row_cell_margins_500": 2,  # the cells' own margins 500: 1290 goes on
+    "pages_table_flow_tall_row_table_margins_500": 2,  # the table's inner margins 500: 1290 goes on
+    "pages_table_flow_tall_row_bottom_aligned": 2,    # cells aligned to the bottom: 1290 goes on
+    "pages_table_flow_tall_row_16pt": 2,              # 16 pt text: 1283 goes on
     "pages_table_merged_rows_held": 1,    # a cell merged over rows 0-3 holding one over rows 1-2
     "pages_table_merged_rows_staggered": 1,  # merged over rows 0-1 and 1-2: row 1 has no cell of its own
     "pages_table_merged_rows_ending_first": 1,  # merged over rows 0-2 and 2-3: the one ending first first
@@ -199,16 +208,21 @@ def test_a_page_break_among_merged_rows_of_a_flowing_table_is_unsupported() -> N
     assert estimate.unsupported == ("section 0: a page break among rows merged in a flowing table",)
 
 
-def test_a_page_break_in_a_flowing_row_taller_than_its_text_is_unsupported() -> None:
-    # How Hancom divides the room under the text at a page break is not known.
-    document, table = _flowing_table_after(30, 1)
-    for size in table.element.iter(f"{HP}cellSz"):
-        size.set("height", "30000")
+@pytest.mark.parametrize(("height", "rest"), [(20000, 13221), (8029, 0), (8061, 0), (8062, 1283), (8079, 1300)])
+def test_a_flowing_row_taller_than_its_text_is_cut_just_above_the_page_foot(height: int, rest: int) -> None:
+    # The row starts 6880 above the foot: Hancom cuts it 101 above the foot and carries the rest to the
+    # next page, unless the rest is 1282 or less (then the next row starts that page). The fixtures
+    # pages_table_flow_tall_row_rest_1282 and _1283 are rows placed the same way, saved by Hancom.
+    document, table = _flowing_table_after(35, 3)
+    for cell in table.element.iter(f"{HP}tc"):
+        if cell.find(f"{HP}cellAddr").get("rowAddr") == "1":
+            cell.find(f"{HP}cellSz").set("height", str(height))
+    document.add_paragraph("표 뒤")
 
     estimate = estimate_pages(document)
 
-    assert estimate.pages is None
-    assert estimate.unsupported == ("section 0: a page break in a flowing table row taller than its text",)
+    assert estimate.unsupported == ()
+    assert estimate.lines[-1] == (EstimatedLine(page=1, column=0, vertpos=rest + 1282),)
 
 
 def test_lines_of_two_columns_are_in_columns() -> None:
