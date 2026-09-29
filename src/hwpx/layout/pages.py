@@ -17,12 +17,17 @@
   with its header rows repeated. Footnotes take room at the foot of the page and go on over the
   page end.
 
-Anything else makes the estimate unsupported: endnotes, a column change inside a section, section
-settings after a section's first paragraph (Hancom starts a new section there), a line or
-character grid, an object with text or other objects in its paragraph, mixed character sizes in a
-paragraph, merged or nested cells in a table the estimate measures, objects placed on the page or
-the paper, composed characters and ruby text. ``pages`` is then ``None`` and ``unsupported`` says
-why, per section.
+A table set as a character that the row model does not follow (merged rows, a nested table) keeps
+the height Hancom saved for it (``hp:sz``) when every paragraph in it keeps a valid layout cache,
+i.e. Hancom laid the table out as it is.
+
+Anything else makes the estimate unsupported: endnotes, a column change inside a section (column
+settings in a cell or a text box are that list's own), section settings after a section's first
+paragraph (Hancom starts a new section there), a line or character grid, an object with text or
+other objects in its paragraph, mixed character sizes in a paragraph, merged rows or a nested table
+in a table flowing with the text or in one Hancom has not laid out as it is, objects placed on the
+page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
+``unsupported`` says why, per section.
 """
 
 from __future__ import annotations
@@ -354,7 +359,8 @@ def _page(section: Any) -> _Page:
 
 
 def _columns(section: Any, text_width: int) -> tuple[int, int]:
-    settings = list(section.iter(f"{HP}colPr"))
+    # Column settings in a cell or a text box (an hp:subList) belong to that list, not the section.
+    settings = [cols for cols in section.iter(f"{HP}colPr") if not _in_sub_list(cols)]
     if len(settings) > 1:
         raise _Unsupported("the columns change inside the section")
     count = int(settings[0].get("colCount", "1")) if settings else 1
@@ -364,6 +370,24 @@ def _columns(section: Any, text_width: int) -> tuple[int, int]:
         raise _Unsupported("columns of unequal width")
     gap = int(settings[0].get("sameGap", 0))
     return count, (text_width - (count - 1) * gap) // count // 4 * 4
+
+
+def _in_sub_list(element: Any) -> bool:
+    return any(_local(ancestor) == "subList" for ancestor in element.iterancestors())
+
+
+def _inline_table_height(measure: _Measure, table: Any) -> int:
+    """A table set as a character: its rows as the estimate measures them. When the row model does not
+    follow the table (merged rows, a nested table) but every paragraph in it keeps a valid layout cache,
+    Hancom laid it out as it is, and the height it saved (hp:sz) is the height it draws."""
+
+    try:
+        return sum(row.height for row in _rows(measure, table))
+    except _Unsupported:
+        paragraphs = list(table.iter(f"{HP}p"))
+        if not paragraphs or not all(_cache_lines(paragraph) for paragraph in paragraphs):
+            raise
+        return int(table.find(f"{HP}sz").get("height", 0))
 
 
 @dataclass(frozen=True)
@@ -440,7 +464,7 @@ def _object_line(
     name = _local(obj)
     if pos.get("treatAsChar") == "1":
         if name == "tbl":
-            tall = sum(row.height for row in _rows(measure, obj)) + top + bottom
+            tall = _inline_table_height(measure, obj) + top + bottom
         return 1, tall, tall + pitch - size, None
     on_paragraph = pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"
     if obj.get("textWrap") == "TOP_AND_BOTTOM" and on_paragraph:
