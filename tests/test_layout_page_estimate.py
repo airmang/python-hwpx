@@ -52,6 +52,12 @@ HANCOM_PAGES = {
     "pages_table_flow_tall_row_bottom_aligned": 2,    # cells aligned to the bottom: 1290 goes on
     "pages_table_flow_tall_row_16pt": 2,              # 16 pt text: 1283 goes on
     "pages_table_flow_anchor_on_next_page": 2,  # the table's anchor line has no room: both go on
+    "pages_table_nested_after_text": 1,  # a table in a cell of a flowing table, after a line of text
+    "pages_table_nested_alone": 1,       # a table alone in a cell of a flowing table
+    "pages_table_nested_in_table_as_character": 1,  # a table in a cell of a table set as a character
+    "pages_objects_among_text_table": 2,  # a full-width table set as a character among text
+    "pages_objects_among_text_equation": 1,  # equations set as characters among text
+    "pages_objects_after_text_rectangle": 1,  # rectangles set as characters after text
 }
 
 
@@ -231,6 +237,16 @@ def test_a_flowing_table_whose_anchor_line_has_no_room_starts_on_the_next_page()
 
     assert estimate.lines[-2] == (EstimatedLine(page=1, column=0, vertpos=0),)
     assert estimate.lines[-1] == (EstimatedLine(page=1, column=0, vertpos=3 * 1282),)
+
+
+def test_a_page_break_in_a_flowing_row_holding_a_table_is_unsupported() -> None:
+    document, table = _flowing_table_after(38, 3)
+    table.cell(1, 1).add_table(4, 2, width=18000)
+
+    estimate = estimate_pages(document)
+
+    assert estimate.pages is None
+    assert estimate.unsupported == ("section 0: a page break in a flowing table row holding a table",)
 
 
 def test_lines_of_two_columns_are_in_columns() -> None:
