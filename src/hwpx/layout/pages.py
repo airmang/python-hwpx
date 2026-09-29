@@ -15,8 +15,10 @@
 * Objects: a table or picture set as a character is one line as tall as it; a top-and-bottom
   object anchored to an empty paragraph pushes the next line below it; a table flowing with the
   text is laid out row by row -- split between cell lines, moved row by row or moved whole --
-  with its header rows repeated. Footnotes take room at the foot of the page and go on over the
-  page end.
+  with its header rows repeated. When a table moved row by row has no room for its first row under
+  its anchor line, it starts on the next page and the text after it goes on under the anchor, then
+  below the table on the pages the table takes. Footnotes take room at the foot of the page and go
+  on over the page end.
 
 A table set as a character that the row model does not follow (merged rows, a nested table) keeps
 the height Hancom saved for it (``hp:sz``) when every paragraph in it keeps a valid layout cache,
@@ -25,7 +27,8 @@ i.e. Hancom laid the table out as it is.
 Anything else makes the estimate unsupported: endnotes, a column change inside a section (column
 settings in a cell or a text box are that list's own), section settings after a section's first
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
-other objects in its paragraph, mixed character sizes in a paragraph without a valid layout cache,
+other objects in its paragraph, two tables starting past their anchors on one page, mixed character
+sizes in a paragraph without a valid layout cache,
 merged rows or a nested table
 in a table flowing with the text or in one Hancom has not laid out as it is, objects placed on the
 page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
@@ -592,10 +595,23 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any) -> _Para:
 # -- laying the paragraphs out ---------------------------------------------------------------------
 
 
+def _repeated_header(table: _FlowTable) -> int:
+    return sum(row.height for row in table.rows if row.header) if table.repeat_header else 0
+
+
+def _starts_later(table: _FlowTable, y: int, body: int) -> bool:
+    """Whether a table moved row by row (TABLE) has no room for its first row from *y*, so it starts on
+    the next page. At the top of a page the row is drawn anyway."""
+
+    if table.mode != "TABLE" or not table.rows:
+        return False
+    return y + table.rows[0].height > body and y != _repeated_header(table)
+
+
 def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, int]:
     """Lay the rows out from vertical position *y*; the frame and position where the table ends."""
 
-    header = sum(row.height for row in table.rows if row.header) if table.repeat_header else 0
+    header = _repeated_header(table)
     for row in table.rows:
         frame, y = _flow_row(table.mode, row, frame, y, body, header)
     return frame, y
@@ -638,6 +654,7 @@ class _Paginator:
         self.pending_next = 0
         self.extra_frames = 0   # frames a table that does not split takes past the text
         self.table_end = 0      # the last frame a flowing table reaches
+        self.reserved: dict[int, int] = {}  # frames a table starting past its anchor takes: where text starts
         self.page_notes = [0, 0]  # height and count of the notes on the current page
         self.carry = 0          # height of notes going on over the page end
 
@@ -663,11 +680,28 @@ class _Paginator:
     def _flow(self, para: _Para, table: _FlowTable, start: int) -> None:
         self.out.append((self.frame, start))  # the anchor paragraph's line, under the table's top
         before = self.frame
-        self.frame, end = _flow_table(table, self.frame, start + table.margins[0], self.body)
-        self.table_end = max(self.table_end, self.frame)
+        top = start + table.margins[0]
+        frame, end = _flow_table(table, self.frame, top, self.body)
+        self.table_end = max(self.table_end, frame)
+        if start + para.height(0) <= self.body and _starts_later(table, top, self.body):
+            self._starts_next_page(para, table, start, frame, end)
+            return
+        self.frame = frame
         if self.frame != before:
             self.page_notes = [0, 0]
         self.last_vp, self.last_pitch, self.pending_next = end + table.margins[1], 0, para.next
+
+    def _starts_next_page(self, para: _Para, table: _FlowTable, start: int, frame: int, end: int) -> None:
+        """The anchor line fits but the table's first row does not, so the table starts on the next page
+        and ends in *frame* at *end*. The text after it goes on under the anchor line, and on the pages the
+        table takes, below the table."""
+
+        taken = range(self.frame + 1, frame + 1)
+        if any(page in self.reserved for page in taken):
+            raise _Unsupported("two tables starting past their anchors on one page")
+        self.reserved.update(dict.fromkeys(taken, self.body))
+        self.reserved[frame] = end + table.margins[1]
+        self.last_vp, self.last_pitch, self.pending_next = start, para.advance(para.lines - 1), para.next
 
     def _breaks(self, para: _Para, start: int) -> tuple[int, bool]:
         if self.last_vp is None:
@@ -679,7 +713,7 @@ class _Paginator:
         else:
             return start, False
         self.page_notes = [0, 0]
-        return para.prev, True
+        return self._free_top() + para.prev, True
 
     def _lay(self, index: int, paras: list[_Para], para: _Para, start: int, broke: bool) -> bool:
         """Place the lines of *para*; False when its notes ended the page after it."""
@@ -689,7 +723,7 @@ class _Paginator:
         while remaining:
             done = para.lines - remaining
             count = self._chunk(index, paras, para, start, remaining, done, first_chunk)
-            if count == 0 and (self.last_vp is None or fresh):
+            if count == 0 and (self.last_vp is None or fresh) and not self.reserved.get(self.frame):
                 count = 1  # a line taller than the page still takes an empty page (and overflows it)
             self.out.extend((self.frame, start + para.span(done, j)) for j in range(count))
             self._place(para, done, count)
@@ -708,7 +742,15 @@ class _Paginator:
     def _next_frame(self, para: _Para, count: int, first_chunk: bool) -> int:
         self.frame += 1
         self.page_notes = [self.carry, 1] if self.carry else [0, 0]
-        return para.prev if count == 0 and first_chunk else 0
+        return self._free_top() + (para.prev if count == 0 and first_chunk else 0)
+
+    def _free_top(self) -> int:
+        """Where text starts in the current frame: below a table that starts past its anchor, the frames
+        the table fills skipped."""
+
+        while self.reserved.get(self.frame, 0) >= self.body:
+            self.frame += 1
+        return self.reserved.get(self.frame, 0)
 
     def _chunk(self, index: int, paras: list[_Para], para: _Para, start: int, remaining: int, done: int,
                first_chunk: bool) -> int:
