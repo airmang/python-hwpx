@@ -97,6 +97,17 @@ def test_removing_a_section_other_than_the_last_still_saves() -> None:
     assert document.to_bytes(format="hwp")
 
 
+def test_a_removed_section_leaves_no_part_behind() -> None:
+    document = HwpxDocument.open(_three_sections())
+    document.remove_section(0)
+
+    with zipfile.ZipFile(io.BytesIO(document.to_bytes())) as saved:
+        parts = sorted(name for name in saved.namelist() if name.startswith("Contents/section"))
+        texts = [saved.read(name).decode("utf-8") for name in parts]
+    assert parts == ["Contents/section1.xml", "Contents/section2.xml"]
+    assert not any("<hp:t>가</hp:t>" in text for text in texts)
+
+
 def test_a_file_saved_with_shifted_ids_saves_again() -> None:
     data = _ids_shifted()
     assert _section_messages(data, errors=True)

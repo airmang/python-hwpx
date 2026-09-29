@@ -377,9 +377,16 @@ class HwpxDocument(_LegacyFacade):
     ) -> None:
         """Remove a section from the document.
 
+        The section's part goes too: it is no longer listed in the manifest, and
+        a saved file does not keep it (with the section's text) as a stray file.
         Raises ``ValueError`` if the document would have no sections left.
         """
+        before = [existing.part_name for existing in self._root.sections]
         self._root.remove_section(section)
+        remaining = {existing.part_name for existing in self._root.sections}
+        for part_name in before:
+            if part_name not in remaining and self.package.has_part(part_name):
+                self.package.delete(part_name)
 
     @property
     def paragraphs(self) -> list[HwpxOxmlParagraph]:

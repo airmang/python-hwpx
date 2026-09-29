@@ -136,6 +136,9 @@
 
 ### 고침
 
+- `remove_section()`이 지운 구역의 파트(`Contents/sectionN.xml`)를 패키지에 남기던 것을 고친다. 매니페스트는
+  그 파트를 더 가리키지 않지만 저장한 파일 안에 지운 구역의 글이 그대로 남았다(한/글은 읽지 않고, 다시 저장하면
+  없어진다). 이제 구역을 지우면 그 파트도 지운다.
 - 편집기 안전 검사가 한컴이 열지 못하거나 여는 중에 멈추는 찾아보기 표시·도형 매개변수 묶음을 통과시키던 것을 고친다.
   이제 다음은 오류다: `hp:firstKey`가 없는 `hp:indexmark`, `hp:parameterset` 안의 `name` 없는 `hp:listParam`·
   `hp:unsignedintegerParam`, `cnt`로 매개변수가 있다고 하면서 하나도 없는 `hp:parameterset`·`hp:listParam`.
