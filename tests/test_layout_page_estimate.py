@@ -41,6 +41,7 @@ HANCOM_PAGES = {
     "pages_picture_before_text_fixed": 2,    # a picture taller than the fixed line spacing
     "pages_table_merged_rows_tall": 1,    # a table set as a character, a merged cell taller than its rows
     "pages_table_merged_rows_short": 1,   # the same, the merged cell shorter than its rows
+    "pages_table_flow_merged_rows": 2,    # a table flowing with the text, cells merged over rows
 }
 
 
@@ -170,6 +171,41 @@ def test_an_empty_run_takes_no_room_and_gives_no_character_shape() -> None:
     estimate = estimate_pages(_without_caches(_with_empty_first_runs(data)))
 
     _assert_like_hancom(estimate, data, HANCOM_PAGES["pages_mixed_sizes_fixed"])
+
+
+def _flowing_table_after(paragraphs: int, rows: int) -> tuple[HwpxDocument, object]:
+    document = HwpxDocument.new()
+    for index in range(paragraphs):
+        document.add_paragraph(f"문단 {index}")
+    table = document.add_paragraph("").add_table(rows, 2)
+    table.set_treat_as_char(False)
+    table.element.set("pageBreak", "CELL")
+    for row in range(rows):
+        for column in range(2):
+            table.set_cell_text(row, column, "칸")
+    return document, table
+
+
+def test_a_page_break_among_merged_rows_of_a_flowing_table_is_unsupported() -> None:
+    document, table = _flowing_table_after(38, 6)
+    table.merge_cells(1, 0, 4, 0)
+
+    estimate = estimate_pages(document)
+
+    assert estimate.pages is None
+    assert estimate.unsupported == ("section 0: a page break among rows merged in a flowing table",)
+
+
+def test_a_page_break_in_a_flowing_row_taller_than_its_text_is_unsupported() -> None:
+    # How Hancom divides the room under the text at a page break is not known.
+    document, table = _flowing_table_after(30, 1)
+    for size in table.element.iter(f"{HP}cellSz"):
+        size.set("height", "30000")
+
+    estimate = estimate_pages(document)
+
+    assert estimate.pages is None
+    assert estimate.unsupported == ("section 0: a page break in a flowing table row taller than its text",)
 
 
 def test_lines_of_two_columns_are_in_columns() -> None:

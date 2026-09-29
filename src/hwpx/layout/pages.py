@@ -18,24 +18,26 @@
   tall as the picture; the line spacing stays the text's (a fixed spacing keeps the next line that
   far down). A top-and-bottom object anchored to an empty paragraph pushes the next line below
   it; a table flowing with the text is laid out row by row -- split between cell lines, moved row
-  by row or moved whole -- with its header rows repeated. When a table moved row by row has no
+  by row or moved whole -- with its header rows repeated; a cell merged over rows that is taller
+  than them adds what they lack to the last of them. When a table moved row by row has no
   room for its first row under its anchor line, it starts on the next page and the text after it
   goes on under the anchor, then below the table on the pages the table takes. Footnotes take
   room at the foot of the page and go on over the page end.
 
 A table set as a character that the row model does not follow (merged rows, a nested table) keeps
 the height Hancom saved for it (``hp:sz``) when every paragraph in it keeps a valid layout cache,
-i.e. Hancom laid the table out as it is. Otherwise a table set as a character whose cells merge
-rows is as tall as its rows, each as its tallest cell of one row, plus what the tallest merged
-cell over the same rows lacks.
+i.e. Hancom laid the table out as it is. Otherwise a table whose cells merge rows has its rows as
+their tallest cells of one row, the last row of a merge taking what the tallest merged cell over
+the same rows lacks.
 
 Anything else makes the estimate unsupported: endnotes, a column change inside a section (column
 settings in a cell or a text box are that list's own), section settings after a section's first
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but a picture before the text, with line spacing in percent or
-fixed), two tables starting past their anchors on one page, merged rows in a table flowing with
-the text, a nested table in one Hancom has not laid out as it is (or merged cells whose rows
-overlap otherwise), objects placed on the page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
+fixed), two tables starting past their anchors on one page, a page break among rows merged in a
+flowing table or in a flowing row taller than its text, merged cells over rows that overlap
+otherwise, a nested table in a table Hancom has not laid out as it is, objects placed on the page
+or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -43,7 +45,7 @@ from __future__ import annotations
 
 import copy
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 from ..form_fit.measure import hancom_line_starts, text_style_from_refs
@@ -336,6 +338,8 @@ class _Row:
     size: int
     margins: int  # top + bottom cell margins
     header: bool
+    merged: bool = False  # under a cell merged over rows: no page break in or around it
+    spare: int = 0        # room the row's declared height leaves under its text
 
 
 @dataclass(frozen=True)
@@ -347,14 +351,32 @@ class _FlowTable:
 
 
 def _rows(measure: _Measure, table: Any) -> list[_Row]:
-    """Each row as its tallest cell: the cell's declared height or its content with its margins."""
+    """Each row as its tallest cell of one row: the cell's declared height or its content with its
+    margins. The tallest cell merged over the same rows adds what those rows lack to the last of them.
+    Merged cells over rows that overlap otherwise, and rows made of merged cells only, are not followed."""
 
-    rows = []
-    for tr in table.findall(f"{HP}tr"):
-        cells = [_cell_row(measure, table, tc) for tc in tr.findall(f"{HP}tc")]
-        if cells:
-            rows.append(max(cells, key=lambda row: row.height))
-    return rows
+    rows: dict[int, _Row] = {}
+    merged: dict[tuple[int, int], int] = {}  # (first row, rows spanned) -> the tallest such cell
+    for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
+        row, span = _cell_row(measure, table, tc), _row_span(tc)
+        address = tc.find(f"{HP}cellAddr")
+        first = int(address.get("rowAddr", 0)) if address is not None else len(rows)
+        if span > 1:
+            merged[first, span] = max(merged.get((first, span), 0), row.height)
+        elif first not in rows or row.height > rows[first].height:
+            rows[first] = row
+    taken: set[int] = set()
+    for (first, span), height in merged.items():
+        spanned = range(first, first + span)
+        if taken.intersection(spanned) or any(index not in rows for index in spanned):
+            raise _Unsupported("a table with merged rows")
+        taken.update(spanned)
+        for index in spanned:
+            rows[index] = replace(rows[index], merged=True)
+        last = rows[first + span - 1]
+        lacking = height - sum(rows[index].height for index in spanned)
+        rows[first + span - 1] = replace(last, height=last.height + max(lacking, 0))
+    return [rows[index] for index in sorted(rows)]
 
 
 def _row_span(cell: Any) -> int:
@@ -362,35 +384,7 @@ def _row_span(cell: Any) -> int:
     return 1 if span is None else int(span.get("rowSpan", 1))
 
 
-def _merged_table_height(measure: _Measure, table: Any) -> int:
-    """The height of a table whose cells merge rows: each row as its tallest cell of one row, and the
-    tallest merged cell over the same rows adds what those rows lack. Spans that overlap without being
-    the same rows, and rows made of merged cells only, are not followed."""
-
-    rows: dict[int, int] = {}
-    merged: dict[tuple[int, int], int] = {}  # (first row, rows spanned) -> the tallest such cell
-    for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
-        address = tc.find(f"{HP}cellAddr")
-        first, span = int(address.get("rowAddr", 0)), _row_span(tc)
-        height = _cell_row(measure, table, tc, merged=True).height
-        if span == 1:
-            rows[first] = max(rows.get(first, 0), height)
-        else:
-            merged[first, span] = max(merged.get((first, span), 0), height)
-    taken: set[int] = set()
-    extra = 0
-    for (first, span), height in merged.items():
-        spanned = range(first, first + span)
-        if taken.intersection(spanned) or any(row not in rows for row in spanned):
-            raise _Unsupported("a table with merged rows")
-        taken.update(spanned)
-        extra += max(height - sum(rows[row] for row in spanned), 0)
-    return sum(rows.values()) + extra
-
-
-def _cell_row(measure: _Measure, table: Any, cell: Any, merged: bool = False) -> _Row:
-    if not merged and _row_span(cell) != 1:
-        raise _Unsupported("a table with merged rows")
+def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
     if cell.find(f".//{HP}tbl") is not None:
         raise _Unsupported("a nested table")
     size = cell.find(f"{HP}cellSz")
@@ -399,7 +393,8 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, merged: bool = False) ->
     content, lines, pitch, char_size = measure.stack(cell.findall(f"{HP}subList/{HP}p"), inner, caches=True)
     vertical = margins.top + margins.bottom
     height = max(int(size.get("height", 0)), vertical + content)
-    return _Row(height, lines, pitch, char_size, vertical, cell.get("header") == "1")
+    return _Row(height, lines, pitch, char_size, vertical, cell.get("header") == "1",
+                spare=height - vertical - content)
 
 
 @dataclass(frozen=True)
@@ -478,13 +473,11 @@ def _inline_table_height(measure: _Measure, table: Any) -> int:
     follow the table (merged rows, a nested table) but every paragraph in it keeps a valid layout cache,
     Hancom laid it out as it is, and the height it saved (hp:sz) is the height it draws."""
 
-    try:
-        return sum(row.height for row in _rows(measure, table))
-    except _Unsupported:
+    if table.find(f".//{HP}tbl") is not None or any(_row_span(tc) != 1 for tc in table.iter(f"{HP}tc")):
         paragraphs = list(table.iter(f"{HP}p"))
         if paragraphs and all(_cache_lines(paragraph) for paragraph in paragraphs):
             return int(table.find(f"{HP}sz").get("height", 0))
-        return _merged_table_height(measure, table)
+    return sum(row.height for row in _rows(measure, table))
 
 
 @dataclass(frozen=True)
@@ -704,7 +697,10 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
 
     header = _repeated_header(table)
     for row in table.rows:
+        before = frame
         frame, y = _flow_row(table.mode, row, frame, y, body, header)
+        if row.merged and frame != before:
+            raise _Unsupported("a page break among rows merged in a flowing table")
     return frame, y
 
 
@@ -722,6 +718,8 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) 
             while fitting < remaining and y + row.margins + fitting * row.pitch + row.size <= body:
                 fitting += 1
             if fitting:
+                if row.spare:  # how the room under the text divides at a page break is not known
+                    raise _Unsupported("a page break in a flowing table row taller than its text")
                 remaining -= fitting
                 height = row.margins + (remaining - 1) * row.pitch + row.size
             elif fresh:
