@@ -31,7 +31,6 @@ from hwpx.form_fit import (
 )
 from hwpx.form_fit.measure import (
     _cell_text_style,
-    char_advance,
     classify_char,
     glyph_advance_em,
     resolve_slot_metrics,
@@ -78,18 +77,22 @@ def test_each_character_can_take_its_own_size() -> None:
     assert hancom_line_starts("가나다라마", [5000], 10, style, sizes=[10, 10, 20, 10, 10]) == [0, 4]
 
 
-@pytest.mark.parametrize(
-    ("face", "glyph", "advance"),
-    [
-        ("바탕", "∑", 812),  # a KS X 1001 symbol at its design advance
-        ("맑은 고딕", "∮", 544),
-        ("함초롬돋움", "Ω", 720),  # 함초롬돋움 lays Greek out at 함초롬바탕's advances
-        ("한컴 고딕", "я", 544),
-        ("바탕", "〄", 968),  # 바탕 lacks it: 함초롬바탕's advance moved into 바탕's units
-    ],
-)
-def test_a_symbol_takes_the_advance_hancom_lays_it_out_at(face: str, glyph: str, advance: int) -> None:
-    assert char_advance(glyph, 10, TextStyle(glyph_face=face, hangul_face=face)) == advance
+def test_cells_of_symbols_break_where_hancom_breaks_them() -> None:
+    # Hancom laid this document out. Each cell holds a symbol and five Hangul syllables at one of the two
+    # widths where its line breaks change: symbols a face lacks (drawn from its fallback face, in faces of
+    # 1000, 1024 and 2048 units per em), the Greek of 함초롬돋움, 한컴 고딕's я, and design advances.
+    doc = HwpxDocument.open(Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_glyph_cells.hwpx")
+    cells = list(doc.oxml.sections[0].element.iter(f"{HP}tc"))
+    for cell in cells:
+        paragraph = cell.find(f"{HP}subList/{HP}p")
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        ref = paragraph.find(f"{HP}run").get("charPrIDRef")
+        style = text_style_from_refs(doc.oxml, paragraph.get("paraPrIDRef"), [ref])
+        margins = cell.find(f"{HP}cellMargin")
+        width = int(cell.find(f"{HP}cellSz").get("width")) - int(margins.get("left")) - int(margins.get("right"))
+        hancom = len(paragraph.findall(f"{HP}linesegarray/{HP}lineseg"))
+        assert estimate_lines(text, width, 10, style) == hancom, (style.glyph_face, f"U+{ord(text[0]):04X}", width)
+    assert len(cells) == 24
 
 
 def test_every_fallback_face_has_a_table() -> None:
