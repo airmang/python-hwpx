@@ -45,6 +45,10 @@ _EXPERIMENTAL_EXPORTS = {
     "LayoutPreview": "hwpx.tools.layout_preview",
     "PreviewPage": "hwpx.tools.layout_preview",
     "render_layout_preview": "hwpx.tools.layout_preview",
+    # 쪽 수 추정(한/글 없이, 줄마다 쪽·단·세로 위치). 계약 유동.
+    "EstimatedLine": "hwpx.layout.pages",
+    "PageEstimate": "hwpx.layout.pages",
+    "estimate_pages": "hwpx.layout.pages",
     # 문서 프리뷰 뷰어(3.8.0 신규). 계약 유동.
     "DocumentViewer": "hwpx.tools.document_viewer",
     "render_document_viewer": "hwpx.tools.document_viewer",

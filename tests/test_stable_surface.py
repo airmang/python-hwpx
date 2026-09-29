@@ -115,10 +115,11 @@ def test_layer_counts() -> None:
     # 36: the HWP 5.0 error and warning joined the stable surface beside HwpxError.
     assert len(STABLE_NAMES) == 36
     # 5.6: +8 — 편집 계획 실행기 5명(hwpx.plan) + 자기서술 3명(hwpx.capabilities).
-    assert len(EXPERIMENTAL_NAMES) == 23
+    # +3 — 쪽 수 추정(hwpx.layout.pages): estimate_pages, PageEstimate, EstimatedLine.
+    assert len(EXPERIMENTAL_NAMES) == 26
     # Emptied in 5.0: the 4.x notice promised these names would go in the next major.
     assert len(DEPRECATED_NAMES) == 0
-    assert len(ALL_LEGACY_NAMES) == 59
+    assert len(ALL_LEGACY_NAMES) == 62
 
 
 def test_hwpx_error_is_stable_and_importable() -> None:
