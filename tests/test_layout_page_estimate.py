@@ -37,6 +37,8 @@ HANCOM_PAGES = {
     "pages_mixed_sizes_percent": 3,       # 10 pt and 20 pt runs in a paragraph, line spacing 160%
     "pages_mixed_sizes_fixed": 3,         # 12 pt and 30 pt runs, fixed line spacing (lines overlap)
     "pages_mixed_sizes_at_least": 2,      # 8 pt and 16 pt runs, line spacing at least 18 pt
+    "pages_picture_before_text_percent": 2,  # a picture set as a character before the text, 160%
+    "pages_picture_before_text_fixed": 2,    # a picture taller than the fixed line spacing
 }
 
 

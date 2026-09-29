@@ -13,13 +13,15 @@
   least), paragraphs add their spacing before and after, and a line stays on the page while its
   bottom is within the body height. Page and column breaks, page break before, keep lines
   together, keep with next and widow/orphan control; columns of equal width.
-* Objects: a table or picture set as a character is one line as tall as it; a top-and-bottom
-  object anchored to an empty paragraph pushes the next line below it; a table flowing with the
-  text is laid out row by row -- split between cell lines, moved row by row or moved whole --
-  with its header rows repeated. When a table moved row by row has no room for its first row under
-  its anchor line, it starts on the next page and the text after it goes on under the anchor, then
-  below the table on the pages the table takes. Footnotes take room at the foot of the page and go
-  on over the page end.
+* Objects: a table or picture set as a character is one line as tall as it. A picture set as a
+  character before a paragraph's text takes its width off the first line, which is at least as
+  tall as the picture; the line spacing stays the text's (a fixed spacing keeps the next line that
+  far down). A top-and-bottom object anchored to an empty paragraph pushes the next line below
+  it; a table flowing with the text is laid out row by row -- split between cell lines, moved row
+  by row or moved whole -- with its header rows repeated. When a table moved row by row has no
+  room for its first row under its anchor line, it starts on the next page and the text after it
+  goes on under the anchor, then below the table on the pages the table takes. Footnotes take
+  room at the foot of the page and go on over the page end.
 
 A table set as a character that the row model does not follow (merged rows, a nested table) keeps
 the height Hancom saved for it (``hp:sz``) when every paragraph in it keeps a valid layout cache,
@@ -28,9 +30,9 @@ i.e. Hancom laid the table out as it is.
 Anything else makes the estimate unsupported: endnotes, a column change inside a section (column
 settings in a cell or a text box are that list's own), section settings after a section's first
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
-other objects in its paragraph, two tables starting past their anchors on one page, merged rows
-or a nested table
-in a table flowing with the text or in one Hancom has not laid out as it is, objects placed on the
+other objects in its paragraph (but a picture before the text, with line spacing in percent or
+fixed), two tables starting past their anchors on one page, merged rows or a nested table in a
+table flowing with the text or in one Hancom has not laid out as it is, objects placed on the
 page or the paper, composed characters and ruby text. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
@@ -518,18 +520,47 @@ def _text_size(measure: _Measure, runs: list[Any]) -> tuple[int, list[Any], list
     return min(sizes or [measure.char_height(ref) for ref in refs]), refs, sizes
 
 
-def _mixed_metrics(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
-                   shape: _Shape) -> tuple[tuple[int, int], ...]:
-    """(height, advance) of each line of a paragraph of several character sizes: FormFit breaks it with
-    every character at its own size, and a line is as tall as its largest character, its line spacing
-    reckoned from that size."""
+def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
+                  shape: _Shape, lead: Any) -> tuple[tuple[int, int], ...]:
+    """(height, advance) of each line FormFit breaks *text* into, every character at its own size: a line
+    is as tall as its largest character, its line spacing reckoned from that size. A picture *lead* set as
+    a character before the text makes the first line at least as tall as the picture; the spacing stays
+    the text's, and a fixed line spacing keeps the next line that far down."""
 
-    starts = measure.line_starts(text, widths, min(sizes), style, sizes)
+    starts = measure.line_starts(text, widths, min(sizes), style, sizes if len(set(sizes)) > 1 else None)
     metrics = []
     for start, end in zip(starts, [*starts[1:], len(text)]):
         height = max(sizes[start:end] or sizes[-1:])
         metrics.append((height, _pitch(shape.kind, shape.value, height)))
+    if lead is not None:
+        size, advance = metrics[0]
+        height = max(size, _object_extent(lead)[1])
+        metrics[0] = (height, shape.value if shape.kind == "FIXED" else height + advance - size)
     return tuple(metrics)
+
+
+def _object_extent(obj: Any) -> tuple[int, int]:
+    """(width, height) an object takes, its outer margins included."""
+
+    size = obj.find(f"{HP}sz")
+    margin = obj.find(f"{HP}outMargin")
+    extra = (0, 0, 0, 0) if margin is None else tuple(int(margin.get(side, 0)) for side in ("left", "right", "top", "bottom"))
+    return int(size.get("width", 0)) + extra[0] + extra[1], int(size.get("height", 0)) + extra[2] + extra[3]
+
+
+def _leading_picture(runs: list[Any], objects: list[Any], shape: _Shape) -> Any:
+    """The picture set as a character that starts a paragraph of text (with line spacing in percent or
+    fixed), or unsupported: other objects among text are not followed."""
+
+    obj = objects[0]
+    if len(objects) == 1 and _local(obj) == "pic" and obj.find(f"{HP}pos").get("treatAsChar") == "1" \
+            and shape.kind in ("PERCENT", "FIXED"):
+        for child in (child for run in runs for child in run):
+            if child is obj:
+                return obj
+            if _local(child) == "t" and _t_text(child):
+                break
+    raise _Unsupported("an object with text or other objects in its paragraph")
 
 
 def _object_line(
@@ -595,21 +626,23 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any) -> _Para:
     runs = paragraph.findall(f"{HP}run")
     objects = _placed_objects(runs)
     text = _run_text(runs)
-    if objects and (len(objects) > 1 or text.strip()):
-        raise _Unsupported("an object with text or other objects in its paragraph")
-    cached = () if objects else _cached_metrics(paragraph)
-    size, refs, sizes = _text_size(measure, runs)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
+    lead = _leading_picture(runs, objects, shape) if objects and (len(objects) > 1 or text.strip()) else None
+    alone = objects and lead is None  # an object with no text: one line as tall as it
+    cached = () if alone else _cached_metrics(paragraph)
+    size, refs, sizes = _text_size(measure, runs)
     style = measure.style(paragraph.get("paraPrIDRef"), refs)
     line = page.column_width - shape.left - shape.right
     widths: list[float] = [line - max(shape.indent, 0), line - max(-shape.indent, 0)]
+    if lead is not None:
+        widths[0] -= _object_extent(lead)[0]
     mixed = len(set(sizes)) > 1
-    if mixed and not cached and not objects:
-        cached = _mixed_metrics(measure, text, widths, sizes, style, shape)
+    if not cached and not alone and (mixed or lead is not None):
+        cached = _line_metrics(measure, text, widths, sizes, style, shape, lead)
     count = len(cached) or measure.lines(text, widths, size, style)
     pitch = _pitch(shape.kind, shape.value, size)
     table = None
-    if objects:
+    if alone:
         count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch)
     notes = _anchored_notes(measure, runs, text, widths, size, style, page.column_width, sizes if mixed else None)
     flags = shape.flags
