@@ -21,6 +21,7 @@ import pytest
 
 from hwpx.document import HwpxDocument
 from hwpx.errors import HwpxValueError
+from hwpx.tools.package_validator import validate_package
 
 REPO = Path(__file__).resolve().parent.parent
 MASTERPAGE_FIXTURE = (
@@ -75,6 +76,16 @@ def test_add_master_page_supports_multiple_paragraphs_and_type_flags() -> None:
     assert model.page_duplicate is True
     assert model.page_front is True
     assert model.paragraph_texts == ("회사명", "기밀문서")
+
+
+def test_add_master_page_without_paragraphs_writes_one_empty_paragraph() -> None:
+    # Hancom crashes on a master page whose paragraph list is empty.
+    document = HwpxDocument.new()
+
+    document.page.set_master_page(document.parts.add_master_page(paragraphs=[]))
+
+    assert document.parts.master_pages[0].to_model().paragraph_texts == ("",)
+    assert validate_package(document.to_bytes()).ok
 
 
 def test_add_master_page_rejects_unsupported_type() -> None:

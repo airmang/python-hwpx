@@ -71,6 +71,13 @@ def test_the_glyph_ending_a_line_takes_no_spacing() -> None:
     assert hancom_line_starts("가나다라마바사", [8300], 10, TextStyle(break_non_latin_word="KEEP_WORD", spacing=20)) == [0]
 
 
+def test_each_character_can_take_its_own_size() -> None:
+    style = TextStyle(break_non_latin_word="KEEP_WORD")
+
+    assert hancom_line_starts("가나다라마", [5000], 10, style) == [0]
+    assert hancom_line_starts("가나다라마", [5000], 10, style, sizes=[10, 10, 20, 10, 10]) == [0, 4]
+
+
 @pytest.mark.parametrize(
     ("face", "glyph", "advance"),
     [

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import math
 import unicodedata
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
 from functools import lru_cache
@@ -563,7 +564,7 @@ def _hancom_break_opportunities(text: str, style: TextStyle) -> set[int]:
 
 
 def hancom_line_starts(
-    text: str, widths: list[float], font_pt: float, style: TextStyle
+    text: str, widths: list[float], font_pt: float, style: TextStyle, sizes: Sequence[float] | None = None
 ) -> list[int]:
     """Where Hancom starts each line of the one-line *text* (no newlines).
 
@@ -574,7 +575,9 @@ def hancom_line_starts(
     spaces after the line's first text may shrink to make room for a
     character; the spaces before it never do. The line then ends at the last
     break opportunity that fits — never before a closing or after an opening
-    punctuation mark — or mid-word when no opportunity is left.
+    punctuation mark — or mid-word when no opportunity is left. *sizes*, when
+    given, holds each character's size in pt (runs of several sizes): every
+    character, and every space that shrinks, then takes its own size.
     """
 
     breaks = _hancom_break_opportunities(text, style)
@@ -588,18 +591,20 @@ def hancom_line_starts(
         end, used, inner, pending, seen, spilled = start, 0.0, 0, 0, False, False
         while end < length:
             ch = text[end]
-            advance = char_advance(ch, font_pt, style)
+            size = font_pt if sizes is None else sizes[end]
+            advance = char_advance(ch, size, style)
             if ch in _HANGING_SPACES:
                 if used >= width and end > start and text[end - 1] in _HANGING_SPACES:
                     spilled = True
                     break
                 used += advance
                 if seen:  # the spaces before the line's first text never shrink
-                    pending += 1
+                    # a space of another size counts as its share of a space at *font_pt*
+                    pending += 1 if sizes is None else char_advance(" ", size, style) / space
                 end += 1
                 continue
             shrink = (inner + pending) * space * style.condense / 100.0
-            if used + char_advance(ch, font_pt, unspaced) - shrink > width and end > start:
+            if used + char_advance(ch, size, unspaced) - shrink > width and end > start:
                 break
             used += advance
             inner += pending
