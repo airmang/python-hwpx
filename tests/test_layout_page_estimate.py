@@ -63,6 +63,7 @@ HANCOM_PAGES = {
     "pages_table_flow_merged_cell_declared_cut": 2,  # the merged cell declared 6000: its rest goes on
     "pages_table_flow_merged_cell_declared_rest_1282": 2,  # the merged cell's rest of 1282 is dropped
     "pages_table_flow_merged_cell_declared_rest_1283": 2,  # and one of 1283 goes on
+    "pages_table_flow_merged_cell_declared_lines_cut": 2,  # the page end among its 6 lines: cut the same
     "pages_table_nested_after_text": 1,  # a table in a cell of a flowing table, after a line of text
     "pages_table_nested_alone": 1,       # a table alone in a cell of a flowing table
     "pages_table_nested_in_table_as_character": 1,  # a table in a cell of a table set as a character
@@ -204,20 +205,20 @@ def _flowing_table_after(paragraphs: int, rows: int) -> tuple[HwpxDocument, obje
     return document, table
 
 
-def test_a_page_break_among_the_lines_of_a_merged_cell_taller_than_its_text_is_unsupported() -> None:
-    # The cell merged over rows 1-4 holds four lines and is declared taller than them; the page end
-    # falls among its lines.
+def test_rows_merged_together_taller_than_a_page_are_unsupported() -> None:
+    # The cell merged over rows 1-4 is declared 150000 tall: what is left of it after the page end
+    # does not fit on the next page either.
     document, table = _flowing_table_after(38, 6)
-    for cell in table.element.iter(f"{HP}tc"):
-        if cell.find(f"{HP}cellAddr").get("rowAddr") == "2":
-            cell.find(f"{HP}cellSz").set("height", "6000")
     table.merge_cells(1, 0, 4, 0)
+    for cell in table.element.iter(f"{HP}tc"):
+        span = cell.find(f"{HP}cellSpan")
+        if span is not None and span.get("rowSpan", "1") != "1":
+            cell.find(f"{HP}cellSz").set("height", "150000")
 
     estimate = estimate_pages(document)
 
     assert estimate.pages is None
-    assert estimate.unsupported == (
-        "section 0: a page break among the lines of a merged row taller than its text",)
+    assert estimate.unsupported == ("section 0: rows merged together taller than a page",)
 
 
 @pytest.mark.parametrize(("height", "rest"), [(20000, 13221), (8029, 0), (8061, 0), (8062, 1283), (8079, 1300)])

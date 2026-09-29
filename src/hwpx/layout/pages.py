@@ -24,7 +24,8 @@
   cell of its own starts at 0); in a table moved row by row, rows joined by a cell merged over them
   move to the next page as one, and in one split between cell lines each of their cells keeps the
   lines that fit and the rest go on, the rows from the one the page end falls in as tall as their
-  cells' rest (a cell declared taller than its text, whose text fits, is cut like such a row, below).
+  cells' rest (a cell declared taller than its text, whose first line fits, is cut like such a row,
+  below).
   A table set as a character alone in a paragraph of a cell is one line as tall as it
   there, spaced like the text. A row declared taller than its text is cut just above the page's
   foot, and what is left of it goes on to the next page unless it is no taller than a 10 pt line
@@ -44,11 +45,11 @@ Anything else makes the estimate unsupported: endnotes, a column change inside a
 settings in a cell or a text box are that list's own), section settings after a section's first
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but objects set as characters, with line spacing in percent or
-fixed), footnotes in such a paragraph, two tables starting past their anchors on one page, a page
-break among the lines of a merged cell declared taller than its text, rows merged together that do
-not fit under their table's anchor or on a page, a nested table among text or not set as a character
-(in a table Hancom has not laid out as it is), a page break between the cell lines of a flowing row
-holding a table, objects placed on the page or the paper, composed characters and ruby text.
+fixed), footnotes in such a paragraph, two tables starting past their anchors on one page, rows
+merged together that do not fit under their table's anchor or on a page, a nested table among text
+or not set as a character (in a table Hancom has not laid out as it is), a page break between the
+cell lines of a flowing row holding a table, objects placed on the page or the paper, composed
+characters and ruby text.
 ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
@@ -860,12 +861,10 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int, body: int) -
             fitting = 0
             while fitting < cell.lines and tops[start] + cell.margins + fitting * cell.pitch + cell.size <= body:
                 fitting += 1
-            if cell.spare and fitting == cell.lines:  # its text fits: the declared room is cut like a row's
+            if cell.spare and fitting:  # its text starts above the page end: the declared room is cut like a row's
                 rest = tops[start] + cell.height - (body - _SPARE_CUT)
                 if rest <= _SPARE_DROPPED:
                     continue
-            elif cell.spare and fitting:
-                raise _Unsupported("a page break among the lines of a merged row taller than its text")
             elif cell.spare:  # none of it fits: it goes on whole
                 rest = cell.height
             elif fitting == cell.lines:
