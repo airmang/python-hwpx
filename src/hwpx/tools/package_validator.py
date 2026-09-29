@@ -726,6 +726,9 @@ def _check_hancom_required_structure(
             part_name,
             "HCFVersion missing tagetApplication (Hancom's spelling); Hancom refuses to open the document",
         )
+    if root.tag == "masterPage":  # Hancom's master page part: its root is in no namespace
+        _check_master_page_lists(issues, part_name, root)
+        return
     if not is_section_part_name(part_name):
         return
     for element in root.iter():
@@ -756,6 +759,17 @@ def _check_hancom_required_structure(
         elif name == "subList" and _first_child_by_local(element, "p") is None:
             _error(issues, part_name, "hp:subList without hp:p; Hancom crashes on the document")
     _check_required_drawing_structure(issues, part_name, root)
+
+
+def _check_master_page_lists(issues: list[PackageValidationIssue], part_name: str, root: ET.Element) -> None:
+    """A master page keeps its text in an ``hp:subList``, and that list, like every paragraph list, needs a
+    paragraph."""
+
+    if _first_child_by_local(root, "subList") is None:
+        _error(issues, part_name, "masterPage without hp:subList; Hancom crashes on the document")
+    for element in root.iter():
+        if _local_name(element) == "subList" and _first_child_by_local(element, "p") is None:
+            _error(issues, part_name, "hp:subList without hp:p; Hancom crashes on the document")
 
 
 #: Parameters inside a shape's hp:parameterset that must carry a name, and what Hancom does without one.

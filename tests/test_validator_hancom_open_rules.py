@@ -220,12 +220,32 @@ def test_a_boolean_field_parameter_is_fine(valid_bytes: bytes) -> None:
     assert not any("booleanParam" in issue.message for issue in report.errors)
 
 
-def test_a_master_page_the_package_has_is_fine() -> None:
+MASTER_PAGE = "Contents/masterpage0.xml"
+
+
+def _master_page_bytes() -> bytes:
     doc = HwpxDocument.new()
     doc.add_paragraph("바탕쪽을 쓰는 문서")
     doc.page.set_master_page(doc.parts.add_master_page(text="바탕쪽"))
-    report = validate_package(doc.to_bytes())
-    assert not any("master page" in issue.message for issue in report.errors), [i.message for i in report.errors]
+    return doc.to_bytes()
+
+
+def test_a_master_page_the_package_has_is_fine() -> None:
+    report = validate_package(_master_page_bytes())
+    assert report.ok, [i.message for i in report.errors]
+
+
+@pytest.mark.parametrize(
+    ("tag", "expected"),
+    [("subList", "masterPage without hp:subList"), ("p", "hp:subList without hp:p")],
+    ids=["without-list", "list-without-paragraphs"],
+)
+def test_a_master_page_without_paragraphs_is_an_error(tag: str, expected: str) -> None:
+    report = validate_package(_mutate(_master_page_bytes(), MASTER_PAGE, drop_element(tag)))
+
+    assert any(
+        issue.part_name == MASTER_PAGE and expected in issue.message for issue in report.errors
+    ), [issue.message for issue in report.errors]
 
 
 def test_a_picture_href_from_the_manifest_folder_is_a_warning(valid_bytes: bytes) -> None:
