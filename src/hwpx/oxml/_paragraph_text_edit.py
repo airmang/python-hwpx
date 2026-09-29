@@ -115,3 +115,30 @@ def remove_paragraph_element(element: ET.Element, section_element: ET.Element) -
         )
     parent.remove(element)
     return True
+
+
+def own_text_nodes(sublist: ET.Element) -> list[ET.Element]:
+    """The ``hp:t`` nodes of a cell's own paragraphs (not those of a table or
+    object inside them)."""
+
+    hp_p, hp_run, hp_t = (_child_tag_like(sublist, name, _HP_NS) for name in ("p", "run", "t"))
+    return [node for paragraph in sublist.findall(hp_p) for node in paragraph.findall(f"{hp_run}/{hp_t}")]
+
+
+def new_own_text_node(sublist: ET.Element, char_pr_id_ref: str) -> ET.Element:
+    """A text node for a cell whose own paragraphs hold none: in an empty run
+    of the first paragraph (Hancom's empty cell is one), or in a new run in
+    front of the objects the paragraph holds."""
+
+    hp_p, hp_run, hp_t = (_child_tag_like(sublist, name, _HP_NS) for name in ("p", "run", "t"))
+    first = sublist.find(hp_p)
+    if first is None:
+        first = sublist.makeelement(hp_p, {})
+        sublist.append(first)
+    run = next((run for run in first.findall(hp_run) if len(run) == 0), None)
+    if run is None:
+        run = first.makeelement(hp_run, {"charPrIDRef": char_pr_id_ref})
+        first.insert(next((i for i, child in enumerate(first) if tag_local_name(child.tag) == "run"), len(first)), run)
+    node = run.makeelement(hp_t, {})
+    run.append(node)
+    return node

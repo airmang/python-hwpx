@@ -45,7 +45,7 @@ class ShapesNamespace(_Namespace):
         end_y: int = 0,
         *,
         line_color: str = "#000000",
-        line_width: str = "283",
+        line_width: str = "33",
         treat_as_char: bool = True,
         paragraph: "Paragraph | None" = None,
         section: "int | Section | None" = None,
@@ -144,14 +144,20 @@ class ShapesNamespace(_Namespace):
         *,
         ratio: int = 0,
         line_color: str = "#000000",
-        line_width: str = "283",
+        line_width: str = "33",
         fill_color: str | None = None,
         treat_as_char: bool = True,
         paragraph: "Paragraph | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
+        original_size: "tuple[int, int] | None" = None,
     ) -> "Shape":
-        """사각형을 넣는다(`ratio` 로 모서리 둥글기)."""
+        """사각형을 넣는다(`ratio` 로 모서리 둥글기).
+
+        *original_size* `(w, h)`를 주면 `hp:orgSz`를 그리는 크기와 따로 쓴다.
+        도형은 원래 크기로 만들고 `scaMatrix`로 *width* x *height*에 맞춘다.
+        주지 않으면 `orgSz`는 `curSz`와 같다.
+        """
 
         from .. import shapes as _shapes
 
@@ -166,6 +172,7 @@ class ShapesNamespace(_Namespace):
             treat_as_char=treat_as_char,
             paragraph=paragraph,
             section=self._section(section, section_index, "add_rectangle"),
+            original_size=original_size,
         )
 
     def add_ellipse(
@@ -174,14 +181,15 @@ class ShapesNamespace(_Namespace):
         height: int = 7200,
         *,
         line_color: str = "#000000",
-        line_width: str = "283",
+        line_width: str = "33",
         fill_color: str | None = None,
         treat_as_char: bool = True,
         paragraph: "Paragraph | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
+        original_size: "tuple[int, int] | None" = None,
     ) -> "Shape":
-        """타원을 넣는다."""
+        """타원을 넣는다. *original_size*는 `add_rectangle`과 같다."""
 
         from .. import shapes as _shapes
 
@@ -195,6 +203,7 @@ class ShapesNamespace(_Namespace):
             treat_as_char=treat_as_char,
             paragraph=paragraph,
             section=self._section(section, section_index, "add_ellipse"),
+            original_size=original_size,
         )
 
     def add_arc(
@@ -205,7 +214,7 @@ class ShapesNamespace(_Namespace):
         corner: str = "TOP_LEFT",
         arc_type: str = "NORMAL",
         line_color: str = "#000000",
-        line_width: str = "283",
+        line_width: str = "33",
         fill_color: str | None = None,
         treat_as_char: bool = True,
         paragraph: "Paragraph | None" = None,
@@ -235,7 +244,7 @@ class ShapesNamespace(_Namespace):
         points_mm: Sequence[tuple[float, float]],
         *,
         line_color: str = "#000000",
-        line_width: str = "283",
+        line_width: str = "33",
         fill_color: str | None = None,
         treat_as_char: bool = True,
         paragraph: "Paragraph | None" = None,

@@ -3,12 +3,12 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from ..errors import HwpxValueError
 
+from ..oxml._document_primitives import _object_id
 from ..oxml.namespaces import HP
 
 if TYPE_CHECKING:
@@ -41,6 +41,10 @@ def _memo_create_time(value: "datetime | str | None") -> str:
         except ValueError:
             return text
     return moment.astimezone(timezone.utc).strftime(_HANCOM_MEMO_TIME)
+
+
+#: The ``fieldid`` Hancom gives every memo field: the control id ``%%me`` as a number.
+MEMO_FIELD_ID = str(int.from_bytes(b"%%me", "big"))
 
 
 def _next_memo_zorder(doc: "HwpxDocument") -> str:
@@ -122,7 +126,7 @@ def attach_memo_field(
     field_id: str | None = None,
     author: str | None = None,
     created: "datetime | str | None" = None,
-    number: int = 1,
+    number: int | None = None,
     char_pr_id_ref: str | int | None = None,
 ) -> "HwpxOxmlMemo":
     """Attach a MEMO field control to *paragraph* so Hangul shows *memo*.
@@ -131,6 +135,12 @@ def attach_memo_field(
     ``memo.paragraph`` (``oxml/memo.py``) resolve it live by searching the
     section, so there is nothing left for a separate return value to carry —
     this replaces the ``str`` field id 5.x returned directly.
+
+    *number* is the memo's number (its ``Number`` parameter). Left out, the
+    memo takes the next number in the document, the value its ``zorder``
+    gets too, as Hancom numbers its memos. Hancom takes memos with the same
+    number for one memo: saving the document again, it drops the range end
+    of all but the first.
     """
 
     if paragraph.section is None:
@@ -146,7 +156,8 @@ def attach_memo_field(
             suggestion="Pass a memo created by doc.notes.add_memo().",
         )
 
-    field_value = field_id or uuid.uuid4().hex
+    field_value = field_id or _object_id()
+    order = _next_memo_zorder(doc)
     author_value = author or memo.attributes.get("author") or ""
 
     created_value = _memo_create_time(
@@ -173,10 +184,11 @@ def attach_memo_field(
         {
             "id": field_value,
             "type": "MEMO",
-            "editable": "true",
-            "dirty": "false",
-            "zorder": _next_memo_zorder(doc),
-            "fieldid": field_value,
+            "name": "",
+            "editable": "1",
+            "dirty": "0",
+            "zorder": order,
+            "fieldid": MEMO_FIELD_ID,
         },
     )
 
@@ -184,7 +196,9 @@ def attach_memo_field(
     # writer); Hancom rewrites ``count`` to ``cnt`` when it saves.
     parameters = _append_element(field_begin, f"{_HP}parameters", {"cnt": "5", "name": ""})
     _append_element(parameters, f"{_HP}stringParam", {"name": "ID"}).text = memo.id or ""
-    _append_element(parameters, f"{_HP}integerParam", {"name": "Number"}).text = str(max(1, number))
+    _append_element(parameters, f"{_HP}integerParam", {"name": "Number"}).text = (
+        order if number is None else str(max(1, number))
+    )
     _append_element(parameters, f"{_HP}stringParam", {"name": "CreateDateTime"}).text = created_value
     _append_element(parameters, f"{_HP}stringParam", {"name": "Author"}).text = author_value
     # Hancom's own files use ``MemoShapeIDRef`` (65535 = the built-in default memo
@@ -197,17 +211,23 @@ def attach_memo_field(
         field_begin,
         f"{_HP}subList",
         {
-            "id": f"memo-field-{memo.id or field_value}",
+            "id": "",
             "textDirection": "HORIZONTAL",
             "lineWrap": "BREAK",
             "vertAlign": "TOP",
+            "linkListIDRef": "0",
+            "linkListNextIDRef": "0",
+            "textWidth": "0",
+            "textHeight": "0",
+            "hasTextRef": "0",
+            "hasNumRef": "0",
         },
     )
     sub_para = _append_element(
         sub_list,
         f"{_HP}p",
         {
-            "id": f"memo-field-{(memo.id or field_value)}-p",
+            "id": "0",
             "paraPrIDRef": "0",
             "styleIDRef": "0",
             "pageBreak": "0",
@@ -223,7 +243,7 @@ def attach_memo_field(
 
     run_end = paragraph_element.makeelement(f"{_HP}run", {"charPrIDRef": char_ref})
     ctrl_end = _append_element(run_end, f"{_HP}ctrl")
-    _append_element(ctrl_end, f"{_HP}fieldEnd", {"beginIDRef": field_value, "fieldid": field_value})
+    _append_element(ctrl_end, f"{_HP}fieldEnd", {"beginIDRef": field_value, "fieldid": MEMO_FIELD_ID})
 
     paragraph.element.insert(0, run_begin)
     paragraph.element.append(run_end)
@@ -247,7 +267,7 @@ def add_memo_with_anchor(
     field_id: str | None = None,
     author: str | None = None,
     created: "datetime | str | None" = None,
-    number: int = 1,
+    number: int | None = None,
     anchor_char_pr_id_ref: str | int | None = None,
 ) -> "HwpxOxmlMemo":
     """Create a memo and ensure it is visible by anchoring a MEMO field.

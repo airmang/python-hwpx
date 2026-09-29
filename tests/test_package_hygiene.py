@@ -7,12 +7,18 @@
   preview image with a 1x1 white PNG; neither part is deleted.
 - ``doc.media.images``/``remove_image`` see binary items that only the
   ``content.hpf`` manifest lists (the usual case for Hancom-saved files).
-- ``doc.validate()`` warns about manifest items with no part and ``BinData/``
-  parts with no manifest item.
+- ``remove_image`` refuses an item the document still points at (a picture,
+  a header image fill, a master page, a video, an OLE object) unless
+  ``force=True``, and never removes a manifest item that is not a binary item.
+- ``doc.validate()`` and ``validate_document()`` (``hwpx-validate``) warn about
+  manifest items with no part and ``BinData/`` parts with no manifest item;
+  ``validate_package()`` reports a missing part as an error. All three skip
+  an item that links a file outside the package.
 """
 
 from __future__ import annotations
 
+import copy
 import io
 import re
 import struct
@@ -23,8 +29,10 @@ from pathlib import Path
 import pytest
 
 from hwpx.document import HwpxDocument
+from hwpx.errors import HwpxValueError
 from hwpx.objects import BinaryItem
 from hwpx.opc.package import HwpxPackage
+from hwpx.tools.id_integrity import check_id_integrity
 
 CORPUS = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
 TITLED = CORPUS / "error__20251107__test.hwpx"
@@ -32,6 +40,9 @@ PICTURE = CORPUS / "reader_writer__SimplePicture.hwpx"
 TEXT_PREVIEW_ONLY = CORPUS / "error__20241104__mot.hwpx"
 # links a video by absolute path (isEmbeded="0"), so the part is absent by design
 LINKED_VIDEO = CORPUS / "reader_writer__SimpleVideo.hwpx"
+OLE = CORPUS / "reader_writer__SimpleOLE.hwpx"
+
+HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 40
 
@@ -251,11 +262,32 @@ def test_images_leaves_out_linked_items_but_keeps_embedded_ones_without_a_part()
     )
 
 
+def _drop_pictures(document: HwpxDocument) -> None:
+    """Delete the body pictures, so the images they showed are no longer used."""
+
+    for section in document.oxml.sections:
+        for picture in list(section.element.iter(f"{HP}pic")):
+            picture.getparent().remove(picture)
+        section.mark_dirty()
+
+
+def test_images_lists_an_ole_object_marked_not_embedded() -> None:
+    # Hancom marks OLE objects isEmbeded="0" but keeps their file in BinData/
+    document = HwpxDocument.open(OLE)
+    size = len(_read_part(OLE.read_bytes(), "BinData/ole1.ole"))
+
+    assert size > 0
+    assert document.media.images == (
+        BinaryItem(item_id="ole1", format="ole", href="BinData/ole1.ole", size=size),
+    )
+
+
 def test_removing_every_listed_image_keeps_linked_items() -> None:
     document = HwpxDocument.open(LINKED_VIDEO)
 
     for item in document.media.images:
-        assert document.media.remove_image(item) is True
+        # the video still names image2 as its poster
+        assert document.media.remove_image(item, force=True) is True
 
     hpf = _read_part(document.to_bytes(), "Contents/content.hpf").decode()
     assert 'id="image1"' in hpf
@@ -265,6 +297,7 @@ def test_removing_every_listed_image_keeps_linked_items() -> None:
 @pytest.mark.parametrize("how", ["id", "href", "item"])
 def test_remove_image_removes_manifest_only_items(how: str) -> None:
     document = HwpxDocument.open(PICTURE)
+    _drop_pictures(document)
     (item,) = document.media.images
     target = {"id": "image1", "href": "BinData/image1.jpg", "item": item}[how]
 
@@ -289,6 +322,82 @@ def test_remove_image_does_not_match_a_longer_id_with_the_same_prefix() -> None:
     assert not document.package.has_part("BinData/image1.png")
     header = document.oxml.headers[0]
     assert [item.get("BinData") for item in header.list_bin_items()] == ["image10.png"]
+
+
+@pytest.mark.parametrize(
+    ("source", "target", "reference"),
+    [
+        (PICTURE, "image1", "Contents/section0.xml: img@binaryItemIDRef"),
+        (PICTURE, "BinData/image1.jpg", "Contents/section0.xml: img@binaryItemIDRef"),
+        # a page border fill image, used only by the header
+        (TITLED, "image1", "Contents/header.xml: img@binaryItemIDRef"),
+        (LINKED_VIDEO, "image2", "Contents/section0.xml: video@imageIDRef"),
+        (LINKED_VIDEO, "image1", "Contents/section0.xml: video@fileIDRef"),
+        (OLE, "ole1", "Contents/section0.xml: ole@binaryItemIDRef"),
+    ],
+)
+def test_remove_image_refuses_an_item_the_document_still_uses(
+    source: Path, target: str, reference: str
+) -> None:
+    document = HwpxDocument.open(source)
+    images = document.media.images
+    parts = document.package.part_names()
+    hpf = document.package.get_text("Contents/content.hpf")
+
+    with pytest.raises(HwpxValueError) as caught:
+        document.media.remove_image(target)
+
+    assert caught.value.code == "media-item-in-use"
+    assert caught.value.context == {"itemId": target, "references": [reference]}
+    assert document.media.images == images
+    assert document.package.part_names() == parts
+    assert document.package.get_text("Contents/content.hpf") == hpf
+
+
+def test_remove_image_refuses_an_item_a_master_page_uses() -> None:
+    document = HwpxDocument.new()
+    item = document.media.add_image(PNG, "png")
+    document.add_picture(PNG, "png")
+    document.parts.add_master_page(text="master")
+    master_page = document.oxml.master_pages[0]
+    picture = next(document.oxml.sections[0].element.iter(f"{HP}pic"))
+    next(master_page.element.iter(f"{HP}run")).append(copy.deepcopy(picture))
+    _drop_pictures(document)
+    # the master page's copy shows the image add_picture embedded
+    shown = document.media.images[1]
+
+    with pytest.raises(HwpxValueError) as caught:
+        document.media.remove_image(shown)
+
+    assert caught.value.context["references"] == [
+        "Contents/masterpage0.xml: img@binaryItemIDRef"
+    ]
+    assert document.media.remove_image(item) is True
+
+
+def test_remove_image_with_force_removes_an_item_in_use() -> None:
+    document = HwpxDocument.open(PICTURE)
+
+    assert document.media.remove_image("image1", force=True) is True
+
+    assert document.media.images == ()
+    assert not document.package.has_part("BinData/image1.jpg")
+    assert [(ref.attr, ref.value) for ref in check_id_integrity(document).dangling] == [
+        ("binaryItemIDRef", "image1")
+    ]
+
+
+@pytest.mark.parametrize("target", ["section0", "Contents/section0.xml", "header", "settings"])
+def test_remove_image_leaves_manifest_items_that_are_not_binary(target: str) -> None:
+    document = HwpxDocument.open(PICTURE)
+    parts = document.package.part_names()
+    hpf = document.package.get_text("Contents/content.hpf")
+
+    assert document.media.remove_image(target) is False
+    assert document.media.remove_image(target, force=True) is False
+
+    assert document.package.part_names() == parts
+    assert document.package.get_text("Contents/content.hpf") == hpf
 
 
 def test_remove_manifest_item_matches_id_then_href() -> None:
@@ -349,3 +458,101 @@ def test_validate_reports_no_drift_on_clean_documents(source: Path | None) -> No
         document.media.add_image(PNG, "png")
 
     assert _drift(document) == []
+
+
+# Hancom marks OLE objects isEmbeded="0" too, but keeps their file in BinData/.
+OLE = CORPUS / "reader_writer__SimpleOLE.hwpx"
+
+
+def test_validate_warns_about_a_missing_ole_part_marked_not_embedded() -> None:
+    document = HwpxDocument.open(OLE)
+    assert _drift(document) == []
+    document.package.delete("BinData/ole1.ole")
+
+    drift = [issue for issue in document.validate().warnings if "ole1" in issue.message]
+
+    assert len(drift) == 1
+    assert "'BinData/ole1.ole'" in drift[0].message
+
+
+def test_validate_still_skips_a_linked_file_outside_the_package() -> None:
+    # SimpleVideo links a video by absolute path (isEmbeded="0", href outside BinData/)
+    assert _drift(HwpxDocument.open(LINKED_VIDEO)) == []
+
+
+# ---------------------------------------------------------------------------
+# doc.validate(), hwpx-validate and hwpx-validate-package agree
+# ---------------------------------------------------------------------------
+
+
+def _without_part(source: Path, part: str) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(source) as src, zipfile.ZipFile(buffer, "w") as dst:
+        for info in src.infolist():
+            if info.filename != part:
+                dst.writestr(info, src.read(info.filename))
+    return buffer.getvalue()
+
+
+def _manifest_messages(issues) -> list[str]:
+    return [issue.message for issue in issues if "manifest" in issue.message]
+
+
+def test_validate_and_validate_document_report_the_same_missing_bindata_part() -> None:
+    from hwpx.tools.package_validator import validate_package
+    from hwpx.tools.validator import validate_document
+
+    data = _without_part(PICTURE, "BinData/image1.jpg")
+
+    from_document = HwpxDocument.open(data).validate()
+    from_tool = validate_document(data)
+
+    assert from_tool.ok and from_document.ok
+    assert _manifest_messages(from_tool.warnings) == _manifest_messages(from_document.warnings)
+    assert len(_manifest_messages(from_tool.warnings)) == 1
+    # the package check is the strict one: an embedded item needs its part
+    assert not validate_package(data).ok
+
+
+def test_validate_document_warns_about_a_bindata_part_without_a_manifest_item() -> None:
+    from hwpx.tools.validator import validate_document
+
+    document = HwpxDocument.open(PICTURE)
+    document.package.write("BinData/stray.png", PNG)
+
+    report = validate_document(document.to_bytes())
+
+    assert [issue.part_name for issue in report.warnings if "manifest" in issue.message] == [
+        "BinData/stray.png"
+    ]
+
+
+def test_validate_package_accepts_a_linked_file_outside_the_package() -> None:
+    from hwpx.tools.package_validator import validate_editor_open_safety, validate_package
+
+    report = validate_package(LINKED_VIDEO)
+
+    assert report.ok, [str(issue) for issue in report.errors]
+    assert not [issue for issue in report.issues if "sample-video" in issue.message]
+    assert validate_editor_open_safety(LINKED_VIDEO).ok
+
+
+def test_save_with_reference_integrity_accepts_a_linked_file() -> None:
+    from hwpx.quality.policy import QualityPolicy
+
+    report = HwpxDocument.open(LINKED_VIDEO).save_report(
+        io.BytesIO(),
+        quality=QualityPolicy.transparent().with_(require_reference_integrity=True),
+    )
+
+    assert report.ok, report
+
+
+def test_validate_package_still_requires_an_ole_part_marked_not_embedded() -> None:
+    from hwpx.tools.package_validator import validate_package
+
+    assert validate_package(OLE).ok
+    report = validate_package(_without_part(OLE, "BinData/ole1.ole"))
+
+    assert len(report.errors) == 1
+    assert report.errors[0].message.startswith("manifest href missing from archive: 'BinData/ole1.ole'")

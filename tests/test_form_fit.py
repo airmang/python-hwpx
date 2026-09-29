@@ -8,6 +8,7 @@ overflow; a borderline overflow is downgraded to a warning for the render oracle
 """
 from __future__ import annotations
 
+from pathlib import Path
 
 import pytest
 
@@ -20,7 +21,7 @@ from hwpx.form_fit import (
     measure,
     to_form_report,
 )
-from hwpx.form_fit.measure import classify_char
+from hwpx.form_fit.measure import classify_char, resolve_slot_metrics
 
 
 # --------------------------------------------------------------------------- #
@@ -223,7 +224,7 @@ def test_line_height_and_budget_math():
 def test_budget_uses_declared_percent_line_spacing():
     slot = _vslot(height=3300, ratio=2.0)  # declared 200% → 2000/line
     assert slot.line_height(10.0) == pytest.approx(2000.0)
-    assert slot.height_lines(10.0) == 1          # floor(3300 / 2000)
+    assert slot.height_lines(10.0) == 2          # two lines take 2000 + 1000
     # Optimistic budget never uses a looser pitch than the tight floor.
     assert slot.height_lines_optimistic(10.0) == 3  # floor(3300 / 1000)
 
@@ -252,14 +253,22 @@ def test_value_fits_within_ample_height_is_unchanged():
     assert not any("row will grow" in w for w in result.warnings)
 
 
-def test_modest_vertical_overflow_warns_and_defers_to_oracle():
+def test_a_value_the_row_cannot_hold_fails_by_default():
     engine = FitEngine()
-    # 2 lines needed, 1-line height budget → modest growth: reported, never a fail.
+    # 2 lines needed, 1-line height budget: the row would grow and shift the pages.
     result = engine.fit("가" * 11, _vslot(height=1600), FitPolicy(mode="wrap"))
-    assert result.ok is True
-    assert result.overflow_detected is True
-    assert result.errors == []
-    assert any("row will grow" in w for w in result.warnings)
+    assert result.ok is False and result.overflow_detected
+    assert any("FIELD_OVERFLOW" in e for e in result.errors)
+
+
+def test_a_row_grows_only_when_the_policy_allows_it():
+    engine = FitEngine()
+    warned = engine.fit("가" * 11, _vslot(height=1600), FitPolicy(mode="wrap", overflow="warn"))
+    assert warned.ok is True and warned.overflow_detected
+    assert any("row will balloon" in w for w in warned.warnings)
+
+    expanded = engine.fit("가" * 11, _vslot(height=1600), FitPolicy(mode="wrap", allow_row_expand=True))
+    assert expanded.ok is True and expanded.errors == []
 
 
 def test_gross_vertical_balloon_fails_closed_when_cannot_shrink():
@@ -272,13 +281,18 @@ def test_gross_vertical_balloon_fails_closed_when_cannot_shrink():
     assert any("FIELD_OVERFLOW" in e for e in result.errors)
 
 
-def test_gross_vertical_balloon_shrinks_when_allowed():
+def test_gross_vertical_balloon_shrinks_into_the_row_when_allowed():
     engine = FitEngine()
     before = _vslot(height=1600)
-    result = engine.fit("가" * 20, before, FitPolicy(mode="wrap_then_shrink", min_font_pt=8.0))
-    assert result.ok is True
+    result = engine.fit("가" * 20, before, FitPolicy(mode="wrap_then_shrink", min_font_pt=6.0))
+    assert result.ok is True and not result.overflow_detected
     assert result.font_pt is not None and result.font_pt < before.font_pt
     assert result.applied_style_changes.get("from_font_pt") == 10.0
+
+    # No font down to 8 pt fits the row: shrinking part way no longer counts.
+    refused = engine.fit("가" * 20, before, FitPolicy(mode="wrap_then_shrink", min_font_pt=8.0))
+    assert refused.ok is False
+    assert any("FIELD_OVERFLOW" in e for e in refused.errors)
 
 
 def test_expand_row_bypasses_the_height_budget():
@@ -327,16 +341,15 @@ def test_modest_vertical_overflow_shrinks_into_budget_when_possible():
     assert result.font_pt is not None and result.font_pt < before.font_pt
 
 
-def test_modest_vertical_overflow_defers_when_shrink_cannot_reach_budget():
-    # height=1600 cannot hold two lines even at min font — the honest outcome
-    # stays the reported modest deferral, never a false shrink claim.
+def test_a_value_shrink_cannot_fit_in_the_row_fails():
+    # height=1500 cannot hold two lines even at min font (two 6 pt lines take
+    # 960 + 600): no false shrink claim, and no silent row growth.
     engine = FitEngine()
     result = engine.fit(
-        "가" * 11, _vslot(height=1600), FitPolicy(mode="wrap_then_shrink", min_font_pt=6.0)
+        "가" * 11, _vslot(height=1500), FitPolicy(mode="wrap_then_shrink", min_font_pt=6.0)
     )
-    assert result.ok is True
-    assert result.overflow_detected is True
-    assert any("row will grow" in w for w in result.warnings)
+    assert result.ok is False and result.overflow_detected
+    assert any("FIELD_OVERFLOW" in e for e in result.errors)
 
 
 def test_inline_control_width_narrows_slot_and_refuses_wrap() -> None:
@@ -402,3 +415,173 @@ def test_inline_control_consuming_whole_width_gets_named_refusal() -> None:
     result = FitEngine().fit("값", slot, FitPolicy())
     assert not result.ok and result.overflow_detected
     assert any("leave no usable width" in e for e in result.errors)
+
+
+def test_a_cell_fit_that_fails_leaves_the_cell_as_it_was():
+    from hwpx import HwpxDocument
+
+    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    document = HwpxDocument.new()
+    table = document.add_table(1, 1)
+    cell = table.cell(0, 0)
+    cell.text = "원래 값"
+    cell.element.find(f"{hp}cellSz").set("height", str(1600 + 1000 + 282))  # two 10 pt lines and the margins
+
+    refused = table.set_cell_text(0, 0, "가" * 200, fit=FitPolicy(mode="wrap"))
+    assert refused is not None and refused.ok is False
+    assert cell.text == "원래 값"
+
+    grown = table.set_cell_text(0, 0, "가" * 200, fit=FitPolicy(mode="wrap", allow_row_expand=True))
+    assert grown is not None and grown.ok is True
+    assert cell.text == "가" * 200
+
+
+# --------------------------------------------------------------------------- #
+# An auto-grow cell (stored height below one line) keeps the height of its row.
+# --------------------------------------------------------------------------- #
+_HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+_HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved"
+_LONG = "두 줄로 넘치는 긴 값입니다 " * 5
+
+
+def _drawn_end(cell) -> int:
+    return max(
+        int(line.get("vertpos")) + int(line.get("vertsize"))
+        for line in cell.element.findall(f"{_HP}subList/{_HP}p/{_HP}linesegarray/{_HP}lineseg")
+    )
+
+
+def _auto_grow(name: str):
+    from hwpx import HwpxDocument
+
+    document = HwpxDocument.open((_HANCOM_SAVED / name).read_bytes())
+    table = document.tables.all[0]
+    return document, table, table.cell(0, 0)
+
+
+def test_hancom_grows_an_auto_grow_cell_to_the_lines_it_draws():
+    # Hancom saved a cell 500 high (below one 10 pt line) holding one line, and the same
+    # cell after filling a longer value: the stored height stays, the row grows with the lines.
+    _, _, saved = _auto_grow("auto_grow_cell_saved.hwpx")
+    _, _, filled = _auto_grow("auto_grow_cell_filled.hwpx")
+
+    assert (saved.element.find(f"{_HP}cellSz").get("height"), _drawn_end(saved)) == ("500", 1000)
+    assert (filled.element.find(f"{_HP}cellSz").get("height"), _drawn_end(filled)) == ("500", 5800)
+
+
+def test_an_auto_grow_cell_keeps_the_height_hancom_drew():
+    document, table, cell = _auto_grow("auto_grow_cell_saved.hwpx")
+
+    metrics = resolve_slot_metrics(cell, document)
+    assert metrics.available_height is not None and metrics.height_lines() == 1
+
+    refused = table.set_cell_text(0, 0, _LONG, fit=FitPolicy(mode="wrap"))
+    assert refused is not None and refused.ok is False
+    assert cell.text == "짧은 값"
+
+    grown = table.set_cell_text(0, 0, _LONG, fit=FitPolicy(mode="wrap", allow_row_expand=True))
+    assert grown is not None and grown.ok is True
+    assert cell.text == _LONG
+
+
+def test_an_auto_grow_cell_without_drawn_lines_holds_the_lines_of_its_text():
+    from hwpx import HwpxDocument
+
+    document = HwpxDocument.new()
+    cell = document.add_table(1, 1).cell(0, 0)
+    cell.text = "짧은 값"
+    cell.element.find(f"{_HP}cellSz").set("height", "500")
+
+    metrics = resolve_slot_metrics(cell, document)
+
+    assert not metrics.height_unavailable
+    assert metrics.available_height == 1000 and metrics.height_lines() == 1
+
+
+_TWO_LINES = "두 줄에 들어가는 채울 값입니다"
+_THREE_LINES = "세 줄로 넘치는 아주 긴 채울 값을 적어 넣습니다"
+
+
+def _table_height(document) -> int:
+    return int(document.tables.all[0].element.find(f"{_HP}sz").get("height"))
+
+
+def test_hancom_draws_an_auto_grow_row_as_tall_as_its_tallest_cell():
+    # Two cells stored 500 high: the first holds one line, the second two. Hancom
+    # filled the first with a two-line value, then with a three-line one.
+    saved, _, (first, second) = _auto_grow_row("auto_grow_row_saved.hwpx")
+    two, _, (two_first, _) = _auto_grow_row("auto_grow_row_filled_two.hwpx")
+    three, _, (three_first, _) = _auto_grow_row("auto_grow_row_filled_three.hwpx")
+
+    assert (_drawn_end(first), _drawn_end(second), _table_height(saved)) == (1000, 2600, 2882)
+    # Two lines in the first cell: the row stays as tall as the second cell.
+    assert (_drawn_end(two_first), _table_height(two)) == (2600, 2882)
+    # Three lines: the row grows.
+    assert (_drawn_end(three_first), _table_height(three)) == (4200, 4482)
+
+
+def _auto_grow_row(name: str):
+    from hwpx import HwpxDocument
+
+    document = HwpxDocument.open((_HANCOM_SAVED / name).read_bytes())
+    table = document.tables.all[0]
+    return document, table, (table.cell(0, 0), table.cell(0, 1))
+
+
+def test_an_auto_grow_cell_holds_as_many_lines_as_its_row():
+    document, table, (first, _) = _auto_grow_row("auto_grow_row_saved.hwpx")
+    assert resolve_slot_metrics(first, document).height_lines() == 2
+
+    kept = table.set_cell_text(0, 0, _TWO_LINES, fit=FitPolicy())
+    assert kept is not None and kept.ok is True and kept.lines == 2
+    assert not kept.applied_style_changes.get("font_pt")
+
+    document, table, _ = _auto_grow_row("auto_grow_row_saved.hwpx")
+    refused = table.set_cell_text(0, 0, _THREE_LINES, fit=FitPolicy())
+    assert refused is not None and refused.ok is False
+    assert any("FIELD_OVERFLOW" in error for error in refused.errors)
+
+
+def test_hancom_draws_a_row_as_tall_as_lines_that_run_past_its_stored_height():
+    # One cell stored 2000 high (room for one 10 pt line inside) holding two lines; then Hancom filled it
+    # with another two-line value and with a three-line one.
+    saved, _, (cell, _other) = _overflow_row("overflow_row_saved.hwpx")
+    two, _, (two_cell, _) = _overflow_row("overflow_row_filled_two.hwpx")
+    three, _, (three_cell, _) = _overflow_row("overflow_row_filled_three.hwpx")
+
+    assert [c.element.find(f"{_HP}cellSz").get("height") for c in (cell, two_cell, three_cell)] == ["2000"] * 3
+    assert (_drawn_end(cell), _table_height(saved)) == (2600, 2882)
+    assert (_drawn_end(two_cell), _table_height(two)) == (2600, 2882)
+    assert (_drawn_end(three_cell), _table_height(three)) == (4200, 4482)
+
+
+def _overflow_row(name: str):
+    from hwpx import HwpxDocument
+
+    document = HwpxDocument.open((_HANCOM_SAVED / name).read_bytes())
+    table = document.tables.all[0]
+    return document, table, (table.cell(0, 0), None)
+
+
+def test_a_row_whose_lines_run_past_its_stored_height_holds_them():
+    document, table, (cell, _) = _overflow_row("overflow_row_saved.hwpx")
+    assert resolve_slot_metrics(cell, document).height_lines() == 2
+
+    kept = table.set_cell_text(0, 0, _TWO_LINES, fit=FitPolicy())
+    assert kept is not None and kept.ok is True and kept.lines == 2
+    assert not kept.applied_style_changes.get("font_pt")
+
+    document, table, _ = _overflow_row("overflow_row_saved.hwpx")
+    refused = table.set_cell_text(0, 0, _THREE_LINES, fit=FitPolicy())
+    assert refused is not None and refused.ok is False
+
+
+def test_an_auto_grow_row_without_drawn_lines_is_as_tall_as_its_measured_text():
+    document, table, (first, _) = _auto_grow_row("auto_grow_row_saved.hwpx")
+    for paragraph in table.element.iter(f"{_HP}p"):
+        for cache in paragraph.findall(f"{_HP}linesegarray"):
+            paragraph.remove(cache)
+
+    # The second cell's text measures two lines, as Hancom laid it out.
+    metrics = resolve_slot_metrics(first, document)
+    assert metrics.available_height == 2600 and metrics.height_lines() == 2

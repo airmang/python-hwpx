@@ -39,7 +39,7 @@ def _content_tags_in(run: etree._Element) -> list[str]:
             continue
         name = tag_local_name(node.tag)
         if name == "t":
-            if not (node.text or "").strip():
+            if not (node.text or "").strip() and not any((c.tail or "").strip() for c in node):
                 continue
         elif name not in forbidden:
             continue
@@ -51,18 +51,20 @@ def _content_tags_in(run: etree._Element) -> list[str]:
 
 def _replay_manual_blank(section) -> dict[str, int]:
     first = section.paragraphs[0]
-    later_runs = first.runs[1:]
-    for run in later_runs:
-        run.remove()
-    first_run = first.element.find(f"{HP}run")
+    runs = first.element.findall(f"{HP}run")
     kept = {f"{HP}secPr", f"{HP}ctrl"}
     stripped = 0
-    for child in list(first_run):
-        if child.tag not in kept:
-            first_run.remove(child)
-            stripped += 1
-    if _content_tags_in(first_run):
+    for run in runs:
+        for child in list(run):
+            if child.tag not in kept:
+                run.remove(child)
+                stripped += 1
+    if any(_content_tags_in(run) for run in runs):
         raise AssertionError("fixture holds control content; the replay would refuse it")
+    # a later run stays only for the controls it holds
+    later_runs = [run for run in runs[1:] if len(run) == 0]
+    for run in later_runs:
+        first.element.remove(run)
     for cache in first.element.findall(f"{HP}linesegarray"):
         first.element.remove(cache)
     later_paragraphs = section.paragraphs[1:]
@@ -155,12 +157,18 @@ def test_the_generated_fixture_exercises_every_removal_step() -> None:
     section = document.sections[0]
     first_run_names = [tag_local_name(child.tag) for child in section.paragraphs[0].runs[0].element]
     assert {"secPr", "ctrl", "t", "tbl", "pic"} <= set(first_run_names)
+    body_children = sum(
+        1
+        for run in section.paragraphs[0].runs
+        for child in run.element
+        if tag_local_name(child.tag) not in {"secPr", "ctrl"}
+    )
 
     report = section.clear_body()
 
     assert report.removed_paragraphs >= 4
     assert report.removed_runs >= 2
-    assert report.stripped_run_children == 3  # t, tbl, pic
+    assert report.stripped_run_children == body_children  # t, tbl, pic and the later runs' objects
     (paragraph,) = section.paragraphs
     (run,) = paragraph.runs
     assert [tag_local_name(child.tag) for child in run.element] == ["secPr", "ctrl"]
@@ -538,3 +546,66 @@ def test_a_form_object_in_the_real_corpus_control_is_refused() -> None:
         document.sections[0].clear_body()
 
     assert caught.value.context["tags"] == ["hp:checkBtn"]
+
+
+# --------------------------------------------------------------------------
+# Controls Hancom writes in a later run of the first paragraph
+
+
+def _control_counts(section) -> dict[str, int]:
+    """Controls held by the first paragraph's runs, the ones clear_body keeps.
+
+    (A control inside a table in that paragraph goes with the table.)
+    """
+    controls = section.paragraphs[0].element.findall(f"{HP}run/{HP}ctrl")
+    return {
+        name: sum(len(control.findall(f"{HP}{name}")) for control in controls)
+        for name in ("pageNum", "header", "pageHiding")
+    }
+
+
+def test_controls_in_a_later_run_of_the_first_paragraph_stay() -> None:
+    # Hancom-saved: the page number and the header sit in the second run.
+    document = _open((FIXTURES / "m2_corpus/public_official_table.hwpx").read_bytes())
+    section = document.sections[0]
+    before = _control_counts(section)
+    assert before["pageNum"] == 1 and before["header"] == 1
+
+    section.clear_body(on_control_content="keep")
+
+    assert _control_counts(section) == before
+    reopened = _open(document.to_bytes())
+    assert _control_counts(reopened.sections[0]) == before
+    assert reopened.validate().ok
+
+
+def test_page_hiding_and_numbering_in_the_second_run_stay() -> None:
+    document = _open((FIXTURES / "m3_gongmun_gold/mfds_admin_notice.hwpx").read_bytes())
+    for section in document.sections:
+        before = _control_counts(section)
+        section.clear_body(on_control_content="keep")
+        assert _control_counts(section) == before
+
+
+def test_text_after_a_child_in_a_kept_header_counts_as_content() -> None:
+    from hwpx.errors import HwpxValueError
+
+    document = HwpxDocument.new()
+    document.page.set_header(text="x")
+    section = document.sections[0]
+    header = next(section.element.iter(f"{HP}header"))
+    text = next(header.iter(f"{HP}t"))
+    text.text = None
+    tab = etree.SubElement(text, f"{HP}tab")
+    tab.tail = "홍길동"
+
+    with pytest.raises(HwpxValueError) as caught:
+        section.clear_body()
+    assert caught.value.code == "section-clear-control-content"
+
+    section.clear_body(on_control_content="strip")
+    assert not any(
+        (node.text or "").strip() or (node.tail or "").strip()
+        for header in section.element.iter(f"{HP}header")
+        for node in header.iter()
+    )

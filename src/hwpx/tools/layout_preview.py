@@ -19,6 +19,7 @@ from zipfile import BadZipFile, ZipFile
 from ..equation import render_equation
 from ..opc.security import guard_zip_file, parse_xml_stdlib, read_member
 from ..oxml.section_format import _PAGE_PORTRAIT
+from ..oxml.table_sizes import cell_margins_of
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
@@ -461,11 +462,13 @@ def _render_table(
         cells: list[str] = []
         for tc in tr.findall(f"{_HP}tc"):
             cell_size = tc.find(f"{_HP}cellSz")
-            cell_margin = tc.find(f"{_HP}cellMargin")
+            # The cell's effective margins (``cell.margins``): the table's
+            # hp:inMargin unless the cell's hasMargin is on.
+            cell_margins = cell_margins_of(tc, table)
             width = _hwp_to_mm(cell_size.get("width") if cell_size is not None else None)
             height = _hwp_to_mm(cell_size.get("height") if cell_size is not None else None)
             padding = {
-                key: _hwp_to_mm(cell_margin.get(key), 0.5) if cell_margin is not None else 0.5
+                key: _hwp_to_mm(getattr(cell_margins, key)) if cell_margins is not None else 0.5
                 for key in ("top", "right", "bottom", "left")
             }
             css = _border_style(tc.get("borderFillIDRef") or table.get("borderFillIDRef"), styles)

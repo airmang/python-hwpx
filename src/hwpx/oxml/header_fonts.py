@@ -25,6 +25,7 @@ the functions take the header object and use its public surface
 
 from __future__ import annotations
 
+import copy
 import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, Iterable
 
@@ -36,6 +37,7 @@ from ._document_primitives import (
     _HH,
     _element_local_name,
     _normalize_font_langs,
+    _validate_font_type,
 )
 from .header import Font, parse_font
 
@@ -187,13 +189,13 @@ def replace_font(
     dst_face: str,
     *,
     langs: Iterable[str] | str | None = None,
+    font_type: str | None = None,
 ) -> FontReplaceReport:
     """Replace *src_face* with *dst_face* in every selected fontface block.
 
     Per block, in document order: skip it when no ``hh:font`` has
     *src_face*; take the id of the ``hh:font`` with *dst_face*, or append
-    ``<hh:font id="{len(fonts)}" face=dst type="TTF" isEmbedded="0"/>``;
-    point every ``hh:fontRef`` that named *src_face* at *dst_face*; remove
+    a new *dst_face* font with id ``len(fonts)``; point every ``hh:fontRef`` that named *src_face* at *dst_face*; remove
     the *src_face* font, renumber the rest 0..N-1 by position, set
     ``fontCnt`` to N and remap every ``hh:fontRef`` through the old → new
     ids (values that name no font are left as they are).
@@ -206,6 +208,14 @@ def replace_font(
     onto *dst_face*; and a reference that named no font (for example one
     equal to the placeholder) stays dangling instead of starting to name
     *dst_face*.
+
+    The appended font is a copy of the first ``hh:font`` that already
+    declares *dst_face* in any fontface block (document order, looked up
+    before anything changes), so its ``type``, ``isEmbedded`` and child
+    elements match the face's existing declaration. When no block declares
+    *dst_face* it is ``<hh:font id=… face=dst type="TTF" isEmbedded="0"/>``.
+    *font_type* (``REP``/``TTF``/``HFT``), when given, sets the ``type`` of
+    every font this call appends; fonts that already exist are not changed.
     """
 
     src = (src_face or "").strip()
@@ -224,6 +234,20 @@ def replace_font(
             suggestion="Pass two different faces; replacing a face with itself changes nothing.",
         )
     wanted = set(_normalize_font_langs(langs))
+    normalized_type = (
+        _validate_font_type(font_type, param_name="font_type") if font_type is not None else None
+    )
+    # An existing declaration of dst in any block is the template for the fonts
+    # this call appends, so one face is not declared as two font types.
+    template = next(
+        (
+            font
+            for fontface in _fontfaces(header)
+            for font in fontface.findall(f"{_HH}font")
+            if font.get("face") == dst
+        ),
+        None,
+    )
 
     changed: list[str] = []
     declared: list[str] = []
@@ -240,21 +264,29 @@ def replace_font(
         if attr is None or lang not in wanted:
             continue
         fonts_in_block = fontface.findall(f"{_HH}font")
-        src_font = next((f for f in fonts_in_block if f.get("face") == src), None)
-        if src_font is None:
+        # Hancom-saved blocks often list one face more than once; every copy goes.
+        src_fonts = [f for f in fonts_in_block if f.get("face") == src]
+        if not src_fonts:
             continue
-        src_id = src_font.get("id")
-        remaining = [f for f in fonts_in_block if f is not src_font]
+        src_ids = {f.get("id") for f in src_fonts}
+        remaining = [f for f in fonts_in_block if all(f is not s for s in src_fonts)]
         # old id -> new id of the fonts that were already declared. The new
         # dst font stays out of it: its id is only a placeholder, and in a
         # block whose ids are not 0..N-1 it can equal an existing id.
         new_ids = {f.get("id"): str(index) for index, f in enumerate(remaining)}
         dst_font = next((f for f in fonts_in_block if f.get("face") == dst), None)
         if dst_font is None:
-            dst_font = fontface.makeelement(
-                f"{_HH}font",
-                {"id": str(len(fonts_in_block)), "face": dst, "type": "TTF", "isEmbedded": "0"},
-            )
+            if template is not None:
+                dst_font = copy.deepcopy(template)
+                dst_font.tail = None
+                dst_font.set("id", str(len(fonts_in_block)))
+            else:
+                dst_font = fontface.makeelement(
+                    f"{_HH}font",
+                    {"id": str(len(fonts_in_block)), "face": dst, "type": "TTF", "isEmbedded": "0"},
+                )
+            if normalized_type is not None:
+                dst_font.set("type", normalized_type)
             fontface.append(dst_font)
             remaining.append(dst_font)
             declared.append(lang)
@@ -264,12 +296,13 @@ def replace_font(
             value = font_ref.get(attr)
             if value is None:
                 continue
-            if value == src_id:
+            if value in src_ids:
                 font_ref.set(attr, dst_new_id)
                 repointed += 1
             elif value in new_ids:
                 font_ref.set(attr, new_ids[value])
-        fontface.remove(src_font)
+        for src_font in src_fonts:
+            fontface.remove(src_font)
         for index, font in enumerate(remaining):
             font.set("id", str(index))
         fontface.set("fontCnt", str(len(remaining)))

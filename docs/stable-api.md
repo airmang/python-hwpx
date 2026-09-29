@@ -52,7 +52,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
-- 목록 **밖**의 멤버(79개 — `apply_model`·`mark_dirty`·`remove_stale_layout_caches`
+- 목록 **밖**의 멤버(154개 — `apply_model`·`mark_dirty`·`remove_stale_layout_caches`
   등) → 구현 세부. minor 에서 바뀔 수 있다.
 
 `hwpx.oxml.*` import 경로는 그대로 살아 있다. 옮기지도, deprecate 하지도 않는다.

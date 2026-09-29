@@ -236,7 +236,10 @@ ERROR_CODES: dict[str, str] = {
     "header-compat-empty-target-program": "target_program 값이 비어 있다.",
     "header-compat-empty-flag-name": "layout compatibility 플래그 이름이 비어 있다.",
     "header-compat-empty-license-mark-type": "라이선스 표시 mark_type 값이 비어 있다.",
+    "master-page-in-use": "지우려는 바탕쪽을 아직 어떤 절이 참조한다.",
     "master-page-manifest-missing": "content.hpf 매니페스트에 opf:manifest 요소가 없다.",
+    "master-page-not-found": "그 id의 바탕쪽 파트가 문서에 없다.",
+    "master-page-pages-taken": "그 구역에 같은 쪽(종류와 번호)의 바탕쪽이 이미 있다.",
     "master-page-type-unsupported": "바탕쪽 type 값이 OWPML 어휘(BOTH/EVEN/ODD/LAST_PAGE/OPTIONAL_PAGE) 밖이다.",
     # -- 문서 병합(doc.merge) ------------------------------------------------
     "document-merge-index-out-of-range": "after_paragraph_index 가 대상 섹션의 문단 개수 범위를 벗어났다.",
@@ -246,6 +249,7 @@ ERROR_CODES: dict[str, str] = {
     "style-not-found": "그 id·이름의 스타일이 없다(가용 목록·가장 가까운 이름 동봉).",
     "style-ambiguous": "같은 이름을 쓰는 스타일이 둘 이상이다(후보 동봉).",
     "style-argument-conflict": "style 과 style_id_ref 를 동시에 지정했다.",
+    "style-list-continue-conflict": "continue_list 와 number_format·start 를 함께 주었다(이어 붙이는 목록은 앞 목록의 번호 모양을 쓴다).",
     "style-list-level-invalid": "글머리표/번호 수준은 1 이상이어야 한다.",
     "style-list-property-failed": "번호 문단모양을 만들지 못했다.",
     "style-font-face-empty": "face 값이 비어 있다.",
@@ -293,6 +297,8 @@ ERROR_CODES: dict[str, str] = {
     "field-cell-not-found": "그 이름(과 순번)의 셀 필드(이름 붙은 표 칸)가 없다.",
     "field-checkbox-not-created": "만든 체크박스를 표준 리더가 다시 찾지 못했다.",
     "field-fit-failed": "값이 FitPolicy 하에서 필드 상자에 들어가지 않는다(측정치·재시도 제안 동봉).",
+    "field-text-box-not-found": "그 이름의 글상자 필드가 없다(doc.fields.text_boxes 로 이름을 본다).",
+    "field-end-missing": "누름틀에 끝(fieldEnd)이 없어 바꿀 내용이 없다(한/글도 이런 누름틀은 채우지 않는다).",
     # -- 자동 갱신 필드(날짜/시간·교정 부호·파일 이름, 누름틀과 다른 부류) --
     "field-date-format-unsupported": "날짜/시간 필드 date_format 값이 실증된 어휘(단일 관측값) 밖이다.",
     "field-proofreading-mark-unsupported": "교정 부호 mark 값이 $RevisionSign 인덱스가 확인된 어휘 밖이다.",
@@ -311,6 +317,7 @@ ERROR_CODES: dict[str, str] = {
     "shape-chart-not-created": "만든 차트를 표준 스캔이 다시 찾지 못했다.",
     "shape-caption-side-invalid": "캡션 side 값이 OWPML 어휘(LEFT/RIGHT/TOP/BOTTOM) 밖이다.",
     "shape-draw-text-vert-align": "도형 글상자 vert_align 값이 OWPML 어휘(hp:subList/@vertAlign, TOP/CENTER/BOTTOM) 밖이다.",
+    "shape-original-size-invalid": "add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다.",
     "shape-position-value": "도형 오프셋이 signed 32-bit 정수(HWPUNIT)가 아니다.",
     "shape-position-unsupported": "위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다.",
     "shape-position-frame": "도형 기준 프레임·정렬 값이 OWPML 어휘(hp:pos 의 vertRelTo/horzRelTo/vertAlign/horzAlign) 밖이다.",
@@ -324,6 +331,7 @@ ERROR_CODES: dict[str, str] = {
     "shape-drop-cap-not-created": "만든 드롭캡을 표준 섹션 스캔이 다시 찾지 못했다.",
     # -- 미디어 ----------------------------------------------------------
     "media-item-id-taken": "그 이진 항목 id 가 이미 쓰이고 있다.",
+    "media-item-in-use": "지우려는 이진 항목을 문서가 아직 가리킨다(그림·채우기·동영상·OLE 등). force=True 로만 지운다.",
     "media-owner-paragraph-missing": "교체한 그림 요소가 소속 문단을 찾지 못했다(방어적 분기).",
     # -- 주석 ------------------------------------------------------------
     "note-anchor-detached": "앵커를 걸 문단이 섹션에 속해 있지 않다.",

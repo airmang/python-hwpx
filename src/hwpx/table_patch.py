@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from .errors import HwpxError
+from .oxml.table_sizes import effective_cell_margin_source
 from .opc.security import guard_zip_file, read_member, read_zip_members
 from .mutation_report import MutationReport, project_byte_splice
 from .patch import (
@@ -232,11 +233,34 @@ def _cell_run_charpr(cell: bytes) -> str | None:
     m = re.search(rb'<(?:[A-Za-z_][\w.-]*:)?run\b[^>]*?\bcharPrIDRef="(\d+)"', cell)
     return m.group(1).decode() if m else None
 
-def _cell_inner_width(cell: bytes) -> int:
-    w = _iattr(cell, "cellSz", "width") or 0
-    m = re.search(rb'<(?:[A-Za-z_][\w.-]*:)?cellMargin\b[^>]*?\bleft="(\d+)"[^>]*?\bright="(\d+)"', cell)
-    left, right = (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+_ATTR_RE = re.compile(rb'\b([A-Za-z_][\w.:-]*)="([^"]*)"')
+
+def _open_tag_attrs(chunk: bytes, name: str) -> dict[str, str] | None:
+    m = re.search(_tag(name) + rb"[^>]*", chunk)
+    if m is None:
+        return None
+    return {k.decode(): v.decode() for k, v in _ATTR_RE.findall(m.group(0))}
+
+def _cell_inner_width(table: bytes, cell: bytes) -> int:
+    """Cell width minus the effective left/right margins (``cell.margins``):
+    the table's ``hp:inMargin`` unless the cell's ``hasMargin`` is on."""
+    own = _mask_nested_tables(cell)  # the cell's own children, not a nested table's
+    body = _mask_nested_tables(table[_open_tag_end(table):])
+    first_row = re.search(_tag("tr"), body)
+    source = effective_cell_margin_source(
+        (_open_tag_attrs(own, "tc") or {}).get("hasMargin"),
+        _open_tag_attrs(own, "cellMargin"),
+        _open_tag_attrs(body[: first_row.start()] if first_row else body, "inMargin"),
+    )
+    w = _iattr(own, "cellSz", "width") or 0
+    left, right = (_iattr_value(source, "left"), _iattr_value(source, "right")) if source else (0, 0)
     return max(w - left - right, 0)
+
+def _iattr_value(attrs: Mapping[str, str], name: str) -> int:
+    try:
+        return int(attrs.get(name) or 0)
+    except ValueError:
+        return 0
 
 def _materialize_charpr(header: bytes, base_id: str, new_height: int, cache: dict[tuple[str, int], str]) -> tuple[bytes, str]:
     """Clone charPr *base_id* with *new_height*, append it to the charProperties
@@ -267,8 +291,8 @@ def _materialize_charpr(header: bytes, base_id: str, new_height: int, cache: dic
     cache[key] = new_id
     return header, new_id
 
-def _shrunk_font_id(header: bytes, cell_bytes: bytes, text: str, target_lines: int, min_font_pt: float,
-                    cache: dict[tuple[str, int], str]) -> tuple[bytes, str, str] | None:
+def _shrunk_font_id(header: bytes, table_bytes: bytes, cell_bytes: bytes, text: str, target_lines: int,
+                    min_font_pt: float, cache: dict[tuple[str, int], str]) -> tuple[bytes, str, str] | None:
     """If *text* needs more than *target_lines* at the cell's base font, decide a
     shrink (form_fit FitEngine) and materialise it. Returns (new_header, base_id,
     new_id) or None (no shrink needed / not resolvable)."""
@@ -279,7 +303,7 @@ def _shrunk_font_id(header: bytes, cell_bytes: bytes, text: str, target_lines: i
     base_id = _cell_run_charpr(cell_bytes)
     if base_id is None:
         return None
-    inner = _cell_inner_width(cell_bytes)
+    inner = _cell_inner_width(table_bytes, cell_bytes)
     base_h = _charpr_height(header, base_id)
     if not inner or not base_h:
         return None
@@ -717,7 +741,7 @@ def fill_cells(
             shrink: tuple[str, str] | None = None
             target = mx or fit_max_lines
             if target and header_xml is not None and text.strip():
-                res = _shrunk_font_id(header_xml, cell_bytes, text, target, min_font_pt, charpr_cache)
+                res = _shrunk_font_id(header_xml, table, cell_bytes, text, target, min_font_pt, charpr_cache)
                 if res is not None:
                     header_xml, base_id, new_id = res
                     header_changed = True

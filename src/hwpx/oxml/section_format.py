@@ -1119,6 +1119,13 @@ class HwpxOxmlSectionProperties:
         self._set_note_spacing("footNotePr", **kwargs)
 
     def set_footnote_numbering(self, **kwargs: Any) -> None:
+        """Set how footnotes are numbered: ``type`` (``CONTINUOUS``, ``ON_SECTION``
+        or ``ON_PAGE``) and ``new_num``, the first number.
+
+        Hancom starts the numbers at ``new_num`` only with ``ON_SECTION``. With
+        ``CONTINUOUS`` and ``ON_PAGE`` it numbers from 1; the value stays in the
+        file.
+        """
         self._set_note_numbering("footNotePr", **kwargs)
 
     def set_footnote_placement(self, **kwargs: Any) -> None:
@@ -1138,6 +1145,13 @@ class HwpxOxmlSectionProperties:
         self._set_note_spacing("endNotePr", **kwargs)
 
     def set_endnote_numbering(self, **kwargs: Any) -> None:
+        """Set how endnotes are numbered: ``type`` (``CONTINUOUS``, ``ON_SECTION``
+        or ``ON_PAGE``) and ``new_num``, the first number.
+
+        Hancom starts the numbers at ``new_num`` only with ``ON_SECTION``. With
+        ``CONTINUOUS`` and ``ON_PAGE`` it numbers from 1; the value stays in the
+        file.
+        """
         self._set_note_numbering("endNotePr", **kwargs)
 
     def set_endnote_placement(self, **kwargs: Any) -> None:

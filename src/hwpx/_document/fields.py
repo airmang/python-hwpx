@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
 
 from ..errors import HwpxStateError, HwpxValueError
 from ..objects.checkbox import CheckBox
-from ..objects.form_field import CellField, FieldLocation, FieldParameter, FormField
+from ..objects.form_field import CellField, FieldLocation, FieldParameter, FormField, TextBoxField
 from ..objects.results import FieldFillResult
 from ..oxml import HwpxOxmlParagraph
 from ..oxml.namespaces import HP
@@ -88,6 +88,41 @@ def _sanitize_field_text(value: str) -> str:
     return _TEXT_ILLEGAL.sub("", value)
 
 
+# Characters an hp:t holds as child elements; they belong to the text they sit in.
+_TEXT_CHARACTER_NAMES = {"tab": "\t", "lineBreak": "\n", "hyphen": "", "nbSpace": "\u00a0", "fwSpace": "\u3000"}
+
+
+def _text_node_value(node: Any) -> str:
+    """The text of an ``hp:t``, with ``hp:lineBreak`` as a newline and ``hp:tab`` as a tab."""
+
+    parts = [node.text or ""]
+    for child in node:
+        parts.append(_TEXT_CHARACTER_NAMES.get(_local_name(child), ""))
+        parts.append(child.tail or "")
+    return "".join(parts)
+
+
+def _write_text_node(node: Any, value: str) -> None:
+    """Put *value* in the ``hp:t`` *node* in place of its text.
+
+    A line break (CRLF, LF or CR) becomes ``hp:lineBreak``, the element Hancom
+    turns such a character into when it opens the file. The characters of the
+    old text (tabs, line breaks) go; other marks stay, emptied.
+    """
+
+    for child in list(node):
+        if _local_name(child) in _TEXT_CHARACTER_NAMES:
+            node.remove(child)
+        else:
+            child.tail = ""
+    lines = value.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    node.text = lines[0]
+    for line in lines[1:]:
+        line_break = node.makeelement(f"{_HP}lineBreak", {})
+        node.append(line_break)
+        line_break.tail = line
+
+
 def _field_type_tokens(*values: str | None) -> set[str]:
     tokens: set[str] = set()
     for value in values:
@@ -125,6 +160,11 @@ def _field_identifier(field_begin: Any) -> str:
 
 
 def _field_end_matches(field_begin: Any, field_end: Any) -> bool:
+    # An end that names its begin (beginIDRef) is that begin's end only: a fieldid
+    # is shared by every field of a type (Hancom's control id), so it pairs only
+    # ends that name no begin.
+    if field_begin.get("id") and field_end.get("beginIDRef"):
+        return field_begin.get("id") == field_end.get("beginIDRef")
     begin_keys = {
         value
         for value in (
@@ -160,6 +200,18 @@ def _field_parameters(field_begin: Any) -> list[dict[str, str]]:
     return parameters
 
 
+def _field_name(field_begin: Any, parameters: Sequence[dict[str, str]]) -> str:
+    """The field's name. A ``name`` attribute is the name even when empty: Hancom
+    treats such a field as unnamed (it lists and fills fields by name only)."""
+
+    if field_begin.get("name") is not None:
+        return field_begin.get("name", "").strip()
+    name = _first_attr(field_begin, _FORM_FIELD_NAME_ATTRS)
+    if not name:
+        name = _field_parameter_value(parameters, "fieldName", "fieldname", "field_name", "name", "title")
+    return name
+
+
 def _first_attr(element: Any, names: Sequence[str]) -> str:
     for name in names:
         value = (element.get(name) or "").strip()
@@ -176,6 +228,21 @@ def _field_parameter_value(parameters: Sequence[dict[str, str]], *names: str) ->
         if name in wanted and value:
             return value
     return ""
+
+
+_COMMAND_DIRECTION = re.compile(r"(?:^|[\s:])Direction:wstring:(\d+):")
+
+
+def _command_direction(parameters: Sequence[dict[str, str]]) -> str:
+    """The prompt a field keeps only in its ``Command`` string
+    (``Clickhere:set:N:Direction:wstring:<length>:<prompt> HelpState:...``)."""
+
+    command = _field_parameter_value(parameters, "Command")
+    found = _COMMAND_DIRECTION.search(command)
+    if found is None:
+        return ""
+    start = found.end()
+    return command[start : start + int(found.group(1))]
 
 
 def _clear_form_field_layout_cache(paragraph: Any) -> int:
@@ -206,6 +273,40 @@ def _find_field_end_position(
                 if _field_end_matches(field_begin, field_end):
                     return run_index, child_index, field_end
     return None
+
+
+def _find_field_end_in_following_paragraphs(
+    paragraph_element: Any, field_begin: Any
+) -> tuple[Any, list[Any], int, int, list[Any]] | None:
+    """The end of a field whose content runs past its paragraph: the later
+    paragraph beside it that holds the fieldEnd naming this field's id, that
+    paragraph's runs, the end's run and child index, and the paragraphs in
+    between. Only an end that names the begin's id counts here."""
+
+    ids = {value for value in (field_begin.get("id"), field_begin.get("fieldid")) if value}
+    if not ids:
+        return None
+    middle: list[Any] = []
+    sibling = paragraph_element.getnext()
+    while sibling is not None:
+        if _local_name(sibling) == "p":
+            runs = [child for child in sibling if _local_name(child) == "run"]
+            for run_index, run in enumerate(runs):
+                for child_index, child in enumerate(run):
+                    if _local_name(child) != "ctrl":
+                        continue
+                    for field_end in child.findall(f"{_HP}fieldEnd"):
+                        if _field_end_matches(field_begin, field_end) and (
+                            ids & {field_end.get("beginIDRef"), field_end.get("fieldid")}
+                        ):
+                            return sibling, runs, run_index, child_index, middle
+            middle.append(sibling)
+        sibling = sibling.getnext()
+    return None
+
+
+def _run_texts(runs: Sequence[Any]) -> str:
+    return "".join(_text_node_value(node) for run in runs for node in run if _local_name(node) == "t")
 
 
 def _field_text_nodes(
@@ -244,13 +345,14 @@ def _form_field_payload(
     has_end: bool,
 ) -> dict[str, Any]:
     parameters = _field_parameters(field_begin)
-    name = _first_attr(field_begin, _FORM_FIELD_NAME_ATTRS)
-    if not name:
-        name = _field_parameter_value(parameters, "fieldName", "fieldname", "field_name", "name", "title")
+    name = _field_name(field_begin, parameters)
     prompt = _first_attr(field_begin, _FORM_FIELD_PROMPT_ATTRS)
     if not prompt:
         # "Direction" is the real-Hancom 안내문 parameter (P0 gold contract).
         prompt = _field_parameter_value(parameters, "Direction", *_FORM_FIELD_PARAM_NAMES)
+    if not prompt:
+        # Some fields keep it only inside their Command string.
+        prompt = _command_direction(parameters)
     instruction = _field_parameter_value(parameters, "instruction", "guide", "help", "description", "desc")
     if not instruction:
         instruction = prompt
@@ -325,17 +427,38 @@ def _iter_form_field_matches(doc: "HwpxDocument") -> list[dict[str, Any]]:
                         )
                         end_run_index: int | None = None
                         end_child_index: int | None = None
+                        span = None
                         if end_position is not None:
                             end_run_index, end_child_index, _field_end = end_position
+                        else:
+                            span = _find_field_end_in_following_paragraphs(paragraph_element, field_begin)
                         text_nodes = _field_text_nodes(
                             doc,
                             runs,
                             begin_run_index=run_index,
                             begin_child_index=child_index,
-                            end_run_index=end_run_index,
+                            end_run_index=end_run_index if span is None else len(runs) - 1,
                             end_child_index=end_child_index,
                         )
-                        current_value = "".join("".join(node.itertext()) for node in text_nodes)
+                        current_value = "".join(_text_node_value(node) for node in text_nodes)
+                        if span is not None:
+                            # the content goes on over paragraphs: their texts, one per line
+                            end_paragraph, end_runs, span_run, span_child, middle = span
+                            tail = _field_text_nodes(
+                                doc,
+                                end_runs,
+                                begin_run_index=0,
+                                begin_child_index=-1,
+                                end_run_index=span_run,
+                                end_child_index=span_child,
+                            )
+                            current_value = "\n".join(
+                                [
+                                    current_value,
+                                    *(_run_texts([c for c in p if _local_name(c) == "run"]) for p in middle),
+                                    "".join(_text_node_value(node) for node in tail),
+                                ]
+                            )
                         payload = _form_field_payload(
                             doc,
                             index=len(matches),
@@ -347,7 +470,7 @@ def _iter_form_field_matches(doc: "HwpxDocument") -> list[dict[str, Any]]:
                             ctrl=child,
                             field_begin=field_begin,
                             current_value=current_value,
-                            has_end=end_position is not None,
+                            has_end=end_position is not None or span is not None,
                         )
                         payload["_paragraph"] = paragraph
                         payload["_runs"] = runs
@@ -356,6 +479,7 @@ def _iter_form_field_matches(doc: "HwpxDocument") -> list[dict[str, Any]]:
                         payload["_end_run_index"] = end_run_index
                         payload["_end_child_index"] = end_child_index
                         payload["_text_nodes"] = text_nodes
+                        payload["_span"] = span
                         matches.append(payload)
             paragraph_index += 1
     return matches
@@ -401,9 +525,13 @@ def _form_field_from_match(doc: "HwpxDocument", match: Mapping[str, Any]) -> For
 
 
 def list_form_fields(doc: "HwpxDocument") -> tuple[FormField, ...]:
-    """Return native form/click-here fields in document order."""
+    """Return native form/click-here fields in document order.
 
-    return tuple(_form_field_from_match(doc, match) for match in _iter_form_field_matches(doc))
+    Unnamed fields are left out, as Hancom's own field list leaves them out;
+    ``field_index`` and ``field_id`` still reach them in :func:`fill_form_field`.
+    """
+
+    return tuple(_form_field_from_match(doc, match) for match in _iter_form_field_matches(doc) if match["name"])
 
 
 def _named_cells(paragraphs: Any) -> Iterator[Any]:
@@ -440,6 +568,80 @@ def fill_cell_fields(doc: "HwpxDocument", value: str, *, name: str, index: int |
     for field in fields:
         field.text = value
     return tuple(fields)
+
+
+def list_text_box_fields(doc: "HwpxDocument") -> tuple[TextBoxField, ...]:
+    """Named text boxes in document order: Hancom lists a text box whose ``hp:drawText``
+    has a name among its fields (and leaves an unnamed one out)."""
+
+    return tuple(
+        TextBoxField(draw_text, section)
+        for section in doc.sections
+        for draw_text in section.element.iter(f"{_HP}drawText")
+        if (draw_text.get("name") or "").strip()
+    )
+
+
+def fill_text_box_fields(
+    doc: "HwpxDocument", value: str, *, name: str, index: int | None = None
+) -> tuple[TextBoxField, ...]:
+    """Set the text of every text box called *name*, or of the *index*-th of them only."""
+
+    wanted = (name or "").strip()
+    fields = [field for field in list_text_box_fields(doc) if wanted and field.name == wanted]
+    if index is not None:
+        fields = fields[index : index + 1] if index >= 0 else []
+    if not fields:
+        where = f"{wanted!r}" if index is None else f"{wanted!r} at index {index}"
+        raise HwpxValueError(
+            f"no text box named {where}",
+            code="field-text-box-not-found",
+            context={"name": wanted, "index": index},
+            suggestion="List doc.fields.text_boxes to see the text box names.",
+        )
+    for field in fields:
+        field.text = value
+    return tuple(fields)
+
+
+def text_box_text(draw_text: Any) -> str:
+    """The text of a text box, a line per paragraph."""
+
+    return "\n".join(
+        "".join(_text_node_value(node) for node in paragraph.iter(f"{_HP}t"))
+        for paragraph in draw_text.findall(f"{_HP}subList/{_HP}p")
+    )
+
+
+def set_text_box_text(draw_text: Any, section: Any, value: str) -> None:
+    """Put *value* in a text box as Hancom fills a text box field: the box keeps its
+    first paragraph and that paragraph's first run, which hold the value alone."""
+
+    sub_list = draw_text.find(f"{_HP}subList")
+    if sub_list is None:
+        sub_list = draw_text.makeelement(f"{_HP}subList", {})
+        draw_text.insert(0, sub_list)
+    paragraphs = sub_list.findall(f"{_HP}p")
+    first = paragraphs[0] if paragraphs else sub_list.makeelement(
+        f"{_HP}p", {"id": "0", "paraPrIDRef": "0", "styleIDRef": "0", "pageBreak": "0", "columnBreak": "0", "merged": "0"}
+    )
+    if not paragraphs:
+        sub_list.append(first)
+    for extra in paragraphs[1:]:
+        sub_list.remove(extra)
+    runs = first.findall(f"{_HP}run")
+    run = runs[0] if runs else first.makeelement(f"{_HP}run", {"charPrIDRef": "0"})
+    if not runs:
+        first.insert(0, run)
+    for extra in runs[1:]:
+        first.remove(extra)
+    for child in list(run):
+        run.remove(child)
+    text = run.makeelement(f"{_HP}t", {})
+    run.append(text)
+    _write_text_node(text, value)
+    _clear_form_field_layout_cache(first)
+    section.mark_dirty()
 
 
 _PROMPT_TEXT_COLOR = "#FF0000"
@@ -686,6 +888,7 @@ def _select_form_field(
             match
             for match in matches
             if wanted_name
+            and match.get("name")
             and wanted_name
             in {
                 str(match.get("name", "")).strip().casefold(),
@@ -735,8 +938,60 @@ def _insert_form_field_text_run(
     runs: list[Any] = match["_runs"]
     begin_run = runs[int(match["_begin_run_index"])]
     text_node = begin_run.makeelement(f"{_HP}t", {})
-    text_node.text = _sanitize_field_text(value)
+    _write_text_node(text_node, _sanitize_field_text(value))
     begin_run.insert(int(match["_begin_child_index"]) + 1, text_node)
+
+
+def _drop_nested_fields(match: Mapping[str, Any]) -> None:
+    """Hancom's way with a field that holds other fields: the value replaces
+    them with the rest of the content, so the begin and end of every field
+    lying wholly between this field's begin and end go."""
+
+    runs: list[Any] = match["_runs"]
+    end_run_index = match.get("_end_run_index")
+    if end_run_index is None:
+        return
+    begin_run_index = int(match["_begin_run_index"])
+    inside: list[tuple[Any, Any]] = []
+    for run_index in range(begin_run_index, int(end_run_index) + 1):
+        children = list(runs[run_index])
+        start = int(match["_begin_child_index"]) + 1 if run_index == begin_run_index else 0
+        stop = int(match["_end_child_index"]) if run_index == end_run_index else len(children)
+        inside.extend((runs[run_index], child) for child in children[start:stop] if _local_name(child) == "ctrl")
+    begun = {mark.get("id") for _, ctrl in inside for mark in ctrl.findall(f"{_HP}fieldBegin")}
+    ended = {mark.get("beginIDRef") for _, ctrl in inside for mark in ctrl.findall(f"{_HP}fieldEnd")}
+    nested = (begun & ended) - {None, ""}
+    for run, ctrl in inside:
+        marks = [(mark.get("id") if _local_name(mark) == "fieldBegin" else mark.get("beginIDRef"))
+                 for mark in ctrl if _local_name(mark) in ("fieldBegin", "fieldEnd")]
+        if marks and all(mark in nested for mark in marks):
+            run.remove(ctrl)
+
+
+def _collapse_field_span(match: Mapping[str, Any]) -> None:
+    """Hancom's way with a field whose content runs over paragraphs: the
+    content between the begin and the end goes, paragraphs and all, and the
+    end with the rest of its paragraph joins the begin's paragraph."""
+
+    end_paragraph, end_runs, end_run_index, end_child_index, middle = match["_span"]
+    paragraph_element = match["_paragraph"].element
+    runs: list[Any] = match["_runs"]
+    begin_run_index = int(match["_begin_run_index"])
+    begin_run = runs[begin_run_index]
+    for child in list(begin_run)[int(match["_begin_child_index"]) + 1 :]:
+        begin_run.remove(child)
+    for run in runs[begin_run_index + 1 :]:
+        paragraph_element.remove(run)
+    for element in middle:
+        element.getparent().remove(element)
+    end_run = end_runs[end_run_index]
+    moved = end_run.makeelement(end_run.tag, dict(end_run.attrib))
+    for child in list(end_run)[end_child_index:]:
+        moved.append(child)
+    position = paragraph_element.index(begin_run) + 1
+    for offset, run in enumerate([moved, *end_runs[end_run_index + 1 :]]):
+        paragraph_element.insert(position + offset, run)
+    end_paragraph.getparent().remove(end_paragraph)
 
 
 def fill_form_field(
@@ -766,6 +1021,13 @@ def fill_form_field(
         field_id=field_id,
         name=name,
     )
+    if not match.get("has_end"):
+        raise HwpxValueError(
+            f"the field {match.get('name') or match.get('index')!r} has no end, so it has no content to replace",
+            code="field-end-missing",
+            context={"name": match.get("name"), "index": match.get("index")},
+            suggestion="Hancom leaves such a field unchanged too; give it an end or remove it.",
+        )
     paragraph = match["_paragraph"]
     runs = match["_runs"]
     before_value = str(match.get("current_value", ""))
@@ -802,23 +1064,23 @@ def fill_form_field(
 
     text_nodes: list[Any] = match.get("_text_nodes", [])
     sanitized = _sanitize_field_text(write_value)
-    if text_nodes:
+    if match.get("_span") is None:
+        _drop_nested_fields(match)
+    if match.get("_span") is not None:
+        _collapse_field_span(match)
+        _insert_form_field_text_run(doc, match, sanitized)
+    elif text_nodes:
         primary = text_nodes[0]
-        primary.text = sanitized
-        for child in list(primary):
-            child.tail = ""
+        _write_text_node(primary, sanitized)
         for node in text_nodes[1:]:
-            node.text = ""
-            for child in list(node):
-                child.tail = ""
-        if match.get("is_placeholder"):
-            # Contract (P0 gold): Hancom swaps the screen-only prompt style for
-            # the surrounding style when a value replaces the placeholder.
-            begin_run = runs[int(match["_begin_run_index"])]
-            begin_ref = begin_run.get("charPrIDRef")
-            primary_run = primary.getparent()
-            if begin_ref is not None and primary_run is not None:
-                primary_run.set("charPrIDRef", begin_ref)
+            _write_text_node(node, "")
+        # Hancom writes the value in the shape of the run holding the field's
+        # begin, whatever shape the old value or the screen-only prompt had.
+        begin_run = runs[int(match["_begin_run_index"])]
+        begin_ref = begin_run.get("charPrIDRef")
+        primary_run = primary.getparent()
+        if begin_ref is not None and primary_run is not None:
+            primary_run.set("charPrIDRef", begin_ref)
     else:
         _insert_form_field_text_run(doc, match, sanitized)
 
@@ -862,7 +1124,10 @@ def _measure_form_field_fit(
 ) -> "FitResult":
     """Run the FormFit engine for a native field (plan §2 C)."""
 
+    from dataclasses import replace
+
     from hwpx.form_fit import DEFAULT_SAFETY, FitEngine, FitResult, SlotMetrics
+    from hwpx.form_fit.measure import text_style_from_refs
 
     runs = match["_runs"]
     begin_index = int(match["_begin_run_index"])
@@ -889,10 +1154,16 @@ def _measure_form_field_fit(
             field_id=field_id,
         )
 
+    # The field sits inside its paragraph, so the paragraph's indent does not
+    # apply to the box.
+    text_style = text_style_from_refs(
+        doc._root, match["_paragraph"].para_pr_id_ref, [begin_ref]
+    )
     slot = SlotMetrics(
         available_width=float(box_width) * DEFAULT_SAFETY,
         font_pt=resolved_pt,
         max_lines=fit_policy.effective_max_lines,
+        text_style=replace(text_style, indent=0),
     )
     return FitEngine().fit(value, slot, fit_policy, field_id=field_id)
 
