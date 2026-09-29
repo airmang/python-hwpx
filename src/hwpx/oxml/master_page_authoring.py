@@ -156,8 +156,8 @@ def add_master_page(
     ``section.properties.add_master_page_reference(id)``를 별도로 호출할 것
     (이 함수는 파트를 만들 뿐, 어느 절과도 자동으로 연결하지 않는다).
 
-    *text*/*paragraphs* 중 하나로 본문을 채운다(둘 다 없으면 빈 문단
-    하나). *page_type*은 스키마 선언 열거값만 받는다. *page_number*를
+    *text*/*paragraphs* 중 하나로 본문을 채운다(둘 다 없거나 *paragraphs*가
+    비었으면 빈 문단 하나 -- 한/글은 문단 없는 바탕쪽에서 멈춘다). *page_type*은 스키마 선언 열거값만 받는다. *page_number*를
     주지 않으면 ``OPTIONAL_PAGE``는 1쪽, 다른 종류는 0(쪽 번호 없음)을
     쓴다. 한/글도 ``OPTIONAL_PAGE``가 아닌 바탕쪽에는 0을 쓴다.
 
@@ -174,7 +174,7 @@ def add_master_page(
             suggestion=f"Supported values: {', '.join(sorted(_MASTER_PAGE_TYPES))}",
         )
 
-    body_lines = list(paragraphs) if paragraphs is not None else [text or ""]
+    body_lines = (list(paragraphs) if paragraphs is not None else [text or ""]) or [""]
     number = max(_default_page_number(page_type) if page_number is None else page_number, 0)
 
     existing_indices: list[int] = []
