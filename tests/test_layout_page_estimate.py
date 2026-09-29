@@ -34,6 +34,14 @@ HANCOM_PAGES = {
     "pages_table_multiline_cells": 3,     # a table set as a character
     "pages_picture_floating_tall": 4,     # top-and-bottom pictures
     "pages_cell_column_settings": 3,      # one-column settings in a table cell's paragraph
+    "pages_mixed_sizes_percent": 3,       # 10 pt and 20 pt runs in a paragraph, line spacing 160%
+    "pages_mixed_sizes_fixed": 3,         # 12 pt and 30 pt runs, fixed line spacing (lines overlap)
+    "pages_mixed_sizes_at_least": 2,      # 8 pt and 16 pt runs, line spacing at least 18 pt
+    "pages_picture_before_text_percent": 2,  # a picture set as a character before the text, 160%
+    "pages_picture_before_text_fixed": 2,    # a picture taller than the fixed line spacing
+    "pages_table_merged_rows_tall": 1,    # a table set as a character, a merged cell taller than its rows
+    "pages_table_merged_rows_short": 1,   # the same, the merged cell shorter than its rows
+    "pages_table_flow_merged_rows": 2,    # a table flowing with the text, cells merged over rows
 }
 
 
@@ -135,13 +143,69 @@ def test_another_document_of_mixed_character_sizes_has_hancoms_page_count() -> N
     assert estimate.pages == 4
 
 
-def test_mixed_character_sizes_without_layout_caches_are_unsupported() -> None:
-    data = (FIXTURES.parent / "hwpxlib_corpus" / "error__20230728__test.hwpx").read_bytes()
+def _with_empty_first_runs(data: bytes) -> bytes:
+    """Each paragraph starting with an empty run of the default character shape (10 pt), as a paragraph
+    python-hwpx made and then added runs to does; Hancom drops such a run when it saves."""
 
-    estimate = estimate_pages(_without_caches(data))
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                root = etree.fromstring(payload)
+                for paragraph in root.iter(f"{HP}p"):
+                    first = paragraph.find(f"{HP}run")
+                    if first is not None and first.get("charPrIDRef") != "0":
+                        empty = etree.Element(f"{HP}run", charPrIDRef="0")
+                        etree.SubElement(empty, f"{HP}t")
+                        first.addprevious(empty)
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+    return out.getvalue()
+
+
+def test_an_empty_run_takes_no_room_and_gives_no_character_shape() -> None:
+    # 12 pt and 30 pt runs of 바탕 after an empty 10 pt 함초롬바탕 run: the lines are Hancom's.
+    data = (FIXTURES / "pages_mixed_sizes_fixed.hwpx").read_bytes()
+
+    estimate = estimate_pages(_without_caches(_with_empty_first_runs(data)))
+
+    _assert_like_hancom(estimate, data, HANCOM_PAGES["pages_mixed_sizes_fixed"])
+
+
+def _flowing_table_after(paragraphs: int, rows: int) -> tuple[HwpxDocument, object]:
+    document = HwpxDocument.new()
+    for index in range(paragraphs):
+        document.add_paragraph(f"문단 {index}")
+    table = document.add_paragraph("").add_table(rows, 2)
+    table.set_treat_as_char(False)
+    table.element.set("pageBreak", "CELL")
+    for row in range(rows):
+        for column in range(2):
+            table.set_cell_text(row, column, "칸")
+    return document, table
+
+
+def test_a_page_break_among_merged_rows_of_a_flowing_table_is_unsupported() -> None:
+    document, table = _flowing_table_after(38, 6)
+    table.merge_cells(1, 0, 4, 0)
+
+    estimate = estimate_pages(document)
 
     assert estimate.pages is None
-    assert "section 2: mixed character sizes in a paragraph" in estimate.unsupported
+    assert estimate.unsupported == ("section 0: a page break among rows merged in a flowing table",)
+
+
+def test_a_page_break_in_a_flowing_row_taller_than_its_text_is_unsupported() -> None:
+    # How Hancom divides the room under the text at a page break is not known.
+    document, table = _flowing_table_after(30, 1)
+    for size in table.element.iter(f"{HP}cellSz"):
+        size.set("height", "30000")
+
+    estimate = estimate_pages(document)
+
+    assert estimate.pages is None
+    assert estimate.unsupported == ("section 0: a page break in a flowing table row taller than its text",)
 
 
 def test_lines_of_two_columns_are_in_columns() -> None:
