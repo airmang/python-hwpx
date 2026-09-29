@@ -44,6 +44,13 @@ HANCOM_PAGES = {
     "pages_table_flow_merged_rows": 2,    # a table flowing with the text, cells merged over rows
     "pages_table_flow_tall_row_carried": 2,  # a row declared taller than its text, cut at the page end
     "pages_table_flow_tall_row_dropped": 2,  # the same, the rest too short to go on
+    "pages_table_flow_tall_row_rest_1282": 2,  # a rest of 1282 is dropped
+    "pages_table_flow_tall_row_rest_1283": 2,  # a rest of 1283 goes on
+    "pages_table_flow_tall_row_cell_margins_0": 2,    # the cells' own margins 0: 1283 goes on
+    "pages_table_flow_tall_row_cell_margins_500": 2,  # the cells' own margins 500: 1290 goes on
+    "pages_table_flow_tall_row_table_margins_500": 2,  # the table's inner margins 500: 1290 goes on
+    "pages_table_flow_tall_row_bottom_aligned": 2,    # cells aligned to the bottom: 1290 goes on
+    "pages_table_flow_tall_row_16pt": 2,              # 16 pt text: 1283 goes on
 }
 
 
@@ -198,10 +205,11 @@ def test_a_page_break_among_merged_rows_of_a_flowing_table_is_unsupported() -> N
     assert estimate.unsupported == ("section 0: a page break among rows merged in a flowing table",)
 
 
-@pytest.mark.parametrize(("height", "rest"), [(20000, 13221), (8029, 0), (8079, 1300)])
+@pytest.mark.parametrize(("height", "rest"), [(20000, 13221), (8029, 0), (8061, 0), (8062, 1283), (8079, 1300)])
 def test_a_flowing_row_taller_than_its_text_is_cut_just_above_the_page_foot(height: int, rest: int) -> None:
     # The row starts 6880 above the foot: Hancom cuts it 101 above the foot and carries the rest to the
-    # next page, unless the rest is shorter than 1282 (then the next row starts that page).
+    # next page, unless the rest is 1282 or less (then the next row starts that page). The fixtures
+    # pages_table_flow_tall_row_rest_1282 and _1283 are rows placed the same way, saved by Hancom.
     document, table = _flowing_table_after(35, 3)
     for cell in table.element.iter(f"{HP}tc"):
         if cell.find(f"{HP}cellAddr").get("rowAddr") == "1":
