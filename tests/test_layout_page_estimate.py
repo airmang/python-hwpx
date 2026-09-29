@@ -8,6 +8,7 @@ of the column), and ``HANCOM_PAGES`` the number of pages Hancom drew.
 from __future__ import annotations
 
 import io
+import re
 import zipfile
 from pathlib import Path
 
@@ -35,14 +36,18 @@ HANCOM_PAGES = {
 
 
 def _hancom_lines(data: bytes) -> list[list[int]]:
-    """The ``vertpos`` of each cached line of every body paragraph."""
+    """The ``vertpos`` of each cached line of every body paragraph, sections in order."""
 
+    lines = []
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        root = etree.fromstring(archive.read("Contents/section0.xml"))
-    return [
-        [int(seg.get("vertpos")) for seg in paragraph.findall(f"{HP}linesegarray/{HP}lineseg")]
-        for paragraph in root.findall(f"{HP}p")
-    ]
+        names = [name for name in archive.namelist() if re.fullmatch(r"Contents/section\d+\.xml", name)]
+        for name in sorted(names, key=lambda name: int(re.findall(r"\d+", name)[0])):
+            root = etree.fromstring(archive.read(name))
+            lines += [
+                [int(seg.get("vertpos")) for seg in paragraph.findall(f"{HP}linesegarray/{HP}lineseg")]
+                for paragraph in root.findall(f"{HP}p")
+            ]
+    return lines
 
 
 def _without_caches(data: bytes) -> bytes:
@@ -111,6 +116,30 @@ def test_a_merged_table_hancom_has_not_laid_out_is_unsupported() -> None:
 
     assert estimate.pages is None
     assert estimate.unsupported == ("section 0: a table with merged rows",)
+
+
+def test_paragraphs_of_several_character_sizes_hancom_laid_out_follow_their_cached_lines() -> None:
+    # A Hancom-made document of three sections whose paragraphs mix character sizes: each line is as
+    # tall and as far apart as its layout cache says.
+    data = (FIXTURES.parent / "hwpxlib_corpus" / "error__20230728__test.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 39)
+
+
+def test_another_document_of_mixed_character_sizes_has_hancoms_page_count() -> None:
+    estimate = estimate_pages(FIXTURES.parent / "hwpxlib_corpus" / "error__20240626__no_manifest.hwpx")
+
+    assert estimate.unsupported == ()
+    assert estimate.pages == 4
+
+
+def test_mixed_character_sizes_without_layout_caches_are_unsupported() -> None:
+    data = (FIXTURES.parent / "hwpxlib_corpus" / "error__20230728__test.hwpx").read_bytes()
+
+    estimate = estimate_pages(_without_caches(data))
+
+    assert estimate.pages is None
+    assert "section 2: mixed character sizes in a paragraph" in estimate.unsupported
 
 
 def test_lines_of_two_columns_are_in_columns() -> None:
