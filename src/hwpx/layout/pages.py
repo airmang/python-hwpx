@@ -55,9 +55,11 @@
   as it is; a nested table among text, placed top and bottom or wrapped square is followed through
   the layout caches of its cell, as tall as Hancom drew it (down to such a table's foot; one placed
   up from its paragraph's top stands at that top). A flowing table's rows use
-  the body only down to just above the page's foot: a row, or a cell line of a row split between
-  its lines, ending lower goes on to the next page (a row is split only when every cell's first line
-  fits; otherwise it goes on whole), and a row declared taller than its text, holding
+  the body only down to just above the page's foot (101 above it, or 2 in a table set not to be
+  adjusted), less the table's bottom outer margin: a row, or a cell line of a row split between its
+  lines, ending lower goes on to the next page (where the table goes on below its top outer margin;
+  a row is split only when every cell's first line fits, otherwise it goes on whole), and a row
+  declared taller than its text, holding
   such a table or not, is cut there; what is left of it goes on to the next page unless it is no
   taller than a 10 pt line
   with the default cell margins (the cell's own margins, alignment and character size change
@@ -127,8 +129,9 @@ _UNSUPPORTED_CONTENT = frozenset({"compose", "dutmal"})
 #: height leaves room under its text (CELL) is cut there. What is left of such a row goes on to the
 #: next page unless it is _SPARE_DROPPED or less, which is dropped (the row ends at the page's foot).
 #: Both in HWPUNIT, as Hancom lays such rows out whatever the cells' margins, vertical alignment and
-#: character size.
+#: character size. A table set not to be adjusted (hp:tbl@noAdjust) uses _SPARE_CUT_FIXED instead.
 _SPARE_CUT = 101
+_SPARE_CUT_FIXED = 2
 _SPARE_DROPPED = 1282
 #: The narrowest line FormFit breaks at, in HWPUNIT.
 _MIN_LINE_WIDTH = 1440
@@ -459,6 +462,7 @@ class _FlowTable:
     cells: tuple[tuple[int, int, _Row], ...] = ()
     offset: int = 0            # alone in its paragraph: how far below the paragraph's line it starts
     caption: tuple[int, int] = (0, 0)  # a caption above it, below it: its lines and its gap
+    cut: int = _SPARE_CUT      # how far above the body's foot its rows end at most
 
     @property
     def above(self) -> int:
@@ -542,9 +546,17 @@ def _table_alone(runs: list[Any]) -> Any:
     return children[0] if pos is not None and pos.get("treatAsChar") == "1" else None
 
 
+def _margin(margin: Any, side: str) -> int:
+    """One side of an object's outer margins (hp:outMargin): a negative one, which the file keeps as an
+    unsigned 32-bit number, counts as none, as Hancom lays it out (and saves it)."""
+
+    value = int(margin.get(side, 0))
+    return 0 if value < 0 or value >= 1 << 31 else value
+
+
 def _extent_margins(obj: Any) -> int:
     margin = obj.find(f"{HP}outMargin")
-    return 0 if margin is None else int(margin.get("top", 0)) + int(margin.get("bottom", 0))
+    return 0 if margin is None else _margin(margin, "top") + _margin(margin, "bottom")
 
 
 def _drawn_lines(measure: _Measure, paragraphs: list[Any]) -> tuple[tuple[int, int], ...]:
@@ -918,7 +930,7 @@ def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
 
     size = obj.find(f"{HP}sz")
     margin = obj.find(f"{HP}outMargin")
-    extra = (0, 0, 0, 0) if margin is None else tuple(int(margin.get(side, 0)) for side in ("left", "right", "top", "bottom"))
+    extra = (0, 0, 0, 0) if margin is None else tuple(_margin(margin, side) for side in ("left", "right", "top", "bottom"))
     height = _inline_table_height(measure, obj) + sum(_caption(measure, obj)) if _local(obj) == "tbl" \
         else int(size.get("height", 0))
     return int(size.get("width", 0)) + extra[0] + extra[1], height + extra[2] + extra[3]
@@ -997,11 +1009,11 @@ def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: 
 
     line = _anchor_line(measure, paragraph, runs, text, obj, widths, size, style, cached, count)
     margin = obj.find(f"{HP}outMargin")
-    top, bottom = (0, 0) if margin is None else (int(margin.get("top", 0)), int(margin.get("bottom", 0)))
+    top, bottom = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
     if _local(obj) == "tbl":
         rows, cells = _table_rows(measure, obj)
         table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
-                           tuple(cells), caption=_caption(measure, obj))
+                           tuple(cells), caption=_caption(measure, obj), cut=_spare_cut(obj))
         return _Anchor(line, table, 0)
     return _Anchor(line, None, int(obj.find(f"{HP}sz").get("height", 0)) + top + bottom)
 
@@ -1015,7 +1027,7 @@ def _object_line(
     out_margin = obj.find(f"{HP}outMargin")
     top, bottom = (0, 0)
     if out_margin is not None:
-        top, bottom = int(out_margin.get("top", 0)), int(out_margin.get("bottom", 0))
+        top, bottom = _margin(out_margin, "top"), _margin(out_margin, "bottom")
     tall = int(obj.find(f"{HP}sz").get("height", 0)) + top + bottom
     name = _local(obj)
     if pos.get("treatAsChar") == "1":
@@ -1029,7 +1041,7 @@ def _object_line(
             offset = int(pos.get("vertOffset", 0))  # one up (a negative offset, kept unsigned) starts at the line
             table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
                                tuple(cells), 0 if offset < 0 or offset >= 1 << 31 else offset,
-                               _caption(measure, obj))
+                               _caption(measure, obj), _spare_cut(obj))
             return count, size, pitch, table
         below = int(pos.get("vertOffset", 0)) + tall
         return 1, below, below, None
@@ -1126,7 +1138,7 @@ def _extent(obj: Any, side: str) -> int:
 
     margin = obj.find(f"{HP}outMargin")
     ends = ("left", "right") if side == "width" else ("top", "bottom")
-    extra = 0 if margin is None else sum(int(margin.get(end, 0)) for end in ends)
+    extra = 0 if margin is None else sum(_margin(margin, end) for end in ends)
     return int(obj.find(f"{HP}sz").get(side, 0)) + extra
 
 
@@ -1182,9 +1194,9 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
         if _local(pusher) == "tbl" and pusher.get("pageBreak", "CELL") in ("CELL", "TABLE"):  # it flows
             rows, cells = _table_rows(measure, pusher)
             margin = pusher.find(f"{HP}outMargin")
-            ends = (0, 0) if margin is None else (int(margin.get("top", 0)), int(margin.get("bottom", 0)))
+            ends = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
             table = _FlowTable(rows, pusher.get("pageBreak", "CELL"), pusher.get("repeatHeader") == "1", ends,
-                               tuple(cells), caption=_caption(measure, pusher))
+                               tuple(cells), caption=_caption(measure, pusher), cut=_spare_cut(pusher))
             return replace(para, band=_Band(para.wrap_anchor, offset, table)), None
         top = para.span(0, para.wrap_anchor) + offset
         tall = _extent(pusher, "height")
@@ -1289,19 +1301,26 @@ def _repeated_header(table: _FlowTable) -> int:
     return sum(row.height for row in table.rows if row.header) if table.repeat_header else 0
 
 
+def _spare_cut(table: Any) -> int:
+    return _SPARE_CUT_FIXED if table.get("noAdjust") == "1" else _SPARE_CUT
+
+
 def _starts_later(table: _FlowTable, y: int, body: int) -> bool:
     """Whether a table moved row by row (TABLE) has no room for its first row from *y*, so it starts on
     the next page. At the top of a page the row is drawn anyway."""
 
     if table.mode != "TABLE" or not table.rows:
         return False
-    return y + table.rows[0].height > body - _SPARE_CUT and y != _repeated_header(table)
+    return y + table.rows[0].height > body - table.margins[1] - table.cut \
+        and y != _repeated_header(table) + table.margins[0]
 
 
 def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, int]:
     """Lay the rows out from vertical position *y*; the frame and position where the table ends."""
 
-    header, foot = _repeated_header(table), body - _SPARE_CUT
+    body -= table.margins[1]  # the rows keep the table's bottom margin above the page end
+    header = _repeated_header(table) + table.margins[0]  # and go on below its top margin on the next page
+    foot = body - table.cut
     rows, index = table.rows, 0
     while index < len(rows):
         end = index
@@ -1325,7 +1344,7 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
             index = end + 1
             continue
         before, start = frame, y
-        frame, y = _flow_row(table.mode, rows[index], frame, y, body, header)
+        frame, y = _flow_row(table.mode, rows[index], frame, y, body, header, table.cut)
         if rows[index].merged and frame != before:
             raise _Unsupported("a page break among rows merged in a flowing table")
         if index == len(rows) - 1 and table.caption[1] and frame == before and start != header \
@@ -1342,7 +1361,7 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int, body: int) -
     rest of its cells of one row (the rows after it whole), then each merged cell's rest, the one
     ending first first, adds what its rows lack to the last of them."""
 
-    rows, tops, y, foot = table.rows, {}, top, body - _SPARE_CUT
+    rows, tops, y, foot = table.rows, {}, top, body - table.cut
     for index in range(first, last + 1):
         tops[index] = y
         y += rows[index].height
@@ -1379,12 +1398,13 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int, body: int) -
     return sum(heights.values())
 
 
-def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) -> tuple[int, int]:
+def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
+              cut: int = _SPARE_CUT) -> tuple[int, int]:
     """A row that does not fit even a fresh page is drawn there anyway, cut at the paper's edge;
     CELL breaks a row between its lines, or a row taller than its text just above the page's foot."""
 
     remaining, height, metrics, nested = row.lines, row.height, row.metrics, row.nested
-    foot = body - _SPARE_CUT
+    foot = body - cut
     while True:
         if y + height <= foot:
             return frame, y + height

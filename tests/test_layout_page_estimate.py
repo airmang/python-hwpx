@@ -90,6 +90,16 @@ HANCOM_PAGES = {
     "pages_table_flow_row_ends_101_above_foot": 2,    # the same ending 101 above it stays
     "pages_table_flow_moved_row_ends_100_above_foot": 2,  # moved row by row: 100 above the foot goes on
     "pages_table_flow_moved_row_ends_101_above_foot": 2,  # and 101 above it stays
+    "pages_table_outer_margin_top_1000_row_moved": 2,  # top outer margin 1000: the moved row goes on 1000 down
+    "pages_table_outer_margin_bottom_283_row_ends_383_above_page_foot": 2,  # bottom margin 283: 383 above goes on
+    "pages_table_outer_margin_bottom_283_row_ends_384_above_page_foot": 2,  # and 384 above it stays
+    "pages_table_outer_margins_283_declared_row_cut": 2,  # margins 283: cut 283 + 101 above, going on 283 down
+    "pages_table_outer_margin_bottom_1000_row_split_between_lines": 3,  # a cell line in the bottom margin goes on
+    "pages_table_not_adjusted_row_ends_1_above_page_foot": 2,  # a table not adjusted (noAdjust): 1 above goes on
+    "pages_table_not_adjusted_row_ends_2_above_page_foot": 2,  # and 2 above it stays
+    "pages_table_not_adjusted_moved_row_ends_2_above_page_foot": 2,  # the same moved row by row (TABLE)
+    "pages_table_not_adjusted_declared_row_cut": 2,  # a declared row cut 2 above the foot
+    "pages_table_not_adjusted_row_split_2_above_page_foot": 2,  # a cell line whose cut row ends 2 above stays
     "pages_table_flow_anchor_on_next_page": 2,  # the table's anchor line has no room: both go on
     "pages_table_merged_rows_held": 1,    # a cell merged over rows 0-3 holding one over rows 1-2
     "pages_table_merged_rows_staggered": 1,  # merged over rows 0-1 and 1-2: row 1 has no cell of its own
@@ -164,6 +174,24 @@ def _hancom_lines(data: bytes) -> list[list[int]]:
     return lines
 
 
+def _with_outer_margins(data: bytes, value: int) -> bytes:
+    """*data* with every table's top and bottom outer margins set to *value*."""
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                root = etree.fromstring(payload)
+                for margin in root.iter(f"{HP}outMargin"):
+                    if etree.QName(margin.getparent()).localname == "tbl":
+                        margin.set("top", str(value))
+                        margin.set("bottom", str(value))
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+    return out.getvalue()
+
+
 def _without_caches(data: bytes) -> bytes:
     out = io.BytesIO()
     with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
@@ -233,6 +261,14 @@ def test_a_cell_holding_a_table_among_text_or_top_and_bottom_is_as_tall_as_hanco
 
     _assert_like_hancom(estimate_pages(data), data, 1)
     assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
+
+
+def test_a_negative_outer_margin_counts_as_none() -> None:
+    # A table over two pages whose outer margins were -500 (kept as unsigned 32-bit numbers): Hancom laid it
+    # out as one without them and saved them as 0. With the margins back at -500 the estimate is the same.
+    data = (FIXTURES / "pages_table_outer_margins_saved_from_negative.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(_with_outer_margins(data, (-500) & 0xFFFFFFFF)), data, 2)
 
 
 @pytest.mark.parametrize("fixture", ["pages_table_nested_square_alone", "pages_table_nested_square_beside_text"])
