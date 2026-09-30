@@ -274,6 +274,38 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
 
 
+def _with_empty_runs_in_cells(data: bytes) -> bytes:
+    """*data* without line caches, each paragraph of a table cell starting with an empty run of character
+    shape 0 (10 pt), as a paragraph written empty and given runs after."""
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(_without_caches(data))) as source, \
+            zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                root = etree.fromstring(payload)
+                for paragraph in root.iter(f"{HP}p"):
+                    if any(ancestor.tag == f"{HP}tc" for ancestor in paragraph.iterancestors()):
+                        run = etree.Element(f"{HP}run", {"charPrIDRef": "0"})
+                        etree.SubElement(run, f"{HP}t")
+                        paragraph.insert(0, run)
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+    return out.getvalue()
+
+
+@pytest.mark.parametrize("name", ["pages_table_row_split_a_first_line_not_fitting",
+                                  "pages_table_row_split_every_first_line_fitting"])
+def test_an_empty_run_before_a_cells_text_takes_no_room(name: str) -> None:
+    # Cells of 8 pt and 16 pt text in a row at the page end, each cell paragraph starting with an empty 10 pt
+    # run: without the caches the cells' lines are as tall as their text, and the row splits where Hancom split
+    # it, as when the paragraphs hold the text alone.
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(_with_empty_runs_in_cells(data)), data, HANCOM_PAGES[name])
+
+
 @pytest.mark.parametrize(
     ("fixture", "pages"),
     [

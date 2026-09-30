@@ -418,8 +418,7 @@ class _Measure:
         height, lines, pitch, size, pending = 0, 0, 0, 0, None
         for paragraph in paragraphs:
             runs = paragraph.findall(f"{HP}run")
-            refs = [run.get("charPrIDRef") for run in runs] or ["0"]
-            size = self.char_height(refs[0])
+            size, refs, _ = _text_size(self, runs)  # an empty run takes no room, as in the body
             shape = self.shape(paragraph.get("paraPrIDRef"))
             pitch = _pitch(shape.kind, shape.value, size)
             table = _table_alone(runs)
