@@ -42,9 +42,10 @@
   there, spaced like the text, and a row holding one splits between its cell's lines, each as tall
   as it is; a nested table among text or placed top and bottom is followed through the layout caches
   of its cell, as tall as Hancom drew it (down to such a table's foot). A flowing table's rows use
-  the body only down to just above the page's foot, less the table's bottom outer margin: a row, or
-  a cell line of a row split between its lines, ending lower goes on to the next page (where the
-  table goes on below its top outer margin), and a row declared taller than its text, holding
+  the body only down to just above the page's foot (101 above it, or 2 in a table set not to be
+  adjusted), less the table's bottom outer margin: a row, or a cell line of a row split between its
+  lines, ending lower goes on to the next page (where the table goes on below its top outer margin),
+  and a row declared taller than its text, holding
   such a table or not, is cut there; what is left of it goes on to the next page unless it is no
   taller than a 10 pt line
   with the default cell margins (the cell's own margins, alignment and character size change
@@ -112,8 +113,9 @@ _UNSUPPORTED_CONTENT = frozenset({"compose", "dutmal"})
 #: height leaves room under its text (CELL) is cut there. What is left of such a row goes on to the
 #: next page unless it is _SPARE_DROPPED or less, which is dropped (the row ends at the page's foot).
 #: Both in HWPUNIT, as Hancom lays such rows out whatever the cells' margins, vertical alignment and
-#: character size.
+#: character size. A table set not to be adjusted (hp:tbl@noAdjust) uses _SPARE_CUT_FIXED instead.
 _SPARE_CUT = 101
+_SPARE_CUT_FIXED = 2
 _SPARE_DROPPED = 1282
 #: The narrowest line FormFit breaks at, in HWPUNIT.
 _MIN_LINE_WIDTH = 1440
@@ -441,6 +443,7 @@ class _FlowTable:
     margins: tuple[int, int]   # hp:outMargin top, bottom: kept above and below the table
     #: every cell as (the position of its first row in ``rows``, rows it spans, the cell as a row)
     cells: tuple[tuple[int, int, _Row], ...] = ()
+    cut: int = _SPARE_CUT      # how far above the body's foot its rows end at most
 
 
 def _rows(measure: _Measure, table: Any) -> list[_Row]:
@@ -892,7 +895,7 @@ def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: 
     if _local(obj) == "tbl":
         rows, cells = _table_rows(measure, obj)
         table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
-                           tuple(cells))
+                           tuple(cells), _spare_cut(obj))
         return _Anchor(line, table, 0)
     return _Anchor(line, None, int(obj.find(f"{HP}sz").get("height", 0)) + top + bottom)
 
@@ -918,7 +921,7 @@ def _object_line(
         if name == "tbl":
             rows, cells = _table_rows(measure, obj)
             table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
-                               tuple(cells))
+                               tuple(cells), _spare_cut(obj))
             return count, size, pitch, table
         below = int(pos.get("vertOffset", 0)) + tall
         return 1, below, below, None
@@ -1070,7 +1073,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
             margin = pusher.find(f"{HP}outMargin")
             ends = (0, 0) if margin is None else (int(margin.get("top", 0)), int(margin.get("bottom", 0)))
             table = _FlowTable(rows, pusher.get("pageBreak", "CELL"), pusher.get("repeatHeader") == "1", ends,
-                               tuple(cells))
+                               tuple(cells), _spare_cut(pusher))
             return replace(para, band=_Band(para.wrap_anchor, offset, table)), None
         top = para.span(0, para.wrap_anchor) + offset
         tall = _extent(pusher, "height")
@@ -1175,13 +1178,17 @@ def _repeated_header(table: _FlowTable) -> int:
     return sum(row.height for row in table.rows if row.header) if table.repeat_header else 0
 
 
+def _spare_cut(table: Any) -> int:
+    return _SPARE_CUT_FIXED if table.get("noAdjust") == "1" else _SPARE_CUT
+
+
 def _starts_later(table: _FlowTable, y: int, body: int) -> bool:
     """Whether a table moved row by row (TABLE) has no room for its first row from *y*, so it starts on
     the next page. At the top of a page the row is drawn anyway."""
 
     if table.mode != "TABLE" or not table.rows:
         return False
-    return y + table.rows[0].height > body - table.margins[1] - _SPARE_CUT \
+    return y + table.rows[0].height > body - table.margins[1] - table.cut \
         and y != _repeated_header(table) + table.margins[0]
 
 
@@ -1190,7 +1197,7 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
 
     body -= table.margins[1]  # the rows keep the table's bottom margin above the page end
     header = _repeated_header(table) + table.margins[0]  # and go on below its top margin on the next page
-    foot = body - _SPARE_CUT
+    foot = body - table.cut
     rows, index = table.rows, 0
     while index < len(rows):
         end = index
@@ -1214,7 +1221,7 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
             index = end + 1
             continue
         before = frame
-        frame, y = _flow_row(table.mode, rows[index], frame, y, body, header)
+        frame, y = _flow_row(table.mode, rows[index], frame, y, body, header, table.cut)
         if rows[index].merged and frame != before:
             raise _Unsupported("a page break among rows merged in a flowing table")
         index += 1
@@ -1228,7 +1235,7 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int, body: int) -
     rest of its cells of one row (the rows after it whole), then each merged cell's rest, the one
     ending first first, adds what its rows lack to the last of them."""
 
-    rows, tops, y, foot = table.rows, {}, top, body - _SPARE_CUT
+    rows, tops, y, foot = table.rows, {}, top, body - table.cut
     for index in range(first, last + 1):
         tops[index] = y
         y += rows[index].height
@@ -1265,12 +1272,13 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int, body: int) -
     return sum(heights.values())
 
 
-def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) -> tuple[int, int]:
+def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
+              cut: int = _SPARE_CUT) -> tuple[int, int]:
     """A row that does not fit even a fresh page is drawn there anyway, cut at the paper's edge;
     CELL breaks a row between its lines, or a row taller than its text just above the page's foot."""
 
     remaining, height, metrics, nested = row.lines, row.height, row.metrics, row.nested
-    foot = body - _SPARE_CUT
+    foot = body - cut
     while True:
         if y + height <= foot:
             return frame, y + height

@@ -65,6 +65,11 @@ HANCOM_PAGES = {
     "pages_table_outer_margin_bottom_283_row_ends_384_above_page_foot": 2,  # and 384 above it stays
     "pages_table_outer_margins_283_declared_row_cut": 2,  # margins 283: cut 283 + 101 above, going on 283 down
     "pages_table_outer_margin_bottom_1000_row_split_between_lines": 3,  # a cell line in the bottom margin goes on
+    "pages_table_not_adjusted_row_ends_1_above_page_foot": 2,  # a table not adjusted (noAdjust): 1 above goes on
+    "pages_table_not_adjusted_row_ends_2_above_page_foot": 2,  # and 2 above it stays
+    "pages_table_not_adjusted_moved_row_ends_2_above_page_foot": 2,  # the same moved row by row (TABLE)
+    "pages_table_not_adjusted_declared_row_cut": 2,  # a declared row cut 2 above the foot
+    "pages_table_not_adjusted_row_split_2_above_page_foot": 2,  # a cell line whose cut row ends 2 above stays
     "pages_table_flow_anchor_on_next_page": 2,  # the table's anchor line has no room: both go on
     "pages_table_merged_rows_held": 1,    # a cell merged over rows 0-3 holding one over rows 1-2
     "pages_table_merged_rows_staggered": 1,  # merged over rows 0-1 and 1-2: row 1 has no cell of its own
