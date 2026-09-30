@@ -18,10 +18,11 @@
   column breaks, page break before, keep lines
   together, keep with next and widow/orphan control; columns of equal width.
 * Objects: an object in front of or behind the text takes no room: the lines go where they would
-  without it, wherever it stands; one placed top and bottom from the paper's top keeps every line of
-  its page out of its band (a line reaching it, in any paragraph on that page, goes below it and
-  the lines after follow; with several columns, in each of them when it covers the text's whole
-  width). A table or picture set as a character is one line as tall as it.
+  without it, wherever it stands; one placed top and bottom from the top or the bottom of the paper
+  or of the page (its body) keeps every line of its page out of its band (a line reaching it, in any
+  paragraph on that page, goes below it -- on to the next page when the band reaches the body's
+  foot -- and the lines after follow; with several columns, in each of them when it covers the
+  text's whole width). A table or picture set as a character is one line as tall as it.
   Among text, an object set as a character takes its width on its line like a character, and the
   line is at least as tall as the object; the line spacing stays the text's (a fixed spacing keeps
   the next line that far down). A top-and-bottom object anchored to an empty paragraph pushes the
@@ -76,7 +77,7 @@ starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor or on a
 page, a nested table among text or not set as a character in a cell without such caches (in a table
 Hancom has not laid out as it is), a page break in a flowing row holding a table beside a taller
-cell, other objects placed on the page or the paper (but top and bottom from the paper's top on a
+cell, other objects placed on the page or the paper (but top and bottom from its top or bottom on a
 page without a flowing table), composed characters and ruby text in a paragraph without such a
 cache. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
@@ -679,6 +680,7 @@ class _Page:
     left: int = 0  # the text's left edge right of the paper's
     text_width: int = 0
     paper_width: int = 0
+    paper_height: int = 0
 
 
 def _page(section: Any) -> _Page:
@@ -691,7 +693,7 @@ def _page(section: Any) -> _Page:
     text_width = width - sum(int(margin.get(key, 0)) for key in ("left", "right", "gutter"))
     columns, column_width = _columns(section, text_width)
     return _Page(body, column_width, columns, int(margin.get("top", 0)) + int(margin.get("header", 0)),
-                 int(margin.get("left", 0)) + int(margin.get("gutter", 0)), text_width, width)
+                 int(margin.get("left", 0)) + int(margin.get("gutter", 0)), text_width, width, height)
 
 
 def _columns(section: Any, text_width: int) -> tuple[int, int]:
@@ -779,12 +781,12 @@ def _placed_objects(runs: list[Any], cached: bool = False) -> list[Any]:
 
 
 def _on_paper(obj: Any) -> bool:
-    """A top-and-bottom object placed from the paper's top, not set as a character: it takes no room in
-    its paragraph but keeps every line of its page out of its band."""
+    """A top-and-bottom object placed from the top or the bottom of the paper or of the page, not set as a
+    character: it takes no room in its paragraph but keeps every line of its page out of its band."""
 
     pos = obj.find(f"{HP}pos")
     return (pos is not None and pos.get("treatAsChar") != "1" and obj.get("textWrap") == "TOP_AND_BOTTOM"
-            and pos.get("vertRelTo") == "PAPER" and pos.get("vertAlign", "TOP") == "TOP")
+            and pos.get("vertRelTo") in ("PAPER", "PAGE") and pos.get("vertAlign", "TOP") in ("TOP", "BOTTOM"))
 
 
 def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, int] | None:
@@ -800,7 +802,12 @@ def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, in
     tall = _extent(obj, "height")
     if _local(obj) == "tbl":  # as tall as its rows
         tall += sum(row.height for row in _rows(measure, obj)) - int(obj.find(f"{HP}sz").get("height", 0))
-    top = int(obj.find(f"{HP}pos").get("vertOffset", 0)) - page.top
+    pos = obj.find(f"{HP}pos")
+    offset = int(pos.get("vertOffset", 0))
+    if pos.get("vertRelTo") == "PAGE":  # from the body's top or foot
+        top = offset if pos.get("vertAlign", "TOP") == "TOP" else page.body - offset - tall
+    else:  # from the paper's top or bottom
+        top = (offset if pos.get("vertAlign", "TOP") == "TOP" else page.paper_height - offset - tall) - page.top
     return top, top + tall
 
 

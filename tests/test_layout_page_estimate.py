@@ -129,6 +129,13 @@ HANCOM_PAGES = {
     "pages_table_on_paper_pushes_a_later_line": 1,  # a table 40000 below it: a line of a later paragraph
     "pages_rectangle_on_paper_across_two_columns": 2,  # across both columns, anchored in the second:
                                                         # the lines of both columns go below it
+    "pages_rectangle_on_page_5000_below_its_top": 2,   # top and bottom 5000 below the body's top
+    "pages_rectangle_on_page_5000_above_its_foot": 2,  # 5000 above the body's foot: the lines reaching it
+                                                        # go below it
+    "pages_rectangle_on_page_at_its_foot": 2,          # at the body's foot: the lines reaching it go on to
+                                                        # the next page
+    "pages_rectangle_on_paper_5000_above_its_bottom": 2,  # 5000 above the paper's bottom, into the body
+    "pages_table_on_page_at_its_foot": 2,              # a table at the body's foot
 }
 
 
