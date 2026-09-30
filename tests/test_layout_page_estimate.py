@@ -60,6 +60,11 @@ HANCOM_PAGES = {
     "pages_table_flow_row_ends_101_above_foot": 2,    # the same ending 101 above it stays
     "pages_table_flow_moved_row_ends_100_above_foot": 2,  # moved row by row: 100 above the foot goes on
     "pages_table_flow_moved_row_ends_101_above_foot": 2,  # and 101 above it stays
+    "pages_table_outer_margin_top_1000_row_moved": 2,  # top outer margin 1000: the moved row goes on 1000 down
+    "pages_table_outer_margin_bottom_283_row_ends_383_above_page_foot": 2,  # bottom margin 283: 383 above goes on
+    "pages_table_outer_margin_bottom_283_row_ends_384_above_page_foot": 2,  # and 384 above it stays
+    "pages_table_outer_margins_283_declared_row_cut": 2,  # margins 283: cut 283 + 101 above, going on 283 down
+    "pages_table_outer_margin_bottom_1000_row_split_between_lines": 3,  # a cell line in the bottom margin goes on
     "pages_table_flow_anchor_on_next_page": 2,  # the table's anchor line has no room: both go on
     "pages_table_merged_rows_held": 1,    # a cell merged over rows 0-3 holding one over rows 1-2
     "pages_table_merged_rows_staggered": 1,  # merged over rows 0-1 and 1-2: row 1 has no cell of its own

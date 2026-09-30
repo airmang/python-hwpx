@@ -42,8 +42,9 @@
   there, spaced like the text, and a row holding one splits between its cell's lines, each as tall
   as it is; a nested table among text or placed top and bottom is followed through the layout caches
   of its cell, as tall as Hancom drew it (down to such a table's foot). A flowing table's rows use
-  the body only down to just above the page's foot: a row, or a cell line of a row split between
-  its lines, ending lower goes on to the next page, and a row declared taller than its text, holding
+  the body only down to just above the page's foot, less the table's bottom outer margin: a row, or
+  a cell line of a row split between its lines, ending lower goes on to the next page (where the
+  table goes on below its top outer margin), and a row declared taller than its text, holding
   such a table or not, is cut there; what is left of it goes on to the next page unless it is no
   taller than a 10 pt line
   with the default cell margins (the cell's own margins, alignment and character size change
@@ -1180,13 +1181,16 @@ def _starts_later(table: _FlowTable, y: int, body: int) -> bool:
 
     if table.mode != "TABLE" or not table.rows:
         return False
-    return y + table.rows[0].height > body - _SPARE_CUT and y != _repeated_header(table)
+    return y + table.rows[0].height > body - table.margins[1] - _SPARE_CUT \
+        and y != _repeated_header(table) + table.margins[0]
 
 
 def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, int]:
     """Lay the rows out from vertical position *y*; the frame and position where the table ends."""
 
-    header, foot = _repeated_header(table), body - _SPARE_CUT
+    body -= table.margins[1]  # the rows keep the table's bottom margin above the page end
+    header = _repeated_header(table) + table.margins[0]  # and go on below its top margin on the next page
+    foot = body - _SPARE_CUT
     rows, index = table.rows, 0
     while index < len(rows):
         end = index
