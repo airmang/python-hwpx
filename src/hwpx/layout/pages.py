@@ -10,8 +10,12 @@
   (:func:`hwpx.form_fit.measure.hancom_line_starts`) at the column width less the paragraph's
   margins and first-line indent, each character at its own size and with its own run's face, 장평
   and 자간; a line of several sizes is as tall as its largest character, and its line spacing is
-  reckoned from that size. A paragraph with composed characters or ruby text is followed only
-  through its cache.
+  reckoned from that size. Composed characters and ruby text (``hp:compose``, ``hp:dutmal``) take
+  their place in the text like characters of their run: a composed one as wide as a Hangul syllable
+  when framed (circle, box ...) or spread, else as its widest character, and no taller than the
+  text; ruby text as wide as its text (however long the ruby), its line as tall as the text with
+  the ruby (its size ratio, half when 0) above it, or below it over the text's foot (91/100 of the
+  em, both counted in 1/1800 inch), and spaced from that height.
 * Height: a line advances by the paragraph's line spacing (percent, fixed, between lines, at
   least), paragraphs add their spacing before and after, and a line stays on the page while its
   bottom is above the body's foot (one ending right at it goes on to the next page). Page and
@@ -77,8 +81,9 @@ anchors on one page, rows merged together that do not fit under their table's an
 page, a nested table among text or not set as a character in a cell without such caches (in a table
 Hancom has not laid out as it is), a page break in a flowing row holding a table beside a taller
 cell, other objects placed on the page or the paper (but top and bottom from the paper's top on a
-page without a flowing table), composed characters and ruby text in a paragraph without such a
-cache. ``pages`` is then ``None`` and
+page without a flowing table), and in a paragraph without such a cache ruby text placed other than
+above or below its text or with line spacing other than percent, and composed characters or ruby
+text beside an object placed otherwise than as a character. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -89,7 +94,7 @@ import os
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
-from ..form_fit.measure import hancom_line_starts, text_style_from_refs
+from ..form_fit.measure import char_advance, hancom_line_starts, text_style_from_refs
 from ..oxml._document_primitives import _remove_stale_paragraph_layout_cache
 from ..oxml.namespaces import HH, HP
 from ..oxml.section import _remove_short_paragraph_layout_cache
@@ -110,9 +115,8 @@ _OBJECTS = frozenset({
 })
 #: How an object in front of or behind the text wraps it: it takes no room from the text.
 _FLOATING = frozenset({"IN_FRONT_OF_TEXT", "BEHIND_TEXT"})
-#: Run content whose lines the estimate does not break itself: followed only in a paragraph that keeps
-#: its layout cache.
-_UNSUPPORTED_CONTENT = frozenset({"compose", "dutmal"})
+#: Run content that takes its place in the text like a character: composed characters and ruby text.
+_MARKS = frozenset({"compose", "dutmal"})
 #: A flowing table's rows use the body only down to this far above its foot: a row, or a cell line of
 #: a row split between its lines, ending lower goes on to the next page, and a row whose declared
 #: height leaves room under its text (CELL) is cut there. What is left of such a row goes on to the
@@ -385,6 +389,7 @@ class _Measure:
                 count, size, pitch = 1, tall, tall + pitch - size
             else:
                 cached = _cached_metrics(paragraph) if caches else ()
+                cached = cached or self.marked_lines(paragraph, runs, width)
                 if cached:  # the lines Hancom laid out, each as tall as it drew it
                     if pending is not None:
                         height += pending + shape.prev
@@ -414,14 +419,29 @@ class _Measure:
             if metrics:  # the gap between the paragraphs
                 last_height, last_advance = metrics[-1]
                 metrics[-1] = (last_height, last_advance + shape.prev)
-            cached = () if _table_alone(paragraph.findall(f"{HP}run")) is not None or not caches \
-                else _cached_metrics(paragraph)
+            runs = paragraph.findall(f"{HP}run")
+            cached = () if _table_alone(runs) is not None or not caches else _cached_metrics(paragraph)
+            if not cached and _table_alone(runs) is None:
+                cached = self.marked_lines(paragraph, runs, width)
             if cached:
                 metrics += list(cached[:-1]) + [(cached[-1][0], cached[-1][1] + shape.next)]
                 continue
             height, count, pitch, size = self.stack([paragraph], width, caches)
             metrics += [(size, pitch)] * (count - 1) + [(height - (count - 1) * pitch, pitch + shape.next)]
         return tuple(metrics)
+
+    def marked_lines(self, paragraph: Any, runs: list[Any], width: int) -> tuple[tuple[int, int], ...]:
+        """(height, advance) of each line of a paragraph holding composed characters or ruby text, laid
+        out at *width* as in the body; empty for a paragraph holding neither."""
+
+        if not _marks(runs):
+            return ()
+        shape = self.shape(paragraph.get("paraPrIDRef"))
+        _check_ruby_spacing(runs, shape)
+        text, sizes, looks, placed, marked = _inline_content(self, paragraph, runs)
+        style = self.style(paragraph.get("paraPrIDRef"), [run.get("charPrIDRef") for run in runs] or ["0"])
+        return _line_metrics(self, text, [max(width, _MIN_LINE_WIDTH)], sizes, style, shape, placed,
+                             looks if len(set(looks)) > 1 else None, marked)
 
 
 @dataclass(frozen=True)
@@ -763,19 +783,48 @@ def _check_section(section: Any) -> None:
         raise _Unsupported("section settings (hp:secPr) after the first paragraph")
 
 
-def _placed_objects(runs: list[Any], cached: bool = False) -> list[Any]:
-    """The objects of the runs. Composed characters or ruby text are followed only in a paragraph that
-    keeps a valid layout cache (*cached*): its lines are the ones Hancom drew."""
+def _placed_objects(runs: list[Any]) -> list[Any]:
+    """The objects of the runs."""
 
-    contents = {_local(child) for run in runs for child in run}
-    odd = sorted(contents & _UNSUPPORTED_CONTENT)
-    if odd and not cached:
-        raise _Unsupported(f"{odd[0]} in a paragraph without a layout cache")
     objects = [child for run in runs for child in run if _local(child) in _OBJECTS]
     for obj in objects:
         if obj.find(f"{HP}pos") is None or obj.find(f"{HP}sz") is None:
             raise _Unsupported(f"{_local(obj)} without a position")
     return [obj for obj in objects if not _floating(obj) and not _on_paper(obj)]
+
+
+def _marks(runs: list[Any]) -> bool:
+    """Whether the runs hold composed characters or ruby text."""
+
+    return any(_local(child) in _MARKS for run in runs for child in run)
+
+
+def _check_ruby_spacing(runs: list[Any], shape: _Shape) -> None:
+    """A line holding ruby text is spaced from its height in percent: other line spacing is not followed."""
+
+    if shape.kind != "PERCENT" and any(_local(child) == "dutmal" for run in runs for child in run):
+        raise _Unsupported("ruby text in a paragraph with line spacing other than percent")
+
+
+def _mark_extent(mark: Any, size: int, style: Any) -> tuple[int, int]:
+    """(width, height) a composed character or ruby text takes as a character of *size* and *style*. A
+    composed one is as wide as a Hangul syllable when framed or spread, else as its widest character,
+    and no taller than the text. Ruby text is as wide as its text, however long the ruby, and as tall as
+    the text with the ruby above it, or below it over the text's foot, in 1/1800 inch."""
+
+    points = size / 100
+    if _local(mark) == "compose":
+        text = mark.get("composeText", "")
+        if mark.get("circleType", "CHAR") != "CHAR" or mark.get("composeType") == "SPREAD" or not text:
+            return round(char_advance("\uac00", points, style)), size
+        return round(max(char_advance(ch, points, style) for ch in text)), size
+    position = mark.get("posType", "TOP")
+    if position not in ("TOP", "BOTTOM"):
+        raise _Unsupported(f"ruby text placed {position}")
+    main = mark.find(f"{HP}mainText")
+    width = round(sum(char_advance(ch, points, style) for ch in (main.text or "" if main is not None else "")))
+    em, ruby = size // 4, size * (int(mark.get("szRatio") or 0) or 50) // 100 // 4
+    return width, 4 * (em + ruby if position == "TOP" else em * 91 // 100 + ruby)
 
 
 def _on_paper(obj: Any) -> bool:
@@ -853,14 +902,15 @@ def _char_styles(measure: _Measure, paragraph: Any, runs: list[Any]) -> list[Any
 
 def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
                   shape: _Shape, objects: dict[int, tuple[int, int]], styles: list[Any] | None = None,
-                  ) -> tuple[tuple[int, int], ...]:
+                  marks: dict[int, int] | None = None) -> tuple[tuple[int, int], ...]:
     """(height, advance) of each line FormFit breaks *text* into, every character at its own size: a line
     is as tall as its largest character, its line spacing reckoned from that size. An object set as a
     character (*objects*: its place in *text* -> its width and height) takes its width on its line and
     makes the line at least as tall as itself; the spacing stays the text's, and a fixed line spacing
-    keeps the next line that far down."""
+    keeps the next line that far down. A composed character or ruby text (*marks*: its place -> its
+    width) is a character of its size in *sizes*."""
 
-    advances = {index: width for index, (width, _) in objects.items()} or None
+    advances = {**{index: width for index, (width, _) in objects.items()}, **(marks or {})} or None
     starts = measure.line_starts(text, widths, min(sizes), style, sizes if len(set(sizes)) > 1 else None, styles,
                                  advances)
     metrics = []
@@ -885,17 +935,20 @@ def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
     return int(size.get("width", 0)) + extra[0] + extra[1], height + extra[2] + extra[3]
 
 
-def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple[str, list[int], list[Any],
-                                                                                  dict[int, tuple[int, int]]]:
-    """The paragraph's text with each object set as a character in its place (U+FFFC), each character's
-    size and style, and each object's place -> its width and height. Objects placed otherwise, and line
-    spacing between lines or at least with an object among text, are not followed."""
+def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple[
+        str, list[int], list[Any], dict[int, tuple[int, int]], dict[int, int]]:
+    """The paragraph's text with each object set as a character, composed character and ruby text in its
+    place (U+FFFC), each character's size and style (ruby text's is the height of its line), each
+    object's place -> its width and height, and each composed character's or ruby text's place -> its
+    width. Objects placed otherwise, and line spacing between lines or at least with an object among
+    text, are not followed."""
 
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     text: list[str] = []
     sizes: list[int] = []
     looks: list[Any] = []
     objects: dict[int, tuple[int, int]] = {}
+    marks: dict[int, int] = {}
     for run in runs:
         ref = run.get("charPrIDRef")
         height, look = measure.char_height(ref), measure.style(paragraph.get("paraPrIDRef"), [ref])
@@ -908,6 +961,12 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple
                     raise _Unsupported("an object with text or other objects in its paragraph")
                 objects[len(text)] = _object_extent(child, measure)
                 part = "\ufffc"
+            elif name in _MARKS:
+                marks[len(text)], tall = _mark_extent(child, height, look)
+                text.append("\ufffc")
+                sizes.append(tall)
+                looks.append(look)
+                continue
             elif name == "t":
                 part = _t_text(child)
             else:
@@ -915,7 +974,7 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple
             text += part
             sizes += [height] * len(part)
             looks += [look] * len(part)
-    return "".join(text), sizes, looks, objects
+    return "".join(text), sizes, looks, objects, marks
 
 
 def _anchored_object(objects: list[Any], text: str, column: int) -> Any:
@@ -1031,11 +1090,16 @@ def _anchored_notes(measure: _Measure, runs: list[Any], text: str, widths: list[
 def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | None = None,
                square: Any = None) -> _Para:
     runs = paragraph.findall(f"{HP}run")
-    objects = [obj for obj in _placed_objects(runs, bool(_cached_metrics(paragraph))) if obj is not square]
+    objects = [obj for obj in _placed_objects(runs) if obj is not square]
     text = _run_text(runs)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     anchored = _anchored_object(objects, text, page.column_width)
-    among = anchored is None and bool(objects) and (len(objects) > 1 or bool(text.strip()))  # as characters
+    marks = _marks(runs) and not _cached_metrics(paragraph)  # to lay out like characters
+    if marks:
+        if anchored is not None or wrap is not None or square is not None:
+            raise _Unsupported("composed characters or ruby text beside an object placed otherwise")
+        _check_ruby_spacing(runs, shape)
+    among = anchored is None and (marks or bool(objects) and (len(objects) > 1 or bool(text.strip())))
     alone = bool(objects) and not among and anchored is None  # an object with no text: one line as tall
     cached = () if alone else _cached_metrics(paragraph)
     size, refs, sizes = _text_size(measure, runs)
@@ -1045,10 +1109,11 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     mixed = len(set(sizes)) > 1
     looks = _char_styles(measure, paragraph, runs)
     if among:
-        inline_text, inline_sizes, inline_looks, placed = _inline_content(measure, paragraph, runs)
+        inline_text, inline_sizes, inline_looks, placed, marked = _inline_content(measure, paragraph, runs)
         if not cached:
             looks_or_none = inline_looks if len(set(inline_looks)) > 1 else None
-            cached = _line_metrics(measure, inline_text, widths, inline_sizes, style, shape, placed, looks_or_none)
+            cached = _line_metrics(measure, inline_text, widths, inline_sizes, style, shape, placed, looks_or_none,
+                                   marked)
     elif not cached and wrap is not None and not alone and text:
         if anchored is not None:
             raise _Unsupported("a top-and-bottom object beside a square-wrapped object")
@@ -1122,7 +1187,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
     next paragraph sees it."""
 
     runs = paragraph.findall(f"{HP}run")
-    objects = _placed_objects(runs, bool(_cached_metrics(paragraph)))
+    objects = _placed_objects(runs)
     square = _square_object(objects, runs, page.column_width)
     pusher = _pushing_object(objects, _run_text(runs), page.column_width)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
