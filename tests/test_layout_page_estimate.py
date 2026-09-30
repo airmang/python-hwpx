@@ -37,6 +37,13 @@ HANCOM_PAGES = {
     "pages_table_flow_multiline_cells": 4,  # a flowing table split between cell lines
     "pages_table_flow_starts_next_page": 2,  # its first row does not fit: the text goes on under the anchor
     "pages_table_flow_starts_next_page_long": 4,  # the same over two pages: text resumes under the table
+    "pages_table_caption_above": 1,  # a caption of one line above a flowing table: the line and a gap of 850
+    "pages_table_caption_below": 1,  # the same below it
+    "pages_table_caption_above_over_pages": 2,  # above a table going over the page end: on its first page
+    "pages_table_as_character_caption_two_lines": 1,  # two lines above a table set as a character
+    "pages_table_caption_below_ends_100_above_page_foot": 2,  # the last row and the caption below end 100
+                                                                # above the foot: both go on
+    "pages_table_caption_below_ends_101_above_page_foot": 2,  # 101 above it: they stay
     "pages_table_alone_offset_500": 1,  # a flowing table alone in its paragraph, 500 down: it starts there
     "pages_table_alone_offset_2000_over_pages": 2,  # 2000 down, over the page end
     "pages_table_alone_after_offset_table": 2,  # after a table flowing 2300 down: its line goes below that
