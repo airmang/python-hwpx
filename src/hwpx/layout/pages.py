@@ -268,13 +268,13 @@ def _on(flags: dict[str, str], name: str) -> bool:
 
 
 def _t_text(text_element: Any) -> str:
-    """The text of one ``hp:t``, with ``hp:lineBreak`` as a newline, ``hp:tab`` as a tab and ``hp:nbSpace``
-    as a no-break space (U+00A0)."""
+    """The text of one ``hp:t``, with ``hp:lineBreak`` as a newline, ``hp:tab`` as a tab, ``hp:nbSpace`` as a
+    no-break space (U+00A0) and ``hp:fwSpace`` as a fixed-width one (U+3000), as python-hwpx reads them."""
 
     parts = [text_element.text or ""]
     for child in text_element:
         name = _local(child)
-        parts.append({"lineBreak": "\n", "tab": "\t", "nbSpace": "\u00a0"}.get(name, ""))
+        parts.append({"lineBreak": "\n", "tab": "\t", "nbSpace": "\u00a0", "fwSpace": "\u3000"}.get(name, ""))
         parts.append(child.tail or "")
     return "".join(parts)
 
