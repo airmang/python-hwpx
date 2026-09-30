@@ -45,8 +45,10 @@
   its offset below the paragraph's top, above the paragraph's spacing before (one offset up starts
   there), and the next paragraph goes below the table's end or below the paragraph's line and its
   own spacing before, whichever is lower;
-  wrapped square at a column edge before a paragraph's text (or alone in its paragraph), it narrows
-  the lines beside it, in that paragraph and the ones after, by its width -- a table by the height
+  wrapped square at the left or right edge of the column or of its paragraph before a paragraph's
+  text (or alone in its paragraph), the text on its other side or on both, it narrows the lines
+  whose top is above its foot, in that paragraph and the ones after, by its width and outer
+  margins (a drop cap is one) -- a table by the height
   of its rows -- and wrapped square with no room beside it, it pushes the text below it like a
   top-and-bottom object; a table flowing with the text is laid out row by row -- split between cell lines, moved row
   by row or moved whole -- with its header rows (any row with a header cell of its own)
@@ -88,7 +90,7 @@ settings in a cell or a text box are that list's own), section settings after a 
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but objects set as characters, with line spacing in percent or
 fixed, one top-and-bottom object placed from the paragraph's top, and one object wrapped square
-at a column edge before any text; an object offset down, but a flowing table, or wrapped square
+at a column's or its paragraph's edge before any text; an object offset down, but a flowing table, or wrapped square
 stays on one page with the lines above or beside it), footnotes in such a paragraph, two tables
 starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor or on a
@@ -1230,8 +1232,9 @@ def _wraps_top_and_bottom(obj: Any, column: int) -> bool:
 
 
 def _square_object(objects: list[Any], runs: list[Any], column: int) -> Any:
-    """The one object of a paragraph wrapped square at a column edge from the paragraph's top, before
-    any text (text flows on the other side), or ``None``."""
+    """The one object of a paragraph wrapped square at the left or right edge of the column or of the
+    paragraph, from the paragraph's top, before any text (text flows on the other side, or may flow on
+    both), or ``None``."""
 
     if len(objects) != 1:
         return None
@@ -1240,8 +1243,9 @@ def _square_object(objects: list[Any], runs: list[Any], column: int) -> Any:
     if pos.get("treatAsChar") == "1" or obj.get("textWrap") != "SQUARE" or _wraps_top_and_bottom(obj, column):
         return None
     placed = (pos.get("vertRelTo"), pos.get("vertAlign", "TOP"), pos.get("horzRelTo"), pos.get("horzAlign"))
-    if placed not in {("PARA", "TOP", "COLUMN", "LEFT"), ("PARA", "TOP", "COLUMN", "RIGHT")} \
-            or int(pos.get("horzOffset", 0)) or obj.get("textFlow", "BOTH_SIDES") != "BOTH_SIDES":
+    beside = {"LEFT": "RIGHT_ONLY", "RIGHT": "LEFT_ONLY"}.get(placed[3] or "")  # the text's side of it
+    if placed[:2] != ("PARA", "TOP") or placed[2] not in ("COLUMN", "PARA") or beside is None \
+            or int(pos.get("horzOffset", 0)) or obj.get("textFlow", "BOTH_SIDES") not in ("BOTH_SIDES", beside):
         raise _Unsupported(f"{_local(obj)} wrapped square elsewhere than at a column edge")
     for child in (child for run in runs for child in run):
         if child is obj:
