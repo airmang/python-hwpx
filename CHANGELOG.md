@@ -6,6 +6,15 @@
 
 ### 추가
 
+- `doc.shapes.add_curve()`·`add_connector()`를 더한다(곡선과 붙은 연결선 저작).
+  - 곡선은 앵커를 지나는 `CURVE` 구간으로 쓴다(닫으면 끝에서 첫 앵커로). 한/글은 곡선의 크기 상자를 다시 계산하지
+    않으므로, 한/글 곡선이 갖는 상자(앵커를 지나는 Catmull-Rom 곡선을 구간마다 16단계로 근사한 상자)를 쓰고 앵커는
+    그 상자 기준으로 둔다. 직선 구간이 섞인 곡선과 묶음 안 곡선은 쓰지 않는다.
+  - 연결선은 글자처럼 두지 않고 같은 기준에 놓인 두 도형의 변 가운데(위·오른쪽·아래·왼쪽)에 붙인 직선(`STRAIGHT`)이나
+    꺾인 선(`STROKE`)이다. 한/글은 붙은 연결선을 도형 상자로 다시 그리므로 도형을 옮기거나 키워도 선이 따라간다.
+    호(`ARC`) 연결선은 제어점이 필요해 거부한다(`shape-connector-kind-unsupported`).
+  - 오류 코드 `shape-curve-too-few-points`, `shape-connector-target-inline`, `shape-connector-frame`,
+    `shape-connector-side-invalid`, `shape-connector-kind-unsupported`를 더한다.
 - `doc.shapes.add_drop_cap(style="DoubleLine")`을 지원한다(전에는 `TripleLine`만 받고 나머지는
   `shape-drop-cap-style-unsupported`로 거부했다). 한/글은 같은 `hp:rect` + `hp:drawText` 구조에 `hp:parameterset`
   값만 1(`TripleLine`은 2)인 첫 글자 장식을 읽고, 그리고, 그대로 저장한다. 상자 크기가 같으면 두 스타일의
