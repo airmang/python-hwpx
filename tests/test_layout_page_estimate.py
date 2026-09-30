@@ -156,6 +156,8 @@ HANCOM_PAGES = {
     "pages_picture_square_wider_than_column": 2,  # no room beside it: the text goes below
     "pages_picture_square_offset": 2,     # a picture wrapped square 3000 below the paragraph's top
     "pages_table_square_alone": 1,        # a table wrapped square alone, as tall as its rows
+    "pages_bullet_and_number_labels": 16,  # fourteen blocks of rows under bullets and numbers of every
+                                             # label setting: each label takes its room off the lines
     "pages_picture_square_text_on_both_sides": 2,  # a picture 9100 from the column's left: each line
                                                     # beside it is two pieces at one height
     "pages_picture_square_text_on_the_larger_side": 2,  # the same, text on the larger side only
@@ -190,6 +192,13 @@ HANCOM_PAGES = {
     "pages_table_on_paper_pushes_a_later_line": 1,  # a table 40000 below it: a line of a later paragraph
     "pages_rectangle_on_paper_across_two_columns": 2,  # across both columns, anchored in the second:
                                                         # the lines of both columns go below it
+    "pages_rectangle_on_page_5000_below_its_top": 2,   # top and bottom 5000 below the body's top
+    "pages_rectangle_on_page_5000_above_its_foot": 2,  # 5000 above the body's foot: the lines reaching it
+                                                        # go below it
+    "pages_rectangle_on_page_at_its_foot": 2,          # at the body's foot: the lines reaching it go on to
+                                                        # the next page
+    "pages_rectangle_on_paper_5000_above_its_bottom": 2,  # 5000 above the paper's bottom, into the body
+    "pages_table_on_page_at_its_foot": 2,              # a table at the body's foot
     "pages_composed_characters": 1,     # circled numbers among three lines of text
     "pages_compose_spread_rows": 1,     # rows of composed 가나 spread, paragraphs 0 to 7 mm narrower:
                                          # each as wide as a Hangul syllable
@@ -350,6 +359,15 @@ def test_the_cells_of_a_form_break_their_lines_like_hancom_without_caches() -> N
 
     _assert_like_hancom(estimate_pages(data), data, 10)
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 10)
+
+
+def test_the_evaluation_plan_form_lays_out_like_hancom_without_caches() -> None:
+    # A form whose narrow cells hold bullet paragraphs, some ending in an empty run of a larger size: without
+    # the caches every line, in the body and below the tables, is where Hancom put it.
+    data = (FIXTURES.parent / "m105_evalplan" / "blank_form_3hak.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 15)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 15)
 
 
 def test_a_table_set_not_to_split_taller_than_a_page_takes_the_next_one() -> None:
@@ -638,8 +656,8 @@ def test_a_new_document_is_one_page() -> None:
     assert estimate.lines[-1] == (EstimatedLine(page=0, column=0, vertpos=1600),)
 
 
-def test_an_object_placed_on_the_paper_on_a_page_with_a_flowing_table_is_unsupported() -> None:
-    document, _ = _flowing_table_after(3, 3)
+def _with_object_on_the_paper(document: HwpxDocument) -> None:
+    # A rectangle placed top and bottom 15000 below the paper's top: 5080 to 13080 in the body.
     paragraph = document.add_paragraph("종이 기준 개체 곁 글")
     rectangle = document.shapes.add_rectangle(20000, 8000, treat_as_char=True, paragraph=paragraph).element
     rectangle.set("textWrap", "TOP_AND_BOTTOM")
@@ -647,10 +665,28 @@ def test_an_object_placed_on_the_paper_on_a_page_with_a_flowing_table_is_unsuppo
                        ("vertAlign", "TOP"), ("vertOffset", "15000")):
         rectangle.find(f"{HP}pos").set(key, value)
 
+
+def test_a_flowing_table_reaching_an_object_placed_on_the_paper_is_unsupported() -> None:
+    document, _ = _flowing_table_after(1, 8)  # from 3200 down past the object's top
+    _with_object_on_the_paper(document)
+
     estimate = estimate_pages(document)
 
     assert estimate.pages is None
     assert estimate.unsupported == ("section 0: a table on a page with an object placed on the paper",)
+
+
+def test_a_flowing_table_clear_of_an_object_placed_on_the_paper_is_followed() -> None:
+    # The line before the table reaches the object and goes below it; the table flows under that line,
+    # clear of the object.
+    document, _ = _flowing_table_after(3, 3)
+    _with_object_on_the_paper(document)
+
+    estimate = estimate_pages(document)
+
+    assert estimate.unsupported == ()
+    assert estimate.pages == 1
+    assert [lines[0].vertpos for lines in estimate.lines[3:5]] == [13080, 14680]
 
 
 def test_a_document_with_endnotes_is_unsupported() -> None:
