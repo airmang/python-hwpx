@@ -1411,8 +1411,8 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) 
                 fitting = 0  # every cell's first line must fit, or the row goes on whole
             if fitting and row.spare:
                 rest = height - (foot - y)
-                if fitting < remaining:  # the lines that do not fit go on, with the cell's margins
-                    rest = max(rest, row.margins + (remaining - fitting - 1) * row.pitch + row.size)
+                if fitting < remaining and y + height - row.spare > foot:  # its text does not all fit:
+                    rest = max(rest, row.margins + (remaining - fitting - 1) * row.pitch + row.size)  # it goes on
                 elif rest <= _SPARE_DROPPED:
                     return frame, body
                 frame, y = frame + 1, header
