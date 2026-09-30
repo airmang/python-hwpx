@@ -43,10 +43,12 @@
   cells' rest (a cell declared taller than its text, whose first line fits, is cut like such a row,
   below). A table set as a character alone in a paragraph of a cell is one line as tall as it
   there, spaced like the text, and a row holding one splits between its cell's lines, each as tall
-  as it is. A flowing table's rows use the body only down to just above the page's foot: a row, or
-  a cell line of a row split between its lines, ending lower goes on to the next page, and a row
-  declared taller than its text, holding such a table or not, is cut there; what is left of it goes
-  on to the next page unless it is no taller than a 10 pt line
+  as it is; a nested table among text or placed top and bottom is followed through the layout caches
+  of its cell, as tall as Hancom drew it (down to such a table's foot). A flowing table's rows use
+  the body only down to just above the page's foot: a row, or a cell line of a row split between
+  its lines, ending lower goes on to the next page, and a row declared taller than its text, holding
+  such a table or not, is cut there; what is left of it goes on to the next page unless it is no
+  taller than a 10 pt line
   with the default cell margins (the cell's own margins, alignment and character size change
   neither). A flowing table's anchor line that does not fit at the page end goes to the next page,
   and the table with it. When a table moved row by row has no
@@ -69,11 +71,11 @@ at a column edge before any text; an object offset down, but a flowing table, or
 stays on one page with the lines above or beside it), footnotes in such a paragraph, two tables
 starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor or on a
-page, a nested table among text or not set as a character (in a table Hancom has not laid out as
-it is), a page break in a flowing row holding a table beside a taller cell, other objects placed
-on the page or the paper (but top and bottom from the paper's top on a page without a flowing
-table), composed characters and ruby text in a paragraph without such a cache.
-``pages`` is then ``None`` and
+page, a nested table among text or not set as a character in a cell without such caches (in a table
+Hancom has not laid out as it is), a page break in a flowing row holding a table beside a taller
+cell, other objects placed on the page or the paper (but top and bottom from the paper's top on a
+page without a flowing table), composed characters and ruby text in a paragraph without such a
+cache. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -508,21 +510,60 @@ def _extent_margins(obj: Any) -> int:
     return 0 if margin is None else int(margin.get("top", 0)) + int(margin.get("bottom", 0))
 
 
+def _drawn_lines(measure: _Measure, paragraphs: list[Any]) -> tuple[tuple[int, int], ...]:
+    """(height, advance) of every line of *paragraphs* as Hancom placed them, when every paragraph keeps a
+    valid layout cache; the last line reaches down to the foot of any top-and-bottom object placed from
+    its paragraph's top (where the paragraph's first line would stand without it). Empty otherwise."""
+
+    if not paragraphs or not all(_cached_metrics(paragraph) for paragraph in paragraphs):
+        return ()
+    tops: list[int] = []
+    heights: list[int] = []
+    foot, after = 0, 0  # after: where the next paragraph's first line would stand
+    for paragraph in paragraphs:
+        shape = measure.shape(paragraph.get("paraPrIDRef"))
+        top = after + shape.prev if tops else 0
+        for obj in (child for run in paragraph.findall(f"{HP}run") for child in run if _local(child) in _OBJECTS):
+            pos = obj.find(f"{HP}pos")
+            if pos is None or pos.get("treatAsChar") == "1" or _floating(obj):
+                continue
+            if obj.get("textWrap") != "TOP_AND_BOTTOM" or pos.get("vertRelTo") != "PARA":
+                return ()
+            foot = max(foot, top + int(pos.get("vertOffset", 0)) + _extent(obj, "height"))
+        segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+        for segment in segments:
+            tops.append(int(segment.get("vertpos", 0)))
+            heights.append(int(segment.get("textheight", segment.get("vertsize", 0))))
+        last = segments[-1]
+        after = int(last.get("vertpos", 0)) + int(last.get("textheight", 0)) + int(last.get("spacing", 0)) \
+            + shape.next
+    if any(later < earlier for earlier, later in zip(tops, tops[1:])):
+        return ()
+    heights[-1] = max(heights[-1], foot - tops[-1])
+    return tuple((height, (nxt - top) if nxt is not None else height)
+                 for height, top, nxt in zip(heights, tops, [*tops[1:], None]))
+
+
 def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
     paragraphs = cell.findall(f"{HP}subList/{HP}p")
     nested = cell.find(f".//{HP}tbl") is not None
+    drawn: tuple[tuple[int, int], ...] = ()
     if nested and any(paragraph.find(f".//{HP}tbl") is not None
                       and _table_alone(paragraph.findall(f"{HP}run")) is None for paragraph in paragraphs):
-        raise _Unsupported("a nested table")  # among text, or not set as a character
+        drawn = _drawn_lines(measure, paragraphs)  # among text, or not set as a character: as Hancom drew it
+        if not drawn:
+            raise _Unsupported("a nested table")
     size = cell.find(f"{HP}cellSz")
     margins = cell_margins_of(cell, table)
     inner = int(size.get("width", 0)) - margins.left - margins.right
     content, lines, pitch, char_size = measure.stack(paragraphs, inner, caches=True)
+    if drawn:
+        content, lines = sum(advance for _, advance in drawn[:-1]) + drawn[-1][0], len(drawn)
     vertical = margins.top + margins.bottom
     height = max(int(size.get("height", 0)), vertical + content)
     return _Row(height, lines, pitch, char_size, vertical, cell.get("header") == "1",
                 spare=height - vertical - content, nested=nested,
-                metrics=measure.stack_lines(paragraphs, inner, caches=True) if nested else ())
+                metrics=(drawn or measure.stack_lines(paragraphs, inner, caches=True)) if nested else ())
 
 
 @dataclass(frozen=True)
