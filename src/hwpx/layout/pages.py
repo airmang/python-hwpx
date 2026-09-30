@@ -73,7 +73,9 @@
   there, spaced like the text, and a row holding one splits between its cell's lines, each as tall
   as it is; a nested table among text, placed top and bottom or wrapped square is followed through
   the layout caches of its cell, as tall as Hancom drew it (down to such a table's foot; one placed
-  up from its paragraph's top stands at that top). A flowing table's rows use
+  up from its paragraph's top stands at that top). A picture or drawing placed top and bottom or
+  wrapped square from a cell paragraph holding no text makes the cell reach its foot (outer margins
+  included). A flowing table's rows use
   the body only down to just above the page's foot (101 above it, or 2 in a table set not to be
   adjusted), less the table's bottom outer margin: a row, or a cell line of a row split between its
   lines, ending lower goes on to the next page (where the table goes on below its top outer margin;
@@ -499,9 +501,12 @@ class _Measure:
                 if cached:  # the lines Hancom laid out, each as tall as it drew it
                     if pending is not None:
                         height += pending + shape.prev
+                    top = height
                     height += sum(advance for _, advance in cached[:-1]) + cached[-1][0]
                     size, pitch = cached[-1]
                     pending = pitch - size + shape.next
+                    if top + _objects_reach(runs) > height:  # an object placed from the paragraph reaches lower
+                        height, pending = top + _objects_reach(runs), shape.next
                     lines += len(cached)
                     continue
                 style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
@@ -510,8 +515,11 @@ class _Measure:
                 )
             if pending is not None:
                 height += pending + shape.prev
+            top = height
             height += (count - 1) * pitch + size
             pending = pitch - size + shape.next
+            if top + _objects_reach(runs) > height:  # an object placed from the paragraph reaches lower
+                height, pending = top + _objects_reach(runs), shape.next
             lines += count
         return height, lines, pitch, size
 
@@ -993,6 +1001,27 @@ def _check_section(section: Any) -> None:
     # Hancom starts a new section, on a new page, at a later paragraph holding section settings.
     if any(next(paragraph.iter(f"{HP}secPr"), None) is not None for paragraph in section.findall(f"{HP}p")[1:]):
         raise _Unsupported("section settings (hp:secPr) after the first paragraph")
+
+
+def _objects_reach(runs: list[Any]) -> int:
+    """How far below the top of their paragraph in a cell, holding no text, the pictures and drawings placed
+    from it reach: top and bottom or square, not set as a character, their outer margins included (the cell
+    holds them, and its row grows to). Tables in a cell are laid out on their own."""
+
+    reach = 0
+    if _run_text(runs).strip():  # text goes on below such an object: not followed here
+        return reach
+    for obj in (child for run in runs for child in run):
+        name, pos = _local(obj), obj.find(f"{HP}pos")
+        if name not in _OBJECTS or name == "tbl" or pos is None or obj.find(f"{HP}sz") is None \
+                or pos.get("treatAsChar") == "1" or obj.get("textWrap") not in ("TOP_AND_BOTTOM", "SQUARE") \
+                or pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP":
+            continue
+        offset = int(pos.get("vertOffset", 0))
+        if offset >= 1 << 31:  # kept unsigned: one placed up
+            offset -= 1 << 32
+        reach = max(reach, offset + _extent(obj, "height"))
+    return reach
 
 
 def _placed_objects(runs: list[Any]) -> list[Any]:
