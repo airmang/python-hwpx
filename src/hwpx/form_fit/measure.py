@@ -26,6 +26,7 @@ width off the first line only (see :func:`hancom_line_starts`).
 from __future__ import annotations
 
 import math
+import re
 import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -127,6 +128,9 @@ _GLYPH_TABLE_SCRIPTS = ("HANGUL", "LATIN", "OTHER", "SYMBOL")
 # regular advances. A face or glyph not listed below falls back to the class
 # averages, unrounded.
 _LAYOUT_UNIT = 4
+
+_HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+_HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 
 #: The glyphs each face's row below gives, in order: printable ASCII, then
 #: punctuation and symbols common in Korean documents, then Roman numerals
@@ -395,7 +399,10 @@ class TextStyle:
     only. ``indent`` is the first-line indent in HWPUNIT; a negative value is
     a hanging indent taken off every line after the first. ``margin_left`` and
     ``margin_right`` (HWPUNIT) come off every line: Hancom starts a line at the
-    paragraph's left margin. ``space_before`` (HWPUNIT) is room above the first
+    paragraph's left margin. ``head`` (HWPUNIT) is the room a bullet or number
+    label takes before the text (see :func:`label_room`); it comes off the first
+    line, and with ``head_hangs`` (자동 내어 쓰기) off every line, the indent then
+    only off the others (see :func:`indented_widths`). ``space_before`` (HWPUNIT) is room above the first
     line; the spacing after the paragraph takes no room in a cell. ``hangul_face``
     and ``glyph_face`` name the faces whose design advances Hangul syllables
     and the other glyphs take, laid out as Hancom rounds them (see
@@ -418,6 +425,42 @@ class TextStyle:
     glyph_face: str = ""
     hangul_face: str = ""
     scripts: tuple[tuple[str, float, float], ...] = ()
+    head: float = 0.0
+    head_hangs: bool = False
+
+
+def indented_widths(line: float, style: TextStyle) -> tuple[float, float]:
+    """The room of a paragraph's first line and of its other lines, *line* wide inside its margins: less the
+    first-line indent (a hanging one comes off the other lines) and the label's room. With ``head_hangs`` the
+    label's room comes off every line and the indent only off the others (a first-line indent then gives them
+    back that much)."""
+
+    if style.head and style.head_hangs:
+        return line - style.head, line - (style.head - style.indent)
+    return line - max(style.indent, 0) - style.head, line - max(-style.indent, 0)
+
+
+#: Number formats whose numbers count as one ASCII character in a label Hancom does not measure.
+_ASCII_NUMBER_FORMATS = frozenset({"DIGIT", "ROMAN_CAPITAL", "ROMAN_SMALL", "LATIN_CAPITAL", "LATIN_SMALL"})
+
+
+def label_room(text: str, head: Mapping[str, str], em: int, style: TextStyle) -> float:
+    """HWPUNIT a bullet or number label *text* takes before its paragraph's text, by the label's paragraph head
+    (the attributes of ``hh:paraHead``) at a character height of *em* and *style*: with ``useInstWidth`` the
+    text's advances, else an em for each character and half an em for each ASCII one; then the width
+    adjustment (``widthAdjust``) and the gap to the text (``textOffset``, % of the em or HWPUNIT)."""
+
+    if not text:
+        return 0.0
+    if head.get("useInstWidth") in {"1", "true"}:
+        points = em / 100
+        width = sum(char_advance(ch, points, style) for ch in text[:-1])
+        width += char_advance(text[-1], points, _without_spacing(style))
+    else:
+        width = sum(em / 2 if ord(ch) < 0x80 else em for ch in text)
+    offset = _style_number(head.get("textOffset"), 50.0)
+    gap = offset if head.get("textOffsetType") == "HWPUNIT" else em * offset / 100
+    return width + _style_number(head.get("widthAdjust"), 0.0) + gap
 
 
 #: Quotation marks Hancom lays out in the Latin script although Unicode puts them among general punctuation.
@@ -712,13 +755,7 @@ def estimate_lines(
     """
 
     if style is not None:
-        return _hancom_line_count(
-            text,
-            available_width - max(style.indent, 0),
-            available_width - max(-style.indent, 0),
-            font_pt,
-            style,
-        )
+        return _hancom_line_count(text, *indented_widths(available_width, style), font_pt, style)
     if available_width <= 0:
         return 1_000_000
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
@@ -1026,8 +1063,9 @@ def measure(value: str, slot: SlotMetrics) -> Measurement:
         line -= style.margin_left + style.margin_right
         # Each line keeps Hancom's minimum width after its indent; the inline
         # objects then take their width off the first line.
-        first = max(line - max(style.indent, 0), slot.min_line_width) - slot.inline_object_width
-        rest = max(line - max(-style.indent, 0), slot.min_line_width)
+        first, rest = indented_widths(line, style)
+        first = max(first, slot.min_line_width) - slot.inline_object_width
+        rest = max(rest, slot.min_line_width)
         lines = _line_count_after_objects(value, slot, style, first, rest)
         capacity = (max(first, 0.0) + rest * (slot.max_lines - 1)) or 1.0
     fits = lines <= slot.max_lines
@@ -1182,14 +1220,16 @@ def _face_names(root: Any, char_pr_id_ref: object) -> tuple[str, str]:
 
 
 def text_style_from_refs(
-    document: object, para_pr_id_ref: object, char_pr_id_refs: "list[object]"
+    document: object, para_pr_id_ref: object, char_pr_id_refs: "list[object]", label: str | None = None
 ) -> TextStyle:
     """Hancom layout settings of a paragraph shape and the first resolvable
-    character shape among *char_pr_id_refs*."""
+    character shape among *char_pr_id_refs*; *label*, when given, is the number
+    Hancom draws before the paragraph (see :func:`paragraph_label`)."""
 
     ratio, spacing, use_font_space, hangul_face, glyph_face = 100.0, 0.0, False, "", ""
     scripts: tuple[tuple[str, float, float], ...] = ()
     root = _document_root(document)
+    height, used = 1000, None
     for ref in char_pr_id_refs:
         try:
             run_style = root.char_property(ref)
@@ -1208,6 +1248,8 @@ def text_style_from_refs(
         )
         use_font_space = (getattr(run_style, "attributes", {}) or {}).get("useFontSpace") in {"1", "true"}
         hangul_face, glyph_face = _face_names(root, ref)
+        height = int(_style_number((getattr(run_style, "attributes", {}) or {}).get("height"), 1000.0))
+        used = ref
         break
     try:
         prop = root.paragraph_property(para_pr_id_ref)
@@ -1229,7 +1271,7 @@ def text_style_from_refs(
     margin = getattr(case, "margin", None) if case is not None else None
     if margin is None:
         margin = getattr(prop, "margin", None)
-    return TextStyle(
+    style = TextStyle(
         ratio=ratio,
         spacing=spacing,
         use_font_space=use_font_space,
@@ -1244,6 +1286,68 @@ def text_style_from_refs(
         hangul_face=hangul_face,
         scripts=scripts,
     )
+    heading = paragraph_label(root, para_pr_id_ref, label)
+    if heading is None:
+        return style
+    text, head = heading
+    own = head.get("charPrIDRef")
+    looks, em = style, height
+    if own and own != "4294967295" and root.char_property(own) is not None and own != used:
+        looks = text_style_from_refs(document, None, [own])
+        em = int(_style_number((root.char_property(own).attributes or {}).get("height"), 1000.0))
+    return replace(style, head=label_room(text, head, em, looks), head_hangs=head.get("autoIndent") in {"1", "true"})
+
+
+def paragraph_label(root: Any, para_pr_id_ref: object, drawn: str | None = None) -> tuple[str, dict[str, str]] | None:
+    """(label, attributes of its ``hh:paraHead``) of a paragraph shape's bullet or number, or None: a bullet's
+    character; a number's head text as Hancom measures it: when it measures the label (``useInstWidth``), the
+    label it draws (*drawn*, from reading the document in order), else the text with each ``^k`` at its
+    level's first number; when it does not, the text with each ``^k`` as one character of its number's width
+    class."""
+
+    try:
+        prop = root.paragraph_property(para_pr_id_ref)
+        header = root.headers[0].element
+    except Exception:  # pragma: no cover - defensive
+        return None
+    heading = getattr(prop, "heading", None) if prop is not None else None
+    kind = str(getattr(heading, "type", None) or "NONE").upper()
+    if kind not in {"BULLET", "NUMBER", "OUTLINE"}:
+        return None
+    ref = str(getattr(heading, "id_ref", None) or 0)
+    if kind == "BULLET":
+        bullet = next((b for b in header.iter(f"{_HH}bullet") if b.get("id") == ref), None)
+        paragraph_head = bullet.find(f"{_HH}paraHead") if bullet is not None else None
+        if paragraph_head is None or bullet.get("useImage") in {"1", "true"}:
+            return None
+        return (bullet.get("char") or "")[:1], dict(paragraph_head.attrib)
+    if kind == "OUTLINE" and ref == "0":
+        section = next(iter(getattr(root, "sections", [])), None)
+        sec_pr = next(section.element.iter(f"{_HP}secPr"), None) if section is not None else None
+        ref = sec_pr.get("outlineShapeIDRef", "1") if sec_pr is not None else "1"
+    numbering = next((n for n in header.iter(f"{_HH}numbering") if n.get("id") == ref), None)
+    level = int(getattr(heading, "level", None) or 0) + 1
+    heads = {int(h.get("level") or 1): h for h in numbering.iter(f"{_HH}paraHead")} if numbering is not None else {}
+    paragraph_head = heads.get(level)
+    if paragraph_head is None:
+        return None
+    attrs = dict(paragraph_head.attrib)
+    measured = attrs.get("useInstWidth") in {"1", "true"}
+    if measured and drawn is not None:
+        return drawn, attrs
+
+    def fill(match: "re.Match[str]") -> str:
+        key = match.group(1)
+        head = heads.get(level if key == "N" else int(key))
+        form = (head.get("numFormat") if head is not None else None) or "DIGIT"
+        if not measured:
+            return "1" if form in _ASCII_NUMBER_FORMATS else "\uac00"
+        from ..tools.exporter import _number_text
+
+        start = int(_style_number(head.get("start") if head is not None else None, 1.0))
+        return _number_text(start, form) if key != "N" else f"{start}."
+
+    return re.sub(r"\^(\d+|N)", fill, paragraph_head.text or ""), attrs
 
 
 def _cell_text_style(cell: object, document: object) -> TextStyle:
