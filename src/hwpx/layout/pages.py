@@ -88,8 +88,8 @@ starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor or on a
 page, a nested table among text or not set as a character in a cell without such caches (in a table
 Hancom has not laid out as it is), a page break in a flowing row holding a table beside a taller
-cell, other objects placed on the page or the paper (but top and bottom from its top or bottom on a
-page without a flowing table), composed characters and ruby text in a paragraph without such a
+cell, other objects placed on the page or the paper (but top and bottom from its top or bottom, a
+flowing table on their page keeping clear of them), composed characters and ruby text in a paragraph without such a
 cache. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
@@ -1534,7 +1534,7 @@ class _Paginator:
         before = self.frame
         top = start - para.prev + table.offset + table.above  # from the paragraph's top, above its spacing
         frame, end = _flow_table(table, self.frame, top, self.body)
-        self._clear_of_paper(before, frame)
+        self._clear_of_paper(before, frame, start, end)
         self.table_end = max(self.table_end, frame)
         if start + para.height(0) <= self.body and _starts_later(table, top, self.body):
             self._starts_next_page(para, table, start, frame, end)
@@ -1638,9 +1638,16 @@ class _Paginator:
         if self._lay(index, paras, tail, end, False):
             self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], tail.advance(tail.lines - 1), para.next
 
-    def _clear_of_paper(self, first: int, last: int) -> None:
-        if any(frame in self.bands for frame in range(first, last + 1)):
-            raise _Unsupported("a table on a page with an object placed on the paper")
+    def _clear_of_paper(self, first: int, last: int, top: int = 0, end: int | None = None) -> None:
+        """A table from its anchor line's *top* in frame *first* to *end* in frame *last* (the whole frames
+        without them) reaching the band of an object placed on the paper or the page, or starting right
+        below one, is not followed."""
+
+        for frame in range(first, last + 1):
+            low = top if frame == first else 0
+            high = end if frame == last and end is not None else self.body
+            if any(above < high and low <= bottom for above, bottom in self.bands.get(frame, ())):
+                raise _Unsupported("a table on a page with an object placed on the paper")
 
     def _band_hit(self, para: _Para, first: int, count: int, start: int) -> tuple[int, int] | None:
         """(how many lines from line *first* come before it, its bottom) of the first object placed on the
