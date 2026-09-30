@@ -2,10 +2,10 @@
 """Drop cap authoring (문단 첫 글자 장식, cycle 6.12 트레인㊸ 갭②).
 
 Reverse-engineered from the ONE real-corpus example with a non-default
-``dropcapstyle`` (``error__20230809__test.hwpx``, hwpxlib_corpus). v1
-supports only ``style="TripleLine"`` -- the only value with structural
-ground truth; ``DoubleLine``/``Margin`` are schema-declared but
-structurally unverified and stay typed-rejected rather than guessed at.
+``dropcapstyle`` (``error__20230809__test.hwpx``, hwpxlib_corpus), in
+``style="TripleLine"`` and ``"DoubleLine"`` -- Hancom reads, draws and
+saves the second as it is. ``Margin`` is schema-declared but where Hancom
+places its box is unverified, so it stays typed-rejected rather than guessed at.
 See ``hwpx.oxml.drop_cap``'s own docstring for the full reverse
 engineering.
 """
@@ -21,6 +21,7 @@ from hwpx.document import HwpxDocument
 from hwpx.errors import HwpxValueError
 
 CORPUS = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
+HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved"
 REAL_SAMPLE = CORPUS / "error__20230809__test.hwpx"
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
@@ -166,11 +167,39 @@ def test_add_drop_cap_round_trips_through_save_and_reopen() -> None:
 def test_add_drop_cap_rejects_unmeasured_styles() -> None:
     document = HwpxDocument.new()
 
-    for style in ("DoubleLine", "Margin"):
+    for style in ("Margin", "None"):
         with pytest.raises(HwpxValueError) as excinfo:
             document.shapes.add_drop_cap("붐", width=4200, height=4200, style=style)
         assert excinfo.value.code == "shape-drop-cap-style-unsupported"
         assert excinfo.value.context.get("style") == style
+
+
+def _drop_cap_shape(rect) -> dict[str, object]:
+    """The rect's attributes but its ids, its sizes and placement, and its parameter set."""
+
+    shape: dict[str, object] = {"rect": {k: v for k, v in rect.attrib.items() if k not in ("id", "instid")}}
+    for tag in ("orgSz", "curSz", "sz", "pos", "outMargin"):
+        shape[tag] = dict(rect.find(f"{_HP}{tag}").attrib)
+    shape["parameters"] = [(etree.QName(node).localname, dict(node.attrib), (node.text or "").strip())
+                           for node in rect.find(f"{_HP}parameterset").iter()]
+    return shape
+
+
+def test_a_double_line_drop_cap_is_the_shape_hancom_saves() -> None:
+    # Hancom reads a DoubleLine drop cap in the TripleLine structure with its parameter 1 (TripleLine 2),
+    # draws it like a TripleLine one of the same size and saves it as it is.
+    with zipfile.ZipFile(HANCOM_SAVED / "drop_cap_double_line.hwpx") as archive:
+        saved = _find_drop_cap_rect(etree.fromstring(archive.read("Contents/section0.xml")))
+    assert saved is not None
+    document = HwpxDocument.new()
+
+    result = document.shapes.add_drop_cap("가", width=2600, height=2600, style="DoubleLine",
+                                          paragraph=document.add_paragraph("가나다"))
+
+    assert _drop_cap_shape(result.element) == _drop_cap_shape(saved)
+    reopened = HwpxDocument.open(document.to_bytes())
+    rects = [node for p in reopened.paragraphs for node in p.element.iter(f"{_HP}rect")]
+    assert [rect.get("dropcapstyle") for rect in rects] == ["DoubleLine"]
 
 
 def test_add_drop_cap_rejects_empty_character() -> None:
