@@ -147,6 +147,14 @@ HANCOM_PAGES = {
     "pages_picture_square_wider_than_column": 2,  # no room beside it: the text goes below
     "pages_picture_square_offset": 2,     # a picture wrapped square 3000 below the paragraph's top
     "pages_table_square_alone": 1,        # a table wrapped square alone, as tall as its rows
+    "pages_picture_square_text_on_both_sides": 2,  # a picture 9100 from the column's left: each line
+                                                    # beside it is two pieces at one height
+    "pages_picture_square_text_on_the_larger_side": 2,  # the same, text on the larger side only
+    "pages_picture_square_text_on_the_left_only": 2,    # text on the left only
+    "pages_picture_square_from_the_paper_narrow_left": 2,  # 235 right of the column's edge, from the
+                                                            # paper's left: the left side takes no text
+    "pages_picture_square_left_side_1439_empty": 2,   # a side 1439 wide takes no text
+    "pages_picture_square_left_side_1440_takes_text": 2,  # one 1440 wide does
     "pages_drop_cap_3200_two_lines_beside": 1,    # a drop cap 3200 tall, 10 pt text at 160%: two lines
                                                   # beside it (a line's top 3200 down is not above its foot)
     "pages_drop_cap_3201_three_lines_beside": 1,  # 3201 tall: three
@@ -285,6 +293,13 @@ def test_a_drop_cap_takes_the_lines_beside_it() -> None:
 
     _assert_like_hancom(estimate_pages(data), data, 1)
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 1)
+
+
+def test_an_object_wrapped_square_mid_column_on_its_own_takes_no_line() -> None:
+    # An OLE object wrapped square 9100 from its paragraph's left, text on both sides, and no text.
+    data = (FIXTURES.parent / "hwpxlib_corpus" / "reader_writer__SimpleOLE.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
 
 
 def test_the_cells_of_a_form_break_their_lines_like_hancom_without_caches() -> None:

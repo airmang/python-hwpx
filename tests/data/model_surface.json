@@ -137,7 +137,7 @@
   },
   "Paragraph": {
    "implementation": "hwpx.oxml.paragraph.HwpxOxmlParagraph",
-   "internalCount": 18,
+   "internalCount": 20,
    "stable": [
     "add_bookmark",
     "add_chart",

@@ -316,7 +316,9 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # +1: a paragraph shape's heading (oxml/paragraph_heading.py), written and read in
     # one place, outside header_part.py because that owner file sits at its 1600-line cap.
     # +1: the experimental page estimate (layout/pages.py), re-exported from hwpx.experimental.
-    assert report["classifiedFiles"] == 178
+    # +1: curves and connectors (oxml/curves.py) -- objects.py's overflow module under the
+    # 1600-line cap.
+    assert report["classifiedFiles"] == 179
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

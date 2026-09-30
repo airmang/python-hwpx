@@ -396,6 +396,59 @@ def add_polygon(
     )
 
 
+def add_curve(
+    doc: "HwpxDocument",
+    points_mm: Sequence[tuple[float, float]],
+    *,
+    closed: bool = False,
+    line_color: str = "#000000",
+    line_width: str = "33",
+    fill_color: str | None = None,
+    treat_as_char: bool = True,
+    paragraph: HwpxOxmlParagraph | None = None,
+    section: HwpxOxmlSection | None = None,
+    section_index: int | None = None,
+) -> HwpxOxmlShape:
+    """Insert a curve through *points_mm* (millimetre anchors, 2 or more; 3 or more when *closed*).
+
+    Hancom draws a curve through its anchors and does not size it itself: the box written is the one its
+    own curves carry (see :mod:`hwpx.oxml.curves`), and the anchors are stored in that box's own
+    top-left-anchored space, so they do not place the curve on the page -- its paragraph and position do.
+    """
+    if paragraph is None:
+        paragraph = doc.add_paragraph(
+            "", section=section, section_index=section_index,
+            include_run=False,
+        )
+    return paragraph.add_curve(
+        [(_mm_to_hwp_units(x), _mm_to_hwp_units(y)) for x, y in points_mm],
+        closed=closed, line_color=line_color, line_width=line_width,
+        fill_color=fill_color, treat_as_char=treat_as_char,
+    )
+
+
+def add_connector(
+    doc: "HwpxDocument",
+    start: HwpxOxmlShape,
+    end: HwpxOxmlShape,
+    *,
+    start_side: str = "right",
+    end_side: str = "left",
+    kind: str = "STRAIGHT",
+    line_color: str = "#000000",
+    line_width: str = "33",
+    paragraph: HwpxOxmlParagraph | None = None,
+) -> HwpxOxmlShape:
+    """Insert a connector attached to *start* and *end* at the middle of a side of each (``top``,
+    ``right``, ``bottom``, ``left``), ``STRAIGHT`` or bent (``STROKE``), in *start*'s paragraph unless
+    *paragraph* is given. Hancom redraws an attached connector from the shapes' boxes, so it follows them
+    when they move or grow (see :mod:`hwpx.oxml.curves`)."""
+    return (paragraph or start.paragraph).add_connector(
+        start, end, start_side=start_side, end_side=end_side, kind=kind,
+        line_color=line_color, line_width=line_width,
+    )
+
+
 def add_container(
     doc: "HwpxDocument",
     members: Sequence["ContainerMember"],
