@@ -145,6 +145,12 @@ HANCOM_PAGES = {
     "pages_picture_square_wider_than_column": 2,  # no room beside it: the text goes below
     "pages_picture_square_offset": 2,     # a picture wrapped square 3000 below the paragraph's top
     "pages_table_square_alone": 1,        # a table wrapped square alone, as tall as its rows
+    "pages_table_not_split_fits": 1,     # a table set not to split: the text goes below it
+    "pages_table_not_split_moves_to_next_page": 2,  # it does not fit: it moves to the next page's top,
+                                                     # the text after it goes on under its anchor line
+    "pages_table_not_split_with_outer_margins_moves": 2,  # the same with outer margins 140 and 852
+    "pages_table_not_split_before_text_moves_with_it": 2,  # at the top of a paragraph of text: the
+                                                            # paragraph goes on with it
     "pages_picture_in_front_of_text": 1,  # a picture in front of three lines of text: no line moves
     "pages_rectangle_behind_text_alone": 1,  # a rectangle behind the text alone: an empty line
     "pages_table_as_character_beside_rectangle_in_front": 1,  # beside a rectangle in front, on the paper
@@ -243,6 +249,18 @@ def test_a_table_set_as_a_character_hancom_laid_out_keeps_its_saved_height(fixtu
 
     assert estimate.unsupported == ()
     assert estimate.pages == pages
+
+
+def test_a_table_set_not_to_split_taller_than_a_page_takes_the_next_one() -> None:
+    # 50 rows under its anchor line: it moves on to the next page, which holds nothing else, and the text
+    # after it stays under its anchor line on the first page.
+    data = (FIXTURES / "pages_table_not_split_taller_than_a_page.hwpx").read_bytes()
+
+    for estimate in (estimate_pages(data), estimate_pages(_without_caches(data))):
+        assert estimate.unsupported == ()
+        assert estimate.pages == 2
+        assert [[line.vertpos for line in lines] for lines in estimate.lines] == _hancom_lines(data)
+        assert {line.page for lines in estimate.lines for line in lines} == {0}
 
 
 def test_the_lines_around_a_nested_table_are_where_hancom_put_them() -> None:
