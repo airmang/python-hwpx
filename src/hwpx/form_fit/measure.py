@@ -16,12 +16,12 @@ render oracle) is the only authority on the close calls (plan §1 "measure-first
 A slot with a :class:`TextStyle` (cell and form-field slots carry one) breaks
 lines the way Hancom does, with no font file: the glyphs of common faces take
 their design advances rounded to Hancom's layout unit (1/1800 inch), a space
-is half an em, 장평 and 자간 scale each advance, the paragraph's break
-settings decide where a line may end, spaces at a line end hang past the
-margin, 최소 공백 lets inner spaces shrink, indents come off the first or the
-following lines, closing punctuation never starts a line, and inline objects
-on the line take their width off the first line only (see
-:func:`hancom_line_starts`).
+is half an em, 장평 and 자간 scale each advance (each glyph its script's), the
+paragraph's break settings decide where a line may end, spaces at a line end
+hang past the margin, 최소 공백 lets inner spaces shrink for the word crossing
+the margin, indents come off the first or the following lines, closing
+punctuation never starts a line, and inline objects on the line take their
+width off the first line only (see :func:`hancom_line_starts`).
 """
 from __future__ import annotations
 
@@ -375,12 +375,17 @@ class TextStyle:
 
     ``ratio`` (장평, %) and ``spacing`` (자간, % of each glyph's own width)
     scale every advance, except that the glyph ending a line takes no 자간
-    after it, and a space is half an em unless ``use_font_space``.
+    after it, and a space is half an em unless ``use_font_space``. They are
+    the Hangul script's; ``scripts`` holds ``(script, 장평, 자간)`` for the
+    Latin, symbol and Hanja scripts when the character shape gives them values
+    of their own, and each glyph takes its script's (see :func:`glyph_script`).
+    A space keeps the Hangul 장평 and takes the Latin 자간.
     ``break_non_latin_word`` works the reverse of its name in Hancom:
     ``BREAK_WORD`` (the default) keeps Hangul words whole and ``KEEP_WORD``
     breaks between any two syllables; ``break_latin_word`` works as named.
     ``condense`` (최소 공백, %) lets the spaces inside a line shrink by that
-    share. ``indent`` is the first-line indent in HWPUNIT; a negative value is
+    share of the space without its 자간, for the word that crosses the margin
+    only. ``indent`` is the first-line indent in HWPUNIT; a negative value is
     a hanging indent taken off every line after the first. ``margin_left`` and
     ``margin_right`` (HWPUNIT) come off every line: Hancom starts a line at the
     paragraph's left margin. ``space_before`` (HWPUNIT) is room above the first
@@ -405,6 +410,42 @@ class TextStyle:
     hangul_advance: float = 1.0
     glyph_face: str = ""
     hangul_face: str = ""
+    scripts: tuple[tuple[str, float, float], ...] = ()
+
+
+#: Quotation marks Hancom lays out in the Latin script although Unicode puts them among general punctuation.
+_LATIN_QUOTES = frozenset("\u2018\u2019\u201c\u201d")
+#: The scripts whose 장평 and 자간 a character shape may give apart from the Hangul ones (see :func:`glyph_script`).
+SEPARATE_SCRIPTS = ("latin", "symbol", "hanja")
+
+
+def glyph_script(ch: str) -> str:
+    """The script whose 장평 and 자간 Hancom gives *ch*: ``latin`` up to U+024F (digits,
+    punctuation, the middle dot, degree and multiplication signs) and the curly quotes,
+    ``hanja`` for CJK ideographs, ``symbol`` for general punctuation (dashes, the ellipsis,
+    per mille, ※), letterlike symbols, numerals, arrows, shapes, CJK symbols and brackets
+    and full-width forms, and ``hangul`` for the rest."""
+
+    code = ord(ch)
+    if code < 0x250 or ch in _LATIN_QUOTES:
+        return "latin"
+    if 0x4E00 <= code <= 0x9FFF or 0x3400 <= code <= 0x4DBF or 0xF900 <= code <= 0xFAFF:
+        return "hanja"
+    if 0x2000 <= code <= 0x2BFF or 0x3000 <= code <= 0x303F or 0x3200 <= code <= 0x33FF or 0xFF00 <= code <= 0xFFEF:
+        return "symbol"
+    return "hangul"
+
+
+def _scaling(ch: str, style: TextStyle) -> tuple[float, float]:
+    """The (장평, 자간) *ch* takes under *style*."""
+
+    if not style.scripts:
+        return style.ratio, style.spacing
+    script = "latin" if ch == " " else glyph_script(ch)
+    for name, ratio, spacing in style.scripts:
+        if name == script:
+            return (style.ratio if ch == " " else ratio), spacing
+    return style.ratio, style.spacing
 
 
 def classify_char(ch: str) -> str:
@@ -447,15 +488,16 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
         return _ADVANCE_EM[classify_char(ch)] * font_pt * 100.0
     cls = classify_char(ch)
     height = round(font_pt * 100.0)
+    ratio, spacing = _scaling(ch, style)
     if ch == " " and not style.use_font_space:
-        return _laid_out_space(height, style.ratio, style.spacing)
+        return _laid_out_space(height, ratio, spacing)
     if cls == "hangul":
         design, base = _design_units(style.hangul_face, None), style.hangul_advance
     else:
         design, base = _design_units(style.glyph_face, ch), _ADVANCE_EM[cls]
     if design is not None:
-        return _laid_out(design[0], design[1], height, style.ratio, style.spacing)
-    return base * font_pt * 100.0 * style.ratio / 100.0 * (1 + style.spacing / 100.0)
+        return _laid_out(design[0], design[1], height, ratio, spacing)
+    return base * font_pt * 100.0 * ratio / 100.0 * (1 + spacing / 100.0)
 
 
 def estimate_text_width(text: str, font_pt: float, style: TextStyle | None = None) -> float:
@@ -553,12 +595,16 @@ def hancom_line_starts(
     A line takes characters while they fit (the last one without its 자간);
     the space right after a word hangs past the margin, and a further space
     that starts at or past it begins the next line. With ``style.condense`` the
-    spaces after the line's first text may shrink to make room for a
-    character; the spaces before it never do. The line then ends at the last
-    break opportunity that fits — never before a closing or after an opening
-    punctuation mark — or mid-word when no opportunity is left. *sizes*, when
-    given, holds each character's size in pt (runs of several sizes): every
-    character, and every space that shrinks, then takes its own size.
+    spaces after the line's first text may shrink by that share of a space
+    without its 자간 to make room for a character; the spaces before it never
+    do. Once the line's text reaches the margin (its 자간 included), its spaces
+    hang and the next word starts the next line however far the spaces could
+    shrink: only the word that crosses the margin shrinks them. The line then
+    ends at the last break opportunity that fits — never before a closing or
+    after an opening punctuation mark — or mid-word when no opportunity is
+    left. *sizes*, when given, holds each character's size in pt (runs of
+    several sizes): every character, and every space that shrinks, then
+    takes its own size.
     *styles*, when given, holds each character's own style (runs of several
     faces, 장평 or 자간) for its advance; *style* still gives the break rules.
     *advances* gives the width of characters that stand for something else,
@@ -566,14 +612,14 @@ def hancom_line_starts(
     """
 
     breaks = _hancom_break_opportunities(text, style)
-    space = char_advance(" ", font_pt, style)
-    unspaced = replace(style, spacing=0.0)
+    unspaced = _without_spacing(style)
+    space = char_advance(" ", font_pt, unspaced)  # 최소 공백 shrinks a space without its 자간
     starts = [0]
     length = len(text)
     start = 0
     while True:
         width = widths[min(len(starts) - 1, len(widths) - 1)]
-        end, used, inner, pending, seen, spilled = start, 0.0, 0, 0, False, False
+        end, used, inner, pending, seen, spilled, full = start, 0.0, 0, 0, False, False, False
         while end < length:
             ch = text[end]
             size = font_pt if sizes is None else sizes[end]
@@ -581,15 +627,20 @@ def hancom_line_starts(
             fixed = None if advances is None else advances.get(end)
             advance = char_advance(ch, size, look) if fixed is None else fixed
             if ch in _HANGING_SPACES:
-                if used >= width and end > start and text[end - 1] in _HANGING_SPACES:
+                if used >= width and end > start and text[end - 1] in _HANGING_SPACES and not full:
                     spilled = True
                     break
+                if seen and used >= width and text[end - 1] not in _HANGING_SPACES:
+                    full = True  # the text reached the margin: its spaces hang, the next word starts the next line
                 used += advance
                 if seen:  # the spaces before the line's first text never shrink
                     # a space of another size or style counts as its share of a space at *font_pt*
-                    pending += 1 if sizes is None and styles is None else char_advance(" ", size, look) / space
+                    pending += 1 if sizes is None and styles is None else (
+                        char_advance(" ", size, _without_spacing(look)) / space)
                 end += 1
                 continue
+            if full:
+                break
             shrink = (inner + pending) * space * style.condense / 100.0
             last = fixed if fixed is not None else char_advance(ch, size, unspaced if styles is None else _without_spacing(look))
             if used + last - shrink > width and end > start:
@@ -620,7 +671,7 @@ def hancom_line_starts(
 
 @lru_cache(maxsize=256)
 def _without_spacing(style: TextStyle) -> TextStyle:
-    return replace(style, spacing=0.0)
+    return replace(style, spacing=0.0, scripts=tuple((name, ratio, 0.0) for name, ratio, _ in style.scripts))
 
 
 def _hancom_line_count(
@@ -1128,6 +1179,7 @@ def text_style_from_refs(
     character shape among *char_pr_id_refs*."""
 
     ratio, spacing, use_font_space, hangul_face, glyph_face = 100.0, 0.0, False, "", ""
+    scripts: tuple[tuple[str, float, float], ...] = ()
     root = _document_root(document)
     for ref in char_pr_id_refs:
         try:
@@ -1137,8 +1189,14 @@ def text_style_from_refs(
         if run_style is None:
             continue
         children = getattr(run_style, "child_attributes", {}) or {}
-        ratio = _style_number((children.get("ratio") or {}).get("hangul"), 100.0)
-        spacing = _style_number((children.get("spacing") or {}).get("hangul"), 0.0)
+        ratios, spacings = children.get("ratio") or {}, children.get("spacing") or {}
+        ratio = _style_number(ratios.get("hangul"), 100.0)
+        spacing = _style_number(spacings.get("hangul"), 0.0)
+        scripts = tuple(
+            (name, _style_number(ratios.get(name), ratio), _style_number(spacings.get(name), spacing))
+            for name in SEPARATE_SCRIPTS
+            if (_style_number(ratios.get(name), ratio), _style_number(spacings.get(name), spacing)) != (ratio, spacing)
+        )
         use_font_space = (getattr(run_style, "attributes", {}) or {}).get("useFontSpace") in {"1", "true"}
         hangul_face, glyph_face = _face_names(root, ref)
         break
@@ -1153,6 +1211,7 @@ def text_style_from_refs(
             use_font_space=use_font_space,
             glyph_face=glyph_face,
             hangul_face=hangul_face,
+            scripts=scripts,
         )
     breaks = getattr(prop, "break_setting", None)
     # hp:case carries the HWPUNIT values Hancom lays out with; hp:default doubles them.
@@ -1174,6 +1233,7 @@ def text_style_from_refs(
         space_before=int(_style_number(getattr(margin, "prev", 0), 0.0)),
         glyph_face=glyph_face,
         hangul_face=hangul_face,
+        scripts=scripts,
     )
 
 
