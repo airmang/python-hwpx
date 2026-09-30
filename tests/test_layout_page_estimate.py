@@ -211,6 +211,13 @@ HANCOM_PAGES = {
     "pages_exam_header_over_a_table_alone_two_columns": 1,  # in two columns
     "pages_exam_header_then_a_table_alone": 1,  # the table alone in the next paragraph: its line at its top
     "pages_table_alone_in_the_first_paragraph": 1,  # no header: the empty line at the table's top
+    "pages_square_picture_on_paper_below_the_lines": 1,  # a picture wrapped square from the paper's top at the
+                                                         # text's left, a line's room on its right, 400 below
+                                                         # the fifth line: no line moves
+    "pages_square_picture_on_paper_touching_the_last_line": 1,  # its top at the fifth line's foot
+    "pages_square_picture_on_paper_in_the_last_paragraph": 1,  # anchored in the fifth paragraph
+    "pages_square_picture_on_paper_at_the_right": 1,  # at the text's right, room on its left
+    "pages_square_picture_on_paper_then_a_page_break": 4,  # the next pages' lines across its height
     "pages_composed_characters": 1,     # circled numbers among three lines of text
     "pages_compose_spread_rows": 1,     # rows of composed 가나 spread, paragraphs 0 to 7 mm narrower:
                                          # each as wide as a Hangul syllable
@@ -302,7 +309,7 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
 
 
 def test_a_header_wrapped_square_with_room_beside_it_is_not_followed() -> None:
-    # The exam header 3000 narrower: a line fits beside it, and the lines flowing there are not followed.
+    # The exam header 3000 narrower: a line fits beside it, and the lines reaching it are not followed.
     out = io.BytesIO()
     data = (FIXTURES / "pages_exam_header_over_a_table_alone.hwpx").read_bytes()
     with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
@@ -316,7 +323,15 @@ def test_a_header_wrapped_square_with_room_beside_it_is_not_followed() -> None:
                 payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
             target.writestr(info, payload)
 
-    assert estimate_pages(out.getvalue()).unsupported == ("section 0: objects placed on the paper",)
+    assert estimate_pages(out.getvalue()).unsupported == ("section 0: text beside an object placed on the paper",)
+
+
+def test_a_line_reaching_a_picture_on_the_paper_with_room_beside_it_is_not_followed() -> None:
+    # The picture's top 100 above the fifth line's foot: Hancom sets that line beside it, narrower.
+    data = (FIXTURES / "pages_square_picture_on_paper_reaching_the_last_line.hwpx").read_bytes()
+
+    for source in (data, _without_caches(data)):
+        assert estimate_pages(source).unsupported == ("section 0: text beside an object placed on the paper",)
 
 
 @pytest.mark.parametrize(
@@ -348,6 +363,15 @@ def test_an_object_wrapped_square_mid_column_on_its_own_takes_no_line() -> None:
     data = (FIXTURES.parent / "hwpxlib_corpus" / "reader_writer__SimpleOLE.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, 1)
+
+
+def test_a_picture_on_the_paper_below_the_text_takes_no_line() -> None:
+    # A picture wrapped square, placed 1855 below the body's top from the paper's, 235 from the text's
+    # left: room for lines on its right, but the one line of its page ends above it.
+    data = (FIXTURES.parent / "hwpxlib_corpus" / "reader_writer__SimplePicture.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 1)
 
 
 def test_the_cells_of_a_form_break_their_lines_like_hancom_without_caches() -> None:
