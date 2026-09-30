@@ -145,6 +145,8 @@ HANCOM_PAGES = {
     "pages_picture_square_wider_than_column": 2,  # no room beside it: the text goes below
     "pages_picture_square_offset": 2,     # a picture wrapped square 3000 below the paragraph's top
     "pages_table_square_alone": 1,        # a table wrapped square alone, as tall as its rows
+    "pages_bullet_and_number_labels": 16,  # fourteen blocks of rows under bullets and numbers of every
+                                             # label setting: each label takes its room off the lines
     "pages_cell_paragraph_with_margins": 1,  # a cell paragraph with margins of 5 mm: narrower lines
     "pages_cell_paragraph_with_hanging_indent": 1,  # a hanging indent of 3 mm: narrower second lines
     "pages_cell_runs_of_two_sizes": 1,   # runs of 10 and 14 pt in a cell: each character at its size
