@@ -165,6 +165,10 @@ HANCOM_PAGES = {
     "pages_table_square_520_room_on_its_right_3000_down": 1,  # 3000 below the paragraph's top: the lines
                                                               # reaching it go below it
     "pages_picture_square_520_room_on_its_right_3000_down": 2,  # a picture the same
+    "pages_table_square_520_room_over_the_page_end": 3,  # 40 rows after 10 paragraphs: split between cell
+                                                         # lines over the page ends like a top-and-bottom table
+    "pages_table_square_520_room_over_the_page_end_row_by_row": 3,  # moved row by row
+    "pages_table_square_520_room_over_the_page_end_with_text": 3,  # text after it: below its end
     "pages_picture_square_offset": 2,     # a picture wrapped square 3000 below the paragraph's top
     "pages_table_square_alone": 1,        # a table wrapped square alone, as tall as its rows
     "pages_bullet_and_number_labels": 16,  # fourteen blocks of rows under bullets and numbers of every
