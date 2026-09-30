@@ -52,8 +52,9 @@
   cells' rest (a cell declared taller than its text, whose first line fits, is cut like such a row,
   below). A table set as a character alone in a paragraph of a cell is one line as tall as it
   there, spaced like the text, and a row holding one splits between its cell's lines, each as tall
-  as it is; a nested table among text or placed top and bottom is followed through the layout caches
-  of its cell, as tall as Hancom drew it (down to such a table's foot). A flowing table's rows use
+  as it is; a nested table among text, placed top and bottom or wrapped square is followed through
+  the layout caches of its cell, as tall as Hancom drew it (down to such a table's foot; one placed
+  up from its paragraph's top stands at that top). A flowing table's rows use
   the body only down to just above the page's foot: a row, or a cell line of a row split between
   its lines, ending lower goes on to the next page (a row is split only when every cell's first line
   fits; otherwise it goes on whole), and a row declared taller than its text, holding
@@ -548,8 +549,9 @@ def _extent_margins(obj: Any) -> int:
 
 def _drawn_lines(measure: _Measure, paragraphs: list[Any]) -> tuple[tuple[int, int], ...]:
     """(height, advance) of every line of *paragraphs* as Hancom placed them, when every paragraph keeps a
-    valid layout cache; the last line reaches down to the foot of any top-and-bottom object placed from
-    its paragraph's top (where the paragraph's first line would stand without it). Empty otherwise."""
+    valid layout cache; the last line reaches down to the foot of any top-and-bottom or square-wrapped
+    object placed from its paragraph's top (where the paragraph's first line would stand without it).
+    Empty otherwise."""
 
     if not paragraphs or not all(_cached_metrics(paragraph) for paragraph in paragraphs):
         return ()
@@ -563,9 +565,9 @@ def _drawn_lines(measure: _Measure, paragraphs: list[Any]) -> tuple[tuple[int, i
             pos = obj.find(f"{HP}pos")
             if pos is None or pos.get("treatAsChar") == "1" or _floating(obj):
                 continue
-            if obj.get("textWrap") != "TOP_AND_BOTTOM" or pos.get("vertRelTo") != "PARA":
+            if obj.get("textWrap") not in ("TOP_AND_BOTTOM", "SQUARE") or pos.get("vertRelTo") != "PARA":
                 return ()
-            foot = max(foot, top + int(pos.get("vertOffset", 0)) + _extent(obj, "height"))
+            foot = max(foot, top + _down(pos) + _extent(obj, "height"))
         segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
         for segment in segments:
             tops.append(int(segment.get("vertpos", 0)))
@@ -578,6 +580,14 @@ def _drawn_lines(measure: _Measure, paragraphs: list[Any]) -> tuple[tuple[int, i
     heights[-1] = max(heights[-1], foot - tops[-1])
     return tuple((height, (nxt - top) if nxt is not None else height)
                  for height, top, nxt in zip(heights, tops, [*tops[1:], None]))
+
+
+def _down(pos: Any) -> int:
+    """How far below its paragraph's top an object placed from there stands: one offset up (a negative
+    offset, which the file keeps as an unsigned 32-bit number) stands at the paragraph's top."""
+
+    offset = int(pos.get("vertOffset", 0))
+    return 0 if offset < 0 or offset >= 1 << 31 else offset
 
 
 def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
@@ -1473,13 +1483,13 @@ class _Paginator:
         if para.anchor is not None:
             self._anchored(index, paras, para, start)
             return
+        start, broke = self._breaks(para, start)  # a flowing table in the paragraph starts there too
         table = para.table
         if table is not None and table.mode == "NONE" and start + sum(row.height for row in table.rows) > self.body:
             self.extra_frames = max(self.extra_frames, self.frame + 1)  # the table moves whole to the next page
         if table is not None and table.mode != "NONE":
             self._flow(para, table, start)
             return
-        start, broke = self._breaks(para, start)
         first = len(self.out)
         if self._lay(index, paras, para, start, broke):
             self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], para.advance(para.lines - 1), para.next
