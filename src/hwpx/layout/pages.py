@@ -22,8 +22,10 @@
   A table's caption above or below it takes its lines and its gap there (a caption below goes on
   to the next page with the table's last row when both do not fit above the foot, as a row would).
   Among text, an object set as a character takes its width on its line like a character, and the
-  line is at least as tall as the object; the line spacing stays the text's (a fixed spacing keeps
-  the next line that far down). A top-and-bottom object anchored to an empty paragraph pushes the
+  line is at least as tall as the object; the line spacing is reckoned from the line's largest
+  character, the object counted at its run's character size (a fixed spacing keeps the next line
+  that far down), and for an object with only spaces beside it from the largest size of any run of
+  its paragraph. A top-and-bottom object anchored to an empty paragraph pushes the
   next line below
   it; anchored in a paragraph of text (from the paragraph's top), it stands at the top of the line
   its place in the text falls on, and that line and the rest of the paragraph come below it --
@@ -53,8 +55,8 @@
   taller than a 10 pt line
   with the default cell margins (the cell's own margins, alignment and character size change
   neither) and none of its text is left: the lines that do not fit go on with it, which is then at
-  least as tall as they are with the cell's margins. A flowing table's anchor line that does not fit at the page end goes to the next page,
-  and the table with it. When a table moved row by row has no
+  least as tall as they are with the cell's margins. A flowing table's anchor line that does not fit
+  at the page end goes to the next page, and the table with it. When a table moved row by row has no
   room for its first row under its anchor line, it starts on the next page and the text after it
   goes on under the anchor, then below the table on the pages the table takes. Footnotes take
   room at the foot of the page and go on over the page end.
@@ -824,7 +826,7 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
     """(height, advance) of each line FormFit breaks *text* into, every character at its own size: a line
     is as tall as its largest character, its line spacing reckoned from that size. An object set as a
     character (*objects*: its place in *text* -> its width and height) takes its width on its line and
-    makes the line at least as tall as itself; the spacing stays the text's, and a fixed line spacing
+    makes the line at least as tall as itself, and counts at its run's size for the spacing; a fixed line spacing
     keeps the next line that far down."""
 
     advances = {index: width for index, (width, _) in objects.items()} or None
@@ -833,8 +835,7 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
     metrics = []
     for start, end in zip(starts, [*starts[1:], len(text)]):
         span = range(start, end) if end > start else range(len(text) - 1, len(text))
-        texts = [sizes[index] for index in span if index not in objects] or [sizes[index] for index in span]
-        size = max(texts)
+        size = max(sizes[index] for index in span)
         height = max([size] + [objects[index][1] for index in span if index in objects])
         advance = _pitch(shape.kind, shape.value, size)
         metrics.append((height, advance if shape.kind == "FIXED" else height + advance - size))
@@ -1032,6 +1033,9 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     if alone:
         if wrap is not None:
             raise _Unsupported("an object beside a square-wrapped object")
+        if objects[0].find(f"{HP}pos").get("treatAsChar") == "1":  # spaced from the largest character size
+            size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)  # of any of its runs
+            pitch = _pitch(shape.kind, shape.value, size)
         count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch, page.column_width)
     anchor = None if anchored is None else _anchor(measure, paragraph, runs, text, anchored, widths, size, style,
                                                    cached, count)

@@ -41,6 +41,10 @@ HANCOM_PAGES = {
     "pages_table_caption_below": 1,  # the same below it
     "pages_table_caption_above_over_pages": 2,  # above a table going over the page end: on its first page
     "pages_table_as_character_caption_two_lines": 1,  # two lines above a table set as a character
+    "pages_table_as_character_between_spaces_of_two_sizes": 1,  # a space of 11 pt before it, 10 pt after:
+                                                                  # the line spaced from 11 pt
+    "pages_table_as_character_in_a_larger_run": 1,  # alone in a run of 20 pt, a space of 10 pt after it
+    "pages_table_as_character_among_text_in_a_larger_run": 1,  # in a run of 20 pt among 10 pt text
     "pages_table_caption_below_ends_100_above_page_foot": 2,  # the last row and the caption below end 100
                                                                 # above the foot: both go on
     "pages_table_caption_below_ends_101_above_page_foot": 2,  # 101 above it: they stay
