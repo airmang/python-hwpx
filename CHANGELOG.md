@@ -219,6 +219,12 @@
 
 ### 고침
 
+- 묶음(`hp:container`)의 `resize()`가 원래 크기(`orgSz`)를 새 크기로 덮고 배율 행렬과 구성원은 그대로 두던 것을
+  고친다. 한/글은 묶음을 `sz` 크기로 그리고, 크기를 바꾼 묶음을 저장할 때 `orgSz`를 두고 `sz`·`curSz`를 새
+  크기로(바뀌지 않은 축의 `curSz`는 0), 묶음의 `scaMatrix`를 새 크기/원래 크기로 쓴다. 구성원마다(묶음 안 묶음의
+  구성원도) 첫 `scaMatrix`에 같은 배율과 오프셋 × (배율 − 1)만큼의 이동을, `curSz`에 `orgSz` × 들어 있는 묶음들의
+  배율(버림)을 쓴다. 이제 `resize()`가 그 모양을 쓴다. 전에도 그림은 새 크기였지만, 한/글이 다시 저장하면
+  `curSz`가 그린 크기의 두 배로 기록됐다.
 - 메모 API(`doc.notes.memos`, `doc.notes.remove_memo()`)가 MEMO 필드에만 든 메모를 보지 못하던 것을 고친다. 한/글은
   메모를 `hp:memogroup` 없이 MEMO 필드(`hp:fieldBegin type="MEMO"`)의 `hp:subList`에 두며, HWP를 HWPX로 읽은
   문서도 그렇다. 이제 `notes.memos`가 그런 메모도 문서 순서대로 돌려준다(`HwpxOxmlFieldMemo`: id·번호·작성자는
