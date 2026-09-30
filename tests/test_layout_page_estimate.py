@@ -36,6 +36,9 @@ HANCOM_PAGES = {
     "pages_table_flow_multiline_cells": 4,  # a flowing table split between cell lines
     "pages_table_flow_starts_next_page": 2,  # its first row does not fit: the text goes on under the anchor
     "pages_table_flow_starts_next_page_long": 4,  # the same over two pages: text resumes under the table
+    "pages_table_page_break_after_table": 2,  # a page break on the paragraph of a flowing table after another
+    "pages_table_page_break_after_text": 2,  # the same, rows moved whole (TABLE), after text
+    "pages_table_page_break_after_long_table": 3,  # after a table ending on the next page: the page after
     "pages_table_multiline_cells": 3,     # a table set as a character
     "pages_picture_floating_tall": 4,     # top-and-bottom pictures
     "pages_cell_column_settings": 3,      # one-column settings in a table cell's paragraph

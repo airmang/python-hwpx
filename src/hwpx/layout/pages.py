@@ -1417,13 +1417,13 @@ class _Paginator:
         if para.anchor is not None:
             self._anchored(index, paras, para, start)
             return
+        start, broke = self._breaks(para, start)  # a flowing table in the paragraph starts there too
         table = para.table
         if table is not None and table.mode == "NONE" and start + sum(row.height for row in table.rows) > self.body:
             self.extra_frames = max(self.extra_frames, self.frame + 1)  # the table moves whole to the next page
         if table is not None and table.mode != "NONE":
             self._flow(para, table, start)
             return
-        start, broke = self._breaks(para, start)
         first = len(self.out)
         if self._lay(index, paras, para, start, broke):
             self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], para.advance(para.lines - 1), para.next
