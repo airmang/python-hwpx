@@ -387,12 +387,34 @@ def test_a_header_wrapped_square_with_room_beside_it_is_not_followed() -> None:
     assert estimate_pages(out.getvalue()).unsupported == ("section 0: text beside an object placed on the paper",)
 
 
-def test_a_line_reaching_a_picture_on_the_paper_with_room_beside_it_is_not_followed() -> None:
-    # The picture's top 100 above the fifth line's foot: Hancom sets that line beside it, narrower.
+def test_a_line_reaching_a_picture_on_the_paper_with_room_beside_it_keeps_its_cached_place() -> None:
+    # The picture's top 100 above the fifth line's foot: Hancom sets that line beside it, narrower, at the
+    # same height. Keeping its cache, it is followed; without it, where it breaks is not.
     data = (FIXTURES / "pages_square_picture_on_paper_reaching_the_last_line.hwpx").read_bytes()
 
-    for source in (data, _without_caches(data)):
-        assert estimate_pages(source).unsupported == ("section 0: text beside an object placed on the paper",)
+    _assert_like_hancom(estimate_pages(data), data, 1)
+    assert estimate_pages(_without_caches(data)).unsupported == (
+        "section 0: text beside an object placed on the paper",)
+
+
+@pytest.mark.parametrize(
+    ("name", "pages"),
+    [
+        ("pages_square_picture_on_paper_lines_beside_it", 2),  # at the text's left, 800 below its top
+        ("pages_square_picture_on_paper_lines_on_both_sides", 2),  # at its middle: two pieces a line
+        ("pages_square_picture_on_paper_lines_beside_it_on_page_2", 5),  # anchored after a page break
+    ],
+)
+def test_lines_keeping_their_caches_beside_a_picture_on_the_paper_stay_where_hancom_put_them(name: str,
+                                                                                            pages: int) -> None:
+    # A picture wrapped square from the paper's top with room beside it, long paragraphs flowing beside
+    # it (the line of the paragraph before its anchor too): each line keeps its height and spacing there,
+    # narrower. Without the caches, where the lines beside it break is not followed.
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, pages)
+    assert estimate_pages(_without_caches(data)).unsupported == (
+        "section 0: text beside an object placed on the paper",)
 
 
 def _with_empty_runs_in_cells(data: bytes) -> bytes:

@@ -39,7 +39,8 @@
   foot -- and the lines after follow; with several columns, in each of them when it covers the
   text's whole width), and so does one wrapped square there that leaves less than a line's room
   (1440) on either side of it across the text; one that leaves more (in one column) changes nothing
-  when no line, table or object of its page reaches its band, and is not followed otherwise. An
+  when no line, table or object of its page reaches its band, and a line keeping its layout cache
+  that reaches it stays where it is (beside it); anything else reaching it is not followed. An
   object anchored at the top of a paragraph's first line that such a band pushes down stands right
   below the band, the line below the object; a table flowing with the text alone in its paragraph
   stands there too, its paragraph's line below it. A table or picture set as a character is one
@@ -891,6 +892,8 @@ class _Para:
     reflow: _Reflow | None = None
     #: holding nothing, in a section hiding a page's first empty lines (see :meth:`_Paginator._paragraph`)
     hides: bool = False
+    #: its lines are Hancom's own, from the paragraph's valid layout cache
+    kept: bool = False
 
     def height(self, line: int) -> int:
         return self.cached[line][0] if self.cached else self.size
@@ -1917,8 +1920,9 @@ class _Paginator:
         self.widths = widths  # each column's width when they differ
         #: frame -> (top, bottom) of the objects placed on the paper there: no line in them
         self.bands = bands or {}
-        #: frame -> (top, bottom) of the ones leaving a line's room beside them, and whether a line, a table
-        #: or an object reaches one of them (set beside it by Hancom, which is not followed)
+        #: frame -> (top, bottom) of the ones leaving a line's room beside them, and whether a line without
+        #: a layout cache, a table or an object reaches one of them (set beside it by Hancom, which is not
+        #: followed: a line keeping its cache stays where it is)
         self.sides = sides or {}
         self.beside = False
         self.columns = columns
@@ -1993,7 +1997,8 @@ class _Paginator:
             self._flow_below_band(para, table, self._below_bands(start))
             return
         self.out.append((self.frame, start))  # the anchor paragraph's line, under the table's top
-        self._reach(self.frame, start, start + para.height(0))
+        if not para.kept:
+            self._reach(self.frame, start, start + para.height(0))
         before = self.frame
         top = start - para.prev + table.offset + table.above  # from the paragraph's top, above its spacing
         frame, end = _flow_table(table, self.frame, top, self.body)
@@ -2020,7 +2025,8 @@ class _Paginator:
         self.page_notes = [0, 0] if frame != self.frame else self.page_notes
         self.frame, self.table_end = frame, max(self.table_end, frame)
         self.out.append((self.frame, line))
-        self._reach(self.frame, line, line + para.height(0))
+        if not para.kept:
+            self._reach(self.frame, line, line + para.height(0))
         self.last_vp, self.last_pitch, self.pending_next = line, para.advance(0), para.next
 
     def _anchored(self, index: int, paras: list[_Para], para: _Para, start: int) -> None:
@@ -2311,7 +2317,8 @@ class _Paginator:
             note_height, notes, _ = para.notes.get(line, (0, 0, 0))
             self.page_notes[0] += note_height
             self.page_notes[1] += notes
-            self._reach(frame, top, top + para.height(line))
+            if not para.kept:
+                self._reach(frame, top, top + para.height(line))
 
 
 @dataclass(frozen=True)
@@ -2331,6 +2338,7 @@ def _lay_section(measure: _Measure, section: Any) -> _SectionLayout:
     for paragraph in section.findall(f"{HP}p"):
         para, wrap = _wrapped_paragraph(measure, page, paragraph, wrap)
         band = _paper_band(measure, page, paragraph)
+        para = replace(para, kept=bool(_cached_metrics(paragraph)))
         paras.append(para if band is None else replace(para, paper=band))
     paper = {index: para.paper for index, para in enumerate(paras) if para.paper is not None}
     bands: dict[int, list[tuple[int, int]]] = {}
