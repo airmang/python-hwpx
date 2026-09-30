@@ -33,6 +33,7 @@ HANCOM_PAGES = {
     "pages_columns_2_break": 4,           # two columns and a column break
     "pages_footnotes_6": 3,               # footnotes at the page foot
     "pages_table_flow_repeat_header": 3,  # a table flowing with the text, header row repeated
+    "pages_table_repeated_header_second_cell_marked": 2,  # only its second cell a header cell: repeated
     "pages_table_flow_multiline_cells": 4,  # a flowing table split between cell lines
     "pages_table_flow_starts_next_page": 2,  # its first row does not fit: the text goes on under the anchor
     "pages_table_flow_starts_next_page_long": 4,  # the same over two pages: text resumes under the table

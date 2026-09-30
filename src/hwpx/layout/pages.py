@@ -32,7 +32,8 @@
   the lines beside it, in that paragraph and the ones after, by its width -- a table by the height
   of its rows -- and wrapped square with no room beside it, it pushes the text below it like a
   top-and-bottom object; a table flowing with the text is laid out row by row -- split between cell lines, moved row
-  by row or moved whole -- with its header rows repeated; a cell merged over rows that is taller
+  by row or moved whole -- with its header rows (any row with a header cell of its own)
+  repeated; a cell merged over rows that is taller
   than them adds what they lack to the last of them, the cell that ends first first (a row with no
   cell of its own starts at 0); in a table moved row by row, rows joined by a cell merged over them
   move to the next page as one, and in one split between cell lines each of their cells keeps the
@@ -458,6 +459,7 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
     merged: list[tuple[int, int, _Row]] = []  # (first row, rows spanned, the cell as a row)
     cells: list[tuple[int, int, _Row]] = []
     nested: set[int] = set()  # rows with a cell holding a table
+    headers: set[int] = set()  # rows with a header cell of their own
     for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
         row, span = _cell_row(measure, table, tc), _row_span(tc)
         address = tc.find(f"{HP}cellAddr")
@@ -465,10 +467,14 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
         cells.append((first, span, row))
         if row.nested:
             nested.update(range(first, first + span))
+        if row.header and span == 1:
+            headers.add(first)
         if span > 1:
             merged.append((first, span, row))
         elif first not in rows or row.height > rows[first].height:
             rows[first] = row
+    for first in headers:  # a header row whatever cell is the tallest
+        rows[first] = replace(rows[first], header=True)
     for first, span, cell in merged:
         for index in range(first, first + span):
             if index not in rows:  # every cell over it is merged over rows
