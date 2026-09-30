@@ -33,9 +33,34 @@ HANCOM_PAGES = {
     "pages_columns_2_break": 4,           # two columns and a column break
     "pages_footnotes_6": 3,               # footnotes at the page foot
     "pages_table_flow_repeat_header": 3,  # a table flowing with the text, header row repeated
+    "pages_table_repeated_header_second_cell_marked": 2,  # only its second cell a header cell: repeated
     "pages_table_flow_multiline_cells": 4,  # a flowing table split between cell lines
+    "pages_table_row_split_a_first_line_not_fitting": 2,  # the first 8 pt line of one cell fits, the 16 pt
+                                                            # line of the other does not: it goes on whole
+    "pages_table_row_split_every_first_line_fitting": 2,  # room for both: split after two 8 pt lines
     "pages_table_flow_starts_next_page": 2,  # its first row does not fit: the text goes on under the anchor
     "pages_table_flow_starts_next_page_long": 4,  # the same over two pages: text resumes under the table
+    "pages_table_caption_above": 1,  # a caption of one line above a flowing table: the line and a gap of 850
+    "pages_table_caption_below": 1,  # the same below it
+    "pages_table_caption_above_over_pages": 2,  # above a table going over the page end: on its first page
+    "pages_table_as_character_caption_two_lines": 1,  # two lines above a table set as a character
+    "pages_table_as_character_between_spaces_of_two_sizes": 1,  # a space of 11 pt before it, 10 pt after:
+                                                                  # the line spaced from 11 pt
+    "pages_table_as_character_in_a_larger_run": 1,  # alone in a run of 20 pt, a space of 10 pt after it
+    "pages_table_as_character_among_text_in_a_larger_run": 1,  # in a run of 20 pt among 10 pt text
+    "pages_table_caption_below_ends_100_above_page_foot": 2,  # the last row and the caption below end 100
+                                                                # above the foot: both go on
+    "pages_table_caption_below_ends_101_above_page_foot": 2,  # 101 above it: they stay
+    "pages_table_alone_offset_500": 1,  # a flowing table alone in its paragraph, 500 down: it starts there
+    "pages_table_alone_spacing_before_10pt": 1,  # its paragraph 10 pt apart: the table above that spacing,
+                                                   # the next paragraph (10 pt apart too) under the table
+    "pages_table_alone_spacing_before_20pt": 1,  # 20 pt apart, 500 down: the next paragraph 20 pt under the
+                                                   # anchor line, lower than the table's end
+    "pages_table_alone_offset_2000_over_pages": 2,  # 2000 down, over the page end
+    "pages_table_alone_after_offset_table": 2,  # after a table flowing 2300 down: its line goes below that
+    "pages_table_alone_offset_500_after_offset_table": 2,  # and the table flows 500 below the line
+    "pages_table_alone_placed_up_after_offset_table_over_pages": 2,  # the first over the page end, the
+                                                                       # second 122 up: at the line
     "pages_table_page_break_after_table": 2,  # a page break on the paragraph of a flowing table after another
     "pages_table_page_break_after_text": 2,  # the same, rows moved whole (TABLE), after text
     "pages_table_page_break_after_long_table": 3,  # after a table ending on the next page: the page after
@@ -59,6 +84,8 @@ HANCOM_PAGES = {
     "pages_table_flow_tall_row_table_margins_500": 2,  # the table's inner margins 500: 1290 goes on
     "pages_table_flow_tall_row_bottom_aligned": 2,    # cells aligned to the bottom: 1290 goes on
     "pages_table_flow_tall_row_16pt": 2,              # 16 pt text: 1283 goes on
+    "pages_table_declared_row_cut_line_left_rest_1082": 2,  # its third line does not fit: it goes on
+    "pages_table_declared_row_cut_line_left_rest_582": 2,   # with the cell's margins, rest or no rest
     "pages_table_flow_row_ends_100_above_foot": 2,    # a row of two lines ending 100 above the foot: split
     "pages_table_flow_row_ends_101_above_foot": 2,    # the same ending 101 above it stays
     "pages_table_flow_moved_row_ends_100_above_foot": 2,  # moved row by row: 100 above the foot goes on
