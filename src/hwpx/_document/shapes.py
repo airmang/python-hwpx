@@ -706,8 +706,8 @@ def add_drop_cap(
     """Insert a drop cap (문단 첫 글자 장식), reverse-engineered from the one
     real-corpus example that carries a non-default ``dropcapstyle``
     (``error__20230809__test.hwpx`` -- see ``oxml.drop_cap``'s own
-    docstring for the full structural reverse engineering and why v1
-    supports only ``style="TripleLine"``).
+    docstring for the full structural reverse engineering and why it
+    supports ``style="TripleLine"`` and ``"DoubleLine"`` only).
 
     Element construction (element-building validation included) happens in
     :func:`hwpx.oxml.drop_cap.create_drop_cap_element`; after insertion the

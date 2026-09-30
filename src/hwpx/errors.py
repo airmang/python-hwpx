@@ -325,7 +325,7 @@ ERROR_CODES: dict[str, str] = {
     "shape-arc-type-invalid": "add_arc 의 arc_type 인자가 OWPML 어휘(NORMAL/PIE/CHORD) 밖이다.",
     "shape-container-no-members": "add_container 에 부재를 하나도 안 줬다.",
     "shape-polygon-too-few-points": "add_polygon 에 꼭짓점을 3개 미만으로 줬다.",
-    "shape-drop-cap-style-unsupported": "드롭캡 dropcapstyle 값이 실증된 어휘(TripleLine) 밖이다.",
+    "shape-drop-cap-style-unsupported": "드롭캡 dropcapstyle 값이 실증된 어휘(DoubleLine, TripleLine) 밖이다.",
     "shape-drop-cap-character-empty": "드롭캡으로 키울 문자가 비어 있다.",
     "shape-drop-cap-anchor-detached": "만든 드롭캡이 요청한 dropcapstyle 을 안 갖고 있다(방어적 분기).",
     "shape-drop-cap-not-created": "만든 드롭캡을 표준 섹션 스캔이 다시 찾지 못했다.",
