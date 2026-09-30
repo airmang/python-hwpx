@@ -62,6 +62,12 @@ HANCOM_PAGES = {
     "pages_table_caption_below_ends_100_above_page_foot": 2,  # the last row and the caption below end 100
                                                                 # above the foot: both go on
     "pages_table_caption_below_ends_101_above_page_foot": 2,  # 101 above it: they stay
+    "pages_table_joined_rows_end_at_the_foot": 2,  # the last two rows joined by a merged cell reach 300 past the
+                                                   # foot within the last one's room to spare: they end there,
+                                                   # the paragraph after the table at the next page's top
+    "pages_table_joined_rows_end_at_the_foot_before_a_page_break": 2,  # the paragraph after it starts a page
+    "pages_table_joined_rows_rest_over_1282_goes_on": 2,  # 1500 past it: the rest goes on
+    "pages_table_joined_rows_line_goes_on": 2,  # two lines, taller than declared: the second line goes on
     "pages_table_alone_offset_500": 1,  # a flowing table alone in its paragraph, 500 down: it starts there
     "pages_table_alone_spacing_before_10pt": 1,  # its paragraph 10 pt apart: the table above that spacing,
                                                    # the next paragraph (10 pt apart too) under the table
