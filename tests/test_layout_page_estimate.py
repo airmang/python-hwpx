@@ -362,6 +362,21 @@ def test_columns_of_unequal_width_follow_the_line_caches(fixture: str, pages: in
         "section 0: a paragraph without a layout cache in columns of unequal width",)
 
 
+@pytest.mark.parametrize("fixture", ["pages_table_row_split_in_first_paragraph",
+                                     "pages_table_row_split_after_nested_table",
+                                     "pages_table_row_split_moves_nested_table",
+                                     "pages_table_row_split_moves_nested_table_above_text"])
+def test_a_row_holding_a_nested_table_split_over_a_page_splits_where_hancom_split_it(fixture: str) -> None:
+    # A flowing table (split by cell) whose row 1 holds, in one cell, six lines, a 2x2 table placed top and
+    # bottom (alone in its paragraph, or above a line of text) and six lines more, going on over the page
+    # end among the first six lines, after the nested table, or at it (the nested table goes on to the
+    # next page, with the text below it). Hancom's caches of the cell start over at the next page's top.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 2)
+    assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
+
+
 @pytest.mark.parametrize("fixture", ["pages_table_nested_square_alone", "pages_table_nested_square_beside_text"])
 def test_a_cell_holding_a_table_wrapped_square_is_as_tall_as_hancom_drew_it(fixture: str) -> None:
     # A table wrapped square at the left of a paragraph in a cell of a flowing table, alone (the cell
