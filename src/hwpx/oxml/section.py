@@ -23,7 +23,7 @@ from ._document_primitives import (
     _serialize_xml,
 )
 from .body import INLINE_OBJECT_NAMES
-from .memo import HwpxOxmlMemo, HwpxOxmlMemoGroup
+from .memo import HwpxOxmlFieldMemo, HwpxOxmlMemo, HwpxOxmlMemoGroup, memo_field_id
 from .paragraph import HwpxOxmlParagraph
 from .section_format import HwpxOxmlSectionProperties
 from .namespaces import tag_local_name
@@ -154,10 +154,20 @@ class HwpxOxmlSection:
 
     @property
     def memos(self) -> list[HwpxOxmlMemo]:
+        """The section's memos: those of its ``hp:memogroup``, then those kept only in a MEMO field
+        (Hancom's own form, with the memo's text in the field's ``hp:subList``), in document order.
+        A memo in both (python-hwpx anchors its memos with a field carrying the memo's id) counts once."""
+
         group = self.memo_group
-        if group is None:
-            return []
-        return group.memos
+        grouped = group.memos if group is not None else []
+        ids = {memo.id for memo in grouped if memo.id}
+        kept_in_fields: list[HwpxOxmlMemo] = [
+            HwpxOxmlFieldMemo(field, self)
+            for field in self.element.iter(f"{_HP}fieldBegin")
+            if field.get("type") == "MEMO" and field.find(f"{_HP}subList") is not None
+            and memo_field_id(field) not in ids
+        ]
+        return [*grouped, *kept_in_fields]
 
     def add_memo(
         self,

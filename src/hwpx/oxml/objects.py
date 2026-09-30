@@ -25,7 +25,7 @@ from ._document_primitives import (
     _paragraph_id,
 )
 from .shape_position import (
-    _shape_set_position, build_at_original_size, validate_draw_text_vert_align,
+    _shape_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align,
 )
 
 if TYPE_CHECKING:
@@ -1383,6 +1383,8 @@ class HwpxOxmlShape:
         :class:`UserWarning` is raised, because the drawn shape cannot follow
         the requested size.
         """
+        if self.shape_type == "container" and resize_group(self, width, height):
+            return  # a group is drawn at its sz: see shape_position.resize_group
         old_width, old_height = self._geometry_size()
         for tag in ("sz", "orgSz", "curSz"):
             child = self.element.find(f"{_HP}{tag}")
