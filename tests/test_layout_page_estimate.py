@@ -17,6 +17,7 @@ from lxml import etree
 
 from hwpx import HwpxDocument
 from hwpx.experimental import EstimatedLine, PageEstimate, estimate_pages
+from hwpx.layout import pages as page_layout
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -352,17 +353,47 @@ def test_a_negative_outer_margin_counts_as_none() -> None:
 
 
 @pytest.mark.parametrize(("fixture", "pages"), [("pages_columns_unequal_narrow_first", 4),
+                                               ("pages_columns_unequal_wide_first", 4),
                                                ("pages_columns_unequal_three", 4),
                                                ("pages_columns_unequal_column_break", 5)])
-def test_columns_of_unequal_width_follow_the_line_caches(fixture: str, pages: int) -> None:
-    # Two columns, the first half as wide as the second, three of unequal width, and two with a column
-    # break: every paragraph keeps its cache, and its lines flow down the columns as Hancom put them.
-    # Without the caches the lines would depend on each column's width, which the estimate does not follow.
+def test_columns_of_unequal_width_break_their_lines_at_each_column_width(fixture: str, pages: int) -> None:
+    # Two columns, the first half as wide as the second or twice as wide, three of unequal width, and two
+    # with a column break, paragraphs of several lines going on from one column into the next. With the
+    # caches the lines flow down the columns as Hancom put them. Without them the lines a column holds
+    # break at that column's width, and a paragraph going on into a column of another width breaks its
+    # rest there again, from the first character the column holds: where Hancom broke them.
     data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, pages)
-    assert estimate_pages(_without_caches(data)).unsupported == (
-        "section 0: a paragraph without a layout cache in columns of unequal width",)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, pages)
+
+
+def test_columns_of_unequal_width_take_their_share_of_the_text_width_rounded() -> None:
+    # hp:colSz 6552 + 873, 12234 + 873 and 12236 of 32768 over a text width of 42520 (8501.95, 15874.9 and
+    # 15877.5): Hancom's lines in the three columns are 8502, 15875 and 15878 wide.
+    with zipfile.ZipFile(FIXTURES / "pages_columns_unequal_three.hwpx") as package:
+        section = etree.fromstring(package.read("Contents/section0.xml"))
+
+    assert page_layout._columns(section, 42520) == (3, 8502, (8502, 15875, 15878))
+    assert {int(seg.get("horzsize")) for seg in section.iter(f"{HP}lineseg")} == {8502, 15875, 15878}
+
+
+def test_the_multi_column_sample_breaks_its_lines_at_each_column_width_without_caches() -> None:
+    # hwpxlib's MultiColumn sample, columns of unequal width: two pages, with its caches or without them.
+    data = (Path(__file__).parent / "fixtures" / "hwpxlib_corpus" / "reader_writer__MultiColumn.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 2)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 2)
+
+
+def test_a_footnote_in_a_paragraph_without_a_cache_in_columns_of_unequal_width_is_not_followed() -> None:
+    document = HwpxDocument.new()
+    document.set_columns(2, same_size=False, column_widths=[(10632, 873), (21263, 0)])
+    document.notes.add_footnote("각주", document.add_paragraph("각주가 달린 문단"))
+
+    assert estimate_pages(document).unsupported == (
+        "section 0: objects, composed characters, ruby text or footnotes in a paragraph without a layout cache "
+        "in columns of unequal width",)
 
 
 @pytest.mark.parametrize("fixture", ["pages_table_nested_square_alone", "pages_table_nested_square_beside_text"])
