@@ -159,6 +159,10 @@ HANCOM_PAGES = {
     "pages_drop_cap_3201_three_lines_beside": 1,  # 3201 tall: three
     "pages_drop_cap_spacing_250_5000_two_lines_beside": 1,    # at 250%, 5000 tall: two
     "pages_drop_cap_spacing_250_5001_three_lines_beside": 1,  # 5001 tall: three
+    "pages_cell_paragraph_with_margins": 1,  # a cell paragraph with margins of 5 mm: narrower lines
+    "pages_cell_paragraph_with_hanging_indent": 1,  # a hanging indent of 3 mm: narrower second lines
+    "pages_cell_runs_of_two_sizes": 1,   # runs of 10 and 14 pt in a cell: each character at its size
+    "pages_cell_runs_of_two_sizes_with_margins": 1,  # the same with margins of 5 mm
     "pages_picture_in_front_of_text": 1,  # a picture in front of three lines of text: no line moves
     "pages_rectangle_behind_text_alone": 1,  # a rectangle behind the text alone: an empty line
     "pages_table_as_character_beside_rectangle_in_front": 1,  # beside a rectangle in front, on the paper
@@ -289,6 +293,15 @@ def test_an_object_wrapped_square_mid_column_on_its_own_takes_no_line() -> None:
     data = (FIXTURES.parent / "hwpxlib_corpus" / "reader_writer__SimpleOLE.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, 1)
+
+
+def test_the_cells_of_a_form_break_their_lines_like_hancom_without_caches() -> None:
+    # A form whose cells hold runs of several sizes: without the caches every line, in the body and
+    # below the tables, is where Hancom put it.
+    data = (FIXTURES.parent / "m2_corpus" / "form_002.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 10)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 10)
 
 
 def test_the_lines_around_a_nested_table_are_where_hancom_put_them() -> None:
