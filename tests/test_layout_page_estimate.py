@@ -82,6 +82,9 @@ HANCOM_PAGES = {
     "pages_table_nested_row_moved": 2,  # none of a row holding a table fits: it goes on whole
     "pages_table_nested_row_declared_cut": 2,  # the same row declared 16000: cut above the foot, the rest goes on
     "pages_table_nested_row_declared_cut_near_foot": 2,  # declared 24000, cut 3579 below its top
+    "pages_table_nested_row_declared_first_line_100_above_page_foot": 2,  # its first line ends 100 above
+                                                                          # the page's foot: it goes on whole
+    "pages_table_nested_row_declared_first_line_101_above_page_foot": 2,  # 101 above it: cut there
     "pages_objects_among_text_table": 2,  # a full-width table set as a character among text
     "pages_objects_among_text_equation": 1,  # equations set as characters among text
     "pages_objects_after_text_rectangle": 1,  # rectangles set as characters after text
