@@ -288,6 +288,20 @@ def test_a_negative_outer_margin_counts_as_none() -> None:
     _assert_like_hancom(estimate_pages(_with_outer_margins(data, (-500) & 0xFFFFFFFF)), data, 2)
 
 
+@pytest.mark.parametrize(("fixture", "pages"), [("pages_columns_unequal_narrow_first", 4),
+                                               ("pages_columns_unequal_three", 4),
+                                               ("pages_columns_unequal_column_break", 5)])
+def test_columns_of_unequal_width_follow_the_line_caches(fixture: str, pages: int) -> None:
+    # Two columns, the first half as wide as the second, three of unequal width, and two with a column
+    # break: every paragraph keeps its cache, and its lines flow down the columns as Hancom put them.
+    # Without the caches the lines would depend on each column's width, which the estimate does not follow.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, pages)
+    assert estimate_pages(_without_caches(data)).unsupported == (
+        "section 0: a paragraph without a layout cache in columns of unequal width",)
+
+
 @pytest.mark.parametrize("fixture", ["pages_table_nested_square_alone", "pages_table_nested_square_beside_text"])
 def test_a_cell_holding_a_table_wrapped_square_is_as_tall_as_hancom_drew_it(fixture: str) -> None:
     # A table wrapped square at the left of a paragraph in a cell of a flowing table, alone (the cell
