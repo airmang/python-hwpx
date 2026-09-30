@@ -19,8 +19,12 @@ from hwpx import HwpxDocument
 from hwpx.experimental import EstimatedLine, PageEstimate, estimate_pages
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_PAGES = {
+    "pages_fixed_width_spaces": 2,  # rows of a syllable and a fixed-width space: a quarter em that hangs
+    "pages_no_break_spaces": 2,  # rows of "가나" and a no-break space: each is half an em and keeps the row
+                                  # one word
     "pages_text_12pt_160": 5,             # 12 pt text, line spacing 160%
     "pages_spacing_20_20": 3,             # spacing before and after paragraphs
     "pages_boundary_widow_on": 2,         # widow/orphan control at the page end
@@ -145,6 +149,29 @@ HANCOM_PAGES = {
     "pages_picture_square_wider_than_column": 2,  # no room beside it: the text goes below
     "pages_picture_square_offset": 2,     # a picture wrapped square 3000 below the paragraph's top
     "pages_table_square_alone": 1,        # a table wrapped square alone, as tall as its rows
+    "pages_picture_square_text_on_both_sides": 2,  # a picture 9100 from the column's left: each line
+                                                    # beside it is two pieces at one height
+    "pages_picture_square_text_on_the_larger_side": 2,  # the same, text on the larger side only
+    "pages_picture_square_text_on_the_left_only": 2,    # text on the left only
+    "pages_picture_square_from_the_paper_narrow_left": 2,  # 235 right of the column's edge, from the
+                                                            # paper's left: the left side takes no text
+    "pages_picture_square_left_side_1439_empty": 2,   # a side 1439 wide takes no text
+    "pages_picture_square_left_side_1440_takes_text": 2,  # one 1440 wide does
+    "pages_drop_cap_3200_two_lines_beside": 1,    # a drop cap 3200 tall, 10 pt text at 160%: two lines
+                                                  # beside it (a line's top 3200 down is not above its foot)
+    "pages_drop_cap_3201_three_lines_beside": 1,  # 3201 tall: three
+    "pages_drop_cap_spacing_250_5000_two_lines_beside": 1,    # at 250%, 5000 tall: two
+    "pages_drop_cap_spacing_250_5001_three_lines_beside": 1,  # 5001 tall: three
+    "pages_cell_paragraph_with_margins": 1,  # a cell paragraph with margins of 5 mm: narrower lines
+    "pages_cell_paragraph_with_hanging_indent": 1,  # a hanging indent of 3 mm: narrower second lines
+    "pages_cell_runs_of_two_sizes": 1,   # runs of 10 and 14 pt in a cell: each character at its size
+    "pages_cell_runs_of_two_sizes_with_margins": 1,  # the same with margins of 5 mm
+    "pages_table_not_split_fits": 1,     # a table set not to split: the text goes below it
+    "pages_table_not_split_moves_to_next_page": 2,  # it does not fit: it moves to the next page's top,
+                                                     # the text after it goes on under its anchor line
+    "pages_table_not_split_with_outer_margins_moves": 2,  # the same with outer margins 140 and 852
+    "pages_table_not_split_before_text_moves_with_it": 2,  # at the top of a paragraph of text: the
+                                                            # paragraph goes on with it
     "pages_picture_in_front_of_text": 1,  # a picture in front of three lines of text: no line moves
     "pages_rectangle_behind_text_alone": 1,  # a rectangle behind the text alone: an empty line
     "pages_table_as_character_beside_rectangle_in_front": 1,  # beside a rectangle in front, on the paper
@@ -163,6 +190,22 @@ HANCOM_PAGES = {
                                                         # the next page
     "pages_rectangle_on_paper_5000_above_its_bottom": 2,  # 5000 above the paper's bottom, into the body
     "pages_table_on_page_at_its_foot": 2,              # a table at the body's foot
+    "pages_composed_characters": 1,     # circled numbers among three lines of text
+    "pages_compose_spread_rows": 1,     # rows of composed 가나 spread, paragraphs 0 to 7 mm narrower:
+                                         # each as wide as a Hangul syllable
+    "pages_compose_overlap_digits_rows": 1,  # 12 overlapping: as wide as a digit
+    "pages_compose_overlap_latin_rows": 1,   # AB overlapping: as wide as the A
+    "pages_compose_framed_rows": 2,     # 1 overlapping in a circle: as wide as a Hangul syllable
+    "pages_compose_in_a_cell": 1,       # forty composed characters on two lines of a cell
+    "pages_ruby_text": 1,               # ruby text above a word
+    "pages_ruby_above_15pt": 1,         # ruby text above 15 pt text: its line 2248 tall
+    "pages_ruby_above_10_5pt_ratio_30": 1,  # above 10.5 pt text, the ruby 30%: 1360
+    "pages_ruby_below_9pt": 1,          # below 9 pt text: 1264
+    "pages_ruby_below_13pt": 1,         # below 13 pt text: 1828
+    "pages_ruby_above_beside_larger_text": 1,  # above 10 pt text beside 14 pt text: the ruby's line
+    "pages_ruby_below_beside_larger_text": 1,  # below it, beside 14 pt text
+    "pages_ruby_longer_than_its_text": 2,  # six syllables of ruby over one: as wide as the one
+    "pages_ruby_below_in_a_cell": 1,    # ruby text below text in a cell
 }
 
 
@@ -250,6 +293,43 @@ def test_a_table_set_as_a_character_hancom_laid_out_keeps_its_saved_height(fixtu
 
     assert estimate.unsupported == ()
     assert estimate.pages == pages
+
+
+def test_a_drop_cap_takes_the_lines_beside_it() -> None:
+    # The corpus's drop cap: wrapped square at its paragraph's left, the text on its right only. The
+    # lines whose top is above its foot are narrower by its width and right outer margin.
+    data = (FIXTURES.parent / "hwpxlib_corpus" / "error__20230809__test.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 1)
+
+
+def test_an_object_wrapped_square_mid_column_on_its_own_takes_no_line() -> None:
+    # An OLE object wrapped square 9100 from its paragraph's left, text on both sides, and no text.
+    data = (FIXTURES.parent / "hwpxlib_corpus" / "reader_writer__SimpleOLE.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
+
+
+def test_the_cells_of_a_form_break_their_lines_like_hancom_without_caches() -> None:
+    # A form whose cells hold runs of several sizes: without the caches every line, in the body and
+    # below the tables, is where Hancom put it.
+    data = (FIXTURES.parent / "m2_corpus" / "form_002.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 10)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 10)
+
+
+def test_a_table_set_not_to_split_taller_than_a_page_takes_the_next_one() -> None:
+    # 50 rows under its anchor line: it moves on to the next page, which holds nothing else, and the text
+    # after it stays under its anchor line on the first page.
+    data = (FIXTURES / "pages_table_not_split_taller_than_a_page.hwpx").read_bytes()
+
+    for estimate in (estimate_pages(data), estimate_pages(_without_caches(data))):
+        assert estimate.unsupported == ()
+        assert estimate.pages == 2
+        assert [[line.vertpos for line in lines] for lines in estimate.lines] == _hancom_lines(data)
+        assert {line.page for lines in estimate.lines for line in lines} == {0}
 
 
 def test_the_lines_around_a_nested_table_are_where_hancom_put_them() -> None:
@@ -456,16 +536,22 @@ def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_is_unsupport
         "section 0: a square-wrapped or offset top-and-bottom object past the page foot",)
 
 
-@pytest.mark.parametrize(("fixture", "content"), [("pages_composed_characters", "compose"),
-                                                  ("pages_ruby_text", "dutmal")])
-def test_composed_characters_and_ruby_text_follow_the_lines_hancom_drew(fixture: str, content: str) -> None:
-    # Circled numbers among three lines of text, and ruby text above a word: the lines of their
-    # paragraphs' caches. Without the caches the estimate does not break such lines itself.
-    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+def test_ruby_text_spaced_otherwise_than_in_percent_is_not_followed_without_a_cache() -> None:
+    # A line holding ruby text is spaced from its own height in percent; the estimate does not follow
+    # another line spacing there.
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("앞 글 ")
+    document.shapes.add_dutmal("본문", "덧말", paragraph=paragraph)
+    shape = next(element for element in document.parts.headers[0].element.iter(f"{HH}paraPr")
+                 if element.get("id") == paragraph.element.get("paraPrIDRef"))
+    for spacing in shape.iter(f"{HH}lineSpacing"):
+        spacing.set("type", "FIXED")
+        spacing.set("value", "2000")
 
-    _assert_like_hancom(estimate_pages(data), data, 1)
-    assert estimate_pages(_without_caches(data)).unsupported == (
-        f"section 0: {content} in a paragraph without a layout cache",)
+    estimate = estimate_pages(document)
+
+    assert estimate.pages is None
+    assert estimate.unsupported == ("section 0: ruby text in a paragraph with line spacing other than percent",)
 
 
 def test_lines_of_two_columns_are_in_columns() -> None:

@@ -37,11 +37,14 @@ element` 등이 전부 이 속성을 `"None"`으로 기본 방출하는 이유�
   `"2"`)이 붙는다 -- 의미 불명, DEV-011(hp:parameterset 불투명 보존
   전례)과 같은 원칙으로 **그대로 복사**한다(추측 안 함).
 
-**v1 스코프 -- 정직 축소**: 실 예시가 `TripleLine` 딱 1건뿐이라 `DoubleLine`/
-`Margin`은 구조 자체가 같은지(같은 rect+drawText 패턴인지, 다른 메커니즘인지)
-검증 근거가 없다 -- **`TripleLine`만 지원**, 다른 두 값은 typed 오류로
-거부한다(curve·connectLine과 같은 원칙: 실증 없는 값을 추측 구현하면
-무음 오류 위험). 크기(width/height)도 실측된 폰트-크기→박스-크기 변환
+**스타일 -- `TripleLine`과 `DoubleLine`**: 한/글은 같은 rect+drawText 구조에
+parameterset 값만 1인 `DoubleLine`(`TripleLine`은 2)을 읽고, 그리고, 그대로
+저장한다. 상자 크기가 같으면 두 스타일의 화면은 같다 -- 상자 옆으로 가는
+줄 수는 스타일 값이 아니라 상자 높이가 정한다(문단 위에서 k번째 줄은
+k × 줄 간격이 상자 높이보다 작으면 옆으로 간다). `Margin`은 같은 모양으로
+쓰면 한/글이 다른 스타일과 똑같이 그리지만, 상자를 여백 쪽 어디에 두는지
+근거가 없어 typed 오류로 거부한다(curve·connectLine과 같은 원칙: 실증 없는
+값을 추측 구현하면 무음 오류 위험). 크기(width/height)도 실측된 폰트-크기→박스-크기 변환
 공식이 없어(1건으로는 공식을 못 세운다) **호출자가 직접 지정**한다 --
 자동 계산 시도 안 함(add_chart가 ChartML을 호출자에게 요구하는 것과 같은
 "모르는 알고리즘은 추측하지 않는다" 원칙).
@@ -62,10 +65,13 @@ if TYPE_CHECKING:
 
 __all__ = ["DROP_CAP_STYLES", "create_drop_cap_element"]
 
-#: v1이 지원하는 유일한 값 -- 실코퍼스에 구조가 검증된 단 하나(위 모듈
-#: 독스트링 참조). "DoubleLine"/"Margin"은 스키마엔 있으나 실 구조 근거가
-#: 없어 v1 범위 밖(정직 보류).
-DROP_CAP_STYLES = frozenset({"TripleLine"})
+#: 쓰는 값 -- 한/글이 구조를 읽고 그대로 저장하는 둘(위 모듈 독스트링 참조).
+#: "Margin"은 스키마엔 있으나 상자 자리의 근거가 없어 범위 밖(정직 보류).
+DROP_CAP_STYLES = frozenset({"DoubleLine", "TripleLine"})
+
+#: 스타일마다 parameterset(``539/12291/28673``)의 값 -- 한/글은 두 값이 어긋나면
+#: 이 값을 따른다.
+_STYLE_PARAMETER = {"DoubleLine": "1", "TripleLine": "2"}
 
 #: 정체불명 parameterset -- 유일한 실 예시(`error__20230809__test.hwpx`)의
 #: TripleLine 인스턴스에서 그대로 복사(의미 불명, 추측 안 함).
@@ -84,7 +90,7 @@ def create_drop_cap_element(
     char_pr_id_ref: str | int | None = None,
     para_pr_id_ref: str | int | None = None,
 ) -> ET.Element:
-    """실측된 ``TripleLine`` 드롭캡 ``hp:rect`` 구조를 그대로 재현한다.
+    """실측된 드롭캡 ``hp:rect`` 구조(``TripleLine``, ``DoubleLine``)를 그대로 재현한다.
 
     *width*/*height*는 HWPUNIT -- 호출자가 직접 지정(자동 계산 안 함, 위
     모듈 독스트링의 "정직 축소" 참조). *character*는 드롭캡으로 키울 문자
@@ -99,10 +105,9 @@ def create_drop_cap_element(
             code="shape-drop-cap-style-unsupported",
             context={"style": style, "supported": sorted(DROP_CAP_STYLES)},
             suggestion=(
-                "Only 'TripleLine' has real-corpus structural evidence "
-                "(exactly one sample, error__20230809__test.hwpx) -- "
-                "'DoubleLine'/'Margin' are schema-declared but structurally "
-                "unverified, so this function refuses to guess their shape."
+                "Use 'TripleLine' or 'DoubleLine' -- 'Margin' is schema-declared, "
+                "but where Hancom places its box is unverified, so this function "
+                "refuses to guess it."
             ),
         )
     if not character:
@@ -220,7 +225,7 @@ def create_drop_cap_element(
     parameterset = _append_child(el, f"{_HP}parameterset", dict(_TRIPLE_LINE_PARAMETERSET))
     list_param = _append_child(parameterset, f"{_HP}listParam", {"cnt": "1", "name": "12291"})
     int_param = _append_child(list_param, f"{_HP}unsignedintegerParam", {"name": "28673"})
-    int_param.text = "2"
+    int_param.text = _STYLE_PARAMETER[style]
 
     return el
 
@@ -237,8 +242,8 @@ def _paragraph_add_drop_cap(
 ) -> HwpxOxmlInlineObject:
     """Insert a real-Hancom-shaped drop cap (문단 첫 글자 장식) right before the paragraph text.
 
-    The element is :func:`create_drop_cap_element` (``TripleLine``-only v1 scope, see this
-    module's docstring). Hancom writes a drop cap in the run of the paragraph's first text,
+    The element is :func:`create_drop_cap_element` (``TripleLine`` or ``DoubleLine``, see
+    this module's docstring). Hancom writes a drop cap in the run of the paragraph's first text,
     right before that ``hp:t`` and after the controls in front of it (a section's first
     paragraph keeps its section settings first), and draws it on that line. The run keeps the
     text's character shape: *char_pr_id_ref* is the letter's, inside the drop cap. With a

@@ -4,7 +4,8 @@
 A space is half an em, 장평 and 자간 scale every advance (the glyph ending a
 line takes no 자간), the paragraph's break settings decide where a line may end
 (the Hangul value works the reverse of its name), spaces at a line end hang
-past the margin, 최소 공백 lets inner spaces shrink, indents come off the first
+past the margin, 최소 공백 lets inner spaces shrink (less their 자간, for the word
+that crosses the margin only), each glyph takes its script's 장평 and 자간, indents come off the first
 or the following lines, closing punctuation never starts a line, and a cell
 line is never narrower than 1440 HWPUNIT. Unless a test names a face, the
 advances use the class averages (Hangul 1.0 em, lower-case Latin 0.52 em,
@@ -29,7 +30,15 @@ from hwpx.form_fit import (
     hancom_line_starts,
     measure,
 )
-from hwpx.form_fit.measure import classify_char, _cell_text_style, glyph_advance_em, resolve_slot_metrics, text_style_from_refs
+from hwpx.form_fit.measure import (
+    _cell_text_style,
+    char_advance,
+    classify_char,
+    glyph_advance_em,
+    glyph_script,
+    resolve_slot_metrics,
+    text_style_from_refs,
+)
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_rules.hwpx"
@@ -46,6 +55,16 @@ PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
 SPACE_RUNS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_runs.hwpx"
+CONDENSE_ROWS = [
+    Path(__file__).parent / "fixtures" / "hancom_saved" / f"formfit_condense_{name}.hwpx"
+    for name in ("margin_word", "space_without_spacing", "text_reaching_margin")
+]
+NO_BREAK_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_no_break_spaces.hwpx"
+FIXED_WIDTH_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_fixed_width_spaces.hwpx"
+SCRIPT_ROWS = [
+    Path(__file__).parent / "fixtures" / "hancom_saved" / f"formfit_script_{name}.hwpx"
+    for name in ("latin_ratio", "latin_spacing", "symbols")
+]
 
 
 def test_a_space_is_half_an_em_unless_the_font_space_is_used() -> None:
@@ -120,6 +139,36 @@ def test_indents_come_off_the_first_or_the_following_lines() -> None:
 def test_condense_lets_inner_spaces_shrink() -> None:
     assert estimate_lines("가 나 다라", 4800, 10, TextStyle()) == 2
     assert estimate_lines("가 나 다라", 4800, 10, TextStyle(condense=50)) == 1
+
+
+def test_condense_shrinks_a_space_less_its_spacing() -> None:
+    # At 자간 -10 % a space is 448 wide, but 최소 공백 40 takes 40 % of 500 off it: five spaces give 1000,
+    # room for the first syllable of the word crossing 6790 (it needs 950).
+    style = TextStyle(break_non_latin_word="KEEP_WORD", spacing=-10, condense=40)
+
+    assert hancom_line_starts("가 " * 5 + "가나", [6790], 10, style) == [0, 11]
+
+
+def test_a_line_whose_text_reached_the_margin_takes_no_further_word() -> None:
+    # The eleventh syllable crosses 14100 and fits as its spaces shrink; the space after it starts past the
+    # margin, so the next word starts the next line though the spaces could shrink enough for it. At 15100
+    # the text stops short of the margin and the next word shrinks the spaces too.
+    assert hancom_line_starts("가 " * 10 + "가", [14100], 10, TextStyle(condense=50)) == [0, 20]
+    assert hancom_line_starts("가 " * 10 + "가", [15100], 10, TextStyle(condense=50)) == [0]
+    # Its spaces hang, however many: none starts a line.
+    assert hancom_line_starts("가 " * 9 + "가  ", [14100], 10, TextStyle(condense=50)) == [0]
+
+
+def test_each_glyph_takes_the_spacing_of_its_script() -> None:
+    latin = TextStyle(scripts=(("latin", 80.0, -20.0),))
+
+    assert char_advance("1", 10, TextStyle(scripts=(("latin", 80.0, 0.0),))) == 440
+    assert char_advance("가", 10, latin) == char_advance("가", 10, TextStyle())
+    assert char_advance(" ", 10, latin) == 400  # the Hangul 장평 and the Latin 자간
+    assert char_advance("\u2026", 10, TextStyle(scripts=(("symbol", 50.0, 0.0),))) == 210
+    assert [glyph_script(ch) for ch in "a1,\u00b7\u2018\u201d\u2026\u203b\u25cb\u300c\u4e00가"] == (
+        ["latin"] * 6 + ["symbol"] * 4 + ["hanja", "hangul"]
+    )
 
 
 def test_inline_objects_take_their_width_off_the_first_line_only() -> None:
@@ -553,3 +602,78 @@ def test_space_runs_and_condense_break_where_hancom_breaks_them() -> None:
 
         assert starts == [int(seg.get("textpos")) for seg in segs], (cell.width, slot.text_style.condense)
         assert measure(cell.text, slot).lines == len(segs)
+
+
+def _row_line_starts(path: Path) -> list[tuple[list[int], list[int]]]:
+    """(FormFit's line starts, Hancom's) of each row of a Hancom-saved fixture: every paragraph of 100 or more
+    characters, each line as wide as Hancom laid it out."""
+    doc = HwpxDocument.open(path.read_bytes())
+    rows = []
+    for paragraph in doc.paragraphs:
+        text = paragraph.text
+        if len(text) < 100:
+            continue
+        segs = paragraph.element.findall(f"{HP}linesegarray/{HP}lineseg")
+        refs = [run.char_pr_id_ref for run in paragraph.runs if run.text]
+        style = text_style_from_refs(doc, paragraph.para_pr_id_ref, refs)
+        points = int(doc.oxml.char_property(refs[0]).attributes["height"]) / 100
+        starts = hancom_line_starts(text, [int(seg.get("horzsize")) for seg in segs], points, style)
+        rows.append((starts, [int(seg.get("textpos")) for seg in segs]))
+    return rows
+
+
+@pytest.mark.parametrize("fixture", CONDENSE_ROWS, ids=lambda path: path.stem)
+def test_condense_breaks_where_hancom_breaks(fixture: Path) -> None:
+    # Rows of "가나 " and of "가나다라마 ", 25 each, 0.15 mm narrower one after another, at 9 pt with 최소 공백
+    # 40 (장평 100, and 90 with 자간 -5) and 20 (장평 98, 자간 -10). Hancom shrank the spaces by that share of a
+    # space without 자간, only for the word crossing the margin: once the text reached it, the next word started
+    # the next line.
+    rows = _row_line_starts(fixture)
+
+    assert len(rows) == 50
+    assert [starts for starts, _ in rows] == [hancom for _, hancom in rows]
+
+
+@pytest.mark.parametrize("fixture", SCRIPT_ROWS, ids=lambda path: path.stem)
+def test_each_script_takes_its_own_spacing_where_hancom_breaks(fixture: Path) -> None:
+    # Rows of digits, "가 ", Latin letters and "가," whose character shape gives the Latin script 장평 80, or
+    # the Hangul script 자간 -20 and the Latin one 0; and rows of "가" and a middle dot, a quote, an ellipsis,
+    # a reference mark, a circle and a corner bracket when every script has its own 장평. The rows of the
+    # ideographic comma, a glyph the face table does not list, are left out.
+    doc = HwpxDocument.open(fixture.read_bytes())
+    texts = [paragraph.text for paragraph in doc.paragraphs if len(paragraph.text) >= 100]
+    rows = [row for row, text in zip(_row_line_starts(fixture), texts) if "、" not in text]
+
+    assert len(rows) >= 100
+    assert [starts for starts, _ in rows] == [hancom for _, hancom in rows]
+
+
+def test_a_no_break_space_is_half_an_em_and_keeps_the_words_together() -> None:
+    assert char_advance("\u00a0", 10, TextStyle()) == char_advance(" ", 10, TextStyle()) == 500
+    # "다라" and "마바" stay together: the line breaks at the space before them, not after the no-break space.
+    assert hancom_line_starts("가나 다라\u00a0마바", [5600], 10, TextStyle()) == [0, 3]
+
+
+def test_no_break_spaces_break_where_hancom_breaks() -> None:
+    # Rows of "가나" and a no-break space, 40 times, 0.15 mm narrower one after another, laid out and saved by
+    # Hancom: a row breaks inside its one long word, and a line may start with a no-break space.
+    rows = _row_line_starts(NO_BREAK_SPACES)
+
+    assert len(rows) == 25
+    assert [starts for starts, _ in rows] == [hancom for _, hancom in rows]
+
+
+def test_a_fixed_width_space_is_a_quarter_em_and_hangs() -> None:
+    assert char_advance("\u3000", 10, TextStyle()) == 248  # a quarter of 250 layout units, rounded down
+    assert char_advance("\u3000", 16, TextStyle(ratio=80, spacing=-10)) == 400  # whatever the 장평 and 자간
+    # Breaking between any two syllables, a line still ends after the space, which hangs past the margin.
+    assert hancom_line_starts("가\u3000" * 5, [2900], 10, TextStyle(break_non_latin_word="KEEP_WORD")) == [0, 4, 8]
+
+
+def test_fixed_width_spaces_break_where_hancom_breaks() -> None:
+    # Rows of a syllable and a fixed-width space, 60 times, 0.15 mm narrower one after another, breaking between
+    # any two syllables, laid out and saved by Hancom: every line ends after a space.
+    rows = _row_line_starts(FIXED_WIDTH_SPACES)
+
+    assert len(rows) == 25
+    assert [starts for starts, _ in rows] == [hancom for _, hancom in rows]

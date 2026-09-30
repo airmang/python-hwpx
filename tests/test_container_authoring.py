@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import io
 import zipfile
 from pathlib import Path
 
@@ -31,6 +32,7 @@ from hwpx.oxml.objects import _create_container_element, _missing_shape_children
 
 REPO = Path(__file__).resolve().parent.parent
 CORPUS = REPO / "tests" / "fixtures" / "hwpxlib_corpus"
+HANCOM_SAVED = REPO / "tests" / "fixtures" / "hancom_saved"
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
@@ -254,42 +256,71 @@ def test_container_round_trips_through_save_and_reopen(tmp_path) -> None:
     reopened.close()
 
 
-def test_resize_updates_container_size_but_not_member_layout() -> None:
-    """정직한 현재 한계 기록: ``HwpxOxmlShape.resize()``의 ``_scale_geometry``는
-    직속 자식 중 ``_SHAPE_POINT_LOCAL_NAMES``(``pt``/``center``/``startPt``
-    등)에 속한 태그만 훑는다 — 컨테이너의 직속 자식은 부재 도형 전체
-    (``rect``/``ellipse``/...)라 그 이름 집합에 없다. 그래서 컨테이너를
-    resize하면 컨테이너 자신의 orgSz/sz/curSz는 바뀌지만, 부재의 offset·
-    orgSz는 그대로 남아 더 이상 컨테이너의 실제 bbox와 일치하지 않는다 —
-    polygon의 "resize()가 변경 없이 이미 적용된다" 사례와 달리, 여기서는
-    적용되지 않는다는 사실이 계약이다. 부재별로 개별 ``resize()``를 부르는
-    것이 현재의 올바른 사용법이다(다음 트레인 후보)."""
+def _group_shape(data: bytes) -> list[tuple[object, ...]]:
+    """The first outermost group and every member in it, at any depth: level, orgSz, curSz, sz, each
+    scaMatrix and the rotation centre."""
 
+    import xml.etree.ElementTree as ET
+
+    root = ET.fromstring(zipfile.ZipFile(io.BytesIO(data)).read("Contents/section0.xml"))
+    group = next(c for c in root.iter(f"{HP}container") if c.get("groupLevel", "0") == "0")
+
+    def size(element: ET.Element, tag: str) -> tuple[str | None, str | None] | None:
+        child = element.find(f"{HP}{tag}")
+        return None if child is None else (child.get("width"), child.get("height"))
+
+    shapes = []
+    for element in group.iter():
+        rendering, rotation = element.find(f"{HP}renderingInfo"), element.find(f"{HP}rotationInfo")
+        if rendering is None or rotation is None:
+            continue
+        scales = [tuple(m.get(key) for key in ("e1", "e2", "e3", "e4", "e5", "e6"))
+                  for m in rendering if _local(m.tag) == "scaMatrix"]
+        shapes.append((element.get("groupLevel"), size(element, "orgSz"), size(element, "curSz"),
+                       size(element, "sz"), scales, (rotation.get("centerX"), rotation.get("centerY"))))
+    return shapes
+
+
+def _resized(data: bytes, width: int, height: int) -> bytes:
+    doc = HwpxDocument.open(data)
+    shape = next(s for p in doc.paragraphs for s in p.shapes if s.shape_type == "container")
+    shape.resize(width, height)
+    return doc.to_bytes()
+
+
+@pytest.mark.parametrize(
+    ("source", "size", "saved"),
+    [
+        (CORPUS / "reader_writer__SimpleContainer.hwpx", (34744, 6500), "group_resized_twice"),
+        (CORPUS / "reader_writer__SimpleContainer.hwpx", (34744, 3250), "group_resized_in_width"),
+        (HANCOM_SAVED / "group_in_a_group.hwpx", (34744, 6500), "group_in_a_group_resized_twice"),
+        (HANCOM_SAVED / "group_in_a_group.hwpx", (34744, 3250), "group_in_a_group_resized_in_width"),
+    ],
+)
+def test_a_resized_group_is_what_hancom_saves_for_it(source: Path, size: tuple[int, int], saved: str) -> None:
+    # Hancom draws a group at its sz. Each fixture is Hancom's save of the source with only the group's sz
+    # changed: the group keeps its orgSz, and every member, in the inner group too, is scaled from the
+    # group's origin in its first scaMatrix, with its curSz grown.
+    resized = _resized(source.read_bytes(), *size)
+
+    assert _group_shape(resized) == _group_shape((HANCOM_SAVED / f"{saved}.hwpx").read_bytes())
+
+
+def test_a_group_python_hwpx_wrote_is_resized_as_hancom_saves_it() -> None:
+    # Its members carry one scaMatrix pair, not the group's before their own: Hancom scales that one.
     doc = HwpxDocument.new()
-    paragraph = doc.add_paragraph("")
+    doc.add_paragraph("묶음 앞 문단")
     shape = doc.shapes.add_container(
-        [
-            ContainerMember.rect(0, 0, 5000, 3000),
-            ContainerMember.ellipse(6000, 0, 4000, 4000),
-        ],
-        paragraph=paragraph,
+        [ContainerMember.rect(0, 0, 5000, 3000), ContainerMember.ellipse(6000, 0, 4000, 4000)],
+        paragraph=doc.add_paragraph(""),
     )
-    member_before = [
-        (dict(m.find(f"{HP}offset").attrib), dict(m.find(f"{HP}orgSz").attrib))
-        for m in shape.element
-        if _local(m.tag) in _MEMBER_TAGS
-    ]
 
-    shape.resize(20000, 9000)
+    shape.resize(20000, 8000)
 
+    saved = (HANCOM_SAVED / "group_written_by_python_hwpx_resized_twice.hwpx").read_bytes()
+    assert _group_shape(doc.to_bytes()) == _group_shape(saved)
     org_sz = shape.element.find(f"{HP}orgSz")
-    assert (org_sz.get("width"), org_sz.get("height")) == ("20000", "9000")
-    member_after = [
-        (dict(m.find(f"{HP}offset").attrib), dict(m.find(f"{HP}orgSz").attrib))
-        for m in shape.element
-        if _local(m.tag) in _MEMBER_TAGS
-    ]
-    assert member_after == member_before
+    assert (org_sz.get("width"), org_sz.get("height")) == ("10000", "4000")
 
 
 def test_authored_container_passes_open_safety(tmp_path) -> None:
