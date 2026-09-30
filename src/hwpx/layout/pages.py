@@ -23,20 +23,29 @@
   paragraph on that page, goes below it -- on to the next page when the band reaches the body's
   foot -- and the lines after follow; with several columns, in each of them when it covers the
   text's whole width). A table or picture set as a character is one line as tall as it.
+  A table's caption above or below it takes its lines and its gap there (a caption below goes on
+  to the next page with the table's last row when both do not fit above the foot, as a row would).
   Among text, an object set as a character takes its width on its line like a character, and the
-  line is at least as tall as the object; the line spacing stays the text's (a fixed spacing keeps
-  the next line that far down). A top-and-bottom object anchored to an empty paragraph pushes the
+  line is at least as tall as the object; the line spacing is reckoned from the line's largest
+  character, the object counted at its run's character size (a fixed spacing keeps the next line
+  that far down), and for an object with only spaces beside it from the largest size of any run of
+  its paragraph. A top-and-bottom object anchored to an empty paragraph pushes the
   next line below
   it; anchored in a paragraph of text (from the paragraph's top), it stands at the top of the line
   its place in the text falls on, and that line and the rest of the paragraph come below it --
   offset down, it stands that much lower, and the first line reaching it (in that paragraph or the
   ones after) and the lines after come below it -- a table flowing with the text flows from there
-  over the page end, and that line goes below its end;
+  over the page end, and that line goes below its end (so does the line of a paragraph holding only
+  another such table, which then flows from there); a flowing table alone in its paragraph starts
+  its offset below the paragraph's top, above the paragraph's spacing before (one offset up starts
+  there), and the next paragraph goes below the table's end or below the paragraph's line and its
+  own spacing before, whichever is lower;
   wrapped square at a column edge before a paragraph's text (or alone in its paragraph), it narrows
   the lines beside it, in that paragraph and the ones after, by its width -- a table by the height
   of its rows -- and wrapped square with no room beside it, it pushes the text below it like a
   top-and-bottom object; a table flowing with the text is laid out row by row -- split between cell lines, moved row
-  by row or moved whole -- with its header rows repeated; a cell merged over rows that is taller
+  by row or moved whole -- with its header rows (any row with a header cell of its own)
+  repeated; a cell merged over rows that is taller
   than them adds what they lack to the last of them, the cell that ends first first (a row with no
   cell of its own starts at 0); in a table moved row by row, rows joined by a cell merged over them
   move to the next page as one, and in one split between cell lines each of their cells keeps the
@@ -49,13 +58,15 @@
   up from its paragraph's top stands at that top). A flowing table's rows use
   the body only down to just above the page's foot (101 above it, or 2 in a table set not to be
   adjusted), less the table's bottom outer margin: a row, or a cell line of a row split between its
-  lines, ending lower goes on to the next page (where the table goes on below its top outer margin),
-  and a row declared taller than its text, holding
+  lines, ending lower goes on to the next page (where the table goes on below its top outer margin;
+  a row is split only when every cell's first line fits, otherwise it goes on whole), and a row
+  declared taller than its text, holding
   such a table or not, is cut there; what is left of it goes on to the next page unless it is no
   taller than a 10 pt line
   with the default cell margins (the cell's own margins, alignment and character size change
-  neither). A flowing table's anchor line that does not fit at the page end goes to the next page,
-  and the table with it. When a table moved row by row has no
+  neither) and none of its text is left: the lines that do not fit go on with it, which is then at
+  least as tall as they are with the cell's margins. A flowing table's anchor line that does not fit
+  at the page end goes to the next page, and the table with it. When a table moved row by row has no
   room for its first row under its anchor line, it starts on the next page and the text after it
   goes on under the anchor, then below the table on the pages the table takes. Footnotes take
   room at the foot of the page and go on over the page end.
@@ -439,6 +450,7 @@ class _Row:
     nested: bool = False  # a cell holds a table
     #: (height, advance) of each line of the row's tallest cell when it holds a table
     metrics: tuple[tuple[int, int], ...] = ()
+    first: int = 0        # the tallest first line of any of its cells
 
 
 @dataclass(frozen=True)
@@ -449,7 +461,21 @@ class _FlowTable:
     margins: tuple[int, int]   # hp:outMargin top, bottom: kept above and below the table
     #: every cell as (the position of its first row in ``rows``, rows it spans, the cell as a row)
     cells: tuple[tuple[int, int, _Row], ...] = ()
+    offset: int = 0            # alone in its paragraph: how far below the paragraph's line it starts
+    caption: tuple[int, int] = (0, 0)  # a caption above it, below it: its lines and its gap
     cut: int = _SPARE_CUT      # how far above the body's foot its rows end at most
+
+    @property
+    def above(self) -> int:
+        """Room above the first row: the top margin and a caption above."""
+
+        return self.margins[0] + self.caption[0]
+
+    @property
+    def below(self) -> int:
+        """Room below the last row: a caption below and the bottom margin."""
+
+        return self.margins[1] + self.caption[1]
 
 
 def _rows(measure: _Measure, table: Any) -> list[_Row]:
@@ -468,6 +494,8 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
     merged: list[tuple[int, int, _Row]] = []  # (first row, rows spanned, the cell as a row)
     cells: list[tuple[int, int, _Row]] = []
     nested: set[int] = set()  # rows with a cell holding a table
+    headers: set[int] = set()  # rows with a header cell of their own
+    firsts: dict[int, int] = {}  # each row's tallest first line of a cell of its own
     for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
         row, span = _cell_row(measure, table, tc), _row_span(tc)
         address = tc.find(f"{HP}cellAddr")
@@ -475,10 +503,18 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
         cells.append((first, span, row))
         if row.nested:
             nested.update(range(first, first + span))
+        if row.header and span == 1:
+            headers.add(first)
+        if span == 1:
+            firsts[first] = max(firsts.get(first, 0), row.first)
         if span > 1:
             merged.append((first, span, row))
-        elif first not in rows or row.height > rows[first].height:
+        elif first not in rows or (row.height, row.lines) > (rows[first].height, rows[first].lines):
             rows[first] = row
+    for first in headers:  # a header row whatever cell is the tallest
+        rows[first] = replace(rows[first], header=True)
+    for first, line in firsts.items():
+        rows[first] = replace(rows[first], first=line)
     for first, span, cell in merged:
         for index in range(first, first + span):
             if index not in rows:  # every cell over it is merged over rows
@@ -584,9 +620,11 @@ def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
         content, lines = sum(advance for _, advance in drawn[:-1]) + drawn[-1][0], len(drawn)
     vertical = margins.top + margins.bottom
     height = max(int(size.get("height", 0)), vertical + content)
+    first = drawn[0][0] if drawn else (measure.stack_lines(paragraphs[:1], inner, caches=True) or ((0, 0),))[0][0]
     return _Row(height, lines, pitch, char_size, vertical, cell.get("header") == "1",
                 spare=height - vertical - content, nested=nested,
-                metrics=(drawn or measure.stack_lines(paragraphs, inner, caches=True)) if nested else ())
+                metrics=(drawn or measure.stack_lines(paragraphs, inner, caches=True)) if nested else (),
+                first=first)
 
 
 @dataclass(frozen=True)
@@ -712,6 +750,19 @@ def _columns(section: Any, text_width: int) -> tuple[int, int]:
 
 def _in_sub_list(element: Any) -> bool:
     return any(_local(ancestor) == "subList" for ancestor in element.iterancestors())
+
+
+def _caption(measure: _Measure, table: Any) -> tuple[int, int]:
+    """How much room a table's caption takes above it and below it: its lines and its gap (a caption
+    beside the table takes none)."""
+
+    caption = table.find(f"{HP}caption")
+    if caption is None or caption.get("side") not in ("TOP", "BOTTOM"):
+        return (0, 0)
+    paragraphs = caption.findall(f"{HP}subList/{HP}p")
+    width = int(caption.get("lastWidth", 0)) or int(table.find(f"{HP}sz").get("width", 0))
+    tall = measure.stack(paragraphs, width, caches=True)[0] + int(caption.get("gap", 0))
+    return (tall, 0) if caption.get("side") == "TOP" else (0, tall)
 
 
 def _inline_table_height(measure: _Measure, table: Any) -> int:
@@ -864,7 +915,7 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
     """(height, advance) of each line FormFit breaks *text* into, every character at its own size: a line
     is as tall as its largest character, its line spacing reckoned from that size. An object set as a
     character (*objects*: its place in *text* -> its width and height) takes its width on its line and
-    makes the line at least as tall as itself; the spacing stays the text's, and a fixed line spacing
+    makes the line at least as tall as itself, and counts at its run's size for the spacing; a fixed line spacing
     keeps the next line that far down."""
 
     advances = {index: width for index, (width, _) in objects.items()} or None
@@ -873,8 +924,7 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
     metrics = []
     for start, end in zip(starts, [*starts[1:], len(text)]):
         span = range(start, end) if end > start else range(len(text) - 1, len(text))
-        texts = [sizes[index] for index in span if index not in objects] or [sizes[index] for index in span]
-        size = max(texts)
+        size = max(sizes[index] for index in span)
         height = max([size] + [objects[index][1] for index in span if index in objects])
         advance = _pitch(shape.kind, shape.value, size)
         metrics.append((height, advance if shape.kind == "FIXED" else height + advance - size))
@@ -888,7 +938,8 @@ def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
     size = obj.find(f"{HP}sz")
     margin = obj.find(f"{HP}outMargin")
     extra = (0, 0, 0, 0) if margin is None else tuple(_margin(margin, side) for side in ("left", "right", "top", "bottom"))
-    height = _inline_table_height(measure, obj) if _local(obj) == "tbl" else int(size.get("height", 0))
+    height = _inline_table_height(measure, obj) + sum(_caption(measure, obj)) if _local(obj) == "tbl" \
+        else int(size.get("height", 0))
     return int(size.get("width", 0)) + extra[0] + extra[1], height + extra[2] + extra[3]
 
 
@@ -969,7 +1020,7 @@ def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: 
     if _local(obj) == "tbl":
         rows, cells = _table_rows(measure, obj)
         table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
-                           tuple(cells), _spare_cut(obj))
+                           tuple(cells), caption=_caption(measure, obj), cut=_spare_cut(obj))
         return _Anchor(line, table, 0)
     return _Anchor(line, None, int(obj.find(f"{HP}sz").get("height", 0)) + top + bottom)
 
@@ -988,14 +1039,16 @@ def _object_line(
     name = _local(obj)
     if pos.get("treatAsChar") == "1":
         if name == "tbl":
-            tall = _inline_table_height(measure, obj) + top + bottom
+            tall = _inline_table_height(measure, obj) + top + bottom + sum(_caption(measure, obj))
         return 1, tall, tall + pitch - size, None
     on_paragraph = pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"
     if _wraps_top_and_bottom(obj, column) and on_paragraph:
         if name == "tbl":
             rows, cells = _table_rows(measure, obj)
+            offset = int(pos.get("vertOffset", 0))  # one up (a negative offset, kept unsigned) starts at the line
             table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
-                               tuple(cells), _spare_cut(obj))
+                               tuple(cells), 0 if offset < 0 or offset >= 1 << 31 else offset,
+                               _caption(measure, obj), _spare_cut(obj))
             return count, size, pitch, table
         below = int(pos.get("vertOffset", 0)) + tall
         return 1, below, below, None
@@ -1069,6 +1122,9 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     if alone:
         if wrap is not None:
             raise _Unsupported("an object beside a square-wrapped object")
+        if objects[0].find(f"{HP}pos").get("treatAsChar") == "1":  # spaced from the largest character size
+            size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)  # of any of its runs
+            pitch = _pitch(shape.kind, shape.value, size)
         count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch, page.column_width)
     anchor = None if anchored is None else _anchor(measure, paragraph, runs, text, anchored, widths, size, style,
                                                    cached, count)
@@ -1147,7 +1203,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
             margin = pusher.find(f"{HP}outMargin")
             ends = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
             table = _FlowTable(rows, pusher.get("pageBreak", "CELL"), pusher.get("repeatHeader") == "1", ends,
-                               tuple(cells), _spare_cut(pusher))
+                               tuple(cells), caption=_caption(measure, pusher), cut=_spare_cut(pusher))
             return replace(para, band=_Band(para.wrap_anchor, offset, table)), None
         top = para.span(0, para.wrap_anchor) + offset
         tall = _extent(pusher, "height")
@@ -1294,10 +1350,13 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
                 raise _Unsupported("rows merged together taller than a page")
             index = end + 1
             continue
-        before = frame
+        before, start = frame, y
         frame, y = _flow_row(table.mode, rows[index], frame, y, body, header, table.cut)
         if rows[index].merged and frame != before:
             raise _Unsupported("a page break among rows merged in a flowing table")
+        if index == len(rows) - 1 and table.caption[1] and frame == before and start != header \
+                and y + table.caption[1] > foot:  # a caption below goes on with the last row
+            frame, y = frame + 1, header + rows[index].height
         index += 1
     return frame, y
 
@@ -1387,9 +1446,13 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
             fitting = 0
             while fitting < remaining and y + row.margins + fitting * row.pitch + row.size <= foot:
                 fitting += 1
+            if fitting and remaining == row.lines and y + row.margins + row.first > foot:
+                fitting = 0  # every cell's first line must fit, or the row goes on whole
             if fitting and row.spare:
                 rest = height - (foot - y)
-                if rest <= _SPARE_DROPPED:
+                if fitting < remaining and y + height - row.spare > foot:  # its text does not all fit:
+                    rest = max(rest, row.margins + (remaining - fitting - 1) * row.pitch + row.size)  # it goes on
+                elif rest <= _SPARE_DROPPED:
                     return frame, body
                 frame, y = frame + 1, header
                 remaining, height = 1, rest
@@ -1428,6 +1491,7 @@ class _Paginator:
         self.band: tuple[int, int, int | None, int, int] | None = None
         self.page_notes = [0, 0]  # height and count of the notes on the current page
         self.carry = 0          # height of notes going on over the page end
+        self.floor: int | None = None  # where the next paragraph starts at the highest: a table's end
 
     def run(self, paras: list[_Para]) -> int:
         """Lay *paras* out; the number of frames used."""
@@ -1438,6 +1502,8 @@ class _Paginator:
 
     def _paragraph(self, index: int, paras: list[_Para], para: _Para) -> None:
         start = para.prev if self.last_vp is None else self.last_vp + self.last_pitch + self.pending_next + para.prev
+        if self.floor is not None:
+            start, self.floor = max(start, self.floor), None
         if para.band is not None or self.band is not None:
             self._banded(index, paras, para, start)
             return
@@ -1466,7 +1532,7 @@ class _Paginator:
             start = self._next_frame(para, 0, True)                         # to the next page
         self.out.append((self.frame, start))  # the anchor paragraph's line, under the table's top
         before = self.frame
-        top = start + table.margins[0]
+        top = start - para.prev + table.offset + table.above  # from the paragraph's top, above its spacing
         frame, end = _flow_table(table, self.frame, top, self.body)
         self._clear_of_paper(before, frame)
         self.table_end = max(self.table_end, frame)
@@ -1476,7 +1542,10 @@ class _Paginator:
         self.frame = frame
         if self.frame != before:
             self.page_notes = [0, 0]
-        self.last_vp, self.last_pitch, self.pending_next = end + table.margins[1], 0, para.next
+            self.last_vp, self.last_pitch, self.pending_next = end + table.below, 0, para.next
+        else:  # the next paragraph goes below the anchor line or the table, whichever is lower
+            self.last_vp, self.last_pitch, self.pending_next = start, para.advance(0), para.next
+            self.floor = end + table.below
 
     def _anchored(self, index: int, paras: list[_Para], para: _Para, start: int) -> None:
         """The lines before the anchor's line, the object at that line's top, then the rest of the
@@ -1496,11 +1565,11 @@ class _Paginator:
             top = self.out[-1][1] + head.advance(head.lines - 1)
         if anchor.table is not None:
             table = anchor.table
-            if _starts_later(table, top + table.margins[0], self.body):
+            if _starts_later(table, top + table.above, self.body):
                 raise _Unsupported("a top-and-bottom table anchored in text that starts on the next page")
-            frame, end = _flow_table(table, self.frame, top + table.margins[0], self.body)
+            frame, end = _flow_table(table, self.frame, top + table.above, self.body)
             self._clear_of_paper(self.frame, frame)
-            self.frame, self.table_end, end = frame, max(self.table_end, frame), end + table.margins[1]
+            self.frame, self.table_end, end = frame, max(self.table_end, frame), end + table.below
         else:
             if top + anchor.height > self.body and top > 0:
                 raise _Unsupported("a top-and-bottom object anchored in text at a page end")
@@ -1514,21 +1583,31 @@ class _Paginator:
         offset), or one after it: its lines above the band stay, and the first line reaching the band and
         the lines after go on below the table's end."""
 
-        if para.notes or para.anchor is not None or para.table is not None or para.wrap_bottom \
+        if para.notes or para.anchor is not None or para.wrap_bottom \
+                or (para.table is not None and (self.band is None or para.band is not None)) \
                 or (self.band is not None and (para.band is not None or para.page_break or para.break_before
                                                or para.column_break)):
             raise _Unsupported("a page break or another object beside a top-and-bottom table's band")
         start, broke = self._breaks(para, start)
+        if para.table is not None:  # a flowing table alone in its paragraph: its line goes below the band
+            frame, top, bottom, end_frame, end = self.band
+            if self.frame != frame or start + para.height(0) <= top or (bottom is not None and start >= bottom):
+                raise _Unsupported("a page break or another object beside a top-and-bottom table's band")
+            self.band = None
+            if end_frame != self.frame:
+                self.frame, self.page_notes = end_frame, [0, 0]
+            self._flow(para, para.table, end + para.prev)
+            return
         if para.band is not None:
             band, table = para.band, para.band.table
             top = start + para.span(0, band.line) + band.offset
             if start + para.span(0, band.line) + para.height(band.line) > self.body \
-                    or top + table.margins[0] >= self.body or _starts_later(table, top + table.margins[0], self.body):
+                    or top + table.above >= self.body or _starts_later(table, top + table.above, self.body):
                 raise _Unsupported("a top-and-bottom table offset down from a line at a page end")
-            frame, end = _flow_table(table, self.frame, top + table.margins[0], self.body)
+            frame, end = _flow_table(table, self.frame, top + table.above, self.body)
             self._clear_of_paper(self.frame, frame)
             self.table_end = max(self.table_end, frame)
-            bottom = end + table.margins[1]
+            bottom = end + table.below
             self.band = (self.frame, top, bottom if frame == self.frame else None, frame, bottom)
         assert self.band is not None
         frame, top, bottom, end_frame, end = self.band
@@ -1588,7 +1667,7 @@ class _Paginator:
         if any(page in self.reserved for page in taken):
             raise _Unsupported("two tables starting past their anchors on one page")
         self.reserved.update(dict.fromkeys(taken, self.body))
-        self.reserved[frame] = end + table.margins[1]
+        self.reserved[frame] = end + table.below
         self.last_vp, self.last_pitch, self.pending_next = start, para.advance(para.lines - 1), para.next
 
     def _breaks(self, para: _Para, start: int) -> tuple[int, bool]:
