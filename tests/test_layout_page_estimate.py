@@ -17,11 +17,15 @@ from lxml import etree
 
 from hwpx import HwpxDocument
 from hwpx.experimental import EstimatedLine, PageEstimate, estimate_pages
+from hwpx.layout import pages as page_layout
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_PAGES = {
+    "pages_fixed_width_spaces": 2,  # rows of a syllable and a fixed-width space: a quarter em that hangs
+    "pages_no_break_spaces": 2,  # rows of "가나" and a no-break space: each is half an em and keeps the row
+                                  # one word
     "pages_text_12pt_160": 5,             # 12 pt text, line spacing 160%
     "pages_spacing_20_20": 3,             # spacing before and after paragraphs
     "pages_boundary_widow_on": 2,         # widow/orphan control at the page end
@@ -148,6 +152,14 @@ HANCOM_PAGES = {
     "pages_table_square_alone": 1,        # a table wrapped square alone, as tall as its rows
     "pages_bullet_and_number_labels": 16,  # fourteen blocks of rows under bullets and numbers of every
                                              # label setting: each label takes its room off the lines
+    "pages_picture_square_text_on_both_sides": 2,  # a picture 9100 from the column's left: each line
+                                                    # beside it is two pieces at one height
+    "pages_picture_square_text_on_the_larger_side": 2,  # the same, text on the larger side only
+    "pages_picture_square_text_on_the_left_only": 2,    # text on the left only
+    "pages_picture_square_from_the_paper_narrow_left": 2,  # 235 right of the column's edge, from the
+                                                            # paper's left: the left side takes no text
+    "pages_picture_square_left_side_1439_empty": 2,   # a side 1439 wide takes no text
+    "pages_picture_square_left_side_1440_takes_text": 2,  # one 1440 wide does
     "pages_drop_cap_3200_two_lines_beside": 1,    # a drop cap 3200 tall, 10 pt text at 160%: two lines
                                                   # beside it (a line's top 3200 down is not above its foot)
     "pages_drop_cap_3201_three_lines_beside": 1,  # 3201 tall: three
@@ -288,6 +300,13 @@ def test_a_drop_cap_takes_the_lines_beside_it() -> None:
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 1)
 
 
+def test_an_object_wrapped_square_mid_column_on_its_own_takes_no_line() -> None:
+    # An OLE object wrapped square 9100 from its paragraph's left, text on both sides, and no text.
+    data = (FIXTURES.parent / "hwpxlib_corpus" / "reader_writer__SimpleOLE.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
+
+
 def test_the_cells_of_a_form_break_their_lines_like_hancom_without_caches() -> None:
     # A form whose cells hold runs of several sizes: without the caches every line, in the body and
     # below the tables, is where Hancom put it.
@@ -336,17 +355,47 @@ def test_a_negative_outer_margin_counts_as_none() -> None:
 
 
 @pytest.mark.parametrize(("fixture", "pages"), [("pages_columns_unequal_narrow_first", 4),
+                                               ("pages_columns_unequal_wide_first", 4),
                                                ("pages_columns_unequal_three", 4),
                                                ("pages_columns_unequal_column_break", 5)])
-def test_columns_of_unequal_width_follow_the_line_caches(fixture: str, pages: int) -> None:
-    # Two columns, the first half as wide as the second, three of unequal width, and two with a column
-    # break: every paragraph keeps its cache, and its lines flow down the columns as Hancom put them.
-    # Without the caches the lines would depend on each column's width, which the estimate does not follow.
+def test_columns_of_unequal_width_break_their_lines_at_each_column_width(fixture: str, pages: int) -> None:
+    # Two columns, the first half as wide as the second or twice as wide, three of unequal width, and two
+    # with a column break, paragraphs of several lines going on from one column into the next. With the
+    # caches the lines flow down the columns as Hancom put them. Without them the lines a column holds
+    # break at that column's width, and a paragraph going on into a column of another width breaks its
+    # rest there again, from the first character the column holds: where Hancom broke them.
     data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, pages)
-    assert estimate_pages(_without_caches(data)).unsupported == (
-        "section 0: a paragraph without a layout cache in columns of unequal width",)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, pages)
+
+
+def test_columns_of_unequal_width_take_their_share_of_the_text_width_rounded() -> None:
+    # hp:colSz 6552 + 873, 12234 + 873 and 12236 of 32768 over a text width of 42520 (8501.95, 15874.9 and
+    # 15877.5): Hancom's lines in the three columns are 8502, 15875 and 15878 wide.
+    with zipfile.ZipFile(FIXTURES / "pages_columns_unequal_three.hwpx") as package:
+        section = etree.fromstring(package.read("Contents/section0.xml"))
+
+    assert page_layout._columns(section, 42520) == (3, 8502, (8502, 15875, 15878))
+    assert {int(seg.get("horzsize")) for seg in section.iter(f"{HP}lineseg")} == {8502, 15875, 15878}
+
+
+def test_the_multi_column_sample_breaks_its_lines_at_each_column_width_without_caches() -> None:
+    # hwpxlib's MultiColumn sample, columns of unequal width: two pages, with its caches or without them.
+    data = (Path(__file__).parent / "fixtures" / "hwpxlib_corpus" / "reader_writer__MultiColumn.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 2)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 2)
+
+
+def test_a_footnote_in_a_paragraph_without_a_cache_in_columns_of_unequal_width_is_not_followed() -> None:
+    document = HwpxDocument.new()
+    document.set_columns(2, same_size=False, column_widths=[(10632, 873), (21263, 0)])
+    document.notes.add_footnote("각주", document.add_paragraph("각주가 달린 문단"))
+
+    assert estimate_pages(document).unsupported == (
+        "section 0: objects, composed characters, ruby text or footnotes in a paragraph without a layout cache "
+        "in columns of unequal width",)
 
 
 @pytest.mark.parametrize("fixture", ["pages_table_nested_square_alone", "pages_table_nested_square_beside_text"])
