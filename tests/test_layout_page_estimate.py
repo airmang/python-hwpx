@@ -62,6 +62,12 @@ HANCOM_PAGES = {
     "pages_table_caption_below_ends_100_above_page_foot": 2,  # the last row and the caption below end 100
                                                                 # above the foot: both go on
     "pages_table_caption_below_ends_101_above_page_foot": 2,  # 101 above it: they stay
+    "pages_table_offset_down_from_a_line_past_the_foot": 2,  # a table top and bottom 1517 down from a line
+                                                             # that does not fit: both on the next page
+    "pages_table_offset_down_its_top_past_the_foot": 2,  # 2000 down, the line fitting: the table at the
+                                                         # next page's top, the text after below it
+    "pages_table_offset_down_its_first_row_past_the_foot": 2,  # moved row by row, its first row not fitting:
+                                                               # the same, a line of the text after on the page
     "pages_table_alone_offset_500": 1,  # a flowing table alone in its paragraph, 500 down: it starts there
     "pages_table_alone_spacing_before_10pt": 1,  # its paragraph 10 pt apart: the table above that spacing,
                                                    # the next paragraph (10 pt apart too) under the table
