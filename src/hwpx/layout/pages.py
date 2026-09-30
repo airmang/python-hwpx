@@ -505,9 +505,17 @@ def _table_alone(runs: list[Any]) -> Any:
     return children[0] if pos is not None and pos.get("treatAsChar") == "1" else None
 
 
+def _margin(margin: Any, side: str) -> int:
+    """One side of an object's outer margins (hp:outMargin): a negative one, which the file keeps as an
+    unsigned 32-bit number, counts as none, as Hancom lays it out (and saves it)."""
+
+    value = int(margin.get(side, 0))
+    return 0 if value < 0 or value >= 1 << 31 else value
+
+
 def _extent_margins(obj: Any) -> int:
     margin = obj.find(f"{HP}outMargin")
-    return 0 if margin is None else int(margin.get("top", 0)) + int(margin.get("bottom", 0))
+    return 0 if margin is None else _margin(margin, "top") + _margin(margin, "bottom")
 
 
 def _drawn_lines(measure: _Measure, paragraphs: list[Any]) -> tuple[tuple[int, int], ...]:
@@ -813,7 +821,7 @@ def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
 
     size = obj.find(f"{HP}sz")
     margin = obj.find(f"{HP}outMargin")
-    extra = (0, 0, 0, 0) if margin is None else tuple(int(margin.get(side, 0)) for side in ("left", "right", "top", "bottom"))
+    extra = (0, 0, 0, 0) if margin is None else tuple(_margin(margin, side) for side in ("left", "right", "top", "bottom"))
     height = _inline_table_height(measure, obj) if _local(obj) == "tbl" else int(size.get("height", 0))
     return int(size.get("width", 0)) + extra[0] + extra[1], height + extra[2] + extra[3]
 
@@ -891,7 +899,7 @@ def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: 
 
     line = _anchor_line(measure, paragraph, runs, text, obj, widths, size, style, cached, count)
     margin = obj.find(f"{HP}outMargin")
-    top, bottom = (0, 0) if margin is None else (int(margin.get("top", 0)), int(margin.get("bottom", 0)))
+    top, bottom = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
     if _local(obj) == "tbl":
         rows, cells = _table_rows(measure, obj)
         table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
@@ -909,7 +917,7 @@ def _object_line(
     out_margin = obj.find(f"{HP}outMargin")
     top, bottom = (0, 0)
     if out_margin is not None:
-        top, bottom = int(out_margin.get("top", 0)), int(out_margin.get("bottom", 0))
+        top, bottom = _margin(out_margin, "top"), _margin(out_margin, "bottom")
     tall = int(obj.find(f"{HP}sz").get("height", 0)) + top + bottom
     name = _local(obj)
     if pos.get("treatAsChar") == "1":
@@ -1015,7 +1023,7 @@ def _extent(obj: Any, side: str) -> int:
 
     margin = obj.find(f"{HP}outMargin")
     ends = ("left", "right") if side == "width" else ("top", "bottom")
-    extra = 0 if margin is None else sum(int(margin.get(end, 0)) for end in ends)
+    extra = 0 if margin is None else sum(_margin(margin, end) for end in ends)
     return int(obj.find(f"{HP}sz").get(side, 0)) + extra
 
 
@@ -1071,7 +1079,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
         if _local(pusher) == "tbl" and pusher.get("pageBreak", "CELL") in ("CELL", "TABLE"):  # it flows
             rows, cells = _table_rows(measure, pusher)
             margin = pusher.find(f"{HP}outMargin")
-            ends = (0, 0) if margin is None else (int(margin.get("top", 0)), int(margin.get("bottom", 0)))
+            ends = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
             table = _FlowTable(rows, pusher.get("pageBreak", "CELL"), pusher.get("repeatHeader") == "1", ends,
                                tuple(cells), _spare_cut(pusher))
             return replace(para, band=_Band(para.wrap_anchor, offset, table)), None

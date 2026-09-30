@@ -134,6 +134,24 @@ def _hancom_lines(data: bytes) -> list[list[int]]:
     return lines
 
 
+def _with_outer_margins(data: bytes, value: int) -> bytes:
+    """*data* with every table's top and bottom outer margins set to *value*."""
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                root = etree.fromstring(payload)
+                for margin in root.iter(f"{HP}outMargin"):
+                    if etree.QName(margin.getparent()).localname == "tbl":
+                        margin.set("top", str(value))
+                        margin.set("bottom", str(value))
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+    return out.getvalue()
+
+
 def _without_caches(data: bytes) -> bytes:
     out = io.BytesIO()
     with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
@@ -203,6 +221,14 @@ def test_a_cell_holding_a_table_among_text_or_top_and_bottom_is_as_tall_as_hanco
 
     _assert_like_hancom(estimate_pages(data), data, 1)
     assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
+
+
+def test_a_negative_outer_margin_counts_as_none() -> None:
+    # A table over two pages whose outer margins were -500 (kept as unsigned 32-bit numbers): Hancom laid it
+    # out as one without them and saved them as 0. With the margins back at -500 the estimate is the same.
+    data = (FIXTURES / "pages_table_outer_margins_saved_from_negative.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(_with_outer_margins(data, (-500) & 0xFFFFFFFF)), data, 2)
 
 
 def test_paragraphs_of_several_character_sizes_hancom_laid_out_follow_their_cached_lines() -> None:
