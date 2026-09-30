@@ -256,12 +256,170 @@ class HwpxOxmlMemo:
         self.set_text(value)
 
     def remove(self) -> None:
+        """Remove the memo and the MEMO field anchoring it (the field's two controls; the text it spans
+        stays). The field holds what Hancom shows of the memo, so a memo left anchored would stay."""
+
+        field = self._anchor_field()
         try:
             self.group.element.remove(self.element)
         except ValueError:  # pragma: no cover - defensive branch
             return
+        if field is not None:
+            _remove_field(self.group.section.element, field)
         self.group.section.mark_dirty()
         self.group._cleanup()
+
+
+def _remove_field(root: ET.Element, field_begin: ET.Element) -> None:
+    """Remove the controls of a field: the ``hp:ctrl`` holding *field_begin* and the one holding its
+    ``hp:fieldEnd``, and a run left empty by either. The text between them stays."""
+
+    begin_id = field_begin.get("id")
+    ends = [
+        end for end in root.iter(f"{_HP}fieldEnd")
+        if begin_id is not None and end.get("beginIDRef") == begin_id
+    ]
+    for marker in [field_begin, *ends]:
+        ctrl, run = _parent_of(root, marker), None
+        if ctrl is not None and _element_local_name(ctrl) == "ctrl":
+            run = _parent_of(root, ctrl)
+        else:
+            ctrl = None
+        holder = ctrl if ctrl is not None else _parent_of(root, marker)
+        target = ctrl if ctrl is not None else marker
+        if holder is None:
+            continue
+        if ctrl is not None and run is not None:
+            run.remove(ctrl)
+            if not list(run) and _element_local_name(run) == "run":
+                paragraph = _parent_of(root, run)
+                if paragraph is not None and len(paragraph.findall(f"{_HP}run")) > 1:
+                    paragraph.remove(run)
+        else:
+            holder.remove(target)
+
+
+def _parent_of(root: ET.Element, target: ET.Element) -> ET.Element | None:
+    """*target*'s parent within *root* (works on ``xml.etree`` trees too, which have no ``getparent``)."""
+
+    getparent = getattr(target, "getparent", None)
+    if getparent is not None:
+        return getparent()
+    for node in root.iter():
+        for child in node:
+            if child is target:
+                return node
+    return None
+
+
+def memo_field_id(field_begin: ET.Element) -> str | None:
+    """The memo id a MEMO field carries (its ``ID`` string parameter)."""
+
+    for param in field_begin.iter(f"{_HP}stringParam"):
+        if param.get("name") == "ID":
+            return param.text or ""
+    return None
+
+
+class _FieldMemoHost:
+    """What a memo kept in its field needs of a memo group: the section (there is no group)."""
+
+    element = None
+
+    def __init__(self, section: "HwpxOxmlSection"):
+        self.section = section
+
+    def _cleanup(self) -> None:
+        return None
+
+
+class HwpxOxmlFieldMemo(HwpxOxmlMemo):
+    """A memo kept only in its MEMO field, as Hancom saves memos (and as HWP files converted to HWPX
+    hold them): its text is the ``hp:fieldBegin``'s own ``hp:subList`` and its id, number, author and
+    time are the field's parameters. There is no ``hp:memogroup`` entry. :attr:`element` is the
+    ``hp:fieldBegin``."""
+
+    def __init__(self, field_begin: ET.Element, section: "HwpxOxmlSection"):
+        super().__init__(field_begin, _FieldMemoHost(section))  # type: ignore[arg-type]
+
+    def _param(self, name: str) -> ET.Element | None:
+        for param in self.element.iter():
+            if _element_local_name(param).endswith("Param") and param.get("name") == name:
+                return param
+        return None
+
+    @property
+    def id(self) -> str | None:  # type: ignore[override]
+        return memo_field_id(self.element)
+
+    @property
+    def memo_shape_id_ref(self) -> str | None:  # type: ignore[override]
+        param = self._param("MemoShapeIDRef")
+        return None if param is None else (param.text or None)
+
+    @property
+    def attributes(self) -> dict[str, str]:
+        """The field's parameters by name (``ID``, ``Number``, ``Author``, ``CreateDateTime``, ...)."""
+
+        return {
+            param.get("name", ""): param.text or ""
+            for param in self.element.iter()
+            if _element_local_name(param).endswith("Param") and param.get("name")
+        }
+
+    def set_attribute(self, name: str, value: str | int | None) -> None:
+        param = self._param(name)
+        if param is None or value is None:
+            raise KeyError(name)
+        if param.text != str(value):
+            param.text = str(value)
+            self.group.section.mark_dirty()
+
+    def _anchor_field(self) -> ET.Element | None:
+        return self.element
+
+    def _sub_list(self) -> ET.Element | None:
+        return self.element.find(f"{_HP}subList")
+
+    @property
+    def paragraphs(self) -> list["HwpxOxmlParagraph"]:
+        sub_list = self._sub_list()
+        if sub_list is None:
+            return []
+        return [_wrap_paragraph(node, self.group.section) for node in sub_list.findall(f"{_HP}p")]
+
+    def set_text(self, value: str, *, char_pr_id_ref: str | int | None = None) -> None:
+        """Replace the memo's text: one paragraph shaped like the field's first one."""
+
+        sub_list = self._sub_list()
+        if sub_list is None:
+            sub_list = _append_child(self.element, f"{_HP}subList", _default_sublist_attributes())
+        existing_char = char_pr_id_ref or self._infer_char_pr_id_ref()
+        paragraphs = sub_list.findall(f"{_HP}p")
+        attrs = dict(paragraphs[0].attrib) if paragraphs else None
+        for paragraph in paragraphs:
+            sub_list.remove(paragraph)
+        paragraph = _create_paragraph_element(
+            value or "",
+            char_pr_id_ref=existing_char if existing_char is not None else "0",
+            parent=sub_list,
+        )
+        if attrs:
+            for key, item in attrs.items():
+                paragraph.set(key, item)
+        sub_list.append(paragraph)
+        self.group.section.mark_dirty()
+
+    @HwpxOxmlMemo.text.setter  # type: ignore[attr-defined, misc]
+    def text(self, value: str) -> None:
+        self.set_text(value)
+
+    def remove(self) -> None:
+        """Remove the memo: its field's two controls and the memo text they hold. The text the
+        field spans stays."""
+
+        _remove_field(self.group.section.element, self.element)
+        self.group.section.mark_dirty()
 
 
 class HwpxOxmlNote:

@@ -215,6 +215,12 @@
 
 ### 고침
 
+- 메모 API(`doc.notes.memos`, `doc.notes.remove_memo()`)가 MEMO 필드에만 든 메모를 보지 못하던 것을 고친다. 한/글은
+  메모를 `hp:memogroup` 없이 MEMO 필드(`hp:fieldBegin type="MEMO"`)의 `hp:subList`에 두며, HWP를 HWPX로 읽은
+  문서도 그렇다. 이제 `notes.memos`가 그런 메모도 문서 순서대로 돌려준다(`HwpxOxmlFieldMemo`: id·번호·작성자는
+  필드의 매개변수, 글은 `hp:subList`). 메모 그룹과 필드에 함께 있는 메모(python-hwpx가 앵커를 건 메모)는 한 번만
+  센다. `remove_memo()`는 필드의 두 제어와 메모 글을 지우고 필드가 걸친 글은 남긴다. python-hwpx가 앵커를 건
+  메모를 지우면 그 MEMO 필드도 함께 지운다(전에는 필드가 남아 한/글에 메모가 그대로 보였다).
 - 쪽 수 추정(실험, `estimate_pages`)이 흐르는 표(글자처럼 두지 않은 표)를 품은 문단의 쪽 나누기를 무시하던 것을
   고친다. 그 표는 앞 글이나 앞 표 바로 뒤에 놓였지만, 한/글은 새 쪽에서 시작한다. 앞 표가 다음 쪽까지 이어지면
   그 표가 끝난 쪽의 다음 쪽이다.
