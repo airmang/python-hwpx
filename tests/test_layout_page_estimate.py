@@ -322,6 +322,15 @@ def test_the_cells_of_a_form_break_their_lines_like_hancom_without_caches() -> N
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 10)
 
 
+def test_the_evaluation_plan_form_lays_out_like_hancom_without_caches() -> None:
+    # A form whose narrow cells hold bullet paragraphs, some ending in an empty run of a larger size: without
+    # the caches every line, in the body and below the tables, is where Hancom put it.
+    data = (FIXTURES.parent / "m105_evalplan" / "blank_form_3hak.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 15)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 15)
+
+
 def test_a_table_set_not_to_split_taller_than_a_page_takes_the_next_one() -> None:
     # 50 rows under its anchor line: it moves on to the next page, which holds nothing else, and the text
     # after it stays under its anchor line on the first page.
