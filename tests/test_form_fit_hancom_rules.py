@@ -59,6 +59,8 @@ CONDENSE_ROWS = [
     Path(__file__).parent / "fixtures" / "hancom_saved" / f"formfit_condense_{name}.hwpx"
     for name in ("margin_word", "space_without_spacing", "text_reaching_margin")
 ]
+NO_BREAK_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_no_break_spaces.hwpx"
+FIXED_WIDTH_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_fixed_width_spaces.hwpx"
 SCRIPT_ROWS = [
     Path(__file__).parent / "fixtures" / "hancom_saved" / f"formfit_script_{name}.hwpx"
     for name in ("latin_ratio", "latin_spacing", "symbols")
@@ -643,4 +645,35 @@ def test_each_script_takes_its_own_spacing_where_hancom_breaks(fixture: Path) ->
     rows = [row for row, text in zip(_row_line_starts(fixture), texts) if "、" not in text]
 
     assert len(rows) >= 100
+    assert [starts for starts, _ in rows] == [hancom for _, hancom in rows]
+
+
+def test_a_no_break_space_is_half_an_em_and_keeps_the_words_together() -> None:
+    assert char_advance("\u00a0", 10, TextStyle()) == char_advance(" ", 10, TextStyle()) == 500
+    # "다라" and "마바" stay together: the line breaks at the space before them, not after the no-break space.
+    assert hancom_line_starts("가나 다라\u00a0마바", [5600], 10, TextStyle()) == [0, 3]
+
+
+def test_no_break_spaces_break_where_hancom_breaks() -> None:
+    # Rows of "가나" and a no-break space, 40 times, 0.15 mm narrower one after another, laid out and saved by
+    # Hancom: a row breaks inside its one long word, and a line may start with a no-break space.
+    rows = _row_line_starts(NO_BREAK_SPACES)
+
+    assert len(rows) == 25
+    assert [starts for starts, _ in rows] == [hancom for _, hancom in rows]
+
+
+def test_a_fixed_width_space_is_a_quarter_em_and_hangs() -> None:
+    assert char_advance("\u3000", 10, TextStyle()) == 248  # a quarter of 250 layout units, rounded down
+    assert char_advance("\u3000", 16, TextStyle(ratio=80, spacing=-10)) == 400  # whatever the 장평 and 자간
+    # Breaking between any two syllables, a line still ends after the space, which hangs past the margin.
+    assert hancom_line_starts("가\u3000" * 5, [2900], 10, TextStyle(break_non_latin_word="KEEP_WORD")) == [0, 4, 8]
+
+
+def test_fixed_width_spaces_break_where_hancom_breaks() -> None:
+    # Rows of a syllable and a fixed-width space, 60 times, 0.15 mm narrower one after another, breaking between
+    # any two syllables, laid out and saved by Hancom: every line ends after a space.
+    rows = _row_line_starts(FIXED_WIDTH_SPACES)
+
+    assert len(rows) == 25
     assert [starts for starts, _ in rows] == [hancom for _, hancom in rows]
