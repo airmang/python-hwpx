@@ -22,8 +22,10 @@
   bottom is above the body's foot (one ending right at it goes on to the next page). Page and
   column breaks, page break before, keep lines
   together, keep with next and widow/orphan control; columns of equal width, and columns of
-  unequal width when every paragraph keeps a valid layout cache (its lines do not depend on the
-  width then) and holds objects only as characters.
+  unequal width (each its share of the text width with the gaps, rounded) holding objects only as
+  characters: a paragraph without a valid layout cache breaks the lines a column holds at that
+  column's width, and going on into a column of another width breaks its rest there again, from
+  the first character that column holds.
 * Objects: an object in front of or behind the text takes no room: the lines go where they would
   without it, wherever it stands; one placed top and bottom from the paper's top keeps every line of
   its page out of its band (a line reaching it, in any paragraph on that page, goes below it and
@@ -88,8 +90,9 @@ i.e. Hancom laid the table out as it is. Otherwise a table whose cells merge row
 their tallest cells of one row, and each merged cell, the one that ends first first, gives the last
 of its rows what they lack.
 
-Anything else makes the estimate unsupported: endnotes, a paragraph without such a cache or an
-object not set as a character in columns of unequal width, a column change inside a section (column
+Anything else makes the estimate unsupported: endnotes, an object not set as a character in columns
+of unequal width, and there a paragraph without such a cache holding objects, composed characters,
+ruby text or footnotes, a column change inside a section (column
 settings in a cell or a text box are that list's own), section settings after a section's first
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but objects set as characters, with line spacing in percent or
@@ -742,6 +745,8 @@ class _Para:
     band: _Band | None = None
     #: (top, bottom) in the body of a top-and-bottom object anchored here and placed from the paper's top
     paper: tuple[int, int] | None = None
+    #: in columns of unequal width, a paragraph without a layout cache: its text, to break again
+    reflow: _Reflow | None = None
 
     def height(self, line: int) -> int:
         return self.cached[line][0] if self.cached else self.size
@@ -758,6 +763,42 @@ class _Para:
 
 
 @dataclass(frozen=True)
+class _Reflow:
+    """A paragraph without a layout cache in columns of unequal width, its lines broken at a column
+    *width* from *offset* in its text on (*starts*: where each of them starts, from *offset*)."""
+
+    measure: _Measure
+    text: str
+    sizes: tuple[int, ...]
+    looks: tuple[Any, ...] | None
+    style: Any
+    shape: _Shape
+    width: int = 0
+    offset: int = 0
+    starts: tuple[int, ...] = ()
+
+    def at(self, para: _Para, width: int, line: int) -> _Para:
+        """*para* with its lines from line *line* on (the lines before it laid out already) broken
+        again at a column *width* wide: Hancom breaks the text a column holds at that column's width,
+        the paragraph's first line less its first-line indent, the others less a hanging one."""
+
+        offset = self.offset + (self.starts[line] if line else 0)
+        text = self.text[offset:]  # empty only after a line break ending the paragraph
+        sizes = list(self.sizes[offset:] or self.sizes[-1:])
+        looks = None if self.looks is None else list(self.looks[offset:] or self.looks[-1:])
+        room = width - self.shape.left - self.shape.right
+        widths: list[float] = [room - max(self.shape.indent, 0), room - max(-self.shape.indent, 0)]
+        if offset:  # the rest: none of its lines is the paragraph's first
+            widths = widths[1:]
+        mixed = len(set(sizes)) > 1
+        starts = self.measure.line_starts(text, widths, min(sizes), self.style, sizes if mixed else None, looks)
+        cached = _line_metrics(self.measure, text, widths, sizes, self.style, self.shape, {}, looks) \
+            if mixed or looks is not None else ()
+        return replace(para, lines=len(starts), cached=cached,
+                       reflow=replace(self, width=width, offset=offset, starts=tuple(starts)))
+
+
+@dataclass(frozen=True)
 class _Page:
     body: int
     column_width: int
@@ -767,6 +808,7 @@ class _Page:
     text_width: int = 0
     paper_width: int = 0
     unequal: bool = False  # columns of unequal width (column_width is the narrowest)
+    widths: tuple[int, ...] = ()  # then each column's width
 
 
 def _page(section: Any) -> _Page:
@@ -777,13 +819,15 @@ def _page(section: Any) -> _Page:
     width, height = _drawn_page_size(int(page.get("width", 0)), int(page.get("height", 0)), page.get("landscape"))
     body = height - sum(int(margin.get(key, 0)) for key in ("top", "bottom", "header", "footer"))
     text_width = width - sum(int(margin.get(key, 0)) for key in ("left", "right", "gutter"))
-    columns, column_width, unequal = _columns(section, text_width)
+    columns, column_width, widths = _columns(section, text_width)
     return _Page(body, column_width, columns, int(margin.get("top", 0)) + int(margin.get("header", 0)),
-                 int(margin.get("left", 0)) + int(margin.get("gutter", 0)), text_width, width, unequal)
+                 int(margin.get("left", 0)) + int(margin.get("gutter", 0)), text_width, width, bool(widths),
+                 widths)
 
 
-def _columns(section: Any, text_width: int) -> tuple[int, int, bool]:
-    """(count, width, unequal): the section's columns, their width (the narrowest when they differ)."""
+def _columns(section: Any, text_width: int) -> tuple[int, int, tuple[int, ...]]:
+    """(count, width, widths): the section's columns, their width (the narrowest when they differ) and,
+    when they differ, each one's."""
 
     # Column settings in a cell or a text box (an hp:subList) belong to that list, not the section.
     settings = [cols for cols in section.iter(f"{HP}colPr") if not _in_sub_list(cols)]
@@ -791,15 +835,16 @@ def _columns(section: Any, text_width: int) -> tuple[int, int, bool]:
         raise _Unsupported("the columns change inside the section")
     count = int(settings[0].get("colCount", "1")) if settings else 1
     if count <= 1:
-        return 1, text_width, False
-    if settings[0].get("sameSz") != "1":  # each column takes its share of the width with the gaps (hp:colSz)
-        sizes = settings[0].findall(f"{HP}colSz")
+        return 1, text_width, ()
+    if settings[0].get("sameSz") != "1":  # each column takes its share of the width with the gaps (hp:colSz),
+        sizes = settings[0].findall(f"{HP}colSz")  # rounded
         total = sum(int(size.get("width", 0)) + int(size.get("gap", 0)) for size in sizes)
         if len(sizes) != count or total <= 0:
             raise _Unsupported("columns of unequal width")
-        return count, min(int(size.get("width", 0)) * text_width // total for size in sizes), True
+        widths = tuple((2 * int(size.get("width", 0)) * text_width + total) // (2 * total) for size in sizes)
+        return count, min(widths), widths
     gap = int(settings[0].get("sameGap", 0))
-    return count, (text_width - (count - 1) * gap) // count // 4 * 4, False
+    return count, (text_width - (count - 1) * gap) // count // 4 * 4, ()
 
 
 def _in_sub_list(element: Any) -> bool:
@@ -1179,11 +1224,13 @@ def _anchored_notes(measure: _Measure, runs: list[Any], text: str, widths: list[
 def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | None = None,
                square: Any = None) -> _Para:
     runs = paragraph.findall(f"{HP}run")
-    if page.unequal and not _cached_metrics(paragraph):  # its lines would depend on the column's width
-        raise _Unsupported("a paragraph without a layout cache in columns of unequal width")
     objects = [obj for obj in _placed_objects(runs) if obj is not square]
     if page.unequal and any(obj.find(f"{HP}pos").get("treatAsChar") != "1" for obj in objects):
         raise _Unsupported("an object not set as a character in columns of unequal width")
+    reflow = page.unequal and not _cached_metrics(paragraph)  # its lines depend on the column's width
+    if reflow and (objects or _marks(runs) or _note_anchors(runs)):
+        raise _Unsupported("objects, composed characters, ruby text or footnotes in a paragraph without a "
+                           "layout cache in columns of unequal width")
     text = _run_text(runs)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     anchored = _anchored_object(objects, text, page.column_width)
@@ -1233,9 +1280,13 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     notes = _anchored_notes(measure, runs, text, widths, size, style, page.column_width, sizes if mixed else None,
                             looks)
     flags = shape.flags
-    return _Para(count, size, pitch, shape.prev, shape.next, _on(flags, "pageBreakBefore"), _on(flags, "keepLines"),
+    para = _Para(count, size, pitch, shape.prev, shape.next, _on(flags, "pageBreakBefore"), _on(flags, "keepLines"),
                  _on(flags, "keepWithNext"), _on(flags, "widowOrphan"), paragraph.get("pageBreak") == "1",
                  paragraph.get("columnBreak") == "1", table, notes, cached, anchor, wrap_anchor=around)
+    if reflow and text:
+        again = _Reflow(measure, text, tuple(sizes), None if looks is None else tuple(looks), style, shape)
+        return again.at(para, page.column_width, 0)
+    return para
 
 
 def _extent(obj: Any, side: str) -> int:
@@ -1578,13 +1629,16 @@ class _Paginator:
     """Frames (a page's columns, in order) and vertical positions of every line of a section."""
 
     def __init__(self, body: int, columns: int, notes: _NoteShape,
-                 bands: dict[int, list[tuple[int, int]]] | None = None) -> None:
+                 bands: dict[int, list[tuple[int, int]]] | None = None, widths: tuple[int, ...] = ()) -> None:
         self.body = body
+        self.widths = widths  # each column's width when they differ
         #: frame -> (top, bottom) of the objects placed on the paper there: no line in them
         self.bands = bands or {}
         self.columns = columns
         self.notes = notes
         self.out: list[tuple[int, int]] = []
+        self.counts: list[int] = []  # lines per paragraph
+        self.laid: _Para | None = None  # the paragraph _lay placed last, as it broke its last lines
         self.frame = 0
         self.last_vp: int | None = None
         self.last_pitch = 0
@@ -1603,7 +1657,9 @@ class _Paginator:
         """Lay *paras* out; the number of frames used."""
 
         for index, para in enumerate(paras):
+            first = len(self.out)
             self._paragraph(index, paras, para)
+            self.counts.append(len(self.out) - first)
         return max(self.out[-1][0] if self.out else 0, self.table_end) + 1
 
     def _paragraph(self, index: int, paras: list[_Para], para: _Para) -> None:
@@ -1623,7 +1679,8 @@ class _Paginator:
             return
         first = len(self.out)
         if self._lay(index, paras, para, start, broke):
-            self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], para.advance(para.lines - 1), para.next
+            last = self.laid or para
+            self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], last.advance(last.lines - 1), para.next
         if para.wrap_bottom:  # the band starts here: it stays on this page
             self.wrap_frame = self.out[first][0]
             if self.out[first][1] + para.wrap_bottom > self.body:
@@ -1794,6 +1851,7 @@ class _Paginator:
     def _lay(self, index: int, paras: list[_Para], para: _Para, start: int, broke: bool) -> bool:
         """Place the lines of *para*; False when its notes ended the page after it."""
 
+        para = self._at_width(para, 0)
         remaining, first_chunk = para.lines, True
         fresh = self.last_vp is None or broke
         while remaining:
@@ -1818,12 +1876,26 @@ class _Paginator:
                 self.frame += 1
                 self.page_notes = [self.carry, 1]
                 self.last_vp, self.last_pitch, self.pending_next = None, 0, 0
+                self.laid = para
                 return False
             if remaining:
                 start = self._next_frame(para, count, first_chunk)
+                again = self._at_width(para, para.lines - remaining)
+                if again is not para:
+                    para, remaining = again, again.lines
             fresh = bool(remaining)
             first_chunk = False
+        self.laid = para
         return True
+
+    def _at_width(self, para: _Para, line: int) -> _Para:
+        """*para* with its lines from *line* on broken at the width of the current frame's column, when
+        the columns differ in width and the paragraph has no layout cache."""
+
+        if para.reflow is None or not self.widths:
+            return para
+        width = self.widths[self.frame % self.columns]
+        return para if width == para.reflow.width else para.reflow.at(para, width, line)
 
     def _next_frame(self, para: _Para, count: int, first_chunk: bool) -> int:
         self.frame += 1
@@ -1914,11 +1986,13 @@ def _lay_section(measure: _Measure, section: Any) -> _SectionLayout:
         band = _paper_band(measure, page, paragraph)
         paras.append(para if band is None else replace(para, paper=band))
     paper = {index: para.paper for index, para in enumerate(paras) if para.paper is not None}
-    firsts = [sum(para.lines for para in paras[:index]) for index in range(len(paras))]
     bands: dict[int, list[tuple[int, int]]] = {}
     for _ in range(4):  # an object placed on the paper acts on the page its paragraph lands on
-        paginator = _Paginator(page.body, page.columns, notes, bands)
+        paginator = _Paginator(page.body, page.columns, notes, bands, page.widths)
         frames = paginator.run(paras)
+        firsts = [0]
+        for count in paginator.counts:
+            firsts.append(firsts[-1] + count)
         placed: dict[int, list[tuple[int, int]]] = {}
         for index, band in paper.items():  # on every column of the page
             first = paginator.out[firsts[index]][0] // page.columns * page.columns
@@ -1929,7 +2003,7 @@ def _lay_section(measure: _Measure, section: Any) -> _SectionLayout:
         bands = placed
     else:
         raise _Unsupported("objects placed on the paper whose pages do not settle")
-    return _SectionLayout(page.columns, frames, paginator.out, [para.lines for para in paras])
+    return _SectionLayout(page.columns, frames, paginator.out, paginator.counts)
 
 
 def _assemble(layouts: list[_SectionLayout]) -> PageEstimate:
