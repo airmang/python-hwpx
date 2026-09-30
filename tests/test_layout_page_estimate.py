@@ -195,6 +195,28 @@ def test_a_cell_holding_a_table_among_text_or_top_and_bottom_is_as_tall_as_hanco
     assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
 
 
+@pytest.mark.parametrize("fixture", ["pages_table_nested_square_alone", "pages_table_nested_square_beside_text"])
+def test_a_cell_holding_a_table_wrapped_square_is_as_tall_as_hancom_drew_it(fixture: str) -> None:
+    # A table wrapped square at the left of a paragraph in a cell of a flowing table, alone (the cell
+    # reaches down to its foot) or beside text (the lines beside it are narrower, the rest go below
+    # it): the lines of the cell's caches. Without the caches the estimate does not follow such a cell.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
+    assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
+
+
+@pytest.mark.parametrize("fixture", ["pages_table_nested_top_and_bottom_placed_up_alone",
+                                     "pages_table_nested_square_placed_up_alone"])
+def test_a_table_placed_up_from_its_paragraph_in_a_cell_stands_at_the_paragraph_top(fixture: str) -> None:
+    # A table alone in a cell's paragraph after two lines, placed top and bottom or wrapped square 1000
+    # up from the paragraph's top (a negative offset, kept as an unsigned number): Hancom puts it at the
+    # paragraph's top, and the cell reaches down to its foot from there.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
+
+
 def test_paragraphs_of_several_character_sizes_hancom_laid_out_follow_their_cached_lines() -> None:
     # A Hancom-made document of three sections whose paragraphs mix character sizes: each line is as
     # tall and as far apart as its layout cache says.
