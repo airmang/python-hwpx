@@ -64,7 +64,7 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
 |---|---|---|---|
-| arc·polygon·curve·connectLine | 저작 api | 지원 매트릭스 「arc·polygon·curve·connectLine」(`Parse·Preserve·Create(arc·polygon, experimental)·Render-verified(arc·polygon만)·Unsupported-but-preserved(curve·connectLine)`) · capabilities 영역 `curve-objects` · 위치 `doc.shapes` | Render-verified(experimental 저작 포함) |
+| arc·polygon·curve·connectLine | 저작 api | 지원 매트릭스 「arc·polygon·curve·connectLine」(`Parse·Preserve·Create(experimental)·Render-verified(arc·polygon만)`) · capabilities 영역 `curve-objects` · 위치 `doc.shapes` | Render-verified(experimental 저작 포함) |
 | 그룹 개체(컨테이너) | 저작 api | 지원 매트릭스 「그룹 개체(컨테이너)」(`Parse·Create(experimental)·Render-verified`) · capabilities 영역 `container-authoring` · 위치 `doc.shapes` | Render-verified(experimental 저작 포함) |
 | 그림 삽입/치환 | 저작 api | 지원 매트릭스 「그림 삽입/치환」(`Edit·Create·Render-verified`) · capabilities 영역 `picture` · 위치 루트 `doc.add_picture` + `doc.media` (이진 항목) | Render-verified |
 | 덧말·글자 겹치기 | 저작 api | 지원 매트릭스 「덧말·글자 겹치기」(`Parse·Create·Render-verified`) · capabilities 영역 `dutmal-compose` · 위치 `doc.shapes` | Render-verified |

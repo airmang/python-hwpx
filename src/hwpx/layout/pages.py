@@ -7,30 +7,60 @@
   path would keep that cache -- those are the lines Hancom drew, each as tall as its text and
   followed by its spacing (``textheight``, ``spacing``); so do the paragraphs of table cells, and a
   cache of lines with no height counts as none. Other paragraphs break like FormFit
-  (:func:`hwpx.form_fit.measure.hancom_line_starts`) at the column width less the paragraph's
-  margins and first-line indent, each character at its own size and with its own run's face, 장평
+  (:func:`hwpx.form_fit.measure.hancom_line_starts`) at the column width (a cell's paragraphs at the
+  cell's inner width) less the paragraph's margins and first-line indent, each character at its own
+  size and with its own run's face, 장평
   and 자간; a line of several sizes is as tall as its largest character, and its line spacing is
-  reckoned from that size.
+  reckoned from that size. Composed characters and ruby text (``hp:compose``, ``hp:dutmal``) take
+  their place in the text like characters of their run: a composed one as wide as a Hangul syllable
+  when framed (circle, box ...) or spread, else as its widest character, and no taller than the
+  text; ruby text as wide as its text (however long the ruby), its line as tall as the text with
+  the ruby (its size ratio, half when 0) above it, or below it over the text's foot (91/100 of the
+  em, both counted in 1/1800 inch), and spaced from that height.
 * Height: a line advances by the paragraph's line spacing (percent, fixed, between lines, at
   least), paragraphs add their spacing before and after, and a line stays on the page while its
-  bottom is within the body height. Page and column breaks, page break before, keep lines
-  together, keep with next and widow/orphan control; columns of equal width.
+  bottom is above the body's foot (one ending right at it goes on to the next page). Page and
+  column breaks, page break before, keep lines
+  together, keep with next and widow/orphan control; columns of equal width, and columns of
+  unequal width (each its share of the text width with the gaps, rounded) holding objects only as
+  characters: a paragraph without a valid layout cache breaks the lines a column holds at that
+  column's width, and going on into a column of another width breaks its rest there again, from
+  the first character that column holds.
 * Objects: an object in front of or behind the text takes no room: the lines go where they would
-  without it, wherever it stands. A table or picture set as a character is one line as tall as it.
+  without it, wherever it stands; one placed top and bottom from the paper's top keeps every line of
+  its page out of its band (a line reaching it, in any paragraph on that page, goes below it and
+  the lines after follow; with several columns, in each of them when it covers the text's whole
+  width). A table or picture set as a character is one line as tall as it.
+  A table's caption above or below it takes its lines and its gap there (a caption below goes on
+  to the next page with the table's last row when both do not fit above the foot, as a row would).
   Among text, an object set as a character takes its width on its line like a character, and the
-  line is at least as tall as the object; the line spacing stays the text's (a fixed spacing keeps
-  the next line that far down). A top-and-bottom object anchored to an empty paragraph pushes the
+  line is at least as tall as the object; the line spacing is reckoned from the line's largest
+  character, the object counted at its run's character size (a fixed spacing keeps the next line
+  that far down), and for an object with only spaces beside it from the largest size of any run of
+  its paragraph. A top-and-bottom object anchored to an empty paragraph pushes the
   next line below
   it; anchored in a paragraph of text (from the paragraph's top), it stands at the top of the line
   its place in the text falls on, and that line and the rest of the paragraph come below it --
   offset down, it stands that much lower, and the first line reaching it (in that paragraph or the
   ones after) and the lines after come below it -- a table flowing with the text flows from there
-  over the page end, and that line goes below its end;
-  wrapped square at a column edge before a paragraph's text (or alone in its paragraph), it narrows
-  the lines beside it, in that paragraph and the ones after, by its width -- a table by the height
+  over the page end, and that line goes below its end (so does the line of a paragraph holding only
+  another such table, which then flows from there); a flowing table alone in its paragraph starts
+  its offset below the paragraph's top, above the paragraph's spacing before (one offset up starts
+  there), and the next paragraph goes below the table's end or below the paragraph's line and its
+  own spacing before, whichever is lower;
+  wrapped square anywhere across the column (from the column's, the paragraph's or the paper's left
+  or right) before a paragraph's text (or alone in its paragraph), the text goes on each side of it
+  at least 1440 wide that its text flow allows (both, the larger, the left or the right): a line
+  whose top is above its foot, in that paragraph and the ones after, is narrower by what the object
+  and its outer margins take (a drop cap is such an object), or, with text on both sides, is two
+  pieces at one height, the left one first -- a table by the height
   of its rows -- and wrapped square with no room beside it, it pushes the text below it like a
   top-and-bottom object; a table flowing with the text is laid out row by row -- split between cell lines, moved row
-  by row or moved whole -- with its header rows repeated; a cell merged over rows that is taller
+  by row or moved whole -- with its header rows (any row with a header cell of its own)
+  repeated; one set not to split takes its room under its anchor line when all its rows fit there,
+  else it moves whole to the next page's top while the text after it goes on under its anchor line
+  (anchored at the top of a paragraph of text, the paragraph goes on with it when the line below it
+  does not fit either); a cell merged over rows that is taller
   than them adds what they lack to the last of them, the cell that ends first first (a row with no
   cell of its own starts at 0); in a table moved row by row, rows joined by a cell merged over them
   move to the next page as one, and in one split between cell lines each of their cells keeps the
@@ -38,11 +68,20 @@
   cells' rest (a cell declared taller than its text, whose first line fits, is cut like such a row,
   below). A table set as a character alone in a paragraph of a cell is one line as tall as it
   there, spaced like the text, and a row holding one splits between its cell's lines, each as tall
-  as it is. A row declared taller than its text is cut just above the page's
-  foot, and what is left of it goes on to the next page unless it is no taller than a 10 pt line
+  as it is; a nested table among text, placed top and bottom or wrapped square is followed through
+  the layout caches of its cell, as tall as Hancom drew it (down to such a table's foot; one placed
+  up from its paragraph's top stands at that top). A flowing table's rows use
+  the body only down to just above the page's foot (101 above it, or 2 in a table set not to be
+  adjusted), less the table's bottom outer margin: a row, or a cell line of a row split between its
+  lines, ending lower goes on to the next page (where the table goes on below its top outer margin;
+  a row is split only when every cell's first line fits, otherwise it goes on whole), and a row
+  declared taller than its text, holding
+  such a table or not, is cut there; what is left of it goes on to the next page unless it is no
+  taller than a 10 pt line
   with the default cell margins (the cell's own margins, alignment and character size change
-  neither). A flowing table's anchor line that does not fit at the page end goes to the next page,
-  and the table with it. When a table moved row by row has no
+  neither) and none of its text is left: the lines that do not fit go on with it, which is then at
+  least as tall as they are with the cell's margins. A flowing table's anchor line that does not fit
+  at the page end goes to the next page, and the table with it. When a table moved row by row has no
   room for its first row under its anchor line, it starts on the next page and the text after it
   goes on under the anchor, then below the table on the pages the table takes. Footnotes take
   room at the foot of the page and go on over the page end.
@@ -53,19 +92,23 @@ i.e. Hancom laid the table out as it is. Otherwise a table whose cells merge row
 their tallest cells of one row, and each merged cell, the one that ends first first, gives the last
 of its rows what they lack.
 
-Anything else makes the estimate unsupported: endnotes, a column change inside a section (column
+Anything else makes the estimate unsupported: endnotes, an object not set as a character in columns
+of unequal width, and there a paragraph without such a cache holding objects, composed characters,
+ruby text or footnotes, a column change inside a section (column
 settings in a cell or a text box are that list's own), section settings after a section's first
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but objects set as characters, with line spacing in percent or
 fixed, one top-and-bottom object placed from the paragraph's top, and one object wrapped square
-at a column edge before any text; an object offset down, but a flowing table, or wrapped square
+across the column before any text; an object offset down, but a flowing table, or wrapped square
 stays on one page with the lines above or beside it), footnotes in such a paragraph, two tables
 starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor or on a
-page, a nested table among text or not set as a character (in a table Hancom has not laid out as
-it is), a page break in a flowing row holding a table and declared taller than its text, other
-objects placed on the page or the paper, composed characters and ruby text. ``pages`` is then
-``None`` and
+page, a nested table among text or not set as a character in a cell without such caches (in a table
+Hancom has not laid out as it is), a page break in a flowing row holding a table beside a taller
+cell, other objects placed on the page or the paper (but top and bottom from the paper's top on a
+page without a flowing table), and in a paragraph without such a cache ruby text placed other than
+above or below its text or with line spacing other than percent, and composed characters or ruby
+text beside an object placed otherwise than as a character. ``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -76,7 +119,7 @@ import os
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
-from ..form_fit.measure import hancom_line_starts, text_style_from_refs
+from ..form_fit.measure import char_advance, hancom_line_starts, text_style_from_refs
 from ..oxml._document_primitives import _remove_stale_paragraph_layout_cache
 from ..oxml.namespaces import HH, HP
 from ..oxml.section import _remove_short_paragraph_layout_cache
@@ -97,16 +140,21 @@ _OBJECTS = frozenset({
 })
 #: How an object in front of or behind the text wraps it: it takes no room from the text.
 _FLOATING = frozenset({"IN_FRONT_OF_TEXT", "BEHIND_TEXT"})
-#: Run content that changes a line's height in ways the estimate does not follow.
-_UNSUPPORTED_CONTENT = frozenset({"compose", "dutmal"})
-#: A flowing table row whose declared height leaves room under its text (CELL) is cut this far above
-#: the body's foot; what is left goes on to the next page unless it is _SPARE_DROPPED or less, which
-#: is dropped (the row ends at the page's foot). Both in HWPUNIT, as Hancom lays such rows out
-#: whatever the cells' margins, vertical alignment and character size.
+#: Run content that takes its place in the text like a character: composed characters and ruby text.
+_MARKS = frozenset({"compose", "dutmal"})
+#: A flowing table's rows use the body only down to this far above its foot: a row, or a cell line of
+#: a row split between its lines, ending lower goes on to the next page, and a row whose declared
+#: height leaves room under its text (CELL) is cut there. What is left of such a row goes on to the
+#: next page unless it is _SPARE_DROPPED or less, which is dropped (the row ends at the page's foot).
+#: Both in HWPUNIT, as Hancom lays such rows out whatever the cells' margins, vertical alignment and
+#: character size. A table set not to be adjusted (hp:tbl@noAdjust) uses _SPARE_CUT_FIXED instead.
 _SPARE_CUT = 101
+_SPARE_CUT_FIXED = 2
 _SPARE_DROPPED = 1282
 #: The narrowest line FormFit breaks at, in HWPUNIT.
 _MIN_LINE_WIDTH = 1440
+#: The narrowest side of a square-wrapped object text goes to (1/5 inch): Hancom leaves a narrower one empty.
+_MIN_SIDE = 1440
 
 
 @dataclass(frozen=True)
@@ -237,14 +285,23 @@ def _on(flags: dict[str, str], name: str) -> bool:
 
 
 def _t_text(text_element: Any) -> str:
-    """The text of one ``hp:t``, with ``hp:lineBreak`` as a newline and ``hp:tab`` as a tab."""
+    """The text of one ``hp:t``, with ``hp:lineBreak`` as a newline, ``hp:tab`` as a tab, ``hp:nbSpace`` as a
+    no-break space (U+00A0) and ``hp:fwSpace`` as a fixed-width one (U+3000), as python-hwpx reads them."""
 
     parts = [text_element.text or ""]
     for child in text_element:
         name = _local(child)
-        parts.append("\n" if name == "lineBreak" else "\t" if name == "tab" else "")
+        parts.append({"lineBreak": "\n", "tab": "\t", "nbSpace": "\u00a0", "fwSpace": "\u3000"}.get(name, ""))
         parts.append(child.tail or "")
     return "".join(parts)
+
+
+def _line_widths(shape: _Shape, width: int) -> list[float]:
+    """The first line's and the other lines' widths of a paragraph of *shape* in *width*: less its margins
+    and its first-line indent (a hanging one narrows the other lines)."""
+
+    line = width - shape.left - shape.right
+    return [max(line - max(shape.indent, 0), _MIN_LINE_WIDTH), max(line - max(-shape.indent, 0), _MIN_LINE_WIDTH)]
 
 
 def _run_text(runs: list[Any]) -> str:
@@ -272,11 +329,14 @@ def _cached_metrics(paragraph: Any) -> tuple[tuple[int, int], ...]:
     if not _cache_lines(paragraph):
         return ()
     metrics = []
-    for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg"):
+    segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+    for segment, following in zip(segments, [*segments[1:], None]):
         height = int(segment.get("textheight", segment.get("vertsize", 0)))
         if height <= 0:  # a cache of empty lines is none
             return ()
-        metrics.append((height, height + int(segment.get("spacing", 0))))
+        beside = following is not None and following.get("vertpos") == segment.get("vertpos") \
+            and int(following.get("horzpos", 0)) > int(segment.get("horzpos", 0))  # two pieces of one line
+        metrics.append((height, 0 if beside else height + int(segment.get("spacing", 0))))
     return tuple(metrics)
 
 
@@ -368,6 +428,8 @@ class _Measure:
                 count, size, pitch = 1, tall, tall + pitch - size
             else:
                 cached = _cached_metrics(paragraph) if caches else ()
+                cached = cached or self.marked_lines(paragraph, runs, width) \
+                    or self.mixed_lines(paragraph, runs, shape, width)
                 if cached:  # the lines Hancom laid out, each as tall as it drew it
                     if pending is not None:
                         height += pending + shape.prev
@@ -377,7 +439,7 @@ class _Measure:
                     lines += len(cached)
                     continue
                 count = (_cache_lines(paragraph) if caches else 0) or self.lines(
-                    _run_text(runs), [max(width, _MIN_LINE_WIDTH)], size,
+                    _run_text(runs), _line_widths(shape, width), size,
                     self.style(paragraph.get("paraPrIDRef"), refs)
                 )
             if pending is not None:
@@ -386,6 +448,17 @@ class _Measure:
             pending = pitch - size + shape.next
             lines += count
         return height, lines, pitch, size
+
+    def mixed_lines(self, paragraph: Any, runs: list[Any], shape: _Shape, width: int) -> tuple[tuple[int, int], ...]:
+        """(height, advance) of each line of a paragraph whose characters differ in size or style, laid out at
+        *width* as in the body; empty for one whose characters do not."""
+
+        _, refs, sizes = _text_size(self, runs)
+        looks = _char_styles(self, paragraph, runs)
+        if len(set(sizes)) < 2 and looks is None:
+            return ()
+        style = self.style(paragraph.get("paraPrIDRef"), refs)
+        return _line_metrics(self, _run_text(runs), _line_widths(shape, width), sizes, style, shape, {}, looks)
 
     def stack_lines(self, paragraphs: list[Any], width: int, caches: bool) -> tuple[tuple[int, int], ...]:
         """(height, advance to the next line's top) of every line of *paragraphs* laid out as in
@@ -397,14 +470,29 @@ class _Measure:
             if metrics:  # the gap between the paragraphs
                 last_height, last_advance = metrics[-1]
                 metrics[-1] = (last_height, last_advance + shape.prev)
-            cached = () if _table_alone(paragraph.findall(f"{HP}run")) is not None or not caches \
-                else _cached_metrics(paragraph)
+            runs = paragraph.findall(f"{HP}run")
+            cached = () if _table_alone(runs) is not None or not caches else _cached_metrics(paragraph)
+            if not cached and _table_alone(runs) is None:
+                cached = self.marked_lines(paragraph, runs, width)
             if cached:
                 metrics += list(cached[:-1]) + [(cached[-1][0], cached[-1][1] + shape.next)]
                 continue
             height, count, pitch, size = self.stack([paragraph], width, caches)
             metrics += [(size, pitch)] * (count - 1) + [(height - (count - 1) * pitch, pitch + shape.next)]
         return tuple(metrics)
+
+    def marked_lines(self, paragraph: Any, runs: list[Any], width: int) -> tuple[tuple[int, int], ...]:
+        """(height, advance) of each line of a paragraph holding composed characters or ruby text, laid
+        out at *width* as in the body; empty for a paragraph holding neither."""
+
+        if not _marks(runs):
+            return ()
+        shape = self.shape(paragraph.get("paraPrIDRef"))
+        _check_ruby_spacing(runs, shape)
+        text, sizes, looks, placed, marked = _inline_content(self, paragraph, runs)
+        style = self.style(paragraph.get("paraPrIDRef"), [run.get("charPrIDRef") for run in runs] or ["0"])
+        return _line_metrics(self, text, _line_widths(shape, width), sizes, style, shape, placed,
+                             looks if len(set(looks)) > 1 else None, marked)
 
 
 @dataclass(frozen=True)
@@ -421,6 +509,7 @@ class _Row:
     nested: bool = False  # a cell holds a table
     #: (height, advance) of each line of the row's tallest cell when it holds a table
     metrics: tuple[tuple[int, int], ...] = ()
+    first: int = 0        # the tallest first line of any of its cells
 
 
 @dataclass(frozen=True)
@@ -431,6 +520,21 @@ class _FlowTable:
     margins: tuple[int, int]   # hp:outMargin top, bottom: kept above and below the table
     #: every cell as (the position of its first row in ``rows``, rows it spans, the cell as a row)
     cells: tuple[tuple[int, int, _Row], ...] = ()
+    offset: int = 0            # alone in its paragraph: how far below the paragraph's line it starts
+    caption: tuple[int, int] = (0, 0)  # a caption above it, below it: its lines and its gap
+    cut: int = _SPARE_CUT      # how far above the body's foot its rows end at most
+
+    @property
+    def above(self) -> int:
+        """Room above the first row: the top margin and a caption above."""
+
+        return self.margins[0] + self.caption[0]
+
+    @property
+    def below(self) -> int:
+        """Room below the last row: a caption below and the bottom margin."""
+
+        return self.margins[1] + self.caption[1]
 
 
 def _rows(measure: _Measure, table: Any) -> list[_Row]:
@@ -449,6 +553,8 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
     merged: list[tuple[int, int, _Row]] = []  # (first row, rows spanned, the cell as a row)
     cells: list[tuple[int, int, _Row]] = []
     nested: set[int] = set()  # rows with a cell holding a table
+    headers: set[int] = set()  # rows with a header cell of their own
+    firsts: dict[int, int] = {}  # each row's tallest first line of a cell of its own
     for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
         row, span = _cell_row(measure, table, tc), _row_span(tc)
         address = tc.find(f"{HP}cellAddr")
@@ -456,10 +562,18 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
         cells.append((first, span, row))
         if row.nested:
             nested.update(range(first, first + span))
+        if row.header and span == 1:
+            headers.add(first)
+        if span == 1:
+            firsts[first] = max(firsts.get(first, 0), row.first)
         if span > 1:
             merged.append((first, span, row))
-        elif first not in rows or row.height > rows[first].height:
+        elif first not in rows or (row.height, row.lines) > (rows[first].height, rows[first].lines):
             rows[first] = row
+    for first in headers:  # a header row whatever cell is the tallest
+        rows[first] = replace(rows[first], header=True)
+    for first, line in firsts.items():
+        rows[first] = replace(rows[first], first=line)
     for first, span, cell in merged:
         for index in range(first, first + span):
             if index not in rows:  # every cell over it is merged over rows
@@ -492,26 +606,84 @@ def _table_alone(runs: list[Any]) -> Any:
     return children[0] if pos is not None and pos.get("treatAsChar") == "1" else None
 
 
+def _margin(margin: Any, side: str) -> int:
+    """One side of an object's outer margins (hp:outMargin): a negative one, which the file keeps as an
+    unsigned 32-bit number, counts as none, as Hancom lays it out (and saves it)."""
+
+    value = int(margin.get(side, 0))
+    return 0 if value < 0 or value >= 1 << 31 else value
+
+
 def _extent_margins(obj: Any) -> int:
     margin = obj.find(f"{HP}outMargin")
-    return 0 if margin is None else int(margin.get("top", 0)) + int(margin.get("bottom", 0))
+    return 0 if margin is None else _margin(margin, "top") + _margin(margin, "bottom")
+
+
+def _drawn_lines(measure: _Measure, paragraphs: list[Any]) -> tuple[tuple[int, int], ...]:
+    """(height, advance) of every line of *paragraphs* as Hancom placed them, when every paragraph keeps a
+    valid layout cache; the last line reaches down to the foot of any top-and-bottom or square-wrapped
+    object placed from its paragraph's top (where the paragraph's first line would stand without it).
+    Empty otherwise."""
+
+    if not paragraphs or not all(_cached_metrics(paragraph) for paragraph in paragraphs):
+        return ()
+    tops: list[int] = []
+    heights: list[int] = []
+    foot, after = 0, 0  # after: where the next paragraph's first line would stand
+    for paragraph in paragraphs:
+        shape = measure.shape(paragraph.get("paraPrIDRef"))
+        top = after + shape.prev if tops else 0
+        for obj in (child for run in paragraph.findall(f"{HP}run") for child in run if _local(child) in _OBJECTS):
+            pos = obj.find(f"{HP}pos")
+            if pos is None or pos.get("treatAsChar") == "1" or _floating(obj):
+                continue
+            if obj.get("textWrap") not in ("TOP_AND_BOTTOM", "SQUARE") or pos.get("vertRelTo") != "PARA":
+                return ()
+            foot = max(foot, top + _down(pos) + _extent(obj, "height"))
+        segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+        for segment in segments:
+            tops.append(int(segment.get("vertpos", 0)))
+            heights.append(int(segment.get("textheight", segment.get("vertsize", 0))))
+        last = segments[-1]
+        after = int(last.get("vertpos", 0)) + int(last.get("textheight", 0)) + int(last.get("spacing", 0)) \
+            + shape.next
+    if any(later < earlier for earlier, later in zip(tops, tops[1:])):
+        return ()
+    heights[-1] = max(heights[-1], foot - tops[-1])
+    return tuple((height, (nxt - top) if nxt is not None else height)
+                 for height, top, nxt in zip(heights, tops, [*tops[1:], None]))
+
+
+def _down(pos: Any) -> int:
+    """How far below its paragraph's top an object placed from there stands: one offset up (a negative
+    offset, which the file keeps as an unsigned 32-bit number) stands at the paragraph's top."""
+
+    offset = int(pos.get("vertOffset", 0))
+    return 0 if offset < 0 or offset >= 1 << 31 else offset
 
 
 def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
     paragraphs = cell.findall(f"{HP}subList/{HP}p")
     nested = cell.find(f".//{HP}tbl") is not None
+    drawn: tuple[tuple[int, int], ...] = ()
     if nested and any(paragraph.find(f".//{HP}tbl") is not None
                       and _table_alone(paragraph.findall(f"{HP}run")) is None for paragraph in paragraphs):
-        raise _Unsupported("a nested table")  # among text, or not set as a character
+        drawn = _drawn_lines(measure, paragraphs)  # among text, or not set as a character: as Hancom drew it
+        if not drawn:
+            raise _Unsupported("a nested table")
     size = cell.find(f"{HP}cellSz")
     margins = cell_margins_of(cell, table)
     inner = int(size.get("width", 0)) - margins.left - margins.right
     content, lines, pitch, char_size = measure.stack(paragraphs, inner, caches=True)
+    if drawn:
+        content, lines = sum(advance for _, advance in drawn[:-1]) + drawn[-1][0], len(drawn)
     vertical = margins.top + margins.bottom
     height = max(int(size.get("height", 0)), vertical + content)
+    first = drawn[0][0] if drawn else (measure.stack_lines(paragraphs[:1], inner, caches=True) or ((0, 0),))[0][0]
     return _Row(height, lines, pitch, char_size, vertical, cell.get("header") == "1",
                 spare=height - vertical - content, nested=nested,
-                metrics=measure.stack_lines(paragraphs, inner, caches=True) if nested else ())
+                metrics=(drawn or measure.stack_lines(paragraphs, inner, caches=True)) if nested else (),
+                first=first)
 
 
 @dataclass(frozen=True)
@@ -524,11 +696,14 @@ class _Wrap:
     bottom: int
     cut: int
     push: bool = False
+    #: with text on both sides: the left piece's width (a line in the band is two pieces at one height,
+    #: the right one the line's width less *cut* and this)
+    split: int = 0
 
     def lower(self, by: int) -> "_Wrap | None":
         """The band seen from *by* further down, or ``None`` once it is above."""
 
-        return _Wrap(self.top - by, self.bottom - by, self.cut, self.push) if self.bottom > by else None
+        return replace(self, top=self.top - by, bottom=self.bottom - by) if self.bottom > by else None
 
 
 @dataclass(frozen=True)
@@ -579,6 +754,10 @@ class _Para:
     #: the line the object laid out around the text (the caller's) stands on
     wrap_anchor: int = 0
     band: _Band | None = None
+    #: (top, bottom) in the body of a top-and-bottom object anchored here and placed from the paper's top
+    paper: tuple[int, int] | None = None
+    #: in columns of unequal width, a paragraph without a layout cache: its text, to break again
+    reflow: _Reflow | None = None
 
     def height(self, line: int) -> int:
         return self.cached[line][0] if self.cached else self.size
@@ -595,10 +774,52 @@ class _Para:
 
 
 @dataclass(frozen=True)
+class _Reflow:
+    """A paragraph without a layout cache in columns of unequal width, its lines broken at a column
+    *width* from *offset* in its text on (*starts*: where each of them starts, from *offset*)."""
+
+    measure: _Measure
+    text: str
+    sizes: tuple[int, ...]
+    looks: tuple[Any, ...] | None
+    style: Any
+    shape: _Shape
+    width: int = 0
+    offset: int = 0
+    starts: tuple[int, ...] = ()
+
+    def at(self, para: _Para, width: int, line: int) -> _Para:
+        """*para* with its lines from line *line* on (the lines before it laid out already) broken
+        again at a column *width* wide: Hancom breaks the text a column holds at that column's width,
+        the paragraph's first line less its first-line indent, the others less a hanging one."""
+
+        offset = self.offset + (self.starts[line] if line else 0)
+        text = self.text[offset:]  # empty only after a line break ending the paragraph
+        sizes = list(self.sizes[offset:] or self.sizes[-1:])
+        looks = None if self.looks is None else list(self.looks[offset:] or self.looks[-1:])
+        room = width - self.shape.left - self.shape.right
+        widths: list[float] = [room - max(self.shape.indent, 0), room - max(-self.shape.indent, 0)]
+        if offset:  # the rest: none of its lines is the paragraph's first
+            widths = widths[1:]
+        mixed = len(set(sizes)) > 1
+        starts = self.measure.line_starts(text, widths, min(sizes), self.style, sizes if mixed else None, looks)
+        cached = _line_metrics(self.measure, text, widths, sizes, self.style, self.shape, {}, looks) \
+            if mixed or looks is not None else ()
+        return replace(para, lines=len(starts), cached=cached,
+                       reflow=replace(self, width=width, offset=offset, starts=tuple(starts)))
+
+
+@dataclass(frozen=True)
 class _Page:
     body: int
     column_width: int
     columns: int
+    top: int = 0  # the body's top below the paper's
+    left: int = 0  # the text's left edge right of the paper's
+    text_width: int = 0
+    paper_width: int = 0
+    unequal: bool = False  # columns of unequal width (column_width is the narrowest)
+    widths: tuple[int, ...] = ()  # then each column's width
 
 
 def _page(section: Any) -> _Page:
@@ -609,26 +830,49 @@ def _page(section: Any) -> _Page:
     width, height = _drawn_page_size(int(page.get("width", 0)), int(page.get("height", 0)), page.get("landscape"))
     body = height - sum(int(margin.get(key, 0)) for key in ("top", "bottom", "header", "footer"))
     text_width = width - sum(int(margin.get(key, 0)) for key in ("left", "right", "gutter"))
-    columns, column_width = _columns(section, text_width)
-    return _Page(body, column_width, columns)
+    columns, column_width, widths = _columns(section, text_width)
+    return _Page(body, column_width, columns, int(margin.get("top", 0)) + int(margin.get("header", 0)),
+                 int(margin.get("left", 0)) + int(margin.get("gutter", 0)), text_width, width, bool(widths),
+                 widths)
 
 
-def _columns(section: Any, text_width: int) -> tuple[int, int]:
+def _columns(section: Any, text_width: int) -> tuple[int, int, tuple[int, ...]]:
+    """(count, width, widths): the section's columns, their width (the narrowest when they differ) and,
+    when they differ, each one's."""
+
     # Column settings in a cell or a text box (an hp:subList) belong to that list, not the section.
     settings = [cols for cols in section.iter(f"{HP}colPr") if not _in_sub_list(cols)]
     if len(settings) > 1:
         raise _Unsupported("the columns change inside the section")
     count = int(settings[0].get("colCount", "1")) if settings else 1
     if count <= 1:
-        return 1, text_width
-    if settings[0].get("sameSz") != "1":
-        raise _Unsupported("columns of unequal width")
+        return 1, text_width, ()
+    if settings[0].get("sameSz") != "1":  # each column takes its share of the width with the gaps (hp:colSz),
+        sizes = settings[0].findall(f"{HP}colSz")  # rounded
+        total = sum(int(size.get("width", 0)) + int(size.get("gap", 0)) for size in sizes)
+        if len(sizes) != count or total <= 0:
+            raise _Unsupported("columns of unequal width")
+        widths = tuple((2 * int(size.get("width", 0)) * text_width + total) // (2 * total) for size in sizes)
+        return count, min(widths), widths
     gap = int(settings[0].get("sameGap", 0))
-    return count, (text_width - (count - 1) * gap) // count // 4 * 4
+    return count, (text_width - (count - 1) * gap) // count // 4 * 4, ()
 
 
 def _in_sub_list(element: Any) -> bool:
     return any(_local(ancestor) == "subList" for ancestor in element.iterancestors())
+
+
+def _caption(measure: _Measure, table: Any) -> tuple[int, int]:
+    """How much room a table's caption takes above it and below it: its lines and its gap (a caption
+    beside the table takes none)."""
+
+    caption = table.find(f"{HP}caption")
+    if caption is None or caption.get("side") not in ("TOP", "BOTTOM"):
+        return (0, 0)
+    paragraphs = caption.findall(f"{HP}subList/{HP}p")
+    width = int(caption.get("lastWidth", 0)) or int(table.find(f"{HP}sz").get("width", 0))
+    tall = measure.stack(paragraphs, width, caches=True)[0] + int(caption.get("gap", 0))
+    return (tall, 0) if caption.get("side") == "TOP" else (0, tall)
 
 
 def _inline_table_height(measure: _Measure, table: Any) -> int:
@@ -683,15 +927,85 @@ def _check_section(section: Any) -> None:
 
 
 def _placed_objects(runs: list[Any]) -> list[Any]:
-    contents = {_local(child) for run in runs for child in run}
-    odd = sorted(contents & _UNSUPPORTED_CONTENT)
-    if odd:
-        raise _Unsupported(f"{odd[0]} in a paragraph")
+    """The objects of the runs."""
+
     objects = [child for run in runs for child in run if _local(child) in _OBJECTS]
     for obj in objects:
         if obj.find(f"{HP}pos") is None or obj.find(f"{HP}sz") is None:
             raise _Unsupported(f"{_local(obj)} without a position")
-    return [obj for obj in objects if not _floating(obj)]
+    return [obj for obj in objects if not _floating(obj) and not _on_paper(obj)]
+
+
+def _marks(runs: list[Any]) -> bool:
+    """Whether the runs hold composed characters or ruby text."""
+
+    return any(_local(child) in _MARKS for run in runs for child in run)
+
+
+def _check_ruby_spacing(runs: list[Any], shape: _Shape) -> None:
+    """A line holding ruby text is spaced from its height in percent: other line spacing is not followed."""
+
+    if shape.kind != "PERCENT" and any(_local(child) == "dutmal" for run in runs for child in run):
+        raise _Unsupported("ruby text in a paragraph with line spacing other than percent")
+
+
+def _mark_extent(mark: Any, size: int, style: Any) -> tuple[int, int]:
+    """(width, height) a composed character or ruby text takes as a character of *size* and *style*. A
+    composed one is as wide as a Hangul syllable when framed or spread, else as its widest character,
+    and no taller than the text. Ruby text is as wide as its text, however long the ruby, and as tall as
+    the text with the ruby above it, or below it over the text's foot, in 1/1800 inch."""
+
+    points = size / 100
+    if _local(mark) == "compose":
+        text = mark.get("composeText", "")
+        if mark.get("circleType", "CHAR") != "CHAR" or mark.get("composeType") == "SPREAD" or not text:
+            return round(char_advance("\uac00", points, style)), size
+        return round(max(char_advance(ch, points, style) for ch in text)), size
+    position = mark.get("posType", "TOP")
+    if position not in ("TOP", "BOTTOM"):
+        raise _Unsupported(f"ruby text placed {position}")
+    main = mark.find(f"{HP}mainText")
+    width = round(sum(char_advance(ch, points, style) for ch in (main.text or "" if main is not None else "")))
+    em, ruby = size // 4, size * (int(mark.get("szRatio") or 0) or 50) // 100 // 4
+    return width, 4 * (em + ruby if position == "TOP" else em * 91 // 100 + ruby)
+
+
+def _on_paper(obj: Any) -> bool:
+    """A top-and-bottom object placed from the paper's top, not set as a character: it takes no room in
+    its paragraph but keeps every line of its page out of its band."""
+
+    pos = obj.find(f"{HP}pos")
+    return (pos is not None and pos.get("treatAsChar") != "1" and obj.get("textWrap") == "TOP_AND_BOTTOM"
+            and pos.get("vertRelTo") == "PAPER" and pos.get("vertAlign", "TOP") == "TOP")
+
+
+def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, int] | None:
+    """(top, bottom) in the body of the object of *paragraph* placed on the paper, if any."""
+
+    placed = [child for run in paragraph.findall(f"{HP}run") for child in run
+              if _local(child) in _OBJECTS and _on_paper(child)]
+    if not placed:
+        return None
+    if len(placed) > 1 or (page.columns > 1 and not _across_the_text(placed[0], page)):
+        raise _Unsupported("objects placed on the paper")
+    obj = placed[0]
+    tall = _extent(obj, "height")
+    if _local(obj) == "tbl":  # as tall as its rows
+        tall += sum(row.height for row in _rows(measure, obj)) - int(obj.find(f"{HP}sz").get("height", 0))
+    top = int(obj.find(f"{HP}pos").get("vertOffset", 0)) - page.top
+    return top, top + tall
+
+
+def _across_the_text(obj: Any, page: _Page) -> bool:
+    """Whether an object placed from the paper's left covers the text's whole width (every column)."""
+
+    pos = obj.find(f"{HP}pos")
+    if pos.get("horzRelTo") != "PAPER":
+        return False
+    width, offset = _extent(obj, "width"), int(pos.get("horzOffset", 0))
+    left = {"LEFT": offset, "CENTER": (page.paper_width - width) // 2 + offset,
+            "RIGHT": page.paper_width - width - offset}.get(pos.get("horzAlign", "LEFT"))
+    return left is not None and left <= page.left and left + width >= page.left + page.text_width
 
 
 def _floating(obj: Any) -> bool:
@@ -731,21 +1045,21 @@ def _char_styles(measure: _Measure, paragraph: Any, runs: list[Any]) -> list[Any
 
 def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
                   shape: _Shape, objects: dict[int, tuple[int, int]], styles: list[Any] | None = None,
-                  ) -> tuple[tuple[int, int], ...]:
+                  marks: dict[int, int] | None = None) -> tuple[tuple[int, int], ...]:
     """(height, advance) of each line FormFit breaks *text* into, every character at its own size: a line
     is as tall as its largest character, its line spacing reckoned from that size. An object set as a
     character (*objects*: its place in *text* -> its width and height) takes its width on its line and
-    makes the line at least as tall as itself; the spacing stays the text's, and a fixed line spacing
-    keeps the next line that far down."""
+    makes the line at least as tall as itself, and counts at its run's size for the spacing; a fixed line spacing
+    keeps the next line that far down. A composed character or ruby text (*marks*: its place -> its
+    width) is a character of its size in *sizes*."""
 
-    advances = {index: width for index, (width, _) in objects.items()} or None
+    advances = {**{index: width for index, (width, _) in objects.items()}, **(marks or {})} or None
     starts = measure.line_starts(text, widths, min(sizes), style, sizes if len(set(sizes)) > 1 else None, styles,
                                  advances)
     metrics = []
     for start, end in zip(starts, [*starts[1:], len(text)]):
         span = range(start, end) if end > start else range(len(text) - 1, len(text))
-        texts = [sizes[index] for index in span if index not in objects] or [sizes[index] for index in span]
-        size = max(texts)
+        size = max(sizes[index] for index in span)
         height = max([size] + [objects[index][1] for index in span if index in objects])
         advance = _pitch(shape.kind, shape.value, size)
         metrics.append((height, advance if shape.kind == "FIXED" else height + advance - size))
@@ -758,34 +1072,44 @@ def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
 
     size = obj.find(f"{HP}sz")
     margin = obj.find(f"{HP}outMargin")
-    extra = (0, 0, 0, 0) if margin is None else tuple(int(margin.get(side, 0)) for side in ("left", "right", "top", "bottom"))
-    height = _inline_table_height(measure, obj) if _local(obj) == "tbl" else int(size.get("height", 0))
+    extra = (0, 0, 0, 0) if margin is None else tuple(_margin(margin, side) for side in ("left", "right", "top", "bottom"))
+    height = _inline_table_height(measure, obj) + sum(_caption(measure, obj)) if _local(obj) == "tbl" \
+        else int(size.get("height", 0))
     return int(size.get("width", 0)) + extra[0] + extra[1], height + extra[2] + extra[3]
 
 
-def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple[str, list[int], list[Any],
-                                                                                  dict[int, tuple[int, int]]]:
-    """The paragraph's text with each object set as a character in its place (U+FFFC), each character's
-    size and style, and each object's place -> its width and height. Objects placed otherwise, and line
-    spacing between lines or at least with an object among text, are not followed."""
+def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple[
+        str, list[int], list[Any], dict[int, tuple[int, int]], dict[int, int]]:
+    """The paragraph's text with each object set as a character, composed character and ruby text in its
+    place (U+FFFC), each character's size and style (ruby text's is the height of its line), each
+    object's place -> its width and height, and each composed character's or ruby text's place -> its
+    width. Objects placed otherwise, and line spacing between lines or at least with an object among
+    text, are not followed."""
 
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     text: list[str] = []
     sizes: list[int] = []
     looks: list[Any] = []
     objects: dict[int, tuple[int, int]] = {}
+    marks: dict[int, int] = {}
     for run in runs:
         ref = run.get("charPrIDRef")
         height, look = measure.char_height(ref), measure.style(paragraph.get("paraPrIDRef"), [ref])
         for child in run:
             name = _local(child)
-            if name in _OBJECTS and _floating(child):
+            if name in _OBJECTS and (_floating(child) or _on_paper(child)):
                 continue
             if name in _OBJECTS:
                 if child.find(f"{HP}pos").get("treatAsChar") != "1" or shape.kind not in ("PERCENT", "FIXED"):
                     raise _Unsupported("an object with text or other objects in its paragraph")
                 objects[len(text)] = _object_extent(child, measure)
                 part = "\ufffc"
+            elif name in _MARKS:
+                marks[len(text)], tall = _mark_extent(child, height, look)
+                text.append("\ufffc")
+                sizes.append(tall)
+                looks.append(look)
+                continue
             elif name == "t":
                 part = _t_text(child)
             else:
@@ -793,7 +1117,7 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple
             text += part
             sizes += [height] * len(part)
             looks += [look] * len(part)
-    return "".join(text), sizes, looks, objects
+    return "".join(text), sizes, looks, objects, marks
 
 
 def _anchored_object(objects: list[Any], text: str, column: int) -> Any:
@@ -836,11 +1160,11 @@ def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: 
 
     line = _anchor_line(measure, paragraph, runs, text, obj, widths, size, style, cached, count)
     margin = obj.find(f"{HP}outMargin")
-    top, bottom = (0, 0) if margin is None else (int(margin.get("top", 0)), int(margin.get("bottom", 0)))
+    top, bottom = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
     if _local(obj) == "tbl":
         rows, cells = _table_rows(measure, obj)
         table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
-                           tuple(cells))
+                           tuple(cells), caption=_caption(measure, obj), cut=_spare_cut(obj))
         return _Anchor(line, table, 0)
     return _Anchor(line, None, int(obj.find(f"{HP}sz").get("height", 0)) + top + bottom)
 
@@ -854,19 +1178,21 @@ def _object_line(
     out_margin = obj.find(f"{HP}outMargin")
     top, bottom = (0, 0)
     if out_margin is not None:
-        top, bottom = int(out_margin.get("top", 0)), int(out_margin.get("bottom", 0))
+        top, bottom = _margin(out_margin, "top"), _margin(out_margin, "bottom")
     tall = int(obj.find(f"{HP}sz").get("height", 0)) + top + bottom
     name = _local(obj)
     if pos.get("treatAsChar") == "1":
         if name == "tbl":
-            tall = _inline_table_height(measure, obj) + top + bottom
+            tall = _inline_table_height(measure, obj) + top + bottom + sum(_caption(measure, obj))
         return 1, tall, tall + pitch - size, None
     on_paragraph = pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"
     if _wraps_top_and_bottom(obj, column) and on_paragraph:
         if name == "tbl":
             rows, cells = _table_rows(measure, obj)
+            offset = int(pos.get("vertOffset", 0))  # one up (a negative offset, kept unsigned) starts at the line
             table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
-                               tuple(cells))
+                               tuple(cells), 0 if offset < 0 or offset >= 1 << 31 else offset,
+                               _caption(measure, obj), _spare_cut(obj))
             return count, size, pitch, table
         below = int(pos.get("vertOffset", 0)) + tall
         return 1, below, below, None
@@ -910,10 +1236,21 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
                square: Any = None) -> _Para:
     runs = paragraph.findall(f"{HP}run")
     objects = [obj for obj in _placed_objects(runs) if obj is not square]
+    if page.unequal and any(obj.find(f"{HP}pos").get("treatAsChar") != "1" for obj in objects):
+        raise _Unsupported("an object not set as a character in columns of unequal width")
+    reflow = page.unequal and not _cached_metrics(paragraph)  # its lines depend on the column's width
+    if reflow and (objects or _marks(runs) or _note_anchors(runs)):
+        raise _Unsupported("objects, composed characters, ruby text or footnotes in a paragraph without a "
+                           "layout cache in columns of unequal width")
     text = _run_text(runs)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     anchored = _anchored_object(objects, text, page.column_width)
-    among = anchored is None and bool(objects) and (len(objects) > 1 or bool(text.strip()))  # as characters
+    marks = _marks(runs) and not _cached_metrics(paragraph)  # to lay out like characters
+    if marks:
+        if anchored is not None or wrap is not None or square is not None:
+            raise _Unsupported("composed characters or ruby text beside an object placed otherwise")
+        _check_ruby_spacing(runs, shape)
+    among = anchored is None and (marks or bool(objects) and (len(objects) > 1 or bool(text.strip())))
     alone = bool(objects) and not among and anchored is None  # an object with no text: one line as tall
     cached = () if alone else _cached_metrics(paragraph)
     size, refs, sizes = _text_size(measure, runs)
@@ -923,15 +1260,17 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     mixed = len(set(sizes)) > 1
     looks = _char_styles(measure, paragraph, runs)
     if among:
-        inline_text, inline_sizes, inline_looks, placed = _inline_content(measure, paragraph, runs)
+        inline_text, inline_sizes, inline_looks, placed, marked = _inline_content(measure, paragraph, runs)
         if not cached:
             looks_or_none = inline_looks if len(set(inline_looks)) > 1 else None
-            cached = _line_metrics(measure, inline_text, widths, inline_sizes, style, shape, placed, looks_or_none)
+            cached = _line_metrics(measure, inline_text, widths, inline_sizes, style, shape, placed, looks_or_none,
+                                   marked)
     elif not cached and wrap is not None and not alone and text:
         if anchored is not None:
             raise _Unsupported("a top-and-bottom object beside a square-wrapped object")
-        widths = _wrapped_widths(measure, text, widths, size, style, shape, wrap, sizes if mixed else None, looks)
-        cached = _line_metrics(measure, text, widths, sizes, style, shape, {}, looks)
+        widths, firsts = _wrapped_widths(measure, text, widths, size, style, shape, wrap, sizes if mixed else None,
+                                         looks)
+        cached = _at_one_height(_line_metrics(measure, text, widths, sizes, style, shape, {}, looks), firsts)
     elif not cached and not alone and (mixed or looks is not None):
         cached = _line_metrics(measure, text, widths, sizes, style, shape, {}, looks)
     count = len(cached) or measure.lines(text, widths, size, style)
@@ -940,6 +1279,9 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     if alone:
         if wrap is not None:
             raise _Unsupported("an object beside a square-wrapped object")
+        if objects[0].find(f"{HP}pos").get("treatAsChar") == "1":  # spaced from the largest character size
+            size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)  # of any of its runs
+            pitch = _pitch(shape.kind, shape.value, size)
         count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch, page.column_width)
     anchor = None if anchored is None else _anchor(measure, paragraph, runs, text, anchored, widths, size, style,
                                                    cached, count)
@@ -950,9 +1292,13 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     notes = _anchored_notes(measure, runs, text, widths, size, style, page.column_width, sizes if mixed else None,
                             looks)
     flags = shape.flags
-    return _Para(count, size, pitch, shape.prev, shape.next, _on(flags, "pageBreakBefore"), _on(flags, "keepLines"),
+    para = _Para(count, size, pitch, shape.prev, shape.next, _on(flags, "pageBreakBefore"), _on(flags, "keepLines"),
                  _on(flags, "keepWithNext"), _on(flags, "widowOrphan"), paragraph.get("pageBreak") == "1",
                  paragraph.get("columnBreak") == "1", table, notes, cached, anchor, wrap_anchor=around)
+    if reflow and text:
+        again = _Reflow(measure, text, tuple(sizes), None if looks is None else tuple(looks), style, shape)
+        return again.at(para, page.column_width, 0)
+    return para
 
 
 def _extent(obj: Any, side: str) -> int:
@@ -960,7 +1306,7 @@ def _extent(obj: Any, side: str) -> int:
 
     margin = obj.find(f"{HP}outMargin")
     ends = ("left", "right") if side == "width" else ("top", "bottom")
-    extra = 0 if margin is None else sum(int(margin.get(end, 0)) for end in ends)
+    extra = 0 if margin is None else sum(_margin(margin, end) for end in ends)
     return int(obj.find(f"{HP}sz").get(side, 0)) + extra
 
 
@@ -973,8 +1319,8 @@ def _wraps_top_and_bottom(obj: Any, column: int) -> bool:
 
 
 def _square_object(objects: list[Any], runs: list[Any], column: int) -> Any:
-    """The one object of a paragraph wrapped square at a column edge from the paragraph's top, before
-    any text (text flows on the other side), or ``None``."""
+    """The one object of a paragraph wrapped square across the column from the paragraph's top, before
+    any text, or ``None`` (:func:`_square_sides` says where the text goes beside it)."""
 
     if len(objects) != 1:
         return None
@@ -982,9 +1328,9 @@ def _square_object(objects: list[Any], runs: list[Any], column: int) -> Any:
     pos = obj.find(f"{HP}pos")
     if pos.get("treatAsChar") == "1" or obj.get("textWrap") != "SQUARE" or _wraps_top_and_bottom(obj, column):
         return None
-    placed = (pos.get("vertRelTo"), pos.get("vertAlign", "TOP"), pos.get("horzRelTo"), pos.get("horzAlign"))
-    if placed not in {("PARA", "TOP", "COLUMN", "LEFT"), ("PARA", "TOP", "COLUMN", "RIGHT")} \
-            or int(pos.get("horzOffset", 0)) or obj.get("textFlow", "BOTH_SIDES") != "BOTH_SIDES":
+    if (pos.get("vertRelTo"), pos.get("vertAlign", "TOP")) != ("PARA", "TOP") \
+            or pos.get("horzRelTo") not in ("COLUMN", "PARA", "PAPER") or pos.get("horzAlign") not in ("LEFT", "RIGHT") \
+            or obj.get("textFlow", "BOTH_SIDES") not in ("BOTH_SIDES", "LARGEST_ONLY", "LEFT_ONLY", "RIGHT_ONLY"):
         raise _Unsupported(f"{_local(obj)} wrapped square elsewhere than at a column edge")
     for child in (child for run in runs for child in run):
         if child is obj:
@@ -992,6 +1338,30 @@ def _square_object(objects: list[Any], runs: list[Any], column: int) -> Any:
         if _local(child) == "t" and _t_text(child):
             raise _Unsupported(f"{_local(obj)} wrapped square after text")
     return obj
+
+
+def _square_sides(obj: Any, page: _Page) -> tuple[int, int]:
+    """How wide the text beside a square-wrapped object is on its left and on its right in the column: a
+    side narrower than 1440, or one its text flow leaves out, takes none (0). Placed from the column,
+    the paragraph or the paper's left or right (from the paper only in one column)."""
+
+    pos = obj.find(f"{HP}pos")
+    width, offset = _extent(obj, "width"), int(pos.get("horzOffset", 0))
+    if offset >= 1 << 31:  # kept unsigned: one placed out past the edge
+        offset -= 1 << 32
+    if pos.get("horzRelTo") == "PAPER":
+        if page.columns > 1:
+            raise _Unsupported(f"{_local(obj)} wrapped square from the paper in columns")
+        start = offset - page.left if pos.get("horzAlign") == "LEFT" else page.paper_width - width - offset - page.left
+    else:
+        start = offset if pos.get("horzAlign") == "LEFT" else page.column_width - width - offset
+    left, right = start, page.column_width - start - width
+    flow = obj.get("textFlow", "BOTH_SIDES")
+    if flow == "LARGEST_ONLY":
+        flow = "LEFT_ONLY" if left > right else "RIGHT_ONLY"
+    left = left if left >= _MIN_SIDE and flow != "RIGHT_ONLY" else 0
+    right = right if right >= _MIN_SIDE and flow != "LEFT_ONLY" else 0
+    return left, right
 
 
 def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
@@ -1016,9 +1386,9 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
         if _local(pusher) == "tbl" and pusher.get("pageBreak", "CELL") in ("CELL", "TABLE"):  # it flows
             rows, cells = _table_rows(measure, pusher)
             margin = pusher.find(f"{HP}outMargin")
-            ends = (0, 0) if margin is None else (int(margin.get("top", 0)), int(margin.get("bottom", 0)))
+            ends = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
             table = _FlowTable(rows, pusher.get("pageBreak", "CELL"), pusher.get("repeatHeader") == "1", ends,
-                               tuple(cells))
+                               tuple(cells), caption=_caption(measure, pusher), cut=_spare_cut(pusher))
             return replace(para, band=_Band(para.wrap_anchor, offset, table)), None
         top = para.span(0, para.wrap_anchor) + offset
         tall = _extent(pusher, "height")
@@ -1030,13 +1400,16 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
     starts = square is not None
     if square is not None:
         top = int(square.find(f"{HP}pos").get("vertOffset", 0))
-        cut = _extent(square, "width")
-        if page.column_width - cut < _MIN_LINE_WIDTH:
+        left, right = _square_sides(square, page)
+        if not left and not right:
             raise _Unsupported(f"{_local(square)} wrapped square leaving little room for text")
         tall = _extent(square, "height")
         if _local(square) == "tbl":  # as tall as its rows
             tall += sum(row.height for row in _rows(measure, square)) - int(square.find(f"{HP}sz").get("height", 0))
-        wrap = _Wrap(top, top + tall, cut)
+        if left and right:
+            wrap = _Wrap(top, top + tall, page.column_width - left - right, split=left)
+        else:
+            wrap = _Wrap(top, top + tall, page.column_width - left - right)
     para = _paragraph(measure, page, paragraph, wrap, square)
     if wrap is not None and (para.anchor is not None or para.table is not None):
         raise _Unsupported("an object beside a square-wrapped object")
@@ -1088,24 +1461,49 @@ def _push(para: _Para, band: _Wrap, *, starts: bool) -> tuple[_Para, _Wrap | Non
 
 
 def _wrapped_widths(measure: _Measure, text: str, widths: list[float], size: int, style: Any, shape: _Shape,
-                    wrap: _Wrap, sizes: list[int] | None, looks: list[Any] | None) -> list[float]:
-    """Each line's width with the lines whose top is in *wrap*'s band cut narrower (FormFit breaks the
-    lines, and which lines are in the band follows from their heights; repeated until it settles)."""
+                    wrap: _Wrap, sizes: list[int] | None, looks: list[Any] | None) -> tuple[list[float], set[int]]:
+    """Each FormFit line's width with the lines whose top is in *wrap*'s band cut narrower, or split in two
+    pieces at one height beside an object with text on both sides, and the FormFit lines that are such a
+    line's first piece (FormFit breaks the lines, and which lines are in the band follows from their
+    heights; repeated until it settles)."""
 
-    narrow: set[int] = set()
+    narrow: set[int] = set()  # lines in the band, as the lines Hancom draws
     for _ in range(8):
-        lines = [widths[min(index, 1)] - (wrap.cut if index in narrow else 0) for index in range(max(narrow, default=0) + 2)]
+        lines: list[float] = []
+        firsts: set[int] = set()
+        for index in range(max(narrow, default=0) + 2):
+            full = widths[min(index, 1)]
+            if index in narrow and wrap.split:
+                firsts.add(len(lines))
+                lines += [wrap.split, full - wrap.cut - wrap.split]
+            else:
+                lines.append(full - (wrap.cut if index in narrow else 0))
         starts = measure.line_starts(text, lines, size, style, sizes, looks)
-        top, found = 0, set()
-        for index, (start, end) in enumerate(zip(starts, [*starts[1:], len(text)])):
+        top, found, index, piece = 0, set(), 0, 0
+        while piece < len(starts):
+            pieces = 2 if piece in firsts and piece + 1 < len(starts) else 1
+            start, end = starts[piece], starts[piece + pieces] if piece + pieces < len(starts) else len(text)
             height = max((sizes or [size])[start:end] or [size]) if sizes else size
             if top < wrap.bottom and top + height > wrap.top:
                 found.add(index)
             top += _pitch(shape.kind, shape.value, height)
+            index, piece = index + 1, piece + pieces
         if found == narrow:
-            return lines
+            return lines, firsts
         narrow = found
     raise _Unsupported("lines beside a square-wrapped object that do not settle")
+
+
+def _at_one_height(metrics: tuple[tuple[int, int], ...], firsts: set[int]) -> tuple[tuple[int, int], ...]:
+    """*metrics* with each line of two pieces (*firsts*: its first piece) as tall as its taller piece, the
+    second piece at the first's height."""
+
+    lines = list(metrics)
+    for first in sorted(firsts):
+        if first + 1 < len(lines):
+            (height, advance), (other, after) = lines[first], lines[first + 1]
+            lines[first], lines[first + 1] = (max(height, other), 0), (max(height, other), max(advance, after))
+    return tuple(lines)
 
 
 # -- laying the paragraphs out ---------------------------------------------------------------------
@@ -1123,19 +1521,33 @@ def _repeated_header(table: _FlowTable) -> int:
     return sum(row.height for row in table.rows if row.header) if table.repeat_header else 0
 
 
-def _starts_later(table: _FlowTable, y: int, body: int) -> bool:
-    """Whether a table moved row by row (TABLE) has no room for its first row from *y*, so it starts on
-    the next page. At the top of a page the row is drawn anyway."""
+def _spare_cut(table: Any) -> int:
+    return _SPARE_CUT_FIXED if table.get("noAdjust") == "1" else _SPARE_CUT
 
-    if table.mode != "TABLE" or not table.rows:
+
+def _starts_later(table: _FlowTable, y: int, body: int) -> bool:
+    """Whether a table moved row by row (TABLE) has no room for its first row from *y*, or one set not to
+    split (NONE) no room for all its rows, so it starts on the next page. At the top of a page it is
+    drawn anyway."""
+
+    if table.mode not in ("TABLE", "NONE") or not table.rows:
         return False
-    return y + table.rows[0].height > body and y != _repeated_header(table)
+    first = sum(row.height for row in table.rows) if table.mode == "NONE" else table.rows[0].height
+    return y + first > body - table.margins[1] - table.cut \
+        and y != _repeated_header(table) + table.margins[0]
 
 
 def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, int]:
     """Lay the rows out from vertical position *y*; the frame and position where the table ends."""
 
-    header = _repeated_header(table)
+    body -= table.margins[1]  # the rows keep the table's bottom margin above the page end
+    header = _repeated_header(table) + table.margins[0]  # and go on below its top margin on the next page
+    foot = body - table.cut
+    if table.mode == "NONE":  # set not to split: its rows move as one, drawn anyway at a page's top
+        height = sum(row.height for row in table.rows)
+        if y + height > foot and y != header:
+            frame, y = frame + 1, header
+        return frame, y + height
     rows, index = table.rows, 0
     while index < len(rows):
         end = index
@@ -1143,25 +1555,28 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
             end += 1
         if table.mode == "TABLE" and end > index:  # rows joined by merged cells move as one
             height = sum(row.height for row in rows[index:end + 1])
-            if y + height > body and y != header:
+            if y + height > foot and y != header:
                 if index == 0:
                     raise _Unsupported("a table whose first rows, merged together, have no room under its anchor")
                 frame, y = frame + 1, header
-            if y + height > body:
+            if y + height > foot:
                 raise _Unsupported("rows merged together taller than a page")
             y, index = y + height, end + 1
             continue
         if table.mode == "CELL" and end > index and table.cells \
-                and y + sum(row.height for row in rows[index:end + 1]) > body:  # split cell by cell
+                and y + sum(row.height for row in rows[index:end + 1]) > foot:  # split cell by cell
             frame, y = frame + 1, header + _block_rest(table, index, end, y, body)
-            if y > body:
+            if y > foot:
                 raise _Unsupported("rows merged together taller than a page")
             index = end + 1
             continue
-        before = frame
-        frame, y = _flow_row(table.mode, rows[index], frame, y, body, header)
+        before, start = frame, y
+        frame, y = _flow_row(table.mode, rows[index], frame, y, body, header, table.cut)
         if rows[index].merged and frame != before:
             raise _Unsupported("a page break among rows merged in a flowing table")
+        if index == len(rows) - 1 and table.caption[1] and frame == before and start != header \
+                and y + table.caption[1] > foot:  # a caption below goes on with the last row
+            frame, y = frame + 1, header + rows[index].height
         index += 1
     return frame, y
 
@@ -1173,11 +1588,11 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int, body: int) -
     rest of its cells of one row (the rows after it whole), then each merged cell's rest, the one
     ending first first, adds what its rows lack to the last of them."""
 
-    rows, tops, y = table.rows, {}, top
+    rows, tops, y, foot = table.rows, {}, top, body - table.cut
     for index in range(first, last + 1):
         tops[index] = y
         y += rows[index].height
-    cut = next(index for index in range(first, last + 1) if tops[index] + rows[index].height > body)
+    cut = next(index for index in range(first, last + 1) if tops[index] + rows[index].height > foot)
     heights = dict.fromkeys(range(cut, last + 1), 0)
     rests: list[tuple[int, int, int]] = []
     for start, span, cell in table.cells:
@@ -1188,10 +1603,10 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int, body: int) -
             rest = cell.height
         else:
             fitting = 0
-            while fitting < cell.lines and tops[start] + cell.margins + fitting * cell.pitch + cell.size <= body:
+            while fitting < cell.lines and tops[start] + cell.margins + fitting * cell.pitch + cell.size <= foot:
                 fitting += 1
             if cell.spare and fitting:  # its text starts above the page end: the declared room is cut like a row's
-                rest = tops[start] + cell.height - (body - _SPARE_CUT)
+                rest = tops[start] + cell.height - foot
                 if rest <= _SPARE_DROPPED:
                     continue
             elif cell.spare:  # none of it fits: it goes on whole
@@ -1210,20 +1625,34 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int, body: int) -
     return sum(heights.values())
 
 
-def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) -> tuple[int, int]:
+def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
+              cut: int = _SPARE_CUT) -> tuple[int, int]:
     """A row that does not fit even a fresh page is drawn there anyway, cut at the paper's edge;
     CELL breaks a row between its lines, or a row taller than its text just above the page's foot."""
 
-    remaining, height, metrics = row.lines, row.height, row.metrics
+    remaining, height, metrics, nested = row.lines, row.height, row.metrics, row.nested
+    foot = body - cut
     while True:
-        if y + height <= body:
+        if y + height <= foot:
             return frame, y + height
         fresh = y == header
-        if mode == "CELL" and row.nested:  # between its lines, each as tall as it is (a table is one)
-            if not metrics or row.spare:
+        if mode == "CELL" and nested and row.spare:  # declared taller than its text: cut like any such row
+            if y + row.margins + (metrics[0][0] if metrics else row.size) <= foot:  # once its first line fits
+                rest = height - (foot - y)
+                if rest <= _SPARE_DROPPED:
+                    return frame, body
+                frame, y, nested = frame + 1, header, False
+                remaining, height = 1, rest
+                continue
+            if fresh:
+                return frame, y + height
+            frame, y = frame + 1, header
+            continue
+        if mode == "CELL" and nested:  # between its lines, each as tall as it is (a table is one)
+            if not metrics:
                 raise _Unsupported("a page break in a flowing table row holding a table")
             fitting, top = 0, y + row.margins
-            while fitting < len(metrics) and top + metrics[fitting][0] <= body:
+            while fitting < len(metrics) and top + metrics[fitting][0] <= foot:
                 top += metrics[fitting][1]
                 fitting += 1
             if fitting:
@@ -1235,11 +1664,15 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) 
             continue
         if mode == "CELL":
             fitting = 0
-            while fitting < remaining and y + row.margins + fitting * row.pitch + row.size <= body:
+            while fitting < remaining and y + row.margins + fitting * row.pitch + row.size <= foot:
                 fitting += 1
+            if fitting and remaining == row.lines and y + row.margins + row.first > foot:
+                fitting = 0  # every cell's first line must fit, or the row goes on whole
             if fitting and row.spare:
-                rest = height - (body - _SPARE_CUT - y)
-                if rest <= _SPARE_DROPPED:
+                rest = height - (foot - y)
+                if fitting < remaining and y + height - row.spare > foot:  # its text does not all fit:
+                    rest = max(rest, row.margins + (remaining - fitting - 1) * row.pitch + row.size)  # it goes on
+                elif rest <= _SPARE_DROPPED:
                     return frame, body
                 frame, y = frame + 1, header
                 remaining, height = 1, rest
@@ -1257,16 +1690,21 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) 
 class _Paginator:
     """Frames (a page's columns, in order) and vertical positions of every line of a section."""
 
-    def __init__(self, body: int, columns: int, notes: _NoteShape) -> None:
+    def __init__(self, body: int, columns: int, notes: _NoteShape,
+                 bands: dict[int, list[tuple[int, int]]] | None = None, widths: tuple[int, ...] = ()) -> None:
         self.body = body
+        self.widths = widths  # each column's width when they differ
+        #: frame -> (top, bottom) of the objects placed on the paper there: no line in them
+        self.bands = bands or {}
         self.columns = columns
         self.notes = notes
         self.out: list[tuple[int, int]] = []
+        self.counts: list[int] = []  # lines per paragraph
+        self.laid: _Para | None = None  # the paragraph _lay placed last, as it broke its last lines
         self.frame = 0
         self.last_vp: int | None = None
         self.last_pitch = 0
         self.pending_next = 0
-        self.extra_frames = 0   # frames a table that does not split takes past the text
         self.table_end = 0      # the last frame a flowing table reaches
         self.reserved: dict[int, int] = {}  # frames a table starting past its anchor takes: where text starts
         self.wrap_frame = -1                  # the frame a square-wrapped object's band is on
@@ -1275,32 +1713,36 @@ class _Paginator:
         self.band: tuple[int, int, int | None, int, int] | None = None
         self.page_notes = [0, 0]  # height and count of the notes on the current page
         self.carry = 0          # height of notes going on over the page end
+        self.floor: int | None = None  # where the next paragraph starts at the highest: a table's end
 
     def run(self, paras: list[_Para]) -> int:
         """Lay *paras* out; the number of frames used."""
 
         for index, para in enumerate(paras):
+            first = len(self.out)
             self._paragraph(index, paras, para)
-        return max(self.out[-1][0] if self.out else 0, self.extra_frames, self.table_end) + 1
+            self.counts.append(len(self.out) - first)
+        return max(self.out[-1][0] if self.out else 0, self.table_end) + 1
 
     def _paragraph(self, index: int, paras: list[_Para], para: _Para) -> None:
         start = para.prev if self.last_vp is None else self.last_vp + self.last_pitch + self.pending_next + para.prev
+        if self.floor is not None:
+            start, self.floor = max(start, self.floor), None
         if para.band is not None or self.band is not None:
             self._banded(index, paras, para, start)
             return
         if para.anchor is not None:
             self._anchored(index, paras, para, start)
             return
+        start, broke = self._breaks(para, start)  # a flowing table in the paragraph starts there too
         table = para.table
-        if table is not None and table.mode == "NONE" and start + sum(row.height for row in table.rows) > self.body:
-            self.extra_frames = max(self.extra_frames, self.frame + 1)  # the table moves whole to the next page
-        if table is not None and table.mode != "NONE":
+        if table is not None:
             self._flow(para, table, start)
             return
-        start, broke = self._breaks(para, start)
         first = len(self.out)
         if self._lay(index, paras, para, start, broke):
-            self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], para.advance(para.lines - 1), para.next
+            last = self.laid or para
+            self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], last.advance(last.lines - 1), para.next
         if para.wrap_bottom:  # the band starts here: it stays on this page
             self.wrap_frame = self.out[first][0]
             if self.out[first][1] + para.wrap_bottom > self.body:
@@ -1313,8 +1755,9 @@ class _Paginator:
             start = self._next_frame(para, 0, True)                         # to the next page
         self.out.append((self.frame, start))  # the anchor paragraph's line, under the table's top
         before = self.frame
-        top = start + table.margins[0]
+        top = start - para.prev + table.offset + table.above  # from the paragraph's top, above its spacing
         frame, end = _flow_table(table, self.frame, top, self.body)
+        self._clear_of_paper(before, frame)
         self.table_end = max(self.table_end, frame)
         if start + para.height(0) <= self.body and _starts_later(table, top, self.body):
             self._starts_next_page(para, table, start, frame, end)
@@ -1322,7 +1765,10 @@ class _Paginator:
         self.frame = frame
         if self.frame != before:
             self.page_notes = [0, 0]
-        self.last_vp, self.last_pitch, self.pending_next = end + table.margins[1], 0, para.next
+            self.last_vp, self.last_pitch, self.pending_next = end + table.below, 0, para.next
+        else:  # the next paragraph goes below the anchor line or the table, whichever is lower
+            self.last_vp, self.last_pitch, self.pending_next = start, para.advance(0), para.next
+            self.floor = end + table.below
 
     def _anchored(self, index: int, paras: list[_Para], para: _Para, start: int) -> None:
         """The lines before the anchor's line, the object at that line's top, then the rest of the
@@ -1342,10 +1788,16 @@ class _Paginator:
             top = self.out[-1][1] + head.advance(head.lines - 1)
         if anchor.table is not None:
             table = anchor.table
-            if _starts_later(table, top + table.margins[0], self.body):
+            later = _starts_later(table, top + table.above, self.body)
+            if table.mode == "NONE" and not head.lines and top != self.reserved.get(self.frame, 0) + para.prev \
+                    and (later or top + table.above + sum(row.height for row in table.rows) + table.below
+                         + tail.height(0) > self.body):  # set not to split: it goes on with the line below it
+                top, later = self._next_frame(para, 0, True), False
+            if later:
                 raise _Unsupported("a top-and-bottom table anchored in text that starts on the next page")
-            frame, end = _flow_table(table, self.frame, top + table.margins[0], self.body)
-            self.frame, self.table_end, end = frame, max(self.table_end, frame), end + table.margins[1]
+            frame, end = _flow_table(table, self.frame, top + table.above, self.body)
+            self._clear_of_paper(self.frame, frame)
+            self.frame, self.table_end, end = frame, max(self.table_end, frame), end + table.below
         else:
             if top + anchor.height > self.body and top > 0:
                 raise _Unsupported("a top-and-bottom object anchored in text at a page end")
@@ -1359,20 +1811,31 @@ class _Paginator:
         offset), or one after it: its lines above the band stay, and the first line reaching the band and
         the lines after go on below the table's end."""
 
-        if para.notes or para.anchor is not None or para.table is not None or para.wrap_bottom \
+        if para.notes or para.anchor is not None or para.wrap_bottom \
+                or (para.table is not None and (self.band is None or para.band is not None)) \
                 or (self.band is not None and (para.band is not None or para.page_break or para.break_before
                                                or para.column_break)):
             raise _Unsupported("a page break or another object beside a top-and-bottom table's band")
         start, broke = self._breaks(para, start)
+        if para.table is not None:  # a flowing table alone in its paragraph: its line goes below the band
+            frame, top, bottom, end_frame, end = self.band
+            if self.frame != frame or start + para.height(0) <= top or (bottom is not None and start >= bottom):
+                raise _Unsupported("a page break or another object beside a top-and-bottom table's band")
+            self.band = None
+            if end_frame != self.frame:
+                self.frame, self.page_notes = end_frame, [0, 0]
+            self._flow(para, para.table, end + para.prev)
+            return
         if para.band is not None:
             band, table = para.band, para.band.table
             top = start + para.span(0, band.line) + band.offset
             if start + para.span(0, band.line) + para.height(band.line) > self.body \
-                    or top + table.margins[0] >= self.body or _starts_later(table, top + table.margins[0], self.body):
+                    or top + table.above >= self.body or _starts_later(table, top + table.above, self.body):
                 raise _Unsupported("a top-and-bottom table offset down from a line at a page end")
-            frame, end = _flow_table(table, self.frame, top + table.margins[0], self.body)
+            frame, end = _flow_table(table, self.frame, top + table.above, self.body)
+            self._clear_of_paper(self.frame, frame)
             self.table_end = max(self.table_end, frame)
-            bottom = end + table.margins[1]
+            bottom = end + table.below
             self.band = (self.frame, top, bottom if frame == self.frame else None, frame, bottom)
         assert self.band is not None
         frame, top, bottom, end_frame, end = self.band
@@ -1403,6 +1866,26 @@ class _Paginator:
         if self._lay(index, paras, tail, end, False):
             self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], tail.advance(tail.lines - 1), para.next
 
+    def _clear_of_paper(self, first: int, last: int) -> None:
+        if any(frame in self.bands for frame in range(first, last + 1)):
+            raise _Unsupported("a table on a page with an object placed on the paper")
+
+    def _band_hit(self, para: _Para, first: int, count: int, start: int) -> tuple[int, int] | None:
+        """(how many lines from line *first* come before it, its bottom) of the first object placed on the
+        paper of this frame that one of *count* lines laid from *start* reaches, or ``None``."""
+
+        bands = self.bands.get(self.frame)
+        if not bands:
+            return None
+        for line in range(count):
+            top = start + para.span(first, line)
+            if top >= self.body:
+                return None
+            reached = [bottom for above, bottom in bands if top < bottom and top + para.height(first + line) > above]
+            if reached:
+                return line, max(reached)
+        return None
+
     def _starts_next_page(self, para: _Para, table: _FlowTable, start: int, frame: int, end: int) -> None:
         """The anchor line fits but the table's first row does not, so the table starts on the next page
         and ends in *frame* at *end*. The text after it goes on under the anchor line, and on the pages the
@@ -1412,7 +1895,7 @@ class _Paginator:
         if any(page in self.reserved for page in taken):
             raise _Unsupported("two tables starting past their anchors on one page")
         self.reserved.update(dict.fromkeys(taken, self.body))
-        self.reserved[frame] = end + table.margins[1]
+        self.reserved[frame] = end + table.below
         self.last_vp, self.last_pitch, self.pending_next = start, para.advance(para.lines - 1), para.next
 
     def _breaks(self, para: _Para, start: int) -> tuple[int, bool]:
@@ -1430,13 +1913,24 @@ class _Paginator:
     def _lay(self, index: int, paras: list[_Para], para: _Para, start: int, broke: bool) -> bool:
         """Place the lines of *para*; False when its notes ended the page after it."""
 
+        para = self._at_width(para, 0)
         remaining, first_chunk = para.lines, True
         fresh = self.last_vp is None or broke
         while remaining:
             done = para.lines - remaining
+            hit = self._band_hit(para, done, remaining, start)
+            if hit is not None and hit[0] == 0:  # the line reaches an object placed on the paper: below it
+                start = hit[1]
+                continue
             count = self._chunk(index, paras, para, start, remaining, done, first_chunk)
             if count == 0 and (self.last_vp is None or fresh) and not self.reserved.get(self.frame):
                 count = 1  # a line taller than the page still takes an empty page (and overflows it)
+            if hit is not None and hit[0] < count:  # the lines above it stay, the next goes below it
+                count = hit[0]
+                self.out.extend((self.frame, start + para.span(done, j)) for j in range(count))
+                self._place(para, done, count)
+                remaining, start, first_chunk = remaining - count, hit[1], False
+                continue
             self.out.extend((self.frame, start + para.span(done, j)) for j in range(count))
             self._place(para, done, count)
             remaining -= count
@@ -1444,12 +1938,26 @@ class _Paginator:
                 self.frame += 1
                 self.page_notes = [self.carry, 1]
                 self.last_vp, self.last_pitch, self.pending_next = None, 0, 0
+                self.laid = para
                 return False
             if remaining:
                 start = self._next_frame(para, count, first_chunk)
+                again = self._at_width(para, para.lines - remaining)
+                if again is not para:
+                    para, remaining = again, again.lines
             fresh = bool(remaining)
             first_chunk = False
+        self.laid = para
         return True
+
+    def _at_width(self, para: _Para, line: int) -> _Para:
+        """*para* with its lines from *line* on broken at the width of the current frame's column, when
+        the columns differ in width and the paragraph has no layout cache."""
+
+        if para.reflow is None or not self.widths:
+            return para
+        width = self.widths[self.frame % self.columns]
+        return para if width == para.reflow.width else para.reflow.at(para, width, line)
 
     def _next_frame(self, para: _Para, count: int, first_chunk: bool) -> int:
         self.frame += 1
@@ -1495,8 +2003,8 @@ class _Paginator:
         return count
 
     def _fits(self, start: int, count: int, para: _Para, first: int = 0) -> int:
-        """How many of *count* lines (from line *first*) from *start* stay in the frame, each above the
-        note area including the notes anchored in it. A line whose notes fit only in part (at least
+        """How many of *count* lines (from line *first*) from *start* stay in the frame, each ending above
+        the note area including the notes anchored in it. A line whose notes fit only in part (at least
         their first line) still stays, and ends the frame."""
 
         fitting, height, many = 0, self.page_notes[0], self.page_notes[1]
@@ -1504,10 +2012,10 @@ class _Paginator:
         while fitting < count:
             note_height, notes, head = para.notes.get(first + fitting, (0, 0, 0))
             bottom = start + para.span(first, fitting) + para.height(first + fitting)
-            if bottom <= self.body - self.notes.area(height + note_height, many + notes):
+            if bottom < self.body - self.notes.area(height + note_height, many + notes):
                 height, many, fitting = height + note_height, many + notes, fitting + 1
                 continue
-            if notes and bottom <= self.body - self.notes.area(height + head, many + notes):
+            if notes and bottom < self.body - self.notes.area(height + head, many + notes):
                 room = self.body - bottom - self.notes.area(height, many + notes) + note_height
                 self.carry = max(note_height - room, 0)
                 fitting += 1
@@ -1537,10 +2045,27 @@ def _lay_section(measure: _Measure, section: Any) -> _SectionLayout:
     wrap: _Wrap | None = None
     for paragraph in section.findall(f"{HP}p"):
         para, wrap = _wrapped_paragraph(measure, page, paragraph, wrap)
-        paras.append(para)
-    paginator = _Paginator(page.body, page.columns, notes)
-    frames = paginator.run(paras)
-    return _SectionLayout(page.columns, frames, paginator.out, [para.lines for para in paras])
+        band = _paper_band(measure, page, paragraph)
+        paras.append(para if band is None else replace(para, paper=band))
+    paper = {index: para.paper for index, para in enumerate(paras) if para.paper is not None}
+    bands: dict[int, list[tuple[int, int]]] = {}
+    for _ in range(4):  # an object placed on the paper acts on the page its paragraph lands on
+        paginator = _Paginator(page.body, page.columns, notes, bands, page.widths)
+        frames = paginator.run(paras)
+        firsts = [0]
+        for count in paginator.counts:
+            firsts.append(firsts[-1] + count)
+        placed: dict[int, list[tuple[int, int]]] = {}
+        for index, band in paper.items():  # on every column of the page
+            first = paginator.out[firsts[index]][0] // page.columns * page.columns
+            for frame in range(first, first + page.columns):
+                placed.setdefault(frame, []).append(band)
+        if placed == bands:
+            break
+        bands = placed
+    else:
+        raise _Unsupported("objects placed on the paper whose pages do not settle")
+    return _SectionLayout(page.columns, frames, paginator.out, paginator.counts)
 
 
 def _assemble(layouts: list[_SectionLayout]) -> PageEstimate:

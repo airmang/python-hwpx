@@ -712,6 +712,12 @@
       "rationale": "Experimental page estimate (re-exported from hwpx.experimental): follows each body paragraph onto its page and column from the document alone -- lines from a paragraph's valid layout cache or FormFit line breaking, line and paragraph spacing, page/column breaks and paragraph break rules, equal columns, inline and flowing tables, top-and-bottom objects and footnotes -- and reports anything else as unsupported with a reason. Reads OXML only; writes nothing."
     },
     {
+      "path": "src/hwpx/oxml/curves.py",
+      "disposition": "core",
+      "approvedBy": "shape-curves-and-connectors",
+      "rationale": "HwpxOxmlParagraph.add_curve and add_connector: builds hp:curve (CURVE segments through the given points, the box of the Catmull-Rom curve through them, the points relative to that box) and hp:connectLine (STRAIGHT or STROKE, NOARROW) whose ends sit at the middle of a side of two floating objects placed in the same frame, with the connector's start/end object references. A new module rather than more objects.py lines (the 1,600-line owner-file cap); the two builders are attached to HwpxOxmlParagraph as plain class attributes, the same escape valve as shape_position.py and drop_cap.py. Format-level only: no renderer, application workflow or agent policy."
+    },
+    {
       "path": "src/hwpx/form_fit/_glyph_table.py",
       "disposition": "core",
       "approvedBy": "formfit-glyph-widths",
