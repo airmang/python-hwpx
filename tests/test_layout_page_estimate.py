@@ -92,6 +92,9 @@ HANCOM_PAGES = {
     "pages_table_nested_row_moved": 2,  # none of a row holding a table fits: it goes on whole
     "pages_table_nested_row_declared_cut": 2,  # the same row declared 16000: cut above the foot, the rest goes on
     "pages_table_nested_row_declared_cut_near_foot": 2,  # declared 24000, cut 3579 below its top
+    "pages_table_nested_row_declared_first_line_100_above_page_foot": 2,  # its first line ends 100 above
+                                                                          # the page's foot: it goes on whole
+    "pages_table_nested_row_declared_first_line_101_above_page_foot": 2,  # 101 above it: cut there
     "pages_objects_among_text_table": 2,  # a full-width table set as a character among text
     "pages_objects_among_text_equation": 1,  # equations set as characters among text
     "pages_objects_after_text_rectangle": 1,  # rectangles set as characters after text
@@ -116,6 +119,13 @@ HANCOM_PAGES = {
     "pages_rectangle_behind_text_alone": 1,  # a rectangle behind the text alone: an empty line
     "pages_table_as_character_beside_rectangle_in_front": 1,  # beside a rectangle in front, on the paper
     "pages_picture_behind_text_past_page_foot": 2,  # a picture behind the text past the page foot
+    "pages_rectangle_on_paper_pushes_its_line": 1,  # top and bottom 15000 below the paper's top: the
+                                                     # second line of its paragraph goes below it
+    "pages_rectangle_on_paper_at_page_top": 2,  # 4000 below it, anchored mid-page: the page's first
+                                                 # lines, in paragraphs before its own, go below it
+    "pages_table_on_paper_pushes_a_later_line": 1,  # a table 40000 below it: a line of a later paragraph
+    "pages_rectangle_on_paper_across_two_columns": 2,  # across both columns, anchored in the second:
+                                                        # the lines of both columns go below it
 }
 
 
@@ -229,6 +239,28 @@ def test_a_negative_outer_margin_counts_as_none() -> None:
     data = (FIXTURES / "pages_table_outer_margins_saved_from_negative.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_with_outer_margins(data, (-500) & 0xFFFFFFFF)), data, 2)
+
+
+@pytest.mark.parametrize("fixture", ["pages_table_nested_square_alone", "pages_table_nested_square_beside_text"])
+def test_a_cell_holding_a_table_wrapped_square_is_as_tall_as_hancom_drew_it(fixture: str) -> None:
+    # A table wrapped square at the left of a paragraph in a cell of a flowing table, alone (the cell
+    # reaches down to its foot) or beside text (the lines beside it are narrower, the rest go below
+    # it): the lines of the cell's caches. Without the caches the estimate does not follow such a cell.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
+    assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
+
+
+@pytest.mark.parametrize("fixture", ["pages_table_nested_top_and_bottom_placed_up_alone",
+                                     "pages_table_nested_square_placed_up_alone"])
+def test_a_table_placed_up_from_its_paragraph_in_a_cell_stands_at_the_paragraph_top(fixture: str) -> None:
+    # A table alone in a cell's paragraph after two lines, placed top and bottom or wrapped square 1000
+    # up from the paragraph's top (a negative offset, kept as an unsigned number): Hancom puts it at the
+    # paragraph's top, and the cell reaches down to its foot from there.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
 
 
 def test_paragraphs_of_several_character_sizes_hancom_laid_out_follow_their_cached_lines() -> None:
@@ -405,6 +437,21 @@ def test_a_new_document_is_one_page() -> None:
 
     assert estimate.pages == 1
     assert estimate.lines[-1] == (EstimatedLine(page=0, column=0, vertpos=1600),)
+
+
+def test_an_object_placed_on_the_paper_on_a_page_with_a_flowing_table_is_unsupported() -> None:
+    document, _ = _flowing_table_after(3, 3)
+    paragraph = document.add_paragraph("종이 기준 개체 곁 글")
+    rectangle = document.shapes.add_rectangle(20000, 8000, treat_as_char=True, paragraph=paragraph).element
+    rectangle.set("textWrap", "TOP_AND_BOTTOM")
+    for key, value in (("treatAsChar", "0"), ("vertRelTo", "PAPER"), ("horzRelTo", "PAPER"),
+                       ("vertAlign", "TOP"), ("vertOffset", "15000")):
+        rectangle.find(f"{HP}pos").set(key, value)
+
+    estimate = estimate_pages(document)
+
+    assert estimate.pages is None
+    assert estimate.unsupported == ("section 0: a table on a page with an object placed on the paper",)
 
 
 def test_a_document_with_endnotes_is_unsupported() -> None:
