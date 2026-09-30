@@ -22,6 +22,9 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_PAGES = {
+    "pages_empty_run_ending_a_paragraph": 2,  # spaces or text before an empty run of another size (and
+                                               # after one): the one ending a paragraph makes its last line
+                                               # as tall as itself when larger
     "pages_text_12pt_160": 5,             # 12 pt text, line spacing 160%
     "pages_spacing_20_20": 3,             # spacing before and after paragraphs
     "pages_boundary_widow_on": 2,         # widow/orphan control at the page end
