@@ -109,6 +109,13 @@ HANCOM_PAGES = {
     "pages_rectangle_behind_text_alone": 1,  # a rectangle behind the text alone: an empty line
     "pages_table_as_character_beside_rectangle_in_front": 1,  # beside a rectangle in front, on the paper
     "pages_picture_behind_text_past_page_foot": 2,  # a picture behind the text past the page foot
+    "pages_rectangle_on_paper_pushes_its_line": 1,  # top and bottom 15000 below the paper's top: the
+                                                     # second line of its paragraph goes below it
+    "pages_rectangle_on_paper_at_page_top": 2,  # 4000 below it, anchored mid-page: the page's first
+                                                 # lines, in paragraphs before its own, go below it
+    "pages_table_on_paper_pushes_a_later_line": 1,  # a table 40000 below it: a line of a later paragraph
+    "pages_rectangle_on_paper_across_two_columns": 2,  # across both columns, anchored in the second:
+                                                        # the lines of both columns go below it
 }
 
 
@@ -372,6 +379,21 @@ def test_a_new_document_is_one_page() -> None:
 
     assert estimate.pages == 1
     assert estimate.lines[-1] == (EstimatedLine(page=0, column=0, vertpos=1600),)
+
+
+def test_an_object_placed_on_the_paper_on_a_page_with_a_flowing_table_is_unsupported() -> None:
+    document, _ = _flowing_table_after(3, 3)
+    paragraph = document.add_paragraph("종이 기준 개체 곁 글")
+    rectangle = document.shapes.add_rectangle(20000, 8000, treat_as_char=True, paragraph=paragraph).element
+    rectangle.set("textWrap", "TOP_AND_BOTTOM")
+    for key, value in (("treatAsChar", "0"), ("vertRelTo", "PAPER"), ("horzRelTo", "PAPER"),
+                       ("vertAlign", "TOP"), ("vertOffset", "15000")):
+        rectangle.find(f"{HP}pos").set(key, value)
+
+    estimate = estimate_pages(document)
+
+    assert estimate.pages is None
+    assert estimate.unsupported == ("section 0: a table on a page with an object placed on the paper",)
 
 
 def test_a_document_with_endnotes_is_unsupported() -> None:
