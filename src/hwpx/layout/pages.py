@@ -11,7 +11,8 @@
   cell's inner width) less the paragraph's margins and first-line indent, each character at its own
   size and with its own run's face, 장평
   and 자간; a line of several sizes is as tall as its largest character, and its line spacing is
-  reckoned from that size. Composed characters and ruby text (``hp:compose``, ``hp:dutmal``) take
+  reckoned from that size; an empty run ending a paragraph makes its last line as tall as itself
+  (one before the text does not). Composed characters and ruby text (``hp:compose``, ``hp:dutmal``) take
   their place in the text like characters of their run: a composed one as wide as a Hangul syllable
   when framed (circle, box ...) or spread, else as its widest character, and no taller than the
   text; ruby text as wide as its text (however long the ruby), its line as tall as the text with
@@ -454,10 +455,12 @@ class _Measure:
 
         _, refs, sizes = _text_size(self, runs)
         looks = _char_styles(self, paragraph, runs)
-        if len(set(sizes)) < 2 and looks is None:
+        end = _end_size(self, runs, sizes)
+        if len(set(sizes)) < 2 and looks is None and not end:
             return ()
         style = self.style(paragraph.get("paraPrIDRef"), refs)
-        return _line_metrics(self, _run_text(runs), _line_widths(shape, width), sizes, style, shape, {}, looks)
+        return _line_metrics(self, _run_text(runs), _line_widths(shape, width), sizes, style, shape, {}, looks,
+                             end=end)
 
     def stack_lines(self, paragraphs: list[Any], width: int, caches: bool) -> tuple[tuple[int, int], ...]:
         """(height, advance to the next line's top) of every line of *paragraphs* laid out as in
@@ -1029,6 +1032,17 @@ def _text_size(measure: _Measure, runs: list[Any]) -> tuple[int, list[Any], list
     return min(sizes or [measure.char_height(ref) for ref in refs]), refs, sizes
 
 
+def _end_size(measure: _Measure, runs: list[Any], sizes: list[int]) -> int:
+    """The size the paragraph's end gives its last line: an empty run ending a paragraph with text makes that
+    line as tall as itself when it is larger than the line's text, whatever the lines before it hold (an empty
+    run before the text does not); 0 when it is no larger than any character."""
+
+    if not runs or not sizes or any(len(child) or child.tag != f"{HP}t" or child.text for child in runs[-1]):
+        return 0
+    size = measure.char_height(runs[-1].get("charPrIDRef"))
+    return size if size > min(sizes) else 0
+
+
 def _char_styles(measure: _Measure, paragraph: Any, runs: list[Any]) -> list[Any] | None:
     """Each character's style from its own run when the runs holding text differ in face, 장평 or 자간;
     ``None`` when they do not."""
@@ -1044,21 +1058,22 @@ def _char_styles(measure: _Measure, paragraph: Any, runs: list[Any]) -> list[Any
 
 def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
                   shape: _Shape, objects: dict[int, tuple[int, int]], styles: list[Any] | None = None,
-                  marks: dict[int, int] | None = None) -> tuple[tuple[int, int], ...]:
+                  marks: dict[int, int] | None = None, end: int = 0) -> tuple[tuple[int, int], ...]:
     """(height, advance) of each line FormFit breaks *text* into, every character at its own size: a line
     is as tall as its largest character, its line spacing reckoned from that size. An object set as a
     character (*objects*: its place in *text* -> its width and height) takes its width on its line and
     makes the line at least as tall as itself, and counts at its run's size for the spacing; a fixed line spacing
     keeps the next line that far down. A composed character or ruby text (*marks*: its place -> its
-    width) is a character of its size in *sizes*."""
+    width) is a character of its size in *sizes*. The last line is at least as tall as the paragraph's
+    end (*end*, see :func:`_end_size`)."""
 
     advances = {**{index: width for index, (width, _) in objects.items()}, **(marks or {})} or None
     starts = measure.line_starts(text, widths, min(sizes), style, sizes if len(set(sizes)) > 1 else None, styles,
                                  advances)
     metrics = []
-    for start, end in zip(starts, [*starts[1:], len(text)]):
-        span = range(start, end) if end > start else range(len(text) - 1, len(text))
-        size = max(sizes[index] for index in span)
+    for start, stop in zip(starts, [*starts[1:], len(text)]):
+        span = range(start, stop) if stop > start else range(len(text) - 1, len(text))
+        size = max([sizes[index] for index in span] + ([end] if stop == len(text) else []))
         height = max([size] + [objects[index][1] for index in span if index in objects])
         advance = _pitch(shape.kind, shape.value, size)
         metrics.append((height, advance if shape.kind == "FIXED" else height + advance - size))
@@ -1256,22 +1271,23 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     style = measure.style(paragraph.get("paraPrIDRef"), refs)
     line = page.column_width - shape.left - shape.right
     widths: list[float] = [line - max(shape.indent, 0), line - max(-shape.indent, 0)]
-    mixed = len(set(sizes)) > 1
+    end = _end_size(measure, runs, sizes)
+    mixed = len(set(sizes)) > 1 or bool(end)
     looks = _char_styles(measure, paragraph, runs)
     if among:
         inline_text, inline_sizes, inline_looks, placed, marked = _inline_content(measure, paragraph, runs)
         if not cached:
             looks_or_none = inline_looks if len(set(inline_looks)) > 1 else None
             cached = _line_metrics(measure, inline_text, widths, inline_sizes, style, shape, placed, looks_or_none,
-                                   marked)
+                                   marked, end)
     elif not cached and wrap is not None and not alone and text:
         if anchored is not None:
             raise _Unsupported("a top-and-bottom object beside a square-wrapped object")
         widths, firsts = _wrapped_widths(measure, text, widths, size, style, shape, wrap, sizes if mixed else None,
                                          looks)
-        cached = _at_one_height(_line_metrics(measure, text, widths, sizes, style, shape, {}, looks), firsts)
+        cached = _at_one_height(_line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end), firsts)
     elif not cached and not alone and (mixed or looks is not None):
-        cached = _line_metrics(measure, text, widths, sizes, style, shape, {}, looks)
+        cached = _line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end)
     count = len(cached) or measure.lines(text, widths, size, style)
     pitch = _pitch(shape.kind, shape.value, size)
     table = None
