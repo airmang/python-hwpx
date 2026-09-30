@@ -101,8 +101,11 @@ Confidence = Literal["high", "low"]
 
 # --- Hancom line layout rules (no font file needed) --------------------------- #
 #: Spaces that hang past the right margin at a line end; a line never starts
-#: with one.
-_HANGING_SPACES = " " + chr(0xA0)
+#: with one. A no-break space (묶음 빈칸, U+00A0) does neither: it is a half-em
+#: space like the others that keeps the words beside it on one line.
+_HANGING_SPACES = " "
+#: The spaces Hancom makes half an em wide (unless the font's own space is used).
+_HALF_EM_SPACES = frozenset(" \u00a0")
 #: Closing punctuation that never starts a line; it moves down with the
 #: character before it.
 _NO_LINE_START = frozenset("!%),.:;?]}¢°’”‰′″℃〉》」』】〕…·、。")
@@ -375,7 +378,8 @@ class TextStyle:
 
     ``ratio`` (장평, %) and ``spacing`` (자간, % of each glyph's own width)
     scale every advance, except that the glyph ending a line takes no 자간
-    after it, and a space is half an em unless ``use_font_space``. They are
+    after it, and a space (a no-break one too) is half an em unless
+    ``use_font_space``. They are
     the Hangul script's; ``scripts`` holds ``(script, 장평, 자간)`` for the
     Latin, symbol and Hanja scripts when the character shape gives them values
     of their own, and each glyph takes its script's (see :func:`glyph_script`).
@@ -441,10 +445,10 @@ def _scaling(ch: str, style: TextStyle) -> tuple[float, float]:
 
     if not style.scripts:
         return style.ratio, style.spacing
-    script = "latin" if ch == " " else glyph_script(ch)
+    script = glyph_script(ch)
     for name, ratio, spacing in style.scripts:
         if name == script:
-            return (style.ratio if ch == " " else ratio), spacing
+            return (style.ratio if ch in _HALF_EM_SPACES else ratio), spacing
     return style.ratio, style.spacing
 
 
@@ -489,7 +493,7 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     cls = classify_char(ch)
     height = round(font_pt * 100.0)
     ratio, spacing = _scaling(ch, style)
-    if ch == " " and not style.use_font_space:
+    if ch in _HALF_EM_SPACES and not style.use_font_space:
         return _laid_out_space(height, ratio, spacing)
     if cls == "hangul":
         design, base = _design_units(style.hangul_face, None), style.hangul_advance
