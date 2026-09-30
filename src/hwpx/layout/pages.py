@@ -47,14 +47,19 @@
   its offset below the paragraph's top, above the paragraph's spacing before (one offset up starts
   there), and the next paragraph goes below the table's end or below the paragraph's line and its
   own spacing before, whichever is lower;
-  wrapped square at the left or right edge of the column or of its paragraph before a paragraph's
-  text (or alone in its paragraph), the text on its other side or on both, it narrows the lines
-  whose top is above its foot, in that paragraph and the ones after, by its width and outer
-  margins (a drop cap is one) -- a table by the height
+  wrapped square anywhere across the column (from the column's, the paragraph's or the paper's left
+  or right) before a paragraph's text (or alone in its paragraph), the text goes on each side of it
+  at least 1440 wide that its text flow allows (both, the larger, the left or the right): a line
+  whose top is above its foot, in that paragraph and the ones after, is narrower by what the object
+  and its outer margins take (a drop cap is such an object), or, with text on both sides, is two
+  pieces at one height, the left one first -- a table by the height
   of its rows -- and wrapped square with no room beside it, it pushes the text below it like a
   top-and-bottom object; a table flowing with the text is laid out row by row -- split between cell lines, moved row
   by row or moved whole -- with its header rows (any row with a header cell of its own)
-  repeated; a cell merged over rows that is taller
+  repeated; one set not to split takes its room under its anchor line when all its rows fit there,
+  else it moves whole to the next page's top while the text after it goes on under its anchor line
+  (anchored at the top of a paragraph of text, the paragraph goes on with it when the line below it
+  does not fit either); a cell merged over rows that is taller
   than them adds what they lack to the last of them, the cell that ends first first (a row with no
   cell of its own starts at 0); in a table moved row by row, rows joined by a cell merged over them
   move to the next page as one, and in one split between cell lines each of their cells keeps the
@@ -92,7 +97,7 @@ settings in a cell or a text box are that list's own), section settings after a 
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but objects set as characters, with line spacing in percent or
 fixed, one top-and-bottom object placed from the paragraph's top, and one object wrapped square
-at a column's or its paragraph's edge before any text; an object offset down, but a flowing table, or wrapped square
+across the column before any text; an object offset down, but a flowing table, or wrapped square
 stays on one page with the lines above or beside it), footnotes in such a paragraph, two tables
 starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor or on a
@@ -146,6 +151,8 @@ _SPARE_CUT_FIXED = 2
 _SPARE_DROPPED = 1282
 #: The narrowest line FormFit breaks at, in HWPUNIT.
 _MIN_LINE_WIDTH = 1440
+#: The narrowest side of a square-wrapped object text goes to (1/5 inch): Hancom leaves a narrower one empty.
+_MIN_SIDE = 1440
 
 
 @dataclass(frozen=True)
@@ -319,11 +326,14 @@ def _cached_metrics(paragraph: Any) -> tuple[tuple[int, int], ...]:
     if not _cache_lines(paragraph):
         return ()
     metrics = []
-    for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg"):
+    segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+    for segment, following in zip(segments, [*segments[1:], None]):
         height = int(segment.get("textheight", segment.get("vertsize", 0)))
         if height <= 0:  # a cache of empty lines is none
             return ()
-        metrics.append((height, height + int(segment.get("spacing", 0))))
+        beside = following is not None and following.get("vertpos") == segment.get("vertpos") \
+            and int(following.get("horzpos", 0)) > int(segment.get("horzpos", 0))  # two pieces of one line
+        metrics.append((height, 0 if beside else height + int(segment.get("spacing", 0))))
     return tuple(metrics)
 
 
@@ -685,11 +695,14 @@ class _Wrap:
     bottom: int
     cut: int
     push: bool = False
+    #: with text on both sides: the left piece's width (a line in the band is two pieces at one height,
+    #: the right one the line's width less *cut* and this)
+    split: int = 0
 
     def lower(self, by: int) -> "_Wrap | None":
         """The band seen from *by* further down, or ``None`` once it is above."""
 
-        return _Wrap(self.top - by, self.bottom - by, self.cut, self.push) if self.bottom > by else None
+        return replace(self, top=self.top - by, bottom=self.bottom - by) if self.bottom > by else None
 
 
 @dataclass(frozen=True)
@@ -1223,8 +1236,9 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     elif not cached and wrap is not None and not alone and text:
         if anchored is not None:
             raise _Unsupported("a top-and-bottom object beside a square-wrapped object")
-        widths = _wrapped_widths(measure, text, widths, size, style, shape, wrap, sizes if mixed else None, looks)
-        cached = _line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end)
+        widths, firsts = _wrapped_widths(measure, text, widths, size, style, shape, wrap, sizes if mixed else None,
+                                         looks)
+        cached = _at_one_height(_line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end), firsts)
     elif not cached and not alone and (mixed or looks is not None):
         cached = _line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end)
     count = len(cached) or measure.lines(text, widths, size, style)
@@ -1269,9 +1283,8 @@ def _wraps_top_and_bottom(obj: Any, column: int) -> bool:
 
 
 def _square_object(objects: list[Any], runs: list[Any], column: int) -> Any:
-    """The one object of a paragraph wrapped square at the left or right edge of the column or of the
-    paragraph, from the paragraph's top, before any text (text flows on the other side, or may flow on
-    both), or ``None``."""
+    """The one object of a paragraph wrapped square across the column from the paragraph's top, before
+    any text, or ``None`` (:func:`_square_sides` says where the text goes beside it)."""
 
     if len(objects) != 1:
         return None
@@ -1279,10 +1292,9 @@ def _square_object(objects: list[Any], runs: list[Any], column: int) -> Any:
     pos = obj.find(f"{HP}pos")
     if pos.get("treatAsChar") == "1" or obj.get("textWrap") != "SQUARE" or _wraps_top_and_bottom(obj, column):
         return None
-    placed = (pos.get("vertRelTo"), pos.get("vertAlign", "TOP"), pos.get("horzRelTo"), pos.get("horzAlign"))
-    beside = {"LEFT": "RIGHT_ONLY", "RIGHT": "LEFT_ONLY"}.get(placed[3] or "")  # the text's side of it
-    if placed[:2] != ("PARA", "TOP") or placed[2] not in ("COLUMN", "PARA") or beside is None \
-            or int(pos.get("horzOffset", 0)) or obj.get("textFlow", "BOTH_SIDES") not in ("BOTH_SIDES", beside):
+    if (pos.get("vertRelTo"), pos.get("vertAlign", "TOP")) != ("PARA", "TOP") \
+            or pos.get("horzRelTo") not in ("COLUMN", "PARA", "PAPER") or pos.get("horzAlign") not in ("LEFT", "RIGHT") \
+            or obj.get("textFlow", "BOTH_SIDES") not in ("BOTH_SIDES", "LARGEST_ONLY", "LEFT_ONLY", "RIGHT_ONLY"):
         raise _Unsupported(f"{_local(obj)} wrapped square elsewhere than at a column edge")
     for child in (child for run in runs for child in run):
         if child is obj:
@@ -1290,6 +1302,30 @@ def _square_object(objects: list[Any], runs: list[Any], column: int) -> Any:
         if _local(child) == "t" and _t_text(child):
             raise _Unsupported(f"{_local(obj)} wrapped square after text")
     return obj
+
+
+def _square_sides(obj: Any, page: _Page) -> tuple[int, int]:
+    """How wide the text beside a square-wrapped object is on its left and on its right in the column: a
+    side narrower than 1440, or one its text flow leaves out, takes none (0). Placed from the column,
+    the paragraph or the paper's left or right (from the paper only in one column)."""
+
+    pos = obj.find(f"{HP}pos")
+    width, offset = _extent(obj, "width"), int(pos.get("horzOffset", 0))
+    if offset >= 1 << 31:  # kept unsigned: one placed out past the edge
+        offset -= 1 << 32
+    if pos.get("horzRelTo") == "PAPER":
+        if page.columns > 1:
+            raise _Unsupported(f"{_local(obj)} wrapped square from the paper in columns")
+        start = offset - page.left if pos.get("horzAlign") == "LEFT" else page.paper_width - width - offset - page.left
+    else:
+        start = offset if pos.get("horzAlign") == "LEFT" else page.column_width - width - offset
+    left, right = start, page.column_width - start - width
+    flow = obj.get("textFlow", "BOTH_SIDES")
+    if flow == "LARGEST_ONLY":
+        flow = "LEFT_ONLY" if left > right else "RIGHT_ONLY"
+    left = left if left >= _MIN_SIDE and flow != "RIGHT_ONLY" else 0
+    right = right if right >= _MIN_SIDE and flow != "LEFT_ONLY" else 0
+    return left, right
 
 
 def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
@@ -1328,13 +1364,16 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
     starts = square is not None
     if square is not None:
         top = int(square.find(f"{HP}pos").get("vertOffset", 0))
-        cut = _extent(square, "width")
-        if page.column_width - cut < _MIN_LINE_WIDTH:
+        left, right = _square_sides(square, page)
+        if not left and not right:
             raise _Unsupported(f"{_local(square)} wrapped square leaving little room for text")
         tall = _extent(square, "height")
         if _local(square) == "tbl":  # as tall as its rows
             tall += sum(row.height for row in _rows(measure, square)) - int(square.find(f"{HP}sz").get("height", 0))
-        wrap = _Wrap(top, top + tall, cut)
+        if left and right:
+            wrap = _Wrap(top, top + tall, page.column_width - left - right, split=left)
+        else:
+            wrap = _Wrap(top, top + tall, page.column_width - left - right)
     para = _paragraph(measure, page, paragraph, wrap, square)
     if wrap is not None and (para.anchor is not None or para.table is not None):
         raise _Unsupported("an object beside a square-wrapped object")
@@ -1386,24 +1425,49 @@ def _push(para: _Para, band: _Wrap, *, starts: bool) -> tuple[_Para, _Wrap | Non
 
 
 def _wrapped_widths(measure: _Measure, text: str, widths: list[float], size: int, style: Any, shape: _Shape,
-                    wrap: _Wrap, sizes: list[int] | None, looks: list[Any] | None) -> list[float]:
-    """Each line's width with the lines whose top is in *wrap*'s band cut narrower (FormFit breaks the
-    lines, and which lines are in the band follows from their heights; repeated until it settles)."""
+                    wrap: _Wrap, sizes: list[int] | None, looks: list[Any] | None) -> tuple[list[float], set[int]]:
+    """Each FormFit line's width with the lines whose top is in *wrap*'s band cut narrower, or split in two
+    pieces at one height beside an object with text on both sides, and the FormFit lines that are such a
+    line's first piece (FormFit breaks the lines, and which lines are in the band follows from their
+    heights; repeated until it settles)."""
 
-    narrow: set[int] = set()
+    narrow: set[int] = set()  # lines in the band, as the lines Hancom draws
     for _ in range(8):
-        lines = [widths[min(index, 1)] - (wrap.cut if index in narrow else 0) for index in range(max(narrow, default=0) + 2)]
+        lines: list[float] = []
+        firsts: set[int] = set()
+        for index in range(max(narrow, default=0) + 2):
+            full = widths[min(index, 1)]
+            if index in narrow and wrap.split:
+                firsts.add(len(lines))
+                lines += [wrap.split, full - wrap.cut - wrap.split]
+            else:
+                lines.append(full - (wrap.cut if index in narrow else 0))
         starts = measure.line_starts(text, lines, size, style, sizes, looks)
-        top, found = 0, set()
-        for index, (start, end) in enumerate(zip(starts, [*starts[1:], len(text)])):
+        top, found, index, piece = 0, set(), 0, 0
+        while piece < len(starts):
+            pieces = 2 if piece in firsts and piece + 1 < len(starts) else 1
+            start, end = starts[piece], starts[piece + pieces] if piece + pieces < len(starts) else len(text)
             height = max((sizes or [size])[start:end] or [size]) if sizes else size
             if top < wrap.bottom and top + height > wrap.top:
                 found.add(index)
             top += _pitch(shape.kind, shape.value, height)
+            index, piece = index + 1, piece + pieces
         if found == narrow:
-            return lines
+            return lines, firsts
         narrow = found
     raise _Unsupported("lines beside a square-wrapped object that do not settle")
+
+
+def _at_one_height(metrics: tuple[tuple[int, int], ...], firsts: set[int]) -> tuple[tuple[int, int], ...]:
+    """*metrics* with each line of two pieces (*firsts*: its first piece) as tall as its taller piece, the
+    second piece at the first's height."""
+
+    lines = list(metrics)
+    for first in sorted(firsts):
+        if first + 1 < len(lines):
+            (height, advance), (other, after) = lines[first], lines[first + 1]
+            lines[first], lines[first + 1] = (max(height, other), 0), (max(height, other), max(advance, after))
+    return tuple(lines)
 
 
 # -- laying the paragraphs out ---------------------------------------------------------------------
@@ -1426,12 +1490,14 @@ def _spare_cut(table: Any) -> int:
 
 
 def _starts_later(table: _FlowTable, y: int, body: int) -> bool:
-    """Whether a table moved row by row (TABLE) has no room for its first row from *y*, so it starts on
-    the next page. At the top of a page the row is drawn anyway."""
+    """Whether a table moved row by row (TABLE) has no room for its first row from *y*, or one set not to
+    split (NONE) no room for all its rows, so it starts on the next page. At the top of a page it is
+    drawn anyway."""
 
-    if table.mode != "TABLE" or not table.rows:
+    if table.mode not in ("TABLE", "NONE") or not table.rows:
         return False
-    return y + table.rows[0].height > body - table.margins[1] - table.cut \
+    first = sum(row.height for row in table.rows) if table.mode == "NONE" else table.rows[0].height
+    return y + first > body - table.margins[1] - table.cut \
         and y != _repeated_header(table) + table.margins[0]
 
 
@@ -1441,6 +1507,11 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
     body -= table.margins[1]  # the rows keep the table's bottom margin above the page end
     header = _repeated_header(table) + table.margins[0]  # and go on below its top margin on the next page
     foot = body - table.cut
+    if table.mode == "NONE":  # set not to split: its rows move as one, drawn anyway at a page's top
+        height = sum(row.height for row in table.rows)
+        if y + height > foot and y != header:
+            frame, y = frame + 1, header
+        return frame, y + height
     rows, index = table.rows, 0
     while index < len(rows):
         end = index
@@ -1595,7 +1666,6 @@ class _Paginator:
         self.last_vp: int | None = None
         self.last_pitch = 0
         self.pending_next = 0
-        self.extra_frames = 0   # frames a table that does not split takes past the text
         self.table_end = 0      # the last frame a flowing table reaches
         self.reserved: dict[int, int] = {}  # frames a table starting past its anchor takes: where text starts
         self.wrap_frame = -1                  # the frame a square-wrapped object's band is on
@@ -1611,7 +1681,7 @@ class _Paginator:
 
         for index, para in enumerate(paras):
             self._paragraph(index, paras, para)
-        return max(self.out[-1][0] if self.out else 0, self.extra_frames, self.table_end) + 1
+        return max(self.out[-1][0] if self.out else 0, self.table_end) + 1
 
     def _paragraph(self, index: int, paras: list[_Para], para: _Para) -> None:
         start = para.prev if self.last_vp is None else self.last_vp + self.last_pitch + self.pending_next + para.prev
@@ -1625,9 +1695,7 @@ class _Paginator:
             return
         start, broke = self._breaks(para, start)  # a flowing table in the paragraph starts there too
         table = para.table
-        if table is not None and table.mode == "NONE" and start + sum(row.height for row in table.rows) > self.body:
-            self.extra_frames = max(self.extra_frames, self.frame + 1)  # the table moves whole to the next page
-        if table is not None and table.mode != "NONE":
+        if table is not None:
             self._flow(para, table, start)
             return
         first = len(self.out)
@@ -1678,7 +1746,12 @@ class _Paginator:
             top = self.out[-1][1] + head.advance(head.lines - 1)
         if anchor.table is not None:
             table = anchor.table
-            if _starts_later(table, top + table.above, self.body):
+            later = _starts_later(table, top + table.above, self.body)
+            if table.mode == "NONE" and not head.lines and top != self.reserved.get(self.frame, 0) + para.prev \
+                    and (later or top + table.above + sum(row.height for row in table.rows) + table.below
+                         + tail.height(0) > self.body):  # set not to split: it goes on with the line below it
+                top, later = self._next_frame(para, 0, True), False
+            if later:
                 raise _Unsupported("a top-and-bottom table anchored in text that starts on the next page")
             frame, end = _flow_table(table, self.frame, top + table.above, self.body)
             self._clear_of_paper(self.frame, frame)

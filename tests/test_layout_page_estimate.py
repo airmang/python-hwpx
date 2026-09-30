@@ -149,6 +149,14 @@ HANCOM_PAGES = {
     "pages_picture_square_wider_than_column": 2,  # no room beside it: the text goes below
     "pages_picture_square_offset": 2,     # a picture wrapped square 3000 below the paragraph's top
     "pages_table_square_alone": 1,        # a table wrapped square alone, as tall as its rows
+    "pages_picture_square_text_on_both_sides": 2,  # a picture 9100 from the column's left: each line
+                                                    # beside it is two pieces at one height
+    "pages_picture_square_text_on_the_larger_side": 2,  # the same, text on the larger side only
+    "pages_picture_square_text_on_the_left_only": 2,    # text on the left only
+    "pages_picture_square_from_the_paper_narrow_left": 2,  # 235 right of the column's edge, from the
+                                                            # paper's left: the left side takes no text
+    "pages_picture_square_left_side_1439_empty": 2,   # a side 1439 wide takes no text
+    "pages_picture_square_left_side_1440_takes_text": 2,  # one 1440 wide does
     "pages_drop_cap_3200_two_lines_beside": 1,    # a drop cap 3200 tall, 10 pt text at 160%: two lines
                                                   # beside it (a line's top 3200 down is not above its foot)
     "pages_drop_cap_3201_three_lines_beside": 1,  # 3201 tall: three
@@ -158,6 +166,12 @@ HANCOM_PAGES = {
     "pages_cell_paragraph_with_hanging_indent": 1,  # a hanging indent of 3 mm: narrower second lines
     "pages_cell_runs_of_two_sizes": 1,   # runs of 10 and 14 pt in a cell: each character at its size
     "pages_cell_runs_of_two_sizes_with_margins": 1,  # the same with margins of 5 mm
+    "pages_table_not_split_fits": 1,     # a table set not to split: the text goes below it
+    "pages_table_not_split_moves_to_next_page": 2,  # it does not fit: it moves to the next page's top,
+                                                     # the text after it goes on under its anchor line
+    "pages_table_not_split_with_outer_margins_moves": 2,  # the same with outer margins 140 and 852
+    "pages_table_not_split_before_text_moves_with_it": 2,  # at the top of a paragraph of text: the
+                                                            # paragraph goes on with it
     "pages_picture_in_front_of_text": 1,  # a picture in front of three lines of text: no line moves
     "pages_rectangle_behind_text_alone": 1,  # a rectangle behind the text alone: an empty line
     "pages_table_as_character_beside_rectangle_in_front": 1,  # beside a rectangle in front, on the paper
@@ -283,6 +297,13 @@ def test_a_drop_cap_takes_the_lines_beside_it() -> None:
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 1)
 
 
+def test_an_object_wrapped_square_mid_column_on_its_own_takes_no_line() -> None:
+    # An OLE object wrapped square 9100 from its paragraph's left, text on both sides, and no text.
+    data = (FIXTURES.parent / "hwpxlib_corpus" / "reader_writer__SimpleOLE.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
+
+
 def test_the_cells_of_a_form_break_their_lines_like_hancom_without_caches() -> None:
     # A form whose cells hold runs of several sizes: without the caches every line, in the body and
     # below the tables, is where Hancom put it.
@@ -290,6 +311,18 @@ def test_the_cells_of_a_form_break_their_lines_like_hancom_without_caches() -> N
 
     _assert_like_hancom(estimate_pages(data), data, 10)
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 10)
+
+
+def test_a_table_set_not_to_split_taller_than_a_page_takes_the_next_one() -> None:
+    # 50 rows under its anchor line: it moves on to the next page, which holds nothing else, and the text
+    # after it stays under its anchor line on the first page.
+    data = (FIXTURES / "pages_table_not_split_taller_than_a_page.hwpx").read_bytes()
+
+    for estimate in (estimate_pages(data), estimate_pages(_without_caches(data))):
+        assert estimate.unsupported == ()
+        assert estimate.pages == 2
+        assert [[line.vertpos for line in lines] for lines in estimate.lines] == _hancom_lines(data)
+        assert {line.page for lines in estimate.lines for line in lines} == {0}
 
 
 def test_the_lines_around_a_nested_table_are_where_hancom_put_them() -> None:
