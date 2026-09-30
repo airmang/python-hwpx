@@ -24,6 +24,11 @@ HANCOM_PAGES = {
     "pages_text_12pt_160": 5,             # 12 pt text, line spacing 160%
     "pages_spacing_20_20": 3,             # spacing before and after paragraphs
     "pages_boundary_widow_on": 2,         # widow/orphan control at the page end
+    "pages_line_ends_at_page_foot": 2,    # a line ending right at the body's foot goes on
+    "pages_empty_line_ends_at_page_foot": 2,  # an empty one too
+    "pages_line_ends_200_above_page_foot": 2,  # one ending 200 above it stays
+    "pages_line_ends_1_above_page_foot": 2,    # and one ending 1 above it
+    "pages_line_ends_100_above_page_foot": 2,  # and 100 above it: no room is kept below lines
     "pages_keep_keep_with_next": 3,       # keep with next
     "pages_columns_2_break": 4,           # two columns and a column break
     "pages_footnotes_6": 3,               # footnotes at the page foot
@@ -75,6 +80,8 @@ HANCOM_PAGES = {
     "pages_table_nested_in_table_as_character": 1,  # a table in a cell of a table set as a character
     "pages_table_nested_row_split": 2,  # a row holding a table splits after its first line of text
     "pages_table_nested_row_moved": 2,  # none of a row holding a table fits: it goes on whole
+    "pages_table_nested_row_declared_cut": 2,  # the same row declared 16000: cut above the foot, the rest goes on
+    "pages_table_nested_row_declared_cut_near_foot": 2,  # declared 24000, cut 3579 below its top
     "pages_objects_among_text_table": 2,  # a full-width table set as a character among text
     "pages_objects_among_text_equation": 1,  # equations set as characters among text
     "pages_objects_after_text_rectangle": 1,  # rectangles set as characters after text
@@ -299,13 +306,12 @@ def test_a_table_whose_row_addresses_skip_is_estimated_without_the_missing_rows(
     assert estimate.pages == 1
 
 
-def test_a_page_break_in_a_row_holding_a_table_and_declared_taller_is_unsupported() -> None:
+def test_a_page_break_in_a_row_holding_a_table_beside_a_taller_cell_is_unsupported() -> None:
+    # Row 1's cell (1, 0) holds more lines than the cell beside it holding a table; the page end falls
+    # among them.
     document, table = _flowing_table_after(38, 3)
-    table.cell(1, 1).add_table(4, 2, width=18000)
-    for cell in table.element.iter(f"{HP}tc"):
-        address = cell.find(f"{HP}cellAddr")
-        if address is not None and address.get("rowAddr") == "1" and cell.getparent().getparent() is table.element:
-            cell.find(f"{HP}cellSz").set("height", "20000")
+    table.cell(1, 1).add_table(2, 2, width=18000)
+    table.set_cell_text(1, 0, "칸 글 " * 150)
 
     estimate = estimate_pages(document)
 

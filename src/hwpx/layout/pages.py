@@ -14,7 +14,8 @@
   through its cache.
 * Height: a line advances by the paragraph's line spacing (percent, fixed, between lines, at
   least), paragraphs add their spacing before and after, and a line stays on the page while its
-  bottom is within the body height. Page and column breaks, page break before, keep lines
+  bottom is above the body's foot (one ending right at it goes on to the next page). Page and
+  column breaks, page break before, keep lines
   together, keep with next and widow/orphan control; columns of equal width.
 * Objects: an object in front of or behind the text takes no room: the lines go where they would
   without it, wherever it stands; one placed top and bottom from the paper's top keeps every line of
@@ -44,8 +45,8 @@
   there, spaced like the text, and a row holding one splits between its cell's lines, each as tall
   as it is. A flowing table's rows use the body only down to just above the page's foot: a row, or
   a cell line of a row split between its lines, ending lower goes on to the next page, and a row
-  declared taller than its text is cut there; what is left of it goes on to the next page unless it
-  is no taller than a 10 pt line
+  declared taller than its text, holding such a table or not, is cut there; what is left of it goes
+  on to the next page unless it is no taller than a 10 pt line
   with the default cell margins (the cell's own margins, alignment and character size change
   neither). A flowing table's anchor line that does not fit at the page end goes to the next page,
   and the table with it. When a table moved row by row has no
@@ -69,10 +70,10 @@ stays on one page with the lines above or beside it), footnotes in such a paragr
 starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor or on a
 page, a nested table among text or not set as a character (in a table Hancom has not laid out as
-it is), a page break in a flowing row holding a table and declared taller than its text, other
-objects placed on the page or the paper (but top and bottom from the paper's top on a page without
-a flowing table), composed characters and ruby text in a paragraph without
-such a cache. ``pages`` is then ``None`` and
+it is), a page break in a flowing row holding a table beside a taller cell, other objects placed
+on the page or the paper (but top and bottom from the paper's top on a page without a flowing
+table), composed characters and ruby text in a paragraph without such a cache.
+``pages`` is then ``None`` and
 ``unsupported`` says why, per section.
 """
 
@@ -1272,13 +1273,26 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) 
     """A row that does not fit even a fresh page is drawn there anyway, cut at the paper's edge;
     CELL breaks a row between its lines, or a row taller than its text just above the page's foot."""
 
-    remaining, height, metrics, foot = row.lines, row.height, row.metrics, body - _SPARE_CUT
+    remaining, height, metrics, nested = row.lines, row.height, row.metrics, row.nested
+    foot = body - _SPARE_CUT
     while True:
         if y + height <= foot:
             return frame, y + height
         fresh = y == header
-        if mode == "CELL" and row.nested:  # between its lines, each as tall as it is (a table is one)
-            if not metrics or row.spare:
+        if mode == "CELL" and nested and row.spare:  # declared taller than its text: cut like any such row
+            if y + row.margins + (metrics[0][0] if metrics else row.size) <= foot:  # once its first line fits
+                rest = height - (foot - y)
+                if rest <= _SPARE_DROPPED:
+                    return frame, body
+                frame, y, nested = frame + 1, header, False
+                remaining, height = 1, rest
+                continue
+            if fresh:
+                return frame, y + height
+            frame, y = frame + 1, header
+            continue
+        if mode == "CELL" and nested:  # between its lines, each as tall as it is (a table is one)
+            if not metrics:
                 raise _Unsupported("a page break in a flowing table row holding a table")
             fitting, top = 0, y + row.margins
             while fitting < len(metrics) and top + metrics[fitting][0] <= foot:
@@ -1589,8 +1603,8 @@ class _Paginator:
         return count
 
     def _fits(self, start: int, count: int, para: _Para, first: int = 0) -> int:
-        """How many of *count* lines (from line *first*) from *start* stay in the frame, each above the
-        note area including the notes anchored in it. A line whose notes fit only in part (at least
+        """How many of *count* lines (from line *first*) from *start* stay in the frame, each ending above
+        the note area including the notes anchored in it. A line whose notes fit only in part (at least
         their first line) still stays, and ends the frame."""
 
         fitting, height, many = 0, self.page_notes[0], self.page_notes[1]
@@ -1598,10 +1612,10 @@ class _Paginator:
         while fitting < count:
             note_height, notes, head = para.notes.get(first + fitting, (0, 0, 0))
             bottom = start + para.span(first, fitting) + para.height(first + fitting)
-            if bottom <= self.body - self.notes.area(height + note_height, many + notes):
+            if bottom < self.body - self.notes.area(height + note_height, many + notes):
                 height, many, fitting = height + note_height, many + notes, fitting + 1
                 continue
-            if notes and bottom <= self.body - self.notes.area(height + head, many + notes):
+            if notes and bottom < self.body - self.notes.area(height + head, many + notes):
                 room = self.body - bottom - self.notes.area(height, many + notes) + note_height
                 self.carry = max(note_height - room, 0)
                 fitting += 1
