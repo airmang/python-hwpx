@@ -7,8 +7,9 @@
   path would keep that cache -- those are the lines Hancom drew, each as tall as its text and
   followed by its spacing (``textheight``, ``spacing``); so do the paragraphs of table cells, and a
   cache of lines with no height counts as none. Other paragraphs break like FormFit
-  (:func:`hwpx.form_fit.measure.hancom_line_starts`) at the column width less the paragraph's
-  margins and first-line indent, each character at its own size and with its own run's face, 장평
+  (:func:`hwpx.form_fit.measure.hancom_line_starts`) at the column width (a cell's paragraphs at the
+  cell's inner width) less the paragraph's margins and first-line indent, each character at its own
+  size and with its own run's face, 장평
   and 자간; a line of several sizes is as tall as its largest character, and its line spacing is
   reckoned from that size. Composed characters and ruby text (``hp:compose``, ``hp:dutmal``) take
   their place in the text like characters of their run: a composed one as wide as a Hangul syllable
@@ -284,6 +285,14 @@ def _t_text(text_element: Any) -> str:
     return "".join(parts)
 
 
+def _line_widths(shape: _Shape, width: int) -> list[float]:
+    """The first line's and the other lines' widths of a paragraph of *shape* in *width*: less its margins
+    and its first-line indent (a hanging one narrows the other lines)."""
+
+    line = width - shape.left - shape.right
+    return [max(line - max(shape.indent, 0), _MIN_LINE_WIDTH), max(line - max(-shape.indent, 0), _MIN_LINE_WIDTH)]
+
+
 def _run_text(runs: list[Any]) -> str:
     return "".join(_t_text(t) for run in runs for t in run.findall(f"{HP}t"))
 
@@ -405,7 +414,8 @@ class _Measure:
                 count, size, pitch = 1, tall, tall + pitch - size
             else:
                 cached = _cached_metrics(paragraph) if caches else ()
-                cached = cached or self.marked_lines(paragraph, runs, width)
+                cached = cached or self.marked_lines(paragraph, runs, width) \
+                    or self.mixed_lines(paragraph, runs, shape, width)
                 if cached:  # the lines Hancom laid out, each as tall as it drew it
                     if pending is not None:
                         height += pending + shape.prev
@@ -415,7 +425,7 @@ class _Measure:
                     lines += len(cached)
                     continue
                 count = (_cache_lines(paragraph) if caches else 0) or self.lines(
-                    _run_text(runs), [max(width, _MIN_LINE_WIDTH)], size,
+                    _run_text(runs), _line_widths(shape, width), size,
                     self.style(paragraph.get("paraPrIDRef"), refs)
                 )
             if pending is not None:
@@ -424,6 +434,17 @@ class _Measure:
             pending = pitch - size + shape.next
             lines += count
         return height, lines, pitch, size
+
+    def mixed_lines(self, paragraph: Any, runs: list[Any], shape: _Shape, width: int) -> tuple[tuple[int, int], ...]:
+        """(height, advance) of each line of a paragraph whose characters differ in size or style, laid out at
+        *width* as in the body; empty for one whose characters do not."""
+
+        _, refs, sizes = _text_size(self, runs)
+        looks = _char_styles(self, paragraph, runs)
+        if len(set(sizes)) < 2 and looks is None:
+            return ()
+        style = self.style(paragraph.get("paraPrIDRef"), refs)
+        return _line_metrics(self, _run_text(runs), _line_widths(shape, width), sizes, style, shape, {}, looks)
 
     def stack_lines(self, paragraphs: list[Any], width: int, caches: bool) -> tuple[tuple[int, int], ...]:
         """(height, advance to the next line's top) of every line of *paragraphs* laid out as in
@@ -456,7 +477,7 @@ class _Measure:
         _check_ruby_spacing(runs, shape)
         text, sizes, looks, placed, marked = _inline_content(self, paragraph, runs)
         style = self.style(paragraph.get("paraPrIDRef"), [run.get("charPrIDRef") for run in runs] or ["0"])
-        return _line_metrics(self, text, [max(width, _MIN_LINE_WIDTH)], sizes, style, shape, placed,
+        return _line_metrics(self, text, _line_widths(shape, width), sizes, style, shape, placed,
                              looks if len(set(looks)) > 1 else None, marked)
 
 
