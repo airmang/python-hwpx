@@ -6,6 +6,11 @@
 
 ### 추가
 
+- `doc.shapes.add_drop_cap(style="DoubleLine")`을 지원한다(전에는 `TripleLine`만 받고 나머지는
+  `shape-drop-cap-style-unsupported`로 거부했다). 한/글은 같은 `hp:rect` + `hp:drawText` 구조에 `hp:parameterset`
+  값만 1(`TripleLine`은 2)인 첫 글자 장식을 읽고, 그리고, 그대로 저장한다. 상자 크기가 같으면 두 스타일의
+  화면이 같다. 상자 옆으로 가는 줄 수는 상자 높이가 정한다. `Margin`은 상자를 여백 쪽 어디에 두는지 근거가
+  없어 계속 거부한다.
 - 쪽 수 추정(실험) `hwpx.experimental.estimate_pages(document)`를 더한다. 한/글 없이 본문 문단의 줄마다 쪽·단·
   세로 위치(`EstimatedLine`)와 쪽 수(`PageEstimate.pages`)를 추정한다.
   - 줄 나눔: 문단의 줄 캐시가 저장 때 남는 것이면 그 줄(한/글이 그린 줄)을 쓰고, 아니면 FormFit처럼 줄을 나눈다.
