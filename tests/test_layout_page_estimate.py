@@ -192,6 +192,13 @@ HANCOM_PAGES = {
     "pages_table_on_paper_pushes_a_later_line": 1,  # a table 40000 below it: a line of a later paragraph
     "pages_rectangle_on_paper_across_two_columns": 2,  # across both columns, anchored in the second:
                                                         # the lines of both columns go below it
+    "pages_rectangle_on_page_5000_below_its_top": 2,   # top and bottom 5000 below the body's top
+    "pages_rectangle_on_page_5000_above_its_foot": 2,  # 5000 above the body's foot: the lines reaching it
+                                                        # go below it
+    "pages_rectangle_on_page_at_its_foot": 2,          # at the body's foot: the lines reaching it go on to
+                                                        # the next page
+    "pages_rectangle_on_paper_5000_above_its_bottom": 2,  # 5000 above the paper's bottom, into the body
+    "pages_table_on_page_at_its_foot": 2,              # a table at the body's foot
     "pages_composed_characters": 1,     # circled numbers among three lines of text
     "pages_compose_spread_rows": 1,     # rows of composed 가나 spread, paragraphs 0 to 7 mm narrower:
                                          # each as wide as a Hangul syllable
@@ -617,8 +624,8 @@ def test_a_new_document_is_one_page() -> None:
     assert estimate.lines[-1] == (EstimatedLine(page=0, column=0, vertpos=1600),)
 
 
-def test_an_object_placed_on_the_paper_on_a_page_with_a_flowing_table_is_unsupported() -> None:
-    document, _ = _flowing_table_after(3, 3)
+def _with_object_on_the_paper(document: HwpxDocument) -> None:
+    # A rectangle placed top and bottom 15000 below the paper's top: 5080 to 13080 in the body.
     paragraph = document.add_paragraph("종이 기준 개체 곁 글")
     rectangle = document.shapes.add_rectangle(20000, 8000, treat_as_char=True, paragraph=paragraph).element
     rectangle.set("textWrap", "TOP_AND_BOTTOM")
@@ -626,10 +633,28 @@ def test_an_object_placed_on_the_paper_on_a_page_with_a_flowing_table_is_unsuppo
                        ("vertAlign", "TOP"), ("vertOffset", "15000")):
         rectangle.find(f"{HP}pos").set(key, value)
 
+
+def test_a_flowing_table_reaching_an_object_placed_on_the_paper_is_unsupported() -> None:
+    document, _ = _flowing_table_after(1, 8)  # from 3200 down past the object's top
+    _with_object_on_the_paper(document)
+
     estimate = estimate_pages(document)
 
     assert estimate.pages is None
     assert estimate.unsupported == ("section 0: a table on a page with an object placed on the paper",)
+
+
+def test_a_flowing_table_clear_of_an_object_placed_on_the_paper_is_followed() -> None:
+    # The line before the table reaches the object and goes below it; the table flows under that line,
+    # clear of the object.
+    document, _ = _flowing_table_after(3, 3)
+    _with_object_on_the_paper(document)
+
+    estimate = estimate_pages(document)
+
+    assert estimate.unsupported == ()
+    assert estimate.pages == 1
+    assert [lines[0].vertpos for lines in estimate.lines[3:5]] == [13080, 14680]
 
 
 def test_a_document_with_endnotes_is_unsupported() -> None:
