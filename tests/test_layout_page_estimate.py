@@ -571,6 +571,26 @@ def test_a_page_break_in_a_row_holding_a_table_beside_a_taller_cell_is_unsupport
     assert estimate.unsupported == ("section 0: a page break in a flowing table row holding a table",)
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "pages_picture_square_past_the_page_foot",  # its paragraph's three lines the page's last
+        "pages_picture_square_past_the_page_foot_mid_paragraph",  # its paragraph's first line the page's last
+        "pages_table_square_past_the_page_foot",  # a table wrapped square alone in its paragraph
+    ],
+)
+def test_a_square_object_past_the_page_foot_moves_no_line_keeping_its_cache(name: str) -> None:
+    # A picture or table wrapped square from its paragraph's top, 8000 tall, its band past the body's
+    # foot: Hancom sets it alone at the next page's top, the lines beside it there narrower and the lines
+    # left above the foot as wide as the column. It takes no line's height, so the lines keeping their
+    # caches stay where the caches put them; without the caches, where each line breaks is not followed.
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 2)
+    assert estimate_pages(_without_caches(data)).unsupported == (
+        "section 0: a square-wrapped or offset top-and-bottom object past the page foot",)
+
+
 def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_is_unsupported() -> None:
     document, table = _flowing_table_after(38, 3)
     table.element.set("pageBreak", "NONE")
