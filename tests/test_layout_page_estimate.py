@@ -205,6 +205,20 @@ def test_a_cell_holding_a_table_among_text_or_top_and_bottom_is_as_tall_as_hanco
     assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
 
 
+@pytest.mark.parametrize(("fixture", "pages"), [("pages_columns_unequal_narrow_first", 4),
+                                               ("pages_columns_unequal_three", 4),
+                                               ("pages_columns_unequal_column_break", 5)])
+def test_columns_of_unequal_width_follow_the_line_caches(fixture: str, pages: int) -> None:
+    # Two columns, the first half as wide as the second, three of unequal width, and two with a column
+    # break: every paragraph keeps its cache, and its lines flow down the columns as Hancom put them.
+    # Without the caches the lines would depend on each column's width, which the estimate does not follow.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, pages)
+    assert estimate_pages(_without_caches(data)).unsupported == (
+        "section 0: a paragraph without a layout cache in columns of unequal width",)
+
+
 def test_paragraphs_of_several_character_sizes_hancom_laid_out_follow_their_cached_lines() -> None:
     # A Hancom-made document of three sections whose paragraphs mix character sizes: each line is as
     # tall and as far apart as its layout cache says.
