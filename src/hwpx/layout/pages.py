@@ -36,7 +36,9 @@
   ones after) and the lines after come below it -- a table flowing with the text flows from there
   over the page end, and that line goes below its end (so does the line of a paragraph holding only
   another such table, which then flows from there); a flowing table alone in its paragraph starts
-  its offset below the paragraph's line (one offset up starts at the line);
+  its offset below the paragraph's top, above the paragraph's spacing before (one offset up starts
+  there), and the next paragraph goes below the table's end or below the paragraph's line and its
+  own spacing before, whichever is lower;
   wrapped square at a column edge before a paragraph's text (or alone in its paragraph), it narrows
   the lines beside it, in that paragraph and the ones after, by its width -- a table by the height
   of its rows -- and wrapped square with no room beside it, it pushes the text below it like a
@@ -1452,6 +1454,7 @@ class _Paginator:
         self.band: tuple[int, int, int | None, int, int] | None = None
         self.page_notes = [0, 0]  # height and count of the notes on the current page
         self.carry = 0          # height of notes going on over the page end
+        self.floor: int | None = None  # where the next paragraph starts at the highest: a table's end
 
     def run(self, paras: list[_Para]) -> int:
         """Lay *paras* out; the number of frames used."""
@@ -1462,6 +1465,8 @@ class _Paginator:
 
     def _paragraph(self, index: int, paras: list[_Para], para: _Para) -> None:
         start = para.prev if self.last_vp is None else self.last_vp + self.last_pitch + self.pending_next + para.prev
+        if self.floor is not None:
+            start, self.floor = max(start, self.floor), None
         if para.band is not None or self.band is not None:
             self._banded(index, paras, para, start)
             return
@@ -1490,7 +1495,7 @@ class _Paginator:
             start = self._next_frame(para, 0, True)                         # to the next page
         self.out.append((self.frame, start))  # the anchor paragraph's line, under the table's top
         before = self.frame
-        top = start + table.offset + table.above
+        top = start - para.prev + table.offset + table.above  # from the paragraph's top, above its spacing
         frame, end = _flow_table(table, self.frame, top, self.body)
         self._clear_of_paper(before, frame)
         self.table_end = max(self.table_end, frame)
@@ -1500,7 +1505,10 @@ class _Paginator:
         self.frame = frame
         if self.frame != before:
             self.page_notes = [0, 0]
-        self.last_vp, self.last_pitch, self.pending_next = end + table.below, 0, para.next
+            self.last_vp, self.last_pitch, self.pending_next = end + table.below, 0, para.next
+        else:  # the next paragraph goes below the anchor line or the table, whichever is lower
+            self.last_vp, self.last_pitch, self.pending_next = start, para.advance(0), para.next
+            self.floor = end + table.below
 
     def _anchored(self, index: int, paras: list[_Para], para: _Para, start: int) -> None:
         """The lines before the anchor's line, the object at that line's top, then the rest of the
@@ -1551,7 +1559,7 @@ class _Paginator:
             self.band = None
             if end_frame != self.frame:
                 self.frame, self.page_notes = end_frame, [0, 0]
-            self._flow(para, para.table, end)
+            self._flow(para, para.table, end + para.prev)
             return
         if para.band is not None:
             band, table = para.band, para.band.table
