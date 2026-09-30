@@ -199,6 +199,18 @@ HANCOM_PAGES = {
                                                         # the next page
     "pages_rectangle_on_paper_5000_above_its_bottom": 2,  # 5000 above the paper's bottom, into the body
     "pages_table_on_page_at_its_foot": 2,              # a table at the body's foot
+    "pages_exam_header_over_a_question_with_text": 1,  # a header table from the paper's top over the body's
+                                                       # top, wrapped square across the text, and a 5-row table
+                                                       # top and bottom from the first paragraph's top: the
+                                                       # table right below the header, the text below it
+    "pages_exam_header_pushing_earlier_lines": 1,  # the same header anchored in the third paragraph: the lines
+                                                   # of the first two go below it
+    "pages_exam_header_over_a_table_alone": 1,  # the 5-row table alone in the first paragraph: below the
+                                                # header, the paragraph's empty line below the table
+    "pages_exam_header_top_and_bottom_over_a_table_alone": 1,  # a header set top and bottom
+    "pages_exam_header_over_a_table_alone_two_columns": 1,  # in two columns
+    "pages_exam_header_then_a_table_alone": 1,  # the table alone in the next paragraph: its line at its top
+    "pages_table_alone_in_the_first_paragraph": 1,  # no header: the empty line at the table's top
     "pages_composed_characters": 1,     # circled numbers among three lines of text
     "pages_compose_spread_rows": 1,     # rows of composed 가나 spread, paragraphs 0 to 7 mm narrower:
                                          # each as wide as a Hangul syllable
@@ -287,6 +299,24 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
+
+
+def test_a_header_wrapped_square_with_room_beside_it_is_not_followed() -> None:
+    # The exam header 3000 narrower: a line fits beside it, and the lines flowing there are not followed.
+    out = io.BytesIO()
+    data = (FIXTURES / "pages_exam_header_over_a_table_alone.hwpx").read_bytes()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                root = etree.fromstring(payload)
+                header = next(table for table in root.iter(f"{HP}tbl") if table.get("textWrap") == "SQUARE")
+                size = header.find(f"{HP}sz")
+                size.set("width", str(int(size.get("width")) - 3000))
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+
+    assert estimate_pages(out.getvalue()).unsupported == ("section 0: objects placed on the paper",)
 
 
 @pytest.mark.parametrize(

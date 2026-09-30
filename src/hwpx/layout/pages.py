@@ -33,7 +33,11 @@
   or of the page (its body) keeps every line of its page out of its band (a line reaching it, in any
   paragraph on that page, goes below it -- on to the next page when the band reaches the body's
   foot -- and the lines after follow; with several columns, in each of them when it covers the
-  text's whole width). A table or picture set as a character is one line as tall as it.
+  text's whole width), and so does one wrapped square there that leaves less than a line's room
+  (1440) on either side of it across the text. An object anchored at the top of a paragraph's first
+  line that such a band pushes down stands right below the band, the line below the object; a
+  table flowing with the text alone in its paragraph stands there too, its paragraph's line below
+  it. A table or picture set as a character is one line as tall as it.
   A table's caption above or below it takes its lines and its gap there (a caption below goes on
   to the next page with the table's last row when both do not fit above the foot, as a row would).
   Among text, an object set as a character takes its width on its line like a character, and the
@@ -1041,10 +1045,11 @@ def _mark_extent(mark: Any, size: int, style: Any) -> tuple[int, int]:
 
 def _on_paper(obj: Any) -> bool:
     """A top-and-bottom object placed from the top or the bottom of the paper or of the page, not set as a
-    character: it takes no room in its paragraph but keeps every line of its page out of its band."""
+    character: it takes no room in its paragraph but keeps every line of its page out of its band. One
+    wrapped square there counts as well when it leaves no line's room beside it (see :func:`_paper_band`)."""
 
     pos = obj.find(f"{HP}pos")
-    return (pos is not None and pos.get("treatAsChar") != "1" and obj.get("textWrap") == "TOP_AND_BOTTOM"
+    return (pos is not None and pos.get("treatAsChar") != "1" and obj.get("textWrap") in ("TOP_AND_BOTTOM", "SQUARE")
             and pos.get("vertRelTo") in ("PAPER", "PAGE") and pos.get("vertAlign", "TOP") in ("TOP", "BOTTOM"))
 
 
@@ -1055,7 +1060,9 @@ def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, in
               if _local(child) in _OBJECTS and _on_paper(child)]
     if not placed:
         return None
-    if len(placed) > 1 or (page.columns > 1 and not _across_the_text(placed[0], page)):
+    square = placed[0].get("textWrap") == "SQUARE"  # no line beside it: less than a line's room on each side
+    if len(placed) > 1 or ((page.columns > 1 or square)
+                           and not _across_the_text(placed[0], page, _MIN_LINE_WIDTH - 1 if square else 0)):
         raise _Unsupported("objects placed on the paper")
     obj = placed[0]
     tall = _extent(obj, "height")
@@ -1070,8 +1077,9 @@ def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, in
     return top, top + tall
 
 
-def _across_the_text(obj: Any, page: _Page) -> bool:
-    """Whether an object placed from the paper's left covers the text's whole width (every column)."""
+def _across_the_text(obj: Any, page: _Page, slack: int = 0) -> bool:
+    """Whether an object placed from the paper's left covers the text's whole width (every column), but for
+    *slack* on either side."""
 
     pos = obj.find(f"{HP}pos")
     if pos.get("horzRelTo") != "PAPER":
@@ -1079,7 +1087,7 @@ def _across_the_text(obj: Any, page: _Page) -> bool:
     width, offset = _extent(obj, "width"), int(pos.get("horzOffset", 0))
     left = {"LEFT": offset, "CENTER": (page.paper_width - width) // 2 + offset,
             "RIGHT": page.paper_width - width - offset}.get(pos.get("horzAlign", "LEFT"))
-    return left is not None and left <= page.left and left + width >= page.left + page.text_width
+    return left is not None and left <= page.left + slack and left + width >= page.left + page.text_width - slack
 
 
 def _floating(obj: Any) -> bool:
@@ -1839,6 +1847,9 @@ class _Paginator:
     def _flow(self, para: _Para, table: _FlowTable, start: int) -> None:
         if self.last_vp is not None and start + para.height(0) > self.body:  # the anchor line goes on
             start = self._next_frame(para, 0, True)                         # to the next page
+        if self._below_bands(start) != start:
+            self._flow_below_band(para, table, self._below_bands(start))
+            return
         self.out.append((self.frame, start))  # the anchor paragraph's line, under the table's top
         before = self.frame
         top = start - para.prev + table.offset + table.above  # from the paragraph's top, above its spacing
@@ -1856,6 +1867,18 @@ class _Paginator:
             self.last_vp, self.last_pitch, self.pending_next = start, para.advance(0), para.next
             self.floor = end + table.below
 
+    def _flow_below_band(self, para: _Para, table: _FlowTable, top: int) -> None:
+        """A band of an object placed on the paper pushed the table's anchor line down to *top*: the table
+        stands there, and the line goes below the table."""
+
+        frame, end = _flow_table(table, self.frame, top + table.offset + table.above, self.body)
+        self._clear_of_paper(self.frame, frame, top, end, below=True)
+        line = end + table.below
+        self.page_notes = [0, 0] if frame != self.frame else self.page_notes
+        self.frame, self.table_end = frame, max(self.table_end, frame)
+        self.out.append((self.frame, line))
+        self.last_vp, self.last_pitch, self.pending_next = line, para.advance(0), para.next
+
     def _anchored(self, index: int, paras: list[_Para], para: _Para, start: int) -> None:
         """The lines before the anchor's line, the object at that line's top, then the rest of the
         paragraph below the object."""
@@ -1872,6 +1895,8 @@ class _Paginator:
             if not self._lay(index, paras, head, start, broke):
                 raise _Unsupported("footnotes in a paragraph anchoring a top-and-bottom object")
             top = self.out[-1][1] + head.advance(head.lines - 1)
+        else:  # at the top of the paragraph's first line: below an object placed on the paper, as the line
+            top = self._below_bands(top)
         if anchor.table is not None:
             table = anchor.table
             later = _starts_later(table, top + table.above, self.body)
@@ -1882,7 +1907,7 @@ class _Paginator:
             if later:
                 raise _Unsupported("a top-and-bottom table anchored in text that starts on the next page")
             frame, end = _flow_table(table, self.frame, top + table.above, self.body)
-            self._clear_of_paper(self.frame, frame)
+            self._clear_of_paper(self.frame, frame, top, end, below=True)
             self.frame, self.table_end, end = frame, max(self.table_end, frame), end + table.below
         else:
             if top + anchor.height > self.body and top > 0:
@@ -1952,16 +1977,27 @@ class _Paginator:
         if self._lay(index, paras, tail, end, False):
             self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], tail.advance(tail.lines - 1), para.next
 
-    def _clear_of_paper(self, first: int, last: int, top: int = 0, end: int | None = None) -> None:
+    def _clear_of_paper(self, first: int, last: int, top: int = 0, end: int | None = None,
+                        below: bool = False) -> None:
         """A table from its anchor line's *top* in frame *first* to *end* in frame *last* (the whole frames
         without them) reaching the band of an object placed on the paper or the page, or starting right
-        below one, is not followed."""
+        below one (but for a table moved *below* it), is not followed."""
 
         for frame in range(first, last + 1):
             low = top if frame == first else 0
             high = end if frame == last and end is not None else self.body
-            if any(above < high and low <= bottom for above, bottom in self.bands.get(frame, ())):
+            touching = below and frame == first
+            if any(above < high and (low < bottom if touching else low <= bottom)
+                   for above, bottom in self.bands.get(frame, ())):
                 raise _Unsupported("a table on a page with an object placed on the paper")
+
+    def _below_bands(self, top: int) -> int:
+        """*top* in the current frame, below the band of any object placed on the paper that it falls in."""
+
+        for above, bottom in sorted(self.bands.get(self.frame, ())):
+            if above <= top < bottom:
+                top = bottom
+        return top
 
     def _band_hit(self, para: _Para, first: int, count: int, start: int) -> tuple[int, int] | None:
         """(how many lines from line *first* come before it, its bottom) of the first object placed on the
