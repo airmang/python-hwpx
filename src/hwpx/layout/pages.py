@@ -48,7 +48,8 @@
   such a table or not, is cut there; what is left of it goes on to the next page unless it is no
   taller than a 10 pt line
   with the default cell margins (the cell's own margins, alignment and character size change
-  neither). A flowing table's anchor line that does not fit at the page end goes to the next page,
+  neither) and none of its text is left: the lines that do not fit go on with it, which is then at
+  least as tall as they are with the cell's margins. A flowing table's anchor line that does not fit at the page end goes to the next page,
   and the table with it. When a table moved row by row has no
   room for its first row under its anchor line, it starts on the next page and the text after it
   goes on under the anchor, then below the table on the pages the table takes. Footnotes take
@@ -471,7 +472,7 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
             headers.add(first)
         if span > 1:
             merged.append((first, span, row))
-        elif first not in rows or row.height > rows[first].height:
+        elif first not in rows or (row.height, row.lines) > (rows[first].height, rows[first].lines):
             rows[first] = row
     for first in headers:  # a header row whatever cell is the tallest
         rows[first] = replace(rows[first], header=True)
@@ -1309,7 +1310,9 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) 
                 fitting += 1
             if fitting and row.spare:
                 rest = height - (foot - y)
-                if rest <= _SPARE_DROPPED:
+                if fitting < remaining:  # the lines that do not fit go on, with the cell's margins
+                    rest = max(rest, row.margins + (remaining - fitting - 1) * row.pitch + row.size)
+                elif rest <= _SPARE_DROPPED:
                     return frame, body
                 frame, y = frame + 1, header
                 remaining, height = 1, rest

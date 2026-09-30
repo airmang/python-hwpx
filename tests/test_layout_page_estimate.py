@@ -57,6 +57,8 @@ HANCOM_PAGES = {
     "pages_table_flow_tall_row_table_margins_500": 2,  # the table's inner margins 500: 1290 goes on
     "pages_table_flow_tall_row_bottom_aligned": 2,    # cells aligned to the bottom: 1290 goes on
     "pages_table_flow_tall_row_16pt": 2,              # 16 pt text: 1283 goes on
+    "pages_table_declared_row_cut_line_left_rest_1082": 2,  # its third line does not fit: it goes on
+    "pages_table_declared_row_cut_line_left_rest_582": 2,   # with the cell's margins, rest or no rest
     "pages_table_flow_row_ends_100_above_foot": 2,    # a row of two lines ending 100 above the foot: split
     "pages_table_flow_row_ends_101_above_foot": 2,    # the same ending 101 above it stays
     "pages_table_flow_moved_row_ends_100_above_foot": 2,  # moved row by row: 100 above the foot goes on
