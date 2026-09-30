@@ -8,8 +8,9 @@
   followed by its spacing (``textheight``, ``spacing``); so do the paragraphs of table cells, and a
   cache of lines with no height counts as none. Other paragraphs break like FormFit
   (:func:`hwpx.form_fit.measure.hancom_line_starts`) at the column width (a cell's paragraphs at the
-  cell's inner width) less the paragraph's margins and first-line indent, each character at its own
-  size and with its own run's face, 장평
+  cell's inner width) less the paragraph's margins and first-line indent and its bullet or number
+  label's room (a number's at the label Hancom draws there, counted in reading order), each
+  character at its own size and with its own run's face, 장평
   and 자간; a line of several sizes is as tall as its largest character, and its line spacing is
   reckoned from that size; an empty run ending a paragraph makes its last line as tall as itself
   (one before the text does not). Composed characters and ruby text (``hp:compose``, ``hp:dutmal``) take
@@ -120,9 +121,10 @@ import os
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
-from ..form_fit.measure import char_advance, hancom_line_starts, text_style_from_refs
+from ..form_fit.measure import char_advance, hancom_line_starts, indented_widths, text_style_from_refs
 from ..oxml._document_primitives import _remove_stale_paragraph_layout_cache
 from ..oxml.namespaces import HH, HP
+from ..oxml.paragraph_heading import paragraph_heading
 from ..oxml.section import _remove_short_paragraph_layout_cache
 from ..oxml.header_part import HwpxOxmlHeader
 from ..oxml.section_format import _drawn_page_size
@@ -297,12 +299,52 @@ def _t_text(text_element: Any) -> str:
     return "".join(parts)
 
 
-def _line_widths(shape: _Shape, width: int) -> list[float]:
-    """The first line's and the other lines' widths of a paragraph of *shape* in *width*: less its margins
-    and its first-line indent (a hanging one narrows the other lines)."""
+def _indented(line: float, shape: _Shape, style: Any) -> list[float]:
+    """The first line's and the other lines' room of a paragraph of *shape* *line* wide inside its margins: less
+    its first-line indent (a hanging one narrows the other lines) and its bullet or number label's room
+    (``style.head``, see :func:`hwpx.form_fit.measure.indented_widths`)."""
 
-    line = width - shape.left - shape.right
-    return [max(line - max(shape.indent, 0), _MIN_LINE_WIDTH), max(line - max(-shape.indent, 0), _MIN_LINE_WIDTH)]
+    if style is not None and style.head:
+        return list(indented_widths(line, replace(style, indent=shape.indent)))
+    return [line - max(shape.indent, 0), line - max(-shape.indent, 0)]
+
+
+def _line_widths(shape: _Shape, width: int, style: Any = None) -> list[float]:
+    """The first line's and the other lines' widths of a paragraph of *shape* in *width*: less its margins,
+    its first-line indent (a hanging one narrows the other lines) and its label's room."""
+
+    return [max(room, _MIN_LINE_WIDTH) for room in _indented(width - shape.left - shape.right, shape, style)]
+
+
+def _drawn_labels(root: Any) -> dict[Any, str]:
+    """The label Hancom draws for each numbered, outline and bullet paragraph, counted in reading order: the body's
+    paragraphs, each followed by those of the tables, text boxes and captions placed in it."""
+
+    from ..tools.exporter import _ListLabels, _paragraph_pieces, _text_box_paragraphs
+
+    labels = _ListLabels(root.headers[0].element if root.headers else None)
+    drawn: dict[Any, str] = {}
+
+    def visit(paragraph: Any) -> None:
+        label = labels.label(paragraph)
+        if label:
+            drawn[paragraph] = label
+        for piece in _paragraph_pieces(paragraph):
+            if isinstance(piece, str):
+                continue
+            if piece.tag == f"{HP}tbl":
+                for cell in piece.findall(f"{HP}tr/{HP}tc"):
+                    for inner in cell.findall(f"{HP}subList/{HP}p"):
+                        visit(inner)
+            else:
+                for inner in _text_box_paragraphs(piece):
+                    visit(inner)
+
+    for section in root.sections:
+        labels.start_section(section.element)
+        for paragraph in section.element.findall(f"{HP}p"):
+            visit(paragraph)
+    return drawn
 
 
 def _run_text(runs: list[Any]) -> str:
@@ -349,6 +391,7 @@ class _Lookups:
     def __init__(self, root: Any) -> None:
         self._document = root
         self.headers = root.headers
+        self.sections = root.sections  # the outline numbering of a paragraph's label
         self._paragraph_shapes: dict[str, Any] | None = None
 
     def char_property(self, char_pr_id: Any) -> Any:
@@ -368,7 +411,9 @@ class _Measure:
         self._lookups = _Lookups(root)
         self._header = root.headers[0].element
         self._shapes: dict[str, _Shape] = {}
-        self._styles: dict[tuple[str, tuple[str, ...]], Any] = {}
+        self._styles: dict[tuple[str, tuple[str, ...], str | None], Any] = {}
+        self._drawn: dict[Any, str] | None = None
+        self._numbered: dict[str, bool] = {}
 
     def shape(self, para_pr_id: Any) -> _Shape:
         key = str(para_pr_id)
@@ -380,11 +425,29 @@ class _Measure:
         style = self._root.char_property(char_pr_id)
         return int(style.attributes.get("height", 1000)) if style is not None else 1000
 
-    def style(self, para_pr_id: Any, char_pr_ids: list[Any]) -> Any:
-        key = (str(para_pr_id), tuple(str(ref) for ref in char_pr_ids))
+    def style(self, para_pr_id: Any, char_pr_ids: list[Any], paragraph: Any = None) -> Any:
+        """FormFit's text style of a paragraph shape and its characters; with *paragraph*, a number's label
+        takes the room of the label Hancom draws for that paragraph."""
+
+        drawn = None
+        if paragraph is not None and self.numbered(para_pr_id):
+            if self._drawn is None:
+                self._drawn = _drawn_labels(self._root)
+            drawn = self._drawn.get(paragraph)
+        key = (str(para_pr_id), tuple(str(ref) for ref in char_pr_ids), drawn)
         if key not in self._styles:
-            self._styles[key] = text_style_from_refs(self._lookups, para_pr_id, char_pr_ids)
+            self._styles[key] = text_style_from_refs(self._lookups, para_pr_id, char_pr_ids, drawn)
         return self._styles[key]
+
+    def numbered(self, para_pr_id: Any) -> bool:
+        """Whether a paragraph shape heads its paragraphs with a number (``NUMBER`` or ``OUTLINE``)."""
+
+        key = str(para_pr_id)
+        if key not in self._numbered:
+            shape = next((el for el in self._header.iter(f"{HH}paraPr") if el.get("id") == key), None)
+            heading = paragraph_heading(shape) if shape is not None else None
+            self._numbered[key] = heading is not None and heading.get("type") in {"NUMBER", "OUTLINE"}
+        return self._numbered[key]
 
     def lines(self, text: str, widths: list[float], size: int, style: Any) -> int:
         """How many lines FormFit breaks *text* into (a newline starts a line)."""
@@ -439,9 +502,9 @@ class _Measure:
                     pending = pitch - size + shape.next
                     lines += len(cached)
                     continue
+                style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
                 count = (_cache_lines(paragraph) if caches else 0) or self.lines(
-                    _run_text(runs), _line_widths(shape, width), size,
-                    self.style(paragraph.get("paraPrIDRef"), refs)
+                    _run_text(runs), _line_widths(shape, width, style), size, style
                 )
             if pending is not None:
                 height += pending + shape.prev
@@ -459,8 +522,8 @@ class _Measure:
         end = _end_size(self, runs, sizes)
         if len(set(sizes)) < 2 and looks is None and not end:
             return ()
-        style = self.style(paragraph.get("paraPrIDRef"), refs)
-        return _line_metrics(self, _run_text(runs), _line_widths(shape, width), sizes, style, shape, {}, looks,
+        style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
+        return _line_metrics(self, _run_text(runs), _line_widths(shape, width, style), sizes, style, shape, {}, looks,
                              end=end)
 
     def stack_lines(self, paragraphs: list[Any], width: int, caches: bool) -> tuple[tuple[int, int], ...]:
@@ -493,8 +556,8 @@ class _Measure:
         shape = self.shape(paragraph.get("paraPrIDRef"))
         _check_ruby_spacing(runs, shape)
         text, sizes, looks, placed, marked = _inline_content(self, paragraph, runs)
-        style = self.style(paragraph.get("paraPrIDRef"), [run.get("charPrIDRef") for run in runs] or ["0"])
-        return _line_metrics(self, text, _line_widths(shape, width), sizes, style, shape, placed,
+        style = self.style(paragraph.get("paraPrIDRef"), [run.get("charPrIDRef") for run in runs] or ["0"], paragraph)
+        return _line_metrics(self, text, _line_widths(shape, width, style), sizes, style, shape, placed,
                              looks if len(set(looks)) > 1 else None, marked)
 
 
@@ -1269,9 +1332,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     alone = bool(objects) and not among and anchored is None  # an object with no text: one line as tall
     cached = () if alone else _cached_metrics(paragraph)
     size, refs, sizes = _text_size(measure, runs)
-    style = measure.style(paragraph.get("paraPrIDRef"), refs)
-    line = page.column_width - shape.left - shape.right
-    widths: list[float] = [line - max(shape.indent, 0), line - max(-shape.indent, 0)]
+    style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
+    widths: list[float] = _indented(page.column_width - shape.left - shape.right, shape, style)
     end = _end_size(measure, runs, sizes)
     mixed = len(set(sizes)) > 1 or bool(end)
     looks = _char_styles(measure, paragraph, runs)

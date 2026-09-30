@@ -156,6 +156,8 @@ HANCOM_PAGES = {
     "pages_picture_square_wider_than_column": 2,  # no room beside it: the text goes below
     "pages_picture_square_offset": 2,     # a picture wrapped square 3000 below the paragraph's top
     "pages_table_square_alone": 1,        # a table wrapped square alone, as tall as its rows
+    "pages_bullet_and_number_labels": 16,  # fourteen blocks of rows under bullets and numbers of every
+                                             # label setting: each label takes its room off the lines
     "pages_picture_square_text_on_both_sides": 2,  # a picture 9100 from the column's left: each line
                                                     # beside it is two pieces at one height
     "pages_picture_square_text_on_the_larger_side": 2,  # the same, text on the larger side only
@@ -318,6 +320,15 @@ def test_the_cells_of_a_form_break_their_lines_like_hancom_without_caches() -> N
 
     _assert_like_hancom(estimate_pages(data), data, 10)
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 10)
+
+
+def test_the_evaluation_plan_form_lays_out_like_hancom_without_caches() -> None:
+    # A form whose narrow cells hold bullet paragraphs, some ending in an empty run of a larger size: without
+    # the caches every line, in the body and below the tables, is where Hancom put it.
+    data = (FIXTURES.parent / "m105_evalplan" / "blank_form_3hak.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 15)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 15)
 
 
 def test_a_table_set_not_to_split_taller_than_a_page_takes_the_next_one() -> None:
