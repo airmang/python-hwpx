@@ -63,6 +63,7 @@ from .objects import (
     _paragraph_insert_shape_element,
     _paragraph_shapes,
 )
+from .curves import _paragraph_add_connector, _paragraph_add_curve
 from .run import HwpxOxmlRun
 from .table import HwpxOxmlTable
 from .table_sizes import cell_margins_of
@@ -709,6 +710,8 @@ class HwpxOxmlParagraph:
     add_ellipse = _paragraph_add_ellipse
     add_polygon = _paragraph_add_polygon
     add_arc = _paragraph_add_arc
+    add_curve = _paragraph_add_curve
+    add_connector = _paragraph_add_connector
     add_container = _paragraph_add_container
     shapes = property(_paragraph_shapes)
 
