@@ -24,6 +24,11 @@ HANCOM_PAGES = {
     "pages_text_12pt_160": 5,             # 12 pt text, line spacing 160%
     "pages_spacing_20_20": 3,             # spacing before and after paragraphs
     "pages_boundary_widow_on": 2,         # widow/orphan control at the page end
+    "pages_line_ends_at_page_foot": 2,    # a line ending right at the body's foot goes on
+    "pages_empty_line_ends_at_page_foot": 2,  # an empty one too
+    "pages_line_ends_200_above_page_foot": 2,  # one ending 200 above it stays
+    "pages_line_ends_1_above_page_foot": 2,    # and one ending 1 above it
+    "pages_line_ends_100_above_page_foot": 2,  # and 100 above it: no room is kept below lines
     "pages_keep_keep_with_next": 3,       # keep with next
     "pages_columns_2_break": 4,           # two columns and a column break
     "pages_footnotes_6": 3,               # footnotes at the page foot
@@ -51,6 +56,10 @@ HANCOM_PAGES = {
     "pages_table_flow_tall_row_table_margins_500": 2,  # the table's inner margins 500: 1290 goes on
     "pages_table_flow_tall_row_bottom_aligned": 2,    # cells aligned to the bottom: 1290 goes on
     "pages_table_flow_tall_row_16pt": 2,              # 16 pt text: 1283 goes on
+    "pages_table_flow_row_ends_100_above_foot": 2,    # a row of two lines ending 100 above the foot: split
+    "pages_table_flow_row_ends_101_above_foot": 2,    # the same ending 101 above it stays
+    "pages_table_flow_moved_row_ends_100_above_foot": 2,  # moved row by row: 100 above the foot goes on
+    "pages_table_flow_moved_row_ends_101_above_foot": 2,  # and 101 above it stays
     "pages_table_flow_anchor_on_next_page": 2,  # the table's anchor line has no room: both go on
     "pages_table_merged_rows_held": 1,    # a cell merged over rows 0-3 holding one over rows 1-2
     "pages_table_merged_rows_staggered": 1,  # merged over rows 0-1 and 1-2: row 1 has no cell of its own
@@ -71,6 +80,8 @@ HANCOM_PAGES = {
     "pages_table_nested_in_table_as_character": 1,  # a table in a cell of a table set as a character
     "pages_table_nested_row_split": 2,  # a row holding a table splits after its first line of text
     "pages_table_nested_row_moved": 2,  # none of a row holding a table fits: it goes on whole
+    "pages_table_nested_row_declared_cut": 2,  # the same row declared 16000: cut above the foot, the rest goes on
+    "pages_table_nested_row_declared_cut_near_foot": 2,  # declared 24000, cut 3579 below its top
     "pages_objects_among_text_table": 2,  # a full-width table set as a character among text
     "pages_objects_among_text_equation": 1,  # equations set as characters among text
     "pages_objects_after_text_rectangle": 1,  # rectangles set as characters after text
@@ -80,6 +91,11 @@ HANCOM_PAGES = {
     "pages_table_anchored_offset_after_text": 1,   # 3000 down from the last line: the next paragraph's second
     "pages_picture_anchored_offset_next_paragraph": 1,  # 1600 down: the next paragraph's first line
     "pages_picture_anchored_small_offset": 1,  # 500 down: the line it stands on goes below it
+    "pages_table_offset_flowing_split_by_cell": 2,  # a flowing table 500 down over the page end:
+                                                    # the line it stands on goes below its end
+    "pages_table_offset_flowing_row_by_row": 2,  # the same moved row by row
+    "pages_table_offset_flowing_second_line": 2,  # 2000 down: the second line goes below its end
+    "pages_table_offset_flowing_next_paragraph": 2,  # the next paragraph's first line does
     "pages_picture_square_left": 2,       # a picture wrapped square on the left, text beside it into the next paragraph
     "pages_picture_square_right": 2,      # a wide picture wrapped square on the right
     "pages_picture_square_alone": 2,      # a picture wrapped square alone in its paragraph
@@ -295,13 +311,12 @@ def test_a_table_whose_row_addresses_skip_is_estimated_without_the_missing_rows(
     assert estimate.pages == 1
 
 
-def test_a_page_break_in_a_row_holding_a_table_and_declared_taller_is_unsupported() -> None:
+def test_a_page_break_in_a_row_holding_a_table_beside_a_taller_cell_is_unsupported() -> None:
+    # Row 1's cell (1, 0) holds more lines than the cell beside it holding a table; the page end falls
+    # among them.
     document, table = _flowing_table_after(38, 3)
-    table.cell(1, 1).add_table(4, 2, width=18000)
-    for cell in table.element.iter(f"{HP}tc"):
-        address = cell.find(f"{HP}cellAddr")
-        if address is not None and address.get("rowAddr") == "1" and cell.getparent().getparent() is table.element:
-            cell.find(f"{HP}cellSz").set("height", "20000")
+    table.cell(1, 1).add_table(2, 2, width=18000)
+    table.set_cell_text(1, 0, "칸 글 " * 150)
 
     estimate = estimate_pages(document)
 
@@ -309,8 +324,9 @@ def test_a_page_break_in_a_row_holding_a_table_and_declared_taller_is_unsupporte
     assert estimate.unsupported == ("section 0: a page break in a flowing table row holding a table",)
 
 
-def test_a_top_and_bottom_table_offset_past_the_page_foot_is_unsupported() -> None:
+def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_is_unsupported() -> None:
     document, table = _flowing_table_after(38, 3)
+    table.element.set("pageBreak", "NONE")
     table.element.find(f"{HP}pos").set("vertOffset", "3000")
     document.paragraphs[-1].add_run("앵커 문단 글")
 
@@ -319,6 +335,18 @@ def test_a_top_and_bottom_table_offset_past_the_page_foot_is_unsupported() -> No
     assert estimate.pages is None
     assert estimate.unsupported == (
         "section 0: a square-wrapped or offset top-and-bottom object past the page foot",)
+
+
+@pytest.mark.parametrize(("fixture", "content"), [("pages_composed_characters", "compose"),
+                                                  ("pages_ruby_text", "dutmal")])
+def test_composed_characters_and_ruby_text_follow_the_lines_hancom_drew(fixture: str, content: str) -> None:
+    # Circled numbers among three lines of text, and ruby text above a word: the lines of their
+    # paragraphs' caches. Without the caches the estimate does not break such lines itself.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
+    assert estimate_pages(_without_caches(data)).unsupported == (
+        f"section 0: {content} in a paragraph without a layout cache",)
 
 
 def test_lines_of_two_columns_are_in_columns() -> None:
