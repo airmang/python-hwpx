@@ -11,7 +11,7 @@ import pytest
 from lxml import etree
 
 from hwpx import HwpxDocument
-from hwpx.oxml import HwpxOxmlFieldMemo
+from hwpx.oxml.memo import HwpxOxmlFieldMemo
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
@@ -65,6 +65,16 @@ def test_a_memo_kept_in_a_field_takes_new_text() -> None:
 
     reopened = HwpxDocument.open(document.to_bytes())
     assert reopened.notes.memos[1].text == "고친 메모"
+
+
+def test_a_memo_kept_in_a_field_takes_a_new_id_in_its_field() -> None:
+    document = HwpxDocument.open(FIXTURES / "memos_in_fields.hwpx")
+    memo = document.notes.memos[0]
+
+    memo.id = "memo9"
+
+    reopened = HwpxDocument.open(document.to_bytes())
+    assert [kept.id for kept in reopened.notes.memos] == ["memo9", "memo2", "memo3", "memo4", "memo5"]
 
 
 def test_a_memo_anchored_by_python_hwpx_counts_once_and_goes_with_its_field() -> None:

@@ -326,7 +326,7 @@ class _FieldMemoHost:
 
     element = None
 
-    def __init__(self, section: "HwpxOxmlSection"):
+    def __init__(self, section: "HwpxOxmlSection") -> None:
         self.section = section
 
     def _cleanup(self) -> None:
@@ -339,7 +339,7 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
     time are the field's parameters. There is no ``hp:memogroup`` entry. :attr:`element` is the
     ``hp:fieldBegin``."""
 
-    def __init__(self, field_begin: ET.Element, section: "HwpxOxmlSection"):
+    def __init__(self, field_begin: ET.Element, section: "HwpxOxmlSection") -> None:
         super().__init__(field_begin, _FieldMemoHost(section))  # type: ignore[arg-type]
 
     def _param(self, name: str) -> ET.Element | None:
@@ -349,13 +349,21 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
         return None
 
     @property
-    def id(self) -> str | None:  # type: ignore[override]
+    def id(self) -> str | None:
         return memo_field_id(self.element)
 
+    @id.setter
+    def id(self, value: str | None) -> None:
+        self.set_attribute("ID", value)
+
     @property
-    def memo_shape_id_ref(self) -> str | None:  # type: ignore[override]
+    def memo_shape_id_ref(self) -> str | None:
         param = self._param("MemoShapeIDRef")
         return None if param is None else (param.text or None)
+
+    @memo_shape_id_ref.setter
+    def memo_shape_id_ref(self, value: str | int | None) -> None:
+        self.set_attribute("MemoShapeIDRef", value)
 
     @property
     def attributes(self) -> dict[str, str]:
@@ -368,9 +376,21 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
         }
 
     def set_attribute(self, name: str, value: str | int | None) -> None:
+        """Set the field's parameter *name* (a new one is a string parameter), or remove it with ``None``."""
+
         param = self._param(name)
-        if param is None or value is None:
-            raise KeyError(name)
+        parameters = self.element.find(f"{_HP}parameters")
+        if value is None:
+            if param is not None and parameters is not None and param in list(parameters):
+                parameters.remove(param)
+                parameters.set("cnt", str(len(parameters)))
+                self.group.section.mark_dirty()
+            return
+        if param is None:
+            if parameters is None:
+                parameters = _append_child(self.element, f"{_HP}parameters", {"cnt": "0", "name": ""})
+            param = _append_child(parameters, f"{_HP}stringParam", {"name": name})
+            parameters.set("cnt", str(len(parameters)))
         if param.text != str(value):
             param.text = str(value)
             self.group.section.mark_dirty()

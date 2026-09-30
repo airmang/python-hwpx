@@ -23,7 +23,7 @@ from .common import GenericElement, parse_generic_element
 from .header_part import HwpxOxmlHeader
 from .history_part import DiffNode, History, HistoryEntry
 from .master_page import MasterPage
-from .memo import HwpxOxmlFieldMemo, HwpxOxmlMemo, HwpxOxmlMemoGroup, HwpxOxmlNote
+from .memo import HwpxOxmlMemo, HwpxOxmlMemoGroup, HwpxOxmlNote
 from .numbering import DocumentNumbering, SectionStartNumbering
 from .objects import Caption, ContainerMember, DrawText, HwpxOxmlInlineObject, HwpxOxmlShape
 from .paragraph import HwpxOxmlParagraph
@@ -165,7 +165,6 @@ __all__ = [
     "HwpxOxmlHistory",
     "HwpxOxmlInlineObject",
     "HwpxOxmlMasterPage",
-    "HwpxOxmlFieldMemo",
     "HwpxOxmlMemo",
     "HwpxOxmlMemoGroup",
     "HwpxOxmlNote",
