@@ -35,6 +35,9 @@ HANCOM_PAGES = {
     "pages_table_flow_repeat_header": 3,  # a table flowing with the text, header row repeated
     "pages_table_repeated_header_second_cell_marked": 2,  # only its second cell a header cell: repeated
     "pages_table_flow_multiline_cells": 4,  # a flowing table split between cell lines
+    "pages_table_row_split_a_first_line_not_fitting": 2,  # the first 8 pt line of one cell fits, the 16 pt
+                                                            # line of the other does not: it goes on whole
+    "pages_table_row_split_every_first_line_fitting": 2,  # room for both: split after two 8 pt lines
     "pages_table_flow_starts_next_page": 2,  # its first row does not fit: the text goes on under the anchor
     "pages_table_flow_starts_next_page_long": 4,  # the same over two pages: text resumes under the table
     "pages_table_caption_above": 1,  # a caption of one line above a flowing table: the line and a gap of 850

@@ -50,7 +50,8 @@
   as it is; a nested table among text or placed top and bottom is followed through the layout caches
   of its cell, as tall as Hancom drew it (down to such a table's foot). A flowing table's rows use
   the body only down to just above the page's foot: a row, or a cell line of a row split between
-  its lines, ending lower goes on to the next page, and a row declared taller than its text, holding
+  its lines, ending lower goes on to the next page (a row is split only when every cell's first line
+  fits; otherwise it goes on whole), and a row declared taller than its text, holding
   such a table or not, is cut there; what is left of it goes on to the next page unless it is no
   taller than a 10 pt line
   with the default cell margins (the cell's own margins, alignment and character size change
@@ -438,6 +439,7 @@ class _Row:
     nested: bool = False  # a cell holds a table
     #: (height, advance) of each line of the row's tallest cell when it holds a table
     metrics: tuple[tuple[int, int], ...] = ()
+    first: int = 0        # the tallest first line of any of its cells
 
 
 @dataclass(frozen=True)
@@ -481,6 +483,7 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
     cells: list[tuple[int, int, _Row]] = []
     nested: set[int] = set()  # rows with a cell holding a table
     headers: set[int] = set()  # rows with a header cell of their own
+    firsts: dict[int, int] = {}  # each row's tallest first line of a cell of its own
     for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
         row, span = _cell_row(measure, table, tc), _row_span(tc)
         address = tc.find(f"{HP}cellAddr")
@@ -490,12 +493,16 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
             nested.update(range(first, first + span))
         if row.header and span == 1:
             headers.add(first)
+        if span == 1:
+            firsts[first] = max(firsts.get(first, 0), row.first)
         if span > 1:
             merged.append((first, span, row))
         elif first not in rows or (row.height, row.lines) > (rows[first].height, rows[first].lines):
             rows[first] = row
     for first in headers:  # a header row whatever cell is the tallest
         rows[first] = replace(rows[first], header=True)
+    for first, line in firsts.items():
+        rows[first] = replace(rows[first], first=line)
     for first, span, cell in merged:
         for index in range(first, first + span):
             if index not in rows:  # every cell over it is merged over rows
@@ -584,9 +591,11 @@ def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
         content, lines = sum(advance for _, advance in drawn[:-1]) + drawn[-1][0], len(drawn)
     vertical = margins.top + margins.bottom
     height = max(int(size.get("height", 0)), vertical + content)
+    first = drawn[0][0] if drawn else (measure.stack_lines(paragraphs[:1], inner, caches=True) or ((0, 0),))[0][0]
     return _Row(height, lines, pitch, char_size, vertical, cell.get("header") == "1",
                 spare=height - vertical - content, nested=nested,
-                metrics=(drawn or measure.stack_lines(paragraphs, inner, caches=True)) if nested else ())
+                metrics=(drawn or measure.stack_lines(paragraphs, inner, caches=True)) if nested else (),
+                first=first)
 
 
 @dataclass(frozen=True)
@@ -1349,6 +1358,8 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int) 
             fitting = 0
             while fitting < remaining and y + row.margins + fitting * row.pitch + row.size <= foot:
                 fitting += 1
+            if fitting and remaining == row.lines and y + row.margins + row.first > foot:
+                fitting = 0  # every cell's first line must fit, or the row goes on whole
             if fitting and row.spare:
                 rest = height - (foot - y)
                 if fitting < remaining:  # the lines that do not fit go on, with the cell's margins
