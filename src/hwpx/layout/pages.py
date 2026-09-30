@@ -53,7 +53,10 @@
   of its rows -- and wrapped square with no room beside it, it pushes the text below it like a
   top-and-bottom object; a table flowing with the text is laid out row by row -- split between cell lines, moved row
   by row or moved whole -- with its header rows (any row with a header cell of its own)
-  repeated; a cell merged over rows that is taller
+  repeated; one set not to split takes its room under its anchor line when all its rows fit there,
+  else it moves whole to the next page's top while the text after it goes on under its anchor line
+  (anchored at the top of a paragraph of text, the paragraph goes on with it when the line below it
+  does not fit either); a cell merged over rows that is taller
   than them adds what they lack to the last of them, the cell that ends first first (a row with no
   cell of its own starts at 0); in a table moved row by row, rows joined by a cell merged over them
   move to the next page as one, and in one split between cell lines each of their cells keeps the
@@ -1410,12 +1413,14 @@ def _spare_cut(table: Any) -> int:
 
 
 def _starts_later(table: _FlowTable, y: int, body: int) -> bool:
-    """Whether a table moved row by row (TABLE) has no room for its first row from *y*, so it starts on
-    the next page. At the top of a page the row is drawn anyway."""
+    """Whether a table moved row by row (TABLE) has no room for its first row from *y*, or one set not to
+    split (NONE) no room for all its rows, so it starts on the next page. At the top of a page it is
+    drawn anyway."""
 
-    if table.mode != "TABLE" or not table.rows:
+    if table.mode not in ("TABLE", "NONE") or not table.rows:
         return False
-    return y + table.rows[0].height > body - table.margins[1] - table.cut \
+    first = sum(row.height for row in table.rows) if table.mode == "NONE" else table.rows[0].height
+    return y + first > body - table.margins[1] - table.cut \
         and y != _repeated_header(table) + table.margins[0]
 
 
@@ -1425,6 +1430,11 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
     body -= table.margins[1]  # the rows keep the table's bottom margin above the page end
     header = _repeated_header(table) + table.margins[0]  # and go on below its top margin on the next page
     foot = body - table.cut
+    if table.mode == "NONE":  # set not to split: its rows move as one, drawn anyway at a page's top
+        height = sum(row.height for row in table.rows)
+        if y + height > foot and y != header:
+            frame, y = frame + 1, header
+        return frame, y + height
     rows, index = table.rows, 0
     while index < len(rows):
         end = index
@@ -1579,7 +1589,6 @@ class _Paginator:
         self.last_vp: int | None = None
         self.last_pitch = 0
         self.pending_next = 0
-        self.extra_frames = 0   # frames a table that does not split takes past the text
         self.table_end = 0      # the last frame a flowing table reaches
         self.reserved: dict[int, int] = {}  # frames a table starting past its anchor takes: where text starts
         self.wrap_frame = -1                  # the frame a square-wrapped object's band is on
@@ -1595,7 +1604,7 @@ class _Paginator:
 
         for index, para in enumerate(paras):
             self._paragraph(index, paras, para)
-        return max(self.out[-1][0] if self.out else 0, self.extra_frames, self.table_end) + 1
+        return max(self.out[-1][0] if self.out else 0, self.table_end) + 1
 
     def _paragraph(self, index: int, paras: list[_Para], para: _Para) -> None:
         start = para.prev if self.last_vp is None else self.last_vp + self.last_pitch + self.pending_next + para.prev
@@ -1609,9 +1618,7 @@ class _Paginator:
             return
         start, broke = self._breaks(para, start)  # a flowing table in the paragraph starts there too
         table = para.table
-        if table is not None and table.mode == "NONE" and start + sum(row.height for row in table.rows) > self.body:
-            self.extra_frames = max(self.extra_frames, self.frame + 1)  # the table moves whole to the next page
-        if table is not None and table.mode != "NONE":
+        if table is not None:
             self._flow(para, table, start)
             return
         first = len(self.out)
@@ -1662,7 +1669,12 @@ class _Paginator:
             top = self.out[-1][1] + head.advance(head.lines - 1)
         if anchor.table is not None:
             table = anchor.table
-            if _starts_later(table, top + table.above, self.body):
+            later = _starts_later(table, top + table.above, self.body)
+            if table.mode == "NONE" and not head.lines and top != self.reserved.get(self.frame, 0) + para.prev \
+                    and (later or top + table.above + sum(row.height for row in table.rows) + table.below
+                         + tail.height(0) > self.body):  # set not to split: it goes on with the line below it
+                top, later = self._next_frame(para, 0, True), False
+            if later:
                 raise _Unsupported("a top-and-bottom table anchored in text that starts on the next page")
             frame, end = _flow_table(table, self.frame, top + table.above, self.body)
             self._clear_of_paper(self.frame, frame)
