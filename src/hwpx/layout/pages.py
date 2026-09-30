@@ -989,13 +989,13 @@ def _text_size(measure: _Measure, runs: list[Any]) -> tuple[int, list[Any], list
 
 def _end_size(measure: _Measure, runs: list[Any], sizes: list[int]) -> int:
     """The size the paragraph's end gives its last line: an empty run ending a paragraph with text makes that
-    line as tall as itself when it is larger than the line's text (an empty run before the text does not);
-    0 when it does not."""
+    line as tall as itself when it is larger than the line's text, whatever the lines before it hold (an empty
+    run before the text does not); 0 when it is no larger than any character."""
 
     if not runs or not sizes or any(len(child) or child.tag != f"{HP}t" or child.text for child in runs[-1]):
         return 0
     size = measure.char_height(runs[-1].get("charPrIDRef"))
-    return size if size > max(sizes) else 0
+    return size if size > min(sizes) else 0
 
 
 def _char_styles(measure: _Measure, paragraph: Any, runs: list[Any]) -> list[Any] | None:
