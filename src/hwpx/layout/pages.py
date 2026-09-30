@@ -37,7 +37,8 @@
   that far down), and for an object with only spaces beside it from the largest size of any run of
   its paragraph. A top-and-bottom object anchored to an empty paragraph pushes the
   next line below
-  it; anchored in a paragraph of text (from the paragraph's top), it stands at the top of the line
+  it; anchored in a paragraph of text or of objects set as characters (from the paragraph's top),
+  it stands at the top of the line
   its place in the text falls on, and that line and the rest of the paragraph come below it --
   offset down, it stands that much lower, and the first line reaching it (in that paragraph or the
   ones after) and the lines after come below it -- a table flowing with the text flows from there
@@ -1033,7 +1034,7 @@ def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
     return int(size.get("width", 0)) + extra[0] + extra[1], height + extra[2] + extra[3]
 
 
-def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple[
+def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored: Any = None) -> tuple[
         str, list[int], list[Any], dict[int, tuple[int, int]], dict[int, int]]:
     """The paragraph's text with each object set as a character, composed character and ruby text in its
     place (U+FFFC), each character's size and style (ruby text's is the height of its line), each
@@ -1052,7 +1053,7 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple
         height, look = measure.char_height(ref), measure.style(paragraph.get("paraPrIDRef"), [ref])
         for child in run:
             name = _local(child)
-            if name in _OBJECTS and (_floating(child) or _on_paper(child)):
+            if name in _OBJECTS and (_floating(child) or _on_paper(child) or child is anchored):
                 continue
             if name in _OBJECTS:
                 if child.find(f"{HP}pos").get("treatAsChar") != "1" or shape.kind not in ("PERCENT", "FIXED"):
@@ -1076,14 +1077,15 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple
 
 
 def _anchored_object(objects: list[Any], text: str, column: int) -> Any:
-    """The one object of a paragraph of text that is placed top and bottom from the paragraph's top
-    (offset 0), or ``None``."""
+    """The one object not set as a character of a paragraph of text or of objects set as characters that
+    is placed top and bottom from the paragraph's top (offset 0), or ``None``."""
 
-    if len(objects) != 1 or not text.strip():
+    placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
+    if len(placed) != 1 or not (text.strip() or len(objects) > 1):
         return None
-    obj = objects[0]
+    obj = placed[0]
     pos = obj.find(f"{HP}pos")
-    if pos.get("treatAsChar") == "1" or not _wraps_top_and_bottom(obj, column):
+    if not _wraps_top_and_bottom(obj, column):
         return None
     if pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP" or int(pos.get("vertOffset", 0)):
         return None
@@ -1204,6 +1206,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
             raise _Unsupported("composed characters or ruby text beside an object placed otherwise")
         _check_ruby_spacing(runs, shape)
     among = anchored is None and (marks or bool(objects) and (len(objects) > 1 or bool(text.strip())))
+    beside = anchored is not None and len(objects) > 1  # objects set as characters on the lines below it
     alone = bool(objects) and not among and anchored is None  # an object with no text: one line as tall
     cached = () if alone else _cached_metrics(paragraph)
     size, refs, sizes = _text_size(measure, runs)
@@ -1212,8 +1215,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     widths: list[float] = [line - max(shape.indent, 0), line - max(-shape.indent, 0)]
     mixed = len(set(sizes)) > 1
     looks = _char_styles(measure, paragraph, runs)
-    if among:
-        inline_text, inline_sizes, inline_looks, placed, marked = _inline_content(measure, paragraph, runs)
+    if among or beside:
+        inline_text, inline_sizes, inline_looks, placed, marked = _inline_content(measure, paragraph, runs, anchored)
         if not cached:
             looks_or_none = inline_looks if len(set(inline_looks)) > 1 else None
             cached = _line_metrics(measure, inline_text, widths, inline_sizes, style, shape, placed, looks_or_none,
