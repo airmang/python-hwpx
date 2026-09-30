@@ -27,7 +27,9 @@
   its place in the text falls on, and that line and the rest of the paragraph come below it --
   offset down, it stands that much lower, and the first line reaching it (in that paragraph or the
   ones after) and the lines after come below it -- a table flowing with the text flows from there
-  over the page end, and that line goes below its end;
+  over the page end, and that line goes below its end (so does the line of a paragraph holding only
+  another such table, which then flows from there); a flowing table alone in its paragraph starts
+  its offset below the paragraph's line (one offset up starts at the line);
   wrapped square at a column edge before a paragraph's text (or alone in its paragraph), it narrows
   the lines beside it, in that paragraph and the ones after, by its width -- a table by the height
   of its rows -- and wrapped square with no room beside it, it pushes the text below it like a
@@ -442,6 +444,7 @@ class _FlowTable:
     margins: tuple[int, int]   # hp:outMargin top, bottom: kept above and below the table
     #: every cell as (the position of its first row in ``rows``, rows it spans, the cell as a row)
     cells: tuple[tuple[int, int, _Row], ...] = ()
+    offset: int = 0            # alone in its paragraph: how far below the paragraph's line it starts
 
 
 def _rows(measure: _Measure, table: Any) -> list[_Row]:
@@ -923,8 +926,9 @@ def _object_line(
     if _wraps_top_and_bottom(obj, column) and on_paragraph:
         if name == "tbl":
             rows, cells = _table_rows(measure, obj)
+            offset = int(pos.get("vertOffset", 0))  # one up (a negative offset, kept unsigned) starts at the line
             table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
-                               tuple(cells))
+                               tuple(cells), 0 if offset < 0 or offset >= 1 << 31 else offset)
             return count, size, pitch, table
         below = int(pos.get("vertOffset", 0)) + tall
         return 1, below, below, None
@@ -1386,7 +1390,7 @@ class _Paginator:
             start = self._next_frame(para, 0, True)                         # to the next page
         self.out.append((self.frame, start))  # the anchor paragraph's line, under the table's top
         before = self.frame
-        top = start + table.margins[0]
+        top = start + table.offset + table.margins[0]
         frame, end = _flow_table(table, self.frame, top, self.body)
         self.table_end = max(self.table_end, frame)
         if start + para.height(0) <= self.body and _starts_later(table, top, self.body):
@@ -1432,11 +1436,21 @@ class _Paginator:
         offset), or one after it: its lines above the band stay, and the first line reaching the band and
         the lines after go on below the table's end."""
 
-        if para.notes or para.anchor is not None or para.table is not None or para.wrap_bottom \
+        if para.notes or para.anchor is not None or para.wrap_bottom \
+                or (para.table is not None and (self.band is None or para.band is not None)) \
                 or (self.band is not None and (para.band is not None or para.page_break or para.break_before
                                                or para.column_break)):
             raise _Unsupported("a page break or another object beside a top-and-bottom table's band")
         start, broke = self._breaks(para, start)
+        if para.table is not None:  # a flowing table alone in its paragraph: its line goes below the band
+            frame, top, bottom, end_frame, end = self.band
+            if self.frame != frame or start + para.height(0) <= top or (bottom is not None and start >= bottom):
+                raise _Unsupported("a page break or another object beside a top-and-bottom table's band")
+            self.band = None
+            if end_frame != self.frame:
+                self.frame, self.page_notes = end_frame, [0, 0]
+            self._flow(para, para.table, end)
+            return
         if para.band is not None:
             band, table = para.band, para.band.table
             top = start + para.span(0, band.line) + band.offset
