@@ -19,7 +19,8 @@
 * Objects: an object in front of or behind the text takes no room: the lines go where they would
   without it, wherever it stands; one placed top and bottom from the paper's top keeps every line of
   its page out of its band (a line reaching it, in any paragraph on that page, goes below it and
-  the lines after follow). A table or picture set as a character is one line as tall as it.
+  the lines after follow; with several columns, in each of them when it covers the text's whole
+  width). A table or picture set as a character is one line as tall as it.
   Among text, an object set as a character takes its width on its line like a character, and the
   line is at least as tall as the object; the line spacing stays the text's (a fixed spacing keeps
   the next line that far down). A top-and-bottom object anchored to an empty paragraph pushes the
@@ -611,6 +612,9 @@ class _Page:
     column_width: int
     columns: int
     top: int = 0  # the body's top below the paper's
+    left: int = 0  # the text's left edge right of the paper's
+    text_width: int = 0
+    paper_width: int = 0
 
 
 def _page(section: Any) -> _Page:
@@ -622,7 +626,8 @@ def _page(section: Any) -> _Page:
     body = height - sum(int(margin.get(key, 0)) for key in ("top", "bottom", "header", "footer"))
     text_width = width - sum(int(margin.get(key, 0)) for key in ("left", "right", "gutter"))
     columns, column_width = _columns(section, text_width)
-    return _Page(body, column_width, columns, int(margin.get("top", 0)) + int(margin.get("header", 0)))
+    return _Page(body, column_width, columns, int(margin.get("top", 0)) + int(margin.get("header", 0)),
+                 int(margin.get("left", 0)) + int(margin.get("gutter", 0)), text_width, width)
 
 
 def _columns(section: Any, text_width: int) -> tuple[int, int]:
@@ -725,7 +730,7 @@ def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, in
               if _local(child) in _OBJECTS and _on_paper(child)]
     if not placed:
         return None
-    if len(placed) > 1 or page.columns > 1:
+    if len(placed) > 1 or (page.columns > 1 and not _across_the_text(placed[0], page)):
         raise _Unsupported("objects placed on the paper")
     obj = placed[0]
     tall = _extent(obj, "height")
@@ -733,6 +738,18 @@ def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, in
         tall += sum(row.height for row in _rows(measure, obj)) - int(obj.find(f"{HP}sz").get("height", 0))
     top = int(obj.find(f"{HP}pos").get("vertOffset", 0)) - page.top
     return top, top + tall
+
+
+def _across_the_text(obj: Any, page: _Page) -> bool:
+    """Whether an object placed from the paper's left covers the text's whole width (every column)."""
+
+    pos = obj.find(f"{HP}pos")
+    if pos.get("horzRelTo") != "PAPER":
+        return False
+    width, offset = _extent(obj, "width"), int(pos.get("horzOffset", 0))
+    left = {"LEFT": offset, "CENTER": (page.paper_width - width) // 2 + offset,
+            "RIGHT": page.paper_width - width - offset}.get(pos.get("horzAlign", "LEFT"))
+    return left is not None and left <= page.left and left + width >= page.left + page.text_width
 
 
 def _floating(obj: Any) -> bool:
@@ -1623,8 +1640,10 @@ def _lay_section(measure: _Measure, section: Any) -> _SectionLayout:
         paginator = _Paginator(page.body, page.columns, notes, bands)
         frames = paginator.run(paras)
         placed: dict[int, list[tuple[int, int]]] = {}
-        for index, band in paper.items():
-            placed.setdefault(paginator.out[firsts[index]][0], []).append(band)
+        for index, band in paper.items():  # on every column of the page
+            first = paginator.out[firsts[index]][0] // page.columns * page.columns
+            for frame in range(first, first + page.columns):
+                placed.setdefault(frame, []).append(band)
         if placed == bands:
             break
         bands = placed

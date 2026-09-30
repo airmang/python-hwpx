@@ -104,6 +104,8 @@ HANCOM_PAGES = {
     "pages_rectangle_on_paper_at_page_top": 2,  # 4000 below it, anchored mid-page: the page's first
                                                  # lines, in paragraphs before its own, go below it
     "pages_table_on_paper_pushes_a_later_line": 1,  # a table 40000 below it: a line of a later paragraph
+    "pages_rectangle_on_paper_across_two_columns": 2,  # across both columns, anchored in the second:
+                                                        # the lines of both columns go below it
 }
 
 
