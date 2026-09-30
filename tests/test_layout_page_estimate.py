@@ -36,6 +36,9 @@ HANCOM_PAGES = {
     "pages_table_flow_multiline_cells": 4,  # a flowing table split between cell lines
     "pages_table_flow_starts_next_page": 2,  # its first row does not fit: the text goes on under the anchor
     "pages_table_flow_starts_next_page_long": 4,  # the same over two pages: text resumes under the table
+    "pages_table_page_break_after_table": 2,  # a page break on the paragraph of a flowing table after another
+    "pages_table_page_break_after_text": 2,  # the same, rows moved whole (TABLE), after text
+    "pages_table_page_break_after_long_table": 3,  # after a table ending on the next page: the page after
     "pages_table_multiline_cells": 3,     # a table set as a character
     "pages_picture_floating_tall": 4,     # top-and-bottom pictures
     "pages_cell_column_settings": 3,      # one-column settings in a table cell's paragraph
@@ -217,6 +220,26 @@ def test_columns_of_unequal_width_follow_the_line_caches(fixture: str, pages: in
     _assert_like_hancom(estimate_pages(data), data, pages)
     assert estimate_pages(_without_caches(data)).unsupported == (
         "section 0: a paragraph without a layout cache in columns of unequal width",)
+@pytest.mark.parametrize("fixture", ["pages_table_nested_square_alone", "pages_table_nested_square_beside_text"])
+def test_a_cell_holding_a_table_wrapped_square_is_as_tall_as_hancom_drew_it(fixture: str) -> None:
+    # A table wrapped square at the left of a paragraph in a cell of a flowing table, alone (the cell
+    # reaches down to its foot) or beside text (the lines beside it are narrower, the rest go below
+    # it): the lines of the cell's caches. Without the caches the estimate does not follow such a cell.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
+    assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
+
+
+@pytest.mark.parametrize("fixture", ["pages_table_nested_top_and_bottom_placed_up_alone",
+                                     "pages_table_nested_square_placed_up_alone"])
+def test_a_table_placed_up_from_its_paragraph_in_a_cell_stands_at_the_paragraph_top(fixture: str) -> None:
+    # A table alone in a cell's paragraph after two lines, placed top and bottom or wrapped square 1000
+    # up from the paragraph's top (a negative offset, kept as an unsigned number): Hancom puts it at the
+    # paragraph's top, and the cell reaches down to its foot from there.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
 
 
 def test_paragraphs_of_several_character_sizes_hancom_laid_out_follow_their_cached_lines() -> None:
