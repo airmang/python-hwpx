@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Floating-shape reference frames, shape-text vertical alignment, and a
-new shape's original size (``hp:orgSz``) apart from its current size.
+"""Floating-shape reference frames, shape-text vertical alignment, a new
+shape's original size (``hp:orgSz``) apart from its current size, and a
+group resized the way Hancom resizes one.
 
 ``HwpxOxmlShape.set_position`` is attached to the class in ``objects.py`` as a
 plain class attribute, the same escape valve ``dutmal_compose.py`` uses:
@@ -19,10 +20,15 @@ it with ``hc:scaMatrix``: in the corpus (``error__20240305__2022.hwpx``,
 ``ax2`` sit at ``orgSz``, ``curSz`` equals ``sz``, ``scaMatrix`` ``e1``/``e5``
 are ``curSz/orgSz`` per axis, and ``rotationInfo``'s centre is half of
 ``curSz``. :func:`build_at_original_size` writes that same layout.
+
+A group (``hp:container``) is drawn at its ``sz`` whatever its members hold;
+:func:`resize_group` writes the rest of it as Hancom saves a resized group.
 """
 
 from __future__ import annotations
 
+import math
+from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Callable
 
 from ..errors import HwpxValueError
@@ -195,6 +201,74 @@ def build_at_original_size(
     return element
 
 
+def resize_group(shape: "HwpxOxmlShape", width: int, height: int) -> bool:
+    """Resize the group *shape* (``hp:container``) the way Hancom does.
+
+    The group keeps ``orgSz``: ``sz`` and ``curSz`` take *width* x *height*
+    (``curSz`` 0 on an axis left at ``orgSz``) and the group's ``scaMatrix``
+    the factors new over original. Every member, members of groups in it
+    included, takes the factors in its first ``scaMatrix``, moved by its
+    offset (its ``transMatrix``) times the factor less 1, so the group grows
+    from its origin, and takes ``curSz`` = its ``orgSz`` times the factors
+    of the groups it is in (rounded down, 0 on an axis they leave alone).
+    Offsets, rotation centres and the members' own matrices stay. ``False``,
+    with nothing changed, for a group without an original size.
+    """
+
+    element = shape.element
+    original = element.find(f"{_HP}orgSz")
+    sizes = (0, 0) if original is None else (int(original.get("width", "0")), int(original.get("height", "0")))
+    if min(sizes) <= 0:
+        return False
+    factors = (width / sizes[0], height / sizes[1])
+    _set_size(element, "sz", width, height)
+    _set_size(element, "curSz", width if factors[0] != 1 else 0, height if factors[1] != 1 else 0)
+    scale = element.find(f"{_HP}renderingInfo/{_HC}scaMatrix")
+    if scale is not None:
+        _set_scale(scale, factors, (0.0, 0.0))
+    for member, depth in _group_members(element, 1):
+        scales = member.findall(f"{_HP}renderingInfo/{_HC}scaMatrix")
+        if not scales:
+            continue
+        trans = member.find(f"{_HP}renderingInfo/{_HC}transMatrix")
+        offset = (0.0, 0.0) if trans is None else (float(trans.get("e3", "0")), float(trans.get("e6", "0")))
+        _set_scale(scales[0], factors, offset)
+        own = member.find(f"{_HP}orgSz")
+        if own is None:
+            continue
+        grown = [factor * math.prod(float(matrix.get(key, "1")) for matrix in scales[1:depth])
+                 for factor, key in zip(factors, ("e1", "e5"))]
+        _set_size(member, "curSz", *(int(int(own.get(side, "0")) * factor + 1e-6) if factor != 1 else 0
+                                      for side, factor in zip(("width", "height"), grown)))
+    shape.paragraph.section.mark_dirty()
+    return True
+
+
+def _group_members(group: "ET.Element", depth: int) -> "Iterator[tuple[ET.Element, int]]":
+    """Each member of *group* at *depth*, then the members of a group among them one deeper."""
+
+    for child in group:
+        if child.find(f"{_HP}renderingInfo") is not None:
+            yield child, depth
+            if child.tag == f"{_HP}container":
+                yield from _group_members(child, depth + 1)
+
+
+def _set_size(element: "ET.Element", tag: str, width: int, height: int) -> None:
+    child = element.find(f"{_HP}{tag}")
+    if child is not None:
+        child.set("width", str(width))
+        child.set("height", str(height))
+
+
+def _set_scale(matrix: "ET.Element", factors: tuple[float, float], offset: tuple[float, float]) -> None:
+    """*matrix* scaling by *factors* from the origin of a member at *offset*."""
+
+    for key, value in (("e1", factors[0]), ("e2", 0.0), ("e3", offset[0] * (factors[0] - 1)),
+                       ("e4", 0.0), ("e5", factors[1]), ("e6", offset[1] * (factors[1] - 1))):
+        matrix.set(key, _matrix_number(value))
+
+
 __all__ = [
     "POS_HORZ_ALIGN",
     "POS_HORZ_REL_TO",
@@ -202,6 +276,7 @@ __all__ = [
     "POS_VERT_REL_TO",
     "SUBLIST_VERT_ALIGN",
     "build_at_original_size",
+    "resize_group",
     "validate_draw_text_vert_align",
     "validate_original_size",
 ]
