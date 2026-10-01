@@ -140,11 +140,24 @@ def test_thin_space_two_headed_arrow_and_conclusion_signs(script: str, expected:
         ('{rm "d"} x', r"{rm \text{d}} x"),  # not the authored shape: as before
         # a quoted reserved word is the writer's identifier protection: plain letters again
         ('T _{"int"}', r"T_{int}"),
+        ('e ^{"it"}', r"e^{it}"),  # so with the font switches
+        ('x _{"rm"} + a _{"bold"}', r"x_{rm} + a_{bold}"),
         ('"therefore" x', r"therefore x"),
         ('"sin x"', r"\text{sin x}"),  # not a single word: text, as before
     ],
 )
 def test_upright_text_group_reads_as_text(script: str, expected: str) -> None:
+    assert eqedit_to_latex(script) == expected
+
+
+@pytest.mark.parametrize(
+    "script,expected",
+    [
+        ("LBRACE x RBRACE", r"\{ x \}"),  # literal braces, as latex_to_eqedit writes \{ and \}
+        ("LEFT LBRACE x RIGHT RBRACE", r"\left\{ x \right\}"),  # as before
+    ],
+)
+def test_brace_words_read_as_braces(script: str, expected: str) -> None:
     assert eqedit_to_latex(script) == expected
 
 

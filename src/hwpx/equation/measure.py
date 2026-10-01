@@ -8,7 +8,8 @@ that is too wide leaves a gap after the equation and one that is too narrow
 lets the next characters overlap it. Hancom itself was observed (on macOS)
 to lay the equation out again and rewrite ``<hp:sz>`` when it saves the
 document, whatever size was stored; the stored box still matters until then
-and for every other reader.
+and for every other reader. On Windows Hancom keeps the stored box and
+``baseLine`` when it saves, and lays the page out with them.
 
 This module lays the script out as boxes (width, ascent, descent) by its
 structure -- characters by kind, ``over`` fractions (and ``atop``, ``choose``/

@@ -270,6 +270,8 @@ class _LatexParser:
                 radicand = self._group_or_atom(depth)
                 return f"root {{{' '.join(index_parts)}}} of {{{radicand}}}"
             return f"sqrt {{{self._group_or_atom(depth)}}}"
+        if token in ("\\lbrace", "\\rbrace"):  # the command spellings of \{ and \}
+            return "LBRACE" if token == "\\lbrace" else "RBRACE"
         if token in _TEXT_COMMANDS:
             return self._text_literal()
         if token == "\\mathbf":
@@ -407,8 +409,8 @@ class _LatexParser:
             raise UnsupportedLatexError("missing \\left/\\right delimiter")
         if token in _LATEX_DELIMITERS:
             return _LATEX_DELIMITERS[token]
-        if token in ("\\{", "\\}"):
-            return "LBRACE" if token == "\\{" else "RBRACE"
+        if token in ("\\{", "\\}", "\\lbrace", "\\rbrace"):
+            return "LBRACE" if token in ("\\{", "\\lbrace") else "RBRACE"
         if token in DELIMITERS and len(token) == 1:
             return token
         raise UnsupportedLatexError(f"unsupported \\left/\\right delimiter: {token}")
@@ -450,7 +452,8 @@ def estimate_equation_size(script: str, *, base_unit: int = 1100) -> tuple[int, 
 
     A reader that lays the page out from the file uses the stored box, so the
     box has to fit the script; Hancom itself was observed (on macOS) to lay the
-    equation out again and rewrite the box when it saves the document (see
+    equation out again and rewrite the box when it saves the document, while on
+    Windows it keeps the stored box and lays the page out with it (see
     :func:`hwpx.equation.measure.measure_equation`).
     """
 
