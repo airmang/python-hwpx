@@ -57,6 +57,19 @@ HANCOM_PAGES = {
                                                   # line goes below it, as a line of text would
     "pages_object_pushing_characters_off1398": 1,  # the same 1398 down
     "pages_object_pushing_characters_off1398_char3000": 1,  # with a rectangle 3000 tall set as a character
+    # A section hiding a page's first empty lines (hp:visibility@hideFirstEmptyLine), its first page full:
+    "pages_hide_empty_lines_one": 2,  # an empty paragraph past the foot stays there, the text after it
+                                      # starts the next page
+    "pages_hide_empty_lines_two": 2,  # two, one on the other
+    "pages_hide_empty_lines_four": 2,  # four: the third and fourth start the next page
+    "pages_hide_empty_lines_page_break": 2,  # one with a page break is not hidden
+    "pages_hide_empty_lines_space": 2,  # nor one holding a space
+    "pages_hide_empty_lines_column_end": 1,  # two at the end of the first of two columns
+    "pages_hide_empty_lines_20pt": 2,  # one of 20 pt
+    "pages_hide_empty_lines_spaced_past_the_foot": 2,  # the last line ending 200 above the foot, the
+                                                       # empty one spaced 562 before it
+    "pages_hide_empty_lines_ending_the_document": 1,  # two ending the document: no second page
+    "pages_hide_empty_lines_off": 2,  # two, the setting off: they start the next page
     "pages_table_row_split_a_first_line_not_fitting": 2,  # the first 8 pt line of one cell fits, the 16 pt
                                                             # line of the other does not: it goes on whole
     "pages_table_row_split_every_first_line_fitting": 2,  # room for both: split after two 8 pt lines
