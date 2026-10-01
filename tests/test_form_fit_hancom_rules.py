@@ -36,6 +36,8 @@ from hwpx.form_fit.measure import (
     classify_char,
     glyph_advance_em,
     glyph_script,
+    indented_widths,
+    label_room,
     resolve_slot_metrics,
     text_style_from_refs,
 )
@@ -59,6 +61,7 @@ CONDENSE_ROWS = [
     Path(__file__).parent / "fixtures" / "hancom_saved" / f"formfit_condense_{name}.hwpx"
     for name in ("margin_word", "space_without_spacing", "text_reaching_margin")
 ]
+LABELS = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_bullet_and_number_labels.hwpx"
 NO_BREAK_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_no_break_spaces.hwpx"
 FIXED_WIDTH_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_fixed_width_spaces.hwpx"
 SCRIPT_ROWS = [
@@ -630,9 +633,9 @@ def test_space_runs_and_condense_break_where_hancom_breaks_them() -> None:
         assert measure(cell.text, slot).lines == len(segs)
 
 
-def _row_line_starts(path: Path) -> list[tuple[list[int], list[int]]]:
+def _row_line_starts(path: Path, labelled: bool = False) -> list[tuple[list[int], list[int]]]:
     """(FormFit's line starts, Hancom's) of each row of a Hancom-saved fixture: every paragraph of 100 or more
-    characters, each line as wide as Hancom laid it out."""
+    characters, each line as wide as Hancom laid it out (*labelled*: less the room of the paragraph's label)."""
     doc = HwpxDocument.open(path.read_bytes())
     rows = []
     for paragraph in doc.paragraphs:
@@ -643,7 +646,10 @@ def _row_line_starts(path: Path) -> list[tuple[list[int], list[int]]]:
         refs = [run.char_pr_id_ref for run in paragraph.runs if run.text]
         style = text_style_from_refs(doc, paragraph.para_pr_id_ref, refs)
         points = int(doc.oxml.char_property(refs[0]).attributes["height"]) / 100
-        starts = hancom_line_starts(text, [int(seg.get("horzsize")) for seg in segs], points, style)
+        widths = [int(seg.get("horzsize")) for seg in segs]
+        if labelled:
+            widths = list(indented_widths(widths[0], style))
+        starts = hancom_line_starts(text, widths, points, style)
         rows.append((starts, [int(seg.get("textpos")) for seg in segs]))
     return rows
 
@@ -674,6 +680,42 @@ def test_each_script_takes_its_own_spacing_where_hancom_breaks(fixture: Path) ->
     assert [starts for starts, _ in rows] == [hancom for _, hancom in rows]
 
 
+def test_a_label_takes_its_room_off_the_lines() -> None:
+    labelled = TextStyle(head=1500.0, head_hangs=True)
+
+    assert indented_widths(10000, labelled) == (8500, 8500)
+    # 자동 내어 쓰기: the indent comes off the other lines only, a first-line one giving them room back.
+    assert indented_widths(10000, replace(labelled, indent=1000)) == (8500, 9500)
+    assert indented_widths(10000, replace(labelled, indent=-1000)) == (8500, 7500)
+    # Without it the label comes off the first line, and the indent as usual.
+    assert indented_widths(10000, replace(labelled, head_hangs=False, indent=1000)) == (7500, 10000)
+    assert indented_widths(10000, replace(labelled, head_hangs=False, indent=-1000)) == (8500, 9000)
+
+
+def test_a_label_takes_its_glyphs_its_adjustment_and_its_gap() -> None:
+    head = {"useInstWidth": "0", "textOffsetType": "PERCENT", "textOffset": "50", "widthAdjust": "0"}
+    face = TextStyle(glyph_face="함초롬돋움", hangul_face="함초롬돋움")
+
+    assert label_room("\u25cf", head, 1000, face) == 1500  # an em and half an em
+    assert label_room("-", head, 1000, face) == 1000  # half an em for an ASCII character
+    assert label_room("1.", head, 1000, face) == 1500
+    assert label_room("-", {**head, "textOffsetType": "HWPUNIT", "textOffset": "1000", "widthAdjust": "500"},
+                      1000, face) == 2000
+    assert label_room("\u25cf", {**head, "useInstWidth": "1"}, 1000, face) == 972 + 500  # its advance
+    assert label_room("\u25cf", head, 800, face) == 1200  # the label's own size
+
+
+def test_the_rows_under_bullets_and_numbers_break_where_hancom_breaks() -> None:
+    # Fourteen blocks of twelve rows of 120 syllables, 0.15 mm narrower one after another, under a bullet (an
+    # unmeasured and a measured ●, "-", a gap of 1000 HWPUNIT, a width adjustment of 1000, 자동 내어 쓰기 off, with
+    # a hanging or a first-line indent of 1000 on and off, a • 20 % from 10.5 pt text in its own 10 pt shape with
+    # a left margin of 2000) or a number ("10." and "가)" unmeasured; "1." measured and the outline's level 1).
+    # Hancom laid them out and saved them. The labels of the last two blocks grow past 9, which only the page
+    # estimate counts, reading the document in order.
+    rows = _row_line_starts(LABELS, labelled=True)
+
+    assert len(rows) == 168
+    assert [starts for starts, _ in rows[:144]] == [hancom for _, hancom in rows[:144]]
 def test_a_no_break_space_is_half_an_em_and_keeps_the_words_together() -> None:
     assert char_advance("\u00a0", 10, TextStyle()) == char_advance(" ", 10, TextStyle()) == 500
     # "다라" and "마바" stay together: the line breaks at the space before them, not after the no-break space.
