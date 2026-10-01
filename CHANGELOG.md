@@ -2,7 +2,14 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
-## [Unreleased]
+## [6.7.0] - 2026-10-01
+
+본문 쪽 수 추정(실험, `hwpx.experimental.estimate_pages`)을 더하고, 곡선·연결선, 바탕쪽 정리, 글상자 채우기,
+쓰지 않는 그림·차트 정리 같은 저작·정리 API를 넓힌 릴리스입니다. FormFit은 글꼴마다 한/글이 배치하는 폭과
+칸을 늘리는 식을 따르도록 다시 맞춰서, 고르는 글자 크기와 줄 수가 6.6.0과 달라질 수 있습니다. 누름틀 채우기도
+한/글에 맞췄습니다. 여러 문단에 걸친 누름틀은 걸친 문단을 지우고, 끝(`hp:fieldEnd`)이 없는 누름틀은
+`field-end-missing` 오류를 냅니다. 새 도형의 기본 선 굵기는 33(0.12 mm)이고, 각주·미주의 인스턴스 ID는
+`instId`로 씁니다. 저장 성공만으로 시각 품질을 보증하지 않습니다.
 
 ### 추가
 
