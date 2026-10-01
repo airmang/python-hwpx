@@ -46,6 +46,12 @@ HANCOM_PAGES = {
     "pages_table_flow_repeat_header": 3,  # a table flowing with the text, header row repeated
     "pages_table_repeated_header_second_cell_marked": 2,  # only its second cell a header cell: repeated
     "pages_table_flow_multiline_cells": 4,  # a flowing table split between cell lines
+    "pages_cell_paragraphs_split_s600_400_b0": 3,  # one cell of 25 paragraphs of 3 lines, spaced 600 before
+                                                   # and 400 after, split over pages: the spacing counts,
+                                                   # and a part starting with a paragraph keeps 600 above it
+    "pages_cell_paragraphs_split_s600_400_b30": 4,  # the same after 30 lines
+    "pages_cell_paragraphs_split_s0_400_b30": 3,  # spaced 400 after only: a paragraph whose first line fits
+                                                  # only without that spacing goes on
     "pages_object_pushing_characters_off500": 1,  # no text, a rectangle set as a character and one top
                                                   # and bottom 500 down from the paragraph's top: the
                                                   # line goes below it, as a line of text would
@@ -542,6 +548,30 @@ def test_a_table_placed_up_from_its_paragraph_in_a_cell_stands_at_the_paragraph_
     data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, 1)
+
+
+def test_the_lines_a_cell_splits_between_add_up_to_its_height() -> None:
+    # A row of several paragraphs splits between their lines, one height and advance each: they add up to
+    # the height the cell stacks the paragraphs to, a paragraph mixing character sizes included (each line
+    # as tall as its largest character).
+    root = HwpxDocument.open(io.BytesIO((FIXTURES / "pages_mixed_sizes_percent.hwpx").read_bytes()))._root
+    measure = page_layout._Measure(root)
+    paragraphs = root.sections[0].element.findall(f"{HP}p")
+
+    lines = measure.stack_lines(paragraphs, 42520, caches=False)
+
+    assert len({height for height, _ in lines}) > 1
+    assert page_layout._lines_height(lines, ()) == measure.stack(paragraphs, 42520, caches=False)[0]
+
+
+def test_a_row_taller_than_its_lines_goes_on_below_them_over_a_page_end() -> None:
+    # A row split between its lines whose lines all fit above the page's foot, while the row reaches lower
+    # (a cell taller than the lines it splits between): what is left goes on to the next page as room under
+    # its text does, or is dropped when no taller than a line.
+    row = page_layout._Row(5000, 2, 1600, 1000, 282, False, metrics=((1000, 1600), (1000, 1600)), first=1000)
+
+    assert page_layout._flow_row("CELL", row, 0, 7000, 10000, 0) == (1, 5000 - (10000 - 101 - 7000))
+    assert page_layout._flow_row("CELL", row, 0, 6000, 10000, 0) == (0, 10000)
 
 
 def test_paragraphs_of_several_character_sizes_hancom_laid_out_follow_their_cached_lines() -> None:
