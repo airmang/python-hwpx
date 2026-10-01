@@ -35,11 +35,24 @@ from .tokens import (
     GREEK,
     MATRIX_ENVIRONMENTS,
     OPERATORS,
+    STRUCTURAL,
     SYMBOL_OPERATORS,
 )
 
 MAX_SOURCE_LENGTH = 10_000
 MAX_GROUP_DEPTH = 64
+
+# Words EqEdit reads as symbols or structure. The writer quotes a bare identifier that collides with one
+# (``T_{int}`` → ``T _{"int"}``); the reader turns such a quoted word back into plain letters.
+_RESERVED_WORDS = (
+    frozenset(GREEK)
+    | frozenset(OPERATORS)
+    | frozenset(FUNCTIONS)
+    | frozenset(BIG_OPERATORS)
+    | frozenset(ACCENTS)
+    | frozenset(MATRIX_ENVIRONMENTS)
+    | STRUCTURAL
+)
 
 # Characters that always terminate a token even when not whitespace separated.
 _BREAK_CHARS = frozenset("{}^_&#()[]|")
@@ -174,12 +187,14 @@ class _Parser:
                 base = nodes.pop() if nodes else ""
                 nodes.append(_combine_script(base, token, self._atom(depth)))
                 continue
-            if token == "over" or token == "atop":
+            if token in ("over", "atop", "choose"):
                 self._next()
                 numerator = _strip_braces(nodes.pop() if nodes else "")
                 denominator = _strip_braces(self._atom(depth))
                 if token == "over":
                     nodes.append(f"\\frac{{{numerator}}}{{{denominator}}}")
+                elif token == "choose":
+                    nodes.append(f"\\binom{{{numerator}}}{{{denominator}}}")
                 else:
                     nodes.append(f"{{{numerator} \\atop {denominator}}}")
                 continue
@@ -191,9 +206,18 @@ class _Parser:
         if token is None:
             return ""
         if token == "{":
+            upright = self._upright_text()
+            if upright is not None:
+                return upright
+            bold = self._upright_bold(depth)
+            if bold is not None:
+                return bold
             return "{" + self._group(depth) + "}"
         if token == "sqrt":
             return f"\\sqrt{{{_strip_braces(self._atom(depth))}}}"
+        if token == "binom":
+            top = _strip_braces(self._atom(depth))
+            return f"\\binom{{{top}}}{{{_strip_braces(self._atom(depth))}}}"
         if token == "root":
             index = _strip_braces(self._atom(depth))
             if self._peek() == "of":
@@ -211,6 +235,33 @@ class _Parser:
             delim = self._next()
             return DELIMITERS.get(delim or "", delim or "")
         return self._map_token(token)
+
+    def _upright_text(self) -> str | None:
+        """``\\text{...}`` for the group ``{rm "..." it}`` just opened (upright text, italic again after it),
+        else ``None`` with nothing consumed."""
+
+        start = self._pos
+        window = self._tokens[start : start + 4]
+        if len(window) == 4 and window[0] == "rm" and window[2:] == ["it", "}"]:
+            literal = window[1]
+            if len(literal) >= 2 and literal.startswith('"') and literal.endswith('"'):
+                self._pos = start + 4
+                return f"\\text{{{literal[1:-1]}}}"
+        return None
+
+    def _upright_bold(self, depth: int) -> str | None:
+        """``\\mathbf{X}`` for the group ``{rm {bold X} it}`` just opened (upright bold, italic again after
+        it), else ``None`` with nothing consumed."""
+
+        start = self._pos
+        if self._tokens[start : start + 3] == ["rm", "{", "bold"]:
+            self._pos = start + 3
+            body = self._atom(depth + 1)
+            if self._tokens[self._pos : self._pos + 3] == ["}", "it", "}"]:
+                self._pos += 3
+                return f"\\mathbf{{{_strip_braces(body)}}}"
+        self._pos = start
+        return None
 
     def _group(self, depth: int) -> str:
         if depth + 1 > MAX_GROUP_DEPTH:
@@ -264,11 +315,12 @@ class _Parser:
                 base = current.pop() if current else ""
                 current.append(_combine_script(base, token, self._atom(depth)))
                 continue
-            if token == "over":
+            if token in ("over", "choose"):
                 self._next()
                 numerator = _strip_braces(current.pop() if current else "")
                 denominator = _strip_braces(self._atom(depth))
-                current.append(f"\\frac{{{numerator}}}{{{denominator}}}")
+                command = "\\frac" if token == "over" else "\\binom"
+                current.append(f"{command}{{{numerator}}}{{{denominator}}}")
                 continue
             current.append(self._atom(depth))
         flush_cell()
@@ -287,7 +339,12 @@ class _Parser:
         if token in FUNCTIONS:
             return FUNCTIONS[token]
         if token.startswith('"') and token.endswith('"') and len(token) >= 2:
-            return f"\\text{{{token[1:-1]}}}"
+            literal = token[1:-1]
+            if literal.isalpha() and literal in _RESERVED_WORDS:
+                # A quoted reserved word is an identifier kept from turning into a symbol; Hancom draws it in
+                # italic, as LaTeX draws plain letters. Upright text is the ``{rm "..." it}`` group.
+                return literal
+            return f"\\text{{{literal}}}"
         if token == "#":
             return r"\\"
         if token in ("%", "$", "&", "_"):
