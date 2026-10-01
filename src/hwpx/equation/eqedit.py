@@ -35,11 +35,24 @@ from .tokens import (
     GREEK,
     MATRIX_ENVIRONMENTS,
     OPERATORS,
+    STRUCTURAL,
     SYMBOL_OPERATORS,
 )
 
 MAX_SOURCE_LENGTH = 10_000
 MAX_GROUP_DEPTH = 64
+
+# Words EqEdit reads as symbols or structure. The writer quotes a bare identifier that collides with one
+# (``T_{int}`` → ``T _{"int"}``); the reader turns such a quoted word back into plain letters.
+_RESERVED_WORDS = (
+    frozenset(GREEK)
+    | frozenset(OPERATORS)
+    | frozenset(FUNCTIONS)
+    | frozenset(BIG_OPERATORS)
+    | frozenset(ACCENTS)
+    | frozenset(MATRIX_ENVIRONMENTS)
+    | STRUCTURAL
+)
 
 # Characters that always terminate a token even when not whitespace separated.
 _BREAK_CHARS = frozenset("{}^_&#()[]|")
@@ -191,6 +204,9 @@ class _Parser:
         if token is None:
             return ""
         if token == "{":
+            upright = self._upright_text()
+            if upright is not None:
+                return upright
             bold = self._upright_bold(depth)
             if bold is not None:
                 return bold
@@ -214,6 +230,19 @@ class _Parser:
             delim = self._next()
             return DELIMITERS.get(delim or "", delim or "")
         return self._map_token(token)
+
+    def _upright_text(self) -> str | None:
+        """``\\text{...}`` for the group ``{rm "..." it}`` just opened (upright text, italic again after it),
+        else ``None`` with nothing consumed."""
+
+        start = self._pos
+        window = self._tokens[start : start + 4]
+        if len(window) == 4 and window[0] == "rm" and window[2:] == ["it", "}"]:
+            literal = window[1]
+            if len(literal) >= 2 and literal.startswith('"') and literal.endswith('"'):
+                self._pos = start + 4
+                return f"\\text{{{literal[1:-1]}}}"
+        return None
 
     def _upright_bold(self, depth: int) -> str | None:
         """``\\mathbf{X}`` for the group ``{rm {bold X} it}`` just opened (upright bold, italic again after
@@ -304,7 +333,12 @@ class _Parser:
         if token in FUNCTIONS:
             return FUNCTIONS[token]
         if token.startswith('"') and token.endswith('"') and len(token) >= 2:
-            return f"\\text{{{token[1:-1]}}}"
+            literal = token[1:-1]
+            if literal.isalpha() and literal in _RESERVED_WORDS:
+                # A quoted reserved word is an identifier kept from turning into a symbol; Hancom draws it in
+                # italic, as LaTeX draws plain letters. Upright text is the ``{rm "..." it}`` group.
+                return literal
+            return f"\\text{{{literal}}}"
         if token == "#":
             return r"\\"
         if token in ("%", "$", "&", "_"):

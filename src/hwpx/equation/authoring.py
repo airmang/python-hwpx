@@ -18,6 +18,7 @@ Contract provenance: specs/054-equation-authoring/evidence/p0/equation-contract.
 from __future__ import annotations
 
 from .eqedit import (
+    _RESERVED_WORDS,
     MAX_GROUP_DEPTH,
     MAX_SOURCE_LENGTH,
     EquationConversionError,
@@ -28,9 +29,7 @@ from .tokens import (
     DELIMITERS,
     FUNCTIONS,
     GREEK,
-    MATRIX_ENVIRONMENTS,
     OPERATORS,
-    STRUCTURAL,
 )
 
 
@@ -117,17 +116,8 @@ _ENV_TO_EQEDIT: dict[str, str] = {
     "cases": "cases",
 }
 
-# Bare identifier runs that would collide with EqEdit vocabulary must be quoted
-# so Hancom keeps them literal (reserved-word protection).
-_RESERVED_WORDS = (
-    frozenset(GREEK)
-    | frozenset(OPERATORS)
-    | frozenset(FUNCTIONS)
-    | frozenset(BIG_OPERATORS)
-    | frozenset(ACCENTS)
-    | frozenset(MATRIX_ENVIRONMENTS)
-    | STRUCTURAL
-)
+# Bare identifier runs that would collide with EqEdit vocabulary (``_RESERVED_WORDS``)
+# must be quoted so Hancom keeps them literal (reserved-word protection).
 
 _SINGLE_CHAR_PASSTHROUGH = frozenset("+-=<>,.;:!|/()[]'")
 
@@ -337,7 +327,9 @@ class _LatexParser:
         literal = " ".join(parts)
         if '"' in literal:
             raise UnsupportedLatexError('\\text{...} may not contain a quote (")')
-        return f'"{literal}"'
+        # Hancom draws a bare quoted run in italic. ``rm`` makes it upright and goes on past its braces,
+        # so ``it`` turns italic back on for what follows.
+        return f'{{rm "{literal}" it}}'
 
     def _environment(self, depth: int) -> str:
         self._expect("{")

@@ -45,6 +45,19 @@ def test_triangle_renders_as_mathml_operator_without_changing_latex(token: str) 
     assert "triangle" not in "".join(root.itertext()).lower()
 
 
+def test_authored_upright_text_previews_as_text() -> None:
+    pytest.importorskip("latex2mathml")
+    # latex_to_eqedit writes \text{km} as {rm "km" it}; the preview shows the text, not the font words.
+    result = render_equation('5 {rm "km" it}')
+    assert result.mode == "mathml"
+    assert result.latex == r"5 \text{km}"
+    root = ElementTree.fromstring(result.html)
+    namespace = "{http://www.w3.org/1998/Math/MathML}"
+    texts = ["".join(node.itertext()) for node in root.iter(f"{namespace}mtext")]
+    assert texts == ["km"]
+    assert "rm" not in "".join(root.itertext())
+
+
 def test_quoted_triangle_literal_stays_text_and_is_not_annotated() -> None:
     pytest.importorskip("latex2mathml")
     # A quoted EqEdit literal becomes \text{...}; its content is prose and must

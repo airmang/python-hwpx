@@ -216,7 +216,7 @@ class TestLatexToEqedit:
             ),
             (r"\left( \frac{a}{b} \right)", "LEFT ( {a} over {b} RIGHT )"),
             (r"\bar{x} + \vec{v}", "bar {x} + vec {v}"),
-            (r"\text{판별식} = 0", '"판별식" = 0'),
+            (r"\text{판별식} = 0", '{rm "판별식" it} = 0'),
             (r"T_{int}", 'T _{"int"}'),
             (r"$$\frac{1}{2}$$", "{1} over {2}"),
             (r"$x + 1$", "x + 1"),
@@ -236,7 +236,14 @@ class TestLatexToEqedit:
             (r"A \cup B \cap C", "A cup B cap C"),
             (r"x \in \mathbb{R}"[:6], "x in"),  # prefix only; \mathbb rejected below
             (r"\infty", "infty"),
-            (r"\mathrm{km}", '"km"'),
+            (r"\mathrm{km}", '{rm "km" it}'),
+            # upright text: a bare quoted run draws italic in Hancom, ``rm`` goes on past its braces
+            # and ``it`` turns italic back on (python-hwpx #347)
+            (r"\textrm{if} x", '{rm "if" it} x'),
+            (r"\mbox{cm}", '{rm "cm" it}'),
+            (r"\text{max value}", '{rm "max value" it}'),
+            (r"T_{\text{max}} + x", 'T _{{rm "max" it}} + x'),
+            (r"\frac{\mathrm{d}y}{\mathrm{d}x}", '{{rm "d" it} y} over {{rm "d" it} x}'),
             # a thin space, arrows over a segment and the conclusion signs (python-hwpx #347)
             (r"\int_{0}^{1} x^{2} \, dx", "int _{0} ^{1} x ^{2} ` dx"),
             (r"\overrightarrow{AB}", "vec {AB}"),
@@ -291,6 +298,7 @@ class TestRoundtripStability:
         r"\overrightarrow{AB} + \overleftrightarrow{CD}",
         r"\therefore a = b \because b = c",
         r"\mathbf{v}^{2} + \mathbf{AB} w",
+        r"\frac{\mathrm{d}y}{\mathrm{d}x} + T_{\text{max}} \mbox{cm}",
     ]
 
     @pytest.mark.parametrize("latex", CORPUS)
