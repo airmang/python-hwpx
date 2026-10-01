@@ -86,6 +86,16 @@ HANCOM_PAGES = {
     "pages_table_caption_below_ends_100_above_page_foot": 2,  # the last row and the caption below end 100
                                                                 # above the foot: both go on
     "pages_table_caption_below_ends_101_above_page_foot": 2,  # 101 above it: they stay
+    "pages_table_cell_holding_a_drawing_top_and_bottom": 1,  # a cell paragraph holding only a rectangle 10000
+                                                             # tall placed top and bottom from it: the row is
+                                                             # as tall as it with the cell's margins
+    "pages_table_as_character_cell_holding_a_drawing_top_and_bottom": 1,  # in a table set as a character
+    "pages_table_cell_holding_a_drawing_500_down": 1,  # 500 down from the paragraph's top
+    "pages_table_cell_holding_a_drawing_wrapped_square": 1,  # wrapped square, narrow: the line beside it
+    "pages_table_cell_holding_a_picture_top_and_bottom": 1,  # a picture
+    "pages_table_cell_holding_a_drawing_after_a_line": 1,  # in the cell's second paragraph, after a line
+
+
     "pages_table_joined_rows_end_at_the_foot": 2,  # the last two rows joined by a merged cell reach 300 past the
                                                    # foot within the last one's room to spare: they end there,
                                                    # the paragraph after the table at the next page's top
