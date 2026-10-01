@@ -71,10 +71,11 @@ class FieldsNamespace(_Namespace):
 
     @property
     def all(self) -> "tuple[FormField, ...]":
-        """문서의 누름틀을 문서 순서로.
+        """문서의 모든 누름틀을 문서 순서로.
 
-        이름이 빈 누름틀(``name=""``)은 한/글의 필드 목록처럼 빠진다. 그런 누름틀도
-        ``fill(field_index=)``·``fill(field_id=)``로는 채울 수 있다.
+        이름이 빈 누름틀(``name=""``)도 빈 이름으로 나오고 ``field_id``로 구별한다.
+        ``fill(name=)``은 한/글처럼 이런 누름틀을 찾지 않지만, ``fill(field_index=)``·
+        ``fill(field_id=)``로는 채울 수 있다.
         """
 
         from .. import fields as _fields

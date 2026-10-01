@@ -1325,9 +1325,10 @@ def _object_line(
         top, bottom = _margin(out_margin, "top"), _margin(out_margin, "bottom")
     tall = int(obj.find(f"{HP}sz").get("height", 0)) + top + bottom
     name = _local(obj)
-    if pos.get("treatAsChar") == "1":
+    if pos.get("treatAsChar") == "1":  # as tall as it, or as the paragraph's characters when they are taller
         if name == "tbl":
             tall = _inline_table_height(measure, obj) + top + bottom + sum(_caption(measure, obj))
+        tall = max(tall, size)
         return 1, tall, tall + pitch - size, None
     on_paragraph = pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"
     if _wraps_top_and_bottom(obj, column) and on_paragraph:
@@ -1583,15 +1584,20 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
 
 def _pushing_object(objects: list[Any], text: str, column: int) -> Any:
     """The one object of a paragraph of text placed top and bottom below the line it stands on (an
-    offset down from the paragraph's top), or ``None``."""
+    offset down from the paragraph's top), or ``None``. In a paragraph holding no text, the objects set
+    as characters are that line."""
 
-    if len(objects) != 1 or not text.strip():
+    placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
+    lined = not text.strip() and len(objects) > len(placed)  # no text: the objects set as characters its line
+    if len(placed) != 1 or not (lined or (len(objects) == 1 and text.strip())):
         return None
-    obj = objects[0]
+    obj = placed[0]
     pos = obj.find(f"{HP}pos")
-    if pos.get("treatAsChar") == "1" or not _wraps_top_and_bottom(obj, column):
+    if not _wraps_top_and_bottom(obj, column) or pos.get("vertRelTo") != "PARA" \
+            or pos.get("vertAlign", "TOP") != "TOP":
         return None
-    if pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP" or int(pos.get("vertOffset", 0)) <= 0:
+    offset = int(pos.get("vertOffset", 0))
+    if offset <= 0 or lined and offset >= 1 << 31:  # at the paragraph's top (see _anchored_object), or placed up
         return None
     return obj
 
