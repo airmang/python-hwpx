@@ -190,6 +190,11 @@ HANCOM_PAGES = {
     "pages_table_nested_in_table_as_character": 1,  # a table in a cell of a table set as a character
     "pages_table_nested_row_split": 2,  # a row holding a table splits after its first line of text
     "pages_table_nested_row_moved": 2,  # none of a row holding a table fits: it goes on whole
+    "pages_table_nested_top_and_bottom_alone_then_a_line": 1,  # a table placed top and bottom alone in
+                                                              # a cell paragraph, then a line: right
+                                                              # below the table
+    "pages_table_nested_top_and_bottom_1000_down_alone": 1,  # the table 1000 down: the empty line stays
+                                                            # above it, its foot at the table's top
     "pages_table_nested_row_declared_cut": 2,  # the same row declared 16000: cut above the foot, the rest goes on
     "pages_table_nested_row_declared_cut_near_foot": 2,  # declared 24000, cut 3579 below its top
     "pages_table_nested_row_declared_first_line_100_above_page_foot": 2,  # its first line ends 100 above
@@ -530,6 +535,7 @@ def test_the_lines_around_a_nested_table_are_where_hancom_put_them() -> None:
 
 
 @pytest.mark.parametrize(("fixture", "followed"), [("pages_table_nested_top_and_bottom_alone", True),
+                                                  ("pages_table_nested_two_top_and_bottom", False),
                                                   ("pages_table_nested_top_and_bottom_before_text", False),
                                                   ("pages_table_nested_among_text", False)])
 def test_a_cell_holding_a_table_among_text_or_top_and_bottom_is_as_tall_as_hancom_drew_it(fixture: str,
@@ -537,7 +543,8 @@ def test_a_cell_holding_a_table_among_text_or_top_and_bottom_is_as_tall_as_hanco
     # A table in a cell of a flowing table, placed top and bottom alone in its paragraph (the cell
     # reaches down to its foot) or before text (the text goes below it), or set as a character among
     # text: the lines of the cell's caches. Without the caches the estimate follows the cell when the
-    # table is alone in its paragraph, as tall as its rows.
+    # table is alone in its paragraph, as tall as its rows. Two tables 0 and 3000 down in one paragraph
+    # put its empty line below the second (not beside the first): not followed without the caches.
     data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, 1)

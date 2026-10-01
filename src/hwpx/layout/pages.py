@@ -96,8 +96,8 @@
   where it would stand in the unsplit cell, a first line below such a table with the room above it,
   so the row splits again where it would). A picture or drawing placed top and bottom or wrapped
   square from a cell paragraph holding no text makes the cell reach its foot (outer margins
-  included), and so do tables placed top and bottom from a cell paragraph holding nothing else,
-  without such caches, as tall as their rows (one placed up from the paragraph's top stands at that
+  included), and so does a table placed top and bottom from a cell paragraph holding nothing else,
+  without such caches, as tall as its rows (one placed up from the paragraph's top stands at that
   top); what follows in the cell goes on below that foot. A flowing table's rows use
   the body only down to just above the page's foot (101 above it, or 2 in a table set not to be
   adjusted), less the table's bottom outer margin: a row, or a cell line of a row split between its
@@ -131,7 +131,8 @@ across the column before any text; an object offset down, but a flowing table, o
 stays on one page with the lines above or beside it), footnotes in such a paragraph, two tables
 starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor or on a
-page, a nested table among text, or not set as a character but top and bottom alone in its paragraph,
+page, a nested table among text, or not set as a character but top and bottom alone in its paragraph
+(two there are laid out otherwise),
 in a cell without such caches (in a table
 Hancom has not laid out as it is), a page break in a flowing row holding a table beside a taller
 cell, other objects placed on the page or the paper (but top and bottom from its top or bottom, a
@@ -799,7 +800,7 @@ def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
     if nested and any(paragraph.find(f".//{HP}tbl") is not None
                       and _table_alone(paragraph.findall(f"{HP}run")) is None for paragraph in paragraphs):
         drawn = _drawn_lines(measure, paragraphs)  # among text, or not set as a character: as Hancom drew it
-        if not drawn and not all(_tables_on_their_own(paragraph) for paragraph in paragraphs
+        if not drawn and not all(_table_on_its_own(paragraph) for paragraph in paragraphs
                                  if paragraph.find(f".//{HP}tbl") is not None
                                  and _table_alone(paragraph.findall(f"{HP}run")) is None):
             raise _Unsupported("a nested table")
@@ -1114,13 +1115,14 @@ def _placed_top_and_bottom(obj: Any) -> bool:
         and pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"
 
 
-def _tables_on_their_own(paragraph: Any) -> bool:
-    """Whether a cell paragraph holds no text and nothing but tables placed top and bottom from its top."""
+def _table_on_its_own(paragraph: Any) -> bool:
+    """Whether a cell paragraph holds no text and nothing but one table placed top and bottom from its top
+    (Hancom sets the empty line below two of them, not beside them)."""
 
     runs = paragraph.findall(f"{HP}run")
     objects = [child for run in runs for child in run if _local(child) in _OBJECTS]
-    return not _run_text(runs).strip() and bool(objects) and all(
-        _local(obj) == "tbl" and _placed_top_and_bottom(obj) for obj in objects)
+    return not _run_text(runs).strip() and len(objects) == 1 and _local(objects[0]) == "tbl" \
+        and _placed_top_and_bottom(objects[0])
 
 
 def _placed_objects(runs: list[Any]) -> list[Any]:
