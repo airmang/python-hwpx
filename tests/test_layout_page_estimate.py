@@ -160,6 +160,21 @@ HANCOM_PAGES = {
     "pages_picture_square_right": 2,      # a wide picture wrapped square on the right
     "pages_picture_square_alone": 2,      # a picture wrapped square alone in its paragraph
     "pages_picture_square_wider_than_column": 2,  # no room beside it: the text goes below
+    "pages_picture_square_520_room_on_its_right": 1,  # 42000 wide at the column's left: 520 is no room, the
+                                                      # text goes below it
+    "pages_table_square_520_room_on_its_right": 1,  # a table the same, as tall as its rows
+    "pages_table_square_alone_520_room_on_its_right": 1,  # alone: its empty line at its top, the next
+                                                          # paragraph below it
+    "pages_table_square_right_520_room_on_its_left": 1,  # at the column's right
+    "pages_table_square_1000_and_920_room_beside_it": 1,  # 1000 from the left: no room on either side
+    "pages_table_square_larger_side_only_520_room": 1,  # the text going to the larger side only
+    "pages_table_square_520_room_on_its_right_3000_down": 1,  # 3000 below the paragraph's top: the lines
+                                                              # reaching it go below it
+    "pages_picture_square_520_room_on_its_right_3000_down": 2,  # a picture the same
+    "pages_table_square_520_room_over_the_page_end": 3,  # 40 rows after 10 paragraphs: split between cell
+                                                         # lines over the page ends like a top-and-bottom table
+    "pages_table_square_520_room_over_the_page_end_row_by_row": 3,  # moved row by row
+    "pages_table_square_520_room_over_the_page_end_with_text": 3,  # text after it: below its end
     "pages_picture_square_offset": 2,     # a picture wrapped square 3000 below the paragraph's top
     "pages_table_square_alone": 1,        # a table wrapped square alone, as tall as its rows
     "pages_table_above_a_table_as_character": 1,  # a 3-row table top and bottom from its paragraph's top and a

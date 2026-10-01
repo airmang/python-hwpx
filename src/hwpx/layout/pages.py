@@ -59,8 +59,8 @@
   whose top is above its foot, in that paragraph and the ones after, is narrower by what the object
   and its outer margins take (a drop cap is such an object), or, with text on both sides, is two
   pieces at one height, the left one first -- a table by the height
-  of its rows -- and wrapped square with no room beside it, it pushes the text below it like a
-  top-and-bottom object; a table flowing with the text is laid out row by row -- split between cell lines, moved row
+  of its rows -- and wrapped square with no room beside it (less than 1440 on each side its text flow
+  allows), it pushes the text below it like a top-and-bottom object; a table flowing with the text is laid out row by row -- split between cell lines, moved row
   by row or moved whole -- with its header rows (any row with a header cell of its own)
   repeated; one set not to split takes its room under its anchor line when all its rows fit there,
   else it moves whole to the next page's top while the text after it goes on under its anchor line
@@ -1456,11 +1456,25 @@ def _extent(obj: Any, side: str) -> int:
 
 
 def _wraps_top_and_bottom(obj: Any, column: int) -> bool:
-    """Top and bottom, or square with no room beside it: an object as wide as the column pushes the
-    text below it either way."""
+    """Top and bottom, or square with no line's room beside it: an object as wide as the column, or one
+    placed from the column's or its paragraph's left or right that leaves less than 1440 of it on either
+    side (the text going to either side, or to the wider), pushes the text below it either way."""
 
     wrap = obj.get("textWrap")
-    return wrap == "TOP_AND_BOTTOM" or (wrap == "SQUARE" and _extent(obj, "width") >= column)
+    if wrap == "TOP_AND_BOTTOM":
+        return True
+    width = _extent(obj, "width")
+    if wrap != "SQUARE" or width >= column:
+        return wrap == "SQUARE"
+    pos = obj.find(f"{HP}pos")
+    if pos is None or pos.get("horzRelTo") not in ("COLUMN", "PARA") or pos.get("horzAlign") not in ("LEFT", "RIGHT") \
+            or obj.get("textFlow", "BOTH_SIDES") not in ("BOTH_SIDES", "LARGEST_ONLY"):
+        return False
+    offset = int(pos.get("horzOffset", 0))
+    if offset >= 1 << 31:  # kept unsigned: one placed out past the edge
+        offset -= 1 << 32
+    start = offset if pos.get("horzAlign") == "LEFT" else column - width - offset
+    return start < _MIN_SIDE and column - start - width < _MIN_SIDE
 
 
 def _square_object(objects: list[Any], runs: list[Any], column: int) -> Any:
