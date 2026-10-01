@@ -36,7 +36,9 @@
   foot -- and the lines after follow; with several columns, in each of them when it covers the
   text's whole width). A table or picture set as a character is one line as tall as it.
   A table's caption above or below it takes its lines and its gap there (a caption below goes on
-  to the next page with the table's last row when both do not fit above the foot, as a row would).
+  to the next page with the table's last row when both do not fit above the foot, as a row would;
+  when that row, split between cell lines, is declared taller than its text, its room to spare is
+  cut above the caption instead, as it would be above the foot).
   Among text, an object set as a character takes its width on its line like a character, and the
   line is at least as tall as the object; the line spacing is reckoned from the line's largest
   character, the object counted at its run's character size (a fixed spacing keeps the next line
@@ -1730,10 +1732,13 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
             index = end + 1
             continue
         before, start = frame, y
-        frame, y = _flow_row(table.mode, rows[index], frame, y, body, header, table.cut)
+        above = index == len(rows) - 1 and table.caption[1] and table.mode == "CELL" and rows[index].spare \
+            and not rows[index].nested  # a caption below keeps its room: the row's room to spare is cut above it
+        frame, y = _flow_row(table.mode, rows[index], frame, y, body - (table.caption[1] if above else 0), header,
+                             table.cut)
         if rows[index].merged and frame != before:
             raise _Unsupported("a page break among rows merged in a flowing table")
-        if index == len(rows) - 1 and table.caption[1] and frame == before and start != header \
+        if index == len(rows) - 1 and table.caption[1] and not above and frame == before and start != header \
                 and y + table.caption[1] > foot:  # a caption below goes on with the last row
             frame, y = frame + 1, header + rows[index].height
         index += 1

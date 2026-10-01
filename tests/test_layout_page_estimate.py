@@ -68,6 +68,15 @@ HANCOM_PAGES = {
     "pages_table_caption_below_ends_100_above_page_foot": 2,  # the last row and the caption below end 100
                                                                 # above the foot: both go on
     "pages_table_caption_below_ends_101_above_page_foot": 2,  # 101 above it: they stay
+    "pages_table_caption_below_a_spare_last_row_cut": 2,  # the last row declared taller than its line, the
+                                                          # caption 1000 past the foot: the row's room to spare
+                                                          # is cut above the caption, the rest dropped
+    "pages_table_caption_below_a_spare_last_row_cut_near_the_foot": 2,  # 669 past it, 2000 to spare
+    "pages_table_caption_below_a_spare_last_row_too_little_spare": 2,  # 2269 past it, 2000 to spare: the row
+                                                                       # goes on with the caption
+    "pages_table_caption_below_a_spare_last_row_split": 2,  # 3000 past it: the rest (more than 1282) goes on
+                                                            # with the caption
+    "pages_table_caption_below_a_spare_last_row_moved_row_by_row": 2,  # moved row by row (TABLE): no cut
     "pages_table_alone_offset_500": 1,  # a flowing table alone in its paragraph, 500 down: it starts there
     "pages_table_alone_spacing_before_10pt": 1,  # its paragraph 10 pt apart: the table above that spacing,
                                                    # the next paragraph (10 pt apart too) under the table
