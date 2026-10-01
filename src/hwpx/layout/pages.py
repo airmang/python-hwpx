@@ -68,10 +68,10 @@
   there), and the next paragraph goes below the table's end or below the paragraph's line and its
   own spacing before, whichever is lower; several anchored so to an empty paragraph (none up from it)
   go one by one to the first page, from the paragraph's on, where they fit below the earlier ones
-  they overlap across (on the paragraph's page at their offset or below them, whichever is lower), and
-  one that fits on none starts at the top of the page after the last one used (a table taller than a
-  page split over the pages after); the paragraph's line and the lines after take the first places
-  clear of them;
+  they overlap across (on the paragraph's page at their offset or below them, whichever is lower);
+  the first, fitting there on none, flows from where it stands, and a later one starts at the top of
+  the page after the last one used (a table taller than a page split over the pages after); the
+  paragraph's line and the lines after take the first places clear of them;
   wrapped square anywhere across the column (from the column's, the paragraph's or the paper's left
   or right) before a paragraph's text (or alone in its paragraph), the text goes on each side of it
   at least 1440 wide that its text flow allows (both, the larger, the left or the right): a line
@@ -132,7 +132,7 @@ settings in a cell or a text box are that list's own), section settings after a 
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but objects set as characters, with line spacing in percent or
 fixed, one top-and-bottom object placed from the paragraph's top, several so in an empty paragraph
-(but in columns, or the first not fitting under the paragraph's top), and one object wrapped square
+(but in columns, or a picture or drawing past the page's foot), and one object wrapped square
 across the column before any text; an object offset down, but a flowing table, or wrapped square
 stays on one page with the lines above or beside it), footnotes in such a paragraph, two tables
 starting past their
@@ -2161,55 +2161,70 @@ class _Paginator:
 
     def _stacked(self, index: int, paras: list[_Para], para: _Para, start: int) -> None:
         """Objects stacked in a paragraph holding nothing else go one by one to the first page, from the
-        paragraph's on, where they fit below the earlier ones there they overlap across: on the paragraph's page
-        at their offset below its top above its spacing or lower, on a later page from its top. One fitting on
-        none starts at the top of the page after the last one used, a table taller than a page split over the
-        pages after. No line goes into them: the paragraph's line takes the first place clear of them on its
-        page, as the lines after do."""
+        paragraph's on, where they fit below the earlier ones there they overlap across (see
+        :meth:`_stack_spot`). The first, fitting there on none, flows from where it stands (a table split at the
+        page's foot); a later one starts at the top of the page after the last one used, a table taller than a
+        page split over the pages after. A page a table goes on from is full. No line goes into them: the
+        paragraph's line takes the first place clear of them, on a later page when its own has none, and the
+        lines after follow it."""
 
-        if self.band is not None or para.notes or self.columns > 1:
+        if self.band is not None or para.notes or self.columns > 1 or self.page_notes[1]:
             raise _Unsupported("objects placed top and bottom one below another beside other objects")
-        start, broke = self._breaks(para, start)
+        start, _ = self._breaks(para, start)
         if self.last_vp is not None and start + para.height(0) > self.body:  # its line goes on to the next
             start = self._next_frame(para, 0, True)                         # page, the objects with it
         home, top = self.frame, start - para.prev
         placed: dict[int, list[tuple[int, int, int, int]]] = {}  # frame -> left, right, top, bottom
         last = home
         for obj in para.stack:
-            spot = None
-            for frame in range(home, last + 1):
-                below = [box[3] for box in placed.get(frame, ()) if box[0] < obj.right and obj.left < box[1]]
-                y = max([top + obj.offset if frame == home else 0] + below)
-                if y + obj.height <= self.body:
-                    spot = frame, y
-                    break
-            if spot is not None:
-                placed.setdefault(spot[0], []).append((obj.left, obj.right, spot[1], spot[1] + obj.height))
-                continue
-            if not placed:
-                raise _Unsupported("objects placed top and bottom one below another past the page's foot")
-            last += 1  # from the top of the page after the last one used
-            if obj.height <= self.body:
-                placed.setdefault(last, []).append((obj.left, obj.right, 0, obj.height))
-                continue
-            if obj.table is None:
-                raise _Unsupported("an object placed top and bottom taller than a page")
-            end_frame, end = _flow_table(obj.table, last, obj.table.above, self.body)
-            for frame in range(last, end_frame):
-                placed.setdefault(frame, []).append((obj.left, obj.right, 0, self.body))
-            placed.setdefault(end_frame, []).append((obj.left, obj.right, 0, end + obj.table.below))
-            last = end_frame
+            spot = self._stack_spot(placed, obj, home, last, top)
+            if spot is None:  # the first from where it stands, a later one from the top of the page after the last
+                spot = (last + 1, 0) if placed else (home, top + obj.offset)
+                if obj.table is None and spot[1] + obj.height > self.body:
+                    raise _Unsupported("an object placed top and bottom past the page's foot")
+            frame, y = spot
+            end_frame, bottom = frame, y + obj.height
+            if bottom > self.body:  # a table split over the pages from there
+                assert obj.table is not None
+                end_frame, end = _flow_table(obj.table, frame, y + obj.table.above, self.body)
+                bottom = end + obj.table.below
+            for page in range(frame, end_frame + 1):
+                placed.setdefault(page, []).append(
+                    (obj.left, obj.right, y if page == frame else 0, bottom if page == end_frame else self.body))
+            last = max(last, end_frame)
         for frame, boxes in placed.items():
             if self.bands.get(frame) or self.sides.get(frame) or frame != home and self.reserved.get(frame):
                 raise _Unsupported("objects placed top and bottom one below another beside other objects")
             self.bands[frame] = [(above, below) for _, _, above, below in boxes]
         self.table_end = max(self.table_end, last)
-        first = len(self.out)
-        if self._lay(index, paras, para, start, broke):
-            laid = self.laid or para
-            self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], laid.advance(laid.lines - 1), para.next
-        if self.out[first][0] != home:
-            raise _Unsupported("objects placed top and bottom one below another past the page's foot")
+        frame, y, height = home, start, para.height(0)
+        while True:  # the paragraph's line, at the first place clear of them
+            hits = [below for above, below in self.bands.get(frame, ()) if y < below and y + height > above]
+            if hits:
+                y = max(hits)
+            elif y + height <= self.body:
+                break
+            else:
+                frame, y = frame + 1, self.reserved.get(frame + 1, 0) + para.prev
+        if frame != home:
+            self.page_notes = [0, 0]
+        self.frame, self.laid = frame, para
+        self.out.append((frame, y))
+        self._reach(frame, y, y + height)
+        self.last_vp, self.last_pitch, self.pending_next = y, para.advance(0), para.next
+
+    def _stack_spot(self, placed: dict[int, list[tuple[int, int, int, int]]], obj: _Stacked, home: int, last: int,
+                    top: int) -> tuple[int, int] | None:
+        """The first of the pages *home* to *last* where *obj* fits below the objects *placed* there it overlaps
+        across (on *home* at its offset below *top* or lower, on a later page from its top), and where; ``None``
+        when it fits on none."""
+
+        for frame in range(home, last + 1):
+            below = [box[3] for box in placed.get(frame, ()) if box[0] < obj.right and obj.left < box[1]]
+            y = max([top + obj.offset if frame == home else 0] + below)
+            if y + obj.height <= self.body:
+                return frame, y
+        return None
 
     def _anchored(self, index: int, paras: list[_Para], para: _Para, start: int) -> None:
         """The lines before the anchor's line, the object at that line's top, then the rest of the

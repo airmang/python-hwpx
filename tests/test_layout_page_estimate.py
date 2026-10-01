@@ -410,8 +410,9 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
 
 
 # Objects placed top and bottom from the top of an empty paragraph after four lines (10 pt, spaced 160%), the
-# lines after it of text, laid out and saved by Hancom:
-STACKED_PAGES = {
+# lines after it of text, laid out and saved by Hancom: its pages, and the page of the paragraph's line and
+# the lines after when not the first:
+STACKED_PAGES: dict[str, int | tuple[int, int]] = {
     "pages_stacked_two_tables": 1,  # both 0 down: one right below the other, the line below both
     "pages_stacked_three_tables": 1,
     "pages_stacked_second_table_1230_down": 1,  # still right below the first
@@ -431,6 +432,11 @@ STACKED_PAGES = {
                                                      # past the second page, row by row over the last two
     "pages_stacked_tables_filling_the_second_page": 2,  # the third below the second, on the second page
     "pages_stacked_second_table_on_the_next_page": 2,  # outer margins 141: the second from the next page's top
+    # The paragraph low on its page, the first table not fitting under it: it flows from there.
+    "pages_stacked_low_two_tables_cell": (2, 1),  # split at the foot, the second below its end, then the line
+    "pages_stacked_low_two_tables_table": (2, 1),  # its first row alone on the first page
+    "pages_stacked_low_small_second_table": (2, 1),  # the small second one not back on the first page
+    "pages_stacked_low_table_taller_than_a_page": (3, 2),  # no room left for the line: the next page's top
 }
 
 
@@ -441,21 +447,19 @@ def test_objects_stacked_in_an_empty_paragraph_go_where_hancom_put_them(name: st
     # first places clear of them. A last page holding only objects has no line, hence no HANCOM_PAGES entry.
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
     hancom = _hancom_lines(data)
+    pages, lines_page = STACKED_PAGES[name] if isinstance(STACKED_PAGES[name], tuple) else (STACKED_PAGES[name], 0)
 
     for source in (data, _without_caches(data)):
         estimate = estimate_pages(source)
         estimated = [[line.vertpos for line in lines] for lines in estimate.lines]
 
-        assert (estimate.unsupported, estimate.pages) == ((), STACKED_PAGES[name])
-        assert {line.page for lines in estimate.lines for line in lines} == {0}
+        assert (estimate.unsupported, estimate.pages) == ((), pages)
+        assert [lines[-1].page for lines in estimate.lines][-1] == lines_page
         assert [mine for mine, theirs in zip(estimated, hancom) if theirs] == [theirs for theirs in hancom if theirs]
 
 
-@pytest.mark.parametrize(("index", "height", "reason"), [
-    (0, 60000, "objects placed top and bottom one below another past the page's foot"),  # the first not fitting
-    (1, 70000, "an object placed top and bottom taller than a page"),  # a picture fitting on no page
-])
-def test_objects_stacked_otherwise_are_not_followed(index: int, height: int, reason: str) -> None:
+@pytest.mark.parametrize(("index", "height"), [(0, 60000), (1, 70000)])  # the first not fitting, a later on no page
+def test_a_stacked_picture_past_the_page_foot_is_not_followed(index: int, height: int) -> None:
     out = io.BytesIO()
     data = (FIXTURES / "pages_stacked_two_pictures.hwpx").read_bytes()
     with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
@@ -467,7 +471,8 @@ def test_objects_stacked_otherwise_are_not_followed(index: int, height: int, rea
                 payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
             target.writestr(info, payload)
 
-    assert estimate_pages(out.getvalue()).unsupported == (f"section 0: {reason}",)
+    assert estimate_pages(out.getvalue()).unsupported == (
+        "section 0: an object placed top and bottom past the page's foot",)
 
 
 def test_a_typed_ideographic_space_is_not_a_fixed_width_one() -> None:
