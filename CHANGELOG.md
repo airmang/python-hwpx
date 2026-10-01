@@ -18,8 +18,9 @@
   (`an object beside a square-wrapped object`)으로 두던 것을 고친다. 한/글은 개체가 곁 자리보다 넓으면 그 줄을 띠
   아래로 보내 전체 폭에 두고, 좁으면 곁에 둔다.
 - 쪽 수 추정(실험, `estimate_pages`)이 어울림 개체 곁 띠에서 글 사이에 글자처럼 둔 개체가 든 문단을 띠 없이 세던
-  것을 고친다. 한/글은 곁 자리보다 넓은 개체가 든 줄을 띠 아래로 보내는데, 이것은 아직 따르지 않아 지원 밖
-  (`objects set as characters among text beside a square-wrapped object`)으로 둔다.
+  것을 고친다. 이제 띠 안에서 시작하는 줄은 곁 자리 폭으로 나눈다. 곁 자리보다 넓은 개체가 든 첫 줄은 한/글처럼
+  띠 아래로 보내 전체 폭에 두고, 곁의 남은 자리는 비운다. 글이 개체 양쪽에 놓이는 띠에서는 지원 밖
+  (`objects set as characters among text beside a square-wrapped object`)이다.
 - 쪽 수 추정(실험, `estimate_pages`)이 칸 단위로 나누는 흐르는 표(`pageBreak="CELL"`)에서 병합 칸으로 이어진
   행들이 한 쪽보다 길면 "rows merged together taller than a page"로 거부하던 것을 고친다. 한/글은 쪽 끝마다
   다시 나눈다. 칸마다 그 쪽에 들어가는 줄까지 두고 나머지는 다음 쪽 머리 행 아래로 넘기며, 넘긴 부분이 다시

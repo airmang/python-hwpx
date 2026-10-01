@@ -34,6 +34,14 @@ HANCOM_PAGES = {
     # next paragraph holds a table set as a character alone:
     "pages_square_band_table_as_character_alone": 1,  # 47058 wide: below the picture, the whole width
     "pages_square_band_narrow_table_as_character_alone": 1,  # 5000 wide: beside it, and the lines after
+    # ... or text whose lines in the room beside the picture are as wide as it, and an object set as a
+    # character among it: the first line holding one wider than the room goes below the picture, the whole
+    # width, the rest of the room left empty; one narrower stays beside it.
+    "pages_square_band_table_as_character_among_text": 2,  # a table 47058 wide
+    "pages_square_band_narrow_table_as_character_among_text": 1,  # 5000 wide
+    "pages_square_band_picture_as_character_among_text": 1,  # a picture 47058 x 5000
+    "pages_square_band_table_as_character_below_a_short_band": 1,  # the picture 5000 tall: the table's line
+                                                                   # comes after the band anyway
     "pages_fixed_width_spaces": 2,  # rows of a syllable and a fixed-width space: a quarter em that hangs
     "pages_no_break_spaces": 2,  # rows of "가나" and a no-break space: each is half an em and keeps the row
                                   # one word
@@ -459,15 +467,23 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
 
 
-def test_objects_set_as_characters_among_text_beside_a_square_wrapped_object_are_not_followed() -> None:
-    # Text beside the picture wrapped square (as in pages_square_band_table_as_character_alone) with a table set
-    # as a character after it: Hancom sets the text in the room beside the picture and the table's line, wider
-    # than that room, below the picture, leaving the rest of the room empty. The estimate does not follow that.
+def test_objects_set_as_characters_among_text_on_both_sides_of_a_square_wrapped_object_are_not_followed() -> None:
+    # The picture of pages_square_band_table_as_character_among_text moved 3000 from the column's left: text goes
+    # on both sides of it, each line in two pieces, and an object among it is not followed there.
+    out = io.BytesIO()
     data = (FIXTURES / "pages_square_band_table_as_character_among_text.hwpx").read_bytes()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                root = etree.fromstring(payload)
+                square = next(pic for pic in root.iter(f"{HP}pic") if pic.get("textWrap") == "SQUARE")
+                square.find(f"{HP}pos").set("horzOffset", "3000")
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
 
-    for source in (data, _without_caches(data)):
-        assert estimate_pages(source).unsupported == (
-            "section 0: objects set as characters among text beside a square-wrapped object",)
+    assert estimate_pages(_without_caches(out.getvalue())).unsupported == (
+        "section 0: objects set as characters among text beside a square-wrapped object",)
 
 
 def test_a_typed_ideographic_space_is_not_a_fixed_width_one() -> None:
