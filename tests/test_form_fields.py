@@ -332,10 +332,15 @@ def _unnamed_field_document() -> HwpxDocument:
     return doc
 
 
-def test_an_unnamed_field_is_left_out_of_the_field_list() -> None:
+def test_an_unnamed_field_is_listed_with_an_empty_name() -> None:
+    # Forms often leave every click-here field unnamed and tell them apart by id: the list must not
+    # come back empty for them (python-hwpx #354).
     doc = _unnamed_field_document()
+    unnamed = next(b for b in doc.sections[0].element.iter(f"{HP}fieldBegin") if b.get("name") == "")
 
-    assert [field.name for field in doc.fields.all] == ["이름"]
+    assert [field.name for field in doc.fields.all] == ["이름", ""]
+    assert [field.name for field in doc.list_form_fields()] == ["이름", ""]
+    assert doc.fields.all[1].field_id == unnamed.get("id")
 
 
 def test_an_unnamed_field_is_not_found_by_name_but_by_index() -> None:
@@ -359,7 +364,9 @@ def test_hancom_lists_and_fills_only_the_named_field() -> None:
     before = HwpxDocument.open((HANCOM_SAVED / "form_field_unnamed_before.hwpx").read_bytes())
     after = HwpxDocument.open((HANCOM_SAVED / "form_field_unnamed_after.hwpx").read_bytes())
 
-    assert [field.name for field in before.fields.all] == ["이름"]
-    assert [(field.name, field.value) for field in after.fields.all] == [("이름", "홍길동")]
+    # Every field is listed; the unnamed one has an empty name and was not filled.
+    assert [field.name for field in before.fields.all] == ["이름", ""]
+    assert [(field.name, field.value) for field in after.fields.all][0] == ("이름", "홍길동")
+    assert after.fields.all[1].name == ""
     unnamed = [b for b in after.sections[0].element.iter(f"{HP}fieldBegin") if b.get("name") == ""]
     assert len(unnamed) == 1 and unnamed[0].get("dirty") != "1"
