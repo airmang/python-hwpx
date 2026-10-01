@@ -146,7 +146,7 @@ import os
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
-from ..form_fit.measure import (char_advance, hancom_line_starts, indented_widths, paragraph_label,
+from ..form_fit.measure import (_GLYPH_SPACE, char_advance, hancom_line_starts, indented_widths, paragraph_label,
                                 text_style_from_refs)
 from ..oxml._document_primitives import _remove_stale_paragraph_layout_cache
 from ..oxml.namespaces import HH, HP
@@ -315,14 +315,16 @@ def _on(flags: dict[str, str], name: str) -> bool:
 
 def _t_text(text_element: Any) -> str:
     """The text of one ``hp:t``, with ``hp:lineBreak`` as a newline, ``hp:tab`` as a tab, ``hp:nbSpace`` as a
-    no-break space (U+00A0) and ``hp:fwSpace`` as a fixed-width one (U+3000), as python-hwpx reads them."""
+    no-break space (U+00A0) and ``hp:fwSpace`` as a fixed-width one (U+3000), as python-hwpx reads them; an
+    ideographic space typed in the text is FormFit's ``_GLYPH_SPACE``, so it is not taken for a fixed-width one."""
 
     parts = [text_element.text or ""]
     for child in text_element:
         name = _local(child)
         parts.append({"lineBreak": "\n", "tab": "\t", "nbSpace": "\u00a0", "fwSpace": "\u3000"}.get(name, ""))
         parts.append(child.tail or "")
-    return "".join(parts)
+    return "".join(part.replace("\u3000", _GLYPH_SPACE) if index % 2 == 0 else part
+                   for index, part in enumerate(parts))
 
 
 def _indented(line: float, shape: _Shape, style: Any) -> list[float]:
