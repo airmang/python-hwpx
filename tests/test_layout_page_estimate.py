@@ -156,6 +156,11 @@ HANCOM_PAGES = {
     "pages_picture_square_wider_than_column": 2,  # no room beside it: the text goes below
     "pages_picture_square_offset": 2,     # a picture wrapped square 3000 below the paragraph's top
     "pages_table_square_alone": 1,        # a table wrapped square alone, as tall as its rows
+    "pages_table_above_a_table_as_character": 1,  # a 3-row table top and bottom from its paragraph's top and a
+                                                  # table set as a character: the character's line below it
+    "pages_table_above_a_table_as_character_and_text": 1,  # the same with text after the character
+    "pages_table_above_a_table_as_character_over_a_page": 2,  # a 12-row one at the page end: it flows over
+                                                             # it, the character's line below its end
     "pages_bullet_and_number_labels": 16,  # fourteen blocks of rows under bullets and numbers of every
                                              # label setting: each label takes its room off the lines
     "pages_picture_square_text_on_both_sides": 2,  # a picture 9100 from the column's left: each line
