@@ -192,6 +192,20 @@ def test_removed_module_member_normalization_fails_closed(
     assert expected_source in failures[0]
 
 
+def test_artifact_names_in_reports_use_forward_slashes(tmp_path: Path) -> None:
+    # A report names an artifact the same way on every platform: relative to the repository with /
+    # separators, and an artifact outside it by its full path, also with /.
+    inside = ROOT / "dist" / "python_hwpx-5.0.0-py3-none-any.whl"
+    outside = tmp_path / "dist" / "python_hwpx-5.0.0.tar.gz"
+
+    assert hygiene._artifact_display(inside) == "dist/python_hwpx-5.0.0-py3-none-any.whl"
+    assert hygiene._artifact_display(outside) == outside.as_posix()
+    failures = hygiene._removed_artifact_member_failures(inside, ["hwpx/form_fit/seal.py"])
+    assert failures[0].startswith(
+        "removed core module in public artifact: dist/python_hwpx-5.0.0-py3-none-any.whl!"
+    )
+
+
 def test_synthetic_wheel_with_removed_module_is_rejected(tmp_path: Path) -> None:
     wheel = tmp_path / "python_hwpx-5.0.0-py3-none-any.whl"
     with zipfile.ZipFile(wheel, "w") as archive:
