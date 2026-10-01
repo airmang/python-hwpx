@@ -15,6 +15,16 @@
   - `eqedit_to_latex`는 이 철자들을 되읽는다(`` ` `` → `\,`, `dyad` → `\overleftrightarrow`, `therefore`·`THEREFORE`
     → `\therefore`, `because` → `\because`, `{rm {bold X} it}` → `\mathbf{X}`). 수식 크기 추정은 `dyad`를 `vec`처럼
     꾸밈으로 잰다.
+- `hwpx.experimental.latex_to_eqedit`(실험)가 `\mid`와 `\binom`도 옮긴다(#347). 전에는 `UnsupportedLatexError`로
+  거부했다. 철자는 한/글에서 그려 본 결과(#347 댓글)를 따른다.
+  - `\mid` → `~|~`. 맨 `|`는 앞뒤 간격 없이 붙어 그려지고, `~|~`가 `\mid`의 간격에 가장 가깝다.
+  - `\binom{n}{r}` → `{n} choose {r}`. `binom {n} {r}`·`pmatrix {n # r}`와 같은 모양이고, `( {n} atop {r} )`는
+    괄호가 늘어나지 않는다.
+  - `eqedit_to_latex`는 `~|~`를 `\mid`로, `{n} choose {r}`와 `binom {n} {r}`를 `\binom{n}{r}`로 되읽는다. 수식 크기
+    추정은 둘을 `atop`처럼 두 줄로 잰다. `choose`·`binom`은 예약어가 되어, LaTeX의 맨 글자 `choose`는 따옴표로
+    감싼다.
+  - LaTeX `~`(띄움)를 EqEdit의 보통 띄움 `~`로 옮긴다. 전에는 거부해서, `eqedit_to_latex`가 내보낸 `~`가 든 LaTeX를
+    다시 EqEdit로 옮기지 못했다. 이제 EqEdit의 작은 띄움 `` ` ``(`\,`)과 보통 띄움 `~`가 모두 왕복한다.
 - `doc.shapes.add_curve()`·`add_connector()`를 더한다(곡선과 붙은 연결선 저작).
   - 곡선은 앵커를 지나는 `CURVE` 구간으로 쓴다(닫으면 끝에서 첫 앵커로). 한/글은 곡선의 크기 상자를 다시 계산하지
     않으므로, 한/글 곡선이 갖는 상자(앵커를 지나는 Catmull-Rom 곡선을 구간마다 16단계로 근사한 상자)를 쓰고 앵커는
@@ -174,6 +184,12 @@
   더한다.
 ### 바꿈
 
+- `hwpx.experimental.latex_to_eqedit`(실험)가 `\text{…}`·`\mathrm{…}`·`\textrm{…}`·`\mbox{…}`를 `{rm "…" it}`로
+  옮긴다(#347). 전에는 따옴표 글 `"…"`로 옮겼는데, 한/글은 따옴표 글을 기울여 그린다. `rm`은 곧게 그리되 중괄호
+  밖으로 번지므로 `it`으로 뒤 글자를 기울임으로 되돌린다(예: `\mathrm{d}x` → `{rm "d" it} x`).
+  - `eqedit_to_latex`는 이 묶음을 `\text{…}`로 되읽는다. 따옴표 글은 전처럼 `\text{…}`로 읽되, 낱말 하나가
+    EqEdit 예약어인 것(쓰는 쪽이 기호로 바뀌지 않게 감싼 `T _{"int"}` 같은 것)은 맨 글자로 읽는다. 그래서 쓰기 →
+    읽기 → 쓰기가 전처럼 고정점이다.
 - FormFit이 칸의 높이 예산으로 저장된 안쪽 높이를 그대로 쓴다. 한/글은 그 높이까지 줄을 넣어도 행을 키우지 않고,
   줄 간격은 한/글과 같게 센다. 폭의 안전 여유(0.93)는 그대로다. 전에는 높이에도 0.93을 곱해, 칸에 들어가는 값을
   줄이거나 거부했다(예: 안쪽 2047에 1939를 쓰는 두 줄 값).

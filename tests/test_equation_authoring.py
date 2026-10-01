@@ -216,7 +216,7 @@ class TestLatexToEqedit:
             ),
             (r"\left( \frac{a}{b} \right)", "LEFT ( {a} over {b} RIGHT )"),
             (r"\bar{x} + \vec{v}", "bar {x} + vec {v}"),
-            (r"\text{판별식} = 0", '"판별식" = 0'),
+            (r"\text{판별식} = 0", '{rm "판별식" it} = 0'),
             (r"T_{int}", 'T _{"int"}'),
             (r"$$\frac{1}{2}$$", "{1} over {2}"),
             (r"$x + 1$", "x + 1"),
@@ -236,9 +236,25 @@ class TestLatexToEqedit:
             (r"A \cup B \cap C", "A cup B cap C"),
             (r"x \in \mathbb{R}"[:6], "x in"),  # prefix only; \mathbb rejected below
             (r"\infty", "infty"),
-            (r"\mathrm{km}", '"km"'),
+            (r"\mathrm{km}", '{rm "km" it}'),
+            # upright text: a bare quoted run draws italic in Hancom, ``rm`` goes on past its braces
+            # and ``it`` turns italic back on (python-hwpx #347)
+            (r"\textrm{if} x", '{rm "if" it} x'),
+            (r"\mbox{cm}", '{rm "cm" it}'),
+            (r"\text{max value}", '{rm "max value" it}'),
+            (r"T_{\text{max}} + x", 'T _{{rm "max" it}} + x'),
+            (r"\frac{\mathrm{d}y}{\mathrm{d}x}", '{{rm "d" it} y} over {{rm "d" it} x}'),
+            # the set-builder bar and the binomial coefficient (python-hwpx #347)
+            (r"x \mid x > 0", "x ~|~ x > 0"),
+            (r"P(A \mid B)", "P ( A ~|~ B )"),
+            (r"\binom{n}{r}", "{n} choose {r}"),
+            (r"\binom{n+1}{2} x", "{n + 1} choose {2} x"),
+            (r"choose + binom", '"choose" + "binom"'),
             # a thin space, arrows over a segment and the conclusion signs (python-hwpx #347)
             (r"\int_{0}^{1} x^{2} \, dx", "int _{0} ^{1} x ^{2} ` dx"),
+            # a tie is EqEdit's normal space, so both spaces survive a round trip
+            (r"a ~ b", "a ~ b"),
+            (r"x ~ \, y", "x ~ ` y"),
             (r"\overrightarrow{AB}", "vec {AB}"),
             (r"\overleftrightarrow{AB}", "dyad {AB}"),
             (r"\therefore x = 1", "therefore x = 1"),
@@ -291,6 +307,9 @@ class TestRoundtripStability:
         r"\overrightarrow{AB} + \overleftrightarrow{CD}",
         r"\therefore a = b \because b = c",
         r"\mathbf{v}^{2} + \mathbf{AB} w",
+        r"\frac{\mathrm{d}y}{\mathrm{d}x} + T_{\text{max}} \mbox{cm}",
+        r"P(A \mid B) = \binom{n+1}{2} + \binom{a}{b}^{2}",
+        r"\begin{pmatrix} \binom{n}{r} & x \mid y \end{pmatrix}",
     ]
 
     @pytest.mark.parametrize("latex", CORPUS)
@@ -359,3 +378,10 @@ class TestLatexRejections:
     def test_refusal_names_the_command(self) -> None:
         with pytest.raises(UnsupportedLatexError, match="mathbb"):
             latex_to_eqedit(r"\mathbb{R}")
+
+
+@pytest.mark.parametrize("script", ["a ` b", "a ~ b", "x ~ ` y", "a`b"])
+def test_eqedit_spaces_survive_a_round_trip_through_latex(script: str) -> None:
+    # EqEdit's small (`) and normal (~) spaces come back from LaTeX as themselves.
+    back = latex_to_eqedit(eqedit_to_latex(script))
+    assert back.replace(" ", "") == script.replace(" ", "")
