@@ -409,6 +409,67 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
 
 
+# Objects placed top and bottom from the top of an empty paragraph after four lines (10 pt, spaced 160%), the
+# lines after it of text, laid out and saved by Hancom:
+STACKED_PAGES = {
+    "pages_stacked_two_tables": 1,  # both 0 down: one right below the other, the line below both
+    "pages_stacked_three_tables": 1,
+    "pages_stacked_second_table_1230_down": 1,  # still right below the first
+    "pages_stacked_second_table_5000_down": 1,  # below a gap, which takes the paragraph's line
+    "pages_stacked_first_table_2000_down": 1,  # the line above it, the next line below both
+    "pages_stacked_four_tables_with_margins": 1,  # outer margins 140
+    "pages_stacked_two_pictures": 1,
+    "pages_stacked_pictures_side_by_side": 1,  # each at its own offset, the lines above them staying there
+    "pages_stacked_picture_and_table": 1,
+    "pages_stacked_two_pictures_past_the_foot": 2,  # the second alone on the next page, the text on the first
+    "pages_stacked_two_tables_past_the_foot": 2,
+    "pages_stacked_middle_table_past_the_foot_cell": 2,  # the second on the next page, the third below the first
+    "pages_stacked_middle_table_past_the_foot_table": 2,  # (split row by row, the same)
+    "pages_stacked_table_taller_than_a_page_cell": 3,  # split between lines over the two pages after the first
+    "pages_stacked_table_taller_than_a_page_table": 3,  # row by row
+    "pages_stacked_four_tables_over_four_pages": 4,  # the third below the first, 1230 down buried; the fourth
+                                                     # past the second page, row by row over the last two
+    "pages_stacked_tables_filling_the_second_page": 2,  # the third below the second, on the second page
+    "pages_stacked_second_table_on_the_next_page": 2,  # outer margins 141: the second from the next page's top
+}
+
+
+@pytest.mark.parametrize("name", sorted(STACKED_PAGES))
+def test_objects_stacked_in_an_empty_paragraph_go_where_hancom_put_them(name: str) -> None:
+    # Each goes to the first page, from the paragraph's on, where it fits below the earlier ones it overlaps
+    # across; one fitting on none starts at the top of the page after the last one used. The lines take the
+    # first places clear of them. A last page holding only objects has no line, hence no HANCOM_PAGES entry.
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+    hancom = _hancom_lines(data)
+
+    for source in (data, _without_caches(data)):
+        estimate = estimate_pages(source)
+        estimated = [[line.vertpos for line in lines] for lines in estimate.lines]
+
+        assert (estimate.unsupported, estimate.pages) == ((), STACKED_PAGES[name])
+        assert {line.page for lines in estimate.lines for line in lines} == {0}
+        assert [mine for mine, theirs in zip(estimated, hancom) if theirs] == [theirs for theirs in hancom if theirs]
+
+
+@pytest.mark.parametrize(("index", "height", "reason"), [
+    (0, 60000, "objects placed top and bottom one below another past the page's foot"),  # the first not fitting
+    (1, 70000, "an object placed top and bottom taller than a page"),  # a picture fitting on no page
+])
+def test_objects_stacked_otherwise_are_not_followed(index: int, height: int, reason: str) -> None:
+    out = io.BytesIO()
+    data = (FIXTURES / "pages_stacked_two_pictures.hwpx").read_bytes()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                root = etree.fromstring(payload)
+                list(root.iter(f"{HP}pic"))[index].find(f"{HP}sz").set("height", str(height))
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+
+    assert estimate_pages(out.getvalue()).unsupported == (f"section 0: {reason}",)
+
+
 def test_a_typed_ideographic_space_is_not_a_fixed_width_one() -> None:
     # 맑은 고딕 10 pt cells of narrowing widths, laid out and saved by Hancom: rows of "가나다라마" each followed
     # by one or two ideographic spaces typed in the text (U+3000), or by fixed-width spaces (hp:fwSpace, which
