@@ -282,11 +282,7 @@ def _artifact_text_failure(
     ):
         return []
     failures: list[str] = []
-    try:
-        artifact_name = artifact.relative_to(ROOT)
-    except ValueError:
-        artifact_name = artifact
-    display = f"{artifact_name}!{member}"
+    display = f"{_artifact_display(artifact)}!{member}"
     if INTERNAL_WORK_CODE.search(data):
         failures.append(f"internal work code in public artifact: {display}")
     if WORKSTATION_PATH.search(data):
@@ -332,10 +328,7 @@ def _removed_artifact_member_failures(
         _removed_source_paths() if removed_paths is None else removed_paths
     )
     failures: list[str] = []
-    try:
-        artifact_name = artifact.relative_to(ROOT)
-    except ValueError:
-        artifact_name = artifact
+    artifact_name = _artifact_display(artifact)
     for member in members:
         source_path = _artifact_source_path(member)
         if source_path in removed_paths:
@@ -344,6 +337,16 @@ def _removed_artifact_member_failures(
                 f"{artifact_name}!{member} ({source_path})"
             )
     return failures
+
+
+def _artifact_display(artifact: Path) -> str:
+    """How a report names an artifact: relative to ``ROOT`` when it is inside it, with ``/``
+    separators on every platform (Windows paths would otherwise print with backslashes)."""
+
+    try:
+        return artifact.relative_to(ROOT).as_posix()
+    except ValueError:
+        return artifact.as_posix()
 
 
 def _distribution_artifact(file: _PublicationFile) -> Path:
@@ -391,7 +394,7 @@ def _distribution_failures(
                         f"/{part}" in f"/{name}" for part in rejected
                     ):
                         failures.append(
-                            f"{artifact.relative_to(ROOT)} contains {name}"
+                            f"{_artifact_display(artifact)} contains {name}"
                         )
                 for name in names:
                     if not name.endswith(".dist-info/METADATA"):
@@ -410,7 +413,7 @@ def _distribution_failures(
                         for line in requirements
                     ):
                         failures.append(
-                            f"{artifact.relative_to(ROOT)} declares "
+                            f"{_artifact_display(artifact)} declares "
                             "modelcontextprotocol"
                         )
                 for name in names:
