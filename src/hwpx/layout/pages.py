@@ -2050,7 +2050,8 @@ class _Paginator:
         self.widths = widths  # each column's width when they differ
         #: frame -> (top, bottom) of the objects placed on the paper there: no line in them
         self.bands = {frame: list(found) for frame, found in (bands or {}).items()}  # stacked objects add theirs
-        self.stacked: set[int] = set()  # the frames objects stacked in an empty paragraph went to
+        #: frame -> left, right, top, bottom of the objects stacked in empty paragraphs that went there
+        self.stacked: dict[int, list[tuple[int, int, int, int]]] = {}
         #: frame -> (top, bottom) of the ones leaving a line's room beside them, and whether a line, a table
         #: or an object reaches one of them (set beside it by Hancom, which is not followed)
         self.sides = sides or {}
@@ -2163,11 +2164,12 @@ class _Paginator:
     def _stacked(self, index: int, paras: list[_Para], para: _Para, start: int) -> None:
         """Objects stacked in a paragraph holding nothing else go one by one to the first page, from the
         paragraph's on, where they fit below the earlier ones there they overlap across (see
-        :meth:`_stack_spot`). The first, fitting there on none, flows from where it stands (a table split at the
-        page's foot); a later one starts at the top of the page after the last one used, a table taller than a
-        page split over the pages after. A page a table goes on from is full. No line goes into them: the
-        paragraph's line takes the first place clear of them, on a later page when its own has none, and the
-        lines after follow it."""
+        :meth:`_stack_spot`), those of earlier such paragraphs included. The first, not fitting on the
+        paragraph's page, flows from where it stands (a table split at the page's foot, going on at the next
+        page's top whatever is there); a later one, fitting on no page holding objects, starts at the top of
+        the page after, a table taller than a page split over the pages after. A page a table goes on from is
+        full. No line goes into them: the paragraph's line takes the first place clear of them, on a later
+        page when its own has none, and the lines after follow it."""
 
         if self.columns > 1:
             raise _Unsupported("objects placed top and bottom one below another in columns")
@@ -2177,12 +2179,13 @@ class _Paginator:
         if self.last_vp is not None and start + para.height(0) > self.body:  # its line goes on to the next
             start = self._next_frame(para, 0, True)                         # page, the objects with it
         home, top = self.frame, start - para.prev
-        placed: dict[int, list[tuple[int, int, int, int]]] = {}  # frame -> left, right, top, bottom
+        placed = {frame: list(boxes) for frame, boxes in self.stacked.items() if frame >= home}
         last = home
-        for obj in para.stack:
-            spot = self._stack_spot(placed, obj, home, last, top)
-            if spot is None:  # the first from where it stands, a later one from the top of the page after the last
-                spot = (last + 1, 0) if placed else (home, top + obj.offset)
+        for number, obj in enumerate(para.stack):
+            end = last if number == 0 else max([last, *placed])
+            spot = self._stack_spot(placed, obj, home, end, top)
+            if spot is None:  # the first from where it stands, a later one from the top of the page after
+                spot = (end + 1, 0) if number else (home, max([top + obj.offset] + self._below(placed, obj, home)))
                 if obj.table is None and spot[1] + obj.height > self.body:
                     raise _Unsupported("an object placed top and bottom past the page's foot")
             frame, y = spot
@@ -2196,10 +2199,11 @@ class _Paginator:
                     (obj.left, obj.right, y if page == frame else 0, bottom if page == end_frame else self.body))
             last = max(last, end_frame)
         for frame, boxes in placed.items():
-            if self.bands.get(frame) or self.sides.get(frame) or frame != home and self.reserved.get(frame):
+            if self.bands.get(frame) and frame not in self.stacked or self.sides.get(frame) \
+                    or frame != home and self.reserved.get(frame):
                 raise _Unsupported("objects placed top and bottom one below another on a page with other objects")
             self.bands[frame] = [(above, below) for _, _, above, below in boxes]
-            self.stacked.add(frame)
+            self.stacked[frame] = boxes
         self.table_end = max(self.table_end, last)
         frame, y, height = home, start, para.height(0)
         while True:  # the paragraph's line, at the first place clear of them
@@ -2224,11 +2228,16 @@ class _Paginator:
         when it fits on none."""
 
         for frame in range(home, last + 1):
-            below = [box[3] for box in placed.get(frame, ()) if box[0] < obj.right and obj.left < box[1]]
-            y = max([top + obj.offset if frame == home else 0] + below)
+            y = max([top + obj.offset if frame == home else 0] + self._below(placed, obj, frame))
             if y + obj.height <= self.body:
                 return frame, y
         return None
+
+    @staticmethod
+    def _below(placed: dict[int, list[tuple[int, int, int, int]]], obj: _Stacked, frame: int) -> list[int]:
+        """The bottoms of the objects *placed* on *frame* that *obj* overlaps across."""
+
+        return [box[3] for box in placed.get(frame, ()) if box[0] < obj.right and obj.left < box[1]]
 
     def _anchored(self, index: int, paras: list[_Para], para: _Para, start: int) -> None:
         """The lines before the anchor's line, the object at that line's top, then the rest of the

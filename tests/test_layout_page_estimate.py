@@ -437,6 +437,14 @@ STACKED_PAGES: dict[str, int | tuple[int, int]] = {
     "pages_stacked_low_two_tables_table": (2, 1),  # its first row alone on the first page
     "pages_stacked_low_small_second_table": (2, 1),  # the small second one not back on the first page
     "pages_stacked_low_table_taller_than_a_page": (3, 2),  # no room left for the line: the next page's top
+    # After an empty paragraph whose second table of two went on to the next page:
+    "pages_stacked_in_two_paragraphs": 2,  # another such paragraph: its tables below the first's line
+    "pages_stacked_in_two_paragraphs_over_four_pages": (4, 3),  # four tables, then two more from where the
+                                                           # first's line leaves off: the first of them split
+                                                           # over the next page's top across the other's, the
+                                                           # second below it, the line on the fourth page
+    "pages_stacked_then_a_flowing_table": 2,  # a paragraph holding one flowing table: under its line
+    "pages_stacked_then_text_over_two_pages": (3, 2),  # 60 lines, going on below the second table
 }
 
 
