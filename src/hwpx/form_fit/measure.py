@@ -336,8 +336,9 @@ def _design_units(face: str, ch: str | None) -> tuple[int, int] | None:
     advance of its fallback face, in the face's own units."""
 
     entry = _DESIGN.get(face)
-    if entry is None:
-        return None
+    if entry is None:  # a symbol face only the glyph table lists (no Hangul, no space of its own)
+        units = _face_glyphs(face).get(ch, 0) if ch is not None and ch != " " else 0
+        return (units, UNITS_PER_EM[face]) if units else None
     upem, hangul, space, _ = entry
     if ch is None or ch == " ":
         return (hangul if ch is None else space), upem

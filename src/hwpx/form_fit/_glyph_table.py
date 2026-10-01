@@ -2,8 +2,9 @@
 """Design advances of glyphs beyond ``measure._GLYPHS``, per face, read from the fonts' ``hmtx`` and
 ``cmap`` tables: the KS X 1001 symbols and full-width forms, and the Latin-1, Latin Extended-A, General
 Punctuation, Mathematical Operators, Geometric Shapes, Miscellaneous Symbols, Dingbats and Halfwidth
-and Fullwidth Forms blocks (Hangul, Hanja and kana left out). A face lacking a glyph lays it out at
-its fallback face's advance. The table is read from the font files, not written by hand.
+and Fullwidth Forms blocks (Hangul, Hanja and kana left out); for the symbol faces Wingdings and Symbol, the
+private-use code points U+F020-F0FF their glyphs are stored at. A face lacking a glyph lays it out at its fallback
+face's advance. The table is read from the font files, not written by hand.
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ UNITS_PER_EM: dict[str, int] = {
     "함초롬돋움": 1000,
     "맑은 고딕": 2048,
     "Segoe UI Symbol": 2048,
+    "Wingdings": 2048,
+    "Symbol": 2048,
 }
 
 #: The face Hancom takes a glyph from when a face does not have it.
@@ -1212,5 +1215,152 @@ ADVANCES: dict[str, dict[int, str]] = {
             "⚞⚟⚿⛀⛁⛂⛃⛄⛅⛆⛇⛈⛉⛊⛋⛌⛍⛎⛏⛐⛑⛒⛓⛔⛕⛖⛗⛘⛙⛚⛛⛜⛝⛞⛟⛠⛡⛢⛣⛤⛥⛦⛧⛨⛩⛪⛫⛬⛭⛮⛯⛰⛱⛲⛴⛷⛸⛹⛺⛻"
             "⛼⛾⛿✀✅✊✋✨❌❎❓❔➕➖➗➰➿"
         ),
+    },
+    "Wingdings": {
+        641: "\uf09e\uf0a0",
+        789: "\uf0fa",
+        937: "\uf073\uf09f\uf0a7",
+        938: "\uf027",
+        987: "\uf0f9",
+        1086: "\uf07d\uf07e",
+        1124: "\uf047\uf048",
+        1135: "\uf035",
+        1183: "\uf077",
+        1203: "\uf041",
+        1233: "\uf036",
+        1301: "\uf0fb",
+        1332: "\uf053",
+        1352: "\uf04e",
+        1381: "\uf043\uf044",
+        1420: "\uf058",
+        1431: "\uf032\uf033",
+        1480: "\uf057",
+        1529: "\uf055\uf056\uf06c\uf06e\uf074",
+        1589: "\uf0e3\uf0e4\uf0e5\uf0e6",
+        1597: "\uf069",
+        1601: "\uf0f5\uf0f6\uf0f7\uf0f8",
+        1609: "\uf0fc",
+        1624: "\uf042",
+        1627: "\uf059\uf0d7\uf0d8",
+        1660: "\uf0f1\uf0f2\uf0f4",
+        1665: "\uf054",
+        1727: "\uf04a\uf04b\uf04c",
+        1739: "\uf04f",
+        1787: "\uf0eb\uf0ec\uf0ed\uf0ee",
+        1803: "\uf052",
+        1813: "\uf05a",
+        1819: "\uf051",
+        1825: (
+            "\uf03b\uf03e\uf05d\uf06f\uf070\uf071\uf072\uf076\uf07a\uf0a1\uf0a2\uf0a3\uf0a4\uf0a5\uf0a8\uf0a9"
+            "\uf0aa\uf0ab\uf0ac\uf0ad\uf0ae\uf0af\uf0b0\uf0b1\uf0b2\uf0b3\uf0b4\uf0b5\uf0b6\uf0b7\uf0b8\uf0b9"
+            "\uf0ba\uf0bb\uf0bc\uf0bd\uf0be\uf0bf\uf0c0\uf0c1\uf0c2\uf0c3\uf0c4\uf0c5\uf0c6\uf0d9\uf0da\uf0db"
+            "\uf0dc\uf0dd\uf0de\uf0e1\uf0e2\uf0e9\uf0ea\uf0ef\uf0f0"
+        ),
+        1826: (
+            "\uf029\uf034\uf03c\uf03d\uf049\uf05b\uf07b\uf07c\uf080\uf081\uf082\uf083\uf084\uf085\uf086\uf087"
+            "\uf088\uf089\uf08a\uf08b\uf08c\uf08d\uf08e\uf08f\uf090\uf091\uf092\uf093\uf094\uf095\uf0fd\uf0fe"
+        ),
+        1830: "\uf025",
+        1834: "\uf05c",
+        1863: "\uf03f\uf040",
+        1902: "\uf066",
+        1911: "\uf063",
+        1924: "\uf03a",
+        1927: "\uf062",
+        1929: "\uf045\uf046",
+        1937: "\uf064",
+        1941: "\uf038",
+        1951: "\uf06d\uf0a6",
+        1974: "\uf060",
+        2006: "\uf0df\uf0e0",
+        2020: "\uf075",
+        2048: (
+            "\uf020\uf096\uf097\uf098\uf099\uf09a\uf09b\uf09c\uf09d\uf0cb\uf0cc\uf0cd\uf0ce\uf0cf\uf0d0\uf0d1"
+            "\uf0d2\uf0d3\uf0d4"
+        ),
+        2099: "\uf065",
+        2110: "\uf021",
+        2119: "\uf0ff",
+        2146: "\uf0c7\uf0c8\uf0c9\uf0ca",
+        2150: "\uf06a",
+        2159: "\uf05f",
+        2171: "\uf078\uf079\uf0f3",
+        2181: "\uf068",
+        2186: "\uf0e7\uf0e8",
+        2196: "\uf037",
+        2208: "\uf039",
+        2220: "\uf028",
+        2230: "\uf050",
+        2233: "\uf061",
+        2245: "\uf030\uf067",
+        2275: "\uf04d",
+        2319: "\uf02a\uf02b",
+        2344: "\uf022",
+        2368: "\uf05e",
+        2399: "\uf02c\uf02d",
+        2492: "\uf026",
+        2566: "\uf0d5\uf0d6",
+        2603: "\uf06b",
+        2665: "\uf023",
+        2751: "\uf031",
+        2752: "\uf024",
+        2951: "\uf02e",
+        2956: "\uf02f",
+    },
+    "Symbol": {
+        342: "\uf0a4",
+        410: "\uf07c",
+        506: "\uf0a2",
+        512: "\uf020\uf02c\uf02e\uf0d7",
+        561: "\uf0f2",
+        569: "\uf02f\uf03a\uf03b",
+        674: "\uf069\uf0e1\uf0f1",
+        682: "\uf021\uf028\uf029\uf049\uf05b\uf05d",
+        786: "\uf0e6\uf0e7\uf0e8\uf0e9\uf0ea\uf0eb\uf0f6\uf0f7\uf0f8\uf0f9\uf0fa\uf0fb",
+        819: "\uf0b0",
+        842: "\uf067\uf0b2",
+        899: "\uf027\uf056\uf065\uf074",
+        909: "\uf03f",
+        942: "\uf0b7",
+        983: "\uf07b\uf07d",
+        1010: "\uf078",
+        1012: "\uf064\uf07a\uf0b6\uf0e0\uf0ec\uf0ed\uf0ee\uf0ef\uf0fc\uf0fd\uf0fe",
+        1024: "\uf023\uf02a\uf030\uf031\uf032\uf033\uf034\uf035\uf036\uf037\uf038\uf039\uf05f\uf060\uf0a6",
+        1067: "\uf066\uf06e\uf071",
+        1124: (
+            "\uf024\uf02b\uf02d\uf03c\uf03d\uf03e\uf040\uf062\uf063\uf06b\uf06c\uf06f\uf070\uf072\uf07e\uf0a3"
+            "\uf0b1\uf0b3\uf0b4\uf0b8\uf0b9\uf0ba\uf0bb\uf0d6"
+        ),
+        1139: "\uf052",
+        1180: "\uf06d\uf075",
+        1212: "\uf053",
+        1235: "\uf047\uf068\uf06a\uf073\uf0ad\uf0af\uf0bd\uf0d9\uf0da\uf0dd\uf0df",
+        1251: "\uf045\uf054\uf05a",
+        1253: "\uf044",
+        1270: "\uf0a1",
+        1292: "\uf04a\uf061",
+        1321: "\uf058",
+        1348: "\uf05e\uf0bf",
+        1366: "\uf042",
+        1405: "\uf04c\uf077\uf079\uf0c1\uf0f3\uf0f4\uf0f5",
+        1413: "\uf055",
+        1460: "\uf022\uf076\uf0a5\uf0b5\uf0c9\uf0ca\uf0cb\uf0cc\uf0cd\uf0ce\uf0cf\uf0d1\uf0d8\uf0e5",
+        1479: "\uf041\uf043\uf048\uf04b\uf04e\uf04f",
+        1518: "\uf051",
+        1542: "\uf0a7\uf0a8\uf0a9\uf0aa",
+        1563: "\uf046",
+        1573: "\uf050\uf057\uf0c4\uf0c5\uf0c7\uf0c8\uf0d0",
+        1593: "\uf026",
+        1610: "\uf0e4",
+        1618: "\uf0d2\uf0d3\uf0e2\uf0e3",
+        1628: "\uf059\uf0c2",
+        1686: "\uf0c0\uf0c6\uf0d5",
+        1706: "\uf025",
+        1767: "\uf05c",
+        1821: "\uf04d",
+        1823: "\uf0d4",
+        2021: "\uf0ac\uf0ae\uf0c3\uf0dc\uf0de",
+        2048: "\uf0bc\uf0be",
+        2134: "\uf0ab\uf0db",
     },
 }
