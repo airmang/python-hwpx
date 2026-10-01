@@ -163,6 +163,14 @@ HANCOM_PAGES = {
                                                              # it, the character's line below its end
     "pages_bullet_and_number_labels": 16,  # fourteen blocks of rows under bullets and numbers of every
                                              # label setting: each label takes its room off the lines
+    "pages_bullet_in_its_own_20pt_shape": 1,  # three-line paragraphs of 10 pt text under a bullet in its own
+                                              # 20 pt shape, at 160 %: the first line as tall as the bullet
+    "pages_bullet_in_its_own_8pt_shape": 1,   # an 8 pt one: no line taller
+    "pages_number_in_its_own_16pt_shape": 1,  # a number in its own 16 pt shape
+    "pages_bullet_in_its_own_20pt_shape_fixed_spacing": 1,  # a fixed line spacing of 16 pt: the next line
+                                                            # 16 pt down all the same
+    "pages_bullet_in_its_own_20pt_shape_between_lines": 1,  # 5 pt between lines: below the 20 pt line
+    "pages_bullet_in_its_own_20pt_shape_at_least": 1,  # at least 16 pt: the 20 pt line's own height
     "pages_picture_square_text_on_both_sides": 2,  # a picture 9100 from the column's left: each line
                                                     # beside it is two pieces at one height
     "pages_picture_square_text_on_the_larger_side": 2,  # the same, text on the larger side only
