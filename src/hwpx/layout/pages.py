@@ -96,7 +96,9 @@
   where it would stand in the unsplit cell, a first line below such a table with the room above it,
   so the row splits again where it would). A picture or drawing placed top and bottom or wrapped
   square from a cell paragraph holding no text makes the cell reach its foot (outer margins
-  included). A flowing table's rows use
+  included), and so do tables placed top and bottom from a cell paragraph holding nothing else,
+  without such caches, as tall as their rows (one placed up from the paragraph's top stands at that
+  top); what follows in the cell goes on below that foot. A flowing table's rows use
   the body only down to just above the page's foot (101 above it, or 2 in a table set not to be
   adjusted), less the table's bottom outer margin: a row, or a cell line of a row split between its
   lines, ending lower goes on to the next page (where the table goes on below its top outer margin;
@@ -129,7 +131,8 @@ across the column before any text; an object offset down, but a flowing table, o
 stays on one page with the lines above or beside it), footnotes in such a paragraph, two tables
 starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor or on a
-page, a nested table among text or not set as a character in a cell without such caches (in a table
+page, a nested table among text, or not set as a character but top and bottom alone in its paragraph,
+in a cell without such caches (in a table
 Hancom has not laid out as it is), a page break in a flowing row holding a table beside a taller
 cell, other objects placed on the page or the paper (but top and bottom from its top or bottom, a
 flowing table on their page keeping clear of them), and in a paragraph without such a cache ruby text
@@ -539,8 +542,8 @@ class _Measure:
                     height += sum(advance for _, advance in cached[:-1]) + cached[-1][0]
                     size, pitch = cached[-1]
                     pending = pitch - size + shape.next
-                    if top + _objects_reach(runs) > height:  # an object placed from the paragraph reaches lower
-                        height, pending = top + _objects_reach(runs), shape.next
+                    if top + _objects_reach(runs, self) > height:  # an object placed from it reaches lower
+                        height, pending = top + _objects_reach(runs, self), shape.next
                     lines += len(cached)
                     continue
                 style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
@@ -552,8 +555,8 @@ class _Measure:
             top = height
             height += (count - 1) * pitch + size
             pending = pitch - size + shape.next
-            if top + _objects_reach(runs) > height:  # an object placed from the paragraph reaches lower
-                height, pending = top + _objects_reach(runs), shape.next
+            if top + _objects_reach(runs, self) > height:  # an object placed from the paragraph reaches lower
+                height, pending = top + _objects_reach(runs, self), shape.next
             lines += count
         return height, lines, pitch, size
 
@@ -589,7 +592,8 @@ class _Measure:
                 metrics += list(cached[:-1]) + [(cached[-1][0], cached[-1][1] + shape.next)]
                 continue
             height, count, pitch, size = self.stack([paragraph], width, caches)
-            metrics += [(size, pitch)] * (count - 1) + [(height - (count - 1) * pitch, pitch + shape.next)]
+            last = height - (count - 1) * pitch  # down to the foot of an object placed from it: the next below
+            metrics += [(size, pitch)] * (count - 1) + [(last, (last if last > size else pitch) + shape.next)]
         return tuple(metrics)
 
     def marked_lines(self, paragraph: Any, runs: list[Any], width: int) -> tuple[tuple[int, int], ...]:
@@ -795,7 +799,9 @@ def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
     if nested and any(paragraph.find(f".//{HP}tbl") is not None
                       and _table_alone(paragraph.findall(f"{HP}run")) is None for paragraph in paragraphs):
         drawn = _drawn_lines(measure, paragraphs)  # among text, or not set as a character: as Hancom drew it
-        if not drawn:
+        if not drawn and not all(_tables_on_their_own(paragraph) for paragraph in paragraphs
+                                 if paragraph.find(f".//{HP}tbl") is not None
+                                 and _table_alone(paragraph.findall(f"{HP}run")) is None):
             raise _Unsupported("a nested table")
     size = cell.find(f"{HP}cellSz")
     margins = cell_margins_of(cell, table)
@@ -1024,9 +1030,10 @@ def _caption(measure: _Measure, table: Any) -> tuple[int, int]:
 
 
 def _inline_table_height(measure: _Measure, table: Any) -> int:
-    """A table set as a character: its rows as the estimate measures them. When the row model does not
-    follow the table (merged rows, a nested table) but every paragraph in it keeps a valid layout cache,
-    Hancom laid it out as it is, and the height it saved (hp:sz) is the height it draws."""
+    """A table set as a character (or placed top and bottom in a cell): its rows as the estimate measures
+    them. When the row model does not follow the table (merged rows, a nested table) but every paragraph in
+    it keeps a valid layout cache, Hancom laid it out as it is, and the height it saved (hp:sz) is the height
+    it draws."""
 
     if table.find(f".//{HP}tbl") is not None or any(_row_span(tc) != 1 for tc in table.iter(f"{HP}tc")):
         paragraphs = list(table.iter(f"{HP}p"))
@@ -1074,16 +1081,20 @@ def _check_section(section: Any) -> None:
         raise _Unsupported("section settings (hp:secPr) after the first paragraph")
 
 
-def _objects_reach(runs: list[Any]) -> int:
+def _objects_reach(runs: list[Any], measure: _Measure) -> int:
     """How far below the top of their paragraph in a cell, holding no text, the pictures and drawings placed
     from it reach: top and bottom or square, not set as a character, their outer margins included (the cell
-    holds them, and its row grows to). Tables in a cell are laid out on their own."""
+    holds them, and its row grows to). So do the tables placed top and bottom from it, as tall as their rows
+    (one placed up stands at the paragraph's top)."""
 
     reach = 0
     if _run_text(runs).strip():  # text goes on below such an object: not followed here
         return reach
     for obj in (child for run in runs for child in run):
         name, pos = _local(obj), obj.find(f"{HP}pos")
+        if name == "tbl" and _placed_top_and_bottom(obj):
+            reach = max(reach, _down(pos) + _inline_table_height(measure, obj) + _extent_margins(obj))
+            continue
         if name not in _OBJECTS or name == "tbl" or pos is None or obj.find(f"{HP}sz") is None \
                 or pos.get("treatAsChar") == "1" or obj.get("textWrap") not in ("TOP_AND_BOTTOM", "SQUARE") \
                 or pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP":
@@ -1093,6 +1104,23 @@ def _objects_reach(runs: list[Any]) -> int:
             offset -= 1 << 32
         reach = max(reach, offset + _extent(obj, "height"))
     return reach
+
+
+def _placed_top_and_bottom(obj: Any) -> bool:
+    """An object placed top and bottom from its paragraph's top, not set as a character."""
+
+    pos = obj.find(f"{HP}pos")
+    return pos is not None and pos.get("treatAsChar") != "1" and obj.get("textWrap") == "TOP_AND_BOTTOM" \
+        and pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"
+
+
+def _tables_on_their_own(paragraph: Any) -> bool:
+    """Whether a cell paragraph holds no text and nothing but tables placed top and bottom from its top."""
+
+    runs = paragraph.findall(f"{HP}run")
+    objects = [child for run in runs for child in run if _local(child) in _OBJECTS]
+    return not _run_text(runs).strip() and bool(objects) and all(
+        _local(obj) == "tbl" and _placed_top_and_bottom(obj) for obj in objects)
 
 
 def _placed_objects(runs: list[Any]) -> list[Any]:
