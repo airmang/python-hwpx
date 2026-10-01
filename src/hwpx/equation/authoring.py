@@ -18,6 +18,7 @@ Contract provenance: specs/054-equation-authoring/evidence/p0/equation-contract.
 from __future__ import annotations
 
 from .eqedit import (
+    _RESERVED_WORDS,
     MAX_GROUP_DEPTH,
     MAX_SOURCE_LENGTH,
     EquationConversionError,
@@ -28,9 +29,7 @@ from .tokens import (
     DELIMITERS,
     FUNCTIONS,
     GREEK,
-    MATRIX_ENVIRONMENTS,
     OPERATORS,
-    STRUCTURAL,
 )
 
 
@@ -83,6 +82,8 @@ _LATEX_TO_EQEDIT.update(
         # lowercase form has not been render-verified, and lowercase ``forall``
         # already turned out to render as literal text.
         "\\triangle": "TRIANGLE",
+        # A bare ``|`` draws the bar with no space around it; ``~|~`` spaces it as \mid does.
+        "\\mid": "~|~",
         # Common LaTeX aliases sharing a verified target.
         "\\le": "leq",
         "\\ge": "geq",
@@ -117,19 +118,11 @@ _ENV_TO_EQEDIT: dict[str, str] = {
     "cases": "cases",
 }
 
-# Bare identifier runs that would collide with EqEdit vocabulary must be quoted
-# so Hancom keeps them literal (reserved-word protection).
-_RESERVED_WORDS = (
-    frozenset(GREEK)
-    | frozenset(OPERATORS)
-    | frozenset(FUNCTIONS)
-    | frozenset(BIG_OPERATORS)
-    | frozenset(ACCENTS)
-    | frozenset(MATRIX_ENVIRONMENTS)
-    | STRUCTURAL
-)
+# Bare identifier runs that would collide with EqEdit vocabulary (``_RESERVED_WORDS``)
+# must be quoted so Hancom keeps them literal (reserved-word protection).
 
-_SINGLE_CHAR_PASSTHROUGH = frozenset("+-=<>,.;:!|/()[]'")
+# ``~`` is a space in both: a LaTeX tie and EqEdit's normal space (``\,`` is the small one, `` ` ``).
+_SINGLE_CHAR_PASSTHROUGH = frozenset("+-=<>,.;:!|/()[]'~")
 
 
 class _LatexLexer:
@@ -264,6 +257,11 @@ class _LatexParser:
             numerator = self._group_or_atom(depth)
             denominator = self._group_or_atom(depth)
             return f"{{{numerator}}} over {{{denominator}}}"
+        if token == "\\binom":
+            # ``choose`` stretches the parentheses; ``( {n} atop {r} )`` does not.
+            top = self._group_or_atom(depth)
+            bottom = self._group_or_atom(depth)
+            return f"{{{top}}} choose {{{bottom}}}"
         if token == "\\sqrt":
             if self._peek() == "[":
                 self._next()
@@ -337,7 +335,9 @@ class _LatexParser:
         literal = " ".join(parts)
         if '"' in literal:
             raise UnsupportedLatexError('\\text{...} may not contain a quote (")')
-        return f'"{literal}"'
+        # Hancom draws a bare quoted run in italic. ``rm`` makes it upright and goes on past its braces,
+        # so ``it`` turns italic back on for what follows.
+        return f'{{rm "{literal}" it}}'
 
     def _environment(self, depth: int) -> str:
         self._expect("{")
@@ -448,9 +448,10 @@ def latex_to_eqedit(latex: str) -> str:
 def estimate_equation_size(script: str, *, base_unit: int = 1100) -> tuple[int, int]:
     """``(width, height)`` in HWPUNIT for ``<hp:sz>``, measured from the script's structure.
 
-    Hancom does not measure an equation again when it opens a document: it
-    lays the page out with the stored box, so the box has to fit the script
-    (see :func:`hwpx.equation.measure.measure_equation`).
+    A reader that lays the page out from the file uses the stored box, so the
+    box has to fit the script; Hancom itself was observed (on macOS) to lay the
+    equation out again and rewrite the box when it saves the document (see
+    :func:`hwpx.equation.measure.measure_equation`).
     """
 
     from .measure import measure_equation
