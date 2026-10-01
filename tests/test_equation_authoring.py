@@ -252,6 +252,9 @@ class TestLatexToEqedit:
             (r"choose + binom", '"choose" + "binom"'),
             # a thin space, arrows over a segment and the conclusion signs (python-hwpx #347)
             (r"\int_{0}^{1} x^{2} \, dx", "int _{0} ^{1} x ^{2} ` dx"),
+            # a tie is EqEdit's normal space, so both spaces survive a round trip
+            (r"a ~ b", "a ~ b"),
+            (r"x ~ \, y", "x ~ ` y"),
             (r"\overrightarrow{AB}", "vec {AB}"),
             (r"\overleftrightarrow{AB}", "dyad {AB}"),
             (r"\therefore x = 1", "therefore x = 1"),
@@ -375,3 +378,10 @@ class TestLatexRejections:
     def test_refusal_names_the_command(self) -> None:
         with pytest.raises(UnsupportedLatexError, match="mathbb"):
             latex_to_eqedit(r"\mathbb{R}")
+
+
+@pytest.mark.parametrize("script", ["a ` b", "a ~ b", "x ~ ` y", "a`b"])
+def test_eqedit_spaces_survive_a_round_trip_through_latex(script: str) -> None:
+    # EqEdit's small (`) and normal (~) spaces come back from LaTeX as themselves.
+    back = latex_to_eqedit(eqedit_to_latex(script))
+    assert back.replace(" ", "") == script.replace(" ", "")

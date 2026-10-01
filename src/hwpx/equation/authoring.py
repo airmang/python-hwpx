@@ -121,7 +121,8 @@ _ENV_TO_EQEDIT: dict[str, str] = {
 # Bare identifier runs that would collide with EqEdit vocabulary (``_RESERVED_WORDS``)
 # must be quoted so Hancom keeps them literal (reserved-word protection).
 
-_SINGLE_CHAR_PASSTHROUGH = frozenset("+-=<>,.;:!|/()[]'")
+# ``~`` is a space in both: a LaTeX tie and EqEdit's normal space (``\,`` is the small one, `` ` ``).
+_SINGLE_CHAR_PASSTHROUGH = frozenset("+-=<>,.;:!|/()[]'~")
 
 
 class _LatexLexer:

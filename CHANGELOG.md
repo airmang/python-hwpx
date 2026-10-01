@@ -23,6 +23,8 @@
   - `eqedit_to_latex`는 `~|~`를 `\mid`로, `{n} choose {r}`와 `binom {n} {r}`를 `\binom{n}{r}`로 되읽는다. 수식 크기
     추정은 둘을 `atop`처럼 두 줄로 잰다. `choose`·`binom`은 예약어가 되어, LaTeX의 맨 글자 `choose`는 따옴표로
     감싼다.
+  - LaTeX `~`(띄움)를 EqEdit의 보통 띄움 `~`로 옮긴다. 전에는 거부해서, `eqedit_to_latex`가 내보낸 `~`가 든 LaTeX를
+    다시 EqEdit로 옮기지 못했다. 이제 EqEdit의 작은 띄움 `` ` ``(`\,`)과 보통 띄움 `~`가 모두 왕복한다.
 - `doc.shapes.add_curve()`·`add_connector()`를 더한다(곡선과 붙은 연결선 저작).
   - 곡선은 앵커를 지나는 `CURVE` 구간으로 쓴다(닫으면 끝에서 첫 앵커로). 한/글은 곡선의 크기 상자를 다시 계산하지
     않으므로, 한/글 곡선이 갖는 상자(앵커를 지나는 Catmull-Rom 곡선을 구간마다 16단계로 근사한 상자)를 쓰고 앵커는
