@@ -713,19 +713,20 @@ def _flowing_table_after(paragraphs: int, rows: int) -> tuple[HwpxDocument, obje
 
 
 def test_a_merged_cell_declared_taller_than_two_pages_is_cut_at_each_page_end() -> None:
-    # The cell merged over rows 1-4 is declared 150000 tall: its room is cut 101 above each page's foot and
-    # the rest goes on, page after page (as in pages_joined_rows_over_pages_empty_declared_cell).
-    document, table = _flowing_table_after(38, 6)
-    table.merge_cells(1, 0, 4, 0)
-    for cell in table.element.iter(f"{HP}tc"):
-        span = cell.find(f"{HP}cellSpan")
-        if span is not None and span.get("rowSpan", "1") != "1":
-            cell.find(f"{HP}cellSz").set("height", "150000")
+    # After 38 lines, a flowing table of 6 rows whose cell merged over rows 1-4 is declared 150000 tall, laid
+    # out and saved by Hancom: the cell's room is cut 101 above each page's foot and the rest goes on, page
+    # after page, the last row ending the table (and the document) on page 4. No line of text is on that
+    # page, so the pages are checked here rather than in HANCOM_PAGES.
+    data = (FIXTURES / "pages_joined_rows_over_pages_declared_150000.hwpx").read_bytes()
+    hancom = _hancom_lines(data)
 
-    estimate = estimate_pages(document)
+    for source in (data, _without_caches(data)):
+        estimate = estimate_pages(source)
+        estimated = [[line.vertpos for line in lines] for lines in estimate.lines]
 
-    assert estimate.unsupported == ()
-    assert estimate.pages == 4
+        assert (estimate.unsupported, estimate.pages) == ((), 4)
+        assert len(estimated) == len(hancom)
+        assert [mine for mine, theirs in zip(estimated, hancom) if theirs] == [theirs for theirs in hancom if theirs]
 
 
 @pytest.mark.parametrize(("height", "rest"), [(20000, 13221), (8029, 0), (8061, 0), (8062, 1283), (8079, 1300)])
