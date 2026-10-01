@@ -244,6 +244,12 @@ class TestLatexToEqedit:
             (r"\text{max value}", '{rm "max value" it}'),
             (r"T_{\text{max}} + x", 'T _{{rm "max" it}} + x'),
             (r"\frac{\mathrm{d}y}{\mathrm{d}x}", '{{rm "d" it} y} over {{rm "d" it} x}'),
+            # the set-builder bar and the binomial coefficient (python-hwpx #347)
+            (r"x \mid x > 0", "x ~|~ x > 0"),
+            (r"P(A \mid B)", "P ( A ~|~ B )"),
+            (r"\binom{n}{r}", "{n} choose {r}"),
+            (r"\binom{n+1}{2} x", "{n + 1} choose {2} x"),
+            (r"choose + binom", '"choose" + "binom"'),
             # a thin space, arrows over a segment and the conclusion signs (python-hwpx #347)
             (r"\int_{0}^{1} x^{2} \, dx", "int _{0} ^{1} x ^{2} ` dx"),
             (r"\overrightarrow{AB}", "vec {AB}"),
@@ -299,6 +305,8 @@ class TestRoundtripStability:
         r"\therefore a = b \because b = c",
         r"\mathbf{v}^{2} + \mathbf{AB} w",
         r"\frac{\mathrm{d}y}{\mathrm{d}x} + T_{\text{max}} \mbox{cm}",
+        r"P(A \mid B) = \binom{n+1}{2} + \binom{a}{b}^{2}",
+        r"\begin{pmatrix} \binom{n}{r} & x \mid y \end{pmatrix}",
     ]
 
     @pytest.mark.parametrize("latex", CORPUS)

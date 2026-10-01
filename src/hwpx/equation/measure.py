@@ -9,7 +9,8 @@ leaves a gap after the equation and one that is too narrow lets the next
 characters overlap it.
 
 This module lays the script out as boxes (width, ascent, descent) by its
-structure -- characters by kind, ``over`` fractions, ``^``/``_`` scripts,
+structure -- characters by kind, ``over`` fractions (and ``choose``/``binom``
+binomials, measured the same), ``^``/``_`` scripts,
 ``sqrt``/``root``, big operators with their limits, ``lim`` with the limit
 below, matrices and ``pile``, and ``#`` line breaks. The widths are in em of
 the base size for the ``HYhwpEQ`` equation font python-hwpx writes.
@@ -189,7 +190,7 @@ class _Measurer:
                 items = []
             elif token in ("^", "_"):
                 items.append(self._scripts(items.pop() if items else _Box(0.0, 0.0, 0.0), token, depth))
-            elif token in ("over", "atop"):
+            elif token in ("over", "atop", "choose"):
                 numerator = items.pop() if items else _row([])
                 items.append(_fraction(numerator, self._atom(depth)))
             elif token != "&":
@@ -228,6 +229,10 @@ class _Measurer:
             return self._group(depth)
         if token in ("sqrt", "root"):
             return self._root(token, depth)
+        if token == "binom":
+            # The same two rows in stretched parentheses as ``{n} choose {r}``.
+            top = self._atom(depth)
+            return _fraction(top, self._atom(depth))
         if token in ACCENTS:
             inner = self._atom(depth)
             return _Box(inner.width, inner.ascent + _ACCENT_TOP, inner.descent)
@@ -335,7 +340,7 @@ class _Measurer:
             token = self._next() or ""
             if token in ("^", "_"):
                 items.append(self._scripts(items.pop() if items else _Box(0.0, 0.0, 0.0), token, depth + 1))
-            elif token in ("over", "atop"):
+            elif token in ("over", "atop", "choose"):
                 numerator = items.pop() if items else _row([])
                 items.append(_fraction(numerator, self._atom(depth + 1)))
             else:

@@ -148,6 +148,22 @@ def test_upright_text_group_reads_as_text(script: str, expected: str) -> None:
     assert eqedit_to_latex(script) == expected
 
 
+@pytest.mark.parametrize(
+    "script,expected",
+    [
+        ("x ~|~ x > 0", r"x \mid x > 0"),
+        ("a | b", r"a | b"),  # a bare bar stays a bar
+        ("{n} choose {r}", r"\binom{n}{r}"),
+        ("binom {n} {r}", r"\binom{n}{r}"),
+        ("{n + 1} choose {2} x", r"\binom{n + 1}{2} x"),
+        ("pmatrix {{n} choose {r} & a}", r"\begin{pmatrix} \binom{n}{r} & a \end{pmatrix}"),
+        ('"choose" x', r"choose x"),
+    ],
+)
+def test_set_builder_bar_and_binomial(script: str, expected: str) -> None:
+    assert eqedit_to_latex(script) == expected
+
+
 @pytest.mark.parametrize("token", ["triangle", "TRIANGLE"])
 def test_triangle_symbol_uses_exact_evidence_backed_tokens(token: str) -> None:
     assert eqedit_to_latex(f"{token} P_1 P_2 Q") == r"\triangle P_1 P_2 Q"

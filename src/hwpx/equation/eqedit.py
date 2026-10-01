@@ -187,12 +187,14 @@ class _Parser:
                 base = nodes.pop() if nodes else ""
                 nodes.append(_combine_script(base, token, self._atom(depth)))
                 continue
-            if token == "over" or token == "atop":
+            if token in ("over", "atop", "choose"):
                 self._next()
                 numerator = _strip_braces(nodes.pop() if nodes else "")
                 denominator = _strip_braces(self._atom(depth))
                 if token == "over":
                     nodes.append(f"\\frac{{{numerator}}}{{{denominator}}}")
+                elif token == "choose":
+                    nodes.append(f"\\binom{{{numerator}}}{{{denominator}}}")
                 else:
                     nodes.append(f"{{{numerator} \\atop {denominator}}}")
                 continue
@@ -213,6 +215,9 @@ class _Parser:
             return "{" + self._group(depth) + "}"
         if token == "sqrt":
             return f"\\sqrt{{{_strip_braces(self._atom(depth))}}}"
+        if token == "binom":
+            top = _strip_braces(self._atom(depth))
+            return f"\\binom{{{top}}}{{{_strip_braces(self._atom(depth))}}}"
         if token == "root":
             index = _strip_braces(self._atom(depth))
             if self._peek() == "of":
@@ -310,11 +315,12 @@ class _Parser:
                 base = current.pop() if current else ""
                 current.append(_combine_script(base, token, self._atom(depth)))
                 continue
-            if token == "over":
+            if token in ("over", "choose"):
                 self._next()
                 numerator = _strip_braces(current.pop() if current else "")
                 denominator = _strip_braces(self._atom(depth))
-                current.append(f"\\frac{{{numerator}}}{{{denominator}}}")
+                command = "\\frac" if token == "over" else "\\binom"
+                current.append(f"{command}{{{numerator}}}{{{denominator}}}")
                 continue
             current.append(self._atom(depth))
         flush_cell()

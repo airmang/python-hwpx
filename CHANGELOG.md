@@ -15,6 +15,14 @@
   - `eqedit_to_latex`는 이 철자들을 되읽는다(`` ` `` → `\,`, `dyad` → `\overleftrightarrow`, `therefore`·`THEREFORE`
     → `\therefore`, `because` → `\because`, `{rm {bold X} it}` → `\mathbf{X}`). 수식 크기 추정은 `dyad`를 `vec`처럼
     꾸밈으로 잰다.
+- `hwpx.experimental.latex_to_eqedit`(실험)가 `\mid`와 `\binom`도 옮긴다(#347). 전에는 `UnsupportedLatexError`로
+  거부했다. 철자는 한/글에서 그려 본 결과(#347 댓글)를 따른다.
+  - `\mid` → `~|~`. 맨 `|`는 앞뒤 간격 없이 붙어 그려지고, `~|~`가 `\mid`의 간격에 가장 가깝다.
+  - `\binom{n}{r}` → `{n} choose {r}`. `binom {n} {r}`·`pmatrix {n # r}`와 같은 모양이고, `( {n} atop {r} )`는
+    괄호가 늘어나지 않는다.
+  - `eqedit_to_latex`는 `~|~`를 `\mid`로, `{n} choose {r}`와 `binom {n} {r}`를 `\binom{n}{r}`로 되읽는다. 수식 크기
+    추정은 둘을 `atop`처럼 두 줄로 잰다. `choose`·`binom`은 예약어가 되어, LaTeX의 맨 글자 `choose`는 따옴표로
+    감싼다.
 - `doc.shapes.add_curve()`·`add_connector()`를 더한다(곡선과 붙은 연결선 저작).
   - 곡선은 앵커를 지나는 `CURVE` 구간으로 쓴다(닫으면 끝에서 첫 앵커로). 한/글은 곡선의 크기 상자를 다시 계산하지
     않으므로, 한/글 곡선이 갖는 상자(앵커를 지나는 Catmull-Rom 곡선을 구간마다 16단계로 근사한 상자)를 쓰고 앵커는

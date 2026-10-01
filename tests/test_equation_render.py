@@ -58,6 +58,17 @@ def test_authored_upright_text_previews_as_text() -> None:
     assert "rm" not in "".join(root.itertext())
 
 
+def test_binomial_and_set_builder_bar_preview() -> None:
+    pytest.importorskip("latex2mathml")
+    result = render_equation("{n} choose {r} ~|~ x")
+    assert result.mode == "mathml"
+    assert result.latex == r"\binom{n}{r} \mid x"
+    root = ElementTree.fromstring(result.html)
+    namespace = "{http://www.w3.org/1998/Math/MathML}"
+    assert [node.get("linethickness") for node in root.iter(f"{namespace}mfrac")] == ["0"]
+    assert "∣" in "".join("".join(node.itertext()) for node in root.iter(f"{namespace}mo"))
+
+
 def test_quoted_triangle_literal_stays_text_and_is_not_annotated() -> None:
     pytest.importorskip("latex2mathml")
     # A quoted EqEdit literal becomes \text{...}; its content is prose and must

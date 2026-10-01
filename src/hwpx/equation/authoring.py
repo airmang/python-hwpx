@@ -82,6 +82,8 @@ _LATEX_TO_EQEDIT.update(
         # lowercase form has not been render-verified, and lowercase ``forall``
         # already turned out to render as literal text.
         "\\triangle": "TRIANGLE",
+        # A bare ``|`` draws the bar with no space around it; ``~|~`` spaces it as \mid does.
+        "\\mid": "~|~",
         # Common LaTeX aliases sharing a verified target.
         "\\le": "leq",
         "\\ge": "geq",
@@ -254,6 +256,11 @@ class _LatexParser:
             numerator = self._group_or_atom(depth)
             denominator = self._group_or_atom(depth)
             return f"{{{numerator}}} over {{{denominator}}}"
+        if token == "\\binom":
+            # ``choose`` stretches the parentheses; ``( {n} atop {r} )`` does not.
+            top = self._group_or_atom(depth)
+            bottom = self._group_or_atom(depth)
+            return f"{{{top}}} choose {{{bottom}}}"
         if token == "\\sqrt":
             if self._peek() == "[":
                 self._next()
