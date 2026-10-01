@@ -57,6 +57,19 @@ HANCOM_PAGES = {
                                                   # line goes below it, as a line of text would
     "pages_object_pushing_characters_off1398": 1,  # the same 1398 down
     "pages_object_pushing_characters_off1398_char3000": 1,  # with a rectangle 3000 tall set as a character
+    # A section hiding a page's first empty lines (hp:visibility@hideFirstEmptyLine), its first page full:
+    "pages_hide_empty_lines_one": 2,  # an empty paragraph past the foot stays there, the text after it
+                                      # starts the next page
+    "pages_hide_empty_lines_two": 2,  # two, one on the other
+    "pages_hide_empty_lines_four": 2,  # four: the third and fourth start the next page
+    "pages_hide_empty_lines_page_break": 2,  # one with a page break is not hidden
+    "pages_hide_empty_lines_space": 2,  # nor one holding a space
+    "pages_hide_empty_lines_column_end": 1,  # two at the end of the first of two columns
+    "pages_hide_empty_lines_20pt": 2,  # one of 20 pt
+    "pages_hide_empty_lines_spaced_past_the_foot": 2,  # the last line ending 200 above the foot, the
+                                                       # empty one spaced 562 before it
+    "pages_hide_empty_lines_ending_the_document": 1,  # two ending the document: no second page
+    "pages_hide_empty_lines_off": 2,  # two, the setting off: they start the next page
     "pages_table_row_split_a_first_line_not_fitting": 2,  # the first 8 pt line of one cell fits, the 16 pt
                                                             # line of the other does not: it goes on whole
     "pages_table_row_split_every_first_line_fitting": 2,  # room for both: split after two 8 pt lines
@@ -247,6 +260,25 @@ HANCOM_PAGES = {
                                                         # the next page
     "pages_rectangle_on_paper_5000_above_its_bottom": 2,  # 5000 above the paper's bottom, into the body
     "pages_table_on_page_at_its_foot": 2,              # a table at the body's foot
+    "pages_exam_header_over_a_question_with_text": 1,  # a header table from the paper's top over the body's
+                                                       # top, wrapped square across the text, and a 5-row table
+                                                       # top and bottom from the first paragraph's top: the
+                                                       # table right below the header, the text below it
+    "pages_exam_header_pushing_earlier_lines": 1,  # the same header anchored in the third paragraph: the lines
+                                                   # of the first two go below it
+    "pages_exam_header_over_a_table_alone": 1,  # the 5-row table alone in the first paragraph: below the
+                                                # header, the paragraph's empty line below the table
+    "pages_exam_header_top_and_bottom_over_a_table_alone": 1,  # a header set top and bottom
+    "pages_exam_header_over_a_table_alone_two_columns": 1,  # in two columns
+    "pages_exam_header_then_a_table_alone": 1,  # the table alone in the next paragraph: its line at its top
+    "pages_table_alone_in_the_first_paragraph": 1,  # no header: the empty line at the table's top
+    "pages_square_picture_on_paper_below_the_lines": 1,  # a picture wrapped square from the paper's top at the
+                                                         # text's left, a line's room on its right, 400 below
+                                                         # the fifth line: no line moves
+    "pages_square_picture_on_paper_touching_the_last_line": 1,  # its top at the fifth line's foot
+    "pages_square_picture_on_paper_in_the_last_paragraph": 1,  # anchored in the fifth paragraph
+    "pages_square_picture_on_paper_at_the_right": 1,  # at the text's right, room on its left
+    "pages_square_picture_on_paper_then_a_page_break": 4,  # the next pages' lines across its height
     "pages_composed_characters": 1,     # circled numbers among three lines of text
     "pages_compose_spread_rows": 1,     # rows of composed 가나 spread, paragraphs 0 to 7 mm narrower:
                                          # each as wide as a Hangul syllable
@@ -337,6 +369,32 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
 
 
+def test_a_header_wrapped_square_with_room_beside_it_is_not_followed() -> None:
+    # The exam header 3000 narrower: a line fits beside it, and the lines reaching it are not followed.
+    out = io.BytesIO()
+    data = (FIXTURES / "pages_exam_header_over_a_table_alone.hwpx").read_bytes()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                root = etree.fromstring(payload)
+                header = next(table for table in root.iter(f"{HP}tbl") if table.get("textWrap") == "SQUARE")
+                size = header.find(f"{HP}sz")
+                size.set("width", str(int(size.get("width")) - 3000))
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+
+    assert estimate_pages(out.getvalue()).unsupported == ("section 0: text beside an object placed on the paper",)
+
+
+def test_a_line_reaching_a_picture_on_the_paper_with_room_beside_it_is_not_followed() -> None:
+    # The picture's top 100 above the fifth line's foot: Hancom sets that line beside it, narrower.
+    data = (FIXTURES / "pages_square_picture_on_paper_reaching_the_last_line.hwpx").read_bytes()
+
+    for source in (data, _without_caches(data)):
+        assert estimate_pages(source).unsupported == ("section 0: text beside an object placed on the paper",)
+
+
 def _with_empty_runs_in_cells(data: bytes) -> bytes:
     """*data* without line caches, each paragraph of a table cell starting with an empty run of character
     shape 0 (10 pt), as a paragraph written empty and given runs after."""
@@ -398,6 +456,15 @@ def test_an_object_wrapped_square_mid_column_on_its_own_takes_no_line() -> None:
     data = (FIXTURES.parent / "hwpxlib_corpus" / "reader_writer__SimpleOLE.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, 1)
+
+
+def test_a_picture_on_the_paper_below_the_text_takes_no_line() -> None:
+    # A picture wrapped square, placed 1855 below the body's top from the paper's, 235 from the text's
+    # left: room for lines on its right, but the one line of its page ends above it.
+    data = (FIXTURES.parent / "hwpxlib_corpus" / "reader_writer__SimplePicture.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 1)
 
 
 def test_the_cells_of_a_form_break_their_lines_like_hancom_without_caches() -> None:
