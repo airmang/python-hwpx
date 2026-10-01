@@ -134,6 +134,14 @@ def test_cells_in_hy_headline_break_where_hancom_breaks_them() -> None:
     assert len(cells) == 22
 
 
+def test_human_myeongjo_takes_the_design_advances_of_its_font() -> None:
+    # 휴먼명조's font has 512 units per em: a Hangul syllable takes the full em, a parenthesis 160 units, the comma
+    # 138 and A 338.
+    style = TextStyle(hangul_face="휴먼명조", glyph_face="휴먼명조")
+    assert glyph_advance_em("휴먼명조", "(") == 160 / 512
+    assert [char_advance(ch, 10, style) for ch in "가(,A"] == [1000, 312, 268, 660]
+
+
 def test_every_fallback_face_has_a_table() -> None:
     from hwpx.form_fit import _glyph_table as table
 
@@ -494,8 +502,9 @@ def test_a_numeral_a_face_does_not_list_is_full_width() -> None:
 
 
 def test_a_symbol_in_a_face_the_table_does_not_list_breaks_where_hancom_breaks_it() -> None:
-    # Five ○ in 휴먼명조 10 pt, which the glyph table does not list, in cells 4400 and 5400 wide inside:
-    # Hancom laid them out in two lines and in one.
+    # Five ○ at 10 pt in cells 4400 and 5400 wide inside: Hancom laid them out in two lines and in one. The
+    # cells are in 휴먼명조, which the glyph table lists, so they are measured with the face left unnamed as well:
+    # a face the table does not list draws ○ full width.
     doc = HwpxDocument.open(UNLISTED_SYMBOLS.read_bytes())
     tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
 
@@ -504,6 +513,9 @@ def test_a_symbol_in_a_face_the_table_does_not_list_breaks_where_hancom_breaks_i
         cell = table.cell(0, 0)
         segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
         slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
+        assert slot.text_style.hangul_face == "휴먼명조"
+        assert measure(cell.text, slot).lines == len(segs), (cell.width, len(segs))
+        slot.text_style = replace(slot.text_style, hangul_face="", glyph_face="")
         assert glyph_advance_em(slot.text_style.hangul_face, "○") is None
         assert measure(cell.text, slot).lines == len(segs), (cell.width, len(segs))
         lines.append(len(segs))
