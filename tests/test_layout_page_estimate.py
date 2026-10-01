@@ -46,6 +46,12 @@ HANCOM_PAGES = {
     "pages_table_flow_repeat_header": 3,  # a table flowing with the text, header row repeated
     "pages_table_repeated_header_second_cell_marked": 2,  # only its second cell a header cell: repeated
     "pages_table_flow_multiline_cells": 4,  # a flowing table split between cell lines
+    "pages_cell_paragraphs_split_s600_400_b0": 3,  # one cell of 25 paragraphs of 3 lines, spaced 600 before
+                                                   # and 400 after, split over pages: the spacing counts,
+                                                   # and a part starting with a paragraph keeps 600 above it
+    "pages_cell_paragraphs_split_s600_400_b30": 4,  # the same after 30 lines
+    "pages_cell_paragraphs_split_s0_400_b30": 3,  # spaced 400 after only: a paragraph whose first line fits
+                                                  # only without that spacing goes on
     "pages_table_row_split_a_first_line_not_fitting": 2,  # the first 8 pt line of one cell fits, the 16 pt
                                                             # line of the other does not: it goes on whole
     "pages_table_row_split_every_first_line_fitting": 2,  # room for both: split after two 8 pt lines
