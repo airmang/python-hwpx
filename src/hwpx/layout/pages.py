@@ -2050,6 +2050,7 @@ class _Paginator:
         self.widths = widths  # each column's width when they differ
         #: frame -> (top, bottom) of the objects placed on the paper there: no line in them
         self.bands = {frame: list(found) for frame, found in (bands or {}).items()}  # stacked objects add theirs
+        self.stacked: set[int] = set()  # the frames objects stacked in an empty paragraph went to
         #: frame -> (top, bottom) of the ones leaving a line's room beside them, and whether a line, a table
         #: or an object reaches one of them (set beside it by Hancom, which is not followed)
         self.sides = sides or {}
@@ -2168,8 +2169,10 @@ class _Paginator:
         paragraph's line takes the first place clear of them, on a later page when its own has none, and the
         lines after follow it."""
 
-        if self.band is not None or para.notes or self.columns > 1 or self.page_notes[1]:
-            raise _Unsupported("objects placed top and bottom one below another beside other objects")
+        if self.columns > 1:
+            raise _Unsupported("objects placed top and bottom one below another in columns")
+        if self.band is not None or para.notes or self.page_notes[1]:
+            raise _Unsupported("objects placed top and bottom one below another beside notes or a table's band")
         start, _ = self._breaks(para, start)
         if self.last_vp is not None and start + para.height(0) > self.body:  # its line goes on to the next
             start = self._next_frame(para, 0, True)                         # page, the objects with it
@@ -2194,8 +2197,9 @@ class _Paginator:
             last = max(last, end_frame)
         for frame, boxes in placed.items():
             if self.bands.get(frame) or self.sides.get(frame) or frame != home and self.reserved.get(frame):
-                raise _Unsupported("objects placed top and bottom one below another beside other objects")
+                raise _Unsupported("objects placed top and bottom one below another on a page with other objects")
             self.bands[frame] = [(above, below) for _, _, above, below in boxes]
+            self.stacked.add(frame)
         self.table_end = max(self.table_end, last)
         frame, y, height = home, start, para.height(0)
         while True:  # the paragraph's line, at the first place clear of them
@@ -2361,7 +2365,9 @@ class _Paginator:
             touching = below and frame == first
             if any(above < high and (low < bottom if touching else low <= bottom)
                    for above, bottom in self.bands.get(frame, ())):
-                raise _Unsupported("a table on a page with an object placed on the paper")
+                stacked = frame in self.stacked
+                raise _Unsupported("a table on a page with objects stacked in an empty paragraph" if stacked
+                                   else "a table on a page with an object placed on the paper")
 
     def _reach(self, frame: int, top: int, bottom: int) -> None:
         """Note whether something from *top* to *bottom* in *frame* reaches the band of an object placed on
