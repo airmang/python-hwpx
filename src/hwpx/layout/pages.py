@@ -1853,9 +1853,12 @@ def _cell_rest(cell: _Row, top: int, foot: int) -> tuple[int, int] | None:
     while fitting < cell.lines and top + cell.margins + fitting * cell.pitch + cell.size <= foot:
         fitting += 1
     if cell.spare and (fitting or not cell.lines):  # its text (or what is left: none) starts above the page end:
-        # the declared room is cut like a row's
-        rest = top + cell.height - foot
-        return (rest, cell.lines - fitting) if rest > _SPARE_DROPPED else None
+        # the declared room is cut like a row's, and the lines that do not fit go on with it, which is then
+        # at least as tall as they are with the cell's margins
+        rest, left = top + cell.height - foot, cell.lines - fitting
+        if left:
+            return max(rest, cell.margins + (left - 1) * cell.pitch + cell.size), left
+        return (rest, 0) if rest > _SPARE_DROPPED else None
     if cell.spare:  # none of it fits: it goes on whole
         return cell.height, cell.lines
     if fitting == cell.lines:

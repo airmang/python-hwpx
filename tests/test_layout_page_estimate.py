@@ -80,6 +80,14 @@ HANCOM_PAGES = {
                                                       # rows: its room cut at each page end, 10 rows after
     "pages_joined_rows_over_pages_empty_declared_cell": 3,  # an empty cell over 8 rows declared 75000 tall
                                                             # after 36 lines: cut over three pages
+    # Rows 1-5 joined by a cell merged down them (4 lines), declared taller than their text, the page end
+    # falling among them:
+    "pages_joined_rows_declared_rest_with_a_line": 2,  # in row 1: its rest is the line going on with the
+                                                       # cell margins, taller than the declared rest
+    "pages_joined_rows_declared_cut_in_a_later_row": 2,  # in row 2: its declared rest, taller than the line
+    "pages_joined_rows_declared_first_line_not_fitting": 2,  # in row 3, before its first line: whole on the
+                                                             # next page
+    "pages_joined_rows_text_height_split": 2,  # in row 1, the rows as tall as their text: lines and margins
     "pages_table_row_split_a_first_line_not_fitting": 2,  # the first 8 pt line of one cell fits, the 16 pt
                                                             # line of the other does not: it goes on whole
     "pages_table_row_split_every_first_line_fitting": 2,  # room for both: split after two 8 pt lines
