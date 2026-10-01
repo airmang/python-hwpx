@@ -46,6 +46,11 @@ HANCOM_PAGES = {
     "pages_table_flow_repeat_header": 3,  # a table flowing with the text, header row repeated
     "pages_table_repeated_header_second_cell_marked": 2,  # only its second cell a header cell: repeated
     "pages_table_flow_multiline_cells": 4,  # a flowing table split between cell lines
+    "pages_object_pushing_characters_off500": 1,  # no text, a rectangle set as a character and one top
+                                                  # and bottom 500 down from the paragraph's top: the
+                                                  # line goes below it, as a line of text would
+    "pages_object_pushing_characters_off1398": 1,  # the same 1398 down
+    "pages_object_pushing_characters_off1398_char3000": 1,  # with a rectangle 3000 tall set as a character
     "pages_table_row_split_a_first_line_not_fitting": 2,  # the first 8 pt line of one cell fits, the 16 pt
                                                             # line of the other does not: it goes on whole
     "pages_table_row_split_every_first_line_fitting": 2,  # room for both: split after two 8 pt lines
