@@ -60,7 +60,10 @@
   offset down, it stands that much lower, and the first line reaching it (in that paragraph or the
   ones after) and the lines after come below it -- a table flowing with the text flows from there
   over the page end, and that line goes below its end (so does the line of a paragraph holding only
-  another such table, which then flows from there); a flowing table alone in its paragraph starts
+  another such table, which then flows from there); offset down from a paragraph's first line that
+  does not fit above the page's foot, it goes on to the next page with the line, and one whose top
+  falls past the foot, or whose first row moved row by row does not fit under it, starts at the next
+  page's top while the paragraph's lines go on under its line; a flowing table alone in its paragraph starts
   its offset below the paragraph's top, above the paragraph's spacing before (one offset up starts
   there), and the next paragraph goes below the table's end or below the paragraph's line and its
   own spacing before, whichever is lower;
@@ -2117,10 +2120,16 @@ class _Paginator:
             return
         if para.band is not None:
             band, table = para.band, para.band.table
+            if not band.line and self.last_vp is not None and start + para.height(0) > self.body:
+                start = self._next_frame(para, 0, True)  # the line goes on to the next page, its table with it
             top = start + para.span(0, band.line) + band.offset
-            if start + para.span(0, band.line) + para.height(band.line) > self.body \
-                    or top + table.above >= self.body or _starts_later(table, top + table.above, self.body):
+            if start + para.span(0, band.line) + para.height(band.line) > self.body:
                 raise _Unsupported("a top-and-bottom table offset down from a line at a page end")
+            if top + table.above >= self.body or _starts_later(table, top + table.above, self.body):
+                if band.line:
+                    raise _Unsupported("a top-and-bottom table offset down from a line at a page end")
+                self._band_on_next_page(index, paras, para, table, top, start, broke)
+                return
             frame, end = _flow_table(table, self.frame, top + table.above, self.body)
             self._clear_of_paper(self.frame, frame)
             self.table_end = max(self.table_end, frame)
@@ -2154,6 +2163,23 @@ class _Paginator:
             self.frame, self.page_notes = end_frame, [0, 0]
         if self._lay(index, paras, tail, end, False):
             self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], tail.advance(tail.lines - 1), para.next
+
+    def _band_on_next_page(self, index: int, paras: list[_Para], para: _Para, table: _FlowTable, top: int,
+                           start: int, broke: bool) -> None:
+        """A table offset down from a paragraph's first line whose top falls past the page's foot, or whose first
+        row (moved row by row) does not fit under it: it starts at the next page's top, and the paragraph's lines
+        go on under its line, on the pages the table takes below the table."""
+
+        frame, end = _flow_table(table, self.frame, top + table.above, self.body)
+        self._clear_of_paper(self.frame + 1, frame)
+        taken = range(self.frame + 1, frame + 1)
+        if frame == self.frame or any(page in self.reserved for page in taken):
+            raise _Unsupported("a top-and-bottom table offset down from a line at a page end")
+        self.reserved.update(dict.fromkeys(taken, self.body))
+        self.reserved[frame] = end + table.below
+        self.table_end = max(self.table_end, frame)
+        if self._lay(index, paras, para, start, broke):
+            self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], para.advance(para.lines - 1), para.next
 
     def _clear_of_paper(self, first: int, last: int, top: int = 0, end: int | None = None,
                         below: bool = False) -> None:
