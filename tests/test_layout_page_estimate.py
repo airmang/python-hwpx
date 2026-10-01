@@ -260,6 +260,11 @@ HANCOM_PAGES = {
                                                              # lines of both go below it
     "pages_rectangle_on_paper_400_narrower_than_two_columns": 2,  # 400 narrower than the text, centred
     "pages_table_on_paper_400_narrower_than_two_columns": 2,  # a table so
+    "pages_rectangle_on_paper_over_the_left_column_from_the_right": 2,  # anchored in the second column
+    "pages_rectangle_on_paper_over_the_middle_of_three_columns": 2,  # the middle one of three only
+    "pages_rectangle_on_paper_100_into_the_second_column": 2,  # its right edge 100 into the second: both
+    "pages_rectangle_on_paper_ending_in_the_column_gap": 2,  # its right edge 100 short of the second, in
+                                                              # the gap: the first only
     "pages_rectangle_on_page_5000_below_its_top": 2,   # top and bottom 5000 below the body's top
     "pages_rectangle_on_page_5000_above_its_foot": 2,  # 5000 above the body's foot: the lines reaching it
                                                         # go below it
