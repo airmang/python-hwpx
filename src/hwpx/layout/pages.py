@@ -561,8 +561,8 @@ class _Measure:
                 metrics[-1] = (last_height, last_advance + shape.prev)
             runs = paragraph.findall(f"{HP}run")
             cached = () if _table_alone(runs) is not None or not caches else _cached_metrics(paragraph)
-            if not cached and _table_alone(runs) is None:
-                cached = self.marked_lines(paragraph, runs, width)
+            if not cached and _table_alone(runs) is None:  # each line as tall as stack makes it
+                cached = self.marked_lines(paragraph, runs, width) or self.mixed_lines(paragraph, runs, shape, width)
             if cached:
                 metrics += list(cached[:-1]) + [(cached[-1][0], cached[-1][1] + shape.next)]
                 continue
@@ -596,9 +596,12 @@ class _Row:
     joined: bool = False  # a cell merged over rows joins it to the next row
     spare: int = 0        # room the row's declared height leaves under its text
     nested: bool = False  # a cell holds a table
-    #: (height, advance) of each line of the row's tallest cell when it holds a table
+    #: (height, advance) of each line of the row's tallest cell when it holds a table or several paragraphs
     metrics: tuple[tuple[int, int], ...] = ()
     first: int = 0        # the tallest first line of any of its cells
+    #: the room above each of those lines when a part of the cell starts with it (a paragraph's spacing
+    #: before its first line, none before the others)
+    leads: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -781,10 +784,22 @@ def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
     vertical = margins.top + margins.bottom
     height = max(int(size.get("height", 0)), vertical + content)
     first = drawn[0][0] if drawn else (measure.stack_lines(paragraphs[:1], inner, caches=True) or ((0, 0),))[0][0]
+    several = not nested and len(paragraphs) > 1  # its lines split at their own places, spacing included
     return _Row(height, lines, pitch, char_size, vertical, cell.get("header") == "1",
                 spare=height - vertical - content, nested=nested,
-                metrics=(drawn or measure.stack_lines(paragraphs, inner, caches=True)) if nested else (),
-                first=first)
+                metrics=(drawn or measure.stack_lines(paragraphs, inner, caches=True)) if nested or several else (),
+                first=first, leads=_line_leads(measure, paragraphs, inner) if several else ())
+
+
+def _line_leads(measure: _Measure, paragraphs: list[Any], width: int) -> tuple[int, ...]:
+    """The room above each line of *paragraphs* (as :meth:`_Measure.stack_lines` lays them out) when a part
+    of their cell starts with it: a paragraph's spacing before at its first line, none at the others."""
+
+    leads: list[int] = []
+    for paragraph in paragraphs:
+        count = len(measure.stack_lines([paragraph], width, caches=True))
+        leads += [measure.shape(paragraph.get("paraPrIDRef")).prev] + [0] * (count - 1)
+    return tuple(leads)
 
 
 @dataclass(frozen=True)
@@ -1785,7 +1800,7 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
     """A row that does not fit even a fresh page is drawn there anyway, cut at the paper's edge;
     CELL breaks a row between its lines, or a row taller than its text just above the page's foot."""
 
-    remaining, height, metrics, nested = row.lines, row.height, row.metrics, row.nested
+    remaining, height, metrics, nested, leads = row.lines, row.height, row.metrics, row.nested, row.leads
     foot = body - cut
     while True:
         if y + height <= foot:
@@ -1818,28 +1833,44 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
             frame, y = frame + 1, header
             continue
         if mode == "CELL":
-            fitting = 0
-            while fitting < remaining and y + row.margins + fitting * row.pitch + row.size <= foot:
-                fitting += 1
-            if fitting and remaining == row.lines and y + row.margins + row.first > foot:
+            lines = metrics or ((row.size, row.pitch),) * remaining
+            fitting = _lines_fitting(lines, leads, y + row.margins, foot)
+            if fitting and len(lines) == row.lines and y + row.margins + row.first > foot:
                 fitting = 0  # every cell's first line must fit, or the row goes on whole
-            if fitting and row.spare:
+            if fitting and (row.spare or fitting == len(lines)):  # room under its lines: cut like a row's
                 rest = height - (foot - y)
-                if fitting < remaining and y + height - row.spare > foot:  # its text does not all fit:
-                    rest = max(rest, row.margins + (remaining - fitting - 1) * row.pitch + row.size)  # it goes on
+                if fitting < len(lines) and y + height - row.spare > foot:  # its text does not all fit:
+                    rest = max(rest, row.margins + _lines_height(lines[fitting:], leads[fitting:]))  # it goes on
                 elif rest <= _SPARE_DROPPED:
                     return frame, body
                 frame, y = frame + 1, header
-                remaining, height = 1, rest
+                remaining, height, metrics, leads = 1, rest, (), ()
                 continue
             if fitting:
-                remaining -= fitting
-                height = row.margins + (remaining - 1) * row.pitch + row.size
+                metrics, leads = lines[fitting:], leads[fitting:]
+                remaining, height = len(metrics), row.margins + _lines_height(metrics, leads)
             elif fresh:
                 return frame, y + height
         elif fresh:
             return frame, y + height
         frame, y = frame + 1, header
+
+
+def _lines_fitting(lines: tuple[tuple[int, int], ...], leads: tuple[int, ...], top: int, foot: int) -> int:
+    """How many of *lines* ((height, advance) each; *leads*: the room above each when it starts a part) fit
+    from *top* above *foot*."""
+
+    fitting, y = 0, top + (leads[0] if leads else 0)
+    while fitting < len(lines) and y + lines[fitting][0] <= foot:
+        y += lines[fitting][1]
+        fitting += 1
+    return fitting
+
+
+def _lines_height(lines: tuple[tuple[int, int], ...], leads: tuple[int, ...]) -> int:
+    """How tall *lines* are as a part of their cell: the room above the first, then down to the last's foot."""
+
+    return (leads[0] if leads else 0) + sum(advance for _, advance in lines[:-1]) + lines[-1][0]
 
 
 class _Paginator:
