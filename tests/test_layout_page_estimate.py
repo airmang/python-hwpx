@@ -195,6 +195,10 @@ HANCOM_PAGES = {
                                                               # below the table
     "pages_table_nested_top_and_bottom_1000_down_alone": 1,  # the table 1000 down: the empty line stays
                                                             # above it, its foot at the table's top
+    "pages_table_nested_top_and_bottom_1000_down_before_text": 1,  # 1000 down before three lines: the first
+                                                                  # stays above it, the others below it
+    "pages_table_nested_top_and_bottom_placed_up_before_text": 1,  # 1000 up before them: at the paragraph's
+                                                                  # top, every line below it
     "pages_table_nested_row_declared_cut": 2,  # the same row declared 16000: cut above the foot, the rest goes on
     "pages_table_nested_row_declared_cut_near_foot": 2,  # declared 24000, cut 3579 below its top
     "pages_table_nested_row_declared_first_line_100_above_page_foot": 2,  # its first line ends 100 above
@@ -536,15 +540,16 @@ def test_the_lines_around_a_nested_table_are_where_hancom_put_them() -> None:
 
 @pytest.mark.parametrize(("fixture", "followed"), [("pages_table_nested_top_and_bottom_alone", True),
                                                   ("pages_table_nested_two_top_and_bottom", False),
-                                                  ("pages_table_nested_top_and_bottom_before_text", False),
+                                                  ("pages_table_nested_top_and_bottom_before_text", True),
                                                   ("pages_table_nested_among_text", False)])
 def test_a_cell_holding_a_table_among_text_or_top_and_bottom_is_as_tall_as_hancom_drew_it(fixture: str,
                                                                                          followed: bool) -> None:
     # A table in a cell of a flowing table, placed top and bottom alone in its paragraph (the cell
     # reaches down to its foot) or before text (the text goes below it), or set as a character among
     # text: the lines of the cell's caches. Without the caches the estimate follows the cell when the
-    # table is alone in its paragraph, as tall as its rows. Two tables 0 and 3000 down in one paragraph
-    # put its empty line below the second (not beside the first): not followed without the caches.
+    # table is alone in its paragraph or before its text, as tall as its rows. Two tables 0 and 3000 down
+    # in one paragraph put its empty line below the second (not beside the first): not followed without
+    # the caches.
     data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, 1)
@@ -607,17 +612,17 @@ def test_a_footnote_in_a_paragraph_without_a_cache_in_columns_of_unequal_width_i
 
 
 @pytest.mark.parametrize(("fixture", "followed"), [("pages_table_row_split_in_first_paragraph", True),
-                                                  ("pages_table_row_split_after_nested_table", False),
+                                                  ("pages_table_row_split_after_nested_table", True),
                                                   ("pages_table_row_split_moves_nested_table", True),
-                                                  ("pages_table_row_split_moves_nested_table_above_text", False)])
+                                                  ("pages_table_row_split_moves_nested_table_above_text", True)])
 def test_a_row_holding_a_nested_table_split_over_a_page_splits_where_hancom_split_it(fixture: str,
                                                                                    followed: bool) -> None:
     # A flowing table (split by cell) whose row 1 holds, in one cell, six lines, a 2x2 table placed top and
     # bottom (alone in its paragraph, or above a line of text) and six lines more, going on over the page
     # end among the first six lines, after the nested table, or at it (the nested table goes on to the
     # next page, with the text below it). Hancom's caches of the cell start over at the next page's top.
-    # Without the caches the estimate splits the row there too when the table is alone in its paragraph:
-    # the table is one line, as tall as its rows, and the text after it goes on below its foot.
+    # Without the caches the estimate splits the row there too: the table is one line, as tall as its
+    # rows, and the text after it goes on below its foot.
     data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, 2)
