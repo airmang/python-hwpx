@@ -26,6 +26,8 @@ HANCOM_PAGES = {
     "pages_fixed_width_spaces": 2,  # rows of a syllable and a fixed-width space: a quarter em that hangs
     "pages_no_break_spaces": 2,  # rows of "가나" and a no-break space: each is half an em and keeps the row
                                   # one word
+    "pages_typed_ideographic_spaces": 5,  # cells of "가나다라마" and a U+3000 typed in the text, a full em
+                                           # that hangs however many follow, or fixed-width spaces
     "pages_empty_run_ending_after_a_larger_first_line": 1,  # 20 pt on the first line, 10 pt text on the
                                                              # last before an empty 14 pt run: 14 pt tall
     "pages_empty_run_ending_after_larger_text_amid": 1,  # the same with the 20 pt run amid the 10 pt text
@@ -287,6 +289,28 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
+
+
+def test_a_typed_ideographic_space_is_not_a_fixed_width_one() -> None:
+    # 맑은 고딕 10 pt cells of narrowing widths, laid out and saved by Hancom: rows of "가나다라마" each followed
+    # by one or two ideographic spaces typed in the text (U+3000), or by fixed-width spaces (hp:fwSpace, which
+    # python-hwpx reads as U+3000 too). The typed space is a full em, a line may start after it, and at a line
+    # end it hangs however many follow each other; a fixed-width space is a quarter em, and one starting at or
+    # past the margin begins the next line, even right after a word.
+    doc = HwpxDocument.open((FIXTURES / "pages_typed_ideographic_spaces.hwpx").read_bytes())
+    cells = list(doc.oxml.sections[0].element.iter(f"{HP}tc"))
+    typed = 0
+    for cell in cells:
+        paragraph = cell.find(f"{HP}subList/{HP}p")
+        runs = paragraph.findall(f"{HP}run")
+        ref = next(run.get("charPrIDRef") for run in runs if run.find(f"{HP}t") is not None)
+        style = page_layout.text_style_from_refs(doc.oxml, paragraph.get("paraPrIDRef"), [ref])
+        segs = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+        widths = [int(seg.get("horzsize")) for seg in segs]
+        starts = page_layout.hancom_line_starts(page_layout._run_text(runs), widths, 10, style)
+        assert starts == [int(seg.get("textpos")) for seg in segs], widths[0]
+        typed += "\u3000" in "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+    assert (len(cells), typed) == (30, 22)
 
 
 @pytest.mark.parametrize(
