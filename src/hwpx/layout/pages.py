@@ -561,8 +561,8 @@ class _Measure:
                 metrics[-1] = (last_height, last_advance + shape.prev)
             runs = paragraph.findall(f"{HP}run")
             cached = () if _table_alone(runs) is not None or not caches else _cached_metrics(paragraph)
-            if not cached and _table_alone(runs) is None:
-                cached = self.marked_lines(paragraph, runs, width)
+            if not cached and _table_alone(runs) is None:  # each line as tall as stack makes it
+                cached = self.marked_lines(paragraph, runs, width) or self.mixed_lines(paragraph, runs, shape, width)
             if cached:
                 metrics += list(cached[:-1]) + [(cached[-1][0], cached[-1][1] + shape.next)]
                 continue
@@ -1831,7 +1831,7 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
             fitting = _lines_fitting(lines, leads, y + row.margins, foot)
             if fitting and len(lines) == row.lines and y + row.margins + row.first > foot:
                 fitting = 0  # every cell's first line must fit, or the row goes on whole
-            if fitting and row.spare:
+            if fitting and (row.spare or fitting == len(lines)):  # room under its lines: cut like a row's
                 rest = height - (foot - y)
                 if fitting < len(lines) and y + height - row.spare > foot:  # its text does not all fit:
                     rest = max(rest, row.margins + _lines_height(lines[fitting:], leads[fitting:]))  # it goes on
