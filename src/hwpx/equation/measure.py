@@ -1,18 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
 """Measure an EqEdit script the way Hancom sizes an equation box.
 
-Hancom measures an equation when it is made and stores the box as ``<hp:sz>``
-and the baseline as ``baseLine`` (the share of the box height above the
-baseline, in percent). It does not measure it again when a document is
-opened: the page is laid out with the stored box, so a box that is too wide
-leaves a gap after the equation and one that is too narrow lets the next
-characters overlap it.
+Hancom stores an equation's box as ``<hp:sz>`` and its baseline as
+``baseLine`` (the share of the box height above the baseline, in percent).
+A reader that lays the page out from the file uses the stored box, so a box
+that is too wide leaves a gap after the equation and one that is too narrow
+lets the next characters overlap it. Hancom itself was observed (on macOS)
+to lay the equation out again and rewrite ``<hp:sz>`` when it saves the
+document, whatever size was stored; the stored box still matters until then
+and for every other reader.
 
 This module lays the script out as boxes (width, ascent, descent) by its
-structure -- characters by kind, ``over`` fractions, ``^``/``_`` scripts,
-``sqrt``/``root``, big operators with their limits, ``lim`` with the limit
-below, matrices and ``pile``, and ``#`` line breaks. The widths are in em of
-the base size for the ``HYhwpEQ`` equation font python-hwpx writes.
+structure -- characters by kind, ``over`` fractions (and ``atop``, ``choose``/
+``binom`` binomials, measured alike without the rule), ``^``/``_`` scripts,
+``sqrt``/``root``, decorations such as ``vec`` and ``dyad``, big operators
+with their limits, ``lim`` with the limit below, matrices and ``pile``, and
+``#`` line breaks. Keyword names that stand
+for one symbol (Greek letters, ``lbrace``, ``prime``, ``DEG``, ...) count as
+that symbol, not as their letters. The widths are in em of the base size for
+the ``HYhwpEQ`` equation font python-hwpx writes.
 """
 
 from __future__ import annotations
@@ -37,10 +43,16 @@ __all__ = ["EquationSize", "measure_equation"]
 _DIGIT = 0.53
 _LOWER = 0.51
 _UPPER = 0.67
-_GREEK = 0.6
+_GREEK = 0.51  # lowercase Greek letters not listed in _GREEK_WIDTHS
+_GREEK_UPPER = 0.8
 _HANGUL = 0.83
 _PUNCT = 0.29
 _BRACKET = 0.52
+_BRACE = 0.58  # { } drawn by lbrace / rbrace
+_BAR = _BRACKET  # | drawn by LINE / vert
+_DOUBLE_BAR = 1.3  # VERT: the double bar with a space on each side
+_PRIME = 0.2  # ' and prime
+_DEGREE = 0.75  # DEG
 _OPERATOR = 0.69 + 2 * 0.2  # glyph and the space on each side
 _FUNCTION_CHAR = 0.48
 _FUNCTION_PAD = 0.15
@@ -54,7 +66,9 @@ _SUBSCRIPT_DROP = -0.2
 _FRACTION_PAD = 0.29
 _FRACTION_GAP = 0.34
 _FRACTION_AXIS = 0.37
-_ROOT_SIGN = 1.49
+_ATOP_GAP = 0.14  # atop stacks like over without the rule
+_ROOT_SIGN = 1.29
+_ROOT_INDEX_ROOM = 0.35  # a root's index sits in the sign's left notch up to this width
 _ROOT_TOP = 0.14
 _BIG_OPERATOR = 1.0
 _BIG_OPERATOR_HEIGHT = 1.25
@@ -65,7 +79,7 @@ _INTEGRAL_LIMIT_EXTRA = 0.2
 _LIMIT_SCALE = 0.75
 _LIMIT_GAP = 0.035
 _ACCENT_TOP = 0.25
-_DELIMITER_EXTRA = 0.1
+_MATRIX_BRACKET = 0.41  # each delimiter a matrix draws around its cells
 _COLUMN_GAP = 0.25
 _ROW_GAP = 0.25
 _LINE_GAP = 0.3
@@ -77,6 +91,17 @@ _MATRICES = frozenset(MATRIX_ENVIRONMENTS) | {"pile", "lpile", "rpile"}
 _INTEGRALS = {"int": 1, "oint": 1, "dint": 2, "tint": 3}
 #: Delimiters a matrix environment draws around its cells (count of bracket widths).
 _MATRIX_DELIMITERS = {"pmatrix": 2, "bmatrix": 2, "Bmatrix": 2, "vmatrix": 2, "Vmatrix": 2, "dmatrix": 2, "cases": 1}
+#: Greek letters whose glyph is narrower or wider than the default for their case.
+_GREEK_WIDTHS = {"alpha": 0.6, "theta": 0.42}
+#: Two-row stacks without the rule; ``choose``/``binom`` are matched in any case.
+_STACKS = frozenset({"atop", "choose"})
+#: Keyword names (any case) drawn as one glyph of the given width.
+_KEYWORD_GLYPHS = {
+    "lbrace": _BRACE, "rbrace": _BRACE, "langle": _BRACKET, "rangle": _BRACKET, "lfloor": _BRACKET,
+    "rfloor": _BRACKET, "lceil": _BRACKET, "rceil": _BRACKET, "prime": _PRIME, "deg": _DEGREE,
+}
+#: Keyword names whose case picks the glyph: ``LINE``/``vert`` draw |, ``VERT`` draws a double bar.
+_CASED_KEYWORD_GLYPHS = {"LINE": _BAR, "vert": _BAR, "VERT": _DOUBLE_BAR}
 _LIMIT_WORDS = frozenset({"lim", "limsup", "liminf", "max", "min"})
 _FONT_WORDS = frozenset({"rm", "it", "bold"})
 _RELATIONS = frozenset({"=", "<", ">", "+", "-", "×", "÷"}) | frozenset(SYMBOL_OPERATORS)
@@ -90,7 +115,7 @@ _SYMBOL_RELATIONS = frozenset({
 })
 #: Hancom symbol names (any case) drawn as one symbol.
 _SYMBOL_ORDINARY = frozenset({
-    "inf", "infinity", "deg", "angle", "triangle", "prime", "partial", "nabla", "hbar", "emptyset",
+    "inf", "infinity", "angle", "triangle", "partial", "nabla", "hbar", "emptyset",
     "aleph", "forall", "exists", "neg", "cdots", "ldots", "vdots", "ddots", "dagger", "box", "diamond",
     "centigrade",
 })
@@ -130,20 +155,34 @@ def _stack(lines: list[_Box], gap: float) -> _Box:
     return _Box(max(line.width for line in lines), lines[0].ascent, height - lines[0].ascent)
 
 
-def _fraction(numerator: _Box, denominator: _Box) -> _Box:
+def _fraction(numerator: _Box, denominator: _Box, gap: float = _FRACTION_GAP) -> _Box:
     return _Box(
         max(numerator.width, denominator.width) + 2 * _FRACTION_PAD,
-        numerator.height + _FRACTION_GAP / 2 + _FRACTION_AXIS,
-        denominator.height + _FRACTION_GAP / 2 - _FRACTION_AXIS,
+        numerator.height + gap / 2 + _FRACTION_AXIS,
+        denominator.height + gap / 2 - _FRACTION_AXIS,
     )
+
+
+def _char_width(ch: str) -> float:
+    if "가" <= ch <= "힣":
+        return _HANGUL
+    if ch.isdigit():
+        return _DIGIT
+    if ch == " ":
+        return _SPACE
+    return _UPPER if ch.isupper() else _LOWER
 
 
 def _token_width(token: str) -> float:
     lower = token.lower()
     if token.startswith('"'):
-        return sum(_HANGUL if "가" <= ch <= "힣" else (_SPACE if ch == " " else _LOWER) for ch in token.strip('"'))
+        return sum(_char_width(ch) for ch in token.strip('"'))
     if token in GREEK:
-        return _GREEK
+        return _GREEK_WIDTHS.get(token, _GREEK_UPPER if token.isupper() else _GREEK)
+    if token in _CASED_KEYWORD_GLYPHS:
+        return _CASED_KEYWORD_GLYPHS[token]
+    if lower in _KEYWORD_GLYPHS:
+        return _KEYWORD_GLYPHS[lower]
     if token in OPERATORS or token in _RELATIONS or lower in _SYMBOL_RELATIONS:
         return _OPERATOR
     if lower in _SYMBOL_ORDINARY:
@@ -151,10 +190,12 @@ def _token_width(token: str) -> float:
     if token.replace(".", "").isdigit():
         return sum(_DIGIT if ch.isdigit() else _PUNCT for ch in token)
     if token.isalpha():
-        return sum(_UPPER if ch.isupper() else (_HANGUL if "가" <= ch <= "힣" else _LOWER) for ch in token)
+        return sum(_char_width(ch) for ch in token)
     if token in "()[]|":
         return _BRACKET
-    if token in ",.;:!'":
+    if token == "'":
+        return _PRIME
+    if token in ",.;:!":
         return _PUNCT
     return _OTHER
 
@@ -187,16 +228,22 @@ class _Measurer:
             if token == "#":
                 lines.append(_row(items))
                 items = []
-            elif token in ("^", "_"):
-                items.append(self._scripts(items.pop() if items else _Box(0.0, 0.0, 0.0), token, depth))
-            elif token in ("over", "atop"):
-                numerator = items.pop() if items else _row([])
-                items.append(_fraction(numerator, self._atom(depth)))
-            elif token != "&":
+            elif not self._infix(token, items, depth) and token != "&":
                 items.append(self._dispatch(token, depth))
         if not lines:
             return _row(items)
         return _stack([*lines, _row(items)], _LINE_GAP)
+
+    def _infix(self, token: str, items: list[_Box], depth: int) -> bool:
+        """Apply a script or a two-part stack to the item before it; False if *token* is neither."""
+        if token in ("^", "_"):
+            items.append(self._scripts(items.pop() if items else _Box(0.0, 0.0, 0.0), token, depth))
+        elif token == "over" or token.lower() in _STACKS:
+            numerator = items.pop() if items else _row([])
+            items.append(_fraction(numerator, self._atom(depth), _FRACTION_GAP if token == "over" else _ATOP_GAP))
+        else:
+            return False
+        return True
 
     def _atom(self, depth: int) -> _Box:
         token = self._next()
@@ -219,8 +266,11 @@ class _Measurer:
             scripts[following] = self._atom(depth).scaled(_SCRIPT_SCALE)
         upper, lower = scripts.get("^"), scripts.get("_")
         width = base.width + max(upper.width if upper else 0.0, lower.width if lower else 0.0)
-        ascent = max(base.ascent, _SCRIPT_RAISE + upper.height) if upper else base.ascent
-        descent = max(base.descent, _SUBSCRIPT_DROP + lower.height) if lower else base.descent
+        # Scripts sit against the base's own top and bottom, so a base taller than a
+        # line (a LEFT/RIGHT group, a fraction) carries its scripts out with it.
+        top, bottom = max(base.ascent - _ASCENT, 0.0), max(base.descent - _DESCENT, 0.0)
+        ascent = max(base.ascent, top + _SCRIPT_RAISE + upper.height) if upper else base.ascent
+        descent = max(base.descent, bottom + _SUBSCRIPT_DROP + lower.height) if lower else base.descent
         return _Box(width, ascent, descent)
 
     def _dispatch(self, token: str, depth: int) -> _Box:
@@ -231,9 +281,13 @@ class _Measurer:
         if token in ACCENTS:
             inner = self._atom(depth)
             return _Box(inner.width, inner.ascent + _ACCENT_TOP, inner.descent)
+        if token.lower() == "binom":
+            # The same two rows in stretched parentheses as ``{n} choose {r}``.
+            top = self._atom(depth)
+            return _fraction(top, self._atom(depth), _ATOP_GAP)
         if token in _MATRICES:
             box = self._matrix(depth)
-            return _Box(box.width + _MATRIX_DELIMITERS.get(token, 0) * _BRACKET, box.ascent, box.descent)
+            return _Box(box.width + _MATRIX_DELIMITERS.get(token, 0) * _MATRIX_BRACKET, box.ascent, box.descent)
         if token in ("LEFT", "left"):
             return self._delimited(depth)
         if token in ("RIGHT", "right"):
@@ -265,15 +319,17 @@ class _Measurer:
             if self._peek() == "of":
                 self._next()
         inner = self._atom(depth)
-        return _Box(inner.width + _ROOT_SIGN + index.width * _SCRIPT_SCALE / 2, inner.ascent + _ROOT_TOP, inner.descent)
+        overhang = max(0.0, index.width * _SCRIPT_SCALE - _ROOT_INDEX_ROOM)
+        return _Box(inner.width + _ROOT_SIGN + overhang, inner.ascent + _ROOT_TOP, inner.descent)
 
     def _delimited(self, depth: int) -> _Box:
+        """``LEFT``/``RIGHT`` delimiters grow with the body but add no height of their own."""
         self._next()  # the opening delimiter
         body = self.sequence(depth, stop="RIGHT")
         if self._peek() in ("RIGHT", "right"):
             self._next()
             self._next()  # the closing delimiter
-        return _Box(body.width + 2 * _BRACKET, body.ascent + _DELIMITER_EXTRA, body.descent + _DELIMITER_EXTRA)
+        return _Box(body.width + 2 * _BRACKET, body.ascent, body.descent)
 
     def _integral(self, token: str, depth: int) -> _Box:
         """Hancom draws an integral tall, with its limits at the sign's corners."""
@@ -333,12 +389,7 @@ class _Measurer:
         items: list[_Box] = []
         while self._peek() not in (None, "}", "&", "#"):
             token = self._next() or ""
-            if token in ("^", "_"):
-                items.append(self._scripts(items.pop() if items else _Box(0.0, 0.0, 0.0), token, depth + 1))
-            elif token in ("over", "atop"):
-                numerator = items.pop() if items else _row([])
-                items.append(_fraction(numerator, self._atom(depth + 1)))
-            else:
+            if not self._infix(token, items, depth + 1):
                 items.append(self._dispatch(token, depth + 1))
         return _row(items)
 
