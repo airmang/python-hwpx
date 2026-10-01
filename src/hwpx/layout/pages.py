@@ -22,7 +22,10 @@
   em, both counted in 1/1800 inch), and spaced from that height.
 * Height: a line advances by the paragraph's line spacing (percent, fixed, between lines, at
   least), paragraphs add their spacing before and after, and a line stays on the page while its
-  bottom is above the body's foot (one ending right at it goes on to the next page). Page and
+  bottom is above the body's foot (one ending right at it goes on to the next page; in a section
+  hiding a page's first empty lines, ``hp:visibility@hideFirstEmptyLine``, up to two paragraphs
+  holding nothing that would start the next page or column stay below this one's foot, one on the
+  other, and take no room). Page and
   column breaks, page break before, keep lines
   together, keep with next and widow/orphan control; columns of equal width, and columns of
   unequal width (each its share of the text width with the gaps, rounded) holding objects only as
@@ -859,6 +862,8 @@ class _Para:
     paper: tuple[int, int] | None = None
     #: in columns of unequal width, a paragraph without a layout cache: its text, to break again
     reflow: _Reflow | None = None
+    #: holding nothing, in a section hiding a page's first empty lines (see :meth:`_Paginator._paragraph`)
+    hides: bool = False
 
     def height(self, line: int) -> int:
         return self.cached[line][0] if self.cached else self.size
@@ -922,6 +927,7 @@ class _Page:
     unequal: bool = False  # columns of unequal width (column_width is the narrowest)
     widths: tuple[int, ...] = ()  # then each column's width
     paper_height: int = 0
+    hide_empty: bool = False  # hp:visibility@hideFirstEmptyLine: a page's first empty lines are hidden
 
 
 def _page(section: Any) -> _Page:
@@ -933,9 +939,11 @@ def _page(section: Any) -> _Page:
     body = height - sum(int(margin.get(key, 0)) for key in ("top", "bottom", "header", "footer"))
     text_width = width - sum(int(margin.get(key, 0)) for key in ("left", "right", "gutter"))
     columns, column_width, widths = _columns(section, text_width)
+    visibility = next(section.iter(f"{HP}visibility"), None)
     return _Page(body, column_width, columns, int(margin.get("top", 0)) + int(margin.get("header", 0)),
                  int(margin.get("left", 0)) + int(margin.get("gutter", 0)), text_width, width, bool(widths),
-                 widths, height)
+                 widths, height,
+                 visibility is not None and visibility.get("hideFirstEmptyLine") in ("1", "true"))
 
 
 def _columns(section: Any, text_width: int) -> tuple[int, int, tuple[int, ...]]:
@@ -1036,6 +1044,12 @@ def _placed_objects(runs: list[Any]) -> list[Any]:
         if obj.find(f"{HP}pos") is None or obj.find(f"{HP}sz") is None:
             raise _Unsupported(f"{_local(obj)} without a position")
     return [obj for obj in objects if not _floating(obj) and not _on_paper(obj)]
+
+
+def _holds_nothing(runs: list[Any]) -> bool:
+    """Whether the runs hold no character, object or control at all (a space is a character)."""
+
+    return all(_local(child) == "t" and not child.text and not len(child) for run in runs for child in run)
 
 
 def _marks(runs: list[Any]) -> bool:
@@ -1426,7 +1440,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     flags = shape.flags
     para = _Para(count, size, pitch, shape.prev, shape.next, _on(flags, "pageBreakBefore"), _on(flags, "keepLines"),
                  _on(flags, "keepWithNext"), _on(flags, "widowOrphan"), paragraph.get("pageBreak") == "1",
-                 paragraph.get("columnBreak") == "1", table, notes, cached, anchor, wrap_anchor=around)
+                 paragraph.get("columnBreak") == "1", table, notes, cached, anchor, wrap_anchor=around,
+                 hides=page.hide_empty and _holds_nothing(runs))
     if reflow and text:
         again = _Reflow(measure, text, tuple(sizes), None if looks is None else tuple(looks), style, shape)
         return again.at(para, page.column_width, 0)
@@ -1863,6 +1878,7 @@ class _Paginator:
         self.page_notes = [0, 0]  # height and count of the notes on the current page
         self.carry = 0          # height of notes going on over the page end
         self.floor: int | None = None  # where the next paragraph starts at the highest: a table's end
+        self.hidden = 0  # empty paragraphs just hidden below the current frame's foot
 
     def run(self, paras: list[_Para]) -> int:
         """Lay *paras* out; the number of frames used."""
@@ -1874,6 +1890,7 @@ class _Paginator:
         return max(self.out[-1][0] if self.out else 0, self.table_end) + 1
 
     def _paragraph(self, index: int, paras: list[_Para], para: _Para) -> None:
+        hidden, self.hidden = self.hidden, 0
         start = para.prev if self.last_vp is None else self.last_vp + self.last_pitch + self.pending_next + para.prev
         if self.floor is not None:
             start, self.floor = max(start, self.floor), None
@@ -1884,6 +1901,12 @@ class _Paginator:
             self._anchored(index, paras, para, start)
             return
         start, broke = self._breaks(para, start)  # a flowing table in the paragraph starts there too
+        if para.hides and not broke and hidden < 2 and self.last_vp is not None and not self._fits(start, 1, para):
+            # Hancom hides an empty paragraph that would start the next page or column, and a second one after
+            # it, where it would stand below this one's foot: it takes no room and starts no page.
+            self.out.append((self.frame, start))
+            self.hidden = hidden + 1
+            return
         table = para.table
         if table is not None:
             self._flow(para, table, start)
