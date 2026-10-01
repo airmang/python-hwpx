@@ -62,6 +62,7 @@ CONDENSE_ROWS = [
     for name in ("margin_word", "space_without_spacing", "text_reaching_margin")
 ]
 LABELS = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_bullet_and_number_labels.hwpx"
+WINGDINGS_LABEL = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_wingdings_label_rows.hwpx"
 NO_BREAK_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_no_break_spaces.hwpx"
 FIXED_WIDTH_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_fixed_width_spaces.hwpx"
 SCRIPT_ROWS = [
@@ -716,6 +717,16 @@ def test_the_rows_under_bullets_and_numbers_break_where_hancom_breaks() -> None:
 
     assert len(rows) == 168
     assert [starts for starts, _ in rows[:144]] == [hancom for _, hancom in rows[:144]]
+
+
+def test_a_wingdings_bullet_at_its_own_width_takes_the_glyph_design_advance() -> None:
+    # 25 rows of 120 syllables, 0.15 mm narrower one after another, under the bullet U+F09F in its own Wingdings
+    # shape with its own width on (useInstWidth): Hancom takes the glyph's design advance, 456 at 10 pt, and the
+    # half-em gap off every line, laid out and saved by Hancom.
+    rows = _row_line_starts(WINGDINGS_LABEL, labelled=True)
+
+    assert len(rows) == 25
+    assert [starts for starts, _ in rows] == [hancom for _, hancom in rows]
 def test_a_no_break_space_is_half_an_em_and_keeps_the_words_together() -> None:
     assert char_advance("\u00a0", 10, TextStyle()) == char_advance(" ", 10, TextStyle()) == 500
     # "다라" and "마바" stay together: the line breaks at the space before them, not after the no-break space.
