@@ -237,6 +237,16 @@ class TestLatexToEqedit:
             (r"x \in \mathbb{R}"[:6], "x in"),  # prefix only; \mathbb rejected below
             (r"\infty", "infty"),
             (r"\mathrm{km}", '"km"'),
+            # a thin space, arrows over a segment and the conclusion signs (python-hwpx #347)
+            (r"\int_{0}^{1} x^{2} \, dx", "int _{0} ^{1} x ^{2} ` dx"),
+            (r"\overrightarrow{AB}", "vec {AB}"),
+            (r"\overleftrightarrow{AB}", "dyad {AB}"),
+            (r"\therefore x = 1", "therefore x = 1"),
+            (r"\because x > 0", "because x > 0"),
+            (r"therefore", '"therefore"'),
+            (r"\mathbf{v}", "{rm {bold {v}} it}"),
+            (r"x = \mathbf{AB} + w", "x = {rm {bold {AB}} it} + w"),
+            (r"\mathbf{v}^{2} w", "{rm {bold {v}} it} ^{2} w"),
         ],
     )
     def test_exact_pairs(self, latex: str, expected: str) -> None:
@@ -277,6 +287,10 @@ class TestRoundtripStability:
         r"a \times b \pm c \mp d",
         r"\triangle P_1 P_2 Q",
         r"\infty + \partial + \nabla",
+        r"\int_{0}^{1} x^2 \, dx",
+        r"\overrightarrow{AB} + \overleftrightarrow{CD}",
+        r"\therefore a = b \because b = c",
+        r"\mathbf{v}^{2} + \mathbf{AB} w",
     ]
 
     @pytest.mark.parametrize("latex", CORPUS)

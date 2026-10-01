@@ -191,6 +191,9 @@ class _Parser:
         if token is None:
             return ""
         if token == "{":
+            bold = self._upright_bold(depth)
+            if bold is not None:
+                return bold
             return "{" + self._group(depth) + "}"
         if token == "sqrt":
             return f"\\sqrt{{{_strip_braces(self._atom(depth))}}}"
@@ -211,6 +214,20 @@ class _Parser:
             delim = self._next()
             return DELIMITERS.get(delim or "", delim or "")
         return self._map_token(token)
+
+    def _upright_bold(self, depth: int) -> str | None:
+        """``\\mathbf{X}`` for the group ``{rm {bold X} it}`` just opened (upright bold, italic again after
+        it), else ``None`` with nothing consumed."""
+
+        start = self._pos
+        if self._tokens[start : start + 3] == ["rm", "{", "bold"]:
+            self._pos = start + 3
+            body = self._atom(depth + 1)
+            if self._tokens[self._pos : self._pos + 3] == ["}", "it", "}"]:
+                self._pos += 3
+                return f"\\mathbf{{{_strip_braces(body)}}}"
+        self._pos = start
+        return None
 
     def _group(self, depth: int) -> str:
         if depth + 1 > MAX_GROUP_DEPTH:
