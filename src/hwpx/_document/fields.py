@@ -527,11 +527,13 @@ def _form_field_from_match(doc: "HwpxDocument", match: Mapping[str, Any]) -> For
 def list_form_fields(doc: "HwpxDocument") -> tuple[FormField, ...]:
     """Return native form/click-here fields in document order.
 
-    Unnamed fields are left out, as Hancom's own field list leaves them out;
-    ``field_index`` and ``field_id`` still reach them in :func:`fill_form_field`.
+    Every field in the document is listed. An unnamed field (an empty ``name``) is
+    listed with an empty name and told apart by its id: :func:`fill_form_field`
+    does not find it by name, as Hancom does not, but ``field_index`` and
+    ``field_id`` reach it.
     """
 
-    return tuple(_form_field_from_match(doc, match) for match in _iter_form_field_matches(doc) if match["name"])
+    return tuple(_form_field_from_match(doc, match) for match in _iter_form_field_matches(doc))
 
 
 def _named_cells(paragraphs: Any) -> Iterator[Any]:
