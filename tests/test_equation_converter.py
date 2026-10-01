@@ -129,6 +129,41 @@ def test_thin_space_two_headed_arrow_and_conclusion_signs(script: str, expected:
     assert eqedit_to_latex(script) == expected
 
 
+@pytest.mark.parametrize(
+    "script,expected",
+    [
+        ('{rm "km" it}', r"\text{km}"),
+        ('{rm "d" it} x', r"\text{d} x"),
+        ('T _{{rm "max" it}}', r"T_{\text{max}}"),
+        ('{rm "판별식" it} = 0', r"\text{판별식} = 0"),
+        ('"d" x', r"\text{d} x"),  # a bare quoted run reads as before
+        ('{rm "d"} x', r"{rm \text{d}} x"),  # not the authored shape: as before
+        # a quoted reserved word is the writer's identifier protection: plain letters again
+        ('T _{"int"}', r"T_{int}"),
+        ('"therefore" x', r"therefore x"),
+        ('"sin x"', r"\text{sin x}"),  # not a single word: text, as before
+    ],
+)
+def test_upright_text_group_reads_as_text(script: str, expected: str) -> None:
+    assert eqedit_to_latex(script) == expected
+
+
+@pytest.mark.parametrize(
+    "script,expected",
+    [
+        ("x ~|~ x > 0", r"x \mid x > 0"),
+        ("a | b", r"a | b"),  # a bare bar stays a bar
+        ("{n} choose {r}", r"\binom{n}{r}"),
+        ("binom {n} {r}", r"\binom{n}{r}"),
+        ("{n + 1} choose {2} x", r"\binom{n + 1}{2} x"),
+        ("pmatrix {{n} choose {r} & a}", r"\begin{pmatrix} \binom{n}{r} & a \end{pmatrix}"),
+        ('"choose" x', r"choose x"),
+    ],
+)
+def test_set_builder_bar_and_binomial(script: str, expected: str) -> None:
+    assert eqedit_to_latex(script) == expected
+
+
 @pytest.mark.parametrize("token", ["triangle", "TRIANGLE"])
 def test_triangle_symbol_uses_exact_evidence_backed_tokens(token: str) -> None:
     assert eqedit_to_latex(f"{token} P_1 P_2 Q") == r"\triangle P_1 P_2 Q"
