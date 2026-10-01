@@ -26,6 +26,8 @@ HANCOM_PAGES = {
     "pages_fixed_width_spaces": 2,  # rows of a syllable and a fixed-width space: a quarter em that hangs
     "pages_no_break_spaces": 2,  # rows of "가나" and a no-break space: each is half an em and keeps the row
                                   # one word
+    "pages_typed_ideographic_spaces": 5,  # cells of "가나다라마" and a U+3000 typed in the text, a full em
+                                           # that hangs however many follow, or fixed-width spaces
     "pages_empty_run_ending_after_a_larger_first_line": 1,  # 20 pt on the first line, 10 pt text on the
                                                              # last before an empty 14 pt run: 14 pt tall
     "pages_empty_run_ending_after_larger_text_amid": 1,  # the same with the 20 pt run amid the 10 pt text
@@ -98,6 +100,32 @@ HANCOM_PAGES = {
     "pages_table_caption_below_ends_100_above_page_foot": 2,  # the last row and the caption below end 100
                                                                 # above the foot: both go on
     "pages_table_caption_below_ends_101_above_page_foot": 2,  # 101 above it: they stay
+    "pages_table_offset_down_from_a_line_past_the_foot": 2,  # a table top and bottom 1517 down from a line
+                                                             # that does not fit: both on the next page
+    "pages_table_offset_down_its_top_past_the_foot": 2,  # 2000 down, the line fitting: the table at the
+                                                         # next page's top, the text after below it
+    "pages_table_offset_down_its_first_row_past_the_foot": 2,  # moved row by row, its first row not fitting:
+                                                               # the same, a line of the text after on the page
+
+
+    "pages_table_cell_holding_a_drawing_top_and_bottom": 1,  # a cell paragraph holding only a rectangle 10000
+                                                             # tall placed top and bottom from it: the row is
+                                                             # as tall as it with the cell's margins
+    "pages_table_as_character_cell_holding_a_drawing_top_and_bottom": 1,  # in a table set as a character
+    "pages_table_cell_holding_a_drawing_500_down": 1,  # 500 down from the paragraph's top
+    "pages_table_cell_holding_a_drawing_wrapped_square": 1,  # wrapped square, narrow: the line beside it
+    "pages_table_cell_holding_a_picture_top_and_bottom": 1,  # a picture
+    "pages_table_cell_holding_a_drawing_after_a_line": 1,  # in the cell's second paragraph, after a line
+
+
+    "pages_table_joined_rows_end_at_the_foot": 2,  # the last two rows joined by a merged cell reach 300 past the
+                                                   # foot within the last one's room to spare: they end there,
+                                                   # the paragraph after the table at the next page's top
+    "pages_table_joined_rows_end_at_the_foot_before_a_page_break": 2,  # the paragraph after it starts a page
+    "pages_table_joined_rows_rest_over_1282_goes_on": 2,  # 1500 past it: the rest goes on
+    "pages_table_joined_rows_line_goes_on": 2,  # two lines, taller than declared: the second line goes on
+
+
     "pages_table_caption_below_a_spare_last_row_cut": 2,  # the last row declared taller than its line, the
                                                           # caption 1000 past the foot: the row's room to spare
                                                           # is cut above the caption, the rest dropped
@@ -379,6 +407,28 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
+
+
+def test_a_typed_ideographic_space_is_not_a_fixed_width_one() -> None:
+    # 맑은 고딕 10 pt cells of narrowing widths, laid out and saved by Hancom: rows of "가나다라마" each followed
+    # by one or two ideographic spaces typed in the text (U+3000), or by fixed-width spaces (hp:fwSpace, which
+    # python-hwpx reads as U+3000 too). The typed space is a full em, a line may start after it, and at a line
+    # end it hangs however many follow each other; a fixed-width space is a quarter em, and one starting at or
+    # past the margin begins the next line, even right after a word.
+    doc = HwpxDocument.open((FIXTURES / "pages_typed_ideographic_spaces.hwpx").read_bytes())
+    cells = list(doc.oxml.sections[0].element.iter(f"{HP}tc"))
+    typed = 0
+    for cell in cells:
+        paragraph = cell.find(f"{HP}subList/{HP}p")
+        runs = paragraph.findall(f"{HP}run")
+        ref = next(run.get("charPrIDRef") for run in runs if run.find(f"{HP}t") is not None)
+        style = page_layout.text_style_from_refs(doc.oxml, paragraph.get("paraPrIDRef"), [ref])
+        segs = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+        widths = [int(seg.get("horzsize")) for seg in segs]
+        starts = page_layout.hancom_line_starts(page_layout._run_text(runs), widths, 10, style)
+        assert starts == [int(seg.get("textpos")) for seg in segs], widths[0]
+        typed += "\u3000" in "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+    assert (len(cells), typed) == (30, 22)
 
 
 def test_a_header_wrapped_square_with_room_beside_it_is_not_followed() -> None:

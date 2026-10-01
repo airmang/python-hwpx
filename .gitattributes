@@ -1,0 +1,16 @@
+# The manuals docs/python-example-ledger.json pins byte for byte (manualSha256): check them out with LF
+# line endings on every platform, so a Windows checkout with core.autocrlf keeps the bytes the pins hash.
+/README.md text eol=lf
+/README_EN.md text eol=lf
+/docs/quickstart.md text eol=lf
+/docs/recipes-traversal.md text eol=lf
+/docs/mutation-semantics.md text eol=lf
+/docs/usage.md text eol=lf
+/docs/examples.md text eol=lf
+/docs/faq.md text eol=lf
+/docs/index.md text eol=lf
+/docs/safe-write-contract.md text eol=lf
+/docs/golden-api.md text eol=lf
+# Their bundled copies stay byte-identical to the docs/ originals (scripts/sync_contract_docs.py --check).
+/src/hwpx/data/contract_docs/recipes-traversal.md text eol=lf
+/src/hwpx/data/contract_docs/mutation-semantics.md text eol=lf
