@@ -70,6 +70,16 @@ HANCOM_PAGES = {
                                                        # empty one spaced 562 before it
     "pages_hide_empty_lines_ending_the_document": 1,  # two ending the document: no second page
     "pages_hide_empty_lines_off": 2,  # two, the setting off: they start the next page
+    "pages_joined_rows_over_pages_n100": 3,  # 100 one-line rows joined by a cell merged down all of them,
+                                             # split between cell lines: what is left is split again at
+                                             # each page end
+    "pages_joined_rows_over_pages_label150": 4,  # 60 such rows and a merged cell of 150 lines: the cell
+                                                 # goes on alone over the last two pages
+    "pages_joined_rows_over_pages_mixed": 3,  # rows of one and three lines: a row split between its lines
+    "pages_joined_rows_over_pages_declared_cell": 3,  # 8 rows joined by a cell declared 80000 tall, after 20
+                                                      # rows: its room cut at each page end, 10 rows after
+    "pages_joined_rows_over_pages_empty_declared_cell": 3,  # an empty cell over 8 rows declared 75000 tall
+                                                            # after 36 lines: cut over three pages
     "pages_table_row_split_a_first_line_not_fitting": 2,  # the first 8 pt line of one cell fits, the 16 pt
                                                             # line of the other does not: it goes on whole
     "pages_table_row_split_every_first_line_fitting": 2,  # room for both: split after two 8 pt lines
@@ -694,9 +704,9 @@ def _flowing_table_after(paragraphs: int, rows: int) -> tuple[HwpxDocument, obje
     return document, table
 
 
-def test_rows_merged_together_taller_than_a_page_are_unsupported() -> None:
-    # The cell merged over rows 1-4 is declared 150000 tall: what is left of it after the page end
-    # does not fit on the next page either.
+def test_a_merged_cell_declared_taller_than_two_pages_is_cut_at_each_page_end() -> None:
+    # The cell merged over rows 1-4 is declared 150000 tall: its room is cut 101 above each page's foot and
+    # the rest goes on, page after page (as in pages_joined_rows_over_pages_empty_declared_cell).
     document, table = _flowing_table_after(38, 6)
     table.merge_cells(1, 0, 4, 0)
     for cell in table.element.iter(f"{HP}tc"):
@@ -706,8 +716,8 @@ def test_rows_merged_together_taller_than_a_page_are_unsupported() -> None:
 
     estimate = estimate_pages(document)
 
-    assert estimate.pages is None
-    assert estimate.unsupported == ("section 0: rows merged together taller than a page",)
+    assert estimate.unsupported == ()
+    assert estimate.pages == 4
 
 
 @pytest.mark.parametrize(("height", "rest"), [(20000, 13221), (8029, 0), (8061, 0), (8062, 1283), (8079, 1300)])
