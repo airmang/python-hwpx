@@ -89,7 +89,8 @@
   move to the next page as one, and in one split between cell lines each of their cells keeps the
   lines that fit and the rest go on, the rows from the one the page end falls in as tall as their
   cells' rest (a cell declared taller than its text, whose first line fits, is cut like such a row,
-  below). A table set as a character alone in a paragraph of a cell is one line as tall as it
+  below), a rest taller than a page split again at each page end the same way. A table set as a
+  character alone in a paragraph of a cell is one line as tall as it
   there, spaced like the text, and a row holding one splits between its cell's lines, each as tall
   as it is; so is another object set as a character alone in a cell paragraph without a layout
   cache, and such objects among its text, or several of them, take their place in its lines as in
@@ -132,8 +133,9 @@ fixed, one top-and-bottom object placed from the paragraph's top, and one object
 across the column before any text; an object offset down, but a flowing table, or wrapped square
 stays on one page with the lines above or beside it), footnotes in such a paragraph, two tables
 starting past their
-anchors on one page, rows merged together that do not fit under their table's anchor or on a
-page, a nested table among text or not set as a character in a cell without such caches (in a table
+anchors on one page, rows merged together that do not fit under their table's anchor, or on a
+page in a table moved row by row (split between cell lines: a cell no line of which fits a page),
+a nested table among text or not set as a character in a cell without such caches (in a table
 Hancom has not laid out as it is), a page break in a flowing row holding a table beside a taller
 cell, other objects placed on the page or the paper (but top and bottom from its top or bottom, a
 flowing table on their page keeping clear of them), and in a paragraph without such a cache ruby text
@@ -1853,13 +1855,7 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
             continue
         if table.mode == "CELL" and end > index and table.cells \
                 and y + sum(row.height for row in rows[index:end + 1]) > foot:  # split cell by cell
-            rest = _block_rest(table, index, end, y, body)
-            if not rest:  # every cell done above the page end, what it declares below dropped: they end there
-                y, index = body, end + 1
-                continue
-            frame, y = frame + 1, header + rest
-            if y > foot:
-                raise _Unsupported("rows merged together taller than a page")
+            frame, y = _split_block(table, index, end, frame, y, body, header)
             index = end + 1
             continue
         before, start = frame, y
@@ -1876,12 +1872,38 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
     return frame, y
 
 
-def _block_rest(table: _FlowTable, first: int, last: int, top: int, body: int) -> int:
-    """How tall rows *first*..*last*, joined by merged cells, are on the next page when the page end
+def _split_block(table: _FlowTable, first: int, last: int, frame: int, y: int, body: int,
+                 header: int) -> tuple[int, int]:
+    """Rows *first*..*last*, joined by merged cells and starting at *y*, in a table split between cell
+    lines when the page end falls among them: each page keeps the lines that fit, and what is left goes on
+    below the next page's *header*, split again at that page's end until it fits. The frame and position
+    where they end."""
+
+    foot, before = body - table.cut, None
+    while True:
+        cut, heights, cells = _block_rest(table, first, last, y, body)
+        rest = sum(heights.values())
+        if not rest:  # every cell done above the page end, what it declares below dropped: they end there
+            return frame, body
+        if header + rest <= foot:
+            return frame + 1, header + rest
+        if before is not None and rest >= before:  # nothing of it fits a page
+            raise _Unsupported("rows merged together taller than a page")
+        rows = list(table.rows)
+        for index, height in heights.items():
+            rows[index] = replace(rows[index], height=height)
+        table, first, frame, y, before = replace(table, rows=rows, cells=tuple(cells)), cut, frame + 1, header, rest
+
+
+def _block_rest(table: _FlowTable, first: int, last: int, top: int,
+                body: int) -> tuple[int, dict[int, int], list[tuple[int, int, _Row]]]:
+    """What goes on to the next page of rows *first*..*last*, joined by merged cells, when the page end
     falls among them in a table split between cell lines: every cell keeps the lines that fit above
     the page end and the rest go on. From the row the page end falls in, each row is as tall as the
     rest of its cells of one row (the rows after it whole), then each merged cell's rest, the one
-    ending first first, adds what its rows lack to the last of them."""
+    ending first first, adds what its rows lack to the last of them. The row the page end falls in,
+    each row's height from it on, and the cells that go on, each as tall as its rest with the lines
+    it has left."""
 
     rows, tops, y, foot = table.rows, {}, top, body - table.cut
     for index in range(first, last + 1):
@@ -1890,34 +1912,45 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int, body: int) -
     cut = next(index for index in range(first, last + 1) if tops[index] + rows[index].height > foot)
     heights = dict.fromkeys(range(cut, last + 1), 0)
     rests: list[tuple[int, int, int]] = []
+    cells: list[tuple[int, int, _Row]] = []
     for start, span, cell in table.cells:
         end = start + span - 1
         if start < first or start > last or end < cut:
             continue  # another row, or done above the page end
-        if start > cut:  # wholly on the next page
-            rest = cell.height
-        else:
-            fitting = 0
-            while fitting < cell.lines and tops[start] + cell.margins + fitting * cell.pitch + cell.size <= foot:
-                fitting += 1
-            if cell.spare and fitting:  # its text starts above the page end: the declared room is cut like a row's
-                rest = tops[start] + cell.height - foot
-                if rest <= _SPARE_DROPPED:
-                    continue
-            elif cell.spare:  # none of it fits: it goes on whole
-                rest = cell.height
-            elif fitting == cell.lines:
-                continue
-            else:
-                rest = cell.margins + (cell.lines - fitting - 1) * cell.pitch + cell.size
+        part = (cell.height, cell.lines) if start > cut else _cell_rest(cell, tops[start], foot)
+        if part is None:
+            continue
+        rest, begin = part[0], max(start, cut)
+        cells.append((begin, end - begin + 1, replace(cell, height=rest, lines=part[1])))
         if span == 1:
             heights[start] = max(heights[start], rest)
         else:
-            rests.append((max(start, cut), end, rest))
+            rests.append((begin, end, rest))
     for start, end, rest in sorted(rests, key=lambda item: (item[1], item[0])):
         lacking = rest - sum(heights[index] for index in range(start, end + 1))
         heights[end] += max(lacking, 0)
-    return sum(heights.values())
+    return cut, heights, cells
+
+
+def _cell_rest(cell: _Row, top: int, foot: int) -> tuple[int, int] | None:
+    """How tall the part of a cell starting at *top* that goes on past the page end *foot* is, and how many
+    lines it holds; ``None`` when nothing of it goes on."""
+
+    fitting = 0
+    while fitting < cell.lines and top + cell.margins + fitting * cell.pitch + cell.size <= foot:
+        fitting += 1
+    if cell.spare and (fitting or not cell.lines):  # its text (or what is left: none) starts above the page end:
+        # the declared room is cut like a row's, and the lines that do not fit go on with it, which is then
+        # at least as tall as they are with the cell's margins
+        rest, left = top + cell.height - foot, cell.lines - fitting
+        if left:
+            return max(rest, cell.margins + (left - 1) * cell.pitch + cell.size), left
+        return (rest, 0) if rest > _SPARE_DROPPED else None
+    if cell.spare:  # none of it fits: it goes on whole
+        return cell.height, cell.lines
+    if fitting == cell.lines:
+        return None
+    return cell.margins + (cell.lines - fitting - 1) * cell.pitch + cell.size, cell.lines - fitting
 
 
 def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
