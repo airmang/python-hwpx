@@ -447,9 +447,10 @@ def latex_to_eqedit(latex: str) -> str:
 def estimate_equation_size(script: str, *, base_unit: int = 1100) -> tuple[int, int]:
     """``(width, height)`` in HWPUNIT for ``<hp:sz>``, measured from the script's structure.
 
-    Hancom does not measure an equation again when it opens a document: it
-    lays the page out with the stored box, so the box has to fit the script
-    (see :func:`hwpx.equation.measure.measure_equation`).
+    A reader that lays the page out from the file uses the stored box, so the
+    box has to fit the script; Hancom itself was observed (on macOS) to lay the
+    equation out again and rewrite the box when it saves the document (see
+    :func:`hwpx.equation.measure.measure_equation`).
     """
 
     from .measure import measure_equation
