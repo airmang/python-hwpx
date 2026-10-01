@@ -84,6 +84,24 @@ HANCOM_PAGES = {
                                                        # empty one spaced 562 before it
     "pages_hide_empty_lines_ending_the_document": 1,  # two ending the document: no second page
     "pages_hide_empty_lines_off": 2,  # two, the setting off: they start the next page
+    "pages_joined_rows_over_pages_n100": 3,  # 100 one-line rows joined by a cell merged down all of them,
+                                             # split between cell lines: what is left is split again at
+                                             # each page end
+    "pages_joined_rows_over_pages_label150": 4,  # 60 such rows and a merged cell of 150 lines: the cell
+                                                 # goes on alone over the last two pages
+    "pages_joined_rows_over_pages_mixed": 3,  # rows of one and three lines: a row split between its lines
+    "pages_joined_rows_over_pages_declared_cell": 3,  # 8 rows joined by a cell declared 80000 tall, after 20
+                                                      # rows: its room cut at each page end, 10 rows after
+    "pages_joined_rows_over_pages_empty_declared_cell": 3,  # an empty cell over 8 rows declared 75000 tall
+                                                            # after 36 lines: cut over three pages
+    # Rows 1-5 joined by a cell merged down them (4 lines), declared taller than their text, the page end
+    # falling among them:
+    "pages_joined_rows_declared_rest_with_a_line": 2,  # in row 1: its rest is the line going on with the
+                                                       # cell margins, taller than the declared rest
+    "pages_joined_rows_declared_cut_in_a_later_row": 2,  # in row 2: its declared rest, taller than the line
+    "pages_joined_rows_declared_first_line_not_fitting": 2,  # in row 3, before its first line: whole on the
+                                                             # next page
+    "pages_joined_rows_text_height_split": 2,  # in row 1, the rows as tall as their text: lines and margins
     "pages_table_row_split_a_first_line_not_fitting": 2,  # the first 8 pt line of one cell fits, the 16 pt
                                                             # line of the other does not: it goes on whole
     "pages_table_row_split_every_first_line_fitting": 2,  # room for both: split after two 8 pt lines
@@ -293,6 +311,18 @@ HANCOM_PAGES = {
     "pages_table_on_paper_pushes_a_later_line": 1,  # a table 40000 below it: a line of a later paragraph
     "pages_rectangle_on_paper_across_two_columns": 2,  # across both columns, anchored in the second:
                                                         # the lines of both columns go below it
+    "pages_rectangle_on_paper_over_the_left_column": 2,  # 15000 wide over the first of two columns: its
+                                                          # lines go below it, the second's start at the top
+    "pages_rectangle_on_paper_over_the_right_column": 2,  # over the second only
+    "pages_rectangle_on_paper_partly_over_two_columns": 2,  # 30000 wide, centred: partly over each, the
+                                                             # lines of both go below it
+    "pages_rectangle_on_paper_400_narrower_than_two_columns": 2,  # 400 narrower than the text, centred
+    "pages_table_on_paper_400_narrower_than_two_columns": 2,  # a table so
+    "pages_rectangle_on_paper_over_the_left_column_from_the_right": 2,  # anchored in the second column
+    "pages_rectangle_on_paper_over_the_middle_of_three_columns": 2,  # the middle one of three only
+    "pages_rectangle_on_paper_100_into_the_second_column": 2,  # its right edge 100 into the second: both
+    "pages_rectangle_on_paper_ending_in_the_column_gap": 2,  # its right edge 100 short of the second, in
+                                                              # the gap: the first only
     "pages_rectangle_on_page_5000_below_its_top": 2,   # top and bottom 5000 below the body's top
     "pages_rectangle_on_page_5000_above_its_foot": 2,  # 5000 above the body's foot: the lines reaching it
                                                         # go below it
@@ -523,12 +553,34 @@ def test_a_header_wrapped_square_with_room_beside_it_is_not_followed() -> None:
     assert estimate_pages(out.getvalue()).unsupported == ("section 0: text beside an object placed on the paper",)
 
 
-def test_a_line_reaching_a_picture_on_the_paper_with_room_beside_it_is_not_followed() -> None:
-    # The picture's top 100 above the fifth line's foot: Hancom sets that line beside it, narrower.
+def test_a_line_reaching_a_picture_on_the_paper_with_room_beside_it_keeps_its_cached_place() -> None:
+    # The picture's top 100 above the fifth line's foot: Hancom sets that line beside it, narrower, at the
+    # same height. Keeping its cache, it is followed; without it, where it breaks is not.
     data = (FIXTURES / "pages_square_picture_on_paper_reaching_the_last_line.hwpx").read_bytes()
 
-    for source in (data, _without_caches(data)):
-        assert estimate_pages(source).unsupported == ("section 0: text beside an object placed on the paper",)
+    _assert_like_hancom(estimate_pages(data), data, 1)
+    assert estimate_pages(_without_caches(data)).unsupported == (
+        "section 0: text beside an object placed on the paper",)
+
+
+@pytest.mark.parametrize(
+    ("name", "pages"),
+    [
+        ("pages_square_picture_on_paper_lines_beside_it", 2),  # at the text's left, 800 below its top
+        ("pages_square_picture_on_paper_lines_on_both_sides", 2),  # at its middle: two pieces a line
+        ("pages_square_picture_on_paper_lines_beside_it_on_page_2", 5),  # anchored after a page break
+    ],
+)
+def test_lines_keeping_their_caches_beside_a_picture_on_the_paper_stay_where_hancom_put_them(name: str,
+                                                                                            pages: int) -> None:
+    # A picture wrapped square from the paper's top with room beside it, long paragraphs flowing beside
+    # it (the line of the paragraph before its anchor too): each line keeps its height and spacing there,
+    # narrower. Without the caches, where the lines beside it break is not followed.
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, pages)
+    assert estimate_pages(_without_caches(data)).unsupported == (
+        "section 0: text beside an object placed on the paper",)
 
 
 def _with_empty_runs_in_cells(data: bytes) -> bytes:
@@ -681,7 +733,7 @@ def test_columns_of_unequal_width_take_their_share_of_the_text_width_rounded() -
     with zipfile.ZipFile(FIXTURES / "pages_columns_unequal_three.hwpx") as package:
         section = etree.fromstring(package.read("Contents/section0.xml"))
 
-    assert page_layout._columns(section, 42520) == (3, 8502, (8502, 15875, 15878))
+    assert page_layout._columns(section, 42520) == (3, 8502, (8502, 15875, 15878), 0)  # no gap: unequal widths
     assert {int(seg.get("horzsize")) for seg in section.iter(f"{HP}lineseg")} == {8502, 15875, 15878}
 
 
@@ -822,20 +874,21 @@ def _flowing_table_after(paragraphs: int, rows: int) -> tuple[HwpxDocument, obje
     return document, table
 
 
-def test_rows_merged_together_taller_than_a_page_are_unsupported() -> None:
-    # The cell merged over rows 1-4 is declared 150000 tall: what is left of it after the page end
-    # does not fit on the next page either.
-    document, table = _flowing_table_after(38, 6)
-    table.merge_cells(1, 0, 4, 0)
-    for cell in table.element.iter(f"{HP}tc"):
-        span = cell.find(f"{HP}cellSpan")
-        if span is not None and span.get("rowSpan", "1") != "1":
-            cell.find(f"{HP}cellSz").set("height", "150000")
+def test_a_merged_cell_declared_taller_than_two_pages_is_cut_at_each_page_end() -> None:
+    # After 38 lines, a flowing table of 6 rows whose cell merged over rows 1-4 is declared 150000 tall, laid
+    # out and saved by Hancom: the cell's room is cut 101 above each page's foot and the rest goes on, page
+    # after page, the last row ending the table (and the document) on page 4. No line of text is on that
+    # page, so the pages are checked here rather than in HANCOM_PAGES.
+    data = (FIXTURES / "pages_joined_rows_over_pages_declared_150000.hwpx").read_bytes()
+    hancom = _hancom_lines(data)
 
-    estimate = estimate_pages(document)
+    for source in (data, _without_caches(data)):
+        estimate = estimate_pages(source)
+        estimated = [[line.vertpos for line in lines] for lines in estimate.lines]
 
-    assert estimate.pages is None
-    assert estimate.unsupported == ("section 0: rows merged together taller than a page",)
+        assert (estimate.unsupported, estimate.pages) == ((), 4)
+        assert len(estimated) == len(hancom)
+        assert [mine for mine, theirs in zip(estimated, hancom) if theirs] == [theirs for theirs in hancom if theirs]
 
 
 @pytest.mark.parametrize(("height", "rest"), [(20000, 13221), (8029, 0), (8061, 0), (8062, 1283), (8079, 1300)])
