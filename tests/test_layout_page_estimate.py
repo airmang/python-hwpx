@@ -557,7 +557,7 @@ def test_columns_of_unequal_width_take_their_share_of_the_text_width_rounded() -
     with zipfile.ZipFile(FIXTURES / "pages_columns_unequal_three.hwpx") as package:
         section = etree.fromstring(package.read("Contents/section0.xml"))
 
-    assert page_layout._columns(section, 42520) == (3, 8502, (8502, 15875, 15878))
+    assert page_layout._columns(section, 42520) == (3, 8502, (8502, 15875, 15878), 0)  # no gap: unequal widths
     assert {int(seg.get("horzsize")) for seg in section.iter(f"{HP}lineseg")} == {8502, 15875, 15878}
 
 
