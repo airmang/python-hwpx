@@ -42,7 +42,8 @@
   that far down), and for an object with only spaces beside it from the largest size of any run of
   its paragraph. A top-and-bottom object anchored to an empty paragraph pushes the
   next line below
-  it; anchored in a paragraph of text (from the paragraph's top), it stands at the top of the line
+  it; anchored in a paragraph of text or of objects set as characters (from the paragraph's top),
+  it stands at the top of the line
   its place in the text falls on, and that line and the rest of the paragraph come below it --
   offset down, it stands that much lower, and the first line reaching it (in that paragraph or the
   ones after) and the lines after come below it -- a table flowing with the text flows from there
@@ -73,7 +74,10 @@
   there, spaced like the text, and a row holding one splits between its cell's lines, each as tall
   as it is; a nested table among text, placed top and bottom or wrapped square is followed through
   the layout caches of its cell, as tall as Hancom drew it (down to such a table's foot; one placed
-  up from its paragraph's top stands at that top). A flowing table's rows use
+  up from its paragraph's top stands at that top; the caches of a row Hancom split over a page end
+  start over at the next page's top, and are read as one run of lines, each line that goes back up
+  where it would stand in the unsplit cell, a first line below such a table with the room above it,
+  so the row splits again where it would). A flowing table's rows use
   the body only down to just above the page's foot (101 above it, or 2 in a table set not to be
   adjusted), less the table's bottom outer margin: a row, or a cell line of a row split between its
   lines, ending lower goes on to the next page (where the table goes on below its top outer margin;
@@ -484,8 +488,7 @@ class _Measure:
         height, lines, pitch, size, pending = 0, 0, 0, 0, None
         for paragraph in paragraphs:
             runs = paragraph.findall(f"{HP}run")
-            refs = [run.get("charPrIDRef") for run in runs] or ["0"]
-            size = self.char_height(refs[0])
+            size, refs, _ = _text_size(self, runs)  # an empty run takes no room, as in the body
             shape = self.shape(paragraph.get("paraPrIDRef"))
             pitch = _pitch(shape.kind, shape.value, size)
             table = _table_alone(runs)
@@ -691,13 +694,17 @@ def _drawn_lines(measure: _Measure, paragraphs: list[Any]) -> tuple[tuple[int, i
     """(height, advance) of every line of *paragraphs* as Hancom placed them, when every paragraph keeps a
     valid layout cache; the last line reaches down to the foot of any top-and-bottom or square-wrapped
     object placed from its paragraph's top (where the paragraph's first line would stand without it).
-    Empty otherwise."""
+    A row that went on over a page end has its cell's lines start over at the top of the next page: a
+    line above where it would follow the one before (that one's height and spacing below it, or the
+    paragraph's top for a paragraph's first line, the part starting at that top) stands where it would
+    in the unsplit cell. A paragraph's first line below an object placed from its top takes the room
+    above it. Empty otherwise."""
 
     if not paragraphs or not all(_cached_metrics(paragraph) for paragraph in paragraphs):
         return ()
     tops: list[int] = []
     heights: list[int] = []
-    foot, after = 0, 0  # after: where the next paragraph's first line would stand
+    foot, after, base = 0, 0, 0  # after: where the next paragraph's first line would stand
     for paragraph in paragraphs:
         shape = measure.shape(paragraph.get("paraPrIDRef"))
         top = after + shape.prev if tops else 0
@@ -709,11 +716,19 @@ def _drawn_lines(measure: _Measure, paragraphs: list[Any]) -> tuple[tuple[int, i
                 return ()
             foot = max(foot, top + _down(pos) + _extent(obj, "height"))
         segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
-        for segment in segments:
-            tops.append(int(segment.get("vertpos", 0)))
+        below = top  # where the paragraph's next line would stand
+        for index, segment in enumerate(segments):
+            vertpos = int(segment.get("vertpos", 0))
+            if tops and vertpos + base < below:  # the next page's part of a split row: the lines start over
+                base = (top if index == 0 else below) - (0 if index == 0 else vertpos)
+            tops.append(vertpos + base)
             heights.append(int(segment.get("textheight", segment.get("vertsize", 0))))
+            below = tops[-1] + int(segment.get("vertsize", 0)) + int(segment.get("spacing", 0))
+            if index == 0 and tops[-1] > top:  # below an object placed from the paragraph's top: the line
+                heights[-1] += tops[-1] - top  # takes the room above it, and goes on to a next page with it
+                tops[-1] = top
         last = segments[-1]
-        after = int(last.get("vertpos", 0)) + int(last.get("textheight", 0)) + int(last.get("spacing", 0)) \
+        after = int(last.get("vertpos", 0)) + base + int(last.get("textheight", 0)) + int(last.get("spacing", 0)) \
             + shape.next
     if any(later < earlier for earlier, later in zip(tops, tops[1:])):
         return ()
@@ -1164,7 +1179,7 @@ def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
     return int(size.get("width", 0)) + extra[0] + extra[1], height + extra[2] + extra[3]
 
 
-def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple[
+def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored: Any = None) -> tuple[
         str, list[int], list[Any], dict[int, tuple[int, int]], dict[int, int]]:
     """The paragraph's text with each object set as a character, composed character and ruby text in its
     place (U+FFFC), each character's size and style (ruby text's is the height of its line), each
@@ -1183,7 +1198,7 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple
         height, look = measure.char_height(ref), measure.style(paragraph.get("paraPrIDRef"), [ref])
         for child in run:
             name = _local(child)
-            if name in _OBJECTS and (_floating(child) or _on_paper(child)):
+            if name in _OBJECTS and (_floating(child) or _on_paper(child) or child is anchored):
                 continue
             if name in _OBJECTS:
                 if child.find(f"{HP}pos").get("treatAsChar") != "1" or shape.kind not in ("PERCENT", "FIXED"):
@@ -1207,14 +1222,15 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any]) -> tuple
 
 
 def _anchored_object(objects: list[Any], text: str, column: int) -> Any:
-    """The one object of a paragraph of text that is placed top and bottom from the paragraph's top
-    (offset 0), or ``None``."""
+    """The one object not set as a character of a paragraph of text or of objects set as characters that
+    is placed top and bottom from the paragraph's top (offset 0), or ``None``."""
 
-    if len(objects) != 1 or not text.strip():
+    placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
+    if len(placed) != 1 or not (text.strip() or len(objects) > 1):
         return None
-    obj = objects[0]
+    obj = placed[0]
     pos = obj.find(f"{HP}pos")
-    if pos.get("treatAsChar") == "1" or not _wraps_top_and_bottom(obj, column):
+    if not _wraps_top_and_bottom(obj, column):
         return None
     if pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP" or int(pos.get("vertOffset", 0)):
         return None
@@ -1337,6 +1353,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
             raise _Unsupported("composed characters or ruby text beside an object placed otherwise")
         _check_ruby_spacing(runs, shape)
     among = anchored is None and (marks or bool(objects) and (len(objects) > 1 or bool(text.strip())))
+    beside = anchored is not None and len(objects) > 1  # objects set as characters on the lines below it
     alone = bool(objects) and not among and anchored is None  # an object with no text: one line as tall
     cached = () if alone else _cached_metrics(paragraph)
     size, refs, sizes = _text_size(measure, runs)
@@ -1345,8 +1362,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     end = _end_size(measure, runs, sizes)
     mixed = len(set(sizes)) > 1 or bool(end)
     looks = _char_styles(measure, paragraph, runs)
-    if among:
-        inline_text, inline_sizes, inline_looks, placed, marked = _inline_content(measure, paragraph, runs)
+    if among or beside:
+        inline_text, inline_sizes, inline_looks, placed, marked = _inline_content(measure, paragraph, runs, anchored)
         if not cached:
             looks_or_none = inline_looks if len(set(inline_looks)) > 1 else None
             cached = _line_metrics(measure, inline_text, widths, inline_sizes, style, shape, placed, looks_or_none,
