@@ -112,6 +112,23 @@ def test_times_and_relations() -> None:
     assert eqedit_to_latex("a >= b") == r"a \geq b"
 
 
+@pytest.mark.parametrize(
+    "script,expected",
+    [
+        ("a ` b", r"a \, b"),
+        ("dyad {AB}", r"\overleftrightarrow{AB}"),
+        ("therefore x", r"\therefore x"),
+        ("THEREFORE x", r"\therefore x"),
+        ("because x", r"\because x"),
+        ("{rm {bold {v}} it} ^{2} w", r"\mathbf{v}^{2} w"),
+        ("{rm {bold v} it}", r"\mathbf{v}"),
+        ("{rm {bold {v}}} w", r"{rm {bold {v}}} w"),  # not the authored shape: as before
+    ],
+)
+def test_thin_space_two_headed_arrow_and_conclusion_signs(script: str, expected: str) -> None:
+    assert eqedit_to_latex(script) == expected
+
+
 @pytest.mark.parametrize("token", ["triangle", "TRIANGLE"])
 def test_triangle_symbol_uses_exact_evidence_backed_tokens(token: str) -> None:
     assert eqedit_to_latex(f"{token} P_1 P_2 Q") == r"\triangle P_1 P_2 Q"

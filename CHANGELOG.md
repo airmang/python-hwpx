@@ -6,6 +6,15 @@
 
 ### 추가
 
+- `hwpx.experimental.latex_to_eqedit`(실험)가 고등학교 수학에서 흔한 표기 몇 가지를 더 옮긴다(#347). 전에는
+  `UnsupportedLatexError`로 거부했다.
+  - `\,` → `` ` ``(작은 공백), `\overrightarrow{AB}` → `vec {AB}`(두 글자 위로 늘어난 화살표),
+    `\overleftrightarrow{AB}` → `dyad {AB}`(↔), `\therefore` → `therefore`(∴), `\because` → `because`(∵).
+  - `\mathbf{X}` → `{rm {bold {X}} it}`. `bold`만으로는 영문자가 기울임으로 남고, `rm`은 중괄호 밖으로
+    번지므로 곧은 굵은 글꼴로 그린 뒤 `it`으로 기울임을 되돌린다.
+  - `eqedit_to_latex`는 이 철자들을 되읽는다(`` ` `` → `\,`, `dyad` → `\overleftrightarrow`, `therefore`·`THEREFORE`
+    → `\therefore`, `because` → `\because`, `{rm {bold X} it}` → `\mathbf{X}`). 수식 크기 추정은 `dyad`를 `vec`처럼
+    꾸밈으로 잰다.
 - `doc.shapes.add_curve()`·`add_connector()`를 더한다(곡선과 붙은 연결선 저작).
   - 곡선은 앵커를 지나는 `CURVE` 구간으로 쓴다(닫으면 끝에서 첫 앵커로). 한/글은 곡선의 크기 상자를 다시 계산하지
     않으므로, 한/글 곡선이 갖는 상자(앵커를 지나는 Catmull-Rom 곡선을 구간마다 16단계로 근사한 상자)를 쓰고 앵커는
