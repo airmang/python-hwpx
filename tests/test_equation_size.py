@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Equation boxes are measured from the script's structure.
 
-Hancom lays a page out with the stored ``<hp:sz>`` and ``baseLine`` of an
-equation and does not measure it again, so the box has to fit the script.
+A reader lays the page out with the stored ``<hp:sz>`` and ``baseLine`` of an
+equation, so the box has to fit the script. (Hancom on macOS was observed to
+lay the equation out again and rewrite ``<hp:sz>`` when it saves.)
 """
 from __future__ import annotations
 
@@ -49,6 +50,15 @@ def test_a_fraction_is_as_wide_as_its_wider_part_and_two_lines_high() -> None:
     assert _em("a+b")[0] <= width <= _em("a+b")[0] + 0.8
     assert 2.0 <= height <= 2.6
     assert _written("{a+b} over {2}")[2] < 75
+
+
+@pytest.mark.parametrize("script", ["{n} choose {r}", "binom {n} {r}"])
+def test_a_binomial_is_two_rows_high_not_a_word(script: str) -> None:
+    # Hancom draws {n} choose {r} and binom {n} {r} alike, as two rows in stretched parentheses.
+    width, height = _em(script)
+    assert (width, height) == _em("{n} atop {r}")
+    assert 2.0 <= height <= 2.6
+    assert width < _em('{n} "choose" {r}')[0]
 
 
 def test_a_superscript_raises_the_top_and_a_subscript_lowers_the_bottom() -> None:
