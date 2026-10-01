@@ -1766,7 +1766,11 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
             continue
         if table.mode == "CELL" and end > index and table.cells \
                 and y + sum(row.height for row in rows[index:end + 1]) > foot:  # split cell by cell
-            frame, y = frame + 1, header + _block_rest(table, index, end, y, body)
+            rest = _block_rest(table, index, end, y, body)
+            if not rest:  # every cell done above the page end, what it declares below dropped: they end there
+                y, index = body, end + 1
+                continue
+            frame, y = frame + 1, header + rest
             if y > foot:
                 raise _Unsupported("rows merged together taller than a page")
             index = end + 1
