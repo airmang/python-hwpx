@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Equation boxes are measured from the script's structure.
 
-Hancom lays a page out with the stored ``<hp:sz>`` and ``baseLine`` of an
-equation and does not measure it again, so the box has to fit the script.
+A reader lays the page out with the stored ``<hp:sz>`` and ``baseLine`` of an
+equation, so the box has to fit the script. (Hancom on macOS was observed to
+lay the equation out again and rewrite ``<hp:sz>`` when it saves.)
 """
 from __future__ import annotations
 
