@@ -245,6 +245,27 @@ def test_current_core_manual_python_fence_census_is_frozen() -> None:
     } == set(CURRENT_CORE_MANUALS)
 
 
+def test_pinned_manuals_check_out_with_lf_line_endings() -> None:
+    # manualSha256 pins each manual byte for byte (the generator and the test below hash read_bytes()); a
+    # checkout that turns line endings into CRLF (core.autocrlf on Windows) would no longer match the pins.
+    lf_paths = {
+        line.split()[0].lstrip("/")
+        for line in (ROOT / ".gitattributes").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#") and "eol=lf" in line.split()[1:]
+    }
+
+    assert {path.as_posix() for path in CURRENT_CORE_MANUALS} <= lf_paths
+    # A bundled copy keeps the bytes of its docs/ original (tests/test_contract_docs_sync.py), so it
+    # checks out with the same line endings.
+    import sync_contract_docs  # scripts/ is on the pytest pythonpath
+
+    assert {
+        f"src/hwpx/data/contract_docs/{copy}"
+        for copy, original in sync_contract_docs.CONTRACT_DOCS.items()
+        if f"docs/{original}" in lf_paths
+    } <= lf_paths
+
+
 def test_current_core_manual_ledger_is_complete_and_mechanically_honest() -> None:
     fences = _python_fences()
     ledger = _ledger()

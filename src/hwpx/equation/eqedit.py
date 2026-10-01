@@ -42,8 +42,10 @@ from .tokens import (
 MAX_SOURCE_LENGTH = 10_000
 MAX_GROUP_DEPTH = 64
 
-# Words EqEdit reads as symbols or structure. The writer quotes a bare identifier that collides with one
-# (``T_{int}`` → ``T _{"int"}``); the reader turns such a quoted word back into plain letters.
+# Words EqEdit reads as symbols, structure or font switches. The writer quotes a bare identifier that collides
+# with one (``T_{int}`` → ``T _{"int"}``, ``e^{it}`` → ``e ^{"it"}``: a lone ``it`` in a superscript switches to
+# italic and draws nothing); the reader turns such a quoted word back into plain letters.
+_FONT_SWITCHES = frozenset({"rm", "it", "bold", "RM", "IT", "BOLD"})
 _RESERVED_WORDS = (
     frozenset(GREEK)
     | frozenset(OPERATORS)
@@ -52,6 +54,7 @@ _RESERVED_WORDS = (
     | frozenset(ACCENTS)
     | frozenset(MATRIX_ENVIRONMENTS)
     | STRUCTURAL
+    | _FONT_SWITCHES
 )
 
 # Characters that always terminate a token even when not whitespace separated.
@@ -338,6 +341,8 @@ class _Parser:
             return OPERATORS[token]
         if token in FUNCTIONS:
             return FUNCTIONS[token]
+        if token in ("LBRACE", "RBRACE"):  # a literal brace outside LEFT/RIGHT
+            return r"\{" if token == "LBRACE" else r"\}"
         if token.startswith('"') and token.endswith('"') and len(token) >= 2:
             literal = token[1:-1]
             if literal.isalpha() and literal in _RESERVED_WORDS:

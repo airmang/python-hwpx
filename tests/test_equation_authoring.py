@@ -218,6 +218,11 @@ class TestLatexToEqedit:
             (r"\bar{x} + \vec{v}", "bar {x} + vec {v}"),
             (r"\text{판별식} = 0", '{rm "판별식" it} = 0'),
             (r"T_{int}", 'T _{"int"}'),
+            # rm, it and bold switch the font: alone in a script they would draw nothing
+            (r"e^{it}", 'e ^{"it"}'),
+            (r"x_{rm} + a_{bold}", 'x _{"rm"} + a _{"bold"}'),
+            (r"\lbrace x \rbrace", "LBRACE x RBRACE"),
+            (r"\left\lbrace x \right\rbrace", "LEFT LBRACE x RIGHT RBRACE"),
             (r"$$\frac{1}{2}$$", "{1} over {2}"),
             (r"$x + 1$", "x + 1"),
             (r"\le \ge \ne", "leq geq neq"),

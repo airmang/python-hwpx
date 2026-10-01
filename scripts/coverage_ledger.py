@@ -1808,14 +1808,14 @@ def build_ledger(
         "schemaVersion": SCHEMA_VERSION,
         "generatedFrom": {
             "schemaDir": "DevDoc/OWPML SCHEMA",
-            "corpusCensus": str(census_path.relative_to(ROOT))
+            "corpusCensus": census_path.relative_to(ROOT).as_posix()
             if census_path.is_relative_to(ROOT)
-            else str(census_path),
+            else census_path.as_posix(),
             "corpusCensusGenerator": "scripts/build_element_census.py",
             "corpusPopulationNote": census.population_note,
             "supportMatrix": "src/hwpx/data/contract_docs/support-matrix.md",
             "openrateReports": [
-                str(path.relative_to(ROOT))
+                path.relative_to(ROOT).as_posix()
                 for path in openrate_report_paths
                 if path.is_relative_to(ROOT) and path.is_file()
             ],
@@ -2178,9 +2178,9 @@ def _display_path(path: Path) -> str:
     리다이렉션 등)라도 절대경로로 조용히 대체한다 — 어느 쪽이든 죽지 않는다."""
 
     try:
-        return str(path.relative_to(ROOT))
+        return path.relative_to(ROOT).as_posix()
     except ValueError:
-        return str(path)
+        return path.as_posix()
 
 
 def main() -> int:
