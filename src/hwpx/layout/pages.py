@@ -89,7 +89,9 @@
   cells' rest (a cell declared taller than its text, whose first line fits, is cut like such a row,
   below). A table set as a character alone in a paragraph of a cell is one line as tall as it
   there, spaced like the text, and a row holding one splits between its cell's lines, each as tall
-  as it is; a nested table among text, placed top and bottom or wrapped square is followed through
+  as it is; so is another object set as a character alone in a cell paragraph without a layout
+  cache, and such objects among its text, or several of them, take their place in its lines as in
+  the body; a nested table among text, placed top and bottom or wrapped square is followed through
   the layout caches of its cell, as tall as Hancom drew it (down to such a table's foot; one placed
   up from its paragraph's top stands at that top; the caches of a row Hancom split over a page end
   start over at the next page's top, and are read as one run of lines, each line that goes back up
@@ -527,8 +529,12 @@ class _Measure:
             shape = self.shape(paragraph.get("paraPrIDRef"))
             pitch = _pitch(shape.kind, shape.value, size)
             table = _table_alone(runs)
+            alone = None if table is not None or caches and _cached_metrics(paragraph) else _object_alone(runs)
             if table is not None:  # one line as tall as the table, spaced like the text
                 tall = _inline_table_height(self, table) + _extent_margins(table)
+                count, size, pitch = 1, tall, tall + pitch - size
+            elif alone is not None:  # so with another object set as a character
+                tall = _object_extent(alone, self)[1]
                 count, size, pitch = 1, tall, tall + pitch - size
             else:
                 cached = _cached_metrics(paragraph) if caches else ()
@@ -595,10 +601,11 @@ class _Measure:
         return tuple(metrics)
 
     def marked_lines(self, paragraph: Any, runs: list[Any], width: int) -> tuple[tuple[int, int], ...]:
-        """(height, advance) of each line of a paragraph holding composed characters or ruby text, laid
-        out at *width* as in the body; empty for a paragraph holding neither."""
+        """(height, advance) of each line of a paragraph holding composed characters, ruby text, or objects
+        set as characters among its text or several of them, laid out at *width* as in the body; empty for
+        a paragraph holding none of them."""
 
-        if not _marks(runs):
+        if not _marks(runs) and not _objects_among(runs):
             return ()
         shape = self.shape(paragraph.get("paraPrIDRef"))
         _check_ruby_spacing(runs, shape)
@@ -710,6 +717,24 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
 def _row_span(cell: Any) -> int:
     span = cell.find(f"{HP}cellSpan")
     return 1 if span is None else int(span.get("rowSpan", 1))
+
+
+def _object_alone(runs: list[Any]) -> Any:
+    """The object set as a character, not a table, that is all a paragraph holds (but objects in front of or
+    behind the text), or ``None``."""
+
+    objects = _placed_objects(runs)
+    if len(objects) != 1 or _local(objects[0]) == "tbl" or _run_text(runs).strip():
+        return None
+    return objects[0] if objects[0].find(f"{HP}pos").get("treatAsChar") == "1" else None
+
+
+def _objects_among(runs: list[Any]) -> bool:
+    """Whether the runs hold objects set as characters, and nothing else placed, among text or several."""
+
+    objects = _placed_objects(runs)
+    return bool(objects) and (len(objects) > 1 or bool(_run_text(runs).strip())) and all(
+        obj.find(f"{HP}pos").get("treatAsChar") == "1" for obj in objects)
 
 
 def _table_alone(runs: list[Any]) -> Any:

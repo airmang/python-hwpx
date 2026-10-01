@@ -59,6 +59,18 @@ HANCOM_PAGES = {
                                                   # line goes below it, as a line of text would
     "pages_object_pushing_characters_off1398": 1,  # the same 1398 down
     "pages_object_pushing_characters_off1398_char3000": 1,  # with a rectangle 3000 tall set as a character
+    # Objects set as characters in a paragraph of a cell of a flowing table, 10 pt text spaced 160%:
+    "pages_cell_picture_as_character_alone": 1,  # a picture 3000 x 4000 alone: one line 4000 tall
+    "pages_cell_rectangle_as_character_alone": 1,  # a rectangle 3000 x 2000
+    "pages_cell_equation_alone": 1,  # an equation
+    "pages_cell_picture_before_text": 1,  # the picture before two lines of text: the first line as tall
+    "pages_cell_picture_among_text": 1,  # among them
+    "pages_cell_picture_after_text": 1,  # after them: the second line as tall
+    "pages_cell_two_pictures_on_one_line": 1,  # two that fit side by side
+    "pages_cell_two_pictures_on_two_lines": 1,  # two that do not: a line each
+    "pages_cell_picture_alone_fixed_spacing": 1,  # alone, line spacing fixed at 1600
+    "pages_cell_picture_in_a_table_as_character": 1,  # alone, in a table set as a character
+    "pages_cell_picture_then_a_line": 1,  # alone, then a paragraph of a line: spaced from the text size
     # A section hiding a page's first empty lines (hp:visibility@hideFirstEmptyLine), its first page full:
     "pages_hide_empty_lines_one": 2,  # an empty paragraph past the foot stays there, the text after it
                                       # starts the next page
