@@ -23,6 +23,17 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_PAGES = {
+    # A rectangle placed top and bottom 2000 down from an empty paragraph's top, 20000 x 8000 (one column
+    # 48188 wide): the next paragraph's line reaching it goes below it, the whole width, even holding objects
+    # set as characters (a group or a picture 44633 x 648, which do not make it taller than its text):
+    "pages_push_band_text": 1,  # a character alone
+    "pages_push_band_group_as_character": 1,  # a character, a group and a polygon in front of the text
+    "pages_push_band_picture_as_character": 1,
+    "pages_push_band_group_as_character_alone": 1,  # the group and the polygon, no text
+    # A picture wrapped square from an empty paragraph's left, 41631 x 27112, leaving 6557 beside it; the
+    # next paragraph holds a table set as a character alone:
+    "pages_square_band_table_as_character_alone": 1,  # 47058 wide: below the picture, the whole width
+    "pages_square_band_narrow_table_as_character_alone": 1,  # 5000 wide: beside it, and the lines after
     "pages_fixed_width_spaces": 2,  # rows of a syllable and a fixed-width space: a quarter em that hangs
     "pages_no_break_spaces": 2,  # rows of "가나" and a no-break space: each is half an em and keeps the row
                                   # one word
@@ -446,6 +457,17 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
+
+
+def test_objects_set_as_characters_among_text_beside_a_square_wrapped_object_are_not_followed() -> None:
+    # Text beside the picture wrapped square (as in pages_square_band_table_as_character_alone) with a table set
+    # as a character after it: Hancom sets the text in the room beside the picture and the table's line, wider
+    # than that room, below the picture, leaving the rest of the room empty. The estimate does not follow that.
+    data = (FIXTURES / "pages_square_band_table_as_character_among_text.hwpx").read_bytes()
+
+    for source in (data, _without_caches(data)):
+        assert estimate_pages(source).unsupported == (
+            "section 0: objects set as characters among text beside a square-wrapped object",)
 
 
 def test_a_typed_ideographic_space_is_not_a_fixed_width_one() -> None:

@@ -1608,6 +1608,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     mixed = len(set(sizes)) > 1 or bool(end) or bool(head)
     looks = _char_styles(measure, paragraph, runs)
     if among or beside:
+        if wrap is not None:  # the line holding one wider than the room beside it goes below the object
+            raise _Unsupported("objects set as characters among text beside a square-wrapped object")
         inline_text, inline_sizes, inline_looks, placed, marked = _inline_content(measure, paragraph, runs, anchored)
         if not cached:
             looks_or_none = inline_looks if len(set(inline_looks)) > 1 else None
@@ -1738,9 +1740,10 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
     square = _square_object(objects, runs, page.column_width)
     pusher = _pushing_object(objects, _run_text(runs), page.column_width)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
+    placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
     if wrap is not None:
         wrap = wrap.lower(shape.prev)
-        if wrap is not None and (square is not None or pusher is not None or (wrap.push and objects)
+        if wrap is not None and (square is not None or pusher is not None or (wrap.push and placed)
                                  or _on(shape.flags, "pageBreakBefore")
                                  or paragraph.get("pageBreak") == "1" or paragraph.get("columnBreak") == "1"):
             raise _Unsupported("a page break or another object beside a square-wrapped object")
@@ -1759,8 +1762,16 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
         if _local(pusher) == "tbl":  # as tall as its rows
             tall += sum(row.height for row in _rows(measure, pusher)) - int(pusher.find(f"{HP}sz").get("height", 0))
         return _push(para, _Wrap(top, top + tall, 0, push=True), starts=True)
-    if wrap is not None and wrap.push:
+    if wrap is not None and wrap.push:  # objects set as characters on a line reaching it go below it with it
         return _push(_paragraph(measure, page, paragraph), wrap, starts=False)
+    if wrap is not None and objects and not placed and not _run_text(runs).strip():
+        para = _paragraph(measure, page, paragraph)  # one object set as a character, alone
+        if len(objects) > 1:
+            raise _Unsupported("objects set as characters beside a square-wrapped object")
+        if _object_extent(objects[0], measure)[0] > _room_beside(wrap, page.column_width - shape.left - shape.right):
+            return _push(para, replace(wrap, push=True), starts=False)  # below the object, the whole width
+        beside = sum(1 for line in range(para.lines) if para.span(0, line) < wrap.bottom)
+        return replace(para, wrap_lines=beside), wrap.lower(para.span(0, para.lines) + para.next)
     starts = square is not None
     if square is not None:
         top = int(square.find(f"{HP}pos").get("vertOffset", 0))
@@ -1803,6 +1814,13 @@ def _pushing_object(objects: list[Any], text: str, column: int) -> Any:
     if offset <= 0 or lined and offset >= 1 << 31:  # at the paragraph's top (see _anchored_object), or placed up
         return None
     return obj
+
+
+def _room_beside(wrap: _Wrap, width: int) -> int:
+    """How wide a line of *width* is beside a square-wrapped object's band: its wider piece when the text
+    goes on both sides."""
+
+    return max(wrap.split, width - wrap.cut - wrap.split) if wrap.split else width - wrap.cut
 
 
 def _push(para: _Para, band: _Wrap, *, starts: bool) -> tuple[_Para, _Wrap | None]:
