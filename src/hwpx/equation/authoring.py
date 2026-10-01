@@ -95,6 +95,8 @@ _LATEX_ACCENTS: dict[str, str] = {
     for latex, eqedit in _invert(ACCENTS).items()
     if latex not in _RENDER_REJECTED
 }
+# EqEdit ``vec`` stretches its arrow over the whole argument, as \overrightarrow does.
+_LATEX_ACCENTS["\\overrightarrow"] = "vec"
 # LaTeX delimiter commands usable after \left / \right.
 _LATEX_DELIMITERS: dict[str, str] = {
     latex: eqedit
@@ -272,6 +274,10 @@ class _LatexParser:
             return f"sqrt {{{self._group_or_atom(depth)}}}"
         if token in _TEXT_COMMANDS:
             return self._text_literal()
+        if token == "\\mathbf":
+            # ``bold`` alone keeps the letters italic and ``rm`` goes on past its braces: upright bold, then
+            # italic again for what follows.
+            return f"{{rm {{bold {{{self._group_or_atom(depth)}}}}} it}}"
         if token == "\\begin":
             return self._environment(depth)
         if token == "\\left":

@@ -121,6 +121,10 @@ OPERATORS: dict[str, str] = {
     # intentionally not accepted because the reader uses exact token lookup.
     "triangle": r"\triangle",
     "TRIANGLE": r"\triangle",
+    # The conclusion signs: ∴ (lowercase or ALLCAPS) and ∵.
+    "therefore": r"\therefore",
+    "THEREFORE": r"\therefore",
+    "because": r"\because",
     "cdots": r"\cdots",
     "ldots": r"\ldots",
     "vdots": r"\vdots",
@@ -135,6 +139,8 @@ OPERATORS: dict[str, str] = {
     "Leftarrow": r"\Leftarrow",
     "to": r"\to",
     "mapsto": r"\mapsto",
+    # Spacing: a back quote is a quarter of the ``~`` space.
+    "`": r"\,",
 }
 
 # --- Multi-character symbolic operators ------------------------------------
@@ -204,6 +210,8 @@ BIG_OPERATORS: dict[str, str] = {
 ACCENTS: dict[str, str] = {
     "bar": r"\bar",
     "vec": r"\vec",
+    # A two-headed arrow stretched over its argument.
+    "dyad": r"\overleftrightarrow",
     "hat": r"\hat",
     "tilde": r"\tilde",
     "dot": r"\dot",
