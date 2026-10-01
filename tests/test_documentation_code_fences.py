@@ -255,6 +255,15 @@ def test_pinned_manuals_check_out_with_lf_line_endings() -> None:
     }
 
     assert {path.as_posix() for path in CURRENT_CORE_MANUALS} <= lf_paths
+    # A bundled copy keeps the bytes of its docs/ original (tests/test_contract_docs_sync.py), so it
+    # checks out with the same line endings.
+    import sync_contract_docs  # scripts/ is on the pytest pythonpath
+
+    assert {
+        f"src/hwpx/data/contract_docs/{copy}"
+        for copy, original in sync_contract_docs.CONTRACT_DOCS.items()
+        if f"docs/{original}" in lf_paths
+    } <= lf_paths
 
 
 def test_current_core_manual_ledger_is_complete_and_mechanically_honest() -> None:
