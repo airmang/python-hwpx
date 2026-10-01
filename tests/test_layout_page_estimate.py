@@ -253,6 +253,13 @@ HANCOM_PAGES = {
     "pages_table_on_paper_pushes_a_later_line": 1,  # a table 40000 below it: a line of a later paragraph
     "pages_rectangle_on_paper_across_two_columns": 2,  # across both columns, anchored in the second:
                                                         # the lines of both columns go below it
+    "pages_rectangle_on_paper_over_the_left_column": 2,  # 15000 wide over the first of two columns: its
+                                                          # lines go below it, the second's start at the top
+    "pages_rectangle_on_paper_over_the_right_column": 2,  # over the second only
+    "pages_rectangle_on_paper_partly_over_two_columns": 2,  # 30000 wide, centred: partly over each, the
+                                                             # lines of both go below it
+    "pages_rectangle_on_paper_400_narrower_than_two_columns": 2,  # 400 narrower than the text, centred
+    "pages_table_on_paper_400_narrower_than_two_columns": 2,  # a table so
     "pages_rectangle_on_page_5000_below_its_top": 2,   # top and bottom 5000 below the body's top
     "pages_rectangle_on_page_5000_above_its_foot": 2,  # 5000 above the body's foot: the lines reaching it
                                                         # go below it

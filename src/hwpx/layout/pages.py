@@ -36,8 +36,9 @@
   without it, wherever it stands; one placed top and bottom from the top or the bottom of the paper
   or of the page (its body) keeps every line of its page out of its band (a line reaching it, in any
   paragraph on that page, goes below it -- on to the next page when the band reaches the body's
-  foot -- and the lines after follow; with several columns, in each of them when it covers the
-  text's whole width), and so does one wrapped square there that leaves less than a line's room
+  foot -- and the lines after follow; with several columns of equal width, in each column it
+  reaches over from the paper's left, centre or right, the others running past it), and so does one
+  wrapped square there that leaves less than a line's room
   (1440) on either side of it across the text; one that leaves more (in one column) changes nothing
   when no line, table or object of its page reaches its band, and is not followed otherwise. An
   object anchored at the top of a paragraph's first line that such a band pushes down stands right
@@ -884,9 +885,9 @@ class _Para:
     #: the line the object laid out around the text (the caller's) stands on
     wrap_anchor: int = 0
     band: _Band | None = None
-    #: (top, bottom) in the body of an object anchored here and placed on the paper or the page, and whether
-    #: it leaves a line's room beside it (see :func:`_paper_band`)
-    paper: tuple[int, int, bool] | None = None
+    #: (top, bottom) in the body of an object anchored here and placed on the paper or the page, whether it
+    #: leaves a line's room beside it and the columns it reaches over (see :func:`_paper_band`)
+    paper: tuple[int, int, bool, tuple[int, ...]] | None = None
     #: in columns of unequal width, a paragraph without a layout cache: its text, to break again
     reflow: _Reflow | None = None
     #: holding nothing, in a section hiding a page's first empty lines (see :meth:`_Paginator._paragraph`)
@@ -955,6 +956,7 @@ class _Page:
     widths: tuple[int, ...] = ()  # then each column's width
     paper_height: int = 0
     hide_empty: bool = False  # hp:visibility@hideFirstEmptyLine: a page's first empty lines are hidden
+    gap: int = 0  # between columns of equal width
 
 
 def _page(section: Any) -> _Page:
@@ -965,17 +967,17 @@ def _page(section: Any) -> _Page:
     width, height = _drawn_page_size(int(page.get("width", 0)), int(page.get("height", 0)), page.get("landscape"))
     body = height - sum(int(margin.get(key, 0)) for key in ("top", "bottom", "header", "footer"))
     text_width = width - sum(int(margin.get(key, 0)) for key in ("left", "right", "gutter"))
-    columns, column_width, widths = _columns(section, text_width)
+    columns, column_width, widths, gap = _columns(section, text_width)
     visibility = next(section.iter(f"{HP}visibility"), None)
     return _Page(body, column_width, columns, int(margin.get("top", 0)) + int(margin.get("header", 0)),
                  int(margin.get("left", 0)) + int(margin.get("gutter", 0)), text_width, width, bool(widths),
                  widths, height,
-                 visibility is not None and visibility.get("hideFirstEmptyLine") in ("1", "true"))
+                 visibility is not None and visibility.get("hideFirstEmptyLine") in ("1", "true"), gap)
 
 
-def _columns(section: Any, text_width: int) -> tuple[int, int, tuple[int, ...]]:
-    """(count, width, widths): the section's columns, their width (the narrowest when they differ) and,
-    when they differ, each one's."""
+def _columns(section: Any, text_width: int) -> tuple[int, int, tuple[int, ...], int]:
+    """(count, width, widths, gap): the section's columns, their width (the narrowest when they differ),
+    when they differ each one's, and when they do not the gap between them."""
 
     # Column settings in a cell or a text box (an hp:subList) belong to that list, not the section.
     settings = [cols for cols in section.iter(f"{HP}colPr") if not _in_sub_list(cols)]
@@ -983,16 +985,16 @@ def _columns(section: Any, text_width: int) -> tuple[int, int, tuple[int, ...]]:
         raise _Unsupported("the columns change inside the section")
     count = int(settings[0].get("colCount", "1")) if settings else 1
     if count <= 1:
-        return 1, text_width, ()
+        return 1, text_width, (), 0
     if settings[0].get("sameSz") != "1":  # each column takes its share of the width with the gaps (hp:colSz),
         sizes = settings[0].findall(f"{HP}colSz")  # rounded
         total = sum(int(size.get("width", 0)) + int(size.get("gap", 0)) for size in sizes)
         if len(sizes) != count or total <= 0:
             raise _Unsupported("columns of unequal width")
         widths = tuple((2 * int(size.get("width", 0)) * text_width + total) // (2 * total) for size in sizes)
-        return count, min(widths), widths
+        return count, min(widths), widths, 0
     gap = int(settings[0].get("sameGap", 0))
-    return count, (text_width - (count - 1) * gap) // count // 4 * 4, ()
+    return count, (text_width - (count - 1) * gap) // count // 4 * 4, (), gap
 
 
 def _in_sub_list(element: Any) -> bool:
@@ -1123,10 +1125,11 @@ def _on_paper(obj: Any) -> bool:
             and pos.get("vertRelTo") in ("PAPER", "PAGE") and pos.get("vertAlign", "TOP") in ("TOP", "BOTTOM"))
 
 
-def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, int, bool] | None:
-    """(top, bottom) in the body of the object of *paragraph* placed on the paper, if any, and whether it
-    is wrapped square leaving a line's room beside it: Hancom sets the text reaching it beside it, which is
-    not followed, and the text above or below it as if it were not there."""
+def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, int, bool, tuple[int, ...]] | None:
+    """(top, bottom) in the body of the object of *paragraph* placed on the paper, if any, whether it is
+    wrapped square leaving a line's room beside it (Hancom sets the text reaching it beside it, which is
+    not followed, and the text above or below it as if it were not there), and the columns it keeps the
+    lines out of."""
 
     placed = [child for run in paragraph.findall(f"{HP}run") for child in run
               if _local(child) in _OBJECTS and _on_paper(child)]
@@ -1134,7 +1137,9 @@ def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, in
         return None
     square = placed[0].get("textWrap") == "SQUARE"  # no line beside it: less than a line's room on each side
     across = _across_the_text(placed[0], page, _MIN_SIDE - 1 if square else 0)
-    if len(placed) > 1 or (page.columns > 1 and not across):
+    columns = tuple(range(page.columns)) if across or page.columns == 1 else () if square \
+        else _columns_reached(placed[0], page)
+    if len(placed) > 1 or not columns:
         raise _Unsupported("objects placed on the paper")
     obj = placed[0]
     tall = _extent(obj, "height")
@@ -1146,20 +1151,40 @@ def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, in
         top = offset if pos.get("vertAlign", "TOP") == "TOP" else page.body - offset - tall
     else:  # from the paper's top or bottom
         top = (offset if pos.get("vertAlign", "TOP") == "TOP" else page.paper_height - offset - tall) - page.top
-    return top, top + tall, square and not across
+    return top, top + tall, square and not across, columns
 
 
 def _across_the_text(obj: Any, page: _Page, slack: int = 0) -> bool:
     """Whether an object placed from the paper's left covers the text's whole width (every column), but for
     *slack* on either side."""
 
+    left = _paper_left(obj, page)
+    return left is not None and left <= page.left + slack \
+        and left + _extent(obj, "width") >= page.left + page.text_width - slack
+
+
+def _columns_reached(obj: Any, page: _Page) -> tuple[int, ...]:
+    """The columns of equal width that an object placed from the paper's left reaches over, its outer margins
+    included."""
+
+    left = _paper_left(obj, page)
+    if left is None or page.unequal:
+        return ()
+    right = left + _extent(obj, "width")
+    starts = [page.left + index * (page.column_width + page.gap) for index in range(page.columns)]
+    return tuple(index for index, start in enumerate(starts) if left < start + page.column_width and right > start)
+
+
+def _paper_left(obj: Any, page: _Page) -> int | None:
+    """How far right of the paper's left edge an object placed from the paper's left, centre or right stands;
+    ``None`` for one placed otherwise."""
+
     pos = obj.find(f"{HP}pos")
     if pos.get("horzRelTo") != "PAPER":
-        return False
+        return None
     width, offset = _extent(obj, "width"), int(pos.get("horzOffset", 0))
-    left = {"LEFT": offset, "CENTER": (page.paper_width - width) // 2 + offset,
+    return {"LEFT": offset, "CENTER": (page.paper_width - width) // 2 + offset,
             "RIGHT": page.paper_width - width - offset}.get(pos.get("horzAlign", "LEFT"))
-    return left is not None and left <= page.left + slack and left + width >= page.left + page.text_width - slack
 
 
 def _floating(obj: Any) -> bool:
@@ -2343,10 +2368,10 @@ def _lay_section(measure: _Measure, section: Any) -> _SectionLayout:
             firsts.append(firsts[-1] + count)
         placed: dict[int, list[tuple[int, int]]] = {}
         beside: dict[int, list[tuple[int, int]]] = {}
-        for index, (top, bottom, room) in paper.items():  # on every column of the page
+        for index, (top, bottom, room, columns) in paper.items():  # on the columns of the page it reaches over
             first = paginator.out[firsts[index]][0] // page.columns * page.columns
-            for frame in range(first, first + page.columns):
-                (beside if room else placed).setdefault(frame, []).append((top, bottom))
+            for column in columns:
+                (beside if room else placed).setdefault(first + column, []).append((top, bottom))
         if placed == bands and beside == sides:
             break
         bands, sides = placed, beside
