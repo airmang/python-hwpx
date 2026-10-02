@@ -793,9 +793,11 @@ def _objects_among(runs: list[Any]) -> bool:
 
 
 def _table_alone(runs: list[Any]) -> Any:
-    """The table set as a character that is all a paragraph holds, or ``None``."""
+    """The table set as a character that is all a paragraph holds (but objects in front of or behind the text,
+    which take no room), or ``None``."""
 
-    children = [child for run in runs for child in run if _local(child) not in ("t", "secPr", "ctrl")]
+    children = [child for run in runs for child in run if _local(child) not in ("t", "secPr", "ctrl")
+                and not (_local(child) in _OBJECTS and _floating(child))]
     if len(children) != 1 or _local(children[0]) != "tbl" or _run_text(runs).strip():
         return None
     pos = children[0].find(f"{HP}pos")
@@ -1255,7 +1257,8 @@ def _object_before_text(runs: list[Any], headed: bool = False) -> Any:
 
 def _table_on_its_own(paragraph: Any) -> bool:
     """Whether a cell paragraph holds no text, not even a space, and nothing but one table placed top and
-    bottom from its top (Hancom sets the empty line below two of them, not beside them)."""
+    bottom from its top (Hancom sets the empty line below two of them, not beside them, and so with an object
+    in front of or behind the text beside it)."""
 
     runs = paragraph.findall(f"{HP}run")
     objects = [child for run in runs for child in run if _local(child) in _OBJECTS]
