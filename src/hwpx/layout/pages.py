@@ -1095,6 +1095,9 @@ class _Para:
     #: a top-and-bottom object offset from this paragraph (not a flowing table) pushes its lines below it:
     #: when its band would pass the body's foot, Hancom moves it to the next page's top instead
     wrap_push: bool = False
+    #: how far such an object pushed the paragraph's first line down (its band's foot is measured from where
+    #: that line stood before)
+    wrap_shift: int = 0
     #: such an object alone in this empty paragraph, its foot this far below the paragraph's top (the line is
     #: as tall as that): past the body's foot it goes on to the next page's top, the empty line staying
     moves: int = 0
@@ -2145,12 +2148,12 @@ def _push(para: _Para, band: _Wrap, *, starts: bool) -> tuple[_Para, _Wrap | Non
     if para.anchor is not None or para.table is not None:
         raise _Unsupported("an object beside a top-and-bottom object's band")
     metrics = list(para.cached) or [(para.size, para.pitch)] * para.lines
-    top, rest = 0, None
+    top, rest, shifted = 0, None, 0
     for index, (height, advance) in enumerate(metrics):
         if top < band.bottom and top + height > band.top:
             shift = band.bottom - top
             if index == 0:
-                pushed = replace(para, prev=para.prev + shift)
+                pushed, shifted = replace(para, prev=para.prev + shift), shift
             else:
                 metrics[index - 1] = (metrics[index - 1][0], metrics[index - 1][1] + shift)
                 pushed = replace(para, cached=tuple(metrics))
@@ -2159,7 +2162,8 @@ def _push(para: _Para, band: _Wrap, *, starts: bool) -> tuple[_Para, _Wrap | Non
     else:
         pushed, rest = para, band.lower(top + para.next)
     beside = sum(1 for line in range(para.lines) if para.span(0, line) < band.bottom)
-    return replace(pushed, wrap_lines=beside, wrap_bottom=band.bottom if starts else 0, wrap_push=starts), rest
+    return replace(pushed, wrap_lines=beside, wrap_bottom=band.bottom if starts else 0, wrap_push=starts,
+                   wrap_shift=shifted if starts else 0), rest
 
 
 def _wrapped_widths(measure: _Measure, text: str, widths: list[float], size: int, style: Any, shape: _Shape,
@@ -2594,7 +2598,7 @@ class _Paginator:
         if table is not None:
             self._flow(para, table, start)
             return
-        reach = para.wrap_bottom if para.wrap_push else para.moves
+        reach = para.wrap_bottom - para.wrap_shift if para.wrap_push else para.moves
         if reach and start + reach > self.body and self.columns == 1:
             raise _BandMoves(index)  # its object goes on to the next page's top, its lines stay
         first = len(self.out)
@@ -2603,7 +2607,8 @@ class _Paginator:
             self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], last.advance(last.lines - 1), para.next
         if para.wrap_bottom:  # the band starts here: it stays on this page
             self.wrap_frame = self.out[first][0]
-            self.wrap_moved = self.out[first][1] + para.wrap_bottom > self.body and not para.wrap_stays
+            self.wrap_moved = self.out[first][1] + para.wrap_bottom - para.wrap_shift > self.body \
+                and not para.wrap_stays
         if self.wrap_moved and not para.wrap_fixed and (para.wrap_bottom or para.wrap_lines):
             if para.wrap_bottom and self.columns == 1:  # its object goes on to the next page's top: again
                 raise _BandMoves(index)

@@ -56,6 +56,9 @@ HANCOM_PAGES = {
                                                           # below its empty paragraph's line: alone at the
                                                           # next page's top, the line staying, the lines
                                                           # there reaching it below it
+    "pages_picture_pushing_its_first_line_above_the_foot": 2,  # a picture 30000 tall 1319 below a paragraph of
+                                                               # 14 pt text: its line goes below the picture,
+                                                               # which ends above the foot, and stays there
     "pages_square_picture_above_the_foot_short_lines_beside_it": 2,  # its band above the foot: short lines
                                                                      # beside it in two pieces
     "pages_square_picture_staying_short_lines_beside_it": 2,  # not flowing with the text, it stays on its
