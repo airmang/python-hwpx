@@ -218,6 +218,18 @@ HANCOM_PAGES = {
     "pages_table_cell_picture_up_second_far": 1,  # 30000 up: at its top too
     "pages_table_cell_picture_in_a_bulleted_paragraph": 1,  # alone in a bulleted paragraph: the bullet under it
     "pages_picture_alone_after_a_line": 1,  # in the body: the line on its top, the text after under it
+    # An empty paragraph 8000 down holding a table 6659 tall (outer margins 283 above and 1417 below) or a
+    # picture as tall placed top and bottom from its top, and a picture 10000 x 5000 in front of or behind the
+    # text: Hancom sets the empty line below the object (16359), as the whole width, as for a space or a label;
+    # without the floating picture on the object's top, taking no room (8000).
+    "pages_empty_paragraph_table_and_a_picture_behind_on_the_paper": 1,  # the picture placed on the paper
+    "pages_empty_paragraph_table_and_a_picture_behind_from_it": 1,  # placed from the paragraph, over the table
+    "pages_empty_paragraph_table_and_a_picture_in_front": 1,
+    "pages_empty_paragraph_picture_and_a_picture_behind": 1,  # a picture placed top and bottom
+    "pages_empty_paragraph_table_alone": 1,
+    "pages_cell_table_top_and_bottom_and_a_drawing_behind_the_text": 1,  # in a cell, a rectangle behind the
+                                                                         # text: the cell's line under the
+                                                                         # table too
     # A table set as a character (a row 1282 tall) 200 to 2000 narrower than the column (42520; 10 pt text spaced
     # 160%, a space 500 wide), spaces after it: the two right after it stay on its line wherever they start, a
     # further one starting at or past the margin goes on to the next line, the paragraph after below them:
@@ -873,16 +885,6 @@ def test_an_empty_run_before_a_cells_text_takes_no_room(name: str) -> None:
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_with_empty_runs_in_cells(data)), data, HANCOM_PAGES[name])
-
-
-def test_a_cell_table_placed_top_and_bottom_beside_a_floating_object_is_not_followed_without_caches() -> None:
-    # A cell paragraph holding a table placed top and bottom from its top and a rectangle behind the text:
-    # Hancom sets the paragraph's empty line below the table (as below two such tables), not beside it. With
-    # the caches the estimate follows the cell's lines; without them it does not.
-    data = (FIXTURES / "pages_cell_table_top_and_bottom_and_a_drawing_behind_the_text.hwpx").read_bytes()
-
-    _assert_like_hancom(estimate_pages(data), data, 1)
-    assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
 
 
 @pytest.mark.parametrize(
