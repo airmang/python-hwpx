@@ -98,8 +98,10 @@
   character alone in a paragraph of a cell is one line as tall as it
   there, spaced like the text, and a row holding one splits between its cell's lines, each as tall
   as it is; so is another object set as a character alone in a cell paragraph without a layout
-  cache, and such objects among its text, or several of them, take their place in its lines as in
-  the body; a nested table among text, placed top and bottom or wrapped square is followed through
+  cache, and such objects among its text, or several of them, tables too, take their place in its
+  lines as in the body (a table in a header, footer or note placed in a cell paragraph is laid out
+  with that, not in the cell); a nested table among text, placed top and bottom or wrapped square
+  is followed through
   the layout caches of its cell, as tall as Hancom drew it (down to such a table's foot; one placed
   up from its paragraph's top stands at that top; the caches of a row Hancom split over a page end
   start over at the next page's top, and are read as one run of lines, each line that goes back up
@@ -144,7 +146,7 @@ stays on one page with the lines above or beside it), footnotes in such a paragr
 starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor, or on a
 page in a table moved row by row (split between cell lines: a cell no line of which fits a page),
-a nested table among text, or not set as a character but one top and bottom in its paragraph,
+a nested table not set as a character but one top and bottom in its paragraph,
 before any text (two there are laid out otherwise), in a cell without such caches (in a table
 Hancom has not laid out as it is), a page break in a flowing row holding a table beside a taller
 cell, other objects placed on the page or the paper (but top and bottom from its top or bottom, a
@@ -862,6 +864,21 @@ def _drawn_lines(measure: _Measure, paragraphs: list[Any]) -> tuple[tuple[int, i
                  for height, top, nxt in zip(heights, tops, [*tops[1:], None]))
 
 
+def _holds_table(element: Any) -> bool:
+    """Whether *element* (a cell, a paragraph or a table) holds a table laid out in its text: one in a header,
+    footer or note control placed in it is laid out with that, elsewhere."""
+
+    for table in element.iter(f"{HP}tbl"):
+        if table is element:
+            continue
+        for up in table.iterancestors():
+            if up is element:
+                return True
+            if _local(up) == "ctrl":
+                break
+    return False
+
+
 def _down(pos: Any) -> int:
     """How far below its paragraph's top an object placed from there stands: one offset up (a negative
     offset, which the file keeps as an unsigned 32-bit number) stands at the paragraph's top."""
@@ -872,15 +889,16 @@ def _down(pos: Any) -> int:
 
 def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
     paragraphs = cell.findall(f"{HP}subList/{HP}p")
-    nested = cell.find(f".//{HP}tbl") is not None
+    nested = _holds_table(cell)
     drawn: tuple[tuple[int, int], ...] = ()
-    if nested and any(paragraph.find(f".//{HP}tbl") is not None
-                      and _table_alone(paragraph.findall(f"{HP}run")) is None for paragraph in paragraphs):
+    if nested and any(_holds_table(paragraph) and _table_alone(paragraph.findall(f"{HP}run")) is None
+                      for paragraph in paragraphs):
         drawn = _drawn_lines(measure, paragraphs)  # among text, or not set as a character: as Hancom drew it
         if not drawn and not all(_table_on_its_own(paragraph)
                                  or _table_before_text(paragraph.findall(f"{HP}run")) is not None
+                                 or _objects_among(paragraph.findall(f"{HP}run"))  # laid out as in the body
                                  for paragraph in paragraphs
-                                 if paragraph.find(f".//{HP}tbl") is not None
+                                 if _holds_table(paragraph)
                                  and _table_alone(paragraph.findall(f"{HP}run")) is None):
             raise _Unsupported("a nested table")
     elif any(_placed_from(paragraph) for paragraph in paragraphs):  # an object placed from a paragraph: the
@@ -1143,7 +1161,7 @@ def _inline_table_height(measure: _Measure, table: Any) -> int:
     it keeps a valid layout cache, Hancom laid it out as it is, and the height it saved (hp:sz) is the height
     it draws."""
 
-    if table.find(f".//{HP}tbl") is not None or any(_row_span(tc) != 1 for tc in table.iter(f"{HP}tc")):
+    if _holds_table(table) or any(_row_span(tc) != 1 for tc in table.iter(f"{HP}tc")):
         paragraphs = list(table.iter(f"{HP}p"))
         if paragraphs and all(_cache_lines(paragraph) for paragraph in paragraphs):
             return int(table.find(f"{HP}sz").get("height", 0))
