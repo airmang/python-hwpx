@@ -153,6 +153,17 @@ HANCOM_PAGES = {
                                                       # rows: its room cut at each page end, 10 rows after
     "pages_joined_rows_over_pages_empty_declared_cell": 3,  # an empty cell over 8 rows declared 75000 tall
                                                             # after 36 lines: cut over three pages
+    # A table whose cells of a column are not all as wide (``hp:cellSz``), every cell declared 282 tall so that
+    # its lines make its row (10 pt 함초롬바탕, "가" 972 wide), then three lines of text: Hancom lays a cell out
+    # on the table's grid, its columns stacked from the left, each as wide as its widest cell of its own, and a
+    # merged cell wider than its columns widening the last of them:
+    "pages_table_column_as_wide_as_its_widest_cell": 1,  # 30000, 32000 and 31000 wide: the first's 31
+                                                         # characters on one line
+    "pages_table_column_of_equal_cells": 1,  # all 30000: on two lines
+    "pages_table_columns_stacked_from_the_left": 1,  # rows of 8000 and 30000, 7683 and 30500: both second
+                                                     # cells 30500 wide, 31 characters on one line
+    "pages_table_merged_cell_widening_its_last_column": 1,  # 10000 and 20000 below a merged 31000: the
+                                                            # second 21000 wide, 21 characters on one line
     # Rows 1-5 joined by a cell merged down them (4 lines), declared taller than their text, the page end
     # falling among them:
     "pages_joined_rows_declared_rest_with_a_line": 2,  # in row 1: its rest is the line going on with the
@@ -930,6 +941,22 @@ def test_the_evaluation_plan_form_lays_out_like_hancom_without_caches() -> None:
 
     _assert_like_hancom(estimate_pages(data), data, 15)
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 15)
+
+
+@pytest.mark.parametrize("name", ["pages_table_with_cell_spacing", "pages_table_without_cell_spacing"])
+def test_a_table_with_cell_spacing_lays_its_cells_out_at_their_own_widths(name: str) -> None:
+    # A table 46196 wide: one cell over its three columns, then cells of 15000, 21000 and 9800 with a cell
+    # spacing of 198 (10196 without it), the last holding ten "가" (9720), every cell declared 282 tall. With
+    # the spacing the second row's cells add up to the first row's, and Hancom lays each cell out at its own
+    # width: the ten characters on two lines (one line without the spacing). The height it saved is its rows'
+    # and the spacing above, between and below them.
+    doc = HwpxDocument.open(_without_caches((FIXTURES / f"{name}.hwpx").read_bytes()))
+    table = next(doc.oxml.sections[0].element.iter(f"{HP}tbl"))
+    rows = page_layout._rows(page_layout._Measure(getattr(doc, "_root")), table)
+    spacing = int(table.get("cellSpacing"))
+
+    assert [row.lines for row in rows] == [1, 2 if spacing else 1]
+    assert sum(row.height for row in rows) + (len(rows) + 1) * spacing == int(table.find(f"{HP}sz").get("height"))
 
 
 def test_a_table_set_not_to_split_taller_than_a_page_takes_the_next_one() -> None:
