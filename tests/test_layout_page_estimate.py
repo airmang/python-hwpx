@@ -40,6 +40,27 @@ HANCOM_PAGES = {
     "pages_square_band_table_as_character_among_text": 2,  # a table 47058 wide
     "pages_square_band_narrow_table_as_character_among_text": 1,  # 5000 wide
     "pages_square_band_picture_as_character_among_text": 1,  # a picture 47058 x 5000
+    # A picture 20000 x 27112 wrapped square in the middle of the column (10 pt text spaced 160%), flowing with
+    # the text, its band past the body's foot: Hancom sets it alone at the next page's body top, whatever its
+    # offset, the lines of its own page the whole width and the lines on the next page whose top is above its
+    # foot beside it, in two pieces:
+    "pages_square_picture_moved_to_the_next_page": 2,  # short lines beside it there, each ending in its first
+                                                       # piece: the second one empty
+    "pages_square_picture_moved_text_going_on_beside_it": 3,  # a paragraph going on to the next page
+    "pages_square_picture_moved_at_the_left": 3,  # at the column's left: the lines one piece on its right
+    "pages_square_picture_moved_its_paragraph_going_on": 2,  # its own paragraph going on beside it
+    "pages_square_picture_moved_from_8000_down": 3,  # placed 8000 down from its paragraph: at the top too
+    "pages_square_table_not_split_moved_to_the_next_page": 3,  # a table of six rows at the column's left,
+                                                                # set not to split: the same
+    "pages_picture_1319_down_moved_to_the_next_page": 3,  # a picture 8000 tall placed top and bottom 1319
+                                                          # below its empty paragraph's line: alone at the
+                                                          # next page's top, the line staying, the lines
+                                                          # there reaching it below it
+    "pages_square_picture_above_the_foot_short_lines_beside_it": 2,  # its band above the foot: short lines
+                                                                     # beside it in two pieces
+    "pages_square_picture_staying_short_lines_beside_it": 2,  # not flowing with the text, it stays on its
+                                                              # page: the empty line of its paragraph and
+                                                              # short lines beside it, in two pieces
     "pages_square_band_table_as_character_below_a_short_band": 1,  # the picture 5000 tall: the table's line
                                                                    # comes after the band anyway
     "pages_fixed_width_spaces": 2,  # rows of a syllable and a fixed-width space: a quarter em that hangs
@@ -1144,23 +1165,27 @@ def test_a_page_break_in_a_row_holding_a_table_beside_a_taller_cell_is_unsupport
 
 
 @pytest.mark.parametrize(
-    "name",
+    ("name", "followed"),
     [
-        "pages_picture_square_past_the_page_foot",  # its paragraph's three lines the page's last
-        "pages_picture_square_past_the_page_foot_mid_paragraph",  # its paragraph's first line the page's last
-        "pages_table_square_past_the_page_foot",  # a table wrapped square alone in its paragraph
+        ("pages_picture_square_past_the_page_foot", True),  # its paragraph's three lines the page's last
+        ("pages_picture_square_past_the_page_foot_mid_paragraph", True),  # its first line the page's last
+        ("pages_table_square_past_the_page_foot", False),  # a table wrapped square alone in its paragraph
     ],
 )
-def test_a_square_object_past_the_page_foot_moves_no_line_keeping_its_cache(name: str) -> None:
-    # A picture or table wrapped square from its paragraph's top, 8000 tall, its band past the body's
-    # foot: Hancom sets it alone at the next page's top, the lines beside it there narrower and the lines
-    # left above the foot as wide as the column. It takes no line's height, so the lines keeping their
-    # caches stay where the caches put them; without the caches, where each line breaks is not followed.
+def test_a_square_object_past_the_page_foot_goes_on_at_the_next_page(name: str, followed: bool) -> None:
+    # A picture wrapped square from its paragraph's top, 8000 tall, its band past the body's foot: Hancom
+    # sets it alone at the next page's top, the lines beside it there narrower and the lines left above the
+    # foot as wide as the column. With the caches the lines stay where the caches put them; without them
+    # they are broken again beside it there. A table wrapped square is split over the page end instead, its
+    # band going on at the next page's top: not followed without the caches.
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, 2)
-    assert estimate_pages(_without_caches(data)).unsupported == (
-        "section 0: a square-wrapped or offset top-and-bottom object past the page foot",)
+    if followed:
+        _assert_like_hancom(estimate_pages(_without_caches(data)), data, 2)
+    else:
+        assert estimate_pages(_without_caches(data)).unsupported == (
+            "section 0: a square-wrapped or offset top-and-bottom object past the page foot",)
 
 
 def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_is_unsupported() -> None:
