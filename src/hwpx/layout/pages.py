@@ -1186,22 +1186,22 @@ def _placed_top_and_bottom(obj: Any) -> bool:
 
 
 def _table_on_its_own(paragraph: Any) -> bool:
-    """Whether a cell paragraph holds no text and nothing but one table placed top and bottom from its top
-    (Hancom sets the empty line below two of them, not beside them)."""
+    """Whether a cell paragraph holds no text, not even a space, and nothing but one table placed top and
+    bottom from its top (Hancom sets the empty line below two of them, not beside them)."""
 
     runs = paragraph.findall(f"{HP}run")
     objects = [child for run in runs for child in run if _local(child) in _OBJECTS]
-    return not _run_text(runs).strip() and len(objects) == 1 and _local(objects[0]) == "tbl" \
+    return not _run_text(runs) and len(objects) == 1 and _local(objects[0]) == "tbl" \
         and _placed_top_and_bottom(objects[0])
 
 
 def _table_before_text(runs: list[Any]) -> Any:
     """The table placed top and bottom from its paragraph's top that is all the runs hold but text after it
-    (text), or ``None``."""
+    (text, a space being enough), or ``None``."""
 
     objects = [child for run in runs for child in run if _local(child) in _OBJECTS]
     if len(objects) != 1 or _local(objects[0]) != "tbl" or not _placed_top_and_bottom(objects[0]) \
-            or not _run_text(runs).strip():
+            or not _run_text(runs):
         return None
     for child in (child for run in runs for child in run):
         if child is objects[0]:
@@ -1467,11 +1467,12 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored
 
 
 def _anchored_object(objects: list[Any], text: str, column: int) -> Any:
-    """The one object not set as a character of a paragraph of text or of objects set as characters that
-    is placed top and bottom from the paragraph's top (offset 0), or ``None``."""
+    """The one object not set as a character of a paragraph of text (a space is text: its line goes below the
+    object) or of objects set as characters that is placed top and bottom from the paragraph's top (offset
+    0), or ``None``."""
 
     placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
-    if len(placed) != 1 or not (text.strip() or len(objects) > 1):
+    if len(placed) != 1 or not (text or len(objects) > 1):
         return None
     obj = placed[0]
     pos = obj.find(f"{HP}pos")
