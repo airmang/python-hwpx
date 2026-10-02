@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 바꿈
+
+- `import hwpx`가 HWP 5.0 모듈(`hwpx.hwp5`)을 읽지 않는다. `.hwp`를 열거나 HWP 5.0으로 저장할 때
+  처음 읽는다. `Hwp5Error`·`Hwp5ConversionWarning`은 이제 `hwpx.errors`에 있고, `hwpx`와
+  `hwpx.hwp5.errors`는 같은 클래스를 내보낸다.
+
 ### 고침
 
 - 쪽 수 추정(실험, `estimate_pages`)이 글과 함께 움직이는 어울림(SQUARE) 그림·도형이 본문 바닥을 넘을 때, 줄 캐시가

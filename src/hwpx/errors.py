@@ -111,6 +111,32 @@ class HwpxStateError(HwpxError, RuntimeError):
     default_code = "hwpx-state-error"
 
 
+# Hwp5Error and Hwp5ConversionWarning live here rather than in hwpx.hwp5.errors
+# (which re-exports them) so that ``import hwpx`` exposes them without loading the
+# HWP 5.0 package; that package loads only when a .hwp is read or written.
+
+
+class Hwp5Error(HwpxError, ValueError):
+    """An HWP 5.0 document cannot be read or written.
+
+    ``code`` names the reason: ``hwp5-damaged`` (the container or its records
+    are broken), ``hwp5-password``, ``hwp5-distribution`` and ``hwp5-drm`` (the
+    body is encrypted), ``hwp5-not-hwp5`` (a compound file without an HWP 5.0
+    file header), ``hwp5-version-unsupported``, ``hwp5-limit-exceeded`` (the
+    input exceeds a parsing limit) and ``hwp5-write-unsupported`` (the document
+    holds content the HWP 5.0 writer cannot express).
+    """
+
+    default_code = "hwp5-damaged"
+
+
+class Hwp5ConversionWarning(UserWarning):
+    """Opening an ``.hwp`` left content out of the document model.
+
+    The message names each kind that was not converted and how often.
+    """
+
+
 #: The kebab-case ``HwpxError.code`` vocabulary. Codes are ``<domain>-<condition>``
 #: where the domain names a surface area (the 6.0 namespaces plus the package-level
 #: concerns). This is deliberately **not** unified with the SCREAMING_SNAKE codes in
@@ -379,6 +405,8 @@ __all__ = [
     "ERROR_CODES",
     "GRANDFATHERED_CODES",
     "ERROR_CODE_DOMAINS",
+    "Hwp5ConversionWarning",
+    "Hwp5Error",
     "HwpxError",
     "HwpxLookupError",
     "HwpxStateError",

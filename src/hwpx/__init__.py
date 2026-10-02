@@ -386,8 +386,7 @@ from .tools.package_validator import (
     validate_package,
 )
 from .ingest import HwpxMarkdownConverter
-from .errors import HwpxError
-from .hwp5.errors import Hwp5ConversionWarning, Hwp5Error
+from .errors import Hwp5ConversionWarning, Hwp5Error, HwpxError
 from .mutation_report import (
     MutationReport,
     PreservationDowngradeError,

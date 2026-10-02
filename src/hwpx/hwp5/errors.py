@@ -7,28 +7,18 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from ..errors import HwpxError
+# Defined in hwpx.errors so that ``import hwpx`` does not load this package;
+# re-exported here as the same objects.
+from ..errors import Hwp5ConversionWarning, Hwp5Error
 
-
-class Hwp5Error(HwpxError, ValueError):
-    """An HWP 5.0 document cannot be read or written.
-
-    ``code`` names the reason: ``hwp5-damaged`` (the container or its records
-    are broken), ``hwp5-password``, ``hwp5-distribution`` and ``hwp5-drm`` (the
-    body is encrypted), ``hwp5-not-hwp5`` (a compound file without an HWP 5.0
-    file header), ``hwp5-version-unsupported``, ``hwp5-limit-exceeded`` (the
-    input exceeds a parsing limit) and ``hwp5-write-unsupported`` (the document
-    holds content the HWP 5.0 writer cannot express).
-    """
-
-    default_code = "hwp5-damaged"
-
-
-class Hwp5ConversionWarning(UserWarning):
-    """Opening an ``.hwp`` left content out of the document model.
-
-    The message names each kind that was not converted and how often.
-    """
+__all__ = [
+    "Hwp5ConversionReport",
+    "Hwp5ConversionWarning",
+    "Hwp5Error",
+    "damaged",
+    "limit_exceeded",
+    "write_unsupported",
+]
 
 
 @dataclass(frozen=True)
