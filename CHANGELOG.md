@@ -13,6 +13,10 @@
   않는다. `hwpx.TextExtractor`·`hwpx.doc_diff`·`hwpx.validate_package`처럼 `hwpx.tools`에 사는
   이름은 처음 쓸 때 경고 없이 읽고, 같은 객체다. 위 `hwpx.hwp5`와 합쳐 `import hwpx`가 읽는
   hwpx 모듈은 117개에서 97개로 준다. 저장은 여전히 처음 저장할 때 패키지 검증 도구를 읽는다.
+- `hwpx.tools`도 공개 이름과 하위 모듈을 처음 쓸 때 읽는다. 첫 저장은 패키지·문서 검증기만
+  읽고, 내보내기·뷰어·문서 비교·메일 머지 등은 읽지 않는다. 기존 import·객체·타입 정보와
+  `doc_diff` 함수 이름을 유지한다. HWPX Markdown 변환기의 배포판 버전 조회도 변환 시점으로
+  미뤄, `import hwpx`가 `importlib.metadata`를 읽지 않는다(#386).
 
 ### 고침
 
