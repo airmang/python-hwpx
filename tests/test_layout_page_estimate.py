@@ -52,6 +52,23 @@ HANCOM_PAGES = {
     "pages_square_picture_moved_from_8000_down": 3,  # placed 8000 down from its paragraph: at the top too
     "pages_square_table_not_split_moved_to_the_next_page": 3,  # a table of six rows at the column's left,
                                                                 # set not to split: the same
+    # A table wrapped square at the column's left (rows of two columns, 10 pt text spaced 160%), flowing with
+    # the text and allowed to split, its band past the body's foot: Hancom splits it over the page end as a
+    # flowing table, and the lines on each page it reaches go beside its part there:
+    "pages_square_table_split_between_cell_lines": 3,  # 15000 wide, split between the lines of a row of four
+    "pages_square_table_split_in_a_merged_cell": 3,  # the same through a cell merged over three rows
+    "pages_square_table_split_over_three_pages": 3,  # 25 rows: all the lines of the page it fills beside it
+    "pages_square_table_1548_down_split": 3,  # placed 1548 down: its paragraph's line above it the whole width
+    "pages_square_table_split_text_on_both_sides": 3,  # in the middle: the lines in two pieces
+    "pages_square_table_wide_split_text_beside_it": 2,  # 45626 wide, 2562 left beside it: two characters a
+                                                        # line there
+    # A table 30000 x 20000 wrapped square at the column's left from its paragraph 8000 down (10 pt text spaced
+    # 160%), its control after 16 characters, on the paragraph's first line laid out the column's whole width:
+    # Hancom places it from the paragraph's top as one before the text, the lines reaching it beside it:
+    "pages_square_table_after_text": 1,  # the paragraph's own lines beside it, 12 characters a line
+    "pages_square_table_after_text_2383_down": 1,  # placed 2383 down: the paragraph's line above it the
+                                                   # whole width, the paragraphs after beside it
+    "pages_square_table_before_text": 1,  # its control before the text: the same
     "pages_picture_1319_down_moved_to_the_next_page": 3,  # a picture 8000 tall placed top and bottom 1319
                                                           # below its empty paragraph's line: alone at the
                                                           # next page's top, the line staying, the lines
@@ -143,6 +160,17 @@ HANCOM_PAGES = {
                                                       # rows: its room cut at each page end, 10 rows after
     "pages_joined_rows_over_pages_empty_declared_cell": 3,  # an empty cell over 8 rows declared 75000 tall
                                                             # after 36 lines: cut over three pages
+    # A table whose cells of a column are not all as wide (``hp:cellSz``), every cell declared 282 tall so that
+    # its lines make its row (10 pt 함초롬바탕, "가" 972 wide), then three lines of text: Hancom lays a cell out
+    # on the table's grid, its columns stacked from the left, each as wide as its widest cell of its own, and a
+    # merged cell wider than its columns widening the last of them:
+    "pages_table_column_as_wide_as_its_widest_cell": 1,  # 30000, 32000 and 31000 wide: the first's 31
+                                                         # characters on one line
+    "pages_table_column_of_equal_cells": 1,  # all 30000: on two lines
+    "pages_table_columns_stacked_from_the_left": 1,  # rows of 8000 and 30000, 7683 and 30500: both second
+                                                     # cells 30500 wide, 31 characters on one line
+    "pages_table_merged_cell_widening_its_last_column": 1,  # 10000 and 20000 below a merged 31000: the
+                                                            # second 21000 wide, 21 characters on one line
     # Rows 1-5 joined by a cell merged down them (4 lines), declared taller than their text, the page end
     # falling among them:
     "pages_joined_rows_declared_rest_with_a_line": 2,  # in row 1: its rest is the line going on with the
@@ -182,6 +210,12 @@ HANCOM_PAGES = {
     "pages_picture_alone_in_a_bulleted_paragraph": 1,  # a bullet is text: the line under the picture
     "pages_picture_alone_in_a_numbered_paragraph": 1,  # so is a number
     "pages_table_alone_in_a_bulleted_paragraph": 1,
+    # The same 60762 down (10 pt text spaced 160%), the table (rows 8000, 1282 and 1282 tall) not starting
+    # there: it starts at the next page's top, the paragraph's line staying, a space after the table or not,
+    # and the text after goes on under that line.
+    "pages_table_then_nothing_starting_on_the_next_page": 2,
+    "pages_table_then_a_space_starting_on_the_next_page": 2,
+    "pages_table_not_split_then_a_space_starting_on_the_next_page": 2,  # set not to split: the same
     # A cell of a flowing table, a picture 20000 x 10000 placed top and bottom from a paragraph of it:
     "pages_table_cell_picture_first": 1,  # alone in the first: the line on its top, the row as tall as it
     "pages_table_cell_picture_second": 1,  # alone in the second, after a line: from that paragraph's top
@@ -191,6 +225,18 @@ HANCOM_PAGES = {
     "pages_table_cell_picture_up_second_far": 1,  # 30000 up: at its top too
     "pages_table_cell_picture_in_a_bulleted_paragraph": 1,  # alone in a bulleted paragraph: the bullet under it
     "pages_picture_alone_after_a_line": 1,  # in the body: the line on its top, the text after under it
+    # An empty paragraph 8000 down holding a table 6659 tall (outer margins 283 above and 1417 below) or a
+    # picture as tall placed top and bottom from its top, and a picture 10000 x 5000 in front of or behind the
+    # text: Hancom sets the empty line below the object (16359), as the whole width, as for a space or a label;
+    # without the floating picture on the object's top, taking no room (8000).
+    "pages_empty_paragraph_table_and_a_picture_behind_on_the_paper": 1,  # the picture placed on the paper
+    "pages_empty_paragraph_table_and_a_picture_behind_from_it": 1,  # placed from the paragraph, over the table
+    "pages_empty_paragraph_table_and_a_picture_in_front": 1,
+    "pages_empty_paragraph_picture_and_a_picture_behind": 1,  # a picture placed top and bottom
+    "pages_empty_paragraph_table_alone": 1,
+    "pages_cell_table_top_and_bottom_and_a_drawing_behind_the_text": 1,  # in a cell, a rectangle behind the
+                                                                         # text: the cell's line under the
+                                                                         # table too
     # A table set as a character (a row 1282 tall) 200 to 2000 narrower than the column (42520; 10 pt text spaced
     # 160%, a space 500 wide), spaces after it: the two right after it stay on its line wherever they start, a
     # further one starting at or past the margin goes on to the next line, the paragraph after below them:
@@ -705,6 +751,42 @@ def test_a_typed_ideographic_space_is_not_a_fixed_width_one() -> None:
     assert (len(cells), typed) == (30, 22)
 
 
+def _with_wider_tables_set_as_characters(data: bytes, wider: int) -> bytes:
+    """*data* with every table set as a character *wider* wider (narrower when negative)."""
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                root = etree.fromstring(payload)
+                for table in root.iter(f"{HP}tbl"):
+                    if table.find(f"{HP}pos").get("treatAsChar") == "1":
+                        size = table.find(f"{HP}sz")
+                        size.set("width", str(int(size.get("width")) + wider))
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+    return out.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("name", "wider"),
+    [
+        ("pages_table_as_character_2000_short_then_three_spaces", 1800),  # one line: 200 short, the third space
+                                                                          # would go on to a line of its own
+        ("pages_table_cell_table_as_character_300_short_then_three_spaces", -2000),  # two lines in a cell: 2300
+                                                                                    # short, all would fit
+    ],
+)
+def test_a_paragraph_of_an_object_and_spaces_keeps_its_cached_lines(name: str, wider: int) -> None:
+    # A table set as a character and three spaces after it in its paragraph, laid out by Hancom, then the
+    # table made wider or narrower: with the caches the paragraph keeps Hancom's lines, as Hancom does when
+    # it opens the file, whatever FormFit would make of the new width.
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(_with_wider_tables_set_as_characters(data, wider)), data, 1)
+
+
 def test_a_header_wrapped_square_with_room_beside_it_is_not_followed() -> None:
     # The exam header 3000 narrower: a line fits beside it, and the lines reaching it are not followed.
     out = io.BytesIO()
@@ -812,16 +894,6 @@ def test_an_empty_run_before_a_cells_text_takes_no_room(name: str) -> None:
     _assert_like_hancom(estimate_pages(_with_empty_runs_in_cells(data)), data, HANCOM_PAGES[name])
 
 
-def test_a_cell_table_placed_top_and_bottom_beside_a_floating_object_is_not_followed_without_caches() -> None:
-    # A cell paragraph holding a table placed top and bottom from its top and a rectangle behind the text:
-    # Hancom sets the paragraph's empty line below the table (as below two such tables), not beside it. With
-    # the caches the estimate follows the cell's lines; without them it does not.
-    data = (FIXTURES / "pages_cell_table_top_and_bottom_and_a_drawing_behind_the_text.hwpx").read_bytes()
-
-    _assert_like_hancom(estimate_pages(data), data, 1)
-    assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
-
-
 @pytest.mark.parametrize(
     ("fixture", "pages"),
     [
@@ -878,6 +950,22 @@ def test_the_evaluation_plan_form_lays_out_like_hancom_without_caches() -> None:
 
     _assert_like_hancom(estimate_pages(data), data, 15)
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 15)
+
+
+@pytest.mark.parametrize("name", ["pages_table_with_cell_spacing", "pages_table_without_cell_spacing"])
+def test_a_table_with_cell_spacing_lays_its_cells_out_at_their_own_widths(name: str) -> None:
+    # A table 46196 wide: one cell over its three columns, then cells of 15000, 21000 and 9800 with a cell
+    # spacing of 198 (10196 without it), the last holding ten "가" (9720), every cell declared 282 tall. With
+    # the spacing the second row's cells add up to the first row's, and Hancom lays each cell out at its own
+    # width: the ten characters on two lines (one line without the spacing). The height it saved is its rows'
+    # and the spacing above, between and below them.
+    doc = HwpxDocument.open(_without_caches((FIXTURES / f"{name}.hwpx").read_bytes()))
+    table = next(doc.oxml.sections[0].element.iter(f"{HP}tbl"))
+    rows = page_layout._rows(page_layout._Measure(getattr(doc, "_root")), table)
+    spacing = int(table.get("cellSpacing"))
+
+    assert [row.lines for row in rows] == [1, 2 if spacing else 1]
+    assert sum(row.height for row in rows) + (len(rows) + 1) * spacing == int(table.find(f"{HP}sz").get("height"))
 
 
 def test_a_table_set_not_to_split_taller_than_a_page_takes_the_next_one() -> None:
@@ -1183,6 +1271,16 @@ def test_a_table_whose_row_addresses_skip_is_estimated_without_the_missing_rows(
     assert estimate.pages == 1
 
 
+def test_a_square_object_after_text_past_the_first_line_is_not_followed() -> None:
+    # The same table, its control after 60 characters: on the paragraph's second line laid out the column's
+    # whole width. Hancom places it from that line's top (9600), the lines from there on beside it. Not
+    # followed.
+    data = (FIXTURES / "pages_square_table_after_text_on_the_second_line.hwpx").read_bytes()
+
+    assert estimate_pages(data).unsupported == ("section 0: tbl wrapped square after text",)
+    assert estimate_pages(_without_caches(data)).unsupported == ("section 0: tbl wrapped square after text",)
+
+
 def test_a_page_break_in_a_row_holding_a_table_beside_a_taller_cell_is_unsupported() -> None:
     # Row 1's cell (1, 0) holds more lines than the cell beside it holding a table; the page end falls
     # among them.
@@ -1197,27 +1295,23 @@ def test_a_page_break_in_a_row_holding_a_table_beside_a_taller_cell_is_unsupport
 
 
 @pytest.mark.parametrize(
-    ("name", "followed"),
+    "name",
     [
-        ("pages_picture_square_past_the_page_foot", True),  # its paragraph's three lines the page's last
-        ("pages_picture_square_past_the_page_foot_mid_paragraph", True),  # its first line the page's last
-        ("pages_table_square_past_the_page_foot", False),  # a table wrapped square alone in its paragraph
+        "pages_picture_square_past_the_page_foot",  # its paragraph's three lines the page's last
+        "pages_picture_square_past_the_page_foot_mid_paragraph",  # its first line the page's last
+        "pages_table_square_past_the_page_foot",  # a table wrapped square alone in its paragraph
     ],
 )
-def test_a_square_object_past_the_page_foot_goes_on_at_the_next_page(name: str, followed: bool) -> None:
+def test_a_square_object_past_the_page_foot_goes_on_at_the_next_page(name: str) -> None:
     # A picture wrapped square from its paragraph's top, 8000 tall, its band past the body's foot: Hancom
     # sets it alone at the next page's top, the lines beside it there narrower and the lines left above the
-    # foot as wide as the column. With the caches the lines stay where the caches put them; without them
-    # they are broken again beside it there. A table wrapped square is split over the page end instead, its
-    # band going on at the next page's top: not followed without the caches.
+    # foot as wide as the column. A table wrapped square is split over the page end instead, its band going
+    # on at the next page's top as tall as what is left of it. With the caches the lines stay where the
+    # caches put them; without them they are broken again beside it there.
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, 2)
-    if followed:
-        _assert_like_hancom(estimate_pages(_without_caches(data)), data, 2)
-    else:
-        assert estimate_pages(_without_caches(data)).unsupported == (
-            "section 0: a square-wrapped or offset top-and-bottom object past the page foot",)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 2)
 
 
 def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_is_unsupported() -> None:

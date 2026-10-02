@@ -33,6 +33,7 @@ __all__ = [
     "set_cell_margins",
     "effective_cell_margin_source",
     "set_column_widths",
+    "grid_widths_of",
 ]
 
 _MARGIN_SIDES = ("left", "right", "top", "bottom")
@@ -302,6 +303,34 @@ def cell_margins_of(cell_element: Any, table_element: Any | None) -> CellMargins
     if source is None:
         return None
     return CellMargins(*(_margin_value(source.get(side)) for side in _MARGIN_SIDES))
+
+
+def grid_widths_of(table_element: Any) -> dict[Any, int]:
+    """Each ``hp:tc`` of a raw ``hp:tbl`` element and its width on the table's column grid, as Hancom lays its
+    text out (the page estimate and form fit read it). From the left, each column starts at the farthest of the
+    ends its cells to the left reach (a cell's start plus its ``hp:cellSz`` width and the table's cell spacing):
+    a column is as wide as its widest cell of its own, and a merged cell wider than its columns widens the last
+    of them. A cell reaches from its first column's start to its last column's end, wider than its own width
+    when another row's cells push those ends apart. Empty for a table whose cells give no column starts to
+    stand on."""
+
+    spacing = int(table_element.get("cellSpacing", 0) or 0)
+    places: dict[Any, tuple[int, int, int]] = {}  # cell: (first column, column after its last, width)
+    for tc in (tc for tr in table_element.findall(f"{_HP}tr") for tc in tr.findall(f"{_HP}tc")):
+        address, span = tc.find(f"{_HP}cellAddr"), tc.find(f"{_HP}cellSpan")
+        if address is None:
+            return {}
+        first = int(address.get("colAddr", 0))
+        places[tc] = (first, first + (1 if span is None else int(span.get("colSpan", 1))),
+                      int(tc.find(f"{_HP}cellSz").get("width", 0)))
+    starts = {0: 0}
+    for end in sorted({stop for _, stop, _ in places.values()}):
+        reach = [starts[first] + width + spacing for first, stop, width in places.values()
+                 if stop == end and first in starts]
+        if not reach:
+            return {}
+        starts[end] = max(reach)
+    return {tc: starts[stop] - starts[first] - spacing for tc, (first, stop, _) in places.items() if first in starts}
 
 
 def _margin_value(raw: str | None) -> int:

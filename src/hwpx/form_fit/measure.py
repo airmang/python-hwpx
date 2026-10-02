@@ -34,7 +34,7 @@ from fractions import Fraction
 from functools import lru_cache
 from typing import Any, Literal
 
-from ..oxml.table_sizes import cell_margins_of
+from ..oxml.table_sizes import cell_margins_of, grid_widths_of
 from ._glyph_table import ADVANCES, FALLBACK, UNITS_PER_EM
 
 # Advance width as a fraction of the em (font height in HWPUNIT). Hangul/wide are
@@ -882,7 +882,7 @@ class SlotMetrics:
     available_width: float          # usable inner width after margins + safety
     font_pt: float
     max_lines: int = 1
-    raw_width: float | None = None  # cellSz.width before margins (diagnostics)
+    raw_width: float | None = None  # the cell's width on the table grid before margins (diagnostics)
     source: str = "cell"
     # Vertical budget. ``available_height`` is the usable inner height (HWPUNIT)
     # after top/bottom cell margins + the safety inset. ``None`` means the vertical
@@ -1198,6 +1198,19 @@ def _local_name(tag: object) -> str:
     return str(tag).rsplit("}", 1)[-1]
 
 
+def _grid_width(cell: object) -> float:
+    """The cell's width on its table's column grid, as Hancom lays its text out: wider than its own
+    ``hp:cellSz`` when another row's cells push its columns' ends apart (see
+    :func:`hwpx.oxml.table_sizes.grid_widths_of`); its own width without a table to read."""
+
+    own = float(getattr(cell, "width", 0) or 0)
+    element = getattr(cell, "element", None)
+    table_element = getattr(getattr(cell, "table", None), "element", None)
+    if element is None or table_element is None:
+        return own
+    return float(grid_widths_of(table_element).get(element, own))
+
+
 def _effective_cell_margins(cell: object) -> tuple[int, int, int, int]:
     """(left, right, top, bottom) the cell is laid out with, as ``cell.margins`` reads them.
 
@@ -1491,7 +1504,9 @@ def resolve_slot_metrics(
 ) -> SlotMetrics:
     """Build :class:`SlotMetrics` from a live table cell.
 
-    ``available_width = max(cellSz.width - margin.L - margin.R, MIN_LINE_WIDTH) * safety``,
+    ``available_width = max(width - margin.L - margin.R, MIN_LINE_WIDTH) * safety``, the width being the
+    cell's on the table's column grid (its ``cellSz.width`` unless another row's cells push its columns' ends
+    apart, see :func:`hwpx.oxml.table_sizes.grid_widths_of`),
     where the margins are the cell's effective ones (``cell.margins``: the
     table's ``hp:inMargin`` unless ``hasMargin`` is on) —
     verified against Hancom's own ``lineSeg/@horzsize`` (±10 HWPUNIT on 82% of
@@ -1543,7 +1558,7 @@ def _cell_slot(
 ) -> SlotMetrics:
     """The width, font and text style of a cell's slot, without a height budget."""
 
-    raw_width = float(getattr(cell, "width", 0) or 0)
+    raw_width = _grid_width(cell)
     element = getattr(cell, "element", None)
     left, right, _top, _bottom = _effective_cell_margins(cell)
     line = max(raw_width - left - right, 0.0) * safety
