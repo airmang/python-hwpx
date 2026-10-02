@@ -1110,6 +1110,9 @@ class _Para:
     hides: bool = False
     #: its lines are Hancom's own, from the paragraph's valid layout cache
     kept: bool = False
+    #: an object anchored in this paragraph holding nothing else but spaces on one line: a table of it starting
+    #: on the next page goes there as when the paragraph holds it alone, the paragraph's line staying
+    spaced: bool = False
     #: the top-and-bottom objects stacked in this paragraph, which holds nothing else (see :func:`_stack`)
     stack: tuple[_Stacked, ...] = ()
     #: a square-wrapped object anchored here and flowing with the text went past the body's foot: Hancom sets
@@ -1911,6 +1914,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
                  paragraph.get("pageBreak") == "1",
                  paragraph.get("columnBreak") == "1", table, notes, cached, anchor, wrap_anchor=around,
                  hides=page.hide_empty and _holds_nothing(runs))
+    if anchored is not None and text and not text.strip(" ") and para.lines == 1:
+        para = replace(para, spaced=True)
     if reflow and text:
         again = _Reflow(measure, text, tuple(sizes), None if looks is None else tuple(looks), style, shape)
         return again.at(para, page.column_width, 0)
@@ -2805,6 +2810,9 @@ class _Paginator:
         if anchor.table is not None:
             table = anchor.table
             later = _starts_later(table, top + table.above, self.body)
+            if later and para.spaced and not head.lines:  # spaces only: as the table alone in its paragraph
+                self._flow(replace(para, anchor=None, table=table), table, start)
+                return
             if table.mode == "NONE" and not head.lines and top != self.reserved.get(self.frame, 0) + para.prev \
                     and (later or top + table.above + sum(row.height for row in table.rows) + table.below
                          + tail.height(0) > self.body):  # set not to split: it goes on with the line below it
