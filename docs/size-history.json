@@ -1,0 +1,89 @@
+{
+ "schemaVersion": "python-hwpx.size-history/v1",
+ "releases": [
+  {
+   "version": "5.0.1",
+   "commit": "c73bf04",
+   "totalLines": 36244,
+   "packages": {
+    ".": 6286,
+    "_document": 2685,
+    "equation": 771,
+    "form_fit": 1459,
+    "ingest": 383,
+    "layout": 541,
+    "opc": 1523,
+    "oxml": 11668,
+    "quality": 1173,
+    "tools": 9755
+   },
+   "importedModules": 70,
+   "importMs": 58
+  },
+  {
+   "version": "6.0.0",
+   "commit": "ee0e903",
+   "totalLines": 45311,
+   "packages": {
+    ".": 6333,
+    "_document": 7793,
+    "equation": 1248,
+    "form_fit": 1459,
+    "ingest": 383,
+    "layout": 555,
+    "objects": 717,
+    "opc": 1536,
+    "oxml": 13390,
+    "plan": 900,
+    "quality": 1222,
+    "tools": 9775
+   },
+   "importedModules": 94,
+   "importMs": 66
+  },
+  {
+   "version": "6.6.0",
+   "commit": "9ffeccc",
+   "totalLines": 72464,
+   "packages": {
+    ".": 7221,
+    "_document": 10312,
+    "equation": 1699,
+    "form_fit": 1740,
+    "hwp5": 11154,
+    "ingest": 394,
+    "layout": 704,
+    "objects": 976,
+    "opc": 1962,
+    "oxml": 21853,
+    "plan": 900,
+    "quality": 1224,
+    "tools": 12325
+   },
+   "importedModules": 114,
+   "importMs": 79
+  },
+  {
+   "version": "6.7.0",
+   "commit": "9e0d02b",
+   "totalLines": 78053,
+   "packages": {
+    ".": 7431,
+    "_document": 10861,
+    "equation": 1827,
+    "form_fit": 2393,
+    "hwp5": 11154,
+    "ingest": 394,
+    "layout": 3150,
+    "objects": 990,
+    "opc": 2033,
+    "oxml": 22852,
+    "plan": 900,
+    "quality": 1227,
+    "tools": 12841
+   },
+   "importedModules": 117,
+   "importMs": 77
+  }
+ ]
+}

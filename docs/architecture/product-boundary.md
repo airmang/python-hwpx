@@ -88,3 +88,74 @@ and intentionally obfuscated runtime code are outside its threat model. The
 gate covers normal source imports and the explicitly tested acquisition,
 aliasing, assignment, and reflection forms; release review and package tests
 remain responsible for hostile-code scenarios.
+
+## Function-level guards
+
+The ownership ledger classifies whole files, so it cannot see application logic
+inside a core file. A layer leak guard makes that logic visible in review, and a
+size record makes core growth visible at each release.
+
+### Layer leak guard
+
+`scripts/layer_leak_guard.py` AST-scans every product module under `src/hwpx`
+(not `data/`, not `_moved_modules.py`) for two signals:
+
+- `hangul-regex`: the pattern given to `re.compile`, `match`, `search`,
+  `fullmatch`, `sub`, `findall` or `finditer` contains Hangul, as a literal or
+  as a module-level string constant passed by name;
+- `plan-schema-key`: a subscript or `.get()` with the key `"sections"` or
+  `"blocks"`, the shape of the automation layer's document plan.
+
+Every existing hit is listed in `tests/data/layer_leak_allowlist.json` by file,
+qualified name (a function, a method, or the module-level constant a regex is
+assigned to), signal and exact count, with a classification and a reason:
+
+- `format-vocabulary`: Hancom format vocabulary any HWPX user needs, such as
+  built-in style names or field-type tokens. It stays.
+- `known-leak`: genre or policy logic left over from the layer audit. It is
+  scheduled to move to `python-hwpx-automation` in 7.0.
+
+`undetected` lists known leaks that neither signal sees (a caption pattern
+without Hangul, Roman-numeral headings). They are not counted, but each named
+function or constant must still exist, so the entry leaves the list when the
+code moves.
+
+A new hit fails. Before allowlisting it, apply the feature-placement test of
+the layer-boundary guardrails (section 4), in order:
+
+1. Is it reusable by any HWPX user without a particular genre, institution or
+   policy? Core.
+2. Is it a deterministic workflow or policy built from core primitives?
+   `python-hwpx-automation`.
+3. Does it judge user intent, genre or ambiguity, or choose tools? The plugin.
+
+Touching XML does not make a feature core. Only answer 1 belongs in the
+allowlist, as `format-vocabulary` with a reason. A count that drops below its
+entry also fails: lower or remove the entry in the same change.
+
+    python scripts/layer_leak_guard.py --list   # every live hit
+    python scripts/layer_leak_guard.py          # check (tests/test_layer_leak_guard.py)
+
+### Size history and import breadth
+
+`docs/size-history.json` records, per release, the physical lines of every
+`.py` file under `src/hwpx`, the same per top-level subpackage (`"."` holds the
+top-level modules), how many `hwpx` modules a bare `import hwpx` loads in a
+fresh `python -I` interpreter with only the measured tree's `src` on the path,
+and that import's median time over three runs on the recording machine. It is
+written during release prep (see `docs/release-runbook.md`), not per pull
+request: an exact line lock would conflict between every pair of parallel
+branches. `tests/test_size_ratchet.py` only checks that the file is well formed
+and that its newest entry is not newer than the `pyproject.toml` version.
+
+The module count is also an upper-bound ratchet in
+`tests/data/import_breadth.json`. A change that makes `import hwpx` load more
+modules fails; import new modules lazily where they are used, or raise the
+bound in the same change and say why. A lower count passes with a warning;
+tighten the bound with `--lower-bound` when convenient. Import time is never
+gated.
+
+    python scripts/size_ratchet.py                        # working tree vs last release, per package
+    python scripts/size_ratchet.py --record 6.8.0         # release prep: append the working tree
+    python scripts/size_ratchet.py --record 6.0.0 --ref v6.0.0   # measure a tag via git archive
+    python scripts/size_ratchet.py --lower-bound          # tighten the module bound

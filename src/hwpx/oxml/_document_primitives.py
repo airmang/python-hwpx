@@ -26,7 +26,7 @@ from .namespaces import (
     tag_namespace,
 )
 from .color import normalize_color
-from .utils import hancom_text_length, tab_elements_in, tabs_as_elements, without_markup_nodes
+from .utils import hancom_text_length, line_seg_past_text, tab_elements_in, tabs_as_elements, without_markup_nodes
 
 register_owpml_namespaces(ET.register_namespace)
 
@@ -316,7 +316,7 @@ def _remove_stale_paragraph_layout_cache(paragraph: ET.Element) -> bool:
             if textpos is None:
                 continue
             try:
-                if int(textpos) > text_length:
+                if line_seg_past_text(line_seg, text_length):
                     stale = True
                     break
             except ValueError:

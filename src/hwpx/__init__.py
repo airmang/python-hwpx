@@ -14,7 +14,7 @@
 import importlib
 import warnings
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 
 def _resolve_version() -> str:
@@ -28,9 +28,9 @@ def _resolve_version() -> str:
 
 # --- experimental / deprecated 최상위 표면 (지연 접근, 접근 시 경고) ---------------
 #
-# stable 이름은 아래에서 eager import 되어 모듈 전역에 존재하므로 ``__getattr__``이
-# 호출되지 않습니다(=경고 없음). 여기 등록된 이름만 지연 해석되어 경고를 냅니다.
-# 4.0.0에서 제거되는 이름은 0개 — 모두 계속 import 가능합니다.
+# stable 이름은 경고 없이 해석됩니다. 대부분 아래에서 eager import 되고, ``hwpx.tools``의
+# 이름은 ``_TOOLS_STABLE_EXPORTS``가 지연 해석합니다. 여기 등록된 이름만 지연 해석되어
+# 경고를 냅니다. 4.0.0에서 제거되는 이름은 0개 — 모두 계속 import 가능합니다.
 
 _EXPERIMENTAL_EXPORTS = {
     # 문서 ingestion 프레임워크(임의 포맷 -> HWPX). 계약 유동.
@@ -293,8 +293,8 @@ class RetiredSurface(ImportError):
 def __getattr__(name: str) -> object:
     """Resolve dynamic module attributes.
 
-    ``__version__``은 경고 없이 지연 해석하고, experimental/deprecated 이름은
-    해석 시 ``DeprecationWarning``을 냅니다.
+    ``__version__``과 ``hwpx.tools``의 stable 이름은 경고 없이 지연 해석하고,
+    experimental/deprecated 이름은 해석 시 ``DeprecationWarning``을 냅니다.
     """
 
     if name == "__version__":
@@ -317,6 +317,17 @@ def __getattr__(name: str) -> object:
             )
         warnings.warn(_deprecated_message(name), DeprecationWarning, stacklevel=2)
         return getattr(importlib.import_module(module_name), name)
+
+    if name in _TOOLS_STABLE_EXPORTS or name == "tools":
+        # Not ``from . import tools``: that asks this module for ``tools`` first and
+        # re-enters this function.
+        import hwpx.tools as tools
+
+        if name == "tools":
+            return tools
+        value = getattr(tools, name)
+        globals()[name] = value
+        return value
 
     moved = _MOVED_TO_COMPANION.get(name)
     if moved is not None:
@@ -346,8 +357,73 @@ def __dir__() -> list[str]:
     return sorted(
         set(globals())
         | set(__all__)
+        | {"tools"}
         | set(_EXPERIMENTAL_EXPORTS)
         | set(_DEPRECATED_EXPORTS)
+    )
+
+
+# --- 지연 stable 최상위 표면 (첫 접근 때 해석, 경고 없음) ---------------------------
+#
+# ``hwpx.tools``에 사는 stable 이름은 첫 접근 때 ``__getattr__``이 그 모듈을 읽어
+# 같은 객체를 돌려주고 모듈 전역에 둡니다(경고 없음). ``import hwpx``가 도구 모듈
+# 전부(내보내기·비교·검증 등)를 읽지 않게 하려는 것입니다. ``__all__``·``dir()``·
+# ``from hwpx import *``에는 그대로 있습니다.
+
+#: ``hwpx.tools``의 하위 모듈이 정의하고 ``hwpx.tools``가 다시 내보내는 stable 이름(텍스트 추출·개체
+#: 찾기·문서 비교·메일 머지·패키지 검증). 정적 import로 해석하므로 동적 import 지점은
+#: 늘지 않는다.
+_TOOLS_STABLE_EXPORTS = frozenset(
+    {
+        "DEFAULT_NAMESPACES",
+        "ParagraphInfo",
+        "SectionInfo",
+        "TextExtractor",
+        "FoundElement",
+        "ObjectFinder",
+        "DOC_DIFF_REPORT_VERSION",
+        "REFERENCE_CONSISTENCY_REPORT_VERSION",
+        "diff_paragraphs",
+        "doc_diff",
+        "inspect_reference_consistency",
+        "MAIL_MERGE_REPORT_VERSION",
+        "inspect_mail_merge_placeholders",
+        "load_mail_merge_rows",
+        "merge_template_rows",
+        "EditorOpenSafetyReport",
+        "PackageValidationReport",
+        "validate_editor_open_safety",
+        "validate_package",
+    }
+)
+
+
+if TYPE_CHECKING:  # type checkers see the real objects; at runtime they load lazily
+    from .tools.doc_diff import (
+        DOC_DIFF_REPORT_VERSION,
+        REFERENCE_CONSISTENCY_REPORT_VERSION,
+        diff_paragraphs,
+        doc_diff,
+        inspect_reference_consistency,
+    )
+    from .tools.mail_merge import (
+        MAIL_MERGE_REPORT_VERSION,
+        inspect_mail_merge_placeholders,
+        load_mail_merge_rows,
+        merge_template_rows,
+    )
+    from .tools.object_finder import FoundElement, ObjectFinder
+    from .tools.package_validator import (
+        EditorOpenSafetyReport,
+        PackageValidationReport,
+        validate_editor_open_safety,
+        validate_package,
+    )
+    from .tools.text_extractor import (
+        DEFAULT_NAMESPACES,
+        ParagraphInfo,
+        SectionInfo,
+        TextExtractor,
     )
 
 
@@ -359,35 +435,9 @@ _moved_modules.install(_MOVED_TO_COMPANION)
 
 
 # --- stable 최상위 표면 (eager import) ------------------------------------------
-from .tools.text_extractor import (
-    DEFAULT_NAMESPACES,
-    ParagraphInfo,
-    SectionInfo,
-    TextExtractor,
-)
-from .tools.object_finder import FoundElement, ObjectFinder
-from .tools.doc_diff import (
-    DOC_DIFF_REPORT_VERSION,
-    REFERENCE_CONSISTENCY_REPORT_VERSION,
-    diff_paragraphs,
-    doc_diff,
-    inspect_reference_consistency,
-)
-from .tools.mail_merge import (
-    MAIL_MERGE_REPORT_VERSION,
-    inspect_mail_merge_placeholders,
-    load_mail_merge_rows,
-    merge_template_rows,
-)
-from .tools.package_validator import (
-    EditorOpenSafetyReport,
-    PackageValidationReport,
-    validate_editor_open_safety,
-    validate_package,
-)
+# ``hwpx.tools``의 stable 이름은 위 ``_TOOLS_STABLE_EXPORTS``가 지연 해석한다.
 from .ingest import HwpxMarkdownConverter
-from .errors import HwpxError
-from .hwp5.errors import Hwp5ConversionWarning, Hwp5Error
+from .errors import Hwp5ConversionWarning, Hwp5Error, HwpxError
 from .mutation_report import (
     MutationReport,
     PreservationDowngradeError,

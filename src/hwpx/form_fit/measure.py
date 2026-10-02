@@ -28,7 +28,7 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
 from functools import lru_cache
@@ -103,12 +103,19 @@ Confidence = Literal["high", "low"]
 
 # --- Hancom line layout rules (no font file needed) --------------------------- #
 #: Spaces that hang past the right margin at a line end; a line never starts
-#: with one: the space and the fixed-width space (고정폭 빈칸, U+3000). A no-break
-#: space (묶음 빈칸, U+00A0) does neither: it is a half-em space like the space
-#: that keeps the words beside it on one line.
-_HANGING_SPACES = " \u3000"
+#: with one: the space, the fixed-width space (고정폭 빈칸, U+3000) and a typed
+#: ideographic space (see ``_GLYPH_SPACE``). A no-break space (묶음 빈칸, U+00A0)
+#: does neither: it is a half-em space like the space that keeps the words
+#: beside it on one line.
+_HANGING_SPACES = " \u3000\ufdd0"
 #: The fixed-width space: a quarter of the em, whatever the 장평, 자간 or 최소 공백.
 _FIXED_SPACE = "\u3000"
+#: An ideographic space typed as a character (U+3000 in the text of ``hp:t``;
+#: python-hwpx reads ``hp:fwSpace`` as U+3000 too), as the page estimate passes it:
+#: the glyph U+3000 at the face's advance, which Hancom may start a line after
+#: and which hangs at a line end however many follow each other (after a word,
+#: only the first fixed-width space or space hangs).
+_GLYPH_SPACE = "\ufdd0"
 #: The spaces Hancom makes half an em wide (unless the font's own space is used).
 _HALF_EM_SPACES = frozenset(" \u00a0")
 #: Closing punctuation that never starts a line; it moves down with the
@@ -591,11 +598,13 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     ``_LAYOUT_UNIT``); other glyphs scale their class average.
     """
 
+    typed = ch == _GLYPH_SPACE
+    ch = "\u3000" if typed else ch
     if style is None:
         return _ADVANCE_EM[classify_char(ch)] * font_pt * 100.0
     cls = classify_char(ch)
     height = round(font_pt * 100.0)
-    if ch == _FIXED_SPACE:
+    if ch == _FIXED_SPACE and not typed:
         return float(height // _LAYOUT_UNIT // 4 * _LAYOUT_UNIT)
     ratio, spacing = _scaling(ch, style)
     if ch in _HALF_EM_SPACES and not style.use_font_space:
@@ -697,13 +706,16 @@ def hancom_line_starts(
     sizes: Sequence[float] | None = None,
     styles: Sequence[TextStyle] | None = None,
     advances: Mapping[int, float] | None = None,
+    objects: Collection[int] = (),
 ) -> list[int]:
     """Where Hancom starts each line of the one-line *text* (no newlines).
 
     ``widths[k]`` is the width of line ``k`` in HWPUNIT (the last one repeats).
     A line takes characters while they fit (the last one without its 자간);
     the space right after a word hangs past the margin, and a further space
-    that starts at or past it begins the next line. With ``style.condense`` the
+    that starts at or past it begins the next line, as does a fixed-width
+    space that starts there right after a word; typed ideographic spaces all
+    hang (see ``_GLYPH_SPACE``). With ``style.condense`` the
     spaces after the line's first text may shrink by that share of a space
     without its 자간 to make room for a character; the spaces before it never
     do. Once the line's text reaches the margin (its 자간 included), its spaces
@@ -717,7 +729,9 @@ def hancom_line_starts(
     *styles*, when given, holds each character's own style (runs of several
     faces, 장평 or 자간) for its advance; *style* still gives the break rules.
     *advances* gives the width of characters that stand for something else,
-    such as an object set as a character, by their index.
+    such as an object set as a character, by their index; *objects* holds
+    the indexes of those that are objects: the two spaces right after one
+    hang past the margin, and a further space begins the next line as above.
     """
 
     breaks = _hancom_break_opportunities(text, style)
@@ -736,13 +750,15 @@ def hancom_line_starts(
             fixed = None if advances is None else advances.get(end)
             advance = char_advance(ch, size, look) if fixed is None else fixed
             if ch in _HANGING_SPACES:
-                if used >= width and end > start and text[end - 1] in _HANGING_SPACES and not full:
+                if used >= width and end > start and not full and _spills(ch, text[end - 1]) \
+                        and not (end - 2 in objects and text[end - 1] == " "):  # the second after an object
                     spilled = True
                     break
                 if seen and used >= width and text[end - 1] not in _HANGING_SPACES:
                     full = True  # the text reached the margin: its spaces hang, the next word starts the next line
                 used += advance
-                if seen and ch != _FIXED_SPACE:  # the spaces before the line's first text never shrink
+                # the spaces before the line's first text never shrink, nor do fixed-width or typed ideographic ones
+                if seen and ch not in (_FIXED_SPACE, _GLYPH_SPACE):
                     # a space of another size or style counts as its share of a space at *font_pt*
                     pending += 1 if sizes is None and styles is None else (
                         char_advance(" ", size, _without_spacing(look)) / space)
@@ -776,6 +792,16 @@ def hancom_line_starts(
         if start >= length:
             return starts
         starts.append(start)
+
+
+def _spills(ch: str, previous: str) -> bool:
+    """Whether the space *ch*, starting at or past the margin after *previous*, begins the next line: a
+    fixed-width space does even right after a word, a space only after another space (the first one after a
+    word hangs), and a typed ideographic space never does: however many follow each other, they hang."""
+
+    if ch == _GLYPH_SPACE:
+        return False
+    return ch == _FIXED_SPACE or previous in _HANGING_SPACES
 
 
 @lru_cache(maxsize=256)

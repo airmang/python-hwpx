@@ -92,7 +92,15 @@ for the preserved-failed-tag record of trains that skipped one).
 8. `python -m hwpx.capabilities --verify`.
 9. Full test suite: `pytest -q --cov=hwpx --cov-report=term-missing
    --cov-fail-under=80`.
-10. Local build + install smoke: `python -m build`, `twine check dist/*`,
+10. **Record the size history.** `python scripts/size_ratchet.py` prints the
+    working tree against the last recorded release, per subpackage, plus the
+    `import hwpx` module count and time. Then `python scripts/size_ratchet.py
+    --record <version>` appends this release to `docs/size-history.json`;
+    commit it with the release. When core grew noticeably (a subpackage by a
+    large share, or more modules loaded by `import hwpx`), say what grew and why
+    in the release notes. If the module count dropped, tighten
+    `tests/data/import_breadth.json` with `--lower-bound`.
+11. Local build + install smoke: `python -m build`, `twine check dist/*`,
     then install the built wheel into a throwaway venv (`uv venv` / `uv pip
     install`) and exercise a real round trip (author something, save, reopen)
     plus an import of anything the train specifically changed — this is the

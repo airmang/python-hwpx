@@ -37,7 +37,6 @@ from ._document import fields as _fields
 from ._document import media as _media
 from ._document import persistence as _persistence
 from ._document.persistence import SaveFormat
-from .hwp5.errors import Hwp5ConversionReport
 from ._document import _resolve
 from ._document import headings as _headings
 from ._document import layout as _layout
@@ -64,6 +63,7 @@ register_owpml_namespaces(ET.register_namespace)
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from .hwp5.errors import Hwp5ConversionReport
     from .tools.validator import ValidationReport
 
 
@@ -836,7 +836,9 @@ class HwpxDocument(_LegacyFacade):
         oracle-verified ``visual_complete`` tier (plan §0.0).
 
         Like the legacy savers it raises only if the serialize step's open-safety
-        check fails; all other gate outcomes are returned in the report.
+        check fails; all other gate outcomes are returned in the report. An ``.hwp``
+        path is written as HWP 5.0, as :meth:`save_to_path` writes it, and raises
+        :class:`~hwpx.Hwp5Error` before writing when the document cannot be.
         """
 
         return _persistence.save_report(

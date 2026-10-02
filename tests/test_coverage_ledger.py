@@ -116,6 +116,18 @@ def test_check_fails_closed_on_drift(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert module.main() == 1
 
 
+def test_generated_from_names_its_inputs_with_forward_slashes() -> None:
+    """원장이 적는 입력 경로는 어느 운영체제에서 만들어도 ``/``로 적힌다 — Windows의
+    ``str(Path)``는 역슬래시를 써서, 커밋된 원장과 어긋나 --check가 드리프트로 본다."""
+
+    module = _module()
+    generated = module.build_ledger(module.DEFAULT_CENSUS_PATH)["generatedFrom"]
+    paths = [generated["corpusCensus"], *generated["openrateReports"]]
+
+    assert paths
+    assert [path for path in paths if "\\" in path] == []
+
+
 # ---------------------------------------------------------------------------
 # (b) 원장 스키마가 유효하다
 # ---------------------------------------------------------------------------

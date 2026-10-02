@@ -165,6 +165,17 @@ def test_a_character_can_stand_for_an_object_of_its_own_width() -> None:
     assert hancom_line_starts("가￼나", [5000], 10, style, advances={1: 3500}) == [0, 2]
 
 
+def test_the_two_spaces_right_after_an_object_hang_past_the_margin() -> None:
+    # An object 200 narrower than the line, spaces of 500 after it: the second starts 300 past the margin and
+    # stays on the line, the third goes on to the next. After a character standing for anything else the
+    # second goes on already, as after a word.
+    advances = {0: 42320}
+
+    assert hancom_line_starts("\ufffc  ", [42520], 10, TextStyle(), advances=advances, objects={0}) == [0]
+    assert hancom_line_starts("\ufffc   ", [42520], 10, TextStyle(), advances=advances, objects={0}) == [0, 3]
+    assert hancom_line_starts("\ufffc   ", [42520], 10, TextStyle(), advances=advances) == [0, 2]
+
+
 def test_a_narrow_cell_still_gets_lines_1440_wide() -> None:
     doc = HwpxDocument.new()
     cell = doc.add_table(1, 1, width=700 + 2 * 510).cell(0, 0)
