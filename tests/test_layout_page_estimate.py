@@ -90,6 +90,12 @@ HANCOM_PAGES = {
     "pages_cell_picture_alone_fixed_spacing": 1,  # alone, line spacing fixed at 1600
     "pages_cell_picture_in_a_table_as_character": 1,  # alone, in a table set as a character
     "pages_cell_picture_then_a_line": 1,  # alone, then a paragraph of a line: spaced from the text size
+    # A table set as a character in a cell paragraph, and beside it an object 5000 x 3000 placed 1000 down from
+    # the paragraph and reaching below the table: it takes no room, the line is the table's
+    "pages_cell_table_as_character_and_a_drawing_in_front_of_the_text": 1,  # a rectangle in front of the text
+    "pages_cell_table_as_character_and_a_picture_behind_the_text": 1,  # a picture behind it
+    # the rectangle, and text after the table on its line:
+    "pages_cell_table_as_character_then_text_and_a_drawing_in_front_of_the_text": 1,
     # A section hiding a page's first empty lines (hp:visibility@hideFirstEmptyLine), its first page full:
     "pages_hide_empty_lines_one": 2,  # an empty paragraph past the foot stays there, the text after it
                                       # starts the next page
@@ -161,6 +167,23 @@ HANCOM_PAGES = {
     "pages_table_cell_picture_up_second_far": 1,  # 30000 up: at its top too
     "pages_table_cell_picture_in_a_bulleted_paragraph": 1,  # alone in a bulleted paragraph: the bullet under it
     "pages_picture_alone_after_a_line": 1,  # in the body: the line on its top, the text after under it
+    # A table set as a character (a row 1282 tall) 200 to 2000 narrower than the column (42520; 10 pt text spaced
+    # 160%, a space 500 wide), spaces after it: the two right after it stay on its line wherever they start, a
+    # further one starting at or past the margin goes on to the next line, the paragraph after below them:
+    "pages_table_as_character_200_short_then_a_space": 1,
+    "pages_table_as_character_200_short_then_two_spaces": 1,  # the second starting 300 past the margin
+    "pages_table_as_character_200_short_then_three_spaces": 1,  # the third on a line of its own
+    "pages_table_as_character_600_short_then_three_spaces": 1,  # the third starting 400 past the margin
+    "pages_table_as_character_1000_short_then_three_spaces": 1,  # the third starting at the margin
+    "pages_table_as_character_2000_short_then_three_spaces": 1,  # all three fit beside it
+    "pages_table_as_character_200_short_then_three_12pt_spaces": 1,  # of 12 pt: the third's line 1200 tall
+    "pages_table_as_character_200_short_after_two_spaces": 1,  # two before it: the table on the next line
+    "pages_picture_as_character_300_short_then_three_spaces": 1,  # a picture 3000 tall: the same
+    "pages_table_cell_table_as_character_300_short_then_three_spaces": 1,  # in a cell of a flowing table
+    "pages_table_as_character_then_a_line_break": 1,  # a line break after it: an empty line below it
+    "pages_table_as_character_after_a_line_break": 1,  # one before it: the table on the next line, the empty
+                                                        # line above going down as one of text
+    "pages_picture_as_character_after_a_line_break": 1,  # the same before a picture 3000 tall
     "pages_table_caption_above": 1,  # a caption of one line above a flowing table: the line and a gap of 850
     "pages_table_caption_below": 1,  # the same below it
     "pages_table_caption_above_over_pages": 2,  # above a table going over the page end: on its first page
@@ -763,6 +786,16 @@ def test_an_empty_run_before_a_cells_text_takes_no_room(name: str) -> None:
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_with_empty_runs_in_cells(data)), data, HANCOM_PAGES[name])
+
+
+def test_a_cell_table_placed_top_and_bottom_beside_a_floating_object_is_not_followed_without_caches() -> None:
+    # A cell paragraph holding a table placed top and bottom from its top and a rectangle behind the text:
+    # Hancom sets the paragraph's empty line below the table (as below two such tables), not beside it. With
+    # the caches the estimate follows the cell's lines; without them it does not.
+    data = (FIXTURES / "pages_cell_table_top_and_bottom_and_a_drawing_behind_the_text.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 1)
+    assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
 
 
 @pytest.mark.parametrize(
